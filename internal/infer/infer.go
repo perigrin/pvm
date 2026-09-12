@@ -293,6 +293,7 @@ func inferNodeType(
 	// Scalar, which is correct and says almost nothing.
 
 	case "array_element_expression", "hash_element_expression":
+		checkElementIndex(node, source, annotations, diags)
 		return inferElementType(node, source, st)
 
 	// --- undef ---
@@ -458,6 +459,16 @@ func inferBinaryExprType(node *parser.Node, source []byte, annotations map[uint3
 	// arms. The signature says Any, which is the annotation escape hatch
 	// standing in for an answer nobody computed; it satisfied every later
 	// requirement by construction.
+	// A SUBSTITUTION is not a match. `=~` types as Bool, which is right for
+	// m// and wrong for s///: measured, `"aaa" =~ s/a/b/g` is 3 and
+	// `"xxx" =~ s/a/b/g` is "" — a count when it matched and the empty string
+	// when it did not, both defined, so only truth separates them. That is
+	// Str in this lattice. With /r the result is the MODIFIED COPY and there
+	// is no count anywhere in the form.
+	if op == "=~" && hasChildOfKind(node, "substitution_regexp") {
+		return types.Str
+	}
+
 	if sig.Result == types.Any && logicalOps[op] {
 		return types.Join(operandType(left, annotations), operandType(right, annotations))
 	}
@@ -920,6 +931,14 @@ func contextualReturnType(name string, args []*parser.Node, source []byte, st *S
 		return sprintfResultType(args[0], source, annotations)
 	}
 
+	// reverse is the exception to "a List in scalar context is a count":
+	// measured, `reverse("abc")` is "cba" and `reverse(@a)` on (1,2,3) is
+	// "321" — it concatenates its arguments and reverses the STRING. Every
+	// other List-returning builtin gives a count.
+	if name == "reverse" {
+		return types.Str, true
+	}
+
 	// int() truncates toward zero, so the result is an Int whatever went in —
 	// measured, int(3.9) and int(-3.9) are both Int. This one does not depend
 	// on the argument and could be a signature, except that Int is currently
@@ -1168,6 +1187,65 @@ func collectOwnCallArgs(node *parser.Node, source []byte) []*parser.Node {
 	return args
 }
 
+// checkElementIndex reports a reference used as an ARRAY index.
+//
+// An index is numified, and a reference numifies to its address — never the
+// element anyone wanted. perl warns about it directly: "Use of reference
+// "ARRAY(0x...)" as array index".
+//
+// Only array indices are checked. A HASH key is stringified rather than
+// numified, and while `$h{$ref}` is nearly always a mistake too, perl accepts
+// it silently and the key is a legitimate (if useless) string.
+func checkElementIndex(node *parser.Node, source []byte, annotations map[uint32]types.Type, diags *[]Diagnostic) {
+	if node.Kind() != "array_element_expression" {
+		return
+	}
+
+	// The container is the first named child and the index the second.
+	var index *parser.Node
+	seen := 0
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil || !child.IsNamed() {
+			continue
+		}
+		seen++
+		if seen == 2 {
+			index = child
+			break
+		}
+	}
+	if index == nil {
+		return
+	}
+
+	actual := operandType(index, annotations)
+	if activeOptions.skipUnknownOperand(actual) {
+		return
+	}
+
+	// Only a REFERENCE is reported. A Str index is silent when its text is
+	// numeric — measured, `$a["1"]` is fine and only `$a["abc"]` warns — and
+	// Str covers both, so reporting it flags correct code like
+	// `$DB::dbline[$line]`. A reference always numifies to an address and
+	// perl always warns.
+	// IsSubtype, not a bit test: Scalar CONTAINS the Ref bits, so
+	// `actual & Ref != 0` matches every un-narrowed scalar and reported 186
+	// extra sites on perl5/lib. The question is whether the index is known to
+	// be a reference, not whether it might be one.
+	if !types.IsSubtype(actual, types.Ref) {
+		return
+	}
+
+	*diags = append(*diags, Diagnostic{
+		StartByte: index.StartByte(),
+		EndByte:   index.EndByte(),
+		Severity:  argumentSeverity(actual, types.Num),
+		Code:      CodeTypeMismatch,
+		Message:   fmt.Sprintf("array index expects Num, got %s", actual),
+	})
+}
+
 // inferElementType types `$n[0]`, `$h{k}`, `$aref->[0]` and `$href->{k}` as
 // the element type recorded for the container.
 //
@@ -1219,6 +1297,144 @@ func inferElementType(node *parser.Node, source []byte, st *SymbolTable) types.T
 	return sym.ElemType
 }
 
+// callElementType returns the element type of a list-returning call.
+//
+// sort and grep preserve their input's elements; map's come from its body.
+// Anything else yields Unknown, so the container records no element type and
+// a read falls back to Scalar rather than to a guess.
+func callElementType(call *parser.Node, source []byte, st *SymbolTable, annotations map[uint32]types.Type) types.Type {
+	// The grammar gives sort and map/grep their own node kinds rather than
+	// treating them as calls, and map_grep_expression covers BOTH map and
+	// grep — which behave differently, so the keyword decides.
+	switch call.Kind() {
+	case "sort_expression":
+		return preservedElemType(call, source, st, annotations)
+	case "map_grep_expression":
+		if strings.HasPrefix(strings.TrimSpace(call.Text(source)), "grep") {
+			return preservedElemType(call, source, st, annotations)
+		}
+		for i := 0; i < call.ChildCount(); i++ {
+			child := call.Child(i)
+			if child != nil && child.Kind() == "block" {
+				return blockResultType(child, annotations)
+			}
+		}
+		return types.Unknown
+	}
+
+	name := ""
+	var named []*parser.Node
+	for i := 0; i < call.ChildCount(); i++ {
+		child := call.Child(i)
+		if child == nil {
+			continue
+		}
+		if !child.IsNamed() {
+			// func1op nodes carry their keyword as an anonymous child rather
+			// than in a "function" node.
+			if text := child.Text(source); name == "" && text != "(" && text != ")" {
+				name = text
+			}
+			continue
+		}
+		if child.Kind() == "function" {
+			name = child.Text(source)
+			continue
+		}
+		named = append(named, child)
+	}
+
+	switch name {
+	case "keys":
+		// A hash KEY is always a string: perl stringifies it on the way in,
+		// so $h{1} and $h{"1"} are the same slot and the key comes back "1".
+		// The element type of the key list is Str whatever the hash holds.
+		return types.Str
+
+	case "values", "splice":
+		// values yields the stored VALUES and splice the REMOVED ELEMENTS —
+		// both are elements of the aggregate they read.
+		for i := len(named) - 1; i >= 0; i-- {
+			if t, ok := aggregateElemType(named[i], source, st, annotations); ok {
+				return t
+			}
+		}
+
+	case "sort", "grep", "reverse":
+		// The elements are the source's. The source is the last named child,
+		// after any comparator or predicate block.
+		for i := len(named) - 1; i >= 0; i-- {
+			if t, ok := aggregateElemType(named[i], source, st, annotations); ok {
+				return t
+			}
+		}
+	case "map":
+		// The body decides. It is the block, whose value is its last
+		// expression statement.
+		for _, n := range named {
+			if n.Kind() == "block" {
+				return blockResultType(n, annotations)
+			}
+		}
+	}
+	return types.Unknown
+}
+
+// preservedElemType returns the element type of the aggregate a
+// element-preserving operation reads from, which is its last named child.
+func preservedElemType(node *parser.Node, source []byte, st *SymbolTable, annotations map[uint32]types.Type) types.Type {
+	for i := node.ChildCount() - 1; i >= 0; i-- {
+		child := node.Child(i)
+		if child == nil || !child.IsNamed() {
+			continue
+		}
+		if t, ok := aggregateElemType(child, source, st, annotations); ok {
+			return t
+		}
+	}
+	return types.Unknown
+}
+
+// aggregateElemType returns the element type of an array, hash, or list
+// argument.
+func aggregateElemType(n *parser.Node, source []byte, st *SymbolTable, annotations map[uint32]types.Type) (types.Type, bool) {
+	switch n.Kind() {
+	case "array":
+		if sym, ok := st.Lookup(sigildName("@", n, source)); ok && sym.ElemType != types.Unknown {
+			return sym.ElemType, true
+		}
+	case "hash":
+		if sym, ok := st.Lookup(sigildName("%", n, source)); ok && sym.ElemType != types.Unknown {
+			return sym.ElemType, true
+		}
+	case "list_expression":
+		if t := listElementType(n, source, st, annotations); t != types.Unknown {
+			return t, true
+		}
+	}
+	return types.Unknown, false
+}
+
+// blockResultType returns the type of a block's value, which is its last
+// expression statement.
+func blockResultType(block *parser.Node, annotations map[uint32]types.Type) types.Type {
+	result := types.Unknown
+	for i := 0; i < block.ChildCount(); i++ {
+		child := block.Child(i)
+		if child == nil || !child.IsNamed() || child.Kind() != "expression_statement" {
+			continue
+		}
+		for j := 0; j < child.ChildCount(); j++ {
+			inner := child.Child(j)
+			if inner != nil && inner.IsNamed() {
+				result = operandType(inner, annotations)
+				break
+			}
+		}
+	}
+	return result
+}
+
 // listElementType returns the join of the element types in a list literal.
 //
 // `my @m = (1, "s")` contributes Int and Str, so an element read is their
@@ -1226,7 +1442,7 @@ func inferElementType(node *parser.Node, source []byte, st *SymbolTable) types.T
 // hash literal alternates keys and values, and both are elements of the flat
 // list perl actually assigns, so both are joined — `%h = (a => 1)` really
 // does hold the string "a" as well as 1.
-func listElementType(rhs *parser.Node, source []byte, annotations map[uint32]types.Type) types.Type {
+func listElementType(rhs *parser.Node, source []byte, st *SymbolTable, annotations map[uint32]types.Type) types.Type {
 	if rhs == nil {
 		return types.Unknown
 	}
@@ -1238,9 +1454,18 @@ func listElementType(rhs *parser.Node, source []byte, annotations map[uint32]typ
 		for i := 0; i < rhs.ChildCount(); i++ {
 			child := rhs.Child(i)
 			if child != nil && child.IsNamed() && child.Kind() == "list_expression" {
-				return listElementType(child, source, annotations)
+				return listElementType(child, source, st, annotations)
 			}
 		}
+	case "sort_expression", "map_grep_expression", "func1op_call_expression",
+		"function_call_expression", "ambiguous_function_call_expression":
+		// sort and grep hand back the SAME elements — one reorders and the
+		// other selects — so the element type carries through. map
+		// TRANSFORMS, and its element type is whatever the body produced:
+		// measured, `map { $_*2 } @ints` gives Ints and `map { "x$_" }` gives
+		// Strs from the same input.
+		return callElementType(rhs, source, st, annotations)
+
 	case "binary_expression":
 		// `my @a = (0) x $n` is LIST repetition: the elements are copies of
 		// the LEFT OPERAND, not values of the operator's own result type.
@@ -1396,6 +1621,17 @@ func isCountOfAssignment(node *parser.Node) bool {
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
 		if child != nil && child.IsNamed() && child.Kind() == "stub_expression" {
+			return true
+		}
+	}
+	return false
+}
+
+// hasChildOfKind reports whether any named child of node has the given kind.
+func hasChildOfKind(node *parser.Node, kind string) bool {
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child != nil && child.IsNamed() && child.Kind() == kind {
 			return true
 		}
 	}
@@ -1788,13 +2024,13 @@ func inferAssignmentNarrowing(
 	if rhsNode != nil {
 		switch {
 		case strings.HasPrefix(varName, "@"), strings.HasPrefix(varName, "%"):
-			if elem := listElementType(rhsNode, source, annotations); elem != types.Unknown {
+			if elem := listElementType(rhsNode, source, st, annotations); elem != types.Unknown {
 				st.UpdateElemType(varName, elem)
 			}
 		case strings.HasPrefix(varName, "$"):
 			switch rhsNode.Kind() {
 			case "anonymous_array_expression", "anonymous_hash_expression":
-				if elem := listElementType(rhsNode, source, annotations); elem != types.Unknown {
+				if elem := listElementType(rhsNode, source, st, annotations); elem != types.Unknown {
 					st.UpdateElemType(varName, elem)
 				}
 			}

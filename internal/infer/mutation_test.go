@@ -116,6 +116,83 @@ var mutationCases = []mutationCase{
 		perlDies: false,
 		want:     true,
 	},
+	// --- undef where a value is wanted ---
+	// perl warns on both of these, so PSC agreeing is agreement with perl's
+	// own diagnostics rather than a stricter opinion.
+	{
+		name:     "undef in string concatenation",
+		src:      `my $x = undef; my $y = $x . "a";`,
+		perlDies: false,
+		want:     true,
+	},
+	{
+		name:     "undef in numeric comparison",
+		src:      `my $x = undef; my $y = ($x > 1);`,
+		perlDies: false,
+		want:     true,
+	},
+
+	// --- references in string positions ---
+	// Each yields an ADDRESS, never what the code wanted.
+	{
+		name:     "hashref in string concatenation",
+		src:      `my $x = {}; my $y = $x . "a";`,
+		perlDies: false,
+		want:     true,
+	},
+	{
+		name:     "coderef in string concatenation",
+		src:      `my $x = sub {1}; my $y = $x . "a";`,
+		perlDies: false,
+		want:     true,
+	},
+	{
+		name:     "regex in string concatenation",
+		src:      `my $x = qr/a/; my $y = $x . "b";`,
+		perlDies: false,
+		want:     true,
+	},
+	{
+		name:     "globref used as a number",
+		src:      `my $x = \*STDOUT; my $y = $x + 1;`,
+		perlDies: false,
+		want:     true,
+	},
+	{
+		name:     "hashref passed to substr",
+		src:      `my $x = {}; my $y = substr($x, 0, 1);`,
+		perlDies: false,
+		want:     true,
+	},
+
+	// --- gaps this pass found, kept as KNOWN GAPS rather than removed ---
+	{
+		name:     "arrayref used as an array index",
+		src:      `my @a = (1); my $x = []; my $y = $a[$x];`,
+		perlDies: false,
+		// perl warns "Use of reference as array index". Closed by
+		// checkElementIndex, which this case found.
+		want: true,
+	},
+	{
+		name:     "hashref passed to sprintf %d",
+		src:      `my $x = {}; my $y = sprintf("%d", $x);`,
+		perlDies: false,
+		// sprintf's variadic tail is List, which admits a reference; the
+		// FORMAT says the argument must be numeric, and PSC does not read
+		// conversions to constrain arguments.
+		want: false,
+	},
+	{
+		name:     "coderef passed to join",
+		src:      `my $x = sub {1}; my $y = join(",", $x);`,
+		perlDies: false,
+		// join's second position is List, which admits a coderef. Narrowing
+		// it to "things worth joining" would need a Str-ish list element
+		// type that the lattice does not currently express.
+		want: false,
+	},
+
 	{
 		name: "hashref passed to sort",
 		src:  `my $x = {}; my @s = sort $x;`,

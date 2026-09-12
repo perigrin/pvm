@@ -1,0 +1,207 @@
+# ABOUTME: Runs the parser fidelity ratchet against perl's own test suite on push and PR.
+# ABOUTME: Pins the interpreter and the corpus revision, because a verdict measured across a skew is an anecdote.
+#
+# WHAT IS NOT VERIFIED HERE
+# ------------------------
+# A GitHub workflow cannot be run locally, so nothing below this comment was
+# executed before it was committed. What WAS tested locally lives in
+# internal/parseoracle/ci_test.go, which runs in the normal `go test` suite:
+#
+#   * .github/scripts/parseoracle-pin.sh agrees with parseoracle.ReadPin, on
+#     the committed pin and on four synthetic ones, and exits non-zero on a
+#     pin missing either half.
+#   * this file parses as YAML, every step either uses an action or runs a
+#     command, and every action carries a version.
+#   * this file passes -parseoracle.corpus and never -parseoracle.update,
+#     matched with comments stripped so the prose below cannot satisfy it.
+#   * this file reads the pin through that script rather than hardcoding the
+#     revision.
+#   * this file sets PARSEORACLE_TIMEOUT, the sweep reads it, and it is
+#     larger than DefaultTimeout.
+#   * the interpreter check runs BEFORE the sweep and its message names both
+#     versions and the word skew.
+#
+# Each of those was confirmed to fail on a mutation of this file before it was
+# trusted -- injecting -parseoracle.update, dropping -parseoracle.corpus,
+# hardcoding the revision, shrinking the timeout, breaking a step's indent,
+# removing an action's version, and removing "skew" from the message.
+#
+# The workflow file is deliberately thin glue over those tested parts. What
+# remains genuinely unproven until this runs on a real runner:
+#
+#   1. shogo82148/actions-setup-perl@v1 provides 5.42.0 on ubuntu-latest, and
+#      the resulting @INC has both a pure-perl and an architecture-specific
+#      root. BuildShim REQUIRES both -- libraryRoots() errors on fewer than
+#      two -- and a system perl that ships only one would fail the job with a
+#      clear message rather than a wrong number, which is the acceptable
+#      failure mode.
+#   2. The partial clone actually fetches the pinned revision. `--filter=blob:none`
+#      plus a later `checkout` backfills blobs on demand; if that is slow or
+#      the revision is unreachable by a filtered fetch, this step is where it
+#      shows.
+#   3. The shim cache round-trips, and is worth having. A shim is ~1.3GB of
+#      many small files, which is large for actions/cache; if restoring it is
+#      slower than rebuilding it, the cache should be DELETED rather than kept
+#      for show. The sweep builds the shim on a miss either way, so removing
+#      the two cache steps is a safe follow-up once a real run has timings.
+#   4. Whether the raised per-file timeout is enough. It was chosen from a
+#      local measurement (see PARSEORACLE_TIMEOUT below), not from a runner.
+#   5. The runtime of the whole job. Locally the sweep is ~6 minutes on 24
+#      workers -- 11m27s when something else was running alongside it -- and a
+#      4-vCPU runner will be slower again. timeout-minutes below is a guess
+#      with margin rather than a measurement.
+#
+# That last cost is avoidable and currently is not avoided. RunOptions.Cache
+# serves perl's facts from disk instead of spawning perl, but no sweep passes
+# one, so this job spawns perl 620 times on every push. Tracked as 01a095cb,
+# "Wire the oracle cache into the corpus sweep"; it is a speedup rather than a
+# correctness fix, which is why this ships without it.
+#
+# Every one of those fails loudly rather than silently: a missing perl, an
+# unreachable revision, or a broken shim aborts a step. The one failure mode
+# this file must never have is passing while measuring nothing, which is why
+# -parseoracle.corpus is asserted by a test rather than trusted to review.
+
+name: Parse Fidelity
+
+on:
+  push:
+    branches: [ pu ]
+  pull_request:
+    branches: [ pu ]
+
+# A second push supersedes the first: the sweep costs minutes and the only
+# answer that matters is the one for the tip.
+concurrency:
+  group: parse-fidelity-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ratchet:
+    name: Fidelity ratchet (pinned perl + pinned corpus)
+    runs-on: ubuntu-latest
+    # Generous, because the sweep is ~6 minutes locally on 24 workers and a
+    # shared runner has 4. This bounds the job; PARSEORACLE_TIMEOUT bounds a
+    # single file.
+    timeout-minutes: 45
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
+
+    # The pin is read once, by the script the local suite tests, and every
+    # later step uses its outputs. Nothing below may name a version or a
+    # revision of its own -- a second copy of the pin is a copy that drifts,
+    # and TestCIPinsTheWorldItMeasuresIn fails the build if one appears.
+    - name: Read the corpus pin
+      id: pin
+      run: sh .github/scripts/parseoracle-pin.sh >> "$GITHUB_OUTPUT"
+
+    # ubuntu-latest ships some other perl. Running the sweep against it makes
+    # CheckPin report "re-baseline needed" -- correctly, and uselessly.
+    - name: Install the pinned perl
+      uses: shogo82148/actions-setup-perl@v1
+      with:
+        perl-version: ${{ steps.pin.outputs.perl_version }}
+
+    - name: Confirm the interpreter matches the pin
+      env:
+        PINNED: ${{ steps.pin.outputs.interpreter }}
+      run: |
+        set -eu
+        actual=$(perl -e 'print $]')
+        echo "this runner has perl $actual; the pin records $PINNED"
+        if [ "$actual" != "$PINNED" ]; then
+          echo "::error::this runner has perl $actual but the baseline was measured on $PINNED."
+          echo "::error::every verdict would be compared across a skew. Fix the perl, do not re-baseline from CI."
+          exit 1
+        fi
+
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version: '1.24.4'
+
+    # ~200MB of blobs is not worth refetching per run, and the tree at a fixed
+    # revision never changes, so the revision alone is a complete cache key.
+    - name: Restore the pinned perl5 corpus
+      id: corpus-cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.temp }}/perl5
+        key: perl5-corpus-${{ steps.pin.outputs.revision }}
+
+    - name: Fetch the corpus at the pinned revision
+      if: steps.corpus-cache.outputs.cache-hit != 'true'
+      env:
+        REVISION: ${{ steps.pin.outputs.revision }}
+      run: |
+        set -eu
+        # A partial clone rather than a shallow one: --depth would not let us
+        # reach a revision that is not near a branch tip, and the pin is a
+        # specific commit rather than a branch.
+        git clone --filter=blob:none --no-checkout \
+          https://github.com/Perl/perl5 "$RUNNER_TEMP/perl5"
+        git -C "$RUNNER_TEMP/perl5" checkout --detach "$REVISION"
+
+    - name: Confirm the corpus is at the pinned revision
+      env:
+        REVISION: ${{ steps.pin.outputs.revision }}
+      run: |
+        set -eu
+        actual=$(git -C "$RUNNER_TEMP/perl5" rev-parse HEAD)
+        if [ "$actual" != "$REVISION" ]; then
+          echo "::error::corpus is at $actual but the pin records $REVISION."
+          echo "::error::a cached corpus went stale, or the clone did not reach the pinned commit."
+          exit 1
+        fi
+
+    # BuildShim copies perl's t/ plus every non-site @INC root, which is the
+    # only tree perl's own tests compile in: t/test.pl clears @INC and
+    # unshifts ../lib. It depends on both halves of the pin -- the corpus
+    # supplies t/, the interpreter supplies lib/ -- so both are in the key.
+    #
+    # There is no separate build step. The sweep builds the shim itself when
+    # $PARSEORACLE_SHIM names a directory with no t/test.pl in it, which is
+    # exactly what a cache miss leaves behind; actions/cache then saves the
+    # built tree in its post step. One code path, exercised locally every time
+    # anyone runs the sweep without a prebuilt shim, rather than a
+    # CI-only command that nothing else runs.
+    - name: Restore the shim
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.temp }}/oracleshim
+        key: parseoracle-shim-${{ steps.pin.outputs.interpreter }}-${{ steps.pin.outputs.revision }}
+
+    # The gate. -parseoracle.corpus opts into the 620-file sweep;
+    # -parseoracle.update is ABSENT and must stay absent, because a job that
+    # rewrites the baseline it is checking against launders every regression
+    # into the baseline and can never fail. TestCINeverRebaselines asserts
+    # that against this file. A re-baseline is a deliberate local act that
+    # lands in the same commit as the change that moved it.
+    #
+    # A pin mismatch surfaces as SkewError -- "re-baseline needed" -- rather
+    # than as a list of regressions, so a perl upgrade on the runner does not
+    # read as the parser breaking overnight. The two steps above make that
+    # case loud earlier, but CheckPin is the backstop.
+    - name: Run the fidelity ratchet
+      env:
+        PERL5_CORPUS: ${{ runner.temp }}/perl5
+        PARSEORACLE_SHIM: ${{ runner.temp }}/oracleshim
+        # DefaultTimeout is 60s, calibrated on a 24-core machine where
+        # op/pack.t -- the most expensive file in the corpus -- costs 37s of
+        # CPU unloaded. That is 62% of the budget with no margin for a slower
+        # runner, and a file that times out is recorded as a runner error,
+        # which moves it out of its baseline bucket and reads as a regression
+        # caused by nothing. 8m is ~13x the measured worst case: chosen so
+        # that a timeout means a file genuinely wedged (re/pat_psycho.t forks
+        # a watchdog and is baselined as `error` for exactly that reason)
+        # rather than that the runner was busy.
+        PARSEORACLE_TIMEOUT: 8m
+      run: |
+        go test ./internal/parseoracle/ \
+          -run TestRatchetCorpus \
+          -parseoracle.corpus \
+          -count=1 \
+          -timeout 40m \
+          -v
