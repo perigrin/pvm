@@ -21,10 +21,29 @@
 #   * the interpreter check runs BEFORE the sweep and its message names both
 #     versions and the word skew.
 #
+# and, in internal/parseoracle/gate_test.go, the ways this job can be made to
+# pass while measuring nothing:
+#
+#   * no continue-on-error on the job OR on any step. Either one reports a
+#     failed gate as a success, and guarding only the job would move the
+#     bypass one level down rather than close it.
+#   * the sweep command does not discard the ratchet's exit status with
+#     `|| true` and friends, which is the same bypass written in shell.
+#   * the sweep's -run pattern matches a test that actually exists, resolved
+#     with `go test -list` rather than by substring. A typo'd pattern exits 0
+#     with "no tests to run", and every substring assertion survives it.
+#   * the sweep sets PARSEORACLE_REQUIRE_CORPUS, which turns a missing corpus
+#     from a skip into a failure. The skip is right for a developer without a
+#     perl5 checkout and wrong here, where a checkout that did not
+#     materialise would otherwise pass this job having swept zero files.
+#
 # Each of those was confirmed to fail on a mutation of this file before it was
 # trusted -- injecting -parseoracle.update, dropping -parseoracle.corpus,
 # hardcoding the revision, shrinking the timeout, breaking a step's indent,
-# removing an action's version, and removing "skew" from the message.
+# removing an action's version, removing "skew" from the message, setting
+# continue-on-error on the job and again on the sweep step, appending
+# `|| true` to the sweep, typo'ing and then deleting the -run pattern, and
+# pointing PERL5_CORPUS at a directory that is not a corpus.
 #
 # The workflow file is deliberately thin glue over those tested parts. What
 # remains genuinely unproven until this runs on a real runner:
