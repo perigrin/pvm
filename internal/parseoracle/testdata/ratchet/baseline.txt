@@ -581,7 +581,7 @@ exact         0 -              run/switchd.t
 no-answer     0 ControlFlow    run/switches.t
 exact         0 -              run/switchn.t
 exact         0 -              run/switchp.t
-no-answer     0 -              run/switcht.t
+exact         0 -              run/switcht.t
 exact         2 -              run/switchx.t
 no-answer     1 QuoteLike      run/todo.t
 exact         0 -              test_pl/_num_to_alpha.t
