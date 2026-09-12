@@ -4,6 +4,7 @@
 package parseoracle_test
 
 import (
+	"os/exec"
 	"strings"
 	"testing"
 
@@ -106,6 +107,62 @@ func TestCIRequiresTheCorpusToBePresent(t *testing.T) {
 		t.Errorf("the sweep step does not set %s: without it a runner whose perl5 "+
 			"checkout failed to materialise skips the sweep and reports success "+
 			"having measured nothing", requireCorpusEnv)
+	}
+}
+
+// TestCISweepSelectsATestThatExists is the bypass one level out from the two
+// the review named, and the cheapest of the three to reach by accident.
+//
+// `go test -run TestRatchetCorpusX` exits 0 with "no tests to run". Every
+// other guard in this suite survives that: they ask whether the string
+// "TestRatchetCorpus" appears in the workflow, and "TestRatchetCorpusX"
+// contains it. A one-character typo -- or a rename that misses the YAML --
+// therefore produces a job that runs nothing, passes, and is indistinguishable
+// on the commit from a job that swept 620 files.
+//
+// Substring matching cannot answer this, so the pattern is resolved against
+// the package the way the runner would resolve it: `go test -list` prints the
+// tests that actually exist, and at least one of them must match.
+func TestCISweepSelectsATestThatExists(t *testing.T) {
+	var run string
+	for _, step := range workflowSteps(t, readWorkflow(t)) {
+		if strings.Contains(step.Run, "TestRatchetCorpus") {
+			run = uncommented(step.Run)
+		}
+	}
+	if run == "" {
+		t.Fatal("no step runs TestRatchetCorpus")
+	}
+
+	fields := strings.Fields(run)
+	pattern := ""
+	for i, f := range fields {
+		if f == "-run" && i+1 < len(fields) {
+			pattern = fields[i+1]
+		}
+	}
+	if pattern == "" {
+		t.Fatal("the sweep step passes no -run pattern, so it would run the " +
+			"whole package rather than the ratchet")
+	}
+
+	// -list takes the same regexp as -run and prints matching test names
+	// without running them, so this asks the toolchain the question rather
+	// than reimplementing Go's matching rules.
+	out, err := exec.Command("go", "test", "-list", pattern, ".").CombinedOutput()
+	if err != nil {
+		t.Fatalf("go test -list %s: %v\n%s", pattern, err, out)
+	}
+	var matched []string
+	for _, line := range strings.Split(string(out), "\n") {
+		if strings.HasPrefix(line, "Test") {
+			matched = append(matched, line)
+		}
+	}
+	if len(matched) == 0 {
+		t.Errorf("the sweep's -run pattern %q matches no test in this package: "+
+			"`go test` exits 0 with \"no tests to run\", so the job would sweep "+
+			"nothing and still report success", pattern)
 	}
 }
 
