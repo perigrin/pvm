@@ -39,7 +39,25 @@ const (
 	// recorded as a runner error, the ratchet sees a file move out of its
 	// bucket, and it reports a regression caused by nothing.
 	timeoutEnv = "PARSEORACLE_TIMEOUT"
+
+	// requireCorpusEnv turns a missing corpus from a skip into a failure.
+	//
+	// The skip is right locally: a machine with no perl5 checkout must still
+	// be able to run the suite. It is wrong for the gate, which exists to
+	// measure — a runner whose checkout did not materialise would skip the
+	// sweep and report success having measured nothing. The workflow sets
+	// this to assert that, in its world, the corpus is supposed to be there.
+	requireCorpusEnv = "PARSEORACLE_REQUIRE_CORPUS"
 )
+
+// corpusRequired reports whether a missing corpus must fail rather than skip.
+func corpusRequired() bool {
+	switch os.Getenv(requireCorpusEnv) {
+	case "", "0", "false":
+		return false
+	}
+	return true
+}
 
 // sweepTimeout is the per-file oracle timeout for a corpus sweep: $PARSEORACLE_TIMEOUT
 // when set, and zero (meaning DefaultTimeout) otherwise.

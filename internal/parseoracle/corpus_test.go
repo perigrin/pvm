@@ -17,10 +17,21 @@ import (
 // corpusRoot resolves the corpus and skips the test when it is absent. perl's
 // tests are Artistic/GPL, so they are referenced rather than vendored; a
 // machine with no perl5 checkout must skip rather than fail.
+//
+// $PARSEORACLE_REQUIRE_CORPUS reverses that for the gate. CI exists to
+// measure, so a runner whose perl5 checkout failed to materialise -- a cache
+// miss, a network blip, a wrong revision -- must fail rather than skip and
+// report success having measured nothing. Every corpus-dependent test in this
+// package routes through here, so the assertion is made once.
 func corpusRoot(t *testing.T) string {
 	t.Helper()
 	root, err := parseoracle.CorpusRoot()
 	if err != nil {
+		if corpusRequired() {
+			t.Fatalf("$%s is set, so a missing corpus is a failure rather than a "+
+				"skip: %v. A gate that skips its own measurement reports success "+
+				"having measured nothing", requireCorpusEnv, err)
+		}
 		t.Skipf("corpus unavailable: %v", err)
 	}
 	return root

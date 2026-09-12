@@ -48,10 +48,7 @@ func corpusReport(t *testing.T) (parseoracle.Report, string) {
 		shim = t.TempDir()
 	}
 	if _, err := os.Stat(filepath.Join(shim, "t", "test.pl")); err != nil {
-		root, err := parseoracle.CorpusRoot()
-		if err != nil {
-			t.Skipf("no corpus: %v", err)
-		}
+		root := corpusRoot(t)
 		if err := parseoracle.BuildShim(root, shim); err != nil {
 			t.Fatalf("BuildShim into %s: %v", shim, err)
 		}
