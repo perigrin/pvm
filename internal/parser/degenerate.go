@@ -53,10 +53,15 @@ func (t *Tree) IsDegenerate() bool {
 	return len(t.DegenerateKinds()) > 0
 }
 
-// DegenerateKinds returns the sorted, deduplicated hidden rule names that
-// surfaced in this tree, empty for a clean parse. Callers report these so a
-// fidelity run can say WHICH internal rule leaked rather than only that
+// DegenerateKinds returns the sorted, deduplicated names of the rules that
+// contradicted themselves in this tree, empty for a clean parse. Callers
+// report these so a fidelity run can say WHAT it saw rather than only that
 // something was wrong.
+//
+// Two signals feed it, and they are the same kind of claim about the tree
+// rather than about Perl. A hidden rule surfacing (`_term`) is a rule that is
+// never supposed to be a node; a `varname` whose text is not a name is a node
+// whose contents deny its own rule. See isCollapsedVarname for the second.
 func (t *Tree) DegenerateKinds() []string {
 	root := t.RootNode()
 	if root == nil {
@@ -74,6 +79,9 @@ func (t *Tree) DegenerateKinds() []string {
 		if k := n.Kind(); n.IsNamed() && strings.HasPrefix(k, "_") {
 			seen[k] = struct{}{}
 		}
+		if t.isCollapsedVarname(n) {
+			seen[n.Kind()] = struct{}{}
+		}
 		for i := 0; i < n.NamedChildCount(); i++ {
 			walk(n.NamedChild(i))
 		}
@@ -89,4 +97,38 @@ func (t *Tree) DegenerateKinds() []string {
 	}
 	sort.Strings(kinds)
 	return kinds
+}
+
+// isCollapsedVarname reports whether this node is a `varname` that holds an
+// explicit reference rather than a name.
+//
+// The grammar mis-parses a deref block whose entire content is one `\` against
+// a sigilled variable. `@{ \@a }` comes back as an `array` whose braces are
+// anonymous tokens and whose `varname` child spans the literal text `\@a`; the
+// `block` node that a correct parse builds is absent, and with it the refgen
+// inside. Perl compiles that source and its optree holds one srefgen, so a
+// consumer reading this tree sees an array named `\@a` where the source took a
+// reference. Neither HasError nor the hidden-rule check fires.
+//
+// The test is deliberately the narrowest thing that separates it, because the
+// grammar gets every neighbouring shape right and flagging those would cost a
+// sweep nearly every dereference in a corpus. `@{ $r }`, `@$r`, `$r->@*` and
+// `$$r[0]` all build the block. So do `@{ \@a, }`, `@{ +\@a }` and even
+// `@{ \ @a }` -- the collapse needs the backslash tight against the sigil and
+// nothing else in the braces. A varname with a child is therefore already
+// correct, and only a leaf whose text opens with `\` is the broken shape.
+//
+// This says nothing about whether perl accepts the source: every case it flags
+// compiles. It is the same weaker claim IsDegenerate is documented to make,
+// "this tree is not a faithful parse", which is why the honest verdict for one
+// is no-answer rather than a comparison nobody can trust.
+//
+// ponytail: a text test on one node kind, not a grammar reimplementation. The
+// real fix belongs in gotreesitter's compiled grammar table, which is outside
+// this repo. If it lands, TestDerefOfExplicitRefCollapses fails and points here.
+func (t *Tree) isCollapsedVarname(n *Node) bool {
+	if n == nil || n.Kind() != "varname" || n.NamedChildCount() > 0 {
+		return false
+	}
+	return strings.HasPrefix(n.Text(t.source), `\`)
 }
