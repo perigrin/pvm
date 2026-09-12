@@ -10,10 +10,21 @@
 #   * .github/scripts/parseoracle-pin.sh agrees with parseoracle.ReadPin, on
 #     the committed pin and on four synthetic ones, and exits non-zero on a
 #     pin missing either half.
-#   * this file passes -parseoracle.corpus and never -parseoracle.update.
+#   * this file parses as YAML, every step either uses an action or runs a
+#     command, and every action carries a version.
+#   * this file passes -parseoracle.corpus and never -parseoracle.update,
+#     matched with comments stripped so the prose below cannot satisfy it.
 #   * this file reads the pin through that script rather than hardcoding the
 #     revision.
-#   * this file sets PARSEORACLE_TIMEOUT, and the sweep reads it.
+#   * this file sets PARSEORACLE_TIMEOUT, the sweep reads it, and it is
+#     larger than DefaultTimeout.
+#   * the interpreter check runs BEFORE the sweep and its message names both
+#     versions and the word skew.
+#
+# Each of those was confirmed to fail on a mutation of this file before it was
+# trusted -- injecting -parseoracle.update, dropping -parseoracle.corpus,
+# hardcoding the revision, shrinking the timeout, breaking a step's indent,
+# removing an action's version, and removing "skew" from the message.
 #
 # The workflow file is deliberately thin glue over those tested parts. What
 # remains genuinely unproven until this runs on a real runner:
