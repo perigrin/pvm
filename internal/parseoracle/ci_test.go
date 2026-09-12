@@ -252,27 +252,21 @@ func TestCIWorkflowIsWellFormed(t *testing.T) {
 		Name string `yaml:"name"`
 		Jobs map[string]struct {
 			RunsOn string `yaml:"runs-on"`
-			Steps  []struct {
-				Name string            `yaml:"name"`
-				Uses string            `yaml:"uses"`
-				Run  string            `yaml:"run"`
-				Env  map[string]string `yaml:"env"`
-			} `yaml:"steps"`
 		} `yaml:"jobs"`
 	}
 	if err := yaml.Unmarshal([]byte(readWorkflow(t)), &parsed); err != nil {
 		t.Fatalf("%s is not valid YAML: %v — GitHub would run no job at all, "+
 			"which looks exactly like having no ratchet", workflow, err)
 	}
-
-	job, ok := parsed.Jobs["ratchet"]
-	if !ok {
+	if _, ok := parsed.Jobs["ratchet"]; !ok {
 		t.Fatalf("%s has no `ratchet` job, only %v", workflow, parsed.Jobs)
 	}
-	if len(job.Steps) == 0 {
+
+	steps := workflowSteps(t, readWorkflow(t))
+	if len(steps) == 0 {
 		t.Fatal("the ratchet job has no steps")
 	}
-	for i, step := range job.Steps {
+	for i, step := range steps {
 		if step.Uses == "" && step.Run == "" {
 			t.Errorf("step %d (%q) neither uses an action nor runs a command", i, step.Name)
 		}
@@ -289,7 +283,7 @@ func TestCIWorkflowIsWellFormed(t *testing.T) {
 	// than on the file's text means a variable set in the wrong step, or at
 	// the wrong indent, is caught here rather than on the runner.
 	var sweep map[string]string
-	for _, step := range job.Steps {
+	for _, step := range steps {
 		if strings.Contains(step.Run, "TestRatchetCorpus") {
 			sweep = step.Env
 		}
@@ -313,6 +307,76 @@ func TestCIWorkflowIsWellFormed(t *testing.T) {
 			"for a runner slower than the machine the default was calibrated on",
 			timeoutEnv, d, parseoracle.DefaultTimeout)
 	}
+}
+
+// TestCIReportsSkewBeforeSweeping covers the acceptance criterion that a
+// runner whose perl does not match the pin reports "re-baseline needed"
+// rather than a list of regressions.
+//
+// CheckPin is the backstop and TestRatchetPinMismatch proves it says the
+// right thing, but reaching it costs the whole sweep. The workflow therefore
+// compares perl's $] against the pin immediately after installing it, so a
+// skewed runner fails in seconds with both versions named. The failure has to
+// read as skew, not as the parser breaking overnight, which is why the
+// message and not merely the comparison is asserted here.
+func TestCIReportsSkewBeforeSweeping(t *testing.T) {
+	body := readWorkflow(t)
+
+	guard, sweep := -1, -1
+	for i, step := range workflowSteps(t, body) {
+		if strings.Contains(step.Run, "perl -e 'print $]'") {
+			guard = i
+		}
+		if strings.Contains(step.Run, "TestRatchetCorpus") {
+			sweep = i
+		}
+	}
+	if guard < 0 {
+		t.Fatal("no step compares the runner's perl against the pin: a skewed " +
+			"runner would spend the whole sweep before CheckPin said so")
+	}
+	if sweep < 0 {
+		t.Fatal("no step runs TestRatchetCorpus")
+	}
+	if guard > sweep {
+		t.Errorf("the interpreter check is step %d and the sweep is step %d: "+
+			"checking after measuring wastes the run it exists to avoid", guard, sweep)
+	}
+
+	// "wrong" is not an answer. The message must name the pinned version,
+	// the observed one, and say the two were measured in different worlds --
+	// otherwise a perl upgrade reads as the parser breaking.
+	step := workflowSteps(t, body)[guard]
+	for _, want := range []string{"$actual", "$PINNED", "skew"} {
+		if !strings.Contains(step.Run, want) {
+			t.Errorf("the interpreter check's message omits %q; it must say which "+
+				"perl is present, which the baseline used, and that the difference "+
+				"is skew rather than a regression", want)
+		}
+	}
+}
+
+// workflowStep is the subset of a step these tests reason about.
+type workflowStep struct {
+	Name string            `yaml:"name"`
+	Uses string            `yaml:"uses"`
+	Run  string            `yaml:"run"`
+	Env  map[string]string `yaml:"env"`
+}
+
+// workflowSteps parses the ratchet job's steps in order.
+func workflowSteps(t *testing.T, body string) []workflowStep {
+	t.Helper()
+
+	var parsed struct {
+		Jobs map[string]struct {
+			Steps []workflowStep `yaml:"steps"`
+		} `yaml:"jobs"`
+	}
+	if err := yaml.Unmarshal([]byte(body), &parsed); err != nil {
+		t.Fatalf("%s is not valid YAML: %v", workflow, err)
+	}
+	return parsed.Jobs["ratchet"].Steps
 }
 
 // readWorkflow reads the fidelity workflow, failing rather than skipping when
