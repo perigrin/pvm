@@ -597,10 +597,10 @@ bucketed against each other:
 
 | Bucket | Files | Share of measured |
 |---|---:|---:|
-| exact | 379 | 63.9% |
+| exact | 380 | 64.1% |
 | wider | 11 | 1.9% |
 | **WRONG** | **0** | **0.0%** |
-| no-answer | 203 | 34.2% |
+| no-answer | 202 | 34.1% |
 | *measured (denominator)* | *593* | |
 | excluded, environmental | 26 | — |
 | runner error | 1 | — |
@@ -621,11 +621,18 @@ reproducing that section's coverage split exactly. But only **7 of those 44
 files take a reference at all**, and **25 of the 29 exact verdicts had no
 marker in play**. For those 25, `exact` means only "perl took no reference
 our source did not write", which is true of any file that takes no
-references. The 63.9% is therefore a ceiling on agreement, not a measurement
+references. The 64.1% is therefore a ceiling on agreement, not a measurement
 of it; adding markers (`rv2hv`, `match`, `readline`, `anonhash`) is what
 converts it into one.
 
-**The `no-answer` third is our coverage gap, not perl's.** 203 files carry an
+**One file moved after this was first measured, and not because the parser
+changed.** `run/switcht.t` was `no-answer` because the harness compiled it
+without the taint flag its `#!./perl -t` shebang asks for — perl refused with
+`"-t" is on the #! line, it must also be used on the command line`, an
+environmental refusal frozen as a parse result. Fixing `wantsTaint` moved it to
+`exact`: 379 → 380 and 203 → 202. The parser parsed it correctly all along.
+
+**The `no-answer` third is our coverage gap, not perl's.** 202 files carry an
 error node from our parser. Those 203 are the population the conformance
 plan's M1 has to move, and they are the honest reading of "how much of Perl
 we cannot parse".
