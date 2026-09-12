@@ -234,6 +234,11 @@ workflow parses, that it passes `-parseoracle.corpus` and not
 the revision, and that it checks the interpreter before spending a sweep on a
 runner that cannot produce a comparable answer.
 
+The job spawns perl 620 times on every push, because no sweep passes a
+`*Cache` — the cache above is built and unit-tested but wired to nothing.
+Tracked as `01a095cb`. It is a speedup, not a correctness fix, so the workflow
+ships without it.
+
 ### Why the sweep gets a longer per-file timeout
 
 `DefaultTimeout` is 60s, calibrated here. Timed across the corpus, the most

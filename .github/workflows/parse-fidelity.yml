@@ -36,8 +36,15 @@
 #   4. Whether the raised per-file timeout is enough. It was chosen from a
 #      local measurement (see PARSEORACLE_TIMEOUT below), not from a runner.
 #   5. The runtime of the whole job. Locally the sweep is ~6 minutes on 24
-#      workers; a 4-vCPU runner will be slower, and timeout-minutes below is a
-#      guess with margin rather than a measurement.
+#      workers -- 11m27s when something else was running alongside it -- and a
+#      4-vCPU runner will be slower again. timeout-minutes below is a guess
+#      with margin rather than a measurement.
+#
+# That last cost is avoidable and currently is not avoided. RunOptions.Cache
+# serves perl's facts from disk instead of spawning perl, but no sweep passes
+# one, so this job spawns perl 620 times on every push. Tracked as 01a095cb,
+# "Wire the oracle cache into the corpus sweep"; it is a speedup rather than a
+# correctness fix, which is why this ships without it.
 #
 # Every one of those fails loudly rather than silently: a missing perl, an
 # unreachable revision, or a broken shim aborts a step. The one failure mode
