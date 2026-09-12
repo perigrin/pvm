@@ -314,11 +314,29 @@ func wantsTaint(src []byte) bool {
 		return false
 	}
 	// Match the switch, not the letter: a path containing a T is not a
-	// request for taint mode.
+	// request for taint mode, and neither is the t in -Mstrict.
 	for _, field := range strings.Fields(line) {
-		if strings.HasPrefix(field, "-") && strings.ContainsRune(field, 'T') {
-			return true
+		if !strings.HasPrefix(field, "-") {
+			continue
+		}
+		for _, c := range field[1:] {
+			// Both spellings ask for taint mode. -t downgrades
+			// violations to warnings, but both change what perl
+			// accepts on the command line, which is what matters
+			// here: without one, the file will not compile at all.
+			if c == 'T' || c == 't' {
+				return true
+			}
+			// A switch that takes an argument swallows the rest of
+			// the cluster, so nothing after it is a switch letter.
+			if strings.ContainsRune(argSwitches, c) {
+				break
+			}
 		}
 	}
 	return false
 }
+
+// argSwitches are perl's single-letter switches that consume the remainder of
+// their cluster as an argument, so -Mstrict is one switch and not five.
+const argSwitches = "0CDFIMVeilmx"
