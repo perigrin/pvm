@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -203,6 +204,142 @@ func fixtureReport(t *testing.T) parseoracle.Report {
 // frozen too rather than left as a paragraph in a document that decays.
 func corpusBaselinePath() string {
 	return filepath.Join("testdata", "ratchet", "baseline.txt")
+}
+
+// TestCorpusBaselineIsIntact guards the artefact this whole milestone exists
+// to produce.
+//
+// Every other assertion about a committed baseline in this file reads the
+// five-row fixture. The real 620-row file was read by exactly one test,
+// TestRatchetCorpus, which skips unless -parseoracle.corpus is passed — so
+// truncating baseline.txt to its four-line header, deleting every verdict,
+// left `go test ./internal/parseoracle/` reporting ok. The file the ratchet
+// protects could be destroyed with nothing objecting: perl-lsp's
+// `ci/parse_errors_baseline.txt` containing the single line `0`, arrived at
+// from the other direction.
+//
+// This runs unconditionally, because the gating was the defect. It reads the
+// committed file only — no perl, no sweep.
+func TestCorpusBaselineIsIntact(t *testing.T) {
+	base, err := parseoracle.LoadBaseline(corpusBaselinePath())
+	if err != nil {
+		t.Fatalf("LoadBaseline(%s): %v", corpusBaselinePath(), err)
+	}
+
+	// The corpus is 620 .t files (findings §0.11, spec §7.3). An exact
+	// count would fail on every legitimate corpus bump, and a floor of 1
+	// would pass a file with one row left in it, so the band is wide
+	// enough to survive a pin move and narrow enough that a truncation
+	// cannot hide inside it.
+	const wantRows = 620
+	if len(base.Rows) < wantRows/2 {
+		t.Fatalf("the committed corpus baseline has %d rows, want ~%d: a baseline "+
+			"this short has been truncated or emptied, and it is the artefact "+
+			"the ratchet exists to protect", len(base.Rows), wantRows)
+	}
+	if len(base.Rows) > wantRows*2 {
+		t.Errorf("the committed corpus baseline has %d rows, want ~%d: the corpus "+
+			"has grown beyond recognition or rows have been duplicated",
+			len(base.Rows), wantRows)
+	}
+
+	// Every row must be a verdict the ratchet can reason about. A row
+	// whose status rank() does not know is a row that can never be
+	// compared, which is a silent hole in the denominator.
+	counts := make(map[string]int, len(base.Rows))
+	paths := make(map[string]string, len(base.Rows))
+	for _, row := range base.Rows {
+		counts[row.Status]++
+		if first, dup := paths[row.Path]; dup {
+			t.Errorf("%s appears twice (%s and %s): a duplicated path means one "+
+				"verdict silently shadows the other", row.Path, first, row.Status)
+		}
+		paths[row.Path] = row.Status
+		if !parseoracle.ValidCategory(row.Category) {
+			t.Errorf("%s has category %q, which is not in the fixed taxonomy",
+				row.Path, row.Category)
+		}
+	}
+
+	// The rows must support the totals recorded in findings §0.11. The doc
+	// is the independent record — a reader's claim about what was measured
+	// — and a baseline whose header or prose claims totals its rows do not
+	// support is a baseline that lies about its own contents. Checking the
+	// rows against themselves would assert nothing.
+	for _, want := range findingsTotals(t) {
+		if got := counts[want.status]; got != want.count {
+			t.Errorf("the baseline holds %d %s rows, but findings §0.11 records %d: "+
+				"the committed verdicts no longer support the totals the "+
+				"documentation claims for them", got, want.status, want.count)
+		}
+	}
+
+	// WRONG is the one bucket that is a gate rather than a ratchet: a file
+	// our parser gets positively wrong is a defect, not a coverage gap.
+	if n := counts[parseoracle.BucketWrong.String()]; n != 0 {
+		t.Errorf("%d file(s) are baselined as WRONG: that bucket is a gate, "+
+			"not a ratchet", n)
+	}
+}
+
+// findingsBucketTotal is one bucket count as the findings document records it.
+type findingsBucketTotal struct {
+	status string
+	count  int
+}
+
+// findingsTotals reads the §0.11 corpus table out of the findings document.
+//
+// Parsed rather than duplicated as constants here: a copy in the test would
+// drift from the document silently, and the point is to hold the two
+// together. The rows are `| bucket | count | share |`, with the WRONG row
+// bolded.
+func findingsTotals(t *testing.T) []findingsBucketTotal {
+	t.Helper()
+
+	path := repoFile(t, "docs", "specs", "perl-parser", "00-findings.md")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading the findings document: %v", err)
+	}
+
+	wanted := map[string]string{
+		"exact":                   parseoracle.BucketExact.String(),
+		"wider":                   parseoracle.BucketWider.String(),
+		"WRONG":                   parseoracle.BucketWrong.String(),
+		"no-answer":               parseoracle.BucketNoAnswer.String(),
+		"excluded, environmental": "excluded",
+		"runner error":            "error",
+	}
+
+	var totals []findingsBucketTotal
+	for _, line := range strings.Split(string(data), "\n") {
+		cells := strings.Split(line, "|")
+		if len(cells) < 3 {
+			continue
+		}
+		label := strings.Trim(strings.TrimSpace(cells[1]), "*")
+		status, ok := wanted[label]
+		if !ok {
+			continue
+		}
+		count, err := strconv.Atoi(strings.Trim(strings.TrimSpace(cells[2]), "*"))
+		if err != nil {
+			continue
+		}
+		totals = append(totals, findingsBucketTotal{status: status, count: count})
+		delete(wanted, label)
+	}
+
+	// Every bucket must have been found. A parser that silently matched
+	// nothing would make the assertion above vacuous, which is the same
+	// class of defect this test was written to close.
+	if len(wanted) != 0 {
+		t.Fatalf("findings §0.11 has no row for %v: either the table moved or "+
+			"this parser stopped matching it, and an unmatched table makes the "+
+			"totals assertion vacuous", wanted)
+	}
+	return totals
 }
 
 // TestRatchetCorpus is the same ratchet at corpus scale.
