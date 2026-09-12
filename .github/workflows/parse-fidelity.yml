@@ -198,6 +198,14 @@ jobs:
         # a watchdog and is baselined as `error` for exactly that reason)
         # rather than that the runner was busy.
         PARSEORACLE_TIMEOUT: 8m
+        # A missing corpus is a skip locally and a failure here. Every step
+        # above tries to put perl5 at $RUNNER_TEMP/perl5, but a restored cache
+        # can be empty and a filtered clone can fail in ways that leave a
+        # directory behind; the sweep would then find no t/test.pl, skip, and
+        # this job would go green having measured zero files. That is the
+        # failure this whole workflow exists to prevent, arrived at from the
+        # other side.
+        PARSEORACLE_REQUIRE_CORPUS: '1'
       run: |
         go test ./internal/parseoracle/ \
           -run TestRatchetCorpus \
