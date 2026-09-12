@@ -229,6 +229,10 @@ rule — the same class of claim `_term` makes, reached by a different route.
 **The family, measured.** Every row verified against perl 5.42.0 with
 `-MO=Concise,-exec`:
 
+Verdicts are the harness's, measured on the construct in isolation with perl's
+real `srefgen` count — see "Measured cost" below for what happens when it sits
+inside a corpus file that is already failing for another reason.
+
 | Source | `perl -c` | `srefgen` | Our tree | Verdict before |
 |---|---|---|---|---|
 | `@{ \@a }` | syntax OK | 1 | `varname` = `\@a`, block lost | **WRONG** |
@@ -293,12 +297,31 @@ The unit tests were green; only running the thing against 620 real files
 surfaced it. A narrowness test is only as good as the shapes somebody thought
 to put in it, and the corpus thinks of more.
 
-**Measured cost.** 19 files in the perl5 checkout contain the construct
-(`${\$_}`, `@{\@pkg}`, `&{\&utf8::is_utf8}` and relatives), so the bug was live
-in the sweep rather than hypothetical. Those files move from a wrong verdict to
-a declined one: coverage pays, fidelity stops lying. Declining on every
-dereference would instead score 100% non-`WRONG` and measure nothing — the
-failure mode the `Bucket` doc comment warns about.
+**Measured cost: zero files, and the zero is worth reading carefully.** With
+the corrected detector the 620-file corpus ratchet passes unchanged — no file
+moves bucket, and the committed baseline needed no re-basing. That is not
+because the defect is theoretical. Nine corpus files contain the construct, and
+every one is accounted for:
+
+- **Seven were already `no-answer`** for an unrelated, larger failure in the
+  same file (`base/lex.t`, `io/open.t`, `op/ref.t`, `op/split.t`,
+  `op/localref.t`, `op/sub_lval.t`, `op/magic.t`). The false `WRONG` was
+  *masked*, not absent — remove the larger failure and it surfaces.
+- **`perf/optree.t`** has `'@{\@_}'` inside a string literal, correctly not
+  parsed as code.
+- **`op/tie.t`** has `&{\&$$elem}`, which is `\&$…` rather than `\` against a
+  plain name. The grammar builds a correct block for it; the collapse needs the
+  backslash against a bare sigilled name.
+
+So the fix is a **latent-fault fix**: it removes a false `WRONG` that this
+corpus happens to hide behind other failures, and that a different corpus — or
+this one after the other defects are fixed — would expose. The 19 files
+matching across the whole perl5 checkout (`${\$_}`, `@{\@pkg}`,
+`&{\&utf8::is_utf8}` and relatives) are the scale of the construct in the wild.
+
+Declining on every dereference would instead score 100% non-`WRONG` and measure
+nothing — the failure mode the `Bucket` doc comment warns about — which is what
+`TestCollapsedDerefDetectorIsNarrow` exists to prevent.
 
 The caveats of §0.4.1 carry over unchanged: this says nothing about whether
 perl accepts the source (every case it flags *compiles*), it is a proxy rather
