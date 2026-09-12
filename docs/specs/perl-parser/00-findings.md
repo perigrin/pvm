@@ -171,7 +171,9 @@ What this gives up, stated plainly:
   mid-rule, not malformed Perl. It over-fires on valid forward declarations
   (measured above) and stays silent on any malformed construct the grammar
   recovers from *without* leaking a hidden rule. This closes the measured
-  family and makes no claim beyond it.
+  family and makes no claim beyond it. §0.4.2 is that caveat cashing out: a
+  construct the grammar mis-parses confidently, leaking nothing, found only
+  when it produced a false `WRONG` in the sweep.
 - **It is coupled to a grammar-internal naming convention.** If a future
   version renames `_term` or stops surfacing hidden rules on recovery, the
   signal degrades silently. `TestDroppedRHSFamilyHasNoErrorNode` pins the
@@ -195,6 +197,138 @@ the malformed assignment family, and it mis-parses forward declarations. One
 detector catches both because both are the same underlying event: recovery
 bailing out and leaking an internal rule name into the tree. Neither defect is
 fixed; both are now visible.
+
+### 0.4.2 A deref block can swallow the reference inside it
+
+§0.4.1 closes with a caveat: the hidden-rule signal "stays silent on any
+malformed construct the grammar recovers from *without* leaking a hidden rule".
+This is that case, found in the field rather than in theory. It arrived as a
+**false `WRONG`** from the fidelity harness, which is the expensive kind of
+defect — `WRONG` is the only bucket that fails a build, so a false positive
+there makes the gate untrustworthy and an untrustworthy gate gets turned off.
+
+`my @a = (1,2); my @b = @{ \@a };` compiles under `perl -c` and its optree
+holds one `srefgen`. Our tree contains no reference at all, so the comparison
+concluded we had committed to a different parse. We had not — we had failed to
+parse it, and said so nowhere.
+
+It is a third silent-loss family, and it is *not* a dropped token. The source
+is all still there; the structure is wrong:
+
+```
+@{ \@a }  ->  (array (varname))              varname spans the text "\@a"
+@{ $r }   ->  (array (varname (block ...)))  the block a correct parse builds
+@a        ->  (array (varname))              varname spans the text "a"
+```
+
+The braces became *anonymous* tokens of the `array` node and the `block` was
+never built, taking the refgen inside it with it. `varname` is defined to hold
+an identifier, so a `varname` reading `\@a` is a node contradicting its own
+rule — the same class of claim `_term` makes, reached by a different route.
+
+**The family, measured.** Every row verified against perl 5.42.0 with
+`-MO=Concise,-exec`:
+
+Verdicts are the harness's, measured on the construct in isolation with perl's
+real `srefgen` count — see "Measured cost" below for what happens when it sits
+inside a corpus file that is already failing for another reason.
+
+| Source | `perl -c` | `srefgen` | Our tree | Verdict before |
+|---|---|---|---|---|
+| `@{ \@a }` | syntax OK | 1 | `varname` = `\@a`, block lost | **WRONG** |
+| `%{ \%h }` | syntax OK | 1 | `varname` = `\%h`, block lost | **WRONG** |
+| `${ \$x }` | syntax OK | 1 | `varname` = `\$x`, block lost | **WRONG** |
+| `&{ \&f }` | syntax OK | 1 | `varname` = `\&f`, block lost | **WRONG** |
+| `@{ $r }` | syntax OK | 0 | `varname` → `block` — correct | exact |
+| `@$r` | syntax OK | 0 | `array` → `varname` → `scalar` — correct | exact |
+| `$r->@*` | syntax OK | 0 | `array_deref_expression` — correct | exact |
+| `$$r[0]` | syntax OK | 0 | `array_element_expression` — correct | exact |
+
+Neither existing signal sees the broken rows: `HasError()` is `false` and
+`DegenerateKinds()` was empty. That is what separates this from §0.4.1 — there
+the grammar gave up and left a fingerprint, here it confidently built the wrong
+node.
+
+**The defect is far narrower than "deref".** The grammar handles a `\` inside a
+deref block correctly in every neighbouring shape, and the near misses differ
+by a single character:
+
+| Source | Our tree |
+|---|---|
+| `@{ \@a }` | collapses |
+| `@{ \@a, }` | correct block, refgen intact |
+| `@{ +\@a }` | correct block, refgen intact |
+| `@{ \ @a }` | correct block, refgen intact |
+| `@{ \\$r }` | correct block |
+| `"@{[ \@a ]}"` | correct |
+
+So the trigger is precisely: a lone backslash tight against a sigilled
+variable, alone in the braces. Anything else in the block and the correct rule
+wins.
+
+**What was done, and what was given up.** Three options were on the table.
+
+1. *Count it structurally in the comparison.* Viable — unlike the report's
+   assumption, the tree does retain a distinguishing signal, and a precise one.
+   **Rejected anyway.** It would score these files `exact`, asserting a parse we
+   did not make. The tree says `@a` is an array *named* `\@a`; treating that as
+   a reference we understood would launder a parse failure into the fidelity
+   number, and every downstream consumer of that tree is still being lied to.
+2. *Extend degeneracy detection.* **Chosen.** `varname` gains the same
+   treatment `_term` has: a leaf `varname` whose text opens with `\` marks the
+   tree untrustworthy, and the verdict becomes `no-answer`. A measuring
+   instrument that declines to answer is behaving correctly; one that answers
+   wrongly is not.
+3. *Fix the grammar.* Out of reach for the same reason as §0.4.1 — a compiled
+   table in `gotreesitter/grammars`, external to this repo. It remains the only
+   real fix; this is compensation.
+
+**The first attempt over-fired, and the corpus caught it.** "A leaf `varname`
+whose text opens with `\`" is the obvious rule and it is wrong: `$\` is the
+output record separator, and the grammar parses it *correctly* into a `varname`
+whose text is a lone backslash. The sweep moved two files —
+`t/op/tiehandle.t` and `t/uni/lex_utf8.t` — from `exact` to `no-answer` for no
+reason at all. Requiring a **sigil after the backslash** separates the
+punctuation variable from the collapse, and those rows are now pinned in
+`TestCollapsedDerefDetectorIsNarrow`.
+
+That is worth recording for what it says about the method rather than the bug.
+The unit tests were green; only running the thing against 620 real files
+surfaced it. A narrowness test is only as good as the shapes somebody thought
+to put in it, and the corpus thinks of more.
+
+**Measured cost: zero files, and the zero is worth reading carefully.** With
+the corrected detector the 620-file corpus ratchet passes unchanged — no file
+moves bucket, and the committed baseline needed no re-basing. That is not
+because the defect is theoretical. Nine corpus files contain the construct, and
+every one is accounted for:
+
+- **Seven were already `no-answer`** for an unrelated, larger failure in the
+  same file (`base/lex.t`, `io/open.t`, `op/ref.t`, `op/split.t`,
+  `op/localref.t`, `op/sub_lval.t`, `op/magic.t`). The false `WRONG` was
+  *masked*, not absent — remove the larger failure and it surfaces.
+- **`perf/optree.t`** has `'@{\@_}'` inside a string literal, correctly not
+  parsed as code.
+- **`op/tie.t`** has `&{\&$$elem}`, which is `\&$…` rather than `\` against a
+  plain name. The grammar builds a correct block for it; the collapse needs the
+  backslash against a bare sigilled name.
+
+So the fix is a **latent-fault fix**: it removes a false `WRONG` that this
+corpus happens to hide behind other failures, and that a different corpus — or
+this one after the other defects are fixed — would expose. The 19 files
+matching across the whole perl5 checkout (`${\$_}`, `@{\@pkg}`,
+`&{\&utf8::is_utf8}` and relatives) are the scale of the construct in the wild.
+
+Declining on every dereference would instead score 100% non-`WRONG` and measure
+nothing — the failure mode the `Bucket` doc comment warns about — which is what
+`TestCollapsedDerefDetectorIsNarrow` exists to prevent.
+
+The caveats of §0.4.1 carry over unchanged: this says nothing about whether
+perl accepts the source (every case it flags *compiles*), it is a proxy rather
+than a syntax check, and it does not survive the rewrite this specification
+proposes. `TestDerefOfExplicitRefCollapses` pins the status quo, so a grammar
+that starts parsing these correctly fails loudly and points at the
+compensation to delete.
 
 ## 0.5 Perl's test suite needs a correctly built shim
 

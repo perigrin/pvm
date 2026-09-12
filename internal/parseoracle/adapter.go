@@ -40,23 +40,27 @@ func TreeSitterSubject(tree *parser.Tree) SubjectFacts {
 		}
 	}
 
-	// A missing error node is not the same as a parse. The grammar accepts
-	// `my $x = ;` -- which perl rejects -- by dropping the right-hand side and
-	// reporting no error. Comparing against source we threw away measures
-	// nothing, so we decline, which keeps the limitation in the coverage
-	// number instead of inflating the fidelity one.
+	// A missing error node is not the same as a parse. Two different failures
+	// reach this point, and the wording has to cover both without claiming
+	// either. The grammar accepts `my $x = ;` -- which perl rejects -- by
+	// dropping the right-hand side and reporting no error; it accepts
+	// `@{ \@a }` -- which perl compiles -- by keeping every byte and building
+	// a `varname` that holds a reference instead of a name. One lost source,
+	// the other lost structure. Comparing against either measures nothing, so
+	// we decline, which keeps the limitation in the coverage number instead of
+	// inflating the fidelity one.
 	//
 	// Note this is the tree-sitter-specific FORM of a general question. The
-	// contract asks "did you silently drop source you could not handle"; a
-	// leaked hidden rule is how this parser answers yes. A hand-written parser
-	// has no hidden rules and will answer it some other way.
+	// contract asks "is this tree a parse of this source"; a rule contradicting
+	// itself is how this parser answers no. A hand-written parser has no hidden
+	// rules to leak and will answer it some other way.
 	if kinds := tree.DegenerateKinds(); len(kinds) > 0 {
 		return SubjectFacts{
 			OK:       false,
 			Declined: true,
 			DeclinedReason: fmt.Sprintf(
-				"our parse dropped source without an error node "+
-					"(hidden grammar rule%s surfaced: %s)",
+				"our parse is not a parse of this source, and no error node says so "+
+					"(rule%s contradicting itself: %s)",
 				plural(len(kinds)), strings.Join(kinds, ", ")),
 		}
 	}
