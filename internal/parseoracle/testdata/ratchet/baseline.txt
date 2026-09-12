@@ -120,7 +120,7 @@ no-answer     2 General        io/utf8.t
 no-answer     0 -              japh/abigail.t
 exact         0 -              lib/commonsense.t
 exact         0 -              lib/croak.t
-exact         0 -              lib/cygwin.t
+no-answer     0 -              lib/cygwin.t
 no-answer     0 QuoteLike      lib/deprecate.t
 exact         0 -              lib/mypragma.t
 exact         0 -              lib/no_load.t
@@ -354,7 +354,7 @@ no-answer     0 -              op/readline.t
 exact         0 -              op/readline_nb.t
 exact         0 -              op/recurse.t
 no-answer    42 General        op/ref.t
-exact         0 -              op/refstack.t
+no-answer     0 -              op/refstack.t
 no-answer     0 General        op/repeat.t
 exact         0 -              op/require_37033.t
 no-answer     0 Regex          op/require_errors.t
@@ -598,10 +598,10 @@ no-answer     0 General        uni/class.t
 exact         0 -              uni/eval.t
 no-answer     0 Regex          uni/fold.t
 wider         1 -              uni/goto.t
-exact         0 -              uni/greek.t
+no-answer     0 -              uni/greek.t
 no-answer    48 General        uni/gv.t
 exact         0 -              uni/labels.t
-exact         0 -              uni/latin2.t
+no-answer     0 -              uni/latin2.t
 exact         0 -              uni/lex_utf8.t
 exact         0 -              uni/lower.t
 no-answer     1 Subroutine     uni/method.t
@@ -625,7 +625,7 @@ exact         0 -              win32/fs.t
 no-answer     0 QuoteLike      win32/popen.t
 excluded      0 -              win32/runenv.t
 exact         0 -              win32/seekdir.t
-exact         0 -              win32/signal.t
+no-answer     0 -              win32/signal.t
 no-answer     0 ControlFlow    win32/stat.t
 excluded      0 -              win32/symlink.t
-exact         0 -              win32/system.t
+no-answer     0 -              win32/system.t

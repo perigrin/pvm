@@ -49,7 +49,7 @@ func TestCompareDeclinesOnDegenerateTree(t *testing.T) {
 
 			// Ground truth that compiled. Compare must still decline,
 			// because our tree is not a parse of this source.
-			v := Compare(Facts{OK: true}, tree, []byte(src))
+			v := Compare(compiledFacts(), tree, []byte(src))
 			assert.Equal(t, BucketNoAnswer, v.Bucket,
 				"a tree built by dropping source must not score a verdict (%s)", v.Detail)
 			assert.NotEqual(t, BucketExact, v.Bucket,
@@ -76,7 +76,11 @@ func TestCompareStillScoresValidPerl(t *testing.T) {
 		t.Run(src, func(t *testing.T) {
 			tree, err := p.Parse([]byte(src))
 			require.NoError(t, err)
-			v := Compare(Facts{OK: true}, tree, []byte(src))
+			// compiledFacts rather than a bare Facts{OK: true}: perl builds
+			// an optree for every one of these, and facts claiming otherwise
+			// describe a file that exited during compilation, which is a
+			// no-answer for a reason that has nothing to do with this gate.
+			v := Compare(compiledFacts(), tree, []byte(src))
 			assert.NotEqual(t, BucketNoAnswer, v.Bucket,
 				"valid perl must still reach a verdict (%s)", v.Detail)
 		})
@@ -91,7 +95,7 @@ func TestCompareDegenerateDetailNamesTheLeak(t *testing.T) {
 	tree, err := p.Parse([]byte("my $x = ;"))
 	require.NoError(t, err)
 
-	v := Compare(Facts{OK: true}, tree, []byte("my $x = ;"))
+	v := Compare(compiledFacts(), tree, []byte("my $x = ;"))
 	require.Equal(t, BucketNoAnswer, v.Bucket)
 	assert.Contains(t, v.Detail, "_term",
 		"detail must name the hidden rule so the report can be triaged")
