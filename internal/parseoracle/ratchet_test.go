@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"tamarou.com/pvm/internal/parseoracle"
 )
@@ -24,6 +25,30 @@ import (
 // into decoration.
 var updateBaseline = flag.Bool("parseoracle.update", false,
 	"rewrite the committed ratchet baseline from this run's verdicts")
+
+// corpusTimeout is the per-file budget, overridable by PARSEORACLE_TIMEOUT.
+//
+// The default 60s is generous on an idle machine, where the slowest corpus
+// file (op/taint.t) costs ~36s. Under concurrent load that margin disappears
+// and the file times out, entering the baseline as a runner `error` rather
+// than the verdict it actually has. That is a phantom: it records the
+// machine's load, not the parser's behaviour, and it silently drops a file
+// from the denominator.
+//
+// Raising the budget is the fix, so a sweep on a busy machine can buy the
+// headroom instead of recording noise: PARSEORACLE_TIMEOUT=180s.
+func corpusTimeout(t *testing.T) time.Duration {
+	t.Helper()
+	raw := os.Getenv("PARSEORACLE_TIMEOUT")
+	if raw == "" {
+		return 0 // Run falls back to DefaultTimeout
+	}
+	d, err := time.ParseDuration(raw)
+	if err != nil {
+		t.Fatalf("PARSEORACLE_TIMEOUT=%q is not a duration: %v", raw, err)
+	}
+	return d
+}
 
 // corpusReport measures the whole corpus through a shim, the same way
 // TestCorpusSweep does. $PARSEORACLE_SHIM reuses an already-built shim, which
@@ -67,7 +92,7 @@ func corpusReport(t *testing.T) (parseoracle.Report, string) {
 	sort.Strings(files)
 
 	report, err := parseoracle.Run(context.Background(), files,
-		parseoracle.RunOptions{Dir: shimT})
+		parseoracle.RunOptions{Dir: shimT, Timeout: corpusTimeout(t)})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
