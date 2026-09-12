@@ -458,6 +458,10 @@ PARSEORACLE_SHIM=/tmp/oracletree PERL5_CORPUS=~/dev/perl5 \
   go test ./internal/parseoracle/ -run TestCorpusSweep -parseoracle.corpus -v
 ```
 
+> **Superseded by §0.13.** The 63.9% below counts 52 files whose reference
+> totals were not comparable to perl's. The corrected figure is 55.1%. The
+> table is kept as the record of what was measured on the day.
+
 All 620 `.t` files, each compiled by perl and by our parser and the two
 bucketed against each other:
 
@@ -510,3 +514,66 @@ cost 9.3 s sequentially of which the prototype probe is only ~10%. That is
 where six minutes goes, and it is a real argument for the content-hash cache
 §2 describes — deferred to its own issue rather than built speculatively
 here.
+
+## 0.13 The 63.9% counted files it could not measure
+
+*2026-09-12. Same corpus and pin as §0.11.*
+
+§0.11's headline was inflated by **8.8 points**. The corrected figure is
+**55.1%** (327 exact of 593 measured), and the movement is entirely the
+metric getting more honest — the parser did not change.
+
+**The two sides were counting different things.** The oracle counts `srefgen`.
+The subject adapter counts every source `\` as a `took_reference`. Measured,
+those populations split by syntactic form:
+
+| Form | `srefgen` | `refgen` |
+|---|---:|---:|
+| `\@a`, `\%h`, `\&f`, `\$x` | 1 | 0 |
+| `\(&f)`, `@{ \@a }` | 1 | 0 |
+| `\(@a)`, `\(@a, @b)`, `\($x, $y)`, `\(%h)` | **0** | **1** |
+| `sub f(\@)` called as `f(@a)` | 1 | 0 |
+| `sub f(\@\@)` called as `f(@a, @b)` | **2** | 0 |
+
+A list-form `\( ... )` emits `refgen`, which the oracle never counted, so it
+contributed to the subject's total and not to perl's. The old rule was
+`oracle.Srefgen <= accounted -> exact`, which read that difference as
+agreement. It is not agreement; it is headroom, and headroom wide enough to
+swallow a prototype-driven reference — the one thing this harness exists to
+detect — without changing the verdict.
+
+**It was not a rounding error.** 52 of the 379 `exact` files carried a
+surplus. `op/hashassign.t` scored `exact` with the subject at 119 references
+and perl at 114; `op/bless.t` at 16 against 11; `op/aassign.t` at 27 against
+8. Those files were never measured, only assumed.
+
+**Counting `refgen` as well would not have fixed it**, which is why the
+oracle's output format is unchanged. The units differ as well as the
+population: `\(@a,@b,@c)` is ONE `refgen` for three references, while
+`sub f(\@\@)` is TWO `srefgen` for no backslash at all. `refgen` counts
+backslashes, prototype `srefgen` counts arguments, and no whole-file total
+reconciles the two. Only a per-call-site attribution would, and the oracle
+does not attribute `srefgen` to call sites.
+
+**So a surplus now buckets `no-answer`.** When the subject's count exceeds
+perl's, the populations disagree and the comparison is not meaningful, so the
+harness declines to score rather than scoring agreement. This costs coverage
+on purpose: the 52 files moved to `no-answer` join the coverage gap, where
+they belong, instead of padding the fidelity number.
+
+**The hedge is deliberately still not consulted on a matching total**, and
+that is a measured decision rather than the short-circuit it replaced. Our
+grammar marks every unqualified `f(...)` call unresolved — `op/aassign.t`
+hedges 181 times — so `hedged > 0` holds for nearly every file in the corpus,
+including files where perl took no reference at all. Treating it as
+disagreement would score `sub f{} my @a; f(@a);` as `wider`, which is not a
+hedge about anything, and would make `exact` unreachable. The hedge stays
+load-bearing where it is evidence: separating `wider` from `WRONG` when perl
+took a reference the subject did not.
+
+**What this does not change.** `WRONG` is still zero, and §0.11's reading of
+that stands — the harness tests one marker and an honest refusal buckets
+`wider`. The corrected 55.1% is still a ceiling on agreement rather than a
+measurement of it, for the reason §0.11 gives: most `exact` verdicts have no
+marker in play. This finding only removes the files where the ceiling was
+resting on a comparison that could not be made.
