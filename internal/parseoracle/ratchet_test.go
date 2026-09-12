@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -205,6 +206,142 @@ func corpusBaselinePath() string {
 	return filepath.Join("testdata", "ratchet", "baseline.txt")
 }
 
+// TestCorpusBaselineIsIntact guards the artefact this whole milestone exists
+// to produce.
+//
+// Every other assertion about a committed baseline in this file reads the
+// five-row fixture. The real 620-row file was read by exactly one test,
+// TestRatchetCorpus, which skips unless -parseoracle.corpus is passed — so
+// truncating baseline.txt to its four-line header, deleting every verdict,
+// left `go test ./internal/parseoracle/` reporting ok. The file the ratchet
+// protects could be destroyed with nothing objecting: perl-lsp's
+// `ci/parse_errors_baseline.txt` containing the single line `0`, arrived at
+// from the other direction.
+//
+// This runs unconditionally, because the gating was the defect. It reads the
+// committed file only — no perl, no sweep.
+func TestCorpusBaselineIsIntact(t *testing.T) {
+	base, err := parseoracle.LoadBaseline(corpusBaselinePath())
+	if err != nil {
+		t.Fatalf("LoadBaseline(%s): %v", corpusBaselinePath(), err)
+	}
+
+	// The corpus is 620 .t files (findings §0.11, spec §7.3). An exact
+	// count would fail on every legitimate corpus bump, and a floor of 1
+	// would pass a file with one row left in it, so the band is wide
+	// enough to survive a pin move and narrow enough that a truncation
+	// cannot hide inside it.
+	const wantRows = 620
+	if len(base.Rows) < wantRows/2 {
+		t.Fatalf("the committed corpus baseline has %d rows, want ~%d: a baseline "+
+			"this short has been truncated or emptied, and it is the artefact "+
+			"the ratchet exists to protect", len(base.Rows), wantRows)
+	}
+	if len(base.Rows) > wantRows*2 {
+		t.Errorf("the committed corpus baseline has %d rows, want ~%d: the corpus "+
+			"has grown beyond recognition or rows have been duplicated",
+			len(base.Rows), wantRows)
+	}
+
+	// Every row must be a verdict the ratchet can reason about. A row
+	// whose status rank() does not know is a row that can never be
+	// compared, which is a silent hole in the denominator.
+	counts := make(map[string]int, len(base.Rows))
+	paths := make(map[string]string, len(base.Rows))
+	for _, row := range base.Rows {
+		counts[row.Status]++
+		if first, dup := paths[row.Path]; dup {
+			t.Errorf("%s appears twice (%s and %s): a duplicated path means one "+
+				"verdict silently shadows the other", row.Path, first, row.Status)
+		}
+		paths[row.Path] = row.Status
+		if !parseoracle.ValidCategory(row.Category) {
+			t.Errorf("%s has category %q, which is not in the fixed taxonomy",
+				row.Path, row.Category)
+		}
+	}
+
+	// The rows must support the totals recorded in findings §0.11. The doc
+	// is the independent record — a reader's claim about what was measured
+	// — and a baseline whose header or prose claims totals its rows do not
+	// support is a baseline that lies about its own contents. Checking the
+	// rows against themselves would assert nothing.
+	for _, want := range findingsTotals(t) {
+		if got := counts[want.status]; got != want.count {
+			t.Errorf("the baseline holds %d %s rows, but findings §0.11 records %d: "+
+				"the committed verdicts no longer support the totals the "+
+				"documentation claims for them", got, want.status, want.count)
+		}
+	}
+
+	// WRONG is the one bucket that is a gate rather than a ratchet: a file
+	// our parser gets positively wrong is a defect, not a coverage gap.
+	if n := counts[parseoracle.BucketWrong.String()]; n != 0 {
+		t.Errorf("%d file(s) are baselined as WRONG: that bucket is a gate, "+
+			"not a ratchet", n)
+	}
+}
+
+// findingsBucketTotal is one bucket count as the findings document records it.
+type findingsBucketTotal struct {
+	status string
+	count  int
+}
+
+// findingsTotals reads the §0.11 corpus table out of the findings document.
+//
+// Parsed rather than duplicated as constants here: a copy in the test would
+// drift from the document silently, and the point is to hold the two
+// together. The rows are `| bucket | count | share |`, with the WRONG row
+// bolded.
+func findingsTotals(t *testing.T) []findingsBucketTotal {
+	t.Helper()
+
+	path := repoFile(t, "docs", "specs", "perl-parser", "00-findings.md")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading the findings document: %v", err)
+	}
+
+	wanted := map[string]string{
+		"exact":                   parseoracle.BucketExact.String(),
+		"wider":                   parseoracle.BucketWider.String(),
+		"WRONG":                   parseoracle.BucketWrong.String(),
+		"no-answer":               parseoracle.BucketNoAnswer.String(),
+		"excluded, environmental": "excluded",
+		"runner error":            "error",
+	}
+
+	var totals []findingsBucketTotal
+	for _, line := range strings.Split(string(data), "\n") {
+		cells := strings.Split(line, "|")
+		if len(cells) < 3 {
+			continue
+		}
+		label := strings.Trim(strings.TrimSpace(cells[1]), "*")
+		status, ok := wanted[label]
+		if !ok {
+			continue
+		}
+		count, err := strconv.Atoi(strings.Trim(strings.TrimSpace(cells[2]), "*"))
+		if err != nil {
+			continue
+		}
+		totals = append(totals, findingsBucketTotal{status: status, count: count})
+		delete(wanted, label)
+	}
+
+	// Every bucket must have been found. A parser that silently matched
+	// nothing would make the assertion above vacuous, which is the same
+	// class of defect this test was written to close.
+	if len(wanted) != 0 {
+		t.Fatalf("findings §0.11 has no row for %v: either the table moved or "+
+			"this parser stopped matching it, and an unmatched table makes the "+
+			"totals assertion vacuous", wanted)
+	}
+	return totals
+}
+
 // TestRatchetCorpus is the same ratchet at corpus scale.
 //
 //	PARSEORACLE_SHIM=/tmp/oracletree PERL5_CORPUS=~/dev/perl5 \
@@ -323,6 +460,129 @@ func TestRatchetFailsOnImprovement(t *testing.T) {
 	if strings.Contains(err.Error(), "regressed") {
 		t.Errorf("an improvement must not be reported as a regression, got:\n%v", err)
 	}
+}
+
+// TestRatchetLeavingTheDenominatorIsARegression covers the branch whose
+// comment says it exists so that a broken shim cannot read as progress.
+//
+// A file that stops being measured — the shim lost its library, perl became
+// unspawnable, the runner timed out — has not got better. But `excluded` and
+// `error` sit outside rank's ordering, so without the !wasMeasured guard the
+// comparison falls through to the default arm and scores the move as an
+// *improvement*: the ratchet then tells the author to re-baseline and record
+// the gain. That is precisely how a shim that measures nothing launders
+// itself into the committed baseline.
+//
+// The guard had no test. Replacing its arm with a condition that never fires
+// left the whole suite green.
+func TestRatchetLeavingTheDenominatorIsARegression(t *testing.T) {
+	// Synthetic rather than measured: the property is about rank's
+	// ordering, not about any real file, and a unit test that needs no
+	// perl sweep is one that actually gets run.
+	const path = "t/op/leaves.t"
+
+	for _, tc := range []struct {
+		name       string
+		from, to   string
+		leavingNow bool
+	}{
+		// Leaving: was scored, now is not. The direction a shim breaks.
+		{"exact to error", "exact", "error", true},
+		{"exact to excluded", "exact", "excluded", true},
+		{"no-answer to error", "no-answer", "error", true},
+		{"wrong to excluded", "WRONG", "excluded", true},
+
+		// Entering: was not scored, now is. Also not an improvement —
+		// the measurement changed shape and a human should look, even
+		// though the new verdict happens to be the best bucket there is.
+		{"error to exact", "error", "exact", false},
+		{"excluded to exact", "excluded", "exact", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			base := parseoracle.Baseline{
+				Pin: parseoracle.Pin{Interpreter: "5.042000", Revision: "deadbeef"},
+				Rows: []parseoracle.Row{{
+					Status:   tc.from,
+					Category: parseoracle.CategoryNone,
+					Path:     path,
+				}},
+			}
+
+			err := base.Check(reportWithStatus(t, path, tc.to))
+			if err == nil {
+				t.Fatalf("%s -> %s passed the ratchet: a file that left the "+
+					"measured population must never go unreported", tc.from, tc.to)
+			}
+			var diff *parseoracle.RatchetError
+			if !asRatchetError(err, &diff) {
+				t.Fatalf("Check returned %T, want *parseoracle.RatchetError", err)
+			}
+
+			// The assertion that bites: it must land in Regressions.
+			// Merely failing is not enough, because an unrecorded
+			// improvement fails too — and tells the author to
+			// re-baseline, which would freeze the broken measurement.
+			if len(diff.Improvements) != 0 {
+				t.Errorf("%s -> %s scored as an IMPROVEMENT (%v): a file leaving "+
+					"the denominator would instruct the author to re-baseline, "+
+					"laundering a broken shim into the committed verdicts",
+					tc.from, tc.to, diff.Improvements)
+			}
+			if len(diff.Regressions) != 1 {
+				t.Fatalf("%s -> %s produced %d regressions, want exactly 1: %v",
+					tc.from, tc.to, len(diff.Regressions), err)
+			}
+			if got := diff.Regressions[0]; got.From != tc.from || got.To != tc.to {
+				t.Errorf("regression records %s -> %s, want %s -> %s",
+					got.From, got.To, tc.from, tc.to)
+			}
+			if !strings.Contains(err.Error(), "regressed") {
+				t.Errorf("the message must read as a regression, got:\n%v", err)
+			}
+			if strings.Contains(err.Error(), "-parseoracle.update") {
+				t.Errorf("a file leaving the denominator must NOT be reported as "+
+					"something to re-baseline away, got:\n%v", err)
+			}
+		})
+	}
+}
+
+// reportWithStatus builds a one-file report whose single result carries the
+// given frozen status, mirroring ratchet.go's own status() mapping: "error"
+// is a runner failure, "excluded" is environmental, anything else is a
+// bucket verdict.
+func reportWithStatus(t *testing.T, path, status string) parseoracle.Report {
+	t.Helper()
+
+	r := parseoracle.Result{Path: path}
+	switch status {
+	case "error":
+		r.Err = "perl: no such file or directory"
+	case "excluded":
+		r.Excluded = true
+	default:
+		bucket, ok := bucketNamed(status)
+		if !ok {
+			t.Fatalf("no bucket named %q", status)
+		}
+		r.Verdict = parseoracle.Verdict{Bucket: bucket}
+	}
+	return parseoracle.Report{Files: []parseoracle.Result{r}}
+}
+
+// bucketNamed resolves a bucket by its rendered name.
+func bucketNamed(name string) (parseoracle.Bucket, bool) {
+	for _, b := range []parseoracle.Bucket{
+		parseoracle.BucketExact,
+		parseoracle.BucketWider,
+		parseoracle.BucketWrong,
+		parseoracle.BucketNoAnswer,
+	} {
+		if b.String() == name {
+			return b, true
+		}
+	}
+	return 0, false
 }
 
 // TestRatchetPinMismatch: skew is not a defect. When the interpreter or the
