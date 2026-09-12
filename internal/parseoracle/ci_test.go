@@ -356,12 +356,63 @@ func TestCIReportsSkewBeforeSweeping(t *testing.T) {
 	}
 }
 
+// TestCISweepFailureFailsTheJob: the sweep's exit status is the gate.
+//
+// A ratchet whose failure cannot fail the build is decoration, which is the
+// property perl-lsp's version lost. Two one-line edits neutralise this
+// workflow while every other assertion in this file still passes: appending
+// `|| true` to the sweep's shell, or setting `continue-on-error: true` on its
+// step. Either leaves a job that runs the whole six-minute sweep, prints every
+// regression to its log, and then reports success.
+//
+// The workflow's own header says that must never happen. Nothing checked it.
+func TestCISweepFailureFailsTheJob(t *testing.T) {
+	sweep, found := sweepStep(t)
+	if !found {
+		t.Fatal("no step runs TestRatchetCorpus")
+	}
+
+	// continue-on-error is the declarative form: the step fails, the job
+	// stays green. Read from the parsed step rather than matched as text,
+	// so any indent or position within the step is caught.
+	if sweep.ContinueOnError {
+		t.Error("the sweep step sets continue-on-error: the ratchet would run, " +
+			"report its regressions, and the job would still pass")
+	}
+
+	// `|| true` and friends are the shell form. Comments are stripped first
+	// because the prose around this step discusses the very constructs
+	// being matched — the -parseoracle.update assertion above failed
+	// against its own explanatory comment before it did the same.
+	shell := uncommented(sweep.Run)
+	for _, swallow := range []string{"|| true", "|| :", "|| exit 0", "; true", "set +e"} {
+		if strings.Contains(shell, swallow) {
+			t.Errorf("the sweep's shell contains %q, which discards the test's "+
+				"exit status: the gate would pass on a failing ratchet", swallow)
+		}
+	}
+}
+
+// sweepStep returns the step that runs the corpus sweep.
+func sweepStep(t *testing.T) (workflowStep, bool) {
+	t.Helper()
+	for _, step := range workflowSteps(t, readWorkflow(t)) {
+		if strings.Contains(step.Run, "TestRatchetCorpus") {
+			return step, true
+		}
+	}
+	return workflowStep{}, false
+}
+
 // workflowStep is the subset of a step these tests reason about.
 type workflowStep struct {
 	Name string            `yaml:"name"`
 	Uses string            `yaml:"uses"`
 	Run  string            `yaml:"run"`
 	Env  map[string]string `yaml:"env"`
+	// ContinueOnError is read because setting it on the sweep step turns
+	// the gate into a report: the step fails, the job does not.
+	ContinueOnError bool `yaml:"continue-on-error"`
 }
 
 // workflowSteps parses the ratchet job's steps in order.
