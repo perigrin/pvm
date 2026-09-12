@@ -112,43 +112,74 @@ func compareReferences(oracle Facts, subject SubjectFacts) Verdict {
 	// So a surplus means the question is unanswerable rather than answered
 	// yes, and the surplus is large enough to swallow a prototype-driven
 	// reference whole. Scoring it exact is how a real disagreement hides.
-	if accounted > oracle.Srefgen {
+	//
+	// The three cases are written as ONE switch on the comparison rather than
+	// as a sequence of ifs, and that is the fix for a defect the sequential
+	// form hid. The earlier code asked `accounted > Srefgen` and then, having
+	// returned on that, asked `Srefgen <= accounted` -- but by then only
+	// equality could reach it, so the `<` half of the second test was dead.
+	// Loosening `==` back to `<=` therefore changed nothing that any input
+	// could observe, and the whole suite stayed green with round 1's exact
+	// defect restored. A guard no input can distinguish is not a guard, and
+	// the honest repair is to stop stating the rule twice.
+	//
+	// A hedge is deliberately NOT consulted on a matching total, and the
+	// reason is a property of the subject rather than of the rule. Our grammar
+	// marks every unqualified `f(...)` call unresolved, so `hedged > 0` holds
+	// for almost every file in the corpus including ones where perl took no
+	// reference at all. Treating that as disagreement would score
+	// `sub f{} f(@a)` -- where both sides say "no reference" -- as wider,
+	// which is not a hedge about anything. A hedge is evidence only when there
+	// is an unexplained reference for it to explain.
+	switch {
+	case accounted > oracle.Srefgen:
 		return Verdict{BucketNoAnswer, MarkerNone,
 			fmt.Sprintf("the subject took %d reference(s) to perl's %d srefgen; "+
 				"the two counts are of different populations, so the comparison "+
 				"is not meaningful", accounted, oracle.Srefgen)}
-	}
 
-	// Every reference perl took is one the subject also took. Nothing was
-	// resolved behind its back.
-	//
-	// A hedge is deliberately NOT consulted here, and the reason is a property
-	// of the subject rather than of the rule. Our grammar marks every
-	// unqualified `f(...)` call unresolved, so `hedged > 0` holds for almost
-	// every file in the corpus including ones where perl took no reference at
-	// all. Treating that as disagreement would score `sub f{} f(@a)` -- where
-	// both sides say "no reference" -- as wider, which is not a hedge about
-	// anything. A hedge is only evidence when there is an unexplained
-	// reference for it to explain, which is the branch below.
-	if oracle.Srefgen == accounted {
+	case accounted == oracle.Srefgen:
+		// Every reference perl took is one the subject also took. Nothing was
+		// resolved behind its back.
+		//
+		// This is agreement on a TOTAL, and a total cannot express which call
+		// site each reference belongs to. A subject that over-accounts at one
+		// site and under-accounts at another sums to the same number as one
+		// that agreed everywhere, and nothing in either side's facts separates
+		// the two: perl does not attribute srefgen to call sites, so there is
+		// no per-site ground truth to check against. Measured across the
+		// corpus, no file can actually be in that state -- the surplus half
+		// requires a list-form `\( ... )`, and none of the 33 files scoring
+		// exact with references contains one -- so this is a known ceiling
+		// rather than an observed error. Closing it needs per-site attribution
+		// from the oracle, which is a change to parse_facts.pl and not to this
+		// rule.
 		return Verdict{BucketExact, markerFor(oracle.Srefgen),
 			fmt.Sprintf("perl took %d reference(s), all accounted for by the subject",
 				oracle.Srefgen)}
-	}
 
-	// Perl took a reference the subject did not. Something resolved it -- a
-	// prototype, in practice. Whether that is wider or WRONG turns entirely on
-	// whether the subject admits it does not know.
-	unexplained := oracle.Srefgen - accounted
-	if hedged > 0 {
-		return Verdict{BucketWider, MarkerSrefgen,
-			fmt.Sprintf("perl took %d reference(s) the subject did not; "+
-				"it marked %d call(s) unresolved rather than committing",
-				unexplained, hedged)}
+	default:
+		// Perl took a reference the subject did not. Something resolved it --
+		// a prototype, in practice. Whether that is wider or WRONG turns
+		// entirely on whether the subject admits it does not know.
+		//
+		// Note this direction is NOT declined the way a surplus is, and the
+		// asymmetry is the point rather than an oversight. A deficit is the
+		// srefgen signal itself: it is precisely the case where a prototype
+		// changed the parse behind a static parser's back, which is the blind
+		// spot this harness exists to measure. Declining here would empty the
+		// wider and WRONG buckets and leave the metric unable to fail.
+		unexplained := oracle.Srefgen - accounted
+		if hedged > 0 {
+			return Verdict{BucketWider, MarkerSrefgen,
+				fmt.Sprintf("perl took %d reference(s) the subject did not; "+
+					"it marked %d call(s) unresolved rather than committing",
+					unexplained, hedged)}
+		}
+		return Verdict{BucketWrong, MarkerSrefgen,
+			fmt.Sprintf("perl took %d reference(s) the subject did not, and the subject "+
+				"committed to its calls with no reference and no hedge", unexplained)}
 	}
-	return Verdict{BucketWrong, MarkerSrefgen,
-		fmt.Sprintf("perl took %d reference(s) the subject did not, and the subject "+
-			"committed to its calls with no reference and no hedge", unexplained)}
 }
 
 // noOptree reports that perl compiled successfully without building an optree,
