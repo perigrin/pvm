@@ -597,10 +597,10 @@ bucketed against each other:
 
 | Bucket | Files | Share of measured |
 |---|---:|---:|
-| exact | 380 | 64.1% |
+| exact | 328 | 55.3% |
 | wider | 11 | 1.9% |
 | **WRONG** | **0** | **0.0%** |
-| no-answer | 202 | 34.1% |
+| no-answer | 254 | 42.8% |
 | *measured (denominator)* | *593* | |
 | excluded, environmental | 26 | — |
 | runner error | 1 | — |
@@ -621,9 +621,29 @@ reproducing that section's coverage split exactly. But only **7 of those 44
 files take a reference at all**, and **25 of the 29 exact verdicts had no
 marker in play**. For those 25, `exact` means only "perl took no reference
 our source did not write", which is true of any file that takes no
-references. The 64.1% is therefore a ceiling on agreement, not a measurement
+references. The 55.3% is therefore a ceiling on agreement, not a measurement
 of it; adding markers (`rv2hv`, `match`, `readline`, `anonhash`) is what
 converts it into one.
+
+**The rate fell from 64.1% to 55.3% because the metric got more honest, not
+because the parser got worse.** The comparison was counting two different
+populations against each other. The oracle counts `srefgen`; the adapter
+counted every source `\` as a reference taken. Those are neither the same
+population nor the same unit — measured:
+
+    \(@a,@b,@c)            3 references, 1 refgen   (one per backslash)
+    f(\@\@) on f(@a,@b)    0 backslashes, 2 srefgen (one per argument)
+
+So a file with more accounted-for references than perl reported srefgens had
+*surplus*, and the surplus silently absorbed genuine prototype-driven
+references — the exact thing this harness exists to detect. `op/aassign.t`
+carried 19 surplus against 8 srefgens: up to 19 references could have been
+resolved behind the parser's back and it would still have scored `exact`.
+
+Reconciling the totals is impossible when the units differ, so a file with
+surplus now declines to score. 52 files moved from `exact` to `no-answer`.
+They were never evidence of agreement; they were evidence the comparison had
+nothing to say.
 
 **One file moved after this was first measured, and not because the parser
 changed.** `run/switcht.t` was `no-answer` because the harness compiled it
@@ -632,7 +652,7 @@ without the taint flag its `#!./perl -t` shebang asks for — perl refused with
 environmental refusal frozen as a parse result. Fixing `wantsTaint` moved it to
 `exact`: 379 → 380 and 203 → 202. The parser parsed it correctly all along.
 
-**The `no-answer` third is our coverage gap, not perl's.** 202 files carry an
+**The `no-answer` share is our coverage gap, not perl's.** 254 files carry an
 error node from our parser. Those 203 are the population the conformance
 plan's M1 has to move, and they are the honest reading of "how much of Perl
 we cannot parse".

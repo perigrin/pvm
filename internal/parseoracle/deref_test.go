@@ -4,6 +4,7 @@
 package parseoracle
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -96,7 +97,16 @@ func TestCompareDerefGateStaysNarrow(t *testing.T) {
 			tree, err := parser.New().Parse([]byte(src))
 			require.NoError(t, err)
 
-			v := Compare(Facts{OK: true}, tree, []byte(src))
+			// Ask perl rather than assuming Srefgen: 0. These sources do
+			// take a reference -- `@{ +\@a }` compiles to one srefgen --
+			// and handing the comparison a zero would manufacture the
+			// surplus that CompareFacts now declines to score. The gate
+			// under test is the deref collapse detector, not the surplus
+			// rule, so the fixture has to state perl's real answer.
+			facts, err := Ask(context.Background(), []byte(src), Options{})
+			require.NoError(t, err)
+
+			v := Compare(facts, tree, []byte(src))
 			assert.NotEqual(t, BucketNoAnswer, v.Bucket,
 				"a dereference we parse correctly must still be scored (%s)", v.Detail)
 		})

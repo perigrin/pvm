@@ -62,9 +62,42 @@ func compareReferences(oracle Facts, subject SubjectFacts) Verdict {
 		}
 	}
 
+	// The two sides do not count the same population, and when the subject's
+	// total runs ahead of perl's that difference is not agreement -- it is a
+	// measurement we cannot make. Measured, the split is by syntactic form:
+	//
+	//	\@a  \%h  \&f  \$x  \(&f)   -> srefgen
+	//	\(@a)  \(@a,@b)  \($x,$y)   -> refgen
+	//
+	// so a list-form `\( ... )` contributes to `accounted` and not to
+	// Srefgen. Counting refgen too would not fix it, because the units differ
+	// as well as the population: `\(@a,@b,@c)` is ONE refgen for three
+	// references, while a `f(\@\@)` prototype is TWO srefgen for no backslash
+	// at all. Only a per-call-site attribution could reconcile them, and the
+	// oracle does not attribute srefgen to call sites.
+	//
+	// So a surplus means the question is unanswerable rather than answered
+	// yes, and the surplus is large enough to swallow a prototype-driven
+	// reference whole. Scoring it exact is how a real disagreement hides.
+	if accounted > oracle.Srefgen {
+		return Verdict{BucketNoAnswer, MarkerNone,
+			fmt.Sprintf("the subject took %d reference(s) to perl's %d srefgen; "+
+				"the two counts are of different populations, so the comparison "+
+				"is not meaningful", accounted, oracle.Srefgen)}
+	}
+
 	// Every reference perl took is one the subject also took. Nothing was
 	// resolved behind its back.
-	if oracle.Srefgen <= accounted {
+	//
+	// A hedge is deliberately NOT consulted here, and the reason is a property
+	// of the subject rather than of the rule. Our grammar marks every
+	// unqualified `f(...)` call unresolved, so `hedged > 0` holds for almost
+	// every file in the corpus including ones where perl took no reference at
+	// all. Treating that as disagreement would score `sub f{} f(@a)` -- where
+	// both sides say "no reference" -- as wider, which is not a hedge about
+	// anything. A hedge is only evidence when there is an unexplained
+	// reference for it to explain, which is the branch below.
+	if oracle.Srefgen == accounted {
 		return Verdict{BucketExact, markerFor(oracle.Srefgen),
 			fmt.Sprintf("perl took %d reference(s), all accounted for by the subject",
 				oracle.Srefgen)}
