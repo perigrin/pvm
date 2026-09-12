@@ -69,8 +69,14 @@ func TestCorpusSweep(t *testing.T) {
 	sort.Strings(files)
 
 	start := time.Now()
+	// The timeout has to come from the environment here too. Without it this
+	// sweep runs on DefaultTimeout, and op/taint.t at ~48s has under 2x
+	// headroom against 60s -- so a busy machine records a timeout, the file
+	// leaves the denominator, and the rate is computed over a corpus that
+	// quietly lost a member. Measured: this sweep reported 592 measured and
+	// 2 runner errors while PARSEORACLE_TIMEOUT=480s was set and ignored.
 	report, err := parseoracle.Run(context.Background(), files,
-		parseoracle.RunOptions{Dir: shimT})
+		parseoracle.RunOptions{Dir: shimT, Timeout: sweepTimeout(t)})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
