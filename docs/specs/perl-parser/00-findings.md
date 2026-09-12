@@ -463,16 +463,35 @@ bucketed against each other:
 
 | Bucket | Files | Share of measured |
 |---|---:|---:|
-| exact | 379 | 63.9% |
+| exact | 321 | 54.1% |
 | wider | 11 | 1.9% |
 | **WRONG** | **0** | **0.0%** |
-| no-answer | 203 | 34.2% |
+| no-answer | 261 | 44.0% |
 | *measured (denominator)* | *593* | |
 | excluded, environmental | 26 | — |
 | runner error | 1 | — |
 
 Two independent runs produced identical counts. Wall time was 5m52s and
 6m10s across 24 workers.
+
+**These numbers were 379 exact, 63.9%, until two verdict-correctness defects
+were fixed.** Fifty-eight files moved from `exact` to `no-answer` and none
+moved the other way:
+
+- **52 files** where the subject counted more references than perl's
+  `srefgen`. The two sides count different populations — a list-form
+  `\( ... )` reaches our count and not perl's — so the totals were never
+  comparable, and the old rule read the difference as agreement.
+- **6 files** where perl reported success having built no optree at all
+  (`lib/cygwin.t`, `op/refstack.t`, `uni/greek.t`, `uni/latin2.t`,
+  `win32/signal.t`, `win32/system.t`). Each calls `skip_all` inside `BEGIN`
+  and exits *during compilation*, so `ok:1 op_count:0`. Our parser produced a
+  tree, found no references, and the two zero totals matched trivially. The
+  harness was comparing against a parse that never happened.
+
+The parser did not change in either case. Every one of those 58 files was
+being counted as agreement by a comparison that could not have detected
+disagreement, so the fall is the measurement getting honest.
 
 **WRONG is zero, and that is worth less than it sounds.** The comparison
 tests one marker — `srefgen`, perl taking a reference at a call site — and
@@ -487,14 +506,18 @@ reproducing that section's coverage split exactly. But only **7 of those 44
 files take a reference at all**, and **25 of the 29 exact verdicts had no
 marker in play**. For those 25, `exact` means only "perl took no reference
 our source did not write", which is true of any file that takes no
-references. The 63.9% is therefore a ceiling on agreement, not a measurement
+references. The 54.1% is therefore a ceiling on agreement, not a measurement
 of it; adding markers (`rv2hv`, `match`, `readline`, `anonhash`) is what
 converts it into one.
 
-**The `no-answer` third is our coverage gap, not perl's.** 203 files carry an
-error node from our parser. Those 203 are the population the conformance
-plan's M1 has to move, and they are the honest reading of "how much of Perl
-we cannot parse".
+**`no-answer` is now 261 files, and they are not all the same thing.** 203
+carry an error node from our parser — that is our coverage gap, the
+population the conformance plan's M1 has to move, and the honest reading of
+"how much of Perl we cannot parse". The other 58 are files where a verdict
+was not available to be reached: 52 whose reference counts are of
+incomparable populations, and 6 that perl never finished parsing. Those 58
+are a limit on what this harness can currently ask, not on what the parser
+can do, and the two groups should not be conflated when reading the number.
 
 **Two corpus facts stay separate from the parser's score.** 26 files fail
 because this machine's environment cannot satisfy them — a missing module is
