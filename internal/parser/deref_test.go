@@ -114,6 +114,16 @@ func TestCollapsedDerefDetectorIsNarrow(t *testing.T) {
 		"my @b = @{ +\\@a };",
 		"my @b = @{ \\ @a };",
 		"my $s = \"@{[ \\@a ]}\";",
+
+		// `$\` is the output record separator, and its varname really is a
+		// lone backslash -- a correct parse of valid Perl that a naive
+		// "varname starts with a backslash" test flags. Found by the corpus
+		// sweep, in t/op/tiehandle.t and t/uni/lex_utf8.t, which is the only
+		// reason this row exists rather than the collapse family's shape.
+		"my $ors = $\\;",
+		"local $\\ = 'x';",
+		"local $\\;",
+		"print $\\;",
 	}
 
 	p := parser.New()

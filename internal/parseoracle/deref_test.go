@@ -61,6 +61,15 @@ func TestCompareDerefDetailNamesTheCollapse(t *testing.T) {
 	require.Equal(t, BucketNoAnswer, v.Bucket)
 	assert.Contains(t, v.Detail, "varname",
 		"detail must name what collapsed so the report can be triaged")
+
+	// And it must not mis-describe what happened. Nothing was dropped here --
+	// every byte of the source is still in the tree, under a node that denies
+	// its own rule -- and `varname` is not a hidden rule. A detail carrying
+	// the _term family's wording sends a reader looking for the wrong defect.
+	assert.NotContains(t, v.Detail, "dropped source",
+		"nothing was dropped: the source is all present, the structure is wrong")
+	assert.NotContains(t, v.Detail, "hidden grammar rule",
+		"varname is a real rule, not a hidden one")
 }
 
 // TestCompareDerefGateStaysNarrow is the guard against paying for this fix

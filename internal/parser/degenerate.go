@@ -116,7 +116,14 @@ func (t *Tree) DegenerateKinds() []string {
 // `$$r[0]` all build the block. So do `@{ \@a, }`, `@{ +\@a }` and even
 // `@{ \ @a }` -- the collapse needs the backslash tight against the sigil and
 // nothing else in the braces. A varname with a child is therefore already
-// correct, and only a leaf whose text opens with `\` is the broken shape.
+// correct.
+//
+// The sigil after the backslash is load-bearing, not decoration. `$\` is the
+// output record separator, and the grammar parses it correctly into a varname
+// whose text is a lone backslash. A prefix test alone flags that, which is a
+// false positive on valid Perl -- measured, as two corpus files moving bucket
+// for no reason (t/op/tiehandle.t, t/uni/lex_utf8.t). Requiring `\` followed
+// by a sigil separates the punctuation variable from the collapse.
 //
 // This says nothing about whether perl accepts the source: every case it flags
 // compiles. It is the same weaker claim IsDegenerate is documented to make,
@@ -130,5 +137,9 @@ func (t *Tree) isCollapsedVarname(n *Node) bool {
 	if n == nil || n.Kind() != "varname" || n.NamedChildCount() > 0 {
 		return false
 	}
-	return strings.HasPrefix(n.Text(t.source), `\`)
+	text := n.Text(t.source)
+	if !strings.HasPrefix(text, `\`) || len(text) < 2 {
+		return false
+	}
+	return strings.ContainsRune(`$@%&*`, rune(text[1]))
 }
