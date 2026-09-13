@@ -135,8 +135,8 @@ func copyTree(src, dst string) error {
 // 5.42 genuinely cannot parse. Pinning only one half lets a parser be marked
 // wrong for agreeing with its own oracle.
 type Pin struct {
-	Interpreter string // perl's $], e.g. "5.042000"
-	Revision    string // the perl5 checkout's git revision
+	Interpreter string `json:"interpreter"` // perl's $], e.g. "5.042000"
+	Revision    string `json:"revision"`    // the perl5 checkout's git revision
 }
 
 // PinMismatchError reports a drifted pin. It names both the pinned and the
