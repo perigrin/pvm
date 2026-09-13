@@ -48,6 +48,12 @@ func (p *Parser) Parse(source []byte) (*Tree, error) {
 	return &Tree{inner: tree, lang: p.lang, source: source}, nil
 }
 
+// Source returns the bytes the tree was parsed from, so a caller holding only
+// the tree can still turn a node's byte offset into a line.
+func (t *Tree) Source() []byte {
+	return t.source
+}
+
 // RootNode returns the root node of the syntax tree.
 func (t *Tree) RootNode() *Node {
 	if t == nil || t.inner == nil {

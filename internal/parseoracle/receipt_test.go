@@ -49,8 +49,12 @@ func TestReceiptRecordsTheSweep(t *testing.T) {
 	if receipt != want {
 		t.Errorf("receipt is\n%+v\nwant\n%+v", receipt, want)
 	}
-	if receipt.FilesSwept != 5 {
-		t.Errorf("the fixture sweep must report 5 files, got %d", receipt.FilesSwept)
+	// Counted, not hardcoded: a receipt that reports fewer files than the
+	// fixture holds is the failure this guards, and a literal here would
+	// instead fail every time a fixture file is added.
+	wantFiles := countFixtureFiles(t)
+	if receipt.FilesSwept != wantFiles {
+		t.Errorf("the fixture sweep must report %d files, got %d", wantFiles, receipt.FilesSwept)
 	}
 	if len(receipt.VerdictSHA256) != sha256.Size*2 {
 		t.Errorf("verdict_sha256 is %q, want a hex sha256", receipt.VerdictSHA256)
@@ -183,4 +187,13 @@ func syntheticCorpus(t *testing.T, n int) (string, parseoracle.Report) {
 		t.Fatalf("WriteBaseline: %v", err)
 	}
 	return path, report
+}
+
+// countFixtureFiles is the number of files a fixture sweep must report.
+// Derived from the fixture directory rather than written as a literal: the
+// assertion it serves is "the receipt covers the whole fixture", and a literal
+// turns adding a fixture file into an unrelated test failure.
+func countFixtureFiles(t *testing.T) int {
+	t.Helper()
+	return len(fixtureCorpus(t))
 }

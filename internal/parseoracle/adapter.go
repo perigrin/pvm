@@ -5,6 +5,7 @@ package parseoracle
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"tamarou.com/pvm/internal/parser"
@@ -67,33 +68,89 @@ func TreeSitterSubject(tree *parser.Tree) SubjectFacts {
 
 	return SubjectFacts{
 		OK:             true,
-		CallSites:      treeSitterCallSites(root),
+		CallSites:      treeSitterCallSites(root, tree.Source()),
 		KnowsCallSites: true,
 	}
 }
 
 // treeSitterCallSites translates the tree walk into per-call conclusions.
 //
-// The old Compare counted three things across the whole tree: explicit refgen
-// nodes, hedged calls, and committed calls. The contract asks the same
-// questions per site, so an explicit `\` is reported as a reference site --
-// SiteKindReference, the contract's name for a reference taken outside a call.
-// Totals are what the comparison uses, and they are preserved exactly.
-func treeSitterCallSites(root *parser.Node) []SubjectCallSite {
+// An explicit backslash is reported as a reference site --
+// SiteKindReference, the contract's name for a reference taken outside a
+// call -- so a subject need never invent a call site to report one.
+//
+// Each site carries the span of the STATEMENT it sits in, not its own line,
+// because a statement is the unit perl attributes the matching op to: every
+// op until the next nextstate belongs to that nextstate. Which line of the
+// statement the nextstate records is not fixed, and that is why the whole
+// span is reported rather than the first line. Measured on perl 5.42.0: a
+// plain multi-line call, a hash literal and an if/elsif/for/while condition
+// take the FIRST line; a statement whose term carries a block -- op/qr.t's
+// sub { ... } followed by a deref arrow -- takes the line the statement
+// ENDS on, because the block resets the parser's copline and newSTATEOP
+// then uses the lexer's current line. A reference anywhere inside a
+// statement is perl's srefgen somewhere inside the same statement, and the
+// span is what the two sides share.
+//
+// A statement is any `*_statement` node, plus `elsif`: perl gives an elsif
+// condition a nextstate of its own (perly.y wraps it in newSTATEOP), so its
+// sites belong to the elsif rather than to the enclosing if.
+func treeSitterCallSites(root *parser.Node, src []byte) []SubjectCallSite {
 	var sites []SubjectCallSite
+	lines := newLineIndex(src)
 
-	walk(root, func(n *parser.Node) {
+	var visit func(n *parser.Node, stmt SubjectCallSite)
+	visit = func(n *parser.Node, stmt SubjectCallSite) {
+		if isStatement(n) {
+			stmt = SubjectCallSite{
+				Line:    lines.of(int(n.StartByte())),
+				EndLine: lines.of(int(n.EndByte()) - 1),
+			}
+		}
+		site := stmt
 		switch {
 		case isRefgen(n):
 			// The source wrote `\`, so a reference here is accounted for.
-			sites = append(sites, SubjectCallSite{Kind: SiteKindReference, TookReference: true})
+			site.Kind = SiteKindReference
+			site.TookReference = true
+			sites = append(sites, site)
 		case isHedgedCall(n):
 			// The grammar emitted a node kind that names its own uncertainty.
-			sites = append(sites, SubjectCallSite{Unresolved: true})
+			site.Unresolved = true
+			sites = append(sites, site)
 		case isCommittedCall(n):
-			sites = append(sites, SubjectCallSite{})
+			sites = append(sites, site)
 		}
-	})
+		for i := 0; i < n.NamedChildCount(); i++ {
+			visit(n.NamedChild(i), stmt)
+		}
+	}
+	visit(root, SubjectCallSite{})
 
 	return sites
+}
+
+// lineIndex turns a byte offset into a 1-based line. Statement ends are not
+// visited in source order -- an outer statement ends after its inner ones
+// begin -- so a running count will not do; the newline offsets are indexed
+// once and searched.
+type lineIndex []int
+
+func newLineIndex(src []byte) lineIndex {
+	var nl lineIndex
+	for i, b := range src {
+		if b == '\n' {
+			nl = append(nl, i)
+		}
+	}
+	return nl
+}
+
+func (nl lineIndex) of(offset int) int {
+	return sort.SearchInts(nl, offset) + 1
+}
+
+func isStatement(n *parser.Node) bool {
+	kind := n.Kind()
+	return strings.HasSuffix(kind, "_statement") || kind == "elsif"
 }

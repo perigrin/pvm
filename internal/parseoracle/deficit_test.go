@@ -15,7 +15,7 @@ import (
 func TestDeficitWithNothingCommittedIsNoAnswer(t *testing.T) {
 	subject := SubjectFacts{OK: true, KnowsCallSites: true, CallSites: []SubjectCallSite{}}
 
-	v := CompareFacts(withSrefgen(1), subject)
+	v := CompareFacts(withRefsAt(1), subject)
 	if v.Bucket != BucketNoAnswer {
 		t.Errorf("Bucket: got %v (%s), want %v -- a subject that committed to nothing cannot be wrong",
 			v.Bucket, v.Detail, BucketNoAnswer)
@@ -26,9 +26,9 @@ func TestDeficitWithNothingCommittedIsNoAnswer(t *testing.T) {
 // WRONG bucket must stay reachable, or the metric cannot fail. A subject that
 // committed to a plain call where perl took a reference is wrong about it.
 func TestDeficitWithACommittedCallIsStillWrong(t *testing.T) {
-	subject := SubjectFacts{OK: true, KnowsCallSites: true, CallSites: []SubjectCallSite{{Name: "f"}}}
+	subject := SubjectFacts{OK: true, KnowsCallSites: true, CallSites: []SubjectCallSite{{Line: 1, Name: "f"}}}
 
-	v := CompareFacts(withSrefgen(1), subject)
+	v := CompareFacts(withRefsAt(1), subject)
 	if v.Bucket != BucketWrong {
 		t.Errorf("Bucket: got %v (%s), want %v", v.Bucket, v.Detail, BucketWrong)
 	}
@@ -40,7 +40,7 @@ func TestDeficitWithACommittedCallIsStillWrong(t *testing.T) {
 // documented answer rather than a trick only our own adapter knows.
 func TestReferenceSiteIsNotACall(t *testing.T) {
 	subject := writeFakeSubject(t,
-		`{"ok": true, "call_sites": [{"kind": "reference", "took_reference": true}]}`)
+		`{"ok": true, "call_sites": [{"line": 1, "kind": "reference", "took_reference": true}]}`)
 
 	facts, err := Subject{Command: []string{subject}}.Parse(context.Background(), "irrelevant.pl")
 	if err != nil {
@@ -50,7 +50,7 @@ func TestReferenceSiteIsNotACall(t *testing.T) {
 		t.Errorf("Kind: got %q, want %q", got, SiteKindReference)
 	}
 
-	v := CompareFacts(withSrefgen(1), facts)
+	v := CompareFacts(withRefsAt(1), facts)
 	if v.Bucket != BucketExact {
 		t.Errorf("Bucket: got %v (%s), want %v -- the reference is accounted for", v.Bucket, v.Detail, BucketExact)
 	}

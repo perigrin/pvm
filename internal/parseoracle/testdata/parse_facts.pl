@@ -3,6 +3,7 @@
 # ABOUTME: Ground truth for measuring a static parser's fidelity, not just its coverage.
 use strict;
 use warnings;
+use File::Temp ();
 
 # Perl reports how it parsed something. The optree is the parse, resolved: a
 # prototype that turned a list into a reference shows up as an srefgen that is
@@ -17,6 +18,11 @@ my $file = shift or die "usage: $0 FILE\n";
 
 # -exec walks the optree in execution order, which linearises it into a
 # sequence a test can diff. Without it the output is a tree drawn in ASCII.
+#
+# This run answers "did it compile" and supplies the op list. It does NOT
+# supply the reference count: Concise dumps PL_main_root only, and a named
+# sub, an anonymous sub or a BEGIN block is a separate CV that never appears
+# in it. The probe further down walks every CV instead.
 my $concise = capture("-MO=Concise,-exec", $file);
 my $compiles = $? == 0;
 
@@ -37,20 +43,157 @@ my $stderr = $compiles ? '' : $concise;
 # Prototypes are the single highest-value parse fact: they change the parse at
 # every call site, and they are the thing a static parser cannot know without
 # having already seen the definition.
+#
+# The same probe walks every CV perl compiled for this file and reports each
+# reference-taking op with the line of the statement it belongs to. The
+# population is deliberately "what the source could have written a backslash
+# for": explicit `\` forms and prototype-forced references at call sites.
+#
+#   srefgen           \@a  \%h  \&f  \$x  \(&f)  \-1  and every \-prototype arg
+#   refgen            \(@a)  \(@a,@b)  \my($x,$y)     -- one op per list, as
+#                                                        the source has one \
+#   const[IV \1]      \1  \"x"  \'s'   folded away: a backslash with no op
+#   srefgen under goto  goto &NAME     excluded, see the walk
+#
+# Attribution is by the nearest enclosing nextstate/dbstate, which names the
+# statement's FIRST line -- measured on multi-line calls, hash literals and
+# if/elsif/for/while conditions -- and the COP's file, so subs a corpus file
+# pulls in from t/test.pl are not counted against it.
 my %proto;
 my $protosrc = <<'PERL';
+    no strict 'refs';
+    no warnings;
     for my $name (sort keys %main::) {
-        no strict 'refs';
         next unless defined &{"main::$name"};
         my $p = prototype(\&{"main::$name"});
         next unless defined $p;
         print "PROTO\t$name\t$p\n";
     }
+
+    my (%seen, @sites);
+    my ($walk, $walkcv);
+
+    # The SV behind a const or method_named op. Under ithreads it lives in
+    # the walked CV's pad, and $op->sv would consult the CURRENT pad -- this
+    # CHECK block's -- and read the wrong value. B::Concise does the same.
+    my $opsv = sub {
+        my ($op, $cv, $sv) = @_;
+        $sv = (($cv->PADLIST->ARRAY)[1]->ARRAY)[$op->targ] unless $$sv;
+        return $sv;
+    };
+
+    # `my $x : attr` is rewritten by op.c's apply_attrs_my into
+    #   attributes->import(PKG, \$x, 'attr')
+    # -- an entersub whose first argument is the constant "attributes" and
+    # whose last kid is method_named "import". The srefgen inside it is a
+    # backslash nobody wrote inside a call nobody made (op/getpid.t line 30,
+    # `my $pid2 : shared`). Recognised by that exact shape.
+    my $is_attr_import = sub {
+        my ($op, $cv) = @_;
+        return 0 unless $op->name eq 'entersub' && ($op->flags & B::OPf_KIDS());
+        my $k = $op->first;
+        $k = $k->sibling if $$k && $k->name eq 'pushmark';
+        return 0 unless $$k && $k->name eq 'const';
+        my $first = $opsv->($k, $cv, $k->sv);
+        return 0 unless $first->can('PV') && $first->PV eq 'attributes';
+        my $last = $k;
+        $last = $last->sibling while ${$last->sibling};
+        return 0 unless $last->name eq 'method_named';
+        my $meth = $opsv->($last, $cv, $last->meth_sv);
+        return $meth->can('PV') && $meth->PV eq 'import';
+    };
+
+    $walk = sub {
+        my ($op, $cop, $cv, $parent) = @_;
+        return unless ref $op && $$op;
+        my $name = $op->name;
+        if ($name eq 'srefgen' || $name eq 'refgen') {
+            # `goto &NAME` is a goto whose operand perly.y parsed as an
+            # entersub term; op.c's newLOOPEX then wraps that in a REFGEN.
+            # The srefgen is goto's rewrite, not a reference the parse took
+            # at a call site, and no subject could write a backslash for it.
+            # A variable attribute's import call is the same kind of rewrite.
+            push @sites, [$cop->line, $name]
+                if $cop && $cop->file eq $oracle_file
+                && !($parent && $parent->name eq 'goto')
+                && !($parent && $is_attr_import->($parent, $cv));
+        }
+        if ($op->flags & B::OPf_KIDS()) {
+            # A COP names the statement for the siblings that FOLLOW it at
+            # this level only; a nested block's COPs must not leak out to
+            # the ops after the block. `sort { ... } f(@a)` attributes
+            # f(@a) to the sort statement, not to the block's last line.
+            for (my $k = $op->first; $$k; $k = $k->sibling) {
+                if ($k->isa('B::COP')) { $cop = $k; next }
+                $walk->($k, $cop, $cv, $op);
+            }
+        }
+        elsif ($op->isa('B::PMOP')) {
+            # A regex (?{ ... }) block hangs off the PMOP rather than being
+            # a kid. B::Concise walks it the same way.
+            my $code = $op->code_list;
+            $walk->($code, $cop, $cv, $op) if ref $code && $code->isa('B::OP');
+        }
+        if ($name eq 'anoncode') {
+            # An anonymous sub is its own CV, reachable only from the op
+            # that closes over it. Under ithreads the CV lives in the pad.
+            my $sv = $op->sv;
+            $sv = (($cv->PADLIST->ARRAY)[1]->ARRAY)[$op->targ] unless $$sv;
+            $walkcv->($sv);
+        }
+    };
+    $walkcv = sub {
+        my ($cv) = @_;
+        return unless ref $cv && $cv->isa('B::CV') && !$seen{$$cv}++;
+        my $root = $cv->ROOT;
+        $walk->($root, undef, $cv, undef) if ref $root && $$root;
+    };
+
+    $seen{${B::main_cv()}}++;
+    $walk->(B::main_root(), undef, B::main_cv(), undef);
+
+    # BEGIN blocks are run and freed during compilation; the BEGIN at the top
+    # of this probe asked perl to keep them (B::save_BEGINs) so they can be
+    # walked here. CHECK/INIT/END are kept anyway.
+    for my $av (B::begin_av(), B::unitcheck_av(), B::check_av(), B::init_av(), B::end_av()) {
+        next unless ref $av && $av->isa('B::AV');
+        $walkcv->($_) for $av->ARRAY;
+    }
+
+    # Named subs, in every package the file declared: walk the stash tree
+    # from main::, taking only CVs this file defined. `#line` above set the
+    # file name back to the original, so CvFILE matches.
+    my %stash_seen;
+    my $walkstash;
+    $walkstash = sub {
+        my ($pkg) = @_;
+        my $stash = \%{"${pkg}::"};
+        return if $stash_seen{$stash}++;
+        for my $name (keys %$stash) {
+            if ($name =~ /::\z/) {
+                my $inner = substr($name, 0, -2);
+                $walkstash->($pkg eq 'main' ? $inner : "${pkg}::$inner");
+                next;
+            }
+            my $full = "${pkg}::$name";
+            next unless defined &$full;
+            my $cv = B::svref_2object(\&$full);
+            next unless ($cv->FILE // '') eq $oracle_file;
+            $walkcv->($cv);
+        }
+    };
+    $walkstash->('main');
+
+    print "SITE\t$_->[0]\t$_->[1]\n" for @sites;
+    print "WALK\tok\n";
 PERL
 
 my $protoout = capture_with_end($file, $protosrc);
+my (@sites, $walked);
 for my $line (split /\n/, $protoout) {
     $proto{$2} = $3 if $line =~ /^(PROTO)\t([^\t]*)\t(.*)$/;
+    push @sites, [$1, $2] if $line =~ /^SITE\t(\d+)\t(\w+)$/;
+    $walked = 1 if $line eq "WALK\tok";
 }
 
 print encode({
@@ -58,7 +201,9 @@ print encode({
     ok        => $compiles ? 1 : 0,
     ops       => \@ops,
     op_count  => scalar(@ops),
-    srefgen   => scalar(grep { $_ eq 'srefgen' } @ops),
+    srefgen   => scalar(grep { $_->[1] eq 'srefgen' } @sites),
+    ref_lines => [ sort { $a <=> $b } map { $_->[0] } @sites ],
+    walked    => $walked ? 1 : 0,
     entersub  => scalar(grep { $_ eq 'entersub' } @ops),
     prototypes=> \%proto,
     stderr    => $stderr,
@@ -79,14 +224,31 @@ sub capture {
 
 # Prototypes have to be read after compilation but before execution, which is
 # what CHECK is for. The probe is injected rather than written into the file.
+#
+# Three things about the injection are load-bearing. The BEGIN comes first so
+# it runs before any BEGIN in the file, which is the only moment at which
+# asking perl to keep BEGIN blocks (B::save_BEGINs) still catches them. The
+# CHECK block sees $oracle_file, the path exactly as perl was given it, which
+# is what every COP and CV in the file names. And `#line 1 "path"` after the
+# probe hands the file its own name and numbering back, so a site is reported
+# on the line the source has it and CvFILE matches the path.
 sub capture_with_end {
     my ($path, $body) = @_;
-    my $probe = "CHECK {\n$body\n}\n";
+    my $probe = "BEGIN { require B; B::save_BEGINs() }\n"
+              . "CHECK {\n    my \$oracle_file = " . perlquote($path) . ";\n$body\n}\n"
+              . "#line 1 \"$path\"\n";
     open my $fh, '<', $path or return '';
     my $src = do { local $/; <$fh> };
     close $fh;
-    my ($tmp) = "$path.oracle.$$.pl";
-    open my $out, '>', $tmp or return '';
+    # The scratch file lives in the system temp dir, never beside the corpus
+    # file. The runner cancels a wedged oracle with SIGKILL, which no unlink,
+    # END block or signal handler survives, and a scratch file leaked inside
+    # t/ is a stray .pl inside the corpus: a measurement artifact created by
+    # a timeout. Out here a leak is litter, not a phantom corpus file.
+    # UNLINK covers the normal exit; the explicit unlink below covers the
+    # normal path sooner.
+    my ($out, $tmp) = File::Temp::tempfile('oracle-XXXXXXXX', SUFFIX => '.pl',
+        TMPDIR => 1, UNLINK => 1);
     print $out $probe, $src;
     close $out;
     my $cmd = "perl@{[taint()]} -c @{[quote($tmp)]} 2>&1";
@@ -98,6 +260,9 @@ sub capture_with_end {
 }
 
 sub quote { my $s = shift; $s =~ s/'/'\\''/g; return "'$s'" }
+
+# A single-quoted Perl string literal, for splicing the path into the probe.
+sub perlquote { my $s = shift; $s =~ s/(['\\])/\\$1/g; return "'$s'" }
 
 # Three corpus files carry `#!./perl -T`, and perl refuses to compile a file
 # whose shebang asks for taint mode unless -T is on the command line too. The

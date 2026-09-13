@@ -32,7 +32,24 @@ if ($? != 0) {
 }
 
 # "5  <1> srefgen sK/1 ->6" -- the op name is the third field.
-my $refs = grep { /^\s*\S+\s+<[^>]*>\s+srefgen\b/ } split /\n/, $concise;
+#
+# Each reference is reported with the line of the statement it belongs to,
+# because the comparison matches per statement: a site without a line spans
+# nothing perl attributed a reference to, and accounts for nothing. The line
+# comes from the nearest preceding nextstate/dbstate, which is the same COP
+# the oracle reads, so the two sides name the same statement by construction.
+#
+#   "1  <;> nextstate(main 2 explicit_ref.pl:5) v:{"
+my @sites;
+my $line = 0;
+for my $op (split /\n/, $concise) {
+    if ($op =~ /^\s*\S+\s+<;>\s+(?:next|db)state\([^)]*:(\d+)\)/) {
+        $line = $1;
+        next;
+    }
+    next unless $op =~ /^\s*\S+\s+<[^>]*>\s+(srefgen|refgen)\b/;
+    push @sites, qq({"line":$line,"kind":"reference","took_reference":true});
+}
 
-my $sites = join ',', ('{"kind":"reference","took_reference":true}') x $refs;
+my $sites = join ',', @sites;
 print qq({"ok":true,"call_sites":[$sites]}\n);

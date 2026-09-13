@@ -82,7 +82,7 @@ func corpusReport(t *testing.T) (parseoracle.Report, string) {
 	return report, shimT
 }
 
-// runFixture measures the five-file fixture corpus that TestCorpusRun uses.
+// runFixture measures the six-file fixture corpus that TestCorpusRun uses.
 func runFixture(t *testing.T) parseoracle.Report {
 	t.Helper()
 	report, err := parseoracle.Run(context.Background(), fixtureCorpus(t), parseoracle.RunOptions{})
@@ -144,7 +144,7 @@ func asRatchetError(err error, target **parseoracle.RatchetError) bool {
 }
 
 // fixtureBaselinePath is the small committed baseline the ratchet tests gate
-// against. It is a five-file fixture rather than the 620-file corpus because
+// against. It is a six-file fixture rather than the 620-file corpus because
 // a full sweep costs ~6 minutes: a ratchet nobody can afford to run is a
 // ratchet nobody runs.
 func fixtureBaselinePath() string {
@@ -188,7 +188,7 @@ func TestRatchet(t *testing.T) {
 	}
 }
 
-// fixtureReport measures the five-file fixture corpus.
+// fixtureReport measures the six-file fixture corpus.
 func fixtureReport(t *testing.T) parseoracle.Report {
 	t.Helper()
 	return runFixture(t)
@@ -207,7 +207,7 @@ func corpusBaselinePath() string {
 // to produce.
 //
 // Every other assertion about a committed baseline in this file reads the
-// five-row fixture. The real 620-row file was read by exactly one test,
+// six-row fixture. The real 620-row file was read by exactly one test,
 // TestRatchetCorpus, which skips unless -parseoracle.corpus is passed — so
 // truncating baseline.txt to its four-line header, deleting every verdict,
 // left `go test ./internal/parseoracle/` reporting ok. The file the ratchet

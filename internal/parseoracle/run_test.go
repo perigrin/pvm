@@ -1,5 +1,5 @@
 // ABOUTME: Tests the corpus runner: bucket totals, environmental exclusion, determinism, and the WRONG list.
-// ABOUTME: The default run touches a five-file fixture; the full corpus sweep is opt-in behind -parseoracle.corpus.
+// ABOUTME: The default run touches a six-file fixture; the full corpus sweep is opt-in behind -parseoracle.corpus.
 
 package parseoracle_test
 
@@ -96,7 +96,7 @@ func TestCorpusSweep(t *testing.T) {
 	}
 }
 
-// fixtureCorpus is the five-file corpus the default test run measures. It is
+// fixtureCorpus is the six-file corpus the default test run measures. It is
 // deliberately tiny: the full 620-file sweep is opt-in, because an AC requires
 // this test to finish inside ten seconds.
 func fixtureCorpus(t *testing.T) []string {
@@ -114,14 +114,14 @@ func fixtureCorpus(t *testing.T) []string {
 			files = append(files, filepath.Join(dir, e.Name()))
 		}
 	}
-	if len(files) != 5 {
-		t.Fatalf("fixture corpus has %d files, want 5", len(files))
+	if len(files) != 6 {
+		t.Fatalf("fixture corpus has %d files, want 6", len(files))
 	}
 	return files
 }
 
 // TestCorpusRun is the runner's fixture test, and the AC that bounds the
-// default run's cost. Five files, every bucket represented, under ten seconds.
+// default run's cost. Six files, every bucket represented, under ten seconds.
 func TestCorpusRun(t *testing.T) {
 	files := fixtureCorpus(t)
 

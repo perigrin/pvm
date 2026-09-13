@@ -149,8 +149,8 @@ func TestCIGateRunsTheSweep(t *testing.T) {
 	if err := r.Verify(good, pinPath, 1); err != nil {
 		t.Errorf("the receipt does not describe the sweep this test asked for: %v", err)
 	}
-	if r.FilesSwept != 5 {
-		t.Errorf("the receipt reports %d files swept, want the fixture's 5", r.FilesSwept)
+	if want := countFixtureFiles(t); r.FilesSwept != want {
+		t.Errorf("the receipt reports %d files swept, want the fixture's %d", r.FilesSwept, want)
 	}
 
 	// The receipt step, against the receipt just written: five rows is not

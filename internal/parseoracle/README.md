@@ -36,7 +36,59 @@ ORACLE_CHDIR=/path/to/t perl testdata/parse_facts.pl FILE
 ```
 
 Emits `ok`, the linear op sequence (`-exec` order, so it diffs cleanly),
-`srefgen`/`entersub` counts, and every prototype in scope.
+`srefgen`/`entersub` counts, `ref_lines`, and every prototype in scope.
+
+## What population is measured
+
+`-MO=Concise,-exec` dumps `PL_main_root` only. A named sub, an anonymous sub
+and a `BEGIN` block are each a separate CV and never appear in it, so a count
+taken from that output silently omits every prototype-forced reference inside
+a sub body -- which is where most of the corpus keeps its calls:
+
+```
+$ perl -MO=Concise,-exec -c subbody.pl | grep -c srefgen                    # 1
+$ perl -MO=Concise,-exec,-main,-stash=main -c subbody.pl | grep -c srefgen  # 2
+```
+
+So the op sequence still comes from Concise, but `srefgen` and `ref_lines` come
+from a probe that walks the optree with `B` directly: `main_root`, the
+`BEGIN`/`UNITCHECK`/`CHECK`/`INIT`/`END` arrays (perl frees `BEGIN` blocks
+after running them unless `B::save_BEGINs` is called first, which the probe
+does before any `BEGIN` in the file), every named sub in every package under
+`main::`, and each anonymous sub through the `anoncode` op that closes over it.
+`-stash=main` was not enough: it cannot reach anonymous subs or `BEGIN` blocks
+at all.
+
+`ref_lines` is the per-site form: one entry per reference-taking op, giving
+the line of the statement it belongs to. Perl attributes every op to the
+nearest preceding `nextstate`, and a `nextstate` names its statement's FIRST
+line (measured on multi-line calls, hash literals and `if`/`elsif`/`for`/
+`while` conditions). Ops perl compiled from another file -- the subs a corpus
+file pulls in from `t/test.pl` -- name that file in their COP and are not
+counted. The comparison is per statement for the same reason: a whole-file
+total let a surplus at one statement cancel a deficit at another.
+
+The population is "what the source could have written a backslash for":
+
+| form | op | counted |
+|---|---|---|
+| `\@a` `\%h` `\&f` `\$x` `\(&f)` `\-1`, every `\`-prototype argument | `srefgen` | yes |
+| `\(@a)` `\(@a,@b)` `\my($x,$y)` | one `refgen` per list | yes, once |
+| `\1` `\"x"` `\'s'` | folded to `const[IV \1]`, no op | no |
+| `goto &NAME` | `srefgen` under `goto` | no |
+| `sub { ... }`, `f { ... }` under an `&` prototype | `anoncode`, no srefgen in 5.42 | no |
+
+`goto &NAME` is excluded because perly.y parses `&NAME` as an entersub term
+and `newLOOPEX` wraps it in a `REFGEN`: the srefgen is goto's rewrite, not a
+reference the parse took at a call site. Counted, every `goto &sub` in the
+corpus would score WRONG for a parse both sides agree on.
+
+What the walk does not reach, and is a documented ceiling: `ADJUST` blocks
+and `field` initialisers (`feature 'class'` keeps them outside the stash),
+`format` bodies, and anything compiled by a string `eval` at run time. And a
+folded `\1` on the SAME statement as a prototype-driven reference the subject
+missed still sums to zero on that statement, exactly as the whole-file
+version did across the file.
 
 ## Measuring another implementation
 

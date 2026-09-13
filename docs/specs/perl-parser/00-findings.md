@@ -451,12 +451,12 @@ oracle stops being a reason not to re-run.
 
 ## 0.11 Fidelity across the whole corpus, measured
 
-*2026-09-08. Corpus `perl5` at `94e5086608`, interpreter 5.42.0 (the pin in
+*2026-09-13. Corpus `perl5` at `94e5086608`, interpreter 5.42.0 (the pin in
 `internal/parseoracle/testdata/corpus.pin`).*
 
 ```
-PARSEORACLE_SHIM=/tmp/oracletree PERL5_CORPUS=~/dev/perl5 \
-  go test ./internal/parseoracle/ -run TestCorpusSweep -parseoracle.corpus -v
+PARSEORACLE_SHIM=<shim> PERL5_CORPUS=~/dev/perl5 PARSEORACLE_TIMEOUT=8m \
+  go test ./internal/parseoracle/ -run TestRatchetCorpus -parseoracle.corpus -parseoracle.update -v
 ```
 
 All 620 `.t` files, each compiled by perl and by our parser and the two
@@ -464,75 +464,152 @@ bucketed against each other:
 
 | Bucket | Files | Share of measured |
 |---|---:|---:|
-| exact | 322 | 54.3% |
-| wider | 11 | 1.9% |
-| **WRONG** | **0** | **0.0%** |
-| no-answer | 260 | 43.8% |
+| exact | 373 | 62.9% |
+| wider | 9 | 1.5% |
+| **WRONG** | **3** | **0.5%** |
+| no-answer | 208 | 35.1% |
 | *measured (denominator)* | *593* | |
 | excluded, environmental | 26 | — |
 | runner error | 1 | — |
 
-Two independent runs produced identical counts. Wall time was 5m52s and
-6m10s across 24 workers.
+One run, 16m30s across 24 workers on a loaded machine. The previous
+baseline's two identical runs took ~6 minutes each; the difference is load
+and a second `perl -c` per file, not a change in what is measured.
 
-**These numbers were 379 exact, 63.9%, until two verdict-correctness defects
-were fixed.** One file moved *into* `exact` first — `run/switcht.t`, when
-`wantsTaint` stopped freezing perl's refusal to honour a `#!./perl -t`
-shebang as a parse result — taking the count to 380. Fifty-eight then moved
-from `exact` to `no-answer`, giving the committed 322:
+**These numbers were 322 exact, 54.3%, 11 wider, 0 WRONG and 260 no-answer,
+and before that 379 exact, 63.9%.** The history is: `run/switcht.t` moved
+into `exact` when `wantsTaint` stopped freezing perl's refusal of a
+`#!./perl -t` shebang as a parse result (379 → 380); 58 files then moved out
+of `exact` when two verdict-correctness defects were fixed (→ 322); and 59
+files moved again when the oracle's population was widened and the
+comparison made per-statement (→ 373). Each step is a measurement getting
+honest, in one direction or the other.
 
-- **52 files** where the subject counted more references than perl's
-  `srefgen`. The two sides count different populations, so the totals were
-  never comparable, and the old rule read the difference as agreement. The
-  mechanism was mis-attributed here until round 5: a list-form `\( ... )`
-  does reach our count and not perl's, but **47 of these 52 files contain no
-  `\(` at all**. The real sources are references inside sub bodies, anonymous
-  subs and `BEGIN` blocks, which `-MO=Concise,-exec` never dumped, plus
-  literal refs (`\1`, `\"str"`) that fold to `const` and emit no `srefgen`.
-- **6 files** where perl reported success having built no optree at all
-  (`lib/cygwin.t`, `op/refstack.t`, `uni/greek.t`, `uni/latin2.t`,
-  `win32/signal.t`, `win32/system.t`). Each calls `skip_all` inside `BEGIN`
-  and exits *during compilation*, so `ok:1 op_count:0`. Our parser produced a
-  tree, found no references, and the two zero totals matched trivially. The
-  harness was comparing against a parse that never happened.
+**The oracle was measuring a narrower population than the subject.**
+`-MO=Concise,-exec` dumps `PL_main_root` only. A named sub, an anonymous sub
+and a `BEGIN` block are each a separate CV and never appear in it, so a
+prototype-forced reference inside any sub body — which is where most of the
+corpus keeps its calls — was invisible, while the subject counted every
+backslash it could see. `parse_facts.pl` now walks every CV with `B`
+directly (`main_root`, the special-block arrays with `B::save_BEGINs` asked
+for first, every named sub in every package, each anonymous sub through the
+`anoncode` op that closes over it) and reports each reference with the line
+of the statement it belongs to, taken from the nearest `nextstate`. Only
+COPs naming this file count, so the subs a test pulls in from `t/test.pl`
+are not held against it. The comparison then decides one statement at a
+time: a reference perl took is explained only by a hedge in the same
+statement, and a subject backslash perl folded away (`\1`, `\"x"`) can mask
+nothing beyond its own statement, so it no longer makes a file unanswerable.
 
-The parser did not change in either case. Every one of those 58 files was
-being counted as agreement by a comparison that could not have detected
-disagreement, so the fall is the measurement getting honest.
+The 59 files that moved, with why:
 
-**WRONG is zero, and that is worth less than it sounds.** The comparison
-tests one marker — `srefgen`, perl taking a reference at a call site — and
-our grammar emits `ambiguous_function_call_expression` where it cannot settle
-a prototype. An honest refusal buckets `wider`, never WRONG, so the eleven
-`wider` files are every prototype-driven call in the corpus and the zero is
-mostly a statement about what the harness currently asks.
+- **51 files, `no-answer` → `exact`** — the surplus group, less one. Under
+  whole-file totals a subject backslash that perl represented as something
+  other than `srefgen` (a folded literal, a list-form `refgen`) made the
+  totals incomparable and the file unanswerable. Per statement it masks
+  nothing, and every one of these 51 agrees at every statement perl took a
+  reference in.
+- **1 file, `no-answer` → `wider`** — the 52nd surplus file, `op/concat2.t`:
+  two references inside sub bodies the old oracle never saw, both hedged.
+- **2 files, `exact` → `wider`** — `re/qr-72922.t` (`sub s1`, line 30,
+  `Internals::SvREFCNT($$re_weak_copy)` under the prototype `\[$@%&*]`; the
+  subject hedges the qualified call) and `op/or.t` (line 17, `return bless
+  \$instance => $class` inside a sub; our grammar reads `\$instance =>` as
+  an autoquoted bareword and drops the backslash, then hedges `bless`, so
+  the verdict is a hedge over a tree that lost source). Both were `exact`
+  only because the references sat inside a sub.
+- **2 files, `wider` → `exact`** — `op/getpid.t` and `uni/goto.t`. Their
+  `wider` came from `srefgen` ops that are not references at call sites:
+  `my $pid2 : shared` is rewritten by op.c's `apply_attrs_my` into
+  `attributes->import(PKG, \$pid2, 'shared')`, and `goto &NAME` is a `goto`
+  whose operand perly.y parsed as an entersub term and `newLOOPEX` wrapped in
+  a `REFGEN`. Neither has a backslash the source could have written, and the
+  population now excludes both shapes by recognising the ops that make them.
+- **3 files, `wider` → WRONG** — below.
 
-**`exact` is weaker than "parses like perl", and by a measurable amount.** On
-the 44 baseline files of §0.6 the sweep reports 26 exact and 18 no-answer
-(base 6/3, comp 14/11, cmd 3/2, opbasic 3/2). This no longer reproduces that
-section's coverage split: three files — `base/rs.t`, `cmd/for.t`,
-`comp/fold.t` — declined for surplus or no-optree reasons rather than error
-nodes, in the 58-file reduction above. But only **7 of those 44
-files take a reference at all**, and **24 of the 26 exact verdicts had no
-marker in play**. For those 24, `exact` means only "perl took no reference
-our source did not write", which is true of any file that takes no
-references. The 54.3% is therefore a ceiling on agreement, not a measurement
-of it; adding markers (`rv2hv`, `match`, `readline`, `anonhash`) is what
-converts it into one.
+**Two files the review measured did not move, and the reason is the same
+exclusion.** `op/die_goto.t` (5 → 7 under `-stash=main`) and `mro/isarev.t`
+(3 → 4) each carry their extra `srefgen` under a `goto &foo` inside a sub.
+Those are `goto`'s rewrite, not references the parse took, and counting
+them would score every `goto &sub` in the corpus WRONG for a parse both
+sides agree on. They stay `exact`, with the two excluded ops named here
+rather than counted there.
 
-**`no-answer` is 260 files, and they are not all the same thing.** 201
+**WRONG is three, and all three are our grammar silently shredding a
+statement.** Perl took six, five and four references in regions where the
+subject's tree reports none, hedges none, and says nothing. That is a tree
+that stopped being a parse of its source, exactly what the degenerate gate
+in `adapter.go` exists to decline, and a shape it does not yet detect.
+Whole-file hedging was hiding all three as `wider`; per-statement scoring is
+what surfaced them. The bucket is doing its job.
+
+Bisected, the cause is **two** grammar gaps, not one, and neither is the
+`q~ ... ~` first suspected — that construct parses correctly:
+
+- `mro/package_aliases.t:192` and its utf8 twin: `~ =~ s\__code__\$$_{code}\r,`
+  — a substitution delimited by **backslash**. `toke.c`'s `Perl_scan_str`
+  takes the next non-whitespace character as the delimiter with no
+  allow-list, and guards the escape case with `close_delim_code != '\\'`;
+  our scanner checked the escape first, so the closing delimiter was eaten
+  and the scan ran to EOF. One line derails the remaining 200.
+- `op/filetest.t:96`: `is(-s -f $ro_empty_file, 0, ...)` — **stacked file
+  tests inside a call's argument list**. `-s -f $file` parses correctly on
+  its own; inside an argument list the statement is shredded into loose
+  fragments under `source_file` with `HasError()` false. The root cause is
+  in the GLR runtime rather than the Perl grammar: a zero-width external
+  token marking the call rule was discarded in favour of a same-byte DFA
+  token, so `-s` was lexed as unary minus and `s` as the substitution
+  operator.
+
+Both are fixed in a fork of the grammar; these three verdicts are correct
+until it lands.
+
+**Nine `wider` files are still every prototype-driven reference the
+subject hedged**, and WRONG being small is still worth less than it sounds:
+the comparison tests one marker, `srefgen`, and our grammar emits
+`ambiguous_function_call_expression` wherever it cannot settle a prototype,
+so an honest refusal buckets `wider`. What changed is that a hedge now has
+to sit in the statement it explains: `srefgen=5, hedged=1, committed=4` no
+longer scores `wider` on the strength of one hedge somewhere in the file.
+
+**`exact` is weaker than "parses like perl", and by a measurable amount.**
+On the 44 baseline files of §0.6 the sweep now reports 29 exact and 15
+no-answer (base 7/2, comp 15/10, cmd 4/1, opbasic 3/2), which is that
+section's coverage split again — `base/rs.t`, `cmd/for.t` and `comp/fold.t`
+were surplus files and are back. But only **8 of those 44 files take a
+reference at all**, and **24 of the 29 exact verdicts had no marker in
+play**. For those 24, `exact` means only "perl took no reference our source
+did not write", which is true of any file that takes no references. The
+62.9% is therefore a ceiling on agreement, not a measurement of it; adding
+markers (`rv2hv`, `match`, `readline`, `anonhash`) is what converts it into
+one.
+
+**`no-answer` is 208 files, and they are not all the same thing.** 201
 carry an error node from our parser — that is our coverage gap, the
 population the conformance plan's M1 has to move, and the honest reading of
-"how much of Perl we cannot parse". The other 59 are files where a verdict
-was not available to be reached: 52 whose reference counts are of
-incomparable populations, 6 that perl never finished parsing, and 1 that perl
-itself declined. Those 59 are a limit on what this harness can currently ask,
-not on what the parser can do, and the two groups should not be conflated
-when reading the number.
+"how much of Perl we cannot parse". The other 7 are files where a verdict
+was not available to be reached: 6 that perl never finished parsing
+(`skip_all` inside `BEGIN`, `ok:1 op_count:0`) and 1 that perl itself
+declined (`class/inherit.t`). The 52 whose reference counts were of
+incomparable populations are no longer in this bucket, because the
+populations are now comparable.
 
-*(Counts re-measured in round 5 against the committed baseline:
-201 error-node + 52 surplus + 6 no-optree + 1 perl-declined = 260. The
-earlier "261 / 203 / 58" in this paragraph did not match its own table.)*
+**What the walk still does not see, each with its mechanism.** Three files
+retag their own COPs with `#line` (`base/lex.t`, `op/warn.t`,
+`test_pl/examples.t`): ops after the directive name another file and are
+dropped, which is why their metric fell to 0. `ADJUST` blocks and `field`
+initialisers under `feature 'class'` are CVs held outside the stash, and
+`format` bodies are FORM slots; none is walked. A string `eval` is not
+compiled at `-c` time. And the statement is the finest attribution perl
+offers, so a folded `\1` in the *same* statement as a prototype-driven
+reference the subject missed spends itself on that reference. Measured
+with the rule's own grouping over the whole corpus, **12 statements in 7
+files** (`class/destruct.t`, `op/crypt.t`, `op/leaky-magic.t`, `op/not.t`,
+`op/stat_errors.t`, `op/universal.t`, `test_pl/can_isa_ok.t`) hold an
+unspent backslash beside a call, out of 9,386 statements carrying any site.
+Those 12 are the whole surface on which a prototype-driven reference could
+still hide; closing it means the adapter not reporting a reference for a
+literal operand, and it is not closed here.
 
 **Two corpus facts stay separate from the parser's score.** 26 files fail
 because this machine's environment cannot satisfy them — a missing module is

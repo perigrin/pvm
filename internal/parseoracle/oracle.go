@@ -30,8 +30,23 @@ type Facts struct {
 	Ops []string
 	// OpCount is len(Ops), as perl counted them.
 	OpCount int
-	// Srefgen counts the reference-taking ops a \-prototype introduces.
+	// Srefgen counts the reference-taking ops a \-prototype introduces,
+	// across every CV perl compiled for this file: the main program, named
+	// and anonymous subs, and the BEGIN/CHECK/INIT/END blocks. A count over
+	// the main program alone omits every prototype-forced reference inside a
+	// sub body, which is where most of the corpus keeps its calls.
 	Srefgen int
+	// RefLines is the statement line of every reference-taking op perl
+	// built for this file -- srefgen and list-form refgen alike, one entry
+	// per op, sorted. It is the per-site form of Srefgen, and the one the
+	// comparison uses: a total cannot say which statement a reference
+	// belongs to. Ops perl compiled from another file, such as a required
+	// t/test.pl, are not this file's and are absent.
+	RefLines []int
+	// Walked reports that the probe that walks perl's CVs actually ran.
+	// Without it Srefgen and RefLines are absent rather than zero, and a
+	// comparison must decline instead of reading absence as agreement.
+	Walked bool
 	// Entersub counts subroutine calls.
 	Entersub int
 	// Prototypes maps every sub name in scope to its prototype.
@@ -136,6 +151,8 @@ type wire struct {
 	Ops        []string          `json:"ops"`
 	OpCount    int               `json:"op_count"`
 	Srefgen    int               `json:"srefgen"`
+	RefLines   []int             `json:"ref_lines"`
+	Walked     int               `json:"walked"`
 	Entersub   int               `json:"entersub"`
 	Prototypes map[string]string `json:"prototypes"`
 	Stderr     string            `json:"stderr"`
@@ -151,6 +168,8 @@ func decode(out []byte) (Facts, error) {
 		Ops:        w.Ops,
 		OpCount:    w.OpCount,
 		Srefgen:    w.Srefgen,
+		RefLines:   w.RefLines,
+		Walked:     w.Walked == 1,
 		Entersub:   w.Entersub,
 		Prototypes: w.Prototypes,
 		Stderr:     w.Stderr,
