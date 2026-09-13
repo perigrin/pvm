@@ -63,8 +63,19 @@ type SubjectFacts struct {
 	KnowsPrototypes bool `json:"-"`
 }
 
+// SiteKindReference marks a site that is not a call: the source took a
+// reference itself, as in `my $r = \@a;`. Perl reports that with the same
+// srefgen it uses for a prototype-driven reference, so a subject has to be
+// able to account for it -- and a faithful subject that reports only calls
+// would otherwise be scored WRONG on every file containing a backslash.
+const SiteKindReference = "reference"
+
 // SubjectCallSite is one call, and what the subject concluded about it.
 type SubjectCallSite struct {
+	// Kind is empty for a call. SiteKindReference is the one other kind:
+	// a reference the source wrote, reported with TookReference set.
+	Kind string `json:"kind,omitempty"`
+
 	Line int    `json:"line"`
 	Name string `json:"name"`
 

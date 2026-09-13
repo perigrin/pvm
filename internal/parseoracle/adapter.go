@@ -76,9 +76,9 @@ func TreeSitterSubject(tree *parser.Tree) SubjectFacts {
 //
 // The old Compare counted three things across the whole tree: explicit refgen
 // nodes, hedged calls, and committed calls. The contract asks the same
-// questions per call site, so an explicit `\` is reported as a call site that
-// took a reference. Totals are what the comparison uses, and they are
-// preserved exactly.
+// questions per site, so an explicit `\` is reported as a reference site --
+// SiteKindReference, the contract's name for a reference taken outside a call.
+// Totals are what the comparison uses, and they are preserved exactly.
 func treeSitterCallSites(root *parser.Node) []SubjectCallSite {
 	var sites []SubjectCallSite
 
@@ -86,7 +86,7 @@ func treeSitterCallSites(root *parser.Node) []SubjectCallSite {
 		switch {
 		case isRefgen(n):
 			// The source wrote `\`, so a reference here is accounted for.
-			sites = append(sites, SubjectCallSite{TookReference: true})
+			sites = append(sites, SubjectCallSite{Kind: SiteKindReference, TookReference: true})
 		case isHedgedCall(n):
 			// The grammar emitted a node kind that names its own uncertainty.
 			sites = append(sites, SubjectCallSite{Unresolved: true})

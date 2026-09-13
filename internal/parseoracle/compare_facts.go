@@ -169,6 +169,13 @@ func compareReferences(oracle Facts, subject SubjectFacts) Verdict {
 		// changed the parse behind a static parser's back, which is the blind
 		// spot this harness exists to measure. Declining here would empty the
 		// wider and WRONG buckets and leave the metric unable to fail.
+		//
+		// WRONG does need something to be wrong about. A subject that reported
+		// no call at all -- `s/x/\@a/e` gives perl an srefgen and a static
+		// parser nothing to attach it to -- has not committed to a parse perl
+		// did not make; it has not accounted for a reference, which is a gap
+		// in what it can see and is scored as one. Only a committed call with
+		// no reference and no hedge is a claim, and only a claim can be WRONG.
 		unexplained := oracle.Srefgen - accounted
 		if hedged > 0 {
 			return Verdict{BucketWider, MarkerSrefgen,
@@ -176,9 +183,15 @@ func compareReferences(oracle Facts, subject SubjectFacts) Verdict {
 					"it marked %d call(s) unresolved rather than committing",
 					unexplained, hedged)}
 		}
+		committed := len(subject.CallSites) - accounted - hedged
+		if committed == 0 {
+			return Verdict{BucketNoAnswer, MarkerSrefgen,
+				fmt.Sprintf("perl took %d reference(s) the subject did not, and the subject "+
+					"reported no call the reference could belong to", unexplained)}
+		}
 		return Verdict{BucketWrong, MarkerSrefgen,
 			fmt.Sprintf("perl took %d reference(s) the subject did not, and the subject "+
-				"committed to its calls with no reference and no hedge", unexplained)}
+				"committed to %d call(s) with no reference and no hedge", unexplained, committed)}
 	}
 }
 
