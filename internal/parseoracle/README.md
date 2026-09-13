@@ -213,8 +213,14 @@ cd shim/t && perl -c op/sub.t          # syntax OK
 ## Ground-truth ceiling
 
 Measured with perl 5.42.0 and the shim above: **584/620 (94.2%)** compile.
-Nine of fourteen directories are at 100%; `porting/` (43.2%) tests perl's own
-source tree rather than the language.
+Most of the corpus's 19 directories are at 100%; `porting/` (43.2%) tests
+perl's own source tree rather than the language.
+
+The per-directory table in `docs/specs/perl-parser/00-findings.md` §0.5 lists
+14 of those 19 rows and so does not sum to its own total; an earlier claim
+here of "nine of fourteen directories" counted rows in that partial table
+rather than directories in the corpus. Neither figure is recomputed by any
+test — see §0.5 for what is and is not bound.
 
 Classifying by stderr rather than exit status — measured against the earlier
 *incomplete* shim, when 185 files were failing — shows how little of it was
@@ -286,7 +292,9 @@ workflow parses, that it passes `-parseoracle.corpus` and not
 the revision, and that it checks the interpreter before spending a sweep on a
 runner that cannot produce a comparable answer.
 
-The job spawns perl 620 times on every push, because no sweep passes a
+The job spawns perl ~1860 times on every push — `parse_facts.pl` runs `perl
+-c` twice per file (`capture` and `capture_with_end`) under one outer perl,
+so 620 files cost roughly three processes each. No sweep passes a
 `*Cache` — the cache above is built and unit-tested but wired to nothing.
 Tracked as `01a095cb`. It is a speedup, not a correctness fix, so the workflow
 ships without it.
@@ -303,5 +311,12 @@ A file that overruns is recorded as a runner error, which moves it out of its
 baseline bucket, and the ratchet reports a regression caused by nothing but
 load. `$PARSEORACLE_TIMEOUT` raises the bound to 8m in CI so that a timeout
 still means what it should: `re/pat_psycho.t` calls `watchdog(5 * 60)` from a
-`BEGIN` block and wedges on any budget, which is why it is baselined as
-`error`.
+`BEGIN` block, which is why it is baselined as `error`.
+
+That file does **not** wedge on any budget, as this section previously
+claimed. `t/test.pl:1983-2011` forks a watchdog that holds the pipe for
+exactly `$timeout` (300s) and then `_exit`s; at two `perl -c` per file that is
+~10 minutes, so it errors under the 8m budget and would enter a real bucket
+under a budget past ~11m — and then fail the ratchet as a regression caused
+by nothing. **This row is timeout-coupled: raising `PARSEORACLE_TIMEOUT`
+above ~11m requires re-baselining it in the same commit.**

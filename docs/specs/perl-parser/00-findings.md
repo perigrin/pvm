@@ -408,7 +408,8 @@ inside the parser to compensate.
 `toke.c:10568` is `call_sv` inside `S_new_constant`, which implements
 overloaded constants via `$^H`. It is **not** the source-filter mechanism.
 Source filters go through `Perl_filter_add` (`toke.c:5164`) and `FILTER_READ`
-(`toke.c:5270`). Both are arbitrary compile-time code execution, but they are
+(the macro at `perl.h:4447`, dispatching to `Perl_filter_read` at
+`toke.c:5268`). Both are arbitrary compile-time code execution, but they are
 different features, and the distinction matters when deciding what to detect
 and bail out on.
 
@@ -475,13 +476,19 @@ Two independent runs produced identical counts. Wall time was 5m52s and
 6m10s across 24 workers.
 
 **These numbers were 379 exact, 63.9%, until two verdict-correctness defects
-were fixed.** Fifty-eight files moved from `exact` to `no-answer` and none
-moved the other way:
+were fixed.** One file moved *into* `exact` first — `run/switcht.t`, when
+`wantsTaint` stopped freezing perl's refusal to honour a `#!./perl -t`
+shebang as a parse result — taking the count to 380. Fifty-eight then moved
+from `exact` to `no-answer`, giving the committed 322:
 
 - **52 files** where the subject counted more references than perl's
-  `srefgen`. The two sides count different populations — a list-form
-  `\( ... )` reaches our count and not perl's — so the totals were never
-  comparable, and the old rule read the difference as agreement.
+  `srefgen`. The two sides count different populations, so the totals were
+  never comparable, and the old rule read the difference as agreement. The
+  mechanism was mis-attributed here until round 5: a list-form `\( ... )`
+  does reach our count and not perl's, but **47 of these 52 files contain no
+  `\(` at all**. The real sources are references inside sub bodies, anonymous
+  subs and `BEGIN` blocks, which `-MO=Concise,-exec` never dumped, plus
+  literal refs (`\1`, `\"str"`) that fold to `const` and emit no `srefgen`.
 - **6 files** where perl reported success having built no optree at all
   (`lib/cygwin.t`, `op/refstack.t`, `uni/greek.t`, `uni/latin2.t`,
   `win32/signal.t`, `win32/system.t`). Each calls `skip_all` inside `BEGIN`
@@ -501,23 +508,31 @@ a prototype. An honest refusal buckets `wider`, never WRONG, so the eleven
 mostly a statement about what the harness currently asks.
 
 **`exact` is weaker than "parses like perl", and by a measurable amount.** On
-the 44 baseline files of §0.6 the sweep reports 29 exact and 15 no-answer —
-reproducing that section's coverage split exactly. But only **7 of those 44
-files take a reference at all**, and **25 of the 29 exact verdicts had no
-marker in play**. For those 25, `exact` means only "perl took no reference
+the 44 baseline files of §0.6 the sweep reports 26 exact and 18 no-answer
+(base 6/3, comp 14/11, cmd 3/2, opbasic 3/2). This no longer reproduces that
+section's coverage split: three files — `base/rs.t`, `cmd/for.t`,
+`comp/fold.t` — declined for surplus or no-optree reasons rather than error
+nodes, in the 58-file reduction above. But only **7 of those 44
+files take a reference at all**, and **24 of the 26 exact verdicts had no
+marker in play**. For those 24, `exact` means only "perl took no reference
 our source did not write", which is true of any file that takes no
 references. The 54.3% is therefore a ceiling on agreement, not a measurement
 of it; adding markers (`rv2hv`, `match`, `readline`, `anonhash`) is what
 converts it into one.
 
-**`no-answer` is now 261 files, and they are not all the same thing.** 203
+**`no-answer` is 260 files, and they are not all the same thing.** 201
 carry an error node from our parser — that is our coverage gap, the
 population the conformance plan's M1 has to move, and the honest reading of
-"how much of Perl we cannot parse". The other 58 are files where a verdict
+"how much of Perl we cannot parse". The other 59 are files where a verdict
 was not available to be reached: 52 whose reference counts are of
-incomparable populations, and 6 that perl never finished parsing. Those 58
-are a limit on what this harness can currently ask, not on what the parser
-can do, and the two groups should not be conflated when reading the number.
+incomparable populations, 6 that perl never finished parsing, and 1 that perl
+itself declined. Those 59 are a limit on what this harness can currently ask,
+not on what the parser can do, and the two groups should not be conflated
+when reading the number.
+
+*(Counts re-measured in round 5 against the committed baseline:
+201 error-node + 52 surplus + 6 no-optree + 1 perl-declined = 260. The
+earlier "261 / 203 / 58" in this paragraph did not match its own table.)*
 
 **Two corpus facts stay separate from the parser's score.** 26 files fail
 because this machine's environment cannot satisfy them — a missing module is
@@ -529,7 +544,10 @@ bucket.
 
 **Cost.** The plan's §2 estimated ~25 ms per file for `B::Concise`; measured
 on real corpus files it is **~600 ms** (`op/sub.t`, 1055 ops), and ten files
-cost 9.3 s sequentially of which the prototype probe is only ~10%. That is
-where six minutes goes, and it is a real argument for the content-hash cache
-§2 describes — deferred to its own issue rather than built speculatively
-here.
+cost 9.3 s sequentially of which the prototype probe is only ~10%.
+
+**That is not where six minutes goes**, as this paragraph previously
+concluded. §0.12 measured the sweep directly: ~87% of wall time is our own
+parser, not `B::Concise`. The oracle is the cheaper half. The content-hash
+cache §2 describes therefore buys less than the estimate implied — it is
+still worth having (`01a095cb`), but it is a speedup on the smaller term.
