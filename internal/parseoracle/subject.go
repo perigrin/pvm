@@ -4,10 +4,12 @@
 package parseoracle
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"strings"
 	"time"
 )
 
@@ -32,10 +34,16 @@ type SubjectFacts struct {
 
 	// Prototypes maps sub name to prototype string, for prototypes the
 	// subject resolved.
-	Prototypes map[string]string `json:"prototypes,omitempty"`
+	//
+	// Neither this nor CallSites carries omitempty, and that is the contract
+	// rather than an oversight: an empty map or list is an answer ("I looked
+	// and found none") and nil is not ("I did not look"). Marshalling nil
+	// emits JSON null, which decodes as absent; see decodeSubjectFacts.
+	Prototypes map[string]string `json:"prototypes"`
 
-	// CallSites reports what the subject decided at each call.
-	CallSites []SubjectCallSite `json:"call_sites,omitempty"`
+	// CallSites reports what the subject decided at each call, and at each
+	// reference the source took outside a call; see SubjectCallSite.Kind.
+	CallSites []SubjectCallSite `json:"call_sites"`
 
 	// Declined is the portable form of "I gave up here". It replaces the
 	// tree-sitter-specific IsDegenerate: a hidden grammar rule surfacing as a
@@ -109,23 +117,78 @@ func (s Subject) Parse(ctx context.Context, path string) (SubjectFacts, error) {
 	// A killed subject may leave a grandchild holding the pipe; without this
 	// the read blocks past cancellation. The oracle learned the same lesson.
 	cmd.WaitDelay = 5 * time.Second
+	killGroup(cmd)
 
-	out, err := cmd.Output()
-	if err != nil {
-		return SubjectFacts{}, fmt.Errorf("subject %s: %w", s.Command[0], err)
+	var out cappedBuffer
+	var stderr strings.Builder
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		// A timeout is named as one. "signal: killed" reads as a crash and
+		// sends triage the wrong way; the oracle makes the same distinction.
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return SubjectFacts{}, fmt.Errorf("subject %s on %s: %w", s.Command[0], path, ctxErr)
+		}
+		// The subject's own diagnosis is the useful part of a failure: "exit
+		// status 2" says nothing, "cannot read op/sub.t" says which directory
+		// it ran from.
+		return SubjectFacts{}, fmt.Errorf("subject %s on %s: %w (%s)", s.Command[0], path, err,
+			strings.TrimSpace(stderr.String()))
+	}
+	if out.overflow {
+		return SubjectFacts{}, fmt.Errorf("subject %s on %s: output exceeds %d bytes",
+			s.Command[0], path, maxSubjectOutput)
 	}
 
-	return decodeSubjectFacts(out)
+	return decodeSubjectFacts(out.buf.Bytes())
+}
+
+// maxSubjectOutput bounds what one subject may print. The facts for a file are
+// kilobytes; a subject that streams megabytes is broken, and one buffer per
+// worker of unbounded size is how a broken subject takes the machine down.
+const maxSubjectOutput = 16 << 20
+
+// cappedBuffer keeps the first maxSubjectOutput bytes and remembers that more
+// arrived. It accepts the surplus rather than refusing it, because a Write
+// error stops the copy and leaves the child blocked on a full pipe until its
+// timeout -- which would report a size problem as a hang.
+type cappedBuffer struct {
+	buf      bytes.Buffer
+	overflow bool
+}
+
+func (c *cappedBuffer) Write(p []byte) (int, error) {
+	if room := maxSubjectOutput - c.buf.Len(); len(p) > room {
+		c.overflow = true
+		c.buf.Write(p[:room])
+		return len(p), nil
+	}
+	return c.buf.Write(p)
 }
 
 // decodeSubjectFacts parses the JSON and records which optional questions the
 // subject actually answered. Presence is decided from the raw object rather
 // than from zero values, because an empty call_sites list is a real answer
 // ("no calls here") and a missing one is not an answer at all.
+//
+// A JSON null counts as missing. A Go subject without omitempty, a JSON::PP
+// undef and a Jackson null field all spell "not computed" that way, and
+// scoring it as "computed, found nothing" would hand out verdicts the subject
+// never gave.
 func decodeSubjectFacts(out []byte) (SubjectFacts, error) {
 	var probe map[string]json.RawMessage
 	if err := json.Unmarshal(out, &probe); err != nil {
 		return SubjectFacts{}, fmt.Errorf("subject output is not a JSON object: %w", err)
+	}
+	// `null` and `{}` are what a subject prints when it crashed before
+	// forming an opinion. Neither is a verdict, so neither reaches one: the
+	// file becomes a runner error rather than "the subject rejected it".
+	if probe == nil {
+		return SubjectFacts{}, fmt.Errorf("subject output is null, not a JSON object")
+	}
+	if !answered(probe, "ok") {
+		return SubjectFacts{}, fmt.Errorf("subject output has no \"ok\" field, so it never said whether the file is Perl")
 	}
 
 	var facts SubjectFacts
@@ -133,7 +196,13 @@ func decodeSubjectFacts(out []byte) (SubjectFacts, error) {
 		return SubjectFacts{}, fmt.Errorf("decode subject facts: %w", err)
 	}
 
-	_, facts.KnowsCallSites = probe["call_sites"]
-	_, facts.KnowsPrototypes = probe["prototypes"]
+	facts.KnowsCallSites = answered(probe, "call_sites")
+	facts.KnowsPrototypes = answered(probe, "prototypes")
 	return facts, nil
+}
+
+// answered reports whether the subject gave field a value: present, and not null.
+func answered(probe map[string]json.RawMessage, field string) bool {
+	raw, present := probe[field]
+	return present && string(raw) != "null"
 }
