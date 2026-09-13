@@ -464,10 +464,10 @@ bucketed against each other:
 
 | Bucket | Files | Share of measured |
 |---|---:|---:|
-| exact | 373 | 62.9% |
-| wider | 9 | 1.5% |
-| **WRONG** | **3** | **0.5%** |
-| no-answer | 208 | 35.1% |
+| exact | 411 | 69.3% |
+| wider | 12 | 2.0% |
+| **WRONG** | **0** | **0%** |
+| no-answer | 170 | 28.7% |
 | *measured (denominator)* | *593* | |
 | excluded, environmental | 26 | — |
 | runner error | 1 | — |
@@ -561,38 +561,88 @@ Bisected, the cause is **two** grammar gaps, not one, and neither is the
   token, so `-s` was lexed as unary minus and `s` as the substitution
   operator.
 
-Both are fixed in a fork of the grammar; these three verdicts are correct
-until it lands.
+Both are fixed in a fork of the grammar
+(`perigrin/gotreesitter`, pinned by commit), and wiring it in moved the
+measurement again: **373 → 411 exact (62.9% → 69.3%)**, no-answer 208 → 170,
+and all three of those WRONG verdicts cleared. `package_aliases.t` now parses
+with no error at all; the other two recovered their references and are left
+reporting honest errors for two *separate* pre-existing gaps the shred had
+been hiding — the grammar does not accept Unicode identifiers
+(`\%Ｏｒｇａｎ::`, `sub Hyᚹ::ｳ {}`), and `op/filetest.t:215`'s `split //`
+errors on the pristine runtime too. Both were proven independent of these
+fixes.
 
-**Nine `wider` files are still every prototype-driven reference the
-subject hedged**, and WRONG being small is still worth less than it sounds:
-the comparison tests one marker, `srefgen`, and our grammar emits
-`ambiguous_function_call_expression` wherever it cannot settle a prototype,
-so an honest refusal buckets `wider`. What changed is that a hedge now has
-to sit in the statement it explains: `srefgen=5, hedged=1, committed=4` no
-longer scores `wider` on the strength of one hedge somewhere in the file.
+**The fork briefly created a fourth WRONG, and finding it was the point of
+checking.** `op/splice.t` moved `wider → WRONG` on the first post-fork sweep,
+because the GLR fix makes every parenthesised call a
+`function_call_expression` where a bare `f(...)` used to be
+`ambiguous_function_call_expression`. Line 104's
+`Internals::SvREADONLY(@readonly_array, 1)` is a prototyped builtin whose
+declaration a static parser has never seen: perl takes a reference, we report
+a plain call, and reading the new node kind as a *commitment* blamed the
+parser for a prototype it cannot know. That is the `wider` bucket's entire
+reason for existing.
+
+The predicate now asks the source rather than the node kind — only `&f(@a)`,
+which perl documents as bypassing the prototype (perlsub, "Prototypes"),
+counts as settled. `isHedgedCall` and `sourceSettledTheCall` in `compare.go`.
+Re-swept, that moved exactly one file, `op/splice.t` back to `wider`, and
+left every other verdict untouched: **WRONG is 0**.
+
+This is the shape of hazard a grammar change carries. The fix was correct and
+the measurement improved, but a node kind the harness read as "the parser is
+sure" silently changed meaning underneath it, and nothing but a re-sweep and
+a deliberate check would have caught it. A verdict of WRONG is the only one
+that fails a build, so a false one is the most expensive defect this harness
+can have.
+
+**Twelve `wider` files are every prototype-driven reference the subject
+hedged**, and WRONG being zero is worth less than it sounds: the comparison
+tests one marker, `srefgen`, and an honest refusal buckets `wider`. Two
+things changed here. A hedge now has to sit in the statement it explains, so
+`srefgen=5, hedged=1, committed=4` no longer scores `wider` on the strength
+of one hedge somewhere in the file. And a hedge is now recognised from the
+source rather than the node kind, because the grammar fork stopped spelling
+"unresolved" as a distinct kind.
 
 **`exact` is weaker than "parses like perl", and by a measurable amount.**
-On the 44 baseline files of §0.6 the sweep now reports 29 exact and 15
-no-answer (base 7/2, comp 15/10, cmd 4/1, opbasic 3/2), which is that
-section's coverage split again — `base/rs.t`, `cmd/for.t` and `comp/fold.t`
-were surplus files and are back. But only **8 of those 44 files take a
-reference at all**, and **24 of the 29 exact verdicts had no marker in
-play**. For those 24, `exact` means only "perl took no reference our source
-did not write", which is true of any file that takes no references. The
-62.9% is therefore a ceiling on agreement, not a measurement of it; adding
-markers (`rv2hv`, `match`, `readline`, `anonhash`) is what converts it into
-one.
+On the 44 baseline files of §0.6 the sweep now reports 31 exact and 13
+no-answer (base 7/2, comp 17/8, cmd 4/1, opbasic 3/2). But **26 of those 31
+exact verdicts had no marker in play** — metric 0, meaning perl took no
+reference there at all. For those 26, `exact` means only "perl took no
+reference our source did not write", which is true of any file that takes no
+references. The 69.3% is therefore a ceiling on agreement, not a measurement
+of it; adding markers (`rv2hv`, `match`, `readline`, `anonhash`) is what
+converts it into one.
 
-**`no-answer` is 208 files, and they are not all the same thing.** 201
-carry an error node from our parser — that is our coverage gap, the
-population the conformance plan's M1 has to move, and the honest reading of
-"how much of Perl we cannot parse". The other 7 are files where a verdict
-was not available to be reached: 6 that perl never finished parsing
-(`skip_all` inside `BEGIN`, `ok:1 op_count:0`) and 1 that perl itself
-declined (`class/inherit.t`). The 52 whose reference counts were of
-incomparable populations are no longer in this bucket, because the
-populations are now comparable.
+**`no-answer` is 170 files, and they are not all the same thing.** 153 carry
+a category, which means our parser produced an error node and the taxonomy
+named the construct — that is our coverage gap, the population the
+conformance plan's M1 has to move, and the honest reading of "how much of
+Perl we cannot parse".
+
+The remaining 17 carry no category, and they are a mixture rather than one
+kind: 6 are files perl never finished parsing (`skip_all` inside `BEGIN`,
+`ok:1 op_count:0` — `lib/cygwin.t`, `op/refstack.t`, `uni/greek.t`,
+`uni/latin2.t`, `win32/signal.t`, `win32/system.t`); 1 is a file perl itself
+declined (`class/inherit.t`); and 3 declined for a surplus our side could not
+make comparable (`io/open.t` at 11 references, `re/reg_mesg.t` at 9,
+`op/stat.t` at 3).
+
+**Of the last 7, five carry an error node the taxonomy did not name** —
+`base/lex.t`, `japh/abigail.t`, `op/for-many.t`, `op/mkdir.t` and
+`re/bigfuzzy_not_utf8.t` all parse with `HasError()` true; only `run/dtrace.t`
+and `win32/popen.t` parse cleanly. So an empty category does not mean an
+unproblematic file: those five belong with the 153 as coverage gaps and are
+missing from that count because `CategoriseSource` returned nothing for them.
+Measured directly rather than inferred from the column, after an earlier
+draft of this paragraph assumed the opposite. The rule gap is worth its own
+issue; the effect on the headline is nil, since all 17 are already outside
+`exact`.
+
+The coverage gap fell by 38 files when the grammar fork landed — files our
+parser could not read before and can now — which is the one number here that
+is about the parser rather than about the harness.
 
 **What the walk still does not see, each with its mechanism.** Three files
 retag their own COPs with `#line` (`base/lex.t`, `op/warn.t`,

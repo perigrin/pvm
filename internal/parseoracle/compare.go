@@ -177,19 +177,69 @@ func isRefgen(n *parser.Node) bool {
 	return n.Kind() == "refgen_expression"
 }
 
-// isHedgedCall reports whether a call node names its own uncertainty. The
-// grammar emits `ambiguous_function_call_expression` for `f(...)`, whose parse
-// genuinely cannot be settled without knowing f's prototype -- the tree is
-// saying "unresolved", which is what makes the wider bucket reachable.
+// isHedgedCall reports whether a call node names its own uncertainty: the
+// parse genuinely cannot be settled without knowing the sub's prototype, and
+// saying so is what makes the wider bucket reachable.
+//
+// The node kind alone stopped answering this. The grammar used to emit
+// `ambiguous_function_call_expression` for a bare `f(...)` and
+// `function_call_expression` only for the forms the source had settled;
+// after the GLR fix in the grammar fork, every parenthesised call is a
+// `function_call_expression`. Reading that as a commitment made
+// `Internals::SvREADONLY(@a, 1)` -- a prototyped builtin whose declaration we
+// have never seen -- a WRONG verdict rather than a wider one, which blames
+// the parser for a prototype it has no way to know (op/splice.t, measured:
+// wider before the fork, WRONG after).
+//
+// So the question is asked of the SOURCE instead: did the writer disambiguate
+// this call? `f(...)` did not, whichever node kind carries it.
 func isHedgedCall(n *parser.Node) bool {
-	return n.Kind() == "ambiguous_function_call_expression"
+	if n.Kind() == "ambiguous_function_call_expression" {
+		return true
+	}
+	return n.Kind() == "function_call_expression" && !sourceSettledTheCall(n)
 }
 
-// isCommittedCall reports whether a call node commits to a definite parse.
-// `&f(@a)` is the committed form: it is unambiguously a call with the argument
-// list written, so a disagreement here is a disagreement about the parse.
+// isCommittedCall reports whether a call node commits to a definite parse --
+// one a disagreement can be WRONG about.
 func isCommittedCall(n *parser.Node) bool {
-	return n.Kind() == "function_call_expression" || n.Kind() == "method_call_expression"
+	if n.Kind() == "method_call_expression" {
+		return true
+	}
+	return n.Kind() == "function_call_expression" && sourceSettledTheCall(n)
+}
+
+// sourceSettledTheCall reports whether the SOURCE removed the prototype
+// question, rather than the grammar having merely picked a node kind.
+//
+// `&f(@a)` is the settled form: perl documents the ampersand as bypassing the
+// prototype entirely (perlsub, "Prototypes"), so the argument list is passed
+// as written and there is nothing left to resolve. Everything else -- a bare
+// `f(...)`, qualified or not -- depends on a declaration a static parser may
+// never have seen, and claiming otherwise is how a parser that behaved
+// correctly gets scored WRONG.
+// The `&` sits inside the call's `function` child -- `(function (& ) (varname))`
+// -- rather than beside it, so the sigil is read from there. Measured on the
+// pinned grammar; a bare call's `function` has no anonymous children at all.
+func sourceSettledTheCall(n *parser.Node) bool {
+	fn := n.ChildByFieldName("function")
+	if fn == nil {
+		for i := 0; i < n.ChildCount(); i++ {
+			if c := n.Child(i); c.Kind() == "function" {
+				fn = c
+				break
+			}
+		}
+	}
+	if fn == nil {
+		return false
+	}
+	for i := 0; i < fn.ChildCount(); i++ {
+		if fn.Child(i).Kind() == "&" {
+			return true
+		}
+	}
+	return false
 }
 
 func walk(n *parser.Node, visit func(*parser.Node)) {

@@ -686,20 +686,25 @@ func TestBaselineCategoryFollowsConstruct(t *testing.T) {
 		want parseoracle.Category
 	}{
 		{"class", "use v5.38;\nclass Point { field $x;\n", parseoracle.CategoryModernFeature},
-		{"try", "use feature 'try';\ntry { f()\n", parseoracle.CategoryModernFeature},
+		{"class-field", "use v5.38;\nclass P { field $x = ;\n", parseoracle.CategoryModernFeature},
 		{"qw", "my @a = qw( a b c\n", parseoracle.CategoryQuoteLike},
 		{"tr", "$x =~ tr/abc/def\n", parseoracle.CategoryQuoteLike},
 		{"regex", "$x =~ s{a}{b\n", parseoracle.CategoryRegex},
 		{"deref", "my $v = ${ $r->{k}\n", parseoracle.CategoryDereference},
 		{"subroutine", "sub f( { }\n", parseoracle.CategorySubroutine},
 		{"attributes", "sub f :lvalue :method { }\nsub g( {\n", parseoracle.CategorySubroutine},
-		{"controlflow", "if ($x) { foo()\n", parseoracle.CategoryControlFlow},
+		{"controlflow", "if ($x {\n", parseoracle.CategoryControlFlow},
 
-		// Found filed under General against the real corpus, and a real
-		// rule gap rather than an honest P3: t/comp/parser.t opens a
-		// heredoc whose tag interpolates (`<<"${a}{`), which a rule
-		// requiring a word character after the quote never matched.
-		{"heredoc-interpolating-tag", "is(<<\"${a}{\", \"A{\");\n", parseoracle.CategoryQuoteLike},
+		// Three fixtures here were replaced when the grammar fork landed:
+		// `try { f()`, `if ($x) { foo()` and `is(<<"${a}{", "A{")` are now
+		// parsed cleanly, so the taxonomy correctly declines to categorise
+		// them and the cases asserted nothing. Each was swapped for a
+		// truncation in the same category that the current grammar still
+		// fails on, verified individually. That `if ($x) { foo()` parses
+		// without a closing brace is itself a silent-acceptance gap, filed
+		// separately -- it is the degenerate detector's target, not this
+		// test's.
+		{"heredoc-unterminated-tag", "my $x = <<\"EOT;\n", parseoracle.CategoryQuoteLike},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got := parseoracle.CategoriseSource([]byte(tc.src))
