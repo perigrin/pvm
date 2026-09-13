@@ -3,7 +3,12 @@
 
 package parseoracle
 
-import "fmt"
+import (
+	"fmt"
+	"sort"
+	"strconv"
+	"strings"
+)
 
 // CompareFacts reaches a verdict from two sets of facts about the same file:
 // perl's, and the subject's. Neither side is a syntax tree, which is what lets
@@ -67,6 +72,16 @@ func CompareFacts(oracle Facts, subject SubjectFacts) Verdict {
 				"parsing the file and there is nothing to compare against"}
 	}
 
+	// The walk IS the reference measurement. If perl compiled the file but
+	// the probe that walks its CVs never ran, Srefgen and RefLines are absent
+	// rather than zero, and reading absence as "no references" is the same
+	// defect a main-program-only count had, wearing a different hat.
+	if !oracle.Walked {
+		return Verdict{BucketNoAnswer, MarkerNone,
+			"perl compiled the file but the oracle's walk of its CVs did not run, " +
+				"so the reference question is unanswered"}
+	}
+
 	// An unanswered question is not agreement. A subject that omits call_sites
 	// has told us nothing about references, and treating silence as "no
 	// references taken" would let it score exact by staying quiet.
@@ -78,108 +93,122 @@ func CompareFacts(oracle Facts, subject SubjectFacts) Verdict {
 	return compareReferences(oracle, subject)
 }
 
-// compareReferences is the srefgen rule, restated over facts.
+// compareReferences is the srefgen rule, restated over facts and decided one
+// statement at a time.
 //
 // perl emits srefgen for an explicit f(\@a) exactly as it does for a
 // prototype-driven f(@a), so "srefgen present" alone would score every
 // explicit reference WRONG. The discriminator is whether the SUBJECT already
 // accounts for the reference: it reports took_reference at a call site when
 // its own parse committed to passing a reference there.
+//
+// The unit of comparison is the statement, keyed by the line it starts on,
+// because that is the finest attribution perl offers: every op belongs to the
+// nearest preceding nextstate, and a nextstate names its statement's first
+// line. Both sides report sites in that unit (see RefLines and
+// treeSitterCallSites), which is what makes the two populations comparable
+// at all. A whole-file total could not be: it let a surplus at one statement
+// cancel a deficit at another, and let one hedge anywhere in the file excuse
+// every unexplained reference in it (srefgen=5, hedged=1, committed=4 scored
+// wider).
+//
+// At each statement:
+//
+//   - perl took more references than the subject did, and the subject hedged
+//     a call THERE: wider. Something resolved the parse behind a static
+//     parser's back -- a prototype, in practice -- and the subject said so.
+//   - perl took more, and the subject committed to every call there: WRONG.
+//     It committed to a parse perl did not make.
+//   - the subject took as many or more: agreement. A subject surplus is a
+//     backslash perl represented as something other than a srefgen/refgen
+//     op -- `\1` and `\"x"` fold to a constant holding the reference -- and
+//     under per-statement scoring it can mask nothing beyond its own
+//     statement, so it is not the unanswerable question it was under totals.
+//
+// The file is WRONG if any statement is, wider if any is, exact otherwise.
+//
+// One ceiling remains, and it is the same statement that both bounds it and
+// names it: a folded `\1` on the SAME statement as a prototype-driven
+// reference the subject missed sums to zero there, exactly as the whole-file
+// version did across the file. Perl attributes nothing finer than a
+// statement, so closing it means the subject not reporting a reference for a
+// literal operand, which is a change to the adapter and not to this rule.
+//
+// A hedge is deliberately consulted only where there is a deficit for it to
+// explain. Our grammar marks every unqualified `f(...)` call unresolved, so
+// hedges are near-universal and say nothing on their own; treating one as
+// disagreement would score `sub f{} f(@a)` -- where both sides say "no
+// reference" -- as wider, which is not a hedge about anything.
+//
+// Lines are part of the contract. A site reported without one (line 0) can
+// match no statement perl attributed a reference to, so a took_reference
+// there accounts for nothing and a hedge there explains nothing.
 func compareReferences(oracle Facts, subject SubjectFacts) Verdict {
-	accounted, hedged := 0, 0
+	took, hedged := map[int]int{}, map[int]int{}
 	for _, c := range subject.CallSites {
-		if c.TookReference {
-			accounted++
-		} else if c.Unresolved {
-			hedged++
+		switch {
+		case c.TookReference:
+			took[c.Line]++
+		case c.Unresolved:
+			hedged[c.Line]++
+		}
+	}
+	perl := map[int]int{}
+	for _, line := range oracle.RefLines {
+		perl[line]++
+	}
+
+	var wider, wrong []int
+	unexplained := 0
+	for _, line := range sortedKeys(perl) {
+		deficit := perl[line] - took[line]
+		if deficit <= 0 {
+			continue
+		}
+		unexplained += deficit
+		if hedged[line] > 0 {
+			wider = append(wider, line)
+		} else {
+			wrong = append(wrong, line)
 		}
 	}
 
-	// The two sides do not count the same population, and when the subject's
-	// total runs ahead of perl's that difference is not agreement -- it is a
-	// measurement we cannot make. Measured, the split is by syntactic form:
-	//
-	//	\@a  \%h  \&f  \$x  \(&f)   -> srefgen
-	//	\(@a)  \(@a,@b)  \($x,$y)   -> refgen
-	//
-	// so a list-form `\( ... )` contributes to `accounted` and not to
-	// Srefgen. Counting refgen too would not fix it, because the units differ
-	// as well as the population: `\(@a,@b,@c)` is ONE refgen for three
-	// references, while a `f(\@\@)` prototype is TWO srefgen for no backslash
-	// at all. Only a per-call-site attribution could reconcile them, and the
-	// oracle does not attribute srefgen to call sites.
-	//
-	// So a surplus means the question is unanswerable rather than answered
-	// yes, and the surplus is large enough to swallow a prototype-driven
-	// reference whole. Scoring it exact is how a real disagreement hides.
-	//
-	// The three cases are written as ONE switch on the comparison rather than
-	// as a sequence of ifs, and that is the fix for a defect the sequential
-	// form hid. The earlier code asked `accounted > Srefgen` and then, having
-	// returned on that, asked `Srefgen <= accounted` -- but by then only
-	// equality could reach it, so the `<` half of the second test was dead.
-	// Loosening `==` back to `<=` therefore changed nothing that any input
-	// could observe, and the whole suite stayed green with round 1's exact
-	// defect restored. A guard no input can distinguish is not a guard, and
-	// the honest repair is to stop stating the rule twice.
-	//
-	// A hedge is deliberately NOT consulted on a matching total, and the
-	// reason is a property of the subject rather than of the rule. Our grammar
-	// marks every unqualified `f(...)` call unresolved, so `hedged > 0` holds
-	// for almost every file in the corpus including ones where perl took no
-	// reference at all. Treating that as disagreement would score
-	// `sub f{} f(@a)` -- where both sides say "no reference" -- as wider,
-	// which is not a hedge about anything. A hedge is evidence only when there
-	// is an unexplained reference for it to explain.
 	switch {
-	case accounted > oracle.Srefgen:
-		return Verdict{BucketNoAnswer, MarkerNone,
-			fmt.Sprintf("the subject took %d reference(s) to perl's %d srefgen; "+
-				"the two counts are of different populations, so the comparison "+
-				"is not meaningful", accounted, oracle.Srefgen)}
-
-	case accounted == oracle.Srefgen:
-		// Every reference perl took is one the subject also took. Nothing was
-		// resolved behind its back.
-		//
-		// This is agreement on a TOTAL, and a total cannot express which call
-		// site each reference belongs to. A subject that over-accounts at one
-		// site and under-accounts at another sums to the same number as one
-		// that agreed everywhere, and nothing in either side's facts separates
-		// the two: perl does not attribute srefgen to call sites, so there is
-		// no per-site ground truth to check against. Measured across the
-		// corpus, no file can actually be in that state -- the surplus half
-		// requires a list-form `\( ... )`, and none of the 33 files scoring
-		// exact with references contains one -- so this is a known ceiling
-		// rather than an observed error. Closing it needs per-site attribution
-		// from the oracle, which is a change to parse_facts.pl and not to this
-		// rule.
+	case len(wrong) > 0:
+		return Verdict{BucketWrong, MarkerSrefgen,
+			fmt.Sprintf("perl took %d reference(s) the subject did not, and at %s the "+
+				"subject committed to its calls with no reference and no hedge",
+				unexplained, lineList(wrong))}
+	case len(wider) > 0:
+		return Verdict{BucketWider, MarkerSrefgen,
+			fmt.Sprintf("perl took %d reference(s) the subject did not; at %s it "+
+				"marked call(s) unresolved rather than committing",
+				unexplained, lineList(wider))}
+	default:
 		return Verdict{BucketExact, markerFor(oracle.Srefgen),
 			fmt.Sprintf("perl took %d reference(s), all accounted for by the subject",
 				oracle.Srefgen)}
-
-	default:
-		// Perl took a reference the subject did not. Something resolved it --
-		// a prototype, in practice. Whether that is wider or WRONG turns
-		// entirely on whether the subject admits it does not know.
-		//
-		// Note this direction is NOT declined the way a surplus is, and the
-		// asymmetry is the point rather than an oversight. A deficit is the
-		// srefgen signal itself: it is precisely the case where a prototype
-		// changed the parse behind a static parser's back, which is the blind
-		// spot this harness exists to measure. Declining here would empty the
-		// wider and WRONG buckets and leave the metric unable to fail.
-		unexplained := oracle.Srefgen - accounted
-		if hedged > 0 {
-			return Verdict{BucketWider, MarkerSrefgen,
-				fmt.Sprintf("perl took %d reference(s) the subject did not; "+
-					"it marked %d call(s) unresolved rather than committing",
-					unexplained, hedged)}
-		}
-		return Verdict{BucketWrong, MarkerSrefgen,
-			fmt.Sprintf("perl took %d reference(s) the subject did not, and the subject "+
-				"committed to its calls with no reference and no hedge", unexplained)}
 	}
+}
+
+func sortedKeys(m map[int]int) []int {
+	keys := make([]int, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Ints(keys)
+	return keys
+}
+
+// lineList renders statement lines for a verdict's detail: "line 5" or
+// "lines 2, 7, 9". The report is triaged by these, so they are named rather
+// than counted.
+func lineList(lines []int) string {
+	parts := make([]string, len(lines))
+	for i, l := range lines {
+		parts[i] = strconv.Itoa(l)
+	}
+	return fmt.Sprintf("line%s %s", plural(len(lines)), strings.Join(parts, ", "))
 }
 
 // noOptree reports that perl compiled successfully without building an optree,

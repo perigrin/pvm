@@ -80,7 +80,7 @@ func TestPartialSubjectScoresNoAnswer(t *testing.T) {
 		t.Error("KnowsCallSites: got true for a subject that omitted the field")
 	}
 
-	oracle := withSrefgen(1)
+	oracle := withRefsAt(1)
 	v := CompareFacts(oracle, facts)
 	if v.Bucket != BucketNoAnswer {
 		t.Errorf("Bucket: got %v, want %v -- an unanswered question is not agreement",
@@ -106,7 +106,7 @@ func TestSubjectDeclinedScoresNoAnswer(t *testing.T) {
 		t.Fatalf("Parse: %v", err)
 	}
 
-	v := CompareFacts(withSrefgen(0), facts)
+	v := CompareFacts(withRefsAt(), facts)
 	if v.Bucket != BucketNoAnswer {
 		t.Errorf("Bucket: got %v, want %v", v.Bucket, BucketNoAnswer)
 	}

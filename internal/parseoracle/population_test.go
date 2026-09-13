@@ -1,4 +1,4 @@
-// ABOUTME: Guards that the population rule is load-bearing in both directions and that no optree means no verdict.
+// ABOUTME: Guards that no optree means no verdict, and supplies the synthetic perl side every comparison test builds on.
 // ABOUTME: Each test here is one that a mutation of the guard it names must kill; a guard nobody watched fail is not a guard.
 
 package parseoracle
@@ -8,46 +8,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 )
-
-// TestSurplusGuardIsLoadBearing is the B6 test: it must die when the equality
-// guard is loosened back to `oracle.Srefgen <= accounted`, which is round 1's
-// exact defect.
-//
-// The round-1 fix could not be tested as it was written. `accounted > Srefgen`
-// returned no-answer BEFORE the equality check, so the only inputs that ever
-// reached `Srefgen <= accounted` were ones where `accounted <= Srefgen` held
-// too -- that is, equality. The `<` half was unreachable, so `<=` and `==`
-// were indistinguishable to every possible input and the whole suite stayed
-// green with the defect restored.
-//
-// The fix is to state the rule once rather than twice: the populations either
-// match or they do not, and this test pins the surplus direction at the single
-// place that now decides it.
-func TestSurplusGuardIsLoadBearing(t *testing.T) {
-	// A surplus: the subject accounts for more references than perl took.
-	// Under a `<=` rule this reads as agreement, which is the defect.
-	surplus := SubjectFacts{
-		OK:             true,
-		KnowsCallSites: true,
-		CallSites:      []SubjectCallSite{{TookReference: true}, {TookReference: true}},
-	}
-	v := CompareFacts(withSrefgen(1), surplus)
-	assert.Equal(t, BucketNoAnswer, v.Bucket,
-		"a subject surplus is an unanswerable question, not agreement: %s", v.Detail)
-	assert.NotEqual(t, BucketExact, v.Bucket,
-		"scoring a surplus exact is round 1's defect: %s", v.Detail)
-
-	// And the guard must be specific rather than a blanket refusal: an equal
-	// count still agrees, or the exact bucket becomes unreachable and the
-	// metric is broken in the other direction.
-	equal := SubjectFacts{
-		OK:             true,
-		KnowsCallSites: true,
-		CallSites:      []SubjectCallSite{{TookReference: true}},
-	}
-	assert.Equal(t, BucketExact, CompareFacts(withSrefgen(1), equal).Bucket,
-		"an equal count must still be exact")
-}
 
 // TestNoOptreeIsNoAnswer is B5: perl reporting success having produced no
 // optree is not a parse to compare against.
@@ -80,9 +40,10 @@ func TestOptreePresentStillScores(t *testing.T) {
 	subject := SubjectFacts{
 		OK:             true,
 		KnowsCallSites: true,
-		CallSites:      []SubjectCallSite{{TookReference: true}},
+		CallSites:      []SubjectCallSite{{Line: 1, TookReference: true}},
 	}
-	oracle := Facts{OK: true, OpCount: 12, Ops: []string{"leave", "enter"}, Srefgen: 1}
+	oracle := Facts{OK: true, OpCount: 12, Ops: []string{"leave", "enter"},
+		Srefgen: 1, RefLines: []int{1}, Walked: true}
 
 	assert.Equal(t, BucketExact, CompareFacts(oracle, subject).Bucket)
 }
@@ -97,16 +58,16 @@ func TestOptreePresentStillScores(t *testing.T) {
 //
 // Without this test the `len(oracle.Ops) == 0` half is unreachable by every
 // other case in the suite: dropping it leaves the whole suite green, which is
-// the same "guard nobody watched fail" that TestSurplusGuardIsLoadBearing
-// above exists for.
+// the same "guard nobody watched fail" that TestUnwalkedOracleIsNoAnswer
+// exists for.
 func TestNoOptreeNeedsBothSignals(t *testing.T) {
 	subject := SubjectFacts{
 		OK:             true,
 		KnowsCallSites: true,
-		CallSites:      []SubjectCallSite{{}},
+		CallSites:      []SubjectCallSite{{Line: 1}},
 	}
 	// An op list is present; only the count says zero. There IS an optree.
-	oracle := Facts{OK: true, OpCount: 0, Ops: []string{"enter", "leave"}}
+	oracle := Facts{OK: true, OpCount: 0, Ops: []string{"enter", "leave"}, Walked: true}
 
 	v := CompareFacts(oracle, subject)
 	assert.NotEqual(t, BucketNoAnswer, v.Bucket,
@@ -120,7 +81,7 @@ func TestNoOptreeNeedsBothSignals(t *testing.T) {
 }
 
 // compiledFacts is the minimum perl reports for a file it really compiled: an
-// optree with something in it.
+// optree with something in it, and a walk that ran over it.
 //
 // Tests that synthesise perl's side need this because `Facts{OK: true}` alone
 // describes an interpreter that succeeded without building an optree, which is
@@ -128,12 +89,15 @@ func TestNoOptreeNeedsBothSignals(t *testing.T) {
 // one that now correctly declines. A test meaning "perl compiled this" must
 // say so, or it is asserting against a parse that did not happen.
 func compiledFacts() Facts {
-	return Facts{OK: true, OpCount: 4, Ops: []string{"enter", "nextstate", "padsv", "leave"}}
+	return Facts{OK: true, OpCount: 4, Ops: []string{"enter", "nextstate", "padsv", "leave"},
+		Walked: true}
 }
 
-// withSrefgen is compiledFacts carrying n reference-taking ops.
-func withSrefgen(n int) Facts {
+// withRefsAt is compiledFacts carrying one reference-taking op per line given,
+// attributed to that statement line the way parse_facts.pl attributes them.
+func withRefsAt(lines ...int) Facts {
 	f := compiledFacts()
-	f.Srefgen = n
+	f.Srefgen = len(lines)
+	f.RefLines = lines
 	return f
 }

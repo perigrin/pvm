@@ -55,7 +55,7 @@ func TestComparePrototypePair(t *testing.T) {
 func TestCompareWrongIsReachable(t *testing.T) {
 	// Perl took a reference; our tree is a definite, non-hedging call with a
 	// plain array argument. That is a commitment to a different parse.
-	facts := withSrefgen(1)
+	facts := withRefsAt(1)
 
 	src := "sub f{} my @a; &f(@a);\n"
 	tree, err := parser.New().Parse([]byte(src))
@@ -126,7 +126,7 @@ func TestCompareIgnoresOpCounts(t *testing.T) {
 	tree, err := parser.New().Parse([]byte(src))
 	require.NoError(t, err)
 
-	base := Facts{OK: true, Entersub: 1, OpCount: 6,
+	base := Facts{OK: true, Entersub: 1, OpCount: 6, Walked: true,
 		Ops: []string{"enter", "nextstate", "padav", "gv", "entersub", "leave"}}
 
 	// Same markers, absurd op sequence and count.
@@ -182,10 +182,29 @@ func TestCompareAllBucketsReachable(t *testing.T) {
 	src := "sub f{} my @a; &f(@a);\n"
 	tree, err := parser.New().Parse([]byte(src))
 	require.NoError(t, err)
-	seen[Compare(withSrefgen(1), tree, []byte(src)).Bucket] = "committed non-ref call"
+	seen[Compare(withRefsAt(1), tree, []byte(src)).Bucket] = "committed non-ref call"
 
 	for _, b := range []Bucket{BucketExact, BucketWider, BucketWrong, BucketNoAnswer} {
 		assert.Contains(t, seen, b, "bucket %s is defined but no input reaches it", b)
+	}
+}
+
+// TestCompareSeesReferencesInsideOtherCVs is the population defect end to end.
+// The call inside `sub g` is prototype-driven exactly like the one in the main
+// program, and a main-only oracle never saw it: with the main-level call
+// removed the file scored exact against a reference perl really took.
+func TestCompareSeesReferencesInsideOtherCVs(t *testing.T) {
+	for name, src := range map[string]string{
+		"named sub": "sub f(\\@){}\nsub g { my @a; f(@a) }\n",
+		"anon sub":  "sub f(\\@){}\nmy $c = sub { my @a; f(@a) };\n",
+		"BEGIN":     "sub f(\\@){}\nBEGIN { my @a; f(@a) }\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			v := compareSource(t, src)
+			assert.Equal(t, BucketWider, v.Bucket,
+				"a prototype-driven reference inside a %s is one our parser cannot see, "+
+					"and must not score exact: %s", name, v.Detail)
+		})
 	}
 }
 
