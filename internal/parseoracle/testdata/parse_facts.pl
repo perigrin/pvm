@@ -3,6 +3,7 @@
 # ABOUTME: Ground truth for measuring a static parser's fidelity, not just its coverage.
 use strict;
 use warnings;
+use File::Temp ();
 
 # Perl reports how it parsed something. The optree is the parse, resolved: a
 # prototype that turned a list into a reference shows up as an srefgen that is
@@ -206,8 +207,15 @@ sub capture_with_end {
     open my $fh, '<', $path or return '';
     my $src = do { local $/; <$fh> };
     close $fh;
-    my ($tmp) = "$path.oracle.$$.pl";
-    open my $out, '>', $tmp or return '';
+    # The scratch file lives in the system temp dir, never beside the corpus
+    # file. The runner cancels a wedged oracle with SIGKILL, which no unlink,
+    # END block or signal handler survives, and a scratch file leaked inside
+    # t/ is a stray .pl inside the corpus: a measurement artifact created by
+    # a timeout. Out here a leak is litter, not a phantom corpus file.
+    # UNLINK covers the normal exit; the explicit unlink below covers the
+    # normal path sooner.
+    my ($out, $tmp) = File::Temp::tempfile('oracle-XXXXXXXX', SUFFIX => '.pl',
+        TMPDIR => 1, UNLINK => 1);
     print $out $probe, $src;
     close $out;
     my $cmd = "perl@{[taint()]} -c @{[quote($tmp)]} 2>&1";
