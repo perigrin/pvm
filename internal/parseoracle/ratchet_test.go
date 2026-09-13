@@ -346,9 +346,20 @@ func findingsTotals(t *testing.T) []findingsBucketTotal {
 //
 // Add -parseoracle.update to re-baseline. Both flags are required together
 // for a rewrite, so neither a plain run nor a plain sweep can move it.
+//
+// $PARSEORACLE_BASELINE substitutes another baseline, and $PARSEORACLE_RECEIPT
+// names a file to write a receipt to once the ratchet has passed. Both exist
+// for the CI gate: the first lets TestCIGateRunsTheSweep run the workflow's
+// own step over a fixture, the second is what the workflow's next step
+// refuses to proceed without. Neither changes what a plain run does.
 func TestRatchetCorpus(t *testing.T) {
 	if !*corpusSweep {
 		t.Skip("full corpus ratchet: pass -parseoracle.corpus")
+	}
+
+	baselinePath := corpusBaselinePath()
+	if override := os.Getenv(baselineEnv); override != "" {
+		baselinePath = override
 	}
 
 	report, shimT := corpusReport(t)
@@ -358,17 +369,25 @@ func TestRatchetCorpus(t *testing.T) {
 	}
 
 	if *updateBaseline {
-		if err := parseoracle.WriteBaseline(corpusBaselinePath(),
+		if err := parseoracle.WriteBaseline(baselinePath,
 			parseoracle.NewBaseline(pin, report, shimT)); err != nil {
 			t.Fatalf("WriteBaseline: %v", err)
 		}
-		t.Logf("rewrote %s: %s", corpusBaselinePath(), summarise(report))
+		t.Logf("rewrote %s: %s", baselinePath, summarise(report))
 		return
 	}
 
-	base, err := parseoracle.LoadBaseline(corpusBaselinePath())
+	base, err := parseoracle.LoadBaseline(baselinePath)
 	if err != nil {
 		t.Fatalf("LoadBaseline: %v", err)
+	}
+	// Check is a symmetric diff, so an empty report against an empty
+	// baseline agrees perfectly. That is a shim with no .t files gating a
+	// baseline truncated to its header -- perl-lsp's ratchet, whose baseline
+	// says `0` -- and it must fail here rather than pass on nothing.
+	if len(report.Files) == 0 || len(base.Rows) == 0 {
+		t.Fatalf("the sweep found %d files and %s has %d rows: a ratchet over an "+
+			"empty denominator agrees on nothing", len(report.Files), baselinePath, len(base.Rows))
 	}
 	// Skew first: comparing verdicts across a moved pin measures the version
 	// bump, not the parser, and reporting that as hundreds of regressions is
@@ -378,6 +397,20 @@ func TestRatchetCorpus(t *testing.T) {
 	}
 	if err := base.Check(report); err != nil {
 		t.Fatalf("the corpus no longer matches its committed baseline:\n%v", err)
+	}
+
+	// The receipt is written last, after everything above has passed, so
+	// its presence means one thing: this test ran to completion.
+	if path := os.Getenv(receiptEnv); path != "" {
+		receipt, err := parseoracle.NewReceipt(t.Name(), baselinePath, report)
+		if err != nil {
+			t.Fatalf("NewReceipt: %v", err)
+		}
+		if err := receipt.Write(path); err != nil {
+			t.Fatalf("writing the receipt: %v", err)
+		}
+		t.Logf("receipt: %d files against %d rows of %s -> %s",
+			receipt.FilesSwept, receipt.BaselineRows, baselinePath, path)
 	}
 }
 
