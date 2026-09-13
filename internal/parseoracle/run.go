@@ -271,7 +271,7 @@ func measure(ctx context.Context, path string, opts RunOptions) Result {
 		return r
 	}
 
-	subject, err := askSubject(ctx, opts.Subject, path, src)
+	subject, err := askSubject(ctx, opts, path, src)
 	if err != nil {
 		r.Err = err.Error()
 		return r
@@ -283,10 +283,25 @@ func measure(ctx context.Context, path string, opts RunOptions) Result {
 // askSubject gets the subject's account of one file. A nil Subject means our
 // own parser, taken in-process: it is already linked in, and spawning a copy
 // of ourselves per file to ask a question we can ask directly would cost the
-// sweep 620 processes for nothing. The contract is identical either way, which
-// is the advantage of having defined it as data rather than as a Go interface.
-func askSubject(ctx context.Context, s *Subject, path string, src []byte) (SubjectFacts, error) {
-	if s != nil {
+// sweep 620 processes for nothing.
+//
+// An external subject is run the way the oracle is run: from opts.Dir, so the
+// relative path the sweep hands it opens, and within opts.Timeout, so the
+// per-file budget the report claims is the one a subject actually gets. A
+// Subject may set either for itself; the run's values are the default, not an
+// override. Without this the subject was handed a path it could not open from
+// wherever the harness happened to be, and an honest one produced a runner
+// error per file while a quiet one produced a fidelity of 0% -- five parser
+// verdicts recording one environmental fact.
+func askSubject(ctx context.Context, opts RunOptions, path string, src []byte) (SubjectFacts, error) {
+	if opts.Subject != nil {
+		s := *opts.Subject
+		if s.Dir == "" {
+			s.Dir = opts.Dir
+		}
+		if s.Timeout <= 0 {
+			s.Timeout = opts.Timeout
+		}
 		return s.Parse(ctx, path)
 	}
 	tree, err := parser.New().Parse(src)
