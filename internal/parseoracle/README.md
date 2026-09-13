@@ -38,6 +38,48 @@ ORACLE_CHDIR=/path/to/t perl testdata/parse_facts.pl FILE
 Emits `ok`, the linear op sequence (`-exec` order, so it diffs cleanly),
 `srefgen`/`entersub` counts, and every prototype in scope.
 
+## Measuring another implementation
+
+The runner measures our own tree-sitter parser by default. Any other
+implementation is measured by supplying a `Subject`: a command the runner
+invokes once per file, from the corpus directory, with the file's relative
+path appended, within the run's per-file timeout.
+
+```go
+parseoracle.Run(ctx, files, parseoracle.RunOptions{
+    Dir:     shimT,
+    Subject: &parseoracle.Subject{Command: []string{"perl", "testdata/perl_subject.pl"}},
+})
+```
+
+The subject prints one JSON object on stdout and exits 0:
+
+```json
+{"ok": true, "call_sites": [{"kind": "reference", "took_reference": true}]}
+```
+
+| Field | Meaning |
+|---|---|
+| `ok` | Required. `false` for a file the subject rejects; that scores `no-answer`. |
+| `call_sites` | Optional. Each call and what was concluded about it: `took_reference`, `unresolved`. Omitted or `null` means "not computed"; `[]` means "none found". |
+| `call_sites[].kind` | `"reference"` for a `\` the source wrote outside a call; absent for a call. |
+| `prototypes` | Optional. Sub name to prototype string. Same omitted/null/empty rule. |
+| `declined`, `declined_reason` | The subject dropped source it could not handle. Scores `no-answer`. |
+
+**Exit status is not a verdict.** Unlike `perl -c`, a subject does not exit
+non-zero to say "not Perl"; it says `"ok": false`. A non-zero exit, a timeout,
+non-JSON output, output over 16 MiB, or a document without `ok` is a runner
+error: the file leaves the denominator, and the subject's stderr is repeated
+in the report so the cause is readable. On a timeout the subject's whole
+process group is killed, so a shell wrapper that forks its real work does not
+leak it.
+
+`testdata/perl_subject.pl` is a working subject — perl's own parser answering
+through the contract — and `TestPerlSubjectMeasuresFixture` runs it over the
+fixture corpus, where it scores `exact` on every file it compiles.
+`docs/specs/perl-parser/07-conformance.md` §7.5.5 is the contract's
+specification.
+
 ## What the optree can and cannot answer
 
 The optree is captured **after** the peephole optimiser, so it is not a

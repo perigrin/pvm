@@ -103,6 +103,7 @@ func AskFile(ctx context.Context, path string, opts Options) (Facts, error) {
 	// `sh -c perl` child holds the stdout pipe open, so without it a
 	// cancelled context leaves Wait blocked on a read that never ends.
 	cmd.WaitDelay = killDelay
+	killGroup(cmd)
 
 	env := os.Environ()
 	if opts.Dir != "" {
