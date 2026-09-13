@@ -226,13 +226,29 @@ contains the single line `0`. Re-baselining is a deliberate local act that
 lands in the same commit as the change that moved it.
 
 A workflow cannot be run before it is merged, so the file is thin glue over
-parts that are tested locally. `ci_test.go` runs in the normal suite and
-holds the invariants a reviewer would otherwise have to eyeball: that the
-workflow parses, that it passes `-parseoracle.corpus` and not
-`-parseoracle.update`, that it reads `corpus.pin` through
-`.github/scripts/parseoracle-pin.sh` rather than carrying a second copy of
-the revision, and that it checks the interpreter before spending a sweep on a
-runner that cannot produce a comparable answer.
+parts that are tested locally. The gate is two steps. The sweep writes
+`$PARSEORACLE_RECEIPT` only after the ratchet has passed -- files swept,
+baseline rows, the baseline's sha256, the pin, and a digest of the verdicts
+-- and `cmd/receipt` then recomputes every field from the checked-out tree
+and refuses fewer than 310 rows. Anything that makes `go test` exit 0
+without running the sweep (`-skip`, `-list`, `-count=0`, `-exec /bin/true`,
+a second `-run`, `GOFLAGS`, a skipped corpus) leaves no receipt, and the
+second step fails on its absence.
+
+`gate_test.go` runs in the normal suite and does not read those two steps;
+it executes them as committed -- script, shell, and every `env:` level --
+over a five-file shim, and requires a five-file receipt on the matching
+baseline, a non-zero exit on a baseline that disagrees, and a non-zero exit
+with no corpus. `ci_test.go` holds what execution cannot see: that the
+workflow parses, that no job or step is `continue-on-error`, that it reads
+`corpus.pin` through `.github/scripts/parseoracle-pin.sh` rather than
+carrying a second copy of the revision, and that it checks the interpreter
+before spending a sweep on a runner that cannot produce a comparable answer.
+
+What no test here can close: `if: false` or a trigger that never fires
+leaves a job that is skipped, and a skipped job counts as success until the
+`pu` ruleset requires the "Fidelity ratchet (pinned perl + pinned corpus)"
+status check. The workflow header spells that out.
 
 The job spawns perl 620 times on every push, because no sweep passes a
 `*Cache` — the cache above is built and unit-tested but wired to nothing.
