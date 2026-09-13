@@ -692,11 +692,38 @@ question is not: *did you drop source you could not handle?* Every parser can
 answer it in its own terms, and it is what makes `no-answer` a portable bucket
 instead of a tree-sitter special case.
 
-**An omitted field is not an answer.** A subject that leaves out `call_sites`
-has said nothing about references, and the harness scores that dimension
-`no-answer` rather than assuming zero. Without this rule a subject could score
-perfectly by staying silent, which is the degenerate strategy any metric must
-be closed against.
+**An omitted field is not an answer, and neither is `null`.** A subject that
+leaves out `call_sites` has said nothing about references, and the harness
+scores that dimension `no-answer` rather than assuming zero. Without this rule
+a subject could score perfectly by staying silent, which is the degenerate
+strategy any metric must be closed against. `"call_sites": null` is omission
+spelled differently — it is what a Go struct without `omitempty`, a JSON::PP
+`undef` and a Jackson null field all emit for "not computed" — and is read the
+same way. An empty list is an answer: "I looked, and found none".
+
+**A reference is a site, and need not be a call.** Perl reports `my $r = \@a;`
+with the same `srefgen` it reports for a prototype-driven reference, so a
+subject that reports only calls would be scored `WRONG` on every file with a
+backslash. A site of `"kind": "reference"` is a reference the source took
+outside a call, reported with `took_reference` set; the absence of `kind`
+means a call. Only a committed call — no reference, no `unresolved` — can be
+`WRONG`; a subject that reported no site where perl took a reference has a gap,
+not a wrong answer, and scores `no-answer`.
+
+**Exit status means "the subject broke", never "the file is not Perl".** The
+`perl -c` convention — exit non-zero for a file that does not compile — does
+not apply here. A subject exits 0 and says `"ok": false` for a file it rejects;
+that is a verdict, and it scores `no-answer`. A non-zero exit, a timeout, output
+that is not a JSON object, or a document with no `ok` field is a **runner
+error**: the file leaves the denominator and the subject's stderr is reported
+alongside the exit status. Recording a crash as a rejection would put a parser
+opinion in the report that no parser held.
+
+**The subject runs where the oracle runs.** It is invoked from the corpus
+directory with the same relative path the oracle receives, and within the same
+per-file timeout. Perl's own tests `require "./test.pl"`, so a subject handed
+`op/sub.t` from anywhere else cannot open it; the harness makes that impossible
+rather than documenting it as a caller's responsibility.
 
 **Conformance is therefore incremental.** A new implementation can answer `ok`
 alone and be measured on coverage; adding `call_sites` opts it into the
