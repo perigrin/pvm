@@ -36,17 +36,21 @@ func TestTreeSitterSitesCarryStatementLines(t *testing.T) {
 
 	// Only the attribution is under test here. Whether the grammar hedges or
 	// commits on a given call shape is its own question, with its own tests.
+	//
+	// The span (Line..EndLine) is the whole statement, because perl may
+	// attribute a reference to any line of it: the first for a plain call,
+	// the last when a block-bearing term precedes it (op/qr.t line 112).
 	type site struct {
-		Line int
-		Took bool
+		Line, EndLine int
+		Took          bool
 	}
 	var got []site
 	for _, c := range subject.CallSites {
-		got = append(got, site{c.Line, c.TookReference})
+		got = append(got, site{c.Line, c.EndLine, c.TookReference})
 	}
 	assert.ElementsMatch(t, []site{
-		{3, false}, {3, true}, // the call, and the \@a on line 4 inside it
-		{7, false},
-		{9, false},
+		{3, 5, false}, {3, 5, true}, // the call, and the \@a on line 4 inside it
+		{7, 7, false},
+		{9, 9, false},
 	}, got)
 }

@@ -4,8 +4,8 @@
 package parseoracle
 
 import (
-	"bytes"
 	"fmt"
+	"sort"
 	"strings"
 
 	"tamarou.com/pvm/internal/parser"
@@ -75,48 +75,74 @@ func TreeSitterSubject(tree *parser.Tree) SubjectFacts {
 
 // treeSitterCallSites translates the tree walk into per-call conclusions.
 //
-// Each site carries the line of the STATEMENT it sits in, not its own line,
-// because that is the line perl attributes the matching op to: a nextstate
-// names the first line of its statement, and every op until the next
-// nextstate belongs to it. A `\@a` on the second line of a three-line call
-// is perl's srefgen on the call's first line. Reporting the backslash's own
-// line would put the two sides one line apart and turn agreement into a
-// deficit.
+// Each site carries the span of the STATEMENT it sits in, not its own line,
+// because a statement is the unit perl attributes the matching op to: every
+// op until the next nextstate belongs to that nextstate. Which line of the
+// statement the nextstate records is not fixed, and that is why the whole
+// span is reported rather than the first line. Measured on perl 5.42.0: a
+// plain multi-line call, a hash literal and an if/elsif/for/while condition
+// take the FIRST line; a statement whose term carries a block -- op/qr.t's
+// `sub { ... }\n ->((\my%hash)->{key})` -- takes the line the statement
+// ENDS on, because the block resets the parser's copline and newSTATEOP
+// then uses the lexer's current line. A `\@a` anywhere inside a statement
+// is perl's srefgen somewhere inside the same statement, and the span is
+// what the two sides share.
 //
 // A statement is any `*_statement` node, plus `elsif`: perl gives an elsif
 // condition a nextstate of its own (perly.y wraps it in newSTATEOP), so its
-// sites belong to the elsif line rather than to the enclosing if.
+// sites belong to the elsif rather than to the enclosing if.
 func treeSitterCallSites(root *parser.Node, src []byte) []SubjectCallSite {
 	var sites []SubjectCallSite
+	lines := newLineIndex(src)
 
-	// Pre-order visits statements in source order, so one running count of
-	// newlines up to each statement's start yields its line in a single pass.
-	pos, line := 0, 1
-	var visit func(n *parser.Node, stmt int)
-	visit = func(n *parser.Node, stmt int) {
+	var visit func(n *parser.Node, stmt SubjectCallSite)
+	visit = func(n *parser.Node, stmt SubjectCallSite) {
 		if isStatement(n) {
-			start := int(n.StartByte())
-			line += bytes.Count(src[pos:start], []byte{'\n'})
-			pos = start
-			stmt = line
+			stmt = SubjectCallSite{
+				Line:    lines.of(int(n.StartByte())),
+				EndLine: lines.of(int(n.EndByte()) - 1),
+			}
 		}
+		site := stmt
 		switch {
 		case isRefgen(n):
 			// The source wrote `\`, so a reference here is accounted for.
-			sites = append(sites, SubjectCallSite{Line: stmt, TookReference: true})
+			site.TookReference = true
+			sites = append(sites, site)
 		case isHedgedCall(n):
 			// The grammar emitted a node kind that names its own uncertainty.
-			sites = append(sites, SubjectCallSite{Line: stmt, Unresolved: true})
+			site.Unresolved = true
+			sites = append(sites, site)
 		case isCommittedCall(n):
-			sites = append(sites, SubjectCallSite{Line: stmt})
+			sites = append(sites, site)
 		}
 		for i := 0; i < n.NamedChildCount(); i++ {
 			visit(n.NamedChild(i), stmt)
 		}
 	}
-	visit(root, 0)
+	visit(root, SubjectCallSite{})
 
 	return sites
+}
+
+// lineIndex turns a byte offset into a 1-based line. Statement ends are not
+// visited in source order -- an outer statement ends after its inner ones
+// begin -- so a running count will not do; the newline offsets are indexed
+// once and searched.
+type lineIndex []int
+
+func newLineIndex(src []byte) lineIndex {
+	var nl lineIndex
+	for i, b := range src {
+		if b == '\n' {
+			nl = append(nl, i)
+		}
+	}
+	return nl
+}
+
+func (nl lineIndex) of(offset int) int {
+	return sort.SearchInts(nl, offset) + 1
 }
 
 func isStatement(n *parser.Node) bool {

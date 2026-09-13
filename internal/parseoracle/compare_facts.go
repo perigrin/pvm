@@ -102,37 +102,44 @@ func CompareFacts(oracle Facts, subject SubjectFacts) Verdict {
 // accounts for the reference: it reports took_reference at a call site when
 // its own parse committed to passing a reference there.
 //
-// The unit of comparison is the statement, keyed by the line it starts on,
-// because that is the finest attribution perl offers: every op belongs to the
-// nearest preceding nextstate, and a nextstate names its statement's first
-// line. Both sides report sites in that unit (see RefLines and
-// treeSitterCallSites), which is what makes the two populations comparable
-// at all. A whole-file total could not be: it let a surplus at one statement
-// cancel a deficit at another, and let one hedge anywhere in the file excuse
-// every unexplained reference in it (srefgen=5, hedged=1, committed=4 scored
-// wider).
+// The unit of comparison is the statement, because that is the finest
+// attribution perl offers: every op belongs to the nearest preceding
+// nextstate. The subject reports each site with its statement's span
+// (Line..EndLine); perl reports each reference with the one line its
+// nextstate recorded, and which line of the statement that is depends on
+// what the statement contains -- the first line for a plain call, the last
+// when a block-bearing term precedes the reference (op/qr.t line 112,
+// measured) -- so a perl site belongs to the innermost subject statement
+// whose span contains its line. A whole-file total could not do this: it let
+// a surplus at one statement cancel a deficit at another, and let one hedge
+// anywhere in the file excuse every unexplained reference in it (srefgen=5,
+// hedged=1, committed=4 scored wider).
 //
-// At each statement:
+// For each reference perl took, in the statement that owns it:
 //
-//   - perl took more references than the subject did, and the subject hedged
-//     a call THERE: wider. Something resolved the parse behind a static
-//     parser's back -- a prototype, in practice -- and the subject said so.
-//   - perl took more, and the subject committed to every call there: WRONG.
-//     It committed to a parse perl did not make.
-//   - the subject took as many or more: agreement. A subject surplus is a
-//     backslash perl represented as something other than a srefgen/refgen
-//     op -- `\1` and `\"x"` fold to a constant holding the reference -- and
-//     under per-statement scoring it can mask nothing beyond its own
-//     statement, so it is not the unanswerable question it was under totals.
+//   - the subject has a backslash there not yet matched: agreement, and
+//     that backslash is spent.
+//   - otherwise the subject hedged a call there: wider. Something resolved
+//     the parse behind a static parser's back -- a prototype, in practice --
+//     and the subject said so.
+//   - otherwise: WRONG. The subject committed to a parse perl did not make,
+//     or -- the case op/filetest.t and mro/package_aliases.t showed -- its
+//     tree stopped being a parse of the source and no error node said so,
+//     which is the same thing from where this rule stands.
 //
-// The file is WRONG if any statement is, wider if any is, exact otherwise.
+// A subject surplus -- a backslash perl represented as something other than
+// a srefgen/refgen op, such as `\1` folded to a constant -- is never
+// consulted, and under per-statement scoring it can mask nothing beyond its
+// own statement, so it no longer forces no-answer as it did under totals.
 //
-// One ceiling remains, and it is the same statement that both bounds it and
-// names it: a folded `\1` on the SAME statement as a prototype-driven
-// reference the subject missed sums to zero there, exactly as the whole-file
-// version did across the file. Perl attributes nothing finer than a
-// statement, so closing it means the subject not reporting a reference for a
-// literal operand, which is a change to the adapter and not to this rule.
+// The file is WRONG if any reference is, wider if any is, exact otherwise.
+//
+// One ceiling remains, and it is the statement itself: a folded `\1` in the
+// SAME statement as a prototype-driven reference the subject missed spends
+// itself on that reference, exactly as the whole-file version did across
+// the file. Perl attributes nothing finer than a statement, so closing it
+// means the subject not reporting a reference for a literal operand, which
+// is a change to the adapter and not to this rule.
 //
 // A hedge is deliberately consulted only where there is a deficit for it to
 // explain. Our grammar marks every unqualified `f(...)` call unresolved, so
@@ -140,38 +147,27 @@ func CompareFacts(oracle Facts, subject SubjectFacts) Verdict {
 // disagreement would score `sub f{} f(@a)` -- where both sides say "no
 // reference" -- as wider, which is not a hedge about anything.
 //
-// Lines are part of the contract. A site reported without one (line 0) can
-// match no statement perl attributed a reference to, so a took_reference
-// there accounts for nothing and a hedge there explains nothing.
+// Lines are part of the contract. A site reported without one (line 0)
+// spans no line perl attributed a reference to, so a took_reference there
+// accounts for nothing and a hedge there explains nothing.
 func compareReferences(oracle Facts, subject SubjectFacts) Verdict {
-	took, hedged := map[int]int{}, map[int]int{}
-	for _, c := range subject.CallSites {
-		switch {
-		case c.TookReference:
-			took[c.Line]++
-		case c.Unresolved:
-			hedged[c.Line]++
-		}
-	}
-	perl := map[int]int{}
-	for _, line := range oracle.RefLines {
-		perl[line]++
-	}
+	stmts := groupByStatement(subject.CallSites)
 
 	var wider, wrong []int
-	unexplained := 0
-	for _, line := range sortedKeys(perl) {
-		deficit := perl[line] - took[line]
-		if deficit <= 0 {
-			continue
-		}
-		unexplained += deficit
-		if hedged[line] > 0 {
+	refs := append([]int(nil), oracle.RefLines...)
+	sort.Ints(refs)
+	for _, line := range refs {
+		owner := innermost(stmts, line)
+		switch {
+		case owner != nil && owner.took > 0:
+			owner.took--
+		case owner != nil && owner.hedged > 0:
 			wider = append(wider, line)
-		} else {
+		default:
 			wrong = append(wrong, line)
 		}
 	}
+	unexplained := len(wider) + len(wrong)
 
 	switch {
 	case len(wrong) > 0:
@@ -191,13 +187,55 @@ func compareReferences(oracle Facts, subject SubjectFacts) Verdict {
 	}
 }
 
-func sortedKeys(m map[int]int) []int {
-	keys := make([]int, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
+// statement is one span of the subject's source and what it reported there.
+type statement struct {
+	start, end   int
+	took, hedged int
+}
+
+// groupByStatement pools the subject's sites by the statement they sit in.
+// Two sites with the same span are the same statement, so a backslash and a
+// call on one line share a pool, which is what lets the backslash account
+// for the call's reference.
+func groupByStatement(sites []SubjectCallSite) []*statement {
+	var stmts []*statement
+	byKey := map[[2]int]*statement{}
+	for _, c := range sites {
+		end := c.EndLine
+		if end < c.Line {
+			end = c.Line
+		}
+		key := [2]int{c.Line, end}
+		s := byKey[key]
+		if s == nil {
+			s = &statement{start: c.Line, end: end}
+			byKey[key] = s
+			stmts = append(stmts, s)
+		}
+		switch {
+		case c.TookReference:
+			s.took++
+		case c.Unresolved:
+			s.hedged++
+		}
 	}
-	sort.Ints(keys)
-	return keys
+	return stmts
+}
+
+// innermost picks the statement that owns a line: the one containing it
+// that starts last and, among those, ends first. A statement nested inside
+// a multi-line one owns its own lines; the outer statement owns the rest.
+func innermost(stmts []*statement, line int) *statement {
+	var best *statement
+	for _, s := range stmts {
+		if line < s.start || line > s.end {
+			continue
+		}
+		if best == nil || s.start > best.start || (s.start == best.start && s.end < best.end) {
+			best = s
+		}
+	}
+	return best
 }
 
 // lineList renders statement lines for a verdict's detail: "line 5" or

@@ -72,6 +72,37 @@ my $protosrc = <<'PERL';
 
     my (%seen, @sites);
     my ($walk, $walkcv);
+
+    # The SV behind a const or method_named op. Under ithreads it lives in
+    # the walked CV's pad, and $op->sv would consult the CURRENT pad -- this
+    # CHECK block's -- and read the wrong value. B::Concise does the same.
+    my $opsv = sub {
+        my ($op, $cv, $sv) = @_;
+        $sv = (($cv->PADLIST->ARRAY)[1]->ARRAY)[$op->targ] unless $$sv;
+        return $sv;
+    };
+
+    # `my $x : attr` is rewritten by op.c's apply_attrs_my into
+    #   attributes->import(PKG, \$x, 'attr')
+    # -- an entersub whose first argument is the constant "attributes" and
+    # whose last kid is method_named "import". The srefgen inside it is a
+    # backslash nobody wrote inside a call nobody made (op/getpid.t line 30,
+    # `my $pid2 : shared`). Recognised by that exact shape.
+    my $is_attr_import = sub {
+        my ($op, $cv) = @_;
+        return 0 unless $op->name eq 'entersub' && ($op->flags & B::OPf_KIDS());
+        my $k = $op->first;
+        $k = $k->sibling if $$k && $k->name eq 'pushmark';
+        return 0 unless $$k && $k->name eq 'const';
+        my $first = $opsv->($k, $cv, $k->sv);
+        return 0 unless $first->can('PV') && $first->PV eq 'attributes';
+        my $last = $k;
+        $last = $last->sibling while ${$last->sibling};
+        return 0 unless $last->name eq 'method_named';
+        my $meth = $opsv->($last, $cv, $last->meth_sv);
+        return $meth->can('PV') && $meth->PV eq 'import';
+    };
+
     $walk = sub {
         my ($op, $cop, $cv, $parent) = @_;
         return unless ref $op && $$op;
@@ -81,9 +112,11 @@ my $protosrc = <<'PERL';
             # entersub term; op.c's newLOOPEX then wraps that in a REFGEN.
             # The srefgen is goto's rewrite, not a reference the parse took
             # at a call site, and no subject could write a backslash for it.
+            # A variable attribute's import call is the same kind of rewrite.
             push @sites, [$cop->line, $name]
                 if $cop && $cop->file eq $oracle_file
-                && !($parent && $parent->name eq 'goto');
+                && !($parent && $parent->name eq 'goto')
+                && !($parent && $is_attr_import->($parent, $cv));
         }
         if ($op->flags & B::OPf_KIDS()) {
             # A COP names the statement for the siblings that FOLLOW it at

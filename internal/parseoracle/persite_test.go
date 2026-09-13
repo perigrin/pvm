@@ -17,6 +17,53 @@ func subjectWith(sites ...SubjectCallSite) SubjectFacts {
 	return SubjectFacts{OK: true, KnowsCallSites: true, CallSites: sites}
 }
 
+// tookSpan is a reference the subject took in a statement spanning lines
+// start..end, which is what the adapter reports for a multi-line statement.
+func tookSpan(start, end int) SubjectCallSite {
+	return SubjectCallSite{Line: start, EndLine: end, TookReference: true}
+}
+
+// TestPerlMayAttributeToAnyLineOfTheStatement is op/qr.t line 112, measured:
+//
+//	sub { ... }      # line 100
+//	  ...
+//	 ->((\my%hash)->{key});   # line 112
+//
+// The subject files its backslash under the statement's first line; perl's
+// nextstate for the statement records 112, because a block-bearing term
+// resets copline and the COP takes the lexer's current line at reduction.
+// Both are the same statement. Matching on the exact line manufactured a
+// WRONG out of agreement; matching within the statement's span does not.
+func TestPerlMayAttributeToAnyLineOfTheStatement(t *testing.T) {
+	v := CompareFacts(withRefsAt(112), subjectWith(tookSpan(100, 112)))
+	assert.Equal(t, BucketExact, v.Bucket, v.Detail)
+}
+
+// TestInnermostStatementOwnsTheSite keeps span matching from over-reaching.
+// A statement nested inside a multi-line one -- the body of that anonymous
+// sub -- owns the references perl attributes to its lines; the outer
+// statement's backslash does not account for them.
+func TestInnermostStatementOwnsTheSite(t *testing.T) {
+	outer := tookSpan(100, 112)
+	inner := SubjectCallSite{Line: 105, EndLine: 105, Unresolved: true}
+	v := CompareFacts(withRefsAt(105), subjectWith(outer, inner))
+	assert.Equal(t, BucketWider, v.Bucket, v.Detail)
+
+	// And the outer statement's own reference is still matched.
+	v = CompareFacts(withRefsAt(105, 112), subjectWith(outer, inner))
+	assert.Equal(t, BucketWider, v.Bucket, v.Detail)
+	assert.Contains(t, v.Detail, "line 105")
+	assert.NotContains(t, v.Detail, "112")
+}
+
+// TestOneBackslashAccountsForOneReference: a span that covers two of perl's
+// sites has one backslash to offer, so the second is still a deficit.
+func TestOneBackslashAccountsForOneReference(t *testing.T) {
+	call := SubjectCallSite{Line: 100, EndLine: 112} // a committed call in the same statement
+	v := CompareFacts(withRefsAt(100, 112), subjectWith(tookSpan(100, 112), call))
+	assert.Equal(t, BucketWrong, v.Bucket, v.Detail)
+}
+
 // TestFoldedConstRefAloneIsExact: `my $b = \1;` is a backslash the subject
 // reports and an srefgen perl folded into a constant. Under whole-file totals
 // that surplus made the file unanswerable. It masks nothing -- there is no

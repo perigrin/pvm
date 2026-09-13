@@ -57,8 +57,13 @@ type SubjectFacts struct {
 
 // SubjectCallSite is one call, and what the subject concluded about it.
 type SubjectCallSite struct {
-	Line int    `json:"line"`
-	Name string `json:"name"`
+	// Line is the first line of the STATEMENT the site is in, and EndLine
+	// its last; a site is matched to perl's by statement, because that is
+	// the finest attribution perl offers and perl may record any line of
+	// the statement for it. EndLine may be omitted, meaning Line.
+	Line    int    `json:"line"`
+	EndLine int    `json:"end_line,omitempty"`
+	Name    string `json:"name"`
 
 	// TookReference is the question the oracle answers with srefgen: did this
 	// call pass a reference rather than a flattened list? A prototype can make

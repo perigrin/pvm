@@ -88,6 +88,10 @@ func TestOraclePopulationIsBackslashesAndPrototypes(t *testing.T) {
 		// srefgen is goto's rewrite, not a reference taken at a call site,
 		// and the source wrote no backslash for it.
 		{"goto &sub is not a call-site reference", "sub h{}\nsub s1 { goto &h }\n", nil},
+		// `my $x : attr` is rewritten by op.c's apply_attrs_my into
+		// attributes->import(PKG, \$x, 'attr'): an srefgen for a backslash
+		// nobody wrote, inside a call nobody made. Not a site.
+		{"variable attributes are not sites", "my $x : shared = 0;\n", nil},
 		// `\1` and `\"x"` are folded to a const holding the reference: the
 		// backslash was real, the srefgen op is gone. Not a site.
 		{"folded constant refs are not sites", "my $a = \\1;\nmy $b = \\\"x\";\n", nil},
