@@ -48,6 +48,19 @@ const (
 	// sweep and report success having measured nothing. The workflow sets
 	// this to assert that, in its world, the corpus is supposed to be there.
 	requireCorpusEnv = "PARSEORACLE_REQUIRE_CORPUS"
+
+	// baselineEnv points TestRatchetCorpus at a baseline other than the
+	// committed one. It exists for exactly one caller: TestCIGateRunsTheSweep
+	// runs the workflow's own sweep step over a five-file shim, and needs a
+	// five-row baseline to gate it against. The workflow must never set it
+	// -- that test fails if it does -- and the receipt step compares the
+	// receipt's baseline hash against the committed file regardless.
+	baselineEnv = "PARSEORACLE_BASELINE"
+
+	// receiptEnv names where TestRatchetCorpus writes its receipt after the
+	// ratchet passes. Unset, no receipt is written, which is right locally;
+	// the workflow sets it and its next step fails on the file's absence.
+	receiptEnv = "PARSEORACLE_RECEIPT"
 )
 
 // corpusRequired reports whether a missing corpus must fail rather than skip.
@@ -201,20 +214,17 @@ func TestCINeverRebaselines(t *testing.T) {
 	// WHY it does not re-baseline and a whole-file substring match cannot
 	// tell that prose from a command. Matching only what the runner executes
 	// is also the stricter test: a flag smuggled in after a `#` is inert.
+	//
+	// This is a must-not-contain check, and uncommented() can hide text
+	// from it (see its comment). It stays because it is cheap and its
+	// message names the exact flag; the check that cannot be hidden from
+	// is TestCIGateRunsTheSweep, where a step that re-baselines exits 0
+	// against a baseline that should have failed it.
 	body := uncommented(readWorkflow(t))
 
 	if strings.Contains(body, "-parseoracle.update") {
 		t.Error("the fidelity workflow passes -parseoracle.update: a job that " +
 			"re-baselines launders regressions into the baseline and can never fail")
-	}
-	// The converse: without -parseoracle.corpus the corpus ratchet skips,
-	// and a skipped test is a green check that measured nothing.
-	if !strings.Contains(body, "-parseoracle.corpus") {
-		t.Error("the fidelity workflow does not pass -parseoracle.corpus: " +
-			"TestRatchetCorpus skips without it, so the job would be decoration")
-	}
-	if !strings.Contains(body, "TestRatchetCorpus") {
-		t.Error("the fidelity workflow does not run TestRatchetCorpus")
 	}
 }
 
@@ -374,78 +384,70 @@ func TestCIReportsSkewBeforeSweeping(t *testing.T) {
 	}
 }
 
-// TestCISweepFailureFailsTheJob: the sweep's exit status is the gate.
-//
-// A ratchet whose failure cannot fail the build is decoration, which is the
-// property perl-lsp's version lost. Two one-line edits neutralise this
-// workflow while every other assertion in this file still passes: appending
-// `|| true` to the sweep's shell, or setting `continue-on-error: true` on its
-// step. Either leaves a job that runs the whole six-minute sweep, prints every
-// regression to its log, and then reports success.
-//
-// The workflow's own header says that must never happen. Nothing checked it.
-func TestCISweepFailureFailsTheJob(t *testing.T) {
-	sweep, found := sweepStep(t)
-	if !found {
-		t.Fatal("no step runs TestRatchetCorpus")
-	}
-
-	// continue-on-error is the declarative form: the step fails, the job
-	// stays green. Read from the parsed step rather than matched as text,
-	// so any indent or position within the step is caught.
-	if sweep.ContinueOnError {
-		t.Error("the sweep step sets continue-on-error: the ratchet would run, " +
-			"report its regressions, and the job would still pass")
-	}
-
-	// `|| true` and friends are the shell form. Comments are stripped first
-	// because the prose around this step discusses the very constructs
-	// being matched — the -parseoracle.update assertion above failed
-	// against its own explanatory comment before it did the same.
-	shell := uncommented(sweep.Run)
-	for _, swallow := range []string{"|| true", "|| :", "|| exit 0", "; true", "set +e"} {
-		if strings.Contains(shell, swallow) {
-			t.Errorf("the sweep's shell contains %q, which discards the test's "+
-				"exit status: the gate would pass on a failing ratchet", swallow)
-		}
-	}
-}
-
-// sweepStep returns the step that runs the corpus sweep.
-func sweepStep(t *testing.T) (workflowStep, bool) {
-	t.Helper()
-	for _, step := range workflowSteps(t, readWorkflow(t)) {
-		if strings.Contains(step.Run, "TestRatchetCorpus") {
-			return step, true
-		}
-	}
-	return workflowStep{}, false
-}
-
-// workflowStep is the subset of a step these tests reason about.
+// workflowStep is the subset of a step these tests reason about. Run, Shell
+// and Env are what TestCIGateRunsTheSweep executes; If is what it cannot.
 type workflowStep struct {
-	Name string            `yaml:"name"`
-	Uses string            `yaml:"uses"`
-	Run  string            `yaml:"run"`
-	Env  map[string]string `yaml:"env"`
-	// ContinueOnError is read because setting it on the sweep step turns
-	// the gate into a report: the step fails, the job does not.
-	ContinueOnError bool `yaml:"continue-on-error"`
+	Name  string            `yaml:"name"`
+	Uses  string            `yaml:"uses"`
+	Run   string            `yaml:"run"`
+	Shell string            `yaml:"shell"`
+	Env   map[string]string `yaml:"env"`
+	If    any               `yaml:"if"`
+}
+
+// workflowJob is the subset of a job these tests reason about.
+type workflowJob struct {
+	If    any               `yaml:"if"`
+	Env   map[string]string `yaml:"env"`
+	Steps []workflowStep    `yaml:"steps"`
+}
+
+// workflowFile is the subset of the workflow these tests reason about: the
+// triggers, and every level env: can be set at, because a variable set at
+// any of them reaches the executed command.
+type workflowFile struct {
+	On struct {
+		Push struct {
+			Branches []string `yaml:"branches"`
+		} `yaml:"push"`
+		PullRequest struct {
+			Branches []string `yaml:"branches"`
+		} `yaml:"pull_request"`
+	} `yaml:"on"`
+	Env  map[string]string      `yaml:"env"`
+	Jobs map[string]workflowJob `yaml:"jobs"`
+}
+
+// parseWorkflow reads the fidelity workflow into workflowFile.
+func parseWorkflow(t *testing.T) workflowFile {
+	t.Helper()
+	var wf workflowFile
+	if err := yaml.Unmarshal([]byte(readWorkflow(t)), &wf); err != nil {
+		t.Fatalf("%s is not valid YAML: %v", workflow, err)
+	}
+	return wf
 }
 
 // workflowSteps parses the ratchet job's steps in order.
 func workflowSteps(t *testing.T, body string) []workflowStep {
 	t.Helper()
 
-	var parsed struct {
-		Jobs map[string]struct {
-			Steps []workflowStep `yaml:"steps"`
-		} `yaml:"jobs"`
-	}
+	var parsed workflowFile
 	if err := yaml.Unmarshal([]byte(body), &parsed); err != nil {
 		t.Fatalf("%s is not valid YAML: %v", workflow, err)
 	}
 	return parsed.Jobs["ratchet"].Steps
+}
+
+// repoRoot is the repository root as an absolute path, which is the
+// directory the runner executes every step from.
+func repoRoot(t *testing.T) string {
+	t.Helper()
+	root, err := filepath.Abs(repoFile(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return root
 }
 
 // readWorkflow reads the fidelity workflow, failing rather than skipping when
@@ -460,12 +462,18 @@ func readWorkflow(t *testing.T) string {
 	return string(data)
 }
 
-// uncommented drops YAML comments, leaving what the runner actually executes.
+// uncommented drops YAML comments, leaving roughly what the runner executes.
 //
-// It is line-oriented and does not understand `#` inside a quoted string,
-// which is fine for the question being asked: every use here is "does this
-// flag appear in a command", and erring towards dropping text can only make
-// these assertions stricter, never laxer.
+// It is line-oriented and cuts at the first `#` on a line, so it does not
+// understand a `#` inside a quoted string or a parameter expansion. That
+// makes it fit for MUST-CONTAIN checks only, where dropping text can only
+// make the check stricter. For a must-NOT-contain check it is a sieve:
+// `-parallel "${#RUNNER_ARCH}" || true` is executed in full by the shell and
+// truncated to `-parallel "${` here, so the `|| true` is invisible to every
+// substring assertion and live on the runner. An earlier version of this
+// comment claimed the opposite; that claim was disproved by exactly that
+// line. The exit-status property is guarded by executing the step in
+// TestCIGateRunsTheSweep, not by reading it here.
 func uncommented(body string) string {
 	var kept []string
 	for _, line := range strings.Split(body, "\n") {

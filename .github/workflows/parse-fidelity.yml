@@ -1,52 +1,85 @@
 # ABOUTME: Runs the parser fidelity ratchet against perl's own test suite on push and PR.
 # ABOUTME: Pins the interpreter and the corpus revision, because a verdict measured across a skew is an anecdote.
 #
-# WHAT IS NOT VERIFIED HERE
-# ------------------------
-# A GitHub workflow cannot be run locally, so nothing below this comment was
-# executed before it was committed. What WAS tested locally lives in
-# internal/parseoracle/ci_test.go, which runs in the normal `go test` suite:
+# HOW THIS GATE IS GUARDED, AND WHAT IT CANNOT GUARD
+# --------------------------------------------------
+# A GitHub workflow cannot be run locally, so nothing in this file was
+# executed on a runner before it was committed. Five rounds of review found
+# fourteen ways to make an earlier version of this job go green while
+# measuring nothing, and every one of them got past a guard that asked
+# whether the YAML text did or did not contain some substring: a second -run
+# that Go honours and a field scan does not, -skip, -list, -count=0,
+# -exec /bin/true, -parseoracle.corpus=false, GOFLAGS in the step's env, the
+# require-corpus switch set to '0', exports inside the script, `| tee` under
+# a shell with no pipefail, `|| echo`, `|| true` hidden behind a `#` inside a
+# parameter expansion, and a shell without -e. The ways not to run a Go test
+# are not enumerable by substring, so this file no longer relies on that.
 #
-#   * .github/scripts/parseoracle-pin.sh agrees with parseoracle.ReadPin, on
-#     the committed pin and on four synthetic ones, and exits non-zero on a
-#     pin missing either half.
-#   * this file parses as YAML, every step either uses an action or runs a
-#     command, and every action carries a version.
-#   * this file passes -parseoracle.corpus and never -parseoracle.update,
-#     matched with comments stripped so the prose below cannot satisfy it.
-#   * this file reads the pin through that script rather than hardcoding the
-#     revision.
-#   * this file sets PARSEORACLE_TIMEOUT, the sweep reads it, and it is
-#     larger than DefaultTimeout.
-#   * the interpreter check runs BEFORE the sweep and its message names both
-#     versions and the word skew.
+# The gate is two steps, and the second is what makes the first honest:
 #
-# and, in internal/parseoracle/gate_test.go, the ways this job can be made to
-# pass while measuring nothing:
+#   * "Run the fidelity ratchet" runs TestRatchetCorpus, which -- only after
+#     the ratchet has passed -- writes $PARSEORACLE_RECEIPT: how many files
+#     it swept, how many rows the baseline had, the baseline's sha256, the
+#     pin, and a digest of the verdicts. A sweep that was skipped, filtered
+#     out, listed, run under /bin/true, or never reached writes nothing.
+#   * "Verify the sweep's receipt" runs internal/parseoracle/cmd/receipt,
+#     which recomputes every field from the checked-out tree: the receipt
+#     must exist, its sha256 must be the committed baseline's, its pin must
+#     be corpus.pin, its verdict digest must be what the committed rows
+#     digest to, files_swept must equal baseline_rows, and baseline_rows
+#     must be at least 310. The last is F7: Check is a symmetric diff, so a
+#     baseline truncated to its header and a shim with no files agree on
+#     nothing and pass. TestRatchetCorpus refuses an empty denominator too.
 #
-#   * no continue-on-error on the job OR on any step. Either one reports a
-#     failed gate as a success, and guarding only the job would move the
-#     bypass one level down rather than close it.
-#   * the sweep command does not discard the ratchet's exit status with
-#     `|| true` and friends, which is the same bypass written in shell.
-#   * the sweep's -run pattern matches a test that actually exists, resolved
-#     with `go test -list` rather than by substring. A typo'd pattern exits 0
-#     with "no tests to run", and every substring assertion survives it.
-#   * the sweep sets PARSEORACLE_REQUIRE_CORPUS, which turns a missing corpus
-#     from a skip into a failure. The skip is right for a developer without a
-#     perl5 checkout and wrong here, where a checkout that did not
-#     materialise would otherwise pass this job having swept zero files.
+# What is tested locally, in the normal `go test` suite:
 #
-# Each of those was confirmed to fail on a mutation of this file before it was
-# trusted -- injecting -parseoracle.update, dropping -parseoracle.corpus,
-# hardcoding the revision, shrinking the timeout, breaking a step's indent,
-# removing an action's version, removing "skew" from the message, setting
-# continue-on-error on the job and again on the sweep step, appending
-# `|| true` to the sweep, typo'ing and then deleting the -run pattern, and
-# pointing PERL5_CORPUS at a directory that is not a corpus.
+#   * TestCIGateRunsTheSweep (internal/parseoracle/gate_test.go) does not
+#     read the two gate steps; it EXECUTES them, as committed -- the script,
+#     the step's shell (absent means `bash -e {0}`, exactly as on GitHub, so
+#     no pipefail), and every env: block from the workflow, job and step
+#     levels -- over a five-file shim built from the fixture corpus. The
+#     sweep step must exit 0 and write a receipt for five files against the
+#     baseline it was given; must exit non-zero, and write no receipt, when
+#     that baseline records one file differently; and must exit non-zero
+#     when the corpus is absent in the shape a cache miss leaves. The receipt
+#     step must reject that five-file receipt, reject a missing one, and
+#     accept one that describes the committed baseline. Each of the fourteen
+#     bypasses above was re-applied to this file against that test and
+#     failed it, because none of them yields a five-file receipt together
+#     with a failing exit on a regression.
+#   * TestCIGateCannotBeAdvisory: no continue-on-error on the job or any
+#     step. A GitHub semantic, not a shell one, so it is read, not executed.
+#   * TestCIGateCannotBeSkipped: no `if:` on the job or on either gate step,
+#     and both triggers name pu. Read, not executed, and partial -- see below.
+#   * TestCINeverRebaselines: -parseoracle.update never appears. A must-not-
+#     contain check can be hidden from; the executed test above is what
+#     fails a step that re-baselines, since it would exit 0 on a regression.
+#   * ci_test.go also checks that this file parses, that every step uses a
+#     versioned action or runs a command, that the pin is read through
+#     .github/scripts/parseoracle-pin.sh (which agrees with ReadPin) rather
+#     than hardcoded, that PARSEORACLE_TIMEOUT is set, read, and larger than
+#     DefaultTimeout, and that the interpreter check runs BEFORE the sweep
+#     and names both versions and the word skew.
 #
-# The workflow file is deliberately thin glue over those tested parts. What
-# remains genuinely unproven until this runs on a real runner:
+# WHAT NO TEST IN THIS REPOSITORY CAN CLOSE
+#
+# `if: false` on the job, `if: false` on a step, or triggers that name some
+# other branch each produce a workflow that parses, passes every executable
+# check, and never runs. TestCIGateCannotBeSkipped reads those three keys,
+# which catches the edit but not the consequence: today the `pu` ruleset has
+# deletion, non_fast_forward and pull_request rules and NO required status
+# checks (`gh api repos/perigrin/pvm/branches/pu/protection` answers 404,
+# "Branch not protected"). So a job that is skipped, deleted, or never
+# triggered is indistinguishable, at the merge button, from one that passed.
+# The fix is the repository owner's, not this file's: add to the pu ruleset
+#
+#     required_status_checks: ["Fidelity ratchet (pinned perl + pinned corpus)"]
+#
+# with strict_required_status_checks_policy enabled, so that a missing check
+# blocks the merge instead of counting as success. Until that is applied,
+# this workflow reports; it does not gate.
+#
+# What remains genuinely unproven until this runs on a real runner:
 #
 #   1. shogo82148/actions-setup-perl@v1 provides 5.42.0 on ubuntu-latest, and
 #      the resulting @INC has both a pure-perl and an architecture-specific
@@ -75,11 +108,6 @@
 # one, so this job spawns perl 620 times on every push. Tracked as 01a095cb,
 # "Wire the oracle cache into the corpus sweep"; it is a speedup rather than a
 # correctness fix, which is why this ships without it.
-#
-# Every one of those fails loudly rather than silently: a missing perl, an
-# unreachable revision, or a broken shim aborts a step. The one failure mode
-# this file must never have is passing while measuring nothing, which is why
-# -parseoracle.corpus is asserted by a test rather than trusted to review.
 
 name: Parse Fidelity
 
@@ -103,6 +131,10 @@ jobs:
     # shared runner has 4. This bounds the job; PARSEORACLE_TIMEOUT bounds a
     # single file.
     timeout-minutes: 45
+    env:
+      # Written by the sweep only after the ratchet passes, read by the step
+      # after it. Set once, at the job, so both steps name the same file.
+      PARSEORACLE_RECEIPT: ${{ runner.temp }}/ratchet-receipt.json
 
     steps:
     - name: Checkout code
@@ -192,17 +224,19 @@ jobs:
         path: ${{ runner.temp }}/oracleshim
         key: parseoracle-shim-${{ steps.pin.outputs.interpreter }}-${{ steps.pin.outputs.revision }}
 
-    # The gate. -parseoracle.corpus opts into the 620-file sweep;
+    # The gate, first half. -parseoracle.corpus opts into the 620-file sweep;
     # -parseoracle.update is ABSENT and must stay absent, because a job that
     # rewrites the baseline it is checking against launders every regression
-    # into the baseline and can never fail. TestCINeverRebaselines asserts
-    # that against this file. A re-baseline is a deliberate local act that
-    # lands in the same commit as the change that moved it.
+    # into the baseline and can never fail. A re-baseline is a deliberate
+    # local act that lands in the same commit as the change that moved it.
     #
     # A pin mismatch surfaces as SkewError -- "re-baseline needed" -- rather
     # than as a list of regressions, so a perl upgrade on the runner does not
     # read as the parser breaking overnight. The two steps above make that
     # case loud earlier, but CheckPin is the backstop.
+    #
+    # This step is executed, not read, by TestCIGateRunsTheSweep: change its
+    # script, shell or env and the test runs the changed version.
     - name: Run the fidelity ratchet
       env:
         PERL5_CORPUS: ${{ runner.temp }}/perl5
@@ -223,7 +257,8 @@ jobs:
         # directory behind; the sweep would then find no t/test.pl, skip, and
         # this job would go green having measured zero files. That is the
         # failure this whole workflow exists to prevent, arrived at from the
-        # other side.
+        # other side. The receipt step below would also fail on the missing
+        # receipt; this makes the reason legible in the sweep's own log.
         PARSEORACLE_REQUIRE_CORPUS: '1'
       run: |
         go test ./internal/parseoracle/ \
@@ -232,3 +267,10 @@ jobs:
           -count=1 \
           -timeout 40m \
           -v
+
+    # The gate, second half. Whatever the step above did, this one asks for
+    # the receipt only a completed TestRatchetCorpus writes, and checks it
+    # against the checked-out baseline and pin. The paths it compares against
+    # are fixed inside the command on purpose.
+    - name: Verify the sweep's receipt
+      run: go run ./internal/parseoracle/cmd/receipt "$PARSEORACLE_RECEIPT"
