@@ -85,6 +85,67 @@ func (r Report) ExactRate() float64 {
 	return float64(r.Totals[BucketExact]) / float64(n)
 }
 
+// VerifiedExact counts the exact verdicts that exercised at least one
+// marker: perl reported a site, and the subject accounted for it.
+//
+// This is the number to implement a new parser against, and it is smaller
+// than Totals[BucketExact] by exactly the files in VacuousExact. Before the
+// harness measured more than srefgen, 332 of 411 exact verdicts had no
+// reference in play (findings §0.11): a parser that got `%h`, `/.../`,
+// `<FH>` and `{}` all wrong would still have scored 69.3%.
+func (r Report) VerifiedExact() int {
+	n := 0
+	for _, f := range r.Files {
+		if f.measured() && f.Verdict.Bucket == BucketExact && f.Facts.siteCount() > 0 {
+			n++
+		}
+	}
+	return n
+}
+
+// VacuousExact counts the exact verdicts reached with no marker in play:
+// perl reported no site of any kind, so agreement was trivial. They are
+// still exact -- nothing was wrong -- but they verified nothing.
+func (r Report) VacuousExact() int {
+	n := 0
+	for _, f := range r.Files {
+		if f.measured() && f.Verdict.Bucket == BucketExact && f.Facts.siteCount() == 0 {
+			n++
+		}
+	}
+	return n
+}
+
+// InPlay counts, per marker, the measured files perl reported at least one
+// site for. It is the ceiling on how many files each marker can verify.
+func (r Report) InPlay() map[Marker]int {
+	in := map[Marker]int{}
+	for _, f := range r.Files {
+		if !f.measured() {
+			continue
+		}
+		for m, lines := range f.Facts.Sites {
+			if len(lines) > 0 {
+				in[m]++
+			}
+		}
+	}
+	return in
+}
+
+// measured reports whether a result stayed in the denominator.
+func (r Result) measured() bool { return !r.Excluded && r.Err == "" }
+
+// siteCount is every marker site perl reported for the file. It is the
+// baseline's metric column, and zero means an exact verdict verified nothing.
+func (f Facts) siteCount() int {
+	n := 0
+	for _, lines := range f.Sites {
+		n += len(lines)
+	}
+	return n
+}
+
 // Wrong names every file we committed to a parse perl did not make. The list
 // is more useful than the count: a report that says "3 WRONG" sends a reader
 // back to the corpus to work out which three.
@@ -115,6 +176,19 @@ func (r Report) String() string {
 	// The exact rate is printed on its own line because it is the figure a
 	// ratchet floors, and a ceiling on WRONG alone proves nothing.
 	fmt.Fprintf(&b, "exact rate %s\n", percent(r.Totals[BucketExact], n))
+
+	// The exact rate overstates what was verified: an exact verdict on a
+	// file perl reported no marker site for agreed about nothing. The
+	// verified surface is the exact verdicts with a marker in play, and
+	// the per-marker line is the ceiling each marker could verify.
+	fmt.Fprintf(&b, "exact with a marker in play %5d  %s\n", r.VerifiedExact(), percent(r.VerifiedExact(), n))
+	fmt.Fprintf(&b, "exact with nothing in play  %5d  %s\n", r.VacuousExact(), percent(r.VacuousExact(), n))
+	inPlay := r.InPlay()
+	b.WriteString("files with a marker in play:")
+	for _, m := range Markers {
+		fmt.Fprintf(&b, " %s %d", m, inPlay[m])
+	}
+	b.WriteString("\n")
 
 	// Runner errors are named for the same reason WRONG files are: a count
 	// cannot be triaged. These are also the least stable number in the

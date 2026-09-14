@@ -50,7 +50,7 @@ $ perl -MO=Concise,-exec -c subbody.pl | grep -c srefgen                    # 1
 $ perl -MO=Concise,-exec,-main,-stash=main -c subbody.pl | grep -c srefgen  # 2
 ```
 
-So the op sequence still comes from Concise, but `srefgen` and `ref_lines` come
+So the op sequence still comes from Concise, but `srefgen` and `sites` come
 from a probe that walks the optree with `B` directly: `main_root`, the
 `BEGIN`/`UNITCHECK`/`CHECK`/`INIT`/`END` arrays (perl frees `BEGIN` blocks
 after running them unless `B::save_BEGINs` is called first, which the probe
@@ -59,8 +59,11 @@ does before any `BEGIN` in the file), every named sub in every package under
 `-stash=main` was not enough: it cannot reach anonymous subs or `BEGIN` blocks
 at all.
 
-`ref_lines` is the per-site form: one entry per reference-taking op, giving
-the line of the statement it belongs to. Perl attributes every op to the
+`sites` is the per-site form: per marker (`srefgen`, `rv2hv`, `match`,
+`readline`, `anonhash`), one entry per op, giving the line of the statement
+it belongs to. The same walk finds all five; the reference population is
+described below and the other four in the kinds table under "Measuring
+another implementation". Perl attributes every op to the
 nearest preceding `nextstate`, and a `nextstate` names its statement's FIRST
 line (measured on multi-line calls, hash literals and `if`/`elsif`/`for`/
 `while` conditions). Ops perl compiled from another file -- the subs a corpus
@@ -113,10 +116,37 @@ The subject prints one JSON object on stdout and exits 0:
 | Field | Meaning |
 |---|---|
 | `ok` | Required. `false` for a file the subject rejects; that scores `no-answer`. |
-| `call_sites` | Optional. Each call and what was concluded about it: `took_reference`, `unresolved`. Omitted or `null` means "not computed"; `[]` means "none found". |
-| `call_sites[].kind` | `"reference"` for a `\` the source wrote outside a call; absent for a call. |
+| `call_sites` | Optional. Each site the subject decided something at, and what: for a call, `took_reference` and `unresolved`; for any other kind, the kind itself is the decision. Omitted or `null` means "not computed"; `[]` means "none found". |
+| `call_sites[].kind` | Absent for a call. `"reference"` for a `\` the source wrote outside a call. `"hash"`, `"match"`, `"readline"`, `"anonhash"` for the other four parse decisions the harness measures (below). |
+| `call_sites[].line`, `end_line` | The span of the statement the site is in. Perl attributes an op to its statement and no finer, so a site without a line accounts for nothing. |
+| `call_sites[].unresolved` | The subject could not settle this site. On a call it is the prototype hedge; on any other kind it is a hedge about that kind. |
 | `prototypes` | Optional. Sub name to prototype string. Same omitted/null/empty rule. |
 | `declined`, `declined_reason` | The subject dropped source it could not handle. Scores `no-answer`. |
+
+**Five questions, five kinds.** Each kind is the subject's side of one
+marker op in perl's optree (spec §7.1.2), and each is scored by presence per
+statement: every site perl reports must be covered by a site of the matching
+kind in the same statement. Perl's optree is post-peephole and only ever
+loses marker ops — `$h{a}` folds to `multideref`, a lexical `%h` is `padhv`,
+a match under `if (0)` is discarded — so a subject that reports a construct
+perl folded away costs nothing. What a subject must never do is stay silent
+about a construct perl kept.
+
+| Kind | Report it for | Perl op | The other reading |
+|---|---|---|---|
+| a call (no kind) + `took_reference` | `f(@a)` under a `\@` prototype, `f(\@a)` | `srefgen` | a flattened list |
+| `"reference"` | `\@a`, `\%h`, `\&f`, `\(@a, @b)` outside a call | `srefgen`, `refgen` | — |
+| `"hash"` | `%h`, `%$r`, `%{...}`, `->%*`, `$h{k}`, `$r->{k}`, `@h{...}`, `%h{...}` | `rv2hv` | `%` as modulus |
+| `"match"` | `/x/`, `m//`, and `=~`/`!~` against anything but `s///` or `tr///` | `match` | `/` as division |
+| `"readline"` | `<FH>`, `<$fh>`, `<>`, `<<>>`, `readline(...)` | `readline`, `rcatline` | `<...>` as a glob |
+| `"anonhash"` | `{ a => 1 }`, `{}`, `+{ ... }` where the subject read a hash constructor | `anonhash`, `emptyavhv` flagged as a hash | `{` as a block |
+
+A subject answers a question by reporting at least one site of that kind
+somewhere in the file; a file with sites of the kind but none at a statement
+where perl built the op is `WRONG` there. A subject that reports no site of a
+kind anywhere has not answered that question and scores `no-answer` for it,
+so an implementation can adopt the kinds one at a time — `ok` alone, then
+calls, then hashes — and be measured on what it has.
 
 **Exit status is not a verdict.** Unlike `perl -c`, a subject does not exit
 non-zero to say "not Perl"; it says `"ok": false`. A non-zero exit, a timeout,

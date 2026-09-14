@@ -95,10 +95,12 @@ type Row struct {
 	// measure. All three are recorded, because a file silently leaving the
 	// denominator is exactly the drift a baseline exists to catch.
 	Status string
-	// Metric is the parse fact the verdict turned on: the number of
-	// references perl took. It is recorded but NOT ratcheted — a metric
-	// that moved while the status held is information, not a regression,
-	// and failing on it would make the baseline unmaintainable.
+	// Metric is how many marker sites perl reported for the file, across
+	// every marker. It is recorded but NOT ratcheted — a metric that moved
+	// while the status held is information, not a regression, and failing
+	// on it would make the baseline unmaintainable. Its use is the other
+	// way round: an exact row with metric 0 is an agreement about nothing,
+	// so the verified surface is the exact rows with a metric above it.
 	Metric int
 	// Category is the taxonomy entry for this file's first error.
 	Category Category
@@ -197,7 +199,7 @@ func NewBaseline(pin Pin, report Report, dir string) Baseline {
 			defer func() { <-sem }()
 			b.Rows[i] = Row{
 				Status:   status(f),
-				Metric:   f.Facts.Srefgen,
+				Metric:   f.Facts.siteCount(),
 				Category: Categorise(f, dir),
 				Path:     f.Path,
 			}

@@ -36,15 +36,16 @@ type Facts struct {
 	// the main program alone omits every prototype-forced reference inside a
 	// sub body, which is where most of the corpus keeps its calls.
 	Srefgen int
-	// RefLines is the statement line of every reference-taking op perl
-	// built for this file -- srefgen and list-form refgen alike, one entry
-	// per op, sorted. It is the per-site form of Srefgen, and the one the
-	// comparison uses: a total cannot say which statement a reference
-	// belongs to. Ops perl compiled from another file, such as a required
-	// t/test.pl, are not this file's and are absent.
-	RefLines []int
+	// Sites is, per marker, the statement line of every marker op perl
+	// built for this file, one entry per op, sorted. For MarkerSrefgen
+	// that is srefgen and list-form refgen alike -- the per-site form of
+	// Srefgen, and the one the comparison uses: a total cannot say which
+	// statement a reference belongs to. Ops perl compiled from another
+	// file, such as a required t/test.pl, are not this file's and are
+	// absent. A marker with no op in the file has no entry.
+	Sites map[Marker][]int
 	// Walked reports that the probe that walks perl's CVs actually ran.
-	// Without it Srefgen and RefLines are absent rather than zero, and a
+	// Without it Srefgen and Sites are absent rather than zero, and a
 	// comparison must decline instead of reading absence as agreement.
 	Walked bool
 	// Entersub counts subroutine calls.
@@ -151,7 +152,7 @@ type wire struct {
 	Ops        []string          `json:"ops"`
 	OpCount    int               `json:"op_count"`
 	Srefgen    int               `json:"srefgen"`
-	RefLines   []int             `json:"ref_lines"`
+	Sites      map[string][]int  `json:"sites"`
 	Walked     int               `json:"walked"`
 	Entersub   int               `json:"entersub"`
 	Prototypes map[string]string `json:"prototypes"`
@@ -163,12 +164,16 @@ func decode(out []byte) (Facts, error) {
 	if err := json.Unmarshal(out, &w); err != nil {
 		return Facts{}, fmt.Errorf("decode oracle output %q: %w", out, err)
 	}
+	sites := make(map[Marker][]int, len(w.Sites))
+	for name, lines := range w.Sites {
+		sites[Marker(name)] = lines
+	}
 	return Facts{
 		OK:         w.OK == 1,
 		Ops:        w.Ops,
 		OpCount:    w.OpCount,
 		Srefgen:    w.Srefgen,
-		RefLines:   w.RefLines,
+		Sites:      sites,
 		Walked:     w.Walked == 1,
 		Entersub:   w.Entersub,
 		Prototypes: w.Prototypes,

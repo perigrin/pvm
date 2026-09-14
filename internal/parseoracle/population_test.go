@@ -43,7 +43,7 @@ func TestOptreePresentStillScores(t *testing.T) {
 		CallSites:      []SubjectCallSite{{Line: 1, TookReference: true}},
 	}
 	oracle := Facts{OK: true, OpCount: 12, Ops: []string{"leave", "enter"},
-		Srefgen: 1, RefLines: []int{1}, Walked: true}
+		Srefgen: 1, Sites: map[Marker][]int{MarkerSrefgen: {1}}, Walked: true}
 
 	assert.Equal(t, BucketExact, CompareFacts(oracle, subject).Bucket)
 }
@@ -98,6 +98,6 @@ func compiledFacts() Facts {
 func withRefsAt(lines ...int) Facts {
 	f := compiledFacts()
 	f.Srefgen = len(lines)
-	f.RefLines = lines
+	f.Sites = map[Marker][]int{MarkerSrefgen: lines}
 	return f
 }

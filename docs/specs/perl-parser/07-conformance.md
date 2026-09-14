@@ -681,7 +681,24 @@ Instead the subject answers the same questions the oracle answers:
 | `prototypes` | What prototypes did you resolve? | A name and a string, not a node |
 | `call_sites[].took_reference` | Did this call pass a reference? | The conclusion, not how it was reached |
 | `call_sites[].unresolved` | Did you decline to settle this call? | What separates `wider` from `WRONG` |
+| `call_sites[].kind` | Which of the §7.1.2 questions is this site an answer to? | A name (`hash`, `match`, `readline`, `anonhash`, `reference`), not a node |
 | `declined` | Did you silently drop source you could not handle? | See below |
+
+**One kind per marker, and the same rule for all of them.** The §7.5.4 table
+has five markers; `took_reference` answers the first, and the other four are
+answered by a site whose `kind` names the decision — `"hash"` for a `%` read
+as a sigil (perl's `rv2hv`), `"match"` for a `/` read as a pattern
+(`match`), `"readline"` for a `<...>` read as a filehandle (`readline`),
+`"anonhash"` for a `{` read as a constructor (`anonhash`). A site of a kind
+with `unresolved` set is the hedge for that kind. Each marker is decided per
+statement by presence: every op perl reports must be covered by a site of
+the matching kind in the same statement, a hedge of that kind there is
+`wider`, and a subject that reported sites of the kind but none there is
+`WRONG`. A subject that reported no site of a kind anywhere in the file has
+not answered that question and scores `no-answer` for it, which is what lets
+an implementation adopt the kinds incrementally. The file takes the worst
+verdict any marker reached, and names the marker. `internal/parseoracle/README.md`
+carries the per-kind table of constructs.
 
 **`declined` is the portable form of a parser-specific signal.** Our
 tree-sitter grammar accepts `my $x = ;` — which perl rejects — by dropping the
