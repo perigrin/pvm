@@ -131,10 +131,10 @@ jobs:
     # shared runner has 4. This bounds the job; PARSEORACLE_TIMEOUT bounds a
     # single file.
     timeout-minutes: 45
-    env:
-      # Written by the sweep only after the ratchet passes, read by the step
-      # after it. Set once, at the job, so both steps name the same file.
-      PARSEORACLE_RECEIPT: ${{ runner.temp }}/ratchet-receipt.json
+    # PARSEORACLE_RECEIPT is set on each of the two gate steps below rather
+    # than once here: the `runner` context is not available in a job-level
+    # env, and a workflow that names it there does not parse -- GitHub
+    # records a 0s failure, "workflow file issue", and runs nothing.
 
     steps:
     - name: Checkout code
@@ -241,6 +241,9 @@ jobs:
       env:
         PERL5_CORPUS: ${{ runner.temp }}/perl5
         PARSEORACLE_SHIM: ${{ runner.temp }}/oracleshim
+        # Written only after the ratchet passes, read by the step after it,
+        # which names the same path.
+        PARSEORACLE_RECEIPT: ${{ runner.temp }}/ratchet-receipt.json
         # DefaultTimeout is 60s, calibrated on a 24-core machine where
         # op/pack.t -- the most expensive file in the corpus -- costs 37s of
         # CPU unloaded. That is 62% of the budget with no margin for a slower
@@ -273,4 +276,6 @@ jobs:
     # against the checked-out baseline and pin. The paths it compares against
     # are fixed inside the command on purpose.
     - name: Verify the sweep's receipt
+      env:
+        PARSEORACLE_RECEIPT: ${{ runner.temp }}/ratchet-receipt.json
       run: go run ./internal/parseoracle/cmd/receipt "$PARSEORACLE_RECEIPT"
