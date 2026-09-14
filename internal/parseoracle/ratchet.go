@@ -27,6 +27,13 @@ const (
 	// because it is the Perl people are writing now.
 	CategoryModernFeature Category = "ModernFeature"
 
+	// CategoryIdentifier is P2: the lexer's identifier character class —
+	// non-ASCII names under `use utf8` and the `'` package separator. It
+	// sits ahead of the construct rules because an identifier the lexer
+	// cannot read fails before any grammar rule sees the line. Measured,
+	// 30 of the corpus's 86 General files were this.
+	CategoryIdentifier Category = "Identifier"
+
 	// CategoryQuoteLike is P2: heredocs, `qw`/`q`/`qq`/`tr`/`y` and their
 	// arbitrary delimiters. The largest P2 population, because a
 	// quote-like operator's body is not lexable without knowing the
@@ -49,6 +56,12 @@ const (
 	// declaration side, and `&`-sigil calls.
 	CategorySubroutine Category = "Subroutine"
 
+	// CategoryOperator is P2: an operator the lexer cannot separate from
+	// its operand — `x` juxtaposed to a paren or quote (`(1)x3`), `&&`
+	// directly after a bareword call, and the string bitwise family
+	// (`&.`). Measured, 16 of the corpus's 86 General files were this.
+	CategoryOperator Category = "Operator"
+
 	// CategoryGeneral is P3: everything the rules above do not claim. It is
 	// the honest answer for a file whose first error is not attributable,
 	// and a baseline that is ALL General is a taxonomy that was never
@@ -64,11 +77,13 @@ const (
 // Categories is the fixed taxonomy, in priority order.
 var Categories = []Category{
 	CategoryModernFeature,
+	CategoryIdentifier,
 	CategoryQuoteLike,
 	CategoryRegex,
 	CategoryControlFlow,
 	CategoryDereference,
 	CategorySubroutine,
+	CategoryOperator,
 	CategoryGeneral,
 	CategoryNone,
 }

@@ -192,6 +192,16 @@ var taxonomyRules = []struct {
 		`\b(class|field|method|ADJUST)\b|\buse\s+v5\.(3[6-9]|4[0-9])|` +
 			`\b(try|catch|finally|defer)\s*\{|\bbuiltin::|\buse\s+feature\b`)},
 
+	// P2: an identifier the lexer cannot read, which fails before any
+	// construct rule sees the line and so is claimed ahead of them. A
+	// non-ASCII rune counts only in identifier position — after a sigil,
+	// `::`, `->`, or a `package`/`sub` keyword — so a name inside a string
+	// on the same line does not claim it. The `'` separator likewise needs
+	// a word on both sides, which leaves `$'` (the postmatch variable) alone.
+	{CategoryIdentifier, regexp.MustCompile(
+		`(?:[$@%&*]\{?|::|->|\b(?:package|sub)\s+)[\w:]*[^\x00-\x7F]|` +
+			`(?:[$@%&*]|\b(?:package|sub)\s+)[\w:]+'\w`)},
+
 	// P2: quote-like operators, whose bodies cannot be lexed without first
 	// knowing the operator and its delimiter. The heredoc introducer is
 	// listed first because it changes where the NEXT lines are read from.
@@ -214,6 +224,18 @@ var taxonomyRules = []struct {
 	// signatures, and the `&` call form.
 	{CategorySubroutine, regexp.MustCompile(
 		`\bsub\b[^;{]*[(:]|\bmy\s+sub\b|&\$?\w+\s*\(|\bprototype\b|\bAUTOLOAD\b`)},
+
+	// P2: an operator the lexer cannot separate from its operand. This
+	// sits ahead of ControlFlow because `if (foo && 1)` breaks on `foo &&`,
+	// not on `if`. The repetition rule wants the whole quoted operand so
+	// that `'x1234'` — a string that merely starts with x — is not read as
+	// `'` followed by `x1234`; `(1) x 3` with spaces parses cleanly and is
+	// not claimed. The bareword rule excludes a sigil, `>` or `:` before
+	// the word, so `$x &&`, `->m &&` and `A::b &&` are left to their own
+	// constructs.
+	{CategoryOperator, regexp.MustCompile(
+		`\)x\d|'[^']*'x\d|"[^"]*"x\d|\s[&|^]\.\s|` +
+			`(?:^|[^\w$@%&*>:'"-])[A-Za-z_]\w*\s*&&`)},
 
 	// P2: control flow, including the statement-modifier and label forms.
 	{CategoryControlFlow, regexp.MustCompile(

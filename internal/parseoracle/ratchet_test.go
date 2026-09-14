@@ -716,6 +716,25 @@ func TestBaselineCategoryFollowsConstruct(t *testing.T) {
 		// separately -- it is the degenerate detector's target, not this
 		// test's.
 		{"heredoc-unterminated-tag", "my $x = <<\"EOT;\n", parseoracle.CategoryQuoteLike},
+
+		// Identifier: the lexer's identifier character class. Non-ASCII
+		// names under `use utf8` are 28 of the corpus's General files; the
+		// `'` package separator is two more. `sub ᕘ { 1 }` alone parses,
+		// so the method-call form is pinned as well as the declaration.
+		{"utf8-package", "use utf8;\npackage Føø::Bær;\n", parseoracle.CategoryIdentifier},
+		{"utf8-array", "use utf8;\n@ᕘ::ISA = 'x';\n", parseoracle.CategoryIdentifier},
+		{"utf8-method", "use utf8;\nsub ᕘ { 'x' . (shift)->SUPER::ᕘ }\n", parseoracle.CategoryIdentifier},
+		{"apostrophe-var", "$main'a = 1;\n", parseoracle.CategoryIdentifier},
+		{"apostrophe-sub", "sub CORE'print'foo { 43 }\n", parseoracle.CategoryIdentifier},
+
+		// Operator: an operator the lexer cannot separate from its operand.
+		// `x` juxtaposed to a closing paren or quote reads as an identifier
+		// (`x3`); `&&` after a bareword reads as a sigil; `&.` is the string
+		// bitwise family. `(1) x 3` with spaces parses cleanly.
+		{"repeat-paren", "my @a = ((1)x3, 2);\n", parseoracle.CategoryOperator},
+		{"repeat-quote", "my $s = 'x'x8;\n", parseoracle.CategoryOperator},
+		{"string-bitwise", "my $x = 22 &. 66;\n", parseoracle.CategoryOperator},
+		{"bareword-and", "my $x = foo && 1;\n", parseoracle.CategoryOperator},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got := parseoracle.CategoriseSource([]byte(tc.src))
