@@ -464,10 +464,10 @@ bucketed against each other:
 
 | Bucket | Files | Share of measured |
 |---|---:|---:|
-| exact | 411 | 69.3% |
+| exact | 405 | 68.3% |
 | wider | 12 | 2.0% |
-| **WRONG** | **0** | **0%** |
-| no-answer | 170 | 28.7% |
+| **WRONG** | **2** | **0.3%** |
+| no-answer | 174 | 29.3% |
 | *measured (denominator)* | *593* | |
 | excluded, environmental | 26 | — |
 | runner error | 1 | — |
@@ -587,7 +587,8 @@ The predicate now asks the source rather than the node kind — only `&f(@a)`,
 which perl documents as bypassing the prototype (perlsub, "Prototypes"),
 counts as settled. `isHedgedCall` and `sourceSettledTheCall` in `compare.go`.
 Re-swept, that moved exactly one file, `op/splice.t` back to `wider`, and
-left every other verdict untouched: **WRONG is 0**.
+left every other verdict untouched, taking WRONG to 0 for the `srefgen`-only
+metric.
 
 This is the shape of hazard a grammar change carries. The fix was correct and
 the measurement improved, but a node kind the harness read as "the parser is
@@ -596,8 +597,29 @@ a deliberate check would have caught it. A verdict of WRONG is the only one
 that fails a build, so a false one is the most expensive defect this harness
 can have.
 
+**Adding the four markers raised WRONG to 2, and both are real.** Neither is a
+marker defect; both are grammar defects that a reference-only metric could not
+see, which is the case for the other four markers made concrete:
+
+- `op/universal.t` — perl builds an anonymous hash at lines 16, 30, 104, 151,
+  184, 195 and 229. The subject reports six of seven, missing line 16,
+  `$a = {};`. That statement is not unusual and the adapter is not at fault:
+  `$a = {};` alone, after a `plan` call, after a `BEGIN` block, and in a copy
+  of this file's own first twenty lines all yield an anonhash site. Only the
+  full-file parse loses it, and there no site of any kind is reported for
+  lines 14–18 — the statement is gone from the tree with `HasError()` false.
+  That is the silent-shred class the stacked-filetest bug belonged to.
+- `comp/our.t` — perl matches at lines 32 and 33, the bare `/TIE/` and
+  `/calls/` inside `for ($AUTOLOAD =~ /TieAll::(.*)/)`. The subject does
+  report match sites covering both lines, but they belong to the enclosing
+  `for` and `if` statements and are spent against perl's match for the `for`
+  list itself; the innermost statement owning line 32 has none of its own.
+  Whether WRONG is the right verdict here is genuinely open — the subject did
+  see matches at those lines, so "committed with no site" overstates the
+  error. Recorded rather than settled, in `marker_gaps_test.go`.
+
 **Twelve `wider` files are every prototype-driven reference the subject
-hedged**, and WRONG being zero is worth less than it sounds: the comparison
+hedged**, and WRONG being small is worth less than it sounds: the comparison
 tests one marker, `srefgen`, and an honest refusal buckets `wider`. Two
 things changed here. A hedge now has to sit in the statement it explains, so
 `srefgen=5, hedged=1, committed=4` no longer scores `wider` on the strength
@@ -605,23 +627,38 @@ of one hedge somewhere in the file. And a hedge is now recognised from the
 source rather than the node kind, because the grammar fork stopped spelling
 "unresolved" as a distinct kind.
 
-**`exact` is weaker than "parses like perl", and by a measurable amount.**
-On the 44 baseline files of §0.6 the sweep now reports 31 exact and 13
-no-answer (base 7/2, comp 17/8, cmd 4/1, opbasic 3/2). But **26 of those 31
-exact verdicts had no marker in play** — metric 0, meaning perl took no
-reference there at all. For those 26, `exact` means only "perl took no
-reference our source did not write", which is true of any file that takes no
-references. The 69.3% is therefore a ceiling on agreement, not a measurement
-of it; adding markers (`rv2hv`, `match`, `readline`, `anonhash`) is what
-converts it into one.
+**`exact` is weaker than "parses like perl", and the gap is now much
+smaller.** The headline rate is the wrong number to read: what matters is how
+many `exact` verdicts had any parse decision in play at all, because a file
+where perl made none is a file the two sides agree about nothing on.
 
-**`no-answer` is 170 files, and they are not all the same thing.** 153 carry
+| | one marker (`srefgen`) | five markers |
+|---|---:|---:|
+| exact | 411 | 405 |
+| …with a marker in play | **79** | **231** |
+| …with nothing measured | 332 | 174 |
+| **verified surface** | **13%** | **39%** |
+
+The verified surface nearly tripled. A parser reading `%h` as modulus, `/x/`
+as division, `<FH>` as a glob and `{}` as a block used to score the same as
+one that got them right; now those four decisions are checked wherever perl
+makes them, one statement at a time, by the same rule `srefgen` always used.
+
+On the 44 files of §0.6 the same shift shows in miniature: 30 exact, of which
+**22 now have a marker in play** where 5 did before.
+
+The remaining 174 markerless exacts are not a defect — they are files where
+perl genuinely made none of the five decisions. Closing that gap further means
+more markers (`method_named` for `->m` resolution, `leaveloop`/`scope` for
+block-vs-hashref beyond the empty case), not a different rule.
+
+**`no-answer` is 174 files, and they are not all the same thing.** 153 carry
 a category, which means our parser produced an error node and the taxonomy
 named the construct — that is our coverage gap, the population the
 conformance plan's M1 has to move, and the honest reading of "how much of
 Perl we cannot parse".
 
-The remaining 17 carry no category, and they are a mixture rather than one
+The remaining 21 carry no category, and they are a mixture rather than one
 kind: 6 are files perl never finished parsing (`skip_all` inside `BEGIN`,
 `ok:1 op_count:0` — `lib/cygwin.t`, `op/refstack.t`, `uni/greek.t`,
 `uni/latin2.t`, `win32/signal.t`, `win32/system.t`); 1 is a file perl itself
