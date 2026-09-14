@@ -152,10 +152,20 @@ jobs:
 
     # ubuntu-latest ships some other perl. Running the sweep against it makes
     # CheckPin report "re-baseline needed" -- correctly, and uselessly.
+    # multi-thread: the baseline was measured on a perl built with
+    # -Duseithreads (archname x86_64-linux-thread-multi). The action's default
+    # is a non-threaded build, and on that perl five corpus files --
+    # class/threads.t, op/threads.t, op/threads-dirh.t, re/stclass_threads.t,
+    # re/user_prop_race_thr.t -- skip_all_without_config('useithreads') before
+    # compiling anything, so they read as `no-answer` where the baseline says
+    # `exact`. Run 34794163506 failed on exactly three of them. `$]` does not
+    # see this, which is why the step after this one checks useithreads too.
     - name: Install the pinned perl
+      id: perl
       uses: shogo82148/actions-setup-perl@v1
       with:
         perl-version: ${{ steps.pin.outputs.perl_version }}
+        multi-thread: true
 
     - name: Confirm the interpreter matches the pin
       env:
@@ -167,6 +177,16 @@ jobs:
         if [ "$actual" != "$PINNED" ]; then
           echo "::error::this runner has perl $actual but the baseline was measured on $PINNED."
           echo "::error::every verdict would be compared across a skew. Fix the perl, do not re-baseline from CI."
+          exit 1
+        fi
+        # corpus.pin does not record the thread configuration; the baseline's
+        # threaded perl is an assumption this step makes explicit rather than
+        # leaves for the ratchet to report as three unexplained regressions.
+        threads=$(perl -MConfig -e 'print $Config{useithreads} || "undef"')
+        echo "this runner's perl has useithreads=$threads; the baseline was measured with useithreads=define"
+        if [ "$threads" != "define" ]; then
+          echo "::error::this runner's perl is built without ithreads but the baseline was measured on one with them."
+          echo "::error::the *threads*.t files would skip before compiling and read as regressions. Fix the perl, do not re-baseline from CI."
           exit 1
         fi
 
@@ -220,11 +240,16 @@ jobs:
     # built tree in its post step. One code path, exercised locally every time
     # anyone runs the sweep without a prebuilt shim, rather than a
     # CI-only command that nothing else runs.
+    #
+    # perl-hash is the action's digest of `perl -V`, so a shim copied from a
+    # non-threaded perl's @INC is never restored under a threaded one: the
+    # .so halves of its XS modules would not load, and the key on version
+    # alone cannot tell the two builds apart.
     - name: Restore the shim
       uses: actions/cache@v4
       with:
         path: ${{ runner.temp }}/oracleshim
-        key: parseoracle-shim-${{ steps.pin.outputs.interpreter }}-${{ steps.pin.outputs.revision }}
+        key: parseoracle-shim-${{ steps.pin.outputs.interpreter }}-${{ steps.perl.outputs.perl-hash }}-${{ steps.pin.outputs.revision }}
 
     # The gate, first half. -parseoracle.corpus opts into the 620-file sweep;
     # -parseoracle.update is ABSENT and must stay absent, because a job that
