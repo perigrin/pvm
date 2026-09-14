@@ -4,18 +4,18 @@ state: pending
 urgency: normal
 milestone: m0-lexer-round-trip
 created: 2026-09-14T15:41:55.194811622Z
-updated: 2026-09-14T15:42:03.932341573Z
+updated: 2026-09-14T22:45:07.611464305Z
 ---
 
 The lexer package does not exist. This issue creates it with the token type,
-the cursor, and the forward-progress guarantee everything else rests on —
-and nothing else. No Perl-specific lexing yet.
+the cursor, the error kind, and the forward-progress guarantee everything
+else rests on — and nothing else. No Perl-specific lexing yet.
 
-Spec §7.6.2 invariant 4 is the reason this is its own issue: a Perl lexer
-WILL infinite-loop during development (an unterminated heredoc or quote-like
-operator that fails to advance the cursor is the classic case), and `go test
--fuzz` does not detect infinite loops — it hangs. The guard has to be
-structural and it has to exist before there is anything to guard.
+Spec §7.6.2 invariant 4 is why forward progress is its own concern: a Perl
+lexer WILL infinite-loop during development (an unterminated heredoc or
+quote-like operator that fails to advance the cursor is the classic case),
+and `go test -fuzz` does not detect infinite loops — it hangs. The guard has
+to be structural and it has to exist before there is anything to guard.
 
 ## Shape
 
@@ -30,18 +30,33 @@ structural and it has to exist before there is anything to guard.
 
 Trivia (whitespace, comments, POD) are TOKENS, not skipped: invariant 3 is
 lossless round-trip, so every byte of input belongs to exactly one token.
-That is the decision that makes the round-trip metric reachable at all, and
-retrofitting it later is a rewrite.
+That is what makes the round-trip metric reachable at all, and retrofitting
+it later is a rewrite.
 
 Positions are byte offsets, not line/column. Line/column is a presentation
 concern the LSP layer derives; carrying it in the token doubles the state
 that has to stay consistent under edit.
 
+**An error is a token kind, not a return value.** `Tokenize` has no error
+result, so the only way to report "I could not lex this" while keeping every
+byte accounted for is a token. Spec §2.15 item 18 names two: `Error` for a
+byte that cannot start any token, and `UnknownRest` for a construct whose
+end could not be found. Later issues (the identifier class, the lex.t gate)
+assert on these, so they are declared here or they are declared twice.
+
+## On the forward-progress test
+
+There is no Perl lexing yet, so no input can stall the cursor: a test that
+feeds sources and checks termination proves nothing. The test that fails
+when the guard is deleted installs a scan state that does not advance and
+asserts the guard fires. That is an in-package test by necessity.
+
 ## Acceptance
 
-- [ ] Package builds and Tokenize returns one trivia token for whitespace-only input (`go test ./internal/lexer/ -run TestTokenizeTrivia -count=1`)
-- [ ] Every lexer step consumes at least one byte, asserted structurally rather than by timeout (`go test ./internal/lexer/ -run TestForwardProgress -count=1`)
-- [ ] Positions are monotonic, non-negative, and within bounds on every input (`go test ./internal/lexer/ -run TestPositionMonotonicity -count=1`)
-- [ ] Concatenating every token's source text reproduces the input exactly (`go test ./internal/lexer/ -run TestLossless -count=1`)
+- [ ] Tokenize returns one trivia token for whitespace-only input (`go test ./internal/lexer/ -run '^TestTokenizeTrivia$' -count=1 -v | grep -q '^--- PASS: TestTokenizeTrivia'`)
+- [ ] Error and UnknownRest kinds exist and carry their source span (`go test ./internal/lexer/ -run '^TestErrorKindsSpanSource$' -count=1 -v | grep -q '^--- PASS: TestErrorKindsSpanSource'`)
+- [ ] A non-advancing scan state trips the forward-progress guard (`go test ./internal/lexer/ -run '^TestForwardProgressGuardFires$' -count=1 -v | grep -q '^--- PASS: TestForwardProgressGuardFires'`)
+- [ ] Positions are monotonic, non-negative, and within bounds (`go test ./internal/lexer/ -run '^TestPositionMonotonicity$' -count=1 -v | grep -q '^--- PASS: TestPositionMonotonicity'`)
+- [ ] Concatenating every token's source text reproduces the input exactly (`go test ./internal/lexer/ -run '^TestLossless$' -count=1 -v | grep -q '^--- PASS: TestLossless'`)
 
-Spec: §7.6.2 invariants 1-4. Plan: M0.
+Spec: §7.6.2 invariants 1-4, §2.15 item 18. Plan: M0.
