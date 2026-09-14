@@ -669,13 +669,15 @@ make comparable (`io/open.t` at 11 references, `re/reg_mesg.t` at 9,
 **Of the last 7, five carry an error node the taxonomy did not name** —
 `base/lex.t`, `japh/abigail.t`, `op/for-many.t`, `op/mkdir.t` and
 `re/bigfuzzy_not_utf8.t` all parse with `HasError()` true; only `run/dtrace.t`
-and `win32/popen.t` parse cleanly. So an empty category does not mean an
-unproblematic file: those five belong with the 153 as coverage gaps and are
+and `win32/popen.t` parse cleanly. So an empty category did not mean an
+unproblematic file: those five belong with the 153 as coverage gaps and were
 missing from that count because `CategoriseSource` returned nothing for them.
 Measured directly rather than inferred from the column, after an earlier
-draft of this paragraph assumed the opposite. The rule gap is worth its own
-issue; the effect on the headline is nil, since all 17 are already outside
-`exact`.
+draft of this paragraph assumed the opposite. §0.13 measured the shape — the
+trees have `HasError()` with no `ERROR` node because recovery halted — and
+closed the rule gap: every file with an error now gets a site, and the
+column at the next sweep will name them. The effect on the headline is nil,
+since all 21 are already outside `exact`.
 
 The coverage gap fell by 38 files when the grammar fork landed — files our
 parser could not read before and can now — which is the one number here that
@@ -715,3 +717,165 @@ concluded. §0.12 measured the sweep directly: ~87% of wall time is our own
 parser, not `B::Concise`. The oracle is the cheaper half. The content-hash
 cache §2 describes therefore buys less than the estimate implied — it is
 still worth having (`01a095cb`), but it is a speedup on the smaller term.
+
+## 0.13 What our parser cannot parse, by construct
+
+*2026-09-14. Measured by parsing every `no-answer` file of the §0.11 baseline
+directly through `internal/parser` and reading the line where recovery gave
+up; each construct below was then reduced to a minimal source and that source
+verified to fail on its own. This is the implementation order for a
+hand-written parser: the lexer, not the grammar, owns the top of the list.*
+
+**The taxonomy column could not say what was in 86 of its 153 categorised
+files, and said nothing at all about 8 more that carry an error.** The 86
+were `General`; the 8 had `HasError()` true and no `ERROR` node, so
+`CategoriseSource` returned nothing. After this measurement the split of the
+174 `no-answer` files is:
+
+```
+Identifier 37   Regex 27   QuoteLike 21   Subroutine 17   Operator 17
+ControlFlow 17  General 19  ModernFeature 5  Dereference 1  none 13
+```
+
+Measured with the rules in `taxonomy.go` at this commit against the §0.11
+baseline's rows; the baseline's own category column is regenerated only by a
+corpus sweep, so it lags this table until the next `-parseoracle.update`.
+
+The 13 with no category are the files perl never finished, plus
+`class/inherit.t`, `run/dtrace.t`, `win32/popen.t` and the four `run/switch*.t`:
+none of them carries an error node, verified directly. An empty category now
+means what it says.
+
+### The ranked list
+
+Counts are files in the corpus whose first error is this construct. Where a
+construct was already partly claimed by another category, the total is given
+and the previous filing noted.
+
+1. **Non-ASCII identifiers under `use utf8` — 34 files.** Every `t/mro/*_utf8.t`
+   and most of `t/uni/`. `use utf8; package Føø::Bær;` fails; so do
+   `@ᕘ::ISA = 'x'`, `*ᕘ::ᕘ_Ƒ운ℭ = sub {}` and `$Àlìcè::VERSION = 1`. The
+   declaration `sub ᕘ { 1 }` alone parses, but `(shift)->SUPER::ᕘ` does not,
+   so the failure is in the identifier character class at every position, not
+   only after `package`. Six of the 34 were previously filed as QuoteLike or
+   Subroutine because the same line also held a `qw//` or a `::`.
+
+2. **The repetition operator `x` glued to its left operand — 13 files.**
+   `my @a = ((1)x3, 2);` fails; `(1) x 3` parses. The lexer reads `x3` as an
+   identifier. The quoted forms `'x'x8` and `"\x{ffff}"x3` and the call form
+   `chr (0xdf)x4` fail the same way. In its simplest shape,
+   `my @a = (1)x3;`, the tree is *degenerate with no error node*: the
+   grammar silently drops the repetition.
+
+3. **`format` bodies — 8 files.** The empty format `format STDERR =\n.\n`
+   fails outright; a picture line `@ @<<` followed by its argument line
+   fails; a format inside a sub body takes the whole sub with it. Two of the
+   eight (`op/write.t`, `comp/form_scope.t`) parse to a degenerate tree with
+   no error node at all. The body is line-oriented and ends at a lone `.`,
+   which is the same shape as a heredoc and wants the same lexer mode.
+
+4. **Bodiless forward declarations `sub NAME;` — 7 files.** `sub bar;` alone
+   at the top of a file parses. After a statement it does not: `f(1);\nsub
+   bar;` produces an error node on the declaration, and `1;\nsub bar;` is
+   silently degenerate with the `sub` keyword dropped (§0.4.1 measured that
+   leak on cleanly-parsing files too). The prototype form
+   `sub Hash::Util::bucket_ratio (\%);` inside a sub body breaks the
+   enclosing sub (`op/hash.t`).
+
+5. **Regex modifiers on the closing-delimiter line — 6 files.** A brace- or
+   bang-delimited body whose last line is only `}ge;`, `}x;` or `!x;`:
+   `$x =~ s{\n a\n}{\n b\n}ge;` fails. The bang form is worse:
+   `$x =~ s!a!b!x;` is degenerate with no error node, while
+   `$x =~ s!a!b!g;` parses — the `x` is being read as the repetition
+   operator, which is construct 2 again from the other side.
+
+6. **Post-5.36 keywords used as legacy identifiers — 5 files.** A sub named
+   `try` and then called (`sub try { 1 }\ntry(1, 2);` — `run/runenv.t`),
+   a sub named `defer` (`op/multideref.t`), `true()`/`false()` called as
+   functions (`perf/opcount.t`), `method Pack (...)` as an indirect-object
+   call (`op/method.t`; `new Pack (...)` parses), and a forward-declared
+   `method forwarded;` inside a `class` (`class/method.t`). The grammar
+   reserves these words unconditionally; perl reserves them per feature.
+
+7. **A bareword call followed by `&&` — 3 files.** `my $x = foo && 1;` fails;
+   `foo || 1` and `foo and 1` parse. The `&` after a bareword is read as the
+   code sigil. `if (is_miniperl && !eval ...)` in `io/open.t` and
+   `op/mkdir.t` is this, and both were among the 8 uncategorised: their
+   trees have no `ERROR` node because recovery *halted* — the `source_file`
+   node ends before the source does.
+
+8. **`given`/`when` — 3 files.** `given ($x) { when (1) { } }` and the
+   `CORE::given(1) {` form. Deprecated, but the corpus tests it.
+
+9. **Numeric literal forms — 3 files.** The hexadecimal float `0x0p0`
+   (`op/hexfp.t`, an error node) and `0x0.b17217f7d1cf78p0` (`op/sprintf2.t`);
+   the underscore directly after the radix prefix, `0x_1234` (`op/oct.t`),
+   which parses to a degenerate tree.
+
+10. **The `'` package separator — 2 files.** `$main'a = 1;` and
+    `sub CORE'print'foo { 43 }`.
+
+11. **Declared references — 2 files.** `our \$T = \$::T;` and `my \$x = \$y;`
+    (`re/opt.t`); `foreach my (\@a) ([1]) { }` (`op/for-many.t`, filed under
+    ControlFlow by its `foreach`).
+
+Single files, each verified: the string bitwise operator `22 &. 66`
+(`op/bop.t`; `^.` fails the same way); a lexical `our sub foo { 42 }` inside
+a block (`op/lexsub.t`); a heredoc whose tag contains spaces, `<<"        --"`,
+in list context (`re/pat_advanced.t`); a filetest followed by a pre-increment,
+`-f ++$d` (`japh/abigail.t`; `-f $d` parses); the label form `sub f { foo: }`,
+which yields a MISSING node rather than an error (`op/attrs.t`); an
+argument-less `eval` in `is(eval, 33, ...)` (`op/eval.t`) and `require;` after
+a statement (`op/override.t`, degenerate); `print $a < $b` (`base/num.t`,
+where `<` after `print $scalar` opens a glob — `print $a > $b` parses); a
+subscript of the punctuation array, `$x = $#[0];` (`base/lex.t`, a halted
+parse); the bare word `END` as a statement inside a sub (`uni/class.t`);
+`print $? & 0xFF ? ... : ...` (`op/magic.t`, degenerate, and `print $? & 1
+? ...` parses — not reduced further).
+
+### What could not be minimised, and why
+
+Of the 19 files still `General`, thirteen are constructs from the list above
+that have no rule, because a rule for one or three files would describe
+those files rather than a construct: the numeric literals, the declared
+reference, the label, argument-less `eval` and `require`, `$#[0]`, `END`,
+`print $a <`, `print $? & 0xFF`, the orphaned `{` before a class block, and
+`op/hash.t`, whose prototype forward declaration sits inside a sub and puts
+the site on the enclosing `sub validate_hash {`. The other six are below.
+
+Five files stay `General` because the construct is not at the site.
+`io/pipe.t`, `op/numconvert.t` and `op/split.t` all put the first `ERROR`
+node on a `split //` line, and every prefix of each file that ends at or
+after that line parses cleanly: the trigger is later in the file, recovery
+placed the node early, and no window under 140 lines reproduces it.
+`op/stat.t` halts at line 492 and the smallest balanced failing window is
+lines 336–500. `comp/hints.t` fails at a `BEGIN {` on line 264 that no
+window of its neighbours reproduces. `re/bigfuzzy_not_utf8.t` fails on one
+line of fuzzer bytes inside a string literal; a string of raw `\xff` bytes
+parses, so the byte that breaks it is not known, and the Identifier rule
+currently claims the line on the non-ASCII runes around it — a known false
+positive, one file. `comp/final_line_num.t` ends in `print 1+` on purpose;
+perl rejects it too, and it belongs outside the denominator rather than in
+any category.
+
+### What the measurement says about the parser, beyond the list
+
+**The first error node is not always where the parse broke.** Three files
+above carry their `ERROR` node eighty lines before the construct that
+caused it. Any tool that reads the site from the tree, including the
+taxonomy, inherits that placement.
+
+**A tree can carry an error and no error node, three ways.** A MISSING
+token (`sub f { foo: }`); a halted parse, where `source_file` ends early and
+nothing after it is in the tree at all (`$x = $#[0];` alone does this); and
+a degenerate tree, where a hidden rule leaks and no error is recorded. The
+taxonomy now reads a site from each. The degenerate site is one statement
+early: `print 1;\nsub bar;` leaks its hidden node onto `print 1;`, so the
+construct is on the line after the site.
+
+**Silent acceptance is the larger half of several rows.** `(1)x3`,
+`0x_1234`, `s!a!b!x`, `true()`, `require;` after a statement and
+`1;\nsub bar;` all come back with `HasError()` false. A parser that scored
+these as clean would be wrong five ways before it reached the error nodes.
+The degenerate detector (§0.4.1) is what makes them visible, and it is why
+they are in `no-answer` rather than `exact`.
