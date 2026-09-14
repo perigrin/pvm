@@ -112,6 +112,8 @@
 name: Parse Fidelity
 
 on:
+  # TEMPORARY: manual trigger so a scratch branch can produce a real run; reverted before merge.
+  workflow_dispatch:
   push:
     branches: [ pu ]
   pull_request:
