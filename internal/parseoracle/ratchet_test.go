@@ -726,6 +726,40 @@ func TestBaselineCategoryFollowsConstruct(t *testing.T) {
 	}
 }
 
+// TestCategoriseSourceSiteWithoutErrorNode: a tree can carry HasError with no
+// ERROR node anywhere in it, and an empty category must never be read as "this
+// file parsed". Measured on the corpus, eight no-answer files were baselined
+// with no category for exactly that reason. Three shapes produce it, each
+// pinned here by a minimal source verified to parse that way:
+//
+//   - a MISSING token, which recovery inserts instead of an ERROR node;
+//   - a truncated root, where recovery halted and the source_file node ends
+//     before the source does;
+//   - a degenerate tree, where a hidden rule leaked and no error was
+//     recorded at all.
+//
+// The first two are the General cases they honestly are; the third lands on
+// a line the Regex rule claims, which proves the leaked node's line is the
+// site rather than a default.
+func TestCategoriseSourceSiteWithoutErrorNode(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		src  string
+		want parseoracle.Category
+	}{
+		{"missing-token", "sub f { foo: }\n", parseoracle.CategoryGeneral},
+		{"truncated-root", "$x = $#[0];\n", parseoracle.CategoryGeneral},
+		{"degenerate", "$x =~ s!a!b!x;\n", parseoracle.CategoryRegex},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := parseoracle.CategoriseSource([]byte(tc.src))
+			if got != tc.want {
+				t.Errorf("CategoriseSource(%q) = %s, want %s", tc.src, got, tc.want)
+			}
+		})
+	}
+}
+
 // TestBaselineHeader: the header records the interpreter version and the
 // corpus revision, so a reader can tell whether the numbers below were
 // measured in the world they are standing in. It also carries a DO NOT EDIT

@@ -4,6 +4,7 @@
 package parseoracle
 
 import (
+	"bytes"
 	"os"
 	"regexp"
 	"strings"
@@ -68,11 +69,10 @@ func CategoriseSource(src []byte) Category {
 		return CategoryGeneral
 	}
 
-	// A degenerate tree dropped source without an error node, so there is no
-	// span to read. The hidden rule that leaked is the only evidence, and it
-	// names an expression position rather than a construct.
 	site, ok := errorSite(root, src)
 	if !ok {
+		// A degenerate tree with no leaked hidden rule (a collapsed varname
+		// is the other signal) has no position to read at all.
 		if tree.IsDegenerate() {
 			return CategoryGeneral
 		}
@@ -81,42 +81,71 @@ func CategoriseSource(src []byte) Category {
 	return categoriseLine(site)
 }
 
-// errorSite returns the source line on which the first error span ends, which
-// is where recovery gave up.
+// errorSite returns the source line where the parse broke.
+//
+// Three kinds of tree carry a defect, and each leaves its evidence in a
+// different place. An ERROR or MISSING node marks a span, and the line where
+// that span ends is where recovery gave up. A tree whose root carries
+// HasError but holds no such node is one where recovery halted outright:
+// the source_file node stops before the source does, and the first unparsed
+// line is the site — measured on the corpus, eight no-answer files were
+// uncategorised for exactly this shape. A degenerate tree recorded no error
+// at all, so the line holding the hidden rule that leaked is the only
+// position it offers.
 func errorSite(root *parser.Node, src []byte) (string, bool) {
-	e := firstErrorNode(root)
-	if e == nil {
-		return "", false
+	if e := firstErrorNode(root); e != nil {
+		return lineAt(src, int(e.EndByte())), true
 	}
+	if root.HasError() {
+		end := int(root.EndByte())
+		if end < len(bytes.TrimRight(src, " \t\r\n")) {
+			// Skip the whitespace between the last parsed token and the
+			// first unparsed one, so a halt at a line end reads the next
+			// line rather than an empty one.
+			for end < len(src) && (src[end] == '\n' || src[end] == ' ' || src[end] == '\t' || src[end] == '\r') {
+				end++
+			}
+			return lineAt(src, end), true
+		}
+	}
+	if h := firstHiddenNode(root); h != nil {
+		return lineAt(src, int(h.StartByte())), true
+	}
+	return "", false
+}
 
-	end := int(e.EndByte())
-	if end > len(src) {
-		end = len(src)
+// lineAt returns the trimmed source line containing byte offset pos. Recovery
+// consumes up to the token it could not place, so that token is at or just
+// before an error span's end.
+func lineAt(src []byte, pos int) string {
+	if pos > len(src) {
+		pos = len(src)
 	}
-	// The line containing the end of the error span. Recovery consumes up to
-	// the token it could not place, so that token is at or just before end.
-	start := strings.LastIndexByte(string(src[:end]), '\n') + 1
-	lineEnd := end
-	if i := strings.IndexByte(string(src[end:]), '\n'); i >= 0 {
-		lineEnd = end + i
-	} else {
-		lineEnd = len(src)
+	start := strings.LastIndexByte(string(src[:pos]), '\n') + 1
+	lineEnd := len(src)
+	if i := strings.IndexByte(string(src[pos:]), '\n'); i >= 0 {
+		lineEnd = pos + i
 	}
 	line := strings.TrimSpace(string(src[start:lineEnd]))
 	if line == "" {
 		// An error ending on a blank line: fall back to the whole span's
 		// tail, which still carries the construct.
-		tail := string(src[max(0, end-160):end])
-		return strings.TrimSpace(tail), true
+		tail := string(src[max(0, pos-160):pos])
+		return strings.TrimSpace(tail)
 	}
-	return line, true
+	return line
 }
 
-// firstErrorNode finds the first ERROR node in document order, descending so
-// the innermost — and therefore most specific — span wins.
+// firstErrorNode finds the first ERROR or MISSING node in document order,
+// descending so the innermost — and therefore most specific — span wins. A
+// MISSING node is a token recovery inserted rather than a span it gave up
+// on, and a tree can carry one as its only defect.
 func firstErrorNode(n *parser.Node) *parser.Node {
 	if n == nil || !n.HasError() {
 		return nil
+	}
+	if n.IsMissing() {
+		return n
 	}
 	for i := 0; i < n.ChildCount(); i++ {
 		c := n.Child(i)
@@ -128,6 +157,24 @@ func firstErrorNode(n *parser.Node) *parser.Node {
 	}
 	if n.IsError() {
 		return n
+	}
+	return nil
+}
+
+// firstHiddenNode finds the first named node whose kind is a hidden rule,
+// which is the signal Tree.IsDegenerate reads: a hidden rule is inlined in a
+// successful parse and surfaces only where recovery bailed out mid-rule.
+func firstHiddenNode(n *parser.Node) *parser.Node {
+	if n == nil {
+		return nil
+	}
+	if n.IsNamed() && strings.HasPrefix(n.Kind(), "_") {
+		return n
+	}
+	for i := 0; i < n.NamedChildCount(); i++ {
+		if h := firstHiddenNode(n.NamedChild(i)); h != nil {
+			return h
+		}
 	}
 	return nil
 }

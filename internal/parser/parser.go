@@ -98,6 +98,17 @@ func (n *Node) IsError() bool {
 	return n.inner.IsError()
 }
 
+// IsMissing reports whether this node was inserted by error recovery to
+// stand in for a token the source did not contain. A tree can carry
+// HasError() with no ERROR node at all when a missing token is its only
+// defect, so a walk for error sites has to accept both.
+func (n *Node) IsMissing() bool {
+	if n == nil || n.inner == nil {
+		return false
+	}
+	return n.inner.IsMissing()
+}
+
 // StartByte returns the byte offset where this node begins.
 func (n *Node) StartByte() uint32 {
 	if n == nil || n.inner == nil {
