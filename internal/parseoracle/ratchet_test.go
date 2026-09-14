@@ -735,6 +735,42 @@ func TestBaselineCategoryFollowsConstruct(t *testing.T) {
 		{"repeat-quote", "my $s = 'x'x8;\n", parseoracle.CategoryOperator},
 		{"string-bitwise", "my $x = 22 &. 66;\n", parseoracle.CategoryOperator},
 		{"bareword-and", "my $x = foo && 1;\n", parseoracle.CategoryOperator},
+
+		// Regex: a brace-delimited body whose modifiers sit on their own
+		// closing line, which the slash-keyed rule could not see.
+		{"regex-brace-modifiers", "$x =~ s{\n a\n}{\n b\n}ge;\n", parseoracle.CategoryRegex},
+		{"qr-brace-modifiers", "my $re = qr{\n a\n}x;\n", parseoracle.CategoryRegex},
+
+		// Subroutine: a forward declaration after a statement (alone at
+		// the top of a file it parses), and a lexical `our sub`. The
+		// qualified form pins that `method` inside a sub NAME is a name,
+		// not the class-feature keyword.
+		{"forward-declaration", "f(1);\nsub bar;\n", parseoracle.CategorySubroutine},
+		{"forward-declaration-qualified", "f(1);\nsub Detached::method;\n", parseoracle.CategorySubroutine},
+		{"our-sub", "{\n our sub foo { 42 }\n}\n", parseoracle.CategorySubroutine},
+
+		// ControlFlow: the switch feature.
+		{"given", "given ($x) { when (1) { } }\n", parseoracle.CategoryControlFlow},
+		{"core-given", "CORE::given(1) { }\n", parseoracle.CategoryControlFlow},
+
+		// ModernFeature: a post-5.36 keyword in call position, which is
+		// how legacy code that named a sub `try` or `defer` breaks, and
+		// the builtin `true`/`false` surface.
+		{"keyword-as-sub", "sub try { 1 }\ntry(1, 2);\n", parseoracle.CategoryModernFeature},
+		{"builtin-true", "f(sub { true() });\n", parseoracle.CategoryModernFeature},
+		// `new Pack ("a")` parses, so it is the reserved word and not the
+		// indirect-object syntax that breaks this one.
+		{"keyword-indirect-object", "is(method Pack (\"a\"), \"x\");\n", parseoracle.CategoryModernFeature},
+
+		// QuoteLike, by the span rather than the line: a format or heredoc
+		// body is not code, so when the error span begins inside one (or
+		// on its header) the construct is the body, whatever the site line
+		// says. The picture-line site, the empty-format site and the
+		// heredoc-body site each fail with the site on a line no rule
+		// claims.
+		{"format-body-site", "print 1;\nformat STDOUT =\n@ @<<\n\"#\", $a\n.\nprint 2;\n", parseoracle.CategoryQuoteLike},
+		{"format-empty", "format STDERR =\n.\nmy $ref;\n", parseoracle.CategoryQuoteLike},
+		{"heredoc-body-site", "my $p = <<\"        --\";\n          /f\n           \\$\n          /x\n        --\n", parseoracle.CategoryQuoteLike},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got := parseoracle.CategoriseSource([]byte(tc.src))

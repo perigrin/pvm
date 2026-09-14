@@ -69,7 +69,7 @@ func CategoriseSource(src []byte) Category {
 		return CategoryGeneral
 	}
 
-	site, ok := errorSite(root, src)
+	site, from, ok := errorSite(root, src)
 	if !ok {
 		// A degenerate tree with no leaked hidden rule (a collapsed varname
 		// is the other signal) has no position to read at all.
@@ -78,10 +78,17 @@ func CategoriseSource(src []byte) Category {
 		}
 		return CategoryNone
 	}
+	// A format or heredoc body is not code, so a span that begins inside
+	// one belongs to the body whatever its site line says: the picture
+	// line `@ @<<` and the heredoc text `o` name no construct of their own.
+	if insideOpenBody(src, from) {
+		return CategoryQuoteLike
+	}
 	return categoriseLine(site)
 }
 
-// errorSite returns the source line where the parse broke.
+// errorSite returns the source line where the parse broke, and the byte
+// offset at which the defect's span begins.
 //
 // Three kinds of tree carry a defect, and each leaves its evidence in a
 // different place. An ERROR or MISSING node marks a span, and the line where
@@ -92,9 +99,9 @@ func CategoriseSource(src []byte) Category {
 // uncategorised for exactly this shape. A degenerate tree recorded no error
 // at all, so the line holding the hidden rule that leaked is the only
 // position it offers.
-func errorSite(root *parser.Node, src []byte) (string, bool) {
+func errorSite(root *parser.Node, src []byte) (string, int, bool) {
 	if e := firstErrorNode(root); e != nil {
-		return lineAt(src, int(e.EndByte())), true
+		return lineAt(src, int(e.EndByte())), int(e.StartByte()), true
 	}
 	if root.HasError() {
 		end := int(root.EndByte())
@@ -105,13 +112,81 @@ func errorSite(root *parser.Node, src []byte) (string, bool) {
 			for end < len(src) && (src[end] == '\n' || src[end] == ' ' || src[end] == '\t' || src[end] == '\r') {
 				end++
 			}
-			return lineAt(src, end), true
+			return lineAt(src, end), end, true
 		}
 	}
 	if h := firstHiddenNode(root); h != nil {
-		return lineAt(src, int(h.StartByte())), true
+		return lineAt(src, int(h.StartByte())), int(h.StartByte()), true
 	}
-	return "", false
+	return "", 0, false
+}
+
+var (
+	formatHeader = regexp.MustCompile(`^\s*format\s+[\w:]*\s*=\s*$`)
+	// A bare tag is an identifier glued to the `<<`, which is what keeps
+	// the left shift `$var << 1` from reading as a heredoc; a quoted tag
+	// may stand off.
+	heredocIntroducer = regexp.MustCompile(`<<(~?)(?:\s*"([^"]*)"|\s*'([^']*)'|([A-Za-z_]\w*))`)
+)
+
+// insideOpenBody reports whether byte offset from lies in a format body or a
+// heredoc body that has not been terminated by then. It walks back from the
+// line containing from: a format header or heredoc introducer with no
+// terminator between it and that line encloses it. A line that is nothing
+// but `.` exists in Perl only as a format terminator, so meeting one on the
+// way back means any earlier format is closed — and a span that begins ON
+// that terminator broke at the format's end, which is the format's failure.
+//
+// A heredoc introducer counts only if its terminator line appears somewhere
+// after it. The corpus writes introducers inside string literals — op/svleak.t
+// has `'"${<<END}"'` — and an `END` that never terminates is not a body but
+// text, and must not claim the two hundred lines after it.
+//
+// ponytail: a bounded scan over lines, not a heredoc lexer. The bound is
+// generous enough for the corpus's longest bodies; a body longer than it
+// falls through to the site line, which is the answer it had before.
+func insideOpenBody(src []byte, from int) bool {
+	if from > len(src) {
+		from = len(src)
+	}
+	lines := strings.Split(string(src), "\n")
+	at := bytes.Count(src[:from], []byte("\n"))
+	// A span that begins on the header or on the terminator is the format
+	// itself failing: the empty `format X =\n.` is the corpus's shape.
+	if strings.TrimSpace(lines[at]) == "." || formatHeader.MatchString(lines[at]) {
+		return true
+	}
+	const bound = 200
+	for i := at - 1; i >= 0 && i >= at-bound; i-- {
+		line := lines[i]
+		if strings.TrimSpace(line) == "." {
+			return false
+		}
+		if formatHeader.MatchString(line) {
+			return true
+		}
+		m := heredocIntroducer.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		tag := m[2] + m[3] + m[4]
+		terminated := -1
+		for j := i + 1; j < len(lines) && j <= i+bound; j++ {
+			body := lines[j]
+			if m[1] == "~" {
+				body = strings.TrimSpace(body)
+			}
+			if body == tag {
+				terminated = j
+				break
+			}
+		}
+		if terminated < 0 {
+			continue
+		}
+		return terminated > at
+	}
+	return false
 }
 
 // lineAt returns the trimmed source line containing byte offset pos. Recovery
@@ -188,9 +263,18 @@ var taxonomyRules = []struct {
 }{
 	// P1: the post-5.36 surface. This is the Perl people are writing now,
 	// so a file that fails here blocks current code rather than legacy.
+	//
+	// The class keywords count only where a statement or expression starts
+	// (line start, or after `{`, `;`, `(`, `,` or `=`): `sub
+	// Detached::method;` names a sub, and a rule that matched the bare word
+	// filed that forward declaration here, while `is(method Pack (...))`
+	// breaks on the reserved word — `new Pack (...)` parses. The
+	// keywords also count in call position, `try(` and `defer(`, which is
+	// how legacy code that named a sub `try` breaks under a grammar that
+	// reserves it, and `true(`/`false(` is the builtin surface being called.
 	{CategoryModernFeature, regexp.MustCompile(
-		`\b(class|field|method|ADJUST)\b|\buse\s+v5\.(3[6-9]|4[0-9])|` +
-			`\b(try|catch|finally|defer)\s*\{|\bbuiltin::|\buse\s+feature\b`)},
+		`(?:^|[{;(,=]\s*)(class|field|method|ADJUST)\b|\buse\s+v5\.(3[6-9]|4[0-9])|` +
+			`\b(try|catch|finally|defer)\s*[{(]|\b(true|false)\s*\(|\bbuiltin::|\buse\s+feature\b`)},
 
 	// P2: an identifier the lexer cannot read, which fails before any
 	// construct rule sees the line and so is claimed ahead of them. A
@@ -213,17 +297,22 @@ var taxonomyRules = []struct {
 			"\\bformat\\b|\\b__(DATA|END)__\\b")},
 
 	// P2: regex, where modifiers change how the pattern body itself reads.
+	// A brace- or bang-delimited body can end on a line that is nothing
+	// but the closing delimiter and the modifiers (`}ge;`, `!x;`), which
+	// the slash-keyed rule cannot see.
 	{CategoryRegex, regexp.MustCompile(
-		`[=!]~|\bs/|\bm/|/[a-z]*[gimsxoe][a-z]*\s*[;,)]`)},
+		`[=!]~|\bs/|\bm/|/[a-z]*[gimsxoe][a-z]*\s*[;,)]|^[}\]!|#)/]\s*[a-z]*[gimsxoe][a-z]*\s*[;,)]`)},
 
 	// P2: dereference, including the postfix forms.
 	{CategoryDereference, regexp.MustCompile(
 		`->\s*[@%$*&]\s*\*|->\s*[\[{]|[$@%]\s*\{\s*[\\$]|[@%]\$\w|\$\$+\w`)},
 
 	// P2: the subroutine declaration surface — prototypes, attributes,
-	// signatures, and the `&` call form.
+	// signatures, the bodiless forward declaration (`sub NAME;`, with or
+	// without a prototype), the lexical forms, and the `&` call form.
 	{CategorySubroutine, regexp.MustCompile(
-		`\bsub\b[^;{]*[(:]|\bmy\s+sub\b|&\$?\w+\s*\(|\bprototype\b|\bAUTOLOAD\b`)},
+		`\bsub\b[^;{]*[(:]|\bsub\s+[\w:']+\s*;|\b(my|our|state)\s+sub\b|` +
+			`&\$?\w+\s*\(|\bprototype\b|\bAUTOLOAD\b`)},
 
 	// P2: an operator the lexer cannot separate from its operand. This
 	// sits ahead of ControlFlow because `if (foo && 1)` breaks on `foo &&`,
@@ -237,9 +326,10 @@ var taxonomyRules = []struct {
 		`\)x\d|'[^']*'x\d|"[^"]*"x\d|\s[&|^]\.\s|` +
 			`(?:^|[^\w$@%&*>:'"-])[A-Za-z_]\w*\s*&&`)},
 
-	// P2: control flow, including the statement-modifier and label forms.
+	// P2: control flow, including the statement-modifier and label forms
+	// and the switch feature.
 	{CategoryControlFlow, regexp.MustCompile(
-		`\b(unless|until|foreach|for|while|if|elsif|else|continue)\b|\bdo\s*\{|` +
+		`\b(unless|until|foreach|for|while|if|elsif|else|continue|given|when|default)\b|\bdo\s*\{|` +
 			`^\s*\w+\s*:\s*(for|while|until|\{)|\b(last|next|redo|goto)\b`)},
 }
 
