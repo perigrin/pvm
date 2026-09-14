@@ -1,10 +1,17 @@
-# ABOUTME: Pins the corpus measurement to one interpreter and one corpus revision.
-# ABOUTME: A measurement taken across a skew in either half is an anecdote, not a result.
+# ABOUTME: Pins the corpus measurement to one interpreter build and one corpus revision.
+# ABOUTME: A measurement taken across a skew in any field is an anecdote, not a result.
 #
-# Both halves are load-bearing. The corpus is blead 5.45 while the interpreter
+# Every field is load-bearing. The corpus is blead 5.45 while the interpreter
 # is 5.42.0, so t/op/for-many.t:474 — `foreach my ( \@array ) (...)` — is a
-# genuine syntax error here rather than a parser bug. Change either value only
-# as a deliberate re-baseline.
+# genuine syntax error here rather than a parser bug.
+#
+# threads is here because $] does not carry it, and the first real CI run
+# proved it matters: a runner perl at 5.042000 satisfied the version check
+# while built useithreads=undef, and class/threads.t, op/threads-dirh.t and
+# op/threads.t moved exact -> no-answer. Those three skip_all inside BEGIN
+# when threads are absent, so perl exits during compilation and builds no
+# optree at all. Change any value only as a deliberate re-baseline.
 
 interpreter = 5.042000
 revision    = 94e5086608bcf1d01cd2d836f11ca8378a3320b6
+threads     = define

@@ -161,7 +161,7 @@ func TestPinScriptConvertsInterpreterVersions(t *testing.T) {
 	} {
 		t.Run(tc.interpreter, func(t *testing.T) {
 			pin := filepath.Join(t.TempDir(), "corpus.pin")
-			body := "interpreter = " + tc.interpreter + "\nrevision    = deadbeef\n"
+			body := "interpreter = " + tc.interpreter + "\nrevision    = deadbeef\nthreads     = define\n"
 			if err := os.WriteFile(pin, []byte(body), 0o644); err != nil {
 				t.Fatalf("writing a pin: %v", err)
 			}
@@ -184,8 +184,10 @@ func TestPinScriptFailsOnAnIncompletePin(t *testing.T) {
 	script := repoFile(t, ".github", "scripts", pinScript)
 
 	for name, body := range map[string]string{
-		"no revision":    "interpreter = 5.042000\n",
-		"no interpreter": "revision = deadbeef\n",
+		"no revision":    "interpreter = 5.042000\nthreads = define\n",
+		"no interpreter": "revision = deadbeef\nthreads = define\n",
+		"no threads":     "interpreter = 5.042000\nrevision = deadbeef\n",
+		"bogus threads":  "interpreter = 5.042000\nrevision = deadbeef\nthreads = yes\n",
 		"empty":          "# nothing here\n",
 	} {
 		t.Run(name, func(t *testing.T) {

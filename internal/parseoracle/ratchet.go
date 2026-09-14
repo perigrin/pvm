@@ -162,6 +162,7 @@ func (b Baseline) Render() string {
 	out.WriteString("# Columns: status metric category path\n")
 	fmt.Fprintf(&out, "interpreter = %s\n", b.Pin.Interpreter)
 	fmt.Fprintf(&out, "revision    = %s\n", b.Pin.Revision)
+	fmt.Fprintf(&out, "threads     = %s\n", threadsWord(b.Pin.Threads))
 
 	rows := append([]Row(nil), b.Rows...)
 	sort.Slice(rows, func(i, j int) bool { return rows[i].Path < rows[j].Path })
@@ -234,7 +235,7 @@ func ParseBaseline(data []byte) (Baseline, error) {
 
 		// Header lines are `key = value`; rows never contain `=` before
 		// their path, and a path that does is still unambiguous because
-		// the key would have to be one of the two names below.
+		// the key would have to be one of the names below.
 		if key, value, ok := strings.Cut(line, "="); ok {
 			switch strings.TrimSpace(key) {
 			case "interpreter":
@@ -242,6 +243,21 @@ func ParseBaseline(data []byte) (Baseline, error) {
 				continue
 			case "revision":
 				b.Pin.Revision = strings.TrimSpace(value)
+				continue
+			case "threads":
+				// Spelled as perl's -V reports it. An unrecognised value is
+				// rejected rather than defaulted: silently reading a broken
+				// header as useithreads=undef is how a baseline measured on
+				// one build gets compared against another.
+				switch v := strings.TrimSpace(value); v {
+				case "define":
+					b.Pin.Threads = true
+				case "undef":
+					b.Pin.Threads = false
+				default:
+					return Baseline{}, fmt.Errorf(
+						"baseline line %d: threads is %q; perl spells it \"define\" or \"undef\"", n+1, v)
+				}
 				continue
 			}
 		}
@@ -425,7 +441,7 @@ func (e *SkewError) Unwrap() error { return e.Cause }
 
 // CheckPin compares the baseline's recorded world against the one present.
 func (b Baseline) CheckPin(actual Pin) error {
-	if err := b.Pin.Check(actual.Interpreter, actual.Revision); err != nil {
+	if err := b.Pin.Check(actual.Interpreter, actual.Revision, actual.Threads); err != nil {
 		return &SkewError{Cause: err}
 	}
 	return nil

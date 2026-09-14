@@ -93,9 +93,9 @@ func TestShimHasConfigPm(t *testing.T) {
 // once: the corpus is blead 5.45 while the interpreter is 5.42.0, which is why
 // t/op/for-many.t is a genuine syntax error rather than a parser bug.
 func TestReadPinRejectsVersionSkew(t *testing.T) {
-	pin := parseoracle.Pin{Interpreter: "5.999000", Revision: "94e5086608"}
+	pin := parseoracle.Pin{Interpreter: "5.999000", Revision: "94e5086608", Threads: true}
 
-	err := pin.Check("5.042000", "94e5086608")
+	err := pin.Check("5.042000", "94e5086608", true)
 	if err == nil {
 		t.Fatal("a pin must reject an interpreter mismatch")
 	}
@@ -114,9 +114,9 @@ func TestReadPinRejectsVersionSkew(t *testing.T) {
 }
 
 func TestReadPinRejectsRevisionSkew(t *testing.T) {
-	pin := parseoracle.Pin{Interpreter: "5.042000", Revision: "94e5086608"}
+	pin := parseoracle.Pin{Interpreter: "5.042000", Revision: "94e5086608", Threads: true}
 
-	err := pin.Check("5.042000", "deadbeef00")
+	err := pin.Check("5.042000", "deadbeef00", true)
 	if err == nil {
 		t.Fatal("a pin must reject a corpus-revision mismatch")
 	}
@@ -133,7 +133,7 @@ func TestReadPinRejectsRevisionSkew(t *testing.T) {
 
 	// A pin that agrees on both halves must pass, or Check is a constant
 	// failure and the two tests above prove nothing.
-	if err := pin.Check("5.042000", "94e5086608"); err != nil {
+	if err := pin.Check("5.042000", "94e5086608", true); err != nil {
 		t.Errorf("a matching pin must pass, got: %v", err)
 	}
 }

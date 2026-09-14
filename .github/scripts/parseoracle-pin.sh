@@ -4,15 +4,19 @@
 #
 # Usage: parseoracle-pin.sh [PIN_FILE] >> "$GITHUB_OUTPUT"
 #
-# Prints three lines:
+# Prints four lines:
 #
 #   interpreter=5.042000    perl's $], as the pin and the baseline header record it
 #   perl_version=5.42.0     the same version dotted, which is what actions-setup-perl takes
 #   revision=94e5086...     the perl5 commit the corpus was measured against
+#   threads=define          perl's useithreads, which $] does not carry
 #
-# Both halves are mandatory. An absent revision would check out blead at HEAD
+# Every field is mandatory. An absent revision would check out blead at HEAD
 # and an absent interpreter would install whatever the runner ships; either
 # measures a different world than the baseline describes, and does so quietly.
+# threads is the field the first real CI run proved necessary: a runner perl
+# at 5.042000 passed the version check while built useithreads=undef, and
+# three corpus files that skip_all inside BEGIN moved exact -> no-answer.
 # Failing loudly here is the whole reason this is a script with a test
 # (internal/parseoracle/ci_test.go) rather than three lines of inline YAML.
 
@@ -38,12 +42,21 @@ field() {
 
 interpreter=$(field interpreter)
 revision=$(field revision)
+threads=$(field threads)
 
-if [ -z "$interpreter" ] || [ -z "$revision" ]; then
-	echo "parseoracle-pin.sh: $PIN must record both interpreter and revision" >&2
-	echo "  interpreter=${interpreter:-<missing>} revision=${revision:-<missing>}" >&2
+if [ -z "$interpreter" ] || [ -z "$revision" ] || [ -z "$threads" ]; then
+	echo "parseoracle-pin.sh: $PIN must record interpreter, revision and threads" >&2
+	echo "  interpreter=${interpreter:-<missing>} revision=${revision:-<missing>} threads=${threads:-<missing>}" >&2
 	exit 3
 fi
+
+case "$threads" in
+define | undef) ;;
+*)
+	echo "parseoracle-pin.sh: threads is $threads; perl spells it define or undef" >&2
+	exit 5
+	;;
+esac
 
 # 5.042000 -> 5.42.0. perl's $] packs the minor and patch versions as
 # three zero-padded digits each; actions-setup-perl wants them dotted and
@@ -69,3 +82,4 @@ patch=$((digits % 1000))
 printf 'interpreter=%s\n' "$interpreter"
 printf 'perl_version=5.%d.%d\n' "$minor" "$patch"
 printf 'revision=%s\n' "$revision"
+printf 'threads=%s\n' "$threads"

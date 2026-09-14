@@ -4,6 +4,7 @@
 package parseoracle
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -129,14 +130,25 @@ func copyTree(src, dst string) error {
 	})
 }
 
-// Pin records the two things a corpus measurement depends on. Both halves
-// matter: the corpus here is blead 5.45 while the interpreter is 5.42.0, and
+// Pin records the things a corpus measurement depends on. Each matters: the
+// corpus here is blead 5.45 while the interpreter is 5.42.0, and
 // t/op/for-many.t uses `foreach my ( \@array ) (...)`, a blead-only form that
-// 5.42 genuinely cannot parse. Pinning only one half lets a parser be marked
+// 5.42 genuinely cannot parse. Pinning only one lets a parser be marked
 // wrong for agreeing with its own oracle.
+//
+// Threads is here because $] does not carry it and it changes the parse. The
+// first real CI run installed perl 5.042000 -- matching the pin exactly, with
+// the interpreter check passing -- built `useithreads=undef`, against a
+// baseline measured on `useithreads=define`. Three files (class/threads.t,
+// op/threads-dirh.t, op/threads.t) call skip_all inside BEGIN when threads
+// are absent, so perl exits DURING compilation, reports ok:1 with no optree,
+// and the no-optree rule correctly declines. Those verdicts were right and
+// the pin was wrong: two perls that parse the corpus differently both
+// satisfied it.
 type Pin struct {
 	Interpreter string `json:"interpreter"` // perl's $], e.g. "5.042000"
 	Revision    string `json:"revision"`    // the perl5 checkout's git revision
+	Threads     bool   `json:"threads"`     // perl's useithreads; $] does not record it
 }
 
 // PinMismatchError reports a drifted pin. It names both the pinned and the
@@ -153,16 +165,31 @@ func (e *PinMismatchError) Error() string {
 }
 
 // Check compares a pin against the interpreter and corpus actually present.
-// Both halves are checked; a pin that verifies only one is a pin that
-// silently drifts.
-func (p Pin) Check(interpreter, revision string) error {
+// Every field is checked; a pin that verifies only some of itself is a pin
+// that silently drifts.
+func (p Pin) Check(interpreter, revision string, threads bool) error {
 	if p.Interpreter != interpreter {
 		return &PinMismatchError{Field: "interpreter version", Pinned: p.Interpreter, Actual: interpreter}
 	}
 	if !revisionsAgree(p.Revision, revision) {
 		return &PinMismatchError{Field: "corpus revision", Pinned: p.Revision, Actual: revision}
 	}
+	if p.Threads != threads {
+		return &PinMismatchError{
+			Field:  "perl threads support (useithreads)",
+			Pinned: threadsWord(p.Threads), Actual: threadsWord(threads),
+		}
+	}
 	return nil
+}
+
+// threadsWord names the build as perl's own -V reports it, so the error can
+// be matched against `perl -V:useithreads` without translation.
+func threadsWord(on bool) string {
+	if on {
+		return "define"
+	}
+	return "undef"
 }
 
 // revisionsAgree compares git revisions that may be abbreviated to different
@@ -185,6 +212,7 @@ func ReadPin(path string) (Pin, error) {
 	}
 
 	var pin Pin
+	var threads string
 	for _, line := range strings.Split(string(data), "\n") {
 		if i := strings.IndexByte(line, '#'); i >= 0 {
 			line = line[:i]
@@ -198,13 +226,74 @@ func ReadPin(path string) (Pin, error) {
 			pin.Interpreter = strings.TrimSpace(value)
 		case "revision":
 			pin.Revision = strings.TrimSpace(value)
+		case "threads":
+			threads = strings.TrimSpace(value)
 		}
 	}
 
-	if pin.Interpreter == "" || pin.Revision == "" {
-		return Pin{}, fmt.Errorf("pin %s must record both interpreter and revision, got %+v", path, pin)
+	if pin.Interpreter == "" || pin.Revision == "" || threads == "" {
+		return Pin{}, fmt.Errorf(
+			"pin %s must record interpreter, revision and threads, got %+v threads=%q",
+			path, pin, threads)
+	}
+	// Spelled as perl's own -V reports it, so the pin can be diffed against
+	// `perl -V:useithreads` without a translation step in between.
+	switch threads {
+	case "define":
+		pin.Threads = true
+	case "undef":
+		pin.Threads = false
+	default:
+		return Pin{}, fmt.Errorf(
+			"pin %s records threads=%q; perl spells it \"define\" or \"undef\"", path, threads)
 	}
 	return pin, nil
+}
+
+// ObservePin asks the perl on PATH what it actually is, so a pin can be
+// checked against the running world rather than against itself.
+//
+// This is the half that was missing. The sweep read the pin from the file and
+// handed it straight back to CheckPin, which compared the pin to a copy of
+// itself and could not fail -- a guard with no input. The first real CI run
+// went green through that check on a perl whose build differed from the
+// baseline's, and only the verdict comparison downstream noticed.
+func ObservePin(ctx context.Context, revision string) (Pin, error) {
+	out, err := exec.CommandContext(ctx, "perl",
+		"-e", `print "$]\n", ($Config::Config{useithreads} // ""), "\n"`,
+		"-MConfig").Output()
+	if err != nil {
+		return Pin{}, fmt.Errorf("asking perl what it is: %w", err)
+	}
+	lines := strings.SplitN(strings.TrimRight(string(out), "\n"), "\n", 2)
+	if len(lines) != 2 {
+		return Pin{}, fmt.Errorf("perl reported %q, want a version and a threads flag", out)
+	}
+	return Pin{
+		Interpreter: strings.TrimSpace(lines[0]),
+		Revision:    revision,
+		Threads:     strings.TrimSpace(lines[1]) == "define",
+	}, nil
+}
+
+// WritePin renders a pin in the form ReadPin parses, so a re-baseline can
+// regenerate the file rather than inviting a hand edit that drops a field.
+func WritePin(path string, pin Pin) error {
+	body := fmt.Sprintf(`# ABOUTME: Pins the corpus measurement to one interpreter build and one corpus revision.
+# ABOUTME: A measurement taken across a skew in any field is an anecdote, not a result.
+#
+# Every field is load-bearing. The corpus is blead 5.45 while the interpreter
+# is 5.42.0, so t/op/for-many.t:474 — `+"`foreach my ( \\@array ) (...)`"+` — is a
+# genuine syntax error here rather than a parser bug. threads is here because
+# $] does not carry it: three files skip_all inside BEGIN without threads, so
+# perl exits during compilation and builds no optree. Change any value only as
+# a deliberate re-baseline.
+
+interpreter = %s
+revision    = %s
+threads     = %s
+`, pin.Interpreter, pin.Revision, threadsWord(pin.Threads))
+	return os.WriteFile(path, []byte(body), 0o644)
 }
 
 // FailureKind is why a corpus file did not compile.

@@ -9,6 +9,7 @@
 # Columns: status metric category path
 interpreter = 5.042000
 revision    = 94e5086608bcf1d01cd2d836f11ca8378a3320b6
+threads     = define
 exact         0 -              base/cond.t
 exact         0 -              base/if.t
 no-answer     0 -              base/lex.t

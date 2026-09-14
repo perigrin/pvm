@@ -150,21 +150,36 @@ jobs:
 
     # ubuntu-latest ships some other perl. Running the sweep against it makes
     # CheckPin report "re-baseline needed" -- correctly, and uselessly.
+    # multi-thread selects the useithreads=define build. The pin records which
+    # build the baseline was measured on, because $] does not: the first run of
+    # this workflow installed a matching 5.042000 built useithreads=undef, and
+    # class/threads.t, op/threads-dirh.t and op/threads.t moved exact ->
+    # no-answer. They skip_all inside BEGIN when threads are absent, so perl
+    # exits during compilation and builds no optree to compare against.
     - name: Install the pinned perl
       uses: shogo82148/actions-setup-perl@v1
       with:
         perl-version: ${{ steps.pin.outputs.perl_version }}
+        multi-thread: ${{ steps.pin.outputs.threads == 'define' }}
 
     - name: Confirm the interpreter matches the pin
       env:
         PINNED: ${{ steps.pin.outputs.interpreter }}
+        PINNED_THREADS: ${{ steps.pin.outputs.threads }}
       run: |
         set -eu
         actual=$(perl -e 'print $]')
-        echo "this runner has perl $actual; the pin records $PINNED"
+        actual_threads=$(perl -MConfig -e 'print $Config{useithreads} // "undef"')
+        echo "this runner has perl $actual (threads=$actual_threads); the pin records $PINNED (threads=$PINNED_THREADS)"
         if [ "$actual" != "$PINNED" ]; then
           echo "::error::this runner has perl $actual but the baseline was measured on $PINNED."
           echo "::error::every verdict would be compared across a skew. Fix the perl, do not re-baseline from CI."
+          exit 1
+        fi
+        if [ "$actual_threads" != "$PINNED_THREADS" ]; then
+          echo "::error::this runner's perl is useithreads=$actual_threads but the baseline was measured on $PINNED_THREADS."
+          echo "::error::threads change what perl PARSES: three corpus files skip_all inside BEGIN without them,"
+          echo "::error::so perl exits during compilation and builds no optree. Fix the build, do not re-baseline from CI."
           exit 1
         fi
 
@@ -222,7 +237,11 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ${{ runner.temp }}/oracleshim
-        key: parseoracle-shim-${{ steps.pin.outputs.interpreter }}-${{ steps.pin.outputs.revision }}
+        # threads is in the key because the shim is built from the running
+        # perl's @INC, and a threaded and a non-threaded perl ship different
+        # trees. Keyed on $] alone, the two builds would share one entry and
+        # serve each other a shim that does not match the interpreter.
+        key: parseoracle-shim-${{ steps.pin.outputs.interpreter }}-${{ steps.pin.outputs.threads }}-${{ steps.pin.outputs.revision }}
 
     # The gate, first half. -parseoracle.corpus opts into the 620-file sweep;
     # -parseoracle.update is ABSENT and must stay absent, because a job that

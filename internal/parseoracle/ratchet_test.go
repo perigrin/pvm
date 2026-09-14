@@ -368,9 +368,20 @@ func TestRatchetCorpus(t *testing.T) {
 		t.Fatalf("ReadPin: %v", err)
 	}
 
+	// What perl ACTUALLY is, not what the pin says it should be. Checking the
+	// baseline against a pin read from the same file it was written with
+	// compares a value to a copy of itself and cannot fail; the first real CI
+	// run passed that check on a perl whose build differed from the
+	// baseline's. A re-baseline records the observed world for the same
+	// reason: it must describe the perl that produced the verdicts.
+	observed, err := parseoracle.ObservePin(context.Background(), pin.Revision)
+	if err != nil {
+		t.Fatalf("ObservePin: %v", err)
+	}
+
 	if *updateBaseline {
 		if err := parseoracle.WriteBaseline(baselinePath,
-			parseoracle.NewBaseline(pin, report, shimT)); err != nil {
+			parseoracle.NewBaseline(observed, report, shimT)); err != nil {
 			t.Fatalf("WriteBaseline: %v", err)
 		}
 		t.Logf("rewrote %s: %s", baselinePath, summarise(report))
@@ -392,7 +403,7 @@ func TestRatchetCorpus(t *testing.T) {
 	// Skew first: comparing verdicts across a moved pin measures the version
 	// bump, not the parser, and reporting that as hundreds of regressions is
 	// how a ratchet earns its reputation for crying wolf.
-	if err := base.CheckPin(pin); err != nil {
+	if err := base.CheckPin(observed); err != nil {
 		t.Fatalf("%v", err)
 	}
 	if err := base.Check(report); err != nil {

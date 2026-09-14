@@ -9,6 +9,7 @@
 # Columns: status metric category path
 interpreter = 5.042000
 revision    = 94e5086608bcf1d01cd2d836f11ca8378a3320b6
+threads     = define
 excluded      0 -              testdata/fixture/environmental.pl
 exact         0 -              testdata/fixture/exact.pl
 exact         1 -              testdata/fixture/explicit_ref.pl
