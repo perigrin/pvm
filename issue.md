@@ -1,19 +1,23 @@
 ---
 title: Align PSC type hierarchy with formal type system papers
-state: in-progress
+state: done
 urgency: normal
 milestone: psc-type-alignment
 created: 2026-03-22T02:43:41.621506-04:00
-updated: 2026-09-14T15:38:35.583884534Z
+updated: 2026-09-14T15:38:42.79429321Z
 sessions:
 - start_sha: 8532564348567b936f8e40e10f67e25b8b52e54c
-  end_sha: ""
+  end_sha: 8532564348567b936f8e40e10f67e25b8b52e54c
   commits: 0
   started_at: 2026-09-14T15:38:35.583884534Z
+  ended_at: 2026-09-14T15:38:42.79429321Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-14T15:38:35.583884534Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-14T15:38:42.79429321Z
 ---
 
 Ensure PSC's internal type system matches the formal definition in the companion papers:
