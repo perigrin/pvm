@@ -4,40 +4,70 @@ state: pending
 urgency: normal
 milestone: m0-lexer-round-trip
 created: 2026-09-14T15:42:44.613699558Z
-updated: 2026-09-14T15:42:56.445953975Z
+updated: 2026-09-14T22:45:18.82363169Z
 ---
 
-M0's exit criterion, and the spec is emphatic about it (§7.3.2):
+M0's exit criterion, and spec §7.3.2 is emphatic:
 
 > Treat `lex.t` as a milestone in its own right, not as one file among 620.
 > If it parses, the lexer is real.
 
-16K, 129 tests, written specifically to abuse a lexer. Its opening lines are
-six separate lexer-feedback traps:
+15,633 bytes, 129 tests, written specifically to abuse a lexer.
 
-    $x = $#[0];              # $# of an anonymous array? no: $#, then [0]
-    $x = '\\'; # ';          # a quoted backslash, then a comment holding a quote
-    eval '$foo{1} / 1;';     # division or pattern, after a hash subscript
-    print <<'EOF';           # non-interpolating heredoc
-    print <<EOF;             # interpolating heredoc
-    eval <<\EOE, print $@;   # backslash-quoted terminator, mid-expression
+## Round-trip alone cannot gate this
 
-Our current tree-sitter parser fails this file — it sits in the no-answer
-bucket of the §0.11 baseline — so this is a red test on day one and stays
-red until the preceding issues land. That is the point.
+The chain review caught the flaw that made an earlier draft of this issue
+worthless. **Invariant 3 — concatenating tokens reproduces the input — holds
+for ANY partition of the bytes**, including a single token spanning the
+whole file. A lexer that does
+
+    return []Token{{Kind: Trivia, Start: 0, End: len(src)}}
+
+passes every round-trip criterion in this milestone.
+
+Worse, it holds for every near-miss that matters: `=cute` ending POD early,
+the `/e` heredoc body lexed as barewords, `$main'a` opening a string at `'a
+= $'`. All round-trip cleanly and emit no error token.
+
+So the gate is a **golden token stream**: kind and span for every token in
+lex.t, committed, compared exactly. That is what makes "if it parses, the
+lexer is real" mean anything at the round-trip bar.
+
+Regenerating the golden file is a deliberate act in the same commit as the
+change that moved it, exactly as the parse-fidelity baseline works. A golden
+file that regenerates itself on mismatch is decoration.
+
+## What lex.t actually contains
+
+Verified against the real file at the pinned revision:
+
+    line 10    $x = $#[0];              # $# then a subscript, not $# of @[
+    line 12    $x = '\\'; # ';          # quoted backslash, then a comment holding a quote
+    line 20    eval '$foo{1} / 1;';     # division after a hash subscript
+    line 36    print <<'EOF';           # non-interpolating heredoc
+    line 41    print <<EOF;             # interpolating heredoc
+    line 45    eval <<\EOE, print $@;   # backslash-quoted terminator, mid-expression
+    line 56    two heredocs on one line
+    line 114   s/^not /substr(<<EOF, 0, 0)/e;   # heredoc inside /e replacement
+    lines 590-630   =cute / =cut2 / =cut_ terminator battery
+
+There is no `<<~` in the file.
 
 ## Why round-trip and not parse
 
-M0 asks only that the bytes survive tokenization. `lex.t` need not PARSE
-here; it must tokenize losslessly, with every trap above delimited
-correctly. Parsing it is M1's problem. Keeping the bar at round-trip is what
-makes M0 finishable, and it is still a real gate: you cannot round-trip a
-heredoc you did not recognise.
+M0 asks that the bytes survive tokenization with correct boundaries. lex.t
+need not PARSE here; that is M1. Keeping the bar at correct delimitation is
+what makes M0 finishable while still being a real gate — you cannot delimit
+a heredoc you did not recognise, and the golden stream proves the
+delimitation rather than assuming it.
 
 ## Acceptance
 
-- [ ] t/base/lex.t tokenizes without error (`go test ./internal/lexer/ -run TestLexDotTTokenizes -count=1`)
-- [ ] t/base/lex.t round-trips byte-for-byte (`go test ./internal/lexer/ -run TestLexDotTRoundTrips -count=1`)
-- [ ] Each of the six opening traps is pinned as its own case (`go test ./internal/lexer/ -run TestLexDotTOpeningTraps -count=1`)
+- [ ] lex.t tokenizes with no Error or UnknownRest token (`go test ./internal/lexer/ -run '^TestLexDotTNoErrorTokens$' -count=1 -v | grep -q '^--- PASS: TestLexDotTNoErrorTokens'`)
+- [ ] lex.t round-trips byte-for-byte (`go test ./internal/lexer/ -run '^TestLexDotTRoundTrips$' -count=1 -v | grep -q '^--- PASS: TestLexDotTRoundTrips'`)
+- [ ] lex.t's token stream matches the committed golden file exactly, kind and span (`go test ./internal/lexer/ -run '^TestLexDotTGoldenStream$' -count=1 -v | grep -q '^--- PASS: TestLexDotTGoldenStream'`)
+- [ ] The golden file is only rewritten under an explicit update flag (`go test ./internal/lexer/ -run '^TestGoldenRequiresUpdateFlag$' -count=1 -v | grep -q '^--- PASS: TestGoldenRequiresUpdateFlag'`)
+- [ ] Each trap above is pinned as its own named case (`go test ./internal/lexer/ -run '^TestLexDotTTraps$' -count=1 -v | grep -q '^--- PASS: TestLexDotTTraps'`)
+- [ ] The test skips with a clear message when the corpus is absent (`go test ./internal/lexer/ -run '^TestLexDotTSkipsWithoutCorpus$' -count=1 -v | grep -q '^--- PASS: TestLexDotTSkipsWithoutCorpus'`)
 
 Spec: §7.3.2. Plan: M0 exit criterion.
