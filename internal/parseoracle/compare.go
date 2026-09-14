@@ -74,7 +74,39 @@ const (
 	// parse at every call site and a static parser cannot know it without
 	// having already seen the definition.
 	MarkerSrefgen Marker = "srefgen"
+
+	// MarkerRv2hv is perl reading a hash: `%$r`, `%{...}`, `->%*`, a hash
+	// slice through a reference, a global `%h`, or an element with a key
+	// too complex to fold. It is the "is `%` a sigil or a modulus" question
+	// of spec §7.1.2. Measured: a lexical `%h` is padhv and `$h{a}` folds
+	// to multideref, so perl emits FEWER of these than the source has hash
+	// accesses, never more -- which is the direction presence-matching
+	// tolerates.
+	MarkerRv2hv Marker = "rv2hv"
+
+	// MarkerMatch is perl matching a regex: `/.../`, `m//`, and `=~` against
+	// any pattern that is not s/// or tr///. The "is `/` a match or a
+	// divide" question. Measured: `split /,/` compiles to a split op with
+	// no match op, and a match under `if (0)` is discarded, so again perl
+	// emits at most as many as the source has.
+	MarkerMatch Marker = "match"
+
+	// MarkerReadline is perl reading a line: `<FH>`, `<$fh>`, `<>`, `<<>>`
+	// and the readline builtin. The "did `<...>` read or glob" question.
+	// Measured: `<*.c>` and `<${fh}>` are glob; `$x .= <FH>` is rewritten
+	// to rcatline, which the oracle folds back into this marker.
+	MarkerReadline Marker = "readline"
+
+	// MarkerAnonhash is perl building an anonymous hash: `{ a => 1 }`, or
+	// `{}` as emptyavhv flagged OPpEMPTYAVHV_IS_HV. The "is `{` a block or
+	// a hashref" question. A block emits no marker at all.
+	MarkerAnonhash Marker = "anonhash"
 )
+
+// Markers is every marker the harness decides, in the order a verdict
+// names them when more than one is in play. It is the table spec §7.5.4
+// sketches, with the tree-sitter predicates living in adapter.go.
+var Markers = []Marker{MarkerSrefgen, MarkerRv2hv, MarkerMatch, MarkerReadline, MarkerAnonhash}
 
 // Verdict is one comparison result.
 type Verdict struct {
@@ -88,16 +120,16 @@ type Verdict struct {
 
 // Compare buckets our parse of src against perl's facts for the same source.
 //
-// It compares one marker: srefgen, perl taking a reference at a call site.
-// That is deliberate rather than incomplete -- srefgen is where a prototype
-// changes the parse invisibly, which is the measured blind spot this harness
-// exists to close. Additional markers (rv2hv, match, readline, anonhash) go in
-// as separate rules with their own tests; a whole-tree diff never does, because
-// the optree is a lossy, post-optimisation witness of the parse.
+// It compares the five markers of Markers, each by presence per statement;
+// a whole-tree diff never happens, because the optree is a lossy,
+// post-optimisation witness of the parse. srefgen came first -- it is where
+// a prototype changes the parse invisibly, the measured blind spot this
+// harness exists to close -- and the other four apply its rule unchanged.
 //
-// src is carried for the markers that need the literal text -- a heredoc body
-// or a quote-like operator's delimiter cannot be settled from node kinds alone.
-// The srefgen rule deliberately does not use it: see compareSrefgen.
+// src is carried for a marker that might one day need the literal text -- a
+// heredoc body or a quote-like operator's delimiter cannot be settled from
+// node kinds alone. None of the five uses it; the adapter answers every
+// question from node kinds and tokens.
 func Compare(facts Facts, tree *parser.Tree, _ []byte) Verdict {
 	// Compare is now a thin adapter: it turns our tree into the same
 	// SubjectFacts any other implementation would report, then defers to the

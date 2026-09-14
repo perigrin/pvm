@@ -35,8 +35,8 @@ func TestOracleCountsReferencesInEveryCV(t *testing.T) {
 	if facts.Srefgen != 4 {
 		t.Errorf("Srefgen = %d, want 4: one per CV (named sub, anon sub, BEGIN, main)", facts.Srefgen)
 	}
-	if want := []int{2, 3, 4, 5}; !reflect.DeepEqual(facts.RefLines, want) {
-		t.Errorf("RefLines = %v, want %v (the statement line of each reference)", facts.RefLines, want)
+	if want := []int{2, 3, 4, 5}; !reflect.DeepEqual(facts.Sites[parseoracle.MarkerSrefgen], want) {
+		t.Errorf("Sites[srefgen] = %v, want %v (the statement line of each reference)", facts.Sites[parseoracle.MarkerSrefgen], want)
 	}
 	if !facts.Walked {
 		t.Error("Walked must report that the optree walk ran")
@@ -69,8 +69,8 @@ func TestOracleAttributesReferencesToThisFileOnly(t *testing.T) {
 	if facts.Srefgen != 1 {
 		t.Errorf("Srefgen = %d, want 1: the reference inside helper.pl's sub g is not this file's", facts.Srefgen)
 	}
-	if want := []int{2}; !reflect.DeepEqual(facts.RefLines, want) {
-		t.Errorf("RefLines = %v, want %v", facts.RefLines, want)
+	if want := []int{2}; !reflect.DeepEqual(facts.Sites[parseoracle.MarkerSrefgen], want) {
+		t.Errorf("Sites[srefgen] = %v, want %v", facts.Sites[parseoracle.MarkerSrefgen], want)
 	}
 }
 
@@ -118,11 +118,11 @@ func TestOraclePopulationIsBackslashesAndPrototypes(t *testing.T) {
 			if !facts.OK {
 				t.Fatalf("probe must compile, stderr: %s", facts.Stderr)
 			}
-			if len(facts.RefLines) == 0 && len(c.want) == 0 {
+			if len(facts.Sites[parseoracle.MarkerSrefgen]) == 0 && len(c.want) == 0 {
 				return
 			}
-			if !reflect.DeepEqual(facts.RefLines, c.want) {
-				t.Errorf("RefLines = %v, want %v", facts.RefLines, c.want)
+			if !reflect.DeepEqual(facts.Sites[parseoracle.MarkerSrefgen], c.want) {
+				t.Errorf("Sites[srefgen] = %v, want %v", facts.Sites[parseoracle.MarkerSrefgen], c.want)
 			}
 		})
 	}

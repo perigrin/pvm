@@ -70,10 +70,42 @@ type SubjectFacts struct {
 // would otherwise be scored WRONG on every file containing a backslash.
 const SiteKindReference = "reference"
 
+// The other four kinds each answer one of the parse questions of spec
+// §7.1.2, and each is the subject's side of one oracle marker. A site of
+// one of these kinds says "at this statement I decided the construct is
+// this"; the same site with Unresolved set says "I could not settle it".
+// The names are the subject's vocabulary -- what it parsed -- rather than
+// perl's op names, because the contract asks for conclusions, and a
+// subject that has never heard of rv2hv can still say it saw a hash.
+const (
+	// SiteKindHash is a hash read: `%h`, `%$r`, `%{...}`, `->%*`, a hash
+	// element or slice. Perl's rv2hv. The alternative reading of `%` is
+	// modulus.
+	SiteKindHash = "hash"
+
+	// SiteKindMatch is a regex match: `/.../`, `m//`, or `=~`/`!~`
+	// binding to any pattern that is not s/// or tr///. Perl's match. The
+	// alternative reading of `/` is division.
+	SiteKindMatch = "match"
+
+	// SiteKindReadline is a line read: `<FH>`, `<$fh>`, `<>`, `<<>>`,
+	// readline(). Perl's readline. The alternative reading of `<...>` is
+	// a glob.
+	SiteKindReadline = "readline"
+
+	// SiteKindAnonhash is an anonymous hash constructor: `{ a => 1 }`,
+	// `{}`, `+{...}`. Perl's anonhash. The alternative reading of `{` is a
+	// block.
+	SiteKindAnonhash = "anonhash"
+)
+
 // SubjectCallSite is one call, and what the subject concluded about it.
 type SubjectCallSite struct {
-	// Kind is empty for a call. SiteKindReference is the one other kind:
-	// a reference the source wrote, reported with TookReference set.
+	// Kind is empty for a call. SiteKindReference is a reference the
+	// source wrote, reported with TookReference set. SiteKindHash,
+	// SiteKindMatch, SiteKindReadline and SiteKindAnonhash are the other
+	// parse decisions the harness measures; a site of one of those kinds
+	// is the decision, and Unresolved on it is the hedge.
 	Kind string `json:"kind,omitempty"`
 
 	// Line is the first line of the STATEMENT the site is in, and EndLine

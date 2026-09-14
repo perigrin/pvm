@@ -12,11 +12,14 @@ use warnings;
 # as a non-zero exit: the harness reads a non-zero exit as "the subject broke"
 # and records a runner error, never a verdict.
 #
-# The reference question is answered from the optree. Every srefgen is a
-# reference perl took, and each is reported as a reference site rather than a
-# call site, because the contract asks for the conclusion and not for where it
-# was reached. Perl resolves prototypes itself, so a \@-prototype call is a
-# reference here where a static parser can only hedge.
+# Every question is answered from the optree. Every srefgen is a reference
+# perl took, and each is reported as a reference site rather than a call
+# site, because the contract asks for the conclusion and not for where it was
+# reached. Perl resolves prototypes itself, so a \@-prototype call is a
+# reference here where a static parser can only hedge. The other four kinds
+# are the ops that witness them: rv2hv is a hash, match is a match, readline
+# (and rcatline, the optimiser's spelling of `$x .= <FH>`) is a readline,
+# anonhash -- and emptyavhv flagged ANONHASH, which is `{}` -- is an anonhash.
 #
 # ponytail: taint (-T) shebangs are not honoured; such a file reports ok:false
 # and scores no-answer. Read the shebang the way run.go's wantsTaint does if
@@ -40,6 +43,14 @@ if ($? != 0) {
 # the oracle reads, so the two sides name the same statement by construction.
 #
 #   "1  <;> nextstate(main 2 explicit_ref.pl:5) v:{"
+my %kind = (
+    srefgen => 'reference', refgen => 'reference',
+    rv2hv => 'hash',
+    match => 'match',
+    readline => 'readline', rcatline => 'readline',
+    anonhash => 'anonhash',
+);
+
 my @sites;
 my $line = 0;
 for my $op (split /\n/, $concise) {
@@ -47,8 +58,17 @@ for my $op (split /\n/, $concise) {
         $line = $1;
         next;
     }
-    next unless $op =~ /^\s*\S+\s+<[^>]*>\s+(srefgen|refgen)\b/;
-    push @sites, qq({"line":$line,"kind":"reference","took_reference":true});
+    # "3  <0> emptyavhv[$x:1,2] v/LVINTRO,ANONHASH,TARGMY" -- the op name,
+    # then its target and flags, where emptyavhv says which of {} and []
+    # it is.
+    next unless $op =~ /^\s*\S+\s+<[^>]*>\s+(\w+)(.*)$/;
+    my ($name, $rest) = ($1, $2);
+    my $kind = $kind{$name};
+    $kind = 'anonhash' if $name eq 'emptyavhv' && $rest =~ /\bANONHASH\b/;
+    next unless $kind;
+    push @sites, $kind eq 'reference'
+        ? qq({"line":$line,"kind":"reference","took_reference":true})
+        : qq({"line":$line,"kind":"$kind"});
 }
 
 my $sites = join ',', @sites;

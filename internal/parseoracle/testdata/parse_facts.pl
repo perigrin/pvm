@@ -45,9 +45,10 @@ my $stderr = $compiles ? '' : $concise;
 # having already seen the definition.
 #
 # The same probe walks every CV perl compiled for this file and reports each
-# reference-taking op with the line of the statement it belongs to. The
-# population is deliberately "what the source could have written a backslash
-# for": explicit `\` forms and prototype-forced references at call sites.
+# marker op -- see %marker inside the probe -- with the line of the statement
+# it belongs to. For the reference marker the population is deliberately
+# "what the source could have written a backslash for": explicit `\` forms
+# and prototype-forced references at call sites.
 #
 #   srefgen           \@a  \%h  \&f  \$x  \(&f)  \-1  and every \-prototype arg
 #   refgen            \(@a)  \(@a,@b)  \my($x,$y)     -- one op per list, as
@@ -103,20 +104,51 @@ my $protosrc = <<'PERL';
         return $meth->can('PV') && $meth->PV eq 'import';
     };
 
+    # Op name to the marker it witnesses. Every marker is a parse decision
+    # perl made that a static parser has to make too (spec 07 s7.1.2), and
+    # each is matched by PRESENCE in a statement, never by count: the
+    # peephole optimiser folds `$h{a}` to multideref and `1 % 2` to a
+    # constant, so perl may emit fewer marker ops than the source has
+    # constructs, and a comparison that counted would blame the parser for
+    # the optimiser's work.
+    #
+    #   srefgen, refgen   a reference taken: `\@a`, or a \-prototype argument
+    #   rv2hv             a hash read through a glob or a reference: `%$r`,
+    #                     `%{...}`, `->%*`, `@$r{...}`, global `%h`; the
+    #                     "% is a sigil, not modulo" decision
+    #   match             a regex match: `/x/`, `m//`, `=~` with a pattern;
+    #                     the "/ is a match, not divide" decision. split's
+    #                     pattern is a split op and never a match op.
+    #   readline          `<FH>`, `<$fh>`, `<>`, readline(); `<*.c>` is glob.
+    #   rcatline          `$x .= <FH>`, the optimiser's spelling of readline
+    #   anonhash          `{ a => 1 }`; the "{ is a hashref, not a block"
+    #                     decision. A block emits no marker at all.
+    #   emptyavhv         `{}` and `[]` share one op; OPpEMPTYAVHV_IS_HV
+    #                     says which, and only the hash is a site.
+    my %marker = (
+        srefgen => 'srefgen', refgen => 'srefgen',
+        rv2hv => 'rv2hv',
+        match => 'match',
+        readline => 'readline', rcatline => 'readline',
+        anonhash => 'anonhash',
+    );
+
     $walk = sub {
         my ($op, $cop, $cv, $parent) = @_;
         return unless ref $op && $$op;
         my $name = $op->name;
-        if ($name eq 'srefgen' || $name eq 'refgen') {
+        my $marker = $marker{$name};
+        $marker = 'anonhash'
+            if $name eq 'emptyavhv' && ($op->private & B::OPpEMPTYAVHV_IS_HV());
+        if ($marker && $cop && $cop->file eq $oracle_file) {
             # `goto &NAME` is a goto whose operand perly.y parsed as an
             # entersub term; op.c's newLOOPEX then wraps that in a REFGEN.
             # The srefgen is goto's rewrite, not a reference the parse took
             # at a call site, and no subject could write a backslash for it.
             # A variable attribute's import call is the same kind of rewrite.
-            push @sites, [$cop->line, $name]
-                if $cop && $cop->file eq $oracle_file
-                && !($parent && $parent->name eq 'goto')
-                && !($parent && $is_attr_import->($parent, $cv));
+            my $rewrite = $marker eq 'srefgen' && $parent
+                && ($parent->name eq 'goto' || $is_attr_import->($parent, $cv));
+            push @sites, [$cop->line, $name, $marker] unless $rewrite;
         }
         if ($op->flags & B::OPf_KIDS()) {
             # A COP names the statement for the siblings that FOLLOW it at
@@ -184,7 +216,7 @@ my $protosrc = <<'PERL';
     };
     $walkstash->('main');
 
-    print "SITE\t$_->[0]\t$_->[1]\n" for @sites;
+    print "SITE\t$_->[0]\t$_->[1]\t$_->[2]\n" for @sites;
     print "WALK\tok\n";
 PERL
 
@@ -192,9 +224,15 @@ my $protoout = capture_with_end($file, $protosrc);
 my (@sites, $walked);
 for my $line (split /\n/, $protoout) {
     $proto{$2} = $3 if $line =~ /^(PROTO)\t([^\t]*)\t(.*)$/;
-    push @sites, [$1, $2] if $line =~ /^SITE\t(\d+)\t(\w+)$/;
+    push @sites, [$1, $2, $3] if $line =~ /^SITE\t(\d+)\t(\w+)\t(\w+)$/;
     $walked = 1 if $line eq "WALK\tok";
 }
+
+# One sorted line list per marker that occurred. A marker with no op in
+# the file has no key, and the Go side reads that as an empty list.
+my %sites;
+push @{ $sites{$_->[2]} }, $_->[0] for @sites;
+@$_ = sort { $a <=> $b } @$_ for values %sites;
 
 print encode({
     file      => $file,
@@ -202,7 +240,7 @@ print encode({
     ops       => \@ops,
     op_count  => scalar(@ops),
     srefgen   => scalar(grep { $_->[1] eq 'srefgen' } @sites),
-    ref_lines => [ sort { $a <=> $b } map { $_->[0] } @sites ],
+    sites     => \%sites,
     walked    => $walked ? 1 : 0,
     entersub  => scalar(grep { $_ eq 'entersub' } @ops),
     prototypes=> \%proto,

@@ -120,6 +120,18 @@ func treeSitterCallSites(root *parser.Node, src []byte) []SubjectCallSite {
 			sites = append(sites, site)
 		case isCommittedCall(n):
 			sites = append(sites, site)
+		case isHashAccess(n):
+			site.Kind = SiteKindHash
+			sites = append(sites, site)
+		case isMatch(n):
+			site.Kind = SiteKindMatch
+			sites = append(sites, site)
+		case isReadline(n):
+			site.Kind = SiteKindReadline
+			sites = append(sites, site)
+		case isAnonHash(n):
+			site.Kind = SiteKindAnonhash
+			sites = append(sites, site)
 		}
 		for i := 0; i < n.NamedChildCount(); i++ {
 			visit(n.NamedChild(i), stmt)
@@ -128,6 +140,86 @@ func treeSitterCallSites(root *parser.Node, src []byte) []SubjectCallSite {
 	visit(root, SubjectCallSite{})
 
 	return sites
+}
+
+// The four predicates below are the tree-sitter side of spec §7.5.4's
+// marker table. Each names the node kinds our grammar emits for a construct
+// perl compiles to the marker op, and every kind was read off `psc parse
+// --format sexpr` on the sample lines in markers_test.go rather than
+// assumed. They may over-report relative to perl -- a lexical `%h` is padhv,
+// `$h{a}` folds to multideref, a match under `if (0)` is discarded -- and
+// that is the safe direction: the comparison consults only perl's sites, so
+// a subject site with no perl op behind it accounts for nothing and costs
+// nothing. What they must never do is under-report a construct perl does
+// emit the op for, because that is scored WRONG.
+
+// isHashAccess: `%h`, `%$r`, `%{...}`, `->%*`, `$h{a}`, `$$r{a}`, `$r->{a}`,
+// a hash slice `@h{...}`/`@$r{...}`/`->@{...}` and a key/value slice
+// `%h{...}`. slice_expression and keyval_expression serve array slices too,
+// and the subscript's opening token says which container was sliced.
+func isHashAccess(n *parser.Node) bool {
+	switch n.Kind() {
+	case "hash", "hash_deref_expression", "hash_element_expression":
+		return true
+	case "slice_expression", "keyval_expression":
+		return hasToken(n, "{")
+	}
+	return false
+}
+
+// isMatch: a regex literal `/.../` or `m//`, or a `=~`/`!~` binding to
+// anything that is not s/// or tr/// (measured: a scalar, a string and a
+// qr// on the right all compile to regcomp + match). A binding whose right
+// side is itself a match_regexp is not counted twice: the literal is the
+// site, the binding merely names its target.
+func isMatch(n *parser.Node) bool {
+	switch n.Kind() {
+	case "match_regexp":
+		return true
+	case "binary_expression":
+		if !hasToken(n, "=~") && !hasToken(n, "!~") {
+			return false
+		}
+		if rhs := n.NamedChild(n.NamedChildCount() - 1); rhs != nil {
+			switch rhs.Kind() {
+			case "match_regexp", "substitution_regexp", "transliteration_expression":
+				return false
+			}
+		}
+		return true
+	}
+	return false
+}
+
+// isReadline: `<FH>`, `<$fh>`, `<>`, `<<>>`, and the readline builtin with
+// or without parentheses. `<*.c>` is a fileglob_expression and is not one.
+func isReadline(n *parser.Node) bool {
+	switch n.Kind() {
+	case "readline_expression":
+		return true
+	case "func1op_call_expression":
+		return hasToken(n, "readline")
+	}
+	return false
+}
+
+// isAnonHash: `{ ... }` the grammar read as a hash constructor rather than
+// a block, including the empty and the `+{ }` forms.
+func isAnonHash(n *parser.Node) bool {
+	return n.Kind() == "anonymous_hash_expression"
+}
+
+// hasToken reports whether one of n's anonymous children is the literal
+// token. Operators, sigils and builtin names are anonymous in this grammar,
+// so `$a =~ $b` and `$a % $b` are both binary_expression and only the token
+// tells them apart.
+func hasToken(n *parser.Node, token string) bool {
+	for i := 0; i < n.ChildCount(); i++ {
+		if n.Child(i).Kind() == token {
+			return true
+		}
+	}
+	return false
 }
 
 // lineIndex turns a byte offset into a 1-based line. Statement ends are not
