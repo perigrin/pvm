@@ -1,4 +1,4 @@
-.PHONY: all build test smoke-test clean pvm pvx pm psc cross-compile
+.PHONY: all build test smoke-test clean pvm pvx pm psc cross-compile fuzz-lexer fuzz-parser
 
 BINARIES = pvm pvx pm psc
 
@@ -29,6 +29,12 @@ test:
 # afterwards, which is the regression half.
 fuzz-lexer:
 	go test ./internal/lexer/ -run '^$$' -fuzz '^FuzzLexer$$' -fuzztime 1000000x
+
+# The parser fuzz target, same shape and same reasoning as fuzz-lexer.
+# Crashers land in internal/parse/testdata/fuzz/ and are replayed by
+# TestFuzzSeeds afterwards.
+fuzz-parser:
+	go test ./internal/parse/ -run '^$$' -fuzz '^FuzzParser$$' -fuzztime 1000000x
 
 # Docker-based user-journey smoke test. Simulates a fresh install against
 # bash/zsh/fish and asserts the original #432/#433 bug scenarios stay fixed.
