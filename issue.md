@@ -8,7 +8,7 @@ blocked_by:
 - 01a0a70f-3c3d-7ff7-aa8b-e59b91d899ac
 - 01a0a75b-95b2-730a-9303-b6aba9adb26c
 created: 2026-09-15T21:53:08.812269582Z
-updated: 2026-09-15T23:17:40.897724816Z
+updated: 2026-09-15T23:19:00.162125029Z
 ---
 
 M1's gate: the parse rate ratchets, WRONG does not move, and every row of the
@@ -83,14 +83,17 @@ applies. The exact floor is what makes WRONG = 0 mean something.
     parse without error   RATCHET   moves in either direction, recorded
     WRONG                 GATE      any nonzero value fails
 
-Reuse `internal/lexer`'s ratchet shape: per-file counts, committed baseline,
-failure in either direction, regenerated under an explicit flag. Not
-`parseoracle`'s — bound to its own buckets, as M0's final issue recorded.
+Follow `internal/lexer`'s ratchet shape: per-file counts, committed baseline,
+failure in either direction, regenerated under an explicit flag
+(`-lexer.update-ratchet`). `parseoracle`'s ratchet has the same
+fail-both-directions discipline but is keyed on its four verdict buckets, so
+its table shape does not transfer; the discipline does.
 
-This is the THIRD ratchet in the tree (lexer, parseoracle, this one). M0
-recorded "revisit extraction when a third appears". This issue is that third:
-either extract the shared shape or record why the third copy is still
-cheaper than the abstraction.
+This would be the third ratchet in the tree (`internal/lexer`,
+`internal/parseoracle`, this one). Decide explicitly rather than by default:
+either extract the shared shape, or record in the test file why a third copy
+is still cheaper than the abstraction. Three copies is where "two is a
+coincidence" stops being true.
 
 ## Measuring through the subject contract
 
