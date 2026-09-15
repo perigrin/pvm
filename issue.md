@@ -1,19 +1,26 @@
 ---
 title: "t/base/lex.t round-trips: the M0 gate"
-state: in-progress
+state: done
 urgency: normal
 milestone: m0-lexer-round-trip
 created: 2026-09-14T15:42:44.613699558Z
-updated: 2026-09-15T19:13:13.087421927Z
+updated: 2026-09-15T19:19:37.430420065Z
 sessions:
 - start_sha: a28f534a27eb8cf78a2413daaa60fd7d56012f33
-  end_sha: ""
-  commits: 0
+  end_sha: 436129de59fa29c2c67d553efd5c0ddbe29a2898
+  commits: 1
   started_at: 2026-09-15T19:13:13.087421927Z
+  ended_at: 2026-09-15T19:19:37.430420065Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-15T19:13:13.087421927Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-15T19:19:37.430420065Z
+observed_paths:
+- internal/lexer/lexdott_test.go
+- internal/lexer/testdata/lex.t.tokens
 ---
 
 M0's exit criterion, and spec §7.3.2 is emphatic:
