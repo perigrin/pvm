@@ -41,6 +41,42 @@ const (
 	// boundaries. Interpolation splits this later, when there is a parser to
 	// consume the pieces.
 	Quote
+
+	// Comment is `#` to end of line. Trivia, like Whitespace: it carries no
+	// meaning but it carries bytes, and every byte belongs to a token.
+	Comment
+
+	// Variable is a sigil and its name: `$x`, `@a`, `%h`, `$#x`, `$#`.
+	Variable
+
+	// Word is a bareword or keyword. Which of those it is cannot be decided
+	// by the lexer alone, so the distinction is left to the parser.
+	Word
+
+	// Number is an integer or float literal.
+	Number
+
+	// Operator is punctuation between terms.
+	Operator
+
+	// Semicolon ends a statement, returning the machine to XSTATE.
+	Semicolon
+
+	// Readline is `<FH>` or `<$fh>` in term position. Distinct from a pair of
+	// comparison operators, which is the whole point.
+	Readline
+
+	// FuncSigil is `&` introducing a function name in term position, as
+	// opposed to `&&` or bitwise-and in operator position.
+	FuncSigil
+
+	// CloseBracket is `)`, `]` or `}`.
+	//
+	// Distinct from Operator because it moves the expect state the OTHER
+	// way: every other operator opens a term, while a closing bracket ends
+	// one. Without the distinction `$x[0] <FH>` lexes its angle brackets as
+	// a readline, since the `]` would leave a term expected.
+	CloseBracket
 )
 
 func (k Kind) String() string {
@@ -53,6 +89,24 @@ func (k Kind) String() string {
 		return "UnknownRest"
 	case Quote:
 		return "Quote"
+	case Comment:
+		return "Comment"
+	case Variable:
+		return "Variable"
+	case Word:
+		return "Word"
+	case Number:
+		return "Number"
+	case Operator:
+		return "Operator"
+	case Semicolon:
+		return "Semicolon"
+	case Readline:
+		return "Readline"
+	case FuncSigil:
+		return "FuncSigil"
+	case CloseBracket:
+		return "CloseBracket"
 	}
 	return "Kind(?)"
 }
@@ -76,7 +130,7 @@ type Token struct {
 // constantly and a lexer that gives up on the first bad byte is useless to
 // it. Spec §7.6.2 invariant 1: never panic, on any input.
 func Tokenize(src []byte) []Token {
-	l := &lexer{src: src}
+	l := &lexer{src: src, expect: XState}
 	for l.pos < len(l.src) {
 		l.step(scanOne)
 	}
@@ -89,6 +143,9 @@ type lexer struct {
 	src  []byte
 	pos  int
 	toks []Token
+	// expect is the term-vs-operator state. A file starts at a statement
+	// boundary, which is where POD and labels are recognised.
+	expect Expect
 }
 
 // step runs one scan and enforces spec §7.6.2 invariant 4: every step
@@ -127,8 +184,32 @@ func scanOne(l *lexer) {
 		l.emit(Whitespace, start)
 		return
 	}
-	if scanQuoteLike(l) {
-		return
+	// ORDER MATTERS. Each scanner below either claims the cursor or declines,
+	// and several decline on the expect state alone:
+	//
+	//   scanComment    before the quote scanner, so `#` is not a delimiter
+	//   scanVariable   before words, so `$x` is not the word `x`
+	//   scanAngle      before operators, so `<FH>` is not `<` `FH` `>`
+	//   scanAmp        before operators, so `&foo` is not bitwise-and
+	//   scanQuoteLike  before words, so `q` is not the bareword `q`
+	//                  -- but it declines in operator position for `x`,
+	//                  `y` and `s`, which are repetition and names there
+	//   scanNumber     before operators, so `1.5` is not `1` `.` `5`
+	for _, scan := range []func(*lexer) bool{
+		scanComment,
+		scanVariable,
+		scanAngle,
+		scanAmp,
+		scanQuoteLike,
+		scanBarePattern,
+		scanWord,
+		scanNumber,
+		scanSemicolon,
+		scanOperator,
+	} {
+		if scan(l) {
+			return
+		}
 	}
 	// Not yet lexable. One byte, so the cursor always advances and the rest
 	// of the file is still lexed.
@@ -136,9 +217,15 @@ func scanOne(l *lexer) {
 	l.emit(Error, start)
 }
 
-// emit appends a token spanning start..l.pos.
+// emit appends a token spanning start..l.pos and advances the expect state.
+//
+// The state transition lives here rather than at each call site so that a new
+// scanner cannot forget it. Forgetting would not fail loudly -- it would make
+// the NEXT token wrong, somewhere else in the file, which is the hardest kind
+// of lexer bug to find.
 func (l *lexer) emit(k Kind, start int) {
 	l.toks = append(l.toks, Token{Kind: k, Start: start, End: l.pos})
+	l.expect = l.expect.after(k)
 }
 
 // isSpace is Perl's whitespace for lexing purposes. Vertical tab and form
