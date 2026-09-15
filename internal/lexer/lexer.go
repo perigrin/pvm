@@ -30,6 +30,17 @@ const (
 	// construct never finished" are different failures, and a consumer that
 	// cannot tell them apart reports the wrong thing to the user.
 	UnknownRest
+
+	// Quote is one whole quote-like operator: the keyword if any, every
+	// delimiter, both bodies of a three-part form, and the trailing
+	// modifiers.
+	//
+	// One token rather than several because the parts are not independently
+	// meaningful -- `s/a/b/` and `s/a/b/g` differ, and a consumer that has to
+	// re-lex the following token to learn which it got has the wrong
+	// boundaries. Interpolation splits this later, when there is a parser to
+	// consume the pieces.
+	Quote
 )
 
 func (k Kind) String() string {
@@ -40,6 +51,8 @@ func (k Kind) String() string {
 		return "Error"
 	case UnknownRest:
 		return "UnknownRest"
+	case Quote:
+		return "Quote"
 	}
 	return "Kind(?)"
 }
@@ -112,6 +125,9 @@ func scanOne(l *lexer) {
 			l.pos++
 		}
 		l.emit(Whitespace, start)
+		return
+	}
+	if scanQuoteLike(l) {
 		return
 	}
 	// Not yet lexable. One byte, so the cursor always advances and the rest
