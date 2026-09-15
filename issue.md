@@ -1,10 +1,19 @@
 ---
 title: "Identifier character class: non-ASCII names under use utf8"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m0-lexer-round-trip
 created: 2026-09-14T15:42:10.413129176Z
-updated: 2026-09-14T22:45:07.77668943Z
+updated: 2026-09-15T04:48:38.257754802Z
+sessions:
+- start_sha: 912cd549cc31d6a08ec0a4d6dd2eca07cedc1bad
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-15T04:48:38.257754802Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-15T04:48:38.257754802Z
 ---
 
 §0.13 ranks this first: 34 corpus files, concentrated in `t/mro/*_utf8.t`
