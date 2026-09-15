@@ -1,10 +1,19 @@
 ---
 title: "Heredocs: the pending queue and six terminator forms"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m0-lexer-round-trip
 created: 2026-09-14T22:45:28.161521094Z
-updated: 2026-09-14T22:45:43.452733653Z
+updated: 2026-09-15T05:53:11.3434952Z
+sessions:
+- start_sha: 7fc3a20a3439e693a8bcf59134ea0ea3d15cfa50
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-15T05:53:11.3434952Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-15T05:53:11.3434952Z
 ---
 
 Heredocs, after the expect-state issue because perl gates their recognition
