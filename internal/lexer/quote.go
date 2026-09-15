@@ -100,6 +100,7 @@ func scanQuoteLike(l *lexer) bool {
 	}
 	close := pairedCloser(open)
 	l.pos++ // past the opening delimiter
+	replStart := 0
 
 	if !l.scanDelimitedBody(open, close) {
 		l.emit(UnknownRest, start)
@@ -118,21 +119,76 @@ func scanQuoteLike(l *lexer) bool {
 				return true
 			}
 			l.pos++
+			replStart = l.pos
 			if !l.scanDelimitedBody(open2, pairedCloser(open2)) {
 				l.emit(UnknownRest, start)
 				return true
 			}
-		} else if !l.scanDelimitedBody(open, 0) {
-			l.emit(UnknownRest, start)
-			return true
+		} else {
+			replStart = l.pos
+			if !l.scanDelimitedBody(open, 0) {
+				l.emit(UnknownRest, start)
+				return true
+			}
 		}
 	}
 
+	replEnd := l.pos
 	if op.mods {
 		l.scanModifiers()
 	}
 	l.emit(Quote, start)
+
+	// With /e the replacement is CODE, not a string. t/base/lex.t:114:
+	//
+	//	$foo =~ s/^not /substr(<<EOF, 0, 0)/e;
+	//	  Ignored
+	//	EOF
+	//
+	// A heredoc opened inside the replacement takes its body from the lines
+	// AFTER the substitution. Treat the replacement as opaque and the <<EOF
+	// is missed, the body lexes as barewords, and the file still round-trips
+	// -- which is why round-trip alone cannot gate this milestone.
+	//
+	// Only the heredoc openers are harvested here, not a full re-lex. The
+	// replacement's own tokens are already inside the Quote span, and
+	// emitting them again would break the round trip by covering bytes
+	// twice. What must escape the span is the PENDING state: the queue entry
+	// that makes the body arrive in the right place.
+	if op.parts == 3 && replStart > 0 && hasModifier(l.src[replEnd:l.pos], 'e') {
+		l.queueHeredocsIn(replStart, replEnd)
+	}
 	return true
+}
+
+// hasModifier reports whether the modifier run contains c.
+func hasModifier(mods []byte, c byte) bool {
+	for _, m := range mods {
+		if m == c {
+			return true
+		}
+	}
+	return false
+}
+
+// queueHeredocsIn scans an /e replacement for heredoc openers and queues
+// them, so their bodies are taken after the current line.
+//
+// A sub-lexer over the replacement's bytes: it shares nothing with the outer
+// cursor, and only the pending queue crosses back.
+func (l *lexer) queueHeredocsIn(start, end int) {
+	sub := &lexer{src: l.src[:end], pos: start, expect: XTerm}
+	for sub.pos < end {
+		before := sub.pos
+		if scanHeredocOpen(sub) {
+			continue
+		}
+		sub.pos++
+		if sub.pos <= before {
+			break
+		}
+	}
+	l.pending = append(l.pending, sub.pending...)
 }
 
 // skipToDelimiter advances past whitespace and comments to the delimiter,

@@ -86,6 +86,19 @@ const (
 	// between them is ordinary code: `print <<A, <<B;` has two markers, a
 	// comma and a semicolon before either body starts.
 	HeredocBody
+
+	// Pod is a documentation block, `=word` through `=cut` inclusive. Trivia
+	// with a line-oriented terminator rather than a delimiter.
+	Pod
+
+	// DataSection is `__END__` or `__DATA__` and everything after it. The
+	// contents are data, not Perl, so nothing inside is lexed as code.
+	DataSection
+
+	// FormatBody is the picture lines of a `format NAME =` declaration,
+	// through the lone `.` that ends them. Not Perl: `@<<<<<` is a picture
+	// field, not an array sigil and two left shifts.
+	FormatBody
 )
 
 func (k Kind) String() string {
@@ -120,6 +133,12 @@ func (k Kind) String() string {
 		return "HeredocOpen"
 	case HeredocBody:
 		return "HeredocBody"
+	case Pod:
+		return "Pod"
+	case DataSection:
+		return "DataSection"
+	case FormatBody:
+		return "FormatBody"
 	}
 	return "Kind(?)"
 }
@@ -169,6 +188,12 @@ type lexer struct {
 	// pending holds heredocs whose terminator has been read but whose body
 	// has not started. Drained at the next newline, in order.
 	pending []pendingHeredoc
+	// sawFormatWord and pendingFormat track a `format NAME =` declaration,
+	// whose picture body starts on the line after the `=`.
+	sawFormatWord bool
+	pendingFormat bool
+	// inFormat is set when the picture body should be taken next.
+	inFormat bool
 }
 
 // step runs one scan and enforces spec §7.6.2 invariant 4: every step
@@ -223,6 +248,9 @@ func scanOne(l *lexer) {
 		if sawNewline {
 			l.takePendingHeredocs()
 		}
+		if l.inFormat {
+			l.step(func(*lexer) { scanFormatBody(l) })
+		}
 		return
 	}
 	// ORDER MATTERS. Each scanner below either claims the cursor or declines,
@@ -237,6 +265,8 @@ func scanOne(l *lexer) {
 	//                  `y` and `s`, which are repetition and names there
 	//   scanNumber     before operators, so `1.5` is not `1` `.` `5`
 	for _, scan := range []func(*lexer) bool{
+		scanPod,
+		scanDataSection,
 		scanComment,
 		scanHeredocOpen,
 		scanVariable,
@@ -268,6 +298,23 @@ func scanOne(l *lexer) {
 func (l *lexer) emit(k Kind, start int) {
 	l.toks = append(l.toks, Token{Kind: k, Start: start, End: l.pos})
 	l.expect = l.expect.after(k)
+	l.noteFormat(k, start)
+	// The picture body begins after the newline that ends the declaration.
+	if l.pendingFormat && k == Whitespace && l.pos > start &&
+		bytesContainNewline(l.src[start:l.pos]) {
+		l.pendingFormat = false
+		l.inFormat = true
+	}
+}
+
+// bytesContainNewline reports whether b holds a newline.
+func bytesContainNewline(b []byte) bool {
+	for _, c := range b {
+		if c == '\n' {
+			return true
+		}
+	}
+	return false
 }
 
 // isSpace is Perl's whitespace for lexing purposes. Vertical tab and form
