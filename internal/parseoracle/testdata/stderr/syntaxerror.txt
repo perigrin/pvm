@@ -1,0 +1,2 @@
+syntax error at op/for-many.t line 474, near "( \"
+op/for-many.t had compilation errors.

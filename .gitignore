@@ -214,3 +214,7 @@ local/
 test/e2e/local/
 issues_analysis.json
 vendor/
+
+# Oracle fact cache: regenerating the whole thing costs ~35s, which is not
+# worth carrying 620 files of perl output in the repo forever.
+internal/parseoracle/testdata/oracle_cache

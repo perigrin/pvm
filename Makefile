@@ -21,6 +21,15 @@ psc:
 test:
 	go test ./... -count=1
 
+# The lexer fuzz target. Separate from `test` because -fuzz takes ONE package
+# and runs until its budget is spent; it cannot live inside `go test ./...`.
+#
+# 1M executions is the M0 target (spec §7.6.2). Crashers land in
+# internal/lexer/testdata/fuzz/ and are replayed by the ordinary suite
+# afterwards, which is the regression half.
+fuzz-lexer:
+	go test ./internal/lexer/ -run '^$$' -fuzz '^FuzzLexer$$' -fuzztime 1000000x
+
 # Docker-based user-journey smoke test. Simulates a fresh install against
 # bash/zsh/fish and asserts the original #432/#433 bug scenarios stay fixed.
 # Requires docker (or a docker-compatible runtime).

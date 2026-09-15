@@ -1,0 +1,292 @@
+// ABOUTME: Buckets our parse against perl's as exact, wider, WRONG, or no-answer.
+// ABOUTME: The asymmetry is the point: declining to answer is correct behaviour, committing to a wrong parse is not.
+
+package parseoracle
+
+import (
+	"fmt"
+
+	"tamarou.com/pvm/internal/parser"
+)
+
+// Bucket is how our parse compares to perl's.
+//
+// The four are not symmetric, and that asymmetry is the whole reason there are
+// four rather than a pass/fail. A parser that says "I don't know" is behaving
+// correctly; a parser that commits to a parse perl did not make is lying to
+// every downstream consumer. Collapsing those two into one failure count makes
+// the metric punish the behaviour we want. This mirrors the Unknown-versus-Any
+// decision already made in internal/types.
+type Bucket int
+
+const (
+	// BucketExact means our tree implies the same parse perl made.
+	BucketExact Bucket = iota
+
+	// BucketWider means we were LESS specific than perl and not wrong: our
+	// tree hedges where perl resolved. Tracked, never a build failure, but
+	// it must not grow silently -- declaring every call unresolved scores
+	// 100% non-WRONG and is useless, so a report must assert a floor on
+	// exact and not only a ceiling on WRONG.
+	BucketWider
+
+	// BucketWrong means we committed to a parse perl did not make. This is
+	// the only bucket that fails a build. It is worse than saying nothing,
+	// because a consumer acts on it.
+	BucketWrong
+
+	// BucketNoAnswer means somebody declined: we produced an error node, or
+	// perl would not compile the file so there is no ground truth to
+	// compare against. This is the coverage metric, a ratchet rather than a
+	// gate.
+	BucketNoAnswer
+)
+
+func (b Bucket) String() string {
+	switch b {
+	case BucketExact:
+		return "exact"
+	case BucketWider:
+		return "wider"
+	case BucketWrong:
+		return "WRONG"
+	case BucketNoAnswer:
+		return "no-answer"
+	default:
+		return fmt.Sprintf("Bucket(%d)", int(b))
+	}
+}
+
+// Marker names which parse fact drove the verdict.
+//
+// Comparison is by MARKER PRESENCE, never by op count or op sequence. The
+// optree perl hands back is post-peephole: `my $x = 1+2` arrives as
+// `const[IV 3] s/FOLD` with no `add` op left, so a comparison against counts
+// or sequences would report the optimiser's differences as the parser's.
+type Marker string
+
+const (
+	// MarkerNone means no marker op was in play.
+	MarkerNone Marker = ""
+
+	// MarkerSrefgen is perl taking a reference at a call site. It is the
+	// highest-value parse fact available, because a prototype changes the
+	// parse at every call site and a static parser cannot know it without
+	// having already seen the definition.
+	MarkerSrefgen Marker = "srefgen"
+
+	// MarkerRv2hv is perl reading a hash: `%$r`, `%{...}`, `->%*`, a hash
+	// slice through a reference, a global `%h`, or an element with a key
+	// too complex to fold. It is the "is `%` a sigil or a modulus" question
+	// of spec §7.1.2. Measured: a lexical `%h` is padhv and `$h{a}` folds
+	// to multideref, so perl emits FEWER of these than the source has hash
+	// accesses, never more -- which is the direction presence-matching
+	// tolerates.
+	MarkerRv2hv Marker = "rv2hv"
+
+	// MarkerMatch is perl matching a regex: `/.../`, `m//`, and `=~` against
+	// any pattern that is not s/// or tr///. The "is `/` a match or a
+	// divide" question. Measured: `split /,/` compiles to a split op with
+	// no match op, and a match under `if (0)` is discarded, so again perl
+	// emits at most as many as the source has.
+	MarkerMatch Marker = "match"
+
+	// MarkerReadline is perl reading a line: `<FH>`, `<$fh>`, `<>`, `<<>>`
+	// and the readline builtin. The "did `<...>` read or glob" question.
+	// Measured: `<*.c>` and `<${fh}>` are glob; `$x .= <FH>` is rewritten
+	// to rcatline, which the oracle folds back into this marker.
+	MarkerReadline Marker = "readline"
+
+	// MarkerAnonhash is perl building an anonymous hash: `{ a => 1 }`, or
+	// `{}` as emptyavhv flagged OPpEMPTYAVHV_IS_HV. The "is `{` a block or
+	// a hashref" question. A block emits no marker at all.
+	MarkerAnonhash Marker = "anonhash"
+)
+
+// Markers is every marker the harness decides, in the order a verdict
+// names them when more than one is in play. It is the table spec §7.5.4
+// sketches, with the tree-sitter predicates living in adapter.go.
+var Markers = []Marker{MarkerSrefgen, MarkerRv2hv, MarkerMatch, MarkerReadline, MarkerAnonhash}
+
+// Verdict is one comparison result.
+type Verdict struct {
+	// Bucket is the verdict.
+	Bucket Bucket
+	// Marker is the parse fact that decided it, empty when nothing was in play.
+	Marker Marker
+	// Detail is a human-readable reason, for a report and for test failures.
+	Detail string
+}
+
+// Compare buckets our parse of src against perl's facts for the same source.
+//
+// It compares the five markers of Markers, each by presence per statement;
+// a whole-tree diff never happens, because the optree is a lossy,
+// post-optimisation witness of the parse. srefgen came first -- it is where
+// a prototype changes the parse invisibly, the measured blind spot this
+// harness exists to close -- and the other four apply its rule unchanged.
+//
+// src is carried for a marker that might one day need the literal text -- a
+// heredoc body or a quote-like operator's delimiter cannot be settled from
+// node kinds alone. None of the five uses it; the adapter answers every
+// question from node kinds and tokens.
+func Compare(facts Facts, tree *parser.Tree, _ []byte) Verdict {
+	// Compare is now a thin adapter: it turns our tree into the same
+	// SubjectFacts any other implementation would report, then defers to the
+	// parser-agnostic core. Routing both paths through CompareFacts is what
+	// makes "the harness measures any parser" a property of the code rather
+	// than an aspiration -- and it means the tree-sitter path cannot drift
+	// away from the contract other subjects are held to.
+	return CompareFacts(facts, TreeSitterSubject(tree))
+}
+
+// compareSrefgen decides the srefgen marker.
+//
+// srefgen presence ALONE is not a sufficient marker, and getting this wrong is
+// a false-positive generator built into the metric. Perl emits srefgen for both
+// of these:
+//
+//	sub f(\@){} my @a; f(@a)    -- the prototype took the reference
+//	sub f{}    my @a; f(\@a)    -- the source took the reference
+//
+// So a bare "srefgen present but our tree has no reference" check scores every
+// explicit f(\@a) in the corpus as WRONG. The discriminator is whether OUR tree
+// already accounts for the srefgen: an explicit `\` shows up as a refgen node,
+// which we find structurally rather than by scanning the text for a backslash.
+func compareSrefgen(facts Facts, root *parser.Node) Verdict {
+	explicit, hedged, committed := 0, 0, 0
+	walk(root, func(n *parser.Node) {
+		switch {
+		case isRefgen(n):
+			explicit++
+		case isHedgedCall(n):
+			hedged++
+		case isCommittedCall(n):
+			committed++
+		}
+	})
+
+	// Every reference perl took is one our source wrote explicitly. Nothing
+	// was resolved behind our back.
+	if facts.Srefgen <= explicit {
+		return Verdict{BucketExact, markerFor(facts.Srefgen),
+			fmt.Sprintf("perl took %d reference(s), all explicit in the source", facts.Srefgen)}
+	}
+
+	// Perl took a reference we did not write. Something resolved it -- a
+	// prototype, in practice. Whether that is wider or WRONG turns entirely
+	// on whether our tree admits it does not know.
+	unexplained := facts.Srefgen - explicit
+	if hedged > 0 {
+		return Verdict{BucketWider, MarkerSrefgen,
+			fmt.Sprintf("perl took %d reference(s) the source did not write; "+
+				"we emitted %d call(s) marked unresolved rather than committing",
+				unexplained, hedged)}
+	}
+	return Verdict{BucketWrong, MarkerSrefgen,
+		fmt.Sprintf("perl took %d reference(s) the source did not write, and our tree "+
+			"committed to %d call(s) with no reference and no hedge", unexplained, committed)}
+}
+
+func plural(n int) string {
+	if n == 1 {
+		return ""
+	}
+	return "s"
+}
+
+func markerFor(srefgen int) Marker {
+	if srefgen > 0 {
+		return MarkerSrefgen
+	}
+	return MarkerNone
+}
+
+// isRefgen reports whether a node is the source taking a reference with `\`.
+// Matching on the node kind rather than searching src for a backslash is what
+// keeps a `\` inside a string or a comment from counting.
+func isRefgen(n *parser.Node) bool {
+	return n.Kind() == "refgen_expression"
+}
+
+// isHedgedCall reports whether a call node names its own uncertainty: the
+// parse genuinely cannot be settled without knowing the sub's prototype, and
+// saying so is what makes the wider bucket reachable.
+//
+// The node kind alone stopped answering this. The grammar used to emit
+// `ambiguous_function_call_expression` for a bare `f(...)` and
+// `function_call_expression` only for the forms the source had settled;
+// after the GLR fix in the grammar fork, every parenthesised call is a
+// `function_call_expression`. Reading that as a commitment made
+// `Internals::SvREADONLY(@a, 1)` -- a prototyped builtin whose declaration we
+// have never seen -- a WRONG verdict rather than a wider one, which blames
+// the parser for a prototype it has no way to know (op/splice.t, measured:
+// wider before the fork, WRONG after).
+//
+// So the question is asked of the SOURCE instead: did the writer disambiguate
+// this call? `f(...)` did not, whichever node kind carries it.
+func isHedgedCall(n *parser.Node) bool {
+	if n.Kind() == "ambiguous_function_call_expression" {
+		return true
+	}
+	return n.Kind() == "function_call_expression" && !sourceSettledTheCall(n)
+}
+
+// isCommittedCall reports whether a call node commits to a definite parse --
+// one a disagreement can be WRONG about.
+func isCommittedCall(n *parser.Node) bool {
+	if n.Kind() == "method_call_expression" {
+		return true
+	}
+	return n.Kind() == "function_call_expression" && sourceSettledTheCall(n)
+}
+
+// sourceSettledTheCall reports whether the SOURCE removed the prototype
+// question, rather than the grammar having merely picked a node kind.
+//
+// `&f(@a)` is the settled form: perl documents the ampersand as bypassing the
+// prototype entirely (perlsub, "Prototypes"), so the argument list is passed
+// as written and there is nothing left to resolve. Everything else -- a bare
+// `f(...)`, qualified or not -- depends on a declaration a static parser may
+// never have seen, and claiming otherwise is how a parser that behaved
+// correctly gets scored WRONG.
+// The `&` sits inside the call's `function` child -- `(function (& ) (varname))`
+// -- rather than beside it, so the sigil is read from there. Measured on the
+// pinned grammar; a bare call's `function` has no anonymous children at all.
+func sourceSettledTheCall(n *parser.Node) bool {
+	fn := n.ChildByFieldName("function")
+	if fn == nil {
+		for i := 0; i < n.ChildCount(); i++ {
+			if c := n.Child(i); c.Kind() == "function" {
+				fn = c
+				break
+			}
+		}
+	}
+	if fn == nil {
+		return false
+	}
+	for i := 0; i < fn.ChildCount(); i++ {
+		if fn.Child(i).Kind() == "&" {
+			return true
+		}
+	}
+	return false
+}
+
+func walk(n *parser.Node, visit func(*parser.Node)) {
+	if n == nil {
+		return
+	}
+	visit(n)
+	for i := 0; i < n.NamedChildCount(); i++ {
+		walk(n.NamedChild(i), visit)
+	}
+}
+
+func treeRoot(tree *parser.Tree) *parser.Node {
+	if tree == nil {
+		return nil
+	}
+	return tree.RootNode()
+}

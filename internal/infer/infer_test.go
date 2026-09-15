@@ -6,6 +6,7 @@ package infer_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -2902,4 +2903,211 @@ func TestPopUnknownArrayIsScalar(t *testing.T) {
 	require.True(t, found, "$n should be in the symbol table")
 	assert.Equal(t, types.Scalar, sym.Type,
 		"popping an unknown array is a Scalar, not a guess")
+}
+
+// TestSortGrepPreserveElementType verifies that sort and grep carry the
+// element type through, and that map takes its element type from its BODY.
+//
+// Measured:
+//
+//	sort @ints          Int    reorders, so the elements are unchanged
+//	sort @strs          Str
+//	grep { $_>1 } @ints Int    SELECTS, so the elements are unchanged
+//	map { $_*2 } @ints  Int    TRANSFORMS — the body decides
+//	map { "x$_" } @ints Str    same input, different body, different type
+//
+// All of them returned List, so an element read off the result fell back to
+// Scalar. Six of the seventeen remaining widenings were this one cause.
+func TestSortGrepPreserveElementType(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		want types.Type
+	}{
+		{"sort ints", "my @n = (3, 1);\nmy @s = sort @n;\nmy $e = $s[0];\n", types.Int},
+		{"sort strs", "my @n = (\"b\", \"a\");\nmy @s = sort @n;\nmy $e = $s[0];\n", types.Str},
+		{"sort with comparator", "my @n = (3, 1);\nmy @s = sort { $a <=> $b } @n;\nmy $e = $s[0];\n", types.Int},
+		{"grep preserves", "my @n = (3, 1);\nmy @g = grep { $_ > 1 } @n;\nmy $e = $g[0];\n", types.Int},
+		{"map body decides", "my @n = (3, 1);\nmy @m = map { $_ * 2 } @n;\nmy $e = $m[0];\n", types.Num},
+	}
+	for _, tc := range cases {
+		_, _, st := analyzeSourceFull(t, []byte(tc.src))
+		sym, found := st.Lookup("$e")
+		require.True(t, found, "%s: $e should be in the symbol table", tc.name)
+		assert.Equal(t, tc.want, sym.Type, "%s", tc.name)
+	}
+}
+
+// TestKeysValuesSpliceElementTypes verifies the element types of the
+// remaining list-returning builtins.
+//
+// Measured, and each is a different rule:
+//
+//	keys %h     Str    hash keys are ALWAYS strings, whatever was stored
+//	values %h   Int    follows the stored values
+//	splice @a   Int    hands back the REMOVED elements
+//	reverse @a  Int    reorders, so elements are unchanged
+//
+// keys is the one worth stating: perl stringifies a hash key on the way in,
+// so `$h{1}` and `$h{"1"}` are the same slot and the key comes back "1". The
+// element type of the key list is Str no matter what the hash holds.
+func TestKeysValuesSpliceElementTypes(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		want types.Type
+	}{
+		{"keys are strings", "my %h = (a => 1);\nmy @k = keys %h;\nmy $e = $k[0];\n", types.Str},
+		// values follows the stored values: measured, `values %h` on (a => 1)
+		// gives 1, an Int. My first assertion here said Str and was simply
+		// wrong — PSC had it right.
+		{"values follow the hash", "my %h = (a => 1);\nmy @v = values %h;\nmy $e = $v[0];\n", types.Int},
+		{"splice removes elements", "my @a = (1, 2, 3);\nmy @s = splice(@a, 0, 2);\nmy $e = $s[0];\n", types.Int},
+		{"reverse preserves", "my @a = (1, 2);\nmy @r = reverse @a;\nmy $e = $r[0];\n", types.Int},
+	}
+	for _, tc := range cases {
+		_, _, st := analyzeSourceFull(t, []byte(tc.src))
+		sym, found := st.Lookup("$e")
+		require.True(t, found, "%s: $e should be in the symbol table", tc.name)
+		assert.Equal(t, tc.want, sym.Type, "%s", tc.name)
+	}
+}
+
+// keys in SCALAR context is a count, which is a different question from its
+// element type.
+func TestKeysInScalarContextIsCount(t *testing.T) {
+	src := []byte("my %h = (a => 1);\nmy $n = keys %h;\n")
+	_, _, st := analyzeSourceFull(t, src)
+
+	sym, found := st.Lookup("$n")
+	require.True(t, found, "$n should be in the symbol table")
+	assert.Equal(t, types.Int, sym.Type, "keys in scalar context is a count")
+}
+
+// TestReverseInScalarContextIsString verifies that reverse is the exception to
+// "a list in scalar context is a count".
+//
+// Measured: `reverse("abc")` is "cba" and `reverse(@a)` on (1,2,3) is "321".
+// It concatenates its arguments and reverses the resulting STRING, where every
+// other List-returning builtin gives an element count.
+//
+// The precision oracle caught this the moment List started narrowing to a
+// count: $rev went from a widening to the only WRONG answer in the run.
+func TestReverseInScalarContextIsString(t *testing.T) {
+	src := []byte("my $r = reverse(\"abc\");\n")
+	_, _, st := analyzeSourceFull(t, src)
+
+	sym, found := st.Lookup("$r")
+	require.True(t, found, "$r should be in the symbol table")
+	assert.Equal(t, types.Str, sym.Type,
+		"reverse in scalar context reverses a string, it does not count")
+}
+
+// TestArrayIndexMustBeNumeric verifies that a reference used as an array
+// index is reported.
+//
+// perl warns explicitly here — "Use of reference "ARRAY(0x...)" as array
+// index" — so this is agreement with perl's own diagnostics rather than a
+// stricter opinion. The index is numified, and a reference numifies to its
+// address, which is never the element anyone wanted.
+//
+// Found by widening the type-overwriting mutation corpus: PSC typed the
+// element access but never looked at the index expression.
+func TestArrayIndexMustBeNumeric(t *testing.T) {
+	src := []byte("my @a = (1, 2);\nmy $x = [];\nmy $y = $a[$x];\n")
+	_, diags := analyzeSource(t, src)
+	assert.NotEmpty(t, diags, "a reference used as an array index is reported")
+}
+
+// An ordinary integer index is not reported.
+func TestIntegerArrayIndexIsClean(t *testing.T) {
+	src := []byte("my @a = (1, 2);\nmy $i = 1;\nmy $y = $a[$i];\n")
+	_, diags := analyzeSource(t, src)
+	assert.Empty(t, diags, "an Int index is correct")
+}
+
+// TestSubstitutionReturnTypes verifies that s/// is not a boolean.
+//
+// PSC typed it Bool, reusing the =~ signature. Measured on 5.42:
+//
+//	"aaa" =~ s/a/b/g   3    the COUNT of substitutions
+//	"xxx" =~ s/a/b/g   ""   the empty string — defined, false, NOT 0
+//	"aaa" =~ s/a/b/gr  "bbb"  with /r, the MODIFIED COPY
+//	"xxx" =~ s/a/b/gr  "xxx"  unchanged copy, still a string
+//
+// Count-or-empty-string is Str in this lattice: Int when it matched and ""
+// when it did not, and both are defined, so only truth distinguishes them.
+// The /r form never yields a count at all — it hands back a string and leaves
+// the target alone.
+//
+// Measured while answering a question from the perl5-son session, which is
+// blocked on this construct from the IR side.
+func TestSubstitutionReturnTypes(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		want types.Type
+	}{
+		{"s/// yields a count or empty string", "my $s = \"aaa\";\nmy $n = ($s =~ s/a/b/g);\n", types.Str},
+		{"s///r yields the modified string", "my $t = \"xxx\";\nmy $r = ($t =~ s/a/b/gr);\n", types.Str},
+	}
+	for _, tc := range cases {
+		_, _, st := analyzeSourceFull(t, []byte(tc.src))
+		name := "$n"
+		if strings.Contains(tc.src, "$r =") {
+			name = "$r"
+		}
+		sym, found := st.Lookup(name)
+		require.True(t, found, "%s: %s should be in the symbol table", tc.name, name)
+		assert.Equal(t, tc.want, sym.Type, "%s", tc.name)
+		assert.NotEqual(t, types.Bool, sym.Type,
+			"%s: a substitution is not a boolean", tc.name)
+	}
+}
+
+// KNOWN GAP: `//` should drop Undef from its LEFT arm.
+//
+// The paper states the rule and calls it SEMANTIC rather than epistemic:
+// "$a // $b cannot yield undef when $a is defined". The load-bearing witness
+// is a DEFINED left arm against an undef right one, since that is the
+// precondition the rule names:
+//
+//	my $l = "L";  ($l // undef)   is "L"    <- the claim itself
+//	my $u;        ($u // undef)   is undef  <- falls through
+//	my $f = 0;    ($f // "fb")    is 0      <- defined-but-false still wins
+//
+// The last row is why // is not ||: it tests DEFINEDNESS, so a defined 0 or
+// "" beats the fallback.
+//
+// So the result is undef only when both arms are, and the type rule is
+// (left &^ Undef) | right. PSC joins both arms blindly, so
+// `my $x = $maybe // "default"` still carries Undef — which defeats the
+// operator's purpose.
+//
+// TWO EARLIER VERSIONS OF THIS COMMENT WERE JUSTIFIED BY WITNESSES THAT DID
+// NOT TEST THE RULE. The first cited `$u // undef` being undef; $u was itself
+// undef there, so the expression fell through and the row says nothing about
+// a defined left arm. The second added a four-row table built from a helper
+// returning undef-or-value — better, but still never pinning a left arm that
+// is definitely defined, which is the only case the rule constrains. An
+// unassigned `my $x` IS undef, so any witness that leaves the left arm
+// unassigned tests the fall-through path and not the claim.
+//
+// NOT IMPLEMENTED. Three attempts failed on the same thing: the rule needs
+// the left operand's NARROWED type, and by the time the binary expression is
+// typed, the annotation on that node is no longer the symbol's refined type.
+// Chasing it further would have meant guessing at the annotation lifecycle
+// rather than understanding it, so the case is recorded here instead of a
+// fourth try. The test below still passes and pins what is correct today.
+
+// || and or are NOT the same: they test truth, not definedness, so a defined
+// but false left arm still falls through and Undef is not droppable.
+func TestOrDoesNotDropUndef(t *testing.T) {
+	src := []byte("my $u;\nmy $v = ($u || \"s\");\n")
+	_, _, st := analyzeSourceFull(t, src)
+
+	sym, found := st.Lookup("$v")
+	require.True(t, found, "$v should be in the symbol table")
+	assert.True(t, types.IsSubtype(types.Str, sym.Type),
+		"the right arm is present, got %s", sym.Type)
 }

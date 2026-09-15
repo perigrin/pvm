@@ -48,6 +48,12 @@ func (p *Parser) Parse(source []byte) (*Tree, error) {
 	return &Tree{inner: tree, lang: p.lang, source: source}, nil
 }
 
+// Source returns the bytes the tree was parsed from, so a caller holding only
+// the tree can still turn a node's byte offset into a line.
+func (t *Tree) Source() []byte {
+	return t.source
+}
+
 // RootNode returns the root node of the syntax tree.
 func (t *Tree) RootNode() *Node {
 	if t == nil || t.inner == nil {
@@ -90,6 +96,17 @@ func (n *Node) IsError() bool {
 		return false
 	}
 	return n.inner.IsError()
+}
+
+// IsMissing reports whether this node was inserted by error recovery to
+// stand in for a token the source did not contain. A tree can carry
+// HasError() with no ERROR node at all when a missing token is its only
+// defect, so a walk for error sites has to accept both.
+func (n *Node) IsMissing() bool {
+	if n == nil || n.inner == nil {
+		return false
+	}
+	return n.inner.IsMissing()
 }
 
 // StartByte returns the byte offset where this node begins.

@@ -61,3 +61,5 @@ require (
 	golang.org/x/sys v0.32.0 // indirect
 	golang.org/x/term v0.31.0 // indirect
 )
+
+replace github.com/odvcencio/gotreesitter => github.com/perigrin/gotreesitter v0.51.1-0.20260913223127-c44509da1ac4

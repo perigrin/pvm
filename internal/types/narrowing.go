@@ -46,6 +46,15 @@ func NarrowByContext(typ Type, ctx Context) (Type, bool) {
 		return Unknown, false
 
 	case ScalarCtx:
+		// List is the aggregate family itself, and in scalar context a list is
+		// its element COUNT. Handled before the per-bit rule below, because
+		// under the arity ordering List contains the Scalar bits — stripping
+		// Array and Hash would leave those behind and yield Scalar, which is
+		// the family the count belongs to rather than the count.
+		if typ == List {
+			return Int, true
+		}
+
 		// For union types we apply scalar context per-bit: Array and Hash bits
 		// become Int; all other bits pass through unchanged.
 		if typ&(Array|Hash) == 0 {
