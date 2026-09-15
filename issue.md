@@ -1,12 +1,21 @@
 ---
 title: "AST skeleton: nodes, spans, and the Unknown that keeps WRONG at zero"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 blocks:
 - 01a0a70f-0f56-71e3-871e-50e1a1ed9b8a
 created: 2026-09-15T21:52:57.027412574Z
-updated: 2026-09-15T23:16:55.183545266Z
+updated: 2026-09-15T23:34:51.062331335Z
+sessions:
+- start_sha: e2f29afa8bd0af158a2bf44a84d7c9d8a7d34c72
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-15T23:34:51.062331335Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-15T23:34:51.062331335Z
 ---
 
 The parser package does not exist. This issue creates it with the node type,
