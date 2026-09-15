@@ -8,7 +8,57 @@ blocked_by:
 blocks:
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-15T23:16:32.305576942Z
-updated: 2026-09-15T23:17:48.368427707Z
+updated: 2026-09-15T23:19:30.757413159Z
 ---
 
--
+The T2 constructs no other M1 issue owns: `use`/`no`, `BEGIN` and the other
+phaser blocks, the 5.38 class syntax, and `sort`/`map`/`grep`.
+
+Written because the gate issue's "100% of T2" row was unreachable without it.
+Measured across the 56 T2 files:
+
+    class / field / method      12 files
+    use / no                    18 files
+    BEGIN and phasers           31 files
+    sort / map / grep            9 files
+
+Nothing in the skeleton, expression, statement or keyword-table issues
+reaches any of these, so T2 could not have hit 100%.
+
+## Parse, not execute
+
+`use strict; use warnings; use v5.36;` is a declaration with a module name, an
+optional version, and an optional import list. This issue owns the SYNTAX.
+Threading what `use feature` turns on through the rest of the parse is a
+different problem and belongs to M2 — the keyword-table issue needs only that
+a disabled keyword lexes as an identifier.
+
+Likewise `BEGIN { ... }` is a named block. That it runs at compile time, and
+that `BEGIN` can declare a sub which changes how a LATER line parses, is the
+undecidability §4.8.3 describes. `Call{Resolved:false}` already absorbs it.
+
+## The class syntax
+
+`class Point { field $x :param; method to_string { ... } }` — 5.38's syntax,
+12 T2 files. Spec §4.4.3 puts `field` with the other declarations. `method`
+is a sub with an implicit `$self`; for parsing purposes it is a sub.
+
+All three are feature-gated, which is why the keyword-table issue's
+"identifier where the feature is off" AC matters: `t/class/` uses them as
+keywords and older T2 files use `method` as a plain identifier.
+
+## sort / map / grep
+
+Spec §4.9. Three shapes (§4.9.1), the `{` decision (§4.9.2), and context
+inside the block (§4.9.3). The `{` decision is the modifier issue's; the call
+shapes are here.
+
+## Acceptance
+
+- [ ] use and no parse with module, version and import list forms (`go test ./internal/parse/ -run '^TestUseAndNoForms$' -count=1 -v | grep -q '^--- PASS: TestUseAndNoForms'`)
+- [ ] BEGIN and the other phasers parse as named blocks (`go test ./internal/parse/ -run '^TestPhaserBlocks$' -count=1 -v | grep -q '^--- PASS: TestPhaserBlocks'`)
+- [ ] class, field and method parse in both block and statement forms (`go test ./internal/parse/ -run '^TestClassSyntax$' -count=1 -v | grep -q '^--- PASS: TestClassSyntax'`)
+- [ ] The three sort/map/grep shapes of §4.9.1 parse (`go test ./internal/parse/ -run '^TestSortMapGrepShapes$' -count=1 -v | grep -q '^--- PASS: TestSortMapGrepShapes'`)
+- [ ] The 12 class-syntax T2 files parse with no statement-level Unknown (`go test ./internal/parse/ -run '^TestClassCorpusParses$' -count=1 -v | grep -q '^--- PASS: TestClassCorpusParses'`)
+
+Spec: ch4 §4.4.3, §4.9; ch5.
