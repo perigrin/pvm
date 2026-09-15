@@ -5,8 +5,10 @@ urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
 - 01a0a70f-0ec3-7d8f-94b0-5edc58b8e516
+blocks:
+- 01a0a70f-0fe8-7d8e-9c2d-d9aa50bef115
 created: 2026-09-15T21:52:57.173529962Z
-updated: 2026-09-15T23:16:55.168864758Z
+updated: 2026-09-15T23:17:01.201460822Z
 ---
 
 The expression grammar, as a Pratt parser over the lexer's tokens.
