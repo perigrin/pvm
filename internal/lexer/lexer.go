@@ -77,6 +77,15 @@ const (
 	// one. Without the distinction `$x[0] <FH>` lexes its angle brackets as
 	// a readline, since the `]` would leave a term expected.
 	CloseBracket
+
+	// HeredocOpen is the `<<TERM` marker, without the body.
+	HeredocOpen
+
+	// HeredocBody is the body and its terminator line, which begin after the
+	// line the marker sits on. Separate from the open because everything
+	// between them is ordinary code: `print <<A, <<B;` has two markers, a
+	// comma and a semicolon before either body starts.
+	HeredocBody
 )
 
 func (k Kind) String() string {
@@ -107,6 +116,10 @@ func (k Kind) String() string {
 		return "FuncSigil"
 	case CloseBracket:
 		return "CloseBracket"
+	case HeredocOpen:
+		return "HeredocOpen"
+	case HeredocBody:
+		return "HeredocBody"
 	}
 	return "Kind(?)"
 }
@@ -153,6 +166,9 @@ type lexer struct {
 	// pendingPragma remembers a `use` or `no` seen on this statement, so
 	// that the `utf8` after it can be recognised. 0 none, 1 use, 2 no.
 	pendingPragma int
+	// pending holds heredocs whose terminator has been read but whose body
+	// has not started. Drained at the next newline, in order.
+	pending []pendingHeredoc
 }
 
 // step runs one scan and enforces spec §7.6.2 invariant 4: every step
@@ -185,10 +201,28 @@ func (l *lexer) step(scan func(*lexer)) {
 func scanOne(l *lexer) {
 	start := l.pos
 	if isSpace(l.src[l.pos]) {
+		// With a heredoc queued, stop at the first newline: its body starts
+		// immediately after that newline, and a whitespace token that ran
+		// past it would put the body in the wrong place.
+		//
+		// With nothing queued, consume the whole run. Splitting
+		// unconditionally would break the "whitespace-only input is ONE
+		// trivia token" rule from the skeleton issue -- caught by that
+		// issue's own test, which is why it is there.
+		stopAtNewline := len(l.pending) > 0
+		sawNewline := false
 		for l.pos < len(l.src) && isSpace(l.src[l.pos]) {
+			if l.src[l.pos] == '\n' && stopAtNewline {
+				l.pos++
+				sawNewline = true
+				break
+			}
 			l.pos++
 		}
 		l.emit(Whitespace, start)
+		if sawNewline {
+			l.takePendingHeredocs()
+		}
 		return
 	}
 	// ORDER MATTERS. Each scanner below either claims the cursor or declines,
@@ -204,6 +238,7 @@ func scanOne(l *lexer) {
 	//   scanNumber     before operators, so `1.5` is not `1` `.` `5`
 	for _, scan := range []func(*lexer) bool{
 		scanComment,
+		scanHeredocOpen,
 		scanVariable,
 		scanAngle,
 		scanAmp,
