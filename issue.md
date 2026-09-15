@@ -5,8 +5,9 @@ urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
 - 01a0a75b-5e51-79f1-8575-3f30abd05ac9
+- 01a0a70f-3c3d-7ff7-aa8b-e59b91d899ac
 created: 2026-09-15T21:53:08.812269582Z
-updated: 2026-09-15T23:17:26.040309154Z
+updated: 2026-09-15T23:17:33.60859851Z
 ---
 
 M1's gate: the parse rate ratchets, WRONG does not move, and every row of the
