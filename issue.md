@@ -1,10 +1,19 @@
 ---
 title: Fix psc check CLI to produce diagnostics
-state: pending
+state: in-progress
 urgency: normal
 milestone: psc-type-alignment
 created: 2026-03-22T02:43:24.620376-04:00
-updated: 2026-09-15T21:02:04.542168956Z
+updated: 2026-09-15T21:02:04.620226036Z
+sessions:
+- start_sha: e2f29afa8bd0af158a2bf44a84d7c9d8a7d34c72
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-15T21:02:04.620226036Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-15T21:02:04.620226036Z
 ---
 
 The `psc check` CLI exits 0 with no output on files containing known type errors.
