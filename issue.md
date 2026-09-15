@@ -1,10 +1,19 @@
 ---
 title: T2 core round-trip ratchet and the lexer fuzz target
-state: pending
+state: in-progress
 urgency: normal
 milestone: m0-lexer-round-trip
 created: 2026-09-14T15:42:44.686499906Z
-updated: 2026-09-14T22:45:18.966091918Z
+updated: 2026-09-15T19:26:49.337858293Z
+sessions:
+- start_sha: 436129de59fa29c2c67d553efd5c0ddbe29a2898
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-15T19:26:49.337858293Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-15T19:26:49.337858293Z
 ---
 
 M0's headline metric — 100% lossless round-trip over T2 core (perl5 `base
