@@ -131,16 +131,24 @@ func (l *lexer) takePendingHeredocs() {
 		l.pending = l.pending[1:]
 
 		start := l.pos
+		// found says whether the terminator was matched. Without it, a body
+		// that consumed every remaining line WITHOUT matching fell out of the
+		// loop having emitted nothing, and those bytes were covered by no
+		// token at all.
+		//
+		// That is a round-trip failure rather than a wrong verdict, and it
+		// went unnoticed until the corpus survey: comp/parser.t ends with
+		// `<<ENE . ${` whose body swallows the rest of the file, and the
+		// stream stopped 141 bytes short. Only a whole-corpus check found it,
+		// which is the argument for the ratchet this issue adds.
+		found := false
 		for l.pos < len(l.src) {
 			lineStart := l.pos
 			lineEnd := bytes.IndexByte(l.src[l.pos:], '\n')
 			if lineEnd < 0 {
-				// No terminator before EOF. The body is everything that is
-				// left, reported as unterminated rather than silently
-				// swallowed.
+				// The last line has no newline. Consume it and stop.
 				l.pos = len(l.src)
-				l.emit(UnknownRest, start)
-				return
+				break
 			}
 			line := l.src[lineStart : lineStart+lineEnd]
 			l.pos = lineStart + lineEnd + 1
@@ -151,12 +159,14 @@ func (l *lexer) takePendingHeredocs() {
 			}
 			if bytes.Equal(candidate, h.term) {
 				l.emit(HeredocBody, start)
+				found = true
 				break
 			}
 		}
-		if l.pos >= len(l.src) && len(l.pending) == 0 {
-			// Ran out without matching: already emitted above.
-			return
+		if !found && l.pos > start {
+			// Ran to EOF without the terminator: still every byte, reported
+			// as unterminated rather than dropped.
+			l.emit(UnknownRest, start)
 		}
 	}
 }

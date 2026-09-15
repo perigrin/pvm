@@ -108,6 +108,16 @@ func scanFormatBody(l *lexer) bool {
 		return false
 	}
 	l.inFormat = false
+	// A `format =` with nothing after it: the declaration ended at EOF, so
+	// there is no body to take. Returning true here would emit a zero-width
+	// token and trip the forward-progress guard.
+	//
+	// Found by the fuzzer on its first run, from the seed `format =\n`, and
+	// found LOUDLY rather than as a hang -- which is the entire argument for
+	// making invariant 4 structural instead of relying on a timeout.
+	if l.pos >= len(l.src) {
+		return false
+	}
 
 	start := l.pos
 	for l.pos < len(l.src) {

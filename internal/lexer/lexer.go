@@ -248,8 +248,13 @@ func scanOne(l *lexer) {
 		if sawNewline {
 			l.takePendingHeredocs()
 		}
+		// A format body, like a heredoc body, starts after the line ends.
+		// NOT wrapped in step(): the scanner declines at EOF -- a `format =`
+		// with nothing after it has no body -- and step() requires forward
+		// progress, so wrapping it turns a legitimate decline into a panic.
+		// The fuzzer found that on its first run, from `format =\n`.
 		if l.inFormat {
-			l.step(func(*lexer) { scanFormatBody(l) })
+			scanFormatBody(l)
 		}
 		return
 	}
