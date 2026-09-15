@@ -1,10 +1,19 @@
 ---
 title: "Lexer feedback: term-vs-operator position"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m0-lexer-round-trip
 created: 2026-09-14T15:42:44.556728897Z
-updated: 2026-09-14T22:45:18.755159683Z
+updated: 2026-09-15T03:34:29.73405419Z
+sessions:
+- start_sha: 2780ee1da2adb3f459ab9b425e818be18d32aef2
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-15T03:34:29.73405419Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-15T03:34:29.73405419Z
 ---
 
 `/` is division or a pattern; `<FH>` is a readline or a glob; `<<` is a left
