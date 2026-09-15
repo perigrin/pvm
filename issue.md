@@ -1,19 +1,32 @@
 ---
 title: T2 core round-trip ratchet and the lexer fuzz target
-state: in-progress
+state: done
 urgency: normal
 milestone: m0-lexer-round-trip
 created: 2026-09-14T15:42:44.686499906Z
-updated: 2026-09-15T20:46:34.008105518Z
+updated: 2026-09-15T20:46:42.908258452Z
 sessions:
 - start_sha: 436129de59fa29c2c67d553efd5c0ddbe29a2898
-  end_sha: ""
-  commits: 0
+  end_sha: e2f29afa8bd0af158a2bf44a84d7c9d8a7d34c72
+  commits: 1
   started_at: 2026-09-15T19:26:49.337858293Z
+  ended_at: 2026-09-15T20:46:42.908258452Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-15T19:26:49.337858293Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-15T20:46:42.908258452Z
+observed_paths:
+- Makefile
+- internal/lexer/fuzz_test.go
+- internal/lexer/heredoc.go
+- internal/lexer/lexer.go
+- internal/lexer/pod.go
+- internal/lexer/ratchet_test.go
+- internal/lexer/testdata/corpus.ratchet
+- internal/lexer/testdata/fuzz/FuzzLexer/fb95265c512141f4
 ---
 
 M0's headline metric — 100% lossless round-trip over T2 core (perl5 `base
