@@ -1,10 +1,19 @@
 ---
 title: POD, __END__, format, and s///e replacement sublexing
-state: pending
+state: in-progress
 urgency: normal
 milestone: m0-lexer-round-trip
 created: 2026-09-14T22:45:28.272209666Z
-updated: 2026-09-14T22:45:43.493656094Z
+updated: 2026-09-15T13:57:16.427582776Z
+sessions:
+- start_sha: aae0b3f5e8184a64b19ed5fbdb5974dba0a430bb
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-15T13:57:16.427582776Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-15T13:57:16.427582776Z
 ---
 
 Three lexer modes that are line-oriented rather than delimiter-oriented, and
