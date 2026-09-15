@@ -3,8 +3,10 @@ title: "Named unary and list operators: the keyword table M0 deferred"
 state: pending
 urgency: normal
 milestone: m1-parse-the-core
+blocked_by:
+- 01a0a75b-7c7b-78ca-b47f-40cd34c5c963
 created: 2026-09-15T21:53:08.668833928Z
-updated: 2026-09-15T23:15:00.581643185Z
+updated: 2026-09-15T23:17:07.765578876Z
 ---
 
 Named unary operators and list operators: where perl's precedence stops being
