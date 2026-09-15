@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-15T21:52:57.173529962Z
-updated: 2026-09-15T21:53:22.185719545Z
+updated: 2026-09-15T23:14:54.372074032Z
 ---
 
 The expression grammar, as a Pratt parser over the lexer's tokens.
@@ -21,28 +21,51 @@ and §1.2 explains why this shape rather than a generated one:
 
     $ grep -cE '^%(left|right|nonassoc)' perly.y
     32
+    $ grep -cE '^%nonassoc' perly.y
+    11
 
 Verified at the pinned revision. An earlier pass in this project wrote "33"
-into a README from memory and it propagated; the number is cheap to check and
-worth checking.
+into a README from memory and it propagated; the number is cheap to check.
 
-Associativity is part of the table, not an afterthought: `2**3**2` is 512 and
-not 64, `1-2-3` is -4 and not 2. Both are one-line measurements against real
-perl and both belong in the tests.
+Eleven of the 32 are `%nonassoc`, and a Pratt table alone does not express
+them — a binding power that stops recursion still ACCEPTS `$a <=> $b <=> $c`
+rather than rejecting it. Measured:
+
+    $ perl -e 'my $q = $a <=> $b <=> $c'
+    syntax error at -e line 1, near "$b <=>"
+
+Chained comparison (5.32+) is the other half of the same rule, and it is the
+one case where the shape differs from nested binaries:
+
+    $ perl -MO=Deparse,-p -e 'my $q = $a < $b < $c'
+    (my($q) = ($a < $b < $c));      # one n-ary node, $b evaluated once
+
+Spec §4.3 gives the four operator classes and the two `yyerror` productions
+that make CHRELOP chain and NCEQOP not.
+
+## Term forms are here too
+
+§4.4 — literals, variables and sigils, anonymous constructors, `\`
+references, every dereference form, slices and kv-slices. The Pratt loop
+needs a `nud` for each of these or it has nothing to bind. §4.4.5's `\` is
+the srefgen signal the fidelity harness measures, so it is not optional
+scaffolding.
 
 ## What this issue does NOT do
 
-Named unary operators, list operators and their argument-boundary rules are
-their own issue. They are where perl's precedence stops being a table and
-starts consulting the symbol table, and mixing them in here makes both
-harder to test.
+Named unaries and list operators are their own issue: they are where
+precedence stops being a table and starts consulting the keyword table.
+Method calls (§4.5) and sort/map/grep (§4.9) are M2's.
 
 ## Acceptance
 
-- [ ] All 32 precedence levels are present, in perly.y order (`go test ./internal/ast/ -run '^TestPrecedenceTableComplete$' -count=1 -v | grep -q '^--- PASS: TestPrecedenceTableComplete'`)
-- [ ] Right associativity holds: 2**3**2 groups right (`go test ./internal/ast/ -run '^TestRightAssociative$' -count=1 -v | grep -q '^--- PASS: TestRightAssociative'`)
-- [ ] Left associativity holds: 1-2-3 groups left (`go test ./internal/ast/ -run '^TestLeftAssociative$' -count=1 -v | grep -q '^--- PASS: TestLeftAssociative'`)
-- [ ] Ternary and assignment nest correctly at their own levels (`go test ./internal/ast/ -run '^TestTernaryAndAssignment$' -count=1 -v | grep -q '^--- PASS: TestTernaryAndAssignment'`)
-- [ ] An unparseable operand becomes Unknown rather than a guess (`go test ./internal/ast/ -run '^TestExpressionUnknownNotGuess$' -count=1 -v | grep -q '^--- PASS: TestExpressionUnknownNotGuess'`)
+- [ ] All 32 precedence levels are present, in perly.y order (`go test ./internal/parse/ -run '^TestPrecedenceTableComplete$' -count=1 -v | grep -q '^--- PASS: TestPrecedenceTableComplete'`)
+- [ ] Right associativity holds: 2**3**2 groups right (`go test ./internal/parse/ -run '^TestRightAssociative$' -count=1 -v | grep -q '^--- PASS: TestRightAssociative'`)
+- [ ] Left associativity holds: 1-2-3 groups left (`go test ./internal/parse/ -run '^TestLeftAssociative$' -count=1 -v | grep -q '^--- PASS: TestLeftAssociative'`)
+- [ ] The 11 nonassoc levels REJECT a second operator rather than accepting it (`go test ./internal/parse/ -run '^TestNonassocRejects$' -count=1 -v | grep -q '^--- PASS: TestNonassocRejects'`)
+- [ ] `$a < $b < $c` builds one chained node, not nested binaries (`go test ./internal/parse/ -run '^TestComparisonChains$' -count=1 -v | grep -q '^--- PASS: TestComparisonChains'`)
+- [ ] Ternary and assignment nest correctly at their own levels (`go test ./internal/parse/ -run '^TestTernaryAndAssignment$' -count=1 -v | grep -q '^--- PASS: TestTernaryAndAssignment'`)
+- [ ] Every §4.4 term form parses: literals, sigils, anon constructors, `\`, derefs, slices (`go test ./internal/parse/ -run '^TestTermForms$' -count=1 -v | grep -q '^--- PASS: TestTermForms'`)
+- [ ] An unparseable operand becomes Unknown rather than a guess (`go test ./internal/parse/ -run '^TestExpressionUnknownNotGuess$' -count=1 -v | grep -q '^--- PASS: TestExpressionUnknownNotGuess'`)
 
-Plan: M1. Spec: ch4 §4.x, §1.2. perly.y:150-182.
+Plan: M1. Spec: ch4 §4.1, §4.2, §4.3, §4.4; §1.2. perly.y:150-182, 1462-1495.
