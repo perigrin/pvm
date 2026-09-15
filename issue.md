@@ -6,8 +6,10 @@ milestone: m1-parse-the-core
 blocked_by:
 - 01a0a75b-5e51-79f0-8af1-95c5aa378706
 - 01a0a75b-7c7b-78ca-b47f-40cd34c5c963
+blocks:
+- 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-15T23:16:18.129308407Z
-updated: 2026-09-15T23:17:12.97927935Z
+updated: 2026-09-15T23:17:26.04689228Z
 ---
 
 Statement modifiers, and the `{` that is either a block or a hash
