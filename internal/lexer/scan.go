@@ -66,15 +66,14 @@ func (l *lexer) scanVarName() {
 		return
 	}
 	switch c := l.src[l.pos]; {
-	case isWordByte(c):
-		for l.pos < len(l.src) && (isWordByte(l.src[l.pos]) ||
-			(l.src[l.pos] == ':' && l.pos+1 < len(l.src) && l.src[l.pos+1] == ':')) {
-			if l.src[l.pos] == ':' {
-				l.pos += 2
-				continue
-			}
-			l.pos++
-		}
+	case c == '\'':
+		// `$'` is the postmatch variable: the apostrophe is the whole name.
+		// A separator needs an identifier character BEFORE it, and there is
+		// none here.
+		l.pos++
+	case l.scanIdentRunes():
+		// Consumed by the identifier scanner, which handles both package
+		// separators and the utf8-widened class.
 	case c == '{':
 		// A braced name: ${name}. The brace-matching here is deliberately
 		// shallow; the full rule needs the block-vs-hash distinction, which
@@ -109,13 +108,13 @@ func (l *lexer) scanVarName() {
 // decided here -- it needs the symbol table and the parser -- so the lexer
 // reports Word and leaves the classification alone.
 func scanWord(l *lexer) bool {
-	if !isAsciiLetter(l.src[l.pos]) && l.src[l.pos] != '_' {
+	start := l.pos
+	if !l.scanIdentRunes() {
 		return false
 	}
-	start := l.pos
-	for l.pos < len(l.src) && isWordByte(l.src[l.pos]) {
-		l.pos++
-	}
+	// `use utf8` widens the class for everything after it, so the pragma has
+	// to be noticed as it is lexed rather than in a prepass.
+	l.notePragma(start)
 	l.emit(Word, start)
 	return true
 }

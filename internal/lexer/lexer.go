@@ -146,6 +146,13 @@ type lexer struct {
 	// expect is the term-vs-operator state. A file starts at a statement
 	// boundary, which is where POD and labels are recognised.
 	expect Expect
+	// utf8Pragma widens the identifier class to XID. File-level rather than
+	// lexically scoped: spec §2.3.1 allows it as a v1, and block scoping
+	// needs a brace stack that does not exist yet.
+	utf8Pragma bool
+	// pendingPragma remembers a `use` or `no` seen on this statement, so
+	// that the `utf8` after it can be recognised. 0 none, 1 use, 2 no.
+	pendingPragma int
 }
 
 // step runs one scan and enforces spec §7.6.2 invariant 4: every step
