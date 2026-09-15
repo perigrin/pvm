@@ -3,8 +3,10 @@ title: "Expression parser: the 32 precedence levels as a Pratt table"
 state: pending
 urgency: normal
 milestone: m1-parse-the-core
+blocked_by:
+- 01a0a70f-0ec3-7d8f-94b0-5edc58b8e516
 created: 2026-09-15T21:52:57.173529962Z
-updated: 2026-09-15T23:14:54.372074032Z
+updated: 2026-09-15T23:16:55.168864758Z
 ---
 
 The expression grammar, as a Pratt parser over the lexer's tokens.
