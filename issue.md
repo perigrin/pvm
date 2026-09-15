@@ -3,10 +3,12 @@ title: Statement skeleton, and the recovery that stops a cascade
 state: pending
 urgency: normal
 milestone: m1-parse-the-core
+blocked_by:
+- 01a0a70f-0f56-71e3-871e-50e1a1ed9b8a
 blocks:
 - 01a0a75b-5e51-79ef-a59a-3a997f738cca
 created: 2026-09-15T21:52:57.320252116Z
-updated: 2026-09-15T23:16:18.129308407Z
+updated: 2026-09-15T23:17:01.190308479Z
 ---
 
 The statement skeleton: `source_file` as a sequence of statements, the
