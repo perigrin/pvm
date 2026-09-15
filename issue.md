@@ -1,51 +1,40 @@
 ---
-title: Statements, blocks and declarations
+title: Statement skeleton, and the recovery that stops a cascade
 state: pending
 urgency: normal
 milestone: m1-parse-the-core
+blocks:
+- 01a0a75b-5e51-79ef-a59a-3a997f738cca
 created: 2026-09-15T21:52:57.320252116Z
-updated: 2026-09-15T21:53:22.438464197Z
+updated: 2026-09-15T23:16:18.129308407Z
 ---
 
-Statements, blocks, and the declarations the T2 corpus is made of: `my`/`our`/
-`local`, `sub`, `if`/`elsif`/`else`, `unless`, `while`, `until`, `for`,
-`foreach`, statement modifiers, labels, and `package`.
+The statement skeleton: `source_file` as a sequence of statements, the
+expression statement, `;`, the bare block, and the recovery rule that keeps
+one unfamiliar construct from cascading.
 
-Spec ch5 is the reference. This is the largest issue in the milestone by
-volume and the least surprising by content — most of it is ordinary recursive
-descent over the expression parser the previous issue built.
+Split out of a larger statements issue so that the keyword table has
+something to sit on. A list operator "swallows to the statement end" needs a
+statement end to exist; without this issue first, that issue and this one
+depend on each other.
 
-## The parts that are not ordinary
+## Recovery is the point
 
-**A `{` is a block or a hash constructor**, and the lexer's expect state
-already carries the distinction (XBLOCK versus XREF, M0's expect.go). Use it
-rather than re-deriving: `map { $_ => 1 } @a` and `map { ; $_ => 1 } @a` mean
-different things and perl decides with the same state this parser can read.
+Any statement form this milestone does not implement emits an Unknown
+spanning the whole statement, and parsing resumes at the next `;` or `}`.
 
-**Statement modifiers invert the tree.** `print if $x` is a conditional whose
-body is a print, and the modifier binds looser than anything in the
-expression grammar.
+Resynchronising on a statement boundary is what stops a cascade, and the
+cascade is not hypothetical: `op/filetest.t:96` derailed a reference at line
+131 under the tree-sitter grammar — one bad line, 35 lines of wreckage.
 
-**A label is not an expression.** `LOOP: while (...)` needs the XSTATE
-recognition M0 already does for POD, which is the same "could a statement
-start here" question.
-
-## Unknown is the fallback, everywhere
-
-Any statement form this issue does not implement emits an Unknown node
-spanning the whole statement, and parsing continues at the next `;` or `}`.
-Recovery that resynchronises on a statement boundary is what keeps one
-unfamiliar construct from cascading, and the cascade is exactly what
-`op/filetest.t` showed the tree-sitter grammar doing: one bad line at 96
-derailed a reference at 131.
+Per the skeleton issue, a statement containing an Unknown also emits
+Unresolved sites of every marker kind, so it scores wider rather than WRONG.
 
 ## Acceptance
 
-- [ ] The declaration forms parse: my, our, local, sub, package (`go test ./internal/ast/ -run '^TestDeclarations$' -count=1 -v | grep -q '^--- PASS: TestDeclarations'`)
-- [ ] Conditionals and loops parse, including elsif chains (`go test ./internal/ast/ -run '^TestControlFlow$' -count=1 -v | grep -q '^--- PASS: TestControlFlow'`)
-- [ ] Statement modifiers bind looser than any expression operator (`go test ./internal/ast/ -run '^TestStatementModifiers$' -count=1 -v | grep -q '^--- PASS: TestStatementModifiers'`)
-- [ ] A `{` is a block or a hashref per the lexer's expect state (`go test ./internal/ast/ -run '^TestBlockVersusHashref$' -count=1 -v | grep -q '^--- PASS: TestBlockVersusHashref'`)
-- [ ] A label before a loop parses as a label, not an expression (`go test ./internal/ast/ -run '^TestLoopLabels$' -count=1 -v | grep -q '^--- PASS: TestLoopLabels'`)
-- [ ] An unknown statement becomes Unknown and parsing resumes at the next boundary (`go test ./internal/ast/ -run '^TestStatementRecovery$' -count=1 -v | grep -q '^--- PASS: TestStatementRecovery'`)
+- [ ] A file parses to a sequence of statements with no gaps between spans (`go test ./internal/parse/ -run '^TestSourceFileIsStatements$' -count=1 -v | grep -q '^--- PASS: TestSourceFileIsStatements'`)
+- [ ] An expression statement and a bare block parse (`go test ./internal/parse/ -run '^TestExpressionStatementAndBlock$' -count=1 -v | grep -q '^--- PASS: TestExpressionStatementAndBlock'`)
+- [ ] An unknown statement becomes Unknown and parsing resumes at the next boundary (`go test ./internal/parse/ -run '^TestStatementRecovery$' -count=1 -v | grep -q '^--- PASS: TestStatementRecovery'`)
+- [ ] One unparseable statement does not affect the next one's spans (`go test ./internal/parse/ -run '^TestRecoveryDoesNotCascade$' -count=1 -v | grep -q '^--- PASS: TestRecoveryDoesNotCascade'`)
 
-Plan: M1. Spec: ch5.
+Spec: ch5 §5.2, §5.13.3.
