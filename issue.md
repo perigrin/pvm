@@ -4,7 +4,7 @@ state: in-progress
 urgency: normal
 milestone: m0-lexer-round-trip
 created: 2026-09-14T15:42:44.686499906Z
-updated: 2026-09-15T19:26:49.337858293Z
+updated: 2026-09-15T20:46:34.008105518Z
 sessions:
 - start_sha: 436129de59fa29c2c67d553efd5c0ddbe29a2898
   end_sha: ""
@@ -87,3 +87,36 @@ workflow gains a lexer step or the M0 gate never runs in CI.
 - [ ] Corpus-dependent tests skip with a clear message when perl5 is absent (`go test ./internal/lexer/ -run '^TestSkipsWithoutCorpus$' -count=1 -v | grep -q '^--- PASS: TestSkipsWithoutCorpus'`)
 
 Plan: M0 headline metric, §7 checklist. Spec: §7.6.2.
+
+## Outcome, 2026-09-15
+
+Closed with five of six acceptance criteria met. Commit e2f29afa.
+
+Measured: 620/620 files round-trip, 56/56 T2 core lex with no error token,
+612/620 whole-corpus clean, 1,000,000 fuzz executions with no crasher.
+
+**AC2 was deliberately NOT done.** The status-agnostic baseline core was not
+extracted from `internal/parseoracle/ratchet.go`, and the criterion's test
+`TestBaselineCoreRoundTrips` does not exist.
+
+Reasoning: that file is 465 lines whose `Check` is bound to `Report`,
+`Result` and `Verdict`, and whose `rank()` is bucket semantics --
+exact/wider/no-answer/WRONG -- for which the lexer has no analogue. The lexer
+needs freeze-and-compare over integers; parseoracle needs ordered buckets, a
+pin skew check and a taxonomy. The genuinely shared surface is a map diff.
+
+Refactoring a CI-gated component to serve a second caller that needs a
+fraction of it is speculative generality. Revisit when a THIRD ratchet
+appears, with three real callers to shape the interface rather than two and a
+guess.
+
+Two bugs were found by the work this issue added, both now regression tests:
+
+- `comp/parser.t` dropped 141 bytes. `<<ENE . ${` opens a heredoc whose body
+  runs to EOF without its terminator; `takePendingHeredocs` consumed those
+  lines and emitted nothing, so they were covered by no token. Only a
+  whole-corpus check could see it.
+- `format =\n` at EOF was an infinite loop, found by the fuzzer on its first
+  run. `scanFormatBody` was wrapped in `step()`, which requires forward
+  progress, so a legitimate decline panicked. Found loudly rather than as a
+  hang, which is why invariant 4 is structural.
