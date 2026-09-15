@@ -1,21 +1,32 @@
 ---
 title: "AST skeleton: nodes, spans, and the Unknown that keeps WRONG at zero"
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocks:
 - 01a0a70f-0f56-71e3-871e-50e1a1ed9b8a
 created: 2026-09-15T21:52:57.027412574Z
-updated: 2026-09-15T23:34:51.062331335Z
+updated: 2026-09-15T23:54:22.752128176Z
 sessions:
 - start_sha: e2f29afa8bd0af158a2bf44a84d7c9d8a7d34c72
-  end_sha: ""
-  commits: 0
+  end_sha: 94812b693b2ab8ad26f49473ffc5cc060f959e4b
+  commits: 1
   started_at: 2026-09-15T23:34:51.062331335Z
+  ended_at: 2026-09-15T23:54:22.752128176Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-15T23:34:51.062331335Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-15T23:54:22.752128176Z
+observed_paths:
+- Makefile
+- internal/parse/fuzz_test.go
+- internal/parse/hedge_test.go
+- internal/parse/parse.go
+- internal/parse/parse_test.go
+- internal/parse/sites.go
 ---
 
 The parser package does not exist. This issue creates it with the node type,
