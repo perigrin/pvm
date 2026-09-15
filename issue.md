@@ -1,19 +1,26 @@
 ---
 title: "Lexer skeleton: token, cursor, and the forward-progress guarantee"
-state: in-progress
+state: done
 urgency: normal
 milestone: m0-lexer-round-trip
 created: 2026-09-14T15:41:55.194811622Z
-updated: 2026-09-15T01:26:48.145170376Z
+updated: 2026-09-15T01:36:40.488939392Z
 sessions:
 - start_sha: 8532564348567b936f8e40e10f67e25b8b52e54c
-  end_sha: ""
-  commits: 0
+  end_sha: afbc38473f8c843c24f137f4be73f6eb4a46d35a
+  commits: 1
   started_at: 2026-09-15T01:26:48.145170376Z
+  ended_at: 2026-09-15T01:36:40.488939392Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-15T01:26:48.145170376Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-15T01:36:40.488939392Z
+observed_paths:
+- internal/lexer/lexer.go
+- internal/lexer/lexer_test.go
 ---
 
 The lexer package does not exist. This issue creates it with the token type,
