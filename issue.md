@@ -1,10 +1,19 @@
 ---
 title: "Quote-like operators and heredocs: delimiters, nesting, and the escape ordering"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m0-lexer-round-trip
 created: 2026-09-14T15:42:13.261933199Z
-updated: 2026-09-14T22:45:07.888956032Z
+updated: 2026-09-15T03:17:59.033375309Z
+sessions:
+- start_sha: afbc38473f8c843c24f137f4be73f6eb4a46d35a
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-15T03:17:59.033375309Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-15T03:17:59.033375309Z
 ---
 
 The keyword-introduced quote-like operators and the plain string forms:
