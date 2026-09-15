@@ -3,8 +3,10 @@ title: "AST skeleton: nodes, spans, and the Unknown that keeps WRONG at zero"
 state: pending
 urgency: normal
 milestone: m1-parse-the-core
+blocks:
+- 01a0a70f-0f56-71e3-871e-50e1a1ed9b8a
 created: 2026-09-15T21:52:57.027412574Z
-updated: 2026-09-15T23:14:47.001202849Z
+updated: 2026-09-15T23:16:55.183545266Z
 ---
 
 The parser package does not exist. This issue creates it with the node type,
