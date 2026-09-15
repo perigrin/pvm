@@ -5,10 +5,11 @@ urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
 - 01a0a70f-0fe8-7d8e-9c2d-d9aa50bef115
+- 01a0a75b-7c7b-78ca-b47f-40cd34c5c963
 blocks:
 - 01a0a75b-5e51-79f0-8af1-95c5aa378706
 created: 2026-09-15T23:16:18.129308407Z
-updated: 2026-09-15T23:16:18.129308407Z
+updated: 2026-09-15T23:17:18.947301189Z
 ---
 
 Declarations: `my`/`our`/`local`/`state`, `sub`, `package` in both forms, and
