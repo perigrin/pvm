@@ -1,6 +1,6 @@
 ---
 title: Statement modifiers and the block-versus-hashref decision
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
@@ -9,16 +9,24 @@ blocked_by:
 blocks:
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-15T23:16:18.129308407Z
-updated: 2026-09-16T21:51:40.358792423Z
+updated: 2026-09-16T22:06:50.071998294Z
 sessions:
 - start_sha: 6884c6a13f1c20eacb5dfdf287b194bcc4bb34d4
-  end_sha: ""
-  commits: 0
+  end_sha: 73a01a14099ca4de47ca4119f47356c542e24287
+  commits: 1
   started_at: 2026-09-16T21:51:40.358792423Z
+  ended_at: 2026-09-16T22:06:50.071998294Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-16T21:51:40.358792423Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-16T22:06:50.071998294Z
+observed_paths:
+- internal/parse/control.go
+- internal/parse/modifier_test.go
+- internal/parse/parse.go
 ---
 
 Statement modifiers, and the `{` that is either a block or a hash
