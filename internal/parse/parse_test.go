@@ -26,7 +26,7 @@ import (
 // When nothing is left to put here, these tests are measuring an empty set.
 // DELETE them then rather than inventing a construct to keep them alive: the
 // harness's own no-answer bucket covers the property at that point.
-const unimplementedStatement = "use strict;\n"
+const unimplementedStatement = "goto &other;\n"
 
 // unimplementedStatementWithRef is the same, but containing a backslash
 // reference so perl reports an srefgen the parser must hedge against.
@@ -185,6 +185,28 @@ func leafText(n *parse.Node, src []byte) string {
 // round-trip is cheap to check and the wide sweep is what found a 141-byte
 // loss in comp/parser.t that no unit test had reached. Coverage targets are
 // scoped to T2; an invariant is not.
+// corpusFilesIn returns the .t files in one corpus subdirectory.
+func corpusFilesIn(t *testing.T, dir string) []string {
+	t.Helper()
+	var out []string
+	want := string(filepath.Separator) + dir + string(filepath.Separator)
+	for _, f := range corpusFiles(t) {
+		if strings.Contains(f, want) {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
+func readFile(t *testing.T, path string) []byte {
+	t.Helper()
+	src, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	return src
+}
+
 func corpusFiles(t *testing.T) []string {
 	t.Helper()
 	root := os.Getenv("PERL5_CORPUS")

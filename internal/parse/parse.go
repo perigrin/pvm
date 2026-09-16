@@ -108,6 +108,21 @@ const (
 	// operator.
 	LoopControl
 
+	// Use is `use`, `no` or `require` with a module or version and an
+	// optional import list.
+	//
+	// Parsed, not executed. What `use feature` turns ON is a different
+	// problem -- threading feature state through the rest of the parse
+	// belongs to M2, and this milestone only needs the syntax.
+	Use
+
+	// Phaser is `BEGIN`, `END`, `CHECK`, `INIT` or `UNITCHECK` with a block.
+	//
+	// That BEGIN runs at compile time, and can declare a sub which changes
+	// how a LATER line parses, is the undecidability §4.8.3 describes.
+	// Call{Resolved:false} absorbs it; this kind is only the syntax.
+	Phaser
+
 	// Call is a named unary, a list operator, or a call to a user sub.
 	//
 	// Resolved says whether this parser knows what it is calling. A builtin
@@ -178,6 +193,10 @@ func (k Kind) String() string {
 		return "loop_control"
 	case Call:
 		return "call"
+	case Use:
+		return "use"
+	case Phaser:
+		return "phaser"
 	}
 	return "?"
 }
@@ -411,6 +430,9 @@ func (p *parser) statement() *Node {
 		if c := p.parseControlFlow(tok); c != nil {
 			return withLabels(labels, c, start)
 		}
+		if r := p.parseTheRest(tok); r != nil {
+			return withLabels(labels, r, start)
+		}
 		if d := p.parseDeclaration(tok); d != nil {
 			// A declaration may be the left side of an assignment:
 			// `my ($a, $b) = @_`. parseVarDecl parses its target as a full
@@ -538,16 +560,15 @@ var statementKeywords = map[string]bool{
 	// control-flow issue landed and parseControlFlow reads them.
 	"do": true, "continue": true,
 
-	"use": true, "no": true, "require": true,
-	"BEGIN": true, "END": true, "CHECK": true, "INIT": true, "UNITCHECK": true,
-
-	"class": true, "field": true, "method": true,
+	// use, no, require, the phasers and class are GONE: parseTheRest reads
+	// them. `field` and `method` are read by parseDeclaration.
 	"try": true, "catch": true, "finally": true, "defer": true,
 
 	// Loop controls and `return` take an optional term and are statement
 	// forms in perly.y (levels 2 and 7), not expression operators.
 	// last, next and redo are GONE: parseLoopControl reads them.
-	"return": true, "goto": true,
+	// return is GONE: parseReturn reads it.
+	"goto": true,
 
 	"format": true,
 }

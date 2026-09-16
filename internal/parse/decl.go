@@ -10,6 +10,11 @@ import "tamarou.com/pvm/internal/lexer"
 // but it takes the same target forms and parses identically.
 var declarators = map[string]bool{
 	"my": true, "our": true, "local": true, "state": true,
+
+	// 5.38's `field $x :param = $default;`. Structurally a declarator with
+	// attributes, which `my` also accepts (`my $x :shared`), so it takes the
+	// same path rather than one of its own.
+	"field": true,
 }
 
 // parseDeclaration parses one declaration, or returns nil if this word does
@@ -54,6 +59,30 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 	p.advanceTo(word)
 	n := &Node{Kind: Declaration, Text: p.text(word), Start: word.Start}
 
+	// The variable, then any attributes, then an optional initialiser.
+	// Attributes come between: `field $x :param = 1` and `my $x :shared = 1`
+	// both put them after the name, where an expression parser would read
+	// the `:` as a ternary's colon with nothing to match.
+	if v, ok := p.peekSignificant(); ok && v.Kind == lexer.Variable {
+		p.advanceTo(v)
+		n.Children = append(n.Children, &Node{
+			Kind: Term, Text: p.text(v), Start: v.Start, End: v.End,
+		})
+		p.parseAttributes(n)
+
+		// The initialiser, if there is one.
+		if eq, ok := p.peekSignificant(); ok && p.text(eq) == "=" {
+			p.advanceTo(eq)
+			if init := p.parseExpr(0); init != nil {
+				n.Children = append(n.Children, init)
+			}
+		}
+		n.End = p.prevEnd()
+		return n
+	}
+
+	// A list target -- `my ($a, $b) = @_` -- or anything else, parsed as one
+	// expression so the assignment at level 9 is already inside it.
 	if target := p.parseExpr(0); target != nil {
 		n.Children = append(n.Children, target)
 	}

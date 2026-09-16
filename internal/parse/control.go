@@ -17,6 +17,12 @@ func (p *parser) parseControlFlow(word lexer.Token) *Node {
 		return p.parseFor(word)
 	case "last", "next", "redo":
 		return p.parseLoopControl(word)
+	case "return":
+		// perly.y level 7, a statement form taking an optional list. It
+		// arrives with the loop controls because a sub body without `return`
+		// is as rare as a loop without `last` -- 27 of the class corpus's
+		// Unknowns started here.
+		return p.parseReturn(word)
 	}
 	return nil
 }
@@ -44,6 +50,24 @@ func (p *parser) parseLoopControl(word lexer.Token) *Node {
 				Kind: Label, Text: p.text(next),
 				Start: next.Start, End: next.End,
 			})
+		}
+	}
+	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
+		p.advanceTo(tok)
+	}
+	n.End = p.prevEnd()
+	return n
+}
+
+// parseReturn: `return;` and `return LIST;`.
+func (p *parser) parseReturn(word lexer.Token) *Node {
+	p.advanceTo(word)
+	n := &Node{Kind: LoopControl, Text: p.text(word), Start: word.Start}
+
+	if next, ok := p.peekSignificant(); ok && next.Kind != lexer.Semicolon {
+		// Below the comma, so the whole list belongs to the return.
+		if arg := p.parseExpr(bpListOp); arg != nil {
+			n.Children = append(n.Children, arg)
 		}
 	}
 	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {

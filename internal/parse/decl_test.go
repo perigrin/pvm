@@ -28,6 +28,18 @@ func TestVariableDeclarations(t *testing.T) {
 		"local $_ = $line;",
 		"local ($a, $b) = (1, 2);",
 		"state $count = 0;",
+
+		// Attributes are not a `field` thing -- `my` and `our` take them
+		// too, which is why they live on the shared declarator path rather
+		// than in a class-syntax branch. Verified:
+		//
+		//	perl -e 'use threads::shared; my $x :shared = 1;'   ok
+		//	perl -MO=Deparse -e 'our $y :shared;'               our $y;
+		"my $x :shared;",
+		"my $x :shared = 1;",
+		"our $y :shared;",
+		"field $f :param;",
+		"field $f :param = 1;",
 	} {
 		root := parse.Parse([]byte(src))
 		d := firstOfKind(root, parse.Declaration)
