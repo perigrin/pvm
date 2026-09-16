@@ -1,6 +1,6 @@
 ---
 title: "use, BEGIN, class syntax and sort/map/grep: the rest of T2"
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
@@ -8,16 +8,28 @@ blocked_by:
 blocks:
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-15T23:16:32.305576942Z
-updated: 2026-09-16T22:52:03.621782112Z
+updated: 2026-09-16T22:52:11.815659585Z
 sessions:
 - start_sha: 63681bf7fbdc9c75a27f2f44d8025ebf4571556d
-  end_sha: ""
-  commits: 0
+  end_sha: 1f0669412eaad35c8b13ec0d8ff60c75120a330a
+  commits: 1
   started_at: 2026-09-16T22:40:27.948238476Z
+  ended_at: 2026-09-16T22:52:11.815659585Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-16T22:40:27.948238476Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-16T22:52:11.815659585Z
+observed_paths:
+- internal/parse/control.go
+- internal/parse/decl.go
+- internal/parse/decl_test.go
+- internal/parse/parse.go
+- internal/parse/parse_test.go
+- internal/parse/use.go
+- internal/parse/use_test.go
 ---
 
 The T2 constructs no other M1 issue owns: `use`/`no`, `BEGIN` and the other
