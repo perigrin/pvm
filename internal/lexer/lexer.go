@@ -179,9 +179,21 @@ type lexer struct {
 	// boundary, which is where POD and labels are recognised.
 	expect Expect
 	// utf8Pragma widens the identifier class to XID. File-level rather than
-	// lexically scoped: spec §2.3.1 allows it as a v1, and block scoping
-	// needs a brace stack that does not exist yet.
+	// lexically scoped: spec §2.3.1 allows it as a v1. A brace stack now
+	// exists (see brackets), so scoping it is reachable, but that is a
+	// behaviour change with its own corpus effect and belongs in its own
+	// commit rather than riding along with this one.
 	utf8Pragma bool
+	// brackets records what each open bracket was, so a closer knows what it
+	// closed. perl's PL_lex_brackstack. Only `}` is genuinely ambiguous --
+	// block or subscript -- but all three are tracked so the stack stays
+	// aligned.
+	brackets []bracket
+	// closedBlock is set by trackBrackets when the token just emitted was a
+	// `}` that closed a block, and read by the expect transition. A field
+	// rather than a parameter threaded through every scanner, because emit
+	// is the single point both go through.
+	closedBlock bool
 	// pendingPragma remembers a `use` or `no` seen on this statement, so
 	// that the `utf8` after it can be recognised. 0 none, 1 use, 2 no.
 	pendingPragma int
@@ -302,7 +314,12 @@ func scanOne(l *lexer) {
 // of lexer bug to find.
 func (l *lexer) emit(k Kind, start int) {
 	l.toks = append(l.toks, Token{Kind: k, Start: start, End: l.pos})
-	l.expect = l.expect.after(k)
+	l.trackBrackets(k, start)
+	l.expect = l.expect.after(k, transition{
+		text:            l.src[start:l.pos],
+		closedBlock:     l.closedBlock,
+		nextIsOpenBrace: l.peekIsOpenBrace(),
+	})
 	l.noteFormat(k, start)
 	// The picture body begins after the newline that ends the declaration.
 	if l.pendingFormat && k == Whitespace && l.pos > start &&
