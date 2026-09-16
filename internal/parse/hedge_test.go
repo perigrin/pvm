@@ -33,7 +33,10 @@ var markerKinds = []string{
 // The fix is for the statement to say "something here I could not settle",
 // which is an Unresolved site of each kind.
 func TestUnknownHedgesEveryMarker(t *testing.T) {
-	src := []byte("$x = \\@a;\n")
+	// A statement form no issue has implemented yet, so it is still Unknown.
+	// The original fixture was `$x = \@a;`, which parses as an expression
+	// now that the Pratt loop exists.
+	src := []byte("if ($x) { 1 }\n")
 
 	sites := parse.Sites(parse.Parse(src), src)
 	if len(sites) == 0 {

@@ -35,22 +35,32 @@ func TestParseEmpty(t *testing.T) {
 // not parse -- no more, so the next statement is still reachable; no less,
 // so round-trip holds.
 func TestUnknownSpansItsSource(t *testing.T) {
-	// Every statement is Unknown at this stage, which is the point: the
-	// discipline has to hold before there is anything to be disciplined about.
-	src := []byte("$x = 1;\n")
+	// A statement form the parser does not implement. `$x = 1;` was the
+	// fixture when every statement was Unknown; it parses as an expression
+	// now, so the fixture has to be something still unimplemented -- here a
+	// control-flow form, which belongs to a later issue.
+	src := []byte("if ($x) { 1 }\n")
 
 	root := parse.Parse(src)
 	unknowns := collect(root, parse.Unknown)
 	if len(unknowns) != 1 {
-		t.Fatalf("got %d Unknown nodes, want 1", len(unknowns))
+		t.Fatalf("got %d Unknown nodes, want 1: %v", len(unknowns), kinds(root))
 	}
-	// Through the semicolon and no further: the trailing newline is trivia,
-	// belonging to no statement. Round-trip still holds because the trivia
-	// node carries it.
+	// Through the closing brace and no further: the trailing newline is
+	// trivia, belonging to no statement. Round-trip still holds because the
+	// trivia node carries it.
 	u := unknowns[0]
-	if got := string(src[u.Start:u.End]); got != "$x = 1;" {
-		t.Errorf("Unknown spans %q, want the statement through its semicolon", got)
+	if got := string(src[u.Start:u.End]); got != "if ($x) { 1 }" {
+		t.Errorf("Unknown spans %q, want the whole statement", got)
 	}
+}
+
+func kinds(n *parse.Node) []string {
+	out := []string{n.Kind.String()}
+	for _, c := range n.Children {
+		out = append(out, kinds(c)...)
+	}
+	return out
 }
 
 // TestTreeRoundTrips: concatenating every leaf reproduces the input. This is
@@ -138,21 +148,13 @@ func collect(n *parse.Node, k parse.Kind) []*parse.Node {
 	return out
 }
 
-// leafText concatenates the source text of every leaf, in order.
+// leafText reconstructs the input from the tree.
+//
+// Delegates to Node.SourceText rather than re-implementing the walk: a test
+// helper with its own traversal can agree with a broken tree, and this
+// property is exactly the one that must not be asserted against itself.
 func leafText(n *parse.Node, src []byte) string {
-	var b strings.Builder
-	var walk func(*parse.Node)
-	walk = func(n *parse.Node) {
-		if len(n.Children) == 0 {
-			b.Write(src[n.Start:n.End])
-			return
-		}
-		for _, c := range n.Children {
-			walk(c)
-		}
-	}
-	walk(n)
-	return b.String()
+	return n.SourceText(src)
 }
 
 // corpusFiles walks the whole perl5 t/ directory, or skips.
