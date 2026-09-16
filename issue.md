@@ -1,6 +1,6 @@
 ---
 title: Declarations, and the prototype the lexer must scan
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
@@ -9,7 +9,16 @@ blocked_by:
 blocks:
 - 01a0a75b-5e51-79f0-8af1-95c5aa378706
 created: 2026-09-15T23:16:18.129308407Z
-updated: 2026-09-15T23:17:18.947301189Z
+updated: 2026-09-16T03:13:21.044099804Z
+sessions:
+- start_sha: 5b936a5d9c9c023339bf9efbde2faf62e31f3c78
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-16T03:13:21.044099804Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-16T03:13:21.044099804Z
 ---
 
 Declarations: `my`/`our`/`local`/`state`, `sub`, `package` in both forms, and
