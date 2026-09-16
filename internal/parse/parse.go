@@ -108,6 +108,21 @@ const (
 	// operator.
 	LoopControl
 
+	// Call is a named unary, a list operator, or a call to a user sub.
+	//
+	// Resolved says whether this parser knows what it is calling. A builtin
+	// is resolved; an undeclared bareword is not, and §4.8.3 is explicit
+	// that an unresolved call is a Call rather than an Unknown:
+	//
+	//	The expression parser's job is to produce a `Call` node with
+	//	`Resolved: false` and let a later pass decide.
+	//
+	// The difference is what the harness scores. Unknown is for constructs
+	// with no known shape; a call has a known shape and an unknown callee,
+	// and the adapter reports it as an Unresolved site -- `wider`, not
+	// WRONG.
+	Call
+
 	// Block is `{ ... }` holding statements rather than a value.
 	//
 	// Distinct from AnonHash, which is the same two bytes holding a list.
@@ -161,6 +176,8 @@ func (k Kind) String() string {
 		return "label"
 	case LoopControl:
 		return "loop_control"
+	case Call:
+		return "call"
 	}
 	return "?"
 }
@@ -189,6 +206,13 @@ type Node struct {
 	// re-lex the span to learn which operator it got would be re-deriving
 	// what the parser already knew.
 	Text string
+
+	// Resolved is set on a Call whose callee this parser knows -- a builtin,
+	// or a sub declared in this file. False means "a call to something I
+	// have not seen", which §4.8.3 says is a Call and not an Unknown.
+	//
+	// Only meaningful for Call; false everywhere else and not read there.
+	Resolved bool
 }
 
 // SourceText reconstructs the bytes this node covers, walking the tree.

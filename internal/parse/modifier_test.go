@@ -142,10 +142,21 @@ func TestBlockVersusHashref(t *testing.T) {
 // operators are their own issue -- `map { ; a => 1 } (1,2)` is Unknown today
 // for that reason, not because the brace decision is wrong.
 //
-// Skipped rather than deleted so the gap has a name. Remove the skip when
-// list operators land, and the assertions below should pass unchanged.
+// The skip came off when list operators landed, and the test STILL fails --
+// for a third reason, now isolated. `map { ; a => 1 }` parses as
+// `call(anon_hash)`: a list operator leaves a TERM expected, so the lexer's
+// brace stack calls the `{` a hash constructor before the `;` inside it is
+// ever seen.
+//
+// perl settles this with intuit_curly, which peeks PAST the brace at the
+// first token -- a `;` forces a block, a bareword-then-`=>` forces a hashref.
+// Neither the lexer nor the parser does that lookahead, and it is the one
+// place in the grammar where a brace's meaning depends on what is INSIDE it
+// rather than on what precedes it. That is its own piece of work.
+//
+// Kept skipped so the gap keeps its name and its measurements.
 func TestBlockVersusHashrefAfterListOp(t *testing.T) {
-	t.Skip("list operators are a separate issue; map { ... } is Unknown until it lands")
+	t.Skip("needs intuit_curly lookahead: a list operator leaves XTerm, so `map {` lexes as a hashref")
 
 	root := parse.Parse([]byte("my @r = map { ; a => 1 } (1,2);"))
 	if firstOfKind(root, parse.Block) == nil {

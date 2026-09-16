@@ -65,7 +65,10 @@ func (p *parser) parseTerm() *Node {
 		}
 		return &Node{Kind: Term, Text: text, Start: tok.Start, End: tok.End}
 
-	case lexer.Variable, lexer.Number, lexer.Quote, lexer.Word,
+	case lexer.Word:
+		return p.parseWordTerm(tok)
+
+	case lexer.Variable, lexer.Number, lexer.Quote,
 		lexer.Readline, lexer.HeredocOpen:
 		p.advanceTo(tok)
 		return &Node{
