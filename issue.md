@@ -9,7 +9,7 @@ blocked_by:
 blocks:
 - 01a0a75b-5e51-79f0-8af1-95c5aa378706
 created: 2026-09-15T23:16:18.129308407Z
-updated: 2026-09-16T03:27:57.84661318Z
+updated: 2026-09-16T03:59:39.376411412Z
 sessions:
 - start_sha: 5b936a5d9c9c023339bf9efbde2faf62e31f3c78
   end_sha: db0e74738f8ffa324e4e69944faed74122b4e768
@@ -48,7 +48,10 @@ calling scan_str... it scans a balanced `(...)` as an opaque string").
 
 `internal/lexer` has none: `grep -i proto internal/lexer/*.go` is empty, so
 `sub f ($$)` lexes `$$` as a variable today. Measured in the T2 corpus:
-`comp/proto.t` alone has 22 prototype declarations across 11 T2 files.
+`comp/proto.t` alone has 32 prototype declarations, across 11 T2 files.
+Measured by the lexer, which is the only counter that gets it right: greps
+over that file give 46 (counting `eval 'sub f($){}'` strings) or 26 (missing
+multi-line and multiple-per-line forms).
 
 `TestT2CoreParses` cannot reach 100% without this.
 
@@ -65,6 +68,6 @@ tree-sitter recovery artifact, not a language subtlety.
 - [ ] A sub declaration parses with a block and with a bare `;` (`go test ./internal/parse/ -run '^TestSubDeclarationForms$' -count=1 -v | grep -q '^--- PASS: TestSubDeclarationForms'`)
 - [ ] The lexer scans a prototype as one opaque token, so `$$` is not a variable (`go test ./internal/lexer/ -run '^TestPrototypeIsOpaque$' -count=1 -v | grep -q '^--- PASS: TestPrototypeIsOpaque'`)
 - [ ] `package NAME;` and `package NAME { ... }` both parse (`go test ./internal/parse/ -run '^TestPackageForms$' -count=1 -v | grep -q '^--- PASS: TestPackageForms'`)
-- [ ] All 22 prototype declarations in comp/proto.t lex without an error token (`go test ./internal/lexer/ -run '^TestProtoCorpusLexes$' -count=1 -v | grep -q '^--- PASS: TestProtoCorpusLexes'`)
+- [ ] All 32 prototype declarations in comp/proto.t lex without an error token (`go test ./internal/lexer/ -run '^TestProtoCorpusLexes$' -count=1 -v | grep -q '^--- PASS: TestProtoCorpusLexes'`)
 
 Findings: §0.13 rank 4 (7 files). Spec: ch5 §5.5.2.
