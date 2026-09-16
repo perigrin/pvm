@@ -1,6 +1,6 @@
 ---
 title: "Lexer feedback M0 deferred: the keyword table and the brace stack"
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocks:
@@ -8,16 +8,26 @@ blocks:
 - 01a0a75b-5e51-79f1-8575-3f30abd05ac9
 - 01a0a75b-5e51-79ef-a59a-3a997f738cca
 created: 2026-09-15T23:16:25.851305082Z
-updated: 2026-09-16T00:08:18.047652191Z
+updated: 2026-09-16T00:08:25.237568294Z
 sessions:
 - start_sha: 94812b693b2ab8ad26f49473ffc5cc060f959e4b
-  end_sha: ""
-  commits: 0
+  end_sha: f7c176f07ececc07a1e649c83fa5bece81624dfd
+  commits: 1
   started_at: 2026-09-15T23:56:04.636601093Z
+  ended_at: 2026-09-16T00:08:25.237568294Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-15T23:56:04.636601093Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-16T00:08:25.237568294Z
+observed_paths:
+- internal/lexer/brackets.go
+- internal/lexer/expect.go
+- internal/lexer/keyword.go
+- internal/lexer/keyword_test.go
+- internal/lexer/lexer.go
 ---
 
 Two lexer gaps that M0 left and that every parser issue after this one
