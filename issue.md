@@ -1,6 +1,6 @@
 ---
 title: "The M1 gate: parse ratchet, WRONG stays zero, measured as a subject"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
@@ -11,7 +11,16 @@ blocks:
 - 01a0a8cd-8fcc-72a8-9ba1-c916eee9992d
 - 01a0a8d8-e100-79ca-8680-811c86efd39d
 created: 2026-09-15T21:53:08.812269582Z
-updated: 2026-09-16T06:13:36.535503896Z
+updated: 2026-09-16T23:58:18.064597034Z
+sessions:
+- start_sha: 1f0669412eaad35c8b13ec0d8ff60c75120a330a
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-16T23:58:18.064597034Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-16T23:58:18.064597034Z
 ---
 
 M1's gate: the parse rate ratchets, WRONG does not move, and every row of the
