@@ -49,6 +49,7 @@ const (
 // `if (..) { .. }` end with the same character and leave opposite states.
 func (l *lexer) trackBrackets(k Kind, start int) {
 	l.closedBlock = false
+	l.openedBlock = false
 
 	if l.pos-start != 1 {
 		return
@@ -75,6 +76,7 @@ func (l *lexer) trackBrackets(k Kind, start int) {
 		switch {
 		case l.expect == XState || l.expect == XBlock:
 			l.brackets = append(l.brackets, braceBlock)
+			l.openedBlock = true
 		default:
 			l.brackets = append(l.brackets, braceTerm)
 		}

@@ -69,6 +69,14 @@ const (
 
 	// Index is a subscript or dereference: `$r->[0]`, `$h{k}`, `@a[0,1]`.
 	Index
+
+	// Block is `{ ... }` holding statements rather than a value.
+	//
+	// Distinct from AnonHash, which is the same two bytes holding a list.
+	// The lexer's brace stack already made the call -- a `{` read in XState
+	// opens a block -- so this kind records a decision rather than repeating
+	// one.
+	Block
 )
 
 func (k Kind) String() string {
@@ -101,6 +109,8 @@ func (k Kind) String() string {
 		return "anon_hash"
 	case Index:
 		return "index"
+	case Block:
+		return "block"
 	}
 	return "?"
 }
@@ -299,6 +309,13 @@ func (p *parser) statement() *Node {
 
 	start := p.toks[p.pos].Start
 
+	// A bare block. The lexer's brace stack already decided this `{` opens a
+	// block rather than a subscript or an anonymous hash, and says so on the
+	// token, so the decision is READ here rather than made a second time.
+	if tok, ok := p.peekSignificant(); ok && tok.OpensBlock && p.text(tok) == "{" {
+		return p.parseBlock(tok)
+	}
+
 	// A statement FORM -- a declaration, control flow, a phaser -- is not an
 	// expression, and the expression parser must not be handed one.
 	//
@@ -346,6 +363,40 @@ func (p *parser) statement() *Node {
 		Kind: Statement, Start: start, End: p.prevEnd(),
 		Children: []*Node{expr},
 	}
+}
+
+// parseBlock consumes `{ ... }` as a sequence of statements.
+//
+// Recursive rather than iterative over a depth counter: a block's body is a
+// statement sequence with exactly the properties the file level has, and
+// writing it twice is how the two drift apart.
+func (p *parser) parseBlock(open lexer.Token) *Node {
+	p.advanceTo(open)
+	n := &Node{Kind: Block, Start: open.Start}
+
+	for p.pos < len(p.toks) {
+		tok := p.toks[p.pos]
+		if tok.Kind == lexer.CloseBracket && p.src[tok.Start] == '}' {
+			p.pos++
+			n.End = tok.End
+			return n
+		}
+		before := p.pos
+		if child := p.statement(); child != nil {
+			n.Children = append(n.Children, child)
+		}
+		// The same forward-progress guard the file level has, for the same
+		// reason: a statement that consumes nothing would spin here rather
+		// than there.
+		if p.pos == before {
+			p.pos++
+		}
+	}
+
+	// Unterminated. The block still spans what it consumed, so round-trip
+	// holds; an LSP sees this constantly while someone is typing.
+	n.End = p.prevEnd()
+	return n
 }
 
 // statementKeywords open a statement form this milestone has not implemented

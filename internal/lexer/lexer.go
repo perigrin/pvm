@@ -153,6 +153,20 @@ func (k Kind) String() string {
 type Token struct {
 	Kind       Kind
 	Start, End int
+
+	// OpensBlock is set on a `{` that opened a block rather than a subscript
+	// or an anonymous hash, and on the `}` that closed one.
+	//
+	// The lexer already decides this -- the brace stack has to, since a `}`
+	// leaves a different expect state depending on what it closed -- and
+	// without it on the token the decision is computed and discarded, so the
+	// parser re-derives what the lexer knew. That is the duplication the
+	// stack exists to prevent, one layer up.
+	//
+	// It is deliberately NOT the full expect state. A parser that could read
+	// PL_expect at every token would start depending on states the lexer may
+	// refine later; one bit answering one question is a narrower contract.
+	OpensBlock bool
 }
 
 // Tokenize splits src into tokens covering every byte exactly once.
@@ -194,6 +208,9 @@ type lexer struct {
 	// rather than a parameter threaded through every scanner, because emit
 	// is the single point both go through.
 	closedBlock bool
+	// openedBlock is the same for a `{` that opened one. Both are copied
+	// onto the token as OpensBlock, so the parser does not re-derive them.
+	openedBlock bool
 	// pendingPragma remembers a `use` or `no` seen on this statement, so
 	// that the `utf8` after it can be recognised. 0 none, 1 use, 2 no.
 	pendingPragma int
@@ -315,6 +332,9 @@ func scanOne(l *lexer) {
 func (l *lexer) emit(k Kind, start int) {
 	l.toks = append(l.toks, Token{Kind: k, Start: start, End: l.pos})
 	l.trackBrackets(k, start)
+	// trackBrackets has just classified this token, so the flags it set
+	// belong to the token appended above.
+	l.toks[len(l.toks)-1].OpensBlock = l.openedBlock || l.closedBlock
 	l.expect = l.expect.after(k, transition{
 		text:            l.src[start:l.pos],
 		closedBlock:     l.closedBlock,
