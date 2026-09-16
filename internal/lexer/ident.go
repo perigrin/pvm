@@ -167,7 +167,172 @@ func (l *lexer) notePragma(start int) {
 			l.utf8Pragma = false
 		}
 		l.pendingPragma = 0
+	case "feature":
+		// `use feature 'signatures'`: the pragma stays pending so the quoted
+		// feature name after it is still seen by noteSignatures.
 	default:
+		// A version bundle keeps the pragma pending too. `use v5.36;` lexes
+		// its version as Word("v5") Operator(".") Number(36), so clearing
+		// here would hide the minor half from noteSignatures -- which is
+		// exactly what it did until this case was added.
+		if _, isVersion := versionPrefix(word); isVersion {
+			return
+		}
 		l.pendingPragma = 0
 	}
+}
+
+// noteSignatures tracks whether the signatures feature is on, which decides
+// whether a `(` after `sub NAME` is a prototype or a signature.
+//
+// Three spellings turn it on, and all three appear in the corpus:
+//
+//	use v5.36;            implied by the version bundle, 5.36+
+//	use 5.036;            the same bundle, numeric spelling
+//	use feature 'signatures';
+//
+// File-level rather than lexically scoped, like utf8Pragma and for the same
+// reason: block scoping is reachable now that a brace stack exists, but it is
+// a behaviour change with its own corpus effect and belongs in its own commit.
+func (l *lexer) noteSignatures(k Kind, start int) {
+	if l.pendingPragma != 1 {
+		return
+	}
+	text := string(l.src[start:l.pos])
+	switch k {
+	case Word:
+		// A version bundle does not arrive as one token: `use v5.36;` lexes
+		// as Word("v5") Operator(".") Number(36), because `v5` is a valid
+		// identifier and the lexer has no reason to know better. So the
+		// major part is remembered here and the minor is read from the
+		// Number that follows.
+		if maj, ok := versionPrefix(text); ok {
+			l.pendingVersionMajor = maj
+			return
+		}
+		if v, ok := versionAtLeast(text, 5, 36); ok && v {
+			l.signatures = true
+		}
+	case Number:
+		// The minor half of a split `v5.36`, or a whole `use 5.036;`.
+		if l.pendingVersionMajor > 0 {
+			if l.pendingVersionMajor > 5 || (l.pendingVersionMajor == 5 && minorAtLeast(text, 36)) {
+				l.signatures = true
+			}
+			l.pendingVersionMajor = 0
+			return
+		}
+		if v, ok := versionAtLeast(text, 5, 36); ok && v {
+			l.signatures = true
+		}
+	case Quote:
+		// `use feature 'signatures';`
+		if containsWord(text, "signatures") {
+			l.signatures = true
+		}
+	case Operator:
+		// The `.` between the halves; keep the pending major.
+		if text == "." {
+			return
+		}
+		l.pendingVersionMajor = 0
+	}
+}
+
+// versionPrefix reads the `v5` of a split `v5.36`.
+func versionPrefix(text string) (int, bool) {
+	if len(text) < 2 || (text[0] != 'v' && text[0] != 'V') {
+		return 0, false
+	}
+	n := 0
+	for i := 1; i < len(text); i++ {
+		if text[i] < '0' || text[i] > '9' {
+			return 0, false
+		}
+		n = n*10 + int(text[i]-'0')
+	}
+	return n, true
+}
+
+// minorAtLeast reads the `36` of a split `v5.36`, or the `036` of `5.036`.
+func minorAtLeast(text string, want int) bool {
+	n, digits := 0, 0
+	for i := 0; i < len(text); i++ {
+		if text[i] == '.' {
+			break
+		}
+		if text[i] < '0' || text[i] > '9' {
+			return false
+		}
+		n = n*10 + int(text[i]-'0')
+		digits++
+	}
+	if digits >= 3 {
+		n /= 10
+	}
+	return n >= want
+}
+
+// versionAtLeast parses `v5.36`, `5.036` and `5.36` and reports whether the
+// version is at least major.minor.
+func versionAtLeast(text string, major, minor int) (bool, bool) {
+	s := text
+	if len(s) > 0 && (s[0] == 'v' || s[0] == 'V') {
+		s = s[1:]
+	}
+	dot := -1
+	for i := 0; i < len(s); i++ {
+		if s[i] == '.' {
+			dot = i
+			break
+		}
+		if s[i] < '0' || s[i] > '9' {
+			return false, false
+		}
+	}
+	if dot <= 0 {
+		return false, false
+	}
+	maj := 0
+	for i := 0; i < dot; i++ {
+		maj = maj*10 + int(s[i]-'0')
+	}
+	rest := s[dot+1:]
+	min := 0
+	digits := 0
+	for i := 0; i < len(rest); i++ {
+		if rest[i] == '.' {
+			break
+		}
+		if rest[i] < '0' || rest[i] > '9' {
+			return false, false
+		}
+		min = min*10 + int(rest[i]-'0')
+		digits++
+	}
+	// `5.036` writes the minor in three digits; `v5.36` in two. Both mean 36.
+	if digits >= 3 {
+		min /= 10
+	}
+	if maj != major {
+		return maj > major, true
+	}
+	return min >= minor, true
+}
+
+// containsWord reports whether s holds word as a whole token, so that
+// `'signatures'` matches and `'no_signatures'` does not.
+func containsWord(s, word string) bool {
+	for i := 0; i+len(word) <= len(s); i++ {
+		if s[i:i+len(word)] != word {
+			continue
+		}
+		beforeOK := i == 0 || !isWordByte(s[i-1])
+		j := i + len(word)
+		afterOK := j == len(s) || !isWordByte(s[j])
+		if beforeOK && afterOK {
+			return true
+		}
+	}
+	return false
 }

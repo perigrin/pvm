@@ -70,6 +70,17 @@ const (
 	// opposed to `&&` or bitwise-and in operator position.
 	FuncSigil
 
+	// Prototype is a balanced `(...)` directly after `sub NAME`, scanned as
+	// an opaque string rather than lexed.
+	//
+	// Its contents are sigils that are not variables: `($$)` is two scalars
+	// in a prototype and `$$` is the process id everywhere else. perl scans
+	// it with scan_str (toke.c:5923), and spec §5.5.2 says the same.
+	//
+	// RECOGNISING one is this milestone's; what a prototype DOES to a call
+	// is M4's, and until then a prototyped call stays an honest Unresolved.
+	Prototype
+
 	// CloseBracket is `)`, `]` or `}`.
 	//
 	// Distinct from Operator because it moves the expect state the OTHER
@@ -127,6 +138,8 @@ func (k Kind) String() string {
 		return "Readline"
 	case FuncSigil:
 		return "FuncSigil"
+	case Prototype:
+		return "Prototype"
 	case CloseBracket:
 		return "CloseBracket"
 	case HeredocOpen:
@@ -211,6 +224,21 @@ type lexer struct {
 	// openedBlock is the same for a `{` that opened one. Both are copied
 	// onto the token as OpensBlock, so the parser does not re-derive them.
 	openedBlock bool
+	// sawSubWord and expectPrototype track `sub NAME`, after which a `(`
+	// opens a prototype rather than a list.
+	sawSubWord      bool
+	expectPrototype bool
+	// sawPackageWord is the same for `package NAME` and `class NAME`, which
+	// are followed by a block or a semicolon but never by a prototype.
+	sawPackageWord bool
+	// signatures is whether the signatures feature is on, which decides
+	// whether that `(` is a prototype or a signature. File-level, like
+	// utf8Pragma and for the same reason.
+	signatures bool
+	// pendingVersionMajor holds the `5` of a `use v5.36` whose version
+	// arrived split across three tokens -- Word("v5"), Operator("."),
+	// Number(36) -- because `v5` lexes as an ordinary identifier.
+	pendingVersionMajor int
 	// pendingPragma remembers a `use` or `no` seen on this statement, so
 	// that the `utf8` after it can be recognised. 0 none, 1 use, 2 no.
 	pendingPragma int
@@ -303,6 +331,10 @@ func scanOne(l *lexer) {
 		scanDataSection,
 		scanComment,
 		scanHeredocOpen,
+		// Before scanVariable: the sigils inside a prototype are not
+		// variables, and scanVariable is what was reading `($$)` as
+		// Variable("$$)") -- closing paren included.
+		scanPrototype,
 		scanVariable,
 		scanAngle,
 		scanAmp,
@@ -335,10 +367,22 @@ func (l *lexer) emit(k Kind, start int) {
 	// trackBrackets has just classified this token, so the flags it set
 	// belong to the token appended above.
 	l.toks[len(l.toks)-1].OpensBlock = l.openedBlock || l.closedBlock
+
+	// Before the expect transition: noteSubName decides whether this token
+	// is the NAME of a `sub NAME`, and the transition needs that answer to
+	// know a block comes next rather than a term.
+	//
+	// noteSignatures runs first because the version or feature name arrives
+	// one token after the `use` that set pendingPragma, and noteSubName does
+	// not touch that state.
+	l.noteSignatures(k, start)
+	afterDeclName := l.noteSubName(k, start)
+
 	l.expect = l.expect.after(k, transition{
 		text:            l.src[start:l.pos],
 		closedBlock:     l.closedBlock,
 		nextIsOpenBrace: l.peekIsOpenBrace(),
+		afterDeclName:   afterDeclName,
 	})
 	l.noteFormat(k, start)
 	// The picture body begins after the newline that ends the declaration.

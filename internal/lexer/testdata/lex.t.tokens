@@ -697,8 +697,7 @@ Word           2387   2390  sub
 Whitespace     2390   2391  \s
 Word           2391   2393  XX
 Whitespace     2393   2394  \s
-Operator       2394   2395  (
-CloseBracket   2395   2396  )
+Prototype      2394   2396  ()
 Whitespace     2396   2397  \s
 Operator       2397   2398  {
 Whitespace     2398   2399  \s
@@ -3240,8 +3239,7 @@ Whitespace    14113  14114  \n
 Word          14114  14117  sub
 Whitespace    14117  14118  \s
 Word          14118  14121  fop
-Operator      14121  14122  (
-CloseBracket  14122  14123  )
+Prototype     14121  14123  ()
 Whitespace    14123  14124  \s
 Operator      14124  14125  {
 Whitespace    14125  14126  \s
@@ -3252,8 +3250,7 @@ Whitespace    14129  14130  \n
 Word          14130  14133  sub
 Whitespace    14133  14134  \s
 Word          14134  14137  bas
-Operator      14137  14138  (
-CloseBracket  14138  14139  )
+Prototype     14137  14139  ()
 Whitespace    14139  14140  \s
 Operator      14140  14141  {
 Whitespace    14141  14142  \s

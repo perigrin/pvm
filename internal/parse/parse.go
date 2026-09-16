@@ -70,6 +70,19 @@ const (
 	// Index is a subscript or dereference: `$r->[0]`, `$h{k}`, `@a[0,1]`.
 	Index
 
+	// Declaration is `my`/`our`/`local`/`state`, `sub` or `package`.
+	//
+	// One kind with the declarator in Text rather than six kinds: every
+	// consumer that cares which one it is reads Text anyway, and a kind per
+	// keyword makes the switch in every walker longer without making any of
+	// them more precise.
+	Declaration
+
+	// PrototypeNode carries a prototype the lexer recognised, so M4 has
+	// something to resolve against. Named for the node because Prototype is
+	// the lexer's token kind.
+	PrototypeNode
+
 	// Block is `{ ... }` holding statements rather than a value.
 	//
 	// Distinct from AnonHash, which is the same two bytes holding a list.
@@ -111,6 +124,10 @@ func (k Kind) String() string {
 		return "index"
 	case Block:
 		return "block"
+	case Declaration:
+		return "declaration"
+	case PrototypeNode:
+		return "prototype"
 	}
 	return "?"
 }
@@ -328,6 +345,15 @@ func (p *parser) statement() *Node {
 	// So the forms are named and declined until the issues that own them
 	// land. Naming them is the cost of not guessing at them.
 	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Word {
+		if d := p.parseDeclaration(tok); d != nil {
+			// A declaration may be the left side of an assignment:
+			// `my ($a, $b) = @_`. parseVarDecl parses its target as a full
+			// expression, so the `=` is already inside it.
+			return &Node{
+				Kind: Statement, Start: start, End: p.prevEnd(),
+				Children: []*Node{d},
+			}
+		}
 		if statementKeywords[p.text(tok)] {
 			p.skipToStatementEnd()
 			return &Node{Kind: Unknown, Start: start, End: p.prevEnd()}
@@ -414,8 +440,10 @@ func (p *parser) parseBlock(open lexer.Token) *Node {
 // issue lands is the honest form of "not yet": the entry disappears when the
 // parser can really read the form.
 var statementKeywords = map[string]bool{
-	"my": true, "our": true, "local": true, "state": true,
-	"sub": true, "package": true,
+	// my, our, local, state, sub, method and package are GONE from this list:
+	// the declarations issue landed and parseDeclaration reads them. That is
+	// what shortening this list means, and it is the measure of progress
+	// through the milestone.
 
 	"if": true, "elsif": true, "else": true, "unless": true,
 	"while": true, "until": true, "for": true, "foreach": true,

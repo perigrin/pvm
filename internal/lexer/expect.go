@@ -105,6 +105,9 @@ type transition struct {
 	// nextIsOpenBrace is whether a `{` follows, ignoring whitespace. perl
 	// looks ahead exactly this far at a `)`; see yyl_rightparen.
 	nextIsOpenBrace bool
+	// afterDeclName is set on the NAME of a `sub NAME` or `package NAME`,
+	// after which a block is expected rather than a term.
+	afterDeclName bool
 }
 
 // after returns the state following a token of kind k.
@@ -160,6 +163,16 @@ func (e Expect) after(k Kind, t transition) Expect {
 		// for how the 21 niladic keywords were measured.
 		if isNiladic(string(t.text)) {
 			return XOperator
+		}
+		// A sub or package NAME is followed by a block, not a term. perl
+		// says so with PREBLOCK, which sets XBLOCK -- toke.c:6636 for a sub
+		// name, 8862 for a package.
+		//
+		// Without this the `{` of `sub f { 1 }` is classified from XTerm and
+		// reads as an anonymous hash, so its `}` reports a closed subscript
+		// and the body never becomes a block.
+		if t.afterDeclName {
+			return XBlock
 		}
 		// A bareword is the one case the lexer genuinely cannot settle. It
 		// might be a value (`Foo::Bar`, a hash key) and leave an operator
