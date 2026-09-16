@@ -1,6 +1,6 @@
 ---
 title: "Expression parser: the 32 precedence levels as a Pratt table"
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
@@ -8,16 +8,29 @@ blocked_by:
 blocks:
 - 01a0a70f-0fe8-7d8e-9c2d-d9aa50bef115
 created: 2026-09-15T21:52:57.173529962Z
-updated: 2026-09-16T00:08:41.052665362Z
+updated: 2026-09-16T01:33:03.603115724Z
 sessions:
 - start_sha: f7c176f07ececc07a1e649c83fa5bece81624dfd
-  end_sha: ""
-  commits: 0
+  end_sha: 68994750d92c543b5e60a6043acc8b215945a4ac
+  commits: 1
   started_at: 2026-09-16T00:08:41.052665362Z
+  ended_at: 2026-09-16T01:33:03.603115724Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-16T00:08:41.052665362Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-16T01:33:03.603115724Z
+observed_paths:
+- internal/parse/chain.go
+- internal/parse/expr.go
+- internal/parse/expr_test.go
+- internal/parse/hedge_test.go
+- internal/parse/parse.go
+- internal/parse/parse_test.go
+- internal/parse/precedence.go
+- internal/parse/term.go
 ---
 
 The expression grammar, as a Pratt parser over the lexer's tokens.
