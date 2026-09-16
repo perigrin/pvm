@@ -1,6 +1,6 @@
 ---
 title: Statement skeleton, and the recovery that stops a cascade
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
@@ -9,16 +9,25 @@ blocks:
 - 01a0a75b-5e51-79ef-a59a-3a997f738cca
 - 01a0a75b-95b2-730a-9303-b6aba9adb26c
 created: 2026-09-15T21:52:57.320252116Z
-updated: 2026-09-16T02:27:17.488294006Z
+updated: 2026-09-16T03:13:01.905950482Z
 sessions:
 - start_sha: 68994750d92c543b5e60a6043acc8b215945a4ac
-  end_sha: ""
-  commits: 0
+  end_sha: 5b936a5d9c9c023339bf9efbde2faf62e31f3c78
+  commits: 1
   started_at: 2026-09-16T02:27:17.488294006Z
+  ended_at: 2026-09-16T03:13:01.905950482Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-16T02:27:17.488294006Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-16T03:13:01.905950482Z
+observed_paths:
+- internal/lexer/brackets.go
+- internal/lexer/lexer.go
+- internal/parse/parse.go
+- internal/parse/stmt_test.go
 ---
 
 The statement skeleton: `source_file` as a sequence of statements, the
