@@ -137,8 +137,26 @@ func TestProtoCorpusLexes(t *testing.T) {
 	if errs != 0 {
 		t.Errorf("comp/proto.t: %d error tokens", errs)
 	}
-	if protos == 0 {
-		t.Error("comp/proto.t: no Prototype tokens; the scan is not reaching the corpus")
+	// A count, not `> 0`. `protos > 0` passes with one prototype out of
+	// thirty-two, which is a guard that cannot fail -- the defect class this
+	// project keeps finding in its own tests.
+	//
+	// 32 is the lexer's count and it is the trustworthy one. Every grep over
+	// this file disagrees with it and with the others:
+	//
+	//	grep -cE 'sub \w+ \([$@%\\&*;[]]*\)'   46   counts eval'd strings
+	//	the same, minus lines with eval or a quote   26   misses multi-line
+	//	                                                  and multi-per-line
+	//
+	// proto.t is a test OF prototypes, so it is full of `eval 'sub f($){}'`
+	// -- prototype text inside a string literal, which is not a declaration.
+	// The lexer is right to skip those; a line-oriented grep cannot.
+	//
+	// Pinned exactly so a regression in either direction is visible. Update
+	// it when the corpus pin moves, and say why in the commit.
+	const wantProtos = 32
+	if protos != wantProtos {
+		t.Errorf("comp/proto.t: %d Prototype tokens, want %d", protos, wantProtos)
 	}
 	t.Logf("comp/proto.t: %d prototypes, %d error tokens", protos, errs)
 }
