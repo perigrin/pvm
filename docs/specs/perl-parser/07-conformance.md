@@ -287,16 +287,48 @@ that distinction is the whole point.
 
 > For source `S`, does `emit(parse(S)) == S`, byte for byte?
 
-Two distinct properties, do not conflate them:
+Three distinct properties. They are **disjoint**, not weaker and stronger
+versions of one thing, and conflating them is how a green suite hides a
+mis-grouped tree:
 
 - **Lossless round-trip** (`emit(parse(S)) == S`) requires the CST to retain
   every byte: whitespace, comments, POD, `__END__` content. Chapter 6
   requires this for LSP formatting and rename, so it is a **hard invariant**,
   not a metric. Any file failing it is a bug.
+
+  It says nothing about structure. A tree that groups `print (1+2)*3` as
+  `print((1+2)*3)` passes it: the leaves are the same bytes in the same
+  order. Round-trip proves no byte was LOST, not that the parse was RIGHT.
+
+- **Canonical re-emission** (`tokens(canon(parse(S))) == tokens(S)`) is the
+  check that closes that gap, and it is cheap for the same reasons round-trip
+  is: pure Go, no perl, every file participates.
+
+  `canon` emits the structure the tree asserts — **parenthesisation implied
+  by the tree, never the parens seen in the source**. That constraint is the
+  whole mechanism. An emitter that prints each leaf's original text in order
+  is `emit` with extra steps: it round-trips by construction and proves
+  nothing. An emitter that must write out its own grouping has to write a
+  paren the source does not contain whenever it grouped differently, and the
+  comparison sees it.
+
+  Compare over significant tokens, not raw bytes: `canon` drops trivia by
+  design, so comments and POD are excluded from both sides.
+
 - **Semantic round-trip** (`deparse(emit(parse(S))) == deparse(S)`) is the
-  weaker, oracle-mediated form. It tolerates formatting difference and
-  catches structural error. Use it where lossless round-trip is not yet
-  achievable.
+  oracle-mediated form, and it is **strictly weaker than it looks** — see
+  §1's tool table. `perl -MO=Deparse` emits source that re-parses to the same
+  tree, not source that shows the parse:
+
+      $ perl -MO=Deparse -e 'sub f(\@){} my @a; f(@a);'
+      my @a;
+      f(@a);           # the srefgen is INVISIBLE
+
+  The prototype-driven reference — the signal this whole harness was built to
+  measure — does not survive it. Canonical re-emission does catch that case,
+  because the tree either recorded the prototype or did not. Prefer canonical
+  re-emission; keep semantic round-trip only for constructs `canon` cannot
+  yet emit.
 
 Round-trip is the **cheapest high-value test in the whole plan**: it needs no
 perl, runs at memory speed, applies to every byte of every corpus file, and
@@ -319,10 +351,11 @@ This is property-testable and belongs in `go test -fuzz`. §7.6.
 | (a) no-error | no | fast | ratchet, may only improve |
 | (b) agrees-with-perl | **yes** | 25 ms/file, cached | **WRONG == 0, hard fail** |
 | (c) lossless round-trip | no | fast | **hard invariant, zero failures** |
-| (c') semantic round-trip | yes | 50 ms/file | ratchet |
+| (c') canonical re-emission | no | fast | **hard invariant on what parses** |
+| (c'') semantic round-trip | yes | 50 ms/file | spot-check only |
 | (d) incremental == batch | no | fast | **hard invariant, zero failures** |
 
-Note which gates are hard: (b)-WRONG, (c), and (d). All three are
+Note which gates are hard: (b)-WRONG, (c), (c'), and (d). All four are
 **correctness invariants that hold at any coverage level**. Only the coverage
 numbers are ratchets — committed per-file baselines that may only improve;
 the mechanics are in the plan, §4. This ordering is deliberate — it lets you ship a parser

@@ -599,8 +599,35 @@ like a real editor integration rather than a batch tool.
 | Parse without error | **≥ 90% of the compilable corpus (≥ 526 of 584)** |
 | Oracle agreement, exact | **≥ 80%** of marker sites |
 | Oracle agreement, WRONG | **0** |
-| Semantic round-trip (Deparse fixpoint) | ≥ 70% |
+| Canonical re-emission (token-identical) | **100% of what parses** |
 | `perf/opcount.t` assertions mined into fixtures | ≥ 200 |
+
+**Canonical re-emission replaces the Deparse-fixpoint metric this table used
+to carry**, and the replacement is not a rename. Re-emit the tree as Perl
+with the parenthesisation the TREE implies — never the parens the source had
+— then compare significant tokens against the source's. The two must be
+identical.
+
+Three reasons it is the better check, each measured:
+
+- **It catches what lossless round-trip cannot.** `emit(parse(S)) == S` is
+  already a hard invariant and already green on 620/620 files, and a tree
+  that groups `print (1+2)*3` as `print((1+2)*3)` passes it — same leaves,
+  same order. Under canonical re-emission the wrong tree must write a paren
+  the source does not have.
+- **It catches what Deparse cannot.** `perl -MO=Deparse` renders
+  `sub f(\@){} my @a; f(@a)` as `f(@a)`, hiding the srefgen entirely
+  (verified). The prototype-driven reference is the signal this harness
+  exists to measure, and the metric it used to carry was blind to it.
+- **It costs nothing to run.** Pure Go, no perl subprocess, every file
+  participates. The Deparse route needs two perl invocations per file; a
+  corpus sweep through perl already takes ~110s.
+
+The target is 100% rather than a percentage, and that is the point of
+replacing the metric. A ≥70% bar concedes that 30% of files may be
+mis-grouped without anyone naming which. Files this milestone cannot yet
+parse are Unknown and do not enter the denominator; a file that PARSES and
+re-emits differently is a defect with a location, not a coverage gap.
 
 **M3 is where this project overtakes PSC's current parser**, because it is
 the first milestone that measures metric (b) at all. Reaching M3 means
@@ -656,9 +683,15 @@ handled. `re/pat_advanced.t` at 2,743 lines is the stress case.
 | Parse without error, `t/op/` | **≥ 99% (≥ 226 of 228)** |
 | Oracle exact, whole corpus | **≥ 95%** |
 | Oracle WRONG | **0** |
-| Semantic round-trip | ≥ 95% |
+| Canonical re-emission (token-identical) | **100% of what parses** |
 | `t/base/lex.t`, `t/comp/parser.t` | full parse agreement |
 | `t/japh/` | parses |
+
+**Canonical re-emission is 100% at both M3 and M6, and that is not a typo.**
+The check does not get stricter as coverage grows; the DENOMINATOR grows.
+A file that parses must re-emit token-identically or the tree is wrong about
+it, and that is equally true at 31% coverage and at 99%. The milestones
+differ in how many files reach the check, not in how forgiving it is.
 
 **On the 99% figure — set it against a measured floor, not a hope.** The
 fix-options plan records exactly this mistake being made and caught:
@@ -680,7 +713,7 @@ does not have to re-derive it.
 | M0 | Lexer round-trip | 100% lossless on 56 core files; `t/base/lex.t` | Syntax highlighting |
 | M1 | Parse the core | 100% of T2, ≥ 70% T1-easy, WRONG = 0 | Symbols, folding |
 | M2 | Incremental | incremental == full, 10 M fuzz execs, < 10 ms p99 | Responsive LSP |
-| M3 | Oracle at scale | ≥ 90% parse on 584 files, ≥ 80% exact, WRONG = 0 | Trustworthy navigation, PSC |
+| M3 | Oracle at scale | ≥ 90% parse on 584 files, ≥ 80% exact, WRONG = 0, re-emission 100% | Trustworthy navigation, PSC |
 | M4 | Prototypes | ≥ 95% prototype agreement, ≥ 90% exact | Signature help, context |
 | M5 | Regex + wild | ≥ 95% on 518 regex + 200 CPAN | Survives real code |
 | M6 | Conformance | ≥ 99% `t/op`, ≥ 95% exact (**re-derive from floors**) | Reference implementation |
@@ -755,6 +788,8 @@ step 0.
 - [ ] Oracle self-check test (§6) — **first**
 - [ ] Content-hash cache under `testdata/oracle_cache/`, committed
 - [ ] Round-trip invariant test over every corpus file
+- [ ] Canonical re-emitter, and its token-identity test over every corpus file
+      (M3 metric; emits the tree's own parenthesisation, never the source's)
 - [ ] `go test -fuzz` targets: lexer, heredoc, quote-operator, incremental
 - [ ] Lexer forward-progress assertion (spec §7.6.2, invariant 4)
 - [ ] Ratchet baseline + `-update` flag + `TestRatchet`
