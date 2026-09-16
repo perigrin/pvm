@@ -34,9 +34,8 @@ var markerKinds = []string{
 // which is an Unresolved site of each kind.
 func TestUnknownHedgesEveryMarker(t *testing.T) {
 	// A statement form no issue has implemented yet, so it is still Unknown.
-	// The original fixture was `$x = \@a;`, which parses as an expression
-	// now that the Pratt loop exists.
-	src := []byte("if ($x) { 1 }\n")
+	// See unimplementedStatement.
+	src := []byte(unimplementedStatement)
 
 	sites := parse.Sites(parse.Parse(src), src)
 	if len(sites) == 0 {
@@ -69,13 +68,10 @@ func TestUnknownScoresWider(t *testing.T) {
 	// implemented: perl reports srefgen, so the oracle has a site to score,
 	// and the parser must hedge rather than stay silent.
 	//
-	// The fixture has moved twice as the parser learned forms -- it was
-	// `$x = \@a;`, then `my $r = \@a;`. That is the fixture outliving its
-	// purpose rather than the test being wrong: what it needs is a statement
-	// that is STILL Unknown, and the supply of those shrinks with each
-	// issue. When none are left this test is measuring nothing and should be
-	// deleted rather than propped up.
-	src := []byte("my @a = (1);\nif ($c) { my $r = \\@a; }\n")
+	// The fixture has moved three times as the parser learned forms. See
+	// unimplementedStatement for why, and for when to delete this test
+	// rather than prop it up.
+	src := []byte("my @a = (1);\n" + unimplementedStatementWithRef)
 
 	facts, err := parseoracle.Ask(context.Background(), src, parseoracle.Options{})
 	if err != nil {

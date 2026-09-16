@@ -13,6 +13,29 @@ import (
 	"tamarou.com/pvm/internal/parse"
 )
 
+// unimplementedStatement is a statement form no issue has landed yet, used by
+// every test that needs the parser to DECLINE something.
+//
+// One constant rather than a literal per test, because these fixtures keep
+// outliving their purpose. It has been `$x = 1;`, then `my $r = \@a;`, then
+// `if ($c) { 1 }` -- each was Unknown when written and parses now. That is
+// progress, but it silently turns "this test proves declining works" into
+// "this test proves nothing", and it is only caught because the assertions
+// fail loudly rather than vacuously.
+//
+// When nothing is left to put here, these tests are measuring an empty set.
+// DELETE them then rather than inventing a construct to keep them alive: the
+// harness's own no-answer bucket covers the property at that point.
+const unimplementedStatement = "use strict;\n"
+
+// unimplementedStatementWithRef is the same, but containing a backslash
+// reference so perl reports an srefgen the parser must hedge against.
+// `do BLOCK` is still declined, and the reference inside it is real:
+//
+//	$ perl -MO=Concise,-exec -e 'my @a=(1); do { my $r = \@a; };' | grep -c srefgen
+//	1
+const unimplementedStatementWithRef = "do { my $r = \\@a; };\n"
+
 // TestParseEmpty: an empty input is a valid program, not an error. The root
 // exists and spans nothing.
 func TestParseEmpty(t *testing.T) {
@@ -35,11 +58,9 @@ func TestParseEmpty(t *testing.T) {
 // not parse -- no more, so the next statement is still reachable; no less,
 // so round-trip holds.
 func TestUnknownSpansItsSource(t *testing.T) {
-	// A statement form the parser does not implement. `$x = 1;` was the
-	// fixture when every statement was Unknown; it parses as an expression
-	// now, so the fixture has to be something still unimplemented -- here a
-	// control-flow form, which belongs to a later issue.
-	src := []byte("if ($x) { 1 }\n")
+	// A statement form the parser does not implement yet. See
+	// unimplementedStatement for why this is a shared constant.
+	src := []byte(unimplementedStatement)
 
 	root := parse.Parse(src)
 	unknowns := collect(root, parse.Unknown)
@@ -50,8 +71,9 @@ func TestUnknownSpansItsSource(t *testing.T) {
 	// trivia, belonging to no statement. Round-trip still holds because the
 	// trivia node carries it.
 	u := unknowns[0]
-	if got := string(src[u.Start:u.End]); got != "if ($x) { 1 }" {
-		t.Errorf("Unknown spans %q, want the whole statement", got)
+	want := strings.TrimSuffix(unimplementedStatement, "\n")
+	if got := string(src[u.Start:u.End]); got != want {
+		t.Errorf("Unknown spans %q, want %q", got, want)
 	}
 }
 

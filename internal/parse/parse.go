@@ -83,6 +83,31 @@ const (
 	// the lexer's token kind.
 	PrototypeNode
 
+	// Conditional is `if`/`unless` with its branches. Text is the keyword,
+	// so `unless` is not rewritten into a negated `if` -- the CST records
+	// what was written, and an LSP renaming or formatting it needs the
+	// original spelling.
+	Conditional
+
+	// Loop is `while`, `until`, `for` or `foreach`. One kind with the
+	// keyword in Text, for the same reason: the C-style and list forms of
+	// `for` differ in their head, which is in the children, not in the kind.
+	Loop
+
+	// Label is `NAME:` before a statement.
+	//
+	// Labels stack -- `A: B: for (...)` is two of them -- and only the
+	// innermost attaches to the loop, so this is a list of siblings rather
+	// than a field on Loop. Every one is kept because hover and
+	// go-to-definition need them; resolving last/next/redo against the
+	// innermost is a later concern.
+	Label
+
+	// LoopControl is `last`, `next` or `redo` with an optional label.
+	// perly.y's LOOPEX, level 2: a statement form, not an expression
+	// operator.
+	LoopControl
+
 	// Block is `{ ... }` holding statements rather than a value.
 	//
 	// Distinct from AnonHash, which is the same two bytes holding a list.
@@ -128,6 +153,14 @@ func (k Kind) String() string {
 		return "declaration"
 	case PrototypeNode:
 		return "prototype"
+	case Conditional:
+		return "conditional"
+	case Loop:
+		return "loop"
+	case Label:
+		return "label"
+	case LoopControl:
+		return "loop_control"
 	}
 	return "?"
 }
@@ -326,34 +359,42 @@ func (p *parser) statement() *Node {
 
 	start := p.toks[p.pos].Start
 
+	// Labels come first and they stack: `A: B: for (...)` is two of them.
+	// Read here rather than inside the loop forms, because `LOOP: { ... }`
+	// labels a bare block too, and because this is the only place that KNOWS
+	// a statement may start -- which is what separates a label from the same
+	// shape in `$h{LOOP}`.
+	labels := p.parseLabels()
+
 	// A bare block. The lexer's brace stack already decided this `{` opens a
 	// block rather than a subscript or an anonymous hash, and says so on the
 	// token, so the decision is READ here rather than made a second time.
 	if tok, ok := p.peekSignificant(); ok && tok.OpensBlock && p.text(tok) == "{" {
-		return p.parseBlock(tok)
+		return withLabels(labels, p.parseBlock(tok), start)
 	}
 
-	// A statement FORM -- a declaration, control flow, a phaser -- is not an
-	// expression, and the expression parser must not be handed one.
-	//
-	// It would not fail if it were. `if ($x) { 1 }` reads as a bareword,
-	// then a call, then a subscript: index(index(if, ($x)), {1}). Every node
-	// is well-formed and the whole thing is a fiction. That is precisely the
-	// guess the plan forbids -- a tree that is not a parse of its source,
-	// which the harness scores WRONG.
-	//
-	// So the forms are named and declined until the issues that own them
-	// land. Naming them is the cost of not guessing at them.
 	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Word {
+		if c := p.parseControlFlow(tok); c != nil {
+			return withLabels(labels, c, start)
+		}
 		if d := p.parseDeclaration(tok); d != nil {
 			// A declaration may be the left side of an assignment:
 			// `my ($a, $b) = @_`. parseVarDecl parses its target as a full
 			// expression, so the `=` is already inside it.
-			return &Node{
-				Kind: Statement, Start: start, End: p.prevEnd(),
-				Children: []*Node{d},
-			}
+			return withLabels(labels, d, start)
 		}
+
+		// A statement FORM this milestone has not reached is not an
+		// expression, and the expression parser must not be handed one.
+		//
+		// It would not fail if it were. `if ($x) { 1 }` read as an
+		// expression gives index(index(if, ($x)), {1}): every node
+		// well-formed, the whole thing a fiction. That is the guess the plan
+		// forbids -- a tree that is not a parse of its source, which the
+		// harness scores WRONG.
+		//
+		// So the remaining forms are named and declined. The list shrinking
+		// as each issue lands is the milestone's progress.
 		if statementKeywords[p.text(tok)] {
 			p.skipToStatementEnd()
 			return &Node{Kind: Unknown, Start: start, End: p.prevEnd()}
@@ -445,8 +486,8 @@ var statementKeywords = map[string]bool{
 	// what shortening this list means, and it is the measure of progress
 	// through the milestone.
 
-	"if": true, "elsif": true, "else": true, "unless": true,
-	"while": true, "until": true, "for": true, "foreach": true,
+	// if, elsif, else, unless, while, until, for and foreach are GONE: the
+	// control-flow issue landed and parseControlFlow reads them.
 	"do": true, "continue": true,
 
 	"use": true, "no": true, "require": true,
@@ -457,9 +498,35 @@ var statementKeywords = map[string]bool{
 
 	// Loop controls and `return` take an optional term and are statement
 	// forms in perly.y (levels 2 and 7), not expression operators.
-	"return": true, "last": true, "next": true, "redo": true, "goto": true,
+	// last, next and redo are GONE: parseLoopControl reads them.
+	"return": true, "goto": true,
 
 	"format": true,
+}
+
+// withLabels wraps a statement's node in a Statement carrying any labels that
+// preceded it.
+//
+// Labels are SIBLINGS of what they label rather than a field on it, because
+// they stack and because `A: B: for (...)` puts both in the tree while only
+// the innermost resolves. A field would have to be a slice anyway, and a
+// slice of nodes beside the statement is the shape perly.y's labfullstmt
+// already describes.
+func withLabels(labels []*Node, n *Node, start int) *Node {
+	if n == nil {
+		return nil
+	}
+	if len(labels) == 0 {
+		return &Node{
+			Kind: Statement, Start: start, End: n.End,
+			Children: []*Node{n},
+		}
+	}
+	children := append(append([]*Node{}, labels...), n)
+	return &Node{
+		Kind: Statement, Start: start, End: n.End,
+		Children: children,
+	}
 }
 
 // endsStatement reports whether this token closes the statement rather than

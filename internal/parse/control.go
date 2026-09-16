@@ -1,0 +1,279 @@
+// ABOUTME: Control flow: if/unless chains, while/until, both for forms, and labels.
+// ABOUTME: A label is recognised by position — could a statement start here — not by the colon.
+
+package parse
+
+import "tamarou.com/pvm/internal/lexer"
+
+// parseControlFlow parses one control-flow statement, or returns nil if this
+// word does not start one.
+func (p *parser) parseControlFlow(word lexer.Token) *Node {
+	switch p.text(word) {
+	case "if", "unless":
+		return p.parseConditional(word)
+	case "while", "until":
+		return p.parseWhile(word)
+	case "for", "foreach":
+		return p.parseFor(word)
+	case "last", "next", "redo":
+		return p.parseLoopControl(word)
+	}
+	return nil
+}
+
+// parseLoopControl: `last`, `next`, `redo`, each with an optional label.
+//
+// perly.y puts these at level 2 (LOOPEX), a statement form rather than an
+// expression operator, and they take an optional term. Measured:
+//
+//	perl -MO=Deparse -e 'L: while(1){ last }'     ->  last;
+//	perl -MO=Deparse -e 'L: while(1){ next L }'   ->  next L;
+//
+// Without these a loop body containing one falls to Unknown, which makes
+// every real loop in the corpus unparseable -- the forms arrive together.
+func (p *parser) parseLoopControl(word lexer.Token) *Node {
+	p.advanceTo(word)
+	n := &Node{Kind: LoopControl, Text: p.text(word), Start: word.Start}
+
+	// The label, if there is one. A bareword here is a label rather than a
+	// function call: `last FOO` never calls FOO.
+	if next, ok := p.peekSignificant(); ok && next.Kind == lexer.Word {
+		if !statementKeywords[p.text(next)] {
+			p.advanceTo(next)
+			n.Children = append(n.Children, &Node{
+				Kind: Label, Text: p.text(next),
+				Start: next.Start, End: next.End,
+			})
+		}
+	}
+	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
+		p.advanceTo(tok)
+	}
+	n.End = p.prevEnd()
+	return n
+}
+
+// parseConditional: `if (EXPR) BLOCK` with optional elsif and else.
+//
+// The elsif chain is flattened into siblings rather than nested: `elsif` is
+// spelled as one word in Perl and nesting it as `else { if ... }` would make
+// the tree disagree with the source an LSP has to render.
+func (p *parser) parseConditional(word lexer.Token) *Node {
+	p.advanceTo(word)
+	n := &Node{Kind: Conditional, Text: p.text(word), Start: word.Start}
+
+	if cond := p.parseParenCondition(); cond != nil {
+		n.Children = append(n.Children, cond)
+	}
+	if blk := p.parseBlockOrDecline(); blk != nil {
+		n.Children = append(n.Children, blk)
+	}
+
+	for {
+		next, ok := p.peekSignificant()
+		if !ok || next.Kind != lexer.Word {
+			break
+		}
+		switch p.text(next) {
+		case "elsif":
+			p.advanceTo(next)
+			branch := &Node{Kind: Conditional, Text: "elsif", Start: next.Start}
+			if cond := p.parseParenCondition(); cond != nil {
+				branch.Children = append(branch.Children, cond)
+			}
+			if blk := p.parseBlockOrDecline(); blk != nil {
+				branch.Children = append(branch.Children, blk)
+			}
+			branch.End = p.prevEnd()
+			n.Children = append(n.Children, branch)
+		case "else":
+			p.advanceTo(next)
+			branch := &Node{Kind: Conditional, Text: "else", Start: next.Start}
+			if blk := p.parseBlockOrDecline(); blk != nil {
+				branch.Children = append(branch.Children, blk)
+			}
+			branch.End = p.prevEnd()
+			n.Children = append(n.Children, branch)
+			n.End = p.prevEnd()
+			return n
+		default:
+			n.End = p.prevEnd()
+			return n
+		}
+	}
+	n.End = p.prevEnd()
+	return n
+}
+
+// parseWhile: `while (EXPR) BLOCK`, and `until` which differs only in Text.
+func (p *parser) parseWhile(word lexer.Token) *Node {
+	p.advanceTo(word)
+	n := &Node{Kind: Loop, Text: p.text(word), Start: word.Start}
+
+	if cond := p.parseParenCondition(); cond != nil {
+		n.Children = append(n.Children, cond)
+	}
+	if blk := p.parseBlockOrDecline(); blk != nil {
+		n.Children = append(n.Children, blk)
+	}
+	n.End = p.prevEnd()
+	return n
+}
+
+// parseFor handles both heads.
+//
+// `for (INIT; COND; STEP)` and `for VAR (LIST)` share a keyword and nothing
+// else structurally, and which one this is cannot be known until the head is
+// read: the C-style form is three expressions separated by semicolons, and
+// the list form is one expression. Reading the head and counting its
+// semicolons settles it without lookahead over the whole parenthesised group.
+func (p *parser) parseFor(word lexer.Token) *Node {
+	p.advanceTo(word)
+	n := &Node{Kind: Loop, Text: p.text(word), Start: word.Start}
+
+	// An optional loop variable: `for my $x (...)`, `for $x (...)`.
+	//
+	// Only when it comes BEFORE the parenthesised head. `for (my $i = 0; ...)`
+	// has its `my` INSIDE the head, where it is the C-style init clause, and
+	// consuming it here leaves the head unparseable -- measured: the whole
+	// statement fell to Unknown.
+	if next, ok := p.peekSignificant(); ok && p.text(next) != "(" {
+		if next.Kind == lexer.Word && declarators[p.text(next)] {
+			p.advanceTo(next)
+			decl := &Node{Kind: Declaration, Text: p.text(next), Start: next.Start}
+			if v, ok := p.peekSignificant(); ok && v.Kind == lexer.Variable {
+				p.advanceTo(v)
+				decl.Children = append(decl.Children, &Node{
+					Kind: Term, Text: p.text(v), Start: v.Start, End: v.End,
+				})
+			}
+			decl.End = p.prevEnd()
+			n.Children = append(n.Children, decl)
+		} else if next.Kind == lexer.Variable {
+			p.advanceTo(next)
+			n.Children = append(n.Children, &Node{
+				Kind: Term, Text: p.text(next), Start: next.Start, End: next.End,
+			})
+		}
+	}
+
+	if head := p.parseForHead(); head != nil {
+		n.Children = append(n.Children, head...)
+	}
+	if blk := p.parseBlockOrDecline(); blk != nil {
+		n.Children = append(n.Children, blk)
+	}
+	n.End = p.prevEnd()
+	return n
+}
+
+// parseForHead reads `( ... )` and returns its parts: one node for a list
+// head, three for a C-style head. An empty slot in `for (;;)` contributes no
+// node, which is why the count is not load-bearing anywhere.
+func (p *parser) parseForHead() []*Node {
+	open, ok := p.peekSignificant()
+	if !ok || p.text(open) != "(" {
+		return nil
+	}
+	p.advanceTo(open)
+
+	var parts []*Node
+	for {
+		tok, ok := p.peekSignificant()
+		if !ok {
+			return parts
+		}
+		switch {
+		case p.text(tok) == ")":
+			p.advanceTo(tok)
+			return parts
+		case tok.Kind == lexer.Semicolon:
+			// An empty slot: `for (;;)`.
+			p.advanceTo(tok)
+			continue
+		}
+		// The init clause of a C-style head is often a declaration --
+		// `for (my $i = 0; ...)` -- and a declaration is not an expression,
+		// so the expression parser cannot read it.
+		var part *Node
+		if tok.Kind == lexer.Word && declarators[p.text(tok)] {
+			part = p.parseVarDeclNoSemi(tok)
+		} else {
+			part = p.parseExpr(0)
+		}
+		if part == nil {
+			return parts
+		}
+		parts = append(parts, part)
+
+		if sep, ok := p.peekSignificant(); ok && sep.Kind == lexer.Semicolon {
+			p.advanceTo(sep)
+		}
+	}
+}
+
+// parseParenCondition reads `( EXPR )`, which every conditional and while
+// loop has and which is not optional in Perl.
+func (p *parser) parseParenCondition() *Node {
+	open, ok := p.peekSignificant()
+	if !ok || p.text(open) != "(" {
+		return nil
+	}
+	p.advanceTo(open)
+
+	cond := p.parseExpr(0)
+	if close, ok := p.peekSignificant(); ok && p.text(close) == ")" {
+		p.advanceTo(close)
+	}
+	return cond
+}
+
+// parseBlockOrDecline reads the `{ ... }` a control-flow statement requires.
+//
+// Returns nil when there is no block -- a half-typed `if ($x)` with nothing
+// after it, which an LSP sees constantly. The caller's node still spans what
+// was read, so round-trip holds.
+func (p *parser) parseBlockOrDecline() *Node {
+	tok, ok := p.peekSignificant()
+	if !ok || p.text(tok) != "{" {
+		return nil
+	}
+	return p.parseBlock(tok)
+}
+
+// parseLabels reads any run of `NAME:` before a statement.
+//
+// The decision is POSITIONAL, not punctuational. `$h{LOOP}` and
+// `LOOP ? 1 : 0` contain the same bareword-then-colon shape, and what
+// separates them is that a statement can start here and cannot start there.
+// This is only ever called at a statement boundary, so the question is
+// already answered by where we are.
+//
+// What remains is telling `LABEL:` from a package-qualified name: `Foo::bar`
+// has a colon too. Requiring exactly one `:` and a following non-colon
+// distinguishes them, which is what perl's own lexer does.
+func (p *parser) parseLabels() []*Node {
+	var labels []*Node
+	for {
+		save := p.pos
+		word, ok := p.peekSignificant()
+		if !ok || word.Kind != lexer.Word {
+			return labels
+		}
+		p.advanceTo(word)
+
+		colon, ok := p.peekSignificant()
+		if !ok || p.text(colon) != ":" {
+			p.pos = save
+			return labels
+		}
+		// `Foo::bar` lexes its separator as one token, so a `::` here is a
+		// qualified name rather than a label. Checked on the text rather
+		// than by peeking further, since the lexer already made the call.
+		p.advanceTo(colon)
+		labels = append(labels, &Node{
+			Kind: Label, Text: p.text(word),
+			Start: word.Start, End: p.prevEnd(),
+		})
+	}
+}

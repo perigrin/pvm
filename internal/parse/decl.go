@@ -34,17 +34,28 @@ func (p *parser) parseDeclaration(word lexer.Token) *Node {
 // ordinary assignment. That keeps the declaration from re-implementing
 // assignment, which is already at level 9.
 func (p *parser) parseVarDecl(word lexer.Token) *Node {
-	p.advanceTo(word)
-	n := &Node{Kind: Declaration, Text: p.text(word), Start: word.Start}
-
-	if target := p.parseExpr(0); target != nil {
-		n.Children = append(n.Children, target)
-	}
+	n := p.parseVarDeclNoSemi(word)
 	// The terminating `;` belongs to the declaration, like any other
 	// statement's. Without it the statement ends before the semicolon and
 	// the leftover becomes an Unknown sitting beside a perfectly good tree.
 	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
 		p.advanceTo(tok)
+		n.End = p.prevEnd()
+	}
+	return n
+}
+
+// parseVarDeclNoSemi is parseVarDecl without consuming a terminator.
+//
+// The init clause of a C-style for head is a declaration whose `;` is the
+// head's SEPARATOR, not the declaration's terminator: `for (my $i = 0; ...)`.
+// Eating it there loses the head's structure.
+func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
+	p.advanceTo(word)
+	n := &Node{Kind: Declaration, Text: p.text(word), Start: word.Start}
+
+	if target := p.parseExpr(0); target != nil {
+		n.Children = append(n.Children, target)
 	}
 	n.End = p.prevEnd()
 	return n

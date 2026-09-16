@@ -77,12 +77,11 @@ func TestExpressionStatementAndBlock(t *testing.T) {
 // TestStatementRecovery: an unknown statement becomes Unknown, and parsing
 // resumes at the next boundary rather than giving up.
 func TestStatementRecovery(t *testing.T) {
-	src := []byte("if ($c) { 1 }\n$x;\n")
+	src := []byte(unimplementedStatement + "$x;\n")
 	root := parse.Parse(src)
 
 	if firstOfKind(root, parse.Unknown) == nil {
-		t.Fatalf("the control-flow form is not implemented yet and must be Unknown: %v",
-			kinds(root))
+		t.Fatalf("an unimplemented statement form must be Unknown: %v", kinds(root))
 	}
 	// The statement AFTER it still parses. That is the whole point of
 	// resynchronising rather than returning.
@@ -99,12 +98,12 @@ func TestStatementRecovery(t *testing.T) {
 // IDENTICAL to what they would be without it".
 func TestRecoveryDoesNotCascade(t *testing.T) {
 	good := "$a;\n$b;\n$c;\n"
-	bad := "if ($c) { 1 }\n$a;\n$b;\n$c;\n"
+	bad := unimplementedStatement + good
 
 	goodRoot := parse.Parse([]byte(good))
 	badRoot := parse.Parse([]byte(bad))
 
-	offset := len("if ($c) { 1 }\n")
+	offset := len(unimplementedStatement)
 	goodStmts := statementsOf(goodRoot)
 	badStmts := statementsOf(badRoot)
 

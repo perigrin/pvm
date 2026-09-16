@@ -45,7 +45,12 @@ func (p *parser) parseExpr(minBP int) *Node {
 		// Nonassoc: the operator binds, but a second one at the same level
 		// is an error rather than a grouping. Detected by parsing the right
 		// operand and then looking for a repeat.
-		if op.Assoc == AssocNone {
+		//
+		// `++` and `--` are level 27 and nonassoc, but they are POSTFIX --
+		// they take no right operand at all. Reaching parseNonassoc for them
+		// made `$i++` parse as a binary node with an Unknown for the operand
+		// it does not have, which is how `for (...; $i++)` fell to Unknown.
+		if op.Assoc == AssocNone && text != "++" && text != "--" {
 			left = p.parseNonassoc(left, op, tok)
 			continue
 		}
