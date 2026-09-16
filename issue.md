@@ -1,6 +1,6 @@
 ---
 title: Control flow, and the label that is not an expression
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
@@ -8,16 +8,29 @@ blocked_by:
 blocks:
 - 01a0a75b-5e51-79f1-8575-3f30abd05ac9
 created: 2026-09-15T23:16:18.129308407Z
-updated: 2026-09-16T06:16:59.847537726Z
+updated: 2026-09-16T06:28:46.790866963Z
 sessions:
 - start_sha: d2af7ac4e1788a4cb59eec64608b57f6e0855347
-  end_sha: ""
-  commits: 0
+  end_sha: 6884c6a13f1c20eacb5dfdf287b194bcc4bb34d4
+  commits: 1
   started_at: 2026-09-16T06:16:59.847537726Z
+  ended_at: 2026-09-16T06:28:46.790866963Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-16T06:16:59.847537726Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-16T06:28:46.790866963Z
+observed_paths:
+- internal/parse/control.go
+- internal/parse/control_test.go
+- internal/parse/decl.go
+- internal/parse/expr.go
+- internal/parse/hedge_test.go
+- internal/parse/parse.go
+- internal/parse/parse_test.go
+- internal/parse/stmt_test.go
 ---
 
 Control flow: `if`/`elsif`/`else`, `unless`, `while`, `until`, `for`,
