@@ -1,6 +1,6 @@
 ---
 title: "Named unary and list operators: the keyword table M0 deferred"
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
@@ -8,16 +8,27 @@ blocked_by:
 blocks:
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-15T21:53:08.668833928Z
-updated: 2026-09-16T22:18:15.152779809Z
+updated: 2026-09-16T22:29:53.876838149Z
 sessions:
 - start_sha: 73a01a14099ca4de47ca4119f47356c542e24287
-  end_sha: ""
-  commits: 0
+  end_sha: 63681bf7fbdc9c75a27f2f44d8025ebf4571556d
+  commits: 1
   started_at: 2026-09-16T22:18:15.152779809Z
+  ended_at: 2026-09-16T22:29:53.876838149Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-16T22:18:15.152779809Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-16T22:29:53.876838149Z
+observed_paths:
+- internal/parse/call.go
+- internal/parse/keyword.go
+- internal/parse/keyword_test.go
+- internal/parse/modifier_test.go
+- internal/parse/parse.go
+- internal/parse/term.go
 ---
 
 Named unary operators and list operators: where perl's precedence stops being
