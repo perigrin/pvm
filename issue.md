@@ -3,8 +3,10 @@ title: Remove the WRONG pin when the harness measures the new parser
 state: pending
 urgency: normal
 milestone: m1-parse-the-core
+blocked_by:
+- 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-16T06:00:39.116126082Z
-updated: 2026-09-16T06:00:56.216773977Z
+updated: 2026-09-16T06:01:04.813439515Z
 ---
 
 Two files are pinned as WRONG in the corpus baseline, and the pin comes out
