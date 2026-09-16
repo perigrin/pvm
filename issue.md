@@ -1,6 +1,6 @@
 ---
 title: Declarations, and the prototype the lexer must scan
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
@@ -9,16 +9,31 @@ blocked_by:
 blocks:
 - 01a0a75b-5e51-79f0-8af1-95c5aa378706
 created: 2026-09-15T23:16:18.129308407Z
-updated: 2026-09-16T03:13:21.044099804Z
+updated: 2026-09-16T03:27:57.84661318Z
 sessions:
 - start_sha: 5b936a5d9c9c023339bf9efbde2faf62e31f3c78
-  end_sha: ""
-  commits: 0
+  end_sha: db0e74738f8ffa324e4e69944faed74122b4e768
+  commits: 1
   started_at: 2026-09-16T03:13:21.044099804Z
+  ended_at: 2026-09-16T03:27:57.84661318Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-16T03:13:21.044099804Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-16T03:27:57.84661318Z
+observed_paths:
+- internal/lexer/expect.go
+- internal/lexer/ident.go
+- internal/lexer/lexer.go
+- internal/lexer/proto.go
+- internal/lexer/proto_test.go
+- internal/lexer/testdata/lex.t.tokens
+- internal/parse/decl.go
+- internal/parse/decl_test.go
+- internal/parse/hedge_test.go
+- internal/parse/parse.go
 ---
 
 Declarations: `my`/`our`/`local`/`state`, `sub`, `package` in both forms, and
