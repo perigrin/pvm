@@ -366,6 +366,16 @@ func (p *parser) statement() *Node {
 	// shape in `$h{LOOP}`.
 	labels := p.parseLabels()
 
+	// Everything after the labels starts HERE, not at `start`. An Unknown
+	// spanning from `start` would cover the label bytes that are already in
+	// the tree as Label children, and SourceText would emit them twice --
+	// measured as "SKIP:SKIP: {" across four corpus files.
+	if len(labels) > 0 {
+		if tok, ok := p.peekSignificant(); ok {
+			start = tok.Start
+		}
+	}
+
 	// A bare block. The lexer's brace stack already decided this `{` opens a
 	// block rather than a subscript or an anonymous hash, and says so on the
 	// token, so the decision is READ here rather than made a second time.
@@ -381,6 +391,12 @@ func (p *parser) statement() *Node {
 			// A declaration may be the left side of an assignment:
 			// `my ($a, $b) = @_`. parseVarDecl parses its target as a full
 			// expression, so the `=` is already inside it.
+			//
+			// It may also carry a modifier: `my $x = 1 if $c`. parseVarDecl
+			// stops at the `if`, leaving it here.
+			if mod := p.applyModifier(d, start); mod != nil {
+				return withLabels(labels, mod, start)
+			}
 			return withLabels(labels, d, start)
 		}
 
@@ -405,6 +421,14 @@ func (p *parser) statement() *Node {
 	if expr == nil {
 		p.skipToStatementEnd()
 		return &Node{Kind: Unknown, Start: start, End: p.prevEnd()}
+	}
+
+	// A statement modifier, which inverts the tree: `print if $x` is a
+	// conditional whose body is the print. Applied here because the
+	// expression parser has already taken everything it can, and a modifier
+	// binds looser than anything it could have taken -- looser than `or`.
+	if mod := p.applyModifier(expr, start); mod != nil {
+		return withLabels(labels, mod, start)
 	}
 
 	// Through a terminating `;` if there is one, so the statement owns its
@@ -522,9 +546,14 @@ func withLabels(labels []*Node, n *Node, start int) *Node {
 			Children: []*Node{n},
 		}
 	}
+	// The wrapper starts at the FIRST LABEL, not at the caller's `start`.
+	// Both would usually be the same byte, but the labelled node now starts
+	// after its labels, and a wrapper that began earlier than its own first
+	// child would emit the gap -- the label text -- and then the Label child
+	// would emit it again.
 	children := append(append([]*Node{}, labels...), n)
 	return &Node{
-		Kind: Statement, Start: start, End: n.End,
+		Kind: Statement, Start: labels[0].Start, End: n.End,
 		Children: children,
 	}
 }

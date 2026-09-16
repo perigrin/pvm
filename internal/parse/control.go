@@ -241,6 +241,67 @@ func (p *parser) parseBlockOrDecline() *Node {
 	return p.parseBlock(tok)
 }
 
+// modifiers are the six statement-modifier keywords.
+var modifiers = map[string]bool{
+	"if": true, "unless": true,
+	"while": true, "until": true,
+	"for": true, "foreach": true,
+}
+
+// applyModifier wraps an already-parsed expression in the modifier that
+// follows it, if one does.
+//
+// The modifier INVERTS the tree: `print if $x` is a conditional whose body is
+// a print. And it binds looser than everything in the expression grammar --
+// looser than `or`, which is itself level 4, the loosest operator there is.
+// Measured:
+//
+//	$ perl -MO=Deparse -e 'print("a") or die("b") if $x;'
+//	print 'a' or die 'b' if $x;
+//
+// That is why this runs AFTER parseExpr rather than inside it: the expression
+// parser has already taken everything it can, and whatever it took is the
+// modifier's body entire. A binding power low enough to express this would
+// have to sit below 0, which is the loop's own floor.
+func (p *parser) applyModifier(body *Node, start int) *Node {
+	word, ok := p.peekSignificant()
+	if !ok || word.Kind != lexer.Word || !modifiers[p.text(word)] {
+		return nil
+	}
+	p.advanceTo(word)
+
+	text := p.text(word)
+	kind := Loop
+	if text == "if" || text == "unless" {
+		kind = Conditional
+	}
+	n := &Node{Kind: kind, Text: text, Start: start}
+
+	// The condition is a bare expression here, not a parenthesised one:
+	// `$y = 1 if $x` has no parens and `$y = 1 if ($x)` merely has a
+	// parenthesised expression as its condition.
+	//
+	// Children are in SOURCE order -- body then condition -- even though the
+	// tree's meaning is the other way round. SourceText walks children in
+	// order and emits the bytes between them, so a child that starts before
+	// its predecessor ends makes it emit the same span twice: measured, the
+	// statement came back as "$y = 1 if $x$y = 1 if $x;".
+	//
+	// Which child is the condition is recorded by Text (the modifier
+	// keyword) plus position, not by ordering. Reordering the tree to match
+	// evaluation would break the invariant that a node's children tile it.
+	if cond := p.parseExpr(0); cond != nil {
+		n.Children = append(n.Children, body, cond)
+	} else {
+		n.Children = append(n.Children, body)
+	}
+	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
+		p.advanceTo(tok)
+	}
+	n.End = p.prevEnd()
+	return n
+}
+
 // parseLabels reads any run of `NAME:` before a statement.
 //
 // The decision is POSITIONAL, not punctuational. `$h{LOOP}` and
