@@ -6,7 +6,7 @@ milestone: m1-parse-the-core
 blocks:
 - 01a0ad52-f1e4-7e19-80c7-a99f859951eb
 created: 2026-09-16T22:24:52.875856958Z
-updated: 2026-09-17T11:52:32.946297281Z
+updated: 2026-09-17T14:01:40.901202731Z
 ---
 
 A one-line change here is correct and makes T1 worse. That is the finding, and it is why this issue is bigger than it looks.
@@ -69,15 +69,14 @@ wrong way, because they are one decision spread across the lexer.
 
 ## Acceptance
 
-- [ ] `$a[0]{k}`, `$h{a}{b}`, `$x->[0]{k}` classify both brackets as terms.
-- [ ] `if (...) {`, `while (...) {`, `for (;;) {` still open blocks.
-- [ ] The `nextIsOpenBrace` rule applies to `)` only, and the comment says so.
-- [ ] Whatever regressed T1 from 408/4,944 is identified and named, not
-      averaged away.
-- [ ] T1 clean does not decrease from 408; T1 Unknown does not increase from
-      4,944. Measured on `unit/*.t` at top level, 986 files.
-- [ ] No individual T1 file gains Unknown nodes.
-- [ ] Round-trip stays at zero failures.
+- [ ] `$a[0]{k}`, `$h{a}{b}`, `$x->[0]{k}` classify both brackets as terms (`go test ./internal/lexer/ -run '^TestRightParenLookaheadIsParenOnly$' -count=1 -v | grep -q '^--- PASS: TestRightParenLookaheadIsParenOnly'`)
+- [ ] `if (...) {`, `while (...) {`, `for (;;) {` still open blocks (`go test ./internal/lexer/ -run '^TestRightParenStillOpensABlock$' -count=1 -v | grep -q '^--- PASS: TestRightParenStillOpensABlock'`)
+- [ ] A brace after a list operator is decided by lookahead, not by position alone (`go test ./internal/lexer/ -run '^TestIntuitCurlyLookahead$' -count=1 -v | grep -q '^--- PASS: TestIntuitCurlyLookahead'`)
+- [ ] `map { $_ => 1 } @a` and `map { ; $_ } @a` both parse (`go test ./internal/parse/ -run '^TestMapBlockForms$' -count=1 -v | grep -q '^--- PASS: TestMapBlockForms'`)
+- [ ] Whatever regressed T1 from 408/4,944 when the right-paren rule was narrowed is identified and named in a test comment (`go test ./internal/lexer/ -run '^TestRightParenRegressionIsNamed$' -count=1 -v | grep -q '^--- PASS: TestRightParenRegressionIsNamed'`)
+- [ ] T1 clean does not fall below 408 and T1 Unknown does not rise above 4,944 (`go test ./internal/parse/ -run '^TestT1Ratchet$' -count=1 -v | grep -q '^--- PASS: TestT1Ratchet'`)
+- [ ] The whole suite is green (`go test ./internal/... 2>&1 | grep -qv FAIL`)
 
-A ready-made test is in the reverted work: `internal/lexer/rightparen_test.go`,
-two cases, failing at 3c997a6b for the right reason.
+Note on the ratchet AC: TestT1Ratchet does not exist yet. It belongs to the
+M1 gate (01a0a70f-3ccc), which owns the parse ratchet and has none of its
+eight AC tests written.
