@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-17T02:44:01.961043269Z
-updated: 2026-09-17T02:47:25.383541061Z
+updated: 2026-09-17T02:49:19.349366446Z
 ---
 
 Teach the parser what a `use` imported, so a parenless call to an imported sub
@@ -43,18 +43,36 @@ merely different but a SYNTAX ERROR:
     sub ao (&)  { }    ao { 42 }                ->  42
     sub na ($@) { }    na { 1 } (2,3)           ->  syntax error near "} ("
 
-Measured, and the leading position is what matters. A NON-initial `&` is an
-ordinary code-ref slot with no parse effect -- `sub ni ($&)` with
-`ni { 1 } (2)` gives "Not enough arguments", not a syntax error, because the
-`{1}` was read as an anonymous hash. `\&` is likewise a reference slot:
-"Type of arg 1 must be subroutine (not anonymous hash)". So a pattern match
-must anchor on a leading `&` NOT preceded by a backslash.
+Measured, and the LEADING position is what matters. A non-initial `&` is an
+ordinary code-ref slot that does not license the block form:
+
+    sub ni ($&) { }   ni { 1 } (2)
+      Not enough arguments for main::ni ... near "} ("
+      syntax error ... near "} ("
+
+    sub rf (\&) { }   rf { 1 }
+      Type of arg 1 to main::rf must be subroutine (not anonymous hash ({}))
+
+The mechanism is that `{1}` is read as an anonymous hash rather than a block.
+The `($&)` case emits BOTH messages; an earlier draft of this issue claimed
+only the arity one, which was an artifact of truncating perl's output to one
+line. Corrected by bson, reproduced here.
+
+The ACs assert the POSITIVE property -- that the block form is unavailable --
+rather than which message perl emits. Message text and ordering are not
+promised, and an assertion on them would fail a future perl for no semantic
+reason.
+
+So a pattern match anchors on a leading `&` NOT preceded by a backslash.
 
 A list/unary/niladic enum has a slot for neither fact and would have to
 guess at both. The string does not.
 
-A fourth the enum could not carry: `\@` and `\%` auto-reference slots change
-what the CALLER may write without changing arity.
+A possible fourth, UNVERIFIED and flagged as such by bson who raised it:
+`\@` and `\%` may be auto-reference slots -- the caller writes `@a` and the
+sub receives `\@a` -- which would change what is legal at the call site
+without changing arity. A lead to measure, not a confirmed fact. Three are
+measured; this one is not.
 
 And it is what M4 needs anyway: the prototype is the srefgen signal the whole
 fidelity harness was built to measure.
@@ -112,7 +130,7 @@ prototype string is trivially liftable.
 - [ ] Parse shape is DERIVED from the prototype, not stored (`go test ./internal/parse/ -run '^TestShapeDerivedFromPrototype$' -count=1 -v | grep -q '^--- PASS: TestShapeDerivedFromPrototype'`)
 - [ ] `(;$)` parses with zero and with one argument (`go test ./internal/parse/ -run '^TestOptionalArgPrototype$' -count=1 -v | grep -q '^--- PASS: TestOptionalArgPrototype'`)
 - [ ] `use Test::More` makes `subtest 'x' => sub {}` parse (`go test ./internal/parse/ -run '^TestImportedListOperator$' -count=1 -v | grep -q '^--- PASS: TestImportedListOperator'`)
-- [ ] A leading `&` licenses the block form, a non-initial one and `\&` do not (`go test ./internal/parse/ -run '^TestBlockFormNeedsLeadingAmpersand$' -count=1 -v | grep -q '^--- PASS: TestBlockFormNeedsLeadingAmpersand'`)
+- [ ] A leading `&` licenses the block form; a non-initial `&` and `\&` do not. Asserted on the PARSE, never on perl's error text (`go test ./internal/parse/ -run '^TestBlockFormNeedsLeadingAmpersand$' -count=1 -v | grep -q '^--- PASS: TestBlockFormNeedsLeadingAmpersand'`)
 - [ ] The stub file's header records that this is a heuristic, not import resolution
 - [ ] The T1 rate is re-measured and the change recorded
 
