@@ -5,8 +5,9 @@ urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
 - 01a0ac52-a68c-750b-92d4-852abfc54a2f
+- 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-17T03:04:49.380252705Z
-updated: 2026-09-17T14:01:40.570698025Z
+updated: 2026-09-17T14:24:46.166879028Z
 ---
 
 An attempt at this measured worse than it looks, and the reason is issue 01a0ac52.
