@@ -6,7 +6,7 @@ milestone: m1-parse-the-core
 blocked_by:
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-17T14:24:26.929009826Z
-updated: 2026-09-17T14:24:46.736099688Z
+updated: 2026-09-17T19:56:36.067552835Z
 ---
 
 Four constructs produce a tree that is not a parse of its source, and every one of them round-trips. That is the failure `Unknown` exists to prevent (`internal/parse/parse.go:14-26`): a refusal is never a wrong answer, and these are wrong answers.
@@ -81,11 +81,10 @@ syntax is a scope decision recorded as open in §4.14.6, not a defect.
 - [ ] The signature's parameters are reachable, not swallowed into one span (`go test ./internal/parse/ -run '^TestSignatureParametersAreNodes$' -count=1 -v | grep -q '^--- PASS: TestSignatureParametersAreNodes'`)
 - [ ] Without any signature pragma, `sub f ($x) { 1 }` still reads `($x)` as a prototype, as perl does (`go test ./internal/parse/ -run '^TestPrototypeWithoutSignatures$' -count=1 -v | grep -q '^--- PASS: TestPrototypeWithoutSignatures'`)
 - [ ] Each of the four produces a tree whose shape a test asserts, not merely a round trip (`go test ./internal/parse/ -run '^TestWrongTreesAreGone$' -count=1 -v | grep -q '^--- PASS: TestWrongTreesAreGone'`)
-- [ ] T1 clean does not fall below 408 and Unknown does not rise above 4,944 (`go test ./internal/parse/ -run '^TestT1Ratchet$' -count=1 -v | grep -q '^--- PASS: TestT1Ratchet'`)
+- [ ] T1 clean does not fall below 408 and Unknown does not rise above 4,944 (`go test ./internal/parse/ -run '^TestParseRatchet$' -count=1 -v | grep -q '^--- PASS: TestParseRatchet'`)
 - [ ] The whole suite is green (`go test ./internal/... 2>&1 | grep -qv FAIL`)
 
-The T1 AC depends on `TestT1Ratchet`, owned by the M1 gate and not yet
-written. For this issue the ratchet matters more than for the others: three
+The T1 AC uses `TestParseRatchet`, committed at 4bc971ec. For this issue the ratchet matters more than for the others: three
 of these four touch brace classification, and this session measured two
 locally correct brace fixes that each made T1 worse.
 
