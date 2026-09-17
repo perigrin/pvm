@@ -6,48 +6,78 @@ milestone: m1-parse-the-core
 blocks:
 - 01a0ad52-f1e4-7e19-80c7-a99f859951eb
 created: 2026-09-16T22:24:52.875856958Z
-updated: 2026-09-17T05:28:00.093216785Z
+updated: 2026-09-17T11:52:32.946297281Z
 ---
 
-`map { ; a => 1 }` parses as `call(anon_hash)` instead of a call taking a
-block, because the lexer classifies the `{` before anything inside it is seen.
+A one-line change here is correct and makes T1 worse. That is the finding, and it is why this issue is bigger than it looks.
 
-A list operator leaves a TERM expected, so the brace stack reads `{` in term
-position and calls it a hash constructor. That is correct for `$h = { a => 1 }`
-and wrong here.
+## The defect
 
-## perl's rule
+`expect.go`'s CloseBracket case applies perl's right-paren lookahead to
+EVERY closing bracket:
 
-`intuit_curly` peeks PAST the brace at the first token inside:
+    if t.nextIsOpenBrace {
+        return XBlock
+    }
 
-    map { ; a => 1 } (1,2)      the `;` forces a BLOCK
-    map { a => 1 }, (1,2)       bareword-then-`=>` forces a HASHREF
-    map { a => 1 } (1,2)        hashref guessed, then no comma -> syntax error
+Its own comment says "A `)` with a `{` next" and cites `yyl_rightparen`
+(toke.c:7156), which handles the right PAREN alone. The code checks no byte.
+So a subscript chain opens a block:
 
-Measured, and the difference is observable:
+    $a[0]{k}     the `{` follows a `]`
+    $h{a}{b}     the `{` follows a `}`
+    $x->[0]{k}
 
-    $ perl -e 'my @r = map { a => 1 }, (1,2); print scalar @r'    2
-    $ perl -e 'my @r = map { ; a => 1 } (1,2); print scalar @r'   4
+All three are subscripts of the value the previous bracket produced. Nothing
+in them opens a block. Verified 2026-09-17 at 3c997a6b: all three set
+`OpensBlock` on their second brace.
 
-Two elements per input versus four, decided by one leading semicolon.
+## The fix, and why it is not committed
 
-## Why it is its own issue
+    if t.nextIsOpenBrace && len(t.text) == 1 && t.text[0] == ')' {
 
-This is the ONE place in the grammar where a brace's meaning depends on what
-is inside it rather than on what precedes it. Everywhere else the expect
-state settles it, which is why the brace stack works for every other case --
-`$h{a}`, `sub f {`, `if (..) {`, a bare block at statement start.
+Correct by toke.c, and it turns the failing test green. Measured on T1
+graded (`unit/*.t`, 986 files):
 
-Adding the lookahead means the lexer peeking an unbounded distance past a
-token it has not consumed, or the parser overriding a decision the lexer
-already recorded on the token. Neither is obviously right, and picking one
-without measuring the corpus cost would be guessing.
+                      before    after
+    T1 clean          408       406
+    T1 Unknown        4,944     4,972
+
+Worse on both axes. Something downstream depends on the wrong
+classification, and until that is found, fixing the lexer in isolation moves
+the number the wrong way. The likely shape is a parser path that reads
+`OpensBlock` and gets a correct answer for the first time, having been
+written against the incorrect one -- but that is a hypothesis, not a
+measurement, and finding out is this issue's work rather than a side errand.
+
+Two attempts have now stopped here from different directions: this one, and
+the dereference leaf of 01a0ad52, which cannot proceed until brace
+classification is right.
+
+## What this issue actually covers
+
+Not just the `intuit_curly` lookahead. The term-position brace decision as a
+whole:
+
+- the right-paren lookahead applying to every closer (above)
+- `{` after a list operator, this issue's original subject
+- `${EXPR}` vs `${name}`, needed by 01a0ad52
+- whatever downstream code the first item's fix disturbs
+
+Doing them together is the point. Each one alone moves the T1 number the
+wrong way, because they are one decision spread across the lexer.
 
 ## Acceptance
 
-- [ ] `map { ; a => 1 } (1,2)` parses the brace as a Block (`go test ./internal/parse/ -run '^TestBlockVersusHashrefAfterListOp$' -count=1 -v | grep -q '^--- PASS: TestBlockVersusHashrefAfterListOp'`)
-- [ ] `map { a => 1 }, (1,2)` parses the brace as an AnonHash (same test)
-- [ ] The skip is removed from TestBlockVersusHashrefAfterListOp
-- [ ] 620/620 corpus files still round-trip (`go test ./internal/parse/ -run '^TestTreeRoundTripsCorpus$' -count=1 -v | grep -q '^--- PASS: TestTreeRoundTripsCorpus'`)
+- [ ] `$a[0]{k}`, `$h{a}{b}`, `$x->[0]{k}` classify both brackets as terms.
+- [ ] `if (...) {`, `while (...) {`, `for (;;) {` still open blocks.
+- [ ] The `nextIsOpenBrace` rule applies to `)` only, and the comment says so.
+- [ ] Whatever regressed T1 from 408/4,944 is identified and named, not
+      averaged away.
+- [ ] T1 clean does not decrease from 408; T1 Unknown does not increase from
+      4,944. Measured on `unit/*.t` at top level, 986 files.
+- [ ] No individual T1 file gains Unknown nodes.
+- [ ] Round-trip stays at zero failures.
 
-Spec: ch4 §4.9.2. toke.c `intuit_curly`.
+A ready-made test is in the reverted work: `internal/lexer/rightparen_test.go`,
+two cases, failing at 3c997a6b for the right reason.
