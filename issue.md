@@ -1,10 +1,10 @@
 ---
-title: "Module stubs: the prototype string, generated from perl"
+title: Resolve imports by parsing the module's own source
 state: pending
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-17T02:44:01.961043269Z
-updated: 2026-09-17T02:52:06.04049995Z
+updated: 2026-09-17T02:52:18.502475641Z
 ---
 
 Teach the parser what a `use` imported, so a parenless call to an imported sub
