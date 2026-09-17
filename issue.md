@@ -17,7 +17,7 @@ blocks:
 - 01a0afc0-6d61-7dc5-a10c-a0d29ed14742
 - 01a0afc1-2931-76bc-80e9-8e51a7dfc544
 created: 2026-09-15T21:53:08.812269582Z
-updated: 2026-09-17T22:34:05.406554199Z
+updated: 2026-09-17T22:37:48.843318456Z
 sessions:
 - start_sha: 1f0669412eaad35c8b13ec0d8ff60c75120a330a
   end_sha: ""
@@ -125,7 +125,7 @@ The sweep skips silently without a corpus flag, so the AC commands carry
 ## Acceptance
 
 - [x] T1-easy is defined by a recorded command over the 986 top-level files (`go test ./internal/parse/ -run '^TestT1EasyIsDefinedByMeasurement$' -count=1 -v | grep -q '^--- PASS: TestT1EasyIsDefinedByMeasurement'`)
-- [ ] All 56 T2 core files parse, or the shortfall is named per file (`go test ./internal/parse/ -run '^TestT2CoreParses$' -count=1 -v | grep -q '^--- PASS: TestT2CoreParses'`)
+- [x] All 56 T2 core files parse, or the shortfall is named per file (`go test ./internal/parse/ -run '^TestT2CoreParses$' -count=1 -v | grep -q '^--- PASS: TestT2CoreParses'`)
 - [x] At least 70% of T1-easy parses without error (`go test ./internal/parse/ -run '^TestT1EasyParseRate$' -count=1 -v | grep -q '^--- PASS: TestT1EasyParseRate'`)
 - [x] The parse-rate baseline fails on movement in either direction (`go test ./internal/parse/ -run '^TestParseRatchet$' -count=1 -v | grep -q '^--- PASS: TestParseRatchet'`)
 - [x] Everything that parses also round-trips from the tree (`go test ./internal/parse/ -run '^TestParsedFilesRoundTrip$' -count=1 -v | grep -q '^--- PASS: TestParsedFilesRoundTrip'`)
@@ -226,3 +226,34 @@ which is threshold-tuning to hit a target rather than a definition.
 
 Four of eight criteria now pass. Remaining: T2's 56 files, and the three
 parseoracle subject rows.
+
+
+## T2 core, 2026-09-17 (c5744881)
+
+14 of 56 files clean (25.0%), 42 short of this issue's 100% target. The
+shortfall is named per file and ratcheted, which is the option this issue's
+own text gives: "Do not carry an unreachable 100% into a gate: that is how a
+gate becomes advisory."
+
+Where the 42 live:
+
+    opbasic/arith.t    179   the largest single gap in the corpus
+    comp/parser.t       64
+    base/lex.t          54   the lexer's remaining quote-like forms
+    comp/proto.t        52   prototype recognition
+    comp/hints.t        50
+    class/*.t       9 files  class syntax
+
+This confirms the concern recorded above under "T2 = 100% is the hardest row":
+`class`/`field`/`method` and `sort`/`map`/`grep` blocks are owned by no M1
+issue. The nine class/ files and comp/proto.t are a third of the shortfall
+between them. Either those issues get filed or this row stays a measured
+number rather than a target.
+
+The ratchet fails in four directions, each mutation-checked: a listed file
+getting worse or better, a listed file becoming clean, and -- the one that
+matters most -- an unlisted file ceasing to parse. The 14 clean files are now
+guarded by name.
+
+Five of eight criteria pass. Remaining: the three parseoracle subject rows,
+which need the parser wired as a subprocess subject.
