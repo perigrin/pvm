@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-17T02:44:01.961043269Z
-updated: 2026-09-17T02:52:18.502475641Z
+updated: 2026-09-17T02:55:34.44568822Z
 ---
 
 Teach the parser what a `use` imported, so a parenless call to an imported sub
@@ -163,6 +163,41 @@ If the paper syntax ever gets a parser, a prototype column beside
 `operands`/`result` is a plausible convergence. Not blocking on it; a
 prototype string is trivially liftable.
 
+## Where the text runs out: XS
+
+A module whose subs are implemented in C has names in the text and bodies in
+a shared library. Measured on List/Util.pm, 5.42.0:
+
+    4   static `sub NAME` declarations
+    2   XSLoader/bootstrap calls
+    our @EXPORT_OK = qw(all any first min max ... reduce ...)   literal
+
+So the EXPORT list is readable and the prototypes are not. At runtime perl
+reports `first &@`, `reduce &@`, `sum @`, `max @` -- and `&@` is the leading
+ampersand that licenses the block form. None of that is in the file.
+
+That gives three tiers, and they need different answers:
+
+    name known, prototype known      Test::More      resolve fully
+    name known, prototype unknown    List::Util      REFUSE, do not guess
+    name unknown                     computed import Call{Resolved:false}
+
+The middle tier is the new one and refusing is not conservatism, it is the
+only safe move. Guessing "list operator" for `first` makes the block form a
+syntax error:
+
+    sub fake (@) { }   fake { $_ > 1 } (1,2)   ->  syntax error near "} ("
+
+while `first { $_ > 1 } @a` is valid and returns 2. A wrong shape turns
+working code into an error, which is the guess the plan forbids -- a tree
+that is not a parse of its source.
+
+So an XS-backed import contributes its NAME (the call is known to exist, so
+a bareword call to it is a Call rather than an Unknown) and no shape: the
+call parses in its parenthesised form and a parenless one stays
+`Call{Resolved:false}`. That is strictly better than today, where the name is
+unknown too.
+
 ## Acceptance
 
 - [ ] A module named in `use` is located on the search path and parsed (`go test ./internal/parse/ -run '^TestResolvesModuleSource$' -count=1 -v | grep -q '^--- PASS: TestResolvesModuleSource'`)
@@ -175,6 +210,7 @@ prototype string is trivially liftable.
 - [ ] An import list in the `use` restricts what is imported (`go test ./internal/parse/ -run '^TestImportListRestricts$' -count=1 -v | grep -q '^--- PASS: TestImportListRestricts'`)
 - [ ] A module the parser cannot find, or one that computes its exports, leaves calls `Call{Resolved:false}` rather than guessing (`go test ./internal/parse/ -run '^TestUnresolvableImportDeclines$' -count=1 -v | grep -q '^--- PASS: TestUnresolvableImportDeclines'`)
 - [ ] No perl subprocess is involved, at parse time or build time (`go test ./internal/parse/ -run '^TestNoPerlDependency$' -count=1 -v | grep -q '^--- PASS: TestNoPerlDependency'`)
+- [ ] An XS-backed module contributes names but not shapes, and a parenless call to one stays unresolved (`go test ./internal/parse/ -run '^TestXSModuleNamesWithoutShapes$' -count=1 -v | grep -q '^--- PASS: TestXSModuleNamesWithoutShapes'`)
 - [ ] The T1 rate is re-measured and the change recorded
 
 Spec: ch4 §4.8.3.
