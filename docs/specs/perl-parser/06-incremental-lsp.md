@@ -469,14 +469,26 @@ two: the flow structure is a separate decision (§6.1.7).
    `ts_node_is_error`; MISSING nodes "are not captured by `(ERROR)` queries").
 
 **Why not (a).** The per-rule variation tax is not hypothetical at 200 rules;
-it is observable at 23 kinds. Measured on `internal/parse/` at 3b9422eb:
-`$h{k}` is `[index "{" [term "$h"] [call "k"]]` and `$h->{k}` is
+it is observable at 23 kinds, and it was observable in this parser rather
+than in the abstract. Measured at 3b9422eb: `$h{k}` was
+`[index "{" [term "$h"] [call "k"]]` and `$h->{k}` was
 `[binary "->" [term "$h"] [anon_hash [call "k"]]]` — two shapes for one
-operation, where §4.14 specifies one shape with an `Arrow` flag. Trivia is a
-sibling node (`parse.go:28-30`), so every `Children` walk filters it; the
-parser already pays that tax internally (`isTrivia`, `peekSignificant`,
-`parse.go:626`). Context flows down the tree while types flow up (§4.12), so
-a single walk carries both directions. And no surveyed checker does it.
+operation, where §4.14 specifies one shape with an `Arrow` flag.
+
+That case is fixed (d2ebe02a), and the fix is the argument rather than a
+refutation of it. One missing branch in the led loop produced two unrelated
+trees for one operation, and it survived a corpus of 1,935 files, four
+prior commits and a round-trip test, because nothing in a
+walk-the-CST-directly design ever has to state what shape an operation takes.
+A lowering pass has a vocabulary, so the second shape has nowhere to go.
+Every surface distinction the parser has not yet unified is a rule that must
+match two shapes for as long as it goes unnoticed.
+
+The standing tax is trivia: it is a sibling node (`parse.go:28-30`), so every
+`Children` walk filters it, and the parser already pays that internally
+(`isTrivia`, `peekSignificant`, `parse.go:626`). Context flows down the tree
+while types flow up (§4.12), so a single walk carries both directions. And no
+surveyed checker walks a lossless tree for inference.
 
 **Why not (c).** The one system cited for it is not doing it on a
 full-fidelity tree, and where it does normalise on read the cost leaks into
@@ -562,7 +574,8 @@ change.
 **These are parser defects under any option.** The lowering does not repair
 them; the parser must stop erasing structure before there is structure to
 lower. Issue 01a0ad52 tracks the dereference leaf. The paren erasure and the
-subscript-shape inconsistency have no issue as of 3b9422eb (§6.1.8).
+subscript-shape inconsistency have no issue as of 3b9422eb (§6.1.8). The
+subscript shape was fixed at d2ebe02a; the paren erasure is still open.
 
 **What the repo already decided in miniature.** Issue 01a0ad52 proposes
 splitting `Term` into `Var{Sigil, Name}` and `Deref{Sigil, Expr}` and cites
@@ -680,7 +693,8 @@ is resolved by fiat here; each names what would settle it.
 | Incremental `Analyze`: needed, or does whole-file re-run at 0.5-2 ms hold? | Deferred, per §6.10.5 item 3 and step 8 of §6.11. | Step 4 of §6.11. If it is needed, the first step is an `ItemTree`-shaped per-file summary (§6.1.4), not a query engine. |
 | The stable node-identity scheme for §6.1.6 item 4. | Undesigned. | A design in the manner of `crates/span/src/ast_id.rs` (position of an item among its kind-and-name siblings, parent id for nesting), and a test that an edit inside one sub body changes no id outside it. |
 | Latency of `internal/parse/` on the §6.10.2 files. | Unmeasured. The parse column there is tree-sitter's. | A Go benchmark of `parse.Parse` over `charnames.pm`, `FileHandle.pm`, `overload.pm`, `sigtrap.pm`, `_charnames.pm`. |
-| Paren erasure at `term.go:284-293`; `$h{k}` vs `$h->{k}` producing different node shapes; `{k}` as `Call{Resolved:false}`. | Live defects, measured at 3b9422eb; no issue tracks any of the three. Canonical re-emission (issue 01a0a8d8), the only planned check that would catch the first, is blocked behind the M1 gate (01a0a70f). | Issues filed; the §4.16 checkbox "`Paren` nodes survive into the AST" turned into a test. |
+| Paren erasure at `term.go:284-293`; `{k}` in `$h{k}` as `Call{Resolved:false}` rather than a quoted bareword. | Live defects, measured at 3b9422eb; no issue tracks either. Canonical re-emission (issue 01a0a8d8), the only planned check that would catch the first, is blocked behind the M1 gate (01a0a70f). The third defect of this row, `$h{k}` and `$h->{k}` producing different node shapes, was fixed at d2ebe02a: `->` before a subscript opener now routes to `parseSubscript`, so both forms are one `Index`. Measured exactly neutral on the corpus — 856 clean and 8,432 `Unknown` before and after — which is the expected result for a change to the shape of trees that already parsed. | Issues filed; the §4.16 checkbox "`Paren` nodes survive into the AST" turned into a test. |
+| The dereference leaf (issue 01a0ad52), attempted and withdrawn. | A `DerefSigil` token puts the interior of `${$h->{k}}`, `@{[ ... ]}` and `$$x` in the tree, and that part works. Measured on T1 it is worse on both axes: 408 → 406 clean, 4,944 → 4,986 `Unknown`. An earlier measurement of the same change looked favourable (−277 `Unknown`) and was taken against the wrong corpus — 1,935 files including `module/`, where three Class-MethodMaker files supplied 335 of 345 improvements. None of them is in T1. Splitting the sigil off also exposed a latent bug: `expect.go`'s CloseBracket case applies perl's right-paren lookahead to EVERY closer, though its own comment cites `yyl_rightparen` (toke.c:7156), which handles `)` alone, so `${$y}{Keys}` classifies its subscript brace as a block. That is brace classification, which is 01a0ac52's subject. | 01a0ac52 first. The work is stashed and the issue carries the SHA, both measurements, and acceptance criteria requiring that no T1 file regress. |
 | Whether import resolution (issue 01a0ad3f) should keep an offline symbol-table dump as a last resort. | The issue rejects reading Perl's symbol table as circular. Sorbet shipped exactly that design (`srb rbi hidden-definitions`), found it not circular when run as a separate offline step, and retired it for operational reasons instead — slow, side-effecting, fragile to one bad file, and it "never generates types" (`website/blog/2022-07-27-srb-tapioca.md`) — while keeping it in maintenance mode because "sometimes there's simply no other tool". Pyright's `docs/type-stubs.md` gives the XS-shaped reason for declarations over inference: "Some libraries are thin shims on top of native (C++) libraries. Little or no type information would be inferable". | The issue's rationale rewritten on operational grounds, which are the ones that hold; whether to keep the dump as a last resort is a product decision. |
 
 

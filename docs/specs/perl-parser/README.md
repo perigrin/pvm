@@ -99,9 +99,19 @@ to resolve a bareword is opt-out, and most new code has opted out.
 ## Status
 
 The specification is complete. A parser exists and is measured against it.
-At commit 3b9422eb: 84.2% of the corpus parses, 341 of 986 T1 files (34.6%)
-are clean, 5,289 `Unknown` nodes remain, 620/620 corpus files round-trip,
-and 1,000,000 fuzz executions pass. The M1 gate (issue 01a0a70f) is in
+Re-measured at d2ebe02a on 2026-09-17: 408 of 986 T1 files (41.4%) are
+clean, 4,944 `Unknown` nodes remain, and round-trip holds on all 986. T1
+graded is PerlOnJava's `unit/*.t` at top level — 986 files, top level only,
+which is the count the plan's M4 target uses. Walking that tree recursively
+gives 1,508 and adding `module/` gives 1,935; both are different corpora and
+their numbers are not comparable to these.
+
+At commit 3b9422eb the corresponding figures were reported as 341 clean
+(34.6%) and 5,289 `Unknown`, alongside 84.2% of the oracle corpus parsing,
+620/620 round-trip, and 1,000,000 fuzz executions. The two commits since
+then changed no parse outcome — d2ebe02a measured exactly neutral — so the
+gap is a measurement difference rather than progress, and the earlier
+numbers should be treated as the less reliable pair. The M1 gate (issue 01a0a70f) is in
 progress; against the plan's M1 targets (100% of T2, ≥70% of T1-easy, oracle
 WRONG = 0) it is materially incomplete. What exists in code:
 
@@ -121,6 +131,13 @@ and `${$h->{k}}` lexes to one token and parses to one childless leaf (issue
 01a0ad52). Both pass round-trip, which proves no byte was lost and nothing
 about structure (chapter 7 §7.2(c)). Chapter 6 §6.1.8 lists them with the
 rest of what is open.
+
+A third is fixed: `$h{k}` and `$h->{k}` produced two unrelated tree shapes
+for one operation until d2ebe02a. The measurement there is worth keeping in
+mind when reading the numbers above — the fix was exactly neutral on the
+corpus, 856 clean and 8,432 `Unknown` before and after, because it changed
+the shape of trees that already parsed. Parse rate and tree correctness are
+different axes, and this document's headline numbers only measure the first.
 
 ## A caution about this document
 
