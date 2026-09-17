@@ -7,7 +7,7 @@ blocked_by:
 - 01a0ac52-a68c-750b-92d4-852abfc54a2f
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-17T03:04:49.380252705Z
-updated: 2026-09-17T14:24:46.166879028Z
+updated: 2026-09-17T19:56:35.865167071Z
 ---
 
 An attempt at this measured worse than it looks, and the reason is issue 01a0ac52.
@@ -114,13 +114,13 @@ Stashed as `deref-lexer-only-01CRysQ`, SHA af8ca8f76b87e29d7837dedb2cce1848fddd9
 - [ ] `${$h->{k}}`, `@{[ ... ]}`, `$$x`, `@$x` each have their interior in the tree as children (`go test ./internal/parse/ -run '^TestDereferenceHasInterior$' -count=1 -v | grep -q '^--- PASS: TestDereferenceHasInterior'`)
 - [ ] `${name}` stays one Variable, `$$` stays the process id, `${^TAINT}` stays a name (`go test ./internal/parse/ -run '^TestBracedNameIsNotADereference$|^TestPunctuationVariablesStillLex$' -count=1 -v | grep -q '^--- PASS'`)
 - [ ] Every dereference form still round-trips (`go test ./internal/parse/ -run '^TestDereferenceRoundTrips$' -count=1 -v | grep -q '^--- PASS: TestDereferenceRoundTrips'`)
-- [ ] T1 clean does not fall below 408 and T1 Unknown does not rise above 4,944, measured on `unit/*.t` at top level, 986 files (`go test ./internal/parse/ -run '^TestT1Ratchet$' -count=1 -v | grep -q '^--- PASS: TestT1Ratchet'`)
-- [ ] No individual T1 file gains Unknown nodes; a net improvement that hides per-file regressions fails (`go test ./internal/parse/ -run '^TestT1PerFileNoRegression$' -count=1 -v | grep -q '^--- PASS: TestT1PerFileNoRegression'`)
+- [ ] T1 clean does not fall below 408 and T1 Unknown does not rise above 4,944, measured on `unit/*.t` at top level, 986 files (`go test ./internal/parse/ -run '^TestParseRatchet$' -count=1 -v | grep -q '^--- PASS: TestParseRatchet'`)
+- [ ] No individual T1 file gains Unknown nodes; a net improvement that hides per-file regressions fails (`go test ./internal/parse/ -run '^TestParseRatchet$' -count=1 -v | grep -q '^--- PASS: TestParseRatchet'`)
 - [ ] The whole suite is green (`go test ./internal/... 2>&1 | grep -qv FAIL`)
 
 Blocked by 01a0ac52.
 
-Note on the ratchet ACs: TestT1Ratchet and TestT1PerFileNoRegression do not
+Note on the ratchet ACs: TestParseRatchet and TestParseRatchet do not
 exist yet. They belong to the M1 gate (01a0a70f-3ccc), which owns the parse
 ratchet and has none of its eight AC tests written. Until that lands, these
 two criteria are unrunnable and this issue cannot be completed -- which is
