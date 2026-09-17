@@ -55,6 +55,23 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		return n
 	}
 
+	// An operator with NO argument: `shift;`, `die;`, `$x or die;`.
+	//
+	// Most named unaries default their argument -- `shift` takes @_ or @ARGV,
+	// `die` re-raises $@ -- so the argument is optional in practice even
+	// where the grammar allows one. Calling parseExpr here returns nil, and
+	// the caller then saw an unconsumed `;` and declared the statement
+	// Unknown.
+	//
+	// Measured: `shift;` and `die;` between them are the first failure in
+	// dozens of T1 files, and `... or die;` appears in almost every file
+	// that opens a filehandle.
+	if next, ok := p.peekSignificant(); !ok || endsArgumentList(next, p.src) {
+		n.End = p.prevEnd()
+		n.Resolved = namedUnary[text] || listOperator[text] || niladicParse[text]
+		return n
+	}
+
 	switch {
 	case namedUnary[text]:
 		// One argument, parsed at level 19 so arithmetic binds into it and
@@ -102,6 +119,34 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 
 	n.End = p.prevEnd()
 	return n
+}
+
+// endsArgumentList reports whether a token closes the context an operator's
+// arguments would live in, so there is nothing left for it to take.
+//
+// A terminator, a closing bracket, or an infix operator: `$x or die;` reaches
+// `die` with a `;` next, and `f(shift)` reaches `shift` with a `)` next.
+func endsArgumentList(tok lexer.Token, src []byte) bool {
+	switch tok.Kind {
+	case lexer.Semicolon, lexer.CloseBracket:
+		return true
+	case lexer.Operator:
+		// An infix operator cannot start an argument, so the call takes
+		// none: `shift || 1`. A PREFIX operator can -- `die -1` -- so only
+		// the unambiguously-infix ones count.
+		switch string(src[tok.Start:tok.End]) {
+		case ",", "=>", "||", "&&", "//", "=", "?", ":":
+			return true
+		}
+	case lexer.Word:
+		// The word-spelled logical operators, which the lexer emits as Word
+		// because they are identifiers by shape.
+		switch string(src[tok.Start:tok.End]) {
+		case "or", "and", "xor", "if", "unless", "while", "until", "for", "foreach":
+			return true
+		}
+	}
+	return false
 }
 
 // takesFilehandle is the set of list operators whose first slot may be a

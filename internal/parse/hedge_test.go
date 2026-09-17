@@ -4,7 +4,6 @@
 package parse_test
 
 import (
-	"context"
 	"testing"
 
 	"tamarou.com/pvm/internal/parse"
@@ -56,46 +55,30 @@ func TestUnknownHedgesEveryMarker(t *testing.T) {
 	}
 }
 
-// TestUnknownScoresWider: the rule, measured through the harness rather than
-// asserted about it.
+// TestUnknownScoresWider was DELETED, following the instruction its own
+// fixture comment carried.
 //
-// This is the test that would have caught the claim an earlier draft of this
-// issue made -- that Unknown scores no-answer on its own. It runs the real
-// CompareFacts against real perl output, so it cannot pass by agreeing with
-// my reading of the scoring code.
-func TestUnknownScoresWider(t *testing.T) {
-	// A backslash reference inside a statement form this milestone has not
-	// implemented: perl reports srefgen, so the oracle has a site to score,
-	// and the parser must hedge rather than stay silent.
-	//
-	// The fixture has moved three times as the parser learned forms. See
-	// unimplementedStatement for why, and for when to delete this test
-	// rather than prop it up.
-	src := []byte("my @a = (1);\n" + unimplementedStatementWithRef)
-
-	facts, err := parseoracle.Ask(context.Background(), src, parseoracle.Options{})
-	if err != nil {
-		t.Skipf("perl unavailable: %v", err)
-	}
-	if !facts.OK {
-		t.Fatalf("perl declined the fixture: %s", facts.Stderr)
-	}
-	if facts.Srefgen == 0 {
-		t.Fatalf("perl reported no srefgen for %q; the fixture is wrong", src)
-	}
-
-	subject := parseoracle.SubjectFacts{
-		OK:             true,
-		KnowsCallSites: true,
-		CallSites:      parse.Sites(parse.Parse(src), src),
-	}
-
-	v := parseoracle.CompareFacts(facts, subject)
-	if v.Bucket == parseoracle.BucketWrong {
-		t.Errorf("Unknown scored WRONG: %s", v.Detail)
-	}
-	if v.Bucket != parseoracle.BucketWider {
-		t.Errorf("bucket = %v, want wider; the hedge did not reach the comparison: %s",
-			v.Bucket, v.Detail)
-	}
-}
+// It measured the hedging rule end to end: parse a statement the milestone
+// had not implemented, hand the sites to the real CompareFacts, and assert
+// the verdict is `wider` rather than WRONG. That needed a statement form
+// this parser DECLINES which also contains a backslash reference perl
+// reports as srefgen.
+//
+// The fixture moved four times as the parser learned forms -- `$x = \\@a`,
+// `my $r = \\@a`, an `if` block, a `do` block -- and after this commit no
+// such fixture remains:
+//
+//	goto &other      perl emits no srefgen when it follows a declaration
+//	try { ... }      the reference is optimised away
+//	continue { ... } the reference is optimised away
+//	format           the body is opaque, so a reference cannot be inside it
+//
+// unimplementedStatement's comment says what to do here: "When nothing is
+// left to put here, these tests are measuring an empty set. DELETE them then
+// rather than inventing a construct to keep them alive."
+//
+// TestUnknownHedgesEveryMarker still asserts the rule directly -- every
+// Unknown emits an Unresolved site of all five kinds -- and it is
+// mutation-checked. What is lost is the end-to-end leg through
+// CompareFacts, which the M1 gate's subject tests will cover once the
+// parser answers the harness as a subprocess.

@@ -255,7 +255,7 @@ func TestClassCorpusRatchet(t *testing.T) {
 	// landed. Update it in the same commit as the change that moves it, in
 	// either direction -- a drop is a win worth recording, and a rise is a
 	// regression worth seeing.
-	const want = 100
+	const want = 74
 	if unknown != want {
 		t.Errorf("t/class holds %d Unknown nodes, want %d: update this pin in "+
 			"the same commit as the change that moved it", unknown, want)

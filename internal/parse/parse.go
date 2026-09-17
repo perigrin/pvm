@@ -567,7 +567,10 @@ var statementKeywords = map[string]bool{
 
 	// if, elsif, else, unless, while, until, for and foreach are GONE: the
 	// control-flow issue landed and parseControlFlow reads them.
-	"do": true, "continue": true,
+	// `do` is GONE: parseBlockOperator reads `do BLOCK` as a term, and
+	// `do EXPR` is an ordinary named unary. It reached statementKeywords
+	// only because it was unimplemented.
+	"continue": true,
 
 	// use, no, require, the phasers and class are GONE: parseTheRest reads
 	// them. `field` and `method` are read by parseDeclaration.

@@ -30,11 +30,18 @@ const unimplementedStatement = "goto &other;\n"
 
 // unimplementedStatementWithRef is the same, but containing a backslash
 // reference so perl reports an srefgen the parser must hedge against.
-// `do BLOCK` is still declined, and the reference inside it is real:
 //
-//	$ perl -MO=Concise,-exec -e 'my @a=(1); do { my $r = \@a; };' | grep -c srefgen
+// `goto &other` is still declined, and the `&other` IS the reference perl
+// reports:
+//
+//	$ perl -MO=Concise,-exec -e 'goto &other;' | grep -c srefgen
 //	1
-const unimplementedStatementWithRef = "do { my $r = \\@a; };\n"
+//
+// This fixture has moved four times -- `$x = \@a`, `my $r = \@a`, an `if`
+// block, a `do` block -- each time because the parser learned the form. See
+// unimplementedStatement for when to delete these tests rather than keep
+// finding new fixtures.
+const unimplementedStatementWithRef = "goto &other;\n"
 
 // TestParseEmpty: an empty input is a valid program, not an error. The root
 // exists and spans nothing.

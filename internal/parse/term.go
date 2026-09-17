@@ -22,6 +22,29 @@ func (p *parser) parseTerm() *Node {
 	}
 	text := p.text(tok)
 
+	// A filetest: `-e $f`, `-d $dir`. perl returns UNIOP for these
+	// (toke.c:6255 FTST), so they bind exactly like a named unary.
+	//
+	// The lexer emits `-` and `e` separately, and the `-` would otherwise be
+	// read as unary minus applied to a bareword. Checked here rather than in
+	// the lexer because the distinction needs the parser's position: `$a -e`
+	// is subtraction, `(-e $f)` is a filetest.
+	if text == "-" {
+		if name, ok := p.peekAfter(tok); ok && name.Kind == lexer.Word &&
+			name.End-name.Start == 1 && fileTests[p.src[name.Start]] {
+			p.advanceTo(name)
+			n := &Node{
+				Kind: Call, Text: "-" + p.text(name), Resolved: true,
+				Start: tok.Start,
+			}
+			if arg := p.parseExpr(bpNamedUnary); arg != nil {
+				n.Children = append(n.Children, arg)
+			}
+			n.End = p.prevEnd()
+			return n
+		}
+	}
+
 	// Prefix operators. `\` is one of these, and §4.4.5 is not optional
 	// scaffolding: it is the reference perl reports with srefgen, which is
 	// the signal the whole fidelity harness was built to measure.
@@ -32,6 +55,28 @@ func (p *parser) parseTerm() *Node {
 			Kind: Unary, Text: prefixName(text),
 			Start: tok.Start, End: operand.End,
 			Children: []*Node{operand},
+		}
+	}
+
+	// A glob: `*foo`, `*{$name}`. A term, not multiplication -- and the
+	// parser knows which because parseTerm is only called where a term is
+	// expected.
+	if text == "*" {
+		if name, ok := p.peekAfter(tok); ok &&
+			(name.Kind == lexer.Word || p.text(name) == "{") {
+			p.advanceTo(tok)
+			if p.text(name) == "{" {
+				inner := p.parseTerm()
+				return &Node{
+					Kind: Term, Text: "*", Start: tok.Start, End: p.prevEnd(),
+					Children: []*Node{inner},
+				}
+			}
+			p.advanceTo(name)
+			return &Node{
+				Kind: Term, Text: "*" + p.text(name),
+				Start: tok.Start, End: name.End,
+			}
 		}
 	}
 
@@ -66,6 +111,33 @@ func (p *parser) parseTerm() *Node {
 		return &Node{Kind: Term, Text: text, Start: tok.Start, End: tok.End}
 
 	case lexer.Word:
+		text := p.text(tok)
+		switch {
+		case declarators[text] && p.declaratorTakesTarget(tok):
+			// A declaration in EXPRESSION position: `open my $fh, $p`,
+			// `f(my $x)`. perly.y makes `my` a named unary at level 19
+			// (§4.6), so it is a term here as much as a statement form.
+			//
+			// 50 of T1's files first fail on `open my $fh, ...`, which is
+			// the idiomatic three-argument open and appears in almost every
+			// file that touches a filehandle.
+			return p.parseVarDeclNoSemi(tok)
+
+		case text == "sub":
+			// An anonymous sub: `sub { ... }` with no name. Distinguished
+			// from a declaration by what follows -- a `{` rather than a
+			// name -- which is the same test perl makes.
+			if next, ok := p.peekAfter(tok); ok && p.text(next) == "{" {
+				return p.parseAnonSub(tok)
+			}
+
+		case text == "eval" || text == "do":
+			// `eval BLOCK` and `do BLOCK` take a block, not an expression.
+			// The named-unary path would parse the `{` as an anonymous hash.
+			if next, ok := p.peekAfter(tok); ok && p.text(next) == "{" {
+				return p.parseBlockOperator(tok)
+			}
+		}
 		return p.parseWordTerm(tok)
 
 	case lexer.Variable, lexer.Number, lexer.Quote,
@@ -80,6 +152,69 @@ func (p *parser) parseTerm() *Node {
 	// Not a term. Consumed so the loop advances; the bytes stay in the tree.
 	p.advanceTo(tok)
 	return &Node{Kind: Unknown, Start: tok.Start, End: tok.End}
+}
+
+// declaratorTakesTarget reports whether a declarator word is introducing a
+// variable rather than being used as an identifier.
+//
+// `my`, `our`, `state` and `field` are ordinary barewords in most positions:
+// `$h{field}` is a hash key, `f(state => 1)` is a fat-comma pair. Treating
+// every occurrence as a declaration made `$h{field}` parse its key as one --
+// caught by TestClassSyntax, which asserts exactly that.
+//
+// A declarator takes a target when a VARIABLE or a `(` follows it. Nothing
+// else is a declaration: `my $x`, `my @a`, `my ($a, $b)`, and that is the
+// whole grammar (§4.4.3).
+func (p *parser) declaratorTakesTarget(word lexer.Token) bool {
+	next, ok := p.peekAfter(word)
+	if !ok {
+		return false
+	}
+	return next.Kind == lexer.Variable || p.text(next) == "("
+}
+
+// parseAnonSub: `sub { ... }` and `sub ($x) { ... }` with no name.
+//
+// A Declaration with no name child, so consumers that walk declarations see
+// it without a second kind to learn. Whether a sub is named is a question
+// about its children, not about what kind of node it is.
+func (p *parser) parseAnonSub(word lexer.Token) *Node {
+	p.advanceTo(word)
+	n := &Node{Kind: Declaration, Text: p.text(word), Start: word.Start}
+
+	// A prototype or signature, if the lexer found one.
+	if proto, ok := p.peekSignificant(); ok && proto.Kind == lexer.Prototype {
+		p.advanceTo(proto)
+		n.Children = append(n.Children, &Node{
+			Kind: PrototypeNode, Text: p.text(proto),
+			Start: proto.Start, End: proto.End,
+		})
+	}
+	if blk := p.parseBlockOrDecline(); blk != nil {
+		n.Children = append(n.Children, blk)
+	}
+	n.End = p.prevEnd()
+	return n
+}
+
+// parseBlockOperator: `eval BLOCK` and `do BLOCK`, spec §4.7.
+//
+// These take a BLOCK where an expression would be, so the named-unary path
+// cannot handle them -- it would parse the `{` as an anonymous hash, which is
+// what `eval { $x; };` did before this.
+//
+// `eval EXPR` and `do EXPR` are different operators with the same spelling,
+// and they go through parseWordTerm as ordinary named unaries. The `{` is
+// what separates them, which is also how perl decides.
+func (p *parser) parseBlockOperator(word lexer.Token) *Node {
+	p.advanceTo(word)
+	n := &Node{Kind: Call, Text: p.text(word), Resolved: true, Start: word.Start}
+
+	if blk := p.parseBlockOrDecline(); blk != nil {
+		n.Children = append(n.Children, blk)
+	}
+	n.End = p.prevEnd()
+	return n
 }
 
 // prefixAllowed keeps an infix operator from being read as a prefix one.
