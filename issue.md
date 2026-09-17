@@ -3,8 +3,10 @@ title: "Five scanner rows: literal ranges, qx, <<>>, angle globs, leading ::"
 state: pending
 urgency: normal
 milestone: m1-parse-the-core
+blocked_by:
+- 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-17T14:23:38.848509109Z
-updated: 2026-09-17T14:23:38.848509109Z
+updated: 2026-09-17T14:24:46.64026169Z
 ---
 
 Five constructs do not lex, and each is a missing scanner row rather than a design problem. Measured at 3c997a6b, all round-tripping:
