@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-17T02:44:01.961043269Z
-updated: 2026-09-17T02:47:11.168825415Z
+updated: 2026-09-17T02:47:25.383541061Z
 ---
 
 Teach the parser what a `use` imported, so a parenless call to an imported sub
@@ -112,6 +112,7 @@ prototype string is trivially liftable.
 - [ ] Parse shape is DERIVED from the prototype, not stored (`go test ./internal/parse/ -run '^TestShapeDerivedFromPrototype$' -count=1 -v | grep -q '^--- PASS: TestShapeDerivedFromPrototype'`)
 - [ ] `(;$)` parses with zero and with one argument (`go test ./internal/parse/ -run '^TestOptionalArgPrototype$' -count=1 -v | grep -q '^--- PASS: TestOptionalArgPrototype'`)
 - [ ] `use Test::More` makes `subtest 'x' => sub {}` parse (`go test ./internal/parse/ -run '^TestImportedListOperator$' -count=1 -v | grep -q '^--- PASS: TestImportedListOperator'`)
+- [ ] A leading `&` licenses the block form, a non-initial one and `\&` do not (`go test ./internal/parse/ -run '^TestBlockFormNeedsLeadingAmpersand$' -count=1 -v | grep -q '^--- PASS: TestBlockFormNeedsLeadingAmpersand'`)
 - [ ] The stub file's header records that this is a heuristic, not import resolution
 - [ ] The T1 rate is re-measured and the change recorded
 
