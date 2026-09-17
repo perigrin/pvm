@@ -3,8 +3,10 @@ title: "Four wrong trees that round-trip: anon sub, statement-start brace, glob 
 state: pending
 urgency: normal
 milestone: m1-parse-the-core
+blocked_by:
+- 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-17T14:24:26.929009826Z
-updated: 2026-09-17T14:24:26.929009826Z
+updated: 2026-09-17T14:24:46.736099688Z
 ---
 
 Four constructs produce a tree that is not a parse of its source, and every one of them round-trips. That is the failure `Unknown` exists to prevent (`internal/parse/parse.go:14-26`): a refusal is never a wrong answer, and these are wrong answers.
