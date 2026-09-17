@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a0ad52-f1e4-7e19-80c7-a99f859951eb
 created: 2026-09-16T22:24:52.875856958Z
-updated: 2026-09-17T14:24:45.836292817Z
+updated: 2026-09-17T19:56:35.802547891Z
 ---
 
 A one-line change here is correct and makes T1 worse. That is the finding, and it is why this issue is bigger than it looks.
@@ -76,9 +76,9 @@ wrong way, because they are one decision spread across the lexer.
 - [ ] A brace after a list operator is decided by lookahead, not by position alone (`go test ./internal/lexer/ -run '^TestIntuitCurlyLookahead$' -count=1 -v | grep -q '^--- PASS: TestIntuitCurlyLookahead'`)
 - [ ] `map { $_ => 1 } @a` and `map { ; $_ } @a` both parse (`go test ./internal/parse/ -run '^TestMapBlockForms$' -count=1 -v | grep -q '^--- PASS: TestMapBlockForms'`)
 - [ ] Whatever regressed T1 from 408/4,944 when the right-paren rule was narrowed is identified and named in a test comment (`go test ./internal/lexer/ -run '^TestRightParenRegressionIsNamed$' -count=1 -v | grep -q '^--- PASS: TestRightParenRegressionIsNamed'`)
-- [ ] T1 clean does not fall below 408 and T1 Unknown does not rise above 4,944 (`go test ./internal/parse/ -run '^TestT1Ratchet$' -count=1 -v | grep -q '^--- PASS: TestT1Ratchet'`)
+- [ ] T1 clean does not fall below 408 and T1 Unknown does not rise above 4,944 (`go test ./internal/parse/ -run '^TestParseRatchet$' -count=1 -v | grep -q '^--- PASS: TestParseRatchet'`)
 - [ ] The whole suite is green (`go test ./internal/... 2>&1 | grep -qv FAIL`)
 
-Note on the ratchet AC: TestT1Ratchet does not exist yet. It belongs to the
+Note on the ratchet AC: TestParseRatchet does not exist yet. It belongs to the
 M1 gate (01a0a70f-3ccc), which owns the parse ratchet and has none of its
 eight AC tests written.
