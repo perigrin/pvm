@@ -17,7 +17,7 @@ blocks:
 - 01a0afc0-6d61-7dc5-a10c-a0d29ed14742
 - 01a0afc1-2931-76bc-80e9-8e51a7dfc544
 created: 2026-09-15T21:53:08.812269582Z
-updated: 2026-09-17T19:56:35.633682424Z
+updated: 2026-09-17T19:57:20.051682263Z
 sessions:
 - start_sha: 1f0669412eaad35c8b13ec0d8ff60c75120a330a
   end_sha: ""
@@ -127,8 +127,8 @@ The sweep skips silently without a corpus flag, so the AC commands carry
 - [ ] T1-easy is defined by a recorded command over the 986 top-level files (`go test ./internal/parse/ -run '^TestT1EasyIsDefinedByMeasurement$' -count=1 -v | grep -q '^--- PASS: TestT1EasyIsDefinedByMeasurement'`)
 - [ ] All 56 T2 core files parse, or the shortfall is named per file (`go test ./internal/parse/ -run '^TestT2CoreParses$' -count=1 -v | grep -q '^--- PASS: TestT2CoreParses'`)
 - [ ] At least 70% of T1-easy parses without error (`go test ./internal/parse/ -run '^TestT1EasyParseRate$' -count=1 -v | grep -q '^--- PASS: TestT1EasyParseRate'`)
-- [ ] The parse-rate baseline fails on movement in either direction (`go test ./internal/parse/ -run '^TestParseRatchet$' -count=1 -v | grep -q '^--- PASS: TestParseRatchet'`)
-- [ ] Everything that parses also round-trips from the tree (`go test ./internal/parse/ -run '^TestParsedFilesRoundTrip$' -count=1 -v | grep -q '^--- PASS: TestParsedFilesRoundTrip'`)
+- [x] The parse-rate baseline fails on movement in either direction (`go test ./internal/parse/ -run '^TestParseRatchet$' -count=1 -v | grep -q '^--- PASS: TestParseRatchet'`)
+- [x] Everything that parses also round-trips from the tree (`go test ./internal/parse/ -run '^TestParsedFilesRoundTrip$' -count=1 -v | grep -q '^--- PASS: TestParsedFilesRoundTrip'`)
 - [ ] The parser answers the fidelity harness as a subprocess subject (`go test ./internal/parseoracle/ -run '^TestGoParserSubjectMeasures$' -count=1 -v -parseoracle.corpus=t2 | grep -q '^--- PASS: TestGoParserSubjectMeasures'`)
 - [ ] WRONG is zero across the measured corpus, and that is a gate (`go test ./internal/parseoracle/ -run '^TestGoParserWrongIsZero$' -count=1 -v -parseoracle.corpus=t2 | grep -q '^--- PASS: TestGoParserWrongIsZero'`)
 - [ ] Exact is at least 40% of markers attempted, so WRONG=0 is not vacuous (`go test ./internal/parseoracle/ -run '^TestGoParserExactFloor$' -count=1 -v -parseoracle.corpus=t2 | grep -q '^--- PASS: TestGoParserExactFloor'`)
@@ -170,3 +170,29 @@ Consider splitting that one test out of this issue so the eight can proceed
 while the rest of the gate — T1-easy's definition, the subject contract, the
 exact floor — is still being worked. Eight issues blocked on a gate that has
 none of its eight AC tests written is a stall, not a sequence.
+
+
+## Progress, 2026-09-17
+
+`TestParseRatchet` and `TestParsedFilesRoundTrip` land at 4bc971ec, with the
+baseline committed alongside them: **986 files, 408 clean (41.4%), 4,944
+Unknown nodes**. Both AC commands were run verbatim and pass.
+
+The ratchet is mutation-checked three ways -- lowering a count in the
+baseline, raising one, and deleting a line all fail -- so it is not a guard
+that cannot fail.
+
+On this issue's own question about a third ratchet: a third copy, and the
+reasoning is recorded in `internal/parse/ratchet_test.go`. `internal/lexer`'s
+`renderRatchet`/`parseRatchet` are unexported in `package lexer` and this is
+`package parse_test`; exporting them to share ~40 lines of format code would
+widen a package's API to serve its tests. The discipline is what transfers,
+and it did. A fourth copy should extract.
+
+Six issues cited a `TestT1Ratchet` that never existed -- a name I invented
+when filing them. They now cite `TestParseRatchet`, which is this issue's own
+name for it and the one that exists.
+
+Six criteria remain: T1-easy's definition, T2's 56 files, the T1-easy rate,
+and the three parseoracle subject rows. The eight dependent issues are
+unblocked for the ratchet specifically; the milestone is not done.
