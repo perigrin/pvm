@@ -3,8 +3,10 @@ title: "The intuit_curly lookahead: a brace after a list operator"
 state: pending
 urgency: normal
 milestone: m1-parse-the-core
+blocks:
+- 01a0ad52-f1e4-7e19-80c7-a99f859951eb
 created: 2026-09-16T22:24:52.875856958Z
-updated: 2026-09-16T22:25:09.747758976Z
+updated: 2026-09-17T05:28:00.093216785Z
 ---
 
 `map { ; a => 1 }` parses as `call(anon_hash)` instead of a call taking a
