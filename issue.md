@@ -6,7 +6,7 @@ milestone: m1-parse-the-core
 blocked_by:
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-17T14:23:38.848509109Z
-updated: 2026-09-17T14:24:46.64026169Z
+updated: 2026-09-17T19:56:36.020751566Z
 ---
 
 Five constructs do not lex, and each is a missing scanner row rather than a design problem. Measured at 3c997a6b, all round-tripping:
@@ -70,15 +70,14 @@ that already lex.
 - [ ] `<*.c>` lexes as a glob, and `$a < $b` is still a comparison (`go test ./internal/lexer/ -run '^TestAngleGlob$' -count=1 -v | grep -q '^--- PASS: TestAngleGlob'`)
 - [ ] `$::x`, `@::a` and `$::Foo::x` lex as variables (`go test ./internal/lexer/ -run '^TestLeadingPackageSeparator$' -count=1 -v | grep -q '^--- PASS: TestLeadingPackageSeparator'`)
 - [ ] The lexer round-trip and the golden token stream both hold (`go test ./internal/lexer/ -count=1 2>&1 | grep -qv FAIL`)
-- [ ] T1 clean does not fall below 408 and Unknown does not rise above 4,944 (`go test ./internal/parse/ -run '^TestT1Ratchet$' -count=1 -v | grep -q '^--- PASS: TestT1Ratchet'`)
+- [ ] T1 clean does not fall below 408 and Unknown does not rise above 4,944 (`go test ./internal/parse/ -run '^TestParseRatchet$' -count=1 -v | grep -q '^--- PASS: TestParseRatchet'`)
 
 Each negative criterion is paired with its positive on purpose: every one of
 these rows is a case where the same bytes mean something else in operator
 position, which is what `internal/lexer/expect.go` exists for. A row added
 without its negative is how `%h = ()` once lexed as modulus.
 
-The T1 AC depends on `TestT1Ratchet`, owned by the M1 gate and not yet
-written. The lexer's own ratchet and golden stream already exist and will
+The T1 AC uses `TestParseRatchet`, committed at 4bc971ec. The lexer's own ratchet and golden stream already exist and will
 move; both regenerate under explicit flags.
 
 Spec: §4.14.2 (`Range{Exclusive}`, `StrLit.Backtick`, `Readline{Magic}`,
