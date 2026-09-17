@@ -17,7 +17,7 @@ blocks:
 - 01a0afc0-6d61-7dc5-a10c-a0d29ed14742
 - 01a0afc1-2931-76bc-80e9-8e51a7dfc544
 created: 2026-09-15T21:53:08.812269582Z
-updated: 2026-09-17T14:25:27.297046492Z
+updated: 2026-09-17T19:56:35.633682424Z
 sessions:
 - start_sha: 1f0669412eaad35c8b13ec0d8ff60c75120a330a
   end_sha: ""
@@ -140,7 +140,7 @@ Plan: M1 metrics. Spec: §7.3.5, §7.5.
 
 Chain review on 2026-09-17 flagged this as a bottleneck: the pushback lens
 warns above four dependents. Every edge is real — each blocked issue has an
-acceptance criterion naming `TestT1Ratchet`, which this issue owns and which
+acceptance criterion naming `TestParseRatchet`, which this issue owns and which
 does not exist:
 
     01a0ac52  intuit_curly lookahead
@@ -159,7 +159,7 @@ were caught by a hand-rolled throwaway sweep, reverted, and the reasons
 recorded. Without a committed ratchet the next such change is caught by
 nobody.
 
-**`TestT1Ratchet` is the smallest thing that unblocks the most.** It is one
+**`TestParseRatchet` is the smallest thing that unblocks the most.** It is one
 test: walk `unit/*.t` at top level (986 files), count clean files and
 `Unknown` nodes, compare against a committed per-file baseline, fail in
 either direction. The baseline is 408 clean / 4,944 `Unknown` at 3c997a6b.
