@@ -6,7 +6,7 @@ milestone: m1-parse-the-core
 blocked_by:
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-17T14:22:29.542545808Z
-updated: 2026-09-17T14:24:46.418023554Z
+updated: 2026-09-17T19:56:35.909428523Z
 ---
 
 `parse.Node` has one flag and §4.14 needs four. The lowering cannot build what the parser threw away, and four separate obligations share this single cause.
@@ -109,11 +109,10 @@ of padding that a `uint8` would not spend. §6.10.4 owns the memory budget.
 - [ ] `print $fh "x"` marks its handle without the lowering counting children (`go test ./internal/parse/ -run '^TestHandleBitIsSet$' -count=1 -v | grep -q '^--- PASS: TestHandleBitIsSet'`)
 - [ ] Each bit is false where it does not apply, and no consumer reads it there (`go test ./internal/parse/ -run '^TestFlagsAreFalseWhereInapplicable$' -count=1 -v | grep -q '^--- PASS: TestFlagsAreFalseWhereInapplicable'`)
 - [ ] Round-trip is unaffected (`go test ./internal/parse/ -run '^TestTreeRoundTrips$' -count=1 -v | grep -q '^--- PASS: TestTreeRoundTrips'`)
-- [ ] T1 does not move: 408 clean, 4,944 Unknown, measured on `unit/*.t` at top level (`go test ./internal/parse/ -run '^TestT1Ratchet$' -count=1 -v | grep -q '^--- PASS: TestT1Ratchet'`)
+- [ ] T1 does not move: 408 clean, 4,944 Unknown, measured on `unit/*.t` at top level (`go test ./internal/parse/ -run '^TestParseRatchet$' -count=1 -v | grep -q '^--- PASS: TestParseRatchet'`)
 - [ ] The whole suite is green (`go test ./internal/... 2>&1 | grep -qv FAIL`)
 
-The T1 AC depends on `TestT1Ratchet`, which the M1 gate owns and has not
-written. Until it exists this issue cannot be completed — correctly, since
+The T1 AC uses `TestParseRatchet`, committed at 4bc971ec. Until it exists this issue cannot be completed — correctly, since
 "changed no parse outcome" is the claim that needs the ratchet to mean
 anything.
 
