@@ -3,8 +3,10 @@ title: "Sigils are structural: the lexer swallows whole dereferences"
 state: pending
 urgency: normal
 milestone: m1-parse-the-core
+blocked_by:
+- 01a0ac52-a68c-750b-92d4-852abfc54a2f
 created: 2026-09-17T03:04:49.380252705Z
-updated: 2026-09-17T05:27:34.751368325Z
+updated: 2026-09-17T05:28:00.097813211Z
 ---
 
 An attempt at this measured worse than it looks, and the reason is issue 01a0ac52.
