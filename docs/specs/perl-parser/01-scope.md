@@ -6,10 +6,18 @@
 ## 1.1 What is being specified
 
 A parser for the Perl programming language, implemented in Go using only the
-Go standard library, sufficient to power:
+Go standard library. The parser is a component of PSC, the static-analysis
+compiler, not a standalone project, and it serves two consumers inside PSC:
 
-1. **A Language Server (LSP)** that re-parses incrementally as the user types.
-2. **The PSC type checker**, which consumes the resulting syntax tree.
+1. **A Language Server (LSP)** that re-parses incrementally as the user types
+   and needs a position for every byte and a tree for broken code.
+2. **Type inference and flow analysis** (`internal/infer/`), which wants a
+   small canonical vocabulary. It consumes the tree-sitter tree today and
+   will be converted to this one; chapter 6 §6.1.6 specifies the lowering
+   pass it consumes it through, and §6.1.7 the flow analysis over it.
+
+The two consumers pull in opposite directions on fidelity. The parser
+produces one tree, the CST, for the first; the lowering produces the second's.
 
 This document is a specification for an implementer. It is not a tutorial on
 Perl and not a survey of parsing techniques. Where it states a rule, that rule
@@ -23,7 +31,7 @@ cited.
 | Go standard library only | No tree-sitter, no ANTLR, no goyacc-generated tables from a third-party grammar. Hand-written lexer and recursive-descent/Pratt parser. |
 | `CGO_ENABLED=0` | Cross-compilation stays trivial. This is PVM's stated premise and the reason the current tree-sitter binding exists at all. |
 | Incremental re-parse | The architecture is constrained from the start; retrofitting incrementality onto a batch parser is a rewrite. |
-| Feeds PSC | The tree is not an end in itself. Node kinds and context propagation must serve type inference. |
+| Feeds PSC | The tree is not an end in itself. Node kinds and context propagation must serve type inference — through the lowering of chapter 6 §6.1.6, whose target vocabulary is chapter 4 §4.14. |
 
 `goyacc` ships with the Go toolchain but is not in the standard library, and
 generating an LALR parser from a transcription of `perly.y` would inherit

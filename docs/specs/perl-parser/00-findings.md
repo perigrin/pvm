@@ -347,7 +347,12 @@ re-baseline rather than as a regression.
 
 The intuitive assumption — a type checker walking every node must cost more
 than a parse — is wrong here by one to two orders of magnitude. Measured with
-`go test -bench` against perl5/lib on 2026-09-04:
+`go test -bench` against perl5/lib on 2026-09-04, with the parser PSC
+consumed then and still consumes: tree-sitter through `internal/parser`. The
+hand-written `internal/parse/` did not exist at the time and has not been
+benchmarked on these files (chapter 6 §6.1.8); the parse column is a property
+of the parser being replaced, and the `Analyze` column does not depend on
+which parser built the tree.
 
 | File | Lines | Parse | PSC `Analyze` | Ratio |
 |---|---:|---:|---:|---:|

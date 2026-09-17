@@ -1104,6 +1104,12 @@ type Repeat struct {
 Do not normalise away `Paren` nodes before this decision is made. This is a
 common source of bugs in Perl parsers that eagerly unwrap parentheses.
 
+Measured 2026-09-17 at 3b9422eb: `internal/parse/term.go:284-293` does
+exactly this — `finishList` returns the single item with the parens' span,
+and `($x);` parses to `[statement [term "$x"]]` with no `Paren` node. It
+round-trips, because round-trip cannot see structure (chapter 7 §7.2(c)).
+No issue tracked it at the time of measurement; chapter 6 §6.1.8 lists it.
+
 ---
 
 ## 4.11 Quote-like operators as expressions
@@ -1383,6 +1389,15 @@ produce. The guiding principle: **preserve syntax that determines semantics**
 — parentheses, sigils, fat commas, block-vs-expression choices — and record
 every place the parser had to guess.
 
+This list is the vocabulary inference reads, not the vocabulary the parser
+emits. `internal/parse/parse.go:146-201` ships 23 coarser kinds — one `Term`
+for every leaf, one `Index` for `$h{k}` beside a `Binary "->"` over an
+`AnonHash` for `$h->{k}`, `{k}` as a `Call{Resolved:false}` — and chapter 6
+§6.1.6 places a lowering pass between that CST and this list, keeping a side
+table between the two. The list predates the parser and was not reconciled
+with it; which distinctions survive the lowering as nodes, which as flags,
+and which are erased is open (chapter 6 §6.1.8).
+
 ```go
 // Every node carries a span and the context its parent imposes.
 type Node interface{ Base() *nodeBase }
@@ -1514,6 +1529,32 @@ type Match struct { // m// s/// tr/// qr// -- see 4.11
 5. **Keep `Slice.Kind` explicit.** The four slice kinds produce four different
    result types (§4.4.7); collapsing them to "slice" loses the information PSC
    needs most.
+6. **A captured variable is a shared mutable cell, not a value.** This is a
+   fact about Perl rather than about any node kind, and it constrains every
+   consumer of this vocabulary:
+
+   ```perl
+   my $n = 5; my $c = sub { $n }; $n = 99;   # $c->() is 99, not 5
+   for my $i (1..3) { push @s, sub { $i } }  # 1, 2, 3 -- not 3, 3, 3
+   ```
+
+   Both measured on perl 5.42.0, 2026-09-17.
+
+   The first line says a closure reads the cell at call time, so inference
+   cannot type `$n` inside the sub from its value at the point of capture.
+   The second says each loop iteration creates a *distinct* cell, so the
+   three `$i` references are three cells that happen to share a name and a
+   source span. Any scheme that identifies captured variables by name, by
+   declaration site, or by source position collapses them and gets 3,3,3.
+
+   B::SoN reached the same conclusion from the other end and encodes it in
+   its node vocabulary — `MakeCell`/`CellRead`/`CellWrite`/`CellParam`, never
+   hash-consed, precisely so that two structurally identical captures stay
+   two nodes (reported by that session 2026-09-17, not re-read here). This
+   list has no cell node and does not need one: the cell is a property of
+   scope resolution, not of syntax. But the scope resolution chapter 6
+   §6.1.6 item 4 asks for must produce a distinct identity per iteration, and
+   a naive "one entry per declaration" table cannot.
 
 ---
 
