@@ -3,8 +3,10 @@ title: "Node carries one flag and the tree needs four: Arrow, Paren, Fat, Handle
 state: pending
 urgency: normal
 milestone: m1-parse-the-core
+blocked_by:
+- 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-17T14:22:29.542545808Z
-updated: 2026-09-17T14:22:29.542545808Z
+updated: 2026-09-17T14:24:46.418023554Z
 ---
 
 `parse.Node` has one flag and §4.14 needs four. The lowering cannot build what the parser threw away, and four separate obligations share this single cause.
