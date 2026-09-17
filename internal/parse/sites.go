@@ -5,6 +5,7 @@ package parse
 
 import (
 	"bytes"
+	"strings"
 
 	"tamarou.com/pvm/internal/parseoracle"
 )
@@ -52,20 +53,150 @@ func Sites(root *Node, src []byte) []parseoracle.SubjectCallSite {
 
 	lines := lineIndex(src)
 	for _, n := range root.Children {
-		if n.Kind != Unknown {
+		start, end := lines.at(n.Start), lines.at(n.End-1)
+
+		if n.Kind == Unknown {
+			for _, kind := range markerKinds {
+				sites = append(sites, parseoracle.SubjectCallSite{
+					Kind:       kind,
+					Line:       start,
+					EndLine:    end,
+					Unresolved: true,
+				})
+			}
 			continue
 		}
-		start, end := lines.at(n.Start), lines.at(n.End-1)
-		for _, kind := range markerKinds {
+
+		// A statement this parser DID read reports what it decided. Without
+		// this the subject only ever hedges, and a subject that never commits
+		// cannot be wrong -- nor right. WRONG=0 with exact=0 is the vacuous
+		// gate the M1 issue's "exact floor" row exists to prevent.
+		for _, kind := range decidedMarkers(n) {
 			sites = append(sites, parseoracle.SubjectCallSite{
-				Kind:       kind,
-				Line:       start,
-				EndLine:    end,
-				Unresolved: true,
+				Kind:    kind,
+				Line:    start,
+				EndLine: end,
 			})
 		}
 	}
 	return sites
+}
+
+// decidedMarkers reports which of the five markers this statement contains,
+// in the subject vocabulary. Each is a conclusion the parser committed to.
+//
+// Only what the tree SHOWS, never what the bytes suggest. `$a % $b` is a
+// Binary whose Text is "%", not a hash; `$a / $b` is division, not a
+// pattern; `$a < $c` is a comparison, not a readline. The lexer settled all
+// three by position (§3.2) and the tree records the answer, so reading the
+// tree cannot reach a different one. Scanning source text could.
+func decidedMarkers(stmt *Node) []string {
+	var found []string
+	seen := make(map[string]bool, len(markerKinds))
+
+	add := func(kind string) {
+		if !seen[kind] {
+			seen[kind] = true
+			found = append(found, kind)
+		}
+	}
+
+	var walk func(*Node)
+	walk = func(n *Node) {
+		switch n.Kind {
+		case Unknown:
+			// A nested Unknown is the statement's own refusal, already
+			// hedged at statement level. Do not descend into it, and do not
+			// let anything inside it count as decided.
+			return
+
+		case AnonHash:
+			// perl: anonhash. The lexer's brace stack already chose term
+			// over block (§4.9.2), so this node IS the decision.
+			add(parseoracle.SiteKindAnonhash)
+
+		case Unary:
+			// perl: srefgen. prefixName maps `\` to "ref", which keeps the
+			// prefix spelling distinct from infix `-`.
+			if n.Text == "ref" {
+				add(parseoracle.SiteKindReference)
+			}
+
+		case Binary:
+			// perl: match. `=~` and `!~` bind a pattern; s/// and tr/// are
+			// substitution and transliteration, which perl reports with
+			// different ops, so they are excluded by their own spelling.
+			if n.Text == "=~" || n.Text == "!~" {
+				if len(n.Children) > 1 && isMatchOperand(n.Children[1]) {
+					add(parseoracle.SiteKindMatch)
+				}
+			}
+
+		case Term:
+			switch {
+			case isHashTerm(n.Text):
+				// perl: rv2hv.
+				add(parseoracle.SiteKindHash)
+			case isReadlineTerm(n.Text):
+				// perl: readline.
+				add(parseoracle.SiteKindReadline)
+			case isBarePattern(n.Text):
+				add(parseoracle.SiteKindMatch)
+			}
+		}
+		for _, c := range n.Children {
+			walk(c)
+		}
+	}
+	walk(stmt)
+	return found
+}
+
+// isHashTerm reports whether a leaf's text is a hash read: `%h`, `%$r`.
+//
+// A leading `%` in TERM position is a sigil and nowhere else -- scanVariable
+// refuses it when the expect state does not want a term, which is what keeps
+// `$a % $b` from lexing as a hash (§3.2). So the byte is sufficient here
+// precisely because the lexer already did the hard part.
+func isHashTerm(text string) bool {
+	return len(text) > 1 && text[0] == '%'
+}
+
+// isReadlineTerm reports whether a leaf is `<FH>`, `<$fh>` or `<>`.
+//
+// Same reasoning: scanAngle emits a Readline token only in term position,
+// so a leaf whose text is angle-delimited is the lexer's own decision.
+func isReadlineTerm(text string) bool {
+	return len(text) >= 2 && text[0] == '<' && text[len(text)-1] == '>'
+}
+
+// isBarePattern reports whether a leaf is a match rather than a substitution
+// or a transliteration.
+//
+// perl reports s/// with subst and tr/// with trans, neither of which is the
+// match marker, so they must not be counted. `qr//` compiles a pattern
+// without matching it and is excluded for the same reason.
+func isBarePattern(text string) bool {
+	switch {
+	case strings.HasPrefix(text, "s/"), strings.HasPrefix(text, "s{"),
+		strings.HasPrefix(text, "tr"), strings.HasPrefix(text, "y/"),
+		strings.HasPrefix(text, "qr"):
+		return false
+	case strings.HasPrefix(text, "m/"), strings.HasPrefix(text, "m{"):
+		return true
+	case len(text) >= 2 && text[0] == '/' && text[len(text)-1] == '/':
+		return true
+	}
+	return false
+}
+
+// isMatchOperand reports whether the right side of `=~` is a match rather
+// than a substitution or transliteration.
+func isMatchOperand(n *Node) bool {
+	if n.Kind != Term {
+		return false
+	}
+	return isBarePattern(n.Text)
 }
 
 // lineStarts is the byte offset of each line's first byte, so a span can be
