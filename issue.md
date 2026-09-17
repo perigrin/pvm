@@ -6,7 +6,7 @@ milestone: m1-parse-the-core
 blocked_by:
 - 01a0ac52-a68c-750b-92d4-852abfc54a2f
 created: 2026-09-17T03:04:49.380252705Z
-updated: 2026-09-17T05:28:00.097813211Z
+updated: 2026-09-17T11:48:31.055616161Z
 ---
 
 An attempt at this measured worse than it looks, and the reason is issue 01a0ac52.
@@ -29,26 +29,29 @@ punctuation around an identifier (`"${foo}bar"`). The parser turns it into a
 
 ## Why it is not committed
 
-Measured on the PerlOnJava corpus (1,935 files) against 3b9422eb:
+Measured on T1 graded (PerlOnJava `unit/*.t`, 986 files, top level only),
+against d2ebe02a:
 
                       before    after
-    files clean       856       854
-    Unknown nodes     8,432     8,155
+    files clean       408       406
+    Unknown nodes     4,944     4,986
     round-trip        0 fail    0 fail
 
-    27 files worse, 10 files better
+Worse on both axes.
 
-The aggregate -277 is not what it appears. 335 of the 345 improvements come
-from THREE files:
+An earlier run of the same change looked favourable -- 8,432 -> 8,155
+Unknown, a gain of 277 -- and that measurement was against the WRONG CORPUS:
+1,935 files found by walking the whole of `src/test/resources`, including
+`module/`. T1 graded is `unit/*.t` at top level. The three files supplying
+335 of those 345 improvements were all Class-MethodMaker, under `module/`,
+outside T1 entirely:
 
     -136  module/Class-MethodMaker/t/array.t   (180 -> 44)
     -122  module/Class-MethodMaker/t/hash.t    (167 -> 45)
      -77  module/Class-MethodMaker/t/scalar.t  (131 -> 54)
 
-against 27 files made slightly worse, including two that were clean and are
-no longer (`unit/indirect_object_constructor.t`, `unit/subs_pragma.t`). A
-change that fixes one construct in three files and breaks something small in
-27 others is not ready, whatever the total says.
+The decision to hold the change was right; the reason given for it was not.
+Both are recorded so the next attempt measures the right set from the start.
 
 ## The blocker, which is this issue's own subject
 
@@ -76,9 +79,14 @@ because `${$y}` lexed as one Variable token and no CloseBracket ever
 preceded the subscript.
 
 Restricting the rule to `)` is a one-line change and it is in the stash. It
-takes Unknown from 8,459 to 8,155, and it is the point at which this stops
-being a dereference fix and becomes brace classification -- 01a0ac52's
+is a real fix regardless of this issue -- `$a[0]{k}` has the same defect and
+needs no dereference to reach it -- and it is the point at which this stops
+being a dereference fix and becomes brace classification, 01a0ac52's
 subject. Two more term-position brace decisions sit behind it.
+
+That one-liner is worth landing on its own, with its own measurement, before
+the dereference work resumes: it is independently correct, and separating it
+means the next T1 number attributes cleanly to one change rather than two.
 
 ## What is already done and should be reused
 
@@ -106,10 +114,13 @@ Stashed as `deref-lexer-only-01CRysQ`, SHA af8ca8f76b87e29d7837dedb2cce1848fddd9
       the tree, as children rather than as swallowed bytes.
 - [ ] `${name}` stays one Variable; `$$` stays the process id; `${^TAINT}`
       stays a name.
-- [ ] No file in the PerlOnJava corpus gains Unknown nodes. The three
-      Class-MethodMaker files are expected to improve; the 27 regressions
-      must be understood and fixed, not averaged away.
-- [ ] Files clean does not decrease.
+- [ ] Measured on T1 graded -- `unit/*.t` at top level, 986 files -- and
+      quoted as such. Any other corpus is reported separately and never
+      substituted for this one.
+- [ ] T1 files clean does not decrease from 408.
+- [ ] T1 Unknown nodes do not increase from 4,944.
+- [ ] No individual T1 file gains Unknown nodes; a net improvement that
+      hides per-file regressions is not acceptable.
 - [ ] Round-trip stays at zero failures.
 - [ ] The `nextIsOpenBrace` rule applies to `)` only, with a test that
       `${$y}{Keys}` and `$a[0]{k}` classify both braces as terms.
