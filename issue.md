@@ -6,7 +6,7 @@ milestone: m1-parse-the-core
 blocked_by:
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-17T14:23:31.374573065Z
-updated: 2026-09-17T14:24:46.542745387Z
+updated: 2026-09-17T19:56:35.961889551Z
 ---
 
 Four constructs are `Unknown` because a word is missing from a table, not because anything is hard. Measured at 3c997a6b, each round-tripping:
@@ -60,13 +60,13 @@ milestone is about producing a tree, not about semantics.
 - [ ] `do 'f.pl'` parses, and `do { 1 }` still takes the block path (`go test ./internal/parse/ -run '^TestDoFileAndDoBlock$' -count=1 -v | grep -q '^--- PASS: TestDoFileAndDoBlock'`)
 - [ ] None of the four is `Unknown`, and none swallowed the statement after it (`go test ./internal/parse/ -run '^TestKeywordGapsConsumeExactlyTheirArguments$' -count=1 -v | grep -q '^--- PASS: TestKeywordGapsConsumeExactlyTheirArguments'`)
 - [ ] `delete` as a hash key, `$h{delete}`, still parses as a key (`go test ./internal/parse/ -run '^TestKeywordsAreStillIdentifiers$' -count=1 -v | grep -q '^--- PASS: TestKeywordsAreStillIdentifiers'`)
-- [ ] T1 clean does not fall below 408 and Unknown does not rise above 4,944 (`go test ./internal/parse/ -run '^TestT1Ratchet$' -count=1 -v | grep -q '^--- PASS: TestT1Ratchet'`)
+- [ ] T1 clean does not fall below 408 and Unknown does not rise above 4,944 (`go test ./internal/parse/ -run '^TestParseRatchet$' -count=1 -v | grep -q '^--- PASS: TestParseRatchet'`)
 - [ ] The whole suite is green (`go test ./internal/... 2>&1 | grep -qv FAIL`)
 
 The negative criterion is the one that matters: `internal/parse/termform_test.go`
 records that treating every declarator as a declaration made `$h{field}` parse
 its KEY as one. A keyword added without the identifier case repeats it.
 
-The T1 AC depends on `TestT1Ratchet`, owned by the M1 gate and not yet written.
+The T1 AC uses `TestParseRatchet`, committed at 4bc971ec.
 
 Spec: §4.14.2 (`LoopEx`, `DoFile`, and the named-builtins note). Plan: M1.
