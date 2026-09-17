@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-17T02:44:01.961043269Z
-updated: 2026-09-17T02:44:20.042099606Z
+updated: 2026-09-17T02:47:11.168825415Z
 ---
 
 Teach the parser what a `use` imported, so a parenless call to an imported sub
@@ -30,12 +30,31 @@ Not a shape enum. The prototype DETERMINES the shape, measured:
 So shape is derived, not stored. A stored `shape` field would be a second
 copy of one fact -- the failure mode this project keeps finding.
 
-It also does not FIT. `pass` and `fail` are `(;$)`, zero-or-one:
+It also does not FIT, in at least two ways.
+
+`pass` and `fail` are `(;$)`, zero-or-one:
 
     $ perl -e 'sub p (;$) {...} p; p("x");'    both parse
 
-A list/unary/niladic enum has no slot for that and would have to guess. The
-string does not.
+A LEADING `&` licenses the block-call form, and without one that form is not
+merely different but a SYNTAX ERROR:
+
+    sub bf (&@) { }    bf { $_[0]*2 } (1,2,3)   ->  2,4,6
+    sub ao (&)  { }    ao { 42 }                ->  42
+    sub na ($@) { }    na { 1 } (2,3)           ->  syntax error near "} ("
+
+Measured, and the leading position is what matters. A NON-initial `&` is an
+ordinary code-ref slot with no parse effect -- `sub ni ($&)` with
+`ni { 1 } (2)` gives "Not enough arguments", not a syntax error, because the
+`{1}` was read as an anonymous hash. `\&` is likewise a reference slot:
+"Type of arg 1 must be subroutine (not anonymous hash)". So a pattern match
+must anchor on a leading `&` NOT preceded by a backslash.
+
+A list/unary/niladic enum has a slot for neither fact and would have to
+guess at both. The string does not.
+
+A fourth the enum could not carry: `\@` and `\%` auto-reference slots change
+what the CALLER may write without changing arity.
 
 And it is what M4 needs anyway: the prototype is the srefgen signal the whole
 fidelity harness was built to measure.
