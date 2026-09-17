@@ -3,10 +3,12 @@ title: "The intuit_curly lookahead: a brace after a list operator"
 state: pending
 urgency: normal
 milestone: m1-parse-the-core
+blocked_by:
+- 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 blocks:
 - 01a0ad52-f1e4-7e19-80c7-a99f859951eb
 created: 2026-09-16T22:24:52.875856958Z
-updated: 2026-09-17T14:01:40.901202731Z
+updated: 2026-09-17T14:24:45.836292817Z
 ---
 
 A one-line change here is correct and makes T1 worse. That is the finding, and it is why this issue is bigger than it looks.
