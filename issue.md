@@ -17,7 +17,7 @@ blocks:
 - 01a0afc0-6d61-7dc5-a10c-a0d29ed14742
 - 01a0afc1-2931-76bc-80e9-8e51a7dfc544
 created: 2026-09-15T21:53:08.812269582Z
-updated: 2026-09-17T14:24:46.731964566Z
+updated: 2026-09-17T14:25:27.297046492Z
 sessions:
 - start_sha: 1f0669412eaad35c8b13ec0d8ff60c75120a330a
   end_sha: ""
@@ -134,3 +134,39 @@ The sweep skips silently without a corpus flag, so the AC commands carry
 - [ ] Exact is at least 40% of markers attempted, so WRONG=0 is not vacuous (`go test ./internal/parseoracle/ -run '^TestGoParserExactFloor$' -count=1 -v -parseoracle.corpus=t2 | grep -q '^--- PASS: TestGoParserExactFloor'`)
 
 Plan: M1 metrics. Spec: §7.3.5, §7.5.
+
+
+## This issue now blocks eight others, and that is the finding
+
+Chain review on 2026-09-17 flagged this as a bottleneck: the pushback lens
+warns above four dependents. Every edge is real — each blocked issue has an
+acceptance criterion naming `TestT1Ratchet`, which this issue owns and which
+does not exist:
+
+    01a0ac52  intuit_curly lookahead
+    01a0ad52  sigils are structural
+    01a0afbf  Node carries one flag and the tree needs four
+    01a0afc0  four keywords missing from the table
+    01a0afc0  five scanner rows
+    01a0afc1  four wrong trees that round-trip
+    01a0a8cd  remove the WRONG pin
+    01a0a8d8  canonical re-emission
+
+The bottleneck is not an artefact of how the edges were drawn. This session
+measured why it is real: three parser fixes were attempted, each verifiably
+correct against toke.c or running perl, and two of them made T1 worse. They
+were caught by a hand-rolled throwaway sweep, reverted, and the reasons
+recorded. Without a committed ratchet the next such change is caught by
+nobody.
+
+**`TestT1Ratchet` is the smallest thing that unblocks the most.** It is one
+test: walk `unit/*.t` at top level (986 files), count clean files and
+`Unknown` nodes, compare against a committed per-file baseline, fail in
+either direction. The baseline is 408 clean / 4,944 `Unknown` at 3c997a6b.
+`internal/lexer`'s ratchet is the shape to follow; this issue's own body
+already says so and asks whether a third copy or an extraction is right.
+
+Consider splitting that one test out of this issue so the eight can proceed
+while the rest of the gate — T1-easy's definition, the subject contract, the
+exact floor — is still being worked. Eight issues blocked on a gate that has
+none of its eight AC tests written is a stall, not a sequence.
