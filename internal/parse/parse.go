@@ -477,20 +477,29 @@ func (p *parser) statement() *Node {
 		return withLabels(labels, mod, start)
 	}
 
-	// Through a terminating `;` if there is one, so the statement owns its
-	// punctuation and the next statement starts clean.
-	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
-		p.advanceTo(tok)
-	}
-
-	// Anything left before the statement boundary was not consumed by the
-	// expression parser -- a statement form it does not know. The whole
-	// statement becomes Unknown rather than a half-parsed expression next to
-	// a mystery: a partial tree claims to be a parse of bytes it did not
-	// read, and that is what the harness scores WRONG.
+	// Anything left BEFORE the terminator was not consumed by the expression
+	// parser -- a statement form it does not know. The whole statement
+	// becomes Unknown rather than a half-parsed expression next to a
+	// mystery: a partial tree claims to be a parse of bytes it did not read,
+	// and that is what the harness scores WRONG.
+	//
+	// This check must come BEFORE the semicolon is consumed. Running it
+	// after looks at the NEXT statement's first token, which is never a
+	// terminator, so every statement followed by another became Unknown --
+	// `$x;\n$y;\n` collapsed into a single Unknown spanning the file.
+	//
+	// TestSourceFileIsStatements did not catch it: the test asserted only
+	// that children TILE the file, which one Unknown satisfies perfectly.
+	// It now asserts a Statement exists as well.
 	if tok, ok := p.peekSignificant(); ok && !endsStatement(tok, p.src) {
 		p.skipToStatementEnd()
 		return &Node{Kind: Unknown, Start: start, End: p.prevEnd()}
+	}
+
+	// Through the terminating `;` if there is one, so the statement owns its
+	// punctuation and the next statement starts clean.
+	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
+		p.advanceTo(tok)
 	}
 
 	if expr.Kind == Unknown {

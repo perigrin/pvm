@@ -83,6 +83,11 @@ var listOperator = map[string]bool{
 	//	print join(',', @a, 'x');
 	"split": true, "join": true,
 
+	// `say` is feature-gated, so the sweep -- which ran without `use v5.38`
+	// for the classification half -- saw it as a plain bareword. It is a
+	// list operator with a filehandle slot exactly like `print`.
+	"say": true,
+
 	// `return` is level 7 in perly.y and swallows its list the same way,
 	// but it is a statement form here and statementKeywords owns it.
 }

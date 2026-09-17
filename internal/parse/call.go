@@ -65,6 +65,20 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		n.Resolved = true
 
 	case listOperator[text]:
+		// A filehandle slot comes before the list and has NO comma after it,
+		// which is what makes it a slot rather than a first argument:
+		//
+		//	print STDERR "a";      bareword handle
+		//	print $fh "a";         scalar handle
+		//	print {$fh} "a";       block handle
+		//
+		// Without this the list parser reads `STDERR`, then finds a string
+		// with no operator between them and the statement falls to Unknown.
+		// Measured: 5,319 of T1's 13,558 Unknown nodes started at `print`,
+		// 39% of the whole gap from this one omission.
+		if fh := p.parseFilehandleSlot(text); fh != nil {
+			n.Children = append(n.Children, fh)
+		}
 		// The whole comma list, parsed below the comma at level 7.
 		if arg := p.parseExpr(bpListOp); arg != nil {
 			n.Children = append(n.Children, arg)
@@ -88,6 +102,93 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 
 	n.End = p.prevEnd()
 	return n
+}
+
+// takesFilehandle is the set of list operators whose first slot may be a
+// filehandle with no comma after it.
+//
+// Not every list operator has one -- `push @a, 1` has no handle slot and
+// treating `@a` as one would be wrong -- so the set is explicit.
+var takesFilehandle = map[string]bool{
+	"print": true, "printf": true, "say": true,
+}
+
+// parseFilehandleSlot reads `STDERR`, `$fh` or `{$fh}` before a list, or
+// returns nil when there is none.
+//
+// The distinguishing feature is the ABSENCE of a comma: `print $fh "a"` has a
+// handle, `print $x, "a"` does not. So the slot is taken only when the token
+// after the candidate begins a new term rather than continuing the list.
+func (p *parser) parseFilehandleSlot(op string) *Node {
+	if !takesFilehandle[op] {
+		return nil
+	}
+	tok, ok := p.peekSignificant()
+	if !ok {
+		return nil
+	}
+
+	switch {
+	case tok.OpensBlock && p.text(tok) == "{":
+		// `print {$fh} "a"` -- the block form, which exists precisely to
+		// disambiguate an expression in the slot.
+		return p.parseBlock(tok)
+
+	case tok.Kind == lexer.Word && isBarewordHandle(p.text(tok)):
+		// A bareword handle. Only ALL-CAPS names qualify, which is perl's
+		// own convention and what keeps `print foo 1` from stealing a
+		// function call into the slot.
+		p.advanceTo(tok)
+		return &Node{
+			Kind: Term, Text: p.text(tok),
+			Start: tok.Start, End: tok.End,
+		}
+
+	case tok.Kind == lexer.Variable && p.src[tok.Start] == '$':
+		// `print $fh "a"`. Only when what FOLLOWS starts a new term with no
+		// comma -- otherwise `print $x, "a"` would lose its first argument.
+		next, ok := p.peekAfter(tok)
+		if !ok || !startsTerm(next, p.src) {
+			return nil
+		}
+		p.advanceTo(tok)
+		return &Node{
+			Kind: Term, Text: p.text(tok),
+			Start: tok.Start, End: tok.End,
+		}
+	}
+	return nil
+}
+
+// isBarewordHandle reports whether a bareword looks like a filehandle.
+//
+// perl's rule is the symbol table's, which a static parser does not have, so
+// this uses the convention perl's own documentation recommends and every
+// corpus file follows: an all-caps name. STDERR, STDOUT, FH, OUT.
+func isBarewordHandle(word string) bool {
+	if word == "" {
+		return false
+	}
+	for i := 0; i < len(word); i++ {
+		c := word[i]
+		if (c >= 'A' && c <= 'Z') || c == '_' || (c >= '0' && c <= '9') {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+// startsTerm reports whether a token begins a new term rather than continuing
+// an expression -- the test that separates `print $fh "a"` from `print $x, 1`.
+func startsTerm(tok lexer.Token, src []byte) bool {
+	switch tok.Kind {
+	case lexer.Variable, lexer.Number, lexer.Quote, lexer.HeredocOpen:
+		return true
+	case lexer.Word:
+		return true
+	}
+	return false
 }
 
 // parseCallArgs reads the inside of a parenthesised argument list.

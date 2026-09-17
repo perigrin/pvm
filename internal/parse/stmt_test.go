@@ -37,6 +37,28 @@ func TestSourceFileIsStatements(t *testing.T) {
 		if at != len(src) {
 			t.Errorf("%q: children end at %d, want %d", src, at, len(src))
 		}
+
+		// Tiling ALONE is satisfied by one Unknown spanning the file, which
+		// is exactly what this test used to accept: `$x;\n$y;\n` regressed to
+		// a single Unknown and this passed, because the Unknown tiled
+		// perfectly. A guard that cannot fail.
+		//
+		// So the count is asserted too. Each of these inputs is two
+		// statements or one statement plus trivia, and a file that collapses
+		// to a single node is the regression this now catches.
+		var stmts, unknowns int
+		for _, n := range root.Children {
+			switch n.Kind {
+			case parse.Statement, parse.Block:
+				stmts++
+			case parse.Unknown:
+				unknowns++
+			}
+		}
+		if stmts == 0 {
+			t.Errorf("%q: no Statement children -- the file collapsed into "+
+				"%d Unknown: %v", src, unknowns, kinds(root))
+		}
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"tamarou.com/pvm/internal/lexer"
 	"tamarou.com/pvm/internal/parse"
 )
 
@@ -161,16 +162,80 @@ func TestClassCorpusHasNoUseGaps(t *testing.T) {
 	for _, path := range files {
 		src := readFile(t, path)
 		root := parse.Parse(src)
-		for _, n := range collect(root, parse.Unknown) {
-			text := strings.TrimSpace(string(src[n.Start:min(n.End, n.Start+16)]))
-			for _, kw := range []string{"use ", "no ", "require ", "class ", "BEGIN", "field "} {
-				if strings.HasPrefix(text, kw) {
-					t.Errorf("%s: %q is a form this issue owns and must parse: %q",
-						path, kw, truncate(text, 40))
+
+		// An Unknown must START a statement to count, and its opening TOKEN
+		// must be the keyword -- not merely its opening bytes.
+		//
+		// Matching on a text prefix reads heredoc bodies as code. Three of
+		// these files embed Perl in a heredoc:
+		//
+		//	eval <<'CLASS';          gh23511.t -- `class MyTest {` inside
+		//	fresh_perl_is(<<'CODE'   method.t  -- `use feature` inside
+		//	ok(eval <<'EOS', ...)    inherit.t -- `use A::B;` inside
+		//
+		// That text is DATA. The statement holding the heredoc is Unknown for
+		// its own reasons and its span covers the body, so any byte-based
+		// scan finds keywords that were never statements.
+		//
+		// The first token is what separates them: a heredoc body is one
+		// HeredocBody token and its contents are never tokens of their own.
+		var check func(*parse.Node)
+		check = func(parent *parse.Node) {
+			for _, n := range parent.Children {
+				if n.Kind == parse.Unknown {
+					if startsWithHeredocBody(src, n) {
+						continue
+					}
+					switch firstWordOf(src, n) {
+					case "use", "no", "require", "class", "BEGIN", "field":
+						t.Errorf("%s: a form this issue owns is Unknown: %q",
+							path, truncate(strings.TrimSpace(
+								string(src[n.Start:min(n.End, n.Start+40)])), 40))
+					}
+					continue
+				}
+				if n.Kind == parse.Block || n.Kind == parse.SourceFile {
+					check(n)
 				}
 			}
 		}
+		check(root)
 	}
+}
+
+// firstWordOf returns the first Word token inside a node, or "" if the node
+// does not begin with one.
+//
+// Re-lexes the node's span rather than reading its bytes, so a keyword that
+// appears inside a heredoc body or a string is not mistaken for one that
+// opens a statement.
+func firstWordOf(src []byte, n *parse.Node) string {
+	for _, tok := range lexer.Tokenize(src[n.Start:n.End]) {
+		switch tok.Kind {
+		case lexer.Whitespace, lexer.Comment, lexer.Pod:
+			continue
+		case lexer.Word:
+			return string(src[n.Start+tok.Start : n.Start+tok.End])
+		}
+		return ""
+	}
+	return ""
+}
+
+// startsWithHeredocBody reports whether a node's span opens inside a heredoc
+// body rather than at a statement.
+//
+// The parser's Unknown for `eval <<'CLASS';` spans the body too, because the
+// body follows the statement in the byte stream. Re-lexing that span finds the
+// Perl inside the heredoc, which was never a statement -- so a node whose
+// span begins mid-body is skipped.
+func startsWithHeredocBody(src []byte, n *parse.Node) bool {
+	for _, tok := range lexer.Tokenize(src) {
+		if tok.Kind == lexer.HeredocBody && tok.Start <= n.Start && n.Start < tok.End {
+			return true
+		}
+	}
+	return false
 }
 
 // TestClassCorpusRatchet pins how much of t/class is still Unknown, so the
@@ -190,7 +255,7 @@ func TestClassCorpusRatchet(t *testing.T) {
 	// landed. Update it in the same commit as the change that moves it, in
 	// either direction -- a drop is a win worth recording, and a rise is a
 	// regression worth seeing.
-	const want = 162
+	const want = 100
 	if unknown != want {
 		t.Errorf("t/class holds %d Unknown nodes, want %d: update this pin in "+
 			"the same commit as the change that moved it", unknown, want)
