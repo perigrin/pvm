@@ -288,6 +288,24 @@ var modifiers = map[string]bool{
 // modifier's body entire. A binding power low enough to express this would
 // have to sit below 0, which is the loop's own floor.
 func (p *parser) applyModifier(body *Node, start int) *Node {
+	// A statement that already ended cannot take a modifier. `my $z;` is
+	// finished at its semicolon, and the `foreach` on the NEXT line starts a
+	// new statement -- it is not a modifier on the declaration.
+	//
+	// Without this check every declaration followed by a control-flow
+	// statement swallowed it: `my $z;\nforeach my $e (@a) { ... }` parsed as
+	// one Loop containing the declaration, and the loop's body fell to
+	// Unknown. Measured across T1, that shape is one of the largest single
+	// causes.
+	//
+	// The declaration path is the only one that reaches here after
+	// consuming a terminator -- parseVarDecl takes the `;` so the statement
+	// owns its punctuation -- which is why the check lives here rather than
+	// in each caller.
+	if p.pos > 0 && p.toks[p.pos-1].Kind == lexer.Semicolon {
+		return nil
+	}
+
 	word, ok := p.peekSignificant()
 	if !ok || word.Kind != lexer.Word || !modifiers[p.text(word)] {
 		return nil

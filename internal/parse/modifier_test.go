@@ -77,6 +77,50 @@ func TestModifierBindsLoosest(t *testing.T) {
 	}
 }
 
+// TestModifierDoesNotCrossATerminator: a finished statement cannot take one.
+//
+// `my $z;` ends at its semicolon, so the `foreach` on the next line starts a
+// NEW statement. It is not a modifier on the declaration.
+//
+// Every declaration followed by a control-flow statement used to collapse
+// into one Loop containing the declaration, with the loop's body falling to
+// Unknown. The declaration path is the only one that reaches applyModifier
+// after consuming a terminator, which is why nothing else showed it -- and
+// why the existing modifier tests, which use un-terminated bodies, all
+// passed.
+func TestModifierDoesNotCrossATerminator(t *testing.T) {
+	for _, src := range []string{
+		"my $z;\nforeach my $e (@a) { $s; }\n",
+		"my $z = 0;\nforeach my $e (@a) { $s; }\n",
+		"my $z = 0;\nif ($c) { $s; }\n",
+		"our $z;\nwhile ($c) { $s; }\n",
+		"my $z = 0;\nfor my $e (@a) { $s; }\n",
+	} {
+		root := parse.Parse([]byte(src))
+		if containsKind(root, parse.Unknown) {
+			t.Errorf("%q must parse: %v", src, kinds(root))
+			continue
+		}
+		// Two statements, not one: the declaration and the control flow.
+		var stmts int
+		for _, n := range root.Children {
+			if n.Kind == parse.Statement {
+				stmts++
+			}
+		}
+		if stmts != 2 {
+			t.Errorf("%q: got %d statements, want 2 -- the control flow was "+
+				"absorbed as a modifier: %v", src, stmts, kinds(root))
+		}
+	}
+
+	// And a real modifier, which has no terminator before it, still works.
+	root := parse.Parse([]byte("$y = 1 if $c;\n"))
+	if firstOfKind(root, parse.Conditional) == nil {
+		t.Errorf("a genuine modifier must still attach: %v", kinds(root))
+	}
+}
+
 // TestBlockVersusHashref is spec §4.9.2's decision.
 //
 // The issue's original example does not discriminate: `map { $_ => 1 }` and
