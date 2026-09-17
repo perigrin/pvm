@@ -1,10 +1,19 @@
 ---
 title: Remove phantom PSC commands and flags from help system
-state: pending
+state: in-progress
 urgency: normal
 milestone: psc-type-alignment
 created: 2026-03-22T02:43:32.068658-04:00
-updated: 2026-09-17T15:35:49.141396842Z
+updated: 2026-09-17T15:35:57.552005572Z
+sessions:
+- start_sha: 67a6240c1b6d9189aa21e438a788a540fa16179e
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-17T15:35:57.552005572Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-17T15:35:57.552005572Z
 ---
 
 The PSC CLI help displays commands and flags that do not exist in the codebase:
