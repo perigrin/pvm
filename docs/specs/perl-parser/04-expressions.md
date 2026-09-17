@@ -1382,39 +1382,85 @@ kind that a cascade invites and a table prevents.
 
 ---
 
-## 4.14 Recommended AST node kinds
+## 4.14 The lowered vocabulary
 
-PSC consumes this tree. These are the node kinds a Go implementation should
-produce. The guiding principle: **preserve syntax that determines semantics**
-— parentheses, sigils, fat commas, block-vs-expression choices — and record
-every place the parser had to guess.
+This is the vocabulary inference reads, not the vocabulary the parser emits.
+Chapter 6 §6.1.6 places a lowering pass between `internal/parse`'s CST and
+this list; the CST stays the only tree the LSP's structural features read.
+The list was written before the parser existed. This revision reconciles it,
+at 3c997a6b, against four sources, and every entry below names which of
+them it rests on:
 
-This list is the vocabulary inference reads, not the vocabulary the parser
-emits. `internal/parse/parse.go:146-201` ships 23 coarser kinds — one `Term`
-for every leaf, one `Index` for `$h{k}` beside a `Binary "->"` over an
-`AnonHash` for `$h->{k}`, `{k}` as a `Call{Resolved:false}` — and chapter 6
-§6.1.6 places a lowering pass between that CST and this list, keeping a side
-table between the two. The list predates the parser and was not reconciled
-with it; which distinctions survive the lowering as nodes, which as flags,
-and which are erased is open (chapter 6 §6.1.8).
+- **P** — what `internal/parse` ships: 23 kinds plus `SourceFile`
+  (`parse.go:146-201`), and a `Node` carrying `Kind`, `Start`, `End`,
+  `Children`, `Text` and exactly one flag, `Resolved` (`parse.go:213-234`).
+  Measured on T1 (PerlOnJava `unit/*.t` at top level, 986 files): 408 clean,
+  4,944 `Unknown`, 0 round-trip failures. Tree shapes quoted below were
+  dumped from `parse.Parse` at that commit with a throwaway test, since
+  deleted; each is one line to reproduce.
+- **C** — what `internal/infer` consumes today, which is still the
+  tree-sitter tree via `internal/parser/`: 57 grammar names. Where a rule
+  re-derives structure from source *text*, that is evidence the lowered node
+  must carry the fact as a field, because the text path is where the
+  measured defects live.
+- **perl** — perl 5.42.0, run.
+- **SoN** — B::SoN at `~/dev/perl5-son`, read directly: 102 classes under
+  `lib/SoN/IR/Node/`, of which 5 are abstract bases with no `operation()`
+  and no construction site (`Access`, `Aggregate`, `BinOp`, `UnaryOp`,
+  `Regex`), so 97 concrete kinds. Chapter 6 §6.1.6 said 101, from a report
+  rather than a count.
+
+Each kind carries a status:
+
+| Status | Meaning |
+|---|---|
+| SHIPPED | the CST has the node; the lowering renames or passes it through |
+| LOWERING | the CST has no such node but carries every fact needed to build one |
+| PARSER | the parser discarded the fact, or does not parse the construct; the lowering cannot build the node until the parser changes |
+| SPECULATIVE | no consumer reads it, no parser support exists, and no perl or SoN fact requires it |
+
+The guiding principle is unchanged — **preserve syntax that determines
+semantics** and record every place the parser had to guess — but the list
+is no longer justified as a smaller tree. Measured over T1: 272,455 CST
+nodes, of which 43,250 (15.9%) are trivia; the lowering benchmark at the
+same commit lowered them to 229,205 (ratio 0.841), and the reduction is the
+trivia. Its justification is §6.1.6's: one shape per
+operation, so a rule matches one shape.
 
 ```go
-// Every node carries a span and the context its parent imposes.
+// Every node carries the context its parent imposes (§4.12) and an identity.
+//
+// Identity is a stable id, never a byte offset. internal/infer/infer.go:184
+// keys its annotation map on StartByte, and a parent written after its
+// children overwrites the child at the same offset: measured on
+// `my $x = 5; my @y = ($x); my $z = $y[0];`, byte 0 carries four nodes and
+// the `number` inside `(1..5)` reads back as its parent's type. Spans live
+// in the side table of §6.1.6 item 3, keyed by this id; the table must also
+// preserve total source ORDER, because nearestPatternBefore
+// (infer.go:1724-1751) resolves $1 by "the last match before this point".
 type Node interface{ Base() *nodeBase }
+
+// Hole is one Unknown, opaque. See §4.14.2.
+type Hole struct{ nodeBase }
 
 // --- Literals and names ---
 type NumLit    struct{ nodeBase; Text string; IsInt bool }
-type StrLit    struct{ nodeBase; Value string; Interpolated bool }
+type StrLit    struct{ nodeBase; Value string; Interpolated bool; Backtick bool }
+                                     // Backtick: `cmd` / qx// -- the value is a command
 type Interp    struct{ nodeBase; Parts []Node } // "a$b c" -> [StrLit, Var, StrLit]
 type QwList    struct{ nodeBase; Words []string }
-type Bareword  struct{ nodeBase; Name string; Quoted bool } // Quoted: from =>
+type Bareword  struct{ nodeBase; Name string; Quoted bool } // Quoted: from => or {k}
 
 // --- Variables and dereference ---
 type Var    struct{ nodeBase; Sigil string; Name string } // $x @x %x *x &x $#x
+                                     // (Sigil, Name) is the identity pair: $_ and @_
+                                     // are different variables. See rule 7.
 type Deref  struct{ nodeBase; Sigil string; Expr Node; Postfix bool }
                                      // ${$x} / $$x / $x->@*   Postfix marks ->@*
 type Index  struct{ nodeBase; Base Node; Idx Node; Arrow bool }  // $x[0] $x->[0]
 type Key    struct{ nodeBase; Base Node; Key Node; Arrow bool }  // $h{k} $x->{k}
+                                     // Arrow selects WHICH variable: $h{k} reads %h,
+                                     // $h->{k} reads $h. See rule 2.
 type Slice  struct{ nodeBase; Base Node; Idx Node; Kind SliceKind }
                                      // @a[..] @h{..} %a[..] %h{..}
 
@@ -1444,6 +1490,7 @@ type Range   struct{ nodeBase; Lo, Hi Node; Exclusive bool } // .. vs ...
 type List    struct{ nodeBase; Elems []Node; Fat []bool }    // Fat[i]: elem i
                                                               // was followed by =>
 type Paren   struct{ nodeBase; Inner Node }  // KEEP THIS. 4.10 and 4.12 need it.
+                                             // The CST erases it today; rule 1.
 
 // --- Declarations ---
 type Decl struct {
@@ -1460,6 +1507,8 @@ type Call struct {
 	nodeBase
 	Name          string // "" if Fn is set
 	Fn            Node   // $coderef->() or &{$x}()
+	Handle        Node   // print $fh LIST / print {$fh} LIST -- the slot before
+	                     // the list, which is NOT argument 1 (infer.go:1155-1165)
 	Args          []Node
 	Parenthesized bool // affects the paren cliff (4.8.1) and prototypes
 	Ampersand     bool // &foo -- prototypes bypassed
@@ -1474,7 +1523,7 @@ type MethodCall struct {
 	Dynamic  Node   // $obj->$name / $obj->$coderef
 	Args     []Node
 	HasParens bool
-	Indirect bool // "new Foo @args" -- see 4.5.3
+	Indirect bool // "new Foo @args" -- see 4.5.3; no CST source yet (§4.14.6)
 	Ambiguous bool
 }
 
@@ -1492,20 +1541,20 @@ type DoFile   struct{ nodeBase; Path Node }              // do EXPR
 type EvalBlock struct{ nodeBase; Body Node }             // statically analysable
 type EvalStr  struct{ nodeBase; Code Node }              // PSC: result is Any
 type AnonSub  struct{ nodeBase; Sig []Node; Body Node; Attrs []string }
-type AnonList struct{ nodeBase; Elems []Node }           // [ ... ]
-type AnonHash struct{ nodeBase; Elems []Node }           // { ... }
+type AnonList struct{ nodeBase; Elems []Node }           // [ ... ]  (SoN: ArrayLiteral)
+type AnonHash struct{ nodeBase; Elems []Node }           // { ... }  (SoN: HashLiteral)
 type Ref      struct{ nodeBase; Operand Node }           // \EXPR
 type FileTest struct{ nodeBase; Op byte; Operand Node }  // -e -d -f ...; nil = $_
 type Readline struct{ nodeBase; Handle Node; Magic bool } // <FH> <> <<>>
 type Glob     struct{ nodeBase; Pattern Node }           // <*.c> / glob EXPR
 type LoopEx   struct{ nodeBase; Op string; Label Node }  // last/next/redo/goto
-type Wantarray struct{ nodeBase }
+type Wantarray struct{ nodeBase }                        // same name in SoN
 
 type Match struct { // m// s/// tr/// qr// -- see 4.11
 	nodeBase
 	Op      string
-	Pattern []Node
-	Replace []Node
+	Pattern []Node // when Op is tr or y: a character SET, not a pattern
+	Replace []Node // likewise; and Flags are c/d/s/r, not regex flags
 	Flags   string
 	Target  Node // nil means $_
 	Negated bool // !~
@@ -1517,18 +1566,121 @@ type Match struct { // m// s/// tr/// qr// -- see 4.11
 1. **Never fold `Paren` away.** `(1,2) x 3` versus `1,2 x 3`, and
    `my ($x) = f()` versus `my $x = f()`, both turn on it. A pass that unwraps
    parens is a pass that introduces bugs.
-2. **`Index`/`Key` carry `Arrow`.** `$x->[0]` and `$$x[0]` produce the same
-   runtime op but different source; the LSP needs the distinction for
-   rename/refactor and PSC may want it for diagnostics.
+
+   The parser is that pass today. `finishList` (`internal/parse/term.go:288`)
+   returns the single item with the parens' *span* and no node: `($x);` is
+   `[term "$x"]` spanning `[0,4)`, and `((($x)));` is one `term "$x"` spanning
+   `[0,8)` — three paren levels, zero nodes. The information is not gone: for
+   `('a') x 3` the left operand is `term "'a'"` spanning `[0,5)` while for
+   `'ab' x 3` it spans `[0,4)`, so a lowering can test `src[n.Start]=='('`.
+   That test is unsound on its own. Census over T1: 6,574 non-trivia nodes
+   have a span starting with `(`, and 721 of them (664 `binary`, 43 `index`,
+   7 `ternary`, 6 `cmp_chain`, 1 `postfix`) have their *first child* starting
+   at the same offset — `(1,2)[0] x 3` is an `index` over a `list`, not a
+   parenthesised operand, and perl agrees (`my @a = ((1,2)[0]) x 3` gives
+   `1 1 1`). A guard — the first child starts later than the node, or the
+   node is a leaf whose `Text` is shorter than its span — removes those 721.
+   Whether anything else slips past the guard was not checked beyond one
+   known case: `PrototypeNode` leaves (62 in T1) carry their parens in
+   `Text` and must be excluded by kind. The smaller and exact fix is a
+   `Paren bool` on `parse.Node`, set at the one site that erases the node;
+   `Resolved` (`parse.go:234`) is the precedent for a kind-specific flag.
+   Status: PARSER, with a LOWERING fallback that needs the guard and has not
+   been proven sound. `qw(a b) x 2` is the other list-repeat spelling and
+   its `term "qw(a b)"` starts with `q`, so it is a separate case keyed on
+   the `qw` prefix.
+
+2. **`Index`/`Key` carry `Arrow`, and `Arrow` names a variable, not a
+   spelling.** The earlier text of this rule said `$x->[0]` and `$$x[0]`
+   "produce the same runtime op but different source" and gave the LSP as the
+   consumer. That undersells it. `$h{k}` reads `%h`; `$h->{k}` reads `$h`:
+
+   ```perl
+   my %h = (k => "hash"); my $h = { k => "ref" };
+   print $h{k}, $h->{k};    # hashref   -- perl 5.42.0
+   ```
+
+   Since d2ebe02a routed `->` before a subscript opener into `parseSubscript`
+   (`internal/parse/expr.go:83-88`), `$h{k};` and `$h->{k};` parse to
+   byte-identical trees — `[index "{" [term "$h"] [call "k"]]` — differing
+   only in the `index` span, and `subscript_test.go:34-37` asserts that they
+   must. 553 of T1's 2,186 `index` nodes (25.3%) are the arrow form. The
+   comment at `expr.go:73` promises the flag §4.14 asks for;
+   `parse.Node` does not have it. Status: PARSER. The arrow bytes survive in
+   the gap between the base child's `End` and the opener, but re-scanning
+   source there is the leak §6.1.6 criticises. Add `Arrow bool` to
+   `parse.Node`, set in the `->` branch, and turn the test into an assertion
+   that the two forms differ in exactly that field.
+
+   What inference actually branches on is one step removed: "is the base a
+   reference being dereferenced". `inferElementType` (`infer.go:1270-1280`)
+   reads the old grammar's `container_variable`-vs-`scalar` split for
+   exactly this, and `$$x[0]` is a dereference with no arrow. So the lowering
+   derives *deref-ness* from `Arrow || base is a Deref`, and keeps `Arrow`
+   itself for the rename case. No rule in `internal/infer` reads an arrow
+   property by that name today (grep over `internal/infer/*.go`: comments
+   only), which ranks it below the sigil split for inference and above it
+   for the LSP.
+
 3. **`Call.Resolved` and `MethodCall.Ambiguous` are the honest-uncertainty
    channel.** Chapter 1 establishes that some Perl cannot be parsed without
    running it. Rather than guessing silently, mark the node and let PSC widen
    to `Any` at exactly those points.
+
+   `Resolved` ships (`parse.go:229-234`) and the old grammar's
+   `ambiguous_function_call_expression` was carrying the same bit. But
+   `Call{Resolved:false}` is overloaded four ways in the CST, all measured:
+   an unresolved call; a hash key (`$h{k}` → `[index "{" [term "$h"]
+   [call "k"]]`); the left of a fat comma (`a => 1` → `[binary "=>"
+   [call "a"] [term "1"]]`); a class name as invocant (`Foo->new` →
+   `[binary "->" [call "Foo"] [call "new"]]`); and the stat-buffer bareword
+   (`-r _` → `[call "-r" [call "_"]]`, where §4.15.1 asks for a `Bareword`).
+   The lowering can separate these by position — second child of an
+   `Index{"{"}`, left operand of `Binary "=>"`, left operand of `Binary "->"`,
+   operand of a file test — and produce `Bareword{Quoted:true}` for the
+   first two. Status: LOWERING, but `parseWordTerm`'s `default:` arm already
+   knows the position at construction, and fixing it there is the smaller
+   diff. `MethodCall.Ambiguous` and `Indirect` have no CST source at all:
+   `new Foo(1)` is `Unknown`. Status: PARSER; whether to keep the fields is
+   §4.14.6.
+
 4. **`MapGrepSort.BlockGuessed` likewise.** The `{`-is-a-block heuristic is
    documented as a heuristic in perl's own source; record when it fired.
-5. **Keep `Slice.Kind` explicit.** The four slice kinds produce four different
-   result types (§4.4.7); collapsing them to "slice" loses the information PSC
-   needs most.
+
+   Nothing to record yet: `map { $_ } @a;`, `grep { $_ } @a;` and
+   `sort { $a <=> $b } @a;` are each one `Unknown`. The expression forms
+   parse (`map $_+1, @a` → `[call "map" resolved=true [binary "," ...]]`).
+   This is the brace classification of §4.9.2, owned by issue 01a0ac52,
+   which §6.1.8 records as the cause of the withdrawn dereference fix too.
+   Status: PARSER, blocked on 01a0ac52 — not an open vocabulary question.
+
+5. **Keep `Slice.Kind` explicit.** The four slice kinds produce four
+   different result types (§4.4.7); collapsing them to "slice" loses the
+   information PSC needs most. Re-measured on perl 5.42.0: `@a[0,2]` gives
+   elements, `@h{qw(x y)}` values, `%a[0,1]` index/element pairs, `%h{'x'}`
+   key/value pairs.
+
+   The CST carries the discriminant: every slice is `Index` (the sole
+   `Kind: Index` construction site is `parseSubscript`, `expr.go`), and the
+   pair (base child's first byte, `Index.Text`) selects the kind — measured
+   `@a[0,1]` → `index "["` over `term "@a"`; `@h{'a','b'}` → `index "{"`
+   over `term "@h"`; `%h{'a'}` → `index "{"` over `term "%h"`; `%a[0,1]` →
+   `index "["` over `term "%a"`; `(1,2)[0]` → `index "["` over a `list`
+   (SliceList). Status: LOWERING, one five-way switch, and the largest single
+   block of this list the lowering gets for free.
+
+   Inference branches only two ways on it today — KV or not, because only
+   the element type is at stake — and does not branch at all yet: the old
+   grammar's `slice_expression`, `slice_container_variable` and
+   `anonymous_slice_expression` appear nowhere in `internal/infer`, and
+   measured, `my @a=(1,2); my @s=@a[0,1];` gives `@a elem=Int` but
+   `@s elem=Unknown`. The other three values serve the LSP and diagnostics.
+   B::SoN maps `aslice`, `kvaslice`, `hslice`, `kvhslice` all to one `Slice`
+   (`FromOptree/OpMap.pm:209-231`) and `aelem`, `helem`, `multideref`,
+   `gelem` all to one `Subscript` (`:205-208`), because the optree it reads
+   has already typed the result. That is a phase difference, not a
+   disagreement; PSC is upstream of it and must not follow.
+
 6. **A captured variable is a shared mutable cell, not a value.** This is a
    fact about Perl rather than about any node kind, and it constrains every
    consumer of this vocabulary:
@@ -1548,13 +1700,285 @@ type Match struct { // m// s/// tr/// qr// -- see 4.11
    declaration site, or by source position collapses them and gets 3,3,3.
 
    B::SoN reached the same conclusion from the other end and encodes it in
-   its node vocabulary — `MakeCell`/`CellRead`/`CellWrite`/`CellParam`, never
-   hash-consed, precisely so that two structurally identical captures stay
-   two nodes (reported by that session 2026-09-17, not re-read here). This
-   list has no cell node and does not need one: the cell is a property of
-   scope resolution, not of syntax. But the scope resolution chapter 6
-   §6.1.6 item 4 asks for must produce a distinct identity per iteration, and
-   a naive "one entry per declaration" table cannot.
+   its node vocabulary. `lib/SoN/IR/Node/MakeCell.pm`, read directly: "NEVER
+   HASH-CONSED. Two structurally identical MakeCells are two DIFFERENT
+   cells ... One node with three executions yields three cells." That
+   phrasing settles what §6.1.6 item 4's identity scheme must mean: node
+   identity is per *syntax site* — one id for the `sub { $i }`, which is
+   correct for the tree and for the position map — and any table keyed on a
+   captured *value* must key on (node id, capture instance), not on node id
+   alone. `AnonSub.pm` splits the two the same way: "the name addresses one
+   shared body, the inputs are the per-closure environment." This list has
+   no cell node and does not need one: the cell is a property of scope
+   resolution, not of syntax.
+
+7. **`(Sigil, Name)` is `Var`'s identity, and the sigil is load-bearing.**
+   `$_`, `@_` and the file-test bareword `_` are three different things.
+   B::SoN's `PadAccess.pm` and `EntryDef.pm` both die on a missing sigil,
+   and record why: a name-only identity hash-consed `$_` and `@_` into one
+   node, so a `shift @_` and a regex subject shared a definition. A syntax
+   tree does not hash-cons, so the failure cannot recur here in that form —
+   but three paths in `internal/infer` re-derive `@_` and `$_[0]` from
+   source text (`infer.go:3659`, `:3753`, `:4193`), which is the same
+   mistake in a different coat. The lowering produces `Var{"@","_"}` and
+   `Index{Var{"$","_"}, 0}` and those rules compare fields. No
+   `ImplicitTopic` or `ArgsSource` node: B::SoN's `ArgsSource` exists to
+   stop the hash-consing, which is a graph problem, and `nil` remains the
+   spelling for an elided `$_` on `FileTest` and `Match`.
+
+### 4.14.2 The vocabulary, entry by entry
+
+Kind by kind: what the CST gives the lowering, who consumes it, and the
+status. "C" counts are uses in `internal/infer` of the old grammar name.
+
+**Literals and names**
+
+| Kind | CST at 3c997a6b | Consumer / perl / SoN | Status |
+|---|---|---|---|
+| `NumLit` | `term "42"`, `term "0x1f"`, `term "1_000"`; `IsInt` from `Text` | C: `number` (2) | SHIPPED |
+| `StrLit` | `term "'ab'"`, `term "\"ls\""`; delimiter is `Text[0]` | C: `string_literal` (2), `string_content` (2, text only) | SHIPPED |
+| `StrLit.Backtick` | a backtick string is one `term` whose `Text` keeps the backtick delimiters, so its first byte separates it from `"ls"`. `qx/ls/;` → `Unknown`: `internal/lexer/quote.go:22-31` has no `qx` row | SoN: `BacktickExpr`, a language fact | LOWERING for backticks; PARSER for `qx//` |
+| `Interp` | `"a$b c"` is one `term`; `lexer.go`'s `Quote` doc defers interpolation "when there is a parser to consume the pieces" | C: `string_content` (1, `infer.go:1569`) reads text only | PARSER |
+| `QwList` | `term "qw(a b)"`, opaque; the lowering splits the body | perl: `(qw(a b)) x 2` and `("a","b") x 2` both `a b a b`; scalar `qw(a b c)` and `("a","b","c")` both `c` | LOWERING, and the body split is assigned to the lowering here |
+| `Bareword{Quoted}` | positional over `Call{Resolved:false}` (rule 3) | C: `bareword` (7); old grammar has `autoquoted_bareword` | LOWERING; parser fix preferred |
+
+**Variables and dereference**
+
+| Kind | CST at 3c997a6b | Consumer / perl / SoN | Status |
+|---|---|---|---|
+| `Var{Sigil,Name}` | `term "$x"`, `"@a"`, `"%h"`, `"*foo"`, `"$#a"`, `"&foo"`, `"$Foo::x"`; sigil is the leading bytes. `$::x;` → `Unknown` | C: `scalar` (17), `array` (9), `hash` (10), `varname` — and at 8 of 9 switch sites the three arms are identical modulo the sigil string (`infer.go:1669-1673`, `:3560-3564`, `:3851-3855`, `:4072-4077`, `:1942-1946`, `:3088-3090`, `:1402-1406`); `lookupNarrowedType` (`:1890-1896`) and `sigildName` (`symbols.go:403`) take the sigil as a parameter. Sigil is a field, not three kinds; issue 01a0ad52's counts measure matching, not distinguishing. SoN: `(sigil, symbol)` identity, rule 7 | SHIPPED; `$::x` PARSER |
+| `Deref{Sigil,Expr}` | `${$x}`, `$$x`, `@{$x}`, `@$x`, `%$x`, `$#{$x}`, `$#$x` are each one childless `term` (issue 01a0ad52). The held `DerefSigil` fix measured worse on T1 (406 clean / 4,986 `Unknown`) and is blocked on 01a0ac52. `*{"foo"}` → `term "*"` over `anon_hash` — a wrong tree that round-trips | C: `array_deref_expression`, `hash_deref_expression` (1 each) | PARSER |
+| `Deref{Postfix}` | `$x->@*` → `[binary "->" [term "$x"] [term "@*"]]`, likewise `->%*`; `$x->$#*` → `binary "*"` with an `Unknown`; `$x->@[0,1]` → `Unknown` | §4.4.6 | LOWERING for `->@*`/`->%*`; PARSER for `->$#*` and postfix slices |
+| `Index`, `Key` | `index "["` / `index "{"` over base and subscript; chains nest (`$x->{a}[0]{b}`) | C: `array_element_expression` (4), `hash_element_expression` (1) | SHIPPED; `Arrow` PARSER (rule 2) |
+| `Slice{Kind}` | rule 5 | rule 5 | LOWERING |
+| `Call.Fn` (call through a reference) | `$code->(1)` → `[binary "->" [term "$code"] [term "1"]]` (the `(1)` is `finishList`'s rewrite; `(1,2)` is a `list`); `&{$code}(1)` → `[index "(" [index "{" [term "&"] [term "$code"]] [term "1"]]`; `&$code(1);` → `Unknown` | §4.8.3 | LOWERING for the first two shapes; PARSER for `&$code()` |
+
+**Operators**
+
+| Kind | CST at 3c997a6b | Consumer / perl / SoN | Status |
+|---|---|---|---|
+| `Unary{Op,Postfix}` | `unary "!"`, `"neg"`, `"~"`, `"++"`, `"ref"` (for `\`), `"pos"` (for unary `+`); `postfix "++"` | C: `unary_expression` (1); `extractNegatedGuard` (`infer.go:2285`) tests text `== "!"` | SHIPPED |
+| `Binary{Op}` | `binary` with `Text` the operator | C: `binary_expression` (3), `and`/`or` (1 each); `findOperatorText` (`infer.go:645-659`) re-derives the operator from anonymous tokens. SoN: `NumEq`/`StrEq`/`NumLt`/`StrLt` are split by perl's *op name* (`OpMap.pm:134-151`) — a total function of `Op`, and every SoN BinOp carries `op_str()` with the spelling. Keep one `Binary{Op}`; the table `==`→`NumEq`, `eq`→`StrEq`, `<`→`NumLt`, `lt`→`StrLt`, `.`→`Concat`, `x`→`Repeat`, `//`→`DefinedOr` is the bridge | SHIPPED; the lowering *sets* `Op` from `Text` |
+| `Repeat{ListRepeat}` | `binary "x"`; `ListRepeat` from rule 1 or the `qw` prefix | §4.10 | LOWERING once rule 1's bit exists |
+| `Assign{ListAssign}` | `binary "="`, `"+="`, ...; `($a,$b) = (1,2)` has a `list` LHS; `@a = (1,2)` an aggregate `term` | C: `assignment_expression` (3) | LOWERING; `my (...) =` is under `Decl` |
+| `Ternary` | `ternary "?:"` | C: `conditional_expression` (1) | SHIPPED |
+| `CmpChain` | `cmp_chain "<"` with flat operands | C: none; no chained-comparison rule exists | SHIPPED; the typing rule is unwritten (§4.14.6) |
+| `Range{Exclusive}` | `$a..$b` → `binary ".."`, `$a...$b` → `binary "..."`; **`1..2` → one `term "1..2"`**: the lexer's number scan takes the range as one `Number` token, so literal endpoints have no `Lo`/`Hi` | C: measured defect — `my @r = (1..5)` infers `@r` as `Str`, because `findOperatorText` matches the anonymous `.` before ever seeing `..` while `signatures.go:182` has `"..": {Result: List}`; perl: `$r[0]+1` is 2 | LOWERING for variable endpoints; PARSER (lexer) for literal ones. Required, not optional |
+| `List{Fat}` | `(a => 1, b => 2)` → `list` with four flat children, identical to `(a, 1, b, 2)`; `parseList` consumes `,` and `=>` alike (`term.go:275-276`). Inside call arguments the fat comma survives: `f(a => 1)` → `[call "f" [binary "=>" ...]]` | §4.5.4: `=>` quotes the word to its left | SHIPPED as `List`; **`Fat` PARSER** — inside a `List`, `AnonArray` or `AnonHash` the fact is destroyed |
+| `Paren` | rule 1 | rule 1 | PARSER |
+
+**Declarations**
+
+| Kind | CST at 3c997a6b | Consumer / perl / SoN | Status |
+|---|---|---|---|
+| `Decl{Kind}` | `declaration` with `Text` the declarator; T1 census of `Declaration.Text`: my 4,905, sub 1,775, package 569, local 398, our 318, state 9, field 7, class 5, method 4 | C: `variable_declaration` (3); `local`/`state`/`our`/`field` unhandled | SHIPPED |
+| `Decl{Vars,Init}` | two shapes: `my $x = f()` → `[declaration "my" [term "$x"] [call "f"]]` (two children, no `=`); `my ($x) = f()` → `[declaration "my" [binary "=" [term "$x"] [call "f"]]]` (one child, the `=`); `my ($x,$y) = f()` → the same with a `list` LHS. The list-vs-scalar fact §4.12.2 rule 2 needs is *the child count* — perl: with `sub f{(1,2,3)}`, `my ($x)=f()` gives 1 and `my $y=f()` gives 3 | C: `extractVarNameFromDecl` (`infer.go:3560`) | LOWERING, by the predicate "one child and it is `binary "="`"; normalising the parser to one shape is recommended before the lowering is written |
+| `Decl{Attrs}` | `my $x :shared` → `term ":shared"` as a second child | — | LOWERING |
+| `Decl{RefAlias}` | `my \$x = $y` → `[declaration "my" [binary "=" [unary "ref" [term "$x"]] [term "$y"]]]` | C: none | LOWERING; SPECULATIVE consumer |
+| sub declarations | `sub f { 1 }` → `[declaration "sub" [term "f"] [block ...]]`; `sub f;` likewise without a block; `sub f :prototype($) { 1 }` → `declaration "sub"` spanning `sub f` then `Unknown` | C: `subroutine_declaration_statement` (8) | SHIPPED; attributes PARSER |
+| signatures | without the feature, `sub f ($x, $y) { 1 }` → `[declaration "sub" [term "f"] [prototype "($x, $y)"] [block ...]]`, which is what perl does too; with `use v5.36;` the same text → `declaration "sub"` spanning `sub f`, then a separate statement `[index "{" [list [term "$x"] [term "$y"]] [term "1"]]` — the body read as a hash slice of the signature. `internal/lexer/proto.go` returns false when `l.signatures` is set and nothing downstream picks the signature up | C: `signature` (2), `mandatory_parameter` (2), both unwrapped to their `scalar` | PARSER |
+
+**Calls**
+
+| Kind | CST at 3c997a6b | Consumer / perl / SoN | Status |
+|---|---|---|---|
+| `Call{Name,Args,Resolved}` | `call` with `Text` the name, `Resolved` set for builtins and subs declared in the file; `f 1,2` and `foo 1,2` → `Unknown` by design (§4.8.3) | C: five sites do the same `GetBuiltin` + arity + argument-type check and differ only in where the name hides — `infer.go:693` (`function_call_expression`, `ambiguous_function_call_expression`), `:881` (`func1op_call_expression`), `:1009` (`func0op_call_expression`), `:4004`, `:4048` (`function` or `bareword` child). All five lower to this one kind | SHIPPED |
+| `Call.Parenthesized` | `f(1,2)` → `call "f"` whose span includes the `(`; `map $_+1, @a` does not | §4.8.1 | LOWERING |
+| `Call.Ampersand`, `.BareAmpersand` | `&foo;` → `term "&foo"`; `&foo();` → `[index "(" [term "&foo"]]` | §4.8.3 | LOWERING (a `term` whose `Text` starts with `&`; bare iff no enclosing `index "("`) |
+| `Call.Handle` | `print $fh "x"` → `[call "print" [term "$fh"] [term "\"x\""]]` (two children); `print $fh, "x"` → `[call "print" [binary "," ...]]` (one); `print STDERR "x"` likewise two children. `parseFilehandleSlot` (`call.go:167`) decides the slot at construction and emits a plain `term`. `print {$fh} "x"` → `Unknown`, though `call.go:177` has the branch for it — the lexer is not marking that `{` as `OpensBlock` | C: `infer.go:1155-1165` documents that counting the handle as argument 1 made every typed-handle `print` a false `Str` mismatch, and skips `indirect_object` for it | LOWERING by child shape, fragile; a bit at `call.go:167` is the right fix; `{$fh}` PARSER |
+| `MethodCall` | three shapes: `$obj->method(1)` → `[binary "->" [term "$obj"] [call "method" [term "1"]]]`; `Foo->new` → `[binary "->" [call "Foo"] [call "new"]]`; `$obj->$name(1)` → `[binary "->" [term "$obj"] [index "(" [term "$name"] [term "1"]]]`. `HasParens` from the `call` span | C: `method_call_expression` (1), `method` (1) | LOWERING; `Indirect`/`Ambiguous` PARSER (`new Foo(1)` → `Unknown`) |
+
+**Special forms**
+
+| Kind | CST at 3c997a6b | Consumer / perl / SoN | Status |
+|---|---|---|---|
+| `MapGrepSort` | block forms all `Unknown`; expression forms are `call "map"`/`"sort"` `resolved=true` | C: `map_grep_expression`, `sort_expression` (2), `map`, `sort`; `callElementType` (`infer.go:1313`) tells map from grep by `strings.HasPrefix(... "grep")` on source text — two operations with opposite element-type rules, separated by string matching. `Op` fixes exactly that | expression form LOWERING; block form PARSER, blocked on 01a0ac52 (rule 4) |
+| `DoBlock` | `do { 1 }` → `[call "do" [block ...]]` | C: `blockResultType` (`infer.go:1417`) already computes a block's value for `map` | LOWERING (rename) |
+| `DoFile` | `do 'file.pl';` → `Unknown` | C: none | PARSER; SPECULATIVE consumer |
+| `EvalBlock`, `EvalStr` | `eval { 1 }` → `[call "eval" [block ...]]`; `eval "1"` and `eval $s` → `[call "eval" [term ...]]` | C: none. Needed anyway: `EvalStr` is the soundness boundary where the result is `Any` | LOWERING |
+| `AnonSub` | in expression position, `my $f = sub { 1 }` → `[declaration "my" [term "$f"] [declaration "sub" [block ...]]]`. **In statement position `sub { 1 };` → two statements**, `[declaration "sub"]` spanning only `sub` and `[anon_hash [term "1"]]` — a wrong tree that round-trips, which is the failure `Unknown` exists to prevent (`parse.go:14-26`). `statement()` reaches `parseDeclaration` before `parseTerm`'s anon-sub check, and `finishBodyOrSemicolon` sees a `{` the lexer classified as a term. `Sig`: PARSER (signatures row above). With `use v5.36;`, `my $f = sub ($x) { 1 };` → `[index "{" [call "sub" [term "$x"]] [term "1"]]` | C: `anonymous_subroutine_expression` (1) | SHIPPED in expression position; PARSER in statement position and for `Sig` |
+| `AnonList`, `AnonHash` | `anon_array`, `anon_hash`; `+{a=>1}` → `[unary "pos" [anon_hash ...]]`. **`{a=>1};` at statement start → `block`** holding a `=>` statement, then an `Unknown` for the `;`. perl disagrees: `B::Deparse` gives `+{'a', 1};` — the `toke.c:6698-6842` heuristic fires at statement start too. A wrong tree that round-trips | C: `anonymous_array_expression` (3), `anonymous_hash_expression` (1). SoN: `ArrayLiteral`/`HashLiteral`, renamed from `ArrayRef`/`HashRef` after the name asserted reference-ness the stamp contradicted (37 corpus cases). Here `[...]` *is* unambiguously a reference constructor, so the local names are not unsound; the rename is §4.14.6 | SHIPPED; statement-start `{` PARSER |
+| `Ref` | `\@a` → `[unary "ref" [term "@a"]]`; `\($a,$b)` → `[unary "ref" [list ...]]` | C: `refgen_expression` (1), `ref` (1) | LOWERING |
+| `FileTest` | `-e $f` → `[call "-e" resolved=true [term "$f"]]`; `-r _` → operand `call "_"` (rule 3) | C: none as a kind; the old grammar folds `-e` into `func1op_call_expression` and the builtin table returns `Bool`, which works | LOWERING (rename); SPECULATIVE as a distinct kind — no file-test-specific rule exists |
+| `Readline{Magic}` | `<STDIN>`, `<$fh>`, `<>` → one `term`; **`<<>>;` → `[binary ">>" [unknown "<<"] [unknown ">"]]`** — the lexer does not know the 5.22 form | C: none; `infer.go:78-84` uses `my $line = <$T>` as the canonical irreducible `Unknown`, which is what the kind lets it name | LOWERING for `<FH>`/`<$fh>`/`<>`; PARSER (lexer) for `<<>>` |
+| `Glob` | `<*.c>;` → `Unknown`; `glob("*.c")` → `call "glob" resolved=false` | C: none | PARSER for `<...>`; SPECULATIVE consumer |
+| `LoopEx` | `last FOO` → `[loop_control "last" [label "FOO"]]`; `next;` likewise; `return` is also `loop_control` (`return (1,2)` → `[loop_control "return" [list ...]]`); `goto &foo;` → `Unknown` | C: `return_expression` (3); `blockAlwaysExits` (`infer.go:3312-3342`) detects `return`/`die`/`exit` by text and will need `last`/`next` for correct branch joins | SHIPPED; `goto` PARSER |
+| `Wantarray` | `wantarray;` → `call "wantarray" resolved=true` | C: `NarrowByContext` (`infer.go:1291`) exists and has no context source. SoN: `Wantarray`, the one exact-name agreement, and language by SoN's own test (`Wantarray.pm`: perl made it a runtime function because an interpreter cannot see a sub's callers) | LOWERING (rename) |
+| `Match{Op}` | `s/a/b/g`, `m/x/`, `qr/x/`, `/a/`, `tr/a/b/`, `y/a/b/` → one `term` each with the raw operator as `Text` | C: `match_regexp`, `quoted_regexp`, `regexp_content` (1 each); `nearestPatternBefore` (`infer.go:1724-1751`) needs source order (§4.14 preamble) | SHIPPED as an opaque leaf |
+| `Match{Pattern,Replace,Flags}` | inside the one `Quote` token, by design (`quote.go`) | SoN: `Transliterate.pm` records that reading `tr`'s operands as a regex compiles something the source never wrote — hence the field note in the listing | PARSER |
+| `Match{Target,Negated}` | `$x =~ /a/` → `binary "=~"`, `$x !~ /a/` → `binary "!~"` | — | LOWERING |
+| `Hole` | `Unknown`: 4,944 in T1, every one a childless leaf (0 with children, 0 nested); parents: `source_file` 3,851, `block` 690, `binary` 281, `index` 74, `loop` 36, `loop_control` 6, `cmp_chain` 2, `call` 2, `unary` 1, `declaration` 1. Spans p50 30 bytes, p90 345, p99 1,532, max 14,794; 29.1% of corpus bytes | §6.1.6 item 7 asks every descending rule to check for `Unknown`; nothing can descend into a leaf. The rule is instead: a `Hole` may stand anywhere a `Node` may (the census shows it as a `binary` operand and an `index` base or subscript), inference types it `Any` and never inspects it, and a position query inside its span returns the `Hole` so the LSP reports "no information" rather than a type | LOWERING; new in this list |
+
+Named builtins that B::SoN gives their own kind — `Delete`, `Exists`,
+`Chomp` (chomp/chop), `Count`, `Length` — are `Call{Name}` here, and the
+sibling's reasons for splitting them (perl has distinct `schomp`/`schop` ops;
+`exists` is membership, not definedness — measured, `exists $h{u}` is true
+for `u => undef`) are facts a `Call`'s name already carries. Two of them do
+not parse: `delete $h{k};` and `exists $h{k};` are each `Unknown`, because
+neither word is in `internal/parse/keyword.go`. `chomp $x;` parses. That
+is a keyword-table gap, PARSER, and independent of this list.
+
+### 4.14.3 The flags
+
+§4.14 specifies fifteen flags. `parse.Node` has one. For each: does the CST
+carry the fact, does the lowering re-derive it, or must the parser change.
+
+| Flag | Carried how | Status |
+|---|---|---|
+| `Call.Resolved` | `parse.Node.Resolved` | SHIPPED |
+| `Unary.Postfix` | `Kind == Postfix` vs `Kind == Unary` | SHIPPED (a kind split) |
+| `Repeat.ListRepeat` | rule 1's paren fact, or `Text` prefix `qw` | LOWERING after the `Paren` bit; unsound from spans alone |
+| `Assign.ListAssign` | LHS is a `list`, or an aggregate-sigil `term`, or rule 1's paren fact | LOWERING |
+| `Decl`'s list form | child count: one child that is `binary "="` | LOWERING |
+| `Decl.RefAlias` | `unary "ref"` as the assignment's LHS | LOWERING |
+| `Bareword.Quoted` | position (rule 3) | LOWERING; parser fix preferred |
+| `Call.Parenthesized` | `(` inside the `call` span after the name | LOWERING |
+| `Call.Ampersand` | `term` `Text` starts with `&` | LOWERING |
+| `Call.BareAmpersand` | that `term` with no enclosing `index "("`; `&$code()` is `Unknown` | LOWERING, partial |
+| `Slice.Kind` | base sigil × `Index.Text` | LOWERING |
+| `Range.Exclusive` | `binary ".."` vs `"..."` | LOWERING; literal endpoints PARSER |
+| `Match.Negated` | `binary "=~"` vs `"!~"` | LOWERING |
+| `Readline.Magic` | `term "<>"`; `<<>>` does not lex | LOWERING for `<>`; PARSER for `<<>>` |
+| `Index.Arrow`, `Key.Arrow` | not in the tree; identical shapes asserted by test | PARSER |
+| `List.Fat` | not in the tree inside `list`/`anon_array`/`anon_hash` | PARSER |
+| `MapGrepSort.BlockGuessed` | no node to flag | PARSER, blocked on 01a0ac52 |
+| `MethodCall.Indirect`, `.Ambiguous` | no node to flag | PARSER; keep-or-cut is §4.14.6 |
+| `StrLit.Backtick` | `Text[0] == '`'` | LOWERING |
+
+Three of these ask for a bit on `parse.Node` — `Paren`, `Arrow`, and the
+filehandle slot — and `Resolved` (`parse.go:234`) is the precedent for
+each. That is a smaller change than either re-deriving from source bytes
+(the leak §6.1.6 criticises) or building a richer CST.
+
+### 4.14.4 Shared names with B::SoN
+
+The test adopted from that project: a kind is a *language* fact if a Perl
+programmer can point at source and say "that is what this is", an
+*artifact* if it exists only because the IR is in SSA/graph form.
+
+**Same operation, same name.** `Wantarray`. That is the whole list, and it
+needed no work.
+
+**Same operation, different name, keep ours.** `AnonList`/`AnonHash` against
+`ArrayLiteral`/`HashLiteral` (§4.14.6); `Binary{Op}` against the
+`NumEq`/`StrEq`/`Concat`/`Repeat`/`DefinedOr` family, where the mapping is a
+total table from `Op` (§4.14.2, Operators); `Match` against `RegexMatch`/`RegexSubst`/`RegexCapture`;
+`Var` against `PadAccess`/`EntryDef`/`EntryWrite`, where the lexical-vs-
+package split is a scope-resolution result (`PadAccess` carries a pad
+`targ`, `EntryDef` a package) that belongs in §6.1.6 item 4's side table,
+not in a node kind.
+
+**Ours is finer, and correctly so.** `Index`/`Key`/`Slice{Kind}` against
+one `Subscript` and one `Slice` (rule 5). `Paren`, which has no SoN
+counterpart at all — `grep -rn Paren lib/SoN/IR/Node/` returns nothing; the
+only trace is `Call.paren_form`, scoped to whether a bare list builtin
+absorbs the remaining list. Perl's parser resolves parens into optree shape
+before B::SoN sees anything. Both are phase differences: the optree has
+already been typed, and a syntax tree has not. A future reader should not
+"harmonise" either away.
+
+**Theirs names something ours lacks.** `BacktickExpr` — now
+`StrLit.Backtick`. `Transliterate` — a note on `Match`, not a node, until a
+consumer needs the split. `Delete`, `Exists`, `Chomp`, `Count`, `Length` —
+`Call` by name, above. `ArgsSource`, `Parameter`, the `Cell*` group — rules
+6 and 7: language facts, already covered by `Var{"@","_"}`, `AnonSub.Sig`
+and scope resolution respectively.
+
+**Artifacts, excluded.** Ten, not the five earlier text named: `Phi`,
+`Region`, `Proj`, `Start`, `MemStart` (graph and memory-SSA); `StructRef`
+and `StructFieldAccess` (both `ABOUTME` lines say "from the StructPromotion
+optimizer"); `ExpressionList` (a call's argument list as a node —
+`Call.Args` holds it structurally); `ListAppend` ("the value a map/grep LOOP
+CARRIES", input 0 a loop `Phi`); and `Coerce`. Chapter 6 §6.1.8 classified
+`Coerce` as language. B::SoN's own `docs/plans/2026-09-17-the-gap-shape-is-
+inverted.md` says otherwise: "Coerce(Scalar -> Code) is standing in for
+'compile and run arbitrary perl'. There is no node for that" — `Coerce` is
+where that IR puts what it cannot name, which is the opposite of something
+a programmer can point at. A syntax tree has nothing to put there.
+
+Adopt no B::SoN name wholesale. The audit found one exact agreement and no
+case where the sibling's name is better than the one it would replace. What
+is shared is the stamp lattice and `TypeLibrary` format of §6.1.6 item 6,
+and the mechanical `Op`-to-kind table above. UNVERIFIED and out of scope
+here: whether `TypeLibrary` keys on node kinds — if it does, the
+`Subscript`-vs-`Index`/`Key` split above is a contract question rather than
+a free local choice. Settled by reading `lib/SoN/IR/Stamp.pm` and the
+`TypeLibrary` loader together; note that `Stamp.pm:11-40` gives a DAG with
+`Boolean` and `Undef` as children of `Scalar` beside `Str`, which is richer
+than the linear chain §6.1.6 item 6 quotes.
+
+### 4.14.5 What the lowering erases
+
+Each candidate erasure, whether it is VARIATION (two spellings, one
+meaning; erase) or STRUCTURE (the spelling *is* the meaning; keep), and what
+breaks if a STRUCTURE item is erased anyway.
+
+| Erasure | Class | Evidence and consequence |
+|---|---|---|
+| Trivia | VARIATION | 43,250 CST nodes (15.9%); the only material size reduction the lowering makes |
+| `$h{k}` / `$h->{k}` to one `Key` | STRUCTURE unless `Arrow` survives | Rule 2: they read different variables. Erased today, and the parser did it |
+| `$$x[0]` / `${$x}[0]` / `$x->[0]` to one `Index` | VARIATION for the spelling, STRUCTURE for deref-ness | Same runtime op; the lowering keeps "base is a `Deref`" and the LSP keeps `Arrow` |
+| `($x)` to `$x` | STRUCTURE | Rule 1: `('a') x 3` vs `'a' x 3`; `my ($x) = f()` vs `my $x = f()`. Erased today at `finishList` |
+| `unless (c) {A} else {B}` to `if` | VARIATION, as a branch swap | `perl -MO=Deparse` gives `if ($c) {B} else {A}` — a swap, not `if (!c)`. Specify the swap; a synthesised `Not` is a node flow narrowing would have to see through |
+| `until` to `while` | VARIATION for the modifier and block forms; **STRUCTURE for `do {} until`** | perl: `$m++ until 1` leaves 0; `do { $n++ } until 1` leaves 1. Both are `loop` nodes; the do-form is `loop "while"`/`"until"` whose child 0 is `call "do"` over a `block`. The lowering needs a `PostCond` bit or a distinct kind — this list has neither and chapter 5 owns the statement kinds |
+| Statement-modifier `if`/`unless` to block form | VARIATION | `$x = 1 if $c` → `conditional "if"` with children `[body, cond]`, the reverse of the block form's `[cond, block]`; the lowering dispatches on child order, not kind |
+| `qw(a b)` to `List` of `StrLit` | VARIATION | perl: identical to `("a","b")` under `x` and in scalar context. `QwList` may still be kept for the LSP |
+| `a => 1` to `"a", 1` | STRUCTURE for the left word | §4.5.4; without `Fat` the lowering cannot tell `(a, 1)` (a call) from `(a => 1)` (a string). Destroyed today inside `list`/`anon_array`/`anon_hash` |
+| `1..2` to `Range` | STRUCTURE | The lexer destroys it for literal endpoints; inference measurably needs it |
+| `&foo` / `&foo()` / `foo()` to one `Call` | STRUCTURE for the bare form | §4.8.3: `&foo` passes the caller's `@_`; `Ampersand`/`BareAmpersand` keep it |
+| `-e $f` to `Call{"-e"}` | VARIATION | The consumer already handles it as a builtin with a signature |
+| `do {}`, `eval {}`, `wantarray` to `Call` | VARIATION in the CST, STRUCTURE in this list | Each has a semantic rule of its own (a block value; a soundness boundary; context polymorphism); the lowering renames them |
+| Five call spellings to one `Call` | VARIATION | The consumer's five identical `GetBuiltin` sites are the proof |
+| The `print $fh` handle to argument 1 | STRUCTURE | `infer.go:1155-1165`: measured false `Str` mismatch on every typed-handle print |
+| `Unknown` to `Hole` | VARIATION | A leaf to a leaf; the span and the "never inspect" rule are what matter |
+
+### 4.14.6 Open after the reconciliation
+
+Not resolved here; each names what would settle it.
+
+- **`Paren`: node or bit.** Rule 1 says the information survives in spans
+  and that a `Paren bool` on `parse.Node` is the exact fix. Whether the
+  *lowered* tree then carries a `Paren` node or a `Parenthesized` flag on
+  `Repeat`/`Assign`/`Decl` (Pyright's `hasParens`) is a choice between the
+  position map's convenience (rust-analyzer's `lower.rs:1630` maps the paren
+  forward to the inner node) and one fewer kind. Only two rules read it.
+  Settled by writing those two rules and the position-map entry.
+- **`MethodCall.Indirect` / `.Ambiguous`.** `new Foo(1)` is `Unknown`, so
+  the honest-uncertainty channel of rule 3 carries no signal for indirect
+  object syntax. §4.5.3 calls the syntax a disaster. If it is permanently
+  out of M1 scope, drop both fields rather than ship fields that are always
+  false. Settled by a scope decision, not a measurement.
+- **`AnonList`/`AnonHash` versus `ArrayLiteral`/`HashLiteral`.** The only
+  rename on which the audit is not unilateral. B::SoN paid for `ArrayRef`
+  with 37 miscompiled corpus cases; the local names are not unsound, since
+  a syntax tree's `[...]` is unambiguously a reference constructor. Name
+  agreement against a correct local name: perigrin's call.
+- **`CmpChain`'s typing rule.** The parser ships the kind, so the lowering
+  must accept it, and `internal/infer` has no chained-comparison logic.
+  Settled by writing the rule and seeing whether it wants a flat operand
+  list or nested `Binary`s.
+- **`Interp.Parts` and `Match.Pattern`.** The consumer reads
+  `string_content` and `regexp_content` once each. Whether it wants the
+  pieces or only the text is settled by reading those two sites
+  (`infer.go:1569`, `:1741`); one use each is weak evidence either way.
+- **`local`/`state`/`our`/`field` as `Decl.Kind` values for inference.**
+  The consumer handles none of the four. `local` restores on scope exit,
+  which is a flow fact; whether flow analysis must model dynamic scoping is
+  a §6.1.7 question and §6.1.7 is unbuilt.
+- **Whether `Arrow` is a regression.** d2ebe02a unified the shapes and
+  dropped the bit. Before it, `$h->{k}` was `[binary "->" ...]` and the
+  operator's `Text` held the arrow. UNVERIFIED that the pre-fix shape was
+  otherwise usable; settled by `git checkout 3b9422eb -- internal/parse`
+  and one dump. Either way the fix is the bit, not a revert.
+- **The `Hole` invariants.** The census shows `Unknown` as a `binary`
+  operand (281), an `index` base or subscript (74), and once each under
+  `unary` and `declaration`. Whether every §4.14 field that is typed `Node`
+  tolerates a `Hole` — `Decl.Init`, `Index.Base`, `Match.Target` — is a
+  property of the rules, not of the list, and is settled when they are
+  written.
+- **Whether the three measured consumer defects are tracked.** Range as
+  `Str`, slice element-type loss, and the `StartByte` collision: no issue
+  search was made. If any is open, this section should reference it.
 
 ---
 
@@ -1645,7 +2069,14 @@ Acceptance list; build order is chapter 6 §6.11.
 - [ ] Chained comparisons build one `CmpChain`, not nested `Binary`s.
 - [ ] The `(`-immediately-follows test happens in the lexer, before precedence,
       for both list operators and named unaries (§4.8.1).
-- [ ] `Paren` nodes survive into the AST (§4.10, §4.12).
+- [ ] Parenthesisation survives into the tree as a node or a `Paren` bit on
+      `parse.Node`, set where `finishList` erases the node (§4.14.1 rule 1);
+      `('a') x 3` and `'a' x 3` must differ in it (§4.10, §4.12).
+- [ ] `$h{k}` and `$h->{k}` differ in exactly one field, `Arrow`
+      (§4.14.1 rule 2); `subscript_test.go` asserts the difference, not the
+      identity.
+- [ ] The fat comma survives inside `list`, `anon_array` and `anon_hash`
+      (§4.14.2, `List{Fat}`); `(a, 1)` and `(a => 1)` must differ.
 - [ ] One shared `looksLikeAnonHash` predicate (chapter 3 §3.3), used by every
       `{` site (§4.4.4, §4.9.2, chapter 5 §5.12), recording that it guessed.
 - [ ] Postfix deref (`->@*`, `->%*`, `->$#*`, `->&*`, `->**`) requires lexer
@@ -1655,7 +2086,13 @@ Acceptance list; build order is chapter 6 §6.11.
 - [ ] Context is recorded per edge during a downward pass (§4.12), and
       `return` / last-statement / `wantarray` stay context-polymorphic.
 - [ ] Every guess is recorded on the node: `Resolved`, `Ambiguous`,
-      `BlockGuessed`.
+      `BlockGuessed`. Only `Resolved` ships; the other two have no node to
+      sit on until 01a0ac52 and indirect-object syntax are parsed
+      (§4.14.3).
+- [ ] Nothing that round-trips is a wrong tree. Measured wrong-but-round-
+      tripping trees at 3c997a6b (§4.14.2): `sub { 1 };` in statement
+      position, `{a=>1};` at statement start, `*{"foo"}`, and a signature
+      body under `use v5.36`.
 
 ---
 
