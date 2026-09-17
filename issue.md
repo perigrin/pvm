@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-17T02:44:01.961043269Z
-updated: 2026-09-17T02:49:19.349366446Z
+updated: 2026-09-17T02:52:06.04049995Z
 ---
 
 Teach the parser what a `use` imported, so a parenless call to an imported sub
@@ -77,28 +77,68 @@ measured; this one is not.
 And it is what M4 needs anyway: the prototype is the srefgen signal the whole
 fidelity harness was built to measure.
 
-## Generated, not authored
+## Parse the module's source -- do NOT run perl
 
-    perl -MTest::More -e 'print prototype(\&Test::More::ok)'     ->  $;$
+To handle `use Test::More`, find `Test/More.pm` on the search path and PARSE
+it, with the parser this milestone is building. Recursive, and it terminates.
 
-perl's own symbol table is the source of truth, the same authority the oracle
-already uses. perl-lsp hardcodes a Rust array
-(`perl-workspace-core/src/test.rs`); a hand list drifts, and there is prior
-art in this project of exactly that going wrong.
+An earlier draft of this issue said to generate a stub file from perl's own
+symbol table (`perl -MTest::More -e 'print prototype(...)'`). Two sessions
+endorsed that and both were wrong. perigrin's argument is decisive and it is
+the reason this project exists:
 
-Scrape `@EXPORT`/`@EXPORT_OK` rather than what one `import` call installed --
-bson's point: `use Test::More` takes import args, so a single invocation is
-not the defensible source.
+**reading the symbol table means libperl has parsed the text.** Moving that
+from parse time to build time does not remove the dependency, it hides it.
+A Perl parser that must run Perl to parse Perl is circular.
+
+It fails in three further ways beyond the circularity:
+
+- a repo whose dependencies are not installed cannot be analysed at all
+- the data pins to whichever module version was on the generating machine
+- local modules, which are never installed anywhere, get no coverage
+
+Everything needed is in the text. Measured on Test/More.pm, 5.42.0:
+
+    our @EXPORT = qw(ok use_ok ... pass fail ... subtest ...)   a literal qw
+    sub ok ($;$) {        prototype on the sub line
+    sub is ($$;$) {
+    sub pass (;$) {
+    sub subtest {         no prototype, visibly absent
+
+    39  static `sub NAME` declarations
+     0  glob-assignment generations (`*{...} = sub`)
+
+This is the same answer the Chalk side reached for C headers, from the other
+direction: for C you parse the header, for Perl you parse the module. Both
+are static reads of declaration syntax, and Perl is the easier case because
+the file is already in a language this parser handles -- no second grammar.
+
+## The quarantine list
+
+Statically visible in the ordinary case, opaque only where something computes
+at runtime. Decide what the parser does on each NOW rather than retrofitting:
+
+- subs built dynamically: `*{"main::$name"} = sub {...}`. Test::More does
+  none, which is why it works here.
+- `@EXPORT_OK` and `%EXPORT_TAGS`, usually literal so usually fine
+- an `import` override that COMPUTES exports rather than delegating to
+  Exporter
+
+Same shape as the tie and magic quarantine. Where a module hits one of these,
+its imports stay unknown and calls to them stay `Call{Resolved:false}` --
+which is correct, not a gap.
 
 ## What this is NOT
 
-A heuristic keyed on the `use` statement, not import resolution. Recorded in
-the generated file's header so the T1 rate does not start claiming more than
-it measures:
+Not a symbol table, and not a generated snapshot. Reading a module's source
+IS import resolution for the static cases, which is why the limits are
+narrower than the earlier draft claimed:
 
-- `use Test::More qw(ok)` imports a subset; we assume the default list
-- a local sub shadowing an import stays `Call{Resolved:false}`, correctly
+- `use Test::More qw(ok)` imports a subset, and the import list is in the
+  `use` statement, so this IS resolvable rather than assumed
+- a local sub shadowing an import is visible in the file being parsed
 - `require` + manual import is not covered
+- anything on the quarantine list above stays unresolved
 
 ## Consulted, and why this is not the type-library syntax
 
@@ -125,13 +165,16 @@ prototype string is trivially liftable.
 
 ## Acceptance
 
-- [ ] A generator produces a stub file from perl's symbol table (`make module-stubs`)
-- [ ] The stub records name and prototype string, with an explicit null for none (`go test ./internal/parse/ -run '^TestStubRecordsPrototypes$' -count=1 -v | grep -q '^--- PASS: TestStubRecordsPrototypes'`)
-- [ ] Parse shape is DERIVED from the prototype, not stored (`go test ./internal/parse/ -run '^TestShapeDerivedFromPrototype$' -count=1 -v | grep -q '^--- PASS: TestShapeDerivedFromPrototype'`)
+- [ ] A module named in `use` is located on the search path and parsed (`go test ./internal/parse/ -run '^TestResolvesModuleSource$' -count=1 -v | grep -q '^--- PASS: TestResolvesModuleSource'`)
+- [ ] `our @EXPORT = qw(...)` is read from the module's own text (`go test ./internal/parse/ -run '^TestReadsLiteralExportList$' -count=1 -v | grep -q '^--- PASS: TestReadsLiteralExportList'`)
+- [ ] A sub's prototype is taken from its declaration, with an explicit null for none (`go test ./internal/parse/ -run '^TestReadsPrototypeFromSource$' -count=1 -v | grep -q '^--- PASS: TestReadsPrototypeFromSource'`)
+- [ ] Parse shape is DERIVED from the prototype, never stored (`go test ./internal/parse/ -run '^TestShapeDerivedFromPrototype$' -count=1 -v | grep -q '^--- PASS: TestShapeDerivedFromPrototype'`)
 - [ ] `(;$)` parses with zero and with one argument (`go test ./internal/parse/ -run '^TestOptionalArgPrototype$' -count=1 -v | grep -q '^--- PASS: TestOptionalArgPrototype'`)
-- [ ] `use Test::More` makes `subtest 'x' => sub {}` parse (`go test ./internal/parse/ -run '^TestImportedListOperator$' -count=1 -v | grep -q '^--- PASS: TestImportedListOperator'`)
 - [ ] A leading `&` licenses the block form; a non-initial `&` and `\&` do not. Asserted on the PARSE, never on perl's error text (`go test ./internal/parse/ -run '^TestBlockFormNeedsLeadingAmpersand$' -count=1 -v | grep -q '^--- PASS: TestBlockFormNeedsLeadingAmpersand'`)
-- [ ] The stub file's header records that this is a heuristic, not import resolution
+- [ ] `use Test::More` makes `subtest 'x' => sub {}` parse (`go test ./internal/parse/ -run '^TestImportedListOperator$' -count=1 -v | grep -q '^--- PASS: TestImportedListOperator'`)
+- [ ] An import list in the `use` restricts what is imported (`go test ./internal/parse/ -run '^TestImportListRestricts$' -count=1 -v | grep -q '^--- PASS: TestImportListRestricts'`)
+- [ ] A module the parser cannot find, or one that computes its exports, leaves calls `Call{Resolved:false}` rather than guessing (`go test ./internal/parse/ -run '^TestUnresolvableImportDeclines$' -count=1 -v | grep -q '^--- PASS: TestUnresolvableImportDeclines'`)
+- [ ] No perl subprocess is involved, at parse time or build time (`go test ./internal/parse/ -run '^TestNoPerlDependency$' -count=1 -v | grep -q '^--- PASS: TestNoPerlDependency'`)
 - [ ] The T1 rate is re-measured and the change recorded
 
-Spec: ch4 §4.8.3. Blocked on perigrin confirming the format is ours to define.
+Spec: ch4 §4.8.3.
