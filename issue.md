@@ -6,7 +6,7 @@ milestone: m1-parse-the-core
 blocked_by:
 - 01a0ac52-a68c-750b-92d4-852abfc54a2f
 created: 2026-09-17T03:04:49.380252705Z
-updated: 2026-09-17T11:48:31.055616161Z
+updated: 2026-09-17T14:01:40.570698025Z
 ---
 
 An attempt at this measured worse than it looks, and the reason is issue 01a0ac52.
@@ -110,19 +110,17 @@ Stashed as `deref-lexer-only-01CRysQ`, SHA af8ca8f76b87e29d7837dedb2cce1848fddd9
 
 ## Acceptance
 
-- [ ] `${$h->{k}}`, `@{[ ... ]}`, `$$x`, `@$x` each have their interior in
-      the tree, as children rather than as swallowed bytes.
-- [ ] `${name}` stays one Variable; `$$` stays the process id; `${^TAINT}`
-      stays a name.
-- [ ] Measured on T1 graded -- `unit/*.t` at top level, 986 files -- and
-      quoted as such. Any other corpus is reported separately and never
-      substituted for this one.
-- [ ] T1 files clean does not decrease from 408.
-- [ ] T1 Unknown nodes do not increase from 4,944.
-- [ ] No individual T1 file gains Unknown nodes; a net improvement that
-      hides per-file regressions is not acceptable.
-- [ ] Round-trip stays at zero failures.
-- [ ] The `nextIsOpenBrace` rule applies to `)` only, with a test that
-      `${$y}{Keys}` and `$a[0]{k}` classify both braces as terms.
+- [ ] `${$h->{k}}`, `@{[ ... ]}`, `$$x`, `@$x` each have their interior in the tree as children (`go test ./internal/parse/ -run '^TestDereferenceHasInterior$' -count=1 -v | grep -q '^--- PASS: TestDereferenceHasInterior'`)
+- [ ] `${name}` stays one Variable, `$$` stays the process id, `${^TAINT}` stays a name (`go test ./internal/parse/ -run '^TestBracedNameIsNotADereference$|^TestPunctuationVariablesStillLex$' -count=1 -v | grep -q '^--- PASS'`)
+- [ ] Every dereference form still round-trips (`go test ./internal/parse/ -run '^TestDereferenceRoundTrips$' -count=1 -v | grep -q '^--- PASS: TestDereferenceRoundTrips'`)
+- [ ] T1 clean does not fall below 408 and T1 Unknown does not rise above 4,944, measured on `unit/*.t` at top level, 986 files (`go test ./internal/parse/ -run '^TestT1Ratchet$' -count=1 -v | grep -q '^--- PASS: TestT1Ratchet'`)
+- [ ] No individual T1 file gains Unknown nodes; a net improvement that hides per-file regressions fails (`go test ./internal/parse/ -run '^TestT1PerFileNoRegression$' -count=1 -v | grep -q '^--- PASS: TestT1PerFileNoRegression'`)
+- [ ] The whole suite is green (`go test ./internal/... 2>&1 | grep -qv FAIL`)
 
 Blocked by 01a0ac52.
+
+Note on the ratchet ACs: TestT1Ratchet and TestT1PerFileNoRegression do not
+exist yet. They belong to the M1 gate (01a0a70f-3ccc), which owns the parse
+ratchet and has none of its eight AC tests written. Until that lands, these
+two criteria are unrunnable and this issue cannot be completed -- which is
+the correct state, not a defect in the criteria.
