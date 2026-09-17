@@ -67,6 +67,35 @@ func (p *parser) parseExpr(minBP int) *Node {
 			}
 		case "(", "[", "{":
 			left = p.parseSubscript(left, text)
+		case "->":
+			// `->` before a subscript opener is the SAME operation as the
+			// subscript without it -- §4.14 gives both one `Index` node with
+			// an `Arrow` flag, not two unrelated shapes.
+			//
+			// Falling through to the default made the `{k}` of `$h->{k}` a
+			// right operand, which parseTerm reads as an anonymous hash
+			// because that is what a `{` in term position means. The tree
+			// then said a hash was being CONSTRUCTED where one was being
+			// indexed. `$a->[0]` said the same about an array.
+			//
+			// The arrow's own bytes stay in the Index span, so round-trip is
+			// unaffected; what changes is that one operation has one shape.
+			if next, ok := p.peekAfter(tok); ok {
+				if open := p.text(next); open == "[" || open == "{" {
+					p.advanceTo(tok)
+					left = p.parseSubscript(left, open)
+					continue
+				}
+			}
+			// `->(` is a code dereference and `->name` a method call.
+			// Neither is a subscript; both keep the Binary shape.
+			p.advanceTo(tok)
+			right := p.operand(op.rightBP(), tok)
+			left = &Node{
+				Kind: Binary, Text: text,
+				Start: left.Start, End: right.End,
+				Children: []*Node{left, right},
+			}
 		default:
 			p.advanceTo(tok)
 			right := p.operand(op.rightBP(), tok)
