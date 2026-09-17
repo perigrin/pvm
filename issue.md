@@ -4,74 +4,112 @@ state: pending
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-17T03:04:49.380252705Z
-updated: 2026-09-17T03:05:12.885823133Z
+updated: 2026-09-17T05:27:34.751368325Z
 ---
 
-The lexer emits a whole dereference as ONE `Variable` token, so the parser
-cannot build the tree §4.4.2 specifies. Measured:
+An attempt at this measured worse than it looks, and the reason is issue 01a0ac52.
 
-    "${$h->{k}};"   ->  Variable "${$h->{k}}"   Semicolon
-    "@{[ 1, 2 ]};"  ->  Variable "@{[ 1, 2 ]}"  Semicolon
-    "$$x;"          ->  Variable "$$x"
-    "@{$x};"        ->  Variable "@{$x}"
+## What was tried
 
-The second is an anonymous array constructor with a comma list inside a
-dereference, delivered as a single lexeme. The parser then produces:
+The lexer's `scanVarName` swallows `${EXPR}` and `$$x` whole, so the parser
+sees a leaf:
 
-    "${$h->{k}};"   ->  [source_file statement term]
-    "@{[ 1, 2 ]};"  ->  [source_file statement term]
+    "${$h->{k}};"   [source_file statement term]
 
-One leaf, no children. That is not an imprecise tree, it is a WRONG one: the
-parse claims there is no structure where there demonstrably is. Round-trip
-cannot see it because every byte is present inside the leaf -- the same blind
-spot canonical re-emission exists to close.
+The fix: a `DerefSigil` token for a sigil applied to an EXPRESSION rather
+than a name, with `${name}` staying a Variable because the braces there are
+punctuation around an identifier (`"${foo}bar"`). The parser turns it into a
+`Unary` whose operand is the interior. That part works:
 
-## What the grammar says
+    "${$h->{k}};"   [source_file statement unary index term call]
+    "@{[ 1, 2 ]};"  [source_file statement unary anon_array term term]
+    "$$x;"          [source_file statement unary term]
 
-`perly.y:1884-1894` has six separate productions, each with its own
-constructor, and `indirob` is RECURSIVE:
+## Why it is not committed
 
-    indirob : BAREWORD | scalar %prec PREC_LOW | block | PRIVATEREF ;
-    scalar  : PERLY_DOLLAR        indirob  { newSVREF }
-    ary     : PERLY_SNAIL         indirob  { newAVREF }
-    hsh     : PERLY_PERCENT_SIGN  indirob  { newHVREF }
-    star    : PERLY_STAR          indirob  { newGVREF }
-    amper   : PERLY_AMPERSAND     indirob  { newCVREF }
-    arylen  : DOLSHARP            indirob  { newAVREF }
+Measured on the PerlOnJava corpus (1,935 files) against 3b9422eb:
 
-So `${...}` contains an arbitrary expression, `$$x` nests, and `@{[ 1, 2 ]}`
-holds a real constructor. §4.4.2's own sketch assumes the parser sees the
-sigil separately:
+                      before    after
+    files clean       856       854
+    Unknown nodes     8,432     8,155
+    round-trip        0 fail    0 fail
 
-    func (p *Parser) parseSigil(sigil string) Node {
-        case p.at("{"):    return &Deref{Sigil: sigil, Expr: p.parseBlockAsExpr()}
-        case p.atSigil():  return &Deref{Sigil: sigil, Expr: p.parseSigil(...)}
-        default:           return &Var{Sigil: sigil, Name: p.parseVarName()}
+    27 files worse, 10 files better
+
+The aggregate -277 is not what it appears. 335 of the 345 improvements come
+from THREE files:
+
+    -136  module/Class-MethodMaker/t/array.t   (180 -> 44)
+    -122  module/Class-MethodMaker/t/hash.t    (167 -> 45)
+     -77  module/Class-MethodMaker/t/scalar.t  (131 -> 54)
+
+against 27 files made slightly worse, including two that were clean and are
+no longer (`unit/indirect_object_constructor.t`, `unit/subs_pragma.t`). A
+change that fixes one construct in three files and breaks something small in
+27 others is not ready, whatever the total says.
+
+## The blocker, which is this issue's own subject
+
+Splitting the sigil off the brace exposes a latent bug in the expect state
+machine. `expect.go`'s CloseBracket case applies perl's right-paren
+lookahead to EVERY closer:
+
+    if t.nextIsOpenBrace {
+        return XBlock
     }
 
-`p.at("{")` and `p.atSigil()` cannot work when the lexer has already consumed
-the whole chain.
+The comment above it says "A `)` with a `{` next", and cites
+`yyl_rightparen` (toke.c:7156) -- which handles `)` alone. The code checks
+no byte. So `${$y}{Keys}` classifies its second brace as a BLOCK:
 
-## Two node kinds, not one Term
+    DerefSigil   "$"      block=false
+    Operator     "{"      block=false
+    Variable     "$y"     block=false
+    CloseBracket "}"      block=false
+    Operator     "{"      block=true     <- wrong
+    Word         "Keys"   block=false
 
-`Var{Sigil, Name}` and `Deref{Sigil, Expr}`. The sigil is STRUCTURAL, not a
-spelling: `@a` and `$x` and `%h` reduce through different productions with
-different constructors. An earlier decision collapsed them into one `Term`
-with the sigil in `Text`, justified as "a kind per keyword does not make
-walkers more precise" -- that reasoning is right for `my` versus `our`, which
-IS a spelling, and wrong here.
+and the statement parses as a bare block. Nothing exposed this before,
+because `${$y}` lexed as one Variable token and no CloseBracket ever
+preceded the subscript.
 
-Corroborated by the consumer: `internal/infer` already switches on `scalar`
-(10 uses), `array` (10), `hash` (9) as distinct kinds.
+Restricting the rule to `)` is a one-line change and it is in the stash. It
+takes Unknown from 8,459 to 8,155, and it is the point at which this stops
+being a dereference fix and becomes brace classification -- 01a0ac52's
+subject. Two more term-position brace decisions sit behind it.
+
+## What is already done and should be reused
+
+Stashed as `deref-lexer-only-01CRysQ`, SHA af8ca8f76b87e29d7837dedb2cce1848fddd9423:
+
+- `DerefSigil` token kind, with the `${name}` vs `${EXPR}` discrimination,
+  including the whitespace case `$ {*$glob}{Keys}` (legal, measured on perl
+  5.42.0) and the caret control variables `${^TAINT}` (a NAME, caught by
+  TestLexDotTGoldenStream).
+- `expect.go`: DerefSigil leaves XTerm, since a sigil has not produced a
+  value yet.
+- `term.go`: the `Unary` term, with the braces of `${EXPR}` treated as
+  GROUPING rather than as an AnonHash constructor.
+- `call.go`: `bpDeref = 300`, above `->` at 290, so `$$x[0]` is `${$x}[0]`.
+- `internal/parse/deref_test.go`: four tests covering the interior, the
+  round trip, `${name}` staying a name, and `$$` staying the process id.
+- Two ratchet updates that are genuine improvements: `comp/parser.t` 1 -> 0,
+  and a golden-stream change where POD inside a dereference block now lexes
+  as an expression (verified against perl: the block does contain POD and an
+  expression, and evaluates).
 
 ## Acceptance
 
-- [ ] The lexer emits a sigil as its own token, not a whole chain (`go test ./internal/lexer/ -run '^TestSigilIsItsOwnToken$' -count=1 -v | grep -q '^--- PASS: TestSigilIsItsOwnToken'`)
-- [ ] `$x`, `@x`, `%x`, `$#x` produce Var nodes carrying their sigil (`go test ./internal/parse/ -run '^TestVarCarriesSigil$' -count=1 -v | grep -q '^--- PASS: TestVarCarriesSigil'`)
-- [ ] `$$x` and `@$x` nest as Deref over Var (`go test ./internal/parse/ -run '^TestSigilChainNests$' -count=1 -v | grep -q '^--- PASS: TestSigilChainNests'`)
-- [ ] `${ $h->{k} }` holds its inner expression as children (`go test ./internal/parse/ -run '^TestBlockDerefHoldsExpression$' -count=1 -v | grep -q '^--- PASS: TestBlockDerefHoldsExpression'`)
-- [ ] `@{[ 1, 2 ]}` holds an AnonArray, not a leaf (`go test ./internal/parse/ -run '^TestDerefHoldsConstructor$' -count=1 -v | grep -q '^--- PASS: TestDerefHoldsConstructor'`)
-- [ ] `$$x[0]` parses as `${$x}[0]`, per the %prec PREC_LOW rule (`go test ./internal/parse/ -run '^TestDerefSubscriptBinding$' -count=1 -v | grep -q '^--- PASS: TestDerefSubscriptBinding'`)
-- [ ] 620/620 still round-trip, and the lexer ratchet and lex.t golden stream are re-baselined in the same commit (`go test ./internal/lexer/ -run '^TestLexerRatchet$' -count=1 -v | grep -q '^--- PASS: TestLexerRatchet'`)
+- [ ] `${$h->{k}}`, `@{[ ... ]}`, `$$x`, `@$x` each have their interior in
+      the tree, as children rather than as swallowed bytes.
+- [ ] `${name}` stays one Variable; `$$` stays the process id; `${^TAINT}`
+      stays a name.
+- [ ] No file in the PerlOnJava corpus gains Unknown nodes. The three
+      Class-MethodMaker files are expected to improve; the 27 regressions
+      must be understood and fixed, not averaged away.
+- [ ] Files clean does not decrease.
+- [ ] Round-trip stays at zero failures.
+- [ ] The `nextIsOpenBrace` rule applies to `)` only, with a test that
+      `${$y}{Keys}` and `$a[0]{k}` classify both braces as terms.
 
-Spec: ch4 §4.4.2, perly.y:1884-1894.
+Blocked by 01a0ac52.
