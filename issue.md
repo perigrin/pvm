@@ -3,8 +3,10 @@ title: "Four keywords missing from the table: delete, exists, goto, do FILE"
 state: pending
 urgency: normal
 milestone: m1-parse-the-core
+blocked_by:
+- 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-17T14:23:31.374573065Z
-updated: 2026-09-17T14:23:31.374573065Z
+updated: 2026-09-17T14:24:46.542745387Z
 ---
 
 Four constructs are `Unknown` because a word is missing from a table, not because anything is hard. Measured at 3c997a6b, each round-tripping:
