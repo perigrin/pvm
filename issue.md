@@ -17,7 +17,7 @@ blocks:
 - 01a0afc0-6d61-7dc5-a10c-a0d29ed14742
 - 01a0afc1-2931-76bc-80e9-8e51a7dfc544
 created: 2026-09-15T21:53:08.812269582Z
-updated: 2026-09-17T22:37:48.843318456Z
+updated: 2026-09-17T23:25:03.697040722Z
 sessions:
 - start_sha: 1f0669412eaad35c8b13ec0d8ff60c75120a330a
   end_sha: ""
@@ -129,9 +129,9 @@ The sweep skips silently without a corpus flag, so the AC commands carry
 - [x] At least 70% of T1-easy parses without error (`go test ./internal/parse/ -run '^TestT1EasyParseRate$' -count=1 -v | grep -q '^--- PASS: TestT1EasyParseRate'`)
 - [x] The parse-rate baseline fails on movement in either direction (`go test ./internal/parse/ -run '^TestParseRatchet$' -count=1 -v | grep -q '^--- PASS: TestParseRatchet'`)
 - [x] Everything that parses also round-trips from the tree (`go test ./internal/parse/ -run '^TestParsedFilesRoundTrip$' -count=1 -v | grep -q '^--- PASS: TestParsedFilesRoundTrip'`)
-- [ ] The parser answers the fidelity harness as a subprocess subject (`go test ./internal/parseoracle/ -run '^TestGoParserSubjectMeasures$' -count=1 -v -parseoracle.corpus=t2 | grep -q '^--- PASS: TestGoParserSubjectMeasures'`)
-- [ ] WRONG is zero across the measured corpus, and that is a gate (`go test ./internal/parseoracle/ -run '^TestGoParserWrongIsZero$' -count=1 -v -parseoracle.corpus=t2 | grep -q '^--- PASS: TestGoParserWrongIsZero'`)
-- [ ] Exact is at least 40% of markers attempted, so WRONG=0 is not vacuous (`go test ./internal/parseoracle/ -run '^TestGoParserExactFloor$' -count=1 -v -parseoracle.corpus=t2 | grep -q '^--- PASS: TestGoParserExactFloor'`)
+- [x] The parser answers the fidelity harness as a subprocess subject (`PERL5_CORPUS=~/dev/perl5 PARSEORACLE_SHIM=/tmp/oracletree go test ./internal/parseoracle/ -run '^TestGoParserSubjectMeasures$' -count=1 -v -timeout 25m | grep -q '^--- PASS: TestGoParserSubjectMeasures'`)
+- [ ] WRONG is zero across the measured corpus, and that is a gate (`PERL5_CORPUS=~/dev/perl5 PARSEORACLE_SHIM=/tmp/oracletree go test ./internal/parseoracle/ -run '^TestGoParserWrongIsZero$' -count=1 -v -timeout 25m | grep -q '^--- PASS: TestGoParserWrongIsZero'`)
+- [x] Exact is at least 40% of markers attempted, so WRONG=0 is not vacuous (`PERL5_CORPUS=~/dev/perl5 PARSEORACLE_SHIM=/tmp/oracletree go test ./internal/parseoracle/ -run '^TestGoParserExactFloor$' -count=1 -v -timeout 25m | grep -q '^--- PASS: TestGoParserExactFloor'`)
 
 Plan: M1 metrics. Spec: §7.3.5, §7.5.
 
@@ -257,3 +257,50 @@ guarded by name.
 
 Five of eight criteria pass. Remaining: the three parseoracle subject rows,
 which need the parser wired as a subprocess subject.
+
+
+## The subject contract, 2026-09-17
+
+The parser now answers the harness as a subprocess
+(`internal/parse/cmd/subject`), measured over T2:
+
+    56 measured    27 exact (48.2%)    6 wider    20 WRONG    3 no-answer
+
+Two of the three criteria pass. **WRONG is 20, so this issue stays open** --
+which is the gate working rather than a defect in it.
+
+SITES NOW DECIDE. Before this they emitted only hedges, so exact was
+structurally zero. Measured both ways over the same 56 files:
+
+                    exact  wider  WRONG  no-answer
+    hedge only         17      1     24         14
+    deciding           27      6     20          3
+
+Deciding improved both: exact up 10, WRONG down 4. The 20 are pre-existing
+and were hidden in no-answer.
+
+THE THREE AC COMMANDS WERE NOT RUNNABLE and are corrected above.
+`-parseoracle.corpus=t2` is a parse error -- the flag is a bool, so Go
+accepts only `=true`/`=false`, and the oracle has no T2 scoping to select.
+The tests scope to T2 themselves, since `Run` takes an explicit file list.
+The commands now carry the corpus and shim the measurement needs.
+
+THE 20 WRONG FILES, and where they belong:
+
+    comp/proto.t, comp/uproto.t          prototype resolution, M4's
+    class/field.t, class/accessor.t,
+    class/destruct.t                     class syntax, owned by no M1 issue
+    comp/hints.t, comp/opsubs.t,
+    comp/parser.t, comp/require.t,
+    comp/use.t, comp/our.t,
+    comp/fold.t, comp/form_scope.t,
+    comp/multiline.t, comp/retainedlines.t,
+    comp/filter_exception.t
+    base/rs.t, cmd/for.t, cmd/switch.t,
+    opbasic/concat.t
+
+The class/ files are the gap this issue's T2 note already recorded: class,
+field and method are owned by no M1 issue. That is now blocking the gate
+rather than only the T2 row.
+
+Seven of eight criteria pass. The eighth is WRONG=0, and it is the work.
