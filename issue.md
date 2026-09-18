@@ -1,21 +1,25 @@
 ---
 title: Thirteen T2 files still score WRONG, and it is not what the gate assumed
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocks:
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-18T01:45:50.160422555Z
-updated: 2026-09-18T09:31:30.960549339Z
+updated: 2026-09-18T09:31:42.792061377Z
 sessions:
 - start_sha: 6393fdaa0bd1a57acd1acc0fbf10810c76893536
-  end_sha: ""
+  end_sha: 6393fdaa0bd1a57acd1acc0fbf10810c76893536
   commits: 0
   started_at: 2026-09-18T09:31:30.960549339Z
+  ended_at: 2026-09-18T09:31:42.792061377Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-18T09:31:30.960549339Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-18T09:31:42.792061377Z
 ---
 
 Thirteen T2 files score WRONG through the subject contract, and the M1 gate cannot close until that is zero. The two easy causes are already fixed; what remains needs investigation rather than a known repair.
