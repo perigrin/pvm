@@ -1,21 +1,35 @@
 ---
 title: "Four wrong trees that round-trip: anon sub, statement-start brace, glob deref, signatures"
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-17T14:24:26.929009826Z
-updated: 2026-09-18T15:08:01.209065906Z
+updated: 2026-09-18T15:08:01.287309373Z
 sessions:
 - start_sha: e0d124d1932fa7a5443eb3f763146c1a6171decc
-  end_sha: ""
-  commits: 0
+  end_sha: 5b41510164015a80506c02291228c7544ea1f3df
+  commits: 1
   started_at: 2026-09-18T14:54:54.022377723Z
+  ended_at: 2026-09-18T15:08:01.287309373Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-18T14:54:54.022377723Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-18T15:08:01.287309373Z
+observed_paths:
+- internal/parse/decl.go
+- internal/parse/easy_test.go
+- internal/parse/modifier_test.go
+- internal/parse/parse.go
+- internal/parse/t2_test.go
+- internal/parse/term.go
+- internal/parse/testdata/t1.ratchet
+- internal/parse/use_test.go
+- internal/parse/wrongtree_test.go
 ---
 
 Four constructs produce a tree that is not a parse of its source, and every one of them round-trips. That is the failure `Unknown` exists to prevent (`internal/parse/parse.go:14-26`): a refusal is never a wrong answer, and these are wrong answers.
