@@ -6,7 +6,7 @@ milestone: m1-parse-the-core
 blocked_by:
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-17T14:22:29.542545808Z
-updated: 2026-09-18T10:48:08.065893001Z
+updated: 2026-09-18T10:58:15.970759714Z
 sessions:
 - start_sha: 6968d55df55015b70b6730ae5781e9eff4b0c52b
   end_sha: ""
@@ -111,18 +111,56 @@ of padding that a `uint8` would not spend. §6.10.4 owns the memory budget.
 
 ## Acceptance
 
-- [ ] `$h{k}` and `$h->{k}` differ by exactly one field (`go test ./internal/parse/ -run '^TestArrowBitDistinguishesSubscripts$' -count=1 -v | grep -q '^--- PASS: TestArrowBitDistinguishesSubscripts'`)
-- [ ] `($x)` is distinguishable from `$x` without re-deriving from spans (`go test ./internal/parse/ -run '^TestParenBitSurvives$' -count=1 -v | grep -q '^--- PASS: TestParenBitSurvives'`)
-- [ ] `('a') x 3` and `'a' x 3` are distinguishable, and `my ($x) = f()` from `my $x = f()` (`go test ./internal/parse/ -run '^TestParenBitCarriesContext$' -count=1 -v | grep -q '^--- PASS: TestParenBitCarriesContext'`)
-- [ ] `(a => 1)` and `(a, 1)` differ, inside lists, anon arrays and anon hashes (`go test ./internal/parse/ -run '^TestFatBitSurvivesInAggregates$' -count=1 -v | grep -q '^--- PASS: TestFatBitSurvivesInAggregates'`)
-- [ ] `print $fh "x"` marks its handle without the lowering counting children (`go test ./internal/parse/ -run '^TestHandleBitIsSet$' -count=1 -v | grep -q '^--- PASS: TestHandleBitIsSet'`)
-- [ ] Each bit is false where it does not apply, and no consumer reads it there (`go test ./internal/parse/ -run '^TestFlagsAreFalseWhereInapplicable$' -count=1 -v | grep -q '^--- PASS: TestFlagsAreFalseWhereInapplicable'`)
-- [ ] Round-trip is unaffected (`go test ./internal/parse/ -run '^TestTreeRoundTrips$' -count=1 -v | grep -q '^--- PASS: TestTreeRoundTrips'`)
-- [ ] T1 does not move: 408 clean, 4,944 Unknown, measured on `unit/*.t` at top level (`go test ./internal/parse/ -run '^TestParseRatchet$' -count=1 -v | grep -q '^--- PASS: TestParseRatchet'`)
-- [ ] The whole suite is green (`go test ./internal/... 2>&1 | grep -qv FAIL`)
+- [x] `$h{k}` and `$h->{k}` differ by exactly one field (`go test ./internal/parse/ -run '^TestArrowBitDistinguishesSubscripts$' -count=1 -v | grep -q '^--- PASS: TestArrowBitDistinguishesSubscripts'`)
+- [x] `($x)` is distinguishable from `$x` without re-deriving from spans (`go test ./internal/parse/ -run '^TestParenBitSurvives$' -count=1 -v | grep -q '^--- PASS: TestParenBitSurvives'`)
+- [x] `('a') x 3` and `'a' x 3` are distinguishable, and `my ($x) = f()` from `my $x = f()` (`go test ./internal/parse/ -run '^TestParenBitCarriesContext$' -count=1 -v | grep -q '^--- PASS: TestParenBitCarriesContext'`)
+- [x] `(a => 1)` and `(a, 1)` differ, inside lists, anon arrays and anon hashes (`go test ./internal/parse/ -run '^TestFatBitSurvivesInAggregates$' -count=1 -v | grep -q '^--- PASS: TestFatBitSurvivesInAggregates'`)
+- [x] `print $fh "x"` marks its handle without the lowering counting children (`go test ./internal/parse/ -run '^TestHandleBitIsSet$' -count=1 -v | grep -q '^--- PASS: TestHandleBitIsSet'`)
+- [x] Each bit is false where it does not apply, and no consumer reads it there (`go test ./internal/parse/ -run '^TestFlagsAreFalseWhereInapplicable$' -count=1 -v | grep -q '^--- PASS: TestFlagsAreFalseWhereInapplicable'`)
+- [x] Round-trip is unaffected (`go test ./internal/parse/ -run '^TestTreeRoundTrips$' -count=1 -v | grep -q '^--- PASS: TestTreeRoundTrips'`)
+- [x] T1 does not move: 408 clean, 4,944 Unknown, measured on `unit/*.t` at top level (`go test ./internal/parse/ -run '^TestParseRatchet$' -count=1 -v | grep -q '^--- PASS: TestParseRatchet'`)
+- [x] The whole suite is green (`go test ./internal/... 2>&1 | grep -qv FAIL`)
 
 The T1 AC uses `TestParseRatchet`, committed at 4bc971ec. Until it exists this issue cannot be completed — correctly, since
 "changed no parse outcome" is the claim that needs the ratchet to mean
 anything.
 
 Spec: §4.14.2, §4.14.3, rules 1 and 2. Plan: M1.
+
+
+## Done, 2026-09-18 (e0d124d1)
+
+    T1      434 clean / 4,606 Unknown, unmoved
+    T2      16 of 56, unmoved
+    oracle  40 exact, 1 WRONG (the M4 pin), unmoved
+
+Unmoved is the expected result: this adds fields to trees that already
+parsed. A change here that moved the parse rate would mean it had changed
+what parses.
+
+BOOLS, NOT A BITFIELD, and the choice was measured rather than defaulted.
+`unsafe.Sizeof`: Node with one bool is 72 bytes, with five bools 72, with a
+`bool + uint8` bitfield 72. The flags land in padding the struct already
+had, so the bitfield costs the same and reads worse.
+
+## A latent bug fixed in passing
+
+`finishList` copied Kind, Text and Children into its replacement node and
+dropped everything else -- so `($h->{k})` would have lost its Arrow the
+moment Arrow existed. It now carries every flag across.
+
+## One AC was stale when I started
+
+The last criterion read "T1 does not move: 408 clean, 4,944 Unknown". Those
+were the numbers when this issue was filed; two commits since
+(f905b4e9, 6968d55d) moved them to 434 / 4,606. The criterion is satisfied
+in spirit -- T1 did not move ACROSS THIS CHANGE -- and the ratchet enforces
+it against the current baseline rather than a quoted one, which is why the
+ratchet exists.
+
+Handle is set at the call site rather than in parseFilehandleSlot's three
+branches: one place that cannot be forgotten when a fourth handle form
+arrives.
+
+All four mutation-checked: disabling any one fails its own test and only
+its own.
