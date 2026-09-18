@@ -1,6 +1,6 @@
 ---
 title: "The intuit_curly lookahead: a brace after a list operator"
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
@@ -8,16 +8,36 @@ blocked_by:
 blocks:
 - 01a0ad52-f1e4-7e19-80c7-a99f859951eb
 created: 2026-09-16T22:24:52.875856958Z
-updated: 2026-09-18T22:53:42.652178232Z
+updated: 2026-09-18T22:53:43.139703518Z
 sessions:
 - start_sha: 5b41510164015a80506c02291228c7544ea1f3df
-  end_sha: ""
-  commits: 0
+  end_sha: 79468414ccabbf46d8a4bd211c18fe9a200487ca
+  commits: 1
   started_at: 2026-09-18T21:49:11.664330742Z
+  ended_at: 2026-09-18T22:53:43.139703518Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-18T21:49:11.664330742Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-18T22:53:43.139703518Z
+observed_paths:
+- internal/lexer/brackets.go
+- internal/lexer/expect.go
+- internal/lexer/intuit.go
+- internal/lexer/intuit_test.go
+- internal/lexer/keyword.go
+- internal/lexer/lexer.go
+- internal/lexer/testdata/corpus.ratchet
+- internal/parse/call.go
+- internal/parse/easy_test.go
+- internal/parse/modifier_test.go
+- internal/parse/parse.go
+- internal/parse/subscript_test.go
+- internal/parse/t2_test.go
+- internal/parse/testdata/t1.ratchet
+- internal/parse/use_test.go
 ---
 
 A one-line change here is correct and makes T1 worse. That is the finding, and it is why this issue is bigger than it looks.
