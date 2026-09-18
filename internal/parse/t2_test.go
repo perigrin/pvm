@@ -107,11 +107,11 @@ func TestT2CoreParses(t *testing.T) {
 		"comp/colon.t": 25, "comp/decl.t": 3, "comp/filter_exception.t": 5,
 		"comp/final_line_num.t": 1, "comp/fold.t": 14, "comp/form_scope.t": 19,
 		"comp/hints.t": 40, "comp/line_debug.t": 4, "comp/multiline.t": 2,
-		"comp/opsubs.t": 24, "comp/package.t": 7, "comp/package_block.t": 4,
+		"comp/opsubs.t": 20, "comp/package.t": 7, "comp/package_block.t": 4,
 		"comp/parser.t": 64, "comp/parser_run.t": 12, "comp/proto.t": 52,
-		"comp/redef.t": 21, "comp/require.t": 21, "comp/retainedlines.t": 19,
+		"comp/redef.t": 21, "comp/require.t": 13, "comp/retainedlines.t": 19,
 		"comp/uproto.t": 3, "comp/use.t": 11, "comp/utf.t": 3,
-		"opbasic/arith.t": 179, "opbasic/cmp.t": 7, "opbasic/concat.t": 16,
+		"opbasic/arith.t": 179, "opbasic/cmp.t": 7, "opbasic/concat.t": 14,
 		"opbasic/magic_phase.t": 7,
 	}
 

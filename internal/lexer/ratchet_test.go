@@ -129,6 +129,23 @@ func TestT2CoreRoundTrips(t *testing.T) {
 //
 // An improvement fails too, deliberately. A baseline that silently absorbs
 // gains is a baseline nobody reads, and the gain goes unrecorded.
+//
+// `op/glob.t` went 0 -> 1 when `scanAngle` learned the glob form, and the
+// number rose because the parse got BETTER rather than worse. Line 11's
+// `<op/*>` now lexes as one Readline instead of five operators. Line 28 is
+// the cost:
+//
+//	map { $files{$_}++ } <op/*>;
+//	map { delete $files{"op/$_"} } split /\n/, `ls op/ | cat`;
+//
+// After `map { ... }` the lexer is in OPERATOR position, so `<` stays a
+// comparison and the `/` after `op` opens a bare pattern that runs to the
+// next `/` -- swallowing a backtick and everything after it. Measured to
+// predate this change by stashing it: `map { 1 } <op>;` misreads at HEAD
+// too, it simply produced no error token to count.
+//
+// That is `map {` leaving operator position, which is issue 01a0ac52's
+// subject and not fixable here. Recorded rather than absorbed.
 func TestLexerRatchet(t *testing.T) {
 	tDir, files := corpusFiles(t)
 

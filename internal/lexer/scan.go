@@ -71,6 +71,20 @@ func (l *lexer) scanVarName() {
 		// A separator needs an identifier character BEFORE it, and there is
 		// none here.
 		l.pos++
+	case c == ':' && l.leadingPackageSeparator():
+		// `$::x` is `$main::x`. scanIdentRunes requires a leading identifier
+		// byte and `:` is not one, so this lexed as `Variable("$:")` -- a
+		// punctuation variable named `:` -- followed by stray tokens. A
+		// plausible wrong answer rather than an error, which is why nothing
+		// caught it.
+		//
+		// Measured: `our $x = 5; print $::x` prints 5.
+		//
+		// `$:` ALONE is a real punctuation variable, the format line-break
+		// set, so the two colons and a name after them are all required --
+		// see leadingPackageSeparator.
+		l.pos += 2
+		l.scanIdentRunes()
 	case l.scanIdentRunes():
 		// Consumed by the identifier scanner, which handles both package
 		// separators and the utf8-widened class.
@@ -102,6 +116,18 @@ func (l *lexer) scanVarName() {
 	}
 }
 
+// leadingPackageSeparator reports whether `::` at the cursor introduces a
+// package-qualified name, as the `$::x` shorthand for `$main::x`.
+//
+// Both colons AND a name are required. `$:` is the format line-break
+// variable and `$::` with nothing after it is not a name perl accepts, so
+// taking either would trade one wrong answer for another.
+func (l *lexer) leadingPackageSeparator() bool {
+	return l.pos+2 < len(l.src) &&
+		l.src[l.pos+1] == ':' &&
+		isWordByte(l.src[l.pos+2])
+}
+
 // scanWord lexes a bareword or keyword.
 //
 // Whether a word is a keyword, a function name or a bareword string cannot be
@@ -129,6 +155,20 @@ func scanNumber(l *lexer) bool {
 	}
 	start := l.pos
 	for l.pos < len(l.src) && (isWordByte(l.src[l.pos]) || l.src[l.pos] == '.') {
+		// A DOUBLE dot is the range operator, not part of the literal.
+		// `1..5` is three tokens; consuming the dots gave one Number("1..5")
+		// and the range was gone before the parser saw it.
+		//
+		// `$a..$b` was never affected, so only literal endpoints broke -- and
+		// the cost is measured: `my @r = (1..5)` infers @r as Str, because
+		// `internal/infer/infer.go:645-659` matches the anonymous `.` before
+		// ever seeing `..` (§4.14.2).
+		//
+		// One dot still belongs to the number: `1.5` is a float, and perl
+		// takes `1_000.5` and `1.5e10` whole.
+		if l.src[l.pos] == '.' && l.pos+1 < len(l.src) && l.src[l.pos+1] == '.' {
+			break
+		}
 		l.pos++
 	}
 	l.emit(Number, start)
@@ -144,11 +184,34 @@ func scanAngle(l *lexer) bool {
 	if l.src[l.pos] != '<' || !l.expect.wantsTerm() {
 		return false
 	}
-	// A readline's contents are a filehandle name, a scalar, or nothing.
-	// Anything else -- a space, an operator -- means this was a comparison
-	// after all, so scan ahead before committing.
+	// `<<>>` is the 5.22 double diamond, which reads every argument as a
+	// filename and never as a command. Checked first because its inner `<>`
+	// would otherwise close the scan at the second `<`.
+	if l.pos+3 < len(l.src) && l.src[l.pos+1] == '<' &&
+		l.src[l.pos+2] == '>' && l.src[l.pos+3] == '>' {
+		start := l.pos
+		l.pos += 4
+		l.emit(Readline, start)
+		return true
+	}
+
+	// A readline's contents are a filehandle name, a scalar, or nothing --
+	// and a GLOB's are a shell pattern, which is neither. Measured:
+	//
+	//	$ perl -MO=Deparse -e 'my @g = <*.c>; my @h = <~/x>;'
+	//	my(@g) = glob('*.c');
+	//	my(@h) = glob('~/x');
+	//
+	// Both are the same token to the lexer; which one it is depends on the
+	// contents, and the parser can read those. What matters here is only
+	// where the form ENDS.
+	//
+	// A newline ends the candidate: `$a < $b` on one line and `$c > $d` on
+	// the next must not join into one token across them. Everything else is
+	// permitted, because perl accepts `<a b>` -- a glob pattern with a space
+	// in it -- as readily as `<*.c>`.
 	j := l.pos + 1
-	for j < len(l.src) && (isWordByte(l.src[j]) || l.src[j] == '$' || l.src[j] == ':') {
+	for j < len(l.src) && l.src[j] != '>' && l.src[j] != '\n' {
 		j++
 	}
 	if j >= len(l.src) || l.src[j] != '>' {

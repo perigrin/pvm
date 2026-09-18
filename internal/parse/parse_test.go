@@ -26,29 +26,34 @@ import (
 // When nothing is left to put here, these tests are measuring an empty set.
 // DELETE them then rather than inventing a construct to keep them alive: the
 // harness's own no-answer bucket covers the property at that point.
-// `goto &other` was the fifth and parsed as of the keyword-table commit.
-// `$::x = ...` is the sixth: a leading `::` is the main-package shorthand
-// and `scanVarName` does not lex it (issue 01a0afc0, the scanner-rows half).
-const unimplementedStatement = "$::x = \\@a;\n"
+// `$::x = ...` was the sixth and lasted one commit -- the scanner-rows half
+// of 01a0afc0 taught the lexer the leading `::`. `new Foo(...)` is the
+// seventh: indirect-object syntax, which §4.14.6 records as a SCOPE decision
+// rather than a gap, so it is likelier to outlive the others.
+const unimplementedStatement = "new Foo(\\@a);\n"
 
 // unimplementedStatementWithRef is the same, but containing a backslash
 // reference so perl reports an srefgen the parser must hedge against.
 //
-// `$::x = \@a` is still declined, and the `\@a` IS the reference perl
+// `new Foo(\@a)` is still declined, and the `\@a` IS the reference perl
 // reports. Measured on perl 5.42.0:
 //
-//	$ perl -MO=Concise,-exec -e '$::x = \@a;' | grep -c srefgen
+//	$ perl -MO=Concise,-exec -e 'sub Foo::new {1} our @a; new Foo(\@a);' \
+//	    | grep -c srefgen
 //	1
-//	$ perl -e 'our @a=(1); $::x = \@a; print ref($::x)'
-//	ARRAY
+//	$ perl -e 'package Foo; sub new { bless {}, shift } package main;
+//	           our @a=(1); print ref(new Foo(\@a))'
+//	Foo
 //
 // Valid Perl that this parser declines, which is what the fixture needs.
 //
-// This fixture has moved five times -- `$x = \@a`, `my $r = \@a`, an `if`
-// block, a `do` block, `goto &other` -- each time because the parser learned
-// the form. See unimplementedStatement for when to delete these tests rather
-// than keep finding new fixtures.
-const unimplementedStatementWithRef = "$::x = \\@a;\n"
+// This fixture has moved six times -- `$x = \@a`, `my $r = \@a`, an `if`
+// block, a `do` block, `goto &other`, `$::x = \@a` -- each time because the
+// parser learned the form. The last lasted a single commit. Indirect-object
+// syntax should outlast them: §4.14.6 records it as an open SCOPE decision
+// rather than a gap to close. See unimplementedStatement for when to delete
+// these tests rather than keep finding new fixtures.
+const unimplementedStatementWithRef = "new Foo(\\@a);\n"
 
 // TestParseEmpty: an empty input is a valid program, not an error. The root
 // exists and spans nothing.

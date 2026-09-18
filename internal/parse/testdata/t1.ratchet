@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 434 clean (44.0%), 4627 Unknown nodes.
+# 986 files, 434 clean (44.0%), 4606 Unknown nodes.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -239,7 +239,7 @@
 1 do_modern_syntax_and_copy.t
 0 do_quote_like_file_operand.t
 0 do_subref_parenthesized_syntax.t
-3 double_diamond_closed_stdin.t
+1 double_diamond_closed_stdin.t
 0 dynaloader_load_flags.t
 0 dynamic_constant_sub_inlining.t
 4 dynamic_glob_code_replace.t
@@ -381,7 +381,7 @@
 1 interpreter_capture_assignment_regressions.t
 9 interpreter_chained_method_invocant_lifetime.t
 2 interpreter_code_reference_validation.t
-3 interpreter_coderef_does_not_load_module.t
+1 interpreter_coderef_does_not_load_module.t
 2 interpreter_compound_assign_list_rhs.t
 9 interpreter_dbic_regressions.t
 4 interpreter_eval_exception_capture.t
@@ -432,9 +432,9 @@
 1 life_bitpacked_getopt.t
 1 line.t
 14 list_util.t
-4 list_util_does_not_mark_sub_util_loaded.t
+1 list_util_does_not_mark_sub_util_loaded.t
 0 listutil_shared_subutil_backend.t
-5 local.t
+1 local.t
 0 local_glob_dynamic.t
 6 local_glob_filehandle.t
 0 local_hash_slice_regressions.t
@@ -724,7 +724,7 @@
 7 stash_aliasing.t
 0 stash_constant_code_identity.t
 4 stash_readonly_scalar_ref_assignment.t
-2 stash_recursive_alias.t
+1 stash_recursive_alias.t
 1 stash_scalar_ref_assignment.t
 0 stash_undefined_code_lookup.t
 13 stash_var_keyword_op.t
@@ -780,7 +780,7 @@
 3 taint_env_path.t
 2 taint_external_input.t
 10 taint_filespec.t
-55 taint_mode.t
+46 taint_mode.t
 4 template_generated_line_directive.t
 2 term_readkey_regressions.t
 3 term_size_perlio_shims.t

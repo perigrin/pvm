@@ -269,7 +269,7 @@
     0 op/fresh_perl_utf8.t
     0 op/getpid.t
     0 op/getppid.t
-    0 op/glob.t
+    1 op/glob.t
     0 op/gmagic.t
     0 op/goto-sub.t
     0 op/goto.t

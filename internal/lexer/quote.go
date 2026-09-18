@@ -24,6 +24,14 @@ var quoteOps = []quoteOp{
 	{"qq", 2, false},
 	{"qw", 2, false},
 	{"qr", 2, true},
+	// `qx//` runs a command, like backticks. §4.14.2 records that a backtick
+	// string already lexes as one Quote whose Text keeps its delimiters, and
+	// that B::SoN names the form `BacktickExpr` -- a language fact. This is
+	// the same node reached by the other spelling.
+	//
+	// No modifiers: perl reads `qx/a/b` as the string then the bareword `b`,
+	// which is the same rule that gives q, qq and qw a false here.
+	{"qx", 2, false},
 	{"s", 3, true},
 	{"y", 3, true},
 	{"m", 2, true},
