@@ -99,6 +99,20 @@ func scanQuoteLike(l *lexer) bool {
 		return false
 	}
 
+	// A fat comma quotes the word to its left (§4.5.4), and that includes
+	// these keywords. Measured on perl 5.42.0:
+	//
+	//	$ perl -MO=Deparse -e 'my $h = { s => 1, y => 2, tr => 3, m => 4 };'
+	//	my $h = {'s', 1, 'y', 2, 'tr', 3, 'm', 4};
+	//
+	// Without this, `s` takes `=` as its delimiter and runs to the next one,
+	// so `{ s => 1 }` lexes as a substitution and everything after it
+	// becomes one opaque token. Whitespace before the `=>` is skipped
+	// because perl skips it.
+	if fatCommaFollows(l.src, after) {
+		return false
+	}
+
 	l.pos = after
 	// A '#' GLUED to the keyword is the delimiter; only a '#' reached after
 	// skipping whitespace is a comment. Measured: `q#a#` is the string "a",
@@ -302,6 +316,24 @@ func (l *lexer) scanModifiers() {
 }
 
 // quoteOpAt matches the longest quote-operator keyword at pos.
+// fatCommaFollows reports whether the next significant bytes at pos are `=>`.
+//
+// Only whitespace is skipped, and only horizontal whitespace plus newlines --
+// a comment between a word and its fat comma is legal Perl but vanishingly
+// rare, and reaching for it here would mean re-implementing comment skipping
+// in a function whose whole job is one two-byte lookahead.
+func fatCommaFollows(src []byte, pos int) bool {
+	for pos < len(src) {
+		switch src[pos] {
+		case ' ', '\t', '\n', '\r':
+			pos++
+		default:
+			return pos+1 < len(src) && src[pos] == '=' && src[pos+1] == '>'
+		}
+	}
+	return false
+}
+
 func quoteOpAt(src []byte, pos int) (quoteOp, bool) {
 	for _, op := range quoteOps {
 		if pos+len(op.name) > len(src) {

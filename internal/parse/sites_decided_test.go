@@ -120,6 +120,53 @@ func TestSitesDecideMarkers(t *testing.T) {
 	}
 }
 
+// TestBindingDecidesWhateverTheOperandShape: `=~` is the match, and the
+// operand's SHAPE does not change that.
+//
+// `isMatchOperand` required a `Term` on the right, so a binding against
+// anything built -- a ternary of two `qr//`, a parenthesised expression, a
+// concatenation -- decided nothing and scored WRONG wherever perl found the
+// op. Measured on perl 5.42.0:
+//
+//	$ perl -MO=Concise,-exec -e 'my $x; print $x =~ ((1 & 1) ? qr/^$/ : qr/o/);'
+//	  one match, one qr, one regcomp
+//
+// perl reports ONE match for the binding. The `qr//` compile a pattern and
+// are separately excluded from deciding match on their own (they are not a
+// match until something binds them), but that exclusion is about the qr
+// LEAF, not about what the binding does.
+//
+// t/cmd/for.t:79 is this shape and was the last non-M4 match failure.
+func TestBindingDecidesWhateverTheOperandShape(t *testing.T) {
+	for _, src := range []string{
+		`print $x =~ ((f() & 1) ? qr/^$/ : qr/other/);`,
+		`my $r = $x =~ ($cond ? $a : $b);`,
+		`my $r = $x =~ ("a" . "b");`,
+		`my $r = $x =~ $h->{pat};`,
+	} {
+		if got := decidedKinds(src); !has(got, parseoracle.SiteKindMatch) {
+			t.Errorf("%q: `=~` is the match whatever the operand's shape; got %v",
+				src, got)
+		}
+	}
+}
+
+// TestBindingStillExcludesSubstAndTrans is the negative half. Widening the
+// operand test must not let s/// or tr/// through: perl reports those with
+// subst and trans, which are not the match marker.
+func TestBindingStillExcludesSubstAndTrans(t *testing.T) {
+	for _, src := range []string{
+		`$x =~ s/a/b/;`,
+		`$x =~ tr/a/b/;`,
+		`$x =~ y/a/b/;`,
+		`$x =~ s(a)(b);`,
+	} {
+		if got := decidedKinds(src); has(got, parseoracle.SiteKindMatch) {
+			t.Errorf("%q: must NOT decide match, got %v", src, got)
+		}
+	}
+}
+
 // TestSitesDoNotDecideWhatTheyCannotSee is the negative scenario, and it is
 // the one that keeps the metric honest.
 //

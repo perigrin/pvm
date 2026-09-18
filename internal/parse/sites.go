@@ -342,13 +342,18 @@ func isWordByte(c byte) bool {
 //
 // t/comp/use.t:24 and t/comp/uproto.t:24 are this shape and scored WRONG
 // while only literals counted.
+// The operand's SHAPE is not the question. Requiring a Term meant a binding
+// against anything built -- a ternary of two `qr//`, a parenthesised
+// expression, a concatenation -- decided nothing. Measured:
+//
+//	$ perl -MO=Concise,-exec -e 'my $x; print $x =~ ((1 & 1) ? qr/^$/ : qr/o/);'
+//	  one match, one qr, one regcomp
+//
+// One match for the binding, whatever built the pattern. t/cmd/for.t:79 is
+// that shape. Only a LEAF that states it is a substitution or a
+// transliteration excludes, because those spellings name a different op.
 func isMatchOperand(n *Node) bool {
-	if n.Kind != Term {
-		return false
-	}
-	// A quote-like operand states its own kind: s/// substitutes and tr///
-	// transliterates, and perl reports each with a different op.
-	if isSubstOrTrans(n.Text) {
+	if n.Kind == Term && isSubstOrTrans(n.Text) {
 		return false
 	}
 	return true

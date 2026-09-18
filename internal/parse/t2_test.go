@@ -86,8 +86,20 @@ func TestT2CoreParses(t *testing.T) {
 	// and `method y { ... }`. class/class.t left the map entirely.
 	shortfall := map[string]int{
 		"base/lex.t": 54, "base/num.t": 48, "base/rs.t": 3,
-		"class/accessor.t": 1, "class/construct.t": 3,
-		"class/destruct.t": 7, "class/field.t": 9, "class/gh22169.t": 3,
+		// class/field.t went 9 -> 10 when quote-op keywords stopped eating
+		// their fat comma. That is not a regression in the parse: reaching
+		// further into the file exposed a pre-existing defect, a TRAILING
+		// COMMA before a closing paren.
+		//
+		//	C->new(alpha => "A");     parses
+		//	C->new(alpha => "A",);    one Unknown for the `)`
+		//
+		// Verified to predate the change by stashing it and re-measuring the
+		// same source. field.t:224-228 is a multi-line call with a trailing
+		// comma, so the count rose while the parse got better. Untracked:
+		// nothing in the chain owns trailing commas in argument lists.
+		"class/accessor.t": 1, "class/construct.t": 2,
+		"class/destruct.t": 7, "class/field.t": 10, "class/gh22169.t": 3,
 		"class/gh23511.t": 1, "class/inherit.t": 7, "class/method.t": 12,
 		"class/phasers.t": 5,
 		"cmd/for.t":       2, "cmd/mod.t": 1, "cmd/subval.t": 3, "cmd/switch.t": 2,
