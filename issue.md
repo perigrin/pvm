@@ -18,7 +18,7 @@ blocks:
 - 01a0afc0-6d61-7dc5-a10c-a0d29ed14742
 - 01a0afc1-2931-76bc-80e9-8e51a7dfc544
 created: 2026-09-15T21:53:08.812269582Z
-updated: 2026-09-18T01:46:10.949109153Z
+updated: 2026-09-18T06:21:03.109550323Z
 sessions:
 - start_sha: 1f0669412eaad35c8b13ec0d8ff60c75120a330a
   end_sha: ""
@@ -343,3 +343,32 @@ this gate rather than only the T2 row.
 One honest gap: opbasic/concat.t:100 is `*pi = \undef;`, and `\undef`
 already decides reference correctly, so that file scores WRONG for a reason I
 have not found.
+
+
+## WRONG: 13 to 2, 2026-09-18
+
+    33 exact   7 wider   13 WRONG    (9669353d)
+    38 exact  10 wider    5 WRONG    (subagent: TookReference, quote-op names,
+                                      nested Unknown hedges, delimiter shape)
+    38 exact  12 wider    3 WRONG    (764a5f0a: swallowed deref blocks hedge)
+    39 exact  12 wider    2 WRONG    (36649238: binding shape, `s =>`)
+
+Two remain: comp/proto.t, pinned TODO(M4), and comp/parser_run.t, whose 6
+anonhash sites at lines 17 and 95 do not attribute. The second is NOT
+diagnosed -- recording that rather than guessing at it.
+
+A PATTERN WORTH NAMING. Three of the last four fixes were the same class of
+bug in the same place: a quote-op keyword (`s`, `y`, `q`, `m`, `tr`) read as
+an operator where perl reads a name. Fixed after `->`, after a sub or method
+name, and now before a fat comma. Each one swallowed the rest of a statement
+or a class body. If a fourth appears, the rule to reach for is the general
+one -- a quote-op keyword is an operator only where nothing else claims it --
+rather than a fourth special case.
+
+THE T2 RATCHET CAUGHT A MOVE IN BOTH DIRECTIONS from one change:
+class/construct.t 3 -> 2 (a real improvement) and class/field.t 9 -> 10.
+The second is not a regression: parsing further into the file reached a
+PRE-EXISTING defect, a trailing comma before a closing paren
+(`C->new(alpha => "A",)` yields an Unknown). Verified by stashing the change
+and re-measuring. The baseline records why rather than being quietly bumped.
+Nothing in the chain owns trailing commas in argument lists.
