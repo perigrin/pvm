@@ -26,22 +26,29 @@ import (
 // When nothing is left to put here, these tests are measuring an empty set.
 // DELETE them then rather than inventing a construct to keep them alive: the
 // harness's own no-answer bucket covers the property at that point.
-const unimplementedStatement = "goto &other;\n"
+// `goto &other` was the fifth and parsed as of the keyword-table commit.
+// `$::x = ...` is the sixth: a leading `::` is the main-package shorthand
+// and `scanVarName` does not lex it (issue 01a0afc0, the scanner-rows half).
+const unimplementedStatement = "$::x = \\@a;\n"
 
 // unimplementedStatementWithRef is the same, but containing a backslash
 // reference so perl reports an srefgen the parser must hedge against.
 //
-// `goto &other` is still declined, and the `&other` IS the reference perl
-// reports:
+// `$::x = \@a` is still declined, and the `\@a` IS the reference perl
+// reports. Measured on perl 5.42.0:
 //
-//	$ perl -MO=Concise,-exec -e 'goto &other;' | grep -c srefgen
+//	$ perl -MO=Concise,-exec -e '$::x = \@a;' | grep -c srefgen
 //	1
+//	$ perl -e 'our @a=(1); $::x = \@a; print ref($::x)'
+//	ARRAY
 //
-// This fixture has moved four times -- `$x = \@a`, `my $r = \@a`, an `if`
-// block, a `do` block -- each time because the parser learned the form. See
-// unimplementedStatement for when to delete these tests rather than keep
-// finding new fixtures.
-const unimplementedStatementWithRef = "goto &other;\n"
+// Valid Perl that this parser declines, which is what the fixture needs.
+//
+// This fixture has moved five times -- `$x = \@a`, `my $r = \@a`, an `if`
+// block, a `do` block, `goto &other` -- each time because the parser learned
+// the form. See unimplementedStatement for when to delete these tests rather
+// than keep finding new fixtures.
+const unimplementedStatementWithRef = "$::x = \\@a;\n"
 
 // TestParseEmpty: an empty input is a valid program, not an error. The root
 // exists and spans nothing.

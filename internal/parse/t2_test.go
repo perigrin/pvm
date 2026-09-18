@@ -85,9 +85,10 @@ func TestT2CoreParses(t *testing.T) {
 	// keyword as a quote operator where perl reads it as a name: `$o->s`
 	// and `method y { ... }`. class/class.t left the map entirely.
 	shortfall := map[string]int{
-		"base/lex.t": 54, "base/num.t": 48, "base/rs.t": 3,
+		"base/lex.t": 42, "base/num.t": 48, "base/rs.t": 3,
 		// class/field.t went 9 -> 10 when quote-op keywords stopped eating
-		// their fat comma. That is not a regression in the parse: reaching
+		// their fat comma, then back to 9 when goto, delete and exists
+		// landed. The rise was never a regression in the parse: reaching
 		// further into the file exposed a pre-existing defect, a TRAILING
 		// COMMA before a closing paren.
 		//
@@ -99,16 +100,16 @@ func TestT2CoreParses(t *testing.T) {
 		// comma, so the count rose while the parse got better. Untracked:
 		// nothing in the chain owns trailing commas in argument lists.
 		"class/accessor.t": 1, "class/construct.t": 2,
-		"class/destruct.t": 7, "class/field.t": 10, "class/gh22169.t": 3,
+		"class/destruct.t": 7, "class/field.t": 9, "class/gh22169.t": 3,
 		"class/gh23511.t": 1, "class/inherit.t": 7, "class/method.t": 12,
 		"class/phasers.t": 5,
-		"cmd/for.t":       2, "cmd/mod.t": 1, "cmd/subval.t": 3, "cmd/switch.t": 2,
-		"comp/colon.t": 25, "comp/decl.t": 3, "comp/filter_exception.t": 7,
+		"cmd/mod.t":       1, "cmd/subval.t": 3, "cmd/switch.t": 2,
+		"comp/colon.t": 25, "comp/decl.t": 3, "comp/filter_exception.t": 5,
 		"comp/final_line_num.t": 1, "comp/fold.t": 14, "comp/form_scope.t": 19,
-		"comp/hints.t": 50, "comp/line_debug.t": 5, "comp/multiline.t": 2,
+		"comp/hints.t": 40, "comp/line_debug.t": 4, "comp/multiline.t": 2,
 		"comp/opsubs.t": 24, "comp/package.t": 7, "comp/package_block.t": 4,
 		"comp/parser.t": 64, "comp/parser_run.t": 12, "comp/proto.t": 52,
-		"comp/redef.t": 21, "comp/require.t": 30, "comp/retainedlines.t": 19,
+		"comp/redef.t": 21, "comp/require.t": 21, "comp/retainedlines.t": 19,
 		"comp/uproto.t": 3, "comp/use.t": 11, "comp/utf.t": 3,
 		"opbasic/arith.t": 179, "opbasic/cmp.t": 7, "opbasic/concat.t": 16,
 		"opbasic/magic_phase.t": 7,

@@ -580,7 +580,8 @@ var statementKeywords = map[string]bool{
 	// forms in perly.y (levels 2 and 7), not expression operators.
 	// last, next and redo are GONE: parseLoopControl reads them.
 	// return is GONE: parseReturn reads it.
-	"goto": true,
+	// goto is GONE: parseGoto reads it, with a bareword as a LABEL rather
+	// than a call -- measured, `goto FOO` says "Can't find label FOO".
 
 	"format": true,
 }

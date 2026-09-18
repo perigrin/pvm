@@ -17,6 +17,18 @@ func (p *parser) parseControlFlow(word lexer.Token) *Node {
 		return p.parseFor(word)
 	case "last", "next", "redo":
 		return p.parseLoopControl(word)
+	case "goto":
+		// §4.14.2 groups goto with the loop controls under `LoopEx{Op,Label}`,
+		// and a BAREWORD after it is a label exactly as it is after `last`.
+		// Measured on perl 5.42.0:
+		//
+		//	$ perl -e 'sub FOO { 42 } goto FOO;'
+		//	Can't find label FOO
+		//
+		// It looks for a label, not for the sub -- so `goto FOO` must not
+		// become a call. What goto adds is the other two forms, `goto &f`
+		// and `goto $where`, which are expressions rather than labels.
+		return p.parseGoto(word)
 	case "return":
 		// perly.y level 7, a statement form taking an optional list. It
 		// arrives with the loop controls because a sub body without `return`
@@ -50,6 +62,64 @@ func (p *parser) parseLoopControl(word lexer.Token) *Node {
 				Kind: Label, Text: p.text(next),
 				Start: next.Start, End: next.End,
 			})
+		}
+	}
+	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
+		p.advanceTo(tok)
+	}
+	n.End = p.prevEnd()
+	return n
+}
+
+// parseGoto: `goto LABEL`, `goto &NAME`, `goto EXPR`.
+//
+// A LoopControl like its siblings (§4.14.2 puts all four under `LoopEx`),
+// differing only in what it may take. A bareword is a label -- perl looks for
+// one and says "Can't find label FOO" rather than calling FOO -- and anything
+// else is an expression: `goto &f` is the tail call, `goto $where` a computed
+// target.
+//
+// The semicolon is consumed here, as parseLoopControl and parseReturn do,
+// because `statement()` returns a control-flow node directly (`parse.go:430`)
+// without a terminator step. Leaving it produced an `Unknown` for the `;`
+// alone -- measured before this line was added.
+//
+// A modifier is left alone: `goto HERE if $x` must reach applyModifier, so
+// the label test refuses a modifier word. The terminator bug of 89b1bf3e was
+// the inverse -- a modifier crossing a `;` that had already been eaten --
+// and it is why the two are separated rather than both handled here.
+func (p *parser) parseGoto(word lexer.Token) *Node {
+	p.advanceTo(word)
+	n := &Node{Kind: LoopControl, Text: p.text(word), Start: word.Start}
+
+	next, ok := p.peekSignificant()
+	if !ok {
+		n.End = p.prevEnd()
+		return n
+	}
+
+	// A bareword that is not a statement keyword is a label. `goto HERE if
+	// $x` must leave `if` to the modifier, which is what the keyword test
+	// does.
+	if next.Kind == lexer.Word && !statementKeywords[p.text(next)] &&
+		!modifiers[p.text(next)] {
+		p.advanceTo(next)
+		n.Children = append(n.Children, &Node{
+			Kind: Label, Text: p.text(next),
+			Start: next.Start, End: next.End,
+		})
+		if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
+			p.advanceTo(tok)
+		}
+		n.End = p.prevEnd()
+		return n
+	}
+
+	// `goto &f`, `goto $where`. Parsed at the named-unary level so the
+	// argument binds the way perl's does -- measured, `((goto $x), $y)`.
+	if !endsArgumentList(next, p.src) {
+		if arg := p.parseExpr(bpNamedUnary); arg != nil {
+			n.Children = append(n.Children, arg)
 		}
 	}
 	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {

@@ -17,13 +17,23 @@ package parse
 //
 // `-p` matters: without it Deparse omits the parens that carry the answer.
 //
-// 77 of them. The spec's §4.1 table lists a subset by hand; this is the whole
+// 80 of them. The spec's §4.1 table lists a subset by hand; this is the whole
 // set as perl 5.42 reports it.
+//
+// The count read 77 while the table held 76 -- an off-by-one that predates
+// the four added here (delete, do, exists, goto), counted rather than
+// assumed. Each of those four was classified by the method above:
+//
+//	(delete $h{'a'}, $y)   comma outside  -> named unary
+//	(exists $h{'a'}, $y)   comma outside  -> named unary
+//	((goto $x), $y)        comma outside  -> named unary
+//	((do $x), $y)          comma outside  -> named unary
 var namedUnary = map[string]bool{
 	"abs": true, "alarm": true, "caller": true, "chdir": true,
 	"chomp": true, "chop": true, "chr": true, "chroot": true,
 	"close": true, "closedir": true, "cos": true, "dbmclose": true,
-	"defined": true, "each": true, "eof": true, "eval": true,
+	"defined": true, "delete": true, "do": true, "each": true,
+	"eof": true, "eval": true, "exists": true, "goto": true,
 	"exit": true, "exp": true, "fileno": true, "getc": true,
 	"getgrgid": true, "getgrnam": true, "gethostbyname": true,
 	"getnetbyname": true, "getpeername": true, "getpgrp": true,
