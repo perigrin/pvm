@@ -25,6 +25,22 @@ func (p *parser) parseDeclaration(word lexer.Token) *Node {
 	case declarators[text]:
 		return p.parseVarDecl(word)
 	case text == "sub" || text == "method":
+		// `sub {` with no name is an anonymous sub, which is an EXPRESSION
+		// and not a declaration. Declining here sends it to parseTerm, whose
+		// anon-sub branch (`term.go:126-132`) has always read it correctly --
+		// `my $f = sub { 1 }` was right all along because the expression
+		// path is reached there.
+		//
+		// In statement position parseDeclaration ran first and produced a
+		// Declaration spanning only `sub`, then a SECOND statement holding
+		// an AnonHash for the body. A tree that is not a parse of its
+		// source, and it round-trips.
+		//
+		// perl makes the same test: a name after `sub` is a declaration, a
+		// `{` is an anonymous sub.
+		if next, ok := p.peekAfter(word); ok && p.text(next) == "{" {
+			return nil
+		}
 		return p.parseSubDecl(word)
 	case text == "package":
 		return p.parsePackageDecl(word)
@@ -119,6 +135,21 @@ func (p *parser) parseSubDecl(word lexer.Token) *Node {
 			Kind: PrototypeNode, Text: p.text(proto),
 			Start: proto.Start, End: proto.End,
 		})
+	} else if open, ok := p.peekSignificant(); ok && p.text(open) == "(" {
+		// A SIGNATURE. With `use v5.36` the lexer declines to scan a
+		// prototype (`proto.go:32-35`) because the two are different things
+		// -- measured, `prototype(\&g)` is undef for a signatured sub -- and
+		// nothing downstream picked the parens up. The body was then read as
+		// a hash slice OF the signature and the sub body was LOST, so
+		// turning the feature ON made the parse worse.
+		//
+		// Read as an ordinary parenthesised list, which is what a signature
+		// is shaped like: `($x, $y)`, `($x = 1)`, `(@rest)`. Whether each
+		// element is a parameter, and what its default means, is M2's --
+		// this milestone owns the syntax.
+		if sig := p.parseTerm(); sig != nil {
+			n.Children = append(n.Children, sig)
+		}
 	}
 
 	p.finishBodyOrSemicolon(n)

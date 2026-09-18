@@ -474,7 +474,28 @@ func (p *parser) statement() *Node {
 	// block rather than a subscript or an anonymous hash, and says so on the
 	// token, so the decision is READ here rather than made a second time.
 	if tok, ok := p.peekSignificant(); ok && tok.OpensBlock && p.text(tok) == "{" {
-		return withLabels(labels, p.parseBlock(tok), start)
+		// A `{` at statement start is USUALLY a block, and sometimes an
+		// anonymous hash. perl decides with intuit_curly
+		// (toke.c:6698-6842), which peeks past the brace at the first token
+		// inside; the lexer's brace stack cannot, because it classifies from
+		// the state the `{` was READ in.
+		//
+		// Measured on perl 5.42.0, and the rule is narrower than it looks:
+		//
+		//	{a=>1};      +{'a', 1}    a hash: BAREWORD then `=>`
+		//	{"a", 1};    +{'a', 1}    a hash: STRING then `,`
+		//	{a, 1};      a block      a bareword and a comma is NOT enough
+		//	{$k=>1};     a block      a variable is not a key here
+		//	{};          a block      empty is a block, not an empty hash
+		//
+		// So the first token must be a word or a string, and only those two
+		// separators qualify. Everything else stays a block, which is what
+		// keeps every bare block, `if` body and loop body working.
+		if !p.braceOpensAnonHash(tok) {
+			return withLabels(labels, p.parseBlock(tok), start)
+		}
+		// A hash falls through to the expression path below, which reads the
+		// `{` as the AnonHash parseTerm already builds.
 	}
 
 	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Word {
@@ -635,6 +656,46 @@ var statementKeywords = map[string]bool{
 	// than a call -- measured, `goto FOO` says "Can't find label FOO".
 
 	"format": true,
+}
+
+// braceOpensAnonHash reports whether a `{` at statement start constructs a
+// hash rather than opening a block.
+//
+// This is intuit_curly's lookahead (toke.c:6698-6842) reduced to the two
+// shapes perl actually accepts. Measured on perl 5.42.0 with -MO=Deparse:
+//
+//	{a=>1};      +{'a', 1}    BAREWORD then `=>`
+//	{"a", 1};    +{'a', 1}    STRING then `,`
+//	{a, 1};      a block      a bareword and a comma is NOT enough
+//	{$k=>1};     a block      a variable is not a key here
+//	{};          a block      empty is a block, not an empty hash
+//
+// Narrow on purpose. The default for a statement-start brace is a block, and
+// it has to be: every bare block, `if` body and loop body in the corpus is
+// one, so a wrong answer here is far more expensive than a missed hash.
+func (p *parser) braceOpensAnonHash(brace lexer.Token) bool {
+	first, ok := p.peekAfter(brace)
+	if !ok {
+		return false
+	}
+
+	// The key must be a word or a string. A variable, a number or anything
+	// else leaves this a block, which is what perl decided above.
+	switch first.Kind {
+	case lexer.Word:
+		// A bareword key needs a FAT comma. `{a, 1}` is a block.
+		next, ok := p.peekAfter(first)
+		return ok && p.text(next) == "=>"
+	case lexer.Quote:
+		// A string key takes either separator: `{"a", 1}` and `{"a" => 1}`
+		// are both hashes.
+		next, ok := p.peekAfter(first)
+		if !ok {
+			return false
+		}
+		return p.text(next) == "=>" || p.text(next) == ","
+	}
+	return false
 }
 
 // withLabels wraps a statement's node in a Statement carrying any labels that

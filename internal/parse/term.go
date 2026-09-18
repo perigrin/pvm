@@ -66,11 +66,28 @@ func (p *parser) parseTerm() *Node {
 			(name.Kind == lexer.Word || p.text(name) == "{") {
 			p.advanceTo(tok)
 			if p.text(name) == "{" {
-				inner := p.parseTerm()
-				return &Node{
-					Kind: Term, Text: "*", Start: tok.Start, End: p.prevEnd(),
-					Children: []*Node{inner},
+				// The braces of `*{EXPR}` GROUP; they do not construct.
+				// Calling parseTerm here read the `{` as an anonymous hash,
+				// so the tree said a hash was being BUILT where a
+				// symbol-table slot is being named -- a wrong tree that
+				// round-trips.
+				//
+				// Consumed here rather than delegated, for the same reason
+				// the `${EXPR}` deref does it: parseTerm cannot know the
+				// brace is a group, because in every other position it is
+				// not.
+				p.advanceTo(name)
+				inner := p.parseExpr(0)
+				if close, ok := p.peekSignificant(); ok && p.text(close) == "}" {
+					p.advanceTo(close)
 				}
+				n := &Node{
+					Kind: Term, Text: "*", Start: tok.Start, End: p.prevEnd(),
+				}
+				if inner != nil {
+					n.Children = append(n.Children, inner)
+				}
+				return n
 			}
 			p.advanceTo(name)
 			return &Node{

@@ -100,8 +100,14 @@ func TestT2CoreParses(t *testing.T) {
 		// comma, so the count rose while the parse got better. Untracked:
 		// nothing in the chain owns trailing commas in argument lists.
 		"class/accessor.t": 1, "class/construct.t": 2,
-		"class/destruct.t": 7, "class/field.t": 9, "class/gh22169.t": 3,
-		"class/gh23511.t": 1, "class/inherit.t": 7, "class/method.t": 12,
+		// class/gh22169.t went 3 -> 5 when anonymous subs and signatures
+		// landed. Not a regression in the parse: reaching further into the
+		// file exposed `ADJUST { ... }`, a class phaser in no table, twice
+		// more. Verified by stashing the change and counting -- 3 Unknowns
+		// at HEAD, 5 after, and every new one is an ADJUST block. Untracked:
+		// nothing in the chain owns ADJUST.
+		"class/destruct.t": 7, "class/field.t": 9, "class/gh22169.t": 5,
+		"class/gh23511.t": 1, "class/inherit.t": 7, "class/method.t": 9,
 		"class/phasers.t": 5,
 		"cmd/mod.t":       1, "cmd/subval.t": 3, "cmd/switch.t": 2,
 		"comp/colon.t": 25, "comp/decl.t": 3, "comp/filter_exception.t": 5,

@@ -143,7 +143,7 @@ func TestT1EasyIsDefinedByMeasurement(t *testing.T) {
 
 // TestT1EasyParseRate is the M1 gate's rate metric.
 //
-// The gate's target is >= 70%. The measured rate at 4bc971ec is 50.6%, so
+// The gate's target is >= 70%. The measured rate at e0d124d1 is 50.8%, so
 // this test RECORDS the gap rather than asserting a pass -- a test that
 // asserted 70% today would be red for reasons no commit caused, and a test
 // that lowered the bar to today's number would make the target meaningless.
@@ -168,7 +168,7 @@ func TestT1EasyParseRate(t *testing.T) {
 	rate := 100 * float64(clean) / float64(len(easy))
 
 	// Measured at 4bc971ec. The gate wants 70.0.
-	const floor = 50.6
+	const floor = 50.8
 	const target = 70.0
 
 	if rate+0.05 < floor {

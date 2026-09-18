@@ -157,10 +157,21 @@ func TestBlockVersusHashref(t *testing.T) {
 		}
 	}
 
-	// Statement position: a block, even with a bareword key inside, because
-	// the lexer read the brace in XState.
+	// Where a BLOCK is required, a brace opens one whatever is inside it.
+	// perl reads the contents as statements and says so -- measured:
+	//
+	//	$ perl -MO=Deparse -e 'if ($c) { a => 1 }'
+	//	if ($c) {
+	//	    '???', '???';
+	//	}
+	//
+	// `{ a => 1 }` at STATEMENT START is not in this list any more: perl
+	// deparses that one as `+{'a', 1}`, an anonymous hash, and this test
+	// asserted the opposite. Its reason was "because the lexer read the
+	// brace in XState" -- a description of the implementation rather than of
+	// Perl, which is exactly the kind of test that freezes a defect.
+	// TestStatementStartBrace in wrongtree_test.go now owns that case.
 	for _, src := range []string{
-		"{ a => 1 }",
 		"if ($c) { a => 1 }",
 	} {
 		root := parse.Parse([]byte(src))
