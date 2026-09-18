@@ -4,6 +4,7 @@
 package parse_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -163,6 +164,78 @@ func TestBindingStillExcludesSubstAndTrans(t *testing.T) {
 	} {
 		if got := decidedKinds(src); has(got, parseoracle.SiteKindMatch) {
 			t.Errorf("%q: must NOT decide match, got %v", src, got)
+		}
+	}
+}
+
+// TestSiteSpansReachTheirStatement: a site on a continuation line must span
+// back to the line its STATEMENT begins on.
+//
+// perl attributes a site to the enclosing nextstate, which records the
+// statement's FIRST line. Measured on perl 5.42.0:
+//
+//	my $r = f(          # line 1
+//	    "a",            # line 2
+//	    { s => 1 },     # line 3
+//	);
+//	-> nextstate(main 1 ml.pl:1), anonhash
+//
+// The hash is on line 3 and perl reports line 1. CompareFacts then looks for
+// a subject statement whose [start,end] CONTAINS line 1
+// (`compare_facts.go:349-359`), so a site reported as the point 3-3 is never
+// found and the marker scores WRONG.
+//
+// Reporting the node's own line alone was the fix for sub bodies -- a
+// backslash inside `sub foo {` must not pool under the sub's whole span --
+// and it broke this. Both hold if the span runs from the statement's line to
+// the node's: it contains perl's line either way.
+//
+// t/comp/parser_run.t:17 is the surviving case, a four-line call whose hash
+// sits on line 19.
+func TestSiteSpansReachTheirStatement(t *testing.T) {
+	const src = "my $r = f(\n    \"a\",\n    { k => 1 },\n);\n"
+
+	root := parse.Parse([]byte(src))
+	var found bool
+	for _, s := range parse.Sites(root, []byte(src)) {
+		if s.Kind != parseoracle.SiteKindAnonhash || s.Unresolved {
+			continue
+		}
+		found = true
+		if s.Line > 1 {
+			t.Errorf("anonhash site is %d-%d; it must reach line 1, where "+
+				"the statement begins and where perl reports it",
+				s.Line, s.EndLine)
+		}
+		if s.EndLine < 3 {
+			t.Errorf("anonhash site is %d-%d; it must reach line 3, where "+
+				"the hash actually is", s.Line, s.EndLine)
+		}
+	}
+	if !found {
+		t.Fatal("no decided anonhash site at all")
+	}
+}
+
+// TestSiteSpansStayInsideTheirStatement is the other half, and the reason
+// the span cannot simply be the whole statement.
+//
+// A `\` inside a sub body must NOT pool under `sub foo {`'s span: perl walks
+// the CVs and reports it at the body's own line, and a site covering the
+// whole sub is never reached from there. The span must START at the
+// statement but END at the node.
+func TestSiteSpansStayInsideTheirStatement(t *testing.T) {
+	const src = "sub foo {\n    my $r = \\$x;\n}\n"
+
+	root := parse.Parse([]byte(src))
+	for _, s := range parse.Sites(root, []byte(src)) {
+		if s.Kind != parseoracle.SiteKindReference || s.Unresolved {
+			continue
+		}
+		if s.EndLine != 2 {
+			t.Errorf("reference site is %d-%d; it must END at line 2, where "+
+				"the backslash is, not at the sub's closing brace",
+				s.Line, s.EndLine)
 		}
 	}
 }
@@ -482,34 +555,57 @@ func decidedSites(src string) []parseoracle.SubjectCallSite {
 // offers nothing at the inner line for that site to be spent against, and
 // the verdict is WRONG -- for a marker the parser read correctly.
 //
-// So a site's line is the line of the NODE that decided it.
+// So a site's span must CONTAIN the line perl reports, and which line that
+// is depends on where the site sits:
+//
+//   - Inside a sub body, perl's CV walk reports the body's own line.
+//     Measured: `perl -MO=Concise,-exec,foo` on `sub foo {\n my $r = \$x;\n}`
+//     gives `nextstate(main 2 sb.pl:2)` and the srefgen after it.
+//   - In the continuation of a multi-line statement, perl reports the
+//     statement's FIRST line. Measured: `-exec,-main` on
+//     `f(\n    \$x,\n);` gives `nextstate(main 1 mc.pl:1)`.
+//
+// An earlier version of this test asserted the node's line exactly and put
+// the second case at line 2. perl says 1, so that expectation was wrong; a
+// span from the statement's line to the node's satisfies both, which is what
+// `Sites` now produces.
 func TestSitesReportTheirOwnLine(t *testing.T) {
 	for _, c := range []struct {
 		src  string
 		kind string
-		line int
+		// mustContain is the line perl attributes the site to.
+		mustContain int
+		// mustReach is the node's own line, which the span must also cover
+		// so a site deeper in a body is not pooled under a whole sub.
+		mustReach int
 	}{
-		// The backslash is on line 2; `sub foo {` is line 1.
+		// perl's CV walk reports the backslash at line 2; `sub foo {` is 1.
 		{"sub foo {\n    my $r = \\$x;\n}\n",
-			parseoracle.SiteKindReference, 2},
+			parseoracle.SiteKindReference, 2, 2},
 		{"if (1) {\n    my $r = {a=>1};\n}\n",
-			parseoracle.SiteKindAnonhash, 2},
+			parseoracle.SiteKindAnonhash, 2, 2},
 		{"while (1) {\n\n    my @k = keys %h;\n}\n",
-			parseoracle.SiteKindHash, 3},
-		// A site in the continuation of a multi-line statement belongs to
-		// its own line too, not to the line the statement opened on.
+			parseoracle.SiteKindHash, 3, 3},
+		// A multi-line statement: perl reports line 1, the node is on 2.
 		{"f(\n    \\$x,\n);\n",
-			parseoracle.SiteKindReference, 2},
+			parseoracle.SiteKindReference, 1, 2},
 	} {
-		var got []int
+		var got []string
+		var ok bool
 		for _, s := range decidedSites(c.src) {
-			if s.Kind == c.kind {
-				got = append(got, s.Line)
+			if s.Kind != c.kind {
+				continue
+			}
+			got = append(got, fmt.Sprintf("%d-%d", s.Line, s.EndLine))
+			if s.Line <= c.mustContain && c.mustContain <= s.EndLine &&
+				s.Line <= c.mustReach && c.mustReach <= s.EndLine {
+				ok = true
 			}
 		}
-		if len(got) != 1 || got[0] != c.line {
-			t.Errorf("%q: want one decided %s at line %d, got lines %v",
-				c.src, c.kind, c.line, got)
+		if !ok {
+			t.Errorf("%q: want one decided %s whose span contains line %d "+
+				"(where perl reports it) and line %d (the node's own); "+
+				"got spans %v", c.src, c.kind, c.mustContain, c.mustReach, got)
 		}
 	}
 }

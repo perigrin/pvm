@@ -80,10 +80,33 @@ func Sites(root *Node, src []byte) []parseoracle.SubjectCallSite {
 		// span is never reached from inside the body, and a marker this
 		// parser read correctly scores WRONG.
 		for _, d := range decidedMarkers(n) {
+			// The span runs from the STATEMENT's line to the NODE's, and
+			// needs both ends for opposite reasons.
+			//
+			// perl attributes a site to its enclosing nextstate, which
+			// records the statement's FIRST line. Measured on 5.42.0:
+			//
+			//	my $r = f(       # line 1
+			//	    "a",
+			//	    { k => 1 },  # line 3
+			//	);
+			//	-> nextstate(main 1 ml.pl:1), anonhash
+			//
+			// A site reported as the point 3-3 is never found by `innermost`,
+			// which wants a range CONTAINING perl's line
+			// (`compare_facts.go:349-359`); starting at the statement fixes
+			// that. Ending at the NODE is what keeps a `\` inside a sub body
+			// from pooling under the whole sub, which perl's CV walk reports
+			// at the body's own line. t/comp/parser_run.t:17 is the first
+			// case, t/class/destruct.t:22 the second.
+			siteEnd := lines.at(d.node.End - 1)
+			if siteEnd < start {
+				siteEnd = start
+			}
 			sites = append(sites, parseoracle.SubjectCallSite{
 				Kind:       d.kind,
-				Line:       lines.at(d.node.Start),
-				EndLine:    lines.at(d.node.End - 1),
+				Line:       start,
+				EndLine:    siteEnd,
 				Unresolved: d.unresolved,
 
 				// The srefgen marker is decided by this field, not by the
