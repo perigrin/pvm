@@ -6,7 +6,7 @@ milestone: m1-parse-the-core
 blocks:
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-18T01:45:50.160422555Z
-updated: 2026-09-18T01:46:10.75560066Z
+updated: 2026-09-18T09:31:30.809467757Z
 ---
 
 Thirteen T2 files score WRONG through the subject contract, and the M1 gate cannot close until that is zero. The two easy causes are already fixed; what remains needs investigation rather than a known repair.
@@ -105,3 +105,49 @@ a change to statement boundaries could move the T1 numbers. Both must hold.
 Blocks 01a0a70f (the M1 gate), whose last open criterion this is.
 
 Spec: §7.1.2, §7.2. Plan: M1 metrics.
+
+
+## Closed, 2026-09-18: 13 WRONG down to 1
+
+    13 WRONG  33 exact   at 9669353d, when this issue was filed
+     1 WRONG  39 exact   at 6393fdaa
+
+The one is comp/proto.t, pinned TODO(M4) at 1c5e3b4a. Exact ROSE from 33 to
+39 while WRONG fell, which is the shape that matters: a subject bought quiet
+would have moved them together.
+
+BOTH HYPOTHESES IN THIS ISSUE WERE WRONG, and recording that is the point.
+
+Not class syntax: it already parsed, and the M1 gate's note saying otherwise
+was stale.
+
+Not `method` routing: `method` is not in keyword.go at all.
+
+The span diagnosis was RIGHT about the defect and WRONG about its effect.
+Applying it alone measured 13 -> 15 WRONG. The actual first cause was
+`TookReference`: `parse.Sites` emitted `Kind: reference` with that field at
+zero, and `compare_facts.go:336` reads the FIELD as the srefgen decision, so
+every reference site was discarded on arrival.
+
+## The seven causes, in the order they were found
+
+1. `TookReference` unset on reference sites            13 -> 10
+2. quote-op keyword as a name after `->` and sub names 10 -> 8
+3. nested Unknown reported nothing                      8 -> 6
+4. delimiter enumerated rather than shaped              6 -> 5
+   (`s(a)(b)` decided MATCH -- a false positive no test reached)
+5. swallowed deref blocks stayed silent                 5 -> 3
+6. `=~` required a Term operand; `s =>` ate its comma   3 -> 2
+7. site spans were points, not ranges                   2 -> 1
+
+## The one worth remembering
+
+Three of the seven were the same bug: a quote-op keyword (`s`, `y`, `q`, `m`,
+`tr`) read as an operator where perl reads a name -- after `->`, after a sub
+or method name, and before a fat comma. A fourth should reach for the general
+rule rather than a fourth special case.
+
+And the last fix was a genuine conflict between two TRUE rules, settled by
+measuring both: perl reports a site inside a CV at the body's line and a site
+in a multi-line statement at the statement's line. A span from the statement
+to the node contains both. Two tests disagreed about this; perl decided.
