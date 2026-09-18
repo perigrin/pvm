@@ -1,13 +1,22 @@
 ---
 title: "Sigils are structural: the lexer swallows whole dereferences"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
 - 01a0ac52-a68c-750b-92d4-852abfc54a2f
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-17T03:04:49.380252705Z
-updated: 2026-09-17T19:56:35.865167071Z
+updated: 2026-09-18T22:54:10.809720993Z
+sessions:
+- start_sha: 79468414ccabbf46d8a4bd211c18fe9a200487ca
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-18T22:54:10.809720993Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-18T22:54:10.809720993Z
 ---
 
 An attempt at this measured worse than it looks, and the reason is issue 01a0ac52.
