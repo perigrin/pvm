@@ -224,16 +224,57 @@ func isReadlineTerm(text string) bool {
 // without matching it and is excluded for the same reason.
 func isBarePattern(text string) bool {
 	switch {
-	case strings.HasPrefix(text, "s/"), strings.HasPrefix(text, "s{"),
-		strings.HasPrefix(text, "tr"), strings.HasPrefix(text, "y/"),
-		strings.HasPrefix(text, "qr"):
+	case quoteOpIs(text, "s"), quoteOpIs(text, "tr"),
+		quoteOpIs(text, "y"), quoteOpIs(text, "qr"):
 		return false
-	case strings.HasPrefix(text, "m/"), strings.HasPrefix(text, "m{"):
+	case quoteOpIs(text, "m"):
 		return true
 	case len(text) >= 2 && text[0] == '/' && text[len(text)-1] == '/':
 		return true
 	}
 	return false
+}
+
+// quoteOpIs reports whether a leaf is the quote-like operator `name` with
+// any delimiter.
+//
+// perl takes the next non-whitespace character as the delimiter with no
+// allow-list, so enumerating delimiters is enumerating a set that has no
+// end. Measured on 5.42.0:
+//
+//	$ perl -MO=Concise,-exec -e 'my $a = m(x); my $b = m[x]; my $c = m!x!;'
+//	-- three match ops
+//
+// The delimiter must not be a word character, or `qw(a b)` reads as `q`
+// with `w` for a delimiter and `tr` as `t` with `r`. The lexer already
+// settled this the same way (quote.go: "a word character immediately after
+// the keyword means it is part of a longer name"), so this asks the same
+// question of the token it produced.
+//
+// Whitespace needs no special case. perl's skipspace runs before delimiter
+// selection, so `m /x/` is a match -- and a space is not a word character,
+// so it passes this test on its way to being the delimiter's stand-in.
+// Measured:
+//
+//	$ perl -MO=Concise,-exec -e 'my $a = m /x/;'
+//	3  </> match(/"x"/) s
+//
+// comp/opsubs.t:119 is `isnt( m('unqualified'), ... )`, which scored WRONG
+// while only `m/` and `m{` counted, and `s(a)(b)` decided MATCH -- a false
+// positive -- while only `s/` and `s{` were excluded.
+func quoteOpIs(text, name string) bool {
+	if !strings.HasPrefix(text, name) {
+		return false
+	}
+	i := len(name)
+	return i < len(text) && !isWordByte(text[i])
+}
+
+// isWordByte is perl's \w for an identifier: a quote operator's delimiter
+// may not be one, because the byte would belong to a longer name.
+func isWordByte(c byte) bool {
+	return c == '_' || ('0' <= c && c <= '9') ||
+		('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z')
 }
 
 // isMatchOperand reports whether the right side of `=~` is a match rather
@@ -265,8 +306,7 @@ func isMatchOperand(n *Node) bool {
 // isSubstOrTrans reports whether a leaf is a substitution or a
 // transliteration rather than a match.
 func isSubstOrTrans(text string) bool {
-	return strings.HasPrefix(text, "s/") || strings.HasPrefix(text, "s{") ||
-		strings.HasPrefix(text, "tr") || strings.HasPrefix(text, "y/")
+	return quoteOpIs(text, "s") || quoteOpIs(text, "tr") || quoteOpIs(text, "y")
 }
 
 // lineStarts is the byte offset of each line's first byte, so a span can be

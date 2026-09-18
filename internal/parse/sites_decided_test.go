@@ -84,6 +84,18 @@ func TestSitesDecideMarkers(t *testing.T) {
 			`if (/foo/) { 1 }`,
 			`$got =~ $expected;`,
 			`$got !~ $expected;`,
+			// perl takes ANY non-word character as m's delimiter and reports
+			// match for every one of them. Measured on 5.42.0:
+			//	$ perl -MO=Concise,-exec -e 'my $a = m(x); my $b = m[x];
+			//	                             my $c = m!x!; my $d = m,x,;'
+			//	 -- four match ops.
+			// comp/opsubs.t:119 is `isnt( m('unqualified'), ... )`, which
+			// scored WRONG while only `m/` and `m{` counted.
+			`my $r = m(foo);`,
+			`my $r = m[foo];`,
+			`my $r = m!foo!;`,
+			`my $r = m'foo';`,
+			`isnt( m('x'), "y", "z" );`,
 		}},
 		// perl: readline
 		{parseoracle.SiteKindReadline, []string{
@@ -130,6 +142,27 @@ func TestSitesDoNotDecideWhatTheyCannotSee(t *testing.T) {
 			`$x =~ s/a/b/;`,
 			`$x =~ tr/a/b/;`,
 			`$x =~ y/a/b/;`,
+			// The same delimiters that make `m(...)` a match leave these
+			// three what they already were. Measured:
+			//	$ perl -MO=Concise,-exec -e 'my $x; $x =~ s(a)(b);
+			//	                             $x =~ tr(a)(b); my $q = qr(a);'
+			//	subst, trans, qr -- no match op among them.
+			`$x =~ s(a)(b);`,
+			`$x =~ tr(a)(b);`,
+			`my $q = qr(a);`,
+			// `qw(...)` is a list, and its leading `q` must not read as a
+			// match with `w` for a delimiter.
+			`my @w = qw(a b);`,
+			// A NAME beginning with a quote-op keyword is a name. These are
+			// what the delimiter's word-character test protects: without it
+			// `sort` reads as `s` delimited by `o`, `my(...)` as `m`
+			// delimited by `y`, and `tr` as `t` -- every one a match or an
+			// exclusion invented from a name.
+			`my @s = sort @a;`,
+			`my $string = 1;`,
+			`mkdir("d");`,
+			`$yes = 1;`,
+			`trim($x);`,
 		}},
 		{parseoracle.SiteKindReadline, []string{
 			`my $b = $a < $c;`, // comparison, not a readline
