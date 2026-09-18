@@ -1,12 +1,21 @@
 ---
 title: "Four keywords missing from the table: delete, exists, goto, do FILE"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-17T14:23:31.374573065Z
-updated: 2026-09-17T19:56:35.961889551Z
+updated: 2026-09-18T09:35:10.078210719Z
+sessions:
+- start_sha: 6393fdaa0bd1a57acd1acc0fbf10810c76893536
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-18T09:35:10.078210719Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-18T09:35:10.078210719Z
 ---
 
 Four constructs are `Unknown` because a word is missing from a table, not because anything is hard. Measured at 3c997a6b, each round-tripping:
