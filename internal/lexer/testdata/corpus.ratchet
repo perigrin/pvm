@@ -612,7 +612,7 @@
     0 uni/tie.t
     0 uni/title.t
     0 uni/tr_utf8.t
-    1 uni/universal.t
+    0 uni/universal.t
     0 uni/upper.t
     0 uni/variables.t
     0 uni/write.t

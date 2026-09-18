@@ -255,7 +255,11 @@ func TestClassCorpusRatchet(t *testing.T) {
 	// landed. Update it in the same commit as the change that moves it, in
 	// either direction -- a drop is a win worth recording, and a rise is a
 	// regression worth seeing.
-	const want = 74
+	//
+	// 74 -> 48 when the lexer stopped reading a quote-op keyword as a quote
+	// operator where perl reads it as a name. `method y { ... }` was a
+	// transliteration delimited by `{`, which swallowed the class body.
+	const want = 48
 	if unknown != want {
 		t.Errorf("t/class holds %d Unknown nodes, want %d: update this pin in "+
 			"the same commit as the change that moved it", unknown, want)

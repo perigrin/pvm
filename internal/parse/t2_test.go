@@ -80,11 +80,15 @@ func TestT2CoreParses(t *testing.T) {
 
 	// Pinned at d83e21a9: file -> Unknown nodes, for every file that is not
 	// clean. A file absent from this map must parse cleanly.
+	//
+	// The t/class counts moved when the lexer stopped reading a quote-op
+	// keyword as a quote operator where perl reads it as a name: `$o->s`
+	// and `method y { ... }`. class/class.t left the map entirely.
 	shortfall := map[string]int{
 		"base/lex.t": 54, "base/num.t": 48, "base/rs.t": 3,
-		"class/accessor.t": 7, "class/class.t": 4, "class/construct.t": 3,
-		"class/destruct.t": 7, "class/field.t": 18, "class/gh22169.t": 3,
-		"class/gh23511.t": 1, "class/inherit.t": 12, "class/method.t": 14,
+		"class/accessor.t": 1, "class/construct.t": 3,
+		"class/destruct.t": 7, "class/field.t": 9, "class/gh22169.t": 3,
+		"class/gh23511.t": 1, "class/inherit.t": 7, "class/method.t": 12,
 		"class/phasers.t": 5,
 		"cmd/for.t":       2, "cmd/mod.t": 1, "cmd/subval.t": 3, "cmd/switch.t": 2,
 		"comp/colon.t": 25, "comp/decl.t": 3, "comp/filter_exception.t": 7,

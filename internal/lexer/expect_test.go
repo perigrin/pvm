@@ -287,3 +287,139 @@ func TestExpectAngleAndAmp(t *testing.T) {
 		t.Errorf("`&foo()`: function sigil span [%d,%d), want [0,1)", s, e)
 	}
 }
+
+// TestMethodNameAfterArrow: `$o->s` is a method call, and the method's name
+// may be spelled the same as a quote-like operator.
+//
+// `s`, `y`, `q`, `m` and `tr` are all legal method names, and perl reads
+// every one of them as a name after `->` -- measured on 5.42.0:
+//
+//	$ perl -MO=Deparse -e 'my $o; my @x = ($o->s, $o->y, $o->q, $o->tr, $o->m);'
+//	my(@x) = ($o->s, $o->y, $o->q, $o->tr, $o->m);
+//
+// Before XPostDeref was assigned, `->` left XTerm and scanQuoteLike claimed
+// the name: `is($o->s, "x", 'a')` lexed as Variable `$o`, Operator `->`,
+// UnknownRest `s, "x", 'a');` -- the comma delimited a substitution that ran
+// to end of input, and every statement after it in the file was lost.
+//
+// That is what made class/accessor.t, class/field.t and comp/parser_run.t
+// score WRONG through the subject contract: the anonymous hashes perl built
+// on those lines were inside bytes this lexer had swallowed.
+func TestMethodNameAfterArrow(t *testing.T) {
+	for _, src := range []string{
+		`$o->s, 1`,
+		`$o->y, 1`,
+		`$o->q, 1`,
+		`$o->m, 1`,
+		`$o->tr, 1`,
+		// Whitespace and a newline between the arrow and the name do not
+		// change the answer; perl deparses all three to `$o->s`.
+		`$o -> s, 1`,
+		"$o->\ns, 1",
+	} {
+		for _, tok := range Tokenize([]byte(src)) {
+			switch tok.Kind {
+			case Quote, UnknownRest, Error:
+				t.Errorf("%q: lexed %v %q; after `->` a name is a method",
+					src, tok.Kind, src[tok.Start:tok.End])
+			}
+		}
+	}
+}
+
+// TestPostfixDerefStillLexes is the other half of XPostDeref, and it is why
+// `->` cannot simply leave XOperator.
+//
+// A sigil after `->` is a postfix dereference and needs a TERM expected, or
+// `%` reads as modulus and `@` as an error. perl accepts all of these:
+//
+//	$ perl -MO=Deparse -e 'my $r; my @a = $r->@*; my %h = $r->%*; my $s = $r->$*;'
+//	my(@a) = @$r;
+//	my(%h) = %$r;
+//	my $s = $$r;
+//
+// So XPostDeref is term-ish for sigils and operator-ish for words, which is
+// exactly the distinction the state was declared for.
+func TestPostfixDerefStillLexes(t *testing.T) {
+	for _, tc := range []struct {
+		src  string
+		kind Kind
+	}{
+		{`$r->@*`, Variable},
+		{`$r->%*`, Variable},
+		{`$r->$*`, Variable},
+		{`$r->$m`, Variable},
+		{`$r->&*`, FuncSigil},
+	} {
+		// The token AT the sigil, not the first of its kind: `$r` is a
+		// Variable too, and spanOfKind would return that one.
+		var got Kind = -1
+		for _, tok := range Tokenize([]byte(tc.src)) {
+			if tok.Start == 4 {
+				got = tok.Kind
+				break
+			}
+		}
+		if got != tc.kind {
+			t.Errorf("%q: want a %v at offset 4, got %v (tokens %v)",
+				tc.src, tc.kind, got, Tokenize([]byte(tc.src)))
+		}
+	}
+}
+
+// TestQuoteOpNameAfterSubOrMethod: the name of a `sub` or a `method` may be
+// spelled the same as a quote-like operator, and perl reads it as a name.
+//
+//	$ perl -MO=Deparse -e 'sub y { 1 } sub s { 2 } sub q { 3 }'
+//	sub y { 1; }
+//	sub s { 2; }
+//	sub q { 3; }
+//
+// `method y { return @y; }` in t/class/field.t:166 is the same shape, and
+// scanQuoteLike was reading that `y` with the following `{` as the start of
+// a transliteration -- which swallowed the rest of the class body.
+//
+// The lexer already knows it is at a declaration's name: noteSubName sets
+// sawSubWord on `sub` and `method` for the prototype scanner. This asks the
+// same fact one token earlier.
+func TestQuoteOpNameAfterSubOrMethod(t *testing.T) {
+	for _, src := range []string{
+		`sub y { 1 }`,
+		`sub s { 2 }`,
+		`sub q { 3 }`,
+		`sub tr { 4 }`,
+		`sub m { 5 }`,
+		`method y { return $y; }`,
+		`method s { 1 }`,
+		// Trivia between the keyword and the name changes nothing.
+		`sub  y  { 1 }`,
+	} {
+		for _, tok := range Tokenize([]byte(src)) {
+			switch tok.Kind {
+			case Quote, UnknownRest, Error:
+				t.Errorf("%q: lexed %v %q; a declaration's name is a name",
+					src, tok.Kind, src[tok.Start:tok.End])
+			}
+		}
+	}
+}
+
+// TestQuoteOpStillLexesElsewhere is the mutation guard for both declines:
+// the same keywords in TERM position are still quote operators, and the
+// machine is back to normal after the declaration's name.
+func TestQuoteOpStillLexesElsewhere(t *testing.T) {
+	for _, src := range []string{
+		`$x =~ s/a/b/`,
+		`$x =~ y/a/b/`,
+		`$x =~ tr/a/b/`,
+		`$x =~ m/a/`,
+		`my $v = q(a)`,
+		`sub f { $x =~ s/a/b/ }`,
+		`$o->f; $x =~ s/a/b/;`,
+	} {
+		if s, _ := spanOfKind(src, Quote); s < 0 {
+			t.Errorf("%q: no Quote token; the keyword is still a quote "+
+				"operator here (tokens %v)", src, Tokenize([]byte(src)))
+		}
+	}
+}

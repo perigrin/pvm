@@ -66,6 +66,25 @@ func scanQuoteLike(l *lexer) bool {
 		return true
 	}
 
+	// After `->` a name is a method, never a quote operator. `s`, `y`, `q`,
+	// `m` and `tr` are all legal method names and perl reads every one of
+	// them as a name here -- measured:
+	//
+	//	$ perl -MO=Deparse -e 'my $o; my @x = ($o->s, $o->tr);'
+	//	my(@x) = ($o->s, $o->tr);
+	//
+	// The plain string forms above are still quotes: `$o->"x"` is not a
+	// method name in any spelling, so only the keyword forms decline.
+	//
+	// The NAME of a `sub` or a `method` is a name for the same reason --
+	// perl deparses `sub y { 1 }` back to itself -- and sawSubWord is
+	// already the lexer's record that the next word is one. `method y { }`
+	// in t/class/field.t:166 was reading as a transliteration whose
+	// delimiter was `{`, which swallowed the rest of the class body.
+	if l.expect == XPostDeref || l.sawSubWord {
+		return false
+	}
+
 	op, ok := quoteOpAt(l.src, l.pos)
 	if !ok {
 		return false

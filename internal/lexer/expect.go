@@ -84,7 +84,12 @@ func (e Expect) String() string {
 // collapsing them at the point of use keeps the dispatch readable.
 func (e Expect) wantsTerm() bool {
 	switch e {
-	case XTerm, XRef, XState, XTermBlock, XBlockTerm, XAttrTerm, XTermOrDorDor:
+	case XTerm, XRef, XState, XTermBlock, XBlockTerm, XAttrTerm, XTermOrDorDor,
+		// XPostDeref is term-ish for the sigil scanners and only for them:
+		// `$r->@*`, `$r->%*` and `$r->$m` need a term expected, or `%`
+		// reads as modulus. A WORD there is a method name, which is the
+		// half scanQuoteLike declines on.
+		XPostDeref:
 		return true
 	}
 	return false
@@ -198,6 +203,20 @@ func (e Expect) after(k Kind, t transition) Expect {
 		// zzz was declared (see isNiladic). That one stays a hedge.
 		return XTerm
 	case Operator:
+		// `->` is the one operator whose next token is not a plain term.
+		// perl's XPOSTDEREF, and the state was declared for exactly this:
+		//
+		//	$r->@*   $r->%*   $r->$m   -- a sigil, so a term is wanted
+		//	$o->s    $o->tr            -- a NAME, never a quote operator
+		//
+		// Leaving XTerm let scanQuoteLike claim the name: `$o->s, "x"`
+		// lexed as UnknownRest `s, "x"` -- the comma delimited a
+		// substitution that ran to end of input. Leaving XOperator instead
+		// would fix the name and break every postfix dereference, which is
+		// why this is its own state rather than one of the other two.
+		if string(t.text) == "->" {
+			return XPostDeref
+		}
 		return XTerm
 	case Semicolon:
 		return XState
