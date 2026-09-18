@@ -260,6 +260,50 @@ func TestReferenceSitesTakeTheReference(t *testing.T) {
 	}
 }
 
+// TestNestedUnknownHedgesToo: an Unknown inside a block must speak its
+// refusal, exactly as a top-level one does.
+//
+// Sites hedged only the Unknowns that were direct children of the root, and
+// decidedMarkers declined to descend into a nested one on the stated
+// grounds that it was "already hedged at statement level". It was not. A
+// `BEGIN { $::{u} = \undef }` parsed to a Phaser holding a Block holding
+// two Unknowns, and the subject reported NOTHING for that statement --
+// neither a decided site nor a hedge.
+//
+// That is the silent wrong answer this file's doc comment is about, reached
+// from the one direction the original rule did not cover: perl took a
+// reference inside those bytes, innermost found no statement offering
+// anything at that line, and the verdict was WRONG rather than wider.
+//
+// comp/fold.t:176 is this shape exactly.
+func TestNestedUnknownHedgesToo(t *testing.T) {
+	for _, src := range []string{
+		`BEGIN { $::{u} = \undef }`,
+		"sub f {\n    $::{u} = \\undef;\n}\n",
+		"{\n    $::{u} = \\undef;\n}\n",
+	} {
+		root := parse.Parse([]byte(src))
+		if !containsKind(root, parse.Unknown) {
+			t.Skipf("%q now parses; this test needs a construct the parser declines", src)
+		}
+		hedged := hedgedKinds(src)
+		for _, kind := range markerKindsForTest {
+			if !has(hedged, kind) {
+				t.Errorf("%q: a nested Unknown must hedge %s; got %v",
+					src, kind, hedged)
+			}
+		}
+	}
+}
+
+// markerKindsForTest is the five kinds the oracle scores, mirroring the
+// unexported markerKinds so a test in the _test package can name them.
+var markerKindsForTest = []string{
+	parseoracle.SiteKindReference, parseoracle.SiteKindHash,
+	parseoracle.SiteKindMatch, parseoracle.SiteKindReadline,
+	parseoracle.SiteKindAnonhash,
+}
+
 // decidedSites returns the decided sites with their spans, which is what
 // CompareFacts pools by.
 func decidedSites(src string) []parseoracle.SubjectCallSite {

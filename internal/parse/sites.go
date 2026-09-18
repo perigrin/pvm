@@ -81,9 +81,10 @@ func Sites(root *Node, src []byte) []parseoracle.SubjectCallSite {
 		// parser read correctly scores WRONG.
 		for _, d := range decidedMarkers(n) {
 			sites = append(sites, parseoracle.SubjectCallSite{
-				Kind:    d.kind,
-				Line:    lines.at(d.node.Start),
-				EndLine: lines.at(d.node.End - 1),
+				Kind:       d.kind,
+				Line:       lines.at(d.node.Start),
+				EndLine:    lines.at(d.node.End - 1),
+				Unresolved: d.unresolved,
 
 				// The srefgen marker is decided by this field, not by the
 				// kind (`compare_facts.go:336`): a reference site without it
@@ -91,19 +92,27 @@ func Sites(root *Node, src []byte) []parseoracle.SubjectCallSite {
 				// perl took", which lands in neither decided nor hedged. A
 				// `\` this parser read IS a reference taken. The other four
 				// markers are decided by their kind and ignore the field.
-				TookReference: d.kind == parseoracle.SiteKindReference,
+				//
+				// A hedge takes nothing -- it is the refusal to say -- and
+				// groupByStatement reads Unresolved first either way.
+				TookReference: d.kind == parseoracle.SiteKindReference &&
+					!d.unresolved,
 			})
 		}
 	}
 	return sites
 }
 
-// decided is one marker this parser committed to and the node that decided
-// it. The node travels with the kind because a site's line is its own, not
-// the enclosing statement's -- see Sites.
+// decided is one marker this parser settled and the node that settled it.
+// The node travels with the kind because a site's line is its own, not the
+// enclosing statement's -- see Sites.
+//
+// unresolved makes it a hedge rather than a commitment. A nested Unknown
+// settles every marker the only way it can: by refusing, out loud.
 type decided struct {
-	kind string
-	node *Node
+	kind       string
+	node       *Node
+	unresolved bool
 }
 
 // decidedMarkers reports which of the five markers this statement contains,
@@ -126,16 +135,25 @@ func decidedMarkers(stmt *Node) []decided {
 	// first subject measurement -- `eq_hash({$o->h}, {qw( the hash )})` in
 	// t/class/accessor.t:31 is two anonhash ops to perl and was one site here.
 	add := func(kind string, n *Node) {
-		found = append(found, decided{kind, n})
+		found = append(found, decided{kind: kind, node: n})
 	}
 
 	var walk func(*Node)
 	walk = func(n *Node) {
 		switch n.Kind {
 		case Unknown:
-			// A nested Unknown is the statement's own refusal, already
-			// hedged at statement level. Do not descend into it, and do not
-			// let anything inside it count as decided.
+			// A nested Unknown speaks its own refusal, at its own span. The
+			// statement around it was READ -- `BEGIN { ... }` is a Phaser
+			// holding a Block -- so nothing else hedges these bytes, and
+			// silence here is the same silent wrong answer the top-level
+			// rule exists to prevent: perl found a marker inside, innermost
+			// found a statement offering neither a site nor a hedge, and
+			// the verdict was WRONG rather than wider.
+			//
+			// Do not descend: nothing inside a refusal is decided.
+			for _, kind := range markerKinds {
+				found = append(found, decided{kind: kind, node: n, unresolved: true})
+			}
 			return
 
 		case AnonHash:
