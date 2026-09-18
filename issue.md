@@ -17,7 +17,7 @@ blocks:
 - 01a0afc0-6d61-7dc5-a10c-a0d29ed14742
 - 01a0afc1-2931-76bc-80e9-8e51a7dfc544
 created: 2026-09-15T21:53:08.812269582Z
-updated: 2026-09-17T23:25:03.697040722Z
+updated: 2026-09-18T01:44:03.877832459Z
 sessions:
 - start_sha: 1f0669412eaad35c8b13ec0d8ff60c75120a330a
   end_sha: ""
@@ -304,3 +304,41 @@ field and method are owned by no M1 issue. That is now blocking the gate
 rather than only the T2 row.
 
 Seven of eight criteria pass. The eighth is WRONG=0, and it is the work.
+
+
+## WRONG: 20 to 13, 2026-09-18 (9669353d)
+
+    before   27 exact   6 wider   20 WRONG   3 no-answer
+    after    33 exact   7 wider   13 WRONG   3 no-answer
+
+Both fixes were in the SUBJECT rather than the parser -- the trees were
+right, what the subject said about them was not.
+
+ONE SITE PER OCCURRENCE. `decidedMarkers` deduplicated by marker kind, so a
+statement with two anonymous hashes reported one site while CompareFacts
+consumes one per marker perl found. `eq_hash({$o->h}, {qw( the hash )})` at
+t/class/accessor.t:31 is two anonhash ops to perl. Moved 2 files.
+
+`$x =~ $pattern` IS A MATCH. `isMatchOperand` required a literal, so a
+binding against a variable decided nothing. Measured: perl reports
+`match()[$g:1,3]` for `$g =~ $e`. t/comp/use.t:24 and t/comp/uproto.t:24 are
+this shape. Moved 5 files.
+
+THE REMAINING 13, by marker, measured rather than estimated:
+
+    srefgen    7
+    rv2hv      3
+    anonhash   2
+    match      1
+
+My guess before running it was wrong in three of the four categories, which
+is why this is a measurement and not a plan.
+
+srefgen dominates. References are where the next work is, and the class/
+files in that set are the gap this issue's own T2 note already recorded:
+class, field and method are owned by no M1 issue. That gap is now blocking
+this gate rather than only the T2 row.
+
+One honest gap: opbasic/concat.t:100 is `*pi = \undef;`, and `\undef`
+already decides reference correctly, so that file scores WRONG for a reason I
+have not found.
