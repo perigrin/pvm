@@ -3,8 +3,10 @@ title: Thirteen T2 files still score WRONG, and it is not what the gate assumed
 state: pending
 urgency: normal
 milestone: m1-parse-the-core
+blocks:
+- 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-18T01:45:50.160422555Z
-updated: 2026-09-18T01:45:50.160422555Z
+updated: 2026-09-18T01:46:10.75560066Z
 ---
 
 Thirteen T2 files score WRONG through the subject contract, and the M1 gate cannot close until that is zero. The two easy causes are already fixed; what remains needs investigation rather than a known repair.
