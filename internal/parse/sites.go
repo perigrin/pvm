@@ -179,6 +179,16 @@ func decidedMarkers(stmt *Node) []decided {
 			}
 
 		case Term:
+			// A deref block the lexer swallowed hides whatever is inside it,
+			// and silence about hidden bytes is the same silent wrong answer
+			// a quiet Unknown would be. Hedge every marker and do not look
+			// further: a walk over nodes cannot reach text.
+			if hidesStructure(n.Text) {
+				for _, kind := range markerKinds {
+					found = append(found, decided{kind: kind, node: n, unresolved: true})
+				}
+				return
+			}
 			switch {
 			case isHashTerm(n.Text):
 				// perl: rv2hv.
@@ -196,6 +206,47 @@ func decidedMarkers(stmt *Node) []decided {
 	}
 	walk(stmt)
 	return found
+}
+
+// hidesStructure reports whether a leaf's text contains a construct the
+// parser never turned into a node.
+//
+// `internal/lexer/scan.go:77-94` brace-matches a braced name to its closer
+// and emits ONE Variable token; its own comment says the full rule "belongs
+// to a later issue" (01a0ad52). So `${[{a=>214}]}` arrives as a single Term
+// whose Text holds an anonymous hash that no walk over nodes can reach.
+//
+// The test is for a nested opener AFTER the leading `${` or `@{`, because
+// that is what distinguishes a block with contents from a plain dereference:
+//
+//	${$x}          nothing hidden -- the inner text is one variable
+//	$$x            nothing hidden -- no brace at all
+//	${[{a=>1}]}    an array and a hash constructor, both invisible
+//	@{$::{$k[0]}}  a hash element and a subscript, both invisible
+//
+// Deliberately conservative. A false positive costs a hedge where the
+// subject could have been silent and correct, which scores wider; a false
+// negative is silence over bytes perl found something in, which scores
+// WRONG. §7.2's asymmetry says which way to lean.
+//
+// The `text[1] != '{'` test is DEFENSIVE rather than load-bearing, and
+// measured as such: removing it leaves the whole suite green. `$h{k}` parses
+// to an Index whose Term child is `$h`, so the braces belong to the Index and
+// the leaf text here is never `"$h{k}"`. Kept because this takes a string,
+// and a future caller may not have an Index standing between it and the
+// source.
+func hidesStructure(text string) bool {
+	if len(text) < 3 || text[1] != '{' {
+		return false
+	}
+	switch text[0] {
+	case '$', '@', '%':
+	default:
+		return false
+	}
+	// Anything bracket-like inside the block is structure this parser did
+	// not build. A bare name or a lone variable has none.
+	return strings.ContainsAny(text[2:], "{[(")
 }
 
 // isHashTerm reports whether a leaf's text is a hash read: `%h`, `%$r`.

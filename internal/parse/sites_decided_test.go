@@ -222,6 +222,80 @@ func TestSitesCountEveryOccurrence(t *testing.T) {
 	}
 }
 
+// TestOpaqueDerefBlockHedges: a `${...}` or `@{...}` whose contents the
+// lexer swallowed must HEDGE, not stay silent.
+//
+// The lexer brace-matches a braced name to its closer and emits one Variable
+// token (`internal/lexer/scan.go:77-94`, whose comment says the full rule
+// "belongs to a later issue" -- 01a0ad52). So `${[{a=>214}]}` is one opaque
+// Term and the anonymous hash inside it is invisible to a walk over nodes.
+//
+// Silence there is not a refusal. It is the claim that nothing is inside,
+// and it is wrong wherever perl found something -- the exact failure this
+// file's doc comment is about, arriving through a node that is not marked
+// Unknown. Measured on perl 5.42.0:
+//
+//	$ perl -MO=Concise,-exec -e 'my $x = ${[{a=>214}]}[0];'
+//	  one anonhash
+//	$ perl -MO=Concise,-exec -e 'our @x; my @k=("x"); my @g = @{$::{$k[0]}};'
+//	  two hash ops
+//
+// t/comp/parser.t:574 and t/comp/retainedlines.t:70 are those two lines, and
+// both scored WRONG while this reported nothing.
+//
+// This hedges rather than decides on purpose: the parser genuinely cannot
+// see the contents, so `wider` is the honest verdict. When 01a0ad52 gives
+// the block real children, these become decided and the hedge stops firing.
+func TestOpaqueDerefBlockHedges(t *testing.T) {
+	for _, src := range []string{
+		`my $x = ${[{a=>214}]}[0];`,
+		`my @g = @{$::{$keys[0]}};`,
+		`my $r = ${$h->{k}};`,
+		`my @a = @{[ 1, 2 ]};`,
+	} {
+		hedged := hedgedKinds(src)
+		for _, kind := range markerKindsForTest {
+			if !has(hedged, kind) {
+				t.Errorf("%q: an opaque deref block must hedge %s; got %v",
+					src, kind, hedged)
+			}
+		}
+	}
+}
+
+// TestPlainDerefDoesNotHedge is the negative scenario. A dereference with
+// nothing hidden inside it -- `${$x}`, `$$x` -- has no contents to be blind
+// to, so hedging there would be noise that scores wider where the subject
+// could have been silent and correct.
+func TestPlainDerefDoesNotHedge(t *testing.T) {
+	for _, src := range []string{
+		`my $r = ${$x};`,
+		`my $r = $$x;`,
+		`my @a = @$r;`,
+		`my $n = 1;`,
+		// A subscript carries the same bracket characters and must not hedge:
+		// hedging it would trade exact for wider on every hash and array
+		// access in the corpus.
+		//
+		// These pass whatever `hidesStructure` does, and that is worth saying
+		// rather than implying otherwise. `$h{k}` parses to an Index whose
+		// Term child is `$h` -- the braces belong to the Index node, so the
+		// leaf text `hidesStructure` sees is never `"$h{k}"`. Its
+		// `text[1] != '{'` guard is therefore DEFENSIVE, not load-bearing:
+		// removing it leaves the whole suite green, because no parsed input
+		// reaches it. Kept because the function takes a string and a future
+		// caller may not have an Index between it and the source.
+		`my $v = $h{k};`,
+		`my $v = $a[0];`,
+		`$h{k} = 1;`,
+	} {
+		if got := hedgedKinds(src); len(got) != 0 {
+			t.Errorf("%q: nothing is hidden here, want no hedge, got %v",
+				src, got)
+		}
+	}
+}
+
 // TestUnknownStillHedgesEveryMarker guards the rule Sites was written for:
 // an Unknown statement must speak its refusal, because silence is scored as
 // claiming nothing is there.
