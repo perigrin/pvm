@@ -71,15 +71,39 @@ func Sites(root *Node, src []byte) []parseoracle.SubjectCallSite {
 		// this the subject only ever hedges, and a subject that never commits
 		// cannot be wrong -- nor right. WRONG=0 with exact=0 is the vacuous
 		// gate the M1 issue's "exact floor" row exists to prevent.
-		for _, kind := range decidedMarkers(n) {
+		//
+		// Each site is reported at ITS OWN node's span, not the statement's.
+		// perl's probe walks the CVs, so a backslash in a sub body is
+		// reported at the body's line; CompareFacts spends a decided site
+		// only against the innermost subject statement covering that line
+		// (`compare_facts.go:349`). A site pooled under `sub foo {`'s whole
+		// span is never reached from inside the body, and a marker this
+		// parser read correctly scores WRONG.
+		for _, d := range decidedMarkers(n) {
 			sites = append(sites, parseoracle.SubjectCallSite{
-				Kind:    kind,
-				Line:    start,
-				EndLine: end,
+				Kind:    d.kind,
+				Line:    lines.at(d.node.Start),
+				EndLine: lines.at(d.node.End - 1),
+
+				// The srefgen marker is decided by this field, not by the
+				// kind (`compare_facts.go:336`): a reference site without it
+				// is "an answer, but not one that accounts for a reference
+				// perl took", which lands in neither decided nor hedged. A
+				// `\` this parser read IS a reference taken. The other four
+				// markers are decided by their kind and ignore the field.
+				TookReference: d.kind == parseoracle.SiteKindReference,
 			})
 		}
 	}
 	return sites
+}
+
+// decided is one marker this parser committed to and the node that decided
+// it. The node travels with the kind because a site's line is its own, not
+// the enclosing statement's -- see Sites.
+type decided struct {
+	kind string
+	node *Node
 }
 
 // decidedMarkers reports which of the five markers this statement contains,
@@ -90,8 +114,8 @@ func Sites(root *Node, src []byte) []parseoracle.SubjectCallSite {
 // pattern; `$a < $c` is a comparison, not a readline. The lexer settled all
 // three by position (§3.2) and the tree records the answer, so reading the
 // tree cannot reach a different one. Scanning source text could.
-func decidedMarkers(stmt *Node) []string {
-	var found []string
+func decidedMarkers(stmt *Node) []decided {
+	var found []decided
 
 	// One entry per OCCURRENCE, not per kind. CompareFacts consumes a decided
 	// site for each of perl's (`compare_facts.go:224`, `owner.decided[m]--`),
@@ -101,8 +125,8 @@ func decidedMarkers(stmt *Node) []string {
 	// Deduplicating here was the cause of 11 of the 20 WRONG files in T2's
 	// first subject measurement -- `eq_hash({$o->h}, {qw( the hash )})` in
 	// t/class/accessor.t:31 is two anonhash ops to perl and was one site here.
-	add := func(kind string) {
-		found = append(found, kind)
+	add := func(kind string, n *Node) {
+		found = append(found, decided{kind, n})
 	}
 
 	var walk func(*Node)
@@ -117,13 +141,13 @@ func decidedMarkers(stmt *Node) []string {
 		case AnonHash:
 			// perl: anonhash. The lexer's brace stack already chose term
 			// over block (§4.9.2), so this node IS the decision.
-			add(parseoracle.SiteKindAnonhash)
+			add(parseoracle.SiteKindAnonhash, n)
 
 		case Unary:
 			// perl: srefgen. prefixName maps `\` to "ref", which keeps the
 			// prefix spelling distinct from infix `-`.
 			if n.Text == "ref" {
-				add(parseoracle.SiteKindReference)
+				add(parseoracle.SiteKindReference, n)
 			}
 
 		case Binary:
@@ -132,7 +156,7 @@ func decidedMarkers(stmt *Node) []string {
 			// different ops, so they are excluded by their own spelling.
 			if n.Text == "=~" || n.Text == "!~" {
 				if len(n.Children) > 1 && isMatchOperand(n.Children[1]) {
-					add(parseoracle.SiteKindMatch)
+					add(parseoracle.SiteKindMatch, n)
 				}
 			}
 
@@ -140,12 +164,12 @@ func decidedMarkers(stmt *Node) []string {
 			switch {
 			case isHashTerm(n.Text):
 				// perl: rv2hv.
-				add(parseoracle.SiteKindHash)
+				add(parseoracle.SiteKindHash, n)
 			case isReadlineTerm(n.Text):
 				// perl: readline.
-				add(parseoracle.SiteKindReadline)
+				add(parseoracle.SiteKindReadline, n)
 			case isBarePattern(n.Text):
-				add(parseoracle.SiteKindMatch)
+				add(parseoracle.SiteKindMatch, n)
 			}
 		}
 		for _, c := range n.Children {

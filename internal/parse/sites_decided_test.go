@@ -216,3 +216,102 @@ func TestUnknownStillHedgesEveryMarker(t *testing.T) {
 		}
 	}
 }
+
+// TestReferenceSitesTakeTheReference is the other half of a reference
+// site's contract, and without it a reference site accounts for nothing.
+//
+// SubjectCallSite.TookReference is the question the srefgen marker asks
+// (subject.go:119): did this site pass a reference rather than a flattened
+// list? groupByStatement reads it as the decision --
+//
+//	case m == MarkerSrefgen && !c.TookReference:
+//		// A committed call that passed no reference: an answer, but
+//		// not one that accounts for a reference perl took.
+//
+// -- so a `reference` site left at the zero value lands in neither decided
+// nor hedged. It answers the srefgen question, which lifts the file out of
+// no-answer, and then explains none of perl's srefgens, which scores every
+// one of them WRONG.
+//
+// A `\` this parser read IS a reference taken, so the field states that.
+// The other four markers are decided by their kind alone and do not read
+// this field.
+func TestReferenceSitesTakeTheReference(t *testing.T) {
+	for _, src := range []string{
+		`my $r = \$x;`,
+		`f(\@a);`,
+		"sub f {\n    g(\\$destroyed, 1);\n}\n",
+		`*pi = \undef;`, // opbasic/concat.t:100
+	} {
+		n := 0
+		for _, s := range decidedSites(src) {
+			if s.Kind != parseoracle.SiteKindReference {
+				continue
+			}
+			n++
+			if !s.TookReference {
+				t.Errorf("%q: a reference site must set TookReference, "+
+					"or the harness counts it as neither decided nor hedged", src)
+			}
+		}
+		if n == 0 {
+			t.Errorf("%q: want a decided reference site, got none", src)
+		}
+	}
+}
+
+// decidedSites returns the decided sites with their spans, which is what
+// CompareFacts pools by.
+func decidedSites(src string) []parseoracle.SubjectCallSite {
+	root := parse.Parse([]byte(src))
+	var out []parseoracle.SubjectCallSite
+	for _, s := range parse.Sites(root, []byte(src)) {
+		if !s.Unresolved {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// TestSitesReportTheirOwnLine is the line half of the contract, and it is
+// what decides whether a decided site can ever be spent.
+//
+// CompareFacts attributes each of perl's sites to the INNERMOST subject
+// statement covering its line (`compare_facts.go:349`) and spends a decided
+// site there. perl's probe walks the CVs, so a backslash in a sub body is
+// reported at the body's line, not at the `sub` keyword's. A subject that
+// pools every site under the enclosing top-level statement's whole span
+// offers nothing at the inner line for that site to be spent against, and
+// the verdict is WRONG -- for a marker the parser read correctly.
+//
+// So a site's line is the line of the NODE that decided it.
+func TestSitesReportTheirOwnLine(t *testing.T) {
+	for _, c := range []struct {
+		src  string
+		kind string
+		line int
+	}{
+		// The backslash is on line 2; `sub foo {` is line 1.
+		{"sub foo {\n    my $r = \\$x;\n}\n",
+			parseoracle.SiteKindReference, 2},
+		{"if (1) {\n    my $r = {a=>1};\n}\n",
+			parseoracle.SiteKindAnonhash, 2},
+		{"while (1) {\n\n    my @k = keys %h;\n}\n",
+			parseoracle.SiteKindHash, 3},
+		// A site in the continuation of a multi-line statement belongs to
+		// its own line too, not to the line the statement opened on.
+		{"f(\n    \\$x,\n);\n",
+			parseoracle.SiteKindReference, 2},
+	} {
+		var got []int
+		for _, s := range decidedSites(c.src) {
+			if s.Kind == c.kind {
+				got = append(got, s.Line)
+			}
+		}
+		if len(got) != 1 || got[0] != c.line {
+			t.Errorf("%q: want one decided %s at line %d, got lines %v",
+				c.src, c.kind, c.line, got)
+		}
+	}
+}
