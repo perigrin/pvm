@@ -1,12 +1,21 @@
 ---
 title: "Five scanner rows: literal ranges, qx, <<>>, angle globs, leading ::"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-17T14:23:38.848509109Z
-updated: 2026-09-17T19:56:36.020751566Z
+updated: 2026-09-18T10:21:48.314965344Z
+sessions:
+- start_sha: f905b4e9ba967eb983700a3ef6feace66c1fc11c
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-18T10:21:48.314965344Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-18T10:21:48.314965344Z
 ---
 
 Five constructs do not lex, and each is a missing scanner row rather than a design problem. Measured at 3c997a6b, all round-tripping:
