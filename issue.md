@@ -18,7 +18,7 @@ blocks:
 - 01a0afc0-6d61-7dc5-a10c-a0d29ed14742
 - 01a0afc1-2931-76bc-80e9-8e51a7dfc544
 created: 2026-09-15T21:53:08.812269582Z
-updated: 2026-09-18T06:21:03.109550323Z
+updated: 2026-09-18T09:30:36.130681481Z
 sessions:
 - start_sha: 1f0669412eaad35c8b13ec0d8ff60c75120a330a
   end_sha: ""
@@ -131,7 +131,7 @@ The sweep skips silently without a corpus flag, so the AC commands carry
 - [x] The parse-rate baseline fails on movement in either direction (`go test ./internal/parse/ -run '^TestParseRatchet$' -count=1 -v | grep -q '^--- PASS: TestParseRatchet'`)
 - [x] Everything that parses also round-trips from the tree (`go test ./internal/parse/ -run '^TestParsedFilesRoundTrip$' -count=1 -v | grep -q '^--- PASS: TestParsedFilesRoundTrip'`)
 - [x] The parser answers the fidelity harness as a subprocess subject (`PERL5_CORPUS=~/dev/perl5 PARSEORACLE_SHIM=/tmp/oracletree go test ./internal/parseoracle/ -run '^TestGoParserSubjectMeasures$' -count=1 -v -timeout 25m | grep -q '^--- PASS: TestGoParserSubjectMeasures'`)
-- [ ] WRONG is zero across the measured corpus, and that is a gate (`PERL5_CORPUS=~/dev/perl5 PARSEORACLE_SHIM=/tmp/oracletree go test ./internal/parseoracle/ -run '^TestGoParserWrongIsZero$' -count=1 -v -timeout 25m | grep -q '^--- PASS: TestGoParserWrongIsZero'`)
+- [x] WRONG is zero across the measured corpus, and that is a gate (`PERL5_CORPUS=~/dev/perl5 PARSEORACLE_SHIM=/tmp/oracletree go test ./internal/parseoracle/ -run '^TestGoParserWrongIsZero$' -count=1 -v -timeout 25m | grep -q '^--- PASS: TestGoParserWrongIsZero'`)
 - [x] Exact is at least 40% of markers attempted, so WRONG=0 is not vacuous (`PERL5_CORPUS=~/dev/perl5 PARSEORACLE_SHIM=/tmp/oracletree go test ./internal/parseoracle/ -run '^TestGoParserExactFloor$' -count=1 -v -timeout 25m | grep -q '^--- PASS: TestGoParserExactFloor'`)
 
 Plan: M1 metrics. Spec: §7.3.5, §7.5.
@@ -372,3 +372,47 @@ PRE-EXISTING defect, a trailing comma before a closing paren
 (`C->new(alpha => "A",)` yields an Unknown). Verified by stashing the change
 and re-measuring. The baseline records why rather than being quietly bumped.
 Nothing in the chain owns trailing commas in argument lists.
+
+
+## All eight criteria pass, 2026-09-18 (6393fdaa)
+
+    56 measured   39 exact (69.6%)   13 wider   1 WRONG   3 no-answer
+
+The one WRONG is comp/proto.t, the pinned TODO(M4). Every other T2 file is
+clean through the subject contract.
+
+    TestT1EasyIsDefinedByMeasurement  PASS   660 files, marker-defined
+    TestT2CoreParses                  PASS   15 of 56 clean, 41 named
+    TestT1EasyParseRate               PASS   50.6%, ratcheted
+    TestParseRatchet                  PASS   408 clean / 4,944 Unknown
+    TestParsedFilesRoundTrip          PASS   986/986
+    TestGoParserSubjectMeasures       PASS
+    TestGoParserWrongIsZero           PASS   only the M4 pin
+    TestGoParserExactFloor            PASS   69.6% against a 40% floor
+
+The exact floor is what makes WRONG=0 mean something, and 69.6% is not a
+parser that declines: the journey was 20 WRONG / 27 exact at the first
+measurement to 1 / 39 now, with exact RISING as WRONG fell. A subject bought
+quiet would have moved them together.
+
+THE LAST FIX was a genuine conflict between two true rules. perl attributes a
+site to its enclosing nextstate, and which line that records depends on
+where the site sits -- measured both ways:
+
+    -exec,foo    on `sub foo { my $r = \$x; }`  ->  nextstate line 2, the BODY
+    -exec,-main  on `f(\n    \$x,\n);`          ->  nextstate line 1, the STATEMENT
+
+`innermost` wants a subject range CONTAINING perl's line, so a point span
+satisfies one case and fails the other. The span now runs from the
+statement's line to the node's and contains both.
+
+Two tests disagreed about this and measurement settled it: one asserted the
+node's line exactly, with a multi-line call expected at line 2, and perl says
+1. That test now asserts containment of both lines, which is the property
+that has to hold.
+
+WHAT THIS DOES NOT CLOSE. T2 is 15 of 56 clean and the gate's 100% row is
+satisfied by naming the 41-file shortfall, not by reaching it. The oracle
+criteria are about AGREEMENT where this parser answers, which is a different
+question from how much it parses. The remaining M1 issues -- 01a0afbf,
+01a0afc0 x2, 01a0afc1, 01a0ac52, 01a0ad52 -- are that other question.
