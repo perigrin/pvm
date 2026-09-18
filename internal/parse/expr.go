@@ -84,6 +84,10 @@ func (p *parser) parseExpr(minBP int) *Node {
 				if open := p.text(next); open == "[" || open == "{" {
 					p.advanceTo(tok)
 					left = p.parseSubscript(left, open)
+					// The flag this branch's comment has promised since
+					// d2ebe02a. `$h{k}` and `$h->{k}` are one shape and
+					// one field apart, and they read different variables.
+					left.Arrow = true
 					continue
 				}
 			}

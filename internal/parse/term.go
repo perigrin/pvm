@@ -273,6 +273,13 @@ func (p *parser) parseParenList(open lexer.Token) *Node {
 		}
 		switch p.text(next) {
 		case ",", "=>":
+			// A fat comma quotes the word to its LEFT (§4.5.4), so the flag
+			// belongs to the element already read rather than the next one.
+			// Without it `(a => 1)` and `(a, 1)` are the same tree, and the
+			// lowering cannot tell the string "a" from a call to a().
+			if p.text(next) == "=>" && len(items) > 0 {
+				items[len(items)-1].Fat = true
+			}
 			p.advanceTo(next)
 		case ")":
 			p.advanceTo(next)
@@ -287,17 +294,34 @@ func (p *parser) parseParenList(open lexer.Token) *Node {
 
 func (p *parser) finishList(items []*Node, open lexer.Token) *Node {
 	if len(items) == 1 {
-		// `($x)` is `$x`, but the span covers the parens so round-trip holds.
+		// `($x)` is `$x`, but the span covers the parens so round-trip holds
+		// -- and the PAREN itself is recorded, because two of Perl's rules
+		// turn on it. §4.10: `("a") x 3` gives three elements where
+		// `"a" x 3` gives one. §4.12.2: with `sub f {(1,2,3)}`,
+		// `my ($x) = f()` is 1 and `my $y = f()` is 3. Both measured on
+		// perl 5.42.0.
+		//
+		// Copying field by field rather than dereferencing the node: the
+		// span must widen to cover the parens, so this cannot alias. Every
+		// flag is carried across -- dropping one here would erase an Arrow
+		// on `($h->{k})`, which is the bug this function already had for
+		// Paren.
 		n := items[0]
 		return &Node{
 			Kind: n.Kind, Text: n.Text,
 			Start: open.Start, End: p.prevEnd(),
 			Children: n.Children,
+			Resolved: n.Resolved,
+			Arrow:    n.Arrow,
+			Fat:      n.Fat,
+			Handle:   n.Handle,
+			Paren:    true,
 		}
 	}
 	return &Node{
 		Kind: List, Start: open.Start, End: p.prevEnd(),
 		Children: items,
+		Paren:    true,
 	}
 }
 
@@ -325,6 +349,14 @@ func (p *parser) parseBracketed(open lexer.Token, closer string, kind Kind) *Nod
 		}
 		switch p.text(next) {
 		case ",", "=>":
+			// Same rule inside `[...]` and `{...}`: the fat comma marks the
+			// element to its left. An anon hash written `{a => 1}` and one
+			// written `{a, 1}` mean the same thing to perl but not to a
+			// consumer reading the key, which §4.5.4 says is a string in the
+			// first and a call in the second.
+			if p.text(next) == "=>" && len(items) > 0 {
+				items[len(items)-1].Fat = true
+			}
 			p.advanceTo(next)
 		case closer:
 			p.advanceTo(next)

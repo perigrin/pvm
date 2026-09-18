@@ -232,6 +232,57 @@ type Node struct {
 	//
 	// Only meaningful for Call; false everywhere else and not read there.
 	Resolved bool
+
+	// The four flags below follow Resolved's rule: each is meaningful on one
+	// kind of node, false everywhere else, and not read there. A flag that
+	// leaks onto nodes it does not describe is worse than no flag, because a
+	// consumer cannot tell a real answer from a stray one.
+	//
+	// Separate bools rather than a bitfield, and the choice is measured:
+	// Node is 72 bytes with one bool and 72 bytes with five, because they
+	// land in padding the struct already had. A uint8 of bits would also be
+	// 72 and read worse.
+
+	// Arrow is set on an Index reached through `->`. §4.14 gives `$h{k}` and
+	// `$h->{k}` ONE node with this flag rather than two shapes, because they
+	// are one operation -- and they read DIFFERENT VARIABLES, which is why
+	// the distinction has to survive. Measured on perl 5.42.0:
+	//
+	//	%h = (k => 'hash'); $h = {k => 'ref'};
+	//	print $h{k};     hash     the hash %h
+	//	print $h->{k};   ref      the hashref $h
+	//
+	// 25.3% of T1's Index nodes are the arrow form.
+	Arrow bool
+
+	// Paren is set on a node the source wrapped in grouping parentheses.
+	//
+	// Two of Perl's rules turn on it, so it is not decoration. §4.10, list
+	// repeat versus string repeat -- `("a") x 3` gives three elements and
+	// `"a" x 3` gives one. §4.12.2, list versus scalar assignment -- with
+	// `sub f {(1,2,3)}`, `my ($x) = f()` is 1 and `my $y = f()` is 3.
+	//
+	// Not set for a call's parens: `f($y)` has no grouping in it, and
+	// marking it would make every call look like a list assignment target.
+	Paren bool
+
+	// Fat is set on a list element that was followed by `=>`.
+	//
+	// §4.5.4: a fat comma quotes the word to its left, so `(a => 1)` is the
+	// string "a" where `(a, 1)` is a call to `a`. parseList consumed `,` and
+	// `=>` alike, which destroyed the fact inside a List, AnonArray or
+	// AnonHash while it survived in call arguments -- inconsistent as well
+	// as lossy.
+	Fat bool
+
+	// Handle is set on the filehandle slot of `print`, `printf` or `say`.
+	//
+	// parseFilehandleSlot decides the slot at construction, from the ABSENCE
+	// of a comma, and emitted a plain Term -- so the only evidence left was
+	// child shape. `internal/infer/infer.go:1155-1165` records what that
+	// cost: counting the handle as argument 1 made every typed-handle print
+	// a false Str mismatch.
+	Handle bool
 }
 
 // SourceText reconstructs the bytes this node covers, walking the tree.

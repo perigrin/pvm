@@ -94,6 +94,16 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		// Measured: 5,319 of T1's 13,558 Unknown nodes started at `print`,
 		// 39% of the whole gap from this one omission.
 		if fh := p.parseFilehandleSlot(text); fh != nil {
+			// Marked here rather than in parseFilehandleSlot's three
+			// branches: one place that cannot be forgotten when a fourth
+			// handle form arrives, and the fact is about the SLOT rather
+			// than about the node's own shape.
+			//
+			// Without it the only evidence is child shape -- two children
+			// means a handle, one means a comma list -- which
+			// `internal/infer/infer.go:1155-1165` records as having made
+			// every typed-handle print a false Str mismatch.
+			fh.Handle = true
 			n.Children = append(n.Children, fh)
 		}
 		// The whole comma list, parsed below the comma at level 7.
