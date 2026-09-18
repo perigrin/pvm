@@ -49,6 +49,7 @@ const (
 // `if (..) { .. }` end with the same character and leave opposite states.
 func (l *lexer) trackBrackets(k Kind, start int) {
 	l.closedBlock = false
+	l.closedSubscript = false
 	l.openedBlock = false
 
 	if l.pos-start != 1 {
@@ -85,6 +86,11 @@ func (l *lexer) trackBrackets(k Kind, start int) {
 			top := l.brackets[n-1]
 			l.brackets = l.brackets[:n-1]
 			l.closedBlock = top == braceBlock
+			// A SUBSCRIPT just closed, so a `{` after it continues the chain
+			// rather than opening a block: `$a[0]{k}`, `$h{a}{b}`. Recorded
+			// separately from closedBlock because they are not opposites --
+			// a `)` is neither, and a `)` with a `{` next IS a block.
+			l.closedSubscript = top == braceTerm || top == square
 		}
 		// A closer with nothing open leaves closedBlock false. An LSP sees
 		// half-typed buffers where that happens constantly, and treating the

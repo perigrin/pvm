@@ -107,12 +107,18 @@ type transition struct {
 	// closedBlock is set when this token is a `}` that closed a block rather
 	// than a subscript. See trackBrackets.
 	closedBlock bool
+	// closedSubscript is set when this token closed a subscript -- a `]`, or
+	// a `}` that closed one. Not closedBlock's negation: a `)` is neither.
+	closedSubscript bool
 	// nextIsOpenBrace is whether a `{` follows, ignoring whitespace. perl
 	// looks ahead exactly this far at a `)`; see yyl_rightparen.
 	nextIsOpenBrace bool
 	// afterDeclName is set on the NAME of a `sub NAME` or `package NAME`,
 	// after which a block is expected rather than a term.
 	afterDeclName bool
+	// nextBraceIsBlock is intuitCurly's answer for the `{` that follows,
+	// and is meaningful only when nextIsOpenBrace is set.
+	nextBraceIsBlock bool
 }
 
 // after returns the state following a token of kind k.
@@ -152,7 +158,31 @@ func (e Expect) after(k Kind, t transition) Expect {
 		// never reached it, which is why `%h = ()` after a conditional lexed
 		// as modulus: the `{` was classified from XOperator and its `}` then
 		// reported a closed subscript.
-		if t.nextIsOpenBrace {
+		//
+		// NOT narrowed to `)`, though perl's own rule is. It used to cost 16
+		// T1 files; the phaser table below took that to ONE, and the one is
+		// named rather than guessed:
+		//
+		//	my @s = $r->@[ 2, 1 ];
+		//
+		// `@[` lexes as a Variable, so no `[` ever reaches the bracket
+		// stack, and its `]` pops whatever was underneath. The stack is
+		// corrupted from there on, and the broad rule happens to paper over
+		// the next brace. A postfix-slice sigil problem, not a brace one --
+		// 01a0ad52 owns it, and narrowing this rule is 01a0b6a2's last step.
+		//
+		// A closed SUBSCRIPT is excluded, and that part is not a hedge. A
+		// `{` after one continues the chain:
+		//
+		//	$a[0]{k}    $h{a}{b}    $x->[0]{k}
+		//
+		// Before the exclusion every second brace in a chain carried
+		// OpensBlock, which is a token saying a block starts where a
+		// subscript does. The parser happened to survive it -- it reaches
+		// those braces through the postfix path, which never asks -- so
+		// nothing failed, and a flag that lies until someone reads it is
+		// exactly the kind of defect the brace stack exists to prevent.
+		if t.nextIsOpenBrace && !t.closedSubscript {
 			return XBlock
 		}
 		return XOperator
@@ -178,6 +208,27 @@ func (e Expect) after(k Kind, t transition) Expect {
 		// and the body never becomes a block.
 		if t.afterDeclName {
 			return XBlock
+		}
+		// A PHASER's brace is always a block, never a hash, so the word
+		// alone settles it -- no lookahead, the way a sub name needs none.
+		// perl reaches PREBLOCK for these the same way.
+		if isPhaser(string(t.text)) {
+			return XBlock
+		}
+		// A list operator that takes a block: `map`, `grep`, `sort`. This is
+		// the one brace the preceding token cannot settle, because both
+		// readings are grammatical after these three, so intuitCurly peeks
+		// past it at the first thing INSIDE.
+		//
+		// Without this the `{` of `map { ; $_ }` is classified from XTerm and
+		// reads as an anonymous hash, so its `}` reports a closed subscript,
+		// the body never becomes a block, and the list that follows is
+		// orphaned into a statement of its own.
+		if t.nextIsOpenBrace && takesBlock(string(t.text)) {
+			if t.nextBraceIsBlock {
+				return XBlock
+			}
+			return XTerm
 		}
 		// A bareword is the one case the lexer genuinely cannot settle. It
 		// might be a value (`Foo::Bar`, a hash key) and leave an operator

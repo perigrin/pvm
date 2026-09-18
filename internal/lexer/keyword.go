@@ -65,3 +65,49 @@ var niladic = map[string]bool{
 func isNiladic(word string) bool {
 	return niladic[word]
 }
+
+// blockTaking is every builtin whose first argument may be a BLOCK rather
+// than an expression, so a `{` after it is ambiguous and needs intuitCurly.
+//
+// Three, not a taxonomy, and measured the same way as the table above -- each
+// was compiled with a block first argument and with an expression first
+// argument, and only these three accept both:
+//
+//	$ perl -MO=Deparse -e 'my @b = map { $_ => 1 } @a;'
+//	my(@b) = map({$_, 1;} @a);
+//	$ perl -MO=Deparse -e 'my @b = map +{ x => $_ }, @a;'
+//	my(@b) = map({'x', $_}, @a);
+//
+// `do` and `eval` also take a brace, but theirs is never a hash -- `do {}` is
+// always a block -- so they need no heuristic and are not here. `sort` takes
+// a comparator block whose `{` is decided the same way, which is why it is.
+var blockTaking = map[string]bool{
+	"map": true, "grep": true, "sort": true,
+}
+
+// takesBlock reports whether a `{` after this word might open a block.
+func takesBlock(word string) bool {
+	return blockTaking[word]
+}
+
+// phasers are the compile-time and run-time blocks. A `{` after one is always
+// a block and never a hash, so unlike map/grep/sort they need no lookahead --
+// the word alone settles it, the way `sub NAME` does.
+//
+// perl treats them as declarations, which is exactly why: toke.c's
+// yyl_just_a_word reaches PREBLOCK for a phaser the same way it does for a
+// sub name (6636). Without this the brace of `BEGIN {` was read from XTerm as
+// an anonymous hash, its `}` left XOperator instead of XState, and a bare
+// block after it was read as a hashref too.
+//
+// `class` and `package` are not here: their block is reached through
+// sawPackageWord, which also has a NAME to pass first.
+var phaser = map[string]bool{
+	"BEGIN": true, "END": true, "CHECK": true, "INIT": true,
+	"UNITCHECK": true,
+}
+
+// isPhaser reports whether a `{` after this word opens a phaser's block.
+func isPhaser(word string) bool {
+	return phaser[word]
+}

@@ -82,8 +82,25 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		n.Resolved = true
 
 	case listOperator[text]:
-		// A filehandle slot comes before the list and has NO comma after it,
-		// which is what makes it a slot rather than a first argument:
+		// A BLOCK slot comes before the list, and what makes it a slot
+		// rather than a first argument is the ABSENCE of a comma:
+		//
+		//	map { $_ } @a          a block, then the list
+		//	map +{ x => 1 }, @a    a hashref, and the comma says so
+		//
+		// Whether the brace is a block at all was settled by the lexer,
+		// which ran perl's intuit_curly over it, so this reads OpensBlock
+		// rather than deciding a second time. The hashref form leaves it
+		// unset and falls through to the ordinary list below, which is
+		// right: it IS an ordinary first argument.
+		//
+		// Without this the list was orphaned. `map { $_ => 1 } @a` became a
+		// call holding an AnonHash, and `@a` a statement of its own -- every
+		// byte in the tree, round-tripping, and not a parse of its source.
+		if blk := p.parseListOpBlock(text); blk != nil {
+			n.Children = append(n.Children, blk)
+		}
+		// A filehandle slot works the same way and for the same reason:
 		//
 		//	print STDERR "a";      bareword handle
 		//	print $fh "a";         scalar handle
@@ -166,6 +183,36 @@ func endsArgumentList(tok lexer.Token, src []byte) bool {
 // treating `@a` as one would be wrong -- so the set is explicit.
 var takesFilehandle = map[string]bool{
 	"print": true, "printf": true, "say": true,
+}
+
+// takesBlock is the set of list operators whose first slot may be a BLOCK
+// with no comma after it.
+//
+// The same three the lexer's blockTaking table names, and for the same
+// reason: these are the operators where `{` is genuinely ambiguous. The two
+// tables are separate because they answer different questions -- the lexer's
+// decides how to LEX the brace, this one decides whether to read a slot --
+// and a single shared table would couple the packages for three strings.
+var takesBlock = map[string]bool{
+	"map": true, "grep": true, "sort": true,
+}
+
+// parseListOpBlock reads the leading BLOCK of `map`, `grep` or `sort`, or
+// returns nil when there is none.
+//
+// It asks the token, not the source: the lexer already ran intuit_curly and
+// recorded the answer as OpensBlock. A parser that re-derived it could
+// disagree with the token stream that produced it -- the same argument
+// TestBraceDecisionUsesExpectState makes for every other brace.
+func (p *parser) parseListOpBlock(op string) *Node {
+	if !takesBlock[op] {
+		return nil
+	}
+	tok, ok := p.peekSignificant()
+	if !ok || !tok.OpensBlock || p.text(tok) != "{" {
+		return nil
+	}
+	return p.parseBlock(tok)
 }
 
 // parseFilehandleSlot reads `STDERR`, `$fh` or `{$fh}` before a list, or

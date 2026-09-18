@@ -47,6 +47,14 @@ func TestArrowSubscriptIsNotAConstructor(t *testing.T) {
 		"$a->[0];",
 		"$r->{a}[0];",
 		"f()->{k};",
+		// The chains where the SECOND bracket carries no arrow, which is the
+		// case intuit_curly is usually credited with. It is not: a `]` or a
+		// `}` that closed a subscript leaves an operator expected, so the
+		// brace stack already reads the next `{` as another subscript. The
+		// lookahead is only needed where both readings are grammatical, and
+		// after a subscript they are not.
+		"$a[0]{k};",
+		"$x->[0]{k};",
 	} {
 		root := parse.Parse([]byte(src))
 		if containsKind(root, parse.AnonHash) || containsKind(root, parse.AnonArray) {

@@ -188,31 +188,25 @@ func TestBlockVersusHashref(t *testing.T) {
 	}
 }
 
-// TestBlockVersusHashrefAfterListOp is the `map { ... }` half, and it is NOT
-// covered here.
+// TestBlockVersusHashrefAfterListOp is the `map { ... }` half: the brace
+// after a list operator, decided by LOOKAHEAD rather than by position.
 //
-// The measurements are recorded above: a leading `;` turns two elements per
-// input into four, and without one `map { a => 1 } (1,2)` is a syntax error
-// because perl guessed hashref. But `map` is a list operator, and list
-// operators are their own issue -- `map { ; a => 1 } (1,2)` is Unknown today
-// for that reason, not because the brace decision is wrong.
+// Everywhere else a brace is settled by what came before it, which is what
+// the lexer's brace stack records. After `map`, `grep` and `sort` both
+// readings are grammatical, so perl peeks past the brace at the first thing
+// inside -- intuit_curly, toke.c:6698-6842, now `internal/lexer/intuit.go`.
 //
-// The skip came off when list operators landed, and the test STILL fails --
-// for a third reason, now isolated. `map { ; a => 1 }` parses as
-// `call(anon_hash)`: a list operator leaves a TERM expected, so the lexer's
-// brace stack calls the `{` a hash constructor before the `;` inside it is
-// ever seen.
+// The measurements that pin the rule, on perl 5.42.0:
 //
-// perl settles this with intuit_curly, which peeks PAST the brace at the
-// first token -- a `;` forces a block, a bareword-then-`=>` forces a hashref.
-// Neither the lexer nor the parser does that lookahead, and it is the one
-// place in the grammar where a brace's meaning depends on what is INSIDE it
-// rather than on what precedes it. That is its own piece of work.
+//	$ perl -e 'my @r = map { a => 1 }, (1,2); print scalar @r'
+//	2                       # hashref: one element per input
+//	$ perl -e 'my @r = map { ; a => 1 } (1,2); print scalar @r'
+//	4                       # block: two elements per input
+//	$ perl -e 'my @r = map { a => 1 } (1,2);'
+//	syntax error            # hashref guessed, then no comma follows
 //
-// Kept skipped so the gap keeps its name and its measurements.
+// Two per input versus four, decided by one leading semicolon.
 func TestBlockVersusHashrefAfterListOp(t *testing.T) {
-	t.Skip("needs intuit_curly lookahead: a list operator leaves XTerm, so `map {` lexes as a hashref")
-
 	root := parse.Parse([]byte("my @r = map { ; a => 1 } (1,2);"))
 	if firstOfKind(root, parse.Block) == nil {
 		t.Errorf("a leading `;` forces a block: %v", kinds(root))
@@ -221,6 +215,89 @@ func TestBlockVersusHashrefAfterListOp(t *testing.T) {
 	root = parse.Parse([]byte("my @r = map { a => 1 }, (1,2);"))
 	if firstOfKind(root, parse.AnonHash) == nil {
 		t.Errorf("a bareword before `=>` makes it a hashref: %v", kinds(root))
+	}
+}
+
+// TestMapBlockForms: the block is a SLOT, and the list after it belongs to
+// the same call.
+//
+// The failure this guards against is subtler than a misread brace, and it is
+// what the brace being wrong actually cost: with the `{` read as a hashref,
+// `map { $_ => 1 } @a` produced a call holding an AnonHash and then ORPHANED
+// `@a` into a statement of its own. Every byte was in the tree and it
+// round-tripped, so nothing caught it -- the same failure mode as the four
+// trees of 5b415101.
+//
+// perl's shape, and the one asserted here:
+//
+//	$ perl -MO=Deparse -e 'my %h = map { $_ => 1 } @a;'
+//	my(%h) = map({$_, 1;} @a);
+func TestMapBlockForms(t *testing.T) {
+	for _, tc := range []struct {
+		src  string
+		call string
+	}{
+		{"my %h = map { $_ => 1 } @a;", "map"},
+		{"my @b = grep { $_ } @a;", "grep"},
+		{"my @b = sort { $a <=> $b } @a;", "sort"},
+		{"my @b = map { ; $_ } @a;", "map"},
+	} {
+		root := parse.Parse([]byte(tc.src))
+		if containsKind(root, parse.Unknown) {
+			t.Errorf("%q must parse: %v", tc.src, kinds(root))
+			continue
+		}
+		call := firstOfKind(root, parse.Call)
+		if call == nil || call.Text != tc.call {
+			t.Errorf("%q: want a %s call: %v", tc.src, tc.call, kinds(root))
+			continue
+		}
+		// The block, then the list, both children of the call. Two children
+		// is the whole assertion: one would mean the list was orphaned.
+		if len(call.Children) != 2 {
+			t.Errorf("%q: %s takes a block AND its list, got %d child(ren): %v",
+				tc.src, tc.call, len(call.Children), kinds(root))
+			continue
+		}
+		if call.Children[0].Kind != parse.Block {
+			t.Errorf("%q: the first child is the block, got %v",
+				tc.src, call.Children[0].Kind)
+		}
+	}
+
+	// `map +{ ... }, @a` is the OTHER reading and must stay one: a hashref,
+	// with a comma after it, so the block slot takes nothing.
+	//
+	//	$ perl -MO=Deparse -e 'my @b = map +{ x => $_ }, @a;'
+	//	my(@b) = map({'x', $_}, @a);
+	root := parse.Parse([]byte("my @b = map +{ x => $_ }, @a;"))
+	if firstOfKind(root, parse.AnonHash) == nil {
+		t.Errorf("`map +{...}` is a hashref, not a block: %v", kinds(root))
+	}
+}
+
+// TestEmptyStatement: a lone `;` is a statement, not a parse failure.
+//
+// Valid Perl, and it is what makes `map { ; $_ }` a block rather than a
+// hashref -- so this milestone reaches it through the list-operator brace
+// even where nobody writes a bare `;` on purpose.
+//
+// Before this, the expression parser was handed the `;`, returned nil, and
+// skipToStatementEnd ran PAST the enclosing `}` hunting a terminator it had
+// already gone by. The block lost its closing brace into an Unknown:
+//
+//	map { ; $_ } @a    ->  block "{ ; $_ } @a;" holding unknown "; $_ }"
+func TestEmptyStatement(t *testing.T) {
+	for _, src := range []string{
+		";",
+		"{};",
+		"{ ; }",
+		"my $x = 1;;",
+	} {
+		root := parse.Parse([]byte(src))
+		if containsKind(root, parse.Unknown) {
+			t.Errorf("%q must parse: %v", src, kinds(root))
+		}
 	}
 }
 

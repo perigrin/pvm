@@ -167,8 +167,9 @@ func TestT1EasyParseRate(t *testing.T) {
 	}
 	rate := 100 * float64(clean) / float64(len(easy))
 
-	// Measured at 4bc971ec. The gate wants 70.0.
-	const floor = 50.8
+	// Raised as the parser earns it; last moved when the brace after a list
+	// operator stopped reading as a hashref. The gate wants 70.0.
+	const floor = 52.7
 	const target = 70.0
 
 	if rate+0.05 < floor {

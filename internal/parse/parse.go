@@ -453,6 +453,19 @@ func (p *parser) statement() *Node {
 
 	start := p.toks[p.pos].Start
 
+	// The EMPTY STATEMENT: a lone `;`. Valid Perl and common enough to
+	// matter -- `for (;;)`, a stray `;` after a block, and the leading `;`
+	// that forces `map { ; $_ }` to be read as a block.
+	//
+	// Without this the expression parser is handed a `;`, returns nil, and
+	// skipToStatementEnd runs PAST the enclosing `}` looking for a
+	// terminator it has already gone by. Measured: `map { ; $_ } @a` lost
+	// its closing brace into an Unknown, and `{};` did the same.
+	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
+		p.advanceTo(tok)
+		return &Node{Kind: Statement, Start: start, End: p.prevEnd()}
+	}
+
 	// Labels come first and they stack: `A: B: for (...)` is two of them.
 	// Read here rather than inside the loop forms, because `LOOP: { ... }`
 	// labels a bare block too, and because this is the only place that KNOWS

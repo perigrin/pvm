@@ -65,9 +65,9 @@ func t2Files(t *testing.T) (string, []string) {
 // asserting a number no commit today can reach.
 //
 // Every file below is one the parser does not yet read cleanly. The list is
-// the work, not an excuse for it: `comp/proto.t` at 52 belongs to prototype
-// recognition, the nine `class/` files to class syntax, `base/lex.t` at 54
-// to the lexer's remaining quote-like forms.
+// the work, not an excuse for it: `comp/proto.t` belongs to prototype
+// recognition, the `class/` files to class syntax, `base/lex.t` to the
+// lexer's remaining quote-like forms.
 //
 // Fails in EITHER direction, like the T1 ratchet. A file that starts parsing
 // must be moved out of the shortfall in the commit that earned it.
@@ -85,7 +85,7 @@ func TestT2CoreParses(t *testing.T) {
 	// keyword as a quote operator where perl reads it as a name: `$o->s`
 	// and `method y { ... }`. class/class.t left the map entirely.
 	shortfall := map[string]int{
-		"base/lex.t": 42, "base/num.t": 48, "base/rs.t": 3,
+		"base/lex.t": 36, "base/num.t": 48, "base/rs.t": 3,
 		// class/field.t went 9 -> 10 when quote-op keywords stopped eating
 		// their fat comma, then back to 9 when goto, delete and exists
 		// landed. The rise was never a regression in the parse: reaching
@@ -99,7 +99,7 @@ func TestT2CoreParses(t *testing.T) {
 		// same source. field.t:224-228 is a multi-line call with a trailing
 		// comma, so the count rose while the parse got better. Untracked:
 		// nothing in the chain owns trailing commas in argument lists.
-		"class/accessor.t": 1, "class/construct.t": 2,
+		"class/construct.t": 2,
 		// class/gh22169.t went 3 -> 5 when anonymous subs and signatures
 		// landed. Not a regression in the parse: reaching further into the
 		// file exposed `ADJUST { ... }`, a class phaser in no table, twice
@@ -109,15 +109,24 @@ func TestT2CoreParses(t *testing.T) {
 		"class/destruct.t": 7, "class/field.t": 9, "class/gh22169.t": 5,
 		"class/gh23511.t": 1, "class/inherit.t": 7, "class/method.t": 9,
 		"class/phasers.t": 5,
-		"cmd/mod.t":       1, "cmd/subval.t": 3, "cmd/switch.t": 2,
+		"cmd/mod.t":       1, "cmd/subval.t": 1, "cmd/switch.t": 2,
 		"comp/colon.t": 25, "comp/decl.t": 3, "comp/filter_exception.t": 5,
-		"comp/final_line_num.t": 1, "comp/fold.t": 14, "comp/form_scope.t": 19,
-		"comp/hints.t": 40, "comp/line_debug.t": 4, "comp/multiline.t": 2,
-		"comp/opsubs.t": 20, "comp/package.t": 7, "comp/package_block.t": 4,
-		"comp/parser.t": 64, "comp/parser_run.t": 12, "comp/proto.t": 52,
-		"comp/redef.t": 21, "comp/require.t": 13, "comp/retainedlines.t": 19,
+		"comp/final_line_num.t": 1, "comp/fold.t": 14, "comp/form_scope.t": 17,
+		"comp/hints.t": 36, "comp/line_debug.t": 4, "comp/multiline.t": 2,
+		"comp/opsubs.t": 11, "comp/package.t": 7, "comp/package_block.t": 4,
+		"comp/parser.t": 64, "comp/parser_run.t": 12, "comp/proto.t": 41,
+		// comp/require.t went 11 -> 12 when phaser braces became blocks. The
+		// `BEGIN { ... }` body is now read as statements rather than as one
+		// hashref, and reaching inside it exposes a heredoc the parser does
+		// not yet read. Measured by toggling the phaser table alone: 20
+		// Unknown nodes over 6,947 bytes without it, 12 nodes over 8,238
+		// with. Fewer refusals covering MORE bytes, which is the one
+		// direction the node count and the byte count disagree -- recorded
+		// rather than argued away. T1-easy is unmoved at 52.7% either way,
+		// so the trade is a correct OpensBlock flag at no rate cost.
+		"comp/redef.t": 21, "comp/require.t": 12, "comp/retainedlines.t": 17,
 		"comp/uproto.t": 3, "comp/use.t": 11, "comp/utf.t": 3,
-		"opbasic/arith.t": 179, "opbasic/cmp.t": 7, "opbasic/concat.t": 14,
+		"opbasic/arith.t": 179, "opbasic/cmp.t": 6, "opbasic/concat.t": 6,
 		"opbasic/magic_phase.t": 7,
 	}
 

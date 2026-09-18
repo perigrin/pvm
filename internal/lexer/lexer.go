@@ -224,6 +224,10 @@ type lexer struct {
 	// openedBlock is the same for a `{` that opened one. Both are copied
 	// onto the token as OpensBlock, so the parser does not re-derive them.
 	openedBlock bool
+	// closedSubscript is set when the token just emitted closed a SUBSCRIPT
+	// -- a `]`, or a `}` that closed one. Not the negation of closedBlock:
+	// a `)` is neither, which is the case the closer-then-brace rule is for.
+	closedSubscript bool
 	// sawSubWord and expectPrototype track `sub NAME`, after which a `(`
 	// opens a prototype rather than a list.
 	sawSubWord      bool
@@ -381,8 +385,13 @@ func (l *lexer) emit(k Kind, start int) {
 	l.expect = l.expect.after(k, transition{
 		text:            l.src[start:l.pos],
 		closedBlock:     l.closedBlock,
+		closedSubscript: l.closedSubscript,
 		nextIsOpenBrace: l.peekIsOpenBrace(),
 		afterDeclName:   afterDeclName,
+		// Only a WORD can need the lookahead, and only one of three. Every
+		// other token would pay a byte scan for an answer nothing reads.
+		nextBraceIsBlock: k == Word && takesBlock(string(l.src[start:l.pos])) &&
+			l.intuitCurly(),
 	})
 	l.noteFormat(k, start)
 	// The picture body begins after the newline that ends the declaration.

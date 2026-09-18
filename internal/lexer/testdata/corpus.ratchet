@@ -269,7 +269,7 @@
     0 op/fresh_perl_utf8.t
     0 op/getpid.t
     0 op/getppid.t
-    1 op/glob.t
+    0 op/glob.t
     0 op/gmagic.t
     0 op/goto-sub.t
     0 op/goto.t
@@ -466,7 +466,7 @@
     0 porting/podcheck.t
     0 porting/re_context.t
     0 porting/readme.t
-    1 porting/regen.t
+    0 porting/regen.t
     0 porting/ss_dup.t
     0 porting/test_bootstrap.t
     0 porting/test_testlist.t
