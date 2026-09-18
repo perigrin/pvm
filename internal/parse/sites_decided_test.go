@@ -73,11 +73,17 @@ func TestSitesDecideMarkers(t *testing.T) {
 			`my $n = keys %h;`,
 			`my @k = values %h;`,
 		}},
-		// perl: match
+		// perl: match. The variable form is a match too -- perl compiles
+		// $expected as a pattern and reports the same op, measured:
+		//	$ perl -MO=Concise,-exec -e 'my ($g,$e); my $r = $g =~ $e;'
+		//	7  </> match()[$g:1,3] sK
+		// t/comp/use.t:24 is this shape.
 		{parseoracle.SiteKindMatch, []string{
 			`$x =~ /foo/;`,
 			`$x =~ m/foo/;`,
 			`if (/foo/) { 1 }`,
+			`$got =~ $expected;`,
+			`$got !~ $expected;`,
 		}},
 		// perl: readline
 		{parseoracle.SiteKindReadline, []string{
@@ -119,6 +125,11 @@ func TestSitesDoNotDecideWhatTheyCannotSee(t *testing.T) {
 		}},
 		{parseoracle.SiteKindMatch, []string{
 			`my $n = $a / $b;`, // division, not a pattern
+			// perl reports these with subst and trans, not match, so a
+			// binding operator alone is not enough to decide.
+			`$x =~ s/a/b/;`,
+			`$x =~ tr/a/b/;`,
+			`$x =~ y/a/b/;`,
 		}},
 		{parseoracle.SiteKindReadline, []string{
 			`my $b = $a < $c;`, // comparison, not a readline
@@ -135,6 +146,45 @@ func TestSitesDoNotDecideWhatTheyCannotSee(t *testing.T) {
 			if got := decidedKinds(src); has(got, c.kind) {
 				t.Errorf("%q: must NOT decide %s, got %v", src, c.kind, got)
 			}
+		}
+	}
+}
+
+// TestSitesCountEveryOccurrence: one statement with two anonymous hashes
+// must report TWO sites, not one.
+//
+// CompareFacts consumes a decided site per marker perl found
+// (`compare_facts.go:224`, `owner.decided[m]--`), so a statement that reports
+// one site for two of perl's scores the first exact and the second WRONG.
+// Deduplicating per statement was the cause of 11 of the 20 WRONG files in
+// T2's first subject measurement.
+//
+// Measured: `perl -MO=Concise,-exec` on the accessor.t line below reports
+// two anonhash ops.
+func TestSitesCountEveryOccurrence(t *testing.T) {
+	for _, c := range []struct {
+		src  string
+		kind string
+		want int
+	}{
+		// t/class/accessor.t:31, which scored WRONG on exactly this.
+		{`ok(eq_hash({$o->h}, {qw( the hash )}), 'x');`,
+			parseoracle.SiteKindAnonhash, 2},
+		{`my @r = (\$a, \$b);`, parseoracle.SiteKindReference, 2},
+		{`my @r = (\$a, \$b, \$c);`, parseoracle.SiteKindReference, 3},
+		{`f({a=>1}, {b=>2});`, parseoracle.SiteKindAnonhash, 2},
+		// One occurrence stays one.
+		{`my $r = {a=>1};`, parseoracle.SiteKindAnonhash, 1},
+	} {
+		n := 0
+		for _, k := range decidedKinds(c.src) {
+			if k == c.kind {
+				n++
+			}
+		}
+		if n != c.want {
+			t.Errorf("%q: want %d decided %s sites, got %d",
+				c.src, c.want, c.kind, n)
 		}
 	}
 }

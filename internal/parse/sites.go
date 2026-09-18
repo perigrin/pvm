@@ -92,13 +92,17 @@ func Sites(root *Node, src []byte) []parseoracle.SubjectCallSite {
 // tree cannot reach a different one. Scanning source text could.
 func decidedMarkers(stmt *Node) []string {
 	var found []string
-	seen := make(map[string]bool, len(markerKinds))
 
+	// One entry per OCCURRENCE, not per kind. CompareFacts consumes a decided
+	// site for each of perl's (`compare_facts.go:224`, `owner.decided[m]--`),
+	// so a statement holding two anonymous hashes and reporting one site
+	// scores the first exact and the second WRONG.
+	//
+	// Deduplicating here was the cause of 11 of the 20 WRONG files in T2's
+	// first subject measurement -- `eq_hash({$o->h}, {qw( the hash )})` in
+	// t/class/accessor.t:31 is two anonhash ops to perl and was one site here.
 	add := func(kind string) {
-		if !seen[kind] {
-			seen[kind] = true
-			found = append(found, kind)
-		}
+		found = append(found, kind)
 	}
 
 	var walk func(*Node)
@@ -192,11 +196,35 @@ func isBarePattern(text string) bool {
 
 // isMatchOperand reports whether the right side of `=~` is a match rather
 // than a substitution or transliteration.
+//
+// A VARIABLE on the right is a match too: `$got =~ $expected` compiles
+// $expected as a pattern, and perl reports it with the same match op. That
+// is not a guess about the variable's contents -- `=~` against anything that
+// is not s/// or tr/// is a match, whatever the pattern turns out to be.
+// Measured on perl 5.42.0:
+//
+//	$ perl -MO=Concise,-exec -e 'my ($g,$e); my $r = $g =~ $e;'
+//	7  </> match()[$g:1,3] sK
+//
+// t/comp/use.t:24 and t/comp/uproto.t:24 are this shape and scored WRONG
+// while only literals counted.
 func isMatchOperand(n *Node) bool {
 	if n.Kind != Term {
 		return false
 	}
-	return isBarePattern(n.Text)
+	// A quote-like operand states its own kind: s/// substitutes and tr///
+	// transliterates, and perl reports each with a different op.
+	if isSubstOrTrans(n.Text) {
+		return false
+	}
+	return true
+}
+
+// isSubstOrTrans reports whether a leaf is a substitution or a
+// transliteration rather than a match.
+func isSubstOrTrans(text string) bool {
+	return strings.HasPrefix(text, "s/") || strings.HasPrefix(text, "s{") ||
+		strings.HasPrefix(text, "tr") || strings.HasPrefix(text, "y/")
 }
 
 // lineStarts is the byte offset of each line's first byte, so a span can be
