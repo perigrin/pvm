@@ -1,21 +1,34 @@
 ---
 title: "Five scanner rows: literal ranges, qx, <<>>, angle globs, leading ::"
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-17T14:23:38.848509109Z
-updated: 2026-09-18T10:36:58.613212634Z
+updated: 2026-09-18T10:36:58.861539664Z
 sessions:
 - start_sha: f905b4e9ba967eb983700a3ef6feace66c1fc11c
-  end_sha: ""
-  commits: 0
+  end_sha: 6968d55df55015b70b6730ae5781e9eff4b0c52b
+  commits: 1
   started_at: 2026-09-18T10:21:48.314965344Z
+  ended_at: 2026-09-18T10:36:58.861539664Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-18T10:21:48.314965344Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-18T10:36:58.861539664Z
+observed_paths:
+- internal/lexer/quote.go
+- internal/lexer/ratchet_test.go
+- internal/lexer/scan.go
+- internal/lexer/scanrows_test.go
+- internal/lexer/testdata/corpus.ratchet
+- internal/parse/parse_test.go
+- internal/parse/t2_test.go
+- internal/parse/testdata/t1.ratchet
 ---
 
 Five constructs do not lex, and each is a missing scanner row rather than a design problem. Measured at 3c997a6b, all round-tripping:
