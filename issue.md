@@ -1,6 +1,6 @@
 ---
 title: "The intuit_curly lookahead: a brace after a list operator"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
@@ -8,7 +8,16 @@ blocked_by:
 blocks:
 - 01a0ad52-f1e4-7e19-80c7-a99f859951eb
 created: 2026-09-16T22:24:52.875856958Z
-updated: 2026-09-17T19:56:35.802547891Z
+updated: 2026-09-18T21:49:11.664330742Z
+sessions:
+- start_sha: 5b41510164015a80506c02291228c7544ea1f3df
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-18T21:49:11.664330742Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-18T21:49:11.664330742Z
 ---
 
 A one-line change here is correct and makes T1 worse. That is the finding, and it is why this issue is bigger than it looks.
