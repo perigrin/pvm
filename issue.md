@@ -1,6 +1,6 @@
 ---
 title: "The M1 gate: parse ratchet, WRONG stays zero, measured as a subject"
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
@@ -18,16 +18,54 @@ blocks:
 - 01a0afc0-6d61-7dc5-a10c-a0d29ed14742
 - 01a0afc1-2931-76bc-80e9-8e51a7dfc544
 created: 2026-09-15T21:53:08.812269582Z
-updated: 2026-09-18T09:30:36.130681481Z
+updated: 2026-09-18T09:30:49.396331575Z
 sessions:
 - start_sha: 1f0669412eaad35c8b13ec0d8ff60c75120a330a
-  end_sha: ""
-  commits: 0
+  end_sha: 6393fdaa0bd1a57acd1acc0fbf10810c76893536
+  commits: 20
   started_at: 2026-09-16T23:58:18.064597034Z
+  ended_at: 2026-09-18T09:30:49.396331575Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-16T23:58:18.064597034Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-18T09:30:49.396331575Z
+observed_paths:
+- .gitignore
+- docs/specs/perl-parser/00-findings.md
+- docs/specs/perl-parser/01-scope.md
+- docs/specs/perl-parser/04-expressions.md
+- docs/specs/perl-parser/06-incremental-lsp.md
+- docs/specs/perl-parser/README.md
+- internal/lexer/expect.go
+- internal/lexer/expect_test.go
+- internal/lexer/fatcomma_test.go
+- internal/lexer/quote.go
+- internal/lexer/testdata/corpus.ratchet
+- internal/parse/call.go
+- internal/parse/cmd/subject/main.go
+- internal/parse/control.go
+- internal/parse/easy_test.go
+- internal/parse/expr.go
+- internal/parse/hedge_test.go
+- internal/parse/keyword.go
+- internal/parse/modifier_test.go
+- internal/parse/parse.go
+- internal/parse/parse_test.go
+- internal/parse/quoteop_test.go
+- internal/parse/ratchet_test.go
+- internal/parse/sites.go
+- internal/parse/sites_decided_test.go
+- internal/parse/stmt_test.go
+- internal/parse/subscript_test.go
+- internal/parse/t2_test.go
+- internal/parse/term.go
+- internal/parse/termform_test.go
+- internal/parse/testdata/t1.ratchet
+- internal/parse/use_test.go
+- internal/parseoracle/goparser_test.go
 ---
 
 M1's gate: the parse rate ratchets, WRONG does not move, and every row of the
