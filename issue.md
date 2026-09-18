@@ -2,9 +2,9 @@
 title: "A phaser brace is a block: BEGIN { } leaves the lexer in the wrong state"
 state: pending
 urgency: normal
-milestone: v0.1
+milestone: m1-parse-the-core
 created: 2026-09-18T22:28:03.205765477Z
-updated: 2026-09-18T22:28:22.698654813Z
+updated: 2026-09-18T22:28:34.201042644Z
 ---
 
 The lexer has no phaser table, so `BEGIN` is an ordinary bareword. It leaves
