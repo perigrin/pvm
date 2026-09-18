@@ -1,21 +1,31 @@
 ---
 title: "Node carries one flag and the tree needs four: Arrow, Paren, Fat, Handle"
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-17T14:22:29.542545808Z
-updated: 2026-09-18T10:58:15.970759714Z
+updated: 2026-09-18T10:58:16.16266301Z
 sessions:
 - start_sha: 6968d55df55015b70b6730ae5781e9eff4b0c52b
-  end_sha: ""
-  commits: 0
+  end_sha: e0d124d1932fa7a5443eb3f763146c1a6171decc
+  commits: 1
   started_at: 2026-09-18T10:48:08.065893001Z
+  ended_at: 2026-09-18T10:58:16.16266301Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-18T10:48:08.065893001Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-18T10:58:16.16266301Z
+observed_paths:
+- internal/parse/call.go
+- internal/parse/expr.go
+- internal/parse/flags_test.go
+- internal/parse/parse.go
+- internal/parse/term.go
 ---
 
 `parse.Node` has one flag and §4.14 needs four. The lowering cannot build what the parser threw away, and four separate obligations share this single cause.
