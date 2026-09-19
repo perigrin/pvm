@@ -4,7 +4,7 @@ state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-19T11:53:47.469850114Z
-updated: 2026-09-19T12:12:26.849568149Z
+updated: 2026-09-19T12:44:17.887375807Z
 sessions:
 - start_sha: 5c9be6bd44b1282e2477531f28d641caad4eb9a0
   end_sha: 5c9be6bd44b1282e2477531f28d641caad4eb9a0
@@ -74,8 +74,46 @@ and the arrow form for completeness.
 
 ## Acceptance
 
-- [ ] `local $SIG{__WARN__} = sub {}` is ONE statement holding one Index (`go test ./internal/parse/ -run '^TestDeclaredSubscriptIsOneStatement$' -count=1 -v | grep -q '^--- PASS: TestDeclaredSubscriptIsOneStatement'`)
-- [ ] The same holds for `my`, `our` and `state`, and for `[` as well as `{` (`go test ./internal/parse/ -run '^TestDeclaredSubscriptIsOneStatement$' -count=1 -v | grep -q '^--- PASS: TestDeclaredSubscriptIsOneStatement'`)
-- [ ] The T1 canon fixpoint improves, measured in files and bytes (`go test ./internal/parse/ -run '^TestCanonRatchet$' -count=1 -v | grep -q '^--- PASS: TestCanonRatchet'`)
+- [x] `local $SIG{__WARN__} = sub {}` is ONE statement holding one Index (`go test ./internal/parse/ -run '^TestDeclaredSubscriptIsOneStatement$' -count=1 -v | grep -q '^--- PASS: TestDeclaredSubscriptIsOneStatement'`)
+- [x] The same holds for `my`, `our` and `state`, and for `[` as well as `{` (`go test ./internal/parse/ -run '^TestDeclaredSubscriptIsOneStatement$' -count=1 -v | grep -q '^--- PASS: TestDeclaredSubscriptIsOneStatement'`)
+- [x] The T1 canon fixpoint improves, measured in files and bytes (`go test ./internal/parse/ -run '^TestCanonRatchet$' -count=1 -v | grep -q '^--- PASS: TestCanonRatchet'`)
 
 Plan: M1. Spec: §4.12.
+
+
+## Done, 2026-09-19 (657d0caf)
+
+    T1 parse        460 -> 462 clean, 3322 -> 3317 Unknown
+    T1 canon        566 -> 611 clean (57.4% -> 62.0%)
+    T1-easy         53.0% -> 53.2%
+    t/class         45 -> 43 Unknown
+    T2 class/field  9 -> 7
+    full suite green, 0 FAIL across the repo
+
+parseVarDeclNoSemi took the variable as a bare Term and jumped straight to
+the `=` check, never entering the postfix chain. The subscript was then
+re-read in statement position, where a brace is an anonymous hash.
+
+peekSubscript is shared with parseExpr rather than duplicated: `$h{k}` and
+`$h->{k}` are one operation and one flag apart (§4.14), so both walks ask the
+same question in one place.
+
+## A second defect, found by measuring rather than by reading
+
+Attaching the subscript made it visible: with the target complete, a
+COMPOUND assignment fell out as an Unknown beside it, because the initialiser
+check accepted only `=`.
+
+    concat_assignment_env_taint.t   5 nodes 268 bytes -> 6 nodes 286 bytes
+
+A rise in NODES and in BYTES, so not the ratchet's known blind spot but a
+real regression. The source is `local $ENV{PATH} .= $tainted_empty;`, which
+perl accepts. Level 9 is the whole assignment class in one token group
+(toke.c:250), so the test is the level rather than nineteen spellings.
+
+With that fixed the file returns to 5 nodes and no T1 file regressed --
+2 better, 0 worse. Without the byte measurement this would have shipped as
+"1 worse, 45 better, net win", and the 18 bytes would have stayed.
+
+Acceptance criterion 3 asked for the canon ratchet to improve, and it did:
+45 files moved 1 -> 0.
