@@ -4,66 +4,90 @@ state: pending
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-19T18:15:49.871374091Z
-updated: 2026-09-19T18:15:49.871374091Z
+updated: 2026-09-19T23:15:16.016616732Z
 ---
 
-Perl emits rv2hv for a PACKAGE hash and not for a lexical one. Measured:
+48 WRONG rv2hv sites over the 620-file corpus at 25483d2b. This issue was
+filed as a lexical-versus-package scope problem. **It is not**, and the
+measurement below is what the work should be planned against rather than the
+original diagnosis.
 
-    my %h = (a=>1);   my $n = scalar(keys(%h));     0 rv2hv
-    our %h; local %h; my $n = scalar(keys(%h));     2 rv2hv
+## What the 48 actually are
 
-A lexical `%h` is padhv; only a package hash needs the symbol-table
-dereference the marker names. The subject reports a hash site for both,
-because `isHashTerm` tests the leaf's TEXT for a leading `%` and text cannot
-carry scope.
+Every WRONG rv2hv site, dumped with its source line and counted by shape:
 
-This is the single largest rv2hv cause. op/local.t is package hashes
-throughout and holds 14 of the 71 WRONG sites:
+    hash SLICE  @h{...}, @$r{...}, ->@{...}    ~20
+    delete, usually `delete local`              14
+    nested deref %{$h{a}{b}}                     ~8
+    a plain package %h                           ~2
 
-    206  is(scalar(keys(%h)), 3);
-    214  is(scalar(keys(%h)), 3);
-    ... nine more of the same shape
-    811  local @Flibbert::{<bar baz>};
-    841  delete local $Grompits::{foo};
+Barely any are the `keys(%h)` case this issue was filed for. Examples:
 
-## Why this is not simply a fix
+    op/array.t:73       @bar{keys %foo} = values %foo;
+    run/locale.t:44     delete local @ENV{'LANGUAGE', 'LANG', ...};
+    porting/libperl.t:472  for my $symbol (sort keys %{$symbols{data}{$dtype}})
+    op/postfixderef.t:104  $spring2{"foo"}->@* = (1,2,3);
 
-Deciding it needs scope tracking: which `%h` is in scope at this statement,
-and was it declared `my` or reached through the symbol table. That is more
-than the subject contract asks for today, and §7.1.2's own note says perl
-emits FEWER of these than the source has hash accesses -- "which is the
-direction presence-matching tolerates".
+## Scope matters, but not the way this issue assumed
 
-So there are two honest routes and the choice needs measuring:
+It is not "lexical declarations are invisible to us". Measured on 5.42.0:
 
-1. **Track lexical declarations** well enough to answer `my %h` versus
-   package `%h`. A `my` in the same file is cheap; `our` and imports are
-   not.
-2. **Hedge the hash site** where scope is undecidable, scoring wider rather
-   than WRONG. The existing three-tier rule in exports.go is the precedent,
-   and wider is honest.
+    my %h;    keys %h                       0 rv2hv   (padhv)
+    our %h;   keys %h                       1 rv2hv
+    state %h; keys %h                       1 rv2hv   <-- NOT lexical here
+    local %h; keys %h                       2 rv2hv
 
-Route 2 is available now and correct regardless; route 1 is the one that
-raises the exact rate.
+    my %foo, %bar;  @bar{keys %foo} = ...   0 rv2hv
+    our %h, %g;     @g{keys %h}    = ...    2 rv2hv
 
-## A second, separate cause in the same marker
+So `state` behaves like a package hash for this marker even though it is a
+lexical declaration, and a slice's op count depends on the scope of the
+hashes it slices. A scope stack keyed on `my` -- which is what I proposed --
+gets `state` wrong and does nothing for the slice cases where both hashes
+are already lexical and we over-report anyway.
 
-`@{$h{k}}` -- an ARRAY dereference of a hash element -- emits no rv2hv,
-because perl folds it to multideref:
+## And some are not about scope at all
 
-    @{$spring2{"foo"}} = (1,2,3);        0 rv2hv
-    %{$symbols{data}{x}}                 2 rv2hv
+`@$a{'abc','def'}` emits 0 rv2hv on its own:
 
-op/ref.t:113, japh/abigail.t:199 and porting/libperl.t:212 are this shape.
-The subject reports a hash site for the `{k}` subscript; perl reports none.
-Folding is §7.1.2's stated tolerance direction, so these may be a hedging
-question rather than a detection one -- measure before deciding.
+    my $r = {a=>1}; my @x = @$r{'a','b'};   0 rv2hv
+
+but op/avhv.t:131 has the same shape inside an `eval { }` block and IS in
+the WRONG list, which makes it an op-attribution question rather than a
+detection one.
+
+## Why hedging is the plan
+
+`isHashTerm` tests a leaf's TEXT for a leading `%`. Text cannot carry scope,
+cannot know which accesses perl's optimiser folds to multideref, and cannot
+see the block structure that moves attribution. The marker's own doc records
+the asymmetry that makes hedging safe:
+
+> a lexical `%h` is padhv and `$h{a}` folds to multideref, so perl emits
+> FEWER of these than the source has hash accesses, never more -- which is
+> the direction presence-matching tolerates
+
+A hedge scores WIDER, which is the honest bucket for "I see a hash access
+and cannot tell whether perl will emit a dereference for it". It is also the
+bucket the four-bucket design exists to reward, and exports.go's three-tier
+rule is the existing precedent for refusing rather than guessing.
+
+Tracking scope is NOT deferred, it is **dropped**: the measurement says it
+would fix at most the ~2 plain-package sites while getting `state` wrong,
+and the other 46 need facts a parser cannot have.
+
+## Scope of the change
+
+Hedge the hash site where the reading is undecidable, commit where it is
+not. The line to draw needs its own measurement -- hedging EVERY hash site
+would take exact down as well as WRONG, and the exact floor exists to stop
+exactly that. Start by hedging the four shapes above and measure both
+numbers.
 
 ## Acceptance
 
-- [ ] The lexical-versus-package distinction is decided or hedged, measured either way (`go test ./internal/parse/ -run '^TestLexicalHashIsNotAPackageHash$' -count=1 -v | grep -q '^--- PASS: TestLexicalHashIsNotAPackageHash'`)
-- [ ] `@{$h{k}}` is measured and its treatment recorded (`go test ./internal/parse/ -run '^TestArrayDerefOfHashElement$' -count=1 -v | grep -q '^--- PASS: TestArrayDerefOfHashElement'`)
-- [ ] WRONG rv2hv sites fall, measured (`go test ./internal/parseoracle/ -run '^TestGoParserWrongIsZero$' -count=1 -v | grep -q '^--- PASS: TestGoParserWrongIsZero'`)
+- [ ] An undecidable hash access hedges rather than committing (`go test ./internal/parse/ -run '^TestUndecidableHashHedges$' -count=1 -v | grep -q '^--- PASS: TestUndecidableHashHedges'`)
+- [ ] A decidable one still commits, so exact does not collapse (`go test ./internal/parse/ -run '^TestDecidableHashStillCommits$' -count=1 -v | grep -q '^--- PASS: TestDecidableHashStillCommits'`)
+- [ ] WRONG rv2hv falls and the exact floor holds, both measured (`go test ./internal/parseoracle/ -run '^TestGoParserExactFloor$' -count=1 -v | grep -q '^--- PASS: TestGoParserExactFloor'`)
 
-Found by 01a0ba79's ranked table. Plan: M1 or M4 depending on the route.
-Spec: §7.1.2.
+Measured 2026-09-19. Plan: M1. Spec: §7.1.2.
