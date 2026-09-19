@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 460 clean (46.7%), 3322 Unknown nodes.
+# 986 files, 462 clean (46.9%), 3317 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -22,7 +22,7 @@
 0 autoload.t
 0 autoload_byte_method_name.t
 0 autoload_lvalue_assignment.t
-4 autovivification_local.t
+0 autovivification_local.t
 1 b_constants_no_redefinition.t
 0 b_cv_subidentify_metadata.t
 4 b_deparse_dbic_eval_snippets.t
@@ -784,7 +784,7 @@
 4 template_generated_line_directive.t
 2 term_readkey_regressions.t
 1 term_size_perlio_shims.t
-1 test2_refcount_probe.t
+0 test2_refcount_probe.t
 1 test_builder_global_warning_suppression.t
 0 test_builder_level.t
 1 test_deep_memory_regression.t

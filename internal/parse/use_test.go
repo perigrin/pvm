@@ -259,7 +259,11 @@ func TestClassCorpusRatchet(t *testing.T) {
 	// 74 -> 48 when the lexer stopped reading a quote-op keyword as a quote
 	// operator where perl reads it as a name. `method y { ... }` was a
 	// transliteration delimited by `{`, which swallowed the class body.
-	const want = 45
+	//
+	// 45 -> 43 when a declarator kept its subscript: `field $x{k}` no longer
+	// splits, and a declaration's initialiser accepts any assignment
+	// operator rather than only `=`.
+	const want = 43
 	if unknown != want {
 		t.Errorf("t/class holds %d Unknown nodes, want %d: update this pin in "+
 			"the same commit as the change that moved it", unknown, want)

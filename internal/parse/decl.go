@@ -81,13 +81,40 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 	// the `:` as a ternary's colon with nothing to match.
 	if v, ok := p.peekSignificant(); ok && v.Kind == lexer.Variable {
 		p.advanceTo(v)
-		n.Children = append(n.Children, &Node{
+		target := &Node{
 			Kind: Term, Text: p.text(v), Start: v.Start, End: v.End,
-		})
+		}
+
+		// A subscript belongs to the TARGET, not to a statement of its own.
+		// `local $SIG{__WARN__} = sub {...}` stopped at the variable and left
+		// `{__WARN__} = ...` to be re-read in statement position, where a
+		// brace means an anonymous hash -- so the tree said a hash was being
+		// constructed where one was being indexed.
+		//
+		// This is the failure mode the `sub {` branch above already
+		// describes: a declarator that stops mid-expression, producing a tree
+		// that is not a parse of its source AND round-trips. Found by
+		// canonical re-emission (01a0a8d8), which re-parses the emission and
+		// sees a different tree.
+		for {
+			open, arrow, ok := p.peekSubscript()
+			if !ok {
+				break
+			}
+			target = p.parseSubscript(target, open)
+			target.Arrow = arrow
+		}
+		n.Children = append(n.Children, target)
 		p.parseAttributes(n)
 
-		// The initialiser, if there is one.
-		if eq, ok := p.peekSignificant(); ok && p.text(eq) == "=" {
+		// The initialiser, if there is one. ANY assignment operator, not just
+		// `=`: `local $ENV{PATH} .= $x` is valid perl, and accepting only `=`
+		// left the `.= ...` as an Unknown beside a complete target.
+		//
+		// Level 9 is the whole assignment class in one token group
+		// (toke.c:250), so the test is the level rather than a list of
+		// nineteen spellings.
+		if eq, ok := p.peekSignificant(); ok && infix[p.text(eq)].Level == assignLevel {
 			p.advanceTo(eq)
 			if init := p.parseExpr(0); init != nil {
 				n.Children = append(n.Children, init)

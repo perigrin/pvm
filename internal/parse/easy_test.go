@@ -179,7 +179,7 @@ func TestT1EasyParseRate(t *testing.T) {
 	// files using them are excluded from this subset by definition. The
 	// 0.3 points here are the spillover: globs, `*$glob`, and the statements
 	// around a deref. The gate wants 70.0.
-	const floor = 53.0
+	const floor = 53.2
 	const target = 70.0
 
 	if rate+0.05 < floor {

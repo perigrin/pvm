@@ -195,6 +195,32 @@ func closerFor(open string) string {
 	return ""
 }
 
+// peekSubscript reports whether a subscript opens here, returning the bracket
+// and whether an arrow preceded it. It consumes the arrow and nothing else.
+//
+// `$h{k}` and `$h->{k}` are one operation and one flag apart (§4.14), so the
+// two callers that walk a postfix chain ask the same question in one place.
+func (p *parser) peekSubscript() (open string, arrow bool, ok bool) {
+	t, ok := p.peekSignificant()
+	if !ok {
+		return "", false, false
+	}
+	switch text := p.text(t); text {
+	case "[", "{":
+		return text, false, true
+	case "->":
+		next, ok := p.peekAfter(t)
+		if !ok {
+			return "", false, false
+		}
+		if o := p.text(next); o == "[" || o == "{" {
+			p.advanceTo(t)
+			return o, true, true
+		}
+	}
+	return "", false, false
+}
+
 // parseSubscript handles the postfix chain: a call, an index, a key.
 func (p *parser) parseSubscript(left *Node, open string) *Node {
 	tok, _ := p.peekSignificant()
@@ -211,9 +237,46 @@ func (p *parser) parseSubscript(left *Node, open string) *Node {
 	if c, ok := p.peekSignificant(); ok && p.text(c) == closerFor(open) {
 		p.advanceTo(c)
 	}
+	if open == "{" && len(children) == 2 {
+		autoquote(children[1])
+	}
 	return &Node{
 		Kind: Index, Text: open,
 		Start: left.Start, End: p.prevEnd(),
 		Children: children,
 	}
+}
+
+// autoquote turns a lone bareword hash key into the string it denotes.
+//
+// `$h{k}` is the key "k" and `$h{k()}` is the sub's return value -- different
+// programs. Perl autoquotes even when a sub of that name is in scope:
+//
+//	$ perl -e 'sub k { "z" } my %h = (k => 1); print $h{k}, "\n";'
+//	1
+//
+// The rule is narrower than "a bareword in braces". A SLICE is not
+// autoquoted, so only a lone word filling the whole subscript qualifies:
+//
+//	$ perl -e 'sub a { "z" } my %h=(a=>1,b=>2); my @s=@h{a,b};
+//	           print join(",", map { $_ // "undef" } @s), "\n";'
+//	undef,2
+//
+// `a` called a(); `b` had no sub and autoquoted. That is why this tests the
+// node rather than scanning the subscript for words -- a comma leaves a
+// Binary here, which is not a Call and is left alone.
+//
+// Beyond the wrong tree: Call{Resolved:false} means "a call to something I
+// have not seen" (§4.8.3), and a hash key is not a call at all. Every
+// bareword subscript was a false entry in the set sites.go scores.
+func autoquote(key *Node) {
+	// The span is what separates `k` from `k()`: an explicit call's node
+	// covers its parentheses too, while a bareword covers only the word.
+	// Children cannot answer this -- an empty argument list leaves none, so
+	// `$h{k()}` and `$h{k}` have the same child count and different extents.
+	if key.Kind != Call || key.End-key.Start != len(key.Text) {
+		return
+	}
+	key.Kind = Term
+	key.Resolved = false
 }

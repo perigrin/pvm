@@ -106,7 +106,7 @@ func TestT2CoreParses(t *testing.T) {
 		// more. Verified by stashing the change and counting -- 3 Unknowns
 		// at HEAD, 5 after, and every new one is an ADJUST block. Untracked:
 		// nothing in the chain owns ADJUST.
-		"class/destruct.t": 7, "class/field.t": 9, "class/gh22169.t": 5,
+		"class/destruct.t": 7, "class/field.t": 7, "class/gh22169.t": 5,
 		"class/gh23511.t": 1, "class/inherit.t": 7, "class/method.t": 9,
 		"class/phasers.t": 5,
 		"cmd/mod.t":       1, "cmd/subval.t": 1, "cmd/switch.t": 2,

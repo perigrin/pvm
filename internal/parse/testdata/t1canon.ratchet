@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 566 clean (57.4%), 420 total.
+# 986 files, 611 clean (62.0%), 375 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -18,16 +18,16 @@
 0 array_delete_exists.t
 1 array_deref_size_append.t
 0 attribute_method_named_sub_deparse.t
-1 attributes_prototype_warning_scope.t
+0 attributes_prototype_warning_scope.t
 1 autoload.t
 1 autoload_byte_method_name.t
 0 autoload_lvalue_assignment.t
 0 autovivification_local.t
-1 b_constants_no_redefinition.t
+0 b_constants_no_redefinition.t
 1 b_cv_subidentify_metadata.t
 1 b_deparse_dbic_eval_snippets.t
 1 b_deparse_line_directive_path.t
-1 b_deparse_options.t
+0 b_deparse_options.t
 1 b_deparse_prototype_block.t
 1 b_deparse_source_visible.t
 0 b_deparse_source_visible_anon_sub.t
@@ -134,7 +134,7 @@
 0 core_global_time_overrides.t
 1 core_module_file_versions.t
 0 core_operator_import_shadow.t
-1 core_operator_source_position.t
+0 core_operator_source_position.t
 0 core_qualified_builtin_prototype.t
 0 core_qualified_control_flow.t
 0 core_qualified_infix.t
@@ -158,13 +158,13 @@
 0 cpan_meta_yaml_dump_after_refaddr_cleanup.t
 0 cpan_parser_tooling_regressions.t
 1 cpan_prerequisite_phases.t
-1 cpan_requested_compat.t
+0 cpan_requested_compat.t
 1 cpan_shim_modules.t
 1 cpan_static_recommends.t
 1 cpan_tap_missing_prerequisite.t
 0 cpan_test_dependency_blib.t
 0 cpan_tooling_posix_yaml_syck.t
-1 cpan_tooling_regressions.t
+0 cpan_tooling_regressions.t
 1 cpan_tooling_runtime.t
 0 cpanel_json_xs_mojo_compat.t
 0 cpanel_json_xs_options.t
@@ -174,15 +174,15 @@
 0 current_sub_map_block.t
 1 current_sub_sort_block.t
 1 custom_warning_async_suspend_state.t
-1 custom_warning_category_late_registration.t
-1 custom_warning_category_payload.t
-1 custom_warning_command_line_W.t
-1 custom_warning_external_registered_suppression.t
-1 custom_warning_late_fatal_all.t
-1 custom_warning_recursive_registered_frames.t
-1 custom_warning_testbuilder_eval_suppression.t
+0 custom_warning_category_late_registration.t
+0 custom_warning_category_payload.t
+0 custom_warning_command_line_W.t
+0 custom_warning_external_registered_suppression.t
+0 custom_warning_late_fatal_all.t
+0 custom_warning_recursive_registered_frames.t
+0 custom_warning_testbuilder_eval_suppression.t
 1 custom_warning_thread_registration_isolation.t
-1 custom_warning_thread_snapshot.t
+0 custom_warning_thread_snapshot.t
 0 cwd.t
 1 cwd_internal_alias_warnings.t
 1 cwd_logical_physical.t
@@ -200,7 +200,7 @@
 0 dbi_do_comment.t
 0 dbi_execute_select_result.t
 0 dbi_fetchrow_hashref_name_lc.t
-1 dbi_handle_code_slots.t
+0 dbi_handle_code_slots.t
 1 dbi_metadata_fetchall.t
 0 dbi_primary_key.t
 0 dbi_selectrow_finish.t
@@ -233,7 +233,7 @@
 0 digest_raw_bytes.t
 0 digest_sha.t
 0 digest_sha1_compat.t
-1 direct_builtin_data_handle.t
+0 direct_builtin_data_handle.t
 1 directory.t
 0 do_block_freetmps_fresh_result.t
 1 do_modern_syntax_and_copy.t
@@ -253,13 +253,13 @@
 0 encode_utf8_on_off.t
 1 encoding_pragma.t
 0 end_capture_destruction_order.t
-1 errno_special_vars.t
+0 errno_special_vars.t
 1 error_messages.t
 0 eval_after_stash_delete.t
 0 eval_begin_lexical_storage.t
 1 eval_block_return.t
-1 eval_byte_source_semantics.t
-1 eval_concat_warning_scope.t
+0 eval_byte_source_semantics.t
+0 eval_concat_warning_scope.t
 1 eval_context_stack_reentrancy.t
 0 eval_foreach_return_value.t
 0 eval_imported_call_comparison_context.t
@@ -277,9 +277,9 @@
 0 eval_string_seed_alias_cleanup.t
 1 eval_string_source_types.t
 0 eval_syntax_near_not.t
-1 eval_warning_capture.t
+0 eval_warning_capture.t
 0 evalbytes.t
-1 examples_warning_and_io.t
+0 examples_warning_and_io.t
 1 exiftool_exporter_autoload.t
 0 experimental_equ_warning_category.t
 1 experimental_signatures_warning.t
@@ -303,7 +303,7 @@
 0 filehandle_dup.t
 0 fileno_reserved_recycle.t
 0 filespec_catpath.t
-1 filespec_tmpdir_env.t
+0 filespec_tmpdir_env.t
 1 filetest_anonymous_tmpfile.t
 1 flipflop.t
 0 flock_reassigned_handle.t
@@ -348,7 +348,7 @@
 0 harness_skip_all.t
 1 hash.t
 0 hash_autovivification.t
-1 hash_interpolation_warning.t
+0 hash_interpolation_warning.t
 1 hash_literal_anonymous_ref_cleanup.t
 1 hash_ref_disambiguation.t
 0 hash_slice_postincrement.t
@@ -396,7 +396,7 @@
 1 interpreter_nested_factory_array_lifetime.t
 1 interpreter_next_inside_foreach_continue.t
 0 interpreter_overloaded_bitwise_not_scalar_context.t
-1 interpreter_parenthesized_local_hash_element.t
+0 interpreter_parenthesized_local_hash_element.t
 0 interpreter_raw_utf8_source.t
 1 interpreter_scalar_ref_assignment.t
 1 interpreter_short_circuit_rhs_lexical.t
@@ -405,7 +405,7 @@
 0 io_file_autoload.t
 1 io_flock.t
 1 io_handle_error.t
-1 io_handle_fresh_fdopen_warning.t
+0 io_handle_fresh_fdopen_warning.t
 1 io_layers.t
 0 io_memory.t
 1 io_pipe.t
@@ -419,7 +419,7 @@
 0 ipc_open3.t
 0 isa_operator_package_bareword.t
 0 join_upgraded_latin1_provenance.t
-1 json_parse_compat.t
+0 json_parse_compat.t
 0 json_xs_compat.t
 1 jvm_eval_nested_compound_assignment.t
 1 large_sub_interpreter_fallback.t
@@ -437,7 +437,7 @@
 1 local.t
 1 local_glob_dynamic.t
 0 local_glob_filehandle.t
-1 local_hash_slice_regressions.t
+0 local_hash_slice_regressions.t
 0 local_isa_method_dispatch.t
 0 local_isa_nested_restore.t
 1 local_nested_loop_control_restore.t
@@ -472,7 +472,7 @@
 1 makemaker_mymeta_control_chars.t
 1 makemaker_pmlibdirs.t
 0 makemaker_postamble_rule_style.t
-1 makemaker_prompt_default.t
+0 makemaker_prompt_default.t
 1 makemaker_secondary_bundled_blib.t
 1 makemaker_stale_blib_source.t
 1 map_source_mutation_snapshot.t
@@ -515,7 +515,7 @@
 0 namespace_autoclean_constants.t
 1 namespace_autoclean_xsaccessor.t
 0 namespace_bug_comprehensive.t
-1 native_module_warning_caller.t
+0 native_module_warning_caller.t
 1 nested_call_caller_line.t
 0 nested_eval_block_goto_missing.t
 0 nested_for_loops.t
@@ -576,7 +576,7 @@
 0 parser_syntax_error.t
 1 path_tiny_runtime_prereqs.t
 0 perlio_encoding_loads_encode.t
-1 perlio_import_injection.t
+0 perlio_import_injection.t
 1 perlio_layers_capture.t
 1 perlio_via.t
 0 pipe_close_status.t
@@ -596,7 +596,7 @@
 0 postderef_expression_result.t
 0 postderef_interpolation.t
 0 pr694_core_regressions.t
-1 pr709_core_regressions.t
+0 pr709_core_regressions.t
 0 precedence.t
 0 print_bareword_filehandle.t
 1 print_indirect_method_postfix.t
@@ -609,7 +609,7 @@
 1 prototyped_call_caller_line.t
 0 push_decl_array.t
 0 push_declared_array.t
-1 pvlv_filehandle.t
+0 pvlv_filehandle.t
 0 qualified_optional_constant.t
 1 rand_scalar_context.t
 0 range.t
@@ -620,7 +620,7 @@
 0 refaliasing_containers.t
 0 regex_assertion_conditional.t
 0 regex_byte_replacement_flag.t
-1 regex_callback_abort_cleanup.t
+0 regex_callback_abort_cleanup.t
 0 regex_callback_frame_identity.t
 0 regex_callback_lexical_context.t
 0 regex_callback_package_frame.t
@@ -654,7 +654,7 @@
 0 regex_named_character_class_escape.t
 0 regex_named_character_extended_capture.t
 0 regex_negated_caret_class.t
-1 regex_nonunicode_property_warning.t
+0 regex_nonunicode_property_warning.t
 1 regex_parser_safety_parity.t
 0 regex_posix_class_casefold.t
 0 regex_prune.t
@@ -676,7 +676,7 @@
 0 returned_blessed_container_nested_destroy.t
 0 returned_closure_captures.t
 1 reverse_list_alias.t
-1 role_tiny_regressions.t
+0 role_tiny_regressions.t
 0 safe_permit_only.t
 1 scalar_coderef_call_context.t
 1 scalar_dual_value_arithmetic.t
@@ -686,7 +686,7 @@
 1 scalar_reference_container_lifetime.t
 0 scalar_watcher_java_xs.t
 1 sdbm_file_writeback.t
-1 select_interrupt_errno.t
+0 select_interrupt_errno.t
 1 signatures.t
 1 skip_block_hash_disambiguation.t
 1 slice_context.t
@@ -701,7 +701,7 @@
 0 socket_unix_stream.t
 1 sort_localizes_package_ab.t
 1 sort_scalar_context.t
-1 source_anonymous_const_attribute.t
+0 source_anonymous_const_attribute.t
 0 source_filter_begin_install.t
 1 source_filter_caller_line.t
 0 source_filter_delete_oneshot.t
@@ -785,7 +785,7 @@
 0 term_readkey_regressions.t
 1 term_size_perlio_shims.t
 0 test2_refcount_probe.t
-1 test_builder_global_warning_suppression.t
+0 test_builder_global_warning_suppression.t
 0 test_builder_level.t
 1 test_deep_memory_regression.t
 0 test_exporter_heavy_caller.t
@@ -876,7 +876,7 @@
 0 time_moment_storable.t
 0 top_level_coderef_call.t
 0 transliterate.t
-1 transliterate_dynamic_warning_scope.t
+0 transliterate_dynamic_warning_scope.t
 0 transliterate_more.t
 0 try_catch.t
 0 try_catch_exception_object.t
@@ -916,20 +916,20 @@
 1 vec.t
 0 version_no_import.t
 0 version_numify.t
-1 version_overflow_compare.t
+0 version_overflow_compare.t
 0 vstring.t
 1 want_combined_context.t
 1 wantarray.t
 0 wanted_portable_context.t
-1 warn_die.t
-1 warning_callee_lexical_context.t
+0 warn_die.t
+0 warning_callee_lexical_context.t
 1 warnings.t
 0 warnings_bits.t
-1 warnings_block_callsite_restore.t
+0 warnings_block_callsite_restore.t
 0 warnings_historical_categories.t
 1 warnings_local_dollar_w_lexical_mask.t
-1 warnings_nested_scope_restore.t
-1 warnings_nonfatal_reset.t
+0 warnings_nested_scope_restore.t
+0 warnings_nonfatal_reset.t
 0 warnings_retired_experimental_categories.t
 0 warnings_script_run_compat.t
 0 weak_assignment_destination.t

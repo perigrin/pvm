@@ -134,6 +134,11 @@ var infix = map[string]OpInfo{
 	"{":  {32, 320, AssocLeft},
 }
 
+// assignLevel is perly.y's assignment level. `=` and the eighteen compound
+// forms are ONE token class in toke.c:250, so code that asks "is this an
+// assignment" tests the level rather than listing the spellings.
+const assignLevel = 9
+
 // prefix is the power a prefix operator passes down for its operand.
 var prefix = map[string]int{
 	"not": 60,  // level 6, takes a listexpr -- swallows commas
