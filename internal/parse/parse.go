@@ -215,6 +215,15 @@ type Node struct {
 	Start, End int
 	Children   []*Node
 
+	// loaded names the modules reached while parsing, and is set on the
+	// SourceFile root alone. Read through LoadedModules.
+	//
+	// Unexported because it is not part of the tree: it says what the PARSE
+	// did, not what the source contains, and a consumer walking children
+	// must not find it hanging off an interior node. It plays no part in the
+	// span arithmetic above and never affects round-trip.
+	loaded []string
+
 	// Text is the operator or literal that names this node -- "+", "?:",
 	// "$x". Empty for nodes whose meaning is entirely their kind and
 	// children, such as a List.
@@ -327,10 +336,16 @@ func (n *Node) SourceText(src []byte) string {
 // replace Unknown with real nodes one construct at a time, and the round-trip
 // test is what keeps each replacement honest.
 func Parse(src []byte) *Node {
+	return parseRoot(src, nil)
+}
+
+// parseRoot is Parse with a resolver threaded through it. A nil resolver
+// resolves nothing, which is what Parse promises.
+func parseRoot(src []byte, res *resolver) *Node {
 	root := &Node{Kind: SourceFile, Start: 0, End: len(src)}
 	toks := lexer.Tokenize(src)
 
-	p := &parser{src: src, toks: toks}
+	p := &parser{src: src, toks: toks, res: res}
 	for p.pos < len(p.toks) {
 		before := p.pos
 		if n := p.statement(); n != nil {
@@ -345,6 +360,9 @@ func Parse(src []byte) *Node {
 			p.pos++
 		}
 	}
+	if res != nil {
+		root.loaded = res.loaded
+	}
 	return root
 }
 
@@ -352,6 +370,7 @@ func Parse(src []byte) *Node {
 type parser struct {
 	src  []byte
 	toks []lexer.Token
+	res  *resolver
 	pos  int
 }
 

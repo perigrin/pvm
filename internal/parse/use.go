@@ -80,6 +80,16 @@ func (p *parser) parseUse(word lexer.Token) *Node {
 				term.End = num.End
 			}
 		}
+		// Resolve the module, if this parse has a loader and the name is a
+		// module rather than a version bundle.
+		//
+		// Enrichment only: whether the source is found changes what a later
+		// call KNOWS, never whether this statement parses. `use` is keyword,
+		// bareword, optional list, semicolon, and that is true whether or not
+		// the file exists.
+		if !isVersionPrefix(term.Text) {
+			p.res.resolve(term.Text)
+		}
 		n.Children = append(n.Children, term)
 	}
 
