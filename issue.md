@@ -1,19 +1,31 @@
 ---
 title: "A phaser brace is a block: BEGIN { } leaves the lexer in the wrong state"
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-18T22:28:03.205765477Z
-updated: 2026-09-19T01:30:27.98348307Z
+updated: 2026-09-19T01:30:28.234190551Z
 sessions:
 - start_sha: 1b21e398ccd962c900969acf3c1912a7c3aafa01
-  end_sha: ""
-  commits: 0
+  end_sha: 528b9d835526d7a2c3acb41646c44cf6fd145437
+  commits: 1
   started_at: 2026-09-19T01:11:11.251966061Z
+  ended_at: 2026-09-19T01:30:28.234190551Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-19T01:11:11.251966061Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-19T01:30:28.234190551Z
+observed_paths:
+- internal/lexer/brackets.go
+- internal/lexer/expect.go
+- internal/lexer/expect_test.go
+- internal/lexer/intuit_test.go
+- internal/lexer/lexer.go
+- internal/lexer/scan.go
+- internal/parse/testdata/t1.ratchet
 ---
 
 The phaser half of this LANDED in 01a0ac52. What remains is the narrowing it
