@@ -1,10 +1,19 @@
 ---
 title: "A file verdict names no work: keep the per-statement findings the comparison already computes"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-19T16:22:28.75915195Z
-updated: 2026-09-19T16:22:28.75915195Z
+updated: 2026-09-19T16:54:17.669777988Z
+sessions:
+- start_sha: 461ea788c4b3a17b7c9771e80fc6e45de3bbbf18
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-19T16:54:17.669777988Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-19T16:54:17.669777988Z
 ---
 
 A file verdict says `op/bop.t: WRONG`. It does not say which statement, which
