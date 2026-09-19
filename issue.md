@@ -1,21 +1,29 @@
 ---
 title: Derive parse shape from the prototype so a parenless import parses
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
 - 01a0b84d-caa8-71d2-b42b-0c8445bc6026
 created: 2026-09-19T06:15:09.657423509Z
-updated: 2026-09-19T06:56:10.868780016Z
+updated: 2026-09-19T06:56:11.023803068Z
 sessions:
 - start_sha: 7034e553e623c97cdd9406c3d6b9c8ef5c4b2a55
-  end_sha: ""
-  commits: 0
+  end_sha: 9cf2ee6df76d20e3fe3e13c8324e0ca79d8137b9
+  commits: 1
   started_at: 2026-09-19T06:44:22.901960416Z
+  ended_at: 2026-09-19T06:56:11.023803068Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-19T06:44:22.901960416Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-19T06:56:11.023803068Z
+observed_paths:
+- internal/parse/call.go
+- internal/parse/shape.go
+- internal/parse/shape_test.go
 ---
 
 Derive a call's parse shape from the prototype string, and use it so a
