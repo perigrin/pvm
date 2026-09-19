@@ -55,7 +55,12 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 		// right.
 		if !blockForm(n) {
 			b.WriteByte(';')
+			return
 		}
+		// A block form takes no semicolon, so it needs a space instead --
+		// `sub f {1;}f();` runs the next statement into the brace and does
+		// not parse.
+		b.WriteByte(' ')
 
 	case Trivia:
 		// Dropped. See Canon.
@@ -70,6 +75,15 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 		// A call's arguments are one child: the comma is a Binary operator,
 		// not a separator this case supplies. Writing ", " here as well
 		// would emit `f($x , 1)`.
+		// A fat comma autoquotes the word to its left, so this is a STRING
+		// and writing `a()` would call it. The parser records the autoquote
+		// on the element rather than rewriting the node, because hover and
+		// go-to-definition still want to know a word was written there.
+		if n.Fat && len(n.Children) == 0 {
+			b.WriteString(n.Text)
+			return
+		}
+
 		b.WriteString(n.Text)
 
 		// `eval { ... }` is the BLOCK form and takes no parens. Wrapping it
@@ -220,17 +234,27 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 		// keyword, kept as written -- `unless` is not rewritten into a
 		// negated `if`, because the CST records what was typed.
 		b.WriteString(n.Text)
+		cond := true
 		for _, c := range n.Children {
 			b.WriteByte(' ')
-			if c.Kind == Block {
+			switch {
+			// A Block is the body. A nested Conditional is the `else` or
+			// `elsif` -- it carries its own keyword and parens, so wrapping
+			// it emits `(else {...})`. A Declaration is a foreach's loop
+			// variable, which sits OUTSIDE the parens: `for my $x (@l)`.
+			case c.Kind == Block || c.Kind == Conditional || c.Kind == Declaration:
 				emit(b, c, src, 0)
-				continue
+			case cond:
+				// The condition, and only it, is parenthesised: here the
+				// parens are grammar rather than grouping, so they are
+				// written whether or not the tree grouped anything.
+				cond = false
+				b.WriteByte('(')
+				emit(b, c, src, 0)
+				b.WriteByte(')')
+			default:
+				emit(b, c, src, 0)
 			}
-			// The condition is parenthesised: these are the forms whose
-			// parens are grammar rather than grouping.
-			b.WriteByte('(')
-			emit(b, c, src, 0)
-			b.WriteByte(')')
 		}
 
 	case Use:
@@ -303,7 +327,15 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 			//	syntax error, near "2 .."
 			l, r = info.BP+1, info.BP+1
 		}
-		emit(b, n.Children[0], src, l)
+		// A fat comma autoquotes the word to its left, so `a => 1` is the
+		// string "a" and writing `a()` calls it (§4.5.4). The flag form is
+		// handled in emitCommaSeparated; inside a call's arguments the `=>`
+		// is a Binary and the autoquote is a property of THIS operator.
+		if n.Text == "=>" && n.Children[0].Kind == Call && len(n.Children[0].Children) == 0 {
+			b.WriteString(n.Children[0].Text)
+		} else {
+			emit(b, n.Children[0], src, l)
+		}
 		b.WriteByte(' ')
 		b.WriteString(n.Text)
 		b.WriteByte(' ')
@@ -321,7 +353,15 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 func emitCommaSeparated(b *strings.Builder, n *Node, src []byte) {
 	for i, c := range n.Children {
 		if i > 0 {
-			b.WriteString(", ")
+			// Fat is set on the element BEFORE the `=>`, and the two commas
+			// are not interchangeable: `(a => 1)` is the string "a" where
+			// `(a, 1)` is a call to a (§4.5.4). Emitting the plain comma
+			// changes what the list contains.
+			if n.Children[i-1].Fat {
+				b.WriteString(" => ")
+			} else {
+				b.WriteString(", ")
+			}
 		}
 		emit(b, c, src, 0)
 	}

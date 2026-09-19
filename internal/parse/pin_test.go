@@ -68,6 +68,7 @@ func TestCIRunsTheRatchets(t *testing.T) {
 		"TestLexDotTGoldenStream",
 		"TestCanonRatchet",
 		"TestCanonTokenIdentity",
+		"TestCanonFidelityRatchet",
 	} {
 		if !strings.Contains(ci, name) {
 			t.Errorf("ci.yml does not check whether %s skipped", name)
