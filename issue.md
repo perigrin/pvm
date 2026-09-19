@@ -6,14 +6,14 @@ milestone: m1-parse-the-core
 blocked_by:
 - 01a0b84d-caa8-71d2-b42b-0c8445bc6026
 created: 2026-09-19T06:15:09.657423509Z
-updated: 2026-09-19T06:15:09.657423509Z
+updated: 2026-09-19T06:16:16.168909207Z
 ---
 
 Derive a call's parse shape from the prototype string, and use it so a
 parenless call to an imported sub parses.
 
 Split from 01a0ad3f on 2026-09-19. This is part 3 of 3, and the one the
-measurement was about. 01a0ad3f loads the module; 01a0b8xx-A reads its
+measurement was about. 01a0ad3f loads the module; 01a0b84d-caa8 reads its
 exports and prototypes; this issue spends them.
 
 ## The measurement
@@ -115,4 +115,4 @@ prototype string is trivially liftable.
 - [ ] A sub with no prototype swallows a list, and a `($)` one takes a single term (`go test ./internal/parse/ -run '^TestPrototypeArity$' -count=1 -v | grep -q '^--- PASS: TestPrototypeArity'`)
 - [ ] The T1 rate is re-measured and the change recorded, in BYTES as well as node counts
 
-Spec: ch4 §4.8.3. Blocked by 01a0b8xx-A (needs exports and prototypes).
+Spec: ch4 §4.8.3. Blocked by 01a0b84d-caa8 (needs exports and prototypes).
