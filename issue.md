@@ -6,7 +6,7 @@ milestone: m1-parse-the-core
 blocked_by:
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-16T06:13:00.800228773Z
-updated: 2026-09-19T12:04:14.548737103Z
+updated: 2026-09-19T12:13:04.830874486Z
 sessions:
 - start_sha: c3e65b4f5f9e760b2dac649b6094639e1508428d
   end_sha: 0c00558236cd0390188a786142520c32468bf8c7
@@ -158,3 +158,73 @@ would let the number it guards walk.
 Both new ratchets are named in ci.yml's skip check and in
 TestCIRunsTheRatchets. A corpus-backed ratchet CI never runs is 01a0b109
 happening again.
+
+
+### Review Findings
+
+paad:alignment, 2026-09-19, against 3adba517 + 0c005582. Two findings
+reproduced locally before accepting; both are mine, not the reviewer's
+misreading.
+
+**1. CRITICAL -- the fixpoint does NOT catch the mis-grouped tree.**
+
+I wrote into canon_test.go that it does. Measured with the exact wrong tree
+TestCanonCatchesMisgrouping builds:
+
+    WRONG tree: once="print((1 + 2) * 3);"
+                twice="print((1 + 2) * 3);"   FIXPOINT=true
+
+It is stable. The fixpoint compares canon's output against ITSELF and never
+involves S, so it is a STABILITY check, not a fidelity check. The literal
+AC 3 caught this case; the replacement does not. That comment is false and
+has to go.
+
+The parenless-call premise stands -- 519 files differing by one paren is
+real, and a tree-faithful emitter genuinely cannot reproduce both spellings.
+The error is the remedy: dropping S from the comparison is a far larger
+concession than that evidence supports.
+
+**2. CRITICAL -- ten interior kinds fall to `default` and emit raw source.**
+
+    Term Declaration Conditional Use Unknown LoopControl Loop Phaser
+    PrototypeNode Label
+
+81.4% of T1 bytes sit under a default-branch node. Nine of the ten are
+INTERIOR nodes whose whole subtree is discarded in favour of SourceText --
+which commit 3adba517's own message calls "SourceText with extra steps
+[that] proves nothing". Measured:
+
+    WRONG under Declaration: once="my $x = 1 + 2 * 3;"
+                             twice="my $x = 1 + 2 * 3;"  FIXPOINT=true
+
+A deliberately misgrouped subtree under `my` is invisible to BOTH checks.
+The commit subject "the whole vocabulary re-emits" is not supportable.
+
+**3. IMPORTANT -- TestCanonTokenIdentity gates nothing TestCanonRatchet does
+not.** Its predicate is a strict subset: a baseline-zero file that breaks is
+0 -> 1, which checkRatchet already fails on. The difference is message
+quality, which is real and useful, but it is a diagnostic rather than a
+second gate. I claimed they were not redundant; as gates, they are.
+
+**4. IMPORTANT -- the 171 are at least three classes, one filed.**
+
+    declarator / `;`-vs-`}`   97   01a0b983
+    paren accretion           45   NOT filed
+    heredoc / UnknownRest     28   NOT filed
+
+The 45 are an EMITTER defect by construction: `-d($core_dir)` re-emits as
+`-d(($core_dir))`, a paren accreting per pass. "Not emitter bugs" was stated
+as established and is not. canon_test.go hedged correctly with "the ones
+inspected"; the issue body and commit message dropped the hedge.
+
+**5. MINOR -- "clean" is not "correct".** For the 81.4% emitted verbatim,
+stability holds by construction. 82.7% is not a parse-fidelity rate and
+nothing says so.
+
+## Plan
+
+Fix 1 and 2 together -- 2 is the root cause. An emitter that actually emits
+interior nodes makes the corpus check mean something, and then the right
+oracle for 3 can be chosen against a real measurement rather than against a
+default branch. 4's two unfiled classes get issues once the emitter is honest,
+since some of the 45 may be artefacts of the default branch.
