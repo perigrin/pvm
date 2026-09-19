@@ -1,10 +1,19 @@
 ---
 title: "A phaser brace is a block: BEGIN { } leaves the lexer in the wrong state"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-18T22:28:03.205765477Z
-updated: 2026-09-18T22:46:33.292280021Z
+updated: 2026-09-19T01:11:11.251966061Z
+sessions:
+- start_sha: 1b21e398ccd962c900969acf3c1912a7c3aafa01
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-19T01:11:11.251966061Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-19T01:11:11.251966061Z
 ---
 
 The phaser half of this LANDED in 01a0ac52. What remains is the narrowing it
