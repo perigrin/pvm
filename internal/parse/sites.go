@@ -190,6 +190,20 @@ func decidedMarkers(stmt *Node) []decided {
 			if n.Text == "ref" {
 				add(parseoracle.SiteKindReference, n)
 			}
+			// perl: rv2hv. A DEREFERENCE is a hash site exactly as `%hash`
+			// is -- `%$href` and `%{$h}` emit the same op. isHashTerm below
+			// tests a LEAF's text, so it catches the plain form and misses
+			// every deref, whose `$href` leaf says nothing about the `%`
+			// that wraps it.
+			//
+			// Measured: cmd/subval.t:182,184 are both `%$href`, and the
+			// subject committed to those statements with no hash site and no
+			// hedge. That is WRONG, the one bucket that fails a build.
+			//
+			// `@$aref` is rv2av, a different op, so only `%` counts here.
+			if n.Text == "%" {
+				add(parseoracle.SiteKindHash, n)
+			}
 
 		case Binary:
 			// perl: match. `=~` and `!~` bind a pattern; s/// and tr/// are
