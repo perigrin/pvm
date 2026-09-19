@@ -1,10 +1,19 @@
 ---
 title: A quote delimiter is a character, not a byte
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-19T00:47:32.887135684Z
-updated: 2026-09-19T07:11:01.238964829Z
+updated: 2026-09-19T07:11:09.365240704Z
+sessions:
+- start_sha: 0db016fd18cba84ae70dcfb32f3453a5771bd27d
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-19T07:11:09.365240704Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-19T07:11:09.365240704Z
 ---
 
 A quote-like operator's delimiter is matched one BYTE at a time, so a
