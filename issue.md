@@ -1,22 +1,41 @@
 ---
 title: "Sigils are structural: the lexer swallows whole dereferences"
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
 - 01a0ac52-a68c-750b-92d4-852abfc54a2f
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-17T03:04:49.380252705Z
-updated: 2026-09-19T01:10:48.586599496Z
+updated: 2026-09-19T01:10:48.710754571Z
 sessions:
 - start_sha: 79468414ccabbf46d8a4bd211c18fe9a200487ca
-  end_sha: ""
-  commits: 0
+  end_sha: 1b21e398ccd962c900969acf3c1912a7c3aafa01
+  commits: 1
   started_at: 2026-09-18T22:54:10.809720993Z
+  ended_at: 2026-09-19T01:10:48.710754571Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-18T22:54:10.809720993Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-19T01:10:48.710754571Z
+observed_paths:
+- internal/lexer/expect.go
+- internal/lexer/lexer.go
+- internal/lexer/ratchet_test.go
+- internal/lexer/scan.go
+- internal/lexer/testdata/corpus.ratchet
+- internal/lexer/testdata/lex.t.tokens
+- internal/parse/call.go
+- internal/parse/deref_test.go
+- internal/parse/easy_test.go
+- internal/parse/ratchet_test.go
+- internal/parse/sites_decided_test.go
+- internal/parse/t2_test.go
+- internal/parse/term.go
+- internal/parse/testdata/t1.ratchet
 ---
 
 An attempt at this measured worse than it looks, and the reason is issue 01a0ac52.
