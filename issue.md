@@ -1,21 +1,28 @@
 ---
 title: "One statement reported as many WRONG sites: multi-line span attribution"
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocks:
 - 01a0bae2-e4fe-74e9-82cb-562c3fa8adf6
 created: 2026-09-19T18:10:16.339474961Z
-updated: 2026-09-19T20:38:20.933139588Z
+updated: 2026-09-19T20:38:21.082315925Z
 sessions:
 - start_sha: afdd06c9562e8c8efaa4fb31bad3824739ffb0ba
-  end_sha: ""
-  commits: 0
+  end_sha: 09e38fa97c039422168735f3da9b607b14677d80
+  commits: 1
   started_at: 2026-09-19T20:25:32.848375655Z
+  ended_at: 2026-09-19T20:38:21.082315925Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-19T20:25:32.848375655Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-19T20:38:21.082315925Z
+observed_paths:
+- internal/parseoracle/compare_facts.go
+- internal/parseoracle/span_test.go
 ---
 
 The same source line is reported WRONG many times over, which is one
