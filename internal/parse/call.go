@@ -84,7 +84,11 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 	// that opens a filehandle.
 	if next, ok := p.peekSignificant(); !ok || endsArgumentList(next, p.src) {
 		n.End = p.prevEnd()
-		n.Resolved = namedUnary[text] || listOperator[text] || niladicParse[text]
+		// An imported sub called with no arguments is as resolved as a
+		// builtin one: `done_testing;` and `maybe;` are calls whose callee
+		// this parser has seen declared.
+		n.Resolved = namedUnary[text] || listOperator[text] ||
+			niladicParse[text] || p.knowsShape(text)
 		return n
 	}
 
@@ -144,6 +148,17 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 			n.Children = append(n.Children, arg)
 		}
 		n.Resolved = true
+
+	case p.knowsShape(text):
+		// A sub this file imported or declared, whose prototype says how a
+		// call to it parses. §4.8.3's "let a later pass decide" is satisfied
+		// HERE when the module's source was readable -- the shape came from a
+		// declaration rather than a guess.
+		//
+		// This is what makes the parenless form parse at all. Measured: in
+		// T1, 889 of 986 files use Test::More and `subtest` appears 691
+		// times, always without parens.
+		p.parseByShape(n, text)
 
 	default:
 		// A bareword this parser does not know. It might be a user sub taking
