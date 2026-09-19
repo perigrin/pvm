@@ -331,7 +331,7 @@ type statement struct {
 // Unresolved makes it the hedge instead.
 func groupByStatement(sites []SubjectCallSite) []*statement {
 	var stmts []*statement
-	byKey := map[[2]int]*statement{}
+	byStart := map[int]*statement{}
 	for _, c := range sites {
 		m, ok := siteMarker(c)
 		if !ok {
@@ -341,13 +341,34 @@ func groupByStatement(sites []SubjectCallSite) []*statement {
 		if end < c.Line {
 			end = c.Line
 		}
-		key := [2]int{c.Line, end}
-		s := byKey[key]
+
+		// Keyed on the START line alone. A statement reports one site per
+		// marker it decided, each ending at its OWN node -- sites.go:83-101
+		// explains why both ends are needed -- so a statement holding three
+		// references emits three sites sharing a start and differing in end:
+		//
+		//	for (                      # op/ref.t:214
+		//	    [ 'undef', \undef  ],  # 215
+		//	    [ 'IV',    \1      ],  # 216
+		//
+		//	line=214 end=215, line=214 end=216, ...
+		//
+		// Keying on [start, end] made those three SEPARATE statements of one
+		// reference each. innermost then picks a single winner, its one
+		// reference is spent on perl's first site, and the rest find it
+		// empty and score WRONG. op/ref.t:214 produced 15 such sites.
+		//
+		// The end widens to the longest node seen, so the record still
+		// covers every line perl might attribute an op to.
+		s := byStart[c.Line]
 		if s == nil {
 			s = &statement{start: c.Line, end: end,
 				decided: map[Marker]int{}, hedged: map[Marker]int{}}
-			byKey[key] = s
+			byStart[c.Line] = s
 			stmts = append(stmts, s)
+		}
+		if end > s.end {
+			s.end = end
 		}
 		switch {
 		case c.Unresolved:
