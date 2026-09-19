@@ -3,8 +3,10 @@ title: "One statement reported as many WRONG sites: multi-line span attribution"
 state: pending
 urgency: normal
 milestone: m1-parse-the-core
+blocks:
+- 01a0bae2-e4fe-74e9-82cb-562c3fa8adf6
 created: 2026-09-19T18:10:16.339474961Z
-updated: 2026-09-19T18:11:01.788231035Z
+updated: 2026-09-19T18:17:31.367746494Z
 ---
 
 The same source line is reported WRONG many times over, which is one
