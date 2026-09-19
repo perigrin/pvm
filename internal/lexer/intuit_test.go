@@ -130,32 +130,35 @@ func TestRightParenStillOpensABlock(t *testing.T) {
 	}
 }
 
-// TestRightParenRegressionIsNamed pins WHY the closer-then-brace rule is
-// still broader than perl's, and what it costs.
+// TestRightParenRegressionIsNamed holds the cases that made the
+// closer-then-brace rule too broad to narrow, and it is now the guard on
+// them rather than the record of a debt.
 //
-// perl narrows it to `)`. Ours fires on any closer. Narrowing it to match
-// used to regress 16 T1 files; the phaser table took that to ONE, measured
-// after the fact rather than assumed:
+// perl's rule is `)` alone (toke.c yyl_rightparen, 7156). Ours fired on
+// every closer, and narrowing it cost 16 T1 files. Those 16 were not one
+// bug: they were two, each hiding the other, and the broad rule was papering
+// over both.
 //
-//	my @s = $r->@[ 2, 1 ];      postderef.t:12
-//
-// `@[` lexes as a Variable, so no `[` ever reaches the bracket stack, and
-// its `]` pops whatever was underneath. The stack is corrupted from there,
-// and the broad rule papers over the next brace. That is a postfix-slice
-// sigil defect, not a brace one -- 01a0ad52 owns it, and narrowing this rule
-// is 01a0b6a2's last step.
-//
-// What the 16 WERE is the other half of the record, and it is the case this
-// test holds: without a phaser table, `BEGIN` is an ordinary bareword
-// leaving XTerm, its `{` is an anonymous hash, its `}` leaves XOperator
-// instead of XState, and a bare block after it is a hashref too.
+// FIRST, the phasers. Without a phaser table `BEGIN` is an ordinary bareword
+// leaving XTerm, so its `{` is an anonymous hash, its `}` leaves XOperator
+// instead of XState, and a bare block after it is read as a hashref too:
 //
 //	BEGIN { my $x = 1; }
 //	{ use Foo; }
 //
-// These now pass on their own merits rather than by compensation, which is
-// what made narrowing cheap. The test stays because it is the guard: revert
-// the phaser table and these fail, whatever the closer rule does.
+// That took the cost from 16 files to one.
+//
+// SECOND, the postfix slice, which was the remaining one:
+//
+//	my @s = $r->@[ 2, 1 ];      postderef.t:12
+//
+// `@[` lexed as a Variable, so no `[` reached the bracket stack and its `]`
+// popped someone else's opener -- leaving the stack short for the rest of
+// the file. TestPostfixSliceSigilStopsAtTheBracket owns that one.
+//
+// With both fixed the rule is narrowed and costs nothing; postderef.t even
+// improved, 3 -> 2. This test keeps the phaser cases because they fail the
+// moment that table is reverted, whatever the closer rule does.
 func TestRightParenRegressionIsNamed(t *testing.T) {
 	// The five phasers. The bare block is the LAST brace: the phaser's own
 	// body comes first.
@@ -173,8 +176,10 @@ func TestRightParenRegressionIsNamed(t *testing.T) {
 		}
 	}
 
-	// The forms that do NOT need it, which is what makes the phaser case a
-	// defect rather than the way Perl works. Each ends in the same bare
+	// The forms that ALWAYS worked, which is what made the phaser case a
+	// defect rather than the way Perl works: a sub body, a conditional and a
+	// paren list each leave the machine in a state that reads the following
+	// brace correctly, and a phaser did not. Each ends in the same bare
 	// block, so the assertion is about the LAST brace -- the preceding forms
 	// have different brace counts of their own.
 	for _, src := range []string{

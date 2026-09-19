@@ -54,6 +54,26 @@ func scanVariable(l *lexer) bool {
 		return true
 	}
 
+	// A POSTFIX SLICE: `$r->@[0,1]`, `$r->%{'a'}`. The sigil is the whole
+	// token and the bracket after it is an ordinary opener, so it reaches
+	// the bracket stack.
+	//
+	// Without this the sigil scanner took `@[` as a punctuation variable
+	// named `[`. No opener was ever pushed, and the matching `]` then popped
+	// whatever was underneath -- corrupting the stack for the rest of the
+	// file, which is why a brace much later in postderef.t was misread.
+	//
+	// `@*` and `%*` are NOT this case: there the star IS the whole
+	// dereference and one Variable token is right. Measured:
+	//
+	//	$ perl -MO=Deparse -e 'my $r=[1,2,3]; my @s = $r->@[0,1]; my @t = $r->@*;'
+	//	my(@s) = @$r[0, 1];
+	//	my(@t) = @$r;
+	if l.expect == XPostDeref && (l.src[l.pos] == '[' || l.src[l.pos] == '{') {
+		l.emit(Variable, start)
+		return true
+	}
+
 	// A sigil applied to an EXPRESSION is its own token, and the expression
 	// after it is lexed normally so the parser can read it.
 	//

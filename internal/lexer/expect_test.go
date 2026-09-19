@@ -367,6 +367,77 @@ func TestPostfixDerefStillLexes(t *testing.T) {
 	}
 }
 
+// TestPostfixSliceSigilStopsAtTheBracket: `$r->@[0,1]` is a sigil and a
+// SUBSCRIPT, so the bracket must reach the bracket stack.
+//
+// The sigil scanner took `@[` as a punctuation variable named `[` -- a
+// plausible-looking token, and nothing checked it. No opener was pushed, so
+// the matching `]` popped whatever was underneath and the stack stayed one
+// entry short for the REST OF THE FILE. The visible symptom was a brace
+// misread 40 lines later in postderef.t, which is why this went unfound
+// through three separate passes over brace classification.
+//
+// The contrast is what makes it a rule rather than a special case: `@*` and
+// `%*` ARE the whole dereference and stay one token. Measured:
+//
+//	$ perl -MO=Deparse -e 'my $r=[1,2,3]; my @s = $r->@[0,1]; my @t = $r->@*;'
+//	my(@s) = @$r[0, 1];
+//	my(@t) = @$r;
+func TestPostfixSliceSigilStopsAtTheBracket(t *testing.T) {
+	for _, tc := range []struct {
+		src   string
+		sigil string
+	}{
+		{`my @s = $r->@[ 2, 1 ];`, "@"},
+		{`my @s = $r->@{ 'a' };`, "@"},
+		{`my @s = $r->%[ 0 ];`, "%"},
+	} {
+		var got string
+		for _, tok := range Tokenize([]byte(tc.src)) {
+			if tok.Kind == Variable && tok.Start > 8 {
+				got = tc.src[tok.Start:tok.End]
+				break
+			}
+		}
+		if got != tc.sigil {
+			t.Errorf("%q: the sigil of a postfix slice is %q alone, got %q -- "+
+				"swallowing the bracket leaves its closer to pop someone "+
+				"else's opener", tc.src, tc.sigil, got)
+		}
+	}
+
+	// The whole-deref forms keep their star, and this is the guard against
+	// "fixing" the above by splitting every sigil after `->`.
+	for _, src := range []string{`$r->@*`, `$r->%*`, `$r->$*`} {
+		var got string
+		for _, tok := range Tokenize([]byte(src)) {
+			if tok.Start == 4 {
+				got = src[tok.Start:tok.End]
+				break
+			}
+		}
+		if len(got) != 2 {
+			t.Errorf("%q: `%s` is the whole dereference and stays one token, "+
+				"got %q", src, src[4:], got)
+		}
+	}
+
+	// And the stack stays balanced afterwards, which is the property the
+	// swallowed bracket actually broke. A `}` that closes a BLOCK after the
+	// slice must still say so.
+	src := `my @s = $r->@[0,1]; if (1) { 2 }`
+	var sawBlockClose bool
+	for _, tok := range Tokenize([]byte(src)) {
+		if tok.Kind == CloseBracket && src[tok.Start] == '}' && tok.OpensBlock {
+			sawBlockClose = true
+		}
+	}
+	if !sawBlockClose {
+		t.Errorf("%q: the `}` after a postfix slice must still close a BLOCK "+
+			"-- an unbalanced stack misreads every brace that follows", src)
+	}
+}
+
 // TestQuoteOpNameAfterSubOrMethod: the name of a `sub` or a `method` may be
 // spelled the same as a quote-like operator, and perl reads it as a name.
 //

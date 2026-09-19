@@ -107,9 +107,6 @@ type transition struct {
 	// closedBlock is set when this token is a `}` that closed a block rather
 	// than a subscript. See trackBrackets.
 	closedBlock bool
-	// closedSubscript is set when this token closed a subscript -- a `]`, or
-	// a `}` that closed one. Not closedBlock's negation: a `)` is neither.
-	closedSubscript bool
 	// nextIsOpenBrace is whether a `{` follows, ignoring whitespace. perl
 	// looks ahead exactly this far at a `)`; see yyl_rightparen.
 	nextIsOpenBrace bool
@@ -159,33 +156,30 @@ func (e Expect) after(k Kind, t transition) Expect {
 		// as modulus: the `{` was classified from XOperator and its `}` then
 		// reported a closed subscript.
 		//
-		// NOT narrowed to `)`, though perl's own rule is. It used to cost 16
-		// T1 files; the phaser table below took that to ONE, and the one is
-		// named rather than guessed:
+		// Narrowed to `)`, which is perl's own rule, and it took three
+		// separate fixes to afford. It cost 16 T1 files at first; the phaser
+		// table took that to ONE, and the postfix-slice sigil took it to
+		// zero:
 		//
 		//	my @s = $r->@[ 2, 1 ];
 		//
-		// `@[` lexes as a Variable, so no `[` ever reaches the bracket
-		// stack, and its `]` pops whatever was underneath. The stack is
-		// corrupted from there on, and the broad rule happens to paper over
-		// the next brace. A postfix-slice sigil problem, not a brace one --
-		// 01a0ad52 owns it, and narrowing this rule is 01a0b6a2's last step.
+		// `@[` lexed as a Variable, so no `[` ever reached the bracket
+		// stack and its `]` popped whatever was underneath -- corrupting the
+		// stack for the rest of the file, which the BROAD rule then papered
+		// over by accident. Each defect was hiding the next.
 		//
-		// A closed SUBSCRIPT is excluded, and that part is not a hedge. A
-		// `{` after one continues the chain:
+		// Narrowing also SUBSUMES the subscript-chain exclusion that stood
+		// here. A `{` after a subscript continues the chain:
 		//
 		//	$a[0]{k}    $h{a}{b}    $x->[0]{k}    ${$y}{Keys}
 		//
-		// The last of those is reachable only since a dereference became
-		// several tokens: while `${$y}` lexed as one Variable, no
-		// CloseBracket ever preceded the subscript and nothing could expose
-		// it. Before the exclusion every second brace in a chain carried
-		// OpensBlock, which is a token saying a block starts where a
-		// subscript does. The parser happened to survive it -- it reaches
-		// those braces through the postfix path, which never asks -- so
-		// nothing failed, and a flag that lies until someone reads it is
-		// exactly the kind of defect the brace stack exists to prevent.
-		if t.nextIsOpenBrace && !t.closedSubscript {
+		// and while the rule fired for every closer, each second brace in a
+		// chain carried OpensBlock -- a token saying a block starts where a
+		// subscript does. It took an explicit `!closedSubscript` to stop
+		// that. A `)` never closes a subscript, so the paren test covers it
+		// and the extra check would be a condition that can never fire.
+		// TestRightParenLookaheadIsParenOnly holds the chains either way.
+		if t.nextIsOpenBrace && t.text[0] == ')' {
 			return XBlock
 		}
 		return XOperator
