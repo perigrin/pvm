@@ -3,6 +3,8 @@
 
 package lexer
 
+import "unicode/utf8"
+
 // quoteOp describes one keyword-introduced quote-like operator.
 //
 // parts is how many delimited sections it takes: 2 for q/qq/qw/m/qr (the
@@ -43,7 +45,12 @@ var quoteOps = []quoteOp{
 // These four are the only pairs. Everything else closes with itself, which is
 // what toke.c:12412 means by `if (PL_multi_open == PL_multi_close)`: nesting
 // is the exception, not the rule.
-func pairedCloser(open byte) byte {
+//
+// A rune rather than a byte to match the delimiter it compares against, but
+// the table stays ASCII: perl rejects a paired multi-byte delimiter outright
+// ("Use of '«' is deprecated as a string delimiter", then "Can't find string
+// terminator"), so there is no pair to add.
+func pairedCloser(open rune) rune {
 	switch open {
 	case '(':
 		return ')'
@@ -64,7 +71,7 @@ func scanQuoteLike(l *lexer) bool {
 	start := l.pos
 
 	// A plain string form is its own delimiter: '...', "...", `...`.
-	if c := l.src[l.pos]; c == '\'' || c == '"' || c == '`' {
+	if c := rune(l.src[l.pos]); c == '\'' || c == '"' || c == '`' {
 		l.pos++
 		if !l.scanDelimitedBody(c, pairedCloser(c)) {
 			l.emit(UnknownRest, start)
@@ -103,8 +110,24 @@ func scanQuoteLike(l *lexer) bool {
 	// `$q` or `sub q_thing` is an identifier, and `s` in `$s = 1` is not a
 	// substitution. A word character immediately after the keyword means it
 	// is part of a longer name.
-	if after < len(l.src) && isWordByte(l.src[after]) {
-		return false
+	//
+	// The word character may be MULTI-BYTE. Under `use utf8` perl widens the
+	// identifier class, and t/uni/gv.t:488 has a sub whose name begins with a
+	// quote keyword:
+	//
+	//	my $rv = \*sምḲ;
+	//
+	// `sምḲ` is one identifier -- verified by running it -- so `s` is not a
+	// substitution here. Testing only the next BYTE reads `ም` as a delimiter
+	// and the substitution then runs to EOF, swallowing 10KB of the file.
+	//
+	// identContinue is the same predicate the identifier scanner uses, so the
+	// two cannot disagree about where a name ends.
+	if after < len(l.src) {
+		r, _ := utf8.DecodeRune(l.src[after:])
+		if identContinue(r, l.utf8Pragma) {
+			return false
+		}
 	}
 
 	// A fat comma quotes the word to its left (§4.5.4), and that includes
@@ -125,7 +148,7 @@ func scanQuoteLike(l *lexer) bool {
 	// A '#' GLUED to the keyword is the delimiter; only a '#' reached after
 	// skipping whitespace is a comment. Measured: `q#a#` is the string "a",
 	// `q #a#` is a comment and the delimiter follows it.
-	var open byte
+	var open rune
 	var found bool
 	if l.pos < len(l.src) && l.src[l.pos] == '#' {
 		open, found = '#', true
@@ -140,7 +163,7 @@ func scanQuoteLike(l *lexer) bool {
 		return true
 	}
 	close := pairedCloser(open)
-	l.pos++ // past the opening delimiter
+	l.pos += utf8.RuneLen(open) // past the opening delimiter, whole
 	replStart := 0
 
 	if !l.scanDelimitedBody(open, close) {
@@ -159,7 +182,7 @@ func scanQuoteLike(l *lexer) bool {
 				l.emit(UnknownRest, start)
 				return true
 			}
-			l.pos++
+			l.pos += utf8.RuneLen(open2)
 			replStart = l.pos
 			if !l.scanDelimitedBody(open2, pairedCloser(open2)) {
 				l.emit(UnknownRest, start)
@@ -247,7 +270,19 @@ func (l *lexer) queueHeredocsIn(start, end int) {
 // The delimiter there is `x`, two lines down. §2.10.5's comment between the
 // two halves of `s{a} # c\n {b}` is the same rule reached from the other
 // side.
-func (l *lexer) skipToDelimiter() (byte, bool) {
+// The delimiter is returned as a RUNE, not a byte. perl compares the whole
+// character, and `qq ϟ a ϟ` closes on the second `ϟ` rather than on its first
+// byte -- matching a byte at a time ends the token mid-sequence, which is a
+// span that cannot be re-lexed or shown to a user. Measured on 5.42.0:
+//
+//	qq ϟ hello ϟ        works
+//	q«paired»           "Use of '«' is deprecated as a string delimiter"
+//	                    then "Can't find string terminator"
+//
+// so only the NON-PAIRED multi-byte forms need to work; perl itself rejects
+// the paired ones, and pairedCloser stays byte-oriented because every
+// bracketing delimiter perl accepts is ASCII.
+func (l *lexer) skipToDelimiter() (rune, bool) {
 	for l.pos < len(l.src) {
 		c := l.src[l.pos]
 		switch {
@@ -258,7 +293,8 @@ func (l *lexer) skipToDelimiter() (byte, bool) {
 				l.pos++
 			}
 		default:
-			return c, true
+			r, _ := utf8.DecodeRune(l.src[l.pos:])
+			return r, true
 		}
 	}
 	return 0, false
@@ -277,36 +313,41 @@ func (l *lexer) skipToDelimiter() (byte, bool) {
 //
 //	$ perl -e '$_="a"; s\a\b\; print'
 //	b
-func (l *lexer) scanDelimitedBody(open, close byte) bool {
+//
+// A delimiter is a CHARACTER, so both the opener and the closer are runes and
+// every advance moves a whole one. `ϟ` is two bytes, and comparing the first
+// of them ends the token inside a UTF-8 sequence.
+func (l *lexer) scanDelimitedBody(open, close rune) bool {
 	closer := close
 	if closer == 0 {
 		closer = open
 	}
 	depth := 1
 	for l.pos < len(l.src) {
-		c := l.src[l.pos]
+		c, width := utf8.DecodeRune(l.src[l.pos:])
 		switch {
 		case c == closer:
 			depth--
-			l.pos++
+			l.pos += width
 			if depth == 0 {
 				return true
 			}
 		case close != 0 && c == open:
 			// Only a bracketing pair nests; a self-closing delimiter reaches
 			// the case above first and ends the body.
-			depth++
-			l.pos++
+			depth += 1
+			l.pos += width
 		case c == '\\' && closer != '\\':
-			// An escape consumes the next byte too, so a closer cannot hide
-			// behind a backslash -- unless the backslash IS the closer, which
-			// the case above already handled.
-			l.pos++
+			// An escape consumes the next CHARACTER too, so a closer cannot
+			// hide behind a backslash -- unless the backslash IS the closer,
+			// which the case above already handled.
+			l.pos += width
 			if l.pos < len(l.src) {
-				l.pos++
+				_, w := utf8.DecodeRune(l.src[l.pos:])
+				l.pos += w
 			}
 		default:
-			l.pos++
+			l.pos += width
 		}
 	}
 	return false

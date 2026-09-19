@@ -595,7 +595,7 @@
     0 uni/fold.t
     0 uni/goto.t
     0 uni/greek.t
-    5 uni/gv.t
+    0 uni/gv.t
     0 uni/labels.t
     0 uni/latin2.t
     0 uni/lex_utf8.t
@@ -604,11 +604,11 @@
     0 uni/opcroak.t
     0 uni/overload.t
    15 uni/package.t
-    1 uni/parser.t
+    0 uni/parser.t
     0 uni/readline.t
     0 uni/select.t
     0 uni/sprintf.t
-    2 uni/stash.t
+    0 uni/stash.t
     0 uni/tie.t
     0 uni/title.t
     0 uni/tr_utf8.t
