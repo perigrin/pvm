@@ -1,19 +1,27 @@
 ---
 title: Three ratchets and none of them runs in CI
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-17T20:22:39.30654244Z
-updated: 2026-09-19T07:19:59.708068341Z
+updated: 2026-09-19T07:19:59.828150319Z
 sessions:
 - start_sha: 0db016fd18cba84ae70dcfb32f3453a5771bd27d
-  end_sha: ""
-  commits: 0
+  end_sha: c3e65b4f5f9e760b2dac649b6094639e1508428d
+  commits: 1
   started_at: 2026-09-19T07:11:37.042871786Z
+  ended_at: 2026-09-19T07:19:59.828150319Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-19T07:11:37.042871786Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-19T07:19:59.828150319Z
+observed_paths:
+- .github/workflows/ci.yml
+- internal/parse/pin_test.go
+- internal/parse/testdata/t1corpus.pin
 ---
 
 Three ratchets exist and none of them runs in CI. Each skips when its corpus is absent, `ci.yml` sets no corpus variable, so `go test ./...` passes with all three silently skipped.
