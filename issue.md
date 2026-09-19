@@ -3,8 +3,10 @@ title: A brace before -> is a hashref, and two anonhash cases the tree misreads
 state: pending
 urgency: normal
 milestone: m1-parse-the-core
+blocked_by:
+- 01a0badc-a093-7e09-bdfb-002f4a73759f
 created: 2026-09-19T18:17:07.068073736Z
-updated: 2026-09-19T18:17:07.068073736Z
+updated: 2026-09-19T18:17:31.362579524Z
 ---
 
 35 WRONG anonhash sites, and most are span attribution -- but three are real
