@@ -1,10 +1,10 @@
 ---
 title: A declarator followed by a subscript loses the subscript to a second statement
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-19T11:53:47.469850114Z
-updated: 2026-09-19T12:44:17.887375807Z
+updated: 2026-09-19T12:44:24.41492651Z
 sessions:
 - start_sha: 5c9be6bd44b1282e2477531f28d641caad4eb9a0
   end_sha: 5c9be6bd44b1282e2477531f28d641caad4eb9a0
@@ -18,6 +18,22 @@ transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-19T12:12:26.849568149Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-19T12:44:24.41492651Z
+observed_paths:
+- internal/parse/canon.go
+- internal/parse/canon_test.go
+- internal/parse/decl.go
+- internal/parse/declsubscript_test.go
+- internal/parse/easy_test.go
+- internal/parse/expr.go
+- internal/parse/keyquote_test.go
+- internal/parse/precedence.go
+- internal/parse/t2_test.go
+- internal/parse/testdata/t1.ratchet
+- internal/parse/testdata/t1canon.ratchet
+- internal/parse/use_test.go
 ---
 
 A declarator followed by a SUBSCRIPTED variable stops after the variable and
