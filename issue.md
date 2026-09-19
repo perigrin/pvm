@@ -4,7 +4,7 @@ state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-19T18:17:06.945277771Z
-updated: 2026-09-19T20:59:15.555455554Z
+updated: 2026-09-19T21:11:02.857343848Z
 sessions:
 - start_sha: 34b103f60e9548502ff3afe1f4cbb943b3397863
   end_sha: ""
@@ -62,8 +62,58 @@ fixed by it.
 
 ## Acceptance
 
-- [ ] A bare `/.../` reports a match site (`go test ./internal/parse/ -run '^TestBarePatternIsAMatchSite$' -count=1 -v | grep -q '^--- PASS: TestBarePatternIsAMatchSite'`)
-- [ ] s///, tr/// and split's pattern still do not (`go test ./internal/parse/ -run '^TestBarePatternIsAMatchSite$' -count=1 -v | grep -q '^--- PASS: TestBarePatternIsAMatchSite'`)
-- [ ] WRONG match sites fall, measured (`go test ./internal/parseoracle/ -run '^TestGoParserWrongIsZero$' -count=1 -v | grep -q '^--- PASS: TestGoParserWrongIsZero'`)
+- [x] A bare `/.../` reports a match site (`go test ./internal/parse/ -run '^TestBarePatternIsAMatchSite$' -count=1 -v | grep -q '^--- PASS: TestBarePatternIsAMatchSite'`)
+- [x] s///, tr/// and split's pattern still do not (`go test ./internal/parse/ -run '^TestBarePatternIsAMatchSite$' -count=1 -v | grep -q '^--- PASS: TestBarePatternIsAMatchSite'`)
+- [x] WRONG match sites fall, measured (`go test ./internal/parseoracle/ -run '^TestGoParserWrongIsZero$' -count=1 -v | grep -q '^--- PASS: TestGoParserWrongIsZero'`)
 
 Found by 01a0ba79's ranked table. Plan: M1. Spec: §7.1.2.
+
+
+## Done, 2026-09-19 (25483d2b)
+
+    corpus match sites   50 -> 4
+    corpus WRONG sites  142 -> 96, files 45 -> 38
+    corpus exact        403 -> 405
+    no other marker moved
+    full suite green, 0 FAIL across the repo
+
+## The issue's diagnosis was wrong, and the cause was one line
+
+I filed this expecting the pattern to be reached "through a path the Term
+case does not take". Dumping the trees showed the Term right there with the
+correct text -- `/(\w+)/g` -- and the predicate simply rejecting it:
+
+    case len(text) >= 2 && text[0] == '/' && text[len(text)-1] == '/':
+
+The text must END in `/`, so `/abc/` was reported and `/abc/g` was not: it
+ends in the flag letter. Every pattern in re/pat.t carries a flag, which is
+why all 35 of its sites scored WRONG.
+
+The closing delimiter is still checked rather than trusting the leading `/`
+alone -- the lexer emits a Quote token only where a pattern is possible, but
+a leaf that begins with `/` and never closes is not one.
+
+## Both directions pinned
+
+s/// is subst, tr/// and y/// are trans, qr// compiles without matching --
+three different ops, none of them this marker -- each tested WITH and
+WITHOUT flags, since the flags are what this change loosened. Two division
+rows too (`$a / $b`, `6/2/3`): a rule that accepts a trailing character is
+exactly the kind that starts reading arithmetic as a regex.
+
+## The remaining 4 are not what this issue predicted
+
+Every file the old table named is gone. The four now are:
+
+    io/eintr_print.t:22  skip_all("does not match platform whitelist")
+    op/dump.t:25         skip_all("no point in dumping on $^O")
+    op/groups.t:27       skip_all("No 'id' or 'groups'") if
+    io/fs.t:38           my $accurate_timestamps =
+
+Three are `skip_all(...)`, where perl matches a pattern somewhere this
+parser does not see one -- most likely inside test.pl's own code reached
+through the call, which is a different question from the source text in
+front of us. The fourth is a multi-line assignment.
+
+Listed rather than diagnosed: four sites is below the bar for guessing, and
+whoever picks this up has the lines.
