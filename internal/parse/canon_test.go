@@ -105,6 +105,62 @@ func TestCanonCatchesMisgrouping(t *testing.T) {
 	}
 }
 
+// TestCanonVisitsInteriorNodes: no interior node emits its own source text.
+//
+// A kind that falls through to `default` writes SourceText -- which is the
+// thing this emitter exists NOT to be. Its children are never visited, so a
+// misgrouped subtree beneath it is invisible to every check in this file:
+//
+//	my $x = 1 + 2 * 3;   with ((1+2)*3) under the Declaration
+//	emits                my $x = 1 + 2 * 3;      byte-identical
+//
+// Measured before this test existed: ten kinds fell through, covering 81.4%
+// of T1 bytes. The assertion is structural rather than a byte count, because
+// a percentage moves with the corpus and the property does not.
+func TestCanonVisitsInteriorNodes(t *testing.T) {
+	// A misgrouped subtree under each interior kind must change the emission.
+	// If the kind emits raw source, the wrong tree and the right tree produce
+	// the same bytes and this fails.
+	misgrouped := func() *parse.Node {
+		return &parse.Node{Kind: parse.Binary, Text: "*", Start: 8, End: 17, Children: []*parse.Node{
+			{Kind: parse.Binary, Text: "+", Start: 8, End: 13, Children: []*parse.Node{
+				{Kind: parse.Term, Text: "1", Start: 8, End: 9},
+				{Kind: parse.Term, Text: "2", Start: 12, End: 13},
+			}},
+			{Kind: parse.Term, Text: "3", Start: 16, End: 17},
+		}}
+	}
+	correct := func() *parse.Node {
+		return &parse.Node{Kind: parse.Binary, Text: "+", Start: 8, End: 17, Children: []*parse.Node{
+			{Kind: parse.Term, Text: "1", Start: 8, End: 9},
+			{Kind: parse.Binary, Text: "*", Start: 12, End: 17, Children: []*parse.Node{
+				{Kind: parse.Term, Text: "2", Start: 12, End: 13},
+				{Kind: parse.Term, Text: "3", Start: 16, End: 17},
+			}},
+		}}
+	}
+
+	src := []byte("my $x = 1 + 2 * 3;")
+	build := func(expr *parse.Node) *parse.Node {
+		return &parse.Node{Kind: parse.SourceFile, Start: 0, End: len(src), Children: []*parse.Node{
+			{Kind: parse.Statement, Start: 0, End: len(src), Children: []*parse.Node{
+				{Kind: parse.Declaration, Text: "my", Start: 0, End: 17, Children: []*parse.Node{
+					{Kind: parse.Term, Text: "$x", Start: 3, End: 5},
+					expr,
+				}},
+			}},
+		}}
+	}
+
+	wrong := parse.Canon(build(misgrouped()), src)
+	right := parse.Canon(build(correct()), src)
+	if wrong == right {
+		t.Errorf("a misgrouped subtree under a Declaration emits identically to "+
+			"the correct one (%q) -- the kind is emitting its own source text "+
+			"and never visiting its children", wrong)
+	}
+}
+
 // TestCanonEmitsValidPerl: the emission is Perl that perl itself accepts.
 //
 // The fixpoint cannot see this class of defect, which is why it is asserted
@@ -120,6 +176,22 @@ func TestCanonEmitsValidPerl(t *testing.T) {
 		{`print $fh "x";`, `print($fh "x");`},
 		{`print STDERR "x";`, `print(STDERR "x");`},
 		{`print "x";`, `print("x");`},
+
+		// A nonassoc operator needs a paren on BOTH sides at equal power.
+		// `1 .. 2 .. 3` is a syntax error, so dropping it emits one.
+		{`(1 .. 2) .. 3;`, `(1 .. 2) .. 3;`},
+
+		// A statement ending in `}` still takes its semicolon unless it is a
+		// BLOCK form. `$x = sub {1;}$y = 2;` does not parse.
+		{`$x = sub { 1 }; $y = 2;`, `$x = sub {1;};$y = 2;`},
+		{`$x ||= {}; print 1;`, `$x ||= {};print(1);`},
+
+		// A word operator needs a separator: `not foo` calls foo and
+		// `notfoo` is the bareword "notfoo".
+		{`not $a and $b;`, `not $a and $b;`},
+
+		// A block form takes none.
+		{`if (1) { 2; }`, `if (1) {2;}`},
 	} {
 		got := strings.TrimSpace(parse.Canon(parse.Parse([]byte(tc.src)), []byte(tc.src)))
 		if got != tc.want {
@@ -150,18 +222,25 @@ func significant(src []byte) []string {
 // canonMatches reports whether canon(parse(src)) is a FIXPOINT: re-parsing
 // the emission and emitting it again gives the same text back.
 //
-// Not `tokens(canon(parse(S))) == tokens(S)`, which is what this criterion
-// first asked for and which no correct emitter can satisfy. Measured: 519 of
-// the 658 disagreeing T1 files differ only by a paren around a parenless
-// call. `print "x"` and `print("x")` parse to the SAME TREE -- correctly,
-// because they mean the same thing -- so a tree-faithful emitter must print
-// one form for both, and demanding the source already be in canonical form
-// is a demand about how Perl was typed rather than about the parse.
+// THIS IS A STABILITY CHECK, NOT A FIDELITY CHECK, and the distinction is
+// load-bearing. The source appears on neither side of the comparison after
+// the first emission, so a tree that is not a parse of its source can still
+// be a fixpoint. Measured, with the wrong tree TestCanonCatchesMisgrouping
+// builds by hand:
 //
-// The fixpoint keeps every bit of the power that criterion wanted. A tree
-// that is not a parse of its source emits text that parses to a DIFFERENT
-// tree, and the second emission diverges -- which is exactly what
-// TestCanonCatchesMisgrouping asserts by hand.
+//	WRONG tree: once="print((1 + 2) * 3);"
+//	            twice="print((1 + 2) * 3);"   fixpoint
+//
+// An earlier version of this comment claimed the fixpoint caught that. It
+// does not. Fidelity is asserted by TestCanonCatchesMisgrouping and
+// TestCanonVisitsInteriorNodes, which compare against a correct tree; this
+// sweeps the corpus for emissions perl could not read back.
+//
+// The literal criterion -- `tokens(canon(parse(S))) == tokens(S)` -- is what
+// would carry fidelity corpus-wide, and no correct emitter can satisfy it:
+// 519 of 658 disagreeing files differ only by a paren around a parenless
+// call, and `print "x"` and `print("x")` parse to the SAME TREE. Quotienting
+// by exactly that equivalence is the open work; see the issue.
 func canonMatches(src []byte) (bool, string) {
 	once := []byte(parse.Canon(parse.Parse(src), src))
 	twice := []byte(parse.Canon(parse.Parse(once), once))

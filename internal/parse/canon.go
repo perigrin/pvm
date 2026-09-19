@@ -38,19 +38,22 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 		}
 
 	case Statement:
-		start := b.Len()
 		for _, c := range n.Children {
 			emit(b, c, src, 0)
 		}
-		// A statement whose emission already ends in `;` or `}` takes no
-		// terminator: `use strict;` carries its own, and `if (...) { }` is a
-		// block form that never had one.
+		// Only a BLOCK FORM goes without a terminator. Decided from the last
+		// child's kind, not from whether the text ends in `}`: that `}` is
+		// genuinely ambiguous, and reading it as "block form" drops the
+		// semicolon from every expression statement that happens to end in a
+		// brace.
 		//
-		// Decided from the emitted TEXT rather than from a list of block-like
-		// kinds, because that list drifts -- every kind added later would have
-		// to be remembered here, and forgetting one writes a semicolon the
-		// source never had.
-		if s := b.String()[start:]; !endsWith(s, ';') && !endsWith(s, '}') {
+		//	$x = sub { 1 }; $y = 2;   ->  $x = sub {1;}$y = 2;
+		//	$x ||= {}; print 1;       ->  $x ||= {}print(1);
+		//
+		// Both are syntax errors, and they were 404 statements across 218 of
+		// T1's 986 files. A kind list can drift; a wrong rule cannot be made
+		// right.
+		if !blockForm(n) {
 			b.WriteByte(';')
 		}
 
@@ -97,9 +100,17 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 		// Text is the OPERATION, not the source token: `-$x` is "neg" and
 		// `\$x` is "ref". The table is keyed by the token, so the operator
 		// has to be spelled back out.
-		b.WriteString(unaryToken(n.Text))
+		op := unaryToken(n.Text)
+		b.WriteString(op)
+		// A WORD operator needs a separator: `not foo` is a call to foo and
+		// `notfoo` is the bareword "notfoo". The symbol operators must not
+		// have one, because `\ $x` and `- $x` read differently in some
+		// positions and a space there is never required.
+		if isWordOp(op) {
+			b.WriteByte(' ')
+		}
 		if len(n.Children) == 1 {
-			emit(b, n.Children[0], src, prefix[unaryToken(n.Text)])
+			emit(b, n.Children[0], src, prefix[op])
 		}
 
 	case Postfix:
@@ -181,6 +192,88 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 		}
 		b.WriteByte('}')
 
+	case Declaration:
+		// `my`, `our`, `local`, `state`, `sub` and `package`. The keyword,
+		// then the children -- a target and optionally an initialiser or a
+		// body. An `=` initialiser arrives as a Binary already holding the
+		// target, so it is not written here.
+		b.WriteString(n.Text)
+		for i, c := range n.Children {
+			// `my $x = 1` arrives as TWO children, target and initialiser,
+			// with the `=` consumed by parseVarDecl rather than left in the
+			// tree (decl.go:90-95). Joining them with a space alone emits
+			// `my $x 1`, so the operator has to be written back.
+			//
+			// A `sub` body is the exception: `sub f { }` has a name and a
+			// Block and no assignment between them.
+			switch {
+			case i == 0 || c.Kind == Block:
+				b.WriteByte(' ')
+			default:
+				b.WriteString(" = ")
+			}
+			emit(b, c, src, 0)
+		}
+
+	case Conditional, Loop:
+		// `if (COND) BLOCK`, `while (COND) BLOCK`, and the rest. Text is the
+		// keyword, kept as written -- `unless` is not rewritten into a
+		// negated `if`, because the CST records what was typed.
+		b.WriteString(n.Text)
+		for _, c := range n.Children {
+			b.WriteByte(' ')
+			if c.Kind == Block {
+				emit(b, c, src, 0)
+				continue
+			}
+			// The condition is parenthesised: these are the forms whose
+			// parens are grammar rather than grouping.
+			b.WriteByte('(')
+			emit(b, c, src, 0)
+			b.WriteByte(')')
+		}
+
+	case Use:
+		// `use`, `no` or `require`: the keyword, the module, and whatever
+		// import list followed. Parsed, not executed.
+		b.WriteString(n.Text)
+		for _, c := range n.Children {
+			b.WriteByte(' ')
+			emit(b, c, src, 0)
+		}
+		b.WriteByte(';')
+
+	case Phaser:
+		// `BEGIN`, `END` and the rest, each with a block.
+		b.WriteString(n.Text)
+		for _, c := range n.Children {
+			b.WriteByte(' ')
+			emit(b, c, src, 0)
+		}
+
+	case LoopControl:
+		// `last`, `next` or `redo`, with an optional label.
+		//
+		// The label here is a TARGET, not a statement label: `next L` names
+		// the loop to continue. Emitting the Label node's own form would
+		// write `next L: `, which is a label on an empty statement.
+		b.WriteString(n.Text)
+		for _, c := range n.Children {
+			b.WriteByte(' ')
+			b.WriteString(c.Text)
+		}
+		b.WriteByte(';')
+
+	case Label:
+		b.WriteString(n.Text)
+		b.WriteString(": ")
+
+	case Unknown:
+		// The one kind whose own text IS the answer. Unknown spans exactly
+		// the bytes this parser could not read, and it has no structure to
+		// emit -- writing the source back is what a refusal looks like.
+		b.WriteString(n.SourceText(src))
+
 	case Binary:
 		info := infix[n.Text]
 		if len(n.Children) != 2 {
@@ -195,8 +288,20 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 		// This is rightBP() read backwards, which is the point: the emitter
 		// asks the same question the parser did, and gets the same answer.
 		l, r := info.BP, info.BP+1
-		if info.Assoc == AssocRight {
+		switch info.Assoc {
+		case AssocRight:
 			l, r = info.BP+1, info.BP
+		case AssocNone:
+			// Neither side may repeat at equal power, so BOTH need a paren.
+			// `precedence.go:14-18` says a binding power alone cannot
+			// express nonassoc -- it stops the recursion but still accepts
+			// the input -- and this is the second place that has to know.
+			// Dropping the paren emits a syntax error:
+			//
+			//	(1 .. 2) .. 3    ->  1 .. 2 .. 3
+			//	$ perl -e '1 .. 2 .. 3'
+			//	syntax error, near "2 .."
+			l, r = info.BP+1, info.BP+1
 		}
 		emit(b, n.Children[0], src, l)
 		b.WriteByte(' ')
@@ -266,6 +371,13 @@ func unaryToken(op string) string {
 	}
 }
 
+// isWordOp reports whether an operator is spelled as a word, and so needs a
+// space before its operand.
+func isWordOp(op string) bool {
+	c := op[len(op)-1]
+	return c == '_' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+}
+
 // closer is the bracket that closes the one an Index opened.
 func closer(open string) byte {
 	switch open {
@@ -281,14 +393,23 @@ func closer(open string) byte {
 // atomBP is above every level in the table: nothing can split an atom.
 const atomBP = 1000
 
-// endsWith reports whether s ends in c, ignoring trailing whitespace.
-func endsWith(s string, c byte) bool {
-	for i := len(s) - 1; i >= 0; i-- {
-		switch s[i] {
-		case ' ', '\t', '\n', '\r':
-			continue
-		}
-		return s[i] == c
+// blockForm reports whether a statement ends in a block and so takes no
+// semicolon.
+//
+// The kinds that write their own terminator are included: `use strict;` and
+// `next L;` emit theirs in their own case, and a second one here would be a
+// stray token.
+func blockForm(n *Node) bool {
+	if len(n.Children) == 0 {
+		return false
+	}
+	switch n.Children[len(n.Children)-1].Kind {
+	case Conditional, Loop, Phaser, Block, Use, LoopControl, Unknown:
+		return true
+	case Declaration:
+		// `sub f { }` is a block form; `my $x = 1` is not.
+		d := n.Children[len(n.Children)-1]
+		return len(d.Children) > 0 && d.Children[len(d.Children)-1].Kind == Block
 	}
 	return false
 }
