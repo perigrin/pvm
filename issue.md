@@ -6,7 +6,7 @@ milestone: m1-parse-the-core
 blocks:
 - 01a0bae2-e4fe-74e9-82cb-562c3fa8adf6
 created: 2026-09-19T18:10:16.339474961Z
-updated: 2026-09-19T20:25:32.848375655Z
+updated: 2026-09-19T20:38:20.933139588Z
 sessions:
 - start_sha: afdd06c9562e8c8efaa4fb31bad3824739ffb0ba
   end_sha: ""
@@ -69,9 +69,9 @@ owns prototypes; this is separate and lands in M1.
 
 ## Acceptance
 
-- [ ] The repeated-line sites resolve to one statement each, measured (`go test ./internal/parseoracle/ -run '^TestStatementSpanCoversItsOps$' -count=1 -v | grep -q '^--- PASS: TestStatementSpanCoversItsOps'`)
-- [ ] The cause is recorded: span not covering, or duplicate sites (`go test ./internal/parse/ -run '^TestSitesSpanMultilineStatement$' -count=1 -v | grep -q '^--- PASS: TestSitesSpanMultilineStatement'`)
-- [ ] WRONG srefgen sites fall, measured over the corpus (`go test ./internal/parseoracle/ -run '^TestGoParserWrongIsZero$' -count=1 -v | grep -q '^--- PASS: TestGoParserWrongIsZero'`)
+- [x] The repeated-line sites resolve to one statement each, measured (`go test ./internal/parseoracle/ -run '^TestStatementSpanCoversItsOps$' -count=1 -v | grep -q '^--- PASS: TestStatementSpanCoversItsOps'`)
+- [x] The cause is recorded: span not covering, or duplicate sites (`go test ./internal/parse/ -run '^TestSitesSpanMultilineStatement$' -count=1 -v | grep -q '^--- PASS: TestSitesSpanMultilineStatement'`)
+- [x] WRONG srefgen sites fall, measured over the corpus (`go test ./internal/parseoracle/ -run '^TestGoParserWrongIsZero$' -count=1 -v | grep -q '^--- PASS: TestGoParserWrongIsZero'`)
 
 Found by 01a0ba79's ranked table. Plan: M1. Spec: §7.2.
 
@@ -100,3 +100,65 @@ HAND SIDE, line 433, which carries five explicit backslashes:
 So this is the same defect as the rest of this issue -- ops on line 433
 attributed to the statement beginning at 432 -- and not a parse rule. 36 of
 the 88 WRONG srefgen sites are span attribution once lvref.t is counted.
+
+
+## Done, 2026-09-19 (09e38fa9)
+
+    corpus WRONG files   72 -> 51
+    corpus WRONG sites  292 -> 163
+    corpus exact        387 -> 401
+    full suite green, 0 FAIL across the repo
+
+    srefgen   88 -> 38      anonhash  35 ->  2
+    match     73 -> 50      readline  25 -> 25
+    rv2hv     71 -> 48
+
+129 of the 292 sites were this one defect, spread across every marker.
+
+## Both hypotheses in this issue were wrong
+
+I proposed (a) the span not covering perl's line, or (b) the subject
+emitting duplicate sites. Dumping op/ref.t showed neither:
+
+    kind=reference line=214 end=215 took_ref=true
+    kind=reference line=214 end=216 took_ref=true
+    ... fifteen, one per backslash, every Line matching perl's
+
+The subject was right. The defect was one layer down in `groupByStatement`,
+which this issue did not name: it keyed a statement record on [start, end],
+and since `Sites` deliberately ends each site at its OWN node
+(sites.go:83-101), fifteen references in one statement became fifteen
+records of one reference each. `innermost` picks one winner, its reference
+is spent on perl's first site, and the rest score WRONG.
+
+Keyed on the start line instead, with the end widening to the furthest node.
+
+## AC 2's package was wrong, for the same reason
+
+It named `./internal/parse/`, because I had assumed the cause was in
+`Sites`. TestSitesSpanMultilineStatement lives in `parseoracle`, where the
+code it tests is. Verified there rather than moving a test to the wrong
+package to satisfy a stale command.
+
+## Two guards, because a merge over-reaches easily
+
+TestNestedStatementStillOwnsItsLines -- a `\` inside a sub body stays its
+own record. That is the case the per-node end exists for
+(t/class/destruct.t:22), and merging by start alone does not touch it: the
+body's statement has its own start line.
+
+TestOneReferenceStillAccountsForOne -- the merge changes which record a site
+lands in, never how many a record holds.
+
+persite_test.go's attribution tests all still pass, which is the real check.
+
+## What this leaves visible
+
+    readline  25   all the builtin           01a0bae1-b741
+    match     50   bare /.../ against $_     01a0bae2-e481
+    rv2hv     48   lexical vs package hash   01a0bae1-b76f
+    srefgen   38   18 are pinned M4 work
+    anonhash   2   almost all of it was this bug
+
+01a0bae2-e4fe (anonhash) was blocked on this and should be re-measured
+before it is worked: its 35 sites are now 2.
