@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a0b84d-ec59-777f-8a00-71e407c9f469
 created: 2026-09-19T06:15:01.031946657Z
-updated: 2026-09-19T06:15:01.031946657Z
+updated: 2026-09-19T06:16:16.13062919Z
 ---
 
 Read what a module exports and what each sub's prototype is, from the
@@ -16,7 +16,7 @@ module's own text.
 
 Split from 01a0ad3f on 2026-09-19. This is part 2 of 3: 01a0ad3f builds the
 loader that gets the module's bytes; this issue reads facts out of them;
-01a0b8xx-B turns those facts into parse shape at the call site.
+01a0b84d-ec59 turns those facts into parse shape at the call site.
 
 ## Everything needed is in the text
 
@@ -45,7 +45,7 @@ Not a shape enum. The prototype DETERMINES the shape, measured:
 
 So shape is derived, not stored. A stored `shape` field would be a second
 copy of one fact -- the failure mode this project keeps finding. Deriving it
-is 01a0b8xx-B; this issue stores the string and an explicit null for "no
+is 01a0b84d-ec59; this issue stores the string and an explicit null for "no
 prototype", which is distinct from "not known".
 
 That three-way distinction is the whole point of this issue and it is what
