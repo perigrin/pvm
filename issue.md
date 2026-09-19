@@ -1,19 +1,29 @@
 ---
 title: "A file verdict names no work: keep the per-statement findings the comparison already computes"
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-19T16:22:28.75915195Z
-updated: 2026-09-19T17:06:55.424564647Z
+updated: 2026-09-19T17:06:55.626455084Z
 sessions:
 - start_sha: 461ea788c4b3a17b7c9771e80fc6e45de3bbbf18
-  end_sha: ""
-  commits: 0
+  end_sha: afdd06c9562e8c8efaa4fb31bad3824739ffb0ba
+  commits: 1
   started_at: 2026-09-19T16:54:17.669777988Z
+  ended_at: 2026-09-19T17:06:55.626455084Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-19T16:54:17.669777988Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-19T17:06:55.626455084Z
+observed_paths:
+- internal/parseoracle/compare.go
+- internal/parseoracle/compare_facts.go
+- internal/parseoracle/findings.go
+- internal/parseoracle/findings_test.go
+- internal/parseoracle/goparser_test.go
 ---
 
 A file verdict says `op/bop.t: WRONG`. It does not say which statement, which
