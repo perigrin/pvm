@@ -1,19 +1,26 @@
 ---
 title: A bare /.../ matching against $_ is not reported as a match site
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-19T18:17:06.945277771Z
-updated: 2026-09-19T21:11:02.857343848Z
+updated: 2026-09-19T21:11:02.928119055Z
 sessions:
 - start_sha: 34b103f60e9548502ff3afe1f4cbb943b3397863
-  end_sha: ""
-  commits: 0
+  end_sha: 25483d2b5bfff159cfc023dec9b050ce0c57c4b3
+  commits: 1
   started_at: 2026-09-19T20:59:15.555455554Z
+  ended_at: 2026-09-19T21:11:02.928119055Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-19T20:59:15.555455554Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-19T21:11:02.928119055Z
+observed_paths:
+- internal/parse/barepattern_test.go
+- internal/parse/sites.go
 ---
 
 A pattern with no `=~` matches against `$_`, and perl emits the match op for
