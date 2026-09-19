@@ -1,0 +1,57 @@
+---
+title: A brace before -> is a hashref, and two anonhash cases the tree misreads
+state: pending
+urgency: normal
+milestone: m1-parse-the-core
+created: 2026-09-19T18:17:07.068073736Z
+updated: 2026-09-19T18:17:07.068073736Z
+---
+
+35 WRONG anonhash sites, and most are span attribution -- but three are real
+and each is the "is `{` a block or a hashref" question §7.1.2 names.
+
+## The real cases
+
+**`grep {a=>$_}->{a}`** (op/grep.t:105). The `->` makes the brace a HASHREF,
+not grep's block. Measured:
+
+    $ perl -MO=Concise,-exec -e 'my @res = grep {a=>$_}->{a}, ("x");' | grep -c anonhash
+    1
+
+**`use overload '%{}' => sub { +{} }`** (op/coreamp.t:23) and
+**`'${}' => sub { \my $x }`**. `+{}` is the disambiguating unary plus that
+forces a hashref reading, and perl emits NO anonhash for it:
+
+    $ perl -MO=Concise,-exec -e 'my $x = sub { +{} };' | grep -c anonhash
+    0
+
+So the subject reporting one there is over-reporting, the opposite direction
+from the grep case. Both are the same ambiguity decided differently.
+
+**`\state %y = {1,2}`** (op/lvref.t:370) and **`bless {`** (op/sort.t:944,
+op/switch.t:1228) need measuring individually.
+
+## The rest is span attribution
+
+    op/sprintf2.t:347           x8   "my @tests = ("
+    mro/package_aliases.t       x6   "for("
+    mro/package_aliases_utf8.t  x6   "for("
+    op/bop.t:693                x3   "my %op_pairs = ("
+    op/pos.t:138                x2   "my %expected = ("
+
+A hash literal assigned to a hash emits no anonhash at all:
+
+    $ perl -MO=Concise,-exec -e 'my %op_pairs = ( a => 1 );' | grep -c anonhash
+    0
+
+so these are the first line of a multi-line statement whose ops belong
+elsewhere -- 01a0badc's shape. Fix that first and re-measure before touching
+this; the residue is what this issue is actually about.
+
+## Acceptance
+
+- [ ] `grep {a=>$_}->{a}` reports an anonhash site (`go test ./internal/parse/ -run '^TestBraceBeforeArrowIsAHashref$' -count=1 -v | grep -q '^--- PASS: TestBraceBeforeArrowIsAHashref'`)
+- [ ] `+{}` does NOT report one, matching perl (`go test ./internal/parse/ -run '^TestBraceBeforeArrowIsAHashref$' -count=1 -v | grep -q '^--- PASS: TestBraceBeforeArrowIsAHashref'`)
+- [ ] The remaining cases are measured and recorded, blocked on 01a0badc (`go test ./internal/parseoracle/ -run '^TestGoParserWrongIsZero$' -count=1 -v | grep -q '^--- PASS: TestGoParserWrongIsZero'`)
+
+Found by 01a0ba79's ranked table. Plan: M1. Spec: §7.1.2, §4.9.2.
