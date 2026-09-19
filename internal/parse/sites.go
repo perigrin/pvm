@@ -403,8 +403,16 @@ func isBarePattern(text string) bool {
 		return false
 	case quoteOpIs(text, "m"):
 		return true
-	case len(text) >= 2 && text[0] == '/' && text[len(text)-1] == '/':
-		return true
+	case len(text) >= 2 && text[0] == '/':
+		// A trailing FLAG still leaves a match. Requiring the text to end
+		// in `/` reported `/abc/` and missed `/abc/g`, which is every
+		// pattern in re/pat.t -- 35 of its sites, and 50 across the corpus.
+		//
+		// The closing delimiter must still be there, so this looks for a
+		// second `/` rather than trusting the leading one: the lexer emits
+		// a Quote token only where a pattern is possible, but a leaf whose
+		// text merely begins with `/` and never closes is not one.
+		return strings.IndexByte(text[1:], '/') >= 0
 	}
 	return false
 }
