@@ -224,6 +224,11 @@ type Node struct {
 	// span arithmetic above and never affects round-trip.
 	loaded []string
 
+	// imports is what the file's `use` statements brought into scope, plus
+	// the subs it declares itself. Root only, same reasoning as loaded.
+	// Read through Imports.
+	imports map[string]Import
+
 	// Text is the operator or literal that names this node -- "+", "?:",
 	// "$x". Empty for nodes whose meaning is entirely their kind and
 	// children, such as a List.
@@ -362,6 +367,22 @@ func parseRoot(src []byte, res *resolver) *Node {
 	}
 	if res != nil {
 		root.loaded = res.loaded
+		root.imports = p.imports
+
+		// A local sub shadows an import, and its OWN prototype is the one
+		// that applies. Done after the whole file is parsed because a sub may
+		// be declared below the call that uses it.
+		for name, proto := range readModule(root).protos {
+			if root.imports == nil {
+				root.imports = map[string]Import{}
+			}
+			root.imports[name] = Import{
+				Name:           name,
+				Prototype:      proto,
+				PrototypeKnown: true,
+				Local:          true,
+			}
+		}
 	}
 	return root
 }
@@ -371,7 +392,11 @@ type parser struct {
 	src  []byte
 	toks []lexer.Token
 	res  *resolver
-	pos  int
+
+	// imports is what this file's `use` statements brought into scope,
+	// accumulated as they are parsed and lifted onto the root at the end.
+	imports map[string]Import
+	pos     int
 }
 
 // peekSignificant returns the next non-trivia token without consuming it.

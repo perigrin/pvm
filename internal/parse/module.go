@@ -78,16 +78,28 @@ type resolver struct {
 	load   Loader
 	seen   map[string]bool
 	loaded []string
+
+	// facts caches what each module's source said about itself, so a module
+	// used twice is read once as well as parsed once.
+	facts map[string]moduleFacts
 }
 
-// resolve parses a module's source once, and reports whether it was reached.
+// resolve parses a module's source once and returns what it says about
+// itself. The bool is whether the module was reached at all.
 //
-// Enrichment of the tree from what it finds is the next two issues:
-// 01a0b84d-caa8 reads exports and prototypes, 01a0b84d-ec59 derives parse
-// shape. This issue proves the source is located and handed to the parser.
-func (r *resolver) resolve(module string) {
-	if r == nil || r.load == nil || r.seen[module] {
-		return
+// A module already being resolved -- a cycle -- returns its facts so far,
+// which is what a partially-read module can honestly offer.
+func (r *resolver) resolve(module string) (moduleFacts, bool) {
+	if r == nil || r.load == nil {
+		return moduleFacts{}, false
+	}
+	if facts, ok := r.facts[module]; ok {
+		return facts, true
+	}
+	if r.seen[module] {
+		// In progress: this is a cycle. Returning "not reached" keeps the
+		// recursion finite without claiming the module does not exist.
+		return moduleFacts{}, false
 	}
 	// Marked before parsing, not after: the module's own `use` statements are
 	// read during that parse, and a cycle returns here before it can finish.
@@ -95,10 +107,16 @@ func (r *resolver) resolve(module string) {
 
 	src, ok := r.load(module)
 	if !ok {
-		return
+		return moduleFacts{}, false
 	}
 	r.loaded = append(r.loaded, module)
-	parseRoot(src, r)
+
+	facts := readModule(parseRoot(src, r))
+	if r.facts == nil {
+		r.facts = map[string]moduleFacts{}
+	}
+	r.facts[module] = facts
+	return facts, true
 }
 
 // LoadedModules names the modules reached while parsing this tree, in the

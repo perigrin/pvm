@@ -43,6 +43,7 @@ func (p *parser) parseTheRest(word lexer.Token) *Node {
 func (p *parser) parseUse(word lexer.Token) *Node {
 	p.advanceTo(word)
 	n := &Node{Kind: Use, Text: p.text(word), Start: word.Start}
+	var module string
 
 	// The module name is a BAREWORD, not an expression.
 	//
@@ -80,16 +81,7 @@ func (p *parser) parseUse(word lexer.Token) *Node {
 				term.End = num.End
 			}
 		}
-		// Resolve the module, if this parse has a loader and the name is a
-		// module rather than a version bundle.
-		//
-		// Enrichment only: whether the source is found changes what a later
-		// call KNOWS, never whether this statement parses. `use` is keyword,
-		// bareword, optional list, semicolon, and that is true whether or not
-		// the file exists.
-		if !isVersionPrefix(term.Text) {
-			p.res.resolve(term.Text)
-		}
+		module = term.Text
 		n.Children = append(n.Children, term)
 	}
 
@@ -97,10 +89,27 @@ func (p *parser) parseUse(word lexer.Token) *Node {
 	// Operator(".") then Number, and the Word half is taken as the name
 	// above -- the rest reads as an expression here, which round-trips even
 	// though the shape is not what perl's grammar calls a version.
+	var list *Node
 	if next, ok := p.peekSignificant(); ok && next.Kind != lexer.Semicolon {
 		if arg := p.parseExpr(0); arg != nil {
+			list = arg
 			n.Children = append(n.Children, arg)
 		}
+	}
+
+	// Resolve the module, if this parse has a loader and the name is a module
+	// rather than a version bundle.
+	//
+	// Enrichment only: whether the source is found changes what a later call
+	// KNOWS, never whether this statement parses. `use` is keyword, bareword,
+	// optional list, semicolon, and that is true whether or not the file
+	// exists. perl dies here; this parser must not, because parsing text is
+	// not running it.
+	//
+	// `no` and `require` are deliberately not resolved: `no` UNIMPORTS, and
+	// `require` is a runtime load with no import at all.
+	if module != "" && !isVersionPrefix(module) && n.Text == "use" {
+		p.resolveImports(module, list)
 	}
 
 	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
@@ -108,6 +117,41 @@ func (p *parser) parseUse(word lexer.Token) *Node {
 	}
 	n.End = p.prevEnd()
 	return n
+}
+
+// resolveImports reads a module's source and records what it brought in.
+//
+// A module that cannot be found contributes nothing, and calls to what it
+// would have exported stay unresolved -- correct, not a gap.
+func (p *parser) resolveImports(module string, list *Node) {
+	if p.res == nil {
+		return
+	}
+	facts, ok := p.res.resolve(module)
+	if !ok {
+		return
+	}
+
+	// An import list restricts what is imported, and `use M ()` -- an empty
+	// list -- is the explicit "load but import nothing" form, which is NOT
+	// the same as omitting the list.
+	var names []string
+	listGiven := list != nil
+	if listGiven {
+		if got, ok := literalNameList(list); ok {
+			names = got
+		} else if !list.Paren || len(list.Children) != 0 {
+			// A computed import list is opaque: it is not an empty import.
+			return
+		}
+	}
+
+	if p.imports == nil {
+		p.imports = map[string]Import{}
+	}
+	for _, imp := range importsFrom(facts, names, listGiven) {
+		p.imports[imp.Name] = imp
+	}
 }
 
 // isVersionPrefix reports whether a word is the `v5` of a `v5.36`.
