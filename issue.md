@@ -6,7 +6,7 @@ milestone: m1-parse-the-core
 blocked_by:
 - 01a0b84d-caa8-71d2-b42b-0c8445bc6026
 created: 2026-09-19T06:15:09.657423509Z
-updated: 2026-09-19T06:44:22.901960416Z
+updated: 2026-09-19T06:56:10.868780016Z
 sessions:
 - start_sha: 7034e553e623c97cdd9406c3d6b9c8ef5c4b2a55
   end_sha: ""
@@ -117,11 +117,91 @@ prototype string is trivially liftable.
 
 ## Acceptance
 
-- [ ] Parse shape is DERIVED from the prototype, never stored (`go test ./internal/parse/ -run '^TestShapeDerivedFromPrototype$' -count=1 -v | grep -q '^--- PASS: TestShapeDerivedFromPrototype'`)
-- [ ] `(;$)` parses with zero and with one argument (`go test ./internal/parse/ -run '^TestOptionalArgPrototype$' -count=1 -v | grep -q '^--- PASS: TestOptionalArgPrototype'`)
-- [ ] A leading `&` licenses the block form; a non-initial `&` and `\&` do not. Asserted on the PARSE, never on perl's error text (`go test ./internal/parse/ -run '^TestBlockFormNeedsLeadingAmpersand$' -count=1 -v | grep -q '^--- PASS: TestBlockFormNeedsLeadingAmpersand'`)
-- [ ] `use Test::More` makes `subtest 'x' => sub {}` parse (`go test ./internal/parse/ -run '^TestImportedListOperator$' -count=1 -v | grep -q '^--- PASS: TestImportedListOperator'`)
-- [ ] A sub with no prototype swallows a list, and a `($)` one takes a single term (`go test ./internal/parse/ -run '^TestPrototypeArity$' -count=1 -v | grep -q '^--- PASS: TestPrototypeArity'`)
-- [ ] The T1 rate is re-measured and the change recorded, in BYTES as well as node counts
+- [x] Parse shape is DERIVED from the prototype, never stored (`go test ./internal/parse/ -run '^TestShapeDerivedFromPrototype$' -count=1 -v | grep -q '^--- PASS: TestShapeDerivedFromPrototype'`)
+- [x] `(;$)` parses with zero and with one argument (`go test ./internal/parse/ -run '^TestOptionalArgPrototype$' -count=1 -v | grep -q '^--- PASS: TestOptionalArgPrototype'`)
+- [x] A leading `&` licenses the block form; a non-initial `&` and `\&` do not. Asserted on the PARSE, never on perl's error text (`go test ./internal/parse/ -run '^TestBlockFormNeedsLeadingAmpersand$' -count=1 -v | grep -q '^--- PASS: TestBlockFormNeedsLeadingAmpersand'`)
+- [x] `use Test::More` makes `subtest 'x' => sub {}` parse (`go test ./internal/parse/ -run '^TestImportedListOperator$' -count=1 -v | grep -q '^--- PASS: TestImportedListOperator'`)
+- [x] A sub with no prototype swallows a list, and a `($)` one takes a single term (`go test ./internal/parse/ -run '^TestPrototypeArity$' -count=1 -v | grep -q '^--- PASS: TestPrototypeArity'`)
+- [x] The T1 rate is re-measured and the change recorded, in BYTES as well as node counts
 
 Spec: ch4 §4.8.3. Blocked by 01a0b84d-caa8 (needs exports and prototypes).
+
+
+## Done, 2026-09-19 (9cf2ee6d)
+
+Measured over T1 graded, 986 files, with a Test::More whose @EXPORT and
+prototypes match the real one:
+
+                         clean   Unknown
+    Parse                 460     3,322      no loader
+    ParseFile             460     3,322      loader finds nothing
+    with Test::More       532     2,531      +72 files, -791 nodes
+
+    full suite            green, 0 FAIL across the repo
+
+All six acceptance criteria verified by running each command as written.
+
+## What `subtest` actually was
+
+Not an unresolved call -- an Unknown SPAN. A bareword followed by a string
+never reached the Call path at all, which is why the 691 parenless subtests
+in T1 were opaque rather than merely unresolved. With the import resolved it
+is a list operator that takes its arguments.
+
+## The committed ratchets did not move, and the middle row is why
+
+T1 is a flat directory of .t files with no .pm beside them, so DirLoader
+correctly resolves nothing: `resolved any module` is 0 of 986. That is a fact
+about the corpus, not a defect.
+
+TestImportResolutionIsWorthT1Files keeps the third row honest and goes red if
+resolution ever stops reducing Unknown nodes. Without it this work reads as
+having done nothing, which is exactly the kind of silence the ratchets exist
+to prevent.
+
+Repointing the ratchets at ParseFile with a real search path is a separate
+decision, and it belongs with 01a0b835 (the oracle repoint) rather than here.
+
+## Two of my assumptions were wrong, and perl said so
+
+Measured against 5.42.0 before encoding, which caught both:
+
+    (@)      swallows the list       sl(1, 2, 3)        NOT one argument
+    (\&)     takes exactly one       (&rf((\&foo)), 2)  NOT a list
+    (\@\@)   takes two               two(@a, @b)
+    (\[$@])  takes one               (g(@a), '???')
+
+A bare `@` or `%` is slurpy; a `\`-escaped one is a single reference slot. My
+first counting loop conflated them, and my own test row for `(\&)` was wrong
+in the same direction -- corrected against the deparse rather than the other
+way round.
+
+## The leading ampersand
+
+    sub bf (&@) { }   bf { $_[0]*2 } (1,2,3)   ->  2,4,6
+    sub ni ($&) { }   ni { 1 } (2)             ->  Not enough arguments
+                                                   syntax error near "} ("
+    sub rf (\&) { }   rf { 1 }                 ->  Type of arg 1 ... must be
+                                                   subroutine (not anonymous
+                                                   hash ({}))
+
+Both messages of the `($&)` case reproduced, as bson's correction recorded.
+The ACs assert the PARSE and never the message text.
+
+## The XS tier still refuses
+
+`knowsShape` is false for a name imported without a visible declaration, so
+`first` keeps declining rather than guessing "list operator" -- which would
+make `first { $_ > 1 } @a` a syntax error.
+
+An imported sub called with NO arguments now resolves too: `done_testing;`
+and `maybe;` are calls whose callee this parser has seen declared, and the
+early-return path consulted only the builtin tables before.
+
+## The chain this completes
+
+    01a0ad3f        the loader and the decline path         f066f2ab
+    01a0b84d-caa8   exports and prototypes from the text    7034e553
+    01a0b84d-ec59   shape derived, and spent at the call    9cf2ee6d
+
+01a0b835 (the oracle repoint) is now unblocked.
