@@ -1,0 +1,19 @@
+# ABOUTME: Pins the T1 parse baseline to one PerlOnJava revision.
+# ABOUTME: A measurement taken across a skew in the corpus is an anecdote, not a result.
+#
+# T1 graded is PerlOnJava's unit/*.t at TOP LEVEL, 986 files. The count is
+# part of the measurement: walking the tree recursively gives 1,508 and adding
+# module/ gives 1,935, and a number quoted against the wrong set is how this
+# project once read a change as removing 277 Unknown nodes when on T1 it added
+# 42.
+#
+# Only a revision here, and no interpreter field. The oracle's corpus.pin
+# needs one because it RUNS perl to get an answer to compare against; this
+# ratchet only reads the .t files as text, so the interpreter cannot skew it.
+# The lexer's own corpus is perl5's t/, which corpus.pin already pins at the
+# revision this project measures against — there is no second pin for it.
+#
+# Change this only as a deliberate re-baseline, in the same commit as the
+# regenerated t1.ratchet.
+
+revision = 73be162b596cc948da61448e2a3caabb726017de

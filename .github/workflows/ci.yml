@@ -40,6 +40,139 @@ jobs:
     - name: Test
       run: go test ./... -count=1
 
+  # The three ratchets skip when their corpus is absent, which is correct for a
+  # contributor and useless as a gate: the matrix job above passes with all
+  # three silently skipped, so a regression they would catch reaches pu
+  # unnoticed. This job supplies the corpora and fails if any ratchet skips.
+  #
+  # Separate from the matrix because the corpora are the same on every OS and
+  # fetching them three times measures nothing extra. Not in
+  # parse-fidelity.yml because that sweep runs perl over 620 files and takes
+  # minutes; a T1 parse sweep is about 1.4 seconds for 986 files and belongs on
+  # every push.
+  ratchets:
+    name: Ratchets (corpus-backed)
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
+
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version: '1.24.4'
+
+    # Both pins are read before Go exists on the runner, so shell rather than a
+    # Go helper. The perl5 revision comes from the oracle's pin because it is
+    # the same corpus at the same revision -- a second file recording the same
+    # fact is a second file to forget to update.
+    - name: Read the corpus pins
+      id: pin
+      run: |
+        set -eu
+        field() {
+          sed 's/#.*//' "$2" \
+            | grep "^[[:space:]]*$1[[:space:]]*=" \
+            | tail -n 1 | cut -d= -f2- | tr -d '[:space:]'
+        }
+        t1=$(field revision internal/parse/testdata/t1corpus.pin)
+        perl5=$(field revision internal/parseoracle/testdata/corpus.pin)
+        if [ -z "$t1" ] || [ -z "$perl5" ]; then
+          echo "::error::a corpus pin records no revision (t1=${t1:-<missing>} perl5=${perl5:-<missing>})"
+          exit 1
+        fi
+        echo "t1=$t1" >> "$GITHUB_OUTPUT"
+        echo "perl5=$perl5" >> "$GITHUB_OUTPUT"
+
+    # The tree at a fixed revision never changes, so the revision alone is a
+    # complete cache key.
+    - name: Restore the pinned PerlOnJava corpus
+      id: t1-cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.temp }}/PerlOnJava
+        key: perlonjava-corpus-${{ steps.pin.outputs.t1 }}
+
+    - name: Restore the pinned perl5 corpus
+      id: perl5-cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.temp }}/perl5
+        key: perl5-corpus-${{ steps.pin.outputs.perl5 }}
+
+    # A partial clone rather than a shallow one: --depth cannot reach a
+    # revision that is not near a branch tip, and a pin is a specific commit.
+    - name: Fetch PerlOnJava at the pinned revision
+      if: steps.t1-cache.outputs.cache-hit != 'true'
+      env:
+        REVISION: ${{ steps.pin.outputs.t1 }}
+      run: |
+        set -eu
+        git clone --filter=blob:none --no-checkout \
+          https://github.com/fglock/PerlOnJava "$RUNNER_TEMP/PerlOnJava"
+        git -C "$RUNNER_TEMP/PerlOnJava" checkout --detach "$REVISION"
+
+    - name: Fetch perl5 at the pinned revision
+      if: steps.perl5-cache.outputs.cache-hit != 'true'
+      env:
+        REVISION: ${{ steps.pin.outputs.perl5 }}
+      run: |
+        set -eu
+        git clone --filter=blob:none --no-checkout \
+          https://github.com/Perl/perl5 "$RUNNER_TEMP/perl5"
+        git -C "$RUNNER_TEMP/perl5" checkout --detach "$REVISION"
+
+    # A cached corpus can go stale, and measuring the wrong tree quietly is the
+    # failure this whole job exists to prevent.
+    - name: Confirm both corpora are at their pinned revisions
+      env:
+        T1_REVISION: ${{ steps.pin.outputs.t1 }}
+        PERL5_REVISION: ${{ steps.pin.outputs.perl5 }}
+      run: |
+        set -eu
+        actual=$(git -C "$RUNNER_TEMP/PerlOnJava" rev-parse HEAD)
+        if [ "$actual" != "$T1_REVISION" ]; then
+          echo "::error::PerlOnJava is at $actual but the pin records $T1_REVISION."
+          echo "::error::a cached corpus went stale, or the clone did not reach the pinned commit."
+          exit 1
+        fi
+        actual=$(git -C "$RUNNER_TEMP/perl5" rev-parse HEAD)
+        if [ "$actual" != "$PERL5_REVISION" ]; then
+          echo "::error::perl5 is at $actual but the pin records $PERL5_REVISION."
+          echo "::error::a cached corpus went stale, or the clone did not reach the pinned commit."
+          exit 1
+        fi
+
+    # T1 graded is the TOP LEVEL of unit/, 986 files. The ratchet globs *.t in
+    # the directory it is given, so the path must name unit/ itself.
+    - name: Run the ratchets
+      env:
+        T1_CORPUS: ${{ runner.temp }}/PerlOnJava/src/test/resources/unit
+        PERL5_CORPUS: ${{ runner.temp }}/perl5
+      run: |
+        set -eu
+        go test ./internal/parse/ ./internal/lexer/ -count=1 -v 2>&1 | tee ratchets.log
+
+    # A skipped ratchet is a guard that cannot fail, which is the defect this
+    # job fixes -- so a skip here is a build failure, not a quiet pass. Named
+    # explicitly rather than grepping for any SKIP: other tests in these
+    # packages legitimately skip, and a blanket check would fail on those.
+    - name: Fail if a corpus-backed ratchet skipped
+      run: |
+        set -eu
+        status=0
+        for t in TestLexerRatchet TestParseRatchet TestParsedFilesRoundTrip \
+                 TestLexDotTGoldenStream; do
+          if grep -q -- "--- SKIP: $t" ratchets.log; then
+            echo "::error::$t SKIPPED in CI: its corpus did not resolve, so it gated nothing."
+            status=1
+          elif ! grep -q -- "--- PASS: $t" ratchets.log; then
+            echo "::error::$t neither passed nor skipped -- it did not run at all."
+            status=1
+          fi
+        done
+        exit $status
+
   smoke-test:
     name: Smoke Test (bash, zsh, fish)
     runs-on: ubuntu-latest
