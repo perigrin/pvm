@@ -162,7 +162,7 @@ jobs:
         set -eu
         status=0
         for t in TestLexerRatchet TestParseRatchet TestParsedFilesRoundTrip \
-                 TestLexDotTGoldenStream; do
+                 TestLexDotTGoldenStream TestCanonRatchet TestCanonTokenIdentity; do
           if grep -q -- "--- SKIP: $t" ratchets.log; then
             echo "::error::$t SKIPPED in CI: its corpus did not resolve, so it gated nothing."
             status=1

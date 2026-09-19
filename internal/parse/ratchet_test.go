@@ -125,12 +125,91 @@ func TestParseRatchet(t *testing.T) {
 		now[rel] = countUnknown(parse.Parse(src))
 	}
 
-	path := filepath.Join("testdata", "t1.ratchet")
-	if *updateRatchet {
-		if err := os.MkdirAll("testdata", 0o755); err != nil {
-			t.Fatalf("creating testdata: %v", err)
+	checkRatchet(t, filepath.Join("testdata", "t1.ratchet"),
+		"Unknown nodes per T1 file, as parse.Parse produces them.", now)
+}
+
+// TestParsedFilesRoundTrip is the M1 gate's round-trip metric: everything
+// that parses also reproduces its source from the tree.
+//
+// Unlike the ratchet this is a hard gate, not a moving number. A tree that
+// cannot reproduce its input has lost bytes, and no later pass can recover
+// them. It holds over the WHOLE corpus rather than over the clean files,
+// because an Unknown spans its bytes and must emit them too.
+func TestParsedFilesRoundTrip(t *testing.T) {
+	dir, files := t1Files(t)
+
+	var failed []string
+	for _, rel := range files {
+		src, err := os.ReadFile(filepath.Join(dir, rel))
+		if err != nil {
+			continue
 		}
-		if err := os.WriteFile(path, []byte(renderRatchet(now)), 0o644); err != nil {
+		if got := parse.Parse(src).SourceText(src); got != string(src) {
+			failed = append(failed, rel)
+		}
+	}
+	if len(failed) > 0 {
+		sort.Strings(failed)
+		t.Errorf("%d of %d file(s) do not round-trip:\n  %s",
+			len(failed), len(files), strings.Join(failed, "\n  "))
+	}
+}
+
+// renderRatchet writes the baseline: one "count path" line per file, sorted,
+// with a header naming what the numbers are and how to move them.
+//
+// what describes the measurement in one line; the rest of the header is the
+// same for every ratchet, because the rule about regenerating it is.
+func renderRatchet(what string, counts map[string]int) string {
+	files := make([]string, 0, len(counts))
+	total := 0
+	clean := 0
+	for rel, n := range counts {
+		files = append(files, rel)
+		total += n
+		if n == 0 {
+			clean++
+		}
+	}
+	sort.Strings(files)
+
+	var b strings.Builder
+	b.WriteString("# " + what + "\n")
+	b.WriteString("# T1 graded is PerlOnJava's unit/*.t at TOP LEVEL. Walking\n")
+	b.WriteString("# recursively gives 1508 files and adding module/ gives 1935;\n")
+	b.WriteString("# both are different corpora. This is the 986.\n")
+	b.WriteString("#\n")
+	b.WriteString(fmt.Sprintf("# %d files, %d clean (%.1f%%), %d total.\n",
+		len(files), clean, 100*float64(clean)/float64(len(files)), total))
+	b.WriteString("#\n")
+	b.WriteString("# Regenerate with -parse.update-ratchet and commit the result\n")
+	b.WriteString("# WITH the change that moved it. A baseline updated on its own\n")
+	b.WriteString("# is a number nobody can attribute.\n")
+	for _, rel := range files {
+		b.WriteString(strconv.Itoa(counts[rel]))
+		b.WriteByte(' ')
+		b.WriteString(rel)
+		b.WriteByte('\n')
+	}
+	return b.String()
+}
+
+// checkRatchet compares a measurement against its baseline and fails in
+// EITHER direction: a rise is a regression, and a fall is good news that
+// still has to be committed with the change that earned it.
+//
+// Shared by every ratchet in this package. The comparison is the part that
+// must not drift between them -- a ratchet that failed in only one direction
+// would silently let the number it guards walk.
+func checkRatchet(t *testing.T, path, what string, now map[string]int) {
+	t.Helper()
+
+	if *updateRatchet {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("creating %s: %v", filepath.Dir(path), err)
+		}
+		if err := os.WriteFile(path, []byte(renderRatchet(what, now)), 0o644); err != nil {
 			t.Fatalf("writing %s: %v", path, err)
 		}
 		t.Logf("rewrote %s (%d files); commit it with the change that moved it",
@@ -168,11 +247,11 @@ func TestParseRatchet(t *testing.T) {
 	sort.Strings(removed)
 
 	if len(regressed) > 0 {
-		t.Errorf("%d file(s) parse WORSE than the baseline:\n  %s",
+		t.Errorf("%d file(s) are WORSE than the baseline:\n  %s",
 			len(regressed), strings.Join(regressed, "\n  "))
 	}
 	if len(improved) > 0 {
-		t.Errorf("%d file(s) parse BETTER than the baseline:\n  %s\n\n"+
+		t.Errorf("%d file(s) are BETTER than the baseline:\n  %s\n\n"+
 			"This is good news and still fails: re-run with -parse.update-ratchet "+
 			"and commit the baseline with the change that earned it.",
 			len(improved), strings.Join(improved, "\n  "))
@@ -186,69 +265,6 @@ func TestParseRatchet(t *testing.T) {
 			"Leaving the denominator is a regression, not a cleanup.",
 			len(removed), strings.Join(removed, "\n  "))
 	}
-}
-
-// TestParsedFilesRoundTrip is the M1 gate's round-trip metric: everything
-// that parses also reproduces its source from the tree.
-//
-// Unlike the ratchet this is a hard gate, not a moving number. A tree that
-// cannot reproduce its input has lost bytes, and no later pass can recover
-// them. It holds over the WHOLE corpus rather than over the clean files,
-// because an Unknown spans its bytes and must emit them too.
-func TestParsedFilesRoundTrip(t *testing.T) {
-	dir, files := t1Files(t)
-
-	var failed []string
-	for _, rel := range files {
-		src, err := os.ReadFile(filepath.Join(dir, rel))
-		if err != nil {
-			continue
-		}
-		if got := parse.Parse(src).SourceText(src); got != string(src) {
-			failed = append(failed, rel)
-		}
-	}
-	if len(failed) > 0 {
-		sort.Strings(failed)
-		t.Errorf("%d of %d file(s) do not round-trip:\n  %s",
-			len(failed), len(files), strings.Join(failed, "\n  "))
-	}
-}
-
-// renderRatchet writes the baseline: one "count path" line per file, sorted,
-// with a header naming what the numbers are and how to move them.
-func renderRatchet(counts map[string]int) string {
-	files := make([]string, 0, len(counts))
-	total := 0
-	clean := 0
-	for rel, n := range counts {
-		files = append(files, rel)
-		total += n
-		if n == 0 {
-			clean++
-		}
-	}
-	sort.Strings(files)
-
-	var b strings.Builder
-	b.WriteString("# Unknown nodes per T1 file, as parse.Parse produces them.\n")
-	b.WriteString("# T1 graded is PerlOnJava's unit/*.t at TOP LEVEL. Walking\n")
-	b.WriteString("# recursively gives 1508 files and adding module/ gives 1935;\n")
-	b.WriteString("# both are different corpora. This is the 986.\n")
-	b.WriteString("#\n")
-	b.WriteString(fmt.Sprintf("# %d files, %d clean (%.1f%%), %d Unknown nodes.\n",
-		len(files), clean, 100*float64(clean)/float64(len(files)), total))
-	b.WriteString("#\n")
-	b.WriteString("# Regenerate with -parse.update-ratchet and commit the result\n")
-	b.WriteString("# WITH the change that moved it. A baseline updated on its own\n")
-	b.WriteString("# is a number nobody can attribute.\n")
-	for _, rel := range files {
-		b.WriteString(strconv.Itoa(counts[rel]))
-		b.WriteByte(' ')
-		b.WriteString(rel)
-		b.WriteByte('\n')
-	}
-	return b.String()
 }
 
 // parseRatchetFile reads a baseline written by renderRatchet.
