@@ -2,9 +2,9 @@
 title: A quote delimiter is a character, not a byte
 state: pending
 urgency: normal
-milestone: v0.1
+milestone: m1-parse-the-core
 created: 2026-09-19T00:47:32.887135684Z
-updated: 2026-09-19T00:47:40.79812638Z
+updated: 2026-09-19T00:47:47.468496818Z
 ---
 
 A quote-like operator's delimiter is matched one BYTE at a time, so a
