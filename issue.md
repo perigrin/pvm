@@ -4,16 +4,20 @@ state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-19T11:53:47.469850114Z
-updated: 2026-09-19T12:11:22.218620805Z
+updated: 2026-09-19T12:12:26.849568149Z
 sessions:
 - start_sha: 5c9be6bd44b1282e2477531f28d641caad4eb9a0
-  end_sha: ""
+  end_sha: 5c9be6bd44b1282e2477531f28d641caad4eb9a0
   commits: 0
   started_at: 2026-09-19T12:11:22.218620805Z
+  ended_at: 2026-09-19T12:12:26.849568149Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-19T12:11:22.218620805Z
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-19T12:12:26.849568149Z
 ---
 
 A declarator followed by a SUBSCRIPTED variable stops after the variable and
