@@ -6,6 +6,8 @@ package parse
 import (
 	"bytes"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"tamarou.com/pvm/internal/parseoracle"
 )
@@ -205,6 +207,28 @@ func decidedMarkers(stmt *Node) []decided {
 				add(parseoracle.SiteKindHash, n)
 			}
 
+		case Call:
+			// perl: readline. The BUILTIN and the `<...>` syntax are one op:
+			//
+			//	$ perl -MO=Concise,-exec -e 'my $l = readline $fh;'
+			//	c  <1> readline[t5] sKS/1
+			//
+			// isReadlineTerm below reads a LEAF's angle-delimited text, which
+			// is the lexer's own decision and correct as far as it goes. It
+			// cannot see a call, so `readline $fh` was reported nowhere.
+			//
+			// Resolved only: an unresolved Call is a name this parser has not
+			// seen, and claiming the builtin for it would be committing to a
+			// reading on no evidence.
+			//
+			// A METHOD is not the builtin -- perl emits entersub for
+			// `$obj->readline`. The arrow's right operand is skipped in the
+			// walk below rather than tested here, because a name's meaning
+			// is decided by what precedes it and a node cannot see that.
+			if n.Text == "readline" && n.Resolved {
+				add(parseoracle.SiteKindReadline, n)
+			}
+
 		case Binary:
 			// perl: match. `=~` and `!~` bind a pattern; s/// and tr/// are
 			// substitution and transliteration, which perl reports with
@@ -237,7 +261,23 @@ func decidedMarkers(stmt *Node) []decided {
 				add(parseoracle.SiteKindMatch, n)
 			}
 		}
-		for _, c := range n.Children {
+		for i, c := range n.Children {
+			// A method NAME is not a call to the builtin of that name.
+			// `$obj->readline` parses as Binary "->" whose right operand is
+			// a resolved Call, and perl emits entersub there rather than
+			// readline. The NAME is skipped because a name's meaning is
+			// decided by what precedes it, which the node cannot see.
+			//
+			// Its ARGUMENTS are still walked. `threads->create(\&f, $i)`
+			// holds a reference that perl reports, and skipping the whole
+			// subtree lost it -- measured, op/threads.t went from clean to
+			// three WRONG srefgen sites and re/pat.t gained two.
+			if n.Kind == Binary && n.Text == "->" && i == 1 && c.Kind == Call {
+				for _, arg := range c.Children {
+					walk(arg)
+				}
+				continue
+			}
 			walk(c)
 		}
 	}
@@ -298,10 +338,56 @@ func isHashTerm(text string) bool {
 
 // isReadlineTerm reports whether a leaf is `<FH>`, `<$fh>` or `<>`.
 //
-// Same reasoning: scanAngle emits a Readline token only in term position,
-// so a leaf whose text is angle-delimited is the lexer's own decision.
+// Same reasoning as the other leaf tests: scanAngle emits a Readline token
+// only in term position, so a leaf whose text is angle-delimited is the
+// lexer's own decision. But angle-delimited is not enough -- `<*.c>` is a
+// GLOB, a different op, and reporting a readline there is a claim perl
+// contradicts. Measured on 5.42.0:
+//
+//	<>          readline      <*.c>       glob
+//	<$fh>       readline      <$h{x}>     glob
+//	<FH>        readline      <a b>       glob
+//	<STDIN>     readline
+//	<My::Handle> readline
+//
+// The rule perl applies: readline iff the content is empty, a plain
+// `$scalar`, or a bareword identifier. Anything else -- a subscript, a
+// space, a metacharacter -- is a glob pattern.
 func isReadlineTerm(text string) bool {
-	return len(text) >= 2 && text[0] == '<' && text[len(text)-1] == '>'
+	if len(text) < 2 || text[0] != '<' || text[len(text)-1] != '>' {
+		return false
+	}
+	inner := text[1 : len(text)-1]
+	if inner == "" {
+		return true // <>
+	}
+	if inner[0] == '$' {
+		inner = inner[1:]
+		if inner == "" {
+			return false // `<$>` is not a handle
+		}
+	}
+	// A bareword identifier, `::` allowed for a package-qualified handle.
+	//
+	// Runes, not bytes. `use utf8` widens the identifier class, and
+	// t/uni/readline.t:64 reads `<hòฟ>` -- which perl compiles to readline,
+	// measured. An ASCII-only loop calls that a glob and loses the site,
+	// the same defect the lexer's quote-delimiter guard had (0db016fd).
+	// A single `:` is accepted, not only `::`. Measured: `<a:b>` compiles to
+	// readline, so perl's rule here is looser than its rule for a package
+	// name and this follows perl rather than the tidier guess.
+	for _, r := range inner {
+		switch {
+		case r == '_' || r == ':':
+		case r < utf8.RuneSelf:
+			if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9') {
+				return false
+			}
+		case !unicode.IsLetter(r) && !unicode.IsDigit(r):
+			return false
+		}
+	}
+	return true
 }
 
 // isBarePattern reports whether a leaf is a match rather than a substitution
