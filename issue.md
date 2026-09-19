@@ -1,6 +1,6 @@
 ---
 title: Read a module's exports and prototypes from its own text
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
@@ -8,16 +8,26 @@ blocked_by:
 blocks:
 - 01a0b84d-ec59-777f-8a00-71e407c9f469
 created: 2026-09-19T06:15:01.031946657Z
-updated: 2026-09-19T06:44:14.810211129Z
+updated: 2026-09-19T06:44:14.94305138Z
 sessions:
 - start_sha: f066f2ab7533480d37f08cd938d35dc99f850cad
-  end_sha: ""
-  commits: 0
+  end_sha: 7034e553e623c97cdd9406c3d6b9c8ef5c4b2a55
+  commits: 1
   started_at: 2026-09-19T06:36:44.390389021Z
+  ended_at: 2026-09-19T06:44:14.94305138Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-19T06:36:44.390389021Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-19T06:44:14.94305138Z
+observed_paths:
+- internal/parse/exports.go
+- internal/parse/exports_test.go
+- internal/parse/module.go
+- internal/parse/parse.go
+- internal/parse/use.go
 ---
 
 Read what a module exports and what each sub's prototype is, from the
