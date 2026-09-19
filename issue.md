@@ -4,7 +4,7 @@ state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-18T22:28:03.205765477Z
-updated: 2026-09-19T01:11:11.251966061Z
+updated: 2026-09-19T01:30:27.98348307Z
 sessions:
 - start_sha: 1b21e398ccd962c900969acf3c1912a7c3aafa01
   end_sha: ""
@@ -58,9 +58,55 @@ owns it. This issue is the narrowing that follows.
       INIT and UNITCHECK
 - [x] The brace of `BEGIN {` is OpensBlock on the token, not decided again in
       the parser
-- [ ] The CloseBracket rule is narrowed to `)`, matching yyl_rightparen, with
+- [x] The CloseBracket rule is narrowed to `)`, matching yyl_rightparen, with
       no T1 regression
-- [ ] The comments at the CloseBracket rule and in
+- [x] The comments at the CloseBracket rule and in
       `TestRightParenRegressionIsNamed` are replaced by what the code then
       does
 - [x] A test names the shape, not the implementation: a phaser takes a block
+
+
+## Done, 2026-09-19 (528b9d83)
+
+    T1 clean       460      (unmoved)
+    T1 Unknown   3,323 -> 3,322
+    postderef.t      3 -> 2
+    the rule     narrowed to `)`, at no cost
+
+The phaser half landed in 79468414 and took the narrowing's cost from 16 T1
+files to one. This commit removes the last one.
+
+## The remaining file was a postfix slice
+
+    my @s = $r->@[ 2, 1 ];      postderef.t:12
+
+The sigil scanner took `@[` as a punctuation variable named `[`. No opener
+reached the bracket stack, so the matching `]` popped whatever was underneath
+and the stack stayed one entry SHORT for the rest of the file. The visible
+symptom was a brace misread forty lines later, which is why this survived
+three passes over brace classification -- the damage never appeared near its
+cause.
+
+    $ perl -MO=Deparse -e 'my $r=[1,2,3]; my @s = $r->@[0,1]; my @t = $r->@*;'
+    my(@s) = @$r[0, 1];
+    my(@t) = @$r;
+
+`@*` and `%*` stay one token -- there the star IS the whole dereference -- so
+the rule is "a sigil before `[` or `{` in XPostDeref", and
+TestPostfixSliceSigilStopsAtTheBracket guards both halves plus the stack
+staying balanced afterwards. Verified to go red without the fix.
+
+## Two defects, each hiding the other
+
+That is the shape worth remembering from this issue. The broad closer rule
+was papering over BOTH the phaser brace and the swallowed bracket, so
+narrowing it exposed 16 files at once and looked like one large regression.
+Each fix revealed the next, and the third attempt cost nothing.
+
+## closedSubscript is gone
+
+It existed to stop `$a[0]{k}`, `$h{a}{b}` and `${$y}{Keys}` marking their
+second brace as opening a block, which the broad rule did. A `)` never closes
+a subscript, so the paren test subsumes it and keeping the check would be a
+condition that can never fire. TestRightParenLookaheadIsParenOnly passed
+before the removal and after.
