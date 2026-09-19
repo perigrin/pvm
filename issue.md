@@ -1,10 +1,19 @@
 ---
 title: A bareword hash subscript is a string, not a call
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-19T12:19:07.059614571Z
-updated: 2026-09-19T12:19:07.059614571Z
+updated: 2026-09-19T12:24:37.607130755Z
+sessions:
+- start_sha: 4bb5af573f0937de0b63a88bc5e43954d31f75cd
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-19T12:24:37.607130755Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-19T12:24:37.607130755Z
 ---
 
 A bareword hash subscript is stored as a Call, so the key looks like a
