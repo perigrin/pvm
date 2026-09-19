@@ -4,8 +4,13 @@ state: pending
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-19T18:15:49.871374091Z
-updated: 2026-09-19T23:15:16.016616732Z
+updated: 2026-09-19T23:15:53.031501368Z
 ---
+
+**The title is wrong and git-zhi cannot retitle.** Read it as "the hash
+marker over-reports what perl folds away; hedge the undecidable". The
+lexical-versus-package framing was my filing hypothesis and the measurement
+below refutes it.
 
 48 WRONG rv2hv sites over the 620-file corpus at 25483d2b. This issue was
 filed as a lexical-versus-package scope problem. **It is not**, and the
