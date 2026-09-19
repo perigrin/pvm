@@ -1,12 +1,12 @@
 ---
 title: "Canonical re-emission: compare the tree written back out against its source"
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-16T06:13:00.800228773Z
-updated: 2026-09-19T12:24:23.638729858Z
+updated: 2026-09-19T12:24:23.68844246Z
 sessions:
 - start_sha: c3e65b4f5f9e760b2dac649b6094639e1508428d
   end_sha: 0c00558236cd0390188a786142520c32468bf8c7
@@ -14,9 +14,10 @@ sessions:
   started_at: 2026-09-19T11:39:48.535989761Z
   ended_at: 2026-09-19T12:04:14.548737103Z
 - start_sha: 5c9be6bd44b1282e2477531f28d641caad4eb9a0
-  end_sha: ""
-  commits: 0
+  end_sha: 4bb5af573f0937de0b63a88bc5e43954d31f75cd
+  commits: 1
   started_at: 2026-09-19T12:13:04.977735094Z
+  ended_at: 2026-09-19T12:24:23.68844246Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
@@ -30,6 +31,9 @@ transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-19T12:13:04.977735094Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-19T12:24:23.68844246Z
 observed_paths:
 - .github/workflows/ci.yml
 - internal/parse/canon.go
