@@ -85,7 +85,7 @@ func TestT2CoreParses(t *testing.T) {
 	// keyword as a quote operator where perl reads it as a name: `$o->s`
 	// and `method y { ... }`. class/class.t left the map entirely.
 	shortfall := map[string]int{
-		"base/lex.t": 36, "base/num.t": 48, "base/rs.t": 3,
+		"base/lex.t": 37, "base/num.t": 48, "base/rs.t": 3,
 		// class/field.t went 9 -> 10 when quote-op keywords stopped eating
 		// their fat comma, then back to 9 when goto, delete and exists
 		// landed. The rise was never a regression in the parse: reaching
@@ -114,7 +114,7 @@ func TestT2CoreParses(t *testing.T) {
 		"comp/final_line_num.t": 1, "comp/fold.t": 14, "comp/form_scope.t": 17,
 		"comp/hints.t": 36, "comp/line_debug.t": 4, "comp/multiline.t": 2,
 		"comp/opsubs.t": 11, "comp/package.t": 7, "comp/package_block.t": 4,
-		"comp/parser.t": 64, "comp/parser_run.t": 12, "comp/proto.t": 41,
+		"comp/parser.t": 65, "comp/parser_run.t": 12, "comp/proto.t": 41,
 		// comp/require.t went 11 -> 12 when phaser braces became blocks. The
 		// `BEGIN { ... }` body is now read as statements rather than as one
 		// hashref, and reaching inside it exposes a heredoc the parser does
@@ -124,7 +124,22 @@ func TestT2CoreParses(t *testing.T) {
 		// direction the node count and the byte count disagree -- recorded
 		// rather than argued away. T1-easy is unmoved at 52.7% either way,
 		// so the trade is a correct OpensBlock flag at no rate cost.
-		"comp/redef.t": 21, "comp/require.t": 12, "comp/retainedlines.t": 17,
+		// base/lex.t 36 -> 37, comp/parser.t 64 -> 65 and
+		// comp/retainedlines.t 17 -> 19 when dereferences became several
+		// tokens rather than one. Each holds a SYMBOL-TABLE deref, which is
+		// the one shape that change did not reach:
+		//
+		//	is $::{"_<hash-line-eval"}, ...
+		//
+		// `$::{` is not a dereference failure: measured, it lexes as
+		// `Variable "$:"` then `Operator ":"`, because leadingPackageSeparator
+		// wants a word byte after `::` and finds a brace. Splitting the sigil
+		// reaches the call around it, so the refusal lands in more pieces
+		// without the underlying gap moving at all. Bytes barely
+		// move -- base/lex.t 1,111 -> 1,114, retainedlines 425 -> 427 -- and
+		// comp/parser.t FELL, 4,869 -> 4,818. TestDerefBlockContentsAreDecided
+		// names this shape as still opaque and asserts it still hedges.
+		"comp/redef.t": 21, "comp/require.t": 12, "comp/retainedlines.t": 19,
 		"comp/uproto.t": 3, "comp/use.t": 11, "comp/utf.t": 3,
 		"opbasic/arith.t": 179, "opbasic/cmp.t": 6, "opbasic/concat.t": 6,
 		"opbasic/magic_phase.t": 7,

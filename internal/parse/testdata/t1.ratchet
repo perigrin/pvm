@@ -3,13 +3,13 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 456 clean (46.2%), 3357 Unknown nodes.
+# 986 files, 460 clean (46.7%), 3323 Unknown nodes.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
 # is a number nobody can attribute.
 2 anonymous_code_attribute_order.t
-12 anonymous_glob_reference.t
+0 anonymous_glob_reference.t
 5 app_cpan_failure_status.t
 1 archive_zip_archive_subclass.t
 0 archive_zip_members_matching_qr.t
@@ -92,7 +92,7 @@
 1 closed_stderr_unhandled_die.t
 3 closure.t
 0 closure_eval_string.t
-7 code_deref_nonstrict.t
+1 code_deref_nonstrict.t
 9 code_ref_defined_exists.t
 0 code_ref_forward_glob_assignment.t
 932 code_too_large.t
@@ -165,7 +165,7 @@
 5 cpan_test_dependency_blib.t
 0 cpan_tooling_posix_yaml_syck.t
 7 cpan_tooling_regressions.t
-29 cpan_tooling_runtime.t
+31 cpan_tooling_runtime.t
 0 cpanel_json_xs_mojo_compat.t
 0 cpanel_json_xs_options.t
 2 crypt_openssl_random_export.t
@@ -242,7 +242,7 @@
 1 double_diamond_closed_stdin.t
 0 dynaloader_load_flags.t
 0 dynamic_constant_sub_inlining.t
-3 dynamic_glob_code_replace.t
+0 dynamic_glob_code_replace.t
 0 encode_charset_provider.t
 5 encode_dynamic_alias.t
 0 encode_export_tags.t
@@ -332,8 +332,8 @@
 6 glob_pseudo_constant_export.t
 5 glob_scalar_ref_io_method.t
 0 glob_scalar_slot_ref.t
-5 glob_slot_hash_deref.t
-6 glob_snapshot_delete.t
+0 glob_slot_hash_deref.t
+1 glob_snapshot_delete.t
 0 global_code_runtime_semantics.t
 6 global_empty_hash_keys_history.t
 5 global_substitution_zero_length_retry.t
@@ -421,7 +421,7 @@
 0 join_upgraded_latin1_provenance.t
 0 json_parse_compat.t
 0 json_xs_compat.t
-1 jvm_eval_nested_compound_assignment.t
+3 jvm_eval_nested_compound_assignment.t
 0 large_sub_interpreter_fallback.t
 0 lazy_sub_verification_side_effects.t
 3 leading_colon_bareword_call.t
@@ -609,7 +609,7 @@
 0 prototyped_call_caller_line.t
 0 push_decl_array.t
 0 push_declared_array.t
-8 pvlv_filehandle.t
+6 pvlv_filehandle.t
 0 qualified_optional_constant.t
 0 rand_scalar_context.t
 13 range.t
@@ -744,7 +744,7 @@
 17 string_interpolation.t
 0 string_interpolation_at_caret.t
 0 string_interpolation_escaped_hash_key.t
-19 subroutine.t
+18 subroutine.t
 2 subroutine_proto_trailing_comma_stmtend.t
 6 subroutine_prototype.t
 8 subroutine_prototype_args.t
@@ -851,7 +851,7 @@
 11 tie_autovivification.t
 0 tie_bareword_filehandle_package.t
 36 tie_handle.t
-1 tie_handle_readline_args.t
+0 tie_handle_readline_args.t
 8 tie_hash.t
 18 tie_scalar.t
 0 tie_scalar_self_reference_destroy.t
@@ -859,7 +859,7 @@
 1 tied_array_constraint_short_circuit.t
 1 tied_array_delete_local.t
 2 tied_container_undef.t
-4 tied_handle_dup.t
+2 tied_handle_dup.t
 2 tied_hash_autoviv_refloop_cleanup.t
 0 tied_hash_destroy_release.t
 1 tied_hash_weak_owner_cleanup.t
@@ -950,7 +950,7 @@
 0 xml_parser_current_element.t
 4 xml_parser_external_entity_sysid.t
 2 xml_parser_parsefile_typeglob.t
-3 xml_parser_tied_handle.t
+2 xml_parser_tied_handle.t
 1 xstring.t
 2 yaml_blessed_load.t
 0 yaml_pp.t

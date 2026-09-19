@@ -99,6 +99,20 @@ func countUnknown(n *parse.Node) int {
 // This session attempted three parser fixes, each verifiably correct against
 // toke.c or against running perl, and two of them made T1 worse -- caught
 // only by a throwaway sweep that no longer exists. That is what this replaces.
+//
+// A COUNT IS NOT A SIZE, and that is this ratchet's known blind spot. It
+// counts Unknown NODES, so one refusal swallowing a whole region scores
+// better than several small ones covering less of the file. Measured while
+// 01a0ad52 landed:
+//
+//	jvm_eval_nested_compound_assignment.t   1 -> 3 nodes   1,317 -> 53 bytes
+//	overload_compound_assignment.t          1 -> 10 nodes  2,561 -> 1,424
+//
+// Both read as regressions here and both are large improvements. The
+// discipline that keeps that honest is not a second metric -- it is that
+// every rise must be measured in BYTES before the baseline is regenerated,
+// and the finding recorded in the commit. A rise nobody explained is a
+// regression; a rise with a byte count beside it is evidence.
 func TestParseRatchet(t *testing.T) {
 	dir, files := t1Files(t)
 

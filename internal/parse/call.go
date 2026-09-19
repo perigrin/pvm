@@ -16,6 +16,22 @@ import "tamarou.com/pvm/internal/lexer"
 const (
 	bpNamedUnary = 190
 	bpListOp     = 70
+
+	// A dereference binds tighter than every infix operator, `->` at level
+	// 29 included, so its operand is the braced expression or the single
+	// variable and nothing more.
+	//
+	// `$$x[0]` is `${$x}[0]` -- the subscript applies to the DEREFERENCE,
+	// not to `$x` -- so the sigil must take its operand before any postfix
+	// gets a chance. Parsing at 300 leaves `[0]` to the caller's led loop,
+	// which then wraps the whole Unary in an Index. Measured on perl 5.42.0:
+	//
+	//	$ perl -MO=Deparse -e 'my $r = [7]; print $$r[0];'
+	//	print $r->[0];
+	//
+	// Deparse prints the arrow form, which is the same operation spelled the
+	// other way -- and is why §4.14 gives both one node with an `Arrow` flag.
+	bpDeref = 300
 )
 
 // parseWordTerm turns a bareword in term position into a call, a bareword

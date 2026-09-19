@@ -342,43 +342,77 @@ func TestSitesCountEveryOccurrence(t *testing.T) {
 	}
 }
 
-// TestOpaqueDerefBlockHedges: a `${...}` or `@{...}` whose contents the
-// lexer swallowed must HEDGE, not stay silent.
+// TestDerefBlockContentsAreDecided: a `${...}` or `@{...}` reports what is
+// actually inside it.
 //
-// The lexer brace-matches a braced name to its closer and emits one Variable
-// token (`internal/lexer/scan.go:77-94`, whose comment says the full rule
-// "belongs to a later issue" -- 01a0ad52). So `${[{a=>214}]}` is one opaque
-// Term and the anonymous hash inside it is invisible to a walk over nodes.
+// This test used to assert the opposite, and its own comment said why: the
+// lexer brace-matched a deref to its closer and emitted ONE Variable token,
+// so `${[{a=>214}]}` was an opaque Term and the anonymous hash inside it was
+// invisible to a walk over nodes. Silence there is not a refusal -- it is
+// the claim that nothing is inside -- so every marker was hedged, and the
+// comment ended: "When 01a0ad52 gives the block real children, these become
+// decided and the hedge stops firing."
 //
-// Silence there is not a refusal. It is the claim that nothing is inside,
-// and it is wrong wherever perl found something -- the exact failure this
-// file's doc comment is about, arriving through a node that is not marked
-// Unknown. Measured on perl 5.42.0:
+// 01a0ad52 landed. They are decided, and this asserts the count rather than
+// the hedge. Measured on perl 5.42.0:
 //
 //	$ perl -MO=Concise,-exec -e 'my $x = ${[{a=>214}]}[0];'
 //	  one anonhash
-//	$ perl -MO=Concise,-exec -e 'our @x; my @k=("x"); my @g = @{$::{$k[0]}};'
-//	  two hash ops
 //
-// t/comp/parser.t:574 and t/comp/retainedlines.t:70 are those two lines, and
-// both scored WRONG while this reported nothing.
-//
-// This hedges rather than decides on purpose: the parser genuinely cannot
-// see the contents, so `wider` is the honest verdict. When 01a0ad52 gives
-// the block real children, these become decided and the hedge stops firing.
-func TestOpaqueDerefBlockHedges(t *testing.T) {
-	for _, src := range []string{
-		`my $x = ${[{a=>214}]}[0];`,
-		`my @g = @{$::{$keys[0]}};`,
-		`my $r = ${$h->{k}};`,
-		`my @a = @{[ 1, 2 ]};`,
+// The last two cases hold the other half: a deref containing NO marker now
+// reports nothing, and nothing is the right answer. Under the hedge they
+// reported all five, which is `wider` -- honest, but five claims of "there
+// might be something here" about a statement with nothing in it.
+func TestDerefBlockContentsAreDecided(t *testing.T) {
+	for _, c := range []struct {
+		src   string
+		count int
+	}{
+		// The anonymous hash inside the deref, which perl reports once.
+		{`my $x = ${[{a=>214}]}[0];`, 1},
+		// A deref of a plain variable holds no marker at all.
+		{`my $r = ${$h->{k}};`, 0},
+		{`my @a = @{[ 1, 2 ]};`, 0},
 	} {
-		hedged := hedgedKinds(src)
-		for _, kind := range markerKindsForTest {
-			if !has(hedged, kind) {
-				t.Errorf("%q: an opaque deref block must hedge %s; got %v",
-					src, kind, hedged)
+		var n int
+		for _, k := range decidedKinds(c.src) {
+			if k == parseoracle.SiteKindAnonhash {
+				n++
 			}
+		}
+		if n != c.count {
+			t.Errorf("%q: %d decided anonhash site(s), want %d",
+				c.src, n, c.count)
+		}
+		if hedged := hedgedKinds(c.src); len(hedged) > 0 {
+			t.Errorf("%q: nothing is hidden here any more, yet it hedges %v",
+				c.src, hedged)
+		}
+	}
+
+	// What is STILL opaque, and must still hedge. `$::{...}` is a
+	// symbol-table lookup, and the reason it fails is NOT the dereference:
+	// measured, it lexes as
+	//
+	//	DerefSigil "@"  Operator "{"  Variable "$:"  Operator ":"  ...
+	//
+	// `$:` is a real punctuation variable (the format line-break set), and
+	// leadingPackageSeparator requires a word byte after `::` -- it finds
+	// `{`, declines, and the name ends at the first colon. So the statement
+	// falls to Unknown and every marker is hedged from there.
+	//
+	// Named rather than left to look like an oversight, and named
+	// accurately: a `$::` shorthand followed by a SUBSCRIPT rather than a
+	// name is its own gap, not a leftover of this one.
+	//
+	//	$ perl -MO=Concise,-exec -e 'our @x; my @k=("x"); my @g = @{$::{$k[0]}};'
+	//	  one rv2hv
+	const stillOpaque = `my @g = @{$::{$keys[0]}};`
+	hedged := hedgedKinds(stillOpaque)
+	for _, kind := range markerKindsForTest {
+		if !has(hedged, kind) {
+			t.Errorf("%q: a symbol-table deref is still opaque and must "+
+				"hedge %s; got %v", stillOpaque, kind, hedged)
 		}
 	}
 }

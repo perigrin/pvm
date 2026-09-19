@@ -32,17 +32,23 @@ import (
 //	qx             01a0afc0 scanner rows         5   20.0%
 //	glob-angle     01a0afc0 scanner rows         2    0.0%
 //	pkg-colon      01a0afc0 scanner rows        14    0.0%
-//	deref-brace    01a0ad52 sigils structural   70   27.1%
-//	deref-at       01a0ad52 sigils structural   55   14.5%
+//	deref-brace    01a0ad52 sigils structural   70   35.7%
+//	deref-at       01a0ad52 sigils structural   55   23.6%
 //	signature      01a0afc1 wrong trees          5   20.0%
 //	indirect-new   §4.14.2 MethodCall.Indirect 119   28.6%
 //	heredoc        §2 lexer, sublexing          61   11.5%
 //	format         §5 format bodies are opaque   2    0.0%
 //
-// Measured at 4bc971ec over the 986. Files carrying NO marker are 50.6%
-// clean against 41.4% for the corpus as a whole, so the markers do separate
-// the population -- that is the evidence the list is real rather than
-// decorative.
+// Measured at 4bc971ec over the 986, except the two deref rows, re-measured
+// when 01a0ad52 landed: `deref-brace` 27.1 -> 35.7 and `deref-at` 14.5 ->
+// 23.6. The rest are left at their original measurement rather than
+// refreshed wholesale -- a marker's row is evidence for why it is IN the
+// list, and TestT1EasyMarkersAreTraceable re-measures all twelve on every
+// run, so a stale row cannot hide a marker that stopped predicting failure.
+//
+// Files carrying NO marker were 50.6% clean against 41.4% for the corpus as
+// a whole, so the markers do separate the population -- that is the evidence
+// the list is real rather than decorative.
 //
 // The plan says "easy tier (~400)" and the M1 gate issue already notes that
 // "~400" is an estimate rather than a definition. This is the definition.
@@ -167,9 +173,13 @@ func TestT1EasyParseRate(t *testing.T) {
 	}
 	rate := 100 * float64(clean) / float64(len(easy))
 
-	// Raised as the parser earns it; last moved when the brace after a list
-	// operator stopped reading as a hashref. The gate wants 70.0.
-	const floor = 52.7
+	// Raised as the parser earns it; last moved when a dereference became
+	// several tokens instead of one. That change mostly moves the MARKED
+	// population -- `deref-brace` and `deref-at` are two of the markers, so
+	// files using them are excluded from this subset by definition. The
+	// 0.3 points here are the spillover: globs, `*$glob`, and the statements
+	// around a deref. The gate wants 70.0.
+	const floor = 53.0
 	const target = 70.0
 
 	if rate+0.05 < floor {

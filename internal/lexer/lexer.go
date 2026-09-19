@@ -70,6 +70,22 @@ const (
 	// opposed to `&&` or bitwise-and in operator position.
 	FuncSigil
 
+	// DerefSigil is a sigil applied to an EXPRESSION rather than to a name:
+	// the `$` of `${$h->{k}}` and of `$$x`, the `@` of `@{[ ... ]}`.
+	//
+	// `$x` is one Variable token because its name is part of the lexeme.
+	// `${EXPR}` is not: the sigil and the expression are separate, and the
+	// expression needs the parser. Emitting one Variable token for the whole
+	// form -- which is what brace-matching here used to do -- put every name
+	// inside it outside the tree, where rename, go-to-definition and
+	// inference cannot see them. Round-trip did not notice, because the span
+	// still covered every byte (chapter 7 §7.2(c)).
+	//
+	// `${name}` stays a Variable: the braces are punctuation around a NAME
+	// there, which is how `"${foo}bar"` is written, and nothing inside needs
+	// parsing. What follows the brace decides which form this is.
+	DerefSigil
+
 	// Prototype is a balanced `(...)` directly after `sub NAME`, scanned as
 	// an opaque string rather than lexed.
 	//
@@ -138,6 +154,8 @@ func (k Kind) String() string {
 		return "Readline"
 	case FuncSigil:
 		return "FuncSigil"
+	case DerefSigil:
+		return "DerefSigil"
 	case Prototype:
 		return "Prototype"
 	case CloseBracket:

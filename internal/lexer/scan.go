@@ -54,9 +54,96 @@ func scanVariable(l *lexer) bool {
 		return true
 	}
 
+	// A sigil applied to an EXPRESSION is its own token, and the expression
+	// after it is lexed normally so the parser can read it.
+	//
+	// `${EXPR}` and `$$x` are the two shapes. Consuming them here produced
+	// one Variable token spanning the whole form, and the parser then made a
+	// childless leaf of it -- no interior, so nothing inside was reachable.
+	if l.startsDerefExpression() {
+		l.emit(DerefSigil, start)
+		return true
+	}
+
 	l.scanVarName()
 	l.emit(Variable, start)
 	return true
+}
+
+// startsDerefExpression reports whether the sigil at l.pos-1 is applied to an
+// expression rather than to a name. l.pos is just past the sigil.
+//
+// Two forms qualify, and each has a near neighbour that does NOT:
+//
+//	${ $h->{k} }   expression      vs  ${name}  a NAME in braces
+//	$$x            deref of $x     vs  $$       the process id
+//
+// The brace case is decided by what follows it: an identifier that runs to
+// the closing brace is a name, anything else is an expression. The sigil case
+// is decided by what follows the SECOND sigil: a name makes it a dereference,
+// nothing makes it the punctuation variable `$$`.
+func (l *lexer) startsDerefExpression() bool {
+	if l.pos >= len(l.src) {
+		return false
+	}
+
+	// Whitespace may stand between the sigil and the brace. `$ {*$glob}{Keys}`
+	// is a real form and appears in the corpus; checking the byte immediately
+	// after the sigil missed it, and the sigil then fell back to the
+	// swallowing path it was meant to replace. Measured on perl 5.42.0:
+	//
+	//	$ perl -e 'use Symbol qw(gensym); my $g = gensym();
+	//	           $ {*$g}{K} = 5; print $ {*$g}{K};'
+	//	5
+	brace := l.pos
+	for brace < len(l.src) && (l.src[brace] == ' ' || l.src[brace] == '\t') {
+		brace++
+	}
+	if brace < len(l.src) && l.src[brace] == '{' {
+		return !l.bracedNameFollowsAt(brace)
+	}
+
+	// `$$x` and `@$x` are dereferences; a bare `$$` is the pid, and
+	// `$$ref[0]` is still a dereference of `$ref`. A second sigil with a
+	// NAME after it is the whole rule -- with nothing after it there is
+	// nothing to dereference.
+	if l.src[l.pos] != '$' {
+		return false
+	}
+	next := l.pos + 1
+	return next < len(l.src) &&
+		(isWordByte(l.src[next]) || l.src[next] == '{' || l.src[next] == '$')
+}
+
+// bracedNameFollowsAt reports whether `{` at brace opens a plain NAME, as in
+// `${foo}` -- an identifier, optionally spaced, then the closing brace.
+//
+// Anything else is an expression: `${$x}`, `${ $h->{k} }`, `@{[ 1, 2 ]}`.
+func (l *lexer) bracedNameFollowsAt(brace int) bool {
+	i := brace + 1
+	for i < len(l.src) && (l.src[i] == ' ' || l.src[i] == '\t') {
+		i++
+	}
+
+	// `${^TEST}`, `${^TAINT}`, `${^UNICODE}` -- the caret control variables
+	// are NAMES, and the caret is part of the name rather than an operator.
+	// Splitting one into a sigil and an expression made `^TEST` a term the
+	// parser had to guess at, which is what TestLexDotTGoldenStream caught.
+	if i < len(l.src) && l.src[i] == '^' {
+		i++
+	}
+
+	nameStart := i
+	for i < len(l.src) && isWordByte(l.src[i]) {
+		i++
+	}
+	if i == nameStart {
+		return false
+	}
+	for i < len(l.src) && (l.src[i] == ' ' || l.src[i] == '\t') {
+		i++
+	}
+	return i < len(l.src) && l.src[i] == '}'
 }
 
 // scanVarName consumes an identifier, a punctuation variable, or a braced
@@ -89,9 +176,9 @@ func (l *lexer) scanVarName() {
 		// Consumed by the identifier scanner, which handles both package
 		// separators and the utf8-widened class.
 	case c == '{':
-		// A braced name: ${name}. The brace-matching here is deliberately
-		// shallow; the full rule needs the block-vs-hash distinction, which
-		// belongs to a later issue.
+		// A braced NAME: `${name}`, `${^TAINT}`. Reached only when
+		// startsDerefExpression has already declined, so the braces here are
+		// punctuation around an identifier and the match can be shallow.
 		depth := 0
 		for l.pos < len(l.src) {
 			if l.src[l.pos] == '{' {

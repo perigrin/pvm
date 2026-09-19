@@ -59,7 +59,7 @@
     0 comp/our.t
     0 comp/package.t
     0 comp/package_block.t
-    1 comp/parser.t
+    0 comp/parser.t
     0 comp/parser_run.t
     0 comp/proto.t
     0 comp/redef.t
@@ -604,7 +604,7 @@
     0 uni/opcroak.t
     0 uni/overload.t
    15 uni/package.t
-    0 uni/parser.t
+    1 uni/parser.t
     0 uni/readline.t
     0 uni/select.t
     0 uni/sprintf.t

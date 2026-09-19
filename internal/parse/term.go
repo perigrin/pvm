@@ -58,12 +58,13 @@ func (p *parser) parseTerm() *Node {
 		}
 	}
 
-	// A glob: `*foo`, `*{$name}`. A term, not multiplication -- and the
-	// parser knows which because parseTerm is only called where a term is
-	// expected.
+	// A glob: `*foo`, `*{$name}`, `*$glob`. A term, not multiplication -- and
+	// the parser knows which because parseTerm is only called where a term
+	// is expected.
 	if text == "*" {
 		if name, ok := p.peekAfter(tok); ok &&
-			(name.Kind == lexer.Word || p.text(name) == "{") {
+			(name.Kind == lexer.Word || name.Kind == lexer.Variable ||
+				p.text(name) == "{") {
 			p.advanceTo(tok)
 			if p.text(name) == "{" {
 				// The braces of `*{EXPR}` GROUP; they do not construct.
@@ -90,6 +91,23 @@ func (p *parser) parseTerm() *Node {
 				return n
 			}
 			p.advanceTo(name)
+			if name.Kind == lexer.Variable {
+				// `*$glob` names the slot the SCALAR points at, so the
+				// variable is an operand and has to be in the tree. Folding
+				// it into Text as `*NAME` does would put `$glob` back out of
+				// it -- the same leaf this issue exists to stop making.
+				//
+				//	$ perl -MO=Deparse -e 'my $g = \*STDOUT; my $x = *$g{IO};'
+				//	my $x = *$g{'IO'};
+				return &Node{
+					Kind: Term, Text: "*",
+					Start: tok.Start, End: name.End,
+					Children: []*Node{{
+						Kind: Term, Text: p.text(name),
+						Start: name.Start, End: name.End,
+					}},
+				}
+			}
 			return &Node{
 				Kind: Term, Text: "*" + p.text(name),
 				Start: tok.Start, End: name.End,
@@ -111,6 +129,48 @@ func (p *parser) parseTerm() *Node {
 	}
 
 	switch tok.Kind {
+	case lexer.DerefSigil:
+		// A sigil applied to an expression: `${$h->{k}}`, `@{[ 1, 2 ]}`,
+		// `$$x`. The lexer emits the sigil alone precisely so the interior
+		// reaches the parser; making a leaf of it here would put the names
+		// inside back out of the tree.
+		//
+		// A Unary rather than a new kind: a dereference IS a prefix operator
+		// applied to one operand, and the sigil is in Text. §4.14 names it
+		// `Deref{Sigil, Expr}`, which is this shape with the kind spelled
+		// out; the lowering (chapter 6 §6.1.6) is where that rename belongs,
+		// because a new CST kind is a change every consumer must learn.
+		p.advanceTo(tok)
+
+		// The braces of `${EXPR}` GROUP; they do not construct. Letting
+		// parseTerm see the `{` made an AnonHash of it, so the tree said a
+		// hash was being built around the very expression being
+		// dereferenced.
+		if open, ok := p.peekSignificant(); ok && p.text(open) == "{" {
+			p.advanceTo(open)
+			inner := p.parseExpr(0)
+			if close, ok := p.peekSignificant(); ok && p.text(close) == "}" {
+				p.advanceTo(close)
+			}
+			if inner == nil {
+				// `${}` -- nothing to dereference. The bytes stay in the
+				// tree as an Unknown rather than a Unary with no operand.
+				return &Node{Kind: Unknown, Start: tok.Start, End: p.prevEnd()}
+			}
+			return &Node{
+				Kind: Unary, Text: text,
+				Start: tok.Start, End: p.prevEnd(),
+				Children: []*Node{inner},
+			}
+		}
+
+		operand := p.operand(bpDeref, tok)
+		return &Node{
+			Kind: Unary, Text: text,
+			Start: tok.Start, End: operand.End,
+			Children: []*Node{operand},
+		}
+
 	case lexer.FuncSigil:
 		// `&` in term position introduces a function name, and the lexer
 		// emits it as its own token so that `&f` and `&&` stay

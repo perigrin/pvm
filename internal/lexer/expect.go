@@ -174,9 +174,12 @@ func (e Expect) after(k Kind, t transition) Expect {
 		// A closed SUBSCRIPT is excluded, and that part is not a hedge. A
 		// `{` after one continues the chain:
 		//
-		//	$a[0]{k}    $h{a}{b}    $x->[0]{k}
+		//	$a[0]{k}    $h{a}{b}    $x->[0]{k}    ${$y}{Keys}
 		//
-		// Before the exclusion every second brace in a chain carried
+		// The last of those is reachable only since a dereference became
+		// several tokens: while `${$y}` lexed as one Variable, no
+		// CloseBracket ever preceded the subscript and nothing could expose
+		// it. Before the exclusion every second brace in a chain carried
 		// OpensBlock, which is a token saying a block starts where a
 		// subscript does. The parser happened to survive it -- it reaches
 		// those braces through the postfix path, which never asks -- so
@@ -188,6 +191,17 @@ func (e Expect) after(k Kind, t transition) Expect {
 		return XOperator
 	case Variable, Number, Quote, Readline, FuncSigil:
 		return XOperator
+	case DerefSigil:
+		// A sigil applied to an expression has NOT produced a value yet: what
+		// follows is its operand. Leaving XState here made the `{` of
+		// `${*$glob}{Keys}` classify as a BLOCK -- trackBrackets reads
+		// l.expect at the brace, and before this token existed the sigil and
+		// its brace were one Variable token that trackBrackets never saw.
+		//
+		// Measured on the PerlOnJava corpus: without this,
+		// unit/glob_slot_hash_deref.t went 8 -> 14 Unknown nodes and
+		// `${*$glob}{Keys} = 5;` parsed as a bare block.
+		return XTerm
 	case Word:
 		// A niladic builtin has produced a value, so an operator comes next.
 		// Measured before the table existed:

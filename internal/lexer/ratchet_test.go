@@ -132,20 +132,29 @@ func TestT2CoreRoundTrips(t *testing.T) {
 //
 // `op/glob.t` went 0 -> 1 when `scanAngle` learned the glob form, and the
 // number rose because the parse got BETTER rather than worse. Line 11's
-// `<op/*>` now lexes as one Readline instead of five operators. Line 28 is
+// `<op/*>` now lexes as one Readline instead of five operators. Line 28 was
 // the cost:
 //
 //	map { $files{$_}++ } <op/*>;
-//	map { delete $files{"op/$_"} } split /\n/, `ls op/ | cat`;
 //
-// After `map { ... }` the lexer is in OPERATOR position, so `<` stays a
-// comparison and the `/` after `op` opens a bare pattern that runs to the
-// next `/` -- swallowing a backtick and everything after it. Measured to
-// predate this change by stashing it: `map { 1 } <op>;` misreads at HEAD
-// too, it simply produced no error token to count.
+// After `map { ... }` the lexer sat in OPERATOR position, so `<` stayed a
+// comparison and the `/` after `op` opened a bare pattern that ran to the
+// next `/`. That was `map {` leaving the wrong state, and intuit_curly
+// (01a0ac52) fixed it: the file is back to 0.
 //
-// That is `map {` leaving operator position, which is issue 01a0ac52's
-// subject and not fixable here. Recorded rather than absorbed.
+// `uni/parser.t` went 0 -> 1 when dereferences became several tokens, and
+// it is the same shape one layer down. Line 8884:
+//
+//	${
+//	#line 57
+//	qq ϟϟ }
+//
+// The file lexed clean only because the whole `${...}` was ONE Variable
+// token, so nothing ever reached the `qq`. Its delimiter is ϟ, two bytes,
+// and scanDelimitedBody compares one -- the Quote closes mid-sequence and
+// the trailing byte is an Error. Verified to be independent of dereferences
+// by lexing `qq ϟ a ϟ;` on its own, which fails identically. Tracked as
+// 01a0b721. Recorded rather than absorbed.
 func TestLexerRatchet(t *testing.T) {
 	tDir, files := corpusFiles(t)
 

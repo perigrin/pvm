@@ -613,7 +613,8 @@ Operator       2142   2143  =
 Quote          2143   2149  "\cXY"
 Semicolon      2149   2150  ;
 Whitespace     2150   2153  \n\s\s
-Variable       2153   2155  $\s
+DerefSigil     2153   2154  $
+Whitespace     2154   2155  \s
 Operator       2155   2156  {
 Variable       2156   2159  $CX
 CloseBracket   2159   2160  }
@@ -623,7 +624,8 @@ Whitespace     2162   2163  \s
 Number         2163   2165  17
 Semicolon      2165   2166  ;
 Whitespace     2166   2169  \n\s\s
-Variable       2169   2171  $\s
+DerefSigil     2169   2170  $
+Whitespace     2170   2171  \s
 Operator       2171   2172  {
 Variable       2172   2176  $CXY
 CloseBracket   2176   2177  }
@@ -705,7 +707,8 @@ Number         2399   2400  6
 Whitespace     2400   2401  \s
 CloseBracket   2401   2402  }
 Whitespace     2402   2405  \n\s\s
-Variable       2405   2407  $\s
+DerefSigil     2405   2406  $
+Whitespace     2406   2407  \s
 Operator       2407   2408  {
 Quote          2408   2417  "\cQ\cXX"
 CloseBracket   2417   2418  }
@@ -2727,7 +2730,14 @@ Variable      11789  11794  $test
 Operator      11794  11796  ++
 Semicolon     11796  11797  ;
 Whitespace    11797  11798  \n
-Variable      11798  11831  ${\n=pod\nblah\sblah\sblah\n=cut\n\$_\s}
+DerefSigil    11798  11799  $
+Operator      11799  11800  {
+Whitespace    11800  11801  \n
+Pod           11801  11826  =pod\nblah\sblah\sblah\n=cut\n
+Operator      11826  11827  \
+Variable      11827  11829  $_
+Whitespace    11829  11830  \s
+CloseBracket  11830  11831  }
 Whitespace    11831  11832  \s
 Operator      11832  11833  =
 Whitespace    11833  11834  \s
@@ -2797,7 +2807,10 @@ Word          12043  12047  eval
 Whitespace    12047  12048  \s
 Operator      12048  12049  {
 Whitespace    12049  12050  \s
-Variable      12050  12056  ${...}
+DerefSigil    12050  12051  $
+Operator      12051  12052  {
+Operator      12052  12055  ...
+CloseBracket  12055  12056  }
 Operator      12056  12058  ++
 Whitespace    12058  12059  \s
 CloseBracket  12059  12060  }
