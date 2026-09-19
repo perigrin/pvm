@@ -4,7 +4,7 @@ state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-17T20:22:39.30654244Z
-updated: 2026-09-19T07:11:37.042871786Z
+updated: 2026-09-19T07:19:59.708068341Z
 sessions:
 - start_sha: 0db016fd18cba84ae70dcfb32f3453a5771bd27d
   end_sha: ""
@@ -98,14 +98,14 @@ this whole class of defect can recur without anyone noticing.
 
 ## Acceptance
 
-- [ ] A pin file records the PerlOnJava revision the T1 baseline was measured against (`test -f internal/parse/testdata/t1corpus.pin`)
-- [ ] CI fetches that corpus at the pinned revision and verifies HEAD matches before measuring (`grep -q 'rev-parse HEAD' .github/workflows/ci.yml`)
-- [ ] `TestParseRatchet` runs rather than skips in CI (`grep -qE 'T1_CORPUS' .github/workflows/ci.yml`)
-- [ ] `TestLexerRatchet` runs rather than skips in CI (`grep -qE 'PERL5_CORPUS' .github/workflows/ci.yml`)
-- [ ] A skipped ratchet fails the build rather than passing quietly (`grep -qE 'SKIP' .github/workflows/ci.yml`)
-- [ ] The corpus fetch is cached on the pin, so a green run does not re-clone (`grep -q 'actions/cache' .github/workflows/ci.yml`)
-- [ ] A contributor with no corpus still gets a green `go test ./...` locally (`go test ./internal/parse/ ./internal/lexer/ -count=1 2>&1 | grep -qv FAIL`)
-- [ ] The whole suite is green (`go test ./internal/... 2>&1 | grep -qv FAIL`)
+- [x] A pin file records the PerlOnJava revision the T1 baseline was measured against (`test -f internal/parse/testdata/t1corpus.pin`)
+- [x] CI fetches that corpus at the pinned revision and verifies HEAD matches before measuring (`grep -q 'rev-parse HEAD' .github/workflows/ci.yml`)
+- [x] `TestParseRatchet` runs rather than skips in CI (`grep -qE 'T1_CORPUS' .github/workflows/ci.yml`)
+- [x] `TestLexerRatchet` runs rather than skips in CI (`grep -qE 'PERL5_CORPUS' .github/workflows/ci.yml`)
+- [x] A skipped ratchet fails the build rather than passing quietly (`grep -qE 'SKIP' .github/workflows/ci.yml`)
+- [x] The corpus fetch is cached on the pin, so a green run does not re-clone (`grep -q 'actions/cache' .github/workflows/ci.yml`)
+- [x] A contributor with no corpus still gets a green `go test ./...` locally (`go test ./internal/parse/ ./internal/lexer/ -count=1 2>&1 | grep -qv FAIL`)
+- [x] The whole suite is green (`go test ./internal/... 2>&1 | grep -qv FAIL`)
 
 The last two are the negative scenarios and they pull against each other on
 purpose: the corpus must be required where it exists and optional where it
@@ -116,3 +116,76 @@ Found by a paad:alignment pass on 4bc971ec, which is also where
 `TestParseRatchet` and its 986-file baseline landed.
 
 Spec: §7.3.5. Plan: M1 metrics.
+
+
+## Done, 2026-09-19 (c3e65b4f)
+
+    full suite     green, 0 FAIL across the repo
+    new job        ratchets (corpus-backed), on every push
+    new pin        internal/parse/testdata/t1corpus.pin
+
+All eight acceptance criteria verified by running each command as written,
+including the two negative scenarios that pull against each other.
+
+## Reproduced first
+
+    $ T1_CORPUS=/nonexistent PERL5_CORPUS=/nonexistent \
+        go test ./internal/parse/ ./internal/lexer/
+    ok      tamarou.com/pvm/internal/parse   0.048s
+    ok      tamarou.com/pvm/internal/lexer   0.015s
+
+Green, having read no corpus file at all. That is what every CI run had been
+reporting.
+
+## The skip check is the point
+
+`go test` reports a skip and exits 0, so the job greps the log for each
+corpus-backed ratchet BY NAME and fails on `--- SKIP:` -- or on a test that
+neither passed nor skipped, which means it did not run at all. Named rather
+than a blanket SKIP grep: other tests in these packages legitimately skip and
+a blanket check would fail on those.
+
+Verified in both directions before committing. With the corpora, all four
+report PASS; with the corpora absent, all four are detected as SKIP and the
+step exits 1.
+
+## One new pin, not two
+
+The lexer's corpus is perl5's t/, and internal/parseoracle/testdata/corpus.pin
+ALREADY pins it at the revision this project measures against -- the local
+checkout is at 94e5086, exactly what that pin records. A second file holding
+the same fact is a second file to forget to update, so only T1 gained a pin.
+
+The T1 pin carries a revision and no interpreter, and says why: the oracle
+needs one because it RUNS perl to get an answer to compare against, while
+this ratchet reads the .t files as text.
+
+## Why parseoracle-pin.sh was not reused
+
+It requires interpreter, revision and threads, and has ten tests guarding
+that strictness. Loosening it to accept a revision-only pin would weaken the
+oracle's guard to save four lines of shell. The workflow reads the revision
+inline instead.
+
+## Placement
+
+A new job rather than a change to the matrix: the corpora are identical on
+every OS, so fetching them three times measures nothing extra. Not in
+parse-fidelity.yml, because that sweep runs perl over 620 files and takes
+minutes, while a T1 parse sweep is ~1.4s for 986 files and belongs on every
+push. Windows and macOS keep the plain suite with the ratchets skipping,
+which is correct.
+
+## The guard has its own guard
+
+TestCIRunsTheRatchets asserts the workflow as TEXT -- both corpora supplied,
+both pins read, the checkout verified, and every ratchet NAMED in the skip
+check. A ratchet added later and left out of that list would skip in CI
+unnoticed, which is this issue happening again.
+
+## Worth recording
+
+This session's previous issue (01a0b721) is the case for this one. The lexer
+ratchet caught a regression that scored BETTER on node count while swallowing
+10,124 bytes -- on my machine, with the corpus present. On CI as it stood, it
+would have passed silently.
