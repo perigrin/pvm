@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-19T00:47:32.887135684Z
-updated: 2026-09-19T00:47:47.468496818Z
+updated: 2026-09-19T07:11:01.238964829Z
 ---
 
 A quote-like operator's delimiter is matched one BYTE at a time, so a
@@ -57,10 +57,69 @@ Scoping to what perl takes, rather than to every shape the form suggests.
 
 ## Acceptance criteria
 
-- [ ] `qq ϟ a ϟ` and `q ϟ a ϟ` each produce one Quote token spanning the
+- [x] `qq ϟ a ϟ` and `q ϟ a ϟ` each produce one Quote token spanning the
       whole construct
-- [ ] The three-part `s ϟ a ϟ b ϟ` does too
-- [ ] No Quote token ever ends mid-sequence: every token boundary falls on a
+- [x] The three-part `s ϟ a ϟ b ϟ` does too
+- [x] No Quote token ever ends mid-sequence: every token boundary falls on a
       UTF-8 character boundary
-- [ ] `t/uni/parser.t` returns to 0 in the lexer ratchet
-- [ ] The whole suite is green
+- [x] `t/uni/parser.t` returns to 0 in the lexer ratchet
+- [x] The whole suite is green
+
+
+## Done, 2026-09-19 (0db016fd)
+
+    uni/gv.t       nodes 5 -> 0    bytes     5 -> 0
+    uni/parser.t   nodes 1 -> 0    bytes     1 -> 0
+    uni/stash.t    nodes 2 -> 0    bytes 5,448 -> 0
+
+    full suite     green, 0 FAIL across the repo
+
+All three acceptance criteria met. The delimiter is a rune everywhere --
+skipToDelimiter, scanDelimitedBody, pairedCloser -- and every advance moves a
+whole character.
+
+## Two defects, and the second was hiding behind the first
+
+With only the rune delimiter the ratchet reported three files BETTER
+(gv.t 5 -> 1) and would have been regenerated on that reading. Measured in
+BYTES first, as the ratchet's own doc comment requires, and gv.t had gone
+from 5 stranded bytes to ONE token swallowing 10,124.
+
+A regression that scores better on a node count. This is exactly the blind
+spot the byte rule exists for, and it is the second time this milestone that
+a broad rule turned out to be papering over two separate faults.
+
+## The second defect: a name is a character too
+
+t/uni/gv.t:488
+
+    my $rv = \*sምḲ;
+
+`sምḲ` is ONE identifier under `use utf8`, so the leading `s` is not a
+substitution. Verified by running it:
+
+    use utf8; sub sምḲ { 42 } print sምḲ();    ->  42
+
+The guard that stops a keyword being an operator tested `isWordByte`, which
+is ASCII-only, so `ም` read as a delimiter and the substitution ran to EOF. It
+now decodes a rune and asks identContinue -- the same predicate the
+identifier scanner uses, so the two cannot disagree about where a name ends.
+
+That defect predates this issue: a byte delimiter also mis-read the name,
+just less destructively. Fixing the delimiter is what made it visible.
+
+## Scope held to what perl accepts
+
+Only the non-paired forms, measured on 5.42.0. pairedCloser takes a rune to
+match its caller but its table stays ASCII: perl rejects a paired multi-byte
+delimiter outright, so there is no pair to add.
+
+## The property, not just the instance
+
+TestNoTokenEndsMidSequence asserts that no token boundary falls inside a
+UTF-8 sequence, so the next bug of this shape fails without being named.
+TestAsciiDelimiterStillWorks holds the single-byte path.
+
+One test row of mine was wrong and perl said so: `qq #a#` SPACED is a comment
+whose delimiter is on a later line, so it correctly yields no Quote. The row
+is the glued `qq#a#`, which is the form where `#` delimits.
