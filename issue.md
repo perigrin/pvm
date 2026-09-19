@@ -1,12 +1,21 @@
 ---
 title: A brace before -> is a hashref, and two anonhash cases the tree misreads
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
 - 01a0badc-a093-7e09-bdfb-002f4a73759f
 created: 2026-09-19T18:17:07.068073736Z
-updated: 2026-09-19T18:17:31.362579524Z
+updated: 2026-09-19T21:11:22.140962055Z
+sessions:
+- start_sha: 25483d2b5bfff159cfc023dec9b050ce0c57c4b3
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-19T21:11:22.140962055Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-19T21:11:22.140962055Z
 ---
 
 35 WRONG anonhash sites, and most are span attribution -- but three are real
