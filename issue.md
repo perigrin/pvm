@@ -5,6 +5,8 @@ urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
 - 01a0ad3f-e929-77a8-9b00-2a80b06ec42c
+blocks:
+- 01a0b84d-ec59-777f-8a00-71e407c9f469
 created: 2026-09-19T06:15:01.031946657Z
 updated: 2026-09-19T06:15:01.031946657Z
 ---
