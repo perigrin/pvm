@@ -116,6 +116,35 @@ type Verdict struct {
 	Marker Marker
 	// Detail is a human-readable reason, for a report and for test failures.
 	Detail string
+
+	// Findings are the individual sites that fell short, across EVERY marker
+	// rather than only the one that decided Bucket.
+	//
+	// The attribution already happens per statement -- decideMarker finds the
+	// innermost statement covering each of perl's sites -- and keeping it is
+	// what lets a report name work. A bucket says "this file is WRONG"; a
+	// finding says which line, which marker, and whether the subject hedged
+	// or committed. Measured over the 620-file corpus: 72 WRONG files hold
+	// 249 sites, and the ten worst files hold 145 of them.
+	//
+	// Empty for an exact verdict: there is nothing to name.
+	//
+	// This is DIAGNOSIS, not scoring. Bucket is unchanged by its presence,
+	// and the gate still reads Bucket alone -- a per-statement bucket would
+	// need a threshold, which is the thing ratchets exist to avoid.
+	Findings []Finding
+}
+
+// Finding is one site perl reported that the subject did not account for.
+type Finding struct {
+	// Line is perl's line for the site, inside the statement that owns it.
+	Line int
+	// Marker is the parse fact perl reported there.
+	Marker Marker
+	// Bucket is BucketWider when the subject hedged the statement and
+	// BucketWrong when it committed with no site and no hedge. Never exact:
+	// an accounted-for site is not a finding.
+	Bucket Bucket
 }
 
 // Compare buckets our parse of src against perl's facts for the same source.
@@ -169,8 +198,8 @@ func compareSrefgen(facts Facts, root *parser.Node) Verdict {
 	// Every reference perl took is one our source wrote explicitly. Nothing
 	// was resolved behind our back.
 	if facts.Srefgen <= explicit {
-		return Verdict{BucketExact, markerFor(facts.Srefgen),
-			fmt.Sprintf("perl took %d reference(s), all explicit in the source", facts.Srefgen)}
+		return Verdict{Bucket: BucketExact, Marker: markerFor(facts.Srefgen),
+			Detail: fmt.Sprintf("perl took %d reference(s), all explicit in the source", facts.Srefgen)}
 	}
 
 	// Perl took a reference we did not write. Something resolved it -- a
@@ -178,14 +207,12 @@ func compareSrefgen(facts Facts, root *parser.Node) Verdict {
 	// on whether our tree admits it does not know.
 	unexplained := facts.Srefgen - explicit
 	if hedged > 0 {
-		return Verdict{BucketWider, MarkerSrefgen,
-			fmt.Sprintf("perl took %d reference(s) the source did not write; "+
-				"we emitted %d call(s) marked unresolved rather than committing",
-				unexplained, hedged)}
+		return Verdict{Bucket: BucketWider, Marker: MarkerSrefgen, Detail: fmt.Sprintf("perl took %d reference(s) the source did not write; "+
+			"we emitted %d call(s) marked unresolved rather than committing",
+			unexplained, hedged)}
 	}
-	return Verdict{BucketWrong, MarkerSrefgen,
-		fmt.Sprintf("perl took %d reference(s) the source did not write, and our tree "+
-			"committed to %d call(s) with no reference and no hedge", unexplained, committed)}
+	return Verdict{Bucket: BucketWrong, Marker: MarkerSrefgen, Detail: fmt.Sprintf("perl took %d reference(s) the source did not write, and our tree "+
+		"committed to %d call(s) with no reference and no hedge", unexplained, committed)}
 }
 
 func plural(n int) string {

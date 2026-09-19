@@ -179,10 +179,13 @@ func TestGoParserWrongIsZero(t *testing.T) {
 			"in the commit that earned it.", todoM4)
 		return
 	}
-	t.Errorf("%d file(s) score WRONG, and WRONG is a gate:\n  %s\n\n"+
+	// The ranked table, not just the names: a list of files is a list of
+	// failures, and what a reader needs is which construct to fix first.
+	t.Errorf("%d file(s) score WRONG, and WRONG is a gate:\n  %s\n\n%s\n"+
 		"Exactly %v is the pinned TODO(M4). A file here that is not in that "+
 		"list is a defect to fix, not to add to the pin.",
-		len(names), strings.Join(names, "\n  "), todoM4)
+		len(names), strings.Join(names, "\n  "),
+		report.WhereWrongComesFrom(), todoM4)
 }
 
 // TestGoParserExactFloor is what stops WRONG=0 from being vacuous.

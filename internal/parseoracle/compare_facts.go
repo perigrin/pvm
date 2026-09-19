@@ -27,16 +27,16 @@ func CompareFacts(oracle Facts, subject SubjectFacts) Verdict {
 		if detail == "" {
 			detail = "the subject declined to produce a parse"
 		}
-		return Verdict{BucketNoAnswer, MarkerNone, detail}
+		return Verdict{Bucket: BucketNoAnswer, Marker: MarkerNone, Detail: detail}
 	}
 	if !subject.OK {
-		return Verdict{BucketNoAnswer, MarkerNone, "the subject rejected the file"}
+		return Verdict{Bucket: BucketNoAnswer, Marker: MarkerNone, Detail: "the subject rejected the file"}
 	}
 	if !oracle.OK {
 		// No ground truth means no verdict to reach. Scoring this WRONG would
 		// blame the subject for perl's refusal, and the corpus is full of
 		// files that fail for environmental reasons (see Classify).
-		return Verdict{BucketNoAnswer, MarkerNone, "perl declined to compile the file"}
+		return Verdict{Bucket: BucketNoAnswer, Marker: MarkerNone, Detail: "perl declined to compile the file"}
 	}
 
 	// Success with no optree is not a parse. A corpus file that calls
@@ -67,9 +67,8 @@ func CompareFacts(oracle Facts, subject SubjectFacts) Verdict {
 	// point on that spectrum -- it is perl telling us it never got far enough
 	// to build one.
 	if noOptree(oracle) {
-		return Verdict{BucketNoAnswer, MarkerNone,
-			"perl reported success but produced no optree, so it never finished " +
-				"parsing the file and there is nothing to compare against"}
+		return Verdict{Bucket: BucketNoAnswer, Marker: MarkerNone, Detail: "perl reported success but produced no optree, so it never finished " +
+			"parsing the file and there is nothing to compare against"}
 	}
 
 	// The walk IS the reference measurement. If perl compiled the file but
@@ -77,17 +76,15 @@ func CompareFacts(oracle Facts, subject SubjectFacts) Verdict {
 	// rather than zero, and reading absence as "no references" is the same
 	// defect a main-program-only count had, wearing a different hat.
 	if !oracle.Walked {
-		return Verdict{BucketNoAnswer, MarkerNone,
-			"perl compiled the file but the oracle's walk of its CVs did not run, " +
-				"so every marker question is unanswered"}
+		return Verdict{Bucket: BucketNoAnswer, Marker: MarkerNone, Detail: "perl compiled the file but the oracle's walk of its CVs did not run, " +
+			"so every marker question is unanswered"}
 	}
 
 	// An unanswered question is not agreement. A subject that omits call_sites
 	// has told us nothing about any marker, and treating silence as "no
 	// references taken" would let it score exact by staying quiet.
 	if !subject.KnowsCallSites {
-		return Verdict{BucketNoAnswer, MarkerNone,
-			"the subject did not report call sites, so every marker question is unanswered"}
+		return Verdict{Bucket: BucketNoAnswer, Marker: MarkerNone, Detail: "the subject did not report call sites, so every marker question is unanswered"}
 	}
 
 	return compareMarkers(oracle, subject)
@@ -185,6 +182,14 @@ func compareMarkers(oracle Facts, subject SubjectFacts) Verdict {
 	worst := Verdict{Bucket: BucketExact, Marker: MarkerNone}
 	worstRank := 0
 	inPlay, total := MarkerNone, 0
+
+	// Findings accumulate across EVERY marker, while the bucket comes from
+	// the worst one alone. A file wrong on srefgen and also wrong on rv2hv
+	// would otherwise report only one of them, which understates the work by
+	// however much the other markers hold -- and the corpus shows those are
+	// not small: 249 wrong sites spread over five markers in 72 files.
+	var findings []Finding
+
 	for _, m := range Markers {
 		lines := oracle.Sites[m]
 		if len(lines) == 0 {
@@ -195,23 +200,25 @@ func compareMarkers(oracle Facts, subject SubjectFacts) Verdict {
 		}
 		total += len(lines)
 		v := decideMarker(m, lines, stmts, answered[m])
+		findings = append(findings, v.Findings...)
 		if r, _ := rank(v.Bucket.String()); r > worstRank {
 			worst, worstRank = v, r
 		}
 	}
 
 	if worst.Bucket == BucketExact {
-		return Verdict{BucketExact, inPlay,
-			fmt.Sprintf("perl reported %d marker site(s), all accounted for by the subject", total)}
+		return Verdict{Bucket: BucketExact, Marker: inPlay,
+			Detail: fmt.Sprintf("perl reported %d marker site(s), all accounted for by the subject", total)}
 	}
+	worst.Findings = findings
 	return worst
 }
 
 // decideMarker is the per-statement rule for one marker.
 func decideMarker(m Marker, lines []int, stmts []*statement, answered bool) Verdict {
 	if !answered {
-		return Verdict{BucketNoAnswer, m,
-			fmt.Sprintf("perl %s at %s, and the subject reported no site that answers "+
+		return Verdict{Bucket: BucketNoAnswer, Marker: m,
+			Detail: fmt.Sprintf("perl %s at %s, and the subject reported no site that answers "+
 				"the %s question", markerDeed[m], lineList(lines), m)}
 	}
 
@@ -230,21 +237,33 @@ func decideMarker(m Marker, lines []int, stmts []*statement, answered bool) Verd
 		}
 	}
 
+	// The findings are the slices above, kept rather than only formatted.
+	// Both kinds are reported even when wrong decides the bucket: a wider
+	// site is still a site the subject did not account for, and a report
+	// that dropped it would understate the work.
+	findings := make([]Finding, 0, len(wider)+len(wrong))
+	for _, line := range wider {
+		findings = append(findings, Finding{Line: line, Marker: m, Bucket: BucketWider})
+	}
+	for _, line := range wrong {
+		findings = append(findings, Finding{Line: line, Marker: m, Bucket: BucketWrong})
+	}
+
 	switch {
 	case len(wrong) > 0:
 		return Verdict{BucketWrong, m,
 			fmt.Sprintf("perl %s at %d site(s) the subject did not, and at %s the "+
 				"subject committed to the statement with no such site and no hedge",
-				markerDeed[m], len(wider)+len(wrong), lineList(wrong))}
+				markerDeed[m], len(wider)+len(wrong), lineList(wrong)), findings}
 	case len(wider) > 0:
 		return Verdict{BucketWider, m,
 			fmt.Sprintf("perl %s at %d site(s) the subject did not; at %s it "+
 				"marked the statement unresolved rather than committing",
-				markerDeed[m], len(wider), lineList(wider))}
+				markerDeed[m], len(wider), lineList(wider)), findings}
 	default:
 		return Verdict{BucketExact, m,
 			fmt.Sprintf("perl %s at %d site(s), all accounted for by the subject",
-				markerDeed[m], len(lines))}
+				markerDeed[m], len(lines)), nil}
 	}
 }
 
