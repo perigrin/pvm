@@ -105,6 +105,29 @@ func TestCanonCatchesMisgrouping(t *testing.T) {
 	}
 }
 
+// TestCanonEmitsValidPerl: the emission is Perl that perl itself accepts.
+//
+// The fixpoint cannot see this class of defect, which is why it is asserted
+// separately. `print($fh"x")` re-parses to itself and is stable -- and is not
+// valid Perl. A filehandle slot takes no comma and a space is the only thing
+// separating it from the list, so dropping the space produces text that
+// satisfies every other check in this file while being unparseable.
+//
+// Checked by structure rather than by running perl: the ratchet reads .t
+// files as text and must not acquire an interpreter dependency for one case.
+func TestCanonEmitsValidPerl(t *testing.T) {
+	for _, tc := range []struct{ src, want string }{
+		{`print $fh "x";`, `print($fh "x");`},
+		{`print STDERR "x";`, `print(STDERR "x");`},
+		{`print "x";`, `print("x");`},
+	} {
+		got := strings.TrimSpace(parse.Canon(parse.Parse([]byte(tc.src)), []byte(tc.src)))
+		if got != tc.want {
+			t.Errorf("Canon(parse(%q)):\n  got  %q\n  want %q", tc.src, got, tc.want)
+		}
+	}
+}
+
 // significant returns the tokens that carry meaning: whitespace, comments and
 // POD are dropped.
 //

@@ -80,7 +80,15 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 		}
 
 		b.WriteByte('(')
-		for _, c := range n.Children {
+		for i, c := range n.Children {
+			// A filehandle slot takes no comma after it -- `print $fh "x"`
+			// is the handle and then the list, and `print $fh, "x"` prints
+			// the handle AS an argument. Only a space separates them, and
+			// omitting it emits `print($fh"x")`, which is stable under the
+			// fixpoint and still wrong.
+			if i > 0 && n.Children[i-1].Handle {
+				b.WriteByte(' ')
+			}
 			emit(b, c, src, 0)
 		}
 		b.WriteByte(')')

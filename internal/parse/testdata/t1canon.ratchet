@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 815 clean (82.7%), 171 total.
+# 986 files, 816 clean (82.8%), 170 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -121,7 +121,7 @@
 0 constant_mro_generation.t
 0 constant_stash_proxy.t
 0 context.t
-1 context_semantics.t
+0 context_semantics.t
 0 control_flow.t
 0 convert_bencode_xs_java.t
 0 core_dump_guarded.t
