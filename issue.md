@@ -1,10 +1,19 @@
 ---
 title: A declarator followed by a subscript loses the subscript to a second statement
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-19T11:53:47.469850114Z
-updated: 2026-09-19T11:53:47.469850114Z
+updated: 2026-09-19T12:11:22.218620805Z
+sessions:
+- start_sha: 5c9be6bd44b1282e2477531f28d641caad4eb9a0
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-19T12:11:22.218620805Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-19T12:11:22.218620805Z
 ---
 
 A declarator followed by a SUBSCRIPTED variable stops after the variable and
