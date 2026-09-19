@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-19T18:10:16.339474961Z
-updated: 2026-09-19T18:10:16.339474961Z
+updated: 2026-09-19T18:11:01.788231035Z
 ---
 
 The same source line is reported WRONG many times over, which is one
@@ -63,3 +63,29 @@ owns prototypes; this is separate and lands in M1.
 - [ ] WRONG srefgen sites fall, measured over the corpus (`go test ./internal/parseoracle/ -run '^TestGoParserWrongIsZero$' -count=1 -v | grep -q '^--- PASS: TestGoParserWrongIsZero'`)
 
 Found by 01a0ba79's ranked table. Plan: M1. Spec: §7.2.
+
+
+## op/lvref.t belongs here too, and it is not what it looks like
+
+Five more sites, all reported at op/lvref.t:432:
+
+    \($bb, @cc, %dd, &ee, $_==1 ? $ff : @ff, ...) =
+        (\$BB, \@CC, \%DD, \&EE, \$FF, \@GG, \1, \2, \3);
+
+I first read this as `\` DISTRIBUTING over a parenthesised list -- one
+backslash, many references. Measured, and it is not:
+
+    $ perl -MO=Concise,-exec -e 'my ($a,@b,%c); my @r = \($a, @b, %c);' | grep -c srefgen
+    0
+    $ perl -MO=Concise,-exec -e 'my ($a,@b); \($a, @b) = (\my $x, \my @y);' | grep -c srefgen
+    0
+
+The lvalue `\(...)` emits NO srefgen at all. The five come from the RIGHT
+HAND SIDE, line 433, which carries five explicit backslashes:
+
+    $ perl -MO=Concise,-exec -e 'my ($BB,@CC); my @x = (\$BB, \@CC);' | grep -c srefgen
+    2
+
+So this is the same defect as the rest of this issue -- ops on line 433
+attributed to the statement beginning at 432 -- and not a parse rule. 36 of
+the 88 WRONG srefgen sites are span attribution once lvref.t is counted.
