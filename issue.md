@@ -1,19 +1,26 @@
 ---
 title: The readline BUILTIN is not a readline site, only the <> syntax is
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-19T18:15:49.825526237Z
-updated: 2026-09-19T20:59:06.185920102Z
+updated: 2026-09-19T20:59:06.235065848Z
 sessions:
 - start_sha: 09e38fa97c039422168735f3da9b607b14677d80
-  end_sha: ""
-  commits: 0
+  end_sha: 34b103f60e9548502ff3afe1f4cbb943b3397863
+  commits: 1
   started_at: 2026-09-19T20:38:30.029913515Z
+  ended_at: 2026-09-19T20:59:06.235065848Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-19T20:38:30.029913515Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-19T20:59:06.235065848Z
+observed_paths:
+- internal/parse/readline_test.go
+- internal/parse/sites.go
 ---
 
 `isReadlineTerm` (sites.go:299) matches a leaf whose text is angle-delimited,
