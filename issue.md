@@ -1,12 +1,21 @@
 ---
 title: Remove the WRONG pin when the harness measures the new parser
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-16T06:00:39.116126082Z
-updated: 2026-09-16T06:01:04.813439515Z
+updated: 2026-09-19T05:43:28.637346023Z
+sessions:
+- start_sha: 528b9d835526d7a2c3acb41646c44cf6fd145437
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-19T05:43:28.637346023Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-19T05:43:28.637346023Z
 ---
 
 Two files are pinned as WRONG in the corpus baseline, and the pin comes out
