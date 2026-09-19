@@ -7,7 +7,7 @@ blocks:
 - 01a0b835-1270-7b32-9f0a-18fe7c555bae
 - 01a0b84d-caa8-71d2-b42b-0c8445bc6026
 created: 2026-09-17T02:44:01.961043269Z
-updated: 2026-09-19T06:16:22.439105713Z
+updated: 2026-09-19T06:36:30.605996376Z
 sessions:
 - start_sha: 528b9d835526d7a2c3acb41646c44cf6fd145437
   end_sha: ""
@@ -126,11 +126,71 @@ which is correct, not a gap.
 
 ## Acceptance
 
-- [ ] A module named in `use` is located on the search path and parsed (`go test ./internal/parse/ -run '^TestResolvesModuleSource$' -count=1 -v | grep -q '^--- PASS: TestResolvesModuleSource'`)
-- [ ] `ParseFile` returns an error for an unreadable top-level file and never for anything found during resolution (`go test ./internal/parse/ -run '^TestParseFileErrorIsTheReadOnly$' -count=1 -v | grep -q '^--- PASS: TestParseFileErrorIsTheReadOnly'`)
-- [ ] A `use` naming a module that cannot be found still parses, and calls to its imports stay `Call{Resolved:false}` rather than guessing (`go test ./internal/parse/ -run '^TestUnresolvableImportDeclines$' -count=1 -v | grep -q '^--- PASS: TestUnresolvableImportDeclines'`)
-- [ ] A `use` cycle terminates, and a module used twice is parsed once (`go test ./internal/parse/ -run '^TestModuleCycleTerminates$' -count=1 -v | grep -q '^--- PASS: TestModuleCycleTerminates'`)
-- [ ] No perl subprocess is involved, at parse time or build time (`go test ./internal/parse/ -run '^TestNoPerlDependency$' -count=1 -v | grep -q '^--- PASS: TestNoPerlDependency'`)
-- [ ] `Parse([]byte)` behaviour is unchanged: the T1 and T2 ratchets do not move on this commit
+- [x] A module named in `use` is located on the search path and parsed (`go test ./internal/parse/ -run '^TestResolvesModuleSource$' -count=1 -v | grep -q '^--- PASS: TestResolvesModuleSource'`)
+- [x] `ParseFile` returns an error for an unreadable top-level file and never for anything found during resolution (`go test ./internal/parse/ -run '^TestParseFileErrorIsTheReadOnly$' -count=1 -v | grep -q '^--- PASS: TestParseFileErrorIsTheReadOnly'`)
+- [x] A `use` naming a module that cannot be found still parses, and calls to its imports stay `Call{Resolved:false}` rather than guessing (`go test ./internal/parse/ -run '^TestUnresolvableImportDeclines$' -count=1 -v | grep -q '^--- PASS: TestUnresolvableImportDeclines'`)
+- [x] A `use` cycle terminates, and a module used twice is parsed once (`go test ./internal/parse/ -run '^TestModuleCycleTerminates$' -count=1 -v | grep -q '^--- PASS: TestModuleCycleTerminates'`)
+- [x] No perl subprocess is involved, at parse time or build time (`go test ./internal/parse/ -run '^TestNoPerlDependency$' -count=1 -v | grep -q '^--- PASS: TestNoPerlDependency'`)
+- [x] `Parse([]byte)` behaviour is unchanged: the T1 and T2 ratchets do not move on this commit
 
 Spec: ch4 §4.8.3. Blocks 01a0b835 (the oracle repoint needs prototypes).
+
+
+## Done, 2026-09-19 (f066f2ab)
+
+    ParseFile        added, resolves against the file's own directory
+    Parse            unchanged -- every ratchet holds
+    full suite       green, 0 FAIL across the repo
+
+All six acceptance criteria verified by running each command as written.
+
+## What landed
+
+    func ParseFile(path string) (*Node, error)   // resolves against path's dir
+    func ParseWithLoader(src []byte, load Loader) *Node
+    func Parse(src []byte) *Node                 // unchanged
+
+`Loader` is the seam: `func(module string) ([]byte, bool)`. Production is
+`DirLoader`, which searches directories using perl's own spelling
+(`My::Mod` -> `My/Mod.pm`); tests hand back bytes they wrote themselves, so
+the suite needs no installed module and touches no fixed layout.
+
+The bool is "found", not "succeeded". A module that cannot be located and one
+that cannot be read are the same answer, because the consequence is
+identical, and TestParseFileErrorIsTheReadOnly pins that with a chmod 000
+file.
+
+## Termination, and where the mark goes
+
+The visited set is keyed by module name and marked BEFORE parsing rather than
+after. The module's own `use` statements are read during that parse, so a
+cycle returns through the same door; marking after would recurse forever. It
+doubles as the cache -- Test::More is parsed once, not once per file that
+uses it.
+
+## Measured while writing the test, and it belongs to the third issue
+
+    subtest 'x' => sub { 1 };   ->   Unknown, not Call{Resolved:false}
+
+A bareword followed by a string does not reach the Call path at all, so the
+691 parenless subtests in T1 are OPAQUE rather than merely unresolved. That
+is a bigger gap than the issue described and it is 01a0b84d-ec59's to close.
+
+My first draft of TestUnresolvableImportDeclines asserted
+`Call{Resolved:false}` and failed, which was the test reaching into the next
+issue rather than a defect here. Corrected to assert the negative -- no
+RESOLVED call to subtest -- which holds now and keeps holding once the shape
+work lands.
+
+## loaded is unexported, and on the root alone
+
+It says what the PARSE did, not what the source contains. A consumer walking
+children must not find it hanging off an interior node, it plays no part in
+the span arithmetic, and it never affects round-trip. Read through
+`LoadedModules(root)`; empty for a tree from `Parse`.
+
+## Next
+
+01a0b84d-caa8 reads exports and prototypes out of the bytes this issue
+delivers. 01a0b84d-ec59 spends them at the call site, and owns the Unknown
+measured above.
