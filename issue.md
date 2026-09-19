@@ -3,6 +3,8 @@ title: Resolve imports by parsing the module's own source
 state: pending
 urgency: normal
 milestone: m1-parse-the-core
+blocks:
+- 01a0b835-1270-7b32-9f0a-18fe7c555bae
 created: 2026-09-17T02:44:01.961043269Z
 updated: 2026-09-17T02:55:34.44568822Z
 ---
