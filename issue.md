@@ -1,19 +1,31 @@
 ---
 title: The canon sweep checks stability, not fidelity; quotient the parenless call
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-19T12:24:07.603930506Z
-updated: 2026-09-19T12:57:06.446689198Z
+updated: 2026-09-19T12:57:06.598396655Z
 sessions:
 - start_sha: 657d0caf0f47c00e90171f5eed8589e133a9d877
-  end_sha: ""
-  commits: 0
+  end_sha: ef0efc46cb2a0d24b82c6e69ce9d3ec7f357750e
+  commits: 1
   started_at: 2026-09-19T12:44:41.147317627Z
+  ended_at: 2026-09-19T12:57:06.598396655Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-19T12:44:41.147317627Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-19T12:57:06.598396655Z
+observed_paths:
+- .github/workflows/ci.yml
+- internal/parse/canon.go
+- internal/parse/fidelity.go
+- internal/parse/fidelity_test.go
+- internal/parse/pin_test.go
+- internal/parse/testdata/t1canon.ratchet
+- internal/parse/testdata/t1fidelity.ratchet
 ---
 
 The canon corpus sweep is a STABILITY check, not a fidelity check, and the
