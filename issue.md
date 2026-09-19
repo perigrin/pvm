@@ -7,7 +7,7 @@ blocks:
 - 01a0b835-1270-7b32-9f0a-18fe7c555bae
 - 01a0b84d-caa8-71d2-b42b-0c8445bc6026
 created: 2026-09-17T02:44:01.961043269Z
-updated: 2026-09-19T06:14:49.645889326Z
+updated: 2026-09-19T06:16:16.089598778Z
 ---
 
 Give the parser a door that knows where it is, so a `use` can be resolved
@@ -15,7 +15,7 @@ against the file's own directory at all.
 
 Split from the original 12-AC issue on 2026-09-19. This is part 1 of 3: the
 loading seam and the decline path. Reading exports and prototypes is
-01a0b8xx-A; deriving parse shape and using it at the call site is 01a0b8xx-B.
+01a0b84d-caa8; deriving parse shape and using it at the call site is 01a0b84d-ec59.
 The measurement and the argument for parsing the module's source rather than
 running perl are unchanged and recorded below.
 
