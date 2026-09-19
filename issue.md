@@ -1,21 +1,32 @@
 ---
 title: "Canonical re-emission: compare the tree written back out against its source"
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-16T06:13:00.800228773Z
-updated: 2026-09-19T12:04:14.400784745Z
+updated: 2026-09-19T12:04:14.548737103Z
 sessions:
 - start_sha: c3e65b4f5f9e760b2dac649b6094639e1508428d
-  end_sha: ""
-  commits: 0
+  end_sha: 0c00558236cd0390188a786142520c32468bf8c7
+  commits: 2
   started_at: 2026-09-19T11:39:48.535989761Z
+  ended_at: 2026-09-19T12:04:14.548737103Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-19T11:39:48.535989761Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-19T12:04:14.548737103Z
+observed_paths:
+- .github/workflows/ci.yml
+- internal/parse/canon.go
+- internal/parse/canon_test.go
+- internal/parse/pin_test.go
+- internal/parse/ratchet_test.go
+- internal/parse/testdata/t1canon.ratchet
 ---
 
 Re-emit the tree as Perl and compare significant tokens against the source.
