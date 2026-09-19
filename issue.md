@@ -4,7 +4,7 @@ state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-19T16:22:28.75915195Z
-updated: 2026-09-19T16:54:17.669777988Z
+updated: 2026-09-19T17:06:55.424564647Z
 sessions:
 - start_sha: 461ea788c4b3a17b7c9771e80fc6e45de3bbbf18
   end_sha: ""
@@ -85,9 +85,62 @@ line-level table shows whether it is needed.
 
 ## Acceptance
 
-- [ ] A verdict carries its per-statement findings, not only prose (`go test ./internal/parseoracle/ -run '^TestVerdictCarriesFindings$' -count=1 -v | grep -q '^--- PASS: TestVerdictCarriesFindings'`)
-- [ ] Findings agree with the Detail text they replace, on the same input (`go test ./internal/parseoracle/ -run '^TestFindingsAgreeWithDetail$' -count=1 -v | grep -q '^--- PASS: TestFindingsAgreeWithDetail'`)
-- [ ] The buckets and the gate are unchanged, asserted (`go test ./internal/parseoracle/ -run '^TestFindingsDoNotMoveBuckets$' -count=1 -v | grep -q '^--- PASS: TestFindingsDoNotMoveBuckets'`)
-- [ ] The sweep prints a ranked table of where WRONG comes from (`go test ./internal/parseoracle/ -run '^TestSweepReportsWhereWrongComesFrom$' -count=1 -v | grep -q '^--- PASS: TestSweepReportsWhereWrongComesFrom'`)
+- [x] A verdict carries its per-statement findings, not only prose (`go test ./internal/parseoracle/ -run '^TestVerdictCarriesFindings$' -count=1 -v | grep -q '^--- PASS: TestVerdictCarriesFindings'`)
+- [x] Findings agree with the Detail text they replace, on the same input (`go test ./internal/parseoracle/ -run '^TestFindingsAgreeWithDetail$' -count=1 -v | grep -q '^--- PASS: TestFindingsAgreeWithDetail'`)
+- [x] The buckets and the gate are unchanged, asserted (`go test ./internal/parseoracle/ -run '^TestFindingsDoNotMoveBuckets$' -count=1 -v | grep -q '^--- PASS: TestFindingsDoNotMoveBuckets'`)
+- [x] The sweep prints a ranked table of where WRONG comes from (`go test ./internal/parseoracle/ -run '^TestSweepReportsWhereWrongComesFrom$' -count=1 -v | grep -q '^--- PASS: TestSweepReportsWhereWrongComesFrom'`)
 
 Plan: M1. Spec: §7.2.
+
+
+## Done, 2026-09-19 (afdd06c9)
+
+    full suite green, 0 FAIL across the repo
+
+All four acceptance criteria verified by running each command as written.
+
+## The scope held
+
+Findings are DATA on the verdict; Bucket is untouched and the gate still
+reads Bucket alone. TestFindingsDoNotMoveBuckets asserts every bucket across
+all five shapes -- exact, wider, wrong, no-answer, declined.
+
+## Two things the implementation forced
+
+**Findings must span every marker.** compareMarkers keeps the WORST verdict
+and discarded the rest, so a file wrong on srefgen and also wrong on rv2hv
+reported only one of them. With five markers holding 249 sites between them,
+that understated the work by most of it. The bucket still comes from the
+worst marker; the findings accumulate across all of them.
+
+**A wider finding is not work to do.** WrongSites counts BucketWrong only: a
+hedge is the subject saying "I cannot settle this", which is the behaviour
+the four-bucket design exists to reward, and counting it would invert the
+metric. Both kinds are still REPORTED on the verdict -- a wider site is a
+site the subject did not account for -- and only the aggregation filters.
+
+## Where I was wrong
+
+My first TestFindingsAgreeWithDetail asserted that every finding's line
+appears in the Detail text. It does not, and the code is right: a WRONG
+verdict's sentence names the lines it COMMITTED to and gives only a count for
+the wider ones, because one sentence cannot carry two line lists and stay
+readable. The test now asserts what the prose actually carries -- the lines
+of its own bucket, and a count covering both.
+
+## Verified on a real failure
+
+By emptying the M4 pin and reading the gate's output:
+
+    18 WRONG site(s) in 1 file(s)
+    by marker:
+      srefgen       18
+    by file:
+         18  comp/proto.t
+
+which is the pinned prototype work, correctly attributed.
+
+## Incidental
+
+Fourteen positional Verdict literals broke on the new field. Keying them is
+what stops the next field from doing it again.
