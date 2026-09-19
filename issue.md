@@ -1,13 +1,22 @@
 ---
 title: Resolve imports by parsing the module's own source
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 blocks:
 - 01a0b835-1270-7b32-9f0a-18fe7c555bae
 - 01a0b84d-caa8-71d2-b42b-0c8445bc6026
 created: 2026-09-17T02:44:01.961043269Z
-updated: 2026-09-19T06:16:16.089598778Z
+updated: 2026-09-19T06:16:22.439105713Z
+sessions:
+- start_sha: 528b9d835526d7a2c3acb41646c44cf6fd145437
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-19T06:16:22.439105713Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-19T06:16:22.439105713Z
 ---
 
 Give the parser a door that knows where it is, so a `use` can be resolved
