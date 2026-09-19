@@ -1,12 +1,21 @@
 ---
 title: "Canonical re-emission: compare the tree written back out against its source"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-16T06:13:00.800228773Z
-updated: 2026-09-16T06:13:36.521296521Z
+updated: 2026-09-19T11:39:48.535989761Z
+sessions:
+- start_sha: c3e65b4f5f9e760b2dac649b6094639e1508428d
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-19T11:39:48.535989761Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-19T11:39:48.535989761Z
 ---
 
 Re-emit the tree as Perl and compare significant tokens against the source.
