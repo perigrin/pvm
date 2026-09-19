@@ -4,7 +4,7 @@ state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-19T18:15:49.825526237Z
-updated: 2026-09-19T20:38:30.029913515Z
+updated: 2026-09-19T20:59:06.185920102Z
 sessions:
 - start_sha: 09e38fa97c039422168735f3da9b607b14677d80
   end_sha: ""
@@ -55,8 +55,63 @@ rather than answer it.
 
 ## Acceptance
 
-- [ ] `readline $fh` reports a readline site (`go test ./internal/parse/ -run '^TestReadlineBuiltinIsASite$' -count=1 -v | grep -q '^--- PASS: TestReadlineBuiltinIsASite'`)
-- [ ] The angle form still reports one, and `<*.c>` glob still does not (`go test ./internal/parse/ -run '^TestReadlineBuiltinIsASite$' -count=1 -v | grep -q '^--- PASS: TestReadlineBuiltinIsASite'`)
-- [ ] WRONG readline sites fall, measured (`go test ./internal/parseoracle/ -run '^TestGoParserWrongIsZero$' -count=1 -v | grep -q '^--- PASS: TestGoParserWrongIsZero'`)
+- [x] `readline $fh` reports a readline site (`go test ./internal/parse/ -run '^TestReadlineBuiltinIsASite$' -count=1 -v | grep -q '^--- PASS: TestReadlineBuiltinIsASite'`)
+- [x] The angle form still reports one, and `<*.c>` glob still does not (`go test ./internal/parse/ -run '^TestReadlineBuiltinIsASite$' -count=1 -v | grep -q '^--- PASS: TestReadlineBuiltinIsASite'`)
+- [x] WRONG readline sites fall, measured (`go test ./internal/parseoracle/ -run '^TestGoParserWrongIsZero$' -count=1 -v | grep -q '^--- PASS: TestGoParserWrongIsZero'`)
 
 Found by 01a0ba79's ranked table. Plan: M1. Spec: §7.1.2.
+
+
+## Done, 2026-09-19 (34b103f6)
+
+    corpus readline sites  25 -> 4
+    corpus WRONG sites    163 -> 142, files 51 -> 45
+    corpus exact          401 -> 403
+    full suite green, 0 FAIL across the repo
+
+## The test found a second, older defect
+
+isReadlineTerm accepted ANY angle-delimited leaf, so a GLOB was reported as
+a readline -- wrong before this change and in the other direction. Measured:
+
+    <>  <$fh>  <FH>  <STDIN>  <My::Handle>  <a:b>    readline
+    <*.c>  <$h{x}>  <a b>                            glob
+
+readline iff the content is empty, a plain `$scalar`, or a bareword. perl's
+rule is looser than a package name -- `<a:b>` is readline -- so this follows
+the measurement rather than the tidier guess.
+
+## Three corrections, each caught by measuring
+
+**1.** My identifier loop was ASCII-only, so `<hòฟ>` became a glob and
+t/uni/readline.t gained 6 WRONG sites. perl compiles it to readline. Rune
+iteration now -- the same defect 0db016fd fixed in the lexer's quote guard,
+and twice in one session is a pattern worth naming.
+
+**2.** `$obj->readline` is a METHOD: Binary "->" whose right operand is a
+resolved Call, where perl emits entersub. My first comment claimed that
+shape "never reaches here"; it does.
+
+**3.** Skipping the method NAME must not skip its ARGUMENTS. Dropping the
+whole right subtree lost the reference in `threads->create(\&f, $i)` --
+op/threads.t went clean -> 3 WRONG srefgen and re/pat.t gained two, taking
+srefgen 38 -> 43. With arguments walked it is 38 again.
+
+Each is a regression row in the test.
+
+## The remaining 4 are the -n/-p switches
+
+    run/switcha.t:1   #!./perl -na
+    run/switchn.t:1   #!./perl -n
+    run/switchp.t:1   #!./perl -p
+    run/switchF.t:1   #!./perl -anFx+
+
+These wrap the program in an implicit `while (<>)`, so perl emits a readline
+the SOURCE does not contain. A static parser cannot see that without reading
+the shebang and synthesising a loop.
+
+Worth its own decision later: whether the subject should DECLINE such a file
+rather than answer it, which would move these from WRONG to no-answer and is
+the honest bucket for "the source I was given is not the program perl ran".
+Not filed yet -- four sites is below the bar for an issue until someone
+wants the row.
