@@ -3,8 +3,10 @@ title: "Lower literals, names and Hole: NumLit, StrLit, Interp, QwList, Bareword
 state: pending
 urgency: normal
 milestone: m2-lower-the-tree
+blocked_by:
+- 01a0c10f-37f8-7a43-b3ce-ea194f7defe0
 created: 2026-09-20T23:03:39.376749228Z
-updated: 2026-09-20T23:03:39.376749228Z
+updated: 2026-09-20T23:11:11.811158537Z
 ---
 
 ## Context
