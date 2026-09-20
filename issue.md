@@ -1,10 +1,19 @@
 ---
 title: A lexical hash is not an rv2hv, and the subject cannot tell which it is
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-19T18:15:49.871374091Z
-updated: 2026-09-19T23:15:53.031501368Z
+updated: 2026-09-20T01:38:27.624702622Z
+sessions:
+- start_sha: 25483d2b5bfff159cfc023dec9b050ce0c57c4b3
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-20T01:38:27.624702622Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-20T01:38:27.624702622Z
 ---
 
 **The title is wrong and git-zhi cannot retitle.** Read it as "the hash
