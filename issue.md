@@ -3,8 +3,10 @@ title: Measure the 147 unbucketed Unknowns in four comp files before fixing any 
 state: pending
 urgency: normal
 milestone: m1-parse-the-core
+blocked_by:
+- 01a0c13f-6816-79d2-945a-b84a12d39e6c
 created: 2026-09-20T23:56:17.751068121Z
-updated: 2026-09-20T23:56:17.751068121Z
+updated: 2026-09-20T23:56:40.423688587Z
 ---
 
 Four files carry 147 of T2's 649 Unknown nodes and nobody knows what is in
