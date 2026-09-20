@@ -1,19 +1,28 @@
 ---
 title: A lexical hash is not an rv2hv, and the subject cannot tell which it is
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-19T18:15:49.871374091Z
-updated: 2026-09-20T02:04:04.631455373Z
+updated: 2026-09-20T02:04:04.677782914Z
 sessions:
 - start_sha: 25483d2b5bfff159cfc023dec9b050ce0c57c4b3
-  end_sha: ""
-  commits: 0
+  end_sha: cc4a3d3a4dff59d2e6da66443724d83ccbfb75ec
+  commits: 1
   started_at: 2026-09-20T01:38:27.624702622Z
+  ended_at: 2026-09-20T02:04:04.677782914Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-20T01:38:27.624702622Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-20T02:04:04.677782914Z
+observed_paths:
+- internal/parse/hashderef_test.go
+- internal/parse/hashhedge_test.go
+- internal/parse/sites.go
+- internal/parse/sites_decided_test.go
 ---
 
 **The title is wrong and git-zhi cannot retitle.** Read it as "the hash
