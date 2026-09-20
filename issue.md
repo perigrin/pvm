@@ -5,8 +5,10 @@ urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
 - 01a0c13f-6816-79d2-945a-b84a12d39e6c
+blocks:
+- 01a0c10b-7148-77e5-8923-16fbce93c64b
 created: 2026-09-20T23:56:24.16253937Z
-updated: 2026-09-20T23:56:57.117159583Z
+updated: 2026-09-20T23:57:07.958042262Z
 ---
 
 M1's gate says "100% of T2 (56 files)". Some of those 56 files cannot be M1's
