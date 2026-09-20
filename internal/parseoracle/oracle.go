@@ -73,8 +73,21 @@ type Options struct {
 	Timeout time.Duration
 }
 
-// DefaultTimeout bounds one oracle invocation. Compiling a corpus file costs
-// tens of milliseconds; anything approaching this is wedged.
+// DefaultTimeout bounds one oracle invocation.
+//
+// MOST corpus files cost tens of milliseconds, and for those anything
+// approaching this is wedged. A few are far more expensive, and the
+// difference is the probe's walk rather than the compile. Measured on an
+// idle machine:
+//
+//	perl -Tc op/taint.t          0.6s    compile alone
+//	the same file through here   32s     compile plus the CHECK walk
+//
+// A caller measuring a known-expensive file should set Timeout explicitly
+// rather than have this raised for it: parse-fidelity.yml already does so
+// at 8m for the corpus sweep, and TestShebangPassthrough does at 4m. Raising
+// the default would slow every genuinely wedged file to accommodate the few
+// that are merely slow.
 const DefaultTimeout = 60 * time.Second
 
 // killDelay is how long a cancelled child has to exit on its own before it is

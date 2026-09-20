@@ -100,6 +100,22 @@ func TestFactsCarriesStderr(t *testing.T) {
 // TestShebangPassthrough covers the three corpus files carrying `#!./perl -T`.
 // Perl refuses to compile them unless -T is also on the command line, so
 // without the passthrough they look like syntax errors and are not.
+//
+// The two halves cost wildly different amounts, and the asymmetry is the
+// point rather than an accident. Measured on an idle machine:
+//
+//	without -T   150ms    perl rejects it and compiles nothing
+//	with -T      32s      the full compile, walk included
+//
+// So this test's cost is one 32-second measurement against DefaultTimeout's
+// 60 seconds, and on a loaded machine that margin is not enough -- the
+// failure this test was flaking with. An explicit timeout is set rather than
+// leaning on the default, because the default is calibrated for a corpus
+// file costing milliseconds and this file is three orders of magnitude off
+// that. See the note on DefaultTimeout.
+//
+// Raising the DEFAULT instead would be worse: it would slow every wedged
+// file in the corpus sweep by the same amount, to accommodate one fixture.
 func TestShebangPassthrough(t *testing.T) {
 	dir := shimT(t)
 	const taint = "op/taint.t"
@@ -107,8 +123,13 @@ func TestShebangPassthrough(t *testing.T) {
 		t.Skipf("%s absent from shim: %v", taint, err)
 	}
 
+	// Generous because the measurement is genuinely expensive, not because
+	// a slow answer is acceptable: a wedged child still fails, four minutes
+	// later instead of one.
+	const budget = 4 * time.Minute
+
 	off, err := parseoracle.AskFile(context.Background(), taint,
-		parseoracle.Options{Dir: dir})
+		parseoracle.Options{Dir: dir, Timeout: budget})
 	if err != nil {
 		t.Fatalf("AskFile without Shebang: %v", err)
 	}
@@ -117,7 +138,7 @@ func TestShebangPassthrough(t *testing.T) {
 	}
 
 	on, err := parseoracle.AskFile(context.Background(), taint,
-		parseoracle.Options{Dir: dir, Shebang: true})
+		parseoracle.Options{Dir: dir, Shebang: true, Timeout: budget})
 	if err != nil {
 		t.Fatalf("AskFile with Shebang: %v", err)
 	}
@@ -176,4 +197,45 @@ func TestScriptPathIsPackageRelative(t *testing.T) {
 	if !facts.OK {
 		t.Fatalf("probe must compile, stderr: %s", facts.Stderr)
 	}
+}
+
+// TestExpensiveFixtureStillFitsItsBudget keeps the numbers in
+// TestShebangPassthrough's comment and on DefaultTimeout honest.
+//
+// Both cite 32 seconds for op/taint.t through the probe, and both draw a
+// conclusion from it: that 60s is too tight a margin and 4m is enough. A
+// comment carrying a measurement nothing re-runs is a comment that goes
+// quietly wrong -- this one was already wrong when found, claiming every
+// corpus file costs "tens of milliseconds".
+//
+// Asserted loosely and in one direction. The absolute number moves with the
+// machine, so this fails only if the cost approaches the budget it justified
+// -- which is the moment the conclusion stops holding.
+func TestExpensiveFixtureStillFitsItsBudget(t *testing.T) {
+	dir := shimT(t)
+	const taint = "op/taint.t"
+	if _, err := os.Stat(filepath.Join(dir, taint)); err != nil {
+		t.Skipf("%s absent from shim: %v", taint, err)
+	}
+
+	start := time.Now()
+	f, err := parseoracle.AskFile(context.Background(), taint,
+		parseoracle.Options{Dir: dir, Shebang: true, Timeout: 4 * time.Minute})
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("AskFile: %v", err)
+	}
+	if !f.OK {
+		t.Fatalf("op/taint.t must compile with Shebang set, stderr: %s", f.Stderr)
+	}
+
+	// Half the budget. Measured at ~32s, so this has 2x headroom for a
+	// loaded machine and still fails long before a real wedge.
+	if limit := 2 * time.Minute; elapsed > limit {
+		t.Errorf("op/taint.t took %v through the probe, over half the %v budget "+
+			"TestShebangPassthrough sets. The comments citing ~32s are stale, "+
+			"and the reasoning that 4m is enough needs re-checking.",
+			elapsed.Round(time.Second), 4*time.Minute)
+	}
+	t.Logf("op/taint.t through the probe: %v", elapsed.Round(time.Millisecond))
 }
