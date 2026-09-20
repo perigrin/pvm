@@ -6,7 +6,32 @@ milestone: psc-type-alignment
 blocked_by:
 - 01a0c0e7-8234-7f04-80e5-1fab8682f9bd
 created: 2026-03-22T02:43:47.968515-04:00
-updated: 2026-09-20T22:20:01.17019838Z
+updated: 2026-09-20T22:20:33.870251335Z
+---
+
+**2026-09-20: blocked on 01a0c0e7, and the split recommendation below is
+superseded.**
+
+That recommendation was "undef propagation now against the tree-sitter tree,
+parameter inference later against the lowered one", on the argument that
+undef propagation is "a lattice question more than a tree question" and so
+mostly survives the conversion.
+
+perigrin's direction: **do no work against tree-sitter, it is being burned
+down.** That is a stronger constraint than "most of it survives" -- surviving
+partially is not a reason to write code against a tree that is being deleted,
+and §6.1.6 counts why nothing survives cleanly anyway:
+
+> Ten methods port; the vocabulary does not.
+
+`internal/infer` switches on 34 tree-sitter grammar names that
+`internal/parse` does not emit. So BOTH halves of this issue wait on the
+lowering pass, not just the parameter half.
+
+Also stale below: area 3's note to "check for double-ownership before
+starting" against 01a0ad3f. That issue is DONE (f066f2ab, 2026-09-19).
+Cross-file inference remains out of scope here regardless.
+
 ---
 
 Expand PSC's type inference beyond arity and container-level mismatches to value-level checking, as the formal papers describe.
