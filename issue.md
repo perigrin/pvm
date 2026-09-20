@@ -3,8 +3,10 @@ title: "Node identity: stable ids for internal/lower that survive an edit above 
 state: pending
 urgency: normal
 milestone: m2-lower-the-tree
+blocks:
+- 01a0c10f-37f8-7a43-b3ce-ea194f7defe0
 created: 2026-09-20T23:02:46.558435832Z
-updated: 2026-09-20T23:02:46.558435832Z
+updated: 2026-09-20T23:10:52.86613864Z
 ---
 
 ## Context
