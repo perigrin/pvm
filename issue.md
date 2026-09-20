@@ -3,8 +3,10 @@ title: Swap the annotation key from StartByte to node identity
 state: pending
 urgency: normal
 milestone: m2-lower-the-tree
+blocked_by:
+- 01a0c10e-c81e-7565-88fb-d973f18ed667
 created: 2026-09-20T23:10:09.105095184Z
-updated: 2026-09-20T23:10:09.105095184Z
+updated: 2026-09-20T23:11:05.804187881Z
 ---
 
 ## Context
