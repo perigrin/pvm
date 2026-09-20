@@ -4,7 +4,7 @@ state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-19T18:15:49.871374091Z
-updated: 2026-09-20T01:38:27.624702622Z
+updated: 2026-09-20T02:04:04.631455373Z
 sessions:
 - start_sha: 25483d2b5bfff159cfc023dec9b050ce0c57c4b3
   end_sha: ""
@@ -100,8 +100,71 @@ numbers.
 
 ## Acceptance
 
-- [ ] An undecidable hash access hedges rather than committing (`go test ./internal/parse/ -run '^TestUndecidableHashHedges$' -count=1 -v | grep -q '^--- PASS: TestUndecidableHashHedges'`)
-- [ ] A decidable one still commits, so exact does not collapse (`go test ./internal/parse/ -run '^TestDecidableHashStillCommits$' -count=1 -v | grep -q '^--- PASS: TestDecidableHashStillCommits'`)
-- [ ] WRONG rv2hv falls and the exact floor holds, both measured (`go test ./internal/parseoracle/ -run '^TestGoParserExactFloor$' -count=1 -v | grep -q '^--- PASS: TestGoParserExactFloor'`)
+- [x] An undecidable hash access hedges rather than committing (`go test ./internal/parse/ -run '^TestUndecidableHashHedges$' -count=1 -v | grep -q '^--- PASS: TestUndecidableHashHedges'`)
+- [x] A decidable one still commits, so exact does not collapse (`go test ./internal/parse/ -run '^TestDecidableHashStillCommits$' -count=1 -v | grep -q '^--- PASS: TestDecidableHashStillCommits'`)
+- [x] WRONG rv2hv falls and the exact floor holds, both measured (`go test ./internal/parseoracle/ -run '^TestGoParserExactFloor$' -count=1 -v | grep -q '^--- PASS: TestGoParserExactFloor'`)
 
 Measured 2026-09-19. Plan: M1. Spec: §7.1.2.
+
+
+## Done, 2026-09-20 (cc4a3d3a)
+
+    corpus WRONG      38 files / 96 sites -> 25 / 59
+    corpus rv2hv      48 -> 10
+    corpus exact      405 -> 390
+    corpus wider      134 -> 162
+    T2 exact floor    73.2%, floor 40.0%, holds
+    full suite green, 0 FAIL across the repo
+
+## The exact cost was real, predicted, and taken deliberately
+
+sites_decided_test.go:425 warned that hedging subscripts would "trade exact
+for wider on every hash and array access in the corpus". That is exactly the
+-15, and perigrin took the trade with the numbers in hand.
+
+The reasoning: WRONG is the GATE and exact is a RATCHET. The 15 are not lost
+knowledge -- they are claims that could not be justified, right only when a
+hash happened to be lexical.
+
+## The line, drawn from measurement
+
+A DEREFERENCE always emits the op and is decided; a NAMED hash depends on a
+declaration and is hedged.
+
+    keys %$r   1    keys %{$s{a}}     1    $r->%*  1
+    keys %{$r} 1    keys %{$s{a}{b}}  2    %ENV    1
+
+A nested access is both at once: `%{$s{a}}` is a dereference that always
+emits, of an element that folds to multideref when the base is lexical. One
+decided site plus one hedge, and my first test asserted no hedge there and
+was wrong.
+
+## Two under-reports fixed on the way
+
+`@$r{"a","b"}` -- a slice through a reference -- reported no site at all,
+the same class as `%$href` in 461ea788.
+
+And my first version of that rule claimed `@{$r->{x}}`, an ARRAY dereference
+of a hash element: rv2av, a different op. The Arrow flag separates them,
+since a real slice has no arrow. That cost 2 sites back (8 -> 10) and the
+2 were correct to give up.
+
+## Four existing tests changed
+
+Three were genuine inversions, not incidental breakage:
+
+    TestSitesDecideMarkers       hash rows are dereferences now
+    TestPlainDerefDoesNotHedge   hash subscript row gone, ARRAY row stays;
+                                 that test owns OPACITY, this rule owns
+                                 undecidable scope, and the comment now says so
+    TestSitesReportTheirOwnLine  example swapped to `keys %$r`
+    TestHashDerefIsAHashSite     asserts the site is PRESENT, decided or
+                                 hedged -- silence is still scored as the
+                                 claim that nothing is there
+
+## What remains: 10 sites, all M4
+
+op/each.t and op/hash-clear-placeholders.t are XS prototype calls --
+`Hash::Util::num_buckets` has prototype `(\%)` and
+`Internals::hv_clear_placeholders` `(\%)`. Not decidable from Perl source at
+all, since the prototype lives in compiled C.
