@@ -3,8 +3,10 @@ title: "Lower declarations: Decl kinds, the list form by child count, sub declar
 state: pending
 urgency: normal
 milestone: m2-lower-the-tree
+blocked_by:
+- 01a0c10f-37f8-7a43-b3ce-ea194f7defe0
 created: 2026-09-20T23:06:52.901032434Z
-updated: 2026-09-20T23:06:52.901032434Z
+updated: 2026-09-20T23:11:35.519149056Z
 ---
 
 ## Context
