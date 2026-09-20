@@ -163,6 +163,13 @@ func decidedMarkers(stmt *Node) []decided {
 		found = append(found, decided{kind: kind, node: n})
 	}
 
+	// hedge reports a site this parser SEES but cannot settle. It scores
+	// wider rather than WRONG, which is the honest bucket for "something
+	// here may or may not emit the op, and the answer is not in the text".
+	hedge := func(kind string, n *Node) {
+		found = append(found, decided{kind: kind, node: n, unresolved: true})
+	}
+
 	var walk func(*Node)
 	walk = func(n *Node) {
 		switch n.Kind {
@@ -186,6 +193,26 @@ func decidedMarkers(stmt *Node) []decided {
 			// over block (§4.9.2), so this node IS the decision.
 			add(parseoracle.SiteKindAnonhash, n)
 
+		case Index:
+			// A BRACE subscript reads a hash, and whether perl emits rv2hv
+			// for it turns on the same undecidable question a named `%h`
+			// does -- plus the optimiser, which folds `$h{a}` to multideref
+			// and emits nothing at all:
+			//
+			//	my %h;  @h{"a","b"}       0 rv2hv
+			//	our %h; @h{"a","b"}       1 rv2hv
+			//	my %h;  delete $h{a}      0
+			//	our %h; delete local $h{a} 1
+			//
+			// Hedged for a NAMED base and left alone for a dereference: the
+			// `@$r{...}` form is a Unary `@` over this node and is decided
+			// there, where the sigil says a reference is being read.
+			if n.Text == "{" && len(n.Children) > 0 &&
+				n.Children[0].Kind == Term && !n.Arrow &&
+				isNamedVariable(n.Children[0].Text) {
+				hedge(parseoracle.SiteKindHash, n)
+			}
+
 		case Unary:
 			// perl: srefgen. prefixName maps `\` to "ref", which keeps the
 			// prefix spelling distinct from infix `-`.
@@ -205,6 +232,29 @@ func decidedMarkers(stmt *Node) []decided {
 			// `@$aref` is rv2av, a different op, so only `%` counts here.
 			if n.Text == "%" {
 				add(parseoracle.SiteKindHash, n)
+			}
+			// A SLICE through a reference is rv2hv too: `@$r{"a","b"}` is a
+			// Unary `@` over a brace Index, and perl emits the op because a
+			// reference is being read. Measured 1, where the same slice of a
+			// named lexical hash is 0.
+			//
+			// `@$aref[0,1]` is an array slice -- rv2av -- so the BRACE is
+			// what makes this a hash, not the sigil.
+			//
+			// The inner Index is NOT walked: this node decides the access,
+			// and letting the subscript hedge it as well would report the
+			// same hash twice, one decided and one not.
+			// NOT `@{$r->{x}}`, which is an ARRAY dereference of a hash
+			// element -- rv2av, a different op. Its Index carries Arrow;
+			// a slice's does not, because `@$r{...}` has no arrow in it.
+			if n.Text == "@" && len(n.Children) == 1 &&
+				n.Children[0].Kind == Index && n.Children[0].Text == "{" &&
+				!n.Children[0].Arrow {
+				add(parseoracle.SiteKindHash, n)
+				for _, c := range n.Children[0].Children {
+					walk(c)
+				}
+				return
 			}
 
 		case Call:
@@ -251,8 +301,13 @@ func decidedMarkers(stmt *Node) []decided {
 				return
 			}
 			switch {
+			case isNamedHash(n.Text):
+				// perl: rv2hv for a PACKAGE hash, padhv for a lexical --
+				// from identical source text. Undecidable here, so hedged.
+				hedge(parseoracle.SiteKindHash, n)
 			case isHashTerm(n.Text):
-				// perl: rv2hv.
+				// perl: rv2hv. A dereference reads through a reference and
+				// emits the op however anything was declared.
 				add(parseoracle.SiteKindHash, n)
 			case isReadlineTerm(n.Text):
 				// perl: readline.
@@ -334,6 +389,41 @@ func hidesStructure(text string) bool {
 // precisely because the lexer already did the hard part.
 func isHashTerm(text string) bool {
 	return len(text) > 1 && text[0] == '%'
+}
+
+// isNamedHash reports whether a hash access names a hash rather than
+// dereferencing one: `%h` and not `%$r`.
+//
+// The distinction decides whether this parser can COMMIT. Perl emits rv2hv
+// for a package hash and padhv -- no marker -- for a lexical, from source
+// text that is byte for byte the same:
+//
+//	my %h;  keys %h    0 rv2hv
+//	our %h; keys %h    1 rv2hv
+//
+// A dereference has no such ambiguity: `%$r` reads through a reference and
+// emits the op however anything was declared.
+//
+// Scope tracking would not settle it either, and that is why this hedges
+// rather than resolving. `state %h` is a LEXICAL declaration that behaves
+// like a package hash here (1 rv2hv, measured), so a rule keyed on "was it
+// declared with my" answers it wrong -- and a lexical closed over by a named
+// sub stays padhv, so the rule would need closure analysis to get the
+// easy case right.
+func isNamedHash(text string) bool {
+	return len(text) > 1 && text[0] == '%' &&
+		text[1] != '$' && text[1] != '{'
+}
+
+// isNamedVariable reports whether a subscript's base names a variable rather
+// than holding a reference: `$h` and `@h`, not `$$r` or `${...}`.
+//
+// Same question isNamedHash asks, one node down. `@h{...}` slices the hash
+// %h -- package or lexical, undecidable -- while `@$r{...}` slices through a
+// reference and is read by the Unary case above.
+func isNamedVariable(text string) bool {
+	return len(text) > 1 && (text[0] == '$' || text[0] == '@') &&
+		text[1] != '$' && text[1] != '{'
 }
 
 // isReadlineTerm reports whether a leaf is `<FH>`, `<$fh>` or `<>`.

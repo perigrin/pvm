@@ -39,13 +39,18 @@ func TestHashDerefIsAHashSite(t *testing.T) {
 		}
 	}
 
-	// The plain form must keep working.
+	// The plain form is still SEEN, and is now hedged rather than decided:
+	// whether perl emits rv2hv for a named hash depends on how it was
+	// declared, which the text cannot carry (01a0bae1-b76f). What must not
+	// happen is the site disappearing -- silence is scored as the claim
+	// that nothing is there.
 	for _, src := range []string{
 		`my @k = keys %hash;`,
 		`my %copy = %other;`,
 	} {
-		if !hasSite(parse.Sites(parse.Parse([]byte(src)), []byte(src)), parseoracle.SiteKindHash) {
-			t.Errorf("%s\n  reports no hash site", src)
+		sites := parse.Sites(parse.Parse([]byte(src)), []byte(src))
+		if !hasSite(sites, parseoracle.SiteKindHash) && !hedgedSite(sites, parseoracle.SiteKindHash) {
+			t.Errorf("%s\n  reports no hash site at all, decided or hedged", src)
 		}
 	}
 

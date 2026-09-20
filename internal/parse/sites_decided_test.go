@@ -69,10 +69,18 @@ func TestSitesDecideMarkers(t *testing.T) {
 			`f(\@a);`,
 		}},
 		// perl: rv2hv
+		// perl: rv2hv. DEREFERENCES only: a named `%h` hedges now, because
+		// whether perl emits the op for it depends on how it was declared
+		// and the text cannot carry that (01a0bae1-b76f, measured):
+		//
+		//	my %h;  keys %h    0 rv2hv
+		//	our %h; keys %h    1 rv2hv
+		//
+		// TestDecidableHashStillCommits owns the positive rule.
 		{parseoracle.SiteKindHash, []string{
-			`my %h = (a => 1);`,
-			`my $n = keys %h;`,
-			`my @k = values %h;`,
+			`my $n = keys %$r;`,
+			`my $n = keys %{$r};`,
+			`my @k = values %$r;`,
 		}},
 		// perl: match. The variable form is a match too -- perl compiles
 		// $expected as a pattern and reports the same op, measured:
@@ -427,21 +435,24 @@ func TestPlainDerefDoesNotHedge(t *testing.T) {
 		`my $r = $$x;`,
 		`my @a = @$r;`,
 		`my $n = 1;`,
-		// A subscript carries the same bracket characters and must not hedge:
-		// hedging it would trade exact for wider on every hash and array
-		// access in the corpus.
+		// An ARRAY subscript carries the same bracket characters and must
+		// not hedge on that account.
 		//
-		// These pass whatever `hidesStructure` does, and that is worth saying
-		// rather than implying otherwise. `$h{k}` parses to an Index whose
-		// Term child is `$h` -- the braces belong to the Index node, so the
-		// leaf text `hidesStructure` sees is never `"$h{k}"`. Its
+		// This passes whatever `hidesStructure` does, and that is worth
+		// saying rather than implying otherwise. `$a[0]` parses to an Index
+		// whose Term child is `$a` -- the brackets belong to the Index node,
+		// so the leaf text `hidesStructure` sees is never `"$a[0]"`. Its
 		// `text[1] != '{'` guard is therefore DEFENSIVE, not load-bearing:
 		// removing it leaves the whole suite green, because no parsed input
 		// reaches it. Kept because the function takes a string and a future
 		// caller may not have an Index between it and the source.
-		`my $v = $h{k};`,
+		//
+		// A HASH subscript is no longer here, and the reason is a different
+		// question from this test's. `$h{k}` hedges now because whether perl
+		// emits rv2hv for it depends on a declaration the text cannot carry
+		// (01a0bae1-b76f), not because anything is hidden inside it.
+		// TestUndecidableHashHedges owns that rule; this one owns opacity.
 		`my $v = $a[0];`,
-		`$h{k} = 1;`,
 	} {
 		if got := hedgedKinds(src); len(got) != 0 {
 			t.Errorf("%q: nothing is hidden here, want no hedge, got %v",
@@ -618,7 +629,10 @@ func TestSitesReportTheirOwnLine(t *testing.T) {
 			parseoracle.SiteKindReference, 2, 2},
 		{"if (1) {\n    my $r = {a=>1};\n}\n",
 			parseoracle.SiteKindAnonhash, 2, 2},
-		{"while (1) {\n\n    my @k = keys %h;\n}\n",
+		// A DEREFERENCE, not `keys %h`: a named hash hedges now, because its
+		// op depends on how it was declared (01a0bae1-b76f), and this case
+		// needs a site the subject decides.
+		{"while (1) {\n\n    my @k = keys %$r;\n}\n",
 			parseoracle.SiteKindHash, 3, 3},
 		// A multi-line statement: perl reports line 1, the node is on 2.
 		{"f(\n    \\$x,\n);\n",
