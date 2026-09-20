@@ -3,8 +3,10 @@ title: T2's target excludes what M1 does not own, and says which milestone does
 state: pending
 urgency: normal
 milestone: m1-parse-the-core
+blocked_by:
+- 01a0c13f-6816-79d2-945a-b84a12d39e6c
 created: 2026-09-20T23:56:24.16253937Z
-updated: 2026-09-20T23:56:24.16253937Z
+updated: 2026-09-20T23:56:57.117159583Z
 ---
 
 M1's gate says "100% of T2 (56 files)". Some of those 56 files cannot be M1's
