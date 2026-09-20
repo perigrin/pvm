@@ -3,8 +3,10 @@ title: Re-measure §4.14.2 against HEAD and rewrite the status table
 state: pending
 urgency: normal
 milestone: m2-lower-the-tree
+blocks:
+- 01a0c10f-9671-733f-8b98-30a78f634b0f
 created: 2026-09-20T23:02:22.60535129Z
-updated: 2026-09-20T23:02:22.60535129Z
+updated: 2026-09-20T23:11:58.777400867Z
 ---
 
 ## Context
