@@ -3,8 +3,10 @@ title: "T2 core is 30.4% against a 100% target: what the 39 files actually need"
 state: pending
 urgency: normal
 milestone: m1-parse-the-core
+blocked_by:
+- 01a0c13f-c7d7-7d9c-9a85-60a59aa26bc0
 created: 2026-09-20T22:59:07.720149993Z
-updated: 2026-09-20T22:59:07.720149993Z
+updated: 2026-09-20T23:57:02.355272123Z
 ---
 
 T2 core is M1's headline metric and it is not close. The plan's target is
