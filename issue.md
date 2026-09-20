@@ -3,8 +3,10 @@ title: A parenless call consumes its arguments, so its statement stops falling t
 state: pending
 urgency: normal
 milestone: m1-parse-the-core
+blocked_by:
+- 01a0c13f-50ee-77c8-afe5-9c5e6ebb9638
 created: 2026-09-20T23:55:53.237977507Z
-updated: 2026-09-20T23:55:53.237977507Z
+updated: 2026-09-20T23:56:34.702946237Z
 ---
 
 The decision issue establishes WHICH route the `default:` arm of
