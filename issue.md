@@ -3,8 +3,10 @@ title: Retire the tree-sitter vocabulary from internal/infer
 state: pending
 urgency: normal
 milestone: m2-lower-the-tree
+blocked_by:
+- 01a0c115-c0db-7923-b276-984794affd39
 created: 2026-09-20T23:10:31.270515112Z
-updated: 2026-09-20T23:10:31.270515112Z
+updated: 2026-09-20T23:13:44.43117303Z
 ---
 
 ## Context
