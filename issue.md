@@ -3,8 +3,10 @@ title: Expand PSC inference to cover more Perl type semantics
 state: pending
 urgency: normal
 milestone: psc-type-alignment
+blocked_by:
+- 01a0c0e7-8234-7f04-80e5-1fab8682f9bd
 created: 2026-03-22T02:43:47.968515-04:00
-updated: 2026-09-17T15:37:49.602916128Z
+updated: 2026-09-20T22:20:01.17019838Z
 ---
 
 Expand PSC's type inference beyond arity and container-level mismatches to value-level checking, as the formal papers describe.
