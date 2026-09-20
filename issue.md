@@ -3,8 +3,10 @@ title: "Lower Slice{Kind}: the five-way switch §4.14.1 rule 5 specifies"
 state: pending
 urgency: normal
 milestone: m2-lower-the-tree
+blocked_by:
+- 01a0c10f-37f8-7a43-b3ce-ea194f7defe0
 created: 2026-09-20T23:05:41.330720998Z
-updated: 2026-09-20T23:05:41.330720998Z
+updated: 2026-09-20T23:11:23.269719085Z
 ---
 
 ## Context
