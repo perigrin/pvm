@@ -3,8 +3,10 @@ title: "Lower variables and subscripts: Var, Deref, Index, Key with Arrow"
 state: pending
 urgency: normal
 milestone: m2-lower-the-tree
+blocked_by:
+- 01a0c10f-37f8-7a43-b3ce-ea194f7defe0
 created: 2026-09-20T23:04:40.094536526Z
-updated: 2026-09-20T23:04:40.094536526Z
+updated: 2026-09-20T23:11:17.080244446Z
 ---
 
 ## Context
