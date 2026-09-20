@@ -3,8 +3,10 @@ title: Decide what a parenless call to an unknown callee does with its arguments
 state: pending
 urgency: normal
 milestone: m1-parse-the-core
+blocks:
+- 01a0c13f-6816-79d2-945a-b84a12d39e6c
 created: 2026-09-20T23:55:47.309990102Z
-updated: 2026-09-20T23:55:47.309990102Z
+updated: 2026-09-20T23:56:34.709266784Z
 ---
 
 `internal/parse/call.go`'s `default:` arm decides what a bareword this parser
