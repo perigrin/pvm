@@ -1,19 +1,26 @@
 ---
 title: TestShebangPassthrough flakes on a 48s fixture against a 60s timeout
-state: in-progress
+state: done
 urgency: normal
 milestone: parser-fidelity-harness
 created: 2026-09-12T20:58:22.461237475Z
-updated: 2026-09-20T20:10:57.602705931Z
+updated: 2026-09-20T20:10:57.76472411Z
 sessions:
 - start_sha: cc4a3d3a4dff59d2e6da66443724d83ccbfb75ec
-  end_sha: ""
-  commits: 0
+  end_sha: b6e7c351f8e8cd83c9d92e404cce11020f563dac
+  commits: 1
   started_at: 2026-09-20T19:58:14.472261163Z
+  ended_at: 2026-09-20T20:10:57.76472411Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-20T19:58:14.472261163Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-20T20:10:57.76472411Z
+observed_paths:
+- internal/parseoracle/oracle.go
+- internal/parseoracle/oracle_test.go
 ---
 
 TestShebangPassthrough ran op/taint.t against DefaultTimeout's 60 seconds.
