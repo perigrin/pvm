@@ -3,10 +3,12 @@ title: "The lowering pass: internal/infer must read internal/parse, not tree-sit
 state: pending
 urgency: normal
 milestone: m2-lower-the-tree
+blocked_by:
+- 01a0c115-df67-7d69-8883-73d40b0ae15d
 blocks:
 - 019d1449-1880-729b-860b-ac29464f6cd7
 created: 2026-09-20T22:19:52.755941663Z
-updated: 2026-09-20T22:59:21.087904664Z
+updated: 2026-09-20T23:13:50.197870729Z
 ---
 
 `internal/infer` reads the tree-sitter tree through `internal/parser/`. That
