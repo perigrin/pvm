@@ -3,8 +3,10 @@ title: A leading-decimal literal is a number, not an Unknown
 state: pending
 urgency: normal
 milestone: m1-parse-the-core
+blocks:
+- 01a0c13f-c7d7-7d9c-9a85-60a59aa26bc0
 created: 2026-09-20T23:56:05.493446087Z
-updated: 2026-09-20T23:56:05.493446087Z
+updated: 2026-09-20T23:56:45.608176819Z
 ---
 
 A numeric literal with no digit before the point is a number in perl and an
