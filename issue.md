@@ -4,7 +4,7 @@ state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-21T18:43:00.587037252Z
-updated: 2026-09-21T22:41:46.739551176Z
+updated: 2026-09-21T22:56:16.658792416Z
 sessions:
 - start_sha: b41801021927f68fcbf799c60d6b947393d983de
   end_sha: ""
@@ -85,40 +85,52 @@ that had a file for them.
 
 ## Acceptance
 
-- [ ] `opsOf` sees inside a named sub: a file whose signature compiles
+- [x] `opsOf` sees inside a named sub: a file whose signature compiles
       `argcheck`, `argdefelem` and `argelem` and whose body ends in
       `leavesub` yields all four, none of which the main optree carries.
       (`go test ./internal/conformance/ -run TestOpsOfSeesInsideNamedSub -count=1 -v`)
-- [ ] `opsOf` sees inside a `method` body, so `methstart` is reachable
+- [x] `opsOf` sees inside a `method` body, so `methstart` is reachable
       at all. (`go test ./internal/conformance/ -run TestOpsOfSeesInsideMethod -count=1 -v`)
-- [ ] `opsOf` sees subs declared in a package other than `main`, since
+- [x] `opsOf` sees subs declared in a package other than `main`, since
       B::Concise names them `Foo::bar` and most of tiers 11 and 12
       declare subs there.
       (`go test ./internal/conformance/ -run TestOpsOfSeesSubsInOtherPackages -count=1 -v`)
-- [ ] The enumeration stops at the file boundary. Every CV the process
+- [x] The enumeration stops at the file boundary. Every CV the process
       loaded is reachable from the symbol table, and dumping
       `strict::import` or `Exporter::import` would add their ops to
       EVERY corpus file's measured set. A file that merely says `use
       strict; use warnings` emits no `goto`, `require` or `dofile`.
       (`go test ./internal/conformance/ -run TestOpsOfStopsAtTheFileBoundary -count=1 -v`)
-- [ ] The main program is still dumped, which thirteen tiers' op sets
+- [x] The main program is still dumped, which thirteen tiers' op sets
       were measured against, so the widening ADDS and never replaces.
       (`go test ./internal/conformance/ -run TestOpsOfStillSeesTheMainProgram -count=1 -v`)
-- [ ] Each of the five checks above is proven by mutation: reverting
+- [x] Each of the five checks above is proven by mutation: reverting
       `opsOf` to the bare `-MO=Concise,-exec` fails the first three, and
       dropping the `FILE` filter fails the fourth.
       (`go test ./internal/conformance/ -run TestOpsOfMutations -count=1 -v`)
-- [ ] Tier 07's INTRODUCES grows back the ops the issue names, plus
+- [x] Tier 07's INTRODUCES grows back the ops the issue names, plus
       `postinc`, and tier 11's gains `methstart` and `shift`, each
       claimed by the tier that emits it first.
       (`grep -A3 '^## INTRODUCES' conformance/07_subroutines/README.md conformance/11_oo/README.md`)
-- [ ] Both READMEs' statements that these ops are INVISIBLE to the lint
+- [x] Both READMEs' statements that these ops are INVISIBLE to the lint
       are rewritten, since the widening makes them false.
       (`git diff -- conformance/07_subroutines/README.md conformance/11_oo/README.md`)
-- [ ] No op is claimed by two tiers after the widening.
+- [x] No op is claimed by two tiers after the widening.
       (`go test ./internal/conformance/ -run TestOpClaimedByExactlyOneTier -count=1 -v`)
-- [ ] Every corpus file still lints at its declared tier, and no README
+- [x] Every corpus file still lints at its declared tier, and no README
       claims an op no file emits.
       (`go test ./internal/conformance/ -run TestCorpusLints -count=1`)
 - [ ] The whole conformance suite stays green.
       (`go test ./internal/conformance/ -count=1`)
+
+      NOT TICKED, and not by this change. 153 of the package's 154 tests
+      pass. The one failure is `TestCorpusRatchet`, reporting that
+      `undeclared_callee.t` -- the corpus's first `--- expect parsent`
+      file, landed concurrently -- passes on arrival and belongs in the
+      baseline before it lands. The ratchet path never calls `opsOf`
+      (`grep -n 'opsOf|lintOps|lintFile' internal/conformance/ratchet.go
+      internal/conformance/ratchet_test.go` matches nothing), so the
+      widening is not what fails it; regenerating the ratchet belongs to
+      the change that added the file. Everything else is green:
+      (`go test ./internal/conformance/ -count=1 -run 'Test[^C]|TestC[^o]|TestCo[^r]|TestCorpusL'`)
+      and (`go test ./internal/conformance/ -count=1 -run 'TestCorpus$|TestCorpusSkipsAreDocumented'`).
