@@ -4,6 +4,7 @@ package conformance
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -511,5 +512,87 @@ func TestCorpusSkipsAreDocumented(t *testing.T) {
 		if v := verdict(t, f); v.kind == knownRefusal && f.Refuses == "" {
 			t.Errorf("%s skips with no refusal recorded", path)
 		}
+	}
+}
+
+// TestRefusalCitationMustResolve checks that every issue a corpus file
+// cites still exists.
+//
+// A citation can outlive its issue -- which nearly happened during a
+// chain prune that destroyed one ref. A refusal pointing at nothing is a
+// skip with no explanation behind it: the file still claims a known gap,
+// but the record of what the gap IS is gone.
+func TestRefusalCitationMustResolve(t *testing.T) {
+	// The resolver, checked against ids whose existence is known, so this
+	// proves the lookup and not the corpus. The fabricated id is a real
+	// one with its last character bumped: same shape, same length, so a
+	// resolver that merely pattern-matches would pass it.
+	t.Run("resolver", func(t *testing.T) {
+		requireZhi(t)
+
+		const real = "01a0c13f-97f5-7f98-b32d-07245ec6ddfe"
+		if err := citationResolves(real); err != nil {
+			t.Errorf("a real id did not resolve: %v", err)
+		}
+
+		const fake = "01a0c13f-97f5-7f98-b32d-07245ec6ddff"
+		err := citationResolves(fake)
+		if err == nil {
+			t.Fatalf("fabricated id %s resolved", fake)
+		}
+		if !strings.Contains(err.Error(), fake) {
+			t.Errorf("error = %q, want it to name the id %q", err, fake)
+		}
+	})
+
+	// selfRecorded is a complete citation, not an id, and looking it up
+	// would fail every corpus file that uses it. Checked without
+	// requireZhi because it must not reach git-zhi at all.
+	t.Run("this file is not looked up", func(t *testing.T) {
+		if err := citationResolves(selfRecorded); err != nil {
+			t.Errorf("%q was looked up: %v", selfRecorded, err)
+		}
+	})
+
+	// The corpus itself: every id it cites, resolved.
+	t.Run("corpus", func(t *testing.T) {
+		requireZhi(t)
+
+		paths, err := filepath.Glob(filepath.Join(corpusDir, "*_*", "*.t"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(paths) == 0 {
+			t.Fatal("no corpus files found")
+		}
+		for _, path := range paths {
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			f, err := ParseFile(string(raw))
+			if err != nil {
+				t.Errorf("%s: %v", path, err)
+				continue
+			}
+			if err := citationResolves(f.Refuses); err != nil {
+				t.Errorf("%s: %v", path, err)
+			}
+		}
+	})
+}
+
+// requireZhi skips when the tracker is not installed.
+//
+// The check needs git-zhi; a machine without it cannot answer the
+// question, and failing there would make the suite depend on a tool that
+// is not a build dependency. So it SKIPS, loudly and by name, rather than
+// passing vacuously -- a check that silently reports success when it
+// could not run is worse than no check, because it converts "unknown" to
+// "fine".
+func requireZhi(t *testing.T) {
+	t.Helper()
+	if _, err := exec.LookPath(zhiBinary); err != nil {
+		t.Skipf("%s is not installed, so refusal citations cannot be resolved", zhiBinary)
 	}
 }

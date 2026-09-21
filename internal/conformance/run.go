@@ -1,16 +1,11 @@
 // ABOUTME: Runs one corpus case: perl adjudicates, then our lexer and parser answer.
 // ABOUTME: A case that perl itself refuses is a corpus bug, reported as such.
 //
-// SPIKE. This package was written during the design of
-// docs/plans/2026-09-21-graded-conformance-corpus.md to test whether the
-// proposed file format survives contact, and it did its job by raising
-// questions the sketch had not: what a repeated section means, whether
-// expected output is byte-exact, what a refusal looks like in a suite that
-// must stay pristine.
-//
-// It has NOT been through assess, refinement or execution, so nothing here
-// is a settled decision. Read it as evidence for the spec, not as an
-// implementation of it. It may be kept, rewritten or deleted.
+// The format this runs against is docs/plans/2026-09-21-graded-conformance-corpus.md,
+// and the questions that design left open are settled here rather than in
+// prose: a repeated section is an error, expected output is byte-exact,
+// and a refusal is a SKIP carrying its citation so the suite stays
+// pristine while still naming what does not work.
 package conformance
 
 import (

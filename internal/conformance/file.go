@@ -4,8 +4,10 @@ package conformance
 
 import (
 	"fmt"
+	"os/exec"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 // File is one corpus case: the source to run and what is expected of it.
@@ -232,4 +234,50 @@ func (f *File) setSection(name, body string) error {
 		return fmt.Errorf("unknown section %q", name)
 	}
 	return nil
+}
+
+// zhiBinary is the issue tracker a refusal citation names an issue in.
+const zhiBinary = "git-zhi"
+
+// citationResolves reports whether a refusal citation still stands.
+//
+// Three citations, three answers. "" is a file that does not refuse.
+// selfRecorded is COMPLETE as it stands -- the file itself is the record
+// -- so looking it up would fail the fifteen corpus files that use it.
+// Anything else is an issue id, and an id that no longer resolves is a
+// skip with nothing behind it: the file still claims a known gap while
+// the record of what the gap IS has been destroyed, which nearly happened
+// during a chain prune.
+func citationResolves(citation string) error {
+	if citation == "" || citation == selfRecorded {
+		return nil
+	}
+	return issueResolves(citation)
+}
+
+var (
+	issueOnce sync.Mutex
+	issueSeen = map[string]error{}
+)
+
+// issueResolves asks the tracker whether one id exists, once per process.
+//
+// `git-zhi issue show` exits 0 for an id it finds and 1 for one it does
+// not, including for an issue in any state -- a done issue resolves even
+// though the default `issue list` omits it. The answer is memoised
+// because it cannot change mid-run and each call costs ~0.4s, which the
+// corpus would otherwise pay per citing file.
+func issueResolves(id string) error {
+	issueOnce.Lock()
+	defer issueOnce.Unlock()
+
+	if err, ok := issueSeen[id]; ok {
+		return err
+	}
+	err := exec.Command(zhiBinary, "issue", "show", id).Run()
+	if err != nil {
+		err = fmt.Errorf("cited issue %s does not resolve: %s cannot find it", id, zhiBinary)
+	}
+	issueSeen[id] = err
+	return err
 }
