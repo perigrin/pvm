@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a0c360-01bf-7eab-b864-7d902d36fb97
 created: 2026-09-21T09:49:26.581612352Z
-updated: 2026-09-21T19:49:18.514476347Z
+updated: 2026-09-21T22:35:24.615765824Z
 sessions:
 - start_sha: 9102578c35f74c5afa0bb9ec81e2bb8098a3221e
   end_sha: 6036de4e5427d522f018fc1af4fd59dc3d760c06
@@ -53,7 +53,7 @@ subtraction and produces ZERO Unknown nodes. The refusal is real but the
 parser cannot report it; only the token assertion catches it. A file like
 that needs to say WHICH refusal it waits on, and today it says "this file".
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] Two different refusals produce different codes (`go test ./internal/parse/ -run '^TestRefusalCodesDistinct$' -count=1 -v | grep -q '^--- PASS: TestRefusalCodesDistinct'`)
 - [ ] Each of the ten Unknown construction sites carries a distinct stable code, not a message (`go test ./internal/parse/ -run '^TestEveryUnknownSiteHasACode$' -count=1 -v | grep -q '^--- PASS: TestEveryUnknownSiteHasACode'`)
