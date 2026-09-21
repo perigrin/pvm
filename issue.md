@@ -1,6 +1,6 @@
 ---
 title: "The dependency lint: ops-subset, because the optimiser erases what a tier is about"
-state: done
+state: reopened
 urgency: normal
 milestone: m3-conformance-corpus
 blocked_by:
@@ -9,7 +9,7 @@ blocked_by:
 blocks:
 - 01a0c360-01bf-7eab-b864-7d902d36fb97
 created: 2026-09-21T09:48:59.000983906Z
-updated: 2026-09-21T15:31:26.25096196Z
+updated: 2026-09-21T15:36:40.660779473Z
 sessions:
 - start_sha: 6adae2c6f97a74feac2d0ba5139105feb486e7a1
   end_sha: 7c7e56e8913454aedd17f3bb1795c8d4bd19b6a2
@@ -23,6 +23,9 @@ transitions:
 - state: done
   actor: human:git-zhi
   timestamp: 2026-09-21T15:31:26.25096196Z
+- state: reopened
+  actor: human:git-zhi
+  timestamp: 2026-09-21T15:36:40.660779473Z
 observed_paths:
 - conformance/01_literals/README.md
 - internal/conformance/lint.go
