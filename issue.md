@@ -1,10 +1,19 @@
 ---
 title: A tier claims an op once is unenforced; twelve collisions were resolved by hand
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-21T18:43:03.717841424Z
-updated: 2026-09-21T18:43:03.717841424Z
+updated: 2026-09-21T21:40:49.587869779Z
+sessions:
+- start_sha: dc1bea2c2baed5af0cf71ddf16e379ee18855d30
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-21T21:40:49.587869779Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-21T21:40:49.587869779Z
 ---
 
 `TestCorpusLints` checks that every op a README CLAIMS is emitted by some
