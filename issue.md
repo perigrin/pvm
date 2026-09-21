@@ -9,7 +9,7 @@ blocks:
 - 01a0c360-01bf-7eab-b864-7d902d36fb97
 - 01a0c35f-a487-7aa8-934b-4e68dd0fbaa1
 created: 2026-09-21T09:48:59.000983906Z
-updated: 2026-09-21T15:40:37.256509474Z
+updated: 2026-09-21T22:35:24.556788422Z
 sessions:
 - start_sha: 6adae2c6f97a74feac2d0ba5139105feb486e7a1
   end_sha: 7c7e56e8913454aedd17f3bb1795c8d4bd19b6a2
@@ -71,7 +71,7 @@ Three sources, in layers:
 The CST is NOT a fourth source yet. It becomes one once trusted, and then it
 replaces the DECLARATION, not the lint.
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] A file declaring tier 01 while using a tier-04 construct fails the lint, naming the op and the tier that introduces it (`go test ./internal/conformance/ -run '^TestLintRejectsUndeclaredConstruct$' -count=1 -v | grep -q '^--- PASS: TestLintRejectsUndeclaredConstruct'`)
 - [ ] A file whose ops are a subset passes, including one where the optimiser folded the construct away (`go test ./internal/conformance/ -run '^TestLintToleratesFoldedOps$' -count=1 -v | grep -q '^--- PASS: TestLintToleratesFoldedOps'`)
