@@ -6,7 +6,7 @@ milestone: m3-conformance-corpus
 blocked_by:
 - 01a0c360-01bf-7eab-b864-7d902d36fb97
 created: 2026-09-21T09:52:40.407130019Z
-updated: 2026-09-21T20:47:21.505306031Z
+updated: 2026-09-21T22:35:39.516160765Z
 sessions:
 - start_sha: 9750d03b51c601e083873e26c01cb22054bb120b
   end_sha: b4af7e5155e5d0a16b7b29683f2f2731eb3074c8
@@ -72,7 +72,7 @@ semantics are the subject.
 `local` is the one worth care -- dynamic scope, not lexical, and a file that
 treats it as a spelling variant of `my` measures nothing.
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] Every file in 05_scoping/ is validated against pinned perl 5.42.0 before it counts (`go test ./internal/conformance/ -run '^TestTierScopingPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierScopingPerlValidated'`)
 - [ ] The dependency lint passes over 05_scoping/: every construct used was introduced at or before this tier (`go test ./internal/conformance/ -run '^TestTierScopingLint$' -count=1 -v | grep -q '^--- PASS: TestTierScopingLint'`)
