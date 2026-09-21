@@ -1,6 +1,6 @@
 ---
 title: Tier 01 written against the finished tooling, which is what proves it works
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-conformance-corpus
 blocked_by:
@@ -17,16 +17,40 @@ blocks:
 - 01a0c362-0a97-7c14-82fe-27d76ee5c862
 - 01a0c362-0c0b-7f6a-b807-fa62daefe02e
 created: 2026-09-21T09:50:44.159860455Z
-updated: 2026-09-21T20:03:38.532861151Z
+updated: 2026-09-21T20:21:11.857566311Z
 sessions:
 - start_sha: 7711154e001e09d6d7b489eaa6d325851e7a4e30
-  end_sha: ""
-  commits: 0
+  end_sha: 9750d03b51c601e083873e26c01cb22054bb120b
+  commits: 1
   started_at: 2026-09-21T20:03:38.532861151Z
+  ended_at: 2026-09-21T20:21:11.857566311Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-21T20:03:38.532861151Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-21T20:21:11.857566311Z
+observed_paths:
+- conformance/01_literals/00_adjacency.t
+- conformance/01_literals/01_binary.t
+- conformance/01_literals/03_hexadecimal.t
+- conformance/01_literals/04_leading_decimal.t
+- conformance/01_literals/08_signed_exponent.t
+- conformance/01_literals/05_negative.t
+- conformance/01_literals/06_octal_leading_zero.t
+- conformance/01_literals/07_octal_prefix.t
+- conformance/01_literals/09_trailing_decimal.t
+- conformance/01_literals/10_underscore_separators.t
+- conformance/01_literals/11_vstring_bare.t
+- conformance/01_literals/12_vstring_v.t
+- conformance/01_literals/README.md
+- conformance/02_variables/01_array.t
+- conformance/GLOSSARY.md
+- internal/conformance/conformance_test.go
+- internal/conformance/glossary_test.go
+- internal/conformance/testdata/corpus.ratchet
+- internal/conformance/tier01_test.go
 ---
 
 The tooling issues before this one are each separately checkable, and none
