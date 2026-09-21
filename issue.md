@@ -1,6 +1,6 @@
 ---
 title: "Tier 06_control: statements, which are a different code path from tier 04"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 blocked_by:
@@ -8,7 +8,16 @@ blocked_by:
 blocks:
 - 01a0c436-39e4-7560-9bf0-81d647e96aae
 created: 2026-09-21T09:52:55.931602782Z
-updated: 2026-09-21T13:45:10.400232805Z
+updated: 2026-09-21T20:21:39.117321671Z
+sessions:
+- start_sha: 9750d03b51c601e083873e26c01cb22054bb120b
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-21T20:21:39.117321671Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-21T20:21:39.117321671Z
 ---
 
 **Introduces:** if/unless, while/until, for/foreach, postfix forms, goto
