@@ -1,10 +1,19 @@
 ---
 title: A pinned empty output is indistinguishable from no pinned output
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-21T13:58:25.096391623Z
-updated: 2026-09-21T14:02:56.991316386Z
+updated: 2026-09-21T19:27:49.087584502Z
+sessions:
+- start_sha: 9102578c35f74c5afa0bb9ec81e2bb8098a3221e
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-21T19:27:49.087584502Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-21T19:27:49.087584502Z
 ---
 
 The same representability bug the format issue fixed for parses/parsent,
