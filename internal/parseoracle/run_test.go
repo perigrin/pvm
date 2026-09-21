@@ -125,7 +125,7 @@ func fixtureCorpus(t *testing.T) []string {
 func TestCorpusRun(t *testing.T) {
 	files := fixtureCorpus(t)
 
-	report, err := parseoracle.Run(context.Background(), files, parseoracle.RunOptions{})
+	report, err := parseoracle.Run(context.Background(), files, parseoracle.RunOptions{Subject: goSubject(t)})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -178,7 +178,7 @@ func findResult(t *testing.T, report parseoracle.Report, base string) parseoracl
 func TestRunExcludesEnvironmental(t *testing.T) {
 	files := fixtureCorpus(t)
 
-	report, err := parseoracle.Run(context.Background(), files, parseoracle.RunOptions{})
+	report, err := parseoracle.Run(context.Background(), files, parseoracle.RunOptions{Subject: goSubject(t)})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -211,11 +211,11 @@ func TestRunExcludesEnvironmental(t *testing.T) {
 func TestRunIsDeterministic(t *testing.T) {
 	files := fixtureCorpus(t)
 
-	first, err := parseoracle.Run(context.Background(), files, parseoracle.RunOptions{})
+	first, err := parseoracle.Run(context.Background(), files, parseoracle.RunOptions{Subject: goSubject(t)})
 	if err != nil {
 		t.Fatalf("first Run: %v", err)
 	}
-	second, err := parseoracle.Run(context.Background(), files, parseoracle.RunOptions{})
+	second, err := parseoracle.Run(context.Background(), files, parseoracle.RunOptions{Subject: goSubject(t)})
 	if err != nil {
 		t.Fatalf("second Run: %v", err)
 	}

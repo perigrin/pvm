@@ -12,8 +12,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"tamarou.com/pvm/internal/parser"
 )
 
 // Result is one corpus file's outcome.
@@ -367,22 +365,28 @@ func measure(ctx context.Context, path string, opts RunOptions) Result {
 // wherever the harness happened to be, and an honest one produced a runner
 // error per file while a quiet one produced a fidelity of 0% -- five parser
 // verdicts recording one environmental fact.
-func askSubject(ctx context.Context, opts RunOptions, path string, src []byte) (SubjectFacts, error) {
-	if opts.Subject != nil {
-		s := *opts.Subject
-		if s.Dir == "" {
-			s.Dir = opts.Dir
-		}
-		if s.Timeout <= 0 {
-			s.Timeout = opts.Timeout
-		}
-		return s.Parse(ctx, path)
+// askSubject runs the subject over one file.
+//
+// A subject is REQUIRED. There was a fallback here that parsed with an
+// in-process tree-sitter parser when none was supplied, and it was the last
+// thing in this package that parsed Perl itself -- which the oracle has no
+// business doing. Perl does the parsing; a subject answers the contract as a
+// subprocess, "precisely so the harness can measure implementations that are
+// not Go" (subject.go). One code path now, the same one every implementation
+// uses.
+func askSubject(ctx context.Context, opts RunOptions, path string, _ []byte) (SubjectFacts, error) {
+	if opts.Subject == nil {
+		return SubjectFacts{}, fmt.Errorf("no subject supplied for %s: "+
+			"RunOptions.Subject names the command that answers the contract", path)
 	}
-	tree, err := parser.New().Parse(src)
-	if err != nil {
-		return SubjectFacts{}, fmt.Errorf("our parser failed on %s: %w", path, err)
+	s := *opts.Subject
+	if s.Dir == "" {
+		s.Dir = opts.Dir
 	}
-	return TreeSitterSubject(tree), nil
+	if s.Timeout <= 0 {
+		s.Timeout = opts.Timeout
+	}
+	return s.Parse(ctx, path)
 }
 
 // resolve mirrors AskFile: a relative path is relative to Dir, which is how

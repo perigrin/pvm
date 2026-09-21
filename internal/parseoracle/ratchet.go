@@ -214,9 +214,18 @@ func NewBaseline(pin Pin, report Report, dir string) Baseline {
 			sem <- struct{}{}
 			defer func() { <-sem }()
 			b.Rows[i] = Row{
-				Status:   status(f),
-				Metric:   f.Facts.siteCount(),
-				Category: Categorise(f, dir),
+				Status: status(f),
+				Metric: f.Facts.siteCount(),
+				// CategoryNone until a classifier exists that reads the
+				// subject's own failures. The previous one parsed with
+				// tree-sitter and classified ITS error nodes, which is a
+				// different parser from the one being measured -- probed
+				// over 309 failing files, 287 came back uncategorised.
+				//
+				// A graded corpus makes the classifier unnecessary: a file
+				// that is one construct, in a named tier, IS its own
+				// category. See docs/plans/2026-09-21-graded-conformance-corpus.md.
+				Category: CategoryNone,
 				Path:     f.Path,
 			}
 		}(i, f)

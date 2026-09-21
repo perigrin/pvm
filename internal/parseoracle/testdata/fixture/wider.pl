@@ -1,5 +1,4 @@
-# ABOUTME: A \@ prototype changes the parse at the call site invisibly.
-# ABOUTME: The wider bucket's fixture: we hedge rather than commit.
-sub f (\@) { }
-my @a;
-f(@a);
+# ABOUTME: A named hash slice is rv2hv for a package hash and padhv for a lexical, from identical source text.
+# ABOUTME: The wider bucket's fixture: we hedge rather than commit, because the declaration is undecidable from the tree alone.
+our %h;
+@h{"a","b"} = (1, 2);

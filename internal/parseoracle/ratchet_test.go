@@ -75,7 +75,7 @@ func corpusReport(t *testing.T) (parseoracle.Report, string) {
 	sort.Strings(files)
 
 	report, err := parseoracle.Run(context.Background(), files,
-		parseoracle.RunOptions{Dir: shimT, Timeout: sweepTimeout(t)})
+		parseoracle.RunOptions{Dir: shimT, Timeout: sweepTimeout(t), Subject: goSubject(t)})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -85,7 +85,7 @@ func corpusReport(t *testing.T) (parseoracle.Report, string) {
 // runFixture measures the six-file fixture corpus that TestCorpusRun uses.
 func runFixture(t *testing.T) parseoracle.Report {
 	t.Helper()
-	report, err := parseoracle.Run(context.Background(), fixtureCorpus(t), parseoracle.RunOptions{})
+	report, err := parseoracle.Run(context.Background(), fixtureCorpus(t), parseoracle.RunOptions{Subject: goSubject(t)})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -713,160 +713,6 @@ func TestRatchetPinMismatch(t *testing.T) {
 	// The matching pin must pass, or the check is just always-fail.
 	if err := base.CheckPin(base.Pin); err != nil {
 		t.Errorf("a matching pin must pass, got %v", err)
-	}
-}
-
-// TestBaselineCategoriesPopulated: every row carries a taxonomy category from
-// the fixed set. A raw count says "203 files are no-answer"; a taxonomy says
-// "48 of 203 are QuoteLike", and the second is a work plan.
-func TestBaselineCategoriesPopulated(t *testing.T) {
-	base := loadFixtureBaseline(t)
-
-	if len(base.Rows) == 0 {
-		t.Fatal("the committed fixture baseline has no rows")
-	}
-	for _, row := range base.Rows {
-		if row.Category == "" {
-			t.Errorf("%s has an empty category: the taxonomy column is the deliverable", row.Path)
-			continue
-		}
-		if !parseoracle.ValidCategory(row.Category) {
-			t.Errorf("%s has category %q, which is not in the fixed taxonomy %v",
-				row.Path, row.Category, parseoracle.Categories)
-		}
-	}
-}
-
-// TestBaselineCategoryFollowsConstruct proves the taxonomy is keyed on the
-// first error's construct rather than defaulted. A column filled entirely
-// with General is a column that was never populated.
-func TestBaselineCategoryFollowsConstruct(t *testing.T) {
-	// Every case is a construct our grammar genuinely fails on, verified
-	// individually — a taxonomy test built on constructs the grammar parses
-	// cleanly would assert nothing. All seven categories are covered, so a
-	// rule that collapsed into General would fail here rather than silently
-	// producing a one-value column.
-	for _, tc := range []struct {
-		name string
-		src  string
-		want parseoracle.Category
-	}{
-		{"class", "use v5.38;\nclass Point { field $x;\n", parseoracle.CategoryModernFeature},
-		{"class-field", "use v5.38;\nclass P { field $x = ;\n", parseoracle.CategoryModernFeature},
-		{"qw", "my @a = qw( a b c\n", parseoracle.CategoryQuoteLike},
-		{"tr", "$x =~ tr/abc/def\n", parseoracle.CategoryQuoteLike},
-		{"regex", "$x =~ s{a}{b\n", parseoracle.CategoryRegex},
-		{"deref", "my $v = ${ $r->{k}\n", parseoracle.CategoryDereference},
-		{"subroutine", "sub f( { }\n", parseoracle.CategorySubroutine},
-		{"attributes", "sub f :lvalue :method { }\nsub g( {\n", parseoracle.CategorySubroutine},
-		{"controlflow", "if ($x {\n", parseoracle.CategoryControlFlow},
-
-		// Three fixtures here were replaced when the grammar fork landed:
-		// `try { f()`, `if ($x) { foo()` and `is(<<"${a}{", "A{")` are now
-		// parsed cleanly, so the taxonomy correctly declines to categorise
-		// them and the cases asserted nothing. Each was swapped for a
-		// truncation in the same category that the current grammar still
-		// fails on, verified individually. That `if ($x) { foo()` parses
-		// without a closing brace is itself a silent-acceptance gap, filed
-		// separately -- it is the degenerate detector's target, not this
-		// test's.
-		{"heredoc-unterminated-tag", "my $x = <<\"EOT;\n", parseoracle.CategoryQuoteLike},
-
-		// Identifier: the lexer's identifier character class. Non-ASCII
-		// names under `use utf8` are 28 of the corpus's General files; the
-		// `'` package separator is two more. `sub ᕘ { 1 }` alone parses,
-		// so the method-call form is pinned as well as the declaration.
-		{"utf8-package", "use utf8;\npackage Føø::Bær;\n", parseoracle.CategoryIdentifier},
-		{"utf8-array", "use utf8;\n@ᕘ::ISA = 'x';\n", parseoracle.CategoryIdentifier},
-		{"utf8-method", "use utf8;\nsub ᕘ { 'x' . (shift)->SUPER::ᕘ }\n", parseoracle.CategoryIdentifier},
-		{"apostrophe-var", "$main'a = 1;\n", parseoracle.CategoryIdentifier},
-		{"apostrophe-sub", "sub CORE'print'foo { 43 }\n", parseoracle.CategoryIdentifier},
-
-		// Operator: an operator the lexer cannot separate from its operand.
-		// `x` juxtaposed to a closing paren or quote reads as an identifier
-		// (`x3`); `&&` after a bareword reads as a sigil; `&.` is the string
-		// bitwise family. `(1) x 3` with spaces parses cleanly.
-		{"repeat-paren", "my @a = ((1)x3, 2);\n", parseoracle.CategoryOperator},
-		{"repeat-quote", "my $s = 'x'x8;\n", parseoracle.CategoryOperator},
-		{"string-bitwise", "my $x = 22 &. 66;\n", parseoracle.CategoryOperator},
-		{"bareword-and", "my $x = foo && 1;\n", parseoracle.CategoryOperator},
-
-		// Regex: a brace-delimited body whose modifiers sit on their own
-		// closing line, which the slash-keyed rule could not see.
-		{"regex-brace-modifiers", "$x =~ s{\n a\n}{\n b\n}ge;\n", parseoracle.CategoryRegex},
-		{"qr-brace-modifiers", "my $re = qr{\n a\n}x;\n", parseoracle.CategoryRegex},
-
-		// Subroutine: a forward declaration after a statement (alone at
-		// the top of a file it parses), and a lexical `our sub`. The
-		// qualified form pins that `method` inside a sub NAME is a name,
-		// not the class-feature keyword.
-		{"forward-declaration", "f(1);\nsub bar;\n", parseoracle.CategorySubroutine},
-		{"forward-declaration-qualified", "f(1);\nsub Detached::method;\n", parseoracle.CategorySubroutine},
-		{"our-sub", "{\n our sub foo { 42 }\n}\n", parseoracle.CategorySubroutine},
-
-		// ControlFlow: the switch feature.
-		{"given", "given ($x) { when (1) { } }\n", parseoracle.CategoryControlFlow},
-		{"core-given", "CORE::given(1) { }\n", parseoracle.CategoryControlFlow},
-
-		// ModernFeature: a post-5.36 keyword in call position, which is
-		// how legacy code that named a sub `try` or `defer` breaks, and
-		// the builtin `true`/`false` surface.
-		{"keyword-as-sub", "sub try { 1 }\ntry(1, 2);\n", parseoracle.CategoryModernFeature},
-		{"builtin-true", "f(sub { true() });\n", parseoracle.CategoryModernFeature},
-		// `new Pack ("a")` parses, so it is the reserved word and not the
-		// indirect-object syntax that breaks this one.
-		{"keyword-indirect-object", "is(method Pack (\"a\"), \"x\");\n", parseoracle.CategoryModernFeature},
-
-		// QuoteLike, by the span rather than the line: a format or heredoc
-		// body is not code, so when the error span begins inside one (or
-		// on its header) the construct is the body, whatever the site line
-		// says. The picture-line site, the empty-format site and the
-		// heredoc-body site each fail with the site on a line no rule
-		// claims.
-		{"format-body-site", "print 1;\nformat STDOUT =\n@ @<<\n\"#\", $a\n.\nprint 2;\n", parseoracle.CategoryQuoteLike},
-		{"format-empty", "format STDERR =\n.\nmy $ref;\n", parseoracle.CategoryQuoteLike},
-		{"heredoc-body-site", "my $p = <<\"        --\";\n          /f\n           \\$\n          /x\n        --\n", parseoracle.CategoryQuoteLike},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			got := parseoracle.CategoriseSource([]byte(tc.src))
-			if got != tc.want {
-				t.Errorf("CategoriseSource(%q) = %s, want %s", tc.src, got, tc.want)
-			}
-		})
-	}
-}
-
-// TestCategoriseSourceSiteWithoutErrorNode: a tree can carry HasError with no
-// ERROR node anywhere in it, and an empty category must never be read as "this
-// file parsed". Measured on the corpus, eight no-answer files were baselined
-// with no category for exactly that reason. Three shapes produce it, each
-// pinned here by a minimal source verified to parse that way:
-//
-//   - a MISSING token, which recovery inserts instead of an ERROR node;
-//   - a truncated root, where recovery halted and the source_file node ends
-//     before the source does;
-//   - a degenerate tree, where a hidden rule leaked and no error was
-//     recorded at all.
-//
-// The first two are the General cases they honestly are; the third lands on
-// a line the Regex rule claims, which proves the leaked node's line is the
-// site rather than a default.
-func TestCategoriseSourceSiteWithoutErrorNode(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		src  string
-		want parseoracle.Category
-	}{
-		{"missing-token", "sub f { foo: }\n", parseoracle.CategoryGeneral},
-		{"truncated-root", "$x = $#[0];\n", parseoracle.CategoryGeneral},
-		{"degenerate", "$x =~ s!a!b!x;\n", parseoracle.CategoryRegex},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			got := parseoracle.CategoriseSource([]byte(tc.src))
-			if got != tc.want {
-				t.Errorf("CategoriseSource(%q) = %s, want %s", tc.src, got, tc.want)
-			}
-		})
 	}
 }
 
