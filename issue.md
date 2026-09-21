@@ -1,19 +1,44 @@
 ---
 title: "A stray --- expect output inside a heredoc is read silently as a real section"
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-21T18:43:10.842334149Z
-updated: 2026-09-21T22:00:17.142621616Z
+updated: 2026-09-21T22:10:48.23407394Z
 sessions:
 - start_sha: dc1bea2c2baed5af0cf71ddf16e379ee18855d30
-  end_sha: ""
-  commits: 0
+  end_sha: b41801021927f68fcbf799c60d6b947393d983de
+  commits: 1
   started_at: 2026-09-21T21:40:49.645212263Z
+  ended_at: 2026-09-21T22:10:48.23407394Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-21T21:40:49.645212263Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-21T22:10:48.23407394Z
+observed_paths:
+- conformance/02_variables/README.md
+- conformance/06_control/README.md
+- conformance/07_subroutines/00_adjacency.t
+- conformance/07_subroutines/08_parenless_extent.t
+- conformance/07_subroutines/09_prototype_extent.t
+- conformance/07_subroutines/11_code_ref_call.t
+- conformance/07_subroutines/README.md
+- conformance/08_references/README.md
+- conformance/11_oo/README.md
+- conformance/13_opaque/README.md
+- conformance/README.md
+- internal/conformance/claimonce_test.go
+- internal/conformance/conformance_test.go
+- internal/conformance/file.go
+- internal/conformance/hardmarkers_test.go
+- internal/conformance/testdata/corpus.ratchet
+- internal/conformance/tier07_callforms_test.go
+- internal/conformance/tier07_test.go
+- internal/parse/easy_test.go
+- internal/parse/t2_test.go
 ---
 
 A corpus file is split into sections by lines beginning `--- `. A heredoc
