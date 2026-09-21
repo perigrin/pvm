@@ -1,6 +1,6 @@
 ---
 title: The glossary is the token assertion's dictionary, and five entries is a start
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 blocked_by:
@@ -8,7 +8,16 @@ blocked_by:
 blocks:
 - 01a0c35e-1b37-7304-ba39-65a6ef57d4e0
 created: 2026-09-21T09:48:13.598812961Z
-updated: 2026-09-21T10:00:07.008908746Z
+updated: 2026-09-21T14:05:30.503775724Z
+sessions:
+- start_sha: 8c8e7a783a7f5481cbe0417328175ca7e6127fe6
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-21T14:05:30.503775724Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-21T14:05:30.503775724Z
 ---
 
 Token assertions are the corpus's only defence against a mis-lex, and they
