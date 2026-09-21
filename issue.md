@@ -3,8 +3,10 @@ title: "Tier 07 call-form slice: the smallest useful corpus gate"
 state: pending
 urgency: normal
 milestone: m3-conformance-corpus
+blocked_by:
+- 01a0c361-a317-7807-bb9e-15f299562244
 created: 2026-09-21T13:41:10.741737124Z
-updated: 2026-09-21T13:41:21.911485025Z
+updated: 2026-09-21T13:41:43.995310787Z
 ---
 
 **Introduces:** call forms -- `f(1)`, `f 1`, `&f`, `$code->()`, method-call
