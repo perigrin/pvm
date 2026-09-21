@@ -49,6 +49,20 @@ var categories = map[string]func(lexer.Kind, string) bool{
 	// different claim from one asserting what it CONTAINS.
 	"heredoc opener": kind(lexer.HeredocOpen),
 	"heredoc body":   kind(lexer.HeredocBody),
+
+	// Tier 13's categories. Each names a construct the OPTREE cannot see
+	// -- pod and a data section compile to nothing at all, a format body
+	// to nothing until something calls `write` -- so a token fact is the
+	// only assertion available about them.
+	//
+	// `readline operator` covers `<FH>` and `<*.c>` alike, because the
+	// lexer cannot tell a handle from a glob pattern without knowing what
+	// the name inside means. perl distinguishes them at the optree; the
+	// category is named for the syntax the lexer sees.
+	"readline operator": kind(lexer.Readline),
+	"pod block":         kind(lexer.Pod),
+	"data section":      kind(lexer.DataSection),
+	"format body":       kind(lexer.FormatBody),
 }
 
 // kind matches on the token kind alone, which is the common case.

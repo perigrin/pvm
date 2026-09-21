@@ -1,0 +1,169 @@
+# 04_operators
+
+Arithmetic, string, comparison, logical, precedence, associativity, the
+and/&& cliff.
+
+## Why this tier sits here
+
+An operator needs operands, and it needs to know what kind of thing its
+operands are. Tier 01 supplies the operands and tier 02 supplies the
+variables that hold them, but tier 03 is the one this tier cannot proceed
+without: `@a + 1` is arithmetic on a count and `"$x" . @a` is not, and the
+operator is what decides which. Context is not a thing operators consult, it
+is a thing operators IMPOSE, so a corpus that introduced operators before
+context would be asserting the imposition before it had named what was
+imposed.
+
+Check 2 asks whether this tier could move earlier. It could not. Move it
+above 03 and every comparison file silently depends on an undeclared notion
+of numeric versus string evaluation -- `$a == $b` and `$a eq $b` are
+different ops, and the difference is exactly the context the operator forces
+on its operands. Move it above 02 and there are no runtime operands at all,
+which is worse than a documentation problem: with both sides constant the
+optimiser folds the operator out of existence and the tier measures nothing.
+That is not a hypothetical, it is the first thing measured here.
+
+What the next tier needs from it is smaller than it looks. Tier 05's `my`
+already appears four tiers back as a fixture. What 05 gets from 04 is that
+an initialiser can be an expression rather than a literal, which is what
+makes the scope of a declaration a question worth asking.
+
+## DEPENDS ON
+
+    03_context
+
+Numeric and string comparison are the same relation over the same two
+operands and differ only in the context each imposes. A tier that has not
+named that distinction cannot say why `eq` and `==` are two ops.
+
+`my`, `print` and `$ARGV[0]` appear in these files as FIXTURES. The first
+two are tier 05's and tier 10's subjects, carried forward from tier 01 for
+the same reason they were carried there -- an operator's result has to be
+bound and observed. `$ARGV[0]` is tier 02's subject and is load-bearing in a
+way the other two are not: it is the cheapest RUNTIME operand available, and
+without a runtime operand this tier has nothing to measure. See below.
+
+## INTRODUCES
+
+    add and concat divide dor eq ge gt le lt modulo multiply ncmp ne negate not or pow repeat scmp seq sge sgt sle slt sne subtract xor
+
+## Why those ops, and not the ones the source implies
+
+This list is what `perl -MO=Concise,-exec` EMITS for the files in this tier,
+measured, not what reading them suggests. This is the tier where reading and
+measuring diverge most, and five places where they do:
+
+- **Every operator here needs a RUNTIME operand or it does not exist.**
+  `my $x = 1+2` emits no `add`; it arrives as `const[IV 3] s/FOLD`. The
+  optimiser erases the construct the tier is about, so a constant-folded
+  arithmetic file and a tier-01 literals file produce identical op lists.
+  Tier 01's README states this as a warning about a tier it does not
+  contain. Here it is the operating constraint: every file puts
+  `$ARGV[0]` on at least one side, and a file that forgets measures its own
+  absence. This is why the ops LINT a declared tier and cannot derive one.
+
+- **`concat` AND `multiconcat`, and which one you get is decided by the
+  destination, not by the operator.** `my $c = $a . $b` compiles to
+  `multiconcat` -- the same op tier 01 claims for interpolation, with no
+  `concat` anywhere. The same `.` inside a list (`my @r = ($a . $b)`) or as
+  a direct `print` argument compiles to `concat`. Only `concat` is new here;
+  `multiconcat` is tier 01's, claimed there. Reading the source for `.` and
+  expecting `concat` gets it wrong half the time.
+
+- **`and` is the op for BOTH `&&` and `and`, and the cliff is invisible in
+  the op names.** Measured: `my $c = ($a && $b)` and `my $c = ($a and $b)`
+  produce byte-identical op streams, down to the order. `||` and `or` are
+  likewise one `or` op, and `//` is `dor`. The difference the spec calls a
+  cliff is a PARSE difference, and it shows up in the op stream only as a
+  changed tree shape. Without the parentheses, `my $c = $a and $b` compiles
+  the assignment INSIDE the left operand -- `padsv $a`, `padsv $c`,
+  `sassign`, then `and` -- because `=` binds tighter than `and`. Behaviour
+  confirms the shape: `my $c = $a && 9` with `$a` true prints 9,
+  `my $c = $a and 9` prints 1.
+
+  The `sassign` that appears there is tier 02's op, claimed with the package
+  scalar. Its arrival here is still the most useful measurement in the tier,
+  because an op showing up only when precedence goes the surprising way is
+  what makes the cliff visible at all -- but the op is not new, only its
+  reason for being present is.
+
+- **No op for precedence or associativity at all.** `$a + $b * $c` and
+  `($a + $b) * $c` emit the same four ops in the same order; only the tree
+  differs, and `-exec` order does not show it. `$a ** $b ** $c` is right
+  associative and emits two `pow` ops exactly as the left-associative
+  `$a - $b - $c` emits two `subtract`. Grouping is what this tier is most
+  about and it is the part the op list cannot see, which is why the
+  precedence files carry behavioural probes built so the two groupings print
+  different things -- `print 2**3**2` gives 512 and `print ((2**3)**2)`
+  gives 64.
+
+One structural note carried from tier 01, because it bites harder here: the
+declared set is a UNION ACROSS THE TIER'S FILES and never a property of one
+file. `padrange` absorbs `pushmark` when consecutive `my` declarations fuse,
+so a file setting up several operands emits FEWER ops than one setting up
+two. Counting ops per file and expecting them to accumulate gets the wrong
+answer.
+
+## What writing the files changed
+
+All twenty-eight ops above survived: each is emitted by at least one file
+here, so nothing was removed from INTRODUCES. Four corrections the measuring
+forced, in the order they bit.
+
+**`$ARGV[0]` is the runtime operand, and `shift` cannot be.** The README
+named `$ARGV[0]` as the cheapest without saying what the alternatives cost.
+Measured: `$ARGV[0] // 7` emits `aelemfast` and `dor`, both tier 02's or
+this tier's. `$ENV{X} // 7` emits `multideref` instead -- also tier 02's, so
+also legal, just one op more. `shift // 7` emits `gv`, `rv2av` AND an op
+named `shift` that NO tier in the corpus claims, so a file using it fails
+the lint outright. The cheapest operand is also the only one of the three
+that is available at all.
+
+**Every operand needs its `//` default, and not for tidiness.** With no
+arguments `$ARGV[0]` is undef, and `$ARGV[0] + 5` warns on an uninitialised
+value. The runner compares stdout byte for byte and a warning goes to
+stderr, so the warning would not fail the run -- it would sit there
+unnoticed, which is worse. The `//` is what makes the files silent, and it
+is why `dor` is emitted by every file in the tier rather than only by
+`05_logical.t`.
+
+**False prints as the empty string, and that collides with a pre-commit
+hook.** `print "eq ", ($a == $b), "\n"` with a false comparison emits
+`eq \n` -- a line ending in a space. The repo's `trailing-whitespace` hook
+strips that space out of the `--- expect output` block after it is staged,
+so the committed expectation is one byte shorter than perl prints and the
+next run reports a `CORPUS BUG` nobody wrote. This is the same class of
+trap as the `--- expect output` last-section rule, from a different hook.
+The comparison files bracket every result -- `eq [1]` -- so no expected line
+ends in whitespace.
+
+**The word-spelled operators are the tier's real finding, and it is a LEXER
+finding rather than a parser one.** Perl spells some operators with letters:
+`x`, `eq`, `ne`, `lt`, `gt`, `le`, `ge`, `cmp`, `and`, `or`, `not`, `xor`.
+Our lexer gives all of them the kind `Word`, where the glossary calls them
+operators. Five files here are `STATUS refuses` and four of the five refuse
+on exactly that.
+
+The sharpest instance is `06_and_cliff.t`. That file's whole subject is that
+`&&` and `and` are the SAME op differing only in precedence -- and our lexer
+hands the two halves out as different KINDS, `Operator("&&")` beside
+`Word("and")`. Anything downstream deciding on kind alone treats one as an
+operator and the other as a bareword. `05_logical.t` makes it unavoidable:
+`xor` has no symbolic spelling in perl, so there is no way to write the
+construct that dodges the gap.
+
+The token claims are written in the glossary's vocabulary and left FAILING
+rather than softened to match what we emit. A claim rewritten to match the
+lexer stops measuring the lexer, which is the one thing `--- expect tokens`
+exists to do -- see the corpus README on why `5e-1` needs a token assertion
+at all.
+
+The fifth refusal is `00_adjacency.t`, and it is the adjacency argument
+working exactly as tier 01 predicted: three Unknown nodes over a body whose
+every construct appears in a sibling file that parses. Only the mixture
+refuses.
+
+**A note for tier 03.** `reverse sort @nums` in the adjacency file emits
+`sort` alone -- the optimiser folds the reverse into the sort's direction
+flag and no `reverse` op survives. Tier 03 claims `reverse` and must emit it
+from a file of its own; this tier cannot do it for them.

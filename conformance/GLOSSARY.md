@@ -15,7 +15,8 @@ the entry cites `perldata`/`perlop` and, where those are silent, a measured
 of picking.
 
 **It grows with the corpus.** A category is added when a file needs to
-assert about it, not in advance. Entries below cover tier 01 only.
+assert about it, not in advance. Entries below cover tier 01 and the
+lexical categories tier 13 needs.
 
 **Every `##` heading is a category name, and nothing else uses that
 level.** `TestGlossaryMatchesCategories` reads these headings and requires
@@ -209,7 +210,96 @@ heredoc's content begins on the next LINE while the statement continues on
 the same one. That reordering is the whole reason a heredoc is hard to
 lex, and asserting it is what a corpus file is for.
 
-A body is one token however many lines it spans. Whether the terminator is
-part of it is this lexer's choice and not perl's, so a corpus file should
-assert the body's START rather than its exact extent until tier 13 settles
-the question.
+A body is one token however many lines it spans.
+
+**The terminator line is PART of the body, and tier 13 settles it that
+way.** Perl does not say, because perl has no token stream to consult -- the
+heredoc is gone by the time anything observable exists, which is tier 13's
+whole subject. So the question is decided by what a consumer needs, and a
+consumer needs to know where the body ENDS: a body token stopping before
+`EOT\n` leaves the terminator as unclaimed bytes that some later rule has
+to skip. Including it makes the token cover every byte the heredoc
+occupies. Measured against our lexer, `<<EOT` with the single body line
+`hi` produces a body whose text is `hi\nEOT\n`.
+
+---
+
+## readline operator
+
+The angle-bracket term `<FH>`, `<$fh>` or `<*.c>`, as one token.
+
+    my $line = <STDIN>;
+    my @all  = <DATA>;
+    my @files = <*.txt>;
+
+The category exists because the same two characters are comparison
+operators in operator position, and only position decides. `$a < $b` is
+three tokens; `<$b>` is one.
+
+**A glob pattern and a filehandle read are the SAME token here**, which is
+perl's own conflation rather than ours. Measured under 5.42.0, `<*.c>`
+compiles to a `glob` op and `<DATA>` to a `readline` op, so the two differ
+at the optree -- but the lexer cannot tell them apart without knowing
+whether `DATA` names a handle, which is a parsing question. The category
+is named for the syntax, not for either op.
+
+---
+
+## pod block
+
+A documentation block: a line starting `=` followed by an identifier,
+through the matching `=cut` line, as one token.
+
+    =pod
+
+    text
+
+    =cut
+
+**POD leaves no trace at all.** Measured under 5.42.0, a program with POD
+between two statements compiles to exactly the ops of the program without
+it. That is why the category exists: the token stream is the only place a
+pod block is observable, so a corpus file asserting one cannot fall back on
+behaviour or on the optree.
+
+The terminator is part of the token, on the same reasoning as the heredoc
+body: every byte of a pod block belongs to the pod block.
+
+---
+
+## data section
+
+`__END__` or `__DATA__` and every byte after it, as one token.
+
+    print "hi\n";
+    __END__
+    not perl
+
+Both spellings are one category because both do the same thing to the
+lexer: they end the program text. What follows is readable at runtime
+through the `DATA` filehandle and is never lexed as code.
+
+**Like pod, this leaves nothing in the optree** -- measured, a program with
+a `__DATA__` section compiles to the same ops as one without. Reading the
+section needs `readline`, which is tier 10's op and says nothing about the
+marker that created the handle.
+
+---
+
+## format body
+
+The picture lines of a `format NAME =` declaration, through the lone `.`
+that ends them, as one token.
+
+    format STDOUT =
+    a fixed line
+    .
+
+The body is not Perl and must not be lexed as Perl: `@<<<<<` is a picture
+field naming a left-justified column, not an array sigil followed by two
+left-shift operators. The `format NAME =` introducer is ordinary tokens --
+two words and an operator -- and only the body is opaque, which is why the
+category covers the body alone.
+
+Measured under 5.42.0, the declaration emits no ops whatsoever; only the
+`write` that uses it emits `enterwrite`.

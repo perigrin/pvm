@@ -18,7 +18,10 @@ import (
 // A third form will be needed the first time a file counts something other
 // than one; `countWords` is where that goes.
 var (
-	reCount = regexp.MustCompile(`^(one|no) ([a-z ]+?) whose text is (".*")$`)
+	// The category class admits `-` because `quote-like operator` is a
+	// glossary category and `categories.go` maps it; without the hyphen
+	// no file could ever assert it and the entry would be unreachable.
+	reCount = regexp.MustCompile(`^(one|no) ([a-z -]+?) whose text is (".*")$`)
 )
 
 // checkTokenFact asserts one declared fact about the token stream.
