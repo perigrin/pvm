@@ -1,12 +1,21 @@
 ---
 title: The croak extraction runner, split by perl -c because the filename lies
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 blocked_by:
 - 01a0c35e-1b37-7304-ba39-65a6ef57d4e0
 created: 2026-09-21T09:49:43.940902431Z
-updated: 2026-09-21T10:00:07.165502514Z
+updated: 2026-09-21T19:49:24.763137234Z
+sessions:
+- start_sha: 6036de4e5427d522f018fc1af4fd59dc3d760c06
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-21T19:49:24.763137234Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-21T19:49:24.763137234Z
 ---
 
 The negatives -- files that must NOT parse -- are the one category not
