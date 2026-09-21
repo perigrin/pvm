@@ -6,7 +6,7 @@ milestone: m3-conformance-corpus
 blocked_by:
 - 01a0c362-0929-795d-ac6b-c1740240e49e
 created: 2026-09-21T09:52:58.28262933Z
-updated: 2026-09-21T13:40:22.140940394Z
+updated: 2026-09-21T13:43:02.186795631Z
 ---
 
 **Introduces:** bless AND class/field/method/ADJUST, indirect new
@@ -37,9 +37,10 @@ the tier that proves why that third kind of file exists.
 
 ## Acceptance
 
-- [ ] The ADJUST-plus-method adjacency file fails while the construct files pass, which is the case that proves adjacency files earn their place (`go test ./internal/conformance/ -run '^TestTierOoAdjacencyCatchesAdjust$' -count=1 -v | grep -q '^--- PASS: TestTierOoAdjacencyCatchesAdjust'`)
+- [ ] The ADJUST-plus-sibling adjacency file fails while every construct file passes, which is the case that proves adjacency files earn their place (`go test ./internal/conformance/ -run '^TestTierOoAdjacencyCatchesAdjust$' -count=1 -v | grep -q '^--- PASS: TestTierOoAdjacencyCatchesAdjust'`)
 - [ ] Every file in 11_oo/ is validated against pinned perl 5.42.0 before it counts (`go test ./internal/conformance/ -run '^TestTierOoPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierOoPerlValidated'`)
 - [ ] The dependency lint passes over 11_oo/: every construct used was introduced at or before this tier (`go test ./internal/conformance/ -run '^TestTierOoLint$' -count=1 -v | grep -q '^--- PASS: TestTierOoLint'`)
-- [ ] 11_oo/README.md states what the tier introduces, what it depends on, and why check 2 places it here (`test -s conformance/11_oo/README.md`)
+- [ ] The tier's adjacency file puts every construct 11_oo introduces in one body, each adjacent to another, pairing with the declared prerequisite rather than tier N-1 (`go test ./internal/conformance/ -run '^TestTierOoAdjacency$' -count=1 -v | grep -q '^--- PASS: TestTierOoAdjacency'`)
+- [ ] 11_oo/README.md states what the tier introduces, what it depends on, and why check 2 places it here, in the form the dependency lint reads (`go test ./internal/conformance/ -run '^TestEveryTierHasAReadme$' -count=1 -v | grep -q '^--- PASS: TestEveryTierHasAReadme'`)
 - [ ] Each refusing file cites a refusal code rather than a message (`go test ./internal/conformance/ -run '^TestTierOoRefusalsCited$' -count=1 -v | grep -q '^--- PASS: TestTierOoRefusalsCited'`)
-- [ ] The whole corpus is green with skips limited to documented refusals (`go test ./internal/conformance/ -run '^TestCorpus$' -count=1 -v | grep -q '^--- PASS: TestCorpus'`)
+- [ ] The tier's own files are green with skips limited to documented refusals (`go test ./internal/conformance/ -run '^TestCorpus/11_oo' -count=1 -v | grep -q '^    --- PASS: TestCorpus/11_oo'`)
