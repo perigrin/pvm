@@ -1,6 +1,6 @@
 ---
 title: "The dependency lint: ops-subset, because the optimiser erases what a tier is about"
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-conformance-corpus
 blocked_by:
@@ -9,16 +9,24 @@ blocked_by:
 blocks:
 - 01a0c360-01bf-7eab-b864-7d902d36fb97
 created: 2026-09-21T09:48:59.000983906Z
-updated: 2026-09-21T15:28:17.858955343Z
+updated: 2026-09-21T15:31:26.25096196Z
 sessions:
 - start_sha: 6adae2c6f97a74feac2d0ba5139105feb486e7a1
-  end_sha: ""
-  commits: 0
+  end_sha: 7c7e56e8913454aedd17f3bb1795c8d4bd19b6a2
+  commits: 1
   started_at: 2026-09-21T15:25:42.377373038Z
+  ended_at: 2026-09-21T15:31:26.25096196Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-21T15:25:42.377373038Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-21T15:31:26.25096196Z
+observed_paths:
+- conformance/01_literals/README.md
+- internal/conformance/lint.go
+- internal/conformance/lint_test.go
 ---
 
 Without this check the tier numbering is an opinion. With it, "this file
