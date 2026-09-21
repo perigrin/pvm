@@ -373,3 +373,143 @@ func TestRefusalIssueShortIDStillWorks(t *testing.T) {
 		t.Errorf("Refuses = %q, want %q", f.Refuses, short)
 	}
 }
+
+// TestPerlAdjudicatesFirst pins the order the whole corpus rests on.
+//
+// A file whose expectation perl does not honour is not measuring the
+// parser -- it is wrong. Reporting on our parser first would let a wrong
+// expectation read as a refusal, and a refusal is a claim about US. So
+// perl is consulted first and a disagreement is reported as CORPUS BUG
+// with the parser never consulted at all.
+//
+// The three disagreements are checked separately because they are three
+// different mistakes: claiming a file parses when perl refuses it,
+// claiming it does not when perl accepts it, and pinning output perl does
+// not print.
+func TestPerlAdjudicatesFirst(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		file *File
+		want string
+	}{{
+		name: "expect parses, but perl refuses",
+		file: &File{Source: "my $x = ;\n", ExpectParses: true},
+		want: "perl -c refuses it",
+	}, {
+		name: "expect parsent, but perl accepts",
+		file: &File{Source: "my $x = 1;\n", ExpectParsent: true},
+		want: "perl -c accepts it",
+	}, {
+		name: "pinned output perl does not print",
+		file: &File{
+			Source:       "print \"a\\n\";\n",
+			ExpectParses: true,
+			ExpectOutput: "b\n",
+		},
+		want: "pinned output",
+	}} {
+		t.Run(tc.name, func(t *testing.T) {
+			v := verdict(t, tc.file)
+
+			if v.kind != corpusBug {
+				t.Fatalf("verdict = %v, want corpusBug", v.kind)
+			}
+			if len(v.msgs) != 1 {
+				// More than one would mean the file's wrongness had been
+				// mixed with a claim about our parser, which is the
+				// conflation this ordering exists to prevent.
+				t.Fatalf("reported %d messages, want exactly 1:\n\t%s",
+					len(v.msgs), strings.Join(v.msgs, "\n\t"))
+			}
+			if !strings.Contains(v.msgs[0], "CORPUS BUG") {
+				t.Errorf("message = %q, want it to say CORPUS BUG", v.msgs[0])
+			}
+			if !strings.Contains(v.msgs[0], tc.want) {
+				t.Errorf("message = %q, want it to contain %q", v.msgs[0], tc.want)
+			}
+		})
+	}
+}
+
+// TestStaleRefusalMarkerFails is the half of the skip discipline that
+// rots.
+//
+// A file marked `STATUS refuses` that now PASSES must fail loudly. The
+// opposite -- letting it keep skipping -- is how a corpus silently stops
+// measuring: the construct works, nobody is told, and the marker sits
+// there forever claiming a gap that closed.
+func TestStaleRefusalMarkerFails(t *testing.T) {
+	f := &File{
+		Source:       "my $x = 1;\n",
+		ExpectParses: true,
+		Refuses:      "01a0c13f-97f5-7f98-b32d-07245ec6ddfe",
+	}
+
+	v := verdict(t, f)
+
+	if v.kind != staleMarker {
+		t.Fatalf("verdict = %v, want staleMarker", v.kind)
+	}
+	if len(v.msgs) != 1 {
+		t.Fatalf("reported %d messages, want 1:\n\t%s",
+			len(v.msgs), strings.Join(v.msgs, "\n\t"))
+	}
+	for _, want := range []string{"PASSES", f.Refuses} {
+		if !strings.Contains(v.msgs[0], want) {
+			t.Errorf("message = %q, want it to contain %q", v.msgs[0], want)
+		}
+	}
+}
+
+// TestCorpusSkipsAreDocumented makes "skips limited to documented
+// refusals" observed rather than asserted.
+//
+// A skip with no refusal behind it is a test that does not run and does
+// not say why, which in a summary line is indistinguishable from a test
+// that passed. The only legitimate skip in this suite is a file whose
+// refusal is recorded in its own header.
+func TestCorpusSkipsAreDocumented(t *testing.T) {
+	passing := &File{Source: "my $x = 1;\n", ExpectParses: true}
+	if v := verdict(t, passing); v.kind == knownRefusal {
+		t.Errorf("a file with no STATUS refuses would skip, saying %q",
+			strings.Join(v.msgs, "; "))
+	}
+
+	// The converse, without which this would pass against a runner that
+	// never skips at all: a genuinely refusing file DOES skip, naming its
+	// refusal.
+	refusing := &File{
+		Source:       "my $x = .5;\n",
+		ExpectParses: true,
+		Refuses:      "01a0c13f-97f5-7f98-b32d-07245ec6ddfe",
+	}
+	v := verdict(t, refusing)
+	if v.kind != knownRefusal {
+		t.Fatalf("verdict = %v, want knownRefusal", v.kind)
+	}
+	if !strings.Contains(v.reason, refusing.Refuses) {
+		t.Errorf("skip reason = %q, want it to name %q", v.reason, refusing.Refuses)
+	}
+
+	// Every skip the real corpus produces must carry a refusal too. This
+	// is the observation rather than the assertion: it reads the files on
+	// disk instead of trusting the rule above to have been followed.
+	paths, err := filepath.Glob(filepath.Join(corpusDir, "*", "*.t"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range paths {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		f, err := ParseFile(string(raw))
+		if err != nil {
+			t.Errorf("%s: %v", path, err)
+			continue
+		}
+		if v := verdict(t, f); v.kind == knownRefusal && f.Refuses == "" {
+			t.Errorf("%s skips with no refusal recorded", path)
+		}
+	}
+}
