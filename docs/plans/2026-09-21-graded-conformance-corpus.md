@@ -44,9 +44,12 @@ belong two tiers earlier is the sweep working rather than a mistake.
 
 Three things follow, and they should be read into every commitment below:
 
-- **No number in this document is a target.** 300-400 files, 14 tiers, the
-  cadence estimates: all are current best measurements, and the ones that
-  have already moved are marked.
+- **There is no file count, and there should not be one.** An earlier
+  revision carried 300-400 as an estimate. It is removed: a count stated
+  ahead of the work becomes a target, and a corpus that grows toward a
+  number stops growing for measured reasons. The corpus is done with a tier
+  when the tier's constructs are covered, which is answered by the
+  dependency check and the `t/` sweep, not by counting.
 - **The corpus grows for measured reasons.** A file is added because
   something failed and named a gap, not to reach a count.
 - **Adopters should expect churn.** If this ever becomes a standalone
@@ -183,30 +186,33 @@ copied.** That also collapses the licence question: authored files are T0 in
 "kept out of this repository" is not reversed and needs no amendment beyond
 one sentence saying `conformance/` is project-authored.
 
-**REVISED SIZE.** ~85-110 files for tiers 01-03 (the original estimate of
-~40 was roughly half), and 300-400 authored files total -- twice §7.3.6's own
-T0 estimate of ~200, which was the same idea.
+**REVISED, THEN REVISED AGAIN: the file counts are removed.** Earlier drafts
+carried ~40 files for tiers 01-03, then ~85-110, then 300-400 total. Each
+correction was real -- the first estimate was roughly half -- but a total
+stated before the work is a target, and it would be hit by writing files
+rather than by covering constructs. What the tier is done is answered by the
+dependency check and the sweep.
 
-That 300-400 counts POSITIVE files only. The negatives are not authored:
-`t/lib/croak/`'s 327 cases are extracted by a runner, for the reason given
-under "The manifest alternative" below.
+**What survives is the per-file cost, which is what was actually wrong.**
+The original "~40 validated files per day" had no citation and came from
+extraction-shaped work. An authored file under this revision needs five
+things: source, a behavioural probe built so a mis-grouped tree produces
+different output, a perl run pinning the expected output, a construct
+declaration, and for lexical tiers a token assertion. The T1 evidence says
+these are translations rather than lifts -- 889 of 986 files `use
+Test::More`, and only 2 of 986 contain none of `use/require/sub/map/qw/=~`.
+So per-file cost is several times what the extraction estimate assumed, and
+any schedule built on the old cadence is wrong regardless of the total.
 
-**REVISED TWICE: the cadence was optimistic and the tooling was unsized.**
-The "~40 validated files per day" figure had no citation and came from a
-cadence measured on extraction-shaped work. An authored file under this
-revision needs source, a behavioural probe built so a mis-grouped tree
-produces different output, a perl run to pin the expected output, a
-construct declaration, and for lexical tiers a token assertion. The T1
-evidence says these are translations rather than lifts: 889 of 986 files
-`use Test::More`, and only 2 of 986 contain none of
-`use/require/sub/map/qw/=~`. Pessimistic cadence is 20-25 files/day.
+**The negatives are not authored at all.** `t/lib/croak/`'s cases are
+extracted by a runner -- see "The manifest alternative" below -- so they
+carry none of that per-file cost.
 
-The tooling does not exist at all: `conformance/`, the runner, tier
-READMEs, the dependency lint, refusal codes on the ten Unknown sites,
-ratchet integration. 3-5 days.
-
-So the smallest useful corpus is **2-3 weeks**, not five days, and the full
-300-400 is longer. That is the number to plan against.
+**The tooling does not exist and is the real prerequisite:**
+`conformance/`, the runner, tier READMEs, the dependency lint, refusal codes
+on the ten Unknown sites, ratchet integration. None of it is per-file, all
+of it blocks the first file, and it is the estimate worth having because it
+is bounded. Call it 3-5 days.
 
 ## What a corpus file contains
 
@@ -558,8 +564,8 @@ the harness already computes.
 
 **REVISED.** A review recommended a cheaper artifact: `conformance/tiers.txt`,
 a MANIFEST ordering perl's existing `t/` by tier, zero files authored,
-day-one value. It was the strongest objection to authoring 300-400 files and
-deserved a measurement rather than an argument.
+day-one value. It was the strongest objection to authoring the corpus at all
+and deserved a measurement rather than an argument.
 
 It was measured, over all 620 files of `t/` against 12 tier markers:
 
@@ -594,10 +600,10 @@ value. Authoring wins.
 checkout. The must-fail bit is extractable by a runner rather than written
 by a person.
 
-**That changes the sizing.** Roughly 327 of the corpus is produced by a
-runner, not authored -- so the authored total is nearer 300-400 POSITIVE
-files plus a croak runner, rather than 300-400 files in total. The estimate
-above counts positives only and should be read that way.
+**That removes the negatives from the authoring cost entirely.** A whole
+category of the corpus is produced by a runner rather than by a person, and
+it is the category that would otherwise be the most tedious to write. The
+per-file cost above applies to positives only.
 
 ## Sequencing
 
@@ -620,7 +626,9 @@ What survives that rewrite, measured rather than assumed:
   filter.
 
 **The smallest useful corpus is tiers 01-04 plus a call-form slice from
-tier 07: ~150-180 files, about five days.** 01-03 alone would be satisfied
+tier 07** -- stated as a construct set rather than a file count or a
+duration, for the reason at the top of this document. 01-03 alone would be
+satisfied
 on day one -- an uncommitted probe measured 50 of 53 such cases passing and
 an independent one 13 of 16; neither is reproducible and both should be
 treated as indicative only. The three failures in each were the same:
