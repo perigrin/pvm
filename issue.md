@@ -1,21 +1,31 @@
 ---
 title: The croak extraction runner, split by perl -c because the filename lies
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-conformance-corpus
 blocked_by:
 - 01a0c35e-1b37-7304-ba39-65a6ef57d4e0
 created: 2026-09-21T09:49:43.940902431Z
-updated: 2026-09-21T19:49:24.763137234Z
+updated: 2026-09-21T20:03:06.990828524Z
 sessions:
 - start_sha: 6036de4e5427d522f018fc1af4fd59dc3d760c06
-  end_sha: ""
-  commits: 0
+  end_sha: 7711154e001e09d6d7b489eaa6d325851e7a4e30
+  commits: 1
   started_at: 2026-09-21T19:49:24.763137234Z
+  ended_at: 2026-09-21T20:03:06.990828524Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-21T19:49:24.763137234Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-21T20:03:06.990828524Z
+observed_paths:
+- internal/conformance/croak.go
+- internal/conformance/croak_test.go
+- internal/conformance/ratchet.go
+- internal/conformance/ratchet_test.go
+- internal/conformance/testdata/corpus.ratchet
 ---
 
 The negatives -- files that must NOT parse -- are the one category not
