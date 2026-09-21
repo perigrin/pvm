@@ -4,7 +4,7 @@ state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-21T18:43:00.587037252Z
-updated: 2026-09-21T22:56:16.658792416Z
+updated: 2026-09-21T23:02:22.221649372Z
 sessions:
 - start_sha: b41801021927f68fcbf799c60d6b947393d983de
   end_sha: ""
@@ -83,7 +83,7 @@ states -- they belong to the tiers that emit them, and the prose that
 assigns them elsewhere describes where they would belong in a corpus
 that had a file for them.
 
-## Acceptance
+## Acceptance criteria
 
 - [x] `opsOf` sees inside a named sub: a file whose signature compiles
       `argcheck`, `argdefelem` and `argelem` and whose body ends in
