@@ -4,7 +4,7 @@ state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-21T18:43:00.587037252Z
-updated: 2026-09-21T22:29:10.573159397Z
+updated: 2026-09-21T22:41:46.739551176Z
 sessions:
 - start_sha: b41801021927f68fcbf799c60d6b947393d983de
   end_sha: ""
@@ -46,3 +46,79 @@ against the current behaviour. It wants measuring before being assumed an
 improvement -- specifically, whether widening the visible op set causes
 any tier to start emitting an op claimed by a LATER tier, which is the
 direction the lint exists to catch.
+
+## The measurement, taken
+
+The widening was built and measured across all fourteen tiers before
+being landed, which is what the paragraph above asked for. The answer to
+the question it names -- does a wider visible op set make any tier emit
+an op a LATER tier claims -- is NO, in every file in the corpus. Every
+one of the twenty-one files whose op stream changed reports `uses ops no
+tier claims`, and not one reports `uses ops introduced after`. The
+widening therefore does not disturb the ordering; it only exposes ops
+that had no owner because no tier could see them to claim them.
+
+Eight ops become visible corpus-wide:
+
+    argcheck argdefelem argelem leavesub methstart postinc return shift
+
+`leavesub` is the broad one, reaching tiers 07, 08, 11 and 12 -- every
+tier whose files declare a sub. The other seven are confined: the four
+signature and `return` ops to tier 07, `methstart` to tier 11, `postinc`
+to tier 07's `07_args_alias.t`, `shift` to tier 11's `06_indirect_new.t`.
+
+No tier's INTRODUCES set becomes incomplete. Every op the fourteen
+READMEs claim is still emitted by some file under the wider instrument,
+so nothing had to be removed.
+
+`postinc` and `shift` are the one finding the issue did not predict.
+Both are assigned in PROSE to earlier tiers -- 07's README says
+"`shift` is tier 02's" and "`postinc` ... is the increment operator and
+not this tier's subject", and 04's README says `shift` is "an op that NO
+tier in the corpus claims". But no tier-02 or tier-04 file emits either
+op, so claiming them there fails `TestCorpusLints`, which reports a
+README claiming an op no file emits. Under the corpus's own rule --
+the tier that emits an op FIRST owns it, which `claimonce_test.go`
+states -- they belong to the tiers that emit them, and the prose that
+assigns them elsewhere describes where they would belong in a corpus
+that had a file for them.
+
+## Acceptance
+
+- [ ] `opsOf` sees inside a named sub: a file whose signature compiles
+      `argcheck`, `argdefelem` and `argelem` and whose body ends in
+      `leavesub` yields all four, none of which the main optree carries.
+      (`go test ./internal/conformance/ -run TestOpsOfSeesInsideNamedSub -count=1 -v`)
+- [ ] `opsOf` sees inside a `method` body, so `methstart` is reachable
+      at all. (`go test ./internal/conformance/ -run TestOpsOfSeesInsideMethod -count=1 -v`)
+- [ ] `opsOf` sees subs declared in a package other than `main`, since
+      B::Concise names them `Foo::bar` and most of tiers 11 and 12
+      declare subs there.
+      (`go test ./internal/conformance/ -run TestOpsOfSeesSubsInOtherPackages -count=1 -v`)
+- [ ] The enumeration stops at the file boundary. Every CV the process
+      loaded is reachable from the symbol table, and dumping
+      `strict::import` or `Exporter::import` would add their ops to
+      EVERY corpus file's measured set. A file that merely says `use
+      strict; use warnings` emits no `goto`, `require` or `dofile`.
+      (`go test ./internal/conformance/ -run TestOpsOfStopsAtTheFileBoundary -count=1 -v`)
+- [ ] The main program is still dumped, which thirteen tiers' op sets
+      were measured against, so the widening ADDS and never replaces.
+      (`go test ./internal/conformance/ -run TestOpsOfStillSeesTheMainProgram -count=1 -v`)
+- [ ] Each of the five checks above is proven by mutation: reverting
+      `opsOf` to the bare `-MO=Concise,-exec` fails the first three, and
+      dropping the `FILE` filter fails the fourth.
+      (`go test ./internal/conformance/ -run TestOpsOfMutations -count=1 -v`)
+- [ ] Tier 07's INTRODUCES grows back the ops the issue names, plus
+      `postinc`, and tier 11's gains `methstart` and `shift`, each
+      claimed by the tier that emits it first.
+      (`grep -A3 '^## INTRODUCES' conformance/07_subroutines/README.md conformance/11_oo/README.md`)
+- [ ] Both READMEs' statements that these ops are INVISIBLE to the lint
+      are rewritten, since the widening makes them false.
+      (`git diff -- conformance/07_subroutines/README.md conformance/11_oo/README.md`)
+- [ ] No op is claimed by two tiers after the widening.
+      (`go test ./internal/conformance/ -run TestOpClaimedByExactlyOneTier -count=1 -v`)
+- [ ] Every corpus file still lints at its declared tier, and no README
+      claims an op no file emits.
+      (`go test ./internal/conformance/ -run TestCorpusLints -count=1`)
+- [ ] The whole conformance suite stays green.
+      (`go test ./internal/conformance/ -count=1`)
