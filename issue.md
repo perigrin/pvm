@@ -1,6 +1,6 @@
 ---
 title: The gates the corpus replaces die, including easy_test.go whole
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 blocked_by:
@@ -11,7 +11,16 @@ blocked_by:
 - 01a0c362-0daa-7422-b787-7650ce684c4b
 - 01a0c362-127c-73c1-8bb8-a4bf8b66c735
 created: 2026-09-21T13:44:43.235895078Z
-updated: 2026-09-21T13:45:11.853073538Z
+updated: 2026-09-21T21:39:35.991690255Z
+sessions:
+- start_sha: dc1bea2c2baed5af0cf71ddf16e379ee18855d30
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-21T21:39:35.991690255Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-21T21:39:35.991690255Z
 ---
 
 The spec commits to this and nothing in the chain owned it. Per the plan
