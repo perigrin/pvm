@@ -1,12 +1,21 @@
 ---
 title: "Tier 10_io: filehandles, readline, and print as subject rather than fixture"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 blocked_by:
 - 01a0c360-01bf-7eab-b864-7d902d36fb97
 created: 2026-09-21T09:52:57.867463731Z
-updated: 2026-09-21T13:43:02.145454412Z
+updated: 2026-09-21T20:21:42.010031474Z
+sessions:
+- start_sha: 9750d03b51c601e083873e26c01cb22054bb120b
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-21T20:21:42.010031474Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-21T20:21:42.010031474Z
 ---
 
 **Introduces:** filehandles, readline, print
