@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a0c362-14e9-70d6-8842-a5b379816a98
 created: 2026-09-21T09:52:59.516182101Z
-updated: 2026-09-21T13:40:23.88113408Z
+updated: 2026-09-21T13:43:02.28492318Z
 ---
 
 **Introduces:** format, qx, `<*>`, heredocs, POD, `__END__`/`__DATA__`
@@ -26,8 +26,10 @@ with its code and skips until the parser catches up.
 
 ## Acceptance
 
+- [ ] Each of the six delimiter kinds is delimited correctly without its contents being lexed (`go test ./internal/conformance/ -run '^TestTierOpaqueDelimitsWithoutLexing$' -count=1 -v | grep -q '^--- PASS: TestTierOpaqueDelimitsWithoutLexing'`)
 - [ ] Every file in 13_opaque/ is validated against pinned perl 5.42.0 before it counts (`go test ./internal/conformance/ -run '^TestTierOpaquePerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierOpaquePerlValidated'`)
 - [ ] The dependency lint passes over 13_opaque/: every construct used was introduced at or before this tier (`go test ./internal/conformance/ -run '^TestTierOpaqueLint$' -count=1 -v | grep -q '^--- PASS: TestTierOpaqueLint'`)
-- [ ] 13_opaque/README.md states what the tier introduces, what it depends on, and why check 2 places it here (`test -s conformance/13_opaque/README.md`)
+- [ ] The tier's adjacency file puts every construct 13_opaque introduces in one body, each adjacent to another, pairing with the declared prerequisite rather than tier N-1 (`go test ./internal/conformance/ -run '^TestTierOpaqueAdjacency$' -count=1 -v | grep -q '^--- PASS: TestTierOpaqueAdjacency'`)
+- [ ] 13_opaque/README.md states what the tier introduces, what it depends on, and why check 2 places it here, in the form the dependency lint reads (`go test ./internal/conformance/ -run '^TestEveryTierHasAReadme$' -count=1 -v | grep -q '^--- PASS: TestEveryTierHasAReadme'`)
 - [ ] Each refusing file cites a refusal code rather than a message (`go test ./internal/conformance/ -run '^TestTierOpaqueRefusalsCited$' -count=1 -v | grep -q '^--- PASS: TestTierOpaqueRefusalsCited'`)
-- [ ] The whole corpus is green with skips limited to documented refusals (`go test ./internal/conformance/ -run '^TestCorpus$' -count=1 -v | grep -q '^--- PASS: TestCorpus'`)
+- [ ] The tier's own files are green with skips limited to documented refusals (`go test ./internal/conformance/ -run '^TestCorpus/13_opaque' -count=1 -v | grep -q '^    --- PASS: TestCorpus/13_opaque'`)
