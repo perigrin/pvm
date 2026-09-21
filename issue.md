@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a0c436-39e4-7560-9bf0-81d647e96aae
 created: 2026-09-21T09:52:55.931602782Z
-updated: 2026-09-21T20:47:21.719031136Z
+updated: 2026-09-21T22:35:39.589412353Z
 sessions:
 - start_sha: 9750d03b51c601e083873e26c01cb22054bb120b
   end_sha: b4af7e5155e5d0a16b7b29683f2f2731eb3074c8
@@ -77,7 +77,7 @@ position.
 
 `goto` is one of the twelve `hardMarkers` and places here.
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] Every file in 06_control/ is validated against pinned perl 5.42.0 before it counts (`go test ./internal/conformance/ -run '^TestTierControlPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierControlPerlValidated'`)
 - [ ] The dependency lint passes over 06_control/: every construct used was introduced at or before this tier (`go test ./internal/conformance/ -run '^TestTierControlLint$' -count=1 -v | grep -q '^--- PASS: TestTierControlLint'`)
