@@ -4,7 +4,7 @@ state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-21T20:47:54.980994967Z
-updated: 2026-09-21T22:51:04.855839295Z
+updated: 2026-09-21T23:02:39.969770743Z
 sessions:
 - start_sha: b41801021927f68fcbf799c60d6b947393d983de
   end_sha: ""
@@ -144,7 +144,7 @@ costs nothing on disk, but it regenerates the ratchet, which is another
 issue's work. The declaration is what stops that from being rediscovered by
 the next agent whose numbering test fails.
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] Every one of the fourteen tiers declares a `## FILE ORDER` block
       holding `derived`, `accidental`, or `NN-NN name` grouping lines; a
