@@ -6,7 +6,23 @@ milestone: m3-conformance-corpus
 blocked_by:
 - 01a0c362-127c-73c1-8bb8-a4bf8b66c735
 created: 2026-09-21T09:53:00.137066905Z
-updated: 2026-09-21T09:59:35.361218734Z
+updated: 2026-09-21T10:00:07.76642897Z
 ---
 
-probe body from stdin
+**Introduces:** s///e, (?{ }), qr// with embedded code
+
+Where the lexer must RE-ENTER Perl inside a delimiter, which is harder than
+tier 13's delimit-only problem and structurally different. That difference
+is why these are two tiers rather than one.
+
+The last tier, and the one most likely to refuse wholesale. That is the
+expected outcome, not a failure: the corpus states where the parser is, and
+a tier that refuses entirely is a true statement about where it is.
+
+## Acceptance
+
+- [ ] Every file in 14_recursive/ is validated against pinned perl 5.42.0 before it counts (`go test ./internal/conformance/ -run '^TestTierRecursivePerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierRecursivePerlValidated'`)
+- [ ] The dependency lint passes over 14_recursive/: every construct used was introduced at or before this tier (`go test ./internal/conformance/ -run '^TestTierRecursiveLint$' -count=1 -v | grep -q '^--- PASS: TestTierRecursiveLint'`)
+- [ ] 14_recursive/README.md states what the tier introduces, what it depends on, and why check 2 places it here (`test -s conformance/14_recursive/README.md`)
+- [ ] Each refusing file cites a refusal code rather than a message (`go test ./internal/conformance/ -run '^TestTierRecursiveRefusalsCited$' -count=1 -v | grep -q '^--- PASS: TestTierRecursiveRefusalsCited'`)
+- [ ] The whole corpus is green with skips limited to documented refusals (`go test ./internal/conformance/ -run '^TestCorpus$' -count=1 -v | grep -q '^--- PASS: TestCorpus'`)
