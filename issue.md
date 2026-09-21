@@ -3,8 +3,10 @@ title: The gates the corpus replaces die, including easy_test.go whole
 state: pending
 urgency: normal
 milestone: m3-conformance-corpus
+blocked_by:
+- 01a0c361-6191-74b6-a1c0-263f58d465b3
 created: 2026-09-21T13:44:43.235895078Z
-updated: 2026-09-21T13:44:54.74157144Z
+updated: 2026-09-21T13:45:09.951689255Z
 ---
 
 The spec commits to this and nothing in the chain owned it. Per the plan
