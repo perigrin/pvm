@@ -5,6 +5,19 @@
 # TIER 07 subroutines
 # INTRODUCES nothing of its own
 # USES nothing from a later tier
+# STATUS refuses as of dc1bea2c. Issue 01a0c432-fbd5. Refusal trailing_tokens.
+#
+# THIS FILE STARTED REFUSING WHEN THE CALL FORMS JOINED IT, which is the
+# corpus working rather than a regression. It parsed clean while it held
+# only parenthesised calls; the two parenless call sites below are what
+# our parser declines, at the same `trailing_tokens` site as
+# `08_parenless_extent.t` and `09_prototype_extent.t` -- it reads the
+# callee as a complete term and then finds a number with no operator
+# between them. Measured at dc1bea2c: three Unknown nodes, all
+# `trailing_tokens`, where each extent file alone produces one.
+#
+# The marker comes off when the parenless form lands, and the two extent
+# files' markers come off with it.
 #
 # The tier's other files are one construct each, which is what makes them
 # diagnosable: when `06_signature.t` refuses, the construct that refused is
@@ -54,6 +67,54 @@
 # `-MO=Concise,-exec` does not print. The tier README's last section is
 # where that is written down; this file is the measurement behind it.
 #
+# THE CALL FORMS, added by the call-form slice (issue 01a0c432-fbd5).
+# The slice's own files are one form each; this is where they sit beside
+# one another, which is the pair a parser handling each alone can still
+# get wrong. Present below: `answer()` parenthesised, bare `answer`,
+# `&answer` with the ampersand, `$anon->(2, 3)` through a code
+# reference, and `f 1, 2` parenless with a greedy extent. Five forms,
+# all compiling to `entersub`, which is exactly why they need separate
+# source rather than separate op claims.
+#
+# THE PROTOTYPE NEEDS A BLOCK, and the reason is the sharpest single
+# measurement in this file. `sub g ($)` is a PROTOTYPE only where the
+# signatures feature is OFF. This file says `use v5.36`, which turns
+# signatures on, and under it perl reads the same three characters as a
+# SIGNATURE and enforces arity instead -- measured 5.42.0:
+#
+#   $ perl -e 'use v5.36; sub g ($) { "g" } print g 1, 2;'
+#   Too many arguments for subroutine 'main::g' (got 2; expected 1)
+#
+#   $ perl -e 'sub g ($) { "g[$_[0]]" } print g 1, 2; print "\n"'
+#   g[1]2
+#
+# The same three characters, two different features, and only the
+# feature state decides which. The `no feature "signatures"` /
+# `use feature "signatures"` pair around `sub g` is what lets both
+# readings live in one file: `pick` is declared above it and keeps its
+# signature, `g` is declared inside it and gets a prototype.
+#
+# A BLOCK would have been the tidier spelling and is measurably wrong
+# here. `{ no feature "signatures"; sub g ($) {...} }` compiles the bare
+# braces as a loop -- `enterloop`, `stub`, `leaveloop` -- and `stub` is
+# an op 11_oo introduces, so the dependency lint correctly refuses this
+# file for reaching four tiers forward to declare a sub. The file-scope
+# toggle emits no ops at all.
+#
+# MEASURED perl 5.42.0, the call-form lines:
+#
+#   42 42 42
+#   f[1-2]
+#   g[1]2
+#
+# THOSE LAST TWO LINES ARE THE ADJACENCY THAT MATTERS. `print f 1, 2`
+# and `print g 1, 2` are the same call-site shape, and they print
+# different things: f is greedy and takes both arguments, while g's
+# prototype cuts the extent to one and the `2` falls through to the
+# enclosing `print`. A parser that handled each file alone and got the
+# pair wrong would go green over two separate corpus files and fail
+# here, which is the whole reason the adjacency file exists.
+#
 # `expect output` is written before `expect parses` rather than last. The
 # blank line after it is what carries the output's own trailing newline,
 # and a blank line at END of file is what `end-of-file-fixer` strips.
@@ -69,12 +130,25 @@ sub pick ($n, $label = "small") {
     return "none";
 }
 sub bump { $_[0]++ }
+sub answer { 42 }
+sub f { return "f[" . join("-", @_) . "]" }
+no feature "signatures";
+sub g ($) { return "g[" . $_[0] . "]" }
+use feature "signatures";
 my $anon = sub { pick($_[0]) . "/" . &pick($_[1], "tiny") };
 my $seen = 0;
 bump($seen);
 print pick(1), " ", pick(50), " ", $anon->(2, 3), " ", $seen, "\n";
+print &answer, " ", answer(), " ", answer, "\n";
+print f 1, 2;
+print "\n";
+print g 1, 2;
+print "\n";
 
 --- expect output
 small big-2 small/tiny 1
+42 42 42
+f[1-2]
+g[1]2
 
 --- expect parses

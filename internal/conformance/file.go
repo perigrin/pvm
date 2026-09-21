@@ -112,15 +112,49 @@ func ParseFile(raw string) (*File, error) {
 		return f.setSection(name, body.String())
 	}
 
+	// openable says the line just read leaves the next one free to open a
+	// section: it was blank, or a marker of its own, or there was no
+	// previous line because we are at the start of the file.
+	//
+	// A heredoc body, POD block or data section is OPAQUE to this split, so
+	// a line inside one beginning `--- ` was read as a real marker. The two
+	// spellings failed differently and only one failed safely: `--- not a
+	// marker` was rejected as an unknown section, while `--- expect output`
+	// was accepted SILENTLY -- the source truncated at that line, leaving an
+	// unterminated heredoc opener, and the rest of the program became the
+	// pinned output.
+	//
+	// Requiring a blank line before a marker is what separates the two.
+	// Measured across all 134 corpus files, every one of their 472 markers
+	// already has one, so the rule costs the existing corpus nothing and it
+	// is stated in conformance/README.md for new files. A marker directly
+	// after another marker is allowed because a section with an empty body
+	// is ordinary -- `--- expect parses` carries nothing at all.
+	//
+	// This is a WEAK check by construction: a heredoc body may contain a
+	// blank line followed by `--- expect output` and still slip through.
+	// Closing the hole properly would mean lexing the source section to find
+	// its heredoc openers, which is the parser this corpus exists to test --
+	// a corpus file must be readable without it, or a parser bug becomes a
+	// corpus that cannot be read. The rule turns the reachable accident
+	// loud, which is the part that was missing.
+	openable := true
 	for _, line := range strings.SplitAfter(raw, "\n") {
 		if marker, ok := sectionName(line); ok {
+			if !openable {
+				return nil, fmt.Errorf("section marker %q needs a blank line before it, "+
+					"or it is a line inside a heredoc, POD block or data section",
+					strings.TrimRight(line, "\n"))
+			}
 			if err := flush(); err != nil {
 				return nil, err
 			}
 			name, started = marker, true
 			body = strings.Builder{}
+			openable = true
 			continue
 		}
+		openable = strings.TrimSpace(line) == ""
 		if !started {
 			// Still in the comment block; collected whole, because the
 			// STATUS marker and the issue id it refers to need not share

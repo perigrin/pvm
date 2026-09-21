@@ -201,3 +201,25 @@ five erased ops claimable. It is not done here, and the reason is that
 it changes the lint for all fourteen tiers, which wants measuring before
 it is assumed to be an improvement. Recording the limit is the smaller
 and honest first step; this section is that record.
+
+## HARD MARKERS
+
+    signature	use·v5.3
+
+One of the twelve `hardMarkers` places here. The list came from
+`internal/parse/easy_test.go`, which used it to carve an "easy" subset out
+of T1; in a graded corpus each entry is a tier placement rather than a
+filter, so that file was deleted and the placements moved to the tiers.
+
+`signature` was measured at 20.0% clean over five files, and its probe is
+not the signature syntax but the `use v5.3x` line that enables it -- which
+is the honest thing to detect, since a signature is only a signature once
+the feature is on. It places here because a signature is a parameter list,
+and this tier is where a sub first has parameters at all. `06_signature.t`
+is the file; the note above about what the lint cannot see through a CV
+applies to it, which is why the tier's coverage of signatures is a corpus
+file rather than an op.
+
+The probe column is the SOURCE probe verbatim, `·` standing for a space.
+`TestEveryHardMarkerPlaced` in `internal/conformance` requires a file here
+that the probe finds.

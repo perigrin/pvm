@@ -90,3 +90,33 @@ with the values, not to naming them, and a file that prints `"@a"` would
 drag two unclaimed ops into the tier. The tier's files print elements and
 counts instead, the same way tier 01's adjacency file prints `qw` as a
 `print` LIST to keep `aassign` and `padav` out of it.
+
+## HARD MARKERS
+
+    delete	delete·
+    exists	exists·
+    pkg-colon	$::
+
+Three of the twelve `hardMarkers` place here. The list came from
+`internal/parse/easy_test.go`, where it named the constructs the parser
+failed on at 4bc971ec and used them to carve an "easy" subset out of T1. In
+a graded corpus that is a tier placement rather than a filter, so the file
+was deleted and the placements live in the READMEs of the tiers that cover
+them.
+
+`delete` and `exists` are the keyword-table rows measured at 3.6% and 10.2%
+clean, and this tier is where a hash element first exists to delete. They
+are the same pair the INTRODUCES discussion above records as surviving
+mostly as FLAGS on `multideref` rather than as ops -- which is why the
+marker is worth keeping: the op list alone would contain no notion of
+`exists` at all.
+
+`pkg-colon` is `$::`, the scanner row measured at 0.0% clean over fourteen
+files, and it is this tier because a package-qualified name is a variable
+name. `10_package_array.t`, `11_package_hash.t` and `12_package_scalar.t`
+are the files.
+
+The probe column is the SOURCE probe verbatim, `·` standing for a
+significant trailing space. `TestEveryHardMarkerPlaced` in
+`internal/conformance` requires a file in this directory that the probe
+finds, so a claim here cannot outlive the files that back it.

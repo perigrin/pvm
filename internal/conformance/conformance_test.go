@@ -49,14 +49,14 @@ func TestParseFileSections(t *testing.T) {
 	// "", so the runner skipped the check on a file whose whole claim was
 	// that it prints nothing. No sentinel string can do this, because a
 	// corpus file may legitimately pin any string at all.
-	empty, err := ParseFile("--- source\nmy $x = 1;\n--- expect output\n\n--- expect parses\n")
+	empty, err := ParseFile("--- source\nmy $x = 1;\n\n--- expect output\n\n--- expect parses\n")
 	if err != nil {
 		t.Fatalf("parsing a file pinning empty output: %v", err)
 	}
 	if empty.ExpectOutput == nil || *empty.ExpectOutput != "" {
 		t.Errorf("ExpectOutput = %v, want a pin of the empty string", empty.ExpectOutput)
 	}
-	absent, err := ParseFile("--- source\nmy $x = 1;\n--- expect parses\n")
+	absent, err := ParseFile("--- source\nmy $x = 1;\n\n--- expect parses\n")
 	if err != nil {
 		t.Fatalf("parsing a file with no expect-output section: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestParseFileSections(t *testing.T) {
 // nothing is a corpus that measures nothing.
 func TestParseFileErrors(t *testing.T) {
 	// The smallest valid file, and the base every case below mutates.
-	const valid = "--- source\nmy $x = 1;\n--- expect parses\n"
+	const valid = "--- source\nmy $x = 1;\n\n--- expect parses\n\n"
 
 	if _, err := ParseFile(valid); err != nil {
 		t.Fatalf("the base case must be valid, or every case below tests the wrong thing: %v", err)
@@ -96,11 +96,11 @@ func TestParseFileErrors(t *testing.T) {
 		want: "no --- source section",
 	}, {
 		name: "duplicate source",
-		raw:  "--- source\nmy $x = 1;\n--- source\nmy $y = 2;\n--- expect parses\n",
+		raw:  "--- source\nmy $x = 1;\n\n--- source\nmy $y = 2;\n\n--- expect parses\n",
 		want: `duplicate section "source"`,
 	}, {
 		name: "duplicate expect output",
-		raw:  valid + "--- expect output\n1\n--- expect output\n2\n",
+		raw:  valid + "--- expect output\n1\n\n--- expect output\n2\n",
 		want: `duplicate section "expect output"`,
 	}, {
 		name: "neither parses nor parsent",
@@ -110,14 +110,14 @@ func TestParseFileErrors(t *testing.T) {
 		// The marker is present, so "no --- source section" would send
 		// the author looking for a line that is already there.
 		name: "source section present but empty",
-		raw:  "--- source\n--- expect parses\n",
+		raw:  "--- source\n\n--- expect parses\n",
 		want: "--- source section is empty",
 	}, {
 		// Whitespace-only is the same mistake with an invisible cause.
 		// perl compiles it as an empty program, so without this it is a
 		// file that passes while measuring nothing.
 		name: "source section only whitespace",
-		raw:  "--- source\n\n--- expect parses\n",
+		raw:  "--- source\n \n\n--- expect parses\n",
 		want: "--- source section is empty",
 	}, {
 		name: "unknown section",
@@ -151,13 +151,13 @@ func TestParseFileErrors(t *testing.T) {
 func TestParseFileNamelessMarker(t *testing.T) {
 	for _, tc := range []struct{ name, raw string }{{
 		name: "before a real section",
-		raw:  "--- \nmy $x = 1;\n--- source\nmy $y = 2;\n--- expect parses\n",
+		raw:  "--- \nmy $x = 1;\n\n--- source\nmy $y = 2;\n\n--- expect parses\n",
 	}, {
 		name: "between sections",
-		raw:  "--- source\nmy $x = 1;\n--- \n--- expect parses\n",
+		raw:  "--- source\nmy $x = 1;\n\n--- \n--- expect parses\n",
 	}, {
 		name: "at end of file",
-		raw:  "--- source\nmy $x = 1;\n--- expect parses\n--- \n",
+		raw:  "--- source\nmy $x = 1;\n\n--- expect parses\n--- \n",
 	}} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := ParseFile(tc.raw)
@@ -168,6 +168,108 @@ func TestParseFileNamelessMarker(t *testing.T) {
 				t.Errorf("ParseFile error = %q, want it to contain %q", err, want)
 			}
 		})
+	}
+}
+
+// TestParseFileMarkerNeedsBlankLineBefore covers a marker inside a heredoc.
+//
+// A heredoc body, POD block or `__DATA__` section is opaque to the section
+// split, so a line inside one beginning `--- ` was read as a real marker.
+// The two spellings behaved differently and only one was safe: `--- not a
+// marker` was rejected as an unknown section, while `--- expect output` was
+// accepted SILENTLY -- the source truncated at that line, leaving an
+// unterminated heredoc opener, and the rest of the program became the
+// pinned output. A valid Perl program was mis-read as a differently-shaped
+// corpus file with nothing said.
+//
+// The fix is the blank line: a marker must be the only content on its line
+// AND be preceded by a blank line or start of file. Measured across all 134
+// corpus files at dc1bea2c, every one of the 472 markers already satisfies
+// this, so it costs the existing corpus nothing. It is a weak check by
+// construction -- a heredoc body CAN contain a blank line followed by
+// `--- expect output` -- but it turns the common accident loud, which is
+// what was missing. See conformance/13_opaque/README.md.
+func TestParseFileMarkerNeedsBlankLineBefore(t *testing.T) {
+	// The dangerous case: the marker names a REAL section, so nothing
+	// downstream objects. Without the rule this parses cleanly and pins
+	// "END\nprint $t;" as the expected output of a truncated program.
+	heredoc := "--- source\nmy $t = <<'END';\n--- expect output\nEND\nprint $t;\n\n--- expect parses\n"
+
+	if _, err := ParseFile(heredoc); err == nil {
+		t.Fatal("ParseFile accepted a `--- expect output` line inside a heredoc body, " +
+			"want an error: the source truncates there and the rest is read as a pin")
+	} else if want := "blank line"; !strings.Contains(err.Error(), want) {
+		t.Errorf("ParseFile error = %q, want it to contain %q", err, want)
+	}
+
+	// The legitimate shapes must keep parsing. A marker at the very start
+	// of a file has no preceding line at all, which is start-of-file
+	// rather than a violation -- though no real corpus file is shaped that
+	// way, every ParseFile test in this file is.
+	for _, tc := range []struct{ name, raw string }{{
+		name: "marker at start of input",
+		raw:  "--- source\nmy $x = 1;\n\n--- expect parses\n",
+	}, {
+		name: "marker after a comment block",
+		raw:  "#!perl\n# TIER 01_literals\n\n--- source\nmy $x = 1;\n\n--- expect parses\n",
+	}, {
+		// A marker DIRECTLY after another, with no blank line between
+		// them. A section with an empty body is ordinary -- `--- expect
+		// parses` carries nothing at all -- so the preceding marker is
+		// what makes this line openable, not a blank line. Written with
+		// the two markers genuinely adjacent: with a blank line between
+		// them it would pass under a rule that forbade this, which is
+		// what the first draft of this case did.
+		name: "consecutive markers, the earlier one bodiless",
+		raw:  "--- source\nmy $x = 1;\n\n--- expect parses\n--- expect output\n1\n\n--- expect tokens\n",
+	}} {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := ParseFile(tc.raw); err != nil {
+				t.Errorf("ParseFile(%q) = %v, want it to parse", tc.raw, err)
+			}
+		})
+	}
+}
+
+// TestParseFileBodyRunsToTheNextMarker pins the blank separator as content.
+//
+// A section body runs to the next `--- ` marker INCLUDING the blank
+// separator line before it. For most sections that line is trailing
+// whitespace in a Perl program and nobody notices; inside a `__DATA__`
+// section it is DATA, and 13_opaque/08_data_section.t pins three lines of
+// output for a two-line data section because of it.
+//
+// Pinned against the real file rather than a fixture, because the property
+// belongs to the format and the file is the one place it is visible. The
+// blank-line rule for markers is about what may PRECEDE a marker; this is
+// about what the preceding section KEEPS, and the two are one edit apart --
+// terminating a body at the blank line instead of the marker would satisfy
+// every other test in this file and silently shorten the data section.
+func TestParseFileBodyRunsToTheNextMarker(t *testing.T) {
+	path := filepath.Join(corpusDir, "13_opaque", "08_data_section.t")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading %s: %v", path, err)
+	}
+
+	f, err := ParseFile(string(raw))
+	if err != nil {
+		t.Fatalf("parsing %s: %v", path, err)
+	}
+
+	// The trailing "\n\n" is the point: one newline ends `two`, the other
+	// is the format's own separator line, which perl reads as a third
+	// (empty) line of DATA.
+	if want := "__DATA__\none\ntwo\n\n"; !strings.HasSuffix(f.Source, want) {
+		t.Errorf("Source = %q, want it to end with %q -- the blank separator "+
+			"line is part of the data section", f.Source, want)
+	}
+	if f.ExpectOutput == nil {
+		t.Fatal("ExpectOutput = nil, want the three-line pin")
+	}
+	if got, want := *f.ExpectOutput, "one\ntwo\n\n"; got != want {
+		t.Errorf("ExpectOutput = %q, want %q -- three lines for a two-line "+
+			"data section, which is what perl prints", got, want)
 	}
 }
 
@@ -187,7 +289,7 @@ func TestParseFileCRLF(t *testing.T) {
 	// one-newline strip means a section at EOF keeps no trailing newline,
 	// which is a property of position rather than of line endings and
 	// would otherwise be conflated with the CR here.
-	raw := "--- source\r\nmy $x = .5;\r\n--- expect output\r\n0.5\r\n\r\n--- expect parses\r\n"
+	raw := "--- source\r\nmy $x = .5;\r\n\r\n--- expect output\r\n0.5\r\n\r\n--- expect parses\r\n"
 
 	f, err := ParseFile(raw)
 	if err != nil {
@@ -199,7 +301,12 @@ func TestParseFileCRLF(t *testing.T) {
 	if got, want := *f.ExpectOutput, "0.5\n"; got != want {
 		t.Errorf("ExpectOutput = %q, want %q", got, want)
 	}
-	if got, want := f.Source, "my $x = .5;\n"; got != want {
+	// The source body runs to the next marker and so includes the blank
+	// separator line before it -- the same property 13_opaque's
+	// 08_data_section.t pins, where that blank line is DATA. Asserted with
+	// it present rather than trimmed away, because a CR hiding in the
+	// separator is exactly the byte this test exists to catch.
+	if got, want := f.Source, "my $x = .5;\n\n"; got != want {
 		t.Errorf("Source = %q, want %q", got, want)
 	}
 	if strings.Contains(*f.ExpectOutput+f.Source, "\r") {
@@ -226,7 +333,7 @@ func TestParseFileCRLF(t *testing.T) {
 // wrong produces a CORPUS BUG report rather than a parse error, so it is
 // pinned here and stated in the README.
 func TestParseFileExpectOutputNewline(t *testing.T) {
-	const head = "--- source\nmy $x = 1;\n--- expect parses\n--- expect output\n"
+	const head = "--- source\nmy $x = 1;\n\n--- expect parses\n--- expect output\n"
 
 	withSeparator, err := ParseFile(head + "0.5\n\n--- expect tokens\n")
 	if err != nil {
@@ -258,7 +365,7 @@ func TestParseFileExpectOutputNewline(t *testing.T) {
 // set and Run consulted ExpectParses first, so parsent was silently
 // ignored. Contradictions must be rejected, not resolved by field order.
 func TestParseFileBothExpectations(t *testing.T) {
-	raw := "--- source\nmy $x = 1;\n--- expect parses\n--- expect parsent\n"
+	raw := "--- source\nmy $x = 1;\n\n--- expect parses\n--- expect parsent\n"
 
 	_, err := ParseFile(raw)
 	if err == nil {
@@ -298,6 +405,11 @@ func TestReadmeDocumentsEverySection(t *testing.T) {
 		{"sections may appear in any order", "any order"},
 		{"a repeated section is an error", "repeated section"},
 		{"exactly one of parses/parsent", "Exactly one"},
+		// The one rule an author cannot infer from a well-formed example,
+		// because every example already satisfies it. Its absence from
+		// the README is how the next `--- expect output` inside a heredoc
+		// gets written.
+		{"a marker needs a blank line before it", "blank line before it"},
 	} {
 		if !strings.Contains(readme, rule.want) {
 			t.Errorf("README does not state that %s (looked for %q)", rule.name, rule.want)
@@ -646,7 +758,7 @@ func requireZhi(t *testing.T) {
 func TestEmptyExpectedOutputIsChecked(t *testing.T) {
 	// The blank line is the separator the one-newline strip removes, so
 	// the pinned output is the empty string rather than "\n".
-	raw := "--- source\nprint \"a\\n\";\n--- expect output\n\n--- expect parses\n"
+	raw := "--- source\nprint \"a\\n\";\n\n--- expect output\n\n--- expect parses\n"
 
 	f, err := ParseFile(raw)
 	if err != nil {
@@ -676,7 +788,7 @@ func TestEmptyExpectedOutputIsChecked(t *testing.T) {
 // case, and must stay a skip rather than becoming an assertion that perl
 // prints nothing.
 func TestAbsentExpectedOutputSkipsCheck(t *testing.T) {
-	raw := "--- source\nprint \"a\\n\";\n--- expect parses\n"
+	raw := "--- source\nprint \"a\\n\";\n\n--- expect parses\n"
 
 	f, err := ParseFile(raw)
 	if err != nil {

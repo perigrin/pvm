@@ -153,3 +153,24 @@ forever -- so both `08_next_last_redo.t` and the adjacency file put it
 behind `$ENV{R} // 0`. The op compiles, sits adjacent to the statements
 around it, and is never taken, which is exactly what the tier needs to
 measure and nothing more.
+
+## HARD MARKERS
+
+    goto	goto·
+
+One of the twelve `hardMarkers` places here. The list came from
+`internal/parse/easy_test.go`, which used it to carve an "easy" subset out
+of T1; in a graded corpus each entry is a tier placement rather than a
+filter, so that file was deleted and the placements moved to the tiers.
+
+`goto` is the keyword-table row measured at 4.5% clean over twenty-two
+files, and it is this tier because `goto LABEL` is a loop-control statement
+in everything but name -- the same code path as `next`, `last` and `redo`,
+which the section above records as the ops this tier introduces.
+`10_goto.t` is the file, and the note above already measures that the tier
+backs `goto` with `goto LABEL` and `goto $target` only.
+
+The probe column is the SOURCE probe verbatim, `·` standing for a
+significant trailing space; the trailing space is what keeps the probe off
+`gotoward`. `TestEveryHardMarkerPlaced` in `internal/conformance` requires
+a file here that the probe finds.

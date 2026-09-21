@@ -116,6 +116,30 @@ var subroutineConstructs = map[string]string{
 	"05_return.t":     "return $label if",
 	"06_signature.t":  "($n, $label = ",
 	"07_args_alias.t": "$_[0]++",
+
+	// The call-form slice's files (issue 01a0c432-fbd5). Registered here
+	// rather than left out, because this table's own loop is what stops
+	// a file joining the tier without joining the adjacency check -- the
+	// property tier 01 gets by derivation, obtained the other way round.
+	// A file absent from it fails loudly, which is how these three
+	// arrived.
+	//
+	// Each is spelled as the CALL SITE rather than the declaration,
+	// because the call site is what the form is: `print f 1, 2;` and
+	// `print g 1, 2;` are the same shape and print different things, f
+	// greedily and g cut to one argument by its prototype. The
+	// declarations that decide that difference are not interchangeable
+	// between the two, so a spelling taken from one would not identify
+	// the other.
+	//
+	// `g` is declared inside `no feature "signatures"` in the adjacency
+	// file, because `use v5.36` turns `($)` from a PROTOTYPE into a
+	// SIGNATURE -- measured 5.42.0, `use v5.36; sub g ($) {...} print g
+	// 1, 2;` is "Too many arguments for subroutine 'main::g'". That
+	// block is what lets both readings live in one body.
+	"08_parenless_extent.t": "print f 1, 2;",
+	"09_prototype_extent.t": "print g 1, 2;",
+	"11_code_ref_call.t":    "->(",
 }
 
 // TestTierSubroutinesAdjacency checks the tier's adjacency file holds

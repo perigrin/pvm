@@ -152,3 +152,26 @@ isolation. The adjacency file
 puts every construct this tier introduces in one body, each adjacent to
 another, and is what catches it. This is the case the whole
 adjacency-file design was written for.
+
+## HARD MARKERS
+
+    indirect-new	new·
+
+One of the twelve `hardMarkers` places here, and it is the widest of them:
+119 T1 files, 28.6% clean. The list came from
+`internal/parse/easy_test.go`, which used it to carve an "easy" subset out
+of T1; in a graded corpus each entry is a tier placement rather than a
+filter, so that file was deleted and the placements moved to the tiers.
+
+`indirect-new` is `new Foo(...)`, spec §4.14.2's `MethodCall.Indirect` row,
+and it places here because indirect object syntax is a method call -- it is
+`Foo->new(...)` wearing the other word order, and there is no earlier tier
+at which a method exists to call. `06_indirect_new.t` is the file.
+
+The probe is deliberately the crude one the marker list used: a bare
+`new` followed by a space. It over-matches in prose and under-matches
+`new($x)`, and neither costs anything here, because the probe's job is to
+prove this tier exercises the construct rather than to classify T1.
+
+`TestEveryHardMarkerPlaced` in `internal/conformance` requires a file here
+that the probe finds, `·` standing for the significant trailing space.

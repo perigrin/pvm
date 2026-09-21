@@ -50,6 +50,40 @@ believed both, and picking one silently discards a real disagreement.
 **An unknown section name is an error.** A typo that parsed as "no
 assertion" would make a file weaker without saying so.
 
+**A marker needs a blank line before it**, or another marker, or the start
+of the file. Every corpus file was already written this way -- measured at
+`dc1bea2c`, all 472 markers across all 134 files have one -- so the rule
+costs nothing to follow and it is the only thing standing between the
+format and a line of Perl.
+
+The split is textual and a heredoc body, POD block or `__DATA__` section is
+OPAQUE to it, so a line inside one beginning `--- ` was read as a real
+marker. The two spellings failed differently and only one failed safely:
+
+    my $t = <<'END';
+    --- not a marker
+    END
+
+was rejected as an unknown section, loudly. But
+
+    my $t = <<'END';
+    --- expect output
+    END
+    print $t;
+
+was accepted SILENTLY: the source truncated at that line, leaving an
+unterminated heredoc opener, and the rest of the program became the pinned
+output. A valid Perl program read as a differently-shaped corpus file with
+nothing said. The blank line is what tells the two apart.
+
+It is a weak check on purpose. A heredoc body may contain a blank line and
+then `--- expect output` and still slip through. Closing the hole properly
+would mean lexing the source to find its heredoc openers -- which is the
+parser this corpus exists to test, so a corpus file could not be read while
+that parser was broken. The rule makes the reachable accident loud and
+leaves the rest to `13_opaque/README.md`, which records what the split
+cannot see.
+
 ## The comment block
 
 Read by people, except for one line. `# STATUS refuses` marks a file the

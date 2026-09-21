@@ -117,3 +117,26 @@ to tier 02, and `gv`/`shift` are fixtures used to defeat constant folding
 all, which is the tier-01 lesson recurring here. The optimiser can erase
 the construct a tier is about, so these ops lint a declared tier and cannot
 derive one.
+
+## HARD MARKERS
+
+    deref-brace	${
+    deref-at	@{
+
+Two of the twelve `hardMarkers` place here, and they are the two the list
+itself records as having MOVED: re-measured when 01a0ad52 landed,
+`deref-brace` went 27.1% -> 35.7% clean and `deref-at` 14.5% -> 23.6%. The
+list came from `internal/parse/easy_test.go`, which used it to carve an
+"easy" subset out of T1; in a graded corpus each entry is a tier placement
+rather than a filter, so that file was deleted and the placements moved to
+the tiers.
+
+Both place here for the same reason and it is not a close call: `${...}`
+and `@{...}` are dereference syntax, and this is the dereference tier.
+`05_brace_deref.t` and `07_deref_brace_hash.t` back the first,
+`06_deref_at.t` and `10_deref_at_sigil.t` the second, and the adjacency
+file carries both.
+
+The probes need no trailing space -- a brace cannot begin an identifier, so
+`${` and `@{` are already unambiguous. `TestEveryHardMarkerPlaced` in
+`internal/conformance` requires a file here that each probe finds.

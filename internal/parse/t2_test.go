@@ -1,5 +1,5 @@
 // ABOUTME: T2 core: 56 files across five perl5 t/ directories, ratcheted per file.
-// ABOUTME: The gate wants 100%; the measurement is 25%, so the shortfall is named rather than hidden.
+// ABOUTME: The T2 rate is no longer a gate; this names the per-file shortfall and ratchets it.
 
 package parse_test
 
@@ -56,13 +56,23 @@ func t2Files(t *testing.T) (string, []string) {
 	return tDir, files
 }
 
-// TestT2CoreParses is the M1 gate's T2 metric.
+// TestT2CoreParses ratchets the per-file shortfall over the 56 T2 files.
 //
-// The gate's target is 100% of 56 files and the measurement at d83e21a9 is
-// 14 (25.0%). The gate's own text says what to do about that: "Do not carry
-// an unreachable 100% into a gate: that is how a gate becomes advisory."
-// So this NAMES THE SHORTFALL per file and ratchets it, rather than
-// asserting a number no commit today can reach.
+// It NO LONGER CARRIES A RATE TARGET. The M1 gate's was 100% of 56 files
+// against a measurement of 14, and the gate's own text said what to do
+// about that: "Do not carry an unreachable 100% into a gate: that is how a
+// gate becomes advisory." It was already advisory here -- prose and a log
+// line, with nothing asserting it -- and the graded corpus is what replaces
+// it. "Parses cleanly through tier N" is a claim; "100% of 56 files drawn
+// from perl's own suite" names a finish line without saying what crossing
+// it would mean. TestCorpusRatchet in internal/conformance is the gate now,
+// per file and failing in both directions, over a corpus whose files are
+// ordered by what they depend on.
+//
+// What survives here is the half that was always load-bearing: the
+// shortfall map below. T2 is perl's own test suite, which the corpus does
+// not replace -- the corpus says what the parser can read, and these files
+// say what it still cannot.
 //
 // Every file below is one the parser does not yet read cleanly. The list is
 // the work, not an excuse for it: `comp/proto.t` belongs to prototype
@@ -193,7 +203,8 @@ func TestT2CoreParses(t *testing.T) {
 			len(improved), strings.Join(improved, "\n  "))
 	}
 
-	t.Logf("T2 core: %d of %d files clean (%.1f%%). The gate's target is 100%%; "+
-		"%d files short.", clean, len(files),
+	t.Logf("T2 core: %d of %d files clean (%.1f%%); %d in the shortfall map. "+
+		"Reported, not targeted -- the tier corpus gates what the parser reads.",
+		clean, len(files),
 		100*float64(clean)/float64(len(files)), len(files)-clean)
 }

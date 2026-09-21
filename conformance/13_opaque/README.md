@@ -182,3 +182,38 @@ multi-line opaque region. Both matter here:
   error. A body whose stray line happened to spell a real section name
   (`--- expect output`, say) would be the silent case, and nothing
   currently prevents it. The files here are written clear of it.
+
+## HARD MARKERS
+
+    heredoc	<<
+    format	\nformat·
+    qx	qx
+    glob-angle	<*
+
+Four of the twelve `hardMarkers` place here, the largest share of any
+tier, and that concentration is the point: this tier's subject is the
+constructs whose CONTENTS the lexer must not read, which is the same
+property that made them hard. The list came from
+`internal/parse/easy_test.go`, which used it to carve an "easy" subset out
+of T1; in a graded corpus each entry is a tier placement rather than a
+filter, so that file was deleted and the placements moved to the tiers.
+
+- `heredoc`, §2's sublexing row, 61 files at 11.5% clean. Three files back
+  it -- `01_heredoc_interpolating.t`, `02_heredoc_literal.t`,
+  `03_heredoc_indented.t` -- because the three differ in exactly the way
+  the lexer must notice.
+- `format`, §5, 2 files at 0.0%. `06_format_write.t` and
+  `09_format_picture.t`. The probe carries a LEADING newline, written
+  `\n`, because `format` must be at the start of a line to be a format
+  declaration rather than a word.
+- `qx`, a scanner row, 5 files at 20.0%. `04_backtick_command.t`.
+- `glob-angle`, a scanner row, 2 files at 0.0%. `05_glob_angle.t`. Its
+  probe `<*` is the one shape that cannot be a readline or a comparison.
+
+The probe column is the SOURCE probe verbatim, `·` standing for a
+significant trailing space and `\n` for a newline, because a Markdown
+block cannot carry either safely -- an editor that strips trailing
+whitespace would widen `format` from `\nformat·` to `\nformat`, and a
+wider probe matches more, which is the direction that lets a tier pass
+without the construct. `TestEveryHardMarkerPlaced` in
+`internal/conformance` requires a file here that each probe finds.

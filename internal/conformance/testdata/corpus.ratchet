@@ -8,7 +8,7 @@
 # The per-tier adjacency fixture carries its tier, since fourteen
 # tiers each hold one and they are different files.
 #
-# 134 files, 115 clean, 19 refusing.
+# 137 files, 115 clean, 22 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -44,6 +44,7 @@ tokens and_cliff.t
 - class_field_method.t
 - code_block.t
 - code_ref.t
+- code_ref_call.t
 - comma_in_scalar_context.t
 - context/adjacency.t
 - control/adjacency.t
@@ -105,12 +106,14 @@ not_a_term,trailing_tokens operators/adjacency.t
 - package_scalar.t
 - package_statement.t
 - packages/adjacency.t
+trailing_tokens parenless_extent.t
 - pod_block.t
 - pod_not_perl.t
 - postfix_while.t
 - precedence.t
 - print_bareword_handle.t
 - print_lexical_handle.t
+trailing_tokens prototype_extent.t
 - qr.t
 - qr_with_code.t
 - readline_list.t
@@ -131,7 +134,7 @@ tokens signed_exponent.t
 - state.t
 tokens string.t
 tokens string_comparison.t
-- subroutines/adjacency.t
+trailing_tokens subroutines/adjacency.t
 - subst_double_eval.t
 - subst_eval.t
 - substitution.t
