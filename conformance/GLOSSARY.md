@@ -134,7 +134,7 @@ Punctuation denoting an operation: `+`, `.`, `=~`, `->`, `?`, `:`.
 
 The `.` in `.5` is not an operator, and `scanNumber` running before operator
 scanning is what makes that true. That precedence is the subject of
-`01_literals/03_leading_decimal.t`.
+`01_literals/04_leading_decimal.t`.
 
 ---
 

@@ -8,7 +8,7 @@
 # The per-tier adjacency fixture carries its tier, since fourteen
 # tiers each hold one and they are different files.
 #
-# 113 files, 99 clean, 14 refusing.
+# 122 files, 105 clean, 17 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -30,6 +30,7 @@ tokens and_cliff.t
 - backtick_command.t
 - bare_block.t
 - bare_match.t
+- binary.t
 - bind.t
 - bless_empty.t
 - bless_populated.t
@@ -59,6 +60,7 @@ unimplemented_statement format_write.t
 trailing_tokens heredoc_indented.t
 trailing_tokens heredoc_interpolating.t
 trailing_tokens heredoc_literal.t
+- hexadecimal.t
 - if_else.t
 - if_postfix.t
 - import_call.t
@@ -67,7 +69,7 @@ trailing_tokens heredoc_literal.t
 - interpolated_array.t
 - io/adjacency.t
 not_a_term,tokens leading_decimal.t
-- literals/adjacency.t
+not_a_term literals/adjacency.t
 - local.t
 - localtime.t
 not_a_term,tokens logical.t
@@ -77,8 +79,11 @@ not_a_term,tokens logical.t
 - my.t
 - named_sub.t
 - negated_bind.t
+- negative.t
 - next_last_redo.t
 - numeric_comparison.t
+- octal_leading_zero.t
+- octal_prefix.t
 trailing_tokens oo/adjacency.t
 unimplemented_statement,trailing_tokens,not_a_term opaque/adjacency.t
 - open_close.t
@@ -119,10 +124,14 @@ tokens string_comparison.t
 - subst_double_eval.t
 - subst_eval.t
 - substitution.t
+- trailing_decimal.t
+- underscore_separators.t
 - unless.t
 - until.t
 - use_empty_list.t
 - use_pragma.t
 - variables/adjacency.t
+tokens vstring_bare.t
+tokens vstring_v.t
 - wantarray.t
 - while.t

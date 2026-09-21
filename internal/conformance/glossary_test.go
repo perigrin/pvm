@@ -105,7 +105,7 @@ func TestCategoryBoundaries(t *testing.T) {
 	}, {
 		name: "an exponent sign is part of the literal",
 		src:  "my $x = 5e-1;", category: "numeric literal", text: "5e-1", want: 1,
-		known: "the lexer splits 5e-1 into Number(5e) Operator(-) Number(1); found by 04_signed_exponent.t",
+		known: "the lexer splits 5e-1 into Number(5e) Operator(-) Number(1); found by 08_signed_exponent.t",
 	}, {
 		name: "an unsigned exponent is one token",
 		src:  "my $x = 5e1;", category: "numeric literal", text: "5e1", want: 1,

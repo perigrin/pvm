@@ -12,6 +12,38 @@ operands before it can have operators.
 Check 2 asks whether this tier could move earlier. It could not — there is
 no earlier.
 
+## What the files cover
+
+One construct per file, numbered from 01 with no gap, and `00` reserved
+for the adjacency file — which is not one of the tier's constructs but
+the check that they compose.
+
+The numbers are DERIVED. `TestTierNumberingRegenerates` rebuilds them from
+the file names alone and requires the result to be what is on disk, which
+is the spec's promise that "a reorder is a regeneration rather than a
+hand-edit" made checkable. A file's identity is its name; the number is
+its current position.
+
+The constructs are the boundary cases `../GLOSSARY.md` names for the two
+literal categories this tier owns, and `TestTierLiteralsCoversGlossary`
+holds the tier to that list rather than to whichever cases occurred to
+somebody. Three of them are why the token layer exists at all, because in
+each the optree and the output are both blind:
+
+- **`-1` is two tokens** (`05_negative.t`) — perl folds it to
+  `const[IV -1]`, so the operator is gone before the optree exists.
+- **`5e-1` is one token** (`08_signed_exponent.t`) — split into
+  `5e - 1` it still evaluates to 0.5, and `5e` alone is not a number perl
+  would ever accept.
+- **A v-string is not a number** (`11_vstring_bare.t`, `12_vstring_v.t`)
+  — `65.66.67` and `v65.66.67` both print `ABC`, and one dot versus two
+  is the whole boundary.
+
+Four of the tier's construct files refuse, and the adjacency file refuses
+with them: a body holding every construct the tier introduces holds the
+refusing ones too. Composing only what already works would make that file
+green and make it stop covering the tier.
+
 ## DEPENDS ON
 
     nothing

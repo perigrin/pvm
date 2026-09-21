@@ -20,7 +20,7 @@ const corpusDir = "../../conformance"
 func pin(s string) *string { return &s }
 
 func TestParseFileSections(t *testing.T) {
-	path := filepath.Join(corpusDir, "01_literals", "03_leading_decimal.t")
+	path := filepath.Join(corpusDir, "01_literals", "04_leading_decimal.t")
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("reading %s: %v", path, err)

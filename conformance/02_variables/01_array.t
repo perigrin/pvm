@@ -6,7 +6,7 @@
 # INTRODUCES array variable
 # USES nothing from a later tier
 #
-# This is the tier's baseline, the way `02_decimal.t` is tier 01's: every
+# This is the tier's baseline, the way `01_binary.t` is tier 01's: every
 # other file here starts by filling an array or a hash, so a regression in
 # this file explains all of them at once rather than being diagnosed nine
 # times.

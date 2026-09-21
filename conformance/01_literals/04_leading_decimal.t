@@ -19,7 +19,7 @@
 # a token assertion: the spelling is a lexical fact and output cannot reach
 # it. See ../GLOSSARY.md, "numeric literal".
 #
-# STATUS refuses as of 38c95d23. Our lexer produces Operator(.) Number(5),
+# STATUS refuses as of 38c95d23. Refusal not_a_term. Our lexer produces Operator(.) Number(5),
 # because scanNumber does not accept a leading `.`. Issue 01a0c13f-97f5-7f98-b32d-07245ec6ddfe.
 
 --- source

@@ -7,7 +7,7 @@
 # USES nothing from a later tier
 #
 # The tier's other files are one construct each, which is what makes them
-# diagnosable: when `03_leading_decimal.t` refuses, the construct that
+# diagnosable: when `04_leading_decimal.t` refuses, the construct that
 # refused is the only one present. That same property is why a corpus of
 # such files cannot reach an ADJACENCY bug -- a parser that handles every
 # construct alone and mis-handles a pair goes green over the pair.
@@ -22,18 +22,39 @@
 # one construct by definition.
 #
 # So each tier carries one file where its constructs sit next to each
-# other. Here that is an integer, a decimal, a single-quoted string, a
-# double-quoted string with interpolation, and a `qw` list -- adjacent
-# within one statement where the construct allows it, and on consecutive
-# statements where it does not.
+# other. Here that is EVERY numeric spelling the tier's construct files
+# introduce -- binary, decimal, hexadecimal, leading point, negative,
+# octal by leading zero, octal by prefix, signed exponent, trailing point,
+# underscore separators, and both v-string forms -- plus an integer, a
+# single-quoted string, an interpolating string and a `qw` list.
+#
+# `TestTierLiteralsAdjacency` reads the tier's construct files for the
+# literal each binds and requires the spelling to appear here, so this
+# list cannot fall behind the tier by a file. It cannot check the
+# ADJACENCY itself; see the note in that test about `padrange` absorbing
+# `pushmark`, which is why more adjacent constructs emit FEWER ops.
 #
 # This tier depends on nothing, so there is no earlier tier to pair with;
 # the adjacency is entirely within 01.
 #
+# STATUS refuses as of 7711154e. Refusal not_a_term. The `.5` on line 4 is
+# `04_leading_decimal.t`'s gap reaching this file, which is the adjacency
+# file being HONEST rather than a second bug: a body holding every
+# construct the tier introduces holds the refusing ones too, so it cannot
+# pass while any of them refuses. Composing only the constructs that
+# already work would make this file green and make it stop covering the
+# tier. Issue 01a0c13f-97f5-7f98-b32d-07245ec6ddfe.
+#
+# The named code is the parser's; the tier's other two refusals -- the
+# exponent split and the v-strings -- are LEXICAL and produce no Unknown
+# at all, so they leave no code here to name. See
+# `TestTierLiteralsRefusalsCited` for why a file must not name one it does
+# not have.
+#
 # MEASURED perl 5.42.0:
 #
 #   $ perl conformance/01_literals/00_adjacency.t
-#   42 0.5 plain 42-0.5 abc
+#   10 0.5 255 0.5 -1 255 255 0.5 1 4294967296 ABC ABC 42 plain 42-0.5 abc
 #
 # `qw(a b c)` prints as `abc` rather than `a b c`: in a print LIST the
 # three words are separate arguments and $, is unset, so nothing separates
@@ -49,13 +70,24 @@
 # the hook has no quarrel with it.
 
 --- source
-my $int = 42;
+my $bin = 0b1010;
 my $dec = 0.5;
+my $hex = 0xff;
+my $lead = .5;
+my $neg = -1;
+my $oct = 0377;
+my $octp = 0o377;
+my $exp = 5e-1;
+my $trail = 1.;
+my $usep = 4_294_967_296;
+my $vb = 65.66.67;
+my $vv = v65.66.67;
+my $int = 42;
 my $sq = 'plain';
 my $dq = "$int-$dec";
-print "$int $dec $sq $dq ", qw(a b c), "\n";
+print "$bin $dec $hex $lead $neg $oct $octp $exp $trail $usep $vb $vv $int $sq $dq ", qw(a b c), "\n";
 
 --- expect output
-42 0.5 plain 42-0.5 abc
+10 0.5 255 0.5 -1 255 255 0.5 1 4294967296 ABC ABC 42 plain 42-0.5 abc
 
 --- expect parses
