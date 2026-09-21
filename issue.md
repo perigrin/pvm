@@ -10,7 +10,7 @@ blocks:
 - 01a0c362-0929-795d-ac6b-c1740240e49e
 - 01a0c436-39e4-7560-9bf0-81d647e96aae
 created: 2026-09-21T09:52:14.225829534Z
-updated: 2026-09-21T20:47:21.291091025Z
+updated: 2026-09-21T22:35:39.269695723Z
 sessions:
 - start_sha: 9750d03b51c601e083873e26c01cb22054bb120b
   end_sha: b4af7e5155e5d0a16b7b29683f2f2731eb3074c8
@@ -81,7 +81,7 @@ formality.
 distinctive, so the token stream classifies them and a declaration would be
 checking itself.
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] Every file in 02_variables/ is validated against pinned perl 5.42.0 before it counts (`go test ./internal/conformance/ -run '^TestTierVariablesPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierVariablesPerlValidated'`)
 - [ ] The dependency lint passes over 02_variables/: every construct used was introduced at or before this tier (`go test ./internal/conformance/ -run '^TestTierVariablesLint$' -count=1 -v | grep -q '^--- PASS: TestTierVariablesLint'`)
