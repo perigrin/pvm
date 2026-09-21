@@ -1,6 +1,6 @@
 ---
 title: "Tier 11_oo: bless and class, where the adjacency file catches the live bug"
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-conformance-corpus
 blocked_by:
@@ -8,16 +8,29 @@ blocked_by:
 blocks:
 - 01a0c436-39e4-7560-9bf0-81d647e96aae
 created: 2026-09-21T09:52:58.28262933Z
-updated: 2026-09-21T21:11:14.221446628Z
+updated: 2026-09-21T21:36:34.519402668Z
 sessions:
 - start_sha: 71979369e31e3d89136535fe4d6b05a22095e26b
-  end_sha: ""
-  commits: 0
+  end_sha: dc1bea2c2baed5af0cf71ddf16e379ee18855d30
+  commits: 1
   started_at: 2026-09-21T21:11:14.221446628Z
+  ended_at: 2026-09-21T21:36:34.519402668Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-21T21:11:14.221446628Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-21T21:36:34.519402668Z
+observed_paths:
+- conformance/04_operators/00_adjacency.t
+- conformance/04_operators/05_logical.t
+- conformance/04_operators/README.md
+- conformance/11_oo/00_adjacency.t
+- conformance/11_oo/03_method_named.t
+- conformance/11_oo/README.md
+- internal/conformance/tier04_test.go
+- internal/conformance/tier11_test.go
 ---
 
 **Introduces:** bless AND class/field/method/ADJUST, indirect new
