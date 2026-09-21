@@ -6,7 +6,7 @@ milestone: m3-conformance-corpus
 blocked_by:
 - 01a0c360-01bf-7eab-b864-7d902d36fb97
 created: 2026-09-21T09:52:57.495477512Z
-updated: 2026-09-21T13:40:44.117987023Z
+updated: 2026-09-21T13:43:02.098643539Z
 ---
 
 **Introduces:** match, substitution, binding, delimiters
@@ -26,6 +26,7 @@ files rather than leaves as a note.
 
 - [ ] Every file in 09_regex/ is validated against pinned perl 5.42.0 before it counts (`go test ./internal/conformance/ -run '^TestTierRegexPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierRegexPerlValidated'`)
 - [ ] The dependency lint passes over 09_regex/: every construct used was introduced at or before this tier (`go test ./internal/conformance/ -run '^TestTierRegexLint$' -count=1 -v | grep -q '^--- PASS: TestTierRegexLint'`)
-- [ ] 09_regex/README.md states what the tier introduces, what it depends on, and why check 2 places it here (`test -s conformance/09_regex/README.md`)
+- [ ] The tier's adjacency file puts every construct 09_regex introduces in one body, each adjacent to another, pairing with the declared prerequisite rather than tier N-1 (`go test ./internal/conformance/ -run '^TestTierRegexAdjacency$' -count=1 -v | grep -q '^--- PASS: TestTierRegexAdjacency'`)
+- [ ] 09_regex/README.md states what the tier introduces, what it depends on, and why check 2 places it here, in the form the dependency lint reads (`go test ./internal/conformance/ -run '^TestEveryTierHasAReadme$' -count=1 -v | grep -q '^--- PASS: TestEveryTierHasAReadme'`)
 - [ ] Each refusing file cites a refusal code rather than a message (`go test ./internal/conformance/ -run '^TestTierRegexRefusalsCited$' -count=1 -v | grep -q '^--- PASS: TestTierRegexRefusalsCited'`)
-- [ ] The whole corpus is green with skips limited to documented refusals (`go test ./internal/conformance/ -run '^TestCorpus$' -count=1 -v | grep -q '^--- PASS: TestCorpus'`)
+- [ ] The tier's own files are green with skips limited to documented refusals (`go test ./internal/conformance/ -run '^TestCorpus/09_regex' -count=1 -v | grep -q '^    --- PASS: TestCorpus/09_regex'`)
