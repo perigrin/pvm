@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-21T18:43:03.717841424Z
-updated: 2026-09-21T22:10:48.071872222Z
+updated: 2026-09-21T22:36:19.951386246Z
 sessions:
 - start_sha: dc1bea2c2baed5af0cf71ddf16e379ee18855d30
   end_sha: b41801021927f68fcbf799c60d6b947393d983de
@@ -85,7 +85,7 @@ widens the earlier tier: an op claimed by both 02 and 08 is allowed from
 02 on, so a file that genuinely needs 08 passes its lint at 02. The
 collision is invisible by construction, and it loosens the lint.
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] No op in the corpus is introduced by more than one tier (`go test ./internal/conformance/ -run '^TestOpClaimedByExactlyOneTier$' -count=1 -v | grep -q '^--- PASS: TestOpClaimedByExactlyOneTier'`)
 - [ ] A collision in a fixture corpus is caught, and the failure names the op and BOTH claiming tiers rather than one of them (`go test ./internal/conformance/ -run '^TestOpCollisionsNamesBothTiers$' -count=1 -v | grep -q '^--- PASS: TestOpCollisionsNamesBothTiers'`)
