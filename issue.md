@@ -17,7 +17,7 @@ blocks:
 - 01a0c362-0a97-7c14-82fe-27d76ee5c862
 - 01a0c362-0c0b-7f6a-b807-fa62daefe02e
 created: 2026-09-21T09:50:44.159860455Z
-updated: 2026-09-21T20:21:11.857566311Z
+updated: 2026-09-21T22:35:39.174127925Z
 sessions:
 - start_sha: 7711154e001e09d6d7b489eaa6d325851e7a4e30
   end_sha: 9750d03b51c601e083873e26c01cb22054bb120b
@@ -78,7 +78,7 @@ the wrong tree to compare against. The token assertion is the only check
 that catches it, which is the measured argument for the whole token layer
 and belongs in this tier's README.
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] Tier 01 covers the numeric and string literal boundaries the glossary names, including v-strings and the -1-is-two-tokens case (`go test ./internal/conformance/ -run '^TestTierLiteralsCoversGlossary$' -count=1 -v | grep -q '^--- PASS: TestTierLiteralsCoversGlossary'`)
 - [ ] Files are renumbered from 01 with no gap, by the regeneration the spec says the numbering supports (`go test ./internal/conformance/ -run '^TestTierNumberingRegenerates$' -count=1 -v | grep -q '^--- PASS: TestTierNumberingRegenerates'`)
