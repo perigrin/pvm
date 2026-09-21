@@ -37,7 +37,7 @@ subject and `print` is tier 10's. Using a construct is not introducing it.
 ## Why those ops, and not the ones the source implies
 
 This list is what `perl -MO=Concise,-exec` EMITS for the constructs in this
-tier, measured under 5.42.0, not what reading the source suggests. Four
+tier, measured under 5.42.0, not what reading the source suggests. Five
 places where those differ, and the first is the largest gap in the corpus
 so far.
 
@@ -72,6 +72,15 @@ so far.
   1` emits `sassign` over a `gv`. The plain scalar assignment op is
   introduced by `$::`, four constructs away from where a reader would look
   for it.
+
+- **`${name}` leaves no trace at all.** `${x}` is `padsv` and `@{a}` is
+  `padav`, identical to the unbraced spellings: perl resolves the braces
+  away before the optree exists. GLOSSARY.md nonetheless calls it out --
+  "`${name}` is one variable: the braces are punctuation around a name" --
+  because the lexing question is real and is the same `${` that opens the
+  dereference `${ $ref }` at tier 08. So the boundary is covered by
+  `05_braced_name.t` and asserted on the SOURCE, the way tier 01 asserts
+  `-1`'s two tokens against a folded constant.
 
 Two further measurements shape the tier's files rather than its op list.
 `print "@a"` emits `join` and `gvsv` -- the `gvsv` is `$"`, which the

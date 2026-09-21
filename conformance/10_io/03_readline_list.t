@@ -21,6 +21,14 @@
 # `02_readline_scalar.t`. Printing the lines would show `one` first in
 # both files and differ only in what followed.
 #
+# The token facts are the same pair `02_readline_scalar.t` carries, and
+# they are repeated rather than shared because the spelling is what they
+# assert and each file has its own. `<$fh>` is ONE token in both, and the
+# context that distinguishes the two files is invisible to the lexer --
+# which is the point: the split between this tier's `<$fh>` and tier 13's
+# `<*.c>` is lexical only in the sense that both produce the same token
+# CATEGORY, and everything that separates them is above the lexer.
+#
 # MEASURED perl 5.42.0:
 #
 #   $ perl -e 'open(my $fh, "<", \"one\ntwo\n"); my @l = <$fh>; print scalar(@l), "\n"'
@@ -36,3 +44,7 @@ close($fh);
 2
 
 --- expect parses
+
+--- expect tokens
+one readline operator whose text is "<$fh>"
+no operator whose text is "<"

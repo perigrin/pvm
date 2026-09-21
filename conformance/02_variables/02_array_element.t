@@ -19,7 +19,7 @@
 #
 # The write is `aelemfastlex_store` and the read is `aelemfast_lex`. Both
 # are the `_lex` spellings because `@a` is a lexical; the package spellings
-# are in `09_package_array.t`.
+# are in `10_package_array.t`.
 #
 # `print $a[0]` rather than `print "$a[0]"`: the interpolated form emits
 # `stringify`, which belongs to what interpolation does with a value rather

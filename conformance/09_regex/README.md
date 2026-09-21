@@ -71,11 +71,29 @@ things that reading the source would not tell you:
 
 - **Alternative delimiters erase themselves entirely.** `m{abc}` and
   `/abc/` emit byte-identical op streams, as do `s{a}{z}` and `s/a/z/` and
-  `m!a!`. The optree cannot distinguish them, so delimiter coverage in this
-  tier is a TOKEN claim, not an op claim -- the same argument
-  `conformance/README.md` makes for `5e-1`. Every delimiter file here must
-  carry an `expect tokens` section or it measures nothing the plain form
-  does not already measure.
+  `m!a!` and `m#abc#`. The optree cannot distinguish them, so delimiter
+  coverage in this tier is a TOKEN claim, not an op claim -- the same
+  argument `conformance/README.md` makes for `5e-1`. Every delimiter file
+  here must carry an `expect tokens` section or it measures nothing the
+  plain form does not already measure.
+
+  `m#abc#` is the sharpest of them and gets a file of its own. `#` is
+  Perl's COMMENT CHARACTER, so a lexer reading left to right has already
+  decided to discard the rest of the line before it can know it was
+  wrong -- and because the op stream is identical to `/abc/`'s, neither
+  the optree nor the printed output would report the mistake.
+
+- **The nesting rule needs a pattern that nests, and the forms do not
+  show it.** A delimiter FORM -- `m{}`, `s{}{}` -- says a bracketing
+  delimiter was used; it does not say the brackets NEST. Every bracketing
+  pattern the tier shipped with had a body containing no bracket, so all
+  of them are satisfied by a lexer that stops at the first `}`.
+  `09_nesting_delimiters.t` is the file that tells them apart: measured,
+  `m{a{b}c}` matches the five-character string `a{b}c`, and `s{a{b}c}{ok}`
+  turns `xa{b}cy` into `xoky`, which pins the pattern's full extent on
+  both sides. The non-bracketing counterpart cannot be written at all --
+  `"a!b!c" =~ m!a!b!c!` is a syntax error, not a different match -- which
+  is the asymmetry `GLOSSARY.md` records.
 
 - **`regcomp` appears only when the pattern interpolates.** `/abc/` compiles
   its pattern once, at compile time, and emits `match` alone. `/$p/` must

@@ -5,7 +5,16 @@
 # TIER 13 opaque
 # INTRODUCES the data section
 # USES nothing from a later tier
-# STATUS refuses as of 6c231691, and this was NOT a known gap. Cites this file.
+# STATUS refuses as of 6c231691, and this was NOT a known gap. Cites this file. Refusal not_a_term.
+#
+# `not_a_term` is the parser meeting a token that cannot begin a term, and
+# the token is the whole data section. Measured, the two statements before
+# it parse cleanly and the Unknown spans `__DATA__` to end of file. That is
+# the third distinct code in this tier -- the heredocs carry
+# `trailing_tokens` and the format carries `unimplemented_statement` -- and
+# three codes for six constructs is the useful finding: the refusals are
+# not one gap wearing three faces, they are three sites, and closing one
+# will not close the others.
 #
 # One Unknown. Both token facts pass, so the lexer ends the program text at
 # `__DATA__` and reads `<DATA>` as one angle-bracket term; the refusal is

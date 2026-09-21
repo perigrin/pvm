@@ -5,7 +5,16 @@
 # TIER 13 opaque
 # INTRODUCES the format declaration
 # USES nothing from a later tier
-# STATUS refuses as of 6c231691, and this was NOT a known gap. Cites this file.
+# STATUS refuses as of 6c231691, and this was NOT a known gap. Cites this file. Refusal unimplemented_statement.
+#
+# `unimplemented_statement` is the right code here and it is not the same
+# refusal the heredoc files carry. Those parse their statement and then
+# meet a body token they have no form for; this one never starts, because
+# `format` is a statement keyword the parser does not implement. Measured,
+# the Unknown spans `format STDOUT =` through the `write;` that follows it
+# -- the declaration and the statement after it swallowed together, which
+# is what an unimplemented keyword does to whatever it cannot find an end
+# for.
 #
 # The lexer delimits the format body correctly -- the `format body` fact
 # below passes -- and the parser produces one Unknown over the declaration.

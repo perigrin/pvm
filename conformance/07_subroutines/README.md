@@ -59,7 +59,7 @@ this file.
 ## Why those ops, and not the ones the source implies
 
 This list is what `perl -MO=Concise,-exec` EMITS for the files in this
-tier, measured under 5.42.0, not what reading them suggests. Five places
+tier, measured under 5.42.0, not what reading them suggests. Six places
 where those differ:
 
 - **The sub body is not in the main program's op stream.** `perl
@@ -107,6 +107,20 @@ where those differ:
   `leavesub` -- there is no `leaveanonsub`. The only op the anonymous form
   adds is `anoncode`, in the enclosing scope, where the closure is built.
 
+- **`@_`'s ALIASING is not an op, and no op comparison can find it.**
+  Measured, `sub bump_alias { $_[0]++ }` and `sub bump_copy { my ($n) =
+  @_; $n++ }` differ only in what the increment is applied to --
+  `aelemfast[*_]` then `postinc` against `padsv` then `postinc` -- and
+  the second body is the longer one, since the copy costs a `padrange`
+  and an `aassign` the alias does not. Nothing in either optree says that
+  the first reaches the caller's variable and the second does not. That
+  is established earlier, when `entersub` filled `@_` with the caller's
+  SVs rather than with copies, and it is a property of the values rather
+  than of the code operating on them. `07_args_alias.t` is the file that
+  measures it, and it can only do so by RUNNING: its pinned `2 1` is the
+  whole of the evidence, which is why that file's own comment says the
+  ops are a distraction there.
+
 Not claimed here, though they appear in the measurements:
 
 - **`shift`** is tier 02's. Bare `shift` inside a sub does default to
@@ -117,6 +131,14 @@ Not claimed here, though they appear in the measurements:
 - **`aelemfast`, `multideref`, `rv2av`, `gv`, `aassign`, `padav`** are all
   how `@_` and `$_[0]` are read, and all of them are tier 02's array and
   package-variable surface.
+- **`postinc`**, which `$_[0]++` emits, is the increment operator and not
+  this tier's subject -- and no tier claims it today, because it appears
+  in this corpus only inside a sub body, where the lint does not look. It
+  belongs with the four erased ops in the last section rather than in any
+  INTRODUCES list, and issue 01a0c547-516b-73d3-ba9e-ae5b6c40fa29 is
+  where that is tracked. What IS this
+  tier's is the aliasing that makes the increment visible to the caller,
+  and that is not an op at all.
 - **`wantarray`** belongs to 03_context, which is what it asks about.
 - **`rv2cv` and `srefgen`**, which `\&f` emits, belong to 08_references.
   This tier stops at declaring and calling; taking a reference to the

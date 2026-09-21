@@ -5,11 +5,17 @@
 # TIER 13 opaque
 # INTRODUCES the indentation-stripping heredoc
 # USES nothing from a later tier
-# STATUS refuses as of 6c231691, and this was NOT a known gap. Cites this file.
+# STATUS refuses as of 6c231691, and this was NOT a known gap. Cites this file. Refusal trailing_tokens.
 #
 # One Unknown, same as 01 and 02. All three heredoc spellings lex correctly
 # and parse to the same refusal, which is the useful shape: the gap is one
 # gap, not three.
+#
+# The three files NAME the same code, which is how "one gap, not three" is
+# stated as something that can be falsified. Three files skipping on three
+# uncited refusals would look identical whether the cause was shared or
+# not; three naming `trailing_tokens` report it the day one of them starts
+# refusing elsewhere.
 #
 # The `~` belongs to the OPENER token, not to a separate operator: the
 # opener's text is `<<~EOT`, three characters plus the terminator name.

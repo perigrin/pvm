@@ -77,9 +77,19 @@ not:
   `DREFSV` set -- autovivifying the glob into the fresh `my $fh`. The
   same op name does three jobs in this tier and is claimed once.
 - **No op for the diamond.** `<>` compiles to `gv[*ARGV]` plus
-  `readline`, identical to `<ARGV>`. There is no distinct operator to
-  claim; the diamond is a spelling the lexer must recognise, which is a
-  token fact and not an op fact. `<*>` is glob and belongs to tier 13.
+  `readline`, identical to `<ARGV>` -- measured, op for op. There is no
+  distinct operator to claim; the diamond is a spelling the lexer must
+  recognise, which is a token fact and not an op fact. `<*>` is glob and
+  belongs to tier 13.
+
+  The diamond itself is not a file here, and the reason is the same one
+  that makes every handle in this tier in-memory: `<>` with an empty
+  `@ARGV` reads STDIN, so what it prints depends on what the runner
+  hands the child process rather than on the program. That is a property
+  of the harness, not of perl, and a corpus file resting on it would pin
+  bytes the source does not determine. The token fact the diamond would
+  have carried is carried instead by the spelling this tier CAN run
+  reproducibly, `<$fh>`, which produces the same token category.
 
 The ops also cannot tell a successful open from a failed one, which is
 the general caveat restated for this tier: they LINT a declared tier and
@@ -89,7 +99,7 @@ cannot derive one.
 
 The declared set came out of the corpus unchanged -- every op in
 INTRODUCES is emitted, nothing had to be removed, and nothing outside the
-earlier tiers' claims appeared. Two facts the files forced, neither of
+earlier tiers' claims appeared. Three facts the files forced, none of
 them visible before there were files:
 
 - **The in-memory handle is the ordinary open.** These files must be
@@ -111,6 +121,21 @@ them visible before there were files:
   to a tier that does not exist yet. The files open unchecked and print a
   constant to show they ran. When a tier claims `die`, the check can come
   back.
+
+- **The behavioural files cannot see the angle split, and token facts
+  can.** `<$fh>` and `<*.c>` share a spelling across two tiers, and the
+  files here assert the first entirely through behaviour -- what gets
+  read, what gets printed. Measured, that is not enough: our parser reads
+  `<`, `$fh`, `>` as an ordinary comparison chain and returns ZERO
+  Unknowns for it, so a lexer that split the angles would pass every
+  `expect parses` and every `expect output` in this tier without a word.
+  `02_readline_scalar.t` and `03_readline_list.t` therefore carry two
+  token facts each -- one readline operator spelled `<$fh>`, and NO
+  operator spelled `<` -- and the second is the one that falsifies a
+  split lexer, which emits that operator where an unsplit one never
+  does. Tier 13's `05_glob_angle.t` makes the other half of the split for
+  `<*.nonexistent-xyz>`; before these facts the corpus claimed the
+  category for the glob spelling alone.
 
 One consequence of the format, recorded because it reads as an omission:
 no file writes to STDERR. `--- expect output` is compared against stdout,

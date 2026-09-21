@@ -8,7 +8,7 @@
 # The per-tier adjacency fixture carries its tier, since fourteen
 # tiers each hold one and they are different files.
 #
-# 122 files, 105 clean, 17 refusing.
+# 130 files, 111 clean, 19 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -17,6 +17,7 @@
 tokens and_cliff.t
 - anon_sub.t
 - anonymous_array.t
+- args_alias.t
 - args_array.t
 - arithmetic.t
 - array.t
@@ -35,6 +36,7 @@ tokens and_cliff.t
 - bless_empty.t
 - bless_populated.t
 - brace_deref.t
+- braced_name.t
 - c_style_for.t
 - call_forms.t
 - class_adjust.t
@@ -45,17 +47,21 @@ tokens and_cliff.t
 - comma_in_scalar_context.t
 - context/adjacency.t
 - control/adjacency.t
+not_a_term data_not_perl.t
 not_a_term data_section.t
 - decimal.t
 - deref_at.t
 - deref_brace_hash.t
 - eof.t
 - foreach.t
+unimplemented_statement format_picture.t
 unimplemented_statement format_write.t
 - glob_angle.t
 - goto.t
 - hash.t
+- hash_delimiter.t
 - hash_element_expr.t
+- hash_exists_delete.t
 - hash_slice.t
 trailing_tokens heredoc_indented.t
 trailing_tokens heredoc_interpolating.t
@@ -80,6 +86,7 @@ not_a_term,tokens logical.t
 - named_sub.t
 - negated_bind.t
 - negative.t
+- nesting_delimiters.t
 - next_last_redo.t
 - numeric_comparison.t
 - octal_leading_zero.t
@@ -96,6 +103,7 @@ not_a_term,trailing_tokens operators/adjacency.t
 - package_statement.t
 - packages/adjacency.t
 - pod_block.t
+- pod_not_perl.t
 - postfix_while.t
 - precedence.t
 - print_bareword_handle.t

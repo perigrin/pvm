@@ -5,7 +5,26 @@
 # TIER 13 opaque
 # INTRODUCES nothing of its own
 # USES nothing from a later tier
-# STATUS refuses as of 6c231691, and this was NOT a known gap. Cites this file.
+# STATUS refuses as of 6c231691, and this was NOT a known gap. Cites this file. Refusal trailing_tokens.
+#
+# THREE CODES, ONE NAMED, and the choice is the file's argument rather than
+# a coin toss. Measured, the three Unknowns carry
+# `unimplemented_statement` (the format declaration), `trailing_tokens`
+# (the heredoc body) and `not_a_term` (the data section) -- the same three
+# that 06, 01 and 08 carry alone, and nothing else. `hasCode` is
+# membership, so naming any one is a true claim about this file; the middle
+# one is named because it is the only one whose SPAN says something the
+# single-construct files cannot.
+#
+# That span is the negative this file exists for. In 01 the
+# `trailing_tokens` Unknown covers the heredoc body and the statement after
+# it. Here it covers the body, the pod block, and the statement after
+# THOSE -- measured, from `heredoc line` through `my @none =
+# <*.nonexistent-xyz>;`. The pod block is inside an Unknown and contributes
+# no Unknown of its own, which is the adjacency claim stated as a
+# measurement: the lexer left the heredoc's opaque region and entered the
+# pod block's cleanly, and the parser's failure to resume did not compound
+# into a second failure at the join.
 #
 # Three Unknowns for three distinct constructs -- the format declaration,
 # the heredoc, and the data section -- which is what 06, 01 and 08 refuse

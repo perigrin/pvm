@@ -110,8 +110,18 @@ know where the body ends.
 
 ## What the tier measured
 
-Five of the nine files refuse as of 6c231691, and the shape of the
+Six of the twelve files refuse as of 9750d03b, and the shape of the
 refusals is the result.
+
+**Three codes, not one gap.** Every refusing file names the refusal site
+it waits on rather than describing it, and the sites are distinct:
+`unimplemented_statement` for the two format declarations, which are a
+statement keyword the parser does not implement; `trailing_tokens` for the
+three heredocs and the adjacency file, whose statement parses and which
+then meet a body token arriving after the semicolon it belongs to; and
+`not_a_term` for the two data sections, a token that cannot begin a term.
+Three sites for six constructs means closing one will not close the
+others, which uncited skips could not have said.
 
 **Every token fact in the tier passes, including in the files that
 refuse.** The lexer already delimits all six constructs: heredoc openers
@@ -127,7 +137,30 @@ heredoc test fails" is that heredoc lexing is broken. It is not.
 
 **The adjacency file adds a negative.** Three Unknowns for three
 constructs, none at a join between two, so leaving one opaque region does
-not damage the lexer's handling of the next.
+not damage the lexer's handling of the next. Measured, its
+`trailing_tokens` Unknown spans the heredoc body, the pod block, and the
+statement after both -- so the pod block sits INSIDE an Unknown and
+contributes none of its own, which is the negative stated as a
+measurement rather than as prose.
+
+**The tier's title has two halves and only one was originally asserted.**
+"Delimit without lexing the contents" is a claim about extent AND a claim
+about contents, and a region whose contents are inert makes only the
+first. `a fixed report line` inside a format body is delimited identically
+by a lexer that treats the body as opaque and by one that lexes it as
+Perl -- three Words either way, and the region's extent is unchanged --
+so it cannot tell the two readings apart. The same held for the pod
+block's prose and the data section's `one`/`two`.
+
+Three files close that: `09_format_picture.t` puts `@<<<<<<< @>>>` in a
+format body, where the opaque reading is one picture line and the Perl
+reading is array variables and shift operators;
+`10_pod_not_perl.t` puts an unclosed `(` and stray semicolons in a pod
+block; `11_data_not_perl.t` puts a `<=>` with no right operand and an
+unterminated `q{` in a data section. Measured, each arrives as ONE token
+with nothing lexed inside it, and perl compiles and runs all three. The
+heredoc files already had hostile content -- `$name` in the body, and
+leading indentation in the `<<~` case -- so they needed nothing.
 
 **A format limitation this tier is the first able to reach.** A section
 body runs to the next line starting `--- `, with no awareness of Perl's

@@ -6,7 +6,19 @@
 # TIER 13 opaque
 # INTRODUCES the interpolating heredoc
 # USES nothing from a later tier
-# STATUS refuses as of 6c231691, and this was NOT a known gap. Cites this file.
+# STATUS refuses as of 6c231691, and this was NOT a known gap. Cites this file. Refusal trailing_tokens.
+#
+# The code names the site, and the site is the informative part. Measured,
+# the DECLARATION PARSES: `my $h = <<"EOT";` arrives as a declaration whose
+# two terms are `$h` and the opener, with no Unknown in it. The Unknown
+# spans what comes NEXT -- the body token and the `print` after it -- and
+# its code is `trailing_tokens`, an expression that parsed with bytes
+# remaining before the terminator.
+#
+# That is the heredoc's reordering stated as a parser failure. The body
+# arrives after the semicolon that ended the statement it belongs to, so
+# the parser meets it where a new statement should start and has no form
+# for it. The gap is a grammar rule, not a lexer change.
 #
 # The LEXER handles the heredoc: it produces the opener and the body as two
 # tokens, in the right order, with the right text -- the `expect tokens`
