@@ -114,3 +114,16 @@ compiles and runs clean under `use strict; use warnings`; the pragma is
 required only when the pattern itself is interpolated from a variable,
 which no file here does. No file is marked `# STATUS refuses` on those
 grounds.
+
+## FILE ORDER
+
+    accidental
+
+The numbers are the order the files happened to be written in. This README
+cites its files by name and never by position, and no claim in it would
+become false if the files were renumbered.
+
+`accidental` is a record of debt, not a convention. Renumbering this tier
+into `derived` order costs nothing on disk but regenerates the ratchet,
+which is a separate change; the declaration exists so the state is written
+down rather than rediscovered by the next agent whose numbering test fails.

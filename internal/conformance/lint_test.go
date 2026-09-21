@@ -253,8 +253,20 @@ func TestCorpusLints(t *testing.T) {
 				if err != nil {
 					t.Fatalf("parsing sections: %v", err)
 				}
-				if err := lintOps(t, f.Source, tier, tiers); err != nil {
+				if err := lintFile(t, f, tier, tiers); err != nil {
 					t.Errorf("%s", err)
+				}
+
+				// A file perl REFUSES emits no ops and contributes
+				// nothing to the union below. Asking `opsOf` for its
+				// optree is the same mistake `lintFile` exists to
+				// avoid, one call later -- perl builds no optree for a
+				// program it will not compile. Keyed on the file's own
+				// declaration for `lintFile`'s reason: a `parses` file
+				// that is genuinely broken must still fail here rather
+				// than contribute an empty set silently.
+				if f.ExpectParsent {
+					return
 				}
 
 				ops, err := opsOf(t, f.Source)
@@ -697,7 +709,7 @@ func TestEveryTierHasAnAdjacencyFile(t *testing.T) {
 			if err != nil {
 				t.Fatalf("%s: %v", path, err)
 			}
-			if err := lintOps(t, f.Source, tier, tiers); err != nil {
+			if err := lintFile(t, f, tier, tiers); err != nil {
 				t.Errorf("%s: %v", path, err)
 			}
 

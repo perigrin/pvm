@@ -91,7 +91,7 @@ func TestTierRegexLint(t *testing.T) {
 
 	for name, f := range tierFiles(t, tierRegex) {
 		t.Run(name, func(t *testing.T) {
-			if err := lintOps(t, f.Source, tierRegex, tiers); err != nil {
+			if err := lintFile(t, f, tierRegex, tiers); err != nil {
 				t.Errorf("%s", err)
 			}
 		})

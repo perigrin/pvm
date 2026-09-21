@@ -81,7 +81,7 @@ func TestTierContextLint(t *testing.T) {
 
 	for name, f := range tierFiles(t, tierContext) {
 		t.Run(name, func(t *testing.T) {
-			if err := lintOps(t, f.Source, tierContext, tiers); err != nil {
+			if err := lintFile(t, f, tierContext, tiers); err != nil {
 				t.Errorf("%s", err)
 			}
 		})

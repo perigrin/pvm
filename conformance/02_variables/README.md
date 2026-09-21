@@ -120,3 +120,18 @@ The probe column is the SOURCE probe verbatim, `·` standing for a
 significant trailing space. `TestEveryHardMarkerPlaced` in
 `internal/conformance` requires a file in this directory that the probe
 finds, so a claim here cannot outlive the files that back it.
+
+## FILE ORDER
+
+    derived
+
+The numbers are a function of the names: sort the identities, count from
+01. `TestDerivedTierNumberingRegenerates` throws them away and rebuilds
+them, so this tier's numbering cannot drift.
+
+That it holds here is partly luck. The renumbering in `b4af7e51` shifted
+`05_hash.t` and its successors up by one to make room for a new file --
+closing a gap, not alphabetising -- and the result happens to be what a
+regeneration produces. The sort is on the identity WITH its extension, so
+`array.t` precedes `array_element.t` (`.` sorts before `_`), which is why
+`01_array.t` sits ahead of `02_array_element.t` rather than after it.

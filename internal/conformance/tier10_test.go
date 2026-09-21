@@ -76,7 +76,7 @@ func TestTierIoLint(t *testing.T) {
 
 	for name, f := range tierFiles(t, tierIo) {
 		t.Run(name, func(t *testing.T) {
-			if err := lintOps(t, f.Source, tierIo, tiers); err != nil {
+			if err := lintFile(t, f, tierIo, tiers); err != nil {
 				t.Errorf("%s", err)
 			}
 		})

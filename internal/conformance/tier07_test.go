@@ -80,7 +80,7 @@ func TestTierSubroutinesLint(t *testing.T) {
 
 	for name, f := range tierFiles(t, tierSubroutines) {
 		t.Run(name, func(t *testing.T) {
-			if err := lintOps(t, f.Source, tierSubroutines, tiers); err != nil {
+			if err := lintFile(t, f, tierSubroutines, tiers); err != nil {
 				t.Errorf("%s", err)
 			}
 		})
@@ -142,6 +142,29 @@ var subroutineConstructs = map[string]string{
 	"11_code_ref_call.t":    "->(",
 }
 
+// A `--- expect parsent` file has NO ENTRY ABOVE AND MUST NOT, which is
+// not an omission but the one case the adjacency rule cannot cover.
+//
+// The rule is that the adjacency file holds every construct the tier
+// introduces, each next to another, in ONE BODY. That body claims
+// `--- expect parses` and perl validates the claim. A `parsent` file's
+// whole content is a source perl REFUSES, so putting it in the adjacency
+// body would make the body uncompilable -- and then the tier's other
+// constructs would no longer be adjacent to anything, because there
+// would be no program left to be adjacent inside of.
+//
+// So the exemption is forced by the format rather than chosen. The
+// alternative spellings were both worse: a table entry naming some
+// substring of the refused source would be satisfied by the neighbouring
+// extent files' text and identify nothing, and a second adjacency file
+// for refused constructs would be a body with no composition in it,
+// since sources perl rejects do not compose.
+//
+// What still covers such a file: perl adjudicates its `parsent` claim in
+// `TestTierSubroutinesPerlValidated`, the lint declines it in `lintFile`
+// for a stated reason, and `TestLintSkipsAParsentFile` pins that it is
+// declined rather than silently passed.
+
 // TestTierSubroutinesAdjacency checks the tier's adjacency file holds
 // every construct the tier introduces, each next to another, and that it
 // pairs with the tier's DECLARED prerequisite.
@@ -176,8 +199,14 @@ func TestTierSubroutinesAdjacency(t *testing.T) {
 		t.Fatalf("%s has no %s", tierSubroutines, adjacencyFile)
 	}
 
-	for name := range files {
+	for name, f := range files {
 		if name == adjacencyFile {
+			continue
+		}
+		// A file perl REFUSES cannot sit in a body that must compile;
+		// see the note under subroutineConstructs for why this is the
+		// format forcing the exemption rather than a gap in the check.
+		if f.ExpectParsent {
 			continue
 		}
 		spelling, ok := subroutineConstructs[name]

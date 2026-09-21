@@ -101,7 +101,7 @@ func TestTierOperatorsLint(t *testing.T) {
 
 	for name, f := range tierFiles(t, tierOperators) {
 		t.Run(name, func(t *testing.T) {
-			if err := lintOps(t, f.Source, tierOperators, tiers); err != nil {
+			if err := lintFile(t, f, tierOperators, tiers); err != nil {
 				t.Errorf("%s", err)
 			}
 		})

@@ -46,29 +46,37 @@ pairs against, not the whole reachable set.
 
 ## INTRODUCES
 
-    anoncode entersub
+    anoncode argcheck argdefelem argelem entersub leavesub postinc return
 
-Two ops, for a tier whose subject is subroutines. That is not a mistake
-and it is not modesty: it is the whole measurable content of this tier
-under the lint that reads it. The five ops the first draft of this list
-claimed -- `argcheck`, `argdefelem`, `argelem`, `leavesub`, `return` --
-are all real, all emitted by the files in this directory, and all
-invisible to the lint. Why, and what that costs, is the last section of
-this file.
+Eight ops, six of which this tier could not claim until the lint learned
+to look inside a CV. `argcheck`, `argdefelem`, `argelem`, `leavesub` and
+`return` are the compiled form of a signature, a body's terminator and a
+branching return -- all real, all emitted by the files in this directory,
+and all structurally unreachable while `opsOf` ran `perl
+-MO=Concise,-exec` with no sub named. `opsOf` now enumerates the file's
+own subs and dumps each beside the main program. The last section of this
+file records what that changed.
+
+`postinc` is the odd one, and it is claimed here for a gap rather than on
+merit; see the note on it below.
 
 ## Why those ops, and not the ones the source implies
 
-This list is what `perl -MO=Concise,-exec` EMITS for the files in this
-tier, measured under 5.42.0, not what reading them suggests. Six places
-where those differ:
+This list is what perl EMITS for the files in this tier -- the main
+program and every named sub they declare -- measured under 5.42.0, not
+what reading them suggests. Six places where those differ:
 
 - **The sub body is not in the main program's op stream.** `perl
   -MO=Concise,-exec -e 'sub f { ... } f()'` prints `enter`, `pushmark`,
   `gv[IV \&main::f]`, `entersub`, `leave` and stops -- the body is absent.
-  Naming the sub gets it: `-MO=Concise,-exec,f`. This is the fact that
-  determines the INTRODUCES list above, because the lint runs the first
-  invocation and never the second: everything below that lives in a body
-  is described here for the reader and claimed by no one.
+  Naming the sub gets it: `-MO=Concise,-exec,f`. This fact used to
+  determine the INTRODUCES list above, because the lint ran the first
+  invocation and never the second. `opsOf` now runs both: it enumerates
+  the CVs the file itself declared and dumps each alongside the main
+  program, so a body's ops are measured where they are emitted. What
+  stays out of reach is an ANONYMOUS sub's body -- it has no name to pass
+  and no glob to walk to -- so `sub { ... }` still contributes
+  `anoncode` at the point the closure is built and nothing from inside.
 
 - **`return` is mostly erased.** `sub f { return $_[0] + 1 }` emits
   `add` then `leavesub` and no `return` op; so does `sub f { return
@@ -76,8 +84,8 @@ where those differ:
   where the return is not the last thing the body does -- `return 1 if
   $_[0]` compiles `and` guarding a `pushmark`/`return` pair. So the
   source construct `return` and the op `return` are different things.
-  `05_return.t` branches and so does emit the op -- into its own CV,
-  where the lint does not look, which is why the tier does not claim it.
+  `05_return.t` branches and so does emit the op, into its own CV --
+  which the lint now reads, so the tier claims it.
 
 - **A signature is NOT erased.** This is worth stating because it is the
   opposite of what the rest of this file warns about. `sub f ($a, $b)`
@@ -88,9 +96,10 @@ where those differ:
   `argcheck(1,0,@)`. Compare `sub f { my ($a,$b) = @_ }`, which is
   `padrange` and `aassign` and nothing else: the two spellings are
   genuinely different optrees, so here the ops DO describe the construct
-  -- and are still unclaimable, because they are inside the sub. This is
-  the most painful case: the one construct in the tier whose ops would
-  have made a precise claim is the one the lint is least able to reach.
+  -- and the tier now claims them, because the lint reads inside the sub.
+  This was the most painful case while it lasted: the one construct in
+  the tier whose ops make a precise claim was the one the lint was least
+  able to reach.
   `use v5.36` itself adds no ops -- measured, it changes the `nextstate`
   hint flags from `v:{` to `v:us,*,&,{,$,fea=6` and nothing more, so the
   pragma `06_signature.t` needs costs the op stream nothing.
@@ -123,84 +132,88 @@ where those differ:
 
 Not claimed here, though they appear in the measurements:
 
-- **`shift`** is tier 02's. Bare `shift` inside a sub does default to
-  `@_`, and the optimiser folds that default into the op's flags -- `shift
-  s*` with no `gv[*_]` and no `rv2av` in front of it -- but `shift @a`
-  outside any sub emits the same op, so the op is not this tier's to
-  introduce.
+- **`shift`** is not this tier's. Bare `shift` inside a sub does default
+  to `@_`, and the optimiser folds that default into the op's flags --
+  `shift s*` with no `gv[*_]` and no `rv2av` in front of it -- but `shift
+  @a` outside any sub emits the same op, so the op is not this tier's to
+  introduce. No file HERE emits it; `11_oo/06_indirect_new.t` is the
+  first that does, so tier 11 carries the claim, with the same note about
+  it being a gap rather than a judgement.
 - **`aelemfast`, `multideref`, `rv2av`, `gv`, `aassign`, `padav`** are all
   how `@_` and `$_[0]` are read, and all of them are tier 02's array and
   package-variable surface.
-- **`postinc`**, which `$_[0]++` emits, is the increment operator and not
-  this tier's subject -- and no tier claims it today, because it appears
-  in this corpus only inside a sub body, where the lint does not look. It
-  belongs with the four erased ops in the last section rather than in any
-  INTRODUCES list, and issue 01a0c547-516b-73d3-ba9e-ae5b6c40fa29 is
-  where that is tracked. What IS this
-  tier's is the aliasing that makes the increment visible to the caller,
-  and that is not an op at all.
+- **`postinc`** is claimed here, and it should not have to be. `$_[0]++`
+  emits it, and the increment operator is tier 04's subject, not this
+  one's. But no tier-04 file emits `postinc` -- tier 04's files compare
+  and arithmetic, and none of them increments -- so claiming it there
+  fails `TestCorpusLints`, which reports a README claiming an op no file
+  emits. The corpus's rule is that the tier which EMITS an op first owns
+  it, and `07_args_alias.t` is the only file in the corpus that compiles
+  one. A tier-04 file exercising `$x++` would move the claim to where it
+  belongs. What IS this tier's is the aliasing that makes the increment
+  visible to the caller, and that is not an op at all.
 - **`wantarray`** belongs to 03_context, which is what it asks about.
 - **`rv2cv` and `srefgen`**, which `\&f` emits, belong to 08_references.
   This tier stops at declaring and calling; taking a reference to the
   result is the next tier's subject.
 
-## What the lint cannot see here, and why that is worth recording
+## What the lint could not see here, and what changed when it could
 
-The lint measures a file by running `perl -MO=Concise,-exec` on it and
-reading the op names out of the output. That invocation prints the MAIN
-program's optree and nothing else. A subroutine body is a separate CV
-with its own optree, printed only when the sub is named on the command
-line -- `-MO=Concise,-exec,f` -- and the lint never names one, because it
-has no way to know what subs a file declares without parsing it, which is
+The lint measures a file by asking perl for its optree and reading the op
+names out. It used to ask with `perl -MO=Concise,-exec`, which prints the
+MAIN program's optree and nothing else. A subroutine body is a separate
+CV with its own optree, printed only when the sub is named on the command
+line -- `-MO=Concise,-exec,f` -- and the lint never named one, because it
+had no way to know what subs a file declares without parsing it, which is
 the thing the corpus exists to avoid depending on.
 
-The consequence is specific and it is this tier's central finding: **the
-ops most characteristic of subroutines are structurally unreachable by
-this lint.** `leavesub` ends every sub body and appears in no main
-program. `argcheck`, `argelem` and `argdefelem` are the entire compiled
-form of a signature and appear in no main program. `return`, where it
-survives at all, appears in no main program. All five are emitted by the
-files in this directory, under 5.42.0, and none can be claimed, because a
-claimed op that never appears is exactly as bad as an unclaimed op that
-does -- `TestCorpusLints` would pass a tier whose INTRODUCES list was
-pure fiction, and the next author would inherit a list they could not
-reproduce.
+The consequence was specific, and it was this tier's central finding
+while it held: **the ops most characteristic of subroutines were
+structurally unreachable by this lint.** `leavesub` ends every sub body
+and appears in no main program. `argcheck`, `argelem` and `argdefelem`
+are the entire compiled form of a signature and appear in no main
+program. `return`, where it survives at all, appears in no main program.
+All five are emitted by the files in this directory under 5.42.0, and
+none could be claimed, because a claimed op that never appears is exactly
+as bad as an unclaimed op that does -- `TestCorpusLints` would pass a
+tier whose INTRODUCES list was pure fiction.
 
-`00_adjacency.t` is the sharpest instance. Its source carries a
+`00_adjacency.t` was the sharpest instance. Its source carries a
 signature, a parameter default, a `for` loop, a `next`, three `return`s
-and an ampersand call; its main optree contains `anoncode` and
-`entersub` and not one other op from tier 06 or 07. Six constructs, two
-visible ops.
+and an ampersand call; its MAIN optree contains `anoncode` and `entersub`
+and not one other op from tier 06 or 07. Six constructs, two visible ops.
+Measured with the sub bodies included, the same file adds seventeen:
+`aelemfast and argcheck argdefelem argelem enteriter eq iter join
+leaveloop leavesub lt multiconcat next postinc return rv2av unstack`.
+That difference is the size of the blind spot, in one file.
 
-So the boundary is worth stating plainly, because it bounds what check 1
-proves for every tier from here on:
+**The lint no longer has that blind spot.** `opsOf` enumerates the CVs
+the file itself declared -- walking the symbol table and keeping only
+those whose `FILE` is the file under test -- and dumps each beside the
+main program. Issue 01a0c547-516b is where the change was measured, and
+the measurement is the reason it was made rather than assumed: across all
+fourteen tiers, twenty-one files' op streams grew, and not one of them
+started emitting an op a LATER tier claims. The widening exposed ops that
+had no owner; it did not disturb the ordering.
 
-- **Ops prove things about the main program only.** For tiers 01 through
-  06 that happened to be the whole program, so the limit never showed.
-  This is the first tier where the construct under test lives somewhere
-  the measurement does not go, and 11_oo, whose methods are subs, will
-  inherit the same blind spot in full.
-- **A tier whose subject is a body gets a weak lint, not a wrong one.**
-  `anoncode` and `entersub` are correctly this tier's, and the check that
-  no file here uses a LATER tier's op still runs over the main program
-  and still has force -- it is why `08_references`' `srefgen` stays out
-  of these files. The lint did not become unsound; it became less
-  sensitive, and only for the ops it cannot see.
-- **The behaviour assertions carry the tier instead.** `--- expect
-  output` runs the file through real perl, bodies and all, and compares
-  bytes. `05_return.t` prints `zero negative positive` only if the early
-  return actually fired; `06_signature.t` prints `4 11` only if the
-  default was actually applied. That is what measures the ops the lint
-  cannot, and it is why this tier's files lean on output rather than on
-  their op claims.
+What remains out of reach, and is worth recording in its place:
 
-Extending the lint to descend into sub bodies is possible -- read the
-declared names out of `-MO=Concise` output and re-run per name, or use
-`-MO=Concise,-main,-exec` plus each CV -- and it would make this tier's
-five erased ops claimable. It is not done here, and the reason is that
-it changes the lint for all fourteen tiers, which wants measuring before
-it is assumed to be an improvement. Recording the limit is the smaller
-and honest first step; this section is that record.
+- **An anonymous sub's body.** It has no name to pass to B::Concise and
+  no glob to walk to, so `sub { ... }` still contributes `anoncode` where
+  the closure is built and nothing from inside. `02_anon_sub.t`'s op
+  stream is byte-identical before and after the widening -- measured.
+  An `ADJUST` block is the same shape: a nameless CV in the class stash.
+- **The enumeration stops at the file.** Every CV the process has loaded
+  is reachable from the symbol table, `Exporter::import` included, and
+  dumping those would add their ops to every corpus file's measured set.
+  The `FILE` filter is what prevents that, and
+  `TestOpsOfStopsAtTheFileBoundary` is what keeps the filter honest.
+- **The behaviour assertions still carry the tier.** `--- expect output`
+  runs the file through real perl, bodies and all, and compares bytes.
+  `05_return.t` prints `zero negative positive` only if the early return
+  actually fired; `06_signature.t` prints `4 11` only if the default was
+  actually applied. Ops now describe those constructs, but only running
+  them proves they work.
 
 ## HARD MARKERS
 
@@ -223,3 +236,16 @@ file rather than an op.
 The probe column is the SOURCE probe verbatim, `·` standing for a space.
 `TestEveryHardMarkerPlaced` in `internal/conformance` requires a file here
 that the probe finds.
+
+## FILE ORDER
+
+    accidental
+
+The numbers are the order the files happened to be written in. This README
+cites its files by name and never by position, and no claim in it would
+become false if the files were renumbered.
+
+`accidental` is a record of debt, not a convention. Renumbering this tier
+into `derived` order costs nothing on disk but regenerates the ratchet,
+which is a separate change; the declaration exists so the state is written
+down rather than rediscovered by the next agent whose numbering test fails.

@@ -174,3 +174,25 @@ The probe column is the SOURCE probe verbatim, `·` standing for a
 significant trailing space; the trailing space is what keeps the probe off
 `gotoward`. `TestEveryHardMarkerPlaced` in `internal/conformance` requires
 a file here that the probe finds.
+
+## FILE ORDER
+
+    01-03	conditionals
+    04-07	loops
+    08-10	jumps
+
+The numbering is chosen, not computed, and the sections above depend on
+it. The three conditional files are the `and`/`or`/`cond_expr` argument --
+`if` and `unless` differ by exactly one op, and `if`/`else` is a different
+op again -- and that argument is a comparison between neighbours. The four
+loop files are the `enterloop`/`unstack` family, with `enteriter` arriving
+at `07_foreach.t` as the thing that distinguishes `foreach` from C-style
+`for`. The three jump files are what `enterloop` names in its own dump.
+
+A regeneration would sort these alphabetically and interleave the
+families: `03_goto.t` would land between `02_foreach.t` and
+`04_if_else.t`, putting a jump between a loop and a conditional and
+separating `10_while.t` from `09_until.t`, which differ by one op and are
+only legible side by side. That is why this tier is not `derived`: the
+arrangement carries the argument, and alphabetical order would destroy it
+while leaving every test passing.

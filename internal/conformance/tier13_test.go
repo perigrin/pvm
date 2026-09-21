@@ -324,7 +324,7 @@ func TestTierOpaqueLint(t *testing.T) {
 
 	for name, f := range tierFiles(t, tierOpaque) {
 		t.Run(name, func(t *testing.T) {
-			if err := lintOps(t, f.Source, tierOpaque, tiers); err != nil {
+			if err := lintFile(t, f, tierOpaque, tiers); err != nil {
 				t.Errorf("%s", err)
 			}
 		})

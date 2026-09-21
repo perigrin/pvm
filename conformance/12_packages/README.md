@@ -131,3 +131,16 @@ between them one op, which belongs to the one keyword a reader would call
 the least interesting of the four. `package` and `use` are compile-time
 constructs, and a measurement of runtime ops is measuring the wrong clock
 for them. Saying so is the finding; padding the list would hide it.
+
+## FILE ORDER
+
+    accidental
+
+The numbers are the order the files happened to be written in. This README
+cites its files by name and never by position, and no claim in it would
+become false if the files were renumbered.
+
+`accidental` is a record of debt, not a convention. Renumbering this tier
+into `derived` order costs nothing on disk but regenerates the ratchet,
+which is a separate change; the declaration exists so the state is written
+down rather than rediscovered by the next agent whose numbering test fails.

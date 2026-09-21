@@ -82,3 +82,18 @@ differ:
 `enter`, `leave`, `nextstate` and `pushmark` are statement machinery that
 every file in every tier emits. They are claimed here because this is the
 first tier, and a tier claims an op once.
+
+## FILE ORDER
+
+    derived
+
+The numbers are a function of the names: sort the identities, count from
+01. `TestDerivedTierNumberingRegenerates` throws the numbers away and
+rebuilds them, so this tier's numbering cannot drift.
+
+Of the fourteen tiers, only this one and `02_variables` hold it. It is not
+the corpus convention -- the spec says a file's identity is its NAME and the
+number is its current position, and says nothing about positions being
+alphabetical. What makes the claim worth making HERE is that nothing in
+this tier's subject argues for any other order: a binary literal teaches
+nothing a hexadecimal literal needs.

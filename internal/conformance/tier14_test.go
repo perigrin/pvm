@@ -285,7 +285,7 @@ func TestTierRecursiveLint(t *testing.T) {
 
 	for name, f := range tierFiles(t, tierRecursive) {
 		t.Run(name, func(t *testing.T) {
-			if err := lintOps(t, f.Source, tierRecursive, tiers); err != nil {
+			if err := lintFile(t, f, tierRecursive, tiers); err != nil {
 				t.Errorf("%s", err)
 			}
 		})

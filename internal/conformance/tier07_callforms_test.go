@@ -25,22 +25,26 @@ import (
 // `03_call_forms.t` predates this issue and is listed anyway: it is the
 // four-name-forms file, it IS a call form, and the slice's gate would be
 // lying if it excluded the one call-form file that already existed.
-// THE UNDECLARED CALLEE IS NOT A FILE HERE, and the reason is a
-// corpus-wide gap rather than a judgement about the construct. perl
-// REFUSES that source -- that refusal is the whole measurement -- so
-// such a file would carry `--- expect parsent`. The format documents
-// that section and `ParseFile` reads it, but measured at dc1bea2c no
-// corpus file had ever used one, and the lint infrastructure assumes
-// every file compiles: `TestCorpusLints` and `TestTierSubroutinesLint`
-// both call `opsOf` unconditionally, and `perl -MO=Concise` exits 255
-// on a program with a syntax error. A `parsent` file anywhere in the
-// corpus fails them, in a package this issue may not edit.
+// THE UNDECLARED CALLEE IS NOT IN THIS LIST, and the reason changed
+// under issue 01a0c605-eff0. perl REFUSES that source -- the refusal is
+// the whole measurement -- so it carries `--- expect parsent`, and
+// measured at dc1bea2c the corpus had no such file and could not have
+// one: `TestCorpusLints` and every tier's `*Lint` called `opsOf`
+// unconditionally, and `perl -MO=Concise` exits 255 on a syntax error
+// exactly as `perl -c` does. A `parsent` file anywhere failed them.
 //
-// So the fact is measured in TestTierCallFormsParenlessExtent instead,
-// where perl is run directly and no optree is asked for. That is where
-// it belongs regardless -- it is the fact that the extent question has
-// a PRECONDITION, not a construct with an extent of its own -- and the
-// corpus file would have been a second copy of it.
+// It can now. `lintFile` declines the lint for a file whose header says
+// perl refuses it, and `conformance/07_subroutines/10_undeclared_callee.t`
+// is that file -- the corpus's first, holding the fact fact 1 below
+// measures. It stays out of THIS list because the list is what keeps the
+// slice's checks from answering for the rest of the tier, and the gate
+// below admits only files that PASS or refuse with a citation; a file
+// our parser is never asked to read is neither.
+//
+// The fact remains measured in TestTierCallFormsParenlessExtent as well.
+// That is not a duplicate: the corpus file pins the refusal and its
+// tokens, and the Go check pins it beside the two extent measurements it
+// is the precondition of, where a reader meets all three at once.
 var callFormFiles = []string{
 	"03_call_forms.t",
 	"08_parenless_extent.t",
@@ -102,9 +106,9 @@ print "\n";
 //     \"f\"?)" followed by "syntax error" -- and this is true with
 //     `use strict` AND without it, and true whether or not `sub f` is
 //     defined LATER in the same file. There is no extent question to
-//     answer, because there is no call. Measured below rather than in a
-//     corpus file, for the reason callFormFiles records: perl refuses
-//     the source, and the corpus lint asks every file for an optree.
+//     answer, because there is no call. It is `10_undeclared_callee.t`
+//     in the corpus, the first file to carry `--- expect parsent`, and
+//     it is measured again below beside the two extents it precedes.
 //
 //  2. A DECLARED CALLEE WITH NO PROTOTYPE IS GREEDY. `print f 1, 2`
 //     prints `f[1,2]`: the `2` is f's second argument, NOT print's
@@ -291,7 +295,7 @@ func TestTierCallFormsLint(t *testing.T) {
 			if f.ExpectParsent {
 				t.Skipf("`expect parsent`: perl compiles no optree for it, so there are no ops to lint")
 			}
-			if err := lintOps(t, f.Source, tierSubroutines, tiers); err != nil {
+			if err := lintFile(t, f, tierSubroutines, tiers); err != nil {
 				t.Errorf("%s", err)
 			}
 		})
@@ -595,5 +599,98 @@ func TestSmallestUsefulCorpus(t *testing.T) {
 			"a corpus bug, nor a marker that has gone stale, nor an "+
 			"undocumented refusal.",
 			b.file, b.v.kind, strings.Join(b.v.msgs, "\n\t"))
+	}
+}
+
+// TestLintSkipsAParsentFile pins the skip that lets this tier carry
+// `10_undeclared_callee.t`, the corpus's first `--- expect parsent` file.
+//
+// Measured 5.42.0, `perl -MO=Concise,-exec` exits 255 on a syntax error
+// exactly as `perl -c` does, so `opsOf` returns an error for a source
+// perl refuses. Every tier's `*Lint` test and `TestCorpusLints` reach
+// `lintOps` through `lintFile`, which declines for a file whose own
+// header says perl refuses it.
+//
+// The claim is checked on the corpus file rather than on a fixture,
+// because a fixture would prove the guard works on a source this test
+// chose and say nothing about whether the file that needed it is reached
+// by the guard.
+func TestLintSkipsAParsentFile(t *testing.T) {
+	const parsentFile = "10_undeclared_callee.t"
+
+	f, ok := tierFiles(t, tierSubroutines)[parsentFile]
+	if !ok {
+		t.Fatalf("%s/%s is gone.\n"+
+			"\tIt is the corpus's only `--- expect parsent` file; without "+
+			"it nothing exercises the lint's skip, and the skip becomes a "+
+			"branch no test reaches.", tierSubroutines, parsentFile)
+	}
+	if !f.ExpectParsent {
+		t.Fatalf("%s no longer claims `--- expect parsent`", parsentFile)
+	}
+
+	tiers, err := readTierOps(corpusDir)
+	if err != nil {
+		t.Fatalf("reading tier READMEs: %v", err)
+	}
+
+	if err := lintFile(t, f, tierSubroutines, tiers); err != nil {
+		t.Errorf("the lint reports on a `parsent` file: %v\n"+
+			"\tA program perl will not compile has no optree, so the "+
+			"dependency question is vacuous for it.", err)
+	}
+
+	// And the thing the skip must NOT have done: `opsOf` still refuses
+	// this source. If it stopped refusing, the check above would be
+	// passing for the wrong reason and would go on passing with the
+	// guard deleted.
+	if _, err := opsOf(t, f.Source); err == nil {
+		t.Errorf("`perl -MO=Concise,-exec` now accepts %s.\n"+
+			"\tThe file claims perl refuses it, and the lint skip exists "+
+			"because of that refusal; if perl compiles this, the file is "+
+			"the thing that is wrong.", parsentFile)
+	}
+}
+
+// TestLintErrorsOnABrokenParsesFile is the other half, and it is the
+// reason the skip is keyed on the file's DECLARATION rather than on
+// perl's exit status.
+//
+// The tempting fix for the `parsent` problem is to make `opsOf` return an
+// empty op set instead of an error whenever perl refuses. It would be
+// wrong: a file claiming `--- expect parses` whose source is genuinely
+// broken would then LINT CLEAN, silently, because an empty op set
+// violates no tier. The corpus would report nothing about a file that
+// compiles nothing.
+//
+// So this runs the lint over a `parses` file with a real syntax error and
+// demands an error. Mutation-tested: rekeying `lintFile`'s guard on
+// whether perl compiles the source, rather than on `ExpectParsent`, turns
+// this red while every other check in the package stays green.
+func TestLintErrorsOnABrokenParsesFile(t *testing.T) {
+	// A `parses` claim over the same source the parsent file carries.
+	// The only difference is which section it declares, which is exactly
+	// the distinction under test.
+	broken := &File{
+		Source:       "f 1, 2;\nsub f { return \"f[@_]\" }\n",
+		ExpectParses: true,
+	}
+
+	if compiles, _ := askPerl(t, broken.Source); compiles {
+		t.Fatalf("perl compiles %q, so this fixture is not broken and "+
+			"measures nothing", broken.Source)
+	}
+
+	tiers, err := readTierOps(corpusDir)
+	if err != nil {
+		t.Fatalf("reading tier READMEs: %v", err)
+	}
+
+	if err := lintFile(t, broken, tierSubroutines, tiers); err == nil {
+		t.Errorf("the lint accepted a `parses` file perl REFUSES.\n" +
+			"\tAn empty op set violates no tier, so a lint that swallowed " +
+			"perl's refusal would pass this file forever while it " +
+			"compiled nothing. The skip is keyed on the file's own " +
+			"`parsent` declaration for exactly this reason.")
 	}
 }

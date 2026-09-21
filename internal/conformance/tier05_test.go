@@ -73,7 +73,7 @@ func TestTierScopingLint(t *testing.T) {
 
 	for name, f := range tierFiles(t, tierScoping) {
 		t.Run(name, func(t *testing.T) {
-			if err := lintOps(t, f.Source, tierScoping, tiers); err != nil {
+			if err := lintFile(t, f, tierScoping, tiers); err != nil {
 				t.Errorf("%s", err)
 			}
 		})

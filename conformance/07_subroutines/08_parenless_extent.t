@@ -42,9 +42,8 @@
 # extent at all but a syntax error -- "Number found where operator
 # expected (Do you need to predeclare \"f\"?)" -- and defining the sub
 # later in the file does not help, because the parse happens first. That
-# half is measured in TestTierCallFormsParenlessExtent rather than in a
-# corpus file: perl compiles no optree for a program it refuses, and the
-# corpus lint asks every file for one.
+# half is `10_undeclared_callee.t`, which carries `--- expect parsent`
+# and is the precondition of this file's whole question.
 #
 # WHY THIS REFUSES. Our parser reads `f` as a complete term and then finds
 # `1` with no operator between them, which is `trailing_tokens`: it has

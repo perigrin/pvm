@@ -95,6 +95,42 @@ func isTierDir(name string) bool {
 		name[1] >= '0' && name[1] <= '9'
 }
 
+// lintFile runs the dependency lint over a corpus file, or declines to
+// for one the lint cannot read.
+//
+// THE ONE PLACE THE `parsent` SKIP LIVES. Every tier's `*Lint` test and
+// `TestCorpusLints` reach the lint through here, so the rule is stated
+// once rather than seventeen times, and a tier added later inherits it
+// instead of having to remember it.
+//
+// A file claiming `--- expect parsent` says perl REFUSES its source.
+// `opsOf` asks perl for an optree, and perl builds none for a program it
+// will not compile -- measured 5.42.0, `perl -MO=Concise,-exec` exits 255
+// on a syntax error exactly as `perl -c` does. So the lint has nothing to
+// read and nothing to say: a program that does not compile uses no ops,
+// and the dependency question is vacuous for it.
+//
+// THE SKIP IS HERE RATHER THAN INSIDE `opsOf`, and the difference is the
+// whole point. An `opsOf` that returned an empty op set for any source
+// perl refused would make the lint vacuous for a `parses` file that is
+// genuinely BROKEN -- the file would pass the lint while compiling
+// nothing, which is the failure this corpus exists to catch. Keyed on
+// the file's own DECLARATION, the skip applies only where the refusal is
+// the measurement.
+//
+// It skips the LINT alone. Perl still adjudicates the `parsent` claim in
+// `verdict()` and in every tier's perl validator, both of which report a
+// CORPUS BUG when perl accepts a file that claims to be refused. Without
+// that, a wrong `parsent` claim would be unfalsifiable.
+func lintFile(t *testing.T, f *File, tier string, tiers tierOps) error {
+	t.Helper()
+
+	if f.ExpectParsent {
+		return nil
+	}
+	return lintOps(t, f.Source, tier, tiers)
+}
+
 // lintOps reports whether a file uses an op no tier at or before its own
 // introduces.
 //
@@ -182,16 +218,85 @@ func reachable(tier string, tiers tierOps) (allowed map[string]bool, claimedBy m
 // in testdata/parse_facts.pl, which reads the same format.
 var reConciseOp = regexp.MustCompile(`^\s*\S+\s+<[^>]*>\s+(\w+)`)
 
+// fileOpsBackend is the B:: backend opsOf compiles through.
+//
+// `perl -MO=Concise,-exec file.pl` names no sub, and B::Concise then
+// prints the MAIN PROGRAM ALONE. A subroutine body is a separate CV, so a
+// signature's `argcheck`/`argelem`/`argdefelem`, a body's `leavesub` and
+// a `method`'s opening `methstart` are all invisible to that command --
+// measured, and the reason tier 07 could claim two ops for a tier about
+// subroutines. B::Concise DOES take sub names; what it has no option for
+// is "every sub this file declared". This supplies that list.
+//
+// The list is filtered to CVs whose `FILE` is the file under test. Every
+// CV the process has loaded is reachable from the symbol table --
+// `strict::import`, the whole of `Exporter` -- and dumping those would
+// add their ops to EVERY corpus file's measured set, so each tier would
+// appear to emit ops no line of it wrote. The filter is what keeps the
+// widening to the file's own subs.
+//
+// Anonymous subs stay invisible: they have no name to pass and no glob to
+// walk to, so `sub { ... }` contributes `anoncode` at the point it is
+// taken and nothing from its body. `-main` keeps the main program in the
+// dump, which thirteen tiers' op sets were measured against.
+const fileOpsBackend = `package B::FileOps;
+use strict;
+use warnings;
+use B ();
+use B::Concise ();
+
+sub compile {
+    my $file = $0;
+    return sub {
+        my @names;
+        my %seen;
+        my @todo = ('main::');
+        while (defined(my $stash = shift @todo)) {
+            no strict 'refs';
+            for my $key (sort keys %{$stash}) {
+                if ($key =~ /::$/) {
+                    my $child = $stash eq 'main::' ? $key : $stash . $key;
+                    next if $child eq 'main::' or $seen{$child}++;
+                    push @todo, $child;
+                    next;
+                }
+                my $full = $stash . $key;
+                next unless defined &{$full};
+                my $cv = B::svref_2object(\&{$full});
+                next unless ref $cv eq 'B::CV';
+                next unless (eval { $cv->FILE } // '') eq $file;
+                push @names, $full;
+            }
+        }
+        B::Concise::compile('-exec', '-main', @names)->();
+    };
+}
+1;
+`
+
 // opsOf returns the ops perl compiles a source into, in execution order.
 //
 // AFTER the peephole optimiser, which is the point: the lint must see
-// what perl actually built, not what the source appears to say.
+// what perl actually built, not what the source appears to say. And
+// INSIDE the file's subroutines as well as its main program; see
+// fileOpsBackend for why that takes a backend of our own.
 func opsOf(t *testing.T, source string) ([]string, error) {
 	t.Helper()
 
-	path := filepath.Join(t.TempDir(), "case.pl")
+	dir := t.TempDir()
+	path := filepath.Join(dir, "case.pl")
 	if err := os.WriteFile(path, []byte(source), 0o600); err != nil {
 		return nil, fmt.Errorf("writing the case: %w", err)
+	}
+	// Beside the case rather than in the repo: `-MO=FileOps` requires a
+	// module findable as B/FileOps.pm, and a file in t.TempDir() needs no
+	// decision about where a perl helper lives in a Go tree.
+	backend := filepath.Join(dir, "B", "FileOps.pm")
+	if err := os.MkdirAll(filepath.Dir(backend), 0o750); err != nil {
+		return nil, fmt.Errorf("making room for the backend: %w", err)
+	}
+	if err := os.WriteFile(backend, []byte(fileOpsBackend), 0o600); err != nil {
+		return nil, fmt.Errorf("writing the backend: %w", err)
 	}
 
 	perl, err := perlPath()
@@ -199,7 +304,7 @@ func opsOf(t *testing.T, source string) ([]string, error) {
 		return nil, err
 	}
 
-	out, err := exec.Command(perl, "-MO=Concise,-exec", path).Output()
+	out, err := exec.Command(perl, "-I"+dir, "-MO=FileOps", path).Output()
 	if err != nil {
 		return nil, fmt.Errorf("perl -MO=Concise refused the source: %w", err)
 	}

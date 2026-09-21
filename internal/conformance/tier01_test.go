@@ -282,7 +282,7 @@ func TestTierLiteralsLint(t *testing.T) {
 
 	for name, f := range tierFiles(t, tierLiterals) {
 		t.Run(name, func(t *testing.T) {
-			if err := lintOps(t, f.Source, tierLiterals, tiers); err != nil {
+			if err := lintFile(t, f, tierLiterals, tiers); err != nil {
 				t.Errorf("%s", err)
 			}
 		})
