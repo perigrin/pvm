@@ -999,16 +999,20 @@ tier where a parse can be WRONG
 rather than Unknown, and the two largest T2 buckets are parenless call
 argument position, which needs the 07 slice.
 
-## Open questions
+## Questions this document has closed
 
-Two, both about scale rather than about the format, and neither blocking:
+Both of the two that were open at decomposition are now answered, and the
+answers live in the chain rather than here:
 
-- Does each tier get a README stating what it introduces and why it sits
-  there? Recommended yes. The spike wrote no README and did not miss one,
-  which is weak evidence at three files.
-- Does `04_operators` need internal grouping by precedence level? It is the
-  largest tier by a distance, and the only one where the file count might
-  make a flat directory unreadable.
+- **Does each tier get a README?** Yes, and for a reason stronger than
+  documentation: the dependency lint needs a machine-readable INTRODUCES set
+  per tier, and that set has to live somewhere it cannot drift from the
+  files it describes. In a Go table it is a second list; in the tier
+  directory the drift shows up in the same diff.
+- **Does `04_operators` need internal grouping by precedence level?**
+  Deferred, deliberately, to the issue that writes tier 04. A grouping
+  invented before the files exist will be the wrong grouping; decide it when
+  the directory is actually unreadable.
 
 Answered within this document, and recorded here because earlier revisions
 listed them as open:
@@ -1026,5 +1030,21 @@ Perl's own `perlintro`/`perlsyn` (installed, same licence), *Modern Perl*
 order. Reading them to decide what order to introduce concepts in is a fact
 about the language; lifting text is not.
 
-Not decomposed into issues. This document is the input to
-`crochet:refinement`.
+## What is deferred, and where to
+
+Decomposed into `m3-conformance-corpus`. Two commitments in this document
+are deliberately NOT in that milestone, recorded here so the deferral is
+named rather than silent:
+
+- **The `t/` sweep.** The loop this document describes -- build the corpus,
+  implement against it tier by tier, then sweep `t/` and let what still
+  fails name constructs the corpus does not cover -- runs AFTER the corpus
+  exists. It is the first work of the milestone that follows
+  `m3-conformance-corpus`, and it needs the sweep's denominator ("files perl
+  compiles") which the harness already computes. Nothing in m3 runs it.
+- **Adjacency beyond the adjacent pair.** An adjacency file per tier covers
+  "tier N with its declared prerequisite". N with N-3 is unreached by
+  construction, and the sweep is what finds it. Same destination.
+
+Everything else in this document is owned by an issue in
+`m3-conformance-corpus`.
