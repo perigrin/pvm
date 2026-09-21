@@ -1,12 +1,21 @@
 ---
 title: "Tier 09_regex: match, substitution, and the delimiter rules"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 blocked_by:
 - 01a0c360-01bf-7eab-b864-7d902d36fb97
 created: 2026-09-21T09:52:57.495477512Z
-updated: 2026-09-21T13:43:02.098643539Z
+updated: 2026-09-21T20:21:41.729980778Z
+sessions:
+- start_sha: 9750d03b51c601e083873e26c01cb22054bb120b
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-21T20:21:41.729980778Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-21T20:21:41.729980778Z
 ---
 
 **Introduces:** match, substitution, binding, delimiters
