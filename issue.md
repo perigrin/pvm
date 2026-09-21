@@ -4,7 +4,7 @@ state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-21T21:37:00.824105072Z
-updated: 2026-09-21T22:34:10.780800491Z
+updated: 2026-09-21T22:55:33.18643473Z
 sessions:
 - start_sha: b41801021927f68fcbf799c60d6b947393d983de
   end_sha: ""
@@ -116,21 +116,21 @@ choice rather than the lazy one.
 
 ## Acceptance
 
-- [ ] The corpus's declared prerequisite edges are stated ONCE, beside
+- [x] The corpus's declared prerequisite edges are stated ONCE, beside
       `specTiers` in `lint_test.go`, as a hand-written list with the same
       documented reason `specTiers` has: a list read from the thing it
       checks cannot report an absence. Every one of the fourteen tiers
       has an entry. (`go test ./internal/conformance/ -run TestSpecPrerequisitesCoverEveryTier -count=1 -v`)
-- [ ] A corpus-level check fails when ANY tier's README `DEPENDS ON`
+- [x] A corpus-level check fails when ANY tier's README `DEPENDS ON`
       block disagrees with the spec's edge for that tier, naming both the
       declared and the expected tier. (`go test ./internal/conformance/ -run TestTierPrerequisitesMatchTheSpec -count=1 -v`)
-- [ ] The check is proven by mutation against all three cases the issue
+- [x] The check is proven by mutation against all three cases the issue
       measured as slipping through the op pairing -- tier 12 repointed to
       `11_oo`, tier 11 to `07_subroutines`, tier 04 to `02_variables` --
       each caught, from a README fixture rather than by editing the real
       corpus. (`go test ./internal/conformance/ -run TestTierPrerequisiteMutationsAreCaught -count=1 -v`)
-- [ ] The check runs over the real corpus and is green, so it is a gate
+- [x] The check runs over the real corpus and is green, so it is a gate
       and not a table. (`go test ./internal/conformance/ -run 'TestTierPrerequisites|TestSpecPrerequisites' -count=1 -v`)
-- [ ] `lint.go` is unchanged, and no tier README is edited to make the
+- [x] `lint.go` is unchanged, and no tier README is edited to make the
       check pass. (`git diff --stat -- internal/conformance/lint.go conformance/`)
-- [ ] The whole conformance suite stays green. (`go test ./internal/conformance/ -count=1`)
+- [x] The whole conformance suite stays green. (`go test ./internal/conformance/ -count=1`)
