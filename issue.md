@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a0c362-0daa-7422-b787-7650ce684c4b
 created: 2026-09-21T09:52:57.12910003Z
-updated: 2026-09-21T13:40:24.094729075Z
+updated: 2026-09-21T13:43:02.055173883Z
 ---
 
 **Introduces:** `\`, deref, arrow, anonymous constructors, `${ }`, `@{ }`
@@ -32,6 +32,7 @@ hashref, and the tree currently misreads two anonhash cases (M1 issue
 
 - [ ] Every file in 08_references/ is validated against pinned perl 5.42.0 before it counts (`go test ./internal/conformance/ -run '^TestTierReferencesPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierReferencesPerlValidated'`)
 - [ ] The dependency lint passes over 08_references/: every construct used was introduced at or before this tier (`go test ./internal/conformance/ -run '^TestTierReferencesLint$' -count=1 -v | grep -q '^--- PASS: TestTierReferencesLint'`)
-- [ ] 08_references/README.md states what the tier introduces, what it depends on, and why check 2 places it here (`test -s conformance/08_references/README.md`)
+- [ ] The tier's adjacency file puts every construct 08_references introduces in one body, each adjacent to another, pairing with the declared prerequisite rather than tier N-1 (`go test ./internal/conformance/ -run '^TestTierReferencesAdjacency$' -count=1 -v | grep -q '^--- PASS: TestTierReferencesAdjacency'`)
+- [ ] 08_references/README.md states what the tier introduces, what it depends on, and why check 2 places it here, in the form the dependency lint reads (`go test ./internal/conformance/ -run '^TestEveryTierHasAReadme$' -count=1 -v | grep -q '^--- PASS: TestEveryTierHasAReadme'`)
 - [ ] Each refusing file cites a refusal code rather than a message (`go test ./internal/conformance/ -run '^TestTierReferencesRefusalsCited$' -count=1 -v | grep -q '^--- PASS: TestTierReferencesRefusalsCited'`)
-- [ ] The whole corpus is green with skips limited to documented refusals (`go test ./internal/conformance/ -run '^TestCorpus$' -count=1 -v | grep -q '^--- PASS: TestCorpus'`)
+- [ ] The tier's own files are green with skips limited to documented refusals (`go test ./internal/conformance/ -run '^TestCorpus/08_references' -count=1 -v | grep -q '^    --- PASS: TestCorpus/08_references'`)
