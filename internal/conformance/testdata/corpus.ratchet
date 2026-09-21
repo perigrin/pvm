@@ -1,0 +1,128 @@
+# The refusal each conformance corpus file has, as our parser
+# produces it. `-` is a file that parses clean; anything else is
+# the distinct refusal codes it produced, in tree order.
+#
+# KEYED ON FILE NAME, not path, and the numeric prefixes are
+# stripped. A file moving between tiers or renumbering within one
+# is the `t/` sweep working, and must not read as a regression.
+# The per-tier adjacency fixture carries its tier, since fourteen
+# tiers each hold one and they are different files.
+#
+# 113 files, 99 clean, 14 refusing.
+#
+# Regenerate with -conformance.update-ratchet and commit the result
+# WITH the change that moved it. A baseline updated on its own is a
+# number nobody can attribute.
+- alternative_delimiters.t
+tokens and_cliff.t
+- anon_sub.t
+- anonymous_array.t
+- args_array.t
+- arithmetic.t
+- array.t
+- array_element.t
+- array_last_index.t
+- array_slice.t
+- arrow_deref.t
+- associativity.t
+- backslash_list.t
+- backslash_scalar.t
+- backtick_command.t
+- bare_block.t
+- bare_match.t
+- bind.t
+- bless_empty.t
+- bless_populated.t
+- brace_deref.t
+- c_style_for.t
+- call_forms.t
+- class_adjust.t
+- class_empty.t
+- class_field_method.t
+- code_block.t
+- code_ref.t
+- comma_in_scalar_context.t
+- context/adjacency.t
+- control/adjacency.t
+not_a_term data_section.t
+- decimal.t
+- deref_at.t
+- deref_brace_hash.t
+- eof.t
+- foreach.t
+unimplemented_statement format_write.t
+- glob_angle.t
+- goto.t
+- hash.t
+- hash_element_expr.t
+- hash_slice.t
+trailing_tokens heredoc_indented.t
+trailing_tokens heredoc_interpolating.t
+trailing_tokens heredoc_literal.t
+- if_else.t
+- if_postfix.t
+- import_call.t
+- indirect_new.t
+- interpolated.t
+- interpolated_array.t
+- io/adjacency.t
+not_a_term,tokens leading_decimal.t
+- literals/adjacency.t
+- local.t
+- localtime.t
+not_a_term,tokens logical.t
+- method_dynamic.t
+- method_named.t
+- method_super.t
+- my.t
+- named_sub.t
+- negated_bind.t
+- next_last_redo.t
+- numeric_comparison.t
+trailing_tokens oo/adjacency.t
+unimplemented_statement,trailing_tokens,not_a_term opaque/adjacency.t
+- open_close.t
+not_a_term,trailing_tokens operators/adjacency.t
+- our.t
+- package_array.t
+- package_block.t
+- package_hash.t
+- package_scalar.t
+- package_statement.t
+- packages/adjacency.t
+- pod_block.t
+- postfix_while.t
+- precedence.t
+- print_bareword_handle.t
+- print_lexical_handle.t
+- qr.t
+- qr_with_code.t
+- readline_list.t
+- readline_scalar.t
+- recursive/adjacency.t
+- ref_builtin.t
+- references/adjacency.t
+- regex/adjacency.t
+- require_bareword.t
+- require_expression.t
+- return.t
+- reverse.t
+- scalar_of_array.t
+- scoping/adjacency.t
+- signature.t
+tokens signed_exponent.t
+- sort.t
+- state.t
+tokens string.t
+tokens string_comparison.t
+- subroutines/adjacency.t
+- subst_double_eval.t
+- subst_eval.t
+- substitution.t
+- unless.t
+- until.t
+- use_empty_list.t
+- use_pragma.t
+- variables/adjacency.t
+- wantarray.t
+- while.t
