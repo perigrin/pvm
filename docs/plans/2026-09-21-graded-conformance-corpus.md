@@ -345,6 +345,35 @@ that their own prose rule did not hold.
 which SPELLING appeared cannot be checked behaviourally, and forcing the
 fixture to print moves the vacuity rather than removing it. So:
 
+**MEASURED: could behaviour plus ops plus round-trip replace the token
+layer?** The obvious objection to asserting on tokens is that the corpus
+already has three checks, so the question is whether any of them reaches a
+mis-lex. Tested against the two tier-01 cases:
+
+    check                .5 vs 0.5           5e-1 lexed as `5e` `-` `1`
+    behaviour            no, same to 17 sf   no, both print 0.5
+    B::Concise ops       no, same optree     no, see below
+    round-trip           NO -- round-trips   no, round-trips AND faithful
+    Faithful             yes, caught it      no
+    token assertion      yes                 yes
+
+`my $x = .5` and `my $x = 0.5` produce byte-identical optrees:
+`const[NV 0.5] s`. And the ops check cannot see the second case at all,
+because **perl never builds the wrong tree** -- `5e - 1` is a syntax error,
+so there is no optree to compare against. `B::Concise` tells us whether our
+tree matches perl's for programs perl accepts; it cannot tell us we built a
+DIFFERENT VALID tree from the same bytes.
+
+Round-trip is blind for a structural reason rather than an accidental one:
+it reassembles source bytes from the tree, and the bytes are all present
+however they were grouped. `Number(5e) Operator(-) Number(1)` concatenates
+back to `5e-1` exactly. It caught `.5` only because that mis-group happened
+to strand a token; it is not a check on tokenisation and cannot be made
+into one.
+
+So the token layer is not redundant with the other three. It is the only
+check that sees grouping, and grouping is what a lexer decides.
+
 - **REVISED: lexical facts are asserted on the TOKEN STREAM, not the CST.**
   (literal spelling, escapes, quoting style.) Three reasons, and the third
   is the one that decides it for a public artifact:
@@ -786,12 +815,26 @@ the parser stopped growing.
 print nothing". Two of their three burns were not loose patterns; they were
 tests passing where nobody could tell whether that was still meaningful.
 
-### Serializing the CST is the destination
+### The CST is NOT in the corpus, and the token layer is
 
-See `docs/plans/2026-09-21-cst-is-the-source-of-truth.md`. The round-trip
-oracle is the safety net used BEFORE the CST is known to be right; a
-serialization test written today would pass against a tree that had lost the
-source, because the same walk produces both sides.
+Worth stating together, because they are usually asked as one question.
+
+**No corpus file asserts CST shape, and none should.** That is the coupling
+which makes a corpus unusable by anyone whose tree differs -- test262's
+reason for asserting no ASTs, and the defect in both existing Perl attempts.
+Serializing the CST is a check we run against OURSELVES
+(`docs/plans/2026-09-21-cst-is-the-source-of-truth.md`), not a fact we ask
+an adopter to reproduce. The round-trip oracle is the safety net used BEFORE
+the CST is known to be right; a serialization test written today would pass
+against a tree that had lost the source, because the same walk produces both
+sides.
+
+**The token layer is different in exactly the way that matters.** It is not
+a tree, it is a grouping of bytes, and it is asserted as a declared fact in
+the glossary's vocabulary rather than as our token kinds -- so an adopter
+answers it with their own lexer. The measurement above shows the other three
+checks cannot reach a mis-grouping, so removing it would leave a real gap;
+removing CST assertions costs nothing because there are none.
 
 ### The SoN IR is NOT a third layer, yet
 
