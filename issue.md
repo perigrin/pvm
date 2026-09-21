@@ -1,12 +1,21 @@
 ---
 title: "Tier 05_scoping: my, our, state, local, blocks"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 blocked_by:
 - 01a0c360-01bf-7eab-b864-7d902d36fb97
 created: 2026-09-21T09:52:40.407130019Z
-updated: 2026-09-21T13:43:01.911441851Z
+updated: 2026-09-21T20:21:39.056677062Z
+sessions:
+- start_sha: 9750d03b51c601e083873e26c01cb22054bb120b
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-21T20:21:39.056677062Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-21T20:21:39.056677062Z
 ---
 
 **Introduces:** my, our, state, local, blocks
