@@ -1,10 +1,19 @@
 ---
 title: Two incompatible file-numbering conventions, and nothing records which tier uses which
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-21T20:47:54.980994967Z
-updated: 2026-09-21T20:47:54.980994967Z
+updated: 2026-09-21T22:29:10.669616329Z
+sessions:
+- start_sha: b41801021927f68fcbf799c60d6b947393d983de
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-21T22:29:10.669616329Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-21T22:29:10.669616329Z
 ---
 
 Tier 01's `TestTierNumberingRegenerates` asserts that a tier's file numbers
