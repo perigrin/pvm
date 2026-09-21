@@ -76,6 +76,19 @@ func TestParseFileErrors(t *testing.T) {
 		raw:  "--- source\nmy $x = 1;\n",
 		want: "asserts neither parses nor parsent",
 	}, {
+		// The marker is present, so "no --- source section" would send
+		// the author looking for a line that is already there.
+		name: "source section present but empty",
+		raw:  "--- source\n--- expect parses\n",
+		want: "--- source section is empty",
+	}, {
+		// Whitespace-only is the same mistake with an invisible cause.
+		// perl compiles it as an empty program, so without this it is a
+		// file that passes while measuring nothing.
+		name: "source section only whitespace",
+		raw:  "--- source\n\n--- expect parses\n",
+		want: "--- source section is empty",
+	}, {
 		name: "unknown section",
 		raw:  valid + "--- expect vibes\ngood\n",
 		want: `unknown section "expect vibes"`,

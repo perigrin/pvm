@@ -112,8 +112,16 @@ func ParseFile(raw string) (*File, error) {
 
 	f.Refuses = refusalIssue(comment.String())
 
-	if f.Source == "" {
+	// Absent and empty are different mistakes and get different messages:
+	// told "no --- source section" when the marker is right there, an
+	// author goes looking for a line that already exists. Whitespace-only
+	// counts as empty because perl compiles it as an empty program, so it
+	// would otherwise be a file that passes while measuring nothing.
+	if !seen["source"] {
 		return nil, fmt.Errorf("no --- source section")
+	}
+	if strings.TrimSpace(f.Source) == "" {
+		return nil, fmt.Errorf("--- source section is empty")
 	}
 	if !f.ExpectParses && !f.ExpectParsent {
 		return nil, fmt.Errorf("file asserts neither parses nor parsent")
