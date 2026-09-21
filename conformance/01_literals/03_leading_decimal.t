@@ -20,7 +20,7 @@
 # it. See ../GLOSSARY.md, "numeric literal".
 #
 # STATUS refuses as of 38c95d23. Our lexer produces Operator(.) Number(5),
-# because scanNumber does not accept a leading `.`. Issue 01a0c13f-97f5.
+# because scanNumber does not accept a leading `.`. Issue 01a0c13f-97f5-7f98-b32d-07245ec6ddfe.
 
 --- source
 my $x = .5;

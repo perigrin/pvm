@@ -6,7 +6,7 @@
 # TIER 11 oo
 # INTRODUCES nothing of its own
 # USES nothing from a later tier
-# STATUS refuses as of 6c231691. Issue 01a0c35f-a487.
+# STATUS refuses as of 6c231691. Issue 01a0c35f-a487-7aa8-934b-4e68dd0fbaa1.
 #
 # MEASURED against our parser, and this is the case the whole
 # adjacency-file design was written for:

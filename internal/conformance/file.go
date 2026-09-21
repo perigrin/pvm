@@ -146,7 +146,19 @@ func ParseFile(raw string) (*File, error) {
 var reRefusal = regexp.MustCompile(`(?m)^#\s*STATUS refuses\b`)
 
 // reIssue finds a crochet issue id anywhere in the comment block.
-var reIssue = regexp.MustCompile(`\bIssue ([0-9a-f]{8}-[0-9a-f]{4})\b`)
+//
+// The full 36-character form is tried FIRST, because alternation is
+// ordered and the short form is a prefix of it -- matching the short one
+// first would capture 13 characters of a full id and stop.
+//
+// The short form remains accepted so files already in the tree keep
+// parsing, but it is not unique: these are UUIDv7, whose leading 8
+// characters are a millisecond timestamp, so a batch-created chain of
+// issues collides there by construction. Measured across the 27 ids in
+// docs/plans/2026-09-21-deferred-chain-m1-m2.md, the 8-character prefix
+// gives 10 distinct values and the 13-character prefix 23. Uniqueness
+// rests on 16 bits, which is why new citations spell the id whole.
+var reIssue = regexp.MustCompile(`\bIssue ([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}|[0-9a-f]{8}-[0-9a-f]{4})\b`)
 
 // refusalIssue returns the issue id a comment block's STATUS line refers
 // to, "this file" when it refuses without citing one, or "" when the file

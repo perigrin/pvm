@@ -12,7 +12,7 @@ Design: `docs/plans/2026-09-21-graded-conformance-corpus.md`.
     # INTRODUCES numeric literal
     # USES my, print
     # MEASURED perl 5.42.0
-    # STATUS refuses as of 38c95d23. Issue 01a0c13f-97f5.
+    # STATUS refuses as of 38c95d23. Issue 01a0c13f-97f5-7f98-b32d-07245ec6ddfe.
     --- source
     my $x = .5;
     print "$x\n";
@@ -57,11 +57,24 @@ parser does not handle yet; the runner skips such a file and names the
 refusal rather than failing. A file marked refusing that PASSES is an
 error, because a stale marker is how a corpus stops measuring anything.
 
-A refusal cites an issue id (`Issue 01a0c13f-97f5`) or, when the refusal
-was found by writing the file, cites the file itself. The second is a
-complete citation rather than a placeholder: the file already holds the
-source, the measured perl behaviour and the tokens we produce instead, and
-an issue would be a second copy of that, free to go stale.
+A refusal cites an issue id or, when the refusal was found by writing the
+file, cites the file itself. The second is a complete citation rather than
+a placeholder: the file already holds the source, the measured perl
+behaviour and the tokens we produce instead, and an issue would be a
+second copy of that, free to go stale.
+
+**Cite the id WHOLE**, all thirty-six characters:
+
+    # STATUS refuses as of 0ce515cb. Issue 01a0c13f-97f5-7f98-b32d-07245ec6ddfe.
+
+The short `01a0c13f-97f5` form still parses, so files written before this
+rule keep working, but it is not unique. These ids are UUIDv7 and their
+leading 8 characters are a millisecond timestamp, so issues filed in one
+batch collide there by construction -- measured across the 27 ids in
+`docs/plans/2026-09-21-deferred-chain-m1-m2.md`, the 8-character prefix
+gives 10 distinct values and the 13-character prefix 23. Uniqueness rests
+on 16 bits of randomness. A citation that cannot be looked up
+unambiguously cannot be verified, which is what the runner needs of it.
 
 ## Three questions this format settles
 

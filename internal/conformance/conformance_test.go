@@ -330,3 +330,46 @@ func TestCorpus(t *testing.T) {
 		})
 	}
 }
+
+// TestRefusalIssueFullID pins that a whole 36-character id survives.
+//
+// The id is a UUIDv7, whose first 8 characters are a millisecond
+// timestamp: a batch-created chain of issues collides there by
+// construction. Measured against the 27 ids in
+// docs/plans/2026-09-21-deferred-chain-m1-m2.md, the 8-character prefix
+// yields 10 distinct values and the 13-character prefix 23 -- so the
+// short form works today only because 16 bits of randomness have not yet
+// repeated, and this corpus is designed to grow.
+//
+// A citation that cannot be looked up unambiguously cannot be VERIFIED,
+// which is what the runner needs of it.
+func TestRefusalIssueFullID(t *testing.T) {
+	const full = "01a0c447-8bd2-7f1e-9a3c-5e4d6b8c9a01"
+
+	f, err := ParseFile("#!perl\n# STATUS refuses as of 0ce515cb. Issue " +
+		full + ".\n\n--- source\nmy $x = 1;\n\n--- expect parses\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.Refuses != full {
+		t.Errorf("Refuses = %q, want the whole id %q", f.Refuses, full)
+	}
+}
+
+// TestRefusalIssueShortIDStillWorks keeps the files already in the tree
+// parsing.
+//
+// The short form is what conformance/README.md documented and what every
+// existing citation used, so widening the pattern must not narrow it.
+func TestRefusalIssueShortIDStillWorks(t *testing.T) {
+	const short = "01a0c13f-97f5"
+
+	f, err := ParseFile("#!perl\n# STATUS refuses as of 38c95d23. Issue " +
+		short + ".\n\n--- source\nmy $x = 1;\n\n--- expect parses\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.Refuses != short {
+		t.Errorf("Refuses = %q, want %q", f.Refuses, short)
+	}
+}
