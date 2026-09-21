@@ -6,7 +6,7 @@ milestone: m3-conformance-corpus
 blocked_by:
 - 01a0c35e-1b37-7304-ba39-65a6ef57d4e0
 created: 2026-09-21T09:49:43.940902431Z
-updated: 2026-09-21T20:03:06.990828524Z
+updated: 2026-09-21T22:35:24.65294087Z
 sessions:
 - start_sha: 6036de4e5427d522f018fc1af4fd59dc3d760c06
   end_sha: 7711154e001e09d6d7b489eaa6d325851e7a4e30
@@ -49,7 +49,7 @@ parses.** A parser that correctly parses a runtime-croak file would be
 marked wrong. The `perl -c` split is not a refinement of the extraction, it
 is what makes extraction sound at all.
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] A runtime-croak case (perl -c accepts, dies at run time) is not emitted as a must-not-parse negative (`go test ./internal/conformance/ -run '^TestRuntimeCroakIsNotANegative$' -count=1 -v | grep -q '^--- PASS: TestRuntimeCroakIsNotANegative'`)
 - [ ] The three-way split is computed by running perl -c rather than read from a checked-in list that goes stale (`go test ./internal/conformance/ -run '^TestCroakSplitIsMeasured$' -count=1 -v | grep -q '^--- PASS: TestCroakSplitIsMeasured'`)
