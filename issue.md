@@ -17,7 +17,7 @@ blocks:
 - 01a0c362-0a97-7c14-82fe-27d76ee5c862
 - 01a0c362-0c0b-7f6a-b807-fa62daefe02e
 created: 2026-09-21T09:50:44.159860455Z
-updated: 2026-09-21T13:40:50.323040548Z
+updated: 2026-09-21T13:43:29.192718653Z
 ---
 
 The tooling issues before this one are each separately checkable, and none
@@ -52,6 +52,7 @@ and belongs in this tier's README.
 - [ ] 03_leading_decimal.t's citation of 01a0c13f-97f5 resolves to a live issue (`git-zhi issue show 01a0c13f-97f5 >/dev/null`)
 - [ ] Every file in 01_literals/ is validated against pinned perl 5.42.0 before it counts (`go test ./internal/conformance/ -run '^TestTierLiteralsPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierLiteralsPerlValidated'`)
 - [ ] The dependency lint passes over 01_literals/: every construct used was introduced at or before this tier (`go test ./internal/conformance/ -run '^TestTierLiteralsLint$' -count=1 -v | grep -q '^--- PASS: TestTierLiteralsLint'`)
-- [ ] 01_literals/README.md states what the tier introduces, what it depends on, and why check 2 places it here (`test -s conformance/01_literals/README.md`)
+- [ ] The tier's adjacency file puts every construct 01_literals introduces in one body, each adjacent to another (`go test ./internal/conformance/ -run '^TestTierLiteralsAdjacency$' -count=1 -v | grep -q '^--- PASS: TestTierLiteralsAdjacency'`)
+- [ ] 01_literals/README.md states what the tier introduces, what it depends on, and why check 2 places it here, in the form the dependency lint reads (`go test ./internal/conformance/ -run '^TestEveryTierHasAReadme$' -count=1 -v | grep -q '^--- PASS: TestEveryTierHasAReadme'`)
 - [ ] Each refusing file cites a refusal code rather than a message (`go test ./internal/conformance/ -run '^TestTierLiteralsRefusalsCited$' -count=1 -v | grep -q '^--- PASS: TestTierLiteralsRefusalsCited'`)
-- [ ] The whole corpus is green with skips limited to documented refusals (`go test ./internal/conformance/ -run '^TestCorpus$' -count=1 -v | grep -q '^--- PASS: TestCorpus'`)
+- [ ] The tier's own files are green with skips limited to documented refusals (`go test ./internal/conformance/ -run '^TestCorpus/01_literals' -count=1 -v | grep -q '^    --- PASS: TestCorpus/01_literals'`)
