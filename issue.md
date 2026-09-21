@@ -9,7 +9,7 @@ blocked_by:
 blocks:
 - 01a0c360-01bf-7eab-b864-7d902d36fb97
 created: 2026-09-21T09:50:20.295669503Z
-updated: 2026-09-21T18:40:53.409352971Z
+updated: 2026-09-21T22:35:39.09142017Z
 sessions:
 - start_sha: 0ce515cbfe0ba1f48eb9b741cb1fc5d8c389454d
   end_sha: 0ce515cbfe0ba1f48eb9b741cb1fc5d8c389454d
@@ -67,7 +67,7 @@ tier declares a prerequisite the adjacency file pairs with THAT, not with
 tier N-1 -- pairing 12_packages with 11_oo would assert nothing, since the
 spec says packages needs nothing from the tier before it.
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] The lint reads its per-tier INTRODUCES set from the READMEs rather than a hand-maintained Go table (`go test ./internal/conformance/ -run '^TestOpTableDerivedFromReadmes$' -count=1 -v | grep -q '^--- PASS: TestOpTableDerivedFromReadmes'`)
 - [ ] Every tier directory has a README stating what it introduces and what it depends on (`go test ./internal/conformance/ -run '^TestEveryTierHasAReadme$' -count=1 -v | grep -q '^--- PASS: TestEveryTierHasAReadme'`)
