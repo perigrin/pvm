@@ -12,9 +12,11 @@ operands before it can have operators.
 Check 2 asks whether this tier could move earlier. It could not — there is
 no earlier.
 
-## What it depends on
+## DEPENDS ON
 
-Nothing. This is the only tier that can say that.
+    nothing
+
+This is the only tier that can say that.
 
 `my` and `print` appear in these files as FIXTURES rather than as subjects:
 a literal has to be bound to something and observed somehow. `my` is tier

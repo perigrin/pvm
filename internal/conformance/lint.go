@@ -28,7 +28,11 @@ type tierOps map[string][]string
 //
 // Indented so it renders as a code block, which keeps the one part a
 // machine reads from looking like prose a human may reword freely.
-var reIntroduces = regexp.MustCompile(`(?ms)^## INTRODUCES\s*\n(.*?)(?:\n## |\z)`)
+// Only the FIRST indented block counts, so prose may follow it inside the
+// same section. Reading to the next `## ` heading instead would make that
+// prose part of the op set -- and extra entries WIDEN the tier, which is
+// the direction that lets a misplaced file pass.
+var reIntroduces = regexp.MustCompile(`(?m)^## INTRODUCES\s*\n\s*\n((?:[ \t]+\S.*\n?)+)`)
 
 // readTierOps builds the op-to-tier map from the tier READMEs.
 //
@@ -206,3 +210,103 @@ func opsOf(t *testing.T, source string) ([]string, error) {
 	}
 	return ops, nil
 }
+
+// reDependsOn matches a tier README's machine-read prerequisite:
+//
+//	## DEPENDS ON
+//
+//	    nothing
+//
+// One tier name, or the word `nothing`. Read the same way as INTRODUCES:
+// the FIRST indented block after the heading, and nothing else in the
+// section. Reading to the next `## ` instead would make the prose that
+// follows part of the value -- measured, not hypothetical: the first
+// version of this regex turned tier 01's explanatory paragraph into
+// thirty-odd prerequisites.
+var reDependsOn = regexp.MustCompile(`(?m)^## DEPENDS ON\s*\n\s*\n((?:[ \t]+\S.*\n?)+)`)
+
+// readTierDeps builds the tier-to-prerequisite map from the READMEs.
+//
+// The prerequisite is DECLARED rather than assumed to be tier N-1. The
+// spec names tiers where N-1 asserts nothing -- 09_regex needs nothing
+// from 08_references, 12_packages needs nothing from 11_oo -- so an
+// adjacency file pairing with N-1 there would pair two unrelated things
+// and prove neither.
+func readTierDeps(corpus string) (map[string]string, error) {
+	entries, err := os.ReadDir(corpus)
+	if err != nil {
+		return nil, fmt.Errorf("reading the corpus root: %w", err)
+	}
+
+	out := map[string]string{}
+	for _, e := range entries {
+		if !e.IsDir() || !isTierDir(e.Name()) {
+			continue
+		}
+		path := filepath.Join(corpus, e.Name(), "README.md")
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("tier %s has no README: %w", e.Name(), err)
+		}
+
+		m := reDependsOn.FindSubmatch(raw)
+		if m == nil {
+			return nil, fmt.Errorf("%s: no `## DEPENDS ON` block", path)
+		}
+		fields := strings.Fields(string(m[1]))
+		if len(fields) != 1 {
+			return nil, fmt.Errorf(
+				"%s: the DEPENDS ON block takes one tier name or `nothing`, got %v",
+				path, fields)
+		}
+		out[e.Name()] = fields[0]
+	}
+	return out, nil
+}
+
+// checkTierNecessity reports whether a declared prerequisite is one a tier
+// could actually have.
+//
+// This is check 2 given teeth. The ordering claim is that a tier sits
+// where it does because the next cannot proceed without it, and until
+// something verifies the declared prerequisite, that claim is prose. A
+// prerequisite at a LATER tier number is the case that makes the ordering
+// incoherent: it says this tier needs something the corpus has not reached
+// yet, so the tier is in the wrong place or the prerequisite is.
+func checkTierNecessity(deps map[string]string) error {
+	var problems []string
+	for tier, dep := range deps {
+		if dep == "nothing" {
+			continue
+		}
+		if !isTierDir(dep) {
+			problems = append(problems, fmt.Sprintf(
+				"%s depends on %q, which is not a tier name", tier, dep))
+			continue
+		}
+		if _, ok := deps[dep]; !ok {
+			problems = append(problems, fmt.Sprintf(
+				"%s depends on %s, which is not a tier in this corpus", tier, dep))
+			continue
+		}
+		// Lexicographic because every tier is zero-padded to two digits;
+		// see reachable, and TestTierOrderIsLexicographic which pins it.
+		if dep >= tier {
+			problems = append(problems, fmt.Sprintf(
+				"%s depends on %s, which is not earlier", tier, dep))
+		}
+	}
+	if len(problems) == 0 {
+		return nil
+	}
+	sort.Strings(problems)
+	return fmt.Errorf("%s", strings.Join(problems, "; "))
+}
+
+// adjacencyFile is the per-tier file holding the tier's constructs
+// adjacent to one another.
+//
+// Numbered `00` because ordinary construct files start at `01`: the
+// adjacency file is not one of the tier's constructs, it is the check
+// that they compose, so it sorts ahead of them rather than among them.
+const adjacencyFile = "00_adjacency.t"

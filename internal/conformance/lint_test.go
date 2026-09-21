@@ -319,20 +319,12 @@ func TestPerlIsTheMeasuredVersion(t *testing.T) {
 // The spec's "two digits, not four, and no gaps" decision is what makes
 // this hold; this is where that decision is enforced rather than assumed.
 func TestTierOrderIsLexicographic(t *testing.T) {
-	// The full tier list from the spec, in dependency order.
-	inOrder := []string{
-		"01_literals", "02_variables", "03_context", "04_operators",
-		"05_scoping", "06_control", "07_subroutines", "08_references",
-		"09_regex", "10_io", "11_oo", "12_packages", "13_opaque",
-		"14_recursive",
-	}
-
-	sorted := append([]string(nil), inOrder...)
+	sorted := append([]string(nil), specTiers...)
 	sort.Strings(sorted)
-	for i := range inOrder {
-		if inOrder[i] != sorted[i] {
+	for i := range specTiers {
+		if specTiers[i] != sorted[i] {
 			t.Fatalf("lexicographic order diverges from tier order at %d: %q vs %q",
-				i, sorted[i], inOrder[i])
+				i, sorted[i], specTiers[i])
 		}
 	}
 
@@ -359,7 +351,11 @@ func TestReadTierOpsRejectsProse(t *testing.T) {
 		t.Fatalf("creating the tier directory: %v", err)
 	}
 	readme := filepath.Join(tier, "README.md")
-	body := "# 01_literals\n\n## INTRODUCES\n\nThese are the ops: const and nextstate.\n"
+	// Indented, so it IS the block rather than prose sitting outside one.
+	// The unindented case is caught by the regex and reported as a missing
+	// block; this is the case only the name check can reach, and the one
+	// that would otherwise widen the tier by seven entries.
+	body := "# 01_literals\n\n## INTRODUCES\n\n    These are the ops: const and nextstate.\n"
 	if err := os.WriteFile(readme, []byte(body), 0o600); err != nil {
 		t.Fatalf("writing the README: %v", err)
 	}
@@ -370,6 +366,31 @@ func TestReadTierOpsRejectsProse(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "These") {
 		t.Errorf("error does not name what it rejected: %v", err)
+	}
+}
+
+// TestReadTierOpsRejectsUnindentedBlock is the companion case.
+//
+// Prose that is NOT indented is not a malformed block, it is the absence
+// of one -- and must be reported that way, since the fixes differ: indent
+// what you meant as the block, versus delete prose from inside it.
+func TestReadTierOpsRejectsUnindentedBlock(t *testing.T) {
+	dir := t.TempDir()
+	tier := filepath.Join(dir, "01_literals")
+	if err := os.MkdirAll(tier, 0o750); err != nil {
+		t.Fatalf("creating the tier directory: %v", err)
+	}
+	body := "# 01_literals\n\n## INTRODUCES\n\nThese are the ops: const and nextstate.\n"
+	if err := os.WriteFile(filepath.Join(tier, "README.md"), []byte(body), 0o600); err != nil {
+		t.Fatalf("writing the README: %v", err)
+	}
+
+	_, err := readTierOps(dir)
+	if err == nil {
+		t.Fatal("readTierOps accepted an unindented INTRODUCES section, want an error")
+	}
+	if !strings.Contains(err.Error(), "INTRODUCES") {
+		t.Errorf("error does not say what is missing: %v", err)
 	}
 }
 
@@ -409,4 +430,154 @@ func contains(haystack []string, needle string) bool {
 var testTiers = tierOps{
 	"01_literals":  {"enter", "nextstate", "const", "padsv_store", "leave", "padsv", "print", "pushmark", "multiconcat", "gv", "readline", "stringify"},
 	"04_operators": {"add", "subtract", "multiply", "divide"},
+}
+
+// specTiers is the tier list from the spec, in dependency order.
+//
+// Written here rather than derived from the corpus directory. A list read
+// from the thing it checks cannot report an absence: a missing tier would
+// remove both the directory and the expectation, and every check over it
+// would pass over the gap it exists to catch.
+//
+// Fourteen tiers, zero-padded two digits, no gaps. The padding is what
+// makes `reachable`'s string comparison equal a numeric one, which
+// TestTierOrderIsLexicographic pins against this same list.
+var specTiers = []string{
+	"01_literals",
+	"02_variables",
+	"03_context",
+	"04_operators",
+	"05_scoping",
+	"06_control",
+	"07_subroutines",
+	"08_references",
+	"09_regex",
+	"10_io",
+	"11_oo",
+	"12_packages",
+	"13_opaque",
+	"14_recursive",
+}
+
+// TestTierNecessityCheck gives check 2 teeth.
+//
+// The ordering claim is that a tier sits where it does because the next
+// cannot proceed without it. Until something verifies the declared
+// prerequisite, that claim is prose. A prerequisite at a LATER tier number
+// is the case that makes the ordering incoherent -- the tier is in the
+// wrong place, or the prerequisite is -- so it must fail.
+func TestTierNecessityCheck(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		deps map[string]string
+		want string
+	}{{
+		name: "a later prerequisite is rejected",
+		deps: map[string]string{"04_operators": "09_regex", "09_regex": "nothing"},
+		want: "not earlier",
+	}, {
+		name: "a tier depending on itself is rejected",
+		deps: map[string]string{"04_operators": "04_operators"},
+		want: "not earlier",
+	}, {
+		name: "a prerequisite no tier provides is rejected",
+		deps: map[string]string{"04_operators": "03_context"},
+		want: "not a tier in this corpus",
+	}, {
+		name: "a prerequisite that is not a tier name is rejected",
+		deps: map[string]string{"04_operators": "literals"},
+		want: "not a tier name",
+	}, {
+		name: "an earlier prerequisite is accepted",
+		deps: map[string]string{"01_literals": "nothing", "04_operators": "01_literals"},
+		want: "",
+	}, {
+		name: "a non-adjacent earlier prerequisite is accepted",
+		deps: map[string]string{
+			"01_literals": "nothing",
+			"08_refs":     "01_literals",
+			"09_regex":    "01_literals",
+		},
+		want: "",
+	}} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := checkTierNecessity(tc.deps)
+			if tc.want == "" {
+				if err != nil {
+					t.Fatalf("checkTierNecessity rejected a valid ordering: %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("checkTierNecessity accepted %v, want an error saying %q", tc.deps, tc.want)
+			}
+			if !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("error %q does not say %q", err, tc.want)
+			}
+		})
+	}
+}
+
+// TestRealCorpusNecessityHolds runs the check over the corpus itself.
+//
+// The table above proves the check works; this is what makes it a gate.
+func TestRealCorpusNecessityHolds(t *testing.T) {
+	deps, err := readTierDeps(corpusDir)
+	if err != nil {
+		t.Fatalf("reading tier prerequisites: %v", err)
+	}
+	if len(deps) == 0 {
+		t.Fatal("no tier prerequisites found; the check would have nothing to verify")
+	}
+	if err := checkTierNecessity(deps); err != nil {
+		t.Errorf("the corpus ordering is incoherent: %v", err)
+	}
+}
+
+// TestEveryTierHasAnAdjacencyFile checks the generic rule, not one tier's.
+//
+// TestReadTierOpsIgnoresTrailingProse pins which part of the section is
+// machine-read.
+//
+// Both machine-read blocks are indented code blocks, and the FIRST such
+// block is the value -- not everything up to the next `## ` heading.
+// Reading to the next heading makes any explanatory paragraph after the
+// block part of the value, which for INTRODUCES silently WIDENS the tier:
+// a misplaced file then passes its own lint against ops that are really
+// English words.
+//
+// Measured, not hypothetical. The first DEPENDS ON regex had exactly this
+// shape and turned tier 01's closing paragraph into thirty-odd declared
+// prerequisites.
+func TestReadTierOpsIgnoresTrailingProse(t *testing.T) {
+	dir := t.TempDir()
+	tier := filepath.Join(dir, "01_literals")
+	if err := os.MkdirAll(tier, 0o750); err != nil {
+		t.Fatalf("creating the tier directory: %v", err)
+	}
+
+	body := "# 01_literals\n\n" +
+		"## INTRODUCES\n\n    const nextstate\n\n" +
+		"Those are the ops. This sentence is prose and must not be read.\n\n" +
+		"## DEPENDS ON\n\n    nothing\n\n" +
+		"This sentence is prose too.\n"
+	if err := os.WriteFile(filepath.Join(tier, "README.md"), []byte(body), 0o600); err != nil {
+		t.Fatalf("writing the README: %v", err)
+	}
+
+	tiers, err := readTierOps(dir)
+	if err != nil {
+		t.Fatalf("readTierOps rejected prose after the block: %v", err)
+	}
+	if want := []string{"const", "nextstate"}; !slices.Equal(tiers["01_literals"], want) {
+		t.Errorf("INTRODUCES = %v, want exactly %v", tiers["01_literals"], want)
+	}
+
+	deps, err := readTierDeps(dir)
+	if err != nil {
+		t.Fatalf("readTierDeps rejected prose after the block: %v", err)
+	}
+	if deps["01_literals"] != "nothing" {
+		t.Errorf("DEPENDS ON = %q, want %q", deps["01_literals"], "nothing")
+	}
 }
