@@ -9,7 +9,7 @@ blocks:
 - 01a0c362-0ff3-7f3f-b2d3-f6dbe8228f86
 - 01a0c436-39e4-7560-9bf0-81d647e96aae
 created: 2026-09-21T09:52:56.634555553Z
-updated: 2026-09-21T20:47:21.803800155Z
+updated: 2026-09-21T22:36:08.059588412Z
 sessions:
 - start_sha: 9750d03b51c601e083873e26c01cb22054bb120b
   end_sha: b4af7e5155e5d0a16b7b29683f2f2731eb3074c8
@@ -87,7 +87,7 @@ the rest of the tier.
 caller's variable. A file that treats it as a plain array measures nothing
 about what makes it different.
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] Every file in 07_subroutines/ that this issue writes is validated against pinned perl 5.42.0 (`go test ./internal/conformance/ -run '^TestTierSubroutinesPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierSubroutinesPerlValidated'`)
 - [ ] The dependency lint passes over 07_subroutines/: every construct used was introduced at or before this tier (`go test ./internal/conformance/ -run '^TestTierSubroutinesLint$' -count=1 -v | grep -q '^--- PASS: TestTierSubroutinesLint'`)
