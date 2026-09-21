@@ -6,7 +6,7 @@ milestone: m3-conformance-corpus
 blocked_by:
 - 01a0c361-a317-7807-bb9e-15f299562244
 created: 2026-09-21T13:41:10.741737124Z
-updated: 2026-09-21T22:10:47.924455531Z
+updated: 2026-09-21T22:36:19.536504206Z
 sessions:
 - start_sha: dc1bea2c2baed5af0cf71ddf16e379ee18855d30
   end_sha: b41801021927f68fcbf799c60d6b947393d983de
@@ -74,7 +74,7 @@ position, which needs the 07 slice."
 
 A corpus file per form, plus the adjacency file that puts them side by side.
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] A parenless call to an unknown callee has its argument extent measured against perl rather than assumed (`go test ./internal/conformance/ -run '^TestTierCallFormsParenlessExtent$' -count=1 -v | grep -q '^--- PASS: TestTierCallFormsParenlessExtent'`)
 - [ ] Every file in 07_subroutines/ that this issue writes is validated against pinned perl 5.42.0 (`go test ./internal/conformance/ -run '^TestTierCallFormsPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierCallFormsPerlValidated'`)
