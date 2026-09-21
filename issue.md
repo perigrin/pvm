@@ -11,7 +11,7 @@ blocked_by:
 - 01a0c362-0daa-7422-b787-7650ce684c4b
 - 01a0c362-127c-73c1-8bb8-a4bf8b66c735
 created: 2026-09-21T13:44:43.235895078Z
-updated: 2026-09-21T22:10:47.997430711Z
+updated: 2026-09-21T22:36:19.619889899Z
 sessions:
 - start_sha: dc1bea2c2baed5af0cf71ddf16e379ee18855d30
   end_sha: b41801021927f68fcbf799c60d6b947393d983de
@@ -83,7 +83,7 @@ issues that claim them.
 The trigger condition is precise and already encoded: every one of the
 twelve markers named in a tier README's INTRODUCES set.
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] All twelve hardMarkers are placed in a tier README before anything is deleted (`go test ./internal/conformance/ -run '^TestEveryHardMarkerPlaced$' -count=1 -v | grep -q '^--- PASS: TestEveryHardMarkerPlaced'`)
 - [ ] easy_test.go is deleted whole, not commented out or skipped (`! test -e internal/parse/easy_test.go`)
