@@ -9,7 +9,7 @@ blocked_by:
 blocks:
 - 01a0c360-01bf-7eab-b864-7d902d36fb97
 created: 2026-09-21T09:50:20.295669503Z
-updated: 2026-09-21T15:40:37.240541208Z
+updated: 2026-09-21T15:40:55.550599973Z
 ---
 
 Listed in the spec's tooling list and left as one of two open questions:
@@ -62,3 +62,30 @@ spec says packages needs nothing from the tier before it.
 - [ ] The spec's open-questions section is gone, both questions having been answered rather than merely asked (`! grep -q '^## Open questions' docs/plans/2026-09-21-graded-conformance-corpus.md`)
 - [ ] Every tier directory holds an adjacency file covering its full INTRODUCES set, checked generically so no tier can omit one (`go test ./internal/conformance/ -run '^TestEveryTierHasAnAdjacencyFile$' -count=1 -v | grep -q '^--- PASS: TestEveryTierHasAnAdjacencyFile'`)
 - [ ] A tier README declaring a prerequisite at a later tier number fails the lint, which is check 2 given teeth (`go test ./internal/conformance/ -run '^TestTierNecessityCheck$' -count=1 -v | grep -q '^--- PASS: TestTierNecessityCheck'`)
+### The format is already settled, and tier 01's README exists
+
+The dependency lint landed first and defines what this issue writes
+thirteen more of. `conformance/01_literals/README.md` is the worked
+example; `readTierOps` in internal/conformance/lint.go is the reader.
+
+The machine-read part is one block:
+
+    ## INTRODUCES
+
+        const enter leave multiconcat nextstate padsv padsv_store print pushmark
+
+Indented so it renders as a code block. Everything else in the file is
+prose a human may reword freely.
+
+Two rules the lint enforces, both learned the hard way:
+
+- **The block takes op names alone.** Prose inside it became ops --
+  "These are the ops: const and nextstate." yielded seven entries -- which
+  silently WIDENED the tier. Anything not matching `^[a-z][a-z0-9_]*$` is
+  now rejected by name.
+- **Claim the ops perl EMITS, not the ones the source implies.**
+  `print "$x\n"` compiles to `multiconcat`, not `concat`. Measure with
+  `perl -MO=Concise,-exec` rather than reading the file.
+
+`TestCorpusLints` also reports a README claiming an op no corpus file
+emits, so a tier cannot be widened by an aspirational entry.
