@@ -5,12 +5,13 @@ urgency: normal
 milestone: m3-conformance-corpus
 blocked_by:
 - 01a0c35d-b59e-77f7-91a3-2a889ae3051a
+- 01a0c447-3cbc-77b9-8759-0e0c7571339c
 blocks:
 - 01a0c35e-d2b6-7993-9059-5675239aea65
 - 01a0c35f-1685-786b-abbe-88ed9ed361a3
 - 01a0c35f-57cc-7a0f-83ac-53654f46f235
 created: 2026-09-21T09:48:39.607140769Z
-updated: 2026-09-21T13:44:24.661352352Z
+updated: 2026-09-21T14:03:36.848167414Z
 ---
 
 The runner is what makes a corpus file a test. The spike has one at
