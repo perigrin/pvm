@@ -1,6 +1,6 @@
 ---
 title: Refusal codes on the ten Unknown sites, so two refusals are distinguishable
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 blocked_by:
@@ -8,7 +8,16 @@ blocked_by:
 blocks:
 - 01a0c360-01bf-7eab-b864-7d902d36fb97
 created: 2026-09-21T09:49:26.581612352Z
-updated: 2026-09-21T10:00:07.125520645Z
+updated: 2026-09-21T19:27:48.988057764Z
+sessions:
+- start_sha: 9102578c35f74c5afa0bb9ec81e2bb8098a3221e
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-21T19:27:48.988057764Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-21T19:27:48.988057764Z
 ---
 
 The parser is TOTAL: `parse.Parse(src)` returns one value and no error. A
