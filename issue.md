@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a0c361-a317-7807-bb9e-15f299562244
 created: 2026-09-21T09:52:19.065451383Z
-updated: 2026-09-21T21:10:55.499016614Z
+updated: 2026-09-21T22:35:39.369029286Z
 sessions:
 - start_sha: b4af7e5155e5d0a16b7b29683f2f2731eb3074c8
   end_sha: 71979369e31e3d89136535fe4d6b05a22095e26b
@@ -64,7 +64,7 @@ chromatic opens *Modern Perl* with context, before any syntax, because a
 READER needs the frame immediately. A PARSER needs it when operators arrive.
 Same fact, different consumers -- and this corpus is ordered for the parser.
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] Every file in 03_context/ is validated against pinned perl 5.42.0 before it counts (`go test ./internal/conformance/ -run '^TestTierContextPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierContextPerlValidated'`)
 - [ ] The dependency lint passes over 03_context/: every construct used was introduced at or before this tier (`go test ./internal/conformance/ -run '^TestTierContextLint$' -count=1 -v | grep -q '^--- PASS: TestTierContextLint'`)
