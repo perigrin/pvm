@@ -4,7 +4,7 @@ state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-21T20:47:54.980994967Z
-updated: 2026-09-21T22:34:37.38277674Z
+updated: 2026-09-21T22:51:04.855839295Z
 sessions:
 - start_sha: b41801021927f68fcbf799c60d6b947393d983de
   end_sha: ""
@@ -61,71 +61,112 @@ Whichever way it goes, the outcome should be checkable corpus-wide rather
 than per-tier, since the current state is two conventions and no record.
 ## The measurement
 
-Running `regenerateNumbering`'s logic over all fourteen tiers settles it.
-EXACTLY ONE tier satisfies derived numbering:
+Running `regenerateNumbering`'s logic over all fourteen tiers, then reading
+the READMEs of the ones it rejects, gives three populations rather than two:
 
-    derived      01_literals
-    semantic     02_variables 03_context 04_operators 05_scoping
-                 06_control 07_subroutines 08_references 09_regex
-                 10_io 11_oo 12_packages 13_opaque 14_recursive
+    derived      01_literals 02_variables
+    grouped      06_control
+    accidental   03_context 04_operators 05_scoping 07_subroutines
+                 08_references 09_regex 10_io 11_oo 12_packages
+                 13_opaque 14_recursive
 
-So derived numbering is not a corpus convention that tier 06 violates. It
-is a tier-01 property that thirteen tiers do not share, and asserting it
-corpus-wide would renumber thirteen directories to satisfy a rule the spec
-never states.
+So derived numbering is not a corpus-wide rule that tier 06 violates. It is
+a property two tiers have and twelve do not, and asserting it corpus-wide
+would renumber twelve directories to satisfy a rule the spec never states.
 
-This issue's own claim that tier 02 was "renumbered to match" during
-01a0c361-6191 is WRONG, and the census is what catches it. `git show
-b4af7e51 -- conformance/02_variables/` shows the renames closed a GAP to
-make room for a new file -- `05_hash.t` to `06_hash.t` and so on, shifting
-a contiguous run up by one. It did not alphabetise: `01_array.t` still
-precedes `02_array_element.t`, which a regeneration would reverse.
+But the twelve are not tier 06 either. Tier 06 ARGUES for its order -- the
+conditionals/loops/jumps runs are what its `and`/`or`/`cond_expr` and
+`enterloop`/`enteriter` passages compare between neighbours. The other
+eleven cite their files by NAME and never by position, and several
+contradict any grouping reading outright: `13_opaque` pairs
+`06_format_write.t` with `09_format_picture.t` under one construct, and
+`08_references` pairs 05 with 07 and 06 with 10. Their numbers are the
+order the files were written in.
 
-The spec is the deciding evidence. It says a file's identity is its NAME
-and the number is its current position, and it does NOT say positions are
-alphabetical. The ratchet is name-keyed with numeric prefixes stripped
-precisely so that a renumbering is invisible, which is what makes a
-semantic arrangement free to exist.
+A measurement correction worth recording, because the check caught it and a
+hand-rolled census did not. A first pass over the corpus with a shell
+script reported tier 02 as NOT derived, which would have made this issue's
+own claim about 01a0c361-6191 wrong. The Go check disagreed, and the Go
+check was right: `regenerateNumbering` sorts the identity WITH its
+extension, so `array.t` sorts before `array_element.t` (`.` is 0x2E, `_` is
+0x5F) and `01_array.t` legitimately precedes `02_array_element.t`. The
+shell script stripped the extension and reversed them. The issue's claim
+stands; the reimplementation was the thing that drifted, which is the
+argument for the check living in one place.
+
+The spec is the deciding evidence for allowing more than one convention. It
+says a file's identity is its NAME and the number is its current position,
+and does NOT say positions are alphabetical. The ratchet is name-keyed with
+numeric prefixes stripped precisely so a renumbering is invisible, which is
+what makes a chosen arrangement free to exist.
 
 ## The resolution
 
-Both conventions are legitimate, and the tier DECLARES which it uses, in
+All three states are legitimate, and the tier DECLARES which it uses, in
 the milestone's house pattern for a machine-read README block:
 
     ## FILE ORDER
 
-        semantic
+        derived
 
-`derived` promises the numbers are a function of the names and is checked
-by regeneration. `semantic` promises nothing a machine can check, and the
-README prose beneath the block is where the reason lives -- which is the
-honest shape, since no test can confirm that grouping conditionals before
-loops is the RIGHT grouping.
+    ## FILE ORDER
 
-`semantic` is not an opt-out. A tier claiming it whose files already sit in
-the order a regeneration produces is told to claim `derived` instead, so
-the word cannot be used to escape a check.
+        01-03	conditionals
+        04-07	loops
+        08-10	jumps
+
+    ## FILE ORDER
+
+        accidental
+
+The three spellings are deliberately asymmetric in cost, which is what
+keeps them honest.
+
+`derived` is one word and buys a machine check: the numbers are thrown away
+and rebuilt from the names.
+
+A grouping must NAME its ranges, and they must tile the tier's construct
+files exactly -- start at 01, run contiguously, end at the last file. A
+tier whose order is an accident cannot write that down without the
+falsehood being visible to a reader, and a tier that gains or loses a file
+is told immediately rather than drifting.
+
+`accidental` is one word and buys NOTHING. That is the point: it records
+debt rather than blessing it. A second word meaning merely "not derived"
+would be a rubber stamp eleven tiers would reach for, so instead the word
+asserts nothing and a tier has an incentive to say something truer. It is
+kept honest from the other side too -- a tier declaring `accidental` whose
+files ALREADY sit in regenerated order is told to declare `derived`, so the
+word cannot be used to opt out of a check.
+
+Renumbering the eleven into `derived` order is the right end state and
+costs nothing on disk, but it regenerates the ratchet, which is another
+issue's work. The declaration is what stops that from being rediscovered by
+the next agent whose numbering test fails.
 
 ## Acceptance
 
 - [ ] Every one of the fourteen tiers declares a `## FILE ORDER` block
-      holding exactly `derived` or `semantic`; a tier that declares none
-      fails by name.
+      holding `derived`, `accidental`, or `NN-NN name` grouping lines; a
+      tier that declares none fails by name.
       (`go test ./internal/conformance/ -run TestEveryTierDeclaresFileOrder -count=1 -v`)
 - [ ] Every tier declaring `derived` has numbering `regenerateNumbering`
       reproduces exactly, and a tier whose numbering has a gap or a
       misordering is named along with the number a regeneration would give
       it.
       (`go test ./internal/conformance/ -run TestDerivedTierNumberingRegenerates -count=1 -v`)
-- [ ] Every tier declaring `semantic` has an order a regeneration would NOT
-      produce, so the declaration cannot be used to opt out of the derived
+- [ ] Every tier declaring `accidental` has an order a regeneration would
+      NOT produce, so the word cannot be used to opt out of the derived
       check.
-      (`go test ./internal/conformance/ -run TestSemanticTierNumberingIsNotAccidental -count=1 -v`)
-- [ ] The census is reproducible from the tree: the declared orderings
-      match what regeneration measures, one `derived` and thirteen
-      `semantic`.
-      (`grep -A2 '^## FILE ORDER' conformance/*/README.md | grep -E 'derived|semantic' | sort | uniq -c`)
-- [ ] No tier was renumbered to satisfy the rule.
-      (`git status --porcelain conformance/ | grep -E '^R|\.t$' ; test -z "$(git status --porcelain conformance/ | grep -E '\.t$')"`)
+      (`go test ./internal/conformance/ -run TestAccidentalTierNumberingIsNotDerivable -count=1 -v`)
+- [ ] Every tier declaring a grouping has ranges that tile its construct
+      files exactly -- no gap, no overlap, ending at the last file -- so a
+      tier that gains or loses a file is named rather than drifting.
+      (`go test ./internal/conformance/ -run TestGroupedTierNumberingCoversItsFiles -count=1 -v`)
+- [ ] The census is readable straight off the tree: two `derived`, one
+      grouping, eleven `accidental`, fourteen lines in all.
+      (`grep -A2 '^## FILE ORDER' conformance/*/README.md | grep -cE 'derived|accidental|[0-9][0-9]-[0-9][0-9]'`)
+- [ ] No tier was renumbered to satisfy the rule; only READMEs changed.
+      (`test 0 -eq "$(git status --porcelain conformance/ | grep -c '^R')"`)
 - [ ] The whole conformance suite is green.
       (`go test ./internal/conformance/ -count=1`)
