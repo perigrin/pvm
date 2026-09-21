@@ -1,8 +1,13 @@
 # A graded conformance corpus for Perl 5 parsers
 
-**Status:** design, not yet decomposed. Written 2026-09-21, revised the same
-day after review by `crochet:assess`, a Ponytail pass, and the B::SoN
-session. Every revision is marked.
+**Status:** design, not yet decomposed, with tier 01 built as a prototype.
+Written 2026-09-21, revised the same day after review by `crochet:assess`, a
+Ponytail pass, and the B::SoN session. Every revision is marked.
+
+**The format section is no longer a proposal.** `conformance/01_literals/`
+and `internal/conformance/` exist, so section semantics, the fact grammar,
+the refusal protocol and perl-adjudicates-first are specified below as what
+shipped. Everything else in this document remains design.
 
 ## The problem
 
@@ -251,11 +256,25 @@ carry none of that per-file cost. That is a structural difference in the
 work, not a faster rate.
 
 **The tooling is the real prerequisite, and it is a LIST rather than a
-duration:** `conformance/`, the runner, tier READMEs, the dependency lint,
-refusal codes on the ten Unknown sites, ratchet integration. None of it is
-per-file and all of it blocks the first file. Its usefulness is that it is
-enumerable and each item is separately checkable as done -- which is what a
-bounded estimate was reaching for and failing to be.
+duration.** None of it is per-file and all of it blocks the first file. Its
+usefulness is that it is enumerable and each item is separately checkable as
+done -- which is what a bounded estimate was reaching for and failing to be.
+
+**REVISED: the first three are done, by building tier 01.**
+
+    DONE  conformance/ and the file format   settled by contact, specified
+                                             under "The file format" below
+    DONE  the runner                         internal/conformance/
+    DONE  the glossary                       conformance/GLOSSARY.md, 5 entries
+    TODO  tier READMEs
+    TODO  the dependency lint                ops-subset, per "The checks"
+    TODO  refusal codes on the ten Unknown sites
+    TODO  ratchet integration                file-name-keyed, not path-keyed
+    TODO  the croak extraction runner        with its `perl -c` split
+
+The three that landed are the ones every file depends on, which is why they
+went first and why the rest can now be decomposed against a format that
+exists rather than a proposed one.
 
 ## What a corpus file contains
 
@@ -494,48 +513,91 @@ perl's wording rather than its grammar. The vocabulary is Guacamole's
 (`lib/Guacamole/Test.pm`): `parses` / `parsent`, which is the Perl-native
 spelling of test262's model.
 
-### What a file actually looks like
+### The file format
 
-**REVISED: three revisions specified what files ASSERT and never showed one.
-That was the top defect in the third review, because `crochet:refinement`
-cannot decompose a format that does not exist and an adopter cannot evaluate
-one.** This is a sketch to be replaced by a real file, not a settled format.
+**REVISED: this was a sketch across four revisions and is now SETTLED, by
+building it.** Tier 01 and its runner exist (`conformance/01_literals/`,
+`internal/conformance/`), so what follows specifies what shipped rather than
+proposing a shape. Everything here is a decision a reader can rely on; where
+contact changed the sketch, the change is marked.
 
     conformance/01_literals/03_leading_decimal.t
 
     #!perl
-    # A leading decimal point is a numeric literal: `.5`, not `.` then `5`.
+    # A leading decimal point is part of the numeric literal: `.5` is one
+    # token, not the concatenation operator `.` followed by `5`.
     #
-    # TIER 01 literals. Uses nothing from a later tier: one `my`, one
-    # numeric literal, one string interpolation, one print.
+    # TIER 01 literals
+    # INTRODUCES numeric literal
+    # USES nothing from a later tier
     #
     # MEASURED perl 5.42.0:
+    #
     #   $ perl -e 'my $x = .5; print "$x\n"'
     #   0.5
-    # `.5`, `0.5` and `5e-1` are the SAME VALUE to 17 significant digits
-    # (printf "%.17g" gives 0.5 for all three), so the spelling is a LEXICAL
-    # fact and no behavioural probe can see it. Hence the token assertion.
     #
-    # STATUS refuses as of 88eb2c73 -- one Unknown. Issue 01a0c13f-97f5.
-    # When it lands, delete the `parses` line's TODO and this paragraph.
+    #   $ perl -e 'printf "%.17g %.17g %.17g\n", .5, 0.5, 5e-1'
+    #   0.5 0.5 0.5
+    #
+    # The three spellings are the SAME VALUE to 17 significant digits, so no
+    # behavioural probe can see which was written. See ../GLOSSARY.md.
+    #
+    # STATUS refuses as of 38c95d23. Issue 01a0c13f-97f5.
 
     --- source
     my $x = .5;
     print "$x\n";
 
     --- expect parses
+
     --- expect output
     0.5
+
     --- expect tokens
     one numeric literal whose text is ".5"
+    no operator whose text is "."
 
-Four things about that shape:
+**Sections.** A line beginning `--- ` opens a section and runs to the next
+one. Everything before the first section is the comment block. Sections may
+appear in any order; a repeated section is an error rather than a
+last-one-wins.
+
+    --- source          required. The Perl the case runs.
+    --- expect parses   the must-parse bit
+    --- expect parsent  the must-NOT-parse bit
+    --- expect output   what perl prints, byte for byte
+    --- expect tokens   declared lexical facts, one per line
+
+Exactly one of `parses`/`parsent` is required: a file asserting neither says
+nothing, and the loader rejects it rather than passing vacuously.
+
+**CONTACT CHANGED ONE THING: the trailing newline.** `--- expect output`
+must match perl's bytes exactly, but a blank line before the next section is
+formatting rather than content. Exactly one trailing newline is stripped, so
+a file wanting a trailing blank line writes two. This is the only place the
+format is not literal, and it is the only such rule.
 
 **The expectation is a DECLARED FACT, not a token dump.** "One numeric
 literal whose text is `.5`" is answerable by any lexer. A dump of OUR token
 kinds is answerable only by us, which is the coupling that makes a corpus
 unusable by outsiders -- the same defect as asserting on a CST, one layer
 down.
+
+The grammar is deliberately two forms and no more:
+
+    one <category> whose text is "<text>"
+    no  <category> whose text is "<text>"
+
+`<category>` is a GLOSSARY.md name. A fact naming an undefined category is
+an error that says so, which is what stops the vocabulary growing silently
+past its definitions. Counts other than one and zero are the extension
+point, and there is no third form until a file needs one.
+
+**The coupling is one file.** `internal/conformance/categories.go` maps
+glossary names onto this lexer's kinds -- five entries. A project whose
+lexer has different kinds adopts the corpus by rewriting that map and
+nothing else. That file existing, and being the only one, is what makes the
+portability claim checkable rather than aspirational.
 
 **A negative file is the same format with `--- expect parsent`** and no
 output or token section. That is test262's `negative: {phase: parse}` and
@@ -547,7 +609,78 @@ the most portable thing here.
 burns were not loose assertions but tests passing where nobody could tell
 whether that was still meaningful.
 
-### The glossary is a prerequisite, and does not exist
+### Perl adjudicates before we do
+
+The runner checks the FILE against perl before it checks the PARSER against
+the file, and reports a disagreement as `CORPUS BUG` rather than as a
+refusal:
+
+    file says `expect parses`, perl -c refuses it
+    file says `expect parsent`, perl -c accepts it
+    pinned output "0.5\n", perl prints "0.5000\n"
+
+Without that order a wrong expectation reads as a parser failure, and the
+corpus would accumulate cases that fail for reasons nobody checked. It is
+the same compile-versus-run split the croak measurement forced: `perl -c`
+answers the parse question, running answers the output question, and
+conflating them is exactly the error that made 19% of croak cases look like
+must-not-parse.
+
+### A known refusal skips; a stale marker fails
+
+**REVISED: this is new, and the suite's pristine-output rule forced it.** A
+corpus whose purpose is to name what does not work yet cannot also be
+all-green, and cannot be allowed to make `make test` noisy.
+
+    # STATUS refuses as of 38c95d23. Issue 01a0c13f-97f5.
+
+A file carrying that line SKIPS, reporting its issue id and what actually
+happened -- the Unknown count, the token stream. The issue id is optional:
+`unfiled` is a legitimate state, because **a refusal can be found by writing
+the file**, which happens before any issue exists. That is the corpus
+working, and forcing an id first would be a reason not to write the file.
+
+The reverse is an ERROR, loudly:
+
+    file is marked `STATUS refuses` (01a0c13f-97f5) but now PASSES.
+    Remove the STATUS line -- a stale marker hides a regression.
+
+A marker that outlives its bug is worse than no marker, because it silences
+a file that has started failing again for an unrelated reason. This is the
+ratchet's rule at file granularity, and it is why a refusal is a skip rather
+than a `t.Log`.
+
+**One passing file per tier is not optional.** `02_decimal.t` asserts `0.5`,
+which already works. A tier whose every file refuses cannot demonstrate that
+passing is reachable, and cannot distinguish "not implemented" from "the
+runner is broken". It is also the baseline its neighbours deviate from --
+`.5` and `5e-1` are the same construct with the integer part removed and an
+exponent sign added -- so a regression there explains both rather than being
+diagnosed twice.
+
+### What building tier 01 found
+
+**The corpus paid for itself before it was finished**, which is the
+strongest evidence available for the approach and was not predicted.
+
+Probing the lexer while pinning `.5` turned up an untracked bug:
+
+    5e-1    ->  Number(5e) Operator(-) Number(1)
+    5e+1    ->  Number(5e) Operator(+) Number(1)
+    1.5e-3  ->  Number(1.5e) Operator(-) Number(3)
+    5e1     ->  Number(5e1)
+
+Signed exponents split; unsigned ones do not, which is why nothing caught
+it. `perl -e 'print 5e'` is a syntax error, so `Number("5e")` is a token
+perl would reject rather than merely an odd split.
+
+**And the parser cannot see it.** `5e` `-` `1` is a well-formed subtraction:
+zero Unknowns, and the round trip agrees with itself. Only the token
+assertion catches it. The argument for lexical facts as a category was
+previously made from the `printf "%.17g"` collapse alone; this is the same
+claim demonstrated against a live bug.
+
+### The glossary, which now exists
 
 "One numeric literal" needs an outsider to agree what a numeric literal is,
 and the boundaries are contestable: is `-1` one literal or a negation of
@@ -559,9 +692,32 @@ It did not eliminate it. **Without a glossary defining those names, every
 adopter forks on the first ambiguous case**, and the corpus stops being
 portable for the same reason a CST assertion would have.
 
-One page, defining each category with its boundary cases, sourced from
-`perldata` and `perlop` rather than from our lexer's enum. It is a
-prerequisite for the corpus being usable by anyone else, and it is cheap.
+**REVISED: written, as `conformance/GLOSSARY.md`.** Five categories so far,
+added when a file needs to assert about one rather than in advance. Every
+boundary is DECIDED AGAINST PERL rather than asserted, which is this
+project's standing rule applied to its own vocabulary:
+
+    -1        TWO tokens. Negation, then a literal.
+    5e-1      ONE token. The exponent sign is part of it.
+    .5e3      ONE token. Leading point and exponent compose.
+    1.        ONE token, and equals 1.
+    v5.42     NOT a numeric literal -- a v-string, per perldata.
+
+The `-1` entry is the one that earns the page. Measured:
+
+    $ perl -MO=Concise -e 'my $x = -1;' | grep const
+    const[IV -1] s/FOLD
+
+The optree shows ONE folded constant, so it cannot distinguish `-1` from a
+negation of `1` -- which is precisely why the token stream has to answer
+this and why the asymmetry with `5e-1` needs writing down rather than
+leaving to a reader's intuition.
+
+**The glossary is not separable from the tier it serves.** A tier whose
+assertions are token facts cannot be written before the vocabulary those
+facts use is defined, or it asserts in terms nobody has agreed. So a tier
+and the glossary entries its files need are one unit of work, and the
+glossary grows an entry at a time rather than being written whole.
 
 ### Refusals carry a code, not a message
 
@@ -784,20 +940,6 @@ argument position, which needs the 07 slice.
   licence), *Modern Perl* (CC BY-NC-SA) and *Programming Perl* (proprietary)
   as priors on teaching order. Reading them to decide what order to introduce
   concepts in is a fact about the language; lifting text is not.
-
-## Next step
-
-Prototype `01_literals` -- the tier where classification is unambiguous, so
-it shakes out the method before the cases that need judgement. Then
-`03_context`, where the format gets stressed.
-
-**The glossary comes with it, not after.** Tier 01's only assertion is a
-token fact -- "one numeric literal whose text is `.5`" -- and the glossary
-is what makes "numeric literal" mean anything. Prototyping tier 01 without
-it would be asserting in a vocabulary nobody has defined, which is the
-coupling the token-stream decision was meant to avoid. The prototype is one
-file plus the glossary entries that file's assertion needs, not the whole
-page.
 
 Not decomposed into issues. This document is the input to
 `crochet:refinement`.
