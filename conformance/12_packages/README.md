@@ -79,6 +79,52 @@ files -- it is what perl emits.
   reason `use` is heavier than `require` is a call the op stream cannot
   distinguish from any other call.
 
+## What a file can assert when its construct emits no op
+
+A tier measured through ops has an op check. This one does not, and
+"perl printed what we pinned" is not a substitute for it: a file can pin
+output that is unchanged by deleting the very statement the file is
+about. `03_use_pragma.t` is that file. It pins `ok`, and a copy with
+both `use` lines deleted prints `ok` too -- measured. It establishes
+that the lines lex, and nothing further.
+
+The replacement is a DELETION TEST applied while authoring: a file
+earns its pin only if removing its construct changes the output. What
+satisfies it differs by construct.
+
+- **`package` already satisfies it, by the fully qualified call.**
+  `01_package_statement.t` defines `hello` under `package Greet;` and
+  calls `Greet::hello()`. Delete the `package` line and the sub lands in
+  `main::`, the call is to an undefined subroutine, and perl dies.
+  `02_package_block.t` is the same measurement with a scope on it. So
+  the construct that emits no op is pinned by a name that only resolves
+  because it took effect.
+
+- **`use` needs an EXPORTER, which is why `04_use_import.t` exists.** A
+  pragma cannot be caught this way: its effect is lexical and
+  compile-time, and `$^H` and `${^WARNING_BITS}` read the caller's scope
+  rather than the file's when consulted at run time -- measured, both
+  report the pragma OFF inside the file that turned it on. A module with
+  an exporter can, through the symbol table: `use POSIX;` puts `floor`
+  into `main::` and the empty-list form does not.
+
+- **The pair is the assertion, not either file alone.**
+  `04_use_import.t` and `05_use_empty_list.t` make the same two
+  observations one statement apart:
+
+        use POSIX;      loaded yes    imported yes
+        use POSIX ();   loaded yes    imported no
+
+  The first column is `require`'s half of `use`, the second is
+  `import`'s. Their op streams are byte-identical to each other and to
+  the two `print` statements alone.
+
+`03_use_pragma.t` is kept rather than replaced. What it measures is
+narrow but real -- `use` with a pragma is the overwhelmingly common
+spelling in the surveyed corpus, and a lexer that mis-delimited it would
+fail here -- and the file now says plainly which half of the construct
+it does not reach.
+
 The ops LINT this declared tier; they cannot derive it. This tier is the
 sharpest case of that in the corpus after `class`: four keywords, and
 between them one op, which belongs to the one keyword a reader would call

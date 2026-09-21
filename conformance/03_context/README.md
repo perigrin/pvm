@@ -103,6 +103,41 @@ the format requires: `padrange` fuses consecutive `my` declarations and the
 comma operator in scalar context erases its own left operands, so a file
 demonstrating more constructs can emit fewer ops.
 
+## Four discriminating pairs, which is the number
+
+An op set cannot describe this tier, but it is not true that nothing can.
+The one thing the optree does record about context is the FLAG, and a pair
+is an op measured with both values of it. Counting those is what turns the
+inference gap from a note into a quantity.
+
+Measured, the tier holds four:
+
+| op | scalar half | list half | file |
+|---|---|---|---|
+| `padav` | `padav[@a] s` | `padav[@a] l` | `01_scalar_of_array.t` |
+| `reverse` | `reverse[t4] sK/1` | `reverse[t6] lK/1` | `04_reverse.t` |
+| `aassign` | `aassign[t6] sKS` | `aassign[t8] lKPS` | `05_sort.t` |
+| `localtime` | `localtime[t5] s` | `localtime[t2] l` | `06_localtime.t` |
+
+Four and not six. `join`, `list` and `wantarray` are introduced here and
+have no second half, because neither interpolation nor the scalar-context
+comma HAS a list-context form -- `"@a"` is a join whatever receives it, and
+in list context the comma is not a `list` op at all -- while `wantarray`
+reports the enclosing context rather than being placed in one. A pair is a
+property of the ops that answer two questions, and three of the tier's six
+answer only one.
+
+`padav` is tier 02's op, and the pair is still this tier's. Using an op is
+not introducing it; that `01_scalar_of_array.t` introduces no op of its own
+while carrying the tier's baseline pair is the clearest statement of what
+this tier is.
+
+All four pairs also appear in `00_adjacency.t`, in one body, which is the
+adjacency claim stated in the only terms the optree can check. A file
+holding one half of each pair would satisfy every source-coverage check
+this tier has and measure none of its subject -- which the adjacency file
+did until it was measured.
+
 ## Files
 
 | file | construct | new op |
@@ -111,10 +146,10 @@ demonstrating more constructs can emit fewer ops.
 | `02_interpolated_array.t` | `"@a"` | `join` |
 | `03_comma_in_scalar_context.t` | `my $last = (4,5,6)` | `list` |
 | `04_reverse.t` | `reverse` in both contexts | `reverse` |
-| `05_sort.t` | `sort`, and the `() =` count idiom | `sort` |
+| `05_sort.t` | `sort`, and the `() =` count idiom in both contexts | `sort` |
 | `06_localtime.t` | `localtime` in both contexts | `localtime` |
 | `07_wantarray.t` | `wantarray` at file scope | `wantarray` |
-| `00_adjacency.t` | all of the above, consecutively | none |
+| `00_adjacency.t` | all of the above, consecutively, each pair in both contexts | none |
 
 `06_localtime.t` pins shape, not time: nine elements in list context, one
 element in scalar. Pinning the formatted string would make the file fail

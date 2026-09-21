@@ -12,6 +12,11 @@
 # shows in the op stream -- the file has to observe them through the symbol
 # table instead.
 #
+# `04_use_import.t` is the other half of that pair and makes the same two
+# observations of the same module, so the two files differ by one statement
+# and their pins differ in one word. Neither file alone distinguishes
+# loading from importing; the pair does.
+#
 # POSIX is used rather than a pragma because a pragma's whole effect IS its
 # import, so there would be nothing left to observe. Nothing here depends on
 # POSIX's version or on anything it prints.

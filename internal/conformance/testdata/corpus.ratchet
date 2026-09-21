@@ -8,7 +8,7 @@
 # The per-tier adjacency fixture carries its tier, since fourteen
 # tiers each hold one and they are different files.
 #
-# 130 files, 111 clean, 19 refusing.
+# 134 files, 115 clean, 19 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -51,7 +51,9 @@ not_a_term data_not_perl.t
 not_a_term data_section.t
 - decimal.t
 - deref_at.t
+- deref_at_sigil.t
 - deref_brace_hash.t
+- deref_postfix.t
 - eof.t
 - foreach.t
 unimplemented_statement format_picture.t
@@ -67,6 +69,7 @@ trailing_tokens heredoc_indented.t
 trailing_tokens heredoc_interpolating.t
 trailing_tokens heredoc_literal.t
 - hexadecimal.t
+- hostile_contents.t
 - if_else.t
 - if_postfix.t
 - import_call.t
@@ -137,6 +140,7 @@ tokens string_comparison.t
 - unless.t
 - until.t
 - use_empty_list.t
+- use_import.t
 - use_pragma.t
 - variables/adjacency.t
 tokens vstring_bare.t

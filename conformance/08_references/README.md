@@ -91,6 +91,18 @@ things the source does not predict:
   all. Everything this family cannot see has to be asserted in
   `expect tokens`.
 
+  Measured: the optrees of `10_deref_at_sigil.t` and `11_deref_postfix.t`
+  are identical op for op, differing only in the subscript constant their
+  last statement reads. Saying that and asserting nothing lexical would be
+  the same corpus shape tiers 09 and 10 were found in -- behaviour pinned,
+  spelling unmeasured -- so `TestTierReferencesSpellingsAreDistinguished`
+  requires a token fact per spelling, and requires the file making it to
+  contain the spelling OUTSIDE a string. That second half is not
+  decoration: `06_deref_at.t` originally wrote `@{$r}` only inside
+  `"@{$r}\n"`, where our lexer emits one `Quote` token and the deref is
+  never tokenised, so its facts were satisfied entirely by the `\@a` two
+  lines above and the file asserted nothing about its own construct.
+
 - **`ref`, which the tier description does not mention, and `anonlist`,
   which it does.** `ref $r` emits `ref`, a reference operation with no home
   in an earlier tier. `[1,2]` emits `anonlist`. The anonymous HASH
