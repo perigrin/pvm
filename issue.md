@@ -3,10 +3,8 @@ title: "Tier 12_packages: use and require, heavier than the object system"
 state: pending
 urgency: normal
 milestone: m3-conformance-corpus
-blocks:
-- 01a0c362-127c-73c1-8bb8-a4bf8b66c735
 created: 2026-09-21T09:52:58.866189072Z
-updated: 2026-09-21T13:40:22.13100775Z
+updated: 2026-09-21T13:40:22.252192772Z
 ---
 
 **Introduces:** package, use, require, imports
