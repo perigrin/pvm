@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-21T18:43:10.842334149Z
-updated: 2026-09-21T22:10:48.23407394Z
+updated: 2026-09-21T22:36:20.011639467Z
 sessions:
 - start_sha: dc1bea2c2baed5af0cf71ddf16e379ee18855d30
   end_sha: b41801021927f68fcbf799c60d6b947393d983de
@@ -106,7 +106,7 @@ where `13_opaque/README.md` already records it.
 A marker directly after another marker stays legal, because a section with
 an empty body is ordinary -- `--- expect parses` carries nothing at all.
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] A `--- expect output` line inside a heredoc body is REJECTED rather than silently truncating the source and pinning the rest as output, and the legitimate marker positions -- start of input, after a comment block, directly after a bodiless marker -- still parse (`go test ./internal/conformance/ -run '^TestParseFileMarkerNeedsBlankLineBefore$' -count=1 -v | grep -q '^--- PASS: TestParseFileMarkerNeedsBlankLineBefore'`)
 - [ ] `13_opaque/08_data_section.t` is unbroken: a section body still runs to the next marker INCLUDING the blank separator line, so that file's data section still ends `two\n\n` and still pins three lines of output for two lines of data (`go test ./internal/conformance/ -run '^TestParseFileBodyRunsToTheNextMarker$' -count=1 -v | grep -q '^--- PASS: TestParseFileBodyRunsToTheNextMarker'`)
