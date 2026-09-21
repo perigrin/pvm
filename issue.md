@@ -1,10 +1,19 @@
 ---
 title: "A stray --- expect output inside a heredoc is read silently as a real section"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-21T18:43:10.842334149Z
-updated: 2026-09-21T18:43:10.842334149Z
+updated: 2026-09-21T21:40:49.645212263Z
+sessions:
+- start_sha: dc1bea2c2baed5af0cf71ddf16e379ee18855d30
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-21T21:40:49.645212263Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-21T21:40:49.645212263Z
 ---
 
 A corpus file is split into sections by lines beginning `--- `. A heredoc
