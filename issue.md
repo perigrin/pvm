@@ -7,8 +7,9 @@ blocked_by:
 - 01a0c360-01bf-7eab-b864-7d902d36fb97
 blocks:
 - 01a0c362-14e9-70d6-8842-a5b379816a98
+- 01a0c436-39e4-7560-9bf0-81d647e96aae
 created: 2026-09-21T09:52:59.516182101Z
-updated: 2026-09-21T13:43:02.28492318Z
+updated: 2026-09-21T13:45:11.861500837Z
 ---
 
 **Introduces:** format, qx, `<*>`, heredocs, POD, `__END__`/`__DATA__`
