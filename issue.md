@@ -1,6 +1,6 @@
 ---
 title: "Tier 07_subroutines: call forms, and the parenless argument question"
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-conformance-corpus
 blocked_by:
@@ -9,16 +9,60 @@ blocks:
 - 01a0c362-0ff3-7f3f-b2d3-f6dbe8228f86
 - 01a0c436-39e4-7560-9bf0-81d647e96aae
 created: 2026-09-21T09:52:56.634555553Z
-updated: 2026-09-21T20:21:39.183806878Z
+updated: 2026-09-21T20:47:21.803800155Z
 sessions:
 - start_sha: 9750d03b51c601e083873e26c01cb22054bb120b
-  end_sha: ""
-  commits: 0
+  end_sha: b4af7e5155e5d0a16b7b29683f2f2731eb3074c8
+  commits: 1
   started_at: 2026-09-21T20:21:39.183806878Z
+  ended_at: 2026-09-21T20:47:21.803800155Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-21T20:21:39.183806878Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-21T20:47:21.803800155Z
+observed_paths:
+- conformance/02_variables/00_adjacency.t
+- conformance/02_variables/02_array_element.t
+- conformance/02_variables/05_braced_name.t
+- conformance/02_variables/06_hash.t
+- conformance/02_variables/07_hash_element_expr.t
+- conformance/02_variables/09_hash_slice.t
+- conformance/02_variables/08_hash_exists_delete.t
+- conformance/02_variables/12_package_scalar.t
+- conformance/02_variables/10_package_array.t
+- conformance/02_variables/11_package_hash.t
+- conformance/02_variables/README.md
+- conformance/07_subroutines/00_adjacency.t
+- conformance/07_subroutines/07_args_alias.t
+- conformance/07_subroutines/README.md
+- conformance/09_regex/00_adjacency.t
+- conformance/09_regex/08_hash_delimiter.t
+- conformance/09_regex/09_nesting_delimiters.t
+- conformance/09_regex/README.md
+- conformance/10_io/02_readline_scalar.t
+- conformance/10_io/03_readline_list.t
+- conformance/10_io/README.md
+- conformance/13_opaque/00_adjacency.t
+- conformance/13_opaque/01_heredoc_interpolating.t
+- conformance/13_opaque/02_heredoc_literal.t
+- conformance/13_opaque/03_heredoc_indented.t
+- conformance/13_opaque/06_format_write.t
+- conformance/13_opaque/08_data_section.t
+- conformance/13_opaque/09_format_picture.t
+- conformance/13_opaque/10_pod_not_perl.t
+- conformance/13_opaque/11_data_not_perl.t
+- conformance/13_opaque/README.md
+- internal/conformance/testdata/corpus.ratchet
+- internal/conformance/tier02_test.go
+- internal/conformance/tier05_test.go
+- internal/conformance/tier06_test.go
+- internal/conformance/tier07_test.go
+- internal/conformance/tier09_test.go
+- internal/conformance/tier10_test.go
+- internal/conformance/tier13_test.go
 ---
 
 **Introduces:** declaration, `@_`, return, signatures
