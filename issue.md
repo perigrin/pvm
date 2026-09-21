@@ -4,7 +4,7 @@ state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-21T22:11:13.008302813Z
-updated: 2026-09-21T22:29:10.466869947Z
+updated: 2026-09-21T22:33:51.28458678Z
 sessions:
 - start_sha: b41801021927f68fcbf799c60d6b947393d983de
   end_sha: ""
@@ -83,3 +83,37 @@ ACCEPTS is reported as a CORPUS BUG before the parser is consulted at all
 (`TestPerlAdjudicatesFirst` pins this). Whatever skips the lint must not
 also skip that adjudication, or a wrong `parsent` claim becomes
 unfalsifiable.
+
+## Acceptance
+
+- [ ] The dependency lint skips a `parsent` file rather than erroring on
+      it, at ONE place all seventeen `lintOps` call sites route through
+      rather than at each of them, and `opsOf` is left alone so a
+      genuinely broken `parses` file still errors.
+      (`go test ./internal/conformance/ -run 'TestCorpusLints' -count=1`)
+
+- [ ] The corpus carries its first `--- expect parsent` file:
+      `conformance/07_subroutines/10_undeclared_callee.t`, the undeclared
+      parenless callee, the fact `TestTierCallFormsParenlessExtent`
+      asserts in Go because no corpus file could carry it.
+      (`test -f conformance/07_subroutines/10_undeclared_callee.t && grep -qx -- '--- expect parsent' conformance/07_subroutines/10_undeclared_callee.t`)
+
+- [ ] Perl still ADJUDICATES that file's claim before anything else: the
+      tier's own perl validator runs over it and would report a CORPUS
+      BUG if perl accepted the source, and `TestPerlAdjudicatesFirst`
+      still holds.
+      (`go test ./internal/conformance/ -run 'TestTierSubroutinesPerlValidated|TestPerlAdjudicatesFirst' -count=1 -v 2>&1 | grep -E '10_undeclared_callee|TestPerlAdjudicatesFirst'`)
+
+- [ ] A `parses` file whose source perl genuinely refuses still ERRORS
+      from the lint rather than linting vacuously -- the failure mode the
+      caller-side skip exists to avoid.
+      (`go test ./internal/conformance/ -run 'TestLintErrorsOnABrokenParsesFile' -count=1 -v`)
+
+- [ ] The new file joins the tier's adjacency table rather than being
+      invisible to it: `subroutineConstructs` gains its entry, which is
+      what `TestTierSubroutinesAdjacency` demands of every construct file.
+      (`go test ./internal/conformance/ -run 'TestTierSubroutinesAdjacency' -count=1`)
+
+- [ ] The ratchet records the new file and the whole conformance suite is
+      green.
+      (`go test ./internal/conformance/ -count=1`)
