@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-21T18:42:18.436831282Z
-updated: 2026-09-21T23:31:51.546615071Z
+updated: 2026-09-21T23:46:12.39519242Z
 sessions:
 - start_sha: b41801021927f68fcbf799c60d6b947393d983de
   end_sha: a3a0ed0c97ce48a68f5db427979f9d8acf88d3c8
@@ -159,4 +159,4 @@ criterion below is the check.
 
 - [ ] verify finds criteria in this milestone rather than reporting none (`test "$(git-zhi verify m3-conformance-corpus --dry-run | wc -l)" -gt 0`)
 - [ ] it finds at least one criterion per done issue, so no done issue is silently skipped (`test "$(git-zhi verify m3-conformance-corpus --dry-run | wc -l)" -ge 28`)
-- [ ] no done issue in this milestone carries the invisible bare header (`test "$(git-zhi issue list --milestone m3-conformance-corpus --state done --format json | grep -c '## Acceptance\\n')" = 0`)
+- [ ] no done issue in this milestone carries the invisible bare header (`test "$(git-zhi issue list --milestone m3-conformance-corpus --state done --format json | python3 -c 'import json,sys; print(sum(1 for i in json.load(sys.stdin) for l in i.get("body","").split(chr(10)) if l.startswith("## Acceptance") and "criteria" not in l))')" = 0`)
