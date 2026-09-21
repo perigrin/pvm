@@ -4,7 +4,7 @@ state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-21T22:11:13.008302813Z
-updated: 2026-09-21T22:54:39.675647307Z
+updated: 2026-09-21T23:01:37.578493997Z
 sessions:
 - start_sha: b41801021927f68fcbf799c60d6b947393d983de
   end_sha: ""
@@ -84,7 +84,7 @@ ACCEPTS is reported as a CORPUS BUG before the parser is consulted at all
 also skip that adjudication, or a wrong `parsent` claim becomes
 unfalsifiable.
 
-## Acceptance
+## Acceptance criteria
 
 - [x] The dependency lint skips a `parsent` file rather than erroring on
       it, at ONE place all seventeen `lintOps` call sites route through
