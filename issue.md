@@ -1,10 +1,19 @@
 ---
 title: The adjacency prerequisite check passes under the wrong declaration, in three tiers
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-21T21:37:00.824105072Z
-updated: 2026-09-21T21:37:00.824105072Z
+updated: 2026-09-21T22:29:10.522340582Z
+sessions:
+- start_sha: b41801021927f68fcbf799c60d6b947393d983de
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-21T22:29:10.522340582Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-21T22:29:10.522340582Z
 ---
 
 Every tier's adjacency test asks: does `00_adjacency.t` emit an op that the
