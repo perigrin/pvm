@@ -4,7 +4,7 @@ state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-21T18:43:10.842334149Z
-updated: 2026-09-21T21:40:49.645212263Z
+updated: 2026-09-21T22:00:17.142621616Z
 sessions:
 - start_sha: dc1bea2c2baed5af0cf71ddf16e379ee18855d30
   end_sha: ""
@@ -52,3 +52,39 @@ Worth noting the format already has a related sharp edge that tier 13's
 blank separator line before the next marker, so inside a `__DATA__`
 section that blank line is DATA. The file pins three lines of output for a
 two-line data section and documents why.
+
+## What the measurement decided
+
+Option 2, and the re-check it demanded cost nothing. Measured at
+`dc1bea2c` across all 134 corpus files: **472 markers, every one of them
+already preceded by a blank line or by the comment block's last blank
+line. Zero exceptions, zero markers with trailing content, zero markers
+directly following another marker.** So the format change is a format
+change on paper only -- no corpus file needed editing.
+
+Option 1 was rejected because it does not close the hole it names: the
+first `--- expect output` in a file is not `seen`, and the measured
+failure is a FIRST occurrence inside a heredoc. It would catch a
+duplicate, which the existing duplicate-section error already catches.
+
+A third option -- lexing the source section to find its heredoc openers --
+was rejected because the source section is Perl and the lexer that would
+read it is the one this corpus exists to test. A corpus file must be
+readable while that parser is broken, or a parser bug becomes a corpus
+that cannot be read to diagnose it.
+
+The rule is deliberately WEAK: a heredoc body may contain a blank line and
+then `--- expect output` and still slip through. It turns the reachable
+accident loud, which is the part that was missing, and leaves the rest
+where `13_opaque/README.md` already records it.
+
+A marker directly after another marker stays legal, because a section with
+an empty body is ordinary -- `--- expect parses` carries nothing at all.
+
+## Acceptance
+
+- [ ] A `--- expect output` line inside a heredoc body is REJECTED rather than silently truncating the source and pinning the rest as output, and the legitimate marker positions -- start of input, after a comment block, directly after a bodiless marker -- still parse (`go test ./internal/conformance/ -run '^TestParseFileMarkerNeedsBlankLineBefore$' -count=1 -v | grep -q '^--- PASS: TestParseFileMarkerNeedsBlankLineBefore'`)
+- [ ] `13_opaque/08_data_section.t` is unbroken: a section body still runs to the next marker INCLUDING the blank separator line, so that file's data section still ends `two\n\n` and still pins three lines of output for two lines of data (`go test ./internal/conformance/ -run '^TestParseFileBodyRunsToTheNextMarker$' -count=1 -v | grep -q '^--- PASS: TestParseFileBodyRunsToTheNextMarker'`)
+- [ ] The rules the blank-line change did not touch still hold -- the one-newline strip, CRLF normalisation, the nameless marker, the both-expectations contradiction, the empty-versus-absent output pin (`go test ./internal/conformance/ -run '^TestParseFile' -count=1 | grep -q '^ok'`)
+- [ ] Every existing corpus file still parses and lints under the new rule, which is what makes the format change free (`go test ./internal/conformance/ -run '^TestCorpusLints$' -count=1 -v | grep -q '^--- PASS: TestCorpusLints'`)
+- [ ] `conformance/README.md` states the rule, since every well-formed example already satisfies it and an author cannot infer it from one (`go test ./internal/conformance/ -run '^TestReadmeDocumentsEverySection$' -count=1 -v | grep -q '^--- PASS: TestReadmeDocumentsEverySection'`)
