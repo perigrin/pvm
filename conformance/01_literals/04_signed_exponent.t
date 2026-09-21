@@ -21,10 +21,13 @@
 # and note the asymmetry recorded there -- the exponent sign is part of the
 # literal, a leading `-` never is.
 #
-# STATUS refuses as of 38c95d23, and this was NOT a known gap: found while
-# building this tier. Our lexer produces Number(5e) Operator(-) Number(1),
-# and the same split affects `5e+1`, `5E-1` and `1.5e-3`. Unsigned `5e1`
-# lexes correctly, which is why it went unnoticed.
+# STATUS refuses as of 38c95d23. Our lexer produces Number(5e) Operator(-)
+# Number(1), and the same split affects `5e+1`, `5E-1` and `1.5e-3`.
+# Unsigned `5e1` lexes correctly, which is why it went unnoticed.
+#
+# No issue: this file is the record. The construct was found by writing it,
+# so there is nowhere earlier for it to have been filed, and duplicating the
+# token stream into a tracker would give it a second place to go stale.
 
 --- source
 my $x = 5e-1;

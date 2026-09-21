@@ -634,11 +634,14 @@ all-green, and cannot be allowed to make `make test` noisy.
 
     # STATUS refuses as of 38c95d23. Issue 01a0c13f-97f5.
 
-A file carrying that line SKIPS, reporting its issue id and what actually
-happened -- the Unknown count, the token stream. The issue id is optional:
-`unfiled` is a legitimate state, because **a refusal can be found by writing
-the file**, which happens before any issue exists. That is the corpus
-working, and forcing an id first would be a reason not to write the file.
+A file carrying that line SKIPS, reporting its citation and what actually
+happened -- the Unknown count, the token stream.
+
+**The issue id is optional, and its absence is not a gap.** A refusal found
+by writing the file cites `this file`, because the file already holds the
+source, the measured perl behaviour and the tokens we produce instead. An
+issue would be a second copy of that, free to go stale. `.5` cites an issue
+only because it predates the corpus.
 
 The reverse is an ERROR, loudly:
 
@@ -658,27 +661,41 @@ runner is broken". It is also the baseline its neighbours deviate from --
 exponent sign added -- so a regression there explains both rather than being
 diagnosed twice.
 
-### What building tier 01 found
+### A refusal is the corpus working, not a bug report
 
-**The corpus paid for itself before it was finished**, which is the
-strongest evidence available for the approach and was not predicted.
-
-Probing the lexer while pinning `.5` turned up an untracked bug:
+Writing `03_leading_decimal.t` meant probing the lexer, which turned up a
+second construct it does not handle:
 
     5e-1    ->  Number(5e) Operator(-) Number(1)
     5e+1    ->  Number(5e) Operator(+) Number(1)
     1.5e-3  ->  Number(1.5e) Operator(-) Number(3)
     5e1     ->  Number(5e1)
 
-Signed exponents split; unsigned ones do not, which is why nothing caught
-it. `perl -e 'print 5e'` is a syntax error, so `Number("5e")` is a token
-perl would reject rather than merely an odd split.
+Signed exponents split; unsigned ones do not, which is why nothing had
+noticed. `perl -e 'print 5e'` is a syntax error, so `Number("5e")` is a
+token perl would reject.
 
-**And the parser cannot see it.** `5e` `-` `1` is a well-formed subtraction:
-zero Unknowns, and the round trip agrees with itself. Only the token
-assertion catches it. The argument for lexical facts as a category was
-previously made from the `printf "%.17g"` collapse alone; this is the same
-claim demonstrated against a live bug.
+**This is the corpus's normal mode and needs no ticket.** A construct the
+parser does not reach yet is a file that refuses, and the file IS the
+record: its source, the measured perl behaviour, and the exact token stream
+we produce instead. Filing an issue as well would put the same information
+in two places and make one of them stale. `.5` cites an issue only because
+it was found before the corpus existed; `5e-1` was found by writing the
+file, so it cites `this file`, which is a complete answer rather than a
+gap.
+
+The distinction the corpus DOES draw is between a refusal and a regression.
+A refusal is marked and skips. A file that starts refusing without a marker
+fails, and a marked file that starts passing fails. Both of those need
+attention; neither of these two does.
+
+**What the case does demonstrate is the token layer.** `5e` `-` `1` is a
+well-formed subtraction: zero Unknowns, and the round trip agrees with
+itself, so the parser cannot see it and neither can the oracle. Only the
+token assertion catches it. The argument for lexical facts as a category was
+previously made from the `printf "%.17g"` collapse alone -- a value
+argument. This is the same claim against a construct where the TREE is also
+blind, which is a stronger version of it.
 
 ### The glossary, which now exists
 
@@ -927,19 +944,30 @@ argument position, which needs the 07 slice.
 
 ## Open questions
 
+Two, both about scale rather than about the format, and neither blocking:
+
 - Does each tier get a README stating what it introduces and why it sits
-  there? Recommended yes.
-- `conformance/` at repo root, given the standalone intent.
-- Does 04_operators need internal grouping by precedence level? It is the
-  largest tier by a distance.
+  there? Recommended yes. Tier 01 shipped without one and did not need it,
+  which is weak evidence either way at one tier.
+- Does `04_operators` need internal grouping by precedence level? It is the
+  largest tier by a distance, and the only one where the file count might
+  make a flat directory unreadable.
+
+Settled by building tier 01, and recorded here because earlier revisions
+listed them as open:
+
 - ~~Does the construct set come from a per-file declaration or from the CST
-  once trusted?~~ **RESOLVED above:** the `# TIER` header declares, the ops
-  lint checks, the token stream classifies tiers 01-03. The CST is out until
-  trusted.
-- Ordering sources: perl's own `perlintro`/`perlsyn` (installed, same
-  licence), *Modern Perl* (CC BY-NC-SA) and *Programming Perl* (proprietary)
-  as priors on teaching order. Reading them to decide what order to introduce
-  concepts in is a fact about the language; lifting text is not.
+  once trusted?~~ The `# TIER` header declares, the ops lint checks, the
+  token stream classifies tiers 01-03. The CST is out until trusted.
+- ~~`conformance/` at repo root?~~ Yes, and it is there.
+- ~~What does a file look like?~~ Specified under "The file format".
+
+## On sources
+
+Perl's own `perlintro`/`perlsyn` (installed, same licence), *Modern Perl*
+(CC BY-NC-SA) and *Programming Perl* (proprietary) are priors on teaching
+order. Reading them to decide what order to introduce concepts in is a fact
+about the language; lifting text is not.
 
 Not decomposed into issues. This document is the input to
 `crochet:refinement`.

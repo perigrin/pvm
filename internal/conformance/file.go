@@ -107,16 +107,16 @@ func ParseFile(raw string) (*File, error) {
 //	# STATUS refuses as of 38c95d23, and this was NOT a known gap.
 //
 // An issue id is optional because a refusal can be FOUND BY WRITING THE
-// FILE, which is the corpus doing its job and happens before any issue
-// exists. The id, when present, is what the skip message cites.
+// FILE, which is the corpus doing its job. Such a refusal cites the file
+// itself; see selfRecorded.
 var reRefusal = regexp.MustCompile(`(?m)^#\s*STATUS refuses\b`)
 
 // reIssue finds a crochet issue id anywhere in the comment block.
 var reIssue = regexp.MustCompile(`\bIssue ([0-9a-f]{8}-[0-9a-f]{4})\b`)
 
 // refusalIssue returns the issue id a comment block's STATUS line refers
-// to, "unfiled" when it refuses with no issue yet, or "" when the file is
-// expected to pass.
+// to, "this file" when it refuses without citing one, or "" when the file
+// is expected to pass.
 func refusalIssue(comment string) string {
 	if !reRefusal.MatchString(comment) {
 		return ""
@@ -124,11 +124,17 @@ func refusalIssue(comment string) string {
 	if m := reIssue.FindStringSubmatch(comment); m != nil {
 		return m[1]
 	}
-	return unfiledRefusal
+	return selfRecorded
 }
 
-// unfiledRefusal marks a file that refuses with no issue filed yet.
-const unfiledRefusal = "unfiled"
+// selfRecorded is the citation for a refusal the corpus found itself.
+//
+// A construct discovered by writing its file has nowhere earlier to have
+// been filed, and the file already holds the source, the measured perl
+// behaviour and the tokens we produce instead. An issue would be a second
+// copy of that, free to go stale. So this is a complete citation rather
+// than a placeholder for one.
+const selfRecorded = "this file"
 
 // sectionName reports whether a line opens a section, and which.
 func sectionName(line string) (string, bool) {
