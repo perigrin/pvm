@@ -1,12 +1,21 @@
 ---
 title: A refusal citation captures 13 of 36 characters, and UUIDv7 collides on the first 8
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 blocks:
 - 01a0c35e-1b37-7304-ba39-65a6ef57d4e0
 created: 2026-09-21T14:03:18.076018197Z
-updated: 2026-09-21T14:03:36.861147162Z
+updated: 2026-09-21T19:00:02.292865539Z
+sessions:
+- start_sha: 0ce515cbfe0ba1f48eb9b741cb1fc5d8c389454d
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-21T19:00:02.292865539Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-21T19:00:02.292865539Z
 ---
 
 `internal/conformance/file.go` captures 13 of a 36-character issue id:
