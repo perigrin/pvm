@@ -1,12 +1,21 @@
 ---
 title: "Tier 12_packages: use and require, heavier than the object system"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 blocked_by:
 - 01a0c362-073a-78c2-ba73-227fb48a26c4
 created: 2026-09-21T09:52:58.866189072Z
-updated: 2026-09-21T13:43:02.235715224Z
+updated: 2026-09-21T20:48:38.508464179Z
+sessions:
+- start_sha: b4af7e5155e5d0a16b7b29683f2f2731eb3074c8
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-21T20:48:38.508464179Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-21T20:48:38.508464179Z
 ---
 
 **Introduces:** package, use, require, imports
