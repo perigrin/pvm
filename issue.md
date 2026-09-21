@@ -1,21 +1,48 @@
 ---
 title: "Tier 14_recursive: re-enter Perl inside a delimiter"
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-conformance-corpus
 blocked_by:
 - 01a0c362-127c-73c1-8bb8-a4bf8b66c735
 created: 2026-09-21T09:53:00.137066905Z
-updated: 2026-09-21T20:48:38.565352142Z
+updated: 2026-09-21T21:10:56.024886019Z
 sessions:
 - start_sha: b4af7e5155e5d0a16b7b29683f2f2731eb3074c8
-  end_sha: ""
-  commits: 0
+  end_sha: 71979369e31e3d89136535fe4d6b05a22095e26b
+  commits: 1
   started_at: 2026-09-21T20:48:38.565352142Z
+  ended_at: 2026-09-21T21:10:56.024886019Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-21T20:48:38.565352142Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-21T21:10:56.024886019Z
+observed_paths:
+- conformance/03_context/00_adjacency.t
+- conformance/03_context/05_sort.t
+- conformance/03_context/README.md
+- conformance/08_references/00_adjacency.t
+- conformance/08_references/06_deref_at.t
+- conformance/08_references/10_deref_at_sigil.t
+- conformance/08_references/11_deref_postfix.t
+- conformance/08_references/README.md
+- conformance/12_packages/00_adjacency.t
+- conformance/12_packages/03_use_pragma.t
+- conformance/12_packages/05_use_empty_list.t
+- conformance/12_packages/04_use_import.t
+- conformance/12_packages/06_require_bareword.t
+- conformance/12_packages/07_require_expression.t
+- conformance/12_packages/08_import_call.t
+- conformance/12_packages/README.md
+- conformance/14_recursive/05_hostile_contents.t
+- internal/conformance/testdata/corpus.ratchet
+- internal/conformance/tier03_test.go
+- internal/conformance/tier08_test.go
+- internal/conformance/tier12_test.go
+- internal/conformance/tier14_test.go
 ---
 
 **Introduces:** s///e, (?{ }), qr// with embedded code
