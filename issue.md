@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a0c432-fbd5-7125-82fa-b52abb3ac7bc
 created: 2026-09-21T09:52:30.999321803Z
-updated: 2026-09-21T21:36:34.399829125Z
+updated: 2026-09-21T22:35:39.437184165Z
 sessions:
 - start_sha: 71979369e31e3d89136535fe4d6b05a22095e26b
   end_sha: dc1bea2c2baed5af0cf71ddf16e379ee18855d30
@@ -62,7 +62,7 @@ by the spec and deferred to this issue. Decide once the files exist and the
 directory is actually unreadable -- a grouping invented before the files
 exist will be the wrong grouping.
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] Each of the 11 nonassoc levels is measured against perl rather than inferred from the binding-power table (`go test ./internal/conformance/ -run '^TestTierOperatorsNonassocMeasured$' -count=1 -v | grep -q '^--- PASS: TestTierOperatorsNonassocMeasured'`)
 - [ ] Comparison chaining is measured: 3 > 2 > 1 is 1 under 5.42 cmpchain (`go test ./internal/conformance/ -run '^TestTierOperatorsCmpchain$' -count=1 -v | grep -q '^--- PASS: TestTierOperatorsCmpchain'`)
