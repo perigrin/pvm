@@ -3,8 +3,10 @@ title: "Tier 13_opaque: delimit without lexing the contents"
 state: pending
 urgency: normal
 milestone: m3-conformance-corpus
+blocked_by:
+- 01a0c360-01bf-7eab-b864-7d902d36fb97
 created: 2026-09-21T09:52:59.516182101Z
-updated: 2026-09-21T13:40:22.380183572Z
+updated: 2026-09-21T13:40:23.660305873Z
 ---
 
 **Introduces:** format, qx, `<*>`, heredocs, POD, `__END__`/`__DATA__`
