@@ -9,7 +9,7 @@ blocks:
 - 01a0c362-14e9-70d6-8842-a5b379816a98
 - 01a0c436-39e4-7560-9bf0-81d647e96aae
 created: 2026-09-21T09:52:59.516182101Z
-updated: 2026-09-21T20:47:29.925665969Z
+updated: 2026-09-21T22:36:08.94229565Z
 sessions:
 - start_sha: 9750d03b51c601e083873e26c01cb22054bb120b
   end_sha: b4af7e5155e5d0a16b7b29683f2f2731eb3074c8
@@ -78,7 +78,7 @@ parse, body and all (M1 issue 01a0c13f-aaf8). Files here will refuse, and
 that is the corpus working rather than a blocker -- a refusal is recorded
 with its code and skips until the parser catches up.
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] Each of the six delimiter kinds is delimited correctly without its contents being lexed (`go test ./internal/conformance/ -run '^TestTierOpaqueDelimitsWithoutLexing$' -count=1 -v | grep -q '^--- PASS: TestTierOpaqueDelimitsWithoutLexing'`)
 - [ ] Every file in 13_opaque/ is validated against pinned perl 5.42.0 before it counts (`go test ./internal/conformance/ -run '^TestTierOpaquePerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierOpaquePerlValidated'`)
