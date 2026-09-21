@@ -118,3 +118,72 @@ Punctuation denoting an operation: `+`, `.`, `=~`, `->`, `?`, `:`.
 The `.` in `.5` is not an operator, and `scanNumber` running before operator
 scanning is what makes that true. That precedence is the subject of
 `01_literals/03_leading_decimal.t`.
+
+---
+
+## quote-like operator
+
+A quote spelled with an OPERATOR NAME and a delimiter -- `q`, `qq`, `qw`,
+`qr`, `m`, `s`, `tr`, `y` -- rather than with delimiters alone.
+
+    q(a b)          single-quoted, no interpolation
+    qq{hi $x}       double-quoted, interpolating
+    qw(a b c)       a LIST of words, not a string
+    qr/pat/         a compiled pattern
+    s/a/b/          substitution
+    tr/a/b/         transliteration
+
+**This is a separate category from `string literal` because the two make
+different claims.** A corpus file asserting `one string literal whose text
+is "hi"` must not be satisfied by `qw(hi)`, which is not a string at all:
+measured, `my @w = qw(a b c)` gives a three-element LIST, while
+`my $s = q(a b)` gives the two-character-separated string `a b`.
+
+Our lexer gives both the same `Quote` kind, so the category is decided by
+the token's TEXT. A lexer that splits them by kind maps these two entries
+onto two kinds and ignores the text. That choice is `categories.go`'s, not
+the corpus's.
+
+**Any non-whitespace delimiter is accepted**, and bracketing delimiters
+nest: measured, `q{a{b}c}` is the five-character string `a{b}c`, so the
+inner braces are content rather than a terminator. Non-bracketing
+delimiters do not nest.
+
+**`s`, `tr` and `y` take a second pair**, and only when the first pair is
+bracketing is the second pair's opening delimiter free to differ.
+
+---
+
+## heredoc opener
+
+The `<<EOT` that appears in the statement, as one token.
+
+    my $h = <<EOT;
+
+The opener is where the heredoc STARTS; it is not the content. A corpus
+file asserting the opener is making a claim about the statement's token
+stream, which is why it is a separate category from the body.
+
+`<<~EOT` is one opener: the `~` requests indentation stripping and belongs
+to the token. Measured, `<<~EOT` with an indented terminator prints the
+body with the common indentation removed.
+
+---
+
+## heredoc body
+
+The lines between the opener's line and the terminator, as one token.
+
+    my $h = <<EOT;
+    body line
+    EOT
+
+The body arrives AFTER the semicolon in the token stream, because the
+heredoc's content begins on the next LINE while the statement continues on
+the same one. That reordering is the whole reason a heredoc is hard to
+lex, and asserting it is what a corpus file is for.
+
+A body is one token however many lines it spans. Whether the terminator is
+part of it is this lexer's choice and not perl's, so a corpus file should
+assert the body's START rather than its exact extent until tier 13 settles
+the question.

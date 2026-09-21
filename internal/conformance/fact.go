@@ -44,7 +44,8 @@ func checkTokenFact(t reporter, fact string, src []byte) {
 
 	got := 0
 	for _, tk := range significant(src) {
-		if match(tk.Kind) && string(src[tk.Start:tk.End]) == text {
+		tokenText := string(src[tk.Start:tk.End])
+		if tokenText == text && match(tk.Kind, tokenText) {
 			got++
 		}
 	}
