@@ -6,123 +6,82 @@ milestone: m1-parse-the-core
 blocks:
 - 01a0c13f-6816-79d2-945a-b84a12d39e6c
 created: 2026-09-20T23:55:47.309990102Z
-updated: 2026-09-20T23:56:34.709266784Z
+updated: 2026-09-21T03:31:37.104043968Z
 ---
 
-`internal/parse/call.go`'s `default:` arm decides what a bareword this parser
-has never seen does with what follows it. Today it decides NOTHING, and that
-one decision is most of the T2 gap.
+**Rewritten 2026-09-21. This was filed as a three-way design choice for
+perigrin. It is not a choice — perl answers it, and the answer rules out two
+of the three routes.**
 
-## Measured, 2026-09-20 at b6e7c351
+## What perl does, measured on 5.42.0
 
-The survey (01a0c10b) bucketed this as "`%` in a parenless call" plus "a bare
-number argument". Both bucketings are wrong, and the correction matters
-because it changes what a fix has to cover:
+    $ perl -MO=Deparse -e 'ok 8;'
+    Number found where operator expected (Do you need to predeclare "ok"?)
+    syntax error near "ok 8"
 
-    ok 8;              1 Unknown      ok $x;        1 Unknown
-    ok "s";            1 Unknown      ok 8,'name';  1 Unknown
-    f 13 % 4;          1 Unknown      f $a % 4;     1 Unknown
-    ok($x);            0              print "x";    0   (print is a builtin)
+    $ perl -MO=Deparse -e 'ok 8, 9;'
+    syntax error, same shape
 
-It is not about `%`. It is not about numbers. **Any parenless call to a sub
-this parser does not know, with any argument at all, falls to Unknown.** The
-`%` case is one flavour; `ok 8` is another; there is one cause.
+    $ perl -MO=Deparse -e 'ok $x, 9;'
+    $x->ok, '???'                    <-- INDIRECT OBJECT, not a call at all
 
-Scale: ~330 of T2's 649 Unknown nodes, all 179 of `opbasic/arith.t`, and the
-~151 rows the survey attributed to `ok`/`is`/`print`.
+    $ perl -MO=Deparse -e 'sub ok {} ok 8, 9;'
+    sub ok { } ok 8, 9;              <-- declared first: a call
 
-## The code, and why it is not a typo
+    $ perl -MO=Deparse -e 'sub f {} f 13 % 4;'
+    sub f { } f 1;                   <-- arguments consumed, 13 % 4 folded
 
-`internal/parse/call.go:160-175`:
+So: **perl refuses to compile a parenless call to an undeclared sub with a
+numeric argument.** It is not a call perl parses and we fail to; it is a
+syntax error in perl too.
 
-    default:
-        // A bareword this parser does not know. It might be a user sub taking
-        // a list, a class name, or a hash key -- perl decides with the symbol
-        // table and this parser cannot.
-        //
-        // §4.8.3: produce a Call with Resolved false rather than an Unknown.
-        //
-        // No arguments are consumed. Guessing that a bareword takes a list
-        // would swallow the rest of the statement on every hash key and
-        // class name in the corpus.
-        n.Resolved = false
+Three consequences, each ruling something out:
 
-The `Call{Resolved:false}` node IS emitted, correctly, exactly as
-`docs/specs/perl-parser/04-expressions.md` §4.8.3 requires and as the file's
-own ABOUTME promises. What is left undone is the ARGUMENTS: nothing consumes
-them, the statement loop then finds unconsumed tokens, and the enclosing
-STATEMENT falls to Unknown. The Call is right and its container is lost.
+**Route A (consume greedily) is WRONG, not merely risky.** Building a tree
+for `ok 8` where perl builds none is a tree for a program perl rejects --
+WRONG in the gate's sense, and M1's gate is Oracle WRONG = 0.
 
-The comment is an argument, not an oversight. §4.8.3 says NOAMP is emitted
-"only when the bareword is a known sub", and calls this "the fundamental
-undecidability". Consuming a list here is a guess against that.
+**The status quo is closer to correct than this issue assumed.** For a
+genuinely undeclared callee, Unknown IS the honest answer. §4.8.3's
+`Call{Resolved:false}` and an Unknown statement around it both say "I cannot
+settle this", and perl cannot either.
 
-## This issue is a DECISION, not an implementation
+**Route C is not a heuristic. It is perl's rule.** "Declared before the call
+site" is exactly what `knowsShape()` models (call.go:152), what
+`comp/proto.t:566` documents in the corpus -- "prototype checking done if
+sub pre-declared" -- and what 01a0ad3f already built for imports.
 
-Three routes, and the cost of each is what has to be measured before one is
-picked. **Do not pick by taste; pick by the numbers below.**
+## So what is the actual bug
 
-**A. Consume a list greedily.** Every parenless call parses. Cost: a bareword
-that is NOT a call — a hash key `$h{foo}`, a class name `Foo->new`, a fat
-comma LHS `foo => 1` — swallows the rest of its statement into a Call that is
-a WRONG TREE, not merely a wider one. M1's gate is "Oracle WRONG: 0" and this
-is the one route that can break it. Most such barewords are already handled
-elsewhere (subscripts, `->`, `=>`); the question is what the residue costs.
+Not that we decline `ok 8`. That `ok` in T2 **is** declared -- `Test::More`
+exports it -- and we are not using that. The T1 measurement from 01a0ad3f
+says the machinery works when the module is reachable: 460 -> 532 clean
+files, 3,322 -> 2,531 Unknown nodes, when Test::More resolved.
 
-**B. Keep consuming nothing.** No false parses, WRONG stays 0, and ~330
-Unknowns and all of arith.t stay. This is the status quo; naming it as a
-choice is the point.
+The work is to make the same resolution reach T2, and to check the in-file
+`sub NAME` case, which needs no module at all.
 
-**C. Widen what counts as "known".** `p.knowsShape(text)` already exists
-(`call.go:152`, `shape.go:149`) and is true for a sub whose PROTOTYPE was
-read from its declaration — imports resolved by 01a0ad3f. A sub DECLARED IN
-THE FILE BEING PARSED, or imported with no prototype but a visible `sub`
-keyword, is just as known and today is not. This is not a guess: perl's own
-rule is "already declared", and a `sub ok {...}` or a resolved `Test::More`
-export IS a declaration this parser has seen. `ok`, `is`, `like`, `pass` all
-come from `Test::More`, which 01a0ad3f already resolves.
+## Scope
 
-C is the route that matches §4.8.3's rule rather than working around it. It
-is listed third because it must be MEASURED, not assumed: if C recovers most
-of the ~330 then A's risk is never worth taking.
+1. Measure how many of T2's ~330 parenless-call Unknowns have a callee that
+   IS declared -- by an import whose module is readable, or by a `sub NAME`
+   earlier in the same file. That number is the size of the real fix.
+2. The remainder are genuinely undeclared. Confirm perl also rejects them,
+   file-by-file, and they stay Unknown as correct behaviour.
 
-## Steps
+## The fragments become corpus fixtures
 
-- [ ] Write a test that records the CURRENT behaviour of a parenless
-      unknown-callee call with an argument, one case per shape above
-      (`ok 8`, `ok $x`, `ok "s"`, `ok 8,'name'`, `f 13 % 4`), asserting the
-      statement is Unknown. Run it; it passes — it is the baseline the
-      decision moves.
-- [ ] Measure route C alone: extend `knowsShape` to cover subs declared in
-      the file under parse and subs imported from a module whose source was
-      read (prototype or not), behind a temporary build-local toggle if that
-      is cheapest. Record T2 clean-file count, T2 Unknown total, T1 ratchet
-      delta, and T1 delta in BYTES.
-- [ ] Measure route A alone the same way, and additionally count how many
-      T1/T2 sites become a Call swallowing a hash key, class name, or fat
-      comma. Record whether the parse oracle's WRONG bucket moves.
-- [ ] Record both measurements in this issue and pick the route. If C covers
-      most of the gap, A is not taken.
-- [ ] Open the implementation issue's work against the chosen route (this
-      issue blocks it), and delete any temporary toggle.
+The probes above are a discriminating pair the corpus does not have:
+`sub ok {} ok 8, 9` versus bare `ok 8, 9` is precisely what the fidelity
+harness exists to score, and nothing in T2 tests the declared/undeclared
+boundary directly. Land them as oracle fixtures rather than throwing them
+away with the scratch file.
 
-## Acceptance Criteria
+## Acceptance
 
-### Positive Scenarios
+- [ ] The declared/undeclared boundary is a fixture perl and the parser are both scored on (`go test ./internal/parseoracle/ -run '^TestParenlessCallBoundary$' -count=1 -v | grep -q '^--- PASS: TestParenlessCallBoundary'`)
+- [ ] `sub NAME` earlier in the same file makes a parenless call to it parse (`go test ./internal/parse/ -run '^TestInFileSubDeclarationIsKnown$' -count=1 -v | grep -q '^--- PASS: TestInFileSubDeclarationIsKnown'`)
+- [ ] A genuinely undeclared parenless call stays Unknown, because perl rejects it too (`go test ./internal/parse/ -run '^TestUndeclaredParenlessCallStaysUnknown$' -count=1 -v | grep -q '^--- PASS: TestUndeclaredParenlessCallStaysUnknown'`)
+- [ ] The T2 share whose callee is declared is measured and recorded here, before any fix (`go test ./internal/parse/ -run '^TestT2CoreParses$' -count=1 -v | grep -q '^--- PASS: TestT2CoreParses'`)
 
-- [ ] The baseline test naming every shape of the parenless-unknown-callee
-      failure exists and passes (`go test ./internal/parse/ -run '^TestParenlessUnknownCalleeBaseline$' -count=1 -v | grep -q '^--- PASS: TestParenlessUnknownCalleeBaseline'`)
-- [ ] The measurement that chose the route is committed as a note beside the
-      code it governs, so the tradeoff is in the history rather than only in
-      a comment (`grep -q 'route' internal/parse/call.go`)
-- [ ] The chosen route is named in this issue with the measurement that chose
-      it, and the whole T2 suite is still green at decision time (`go test ./internal/parse/ -run '^TestT2CoreParses$' -count=1 -v | grep -q '^--- PASS: TestT2CoreParses'`)
-
-## Why this is its own issue
-
-The comment in `call.go` is a design position held for a measured reason —
-it names the hash-key and class-name failure it is avoiding. Overruling it
-inside an implementation issue would make the tradeoff invisible in the
-history, which is how the comment came to be the only record of it.
-
-Spec: §4.8.3. Plan: M1. Survey: 01a0c10b.
+Measured 2026-09-21. Plan: M1. Spec: §4.8.3, §3.2.
