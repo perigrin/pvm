@@ -98,6 +98,12 @@ func ParseFile(raw string) (*File, error) {
 	if !f.ExpectParses && !f.ExpectParsent {
 		return nil, fmt.Errorf("file asserts neither parses nor parsent")
 	}
+	if f.ExpectParses && f.ExpectParsent {
+		// Resolving this by field order would make the contradiction
+		// invisible: Run consults ExpectParses first, so a file claiming
+		// both would quietly measure only the must-parse half.
+		return nil, fmt.Errorf("file asserts both parses and parsent")
+	}
 	return f, nil
 }
 
@@ -135,6 +141,23 @@ func refusalIssue(comment string) string {
 // copy of that, free to go stale. So this is a complete citation rather
 // than a placeholder for one.
 const selfRecorded = "this file"
+
+// sectionNames lists every section a corpus file may contain, in the
+// order the README presents them.
+//
+// setSection's switch is the parser's copy of this list. They are checked
+// against each other rather than merged into one table, because the switch
+// assigns to differently-typed fields and a table would need an interface
+// or a closure per entry to say the same thing.
+func sectionNames() []string {
+	return []string{
+		"source",
+		"expect parses",
+		"expect parsent",
+		"expect output",
+		"expect tokens",
+	}
+}
 
 // sectionName reports whether a line opens a section, and which.
 func sectionName(line string) (string, bool) {
