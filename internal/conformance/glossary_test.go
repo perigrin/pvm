@@ -150,6 +150,35 @@ func TestCategoryBoundaries(t *testing.T) {
 		name: "a bracketing delimiter nests within one token",
 		src:  "my $x = q{a{b}c};", category: "quote-like operator", text: "q{a{b}c}", want: 1,
 	}, {
+		// qx runs a command, like backticks. It was missing from the
+		// operator list at first, which made it read as a plain string.
+		name: "qx is a quote-like operator",
+		src:  "my $x = qx/echo hi/;", category: "quote-like operator", text: "qx/echo hi/", want: 1,
+	}, {
+		// The same operation spelled with no operator name at all.
+		// Measured, `qx/echo hi/` and `` `echo hi` `` both run the
+		// command, so the corpus must not call one a string literal.
+		name: "backticks are a quote-like operator despite having no name",
+		src:  "my $x = `echo hi`;", category: "quote-like operator", text: "`echo hi`", want: 1,
+	}, {
+		// The text merely CONTAINS an operator name; it does not start
+		// with one, so the delimiters decide and this stays a string.
+		name: "a string whose content starts with an operator name is still a string",
+		src:  `my $x = "qw stuff";`, category: "string literal", text: `"qw stuff"`, want: 1,
+	}, {
+		name: "transliteration is a quote-like operator",
+		src:  "$x =~ tr/a/b/;", category: "quote-like operator", text: "tr/a/b/", want: 1,
+	}, {
+		name: "a compiled pattern is a quote-like operator",
+		src:  "my $r = qr/pat/;", category: "quote-like operator", text: "qr/pat/", want: 1,
+	}, {
+		// perl accepts a word-character delimiter when whitespace
+		// separates it from the name: `q xax` is the string "a". This
+		// looks like it should defeat a prefix test and does not, since
+		// the space after `q` is the non-word byte the check wants.
+		name: "a word-character delimiter after whitespace is still an operator",
+		src:  "my $x = q xax;", category: "quote-like operator", text: "q xax", want: 1,
+	}, {
 		name: "a heredoc opener is one token",
 		src:  "my $h = <<EOT;\nbody\nEOT\n", category: "heredoc opener", text: "<<EOT", want: 1,
 	}, {
@@ -157,7 +186,7 @@ func TestCategoryBoundaries(t *testing.T) {
 		// after the semicolon, because the content starts on the next
 		// LINE while the statement continues on the same one.
 		name: "a heredoc body is one token however many lines it spans",
-		src:  "my $h = <<EOT;\nbody\nEOT\n", category: "heredoc body", text: "body\nEOT\n", want: 1,
+		src:  "my $h = <<EOT;\nfirst\nsecond\nEOT\n", category: "heredoc body", text: "first\nsecond\nEOT\n", want: 1,
 	}, {
 		name: "an indentation-stripping opener keeps its tilde",
 		src:  "my $h = <<~EOT;\n  body\n  EOT\n", category: "heredoc opener", text: "<<~EOT", want: 1,

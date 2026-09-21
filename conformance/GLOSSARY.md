@@ -17,6 +17,13 @@ of picking.
 **It grows with the corpus.** A category is added when a file needs to
 assert about it, not in advance. Entries below cover tier 01 only.
 
+**Every `##` heading is a category name, and nothing else uses that
+level.** `TestGlossaryMatchesCategories` reads these headings and requires
+each to have an entry in `internal/conformance/categories.go` and each
+mapping to have a heading here, so a `## Notes` section would be read as a
+category with nothing behind it. Use `###` for anything that is not a
+category.
+
 ---
 
 ## numeric literal
@@ -77,15 +84,24 @@ ran programs could not assert which one was written.
 
 ## string literal
 
-A single token denoting a string, including its delimiters and any quoting
-operator.
+A single token denoting a string, spelled with DELIMITERS ALONE:
 
-`'a'`, `"a"`, `q{a}`, `qq{a}`, and the heredoc INTRODUCER `<<'EOF'` are each
-one token. An interpolating string is still ONE token at this layer: what
-its interpolations mean is a parsing question, not a lexical one.
+    'a'         no interpolation
+    "a"         interpolating
+    "$x and $y" still ONE token
 
-`qw(a b c)` is ONE token, not three. It denotes a list, but it is a single
-quote-like operator; the split is semantic.
+An interpolating string is one token at this layer: what its interpolations
+mean is a parsing question, not a lexical one.
+
+**A quote spelled with an operator name is NOT in this category.** `q{a}`,
+`qq{a}` and `qw(a b c)` are each one token, but they are
+[quote-like operators](#quote-like-operator) -- the category exists
+precisely so a file asserting a string literal is not satisfied by
+`qw(a b)`, which denotes a list rather than a string.
+
+**The heredoc introducer `<<'EOF'` is not in this category either.** It is
+a [heredoc opener](#heredoc-opener), and what follows it is a
+[heredoc body](#heredoc-body).
 
 ---
 
@@ -124,20 +140,30 @@ scanning is what makes that true. That precedence is the subject of
 ## quote-like operator
 
 A quote spelled with an OPERATOR NAME and a delimiter -- `q`, `qq`, `qw`,
-`qr`, `m`, `s`, `tr`, `y` -- rather than with delimiters alone.
+`qr`, `qx`, `m`, `s`, `tr`, `y` -- rather than with delimiters alone, plus
+backticks, which run a command without naming an operator.
 
     q(a b)          single-quoted, no interpolation
     qq{hi $x}       double-quoted, interpolating
     qw(a b c)       a LIST of words, not a string
     qr/pat/         a compiled pattern
+    qx/ls/          runs a command
+    m{pat}          a match
     s/a/b/          substitution
     tr/a/b/         transliteration
+    y/a/b/          transliteration, the other spelling
+
+**Backticks are in this category despite having no operator name.**
+`` `ls` `` and `qx/ls/` are the same operation -- measured, both run the
+command and return its output -- so a corpus file must not be able to
+assert one as a string literal and the other as an operator. Here the
+delimiter alone carries the meaning.
 
 **This is a separate category from `string literal` because the two make
 different claims.** A corpus file asserting `one string literal whose text
 is "hi"` must not be satisfied by `qw(hi)`, which is not a string at all:
 measured, `my @w = qw(a b c)` gives a three-element LIST, while
-`my $s = q(a b)` gives the two-character-separated string `a b`.
+`my $s = q(a b)` gives the three-character string `a b`.
 
 Our lexer gives both the same `Quote` kind, so the category is decided by
 the token's TEXT. A lexer that splits them by kind maps these two entries

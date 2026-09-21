@@ -2,11 +2,7 @@
 // ABOUTME: The single point of coupling; another lexer replaces this file alone.
 package conformance
 
-import (
-	"strings"
-
-	"tamarou.com/pvm/internal/lexer"
-)
+import "tamarou.com/pvm/internal/lexer"
 
 // categories translates a glossary category into a predicate over one of
 // our tokens.
@@ -31,13 +27,20 @@ var categories = map[string]func(lexer.Kind, string) bool{
 	"operator":        kind(lexer.Operator),
 
 	// A quote-like operator is spelled with a name and a delimiter --
-	// q, qq, qw, qr, m, s, tr, y -- where a string literal is spelled
-	// with delimiters alone. Both are Quote to us, so the text decides.
+	// q, qq, qw, qr, qx, m, s, tr, y -- or with backticks, where a
+	// string literal is spelled with delimiters alone. Both are Quote to
+	// us, so the text decides.
+	//
+	// The predicate is the LEXER's, not a second copy of its table here:
+	// a hand-written copy lost `qx` immediately, which reclassified
+	// `qx/ls/` as a string. Asking the lexer is what keeps the two from
+	// drifting. An adopting project replaces this call along with the
+	// rest of the file.
 	"string literal": func(k lexer.Kind, text string) bool {
-		return k == lexer.Quote && !hasQuoteOperator(text)
+		return k == lexer.Quote && !lexer.HasQuoteOperator(text)
 	},
 	"quote-like operator": func(k lexer.Kind, text string) bool {
-		return k == lexer.Quote && hasQuoteOperator(text)
+		return k == lexer.Quote && lexer.HasQuoteOperator(text)
 	},
 
 	// A heredoc is two tokens: the `<<EOT` that appears in the statement
@@ -46,36 +49,6 @@ var categories = map[string]func(lexer.Kind, string) bool{
 	// different claim from one asserting what it CONTAINS.
 	"heredoc opener": kind(lexer.HeredocOpen),
 	"heredoc body":   kind(lexer.HeredocBody),
-}
-
-// quoteOperators are the names that introduce a quote-like operator, per
-// perlop "Quote and Quote-like Operators". Longest first, so `qw` is not
-// mistaken for `q` with a `w` delimiter.
-var quoteOperators = []string{"qq", "qw", "qr", "tr", "q", "m", "s", "y"}
-
-// hasQuoteOperator reports whether a Quote token is spelled with a leading
-// operator name rather than with bare delimiters.
-func hasQuoteOperator(text string) bool {
-	for _, op := range quoteOperators {
-		rest, ok := strings.CutPrefix(text, op)
-		if !ok || rest == "" {
-			continue
-		}
-		// The character after the name must be the delimiter, not more
-		// word characters: `sort` starts with `s` but is not a
-		// substitution, and our lexer would not call it a Quote anyway.
-		if c := rest[0]; !isWordByte(c) {
-			return true
-		}
-	}
-	return false
-}
-
-func isWordByte(c byte) bool {
-	return c == '_' ||
-		('a' <= c && c <= 'z') ||
-		('A' <= c && c <= 'Z') ||
-		('0' <= c && c <= '9')
 }
 
 // kind matches on the token kind alone, which is the common case.

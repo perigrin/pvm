@@ -383,6 +383,32 @@ func fatCommaFollows(src []byte, pos int) bool {
 	return false
 }
 
+// HasQuoteOperator reports whether a Quote token's text RUNS an operator
+// rather than being a plain string literal.
+//
+// Exported for the conformance corpus, which distinguishes `qw(a b)` (a
+// list) from `"hi"` (a string) while both arrive as Kind Quote. Keeping
+// the answer here rather than in a second table is what stops the two
+// from drifting: a copy of `quoteOps` made elsewhere lost `qx` on its
+// first day, which silently reclassified `qx/ls/` as a string.
+func HasQuoteOperator(text string) bool {
+	// Backticks run a command without naming an operator, so no prefix
+	// test reaches them. They are the same operation as `qx//`, which
+	// the table above records.
+	if len(text) > 0 && text[0] == '`' {
+		return true
+	}
+
+	op, ok := quoteOpAt([]byte(text), 0)
+	if !ok {
+		return false
+	}
+	// What follows the name must be a delimiter rather than more of a
+	// longer word: `sort` begins with `s` and is not a substitution.
+	rest := text[len(op.name):]
+	return rest != "" && !isWordByte(rest[0])
+}
+
 func quoteOpAt(src []byte, pos int) (quoteOp, bool) {
 	for _, op := range quoteOps {
 		if pos+len(op.name) > len(src) {
