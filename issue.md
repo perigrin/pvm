@@ -1,6 +1,6 @@
 ---
 title: "The dependency lint: ops-subset, because the optimiser erases what a tier is about"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 blocked_by:
@@ -8,7 +8,16 @@ blocked_by:
 blocks:
 - 01a0c360-01bf-7eab-b864-7d902d36fb97
 created: 2026-09-21T09:48:59.000983906Z
-updated: 2026-09-21T10:00:07.08835584Z
+updated: 2026-09-21T15:25:42.377373038Z
+sessions:
+- start_sha: 6adae2c6f97a74feac2d0ba5139105feb486e7a1
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-21T15:25:42.377373038Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-21T15:25:42.377373038Z
 ---
 
 Without this check the tier numbering is an opinion. With it, "this file
