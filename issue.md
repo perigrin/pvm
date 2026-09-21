@@ -1,6 +1,6 @@
 ---
 title: "Tier 02_variables: sigils, containers, element access"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 blocked_by:
@@ -10,7 +10,16 @@ blocks:
 - 01a0c362-0929-795d-ac6b-c1740240e49e
 - 01a0c436-39e4-7560-9bf0-81d647e96aae
 created: 2026-09-21T09:52:14.225829534Z
-updated: 2026-09-21T13:45:09.959771606Z
+updated: 2026-09-21T20:21:38.998307187Z
+sessions:
+- start_sha: 9750d03b51c601e083873e26c01cb22054bb120b
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-21T20:21:38.998307187Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-21T20:21:38.998307187Z
 ---
 
 **Introduces:** sigils, scalars, arrays, hashes, element access,
