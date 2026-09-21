@@ -4,7 +4,7 @@ state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-21T21:37:00.824105072Z
-updated: 2026-09-21T22:29:10.522340582Z
+updated: 2026-09-21T22:34:10.780800491Z
 sessions:
 - start_sha: b41801021927f68fcbf799c60d6b947393d983de
   end_sha: ""
@@ -68,3 +68,69 @@ latest tier the adjacency file genuinely needs -- but it interacts with
 `reachable()` and wants measuring before being assumed an improvement.
 
 Found while executing 01a0c362-0ff3, 01a0c362-0daa and 01a0c361-a317.
+
+## Measured, across all fourteen tiers
+
+Each candidate was run against the real corpus before anything was
+written. The numbers decided it.
+
+OPTION 1 -- an op of the prerequisite that no other reachable tier
+introduces -- is VACUOUS. Measured: 103 ops across the fourteen
+INTRODUCES blocks, 0 of them claimed by more than one tier. Every op
+already names exactly one tier, so "no other tier introduces it" is
+satisfied by every op the current check already accepts. It IS the
+current check.
+
+OPTION 2 -- the pairing op must be absent from the tier's own construct
+files -- fails 10 of the 14. Only 02, 04 and 05 have an op of their
+prerequisite that appears in the adjacency file alone; 03, 06, 08, 09,
+11, 12, 13 and 14 share every such op with a construct file, and 07 and
+10 emit NO op of their declared prerequisite at all. Adopting it would
+condemn ten tiers for composing normally.
+
+OPTION 4 -- the declared prerequisite must be the LATEST tier the
+adjacency file actually reaches -- fails 4 of the 14, and two of the
+four are cases where the rule CONTRADICTS a README's stated argument:
+
+    07_subroutines  declares 06_control      reaches only 02_variables
+    09_regex        declares 01_literals     reaches 04_operators (`not`)
+    10_io           declares 03_context      reaches 08_references
+    12_packages     declares 07_subroutines  reaches 11_oo
+
+`09_regex` reaches tier 04 through a single `not`, which perl emits for
+the `!~` in `$s !~ m{zzz}` -- an artefact of the optimiser, not a
+dependency on operators. `12_packages` reaches tier 11 through
+`method_named` and `stub`, emitted for `Greet->import("tag")`, which is
+a plain sub call written with an arrow. That file's comment argues at
+length that its prerequisite is 07 and that "pairing with tier 11
+instead would assert nothing at all -- this tier needs nothing from it."
+Option 4 would force the declaration the README refutes.
+
+So all three op-based options are dead, and for one reason the corpus
+had already written down: ops LINT a declared tier and cannot derive
+one. The same lesson is recorded in `TestEveryTierHasAnAdjacencyFile`
+and in `lintOps`.
+
+That leaves option 3, and the measurement is what makes it the honest
+choice rather than the lazy one.
+
+## Acceptance
+
+- [ ] The corpus's declared prerequisite edges are stated ONCE, beside
+      `specTiers` in `lint_test.go`, as a hand-written list with the same
+      documented reason `specTiers` has: a list read from the thing it
+      checks cannot report an absence. Every one of the fourteen tiers
+      has an entry. (`go test ./internal/conformance/ -run TestSpecPrerequisitesCoverEveryTier -count=1 -v`)
+- [ ] A corpus-level check fails when ANY tier's README `DEPENDS ON`
+      block disagrees with the spec's edge for that tier, naming both the
+      declared and the expected tier. (`go test ./internal/conformance/ -run TestTierPrerequisitesMatchTheSpec -count=1 -v`)
+- [ ] The check is proven by mutation against all three cases the issue
+      measured as slipping through the op pairing -- tier 12 repointed to
+      `11_oo`, tier 11 to `07_subroutines`, tier 04 to `02_variables` --
+      each caught, from a README fixture rather than by editing the real
+      corpus. (`go test ./internal/conformance/ -run TestTierPrerequisiteMutationsAreCaught -count=1 -v`)
+- [ ] The check runs over the real corpus and is green, so it is a gate
+      and not a table. (`go test ./internal/conformance/ -run 'TestTierPrerequisites|TestSpecPrerequisites' -count=1 -v`)
+- [ ] `lint.go` is unchanged, and no tier README is edited to make the
+      check pass. (`git diff --stat -- internal/conformance/lint.go conformance/`)
+- [ ] The whole conformance suite stays green. (`go test ./internal/conformance/ -count=1`)
