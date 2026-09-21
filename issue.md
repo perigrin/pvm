@@ -1,6 +1,6 @@
 ---
 title: Ratchet integration, file-name-keyed so a tier move is not a regression
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-conformance-corpus
 blocked_by:
@@ -8,16 +8,26 @@ blocked_by:
 blocks:
 - 01a0c360-01bf-7eab-b864-7d902d36fb97
 created: 2026-09-21T09:50:00.652020362Z
-updated: 2026-09-21T19:49:24.86582283Z
+updated: 2026-09-21T20:03:07.0720786Z
 sessions:
 - start_sha: 6036de4e5427d522f018fc1af4fd59dc3d760c06
-  end_sha: ""
-  commits: 0
+  end_sha: 7711154e001e09d6d7b489eaa6d325851e7a4e30
+  commits: 1
   started_at: 2026-09-21T19:49:24.86582283Z
+  ended_at: 2026-09-21T20:03:07.0720786Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-21T19:49:24.86582283Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-21T20:03:07.0720786Z
+observed_paths:
+- internal/conformance/croak.go
+- internal/conformance/croak_test.go
+- internal/conformance/ratchet.go
+- internal/conformance/ratchet_test.go
+- internal/conformance/testdata/corpus.ratchet
 ---
 
 The corpus is a moving artifact by design: files get added because something
