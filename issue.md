@@ -1,6 +1,6 @@
 ---
 title: "The runner: perl adjudicates first, and a stale refusal marker fails"
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-conformance-corpus
 blocked_by:
@@ -11,16 +11,27 @@ blocks:
 - 01a0c35f-1685-786b-abbe-88ed9ed361a3
 - 01a0c35f-57cc-7a0f-83ac-53654f46f235
 created: 2026-09-21T09:48:39.607140769Z
-updated: 2026-09-21T19:04:37.28394347Z
+updated: 2026-09-21T19:20:34.004871389Z
 sessions:
 - start_sha: a79a8f82a052e2b580b63516bef139bc0282466b
-  end_sha: ""
-  commits: 0
+  end_sha: 9102578c35f74c5afa0bb9ec81e2bb8098a3221e
+  commits: 3
   started_at: 2026-09-21T19:04:37.28394347Z
+  ended_at: 2026-09-21T19:20:34.004871389Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-21T19:04:37.28394347Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-21T19:20:34.004871389Z
+observed_paths:
+- internal/conformance/conformance_test.go
+- internal/conformance/file.go
+- internal/conformance/lint.go
+- internal/conformance/lint_test.go
+- internal/conformance/perl.go
+- internal/conformance/run.go
 ---
 
 The runner is what makes a corpus file a test. The spike has one at
