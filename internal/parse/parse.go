@@ -240,6 +240,21 @@ type Node struct {
 	// what the parser already knew.
 	Text string
 
+	// Refusal names WHICH construction site produced this Unknown, and is
+	// set on Unknown alone. See refusal.go for the ten codes and what each
+	// one means.
+	//
+	// Not folded into Text, which is documented above as the operator or
+	// literal NAMING the node and is what canon.go reads for a Binary's
+	// `+`. An Unknown has no such text -- canon writes its source bytes
+	// back instead -- so the field is free, and that is exactly the
+	// argument against reusing it: a consumer reading Text to learn an
+	// operator would start seeing refusal codes.
+	//
+	// Empty is a refusal with no code, which no site produces and
+	// TestEveryUnknownSiteHasACode forbids.
+	Refusal RefusalCode
+
 	// Resolved is set on a Call whose callee this parser knows -- a builtin,
 	// or a sub declared in this file. False means "a call to something I
 	// have not seen", which §4.8.3 says is a Call and not an Unknown.
@@ -588,14 +603,14 @@ func (p *parser) statement() *Node {
 		// as each issue lands is the milestone's progress.
 		if statementKeywords[p.text(tok)] {
 			p.skipToStatementEnd()
-			return &Node{Kind: Unknown, Start: start, End: p.prevEnd()}
+			return &Node{Kind: Unknown, Refusal: UnimplementedStatement, Start: start, End: p.prevEnd()}
 		}
 	}
 
 	expr := p.parseExpr(0)
 	if expr == nil {
 		p.skipToStatementEnd()
-		return &Node{Kind: Unknown, Start: start, End: p.prevEnd()}
+		return &Node{Kind: Unknown, Refusal: NotAnExpression, Start: start, End: p.prevEnd()}
 	}
 
 	// A statement modifier, which inverts the tree: `print if $x` is a
@@ -622,7 +637,7 @@ func (p *parser) statement() *Node {
 	// It now asserts a Statement exists as well.
 	if tok, ok := p.peekSignificant(); ok && !endsStatement(tok, p.src) {
 		p.skipToStatementEnd()
-		return &Node{Kind: Unknown, Start: start, End: p.prevEnd()}
+		return &Node{Kind: Unknown, Refusal: TrailingTokens, Start: start, End: p.prevEnd()}
 	}
 
 	// Through the terminating `;` if there is one, so the statement owns its
@@ -632,7 +647,13 @@ func (p *parser) statement() *Node {
 	}
 
 	if expr.Kind == Unknown {
-		return &Node{Kind: Unknown, Start: start, End: p.prevEnd()}
+		// The inner refusal's CODE travels out with it. This site widens
+		// an Unknown from the expression to the whole statement, which is
+		// a change of span and not a change of cause -- stamping a code of
+		// its own here would erase the one distinction the codes exist to
+		// make, and `my $x = ${};` and `my $x = .5;` would arrive at the
+		// corpus indistinguishable.
+		return &Node{Kind: Unknown, Refusal: expr.Refusal, Start: start, End: p.prevEnd()}
 	}
 	return &Node{
 		Kind: Statement, Start: start, End: p.prevEnd(),

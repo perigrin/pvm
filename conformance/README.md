@@ -76,6 +76,34 @@ gives 10 distinct values and the 13-character prefix 23. Uniqueness rests
 on 16 bits of randomness. A citation that cannot be looked up
 unambiguously cannot be verified, which is what the runner needs of it.
 
+### Naming the refusal
+
+A refusing file may also name WHICH of the parser's refusal sites it waits
+on, with a `Refusal <code>.` clause on the same STATUS line:
+
+    # STATUS refuses as of 9102578c. Issue 01a0c35e-.... Refusal missing_operand.
+
+The codes are `parse.RefusalSites` in `internal/parse/refusal.go`, which
+lists every one with what it means and where its site lives.
+
+A code is a stable identifier, never a message. A message is prose and
+changes when someone rewords it; a file that named one would break on an
+edit that changed nothing about the parser. A code changes only when the
+reason the parser declines changes -- which is exactly the event a
+refusing file wants to be told about.
+
+**A file that names a code and refuses with a different one FAILS**, the
+same as a stale marker and for the same reason: it still skips on a claim
+its own header no longer describes, so it has stopped measuring what it
+documents. Without codes this was invisible -- every refusal read as
+"1 Unknown node(s)", so a refusal that changed CAUSE while staying a
+refusal looked identical to one that had not moved.
+
+**The clause is optional.** A file that names no code promises nothing
+about which site declines and keeps skipping as before, which is what the
+files written before this rule do. A code is an additional promise, not a
+new requirement.
+
 ## Three questions this format settles
 
 **Trailing newlines: exactly one is stripped from `--- expect output`,
@@ -108,6 +136,22 @@ and the format has to be able to express both. Stripping one newline makes
 the common case -- `print "$x\n"` -- read naturally, and a deliberate
 trailing blank line is still written as two newlines and survives. Nothing
 is unexpressible, so the convenience is free.
+
+**A file that prints NOTHING says so with an empty `--- expect output`
+section, which is not the same as having none.** Write the marker and the
+blank separator line and nothing between them:
+
+    --- expect output
+
+    --- expect tokens
+
+The body is `\n`, the strip removes the separator, and the pin is the empty
+string -- a claim that perl prints zero bytes, checked like any other. A
+file with NO `--- expect output` section makes no claim about output at
+all, which is the normal case for a `parsent` file. The runner tells the
+two apart by whether the section is present, never by whether the pinned
+text is empty, so a construct whose whole point is that it prints nothing
+can be pinned as precisely as one that prints `0.5\n`.
 
 **`STATUS refuses` stays in the header rather than being derived.** The
 runner does know whether a file refuses: it ran the parser. But a derived

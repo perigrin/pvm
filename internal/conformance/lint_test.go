@@ -754,7 +754,7 @@ func TestExpectOutputIsNeverTheLastSection(t *testing.T) {
 			t.Errorf("%s: %v", path, err)
 			continue
 		}
-		if f.ExpectOutput == "" {
+		if f.ExpectOutput == nil {
 			continue
 		}
 		last := ""

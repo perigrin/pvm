@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -120,9 +121,12 @@ func verdict(t *testing.T, f *File) verdictResult {
 		return verdictResult{kind: corpusBug, msgs: []string{
 			"CORPUS BUG: file says `expect parsent`, perl -c accepts it"}}
 	}
-	if f.ExpectOutput != "" && output != f.ExpectOutput {
+	// A PIN is checked; an ABSENT section is not. The test is presence,
+	// never emptiness -- `!= ""` skipped exactly the file whose claim is
+	// that the construct prints nothing.
+	if f.ExpectOutput != nil && output != *f.ExpectOutput {
 		return verdictResult{kind: corpusBug, msgs: []string{fmt.Sprintf(
-			"CORPUS BUG: pinned output %q, perl prints %q", f.ExpectOutput, output)}}
+			"CORPUS BUG: pinned output %q, perl prints %q", *f.ExpectOutput, output)}}
 	}
 
 	// 2. Our lexer and parser, collected rather than reported, because a
@@ -130,9 +134,12 @@ func verdict(t *testing.T, f *File) verdictResult {
 	//    started passing must not stay marked.
 	ours := &recorder{}
 
+	var codes []parse.RefusalCode
 	if f.ExpectParses {
-		if n := unknowns(parse.Parse(src)); n > 0 {
-			ours.Errorf("parser refuses: %d Unknown node(s)", n)
+		codes = refusalCodes(parse.Parse(src))
+		if len(codes) > 0 {
+			ours.Errorf("parser refuses: %d Unknown node(s), %s",
+				len(codes), joinCodes(codes))
 		}
 	}
 	for _, fact := range f.TokenFacts {
@@ -145,6 +152,26 @@ func verdict(t *testing.T, f *File) verdictResult {
 			"file is marked `STATUS refuses` (%s) but now PASSES.\n"+
 				"\tRemove the STATUS line -- a stale marker hides a regression.",
 			f.Refuses)}}
+
+	// A file that NAMES the site it waits on, refusing at a different
+	// one. The same failure as a stale marker and reported as one: the
+	// file still skips on a claim its own header no longer describes, so
+	// it has stopped measuring what it documents. Skipping would hide
+	// exactly the event the code was added to expose -- a refusal that
+	// changed cause while staying a refusal.
+	//
+	// Only for a file that made the claim. One with no code has promised
+	// nothing about WHICH site declines, and there is nothing to be wrong
+	// about.
+	case f.RefusalCode != "" && !hasCode(codes, f.RefusalCode):
+		return verdictResult{kind: staleMarker, msgs: []string{fmt.Sprintf(
+			"file names refusal %s, but the parser refuses with %s.\n"+
+				"\tThe CAUSE changed: this file no longer measures what its "+
+				"header documents.\n"+
+				"\tRe-measure it and update the `Refusal` clause, or the "+
+				"STATUS line if the gap closed.",
+			f.RefusalCode, joinCodes(codes))}}
+
 	case f.Refuses != "":
 		return verdictResult{
 			kind:   knownRefusal,
@@ -197,18 +224,55 @@ func askPerl(t *testing.T, source string) (compiles bool, output string) {
 	return true, string(out)
 }
 
-func unknowns(n *parse.Node) int {
+// refusalCodes collects the code of every Unknown in a tree, in tree
+// order.
+//
+// Replaces a plain count. The count is still here -- it is the length --
+// and the codes are what a corpus file can name, so a refusal is
+// reportable as WHICH site declined rather than only as how many did.
+func refusalCodes(n *parse.Node) []parse.RefusalCode {
 	if n == nil {
-		return 0
+		return nil
 	}
-	count := 0
+	var out []parse.RefusalCode
 	if n.Kind == parse.Unknown {
-		count++
+		out = append(out, n.Refusal)
 	}
 	for _, c := range n.Children {
-		count += unknowns(c)
+		out = append(out, refusalCodes(c)...)
 	}
-	return count
+	return out
+}
+
+// hasCode reports whether a file's named refusal is among those the
+// parser actually produced.
+//
+// Membership rather than equality, because a file may refuse in more than
+// one place and naming one of them is a true claim about it. A file whose
+// named code is nowhere in the list is describing a refusal it does not
+// have.
+func hasCode(codes []parse.RefusalCode, want parse.RefusalCode) bool {
+	return slices.Contains(codes, want)
+}
+
+// joinCodes renders refusal codes for a message, each named once and in
+// tree order, so a file refusing four times at one site does not print
+// that site four times.
+func joinCodes(codes []parse.RefusalCode) string {
+	if len(codes) == 0 {
+		return "no refusal"
+	}
+	var seen []string
+	for _, c := range codes {
+		name := string(c)
+		if name == "" {
+			name = "(no code)"
+		}
+		if !slices.Contains(seen, name) {
+			seen = append(seen, name)
+		}
+	}
+	return strings.Join(seen, ", ")
 }
 
 // significant returns the tokens that carry meaning, dropping whitespace.

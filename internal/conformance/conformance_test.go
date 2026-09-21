@@ -8,10 +8,16 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"tamarou.com/pvm/internal/parse"
 )
 
 // corpusDir is the corpus root, relative to this package.
 const corpusDir = "../../conformance"
+
+// pin builds a File.ExpectOutput for a test constructing one by hand,
+// since a string literal has no address.
+func pin(s string) *string { return &s }
 
 func TestParseFileSections(t *testing.T) {
 	path := filepath.Join(corpusDir, "01_literals", "03_leading_decimal.t")
@@ -31,9 +37,33 @@ func TestParseFileSections(t *testing.T) {
 	if !f.ExpectParses {
 		t.Error("ExpectParses = false, want true")
 	}
-	if got, want := f.ExpectOutput, "0.5\n"; got != want {
-		t.Errorf("ExpectOutput = %q, want %q", got, want)
+	if f.ExpectOutput == nil {
+		t.Fatal("ExpectOutput = nil, want a pin: the file has an `--- expect output` section")
 	}
+	if got, want := *f.ExpectOutput, "0.5\n"; got != want {
+		t.Errorf("*ExpectOutput = %q, want %q", got, want)
+	}
+
+	// Pinned-but-empty and unpinned are DIFFERENT states, and a nil
+	// pointer is what tells them apart: a plain string made both read as
+	// "", so the runner skipped the check on a file whose whole claim was
+	// that it prints nothing. No sentinel string can do this, because a
+	// corpus file may legitimately pin any string at all.
+	empty, err := ParseFile("--- source\nmy $x = 1;\n--- expect output\n\n--- expect parses\n")
+	if err != nil {
+		t.Fatalf("parsing a file pinning empty output: %v", err)
+	}
+	if empty.ExpectOutput == nil || *empty.ExpectOutput != "" {
+		t.Errorf("ExpectOutput = %v, want a pin of the empty string", empty.ExpectOutput)
+	}
+	absent, err := ParseFile("--- source\nmy $x = 1;\n--- expect parses\n")
+	if err != nil {
+		t.Fatalf("parsing a file with no expect-output section: %v", err)
+	}
+	if absent.ExpectOutput != nil {
+		t.Errorf("ExpectOutput = %q, want nil for a file with no such section", *absent.ExpectOutput)
+	}
+
 	if len(f.TokenFacts) != 2 {
 		t.Fatalf("TokenFacts = %d facts, want 2: %q", len(f.TokenFacts), f.TokenFacts)
 	}
@@ -163,13 +193,16 @@ func TestParseFileCRLF(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseFile on a CRLF file: %v", err)
 	}
-	if got, want := f.ExpectOutput, "0.5\n"; got != want {
+	if f.ExpectOutput == nil {
+		t.Fatal("ExpectOutput = nil, want a pin")
+	}
+	if got, want := *f.ExpectOutput, "0.5\n"; got != want {
 		t.Errorf("ExpectOutput = %q, want %q", got, want)
 	}
 	if got, want := f.Source, "my $x = .5;\n"; got != want {
 		t.Errorf("Source = %q, want %q", got, want)
 	}
-	if strings.Contains(f.ExpectOutput+f.Source, "\r") {
+	if strings.Contains(*f.ExpectOutput+f.Source, "\r") {
 		t.Error("a carriage return survived into a byte-exact field")
 	}
 }
@@ -199,7 +232,10 @@ func TestParseFileExpectOutputNewline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("with a blank separator: %v", err)
 	}
-	if got, want := withSeparator.ExpectOutput, "0.5\n"; got != want {
+	if withSeparator.ExpectOutput == nil {
+		t.Fatal("with a blank separator: ExpectOutput = nil, want a pin")
+	}
+	if got, want := *withSeparator.ExpectOutput, "0.5\n"; got != want {
 		t.Errorf("with separator: ExpectOutput = %q, want %q -- this is what perl prints", got, want)
 	}
 
@@ -207,7 +243,10 @@ func TestParseFileExpectOutputNewline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("without a blank separator: %v", err)
 	}
-	if got, want := withoutSeparator.ExpectOutput, "0.5"; got != want {
+	if withoutSeparator.ExpectOutput == nil {
+		t.Fatal("without a blank separator: ExpectOutput = nil, want a pin")
+	}
+	if got, want := *withoutSeparator.ExpectOutput, "0.5"; got != want {
 		t.Errorf("without separator: ExpectOutput = %q, want %q", got, want)
 	}
 }
@@ -405,7 +444,7 @@ func TestPerlAdjudicatesFirst(t *testing.T) {
 		file: &File{
 			Source:       "print \"a\\n\";\n",
 			ExpectParses: true,
-			ExpectOutput: "b\n",
+			ExpectOutput: pin("b\n"),
 		},
 		want: "pinned output",
 	}} {
@@ -595,4 +634,200 @@ func requireZhi(t *testing.T) {
 	if _, err := exec.LookPath(zhiBinary); err != nil {
 		t.Skipf("%s is not installed, so refusal citations cannot be resolved", zhiBinary)
 	}
+}
+
+// TestEmptyExpectedOutputIsChecked pins that a pinned EMPTY output is an
+// assertion rather than an absence.
+//
+// A file whose whole point is that a construct prints NOTHING has to be
+// able to say so. While ExpectOutput was a plain string, such a file was
+// indistinguishable in the struct from one with no `--- expect output`
+// section at all, so the check was skipped and perl could print anything.
+func TestEmptyExpectedOutputIsChecked(t *testing.T) {
+	// The blank line is the separator the one-newline strip removes, so
+	// the pinned output is the empty string rather than "\n".
+	raw := "--- source\nprint \"a\\n\";\n--- expect output\n\n--- expect parses\n"
+
+	f, err := ParseFile(raw)
+	if err != nil {
+		t.Fatalf("parsing a file that pins empty output: %v", err)
+	}
+	if f.ExpectOutput == nil {
+		t.Fatal("ExpectOutput = nil for a file WITH an `--- expect output` section")
+	}
+	if got := *f.ExpectOutput; got != "" {
+		t.Fatalf("*ExpectOutput = %q, want the empty string", got)
+	}
+
+	// The source prints "a\n" against a pin of nothing, so the file is
+	// wrong and the runner must say so rather than skipping the check.
+	v := verdict(t, f)
+	if v.kind != corpusBug {
+		t.Fatalf("verdict = %v, want corpusBug: the file pins empty output and perl prints %q",
+			v.kind, "a\n")
+	}
+	if len(v.msgs) != 1 || !strings.Contains(v.msgs[0], "pinned output") {
+		t.Errorf("messages = %q, want exactly one naming the pinned output", v.msgs)
+	}
+}
+
+// TestAbsentExpectedOutputSkipsCheck pins the other half of the same
+// distinction: no section means no claim, which is the normal parsent
+// case, and must stay a skip rather than becoming an assertion that perl
+// prints nothing.
+func TestAbsentExpectedOutputSkipsCheck(t *testing.T) {
+	raw := "--- source\nprint \"a\\n\";\n--- expect parses\n"
+
+	f, err := ParseFile(raw)
+	if err != nil {
+		t.Fatalf("parsing a file with no expect-output section: %v", err)
+	}
+	if f.ExpectOutput != nil {
+		t.Fatalf("ExpectOutput = %q for a file with NO `--- expect output` section, want nil",
+			*f.ExpectOutput)
+	}
+
+	v := verdict(t, f)
+	if v.kind == corpusBug {
+		t.Fatalf("verdict = corpusBug (%q), want the output check skipped entirely", v.msgs)
+	}
+}
+
+// TestRefusalCodeMismatchFails: a file that names the code it waits on
+// must FAIL when the parser refuses for a different reason.
+//
+// Skipping would be wrong, and the distinction is the issue's whole
+// point. A skip says "this gap is known and recorded"; a file whose
+// refusal has changed cause is no longer measuring what its header
+// documents, and the record behind the skip now describes something
+// else. That is the same failure mode as a stale marker -- a corpus that
+// quietly stops measuring -- so it gets the same treatment.
+//
+// A file that names NO code keeps skipping. Seventeen files in the tree
+// predate codes and must keep working; a code is an additional promise,
+// not a new requirement.
+func TestRefusalCodeMismatchFails(t *testing.T) {
+	// A leading-decimal literal, which our lexer reads as `Operator(.)
+	// Number(5)` and the parser then declines. Valid perl, so it reaches
+	// the parser rather than stopping at perl's adjudication.
+	//
+	// The code is READ from the parse rather than written here: which
+	// site declines `.5` is the parser's business and may change, and a
+	// literal in this test would then assert the old answer.
+	const src = "my $x = .5;\n"
+
+	const wrong = parse.RefusalCode("missing_operand")
+
+	actual := refusalCodes(parse.Parse([]byte(src)))
+	if len(actual) == 0 || actual[0] == "" {
+		t.Fatalf("%q no longer refuses with a code; replace this fixture", src)
+	}
+	if hasCode(actual, wrong) {
+		t.Fatalf("%q now refuses with %s, which this test uses as the "+
+			"WRONG code; pick another", src, wrong)
+	}
+
+	t.Run("mismatch fails", func(t *testing.T) {
+		f := &File{
+			Source:       src,
+			ExpectParses: true,
+			Refuses:      "01a0c13f-97f5-7f98-b32d-07245ec6ddfe",
+			RefusalCode:  wrong,
+		}
+		v := verdict(t, f)
+		if v.kind != staleMarker {
+			t.Fatalf("verdict = %v, want staleMarker: a changed cause is a "+
+				"marker that no longer describes the file", v.kind)
+		}
+		if len(v.msgs) != 1 {
+			t.Fatalf("reported %d messages, want 1:\n\t%s",
+				len(v.msgs), strings.Join(v.msgs, "\n\t"))
+		}
+		// Both codes must appear: the one the file claimed and the one it
+		// actually got. A message naming only one leaves the reader to
+		// guess which half moved.
+		for _, want := range []string{string(wrong), string(actual[0])} {
+			if !strings.Contains(v.msgs[0], want) {
+				t.Errorf("message = %q, want it to name %q", v.msgs[0], want)
+			}
+		}
+	})
+
+	t.Run("match still skips", func(t *testing.T) {
+		f := &File{
+			Source:       src,
+			ExpectParses: true,
+			Refuses:      "01a0c13f-97f5-7f98-b32d-07245ec6ddfe",
+			RefusalCode:  actual[0],
+		}
+		if v := verdict(t, f); v.kind != knownRefusal {
+			t.Errorf("verdict = %v, want knownRefusal: the file names the "+
+				"code it actually has", v.kind)
+		}
+	})
+
+	t.Run("no code still skips", func(t *testing.T) {
+		f := &File{
+			Source:       src,
+			ExpectParses: true,
+			Refuses:      "01a0c13f-97f5-7f98-b32d-07245ec6ddfe",
+		}
+		if v := verdict(t, f); v.kind != knownRefusal {
+			t.Errorf("verdict = %v, want knownRefusal: the seventeen files "+
+				"predating codes must keep working", v.kind)
+		}
+	})
+}
+
+// TestRefusalCodeParsesFromHeader: the code round-trips through
+// ParseFile.
+//
+// The code attaches to the STATUS line that already carries the refusal,
+// rather than to a new section. A refusal is one fact -- what does not
+// work, why it is known, and now which site declines -- and splitting it
+// across two places would let the halves disagree.
+func TestRefusalCodeParsesFromHeader(t *testing.T) {
+	const body = "\n\n--- source\nmy $x = 1;\n\n--- expect parses\n"
+
+	t.Run("named", func(t *testing.T) {
+		f, err := ParseFile("#!perl\n# STATUS refuses as of 0ce515cb. " +
+			"Issue 01a0c13f-97f5-7f98-b32d-07245ec6ddfe. " +
+			"Refusal unimplemented_statement." + body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if f.RefusalCode != "unimplemented_statement" {
+			t.Errorf("RefusalCode = %q, want %q",
+				f.RefusalCode, "unimplemented_statement")
+		}
+		if f.Refuses != "01a0c13f-97f5-7f98-b32d-07245ec6ddfe" {
+			t.Errorf("Refuses = %q; the code must not eat the issue id",
+				f.Refuses)
+		}
+	})
+
+	t.Run("absent", func(t *testing.T) {
+		f, err := ParseFile("#!perl\n# STATUS refuses as of this file." + body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if f.RefusalCode != "" {
+			t.Errorf("RefusalCode = %q, want empty for a file naming none",
+				f.RefusalCode)
+		}
+		if f.Refuses != selfRecorded {
+			t.Errorf("Refuses = %q, want %q", f.Refuses, selfRecorded)
+		}
+	})
+
+	t.Run("not refusing", func(t *testing.T) {
+		f, err := ParseFile("#!perl\n# an ordinary header." + body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if f.RefusalCode != "" {
+			t.Errorf("RefusalCode = %q, want empty for a passing file",
+				f.RefusalCode)
+		}
+	})
 }

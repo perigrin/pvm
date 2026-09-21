@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+
+	"tamarou.com/pvm/internal/parse"
 )
 
 // File is one corpus case: the source to run and what is expected of it.
@@ -22,9 +24,20 @@ type File struct {
 	ExpectParsent bool
 
 	// ExpectOutput is what perl prints, verbatim including the trailing
-	// newline. Empty when the file has no `--- expect output` section,
+	// newline. NIL when the file has no `--- expect output` section,
 	// which is the normal case for a parsent file.
-	ExpectOutput string
+	//
+	// A pointer rather than a string, because PINNING EMPTY OUTPUT AND
+	// PINNING NOTHING ARE DIFFERENT CLAIMS. As a string both read as "",
+	// so a file whose whole point is that a construct prints nothing had
+	// its check skipped and perl could print anything unnoticed. A
+	// sentinel is not available: the pin is byte-exact against perl's
+	// stdout, so any string a sentinel could be is a string a corpus file
+	// may legitimately pin. A paired bool would say the same thing in two
+	// fields that can disagree; the pointer cannot be set and absent at
+	// once, and it is the one field here whose absence is meaningful --
+	// the expectation bits next to it are false-when-absent by nature.
+	ExpectOutput *string
 
 	// TokenFacts are declared lexical claims, one per line, in the
 	// vocabulary of conformance/GLOSSARY.md rather than of our lexer.
@@ -40,6 +53,16 @@ type File struct {
 	// never happen silently is the reverse -- a file marked refusing that
 	// now passes, which Run reports as an error so the marker gets removed.
 	Refuses string
+
+	// RefusalCode is the parse.RefusalCode a `Refusal <code>.` clause on
+	// the STATUS line names, empty when the file names none.
+	//
+	// Empty is not a lesser refusal, it is an older one: seventeen files
+	// predate codes and cite only an issue or themselves. A code is an
+	// ADDITIONAL promise -- "this file waits on THIS site declining" --
+	// and a file that makes it gets checked against it, while a file that
+	// does not keeps skipping as before.
+	RefusalCode parse.RefusalCode
 }
 
 // ParseFile splits a corpus file into its sections.
@@ -113,6 +136,7 @@ func ParseFile(raw string) (*File, error) {
 	}
 
 	f.Refuses = refusalIssue(comment.String())
+	f.RefusalCode = refusalCode(comment.String())
 
 	// Absent and empty are different mistakes and get different messages:
 	// told "no --- source section" when the marker is right there, an
@@ -175,6 +199,36 @@ func refusalIssue(comment string) string {
 	return selfRecorded
 }
 
+// reRefusalCode finds the refusal code a comment block names:
+//
+//	# STATUS refuses as of 9102578c. Issue 01a0c35e-....  Refusal missing_operand.
+//
+// Attached to the STATUS line that already carries the refusal, rather
+// than given a section of its own. A refusal is ONE fact -- what does not
+// work, why it is known, and which site declines -- and splitting it
+// across two places in a file would let the halves disagree, which is the
+// drift this corpus keeps paying for elsewhere.
+//
+// The clause is optional, and its absence is not a defect: seventeen
+// files predate codes, and a format change that invalidated them would be
+// paid for by a bulk edit of files nobody was otherwise touching.
+//
+// lower_snake_case is the whole of the grammar. A code is an identifier
+// rather than prose precisely so this pattern can be strict.
+var reRefusalCode = regexp.MustCompile(`\bRefusal ([a-z][a-z0-9_]*)\b`)
+
+// refusalCode returns the code a comment block's STATUS line names, or ""
+// when it names none or the file does not refuse at all.
+func refusalCode(comment string) parse.RefusalCode {
+	if !reRefusal.MatchString(comment) {
+		return ""
+	}
+	if m := reRefusalCode.FindStringSubmatch(comment); m != nil {
+		return parse.RefusalCode(m[1])
+	}
+	return ""
+}
+
 // selfRecorded is the citation for a refusal the corpus found itself.
 //
 // A construct discovered by writing its file has nowhere earlier to have
@@ -223,7 +277,12 @@ func (f *File) setSection(name, body string) error {
 		// line separating this section from the next is not part of it.
 		// One trailing newline is stripped; everything else is content,
 		// including a deliberate trailing blank line written as two.
-		f.ExpectOutput = strings.TrimSuffix(body, "\n")
+		//
+		// Assigned through a local so the pointer is non-nil even when
+		// the body strips to "": the section being PRESENT is the claim,
+		// and its emptiness is the claim's content.
+		pinned := strings.TrimSuffix(body, "\n")
+		f.ExpectOutput = &pinned
 	case "expect tokens":
 		for line := range strings.SplitSeq(body, "\n") {
 			if line = strings.TrimSpace(line); line != "" {

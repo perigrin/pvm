@@ -155,7 +155,7 @@ func (p *parser) parseTerm() *Node {
 			if inner == nil {
 				// `${}` -- nothing to dereference. The bytes stay in the
 				// tree as an Unknown rather than a Unary with no operand.
-				return &Node{Kind: Unknown, Start: tok.Start, End: p.prevEnd()}
+				return &Node{Kind: Unknown, Refusal: EmptyDeref, Start: tok.Start, End: p.prevEnd()}
 			}
 			return &Node{
 				Kind: Unary, Text: text,
@@ -228,7 +228,7 @@ func (p *parser) parseTerm() *Node {
 
 	// Not a term. Consumed so the loop advances; the bytes stay in the tree.
 	p.advanceTo(tok)
-	return &Node{Kind: Unknown, Start: tok.Start, End: tok.End}
+	return &Node{Kind: Unknown, Refusal: NotATerm, Start: tok.Start, End: tok.End}
 }
 
 // declaratorTakesTarget reports whether a declarator word is introducing a

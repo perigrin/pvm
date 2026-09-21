@@ -123,7 +123,7 @@ func (p *parser) operand(bp int, after lexer.Token) *Node {
 	if n := p.parseExpr(bp); n != nil {
 		return n
 	}
-	return &Node{Kind: Unknown, Start: after.Start, End: after.End}
+	return &Node{Kind: Unknown, Refusal: MissingOperand, Start: after.Start, End: after.End}
 }
 
 // parseNonassoc builds the node and then rejects a repetition.
@@ -148,7 +148,7 @@ func (p *parser) parseNonassoc(left *Node, op OpInfo, tok lexer.Token) *Node {
 	if nextOp, isOp := infix[p.text(next)]; isOp && nextOp.Level == op.Level {
 		start := n.Start
 		p.skipToStatementEnd()
-		return &Node{Kind: Unknown, Start: start, End: p.prevEnd()}
+		return &Node{Kind: Unknown, Refusal: NonassocRepeated, Start: start, End: p.prevEnd()}
 	}
 	return n
 }
@@ -170,7 +170,7 @@ func (p *parser) parseTernary(cond *Node, op OpInfo) *Node {
 	if !ok || p.text(colon) != ":" {
 		// A `?` with no `:` is not a ternary. Declining rather than
 		// inventing the missing branch.
-		return &Node{Kind: Unknown, Start: cond.Start, End: then.End}
+		return &Node{Kind: Unknown, Refusal: TernaryNoColon, Start: cond.Start, End: then.End}
 	}
 	p.advanceTo(colon)
 

@@ -94,7 +94,7 @@ func (p *parser) parseComparison(left *Node, op OpInfo, cls cmpClass, minBP int)
 	if isComparison(left) {
 		start := left.Start
 		p.skipToStatementEnd()
-		return &Node{Kind: Unknown, Start: start, End: p.prevEnd()}
+		return &Node{Kind: Unknown, Refusal: ChainClassMismatch, Start: start, End: p.prevEnd()}
 	}
 
 	// Start.
