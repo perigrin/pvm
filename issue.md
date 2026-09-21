@@ -6,7 +6,7 @@ milestone: m3-conformance-corpus
 blocks:
 - 01a0c35e-1b37-7304-ba39-65a6ef57d4e0
 created: 2026-09-21T14:03:18.076018197Z
-updated: 2026-09-21T19:03:27.032386284Z
+updated: 2026-09-21T22:36:19.848401017Z
 sessions:
 - start_sha: 0ce515cbfe0ba1f48eb9b741cb1fc5d8c389454d
   end_sha: a79a8f82a052e2b580b63516bef139bc0282466b
@@ -71,7 +71,7 @@ id to set the precedent.
 
 Found by the review gate on 1e70de78.
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] A full 36-character issue id is captured whole (`go test ./internal/conformance/ -run '^TestRefusalIssueFullID$' -count=1 -v | grep -q '^--- PASS: TestRefusalIssueFullID'`)
 - [ ] A short 13-character citation still parses, so existing files keep working (`go test ./internal/conformance/ -run '^TestRefusalIssueShortIDStillWorks$' -count=1 -v | grep -q '^--- PASS: TestRefusalIssueShortIDStillWorks'`)
