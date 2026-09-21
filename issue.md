@@ -3,8 +3,10 @@ title: A refusal citation captures 13 of 36 characters, and UUIDv7 collides on t
 state: pending
 urgency: normal
 milestone: m3-conformance-corpus
+blocks:
+- 01a0c35e-1b37-7304-ba39-65a6ef57d4e0
 created: 2026-09-21T14:03:18.076018197Z
-updated: 2026-09-21T14:03:29.619535504Z
+updated: 2026-09-21T14:03:36.861147162Z
 ---
 
 `internal/conformance/file.go` captures 13 of a 36-character issue id:
