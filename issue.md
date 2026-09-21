@@ -1,6 +1,6 @@
 ---
 title: Tier 01 written against the finished tooling, which is what proves it works
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 blocked_by:
@@ -17,7 +17,16 @@ blocks:
 - 01a0c362-0a97-7c14-82fe-27d76ee5c862
 - 01a0c362-0c0b-7f6a-b807-fa62daefe02e
 created: 2026-09-21T09:50:44.159860455Z
-updated: 2026-09-21T13:43:29.192718653Z
+updated: 2026-09-21T20:03:38.532861151Z
+sessions:
+- start_sha: 7711154e001e09d6d7b489eaa6d325851e7a4e30
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-21T20:03:38.532861151Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-21T20:03:38.532861151Z
 ---
 
 The tooling issues before this one are each separately checkable, and none
