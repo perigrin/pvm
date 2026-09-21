@@ -1,12 +1,21 @@
 ---
 title: "Tier 14_recursive: re-enter Perl inside a delimiter"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 blocked_by:
 - 01a0c362-127c-73c1-8bb8-a4bf8b66c735
 created: 2026-09-21T09:53:00.137066905Z
-updated: 2026-09-21T13:43:02.325636103Z
+updated: 2026-09-21T20:48:38.565352142Z
+sessions:
+- start_sha: b4af7e5155e5d0a16b7b29683f2f2731eb3074c8
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-21T20:48:38.565352142Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-21T20:48:38.565352142Z
 ---
 
 **Introduces:** s///e, (?{ }), qr// with embedded code
