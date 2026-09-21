@@ -1,19 +1,61 @@
 ---
 title: The corpus format has expect parsent and the lint cannot carry such a file
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-21T22:11:13.008302813Z
-updated: 2026-09-21T23:01:37.578493997Z
+updated: 2026-09-21T23:33:01.056333366Z
 sessions:
 - start_sha: b41801021927f68fcbf799c60d6b947393d983de
-  end_sha: ""
-  commits: 0
+  end_sha: a3a0ed0c97ce48a68f5db427979f9d8acf88d3c8
+  commits: 1
   started_at: 2026-09-21T22:29:10.466869947Z
+  ended_at: 2026-09-21T23:33:01.056333366Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-21T22:29:10.466869947Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-21T23:33:01.056333366Z
+observed_paths:
+- conformance/01_literals/README.md
+- conformance/02_variables/README.md
+- conformance/03_context/README.md
+- conformance/04_operators/README.md
+- conformance/05_scoping/README.md
+- conformance/06_control/README.md
+- conformance/07_subroutines/08_parenless_extent.t
+- conformance/07_subroutines/10_undeclared_callee.t
+- conformance/07_subroutines/README.md
+- conformance/08_references/README.md
+- conformance/09_regex/README.md
+- conformance/10_io/README.md
+- conformance/11_oo/README.md
+- conformance/12_packages/README.md
+- conformance/13_opaque/README.md
+- conformance/14_recursive/README.md
+- internal/conformance/lint.go
+- internal/conformance/lint_test.go
+- internal/conformance/numbering_test.go
+- internal/conformance/prereq_test.go
+- internal/conformance/subops_test.go
+- internal/conformance/testdata/corpus.ratchet
+- internal/conformance/tier01_test.go
+- internal/conformance/tier02_test.go
+- internal/conformance/tier03_test.go
+- internal/conformance/tier04_test.go
+- internal/conformance/tier05_test.go
+- internal/conformance/tier06_test.go
+- internal/conformance/tier07_callforms_test.go
+- internal/conformance/tier07_test.go
+- internal/conformance/tier08_test.go
+- internal/conformance/tier09_test.go
+- internal/conformance/tier10_test.go
+- internal/conformance/tier11_test.go
+- internal/conformance/tier12_test.go
+- internal/conformance/tier13_test.go
+- internal/conformance/tier14_test.go
 ---
 
 The corpus format documents `--- expect parsent` for a file perl REFUSES,
