@@ -90,11 +90,16 @@ sits immediately before operators, and no earlier.
 
 **REVISED: the ordering is a partial order, not a chain.** `my $x = 1` at
 tier 01 introduces `my` four tiers before `05_scoping`; `09_regex`
-needs nothing from `08_references`; `11_packages` needs nothing from
+needs nothing from `08_references`; `12_packages` needs nothing from
 `10_io`. Three tiers can move without breaking the dependency check, which
 by check 2 below would mean they are misplaced. The honest statement is that
 the numbering is ONE TOPOLOGICAL SORT of a partial order -- which still gives
 the filesystem an order, and still supports the check.
+
+The oo/packages swap below is an instance of exactly this: two tiers whose
+order the first draft got backwards because it sorted by how programs are
+written rather than by what the grammar needs. Expect more of these from
+the `t/` sweep.
 
 It also resolves a tension worth recording. chromatic opens *Modern Perl*
 with context, before any syntax, because a READER needs the frame
@@ -115,8 +120,8 @@ consumers.
     08_references/     \, deref, arrow, anonymous constructors, ${ }, @{ }
     09_regex/          match, substitution, binding, delimiters
     10_io/             filehandles, readline, print
-    11_packages/       package, use, require, imports
-    12_oo/             bless AND class/field/method/ADJUST, indirect new
+    11_oo/             bless AND class/field/method/ADJUST, indirect new
+    12_packages/       package, use, require, imports
     13_opaque/         format, qx, <*>, heredocs, POD, __END__/__DATA__
     14_recursive/      s///e, (?{ }), qr// with embedded code
 
@@ -151,18 +156,40 @@ Notes on placements that are not obvious:
 - **08_references after 07_subroutines**, following *Modern Perl*.
   Dereference syntax is harder than a sub declaration even though `\@a`
   alone looks simpler.
-- **12_oo covers both object systems.** Measured 2026-09-21: `class`,
+- **REVISED: oo comes BEFORE packages, which reverses an earlier draft.**
+  The old order had `11_packages` then `12_oo`, which made the OO tier
+  depend on `package`/`use`. Perl says otherwise, measured under 5.42.0:
+
+      class Foo { method m { 1 } }        syntax OK, no `package` anywhere
+      bless {}, "Foo"                     needs a REF and a STRING, nothing else
+
+  `class Foo {}` IS a package declaration -- a different spelling of tier
+  12's own construct, not a consumer of it -- so the old order was
+  circular. And `__PACKAGE__` stays `main` outside the class body, so
+  `class` introduces its own scope rather than inheriting one.
+
+  What `oo` actually needs is **08_references**: `bless` takes a reference,
+  and every blessed-hash object is tier 08 plus a string. That dependency
+  is real and is satisfied four tiers earlier.
+
+  `use`/`require` move later because they are the heavier construct: they
+  locate and load a FILE, then call `import`, which needs subroutines
+  (tier 07) to mean anything. A tier list that puts them before the object
+  system is ordering by how a program is usually WRITTEN rather than by
+  what the grammar depends on.
+
+- **oo covers both object systems.** Measured 2026-09-21: `class`,
   `field`, `method`, `ADJUST`, `:param` and `:isa` each parse clean IN
   ISOLATION. **CORRECTED: that is true per construct and false per file.**
   `class Foo { ADJUST { 1 } method m { 2 } }` is one Unknown swallowing
   both, and `t2_test.go:105-111` records 41 Unknowns across seven
   `class/*.t` files with "nothing in the chain owns ADJUST". The tier's
-  construct files would all pass over a live bug; its combination file is
+  construct files would all pass over a live bug; its adjacency file is
   what catches it. See "Three kinds of file" below.
 
 **The twelve `hardMarkers` all place**, which is the check that the tier list
 covers the known-hard surface: heredoc/format/qx/glob-angle to tier 13,
-deref-brace and deref-at to tier 08, signature to tier 07, indirect-new to tier 12,
+deref-brace and deref-at to tier 08, signature to tier 07, indirect-new to tier 11,
 goto to tier 06, delete/exists/pkg-colon to tier 02. No residue, so no misc tier.
 
 ## Where the files come from
@@ -172,7 +199,7 @@ check.**
 
 Measured: of the 35 T1 files whose names match tier 04, 31 `use Test::More`
 and 30 call `ok(` at top level. Every extracted tier 04 file would contain
-tier-11 (`use`) and tier-07 (parenthesised call) constructs, failing
+tier-12 (`use`) and tier-07 (parenthesised call) constructs, failing
 check 1 by construction. Either the harness idiom is exempted -- a hole in
 exactly the check that makes the ordering a claim -- or everything is
 authored.
@@ -348,9 +375,40 @@ where this bug lives. The file contents are identical either way -- only the
 justification changes, and "two constructs adjacent" is portable where "tier
 N with N-1" is not.
 
-In practice the pair chosen is usually the tier's own construct beside the
-previous tier's, because that is the adjacency the ordering claims and the
-cheapest one to reach. But the claim is about the constructs, not the
+**REVISED AGAIN: "pair with the previous tier" does not reach the bug that
+motivates this, and measurement proves it.** Probed against `parse.Parse`:
+
+    class Foo { ADJUST { 1 } }                      0 Unknowns
+    class Foo { ADJUST { 1 } method m { 2 } }       1
+    class Foo { ADJUST { 1 } field $x; }            1
+    class Foo { ADJUST { 1 } ADJUST { 2 } }         1
+    class Foo { method m { 2 } ADJUST { 1 } }       0
+    class Foo { field $x; ADJUST { 1 } }            0
+    class Foo { method m { 1 } method n { 2 } }     0
+    package Bar; class Foo { ADJUST { 1 } }         0
+
+The bug is precisely **`ADJUST` followed by any sibling**, including another
+`ADJUST`. Every other pairing is clean.
+
+`class`, `field`, `method` and `ADJUST` are ALL tier 11, so the failing
+adjacency is within one tier. And the last line is what a previous-tier
+pairing would have produced after the oo/packages swap -- `package` beside
+`class` -- which parses at 0 and goes GREEN OVER THE LIVE BUG. The rule as
+first written would have been satisfied by a file that catches nothing.
+
+**So the rule is: every construct the tier introduces, in one body, each
+adjacent to another.** For tier 11 that is one file:
+
+    class Foo { field $x; ADJUST { 1 } method m { 2 } }
+
+which covers "X followed by anything" for every X in the tier, and is
+cheaper than enumerating pairs. Where a tier genuinely depends on an
+earlier one, the adjacency file pairs with the DECLARED PREREQUISITE rather
+than with N-1 -- which matters for `09_regex`, `12_packages` and the other
+tiers this document already says have no N-1 dependency. Pairing those with
+N-1 would assert nothing.
+
+The claim is about the constructs, not the
 numbering.
 
 This exists because of a hole the first draft had no way to see. Measured
@@ -365,7 +423,7 @@ because every tier file is one construct by definition. A corpus of this
 shape would go green over a known open bug -- and does: the T2 shortfall map
 records "nothing in the chain owns ADJUST" at `t2_test.go:105-111`.
 
-A combination file per tier also gives the tier-necessity check teeth it
+An adjacency file per tier also gives the tier-necessity check teeth it
 currently lacks. Nothing today verifies that a tier's PREREQUISITE is
 actually used; if tier N cannot combine with N-1, the ordering claim is
 false.
@@ -374,11 +432,46 @@ It does not cover every adjacency -- N with N-3 is unreached -- which is
 what the `t/` sweep is for. But it covers the adjacent pair the ordering
 actually claims.
 
-**Negative files, in-tier where they have a home.** `t/lib/croak/` ships 327
-must-fail cases in a flat source + `EXPECT` format, already pinned by this
-repo's own corpus checkout, already parser-agnostic. The first draft had NO
-negative coverage at all, and a suite that only tests what should parse
-cannot distinguish a real parser from one that accepts everything.
+**Negative files, in-tier where they have a home.** `t/lib/croak/` ships
+cases in a flat source + `EXPECT` format, already pinned by this repo's own
+corpus checkout, already parser-agnostic. The first draft had NO negative
+coverage at all, and a suite that only tests what should parse cannot
+distinguish a real parser from one that accepts everything.
+
+**REVISED: "327 must-fail cases" was wrong twice, and the second error would
+have produced wrong tests.**
+
+327 is the count of `########` SEPARATORS, not of cases; the first case in
+each file has no leading separator. Cases are `EXPECT` blocks: **338**, of
+which 251 carry a `# NAME`.
+
+The worse error: **croak does not mean must-not-parse.** Measured over 340
+extracted cases under perl 5.42.0, running `perl -c` and then `perl`:
+
+    compile-time failure  201   59%   genuinely `parsent`
+    runtime-only failure   64   19%   perl COMPILES these
+    exits 0                75   22%
+
+Whole files are runtime croaks: `pp_ctl` 0 of 20 compile failures, `pp_hot`
+0 of 11, `pp_sys` 0 of 13, `pp` 0 of 4. "goto into foreach" and "pipe()
+croaks on bad left side" are diagnostics from running, not from parsing. **A
+parser that emitted `parsent` for those would be wrong**, and a runner that
+took the must-fail bit from the file would assert exactly that on 19% of
+cases.
+
+The 75 that exit 0 are mostly `signatures` (52 of 62), which is the
+blead-5.45 against interpreter-5.42.0 skew `corpus.pin` already documents --
+a version fact, not a parser fact.
+
+**So the runner splits by `perl -c` rather than trusting the file:**
+
+- compile-time failure  -> a `parsent` case
+- runtime-only failure  -> a `parses` POSITIVE, and the croak is not our
+  concern
+- exits 0               -> excluded, with the pin's version skew named
+
+Case identity is (file, ordinal), not `# NAME`, since 87 cases have no name.
+One case needs a `-switch` or `--FILE--` and is skipped explicitly.
 
 They place by construct, and they are better in-tier than gathered:
 
@@ -448,7 +541,7 @@ down.
 output or token section. That is test262's `negative: {phase: parse}` and
 the most portable thing here.
 
-**A combination file is the same format** with two constructs adjacent.
+**An adjacency file is the same format** with the tier's constructs adjacent.
 
 **The measured behaviour is in the comment**, per B::SoN: two of their three
 burns were not loose assertions but tests passing where nobody could tell
@@ -544,9 +637,26 @@ The caveat is sharper than "necessary but not sufficient": **the optimiser
 can erase the construct a tier is about.** `my $x = 1+2` arrives as
 `const[IV 3] s/FOLD` with no `add` op, so a literals-tier file and an
 arithmetic-tier file can produce identical op lists. Ops alone cannot derive
-a tier. Either each file declares its construct set and the check verifies
-nothing ELSE appears, or the CST supplies it once the CST is trusted -- which
-is the same chicken-and-egg the serialization note resolves by ordering.
+a tier.
+
+**RESOLVED: three sources, in layers, and the CST is not one of them yet.**
+An earlier revision left this open between "a per-file declaration" and "the
+CST once trusted", which is the chicken-and-egg the serialization note
+resolves by ordering. The answer needs neither:
+
+    the file DECLARES      the `# TIER` header in the sketch above is
+                           the construct set. Authored files, so the
+                           declaration is free.
+    ops LINT it            `ops(file) subset-of union ops(tiers <= N)`
+                           catches a file using something it did not
+                           declare. Necessary, not sufficient, and
+                           parser-independent.
+    the token stream       classifies tiers 01-03, whose constructs are
+                           lexical and where a declaration would be
+                           checking itself.
+
+The CST becomes a fourth source once it is trusted, and replaces the
+declaration rather than the lint. Until then it is out.
 
 ## What this replaces
 
@@ -610,16 +720,20 @@ cannot be failed through a manifest -- which was the whole of the day-one
 value. Authoring wins.
 
 **One part of the manifest case survives and should be taken.**
-`t/lib/croak/` IS a manifest that already exists: 327 must-fail cases (toke
-87, signatures 61, op 49, class 28, regcomp 28, and the rest), flat
-`source` + `EXPECT`, parser-agnostic, already pinned by this repo's corpus
-checkout. The must-fail bit is extractable by a runner rather than written
-by a person.
+`t/lib/croak/` IS a manifest that already exists: 338 cases in a flat
+`source` + `EXPECT` format, parser-agnostic, already pinned by this repo's
+corpus checkout. A runner extracts them rather than a person writing them.
 
-**That removes the negatives from the authoring cost entirely.** A whole
-category of the corpus is produced by a runner rather than by a person, and
-it is the category that would otherwise be the most tedious to write. The
-per-file cost above applies to positives only.
+**But the extraction is a `perl -c` split, not a copy** -- see "Negative
+files" above, where the measurement is. 201 of 340 are compile-time
+failures and become `parsent`; 64 compile fine and become positives; 75
+exit 0 under 5.42.0 and are excluded. Trusting the filename would assert
+must-not-parse on cases perl parses.
+
+**That still removes the negatives from the authoring cost entirely.** The
+category that would otherwise be the most tedious to write is produced by a
+runner, and the per-file cost above applies to positives only. The split is
+work the runner does once, not work per case.
 
 ## Sequencing
 
@@ -662,8 +776,10 @@ argument position, which needs the 07 slice.
 - `conformance/` at repo root, given the standalone intent.
 - Does 04_operators need internal grouping by precedence level? It is the
   largest tier by a distance.
-- **REVISED:** does the construct set come from a per-file declaration or
-  from the CST once trusted? Ops alone cannot supply it.
+- ~~Does the construct set come from a per-file declaration or from the CST
+  once trusted?~~ **RESOLVED above:** the `# TIER` header declares, the ops
+  lint checks, the token stream classifies tiers 01-03. The CST is out until
+  trusted.
 - Ordering sources: perl's own `perlintro`/`perlsyn` (installed, same
   licence), *Modern Perl* (CC BY-NC-SA) and *Programming Perl* (proprietary)
   as priors on teaching order. Reading them to decide what order to introduce
@@ -674,6 +790,14 @@ argument position, which needs the 07 slice.
 Prototype `01_literals` -- the tier where classification is unambiguous, so
 it shakes out the method before the cases that need judgement. Then
 `03_context`, where the format gets stressed.
+
+**The glossary comes with it, not after.** Tier 01's only assertion is a
+token fact -- "one numeric literal whose text is `.5`" -- and the glossary
+is what makes "numeric literal" mean anything. Prototyping tier 01 without
+it would be asserting in a vocabulary nobody has defined, which is the
+coupling the token-stream decision was meant to avoid. The prototype is one
+file plus the glossary entries that file's assertion needs, not the whole
+page.
 
 Not decomposed into issues. This document is the input to
 `crochet:refinement`.
