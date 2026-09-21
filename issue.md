@@ -1,6 +1,6 @@
 ---
 title: "Tier 13_opaque: delimit without lexing the contents"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 blocked_by:
@@ -9,7 +9,16 @@ blocks:
 - 01a0c362-14e9-70d6-8842-a5b379816a98
 - 01a0c436-39e4-7560-9bf0-81d647e96aae
 created: 2026-09-21T09:52:59.516182101Z
-updated: 2026-09-21T13:45:11.861500837Z
+updated: 2026-09-21T20:21:42.117864833Z
+sessions:
+- start_sha: 9750d03b51c601e083873e26c01cb22054bb120b
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-21T20:21:42.117864833Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-21T20:21:42.117864833Z
 ---
 
 **Introduces:** format, qx, `<*>`, heredocs, POD, `__END__`/`__DATA__`
