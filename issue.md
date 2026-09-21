@@ -1,6 +1,6 @@
 ---
 title: "Tier 08_references: deref, arrow, anonymous constructors"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 blocked_by:
@@ -9,7 +9,16 @@ blocks:
 - 01a0c362-0daa-7422-b787-7650ce684c4b
 - 01a0c436-39e4-7560-9bf0-81d647e96aae
 created: 2026-09-21T09:52:57.12910003Z
-updated: 2026-09-21T13:45:11.193748199Z
+updated: 2026-09-21T20:48:38.443049149Z
+sessions:
+- start_sha: b4af7e5155e5d0a16b7b29683f2f2731eb3074c8
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-21T20:48:38.443049149Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-21T20:48:38.443049149Z
 ---
 
 **Introduces:** `\`, deref, arrow, anonymous constructors, `${ }`, `@{ }`
