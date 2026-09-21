@@ -6,7 +6,7 @@ milestone: m3-conformance-corpus
 blocked_by:
 - 01a0c360-01bf-7eab-b864-7d902d36fb97
 created: 2026-09-21T09:52:57.495477512Z
-updated: 2026-09-21T20:47:29.636384609Z
+updated: 2026-09-21T22:36:08.315274865Z
 sessions:
 - start_sha: 9750d03b51c601e083873e26c01cb22054bb120b
   end_sha: b4af7e5155e5d0a16b7b29683f2f2731eb3074c8
@@ -75,7 +75,7 @@ The lexer already reads `if (/TIE/)` as `Quote("/TIE/")` rather than
 division, which is the match-vs-divide ambiguity this tier pins down with
 files rather than leaves as a note.
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] Every file in 09_regex/ is validated against pinned perl 5.42.0 before it counts (`go test ./internal/conformance/ -run '^TestTierRegexPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierRegexPerlValidated'`)
 - [ ] The dependency lint passes over 09_regex/: every construct used was introduced at or before this tier (`go test ./internal/conformance/ -run '^TestTierRegexLint$' -count=1 -v | grep -q '^--- PASS: TestTierRegexLint'`)
