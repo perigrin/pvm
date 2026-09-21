@@ -1,6 +1,6 @@
 ---
 title: The corpus file format, decided rather than spiked
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 blocks:
@@ -8,7 +8,16 @@ blocks:
 - 01a0c35e-66f9-71b2-b5f3-3dd0ef1cba05
 - 01a0c35f-a487-7aa8-934b-4e68dd0fbaa1
 created: 2026-09-21T09:47:55.331597823Z
-updated: 2026-09-21T13:44:19.337111131Z
+updated: 2026-09-21T13:48:24.775365287Z
+sessions:
+- start_sha: 7858a7677fde70f59c516c66454f5eac756aff99
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-21T13:48:24.775365287Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-21T13:48:24.775365287Z
 ---
 
 The spike settled the file format by writing three files against it, but it
