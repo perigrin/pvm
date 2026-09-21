@@ -1,10 +1,19 @@
 ---
 title: The lint cannot see inside a sub, so five tier-07 ops and methstart are unclaimable
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-21T18:43:00.587037252Z
-updated: 2026-09-21T18:43:00.587037252Z
+updated: 2026-09-21T22:29:10.573159397Z
+sessions:
+- start_sha: b41801021927f68fcbf799c60d6b947393d983de
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-21T22:29:10.573159397Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-21T22:29:10.573159397Z
 ---
 
 `opsOf` in `internal/conformance/lint.go:197` runs
