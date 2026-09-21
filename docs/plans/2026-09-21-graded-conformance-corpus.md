@@ -44,12 +44,16 @@ belong two tiers earlier is the sweep working rather than a mistake.
 
 Three things follow, and they should be read into every commitment below:
 
-- **There is no file count, and there should not be one.** An earlier
-  revision carried 300-400 as an estimate. It is removed: a count stated
-  ahead of the work becomes a target, and a corpus that grows toward a
-  number stops growing for measured reasons. The corpus is done with a tier
-  when the tier's constructs are covered, which is answered by the
-  dependency check and the `t/` sweep, not by counting.
+- **There is no file count and no schedule, and there should not be
+  either.** Earlier revisions carried both: 300-400 files, 20-25 per day,
+  2-3 weeks, 3-5 days of tooling. The count is removed because a total
+  stated ahead of the work becomes a target, hit by writing files rather
+  than by covering constructs. The durations are removed because they were
+  human-development estimates and this corpus is written by agents, which
+  makes a day-rate an estimate of the wrong quantity rather than an
+  imprecise one. When a tier is done is answered by the dependency check
+  and the `t/` sweep; what a file costs is stated below as the artifacts it
+  needs, not as time.
 - **The corpus grows for measured reasons.** A file is added because
   something failed and named a gap, not to reach a count.
 - **Adopters should expect churn.** If this ever becomes a standalone
@@ -190,29 +194,41 @@ one sentence saying `conformance/` is project-authored.
 carried ~40 files for tiers 01-03, then ~85-110, then 300-400 total. Each
 correction was real -- the first estimate was roughly half -- but a total
 stated before the work is a target, and it would be hit by writing files
-rather than by covering constructs. What the tier is done is answered by the
+rather than by covering constructs. When a tier is done is answered by the
 dependency check and the sweep.
 
-**What survives is the per-file cost, which is what was actually wrong.**
-The original "~40 validated files per day" had no citation and came from
-extraction-shaped work. An authored file under this revision needs five
-things: source, a behavioural probe built so a mis-grouped tree produces
-different output, a perl run pinning the expected output, a construct
-declaration, and for lexical tiers a token assertion. The T1 evidence says
-these are translations rather than lifts -- 889 of 986 files `use
+**REVISED: the DURATIONS are removed too, and for a sharper reason than the
+counts.** Earlier drafts carried "~40 validated files per day", then a
+pessimistic "20-25 files/day", "2-3 weeks" for the smallest useful corpus,
+and "3-5 days" of tooling. Every one of those is a human-development
+estimate, inherited from reviewers reasoning about how long a person takes.
+This corpus is written by agents, where the per-file cost is dominated by
+things a day-rate does not model -- how many perl invocations a file needs,
+whether the format is settled, whether the tooling exists yet. A
+human-day-rate is not a slow estimate, it is an estimate of a different
+quantity.
+
+**What survives is the per-file WORK, stated as work rather than time.** An
+authored file needs five things: source, a behavioural probe built so a
+mis-grouped tree produces different output, a perl run pinning the expected
+output, a construct declaration, and for lexical tiers a token assertion.
+The original estimate assumed one thing, extraction, and the T1 evidence
+says these are translations rather than lifts -- 889 of 986 files `use
 Test::More`, and only 2 of 986 contain none of `use/require/sub/map/qw/=~`.
-So per-file cost is several times what the extraction estimate assumed, and
-any schedule built on the old cadence is wrong regardless of the total.
+That ratio is the useful fact: it says the cost is five artifacts per file
+and almost no file can be lifted, which is true whoever writes it.
 
 **The negatives are not authored at all.** `t/lib/croak/`'s cases are
 extracted by a runner -- see "The manifest alternative" below -- so they
-carry none of that per-file cost.
+carry none of that per-file cost. That is a structural difference in the
+work, not a faster rate.
 
-**The tooling does not exist and is the real prerequisite:**
-`conformance/`, the runner, tier READMEs, the dependency lint, refusal codes
-on the ten Unknown sites, ratchet integration. None of it is per-file, all
-of it blocks the first file, and it is the estimate worth having because it
-is bounded. Call it 3-5 days.
+**The tooling is the real prerequisite, and it is a LIST rather than a
+duration:** `conformance/`, the runner, tier READMEs, the dependency lint,
+refusal codes on the ten Unknown sites, ratchet integration. None of it is
+per-file and all of it blocks the first file. Its usefulness is that it is
+enumerable and each item is separately checkable as done -- which is what a
+bounded estimate was reaching for and failing to be.
 
 ## What a corpus file contains
 
