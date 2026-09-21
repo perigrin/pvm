@@ -10,7 +10,7 @@ blocks:
 - 01a0c35f-1685-786b-abbe-88ed9ed361a3
 - 01a0c35f-57cc-7a0f-83ac-53654f46f235
 created: 2026-09-21T09:48:39.607140769Z
-updated: 2026-09-21T10:00:07.048502582Z
+updated: 2026-09-21T13:44:24.661352352Z
 ---
 
 The runner is what makes a corpus file a test. The spike has one at
@@ -49,4 +49,5 @@ during a chain prune that destroyed one ref.
 - [ ] A file marked as refusing that actually passes fails loudly rather than skipping (`go test ./internal/conformance/ -run '^TestStaleRefusalMarkerFails$' -count=1 -v | grep -q '^--- PASS: TestStaleRefusalMarkerFails'`)
 - [ ] A cited refusal issue id that does not resolve fails the file, naming the id (`go test ./internal/conformance/ -run '^TestRefusalCitationMustResolve$' -count=1 -v | grep -q '^--- PASS: TestRefusalCitationMustResolve'`)
 - [ ] perl is invoked through pinned 5.42.0 rather than PATH, so MEASURED perl 5.42.0 in the header is true (`go test ./internal/conformance/ -run '^TestRunnerUsesPinnedPerl$' -count=1 -v | grep -q '^--- PASS: TestRunnerUsesPinnedPerl'`)
+- [ ] A skip that names no refusal fails, so "skips limited to documented refusals" is observed rather than asserted (`go test ./internal/conformance/ -run '^TestCorpusSkipsAreDocumented$' -count=1 -v | grep -q '^--- PASS: TestCorpusSkipsAreDocumented'`)
 - [ ] The spike banner is gone from run.go (`! grep -qi 'spike' internal/conformance/run.go`)
