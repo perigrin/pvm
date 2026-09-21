@@ -1,12 +1,21 @@
 ---
 title: "Tier 07 call-form slice: the smallest useful corpus gate"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 blocked_by:
 - 01a0c361-a317-7807-bb9e-15f299562244
 created: 2026-09-21T13:41:10.741737124Z
-updated: 2026-09-21T13:41:43.995310787Z
+updated: 2026-09-21T21:39:35.811982145Z
+sessions:
+- start_sha: dc1bea2c2baed5af0cf71ddf16e379ee18855d30
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-21T21:39:35.811982145Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-21T21:39:35.811982145Z
 ---
 
 **Introduces:** call forms -- `f(1)`, `f 1`, `&f`, `$code->()`, method-call
