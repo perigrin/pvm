@@ -1,10 +1,19 @@
 ---
 title: git-zhi verify reports 0/0 on a milestone whose done issues all have Acceptance sections
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-21T18:42:18.436831282Z
-updated: 2026-09-21T18:42:18.436831282Z
+updated: 2026-09-21T22:29:10.752498598Z
+sessions:
+- start_sha: b41801021927f68fcbf799c60d6b947393d983de
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-21T22:29:10.752498598Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-21T22:29:10.752498598Z
 ---
 
 `git-zhi verify m3-conformance-corpus` reports `total: 0` -- it finds no
