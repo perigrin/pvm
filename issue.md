@@ -3,8 +3,10 @@ title: "Tier 05_scoping: my, our, state, local, blocks"
 state: pending
 urgency: normal
 milestone: m3-conformance-corpus
+blocked_by:
+- 01a0c360-01bf-7eab-b864-7d902d36fb97
 created: 2026-09-21T09:52:40.407130019Z
-updated: 2026-09-21T13:40:21.826593747Z
+updated: 2026-09-21T13:40:23.041045485Z
 ---
 
 **Introduces:** my, our, state, local, blocks
