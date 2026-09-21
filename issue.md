@@ -6,7 +6,7 @@ milestone: m3-conformance-corpus
 blocked_by:
 - 01a0c360-01bf-7eab-b864-7d902d36fb97
 created: 2026-09-21T09:52:57.867463731Z
-updated: 2026-09-21T20:47:29.775868789Z
+updated: 2026-09-21T22:36:08.474706149Z
 sessions:
 - start_sha: 9750d03b51c601e083873e26c01cb22054bb120b
   end_sha: b4af7e5155e5d0a16b7b29683f2f2731eb3074c8
@@ -73,7 +73,7 @@ rather than here: `<*>` is a delimiting problem, `<$fh>` is an IO one, and
 they are different tiers despite the shared spelling. Files here should make
 that split explicit.
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] Every file in 10_io/ is validated against pinned perl 5.42.0 before it counts (`go test ./internal/conformance/ -run '^TestTierIoPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierIoPerlValidated'`)
 - [ ] The dependency lint passes over 10_io/: every construct used was introduced at or before this tier (`go test ./internal/conformance/ -run '^TestTierIoLint$' -count=1 -v | grep -q '^--- PASS: TestTierIoLint'`)
