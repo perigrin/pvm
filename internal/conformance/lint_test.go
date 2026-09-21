@@ -581,3 +581,188 @@ func TestReadTierOpsIgnoresTrailingProse(t *testing.T) {
 		t.Errorf("DEPENDS ON = %q, want %q", deps["01_literals"], "nothing")
 	}
 }
+
+// tierPending skips a per-tier subtest for a tier whose files are not
+// written yet.
+//
+// The alternative was to hold these two tests out of the tree until the
+// fourteen tiers exist. That makes the checks invisible exactly while they
+// are most likely to be forgotten, and a test living in a scratch file is
+// a test nobody runs. Skipping keeps them present, reviewable, and
+// self-describing: the skip line names the tier and the issue that fills
+// it, so `go test -v` lists the remaining work.
+//
+// A tier is pending if it has no README. That is the same condition
+// TestEveryTierHasAReadme asserts, so as each tier lands its subtests
+// start running with no edit here -- and tier 01, which does have one, is
+// checked today.
+func tierPending(t *testing.T, tier string) {
+	t.Helper()
+
+	if _, err := os.Stat(filepath.Join(corpusDir, tier, "README.md")); err == nil {
+		return
+	}
+	t.Skipf("%s is not written yet; issue 01a0c35f writes the fourteen tiers", tier)
+}
+
+// TestEveryTierHasAReadme checks the corpus against the spec's tier list.
+//
+// Driven by specTiers rather than by the directory listing, because a
+// check that reads its expectations from the thing it checks cannot report
+// an absence: a missing tier would remove both the directory and the
+// expectation, and the check would pass over the gap it exists to catch.
+//
+// Subtests for unwritten tiers skip rather than fail; see tierPending.
+func TestEveryTierHasAReadme(t *testing.T) {
+	for _, tier := range specTiers {
+		t.Run(tier, func(t *testing.T) {
+			tierPending(t, tier)
+
+			readme := filepath.Join(corpusDir, tier, "README.md")
+			raw, err := os.ReadFile(readme)
+			if err != nil {
+				t.Fatalf("%s: %v", readme, err)
+			}
+			for _, section := range []string{"## INTRODUCES", "## DEPENDS ON"} {
+				if !strings.Contains(string(raw), section) {
+					t.Errorf("%s has no `%s` section", readme, section)
+				}
+			}
+		})
+	}
+}
+
+// TestEveryTierHasAnAdjacencyFile checks the generic rule, not one tier's.
+//
+// The per-tier issues each carry their own adjacency criterion, and a
+// per-tier criterion can be forgotten one tier at a time. This is the
+// check that cannot be: it walks the spec's tier list, so a tier that
+// ships without an adjacency file fails here even if its own issue closed
+// clean.
+//
+// Why it matters at all: a one-construct-per-file corpus CANNOT reach an
+// adjacency bug. Measured 2026-09-21, `class Foo { ADJUST { 1 } }` parses
+// with 0 Unknowns and `class Foo { ADJUST { 1 } method m { 2 } }` returns
+// 1 Unknown swallowing both. Every file being one construct by definition,
+// such a corpus goes green over a known open bug.
+func TestEveryTierHasAnAdjacencyFile(t *testing.T) {
+	tiers, err := readTierOps(corpusDir)
+	if err != nil {
+		t.Fatalf("reading tier READMEs: %v", err)
+	}
+
+	for _, tier := range specTiers {
+		t.Run(tier, func(t *testing.T) {
+			tierPending(t, tier)
+
+			path := filepath.Join(corpusDir, tier, adjacencyFile)
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("%s: %v", path, err)
+			}
+			f, err := ParseFile(string(raw))
+			if err != nil {
+				t.Fatalf("%s: %v", path, err)
+			}
+
+			// What this can and cannot check.
+			//
+			// The rule is "every construct the tier introduces, in one
+			// body, each adjacent to another", and ops cannot verify
+			// that. An earlier version of this test demanded the file
+			// emit the tier's whole declared set, which perl disproved
+			// immediately: writing several `my` declarations in a row --
+			// MORE constructs, more adjacent -- made the optimiser fuse
+			// them into `padrange` and emit FEWER ops, dropping the
+			// `pushmark` the one-statement files all produce. The set is
+			// a union across the tier's files, not a property of any one
+			// of them.
+			//
+			// That is the same lesson as `my $x = 1+2` folding to a
+			// constant: ops LINT a declared tier and cannot derive one.
+			//
+			// So this checks what ops can actually prove -- that the
+			// adjacency file is a real, multi-statement program that
+			// stays inside its tier. Whether the right constructs are
+			// adjacent is a claim its comment must make and review must
+			// read, which is why the format requires one.
+			got, err := opsOf(t, f.Source)
+			if err != nil {
+				t.Fatalf("%s: %v", path, err)
+			}
+			if err := lintOps(t, f.Source, tier, tiers); err != nil {
+				t.Errorf("%s: %v", path, err)
+			}
+
+			// Adjacency needs at least two constructs to be adjacent to.
+			// A single-statement file cannot satisfy the rule whatever
+			// its comment claims.
+			if n := countOp(got, "nextstate"); n < 2 {
+				t.Errorf("%s has %d statement(s); an adjacency file needs at least 2", path, n)
+			}
+		})
+	}
+}
+
+// countOp counts occurrences of an op in an op list.
+//
+// `nextstate` is one per statement, which is how a test tells a
+// multi-statement program from a one-liner without parsing the source.
+func countOp(ops []string, want string) int {
+	n := 0
+	for _, op := range ops {
+		if op == want {
+			n++
+		}
+	}
+	return n
+}
+
+// TestExpectOutputIsNeverTheLastSection pins the one layout the repo's
+// pre-commit hook silently breaks.
+//
+// `--- expect output` takes its trailing newline from the blank line that
+// separates it from the next section. At END of file that blank line is
+// trailing whitespace, and `end-of-file-fixer` strips it -- rewriting the
+// file after it is staged, so the commit carries output one byte shorter
+// than perl prints and `TestCorpus` reports a CORPUS BUG against an author
+// who wrote the file correctly.
+//
+// The format does not care about section order, so the fix is to put any
+// section after `expect output` and leave the blank line in the middle of
+// the file, where the hook has no quarrel with it. This test is what stops
+// the broken layout coming back.
+func TestExpectOutputIsNeverTheLastSection(t *testing.T) {
+	paths, err := filepath.Glob(filepath.Join(corpusDir, "*", "*.t"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range paths {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		f, err := ParseFile(string(raw))
+		if err != nil {
+			t.Errorf("%s: %v", path, err)
+			continue
+		}
+		if f.ExpectOutput == "" {
+			continue
+		}
+		last := ""
+		for _, line := range strings.SplitAfter(string(raw), "\n") {
+			if name, ok := sectionName(line); ok {
+				last = name
+			}
+		}
+		if last == "" {
+			t.Errorf("%s: pins output but has no sections", path)
+			continue
+		}
+		if last == "expect output" {
+			t.Errorf("%s ends with `--- expect output`; the hook will strip the blank "+
+				"line its trailing newline depends on. Put another section after it.", path)
+		}
+	}
+}

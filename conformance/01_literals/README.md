@@ -25,7 +25,7 @@ documented — using a construct is not the same as introducing it.
 
 ## INTRODUCES
 
-    const enter leave multiconcat nextstate padsv padsv_store print pushmark
+    const enter leave multiconcat nextstate padrange padsv padsv_store print pushmark
 
 ## Why those ops, and not the ones the source implies
 
@@ -40,6 +40,12 @@ differ:
   `const[IV 3] s/FOLD`. The optimiser can erase the very construct a tier
   is about, which is why the ops LINT a declared tier and cannot derive
   one.
+
+- **`padrange`, which no single-statement file emits.** It is the
+  optimiser fusing consecutive `my` declarations into one op, so it appears
+  only once a file declares several in a row -- which the adjacency file is
+  the first here to do. Statement machinery, same class as `enter` and
+  `leave`, and claimed for the same reason.
 
 `enter`, `leave`, `nextstate` and `pushmark` are statement machinery that
 every file in every tier emits. They are claimed here because this is the

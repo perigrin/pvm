@@ -77,8 +77,16 @@ The body is `0.5\n\n`, the strip removes the separator, and what remains is
 `0.5\n` -- exactly the four bytes `print "$x\n"` emits. Omit the blank line
 and the body is `0.5\n`, leaving `0.5`, which no such program produces; the
 result is a `CORPUS BUG` report rather than a parse error, so it is worth
-getting right. A section at end of file has no separator and behaves the
-same way.
+getting right.
+
+**So `--- expect output` must never be the last section in a file.** At end
+of file the blank separator line is trailing whitespace, and the repo's
+`end-of-file-fixer` pre-commit hook strips it -- rewriting the file after it
+is staged, so the commit carries an output one byte shorter than perl
+prints and the author is blamed for a `CORPUS BUG` they did not write. The
+format does not care about section order, so put any other section after it
+and the blank line sits in the middle of the file where the hook has no
+quarrel with it. `TestExpectOutputIsNeverTheLastSection` enforces this.
 
 The reason for the rule, measured against perl 5.42.0: `print "0.5\n"`
 emits four bytes and
