@@ -8,7 +8,7 @@ blocks:
 - 01a0c35e-66f9-71b2-b5f3-3dd0ef1cba05
 - 01a0c35f-a487-7aa8-934b-4e68dd0fbaa1
 created: 2026-09-21T09:47:55.331597823Z
-updated: 2026-09-21T10:00:06.974559359Z
+updated: 2026-09-21T13:44:19.337111131Z
 ---
 
 The spike settled the file format by writing three files against it, but it
@@ -57,4 +57,4 @@ to the next file that trips over them.
 
 - [ ] Every section absent, each section duplicated, both parses/parsent, neither, and an unknown section name each produce a distinct error (`go test ./internal/conformance/ -run '^TestParseFileSections$' -count=1 -v | grep -q '^--- PASS: TestParseFileSections'`)
 - [ ] The three open format questions are answered in conformance/README.md, each with its reason (`grep -qi 'trailing newline' conformance/README.md`)
-- [ ] The format is documented in conformance/README.md, which is where the corpus's public interface lives (`test -s conformance/README.md`)
+- [ ] The format is documented in conformance/README.md: every section name, the ordering rule, and the repeat-is-an-error rule (`go test ./internal/conformance/ -run '^TestReadmeDocumentsEverySection$' -count=1 -v | grep -q '^--- PASS: TestReadmeDocumentsEverySection'`)
