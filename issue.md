@@ -8,7 +8,7 @@ blocks:
 - 01a0c35e-66f9-71b2-b5f3-3dd0ef1cba05
 - 01a0c35f-a487-7aa8-934b-4e68dd0fbaa1
 created: 2026-09-21T09:47:55.331597823Z
-updated: 2026-09-21T13:55:42.858392199Z
+updated: 2026-09-21T22:35:24.308317593Z
 sessions:
 - start_sha: 7858a7677fde70f59c516c66454f5eac756aff99
   end_sha: 1e70de780155b64e97463108cd6157694d81d679
@@ -70,7 +70,7 @@ Three things the spike decided by writing code rather than by deciding:
 Decide all three in this issue, with the reason, rather than deferring them
 to the next file that trips over them.
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] The four things the format treats as errors -- a missing source, a repeated section, neither expectation, and an unknown section name -- each produce a distinct error (`go test ./internal/conformance/ -run '^TestParseFileErrors$' -count=1 -v | grep -q '^--- PASS: TestParseFileErrors'`)
 - [ ] A file asserting BOTH parses and parsent is rejected rather than resolved by field order (`go test ./internal/conformance/ -run '^TestParseFileBothExpectations$' -count=1 -v | grep -q '^--- PASS: TestParseFileBothExpectations'`)
