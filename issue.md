@@ -8,7 +8,7 @@ blocks:
 - 01a0c35e-66f9-71b2-b5f3-3dd0ef1cba05
 - 01a0c35f-a487-7aa8-934b-4e68dd0fbaa1
 created: 2026-09-21T09:47:55.331597823Z
-updated: 2026-09-21T13:53:19.944003237Z
+updated: 2026-09-21T13:55:42.858392199Z
 sessions:
 - start_sha: 7858a7677fde70f59c516c66454f5eac756aff99
   end_sha: 1e70de780155b64e97463108cd6157694d81d679
@@ -72,6 +72,28 @@ to the next file that trips over them.
 
 ## Acceptance
 
-- [ ] Every section absent, each section duplicated, both parses/parsent, neither, and an unknown section name each produce a distinct error (`go test ./internal/conformance/ -run '^TestParseFileSections$' -count=1 -v | grep -q '^--- PASS: TestParseFileSections'`)
+- [ ] The four things the format treats as errors -- a missing source, a repeated section, neither expectation, and an unknown section name -- each produce a distinct error (`go test ./internal/conformance/ -run '^TestParseFileErrors$' -count=1 -v | grep -q '^--- PASS: TestParseFileErrors'`)
+- [ ] A file asserting BOTH parses and parsent is rejected rather than resolved by field order (`go test ./internal/conformance/ -run '^TestParseFileBothExpectations$' -count=1 -v | grep -q '^--- PASS: TestParseFileBothExpectations'`)
+- [ ] The happy path still reads a real corpus file end to end (`go test ./internal/conformance/ -run '^TestParseFileSections$' -count=1 -v | grep -q '^--- PASS: TestParseFileSections'`)
 - [ ] The three open format questions are answered in conformance/README.md, each with its reason (`grep -qi 'trailing newline' conformance/README.md`)
 - [ ] The format is documented in conformance/README.md: every section name, the ordering rule, and the repeat-is-an-error rule (`go test ./internal/conformance/ -run '^TestReadmeDocumentsEverySection$' -count=1 -v | grep -q '^--- PASS: TestReadmeDocumentsEverySection'`)
+### Acceptance correction, during execution
+
+The first criterion claimed five error cases and cited `TestParseFileSections`,
+which is the pre-existing happy-path test reading one real file. It passed
+before any error case was written, so the command did not verify the claim --
+the same defect class chain-review found across the chain.
+
+Split into three criteria, each naming the test that actually asserts it.
+`TestParseFileErrors` covers absent/duplicated/neither/unknown as subtests;
+`TestParseFileBothExpectations` covers the contradiction the spike accepted;
+`TestParseFileSections` keeps the happy path it always tested.
+
+The criterion also over-claimed. "Every section absent" is not an error:
+`--- expect output` and `--- expect tokens` are OPTIONAL, and a parsent file
+normally has neither. Only a missing `--- source` is an error. Reworded to
+name the four things the format actually rejects.
+
+Note for later issues: `go test -run '<no match>'` prints `ok ... [no tests to
+run]` and exits 0, so an acceptance command must grep a named PASS line rather
+than the package result.
