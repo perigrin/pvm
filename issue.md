@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a0c436-39e4-7560-9bf0-81d647e96aae
 created: 2026-09-21T09:52:58.28262933Z
-updated: 2026-09-21T21:36:34.519402668Z
+updated: 2026-09-21T22:36:08.622076634Z
 sessions:
 - start_sha: 71979369e31e3d89136535fe4d6b05a22095e26b
   end_sha: dc1bea2c2baed5af0cf71ddf16e379ee18855d30
@@ -59,7 +59,7 @@ the tier that proves why that third kind of file exists.
 
 `indirect-new` is one of the twelve `hardMarkers` and places here.
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] The ADJUST-plus-sibling adjacency file fails while every construct file passes, which is the case that proves adjacency files earn their place (`go test ./internal/conformance/ -run '^TestTierOoAdjacencyCatchesAdjust$' -count=1 -v | grep -q '^--- PASS: TestTierOoAdjacencyCatchesAdjust'`)
 - [ ] Every file in 11_oo/ is validated against pinned perl 5.42.0 before it counts (`go test ./internal/conformance/ -run '^TestTierOoPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierOoPerlValidated'`)
