@@ -48,18 +48,37 @@ type File struct {
 func ParseFile(raw string) (*File, error) {
 	f := &File{}
 
+	// Normalise line endings before anything looks at the bytes. Markers
+	// would match under CRLF anyway -- the name is trimmed -- so such a
+	// file parses "successfully" while carrying a \r into ExpectOutput,
+	// which is compared against perl's stdout byte for byte. The result is
+	// a CORPUS BUG report blaming the author for a line ending. Done here
+	// rather than in .gitattributes because a contributor's local git
+	// config cannot bypass it.
+	raw = strings.ReplaceAll(raw, "\r\n", "\n")
+
 	// Split on section markers at the start of a line. The first chunk is
 	// the comment block, which has no marker and is discarded.
 	var (
 		name    string
+		started bool // a marker has been seen; we are past the comment block
 		body    strings.Builder
 		comment strings.Builder
 		seen    = map[string]bool{}
 	)
 
+	// started and name are tracked separately on purpose. Testing only
+	// `name == ""` conflates "still in the comment block" with "the last
+	// marker had no name", and the second case would then be skipped by
+	// the guard meant for the first -- discarding that section's body,
+	// which for a `--- ` typo above the source means losing the program
+	// with no error at all.
 	flush := func() error {
-		if name == "" {
+		if !started {
 			return nil
+		}
+		if name == "" {
+			return fmt.Errorf("section marker with no name")
 		}
 		if seen[name] {
 			return fmt.Errorf("duplicate section %q", name)
@@ -73,10 +92,11 @@ func ParseFile(raw string) (*File, error) {
 			if err := flush(); err != nil {
 				return nil, err
 			}
-			name, body = marker, strings.Builder{}
+			name, started = marker, true
+			body = strings.Builder{}
 			continue
 		}
-		if name == "" {
+		if !started {
 			// Still in the comment block; collected whole, because the
 			// STATUS marker and the issue id it refers to need not share
 			// a line. The rest of the block is the measured-perl record

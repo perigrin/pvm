@@ -65,8 +65,23 @@ an issue would be a second copy of that, free to go stale.
 
 ## Three questions this format settles
 
-**Trailing newlines: exactly one is stripped from `--- expect output`.**
-Measured against perl 5.42.0, `print "0.5\n"` emits four bytes and
+**Trailing newlines: exactly one is stripped from `--- expect output`,
+and the blank separator line is what supplies it.** Write
+
+    --- expect output
+    0.5
+
+    --- expect tokens
+
+The body is `0.5\n\n`, the strip removes the separator, and what remains is
+`0.5\n` -- exactly the four bytes `print "$x\n"` emits. Omit the blank line
+and the body is `0.5\n`, leaving `0.5`, which no such program produces; the
+result is a `CORPUS BUG` report rather than a parse error, so it is worth
+getting right. A section at end of file has no separator and behaves the
+same way.
+
+The reason for the rule, measured against perl 5.42.0: `print "0.5\n"`
+emits four bytes and
 `print "0.5\n\n"` emits five, so the two are genuinely different outputs
 and the format has to be able to express both. Stripping one newline makes
 the common case -- `print "$x\n"` -- read naturally, and a deliberate
@@ -98,8 +113,23 @@ survives a lexer refactor:
     one numeric literal whose text is ".5"
     no operator whose text is "."
 
-These are the corpus's only defence against a mis-lex. Neither behaviour,
-nor the optree, nor a round-trip can see one: `5e-1` mis-lexed as
-`5e - 1` still prints `0.5`, perl never builds the wrong tree to compare
-against, and a round-trip reassembles the same bytes however they were
-grouped.
+These are the corpus's only defence against a mis-lex, and the reason is
+worth stating because it is not obvious.
+
+Our lexer reads `5e-1` as three tokens -- `Number("5e")`, `Operator("-")`,
+`Number("1")` -- and the parser then sees valid subtraction and produces no
+Unknown node at all. Measured under 5.42.0, none of the other checks can
+see it:
+
+- **Behaviour cannot.** Both the correct reading and the subtraction
+  evaluate to `0.5`, so the program prints the same thing either way.
+- **The optree cannot.** `perl -e 'my $x = 5e - 1'` is a SYNTAX ERROR
+  ("Bareword found where operator expected"), so perl never builds the
+  wrong tree for B::Concise to be compared against. There is nothing to
+  diff.
+- **A round-trip cannot.** It reassembles the same source bytes whatever
+  grouping produced them.
+
+Only an assertion about the token stream distinguishes the two, which is
+why this section exists and why it is written against the glossary rather
+than against `lexer.Kind`.

@@ -92,6 +92,112 @@ func TestParseFileErrors(t *testing.T) {
 	}
 }
 
+// TestParseFileNamelessMarker covers a marker that opens no section.
+//
+// `--- ` with nothing after it matched the section prefix, trimmed to an
+// empty name, and then hit the same guard that skips the leading comment
+// block -- so its body was discarded with no error, and every line after
+// it was treated as commentary. A file losing SOURCE TEXT silently is
+// worse than the contradiction this format already rejects: that lost an
+// expectation bit, this loses the program.
+//
+// It is a plausible typo for `--- source`, and `--- ` is also a legal
+// prefix inside Perl source (a heredoc body line, or a printed string), so
+// this is reachable by accident in both directions.
+func TestParseFileNamelessMarker(t *testing.T) {
+	for _, tc := range []struct{ name, raw string }{{
+		name: "before a real section",
+		raw:  "--- \nmy $x = 1;\n--- source\nmy $y = 2;\n--- expect parses\n",
+	}, {
+		name: "between sections",
+		raw:  "--- source\nmy $x = 1;\n--- \n--- expect parses\n",
+	}, {
+		name: "at end of file",
+		raw:  "--- source\nmy $x = 1;\n--- expect parses\n--- \n",
+	}} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := ParseFile(tc.raw)
+			if err == nil {
+				t.Fatalf("ParseFile(%q) = nil error, want a nameless-marker error", tc.raw)
+			}
+			if want := "no name"; !strings.Contains(err.Error(), want) {
+				t.Errorf("ParseFile error = %q, want it to contain %q", err, want)
+			}
+		})
+	}
+}
+
+// TestParseFileCRLF keeps a line ending out of the byte-exact field.
+//
+// Markers match under CRLF because the name is trimmed, so such a file
+// parses "successfully" -- but SplitAfter keeps the \r on every line, so
+// ExpectOutput becomes "0.5\r\n\r" where perl prints "0.5\n". Run then
+// reports CORPUS BUG and blames the author for a line ending.
+//
+// The corpus's whole claim is byte-exactness against perl, which makes a
+// silent CR in that field the worst place for one. Normalised in the
+// parser rather than in .gitattributes, because the parser cannot be
+// bypassed by a contributor's local git config.
+func TestParseFileCRLF(t *testing.T) {
+	// The output section is followed by another, as in a real file: the
+	// one-newline strip means a section at EOF keeps no trailing newline,
+	// which is a property of position rather than of line endings and
+	// would otherwise be conflated with the CR here.
+	raw := "--- source\r\nmy $x = .5;\r\n--- expect output\r\n0.5\r\n\r\n--- expect parses\r\n"
+
+	f, err := ParseFile(raw)
+	if err != nil {
+		t.Fatalf("ParseFile on a CRLF file: %v", err)
+	}
+	if got, want := f.ExpectOutput, "0.5\n"; got != want {
+		t.Errorf("ExpectOutput = %q, want %q", got, want)
+	}
+	if got, want := f.Source, "my $x = .5;\n"; got != want {
+		t.Errorf("Source = %q, want %q", got, want)
+	}
+	if strings.Contains(f.ExpectOutput+f.Source, "\r") {
+		t.Error("a carriage return survived into a byte-exact field")
+	}
+}
+
+// TestParseFileExpectOutputNewline pins what the one-newline strip is for.
+//
+// It is the BLANK SEPARATOR LINE that carries the output's own trailing
+// newline, not the position of the section. A corpus file writes
+//
+//	--- expect output
+//	0.5
+//	<blank>
+//	--- expect tokens
+//
+// so the body is "0.5\n\n", the strip removes the separator, and what is
+// left is "0.5\n" -- exactly perl's four bytes. Written without the blank
+// line, the body is "0.5\n" and the strip leaves "0.5", which no `print
+// "$x\n"` ever produces.
+//
+// This is the rule a corpus author most easily gets wrong, and getting it
+// wrong produces a CORPUS BUG report rather than a parse error, so it is
+// pinned here and stated in the README.
+func TestParseFileExpectOutputNewline(t *testing.T) {
+	const head = "--- source\nmy $x = 1;\n--- expect parses\n--- expect output\n"
+
+	withSeparator, err := ParseFile(head + "0.5\n\n--- expect tokens\n")
+	if err != nil {
+		t.Fatalf("with a blank separator: %v", err)
+	}
+	if got, want := withSeparator.ExpectOutput, "0.5\n"; got != want {
+		t.Errorf("with separator: ExpectOutput = %q, want %q -- this is what perl prints", got, want)
+	}
+
+	withoutSeparator, err := ParseFile(head + "0.5\n")
+	if err != nil {
+		t.Fatalf("without a blank separator: %v", err)
+	}
+	if got, want := withoutSeparator.ExpectOutput, "0.5"; got != want {
+		t.Errorf("without separator: ExpectOutput = %q, want %q", got, want)
+	}
+}
+
 // TestParseFileBothExpectations pins the one case the spike left open.
 //
 // A file claiming both `--- expect parses` and `--- expect parsent` is
