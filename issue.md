@@ -1,10 +1,19 @@
 ---
 title: The corpus format has expect parsent and the lint cannot carry such a file
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-21T22:11:13.008302813Z
-updated: 2026-09-21T22:27:16.582086952Z
+updated: 2026-09-21T22:29:10.466869947Z
+sessions:
+- start_sha: b41801021927f68fcbf799c60d6b947393d983de
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-21T22:29:10.466869947Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-21T22:29:10.466869947Z
 ---
 
 The corpus format documents `--- expect parsent` for a file perl REFUSES,
