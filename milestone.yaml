@@ -1,0 +1,49 @@
+name: m3-conformance-corpus
+resolution: go test ./internal/conformance/ -count=1
+created: 2026-09-21T09:47:35.108573891Z
+---
+
+A corpus ordered by what a parser must understand before it can understand
+the next thing. One construct per file, numerically prefixed so the
+filesystem carries the order, every file validated against perl.
+
+Design: `docs/plans/2026-09-21-graded-conformance-corpus.md`.
+
+## What this milestone is
+
+The spec's tooling list, which is the part that blocks every corpus file:
+
+    conformance/ and the file format   spiked
+    the runner                         spiked
+    the glossary                       spiked, 5 entries
+    tier READMEs
+    the dependency lint                ops-subset
+    refusal codes on the ten Unknown sites
+    ratchet integration                file-name-keyed, not path-keyed
+    the croak extraction runner        with its `perl -c` split
+
+Plus the first tier written against that tooling, which is what turns the
+format from a proposal into something measured.
+
+## What this milestone is NOT
+
+It is not the whole corpus. There is deliberately no file count and no
+schedule -- a total stated ahead of the work becomes a target hit by writing
+files rather than by covering constructs, and a day-rate estimates the wrong
+quantity for agent-written work. When a tier is done is answered by the
+dependency check and the `t/` sweep.
+
+## Relationship to m1 and m2
+
+M1 and M2 stay open alongside this. The spec says the corpus comes first and
+M1-M6 are rewritten around it, but that rewrite is not this milestone's
+work; `docs/plans/2026-09-21-deferred-chain-m1-m2.md` archives the open
+issues so the deferral is reversible.
+
+## A spike exists and is not delivered work
+
+`conformance/01_literals/` (three files, a glossary) and
+`internal/conformance/` (a runner) were written mid-design, outside the
+chain, to test whether the format survives contact. It builds and its tests
+are green -- 1 pass, 2 documented refusals -- so it is kept as the starting
+point rather than rewritten. Nothing in it is settled.
