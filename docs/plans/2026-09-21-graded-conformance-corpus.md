@@ -1,13 +1,21 @@
 # A graded conformance corpus for Perl 5 parsers
 
-**Status:** design, not yet decomposed, with tier 01 built as a prototype.
-Written 2026-09-21, revised the same day after review by `crochet:assess`, a
-Ponytail pass, and the B::SoN session. Every revision is marked.
+**Status:** design, not decomposed, not executed. Written 2026-09-21,
+revised the same day after review by `crochet:assess`, a Ponytail pass, and
+the B::SoN session. Every revision is marked.
 
-**The format section is no longer a proposal.** `conformance/01_literals/`
-and `internal/conformance/` exist, so section semantics, the fact grammar,
-the refusal protocol and perl-adjudicates-first are specified below as what
-shipped. Everything else in this document remains design.
+**A SPIKE EXISTS AND IS NOT DELIVERED WORK.** Three files under
+`conformance/01_literals/`, a glossary, and a runner under
+`internal/conformance/` were written mid-design to test whether the proposed
+format survives contact. They were produced OUTSIDE the assess/refine/execute
+chain, so nothing in them is settled and nothing in this document should be
+read as describing shipped behaviour.
+
+What the spike is good for is evidence: the format section below proposes
+specific semantics BECAUSE writing them exposed questions the sketch did not
+raise, and those are marked as findings from the spike rather than as
+decisions. Refinement decides them. The spike may be kept, rewritten, or
+thrown away, and that is also refinement's call.
 
 ## The problem
 
@@ -260,21 +268,20 @@ duration.** None of it is per-file and all of it blocks the first file. Its
 usefulness is that it is enumerable and each item is separately checkable as
 done -- which is what a bounded estimate was reaching for and failing to be.
 
-**REVISED: the first three are done, by building tier 01.**
+    conformance/ and the file format   spiked, see the note below
+    the runner                         spiked
+    the glossary                       spiked, 5 entries
+    tier READMEs
+    the dependency lint                ops-subset, per "The checks"
+    refusal codes on the ten Unknown sites
+    ratchet integration                file-name-keyed, not path-keyed
+    the croak extraction runner        with its `perl -c` split
 
-    DONE  conformance/ and the file format   settled by contact, specified
-                                             under "The file format" below
-    DONE  the runner                         internal/conformance/
-    DONE  the glossary                       conformance/GLOSSARY.md, 5 entries
-    TODO  tier READMEs
-    TODO  the dependency lint                ops-subset, per "The checks"
-    TODO  refusal codes on the ten Unknown sites
-    TODO  ratchet integration                file-name-keyed, not path-keyed
-    TODO  the croak extraction runner        with its `perl -c` split
-
-The three that landed are the ones every file depends on, which is why they
-went first and why the rest can now be decomposed against a format that
-exists rather than a proposed one.
+**Nothing on that list is done.** The first three have a spike against them
+-- code written mid-design to test the format, outside the chain -- which is
+evidence about the shape of the work and not a delivery. The first three are
+also the ones every file depends on, which is why they were the ones worth
+spiking.
 
 ## What a corpus file contains
 
@@ -515,11 +522,13 @@ spelling of test262's model.
 
 ### The file format
 
-**REVISED: this was a sketch across four revisions and is now SETTLED, by
-building it.** Tier 01 and its runner exist (`conformance/01_literals/`,
-`internal/conformance/`), so what follows specifies what shipped rather than
-proposing a shape. Everything here is a decision a reader can rely on; where
-contact changed the sketch, the change is marked.
+**REVISED: this was a sketch across four revisions, and a spike turned it
+into a concrete PROPOSAL.** Writing three files and a runner surfaced
+questions the sketch did not raise -- what a repeated section means, whether
+output is byte-exact, what a refusal looks like in a suite that must stay
+pristine. What follows answers those, and every answer is a proposal for
+refinement rather than a decision already taken. Where the spike contradicted
+the sketch, the change is marked.
 
     conformance/01_literals/03_leading_decimal.t
 
@@ -593,11 +602,12 @@ an error that says so, which is what stops the vocabulary growing silently
 past its definitions. Counts other than one and zero are the extension
 point, and there is no third form until a file needs one.
 
-**The coupling is one file.** `internal/conformance/categories.go` maps
-glossary names onto this lexer's kinds -- five entries. A project whose
-lexer has different kinds adopts the corpus by rewriting that map and
-nothing else. That file existing, and being the only one, is what makes the
-portability claim checkable rather than aspirational.
+**The coupling should be one file.** A map from glossary names to this
+lexer's kinds, and nothing else reading our token enum, so a project whose
+lexer differs adopts the corpus by rewriting that map alone. The spike's
+`internal/conformance/categories.go` is five entries and shows the shape is
+achievable; whether it stays one file under a fuller corpus is what would
+make the portability claim checkable rather than aspirational.
 
 **A negative file is the same format with `--- expect parsent`** and no
 output or token section. That is test262's `negative: {phase: parse}` and
@@ -611,8 +621,8 @@ whether that was still meaningful.
 
 ### Perl adjudicates before we do
 
-The runner checks the FILE against perl before it checks the PARSER against
-the file, and reports a disagreement as `CORPUS BUG` rather than as a
+The runner should check the FILE against perl before it checks the PARSER
+against the file, and report a disagreement as `CORPUS BUG` rather than as a
 refusal:
 
     file says `expect parses`, perl -c refuses it
@@ -628,9 +638,11 @@ must-not-parse.
 
 ### A known refusal skips; a stale marker fails
 
-**REVISED: this is new, and the suite's pristine-output rule forced it.** A
-corpus whose purpose is to name what does not work yet cannot also be
-all-green, and cannot be allowed to make `make test` noisy.
+**REVISED: the spike raised this and the sketch had no answer.** A corpus
+whose purpose is to name what does not work yet cannot also be all-green,
+and cannot be allowed to make `make test` noisy. The proposal below is what
+the spike does; it is the part of the format most worth arguing with,
+because it decides what the suite's green means.
 
     # STATUS refuses as of 38c95d23. Issue 01a0c13f-97f5.
 
@@ -653,10 +665,11 @@ a file that has started failing again for an unrelated reason. This is the
 ratchet's rule at file granularity, and it is why a refusal is a skip rather
 than a `t.Log`.
 
-**One passing file per tier is not optional.** `02_decimal.t` asserts `0.5`,
-which already works. A tier whose every file refuses cannot demonstrate that
-passing is reachable, and cannot distinguish "not implemented" from "the
-runner is broken". It is also the baseline its neighbours deviate from --
+**One passing file per tier should not be optional.** In the spike that is
+`02_decimal.t`, asserting `0.5`, which already works. A tier whose every
+file refuses cannot demonstrate that passing is reachable, and cannot
+distinguish "not implemented" from "the runner is broken". It is also the
+baseline its neighbours deviate from --
 `.5` and `5e-1` are the same construct with the integer part removed and an
 exponent sign added -- so a regression there explains both rather than being
 diagnosed twice.
@@ -697,7 +710,7 @@ previously made from the `printf "%.17g"` collapse alone -- a value
 argument. This is the same claim against a construct where the TREE is also
 blind, which is a stronger version of it.
 
-### The glossary, which now exists
+### The glossary is a prerequisite
 
 "One numeric literal" needs an outsider to agree what a numeric literal is,
 and the boundaries are contestable: is `-1` one literal or a negation of
@@ -709,8 +722,9 @@ It did not eliminate it. **Without a glossary defining those names, every
 adopter forks on the first ambiguous case**, and the corpus stops being
 portable for the same reason a CST assertion would have.
 
-**REVISED: written, as `conformance/GLOSSARY.md`.** Five categories so far,
-added when a file needs to assert about one rather than in advance. Every
+**REVISED: the spike drafted one, and it is cheaper than it looked.** Five
+categories, added when a file needed to assert about one rather than in
+advance, which is the growth rule worth keeping whatever else changes. Every
 boundary is DECIDED AGAINST PERL rather than asserted, which is this
 project's standing rule applied to its own vocabulary:
 
@@ -947,20 +961,20 @@ argument position, which needs the 07 slice.
 Two, both about scale rather than about the format, and neither blocking:
 
 - Does each tier get a README stating what it introduces and why it sits
-  there? Recommended yes. Tier 01 shipped without one and did not need it,
-  which is weak evidence either way at one tier.
+  there? Recommended yes. The spike wrote no README and did not miss one,
+  which is weak evidence at three files.
 - Does `04_operators` need internal grouping by precedence level? It is the
   largest tier by a distance, and the only one where the file count might
   make a flat directory unreadable.
 
-Settled by building tier 01, and recorded here because earlier revisions
+Answered within this document, and recorded here because earlier revisions
 listed them as open:
 
-- ~~Does the construct set come from a per-file declaration or from the CST
-  once trusted?~~ The `# TIER` header declares, the ops lint checks, the
-  token stream classifies tiers 01-03. The CST is out until trusted.
-- ~~`conformance/` at repo root?~~ Yes, and it is there.
-- ~~What does a file look like?~~ Specified under "The file format".
+- Does the construct set come from a per-file declaration or from the CST
+  once trusted? Proposed: the `# TIER` header declares, the ops lint checks,
+  the token stream classifies tiers 01-03, and the CST is out until trusted.
+- `conformance/` at repo root? Proposed yes, given the standalone intent.
+- What does a file look like? Proposed under "The file format".
 
 ## On sources
 
