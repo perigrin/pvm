@@ -99,10 +99,15 @@ func askPerl(t *testing.T, source string) (compiles bool, output string) {
 		t.Fatal(err)
 	}
 
-	if err := exec.Command("perl", "-c", path).Run(); err != nil {
+	perl, err := perlPath()
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+
+	if err := exec.Command(perl, "-c", path).Run(); err != nil {
 		return false, ""
 	}
-	out, err := exec.Command("perl", path).Output()
+	out, err := exec.Command(perl, path).Output()
 	if err != nil {
 		// Compiles but dies. Output is whatever reached stdout first.
 		return true, string(out)

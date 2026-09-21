@@ -194,7 +194,12 @@ func opsOf(t *testing.T, source string) ([]string, error) {
 		return nil, fmt.Errorf("writing the case: %w", err)
 	}
 
-	out, err := exec.Command("perl", "-MO=Concise,-exec", path).Output()
+	perl, err := perlPath()
+	if err != nil {
+		return nil, err
+	}
+
+	out, err := exec.Command(perl, "-MO=Concise,-exec", path).Output()
 	if err != nil {
 		return nil, fmt.Errorf("perl -MO=Concise refused the source: %w", err)
 	}

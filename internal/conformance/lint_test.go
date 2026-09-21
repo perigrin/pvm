@@ -3,6 +3,7 @@
 package conformance
 
 import (
+	"bytes"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -293,19 +294,25 @@ func TestCorpusLints(t *testing.T) {
 // different language and reports the disagreement as CORPUS BUG, blaming
 // the file rather than the environment.
 //
-// This is the guard, not the fix. Resolving perl through the pinned
-// 5.42.0 belongs to the runner issue, which owns both call sites; until
-// then a wrong version is at least named as such.
+// The resolution is now perlPath's, so this checks the interpreter the
+// corpus ACTUALLY runs through rather than whatever PATH offers. It stays
+// separate from TestRunnerUsesPinnedPerl because the two fail for
+// different reasons: that one catches a call site drifting back to bare
+// `perl`, this one catches the resolved perl being the wrong version.
 func TestPerlIsTheMeasuredVersion(t *testing.T) {
-	out, err := exec.Command("perl", "-e", "print $]").Output()
+	perl, err := perlPath()
 	if err != nil {
-		t.Fatalf("running perl: %v", err)
+		t.Fatalf("%v", err)
+	}
+	out, err := exec.Command(perl, "-e", "print $]").Output()
+	if err != nil {
+		t.Fatalf("running %s: %v", perl, err)
 	}
 	// $] is the numeric form: 5.042000 is 5.42.0.
 	if got, want := string(out), "5.042000"; got != want {
-		t.Fatalf("perl on PATH reports $] = %s, want %s\n"+
+		t.Fatalf("%s reports $] = %s, want %s\n"+
 			"\tthe corpus records MEASURED perl 5.42.0, and every expectation "+
-			"in it was taken from that interpreter", got, want)
+			"in it was taken from that interpreter", perl, got, want)
 	}
 }
 
@@ -763,6 +770,58 @@ func TestExpectOutputIsNeverTheLastSection(t *testing.T) {
 		if last == "expect output" {
 			t.Errorf("%s ends with `--- expect output`; the hook will strip the blank "+
 				"line its trailing newline depends on. Put another section after it.", path)
+		}
+	}
+}
+
+// TestRunnerUsesPinnedPerl pins that both call sites resolve the SAME
+// interpreter, and that it is the one the corpus headers name.
+//
+// Every corpus file says MEASURED perl 5.42.0. Until this test, that was
+// a claim about whatever `perl` PATH happened to resolve. Measured on the
+// machine this was written on, PATH carries three:
+//
+//	/home/perigrin/.local/bin/perl   5.42.0
+//	/usr/bin/perl                    5.38.2
+//	/bin/perl                        5.38.2
+//
+// The right one wins today by PATH ORDER alone. 5.38 additionally warns
+// `class is experimental` where 5.42 is silent, and those warnings go to
+// stderr, which no output comparison reads -- so a PATH change would not
+// break the suite, it would quietly move the corpus to a different
+// language and keep reporting green.
+//
+// Worse than one wrong perl is TWO DIFFERENT perls: `askPerl` adjudicates
+// what a file prints and `opsOf` reads the optree the lint checks. Split
+// across versions, the op list would describe one interpreter and the
+// output another, and they could disagree with nothing to say so. So this
+// asserts one resolver, not two correct call sites.
+func TestRunnerUsesPinnedPerl(t *testing.T) {
+	path, err := perlPath()
+	if err != nil {
+		t.Fatalf("resolving the pinned perl: %v", err)
+	}
+
+	out, err := exec.Command(path, "-e", "print $]").Output()
+	if err != nil {
+		t.Fatalf("running %s: %v", path, err)
+	}
+	// $] is the numeric form: 5.042000 is 5.42.0.
+	if got, want := string(out), "5.042000"; got != want {
+		t.Errorf("%s reports $] = %s, want %s", path, got, want)
+	}
+
+	// The resolver must be what the call sites actually use. A resolver
+	// nothing calls is a test that passes while the runner still reads
+	// PATH, which is the failure this whole test exists to prevent.
+	for _, f := range []string{"run.go", "lint.go"} {
+		src, err := os.ReadFile(filepath.Join(".", f))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if bytes.Contains(src, []byte(`exec.Command("perl"`)) {
+			t.Errorf("%s still invokes bare `perl` from PATH; "+
+				"it must go through perlPath()", f)
 		}
 	}
 }
