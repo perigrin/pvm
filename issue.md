@@ -6,7 +6,7 @@ milestone: m3-conformance-corpus
 blocked_by:
 - 01a0c362-073a-78c2-ba73-227fb48a26c4
 created: 2026-09-21T09:52:58.866189072Z
-updated: 2026-09-21T21:10:55.861543164Z
+updated: 2026-09-21T22:36:08.781424332Z
 sessions:
 - start_sha: b4af7e5155e5d0a16b7b29683f2f2731eb3074c8
   end_sha: 71979369e31e3d89136535fe4d6b05a22095e26b
@@ -62,7 +62,7 @@ tier-04 file would contain this tier's construct and fail the dependency
 check by construction. That is why everything is authored and T1 is a source
 of CASES, cited by filename and pinned revision, never copied.
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] Every file in 12_packages/ is validated against pinned perl 5.42.0 before it counts (`go test ./internal/conformance/ -run '^TestTierPackagesPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierPackagesPerlValidated'`)
 - [ ] The dependency lint passes over 12_packages/: every construct used was introduced at or before this tier (`go test ./internal/conformance/ -run '^TestTierPackagesLint$' -count=1 -v | grep -q '^--- PASS: TestTierPackagesLint'`)
