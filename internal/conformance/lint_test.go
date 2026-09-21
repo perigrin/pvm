@@ -4,7 +4,9 @@ package conformance
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -83,12 +85,58 @@ func TestUnclaimedOpReported(t *testing.T) {
 // same diff as the file that caused it.
 //
 // So the READMEs are the source and this is the reader.
+//
+// The assertion has to be that the ops came FROM the README, not merely
+// that some ops arrived. An earlier version of this test checked that the
+// map was non-empty and contained `const` -- which a hard-coded Go table
+// satisfies exactly, so it passed against a readTierOps that never opened
+// a file. That is the defect this AC exists to prevent, reaching the AC
+// itself. The op set below is therefore deliberately unlike any real
+// tier's: nothing but the README can produce it.
 func TestOpTableDerivedFromReadmes(t *testing.T) {
-	tiers, err := readTierOps(corpusDir)
+	dir := t.TempDir()
+	for tier, ops := range map[string]string{
+		"01_literals":  "padsv_store const",
+		"04_operators": "add subtract",
+	} {
+		writeTierReadme(t, dir, tier, ops)
+	}
+
+	tiers, err := readTierOps(dir)
 	if err != nil {
 		t.Fatalf("reading tier READMEs: %v", err)
 	}
 
+	for tier, want := range map[string][]string{
+		"01_literals":  {"padsv_store", "const"},
+		"04_operators": {"add", "subtract"},
+	} {
+		got, ok := tiers[tier]
+		if !ok {
+			t.Errorf("%s missing; found %v", tier, keysOf(tiers))
+			continue
+		}
+		if !slices.Equal(got, want) {
+			t.Errorf("%s = %v, want exactly %v", tier, got, want)
+		}
+	}
+
+	if len(tiers) != 2 {
+		t.Errorf("read %d tiers, want exactly the 2 written: %v", len(tiers), keysOf(tiers))
+	}
+}
+
+// TestRealCorpusReadmesAreReadable is the companion to the test above.
+//
+// That one proves derivation with fixtures; this one proves the real
+// corpus has READMEs the reader can actually parse. Split because a
+// single test doing both cannot fail informatively: "the reader is
+// hard-coded" and "a tier README is malformed" want different fixes.
+func TestRealCorpusReadmesAreReadable(t *testing.T) {
+	tiers, err := readTierOps(corpusDir)
+	if err != nil {
+		t.Fatalf("reading tier READMEs: %v", err)
+	}
 	if len(tiers) == 0 {
 		t.Fatal("no tier READMEs found; the lint would have nothing to check against")
 	}
@@ -97,9 +145,6 @@ func TestOpTableDerivedFromReadmes(t *testing.T) {
 	if !ok {
 		t.Fatalf("01_literals has no INTRODUCES set; found %v", keysOf(tiers))
 	}
-	if len(ops) == 0 {
-		t.Error("01_literals declares no ops, which cannot be right for a tier with files in it")
-	}
 
 	// The ops a literals tier must own, whatever else it gains: a
 	// constant, and the statement machinery every file needs.
@@ -107,6 +152,20 @@ func TestOpTableDerivedFromReadmes(t *testing.T) {
 		if !contains(ops, want) {
 			t.Errorf("01_literals does not introduce %q; has %v", want, ops)
 		}
+	}
+}
+
+// writeTierReadme creates a tier directory with a minimal README.
+func writeTierReadme(t *testing.T, dir, tier, ops string) {
+	t.Helper()
+
+	path := filepath.Join(dir, tier)
+	if err := os.MkdirAll(path, 0o750); err != nil {
+		t.Fatalf("creating %s: %v", tier, err)
+	}
+	body := "# " + tier + "\n\n## INTRODUCES\n\n    " + ops + "\n"
+	if err := os.WriteFile(filepath.Join(path, "README.md"), []byte(body), 0o600); err != nil {
+		t.Fatalf("writing %s README: %v", tier, err)
 	}
 }
 
@@ -151,6 +210,33 @@ func TestCorpusLints(t *testing.T) {
 		t.Fatalf("reading tier READMEs: %v", err)
 	}
 
+	// A directory the tier reader cannot see contributes no subtests, and
+	// a skip is otherwise indistinguishable from an absence: a
+	// renumbering typo like `9_regex` would disable the gate for a whole
+	// tier while the suite stayed green. This is the check that a lint
+	// nothing runs is a lint that rots, applied to the lint itself.
+	entries, err := os.ReadDir(corpusDir)
+	if err != nil {
+		t.Fatalf("reading the corpus root: %v", err)
+	}
+	for _, e := range entries {
+		if !e.IsDir() || isTierDir(e.Name()) {
+			continue
+		}
+		cases, err := filepath.Glob(filepath.Join(corpusDir, e.Name(), "*.t"))
+		if err != nil {
+			t.Fatalf("globbing %s: %v", e.Name(), err)
+		}
+		if len(cases) > 0 {
+			t.Errorf("%s holds %d case(s) but is not a numbered tier, so nothing lints them",
+				e.Name(), len(cases))
+		}
+	}
+
+	// Every op any file emits, so a README claiming something no file
+	// uses can be reported below.
+	emitted := map[string]bool{}
+
 	for _, tier := range keysOf(tiers) {
 		paths, err := filepath.Glob(filepath.Join(corpusDir, tier, "*.t"))
 		if err != nil {
@@ -169,8 +255,57 @@ func TestCorpusLints(t *testing.T) {
 				if err := lintOps(t, f.Source, tier, tiers); err != nil {
 					t.Errorf("%s", err)
 				}
+
+				ops, err := opsOf(t, f.Source)
+				if err != nil {
+					t.Fatalf("collecting ops: %v", err)
+				}
+				for _, op := range ops {
+					emitted[op] = true
+				}
 			})
 		}
+	}
+
+	// The lint is one-directional: it catches a file using an op its
+	// tier does not claim, and nothing catches a tier CLAIMING an op no
+	// file uses. An op added to a README "just in case" permanently
+	// widens that tier and every tier after it, invisibly -- which is
+	// the drift this whole arrangement exists to stop.
+	//
+	// Checked against the corpus-wide union rather than per tier,
+	// because tier 01 claims the statement machinery (`enter`, `leave`,
+	// `nextstate`, `pushmark`) that every later tier also emits.
+	for _, tier := range keysOf(tiers) {
+		for _, op := range tiers[tier] {
+			if !emitted[op] {
+				t.Errorf("%s/README.md claims %q, which no corpus file emits", tier, op)
+			}
+		}
+	}
+}
+
+// TestPerlIsTheMeasuredVersion fails loudly on the wrong interpreter.
+//
+// Every corpus file's header says MEASURED perl 5.42.0, and both
+// `opsOf` here and `askPerl` in run.go invoke bare `perl` from PATH. On a
+// different perl the suite does not break -- it quietly measures a
+// different language and reports the disagreement as CORPUS BUG, blaming
+// the file rather than the environment.
+//
+// This is the guard, not the fix. Resolving perl through the pinned
+// 5.42.0 belongs to the runner issue, which owns both call sites; until
+// then a wrong version is at least named as such.
+func TestPerlIsTheMeasuredVersion(t *testing.T) {
+	out, err := exec.Command("perl", "-e", "print $]").Output()
+	if err != nil {
+		t.Fatalf("running perl: %v", err)
+	}
+	// $] is the numeric form: 5.042000 is 5.42.0.
+	if got, want := string(out), "5.042000"; got != want {
+		t.Fatalf("perl on PATH reports $] = %s, want %s\n"+
+			"\tthe corpus records MEASURED perl 5.42.0, and every expectation "+
+			"in it was taken from that interpreter", got, want)
 	}
 }
 
