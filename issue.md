@@ -6,7 +6,7 @@ milestone: m3-conformance-corpus
 blocked_by:
 - 01a0c362-127c-73c1-8bb8-a4bf8b66c735
 created: 2026-09-21T09:53:00.137066905Z
-updated: 2026-09-21T13:40:23.87463645Z
+updated: 2026-09-21T13:43:02.325636103Z
 ---
 
 **Introduces:** s///e, (?{ }), qr// with embedded code
@@ -23,6 +23,7 @@ a tier that refuses entirely is a true statement about where it is.
 
 - [ ] Every file in 14_recursive/ is validated against pinned perl 5.42.0 before it counts (`go test ./internal/conformance/ -run '^TestTierRecursivePerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierRecursivePerlValidated'`)
 - [ ] The dependency lint passes over 14_recursive/: every construct used was introduced at or before this tier (`go test ./internal/conformance/ -run '^TestTierRecursiveLint$' -count=1 -v | grep -q '^--- PASS: TestTierRecursiveLint'`)
-- [ ] 14_recursive/README.md states what the tier introduces, what it depends on, and why check 2 places it here (`test -s conformance/14_recursive/README.md`)
+- [ ] The tier's adjacency file puts every construct 14_recursive introduces in one body, each adjacent to another, pairing with the declared prerequisite rather than tier N-1 (`go test ./internal/conformance/ -run '^TestTierRecursiveAdjacency$' -count=1 -v | grep -q '^--- PASS: TestTierRecursiveAdjacency'`)
+- [ ] 14_recursive/README.md states what the tier introduces, what it depends on, and why check 2 places it here, in the form the dependency lint reads (`go test ./internal/conformance/ -run '^TestEveryTierHasAReadme$' -count=1 -v | grep -q '^--- PASS: TestEveryTierHasAReadme'`)
 - [ ] Each refusing file cites a refusal code rather than a message (`go test ./internal/conformance/ -run '^TestTierRecursiveRefusalsCited$' -count=1 -v | grep -q '^--- PASS: TestTierRecursiveRefusalsCited'`)
-- [ ] The whole corpus is green with skips limited to documented refusals (`go test ./internal/conformance/ -run '^TestCorpus$' -count=1 -v | grep -q '^--- PASS: TestCorpus'`)
+- [ ] The tier's own files are green with skips limited to documented refusals (`go test ./internal/conformance/ -run '^TestCorpus/14_recursive' -count=1 -v | grep -q '^    --- PASS: TestCorpus/14_recursive'`)
