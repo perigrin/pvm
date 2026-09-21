@@ -6,7 +6,7 @@ milestone: m3-conformance-corpus
 blocked_by:
 - 01a0c362-127c-73c1-8bb8-a4bf8b66c735
 created: 2026-09-21T09:53:00.137066905Z
-updated: 2026-09-21T21:10:56.024886019Z
+updated: 2026-09-21T22:36:19.455888671Z
 sessions:
 - start_sha: b4af7e5155e5d0a16b7b29683f2f2731eb3074c8
   end_sha: 71979369e31e3d89136535fe4d6b05a22095e26b
@@ -55,7 +55,7 @@ The last tier, and the one most likely to refuse wholesale. That is the
 expected outcome, not a failure: the corpus states where the parser is, and
 a tier that refuses entirely is a true statement about where it is.
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] Every file in 14_recursive/ is validated against pinned perl 5.42.0 before it counts (`go test ./internal/conformance/ -run '^TestTierRecursivePerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierRecursivePerlValidated'`)
 - [ ] The dependency lint passes over 14_recursive/: every construct used was introduced at or before this tier (`go test ./internal/conformance/ -run '^TestTierRecursiveLint$' -count=1 -v | grep -q '^--- PASS: TestTierRecursiveLint'`)
