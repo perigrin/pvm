@@ -3,10 +3,12 @@ title: "Tier 07_subroutines: call forms, and the parenless argument question"
 state: pending
 urgency: normal
 milestone: m3-conformance-corpus
+blocked_by:
+- 01a0c360-01bf-7eab-b864-7d902d36fb97
 blocks:
 - 01a0c362-0ff3-7f3f-b2d3-f6dbe8228f86
 created: 2026-09-21T09:52:56.634555553Z
-updated: 2026-09-21T13:40:22.762312869Z
+updated: 2026-09-21T13:40:23.458533294Z
 ---
 
 **Introduces:** declaration, call forms, @_, return, signatures
