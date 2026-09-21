@@ -1,19 +1,35 @@
 ---
 title: A pinned empty output is indistinguishable from no pinned output
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-21T13:58:25.096391623Z
-updated: 2026-09-21T19:27:49.087584502Z
+updated: 2026-09-21T19:49:18.617038354Z
 sessions:
 - start_sha: 9102578c35f74c5afa0bb9ec81e2bb8098a3221e
-  end_sha: ""
-  commits: 0
+  end_sha: 6036de4e5427d522f018fc1af4fd59dc3d760c06
+  commits: 1
   started_at: 2026-09-21T19:27:49.087584502Z
+  ended_at: 2026-09-21T19:49:18.617038354Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-21T19:27:49.087584502Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-21T19:49:18.617038354Z
+observed_paths:
+- conformance/README.md
+- internal/conformance/conformance_test.go
+- internal/conformance/file.go
+- internal/conformance/lint_test.go
+- internal/conformance/run.go
+- internal/parse/chain.go
+- internal/parse/expr.go
+- internal/parse/parse.go
+- internal/parse/refusal.go
+- internal/parse/refusal_test.go
+- internal/parse/term.go
 ---
 
 The same representability bug the format issue fixed for parses/parsent,
