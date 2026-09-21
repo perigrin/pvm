@@ -6,9 +6,24 @@
 # TIER 04 operators
 # INTRODUCES nothing of its own
 # USES nothing from a later tier
-# STATUS refuses as of this file.
+# STATUS refuses as of this file. Refusal not_a_term.
 #
-# Three Unknown nodes, measured. That is the adjacency file earning its
+# Three Unknown nodes, measured, at TWO sites. The cited code is the
+# FIRST one reached and the one the other two follow from:
+#
+#   not_a_term       span `)`   -- from `not $n <= 3` on the last line
+#   trailing_tokens  span `print join(",", reverse sort @nums), " ",
+#                                ($n >= 3 xor not $n <= 3)`
+#   trailing_tokens  span `, "\n";`
+#
+# `not` arrives as a Word and nothing in parseTerm can begin a term with
+# it, so the Unknown runs to the closing paren; the statement around it
+# then has bytes left over, which is what the two `trailing_tokens`
+# report. One declined term, two statements that could not finish -- the
+# same refusal seen from three spans, which is why one code is cited
+# rather than three.
+#
+# That is the adjacency file earning its
 # keep: every construct here appears in a sibling file that parses, and
 # only the mixture refuses. A one-construct-per-file corpus would have
 # gone green over all of it.

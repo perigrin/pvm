@@ -89,6 +89,15 @@ the `class` side.
   `method_named`, `entersub`. Nothing downstream of the lexer can tell them
   apart, so the corpus has to assert on tokens.
 
+  **Both halves of that assertion, not one.** `06_indirect_new.t` declares
+  `no operator whose text is "->"`, which is where the construct is
+  visible. A negative alone is satisfied VACUOUSLY by a lexer that never
+  emits `->` at all -- one that folded the arrow into the word beside it
+  passes the indirect file's claim perfectly while getting every direct
+  call in this tier wrong. So `03_method_named.t`, the direct spelling,
+  declares the matching `one operator whose text is "->"`. The pair is
+  falsifiable where either half alone is not.
+
 - **`method` AND `method_named`, which are different ops.** `$o->hi`
   resolves the name at compile time and emits `method_named`; `$c->$m`
   with the name in a variable emits `method`. `$s->SUPER::hi()` emits a

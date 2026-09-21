@@ -5,14 +5,23 @@
 # TIER 04 operators
 # INTRODUCES logical operators
 # USES nothing from a later tier
-# STATUS refuses as of this file.
+# STATUS refuses as of this file. Refusal not_a_term.
 #
 # Two refusals, measured. The parser leaves one Unknown node over this
-# body. And our lexer reads `xor` as `Word("xor")` where the glossary
-# calls it an operator -- the same word-operator gap `02_string.t` and
-# `04_string_comparison.t` record, here on a word whose symbolic twin
-# (`^^`) perl does not spell, so `xor` is the ONLY way to write it and the
-# gap cannot be sidestepped.
+# body, and the cited code says which site declines: `not_a_term`, from
+# `term.go`'s parseTerm fallthrough. `(not $a)` is where it happens --
+# `not` arrives as a Word, nothing in parseTerm can begin a term with it,
+# and the Unknown that results spans to the closing paren. Measured, its
+# span is `)`.
+#
+# The code is cited rather than described because the two refusals in
+# this file are at DIFFERENT layers and a sentence would blur them. The
+# second is lexical: our lexer reads `xor` as `Word("xor")` where the
+# glossary calls it an operator -- the same word-operator gap
+# `02_string.t` and `04_string_comparison.t` record, here on a word whose
+# symbolic twin (`^^`) perl does not spell, so `xor` is the ONLY way to
+# write it and the gap cannot be sidestepped. That half has no parser
+# site to name and is measured by the token claims below instead.
 #
 # `and`, `or` and `dor` short-circuit and so return one of their
 # OPERANDS, not a boolean: `$a || $b` with `$a` true is `$a`. `not` and

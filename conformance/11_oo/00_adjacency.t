@@ -6,7 +6,16 @@
 # TIER 11 oo
 # INTRODUCES nothing of its own
 # USES nothing from a later tier
-# STATUS refuses as of 6c231691. Issue 01a0c35f-a487-7aa8-934b-4e68dd0fbaa1.
+# STATUS refuses as of 6c231691. Refusal trailing_tokens. Issue 01a0c35f-a487-7aa8-934b-4e68dd0fbaa1.
+#
+# The code names WHICH SITE declines, and the issue names which bug
+# somebody believed this was. They are different promises and the file
+# makes both. Measured, the Unknown starts at the `ADJUST` keyword and
+# runs to the end of the `method` after it -- the expression parser reads
+# the ADJUST block, then finds the `method` before the terminator, which
+# is `trailing_tokens`. Without the code, a refusal that drifted to some
+# other site would leave this file reading as though the ADJUST bug were
+# still what it measured, and the citation would be stale.
 #
 # MEASURED against our parser, and this is the case the whole
 # adjacency-file design was written for:

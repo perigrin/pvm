@@ -26,6 +26,20 @@
 #
 #   b  <.> method_named[PV "hi"] l
 #   c  <1> entersub[t3] lKRS/TARG
+#
+# THE TOKEN FACT, and why the direct spelling needs one as much as the
+# indirect one does. `06_indirect_new.t` declares that `new Foo` holds NO
+# arrow operator, which is the only place indirect object notation is
+# visible at all -- both spellings emit the same four ops. But a negative
+# alone is satisfied VACUOUSLY by a lexer that never emits `->`: one that
+# folded the arrow into the word beside it, or dropped it as trivia,
+# passes the indirect file's claim perfectly while getting every direct
+# call in this tier wrong. This is the matching positive, and the pair is
+# what makes either falsifiable.
+#
+# ONE arrow, not "at least one", which is why this file carries the claim
+# rather than `00_adjacency.t`: the adjacency file makes four arrow calls
+# and could only say something vaguer.
 
 --- source
 package Foo;
@@ -38,3 +52,6 @@ print $o->hi, "\n";
 hi
 
 --- expect parses
+
+--- expect tokens
+one operator whose text is "->"

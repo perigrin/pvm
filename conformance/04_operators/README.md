@@ -167,3 +167,69 @@ refuses.
 `sort` alone -- the optimiser folds the reverse into the sort's direction
 flag and no `reverse` op survives. Tier 03 claims `reverse` and must emit it
 from a file of its own; this tier cannot do it for them.
+
+## What checking the tier changed
+
+The four corrections above came from writing the files. These four came
+from writing `internal/conformance/tier04_test.go` against them, which is
+a different kind of pressure: the files say what they measure, and the
+tests ask whether anything would notice if they stopped.
+
+**`%nonassoc` is not a promise that repetition is rejected, and eight of
+the eleven levels prove it.** `precedence.go` counts eleven `%nonassoc`
+levels in `perly.y` and `AssocNone`'s comment says a binding power "stops
+the recursion but still accepts the input", so the parser checks nonassoc
+separately. Reading that as "repetition is an error at these eleven
+levels" is an inference, and measured against 5.42.0 it is wrong three
+times over:
+
+    level  7 LSTOP    print print @a            -e syntax OK
+    level 19 UNIOP    scalar scalar @a          -e syntax OK
+    level 20 REQUIRE  require require           -e syntax OK
+    level  2 LOOPEX   last LOOP last LOOP       syntax error
+    level 11 DOTDOT   1 .. 2 .. 3               syntax error
+    level 27 POSTINC  $a++ ++                   Can't modify postincrement
+
+A conflict needs a left operand to fight over, and those three levels are
+list operators and named unaries -- prefix forms whose second occurrence
+is the first one's ARGUMENT. Five more levels carry no lexable operator
+at all. Only level 11 is a nonassoc that means what the keyword suggests.
+
+Level 27 is the sharpest of the three rejections, because it is not a
+rejection by the grammar: perl PARSES `$a++ ++` and declines it at the
+lvalue check. `expr.go` already excludes `++` and `--` from
+`parseNonassoc` because they are postfix and take no right operand; this
+measurement says that exclusion is right for a second reason.
+
+**The op budget, not perl, is what bounds this tier's operator coverage.**
+Of perly.y's 31 adjacent precedence pairs, nine have a pseudo-token or an
+XS plugin hook on one side and no source reaches them. Sixteen more need
+an operator whose op NO TIER in this corpus claims -- `..` is
+flip/flop/range, `++` is preinc/postinc, `|` is `bit_or`, `<<` is
+`left_shift`, `?:` is `cond_expr`, `=~` is `match`. A fixture for any of
+those would fail the dependency lint, correctly. Six pairs are measurable
+here, and they are the six where both levels' operators are ops this tier
+itself claims: 4-5, 5-6, 12-13, 16-17, 22-23 and 25-26.
+
+**Half the precedence fixtures written by eye measured nothing.** A
+grouping fixture is only a measurement if its two forced readings print
+DIFFERENT things; one whose readings agree exercises both operators and
+would go on passing against a parser that grouped the other way. Three of
+the six first attempts failed that, all three logical:
+
+    $b or $a and $b     both groupings print 0
+    not $y and $x       both groupings print 1
+    $b || $a && $b      both groupings print 0
+
+One truth assignment -- first operand true, other two false -- rescues all
+three, found by trying all eight rather than by reasoning. The tier's own
+`07_precedence.t` and `08_associativity.t` were checked the same way and
+do discriminate: `14`/`20` and `512`/`64` differ under the two readings.
+
+**`not` is TIGHTER than `and`, which is the opposite of how it reads.**
+`not` is level 6 and `and` is level 5, so in `not $y and $z` the default
+grouping is `(not $y) and $z`. Writing the pair the way the source reads
+-- `not` as the outer word -- puts the two forced readings the wrong way
+round, and the fixture then fails the precedence claim while passing the
+discrimination one. This is the `and`/`&&` cliff from the other side: the
+word-spelled operators are not where their spelling suggests.
