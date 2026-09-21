@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-21T13:58:25.096391623Z
-updated: 2026-09-21T19:49:18.617038354Z
+updated: 2026-09-21T22:36:19.679050382Z
 sessions:
 - start_sha: 9102578c35f74c5afa0bb9ec81e2bb8098a3221e
   end_sha: 6036de4e5427d522f018fc1af4fd59dc3d760c06
@@ -67,7 +67,7 @@ corpus file could legitimately contain it.
 
 Found by the architecture review gate on 1e70de78.
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] A corpus file pinning empty output has its output checked rather than skipped (`go test ./internal/conformance/ -run '^TestEmptyExpectedOutputIsChecked$' -count=1 -v | grep -q '^--- PASS: TestEmptyExpectedOutputIsChecked'`)
 - [ ] A file with no expect-output section still skips the check, which is the normal parsent case (`go test ./internal/conformance/ -run '^TestAbsentExpectedOutputSkipsCheck$' -count=1 -v | grep -q '^--- PASS: TestAbsentExpectedOutputSkipsCheck'`)
