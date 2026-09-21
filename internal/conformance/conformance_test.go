@@ -168,6 +168,21 @@ func TestSectionNamesMatchParser(t *testing.T) {
 		!strings.Contains(err.Error(), "unknown section") {
 		t.Errorf("parser accepted a section absent from sectionNames(); err = %v", err)
 	}
+
+	// The two checks above only catch drift in ONE direction. Dropping a
+	// name from sectionNames() while leaving its case in setSection is
+	// never iterated, so nothing above notices -- and because
+	// TestReadmeDocumentsEverySection iterates the same list, the omission
+	// would silently shrink the README's checked surface too.
+	//
+	// The count is asserted rather than derived: there is no way to
+	// enumerate a switch's cases at run time, so this is the line that has
+	// to be updated deliberately when a section is added or removed.
+	if got, want := len(sectionNames()), 5; got != want {
+		t.Errorf("sectionNames() has %d entries, want %d -- update this "+
+			"count and setSection together, or the README test quietly "+
+			"stops checking the missing one", got, want)
+	}
 }
 
 // TestCorpus runs every case in the corpus: perl adjudicates the source,
