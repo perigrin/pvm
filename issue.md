@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a0c35e-1b37-7304-ba39-65a6ef57d4e0
 created: 2026-09-21T09:48:13.598812961Z
-updated: 2026-09-21T14:36:06.839398476Z
+updated: 2026-09-21T22:35:24.379079583Z
 sessions:
 - start_sha: 8c8e7a783a7f5481cbe0417328175ca7e6127fe6
   end_sha: 6a4bb5139fe94b68145c1df8b2478c0568f9de93
@@ -52,7 +52,7 @@ will want to assert, and none are in the glossary.
 optree cannot adjudicate and only the token stream can. That entry is why
 the glossary exists and should stay first.
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] A category named in an expect-tokens line but absent from categories.go fails the file loudly, naming the category, rather than silently asserting nothing (`go test ./internal/conformance/ -run '^TestUnknownCategoryFails$' -count=1 -v | grep -q '^--- PASS: TestUnknownCategoryFails'`)
 - [ ] Every category in categories.go has a glossary entry and every entry has a category, checked by test rather than by review (`go test ./internal/conformance/ -run '^TestGlossaryMatchesCategories$' -count=1 -v | grep -q '^--- PASS: TestGlossaryMatchesCategories'`)
