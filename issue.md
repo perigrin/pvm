@@ -1,6 +1,6 @@
 ---
 title: "Tier 03_context: scalar vs list, and where the inference gap becomes a number"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 blocked_by:
@@ -8,7 +8,16 @@ blocked_by:
 blocks:
 - 01a0c361-a317-7807-bb9e-15f299562244
 created: 2026-09-21T09:52:19.065451383Z
-updated: 2026-09-21T13:43:01.695902087Z
+updated: 2026-09-21T20:48:38.350029802Z
+sessions:
+- start_sha: b4af7e5155e5d0a16b7b29683f2f2731eb3074c8
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-21T20:48:38.350029802Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-21T20:48:38.350029802Z
 ---
 
 **Introduces:** scalar vs list context, the discriminating pairs
