@@ -11,7 +11,7 @@ blocks:
 - 01a0c35f-1685-786b-abbe-88ed9ed361a3
 - 01a0c35f-57cc-7a0f-83ac-53654f46f235
 created: 2026-09-21T09:48:39.607140769Z
-updated: 2026-09-21T14:03:36.848167414Z
+updated: 2026-09-21T15:33:01.163757978Z
 ---
 
 The runner is what makes a corpus file a test. The spike has one at
@@ -52,3 +52,15 @@ during a chain prune that destroyed one ref.
 - [ ] perl is invoked through pinned 5.42.0 rather than PATH, so MEASURED perl 5.42.0 in the header is true (`go test ./internal/conformance/ -run '^TestRunnerUsesPinnedPerl$' -count=1 -v | grep -q '^--- PASS: TestRunnerUsesPinnedPerl'`)
 - [ ] A skip that names no refusal fails, so "skips limited to documented refusals" is observed rather than asserted (`go test ./internal/conformance/ -run '^TestCorpusSkipsAreDocumented$' -count=1 -v | grep -q '^--- PASS: TestCorpusSkipsAreDocumented'`)
 - [ ] The spike banner is gone from run.go (`! grep -qi 'spike' internal/conformance/run.go`)
+### Scope note, added during the lint's execution
+
+There are now TWO bare `perl` invocations, not one:
+
+    internal/conformance/run.go   askPerl, adjudicates each corpus file
+    internal/conformance/lint.go  opsOf, reads the optree for the lint
+
+Both must move to the pinned 5.42.0 together. A corpus file's header says
+MEASURED perl 5.42.0, and that claim is false if either call reaches a
+different perl -- the lint's op list would describe one interpreter while
+the adjudication describes another, which is worse than a single wrong
+perl because the two could disagree silently.
