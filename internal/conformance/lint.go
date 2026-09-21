@@ -130,9 +130,12 @@ func lintOps(t *testing.T, source, tier string, tiers tierOps) error {
 // reachable returns the ops available at a tier -- its own and every
 // earlier one's -- and which tier introduces each op anywhere.
 //
-// "Earlier" is by directory name, which sorts correctly because the names
-// are numerically prefixed. That is the same property the filesystem
-// ordering relies on, so a renumbering moves both together.
+// "Earlier" is a string comparison on the directory name, which is
+// correct only because every tier carries a ZERO-PADDED TWO-DIGIT prefix.
+// Verified across all fourteen names: lexicographic order equals numeric
+// order, including the 09_regex/10_io boundary where an unpadded scheme
+// would put 10 before 9. The spec's "two digits, no gaps" decision is
+// what makes this hold, and a tier numbered past 99 would break it.
 func reachable(tier string, tiers tierOps) (allowed map[string]bool, claimedBy map[string]string) {
 	allowed = map[string]bool{}
 	claimedBy = map[string]string{}

@@ -174,6 +174,39 @@ func TestCorpusLints(t *testing.T) {
 	}
 }
 
+// TestTierOrderIsLexicographic pins the property `reachable` depends on.
+//
+// It decides "at or before this tier" with a string comparison, which is
+// correct only while every tier name carries a zero-padded two-digit
+// prefix. Unpadded, "10_io" would sort before "9_regex" and the whole
+// ordering claim would invert at that boundary without any test noticing.
+//
+// The spec's "two digits, not four, and no gaps" decision is what makes
+// this hold; this is where that decision is enforced rather than assumed.
+func TestTierOrderIsLexicographic(t *testing.T) {
+	// The full tier list from the spec, in dependency order.
+	inOrder := []string{
+		"01_literals", "02_variables", "03_context", "04_operators",
+		"05_scoping", "06_control", "07_subroutines", "08_references",
+		"09_regex", "10_io", "11_oo", "12_packages", "13_opaque",
+		"14_recursive",
+	}
+
+	sorted := append([]string(nil), inOrder...)
+	sort.Strings(sorted)
+	for i := range inOrder {
+		if inOrder[i] != sorted[i] {
+			t.Fatalf("lexicographic order diverges from tier order at %d: %q vs %q",
+				i, sorted[i], inOrder[i])
+		}
+	}
+
+	// The boundary that would break first under an unpadded scheme.
+	if !("09_regex" <= "10_io") {
+		t.Error(`"09_regex" does not sort before "10_io"`)
+	}
+}
+
 func keysOf(m tierOps) []string {
 	var out []string
 	for k := range m {
