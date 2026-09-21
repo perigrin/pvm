@@ -1,6 +1,6 @@
 ---
 title: Refusal codes on the ten Unknown sites, so two refusals are distinguishable
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-conformance-corpus
 blocked_by:
@@ -8,16 +8,32 @@ blocked_by:
 blocks:
 - 01a0c360-01bf-7eab-b864-7d902d36fb97
 created: 2026-09-21T09:49:26.581612352Z
-updated: 2026-09-21T19:27:48.988057764Z
+updated: 2026-09-21T19:49:18.514476347Z
 sessions:
 - start_sha: 9102578c35f74c5afa0bb9ec81e2bb8098a3221e
-  end_sha: ""
-  commits: 0
+  end_sha: 6036de4e5427d522f018fc1af4fd59dc3d760c06
+  commits: 1
   started_at: 2026-09-21T19:27:48.988057764Z
+  ended_at: 2026-09-21T19:49:18.514476347Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-21T19:27:48.988057764Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-21T19:49:18.514476347Z
+observed_paths:
+- conformance/README.md
+- internal/conformance/conformance_test.go
+- internal/conformance/file.go
+- internal/conformance/lint_test.go
+- internal/conformance/run.go
+- internal/parse/chain.go
+- internal/parse/expr.go
+- internal/parse/parse.go
+- internal/parse/refusal.go
+- internal/parse/refusal_test.go
+- internal/parse/term.go
 ---
 
 The parser is TOTAL: `parse.Parse(src)` returns one value and no error. A
