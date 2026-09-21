@@ -9,7 +9,7 @@ blocks:
 - 01a0c362-0daa-7422-b787-7650ce684c4b
 - 01a0c436-39e4-7560-9bf0-81d647e96aae
 created: 2026-09-21T09:52:57.12910003Z
-updated: 2026-09-21T21:10:55.64673177Z
+updated: 2026-09-21T22:36:08.147158362Z
 sessions:
 - start_sha: b4af7e5155e5d0a16b7b29683f2f2731eb3074c8
   end_sha: 71979369e31e3d89136535fe4d6b05a22095e26b
@@ -65,7 +65,7 @@ A known defect to cover rather than discover: a brace before `->` is a
 hashref, and the tree currently misreads two anonhash cases (M1 issue
 01a0bae2).
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] Every file in 08_references/ is validated against pinned perl 5.42.0 before it counts (`go test ./internal/conformance/ -run '^TestTierReferencesPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierReferencesPerlValidated'`)
 - [ ] The dependency lint passes over 08_references/: every construct used was introduced at or before this tier (`go test ./internal/conformance/ -run '^TestTierReferencesLint$' -count=1 -v | grep -q '^--- PASS: TestTierReferencesLint'`)
