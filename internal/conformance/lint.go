@@ -60,10 +60,29 @@ func readTierOps(corpus string) (tierOps, error) {
 			// reads as a corpus-wide failure rather than one bad README.
 			return nil, fmt.Errorf("%s: no `## INTRODUCES` block", path)
 		}
-		out[e.Name()] = strings.Fields(string(m[1]))
+		ops := strings.Fields(string(m[1]))
+		for _, op := range ops {
+			if !reOpName.MatchString(op) {
+				// Prose in the block would otherwise become ops:
+				// "These are the ops: const and nextstate." yields
+				// seven entries, silently WIDENING the allowed set so
+				// that a misplaced file passes. Rejecting is the only
+				// safe direction, since the lint's whole job is to
+				// stop the union growing by accident.
+				return nil, fmt.Errorf(
+					"%s: %q is not an op name; the INTRODUCES block takes "+
+						"op names alone, not prose", path, op)
+			}
+		}
+		out[e.Name()] = ops
 	}
 	return out, nil
 }
+
+// reOpName matches a perl op name as B::Concise prints it: lowercase
+// letters, digits and underscores. Measured against a sample including
+// aelemfast_lex, multideref, padhv and preinc.
+var reOpName = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 
 // isTierDir reports whether a directory name is a numbered tier.
 func isTierDir(name string) bool {

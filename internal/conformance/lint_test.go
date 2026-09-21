@@ -207,6 +207,37 @@ func TestTierOrderIsLexicographic(t *testing.T) {
 	}
 }
 
+// TestReadTierOpsRejectsProse guards the lint's own input.
+//
+// The INTRODUCES block is read with strings.Fields, so prose inside it
+// would become ops: "These are the ops: const and nextstate." yields
+// seven entries including "These" and "nextstate." with a trailing stop.
+//
+// That failure is silent and it widens the allowed set, which is the
+// worst direction -- a misplaced file would then pass its lint. It is the
+// "union grows by accident" case this lint exists to prevent, reaching
+// the lint through its own configuration.
+func TestReadTierOpsRejectsProse(t *testing.T) {
+	dir := t.TempDir()
+	tier := filepath.Join(dir, "01_literals")
+	if err := os.MkdirAll(tier, 0o750); err != nil {
+		t.Fatalf("creating the tier directory: %v", err)
+	}
+	readme := filepath.Join(tier, "README.md")
+	body := "# 01_literals\n\n## INTRODUCES\n\nThese are the ops: const and nextstate.\n"
+	if err := os.WriteFile(readme, []byte(body), 0o600); err != nil {
+		t.Fatalf("writing the README: %v", err)
+	}
+
+	_, err := readTierOps(dir)
+	if err == nil {
+		t.Fatal("readTierOps accepted prose in the INTRODUCES block, want an error")
+	}
+	if !strings.Contains(err.Error(), "These") {
+		t.Errorf("error does not name what it rejected: %v", err)
+	}
+}
+
 func keysOf(m tierOps) []string {
 	var out []string
 	for k := range m {
