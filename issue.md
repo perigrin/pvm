@@ -1,6 +1,6 @@
 ---
 title: "Tier 04_operators: the first tier where a parse can be WRONG rather than Unknown"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 blocked_by:
@@ -8,7 +8,16 @@ blocked_by:
 blocks:
 - 01a0c432-fbd5-7125-82fa-b52abb3ac7bc
 created: 2026-09-21T09:52:30.999321803Z
-updated: 2026-09-21T13:43:01.819392158Z
+updated: 2026-09-21T21:11:14.092040239Z
+sessions:
+- start_sha: 71979369e31e3d89136535fe4d6b05a22095e26b
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-21T21:11:14.092040239Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-21T21:11:14.092040239Z
 ---
 
 **Introduces:** arithmetic, string, comparison, logical operators,
