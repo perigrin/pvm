@@ -4,7 +4,7 @@ state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-21T21:37:00.824105072Z
-updated: 2026-09-21T22:55:33.18643473Z
+updated: 2026-09-21T23:02:04.093407921Z
 sessions:
 - start_sha: b41801021927f68fcbf799c60d6b947393d983de
   end_sha: ""
@@ -114,7 +114,7 @@ and in `lintOps`.
 That leaves option 3, and the measurement is what makes it the honest
 choice rather than the lazy one.
 
-## Acceptance
+## Acceptance criteria
 
 - [x] The corpus's declared prerequisite edges are stated ONCE, beside
       `specTiers` in `lint_test.go`, as a hand-written list with the same
