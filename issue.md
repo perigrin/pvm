@@ -1,6 +1,6 @@
 ---
 title: Tier READMEs, because the dependency lint needs an INTRODUCES set that cannot drift
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-conformance-corpus
 blocked_by:
@@ -9,16 +9,20 @@ blocked_by:
 blocks:
 - 01a0c360-01bf-7eab-b864-7d902d36fb97
 created: 2026-09-21T09:50:20.295669503Z
-updated: 2026-09-21T18:40:43.104838839Z
+updated: 2026-09-21T18:40:53.409352971Z
 sessions:
 - start_sha: 0ce515cbfe0ba1f48eb9b741cb1fc5d8c389454d
-  end_sha: ""
+  end_sha: 0ce515cbfe0ba1f48eb9b741cb1fc5d8c389454d
   commits: 0
   started_at: 2026-09-21T18:40:43.104838839Z
+  ended_at: 2026-09-21T18:40:53.409352971Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-21T18:40:43.104838839Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-21T18:40:53.409352971Z
 ---
 
 Listed in the spec's tooling list and left as one of two open questions:
