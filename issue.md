@@ -1,10 +1,19 @@
 ---
 title: Thirty-five parsing-distinctive constructs T1 uses that the corpus never names
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-22T03:37:32.481722445Z
-updated: 2026-09-22T03:37:32.481722445Z
+updated: 2026-09-22T13:34:56.950943604Z
+sessions:
+- start_sha: da919402abda2de096d1553d3959043031a339d9
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-22T13:34:56.950943604Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-22T13:34:56.950943604Z
 ---
 
 The corpus was built construct-first and has never been measured against
