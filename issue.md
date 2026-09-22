@@ -9,7 +9,7 @@ blocked_by:
 blocks:
 - 01a0c360-01bf-7eab-b864-7d902d36fb97
 created: 2026-09-21T09:50:20.295669503Z
-updated: 2026-09-21T22:35:39.09142017Z
+updated: 2026-09-22T01:46:50.062999977Z
 sessions:
 - start_sha: 0ce515cbfe0ba1f48eb9b741cb1fc5d8c389454d
   end_sha: 0ce515cbfe0ba1f48eb9b741cb1fc5d8c389454d
@@ -66,15 +66,6 @@ check, because it already owns the INTRODUCES set the check needs. Where a
 tier declares a prerequisite the adjacency file pairs with THAT, not with
 tier N-1 -- pairing 12_packages with 11_oo would assert nothing, since the
 spec says packages needs nothing from the tier before it.
-
-## Acceptance criteria
-
-- [ ] The lint reads its per-tier INTRODUCES set from the READMEs rather than a hand-maintained Go table (`go test ./internal/conformance/ -run '^TestOpTableDerivedFromReadmes$' -count=1 -v | grep -q '^--- PASS: TestOpTableDerivedFromReadmes'`)
-- [ ] Every tier directory has a README stating what it introduces and what it depends on (`go test ./internal/conformance/ -run '^TestEveryTierHasAReadme$' -count=1 -v | grep -q '^--- PASS: TestEveryTierHasAReadme'`)
-- [ ] A construct in a README that no file in that tier introduces is reported (`go test ./internal/conformance/ -run '^TestCorpusLints$' -count=1 -v | grep -q '^--- PASS: TestCorpusLints'`)
-- [ ] The spec's open-questions section is gone, both questions having been answered rather than merely asked (`! grep -q '^## Open questions' docs/plans/2026-09-21-graded-conformance-corpus.md`)
-- [ ] Every tier directory holds an adjacency file covering its full INTRODUCES set, checked generically so no tier can omit one (`go test ./internal/conformance/ -run '^TestEveryTierHasAnAdjacencyFile$' -count=1 -v | grep -q '^--- PASS: TestEveryTierHasAnAdjacencyFile'`)
-- [ ] A tier README declaring a prerequisite at a later tier number fails the lint, which is check 2 given teeth (`go test ./internal/conformance/ -run '^TestTierNecessityCheck$' -count=1 -v | grep -q '^--- PASS: TestTierNecessityCheck'`)
 
 ### The format is already settled, and tier 01's README exists
 
@@ -209,3 +200,12 @@ Fifteen files carry `STATUS refuses`, each citing itself per the form
 adjacency file reproduces the ADJUST bug the adjacency design was written
 for; tier 04's refuses where every one of its constructs parses alone;
 tier 13's heredocs refuse outright.
+
+## Acceptance criteria
+
+- [ ] The lint reads its per-tier INTRODUCES set from the READMEs rather than a hand-maintained Go table (`go test ./internal/conformance/ -run '^TestOpTableDerivedFromReadmes$' -count=1 -v | grep -q '^--- PASS: TestOpTableDerivedFromReadmes'`)
+- [ ] Every tier directory has a README stating what it introduces and what it depends on (`go test ./internal/conformance/ -run '^TestEveryTierHasAReadme$' -count=1 -v | grep -q '^--- PASS: TestEveryTierHasAReadme'`)
+- [ ] A construct in a README that no file in that tier introduces is reported (`go test ./internal/conformance/ -run '^TestCorpusLints$' -count=1 -v | grep -q '^--- PASS: TestCorpusLints'`)
+- [ ] The spec's open-questions section is gone, both questions having been answered rather than merely asked (`! grep -q '^## Open questions' docs/plans/2026-09-21-graded-conformance-corpus.md`)
+- [ ] Every tier directory holds an adjacency file covering its full INTRODUCES set, checked generically so no tier can omit one (`go test ./internal/conformance/ -run '^TestEveryTierHasAnAdjacencyFile$' -count=1 -v | grep -q '^--- PASS: TestEveryTierHasAnAdjacencyFile'`)
+- [ ] A tier README declaring a prerequisite at a later tier number fails the lint, which is check 2 given teeth (`go test ./internal/conformance/ -run '^TestTierNecessityCheck$' -count=1 -v | grep -q '^--- PASS: TestTierNecessityCheck'`)
