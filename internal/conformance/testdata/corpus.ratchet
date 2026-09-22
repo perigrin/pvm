@@ -8,7 +8,7 @@
 # The per-tier adjacency fixture carries its tier, since fourteen
 # tiers each hold one and they are different files.
 #
-# 139 files, 117 clean, 22 refusing.
+# 156 files, 133 clean, 23 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -37,8 +37,11 @@ tokens and_cliff.t
 - bless_populated.t
 - brace_deref.t
 - braced_name.t
+- builtin_extent.t
 - c_style_for.t
 - call_forms.t
+- caller.t
+- can_chain.t
 - class_adjust.t
 - class_empty.t
 - class_field_method.t
@@ -55,8 +58,13 @@ not_a_term data_section.t
 - deref_at_sigil.t
 - deref_brace_hash.t
 - deref_postfix.t
+- do_block.t
+- do_while.t
+- each.t
 - elsif.t
 - eof.t
+- eval_block.t
+- eval_string.t
 - foreach.t
 unimplemented_statement format_picture.t
 unimplemented_statement format_write.t
@@ -79,6 +87,7 @@ trailing_tokens heredoc_literal.t
 - interpolated.t
 - interpolated_array.t
 - io/adjacency.t
+- isa_infix.t
 not_a_term,tokens leading_decimal.t
 not_a_term literals/adjacency.t
 - local.t
@@ -89,6 +98,7 @@ not_a_term,tokens logical.t
 - method_super.t
 - my.t
 - named_sub.t
+- named_unary.t
 - negated_bind.t
 - negative.t
 - nesting_delimiters.t
@@ -110,11 +120,13 @@ not_a_term,trailing_tokens operators/adjacency.t
 trailing_tokens parenless_extent.t
 - pod_block.t
 - pod_not_perl.t
+- pos.t
 - postfix_while.t
 - precedence.t
 - print_bareword_handle.t
 - print_lexical_handle.t
 trailing_tokens prototype_extent.t
+- push.t
 - qr.t
 - qr_with_code.t
 - readline_list.t
@@ -132,6 +144,7 @@ trailing_tokens prototype_extent.t
 - signature.t
 tokens signed_exponent.t
 - sort.t
+- split_pattern.t
 - state.t
 tokens string.t
 tokens string_comparison.t
@@ -140,13 +153,17 @@ trailing_tokens subroutines/adjacency.t
 - subst_eval.t
 - substitution.t
 - trailing_decimal.t
+- transliteration.t
 - undeclared_callee.t
+trailing_tokens undef_arity.t
 - underscore_separators.t
 - unless.t
+- unshift.t
 - until.t
 - use_empty_list.t
 - use_import.t
 - use_pragma.t
+- values.t
 - variables/adjacency.t
 tokens vstring_bare.t
 tokens vstring_v.t

@@ -132,6 +132,22 @@ var operatorKinds = map[string]string{
 	"and_cliff":          " and ",
 	"precedence":         " + ",
 	"associativity":      " ** ",
+
+	// The argument-extent slice's files (issue 01a0c730). Registered
+	// here rather than left out, because this table's own loop is what
+	// stops a file joining the tier without joining the adjacency check.
+	//
+	// `defined ` with its trailing space is the PARENLESS spelling and
+	// only that: `defined(` would not match it, which is the point --
+	// the named unary level is a question about the parenless form, and
+	// a parenthesised one has no precedence question left in it.
+	//
+	// `undef @` is the UNARY spelling. A bare `undef` would be satisfied
+	// by `= undef`, which is the niladic operator and the other half of
+	// the very pair the file measures, so the sigil is what tells the
+	// two apart in a body that holds both.
+	"named_unary": "defined ",
+	"undef_arity": "undef @",
 }
 
 // operatorKindFromName returns the operator class a file's name

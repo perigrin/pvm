@@ -46,7 +46,7 @@ pairs against, not the whole reachable set.
 
 ## INTRODUCES
 
-    anoncode argcheck argdefelem argelem entersub leavesub postinc return
+    anoncode argcheck argdefelem argelem entersub leavesub postinc return warn
 
 Eight ops, six of which this tier could not claim until the lint learned
 to look inside a CV. `argcheck`, `argdefelem`, `argelem`, `leavesub` and
@@ -103,6 +103,26 @@ what reading them suggests. Six places where those differ:
   `use v5.36` itself adds no ops -- measured, it changes the `nextstate`
   hint flags from `v:{` to `v:us,*,&,{,$,fea=6` and nothing more, so the
   pragma `06_signature.t` needs costs the op stream nothing.
+
+- **`warn` is claimed here because the BUILTIN extent question is this
+  tier's, and it is the only one that can be observed.** `warn "a", "b"`
+  takes both arguments and `warn("a"), "b"` takes one, which is exactly
+  the greedy/cut split `08_parenless_extent.t` and `09_prototype_extent.t`
+  measure for user subs -- with the extent decided by a PAREN at the call
+  site rather than by a declaration. Two routes to one question, and a
+  parser can have either and not the other. `12_builtin_extent.t` carries
+  it. `die` asks the identical question and 218 T1 files use it, and it
+  is claimed by no tier: measured, `$SIG{__DIE__}` does not prevent
+  termination and a `die` under a false guard is a dead branch that says
+  nothing about extent, so the only observable spelling is `eval { die }`
+  and the corpus has no `eval` yet. When a tier claims `eval`, `die`'s
+  extent file can be written against `12_builtin_extent.t` as its pair.
+
+  The handler is what makes `warn` observable at all. It writes to
+  STDERR, which `--- expect output` does not read -- the same constraint
+  `10_io/README.md` records -- and `local $SIG{__WARN__} = sub { }` makes
+  perl call the handler INSTEAD of writing, leaving `warn`'s return value
+  as the only thing to count.
 
 - **`entersub` covers every call form, and the differences are flags.**
   `f(1)`, bare `f`, `&f` and `&f(2)` all emit `entersub`; the ampersand

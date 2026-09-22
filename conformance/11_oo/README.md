@@ -40,7 +40,7 @@ use -- pairing with 10 would assert nothing.
 
 ## INTRODUCES
 
-    anonhash bless emptyavhv method method_named method_super methstart shift stub
+    anonhash bless emptyavhv isa method method_named method_super methstart shift stub
 
 ## Why those ops, and not the ones the source implies
 
@@ -117,6 +117,37 @@ the `class` side.
   inside `package Derived;` rather than from a method body. Written the
   usual way the op would sit in a sub's own optree, where -- see
   `methstart` above -- nothing measures it.
+
+- **`isa` is an INFIX OPERATOR and is not dispatch at all.** `$o isa Foo`
+  emits `<2> isa` -- a binary op -- with no `entersub` and no
+  `method_named`, where `$o->isa("Foo")` emits both. One word, two
+  unrelated parses, and only the method spelling goes through the
+  machinery the rest of this tier is about. Measuring only that spelling
+  would have named the half that is not distinctive.
+
+  It is FEATURE-GATED, which is the second half of its parse: measured,
+  without the feature the infix form is a SYNTAX ERROR rather than a
+  weaker parse, so whether the word is an operator at all depends on a
+  pragma earlier in the file. It is no longer experimental under 5.42 --
+  `use v5.36` with `$o isa Foo` warns about nothing, where `class` still
+  needs its `no warnings` line. `10_isa_infix.t` carries it, and asserts
+  lexically for this tier's usual reason: both spellings print the same
+  thing, so only the tokens separate them.
+
+- **`can` introduces NO op, and that is why it earns a file.** The whole
+  construct is how `$o->can("hi")->($o)` is parsed, and measured, that is
+  TWO `entersub` under ONE `method_named`: the first arrow is a method
+  call and the second dereferences the code ref `can` returned. A parser
+  that read both arrows as method calls, or that read the second as part
+  of the first call, produces an ordinary-looking op stream with the
+  wrong counts -- and `opsOf` collects op NAMES, so it can see neither
+  the counts' shape nor the flags (`sKRS` for the method call, `lKS` for
+  the deref) that say the same thing. `11_can_chain.t` carries it.
+
+  The receiver is passed explicitly in that spelling and must be:
+  calling a code ref passes no invocant, so `$o->can("hi")->()` calls
+  the method with an EMPTY `@_`. That is the semantic content of "only
+  the first is a method call".
 
 - **`emptyavhv` and `anonhash`, not one anon-hash op.** `bless {}, $c`
   emits `emptyavhv ... /ANONHASH`; `bless { %a }, $c` emits `pushmark`,

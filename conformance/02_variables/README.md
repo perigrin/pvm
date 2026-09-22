@@ -1,6 +1,7 @@
 # 02_variables
 
-Sigils, scalars, arrays, hashes, element access, `delete`/`exists`, `$::`.
+Sigils, scalars, arrays, hashes, element access, `delete`/`exists`, `$::`,
+and the aggregate-argument operators `push`/`unshift`/`values`/`each`.
 
 ## Why this tier sits here
 
@@ -32,12 +33,12 @@ subject and `print` is tier 10's. Using a construct is not introducing it.
 
 ## INTRODUCES
 
-    aassign aelem aelemfast aelemfast_lex aelemfastlex_store aslice av2arylen delete gv gvsv helem hslice multideref padav padhv rv2av rv2hv sassign
+    aassign aelem aelemfast aelemfast_lex aelemfastlex_store aslice av2arylen delete each gv gvsv helem hslice multideref padav padhv push rv2av rv2hv sassign unshift values
 
 ## Why those ops, and not the ones the source implies
 
 This list is what `perl -MO=Concise,-exec` EMITS for the constructs in this
-tier, measured under 5.42.0, not what reading the source suggests. Five
+tier, measured under 5.42.0, not what reading the source suggests. Six
 places where those differ, and the first is the largest gap in the corpus
 so far.
 
@@ -82,6 +83,28 @@ so far.
   `05_braced_name.t` and asserted on the SOURCE, the way tier 01 asserts
   `-1`'s two tokens against a folded constant.
 
+- **The aggregate-argument operators DO emit ops, and `keys` does not --
+  but only in scalar context.** `push`, `unshift`, `values` and `each`
+  each compile to an op of their own, which is the opposite of what the
+  `exists`/`delete` bullet above would lead a reader to expect, so the
+  contrast is worth stating. What they share with nothing else in the
+  tier is their ARGUMENT RULE: the first argument is the aggregate
+  itself, not an expression to be flattened. Measured,
+  `push @a, @tail` emits `padav[@a] lRM` and `padav[@tail] l` --
+  the SAME op with different flags, the container slot against the
+  flattened slot -- and the result has three elements rather than two.
+  A parser that flattens the first slot builds the wrong tree while
+  printing something plausible, which is why `14_push.t` and
+  `15_unshift.t` pin the element as well as the count.
+
+  `keys` is the trap. This README's `07_hash.t` discussion records it as
+  a FLAG (`sM/KEYS` on the padhv) and that is true of `scalar(keys %h)`,
+  the only spelling the tier had. Measured, `my @k = keys %h` in LIST
+  context emits a `keys` op just as `values` does. The flag is a
+  property of the CONTEXT, not of the keyword, so `16_values.t` writes
+  no `keys` at all rather than quietly adding an op the tier has never
+  claimed.
+
 Two further measurements shape the tier's files rather than its op list.
 `print "@a"` emits `join` and `gvsv` -- the `gvsv` is `$"`, which the
 interpolation reads -- and `print "$a[0]"` emits `stringify`. Neither is
@@ -113,7 +136,7 @@ marker is worth keeping: the op list alone would contain no notion of
 
 `pkg-colon` is `$::`, the scanner row measured at 0.0% clean over fourteen
 files, and it is this tier because a package-qualified name is a variable
-name. `10_package_array.t`, `11_package_hash.t` and `12_package_scalar.t`
+name. `11_package_array.t`, `12_package_hash.t` and `13_package_scalar.t`
 are the files.
 
 The probe column is the SOURCE probe verbatim, `·` standing for a
@@ -129,9 +152,15 @@ The numbers are a function of the names: sort the identities, count from
 01. `TestDerivedTierNumberingRegenerates` throws them away and rebuilds
 them, so this tier's numbering cannot drift.
 
-That it holds here is partly luck. The renumbering in `b4af7e51` shifted
-`05_hash.t` and its successors up by one to make room for a new file --
-closing a gap, not alphabetising -- and the result happens to be what a
-regeneration produces. The sort is on the identity WITH its extension, so
+It has now held through a renumbering that was NOT luck. Adding `each.t`
+put a new identity in the middle of the sort, shifting `hash.t` and its
+six successors up by one, and `TestTierVariablesNumberingRegenerates`
+named every destination before a file moved. An earlier shift in
+`b4af7e51` moved `05_hash.t` and its successors for a different reason --
+closing a gap rather than alphabetising -- and happened to land where a
+regeneration would put them; this one was derived rather than guessed,
+which is the difference the `derived` declaration buys.
+
+The sort is on the identity WITH its extension, so
 `array.t` precedes `array_element.t` (`.` sorts before `_`), which is why
 `01_array.t` sits ahead of `02_array_element.t` rather than after it.

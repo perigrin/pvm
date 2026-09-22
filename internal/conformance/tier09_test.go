@@ -175,6 +175,7 @@ func TestTierRegexCoversItsDelimiters(t *testing.T) {
 	//   s///   substitution's baseline, two pairs sharing one character
 	//   s{}{}  two bracketing pairs, where the second may differ
 	//   qr//   the non-recursive compiled pattern this tier claims
+	//   tr///  the OTHER two-region quote-like, whose regions are not patterns
 	required := []struct{ form, why string }{
 		{"m//", "the baseline match, and the match-vs-divide ambiguity"},
 		{"m{}", "a bracketing delimiter, which nests"},
@@ -183,6 +184,19 @@ func TestTierRegexCoversItsDelimiters(t *testing.T) {
 		{"s///", "substitution's baseline, both pairs sharing one character"},
 		{"s{}{}", "two bracketing pairs, where the second's opener may differ"},
 		{"qr//", "the non-recursive compiled pattern this tier claims"},
+
+		// `tr///` is the entry that makes this list about the TIER's
+		// scope rather than about delimiters alone, and it was added
+		// when the tier grew to claim `trans`.
+		//
+		// A lexer needs a table of which quote-like NAMES take a second
+		// region, because nothing in the first region announces that one
+		// follows -- and `tr` (with its synonym `y`) is the entry most
+		// often missing from that table, since `s` is the one everybody
+		// implements. A tier covering `s{}{}` and `s///` and no `tr`
+		// asserts that two-region lexing works for exactly the name it
+		// tested.
+		{"tr///", "the other two-region quote-like, whose regions are not patterns"},
 	}
 
 	// The union across the tier, adjacency file included: the adjacency

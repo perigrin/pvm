@@ -118,6 +118,24 @@ var reOoArrowCall = regexp.MustCompile(`->\s*(\w+|\$\w+)`)
 // `sub new`, which every file defining a constructor has.
 var reOoIndirect = regexp.MustCompile(`=\s*new\s+[A-Z]\w*`)
 
+// reOoInfixIsa matches the INFIX `isa`, and only that.
+//
+// A variable, the bare word, then a capitalised bareword class -- which
+// is the one shape the operator has. `->isa(` is the METHOD and a
+// different construct entirely: measured, the infix form emits `<2> isa`
+// with no `entersub` and no `method_named`, where the method form emits
+// both. A pattern matching the bare word alone would report the two as
+// one, and the tier would look like it had named a construct it had not.
+var reOoInfixIsa = regexp.MustCompile(`\$\w+\s+isa\s+[A-Z]\w*`)
+
+// reOoCanChain matches the `->can(` that opens the chain.
+//
+// Anchored on the arrow because a bare `can` is satisfied by the word in
+// a comment, and this tier's files carry long ones. What the chain IS --
+// two `entersub` under one `method_named` -- is measured in
+// `11_can_chain.t`; this pattern only has to identify where it appears.
+var reOoCanChain = regexp.MustCompile(`->\s*can\s*\(`)
+
 // ooForms returns the constructs of this tier a source exercises, named
 // as the README names them.
 func ooForms(source string) []string {
@@ -128,6 +146,12 @@ func ooForms(source string) []string {
 			seen[m[1]] = true
 			out = append(out, m[1])
 		}
+	}
+	if reOoInfixIsa.MatchString(source) {
+		out = append(out, infixIsaForm)
+	}
+	if reOoCanChain.MatchString(source) {
+		out = append(out, canChainForm)
 	}
 	if reOoIndirect.MatchString(source) {
 		out = append(out, indirectNewForm)
@@ -145,6 +169,12 @@ func ooForms(source string) []string {
 const (
 	indirectNewForm = "indirect new"
 	arrowCallForm   = "arrow method call"
+
+	// The argument-extent slice's two (issue 01a0c730), keyword-less in
+	// the same way: `isa` is an OPERATOR rather than a declaration, and
+	// the `can` chain is named for its arrows rather than for any word.
+	infixIsaForm = "infix isa"
+	canChainForm = "can chain"
 )
 
 // formFromOoName returns the construct a file is named for, or "" when
@@ -174,6 +204,16 @@ func formFromOoName(name string) string {
 		return "field"
 	case "class_adjust":
 		return "ADJUST"
+	// The argument-extent slice's two (issue 01a0c730). Each names the
+	// SPELLING that identifies it in a body holding four other method
+	// calls: `isa` bare is the infix operator, which `ooForms` finds as
+	// an operator and not as a call, and `->can(` is the chain's first
+	// arrow, which a plain `can` would not tell apart from the word in
+	// a comment.
+	case "isa_infix":
+		return infixIsaForm
+	case "can_chain":
+		return canChainForm
 	default:
 		return ""
 	}

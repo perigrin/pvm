@@ -1,6 +1,7 @@
 # 06_control
 
-`if`/`unless`, `while`/`until`, `for`/`foreach`, the postfix forms, and `goto`.
+`if`/`unless`, `while`/`until`, `for`/`foreach`, the postfix forms, `goto`,
+and the two block-valued expressions `do BLOCK` and `eval BLOCK`.
 
 ## Why this tier sits here
 
@@ -44,7 +45,7 @@ this tier's subject.
 
 ## INTRODUCES
 
-    cond_expr enteriter goto iter last next redo unstack
+    cond_expr enteriter entertry goto iter last leavetry next redo unstack
 
 ## Why those ops, and not the ones the source implies
 
@@ -124,6 +125,35 @@ corpus distinguishes them by the argument rather than by the op name.
 main optree at all, and needs `-exec,g` to see. Only the op name is claimed;
 `rv2cv` and `srefgen` belong to tiers 07 and 08.
 
+`entertry` and `leavetry` are `eval BLOCK`, and they are here because
+`eval` is TWO constructs wearing one keyword that share no op at all.
+Measured, `eval { 1 }` emits `entertry`/`leavetry` and `eval "1"` emits
+`entereval`. The string form compiles Perl the compiler never saw and
+belongs to `14_recursive`, which claims `entereval` already; the block
+form compiles nothing new and marks a FRAME the runtime can unwind back
+to. That is a control transfer in the same family as `next`, `last` and
+`goto` -- a jump whose target the construct names and whose distinction is
+that nothing in the source spells the jump. Both ops were unclaimed by
+every tier before `14_eval_block.t` was written, so claiming them here is
+additive and `claimonce_test.go` finds no collision.
+
+`die` is NOT this tier's, and its absence shaped the file. The obvious
+`eval { die "x" }` emits a `die` op no tier at or before 06 claims, so the
+lint refuses it; `14_eval_block.t` traps a division by zero instead, which
+exercises the same frame using `divide`, an op tier 04 already owns. The
+budget picked the operand.
+
+The three `do` spellings resolve to two files and one measurement that
+nothing here can carry. `do BLOCK` in expression position emits no op of
+its own -- an `enter`/`leave` pair with an `s` flag, tier 01's ops -- and
+`do { 1 }` emits nothing at all, folding to a bare `const`. `do BLOCK
+while COND` is a loop that emits `unstack` and no `enterloop`, the same
+shape as the postfix modifier. `do FILE` emits `dofile`, which is a
+file-loading op in tier 12's family rather than a control construct, and
+is left out of this tier deliberately. `do SUB` is not measured at all
+because it does not exist: under 5.42.0 `do f()` is a syntax error, so the
+third of the "three unrelated parses" is a parse perl no longer has.
+
 Two erasures worth recording, because they are how a file in this tier can
 silently measure nothing. `if (1) { print "y" } else { print "n" }` emits
 `pushmark`, `const` and `print` and no branch op whatsoever -- the else
@@ -135,7 +165,7 @@ declared tier rather than deriving it.
 
 ## What writing the corpus changed
 
-Nothing was removed from INTRODUCES. All eight ops are emitted by files in
+Nothing was removed from INTRODUCES. All ten ops are emitted by files in
 this tier, and the corpus-wide claim check passes against them. Three
 things the files measured that this README had asserted without one:
 
@@ -147,19 +177,19 @@ differ in arity and op class as well as in when the target is known.
 and `srefgen`, which tiers 07 and 08 claim. The op NAME is legitimately
 this tier's because two spellings emit it here; the frame-replacing
 spelling waits for the tier that supplies frames. Both jumps in
-`11_goto.t` go forward to a label at the same scope depth, because perl
+`12_goto.t` go forward to a label at the same scope depth, because perl
 warns on a `goto` into or out of a construct and the harness compares
 output byte for byte.
 
 The postfix loop modifier cost an op the first time it was written.
 `print $i-- while $i > 0` emits `postdec`, which no tier at or before 06
-claims, so `10_postfix_while.t` spells the body `$i = $i - 1` instead. The
+claims, so `11_postfix_while.t` spells the body `$i = $i - 1` instead. The
 file's subject is the loop frame, not the decrement, and the lint was
 right to refuse the shorter spelling.
 
 `redo` needs a guard that is false at run time. It is the one jump with no
 terminating spelling of its own -- an unguarded `redo` restarts the body
-forever -- so both `09_next_last_redo.t` and the adjacency file put it
+forever -- so both `10_next_last_redo.t` and the adjacency file put it
 behind `$ENV{R} // 0`. The op compiles, sits adjacent to the statements
 around it, and is never taken, which is exactly what the tier needs to
 measure and nothing more.
@@ -177,7 +207,7 @@ filter, so that file was deleted and the placements moved to the tiers.
 files, and it is this tier because `goto LABEL` is a loop-control statement
 in everything but name -- the same code path as `next`, `last` and `redo`,
 which the section above records as the ops this tier introduces.
-`11_goto.t` is the file, and the note above already measures that the tier
+`12_goto.t` is the file, and the note above already measures that the tier
 backs `goto` with `goto LABEL` and `goto $target` only.
 
 The probe column is the SOURCE probe verbatim, `·` standing for a
@@ -188,16 +218,29 @@ a file here that the probe finds.
 ## FILE ORDER
 
     01-04	conditionals
-    05-08	loops
-    09-11	jumps
+    05-09	loops
+    10-12	jumps
+    13-14	block-valued expressions
 
 The numbering is chosen, not computed, and the sections above depend on
 it. The three conditional files are the `and`/`or`/`cond_expr` argument --
 `if` and `unless` differ by exactly one op, and `if`/`else` is a different
-op again -- and that argument is a comparison between neighbours. The four
+op again -- and that argument is a comparison between neighbours. The five
 loop files are the `enterloop`/`unstack` family, with `enteriter` arriving
 at `08_foreach.t` as the thing that distinguishes `foreach` from C-style
-`for`. The three jump files are what `enterloop` names in its own dump.
+`for`, and `09_do_while.t` closing the run with the one loop that emits
+`unstack` and no `enterloop` at all. The three jump files are what
+`enterloop` names in its own dump.
+
+The fourth group is new and is the only one whose name is not a keyword.
+`13_do_block.t` and `14_eval_block.t` are the two constructs that put a
+BLOCK where an expression goes with no comma between it and what follows
+-- a parse fork perl itself resolves by heuristic, and the one perl gets
+wrong as an anonymous hash. They sit last because neither is a loop and
+neither is a jump, and putting them inside either run would make the
+sentence describing that run false. `09_do_while.t` is the hinge: it holds
+the same `do BLOCK` as `13_do_block.t` and is in the loop group, because
+what follows the closing brace decides which production this is.
 
 A regeneration would sort these alphabetically and interleave the
 families: `03_goto.t` would land between `02_foreach.t` and

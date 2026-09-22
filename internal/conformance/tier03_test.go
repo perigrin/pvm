@@ -112,6 +112,13 @@ var contextConstructs = map[string]string{
 	"sort":                    "sort @a",
 	"localtime":               "localtime",
 	"wantarray":               "wantarray",
+
+	// `caller` (issue 01a0c730). Spelled `= caller;` and not bare
+	// `caller`, because the bare word is satisfied by the word in a
+	// comment -- and this tier's own README now names the op in prose.
+	// The assignment form is how both halves of the pair are written in
+	// `08_caller.t` and in the adjacency file alike.
+	"caller": "= caller;",
 }
 
 // contextConstructFromName returns the construct a file's name identifies, or ""
@@ -395,6 +402,13 @@ var discriminatingPairs = map[string]string{
 	"reverse":   "04_reverse.t",
 	"aassign":   "05_sort.t",
 	"localtime": "06_localtime.t",
+
+	// `caller` is the tier's sharpest pair and the last to arrive. At
+	// file scope the two contexts return different AMOUNTS -- undef
+	// against the empty list -- rather than two formattings of one
+	// answer, so the behavioural half falsifies a collapsed context on
+	// its own, which no other pair here can claim.
+	"caller": "08_caller.t",
 }
 
 // TestTierContextMeasuresBothContexts is where the tier's inference gap

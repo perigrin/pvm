@@ -377,6 +377,28 @@ var tierVariableSpellings = []string{
 	"$::",
 	"@::p",
 	"%::g",
+
+	// THE AGGREGATE-ARGUMENT OPERATORS. Each entry carries the SIGIL
+	// that follows the keyword and stops there, because the sigil is
+	// the construct: these four take an AGGREGATE where every other
+	// list operator takes an expression, so `push @` is the claim and
+	// `push` alone would be satisfied by a body writing it over a
+	// scalar.
+	//
+	// NAME-AGNOSTIC, on this list's own stated principle. Which array
+	// is pushed to and which hash is iterated are facts about a file,
+	// not about what it teaches, and the adjacency file's `each` runs
+	// over a separate one-key hash precisely because hash order makes
+	// the four-key one unpinnable. An entry spelling `each %h` would
+	// make the check fail for that correct choice.
+	//
+	// Without these four the adjacency check goes green over the
+	// constructs, because it demands only what this list names -- which
+	// is how a new file's construct reaches the tier unpaired.
+	"push @",
+	"unshift @",
+	"values %",
+	"each %",
 }
 
 // variableSpellings returns the tier-02 constructs a file's source uses.

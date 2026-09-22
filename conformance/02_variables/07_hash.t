@@ -19,7 +19,7 @@
 #
 # `$h{a}` emits no `helem`. It compiles to `multideref($h{"a"})`, the op
 # that swallows most element access in this tier; `helem` survives only
-# where the subscript is an expression, which is `07_hash_element_expr.t`.
+# where the subscript is an expression, which is `08_hash_element_expr.t`.
 # `keys` likewise emits no op of its own -- it becomes a FLAG on the
 # `padhv`, `sM/KEYS`.
 

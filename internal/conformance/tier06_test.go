@@ -61,7 +61,7 @@ func TestTierControlPerlValidated(t *testing.T) {
 //
 // The lint has already earned its place in this tier once. The README
 // records it: `print $i-- while $i > 0` emits `postdec`, which no tier at
-// or before 06 claims, so `10_postfix_while.t` spells the decrement
+// or before 06 claims, so `11_postfix_while.t` spells the decrement
 // `$i = $i - 1` instead. The file's subject is the loop frame and the
 // lint refused the shorter spelling correctly.
 func TestTierControlLint(t *testing.T) {
@@ -93,7 +93,16 @@ func TestTierControlLint(t *testing.T) {
 // Anchored on a word boundary at both ends so `for` is not satisfied by
 // `foreach` -- the two are different optrees, which is precisely the pair
 // the README says the disambiguation happens at the open paren for.
-var reControlKeyword = regexp.MustCompile(`\b(unless|until|foreach|while|if|for|goto|next|last|redo)\b`)
+//
+// `do` and `eval` join the list with the tier's fourth group, the
+// block-valued expressions. They are keywords like the rest, but the
+// adjacency claim they carry is sharper: `do` appears in TWO of this
+// tier's files under two unrelated productions -- `09_do_while.t`'s loop
+// and `13_do_block.t`'s expression -- so the adjacency file must hold a
+// `do`, and holding one is not by itself evidence it holds both. That
+// second half is what the README's group prose states and what no regexp
+// over a keyword can check.
+var reControlKeyword = regexp.MustCompile(`\b(unless|until|foreach|while|if|for|goto|next|last|redo|eval|do)\b`)
 
 // controlKeywords returns the keywords a file's source spells, in the
 // order the regexp's alternation prefers -- longest first, so a `foreach`

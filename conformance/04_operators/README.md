@@ -45,7 +45,7 @@ without a runtime operand this tier has nothing to measure. See below.
 
 ## INTRODUCES
 
-    add and concat divide dor eq ge gt le lt modulo multiply ncmp ne negate not or pow repeat scmp seq sge sgt sle slt sne subtract xor
+    add and concat defined divide dor eq ge gt le lt modulo multiply ncmp ne negate not or pow repeat scmp seq sge sgt sle slt sne subtract undef xor
 
 ## Why those ops, and not the ones the source implies
 
@@ -96,6 +96,36 @@ measuring diverge most, and five places where they do:
   precedence files carry behavioural probes built so the two groupings print
   different things -- `print 2**3**2` gives 512 and `print ((2**3)**2)`
   gives 64.
+
+- **`defined` and `undef` are here because their parses are OPERATOR
+  questions, and neither is about the variable it names.** Both were
+  unnamed anywhere in the corpus while 29% and 19% of T1's files use
+  them.
+
+  `defined` occupies the NAMED UNARY precedence level, below arithmetic
+  and above comparison, which is a fact about where its argument stops.
+  Measured, `defined $x + 1` is `defined($x + 1)` and prints 1, where
+  `(defined $x) + 1` prints 2 -- and the op names are the same both ways,
+  `add` and `defined` in a different ORDER, which `opsOf` cannot see for
+  the reason stated above about grouping. `09_named_unary.t` carries it.
+
+  Two things about `defined` that a file written from its reputation
+  rather than from the interpreter would get wrong, both measured under
+  5.42.0. `defined %h` is a FATAL ERROR -- "Can't use 'defined(%hash)'"
+  -- so the special rule for hashes was removed rather than being
+  something to measure. And `defined &f` is real but is NOT this tier's:
+  it compiles to `rv2cv ... /AMPER` feeding `defined`, and `rv2cv` is
+  `08_references`'s op, so a file here spelling it would reach four
+  tiers forward.
+
+  `undef` is TWO OPERATORS wearing one word, and the split is ARITY.
+  Measured, `undef @a` emits `<1> undef` and empties the array, while
+  `@a = undef` emits `<0> undef` and leaves the array holding exactly one
+  element. Opposite results, identical op NAME -- so the lint sees
+  `undef` twice and cannot say that one of them took an operand.
+  `10_undef_arity.t` carries it and records that our parser refuses the
+  unary spelling alone, with the same `trailing_tokens` as tier 07's
+  parenless-call files and for the same missing rule.
 
 One structural note carried from tier 01, because it bites harder here: the
 declared set is a UNION ACROSS THE TIER'S FILES and never a property of one

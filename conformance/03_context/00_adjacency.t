@@ -14,7 +14,8 @@
 #
 # Here the constructs sit on consecutive statements: an array in scalar
 # context, the same array interpolated, the comma operator in scalar
-# context, `sort`, `reverse`, `localtime`, and `wantarray`. They are
+# context, `sort`, `reverse`, `localtime`, `wantarray` and `caller`.
+# They are
 # adjacent as statements rather than nested, because nesting them would
 # need an operator to join them and this tier is before the operator tier.
 #
@@ -55,17 +56,23 @@
 # two elements whatever the time is, which is the shape claim `$stamp`
 # can make and the string cannot.
 #
+# `$who` and `@frame` are `caller` in the two contexts, and at file
+# scope the two do not merely format one answer differently -- they
+# return different AMOUNTS of it. `$who` is undef and `@frame` is the
+# EMPTY list, which is the `0` this file's output ends on. That pair is
+# `08_caller.t`'s subject; here it stands beside the other six.
+#
 # Fewer ops appear than the constructs suggest. `padrange` fuses
 # consecutive `my` declarations, and the comma operator in scalar context
 # erases its own left operands -- so the op set is a UNION across the
 # tier's files rather than a property of this one. It happens that this
-# file does emit all six, but that is a fact about this program, not a
+# file does emit all seven, but that is a fact about this program, not a
 # rule the format requires.
 #
 # MEASURED perl 5.42.0:
 #
 #   $ perl conformance/03_context/00_adjacency.t
-#   3 3 1 2 3 1 2 6 1 2 3 3 0 213 2 1 3 9 2
+#   3 3 1 2 3 1 2 6 1 2 3 3 0 213 2 1 3 9 3 0
 
 --- source
 my @a = (3, 1, 2);
@@ -81,11 +88,13 @@ my @revd = reverse @a;
 my $fields = () = localtime;
 my $stamp = localtime;
 my $want = wantarray;
-my @seen = ($want, $stamp);
+my $who = caller;
+my @frame = caller;
+my @seen = ($want, $stamp, $who);
 print "$count @copy $interp $last @sorted $moved ", scalar(@kept),
-    " $rev @revd $fields ", scalar(@seen), "\n";
+    " $rev @revd $fields ", scalar(@seen), " ", scalar(@frame), "\n";
 
 --- expect output
-3 3 1 2 3 1 2 6 1 2 3 3 0 213 2 1 3 9 2
+3 3 1 2 3 1 2 6 1 2 3 3 0 213 2 1 3 9 3 0
 
 --- expect parses

@@ -48,7 +48,7 @@ appear here.
 
 ## INTRODUCES
 
-    match qr regcomp subst
+    match pos qr regcomp split subst trans
 
 ## Why those ops, and not the ones the source implies
 
@@ -116,11 +116,42 @@ things that reading the source would not tell you:
   capture ACCESS is a variable construct that happens to be populated by a
   regex. This tier's files may read `$1` as a fixture; the op belongs to 02.
 
+- **`split` takes a PATTERN where an expression would go, and the optree
+  cannot see which was written.** This was scoped out once and is now in,
+  and the reason it came back is that it is the tier's own argument in its
+  strongest form. Measured under 5.42.0, `split / /, $s` and `split " ",
+  $s` emit byte-identical ops -- `split(/" "/ => @p:2,3)` for both, down
+  to the pattern text perl prints inside the op -- while printing
+  DIFFERENT ANSWERS, because a lone space as a STRING is perl's awk
+  special case and the same space as a PATTERN is not. Everywhere else in
+  this tier the erasure hides a distinction nothing observable depends on;
+  here it hides one the output reports. `10_split_pattern.t` pins both
+  spellings side by side.
+
+- **`tr///` wears `s///`'s syntax and is not a regex at all.** It is the
+  only quote-like besides `s///` taking two delimited regions, so a lexer
+  needs `tr` (and its synonym `y`) in whatever table tells it a second
+  region follows -- the operator NAME is the only signal, since nothing
+  about the first region announces a second. But neither region is a
+  pattern: measured, `tr/./X/` on `"a.c"` gives `aXc` where `s/./X/` gives
+  `X.c`, because `tr`'s `.` is the character and `s`'s is the
+  metacharacter. A parser that desugared one into the other compiles,
+  runs, and prints the wrong string. The op is `trans` and it stands alone
+  -- no `match`, no `regcomp` -- which is the optree agreeing that `tr` is
+  not a regex construct while the lexer cannot tell.
+
+- **`pos` is a named operator in LVALUE position.** `pos($s) = 0` puts the
+  `pos` op under `sassign`'s left arm, which almost nothing in Perl does,
+  and a parser modelling `pos` as an ordinary named unary either refuses
+  the assignment or discards it silently. The discard is the dangerous
+  case and `12_pos.t` makes the output report it: with the reset two
+  successive `//g` matches both land at 2, without it the second lands at
+  5. The op is the same in both positions -- rvalue and lvalue differ in
+  perl's printed flags, not in the op -- so the op claim is earned by
+  either spelling and the lvalue claim is behavioural.
+
 `padsv`, `padsv_store`, `const`, `print` and `pushmark` appear throughout and
-are tier 01's, already claimed. `split` and `tr///` each emit their own op
-(`split`, `trans`) and are deliberately out of scope for a tier the spec
-scopes to "match, substitution, binding, delimiters"; if they are added
-later, the list grows by exactly those two.
+are tier 01's, already claimed.
 
 ## FILE ORDER
 

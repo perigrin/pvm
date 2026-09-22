@@ -29,7 +29,7 @@ subject.
 
 ## INTRODUCES
 
-    join list localtime reverse sort wantarray
+    caller join list localtime reverse sort wantarray
 
 ## Why those ops, and not the ones the source implies
 
@@ -56,6 +56,19 @@ the pair is the point: `my $x = reverse @a` emits `reverse[t4] sK/1` and
 `my @b = reverse @a` emits `reverse[t6] lK/1` -- same op, same operand,
 different answer. `localtime` is the sharpest of the three because the two
 results have unrelated types, a string and a nine-element list.
+
+**`caller` is the fourth pair and the only one whose halves return
+different AMOUNTS.** The other three format one answer two ways: `reverse`
+gives a reversed list or a reversed string, `localtime` a list or a
+formatted string, and in each case something comes back either way. At
+file scope `caller` has no frame to report, and measured, scalar context
+gives `undef` while list context gives the EMPTY LIST -- so the counts are
+1 and 0. A parser that collapsed the two contexts into one answer prints
+`0 0` or `1 1` and is caught by a single byte, which no other pair here
+can claim. `08_caller.t` carries it, and takes care to stay at file
+scope: inside a sub the op is the same but `entersub` and `leavesub` come
+with it, and those are tier 07's, four tiers forward. `07_wantarray.t`
+records the same finding for the same reason.
 
 **`join`, which no reader of the source would predict.** `"@a"` contains no
 function call, but it compiles to `gvsv[*"]` -- fetching the list separator

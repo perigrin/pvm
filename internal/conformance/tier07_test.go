@@ -140,6 +140,17 @@ var subroutineConstructs = map[string]string{
 	"08_parenless_extent.t": "print f 1, 2;",
 	"09_prototype_extent.t": "print g 1, 2;",
 	"11_code_ref_call.t":    "->(",
+
+	// The BUILTIN half of the extent question (issue 01a0c730).
+	// Registered here for the same reason as the three above.
+	//
+	// Spelled as the GREEDY call site, `warn "a", "b"`, because that is
+	// where the construct lives: the cut form `warn("a"), "b"` is what
+	// it is measured against, and a spelling taken from that half would
+	// be satisfied by any parenthesised call in the body. The two
+	// spellings differ by a paren and nothing else, which is precisely
+	// the construct.
+	"12_builtin_extent.t": `warn "a", "b"`,
 }
 
 // A `--- expect parsent` file has NO ENTRY ABOVE AND MUST NOT, which is

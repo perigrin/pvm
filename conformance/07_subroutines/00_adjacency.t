@@ -101,9 +101,26 @@
 # file for reaching four tiers forward to declare a sub. The file-scope
 # toggle emits no ops at all.
 #
+# `@greedy` and `@cut` are the BUILTIN extent question (issue 01a0c730),
+# standing beside the user-sub one on the last two lines. `warn "a", "b"`
+# is greedy and yields ONE value; `warn("a"), "b"` is cut by the paren
+# and yields TWO -- the `12` on this file's third line. The two routes to
+# the same question are what makes them worth having adjacent: a user
+# sub's extent is decided by its DECLARATION and a builtin's by a PAREN
+# at the call site, and a parser can implement either and not the other.
+# `12_builtin_extent.t` is the one-construct half and records why `die`,
+# which asks the identical question, is not here: it terminates, and a
+# file that dies has no output to pin.
+#
+# `local $SIG{__WARN__} = sub { }` is what makes the pair observable at
+# all. `warn` writes to STDERR, which `--- expect output` does not read;
+# an installed handler is called INSTEAD of that write, so the text goes
+# nowhere and `warn`'s RETURN VALUE is the only thing left to count.
+#
 # MEASURED perl 5.42.0, the call-form lines:
 #
 #   42 42 42
+#   12
 #   f[1-2]
 #   g[1]2
 #
@@ -138,8 +155,12 @@ use feature "signatures";
 my $anon = sub { pick($_[0]) . "/" . &pick($_[1], "tiny") };
 my $seen = 0;
 bump($seen);
+local $SIG{__WARN__} = sub { };
+my @greedy = (warn "a", "b");
+my @cut = (warn("a"), "b");
 print pick(1), " ", pick(50), " ", $anon->(2, 3), " ", $seen, "\n";
 print &answer, " ", answer(), " ", answer, "\n";
+print scalar @greedy, scalar @cut, "\n";
 print f 1, 2;
 print "\n";
 print g 1, 2;
@@ -148,6 +169,7 @@ print "\n";
 --- expect output
 small big-2 small/tiny 1
 42 42 42
+12
 f[1-2]
 g[1]2
 

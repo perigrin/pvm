@@ -11,7 +11,7 @@
 # to `multideref($h{"a"}) sK/EXISTS` and `delete $h{a}` to
 # `multideref($h{"a"}) sK/DELETE`: both survive only as a FLAG on an op
 # named after something else. A tier derived from op names alone would
-# contain no notion of `exists` at all, and `09_hash_slice.t` would be the
+# contain no notion of `exists` at all, and `10_hash_slice.t` would be the
 # only evidence `delete` exists -- for the wrong reason, since the slice is
 # the spelling where the optimiser DECLINES to fold and a real `delete` op
 # appears. This file is the common path; that one is the exception.

@@ -32,9 +32,27 @@
 #
 # Here that is: a `class` with a `field`, an `ADJUST` and a `method` in
 # one body; a classic `bless` of an empty anon hash; a compile-time method
-# call and a dynamic one on the result. The class side and the classic
-# side are adjacent to each other as well, because a parser that switches
-# modes on `class` has to switch back.
+# call and a dynamic one on the result, an infix `isa` and a `can` chain.
+# The class side and the classic side are adjacent to each other as well,
+# because a parser that switches modes on `class` has to switch back.
+#
+# `$yes` and `$code` are the argument-extent slice's two constructs
+# (issue 01a0c730), adjacent to the dispatch they are not:
+#
+#   - `$b isa Bar` is an INFIX OPERATOR. Measured, it emits `<2> isa`
+#     with no `entersub` and no `method_named` at all, so it sits in this
+#     body beside four method calls that emit both, and a parser that
+#     read it as a fifth would be caught by the mixture and by nothing
+#     else. `10_isa_infix.t` is the one-construct half. It is what the
+#     `'isa'` in the feature list above is for: without it the infix
+#     spelling is a SYNTAX ERROR rather than a weaker parse.
+#
+#   - `$b->can("hi")->($b)` is TWO calls through one chain and only the
+#     first is a method call; the second arrow dereferences the code ref
+#     `can` returned. Measured, two `entersub` under one `method_named`.
+#     `11_can_chain.t` is the one-construct half, and this body is where
+#     that chain stands next to the plain `$b->hi` and the dynamic
+#     `$b->$name` it must not be confused with.
 #
 # The tier's declared prerequisite is `08_references`, and `bless` is the
 # whole of it: the blessed hash below is a tier 08 reference plus a
@@ -44,7 +62,7 @@
 # MEASURED perl 5.42.0, which accepts all of it:
 #
 #   $ perl conformance/11_oo/00_adjacency.t
-#   Foo2Barbarbar
+#   Foo2Barbarbar1bar
 #
 # `Foo2` is `ref($c)` then `$c->m`, which ADJUST raised from 1 to 2;
 # `Barbarbar` is `ref($b)` then the same method reached two ways. Nothing
@@ -56,7 +74,7 @@
 # blank line at END of file is what `end-of-file-fixer` strips.
 
 --- source
-use feature 'class';
+use feature 'class', 'isa';
 no warnings 'experimental::class';
 class Foo {
     field $x = 1;
@@ -69,9 +87,11 @@ package main;
 my $c = Foo->new;
 my $b = bless {}, "Bar";
 my $name = "hi";
-print ref($c), $c->m, ref($b), $b->hi, $b->$name, "\n";
+my $yes = $b isa Bar;
+my $code = $b->can("hi")->($b);
+print ref($c), $c->m, ref($b), $b->hi, $b->$name, $yes, $code, "\n";
 
 --- expect output
-Foo2Barbarbar
+Foo2Barbarbar1bar
 
 --- expect parses

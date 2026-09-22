@@ -53,6 +53,20 @@
 # Tier 03 claims `reverse` and must emit it from a file of its own; this
 # file cannot do it for them.
 #
+# `$loose` is the NAMED UNARY level: `defined $n + 1` is
+# `defined($n + 1)` and prints 1, where `(defined $n) + 1` would print
+# 2. It sits directly beside `$power`'s unary minus, which is the other
+# precedence trap in this body, so a parser that got the unary levels
+# right in isolation and wrong in a mixture is caught here and nowhere
+# else. `09_named_unary.t` is the one-construct half.
+#
+# `@cleared` and `@filled` are `undef`'s two ARITIES, adjacent: `undef
+# @cleared` is the unary form and empties the array, `my @filled = undef`
+# is the niladic form and fills one with a single undef. Measured, `0`
+# and `1`, which is the `01` this file's second line ends on.
+# `10_undef_arity.t` is the one-construct half and records that our
+# parser refuses the unary spelling alone.
+#
 # `my $n = $ARGV[0] // @nums` gives the runtime operand this tier cannot
 # do without AND a tier-03 scalar-context array in one expression: with
 # no arguments `$ARGV[0]` is undef, so `$n` is the array's count, 3.
@@ -61,7 +75,7 @@
 #
 #   $ perl conformance/04_operators/00_adjacency.t
 #   sum [-2] rel [00] pick [1] rep [abab] pow [-3]
-#   3,2,1 1
+#   3,2,1 1 1 01
 
 --- source
 my @nums = (3, 1, 2);
@@ -71,11 +85,15 @@ my $sum = $n + 1 - 2 * 3;
 my $rel = ($n <=> 3) . ($word cmp "ab");
 my $pick = ($n > 2 and $word ne "zz") || ($n % 2);
 my $power = -$n ** 2 / 3;
+my $loose = defined $n + 1;
+my @cleared = @nums;
+undef @cleared;
+my @filled = undef;
 print "sum [$sum] rel [$rel] pick [$pick] rep [", $word x 2, "] pow [$power]\n";
-print join(",", reverse sort @nums), " ", ($n >= 3 xor not $n <= 3), "\n";
+print join(",", reverse sort @nums), " ", ($n >= 3 xor not $n <= 3), " $loose ", scalar(@cleared), scalar(@filled), "\n";
 
 --- expect output
 sum [-2] rel [00] pick [1] rep [abab] pow [-3]
-3,2,1 1
+3,2,1 1 1 01
 
 --- expect parses

@@ -16,9 +16,21 @@
 # So the constructs sit consecutively: a constant match, a negated match
 # through a bracketing delimiter, a match through a non-bracketing one, a
 # match through the comment character, a match whose pattern NESTS its own
-# delimiter, an interpolated match, a `qr//`, and four substitutions
-# delimited by brackets, slashes, hashes and nested brackets -- then one
-# print that reads all nine results.
+# delimiter, an interpolated match, a `qr//`, four substitutions delimited
+# by brackets, slashes, hashes and nested brackets, a `tr///`, a `split`
+# on a pattern, and a `//g` match read through `pos` -- then one print
+# that reads every result.
+#
+# THE LAST THREE ARE WHERE THE ADJACENCY CLAIM EARNS ITS KEEP a second
+# time, for the same reason the delimiter forms did. `tr/./Z/` is a second
+# two-region quote-like, and a lexer whose table says only `s` takes two
+# regions mis-terminates it and then mis-terminates everything after it --
+# a failure that a one-construct-per-file `tr` test cannot reach, because
+# there is nothing after it to break. `split / /` puts a pattern in an
+# ARGUMENT SLOT immediately following that, which is the position a lexer
+# recovering from a botched `tr` is most likely to read as division. The
+# pattern is a single space, which is the least distinguishable body a
+# slash-delimited pattern can have.
 #
 # EVERY DELIMITER FORM THE TIER TEACHES APPEARS HERE, which is the part
 # that needed fixing. The file shipped holding `m{}`, `s{}{}` and `qr//`
@@ -45,7 +57,7 @@
 #
 # This tier DEPENDS ON 01_literals, and the pairing is present rather than
 # decorative: every pattern here is matched against a string literal bound
-# to a pad slot, and the final print interpolates nine of them into one
+# to a pad slot, and the final print interpolates every result into one
 # double-quoted string. Pairing with 08_references instead would assert
 # nothing, which is the failure mode the spec warns about.
 #
@@ -61,7 +73,7 @@
 # MEASURED perl 5.42.0:
 #
 #   $ perl conformance/09_regex/00_adjacency.t
-#   1 1 1 1 1 1 (?^:abc) zbyw ok
+#   1 1 1 1 1 1 (?^:abc) zbyw ok aZc 1 p q 2
 
 --- source
 my $s = "abcd";
@@ -78,10 +90,16 @@ $s =~ s/c/y/;
 $s =~ s#d#w#;
 my $n = "a{b}c";
 $n =~ s{a{b}c}{ok};
-print "$hit $miss $bang $hash $nest $interp $re $s $n\n";
+my $tr = "a.c";
+my $cnt = ($tr =~ tr/./Z/);
+my @f = split / /, "p q";
+my $pos = "abcabc";
+$pos =~ m/b/g;
+my $at = pos($pos);
+print "$hit $miss $bang $hash $nest $interp $re $s $n $tr $cnt @f $at\n";
 
 --- expect output
-1 1 1 1 1 1 (?^:abc) zbyw ok
+1 1 1 1 1 1 (?^:abc) zbyw ok aZc 1 p q 2
 
 --- expect parses
 
@@ -95,3 +113,5 @@ one quote-like operator whose text is "s/c/y/"
 one quote-like operator whose text is "s#d#w#"
 one quote-like operator whose text is "s{a{b}c}{ok}"
 one quote-like operator whose text is "qr/abc/"
+one quote-like operator whose text is "tr/./Z/"
+one quote-like operator whose text is "m/b/g"
