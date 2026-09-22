@@ -4,7 +4,7 @@ state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-21T23:57:09.409395856Z
-updated: 2026-09-22T00:44:33.665567052Z
+updated: 2026-09-22T01:04:42.895387812Z
 sessions:
 - start_sha: a3a0ed0c97ce48a68f5db427979f9d8acf88d3c8
   end_sha: ""
@@ -67,3 +67,11 @@ second formatting rule verify enforces silently (the first being the word
 `criteria` in the header).
 
 Found by running verify against a clean tree after 01a0c546 landed.
+
+## Acceptance criteria
+
+- [ ] verify reports no unverifiable criterion for this milestone (`test "$(git-zhi verify m3-conformance-corpus --format json | python3 -c 'import json,sys; print(json.load(sys.stdin)["unverifiable"])')" = 0`)
+- [ ] every criterion in this milestone carries its command on the same line as its checkbox (`test "$(git-zhi issue list --milestone m3-conformance-corpus --state done --format json | python3 -c 'import json,sys; print(sum(1 for i in json.load(sys.stdin) for l in i.get("body","").split(chr(10)) if l.startswith("- [") and not l.rstrip().endswith("`)")))')" = 0`)
+- [ ] the two silently-enforced rules are written where an author reads them before writing an AC (`grep -q 'SAME LINE' /home/perigrin/.claude/projects/-home-perigrin-dev-pvm/memory/reference_git_zhi_acceptance_criteria.md`)
+- [ ] that record names the header rule too, which is the failure that hid an entire milestone (`grep -q 'Acceptance criteria   found' /home/perigrin/.claude/projects/-home-perigrin-dev-pvm/memory/reference_git_zhi_acceptance_criteria.md`)
+- [ ] no criterion was lost in the reflow: discovery is at least what it was before (`test "$(git-zhi verify m3-conformance-corpus --dry-run | wc -l)" -ge 157`)
