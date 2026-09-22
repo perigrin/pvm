@@ -4,7 +4,7 @@ state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-22T03:37:32.481722445Z
-updated: 2026-09-22T13:34:56.950943604Z
+updated: 2026-09-22T18:22:48.862048217Z
 sessions:
 - start_sha: da919402abda2de096d1553d3959043031a339d9
   end_sha: ""
@@ -123,3 +123,18 @@ Measured at a3a0ed0c with scripts in the session scratchpad; the method is
 a regex over source rather than a parse, deliberately, since using our own
 parser to decide what T1 contains would make the answer depend on the thing
 being measured.
+
+## Acceptance criteria
+
+Each of the 35 is closed by a corpus file that USES it, so the first check
+asks the CORPUS rather than a Go test name: `TestEveryNamedConstructAppears`
+reads the `--- source` section of every tier file and fails naming the
+constructs still missing. It reads source only, because the corpus
+documents heavily and a construct named in a header is not a claim about
+parsing.
+
+- [ ] Every one of the 35 constructs appears in some corpus file's source (`go test ./internal/conformance/ -run '^TestEveryNamedConstructAppears$' -count=1 -v | grep -q '^--- PASS: TestEveryNamedConstructAppears'`)
+- [ ] The whole conformance suite is green with the new files in it (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
+- [ ] No op is introduced by two tiers after the new claims land (`go test ./internal/conformance/ -run '^TestOpClaimedByExactlyOneTier$' -count=1 -v | grep -q '^--- PASS: TestOpClaimedByExactlyOneTier'`)
+- [ ] Every claimed op is actually emitted by a file in its tier (`go test ./internal/conformance/ -run '^TestCorpusLints$' -count=1 -v | grep -q '^--- PASS: TestCorpusLints'`)
+- [ ] The refusal ratchet reproduces byte-identically from a clean regeneration (`go test ./internal/conformance/ -run '^TestCorpusRatchet$' -count=1 -v | grep -q '^--- PASS: TestCorpusRatchet'`)
