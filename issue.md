@@ -1,10 +1,19 @@
 ---
 title: Twelve acceptance criteria are unverifiable because their command wraps to a second line
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-21T23:57:09.409395856Z
-updated: 2026-09-21T23:57:09.409395856Z
+updated: 2026-09-22T00:44:33.665567052Z
+sessions:
+- start_sha: a3a0ed0c97ce48a68f5db427979f9d8acf88d3c8
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-22T00:44:33.665567052Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-22T00:44:33.665567052Z
 ---
 
 `git-zhi verify m3-conformance-corpus` now runs the milestone's criteria
