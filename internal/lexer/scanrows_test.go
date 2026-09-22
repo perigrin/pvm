@@ -86,7 +86,7 @@ func TestNumberFormsStillLex(t *testing.T) {
 	}
 }
 
-// TestLeadingDotNumber: a numeric literal with no digit before the point
+// TestLeadingDecimalLiteral: a numeric literal with no digit before the point
 // is ONE number, not an operator and a number.
 //
 // Measured: `perl -e 'my $n = .5; print $n'` prints 0.5, so `.5` is one
@@ -101,9 +101,9 @@ func TestNumberFormsStillLex(t *testing.T) {
 // digit starts a number only where a TERM is expected, which is the same
 // expect-state mechanism the spec uses for a leading `%`.
 //
-// `TestLeadingDotIsStillConcatenation` is the other half and must stay
+// `TestDotIsStillConcatenation` is the other half and must stay
 // green: in operator position the identical bytes are concatenation.
-func TestLeadingDotNumber(t *testing.T) {
+func TestLeadingDecimalLiteral(t *testing.T) {
 	for _, c := range []struct {
 		src  string
 		want string
@@ -119,7 +119,7 @@ func TestLeadingDotNumber(t *testing.T) {
 	}
 }
 
-// TestLeadingDotIsStillConcatenation is the other half of the rule, and
+// TestDotIsStillConcatenation is the other half of the rule, and
 // the half that makes it a POSITION question rather than a lookahead one.
 //
 // In OPERATOR position -- just after a term -- a `.` is concatenation
@@ -141,7 +141,7 @@ func TestLeadingDotNumber(t *testing.T) {
 // So a lexer that scanned `.` as a number wherever a digit follows would
 // break the first line, and one that never did would break `.5` alone.
 // Only position separates them.
-func TestLeadingDotIsStillConcatenation(t *testing.T) {
+func TestDotIsStillConcatenation(t *testing.T) {
 	for _, c := range []struct {
 		src  string
 		want []string
