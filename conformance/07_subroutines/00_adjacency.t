@@ -155,6 +155,8 @@ use feature "signatures";
 my $anon = sub { pick($_[0]) . "/" . &pick($_[1], "tiny") };
 my $seen = 0;
 bump($seen);
+my $n = $seen;
+lock($n);
 local $SIG{__WARN__} = sub { };
 my @greedy = (warn "a", "b");
 my @cut = (warn("a"), "b");

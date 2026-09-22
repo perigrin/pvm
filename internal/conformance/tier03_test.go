@@ -119,6 +119,19 @@ var contextConstructs = map[string]string{
 	// The assignment form is how both halves of the pair are written in
 	// `08_caller.t` and in the adjacency file alike.
 	"caller": "= caller;",
+
+	// `map` and `grep` (issue 01a0c730), which belong here rather than
+	// with the list operators because each one's RESULT is what the tier
+	// is about: `my @b = map ...` yields the mapped list and `my $n =
+	// map ...` yields its count, from the same call.
+	//
+	// Spelled with the brace so the word alone does not satisfy them.
+	// Both files discuss their own construct in prose, and `grep` in
+	// particular is a word this corpus uses constantly to describe
+	// SEARCHING -- a bare `grep` would be matched by a comment saying
+	// "grep for it", which is not the construct.
+	"map":  "map {",
+	"grep": "grep {",
 }
 
 // contextConstructFromName returns the construct a file's name identifies, or ""

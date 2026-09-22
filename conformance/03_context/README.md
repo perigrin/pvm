@@ -29,7 +29,7 @@ subject.
 
 ## INTRODUCES
 
-    caller join list localtime reverse sort wantarray
+    caller grepstart grepwhile join list localtime mapstart mapwhile reverse sort wantarray
 
 ## Why those ops, and not the ones the source implies
 
@@ -110,20 +110,47 @@ What the sub-free form costs is the obvious way to OBSERVE the answer.
 which asserts that the op ran and produced a value without branching on
 what the value is.
 
+**`mapstart`, `mapwhile`, `grepstart` and `grepwhile`, which is four ops
+for two keywords and none of them named for either half of the parse.**
+`map` and `grep` each take a BLOCK or an EXPRESSION, and the two forms
+are a real fork in the grammar -- `map BLOCK LIST` takes no comma after
+the block, `map EXPR, LIST` requires one. Measured, they emit the SAME
+OPS, in the same order, with the same flags: `map { $_ } @a` and
+`map($_, @a)` both give `pushmark pushmark padav[@a] lM mapstart lK
+mapwhile lK gvsv[*_]`, and the same holds for `grep`. So the fork the
+source makes is invisible to an op-name lint, and `09_map.t` and
+`10_grep.t` assert it at the TOKEN STREAM instead -- each written to hold
+exactly one comma, which is the whole lexical signature of the
+expression form.
+
+The optrees are not byte-identical, and the difference is worth naming
+because it is not an op. Under the block form each lexical's COP SEQUENCE
+RANGE is two wider: `padav[@a:1,5]` against `padav[@a:1,3]`. A block is a
+SCOPE, and measured, a bare `{ 1; }` standing where the map block stands
+advances the counter by exactly the same 2. The scope is real; its trace
+is in pad metadata, which `opsOf` throws away along with the flags.
+
+Both keywords ARE discriminating pairs, and `grep`'s is the sharper of
+the two. `map` in scalar context returns the count of what the list form
+returns, so both halves report the same number in different shapes.
+`grep` FILTERS, so from three elements it keeps two: the scalar half is
+2 while the list half is two strings, and the arities differ from the
+input as well as from each other.
+
 As always the list is a UNION across the tier's files, and `00_adjacency.t`
-happening to emit all six is a fact about that program rather than a rule
+happening to emit all of them is a fact about that program rather than a rule
 the format requires: `padrange` fuses consecutive `my` declarations and the
 comma operator in scalar context erases its own left operands, so a file
 demonstrating more constructs can emit fewer ops.
 
-## Four discriminating pairs, which is the number
+## Seven discriminating pairs, which is the number
 
 An op set cannot describe this tier, but it is not true that nothing can.
 The one thing the optree does record about context is the FLAG, and a pair
 is an op measured with both values of it. Counting those is what turns the
 inference gap from a note into a quantity.
 
-Measured, the tier holds four:
+Measured, the tier holds seven, of which the pair reader checks five:
 
 | op | scalar half | list half | file |
 |---|---|---|---|
@@ -131,21 +158,48 @@ Measured, the tier holds four:
 | `reverse` | `reverse[t4] sK/1` | `reverse[t6] lK/1` | `04_reverse.t` |
 | `aassign` | `aassign[t6] sKS` | `aassign[t8] lKPS` | `05_sort.t` |
 | `localtime` | `localtime[t5] s` | `localtime[t2] l` | `06_localtime.t` |
+| `caller` | `caller[t29] s` | `caller[t31] l` | `08_caller.t` |
+| `mapstart` | `mapstart sK` | `mapstart lK` | `09_map.t` |
+| `grepstart` | `grepstart sK` | `grepstart lK` | `10_grep.t` |
 
-Four and not six. `join`, `list` and `wantarray` are introduced here and
+Seven and not eleven. `join`, `list` and `wantarray` are introduced here and
 have no second half, because neither interpolation nor the scalar-context
 comma HAS a list-context form -- `"@a"` is a join whatever receives it, and
 in list context the comma is not a `list` op at all -- while `wantarray`
 reports the enclosing context rather than being placed in one. A pair is a
-property of the ops that answer two questions, and three of the tier's six
-answer only one.
+property of the ops that answer two questions.
+
+`sort` is the exception, and the honest statement is that it is a pair
+this tier does not currently carry rather than one it lacks. Measured,
+`my $s = sort @a` emits `sort sK` and `my @b = sort @a` emits `sort lK`,
+so the flag is there. `05_sort.t` reaches for the `aassign` count idiom
+instead, which is why the row above is `aassign`'s, and the file's own
+header says so. An eighth row is available to anyone who adds the
+scalar-context `sort` to that file; nothing about `sort` prevents it.
+
+`mapwhile` and `grepwhile` are not separate rows, for two reasons that
+agree. Each follows its `*start` and carries the same flag, so counting
+them would be counting one pair twice -- `mapstart lK` is never seen
+without `mapwhile lK` behind it. And measured, `mapwhile` is printed as
+`mapwhile(other->k)[t8] lK`, whose parenthetical the pair reader's
+pattern does not step over, so the `*while` ops are not readable as pairs
+even where one wanted them. The `*start` ops are, and they are the rows.
+
+Two of the seven are MEASURED here and not yet CHECKED. `mapstart` and
+`grepstart` carry both flags in the files named above and in
+`00_adjacency.t` -- the measurement is in each file's header -- but the
+pair reader's own table lists five, so nothing fails if a later change
+collapses either. Closing that is a two-line addition to
+`discriminatingPairs` in `internal/conformance/tier03_test.go`, naming
+`mapstart` for `09_map.t` and `grepstart` for `10_grep.t`, and this
+paragraph goes when it lands.
 
 `padav` is tier 02's op, and the pair is still this tier's. Using an op is
 not introducing it; that `01_scalar_of_array.t` introduces no op of its own
 while carrying the tier's baseline pair is the clearest statement of what
 this tier is.
 
-All four pairs also appear in `00_adjacency.t`, in one body, which is the
+All seven pairs also appear in `00_adjacency.t`, in one body, which is the
 adjacency claim stated in the only terms the optree can check. A file
 holding one half of each pair would satisfy every source-coverage check
 this tier has and measure none of its subject -- which the adjacency file
@@ -162,6 +216,9 @@ did until it was measured.
 | `05_sort.t` | `sort`, and the `() =` count idiom in both contexts | `sort` |
 | `06_localtime.t` | `localtime` in both contexts | `localtime` |
 | `07_wantarray.t` | `wantarray` at file scope | `wantarray` |
+| `08_caller.t` | `caller` at file scope, in both contexts | `caller` |
+| `09_map.t` | `map BLOCK` and `map EXPR`, and `map` in both contexts | `mapstart`, `mapwhile` |
+| `10_grep.t` | `grep BLOCK` and `grep EXPR`, and `grep` in both contexts | `grepstart`, `grepwhile` |
 | `00_adjacency.t` | all of the above, consecutively, each pair in both contexts | none |
 
 `06_localtime.t` pins shape, not time: nine elements in list context, one

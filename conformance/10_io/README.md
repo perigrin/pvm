@@ -38,7 +38,7 @@ dependency that does not exist.
 
 ## INTRODUCES
 
-    close eof open readline rv2gv
+    close eof open readline rv2gv say select sselect
 
 ## Why those ops, and not the ones the source implies
 
@@ -90,6 +90,48 @@ not:
   bytes the source does not determine. The token fact the diamond would
   have carried is carried instead by the spelling this tier CAN run
   reproducibly, `<$fh>`, which produces the same token category.
+
+**`say` is here rather than beside `print` in tier 01, and `select` is
+two ops.** Both were added after the first four files and neither is a
+print variant.
+
+`say` takes a filehandle through the SAME `rv2gv` as `print` --
+measured, `say $out $line` is `padsv[$out] rv2gv sKR/1 padsv[$line] say
+vKS` against `print $out "x"`'s `padsv[$out] rv2gv sKR/1 const print
+vKS` -- so the machinery it needs is this tier's and not tier 01's. What
+it adds is a record separator, which is a property of writing to a
+handle.
+
+Its sharper property is that it is FEATURE-GATED and the featureless
+spelling is NOT a syntax error. Measured, `say $x` without the pragma
+compiles clean as INDIRECT-OBJECT METHOD DISPATCH -- `pushmark padsv
+method_named[PV "say"] entersub` -- and fails only at runtime, exit code
+255. Identical bytes, two valid parses, separated by a pragma earlier in
+the file. That is `11_oo/10_isa_infix.t`'s finding met from the worse
+side: there the featureless form is a syntax error and fails loudly,
+here it is a clean compile of the wrong program.
+
+**The corpus cannot pin that parse from this tier**, and the reason is
+the lint working as designed. The featureless form emits `method_named`,
+which is `11_oo`'s op, and 11 is LATER than 10. A file may only emit ops
+its tier or an earlier tier claims, so the measurement is RECORDED in
+`07_say.t`'s header and asserted nowhere. A file that pins it belongs in
+tier 11 beside the `isa` file it mirrors. (`entersub`, the other op the
+featureless form emits, is tier 07's and would have been a legal use;
+`method_named` alone is what blocks it.)
+
+`select` is the only construct in this tier where ONE SPELLING EMITS TWO
+DIFFERENT OPS, which is why INTRODUCES names both. Measured,
+`select($out)` emits `select sK/1` and `select(undef,undef,undef,0)`
+emits `sselect sK/4` -- a different op name, not a different flag. The
+arity decides, and it decides at COMPILE time: arity 2 and arity 3 are
+both compilation errors naming the syscall. This is the exact inverse of
+`rv2gv`, which does three unrelated jobs in this tier under one op name.
+
+`08_select.t` measures the one-argument form entirely through a `print`
+that names NO handle: the statement is unchanged, tier 01's `print vK`
+either way, and its bytes land in a buffer because the line above
+changed what "no handle" means.
 
 The ops also cannot tell a successful open from a failed one, which is
 the general caveat restated for this tier: they LINT a declared tier and

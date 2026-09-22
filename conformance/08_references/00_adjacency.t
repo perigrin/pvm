@@ -36,6 +36,13 @@
 # `$r[1]->[0]` dies with "Not an ARRAY reference". That failure is what
 # this file's first draft printed.
 #
+# `prototype \&one` is here for the reason every other construct is:
+# adjacency. It sits between the code reference it needs and the
+# dereferences around it, so a parser that reads `prototype \&one` alone
+# but loses the following `@{$s}` shows it here and nowhere else. `sub
+# one ($)` carries the prototype the call never uses -- the sub is
+# declared to be REFLECTED, not to be called.
+
 # The hash is a NAMED one taken a reference to, not `{ k => 1 }`. The
 # anonymous hash constructor compiles to `emptyavhv`/`anonhash`, which
 # tier 11 claims, and a tier-08 file emitting a tier-11 op is what the
@@ -45,10 +52,11 @@
 #
 #   $ perl conformance/08_references/00_adjacency.t
 #   ARRAY 10 20 30 40 42
-#   10 20 10 1
+#   10 20 10 1 $
 
 --- source
 sub twice { return $_[0] * 2 }
+sub one ($) { return $_[0] }
 my @a = (10, 20);
 my %h = (k => 1);
 my $s = \@a;
@@ -56,15 +64,16 @@ my $hr = \%h;
 my @r = \(@a);
 my $l = [30, 40];
 my $c = \&twice;
+my $proto = prototype \&one;
 my @at = @{$s};
 my @sig = @$s;
 my @post = $s->@*;
 my %copy = %{$hr};
 print ref($s), " ", $$s[0], " ", ${$r[1]}, " ", $l->[0], " ", ${$l}[1], " ", $c->(21), "\n";
-print $at[0], " ", $sig[1], " ", $post[0], " ", $copy{k}, "\n";
+print $at[0], " ", $sig[1], " ", $post[0], " ", $copy{k}, " ", $proto, "\n";
 
 --- expect output
 ARRAY 10 20 30 40 42
-10 20 10 1
+10 20 10 1 $
 
 --- expect parses

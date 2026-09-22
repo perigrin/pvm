@@ -148,6 +148,31 @@ var operatorKinds = map[string]string{
 	// two apart in a body that holds both.
 	"named_unary": "defined ",
 	"undef_arity": "undef @",
+
+	// The named-operator slice (issue 01a0c730). These are operators the
+	// way `+` is: they take operands and impose a context on them. What
+	// makes them worth files is that three of the five FOLD AWAY when
+	// their operands are constant -- `chr(74)` arrives as `const[PV
+	// "J"]` -- so each file spells its construct with a runtime operand,
+	// the same rule the rest of this tier lives under.
+	//
+	// The two `substr` classes need spellings that separate the lvalue
+	// form from the rvalue one, and the spelling has to match in BOTH
+	// the construct file and the adjacency file, which use different
+	// variable names. So the spelling cannot name a variable: what
+	// separates the forms is the `, 1)` ending an rvalue call against
+	// the `) = ` that makes the call an assignment target.
+	//
+	// `substr_arity` is spelled `substr($` -- the bare call -- because
+	// its subject is the RANGE of arities rather than any one of them,
+	// and no single argument list is common to the two-, three- and
+	// negative-offset forms the file measures. The lvalue file is pinned
+	// by the stronger `) = `, so the two are still told apart.
+	"chr_ord":        "chr(",
+	"index_sentinel": "index(",
+	"sprintf_star":   "sprintf(",
+	"substr_arity":   "substr($",
+	"substr_lvalue":  ") = ",
 }
 
 // operatorKindFromName returns the operator class a file's name

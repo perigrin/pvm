@@ -151,6 +151,15 @@ var subroutineConstructs = map[string]string{
 	// spellings differ by a paren and nothing else, which is precisely
 	// the construct.
 	"12_builtin_extent.t": `warn "a", "b"`,
+
+	// `lock` (issue 01a0c730), which is in this tier for PROXIMITY
+	// rather than subject: it declares no sub and calls none. It arrived
+	// with a `tie`/`tied` proposal that measurement withdrew -- a
+	// working `tie` needs a blessed constructor, and `bless` is tier
+	// 11's -- and it stayed because its own op budget is satisfied here
+	// and nowhere earlier fits it better. The tier README says so
+	// plainly rather than inventing a subject argument for it.
+	"13_lock.t": "lock($n)",
 }
 
 // A `--- expect parsent` file has NO ENTRY ABOVE AND MUST NOT, which is

@@ -46,7 +46,11 @@ pairs against, not the whole reachable set.
 
 ## INTRODUCES
 
-    anoncode argcheck argdefelem argelem entersub leavesub postinc return warn
+    anoncode argcheck argdefelem argelem entersub leavesub lock postinc
+    return warn
+
+Nine ops. `lock` joined the original eight and is argued for at the end
+of this section; the sentence below is about those eight.
 
 Eight ops, six of which this tier could not claim until the lint learned
 to look inside a CV. `argcheck`, `argdefelem`, `argelem`, `leavesub` and
@@ -176,6 +180,61 @@ Not claimed here, though they appear in the measurements:
 - **`rv2cv` and `srefgen`**, which `\&f` emits, belong to 08_references.
   This tier stops at declaring and calling; taking a reference to the
   result is the next tier's subject.
+
+### `lock`, and why `tie` and `tied` are NOT here
+
+`lock` is this tier's by placement rather than by argument, and `tie` and
+`tied` were measured OUT of it. Both facts are recorded because the
+second was a surprise that cost a draft.
+
+**`tie` CANNOT be written at this tier, and the reason is structural.**
+The proposal was that `TIESCALAR` and `FETCH` are ordinary named subs, so
+`tie` is subroutine dispatch arriving through a construct that never
+spells a call -- which is true, and is not sufficient. `tie` requires the
+constructor to return a BLESSED object. Measured 5.42.0, a `TIESCALAR`
+returning a plain string or an unblessed reference makes the tied
+variable read as empty and the program prints nothing at all, silently.
+And the minimal blessed constructor is already out of budget:
+
+    $ perl -MO=Concise,-exec,C::TIESCALAR -e 'package C;
+        sub TIESCALAR { return bless {}, "C" } sub FETCH { return 42 }
+        package main; tie my $c,"C"; print $c,"\n";'
+    C::TIESCALAR:
+    1  <;> nextstate(C 2 -e:1) v
+    2  <0> emptyavhv[t1] s/ANONHASH
+    3  <$> const[PV "C"] s
+    4  <@> bless sK/2
+    5  <1> leavesub[1 ref] K/REFC,1
+
+`bless` and `emptyavhv` are both 11_oo's. The lint reads inside a file's
+own CVs -- the capability the last section of this README records -- so
+those ops count against the file even though the main optree shows only
+`tie`. There is no spelling of a working `tie` that avoids them, because
+blessing is what the protocol requires. So `tie` needs 11_oo, not 07, and
+the argument that its methods are "just subs" is an argument about what
+they are DECLARED as rather than about what the construct needs.
+
+`tied` inherits the same floor: observing it requires a tied variable to
+observe, so any file exercising it carries a `TIESCALAR` and its `bless`.
+Its own op is free of that, and the boolean form does avoid 08's `ref`
+which an earlier draft assumed it needed -- but neither saves the file.
+
+**`lock` is here for proximity and nothing else**, and the file says so
+in its own header. It declares no sub, calls no sub, and has no argument
+protocol; its ops outside `lock` itself are all tier 01's, so nothing
+about the op budget places it. With a free choice it would sit among the
+named unary operators in 04_operators. It arrived in the same pass as the
+`tie` proposal and stayed when that was withdrawn, which is a worse
+reason than a placement usually has, and saying so is better than
+inventing a theme it fits.
+
+One claim `13_lock.t` deliberately does NOT make: that `lock` works
+without threads. The pinned interpreter is a threaded build
+(`useithreads=define`, `x86_64-linux-thread-multi`), so what is
+established is that `lock` compiles and runs whether or not `threads.pm`
+is loaded, and nothing about an unthreaded perl. Uncontended, it has no
+observable effect, which is why the file pins its operand rather than
+anything about locking.
 
 ## What the lint could not see here, and what changed when it could
 

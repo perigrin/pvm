@@ -8,20 +8,34 @@
 # USES nothing from a later tier
 # STATUS refuses as of this file. Refusal not_a_term.
 #
-# Three Unknown nodes, measured, at TWO sites. The cited code is the
-# FIRST one reached and the one the other two follow from:
+# FOUR Unknown nodes, measured, at TWO INDEPENDENT sites. The cited code
+# is the first one reached:
 #
-#   not_a_term       span `)`   -- from `not $n <= 3` on the last line
+#   not_a_term       span `)`
+#   trailing_tokens  span `undef @cleared;`
 #   trailing_tokens  span `print join(",", reverse sort @nums), " ",
 #                                ($n >= 3 xor not $n <= 3)`
-#   trailing_tokens  span `, "\n";`
+#   trailing_tokens  span `, " $loose ", scalar(@cleared),
+#                                scalar(@filled), "\n";`
 #
-# `not` arrives as a Word and nothing in parseTerm can begin a term with
-# it, so the Unknown runs to the closing paren; the statement around it
-# then has bytes left over, which is what the two `trailing_tokens`
-# report. One declined term, two statements that could not finish -- the
-# same refusal seen from three spans, which is why one code is cited
-# rather than three.
+# Three of the four are one failure. `not` arrives as a Word and nothing
+# in parseTerm can begin a term with it, so the Unknown runs to the
+# closing paren; the statement around it then has bytes left over, which
+# is what two of the `trailing_tokens` report. One declined term, two
+# statements that could not finish.
+#
+# The fourth is SEPARATE and is `undef @cleared` -- the unary spelling of
+# `undef`, which our parser reads as a complete term with `@cleared`
+# stranded after it. `10_undef_arity.t` bisects that refusal and records
+# it as the same missing rule tier 07's parenless-call files hit. It is
+# named here because a reader counting three spans from the `not` failure
+# and finding four would otherwise look for a fourth consequence of it.
+#
+# The five string operators added later -- `chr`, `ord`, `index`,
+# `sprintf`, `substr`, on the third print line -- contribute NO Unknown.
+# Measured: the count was four before they were written and four after,
+# and each of them parses in isolation. The adjacency claim they make is
+# about placement, not about refusal.
 #
 # That is the adjacency file earning its
 # keep: every construct here appears in a sibling file that parses, and
@@ -71,11 +85,32 @@
 # do without AND a tier-03 scalar-context array in one expression: with
 # no arguments `$ARGV[0]` is undef, so `$n` is the array's count, 3.
 #
+# THE FIVE STRING OPERATORS ARE ON THE THIRD LINE, and one of them had
+# to be kept off the first. `substr` is this tier's only LVALUE, so
+# `substr($word, 0, 1) = ...` would have edited `$word` in place and
+# changed `rep [abab]` to `rep [bbbb]` six lines later -- measured, not
+# reasoned. That is the adjacency risk the construct carries and it is
+# real enough that this file dodges it: `$edit` is a copy, so the
+# mutation is observable without reaching back into a pin two statements
+# above it. `15_substr_lvalue.t` is the one-construct half and measures
+# the mutation directly.
+#
+# `chr(ord($word) + 1)` nests the two inverses around an `add`, so the
+# named-unary argument extent and the arithmetic level are adjacent in
+# one expression -- the same pairing `$loose` makes for `defined`.
+# `sprintf("%0*d", $n, $n)` puts a format whose arity is decided inside a
+# string beside `index`, whose failure answer is an ordinary `-1`;
+# `substr($word, 1, 1)` closes the line with the rvalue form at a
+# NONZERO offset, which is what keeps `substr_left` -- an op no tier
+# claims -- out of this body. `14_substr_arity.t` records that
+# constraint.
+#
 # MEASURED perl 5.42.0:
 #
 #   $ perl conformance/04_operators/00_adjacency.t
 #   sum [-2] rel [00] pick [1] rep [abab] pow [-3]
 #   3,2,1 1 1 01
+#   003 [bb] 0 [b]
 
 --- source
 my @nums = (3, 1, 2);
@@ -89,11 +124,15 @@ my $loose = defined $n + 1;
 my @cleared = @nums;
 undef @cleared;
 my @filled = undef;
+my $edit = $word;
+substr($edit, 0, 1) = chr(ord($word) + 1);
 print "sum [$sum] rel [$rel] pick [$pick] rep [", $word x 2, "] pow [$power]\n";
 print join(",", reverse sort @nums), " ", ($n >= 3 xor not $n <= 3), " $loose ", scalar(@cleared), scalar(@filled), "\n";
+print sprintf("%0*d", $n, $n), " [$edit] ", index($edit, "b"), " [", substr($word, 1, 1), "]\n";
 
 --- expect output
 sum [-2] rel [00] pick [1] rep [abab] pow [-3]
 3,2,1 1 1 01
+003 [bb] 0 [b]
 
 --- expect parses

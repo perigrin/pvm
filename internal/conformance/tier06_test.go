@@ -102,7 +102,17 @@ func TestTierControlLint(t *testing.T) {
 // `do`, and holding one is not by itself evidence it holds both. That
 // second half is what the README's group prose states and what no regexp
 // over a keyword can check.
-var reControlKeyword = regexp.MustCompile(`\b(unless|until|foreach|while|if|for|goto|next|last|redo|eval|do)\b`)
+//
+// `die`, `exit` and `time` join with the tier's fifth and sixth groups
+// (issue 01a0c730). They were MISSING from this alternation for a while
+// after the tier claimed them, and the omission was invisible because
+// `15_die.t` and `16_exit.t` both spell `eval` as their observation
+// frame -- a `die` has to be trapped to be printed, and an `exit` has to
+// be trapped to be survived. So both files satisfied the gate through a
+// keyword they merely USE, while the construct each is named for went
+// unchecked. A gate that passes on incidental vocabulary is worse than
+// no gate, because it reports coverage it does not have.
+var reControlKeyword = regexp.MustCompile(`\b(unless|until|foreach|while|if|for|goto|next|last|redo|eval|do|die|exit|time)\b`)
 
 // controlKeywords returns the keywords a file's source spells, in the
 // order the regexp's alternation prefers -- longest first, so a `foreach`

@@ -32,7 +32,8 @@
 #
 # Here that is: a `class` with a `field`, an `ADJUST` and a `method` in
 # one body; a classic `bless` of an empty anon hash; a compile-time method
-# call and a dynamic one on the result, an infix `isa` and a `can` chain.
+# call and a dynamic one on the result, an infix `isa` and a `can` chain,
+# and a `tie` with the `tied` that asks about it.
 # The class side and the classic side are adjacent to each other as well,
 # because a parser that switches modes on `class` has to switch back.
 #
@@ -54,6 +55,34 @@
 #     that chain stands next to the plain `$b->hi` and the dynamic
 #     `$b->$name` it must not be confused with.
 #
+# `tie` and `tied` are the tier's newest pair, and they are here for a
+# reason the other constructs are not: they need `Bar` to grow a second
+# ROLE. The same package is a plain blessed class -- `bless {}, "Bar"`,
+# reached by `$b->hi` -- and a tie implementation, because `TIESCALAR`
+# and `FETCH` live in it. A parser that treats a package as having one
+# kind sees a body in which the same name is both, which no
+# one-construct file can present:
+#
+#   - `tie my $t, "Bar", "arg"` declares `$t` IN the argument list, which
+#     is the shape no other call in this tier has. It stands next to
+#     `my $b = bless {}, "Bar"` -- the ordinary declaration of the
+#     ordinary object -- so the two spellings of "make a variable hold a
+#     Bar" are adjacent, and only one of them is an assignment.
+#     `12_tie_variable.t` is the one-construct half.
+#
+#   - `tied($t)` is a NAMED UNARY where `tie` is a list operator.
+#     Measured, `<1> tied sK/1` against `<@> tie vK/2`: one child and no
+#     mark against a mark and two. Two words one lexer would call one
+#     family, adjacent here so a parser that gave them one argument
+#     grammar is caught by the pair rather than by either alone.
+#     `13_tied_boolean.t` is the one-construct half.
+#
+# `FETCH` returns `fetched` and not `tied`, which reads more naturally
+# and is the trap: the word would then appear in the output where a
+# reader would take it for the keyword. The count facts in the two
+# construct files are about the SOURCE, and a body's return value is not
+# where this file makes claims.
+#
 # The tier's declared prerequisite is `08_references`, and `bless` is the
 # whole of it: the blessed hash below is a tier 08 reference plus a
 # string. Pairing with tier 10 instead would assert nothing -- this tier
@@ -62,10 +91,12 @@
 # MEASURED perl 5.42.0, which accepts all of it:
 #
 #   $ perl conformance/11_oo/00_adjacency.t
-#   Foo2Barbarbar1bar
+#   Foo2Barbarbar1barfetchedy
 #
 # `Foo2` is `ref($c)` then `$c->m`, which ADJUST raised from 1 to 2;
-# `Barbarbar` is `ref($b)` then the same method reached two ways. Nothing
+# `Barbarbar` is `ref($b)` then the same method reached two ways;
+# `fetched` is `$t` read through the tie, which is `FETCH` reached with
+# no call written anywhere, and `y` is `tied($t)` answering. Nothing
 # prints a raw object: `Bar=HASH(0x...)` carries an address that changes
 # every run, so `ref` is what the file asserts on.
 #
@@ -83,15 +114,19 @@ class Foo {
 }
 package Bar;
 sub hi { return "bar" }
+sub TIESCALAR { return bless {}, "Bar" }
+sub FETCH { return "fetched" }
 package main;
 my $c = Foo->new;
 my $b = bless {}, "Bar";
 my $name = "hi";
 my $yes = $b isa Bar;
 my $code = $b->can("hi")->($b);
-print ref($c), $c->m, ref($b), $b->hi, $b->$name, $yes, $code, "\n";
+tie my $t, "Bar", "arg";
+my $is = tied($t) ? "y" : "n";
+print ref($c), $c->m, ref($b), $b->hi, $b->$name, $yes, $code, $t, $is, "\n";
 
 --- expect output
-Foo2Barbarbar1bar
+Foo2Barbarbar1barfetchedy
 
 --- expect parses

@@ -99,7 +99,11 @@ func TestTierOoLint(t *testing.T) {
 // the others; `bless`, `field` and `method` are matched anywhere, because
 // `bless` appears mid-expression (`my $o = bless {}, $c`) and `field` and
 // `method` are indented inside a class body.
-var reOoConstruct = regexp.MustCompile(`\b(bless|class|field|method|ADJUST)\b`)
+// `tied` precedes `tie` in the alternation. Measured, the `\b` on both
+// ends already prevents `tie` from matching inside `tied`, so the order
+// changes nothing today -- but the longer-first spelling is what stays
+// correct if the boundary is ever relaxed, and it costs nothing.
+var reOoConstruct = regexp.MustCompile(`\b(bless|class|field|method|ADJUST|tied|tie)\b`)
 
 // reOoArrowCall matches a method call written with the arrow.
 //
@@ -214,6 +218,16 @@ func formFromOoName(name string) string {
 		return infixIsaForm
 	case "can_chain":
 		return canChainForm
+	// `tie` and `tied` (issue 01a0c730), which are in THIS tier and not
+	// an earlier one because a working `tie` requires a BLESSED object.
+	// An unblessed constructor does not error -- measured, it yields an
+	// empty value silently -- and the minimal blessed one emits `bless`
+	// and `emptyavhv`, both this tier's. Placements in tiers 02, 07 and
+	// 12 were each tried and each refused by the op-budget lint.
+	case "tie_variable":
+		return "tie"
+	case "tied_boolean":
+		return "tied"
 	default:
 		return ""
 	}

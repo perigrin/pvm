@@ -23,6 +23,22 @@
 # array, which puts the tier's own op in an argument position rather than
 # alone in a statement.
 #
+# THE THIRD PAIRING IS `select` WITH `say`, and it is the one that needs
+# two constructs most. `say "round trip"` names NO HANDLE, and its bytes
+# land in `$buf` rather than on stdout, because the `select($out)` above
+# it changed where "no handle" means. Neither file alone can make that
+# claim: `07_say.t` passes its handle explicitly, and `08_select.t`
+# redirects a `print` rather than a `say`. Here the two constructs are
+# the same assertion -- a parser that dropped either one puts `round
+# trip` on stdout and leaves the buffer empty.
+#
+# The four-argument `select` follows, which is the other operator sharing
+# that name: measured, `select($out)` emits `select` and
+# `select(undef,undef,undef,0)` emits `sselect`, a different op reached
+# by a different argument count. Both spellings are here because the
+# tier's declared set holds both and an adjacency file must reach every
+# op the tier introduces.
+#
 # This tier depends on `03_context`, and the pairing with it is the
 # scalar-versus-list readline itself: context is not a separate construct
 # to place beside this one, it is the thing selecting which readline
@@ -30,7 +46,13 @@
 #
 # The ops the adjacency reaches beyond this tier's own, all claimed
 # earlier and none new: `gv` and `padav` and `aassign` (02), `cond_expr`
-# and `goto` from the ternary (06), `srefgen` from `\my $buf` (08).
+# and `goto` from the ternary (06), `undef` from the syscall arguments
+# (04), `srefgen` from `\my $buf` (08).
+#
+# `use feature "say"` is required and is not decoration: without it `say`
+# is not this tier's op at all but a method call, which `07_say.t`
+# measures. Measured, the pragma changes no op in this file beyond
+# enabling `say` itself.
 #
 # MEASURED perl 5.42.0:
 #
@@ -38,12 +60,14 @@
 #   first
 #   2 left, eof yes
 #   round trip
+#   ready 0
 #
 # `expect output` is written before `expect parses` rather than last: the
 # blank line after it carries the output's trailing newline, and a blank
 # line at END of file is what `end-of-file-fixer` strips.
 
 --- source
+use feature "say";
 open(my $in, "<", \"first\nsecond\nthird\n");
 my $head = <$in>;
 my @rest = <$in>;
@@ -51,13 +75,17 @@ print STDOUT $head;
 print STDOUT scalar(@rest), " left, eof ", (eof($in) ? "yes" : "no"), "\n";
 close($in);
 open(my $out, ">", \my $buf);
-print $out "round trip\n";
+my $prev = select($out);
+say "round trip";
+select($prev);
 close($out);
-print $buf;
+my $ready = select(undef, undef, undef, 0);
+print $buf, "ready $ready\n";
 
 --- expect output
 first
 2 left, eof yes
 round trip
+ready 0
 
 --- expect parses

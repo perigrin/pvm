@@ -57,7 +57,20 @@
 # MEASURED perl 5.42.0:
 #
 #   $ perl conformance/06_control/00_adjacency.t
-#   if-w0-w1-u3-d2-v3-et-c0-fa-fb-p
+#   if-w0-w1-u3-d2-v3-et-Dx
+#   -X-t1-c0-fa-fb-p
+#
+# The output runs to two lines because `die`'s message ends in a newline,
+# which is not decoration: a `$@` that does not end in one carries the
+# file and line number perl appends, and the file here is the harness's
+# temp path, which differs every run. `-Dx` is the trapped message and
+# the newline is its own.
+#
+# The `exit` is a DEAD BRANCH -- `exit 3 if $r` with `$r` unset. It is
+# here so the tier's construct appears adjacent to the others, and it
+# cannot be taken, because an `exit` that fired would end the program
+# before `goto DONE` and the file would measure nothing after it. An
+# `eval` does NOT trap it: measured, `eval { exit 0 }` exits.
 #
 # The `-u3` is the one piece of output worth explaining, because it looks
 # like an off-by-one and is not. `$i` is 2 when the `while` exits; the
@@ -98,6 +111,12 @@ my $v = do { my $t = $n; $t + 1 };
 print "-v$v";
 my $e = eval { 10 / ($ENV{X} // 0) } // "t";
 print "-e$e";
+eval { die "x\n" };
+print "-D$@";
+exit 3 if $r;
+print "-X";
+my $t = time;
+print "-t", $t > 1000000000 ? 1 : 0;
 for (my $j = 0; $j < 1; $j = $j + 1) { print "-c$j" }
 foreach my $x (@l) { redo if $r; print "-f$x" }
 print "-p" if $n;
@@ -107,6 +126,7 @@ DONE:
 print "\n";
 
 --- expect output
-if-w0-w1-u3-d2-v3-et-c0-fa-fb-p
+if-w0-w1-u3-d2-v3-et-Dx
+-X-t1-c0-fa-fb-p
 
 --- expect parses

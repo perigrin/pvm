@@ -8,7 +8,7 @@
 # The per-tier adjacency fixture carries its tier, since fourteen
 # tiers each hold one and they are different files.
 #
-# 156 files, 133 clean, 23 refusing.
+# 175 files, 152 clean, 23 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -42,6 +42,7 @@ tokens and_cliff.t
 - call_forms.t
 - caller.t
 - can_chain.t
+- chr_ord.t
 - class_adjust.t
 - class_empty.t
 - class_field_method.t
@@ -58,6 +59,7 @@ not_a_term data_section.t
 - deref_at_sigil.t
 - deref_brace_hash.t
 - deref_postfix.t
+- die.t
 - do_block.t
 - do_while.t
 - each.t
@@ -65,11 +67,13 @@ not_a_term data_section.t
 - eof.t
 - eval_block.t
 - eval_string.t
+- exit.t
 - foreach.t
 unimplemented_statement format_picture.t
 unimplemented_statement format_write.t
 - glob_angle.t
 - goto.t
+- grep.t
 - hash.t
 - hash_delimiter.t
 - hash_element_expr.t
@@ -83,6 +87,7 @@ trailing_tokens heredoc_literal.t
 - if_else.t
 - if_postfix.t
 - import_call.t
+- index_sentinel.t
 - indirect_new.t
 - interpolated.t
 - interpolated_array.t
@@ -92,7 +97,9 @@ not_a_term,tokens leading_decimal.t
 not_a_term literals/adjacency.t
 - local.t
 - localtime.t
+- lock.t
 not_a_term,tokens logical.t
+- map.t
 - method_dynamic.t
 - method_named.t
 - method_super.t
@@ -111,6 +118,7 @@ unimplemented_statement,trailing_tokens,not_a_term opaque/adjacency.t
 - open_close.t
 not_a_term,trailing_tokens operators/adjacency.t
 - our.t
+- pack_template.t
 - package_array.t
 - package_block.t
 - package_hash.t
@@ -125,8 +133,10 @@ trailing_tokens parenless_extent.t
 - precedence.t
 - print_bareword_handle.t
 - print_lexical_handle.t
+- prototype_builtin.t
 trailing_tokens prototype_extent.t
 - push.t
+- qq_delimiters.t
 - qr.t
 - qr_with_code.t
 - readline_list.t
@@ -139,12 +149,15 @@ trailing_tokens prototype_extent.t
 - require_expression.t
 - return.t
 - reverse.t
+- say.t
 - scalar_of_array.t
 - scoping/adjacency.t
+- select.t
 - signature.t
 tokens signed_exponent.t
 - sort.t
 - split_pattern.t
+- sprintf_star.t
 - state.t
 tokens string.t
 tokens string_comparison.t
@@ -152,12 +165,18 @@ trailing_tokens subroutines/adjacency.t
 - subst_double_eval.t
 - subst_eval.t
 - substitution.t
+- substr_arity.t
+- substr_lvalue.t
+- tie_variable.t
+- tied_boolean.t
+- time.t
 - trailing_decimal.t
 - transliteration.t
 - undeclared_callee.t
 trailing_tokens undef_arity.t
 - underscore_separators.t
 - unless.t
+- unpack_template.t
 - unshift.t
 - until.t
 - use_empty_list.t

@@ -43,7 +43,7 @@ it implies both under the partial order.
 
 ## INTRODUCES
 
-    anonlist ref refgen rv2cv rv2sv srefgen
+    anonlist prototype ref refgen rv2cv rv2sv srefgen
 
 ## Why those ops, and not the ones the source implies
 
@@ -102,6 +102,16 @@ things the source does not predict:
   `"@{$r}\n"`, where our lexer emits one `Quote` token and the deref is
   never tokenised, so its facts were satisfied entirely by the `\@a` two
   lines above and the file asserted nothing about its own construct.
+
+- **`prototype`, which takes this tier's own construct as its argument.**
+  `prototype \&f` emits `rv2cv` and `srefgen` -- both above -- and then
+  `prototype` on top of them, so the op measurement places it here
+  without a judgement call: the construct is not writable in any earlier
+  tier, because `\&f` is not. Tier 07 owns what a prototype DOES to a
+  call site; this op is the prototype read back out as a string, and the
+  string is the text the parser was given. `12_prototype_builtin.t`
+  carries it and says explicitly what it does not repeat from
+  `07_subroutines/09_prototype_extent.t`.
 
 - **`ref`, which the tier description does not mention, and `anonlist`,
   which it does.** `ref $r` emits `ref`, a reference operation with no home

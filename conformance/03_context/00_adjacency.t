@@ -14,8 +14,8 @@
 #
 # Here the constructs sit on consecutive statements: an array in scalar
 # context, the same array interpolated, the comma operator in scalar
-# context, `sort`, `reverse`, `localtime`, `wantarray` and `caller`.
-# They are
+# context, `sort`, `reverse`, `localtime`, `wantarray`, `caller`, `map`
+# and `grep`. They are
 # adjacent as statements rather than nested, because nesting them would
 # need an operator to join them and this tier is before the operator tier.
 #
@@ -28,10 +28,12 @@
 # the two contexts into a single answer would go green over it.
 #
 # So `@a` appears in scalar context and in list context, `reverse` twice,
-# the empty-list count idiom twice, and `localtime` twice. Measured, that
-# is `padav s`/`padav l`, `reverse sK/1`/`reverse lK/1`, `aassign sKS`/
-# `aassign lKPS` and `localtime s`/`localtime l` -- four pairs, in one
-# body, with six other constructs in scope.
+# the empty-list count idiom twice, `localtime` twice, `caller` twice,
+# and `map` and `grep` twice each. Measured, that is `padav s`/`padav l`,
+# `reverse sK/1`/`reverse lK/1`, `aassign sKS`/`aassign lKPS`,
+# `localtime s`/`localtime l`, `caller s`/`caller l`,
+# `mapstart sK`/`mapstart lK` and `grepstart sK`/`grepstart lK` -- seven
+# pairs, in one body, with the tier's remaining constructs in scope.
 #
 # This tier depends on 02_variables, and the adjacency with the earlier
 # tier is the first line: `@a` is tier 02's array, and every statement
@@ -59,8 +61,24 @@
 # `$who` and `@frame` are `caller` in the two contexts, and at file
 # scope the two do not merely format one answer differently -- they
 # return different AMOUNTS of it. `$who` is undef and `@frame` is the
-# EMPTY list, which is the `0` this file's output ends on. That pair is
-# `08_caller.t`'s subject; here it stands beside the other six.
+# EMPTY list, which is the `0` in this file's output after the `3`.
+# That pair is `08_caller.t`'s subject; here it stands beside the rest.
+#
+# `map` and `grep` close the file, each in both contexts. `@mapped` is
+# the three elements and `$mapcount` is the number 3; `@kept2` is the
+# three elements and `$grepcount` is 3 as well, because every element of
+# `(3, 1, 2)` is true and nothing is filtered out. That grep keeps
+# everything HERE is not a weakening: `10_grep.t` is where grep filters,
+# using an element bound to `$ENV{G}`, and this file's job is adjacency
+# -- that both keywords appear beside the other constructs, each with
+# `grepstart`/`mapstart` measured in both `s` and `l`. Bringing `$ENV`
+# in here to make the filter bite would add an opacity this file does not
+# otherwise need.
+#
+# Neither `map` nor `grep` FOLDS despite `@a` being wholly constant,
+# which the comma operator two statements up does. Measured, a block is
+# not constant-foldable however constant its input, so `mapstart` and
+# `grepstart` both survive.
 #
 # Fewer ops appear than the constructs suggest. `padrange` fuses
 # consecutive `my` declarations, and the comma operator in scalar context
@@ -72,7 +90,7 @@
 # MEASURED perl 5.42.0:
 #
 #   $ perl conformance/03_context/00_adjacency.t
-#   3 3 1 2 3 1 2 6 1 2 3 3 0 213 2 1 3 9 3 0
+#   3 3 1 2 3 1 2 6 1 2 3 3 0 213 2 1 3 9 3 0 3 1 2 3 3 1 2 3
 
 --- source
 my @a = (3, 1, 2);
@@ -90,11 +108,16 @@ my $stamp = localtime;
 my $want = wantarray;
 my $who = caller;
 my @frame = caller;
+my @mapped = map { $_ } @a;
+my $mapcount = map { $_ } @a;
+my @kept2 = grep { $_ } @a;
+my $grepcount = grep { $_ } @a;
 my @seen = ($want, $stamp, $who);
 print "$count @copy $interp $last @sorted $moved ", scalar(@kept),
-    " $rev @revd $fields ", scalar(@seen), " ", scalar(@frame), "\n";
+    " $rev @revd $fields ", scalar(@seen), " ", scalar(@frame),
+    " @mapped $mapcount @kept2 $grepcount\n";
 
 --- expect output
-3 3 1 2 3 1 2 6 1 2 3 3 0 213 2 1 3 9 3 0
+3 3 1 2 3 1 2 6 1 2 3 3 0 213 2 1 3 9 3 0 3 1 2 3 3 1 2 3
 
 --- expect parses

@@ -41,6 +41,7 @@ use -- pairing with 10 would assert nothing.
 ## INTRODUCES
 
     anonhash bless emptyavhv isa method method_named method_super methstart shift stub
+    tie tied
 
 ## Why those ops, and not the ones the source implies
 
@@ -155,6 +156,39 @@ the `class` side.
   case, so the file that looks simpler is the one with the op nobody
   expects. `ref`, which a constructor's caller uses to check the result,
   is tier 08's.
+
+- **`tie` and `tied` are here because `tie` needs a BLESSED object**, and
+  that is a measurement rather than a theme. Both words were unclaimed by
+  every tier of this corpus. `tie` was proposed for `07_subroutines`, on
+  the ground that `TIESCALAR` and `FETCH` are ordinary named subs -- true,
+  and not sufficient. Measured 5.42.0, a constructor that returns an
+  unblessed reference does not error; the tied variable silently reads as
+  empty:
+
+      $ perl -e 'package C; sub TIESCALAR { my $s = "x"; return \$s }
+          sub FETCH { return 42 }
+          package main; tie my $c,"C"; print "[", $c, "]\n";'
+      []
+
+  So the blessing is what the protocol requires, and the minimal blessed
+  constructor emits `emptyavhv` and `bless` -- both this tier's, both
+  counted against the file because `opsOf` reads inside a file's own CVs.
+  Tiers 02, 07 and 12 were each tried and each failed the op-budget lint.
+  This is the earliest tier that can hold either word.
+  `07_subroutines/README.md` records the same finding from the other side.
+
+  **They are two argument grammars, not one.** `tie` is a LIST OPERATOR
+  whose first argument is a VARIABLE -- `tie my $x, "C", @args` declares
+  `$x` in the call itself, measured as `padsv ... /LVINTRO` under the
+  `tie`'s own mark -- and `tied` is a NAMED UNARY. Measured, `<@> tie
+  vK/3` against `<1> tied sK/1`: a mark and three children against one
+  child and no mark. A parser that gave the two one grammar is caught by
+  the pair. `12_tie_variable.t` and `13_tied_boolean.t` carry them.
+
+  `tied` needs neither tier 08's `ref` nor tier 04's `defined`, which an
+  earlier draft assumed. In boolean position it answers on its own: undef
+  for an untied variable, a blessed reference for a tied one. Both would
+  have been legal -- both tiers are earlier -- and neither is needed.
 
 - **`Foo::new` under `class` is XS code.** The generated constructor has
   no Perl optree to dump. Nothing this tier introduces can be measured

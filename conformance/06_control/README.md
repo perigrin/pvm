@@ -45,7 +45,8 @@ this tier's subject.
 
 ## INTRODUCES
 
-    cond_expr enteriter entertry goto iter last leavetry next redo unstack
+    cond_expr die enteriter entertry exit goto iter last leavetry next redo
+    time unstack
 
 ## Why those ops, and not the ones the source implies
 
@@ -137,11 +138,29 @@ that nothing in the source spells the jump. Both ops were unclaimed by
 every tier before `14_eval_block.t` was written, so claiming them here is
 additive and `claimonce_test.go` finds no collision.
 
-`die` is NOT this tier's, and its absence shaped the file. The obvious
-`eval { die "x" }` emits a `die` op no tier at or before 06 claims, so the
-lint refuses it; `14_eval_block.t` traps a division by zero instead, which
-exercises the same frame using `divide`, an op tier 04 already owns. The
-budget picked the operand.
+`die` is NOW this tier's, and the order the two files were written in is
+why `14_eval_block.t` reads as it does. When that file was written `die`
+was claimed by no tier at all, so the obvious `eval { die "x" }` reached
+forward and the lint refused it; it traps a division by zero instead,
+exercising the same frame with `divide`, an op tier 04 already owns. The
+budget picked the operand. `15_die.t` then claimed `die` here on the
+argument the `entertry` paragraph above makes -- a control transfer whose
+target the construct names and which nothing in the source spells -- which
+was only available once the frame itself was spelled in this tier. The
+older file is left as measured: it is still the file that shows `entertry`
+catching a failure the source does not raise by name.
+
+`exit` joins it and is the same family with the opposite reach: `die`
+unwinds to the nearest `entertry`, `exit` unwinds past every one of them.
+`16_exit.t` is that measurement -- an `exit` inside an `eval BLOCK`, with
+the frame visibly built in the optree and the statement after the `eval`
+compiled and never reached. Neither op was claimed by any tier before
+these two files, so both additions are additive and `claimonce_test.go`
+finds no collision. `10_io`'s README records the `die` gap from the other
+side: its files `open` unchecked because `or die` would have widened that
+tier's set by an op belonging "to a tier that does not exist yet", and
+notes that the check can come back when a tier claims `die`. This is that
+tier.
 
 The three `do` spellings resolve to two files and one measurement that
 nothing here can carry. `do BLOCK` in expression position emits no op of
@@ -165,8 +184,8 @@ declared tier rather than deriving it.
 
 ## What writing the corpus changed
 
-Nothing was removed from INTRODUCES. All ten ops are emitted by files in
-this tier, and the corpus-wide claim check passes against them. Three
+Nothing was removed from INTRODUCES. All twelve ops are emitted by files
+in this tier, and the corpus-wide claim check passes against them. Three
 things the files measured that this README had asserted without one:
 
 `goto` is backed by `goto LABEL` and `goto $target` only. Both were
@@ -221,6 +240,8 @@ a file here that the probe finds.
     05-09	loops
     10-12	jumps
     13-14	block-valued expressions
+    15-16	terminations
+    17-17	niladic builtins
 
 The numbering is chosen, not computed, and the sections above depend on
 it. The three conditional files are the `and`/`or`/`cond_expr` argument --
@@ -241,6 +262,30 @@ neither is a jump, and putting them inside either run would make the
 sentence describing that run false. `09_do_while.t` is the hinge: it holds
 the same `do BLOCK` as `13_do_block.t` and is in the loop group, because
 what follows the closing brace decides which production this is.
+
+The fifth group is the two jumps with no landing site inside the file.
+`next`, `last`, `redo` and `goto` all name a target the same program
+supplies, which is what puts them in the jump group; `die` and `exit`
+leave -- `die` to the nearest enclosing `entertry` frame, which the source
+need not contain at all, and `exit` past every frame there is. They sit
+after the block-valued pair rather than inside the jump run because
+`15_die.t` is only writable once `14_eval_block.t` has spelled the frame
+it unwinds to, so the numbering carries the dependency as well as the
+family.
+
+The sixth group holds one file and is the only group in this tier whose
+name does not describe control flow, because `17_time.t` is not control
+flow. It is here on the OP BUDGET and the README says so rather than
+inventing a family for it: a non-deterministic builtin is observable only
+through a comparison, the comparison needs `gt` from `04_operators` and
+the ternary that renders it needs this tier's `cond_expr`, so 06 is the
+earliest tier that can hold the file at all. `time` was first proposed
+for `03_context`, beside `localtime`, and measured out: tier 03's subject
+is the discriminating pair, and `time` returns one value in both contexts
+(`1 1`, where `localtime` gives `9 1`), so it has no pair to contribute.
+The group is named for what the file actually measures -- an operator
+that takes no argument and admits none -- which is a property of its
+PARSE rather than of its place in this tier.
 
 A regeneration would sort these alphabetically and interleave the
 families: `03_goto.t` would land between `02_foreach.t` and

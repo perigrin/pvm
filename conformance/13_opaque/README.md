@@ -1,6 +1,7 @@
 # 13_opaque
 
-Heredocs, `format`, `qx`, `<*>`, POD, `__END__`/`__DATA__`.
+Heredocs, `format`, `qx`, `<*>`, POD, `__END__`/`__DATA__`, `pack`
+templates, `qq` delimiters.
 
 ## Why this tier sits here
 
@@ -60,13 +61,13 @@ the files happen to touch.
 
 ## INTRODUCES
 
-    backtick enterwrite glob
+    backtick enterwrite glob pack unpack
 
 ## Why those ops, and not the ones the source implies
 
-Six constructs, three ops. The gap is the tier.
+Nine constructs, five ops. The gap is the tier.
 
-**Four of the six emit nothing that is theirs.**
+**Five of the nine emit nothing that is theirs.**
 
 - **Heredocs emit `const` or `multiconcat`** -- tier 01's, both of them.
   Measured, `<<"EOT"` with an interpolation gives `multiconcat`, `<<'EOT'`
@@ -83,7 +84,16 @@ Six constructs, three ops. The gap is the tier.
   including the picture lines that are the actual lexing problem -- is
   compiled into a format that no op mentions.
 
-**Two emit something, and neither op is the construct.**
+- **`qq` emits NOTHING OF ITS OWN.** Measured, `qq{plain}` is tier 01's
+  `const[PV "plain"]` and `qq{v=$x}` is tier 01's `multiconcat` -- the
+  same two ops `"plain"` and `"v=$x"` give. So this tier REACHES
+  `multiconcat` rather than introducing it, and `qq` adds nothing to the
+  list above. The optree records what a string IS and never how it was
+  spelled, which leaves the delimiter observable only in the token
+  stream. `14_qq_delimiters.t` is the file that carries all of its weight
+  in token facts because of it.
+
+**Four emit something, and none of the ops is the construct.**
 
 - **`qx{...}` emits `backtick`**, over a `const[PV "echo hi"]`. Backticks
   and `qx` produce the same op, which is why `GLOSSARY.md` puts them in
@@ -93,6 +103,23 @@ Six constructs, three ops. The gap is the tier.
   one token to a lexer and two different ops to perl, and the difference is
   whether the name inside is a filehandle -- a fact the lexer does not
   have. Asserting `glob` here asserts about the pattern case only.
+- **`pack` and `unpack` emit `pack` and `unpack`, and the CONSTRUCT is
+  the template, which emits nothing.** `"C3"` is a count and a type code
+  to perl's packing engine and three characters of string to the lexer,
+  which is why the pair belongs in this tier rather than beside the
+  operators: the template is an opaque region spelled as a string
+  literal, exactly as a format's picture lines are an opaque region
+  spelled as lines of text. The ops are claimed here because this is
+  where they are first emitted, not because either op is the subject.
+
+  **Both fold, and the fold is the trap.** Measured,
+  `print unpack("A3", pack("A3","abc"))` emits NO `pack` op at all: the
+  pack ran at compile time and left a `const[PV "abc"] s/FOLD` for the
+  `unpack` to read. A file written over constant arguments would claim
+  `pack` in the block above and emit none, so the lint would have
+  nothing to check. `12_pack_template.t` and `13_unpack_template.t` take
+  their argument from `$ENV{X} // <default>`, which is unset when the
+  runner executes and therefore yields the default as a RUNTIME value.
 
 So the `--- expect tokens` sections carry this tier. That is why four
 categories were added to `GLOSSARY.md` for it -- `readline operator`, `pod
@@ -110,8 +137,12 @@ know where the body ends.
 
 ## What the tier measured
 
-Six of the twelve files refuse as of 9750d03b, and the shape of the
-refusals is the result.
+Six of the fifteen files refuse as of 9750d03b, and the shape of the
+refusals is the result. The three added since -- `12_pack_template.t`,
+`13_unpack_template.t` and `14_qq_delimiters.t` -- all pass, which is the
+expected shape: none of them asks the parser for a construct it lacks.
+Their opaque regions are a string literal's contents, and a string
+literal is tier 01's.
 
 **Three codes, not one gap.** Every refusing file names the refusal site
 it waits on rather than describing it, and the sites are distinct:
@@ -190,7 +221,7 @@ multi-line opaque region. Both matter here:
     qx	qx
     glob-angle	<*
 
-Four of the twelve `hardMarkers` place here, the largest share of any
+Four of the corpus's twelve `hardMarkers` place here, the largest share of any
 tier, and that concentration is the point: this tier's subject is the
 constructs whose CONTENTS the lexer must not read, which is the same
 property that made them hard. The list came from

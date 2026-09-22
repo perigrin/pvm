@@ -45,7 +45,7 @@ without a runtime operand this tier has nothing to measure. See below.
 
 ## INTRODUCES
 
-    add and concat defined divide dor eq ge gt le lt modulo multiply ncmp ne negate not or pow repeat scmp seq sge sgt sle slt sne subtract undef xor
+    add and chr concat defined divide dor eq ge gt index le lt modulo multiply ncmp ne negate not or ord pow repeat scmp seq sge sgt sle slt sne sprintf substr subtract undef xor
 
 ## Why those ops, and not the ones the source implies
 
@@ -126,6 +126,63 @@ measuring diverge most, and five places where they do:
   `10_undef_arity.t` carries it and records that our parser refuses the
   unary spelling alone, with the same `trailing_tokens` as tier 07's
   parenless-call files and for the same missing rule.
+
+- **Five STRING operators are here, and the folding trap splits them
+  three against two.** `chr`, `ord`, `index`, `sprintf` and `substr` are
+  five of the 35 constructs `namedconstructs_test.go` measures T1 using
+  and the corpus naming nowhere. They are operators by this tier's
+  standard -- each takes operands and imposes a context on them -- and
+  each has a parse question no other tier asks: where a named unary's
+  argument stops, how many arguments a call takes, whether a call may sit
+  on the left of an `=`.
+
+  The trap this tier opens with decides which of them a file may write
+  with constants, and it does NOT follow from anything in the source.
+  Measured under 5.42.0:
+
+      sprintf("%03d", 5)   const[PV "005"] s/FOLD     no sprintf op
+      ord("A")             const[IV 65]   s/FOLD      no ord op
+      chr(65)              const[PV "A"]  s/FOLD      no chr op
+      index("hello","l")   const, const, index        SURVIVES
+      substr("hello",1,3)  const, const, const, substr SURVIVES
+
+  `chr` was expected to survive on the reasoning that its result depends
+  on the encoding pragma in scope. It does not. `index` and `substr`
+  survive and the other three do not, and no rule about the operators
+  themselves predicts the split. Every file in this tier takes a runtime
+  operand regardless, because what a file may RELY on is the constraint
+  and the two exceptions are one release's behaviour.
+
+  **`substr` is really THREE ops, and the corpus claims one of them.**
+  Measured, `substr($s, 0, 1)` in RVALUE position compiles to
+  `substr_left` -- a 5.42.0 optimisation applied at offset zero alone --
+  while every nonzero offset, the four-argument form and the lvalue form
+  all compile to plain `substr`. `substr_left` is claimed by no tier, so
+  `14_substr_arity.t` keeps every offset nonzero and the most ordinary
+  spelling of `substr` that anyone writes is the one this corpus cannot
+  carry. `15_substr_lvalue.t` reaches offset zero by the two spellings
+  that emit plain `substr`.
+
+  **`substr`'s lvalue-ness is a FLAG, not an op.** `substr($s,0,1) = "J"`
+  emits `substr[t5] vKS/REPL1ST,3` and NO `sassign` at all -- the
+  replacement folds into the op and the assignment stops existing as a
+  separate step. The four-argument `substr($s,0,1,"J")` emits
+  `substr[t7] sK/4`, the same name, and edits the string identically.
+  Only the RETURN value separates them: the four-argument form hands back
+  the displaced text and the lvalue form discards it.
+
+  **`sprintf`'s arity is decided inside a string.** `%*d` takes its width
+  from the argument list, so one conversion consumes two arguments, and
+  the format is one `string literal` to the lexer. The optree does not
+  see it either: measured, `sprintf("%03d",$n)` and `sprintf("%*d",$n,$n)`
+  both print `sK/2`, which is a private flag rather than an argument
+  count, and the real operands are the ops between the `pushmark` and the
+  `sprintf`.
+
+  **`index` reports failure as `-1`.** Defined, numeric and TRUE, so
+  `//` never fires on it and `if (index(...))` is true for a miss and
+  false for a hit at position 0. It is the only builtin in this tier
+  whose "not found" answer is an ordinary in-range value.
 
 One structural note carried from tier 01, because it bites harder here: the
 declared set is a UNION ACROSS THE TIER'S FILES and never a property of one

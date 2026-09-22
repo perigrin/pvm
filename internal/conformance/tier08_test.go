@@ -113,6 +113,13 @@ var referenceConstructs = map[string]string{
 	"deref_brace_hash": `%{$`,
 	"code_ref":         `\&`,
 	"ref_builtin":      `ref(`,
+
+	// `prototype` (issue 01a0c730). Spelled with the operator attached
+	// rather than as the bare word, for the reason the comment above
+	// gives: the bare word appears in this tier's own README prose and
+	// in the file's header, and a substring search would be satisfied by
+	// either. `prototype \&` is the construct.
+	"prototype_builtin": `prototype \&`,
 }
 
 // constructFromName returns the construct spelling a file is named for,
