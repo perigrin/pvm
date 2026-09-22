@@ -33,7 +33,7 @@
 #              goto l
 #   p  <2> leaveloop vKP/2
 #
-# Position o is the only difference from `04_while.t`'s stream, and `ge`
+# Position o is the only difference from `05_while.t`'s stream, and `ge`
 # against `lt` at n is the source's own inversion, not perl's.
 
 --- source

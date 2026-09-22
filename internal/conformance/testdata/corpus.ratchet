@@ -8,7 +8,7 @@
 # The per-tier adjacency fixture carries its tier, since fourteen
 # tiers each hold one and they are different files.
 #
-# 138 files, 116 clean, 22 refusing.
+# 139 files, 117 clean, 22 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -55,6 +55,7 @@ not_a_term data_section.t
 - deref_at_sigil.t
 - deref_brace_hash.t
 - deref_postfix.t
+- elsif.t
 - eof.t
 - foreach.t
 unimplemented_statement format_picture.t

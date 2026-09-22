@@ -10,7 +10,7 @@
 # `padsv_store`; the increment clause is compiled into the tail of the body,
 # ahead of the `unstack`, so from the op stream's point of view the three
 # clauses are not three things. The only structural mark the C-style form
-# leaves that `04_while.t` does not is the extra `unstack v*` between the
+# leaves that `05_while.t` does not is the extra `unstack v*` between the
 # init and `enterloop`.
 #
 # The counter is the loop's subject, so it is bound to `$ENV{N}` rather

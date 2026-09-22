@@ -60,6 +60,16 @@ op stream contradicts a plain reading of the source:
   the other is shared with an operator tier 04 already spells differently.
   The corpus needs both files; neither alone lints the tier.
 
+  And `elsif` is a THIRD form of the same keyword, compiling to NESTED
+  `cond_expr` -- one per condition, no op of its own. So three source
+  constructs share two ops between them, and what distinguishes `elsif` is
+  the shape of the nesting, which `-exec` order cannot show.
+  `04_elsif.t` pins it behaviourally instead, by making the MIDDLE branch
+  the one taken: neither a lone `if` nor an `else` can produce that. Its
+  token facts count rather than forbid, since a lexer reading `elsif` as
+  `else` followed by `if` would emit two words spelled `else` in a file
+  that contains one.
+
 - **`unless` is `or`, not an inverted `if`.** The discriminating pair is
   exact: `if ($ENV{X}) { print "y" }` and `unless ($ENV{X}) { print "n" }`
   emit identical op streams except that position 4 is `and` in the first
@@ -137,19 +147,19 @@ differ in arity and op class as well as in when the target is known.
 and `srefgen`, which tiers 07 and 08 claim. The op NAME is legitimately
 this tier's because two spellings emit it here; the frame-replacing
 spelling waits for the tier that supplies frames. Both jumps in
-`10_goto.t` go forward to a label at the same scope depth, because perl
+`11_goto.t` go forward to a label at the same scope depth, because perl
 warns on a `goto` into or out of a construct and the harness compares
 output byte for byte.
 
 The postfix loop modifier cost an op the first time it was written.
 `print $i-- while $i > 0` emits `postdec`, which no tier at or before 06
-claims, so `09_postfix_while.t` spells the body `$i = $i - 1` instead. The
+claims, so `10_postfix_while.t` spells the body `$i = $i - 1` instead. The
 file's subject is the loop frame, not the decrement, and the lint was
 right to refuse the shorter spelling.
 
 `redo` needs a guard that is false at run time. It is the one jump with no
 terminating spelling of its own -- an unguarded `redo` restarts the body
-forever -- so both `08_next_last_redo.t` and the adjacency file put it
+forever -- so both `09_next_last_redo.t` and the adjacency file put it
 behind `$ENV{R} // 0`. The op compiles, sits adjacent to the statements
 around it, and is never taken, which is exactly what the tier needs to
 measure and nothing more.
@@ -167,7 +177,7 @@ filter, so that file was deleted and the placements moved to the tiers.
 files, and it is this tier because `goto LABEL` is a loop-control statement
 in everything but name -- the same code path as `next`, `last` and `redo`,
 which the section above records as the ops this tier introduces.
-`10_goto.t` is the file, and the note above already measures that the tier
+`11_goto.t` is the file, and the note above already measures that the tier
 backs `goto` with `goto LABEL` and `goto $target` only.
 
 The probe column is the SOURCE probe verbatim, `·` standing for a
@@ -177,16 +187,16 @@ a file here that the probe finds.
 
 ## FILE ORDER
 
-    01-03	conditionals
-    04-07	loops
-    08-10	jumps
+    01-04	conditionals
+    05-08	loops
+    09-11	jumps
 
 The numbering is chosen, not computed, and the sections above depend on
 it. The three conditional files are the `and`/`or`/`cond_expr` argument --
 `if` and `unless` differ by exactly one op, and `if`/`else` is a different
 op again -- and that argument is a comparison between neighbours. The four
 loop files are the `enterloop`/`unstack` family, with `enteriter` arriving
-at `07_foreach.t` as the thing that distinguishes `foreach` from C-style
+at `08_foreach.t` as the thing that distinguishes `foreach` from C-style
 `for`. The three jump files are what `enterloop` names in its own dump.
 
 A regeneration would sort these alphabetically and interleave the

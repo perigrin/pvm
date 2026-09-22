@@ -41,7 +41,7 @@
 #   j  <@> leave vK*
 #
 # `enter` at 8 and `leave` at j, and no `enterloop` or `leaveloop`
-# anywhere -- compare `04_while.t`, where those two are the frame and
+# anywhere -- compare `05_while.t`, where those two are the frame and
 # `enter`/`leave` are absent.
 
 --- source

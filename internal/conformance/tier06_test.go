@@ -61,7 +61,7 @@ func TestTierControlPerlValidated(t *testing.T) {
 //
 // The lint has already earned its place in this tier once. The README
 // records it: `print $i-- while $i > 0` emits `postdec`, which no tier at
-// or before 06 claims, so `09_postfix_while.t` spells the decrement
+// or before 06 claims, so `10_postfix_while.t` spells the decrement
 // `$i = $i - 1` instead. The file's subject is the loop frame and the
 // lint refused the shorter spelling correctly.
 func TestTierControlLint(t *testing.T) {
