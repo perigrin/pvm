@@ -86,22 +86,156 @@ func TestNumberFormsStillLex(t *testing.T) {
 	}
 }
 
-// TestLeadingDotNumber records a form perl accepts and this lexer splits.
+// TestLeadingDotNumber: a numeric literal with no digit before the point
+// is ONE number, not an operator and a number.
 //
 // Measured: `perl -e 'my $n = .5; print $n'` prints 0.5, so `.5` is one
-// number. `scanNumber` requires a leading DIGIT (`scan.go:127`), so the dot
-// is emitted as an operator first.
+// number. `scanNumber` required a leading DIGIT, so the dot was emitted as
+// an operator first and the parser then had no term to start on.
 //
-// Skipped rather than asserted: fixing it means letting scanNumber start on
-// `.`, which collides with concatenation (`$a . $b`) and with the range this
-// commit is splitting. That is its own decision and its own measurement,
-// and doing it inside the range fix would make one number answer for two.
+// This test was parked as a skip by the range-splitting commit, which was
+// right to park it: letting `scanNumber` start on a dot collides with
+// concatenation and with `..`, and deciding that inside the range fix
+// would have made one number answer for two questions. Issue 01a0c13f is
+// that decision, and the rule it settles on is POSITION -- a `.` before a
+// digit starts a number only where a TERM is expected, which is the same
+// expect-state mechanism the spec uses for a leading `%`.
 //
-// Recorded here so the next person measures it rather than rediscovering it.
+// `TestLeadingDotIsStillConcatenation` is the other half and must stay
+// green: in operator position the identical bytes are concatenation.
 func TestLeadingDotNumber(t *testing.T) {
-	t.Skip("`.5` splits into Operator(.) and Number(5); needs scanNumber to " +
-		"start on a dot, which collides with concatenation and with `..` -- " +
-		"its own issue, not part of the range fix")
+	for _, c := range []struct {
+		src  string
+		want string
+	}{
+		{".5", "Number(.5)"},
+		{".25", "Number(.25)"},
+		{".5e10", "Number(.5e10)"},
+	} {
+		got := significant(c.src)
+		if len(got) != 1 || got[0] != c.want {
+			t.Errorf("%q lexes as %v, want [%s]", c.src, got, c.want)
+		}
+	}
+}
+
+// TestLeadingDotIsStillConcatenation is the other half of the rule, and
+// the half that makes it a POSITION question rather than a lookahead one.
+//
+// In OPERATOR position -- just after a term -- a `.` is concatenation
+// even when a digit follows, and perl proves the two readings are both
+// live. Measured 5.42.0, the same four bytes parse two ways depending on
+// nothing but what came before:
+//
+//	$ perl -MO=Deparse -e 'my $a = "x"; my $r = $a .5;'
+//	my $r = $a . '5';                 CONCATENATION
+//
+//	$ perl -MO=Deparse -e 'my $a = "x"; print $a .5'
+//	print $a 0.5;                     FILEHANDLE and a NUMBER
+//
+// The second is why `print $a .5` prints nothing: `$a` lands in print's
+// filehandle slot and `.5` is its argument. That is a runtime failure
+// from a lexical decision, and it is exactly the class of bug the expect
+// state exists to get right.
+//
+// So a lexer that scanned `.` as a number wherever a digit follows would
+// break the first line, and one that never did would break `.5` alone.
+// Only position separates them.
+func TestLeadingDotIsStillConcatenation(t *testing.T) {
+	for _, c := range []struct {
+		src  string
+		want []string
+	}{
+		{`$a . 5`, []string{"Variable($a)", "Operator(.)", "Number(5)"}},
+		{`$a .5`, []string{"Variable($a)", "Operator(.)", "Number(5)"}},
+		{`$a.5`, []string{"Variable($a)", "Operator(.)", "Number(5)"}},
+	} {
+		got := significant(c.src)
+		if len(got) != len(c.want) {
+			t.Errorf("%q lexes as %v, want %v", c.src, got, c.want)
+			continue
+		}
+		for i := range got {
+			if got[i] != c.want[i] {
+				t.Errorf("%q lexes as %v, want %v", c.src, got, c.want)
+				break
+			}
+		}
+	}
+}
+
+// TestLeadingDotVersionStringUnharmed pins the two regressions the
+// leading-decimal rule caused, each found by a test rather than foreseen.
+//
+// A v-string reaches `scanNumber` looking exactly like a leading decimal:
+// term expected, a dot, a digit after it. `v5` lexes as an ordinary Word,
+// so nothing upstream marks the dots as part of a version.
+//
+// `use v5.36` is the consequential one. Merging its `.36` into a Number
+// leaves `pendingVersionMajor` without the Operator it reassembles the
+// version from, the signatures feature never turns on, and `sub g ($a,
+// $b)` silently becomes a PROTOTYPE -- a lexical change that alters what
+// the rest of the file means.
+//
+// `require(v5.5.630)` needs a second rule, because by its third part the
+// pending major is already spent. Both are checked here so a future
+// change to either rule fails on the case it breaks.
+func TestLeadingDotVersionStringUnharmed(t *testing.T) {
+	for _, c := range []struct {
+		src  string
+		want []string
+	}{
+		{`use v5.36;`, []string{
+			"Word(use)", "Word(v5)", "Operator(.)", "Number(36)", "Semicolon(;)",
+		}},
+		// `Number(5.630)` rather than three tokens, and that is
+		// PRE-EXISTING: `scanNumber`'s loop has always taken a single `.`
+		// whole, breaking only on `..`. Verified against HEAD's scan.go.
+		// What this case pins is the FIRST dot -- without the guard it
+		// merges too, giving `Word(v5) Number(.5.630)` and losing the
+		// separator the version reassembly reads.
+		{`v5.5.630`, []string{
+			"Word(v5)", "Operator(.)", "Number(5.630)",
+		}},
+	} {
+		got := significant(c.src)
+		if len(got) != len(c.want) {
+			t.Errorf("%q lexes as %v, want %v", c.src, got, c.want)
+			continue
+		}
+		for i := range got {
+			if got[i] != c.want[i] {
+				t.Errorf("%q lexes as %v, want %v", c.src, got, c.want)
+				break
+			}
+		}
+	}
+}
+
+// TestLeadingDotRangeUnharmed keeps the range fix this file's first test
+// records from being undone: `..` is the range operator wherever it
+// appears, and a `.` that starts a number must not swallow the second
+// dot. `1..5` and `.5..1` are both three tokens.
+func TestLeadingDotRangeUnharmed(t *testing.T) {
+	for _, c := range []struct {
+		src  string
+		want []string
+	}{
+		{`1..5`, []string{"Number(1)", "Operator(..)", "Number(5)"}},
+		{`$a..5`, []string{"Variable($a)", "Operator(..)", "Number(5)"}},
+	} {
+		got := significant(c.src)
+		if len(got) != len(c.want) {
+			t.Errorf("%q lexes as %v, want %v", c.src, got, c.want)
+			continue
+		}
+		for i := range got {
+			if got[i] != c.want[i] {
+				t.Errorf("%q lexes as %v, want %v", c.src, got, c.want)
+				break
+			}
+		}
+	}
 }
 
 // TestQxLexes: `qx//` is a quote-like operator, and `internal/lexer/quote.go`

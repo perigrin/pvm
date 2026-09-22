@@ -95,7 +95,11 @@ func TestT2CoreParses(t *testing.T) {
 	// keyword as a quote operator where perl reads it as a name: `$o->s`
 	// and `method y { ... }`. class/class.t left the map entirely.
 	shortfall := map[string]int{
-		"base/lex.t": 37, "base/num.t": 48, "base/rs.t": 3,
+		// `base/lex.t` 37 -> 36 and `base/num.t` 48 -> 44 when the lexer
+		// learned that a `.` before a digit starts a NUMBER where a term
+		// is expected (issue 01a0c13f). Measured before the fix: 5 of
+		// those 85 Unknowns held a leading decimal, and all 5 are gone.
+		"base/lex.t": 36, "base/num.t": 44, "base/rs.t": 3,
 		// class/field.t went 9 -> 10 when quote-op keywords stopped eating
 		// their fat comma, then back to 9 when goto, delete and exists
 		// landed. The rise was never a regression in the parse: reaching

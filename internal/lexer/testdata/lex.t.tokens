@@ -202,8 +202,7 @@ Number          576    579  100
 Whitespace      579    580  \s
 Operator        580    581  +
 Whitespace      581    582  \s
-Operator        582    583  .
-Number          583    584  5
+Number          582    584  .5
 CloseBracket    584    585  )
 Semicolon       585    586  ;
 Whitespace      586    587  \n

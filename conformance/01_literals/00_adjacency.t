@@ -37,19 +37,19 @@
 # This tier depends on nothing, so there is no earlier tier to pair with;
 # the adjacency is entirely within 01.
 #
-# STATUS refuses as of 7711154e. Refusal not_a_term. The `.5` on line 4 is
-# `04_leading_decimal.t`'s gap reaching this file, which is the adjacency
-# file being HONEST rather than a second bug: a body holding every
-# construct the tier introduces holds the refusing ones too, so it cannot
-# pass while any of them refuses. Composing only the constructs that
-# already work would make this file green and make it stop covering the
-# tier. Issue 01a0c13f-97f5-7f98-b32d-07245ec6ddfe.
+# This file refused from 7711154e until issue
+# 01a0c13f-97f5-7f98-b32d-07245ec6ddfe, and it refused for a BORROWED
+# reason: the `.5` on line 4 was `04_leading_decimal.t`'s gap reaching
+# here, not a second bug. The note recorded at the time said the adjacency
+# file cannot pass while any construct it holds refuses, and that
+# composing only the working constructs would make it green and make it
+# stop covering the tier. Fixing the lexer cleared both files in one
+# change, which is that prediction coming true.
 #
-# The named code is the parser's; the tier's other two refusals -- the
-# exponent split and the v-strings -- are LEXICAL and produce no Unknown
-# at all, so they leave no code here to name. See
-# `TestTierLiteralsRefusalsCited` for why a file must not name one it does
-# not have.
+# The tier's other two refusals -- the exponent split and the v-strings --
+# are LEXICAL and produce no Unknown at all, so they leave no code here to
+# name. See `TestTierLiteralsRefusalsCited` for why a file must not name a
+# refusal it does not have.
 #
 # MEASURED perl 5.42.0:
 #

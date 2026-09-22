@@ -19,8 +19,14 @@
 # a token assertion: the spelling is a lexical fact and output cannot reach
 # it. See ../GLOSSARY.md, "numeric literal".
 #
-# STATUS refuses as of 38c95d23. Refusal not_a_term. Our lexer produces Operator(.) Number(5),
-# because scanNumber does not accept a leading `.`. Issue 01a0c13f-97f5-7f98-b32d-07245ec6ddfe.
+# This file refused from 38c95d23 until the lexer learned the rule: our
+# lexer produced `Operator(.) Number(5)`, because `scanNumber` required a
+# leading DIGIT. Fixed under issue 01a0c13f-97f5-7f98-b32d-07245ec6ddfe,
+# which made a `.` before a digit start a number where a TERM is expected
+# and leave it as concatenation where an operator is.
+#
+# The token fact below was written while the file still refused, and it is
+# what the fix had to satisfy. Nothing in it changed.
 
 --- source
 my $x = .5;

@@ -8,7 +8,7 @@
 # The per-tier adjacency fixture carries its tier, since fourteen
 # tiers each hold one and they are different files.
 #
-# 175 files, 152 clean, 23 refusing.
+# 175 files, 154 clean, 21 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -93,8 +93,8 @@ trailing_tokens heredoc_literal.t
 - interpolated_array.t
 - io/adjacency.t
 - isa_infix.t
-not_a_term,tokens leading_decimal.t
-not_a_term literals/adjacency.t
+- leading_decimal.t
+- literals/adjacency.t
 - local.t
 - localtime.t
 - lock.t

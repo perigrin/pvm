@@ -630,10 +630,16 @@ func TestCorpusSkipsAreDocumented(t *testing.T) {
 	// The converse, without which this would pass against a runner that
 	// never skips at all: a genuinely refusing file DOES skip, naming its
 	// refusal.
+	//
+	// `undef @a` rather than the `my $x = .5;` this used to carry, for
+	// the reason `TestRefusalCodeMismatchFails` records: the leading
+	// decimal stopped refusing under issue 01a0c13f-97f5, and a fixture
+	// whose premise is a refusal has to be replaced when the refusal is
+	// fixed. The issue cited is the one that still records this one.
 	refusing := &File{
-		Source:       "my $x = .5;\n",
+		Source:       "my @a = (1,2); undef @a;\n",
 		ExpectParses: true,
-		Refuses:      "01a0c13f-97f5-7f98-b32d-07245ec6ddfe",
+		Refuses:      "01a0c730-b241-7765-aaa2-5260d050dce9",
 	}
 	v := verdict(t, refusing)
 	if v.kind != knownRefusal {
@@ -819,14 +825,21 @@ func TestAbsentExpectedOutputSkipsCheck(t *testing.T) {
 // predate codes and must keep working; a code is an additional promise,
 // not a new requirement.
 func TestRefusalCodeMismatchFails(t *testing.T) {
-	// A leading-decimal literal, which our lexer reads as `Operator(.)
-	// Number(5)` and the parser then declines. Valid perl, so it reaches
-	// the parser rather than stopping at perl's adjudication.
+	// `undef @a`, the UNARY spelling, which our parser reads as a
+	// complete term followed by an array with no operator between. Valid
+	// perl -- measured, it empties the array and `scalar(@a)` is 0 -- so
+	// it reaches the parser rather than stopping at perl's adjudication.
+	//
+	// This replaced `my $x = .5;`, which stopped refusing when issue
+	// 01a0c13f-97f5 taught the lexer that a `.` before a digit starts a
+	// number in term position. The `t.Fatalf` below is what reported
+	// that, which is the fixture guarding itself: a test whose premise is
+	// that something refuses has to notice when it stops.
 	//
 	// The code is READ from the parse rather than written here: which
-	// site declines `.5` is the parser's business and may change, and a
+	// site declines it is the parser's business and may change, and a
 	// literal in this test would then assert the old answer.
-	const src = "my $x = .5;\n"
+	const src = "my @a = (1,2); undef @a;\n"
 
 	const wrong = parse.RefusalCode("missing_operand")
 

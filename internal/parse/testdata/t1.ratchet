@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 462 clean (46.9%), 3317 total.
+# 986 files, 464 clean (47.1%), 2379 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -95,7 +95,7 @@
 1 code_deref_nonstrict.t
 9 code_ref_defined_exists.t
 0 code_ref_forward_glob_assignment.t
-932 code_too_large.t
+0 code_too_large.t
 0 coderef_survives_stash_delete.t
 0 common_sense_refs.t
 2 compile_warning_handler.t
@@ -993,4 +993,4 @@
 4 zzzz_makemaker_test_heap_override.t
 0 zzzz_open_missing_dup.t
 0 zzzz_parenthesized_tied_readline_while.t
-6 zzzz_prototype_leading_dot_method_arg.t
+0 zzzz_prototype_leading_dot_method_arg.t

@@ -252,12 +252,88 @@ func scanWord(l *lexer) bool {
 	return true
 }
 
+// isDigit reports whether c is an ASCII decimal digit.
+func isDigit(c byte) bool { return c >= '0' && c <= '9' }
+
+// startsLeadingDecimal reports whether the cursor sits on a `.` that
+// begins a numeric literal written with no digit before the point.
+//
+// Two conditions, and POSITION is the load-bearing one. A digit must
+// follow, so `.` alone and `..` are untouched -- but a digit following is
+// not sufficient, because `$a .5` is concatenation. Measured 5.42.0, the
+// same four bytes parse two ways with nothing but context between them:
+//
+//	my $r = $a .5;     ->  my $r = $a . '5';    concatenation
+//	print $a .5        ->  print $a 0.5;       filehandle and a number
+//
+// The second prints nothing, because `$a` lands in print's filehandle
+// slot. So the rule is the expect state, the same mechanism §3.2 uses for
+// a leading `%`, `<`, `&` and `/`: where a TERM is expected nothing else
+// can start with a dot, and where an OPERATOR is expected a dot is
+// concatenation regardless of what follows.
+// TWO version-string exceptions, both measured rather than defensive,
+// and both found by a test rather than anticipated.
+//
+// `use v5.36` reaches here with a term expected and a digit following,
+// because `v5` lexes as an ordinary Word -- so without the first guard
+// the `.36` becomes one Number and `pendingVersionMajor` never sees the
+// Operator it reassembles the version from. The feature bundle then does
+// not turn on, which silently changes what the rest of the file means:
+// `use v5.36` enables signatures, and `sub g ($a, $b)` is a PROTOTYPE
+// without it.
+//
+// `require(v5.5.630)` needs the second. `pendingVersionMajor` clears on
+// the Number it pairs with, so by the third part it is already zero and
+// the first guard no longer applies. What rules it out is that the
+// previous token is a Number with no space before the dot: a v-string's
+// parts are adjacent, and a leading decimal never follows a number
+// directly. `(1,.5)` is a real leading decimal and its previous token is
+// the comma, not the 1.
+func startsLeadingDecimal(l *lexer) bool {
+	return l.src[l.pos] == '.' &&
+		l.expect.wantsTerm() &&
+		!continuesVersionString(l) &&
+		l.pos+1 < len(l.src) &&
+		isDigit(l.src[l.pos+1])
+}
+
+// continuesVersionString reports whether the dot at the cursor separates
+// two parts of a v-string such as `v5.36` or `v5.5.630`.
+//
+// ADJACENCY is the whole rule: a v-string's parts touch, so the token
+// before the dot ends exactly where the dot begins. `(1,.5)` is a real
+// leading decimal and the token before its dot is the comma; `5 . .5`
+// has a space. Neither is adjacent to a digit-bearing token.
+//
+// Both the `v5` Word and a `Number` count, because the two dots of
+// `v5.5.630` have different predecessors. Checking `pendingVersionMajor`
+// instead would miss every v-string outside a `use`: `noteSignatures`
+// returns early unless a `use` is pending, so `require(v5.5.630)` never
+// sets it.
+func continuesVersionString(l *lexer) bool {
+	if len(l.toks) == 0 {
+		return false
+	}
+	prev := l.toks[len(l.toks)-1]
+	if prev.End != l.pos {
+		return false
+	}
+	if prev.Kind == Number {
+		return true
+	}
+	if prev.Kind != Word {
+		return false
+	}
+	_, ok := versionPrefix(string(l.src[prev.Start:prev.End]))
+	return ok
+}
+
 // scanNumber lexes an integer or float literal. The exotic forms -- `0x_1234`,
 // `0x0p0` -- are §0.13 rank 9 and belong to a later issue; this covers what
 // the M0 corpus reaches.
 func scanNumber(l *lexer) bool {
 	c := l.src[l.pos]
-	if c < '0' || c > '9' {
+	if !isDigit(c) && !startsLeadingDecimal(l) {
 		return false
 	}
 	start := l.pos
