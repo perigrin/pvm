@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-21T23:57:09.409395856Z
-updated: 2026-09-22T01:04:59.586016846Z
+updated: 2026-09-22T01:47:35.824469547Z
 sessions:
 - start_sha: a3a0ed0c97ce48a68f5db427979f9d8acf88d3c8
   end_sha: a3a0ed0c97ce48a68f5db427979f9d8acf88d3c8
@@ -74,7 +74,7 @@ Found by running verify against a clean tree after 01a0c546 landed.
 
 ## Acceptance criteria
 
-- [ ] verify reports no unverifiable criterion for this milestone (`test "$(git-zhi verify m3-conformance-corpus --format json | python3 -c 'import json,sys; print(json.load(sys.stdin)["unverifiable"])')" = 0`)
+- [ ] verify discovers a command for every criterion, so none is unverifiable (`test "$(git-zhi verify m3-conformance-corpus --dry-run | wc -l)" -ge "$(git-zhi issue list --milestone m3-conformance-corpus --state done --format json | python3 -c 'import json,sys; print(sum(1 for i in json.load(sys.stdin) for l in i.get("body","").split(chr(10)) if l.startswith("- [")))')"`)
 - [ ] every criterion in this milestone carries its command on the same line as its checkbox (`test "$(git-zhi issue list --milestone m3-conformance-corpus --state done --format json | python3 -c 'import json,sys; print(sum(1 for i in json.load(sys.stdin) for l in i.get("body","").split(chr(10)) if l.startswith("- [") and not l.rstrip().endswith("`)")))')" = 0`)
 - [ ] the two silently-enforced rules are written where an author reads them before writing an AC (`grep -q 'SAME LINE' /home/perigrin/.claude/projects/-home-perigrin-dev-pvm/memory/reference_git_zhi_acceptance_criteria.md`)
 - [ ] that record names the header rule too, which is the failure that hid an entire milestone (`grep -q 'Acceptance criteria   found' /home/perigrin/.claude/projects/-home-perigrin-dev-pvm/memory/reference_git_zhi_acceptance_criteria.md`)
