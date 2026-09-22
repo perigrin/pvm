@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-21T23:57:09.409395856Z
-updated: 2026-09-22T01:47:35.824469547Z
+updated: 2026-09-22T01:48:55.099829704Z
 sessions:
 - start_sha: a3a0ed0c97ce48a68f5db427979f9d8acf88d3c8
   end_sha: a3a0ed0c97ce48a68f5db427979f9d8acf88d3c8
@@ -71,6 +71,40 @@ second formatting rule verify enforces silently (the first being the word
 `criteria` in the header).
 
 Found by running verify against a clean tree after 01a0c546 landed.
+
+## A third rule, found while fixing this one
+
+Reflowing the wrapped criteria closed the gap this issue names, and
+discovery still fell short: 196 criteria declared, 179 found. Three issues
+contributed ZERO, and every one of their criteria was correctly formatted
+under both known rules.
+
+Proven on throwaway probes -- two issues identical but for a trailing
+subsection:
+
+    ## Acceptance criteria
+    - [ ] trivially true (`true`)              discovered
+
+    ## Acceptance criteria
+    - [ ] trivially true (`true`)
+    ### A following subsection                 contributes NOTHING
+
+**A `###` subsection after the criteria block makes the entire block
+invisible.** Not the part after it -- all of it.
+
+The three affected issues each lost their criteria to a good-faith note
+added during execution: `### Acceptance correction, during execution`,
+`### Scope note, added during the lint's execution`, `### The format is
+already settled`. 17 criteria, silently unrun.
+
+This is the worst of the three rules. The header rule fails uniformly and
+the wrapping rule reports `unverifiable`; this one deletes correct criteria
+with no signal. The fix needs no tool change -- order the note before the
+criteria and leave the criteria last, which is what was done here.
+
+One more trap, also found here: a criterion must not invoke `git-zhi
+verify` on its own milestone. That is verify running inside itself and
+reports as unverifiable. `--dry-run` cannot recurse and is the safe form.
 
 ## Acceptance criteria
 
