@@ -1,19 +1,101 @@
 ---
 title: Thirty-five parsing-distinctive constructs T1 uses that the corpus never names
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-22T03:37:32.481722445Z
-updated: 2026-09-22T18:22:48.862048217Z
+updated: 2026-09-22T21:44:10.766232316Z
 sessions:
 - start_sha: da919402abda2de096d1553d3959043031a339d9
-  end_sha: ""
-  commits: 0
+  end_sha: c0e8dfd956715df618da72870b26934d97024f49
+  commits: 2
   started_at: 2026-09-22T13:34:56.950943604Z
+  ended_at: 2026-09-22T21:44:10.766232316Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-22T13:34:56.950943604Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-22T21:44:10.766232316Z
+observed_paths:
+- conformance/02_variables/00_adjacency.t
+- conformance/02_variables/02_array_element.t
+- conformance/02_variables/06_each.t
+- conformance/02_variables/07_hash.t
+- conformance/02_variables/08_hash_element_expr.t
+- conformance/02_variables/09_hash_exists_delete.t
+- conformance/02_variables/10_hash_slice.t
+- conformance/02_variables/11_package_array.t
+- conformance/02_variables/12_package_hash.t
+- conformance/02_variables/13_package_scalar.t
+- conformance/02_variables/14_push.t
+- conformance/02_variables/15_unshift.t
+- conformance/02_variables/16_values.t
+- conformance/02_variables/README.md
+- conformance/03_context/00_adjacency.t
+- conformance/03_context/08_caller.t
+- conformance/03_context/09_map.t
+- conformance/03_context/10_grep.t
+- conformance/03_context/README.md
+- conformance/04_operators/00_adjacency.t
+- conformance/04_operators/09_named_unary.t
+- conformance/04_operators/10_undef_arity.t
+- conformance/04_operators/11_chr_ord.t
+- conformance/04_operators/12_index_sentinel.t
+- conformance/04_operators/13_sprintf_star.t
+- conformance/04_operators/14_substr_arity.t
+- conformance/04_operators/15_substr_lvalue.t
+- conformance/04_operators/README.md
+- conformance/06_control/00_adjacency.t
+- conformance/06_control/09_do_while.t
+- conformance/06_control/10_next_last_redo.t
+- conformance/06_control/11_postfix_while.t
+- conformance/06_control/12_goto.t
+- conformance/06_control/13_do_block.t
+- conformance/06_control/14_eval_block.t
+- conformance/06_control/15_die.t
+- conformance/06_control/16_exit.t
+- conformance/06_control/17_time.t
+- conformance/06_control/README.md
+- conformance/07_subroutines/00_adjacency.t
+- conformance/07_subroutines/12_builtin_extent.t
+- conformance/07_subroutines/13_lock.t
+- conformance/07_subroutines/README.md
+- conformance/08_references/00_adjacency.t
+- conformance/08_references/12_prototype_builtin.t
+- conformance/08_references/README.md
+- conformance/09_regex/00_adjacency.t
+- conformance/09_regex/10_split_pattern.t
+- conformance/09_regex/11_transliteration.t
+- conformance/09_regex/12_pos.t
+- conformance/09_regex/README.md
+- conformance/10_io/00_adjacency.t
+- conformance/10_io/07_say.t
+- conformance/10_io/08_select.t
+- conformance/10_io/README.md
+- conformance/11_oo/00_adjacency.t
+- conformance/11_oo/10_isa_infix.t
+- conformance/11_oo/11_can_chain.t
+- conformance/11_oo/12_tie_variable.t
+- conformance/11_oo/13_tied_boolean.t
+- conformance/11_oo/README.md
+- conformance/13_opaque/12_pack_template.t
+- conformance/13_opaque/13_unpack_template.t
+- conformance/13_opaque/14_qq_delimiters.t
+- conformance/13_opaque/README.md
+- conformance/14_recursive/06_eval_string.t
+- internal/conformance/namedconstructs_test.go
+- internal/conformance/regen_ratchet_test.go
+- internal/conformance/testdata/corpus.ratchet
+- internal/conformance/tier02_test.go
+- internal/conformance/tier03_test.go
+- internal/conformance/tier04_test.go
+- internal/conformance/tier06_test.go
+- internal/conformance/tier07_test.go
+- internal/conformance/tier08_test.go
+- internal/conformance/tier09_test.go
+- internal/conformance/tier11_test.go
 ---
 
 The corpus was built construct-first and has never been measured against
