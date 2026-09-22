@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-21T18:43:00.587037252Z
-updated: 2026-09-21T23:31:52.682542829Z
+updated: 2026-09-22T00:45:18.402747232Z
 sessions:
 - start_sha: b41801021927f68fcbf799c60d6b947393d983de
   end_sha: a3a0ed0c97ce48a68f5db427979f9d8acf88d3c8
@@ -127,43 +127,17 @@ that had a file for them.
 
 ## Acceptance criteria
 
-- [x] `opsOf` sees inside a named sub: a file whose signature compiles
-      `argcheck`, `argdefelem` and `argelem` and whose body ends in
-      `leavesub` yields all four, none of which the main optree carries.
-      (`go test ./internal/conformance/ -run TestOpsOfSeesInsideNamedSub -count=1 -v`)
-- [x] `opsOf` sees inside a `method` body, so `methstart` is reachable
-      at all. (`go test ./internal/conformance/ -run TestOpsOfSeesInsideMethod -count=1 -v`)
-- [x] `opsOf` sees subs declared in a package other than `main`, since
-      B::Concise names them `Foo::bar` and most of tiers 11 and 12
-      declare subs there.
-      (`go test ./internal/conformance/ -run TestOpsOfSeesSubsInOtherPackages -count=1 -v`)
-- [x] The enumeration stops at the file boundary. Every CV the process
-      loaded is reachable from the symbol table, and dumping
-      `strict::import` or `Exporter::import` would add their ops to
-      EVERY corpus file's measured set. A file that merely says `use
-      strict; use warnings` emits no `goto`, `require` or `dofile`.
-      (`go test ./internal/conformance/ -run TestOpsOfStopsAtTheFileBoundary -count=1 -v`)
-- [x] The main program is still dumped, which thirteen tiers' op sets
-      were measured against, so the widening ADDS and never replaces.
-      (`go test ./internal/conformance/ -run TestOpsOfStillSeesTheMainProgram -count=1 -v`)
-- [x] Each of the five checks above is proven by mutation: reverting
-      `opsOf` to the bare `-MO=Concise,-exec` fails the first three, and
-      dropping the `FILE` filter fails the fourth.
-      (`go test ./internal/conformance/ -run TestOpsOfMutations -count=1 -v`)
-- [x] Tier 07's INTRODUCES grows back the ops the issue names, plus
-      `postinc`, and tier 11's gains `methstart` and `shift`, each
-      claimed by the tier that emits it first.
-      (`grep -A3 '^## INTRODUCES' conformance/07_subroutines/README.md conformance/11_oo/README.md`)
-- [x] Both READMEs' statements that these ops are INVISIBLE to the lint
-      are rewritten, since the widening makes them false.
-      (`git diff -- conformance/07_subroutines/README.md conformance/11_oo/README.md`)
-- [x] No op is claimed by two tiers after the widening.
-      (`go test ./internal/conformance/ -run TestOpClaimedByExactlyOneTier -count=1 -v`)
-- [x] Every corpus file still lints at its declared tier, and no README
-      claims an op no file emits.
-      (`go test ./internal/conformance/ -run TestCorpusLints -count=1`)
-- [ ] The whole conformance suite stays green.
-      (`go test ./internal/conformance/ -count=1`)
+- [x] `opsOf` sees inside a named sub: a file whose signature compiles `argcheck`, `argdefelem` and `argelem` and whose body ends in `leavesub` yields all four, none of which the main optree carries. (`go test ./internal/conformance/ -run TestOpsOfSeesInsideNamedSub -count=1 -v`)
+- [x] `opsOf` sees inside a `method` body, so `methstart` is reachable at all. (`go test ./internal/conformance/ -run TestOpsOfSeesInsideMethod -count=1 -v`)
+- [x] `opsOf` sees subs declared in a package other than `main`, since B::Concise names them `Foo::bar` and most of tiers 11 and 12 declare subs there. (`go test ./internal/conformance/ -run TestOpsOfSeesSubsInOtherPackages -count=1 -v`)
+- [x] The enumeration stops at the file boundary. Every CV the process loaded is reachable from the symbol table, and dumping `strict::import` or `Exporter::import` would add their ops to EVERY corpus file's measured set. A file that merely says `use strict; use warnings` emits no `goto`, `require` or `dofile`. (`go test ./internal/conformance/ -run TestOpsOfStopsAtTheFileBoundary -count=1 -v`)
+- [x] The main program is still dumped, which thirteen tiers' op sets were measured against, so the widening ADDS and never replaces. (`go test ./internal/conformance/ -run TestOpsOfStillSeesTheMainProgram -count=1 -v`)
+- [x] Each of the five checks above is proven by mutation: reverting `opsOf` to the bare `-MO=Concise,-exec` fails the first three, and dropping the `FILE` filter fails the fourth. (`go test ./internal/conformance/ -run TestOpsOfMutations -count=1 -v`)
+- [x] Tier 07's INTRODUCES grows back the ops the issue names, plus `postinc`, and tier 11's gains `methstart` and `shift`, each claimed by the tier that emits it first. (`grep -A3 '^## INTRODUCES' conformance/07_subroutines/README.md conformance/11_oo/README.md`)
+- [x] Both READMEs' statements that these ops are INVISIBLE to the lint are rewritten, since the widening makes them false. (`git diff -- conformance/07_subroutines/README.md conformance/11_oo/README.md`)
+- [x] No op is claimed by two tiers after the widening. (`go test ./internal/conformance/ -run TestOpClaimedByExactlyOneTier -count=1 -v`)
+- [x] Every corpus file still lints at its declared tier, and no README claims an op no file emits. (`go test ./internal/conformance/ -run TestCorpusLints -count=1`)
+- [ ] The whole conformance suite stays green. (`go test ./internal/conformance/ -count=1`)
 
       NOT TICKED, and not by this change. 153 of the package's 154 tests
       pass. The one failure is `TestCorpusRatchet`, reporting that
