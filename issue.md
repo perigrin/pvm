@@ -11,7 +11,7 @@ blocks:
 - 01a0c35f-1685-786b-abbe-88ed9ed361a3
 - 01a0c35f-57cc-7a0f-83ac-53654f46f235
 created: 2026-09-21T09:48:39.607140769Z
-updated: 2026-09-21T22:35:24.460855709Z
+updated: 2026-09-22T01:46:41.243836184Z
 sessions:
 - start_sha: a79a8f82a052e2b580b63516bef139bc0282466b
   end_sha: 9102578c35f74c5afa0bb9ec81e2bb8098a3221e
@@ -64,14 +64,6 @@ The second half is implemented and untested; it needs a test that proves it.
 issue EXISTS, so a citation can outlive its issue -- which nearly happened
 during a chain prune that destroyed one ref.
 
-## Acceptance criteria
-
-- [ ] When perl's output disagrees with the file, the result is CORPUS BUG and the parser is never consulted (`go test ./internal/conformance/ -run '^TestPerlAdjudicatesFirst$' -count=1 -v | grep -q '^--- PASS: TestPerlAdjudicatesFirst'`)
-- [ ] A file marked as refusing that actually passes fails loudly rather than skipping (`go test ./internal/conformance/ -run '^TestStaleRefusalMarkerFails$' -count=1 -v | grep -q '^--- PASS: TestStaleRefusalMarkerFails'`)
-- [ ] A cited refusal issue id that does not resolve fails the file, naming the id (`go test ./internal/conformance/ -run '^TestRefusalCitationMustResolve$' -count=1 -v | grep -q '^--- PASS: TestRefusalCitationMustResolve'`)
-- [ ] perl is invoked through pinned 5.42.0 rather than PATH, so MEASURED perl 5.42.0 in the header is true (`go test ./internal/conformance/ -run '^TestRunnerUsesPinnedPerl$' -count=1 -v | grep -q '^--- PASS: TestRunnerUsesPinnedPerl'`)
-- [ ] A skip that names no refusal fails, so "skips limited to documented refusals" is observed rather than asserted (`go test ./internal/conformance/ -run '^TestCorpusSkipsAreDocumented$' -count=1 -v | grep -q '^--- PASS: TestCorpusSkipsAreDocumented'`)
-- [ ] The spike banner is gone from run.go (`! grep -qi 'spike' internal/conformance/run.go`)
 ### Scope note, added during the lint's execution
 
 There are now TWO bare `perl` invocations, not one:
@@ -84,3 +76,12 @@ MEASURED perl 5.42.0, and that claim is false if either call reaches a
 different perl -- the lint's op list would describe one interpreter while
 the adjudication describes another, which is worse than a single wrong
 perl because the two could disagree silently.
+
+## Acceptance criteria
+
+- [ ] When perl's output disagrees with the file, the result is CORPUS BUG and the parser is never consulted (`go test ./internal/conformance/ -run '^TestPerlAdjudicatesFirst$' -count=1 -v | grep -q '^--- PASS: TestPerlAdjudicatesFirst'`)
+- [ ] A file marked as refusing that actually passes fails loudly rather than skipping (`go test ./internal/conformance/ -run '^TestStaleRefusalMarkerFails$' -count=1 -v | grep -q '^--- PASS: TestStaleRefusalMarkerFails'`)
+- [ ] A cited refusal issue id that does not resolve fails the file, naming the id (`go test ./internal/conformance/ -run '^TestRefusalCitationMustResolve$' -count=1 -v | grep -q '^--- PASS: TestRefusalCitationMustResolve'`)
+- [ ] perl is invoked through pinned 5.42.0 rather than PATH, so MEASURED perl 5.42.0 in the header is true (`go test ./internal/conformance/ -run '^TestRunnerUsesPinnedPerl$' -count=1 -v | grep -q '^--- PASS: TestRunnerUsesPinnedPerl'`)
+- [ ] A skip that names no refusal fails, so "skips limited to documented refusals" is observed rather than asserted (`go test ./internal/conformance/ -run '^TestCorpusSkipsAreDocumented$' -count=1 -v | grep -q '^--- PASS: TestCorpusSkipsAreDocumented'`)
+- [ ] The spike banner is gone from run.go (`! grep -qi 'spike' internal/conformance/run.go`)
