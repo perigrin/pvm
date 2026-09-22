@@ -1,21 +1,25 @@
 ---
 title: A leading-decimal literal is a number, not an Unknown
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocks:
 - 01a0c13f-c7d7-7d9c-9a85-60a59aa26bc0
 created: 2026-09-20T23:56:05.493446087Z
-updated: 2026-09-22T22:48:31.337627346Z
+updated: 2026-09-22T22:48:44.180564905Z
 sessions:
 - start_sha: a68ac5f97bfbbe6f79a501f9de8de89feeba7e4f
-  end_sha: ""
+  end_sha: a68ac5f97bfbbe6f79a501f9de8de89feeba7e4f
   commits: 0
   started_at: 2026-09-22T22:48:31.337627346Z
+  ended_at: 2026-09-22T22:48:44.180564905Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-22T22:48:31.337627346Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-22T22:48:44.180564905Z
 ---
 
 A numeric literal with no digit before the point is a number in perl and an
