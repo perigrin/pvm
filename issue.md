@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-21T22:11:13.008302813Z
-updated: 2026-09-21T23:33:01.056333366Z
+updated: 2026-09-22T00:45:57.031542639Z
 sessions:
 - start_sha: b41801021927f68fcbf799c60d6b947393d983de
   end_sha: a3a0ed0c97ce48a68f5db427979f9d8acf88d3c8
@@ -128,34 +128,14 @@ unfalsifiable.
 
 ## Acceptance criteria
 
-- [x] The dependency lint skips a `parsent` file rather than erroring on
-      it, at ONE place all seventeen `lintOps` call sites route through
-      rather than at each of them, and `opsOf` is left alone so a
-      genuinely broken `parses` file still errors.
-      (`go test ./internal/conformance/ -run 'TestCorpusLints' -count=1`)
+- [x] The dependency lint skips a `parsent` file rather than erroring on it, at ONE place all seventeen `lintOps` call sites route through rather than at each of them, and `opsOf` is left alone so a genuinely broken `parses` file still errors. (`go test ./internal/conformance/ -run 'TestCorpusLints' -count=1`)
 
-- [x] The corpus carries its first `--- expect parsent` file:
-      `conformance/07_subroutines/10_undeclared_callee.t`, the undeclared
-      parenless callee, the fact `TestTierCallFormsParenlessExtent`
-      asserts in Go because no corpus file could carry it.
-      (`test -f conformance/07_subroutines/10_undeclared_callee.t && grep -qx -- '--- expect parsent' conformance/07_subroutines/10_undeclared_callee.t`)
+- [x] The corpus carries its first `--- expect parsent` file: `conformance/07_subroutines/10_undeclared_callee.t`, the undeclared parenless callee, the fact `TestTierCallFormsParenlessExtent` asserts in Go because no corpus file could carry it. (`test -f conformance/07_subroutines/10_undeclared_callee.t && grep -qx -- '--- expect parsent' conformance/07_subroutines/10_undeclared_callee.t`)
 
-- [x] Perl still ADJUDICATES that file's claim before anything else: the
-      tier's own perl validator runs over it and would report a CORPUS
-      BUG if perl accepted the source, and `TestPerlAdjudicatesFirst`
-      still holds.
-      (`go test ./internal/conformance/ -run 'TestTierSubroutinesPerlValidated|TestPerlAdjudicatesFirst' -count=1 -v 2>&1 | grep -E '10_undeclared_callee|TestPerlAdjudicatesFirst'`)
+- [x] Perl still ADJUDICATES that file's claim before anything else: the tier's own perl validator runs over it and would report a CORPUS BUG if perl accepted the source, and `TestPerlAdjudicatesFirst` still holds. (`go test ./internal/conformance/ -run 'TestTierSubroutinesPerlValidated|TestPerlAdjudicatesFirst' -count=1 -v 2>&1 | grep -E '10_undeclared_callee|TestPerlAdjudicatesFirst'`)
 
-- [x] A `parses` file whose source perl genuinely refuses still ERRORS
-      from the lint rather than linting vacuously -- the failure mode the
-      caller-side skip exists to avoid.
-      (`go test ./internal/conformance/ -run 'TestLintErrorsOnABrokenParsesFile' -count=1 -v`)
+- [x] A `parses` file whose source perl genuinely refuses still ERRORS from the lint rather than linting vacuously -- the failure mode the caller-side skip exists to avoid. (`go test ./internal/conformance/ -run 'TestLintErrorsOnABrokenParsesFile' -count=1 -v`)
 
-- [x] The new file joins the tier's adjacency table rather than being
-      invisible to it: `subroutineConstructs` gains its entry, which is
-      what `TestTierSubroutinesAdjacency` demands of every construct file.
-      (`go test ./internal/conformance/ -run 'TestTierSubroutinesAdjacency' -count=1`)
+- [x] The new file joins the tier's adjacency table rather than being invisible to it: `subroutineConstructs` gains its entry, which is what `TestTierSubroutinesAdjacency` demands of every construct file. (`go test ./internal/conformance/ -run 'TestTierSubroutinesAdjacency' -count=1`)
 
-- [x] The ratchet records the new file and the whole conformance suite is
-      green.
-      (`go test ./internal/conformance/ -count=1`)
+- [x] The ratchet records the new file and the whole conformance suite is green. (`go test ./internal/conformance/ -count=1`)
