@@ -29,7 +29,7 @@ subject.
 
 ## INTRODUCES
 
-    caller grepstart grepwhile join list localtime mapstart mapwhile reverse sort wantarray
+    caller flip flop grepstart grepwhile join list localtime mapstart mapwhile range reverse sort wantarray
 
 ## Why those ops, and not the ones the source implies
 

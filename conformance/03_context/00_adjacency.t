@@ -80,6 +80,21 @@
 # not constant-foldable however constant its input, so `mapstart` and
 # `grepstart` both survive.
 #
+# `..`'S THREE READINGS close the file, and they are the tier's sharpest
+# context pair because the three are not one operator in three contexts
+# -- they are three operators wearing one spelling, chosen by context.
+# `@ranged` is the numeric list range, `@lettered` is the string range
+# whose successor is perl's magic increment (`az ba bb`, carrying), and
+# `@window` is the scalar-context FLIP-FLOP.
+#
+# `1 2 3 4` is the flip-flop's claim and the reason its operands are two
+# separate arrays. At indices 2 and 3 BOTH operands are false, and the
+# elements are selected anyway, because the flip-flop turned on at index
+# 1 and does not turn off until index 4. A parser reading `..` there as
+# a list range, or as a boolean, selects only 1 and 4. `13_flipflop.t`
+# records that a first draft using `$_ .. $_` was indistinguishable from
+# plain truthiness and had to be replaced.
+#
 # Fewer ops appear than the constructs suggest. `padrange` fuses
 # consecutive `my` declarations, and the comma operator in scalar context
 # erases its own left operands -- so the op set is a UNION across the
@@ -90,7 +105,7 @@
 # MEASURED perl 5.42.0:
 #
 #   $ perl conformance/03_context/00_adjacency.t
-#   3 3 1 2 3 1 2 6 1 2 3 3 0 213 2 1 3 9 3 0 3 1 2 3 3 1 2 3
+#   3 3 1 2 3 1 2 6 1 2 3 3 0 213 2 1 3 9 3 0 3 1 2 3 3 1 2 3 1 2 3 az ba bb 1 2 3 4
 
 --- source
 my @a = (3, 1, 2);
@@ -112,12 +127,20 @@ my @mapped = map { $_ } @a;
 my $mapcount = map { $_ } @a;
 my @kept2 = grep { $_ } @a;
 my $grepcount = grep { $_ } @a;
+my @ranged = (1 .. scalar(@a));
+my @seed = ("az");
+my @lettered = ($seed[0] .. "bb");
+my @on = (0, 1, 0, 0, 0, 0);
+my @off = (0, 0, 0, 0, 1, 0);
+my @idx = (0, 1, 2, 3, 4, 5);
+my @window = grep { $on[$_] .. $off[$_] } @idx;
 my @seen = ($want, $stamp, $who);
 print "$count @copy $interp $last @sorted $moved ", scalar(@kept),
     " $rev @revd $fields ", scalar(@seen), " ", scalar(@frame),
-    " @mapped $mapcount @kept2 $grepcount\n";
+    " @mapped $mapcount @kept2 $grepcount",
+    " @ranged @lettered @window\n";
 
 --- expect output
-3 3 1 2 3 1 2 6 1 2 3 3 0 213 2 1 3 9 3 0 3 1 2 3 3 1 2 3
+3 3 1 2 3 1 2 6 1 2 3 3 0 213 2 1 3 9 3 0 3 1 2 3 3 1 2 3 1 2 3 az ba bb 1 2 3 4
 
 --- expect parses

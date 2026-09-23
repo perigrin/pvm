@@ -132,6 +132,19 @@ var contextConstructs = map[string]string{
 	// "grep for it", which is not the construct.
 	"map":  "map {",
 	"grep": "grep {",
+
+	// `..`'s three readings (issue 01a0cc04-3370), which are three
+	// operators wearing one spelling and are separated by CONTEXT --
+	// this tier's subject.
+	//
+	// Each spelling carries enough of its expression to identify WHICH
+	// reading it is, because a bare `..` would match all three. The
+	// flip-flop is the one that needs it most: its spelling is the
+	// array-element operand pair that makes its state observable, and a
+	// shorter spelling would be satisfied by either list form.
+	"range_list":   "1 .. scalar(",
+	"range_string": `.. "bb"`,
+	"flipflop":     "$on[$_] .. $off[$_]",
 }
 
 // contextConstructFromName returns the construct a file's name identifies, or ""
