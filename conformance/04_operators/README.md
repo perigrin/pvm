@@ -45,7 +45,7 @@ without a runtime operand this tier has nothing to measure. See below.
 
 ## INTRODUCES
 
-    add and chr concat defined divide dor eq ge gt index le lt modulo multiply ncmp ne negate not or ord pow repeat scmp seq sge sgt sle slt sne sprintf substr subtract undef xor
+    add and bit_and bit_or bit_xor chr complement concat defined divide dor eq ge gt index le left_shift lt modulo multiply ncmp ne negate not or ord pow repeat right_shift scmp seq sge sgt sle slt sne sprintf substr subtract undef xor
 
 ## Why those ops, and not the ones the source implies
 

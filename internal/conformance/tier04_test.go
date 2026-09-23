@@ -173,6 +173,24 @@ var operatorKinds = map[string]string{
 	"sprintf_star":   "sprintf(",
 	"substr_arity":   "substr($",
 	"substr_lvalue":  ") = ",
+
+	// The bitwise band (issue 01a0cc04-3303), three of perlop's levels
+	// that had no coverage at all.
+	//
+	// Each spelling carries its surrounding spaces, because every one of
+	// these characters means something else elsewhere in the tier: `&`
+	// is the code sigil in `\&foo`, `|` is half of `//`, `^` appears in
+	// regexes, and `<<` is a heredoc opener three tiers away. A bare
+	// character would match those; the spaced binary form does not.
+	//
+	// `bitwise_precedence` is spelled with the grouping parens rather
+	// than an operator, because its subject is the RELATIONSHIP between
+	// two operators the file next to it introduces, and both spellings
+	// of that relationship appear in its source.
+	"bitwise":            " & ",
+	"bitwise_precedence": "($a | $b) & $c",
+	"shift":              " << ",
+	"complement":         "~$a",
 }
 
 // operatorKindFromName returns the operator class a file's name

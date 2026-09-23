@@ -111,6 +111,20 @@
 #   sum [-2] rel [00] pick [1] rep [abab] pow [-3]
 #   3,2,1 1 1 01
 #   003 [bb] 0 [b]
+#   bits [2] prec [2] shift [12] comp [249]
+#
+# THE BITWISE BAND is the fourth line, and it is the one place in this
+# body where the same characters mean something else elsewhere in the
+# tier: `&` is the code sigil in `\&foo`, `|` is half of `//` two lines
+# above, and `<<` is a heredoc opener three tiers away. Putting them
+# beside those spellings is the adjacency claim -- a lexer that resolved
+# `&` by looking only at the character would produce a code reference
+# here and still parse.
+#
+# `($a | $b) & $c` is the PRECEDENCE pair's parenthesised half; the
+# unparenthesised `$a | $b & $c` lives in `17_bitwise_precedence.t`,
+# which prints both and pins that they differ. Only the grouped form is
+# here, because this file's job is placement rather than discrimination.
 
 --- source
 my @nums = (3, 1, 2);
@@ -126,13 +140,22 @@ undef @cleared;
 my @filled = undef;
 my $edit = $word;
 substr($edit, 0, 1) = chr(ord($word) + 1);
+my $a = $ARGV[2] // 6;
+my $b = $ARGV[3] // 3;
+my $c = $ARGV[4] // 2;
+my $bits = $a & $b;
+my $prec = ($a | $b) & $c;
+my $shifted = $a << 1;
+my $comp = ~$a & 255;
 print "sum [$sum] rel [$rel] pick [$pick] rep [", $word x 2, "] pow [$power]\n";
 print join(",", reverse sort @nums), " ", ($n >= 3 xor not $n <= 3), " $loose ", scalar(@cleared), scalar(@filled), "\n";
 print sprintf("%0*d", $n, $n), " [$edit] ", index($edit, "b"), " [", substr($word, 1, 1), "]\n";
+print "bits [$bits] prec [$prec] shift [$shifted] comp [$comp]\n";
 
 --- expect output
 sum [-2] rel [00] pick [1] rep [abab] pow [-3]
 3,2,1 1 1 01
 003 [bb] 0 [b]
+bits [2] prec [2] shift [12] comp [249]
 
 --- expect parses
