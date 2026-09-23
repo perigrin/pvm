@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-23T02:07:02.645428825Z
-updated: 2026-09-23T02:07:02.645428825Z
+updated: 2026-09-23T02:25:31.04655204Z
 ---
 
 The typeglob sigil does not appear in the corpus. Measured: `*` occurs
@@ -45,7 +45,7 @@ there rather than here, in the same file family as `bless`.
 
 ## Acceptance criteria
 
-- [ ] The corpus source contains a typeglob, which it did not before -- the only three `*` uses were sprintf widths (`awk '/^--- source/{s=1;next} /^--- expect/{s=0} s' conformance/08_references/*.t | grep -qE '(^|[^*%0-9-])\*[A-Za-z]'`)
+- [ ] The corpus source contains a typeglob, which it did not before -- the only three * uses were sprintf widths (`awk '/^--- source/{s=1;next} /^--- expect/{s=0} s' conformance/08_references/*.t | grep -qE '(^|[^*%0-9-])\*[A-Za-z]'`)
 - [ ] A file pins that a glob assignment installs a callable sub, by calling it (`go test ./internal/conformance/ -run '^TestCorpus/08_references' -count=1 -v | grep -q '^    --- PASS: TestCorpus/08_references'`)
 - [ ] Every new file is validated against pinned perl 5.42.0 before it counts (`go test ./internal/conformance/ -run '^TestTierReferencesPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierReferencesPerlValidated'`)
 - [ ] The dependency lint passes over the tier (`go test ./internal/conformance/ -run '^TestTierReferencesLint$' -count=1 -v | grep -q '^--- PASS: TestTierReferencesLint'`)
