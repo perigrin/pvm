@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-23T02:07:02.559443716Z
-updated: 2026-09-23T16:45:28.172532695Z
+updated: 2026-09-23T16:50:38.258913409Z
 sessions:
 - start_sha: dba3a2a8f33826ff834672eb4a84f0faf854bc36
   end_sha: 1afd0f341b23e124940e7ed14440f2338370dd79
@@ -96,8 +96,8 @@ than discovering twice.
 
 ## Acceptance criteria
 
-- [ ] A corpus file pins what state does with its feature disabled, which nothing did before (`awk '/^--- source/{s=1;next} /^--- expect/{s=0} s' conformance/05_scoping/*.t | grep -q 'no feature'`)
-- [ ] The featureless defer ordering is pinned by output rather than described (`go test ./internal/conformance/ -run '^TestCorpus/06_control' -count=1 -v | grep -q '^    --- PASS: TestCorpus/06_control'`)
+- [ ] A corpus file pins what state does with its feature disabled -- at tier 11, since the ungated reading needs method dispatch (`awk '/^--- source/{s=1;next} /^--- expect/{s=0} s' conformance/11_oo/*.t | grep -q 'state \$n'`)
+- [ ] The featureless defer file exists and its refusal is recorded rather than described (`go test ./internal/conformance/ -run '^TestCorpus/11_oo' -count=1 -v | grep -q '^    --- SKIP: TestCorpus/11_oo/17_defer_ungated'`)
 - [ ] Every new file is validated against pinned perl 5.42.0, which is what makes a gate pair a measurement (`go test ./internal/conformance/ -run '^TestCorpusLints$' -count=1 -v | grep -q '^--- PASS: TestCorpusLints'`)
 - [ ] Each new file's refusal, if it has one, cites a code rather than a message (`go test ./internal/conformance/ -run '^TestCorpusSkipsAreDocumented$' -count=1 -v | grep -q '^--- PASS: TestCorpusSkipsAreDocumented'`)
 - [ ] The whole conformance suite is green with the new files in it (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
