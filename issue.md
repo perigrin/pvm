@@ -3,8 +3,10 @@ title: "One pragma, two answers: the same bitwise expression is 10 or 8"
 state: pending
 urgency: normal
 milestone: corpus-complete
+blocked_by:
+- 01a0cc04-3303-7103-8769-9edca646b56e
 created: 2026-09-23T02:07:02.458719721Z
-updated: 2026-09-23T02:07:02.458719721Z
+updated: 2026-09-23T02:36:47.973078328Z
 ---
 
 The same four bytes compute two different answers depending on a line
