@@ -1,10 +1,19 @@
 ---
 title: Four parser gaps the corpus recorded, tracked so their citations point somewhere live
-state: pending
+state: in-progress
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-23T17:10:01.515942446Z
-updated: 2026-09-23T19:02:59.095365123Z
+updated: 2026-09-23T22:36:45.951226458Z
+sessions:
+- start_sha: 95cf8935c0ed1334c63e25964bff53ff6c7b9837
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-23T22:36:45.951226458Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-23T22:36:45.951226458Z
 ---
 
 Four parser gaps found by the `corpus-complete` milestone, each recorded
