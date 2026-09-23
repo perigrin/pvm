@@ -182,8 +182,40 @@ never ran are byte-identical in the chain.
       refusals correctly, and it closes when the parser learns the
       constructs. Its four citations pointed at closed issues until
       `d95cf4ee`, and its body had two refusal codes swapped.
-- [ ] `01a0cfb2` forty-nine vacuous facts — filed by the `346d` gate,
-      not yet started.
+- [x] `01a0cfb2` forty-nine vacuous facts — **TIER_2**, and the gate
+      earned its keep twice over.
+
+      The repair split the 49 three ways: 39 deleted as debt, 12 given
+      reachable replacements, and 10 kept under a new `pairedNegative`
+      exemption on the grounds that a negative in one file plus a
+      positive in another is falsifiable as a pair.
+
+      THE GATE MEASURED THE PAIR AND IT DOES NOT HOLD. Delete `"->"`
+      from the lexer's operator table -- the exact broken lexer the
+      exemption's comment named -- and ten files fail, every one on a
+      POSITIVE fact. No negative fails, and none can: no arrow-negative
+      source contains the byte pair. Two tells were visible before the
+      gate ran and I argued past both. All ten are now deleted,
+      `pairedNegative` is gone, `knownVacuous` is deleted outright, and
+      `TestTierOoArrowIsLexical` keeps its positive requirement while
+      asking the SOURCE for the other half.
+
+      THE FIX ALSO REPEATED THE BUG IT DIAGNOSED. The finding was a
+      passage pasted into four files without checking whether it
+      applied; its replacement was pasted into four files without
+      checking whether it applied, and measured false in two -- the
+      deparses of `__CLASS__` and `defer` contain no arrow at all, and
+      `__CLASS__`'s ungated reading is a filehandle rather than a
+      method name.
+
+      Four `one word whose text is "print"` replacements were too weak
+      to assert anything and are replaced, except `08_caller.t` where
+      measurement shows nothing better exists -- that one keeps it and
+      the header says why. Also fixed: a fact declared twice, a false
+      mechanism claim left standing in a touched file, and headline
+      counts taken by grepping whole files (110 to 63, not 115 to 76).
+
+      Repaired in `95cf8935`. 3/3 criteria verified.
 
 The four backfilled entries are the honest record of a skill violation,
 not a claim that review happened. `crochet:review` at milestone
