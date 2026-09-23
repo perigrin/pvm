@@ -1,10 +1,10 @@
 ---
 title: Six keywords that silently reparse when their feature is off
-state: in-progress
+state: done
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-23T02:07:02.559443716Z
-updated: 2026-09-23T17:08:38.870184806Z
+updated: 2026-09-23T17:14:41.656804658Z
 sessions:
 - start_sha: dba3a2a8f33826ff834672eb4a84f0faf854bc36
   end_sha: 1afd0f341b23e124940e7ed14440f2338370dd79
@@ -12,9 +12,10 @@ sessions:
   started_at: 2026-09-23T16:33:23.880128542Z
   ended_at: 2026-09-23T16:45:28.172532695Z
 - start_sha: df9f271d0a74bb508132371df7b7f0d40a632f0b
-  end_sha: ""
-  commits: 0
+  end_sha: 97c3893fd4ff1f1546c7984579545e96f6d2c33f
+  commits: 1
   started_at: 2026-09-23T17:08:38.870184806Z
+  ended_at: 2026-09-23T17:14:41.656804658Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
@@ -28,13 +29,22 @@ transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-23T17:08:38.870184806Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-23T17:14:41.656804658Z
 observed_paths:
 - conformance/11_oo/14_state_ungated.t
 - conformance/11_oo/15_class_ungated.t
 - conformance/11_oo/16_classname_ungated.t
 - conformance/11_oo/17_defer_ungated.t
+- conformance/12_packages/00_adjacency.t
+- conformance/12_packages/09_begin_end.t
+- conformance/12_packages/10_compile_tokens.t
+- conformance/12_packages/11_line_directive.t
+- conformance/12_packages/12_use_constant.t
 - internal/conformance/testdata/corpus.ratchet
 - internal/conformance/tier11_test.go
+- internal/conformance/tier12_test.go
 ---
 
 Every version-gated feature in the corpus is tested ONLY in its enabled
