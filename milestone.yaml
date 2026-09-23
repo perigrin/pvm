@@ -1,0 +1,108 @@
+name: corpus-complete
+created: 2026-09-23T02:02:46.685133924Z
+---
+
+The corpus was measured against five authorities and covers about a third
+of the language. This milestone closes the clusters where coverage is
+literally zero, and the structural hole that no file pins a version-gated
+feature in its DISABLED state.
+
+## The measurement
+
+    perlsyn          31 /  68 forms        46%
+    perlop           41 /  97 operators    42%   12 of 24 levels at ZERO
+    perldata         41 / 150 forms        27%
+    perlsub          19 / 180 forms        11%
+    modern idiom     11 /  34 features     32%
+    T1              134 / 282 constructs   48%
+
+Every number was verified directly under perl 5.42.0 rather than taken
+from a report. The axes overlap, so the union is far smaller than the sum.
+
+## Why clusters rather than a construct list
+
+The T1 axis alone names 67 parsing-distinctive gaps and 81 ordinary list
+operators. A file per gap would produce 148 files asserting very little:
+`unlink` parses exactly as `print` does, and a corpus file for it claims
+nothing a hundred existing calls do not.
+
+The clusters are different. Each is a REGION of the grammar the corpus
+never enters, and a parser can be wrong throughout a region in one way.
+Twelve of perlop's twenty-four precedence levels have no coverage, and
+they are contiguous: the whole bitwise/shift band and the whole
+assignment/ternary/range band. A parser built to this corpus would have a
+correct expression grammar with a hole exactly where C-derived operators
+live.
+
+## What a file claims, and what it does not
+
+A corpus file claims `parses`, `output` and `tokens`. It does NOT assert
+tree shape -- the plan is explicit that none should, because that coupling
+is what makes a corpus unusable by anyone whose tree differs. Ops appear
+only in the dependency LINT, which decides which tier may host a file.
+Placement is an op question; the claim never is.
+
+Measured, and it decides two clusters:
+
+    $x += 1             ->  Operator(+=)                  ONE token
+    $x = $x + 1         ->  Operator(=) ... Operator(+)   three
+    $s =~ /(a)|[0-9]+/  ->  Quote(/(a)|[0-9]+/)           ONE token
+
+Compound assignment IS discriminable by a token fact. Pattern internals
+are NOT -- the whole regex is one token, and tier 09's existing facts
+assert exactly that opacity, correctly.
+
+## The structural finding
+
+Every version-gated feature in the corpus is tested ONLY enabled. Every
+such file turns the feature on at the top. Not one pins what the same
+bytes do with it off -- and that is the half where both previously-found
+bugs lived.
+
+Six keywords SILENTLY REPARSE, measured:
+
+    state $n = 0        ->  $n->state = 0        method call on undef
+    class Foo { }       ->  'Foo'->class({})     indirect method + hashref
+    field $x            ->  $x->field            method call
+    print __CLASS__     ->  print __CLASS__ $_   a FILEHANDLE
+    defer { ... }       ->  runs FIRST, not last inverted execution order
+    sub f($x,$y)        ->  malformed prototype  `-c` says syntax OK
+
+None is a syntax error. Each compiles clean and means something else.
+
+And one operator changes meaning with no keyword at all:
+
+    "12" & "10"                 ->  10
+    use v5.28; "12" & "10"      ->  8
+
+No warning, no error, two valid programs.
+
+## Two self-indictments
+
+`07_subroutines/03_call_forms.t` states in its header that `&f` passes the
+caller's `@_` rather than an empty list, then uses `sub answer { 42 }`,
+which ignores arguments -- so all four spellings print `42` and the
+distinction the file exists to make is unobservable. Measured, `&inner`
+gives `inner[1 2]` and `inner()` gives `inner[]`.
+
+`04_operators/README.md` carries a measured passage on which nonassoc
+levels reject repetition. It is the most valuable thing the tier knows and
+it lives entirely in prose; no file asserts it.
+
+## Scope
+
+Roughly 30 new corpus files. Not a file per gap -- a file per claim a
+parser can fail independently.
+
+Pattern internals are OUT OF SCOPE, decided rather than deferred. A regex
+lexes as one token, so no token fact can reach inside it, and asserting
+what a pattern body contains would require either a new glossary category
+or a claim about our own tree. One issue records that decision and its
+consequence: tier 09 asserts delimiters and opacity, and a parser that
+treats a pattern body as an opaque string is CORRECT by this corpus.
+
+## What this does NOT do
+
+It does not rewrite M1-M6. The plan says they are to be rewritten around
+the corpus, and that rewrite needs this milestone's result as its input
+rather than running alongside it.
