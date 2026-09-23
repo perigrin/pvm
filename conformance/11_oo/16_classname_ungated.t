@@ -5,7 +5,7 @@
 # TIER 11 oo
 # INTRODUCES nothing of its own
 # USES nothing from a later tier
-# STATUS refuses as of this file. Issue 01a0cc04-339f-749a-a630-6f21bf45b60a. Refusal trailing_tokens.
+# STATUS refuses as of this file. Issue 01a0cf3e-e82c-7191-ac2b-e6d108b51317. Refusal trailing_tokens.
 #
 # This is the `isa` finding in a different keyword. `10_isa_infix.t`
 # records that `$o isa Foo` without the feature parses as

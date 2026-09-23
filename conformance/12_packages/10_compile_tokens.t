@@ -5,7 +5,7 @@
 # TIER 12 packages
 # INTRODUCES nothing of its own
 # USES the package statement from 01_package_statement.t
-# STATUS refuses as of this file. Issue 01a0cc04-33c8-7a0f-ac01-8d9c3ec9df85. Refusal trailing_tokens.
+# STATUS refuses as of this file. Issue 01a0cf3e-e82c-7191-ac2b-e6d108b51317. Refusal trailing_tokens.
 #
 # MEASURED perl 5.42.0:
 #
