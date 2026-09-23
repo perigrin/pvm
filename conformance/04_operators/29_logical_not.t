@@ -8,8 +8,9 @@
 #
 # Measured before this file, every `!` in the corpus was `!=`, `!~`, or
 # a quote delimiter -- `q!...!`, `qq!...!`, `m!...!`, which tier 01 and
-# tier 09 use to prove a delimiter is arbitrary, and `!~` which tier
-# 09's negated bind writes twice. All three are their own entries in the
+# tier 09 use to prove a delimiter is arbitrary, and `!~`, which tier
+# 09 writes twice -- once in `03_negated_bind.t` and once in that
+# tier's adjacency body. All three are their own entries in the
 # lexer operator table or are not operators at all. So the CHARACTER
 # appeared often and the unary operator never did, which is the shape of
 # gap a lexer can pass without implementing.

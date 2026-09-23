@@ -41,8 +41,12 @@
 #
 # No replacement is honest. Every numeric literal in this source appears
 # exactly twice, so no `one` fact is available; the source writes a bare
-# `+`, so `no operator whose text is "+"` is false; and it contains no
-# `=` at all, so `+=` is vacuous for the same reason `+(` was.
+# `+`, so `no operator whose text is "+"` is false; and `+=` is vacuous
+# too, though by the OTHER mechanism -- it IS a table entry, unlike
+# `+(`, but this source contains no `=` at all, so the spelling is
+# unreachable from it. Table membership and source reachability are
+# separate tests and a fact must pass both; conflating them is what
+# produced a vacuous `<=` in `32_chained_comparison.t`.
 #
 # THE OUTPUT IS THE WHOLE CLAIM and it is enough: 3 against 9, from two
 # statements that differ by one character. A parser that reads the

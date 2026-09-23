@@ -56,15 +56,29 @@
 # `TestTierOperatorsCmpchain` takes the same exception for the same
 # reason, and its probe is constants too.
 #
-# THE TOKEN FACT IS A NEGATIVE AND IT IS FALSIFIABLE, which is the part
-# that needs saying rather than assuming. `<=` is an entry in the
-# lexer's operator table, so a `<=` token is a thing some input does
-# produce -- a negative naming a spelling the table does not contain
-# could never match and would assert nothing. What makes it a claim
-# here is that a chain is written with bare `<` and the table is
-# checked longest-first precisely so a `<` next to something else is
-# not read as a longer operator. A `<=` appearing where none was
-# written is that ordering having failed.
+# THIS FILE DECLARES NO TOKEN FACT, and the reason is worth the space
+# because the fact it carried looked falsifiable and was not.
+#
+# A NEGATIVE IS A CLAIM ONLY IF THE NAMED TEXT CAN APPEAR, and that
+# needs TWO things, not one. The spelling must be an entry in the
+# lexer's operator table -- `scanOperator` emits nothing else -- and it
+# must be REACHABLE FROM THIS SOURCE, because the table is matched
+# against the bytes at each position.
+#
+# The discarded fact was `no operator whose text is "<="`. It passed the
+# first test, which is what made it look like a claim, and failed the
+# second: this source writes `9 < 1 < 5` and `1 < 5 < 9`, which contain
+# no `<=` anywhere, so no lexing of them could produce one. The fact
+# could never fail.
+#
+# Its partner `33_nonassoc_refusal.t` keeps the same spelling and there
+# it IS a claim, which is what makes the distinction concrete: `33`
+# writes `<=>`, whose bytes contain `<=`, so a table checked in the
+# wrong order splits it and the fact fires.
+#
+# THE OUTPUT IS THE WHOLE CLAIM HERE and it is a strong one: two
+# readings of one source that differ by a whole bracket's worth of
+# content, with no diagnostic to separate them.
 
 --- source
 print "[", (9 < 1 < 5), "]\n";
@@ -75,6 +89,3 @@ print "[", (1 < 5 < 9), "]\n";
 [1]
 
 --- expect parses
-
---- expect tokens
-no operator whose text is "<="

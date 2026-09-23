@@ -333,6 +333,17 @@ could only describe:
   `1 == 1 == 1` compiles, `1 <=> 2 <=> 3` does not. `33` is a `parsent`
   file carrying the refusal. A parser modelling level 13 as ONE
   associativity class is wrong whichever it picks.
+- Level 11 is the one `%nonassoc` in the table above that means what
+  the keyword suggests, and `34_range_refusal.t` is the `parsent` file
+  that asserts it. Without it the corpus claims only the ACCEPTING
+  direction -- eight levels that do not reject -- and a parser
+  refusing nothing would pass.
+
+A `parsent` file is what makes those two legal in this tier at all.
+`..` is tier 03's `range`/`flip`/`flop` and a `parses` file spelling
+it here would fail the dependency lint; a file perl refuses emits no
+ops, and `lint_test.go` returns early on `ExpectParsent` for exactly
+that reason.
 
 Those two files are also why this tier now claims `cmpchain_and` and
 `cmpchain_dup`. Before them no tier claimed either op, which is what

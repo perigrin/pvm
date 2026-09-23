@@ -262,8 +262,12 @@ var operatorKinds = map[string]string{
 	// itself. A bare `<=>` is `03_numeric_comparison.t`'s, and the
 	// repetition is the whole claim: one `<=>` compiles and two in a
 	// row do not.
+	// `range_refusal` is spelled with its repetition for
+	// `nonassoc_refusal`'s reason: a bare `..` is tier 03's range
+	// operator, and the repetition is the whole claim.
 	"chained_comparison": "9 < 1 < 5",
 	"nonassoc_refusal":   "<=> 2 <=>",
+	"range_refusal":      ".. 2 ..",
 }
 
 // refusingFile names the tier-04 files exempt from the adjacency
@@ -712,13 +716,17 @@ const cmpchainExpected = "chain [1] left []\n"
 // the dependency lint. Tier 04 claims them now and the corpus file
 // exists.
 //
-// The direct measurement is still not redundant, and the reason is the
-// second bracket. This probe pins the CHAINED reading and the FORCED
-// LEFT one side by side in a single program -- `(3 > 2 > 1)` beside
-// `((3 > 2) > 1)`. A corpus file cannot pin both: writing the explicit
-// grouping is writing a different expression, and the claim here is
-// that one source has two readings. So the file asserts which reading
-// perl takes, and this asserts what the other reading would have been.
+// The direct measurement stays, and the reason is PLACEMENT rather
+// than impossibility -- the earlier version of this comment claimed an
+// impossibility twice and was wrong twice. A corpus file CAN pin both
+// readings: `print "chain [", (9 < 1 < 5), "] left [", ((9 < 1) < 5), "]"`
+// prints `chain [] left [1]` and is a legal tier-04 body.
+//
+// What this probe has that a corpus file does not is that it runs
+// against the pinned interpreter directly, with no pinned output of its
+// own to drift. `32_chained_comparison.t` asserts which reading perl
+// takes; this asserts the same thing about a different pair of operands
+// and fails independently of any corpus expectation.
 func TestTierOperatorsCmpchain(t *testing.T) {
 	perl, err := perlPath()
 	if err != nil {
