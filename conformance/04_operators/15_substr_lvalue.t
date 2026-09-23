@@ -100,4 +100,3 @@ print "[$a][$b][$old]\n";
 
 --- expect tokens
 one word whose text is "print"
-no word whose text is "index"

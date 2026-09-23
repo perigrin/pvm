@@ -73,4 +73,3 @@ print $s1 & $s2, "\n";
 
 --- expect tokens
 one operator whose text is "&"
-no operator whose text is "&."

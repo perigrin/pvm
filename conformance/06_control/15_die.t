@@ -91,5 +91,4 @@ narrow=a
 --- expect parses
 
 --- expect tokens
-no word whose text is "exit"
 no word whose text is "wide"

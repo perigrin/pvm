@@ -51,4 +51,5 @@ print "@b $n ", scalar(@c), "\n";
 --- expect parses
 
 --- expect tokens
-no variable whose text is "@n"
+one variable whose text is "$n"
+one variable whose text is "@b"

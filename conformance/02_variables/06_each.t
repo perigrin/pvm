@@ -59,4 +59,3 @@ a
 
 --- expect tokens
 one word whose text is "each"
-no word whose text is "values"

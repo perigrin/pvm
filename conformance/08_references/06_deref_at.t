@@ -50,6 +50,6 @@ print scalar(@c), " ", "@{$r}\n";
 --- expect parses
 
 --- expect tokens
-one operator whose text is "\\"
 no operator whose text is "->"
+one operator whose text is "\\"
 no variable whose text is "@{$r}"

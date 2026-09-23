@@ -96,4 +96,3 @@ past
 
 --- expect tokens
 one word whose text is "time"
-no word whose text is "localtime"

@@ -91,4 +91,3 @@ print "$r\n";
 
 --- expect tokens
 one word whose text is "do"
-no word whose text is "while"

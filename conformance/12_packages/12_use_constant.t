@@ -64,4 +64,3 @@ print PI + 1, "\n";
 
 --- expect tokens
 one word whose text is "constant"
-no string literal whose text is "\"PI\""

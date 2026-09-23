@@ -55,7 +55,6 @@ sub f { return "f[@_]" }
 --- expect parsent
 
 --- expect tokens
-no operator whose text is "("
 one operator whose text is ","
 one numeric literal whose text is "1"
 one numeric literal whose text is "2"

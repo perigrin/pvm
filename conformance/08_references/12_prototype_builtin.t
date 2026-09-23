@@ -74,7 +74,7 @@ print "[$p]\n";
 --- expect parses
 
 --- expect tokens
+no operator whose text is "->"
 one operator whose text is "\\"
 one word whose text is "prototype"
 no operator whose text is "\\&"
-no operator whose text is "->"

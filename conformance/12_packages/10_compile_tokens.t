@@ -69,4 +69,3 @@ main
 
 --- expect tokens
 one word whose text is "Foo"
-no string literal whose text is "\"__PACKAGE__\""

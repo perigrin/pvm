@@ -92,4 +92,3 @@ trapped
 
 --- expect tokens
 one word whose text is "eval"
-no word whose text is "do"

@@ -40,4 +40,3 @@ print "$x\n";
 
 --- expect tokens
 one numeric literal whose text is "42"
-no operator whose text is "."

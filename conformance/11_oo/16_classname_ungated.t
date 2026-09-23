@@ -35,17 +35,33 @@
 # the `after` arrives, the class name does not, and a parser that read
 # `__CLASS__` as a term would have printed something before it.
 #
-# THE NEGATIVE FACT IS THE HALF THAT DISCRIMINATES, and a first draft
-# omitted it. `one word whose text is "__CLASS__"` is true under BOTH readings
-# -- the keyword lexes as one word whether it is a keyword or a method
-# name -- so on its own it says nothing about which reading applies.
+# THE TOKEN LAYER CANNOT SEPARATE THE TWO READINGS, and saying so
+# is the honest version of a claim this file got wrong twice.
 #
-# What separates them is that perl reads this as a METHOD CALL. A method
-# call is spelled with an arrow when written out, and this source
-# contains no arrow anywhere -- so a lexer that produced one would have
-# manufactured it. `10_isa_infix.t` and `10_io/07_say.t` both guard
-# their equivalent claim exactly this way; this file cited them as models
-# and left out the half that does the work.
+# `one word whose text is "__CLASS__"` is true under BOTH readings --
+# the keyword lexes as one word whether it is a keyword or a
+# method name -- so on its own it says nothing about which reading
+# applies. That much an earlier draft had right.
+#
+# What it concluded was wrong. It added
+# `no operator whose text is "->"`, reasoning that a method call
+# is written with an arrow and this source contains none, so a
+# lexer producing one would have manufactured it. A LEXER CANNOT
+# MANUFACTURE BYTES THAT ARE NOT THERE: `scanOperator` matches its
+# table against `l.src` at each position, so a token whose text is
+# `->` requires those two bytes in the source. The fact could
+# never fail, and a fact that cannot fail asserts nothing.
+#
+# The arrow came from perl's DEPARSE of the ungated reading,
+# quoted above -- a claim read off `B::Deparse` and written as if
+# it were a claim about tokens. The reparse is the PARSER
+# reinterpreting the same tokens, not the lexer emitting different
+# ones, which is exactly why the two readings are dangerous.
+#
+# So the positive fact stays and does the work it can: the keyword
+# lexes as ONE word, not split and not swallowed. THE OUTPUT IS
+# THE DISCRIMINATOR, and it has to be -- identical bytes lex
+# identically, and only running them tells the readings apart.
 
 --- source
 print __CLASS__;
@@ -58,4 +74,3 @@ after
 
 --- expect tokens
 one word whose text is "__CLASS__"
-no operator whose text is "->"

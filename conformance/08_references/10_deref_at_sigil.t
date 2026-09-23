@@ -53,5 +53,4 @@ print scalar(@c), " ", $c[0], "\n";
 
 --- expect tokens
 one operator whose text is "\\"
-no operator whose text is "->"
 no variable whose text is "@$r"

@@ -42,4 +42,4 @@ ARRAY HASH SCALAR 5
 
 --- expect tokens
 no operator whose text is "->"
-no word whose text is "reftype"
+one operator whose text is "{"

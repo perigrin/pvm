@@ -47,4 +47,4 @@ Ba aaa b0
 --- expect parses
 
 --- expect tokens
-no numeric literal whose text is "1"
+no operator whose text is "+"

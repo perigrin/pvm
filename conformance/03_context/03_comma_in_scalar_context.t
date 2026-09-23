@@ -37,4 +37,5 @@ print "$last @all\n";
 --- expect parses
 
 --- expect tokens
-no variable whose text is "@last"
+one variable whose text is "$last"
+one variable whose text is "@all"

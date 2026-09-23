@@ -98,4 +98,3 @@ print "[$tail][$mid][$neg]\n";
 
 --- expect tokens
 one operator whose text is "-"
-no word whose text is "sprintf"

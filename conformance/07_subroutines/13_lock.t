@@ -75,4 +75,3 @@ locked 7
 
 --- expect tokens
 one word whose text is "lock"
-no word whose text is "unlock"

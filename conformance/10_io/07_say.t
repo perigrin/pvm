@@ -139,4 +139,3 @@ printed]
 
 --- expect tokens
 one word whose text is "say"
-no operator whose text is "->"

@@ -71,4 +71,3 @@ print $a[2], "\n";
 
 --- expect tokens
 one word whose text is "push"
-no word whose text is "unshift"

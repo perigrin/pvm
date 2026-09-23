@@ -115,5 +115,5 @@ print "$yes$no|\n";
 
 --- expect tokens
 no operator whose text is "->"
-no string literal whose text is "\"Bar\""
-no operator whose text is "("
+one word whose text is "main"
+one string literal whose text is "\"Foo\""

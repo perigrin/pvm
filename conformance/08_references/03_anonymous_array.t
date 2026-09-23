@@ -32,4 +32,3 @@ print scalar(@$r), " ", ref($r), "\n";
 
 --- expect tokens
 one operator whose text is "["
-no operator whose text is "{"

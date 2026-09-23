@@ -34,4 +34,5 @@ print "@b $s\n";
 --- expect parses
 
 --- expect tokens
-no variable whose text is "@s"
+one variable whose text is "@b"
+one variable whose text is "$s"

@@ -73,4 +73,3 @@ once
 --- expect tokens
 one word whose text is "do"
 one word whose text is "while"
-no word whose text is "until"

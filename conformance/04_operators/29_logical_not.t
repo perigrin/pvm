@@ -45,4 +45,4 @@ print "[", !$a, "][", !!$a, "]\n";
 --- expect parses
 
 --- expect tokens
-no operator whose text is "!="
+one word whose text is "print"

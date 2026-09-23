@@ -84,4 +84,3 @@ ran
 
 --- expect tokens
 one word whose text is "exit"
-no word whose text is "die"

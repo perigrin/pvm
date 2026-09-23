@@ -59,4 +59,3 @@ print $v[0], "\n";
 
 --- expect tokens
 one word whose text is "values"
-no word whose text is "keys"

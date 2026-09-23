@@ -149,6 +149,17 @@ func TestNegativeFactsNameTextTheSourceContains(t *testing.T) {
 			key := path + ": " + fact
 			vacuous := !strings.Contains(f.Source, text)
 
+			// A negative naming text its own source lacks is still a
+			// claim when a positive partner makes the pair
+			// falsifiable. Checked, not trusted: the partner has to be
+			// there now, not when the entry was written.
+			if vacuous {
+				if _, paired := pairedNegative[text]; paired &&
+					hasPositivePartner(t, filepath.Dir(path), m[1], text) {
+					continue
+				}
+			}
+
 			if vacuous && !knownVacuous[key] {
 				t.Errorf("%s: %q can never fail.\n"+
 					"\tThe source does not contain %q anywhere, so no "+
@@ -199,56 +210,47 @@ func TestNegativeFactsNameTextTheSourceContains(t *testing.T) {
 // the list shrinks as the repair lands and cannot quietly go stale.
 //
 // Every entry here is a fact to DELETE OR REPLACE, not one to defend.
-var knownVacuous = map[string]bool{
-	"01_literals/03_decimal_integer.t: no operator whose text is \".\"":                        true,
-	"02_variables/06_each.t: no word whose text is \"values\"":                                 true,
-	"02_variables/14_push.t: no word whose text is \"unshift\"":                                true,
-	"02_variables/16_values.t: no word whose text is \"keys\"":                                 true,
-	"03_context/03_comma_in_scalar_context.t: no variable whose text is \"@last\"":             true,
-	"03_context/04_reverse.t: no variable whose text is \"@s\"":                                true,
-	"03_context/05_sort.t: no variable whose text is \"@n\"":                                   true,
-	"03_context/06_localtime.t: no variable whose text is \"@n\"":                              true,
-	"03_context/08_caller.t: no operator whose text is \"(\"":                                  true,
-	"04_operators/07_precedence.t: no operator whose text is \"**\"":                           true,
-	"04_operators/11_chr_ord.t: no word whose text is \"x\"":                                   true,
-	"04_operators/12_index_sentinel.t: no word whose text is \"rindex\"":                       true,
-	"04_operators/14_substr_arity.t: no word whose text is \"sprintf\"":                        true,
-	"04_operators/15_substr_lvalue.t: no word whose text is \"index\"":                         true,
-	"04_operators/17_bitwise_precedence.t: no operator whose text is \"&&\"":                   true,
-	"04_operators/17_bitwise_precedence.t: no operator whose text is \"||\"":                   true,
-	"04_operators/20_bitwise_polymorphic.t: no operator whose text is \"&.\"":                  true,
-	"04_operators/28_string_increment.t: no numeric literal whose text is \"1\"":               true,
-	"04_operators/29_logical_not.t: no operator whose text is \"!=\"":                          true,
-	"06_control/09_do_while.t: no word whose text is \"until\"":                                true,
-	"06_control/13_do_block.t: no word whose text is \"while\"":                                true,
-	"06_control/14_eval_block.t: no word whose text is \"do\"":                                 true,
-	"06_control/15_die.t: no word whose text is \"exit\"":                                      true,
-	"06_control/16_exit.t: no word whose text is \"die\"":                                      true,
-	"06_control/17_time.t: no word whose text is \"localtime\"":                                true,
-	"07_subroutines/08_parenless_extent.t: no operator whose text is \"(\"":                    true,
-	"07_subroutines/10_undeclared_callee.t: no operator whose text is \"(\"":                   true,
-	"07_subroutines/13_lock.t: no word whose text is \"unlock\"":                               true,
-	"08_references/01_backslash_scalar.t: no operator whose text is \"->\"":                    true,
-	"08_references/02_backslash_list.t: no operator whose text is \"->\"":                      true,
-	"08_references/03_anonymous_array.t: no operator whose text is \"{\"":                      true,
-	"08_references/05_brace_deref.t: no operator whose text is \"->\"":                         true,
-	"08_references/06_deref_at.t: no operator whose text is \"->\"":                            true,
-	"08_references/07_deref_brace_hash.t: no operator whose text is \"->\"":                    true,
-	"08_references/09_ref_builtin.t: no operator whose text is \"->\"":                         true,
-	"08_references/09_ref_builtin.t: no word whose text is \"reftype\"":                        true,
-	"08_references/10_deref_at_sigil.t: no operator whose text is \"->\"":                      true,
-	"08_references/12_prototype_builtin.t: no operator whose text is \"->\"":                   true,
-	"10_io/07_say.t: no operator whose text is \"->\"":                                         true,
-	"11_oo/06_indirect_new.t: no operator whose text is \"->\"":                                true,
-	"11_oo/10_isa_infix.t: no operator whose text is \"(\"":                                    true,
-	"11_oo/10_isa_infix.t: no operator whose text is \"->\"":                                   true,
-	"11_oo/10_isa_infix.t: no string literal whose text is \"\\\"Bar\\\"\"":                    true,
-	"11_oo/14_state_ungated.t: no operator whose text is \"->\"":                               true,
-	"11_oo/15_class_ungated.t: no operator whose text is \"->\"":                               true,
-	"11_oo/16_classname_ungated.t: no operator whose text is \"->\"":                           true,
-	"11_oo/17_defer_ungated.t: no operator whose text is \"->\"":                               true,
-	"12_packages/10_compile_tokens.t: no string literal whose text is \"\\\"__PACKAGE__\\\"\"": true,
-	"12_packages/12_use_constant.t: no string literal whose text is \"\\\"PI\\\"\"":            true,
+var knownVacuous = map[string]bool{}
+
+// pairedNegative names a token-fact text whose negative is vacuous ALONE
+// and falsifiable AS A PAIR, with the tier that must hold both halves.
+//
+// `TestTierOoArrowIsLexical` found this before this check existed and
+// reasoned it out fully: indirect object notation is a LEXING problem --
+// `new Foo` and `Foo->new` emit an identical op stream -- so the absence
+// of the arrow is the only place the construct is visible. A lone
+// negative is satisfied by a lexer that never emits `->` at all. The fix
+// is not to drop the negative but to require the matching POSITIVE
+// somewhere in the same tier: then a lexer emitting no arrow fails the
+// positive, one inventing arrows fails the negative, and one that cannot
+// tell `->` from a minus and a `>` fails both.
+//
+// This is the ONE case where a fact naming text its own source lacks is
+// still a claim, and it is narrow: the partner must exist, and the check
+// below verifies it rather than trusting this list. A tier holding only
+// the negative is exactly the vacuous case the pairing was invented to
+// avoid -- which is why `10_io/07_say.t` is NOT here and its arrow fact
+// was deleted instead.
+var pairedNegative = map[string]string{
+	`->`: "a file in the same tier declaring `one operator whose text is \"->\"`",
+}
+
+// hasPositivePartner reports whether some file in the same tier declares
+// the matching positive fact, which is what makes the negative a claim.
+func hasPositivePartner(t *testing.T, tier, category, text string) bool {
+	t.Helper()
+	want := "one " + category + " whose text is " + strconv.Quote(text)
+	for path, f := range allFilesForVacuity(t) {
+		if filepath.Dir(path) != tier {
+			continue
+		}
+		for _, fact := range f.TokenFacts {
+			if strings.TrimSpace(fact) == want {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // seenVacuous records which knownVacuous entries the walk actually

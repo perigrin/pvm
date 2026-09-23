@@ -86,4 +86,3 @@ print "[$live][$folded][$back]\n";
 
 --- expect tokens
 one word whose text is "ord"
-no word whose text is "x"
