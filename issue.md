@@ -1,10 +1,10 @@
 ---
 title: The typeglob sigil appears three times and all three are sprintf widths
-state: done
+state: reopened
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-23T02:07:02.645428825Z
-updated: 2026-09-23T17:40:34.499660696Z
+updated: 2026-09-23T17:40:45.409333328Z
 sessions:
 - start_sha: 97c3893fd4ff1f1546c7984579545e96f6d2c33f
   end_sha: c2adc1f75f71cd96e8cf5067a659da2199c28462
@@ -18,6 +18,9 @@ transitions:
 - state: done
   actor: human:git-zhi
   timestamp: 2026-09-23T17:37:12.987242398Z
+- state: reopened
+  actor: human:git-zhi
+  timestamp: 2026-09-23T17:40:45.409333328Z
 observed_paths:
 - conformance/10_io/00_adjacency.t
 - conformance/10_io/09_glob_assign.t
