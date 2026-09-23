@@ -1,19 +1,31 @@
 ---
 title: "Range, flip-flop and the line-number form: three operators, one spelling"
-state: in-progress
+state: done
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-23T02:07:02.512094755Z
-updated: 2026-09-23T14:24:00.569664726Z
+updated: 2026-09-23T14:33:40.781347435Z
 sessions:
 - start_sha: cbaacf10d93150fdf2a15e13ddca50cfce26104a
-  end_sha: ""
-  commits: 0
+  end_sha: dba3a2a8f33826ff834672eb4a84f0faf854bc36
+  commits: 1
   started_at: 2026-09-23T14:24:00.569664726Z
+  ended_at: 2026-09-23T14:33:40.781347435Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-23T14:24:00.569664726Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-23T14:33:40.781347435Z
+observed_paths:
+- conformance/03_context/00_adjacency.t
+- conformance/03_context/11_range_list.t
+- conformance/03_context/12_range_string.t
+- conformance/03_context/13_flipflop.t
+- conformance/03_context/README.md
+- internal/conformance/testdata/corpus.ratchet
+- internal/conformance/tier03_test.go
 ---
 
 `..` is three operators wearing one spelling, and the corpus claims none
