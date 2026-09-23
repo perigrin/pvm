@@ -1,10 +1,19 @@
 ---
 title: "Range, flip-flop and the line-number form: three operators, one spelling"
-state: pending
+state: in-progress
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-23T02:07:02.512094755Z
-updated: 2026-09-23T02:07:02.512094755Z
+updated: 2026-09-23T14:24:00.569664726Z
+sessions:
+- start_sha: cbaacf10d93150fdf2a15e13ddca50cfce26104a
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-23T14:24:00.569664726Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-23T14:24:00.569664726Z
 ---
 
 `..` is three operators wearing one spelling, and the corpus claims none
