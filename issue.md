@@ -1,16 +1,20 @@
 ---
 title: BEGIN is in 99 T1 files and no corpus file, with the rest of compile phase
-state: reopened
+state: in-progress
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-23T02:07:02.60006476Z
-updated: 2026-09-23T17:27:59.511251306Z
+updated: 2026-09-23T17:27:59.570556235Z
 sessions:
 - start_sha: 1afd0f341b23e124940e7ed14440f2338370dd79
   end_sha: df9f271d0a74bb508132371df7b7f0d40a632f0b
   commits: 1
   started_at: 2026-09-23T16:51:36.322538387Z
   ended_at: 2026-09-23T17:04:29.609130989Z
+- start_sha: 97c3893fd4ff1f1546c7984579545e96f6d2c33f
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-23T17:27:59.570556235Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
@@ -21,6 +25,9 @@ transitions:
 - state: reopened
   actor: human:git-zhi
   timestamp: 2026-09-23T17:27:59.511251306Z
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-23T17:27:59.570556235Z
 observed_paths:
 - conformance/12_packages/00_adjacency.t
 - conformance/12_packages/09_begin_end.t
