@@ -200,7 +200,40 @@ never ran are byte-identical in the chain.
       re-emitting identically), and the statement-level `WORD BLOCK
       ARG` shape has no reader -- indirect object notation, which
       `new Foo;` also refuses on. Three pieces, scoped there rather
-      than forced here. 5/5 criteria verified; review dispatched.
+      than forced here. 5/5 criteria verified.
+
+      THE GATE FOUND THE FIX WAS WRONG, and the fault was the shape of
+      the fix rather than a slip in it. A four-name exception list
+      encodes a judgement per name where perl encodes none, so it was
+      wrong on one entry and incomplete on another. `__CLASS__` is a
+      value only under `use feature 'class'` and a bareword FILEHANDLE
+      otherwise -- `print __CLASS__, "x"` is "No comma allowed after
+      filehandle", the same diagnostic the fix cited as its proof for
+      `FOO`. Exempting it adopted the gated reading with no feature
+      state, and contradicted `11_oo/16_classname_ungated.t`, edited in
+      the same commit, whose whole subject is that ungated
+      `print __CLASS__;` IS a filehandle print. That file passed for the
+      wrong reason. `__SUB__` behaves identically and was missing.
+
+      Repaired in `f4e35d7a` by applying perl's actual rule -- a comma
+      after a handle is an error, so what FOLLOWS decides the slot, not
+      the word -- which the `$fh` branch already did and the bareword
+      branch did not. Both tokens then come out right in both feature
+      states with no feature tracking.
+
+      That exposed an older bug behind it: `startsTerm` called every
+      `lexer.Word` a term-starter, so word-spelled operators (`eq`,
+      `cmp`, `lt`, `x`, `and`) denied nothing and both handle branches
+      took the slot on `print FOO eq "x"`. The `$fh` half predated this
+      milestone entirely. Fixed at the source by asking `infix`.
+      MEASURED: 14 T1 files improved and none worse; `base/num.t` 44
+      refusals to 6; `comp/package.t` 7 to 2; T2 clean 17 of 56 to 19.
+
+      Three further gaps filed, all pre-existing: `01a0d0b0` (the
+      `#line` directive is lexed as a comment and its corpus file
+      passes anyway -- disclosed in that file's header by `7b6014f5`),
+      `01a0d0b1` (`print {$fh} "x"` refuses), and a note on `01a0d087`
+      that two ratchets move for `defer`, not one.
 - [x] `01a0cfb2` forty-nine vacuous facts — **TIER_2**, and the gate
       earned its keep twice over.
 
