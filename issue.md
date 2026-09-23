@@ -4,28 +4,38 @@ state: pending
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-23T17:10:01.515942446Z
-updated: 2026-09-23T17:10:01.515942446Z
+updated: 2026-09-23T19:02:59.095365123Z
 ---
 
 Four parser gaps found by the `corpus-complete` milestone, each recorded
-by a corpus file that cites a now-closed issue. This issue is where they
-are tracked so the citations point somewhere live.
+by a corpus file. The files cite THIS issue, so the citations point
+somewhere live rather than at a closed one.
 
 ## The gaps
 
-    conformance/11_oo/16_classname_ungated.t   trailing_tokens
-    conformance/11_oo/17_defer_ungated.t       unimplemented_statement
-    conformance/12_packages/10_compile_tokens.t  trailing_tokens
-    conformance/12_packages/11_line_directive.t  trailing_tokens
+    conformance/11_oo/16_classname_ungated.t      trailing_tokens
+    conformance/11_oo/17_defer_ungated.t          unimplemented_statement
+    conformance/12_packages/10_compile_tokens.t   trailing_tokens
+    conformance/12_packages/11_line_directive.t   trailing_tokens
+
+Measured against the parser, not read off the headers. An earlier
+revision of this issue had the first two swapped.
 
 Plus one from the compound-assignment slice, already filed separately as
-`01a0ce57-db92-78e5-bbe4-7c28e74db6f3` (`x=` is never lexed).
+`01a0ce57-db92-78e5-bbe4-7c28e74db6f3` (`x=` is never lexed), and one
+from the unary slice as `01a0cf64-8436-7f82-bcb5-587f0eba266f` (`-e` is
+lexed as two tokens).
 
 ## What each needs
 
-**`__CLASS__` ungated** is the `isa` finding in a different keyword.
-Measured, perl reads `print __CLASS__;` as `print __CLASS__ $_` -- a
-filehandle print over a glob. Our parser leaves trailing tokens instead.
+**`class NAME` ungated** is the `isa` finding in a different keyword.
+Measured, perl reads `class Foo {}` with the feature off as
+`'Foo'->class({})` -- an indirect method call whose brace group is an
+anonymous hash. Our parser leaves trailing tokens instead.
+
+**`__CLASS__` ungated**: perl reads `print __CLASS__;` as
+`print __CLASS__ $_` -- a filehandle print over a glob. Our parser
+leaves trailing tokens.
 
 **`defer BLOCK` ungated** is the sharpest of the set and the one whose
 claim is currently unexercised. Measured, the block runs FIRST, because
@@ -52,3 +62,11 @@ that reason and rode across on its back.
 The honest repair is to track the gap rather than lower the bar, which
 is what this issue is. When the parser learns these constructs, the four
 files start passing and the ratchet reports it.
+
+## Scope
+
+This is PARSER work, not corpus work. It is filed under
+`corpus-complete` because that milestone found the gaps and its files
+cite it, but nothing here is deliverable by writing corpus files -- the
+files already exist and already record the refusals correctly. It
+closes when the parser learns the constructs.
