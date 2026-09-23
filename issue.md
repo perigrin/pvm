@@ -3,8 +3,10 @@ title: "The bitwise and shift band: three precedence levels at zero"
 state: pending
 urgency: normal
 milestone: corpus-complete
+blocks:
+- 01a0cc04-333a-70f7-a182-d4d0a14cc0de
 created: 2026-09-23T02:07:02.403766667Z
-updated: 2026-09-23T02:07:02.403766667Z
+updated: 2026-09-23T02:36:47.966699457Z
 ---
 
 Three whole precedence levels with no coverage: perlop's 9 (`<< >>`), 14
