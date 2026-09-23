@@ -1,10 +1,19 @@
 ---
 title: Forty-nine negative token facts name text their source never contains
-state: pending
+state: in-progress
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-23T19:16:11.345924198Z
-updated: 2026-09-23T19:16:11.345924198Z
+updated: 2026-09-23T20:25:52.910408381Z
+sessions:
+- start_sha: 66e6d10dfed49b493965299ae1c5d6fcc9088c25
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-23T20:25:52.910408381Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-23T20:25:52.910408381Z
 ---
 
 Forty-nine of the corpus's 115 negative token facts assert nothing.
