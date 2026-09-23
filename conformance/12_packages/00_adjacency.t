@@ -56,10 +56,30 @@
 # MEASURED perl 5.42.0:
 #
 #   $ perl conformance/12_packages/00_adjacency.t
+#   begin
 #   import tag
 #   hello HELLO
 #   inc: yesyes
 #   use: yesno
+#   pkg main line 300 file adj tag c
+#   end
+#
+# THE COMPILE-PHASE SLICE WRAPS THE WHOLE BODY, which is the adjacency
+# claim it makes. `BEGIN` is written AFTER `END` in the source and runs
+# first; `END` runs after the last statement. Neither emits an op, so
+# the ordering is the only evidence either exists, and a parser that
+# treated them as ordinary blocks would print them where they appear.
+#
+# `pkg main line 300 file adj` is four compile-time constructs in one
+# statement. The `#line` directive above it is a `#` at column zero that
+# is NOT a comment: it rewrites `__LINE__` and `__FILE__` for everything
+# below, which is why the line reports 300 and `adj` rather than its
+# real position. `__FILE__` is only pinnable at all because of that --
+# without the directive it reports the runner's temp path.
+#
+# `TAG` is the bareword `use constant` installed, and it prints `c`
+# rather than `TAG`, which is what separates an installed sub from a
+# bareword string.
 #
 # `expect output` is written before `expect parses` rather than last. The
 # blank line after it is what carries the output's own trailing newline,
@@ -68,6 +88,9 @@
 --- source
 use POSIX;
 use Fcntl ();
+use constant TAG => "c";
+END { print "end\n" }
+BEGIN { print "begin\n" }
 package Greet;
 sub hello { return "hello" }
 sub import { print "import $_[1]\n" }
@@ -82,11 +105,16 @@ Greet->import("tag");
 print Greet::hello(), " ", Louder::shout(), "\n";
 print "inc: ", ($INC{"strict.pm"} ? "yes" : "no"), ($INC{"warnings.pm"} ? "yes" : "no"), "\n";
 print "use: ", ($main::{"floor"} ? "yes" : "no"), ($main::{"LOCK_EX"} ? "yes" : "no"), "\n";
+#line 300 "adj"
+print "pkg ", __PACKAGE__, " line ", __LINE__, " file ", __FILE__, " tag ", TAG, "\n";
 
 --- expect output
+begin
 import tag
 hello HELLO
 inc: yesyes
 use: yesno
+pkg main line 300 file adj tag c
+end
 
 --- expect parses

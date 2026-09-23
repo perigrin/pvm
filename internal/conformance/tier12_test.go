@@ -162,8 +162,33 @@ func packageForms() []struct {
 		{"require_bareword", reRequireBareword},
 		{"require_expression", reRequireExpression},
 		{"import_call", reImportCall},
+
+		// The compile-phase slice (issue 01a0cc04-33c8). These belong to
+		// this tier's thesis rather than stretching it: `use constant`
+		// IS a `use`, and the phasers and compile-time tokens are the
+		// other half of "what runs before the program does", which is
+		// what `use` and `require` already are here.
+		//
+		// An earlier proposal to put `tie`/`tied` in this tier was
+		// refused on exactly that test -- they are runtime builtins and
+		// would have changed what the tier claims to be. These do not.
+		{"begin_end", reBeginEnd},
+		{"compile_tokens", reCompileToken},
+		{"line_directive", reLineDirective},
+		{"use_constant", reUseConstant},
 	}
 }
+
+// The compile-phase patterns. Each is anchored on the construct's own
+// spelling rather than a bare keyword: `BEGIN` and `END` are barewords
+// followed by a block, `__PACKAGE__` is a bareword that is not one, and
+// the line directive is a `#` at column zero that is not a comment.
+var (
+	reBeginEnd      = regexp.MustCompile(`\bBEGIN\s*\{`)
+	reCompileToken  = regexp.MustCompile(`__PACKAGE__`)
+	reLineDirective = regexp.MustCompile(`(?m)^#line\s`)
+	reUseConstant   = regexp.MustCompile(`use constant\b`)
+)
 
 // packageFormsIn returns the constructs a source exercises.
 func packageFormsIn(source string) []string {
