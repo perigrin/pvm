@@ -1,5 +1,5 @@
-// ABOUTME: `__PACKAGE__` and friends are all-caps but are NOT filehandles, and print must not take them as one.
-// ABOUTME: perl draws the line itself: `print FOO, 1` is a syntax error and `print __PACKAGE__, 1` is not.
+// ABOUTME: A bareword takes print's filehandle slot only when NO COMMA follows it, which is perl's own rule.
+// ABOUTME: The name of the word is not the test: `print FOO, 1` and `print __CLASS__, 1` are both errors.
 
 package parse_test
 
@@ -9,40 +9,53 @@ import (
 	"tamarou.com/pvm/internal/parse"
 )
 
-// TestCompileTokensAreNotFilehandles: a compile-time token in `print`'s
-// first slot is an ARGUMENT, not a handle.
+// TestCommaDeniesTheFilehandleSlot: what separates a handle from an
+// argument is the COMMA, not the word.
 //
-// THE BUG THIS PINS. `isBarewordHandle` accepts any all-caps word,
-// because perl's filehandle convention is all-caps and a static parser
-// has no symbol table to consult. `__PACKAGE__`, `__LINE__`, `__FILE__`
-// and `__CLASS__` are all-caps, so all four were taken into the handle
-// slot -- and the comma that follows them then had nothing to attach to,
-// which surfaced as `trailing_tokens` over the whole statement.
+// THE BUG THIS PINS. `isBarewordHandle` took any all-caps word, because
+// perl's filehandle convention is all-caps and a static parser has no
+// symbol table. So `print __PACKAGE__, "\n"` put the token in the handle
+// slot and the comma after it had nothing to attach to, which surfaced
+// as `trailing_tokens` over the whole statement.
 //
-// PERL DRAWS THE LINE ITSELF, and the two readings are not both legal:
+// PERL'S RULE IS THE COMMA, measured on 5.42.0:
 //
-//	$ perl -MO=Deparse -e 'print FOO, "\n";'
-//	No comma allowed after filehandle at -e line 1.
+//	$ perl -e 'print FOO, "x";'           No comma allowed after filehandle
+//	$ perl -e 'print __CLASS__, "x";'     No comma allowed after filehandle
+//	$ perl -e 'print __PACKAGE__, "x";'   syntax OK
+//	$ perl -e 'print FOO "x";'            syntax OK -- a handle
 //
-//	$ perl -MO=Deparse -e 'print __PACKAGE__, "\n";'
-//	print __PACKAGE__, "\n";
+// A COMMA AFTER A HANDLE IS AN ERROR. So a bareword followed by a comma
+// was never a handle, whatever it is called, and the word that follows
+// the slot must start a new term for the slot to exist at all.
 //
-// So the comma after a real bareword handle is an ERROR, and the comma
-// after a compile-time token is ordinary. A parser that cannot tell them
-// apart gets one of the two wrong whichever way it guesses.
+// WHY NOT A LIST OF TOKEN NAMES, which an earlier fix used. It was
+// wrong on one entry and incomplete on another, and both faults came
+// from the same place -- the list encodes a judgement about each name
+// where perl encodes none:
 //
-// These four are the whole list perl documents as compile-time tokens
-// that lex as barewords. `__DATA__` and `__END__` are not here: they
-// terminate the program text rather than producing a value, and tier 13
-// measures them as their own token kind.
-func TestCompileTokensAreNotFilehandles(t *testing.T) {
+//   - `__CLASS__` is a value only under `use feature 'class'` and a
+//     bareword FILEHANDLE everywhere else. A list that exempts it
+//     unconditionally adopts the gated reading with no feature state to
+//     justify it, and contradicts `11_oo/16_classname_ungated.t`, whose
+//     whole subject is that ungated `print __CLASS__;` is a filehandle
+//     print.
+//   - `__SUB__` behaves identically and was simply missing.
+//
+// The comma test needs neither name and gets both right in both feature
+// states, because it is the rule perl actually applies.
+func TestCommaDeniesTheFilehandleSlot(t *testing.T) {
 	for _, src := range []string{
 		`print __PACKAGE__, "\n";`,
 		`print __LINE__, "\n";`,
 		`print __FILE__, "\n";`,
 		`print __LINE__, " ", __FILE__, "\n";`,
-		`print __PACKAGE__;`,
-		`print __CLASS__;`,
+		`print __SUB__, "\n";`,
+		`print __CLASS__, "\n";`,
+		// A plain bareword with a comma is the same shape. perl calls it
+		// an error; we decline to call it a handle, which is the part
+		// this parser is responsible for.
+		`print FOO, "\n";`,
 	} {
 		root := parse.Parse([]byte(src))
 		if containsKind(root, parse.Unknown) {
@@ -51,17 +64,23 @@ func TestCompileTokensAreNotFilehandles(t *testing.T) {
 	}
 }
 
-// TestBarewordHandleStillTakesTheSlot: the fix must not cost the handle.
+// TestBarewordHandleStillTakesTheSlot: no comma, so the slot stands.
 //
-// The narrow change is that FOUR NAMES stop qualifying, not that the
-// all-caps rule goes away. `print STDERR "x"` has no comma and is the
-// form the slot exists for; it must still parse with the handle taken.
+// The change is that a FOLLOWING COMMA denies the slot, not that the
+// all-caps rule goes away. These are the forms the slot exists for and
+// every one of them must still take it.
+//
+// `print __CLASS__;` is here deliberately. Ungated it IS a filehandle
+// print -- `print __CLASS__ $_` -- which is what
+// `11_oo/16_classname_ungated.t` measures, and no comma follows, so the
+// slot is correct for it.
 func TestBarewordHandleStillTakesTheSlot(t *testing.T) {
 	for _, src := range []string{
 		`print STDERR "x";`,
 		`print STDOUT "x";`,
 		`printf STDERR "%s", "x";`,
 		`print FH "x";`,
+		`print __CLASS__;`,
 	} {
 		root := parse.Parse([]byte(src))
 		if containsKind(root, parse.Unknown) {

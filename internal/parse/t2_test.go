@@ -99,7 +99,14 @@ func TestT2CoreParses(t *testing.T) {
 		// learned that a `.` before a digit starts a NUMBER where a term
 		// is expected (issue 01a0c13f). Measured before the fix: 5 of
 		// those 85 Unknowns held a leading decimal, and all 5 are gone.
-		"base/lex.t": 36, "base/num.t": 44, "base/rs.t": 3,
+		// base/lex.t 36 -> 35, base/num.t 44 -> 6, comp/hints.t 36 -> 35
+		// and comp/package.t 6 -> 2 when `startsTerm` stopped calling
+		// every Word a term-starter (issue 01a0cf3e). `eq`, `ne`, `cmp`,
+		// `lt`, `x` and `and` are Words to the lexer and OPERATORS to
+		// perl, so both filehandle branches read `print FOO eq "x"` as a
+		// print to FOO and stranded the comparison. num.t is dense with
+		// word-spelled comparisons, which is why it moves furthest.
+		"base/lex.t": 35, "base/num.t": 6, "base/rs.t": 3,
 		// class/field.t went 9 -> 10 when quote-op keywords stopped eating
 		// their fat comma, then back to 9 when goto, delete and exists
 		// landed. The rise was never a regression in the parse: reaching
@@ -123,15 +130,20 @@ func TestT2CoreParses(t *testing.T) {
 		"class/destruct.t": 7, "class/field.t": 7, "class/gh22169.t": 5,
 		"class/gh23511.t": 1, "class/inherit.t": 7, "class/method.t": 9,
 		"class/phasers.t": 5,
-		"cmd/mod.t":       1, "cmd/subval.t": 1, "cmd/switch.t": 2,
+		// cmd/subval.t and comp/package_block.t left the map entirely with
+		// the `startsTerm` fix -- they parse cleanly now, which is what
+		// removal from this map means.
+		"cmd/mod.t": 1, "cmd/switch.t": 2,
 		"comp/colon.t": 25, "comp/decl.t": 3, "comp/filter_exception.t": 5,
 		"comp/final_line_num.t": 1, "comp/fold.t": 14, "comp/form_scope.t": 17,
-		"comp/hints.t": 36, "comp/line_debug.t": 4, "comp/multiline.t": 2,
-		// comp/package.t 7 -> 6 when compile-time tokens stopped being
-		// taken as filehandles (issue 01a0cf3e). `isBarewordHandle`
-		// accepted any all-caps word, so `print __PACKAGE__, "\n"` put
-		// the token in print's handle slot and stranded the comma.
-		"comp/opsubs.t": 11, "comp/package.t": 6, "comp/package_block.t": 4,
+		"comp/hints.t": 35, "comp/line_debug.t": 4, "comp/multiline.t": 2,
+		// comp/package.t 7 -> 2 across two fixes, both issue 01a0cf3e.
+		// First the filehandle slot learned that a following COMMA
+		// denies it, which is perl's own rule -- `print FOO, 1` is "No
+		// comma allowed after filehandle" and `print __PACKAGE__, 1` is
+		// legal. Then `startsTerm` learned that a word OPERATOR is not a
+		// term, which reached `print __PACKAGE__ eq '...' ? ... : ...`.
+		"comp/opsubs.t": 11, "comp/package.t": 2,
 		"comp/parser.t": 65, "comp/parser_run.t": 12, "comp/proto.t": 41,
 		// comp/require.t went 11 -> 12 when phaser braces became blocks. The
 		// `BEGIN { ... }` body is now read as statements rather than as one

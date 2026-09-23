@@ -271,6 +271,29 @@ func (p *parser) parseFilehandleSlot(op string) *Node {
 		// A bareword handle. Only ALL-CAPS names qualify, which is perl's
 		// own convention and what keeps `print foo 1` from stealing a
 		// function call into the slot.
+		//
+		// AND ONLY WHEN NO COMMA FOLLOWS, which is perl's actual rule and
+		// the same test the `$fh` branch below makes. Measured on 5.42.0:
+		//
+		//	$ perl -e 'print FOO, "x";'           No comma allowed after filehandle
+		//	$ perl -e 'print __CLASS__, "x";'     No comma allowed after filehandle
+		//	$ perl -e 'print __PACKAGE__, "x";'   syntax OK
+		//
+		// A comma after a handle is an ERROR, so a bareword followed by
+		// one was never a handle. Without this test `print __PACKAGE__,
+		// "\n"` put the token in the slot and stranded the comma, which
+		// surfaced as `trailing_tokens` over the whole statement.
+		//
+		// The test is on the FOLLOWING TOKEN rather than on the word,
+		// because the word cannot answer it. `__CLASS__` and `__SUB__`
+		// are values under their features and bareword filehandles
+		// without them, and this site has no feature state; the comma is
+		// right in both readings. A list of exempt names was tried first
+		// and was wrong on `__CLASS__` and missing `__SUB__` -- one fault
+		// each way, from encoding a judgement perl does not make.
+		if next, ok := p.peekAfter(tok); !ok || !startsTerm(next, p.src) {
+			return nil
+		}
 		p.advanceTo(tok)
 		return &Node{
 			Kind: Term, Text: p.text(tok),
@@ -293,46 +316,16 @@ func (p *parser) parseFilehandleSlot(op string) *Node {
 	return nil
 }
 
-// compileTimeToken is the set of all-caps barewords that carry a VALUE
-// rather than name a filehandle.
-//
-// They exist because perl resolves them during compilation -- the token
-// is replaced by the package name, the line number, the file name, or
-// the current class -- so what reaches runtime is a constant and never a
-// handle. Every one of them is all-caps, which is the only thing
-// `isBarewordHandle` has to go on.
-//
-// `__DATA__` and `__END__` are deliberately absent: they terminate the
-// program text rather than producing a value, so they never appear in an
-// argument position for this to decide about, and tier 13 measures them
-// as their own token kind.
-var compileTimeToken = map[string]bool{
-	"__PACKAGE__": true,
-	"__LINE__":    true,
-	"__FILE__":    true,
-	"__CLASS__":   true,
-}
-
 // isBarewordHandle reports whether a bareword looks like a filehandle.
 //
 // perl's rule is the symbol table's, which a static parser does not have, so
 // this uses the convention perl's own documentation recommends and every
 // corpus file follows: an all-caps name. STDERR, STDOUT, FH, OUT.
 //
-// THE COMPILE-TIME TOKENS ARE THE EXCEPTION, and perl itself is what
-// says they must be. The comma after a real bareword handle is an error
-// and the comma after a token is not:
-//
-//	$ perl -MO=Deparse -e 'print FOO, "\n";'
-//	No comma allowed after filehandle at -e line 1.
-//
-//	$ perl -MO=Deparse -e 'print __PACKAGE__, "\n";'
-//	print __PACKAGE__, "\n";
-//
-// So taking a token into the handle slot strands the comma after it,
-// which is what `print __PACKAGE__, "\n"` used to refuse on.
+// THE SHAPE IS ONLY HALF THE TEST. What follows the word decides the
+// rest, and the caller applies it -- see parseFilehandleSlot.
 func isBarewordHandle(word string) bool {
-	if word == "" || compileTimeToken[word] {
+	if word == "" {
 		return false
 	}
 	for i := 0; i < len(word); i++ {
@@ -352,7 +345,22 @@ func startsTerm(tok lexer.Token, src []byte) bool {
 	case lexer.Variable, lexer.Number, lexer.Quote, lexer.HeredocOpen:
 		return true
 	case lexer.Word:
-		return true
+		// A word that is an INFIX OPERATOR continues the expression
+		// rather than starting a term. `eq`, `ne`, `cmp`, `lt`, `x`,
+		// `and` and the rest are Words to the lexer and operators to
+		// perl, and both filehandle branches ask this question:
+		//
+		//	$ perl -MO=Deparse -e 'print FOO eq "x" ? "a" : "b";'
+		//	print 'b';
+		//
+		// perl compares and prints the result -- FOO is the comparison's
+		// left operand, not a destination. Answering true here made both
+		// branches take the slot and strand the rest of the expression.
+		//
+		// Asked of `infix` rather than of a list written here, so a word
+		// operator arrives in ONE place and every caller follows.
+		_, isOperator := infix[string(src[tok.Start:tok.End])]
+		return !isOperator
 	}
 	return false
 }

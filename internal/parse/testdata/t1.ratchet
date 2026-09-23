@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 464 clean (47.1%), 2379 total.
+# 986 files, 475 clean (48.2%), 2353 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -85,7 +85,7 @@
 0 class_default_accessor_names.t
 1 class_incomplete_no_leak.t
 1 class_lvalue_method.t
-1 class_xsaccessor_named_cv.t
+0 class_xsaccessor_named_cv.t
 3 class_xsaccessor_pp.t
 7 cli_warning_overrides.t
 4 clone.t
@@ -107,7 +107,7 @@
 4 compress_raw_zlib_autodetect_regression.t
 2 compress_raw_zlib_gzip_wrapper.t
 0 compress_zlib_gzerror_eof.t
-2 concat_assign_undef_warning.t
+1 concat_assign_undef_warning.t
 5 concat_assignment_env_taint.t
 1 concat_assignment_explicit_mutator.t
 0 concat_assignment_overload.t
@@ -121,7 +121,7 @@
 3 constant_mro_generation.t
 0 constant_stash_proxy.t
 8 context.t
-4 context_semantics.t
+0 context_semantics.t
 28 control_flow.t
 11 convert_bencode_xs_java.t
 0 core_dump_guarded.t
@@ -328,7 +328,7 @@
 1 glob_absolute_directory.t
 12 glob_export_identity.t
 7 glob_hash_argument_slot.t
-2 glob_numeric_warning.t
+0 glob_numeric_warning.t
 6 glob_pseudo_constant_export.t
 5 glob_scalar_ref_io_method.t
 0 glob_scalar_slot_ref.t
@@ -506,7 +506,7 @@
 2 mro_pkg_gen_sub_definition.t
 2 mro_stash_alias_descendants.t
 0 my_short_circuit_scope_exit.t
-2 named_closure_fallback_handoff.t
+0 named_closure_fallback_handoff.t
 4 named_cv_compiletime_displacement.t
 8 named_sort_redefinition.t
 0 named_sub_coderef_reuse_capture.t
@@ -620,10 +620,10 @@
 0 refaliasing_containers.t
 0 regex_assertion_conditional.t
 0 regex_byte_replacement_flag.t
-2 regex_callback_abort_cleanup.t
-3 regex_callback_frame_identity.t
-3 regex_callback_lexical_context.t
-1 regex_callback_package_frame.t
+0 regex_callback_abort_cleanup.t
+0 regex_callback_frame_identity.t
+0 regex_callback_lexical_context.t
+0 regex_callback_package_frame.t
 0 regex_capture_numification.t
 0 regex_capture_sub_scope.t
 2 regex_capture_symbolic_deref.t
@@ -654,7 +654,7 @@
 0 regex_named_character_class_escape.t
 0 regex_named_character_extended_capture.t
 0 regex_negated_caret_class.t
-1 regex_nonunicode_property_warning.t
+0 regex_nonunicode_property_warning.t
 4 regex_parser_safety_parity.t
 0 regex_posix_class_casefold.t
 0 regex_prune.t
@@ -797,7 +797,7 @@
 0 threads_basic_unadvertised.t
 0 threads_captured_object_lifetime.t
 1 threads_cleared_weak_snapshot.t
-1 threads_clone_skip_no_autoload.t
+0 threads_clone_skip_no_autoload.t
 1 threads_compatibility_activation.t
 0 threads_cond_timedwait_deadline.t
 2 threads_condition_broadcast_stress.t
@@ -810,7 +810,7 @@
 0 threads_end_captured_lifetime.t
 1 threads_entry_compile_error.t
 1 threads_eval_string.t
-4 threads_filehandle_inheritance.t
+2 threads_filehandle_inheritance.t
 1 threads_index_clone_identity.t
 1 threads_inheritance_clone.t
 3 threads_inherited_pipe.t
@@ -834,7 +834,7 @@
 4 threads_shared_blessed_tied.t
 0 threads_shared_child_capture_release.t
 0 threads_shared_destructive_share.t
-3 threads_shared_fetch_proxy_lifetime.t
+1 threads_shared_fetch_proxy_lifetime.t
 7 threads_shared_final_destroy.t
 1 threads_shared_graphs.t
 0 threads_shared_inactive_mode.t
@@ -857,7 +857,7 @@
 0 tie_scalar_self_reference_destroy.t
 8 tie_void_context.t
 1 tied_array_constraint_short_circuit.t
-1 tied_array_delete_local.t
+0 tied_array_delete_local.t
 2 tied_container_undef.t
 2 tied_handle_dup.t
 2 tied_hash_autoviv_refloop_cleanup.t
