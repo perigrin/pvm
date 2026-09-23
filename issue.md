@@ -1,22 +1,35 @@
 ---
 title: "The bitwise and shift band: three precedence levels at zero"
-state: in-progress
+state: done
 urgency: normal
 milestone: corpus-complete
 blocks:
 - 01a0cc04-333a-70f7-a182-d4d0a14cc0de
 - 01a0cc04-32c9-722c-8728-d4043e7d3c14
 created: 2026-09-23T02:07:02.403766667Z
-updated: 2026-09-23T02:45:17.110911611Z
+updated: 2026-09-23T02:54:54.864571063Z
 sessions:
 - start_sha: 398b8fdf91f7fbfdce79dcab401c879a3e9eeb9c
-  end_sha: ""
-  commits: 0
+  end_sha: b1a62eecc58a5d7bd0c1af6e2b54ae4691aaa2c2
+  commits: 1
   started_at: 2026-09-23T02:45:17.110911611Z
+  ended_at: 2026-09-23T02:54:54.864571063Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-23T02:45:17.110911611Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-23T02:54:54.864571063Z
+observed_paths:
+- conformance/04_operators/00_adjacency.t
+- conformance/04_operators/16_bitwise.t
+- conformance/04_operators/17_bitwise_precedence.t
+- conformance/04_operators/18_shift.t
+- conformance/04_operators/19_complement.t
+- conformance/04_operators/README.md
+- internal/conformance/testdata/corpus.ratchet
+- internal/conformance/tier04_test.go
 ---
 
 Three whole precedence levels with no coverage: perlop's 9 (`<< >>`), 14
