@@ -1,10 +1,19 @@
 ---
 title: Tier 04's nonassoc measurement lives in prose and no file asserts it
-state: pending
+state: in-progress
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-23T02:07:02.765668461Z
-updated: 2026-09-23T02:25:31.239341233Z
+updated: 2026-09-23T19:38:10.523402954Z
+sessions:
+- start_sha: 66e6d10dfed49b493965299ae1c5d6fcc9088c25
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-23T19:38:10.523402954Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-23T19:38:10.523402954Z
 ---
 
 `04_operators/README.md` carries a measured passage on which of perly.y's
