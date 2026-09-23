@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-23T19:16:11.345924198Z
-updated: 2026-09-23T21:33:55.181719024Z
+updated: 2026-09-23T21:36:39.642163114Z
 sessions:
 - start_sha: 66e6d10dfed49b493965299ae1c5d6fcc9088c25
   end_sha: 95cf8935c0ed1334c63e25964bff53ff6c7b9837
@@ -143,6 +143,6 @@ files, which counts header prose.
 
 ## Acceptance criteria
 
-- [x] Every negative token fact names text its own source contains, with no exemption list at all (`grep -Lq knownVacuous internal/conformance/vacuous_test.go`)
+- [x] Every negative token fact names text its own source contains, with no exemption list at all (`! grep -q knownVacuous internal/conformance/vacuous_test.go`)
 - [x] The vacuity check passes with no ratcheted entries (`go test ./internal/conformance/ -run '^TestNegativeFactsNameTextTheSourceContains$' -count=1 -v | grep -q '^--- PASS'`)
 - [x] The whole conformance suite is green with the repairs in it (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
