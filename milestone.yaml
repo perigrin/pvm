@@ -177,11 +177,30 @@ never ran are byte-identical in the chain.
       which is why the skip is now an error.
 - [x] `01a0cc04-34a6` pattern internals — **TIER_1**. Documentation only,
       no new logic. 5/5 criteria verified at close.
-- [ ] `01a0cf3e` four parser gaps — no gate. It is a TRACKING issue for
-      parser work, not corpus work: the files exist and record the
-      refusals correctly, and it closes when the parser learns the
-      constructs. Its four citations pointed at closed issues until
-      `d95cf4ee`, and its body had two refusal codes swapped.
+- [x] `01a0cf3e` four parser gaps — **TIER_2**, and it stopped being a
+      tracking issue once measured. Three of the four were ONE bug and
+      not the one any of the three files named: `isBarewordHandle` took
+      any all-caps word, so `__PACKAGE__`, `__LINE__`, `__FILE__` and
+      `__CLASS__` landed in `print`'s filehandle slot and the comma
+      after them was stranded. Perl distinguishes the cases itself --
+      `print FOO, 1` is a syntax error and `print __PACKAGE__, 1` is
+      not -- so the fix is a four-name exception with a test that the
+      handle slot still works. Fixed in `831eaa1d`.
+
+      The measurement corrected the issue's framing three times: `print
+      FOO, "\n"` refuses identically so this was never about
+      compile-time tokens as such; `__PACKAGE__` alone always parsed;
+      and the `#line` directive ALREADY WORKED, its file having refused
+      on a `print __LINE__` line instead. Corpus 185 clean to 188, 27
+      refusing to 24; T2 `comp/package.t` 7 to 6.
+
+      The fourth is `defer` and is now `01a0d087`. Removing it from
+      `statementKeywords` improves two T1 files and exposes a canon
+      round-trip defect the refusal was masking (`defer.t` stops
+      re-emitting identically), and the statement-level `WORD BLOCK
+      ARG` shape has no reader -- indirect object notation, which
+      `new Foo;` also refuses on. Three pieces, scoped there rather
+      than forced here. 5/5 criteria verified; review dispatched.
 - [x] `01a0cfb2` forty-nine vacuous facts — **TIER_2**, and the gate
       earned its keep twice over.
 
