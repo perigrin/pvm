@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-23T02:07:02.60006476Z
-updated: 2026-09-23T02:07:02.60006476Z
+updated: 2026-09-23T02:25:30.98168097Z
 ---
 
 `BEGIN` appears in 99 of T1's 986 files and in none of the corpus's 179.
@@ -52,7 +52,7 @@ Four, in `12_packages`, which owns `use` and compile-time loading:
 ## Acceptance criteria
 
 - [ ] Tier 12 holds a file whose output pins BEGIN running before the main program (`awk '/^--- source/{s=1;next} /^--- expect/{s=0} s' conformance/12_packages/*.t | grep -q 'BEGIN'`)
-- [ ] A file pins that a `# line` directive rewrites __LINE__, which a comment-skipping lexer gets wrong (`awk '/^--- source/{s=1;next} /^--- expect/{s=0} s' conformance/12_packages/*.t | grep -q '__LINE__'`)
+- [ ] A file pins that a # line directive rewrites __LINE__, which a comment-skipping lexer gets wrong (`awk '/^--- source/{s=1;next} /^--- expect/{s=0} s' conformance/12_packages/*.t | grep -q '__LINE__'`)
 - [ ] Every new file is validated against pinned perl 5.42.0 before it counts (`go test ./internal/conformance/ -run '^TestTierPackagesPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierPackagesPerlValidated'`)
 - [ ] The dependency lint passes over the tier (`go test ./internal/conformance/ -run '^TestTierPackagesLint$' -count=1 -v | grep -q '^--- PASS: TestTierPackagesLint'`)
 - [ ] The tier's adjacency file holds every construct it introduces (`go test ./internal/conformance/ -run '^TestTierPackagesAdjacency$' -count=1 -v | grep -q '^--- PASS: TestTierPackagesAdjacency'`)
