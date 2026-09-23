@@ -232,3 +232,44 @@ see it:
 Only an assertion about the token stream distinguishes the two, which is
 why this section exists and why it is written against the glossary rather
 than against `lexer.Kind`.
+
+## Pattern internals are out of scope
+
+A measurement of this corpus against T1 or perlre reports roughly three
+dozen absent regex constructs -- `(?:` `(?=` `(?!` `[^` `\d` `\b` `$1`
+`{2,3}` and the rest of pattern syntax. They are absent by DECISION, and
+this section exists so the next measurement reports a boundary rather
+than a backlog.
+
+**The measurement that decided it.** A pattern is ONE TOKEN. Tier 09
+pins this directly: `m{a{b}c}` is a single quote-like operator whose
+text includes its delimiters and its nested braces. Everything between
+the delimiters is inside that one token, so no token fact can reach `(`
+or `|` or `[0-9]` -- there is no token for them to be about. The
+glossary has twelve categories and not one of them describes
+pattern-internal structure.
+
+**Asserting it would need one of two things the plan forbids.** A new
+glossary category for pattern internals would make the corpus assert a
+sub-language our lexer deliberately does not lex, and an adopter whose
+lexer is also opaque here could not answer it. A claim about tree shape
+is ruled out outright: "No corpus file asserts CST shape, and none
+should" -- that coupling is what makes a corpus unusable by anyone whose
+tree differs.
+
+**What tier 09 asserts instead is OPACITY, and it is the right claim.**
+Its facts are of the form `no operator whose text is "/"` and `no word
+whose text is "abc"`: the delimiter did not leak out, and the contents
+were not lexed as code. That is a real, checkable property and it is
+exactly what a Perl lexer must do. A parser that treats a pattern body
+as an opaque string is CORRECT by this corpus, deliberately. Pattern
+semantics belong to the regex engine, which is a separate language with
+its own compiler.
+
+**The one place the boundary is crossed is tier 14**, for `(?{ })`,
+`s///e` and `s///ee`, and for a stated reason: there the contents are PERL rather
+than pattern syntax, so a lexer must re-enter. `14_recursive/03_code_block.t`
+carries that case and makes its claim through tokens for the same reason
+this section gives -- the block is inside the match's one token, and the
+file asserts a numeric literal that can only appear if something read
+into the pattern.

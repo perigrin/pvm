@@ -25,6 +25,27 @@ lexer must delimit it without lexing it. Tiers 13 and 14 are built entirely
 on that problem; this tier is where it first appears in an easy form, with
 one pair of delimiters and no re-entry.
 
+## What this tier claims, and what it does not
+
+**Its claims are about DELIMITERS and OPACITY, not about pattern
+syntax.** A pattern is one token -- `m{a{b}c}` is a single quote-like
+operator, nested braces and all -- so every fact this tier can state is
+about the boundary of that token rather than its contents. The files
+test delimiters exhaustively, because choosing the delimiter and finding
+its match is the lexer's whole job here, and they assert opacity through
+negatives: the delimiter did not leak out, and the contents were not
+lexed as code.
+
+**Pattern internals are out of scope by decision, not by oversight.**
+`conformance/README.md` records the measurement and the reasoning. A
+parser that treats a pattern body as an opaque string passes this tier,
+and is correct to.
+
+**`14_recursive` is the deliberate exception.** `(?{ })` puts a Perl
+statement inside a pattern and `s///e` puts one in a replacement, so
+there the contents are code and a lexer must re-enter. That tier carries
+those cases; this one stops at the delimiter.
+
 ## DEPENDS ON
 
     01_literals
