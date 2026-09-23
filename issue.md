@@ -1,10 +1,19 @@
 ---
 title: Inc/dec, logical not, unary plus and the file tests, none as a subject
-state: pending
+state: in-progress
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-23T02:07:02.684116637Z
-updated: 2026-09-23T02:25:31.10034613Z
+updated: 2026-09-23T17:44:20.265778898Z
+sessions:
+- start_sha: c2adc1f75f71cd96e8cf5067a659da2199c28462
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-23T17:44:20.265778898Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-23T17:44:20.265778898Z
 ---
 
 Four gaps at perlop's unary and named-unary levels, grouped because each
