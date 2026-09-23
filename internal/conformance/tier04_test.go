@@ -220,6 +220,51 @@ var operatorKinds = map[string]string{
 	"compound_repeat":       "$t x=",
 	"compound_shortcircuit": "//=",
 	"compound_bitwise":      "|=",
+
+	// The unary slice (issue 01a0cc04-341c), perlop's levels 3, 5 and
+	// 10, which had between them one file and it was about something
+	// else.
+	//
+	// `incdec` and `string_increment` share the `++` operator, so
+	// neither can be told from the other by it. What separates them is
+	// the OPERAND: the numeric file writes all four spellings and is
+	// the only file in the tier that decrements, so `--$` places it;
+	// the string file's subject is the magic that makes `"Az"` into
+	// `"Ba"`, and that operand is what it is about.
+	//
+	// `logical_not` is spelled `!$` rather than `!`, because a bare `!`
+	// is satisfied by `!=` -- which this tier already uses -- and by the
+	// `q!...!` delimiters tiers 01 and 09 write. The sigil is what makes
+	// it the operator.
+	//
+	// `unary_plus` carries the paren it exists to disambiguate: a `+` on
+	// its own is the binary operator `precedence` already claims.
+	//
+	// `file_test` is spelled `-e $` for the same reason the bitwise band
+	// carries its spaces: a bare `-e` matches inside a word, and a `-`
+	// on its own is the negation this tier writes in `-$n ** 2`.
+	"incdec":           "--$",
+	"string_increment": `"Az"`,
+	"logical_not":      "!$",
+	"unary_plus":       "+(",
+	"file_test":        "-e $",
+}
+
+// refusingFile names the tier-04 files exempt from the adjacency
+// requirement because the construct they introduce REFUSES.
+//
+// This is a different exemption from pragmaScopedFile's. That one is
+// forced by the format -- a file-scoped pragma cannot be scoped to part
+// of a body. This one is forced by the refusal: 00_adjacency.t must
+// parse and run for every OTHER construct it places, and a construct
+// our lexer cannot read would make the whole body refuse, taking the
+// working pairings down with it.
+//
+// The exemption lapses when the refusal does. A file listed here that
+// no longer refuses is a file that belongs in the adjacency body, and
+// the check below says so rather than letting it sit exempt forever.
+var refusingFile = map[string]string{
+	"31_file_test.t": "01a0cf64-8436-7f82-bcb5-587f0eba266f",
 }
 
 // pragmaScopedFile names the tier-04 files exempt from the adjacency
@@ -342,6 +387,22 @@ func TestTierOperatorsAdjacency(t *testing.T) {
 		// reason: it is the ungated half of the same claim and means
 		// nothing without the gated one.
 		if pragmaScopedFile[name] {
+			continue
+		}
+		// A refusing construct cannot join a body that has to run. The
+		// exemption is checked against the file's own parsed STATUS, so
+		// it cannot outlive the refusal it excuses.
+		if issue, exempt := refusingFile[name]; exempt {
+			if f.Refuses == "" {
+				t.Errorf("%s is exempt from adjacency as a refusal (issue %s), "+
+					"but it no longer declares one.\n"+
+					"\tA construct that parses belongs in %s. Drop the "+
+					"exemption and add it to the body.", name, issue, adjacencyFile)
+			} else if f.Refuses != issue {
+				t.Errorf("%s is exempt as refusal %s but declares %s.\n"+
+					"\tThe exemption names the issue it waits on; a "+
+					"mismatch means one of the two moved.", name, issue, f.Refuses)
+			}
 			continue
 		}
 		if !strings.Contains(adj.Source, spelling) {

@@ -45,7 +45,7 @@ without a runtime operand this tier has nothing to measure. See below.
 
 ## INTRODUCES
 
-    add and andassign bit_and bit_or bit_xor chr complement concat defined divide dor dorassign eq ge gt index le left_shift lt modulo multiply nbit_and ncmp ne negate not or orassign ord pow repeat right_shift scmp seq sge sgt sle slt sne sprintf substr subtract undef xor
+    add and andassign bit_and bit_or bit_xor chr complement concat defined divide dor dorassign eq ftis ge gt index le left_shift lt modulo multiply nbit_and ncmp ne negate not or orassign ord postdec postinc pow predec preinc repeat right_shift scmp seq sge sgt sle slt sne sprintf substr subtract undef xor
 
 ## Why those ops, and not the ones the source implies
 

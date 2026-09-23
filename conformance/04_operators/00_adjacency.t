@@ -43,6 +43,19 @@
 # and each of them parses in isolation. The adjacency claim they make is
 # about placement, not about refusal.
 #
+# The unary slice -- `++`, `--`, the magic string increment, `!` and
+# unary `+`, on the sixth print line -- contributes no Unknown either.
+# Measured the same way: five before, five after.
+#
+# The sixth construct of that slice, the FILE TEST, is the one thing this
+# tier introduces that is NOT here. `-e $f` is a construct our lexer
+# splits into `Operator(-) Word(e)`, so putting it in this body would
+# make the whole file refuse for a lexical reason and take the twenty
+# other pairings down with it. `31_file_test.t` carries it alone with its
+# own refusal, and `refusingFile` in tier04_test.go records the exemption
+# against that file's declared issue, so the exemption ends when the
+# refusal does rather than outliving it.
+#
 # That is the adjacency file earning its
 # keep: every construct here appears in a sibling file that parses, and
 # only the mixture refuses. A one-construct-per-file corpus would have
@@ -204,11 +217,20 @@ my $def = $ARGV[8] // 0;
 $def //= 99;
 my $mask = $ARGV[9] // 12;
 $mask |= 3;
+my $count = $ARGV[10] // 5;
+$count++;
+$count++;
+--$count;
+my $tag = $ARGV[11] // "Az";
+$tag++;
+my $flag = !$count;
+my $group = +($n + 1) * 2;
 print "sum [$sum] rel [$rel] pick [$pick] rep [", $word x 2, "] pow [$power]\n";
 print join(",", reverse sort @nums), " ", ($n >= 3 xor not $n <= 3), " $loose ", scalar(@cleared), scalar(@filled), "\n";
 print sprintf("%0*d", $n, $n), " [$edit] ", index($edit, "b"), " [", substr($word, 1, 1), "]\n";
 print "bits [$bits] prec [$prec] shift [$shifted] comp [$comp]\n";
 print "acc [$acc] app [$app] rep [$t] def [$def] mask [$mask]\n";
+print "count [$count] tag [$tag] flag [$flag] group [$group]\n";
 
 --- expect output
 sum [-2] rel [00] pick [1] rep [abab] pow [-3]
@@ -216,5 +238,6 @@ sum [-2] rel [00] pick [1] rep [abab] pow [-3]
 003 [bb] 0 [b]
 bits [2] prec [2] shift [12] comp [249]
 acc [7] app [ab] rep [abab] def [0] mask [15]
+count [6] tag [Ba] flag [] group [8]
 
 --- expect parses

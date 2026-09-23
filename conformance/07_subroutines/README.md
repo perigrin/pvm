@@ -46,7 +46,7 @@ pairs against, not the whole reachable set.
 
 ## INTRODUCES
 
-    anoncode argcheck argdefelem argelem entersub leavesub lock postinc
+    anoncode argcheck argdefelem argelem entersub leavesub lock
     return warn
 
 Nine ops. `lock` joined the original eight and is argued for at the end
@@ -61,8 +61,12 @@ and all structurally unreachable while `opsOf` ran `perl
 own subs and dumps each beside the main program. The last section of this
 file records what that changed.
 
-`postinc` is the odd one, and it is claimed here for a gap rather than on
-merit; see the note on it below.
+`postinc` WAS claimed here, and is not any more. This tier emitted it as
+a side effect of `07_args_alias.t`, whose subject is argument aliasing,
+and held it "for a gap rather than on merit" because no tier had a file
+about the operator. `04_operators/27_incdec.t` is that file, so the op
+moved to the tier that owns its level -- perlop puts `++` at level 3,
+four tiers before subroutines exist.
 
 ## Why those ops, and not the ones the source implies
 
