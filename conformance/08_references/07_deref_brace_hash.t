@@ -35,5 +35,4 @@ print scalar(keys %copy), " ", ${$r}{a}, "\n";
 --- expect parses
 
 --- expect tokens
-no operator whose text is "->"
 one operator whose text is "\\"

@@ -36,5 +36,4 @@ print ${$r}[2], "\n";
 --- expect parses
 
 --- expect tokens
-no operator whose text is "->"
 no variable whose text is "${$r}"

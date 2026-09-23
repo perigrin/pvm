@@ -37,4 +37,4 @@ print "$n ", scalar(@c), "\n";
 
 --- expect tokens
 one variable whose text is "$n"
-one variable whose text is "$n"
+one word whose text is "scalar"

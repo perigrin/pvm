@@ -114,6 +114,5 @@ print "$yes$no|\n";
 --- expect parses
 
 --- expect tokens
-no operator whose text is "->"
 one word whose text is "main"
 one string literal whose text is "\"Foo\""

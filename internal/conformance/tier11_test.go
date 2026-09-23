@@ -618,65 +618,85 @@ func describeUnknowns(src []byte) string {
 // could not see the difference at all. `06_indirect_new.t` therefore
 // carries a token fact, and it is the only file in the tier that did.
 //
-// WHY ONE FACT WAS NOT ENOUGH, and this is the gap this test closes. The
-// fact `06_indirect_new.t` declares is a NEGATIVE: `no operator whose
-// text is "->"`. A negative alone is satisfied VACUOUSLY by a lexer that
-// never produces `->` at all -- one that folded the arrow into the word
-// beside it, or dropped it as trivia, passes the indirect file's claim
-// perfectly while getting every direct call in the tier wrong. Six of the
-// corpus's tiers have shipped a file that asserted behaviour while
-// asserting nothing a broken lexer would fail; this is the same shape,
-// and the fix is the matching POSITIVE claim somewhere in the tier.
+// WHY THE POSITIVE FACT AND NOT A NEGATIVE ONE, which this test asked
+// for and got wrong. It used to require BOTH a file declaring
+// `one operator whose text is "->"` and a file declaring
+// `no operator whose text is "->"`, reasoning that the negative caught a
+// lexer which never emits an arrow at all.
 //
-// So the tier is required to hold BOTH sides of the contrast:
+// MEASURED, it does not. Delete `"->"` from `operators` in
+// `internal/lexer/scan.go` -- a lexer that cannot tell an arrow from a
+// minus and a `>`, which is the exact case the old comment named -- and
+// run the corpus. Ten files fail, every one of them on a POSITIVE fact.
+// Not one negative fails. `06_indirect_new.t`'s source contains no `->`
+// bytes, so `checkTokenFact`, which counts tokens whose text equals the
+// claimed string, can never count one there whatever the lexer does.
 //
-//   - a file whose source spells the call indirectly and declares that no
-//     arrow operator is there, and
-//   - a file whose source spells it directly and declares that one is.
+// So the positive is the whole guard, and it is a real one: it fails
+// when the arrow is dropped, folded into the word beside it, or split.
 //
-// Together they are falsifiable: a lexer that emits no arrow fails the
-// second, a lexer that invents one fails the first, and a lexer that
-// cannot tell `->` from a minus followed by a `>` fails both.
-//
-// The tokens are re-lexed here rather than trusted from the files'
-// declarations, because a declaration the runner did not check is prose.
-// `TestCorpus` does check them, and that is the gate; this asserts the
-// tier HAS them, which is the part that was missing.
+// THE OTHER HALF OF THE CONTRAST IS A CLAIM ABOUT THE SOURCE, not about
+// tokens, and is asserted as one below. `new Foo` and `Foo->new` compile
+// to the same op stream, so the corpus needs a file spelled each way --
+// and "spelled indirectly" means the source has the call without an
+// arrow, which is a question to ask of the source text.
 func TestTierOoArrowIsLexical(t *testing.T) {
-	const (
-		arrowAbsent  = `no operator whose text is "->"`
-		arrowPresent = `one operator whose text is "->"`
-	)
+	const arrowPresent = `one operator whose text is "->"`
 
-	var declaredAbsent, declaredPresent []string
+	var declaredPresent, spelledIndirectly []string
 	for name, f := range tierFiles(t, tierOo) {
 		for _, fact := range f.TokenFacts {
-			switch fact {
-			case arrowAbsent:
-				declaredAbsent = append(declaredAbsent, name)
-			case arrowPresent:
+			if fact == arrowPresent {
 				declaredPresent = append(declaredPresent, name)
 			}
 		}
+		// The indirect spelling, asked of the source because that is
+		// where it lives: a method call written with no arrow in it.
+		if ooCallsIndirectly(f.Source) {
+			spelledIndirectly = append(spelledIndirectly, name)
+		}
 	}
 
-	if len(declaredAbsent) == 0 {
-		t.Errorf("no file in %s declares %q.\n"+
-			"\tIndirect object notation is a LEXING problem -- `new Foo` "+
-			"and `Foo->new` emit an identical op stream -- so the absence "+
-			"of the arrow is the only place the construct is visible.",
-			tierOo, arrowAbsent)
-	}
 	if len(declaredPresent) == 0 {
 		t.Errorf("no file in %s declares %q.\n"+
-			"\tThe negative claim alone is satisfied VACUOUSLY by a lexer "+
-			"that never emits `->` at all. Without the matching positive "+
-			"claim the tier asserts nothing a broken lexer would fail.",
-			tierOo, arrowPresent)
+			"\tThis is the tier's only guard against a lexer that drops "+
+			"the arrow, folds it into the word beside it, or splits it "+
+			"into a minus and a `>`. Measured: removing `->` from the "+
+			"lexer's operator table fails exactly the files carrying "+
+			"this fact.", tierOo, arrowPresent)
 	}
-	t.Logf("arrow absent in %s; arrow present in %s",
-		strings.Join(declaredAbsent, ", "), strings.Join(declaredPresent, ", "))
+	if len(spelledIndirectly) == 0 {
+		t.Errorf("no file in %s spells a method call INDIRECTLY.\n"+
+			"\t`new Foo` and `Foo->new` emit an identical op stream, so "+
+			"the spelling is the only place the construct is visible and "+
+			"a tier holding only the direct form cannot see it at all.",
+			tierOo)
+	}
+	t.Logf("arrow declared present in %s; indirect spelling in %s",
+		strings.Join(declaredPresent, ", "),
+		strings.Join(spelledIndirectly, ", "))
 }
+
+// ooCallsIndirectly reports whether a source spells a method call in the
+// indirect-object form -- `new Foo`, a bareword method followed by a
+// bareword class, with no arrow between them.
+//
+// Deliberately narrow: it looks for the `new Foo` shape this tier
+// actually writes rather than trying to recognise indirect object
+// notation in general, which is undecidable without a parser and would
+// make this test assert something about our parser rather than about
+// the corpus.
+func ooCallsIndirectly(src string) bool {
+	return reIndirectCall.MatchString(src)
+}
+
+// reIndirectCall matches `= new Foo;` and `= new Foo(...)`: an
+// assignment to a bareword method applied to a bareword class.
+//
+// Anchored on the `=` so a `sub new {` declaration does not match, and
+// requiring an initial capital on the class so an ordinary two-word
+// call like `print STDERR` does not.
+var reIndirectCall = regexp.MustCompile(`=\s*[a-z]\w*\s+[A-Z]\w*\s*[;(]`)
 
 // TestTierOoClassKeywordsAreLexed closes the tier's other lexical gap.
 //

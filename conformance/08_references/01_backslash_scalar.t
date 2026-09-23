@@ -31,5 +31,4 @@ print "$$s[0] $$s[1]\n";
 --- expect parses
 
 --- expect tokens
-no operator whose text is "->"
 one operator whose text is "\\"

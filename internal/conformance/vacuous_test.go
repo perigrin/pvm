@@ -146,21 +146,7 @@ func TestNegativeFactsNameTextTheSourceContains(t *testing.T) {
 					"not running.", path, fact, err)
 				continue
 			}
-			key := path + ": " + fact
-			vacuous := !strings.Contains(f.Source, text)
-
-			// A negative naming text its own source lacks is still a
-			// claim when a positive partner makes the pair
-			// falsifiable. Checked, not trusted: the partner has to be
-			// there now, not when the entry was written.
-			if vacuous {
-				if _, paired := pairedNegative[text]; paired &&
-					hasPositivePartner(t, filepath.Dir(path), m[1], text) {
-					continue
-				}
-			}
-
-			if vacuous && !knownVacuous[key] {
+			if !strings.Contains(f.Source, text) {
 				t.Errorf("%s: %q can never fail.\n"+
 					"\tThe source does not contain %q anywhere, so no "+
 					"lexing of it -- correct or broken -- can produce a "+
@@ -170,93 +156,9 @@ func TestNegativeFactsNameTextTheSourceContains(t *testing.T) {
 					"the fact and say in the header why none is honest.",
 					path, fact, text)
 			}
-			if !vacuous && knownVacuous[key] {
-				t.Errorf("%s: %q is listed in knownVacuous and is no "+
-					"longer vacuous.\n"+
-					"\tRemove the entry. A list that keeps excusing "+
-					"repaired facts stops describing the corpus, and the "+
-					"next reader cannot tell which entries are still "+
-					"real.", path, fact)
-			}
-			seenVacuous[key] = true
-		}
-	}
-
-	// An entry naming a fact the walk never reached is stale: the file
-	// was renamed or the fact reworded, and the entry now excuses
-	// nothing while looking like it excuses something.
-	for key := range knownVacuous {
-		if !seenVacuous[key] {
-			t.Errorf("knownVacuous lists %q, which no corpus file "+
-				"declares.\n\tThe file or the fact moved. Remove the "+
-				"entry; a list that outlives what it describes is a "+
-				"list nobody can check.", key)
 		}
 	}
 }
-
-// knownVacuous is the set of negative token facts that were already
-// vacuous when this check was written, keyed `<tier>/<file>: <fact>`.
-//
-// FORTY-NINE OF THE CORPUS'S 115 NEGATIVE FACTS ASSERT NOTHING. That is
-// the measurement this check produced on its first run, and it is too
-// large to repair inside the issue that found it -- ten tiers are
-// involved. Issue 01a0cfb2 carries the repair.
-//
-// A ratchet rather than a skip, for the reason the corpus ratchet
-// exists: a skipped check is a check no one is told about, and these 49
-// would sit unfixed and unmentioned. Listed, they are a finding with a
-// number attached, a new one fails, and a repaired one fails too -- so
-// the list shrinks as the repair lands and cannot quietly go stale.
-//
-// Every entry here is a fact to DELETE OR REPLACE, not one to defend.
-var knownVacuous = map[string]bool{}
-
-// pairedNegative names a token-fact text whose negative is vacuous ALONE
-// and falsifiable AS A PAIR, with the tier that must hold both halves.
-//
-// `TestTierOoArrowIsLexical` found this before this check existed and
-// reasoned it out fully: indirect object notation is a LEXING problem --
-// `new Foo` and `Foo->new` emit an identical op stream -- so the absence
-// of the arrow is the only place the construct is visible. A lone
-// negative is satisfied by a lexer that never emits `->` at all. The fix
-// is not to drop the negative but to require the matching POSITIVE
-// somewhere in the same tier: then a lexer emitting no arrow fails the
-// positive, one inventing arrows fails the negative, and one that cannot
-// tell `->` from a minus and a `>` fails both.
-//
-// This is the ONE case where a fact naming text its own source lacks is
-// still a claim, and it is narrow: the partner must exist, and the check
-// below verifies it rather than trusting this list. A tier holding only
-// the negative is exactly the vacuous case the pairing was invented to
-// avoid -- which is why `10_io/07_say.t` is NOT here and its arrow fact
-// was deleted instead.
-var pairedNegative = map[string]string{
-	`->`: "a file in the same tier declaring `one operator whose text is \"->\"`",
-}
-
-// hasPositivePartner reports whether some file in the same tier declares
-// the matching positive fact, which is what makes the negative a claim.
-func hasPositivePartner(t *testing.T, tier, category, text string) bool {
-	t.Helper()
-	want := "one " + category + " whose text is " + strconv.Quote(text)
-	for path, f := range allFilesForVacuity(t) {
-		if filepath.Dir(path) != tier {
-			continue
-		}
-		for _, fact := range f.TokenFacts {
-			if strings.TrimSpace(fact) == want {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// seenVacuous records which knownVacuous entries the walk actually
-// reached, so an entry naming a file or fact that no longer exists is
-// reported rather than sitting there forever.
-var seenVacuous = map[string]bool{}
 
 // allFilesForVacuity reads every corpus file, keyed by its tier-relative
 // path.

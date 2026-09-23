@@ -26,6 +26,13 @@
 # `!` as numeric negation prints `[-0][0]` or similar. The two brackets
 # are what separate them.
 #
+# THE TOKEN FACT NAMES THE FUSION. Measured, `!!$a` lexes as TWO
+# separate `Operator("!")` tokens. There is no `!!` entry in the
+# lexer operator table and there should not be, because perl has
+# no such operator -- but the source writes the two bytes
+# adjacently, so they are there for a greedy scan to fuse, and
+# the fact fails exactly then.
+#
 # `not` is the same operation at a different precedence and appears in
 # `05_logical.t`, which parenthesises every operator it writes and so
 # measures RETURN VALUES rather than binding -- its own header says so.
@@ -45,4 +52,4 @@ print "[", !$a, "][", !!$a, "]\n";
 --- expect parses
 
 --- expect tokens
-one word whose text is "print"
+no operator whose text is "!!"

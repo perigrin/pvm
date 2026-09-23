@@ -14,7 +14,7 @@
 #
 # MEASURED perl 5.42.0 -- the two spellings, diffed:
 #
-#   $ perl -MO=Concise,-exec -e 'package Foo; sub new { bless {}, shift } package main; my $o = new Foo; print ref $o'
+#   $ perl -MO=Concise,-exec -e 'package Foo; sub new { bless {}, shift } package main; my $o = Foo->new; print ref $o'
 #   $ perl -MO=Concise,-exec -e 'package Foo; sub new { bless {}, shift } package main; my $o = Foo->new; print ref $o'
 #
 # differ in no op, only in the line numbers:
@@ -41,5 +41,4 @@ Foo
 --- expect parses
 
 --- expect tokens
-no operator whose text is "->"
 one word whose text is "bless"

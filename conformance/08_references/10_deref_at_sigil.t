@@ -9,9 +9,16 @@
 # This file exists because `06_deref_at.t` cannot make the claim. That
 # file interpolates `@{$r}` inside a double-quoted string, where the
 # whole string is one token and the dereference is not separately
-# tokenised at all -- its `no operator whose text is "->"` fact is
-# satisfied by the `\@a` on the line above and says nothing about the
-# construct the file is named for.
+# tokenised at all, so nothing there can assert what the sigil form
+# lexes to.
+#
+# It once also carried `no operator whose text is "->"`, and an
+# earlier version of this note said that fact was "satisfied by the
+# \@a on the line above". That was wrong about the mechanism: a
+# negative fact is satisfied by ABSENCE, not by some other token
+# standing in for it. The fact was vacuous because that source contains
+# no `->` bytes at all, so no lexing of it could produce one. It has
+# since been deleted, along with eight siblings, by `01a0cfb2`.
 #
 # The claim here is `no variable whose text is "@$r"`. Measured, our
 # lexer produces two tokens, `DerefSigil(@) Variable($r)`, and a lexer

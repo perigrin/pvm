@@ -68,6 +68,22 @@
 # claim is the one this source can make that a broken lexer fails and a
 # correct one passes.
 
+# THE TOKEN FACT HERE IS WEAK AND THE FILE SAYS SO. `one word whose
+# text is "print"` would pass any lexer that tokenises identifiers at
+# all; it asserts nothing about `caller`.
+#
+# Measured, nothing better is available. `caller`, `scalar`, `$s` and
+# `@l` each appear twice, `@one` twice, and the fact grammar has only
+# `one` and `no` -- so no count fits, and every negative that would be
+# reachable here names a spelling the source writes, which makes it
+# false rather than vacuous.
+#
+# What this file actually claims is its OUTPUT: `1 0`, which separates
+# scalar `caller` (returning a package name) from list `caller` at the
+# top level (returning the empty list). The token layer has nothing to
+# add, and a fact naming text this source cannot produce would be worse
+# than a weak one -- that is the whole finding of `01a0cfb2`.
+
 --- source
 my $s = caller;
 my @l = caller;

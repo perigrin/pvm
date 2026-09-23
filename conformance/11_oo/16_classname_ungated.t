@@ -39,24 +39,31 @@
 # is the honest version of a claim this file got wrong twice.
 #
 # `one word whose text is "__CLASS__"` is true under BOTH readings --
-# the keyword lexes as one word whether it is a keyword or a
-# method name -- so on its own it says nothing about which reading
-# applies. That much an earlier draft had right.
+# the keyword lexes as one word whether it is a keyword or the
+# FILEHANDLE this file measures -- so on its own it says nothing
+# about which reading applies. That much an earlier draft had right.
 #
 # What it concluded was wrong. It added
-# `no operator whose text is "->"`, reasoning that a method call
-# is written with an arrow and this source contains none, so a
-# lexer producing one would have manufactured it. A LEXER CANNOT
-# MANUFACTURE BYTES THAT ARE NOT THERE: `scanOperator` matches its
-# table against `l.src` at each position, so a token whose text is
-# `->` requires those two bytes in the source. The fact could
-# never fail, and a fact that cannot fail asserts nothing.
+# `no operator whose text is "->"`, reasoning that the ungated
+# reading is a method call, that a method call is written with an
+# arrow, and that a lexer producing one here would have
+# manufactured it. A LEXER CANNOT MANUFACTURE BYTES THAT ARE NOT
+# THERE: `scanOperator` matches its table against `l.src` at each
+# position, so a token whose text is `->` requires those two bytes
+# in the source. The fact could never fail, and a fact that cannot
+# fail asserts nothing.
 #
-# The arrow came from perl's DEPARSE of the ungated reading,
-# quoted above -- a claim read off `B::Deparse` and written as if
-# it were a claim about tokens. The reparse is the PARSER
-# reinterpreting the same tokens, not the lexer emitting different
-# ones, which is exactly why the two readings are dangerous.
+# AND THE PREMISE WAS WRONG TOO, which is the sharper half.
+# Measured, the ungated reading here is NOT a method call:
+#
+#   $ perl -MO=Deparse -e 'print __CLASS__;'
+#   print __CLASS__ $_;
+#
+# That is a FILEHANDLE print, as this file's own opening line
+# says and its `gv[*__CLASS__]` measurement shows. There is no
+# arrow in the deparse to have read the claim off. The fact was
+# copied from `14_state_ungated.t`, whose deparse DOES show
+# `$n->state`, without checking that it applied here.
 #
 # So the positive fact stays and does the work it can: the keyword
 # lexes as ONE word, not split and not swallowed. THE OUTPUT IS

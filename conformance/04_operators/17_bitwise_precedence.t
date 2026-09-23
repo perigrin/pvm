@@ -54,4 +54,4 @@ print $a | $b & $c, " ", ($a | $b) & $c, "\n";
 --- expect parses
 
 --- expect tokens
-one word whose text is "print"
+one operator whose text is "("
