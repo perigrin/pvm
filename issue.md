@@ -1,10 +1,10 @@
 ---
 title: BEGIN is in 99 T1 files and no corpus file, with the rest of compile phase
-state: in-progress
+state: done
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-23T02:07:02.60006476Z
-updated: 2026-09-23T17:27:59.570556235Z
+updated: 2026-09-23T17:34:42.078255112Z
 sessions:
 - start_sha: 1afd0f341b23e124940e7ed14440f2338370dd79
   end_sha: df9f271d0a74bb508132371df7b7f0d40a632f0b
@@ -12,9 +12,10 @@ sessions:
   started_at: 2026-09-23T16:51:36.322538387Z
   ended_at: 2026-09-23T17:04:29.609130989Z
 - start_sha: 97c3893fd4ff1f1546c7984579545e96f6d2c33f
-  end_sha: ""
-  commits: 0
+  end_sha: c2adc1f75f71cd96e8cf5067a659da2199c28462
+  commits: 1
   started_at: 2026-09-23T17:27:59.570556235Z
+  ended_at: 2026-09-23T17:34:42.078255112Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
@@ -28,14 +29,27 @@ transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-23T17:27:59.570556235Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-23T17:34:42.078255112Z
 observed_paths:
+- conformance/10_io/00_adjacency.t
+- conformance/10_io/09_glob_assign.t
+- conformance/10_io/10_glob_ref.t
+- conformance/10_io/11_autoload.t
+- conformance/11_oo/14_state_ungated.t
+- conformance/11_oo/15_class_ungated.t
+- conformance/11_oo/16_classname_ungated.t
+- conformance/11_oo/17_defer_ungated.t
 - conformance/12_packages/00_adjacency.t
 - conformance/12_packages/09_begin_end.t
 - conformance/12_packages/10_compile_tokens.t
 - conformance/12_packages/11_line_directive.t
 - conformance/12_packages/12_use_constant.t
 - internal/conformance/testdata/corpus.ratchet
+- internal/conformance/tier11_test.go
 - internal/conformance/tier12_test.go
+- internal/conformance/vacuous_test.go
 ---
 
 `BEGIN` appears in 99 of T1's 986 files and in none of the corpus's 179.
