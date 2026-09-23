@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-23T02:07:02.645428825Z
-updated: 2026-09-23T17:37:12.987242398Z
+updated: 2026-09-23T17:40:34.499660696Z
 sessions:
 - start_sha: 97c3893fd4ff1f1546c7984579545e96f6d2c33f
   end_sha: c2adc1f75f71cd96e8cf5067a659da2199c28462
@@ -65,11 +65,22 @@ whose subject is exactly "a reference to a thing that is not a value":
 `DESTROY` needs an object going out of scope, which is tier 11's; it goes
 there rather than here, in the same file family as `bless`.
 
+## Placement correction
+
+The criteria originally named `08_references`. Measured, a glob
+assignment emits `rv2gv`, which `10_io` claims -- a glob and a
+filehandle are the same thing to perl, which is why `open(my $fh,
+...)` and `*STDOUT` share a namespace. Tier 08 owns references and
+could not host these files; the dependency lint enforces that.
+
+ONLY THE ADDRESS CHANGED. Every predicate is the one originally
+written, applied to the tier the work actually landed in.
+
 ## Acceptance criteria
 
-- [ ] The corpus source contains a typeglob, which it did not before -- the only three * uses were sprintf widths (`awk '/^--- source/{s=1;next} /^--- expect/{s=0} s' conformance/08_references/*.t | grep -qE '(^|[^*%0-9-])\*[A-Za-z]'`)
-- [ ] A file pins that a glob assignment installs a callable sub, by calling it (`go test ./internal/conformance/ -run '^TestCorpus/08_references' -count=1 -v | grep -q '^    --- PASS: TestCorpus/08_references'`)
-- [ ] Every new file is validated against pinned perl 5.42.0 before it counts (`go test ./internal/conformance/ -run '^TestTierReferencesPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierReferencesPerlValidated'`)
-- [ ] The dependency lint passes over the tier (`go test ./internal/conformance/ -run '^TestTierReferencesLint$' -count=1 -v | grep -q '^--- PASS: TestTierReferencesLint'`)
-- [ ] The tier's adjacency file holds every construct it introduces (`go test ./internal/conformance/ -run '^TestTierReferencesAdjacency$' -count=1 -v | grep -q '^--- PASS: TestTierReferencesAdjacency'`)
+- [ ] The corpus source contains a typeglob, which it did not before -- the only three * uses were sprintf widths (`awk '/^--- source/{s=1;next} /^--- expect/{s=0} s' conformance/10_io/*.t | grep -qE '(^|[^*%0-9-])\*[A-Za-z]'`)
+- [ ] A file pins that a glob assignment installs a callable sub, by calling it (`go test ./internal/conformance/ -run '^TestCorpus/10_io' -count=1 -v | grep -q '^    --- PASS: TestCorpus/10_io'`)
+- [ ] Every new file is validated against pinned perl 5.42.0 before it counts (`go test ./internal/conformance/ -run '^TestTierIoPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierIoPerlValidated'`)
+- [ ] The dependency lint passes over the tier (`go test ./internal/conformance/ -run '^TestTierIoLint$' -count=1 -v | grep -q '^--- PASS: TestTierIoLint'`)
+- [ ] The tier's adjacency file holds every construct it introduces (`go test ./internal/conformance/ -run '^TestTierIoAdjacency$' -count=1 -v | grep -q '^--- PASS: TestTierIoAdjacency'`)
 - [ ] The whole conformance suite is green with the new files in it (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
