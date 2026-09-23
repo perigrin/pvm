@@ -1,10 +1,19 @@
 ---
 title: Six keywords that silently reparse when their feature is off
-state: pending
+state: in-progress
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-23T02:07:02.559443716Z
-updated: 2026-09-23T02:25:30.906951237Z
+updated: 2026-09-23T16:33:23.880128542Z
+sessions:
+- start_sha: dba3a2a8f33826ff834672eb4a84f0faf854bc36
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-23T16:33:23.880128542Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-23T16:33:23.880128542Z
 ---
 
 Every version-gated feature in the corpus is tested ONLY in its enabled
