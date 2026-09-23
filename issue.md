@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: v0.1
 created: 2026-09-23T23:08:33.884597854Z
-updated: 2026-09-23T23:54:39.887673967Z
+updated: 2026-09-23T23:54:55.012827907Z
 ---
 
 `defer` sits in `statementKeywords` because the GATED form -- a block
@@ -66,13 +66,13 @@ to 11, `defer_implicit_return_cleanup.t` to zero -- and one breaks:
       first emission has "CloseBracket }", second has "Semicolon ;"
 
 `defer.t` stops re-emitting identically. Parsing further into the file
-exposes a canonicalisation bug that the refusal was hiding.
+exposes a canonicalisation bug that the refusal was hiding. That is a
+correctness defect in its own right and should be understood before the
+parse change lands, not after.
 
 TWO ratchets move, not one: `TestCanonRatchet` also fails with
 `defer.t: 0 -> 1`. Same underlying defect counted a second way, so it
-does not change the conclusion, but both baselines are in scope. That is a
-correctness defect in its own right and should be understood before the
-parse change lands, not after.
+does not change the conclusion, but both baselines are in scope.
 
 ## Scope
 
