@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-23T02:07:02.721145536Z
-updated: 2026-09-23T02:07:02.721145536Z
+updated: 2026-09-23T02:25:31.179147934Z
 ---
 
 `07_subroutines/03_call_forms.t` documents a distinction and then builds
@@ -60,7 +60,7 @@ belongs in the same file: it passes nothing, unlike bare `&f`.
 ## Acceptance criteria
 
 - [ ] The call-forms file's callee reports its arguments rather than ignoring them (`awk '/^--- source/{s=1;next} /^--- expect/{s=0} s' conformance/07_subroutines/03_call_forms.t | grep -q '@_'`)
-- [ ] Its pinned output differs between the `&f` and `f()` spellings, so the claim is observable (`go test ./internal/conformance/ -run '^TestCorpus/07_subroutines' -count=1 -v | grep -q '^    --- PASS: TestCorpus/07_subroutines'`)
+- [ ] Its pinned output differs between the &f and f() spellings, so the claim is observable (`go test ./internal/conformance/ -run '^TestCorpus/07_subroutines' -count=1 -v | grep -q '^    --- PASS: TestCorpus/07_subroutines'`)
 - [ ] The file is validated against pinned perl 5.42.0 (`go test ./internal/conformance/ -run '^TestTierSubroutinesPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierSubroutinesPerlValidated'`)
 - [ ] The dependency lint passes over the tier (`go test ./internal/conformance/ -run '^TestTierSubroutinesLint$' -count=1 -v | grep -q '^--- PASS: TestTierSubroutinesLint'`)
 - [ ] The whole conformance suite is green with the change in it (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
