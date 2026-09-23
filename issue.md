@@ -1,19 +1,71 @@
 ---
 title: Forty-nine negative token facts name text their source never contains
-state: in-progress
+state: done
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-23T19:16:11.345924198Z
-updated: 2026-09-23T21:33:48.307460229Z
+updated: 2026-09-23T21:33:55.181719024Z
 sessions:
 - start_sha: 66e6d10dfed49b493965299ae1c5d6fcc9088c25
-  end_sha: ""
-  commits: 0
+  end_sha: 95cf8935c0ed1334c63e25964bff53ff6c7b9837
+  commits: 2
   started_at: 2026-09-23T20:25:52.910408381Z
+  ended_at: 2026-09-23T21:33:55.181719024Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-23T20:25:52.910408381Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-23T21:33:55.181719024Z
+observed_paths:
+- conformance/01_literals/03_decimal_integer.t
+- conformance/02_variables/06_each.t
+- conformance/02_variables/14_push.t
+- conformance/02_variables/16_values.t
+- conformance/03_context/03_comma_in_scalar_context.t
+- conformance/03_context/04_reverse.t
+- conformance/03_context/05_sort.t
+- conformance/03_context/06_localtime.t
+- conformance/03_context/08_caller.t
+- conformance/04_operators/07_precedence.t
+- conformance/04_operators/11_chr_ord.t
+- conformance/04_operators/12_index_sentinel.t
+- conformance/04_operators/14_substr_arity.t
+- conformance/04_operators/15_substr_lvalue.t
+- conformance/04_operators/17_bitwise_precedence.t
+- conformance/04_operators/20_bitwise_polymorphic.t
+- conformance/04_operators/28_string_increment.t
+- conformance/04_operators/29_logical_not.t
+- conformance/06_control/09_do_while.t
+- conformance/06_control/13_do_block.t
+- conformance/06_control/14_eval_block.t
+- conformance/06_control/15_die.t
+- conformance/06_control/16_exit.t
+- conformance/06_control/17_time.t
+- conformance/07_subroutines/08_parenless_extent.t
+- conformance/07_subroutines/10_undeclared_callee.t
+- conformance/07_subroutines/13_lock.t
+- conformance/08_references/01_backslash_scalar.t
+- conformance/08_references/02_backslash_list.t
+- conformance/08_references/03_anonymous_array.t
+- conformance/08_references/05_brace_deref.t
+- conformance/08_references/06_deref_at.t
+- conformance/08_references/07_deref_brace_hash.t
+- conformance/08_references/09_ref_builtin.t
+- conformance/08_references/10_deref_at_sigil.t
+- conformance/08_references/12_prototype_builtin.t
+- conformance/10_io/07_say.t
+- conformance/11_oo/06_indirect_new.t
+- conformance/11_oo/10_isa_infix.t
+- conformance/11_oo/14_state_ungated.t
+- conformance/11_oo/15_class_ungated.t
+- conformance/11_oo/16_classname_ungated.t
+- conformance/11_oo/17_defer_ungated.t
+- conformance/12_packages/10_compile_tokens.t
+- conformance/12_packages/12_use_constant.t
+- internal/conformance/tier11_test.go
+- internal/conformance/vacuous_test.go
 ---
 
 Forty-nine of the corpus's 115 negative token facts named text their own
