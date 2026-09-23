@@ -130,7 +130,60 @@ never ran are byte-identical in the chain.
       did not cover. Three out-of-scope findings; `ungatedHalf` drift
       fixed in the same commit, the four parser gaps filed as
       `01a0cf3e`, the shared-worktree noise left as a note.
-- [x] `01a0cc04-33c8` compile phase — gate pending.
+- [x] `01a0cc04-33c8` compile phase — **TIER_2**. The gate found a
+      VACUOUS TOKEN FACT of a class the version-gate gate had already
+      found once: `no string literal whose text is "PI"` can never match,
+      because a Quote token's text INCLUDES its delimiters. Two false
+      header statements in the same pass: `10_compile_tokens.t` said
+      `__PACKAGE__` "appears nowhere else in the source" when it appears
+      twice, and `12_use_constant.t` said a bareword reading of
+      `print PI + 1` prints `1` when measured it deparses to a filehandle
+      print and prints nothing. All three repaired in `c2adc1f7`, which
+      added `vacuous_test.go` so the class is caught mechanically.
+- [x] `01a0cc04-33f5` typeglob — **TIER_2**, reviewed in the same pass as
+      `33c8` and landed in the same commit.
+- [x] `01a0cc04-341c` unary slice — **TIER_2** (five files where the
+      issue promised four, a new Go exemption coupling a test to a corpus
+      file's STATUS, and a cross-tier op move). SIX FINDINGS, all repaired
+      in `7a5a3f0c`: two more vacuous facts (`+++` and `+(`, both naming
+      spellings absent from `scan.go`'s closed operator table); a
+      measurably FALSE justification for real code, where `00_adjacency.t`
+      claimed the file test would make the body refuse and measurement
+      showed the Unknown count unchanged; two false claims in
+      `29_logical_not.t`; an unmigrated `postinc` bullet in tier 07's
+      README whose every sentence had become false; and the `-e($f)`
+      spelling the issue promised and the file omitted.
+- [x] `01a0cc04-3441` call_forms — **TIER_1**. One file, prose and a pin,
+      no new Go logic and no coupling. 5/5 criteria verified at close.
+- [x] `01a0cc04-346d` nonassoc — **TIER_2** (a third adjacency exemption,
+      two new ops claimed for a tier, a test's reasoning corrected). TWO
+      SEVERE FINDINGS, both repaired in `66e6d10d`. A SEVENTH VACUOUS
+      FACT shipped in the very commit that fixed the fifth and sixth:
+      `no operator whose text is "<="` over a source containing no `<=`.
+      The cause was applying the vacuity test at the table level only --
+      `<=` IS a table entry -- and not at the source level. And the issue
+      asked for TWO parsent files where one shipped; the missing one
+      carried level 11, the only `%nonassoc` in perly.y that means what
+      the keyword suggests, so the corpus had claimed only the accepting
+      direction.
+
+      That second finding produced the milestone's largest result.
+      `TestNegativeFactsNameTextTheSourceContains` makes the
+      source-reachability rule mechanical, and it finds 49 of the
+      corpus's 115 negative facts assert nothing. Ten tiers, so the
+      repair is `01a0cfb2` and the 49 are ratcheted rather than skipped.
+      The check also shipped INERT on its first draft -- it captured the
+      fact text without its quotes, so every fact was silently skipped --
+      which is why the skip is now an error.
+- [x] `01a0cc04-34a6` pattern internals — **TIER_1**. Documentation only,
+      no new logic. 5/5 criteria verified at close.
+- [ ] `01a0cf3e` four parser gaps — no gate. It is a TRACKING issue for
+      parser work, not corpus work: the files exist and record the
+      refusals correctly, and it closes when the parser learns the
+      constructs. Its four citations pointed at closed issues until
+      `d95cf4ee`, and its body had two refusal codes swapped.
+- [ ] `01a0cfb2` forty-nine vacuous facts — filed by the `346d` gate,
+      not yet started.
 
 The four backfilled entries are the honest record of a skill violation,
 not a claim that review happened. `crochet:review` at milestone
