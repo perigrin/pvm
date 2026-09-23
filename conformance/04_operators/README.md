@@ -45,7 +45,7 @@ without a runtime operand this tier has nothing to measure. See below.
 
 ## INTRODUCES
 
-    add and andassign bit_and bit_or bit_xor chr complement concat defined divide dor dorassign eq ftis ge gt index le left_shift lt modulo multiply nbit_and ncmp ne negate not or orassign ord postdec postinc pow predec preinc repeat right_shift scmp seq sge sgt sle slt sne sprintf substr subtract undef xor
+    add and andassign bit_and bit_or bit_xor chr cmpchain_and cmpchain_dup complement concat defined divide dor dorassign eq ftis ge gt index le left_shift lt modulo multiply nbit_and ncmp ne negate not or orassign ord postdec postinc pow predec preinc repeat right_shift scmp seq sge sgt sle slt sne sprintf substr subtract undef xor
 
 ## Why those ops, and not the ones the source implies
 
@@ -314,6 +314,31 @@ A conflict needs a left operand to fight over, and those three levels are
 list operators and named unaries -- prefix forms whose second occurrence
 is the first one's ARGUMENT. Five more levels carry no lexable operator
 at all. Only level 11 is a nonassoc that means what the keyword suggests.
+
+**Where each half of this is asserted.** The table above is measured by
+`TestTierOperatorsNonassocMeasured`, which runs every one of the eleven
+levels against the pinned perl rather than reading the keyword -- so the
+table fails if perl changes its mind about any of them.
+
+The corpus-side half had no assertion at all until `32_chained_comparison.t`
+and `33_nonassoc_refusal.t`. Between them they carry what this passage
+could only describe:
+
+- `9 < 1 < 5` is FALSE. Chained it is `9 < 1 && 1 < 5`; read
+  left-associatively it is `("" ) < 5`, which is true. One source, two
+  answers, no diagnostic. `32` pins the chained one and pins an
+  ascending control beside it, so a parser that prints nothing twice
+  fails.
+- perlop's level 13 is documented `chain/na` and the two halves differ:
+  `1 == 1 == 1` compiles, `1 <=> 2 <=> 3` does not. `33` is a `parsent`
+  file carrying the refusal. A parser modelling level 13 as ONE
+  associativity class is wrong whichever it picks.
+
+Those two files are also why this tier now claims `cmpchain_and` and
+`cmpchain_dup`. Before them no tier claimed either op, which is what
+made a chaining file fail the dependency lint -- and what an earlier
+comment on `TestTierOperatorsCmpchain` mistook for the tier being unable
+to hold one.
 
 Level 27 is the sharpest of the three rejections, because it is not a
 rejection by the grammar: perl PARSES `$a++ ++` and declines it at the

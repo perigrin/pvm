@@ -47,14 +47,30 @@
 # unary `+`, on the sixth print line -- contributes no Unknown either.
 # Measured the same way: five before, five after.
 #
+# The chained comparison joined with the nonassoc slice, and is the
+# first construct here whose op was unclaimed by any tier until its own
+# file arrived: `cmpchain_and` and `cmpchain_dup` are tier 04's now.
+# Its partner `33_nonassoc_refusal.t` is NOT here and cannot be --
+# `1 <=> 2 <=> 3` is a syntax error perl itself rejects, and a body
+# holding one has no output to pin.
+#
 # The sixth construct of that slice, the FILE TEST, is the one thing this
-# tier introduces that is NOT here. `-e $f` is a construct our lexer
-# splits into `Operator(-) Word(e)`, so putting it in this body would
-# make the whole file refuse for a lexical reason and take the twenty
-# other pairings down with it. `31_file_test.t` carries it alone with its
-# own refusal, and `refusingFile` in tier04_test.go records the exemption
-# against that file's declared issue, so the exemption ends when the
-# refusal does rather than outliving it.
+# tier introduces that is NOT here, and the reason is narrower than it
+# first looked. MEASURED: adding `-e $tag` to this body changes the
+# Unknown count not at all -- five before, five after -- because our
+# parser reads the split `Operator(-) Word(e)` as a negated bareword and
+# builds a tree from it. Nothing here would break.
+#
+# What the file test cannot bring is its CLAIM. `31_file_test.t` asserts
+# `no operator whose text is "-"`, and this body writes `-$n ** 2` and
+# `~$a`; the negative is false here and there is no spelling of it that
+# is not. A construct whose only assertion is a token fact this body
+# contradicts would sit in the adjacency file placing nothing.
+#
+# So it is carried alone, and `refusingFile` in tier04_test.go records
+# the exemption against that file's declared issue -- which also ends
+# the exemption when the refusal does, rather than letting it outlive
+# the reason for it.
 #
 # That is the adjacency file earning its
 # keep: every construct here appears in a sibling file that parses, and
@@ -225,12 +241,13 @@ my $tag = $ARGV[11] // "Az";
 $tag++;
 my $flag = !$count;
 my $group = +($n + 1) * 2;
+my $chain = 9 < 1 < 5;
 print "sum [$sum] rel [$rel] pick [$pick] rep [", $word x 2, "] pow [$power]\n";
 print join(",", reverse sort @nums), " ", ($n >= 3 xor not $n <= 3), " $loose ", scalar(@cleared), scalar(@filled), "\n";
 print sprintf("%0*d", $n, $n), " [$edit] ", index($edit, "b"), " [", substr($word, 1, 1), "]\n";
 print "bits [$bits] prec [$prec] shift [$shifted] comp [$comp]\n";
 print "acc [$acc] app [$app] rep [$t] def [$def] mask [$mask]\n";
-print "count [$count] tag [$tag] flag [$flag] group [$group]\n";
+print "count [$count] tag [$tag] flag [$flag] group [$group] chain [$chain]\n";
 
 --- expect output
 sum [-2] rel [00] pick [1] rep [abab] pow [-3]
@@ -238,6 +255,6 @@ sum [-2] rel [00] pick [1] rep [abab] pow [-3]
 003 [bb] 0 [b]
 bits [2] prec [2] shift [12] comp [249]
 acc [7] app [ab] rep [abab] def [0] mask [15]
-count [6] tag [Ba] flag [] group [8]
+count [6] tag [Ba] flag [] group [8] chain []
 
 --- expect parses

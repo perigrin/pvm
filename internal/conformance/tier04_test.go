@@ -248,6 +248,22 @@ var operatorKinds = map[string]string{
 	"logical_not":      "!$",
 	"unary_plus":       "+(",
 	"file_test":        "-e $",
+
+	// The nonassoc slice (issue 01a0cc04-346d), which moved this tier's
+	// measured passage on chaining out of its README and into files.
+	//
+	// `chained_comparison` is spelled with its whole three-operand
+	// expression rather than with `<`, because a bare `<` appears in
+	// every comparison file in the tier and in the adjacency body's
+	// `$n >= 3`. The chain is what distinguishes it, and the chain is
+	// three operands long.
+	//
+	// `nonassoc_refusal` is spelled `<=> 2 <=>` -- the repetition
+	// itself. A bare `<=>` is `03_numeric_comparison.t`'s, and the
+	// repetition is the whole claim: one `<=>` compiles and two in a
+	// row do not.
+	"chained_comparison": "9 < 1 < 5",
+	"nonassoc_refusal":   "<=> 2 <=>",
 }
 
 // refusingFile names the tier-04 files exempt from the adjacency
@@ -387,6 +403,14 @@ func TestTierOperatorsAdjacency(t *testing.T) {
 		// reason: it is the ungated half of the same claim and means
 		// nothing without the gated one.
 		if pragmaScopedFile[name] {
+			continue
+		}
+		// A file PERL refuses cannot join a body perl has to compile.
+		// Derived rather than listed, because unlike the other two
+		// exemptions here there is nothing to decide: the adjacency
+		// file pins an output, and a body holding a syntax error has
+		// none to pin.
+		if f.ExpectParsent {
 			continue
 		}
 		// A refusing construct cannot join a body that has to run. The
@@ -681,11 +705,20 @@ const cmpchainExpected = "chain [1] left []\n"
 // cheapest spelling is the honest one. `askPerl` runs the program rather
 // than inspecting its optree, so there is nothing for a fold to hide.
 //
-// This is measured directly rather than pinned in a corpus file because a
-// chaining probe cannot BE a corpus file at this tier: writing it with
-// the runtime operand the lint's neighbours use changes nothing about the
-// claim, and writing it with a third distinct comparison would need ops
-// the tier already claims. The measurement is the test.
+// WHY THIS SURVIVES ALONGSIDE `32_chained_comparison.t`. This paragraph
+// once said a chaining probe "cannot BE a corpus file at this tier",
+// which named the wrong cause: the blocker was that NO TIER CLAIMED
+// `cmpchain_and` and `cmpchain_dup`, so any file emitting them failed
+// the dependency lint. Tier 04 claims them now and the corpus file
+// exists.
+//
+// The direct measurement is still not redundant, and the reason is the
+// second bracket. This probe pins the CHAINED reading and the FORCED
+// LEFT one side by side in a single program -- `(3 > 2 > 1)` beside
+// `((3 > 2) > 1)`. A corpus file cannot pin both: writing the explicit
+// grouping is writing a different expression, and the claim here is
+// that one source has two readings. So the file asserts which reading
+// perl takes, and this asserts what the other reading would have been.
 func TestTierOperatorsCmpchain(t *testing.T) {
 	perl, err := perlPath()
 	if err != nil {

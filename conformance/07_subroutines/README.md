@@ -170,16 +170,17 @@ Not claimed here, though they appear in the measurements:
 - **`aelemfast`, `multideref`, `rv2av`, `gv`, `aassign`, `padav`** are all
   how `@_` and `$_[0]` are read, and all of them are tier 02's array and
   package-variable surface.
-- **`postinc`** is claimed here, and it should not have to be. `$_[0]++`
-  emits it, and the increment operator is tier 04's subject, not this
-  one's. But no tier-04 file emits `postinc` -- tier 04's files compare
-  and arithmetic, and none of them increments -- so claiming it there
-  fails `TestCorpusLints`, which reports a README claiming an op no file
-  emits. The corpus's rule is that the tier which EMITS an op first owns
-  it, and `07_args_alias.t` is the only file in the corpus that compiles
-  one. A tier-04 file exercising `$x++` would move the claim to where it
-  belongs. What IS this tier's is the aliasing that makes the increment
-  visible to the caller, and that is not an op at all.
+- **`postinc`** was claimed here and is now tier 04's. `$_[0]++` emits
+  it, and the increment operator is tier 04's subject, not this one's --
+  but for a long while no tier-04 file incremented anything, so claiming
+  it there would have failed `TestCorpusLints`, which reports a README
+  claiming an op no file emits. `07_args_alias.t` was the only file in
+  the corpus that compiled one, and the corpus's rule is that the tier
+  which EMITS an op first owns it. `04_operators/27_incdec.t` is the
+  file that ended that, so the claim moved to the tier that owns the
+  level: perlop puts `++` four tiers before subroutines exist. What IS
+  still this tier's is the aliasing that makes the increment visible to
+  the caller, and that is not an op at all.
 - **`wantarray`** belongs to 03_context, which is what it asks about.
 - **`rv2cv` and `srefgen`**, which `\&f` emits, belong to 08_references.
   This tier stops at declaring and calling; taking a reference to the

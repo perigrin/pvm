@@ -49,16 +49,29 @@
 # leaves a `-` that could be read as negation or as the start of a
 # bareword, which is the three-way ambiguity this file is about.
 #
+# BOTH SPELLINGS ARE WRITTEN, and the second is the one that makes the
+# fork actual. `-e $f` and `-e($f)` are the same operator with and
+# without parens, and they give the same answer:
+#
+#   $ perl -e 'my $f = "/etc/hostname"; print "[", (-e $f), "][", (-e($f)), "]"'
+#   [1][1]
+#
+# A file writing only the parenless form leaves open whether a parser
+# read `-e` as an operator at all or merely as a minus applied to
+# something -- the parenthesised form has no such reading available,
+# because `e($f)` would be a call to an undeclared sub. The two together
+# say the name is `-e` rather than `-` followed by a name.
+#
 # The ternary is tier 06's `cond_expr` and out of budget here, so the
 # file uses the boolean directly: perl's true prints as `1` and its
 # false as the empty string, which `29_logical_not.t` measures.
 
 --- source
 my $f = $ENV{X} // "/etc/hostname";
-print "[", (-e $f), "]\n";
+print "[", (-e $f), "][", (-e($f)), "]\n";
 
 --- expect output
-[1]
+[1][1]
 
 --- expect parses
 

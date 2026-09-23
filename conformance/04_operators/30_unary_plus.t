@@ -28,15 +28,25 @@
 # any warning exists, and a corpus that never writes the disambiguator
 # cannot tell which choice a parser made.
 #
-# THE TOKEN FACT IS A NEGATIVE, and it is the one this construct needs.
-# Measured, the lexer emits `Operator("+")` and `Operator("(")`
-# separately, which is correct -- unary plus is not a compound token.
-# A lexer that fused them into `+(` would have invented an operator
-# perl does not have, and that spelling appears nowhere in this source,
-# so the negative is a claim rather than an accident.
+# THIS FILE DECLARES NO TOKEN FACT, which is a decision rather than an
+# omission. It carried one and the fact was VACUOUS.
 #
-# The OUTPUT is what carries the rest: 3 against 9, from two statements
-# that differ by one character.
+# `internal/lexer/scan.go` holds a CLOSED operator table and
+# `scanOperator` emits only entries from it. The discarded fact was
+# `no operator whose text is "+("`, and `+(` is not a table entry, so no
+# input can produce it -- the negative could never match and asserted
+# nothing. Its header argued the opposite, that the spelling "appears
+# nowhere in this source, so the negative is a claim rather than an
+# accident". It was the accident.
+#
+# No replacement is honest. Every numeric literal in this source appears
+# exactly twice, so no `one` fact is available; the source writes a bare
+# `+`, so `no operator whose text is "+"` is false; and it contains no
+# `=` at all, so `+=` is vacuous for the same reason `+(` was.
+#
+# THE OUTPUT IS THE WHOLE CLAIM and it is enough: 3 against 9, from two
+# statements that differ by one character. A parser that reads the
+# disambiguator wrong prints the other number.
 #
 # This is the same class as `09_named_unary.t`'s `defined $x + 1` --
 # where an operator's argument stops -- and the reason both live in this
@@ -53,6 +63,3 @@ print "\n";
 9
 
 --- expect parses
-
---- expect tokens
-no operator whose text is "+("

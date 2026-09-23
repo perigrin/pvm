@@ -29,11 +29,18 @@
 # why this file INTRODUCES three of the four -- `postinc` is already
 # tier 07's, claimed there before any file made it a subject.
 #
-# THE TOKEN FACT IS A NEGATIVE because counting cannot work here: the
-# source spells `++` twice and `--` twice, so any count is a claim about
-# the file's shape. What it rules out is the mis-lex -- `$a++ + 1` would
-# produce a `+++` run if the lexer were greedy about the third character,
-# and that spelling appears nowhere in this source.
+# THE TOKEN FACT IS A NEGATIVE, and WHICH negative matters more than it
+# looks. `internal/lexer/scan.go` holds a CLOSED operator table and
+# `scanOperator` emits only entries from it, so a negative naming a
+# spelling the table does not contain can never match -- it is not a
+# weak claim, it is no claim. `+++` is such a spelling.
+#
+# `+` is a table entry, and this source contains no bare one: it writes
+# `++` twice and `--` twice and nothing else. So the fact fails exactly
+# when the lexer SPLITS an increment into two `+` tokens, which is the
+# mis-lex a file about `++` is for. Counting cannot serve instead -- the
+# source spells each operator twice, so any count is a claim about the
+# file's shape rather than about the lexer.
 
 --- source
 my $a = $ENV{X} // 5;
@@ -49,4 +56,4 @@ print "$a $b $c $d $e\n";
 --- expect parses
 
 --- expect tokens
-no operator whose text is "+++"
+no operator whose text is "+"
