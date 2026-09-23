@@ -101,18 +101,42 @@ func TestTierLiteralsCoversGlossary(t *testing.T) {
 
 	files := tierFiles(t, tierLiterals)
 
+	// The adjacency file is EXCLUDED, and that exclusion is the whole
+	// check. It composes every construct the tier introduces, so joining
+	// it in means every boundary is spelled somewhere by construction and
+	// the check can never fail -- which is what it did.
+	//
+	// Measured before this exclusion landed: three of the fifteen
+	// boundaries below -- `= 42;`, `= 'plain';` and `= "` -- were
+	// supplied ONLY by `00_adjacency.t`, whose own header says it
+	// introduces nothing of its own. Two of those three are the string
+	// literals that issue 01a0c360's acceptance criterion names by
+	// name, and the tier had no string file at all: twelve construct
+	// files, every one of them `# INTRODUCES numeric literal`.
+	//
+	// So the tier claimed to cover its glossary and covered half of it,
+	// borrowing the rest from the file that exists to compose rather
+	// than to introduce. A gate satisfied by incidental data reports
+	// coverage it does not have, which is worse than no gate.
 	var sources []string
-	for _, f := range files {
+	for name, f := range files {
+		if name == adjacencyFile {
+			continue
+		}
 		sources = append(sources, f.Source)
 	}
 	joined := strings.Join(sources, "\n")
 
 	for _, b := range boundaries {
 		if !strings.Contains(joined, b.spelling) {
-			t.Errorf("no file in %s spells %s (%s)\n"+
+			t.Errorf("no CONSTRUCT file in %s spells %s (%s)\n"+
 				"\tGLOSSARY.md names this boundary for a category this "+
 				"tier owns, so the tier asserts in a vocabulary it does "+
-				"not cover.", tierLiterals, b.spelling, b.boundary)
+				"not cover.\n"+
+				"\t%s is excluded deliberately: it composes every "+
+				"construct, so counting it would satisfy this check by "+
+				"construction.",
+				tierLiterals, b.spelling, b.boundary, adjacencyFile)
 		}
 	}
 }
@@ -182,7 +206,7 @@ func regenerateNumbering(names []string) map[string]string {
 // output, so the numbers could be deleted and rebuilt from the names
 // alone. What it does NOT establish is that the ORDER is meaningful --
 // alphabetical order is the corpus's convention, not a claim that
-// `02_decimal.t` teaches something `03_hexadecimal.t` needs.
+// `02_decimal.t` teaches something `05_hexadecimal.t` needs.
 func TestTierNumberingRegenerates(t *testing.T) {
 	paths, err := filepath.Glob(filepath.Join(corpusDir, tierLiterals, "*.t"))
 	if err != nil {

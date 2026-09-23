@@ -30,19 +30,25 @@ holds the tier to that list rather than to whichever cases occurred to
 somebody. Three of them are why the token layer exists at all, because in
 each the optree and the output are both blind:
 
-- **`-1` is two tokens** (`05_negative.t`) — perl folds it to
+- **`-1` is two tokens** (`07_negative.t`) — perl folds it to
   `const[IV -1]`, so the operator is gone before the optree exists.
-- **`5e-1` is one token** (`08_signed_exponent.t`) — split into
+- **`5e-1` is one token** (`11_signed_exponent.t`) — split into
   `5e - 1` it still evaluates to 0.5, and `5e` alone is not a number perl
   would ever accept.
-- **A v-string is not a number** (`11_vstring_bare.t`, `12_vstring_v.t`)
+- **A v-string is not a number** (`15_vstring_bare.t`, `16_vstring_v.t`)
   — `65.66.67` and `v65.66.67` both print `ABC`, and one dot versus two
   is the whole boundary.
 
-Four of the tier's construct files refuse, and the adjacency file refuses
-with them: a body holding every construct the tier introduces holds the
-refusing ones too. Composing only what already works would make that file
-green and make it stop covering the tier.
+THREE of the tier's construct files refuse -- `11_signed_exponent.t`,
+`15_vstring_bare.t` and `16_vstring_v.t` -- and all three are LEXICAL, so
+they produce no Unknown node and leave no refusal code to name.
+
+It was four, and the adjacency file refused with them, on the principle
+that a body holding every construct the tier introduces holds the refusing
+ones too. `06_leading_decimal.t` was the fourth; the lexer learned that a
+`.` before a digit starts a number in term position, and the construct
+file and the adjacency file went green in the same commit. That is the
+principle working rather than an exception to it.
 
 ## DEPENDS ON
 

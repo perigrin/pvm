@@ -12,7 +12,7 @@
 #   $ perl -e 'my $x = 1.; print "$x\n"'
 #   1
 #
-# The mirror image of `04_leading_decimal.t`, and the pair is why both are
+# The mirror image of `06_leading_decimal.t`, and the pair is why both are
 # here: `.5` puts the dot where a lexer expects an operator and `1.` puts
 # it where a lexer expects more digits. A scanner that requires a digit on
 # BOTH sides of the point gets each of them wrong in a different way, and

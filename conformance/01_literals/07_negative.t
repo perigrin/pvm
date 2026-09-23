@@ -6,7 +6,7 @@
 # INTRODUCES numeric literal
 # USES nothing from a later tier
 #
-# This is the asymmetry `08_signed_exponent.t` is the other half of. The
+# This is the asymmetry `11_signed_exponent.t` is the other half of. The
 # sign of an EXPONENT is part of the token; a sign in front of the number
 # never is.
 #

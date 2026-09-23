@@ -7,7 +7,7 @@
 # USES nothing from a later tier
 #
 # The tier's other files are one construct each, which is what makes them
-# diagnosable: when `04_leading_decimal.t` refuses, the construct that
+# diagnosable: when `06_leading_decimal.t` refuses, the construct that
 # refused is the only one present. That same property is why a corpus of
 # such files cannot reach an ADJACENCY bug -- a parser that handles every
 # construct alone and mis-handles a pair goes green over the pair.
@@ -39,7 +39,7 @@
 #
 # This file refused from 7711154e until issue
 # 01a0c13f-97f5-7f98-b32d-07245ec6ddfe, and it refused for a BORROWED
-# reason: the `.5` on line 4 was `04_leading_decimal.t`'s gap reaching
+# reason: the `.5` on line 4 was `06_leading_decimal.t`'s gap reaching
 # here, not a second bug. The note recorded at the time said the adjacency
 # file cannot pass while any construct it holds refuses, and that
 # composing only the working constructs would make it green and make it
@@ -54,7 +54,8 @@
 # MEASURED perl 5.42.0:
 #
 #   $ perl conformance/01_literals/00_adjacency.t
-#   10 0.5 255 0.5 -1 255 255 0.5 1 4294967296 ABC ABC 42 plain 42-0.5 abc
+#   10 0.5 255 0.5 -1 255 255 0.5 1 4294967296 ABC ABC 42 plain 42-0.5 abc one a
+#   b
 #
 # `qw(a b c)` prints as `abc` rather than `a b c`: in a print LIST the
 # three words are separate arguments and $, is unset, so nothing separates
@@ -85,9 +86,12 @@ my $vv = v65.66.67;
 my $int = 42;
 my $sq = 'plain';
 my $dq = "$int-$dec";
-print "$bin $dec $hex $lead $neg $oct $octp $exp $trail $usep $vb $vv $int $sq $dq ", qw(a b c), "\n";
+my $esc = "a\nb";
+my $qop = q(one);
+print "$bin $dec $hex $lead $neg $oct $octp $exp $trail $usep $vb $vv $int $sq $dq ", qw(a b c), " $qop ", $esc, "\n";
 
 --- expect output
-10 0.5 255 0.5 -1 255 255 0.5 1 4294967296 ABC ABC 42 plain 42-0.5 abc
+10 0.5 255 0.5 -1 255 255 0.5 1 4294967296 ABC ABC 42 plain 42-0.5 abc one a
+b
 
 --- expect parses

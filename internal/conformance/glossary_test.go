@@ -96,9 +96,11 @@ func TestCategoryBoundaries(t *testing.T) {
 		name: "the minus in -1 is an operator",
 		src:  "my $x = -1;", category: "operator", text: "-", want: 1,
 	}, {
+		// No `known`: this was skipped until the lexer learned that a `.`
+		// before a digit starts a number where a term is expected, under
+		// M1 issue 01a0c13f-97f5. It is an ordinary passing row now.
 		name: "a leading decimal point is part of the literal",
 		src:  "my $x = .5;", category: "numeric literal", text: ".5", want: 1,
-		known: "the lexer splits .5 into Operator(.) Number(5); M1 issue 01a0c13f-97f5",
 	}, {
 		name: "a trailing decimal point is part of the literal",
 		src:  "my $x = 1.;", category: "numeric literal", text: "1.", want: 1,
@@ -192,10 +194,6 @@ func TestCategoryBoundaries(t *testing.T) {
 		src:  "my $h = <<~EOT;\n  body\n  EOT\n", category: "heredoc opener", text: "<<~EOT", want: 1,
 	}} {
 		t.Run(tc.name, func(t *testing.T) {
-			if tc.known != "" {
-				t.Skipf("known refusal: %s", tc.known)
-			}
-
 			match, ok := categories[tc.category]
 			if !ok {
 				t.Fatalf("category %q is not mapped in categories.go", tc.category)
@@ -209,6 +207,32 @@ func TestCategoryBoundaries(t *testing.T) {
 					got++
 				}
 			}
+
+			// The measurement runs BEFORE the skip is honoured, so a
+			// `known` that has been fixed FAILS rather than skipping on.
+			//
+			// This ordering is the fix for a real rot: the leading-decimal
+			// row carried a `known` citing a lexer bug for a day after the
+			// bug was fixed, and nothing said so -- the skip fired first
+			// and the row never ran. The corpus has
+			// `TestStaleRefusalMarkerFails` for exactly this failure mode
+			// on `.t` files; this table was outside its reach.
+			//
+			// A skip that cannot go stale is worth more than a skip that
+			// is merely documented, because in a summary line a skipped
+			// row and a passing row look the same.
+			if tc.known != "" {
+				if got == tc.want {
+					t.Fatalf("marked `known` -- %s -- but the lexer now "+
+						"produces %d %s token(s) whose text is %q, which "+
+						"is what the row wants.\n"+
+						"\tRemove the `known` field: a stale marker hides "+
+						"the next regression.",
+						tc.known, got, tc.category, tc.text)
+				}
+				t.Skipf("known refusal: %s", tc.known)
+			}
+
 			if got != tc.want {
 				t.Errorf("%s: %d %s tokens whose text is %q, want %d\n\tactual tokens: %s",
 					tc.src, got, tc.category, tc.text, tc.want, describe(src))

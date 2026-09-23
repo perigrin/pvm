@@ -137,9 +137,11 @@ know where the body ends.
 
 ## What the tier measured
 
-Six of the fifteen files refuse as of 9750d03b, and the shape of the
-refusals is the result. The three added since -- `12_pack_template.t`,
-`13_unpack_template.t` and `14_qq_delimiters.t` -- all pass, which is the
+EIGHT of the fifteen files refuse, and the shape of the refusals is the
+result. The count was written as six when the tier held twelve files and
+was not updated when three more landed; the breakdown below always said
+eight (2 + 3 + 1 + 2) and was right. `12_pack_template.t`,
+`13_unpack_template.t` and `14_qq_delimiters.t` all pass, which is the
 expected shape: none of them asks the parser for a construct it lacks.
 Their opaque regions are a string literal's contents, and a string
 literal is tier 01's.
@@ -151,11 +153,11 @@ statement keyword the parser does not implement; `trailing_tokens` for the
 three heredocs and the adjacency file, whose statement parses and which
 then meet a body token arriving after the semicolon it belongs to; and
 `not_a_term` for the two data sections, a token that cannot begin a term.
-Three sites for six constructs means closing one will not close the
+Three sites for eight files means closing one will not close the
 others, which uncited skips could not have said.
 
 **Every token fact in the tier passes, including in the files that
-refuse.** The lexer already delimits all six constructs: heredoc openers
+refuse.** The lexer already delimits all of them: heredoc openers
 and bodies in three spellings, format picture lines, pod blocks, data
 sections, and both uses of the angle-bracket term. The Unknowns come from
 the parser -- there is no grammar rule for `format NAME = BODY`, for a

@@ -12,12 +12,12 @@
 #   255
 #
 # Perl 5.34 added this spelling so octal need not be signalled by a
-# leading zero alone. It is a separate file from `06_octal_leading_zero.t`
+# leading zero alone. It is a separate file from `08_octal_leading_zero.t`
 # because it is a separate LEXICAL form -- the two agree on the value and
 # compile to the same `const[IV 255]`, so the optree cannot tell them
 # apart and only the token stream can say which was written.
 #
-# The trap is the same as `03_hexadecimal.t`'s: `o377` is a legal
+# The trap is the same as `05_hexadecimal.t`'s: `o377` is a legal
 # identifier, so a lexer that stops the number at the first non-digit
 # produces `Number(0) Word(o377)` and the parser sees a number beside a
 # bareword rather than an error.

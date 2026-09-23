@@ -23,12 +23,12 @@
 # so the word scanner claims it and the rest of the v-string is read as a
 # concatenation of a bareword with a number. The PARSER cannot see this.
 # It receives Word Operator Number, reads a valid expression, and returns
-# ZERO Unknown nodes -- the same shape `08_signed_exponent.t` records, and
+# ZERO Unknown nodes -- the same shape `11_signed_exponent.t` records, and
 # the same reason the token layer exists: the assertion below is the only
 # check that reaches it.
 #
 # No issue: this file is the record, on the same grounds as
-# `08_signed_exponent.t` -- the construct was found by writing the file.
+# `11_signed_exponent.t` -- the construct was found by writing the file.
 
 --- source
 my $v = v65.66.67;
