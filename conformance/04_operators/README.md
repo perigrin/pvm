@@ -45,13 +45,27 @@ without a runtime operand this tier has nothing to measure. See below.
 
 ## INTRODUCES
 
-    add and bit_and bit_or bit_xor chr complement concat defined divide dor eq ge gt index le left_shift lt modulo multiply ncmp ne negate not or ord pow repeat right_shift scmp seq sge sgt sle slt sne sprintf substr subtract undef xor
+    add and bit_and bit_or bit_xor chr complement concat defined divide dor eq ge gt index le left_shift lt modulo multiply nbit_and ncmp ne negate not or ord pow repeat right_shift scmp seq sge sgt sle slt sne sprintf substr subtract undef xor
 
 ## Why those ops, and not the ones the source implies
 
 This list is what `perl -MO=Concise,-exec` EMITS for the files in this tier,
 measured, not what reading them suggests. This is the tier where reading and
-measuring diverge most, and five places where they do:
+measuring diverge most, and six places where they do:
+
+- **`nbit_and` is a SECOND OP, not a flag on `bit_and`.** Under
+  `use v5.28` -- which enables `feature 'bitwise'` -- `&` always treats
+  its operands as numbers, and ungated it is polymorphic: two strings get
+  a character-wise AND. Measured, the two readings emit DIFFERENT OPS:
+
+      my $a = "12"; my $b = "10"; print $a & $b              bit_and,  10
+      use v5.28; ... the same three lines                    nbit_and, 8
+
+  A reader would reasonably expect one op with a private flag. It is two,
+  which means the dependency lint can tell the pair apart without reading
+  the output -- but only because both halves exist.
+  `20_bitwise_polymorphic.t` and `21_bitwise_numeric.t` are that pair,
+  and neither file means anything alone.
 
 - **Every operator here needs a RUNTIME operand or it does not exist.**
   `my $x = 1+2` emits no `add`; it arrives as `const[IV 3] s/FOLD`. The

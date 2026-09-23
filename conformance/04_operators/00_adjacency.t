@@ -125,6 +125,27 @@
 # unparenthesised `$a | $b & $c` lives in `17_bitwise_precedence.t`,
 # which prints both and pins that they differ. Only the grouped form is
 # here, because this file's job is placement rather than discrimination.
+#
+# THE PRAGMA PAIR IS DELIBERATELY ABSENT, and the reason is a tier
+# boundary rather than a preference. `20_bitwise_polymorphic.t` and
+# `21_bitwise_numeric.t` differ only by a `use v5.28`, and the two
+# readings can be put in ONE program -- measured, `use v5.28` is
+# lexically scoped:
+#
+#   my $poly = $s1 & $s2;                   10
+#   { use v5.28; $num = $s1 & $s2; }         8
+#
+# One pair of string operands, two answers, four lines apart. It would be
+# the strongest claim this file could make, and it cannot be made here: a
+# bare block emits `enterloop` and `leaveloop`, which are `05_scoping`'s
+# ops, and a tier-04 file may not use them. Measured by writing it and
+# letting the dependency lint refuse it.
+#
+# `no feature "bitwise"` does not substitute: measured, it does NOT
+# restore the polymorphic reading, so both halves print 8 and the pair
+# says nothing. The block is the only spelling, and the block is out of
+# budget. The claim therefore lives in the two construct files, each
+# holding one half.
 
 --- source
 my @nums = (3, 1, 2);

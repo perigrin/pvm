@@ -8,7 +8,7 @@
 # The per-tier adjacency fixture carries its tier, since fourteen
 # tiers each hold one and they are different files.
 #
-# 183 files, 162 clean, 21 refusing.
+# 185 files, 164 clean, 21 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -34,6 +34,8 @@ tokens and_cliff.t
 - binary.t
 - bind.t
 - bitwise.t
+- bitwise_numeric.t
+- bitwise_polymorphic.t
 - bitwise_precedence.t
 - bless_empty.t
 - bless_populated.t

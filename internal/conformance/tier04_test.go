@@ -191,6 +191,30 @@ var operatorKinds = map[string]string{
 	"bitwise_precedence": "($a | $b) & $c",
 	"shift":              " << ",
 	"complement":         "~$a",
+
+	// The pragma pair (issue 01a0cc04-333a), whose two files differ by
+	// one `use v5.28` and by the answer they print.
+	//
+	// Both are spelled with STRING operands, because the polymorphism is
+	// exactly about what a string operand does: `"12" & "10"` is the
+	// string `"10"` ungated and the number 8 gated. A spelling taken
+	// from the numeric operands elsewhere in the tier would match the
+	// plain bitwise file instead and place the wrong construct.
+	"bitwise_polymorphic": "$s1 & $s2",
+	"bitwise_numeric":     "use v5.28",
+}
+
+// pragmaScopedFile names the tier-04 files exempt from the adjacency
+// requirement because their subject is a FILE-SCOPED PRAGMA.
+//
+// The exemption is deliberately a named list rather than a property
+// derived from the source, so adding one is a decision a reader can see.
+// The reasoning is recorded at the point of use in
+// TestTierOperatorsAdjacency, with the three measurements that forced
+// it.
+var pragmaScopedFile = map[string]bool{
+	"20_bitwise_polymorphic.t": true,
+	"21_bitwise_numeric.t":     true,
 }
 
 // operatorKindFromName returns the operator class a file's name
@@ -274,6 +298,32 @@ func TestTierOperatorsAdjacency(t *testing.T) {
 				"\tThe name is the file's identity; a name the source does "+
 				"not honour makes every other check here ask about the "+
 				"wrong construct.", name, identity, spelling)
+			continue
+		}
+		// A file whose subject is a FILE-SCOPED PRAGMA cannot join the
+		// adjacency body, and the exemption is forced by the format
+		// rather than chosen -- the same shape as tier 07's `parsent`
+		// exemption, for a different reason.
+		//
+		// `21_bitwise_numeric.t` is `use v5.28` over the operators
+		// `16_bitwise.t` introduces. Measured three ways:
+		//
+		//   - Putting the pragma at the adjacency file's TOP gates the
+		//     whole body, so its `bit_and` becomes `nbit_and` and the
+		//     claim `16_bitwise.t` makes about the ungated op is gone.
+		//   - Scoping it to a bare block works in perl -- `use v5.28` is
+		//     lexical, and one program can print 10 then 8 -- but a bare
+		//     block emits `enterloop` and `leaveloop`, which are
+		//     05_scoping's ops and out of this tier's budget.
+		//   - `no feature "bitwise"` does NOT restore the ungated
+		//     reading; measured, both halves then print 8.
+		//
+		// So the pragma's two readings cannot coexist in a tier-04 body,
+		// and the pair lives in two construct files instead. Its
+		// partner `20_bitwise_polymorphic.t` is exempt for the same
+		// reason: it is the ungated half of the same claim and means
+		// nothing without the gated one.
+		if pragmaScopedFile[name] {
 			continue
 		}
 		if !strings.Contains(adj.Source, spelling) {
