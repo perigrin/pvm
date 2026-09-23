@@ -105,6 +105,19 @@ func TestTierOoLint(t *testing.T) {
 // correct if the boundary is ever relaxed, and it costs nothing.
 var reOoConstruct = regexp.MustCompile(`\b(bless|class|field|method|ADJUST|tied|tie)\b`)
 
+// ungatedHalf names the tier-11 files that pin what a construct means
+// with its feature DISABLED (issue 01a0cc04-339f).
+//
+// A named list rather than a property derived from the source, so adding
+// one stays a decision a reader can see. The reasoning is at the point of
+// use in TestTierOoAdjacency.
+var ungatedHalf = map[string]bool{
+	"14_state_ungated.t":     true,
+	"15_class_ungated.t":     true,
+	"16_classname_ungated.t": true,
+	"17_defer_ungated.t":     true,
+}
+
 // reOoArrowCall matches a method call written with the arrow.
 //
 // Its own pattern because the arrow is not a keyword. What makes a call
@@ -293,6 +306,24 @@ func TestTierOoAdjacency(t *testing.T) {
 		if name == adjacencyFile {
 			continue
 		}
+		// An UNGATED half is exempt, and the exemption is forced by the
+		// format rather than chosen -- the same shape as tier 07's
+		// `parsent` exemption and tier 04's `pragmaScopedFile`.
+		//
+		// These files exist to pin what a construct means when its
+		// feature is OFF. The adjacency body carries `use feature
+		// "class"` so its own constructs work, and under that pragma
+		// every one of these reparses back into the gated reading the
+		// file is not about. Measured: `field $x` under the feature is
+		// a field declaration, not the `$x->field` method call
+		// `15_class_ungated.t` pins.
+		//
+		// So the ungated halves cannot join a gated body, and their
+		// gated partners -- 07_class_empty.t, 08_class_field_method.t,
+		// 09_class_adjust.t -- are already in it.
+		if ungatedHalf[name] {
+			continue
+		}
 		form := formFromOoName(name)
 		if form == "" {
 			t.Errorf("%s: its name names no construct of this tier, so nothing places it", name)
@@ -465,8 +496,14 @@ func TestTierOoAdjacencyCatchesAdjust(t *testing.T) {
 
 	// The premise: every construct file passes in isolation. Without
 	// this, the adjacency file's failure says nothing about adjacency.
+	//
+	// Scoped to the files the adjacency body actually HOLDS. An ungated
+	// half is exempt from that body -- see TestTierOoAdjacency for why
+	// -- so its refusal cannot be a confounder for a mixture it is not
+	// part of. Including it would make this check fail for a file the
+	// argument does not depend on, which is the wrong kind of strict.
 	for name, f := range files {
-		if name == adjacencyFile {
+		if name == adjacencyFile || ungatedHalf[name] {
 			continue
 		}
 		if codes := refusalCodes(parse.Parse([]byte(f.Source))); len(codes) != 0 {
