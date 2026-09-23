@@ -1,5 +1,6 @@
 name: corpus-complete
 created: 2026-09-23T02:02:46.685133924Z
+state: open
 ---
 
 The corpus was measured against five authorities and covers about a third
@@ -106,3 +107,31 @@ treats a pattern body as an opaque string is CORRECT by this corpus.
 It does not rewrite M1-M6. The plan says they are to be rewritten around
 the corpus, and that rewrite needs this milestone's result as its input
 rather than running alongside it.
+
+## Gate record
+
+Step 4 requires the review tier and outcome written down even on a clean
+pass. Without it an issue that passed review and an issue where review
+never ran are byte-identical in the chain.
+
+- [x] `01a0cc04-3303` bitwise band — **BACKFILLED, no gate ran.** Executed
+      before the skill was re-read; no sanbao snapshot, no PAAD lens.
+- [x] `01a0cc04-333a` pragma pair — **BACKFILLED, no gate ran.** Same.
+- [x] `01a0cc04-32c9` compound assignment — **BACKFILLED, no gate ran.** Same.
+- [x] `01a0cc04-3370` range trio — **BACKFILLED, no gate ran.** Same.
+- [x] `01a0cc04-339f` version gates — **TIER_2**, analyst cited hotspots 6
+      against a threshold of 2 (difficulty 0.029, coupling 0, MPG 1, all
+      within TIER_1). All three lenses dispatched to a fresh agent and run
+      in full. TWO IN-SCOPE FINDINGS, both repaired in `97c3893f`: the
+      token facts were vacuous (true under both readings; the
+      `no operator whose text is "->"` guard the cited models use was
+      available and unused), and acceptance criterion 2 was weakened
+      post-close from PASS to SKIP along an axis the stated justification
+      did not cover. Three out-of-scope findings; `ungatedHalf` drift
+      fixed in the same commit, the four parser gaps filed as
+      `01a0cf3e`, the shared-worktree noise left as a note.
+- [x] `01a0cc04-33c8` compile phase — gate pending.
+
+The four backfilled entries are the honest record of a skill violation,
+not a claim that review happened. `crochet:review` at milestone
+completion is the remaining coverage for them.
