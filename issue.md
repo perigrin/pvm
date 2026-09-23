@@ -1,19 +1,30 @@
 ---
 title: Six keywords that silently reparse when their feature is off
-state: in-progress
+state: done
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-23T02:07:02.559443716Z
-updated: 2026-09-23T16:33:23.880128542Z
+updated: 2026-09-23T16:45:28.172532695Z
 sessions:
 - start_sha: dba3a2a8f33826ff834672eb4a84f0faf854bc36
-  end_sha: ""
-  commits: 0
+  end_sha: 1afd0f341b23e124940e7ed14440f2338370dd79
+  commits: 1
   started_at: 2026-09-23T16:33:23.880128542Z
+  ended_at: 2026-09-23T16:45:28.172532695Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-23T16:33:23.880128542Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-23T16:45:28.172532695Z
+observed_paths:
+- conformance/11_oo/14_state_ungated.t
+- conformance/11_oo/15_class_ungated.t
+- conformance/11_oo/16_classname_ungated.t
+- conformance/11_oo/17_defer_ungated.t
+- internal/conformance/testdata/corpus.ratchet
+- internal/conformance/tier11_test.go
 ---
 
 Every version-gated feature in the corpus is tested ONLY in its enabled
