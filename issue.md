@@ -1,10 +1,19 @@
 ---
 title: Pattern internals are out of scope, decided rather than rediscovered
-state: pending
+state: in-progress
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-23T02:07:02.822021512Z
-updated: 2026-09-23T02:25:31.290200865Z
+updated: 2026-09-23T19:40:23.406164781Z
+sessions:
+- start_sha: 66e6d10dfed49b493965299ae1c5d6fcc9088c25
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-23T19:40:23.406164781Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-23T19:40:23.406164781Z
 ---
 
 Record that pattern internals are OUT OF SCOPE for this corpus, and why,
