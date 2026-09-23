@@ -27,10 +27,20 @@
 # syntax error under `use strict`. A parser that read it as a bareword
 # string would print `PI` where this file prints `3`.
 #
-# `PI + 1` is the discriminator. A bareword string would numify to 0 and
-# the sum would be 1; the installed sub returns 3 and the sum is 4. One
-# digit separates the two readings, and it is the reason the file adds
-# rather than just printing.
+# `PI + 1` is the discriminator, and MEASURED it is sharper than a
+# first draft claimed. That draft said a bareword reading would numify
+# to 0 and print 1. It does not:
+#
+#   $ perl -e 'print PI + 1, "\n"'
+#   (no output, exit 0)
+#   $ perl -MO=Deparse -e 'print PI + 1, "\n"'
+#   print PI 1, "\n";
+#
+# Without the pragma the bareword lands in print's FILEHANDLE slot --
+# the same indirect-object shape `11_oo/06_indirect_new.t` measures --
+# so the program prints nothing at all. The readings are `4` against
+# NOTHING, not 4 against 1. The output pin discriminates either way,
+# but the mechanism is the filehandle slot rather than numification.
 #
 # The token facts count `constant` and FORBID a string `PI`. The count
 # of `PI` itself would be two -- once in the pragma, once in the call --
@@ -54,4 +64,4 @@ print PI + 1, "\n";
 
 --- expect tokens
 one word whose text is "constant"
-no string literal whose text is "PI"
+no string literal whose text is "\"PI\""

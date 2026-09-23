@@ -60,7 +60,7 @@
 #   first
 #   2 left, eof yes
 #   round trip
-#   ready 0
+#   ready 0 sq 9 glob GLOB auto:missing
 #
 # `expect output` is written before `expect parses` rather than last: the
 # blank line after it carries the output's trailing newline, and a blank
@@ -80,12 +80,15 @@ say "round trip";
 select($prev);
 close($out);
 my $ready = select(undef, undef, undef, 0);
-print $buf, "ready $ready\n";
+our $AUTOLOAD;
+sub AUTOLOAD { my $n = $AUTOLOAD; $n =~ s/.*:://; return "auto:$n" }
+*sq = sub { $_[0] * $_[0] };
+print $buf, "ready $ready sq ", sq(3), " glob ", ref(\*STDOUT), " ", missing(), "\n";
 
 --- expect output
 first
 2 left, eof yes
 round trip
-ready 0
+ready 0 sq 9 glob GLOB auto:missing
 
 --- expect parses

@@ -12,8 +12,12 @@
 #   $ perl -MO=Concise,-exec -e 'print __PACKAGE__, "\n"'
 #   ... const[PV "main"] ... print ...
 #
-# A `const`. By the time the optree exists the token is gone and a plain
-# string sits in its place -- indistinguishable from `print "main"`. So
+# A `const` carrying `s/TOKEN=PACKAGE`. The VALUE is a plain string by
+# the time the optree exists, so the op stream cannot tell this from
+# `print "main"` by what it computes -- though the flag does record
+# that a token was replaced, which an earlier draft of this header
+# denied. What matters for the lint is that the op is `const` either
+# way, and `const` is tier 01's. So
 # the op lint cannot see this construct, output can see its VALUE, and
 # only a token fact can see that the source said `__PACKAGE__` rather
 # than the answer.
@@ -41,8 +45,15 @@
 # arrive as a WORD, not as a string literal: a lexer that read the
 # double underscores as quoting -- the way it must for `__END__` and
 # `__DATA__`, which really do delimit -- would produce a `string
-# literal` here and the file would fail. That text appears nowhere else
-# in the source, so the negative is a claim rather than an accident.
+# literal` here and the file would fail.
+#
+# THE FACT SPELLS ITS DELIMITERS, and a first draft did not. A Quote
+# token's text INCLUDES the quotes -- `internal/lexer/quote.go` takes
+# `start` before consuming the opener -- so a fact naming a bare
+# `__PACKAGE__` can never match any Quote and is unfalsifiable. Every
+# other string-literal fact in the corpus spells them; the draft was
+# the only one that did not. `11_oo/10_isa_infix.t` is the same shape
+# and writes `"\"Bar\""`.
 
 --- source
 package Foo;
@@ -58,4 +69,4 @@ main
 
 --- expect tokens
 one word whose text is "Foo"
-no string literal whose text is "__PACKAGE__"
+no string literal whose text is "\"__PACKAGE__\""
