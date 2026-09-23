@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-23T02:07:02.765668461Z
-updated: 2026-09-23T02:07:02.765668461Z
+updated: 2026-09-23T02:25:31.239341233Z
 ---
 
 `04_operators/README.md` carries a measured passage on which of perly.y's
@@ -63,7 +63,7 @@ rather than the only record.
 
 ## Acceptance criteria
 
-- [ ] A file pins that `9 < 1 < 5` is false, which separates a chaining parser from a left-associative one (`awk '/^--- source/{s=1;next} /^--- expect/{s=0} s' conformance/04_operators/*.t | grep -qE '9 *< *1 *< *5'`)
+- [ ] A file pins that 9 < 1 < 5 is false, which separates a chaining parser from a left-associative one (`awk '/^--- source/{s=1;next} /^--- expect/{s=0} s' conformance/04_operators/*.t | grep -qE '9 *< *1 *< *5'`)
 - [ ] A parsent file records a nonassoc repetition that perl itself rejects (`grep -rlq 'expect parsent' conformance/04_operators/`)
 - [ ] Every new file is validated against pinned perl 5.42.0, which for a parsent file means perl refuses it (`go test ./internal/conformance/ -run '^TestTierOperatorsPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierOperatorsPerlValidated'`)
 - [ ] The tier's nonassoc measurement is asserted by a file rather than only described in its README (`go test ./internal/conformance/ -run '^TestTierOperatorsNonassocMeasured$' -count=1 -v | grep -q '^--- PASS: TestTierOperatorsNonassocMeasured'`)
