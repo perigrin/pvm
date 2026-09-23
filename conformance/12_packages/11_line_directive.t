@@ -11,6 +11,23 @@
 # refused, for the filehandle-slot reason
 # `10_compile_tokens.t` records.
 #
+# AND PARSING IS NOT IMPLEMENTING. This file passes and the directive
+# is still UNIMPLEMENTED: `scanComment` consumes `#line 200 "bzzzt"`
+# like any other `#`, so the lexer skips it as trivia and our
+# `__LINE__` and `__FILE__` would report the real position. That is
+# precisely the silent failure the paragraph below warns about, and it
+# is ours.
+#
+# The file cannot catch it. `--- expect output` is what PERL prints, so
+# it tests perl; `--- expect parses` is satisfied by treating the
+# directive as a comment, which is what makes it parse. What would
+# catch it is a token fact naming a `line directive` category, and the
+# glossary has none -- adding one is `01a0d0b0`.
+#
+# Recorded here rather than left to be rediscovered: a file that passes
+# while its subject is unimplemented is worth exactly one sentence of
+# warning, and this is it.
+#
 # This is a LEXER claim in a tier of compile-time constructs, and it
 # belongs with them because it is the same kind of thing: a line that
 # changes how the rest of the file is read.
