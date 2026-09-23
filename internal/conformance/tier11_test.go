@@ -105,17 +105,21 @@ func TestTierOoLint(t *testing.T) {
 // correct if the boundary is ever relaxed, and it costs nothing.
 var reOoConstruct = regexp.MustCompile(`\b(bless|class|field|method|ADJUST|tied|tie)\b`)
 
-// ungatedHalf names the tier-11 files that pin what a construct means
+// ungatedHalf reports whether a tier-11 file pins what a construct means
 // with its feature DISABLED (issue 01a0cc04-339f).
 //
-// A named list rather than a property derived from the source, so adding
-// one stays a decision a reader can see. The reasoning is at the point of
-// use in TestTierOoAdjacency.
-var ungatedHalf = map[string]bool{
-	"14_state_ungated.t":     true,
-	"15_class_ungated.t":     true,
-	"16_classname_ungated.t": true,
-	"17_defer_ungated.t":     true,
+// DERIVED FROM THE NAME rather than listed, and the difference matters.
+// A hand-maintained list suppresses a check in two places and nothing
+// forces a future ungated file into it or flags a stale entry -- so the
+// list drifts silently and the checks quietly stop covering what they
+// were written for. Tier 07's `parsent` exemption reads the file itself
+// (`f.ExpectParsent`) and cannot drift; this now has the same property.
+//
+// The suffix is not a convention invented for the check: every file of
+// this kind is named for the construct plus `_ungated`, because that is
+// what distinguishes it from the gated half sitting beside it.
+func ungatedHalf(name string) bool {
+	return strings.HasSuffix(name, "_ungated.t")
 }
 
 // reOoArrowCall matches a method call written with the arrow.
@@ -321,7 +325,7 @@ func TestTierOoAdjacency(t *testing.T) {
 		// So the ungated halves cannot join a gated body, and their
 		// gated partners -- 07_class_empty.t, 08_class_field_method.t,
 		// 09_class_adjust.t -- are already in it.
-		if ungatedHalf[name] {
+		if ungatedHalf(name) {
 			continue
 		}
 		form := formFromOoName(name)
@@ -503,7 +507,7 @@ func TestTierOoAdjacencyCatchesAdjust(t *testing.T) {
 	// part of. Including it would make this check fail for a file the
 	// argument does not depend on, which is the wrong kind of strict.
 	for name, f := range files {
-		if name == adjacencyFile || ungatedHalf[name] {
+		if name == adjacencyFile || ungatedHalf(name) {
 			continue
 		}
 		if codes := refusalCodes(parse.Parse([]byte(f.Source))); len(codes) != 0 {

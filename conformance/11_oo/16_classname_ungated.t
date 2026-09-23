@@ -34,6 +34,18 @@
 # The file makes the silence observable by printing a sentinel after it:
 # the `after` arrives, the class name does not, and a parser that read
 # `__CLASS__` as a term would have printed something before it.
+#
+# THE NEGATIVE FACT IS THE HALF THAT DISCRIMINATES, and a first draft
+# omitted it. `one word whose text is "__CLASS__"` is true under BOTH readings
+# -- the keyword lexes as one word whether it is a keyword or a method
+# name -- so on its own it says nothing about which reading applies.
+#
+# What separates them is that perl reads this as a METHOD CALL. A method
+# call is spelled with an arrow when written out, and this source
+# contains no arrow anywhere -- so a lexer that produced one would have
+# manufactured it. `10_isa_infix.t` and `10_io/07_say.t` both guard
+# their equivalent claim exactly this way; this file cited them as models
+# and left out the half that does the work.
 
 --- source
 print __CLASS__;
@@ -46,3 +58,4 @@ after
 
 --- expect tokens
 one word whose text is "__CLASS__"
+no operator whose text is "->"

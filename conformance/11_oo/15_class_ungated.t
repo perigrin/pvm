@@ -42,6 +42,18 @@
 # `class` half is recorded above rather than written, since
 # `'Foo'->class({})` would need a `class` sub in scope to produce output
 # and that sub would then be the subject rather than the reparse.
+#
+# THE NEGATIVE FACT IS THE HALF THAT DISCRIMINATES, and a first draft
+# omitted it. `one word whose text is "field"` is true under BOTH readings
+# -- the keyword lexes as one word whether it is a keyword or a method
+# name -- so on its own it says nothing about which reading applies.
+#
+# What separates them is that perl reads this as a METHOD CALL. A method
+# call is spelled with an arrow when written out, and this source
+# contains no arrow anywhere -- so a lexer that produced one would have
+# manufactured it. `10_isa_infix.t` and `10_io/07_say.t` both guard
+# their equivalent claim exactly this way; this file cited them as models
+# and left out the half that does the work.
 
 --- source
 my $x;
@@ -55,3 +67,4 @@ died
 
 --- expect tokens
 one word whose text is "field"
+no operator whose text is "->"

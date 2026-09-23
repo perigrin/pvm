@@ -35,6 +35,18 @@
 # and the file would print `ran`; ungated it dies inside the eval, `$r`
 # is undef, and the file prints `died`. One word, and it separates the
 # two readings of identical bytes.
+#
+# THE NEGATIVE FACT IS THE HALF THAT DISCRIMINATES, and a first draft
+# omitted it. `one word whose text is "state"` is true under BOTH readings
+# -- the keyword lexes as one word whether it is a keyword or a method
+# name -- so on its own it says nothing about which reading applies.
+#
+# What separates them is that perl reads this as a METHOD CALL. A method
+# call is spelled with an arrow when written out, and this source
+# contains no arrow anywhere -- so a lexer that produced one would have
+# manufactured it. `10_isa_infix.t` and `10_io/07_say.t` both guard
+# their equivalent claim exactly this way; this file cited them as models
+# and left out the half that does the work.
 
 --- source
 sub c { state $n = 0; $n = $n + 1; return $n }
@@ -48,3 +60,4 @@ died
 
 --- expect tokens
 one word whose text is "state"
+no operator whose text is "->"

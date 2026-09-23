@@ -42,6 +42,18 @@
 # The `eval` traps the dispatch failure so STDOUT is pinnable. What the
 # file claims is the ORDER: `D` before `body`, which is the ungated
 # reading, where the gated one gives `body` before `D`.
+#
+# THE NEGATIVE FACT IS THE HALF THAT DISCRIMINATES, and a first draft
+# omitted it. `one word whose text is "defer"` is true under BOTH readings
+# -- the keyword lexes as one word whether it is a keyword or a method
+# name -- so on its own it says nothing about which reading applies.
+#
+# What separates them is that perl reads this as a METHOD CALL. A method
+# call is spelled with an arrow when written out, and this source
+# contains no arrow anywhere -- so a lexer that produced one would have
+# manufactured it. `10_isa_infix.t` and `10_io/07_say.t` both guard
+# their equivalent claim exactly this way; this file cited them as models
+# and left out the half that does the work.
 
 --- source
 sub f { defer { print "D\n" } print "body\n" }
@@ -57,3 +69,4 @@ end
 
 --- expect tokens
 one word whose text is "defer"
+no operator whose text is "->"
