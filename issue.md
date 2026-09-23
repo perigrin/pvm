@@ -1,21 +1,35 @@
 ---
 title: "Compound assignment: thirteen operators, and the corpus writes none"
-state: in-progress
+state: done
 urgency: normal
 milestone: corpus-complete
 blocked_by:
 - 01a0cc04-3303-7103-8769-9edca646b56e
 created: 2026-09-23T02:07:02.345262752Z
-updated: 2026-09-23T12:53:54.982200237Z
+updated: 2026-09-23T13:08:06.479465135Z
 sessions:
 - start_sha: 8a2ffb94624374191b8f6f4266bc8a20b0daf957
-  end_sha: ""
-  commits: 0
+  end_sha: cbaacf10d93150fdf2a15e13ddca50cfce26104a
+  commits: 1
   started_at: 2026-09-23T12:53:54.982200237Z
+  ended_at: 2026-09-23T13:08:06.479465135Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-23T12:53:54.982200237Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-23T13:08:06.479465135Z
+observed_paths:
+- conformance/04_operators/00_adjacency.t
+- conformance/04_operators/22_compound_arithmetic.t
+- conformance/04_operators/23_compound_string.t
+- conformance/04_operators/24_compound_repeat.t
+- conformance/04_operators/25_compound_shortcircuit.t
+- conformance/04_operators/26_compound_bitwise.t
+- conformance/04_operators/README.md
+- internal/conformance/testdata/corpus.ratchet
+- internal/conformance/tier04_test.go
 ---
 
 Thirteen compound assignment operators, and the corpus writes none of
