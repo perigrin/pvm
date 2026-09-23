@@ -1,16 +1,20 @@
 ---
 title: Six keywords that silently reparse when their feature is off
-state: reopened
+state: in-progress
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-23T02:07:02.559443716Z
-updated: 2026-09-23T17:08:38.696523757Z
+updated: 2026-09-23T17:08:38.870184806Z
 sessions:
 - start_sha: dba3a2a8f33826ff834672eb4a84f0faf854bc36
   end_sha: 1afd0f341b23e124940e7ed14440f2338370dd79
   commits: 1
   started_at: 2026-09-23T16:33:23.880128542Z
   ended_at: 2026-09-23T16:45:28.172532695Z
+- start_sha: df9f271d0a74bb508132371df7b7f0d40a632f0b
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-23T17:08:38.870184806Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
@@ -21,6 +25,9 @@ transitions:
 - state: reopened
   actor: human:git-zhi
   timestamp: 2026-09-23T17:08:38.696523757Z
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-23T17:08:38.870184806Z
 observed_paths:
 - conformance/11_oo/14_state_ungated.t
 - conformance/11_oo/15_class_ungated.t
