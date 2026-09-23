@@ -1,10 +1,19 @@
 ---
 title: The typeglob sigil appears three times and all three are sprintf widths
-state: pending
+state: in-progress
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-23T02:07:02.645428825Z
-updated: 2026-09-23T02:25:31.04655204Z
+updated: 2026-09-23T17:19:22.707327103Z
+sessions:
+- start_sha: 97c3893fd4ff1f1546c7984579545e96f6d2c33f
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-23T17:19:22.707327103Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-23T17:19:22.707327103Z
 ---
 
 The typeglob sigil does not appear in the corpus. Measured: `*` occurs
