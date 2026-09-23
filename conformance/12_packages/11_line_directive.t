@@ -5,7 +5,11 @@
 # TIER 12 packages
 # INTRODUCES nothing of its own
 # USES nothing from a later tier
-# STATUS refuses as of this file. Issue 01a0cf3e-e82c-7191-ac2b-e6d108b51317. Refusal trailing_tokens.
+# STATUS parses as of `01a0cf3e`, and what refused was never the
+# directive. Measured, `#line 200 "bzzzt"` followed by `print 1;`
+# parsed all along; it was `print __LINE__, " ", __FILE__` that
+# refused, for the filehandle-slot reason
+# `10_compile_tokens.t` records.
 #
 # This is a LEXER claim in a tier of compile-time constructs, and it
 # belongs with them because it is the same kind of thing: a line that

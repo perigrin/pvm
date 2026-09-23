@@ -127,7 +127,11 @@ func TestT2CoreParses(t *testing.T) {
 		"comp/colon.t": 25, "comp/decl.t": 3, "comp/filter_exception.t": 5,
 		"comp/final_line_num.t": 1, "comp/fold.t": 14, "comp/form_scope.t": 17,
 		"comp/hints.t": 36, "comp/line_debug.t": 4, "comp/multiline.t": 2,
-		"comp/opsubs.t": 11, "comp/package.t": 7, "comp/package_block.t": 4,
+		// comp/package.t 7 -> 6 when compile-time tokens stopped being
+		// taken as filehandles (issue 01a0cf3e). `isBarewordHandle`
+		// accepted any all-caps word, so `print __PACKAGE__, "\n"` put
+		// the token in print's handle slot and stranded the comma.
+		"comp/opsubs.t": 11, "comp/package.t": 6, "comp/package_block.t": 4,
 		"comp/parser.t": 65, "comp/parser_run.t": 12, "comp/proto.t": 41,
 		// comp/require.t went 11 -> 12 when phaser braces became blocks. The
 		// `BEGIN { ... }` body is now read as statements rather than as one

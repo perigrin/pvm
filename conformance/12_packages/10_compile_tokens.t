@@ -5,7 +5,12 @@
 # TIER 12 packages
 # INTRODUCES nothing of its own
 # USES the package statement from 01_package_statement.t
-# STATUS refuses as of this file. Issue 01a0cf3e-e82c-7191-ac2b-e6d108b51317. Refusal trailing_tokens.
+# STATUS parses as of `01a0cf3e`. It refused until then, and the
+# refusal was not about the compile phase at all: `print
+# __PACKAGE__, "\n"` put the token in `print`'s FILEHANDLE slot,
+# because `isBarewordHandle` took any all-caps word and a
+# compile-time token is all-caps. The comma after it then had
+# nothing to attach to.
 #
 # MEASURED perl 5.42.0:
 #

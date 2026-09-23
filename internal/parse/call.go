@@ -293,13 +293,46 @@ func (p *parser) parseFilehandleSlot(op string) *Node {
 	return nil
 }
 
+// compileTimeToken is the set of all-caps barewords that carry a VALUE
+// rather than name a filehandle.
+//
+// They exist because perl resolves them during compilation -- the token
+// is replaced by the package name, the line number, the file name, or
+// the current class -- so what reaches runtime is a constant and never a
+// handle. Every one of them is all-caps, which is the only thing
+// `isBarewordHandle` has to go on.
+//
+// `__DATA__` and `__END__` are deliberately absent: they terminate the
+// program text rather than producing a value, so they never appear in an
+// argument position for this to decide about, and tier 13 measures them
+// as their own token kind.
+var compileTimeToken = map[string]bool{
+	"__PACKAGE__": true,
+	"__LINE__":    true,
+	"__FILE__":    true,
+	"__CLASS__":   true,
+}
+
 // isBarewordHandle reports whether a bareword looks like a filehandle.
 //
 // perl's rule is the symbol table's, which a static parser does not have, so
 // this uses the convention perl's own documentation recommends and every
 // corpus file follows: an all-caps name. STDERR, STDOUT, FH, OUT.
+//
+// THE COMPILE-TIME TOKENS ARE THE EXCEPTION, and perl itself is what
+// says they must be. The comma after a real bareword handle is an error
+// and the comma after a token is not:
+//
+//	$ perl -MO=Deparse -e 'print FOO, "\n";'
+//	No comma allowed after filehandle at -e line 1.
+//
+//	$ perl -MO=Deparse -e 'print __PACKAGE__, "\n";'
+//	print __PACKAGE__, "\n";
+//
+// So taking a token into the handle slot strands the comma after it,
+// which is what `print __PACKAGE__, "\n"` used to refuse on.
 func isBarewordHandle(word string) bool {
-	if word == "" {
+	if word == "" || compileTimeToken[word] {
 		return false
 	}
 	for i := 0; i < len(word); i++ {
