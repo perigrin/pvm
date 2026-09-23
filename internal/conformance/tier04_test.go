@@ -202,6 +202,24 @@ var operatorKinds = map[string]string{
 	// plain bitwise file instead and place the wrong construct.
 	"bitwise_polymorphic": "$s1 & $s2",
 	"bitwise_numeric":     "use v5.28",
+
+	// The compound assignment family (issue 01a0cc04-32c9), perlop's
+	// level 20, which had no coverage at all.
+	//
+	// Each spelling is the OPERATOR ITSELF rather than a surrounding
+	// expression, because a compound assignment is unambiguous: no other
+	// construct in the tier spells `+=` or `//=`. That is the opposite
+	// of the bitwise band above, where the same characters mean
+	// something else elsewhere and the spellings had to carry context.
+	//
+	// `compound_repeat` is the exception and is spelled with its
+	// variable, because `x=` is word-shaped and a bare `x=` would match
+	// inside an identifier.
+	"compound_arithmetic":   "+=",
+	"compound_string":       ".=",
+	"compound_repeat":       "$t x=",
+	"compound_shortcircuit": "//=",
+	"compound_bitwise":      "|=",
 }
 
 // pragmaScopedFile names the tier-04 files exempt from the adjacency

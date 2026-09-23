@@ -8,8 +8,8 @@
 # USES nothing from a later tier
 # STATUS refuses as of this file. Refusal not_a_term.
 #
-# FOUR Unknown nodes, measured, at TWO INDEPENDENT sites. The cited code
-# is the first one reached:
+# FIVE Unknown nodes, measured, at THREE INDEPENDENT sites. The cited
+# code is the first one reached:
 #
 #   not_a_term       span `)`
 #   trailing_tokens  span `undef @cleared;`
@@ -30,6 +30,12 @@
 # it as the same missing rule tier 07's parenless-call files hit. It is
 # named here because a reader counting three spans from the `not` failure
 # and finding four would otherwise look for a fourth consequence of it.
+#
+# The FIFTH is `$t x= 2`, added with the compound assignment family, and
+# is a third independent site: our lexer emits `Word(x) Operator(=)`
+# rather than forming the `x=` token at all, so the statement has a Word
+# where an operator belongs. `24_compound_repeat.t` bisects it against
+# `.=` and the binary `x`, both of which parse.
 #
 # The five string operators added later -- `chr`, `ord`, `index`,
 # `sprintf`, `substr`, on the third print line -- contribute NO Unknown.
@@ -112,6 +118,7 @@
 #   3,2,1 1 1 01
 #   003 [bb] 0 [b]
 #   bits [2] prec [2] shift [12] comp [249]
+#   acc [7] app [ab] rep [abab] def [0] mask [15]
 #
 # THE BITWISE BAND is the fourth line, and it is the one place in this
 # body where the same characters mean something else elsewhere in the
@@ -146,6 +153,25 @@
 # says nothing. The block is the only spelling, and the block is out of
 # budget. The claim therefore lives in the two construct files, each
 # holding one half.
+#
+# THE COMPOUND ASSIGNMENTS are the fifth line, one from each of the
+# family's groups: `+=` reuses its binary op, `.=` fuses to
+# `multiconcat`, `//=` emits a dedicated `dorassign`, `|=` reuses the
+# bitwise op this file introduced four lines above.
+#
+# `$t x= 2` is here too and it is the one that REFUSES -- our lexer emits
+# `Word(x) Operator(=)` rather than forming the token, so this body now
+# carries a fifth Unknown that `24_compound_repeat.t` bisects. That is
+# the adjacency file honouring its own stated principle: a body holding
+# every construct the tier introduces holds the refusing ones too, and
+# composing only what already works would make it green and make it stop
+# covering the tier.
+#
+# `def [0]` is the short circuit visible in output: `$def` starts at 0,
+# which is DEFINED but false, so `//=` leaves it alone where `||=` would
+# have replaced it. Every other compound assignment on this line is
+# confirmable only by its token, which is why `25_compound_shortcircuit.t`
+# is the only one of the five whose claim output can reach.
 
 --- source
 my @nums = (3, 1, 2);
@@ -168,15 +194,27 @@ my $bits = $a & $b;
 my $prec = ($a | $b) & $c;
 my $shifted = $a << 1;
 my $comp = ~$a & 255;
+my $acc = $ARGV[5] // 5;
+$acc += 2;
+my $app = $ARGV[6] // "a";
+$app .= "b";
+my $t = $ARGV[7] // "ab";
+$t x= 2;
+my $def = $ARGV[8] // 0;
+$def //= 99;
+my $mask = $ARGV[9] // 12;
+$mask |= 3;
 print "sum [$sum] rel [$rel] pick [$pick] rep [", $word x 2, "] pow [$power]\n";
 print join(",", reverse sort @nums), " ", ($n >= 3 xor not $n <= 3), " $loose ", scalar(@cleared), scalar(@filled), "\n";
 print sprintf("%0*d", $n, $n), " [$edit] ", index($edit, "b"), " [", substr($word, 1, 1), "]\n";
 print "bits [$bits] prec [$prec] shift [$shifted] comp [$comp]\n";
+print "acc [$acc] app [$app] rep [$t] def [$def] mask [$mask]\n";
 
 --- expect output
 sum [-2] rel [00] pick [1] rep [abab] pow [-3]
 3,2,1 1 1 01
 003 [bb] 0 [b]
 bits [2] prec [2] shift [12] comp [249]
+acc [7] app [ab] rep [abab] def [0] mask [15]
 
 --- expect parses

@@ -8,7 +8,7 @@
 # The per-tier adjacency fixture carries its tier, since fourteen
 # tiers each hold one and they are different files.
 #
-# 185 files, 164 clean, 21 refusing.
+# 190 files, 168 clean, 22 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -55,6 +55,11 @@ tokens and_cliff.t
 - code_ref_call.t
 - comma_in_scalar_context.t
 - complement.t
+- compound_arithmetic.t
+- compound_bitwise.t
+trailing_tokens,tokens compound_repeat.t
+- compound_shortcircuit.t
+- compound_string.t
 - context/adjacency.t
 - control/adjacency.t
 not_a_term data_not_perl.t

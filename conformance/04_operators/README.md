@@ -45,13 +45,32 @@ without a runtime operand this tier has nothing to measure. See below.
 
 ## INTRODUCES
 
-    add and bit_and bit_or bit_xor chr complement concat defined divide dor eq ge gt index le left_shift lt modulo multiply nbit_and ncmp ne negate not or ord pow repeat right_shift scmp seq sge sgt sle slt sne sprintf substr subtract undef xor
+    add and andassign bit_and bit_or bit_xor chr complement concat defined divide dor dorassign eq ge gt index le left_shift lt modulo multiply nbit_and ncmp ne negate not or orassign ord pow repeat right_shift scmp seq sge sgt sle slt sne sprintf substr subtract undef xor
 
 ## Why those ops, and not the ones the source implies
 
 This list is what `perl -MO=Concise,-exec` EMITS for the files in this tier,
 measured, not what reading them suggests. This is the tier where reading and
 measuring diverge most, and six places where they do:
+
+- **The compound assignments SPLIT INTO THREE GROUPS, and only one of
+  them introduces an op.** Measured across all thirteen:
+
+      $x += 2     add            the binary op, reused
+      $s .= "b"   multiconcat    the binary op, reused (and FUSED)
+      $x |= 3     bit_or         the binary op, reused
+      $u //= 5    dorassign      a DEDICATED op
+      $u ||= 5    orassign       a DEDICATED op
+      $u &&= 9    andassign      a DEDICATED op
+
+  So ten of the thirteen add nothing to this list and the short-circuit
+  three add one op each. That split is also where OBSERVABILITY divides:
+  `$x += 2` and `$x = $x + 2` compute the same value, so those files rest
+  entirely on token facts, while `$u //= 99` leaves a defined `0` alone
+  and `$u ||= 99` replaces it -- a difference output can see.
+
+  The thirteenth, `x=`, is the only WORD-SHAPED one and our lexer does
+  not form the token at all. `24_compound_repeat.t` records that refusal.
 
 - **`nbit_and` is a SECOND OP, not a flag on `bit_and`.** Under
   `use v5.28` -- which enables `feature 'bitwise'` -- `&` always treats
