@@ -1,10 +1,19 @@
 ---
 title: BEGIN is in 99 T1 files and no corpus file, with the rest of compile phase
-state: pending
+state: in-progress
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-23T02:07:02.60006476Z
-updated: 2026-09-23T02:25:30.98168097Z
+updated: 2026-09-23T16:51:36.322538387Z
+sessions:
+- start_sha: 1afd0f341b23e124940e7ed14440f2338370dd79
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-23T16:51:36.322538387Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-23T16:51:36.322538387Z
 ---
 
 `BEGIN` appears in 99 of T1's 986 files and in none of the corpus's 179.
