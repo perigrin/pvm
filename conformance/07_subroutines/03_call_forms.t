@@ -13,11 +13,35 @@
 # op NAMES, as this corpus's does, sees one construct where the language
 # has four.
 #
-# The semantic difference the flags stand for is real. `&f` with no
-# parens passes the CALLER's `@_` through untouched rather than an empty
-# list, so it is not merely a noisier `f()`. Here `answer` ignores its
-# arguments, which keeps the printed output the same across all four and
-# isolates the call syntax as the only thing varying.
+# The semantic difference the flags stand for is real, and THIS FILE
+# ONCE NAMED IT WITHOUT ASSERTING IT. `&f` with no parens passes the
+# CALLER's `@_` through untouched rather than an empty list, so it is
+# not merely a noisier `f()`. The earlier source proved none of that: it
+# used `sub answer { 42 }`, which ignores its arguments, so all four
+# spellings printed 42 and a parser that never implemented the
+# forwarding passed. The header said the distinction was real and the
+# pin said nothing.
+#
+# Two changes make it observable, and both are necessary. The callee
+# REPORTS its arguments, and the calls happen INSIDE a sub whose own
+# `@_` is non-empty -- at file scope there is no caller `@_` to forward
+# and the four spellings would still agree.
+#
+# MEASURED perl 5.42.0, `outer(1, 2)` calling a callee that prints
+# `"[@_]"`:
+#
+#   answer()    []
+#   answer      []
+#   &answer     [1 2]
+#   &answer()   []
+#
+# THE THIRD LINE IS THE CLAIM. Only the parenless ampersand forwards.
+#
+# The FOURTH is the third reading and is why `&f()` is here rather than
+# treated as a noisier spelling of `&f`: an EXPLICIT empty list passes
+# nothing, so the ampersand alone does not cause forwarding -- the
+# ABSENCE of an argument list does. A parser that read `&f` and `&f()`
+# as the same call would print `[1 2]` twice.
 #
 # MEASURED perl 5.42.0:
 #
@@ -45,16 +69,19 @@
 # call at all. Still one `entersub`.
 
 --- source
-sub answer { 42 }
-print answer(), "\n";
-print answer, "\n";
-print &answer, "\n";
-print &answer(), "\n";
+sub answer { "[@_]" }
+sub outer {
+    print answer(), "\n";
+    print answer, "\n";
+    print &answer, "\n";
+    print &answer(), "\n";
+}
+outer(1, 2);
 
 --- expect output
-42
-42
-42
-42
+[]
+[]
+[1 2]
+[]
 
 --- expect parses
