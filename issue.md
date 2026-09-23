@@ -1,21 +1,32 @@
 ---
 title: "One pragma, two answers: the same bitwise expression is 10 or 8"
-state: in-progress
+state: done
 urgency: normal
 milestone: corpus-complete
 blocked_by:
 - 01a0cc04-3303-7103-8769-9edca646b56e
 created: 2026-09-23T02:07:02.458719721Z
-updated: 2026-09-23T12:38:11.751542466Z
+updated: 2026-09-23T12:49:51.186768727Z
 sessions:
 - start_sha: b1a62eecc58a5d7bd0c1af6e2b54ae4691aaa2c2
-  end_sha: ""
-  commits: 0
+  end_sha: 8a2ffb94624374191b8f6f4266bc8a20b0daf957
+  commits: 1
   started_at: 2026-09-23T12:38:11.751542466Z
+  ended_at: 2026-09-23T12:49:51.186768727Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-23T12:38:11.751542466Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-23T12:49:51.186768727Z
+observed_paths:
+- conformance/04_operators/00_adjacency.t
+- conformance/04_operators/20_bitwise_polymorphic.t
+- conformance/04_operators/21_bitwise_numeric.t
+- conformance/04_operators/README.md
+- internal/conformance/testdata/corpus.ratchet
+- internal/conformance/tier04_test.go
 ---
 
 The same four bytes compute two different answers depending on a line
