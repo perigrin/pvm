@@ -1,12 +1,21 @@
 ---
 title: "Compound assignment: thirteen operators, and the corpus writes none"
-state: pending
+state: in-progress
 urgency: normal
 milestone: corpus-complete
 blocked_by:
 - 01a0cc04-3303-7103-8769-9edca646b56e
 created: 2026-09-23T02:07:02.345262752Z
-updated: 2026-09-23T02:36:48.517301947Z
+updated: 2026-09-23T12:53:54.982200237Z
+sessions:
+- start_sha: 8a2ffb94624374191b8f6f4266bc8a20b0daf957
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-23T12:53:54.982200237Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-23T12:53:54.982200237Z
 ---
 
 Thirteen compound assignment operators, and the corpus writes none of
