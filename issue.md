@@ -1,13 +1,22 @@
 ---
 title: "The bitwise and shift band: three precedence levels at zero"
-state: pending
+state: in-progress
 urgency: normal
 milestone: corpus-complete
 blocks:
 - 01a0cc04-333a-70f7-a182-d4d0a14cc0de
 - 01a0cc04-32c9-722c-8728-d4043e7d3c14
 created: 2026-09-23T02:07:02.403766667Z
-updated: 2026-09-23T02:36:48.503793615Z
+updated: 2026-09-23T02:45:17.110911611Z
+sessions:
+- start_sha: 398b8fdf91f7fbfdce79dcab401c879a3e9eeb9c
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-23T02:45:17.110911611Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-23T02:45:17.110911611Z
 ---
 
 Three whole precedence levels with no coverage: perlop's 9 (`<< >>`), 14
