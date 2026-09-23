@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-23T02:07:02.822021512Z
-updated: 2026-09-23T02:07:02.822021512Z
+updated: 2026-09-23T02:25:31.290200865Z
 ---
 
 Record that pattern internals are OUT OF SCOPE for this corpus, and why,
@@ -73,6 +73,6 @@ so the lexer must re-enter. That exception belongs in the note.
 
 - [ ] The corpus README records that pattern internals are out of scope, with the measurement that decided it (`grep -q 'pattern internal' conformance/README.md`)
 - [ ] Tier 09's README states that its claims are about delimiters and opacity rather than pattern syntax (`grep -qi 'opaque\|opacity' conformance/09_regex/README.md`)
-- [ ] The note names `14_recursive` as the deliberate exception, where the contents are Perl rather than pattern syntax (`grep -q '14_recursive' conformance/09_regex/README.md`)
+- [ ] The note names 14_recursive as the deliberate exception, where the contents are Perl rather than pattern syntax (`grep -q '14_recursive' conformance/09_regex/README.md`)
 - [ ] Tier 09 stays green with the documentation change (`go test ./internal/conformance/ -run '^TestTierRegex' -count=1 | grep -q '^ok'`)
 - [ ] The whole conformance suite is green (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
