@@ -1,10 +1,19 @@
 ---
 title: 03_call_forms.t documents a claim its own source cannot observe
-state: pending
+state: in-progress
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-23T02:07:02.721145536Z
-updated: 2026-09-23T02:25:31.179147934Z
+updated: 2026-09-23T19:35:42.005747328Z
+sessions:
+- start_sha: 66e6d10dfed49b493965299ae1c5d6fcc9088c25
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-23T19:35:42.005747328Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-23T19:35:42.005747328Z
 ---
 
 `07_subroutines/03_call_forms.t` documents a distinction and then builds
