@@ -4,7 +4,7 @@ state: in-progress
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-23T19:16:11.345924198Z
-updated: 2026-09-23T20:53:04.907782179Z
+updated: 2026-09-23T21:33:48.307460229Z
 sessions:
 - start_sha: 66e6d10dfed49b493965299ae1c5d6fcc9088c25
   end_sha: ""
@@ -55,19 +55,42 @@ reachable replacement. Seven first drafts had the wrong count and the
 runner caught every one; the final facts are measured off its token
 dumps. `${$sr}` is four tokens, not one variable.
 
-**Ten are not debt.** `TestTierOoArrowIsLexical` had already diagnosed
-the same vacuity and solved it better than deletion: it requires the
-TIER to hold both a file declaring no arrow and one declaring an arrow.
-Deleting those negatives broke that test, which is how the distinction
-surfaced. `pairedNegative` records the exemption and CHECKS it -- an
-entry is excused only while a positive partner exists in the same tier.
+**Ten looked like they were not debt, and they were.** Deleting the
+arrow negatives broke `TestTierOoArrowIsLexical`, which required one,
+and I read that as evidence the negatives were load-bearing: the test
+argues a lone negative is vacuous but that a tier holding BOTH a
+negative and a positive is falsifiable. `pairedNegative` was built to
+record and check that.
+
+The gate measured it and it does not hold. Delete `"->"` from
+`operators` in `internal/lexer/scan.go` -- a lexer that cannot tell an
+arrow from a minus and a `>`, the exact case the exemption claimed the
+pair would catch -- and ten files fail, every one on a POSITIVE fact.
+No negative fails, and none can: no arrow-negative source contains the
+byte pair `->`, so `checkTokenFact` can never count one.
+
+Two tells were visible beforehand. `10_deref_at_sigil.t` does the same
+job with no arrow fact, and `10_io/07_say.t` had its identical fact
+deleted for want of a partner -- a rule that keeps a fact in tier 08
+and deletes it in tier 10 is tracking which negatives another test
+requires, not falsifiability.
+
+So all ten are deleted too, `pairedNegative` is gone, and
+`TestTierOoArrowIsLexical` keeps its positive requirement and asks the
+SOURCE for the other half: some file must spell the call indirectly,
+which is a claim about source text and not about tokens.
+
+`knownVacuous` is deleted outright rather than left empty. It existed
+so the check could land over pre-existing debt; the debt is repaired.
 
 ## Result
 
-Negative facts go 115 to 76. `knownVacuous` is empty.
+Counted inside `--- expect tokens` blocks only, negatives go 110 to 63:
+47 removed. An earlier count of 115 to 76 came from grepping whole
+files, which counts header prose.
 
 ## Acceptance criteria
 
-- [x] Every negative token fact names text its own source contains (`grep -q 'knownVacuous = map\[string\]bool{}' internal/conformance/vacuous_test.go`)
+- [x] Every negative token fact names text its own source contains, with no exemption list at all (`grep -Lq knownVacuous internal/conformance/vacuous_test.go`)
 - [x] The vacuity check passes with no ratcheted entries (`go test ./internal/conformance/ -run '^TestNegativeFactsNameTextTheSourceContains$' -count=1 -v | grep -q '^--- PASS'`)
 - [x] The whole conformance suite is green with the repairs in it (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
