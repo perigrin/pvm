@@ -3,8 +3,10 @@ title: "Compound assignment: thirteen operators, and the corpus writes none"
 state: pending
 urgency: normal
 milestone: corpus-complete
+blocked_by:
+- 01a0cc04-3303-7103-8769-9edca646b56e
 created: 2026-09-23T02:07:02.345262752Z
-updated: 2026-09-23T02:07:02.345262752Z
+updated: 2026-09-23T02:36:48.517301947Z
 ---
 
 Thirteen compound assignment operators, and the corpus writes none of
