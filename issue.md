@@ -4,7 +4,7 @@ state: in-progress
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-23T17:10:01.515942446Z
-updated: 2026-09-23T22:36:45.951226458Z
+updated: 2026-09-23T23:09:18.954607855Z
 sessions:
 - start_sha: 95cf8935c0ed1334c63e25964bff53ff6c7b9837
   end_sha: ""
@@ -17,65 +17,52 @@ transitions:
 ---
 
 Four parser gaps found by the `corpus-complete` milestone, each recorded
-by a corpus file. The files cite THIS issue, so the citations point
-somewhere live rather than at a closed one.
+by a corpus file citing this issue.
 
-## The gaps
+## What they turned out to be
 
-    conformance/11_oo/16_classname_ungated.t      trailing_tokens
-    conformance/11_oo/17_defer_ungated.t          unimplemented_statement
-    conformance/12_packages/10_compile_tokens.t   trailing_tokens
-    conformance/12_packages/11_line_directive.t   trailing_tokens
+THREE WERE ONE BUG, and not the bug any of the three files thought.
+`isBarewordHandle` used perl's all-caps filehandle convention, because a
+static parser has no symbol table to ask. `__PACKAGE__`, `__LINE__`,
+`__FILE__` and `__CLASS__` are all-caps, so each was taken into
+`print`'s filehandle slot and the comma after it was stranded.
 
-Measured against the parser, not read off the headers. An earlier
-revision of this issue had the first two swapped.
+Perl draws the line itself, and the two readings are not both legal:
 
-Plus one from the compound-assignment slice, already filed separately as
-`01a0ce57-db92-78e5-bbe4-7c28e74db6f3` (`x=` is never lexed), and one
-from the unary slice as `01a0cf64-8436-7f82-bcb5-587f0eba266f` (`-e` is
-lexed as two tokens).
+    $ perl -MO=Deparse -e 'print FOO, "\n";'
+    No comma allowed after filehandle at -e line 1.
 
-## What each needs
+    $ perl -MO=Deparse -e 'print __PACKAGE__, "\n";'
+    print __PACKAGE__, "\n";
 
-**`class NAME` ungated** is the `isa` finding in a different keyword.
-Measured, perl reads `class Foo {}` with the feature off as
-`'Foo'->class({})` -- an indirect method call whose brace group is an
-anonymous hash. Our parser leaves trailing tokens instead.
+Fixed in `831eaa1d` as a four-name exception, with a test asserting
+`print STDERR "x"` still takes the handle.
 
-**`__CLASS__` ungated**: perl reads `print __CLASS__;` as
-`print __CLASS__ $_` -- a filehandle print over a glob. Our parser
-leaves trailing tokens.
+The measurement corrected the issue's own framing three times:
 
-**`defer BLOCK` ungated** is the sharpest of the set and the one whose
-claim is currently unexercised. Measured, the block runs FIRST, because
-ungated `defer` is an indirect method call whose brace group is an
-anonymous hash evaluated eagerly; gated, it runs at scope exit. Same two
-lines, opposite order. `17_defer_ungated.t` pins the ungated ordering by
-output and our parser refuses the file, so the ordering claim is
-validated against perl and not yet against us.
+- `print FOO, "\n"` refuses identically, so this was never about
+  compile-time tokens as such.
+- `__PACKAGE__` alone always parsed; only the handle slot was wrong.
+- The `#line` directive ALREADY WORKED. `11_line_directive.t` refused
+  on its `print __LINE__, " ", __FILE__` line, not on the directive it
+  is named for.
 
-**`__PACKAGE__`** and the **`#line` directive** are tier 12's two. The
-directive is the more consequential: a `#` at column zero matching
-perl's pattern is not a comment, and a lexer that treats it as one
-reports every subsequent error location wrong, silently.
+Corpus 185 clean to 188, 27 refusing to 24. T2 `comp/package.t` 7 to 6.
 
-## Why this issue exists rather than a relaxed criterion
+THE FOURTH IS A DIFFERENT KIND OF THING and is now `01a0d087`.
+`17_defer_ungated.t` refuses because `defer` sits in
+`statementKeywords` for the GATED form, which is unimplemented, and
+that entry also declines the ungated reading. Removing it is not
+enough: `WORD BLOCK ARG` has no statement-level reader, the general
+shape is indirect object notation this parser does not implement
+(`new Foo;` refuses too), and removing the entry exposes a canon
+round-trip defect on `defer.t` that the refusal was masking. Three
+pieces, scoped in that issue; this file's citation now points there.
 
-`01a0cc04-339f`'s acceptance criterion originally demanded the defer
-ordering be "pinned by output" -- meaning our parser handles the file.
-It was edited after the issue closed to accept a recorded refusal
-instead. The tier relocation in that same edit was forced by the op
-budget and legitimate; the PASS-to-SKIP relaxation was not covered by
-that reason and rode across on its back.
+## Acceptance criteria
 
-The honest repair is to track the gap rather than lower the bar, which
-is what this issue is. When the parser learns these constructs, the four
-files start passing and the ratchet reports it.
-
-## Scope
-
-This is PARSER work, not corpus work. It is filed under
-`corpus-complete` because that milestone found the gaps and its files
-cite it, but nothing here is deliverable by writing corpus files -- the
-files already exist and already record the refusals correctly. It
-closes when the parser learns the constructs.
+- [ ] The three filehandle-slot refusals are gone and the files pass (`go test ./internal/conformance/ -run '^TestCorpus$/11_oo/16|^TestCorpus$/12_packages/1' -count=1 -v | grep -q 'PASS: TestCorpus/12_packages/10'`)
+- [ ] A bareword filehandle still takes the slot (`go test ./internal/parse/ -run '^TestBarewordHandleStillTakesTheSlot$' -count=1 -v | grep -q '^--- PASS'`)
+- [ ] Compile-time tokens parse as arguments to print (`go test ./internal/parse/ -run '^TestCompileTokensAreNotFilehandles$' -count=1 -v | grep -q '^--- PASS'`)
+- [ ] Every remaining refusal citation names a live issue (`! grep -rh 'STATUS refuses' conformance/ | grep -q 01a0cf3e`)
+- [ ] The whole conformance suite is green (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
