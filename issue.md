@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-23T02:07:02.684116637Z
-updated: 2026-09-23T02:07:02.684116637Z
+updated: 2026-09-23T02:25:31.10034613Z
 ---
 
 Four gaps at perlop's unary and named-unary levels, grouped because each
@@ -51,7 +51,7 @@ with its argument in both spellings.
 ## Acceptance criteria
 
 - [ ] Tier 04 holds a file whose subject is inc/dec, including the string increment (`awk '/^--- source/{s=1;next} /^--- expect/{s=0} s' conformance/04_operators/*.t | grep -q '++'`)
-- [ ] A file pins that `print (1+2)*3` prints 3 rather than 9, which only output can show (`go test ./internal/conformance/ -run '^TestCorpus/04_operators' -count=1 -v | grep -q '^    --- PASS: TestCorpus/04_operators'`)
+- [ ] A file pins that print (1+2)*3 prints 3 rather than 9, which only output can show (`go test ./internal/conformance/ -run '^TestCorpus/04_operators' -count=1 -v | grep -q '^    --- PASS: TestCorpus/04_operators'`)
 - [ ] Every new file is validated against pinned perl 5.42.0 before it counts (`go test ./internal/conformance/ -run '^TestTierOperatorsPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierOperatorsPerlValidated'`)
 - [ ] The dependency lint passes over the tier (`go test ./internal/conformance/ -run '^TestTierOperatorsLint$' -count=1 -v | grep -q '^--- PASS: TestTierOperatorsLint'`)
 - [ ] The whole conformance suite is green with the new files in it (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
