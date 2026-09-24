@@ -6,7 +6,7 @@ milestone: corpus-complete
 blocked_by:
 - 01a0cc04-3303-7103-8769-9edca646b56e
 created: 2026-09-23T02:07:02.345262752Z
-updated: 2026-09-23T13:08:06.479465135Z
+updated: 2026-09-24T20:47:47.833130476Z
 sessions:
 - start_sha: 8a2ffb94624374191b8f6f4266bc8a20b0daf957
   end_sha: cbaacf10d93150fdf2a15e13ddca50cfce26104a
@@ -85,9 +85,9 @@ bitwise issue landing first, since `|=` cannot be claimed before `|`.
 
 ## Acceptance criteria
 
-- [ ] Tier 04 holds files for the compound assignment operators, each claiming its spelling as ONE operator token (`test 5 -le "$(ls conformance/04_operators/*.t | wc -l)"`)
-- [ ] The corpus source contains compound assignment, which it did not before (`awk '/^--- source/{s=1;next} /^--- expect/{s=0} s' conformance/04_operators/*.t | grep -q '+='`)
+- [ ] Tier 04 holds files for the compound assignment operators, each claiming its spelling as ONE operator token (`test 5 -le "$(grep -c '^## ' conformance/mdtest/compound-assignment.md)"`)
+- [ ] The corpus source contains compound assignment, which it did not before (`python3 tools/mdtest/tiersrc.py 04_operators | grep -q '+='`)
 - [ ] Every new file is validated against pinned perl 5.42.0 before it counts (`go test ./internal/conformance/ -run '^TestTierOperatorsPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierOperatorsPerlValidated'`)
 - [ ] The dependency lint passes: no file uses an op introduced after its tier (`go test ./internal/conformance/ -run '^TestTierOperatorsLint$' -count=1 -v | grep -q '^--- PASS: TestTierOperatorsLint'`)
-- [ ] The tier's adjacency file holds every construct the tier introduces (`go test ./internal/conformance/ -run '^TestTierOperatorsAdjacency$' -count=1 -v | grep -q '^--- PASS: TestTierOperatorsAdjacency'`)
+- [ ] The tier's adjacency file holds every construct the tier introduces (`go test ./internal/conformance/ -run '^TestCorpus$' -count=1 -v | grep -q 'PASS: TestCorpus/adjacency-'`)
 - [ ] The whole conformance suite is green with the new files in it (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
