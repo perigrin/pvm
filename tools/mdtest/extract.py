@@ -14,9 +14,14 @@ for f in sorted(glob.glob('conformance/*/*.t')):
     tier = f.split('/')[1]
     name = os.path.basename(f)
     raw = open(f).read()
-    header, _, rest = raw.partition('--- source')
-    if not rest:
+    # The marker is only a marker AT COLUMN 1. `08_data_section.t`'s
+    # header quotes `--- source` mid-sentence while explaining what a
+    # section body includes, and an unanchored split takes that comment
+    # for the section -- copying prose where the program should be.
+    m = re.search(r'(?m)^--- source', raw)
+    if not m:
         continue
+    header, rest = raw[:m.start()], raw[m.end():]
 
     def section(tag):
         if '--- ' + tag not in rest:

@@ -77,6 +77,16 @@ rather than making one.
 **A case may use only ops its tier or an earlier one introduces.** That
 is what keeps the corpus graded, and `lintOps` enforces it.
 
+**A NON-PARSING CASE CAN ASSERT WHAT A PARSING ONE CANNOT.** `parses:
+no` means perl rejects the program, so perl builds no optree for it and
+it emits NO OPS -- which means the op budget cannot bind it.
+
+That is a structural capability, not a completeness argument. Tier 04's
+`1 .. 2 .. 3` spells `..`, whose ops belong to 03_context; a PARSING
+case spelling it in tier 04 would fail the lint, and this one cannot.
+So the two kinds of case assert disjoint sets of facts rather than
+being harder and easier versions of the same thing.
+
 **A `refuses:` record must still refuse.** A case that records a refusal
 and now passes is reported, not silently skipped -- a stale record hides
 a regression.
@@ -92,28 +102,54 @@ corpus unusable by anyone whose tree differs. The `ir` block is not a
 counterexample: it is a subset claim by a different implementation about
 its own graph, and this reader never checks it.
 
-## Why blocks per layer, and not inline assertions
+## Info strings: a path if it has a dot, otherwise a language tag
+
+    ```perl          the unnamed entry point. Always legal.
+    ```fileA.pm      a named file, when blocks belong together.
+
+The disambiguation is the dot, and it needs no registry: `perl` has no
+dot and no path we would write lacks one.
+
+BARE `perl` STAYS FIRST-CLASS rather than becoming shorthand. Almost
+every case in this corpus is one file, and a path is a CLAIM -- writing
+`foo.pm` says this compiles as a module, needs a trailing `1;`, and
+resolves through `@INC`. A case asserting none of that should not have
+to pick a name implying it, so the ABSENCE of a path is itself
+information: one program, and nothing depends on where it lives.
+
+Multi-file cases are not used here yet. Settled with the B::SoN session
+so the two corpora agree before either needs it.
+
+## Why blocks, and not inline assertions
 
 Ty puts its assertions inline -- `reveal_type(x)` with a trailing
 `# revealed: <type>`, and `# error: [rule-code]` at the line that
-raises. That is right for Ty, which has ONE producer: the assertion and
-the thing asserted are the same tool's output, so a comment beside the
-expression is the shortest honest form.
+raises.
 
-This corpus has several implementations answering INDEPENDENTLY about
-one program, and they are not a pipeline -- B::SoN reads perl's optree,
-Chalk builds on the IR that produces, this parser reads the bytes. A
-block per layer says that: each implementation fills its own block,
-reads its own block, and is silent in the others. An inline comment
-would have to encode WHICH implementation it constrains, which is a
-block by another spelling and a worse one -- it puts three tools'
-answers in one namespace and makes "who is silent here" unanswerable.
+THE REASON THIS FORMAT USES BLOCKS IS THAT THEY ORGANISE FACTS BY KIND.
+What perl prints, whether perl compiles it, what the token stream
+contains: three kinds of claim about one program, and a block each
+keeps them separable, greppable, and machine-written by the tool that
+measures them.
 
-The inline form's real advantage is locality: an assertion AT the
-expression it is about. Nothing here needs that yet, because our claims
-are about a whole program -- what it prints, whether it parses, what
-its token stream contains. A per-expression claim (a type at a site, a
-diagnostic at a column) would need it, and that is when to revisit.
+THE TRADEOFF IS LOCALITY. An inline assertion sits AT the expression it
+is about; a block sits in a list that must reference a location some
+other way. Every claim in this corpus is about a WHOLE PROGRAM -- what
+it prints, whether it parses, what its tokens are -- so nothing here
+pays that cost yet. A per-expression claim (a type at a site, a
+diagnostic at a column) would, and that is the trigger to revisit.
+
+A WRONG REASON THAT WAS HERE, recorded because a spec outlives the
+decision it justified and the next reader reads the reason. An earlier
+version argued that several implementations "answer independently", so
+an inline comment would have to encode WHICH implementation it binds
+and a block therefore "says silence structurally". Both halves are
+wrong. This is a CONFORMANCE SUITE: the fixture states what is true
+about the program, and each implementation checks itself against the
+parts it supports -- one set of agreed facts, not several namespaced
+answers. And silence needs no structure either way: an implementation
+with no type layer skips a type assertion whether it sits in a block or
+in a comment.
 
 ## Token facts
 
