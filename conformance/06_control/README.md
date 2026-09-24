@@ -236,61 +236,23 @@ a file here that the probe finds.
 
 ## FILE ORDER
 
-    01-04	conditionals
-    05-09	loops
-    10-12	jumps
-    13-14	block-valued expressions
-    15-16	terminations
-    17-17	niladic builtins
+    conditionals
+    loops
+    jumps
+    blocks-and-terminations
 
-The numbering is chosen, not computed, and the sections above depend on
-it. The three conditional files are the `and`/`or`/`cond_expr` argument --
-`if` and `unless` differ by exactly one op, and `if`/`else` is a different
-op again -- and that argument is a comparison between neighbours. The five
-loop files are the `enterloop`/`unstack` family, with `enteriter` arriving
-at `08_foreach.t` as the thing that distinguishes `foreach` from C-style
-`for`, and `09_do_while.t` closing the run with the one loop that emits
-`unstack` and no `enterloop` at all. The three jump files are what
-`enterloop` names in its own dump.
+The tier's topics, which are its grouping: a case lives in the topic
+whose subject it shares, and the topic file name IS the group name.
 
-The fourth group is new and is the only one whose name is not a keyword.
-`13_do_block.t` and `14_eval_block.t` are the two constructs that put a
-BLOCK where an expression goes with no comma between it and what follows
--- a parse fork perl itself resolves by heuristic, and the one perl gets
-wrong as an anonymous hash. They sit last because neither is a loop and
-neither is a jump, and putting them inside either run would make the
-sentence describing that run false. `09_do_while.t` is the hinge: it holds
-the same `do BLOCK` as `13_do_block.t` and is in the loop group, because
-what follows the closing brace decides which production this is.
+The three conditional cases are the `and`/`or`/`cond_expr` argument --
+`if` and `unless` differ by exactly one op, and `if`/`else` is a
+different op again -- and that argument is a comparison between
+neighbours, which is why they share a topic rather than being three
+files a reader has to notice are related.
 
-The fifth group is the two jumps with no landing site inside the file.
-`next`, `last`, `redo` and `goto` all name a target the same program
-supplies, which is what puts them in the jump group; `die` and `exit`
-leave -- `die` to the nearest enclosing `entertry` frame, which the source
-need not contain at all, and `exit` past every frame there is. They sit
-after the block-valued pair rather than inside the jump run because
-`15_die.t` is only writable once `14_eval_block.t` has spelled the frame
-it unwinds to, so the numbering carries the dependency as well as the
-family.
-
-The sixth group holds one file and is the only group in this tier whose
-name does not describe control flow, because `17_time.t` is not control
-flow. It is here on the OP BUDGET and the README says so rather than
-inventing a family for it: a non-deterministic builtin is observable only
-through a comparison, the comparison needs `gt` from `04_operators` and
-the ternary that renders it needs this tier's `cond_expr`, so 06 is the
-earliest tier that can hold the file at all. `time` was first proposed
-for `03_context`, beside `localtime`, and measured out: tier 03's subject
-is the discriminating pair, and `time` returns one value in both contexts
-(`1 1`, where `localtime` gives `9 1`), so it has no pair to contribute.
-The group is named for what the file actually measures -- an operator
-that takes no argument and admits none -- which is a property of its
-PARSE rather than of its place in this tier.
-
-A regeneration would sort these alphabetically and interleave the
-families: `03_goto.t` would land between `02_foreach.t` and
-`04_if_else.t`, putting a jump between a loop and a conditional and
-separating `10_while.t` from `09_until.t`, which differ by one op and are
-only legible side by side. That is why this tier is not `derived`: the
-arrangement carries the argument, and alphabetical order would destroy it
-while leaving every test passing.
+`blocks-and-terminations.md` is three former groups in one topic:
+block-valued expressions, terminations, and the niladic builtins. They
+were separate ranges when a group had to be a run of numbered files;
+they are one document now because what they have in common -- a
+construct whose VALUE or whose EXIT is the subject -- reads better as
+one.

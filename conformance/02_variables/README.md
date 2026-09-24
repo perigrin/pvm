@@ -146,21 +146,14 @@ finds, so a claim here cannot outlive the files that back it.
 
 ## FILE ORDER
 
-    derived
+    accidental
 
-The numbers are a function of the names: sort the identities, count from
-01. `TestDerivedTierNumberingRegenerates` throws them away and rebuilds
-them, so this tier's numbering cannot drift.
+The corpus is topic files now, and a topic carries no number for an
+order to be derived from. This tier's cases are grouped by subject --
+the topic a case lives in IS its grouping -- and the order they appear
+in a topic is the order a reader would want to meet them, which is a
+judgement rather than a function.
 
-It has now held through a renumbering that was NOT luck. Adding `each.t`
-put a new identity in the middle of the sort, shifting `hash.t` and its
-six successors up by one, and `TestTierVariablesNumberingRegenerates`
-named every destination before a file moved. An earlier shift in
-`b4af7e51` moved `05_hash.t` and its successors for a different reason --
-closing a gap rather than alphabetising -- and happened to land where a
-regeneration would put them; this one was derived rather than guessed,
-which is the difference the `derived` declaration buys.
-
-The sort is on the identity WITH its extension, so
-`array.t` precedes `array_element.t` (`.` sorts before `_`), which is why
-`01_array.t` sits ahead of `02_array_element.t` rather than after it.
+`accidental` was previously a record of debt: numbers that happened to
+be the order files were written in. It is not debt here. There is
+nothing to renumber.

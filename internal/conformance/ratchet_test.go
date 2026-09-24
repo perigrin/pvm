@@ -1,5 +1,5 @@
-// ABOUTME: The corpus ratchet's tests: name-keyed so a tier move is not a regression.
-// ABOUTME: Includes the duplicate-name rejection the key's uniqueness assumption needs.
+// ABOUTME: The corpus ratchet's tests: keyed on a case's name so a tier move is not a regression.
+// ABOUTME: Includes the duplicate-key rejection the key's uniqueness assumption needs.
 
 package conformance
 
@@ -37,7 +37,7 @@ func TestCorpusRatchet(t *testing.T) {
 		if err := os.WriteFile(ratchetPath, []byte(renderRatchet(now)), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		t.Logf("rewrote %s (%d files); commit it with the change that moved it",
+		t.Logf("rewrote %s (%d cases); commit it with the change that moved it",
 			ratchetPath, len(now))
 		return
 	}
@@ -77,76 +77,117 @@ func TestRatchetSeesTokenFactRefusals(t *testing.T) {
 		}
 	}
 
-	// Every file the corpus marks `STATUS refuses` must be non-clean in
-	// the baseline. Counting is not enough: name the ones that are not.
-	paths, err := filepath.Glob(filepath.Join(corpusDir, "*_*", "*.t"))
+	// Every case the corpus marks `refuses:` must be non-clean in the
+	// baseline. Counting is not enough: name the ones that are not.
+	cases, err := AllCases(corpusDir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var blind []string
-	for _, p := range paths {
-		raw, err := os.ReadFile(p)
-		if err != nil {
-			t.Fatal(err)
+	declared := 0
+	for _, c := range cases {
+		if c.Refuses == "" {
+			continue
 		}
-		f, err := ParseFile(string(raw))
-		if err != nil {
-			t.Fatal(err)
-		}
-		rel := filepath.ToSlash(strings.TrimPrefix(p,
-			corpusDir+string(filepath.Separator)))
-		if f.Refuses != "" && state[rel] == ratchetClean {
-			blind = append(blind, rel)
+		declared++
+		if state[c.Key] == ratchetClean {
+			blind = append(blind, c.Key)
 		}
 	}
 	if len(blind) > 0 {
-		t.Errorf("%d file(s) are marked `STATUS refuses` and the baseline "+
+		t.Errorf("%d case(s) are marked `refuses:` and the baseline "+
 			"records them as clean:\n  %s\n\n"+
 			"The ratchet is blind to their refusal.",
 			len(blind), strings.Join(blind, "\n  "))
 	}
 
-	if refusing < 14 {
-		t.Errorf("the baseline records %d refusing files; the corpus marks "+
-			"14. A baseline that sees fewer refusals than the corpus "+
-			"declares is not measuring them.", refusing)
+	// DERIVED, not a constant. The old form pinned the number 14, which
+	// was the count of `STATUS refuses` files on the day it was written
+	// and was already wrong by the time the corpus reached 27 of them --
+	// a floor that low stops being a floor. The claim was never about
+	// that integer: it is that the baseline sees at least as many
+	// refusals as the corpus DECLARES, and the corpus can be asked.
+	if declared == 0 {
+		t.Fatal("no case in the corpus is marked `refuses:`; this check " +
+			"would pass over a corpus that declares nothing")
+	}
+	if refusing < declared {
+		t.Errorf("the baseline records %d refusing cases; the corpus marks "+
+			"%d. A baseline that sees fewer refusals than the corpus "+
+			"declares is not measuring them.", refusing, declared)
 	}
 }
 
-// TestTierMoveIsNotARegression is the reason the key is a NAME.
+// TestRatchetKeysCarryNoTier pins why moving a case between tiers is not
+// a regression.
 //
-// A file moving from `04_operators/` to `02_variables/` because the `t/`
-// sweep proved it belongs earlier is the sweep WORKING. Path-keyed, that
-// reads as one deletion plus one addition -- a regression plus an
-// unexplained new entry -- for a file whose bytes did not change.
-func TestTierMoveIsNotARegression(t *testing.T) {
-	before := map[string]string{"04_operators/06_and_cliff.t": "missing_operand"}
-	after := map[string]string{"02_variables/06_and_cliff.t": "missing_operand"}
-
-	base, err := ratchetKeys(before)
+// A ratchet key is `<topic>.md/<case title>`. Neither half names a tier,
+// so re-declaring a topic's `**Tier NN name.**` line moves the case
+// without renaming it, and the ratchet reports no drift.
+//
+// AT HEAD THIS WAS ACHIEVED RATHER THAN STRUCTURAL. Keys were file
+// paths like `04_operators/06_and_cliff.t`, and `ratchetKey` stripped
+// the tier directory and the numeric prefix to get the same property --
+// so the test that guarded it built two files in different tiers and
+// checked they produced one key.
+//
+// That form became TAUTOLOGICAL after the migration: it varied the tier
+// line, which a key is no longer built from, so it could not fail
+// whatever the keying code did. Replaced with the claim that can:
+// no key mentions any tier, which fails the moment someone puts one
+// back.
+func TestRatchetKeysCarryNoTier(t *testing.T) {
+	cases, err := AllCases(corpusDir)
 	if err != nil {
-		t.Fatal(err)
-	}
-	now, err := ratchetKeys(after)
-	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("reading the corpus: %v", err)
 	}
 
-	if d := ratchetDrift(base, now); !d.clean() {
-		t.Errorf("a tier move reported drift:\n%s", d)
+	tiers := map[string]bool{}
+	for _, c := range cases {
+		tiers[c.Tier] = true
+	}
+	if len(tiers) < 2 {
+		t.Fatalf("corpus spans %d tier(s); this check needs several to "+
+			"mean anything", len(tiers))
 	}
 
-	// The converse, without which this passes against a ratchet that
-	// never reports anything: a genuine change in the same move is not
-	// silent.
-	changed, err := ratchetKeys(map[string]string{
-		"02_variables/06_and_cliff.t": "not_a_term"})
+	for _, c := range cases {
+		// The adjacency topics are the deliberate exception, and they
+		// are named `adjacency-<tier>.md` BECAUSE an adjacency case is
+		// tier-specific by nature: its subject is "every construct THIS
+		// tier introduces, each beside another". Such a case cannot
+		// move tiers without becoming a different case, so a rename is
+		// the honest report.
+		if strings.HasPrefix(c.Topic, "adjacency-") {
+			continue
+		}
+		for tier := range tiers {
+			if strings.Contains(c.Key, tier) {
+				t.Errorf("ratchet key %q names the tier %q.\n"+
+					"\tA key that carries its tier turns MOVING a case "+
+					"into a rename, and the ratchet reports a regression "+
+					"for work that changed no behaviour.", c.Key, tier)
+			}
+		}
+	}
+}
+
+// topicKeys reads a topic's cases and keys them at one refusal, so a
+// test can state what it is about -- the topic's text -- rather than
+// hand-building the keys the reader would have produced.
+func topicKeys(topic, raw, state string) (map[string]string, error) {
+	if _, err := topicTier(raw); err != nil {
+		return nil, err
+	}
+	cases, err := ParseTopic(raw)
 	if err != nil {
-		t.Fatal(err)
+		return nil, err
 	}
-	if d := ratchetDrift(base, changed); d.clean() {
-		t.Error("a moved file whose refusal CHANGED reported no drift")
+	byKey := map[string]string{}
+	for _, c := range cases {
+		byKey[topic+"/"+c.Title] = state
 	}
+	return ratchetKeys(byKey)
 }
 
 // TestRatchetFailsBothDirections is the ratchet's whole point.
@@ -160,8 +201,8 @@ func TestTierMoveIsNotARegression(t *testing.T) {
 // that must all still be there, each with the refusal it had.
 func TestRatchetFailsBothDirections(t *testing.T) {
 	base, err := ratchetKeys(map[string]string{
-		"01_literals/03_leading_decimal.t": "not_a_term",
-		"01_literals/02_decimal.t":         ratchetClean,
+		"numeric-point.md/A leading decimal point": "not_a_term",
+		"numeric-point.md/A plain decimal":         ratchetClean,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -169,8 +210,8 @@ func TestRatchetFailsBothDirections(t *testing.T) {
 
 	// Direction 1: a file that STOPPED parsing.
 	worse, err := ratchetKeys(map[string]string{
-		"01_literals/03_leading_decimal.t": "not_a_term",
-		"01_literals/02_decimal.t":         "missing_operand",
+		"numeric-point.md/A leading decimal point": "not_a_term",
+		"numeric-point.md/A plain decimal":         "missing_operand",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -179,16 +220,16 @@ func TestRatchetFailsBothDirections(t *testing.T) {
 	if d.clean() {
 		t.Error("a file that stopped parsing reported no drift")
 	}
-	if !strings.Contains(d.String(), "decimal.t") {
-		t.Errorf("drift does not name the file that broke:\n%s", d)
+	if !strings.Contains(d.String(), "A plain decimal") {
+		t.Errorf("drift does not name the case that broke:\n%s", d)
 	}
 
 	// Direction 2: a file that STARTED parsing while still baselined as
 	// refusing. Good news, and it still fails: the baseline must be
 	// regenerated by the change that earned it.
 	better, err := ratchetKeys(map[string]string{
-		"01_literals/03_leading_decimal.t": ratchetClean,
-		"01_literals/02_decimal.t":         ratchetClean,
+		"numeric-point.md/A leading decimal point": ratchetClean,
+		"numeric-point.md/A plain decimal":         ratchetClean,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -200,7 +241,7 @@ func TestRatchetFailsBothDirections(t *testing.T) {
 	// Direction 3, the one no per-file check can reach: the file is GONE.
 	// verdict() cannot report on a file that is not there.
 	gone, err := ratchetKeys(map[string]string{
-		"01_literals/02_decimal.t": ratchetClean,
+		"numeric-point.md/A plain decimal": ratchetClean,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -209,8 +250,8 @@ func TestRatchetFailsBothDirections(t *testing.T) {
 	if d.clean() {
 		t.Error("a file that vanished from the corpus reported no drift")
 	}
-	if !strings.Contains(d.String(), "leading_decimal.t") {
-		t.Errorf("drift does not name the vanished file:\n%s", d)
+	if !strings.Contains(d.String(), "A leading decimal point") {
+		t.Errorf("drift does not name the vanished case:\n%s", d)
 	}
 }
 
@@ -229,15 +270,15 @@ func TestRatchetFailsBothDirections(t *testing.T) {
 // so before the file lands.
 func TestNewFileNeedsNoBaselineEdit(t *testing.T) {
 	base, err := ratchetKeys(map[string]string{
-		"01_literals/02_decimal.t": ratchetClean,
+		"numeric-point.md/A plain decimal": ratchetClean,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	withNew, err := ratchetKeys(map[string]string{
-		"01_literals/02_decimal.t":        ratchetClean,
-		"01_literals/05_hex_underscore.t": "not_a_term",
+		"numeric-point.md/A plain decimal":      ratchetClean,
+		"numeric-radix.md/Hex with underscores": "not_a_term",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -246,15 +287,15 @@ func TestNewFileNeedsNoBaselineEdit(t *testing.T) {
 	if !d.clean() {
 		t.Errorf("a new refusing file failed the baseline:\n%s", d)
 	}
-	if !strings.Contains(d.Notes(), "hex_underscore.t") {
+	if !strings.Contains(d.Notes(), "Hex with underscores") {
 		t.Errorf("a new file was accepted SILENTLY; drift notes are %q", d.Notes())
 	}
 
 	// The converse: a new file that already passes is not free. Otherwise
 	// this test passes against a ratchet that accepts every new name.
 	withPassing, err := ratchetKeys(map[string]string{
-		"01_literals/02_decimal.t":        ratchetClean,
-		"01_literals/05_hex_underscore.t": ratchetClean,
+		"numeric-point.md/A plain decimal":      ratchetClean,
+		"numeric-radix.md/Hex with underscores": ratchetClean,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -264,58 +305,89 @@ func TestNewFileNeedsNoBaselineEdit(t *testing.T) {
 	}
 }
 
-// TestDuplicateFileNameRejected defends the key's own assumption.
+// TestDuplicateCaseKeyRejected defends the key's own assumption.
 //
-// Name-keying is sound only while names are unique. Two tiers holding
-// `03_slice.t` collide into one key, and the baseline then records one of
-// them and silently stops measuring the other -- the exact failure mode
-// the corpus exists to prevent.
-func TestDuplicateFileNameRejected(t *testing.T) {
-	_, err := ratchetKeys(map[string]string{
-		"01_literals/03_slice.t":  ratchetClean,
-		"02_variables/03_slice.t": "not_a_term",
+// Name-keying is sound only while names are unique. Two cases sharing a
+// key collide into one entry, and the baseline then records one of them
+// and silently stops measuring the other -- the exact failure mode the
+// corpus exists to prevent.
+//
+// WHAT CHANGED WITH TOPICS: the collision this used to describe was two
+// TIERS holding `03_slice.t`, which `ratchetKey` manufactured by
+// stripping the tier out of the path. Nothing strips now, so that
+// collision cannot occur and testing it would be testing nothing. The
+// collision that CAN occur moved up a level: two `##` headings with the
+// same title in one topic file produce the same `<topic>.md/<title>`,
+// and the corpus already holds fourteen cases titled "The whole tier in
+// one body" -- one retitle away from being a real one.
+//
+// It is also why this goes through `ratchetKeysOf` and `corpusState`
+// rather than a map. A Go map cannot hold a duplicate key, so a test
+// that built one would have lost the second case before the check could
+// see it -- the bug performed rather than caught.
+func TestDuplicateCaseKeyRejected(t *testing.T) {
+	_, err := ratchetKeysOf([]keyed{
+		{key: "slices.md/A slice", state: ratchetClean, where: "case 1 of slices.md"},
+		{key: "slices.md/A slice", state: "not_a_term", where: "case 2 of slices.md"},
 	})
 	if err == nil {
-		t.Fatal("two tiers holding `03_slice.t` were accepted")
+		t.Fatal("two cases titled `A slice` in one topic were accepted")
 	}
-	for _, want := range []string{"slice.t", "01_literals", "02_variables"} {
+	for _, want := range []string{"A slice", "case 1 of slices.md", "case 2 of slices.md"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error %q does not name %q", err, want)
 		}
 	}
 
-	// Two distinct names in one tier are not a collision.
-	if _, err := ratchetKeys(map[string]string{
-		"01_literals/03_slice.t": ratchetClean,
-		"01_literals/07_dice.t":  ratchetClean,
+	// Two distinct titles in one topic are not a collision.
+	if _, err := ratchetKeysOf([]keyed{
+		{key: "slices.md/A slice", state: ratchetClean, where: "slices.md"},
+		{key: "slices.md/A dice", state: ratchetClean, where: "slices.md"},
 	}); err != nil {
-		t.Errorf("two distinct names in one tier were rejected: %v", err)
+		t.Errorf("two distinct titles in one topic were rejected: %v", err)
 	}
 
-	// The per-tier adjacency fixture is the corpus's ONE deliberate
-	// repetition and must survive: 14 tiers each close with one.
-	if _, err := ratchetKeys(map[string]string{
-		"01_literals/00_adjacency.t":  ratchetClean,
-		"04_operators/00_adjacency.t": "missing_operand",
+	// The corpus's ONE deliberate repetition must survive: fourteen tiers
+	// each close with an adjacency case and all fourteen carry the same
+	// TITLE. They are kept apart by the topic holding them, which is what
+	// used to need the `tierFixture` carve-out and now needs nothing.
+	if _, err := ratchetKeysOf([]keyed{
+		{key: "adjacency-01_literals.md/The whole tier in one body",
+			state: ratchetClean, where: "adjacency-01_literals.md"},
+		{key: "adjacency-04_operators.md/The whole tier in one body",
+			state: "missing_operand", where: "adjacency-04_operators.md"},
 	}); err != nil {
 		t.Errorf("the per-tier adjacency fixture was rejected as a duplicate: %v", err)
 	}
 
 	// And the real corpus on disk has no duplicate, which is the
-	// observation rather than the assertion.
-	paths, err := filepath.Glob(filepath.Join(corpusDir, "*_*", "*.t"))
+	// observation rather than the assertion. `corpusState` is what reads
+	// it as a slice, so this is the path a real collision would take.
+	if _, err := corpusState(corpusDir); err != nil {
+		t.Errorf("the corpus on disk has a colliding case key: %v", err)
+	}
+
+	// The same-titled adjacency cases are not hypothetical: assert the
+	// corpus holds them, so the carve-out above is tested against a
+	// repetition that exists rather than one this file imagined.
+	cases, err := AllCases(corpusDir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(paths) == 0 {
-		t.Fatal("no corpus files found")
+	titles := map[string]int{}
+	for _, c := range cases {
+		if strings.HasPrefix(c.Topic, "adjacency-") {
+			titles[strings.TrimPrefix(c.Key, c.Topic+"/")]++
+		}
 	}
-	state := make(map[string]string, len(paths))
-	for _, p := range paths {
-		state[filepath.ToSlash(strings.TrimPrefix(p,
-			corpusDir+string(filepath.Separator)))] = ratchetClean
+	repeated := 0
+	for _, n := range titles {
+		if n > 1 {
+			repeated++
+		}
 	}
-	if _, err := ratchetKeys(state); err != nil {
-		t.Errorf("the corpus on disk has a colliding name: %v", err)
+	if repeated == 0 {
+		t.Error("no adjacency title is shared between topics; the " +
+			"deliberate repetition this test protects is not in the corpus")
 	}
 }

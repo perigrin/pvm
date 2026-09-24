@@ -1,227 +1,227 @@
-# The refusal each conformance corpus file has, as our parser
-# produces it. `-` is a file that parses clean; anything else is
+# The refusal each conformance corpus case has, as our parser
+# produces it. `-` is a case that parses clean; anything else is
 # the distinct refusal codes it produced, in tree order.
 #
-# KEYED ON FILE NAME, not path, and the numeric prefixes are
-# stripped. A file moving between tiers or renumbering within one
+# KEYED ON NAME -- `<topic>.md/<case title>`, which is the topic
+# file a person named and the heading a person wrote. Neither is a
+# POSITION, so a construct moving between tiers is an edit to the
+# topic's `**Tier NN name.**` line and leaves every key alone. That
 # is the `t/` sweep working, and must not read as a regression.
-# The per-tier adjacency fixture carries its tier, since fourteen
-# tiers each hold one and they are different files.
 #
-# 212 files, 188 clean, 24 refusing.
+# 212 cases, 188 clean, 24 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
 # number nobody can attribute.
-- alternative_delimiters.t
-tokens and_cliff.t
-- anon_sub.t
-- anonymous_array.t
-- args_alias.t
-- args_array.t
-- arithmetic.t
-- array.t
-- array_element.t
-- array_last_index.t
-- array_slice.t
-- arrow_deref.t
-- associativity.t
-- autoload.t
-- backslash_list.t
-- backslash_scalar.t
-- backtick_command.t
-- bare_block.t
-- bare_match.t
-- begin_end.t
-- binary.t
-- bind.t
-- bitwise.t
-- bitwise_numeric.t
-- bitwise_polymorphic.t
-- bitwise_precedence.t
-- bless_empty.t
-- bless_populated.t
-- brace_deref.t
-- braced_name.t
-- builtin_extent.t
-- c_style_for.t
-- call_forms.t
-- caller.t
-- can_chain.t
-- chained_comparison.t
-- chr_ord.t
-- class_adjust.t
-- class_empty.t
-- class_field_method.t
-- class_ungated.t
-- classname_ungated.t
-- code_block.t
-- code_ref.t
-- code_ref_call.t
-- comma_in_scalar_context.t
-- compile_tokens.t
-- complement.t
-- compound_arithmetic.t
-- compound_bitwise.t
-trailing_tokens,tokens compound_repeat.t
-- compound_shortcircuit.t
-- compound_string.t
-- context/adjacency.t
-- control/adjacency.t
-not_a_term data_not_perl.t
-not_a_term data_section.t
-- decimal.t
-- decimal_integer.t
-unimplemented_statement defer_ungated.t
-- deref_at.t
-- deref_at_sigil.t
-- deref_brace_hash.t
-- deref_postfix.t
-- die.t
-- do_block.t
-- do_while.t
-- double_quoted.t
-- each.t
-- elsif.t
-- eof.t
-- eval_block.t
-- eval_string.t
-- exit.t
-tokens file_test.t
-- flipflop.t
-- foreach.t
-unimplemented_statement format_picture.t
-unimplemented_statement format_write.t
-- glob_angle.t
-- glob_assign.t
-- glob_ref.t
-- goto.t
-- grep.t
-- hash.t
-- hash_delimiter.t
-- hash_element_expr.t
-- hash_exists_delete.t
-- hash_slice.t
-trailing_tokens heredoc_indented.t
-trailing_tokens heredoc_interpolating.t
-trailing_tokens heredoc_literal.t
-- hexadecimal.t
-- hostile_contents.t
-- if_else.t
-- if_postfix.t
-- import_call.t
-- incdec.t
-- index_sentinel.t
-- indirect_new.t
-- interpolated.t
-- interpolated_array.t
-- io/adjacency.t
-- isa_infix.t
-- leading_decimal.t
-- line_directive.t
-- literals/adjacency.t
-- local.t
-- localtime.t
-- lock.t
-not_a_term,tokens logical.t
-- logical_not.t
-- map.t
-- method_dynamic.t
-- method_named.t
-- method_super.t
-- my.t
-- named_sub.t
-- named_unary.t
-- negated_bind.t
-- negative.t
-- nesting_delimiters.t
-- next_last_redo.t
-- nonassoc_refusal.t
-- numeric_comparison.t
-- octal_leading_zero.t
-- octal_prefix.t
-trailing_tokens oo/adjacency.t
-unimplemented_statement,trailing_tokens,not_a_term opaque/adjacency.t
-- open_close.t
-not_a_term,trailing_tokens operators/adjacency.t
-- our.t
-- pack_template.t
-- package_array.t
-- package_block.t
-- package_hash.t
-- package_scalar.t
-- package_statement.t
-- packages/adjacency.t
-trailing_tokens parenless_extent.t
-- pod_block.t
-- pod_not_perl.t
-- pos.t
-- postfix_while.t
-- precedence.t
-- print_bareword_handle.t
-- print_lexical_handle.t
-- prototype_builtin.t
-trailing_tokens prototype_extent.t
-- push.t
-- qq_delimiters.t
-- qr.t
-- qr_with_code.t
-- quote_operators.t
-- range_list.t
-- range_refusal.t
-- range_string.t
-- readline_list.t
-- readline_scalar.t
-- recursive/adjacency.t
-- ref_builtin.t
-- references/adjacency.t
-- regex/adjacency.t
-- require_bareword.t
-- require_expression.t
-- return.t
-- reverse.t
-- say.t
-- scalar_of_array.t
-- scoping/adjacency.t
-- select.t
-- shift.t
-- signature.t
-tokens signed_exponent.t
-- single_quoted.t
-- sort.t
-- split_pattern.t
-- sprintf_star.t
-- state.t
-- state_ungated.t
-tokens string.t
-tokens string_comparison.t
-- string_increment.t
-trailing_tokens subroutines/adjacency.t
-- subst_double_eval.t
-- subst_eval.t
-- substitution.t
-- substr_arity.t
-- substr_lvalue.t
-- tie_variable.t
-- tied_boolean.t
-- time.t
-- trailing_decimal.t
-- transliteration.t
-- unary_plus.t
-- undeclared_callee.t
-trailing_tokens undef_arity.t
-- underscore_separators.t
-- unless.t
-- unpack_template.t
-- unshift.t
-- until.t
-- use_constant.t
-- use_empty_list.t
-- use_import.t
-- use_pragma.t
-- values.t
-- variables/adjacency.t
-tokens vstring_bare.t
-tokens vstring_v.t
-- wantarray.t
-- while.t
+- adjacency-01_literals.md/The whole tier in one body
+- adjacency-02_variables.md/The whole tier in one body
+- adjacency-03_context.md/The whole tier in one body
+not_a_term,trailing_tokens adjacency-04_operators.md/The whole tier in one body
+- adjacency-05_scoping.md/The whole tier in one body
+- adjacency-06_control.md/The whole tier in one body
+trailing_tokens adjacency-07_subroutines.md/The whole tier in one body
+- adjacency-08_references.md/The whole tier in one body
+- adjacency-09_regex.md/The whole tier in one body
+- adjacency-10_io.md/The whole tier in one body
+trailing_tokens adjacency-11_oo.md/The whole tier in one body
+- adjacency-12_packages.md/The whole tier in one body
+unimplemented_statement,trailing_tokens,not_a_term,tokens adjacency-13_opaque.md/The whole tier in one body
+- adjacency-14_recursive.md/The whole tier in one body
+- aggregate-operators.md/`each` returns a PAIR where its siblings return a flat list
+- aggregate-operators.md/`push`: the first argument is an array, not an expression
+- aggregate-operators.md/`unshift`: the same rule at the other end
+- aggregate-operators.md/`values` takes the container, not a flattened list
+- aggregates-in-context.md/The comma operator in scalar context discards its left operands
+- aggregates-in-context.md/`"@a"` is a `join`, decided at compile time
+- aggregates-in-context.md/`my $n = @a` and `my $n = scalar(@a)` are the same program
+trailing_tokens argument-extent.md/A `($)` prototype cuts the extent to one
+- argument-extent.md/A builtin's extent is cut by a paren
+trailing_tokens argument-extent.md/A parenless call is greedy
+- argument-extent.md/An undeclared callee is a syntax error
+- argument-extent.md/`lock` is a named unary with its own op
+- arguments.md/A signature names the parameters
+- arguments.md/Arguments arrive in `@_`
+- arguments.md/Explicit return, early and trailing
+- arguments.md/`@_` aliases the caller's variables
+tokens arithmetic.md/Concatenation and repetition
+- arithmetic.md/The seven arithmetic operators
+- arithmetic.md/`**` is right associative, `-` is left
+- arithmetic.md/`*` binds tighter than `+`
+- arrays.md/A constant subscript reads as one op and writes as another
+- arrays.md/An array holds a list
+- arrays.md/An array slice: the sigil decides, not the name
+- arrays.md/`$#a`, and the subscript the optimiser will not fold
+- bitwise.md/Bitwise precedence: `&` binds tighter than `|`
+- bitwise.md/Complement
+- bitwise.md/The shift operators
+- bitwise.md/The three binary operators
+- bitwise.md/`&` on strings, gated: the numeric operation
+- bitwise.md/`&` on strings, ungated: the string bitwise operation
+- bless-dispatch.md/A method name in a scalar
+- bless-dispatch.md/A method name written out
+- bless-dispatch.md/Indirect object notation: `new Foo`
+- bless-dispatch.md/SUPER:: dispatch
+- bless-dispatch.md/The `->can(...)->()` chain is two calls
+- bless-dispatch.md/`isa` is an infix operator, not dispatch
+- bless-dispatch.md/bless of a POPULATED anonymous hash
+- bless-dispatch.md/bless of an EMPTY anonymous hash
+- blocks-and-terminations.md/`die` is a list operator, and its extent is a parse question
+- blocks-and-terminations.md/`do BLOCK` in expression position
+- blocks-and-terminations.md/`eval BLOCK` is a control construct
+- blocks-and-terminations.md/`exit` leaves the program, and `eval BLOCK` does not catch it
+- blocks-and-terminations.md/`time` is niladic
+- class-feature.md/An empty class body
+- class-feature.md/`ADJUST` alone in a class body
+- class-feature.md/`field` and `method` in a class body
+- code-references.md/The code reference and the call through it
+- code-references.md/`prototype` reads the parser's own input back
+- comparison.md/Comparisons chain, and the answer flips
+- comparison.md/Level 11 is the one true `%nonassoc`
+- comparison.md/Level 13 is `chain/na` and the halves differ
+- comparison.md/Punctuation `!`, and the double negative
+not_a_term,tokens comparison.md/The five logical operators
+- comparison.md/The numeric relations and `<=>`
+tokens comparison.md/The string relations and `cmp`
+tokens comparison.md/`&&` and `and` are one op at two precedences
+- compile-phase.md/A `#` at column zero that is not a comment
+- compile-phase.md/BEGIN runs first, END runs last, whatever the source order
+- compile-phase.md/`__PACKAGE__` is a bareword that is not a bareword
+- compile-phase.md/`use constant` installs a bareword that parses as a call
+- compound-assignment.md/The arithmetic forms
+- compound-assignment.md/The bitwise and shift forms
+- compound-assignment.md/`.=` emits `multiconcat`, not `concat`
+- compound-assignment.md/`//=`, `||=` and `&&=` short-circuit
+trailing_tokens,tokens compound-assignment.md/`x=` is word-shaped, and we cannot lex it
+- conditionals.md/Adding an `else` changes the op
+- conditionals.md/Block `if` and postfix `if` are one construct
+- conditionals.md/`elsif` is a third form, not `else` followed by `if`
+- conditionals.md/`unless` is `or`, not an inverted `if`
+- context-from-inside.md/`caller` returns different AMOUNTS in the two contexts
+- context-from-inside.md/`wantarray` at file scope is undef, and costs one op
+- declarations.md/`my` shadows, and the outer binding survives
+- declarations.md/`our` names a package variable, and the shadow proves it
+- declarations.md/`state` scopes like `my`, and initialises once
+- dereferencing.md/The `%{ }` and `${ }{ }` hash dereferences
+- dereferencing.md/The `@{ }` whole-array dereference
+- dereferencing.md/The arrow dereference
+- dereferencing.md/The brace dereference of an array reference
+- dereferencing.md/The postfix `$r->@*` dereference
+- dereferencing.md/The sigil-only `@$r` dereference
+- dynamic-scope.md/A bare block is a scope, and a loop that runs once
+- dynamic-scope.md/`local` restores on block exit
+- embedded-code.md/Hostile contents: proving the region is parsed, not counted
+- embedded-code.md/`(?{ })`: a statement inside a pattern
+- embedded-code.md/`qr//` carrying a block: code frozen into a value
+- eval-replacement.md/A second `e`: the replacement re-read as Perl
+- eval-replacement.md/The `/e` flag: an expression in the replacement half
+- eval-replacement.md/`eval STRING`: the re-entry with no delimiter
+unimplemented_statement formats.md/A format declaration and the `write` that uses it
+unimplemented_statement formats.md/A picture line that is not Perl
+- handles.md/A three-argument open autovivifies the glob
+- handles.md/`<$fh>` in list context reads EVERY remaining line
+- handles.md/`<$fh>` in scalar context reads ONE line
+- handles.md/`eof($fh)` inspects the glob without making it real
+- hashes.md/A computed subscript is the only route to `helem`
+- hashes.md/A hash slice, where `delete` becomes a real op
+- hashes.md/A hash, and a bareword key
+- hashes.md/`exists` and `delete` on an element leave no op of their own
+trailing_tokens heredocs.md/The indentation-stripping heredoc
+trailing_tokens heredocs.md/The interpolating heredoc
+trailing_tokens heredocs.md/The non-interpolating heredoc
+- jumps.md/The three loop-control statements
+- jumps.md/`goto` is one op name over unrelated constructs
+- list-operators-in-context.md/`grep BLOCK` and `grep EXPR`, where the arities disagree
+- list-operators-in-context.md/`localtime`: a nine-element list, or one string
+- list-operators-in-context.md/`map BLOCK` and `map EXPR`, a fork the optree cannot see
+- list-operators-in-context.md/`reverse`: reversed elements, or a reversed string
+- list-operators-in-context.md/`sort`, and the `() =` count idiom in both contexts
+- loading.md/`import` is an ordinary method call
+- loading.md/`require $m;` takes the filename from a variable
+- loading.md/`require strict;` -- the tier's one runtime op
+- loading.md/`use POSIX ();` loads the file and suppresses import
+- loading.md/`use POSIX;` loads the file AND calls import
+- loading.md/`use strict;` lexes, and that is all it establishes
+- loops.md/C-style `for` is a `while`
+- loops.md/The block `while`
+- loops.md/The postfix loop modifier builds no loop frame
+- loops.md/`do BLOCK while COND` is a post-test loop
+- loops.md/`foreach` emits `enteriter`/`iter` and no `enterloop`
+- loops.md/`until` is `while` with the other short-circuit
+- named-operators.md/A named unary binds looser than arithmetic
+- named-operators.md/`%*d` makes the format consume an argument
+- named-operators.md/`chr` and `ord`, folded and unfolded
+- named-operators.md/`index` reports failure as -1, not undef
+- named-operators.md/`substr` is an lvalue
+- named-operators.md/`substr` takes two, three or four arguments
+trailing_tokens named-operators.md/`undef` is two operators wearing one word
+- names.md/A package array subscripts through `rv2av`
+- names.md/A package hash reaches storage through `rv2hv`
+- names.md/A package scalar is where `sassign` enters the corpus
+- names.md/`${x}` is one variable, not a dereference
+- numeric-point.md/A decimal point between digits
+- numeric-point.md/A leading decimal point
+- numeric-point.md/A leading minus is not part of the literal
+- numeric-point.md/A trailing decimal point
+tokens numeric-point.md/The sign of an exponent is part of the literal
+- numeric-radix.md/A decimal integer
+- numeric-radix.md/Binary: the `0b` prefix
+- numeric-radix.md/Hexadecimal: the `0x` prefix
+- numeric-radix.md/Octal by leading zero
+- numeric-radix.md/Octal by the `0o` prefix
+- numeric-radix.md/Underscore separators
+- packages.md/`package Foo { ... }` scopes the switch to a block
+- packages.md/`package Foo;` switches package for the rest of the file
+not_a_term,tokens pod-and-data.md/A data section holding bytes that are not a program
+not_a_term,tokens pod-and-data.md/A data section read back through `DATA`
+- pod-and-data.md/A pod block compiles to nothing
+- pod-and-data.md/A pod block holding text that is not a program
+- quote-like-terms.md/The `pack` template
+- quote-like-terms.md/The `unpack` template
+- quote-like-terms.md/The angle-bracket glob
+- quote-like-terms.md/The command quote
+- quote-like-terms.md/`qq`'s arbitrary delimiters
+- range.md/The numeric list range
+- range.md/The string range counts by magic increment
+- range.md/`..` in scalar context is stateful
+- regex-delimiters.md/A bracketing delimiter nests
+- regex-delimiters.md/Bracketing and punctuation delimiters
+- regex-delimiters.md/The comment character as a delimiter
+- regex-matching.md/A constant pattern compiles once
+- regex-matching.md/An interpolated pattern adds `regcomp`
+- regex-matching.md/Substitution mutates in place
+- regex-matching.md/The binding operator emits nothing
+- regex-matching.md/The negated binding is two ops
+- regex-pattern-positions.md/`pos` is a named operator in lvalue position
+- regex-pattern-positions.md/`split`'s first argument is a pattern
+- regex-quote-likes.md/A compiled pattern, uncoupled from matching
+- regex-quote-likes.md/`tr///` wears `s///`'s syntax and is not a regex
+- strings.md/Double quotes process escapes
+- strings.md/Single quotes do not
+- strings.md/`q` with three delimiters
+- subroutines.md/A named subroutine, declared and called
+- subroutines.md/An anonymous subroutine is a value
+- subroutines.md/Calling through a code reference
+- subroutines.md/Four spellings of one call
+- symbol-table.md/`*` is a sigil and an operator, resolved by position
+- symbol-table.md/`AUTOLOAD` catches a call to a sub that does not exist
+- symbol-table.md/`\*STDOUT` is a reference to a GLOB, its own type
+- taking-references.md/The anonymous array constructor
+- taking-references.md/The backslash in scalar context
+- taking-references.md/The same backslash in list context
+- taking-references.md/`ref` over all three referent kinds
+- tie.md/`tie` is a list operator taking a VARIABLE
+- tie.md/`tied` is a named unary, in boolean position
+- unary.md/Pre and post, increment and decrement
+tokens unary.md/The file-test operators
+- unary.md/The magic string increment
+- unary.md/Unary `+` computes nothing and disambiguates
+- ungated.md/`__CLASS__` without the feature is a filehandle
+unimplemented_statement ungated.md/`defer` without its feature runs the block FIRST
+- ungated.md/`field` without the class feature is a method call
+- ungated.md/`state` without its feature is a method call
+tokens vstrings.md/Bare: three dot-separated parts
+tokens vstrings.md/The `v` prefix
+- writing.md/A bareword handle reaches `print` through `gv`
+- writing.md/`print $fh "x"` differs from `print "x"` only in operands
+- writing.md/`say` is feature-gated, and the featureless spelling compiles
+- writing.md/`select` is two operators sharing a name, told apart by arity

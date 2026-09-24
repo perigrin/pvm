@@ -57,7 +57,20 @@ func AllCases(corpus string) ([]CorpusCase, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", base, err)
 		}
+		seen := map[string]bool{}
 		for _, c := range cases {
+			// A DUPLICATE TITLE IS AN ERROR, because several callers key
+			// cases by `Key` in a map and a map drops the loser in
+			// silence. File names were unique by construction of the
+			// filesystem; case titles are prose an author writes, so
+			// uniqueness has to be checked rather than assumed.
+			if seen[c.Title] {
+				return nil, fmt.Errorf("%s has two cases titled %q; "+
+					"titles address cases and must be unique within a topic",
+					base, c.Title)
+			}
+			seen[c.Title] = true
+
 			out = append(out, CorpusCase{
 				Key:   base + "/" + c.Title,
 				Topic: base,

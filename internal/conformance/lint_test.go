@@ -211,78 +211,67 @@ func TestCorpusLints(t *testing.T) {
 		t.Fatalf("reading tier READMEs: %v", err)
 	}
 
-	// A directory the tier reader cannot see contributes no subtests, and
-	// a skip is otherwise indistinguishable from an absence: a
-	// renumbering typo like `9_regex` would disable the gate for a whole
-	// tier while the suite stayed green. This is the check that a lint
-	// nothing runs is a lint that rots, applied to the lint itself.
-	entries, err := os.ReadDir(corpusDir)
+	cases, err := AllCases(corpusDir)
 	if err != nil {
-		t.Fatalf("reading the corpus root: %v", err)
+		t.Fatalf("reading the corpus: %v", err)
 	}
-	for _, e := range entries {
-		if !e.IsDir() || isTierDir(e.Name()) {
-			continue
-		}
-		cases, err := filepath.Glob(filepath.Join(corpusDir, e.Name(), "*.t"))
-		if err != nil {
-			t.Fatalf("globbing %s: %v", e.Name(), err)
-		}
-		if len(cases) > 0 {
-			t.Errorf("%s holds %d case(s) but is not a numbered tier, so nothing lints them",
-				e.Name(), len(cases))
+
+	// A tier the tier reader cannot see contributes no subtests, and a
+	// skip is otherwise indistinguishable from an absence: a typo like
+	// `**Tier 9 regex.**` would disable the gate for a whole topic while
+	// the suite stayed green. This is the check that a lint nothing runs
+	// is a lint that rots, applied to the lint itself.
+	//
+	// Under the .t layout this asked the same question of directories --
+	// a directory holding cases that `isTierDir` rejected. A case's tier
+	// is now DECLARED by the topic it lives in rather than implied by
+	// where it sits, so the hole moved with it: a declaration no tier
+	// README claims is what now leaves cases unlinted.
+	for _, c := range cases {
+		if _, ok := tiers[c.Tier]; !ok {
+			t.Errorf("%s declares tier %q, which has no tier README, so nothing lints it",
+				c.Topic, c.Tier)
 		}
 	}
 
-	// Every op any file emits, so a README claiming something no file
+	// Every op any case emits, so a README claiming something no case
 	// uses can be reported below.
 	emitted := map[string]bool{}
 
-	for _, tier := range keysOf(tiers) {
-		paths, err := filepath.Glob(filepath.Join(corpusDir, tier, "*.t"))
-		if err != nil {
-			t.Fatalf("globbing %s: %v", tier, err)
+	for _, c := range cases {
+		if _, ok := tiers[c.Tier]; !ok {
+			continue // already reported above
 		}
-		for _, path := range paths {
-			t.Run(filepath.Join(tier, filepath.Base(path)), func(t *testing.T) {
-				raw, err := os.ReadFile(path)
-				if err != nil {
-					t.Fatalf("reading the case: %v", err)
-				}
-				f, err := ParseFile(string(raw))
-				if err != nil {
-					t.Fatalf("parsing sections: %v", err)
-				}
-				if err := lintFile(t, f, tier, tiers); err != nil {
-					t.Errorf("%s", err)
-				}
+		t.Run(c.Key, func(t *testing.T) {
+			if err := lintFile(t, c.File, c.Tier, tiers); err != nil {
+				t.Errorf("%s", err)
+			}
 
-				// A file perl REFUSES emits no ops and contributes
-				// nothing to the union below. Asking `opsOf` for its
-				// optree is the same mistake `lintFile` exists to
-				// avoid, one call later -- perl builds no optree for a
-				// program it will not compile. Keyed on the file's own
-				// declaration for `lintFile`'s reason: a `parses` file
-				// that is genuinely broken must still fail here rather
-				// than contribute an empty set silently.
-				if f.ExpectParsent {
-					return
-				}
+			// A case perl REFUSES emits no ops and contributes
+			// nothing to the union below. Asking `opsOf` for its
+			// optree is the same mistake `lintFile` exists to
+			// avoid, one call later -- perl builds no optree for a
+			// program it will not compile. Keyed on the case's own
+			// declaration for `lintFile`'s reason: a `parses` case
+			// that is genuinely broken must still fail here rather
+			// than contribute an empty set silently.
+			if c.ExpectParsent {
+				return
+			}
 
-				ops, err := opsOf(t, f.Source)
-				if err != nil {
-					t.Fatalf("collecting ops: %v", err)
-				}
-				for _, op := range ops {
-					emitted[op] = true
-				}
-			})
-		}
+			ops, err := opsOf(t, c.Source)
+			if err != nil {
+				t.Fatalf("collecting ops: %v", err)
+			}
+			for _, op := range ops {
+				emitted[op] = true
+			}
+		})
 	}
 
-	// The lint is one-directional: it catches a file using an op its
+	// The lint is one-directional: it catches a case using an op its
 	// tier does not claim, and nothing catches a tier CLAIMING an op no
-	// file uses. An op added to a README "just in case" permanently
+	// case uses. An op added to a README "just in case" permanently
 	// widens that tier and every tier after it, invisibly -- which is
 	// the drift this whole arrangement exists to stop.
 	//
@@ -292,7 +281,7 @@ func TestCorpusLints(t *testing.T) {
 	for _, tier := range keysOf(tiers) {
 		for _, op := range tiers[tier] {
 			if !emitted[op] {
-				t.Errorf("%s/README.md claims %q, which no corpus file emits", tier, op)
+				t.Errorf("%s/README.md claims %q, which no corpus case emits", tier, op)
 			}
 		}
 	}
@@ -665,54 +654,28 @@ func countOp(ops []string, want string) int {
 	return n
 }
 
-// TestExpectOutputIsNeverTheLastSection pins the one layout the repo's
-// pre-commit hook silently breaks.
+// The output pin's trailing newline needs no test, and that is a change
+// worth recording rather than a check quietly dropped.
 //
-// `--- expect output` takes its trailing newline from the blank line that
-// separates it from the next section. At END of file that blank line is
-// trailing whitespace, and `end-of-file-fixer` strips it -- rewriting the
-// file after it is staged, so the commit carries output one byte shorter
-// than perl prints and `TestCorpus` reports a CORPUS BUG against an author
-// who wrote the file correctly.
+// `TestExpectOutputIsNeverTheLastSection` used to ban one layout:
+// `--- expect output` as the FINAL section of a .t file. That section
+// took its trailing newline from the blank line separating it from the
+// next one, and at end of file that blank line is trailing whitespace --
+// which the repo's `end-of-file-fixer` hook strips AFTER staging, so a
+// correctly-written file committed a pin one byte shorter than perl
+// prints.
 //
-// The format does not care about section order, so the fix is to put any
-// section after `expect output` and leave the blank line in the middle of
-// the file, where the hook has no quarrel with it. This test is what stops
-// the broken layout coming back.
-func TestExpectOutputIsNeverTheLastSection(t *testing.T) {
-	paths, err := filepath.Glob(filepath.Join(corpusDir, "*", "*.t"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, path := range paths {
-		raw, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		f, err := ParseFile(string(raw))
-		if err != nil {
-			t.Errorf("%s: %v", path, err)
-			continue
-		}
-		if f.ExpectOutput == nil {
-			continue
-		}
-		last := ""
-		for _, line := range strings.SplitAfter(string(raw), "\n") {
-			if name, ok := sectionName(line); ok {
-				last = name
-			}
-		}
-		if last == "" {
-			t.Errorf("%s: pins output but has no sections", path)
-			continue
-		}
-		if last == "expect output" {
-			t.Errorf("%s ends with `--- expect output`; the hook will strip the blank "+
-				"line its trailing newline depends on. Put another section after it.", path)
-		}
-	}
-}
+// A fenced block cannot have that problem. It ends with ``` on its own
+// line, which sits between the pin and any trailing whitespace, so there
+// is nothing for the hook to strip that the pin depends on. The claim is
+// obsolete rather than weakened.
+//
+// A replacement was written during the migration and was VACUOUS:
+// `addBlock` appends the newline itself, so a non-empty pin always ends
+// in one whatever the file says, and the assertion could not fail. It
+// was removed rather than repaired, because a test asserting the
+// parser's own post-condition over corpus data reads as coverage and is
+// not.
 
 // TestRunnerUsesPinnedPerl pins that both call sites resolve the SAME
 // interpreter, and that it is the one the corpus headers name.

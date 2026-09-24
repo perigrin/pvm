@@ -1,10 +1,8 @@
 // ABOUTME: Tier 01 re-validated against the finished tooling, which is what proves the tooling works.
-// ABOUTME: Six checks the tier's own issue names, each tier-specific rather than corpus-wide.
+// ABOUTME: Five checks the tier's own issue names, each tier-specific rather than corpus-wide.
 package conformance
 
 import (
-	"os"
-	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -15,46 +13,35 @@ import (
 
 // tierLiterals is the tier this file is about.
 //
-// A constant rather than a literal at six call sites, because the tier
-// number is a POSITION and positions move -- see TestTierNumberingRegenerates
-// for the spec's statement that they do.
+// A constant rather than a literal at five call sites, because the tier
+// number is a POSITION and positions move -- see
+// TestDerivedTierNumberingRegenerates for the spec's statement that they
+// do.
 const tierLiterals = "01_literals"
 
-// tierFiles returns the parsed corpus files of one tier, keyed by base
-// name, adjacency file included.
+// tierFiles returns one tier's cases, keyed by `<topic>.md/<case title>`,
+// adjacency case included.
+//
+// A filter over AllCases rather than its own walk of the corpus. The
+// fourteen tier files all reach the corpus through here, so this is the
+// last place that used to know a case was a file -- and knowing it in one
+// place is what let the format change without touching the tiers.
 func tierFiles(t *testing.T, tier string) map[string]*File {
 	t.Helper()
 
-	paths, err := filepath.Glob(filepath.Join(corpusDir, "mdtest", "*.md"))
+	all, err := AllCases(corpusDir)
 	if err != nil {
-		t.Fatalf("globbing topics: %v", err)
+		t.Fatalf("%v", err)
 	}
 
 	out := map[string]*File{}
-	for _, p := range paths {
-		if filepath.Base(p) == "FORMAT.md" {
-			continue
-		}
-		raw, err := os.ReadFile(p)
-		if err != nil {
-			t.Fatalf("reading %s: %v", p, err)
-		}
+	for _, c := range all {
 		// A topic declares its tier; one that is not this tier's holds
 		// nothing this caller asked for.
-		declared, err := topicTier(string(raw))
-		if err != nil {
-			t.Fatalf("%s: %v", filepath.Base(p), err)
-		}
-		if declared != tier {
+		if c.Tier != tier {
 			continue
 		}
-		cases, err := ParseTopic(string(raw))
-		if err != nil {
-			t.Fatalf("%s: %v", filepath.Base(p), err)
-		}
-		for _, c := range cases {
-			out[filepath.Base(p)+"/"+c.Title] = c.asFile()
-		}
+		out[c.Key] = c.File
 	}
 	if len(out) == 0 {
 		t.Fatalf("%s holds no cases", tier)
@@ -233,53 +220,27 @@ func regenerateNumbering(names []string) map[string]string {
 	return out
 }
 
-// TestTierNumberingRegenerates checks that the tier's numbering is what a
-// regeneration would produce.
+// WHERE TIER 01'S NUMBERING CHECK WENT.
 //
-// Tier 01 shipped numbered 02, 03, 04 with no 01, because the file that
-// would have been 01 was never written. That gap is harmless until the
-// numbering is claimed to be derived, at which point it is a number
-// nothing produces.
+// `TestTierNumberingRegenerates` lived here. It globbed
+// `conformance/01_literals/*.t` and asserted that the on-disk names
+// equalled `regenerateNumbering`'s output -- that the two-digit prefixes
+// could be thrown away and rebuilt from the identities alone.
 //
-// What this establishes: the on-disk names equal `regenerateNumbering`'s
-// output, so the numbers could be deleted and rebuilt from the names
-// alone. What it does NOT establish is that the ORDER is meaningful --
-// alphabetical order is the corpus's convention, not a claim that
-// `02_decimal.t` teaches something `05_hexadecimal.t` needs.
-func TestTierNumberingRegenerates(t *testing.T) {
-	paths, err := filepath.Glob(filepath.Join(corpusDir, tierLiterals, "*.t"))
-	if err != nil {
-		t.Fatalf("globbing %s: %v", tierLiterals, err)
-	}
-
-	var names []string
-	for _, p := range paths {
-		base := filepath.Base(p)
-		if base != adjacencyFile && !reNumbered.MatchString(base) {
-			t.Errorf("%s is not numbered `NN_name.t`, so nothing can place it", base)
-		}
-		names = append(names, base)
-	}
-
-	want := regenerateNumbering(names)
-	have := map[string]bool{}
-	for _, n := range names {
-		have[n] = true
-	}
-
-	for identity, regenerated := range want {
-		if !have[regenerated] {
-			t.Errorf("regenerating %s's numbering puts %s at %s, which is not on disk",
-				tierLiterals, identity, regenerated)
-		}
-	}
-
-	// The adjacency file keeps 00 and is not part of the regeneration.
-	if !have[adjacencyFile] {
-		t.Errorf("%s has no %s; 00 is reserved for it and the construct "+
-			"numbering starts at 01", tierLiterals, adjacencyFile)
-	}
-}
+// It is not restated in terms of cases, because there is nothing to
+// restate it as. The claim was about FILE NAMES: a case in a topic has no
+// number, no `NN_` prefix and no derived position -- it is a `##` heading
+// in prose order, and `AllCases` hands back no ordinal to check. A
+// `regenerateNumbering` over case titles would invent a property the
+// format does not have and then verify its own invention.
+//
+// The claim itself is NOT lost. `TestDerivedTierNumberingRegenerates` in
+// numbering_test.go is the corpus-wide form of exactly this test -- its
+// own comment says so -- and it covers tier 01 through the `FILE ORDER:
+// derived` declaration in conformance/01_literals/README.md. This was a
+// strict subset of that, kept for the failure to be named as this tier's;
+// with the directories on their way out, the corpus-wide check is the one
+// that outlives them.
 
 // TestTierLiteralsPerlValidated runs every file in the tier through the
 // pinned interpreter before it counts.

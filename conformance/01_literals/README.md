@@ -91,15 +91,14 @@ first tier, and a tier claims an op once.
 
 ## FILE ORDER
 
-    derived
+    accidental
 
-The numbers are a function of the names: sort the identities, count from
-01. `TestDerivedTierNumberingRegenerates` throws the numbers away and
-rebuilds them, so this tier's numbering cannot drift.
+The corpus is topic files now, and a topic carries no number for an
+order to be derived from. This tier's cases are grouped by subject --
+the topic a case lives in IS its grouping -- and the order they appear
+in a topic is the order a reader would want to meet them, which is a
+judgement rather than a function.
 
-Of the fourteen tiers, only this one and `02_variables` hold it. It is not
-the corpus convention -- the spec says a file's identity is its NAME and the
-number is its current position, and says nothing about positions being
-alphabetical. What makes the claim worth making HERE is that nothing in
-this tier's subject argues for any other order: a binary literal teaches
-nothing a hexadecimal literal needs.
+`accidental` was previously a record of debt: numbers that happened to
+be the order files were written in. It is not debt here. There is
+nothing to renumber.

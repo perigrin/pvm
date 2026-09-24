@@ -1,5 +1,5 @@
-// ABOUTME: The corpus-wide numbering check: every tier declares how its files are ordered.
-// ABOUTME: `derived` regenerates from names, `grouped` names the ranges, `accidental` admits neither.
+// ABOUTME: The corpus-wide ordering check: every tier declares how its topics are arranged.
+// ABOUTME: `grouped` names the topics, `accidental` admits no arrangement, `derived` no longer means anything.
 package conformance
 
 import (
@@ -17,9 +17,9 @@ import (
 //
 //	## FILE ORDER
 //
-//	    derived
+//	    accidental
 //
-// or, for a tier whose order was chosen rather than computed:
+// or, for a tier whose arrangement was chosen rather than accidental:
 //
 //	## FILE ORDER
 //
@@ -36,55 +36,75 @@ import (
 // readTierOps gives: two lists that must agree are how drift starts.
 var reFileOrder = regexp.MustCompile(`(?m)^## FILE ORDER\s*\n\s*\n((?:[ \t]+\S.*\n?)+)`)
 
-// reGroupLine matches one grouping line: a range and the name of what the
-// range holds.
-var reGroupLine = regexp.MustCompile(`^(\d\d)-(\d\d)\s+(\S.*)$`)
+// reGroupLine matches one grouping line: an OPTIONAL leading range, kept
+// for the spelling's history, and the NAME of what the group holds.
+//
+// The name is the part that still means something, and with topics it
+// is the only part there is: a group is a topic file, and a topic file
+// has no number for a range to describe. A tier still spelling the
+// range is not wrong, just older than the format.
+var reGroupLine = regexp.MustCompile(`^(?:(\d\d)-(\d\d)\s+)?(\S.*)$`)
 
-// orderDerived is the word a tier uses when its numbers are a function of
-// its names: sort the identities, count from 01. `regenerateNumbering`
-// produces them, so the numbers could be deleted and rebuilt, and
-// TestDerivedTierNumberingRegenerates verifies that they can.
+// orderDerived is the word a tier used when its numbers were a function
+// of its file names: sort the identities, count from 01.
+//
+// IT NO LONGER NAMES ANYTHING CHECKABLE, and this constant survives only
+// so a tier still spelling it gets told why. The corpus was 212 `.t`
+// files whose `NN_` prefixes were a derived quantity -- the spec said so:
+// "the number is DERIVED from the classification, so a reorder is a
+// regeneration rather than a hand-edit". `regenerateNumbering` threw the
+// numbers away and rebuilt them, and TestDerivedTierNumberingRegenerates
+// checked that the rebuild matched disk.
+//
+// The corpus is now 65 topic files holding several cases each, and a
+// topic carries NO NUMBER AT ALL. There is nothing to regenerate: the
+// claim was about a naming convention, and the naming convention is
+// gone. So this is not a check that got weaker -- it is a check whose
+// subject stopped existing, which is different and worth saying out
+// loud rather than leaving a test that passes over no files.
 const orderDerived = "derived"
 
-// orderAccidental is the word a tier uses when its numbering is neither
-// derived nor arranged -- the numbers are the order the files happened to
-// be written in.
+// orderAccidental is the word a tier uses when its topics sit in no
+// arrangement anyone chose.
 //
-// This is a third state because the measurement found one, not because a
-// third state is desirable. Running regenerateNumbering over all fourteen
-// tiers found TWO derived, 01_literals and 02_variables. Reading the other
-// twelve READMEs found exactly ONE that argues for its order -- 06_control,
-// whose conditionals/loops/jumps runs the prose depends on -- and ELEVEN
-// that mention their files only by name and never by position.
-//
-// Folding those eleven into `grouped` would mean writing eleven groupings
-// nobody chose, and folding them into `derived` would mean renumbering
-// eleven directories -- which is the right end state, since an accidental
-// order is exactly the case where renumbering costs nothing, but it
-// regenerates the ratchet and that is another issue's work. So the word
-// exists to RECORD the debt rather than to bless it: a tier declaring it
-// is saying its numbers mean nothing yet, which is a thing a reader can
-// act on, unlike silence.
+// This survived the format change unaltered, because it was never about
+// numbers: it says the tier makes NO ordering claim. Eleven of fourteen
+// tiers declare it, which was true of the `.t` corpus and is true of the
+// topics that replaced them -- the eleven READMEs cite their material by
+// name and never by position.
 //
 // It buys no check, and that is the point of its cost: it is the only
 // spelling that asserts nothing, so a tier that could say something truer
 // has a reason to.
 const orderAccidental = "accidental"
 
-// group is one declared run of construct files.
+// group is one declared, named part of a tier.
+//
+// WAS A RANGE OF FILE NUMBERS, IS NOW A TOPIC. Under the `.t` corpus a
+// group was `01-04 conditionals`: a contiguous run of numbered files and
+// a word for what the run held. The run is gone with the numbers, but
+// the WORD survived the port literally -- tier 06's three groups
+// `conditionals`, `loops` and `jumps` are now `conditionals.md`,
+// `loops.md` and `jumps.md`, because the port cut topics along the lines
+// the groupings already drew.
+//
+// So the claim a grouping makes is restated rather than dropped: it named
+// the parts of the tier, and it still does. lo and hi are parsed so the
+// README spelling keeps working, and are not checked against anything --
+// nothing on disk carries a number for them to agree with.
 type group struct {
 	lo, hi int
 	name   string
 }
 
-// fileOrder is what one tier declares about its numbering: derived,
-// accidental, or a list of groups saying what the arrangement is FOR.
+// fileOrder is what one tier declares about its arrangement: accidental,
+// or a list of groups saying what the tier's parts ARE.
 type fileOrder struct {
 	word   string // orderDerived, orderAccidental, or "" when grouped
 	groups []group
 }
 
-// readFileOrders collects every tier's declared file ordering.
+// readFileOrders collects every tier's declared ordering.
 //
 // Missing is an error rather than a default. A default would let a tier
 // ship with no opinion at all, which is the state this check exists to
@@ -92,14 +112,12 @@ type fileOrder struct {
 // purpose, and twelve were neither on purpose or otherwise -- and nothing
 // on disk distinguished the three.
 //
-// The three spellings are deliberately asymmetric in cost. `derived` is
-// one word and buys a machine check. A grouping must NAME the ranges,
-// which a tier whose order is an accident cannot write down without the
-// falsehood being visible to a reader: there is no pair of ranges that
-// describes `01_backslash_scalar.t` through `11_ref_builtin.t` as an
-// arrangement, because nobody arranged them. `accidental` is one word and
-// buys nothing, which is what makes it a record of debt rather than a
-// rubber stamp -- a tier has an incentive to say something truer.
+// The spellings are deliberately asymmetric in cost. A grouping must NAME
+// the tier's parts, which a tier whose arrangement is an accident cannot
+// write down without the falsehood being visible to a reader.
+// `accidental` is one word and buys nothing, which is what makes it a
+// record of debt rather than a rubber stamp -- a tier has an incentive to
+// say something truer.
 func readFileOrders(corpus string) (map[string]fileOrder, error) {
 	entries, err := os.ReadDir(corpus)
 	if err != nil {
@@ -166,18 +184,28 @@ func parseFileOrder(body string) (fileOrder, error) {
 	return fileOrder{groups: groups}, nil
 }
 
-// tierConstructFiles returns a tier's `.t` file names, sorted, the
-// adjacency file included -- regenerateNumbering drops it itself.
-func tierConstructFiles(t *testing.T, tier string) []string {
+// tierTopics returns the topic file names a tier holds, sorted, the
+// adjacency topic included.
+//
+// REPLACES tierConstructFiles, which globbed `<tier>/*.t`. A tier is no
+// longer a directory of cases -- a topic DECLARES its tier in its own
+// prose -- so the tier's membership is read from the corpus rather than
+// from a path.
+func tierTopics(t *testing.T, tier string) []string {
 	t.Helper()
 
-	paths, err := filepath.Glob(filepath.Join(corpusDir, tier, "*.t"))
+	cases, err := AllCases(corpusDir)
 	if err != nil {
-		t.Fatalf("globbing %s: %v", tier, err)
+		t.Fatalf("reading the corpus: %v", err)
 	}
+	seen := map[string]bool{}
 	var names []string
-	for _, p := range paths {
-		names = append(names, filepath.Base(p))
+	for _, c := range cases {
+		if c.Tier != tier || seen[c.Topic] {
+			continue
+		}
+		seen[c.Topic] = true
+		names = append(names, c.Topic)
 	}
 	sort.Strings(names)
 	return names
@@ -190,6 +218,10 @@ func tierConstructFiles(t *testing.T, tier string) []string {
 // used which, discovered only when a tier's agent wrote the mirrored test,
 // watched it fail, and deleted it. A declaration is what turns that
 // discovery into a lookup.
+//
+// Untouched by the topic port: it reads READMEs and never the corpus, so
+// what it asserts -- that fourteen tiers each declare something -- means
+// the same over topics as it did over files.
 func TestEveryTierDeclaresFileOrder(t *testing.T) {
 	orders, err := readFileOrders(corpusDir)
 	if err != nil {
@@ -210,23 +242,28 @@ func TestEveryTierDeclaresFileOrder(t *testing.T) {
 	}
 }
 
-// TestDerivedTierNumberingRegenerates checks the tiers that CLAIM derived
-// numbering against what a regeneration would produce.
+// TestDeclaredOrderingIsStillMeaningful reports any tier still claiming
+// `derived`, whose subject the topic format removed.
 //
-// This is the corpus-wide form of tier 01's TestTierNumberingRegenerates,
-// which asserted the same thing for one tier. The measurement that
-// motivated widening it rather than copying it: of fourteen tiers, only
-// TWO satisfy derived numbering. Asserting it corpus-wide would have
-// renumbered twelve directories to satisfy a rule the spec never
-// states -- the spec says a file's identity is its NAME and the number is
-// its current position, and says nothing about positions being
-// alphabetical.
+// REPLACES TestDerivedTierNumberingRegenerates, and it is the one claim
+// in this file that could not be carried across. That test threw a tier's
+// `NN_` prefixes away, rebuilt them by sorting the identities, and
+// compared. A topic has no prefix to throw away, so the rebuild has no
+// input and the comparison no subject: kept as it was, it would have
+// iterated over zero files and passed, which is the vacuous-pass failure
+// this package has been bitten by before.
 //
-// So the check is gated on the declaration. A tier that claims `derived`
-// has promised its numbers are a function of its names, and this verifies
-// the promise; a tier that declares groups has promised something else,
-// and TestGroupedTierNumberingCoversItsFiles verifies that instead.
-func TestDerivedTierNumberingRegenerates(t *testing.T) {
+// What stands in its place is a check that no tier is still making the
+// claim. `derived` promised a machine could reproduce the corpus's
+// layout from its names; nothing about topics makes that promise, so a
+// README that still says the word is describing a corpus that is gone,
+// and the reader it misleads is the next person deciding whether they may
+// rename a topic.
+//
+// It is deliberately NOT a weaker version of the old check. It asserts
+// about the README, not about the corpus, because the README is the only
+// place the stale claim can now live.
+func TestDeclaredOrderingIsStillMeaningful(t *testing.T) {
 	orders, err := readFileOrders(corpusDir)
 	if err != nil {
 		t.Fatalf("%v", err)
@@ -236,47 +273,37 @@ func TestDerivedTierNumberingRegenerates(t *testing.T) {
 		if orders[tier].word != orderDerived {
 			continue
 		}
-		names := tierConstructFiles(t, tier)
-		if len(names) == 0 {
-			t.Errorf("%s holds no corpus files", tier)
-			continue
-		}
-		want := regenerateNumbering(names)
-		for _, n := range names {
-			if n == adjacencyFile {
-				continue
-			}
-			m := reNumbered.FindStringSubmatch(n)
-			if m == nil {
-				t.Errorf("%s/%s is not numbered `NN_name.t`, so nothing can place it",
-					tier, n)
-				continue
-			}
-			if got := want[m[2]]; got != n {
-				t.Errorf("%s declares `%s` numbering but %s would regenerate as %s",
-					tier, orderDerived, n, got)
-			}
-		}
+		t.Errorf("%s declares `%s` numbering, but topics carry no numbers to "+
+			"derive -- say `%s`, or name the tier's topics as groups",
+			tier, orderDerived, orderAccidental)
 	}
 }
 
-// TestGroupedTierNumberingCoversItsFiles checks a declared grouping
-// against the directory.
+// TestGroupedTierNamesItsTopics checks a declared grouping against the
+// tier's topics.
 //
-// A grouping is a claim about WHICH FILES sit where, so the ranges must
-// partition the tier's construct files exactly: start at 01, run
-// contiguously, and end at the last file. A gap means a file belongs to no
-// declared group and the arrangement does not describe the tier; an
-// overlap means two groups claim one file; a range running past the end
-// means the tier lost a file and the README did not notice.
+// REPLACES TestGroupedTierNumberingCoversItsFiles, whose claim was that
+// the declared ranges partitioned the tier's numbered files exactly:
+// start at 01, run contiguously, end at the last file. Three quarters of
+// that was arithmetic over numbers that no longer exist -- no gaps, no
+// overlaps, no range past the end.
 //
-// This is what makes the grouping spelling expensive enough to be honest.
-// A tier whose numbering is an accident cannot satisfy it without writing
-// down group names that a reader can check against the file names, and a
-// tier that later gains or loses a file is told immediately rather than
-// drifting -- which is the failure mode the derived check was written to
-// prevent, recovered for the tiers that cannot be derived.
-func TestGroupedTierNumberingCoversItsFiles(t *testing.T) {
+// The part that survived is the part that was never about numbers: a
+// grouping NAMES THE PARTS OF A TIER, and a reader must be able to find
+// each named part. Under the port the names came across literally --
+// tier 06's `conditionals`, `loops` and `jumps` are `conditionals.md`,
+// `loops.md` and `jumps.md` -- because the topics were cut along the
+// lines the groupings already drew.
+//
+// So the check is: every group names a topic this tier holds. That keeps
+// what made the grouping spelling expensive enough to be honest -- a tier
+// whose arrangement is an accident still cannot write down names a reader
+// can check -- and it keeps the drift alarm, since renaming or merging a
+// topic without touching the README is reported. What it no longer
+// checks, because nothing on disk says it, is that the parts are
+// CONTIGUOUS or that they COVER the tier: a topic in no group is now
+// invisible to this test.
+func TestGroupedTierNamesItsTopics(t *testing.T) {
 	orders, err := readFileOrders(corpusDir)
 	if err != nil {
 		t.Fatalf("%v", err)
@@ -288,101 +315,71 @@ func TestGroupedTierNumberingCoversItsFiles(t *testing.T) {
 			continue
 		}
 
-		var nums []int
-		for _, n := range tierConstructFiles(t, tier) {
-			if n == adjacencyFile {
-				continue
-			}
-			m := reNumbered.FindStringSubmatch(n)
-			if m == nil {
-				t.Errorf("%s/%s is not numbered `NN_name.t`, so nothing can place it",
-					tier, n)
-				continue
-			}
-			v, _ := strconv.Atoi(m[1])
-			nums = append(nums, v)
-		}
-		sort.Ints(nums)
-		if len(nums) == 0 {
-			t.Errorf("%s holds no construct files", tier)
+		topics := tierTopics(t, tier)
+		if len(topics) == 0 {
+			t.Errorf("%s holds no topics", tier)
 			continue
 		}
+		have := map[string]bool{}
+		for _, topic := range topics {
+			have[strings.TrimSuffix(topic, ".md")] = true
+		}
 
-		// Groups in declaration order must tile 01..last with no gap and
-		// no overlap. Checking the boundaries rather than each file is
-		// enough because the numbering itself is checked to be gapless
-		// below.
-		next := 1
 		for _, g := range order.groups {
-			if g.lo != next {
-				t.Errorf("%s: group %q starts at %02d, but %02d is where the "+
-					"previous group left off", tier, g.name, g.lo, next)
-			}
-			next = g.hi + 1
-		}
-		if last := nums[len(nums)-1]; next-1 != last {
-			t.Errorf("%s: the groups run to %02d but the tier's last construct "+
-				"file is %02d", tier, next-1, last)
-		}
-
-		// A grouping is a claim about contiguous runs, so a gap in the
-		// numbering would make the claim meaningless even if the ranges
-		// tiled: `04-07 loops` says nothing useful if 05 does not exist.
-		for i, v := range nums {
-			if v != i+1 {
-				t.Errorf("%s declares groups but its numbering has a gap: "+
-					"expected %02d at position %d, found %02d", tier, i+1, i+1, v)
-				break
+			if !have[groupTopic(g.name)] {
+				t.Errorf("%s: group %q names no topic; %s holds %s",
+					tier, g.name, tier, strings.Join(topics, ", "))
 			}
 		}
 	}
 }
 
-// TestAccidentalTierNumberingIsNotDerivable checks that a tier claiming
-// `accidental` really is not derivable.
+// groupTopic turns a group's prose name into the topic stem it would be
+// filed under: lowercased, spaces hyphenated.
 //
-// Without this, `accidental` is an opt-out: any tier could declare it and
-// stop being checked, which is how a word that asserts nothing turns into
-// a way to assert nothing on purpose. A tier whose files already sit in
-// the order a regeneration produces has the derived property whether it
-// meant to or not, and should say so, because then the stronger check
-// applies and the numbering cannot drift out of it unnoticed.
+// A group name is PROSE a README author wrote -- `block-valued
+// expressions` -- and a topic name is a file stem. Mapping one to the
+// other rather than demanding they match exactly keeps the README
+// readable, which is the whole reason the declaration lives there.
+func groupTopic(name string) string {
+	return strings.ReplaceAll(strings.ToLower(strings.TrimSpace(name)), " ", "-")
+}
+
+// TestAccidentalTierClaimsNoArrangement checks that a tier claiming
+// `accidental` is not quietly describing one.
 //
-// It is also how the debt gets paid down. When the issue that regenerates
-// the ratchet renumbers one of these eleven tiers, this test fails on the
-// stale `accidental` and names the tier, so the README is updated in the
-// same change rather than left behind.
-func TestAccidentalTierNumberingIsNotDerivable(t *testing.T) {
+// REPLACES TestAccidentalTierNumberingIsNotDerivable, which ran the
+// regeneration over a tier's `.t` names and complained if the numbers
+// already matched, since such a tier had the derived property whether it
+// meant to or not and should have said so. With `derived` gone there is
+// no stronger spelling for it to be pushed toward by that route.
+//
+// What remains is the other half of the same job: `accidental` must not
+// become an opt-out. A tier declaring it while its README names its parts
+// as groups would be asserting nothing while a truer spelling sat one
+// edit away, so the check is that the declaration and the block agree --
+// a tier cannot say `accidental` and list groups.
+//
+// This is WEAKER than what it replaces, and that is not a choice: the old
+// check compared the tier's on-disk order against a computed one, and no
+// computed order over topics exists to compare against.
+func TestAccidentalTierClaimsNoArrangement(t *testing.T) {
 	orders, err := readFileOrders(corpusDir)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
 
 	for _, tier := range sortedTiers(orders) {
-		if orders[tier].word != orderAccidental {
+		order := orders[tier]
+		if order.word != orderAccidental {
 			continue
 		}
-		names := tierConstructFiles(t, tier)
-		want := regenerateNumbering(names)
-		differs := false
-		for _, n := range names {
-			if n == adjacencyFile {
-				continue
-			}
-			m := reNumbered.FindStringSubmatch(n)
-			if m == nil {
-				t.Errorf("%s/%s is not numbered `NN_name.t`, so nothing can place it",
-					tier, n)
-				continue
-			}
-			if want[m[2]] != n {
-				differs = true
-			}
+		if len(order.groups) != 0 {
+			t.Errorf("%s declares `%s` and also names %d groups; a tier that can "+
+				"name its parts is arranged", tier, orderAccidental, len(order.groups))
 		}
-		if !differs {
-			t.Errorf("%s declares `%s` numbering but its files are already in the "+
-				"order a regeneration produces, so it should declare `%s`",
-				tier, orderAccidental, orderDerived)
+		if len(tierTopics(t, tier)) == 0 {
+			t.Errorf("%s declares `%s` but holds no topics", tier, orderAccidental)
 		}
 	}
 }

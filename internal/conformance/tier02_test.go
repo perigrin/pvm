@@ -3,7 +3,6 @@
 package conformance
 
 import (
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -340,42 +339,70 @@ func TestTierVariablesRefusalsCited(t *testing.T) {
 	}
 }
 
-// TestTierVariablesNumberingRegenerates checks the tier's numbering is
-// what a regeneration would produce.
+// TestTierVariablesCasesAddressable checks that every case in the tier
+// can be named, and that the tier has its adjacency case.
 //
-// The spec makes numbering DERIVED -- "the number is DERIVED from the
+// THIS IS WHAT SURVIVED THE NUMBERING CHECK. It used to be
+// TestTierVariablesNumberingRegenerates, and it asserted that the tier's
+// `NN_name.t` files were what regenerateNumbering would produce from
+// their names -- the spec's promise that "the number is DERIVED from the
 // classification, so a reorder is a regeneration rather than a
-// hand-edit" -- and this tier adds files, which is exactly the event
-// that puts a hand-maintained sequence out of step. regenerateNumbering
-// is tier 01's; the check is run here because the tier that ADDS files
-// is the one that can break it.
-func TestTierVariablesNumberingRegenerates(t *testing.T) {
-	paths, err := filepath.Glob(filepath.Join(corpusDir, tierVariables, "*.t"))
+// hand-edit". It ran HERE, duplicating the corpus-wide check, because
+// the tier that ADDS files is the one that can put a hand-maintained
+// sequence out of step, and this tier added several.
+//
+// A number was an ADDRESS: it placed a case among its siblings and
+// distinguished it from them. Topics keep the address and drop the
+// number -- a case is `<topic>.md/<case title>`, and sixteen numbered
+// files became four topics of four cases each. So the regeneration has
+// no subject: there is no `NN` to throw away and rebuild, and the
+// alphabetical order the numbers recorded is now the topic's own
+// reading order, which is prose a human chose and no test can confirm.
+// The corpus-wide TestDerivedTierNumberingRegenerates still holds the
+// `.t` side of that claim for as long as the `.t` corpus exists.
+//
+// What a regeneration actually GUARANTEED, and what is checked here
+// instead: every case has an address, and no two cases share one. A
+// duplicate `##` title inside a topic collapses two cases onto one key,
+// which is the topic-format spelling of the collision a gapless
+// numbering forbids -- and a collision is worse than a bad order,
+// because a failure then names a case a reader cannot find.
+//
+// The adjacency clause is unchanged in meaning. `00` was reserved for
+// the adjacency file; `adjacency-<tier>.md` is reserved for the
+// adjacency case, and adjacencyCase is where that lookup lives now.
+func TestTierVariablesCasesAddressable(t *testing.T) {
+	all, err := AllCases(corpusDir)
 	if err != nil {
-		t.Fatalf("globbing %s: %v", tierVariables, err)
+		t.Fatalf("%v", err)
 	}
 
-	var names []string
-	for _, p := range paths {
-		base := filepath.Base(p)
-		if base != adjacencyFile && !reNumbered.MatchString(base) {
-			t.Errorf("%s is not numbered `NN_name.t`, so nothing can place it", base)
+	seen := map[string]bool{}
+	n := 0
+	for _, c := range all {
+		if c.Tier != tierVariables {
+			continue
 		}
-		names = append(names, base)
+		n++
+		// The key is `<topic>.md/<case title>`, so a case whose title is
+		// blank has a key that is the topic and a slash -- an address
+		// that points at the file rather than at the case in it.
+		if strings.TrimSpace(strings.TrimPrefix(c.Key, c.Topic+"/")) == "" {
+			t.Errorf("%s holds a case with no `##` title, so nothing can name it",
+				c.Topic)
+		}
+		if seen[c.Key] {
+			t.Errorf("%s is two cases sharing one key; a failure reported "+
+				"against it names a case a reader cannot find", c.Key)
+		}
+		seen[c.Key] = true
+	}
+	if n == 0 {
+		t.Fatalf("%s holds no cases", tierVariables)
 	}
 
-	have := map[string]bool{}
-	for _, n := range names {
-		have[n] = true
-	}
-	for identity, regenerated := range regenerateNumbering(names) {
-		if !have[regenerated] {
-			t.Errorf("regenerating %s's numbering puts %s at %s, which is not on disk",
-				tierVariables, identity, regenerated)
-		}
-	}
-	if !have[adjacencyFile] {
-		t.Errorf("%s has no %s; 00 is reserved for it and the construct "+
-			"numbering starts at 01", tierVariables, adjacencyFile)
-	}
+	// The adjacency case, found the way every other tier test finds it:
+	// by topic file name, which is structure, rather than by title,
+	// which is prose.
+	adjacencyCase(t, tierFiles(t, tierVariables), tierVariables)
 }

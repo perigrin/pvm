@@ -3,8 +3,6 @@
 package conformance
 
 import (
-	"os"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -47,44 +45,21 @@ var reStringLiteralFact = regexp.MustCompile(
 // quote-operator keyword. It does not try to validate the whole spelling,
 // because that would duplicate `checkTokenFact` and drift from it.
 func TestStringLiteralFactsSpellTheirDelimiters(t *testing.T) {
-	tiers, err := os.ReadDir(corpusDir)
-	if err != nil {
-		t.Fatalf("reading the corpus: %v", err)
-	}
-
-	for _, tier := range tiers {
-		if !tier.IsDir() {
-			continue
-		}
-		paths, err := filepath.Glob(filepath.Join(corpusDir, tier.Name(), "*.t"))
-		if err != nil {
-			t.Fatalf("globbing %s: %v", tier.Name(), err)
-		}
-		for _, path := range paths {
-			raw, err := os.ReadFile(path)
-			if err != nil {
-				t.Fatalf("reading %s: %v", path, err)
+	for key, f := range allFilesForVacuity(t) {
+		for _, fact := range f.TokenFacts {
+			fact = strings.TrimSpace(fact)
+			m := reStringLiteralFact.FindStringSubmatch(fact)
+			if m == nil {
+				continue
 			}
-			f, err := ParseFile(string(raw))
-			if err != nil {
-				t.Fatalf("%s: %v", path, err)
-			}
-			for _, fact := range f.TokenFacts {
-				fact = strings.TrimSpace(fact)
-				m := reStringLiteralFact.FindStringSubmatch(fact)
-				if m == nil {
-					continue
-				}
-				if !opensAsQuote(m[1]) {
-					t.Errorf("%s: %q can never match.\n"+
-						"\tA Quote token's text includes its delimiters, so a "+
-						"`string literal` fact naming a bare spelling compares "+
-						"against something the lexer never emits.\n"+
-						"\tSpell the delimiters, as every other such fact in "+
-						"the corpus does: `\\\"%s\\\"`.",
-						filepath.Join(tier.Name(), filepath.Base(path)),
-						fact, m[1])
-				}
+			if !opensAsQuote(m[1]) {
+				t.Errorf("%s: %q can never match.\n"+
+					"\tA Quote token's text includes its delimiters, so a "+
+					"`string literal` fact naming a bare spelling compares "+
+					"against something the lexer never emits.\n"+
+					"\tSpell the delimiters, as every other such fact in "+
+					"the corpus does: `\\\"%s\\\"`.",
+					key, fact, m[1])
 			}
 		}
 	}
@@ -160,40 +135,23 @@ func TestNegativeFactsNameTextTheSourceContains(t *testing.T) {
 	}
 }
 
-// allFilesForVacuity reads every corpus file, keyed by its tier-relative
-// path.
+// allFilesForVacuity returns every case in the corpus, keyed by
+// `<topic>.md/<case title>`.
 //
-// One tier deep rather than a recursive walk, for `allSources`' reason:
-// the lint fixtures below the tiers are not corpus files and parsing
-// them as such reports failures about programs no one claims.
+// The key is what a failure has to hand a reader so they can open the
+// thing it is about. That used to be a tier-relative file path; a topic
+// file holds several cases, so the case title carries the other half.
 func allFilesForVacuity(t *testing.T) map[string]File {
 	t.Helper()
 
-	tiers, err := os.ReadDir(corpusDir)
+	cases, err := AllCases(corpusDir)
 	if err != nil {
 		t.Fatalf("reading the corpus: %v", err)
 	}
 
 	files := map[string]File{}
-	for _, tier := range tiers {
-		if !tier.IsDir() {
-			continue
-		}
-		paths, err := filepath.Glob(filepath.Join(corpusDir, tier.Name(), "*.t"))
-		if err != nil {
-			t.Fatalf("globbing %s: %v", tier.Name(), err)
-		}
-		for _, path := range paths {
-			raw, err := os.ReadFile(path)
-			if err != nil {
-				t.Fatalf("reading %s: %v", path, err)
-			}
-			f, err := ParseFile(string(raw))
-			if err != nil {
-				t.Fatalf("%s: %v", path, err)
-			}
-			files[filepath.Join(tier.Name(), filepath.Base(path))] = *f
-		}
+	for _, c := range cases {
+		files[c.Key] = *c.File
 	}
 	return files
 }

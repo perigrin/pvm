@@ -1,5 +1,5 @@
-// ABOUTME: Runs the graded conformance corpus: parses each .t file's sections
-// ABOUTME: and checks parses/parsent, perl output, and declared token facts.
+// ABOUTME: Runs the graded conformance corpus: every case AllCases reads
+// ABOUTME: is checked for parses/parsent, perl output, and declared token facts.
 package conformance
 
 import (
@@ -19,14 +19,33 @@ const corpusDir = "../../conformance"
 // since a string literal has no address.
 func pin(s string) *string { return &s }
 
+// TestParseFileSections reads all five sections off one whole file.
+//
+// THE INPUT USED TO BE A CORPUS FILE ON DISK, `01_literals/06_leading_
+// decimal.t`, and is now the bytes that file held. The corpus moved to
+// mdtest topics, which `ParseFile` does not read and never will -- so
+// pointing this at a corpus path again would mean reading a topic with
+// the wrong parser. What is asserted is unchanged, down to the token
+// facts, because the claim was always about `ParseFile` rather than
+// about that file: a whole file with every section in it parses into
+// exactly these fields.
+//
+// The one thing that cannot survive is the coupling. This no longer
+// fails when a corpus file changes shape, because no corpus file is in
+// this format any more. `TestCorpus` is what reads the corpus now.
 func TestParseFileSections(t *testing.T) {
-	path := filepath.Join(corpusDir, "01_literals", "06_leading_decimal.t")
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("reading %s: %v", path, err)
-	}
+	// `--- expect parses` before `--- expect output` is deliberate: it is
+	// a bodiless section followed by another marker, which is the shape
+	// TestParseFileMarkerNeedsBlankLineBefore's third case exists for.
+	const raw = "#!perl\n# TIER 01 literals\n\n" +
+		"--- source\nmy $x = .5;\nprint \"$x\\n\";\n\n" +
+		"--- expect parses\n\n" +
+		"--- expect output\n0.5\n\n" +
+		"--- expect tokens\n" +
+		"one numeric literal whose text is \".5\"\n" +
+		"no operator whose text is \".\"\n"
 
-	f, err := ParseFile(string(raw))
+	f, err := ParseFile(raw)
 	if err != nil {
 		t.Fatalf("parsing sections: %v", err)
 	}
@@ -74,10 +93,10 @@ func TestParseFileSections(t *testing.T) {
 
 // TestParseFileErrors covers what a malformed corpus file does.
 //
-// The happy path above reads a real file; these are the cases no corpus
-// file should ever be, and each must fail LOUDLY rather than parse into
-// something half-formed. A corpus that silently accepts a file asserting
-// nothing is a corpus that measures nothing.
+// The happy path above is a whole well-formed file; these are the cases
+// no corpus file should ever be, and each must fail LOUDLY rather than
+// parse into something half-formed. A corpus that silently accepts a
+// file asserting nothing is a corpus that measures nothing.
 func TestParseFileErrors(t *testing.T) {
 	// The smallest valid file, and the base every case below mutates.
 	const valid = "--- source\nmy $x = 1;\n\n--- expect parses\n\n"
@@ -236,25 +255,36 @@ func TestParseFileMarkerNeedsBlankLineBefore(t *testing.T) {
 // A section body runs to the next `--- ` marker INCLUDING the blank
 // separator line before it. For most sections that line is trailing
 // whitespace in a Perl program and nobody notices; inside a `__DATA__`
-// section it is DATA, and 13_opaque/08_data_section.t pins three lines of
-// output for a two-line data section because of it.
+// section it is DATA, so a two-line data section prints THREE lines.
 //
-// Pinned against the real file rather than a fixture, because the property
-// belongs to the format and the file is the one place it is visible. The
-// blank-line rule for markers is about what may PRECEDE a marker; this is
-// about what the preceding section KEEPS, and the two are one edit apart --
-// terminating a body at the blank line instead of the marker would satisfy
-// every other test in this file and silently shorten the data section.
+// THIS WAS PINNED AGAINST `13_opaque/08_data_section.t`, WHICH WAS THE
+// ONE PLACE IN THE CORPUS THE PROPERTY WAS VISIBLE -- and that is the
+// coupling the topic format dissolved. An mdtest case's ```perl block is
+// TRIMMED and its ```output block is a fence rather than a run-to-marker
+// body, so no separator line can reach the data section: the topic case
+// pins `one\ntwo\n`, two lines, where the `.t` file pinned three. The
+// property is not wrong, it simply stopped having a witness in the
+// corpus, so the bytes move here.
+//
+// That matters more than it sounds, not less: the property now has NO
+// reader outside this test, so if `ParseFile` terminated a body at the
+// blank line instead of the marker, this is the only thing that would
+// say so. It still earns its place for the reason it always did -- that
+// change would satisfy every other test in this file.
 func TestParseFileBodyRunsToTheNextMarker(t *testing.T) {
-	path := filepath.Join(corpusDir, "13_opaque", "08_data_section.t")
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("reading %s: %v", path, err)
-	}
+	// The bytes `13_opaque/08_data_section.t` carried, minus its header
+	// prose. The blank line before `--- expect output` is the whole
+	// point and is why this is not written as a tidier fixture.
+	const raw = "--- source\nmy @lines = <DATA>;\nprint @lines;\n__DATA__\none\ntwo\n\n" +
+		"--- expect parses\n\n" +
+		"--- expect output\none\ntwo\n\n\n" +
+		"--- expect tokens\n" +
+		"one readline operator whose text is \"<DATA>\"\n" +
+		"one data section whose text is \"__DATA__\\none\\ntwo\\n\\n\"\n"
 
-	f, err := ParseFile(string(raw))
+	f, err := ParseFile(raw)
 	if err != nil {
-		t.Fatalf("parsing %s: %v", path, err)
+		t.Fatalf("parsing the data-section file: %v", err)
 	}
 
 	// The trailing "\n\n" is the point: one newline ends `two`, the other
@@ -459,26 +489,14 @@ func TestSectionNamesMatchParser(t *testing.T) {
 // TestCorpus runs every case in the corpus: perl adjudicates the source,
 // then our lexer and parser are checked against what perl said.
 func TestCorpus(t *testing.T) {
-	files, err := filepath.Glob(filepath.Join(corpusDir, "*_*", "*.t"))
+	cases, err := AllCases(corpusDir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(files) == 0 {
-		t.Fatal("no corpus files found")
-	}
 
-	for _, path := range files {
-		name := filepath.ToSlash(strings.TrimPrefix(path, corpusDir+string(filepath.Separator)))
-		t.Run(name, func(t *testing.T) {
-			raw, err := os.ReadFile(path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			f, err := ParseFile(string(raw))
-			if err != nil {
-				t.Fatalf("bad corpus file: %v", err)
-			}
-			Run(t, f)
+	for _, c := range cases {
+		t.Run(c.Key, func(t *testing.T) {
+			Run(t, c.File)
 		})
 	}
 }
@@ -650,24 +668,15 @@ func TestCorpusSkipsAreDocumented(t *testing.T) {
 	}
 
 	// Every skip the real corpus produces must carry a refusal too. This
-	// is the observation rather than the assertion: it reads the files on
+	// is the observation rather than the assertion: it reads the cases on
 	// disk instead of trusting the rule above to have been followed.
-	paths, err := filepath.Glob(filepath.Join(corpusDir, "*", "*.t"))
+	cases, err := AllCases(corpusDir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, path := range paths {
-		raw, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		f, err := ParseFile(string(raw))
-		if err != nil {
-			t.Errorf("%s: %v", path, err)
-			continue
-		}
-		if v := verdict(t, f); v.kind == knownRefusal && f.Refuses == "" {
-			t.Errorf("%s skips with no refusal recorded", path)
+	for _, c := range cases {
+		if v := verdict(t, c.File); v.kind == knownRefusal && c.Refuses == "" {
+			t.Errorf("%s skips with no refusal recorded", c.Key)
 		}
 	}
 }
@@ -711,29 +720,28 @@ func TestRefusalCitationMustResolve(t *testing.T) {
 		}
 	})
 
+	// The same claim in the topic format's spelling. Sixteen cases carry
+	// it, and every one was a `.t` file that said `refuses as of this
+	// file` -- so a resolver that knew only the old phrase would have
+	// reported all sixteen as citations pointing at nothing, which is a
+	// claim about the corpus that is not true.
+	t.Run("unfiled is not looked up", func(t *testing.T) {
+		if err := citationResolves(unfiledRefusal); err != nil {
+			t.Errorf("%q was looked up: %v", unfiledRefusal, err)
+		}
+	})
+
 	// The corpus itself: every id it cites, resolved.
 	t.Run("corpus", func(t *testing.T) {
 		requireZhi(t)
 
-		paths, err := filepath.Glob(filepath.Join(corpusDir, "*_*", "*.t"))
+		cases, err := AllCases(corpusDir)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(paths) == 0 {
-			t.Fatal("no corpus files found")
-		}
-		for _, path := range paths {
-			raw, err := os.ReadFile(path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			f, err := ParseFile(string(raw))
-			if err != nil {
-				t.Errorf("%s: %v", path, err)
-				continue
-			}
-			if err := citationResolves(f.Refuses); err != nil {
-				t.Errorf("%s: %v", path, err)
+		for _, c := range cases {
+			if err := citationResolves(c.Refuses); err != nil {
+				t.Errorf("%s: %v", c.Key, err)
 			}
 		}
 	})

@@ -1,4 +1,4 @@
-// ABOUTME: The twelve hardMarkers must each be exercised by a file in the tier that claims it.
+// ABOUTME: The twelve hardMarkers must each be exercised by a case in the tier that claims it.
 // ABOUTME: Claims live in the tier READMEs, so the list cannot drift from the corpus it describes.
 package conformance
 
@@ -144,10 +144,12 @@ func decodeProbe(s string) string {
 // ten of the fourteen. Mentioning is simultaneously too weak to prove
 // coverage and too noisy to disprove it.
 //
-// The strong reading is that the tier contains a FILE the marker's own
+// The strong reading is that the tier contains a CASE the marker's own
 // source probe finds. That is the thing easy_test.go measured: the probe is
-// what marked a T1 file hard, so a corpus file the same probe matches is a
-// corpus file exercising the same construct.
+// what marked a T1 file hard, so a corpus case the same probe matches is a
+// corpus case exercising the same construct. The probe reads the case's
+// ```perl block, which is the Perl a `.t` file used to be all of -- the
+// prose and the other blocks around it are not source and never were.
 func TestEveryHardMarkerPlaced(t *testing.T) {
 	markers, err := readHardMarkers(corpusDir)
 	if err != nil {
@@ -165,27 +167,29 @@ func TestEveryHardMarkerPlaced(t *testing.T) {
 			len(markers), hardMarkerCount, strings.Join(have, "\n  "))
 	}
 
+	cases, err := AllCases(corpusDir)
+	if err != nil {
+		t.Fatalf("reading the corpus: %v", err)
+	}
+
 	for _, m := range markers {
-		paths, err := filepath.Glob(filepath.Join(corpusDir, m.tier, "*.t"))
-		if err != nil {
-			t.Fatalf("globbing %s: %v", m.tier, err)
-		}
 		var hits []string
-		for _, p := range paths {
-			src, err := os.ReadFile(p)
-			if err != nil {
-				t.Fatalf("reading %s: %v", p, err)
+		for _, c := range cases {
+			if c.Tier != m.tier {
+				continue
 			}
-			if strings.Contains(string(src), m.probe) {
-				hits = append(hits, filepath.Base(p))
+			if strings.Contains(c.Source, m.probe) {
+				hits = append(hits, c.Key)
 			}
 		}
 		if len(hits) == 0 {
-			t.Errorf("marker %q claims %s, but no file there contains %q.\n"+
+			t.Errorf("marker %q claims %s, but no case there contains %q.\n"+
 				"A README that names a construct its tier does not exercise "+
 				"is a claim about itself.", m.name, m.tier, m.probe)
 			continue
 		}
-		t.Logf("%-13s %s  %s", m.name, m.tier, strings.Join(hits, " "))
+		// Comma-joined: a case key contains spaces, where a file
+		// name did not.
+		t.Logf("%-13s %s  %s", m.name, m.tier, strings.Join(hits, ", "))
 	}
 }

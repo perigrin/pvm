@@ -272,6 +272,19 @@ func refusalCode(comment string) parse.RefusalCode {
 // than a placeholder for one.
 const selfRecorded = "this file"
 
+// unfiledRefusal is the same claim in the topic format's vocabulary.
+//
+// `--- ` files spelled it `STATUS refuses as of this file`, and "this
+// file" WAS the address: one file, one case. A topic holds several, so
+// the phrase stopped pointing anywhere and the port spells it `refuses:
+// unfiled` instead -- the same claim, that the refusal is recorded by
+// the case that carries it and by no issue.
+//
+// Recognised HERE rather than normalised at the reader, so a citation
+// stays the text an author wrote. `citationResolves` is the only place
+// that has to know the two spellings are one claim.
+const unfiledRefusal = "unfiled"
+
 // sectionNames lists every section a corpus file may contain, in the
 // order the README presents them.
 //
@@ -335,14 +348,15 @@ const zhiBinary = "git-zhi"
 // citationResolves reports whether a refusal citation still stands.
 //
 // Three citations, three answers. "" is a file that does not refuse.
-// selfRecorded is COMPLETE as it stands -- the file itself is the record
-// -- so looking it up would fail the fifteen corpus files that use it.
+// selfRecorded -- and unfiledRefusal, its spelling in the topic format
+// -- is COMPLETE as it stands, the case itself being the record, so
+// looking either up would fail every corpus case that uses one.
 // Anything else is an issue id, and an id that no longer resolves is a
 // skip with nothing behind it: the file still claims a known gap while
 // the record of what the gap IS has been destroyed, which nearly happened
 // during a chain prune.
 func citationResolves(citation string) error {
-	if citation == "" || citation == selfRecorded {
+	if citation == "" || citation == selfRecorded || citation == unfiledRefusal {
 		return nil
 	}
 	return issueResolves(citation)
