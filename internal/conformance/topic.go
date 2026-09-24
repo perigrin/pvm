@@ -155,6 +155,30 @@ func ParseTopic(raw string) ([]*Case, error) {
 func (c *Case) addBlock(lang, content string) error {
 	switch lang {
 	case "perl":
+		// A CASE IS ONE COMPILATION UNIT. Perl's compilation unit is
+		// the FILE: `my` scope, BEGIN ordering, `use strict`'s lexical
+		// effect, `__DATA__` and constant folding are all per unit, so
+		// two programs in one case would fold across a boundary a
+		// reader sees as separating them.
+		//
+		//	my $x = "abc";        folds into the pad -- no VarDecl
+		//	my $x = "abc" . $0;   runtime -- the VarDecl survives
+		//
+		// Those are two fixtures a reader expects to be independent.
+		// Merged into one unit they are not, and what you read is not
+		// what perl compiled.
+		//
+		// Ty's mdtest merges consecutive unnamed blocks into one file;
+		// this format deliberately does not. Rejecting the second block
+		// rather than overwriting is the difference between the rule
+		// being ENFORCED and being remembered -- a silent overwrite
+		// drops a program and makes no diagnostic, which is how every
+		// other defect in this corpus started.
+		if c.Source != "" {
+			return fmt.Errorf("a second ```perl block; a case is ONE " +
+				"compilation unit, because perl's is the file -- split " +
+				"it into two `##` cases")
+		}
 		c.Source = strings.TrimSpace(content) + "\n"
 	case "behavior":
 		return c.parseBehavior(content)

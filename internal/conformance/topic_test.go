@@ -37,6 +37,12 @@ func TestMdtestTopicsMakeTheSameClaims(t *testing.T) {
 
 	total := 0
 	for _, path := range paths {
+		// FORMAT.md documents the format; it is not a topic. Skipped by
+		// NAME rather than by "has no tier line", so a real topic that
+		// forgets its tier still fails loudly.
+		if filepath.Base(path) == "FORMAT.md" {
+			continue
+		}
 		raw, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatalf("%s: %v", path, err)

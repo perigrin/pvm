@@ -38,6 +38,33 @@ different block names.
 what it did not own would force every implementation to implement every
 other one's answer.
 
+**A CASE IS ONE COMPILATION UNIT.** Exactly one ```perl block; a second
+is an error, not an overwrite and not a merge.
+
+Ty's mdtest (astral-sh/ruff, `crates/ty_test`) merges consecutive
+unnamed code blocks into one file. This format deliberately does not,
+because PERL'S COMPILATION UNIT IS THE FILE: `my` scope, BEGIN
+ordering, `use strict`'s lexical effect, `__DATA__` and constant
+folding are all per unit. Measured:
+
+    $ perl -MO=Concise -e 'my $x = "abc";'
+      padsv_store[$x] <- const[PV "abc"]        folded into the slot
+
+    $ perl -MO=Concise -e 'my $x = "abc" . $0;'
+      multiconcat("abc",3,-1)[$x] <- gvsv[*0]   runtime, and it survives
+
+(B::SoN reports the same split in its own vocabulary: the first emits no
+VarDecl node, the second keeps one.)
+
+Those are two fixtures a reader expects to be independent. Merged into
+one unit they can fold across the boundary, so what you read is not
+what perl compiled.
+
+Rejecting rather than overwriting is what makes this ENFORCED rather
+than remembered. It also makes one-construct-per-case a property of the
+format -- the property that makes PerlOnJava's 986-file corpus useful
+for ranking -- rather than a convention an author has to hold.
+
 **`output` is a fenced block, not a behavior key.** It is byte-exact
 stdout and is routinely several lines. An EMPTY block pins empty output;
 an ABSENT block pins nothing at all. Those are different claims.
@@ -64,6 +91,29 @@ asserts CST shape, and none should" -- because that coupling makes the
 corpus unusable by anyone whose tree differs. The `ir` block is not a
 counterexample: it is a subset claim by a different implementation about
 its own graph, and this reader never checks it.
+
+## Why blocks per layer, and not inline assertions
+
+Ty puts its assertions inline -- `reveal_type(x)` with a trailing
+`# revealed: <type>`, and `# error: [rule-code]` at the line that
+raises. That is right for Ty, which has ONE producer: the assertion and
+the thing asserted are the same tool's output, so a comment beside the
+expression is the shortest honest form.
+
+This corpus has several implementations answering INDEPENDENTLY about
+one program, and they are not a pipeline -- B::SoN reads perl's optree,
+Chalk builds on the IR that produces, this parser reads the bytes. A
+block per layer says that: each implementation fills its own block,
+reads its own block, and is silent in the others. An inline comment
+would have to encode WHICH implementation it constrains, which is a
+block by another spelling and a worse one -- it puts three tools'
+answers in one namespace and makes "who is silent here" unanswerable.
+
+The inline form's real advantage is locality: an assertion AT the
+expression it is about. Nothing here needs that yet, because our claims
+are about a whole program -- what it prints, whether it parses, what
+its token stream contains. A per-expression claim (a type at a site, a
+diagnostic at a column) would need it, and that is when to revisit.
 
 ## Token facts
 
