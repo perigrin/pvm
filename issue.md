@@ -1,10 +1,14 @@
 ---
 title: Three .t headers state measured claims that are false
-state: pending
+state: cancelled
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-24T05:53:42.371355094Z
-updated: 2026-09-24T15:26:56.123715682Z
+updated: 2026-09-24T15:26:56.302923371Z
+transitions:
+- state: cancelled
+  actor: human:git-zhi
+  timestamp: 2026-09-24T15:26:56.302923371Z
 ---
 
 Three `.t` headers stated measured claims that were false. Found by the
