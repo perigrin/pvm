@@ -270,5 +270,59 @@ never ran are byte-identical in the chain.
       Repaired in `95cf8935`. 3/3 criteria verified.
 
 The four backfilled entries are the honest record of a skill violation,
-not a claim that review happened. `crochet:review` at milestone
-completion is the remaining coverage for them.
+not a claim that review happened. `crochet:assess` and `/postmortem` at
+milestone completion are the coverage they got; both ran, and both are
+in `docs/audits/`.
+
+## After the thirteenth issue: the format port
+
+The largest thing that happened to this corpus was not an issue in it.
+
+While closing out, perigrin observed that the corpus files were the
+same idea as Chalk's `t/corpus/mdtest` with different block names, and
+asked for a port. It ran to a full migration:
+
+  - 212 `.t` files became 65 markdown topic files holding 212 cases,
+    grouped by subject. Ported by a fan-out of one agent per tier, each
+    tier then verified by a SECOND agent that measured every prose
+    claim rather than trusting it.
+  - Sources, pins, token facts and refusal records were COPIED by a
+    generator, never retyped. That is why the defects the verify phase
+    found were confined to prose: six false claims, three introduced by
+    the port and three that had been sitting in `.t` headers and were
+    only noticed because moving them meant re-measuring them.
+  - Equivalence was measured, not asserted: 212 cases against 212
+    files, sources byte-identical, 24 recorded refusals on both sides.
+  - The harness migrated, and 24 tests plus 10 hand-maintained Go maps
+    were DELETED -- 2,657 lines, every one of which derived a
+    construct's identity from a FILENAME and then grepped the adjacency
+    body for the spelling that identity mapped to. perigrin had called
+    that machinery over-engineered before the port; the measurement
+    agreed.
+  - The `.t` files were moved aside and the whole suite run without
+    them BEFORE deleting, so "nothing depends on them" is a
+    measurement. Then deleted (`a6b33a2a`).
+
+Twenty-three of this milestone's sixty-seven acceptance criteria read
+the deleted corpus. Every one of their CLAIMS was checked against the
+topics before any was rewritten, and all twenty-three hold -- which is
+the port's equivalence re-measured from the criteria's side.
+
+The format was settled with the B::SoN session, since that corpus will
+be copied there and built on. Two decisions worth recording: a case is
+ONE COMPILATION UNIT, because perl's is the file and merging blocks
+would let constants fold across a boundary a reader sees as separating
+them; and an unknown block tag is IGNORED, so several implementations
+can answer about one program without implementing each other's claims.
+
+## Why this milestone closes on a corpus it did not plan
+
+Its issues describe `.t` files that no longer exist. The claims they
+delivered all survive -- that is measured above -- but the container
+changed underneath them after the last issue closed.
+
+Closing anyway is the honest call: the milestone's subject was WHAT THE
+CORPUS ASSERTS, and every assertion it added is still asserted. The
+port changed where those assertions live and deleted the machinery that
+a file-per-construct format required. A milestone held open until its
+artifacts stop changing would never close.
