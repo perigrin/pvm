@@ -4,12 +4,12 @@ state: pending
 urgency: normal
 milestone: v0.1
 created: 2026-09-24T00:18:19.052459875Z
-updated: 2026-09-24T15:27:50.062966854Z
+updated: 2026-09-24T15:28:32.446878143Z
 ---
 
-Five corpus files carry `STATUS refuses` citing issues that are CLOSED.
-A reader following the citation lands on a finished issue that says
-nothing about the refusal in front of them.
+Five corpus cases carry a `refuses:` record citing an issue that is
+CLOSED. A reader following the citation lands on a finished issue that
+says nothing about the refusal in front of them.
 
 Found by `crochet:assess` on `corpus-complete`. The milestone fixed
 exactly this decay for four files (`d95cf4ee`) and never checked whether
@@ -36,7 +36,7 @@ stale ones too, because nothing reads a citation.
 
 ## Why this keeps happening
 
-A citation is a string in a comment. Nothing reads it, so nothing
+A citation is a string in a block. Nothing reads it, so nothing
 notices when the issue it names closes -- and issues close routinely,
 including for reasons that have nothing to do with the refusal. Three
 of the five above were closed because the MILESTONE they belonged to
@@ -49,10 +49,10 @@ the marker's issue still exists to be read.
 
 ## What this needs
 
-A check over every `STATUS refuses` line asking `git zhi` whether the
-cited issue is open, failing when it is not. It has to tolerate `git
-zhi` being absent -- the suite runs where the chain may not exist -- so
-a skip when the binary is missing, and a failure when it is present and
+A check over every `refuses:` record asking `git zhi` whether the cited
+issue is open, failing when it is not. It has to tolerate `git zhi`
+being absent -- the suite runs where the chain may not exist -- so a
+skip when the binary is missing, and a failure when it is present and
 says `done`.
 
 Repointing the five is the other half and is mechanical once the check
@@ -62,6 +62,6 @@ way `01a0cf3e`'s four were repointed at `01a0d087` and friends.
 ## Acceptance criteria
 
 - [ ] A check names every refusal citing a closed issue (`go test ./internal/conformance/ -run '^TestRefusalCitationsAreLive$' -count=1 -v | grep -q '^--- PASS'`)
-- [ ] No corpus file cites a closed issue (`go test ./internal/conformance/ -run '^TestRefusalCitationsAreLive$' -count=1 | grep -q '^ok'`)
+- [ ] No corpus case cites a closed issue (`go test ./internal/conformance/ -run '^TestRefusalCitationsAreLive$' -count=1 | grep -q '^ok'`)
 - [ ] The check skips rather than fails where git-zhi is absent (`PATH=/usr/bin:/bin go test ./internal/conformance/ -run '^TestRefusalCitationsAreLive$' -count=1 | grep -qE '^(ok|\?)'`)
 - [ ] The whole conformance suite is green (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
