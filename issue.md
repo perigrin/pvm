@@ -6,7 +6,7 @@ milestone: corpus-complete
 blocked_by:
 - 01a0cc04-3303-7103-8769-9edca646b56e
 created: 2026-09-23T02:07:02.458719721Z
-updated: 2026-09-23T12:49:51.186768727Z
+updated: 2026-09-24T20:47:48.230174449Z
 sessions:
 - start_sha: b1a62eecc58a5d7bd0c1af6e2b54ae4691aaa2c2
   end_sha: 8a2ffb94624374191b8f6f4266bc8a20b0daf957
@@ -88,7 +88,7 @@ the corpus has not introduced.
 
 ## Acceptance criteria
 
-- [ ] A corpus file pins the ungated string-bitwise answer and another pins the numeric answer under the pragma (`awk '/^--- source/{s=1;next} /^--- expect/{s=0} s' conformance/04_operators/*.t | grep -q 'use v5.28'`)
+- [ ] A corpus file pins the ungated string-bitwise answer and another pins the numeric answer under the pragma (`python3 tools/mdtest/tiersrc.py 04_operators | grep -q 'use v5.28'`)
 - [ ] Both files are validated against pinned perl 5.42.0, which is what makes the pair a measurement (`go test ./internal/conformance/ -run '^TestTierOperatorsPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierOperatorsPerlValidated'`)
 - [ ] The dependency lint passes over the tier (`go test ./internal/conformance/ -run '^TestTierOperatorsLint$' -count=1 -v | grep -q '^--- PASS: TestTierOperatorsLint'`)
 - [ ] The whole conformance suite is green with the new files in it (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
