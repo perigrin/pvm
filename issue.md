@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: v0.1
 created: 2026-09-24T00:18:19.052459875Z
-updated: 2026-09-24T00:18:19.052459875Z
+updated: 2026-09-24T15:27:50.062966854Z
 ---
 
 Five corpus files carry `STATUS refuses` citing issues that are CLOSED.
@@ -17,18 +17,22 @@ any others had it. They did.
 
 ## Measured
 
-    $ grep -h 'STATUS refuses' conformance/*/*.t | grep -o '01a0[a-f0-9-]*' | sort -u
+    $ grep -rh 'refuses:' conformance/mdtest/*.md | grep -o '01a0[a-f0-9-]*' | sort -u
 
 Three of the six cited issues are `done`:
 
-    01a0c35f   done    conformance/11_oo/00_adjacency.t
-    01a0c432   done    conformance/04_operators/10_undef_arity.t
-                       conformance/07_subroutines/00_adjacency.t
-                       conformance/07_subroutines/08_parenless_extent.t
-    01a0c730   done    conformance/07_subroutines/09_prototype_extent.t
+    01a0c35f   done   adjacency-11_oo.md
+    01a0c432   done   adjacency-07_subroutines.md, argument-extent.md (x2)
+    01a0c730   done   named-operators.md
 
 The other three are live and correct: `01a0ce57` (`x=` unlexed),
 `01a0cf64` (`-e` split in two), `01a0d087` (ungated `defer`).
+
+THE CITATIONS SURVIVED THE FORMAT PORT, which is itself the finding.
+The corpus moved from 212 `.t` files to 65 markdown topics and the
+generator copied every refusal record verbatim -- correctly, since
+losing one would turn a known gap into a silent pass. It copied the
+stale ones too, because nothing reads a citation.
 
 ## Why this keeps happening
 
