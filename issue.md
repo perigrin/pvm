@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-23T17:10:01.515942446Z
-updated: 2026-09-23T23:16:31.834743736Z
+updated: 2026-09-24T01:32:52.873502363Z
 sessions:
 - start_sha: 95cf8935c0ed1334c63e25964bff53ff6c7b9837
   end_sha: fb2c85f6d26d5a529699c52bdcf5918891d0c8a9
@@ -72,10 +72,41 @@ shape is indirect object notation this parser does not implement
 round-trip defect on `defer.t` that the refusal was masking. Three
 pieces, scoped in that issue; this file's citation now points there.
 
+## The first fix was wrong, and the gate found it
+
+`831eaa1d` fixed this with a four-name exception list
+(`compileTimeToken`). That was wrong on one entry and incomplete on
+another, and both faults had one cause: a list encodes a judgement per
+name where perl encodes none.
+
+`__CLASS__` is a value only under `use feature 'class'` and a bareword
+FILEHANDLE otherwise -- `print __CLASS__, "x"` is "No comma allowed
+after filehandle", the same diagnostic the fix cited as its proof for
+`FOO`. Exempting it adopted the gated reading with no feature state,
+and contradicted `11_oo/16_classname_ungated.t`, edited in that same
+commit, whose subject is that ungated `print __CLASS__;` IS a
+filehandle print. That file passed for the wrong reason. `__SUB__`
+behaves identically and was missing.
+
+`f4e35d7a` replaced the list with perl's own rule: a comma after a
+handle is an error, so what FOLLOWS the word decides the slot. The
+`$fh` branch already applied that test; the bareword branch did not.
+
+That exposed an older bug behind it -- `startsTerm` called every
+`lexer.Word` a term-starter, so word operators (`eq`, `cmp`, `lt`,
+`and`) denied nothing and both branches took the slot on
+`print FOO eq "x"`. The `$fh` half predated this milestone. Fixing it
+moved 14 T1 files, took `base/num.t` from 44 refusals to 6, and took T2
+clean from 17 of 56 to 19.
+
+So this issue's third criterion names `TestCommaDeniesTheFilehandleSlot`
+rather than the `TestCompileTokensAreNotFilehandles` the first fix
+added: that test asserted the wrong rule and was replaced.
+
 ## Acceptance criteria
 
 - [ ] The three filehandle-slot refusals are gone and the files pass (`go test ./internal/conformance/ -run '^TestCorpus$/11_oo/16|^TestCorpus$/12_packages/1' -count=1 -v | grep -q 'PASS: TestCorpus/12_packages/10'`)
 - [ ] A bareword filehandle still takes the slot (`go test ./internal/parse/ -run '^TestBarewordHandleStillTakesTheSlot$' -count=1 -v | grep -q '^--- PASS'`)
-- [ ] Compile-time tokens parse as arguments to print (`go test ./internal/parse/ -run '^TestCompileTokensAreNotFilehandles$' -count=1 -v | grep -q '^--- PASS'`)
+- [ ] A comma after a bareword denies the filehandle slot, so compile-time tokens parse as arguments (`go test ./internal/parse/ -run '^TestCommaDeniesTheFilehandleSlot$' -count=1 -v | grep -q '^--- PASS'`)
 - [ ] Every remaining refusal citation names a live issue (`! grep -rh 'STATUS refuses' conformance/ | grep -q 01a0cf3e`)
 - [ ] The whole conformance suite is green (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
