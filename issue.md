@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-23T17:10:01.515942446Z
-updated: 2026-09-24T01:32:52.873502363Z
+updated: 2026-09-24T20:47:33.216860306Z
 sessions:
 - start_sha: 95cf8935c0ed1334c63e25964bff53ff6c7b9837
   end_sha: fb2c85f6d26d5a529699c52bdcf5918891d0c8a9
@@ -105,7 +105,7 @@ added: that test asserted the wrong rule and was replaced.
 
 ## Acceptance criteria
 
-- [ ] The three filehandle-slot refusals are gone and the files pass (`go test ./internal/conformance/ -run '^TestCorpus$/11_oo/16|^TestCorpus$/12_packages/1' -count=1 -v | grep -q 'PASS: TestCorpus/12_packages/10'`)
+- [ ] The three filehandle-slot refusals are gone and the files pass (`go test ./internal/conformance/ -run '^TestCorpus$' -count=1 -v | grep -q 'PASS: TestCorpus/compile-phase.md'`)
 - [ ] A bareword filehandle still takes the slot (`go test ./internal/parse/ -run '^TestBarewordHandleStillTakesTheSlot$' -count=1 -v | grep -q '^--- PASS'`)
 - [ ] A comma after a bareword denies the filehandle slot, so compile-time tokens parse as arguments (`go test ./internal/parse/ -run '^TestCommaDeniesTheFilehandleSlot$' -count=1 -v | grep -q '^--- PASS'`)
 - [ ] Every remaining refusal citation names a live issue (`! grep -rh 'STATUS refuses' conformance/ | grep -q 01a0cf3e`)
