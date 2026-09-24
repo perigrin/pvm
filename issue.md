@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-23T02:07:02.765668461Z
-updated: 2026-09-23T19:38:10.610122112Z
+updated: 2026-09-24T20:47:48.977187751Z
 sessions:
 - start_sha: 66e6d10dfed49b493965299ae1c5d6fcc9088c25
   end_sha: 66e6d10dfed49b493965299ae1c5d6fcc9088c25
@@ -76,8 +76,8 @@ rather than the only record.
 
 ## Acceptance criteria
 
-- [ ] A file pins that 9 < 1 < 5 is false, which separates a chaining parser from a left-associative one (`awk '/^--- source/{s=1;next} /^--- expect/{s=0} s' conformance/04_operators/*.t | grep -qE '9 *< *1 *< *5'`)
-- [ ] A parsent file records a nonassoc repetition that perl itself rejects (`grep -rlq 'expect parsent' conformance/04_operators/`)
+- [ ] A file pins that 9 < 1 < 5 is false, which separates a chaining parser from a left-associative one (`python3 tools/mdtest/tiersrc.py 04_operators | grep -qE '9 *< *1 *< *5'`)
+- [ ] A parsent file records a nonassoc repetition that perl itself rejects (`grep -lq 'parses: no' conformance/mdtest/comparison.md`)
 - [ ] Every new file is validated against pinned perl 5.42.0, which for a parsent file means perl refuses it (`go test ./internal/conformance/ -run '^TestTierOperatorsPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierOperatorsPerlValidated'`)
 - [ ] The tier's nonassoc measurement is asserted by a file rather than only described in its README (`go test ./internal/conformance/ -run '^TestTierOperatorsNonassocMeasured$' -count=1 -v | grep -q '^--- PASS: TestTierOperatorsNonassocMeasured'`)
 - [ ] The whole conformance suite is green with the new files in it (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
