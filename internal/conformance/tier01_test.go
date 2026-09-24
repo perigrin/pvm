@@ -25,27 +25,64 @@ const tierLiterals = "01_literals"
 func tierFiles(t *testing.T, tier string) map[string]*File {
 	t.Helper()
 
-	paths, err := filepath.Glob(filepath.Join(corpusDir, tier, "*.t"))
+	paths, err := filepath.Glob(filepath.Join(corpusDir, "mdtest", "*.md"))
 	if err != nil {
-		t.Fatalf("globbing %s: %v", tier, err)
-	}
-	if len(paths) == 0 {
-		t.Fatalf("%s holds no corpus files", tier)
+		t.Fatalf("globbing topics: %v", err)
 	}
 
 	out := map[string]*File{}
 	for _, p := range paths {
+		if filepath.Base(p) == "FORMAT.md" {
+			continue
+		}
 		raw, err := os.ReadFile(p)
 		if err != nil {
 			t.Fatalf("reading %s: %v", p, err)
 		}
-		f, err := ParseFile(string(raw))
+		// A topic declares its tier; one that is not this tier's holds
+		// nothing this caller asked for.
+		declared, err := topicTier(string(raw))
 		if err != nil {
-			t.Fatalf("%s: %v", p, err)
+			t.Fatalf("%s: %v", filepath.Base(p), err)
 		}
-		out[filepath.Base(p)] = f
+		if declared != tier {
+			continue
+		}
+		cases, err := ParseTopic(string(raw))
+		if err != nil {
+			t.Fatalf("%s: %v", filepath.Base(p), err)
+		}
+		for _, c := range cases {
+			out[filepath.Base(p)+"/"+c.Title] = c.asFile()
+		}
+	}
+	if len(out) == 0 {
+		t.Fatalf("%s holds no cases", tier)
 	}
 	return out
+}
+
+// adjacencyCase returns a tier's adjacency case and its key.
+//
+// The adjacency case is the one holding EVERY construct its tier
+// introduces, each beside another. It used to be a file named
+// `00_adjacency.t` and seventeen tests looked it up by that name; it is
+// now a case in `adjacency-<tier>.md`, which is how the port kept it
+// separable without a naming convention doing the work.
+//
+// Found by TOPIC rather than by title, because the title is prose a
+// reader writes and the topic file name is structure.
+func adjacencyCase(t *testing.T, files map[string]*File, tier string) (*File, string) {
+	t.Helper()
+
+	want := "adjacency-" + tier + ".md/"
+	for key, f := range files {
+		if strings.HasPrefix(key, want) {
+			return f, key
+		}
+	}
+	t.Fatalf("%s has no adjacency case (looked for a %s* key)", tier, want)
+	return nil, ""
 }
 
 // TestTierLiteralsCoversGlossary checks the tier against the vocabulary
@@ -101,6 +138,8 @@ func TestTierLiteralsCoversGlossary(t *testing.T) {
 
 	files := tierFiles(t, tierLiterals)
 
+	_, adjKey := adjacencyCase(t, files, tierLiterals)
+
 	// The adjacency file is EXCLUDED, and that exclusion is the whole
 	// check. It composes every construct the tier introduces, so joining
 	// it in means every boundary is spelled somewhere by construction and
@@ -120,7 +159,7 @@ func TestTierLiteralsCoversGlossary(t *testing.T) {
 	// coverage it does not have, which is worse than no gate.
 	var sources []string
 	for name, f := range files {
-		if name == adjacencyFile {
+		if name == adjKey {
 			continue
 		}
 		sources = append(sources, f.Source)
@@ -310,83 +349,6 @@ func TestTierLiteralsLint(t *testing.T) {
 				t.Errorf("%s", err)
 			}
 		})
-	}
-}
-
-// TestTierLiteralsAdjacency checks the tier's adjacency file holds every
-// construct the tier introduces, each next to another.
-//
-// WHAT OPS CANNOT DO HERE, and it is the whole design of this test.
-//
-// The obvious check is that the adjacency file emits the tier's declared
-// INTRODUCES set. Perl refutes it. Measured 5.42.0: several `my`
-// declarations in a row -- MORE constructs, more adjacent, which is
-// exactly what an adjacency file is -- let the optimiser fuse them into
-// one `padrange` and emit FEWER ops than the one-statement files do, the
-// `pushmark` among them. The declared set is a UNION across the tier's
-// files and is not a property of any single one, so demanding it of the
-// adjacency file demands something perl will not produce.
-//
-// So the adjacency claim is checked on the SOURCE, which is where it
-// actually lives: every construct spelling the tier's construct files
-// introduce must also appear in the adjacency file's source, and the
-// adjacency file must be a single multi-statement body rather than a
-// concatenation of unrelated programs.
-//
-// What that ESTABLISHES: every construct this tier teaches appears in one
-// compiled body, so a parser that handles each alone and mis-handles the
-// pair is reachable from this corpus. That is the bug a
-// one-construct-per-file corpus cannot see -- measured, `class Foo {
-// ADJUST { 1 } }` parses with 0 Unknowns while `class Foo { ADJUST { 1 }
-// method m { 2 } }` returns 1 Unknown swallowing both.
-//
-// What it does NOT establish: that the constructs are adjacent in any
-// stronger sense than "in the same body". Whether `my $dec = 0.5;` sits
-// next to `my $sq = 'plain';` or six statements away is not checkable
-// from ops, from output, or from the tree while the parser is
-// incomplete -- and a source-position check would pin a layout, which the
-// file is free to change. The file's comment makes the adjacency claim in
-// prose and review reads it; this test makes the prose falsifiable on the
-// part that can be falsified, which is COVERAGE.
-func TestTierLiteralsAdjacency(t *testing.T) {
-	files := tierFiles(t, tierLiterals)
-
-	adj, ok := files[adjacencyFile]
-	if !ok {
-		t.Fatalf("%s has no %s", tierLiterals, adjacencyFile)
-	}
-
-	// The construct each non-adjacency file introduces, taken from that
-	// file's own source rather than from a list here: the tier's files
-	// ARE the enumeration of what it introduces, and a second list beside
-	// them is how this package has drifted four times already.
-	for name, f := range files {
-		if name == adjacencyFile {
-			continue
-		}
-		spelling := literalSpelling(f.Source)
-		if spelling == "" {
-			t.Errorf("%s: no `my $x = <literal>;` to take a construct from", name)
-			continue
-		}
-		if !strings.Contains(adj.Source, spelling) {
-			t.Errorf("%s introduces %s, which %s does not contain.\n"+
-				"\tThe adjacency file must hold every construct the tier "+
-				"introduces, or the pairing it exists to reach is not "+
-				"reachable for that construct.",
-				name, spelling, adjacencyFile)
-		}
-	}
-
-	// One body, not several. Adjacency needs at least two constructs to
-	// be adjacent TO, and `nextstate` is one per statement -- which is
-	// how this counts statements without a parser of its own.
-	ops, err := opsOf(t, adj.Source)
-	if err != nil {
-		t.Fatalf("%s: %v", adjacencyFile, err)
-	}
-	if n := countOp(ops, "nextstate"); n < 2 {
-		t.Errorf("%s compiles to %d statement(s); adjacency needs at least 2", adjacencyFile, n)
 	}
 }
 

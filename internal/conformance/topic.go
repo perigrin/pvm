@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"tamarou.com/pvm/internal/parse"
 )
 
 // Case is one `##` section of an mdtest topic file.
@@ -241,4 +243,23 @@ func (c *Case) parseBehavior(content string) error {
 		}
 	}
 	return nil
+}
+
+// asFile presents a case as a `File`, which is what the tier tests
+// already take.
+//
+// The two carry the same claims -- a case IS a corpus file that stopped
+// needing its own path -- so this is a field copy rather than a
+// conversion, and it is what let fifteen tier test files migrate to
+// topics without being touched.
+func (c *Case) asFile() *File {
+	return &File{
+		Source:        c.Source,
+		ExpectOutput:  c.ExpectOutput,
+		ExpectParses:  c.ExpectParses,
+		ExpectParsent: c.ExpectParsent,
+		TokenFacts:    c.TokenFacts,
+		Refuses:       c.Refuses,
+		RefusalCode:   parse.RefusalCode(c.RefusalCode),
+	}
 }

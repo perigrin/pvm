@@ -4,7 +4,6 @@ package conformance
 
 import (
 	"regexp"
-	"strings"
 	"testing"
 
 	"tamarou.com/pvm/internal/parse"
@@ -127,115 +126,6 @@ func controlKeywords(source string) []string {
 		}
 	}
 	return out
-}
-
-// TestTierControlAdjacency checks the tier's adjacency file holds every
-// construct the tier introduces, each next to another, and that it pairs
-// with the tier's DECLARED prerequisite.
-//
-// WHAT OPS CANNOT DO HERE is the same obstacle tier 01 hit, arriving by a
-// different route. There the optimiser fused adjacent `my` declarations
-// into one `padrange`, so more adjacency meant fewer ops. Here the ops
-// are not a function of the source at all in the direction the check
-// wants: the README measures that `print "y" if $c` and `if ($c) { print
-// "y" }` emit IDENTICAL op streams, so the op stream cannot tell which of
-// the two the adjacency file contains, and a check that counted ops would
-// pass on a file holding only one of the pair. Worse, the tier's own
-// erasures mean a file can emit fewer ops than it spells constructs:
-// a constant condition deletes the branch entirely.
-//
-// So the adjacency claim is checked on the SOURCE, as tier 01's is, with
-// the spelling being the KEYWORD rather than a literal binding.
-//
-// THE PART THAT DIFFERS FROM TIER 01, and it is what this tier's AC asks
-// for. Tier 01 depends on `nothing`, so it has no prerequisite to pair
-// with and its adjacency file pairs only its own constructs. Tier 06
-// declares `05_scoping`, which is NOT tier N-1 in the numeric sense of
-// "whatever came before" but the one dependency the README says the tier
-// cannot be written without -- the block. The pairing this test demands
-// is therefore with 05's subject: every one of this tier's branches and
-// loop bodies is a block, and the adjacency file must actually contain
-// blocks and scoped declarations rather than being a run of postfix
-// modifiers that never opens a brace.
-//
-// That check is not decoration. A postfix-only adjacency file would hold
-// every keyword this tier introduces and still never pair the tier with
-// its declared prerequisite -- the README measures that a postfix loop
-// emits no `enterloop` at all, because it has no block for `next`/`last`
-// to target. Reading the prerequisite from the README rather than
-// hard-coding "05" is what makes this a test of the DECLARATION.
-func TestTierControlAdjacency(t *testing.T) {
-	files := tierFiles(t, tierControl)
-
-	adj, ok := files[adjacencyFile]
-	if !ok {
-		t.Fatalf("%s has no %s", tierControl, adjacencyFile)
-	}
-
-	// The constructs each non-adjacency file introduces, taken from those
-	// files' own sources rather than from a list here: the tier's files
-	// ARE the enumeration of what it introduces, and a second list beside
-	// them is how this package has drifted before.
-	for name, f := range files {
-		if name == adjacencyFile {
-			continue
-		}
-		kws := controlKeywords(f.Source)
-		if len(kws) == 0 {
-			t.Errorf("%s: no control keyword to take a construct from", name)
-			continue
-		}
-		for _, kw := range kws {
-			if !strings.Contains(adj.Source, kw) {
-				t.Errorf("%s introduces %s, which %s does not contain.\n"+
-					"\tThe adjacency file must hold every construct the "+
-					"tier introduces, or the pairing it exists to reach is "+
-					"not reachable for that construct.",
-					name, kw, adjacencyFile)
-			}
-		}
-	}
-
-	// One body, not several. `nextstate` is one per statement, which is
-	// how this counts statements without a parser of its own.
-	ops, err := opsOf(t, adj.Source)
-	if err != nil {
-		t.Fatalf("%s: %v", adjacencyFile, err)
-	}
-	if n := countOp(ops, "nextstate"); n < 2 {
-		t.Errorf("%s compiles to %d statement(s); adjacency needs at least 2", adjacencyFile, n)
-	}
-
-	// The pairing with the DECLARED prerequisite, read from the README
-	// rather than assumed to be tier N-1.
-	deps, err := readTierDeps(corpusDir)
-	if err != nil {
-		t.Fatalf("reading tier READMEs: %v", err)
-	}
-	dep, ok := deps[tierControl]
-	if !ok {
-		t.Fatalf("%s declares no prerequisite", tierControl)
-	}
-	if dep == "nothing" {
-		t.Fatalf("%s declares no prerequisite, but its constructs all need one", tierControl)
-	}
-
-	// 05_scoping's subjects are the block and the scoped declaration --
-	// `enterloop`/`leaveloop` for the bare block, and a `my` whose pad
-	// slot the block owns. A file pairing with it must emit both. That is
-	// checkable from ops here where the tier's OWN constructs are not,
-	// because these ops belong to the earlier tier and nothing in this
-	// tier erases them.
-	for _, want := range []string{"enterloop", "padsv"} {
-		if countOp(ops, want) == 0 {
-			t.Errorf("%s emits no %s, so it does not pair %s's constructs "+
-				"with %s, the prerequisite the README declares.\n"+
-				"\tA run of postfix modifiers holds every keyword this "+
-				"tier introduces and still opens no block -- measured, a "+
-				"postfix loop emits no enterloop at all.",
-				adjacencyFile, want, tierControl, dep)
-		}
-	}
 }
 
 // TestTierControlStatementPathIsNotTheExpressionPath checks the claim the

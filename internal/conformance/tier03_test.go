@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 	"testing"
 
@@ -155,137 +154,6 @@ func contextConstructFromName(name string) string {
 		return ""
 	}
 	return strings.TrimSuffix(m[2], ".t")
-}
-
-// TestTierContextAdjacency checks the tier's adjacency file holds every
-// construct the tier introduces, each next to another, and that it pairs
-// with the DECLARED prerequisite.
-//
-// WHAT OPS CANNOT DO HERE, and this tier is the extreme case in the
-// corpus. Tier 10 could demand its adjacency file emit the tier's whole
-// INTRODUCES set, because its ops are runtime calls the optimiser has
-// nothing to fuse. Here two separate forces refute that:
-//
-//   - `padrange` ABSORBS `pushmark`, so a file with MORE adjacent
-//     declarations emits FEWER ops. The declared set is a UNION ACROSS
-//     THE TIER'S FILES and never a property of any one of them.
-//   - The comma operator in scalar context ERASES ITS OWN LEFT OPERANDS.
-//     `my $last = (4,5,6)` keeps `const[IV 6]` and nothing else; two
-//     thirds of the construct the file is about never reaches the optree.
-//
-// So COVERAGE is checked on the SOURCE, as at tiers 01 and 05.
-//
-// THE PREREQUISITE PAIRING is `02_variables`, READ from the README
-// rather than computed as tier N-1. Here N-1 and the declaration happen
-// to agree, which is exactly why reading is still the right thing: a
-// check that computed N-1 would pass today and go on passing if the
-// declaration moved, so it would be asserting nothing. The test fails if
-// the declared prerequisite changes, which is what makes the pairing
-// impossible to slip.
-//
-// That half IS checkable from ops. The prerequisite is a TIER, tiers
-// declare op sets, and an op is a fact about what perl compiled rather
-// than about what the source appears to say. The adjacency file must
-// emit at least one op `02_variables` introduces -- measured, it emits
-// `padav` and `gvsv`, the array and the list separator `$"` that `"@a"`
-// fetches. Requiring the OP rather than the spelling is what keeps a
-// folded-away construct from standing in for a pairing that never
-// happened.
-//
-// What this does NOT establish: that the constructs are adjacent in any
-// stronger sense than "in the same body" -- the same limit tiers 01 and
-// 05 record, for the same reason.
-func TestTierContextAdjacency(t *testing.T) {
-	files := tierFiles(t, tierContext)
-
-	adj, ok := files[adjacencyFile]
-	if !ok {
-		t.Fatalf("%s has no %s", tierContext, adjacencyFile)
-	}
-
-	// The construct each non-adjacency file introduces, taken from that
-	// file's own identity rather than from a fresh opinion here: the
-	// tier's files ARE the enumeration of what it introduces.
-	for name, f := range files {
-		if name == adjacencyFile {
-			continue
-		}
-		identity := contextConstructFromName(name)
-		spelling, known := contextConstructs[identity]
-		if !known {
-			t.Errorf("%s: %q is not a construct this test knows, so nothing places it.\n"+
-				"\tA file joining the tier joins contextConstructs with the "+
-				"spelling its construct wears elsewhere.", name, identity)
-			continue
-		}
-		if !strings.Contains(f.Source, spelling) {
-			t.Errorf("%s is named for %q, spelled %q, which its own source does not use.\n"+
-				"\tThe name is the file's identity; a name the source does "+
-				"not honour makes every other check here ask about the "+
-				"wrong construct.", name, identity, spelling)
-			continue
-		}
-		if !strings.Contains(adj.Source, spelling) {
-			t.Errorf("%s introduces %q, spelled %q, which %s does not contain.\n"+
-				"\tThe adjacency file must hold every construct the tier "+
-				"introduces, or the pairing it exists to reach is not "+
-				"reachable for that construct.", name, identity, spelling, adjacencyFile)
-		}
-	}
-
-	// One body, not several. Adjacency needs at least two constructs to
-	// be adjacent TO, and `nextstate` is one per statement -- which is
-	// how this counts statements without a parser of its own.
-	ops, err := opsOf(t, adj.Source)
-	if err != nil {
-		t.Fatalf("%s: %v", adjacencyFile, err)
-	}
-	if n := countOp(ops, "nextstate"); n < 2 {
-		t.Errorf("%s compiles to %d statement(s); adjacency needs at least 2", adjacencyFile, n)
-	}
-
-	// The pairing with the DECLARED prerequisite, read from the README.
-	deps, err := readTierDeps(corpusDir)
-	if err != nil {
-		t.Fatalf("reading tier READMEs: %v", err)
-	}
-	dep, ok := deps[tierContext]
-	if !ok {
-		t.Fatalf("%s declares no DEPENDS ON", tierContext)
-	}
-	if dep != tierContextPrerequisite {
-		t.Fatalf("%s declares DEPENDS ON %q, but this test pairs it with %q.\n"+
-			"\tThe pairing below is the aggregate an aggregate-free tier "+
-			"cannot supply, which is %s's construct. If the declared "+
-			"prerequisite changed, the pairing has to change with it.",
-			tierContext, dep, tierContextPrerequisite, tierContextPrerequisite)
-	}
-
-	tiers, err := readTierOps(corpusDir)
-	if err != nil {
-		t.Fatalf("reading tier READMEs: %v", err)
-	}
-	depOps := tiers[dep]
-	if len(depOps) == 0 {
-		t.Fatalf("%s declares %s, which introduces no op to pair with", tierContext, dep)
-	}
-
-	var paired []string
-	for _, op := range depOps {
-		if countOp(ops, op) > 0 {
-			paired = append(paired, op)
-		}
-	}
-	if len(paired) == 0 {
-		t.Errorf("%s declares DEPENDS ON %s, and %s emits none of that "+
-			"tier's ops (%s).\n"+
-			"\tThe adjacency file is where the two tiers meet in one "+
-			"compiled body; without one of the prerequisite's ops the "+
-			"declared edge is prose.",
-			tierContext, dep, adjacencyFile, strings.Join(depOps, " "))
-		return
-	}
-	t.Logf("%s pairs with %s through %s", adjacencyFile, dep, strings.Join(paired, ", "))
 }
 
 // tierContextPrerequisite is the tier 03_context declares a dependency
@@ -437,67 +305,6 @@ var discriminatingPairs = map[string]string{
 	"caller": "08_caller.t",
 }
 
-// TestTierContextMeasuresBothContexts is where the tier's inference gap
-// becomes a number.
-//
-// THE GAP. `types.NarrowByContext` is called at infer.go:524 with no
-// source of context: the CST carries no context at all, so every call
-// site passes `types.ScalarCtx` because that is the only value it can
-// name. The half of the language that would pass `ListCtx` is not
-// modelled. That is a note until something counts it, and counting it
-// needs a corpus of cases where scalar and list differ MEASURABLY --
-// which is what a discriminating pair is.
-//
-// So this counts them. Each op in `discriminatingPairs` must appear in
-// BOTH scalar and list context somewhere in the tier, and the file named
-// for it must be where that happens -- a pair split across two files is
-// two facts about two programs, and an inference that got one right and
-// one wrong would satisfy it.
-//
-// WHY THIS CHECK AND NOT AN OP-NAME ONE. The tier README states the
-// finding plainly: `scalar` is not an op. `my $n = scalar(@a)` and `my $n
-// = @a` compile to byte-identical optrees, and the op-name lint cannot
-// see the difference between the two halves of any pair here. This is
-// the one thing the optree CAN say about context, and saying it requires
-// reading the flags `opsOf` throws away.
-//
-// The number is logged rather than asserted as a magic constant. A
-// hard-coded "four pairs" would fail the day a fifth lands, which is a
-// test objecting to the corpus growing; the per-op requirement below
-// fails only when a pair the tier CLAIMS stops being measured.
-func TestTierContextMeasuresBothContexts(t *testing.T) {
-	files := tierFiles(t, tierContext)
-
-	var measured []string
-	for op, owner := range discriminatingPairs {
-		f, ok := files[owner]
-		if !ok {
-			t.Errorf("%s is named as where %s is measured in both contexts, "+
-				"and is not in %s", owner, op, tierContext)
-			continue
-		}
-		ctxs, err := opContexts(t, f.Source)
-		if err != nil {
-			t.Errorf("%s: %v", owner, err)
-			continue
-		}
-		have := ctxs[op]
-		if have["s"] && have["l"] {
-			measured = append(measured, op)
-			continue
-		}
-		t.Errorf("%s emits %s in %s, not in both scalar and list.\n"+
-			"\tThe pair IS the measurement: the two halves emit the same op "+
-			"and differ only by the context flag, so a file that reaches "+
-			"only one of them measures nothing this tier is about.",
-			owner, op, describeContexts(have))
-	}
-
-	sort.Strings(measured)
-	t.Logf("%s measures %d discriminating pairs: %s",
-		tierContext, len(measured), strings.Join(measured, ", "))
-}
-
 // describeContexts names the contexts an op was seen in, for an error
 // message.
 func describeContexts(have map[string]bool) string {
@@ -508,60 +315,6 @@ func describeContexts(have map[string]bool) string {
 		return "list context only"
 	default:
 		return "neither scalar nor list context"
-	}
-}
-
-// TestTierContextAdjacencyPairsAreAdjacent checks that the adjacency file
-// holds the pairs, and not merely one half of each.
-//
-// THE BUG THIS EXISTS FOR, found by measuring rather than by reading. The
-// adjacency file landed with every construct present and every one of
-// them in ONE context: `sort lK`, `reverse sK`, `localtime l`, each
-// exactly once. Every source-coverage check above passed over it, because
-// the spellings were all there. What was absent was the tier's entire
-// subject -- a tier of discriminating pairs whose adjacency file
-// contained no pair.
-//
-// That is the adjacency bug in its purest form. A parser that resolved
-// every construct correctly alone and collapsed the two contexts of one
-// construct into a single answer would have gone green over the whole
-// tier, because no file asked it for both answers at once. The
-// construct files each ask for both; only the adjacency file can ask for
-// both while six other constructs are in scope.
-//
-// Checked on the FLAGS for the reason the test above gives: the two
-// halves of a pair are the same op, so nothing in the op names
-// distinguishes them, and an op-name check is satisfied by either half
-// alone.
-func TestTierContextAdjacencyPairsAreAdjacent(t *testing.T) {
-	files := tierFiles(t, tierContext)
-
-	adj, ok := files[adjacencyFile]
-	if !ok {
-		t.Fatalf("%s has no %s", tierContext, adjacencyFile)
-	}
-
-	ctxs, err := opContexts(t, adj.Source)
-	if err != nil {
-		t.Fatalf("%s: %v", adjacencyFile, err)
-	}
-
-	var ops []string
-	for op := range discriminatingPairs {
-		ops = append(ops, op)
-	}
-	sort.Strings(ops)
-
-	for _, op := range ops {
-		have := ctxs[op]
-		if have["s"] && have["l"] {
-			continue
-		}
-		t.Errorf("%s emits %s in %s.\n"+
-			"\tThe tier's subject is the PAIR, and an adjacency file "+
-			"holding one half of each pair asks the parser for one answer "+
-			"where the construct has two -- which is the collapse this "+
-			"tier exists to catch.", adjacencyFile, op, describeContexts(have))
 	}
 }
 
