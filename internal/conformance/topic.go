@@ -1,5 +1,5 @@
 // ABOUTME: Reads Chalk's mdtest corpus format -- `##` per case, fenced blocks by language tag.
-// ABOUTME: A block tag this reader does not know is IGNORED, which is what lets three projects share one file.
+// ABOUTME: Each block is one IMPLEMENTATION's answer about a shared Perl program; each reads its own and ignores the rest.
 package conformance
 
 import (
@@ -24,8 +24,12 @@ type Case struct {
 
 	// ExpectParses and ExpectParsent come from the ```behavior block's
 	// `parses:` line; ExpectOutput comes from a separate ```output block.
-	// ExpectOutput is a pointer for `File`'s reason: pinning empty output
-	// and pinning nothing are different claims.
+	//
+	// ExpectOutput is the GROUND TRUTH rather than a claim of ours -- it
+	// is what perl prints, which no implementation reading this corpus
+	// gets to define and all of them are checked against. A pointer for
+	// `File`'s reason: pinning empty output and pinning nothing are
+	// different claims.
 	ExpectOutput  *string
 	ExpectParses  bool
 	ExpectParsent bool
@@ -44,6 +48,27 @@ type Case struct {
 	Line int
 }
 
+// reTopicTier reads the tier a topic declares, from the `**Tier 04
+// operators.**` line its own prose carries.
+//
+// DECLARED, not derived. A tier cannot be computed from a topic's
+// contents -- the optimiser erases the very construct a case is about,
+// which is why `lintOps` checks a declaration rather than making one.
+// What changed with topics is only WHERE the declaration lives: in the
+// document a reader reads, rather than in a Go map keyed on file name
+// that a reader has to be told about separately.
+var reTopicTier = regexp.MustCompile(`(?m)^\*\*Tier (\d\d) (\w+)`)
+
+// topicTier returns the corpus tier directory a topic declares.
+func topicTier(raw string) (string, error) {
+	m := reTopicTier.FindStringSubmatch(raw)
+	if m == nil {
+		return "", fmt.Errorf("topic declares no tier; " +
+			"every topic needs a `**Tier NN name.**` line")
+	}
+	return m[1] + "_" + m[2], nil
+}
+
 var (
 	reHeading = regexp.MustCompile(`^##\s+(.+?)\s*$`)
 	reFence   = regexp.MustCompile("^```(\\w*)\\s*$")
@@ -52,15 +77,37 @@ var (
 
 // ParseTopic reads an mdtest topic file into its cases.
 //
-// THE UNKNOWN-TAG RULE IS THE POINT. A fenced block whose language this
-// reader does not recognise is skipped rather than rejected, which is what
-// lets one corpus file serve several projects: Chalk fills an ```ir block
-// with typed-graph node signatures, B::SoN could fill one with optree
-// shape, and this reader ignores both while they ignore ```tokens.
+// A CASE IS ONE PERL PROGRAM AND SEVERAL IMPLEMENTATIONS' ANSWERS ABOUT
+// IT. The ```perl block is the program; the rest is who answers what:
 //
-// A corpus that refused unknown blocks would force every consumer to
-// implement every other consumer's claims, which is the coupling the whole
-// format is meant to avoid.
+//	perl       the program -- shared, and the only block everyone reads
+//	output     what PERL prints -- the ground truth, which no
+//	           implementation defines and all of them are checked against
+//	behavior   whether perl compiles it, plus a recorded refusal
+//	tokens     the LEXICAL answer, which is this parser's
+//	ir         the GRAPH answer, which is B::SoN's
+//
+// THESE ARE NOT STAGES OF ONE SYSTEM. Chalk and B::SoN are separate
+// implementations in other languages, and both reach a program THROUGH
+// PERL -- B::SoN reads perl's optree, Chalk builds on the IR that
+// produces. This parser reads the bytes, which is what makes a case it
+// answers correctly evidence that Perl can be parsed without perl.
+//
+// Not that we have no IR. PSC lowers to the same SoN vocabulary for
+// type inference, because that IR was built for it. The difference is
+// what the IR is FOR: for B::SoN the graph IS the product, and for us
+// it is a tool downstream of a parse that already happened. So the
+// ```ir block is not permanently foreign here -- it is unfilled because
+// our IR answers a different question, and it is where PSC would speak
+// if it had something to say in that vocabulary.
+//
+// That independence is why an unrecognised block is skipped rather than
+// rejected. An ```ir block written by B::SoN is its answer about a
+// program we share, reached by a route with none of our code in it, and
+// not ours to check or to be blocked by. A reader that refused unknown
+// blocks would force every implementation to implement every other
+// one's answer, making the corpus a single system again and destroying
+// exactly the independence that makes it evidence.
 func ParseTopic(raw string) ([]*Case, error) {
 	var (
 		cases   []*Case
@@ -133,8 +180,9 @@ func (c *Case) addBlock(lang, content string) error {
 			}
 		}
 	}
-	// Every other tag -- `ir`, and whatever a later consumer adds -- is
-	// another project's claim and is not this reader's to validate.
+	// Every other tag -- `ir`, and whatever another implementation adds
+	// -- is its answer about a program we share, and not this reader's to
+	// validate.
 	return nil
 }
 

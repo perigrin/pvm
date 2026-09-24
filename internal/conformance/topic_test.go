@@ -30,6 +30,11 @@ func TestMdtestTopicsMakeTheSameClaims(t *testing.T) {
 		t.Skipf("no topic files: %v", err)
 	}
 
+	tiers, err := readTierOps(corpusDir)
+	if err != nil {
+		t.Fatalf("reading tier READMEs: %v", err)
+	}
+
 	total := 0
 	for _, path := range paths {
 		raw, err := os.ReadFile(path)
@@ -39,6 +44,15 @@ func TestMdtestTopicsMakeTheSameClaims(t *testing.T) {
 		cases, err := ParseTopic(string(raw))
 		if err != nil {
 			t.Fatalf("%s: %v", path, err)
+		}
+
+		// The tier is DECLARED by the topic, in the same `**Tier NN
+		// name.**` line a reader sees. Read from the file rather than
+		// held in a Go map keyed on file name, which is the machinery
+		// this migration removes.
+		tier, err := topicTier(string(raw))
+		if err != nil {
+			t.Fatalf("%s: %v", filepath.Base(path), err)
 		}
 		if len(cases) == 0 {
 			t.Errorf("%s holds no cases", filepath.Base(path))
@@ -83,6 +97,17 @@ func TestMdtestTopicsMakeTheSameClaims(t *testing.T) {
 					checkTokenFact(ours, fact, []byte(c.Source))
 				}
 
+				// Claim 4: the op budget. A case may use only ops its
+				// tier or an earlier one introduces, which is what keeps
+				// the corpus graded. A `parses: no` case emits no ops --
+				// perl builds no optree for a program it will not
+				// compile -- so there is nothing to lint.
+				if !c.ExpectParsent {
+					if err := lintOps(t, c.Source, tier, tiers); err != nil {
+						ours.Errorf("%s", err)
+					}
+				}
+
 				switch {
 				case c.Refuses != "" && len(ours.msgs) == 0:
 					t.Errorf("case records a refusal (%s) but now PASSES.\n"+
@@ -110,16 +135,22 @@ func TestMdtestTopicsMakeTheSameClaims(t *testing.T) {
 // TestMdtestIgnoresBlocksItDoesNotOwn is the property that makes the
 // corpus shareable.
 //
-// A topic file is meant to be read by several projects at once: Chalk
-// fills an ```ir block with typed-graph node signatures, B::SoN could fill
-// one with optree shape, and neither is this reader's to validate. A
-// reader that REJECTED unknown blocks would force every consumer to
-// implement every other consumer's claims, which is the coupling the
-// format exists to avoid.
+// A topic file holds one Perl program and several IMPLEMENTATIONS'
+// answers about it. Chalk and B::SoN are separate implementations in
+// other languages, and both go through perl -- B::SoN reads perl's
+// optree, Chalk builds on the IR that produces. This parser reads the
+// bytes, which is what makes a case it answers correctly evidence that
+// Perl can be parsed without perl.
+//
+// So an ```ir block is another implementation's answer about a program
+// we share, reached with none of our code in it. A reader that REJECTED
+// it would force every implementation to implement every other one's
+// answer, making the corpus a single system again and destroying the
+// independence that makes it evidence.
 //
 // So an unknown tag is skipped, and the case around it still parses.
 func TestMdtestIgnoresBlocksItDoesNotOwn(t *testing.T) {
-	const topic = "## A case another project also reads\n" +
+	const topic = "## A case another implementation also answers\n" +
 		"\n```perl\nmy $x = 1;\n```\n" +
 		"\n```behavior\nparses: yes\n```\n" +
 		"\n```ir\n%c1 = Constant(1) :Int\nL: GREEN\n```\n" +
