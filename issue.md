@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-23T02:07:02.512094755Z
-updated: 2026-09-23T14:33:40.781347435Z
+updated: 2026-09-24T20:47:48.416277003Z
 sessions:
 - start_sha: cbaacf10d93150fdf2a15e13ddca50cfce26104a
   end_sha: dba3a2a8f33826ff834672eb4a84f0faf854bc36
@@ -78,9 +78,9 @@ discriminating pair its entire subject, and this is one.
 
 ## Acceptance criteria
 
-- [ ] Tier 03 holds a range file whose endpoint is a runtime value, so the operator is not folded away (`awk '/^--- source/{s=1;next} /^--- expect/{s=0} s' conformance/03_context/*.t | grep -q '\.\.'`)
-- [ ] The flip-flop's statefulness is pinned by output over several lines rather than asserted (`go test ./internal/conformance/ -run '^TestCorpus/03_context' -count=1 -v | grep -q '^    --- PASS: TestCorpus/03_context'`)
+- [ ] Tier 03 holds a range file whose endpoint is a runtime value, so the operator is not folded away (`python3 tools/mdtest/tiersrc.py 03_context | grep -q '\.\.'`)
+- [ ] The flip-flop's statefulness is pinned by output over several lines rather than asserted (`go test ./internal/conformance/ -run '^TestCorpus$' -count=1 -v | grep -q 'PASS: TestCorpus/range.md'`)
 - [ ] Every new file is validated against pinned perl 5.42.0 before it counts (`go test ./internal/conformance/ -run '^TestTierContextPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierContextPerlValidated'`)
 - [ ] The dependency lint passes over the tier (`go test ./internal/conformance/ -run '^TestTierContextLint$' -count=1 -v | grep -q '^--- PASS: TestTierContextLint'`)
-- [ ] The tier's adjacency file holds every construct it introduces (`go test ./internal/conformance/ -run '^TestTierContextAdjacency$' -count=1 -v | grep -q '^--- PASS: TestTierContextAdjacency'`)
+- [ ] The tier's adjacency file holds every construct it introduces (`go test ./internal/conformance/ -run '^TestCorpus$' -count=1 -v | grep -q 'PASS: TestCorpus/adjacency-'`)
 - [ ] The whole conformance suite is green with the new files in it (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
