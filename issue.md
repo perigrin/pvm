@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-23T02:07:02.684116637Z
-updated: 2026-09-23T19:06:34.274227011Z
+updated: 2026-09-24T20:47:48.897494875Z
 sessions:
 - start_sha: c2adc1f75f71cd96e8cf5067a659da2199c28462
   end_sha: d95cf4eec7360982afdd81e0ca82243e4e78eac9
@@ -83,8 +83,8 @@ with its argument in both spellings.
 
 ## Acceptance criteria
 
-- [ ] Tier 04 holds a file whose subject is inc/dec, including the string increment (`awk '/^--- source/{s=1;next} /^--- expect/{s=0} s' conformance/04_operators/*.t | grep -q '++'`)
-- [ ] A file pins that print (1+2)*3 prints 3 rather than 9, which only output can show (`go test ./internal/conformance/ -run '^TestCorpus/04_operators' -count=1 -v | grep -q '^    --- PASS: TestCorpus/04_operators'`)
+- [ ] Tier 04 holds a file whose subject is inc/dec, including the string increment (`python3 tools/mdtest/tiersrc.py 04_operators | grep -q '++'`)
+- [ ] A file pins that print (1+2)*3 prints 3 rather than 9, which only output can show (`go test ./internal/conformance/ -run '^TestCorpus$' -count=1 -v | grep -q 'PASS: TestCorpus/compound-assignment.md'`)
 - [ ] Every new file is validated against pinned perl 5.42.0 before it counts (`go test ./internal/conformance/ -run '^TestTierOperatorsPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierOperatorsPerlValidated'`)
 - [ ] The dependency lint passes over the tier (`go test ./internal/conformance/ -run '^TestTierOperatorsLint$' -count=1 -v | grep -q '^--- PASS: TestTierOperatorsLint'`)
 - [ ] The whole conformance suite is green with the new files in it (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
