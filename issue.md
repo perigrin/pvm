@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: corpus-complete
 created: 2026-09-23T02:07:02.721145536Z
-updated: 2026-09-23T19:35:48.226631233Z
+updated: 2026-09-24T20:47:48.936723331Z
 sessions:
 - start_sha: 66e6d10dfed49b493965299ae1c5d6fcc9088c25
   end_sha: 66e6d10dfed49b493965299ae1c5d6fcc9088c25
@@ -72,8 +72,8 @@ belongs in the same file: it passes nothing, unlike bare `&f`.
 
 ## Acceptance criteria
 
-- [ ] The call-forms file's callee reports its arguments rather than ignoring them (`awk '/^--- source/{s=1;next} /^--- expect/{s=0} s' conformance/07_subroutines/03_call_forms.t | grep -q '@_'`)
-- [ ] Its pinned output differs between the &f and f() spellings, so the claim is observable (`go test ./internal/conformance/ -run '^TestCorpus/07_subroutines' -count=1 -v | grep -q '^    --- PASS: TestCorpus/07_subroutines'`)
+- [ ] The call-forms file's callee reports its arguments rather than ignoring them (`python3 tools/mdtest/tiersrc.py 07_subroutines | grep -q '@_'`)
+- [ ] Its pinned output differs between the &f and f() spellings, so the claim is observable (`go test ./internal/conformance/ -run '^TestCorpus$' -count=1 -v | grep -q 'PASS: TestCorpus/subroutines.md'`)
 - [ ] The file is validated against pinned perl 5.42.0 (`go test ./internal/conformance/ -run '^TestTierSubroutinesPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierSubroutinesPerlValidated'`)
 - [ ] The dependency lint passes over the tier (`go test ./internal/conformance/ -run '^TestTierSubroutinesLint$' -count=1 -v | grep -q '^--- PASS: TestTierSubroutinesLint'`)
 - [ ] The whole conformance suite is green with the change in it (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
