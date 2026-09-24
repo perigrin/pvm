@@ -7,7 +7,7 @@ blocks:
 - 01a0cc04-333a-70f7-a182-d4d0a14cc0de
 - 01a0cc04-32c9-722c-8728-d4043e7d3c14
 created: 2026-09-23T02:07:02.403766667Z
-updated: 2026-09-23T02:54:54.864571063Z
+updated: 2026-09-24T20:47:48.042413713Z
 sessions:
 - start_sha: 398b8fdf91f7fbfdce79dcab401c879a3e9eeb9c
   end_sha: b1a62eecc58a5d7bd0c1af6e2b54ae4691aaa2c2
@@ -77,7 +77,7 @@ gated and belong with the pragma pair issue.
 ## Acceptance criteria
 
 - [ ] Tier 04 introduces the bitwise and shift ops, which no tier claimed before (`grep -A2 '^## INTRODUCES' conformance/04_operators/README.md | grep -q 'bit_and'`)
-- [ ] The corpus source contains a bitwise operator outside a regex or a code sigil (`awk '/^--- source/{s=1;next} /^--- expect/{s=0} s' conformance/04_operators/*.t | grep -qE '[0-9a-z_)] +\& +[0-9$]'`)
+- [ ] The corpus source contains a bitwise operator outside a regex or a code sigil (`python3 tools/mdtest/tiersrc.py 04_operators | grep -qE '[0-9a-z_)] +\& +[0-9$]'`)
 - [ ] Every new file is validated against pinned perl 5.42.0 before it counts (`go test ./internal/conformance/ -run '^TestTierOperatorsPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierOperatorsPerlValidated'`)
 - [ ] The dependency lint passes over the tier (`go test ./internal/conformance/ -run '^TestTierOperatorsLint$' -count=1 -v | grep -q '^--- PASS: TestTierOperatorsLint'`)
 - [ ] No op is introduced by two tiers after the new claims land (`go test ./internal/conformance/ -run '^TestOpClaimedByExactlyOneTier$' -count=1 -v | grep -q '^--- PASS: TestOpClaimedByExactlyOneTier'`)
