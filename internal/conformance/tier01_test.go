@@ -14,9 +14,7 @@ import (
 // tierLiterals is the tier this file is about.
 //
 // A constant rather than a literal at five call sites, because the tier
-// number is a POSITION and positions move -- see
-// TestDerivedTierNumberingRegenerates for the spec's statement that they
-// do.
+// number is a POSITION and positions move.
 const tierLiterals = "01_literals"
 
 // tierFiles returns one tier's cases, keyed by `<topic>.md/<case title>`,
@@ -234,13 +232,15 @@ func regenerateNumbering(names []string) map[string]string {
 // `regenerateNumbering` over case titles would invent a property the
 // format does not have and then verify its own invention.
 //
-// The claim itself is NOT lost. `TestDerivedTierNumberingRegenerates` in
-// numbering_test.go is the corpus-wide form of exactly this test -- its
-// own comment says so -- and it covers tier 01 through the `FILE ORDER:
-// derived` declaration in conformance/01_literals/README.md. This was a
-// strict subset of that, kept for the failure to be named as this tier's;
-// with the directories on their way out, the corpus-wide check is the one
-// that outlives them.
+// THE CLAIM IS GONE WITH THE PROPERTY IT ASSERTED, which is the honest
+// record. It said a tier's numbers could be thrown away and rebuilt from
+// its file names; topics have no numbers, and tier 01 now declares
+// `accidental` rather than `derived`. `TestDerivedTierNumberingRegenerates`
+// was the corpus-wide form and went the same way.
+//
+// What a regeneration actually guaranteed -- every case has an address
+// and no two share one -- is checked instead, by `AllCases` rejecting a
+// duplicate `##` title within a topic.
 
 // TestTierLiteralsPerlValidated runs every file in the tier through the
 // pinned interpreter before it counts.

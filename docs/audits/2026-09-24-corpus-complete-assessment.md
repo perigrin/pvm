@@ -127,13 +127,42 @@ re-run, and re-running them is the honest next measurement rather than
 a claim that can be made from here.
 
 What changed most is not the file count. It is that the corpus's own
-claims are checked: 158 Go tests over `conformance/`, 84 of them tier
+claims are checked: 135 Go tests over `conformance/`, 60 of them tier
 checks, asserting vacuous facts cannot ship, refusal markers cannot go
-stale in the passing direction, no construct is undeclared, every tier
-holds an adjacency file, and every token fact speaks the glossary's
-vocabulary rather than the lexer's.
+stale in the passing direction, no construct is undeclared, and every
+token fact speaks the glossary's vocabulary rather than the lexer's.
 
 The gap that remains is the one `01a0d0c7` names: a marker whose ISSUE
 closed is not caught, only a marker whose file starts passing. The
 corpus checks what it claims about Perl far better than it checks what
 it claims about itself.
+
+## Written before the format port, and what it changed
+
+This assessment described a corpus of 212 `.t` files, one construct
+each. That corpus no longer exists: it was ported to 65 markdown topic
+files in Chalk's mdtest format and the `.t` files were deleted
+(`a6b33a2a`). Everything above about what the corpus CLAIMS still
+holds -- the port moved claims, it did not change them, and the
+equivalence was measured rather than asserted: 212 cases against 212
+files, sources byte-identical, 24 recorded refusals on both sides.
+
+Three numbers in this document moved and are corrected above or here:
+
+  - 158 Go tests became 135, and 84 tier checks became 60. TWENTY-FOUR
+    TESTS AND TEN HAND-MAINTAINED MAPS WERE DELETED, 2,657 lines, all
+    of which derived a construct's identity from a FILENAME and then
+    grepped the adjacency body for the spelling that identity mapped
+    to. That bridge is only needed by a one-construct-per-file corpus.
+  - "every tier holds an adjacency file" is now a topic rather than a
+    file, and the check that asserted it was one of the twenty-four.
+    The adjacency CASE survives and is still validated against perl,
+    checked against the parser, and linted for its op budget; what went
+    is the machinery asserting that each construct appears in it, which
+    a reader now answers by reading the body.
+
+The port also found six false prose claims in the corpus, three of
+which had been in `.t` headers all along and were only noticed because
+porting them meant re-measuring them. That is the same finding this
+assessment records under "the corpus was lying to itself at scale",
+reached by a second route.

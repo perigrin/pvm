@@ -542,8 +542,6 @@ func TestRealCorpusNecessityHolds(t *testing.T) {
 	}
 }
 
-// TestEveryTierHasAnAdjacencyFile checks the generic rule, not one tier's.
-//
 // TestReadTierOpsIgnoresTrailingProse pins which part of the section is
 // machine-read.
 //

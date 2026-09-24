@@ -358,8 +358,9 @@ func TestTierVariablesRefusalsCited(t *testing.T) {
 // no subject: there is no `NN` to throw away and rebuild, and the
 // alphabetical order the numbers recorded is now the topic's own
 // reading order, which is prose a human chose and no test can confirm.
-// The corpus-wide TestDerivedTierNumberingRegenerates still holds the
-// `.t` side of that claim for as long as the `.t` corpus exists.
+// `TestDerivedTierNumberingRegenerates` held the `.t` side of that
+// claim and went with the `.t` corpus; nothing replaced it, because
+// there is nothing left to regenerate.
 //
 // What a regeneration actually GUARANTEED, and what is checked here
 // instead: every case has an address, and no two cases share one. A

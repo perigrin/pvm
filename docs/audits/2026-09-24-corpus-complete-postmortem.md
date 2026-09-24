@@ -60,9 +60,9 @@ to fix far more than the case that motivated them -- `base/num.t` went
 ## 2. What didn't work
 
 **I argue past tells.** The pairing exemption is the clearest case: I
-noticed `10_deref_at_sigil.t` did the same job with no arrow fact, and
-that `10_io/07_say.t` had its identical fact deleted for want of a
-partner, and wrote a paragraph explaining why the asymmetry was fine.
+noticed that one file did the same job with no arrow fact, and that
+another had its identical fact deleted for want of a partner, and wrote
+a paragraph explaining why the asymmetry was fine.
 It was not fine. The rule was tracking which negatives another test
 happened to require.
 
@@ -147,10 +147,57 @@ Six open issues, each filed with its measurement:
     01a0ce57   the lexer does not form `x=`
     01a0cf64   `-e` lexes as a minus and a word
     01a0d087   ungated `defer` is declined as a statement form
-    01a0d0b0   `#line` is lexed as a comment; its file passes anyway
+    01a0d0b0   `#line` is lexed as a comment; its case passes anyway
     01a0d0b1   `print {$fh} "x"` refuses
     01a0d0c7   five refusal citations point at closed issues
+
+`01a0d1fa` was filed here and is CANCELLED: it recorded three false
+measured claims in `.t` headers, and those files no longer exist. The
+mdtest copies were repaired when the port found them.
 
 The plan's two deliberate deferrals -- the `t/` sweep and adjacency
 beyond the adjacent pair -- belong to the next milestone and are named
 in the plan rather than dropped.
+
+## Written before the format port
+
+This postmortem was written against a corpus of 212 `.t` files. That
+corpus was then ported to 65 markdown topic files in Chalk's mdtest
+format and the `.t` files deleted (`a6b33a2a`), which is the largest
+single thing that has happened to it.
+
+Everything above still holds. The findings are about what the corpus
+CLAIMS and the port moved claims without changing them -- 212 cases
+against 212 files, sources byte-identical, 24 recorded refusals on both
+sides, all measured rather than asserted.
+
+WHAT THE PORT CONFIRMED, and it is this document's fourth
+recommendation reached independently. "Check the corpus against itself,
+not only against Perl" was written here as a lesson; the port then
+demonstrated the cheap version of it. Every tier was ported by one
+agent and verified by a second, and the verify step MEASURED each prose
+claim it carried across rather than trusting it. That found six false
+claims -- three introduced by the port, three that had been sitting in
+`.t` headers all along and were only noticed because someone had to
+re-measure them to move them.
+
+Two of the three inherited ones survived because they cited a NUMBER,
+which reads as evidence. That is the same observation this document
+makes about plausible prose, sharpened: a number is prose that looks
+like measurement.
+
+WHAT IT ALSO CONFIRMED about "prefer the rule to the list". The port
+deleted 24 tests and 10 hand-maintained Go maps -- 2,657 lines -- every
+one of which derived a construct's identity from a FILENAME and then
+grepped for the spelling that identity mapped to. They were not wrong;
+they were compensating for a format where a file was a construct. The
+claim they asserted is now visible in the source, and perigrin had
+called the machinery over-engineered before the port without needing
+the measurement.
+
+One thing this document could not have known and should be read with:
+"76% shadow work" was measured against a milestone whose issues never
+mentioned a format change. The port is more shadow work by that
+definition, and calling it that would be wrong -- it was the right work
+found by doing the wrong work carefully. The metric measures deviation
+from a plan, not whether the deviation was correct.
