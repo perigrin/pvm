@@ -1380,7 +1380,11 @@ Three of those gates found a claim wrong in a comment rather than in code,
 which is why the no-false-comments rule is load-bearing here and not
 decoration.
 
-### The 5 that remain, measured 2026-09-26, and the honest ceiling
+### The 5 that remained mid-session, measured 2026-09-26
+
+**All but `defer` are now closed. Kept as written because the table is how
+each cause was attributed, and because two of the five turned out to be one
+gap.**
 
 The corpus is 213 cases (one contributed by the B::SoN session), 208 clean,
 5 refusing. Each refusal now has a MEASURED cause and a live owner, which
@@ -1441,7 +1445,7 @@ headers at `b9f77d9c` and at HEAD rather than recalled. Every one moved in
 the same direction, which is the check that separates real progress from a
 baseline regenerated blind:
 
-    corpus        188 of 212 -> 211 of 213 clean, 24 -> 2 refusing
+    corpus        188 of 212 -> 212 of 213 clean, 24 -> 1 refusing
                   (the 213th is the B::SoN session's contributed case)
     t1            475 -> 523 clean (48.2% -> 53.0%), 2353 -> 2188 nodes
     t1canon       649 -> 684 clean (65.8% -> 69.4%), 337 -> 302 disagreeing
@@ -1452,11 +1456,23 @@ T2 is reported rather than targeted -- the tier corpus gates what the parser
 reads -- but it moving the same way is corroboration that the corpus fixes
 are general rather than corpus-shaped.
 
-### The last two, and why one of them is not m1's
+### The m1 ceiling is reached: 212 of 213
 
-`adjacency-07_subroutines` is `no feature "signatures"` turning signatures
-ON (01a0dd6f), in flight. `ungated/defer` is indirect object notation
-(01a0d087), in v0.1 and correctly there.
+Every refusal m1 owns is closed. The one case still refusing is
+`ungated/defer`, which needs indirect object notation at statement level --
+the same rule `new Foo;` needs -- and lives in v0.1.
+
+`adjacency-07_subroutines` closed last, and its cause was the sharpest of
+the three: `noteSignatures` had no path to false, so `no feature
+"signatures"` turned signatures ON and a `($)` prototype was lexed as a
+signature. The fix is `use`-only guards on the version arms plus both
+directions on the quoted-feature arm, and the asymmetry is load-bearing:
+
+    no feature ':5.36'   turns signatures OFF (perl expands the bundle)
+    no v5.36             DIES -- "Perls since v5.36.0 too modern"
+
+Those two arrive at the lexer with IDENTICAL token shapes. A blanket false
+path would have made a dying version assertion mean "turn signatures off".
 
 ### Two defects found by fixing others, both filed
 
