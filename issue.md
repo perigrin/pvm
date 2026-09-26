@@ -1,10 +1,14 @@
 ---
 title: unfiled is a legal refusal citation and nothing rejects it
-state: pending
+state: cancelled
 urgency: normal
 milestone: corpus-covers-t2
 created: 2026-09-26T02:09:54.934577593Z
-updated: 2026-09-26T02:52:33.82661721Z
+updated: 2026-09-26T02:52:33.981828766Z
+transitions:
+- state: cancelled
+  actor: human:git-zhi
+  timestamp: 2026-09-26T02:52:33.981828766Z
 ---
 
 **CANCELLED BY CHAIN-REVIEW, 2026-09-26. The premise is false: `unfiled`
