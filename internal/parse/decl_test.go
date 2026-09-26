@@ -137,3 +137,75 @@ func TestDeclarationCarriesItsPrototype(t *testing.T) {
 		t.Errorf("prototype spans %q, want %q", got, "($$)")
 	}
 }
+
+// TestFormatDeclaration: `format NAME = <body> .` is a declaration whose
+// body is one opaque token.
+//
+// The lexer already delimits the body -- `scanFormatBody` emits one
+// FormatBody token running from the `=` to a line holding a lone `.` -- so
+// what is asserted here is above it: that the declaration ENDS at that
+// token rather than looking for a `;` it does not have.
+//
+// `format` with no name is the STDOUT default, which perl accepts.
+// Measured on perl 5.42.0:
+//
+//	$ perl -e 'format =
+//	> a line
+//	> .
+//	> write;'
+//	a line
+func TestFormatDeclaration(t *testing.T) {
+	for _, tc := range []struct {
+		src  string
+		name string
+	}{
+		{"format STDOUT =\na fixed report line\n.\n", "STDOUT"},
+		{"format =\na fixed report line\n.\n", ""},
+		{"format REPORT =\n@<<<<<<< @>>>\n$name,   $qty\n.\n", "REPORT"},
+	} {
+		root := parse.Parse([]byte(tc.src))
+		d := firstOfKind(root, parse.Declaration)
+		if d == nil {
+			t.Errorf("%q must parse as a Declaration: %v", tc.src, kinds(root))
+			continue
+		}
+		if d.Text != "format" {
+			t.Errorf("%q: declarator is %q, want %q", tc.src, d.Text, "format")
+		}
+		if containsKind(root, parse.Unknown) {
+			t.Errorf("%q parsed with an Unknown: %v", tc.src, kinds(root))
+			continue
+		}
+		var name string
+		if len(d.Children) > 0 {
+			name = d.Children[0].Text
+		}
+		if name != tc.name {
+			t.Errorf("%q: name is %q, want %q", tc.src, name, tc.name)
+		}
+	}
+}
+
+// TestFormatDoesNotSwallowTheNextStatement: the declaration stops at its
+// body's closing `.`, so the `write` that uses it is a statement of its own.
+//
+// This is what the corpus measured while `format` was unimplemented, stated
+// directly rather than through an Unknown count: the keyword fell to
+// `skipToStatementEnd`, which looks for a `;` a format declaration does not
+// have and takes the next statement's instead.
+func TestFormatDoesNotSwallowTheNextStatement(t *testing.T) {
+	src := []byte("format STDOUT =\na fixed report line\n.\nwrite;\nprint \"x\";\n")
+	root := parse.Parse(src)
+
+	if containsKind(root, parse.Unknown) {
+		t.Fatalf("parsed with an Unknown: %v", kinds(root))
+	}
+	d := firstOfKind(root, parse.Declaration)
+	if d == nil {
+		t.Fatalf("no Declaration: %v", kinds(root))
+	}
+	want := "format STDOUT =\na fixed report line\n.\n"
+	if got := string(src[d.Start:d.End]); got != want {
+		t.Errorf("the declaration spans %q, want %q", got, want)
+	}
+}
