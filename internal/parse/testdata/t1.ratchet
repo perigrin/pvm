@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 557 clean (56.5%), 1920 total.
+# 986 files, 571 clean (57.9%), 1840 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -44,7 +44,7 @@
 0 bare_sub_ternary_condition.t
 4 base_nested_require_failure.t
 2 begin_feature_import.t
-3 begin_hint_hash_delete_scope.t
+0 begin_hint_hash_delete_scope.t
 0 begincheck.t
 0 bigfloat_subroutine_scope.t
 0 bitwise_string.t
@@ -87,9 +87,9 @@
 1 class_lvalue_method.t
 0 class_xsaccessor_named_cv.t
 3 class_xsaccessor_pp.t
-5 cli_warning_overrides.t
+4 cli_warning_overrides.t
 4 clone.t
-1 closed_stderr_unhandled_die.t
+0 closed_stderr_unhandled_die.t
 2 closure.t
 0 closure_eval_string.t
 1 code_deref_nonstrict.t
@@ -108,7 +108,7 @@
 2 compress_raw_zlib_gzip_wrapper.t
 0 compress_zlib_gzerror_eof.t
 1 concat_assign_undef_warning.t
-5 concat_assignment_env_taint.t
+4 concat_assignment_env_taint.t
 1 concat_assignment_explicit_mutator.t
 0 concat_assignment_overload.t
 2 concat_assignment_tied_fetch.t
@@ -123,7 +123,7 @@
 8 context.t
 0 context_semantics.t
 28 control_flow.t
-11 convert_bencode_xs_java.t
+10 convert_bencode_xs_java.t
 0 core_dump_guarded.t
 2 core_global_additional_overrides.t
 1 core_global_caller_concat.t
@@ -141,15 +141,15 @@
 1 core_subroutine_refs.t
 3 cpan_bundled_io_shadowing.t
 4 cpan_bundled_providers.t
-11 cpan_ceph_tie_runtime.t
+10 cpan_ceph_tie_runtime.t
 5 cpan_dependency_script_path.t
-3 cpan_distroprefs_amazon_dynamodb_match.t
-3 cpan_distroprefs_class_dbi_match.t
-3 cpan_distroprefs_error_pure_match.t
-5 cpan_distroprefs_jcpan_args.t
+2 cpan_distroprefs_amazon_dynamodb_match.t
+2 cpan_distroprefs_class_dbi_match.t
+2 cpan_distroprefs_error_pure_match.t
+4 cpan_distroprefs_jcpan_args.t
 0 cpan_distroprefs_moo_retirement.t
 0 cpan_distroprefs_signature_migration.t
-1 cpan_distroprefs_type_tiny_match.t
+0 cpan_distroprefs_type_tiny_match.t
 0 cpan_distroprefs_type_tiny_retired.t
 0 cpan_fallback_configure_retry.t
 4 cpan_fallback_prereqs.t
@@ -165,7 +165,7 @@
 5 cpan_test_dependency_blib.t
 0 cpan_tooling_posix_yaml_syck.t
 6 cpan_tooling_regressions.t
-30 cpan_tooling_runtime.t
+29 cpan_tooling_runtime.t
 0 cpanel_json_xs_mojo_compat.t
 0 cpanel_json_xs_options.t
 2 crypt_openssl_random_export.t
@@ -253,7 +253,7 @@
 0 encode_utf8_on_off.t
 6 encoding_pragma.t
 0 end_capture_destruction_order.t
-5 errno_special_vars.t
+0 errno_special_vars.t
 0 error_messages.t
 1 eval_after_stash_delete.t
 6 eval_begin_lexical_storage.t
@@ -281,7 +281,7 @@
 1 evalbytes.t
 0 examples_warning_and_io.t
 0 exiftool_exporter_autoload.t
-1 experimental_equ_warning_category.t
+0 experimental_equ_warning_category.t
 0 experimental_signatures_warning.t
 1 exporter_lexical_compile_scope.t
 0 fcntl_accmode.t
@@ -302,7 +302,7 @@
 0 file_temp_warnif_regression.t
 4 filehandle_dup.t
 0 fileno_reserved_recycle.t
-9 filespec_catpath.t
+8 filespec_catpath.t
 0 filespec_tmpdir_env.t
 0 filetest_anonymous_tmpfile.t
 0 flipflop.t
@@ -356,7 +356,7 @@
 8 hash_util_fieldhash_identity.t
 0 heredoc.t
 1 heredoc_infix_continuation.t
-3 hint_hash_scope_destroy.t
+0 hint_hash_scope_destroy.t
 2 html_content_extractor_jsoup.t
 2 html_parser_default_handler.t
 2 html_parser_literal_eof.t
@@ -372,7 +372,7 @@
 0 indirect_object_constructor.t
 1 indirect_object_named_args.t
 18 indirect_object_syntax.t
-6 indirect_system_argv0_interpreter.t
+3 indirect_system_argv0_interpreter.t
 0 infinity.t
 1 inherited_autoload_stub.t
 8 input_record_separator_fixed_length.t
@@ -383,7 +383,7 @@
 1 interpreter_code_reference_validation.t
 0 interpreter_coderef_does_not_load_module.t
 0 interpreter_compound_assign_list_rhs.t
-7 interpreter_dbic_regressions.t
+5 interpreter_dbic_regressions.t
 4 interpreter_eval_exception_capture.t
 0 interpreter_eval_modified_args_closure.t
 0 interpreter_eval_named_sub_lexical_mutation.t
@@ -400,23 +400,23 @@
 0 interpreter_raw_utf8_source.t
 0 interpreter_scalar_ref_assignment.t
 0 interpreter_short_circuit_rhs_lexical.t
-4 io_captureoutput_regressions.t
+2 io_captureoutput_regressions.t
 4 io_compress_regressions.t
 0 io_file_autoload.t
-4 io_flock.t
+3 io_flock.t
 0 io_handle_error.t
 0 io_handle_fresh_fdopen_warning.t
 3 io_layers.t
 17 io_memory.t
-7 io_pipe.t
+6 io_pipe.t
 9 io_read.t
 10 io_seek.t
-1 io_select_nested_process_handle.t
+0 io_select_nested_process_handle.t
 0 io_slot_blessed.t
 14 io_socket_method_fileno.t
 0 io_socket_ssl_default_exports.t
-9 ipc_cmd_perlonjava_runtime_detection.t
-15 ipc_open3.t
+8 ipc_cmd_perlonjava_runtime_detection.t
+14 ipc_open3.t
 1 isa_operator_package_bareword.t
 0 join_upgraded_latin1_provenance.t
 0 json_parse_compat.t
@@ -463,7 +463,7 @@
 4 makemaker_bundled_empty_pm.t
 1 makemaker_configure_callback.t
 1 makemaker_empty_pm_to_blib.t
-2 makemaker_exe_files.t
+1 makemaker_exe_files.t
 7 makemaker_generated_pm_dependency.t
 2 makemaker_ignores_test_helpers.t
 0 makemaker_ignores_test_packages.t
@@ -521,14 +521,14 @@
 7 nested_for_loops.t
 1 nested_heredoc.t
 2 nested_lexical_sub_reclosure.t
-6 netssleay_baseline.t
+5 netssleay_baseline.t
 4 netssleay_callback_and_empty_pkey.t
-1 netssleay_phase1.t
-1 netssleay_phase2.t
-3 netssleay_phase2b.t
-1 netssleay_phase3_7.t
-2 netssleay_phase4.t
-1 netssleay_phase5_6.t
+0 netssleay_phase1.t
+0 netssleay_phase2.t
+2 netssleay_phase2b.t
+0 netssleay_phase3_7.t
+1 netssleay_phase4.t
+0 netssleay_phase5_6.t
 0 next_method_cache_context.t
 0 next_module_prereq.t
 0 non_begin_phaser_pragma_scope.t
@@ -577,7 +577,7 @@
 2 path_tiny_runtime_prereqs.t
 0 perlio_encoding_loads_encode.t
 0 perlio_import_injection.t
-2 perlio_layers_capture.t
+1 perlio_layers_capture.t
 11 perlio_via.t
 0 pipe_close_status.t
 1 pipe_jperl_shebang.t
@@ -600,8 +600,8 @@
 0 precedence.t
 4 print_bareword_filehandle.t
 2 print_indirect_method_postfix.t
-8 process_current_perl_argv.t
-3 process_pipe_postexit_drain.t
+7 process_current_perl_argv.t
+2 process_pipe_postexit_drain.t
 0 prototype_after_watchdog.t
 0 prototype_backslash_typecheck.t
 0 prototype_caller_line.t
@@ -684,7 +684,7 @@
 0 scalar_handle_tty_errno.t
 0 scalar_reference_code_destructor.t
 0 scalar_reference_container_lifetime.t
-7 scalar_watcher_java_xs.t
+6 scalar_watcher_java_xs.t
 2 sdbm_file_writeback.t
 0 select_interrupt_errno.t
 4 signatures.t
@@ -774,18 +774,18 @@
 0 system_child_stdin_eof.t
 0 system_command_binary_output.t
 0 system_command_utf8_byte_output.t
-1 system_path_lookup.t
+0 system_path_lookup.t
 0 tail_calls.t
 0 taint_cwd.t
-2 taint_env_path.t
+1 taint_env_path.t
 1 taint_external_input.t
-5 taint_filespec.t
-38 taint_mode.t
+3 taint_filespec.t
+19 taint_mode.t
 1 template_generated_line_directive.t
 2 term_readkey_regressions.t
 1 term_size_perlio_shims.t
 0 test2_refcount_probe.t
-1 test_builder_global_warning_suppression.t
+0 test_builder_global_warning_suppression.t
 0 test_builder_level.t
 1 test_deep_memory_regression.t
 0 test_exporter_heavy_caller.t
@@ -914,7 +914,7 @@
 0 utf8_downgrade_references.t
 10 utf8_pragma.t
 1 vec.t
-2 version_no_import.t
+0 version_no_import.t
 0 version_numify.t
 0 version_overflow_compare.t
 7 vstring.t
@@ -941,7 +941,7 @@
 4 weaken.t
 2 weaken_probe_captured_lexical.t
 0 weaken_readonly_ref.t
-4 x_shebang_switch.t
+3 x_shebang_switch.t
 1 xml_libxml_external_dtd.t
 4 xml_libxml_get_attributes.t
 0 xml_libxml_reader_core.t
@@ -974,7 +974,7 @@
 0 zz_nested_map_return.t
 0 zz_open_dup_package_handle.t
 0 zz_perlio_encoding_utf8_strict.t
-11 zz_perlonjava_process.t
+6 zz_perlonjava_process.t
 3 zz_postfix_foreach_compound_assignment.t
 0 zz_recursive_regex.t
 0 zz_redo_unless.t

@@ -213,6 +213,21 @@ func (l *lexer) scanVarName() {
 			}
 			l.pos++
 		}
+	case c == '^' && l.caretNameFollows():
+		// A caret control variable: `$^O`, `$^W`, `$^_`. The caret and the
+		// character after it are ONE name, which is the same rule
+		// bracedNameFollowsAt already applies to `${^TAINT}` -- the braced
+		// spelling was repaired when TestLexDotTGoldenStream caught
+		// `${^TEST}` splitting, and this bare one was left behind.
+		//
+		// Without this the punctuation-variable case below took one byte,
+		// so `$^O` lexed as `Variable($^)` and a separate `Word(O)`. Most
+		// spellings still yielded a parseable tree -- `my $x = $^O;`
+		// canonicalised to `$^;O()` with Unknown=0 -- so no node count
+		// reported it.
+		//
+		// Measured: `perl -MO=Deparse -e 'my $x = $^O;'` -> `my $x = $^O;`
+		l.pos += 2
 	case c == '$':
 		// A dereference: $$ref, @$ref.
 		l.pos++
@@ -221,6 +236,37 @@ func (l *lexer) scanVarName() {
 		// A punctuation variable: $_, $0, $!, $@, $/ and the rest. One byte.
 		l.pos++
 	}
+}
+
+// caretNameFollows reports whether the `^` at the cursor begins a caret
+// control variable rather than standing as the punctuation variable `$^`.
+//
+// A character must follow, and it must be one perl folds into the name.
+// Measured on perl 5.42.0 by compiling `my $x = $^C;` for every C:
+//
+//	$^A .. $^Z   compile     every uppercase letter
+//	$^_  $^^     compile
+//	$^[          compiles    the caret form of a control character
+//	$^a .. $^z   Bareword found where operator expected
+//	$^0 .. $^9   Number found where operator expected
+//
+// So a LOWERCASE letter is not part of the name -- perl reads `$^` and then a
+// bareword. Digits behave the same. The rule is therefore the uppercase
+// range plus `_`, `^` and `[`, not "any identifier byte": widening it to the
+// identifier class would swallow the word after a bare `$^`.
+//
+// `$^` ALONE is real -- the format top-of-page name -- which is why the
+// character after the caret is required. This is the same shape as
+// leadingPackageSeparator below, where `$:` alone is also a real variable.
+func (l *lexer) caretNameFollows() bool {
+	if l.pos+1 >= len(l.src) {
+		return false
+	}
+	switch c := l.src[l.pos+1]; {
+	case c >= 'A' && c <= 'Z', c == '_', c == '^', c == '[':
+		return true
+	}
+	return false
 }
 
 // leadingPackageSeparator reports whether `::` at the cursor introduces a
