@@ -1,10 +1,19 @@
 ---
 title: format and write have no statement form, and the lexer already reads the body
-state: pending
+state: in-progress
 urgency: normal
 milestone: corpus-covers-t2
 created: 2026-09-26T06:58:32.800892893Z
-updated: 2026-09-26T06:58:32.800892893Z
+updated: 2026-09-26T07:01:56.803102854Z
+sessions:
+- start_sha: d1537f9631443c467a73f3e56cf382da4eeab2ae
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-26T07:01:56.803102854Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-26T07:01:56.803102854Z
 ---
 
 `format NAME = ... .` and the `write` that uses it refuse with
