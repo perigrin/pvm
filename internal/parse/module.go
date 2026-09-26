@@ -1,5 +1,5 @@
-// ABOUTME: ParseFile and the module loader — a `use` resolved against the file's own directory.
-// ABOUTME: Loading enriches; it never fails a parse, because an unresolved import is a result and not an error.
+// ABOUTME: ParseFile and the loader — a `use`d module, or a `require`d .pl file, found on a search path.
+// ABOUTME: Loading enriches; it never fails a parse, because an unresolved name is a result and not an error.
 
 package parse
 
@@ -9,26 +9,40 @@ import (
 	"strings"
 )
 
-// Loader answers "what is the source of this module?" by name.
+// Loader answers "what is the source of this name?" -- a MODULE named as
+// `My::Mod`, or a FILE named by a literal relative path as `./test.pl`.
 //
 // It is the seam between the parser and the filesystem. Production searches
 // directories; a test hands back bytes it wrote itself, so the suite needs no
 // installed module and no particular layout to be true.
 //
-// The bool is "found", not "succeeded". A module that cannot be located and
-// one that cannot be read are the same answer here, because the consequence
-// is identical: the import is not resolved and calls to it decline. Nothing a
-// Loader does can fail a parse.
-type Loader func(module string) ([]byte, bool)
+// One seam serves both spellings because the caller's question is identical --
+// "bytes for this name, if you have them" -- and because the resolver's cache
+// and cycle set are then shared: `./test.pl`, written 459 times across
+// perl.git's `t/`, is read and parsed once per parse, the same property that
+// stops Test::More being re-parsed per file that uses it.
+//
+// The bool is "found", not "succeeded". A name that cannot be located and one
+// that cannot be read are the same answer here, because the consequence is
+// identical: nothing is resolved and calls decline. Nothing a Loader does can
+// fail a parse.
+type Loader func(name string) ([]byte, bool)
 
-// DirLoader searches dirs for a module, in order, using perl's own spelling:
-// `My::Mod` lives at `My/Mod.pm`.
+// DirLoader searches dirs, in order, for a module or a required file.
+//
+// A MODULE uses perl's own spelling: `My::Mod` lives at `My/Mod.pm`. A
+// required FILE is already a relative path and is joined as written --
+// `./test.pl` and `./t/test.pl` are the same file reached from `t/` and from
+// the tree root, which is why more than one directory is searched.
 //
 // The first directory is normally the using file's own, which is what makes a
 // local module -- never installed anywhere -- resolvable at all.
 func DirLoader(dirs ...string) Loader {
-	return func(module string) ([]byte, bool) {
-		rel := filepath.Join(strings.Split(module, "::")...) + ".pm"
+	return func(name string) ([]byte, bool) {
+		rel := name
+		if !isRequiredPath(name) {
+			rel = filepath.Join(strings.Split(name, "::")...) + ".pm"
+		}
 		for _, dir := range dirs {
 			src, err := os.ReadFile(filepath.Join(dir, rel))
 			if err != nil {
@@ -40,6 +54,43 @@ func DirLoader(dirs ...string) Loader {
 		}
 		return nil, false
 	}
+}
+
+// isRequiredPath reports whether a `require`'s literal argument names a FILE
+// rather than a module.
+//
+// A `.pl` suffix is the whole rule, and `require Foo::Bar` -- the module
+// spelling -- can never end in one because `.` is not legal in a bareword.
+//
+// Restricting to that suffix rather than accepting any path-shaped string is
+// deliberate, not incidental. A `.pl` file has no `package` of its own, so it
+// declares into the CALLER'S package and every `sub NAME` in it is a name the
+// requiring file can call. A `.pm` reached by path is a MODULE: what it
+// exports is governed by its own `@EXPORT`, and treating its every declaration
+// as visible would import names perl does not. Measured over perl.git's `t/`,
+// the literal requires that are NOT `.pl` are exactly that -- `bleah.pm`,
+// `PACK.pm`, `unknown.pm`, `test_require.pm`, `./regen/HeaderParser.pm` -- plus
+// two files that are neither, `comp/hints.aux` and `./re/regexp.t`. None of
+// them is a sub-declaring helper, so the suffix is not a proxy for the rule;
+// it is the rule.
+func isRequiredPath(name string) bool {
+	return strings.HasSuffix(name, ".pl")
+}
+
+// interpolates reports whether a quoted string's TEXT AS WRITTEN has a value
+// substituted into it at runtime.
+//
+// Only a DOUBLE-quoted body interpolates; `'./$n.pl'` is the literal four
+// characters `$n`. A `$` or `@` anywhere in a double-quoted body is treated as
+// interpolation without asking what follows it, which over-refuses the
+// escaped `"\$"` -- deliberately, because the direction of the error is the
+// whole point: over-refusing leaves a call site Unknown exactly as it is
+// today, while under-refusing resolves a path that was never named.
+func interpolates(text string) bool {
+	if len(text) < 2 || text[0] != '"' || text[len(text)-1] != '"' {
+		return false
+	}
+	return strings.ContainsAny(text[1:len(text)-1], "$@")
 }
 
 // ParseFile reads path and parses it, resolving `use` against its directory.
@@ -54,11 +105,37 @@ func DirLoader(dirs ...string) Loader {
 // running it. Were an unresolvable import a failure, the 986-file T1 ratchet
 // would lose every file naming an uninstalled module.
 func ParseFile(path string) (*Node, error) {
+	return ParseFileFrom(path, "")
+}
+
+// ParseFileFrom is ParseFile with a second search directory: the root the
+// parse is rooted at, searched after the file's own.
+//
+// A required helper is named RELATIVE TO A WORKING DIRECTORY, not to the file
+// that names it, and perl.git's `t/` disagrees about which directory that is.
+// 459 occurrences write `require './test.pl'` and 464 of the 503 files holding
+// a literal require run `chdir 't' if -d 't'` first, so the cwd is `t/` and
+// `./test.pl` means `t/test.pl` even from `t/op/`. 17 write
+// `require './t/test.pl'` instead, naming the same file from the tree root.
+//
+// So the root is what resolves the common case and the file's own directory is
+// the fallback, not the other way round -- but the file's own is searched FIRST
+// because a helper sitting beside its caller is unambiguous where a root-
+// relative guess is not. Searching only the file's own directory moves 0 files
+// and 0 nodes over the 620-file corpus; adding `t/` as the root moves 93 files
+// and 3,267 nodes.
+//
+// An empty root searches only the file's own directory, which is ParseFile.
+func ParseFileFrom(path, root string) (*Node, error) {
 	src, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	return ParseWithLoader(src, DirLoader(filepath.Dir(path))), nil
+	dirs := []string{filepath.Dir(path)}
+	if root != "" {
+		dirs = append(dirs, root)
+	}
+	return ParseWithLoader(src, DirLoader(dirs...)), nil
 }
 
 // ParseWithLoader parses src, resolving `use` through the given loader.
@@ -74,6 +151,11 @@ func ParseWithLoader(src []byte, load Loader) *Node {
 // visited set is keyed by module name and serves both purposes -- it
 // terminates the cycle, and it stops Test::More being re-parsed once per file
 // that uses it.
+//
+// A required `.pl` FILE shares the same set and cache, keyed by its path. The
+// keys cannot collide: a module name is `::`-spelled and a required path ends
+// in `.pl`, and `.` is not legal in a bareword. Sharing is the point --
+// `./test.pl` is written 459 times across perl.git's `t/` files.
 type resolver struct {
 	load   Loader
 	seen   map[string]bool
@@ -82,6 +164,11 @@ type resolver struct {
 	// facts caches what each module's source said about itself, so a module
 	// used twice is read once as well as parsed once.
 	facts map[string]moduleFacts
+
+	// inRequiredFile marks a parse that IS a required `.pl` helper, so its
+	// own `require` of another one is not followed. Rule 4, one level, and it
+	// lives here because this is the only place that can see the depth.
+	inRequiredFile bool
 }
 
 // resolve parses a module's source once and returns what it says about
@@ -116,6 +203,66 @@ func (r *resolver) resolve(module string) (moduleFacts, bool) {
 		r.facts = map[string]moduleFacts{}
 	}
 	r.facts[module] = facts
+	return facts, true
+}
+
+// resolveFile parses a required `.pl` helper once and returns what it
+// declares. The bool is whether the file was reached at all.
+//
+// ONE LEVEL, which is rule 4: a helper reached from another helper returns
+// "not found" rather than being read. It COSTS NOTHING, measured rather than
+// assumed -- one helper does nest, `thread_it.pl` requiring `./test.pl` at its
+// line 10, and all 13 `*_thr.t` files that reach it that way were already
+// clean before this change and stayed clean after. They are wrappers that set
+// up a thread and `require` the real test, with no parenless call site of
+// their own, so a second level would buy zero files and zero nodes.
+//
+// The guard is here and not at the call site because this is the only place
+// that knows which parse it is in.
+//
+// A file that cannot be read returns false and the caller records nothing.
+// That is rule 5, and it is the whole reason a missing helper cannot fail a
+// parse: `not found` is already the answer a missing module gets, and it has
+// never been an error.
+func (r *resolver) resolveFile(path string) (moduleFacts, bool) {
+	if r == nil || r.load == nil || r.inRequiredFile {
+		return moduleFacts{}, false
+	}
+	if facts, ok := r.facts[path]; ok {
+		return facts, true
+	}
+	if r.seen[path] {
+		// In progress: a cycle, which is as ordinary between two helpers as
+		// between two modules. Finite recursion without claiming the file is
+		// absent.
+		return moduleFacts{}, false
+	}
+	r.seen[path] = true
+
+	src, ok := r.load(path)
+	if !ok {
+		return moduleFacts{}, false
+	}
+	r.loaded = append(r.loaded, path)
+
+	// The helper is parsed with a resolver that shares the cache and the
+	// visited set -- so its own `use` statements still resolve, and are
+	// resolved once across the whole parse -- and differs only in carrying the
+	// one-level flag. The maps are allocated first so the copy shares them
+	// rather than each growing one of its own.
+	if r.facts == nil {
+		r.facts = map[string]moduleFacts{}
+	}
+	inner := *r
+	inner.inRequiredFile = true
+	facts := readModule(parseRoot(src, &inner))
+
+	// `loaded` is a SLICE, so the inner parse's appends are not visible on the
+	// outer resolver and must be taken back explicitly. The maps need no such
+	// handling.
+	r.loaded = inner.loaded
+
+	r.facts[path] = facts
 	return facts, true
 }
 

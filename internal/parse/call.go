@@ -181,7 +181,7 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		// call to it parses. §4.8.3's "let a later pass decide" is satisfied
 		// HERE, because the shape came from a declaration rather than a guess.
 		//
-		// TWO ROUTES REACH THIS, and the second needs no module at all:
+		// THREE ROUTES REACH THIS, and only the first needs a module:
 		//
 		//   - An IMPORT whose module's source was readable. Measured: in T1,
 		//     889 of 986 files use Test::More and `subtest` appears 691
@@ -190,11 +190,17 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		//     it is read (decl.go, declareSub). Measured: 316 of T2's 354
 		//     parenless-call refusals had a callee declared this way and 0
 		//     had one reachable by import -- no T2 file uses Test::More, they
-		//     `require './test.pl'`, and `require` is not resolved.
+		//     `require './test.pl'`.
+		//   - A `.pl` FILE this one `require`d by a literal path, read by
+		//     use.go's resolveRequiredFile. That is what closes the T2
+		//     sentence above: `t/test.pl` declares 78 subs, `ok`, `is` and
+		//     `like` among them, and 394 of the 435 dirty files in perl.git's
+		//     `t/` hold 7,211 of its 7,490 Unknown nodes behind exactly this.
+		//     Measured: resolving it moves 93 files clean and 3,267 nodes.
 		//
 		// Which route supplied the shape is not a distinction this site can
-		// or should make: `Import.Local` records it for a consumer that
-		// cares, and a prototype means the same thing either way.
+		// or should make: `Import.Local` records whether the file declared it
+		// ITSELF, and a prototype means the same thing however it was read.
 		p.parseByShape(n, text)
 
 	case blockFollows:
