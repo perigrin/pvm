@@ -3,8 +3,10 @@ title: A __DATA__ section has no statement form, and it is the section not the h
 state: in-progress
 urgency: normal
 milestone: corpus-covers-t2
+blocked_by:
+- 01a0dc82-28e1-72d3-82cd-88ed8479f327
 created: 2026-09-26T07:00:39.376307576Z
-updated: 2026-09-26T07:02:45.841983723Z
+updated: 2026-09-26T07:02:56.257771813Z
 sessions:
 - start_sha: d1537f9631443c467a73f3e56cf382da4eeab2ae
   end_sha: d1537f9631443c467a73f3e56cf382da4eeab2ae
