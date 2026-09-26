@@ -4,59 +4,61 @@ state: pending
 urgency: normal
 milestone: corpus-covers-t2
 created: 2026-09-26T02:09:54.934577593Z
-updated: 2026-09-26T02:09:54.934577593Z
+updated: 2026-09-26T02:52:33.82661721Z
 ---
 
-`unfiled` is a legal value of `refuses:` and nothing rejects it. Sixteen
-cases reached the corpus with it. This issue makes the corpus refuse to
-hold an uncited refusal, so the sixteen cannot come back.
+**CANCELLED BY CHAIN-REVIEW, 2026-09-26. The premise is false: `unfiled`
+is a deliberate sentinel with a documented rationale and a passing test
+asserting it must NOT be looked up.**
 
-## Why a check and not just the cleanup
+## What this issue claimed
 
-The cleanup is issues 01a0db77, 01a0db78 and 01a0db79 in this milestone.
-Without a check, the next case written under time pressure spells
-`unfiled` again, and the corpus goes back to recording gaps that point
-nowhere. The corpus already has this shape of check for the neighbouring
-failure -- `staleMarker` fires when a citation stops being TRUE -- and
-this is the same guarantee for a citation that was never a citation.
+"`unfiled` is a legal value of `refuses:` and nothing rejects it. Sixteen
+cases reached the corpus with it."
 
-## The measurement that motivates it
+## What `unfiled` actually is
 
-At b0f1a9e9, sixteen cases across nine topics carried `refuses: unfiled`.
-All sixteen genuinely refuse, so none was hiding a passing case; what they
-hid is WHICH work fixes them. Three clusters, none obvious from the
-marker: a glossary dispute (4), two real lexer gaps (2), and ten parser
-refusals of which three already had an issue nobody had cited.
+`internal/conformance/file.go:275`:
 
-## What the check must and must not do
+    // unfiledRefusal is the same claim in the topic format's vocabulary.
+    //
+    // `--- ` files spelled it `STATUS refuses as of this file`, and "this
+    // file" WAS the address: one file, one case. A topic holds several,
+    // so the phrase stopped pointing anywhere and the port spells it
+    // `refuses: unfiled` instead -- the same claim, that the refusal is
+    // recorded by the case that carries it and by no issue.
+    const unfiledRefusal = "unfiled"
 
-MUST reject `refuses: unfiled`, and reject it at the reader so no test has
-to remember to look.
+It is the topic-format spelling of `selfRecorded` ("this file"), and it
+means THE CASE IS ITS OWN RECORD -- the case body states the measured
+behaviour and the tokens we produce instead, so an issue would be a second
+copy free to go stale.
 
-MUST NOT require the cited issue to be OPEN -- `01a0d0c7` in `v0.1` owns
-that, and duplicating it here would leave one guarantee half-owned by two
-issues.
+`TestRefusalCitationMustResolve/unfiled_is_not_looked_up` asserts this and
+PASSES. Its comment rejects this issue's framing in advance:
 
-MUST NOT accept an arbitrary non-empty string. `refuses: yes`,
-`refuses: TODO` and `refuses: see above` are the same defect wearing
-different words. The shape to require is an issue id, which the corpus
-already spells consistently: `01a0` then hex, optionally hyphenated.
+    // Sixteen cases carry it, and every one was a `.t` file that said
+    // `refuses as of this file` -- so a resolver that knew only the old
+    // phrase would have reported all sixteen as citations pointing at
+    // nothing, which is a claim about the corpus that is not true.
 
-Verify the check by REMOVING a citation and watching the read fail. A
-validator that cannot be made to fire is the defect this milestone is
-about.
+Implementing this issue would require deleting that test and the
+`unfiledRefusal` const -- a decision about what `refuses:` MEANS, which is
+nowhere in this chain and is not a validator gap.
 
-## Context
+## What survives
 
-- paths: `internal/conformance/topic.go`, `internal/conformance/topic_test.go`
-- commands: `go test ./internal/conformance/ -count=1`
-- entrypoints: `internal/conformance/topic.go` (`parseBehavior`, which reads the `refuses:` line)
+Two narrower things, neither of which needs this issue:
 
-## Acceptance criteria
+1. **The four citations naming CLOSED issues.** That is the real defect and
+   `01a0d0c7` owns it.
+2. **`refuses:` accepts an arbitrary string.** `yes`, `TODO`, `see above`
+   would all pass, because only `unfiled` and `this file` are special-cased
+   and everything else is assumed to be an id. A real but minor shape
+   check, deferred rather than bundled here.
 
-- [ ] The reader rejects an uncited refusal (`go test ./internal/conformance/ -run '^TestRefusalNamesAnIssue$' -count=1 -v | grep -q '^--- PASS: TestRefusalNamesAnIssue'`)
-- [ ] It rejects a placeholder, not only the literal word unfiled (`go test ./internal/conformance/ -run '^TestRefusalRejectsAPlaceholder$' -count=1 -v | grep -q '^--- PASS: TestRefusalRejectsAPlaceholder'`)
-- [ ] No case in the corpus records an unfiled refusal (`! grep -rq 'refuses: unfiled' conformance/mdtest/`)
-- [ ] The whole corpus still reads, so the new rule broke no existing case (`go test ./internal/conformance/ -run '^TestMdtestTopicsMakeTheSameClaims$' -count=1 -v | grep -q '^--- PASS: TestMdtestTopicsMakeTheSameClaims'`)
-- [ ] The format spec states the rule (`grep -qE 'unfiled|names an issue' conformance/mdtest/FORMAT.md`)
-- [ ] The suite is green (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
+## Why the check was not made
+
+`grep -rn unfiledRefusal internal/` would have found the const, its
+rationale, and the test, in one command. I read the corpus files and never
+read the reader.
