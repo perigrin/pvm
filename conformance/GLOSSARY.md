@@ -136,6 +136,36 @@ The `.` in `.5` is not an operator, and `scanNumber` running before operator
 scanning is what makes that true. That precedence is the subject of
 `01_literals/04_leading_decimal.t`.
 
+**Punctuation is the whole of it.** Perl also has operators spelled as words,
+and they are [word-shaped operators](#word-shaped-operator), not this. A
+file asserting `operator` about `x` or `and` is asserting the wrong category,
+and `TestCategoryBoundaries` holds the line in both directions.
+
+---
+
+## word-shaped operator
+
+An operator perl spells with letters rather than punctuation: `x`, `cmp`,
+`eq` `ne` `lt` `gt` `le` `ge`, `and` `or` `not` `xor`, and the compound
+`x=`.
+
+`perlop` names them operators in so many words -- "Binary `x` is the
+repetition operator", "Binary `and` returns the logical conjunction",
+"Unary `not` returns the logical negation" -- and lists `x=` among the
+assignment operators. So the category is derived from perl, as this page's
+own rule requires, and not from our lexer, which gives them all Kind Word.
+
+**These are ALSO [words](#word), and that is not a contradiction.** At the
+token layer `word` is a claim about SPELLING: a bare identifier, keywords
+not distinguished. `word-shaped operator` is the narrower claim, for a file
+that means perl's operator rather than any identifier that happens to be
+there. A lexer with a distinct kind for these maps that kind here and
+ignores the text; ours decides by text.
+
+**`not` is in the list and is unary.** The category is about spelling, not
+arity -- `!` and `not` are the same operation at different precedences, and
+`perlop` says so.
+
 ---
 
 ## quote-like operator

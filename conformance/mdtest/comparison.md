@@ -72,7 +72,6 @@ print "scmp [", ($a cmp $b), "]\n";
 
 ```behavior
 parses: yes
-refuses: unfiled
 ```
 
 ```output
@@ -86,7 +85,7 @@ scmp [-1]
 ```
 
 ```tokens
-one operator whose text is "cmp"
+one word-shaped operator whose text is "cmp"
 ```
 
 ## The five logical operators
@@ -117,7 +116,7 @@ and [0] or [1] dor [0] not [] xor [1]
 ```
 
 ```tokens
-one operator whose text is "xor"
+one word-shaped operator whose text is "xor"
 one operator whose text is "||"
 ```
 
@@ -137,7 +136,6 @@ print "$tight $loose\n";
 
 ```behavior
 parses: yes
-refuses: unfiled
 ```
 
 ```output
@@ -146,7 +144,7 @@ refuses: unfiled
 
 ```tokens
 one operator whose text is "&&"
-one operator whose text is "and"
+one word-shaped operator whose text is "and"
 ```
 
 ## Punctuation `!`, and the double negative

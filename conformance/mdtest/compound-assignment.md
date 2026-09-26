@@ -94,7 +94,7 @@ abab
 ```
 
 ```tokens
-one operator whose text is "x="
+one word-shaped operator whose text is "x="
 ```
 
 ## `//=`, `||=` and `&&=` short-circuit

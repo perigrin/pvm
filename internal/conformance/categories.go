@@ -2,7 +2,10 @@
 // ABOUTME: The single point of coupling; another lexer replaces this file alone.
 package conformance
 
-import "tamarou.com/pvm/internal/lexer"
+import (
+	"tamarou.com/pvm/internal/lexer"
+	"tamarou.com/pvm/internal/parse"
+)
 
 // categories translates a glossary category into a predicate over one of
 // our tokens.
@@ -25,6 +28,23 @@ var categories = map[string]func(lexer.Kind, string) bool{
 	"word":            kind(lexer.Word),
 	"variable":        kind(lexer.Variable),
 	"operator":        kind(lexer.Operator),
+
+	// perl spells some operators with letters -- `x`, `cmp`, `and`,
+	// `not` -- and our lexer gives them Kind Word, so the text decides,
+	// exactly as it does for the quote pair below.
+	//
+	// A word-shaped operator is ALSO a `word`, and both categories
+	// answer yes. That is the point: `word` is a claim about spelling at
+	// the token layer, and this is the narrower claim a file makes when
+	// it means perl's operator rather than any identifier.
+	//
+	// The predicate is `internal/parse`'s, not a list here. That package
+	// owns the precedence tables, which ARE the set of perl's operators,
+	// so a copy would be a second list free to drift -- the failure the
+	// quote-op comment below records.
+	"word-shaped operator": func(k lexer.Kind, text string) bool {
+		return k == lexer.Word && parse.IsWordShapedOperator(text)
+	},
 
 	// A quote-like operator is spelled with a name and a delimiter --
 	// q, qq, qw, qr, qx, m, s, tr, y -- or with backticks, where a

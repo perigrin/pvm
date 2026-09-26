@@ -129,6 +129,43 @@ func TestCategoryBoundaries(t *testing.T) {
 		name: "a variable carries its sigil",
 		src:  "my $x = 1;", category: "variable", text: "$x", want: 1,
 	}, {
+		// perlop names these operators and spells them as words, so the
+		// two glossary categories both have a claim and neither can hold
+		// both. `word` keeps them, because a category at the TOKEN layer
+		// is about spelling; `word-shaped operator` is the narrower
+		// claim a corpus file makes when it means perl's op rather than
+		// any identifier.
+		//
+		// perlop 5.42.0, verbatim: "Binary C<x> is the repetition
+		// operator", "Binary C<"and"> returns the logical conjunction",
+		// "Unary C<"not"> returns the logical negation".
+		name: "a word-shaped operator is a word",
+		src:  "my $s = 'z' x 3;", category: "word", text: "x", want: 1,
+	}, {
+		name: "a word-shaped operator is also its own category",
+		src:  "my $s = 'z' x 3;", category: "word-shaped operator", text: "x", want: 1,
+	}, {
+		// THE BOUNDARY THIS PAIR EXISTS FOR. `operator` is punctuation,
+		// and the cheapest wrong way to make a `word-shaped operator`
+		// fact pass is to widen `operator` to accept a Word. Nothing
+		// else in the corpus would catch that: every negative operator
+		// fact names punctuation, and the one word-shaped spelling
+		// (`"b"`, in numeric-radix.md) sits inside `0b1010` so no
+		// Word("b") token exists either way.
+		name: "a word-shaped operator is not the operator category",
+		src:  "my $s = 'z' x 3;", category: "operator", text: "x", want: 0,
+	}, {
+		// An ordinary identifier is a word and NOTHING more, or the new
+		// category would be satisfied by every bareword in the corpus.
+		name: "an ordinary identifier is not a word-shaped operator",
+		src:  "my $s = foo();", category: "word-shaped operator", text: "foo", want: 0,
+	}, {
+		// A low-precedence one, to show the category spans perlop's
+		// levels rather than tracking one of them.
+		name:     "a low-precedence word operator is in the category",
+		src:      "my $a = 1; my $b = 0; my $y = ($a and $b);",
+		category: "word-shaped operator", text: "and", want: 1,
+	}, {
 		name: "a quoted string is one token including its delimiters",
 		src:  `my $x = "hi";`, category: "string literal", text: `"hi"`, want: 1,
 	}, {

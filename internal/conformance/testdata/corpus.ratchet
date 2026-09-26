@@ -8,7 +8,7 @@
 # topic's `**Tier NN name.**` line and leaves every key alone. That
 # is the `t/` sweep working, and must not read as a regression.
 #
-# 212 cases, 188 clean, 24 refusing.
+# 212 cases, 191 clean, 21 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -43,7 +43,7 @@ trailing_tokens argument-extent.md/A parenless call is greedy
 - arguments.md/Arguments arrive in `@_`
 - arguments.md/Explicit return, early and trailing
 - arguments.md/`@_` aliases the caller's variables
-tokens arithmetic.md/Concatenation and repetition
+- arithmetic.md/Concatenation and repetition
 - arithmetic.md/The seven arithmetic operators
 - arithmetic.md/`**` is right associative, `-` is left
 - arithmetic.md/`*` binds tighter than `+`
@@ -79,10 +79,10 @@ tokens arithmetic.md/Concatenation and repetition
 - comparison.md/Level 11 is the one true `%nonassoc`
 - comparison.md/Level 13 is `chain/na` and the halves differ
 - comparison.md/Punctuation `!`, and the double negative
-not_a_term,tokens comparison.md/The five logical operators
+not_a_term comparison.md/The five logical operators
 - comparison.md/The numeric relations and `<=>`
-tokens comparison.md/The string relations and `cmp`
-tokens comparison.md/`&&` and `and` are one op at two precedences
+- comparison.md/The string relations and `cmp`
+- comparison.md/`&&` and `and` are one op at two precedences
 - compile-phase.md/A `#` at column zero that is not a comment
 - compile-phase.md/BEGIN runs first, END runs last, whatever the source order
 - compile-phase.md/`__PACKAGE__` is a bareword that is not a bareword

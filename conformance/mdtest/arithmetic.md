@@ -65,7 +65,6 @@ print "repeat: ", $a x 3, "\n";
 
 ```behavior
 parses: yes
-refuses: unfiled
 ```
 
 ```output
@@ -74,7 +73,7 @@ repeat: ababab
 ```
 
 ```tokens
-one operator whose text is "x"
+one word-shaped operator whose text is "x"
 ```
 
 ## `*` binds tighter than `+`

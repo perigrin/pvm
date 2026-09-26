@@ -139,6 +139,43 @@ var infix = map[string]OpInfo{
 // assignment" tests the level rather than listing the spellings.
 const assignLevel = 9
 
+// IsWordShapedOperator reports whether text spells one of perl's operators
+// with letters rather than punctuation: `x`, `cmp`, `eq`, `and`, `not` and
+// the rest, plus the compound `x=`.
+//
+// EXPORTED FOR THE CONFORMANCE GLOSSARY, which needs the question answered
+// and must not answer it with a second list. `conformance/GLOSSARY.md`
+// defines `word-shaped operator` as a category and
+// `internal/conformance/categories.go` maps it here, the same way it maps
+// `quote-like operator` to `lexer.HasQuoteOperator` rather than copying
+// the lexer's quote-op table -- a copy of that one lost `qx` on its first
+// day.
+//
+// The tables above ARE the answer, so this reads them rather than naming
+// spellings. Both are consulted because `not` is prefix and the rest are
+// infix, and the category is about SPELLING rather than arity: `perlop`
+// calls `not` an operator ("Unary C<"not"> returns the logical negation")
+// and it is spelled with letters, which is the whole of the test.
+//
+// A leading letter is what separates a word from punctuation. Every key in
+// these tables is one or the other, never mixed -- `x=` begins with a
+// letter and `+=` does not.
+func IsWordShapedOperator(text string) bool {
+	if text == "" {
+		return false
+	}
+	c := text[0]
+	isLetter := (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+	if !isLetter {
+		return false
+	}
+	if _, ok := infix[text]; ok {
+		return true
+	}
+	_, ok := prefix[text]
+	return ok
+}
+
 // prefix is the power a prefix operator passes down for its operand.
 var prefix = map[string]int{
 	"not": 60,  // level 6, takes a listexpr -- swallows commas
