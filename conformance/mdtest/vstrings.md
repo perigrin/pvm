@@ -121,6 +121,20 @@ That is a third gap, and it is narrower than it looks: `v5` with no dot
 is a legal bareword, so claiming it takes every `v`-plus-digits name with
 it.
 
+AND THE `v` IS LOWERCASE. Capital V is never a v-string, which is easy to
+assume symmetrical and is not:
+
+    $ perl -e 'my $v = V5.36; print "[$v]"'
+    [V536]
+    $ perl -Mstrict -e 'my $v = V5.36; print $v'
+    Bareword "V5" not allowed while "strict subs" in use
+    $ perl -e 'use V5.36; print "ok"'
+    Can't locate V5.pm in @INC
+
+So `V5.36` is the bareword `V5` concatenated with `.36`, and `use V5.36`
+loads a module. A revision of this corpus briefly asserted the opposite,
+which would have made `use V5.36` enable signatures for a module load.
+
 ```perl
 my $v = v65.66.67;
 print "$v\n";

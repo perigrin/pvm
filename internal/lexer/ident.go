@@ -171,10 +171,12 @@ func (l *lexer) notePragma(start int) {
 		// `use feature 'signatures'`: the pragma stays pending so the quoted
 		// feature name after it is still seen by noteSignatures.
 	default:
-		// A version bundle keeps the pragma pending too. `use v5.36;` lexes
-		// its version as Word("v5") Operator(".") Number(36), so clearing
-		// here would hide the minor half from noteSignatures -- which is
-		// exactly what it did until this case was added.
+		// A version bundle keeps the pragma pending too. `use v5.36;` USED
+		// TO lex its version as Word("v5") Operator(".") Number(36), so
+		// clearing here hid the minor half from noteSignatures -- which is
+		// exactly what it did until this case was added. `scanVString` now
+		// emits one Quote, handled by the `case Quote:` arm below, so this
+		// path is reached only by a `v`-prefixed word with NO dot.
 		if _, isVersion := versionPrefix(word); isVersion {
 			return
 		}
@@ -201,11 +203,15 @@ func (l *lexer) noteSignatures(k Kind, start int) {
 	text := string(l.src[start:l.pos])
 	switch k {
 	case Word:
-		// A version bundle does not arrive as one token: `use v5.36;` lexes
+		// A version bundle DID NOT arrive as one token: `use v5.36;` lexed
 		// as Word("v5") Operator(".") Number(36), because `v5` is a valid
-		// identifier and the lexer has no reason to know better. So the
-		// major part is remembered here and the minor is read from the
-		// Number that follows.
+		// identifier and the lexer had no reason to know better. So the
+		// major part was remembered here and the minor read from the Number
+		// that follows.
+		//
+		// `scanVString` now claims any `v`-prefixed run with a dot, so no
+		// version reaches this arm and the pending-major machinery has no
+		// live caller. Tracked by 01a0dc74 rather than deleted here.
 		if maj, ok := versionPrefix(text); ok {
 			l.pendingVersionMajor = maj
 			return

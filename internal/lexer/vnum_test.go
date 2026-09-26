@@ -4,6 +4,7 @@
 package lexer_test
 
 import (
+	"strings"
 	"testing"
 
 	"tamarou.com/pvm/internal/lexer"
@@ -128,8 +129,10 @@ func TestVStringIsNotANumericLiteral(t *testing.T) {
 //	undef
 //
 // No prototype, so perl read a signature. `use v5.36` is the one-dot
-// spelling of the same claim and still lexes split, so both are checked
-// here: the two spellings must agree about the feature.
+// spelling of the same claim and, since `scanVString` stopped requiring a
+// second dot, arrives as one Quote too -- so both are checked here because
+// the two spellings must agree about the feature, not because they lex
+// differently.
 func TestVStringVersionStillEnablesSignatures(t *testing.T) {
 	for _, src := range []string{
 		"use v5.42.0;\nsub g ($a, $b) { 1 }\n",
@@ -200,11 +203,34 @@ func TestOneDotIsStillANumber(t *testing.T) {
 // feature-gating consequence: the version now reaches `noteSignatures` as one
 // Quote rather than as a split it reassembles.
 func TestOneDotVString(t *testing.T) {
-	for _, src := range []string{"v5.36", "v5.10", "V5.36", "v65.66", "v1.0"} {
+	for _, src := range []string{"v5.36", "v5.10", "v65.66", "v1.0"} {
 		got := significant(src)
 		want := "Quote(" + src + ")"
 		if len(got) != 1 || got[0] != want {
 			t.Errorf("%q lexes as %v, want [%s]", src, got, want)
+		}
+	}
+
+	// CAPITAL V IS NOT A V-STRING, and an earlier revision of this test
+	// asserted that it was. Measured on 5.42.0:
+	//
+	//	$ perl -e 'my $v = V5.36; print "[$v]"'
+	//	[V536]
+	//	$ perl -Mstrict -e 'my $v = V5.36; print $v'
+	//	Bareword "V5" not allowed while "strict subs" in use
+	//	$ perl -e 'use V5.36; print "ok"'
+	//	Can't locate V5.pm in @INC
+	//
+	// So `V5.36` is the bareword `V5` concatenated with `.36`, and
+	// `use V5.36` LOADS A MODULE. Reading it as a version made
+	// `noteSignatures` turn signatures on for a module load -- the same
+	// silent change of meaning this whole family of tests exists to catch,
+	// introduced by the test that was supposed to prevent it.
+	for _, src := range []string{"V5.36", "V5.36.0"} {
+		got := significant(src)
+		if len(got) == 1 && strings.HasPrefix(got[0], "Quote(") {
+			t.Errorf("%q lexes as %v; capital V is a bareword, not a v-string",
+				src, got)
 		}
 	}
 

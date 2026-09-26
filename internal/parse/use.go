@@ -60,13 +60,18 @@ func (p *parser) parseUse(word lexer.Token) *Node {
 			Start: name.Start, End: name.End,
 		}
 
-		// A version bundle is THREE tokens, not one: `use v5.36;` lexes as
+		// A version bundle USED TO BE three tokens: `use v5.36;` lexed as
 		// Word("v5") Operator(".") Number(36), because `v5` is a valid
-		// identifier and the lexer has no reason to know better.
+		// identifier and the lexer had no reason to know better. Taking only
+		// the Word left `.36` behind, which is not an expression, so the
+		// statement fell to Unknown -- measured on seven t/class files. The
+		// whole run was absorbed into one term instead.
 		//
-		// Taking only the Word leaves `.36` behind, which is not an
-		// expression, so the statement falls to Unknown -- measured on seven
-		// t/class files. The whole run is absorbed into one term instead.
+		// `scanVString` now emits ONE Quote for any `v`-prefixed run with a
+		// dot, so a version never reaches this branch: the guard below is
+		// `name.Kind == lexer.Word` and a Quote misses it. This code and
+		// `isVersionPrefix` have no reachable caller -- tracked by 01a0dc74,
+		// which also covers the rest of the stranded reassembly surface.
 		if isVersionPrefix(term.Text) {
 			for {
 				dot, ok := p.peekSignificant()
@@ -85,10 +90,15 @@ func (p *parser) parseUse(word lexer.Token) *Node {
 		n.Children = append(n.Children, term)
 	}
 
-	// The import list, or a version. A version lexes as Word("v5") then
-	// Operator(".") then Number, and the Word half is taken as the name
-	// above -- the rest reads as an expression here, which round-trips even
-	// though the shape is not what perl's grammar calls a version.
+	// The import list, or a version. A version is now ONE Quote token
+	// (`scanVString`), so it misses the Word-shaped name path above and
+	// reads as an expression here -- which round-trips even though the shape
+	// is not what perl's grammar calls a version.
+	//
+	// It formerly lexed as Word("v5") Operator(".") Number, with the Word
+	// half taken as the name above and the remainder reassembled. The Term's
+	// text was the truncated "v5" then and is the whole "v5.36" now; the
+	// span was already correct either way.
 	var list *Node
 	if next, ok := p.peekSignificant(); ok && next.Kind != lexer.Semicolon {
 		if arg := p.parseExpr(0); arg != nil {

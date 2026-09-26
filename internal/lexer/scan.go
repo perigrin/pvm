@@ -275,8 +275,23 @@ func scanWord(l *lexer) bool {
 // measured, `length(v5)` is 1 -- but `v5` with no dot is also an ordinary
 // identifier here, and claiming it would take every `v`-plus-digits
 // bareword with it. That is a third gap, not this one.
+//
+// LOWERCASE ONLY, and an earlier revision accepted `V` as well. Measured
+// on 5.42.0, capital V is never a v-string:
+//
+//	$ perl -e 'my $v = V5.36; print "[$v]"'
+//	[V536]
+//	$ perl -Mstrict -e 'my $v = V5.36; print $v'
+//	Bareword "V5" not allowed while "strict subs" in use
+//	$ perl -e 'use V5.36; print "ok"'
+//	Can't locate V5.pm in @INC
+//
+// `V5.36` is the bareword `V5` concatenated with `.36`, and `use V5.36`
+// LOADS A MODULE. Accepting it here made `noteSignatures` read a module
+// load as a feature-gating version and turn signatures on -- the silent
+// change of meaning this scanner exists to get right.
 func scanVString(l *lexer) bool {
-	if c := l.src[l.pos]; c != 'v' && c != 'V' {
+	if l.src[l.pos] != 'v' {
 		return false
 	}
 	if !l.expect.wantsTerm() {

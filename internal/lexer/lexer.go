@@ -253,9 +253,11 @@ type lexer struct {
 	// whether that `(` is a prototype or a signature. File-level, like
 	// utf8Pragma and for the same reason.
 	signatures bool
-	// pendingVersionMajor holds the `5` of a `use v5.36` whose version
+	// pendingVersionMajor held the `5` of a `use v5.36` whose version
 	// arrived split across three tokens -- Word("v5"), Operator("."),
-	// Number(36) -- because `v5` lexes as an ordinary identifier.
+	// Number(36) -- because `v5` lexed as an ordinary identifier.
+	// `scanVString` now emits one Quote for that spelling, so nothing sets
+	// this any more. Tracked by 01a0dc74.
 	pendingVersionMajor int
 	// pendingPragma remembers a `use` or `no` seen on this statement, so
 	// that the `utf8` after it can be recognised. 0 none, 1 use, 2 no.
@@ -344,7 +346,8 @@ func scanOne(l *lexer) {
 	//                  -- but it declines in operator position for `x`,
 	//                  `y` and `s`, which are repetition and names there
 	//   scanVString    before words, so `v65.66.67` is not `v65` `.` `66.67`
-	//                  -- but it declines on one dot, so `v5` stays a Word
+	//                  -- but it declines with NO dot, so `v5` stays a Word,
+	//                  and on capital V, which perl never reads as a version
 	//   scanNumber     before operators, so `1.5` is not `1` `.` `5`
 	for _, scan := range []func(*lexer) bool{
 		scanPod,
