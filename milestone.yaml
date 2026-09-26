@@ -267,6 +267,53 @@ had applied it to the two execution workers and not to the reviewer,
 because I read "review" as read-only -- while explicitly instructing it to
 mutate. The remaining three gates ran isolated.
 
+### Second round of execution, same day
+
+After the first three issues, the chain grew rather than shrank -- which is
+the loop working, not drift. Each new issue came from a measurement a
+worker or gate made and declined to act on itself.
+
+| issue | tier | outcome |
+|---|---|---|
+| 01a0dc26-f9d3 | TIER_2 (5 files) | done, 5/5 criteria verified by the tool's own gate; PAAD gate running |
+| 01a0dbe8 | -- | REOPENED, second pass in flight |
+| 01a0dc72 | -- | filed: bare `v5` |
+| 01a0dc74 | -- | filed: the dead guard |
+
+**`01a0dc26-f9d3` refuted its own premise.** It was filed saying the fix
+"means teaching `internal/parse/use.go` to accept a version that arrives
+as ONE token", and that `01a0db78` left the one-dot form alone for exactly
+that reason. Measured: `use.go` needed NO change, because a `Quote` never
+matches `parseUse`'s Word-shaped name path and falls through to
+`parseExpr`, yielding the same version Term. The whole fix was
+`scanNumberRun() < 2` becoming `< 1`.
+
+The worker probed the parse tree BEFORE touching the lexer, using the
+already-one-token `use v5.42.0;` as a control. A cost estimate written into
+an issue is a guess until someone checks it, and checking it first turned a
+feared refactor into one character.
+
+Verified independently before merging, all three routes and the asymmetry:
+
+    use v5.36;      [Word(use) Quote(v5.36) Semicolon]
+    require v5.36;  [Word(require) Quote(v5.36) Semicolon]
+    use v5.36.0;    [Word(use) Quote(v5.36.0) Semicolon]
+    my $x = 5.36;   [... Number(5.36) ...]    no `v`, still a number
+    my $v = v5.36;  [... Quote(v5.36) ...]
+
+And the signatures guard, by neutering `noteSignatures`' Quote branch:
+
+    --- FAIL: TestVStringVersionStillEnablesSignatures
+        "use v5.36;..." lexes "($a, $b)" as a Prototype
+
+It names the one-dot row, so the guard measures the shape the change moved.
+That mattered: `01a0db78` nearly shipped the same silent break, and its
+guard was written against `v5.36` -- the form this change alters.
+
+Two comments became provably false and were rewritten rather than dropped:
+`ident.go`'s "two dots make a string", and `scan.go`'s "TWO version-string
+exceptions" where one survives.
+
 ### Why this milestone does not complete here
 
 `01a0dbe8` is reopened and `01a0dc26-f9d3` is open, so the chain has work
