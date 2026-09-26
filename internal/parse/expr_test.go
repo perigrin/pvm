@@ -215,16 +215,21 @@ func shape(n *parse.Node) string {
 	return b.String()
 }
 
-// assertShape compares the expression's tree against an s-expression. The
-// wrapper nodes (source_file, statement) are skipped so the assertions read
-// as grouping rather than as tree plumbing.
-func assertShape(t *testing.T, root *parse.Node, want string) {
-	t.Helper()
+// skipWrappers descends past the source_file and statement nodes to the
+// expression itself, so a shape reads as grouping rather than as tree
+// plumbing.
+func skipWrappers(root *parse.Node) *parse.Node {
 	n := root
 	for len(n.Children) == 1 && n.Text == "" {
 		n = n.Children[0]
 	}
-	if got := shape(n); got != want {
+	return n
+}
+
+// assertShape compares the expression's tree against an s-expression.
+func assertShape(t *testing.T, root *parse.Node, want string) {
+	t.Helper()
+	if got := shape(skipWrappers(root)); got != want {
 		t.Errorf("shape = %s, want %s", got, want)
 	}
 }

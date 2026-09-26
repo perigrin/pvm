@@ -189,6 +189,28 @@ func IsWordShapedOperator(text string) bool {
 // it cannot drift from it.
 var bpBelowComma = infix["and"].BP
 
+// atOperatorBelowComma reports whether the next significant token is one of
+// the three word operators below the comma.
+//
+// Three sites stand where an element loop or an initialiser has just stopped
+// and must decide whether what stopped it belongs ABOVE what was built:
+// parseParenList, parseBracketed and parseVarDecl. Two copies of the test
+// were defensible; the third earned a name, and the bracketed one was missing
+// the test entirely -- `[$a and $b]` let the operand escape the bracket, so
+// the tree said `and` sat above the declaration with a one-element arrayref
+// as its left operand.
+//
+// Nothing is consumed: the caller resumes the Pratt loop with the left
+// operand it assembled itself.
+func (p *parser) atOperatorBelowComma() bool {
+	next, ok := p.peekSignificant()
+	if !ok {
+		return false
+	}
+	op, isOp := infix[p.text(next)]
+	return isOp && op.BP <= bpBelowComma
+}
+
 // prefix is the power a prefix operator passes down for its operand.
 var prefix = map[string]int{
 	"not": 60,  // level 6, takes a listexpr -- swallows commas

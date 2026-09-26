@@ -141,10 +141,8 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 		// A word operator below the comma now stands unconsumed, with the
 		// whole declaration as its left operand. Resuming the loop here is
 		// what puts it above rather than inside.
-		if next, ok := p.peekSignificant(); ok {
-			if op, isOp := infix[p.text(next)]; isOp && op.BP <= bpBelowComma {
-				return p.parseInfix(n, 0)
-			}
+		if p.atOperatorBelowComma() {
+			return p.parseInfix(n, 0)
 		}
 		return n
 	}
