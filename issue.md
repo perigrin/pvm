@@ -1,19 +1,36 @@
 ---
 title: A caret control variable lexes as two tokens, so 179 files carry a wrong tree
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T18:35:44.781455309Z
-updated: 2026-09-26T18:36:10.630614992Z
+updated: 2026-09-26T19:40:26.614724955Z
 sessions:
 - start_sha: 20c20c3c9f6b7772b719bd7affc1d50f419e1e75
-  end_sha: ""
-  commits: 0
+  end_sha: b2084901525559c23fe0eef21f146e164b5c4cc9
+  commits: 2
   started_at: 2026-09-26T18:36:10.630614992Z
+  ended_at: 2026-09-26T19:40:26.614724955Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-26T18:36:10.630614992Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-26T19:40:26.614724955Z
+observed_paths:
+- conformance/mdtest/loops.md
+- conformance/mdtest/names.md
+- internal/conformance/testdata/corpus.ratchet
+- internal/lexer/caret_test.go
+- internal/lexer/scan.go
+- internal/lexer/testdata/lex.t.tokens
+- internal/parse/control.go
+- internal/parse/control_test.go
+- internal/parse/parse.go
+- internal/parse/t2_test.go
+- internal/parse/testdata/t1.ratchet
+- internal/parse/testdata/t1fidelity.ratchet
 ---
 
 `$^O` lexes as `Variable($^)` followed by a separate Word, so every caret
