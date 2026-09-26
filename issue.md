@@ -1,19 +1,40 @@
 ---
 title: undef is missing from namedUnary, and its corpus case cites a closed issue
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-26T10:29:59.070448113Z
-updated: 2026-09-26T11:06:33.23291779Z
+updated: 2026-09-26T12:21:41.167553402Z
 sessions:
 - start_sha: 3ef0ae208b19053e94b91fbac2d6ddf19b4f4af4
-  end_sha: ""
-  commits: 0
+  end_sha: 7ccdfe71951a54c8814b1a62c2c9e769ca19a472
+  commits: 5
   started_at: 2026-09-26T11:06:33.23291779Z
+  ended_at: 2026-09-26T12:21:41.167553402Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-26T11:06:33.23291779Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-26T12:21:41.167553402Z
+observed_paths:
+- conformance/mdtest/adjacency-04_operators.md
+- conformance/mdtest/adjacency-07_subroutines.md
+- conformance/mdtest/adjacency-11_oo.md
+- conformance/mdtest/named-operators.md
+- docs/plans/2026-09-21-graded-conformance-corpus.md
+- internal/conformance/conformance_test.go
+- internal/conformance/file.go
+- internal/conformance/testdata/corpus.ratchet
+- internal/lexer/keyword.go
+- internal/parse/infile_test.go
+- internal/parse/keyword.go
+- internal/parse/keywordgap_test.go
+- internal/parse/t2_test.go
+- internal/parse/testdata/t1.ratchet
+- internal/parse/use.go
+- internal/parse/use_test.go
 ---
 
 `undef` is missing from `namedUnary`, so the unary spelling refuses on every
