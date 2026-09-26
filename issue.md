@@ -1,10 +1,19 @@
 ---
 title: An ADJUST block followed by a method loses the method, and perl accepts both orders
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-26T11:20:16.240938445Z
-updated: 2026-09-26T11:20:16.240938445Z
+updated: 2026-09-26T11:20:37.469293462Z
+sessions:
+- start_sha: f178e76df654244563b62e3b3f68f49cdfef252b
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-26T11:20:37.469293462Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-26T11:20:37.469293462Z
 ---
 
 An `ADJUST` block followed by a `method` declaration loses the method: the
