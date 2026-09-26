@@ -1,19 +1,39 @@
 ---
 title: An ADJUST block followed by a method loses the method, and perl accepts both orders
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-26T11:20:16.240938445Z
-updated: 2026-09-26T11:20:37.469293462Z
+updated: 2026-09-26T12:19:34.066552349Z
 sessions:
 - start_sha: f178e76df654244563b62e3b3f68f49cdfef252b
-  end_sha: ""
-  commits: 0
+  end_sha: 7ccdfe71951a54c8814b1a62c2c9e769ca19a472
+  commits: 4
   started_at: 2026-09-26T11:20:37.469293462Z
+  ended_at: 2026-09-26T12:19:34.066552349Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-26T11:20:37.469293462Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-26T12:19:34.066552349Z
+observed_paths:
+- conformance/mdtest/adjacency-04_operators.md
+- conformance/mdtest/adjacency-07_subroutines.md
+- conformance/mdtest/adjacency-11_oo.md
+- conformance/mdtest/named-operators.md
+- docs/plans/2026-09-21-graded-conformance-corpus.md
+- internal/conformance/conformance_test.go
+- internal/conformance/file.go
+- internal/conformance/testdata/corpus.ratchet
+- internal/lexer/keyword.go
+- internal/parse/keyword.go
+- internal/parse/keywordgap_test.go
+- internal/parse/t2_test.go
+- internal/parse/testdata/t1.ratchet
+- internal/parse/use.go
+- internal/parse/use_test.go
 ---
 
 An `ADJUST` block followed by a `method` declaration loses the method: the
