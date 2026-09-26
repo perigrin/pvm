@@ -6,7 +6,7 @@ milestone: m1-parse-the-core
 blocks:
 - 01a0c13f-6816-79d2-945a-b84a12d39e6c
 created: 2026-09-20T23:55:47.309990102Z
-updated: 2026-09-26T10:01:25.182712947Z
+updated: 2026-09-26T10:38:41.912104642Z
 sessions:
 - start_sha: 6ae2242dc5addd89075b7c29d0a0777e69d757ef
   end_sha: ""
@@ -165,11 +165,71 @@ harness exists to score, and nothing in T2 tests the declared/undeclared
 boundary directly. Land them as oracle fixtures rather than throwing them
 away with the scratch file.
 
+## What the fix cost, and what moved (2026-09-26)
+
+`parseSubDecl` records each `sub NAME` and its prototype into the shape table
+AS IT IS READ, before its own body and before anything below it. That is the
+whole of the in-file half -- `knowsShape` needed no change, and neither did
+`ShapeOf`. The issue's claim that this is "the SAME resolution reaching T2"
+is TRUE of the machinery and FALSE of the route: imports were never going to
+reach T2, and the in-file case needed a new recording site.
+
+TWO ADJACENT DEFECTS the fix exposed, both pre-existing and both only
+reachable once a local sub resolved:
+
+1. A WORD AFTER `->` WAS ROUTED THROUGH `parseWordTerm`. So in a file
+   declaring `sub new`, `Foo->new->bar` read `new` as a list operator and
+   swallowed `->bar`. 19 T1 files regressed before this was fixed --
+   `autoload.t`, `tied_hash_autoviv_refloop_cleanup.t` and 17 more, each
+   stranding the second arrow as `not_a_term`. perl reads `C->new->foo` as two
+   method calls with `sub new` right there, measured. Fixed in `expr.go`'s
+   arrow branch: a method name is a name, and it takes its own parens when the
+   source wrote them.
+2. `endsArgumentList` DID NOT LIST THE CONCATENATION OR COMPARISON OPERATORS.
+   Measured on 5.42.0 with `sub f { 1 }` in scope: `f . 2` is `f() . '2'`,
+   `f == 2` is `f() == 2`, `f eq 2` is `f() eq 2` -- all infix, all cutting the
+   list -- while `f + 2` is `f(2)`, `f - 2` is `f(-2)`, `f * 2` is `f(*2)` and
+   `f <=> 2` pulls in `File::Glob`, all of which START a term. So `.`, `==`,
+   `!=`, `=~`, `!~`, `eq`, `ne`, `cmp` were added and `+`, `-`, `*`, `<` were
+   deliberately left out.
+
+RATCHET DELTAS, every mover attributed to a file containing a parenless call
+to a declared callee:
+
+    T1 parse       493 -> 505 clean, 2280 -> 2248 nodes; 23 better, 0 worse
+    T1 fidelity    b_gv_io.t, xml_parser_current_element.t 1 -> 0
+    T1 canon       unmoved
+    T2 shortfall   comp/colon.t and opbasic/magic_phase.t left the map;
+                   11 more improved. opbasic/arith.t 179 -> 21,
+                   comp/proto.t 41 -> 4, comp/redef.t 21 -> 1,
+                   comp/use.t 11 -> 1, comp/parser.t 55 -> 31
+    corpus         204 -> 206 clean, 8 -> 6 refusing
+
+TWO CORPUS CASES CLOSED, and they are the pair this topic exists for.
+`conformance/mdtest/argument-extent.md`'s "A parenless call is greedy" and
+"A `($)` prototype cuts the extent to one" differ only in the declaration
+above a byte-identical call site. perl prints `f[1 2]` and `g[1]2`, measured,
+which is what the cases pin. Their `refuses:` markers are removed; their token
+facts are untouched and still hold. The third case, "An undeclared callee is a
+syntax error", still asserts `parses: no` and still does -- correctly.
+
+ONE RATCHET MOVED THE WRONG WAY WITH A CORRECT TREE. `subroutine.t` 18 -> 19,
+on `(blessed $_[0] && 1)`. perl deparses that as `blessed($_[0] && 1)`, which
+is exactly what we now build; the refusal is canon dropping the source's
+REDUNDANT grouping paren once the call absorbs the list. Untracked: nothing in
+the chain owns paren provenance on an absorbed argument list.
+
+ONE DELIBERATE DEVIATION, named in the code. The declaration is recorded
+before its own body, which is one shape more permissive than perl: perl needs
+a `sub f;` above `sub f { f 1 }` for the inner parenless call, measured. The
+shape does not occur -- ZERO parenless calls to the enclosing sub's own name
+across all 1,042 T1 and T2 files -- and accepting one is `wider`, not WRONG.
+
 ## Acceptance
 
-- [ ] The declared/undeclared boundary is a fixture perl and the parser are both scored on (`go test ./internal/parseoracle/ -run '^TestParenlessCallBoundary$' -count=1 -v | grep -q '^--- PASS: TestParenlessCallBoundary'`)
-- [ ] `sub NAME` earlier in the same file makes a parenless call to it parse (`go test ./internal/parse/ -run '^TestInFileSubDeclarationIsKnown$' -count=1 -v | grep -q '^--- PASS: TestInFileSubDeclarationIsKnown'`)
-- [ ] A genuinely undeclared parenless call stays Unknown, because perl rejects it too (`go test ./internal/parse/ -run '^TestUndeclaredParenlessCallStaysUnknown$' -count=1 -v | grep -q '^--- PASS: TestUndeclaredParenlessCallStaysUnknown'`)
+- [x] The declared/undeclared boundary is a fixture perl and the parser are both scored on (`go test ./internal/parseoracle/ -run '^TestParenlessCallBoundary$' -count=1 -v | grep -q '^--- PASS: TestParenlessCallBoundary'`)
+- [x] `sub NAME` earlier in the same file makes a parenless call to it parse (`go test ./internal/parse/ -run '^TestInFileSubDeclarationIsKnown$' -count=1 -v | grep -q '^--- PASS: TestInFileSubDeclarationIsKnown'`)
+- [x] A genuinely undeclared parenless call stays Unknown, because perl rejects it too (`go test ./internal/parse/ -run '^TestUndeclaredParenlessCallStaysUnknown$' -count=1 -v | grep -q '^--- PASS: TestUndeclaredParenlessCallStaysUnknown'`)
 - [x] The T2 share whose callee is declared is measured and recorded here, before any fix (`go test ./internal/parse/ -run '^TestT2CoreParses$' -count=1 -v | grep -q '^--- PASS: TestT2CoreParses'`)
 
 Measured 2026-09-21, re-measured 2026-09-26. Plan: M1. Spec: §4.8.3, §3.2.
