@@ -3,135 +3,89 @@ created: 2026-09-26T02:05:12.18453493Z
 state: open
 ---
 
-The corpus is green at 91.9% while the parser fails 70% of perl's own T2
-core. This milestone closes that gap from the CORPUS side: it adds the
-constructs T2 fails on, so one instrument measures what two now measure
-separately.
+**REBUILT BY `crochet:chain-review`, 2026-09-26. Four of the original five
+issues were cancelled: three on false premises, one as already owned. What
+survives is two issues, and the milestone's original thesis was wrong.**
 
-## The measurement, at b0f1a9e9
+## What this milestone was for, and why that was wrong
 
-This parser over all 209 positive corpus cases:
+It was built to close a 58-point gap between two instruments -- the corpus
+at 91.9% (192 of 209 cases) and T2 core at 33.9% (19 of 56 files) -- on the
+theory that "the corpus does not contain what T2 fails on".
 
-    192 clean, 17 with Unknown          91.9%
+**That theory is false, and checking it is what the gate was for.**
 
-    04_operators    29/33      11_oo         16/18
-    07_subroutines  10/13      13_opaque      7/15
-    the other ten tiers       100%
+`conformance/mdtest/argument-extent.md` holds five tier-07 cases on exactly
+the largest T2 bucket: a parenless call's argument extent, greedy and
+prototype-cut, with the undeclared callee as `parses: no`. Measured, the
+arith.t shape adds nothing -- `f 1, 2`, `f 13 % 4, 2` and
+`sub tryeq ($$$$) {} tryeq 1, 13 % 4, 1, 'x'` all refuse identically, one
+`trailing_tokens` each.
 
-Against T2 core in the same tree: **17 of 56 files clean, 30.4%.**
+The construct was never missing. Both refusing cases cite
+`01a0c432-fbd5`, whose state is `done` -- so a reader follows the citation,
+finds finished work, and concludes the corpus is silent. That is what
+happened here, and it produced an issue to write coverage that existed.
 
-Sixty points apart, and the gap is not noise. **The corpus does not
-contain what T2 fails on.** Checked: no corpus case is a parenless call
-with an argument, which is T2's single largest bucket.
+## What the four cancellations were
 
-A corpus green at 92% while the parser fails a third of real perl files
-has stopped making a claim. The fix is to cover the construct, not to
-lower the instrument that noticed.
+- **01a0db76** -- "no corpus case is a parenless call with an argument".
+  False, as above. Cancelled.
+- **01a0db79-6a25** -- "ten refusals say unfiled". Superseded by a
+  fourteen-count version, then cancelled with it.
+- **01a0db9f** -- "fourteen of seventeen point at nothing". The count was
+  wrong: ten of the fourteen are `unfiled`, which is a DELIBERATE sentinel
+  (`file.go:275`, the topic-format spelling of `selfRecorded`) meaning the
+  case is its own record. The real number is four, and `01a0d0c7` in `v0.1`
+  already owns them.
+- **01a0db79-e8f6** -- "nothing rejects `unfiled`". Implementing it would
+  require deleting `TestRefusalCitationMustResolve/unfiled_is_not_looked_up`,
+  which passes and whose comment rejects the framing in advance: treating
+  the sixteen as citations pointing at nothing is "a claim about the corpus
+  that is not true".
 
-## The construct, isolated
+## What survives, and it is not what the milestone was named for
 
-Declaration form and prototype are IRRELEVANT. Argument count is
-everything:
+    01a0db77   Three token facts call a Word an operator, and the
+               glossary says the lexer is right
+    01a0db78   scanNumber stops early on a signed exponent and never
+               forms a vstring
 
-    sub answer { 42 }   print answer, "\n";   clean   <- corpus has this
-    sub answer { 42 }   answer;               clean
-    sub f { }           f(8);                 clean
-    sub f { }           f 8;                  UNKNOWN
-    sub f;              f 8;                  UNKNOWN
-    sub f ($) { }       f 8;                  UNKNOWN
-    sub tryeq ($$$$){}  tryeq 1, 13 % 4, 1;   UNKNOWN  <- arith.t, 179
+Both are real, both were found by the corpus, and neither is about T2
+coverage. The name `corpus-covers-t2` no longer describes the contents; it
+is kept rather than renamed so the record of what was attempted stays
+findable.
 
-A parenless call to a DECLARED sub parses with zero arguments and fails
-with any. That is why the corpus's own call-form slice passes while
-`opbasic/arith.t` carries 179 Unknowns: the slice's four spellings all
-call with no arguments, and the one that matters is the fifth.
+## The finding worth keeping
 
-`%` is not implicated. `sub f {} f 13 % 4` and `sub f {} f 8` fail
-identically, so `01a0c10b`'s "`%` read as a hash sigil" reading is a
-symptom of argument position, not a modulus bug.
+Counting by tier hid everything. "07_subroutines 10/13 clean" is three
+refusals unnamed, and two of the three were the parenless-call cases that
+refuted the milestone's thesis. Naming all seventeen took one test and
+found: ten `unfiled` (by design), four citing closed issues (the real
+defect, owned by `01a0d0c7`), three citing live issues (correct).
 
-## What perl says, which bounds what the corpus may assert
+A clean/dirty ratio is not a measurement of what a corpus asserts.
 
-Measured on 5.42.0. It rules out the obvious fix:
+## Gate record
 
-    ok 8;                 SYNTAX ERROR -- "Number found where operator
-                          expected (Do you need to predeclare ok?)"
-    ok $x, 9;             syntax OK -- $x->ok, '???'
-                          INDIRECT OBJECT, not a call
-    sub ok {} ok 8, 9;    syntax OK -- a call
-    sub f {} f 13 % 4;    syntax OK -- f 1, constant folded
+`crochet:chain-review`, 2026-09-26, not backfilled. Both lenses ran
+concurrently (alignment, pushback) plus a mechanical AC audit.
 
-A parser greedily consuming arguments after an UNDECLARED callee builds a
-tree for a program perl rejects -- WRONG in the gate's sense, and M1's
-gate is Oracle WRONG = 0. So the corpus asserts TWO cases: the declared
-one parses, the undeclared one is `parses: no`.
+Findings that changed the chain:
 
-## Sixteen refusals with no issue behind them
+  - alignment: T2 is 19/56 (33.9%), not the 17/56 (30.4%) the body
+    asserted -- a five-day-old figure restated as current.
+  - alignment: "four cases have a CLEAN parse" is false for one; the
+    `xor` case also carries `refusal: not_a_term`, which is why two
+    issues each assumed the other owned it.
+  - pushback: `unfiled` is intentional, with a passing test.
+  - pushback: 7 of 29 criteria passed vacuously before any work; 1 was
+    broken (a negated `grep -c` that passes at counts 1 and 2).
+  - chain-review directly: `argument-extent.md` already covers the
+    construct.
 
-Sixteen cases carry `refuses: unfiled`. `refuses:` exists to name an
-issue so a refusal points at live work; `unfiled` is the corpus admitting
-it does not.
+The AC dry-run could not run as specified: the verify `--dry-run` form
+reads only DONE issues, so an all-pending chain yields nothing. The
+extraction was reproduced by hand over `milestone show --format json`.
 
-**Measured: ZERO are stale.** All sixteen still refuse. Split by what
-actually refuses:
-
-    ten     the parser refuses -- heredocs (3), formats (2),
-            pod/data (2), both adjacency bodies, one logical-op case
-    six     the parse is CLEAN and a TOKEN FACT fails
-
-A first probe reported six stale and was WRONG, worth recording because
-it is this chain's recurring defect in new clothes: it counted Unknown
-nodes, while `verdict()` collects refusal codes AND token facts. The
-two-way check was working; the probe measuring it was not.
-
-### Four of the six token facts contradict the glossary
-
-`x`, `cmp`, `and`, `xor` are each asserted as `one operator whose text is
-"..."`. The lexer emits `Word` and the corpus scores that a refusal. The
-glossary, which is the token layer's authority, says:
-
-> **operator** -- Punctuation denoting an operation: `+`, `.`, `=~`, ...
-> **word** -- A bare identifier. Keywords are not distinguished from
-> other identifiers at this layer.
-
-`x` is not punctuation. By the glossary's own definition the LEXER IS
-RIGHT and four corpus facts are wrong. `01a0ce57` independently says the
-same in prose while the corpus scores the opposite.
-
-Both layers are individually right and the fact conflated them: perl
-emits `repeat` for `$a x 3`, an operator AT THE OP LAYER, while
-`categories.go` maps "operator" to `lexer.Operator`, a TOKEN kind. A fact
-wanting to say "this spells perl's repeat op" had no vocabulary for it
-and reached for the one word in both layers.
-
-That makes this cluster a GLOSSARY decision, not parser work -- and the
-glossary is the corpus's contract with B::SoN and Chalk, so it is not a
-local fix.
-
-The remaining two are real lexer gaps: `5e-1` lexes as
-`Number(5e) Operator(-) Number(1)`, and neither `65.66.67` nor
-`v65.66.67` forms a vstring.
-
-## What this milestone does NOT do
-
-- **It does not retire the `t/` ratchet.** Two instruments measuring
-  different things is correct; one pretending to measure the other is
-  not. `TestT2CoreParses`'s per-file `shortfall` map, which fails in both
-  directions, stays.
-- **It is not the `t/` sweep.** That is deferred to its own milestone in
-  the plan. Extending the corpus is not the sweep; the sweep finds what
-  the corpus still lacks AFTER this.
-- **It does not touch M2-M6.** M2 lowers the tree this parser builds, so
-  it inherits whatever M1's coverage becomes. Nothing in M2's sixteen
-  issues reads the corpus and nothing needs to.
-
-## Three of the plan's five gate changes already happened
-
-Recorded so this milestone is not credited with them:
-
-- `T1-easy >= 70%` gone: `easy_test.go` deleted whole at `b4180102`, the
-  twelve `hardMarkers` moved into the tier READMEs.
-- `T2 100%` never existed as a gate. Measured: a comment and a `t.Logf`,
-  no `if` anywhere. Its own log line already reads "Reported, not
-  targeted -- the tier corpus gates what the parser reads."
-- The 01-04-plus-07 slice exists, gated by `TestSmallestUsefulCorpus`.
+Preflight: git-zhi 0.5.2 against a 0.7.2 minimum. Advisory.
