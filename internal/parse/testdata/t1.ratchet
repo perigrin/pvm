@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 478 clean (48.5%), 2331 total.
+# 986 files, 483 clean (49.0%), 2325 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -188,11 +188,11 @@
 3 cwd_logical_physical.t
 2 data_dump_filter.t
 0 data_dumper_numified.t
-1 data_handle_absolute_position.t
-2 data_handle_nested_require.t
-1 data_section.t
-1 data_section_package_data.t
-1 data_section_seek.t
+0 data_handle_absolute_position.t
+1 data_handle_nested_require.t
+0 data_section.t
+0 data_section_package_data.t
+0 data_section_seek.t
 6 dbd_mysql_shim.t
 4 dbd_pg.t
 1 dbd_sqlite_version.t
@@ -434,7 +434,7 @@
 14 list_util.t
 1 list_util_does_not_mark_sub_util_loaded.t
 0 listutil_shared_subutil_backend.t
-1 local.t
+0 local.t
 0 local_glob_dynamic.t
 5 local_glob_filehandle.t
 0 local_hash_slice_regressions.t

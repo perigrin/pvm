@@ -816,9 +816,21 @@ func endsStatement(tok lexer.Token, src []byte) bool {
 		(tok.Kind == lexer.CloseBracket && src[tok.Start] == '}')
 }
 
+// isTrivia reports whether a token carries no program structure.
+//
+// A DataSection -- `__END__` or `__DATA__` and everything after it -- is
+// trivia for the same reason POD is: the lexer ate the whole region on
+// purpose, and its contents are data rather than Perl. It is not a
+// statement form. Perl compiles nothing for the marker; what an op stream
+// shows is the READ, `gv` and `readline` on the DATA handle, which is a
+// statement of its own well before the marker.
+//
+// Trivia here still means every byte lands in a Trivia node, so the
+// section's body round-trips exactly -- which matters more for a data
+// section than for the rest, because those bytes are what `DATA` yields.
 func isTrivia(k lexer.Kind) bool {
 	switch k {
-	case lexer.Whitespace, lexer.Comment, lexer.Pod:
+	case lexer.Whitespace, lexer.Comment, lexer.Pod, lexer.DataSection:
 		return true
 	}
 	return false
