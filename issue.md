@@ -1,19 +1,23 @@
 ---
 title: "A sub attribute ends the sub early: sub :lvalue leaves its body trailing"
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T16:41:11.595550955Z
-updated: 2026-09-26T21:16:21.035437975Z
+updated: 2026-09-26T21:16:29.932580807Z
 sessions:
 - start_sha: 2257e08ee261e0a0303f9201d0210d81f034b326
-  end_sha: ""
+  end_sha: 2257e08ee261e0a0303f9201d0210d81f034b326
   commits: 0
   started_at: 2026-09-26T21:16:21.035437975Z
+  ended_at: 2026-09-26T21:16:29.932580807Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-26T21:16:21.035437975Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-26T21:16:29.932580807Z
 ---
 
 A sub with an attribute -- `sub :lvalue { 1 }`, `sub :prototype($) { 1 }` --
