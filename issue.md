@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: corpus-covers-t2
 created: 2026-09-26T04:10:38.190903837Z
-updated: 2026-09-26T05:32:11.538954039Z
+updated: 2026-09-26T05:57:25.118063574Z
 sessions:
 - start_sha: 53de041e579c32a987c8caed904ff7895895e8f3
   end_sha: a29b8aa63bbcdb25e5e87de15eb1ff570e657180
@@ -458,6 +458,75 @@ Do not fix this by adding `and`/`or`/`xor` to the term-starter set. The
 operator is NOT a term -- and reversing it would reintroduce the bug that
 change fixed (`print FOO eq "x" ? ...`).
 
+### Review Findings
+
+TIER_2 PAAD gate, 2026-09-26. Verdict IN-SCOPE FINDINGS. Two of four are
+in scope; I re-measured both before reopening rather than taking them.
+
+**1. HIGH -- `parseBracketed` is the same loop and did not get the fix.**
+
+`internal/parse/term.go`'s `parseBracketed` (serving `[...]` and `{...}`)
+is a structural twin of the fixed `parseParenList`: same element loop at
+`p.parseExpr(infix[","].BP)`, same `default:` arm that bails with the
+operator unconsumed. Measured at a29b8aa6:
+
+    my $y = ($a and $b);      Unknown=0   <- fixed
+    my $y = [$a and $b];      Unknown=1
+    my $y = {$a and $b};      Unknown=1
+    my $y = [1, 2 and 3];     Unknown=1
+    my $y = [$a && $b];       Unknown=0   <- punctuation fine
+
+All legal perl: `perl -MO=Deparse -e 'my ($a,$b); my $y = [$a and $b];'`
+is `my $y = [$a && $b];`.
+
+Worse than the original symptom, per the gate: the operand escapes the
+bracket, so the tree claims `and` is ABOVE the declaration with a
+one-element arrayref as its left operand -- not a parse of the source.
+
+CLAUDE.md is explicit that this is the shape of fix to reject: "the lazy
+fix IS the root-cause fix: one guard in the shared function is a smaller
+diff than a guard in every caller -- and patching only the path the ticket
+names leaves every sibling caller still broken." Two copies of one element
+loop, one fixed, is the finding.
+
+**2. MEDIUM -- the comma case parses but with a tree perl disagrees with.**
+
+`TestBareWordInfixStillRegroups` asserts only `!containsKind(Unknown)` for
+`my $x = 1, my $y = 2`. Measured shape:
+
+    my $x = 1, my $y = 2;   ( ( (my $x (, 1 (my $y 2)))))   ours
+    $x = 1, $y = 2;         ( ( (, (= $x 1) (= $y 2))))      correct
+
+perl puts the comma ABOVE both: `-MO=Concise` shows `ex-list` with two
+sibling `padsv_store` ops. Ours nests `, my $y = 2` inside `$x`'s
+initialiser, and it compounds with a third declarator. The plain-assignment
+form is already right, so the declarator path is the outlier.
+
+`23805082`'s message says that shape "went clean again". It went
+NON-UNKNOWN, with a wrong tree -- which is the same
+tree-that-round-trips-but-is-not-a-parse class the commit itself names.
+
+**3-4. Out of scope, recorded rather than fixed here.** `not` is only
+incidentally correct -- structurally safe, since `not` is in `prefix` and
+both guards look up `infix`, but nothing asserts it. And three shapes the
+design rests on are unasserted: `($a xor $b xor $c)`, `($a and $b or $c)`,
+and `(1, 2 and 3)` -- the last being the measurement quoted in the commit
+message, the code comment and the `parseInfix` doc comment as the whole
+justification, with no test behind it.
+
+## Scope of this reopen
+
+1. Fix `parseBracketed` by the SHARED route, not a third copy of the guard.
+   The gate notes two copies were defensible and three earn a helper.
+2. Assert the shape for `my $x = 1, my $y = 2`, and either fix the nesting
+   to match perl or record the known-wrong shape explicitly. A bare
+   `!Unknown` must not read as a shape guarantee.
+3. Add `(1, 2 and 3)` as an assertion, since it is the design's own
+   evidence.
+
+`not` (finding 3) may stay unasserted or gain one case; it is not a
+blocker either way.
+
 ## Criteria: which are progress and which are guards
 
 Four fail today and are progress checks; two pass today and are labelled
@@ -472,5 +541,8 @@ fix succeeding as well as regressing.
 - [ ] The bare forms still parse, so the fix did not trade one shape for the other (`go test ./internal/parse/ -run '^TestBareWordInfixStillRegroups$' -count=1 -v | grep -q '^--- PASS: TestBareWordInfixStillRegroups'`)
 - [ ] The five-logical-operators case passes rather than skipping (`go test ./internal/conformance/ -run '^TestCorpus$' -count=1 -v | grep -q 'PASS: TestCorpus/comparison.md/The_five_logical_operators'`)
 - [ ] REGRESSION GUARD, passes today: `not` is still prefix and the parse suite holds (`go test ./internal/parse/ -count=1 | grep -q '^ok'`)
+- [ ] A bracketed low-precedence word operator parses (`go test ./internal/parse/ -run '^TestBracketedWordInfixParses$' -count=1 -v | grep -q '^--- PASS: TestBracketedWordInfixParses'`)
+- [ ] The comma case's SHAPE is asserted, not just its Unknown count (`go test ./internal/parse/ -run '^TestBareWordInfixStillRegroups$' -count=1 -v | grep -q '^--- PASS: TestBareWordInfixStillRegroups'`)
+- [ ] The design's own measurement is a test (`grep -q '1, 2 and 3' internal/parse/lowlogical_test.go`)
 - [ ] REGRESSION GUARD, passes today: the T2 shortfall ratchet still agrees in both directions (`go test ./internal/parse/ -run '^TestT2CoreParses$' -count=1 -v | grep -q '^--- PASS: TestT2CoreParses'`)
 - [ ] The suite is green (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
