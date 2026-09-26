@@ -1,10 +1,19 @@
 ---
 title: A caret control variable lexes as two tokens, so 179 files carry a wrong tree
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T18:35:44.781455309Z
-updated: 2026-09-26T18:35:44.781455309Z
+updated: 2026-09-26T18:36:10.630614992Z
+sessions:
+- start_sha: 20c20c3c9f6b7772b719bd7affc1d50f419e1e75
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-26T18:36:10.630614992Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-26T18:36:10.630614992Z
 ---
 
 `$^O` lexes as `Variable($^)` followed by a separate Word, so every caret
