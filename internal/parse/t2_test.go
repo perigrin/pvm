@@ -154,8 +154,16 @@ func TestT2CoreParses(t *testing.T) {
 		// node each: each file opens exactly one heredoc. `class/gh23511.t`
 		// holds a `<<` too and did not move -- measured, its Unknown is
 		// elsewhere.
+		//
+		// class/method.t 8 -> 6 when `no feature "signatures"` began turning
+		// the feature off (issue 01a0dd6f). Both nodes are on line 33,
+		// `method retnamed ( :$named = 456 )`, inside the
+		// `no feature 'signatures'` block at line 28: the parens are a
+		// Prototype token now rather than a mis-lexed signature. The only
+		// file in t/class that moved, and the two nodes are the same two
+		// TestClassCorpusRatchet's 40 -> 38 counts.
 		"class/destruct.t": 7, "class/field.t": 7, "class/gh22169.t": 4,
-		"class/gh23511.t": 1, "class/inherit.t": 6, "class/method.t": 8,
+		"class/gh23511.t": 1, "class/inherit.t": 6, "class/method.t": 6,
 		"class/phasers.t": 5,
 		// cmd/subval.t and comp/package_block.t left the map entirely with
 		// the `startsTerm` fix -- they parse cleanly now, which is what

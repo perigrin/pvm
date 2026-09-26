@@ -76,14 +76,35 @@ the pair observable at all: `warn` writes to STDERR, which the pinned
 output does not read, and an installed handler is called INSTEAD of that
 write, leaving `warn`'s RETURN VALUE as the only thing to count.
 
-WHY THIS REFUSES, and why that is the corpus working rather than a
-regression: it parsed clean while it held only parenthesised calls. The
-two parenless call sites are what our parser declines, at the same
-`trailing_tokens` site as the two extent cases -- it reads the callee as
-a complete term and then finds a number with no operator between them.
-Measured at dc1bea2c: three Unknown nodes, all `trailing_tokens`, where
-each extent case alone produces one. The marker comes off when the
-parenless form lands, and the extent cases' markers come off with it.
+WHY THIS USED TO REFUSE, AND WHAT THE REFUSAL TURNED OUT TO BE. This case
+carried a `refuses: trailing_tokens` marker blaming the two parenless call
+sites -- `print f 1, 2` and `print g 1, 2` -- on the grounds that the
+parser read the callee as a complete term and then met a number with no
+operator between them. Measured at dc1bea2c that was three Unknown nodes.
+
+That cause is gone and it is NOT what the marker was still measuring at
+the end. Measured directly, each of the four suspects parses clean on its
+own today:
+
+    sub f { return "f" }  print f 1, 2;                          0 Unknown
+    no feature "signatures"; sub g ($) {...} print g 1, 2;        0
+    local $SIG{__WARN__} = sub { }; my @greedy = (warn "a", "b"); 0
+    local $SIG{__WARN__} = sub { }; my @cut = (warn("a"), "b");   0
+
+The parenless call form landed, and the extent cases with it. What was
+left was ONE Unknown, and it came from the pragma pair this file's own
+prose is proudest of. `no feature "signatures"` did not turn the feature
+off -- the lexer had three paths to `signatures = true` and none to
+false -- so `sub g ($)` was read as a SIGNATURE, and the `return` in its
+body refused. The bisect is worth keeping because it is counter-intuitive:
+the line alone parsed clean, and needed the pragma, a non-empty
+prototype AND a `return` together to fail. An empty `()` stayed clean
+because there is nothing inside it to misread as a parameter list.
+
+So this file found the bug its own sharpest paragraph describes, by
+asserting the behaviour rather than the mechanism -- and it found it while
+its marker was pointing at something else entirely. The marker came off
+with issue 01a0dd6f.
 
 THIS IS ALSO THE TIER'S SHARPEST STATEMENT OF WHAT THE OP LINT CAN AND
 CANNOT SEE. The source below contains a signature, a parameter default, a
@@ -132,8 +153,6 @@ print "\n";
 
 ```behavior
 parses: yes
-refuses: 01a0c432-fbd5
-refusal: trailing_tokens
 ```
 
 ```output
