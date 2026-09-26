@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: corpus-covers-t2
 created: 2026-09-26T04:10:38.190903837Z
-updated: 2026-09-26T04:14:44.051798242Z
+updated: 2026-09-26T04:15:04.10441156Z
 ---
 
 `($a and $b)` refuses with `not_a_term`, and so do `or` and `xor`. The
@@ -63,11 +63,17 @@ where recorded:
                     precedences                         see note
     adjacency-04_operators.md   The whole tier in one body
 
-The middle case is SHARED with `01a0dba9`: its source has a bare
-`$a and 9`, which parses, and its failing claim is the token fact `one
-operator whose text is "and"`. It is listed here because the citation
-sweep will touch the same `refuses:` line -- coordinate, do not both write
-it.
+The middle case is NOT this issue's: its source has a bare `$a and 9`,
+which parses clean, and its only failing claim is the token fact `one
+operator whose text is "and"`. That is `01a0dba9`'s. It is listed here so
+a reader does not mistake it for part of this gap -- measured,
+`comparison.md` line 140 is that case and line 111 is this one, different
+cases in one file, so the two issues can land in either order.
+
+Chain-review round 2 added a `blocked_by` edge here and then removed it:
+the shared FILE looked like a conflict and the measurement said different
+lines. Recorded because the same wrong edge was added to `01a0d0c7` for the
+same reason.
 
 ## Context
 
