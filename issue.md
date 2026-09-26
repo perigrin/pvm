@@ -3,8 +3,10 @@ title: Canon emits a block argument it cannot re-lex, so its output does not re-
 state: pending
 urgency: normal
 milestone: m1-parse-the-core
+blocks:
+- 01a0d087-28dd-711f-a0d5-54cb8515910c
 created: 2026-09-26T13:25:34.422410713Z
-updated: 2026-09-26T13:25:34.422410713Z
+updated: 2026-09-26T13:25:51.202987955Z
 ---
 
 Canon writes a `Block` that sits in an argument list as `{` + statements + `}`,
