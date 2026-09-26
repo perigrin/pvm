@@ -6,7 +6,7 @@ milestone: corpus-covers-t2
 blocked_by:
 - 01a0dc82-28e1-72d3-82cd-88ed8479f327
 created: 2026-09-26T07:00:39.376307576Z
-updated: 2026-09-26T08:21:56.885968421Z
+updated: 2026-09-26T08:50:45.925189552Z
 sessions:
 - start_sha: d1537f9631443c467a73f3e56cf382da4eeab2ae
   end_sha: d1537f9631443c467a73f3e56cf382da4eeab2ae
@@ -122,9 +122,30 @@ silent override:
   - four other ratchets moved, every mover verified to be a file with a
     trailing `__END__`/`__DATA__`
   - `internal/parse`, `internal/lexer`, `internal/conformance` all green
-  - the PAAD gate for this issue has NOT run; it is the one thing missing,
-    and it is missing because the chain ran out of orchestrator attention,
-    not because it was skipped on purpose
+  - the PAAD gate HAS now run: TIER_2 on ten files, verdict IN-SCOPE
+    FINDINGS, and all four were fixed in `2963c47d` before this close
+
+### What the gate found, since the fix itself was sound
+
+It confirmed the model (trivia is right), the trailing-newline ruling
+(verified against perl), all six criteria, and all five ratchet claims --
+including the one mover whose filename does not advertise a trailing
+marker, which it went looking for as a counterexample and found compliant.
+
+Every finding was in the RECORD rather than the code:
+
+  - "canon protects the section's bytes" was FALSE, and it was the stated
+    reason the sibling `format` issue's canon hazard could not recur here.
+    Canon is blind twice: `canon.go` drops Trivia unemitted and
+    `canon_test.go`'s `significant()` skips `DataSection`. The real guard
+    is `TestDataSectionIsTrivia`'s `last.End != len(src)`.
+  - the leftover refusal was attributed to `write` and a bare block. Both
+    parse clean; there is no bare block in that program at all; the cause
+    is the heredoc BODY. That attribution was the stated reason a sentinel
+    stayed `unfiled`, so it now cites `01a0c13f-aaf8`, which owns the gap.
+  - the same passage said "Three Unknowns" where there is one.
+  - `use_test.go:215` was the fourth copy of the trivia kind set and the
+    only one not updated.
 
 ## Scope
 
