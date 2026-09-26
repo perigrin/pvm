@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: corpus-covers-t2
 created: 2026-09-26T02:08:00.127866819Z
-updated: 2026-09-26T02:55:10.837974209Z
+updated: 2026-09-26T04:15:31.959483583Z
 ---
 
 Two tier-01 cases refuse on a token fact with a clean parse, and both are
@@ -36,12 +36,27 @@ perl reads `5e-1` as one number:
 Note the second fact is the FALSIFIABLE pair of the first -- it fails
 today for the same reason, and both must move together.
 
-**Vstrings.** `vstrings.md`, two cases:
+**Vstrings.** `vstrings.md`, two cases, and they fail DIFFERENTLY -- the
+first draft of this issue quoted only one fact and showed the other as bare
+source, which hid that:
 
-    my $v = 65.66.67;     no numeric literal whose text is "65.66.67"
-    my $v = v65.66.67;
+    my $v = 65.66.67;    lexes as ONE Number("65.66.67")
+                         right boundary, WRONG CATEGORY
+                         fails: no numeric literal whose text is
+                         "65.66.67"   (got 1, want 0)
 
-Neither forms a vstring. perl:
+    my $v = v65.66.67;   lexes as Word("v65") Operator(".") Number("66.67")
+                         WRONG BOUNDARY, two facts fail
+                         fails: no operator whose text is "."
+                                no word whose text is "v65"
+
+So the bare form is a category error (a number where perl has a string)
+and the `v` form is a segmentation error (`versionPrefix` in
+`internal/lexer/ident.go` claims `v65` for the word scanner before
+`scanNumber` sees it). One root -- `scanNumber` has no dot-counting -- two
+distinct symptoms, and each case's facts say which.
+
+perl:
 
     $ perl -e 'my $v = 65.66.67; print $v'      ABC
     $ perl -e 'my $v = v65.66.67; print $v'     ABC
