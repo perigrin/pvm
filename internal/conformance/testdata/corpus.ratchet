@@ -8,7 +8,7 @@
 # topic's `**Tier NN name.**` line and leaves every key alone. That
 # is the `t/` sweep working, and must not read as a regression.
 #
-# 212 cases, 199 clean, 13 refusing.
+# 212 cases, 203 clean, 9 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -25,7 +25,7 @@ trailing_tokens adjacency-07_subroutines.md/The whole tier in one body
 - adjacency-10_io.md/The whole tier in one body
 trailing_tokens adjacency-11_oo.md/The whole tier in one body
 - adjacency-12_packages.md/The whole tier in one body
-trailing_tokens adjacency-13_opaque.md/The whole tier in one body
+- adjacency-13_opaque.md/The whole tier in one body
 - adjacency-14_recursive.md/The whole tier in one body
 - aggregate-operators.md/`each` returns a PAIR where its siblings return a flat list
 - aggregate-operators.md/`push`: the first argument is an array, not an expression
@@ -125,9 +125,9 @@ trailing_tokens,tokens compound-assignment.md/`x=` is word-shaped, and we cannot
 - hashes.md/A hash slice, where `delete` becomes a real op
 - hashes.md/A hash, and a bareword key
 - hashes.md/`exists` and `delete` on an element leave no op of their own
-trailing_tokens heredocs.md/The indentation-stripping heredoc
-trailing_tokens heredocs.md/The interpolating heredoc
-trailing_tokens heredocs.md/The non-interpolating heredoc
+- heredocs.md/The indentation-stripping heredoc
+- heredocs.md/The interpolating heredoc
+- heredocs.md/The non-interpolating heredoc
 - jumps.md/The three loop-control statements
 - jumps.md/`goto` is one op name over unrelated constructs
 - list-operators-in-context.md/`grep BLOCK` and `grep EXPR`, where the arities disagree

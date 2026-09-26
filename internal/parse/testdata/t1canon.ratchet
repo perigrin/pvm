@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 650 clean (65.9%), 336 total.
+# 986 files, 661 clean (67.0%), 325 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -161,7 +161,7 @@
 0 cpan_requested_compat.t
 1 cpan_shim_modules.t
 1 cpan_static_recommends.t
-1 cpan_tap_missing_prerequisite.t
+0 cpan_tap_missing_prerequisite.t
 0 cpan_test_dependency_blib.t
 0 cpan_tooling_posix_yaml_syck.t
 0 cpan_tooling_regressions.t
@@ -265,7 +265,7 @@
 0 eval_imported_call_comparison_context.t
 1 eval_list_repeat_expression.t
 0 eval_lvalue_compile_check.t
-1 eval_main_nested_package_method.t
+0 eval_main_nested_package_method.t
 1 eval_named_sub_capture_fallback.t
 0 eval_nested_lexicals.t
 1 eval_next_propagation.t
@@ -381,13 +381,13 @@
 1 interpreter_capture_assignment_regressions.t
 0 interpreter_chained_method_invocant_lifetime.t
 0 interpreter_code_reference_validation.t
-1 interpreter_coderef_does_not_load_module.t
+0 interpreter_coderef_does_not_load_module.t
 1 interpreter_compound_assign_list_rhs.t
 1 interpreter_dbic_regressions.t
 1 interpreter_eval_exception_capture.t
 1 interpreter_eval_modified_args_closure.t
 0 interpreter_eval_named_sub_lexical_mutation.t
-1 interpreter_eval_string_argument_capture.t
+0 interpreter_eval_string_argument_capture.t
 1 interpreter_foreach_continue_alias.t
 0 interpreter_globref_code_assignment.t
 0 interpreter_labeled_next_continue_block.t
@@ -398,7 +398,7 @@
 0 interpreter_overloaded_bitwise_not_scalar_context.t
 0 interpreter_parenthesized_local_hash_element.t
 0 interpreter_raw_utf8_source.t
-1 interpreter_scalar_ref_assignment.t
+0 interpreter_scalar_ref_assignment.t
 1 interpreter_short_circuit_rhs_lexical.t
 1 io_captureoutput_regressions.t
 1 io_compress_regressions.t
@@ -490,12 +490,12 @@
 0 mime_quotedprint_utf8_flags.t
 0 module_generic_xs.t
 0 module_load_conditional.t
-1 module_true_do_file_regression.t
+0 module_true_do_file_regression.t
 0 mojolicious_filehandle_regressions.t
 0 mojolicious_gzip_regressions.t
 1 mojolicious_inherited_listener_regression.t
 0 mojolicious_mount_lifecycle_regression.t
-1 mojolicious_parser_diagnostic_parity.t
+0 mojolicious_parser_diagnostic_parity.t
 1 mojolicious_promise_lifecycle_regressions.t
 0 mojolicious_skipped_closure_lifecycle_regression.t
 0 mojolicious_socket_poll_regressions.t
@@ -638,7 +638,7 @@
 1 regex_first_class_constant_provenance.t
 0 regex_full_casefold.t
 0 regex_hex_escape_range.t
-1 regex_hint_new_re_diagnostic.t
+0 regex_hint_new_re_diagnostic.t
 0 regex_icu_full_casefold.t
 0 regex_joni_native_define.t
 0 regex_joni_native_extended_class.t
@@ -671,7 +671,7 @@
 0 repeat_scientific_literal.t
 0 repeat_zero_dynamic_scalar_context.t
 0 require_false_inc_cleanup.t
-1 require_module_return.t
+0 require_module_return.t
 0 require_overloaded_die_stringification.t
 0 returned_blessed_container_nested_destroy.t
 0 returned_closure_captures.t
@@ -781,7 +781,7 @@
 0 taint_external_input.t
 1 taint_filespec.t
 1 taint_mode.t
-1 template_generated_line_directive.t
+0 template_generated_line_directive.t
 0 term_readkey_regressions.t
 1 term_size_perlio_shims.t
 0 test2_refcount_probe.t
@@ -974,7 +974,7 @@
 1 zz_nested_map_return.t
 0 zz_open_dup_package_handle.t
 0 zz_perlio_encoding_utf8_strict.t
-1 zz_perlonjava_process.t
+0 zz_perlonjava_process.t
 0 zz_postfix_foreach_compound_assignment.t
 0 zz_recursive_regex.t
 0 zz_redo_unless.t

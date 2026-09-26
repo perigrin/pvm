@@ -34,47 +34,37 @@ multi-line opaque regions.
 
 ## The whole tier in one body
 
-TWO CODES, ONE NAMED. Measured, the two Unknowns carry `trailing_tokens`
-(the heredoc body) and `not_a_term` (the data section) -- the same two the
-heredoc and data-section cases carry alone, and nothing else. `hasCode` is
-membership, so naming either is a true claim; the first is named because
-it is the only one whose SPAN says something the single-construct cases
-cannot.
+NO UNKNOWN, and every construct in the mixture is why. All six opaque
+regions are read here -- the format body, the heredoc body, the pod block,
+`qx`, two globs and the data section -- and none of them leaves a byte the
+parser declines.
 
-There were three. The format declaration carried
-`unimplemented_statement` until `parseFormatDecl` landed, and it now
-parses here as it does in `formats.md` -- one code gone from the set and
-the body's own facts unmoved, because the lexer was never what was
-missing.
+There were three Unknowns, then two, then none, and each closed in a
+different file:
 
-THAT SPAN IS THE NEGATIVE THIS CASE EXISTS FOR. Alone, the heredoc's
-`trailing_tokens` Unknown covers the body and the statement after it.
-Here it covers the body, the pod block, AND the statement after those --
-measured, from `heredoc line` through `my @none = <*.nonexistent-xyz>;`.
-The pod block sits inside an Unknown and contributes none of its own,
-which is the adjacency claim stated as a measurement: the lexer left the
+    unimplemented_statement   the format declaration   parseFormatDecl
+    not_a_term                the data section         isTrivia
+    trailing_tokens           the heredoc body         01a0c13f-aaf8
+
+The last is the one whose SPAN said something the single-construct cases
+could not. Alone, the heredoc's Unknown covered the body and the statement
+after it; here it covered the body, the pod block, AND the statement after
+those -- from `heredoc line` through `my @none = <*.nonexistent-xyz>;`. The
+pod block sat INSIDE that Unknown and contributed none of its own, which
+was the adjacency claim stated as a measurement: the lexer left the
 heredoc's opaque region and entered the pod block's cleanly, and the
 parser's failure to resume did not compound into a second failure at the
-join.
-
-ONE Unknown, and it is the heredoc BODY. `qx`, the glob and the pod block
-pass here as they pass alone, so no Unknown appears at a JOIN between two
-constructs -- the negative worth having: the lexer leaves each opaque
-region cleanly and the failures do not compound.
-
-The single Unknown spans from the heredoc body through the pod block to
-the glob statement, because a heredoc in statement position is not read
-yet and the leftover bytes carry the rest with them. Tracked by
-`01a0c13f-aaf8` in m1-parse-the-core, which owns the heredoc gap.
+join. Now that the heredoc body attaches to its statement, the pod block
+is a Trivia node of its own and the glob statement parses -- the same
+three regions, none of them swallowed.
 
 ### What this passage said before, and why it was wrong twice
 
-It said THREE Unknowns, which was true when written and is now one --
-`format`/`write` and the data section both became statement forms, so two
-of the three closed.
+It said THREE Unknowns, which was true when written.
 
 It also said, in the commit that updated the count's neighbour, that the
-survivor was `write` and a bare block. Measured, both halves are false:
+survivor was `write` and a bare block. Measured at the time, both halves
+were false:
 
     write;                          0 Unknowns
     print 1; write;                 0 Unknowns
@@ -85,11 +75,13 @@ survivor was `write` and a bare block. Measured, both halves are false:
 and there is no bare block anywhere in this case's program. Reading a
 count off a failing case and then naming a cause for it is how that
 happened, twice, in the same passage -- the cause was never measured
-separately either time.
+separately either time. The survivor was the heredoc, as the fifth line
+says.
 
-Every token fact below passes. The lexer handles all six constructs
-adjacent to one another; the refusal is the parser's, and the token
-section is what locates it there.
+Every token fact below passes, and passed throughout: the lexer handled
+all six constructs adjacent to one another before any of the three
+Unknowns closed. The token section is what located each refusal in the
+parser rather than the lexer.
 
 The spelling is `__END__` rather than `__DATA__` to cover the other half
 of the data-section construct -- measured, both end the program text and
@@ -126,8 +118,6 @@ from the data section
 
 ```behavior
 parses: yes
-refuses: 01a0c13f-aaf8-7c2f-a037-754feea1cf77
-refusal: trailing_tokens
 ```
 
 ```output

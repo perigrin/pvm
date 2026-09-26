@@ -262,7 +262,7 @@ type Node struct {
 	// Only meaningful for Call; false everywhere else and not read there.
 	Resolved bool
 
-	// The four flags below follow Resolved's rule: each is meaningful on one
+	// The five flags below follow Resolved's rule: each is meaningful on one
 	// kind of node, false everywhere else, and not read there. A flag that
 	// leaks onto nodes it does not describe is worse than no flag, because a
 	// consumer cannot tell a real answer from a stray one.
@@ -312,6 +312,25 @@ type Node struct {
 	// cost: counting the handle as argument 1 made every typed-handle print
 	// a false Str mismatch.
 	Handle bool
+
+	// HeredocBody is set on a Term holding a heredoc's body and terminator
+	// line, which is the one child whose bytes lie AFTER its statement's
+	// `;` rather than inside it.
+	//
+	// That inversion is the construct: `my $h = <<"EOT";` continues on the
+	// same line while the body begins on the next, so the lexer emits the
+	// opener in term position and defers the body to the end of the line
+	// (`lexer/heredoc.go`). The opener's Term carries the VALUE's spelling
+	// and this one carries the value, and a consumer that wants the string
+	// needs both.
+	//
+	// The flag exists because canon cannot infer the ordering from the tree:
+	// children are emitted in order and this one has to follow the
+	// terminator, on a line of its own. Reading it off the span -- "a child
+	// starting after the statement's semicolon" -- would require canon to
+	// find the semicolon, which is exactly the byte canon SUPPLIES rather
+	// than reads.
+	HeredocBody bool
 }
 
 // SourceText reconstructs the bytes this node covers, walking the tree.
@@ -564,7 +583,7 @@ func (p *parser) statement() *Node {
 		// separators qualify. Everything else stays a block, which is what
 		// keeps every bare block, `if` body and loop body working.
 		if !p.braceOpensAnonHash(tok) {
-			return withLabels(labels, p.parseBlock(tok), start)
+			return p.withLabels(labels, p.parseBlock(tok), start)
 		}
 		// A hash falls through to the expression path below, which reads the
 		// `{` as the AnonHash parseTerm already builds.
@@ -572,10 +591,10 @@ func (p *parser) statement() *Node {
 
 	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Word {
 		if c := p.parseControlFlow(tok); c != nil {
-			return withLabels(labels, c, start)
+			return p.withLabels(labels, c, start)
 		}
 		if r := p.parseTheRest(tok); r != nil {
-			return withLabels(labels, r, start)
+			return p.withLabels(labels, r, start)
 		}
 		if d := p.parseDeclaration(tok); d != nil {
 			// A declaration may be the left side of an assignment:
@@ -585,9 +604,9 @@ func (p *parser) statement() *Node {
 			// It may also carry a modifier: `my $x = 1 if $c`. parseVarDecl
 			// stops at the `if`, leaving it here.
 			if mod := p.applyModifier(d, start); mod != nil {
-				return withLabels(labels, mod, start)
+				return p.withLabels(labels, mod, start)
 			}
-			return withLabels(labels, d, start)
+			return p.withLabels(labels, d, start)
 		}
 
 		// A statement FORM this milestone has not reached is not an
@@ -618,7 +637,7 @@ func (p *parser) statement() *Node {
 	// expression parser has already taken everything it can, and a modifier
 	// binds looser than anything it could have taken -- looser than `or`.
 	if mod := p.applyModifier(expr, start); mod != nil {
-		return withLabels(labels, mod, start)
+		return p.withLabels(labels, mod, start)
 	}
 
 	// Anything left BEFORE the terminator was not consumed by the expression
@@ -653,12 +672,52 @@ func (p *parser) statement() *Node {
 		// its own here would erase the one distinction the codes exist to
 		// make, and `my $x = ${};` and `my $x = .5;` would arrive at the
 		// corpus indistinguishable.
+		//
+		// The bodies are consumed even so. They belong to an opener inside
+		// the Unknown, and leaving them for the statement loop makes a
+		// SECOND Unknown out of bytes the first already accounts for.
+		p.takeHeredocBodies()
 		return &Node{Kind: Unknown, Refusal: expr.Refusal, Start: start, End: p.prevEnd()}
 	}
-	return &Node{
-		Kind: Statement, Start: start, End: p.prevEnd(),
-		Children: []*Node{expr},
+	n := &Node{Kind: Statement, Start: start, Children: []*Node{expr}}
+	n.Children = append(n.Children, p.takeHeredocBodies()...)
+	n.End = p.prevEnd()
+	return n
+}
+
+// takeHeredocBodies consumes the heredoc bodies queued by openers on the
+// statement just read, in the order their openers appeared.
+//
+// Called AFTER the `;`, because that is where the bytes are. The lexer reads
+// `<<TERM` in term position and defers the body to the end of the line, so
+// `print <<A, <<B;` puts the `;` before either body and both bodies after it
+// (`lexer/heredoc.go`'s pending queue). A statement's span therefore runs
+// past its own terminator whenever it opened one, and that is not a defect to
+// be tidied: the bytes have to land in some node, and the statement that
+// names them is the only node with a claim.
+//
+// Left to the statement loop instead, each body reached `parseTerm` as the
+// first token of a would-be statement and became an Unknown -- `not_a_term`
+// alone, `trailing_tokens` when a real statement followed on the next line
+// and got dragged in with it. Measured at 2963c47d, that was three of
+// `heredocs.md`'s cases plus the sole survivor in `adjacency-13_opaque.md`.
+//
+// A loop rather than one token, because openers stack on a line and the
+// lexer emits one body per opener.
+func (p *parser) takeHeredocBodies() []*Node {
+	var bodies []*Node
+	for p.pos < len(p.toks) {
+		tok, ok := p.peekSignificant()
+		if !ok || tok.Kind != lexer.HeredocBody {
+			break
+		}
+		p.advanceTo(tok)
+		bodies = append(bodies, &Node{
+			Kind: Term, HeredocBody: true,
+			Start: tok.Start, End: tok.End,
+		})
 	}
+	return bodies
 }
 
 // parseBlock consumes `{ ... }` as a sequence of statements.
@@ -786,14 +845,26 @@ func (p *parser) braceOpensAnonHash(brace lexer.Token) bool {
 // the innermost resolves. A field would have to be a slice anyway, and a
 // slice of nodes beside the statement is the shape perly.y's labfullstmt
 // already describes.
-func withLabels(labels []*Node, n *Node, start int) *Node {
+func (p *parser) withLabels(labels []*Node, n *Node, start int) *Node {
 	if n == nil {
 		return nil
 	}
+	// Heredoc bodies belong to whatever statement form opened them, and
+	// EVERY form arrives here -- a declaration, a loop, an `if`, a bare
+	// block. Taking them at this one funnel is why the statement forms do
+	// not each need a rule: the bodies sit after the form's own terminator,
+	// whether that is a `;` or a `}`, so the only place that knows they are
+	// next is the place the form has just finished.
+	bodies := p.takeHeredocBodies()
+	end := n.End
+	if len(bodies) > 0 {
+		end = bodies[len(bodies)-1].End
+	}
+
 	if len(labels) == 0 {
 		return &Node{
-			Kind: Statement, Start: start, End: n.End,
-			Children: []*Node{n},
+			Kind: Statement, Start: start, End: end,
+			Children: append([]*Node{n}, bodies...),
 		}
 	}
 	// The wrapper starts at the FIRST LABEL, not at the caller's `start`.
@@ -802,8 +873,9 @@ func withLabels(labels []*Node, n *Node, start int) *Node {
 	// child would emit the gap -- the label text -- and then the Label child
 	// would emit it again.
 	children := append(append([]*Node{}, labels...), n)
+	children = append(children, bodies...)
 	return &Node{
-		Kind: Statement, Start: labels[0].Start, End: n.End,
+		Kind: Statement, Start: labels[0].Start, End: end,
 		Children: children,
 	}
 }

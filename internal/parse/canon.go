@@ -39,7 +39,31 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 
 	case Statement:
 		for _, c := range n.Children {
+			if c.HeredocBody {
+				continue // after the terminator; see below
+			}
 			emit(b, c, src, 0)
+		}
+		// A HEREDOC BODY GOES AFTER THE TERMINATOR, ON ITS OWN LINE, and
+		// both halves of that are required rather than cosmetic. Perl reads
+		// a body from the line FOLLOWING the opener's line, so
+		// `<<"EOT";body\nEOT\n` on one line leaves the lexer looking for the
+		// body on the next -- which holds `EOT`, and the terminator is then
+		// consumed as the body of an unterminated heredoc.
+		//
+		// Emitted here rather than in child order for the same reason. In
+		// the tree the body is a child of the statement that opened it; in
+		// the text it follows the `;` that closed it. Canon supplies that
+		// `;`, so the split is made here, where both are in hand.
+		if bodies := heredocBodies(n); len(bodies) > 0 {
+			if !blockForm(n) {
+				b.WriteByte(';')
+			}
+			b.WriteByte('\n')
+			for _, c := range bodies {
+				b.WriteString(c.SourceText(src))
+			}
+			return
 		}
 		// Only a BLOCK FORM goes without a terminator. Decided from the last
 		// child's kind, not from whether the text ends in `}`: that `}` is
@@ -456,15 +480,43 @@ const atomBP = 1000
 // The kinds that write their own terminator are included: `use strict;` and
 // `next L;` emit theirs in their own case, and a second one here would be a
 // stray token.
+// heredocBodies is the statement's heredoc-body children, in opener order.
+func heredocBodies(n *Node) []*Node {
+	var out []*Node
+	for _, c := range n.Children {
+		if c.HeredocBody {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// lastForm is the statement child whose kind decides whether a terminator is
+// wanted: the last one that is not a heredoc body.
+//
+// A body is always last in child order and never decides the form -- it is
+// the statement's VALUE, arriving late. Reading it as the last child made
+// every heredoc statement a non-block form, which is right by accident for
+// `my $h = <<EOT;` and wrong for `if ($c) { print <<EOT; }`.
+func lastForm(n *Node) *Node {
+	for i := len(n.Children) - 1; i >= 0; i-- {
+		if !n.Children[i].HeredocBody {
+			return n.Children[i]
+		}
+	}
+	return nil
+}
+
 func blockForm(n *Node) bool {
-	if len(n.Children) == 0 {
+	last := lastForm(n)
+	if last == nil {
 		return false
 	}
-	switch n.Children[len(n.Children)-1].Kind {
+	switch last.Kind {
 	case Conditional, Loop, Phaser, Block, Use, LoopControl, Unknown:
 		return true
 	case Declaration:
-		d := n.Children[len(n.Children)-1]
+		d := last
 		// `format NAME = ... .` ended at its own `.` line, which perl accepts
 		// with no `;` after it. A semicolon here lands INSIDE the next
 		// format body's scan or ahead of the next statement, and either way

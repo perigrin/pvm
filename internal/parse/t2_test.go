@@ -106,7 +106,13 @@ func TestT2CoreParses(t *testing.T) {
 		// perl, so both filehandle branches read `print FOO eq "x"` as a
 		// print to FOO and stranded the comparison. num.t is dense with
 		// word-spelled comparisons, which is why it moves furthest.
-		"base/lex.t": 35, "base/num.t": 6, "base/rs.t": 3,
+		//
+		// base/lex.t 35 -> 26 when a heredoc body became a child of the
+		// statement its opener sits in (issue 01a0c13f). Nine nodes, the
+		// largest single move in this map, and the survey predicted it:
+		// `base/lex.t` was named there as heredocs plus leading decimals,
+		// and the decimals had already gone.
+		"base/lex.t": 26, "base/num.t": 6, "base/rs.t": 3,
 		// class/field.t went 9 -> 10 when quote-op keywords stopped eating
 		// their fat comma, then back to 9 when goto, delete and exists
 		// landed. The rise was never a regression in the parse: reaching
@@ -127,8 +133,14 @@ func TestT2CoreParses(t *testing.T) {
 		// more. Verified by stashing the change and counting -- 3 Unknowns
 		// at HEAD, 5 after, and every new one is an ADJUST block. Untracked:
 		// nothing in the chain owns ADJUST.
-		"class/destruct.t": 7, "class/field.t": 7, "class/gh22169.t": 5,
-		"class/gh23511.t": 1, "class/inherit.t": 7, "class/method.t": 9,
+		//
+		// class/gh22169.t 5 -> 4, class/inherit.t 7 -> 6 and
+		// class/method.t 9 -> 8 with the heredoc body (issue 01a0c13f). One
+		// node each: each file opens exactly one heredoc. `class/gh23511.t`
+		// holds a `<<` too and did not move -- measured, its Unknown is
+		// elsewhere.
+		"class/destruct.t": 7, "class/field.t": 7, "class/gh22169.t": 4,
+		"class/gh23511.t": 1, "class/inherit.t": 6, "class/method.t": 8,
 		"class/phasers.t": 5,
 		// cmd/subval.t and comp/package_block.t left the map entirely with
 		// the `startsTerm` fix -- they parse cleanly now, which is what
@@ -159,11 +171,16 @@ func TestT2CoreParses(t *testing.T) {
 		// legal. Then `startsTerm` learned that a word OPERATOR is not a
 		// term, which reached `print __PACKAGE__ eq '...' ? ... : ...`.
 		"comp/opsubs.t": 11, "comp/package.t": 2,
-		"comp/parser.t": 64, "comp/parser_run.t": 12, "comp/proto.t": 41,
+		// comp/parser.t 64 -> 55 and comp/parser_run.t 12 -> 5 with the
+		// heredoc body (issue 01a0c13f) -- nine and seven nodes. parser_run.t
+		// is the densest heredoc user in the map: more than half its
+		// refusals were bodies.
+		"comp/parser.t": 55, "comp/parser_run.t": 5, "comp/proto.t": 41,
 		// comp/require.t went 11 -> 12 when phaser braces became blocks. The
 		// `BEGIN { ... }` body is now read as statements rather than as one
-		// hashref, and reaching inside it exposes a heredoc the parser does
-		// not yet read. Measured by toggling the phaser table alone: 20
+		// hashref, and reaching inside it exposed a heredoc the parser did
+		// not yet read -- which issue 01a0c13f then closed, taking the file
+		// 12 -> 10. Measured by toggling the phaser table alone: 20
 		// Unknown nodes over 6,947 bytes without it, 12 nodes over 8,238
 		// with. Fewer refusals covering MORE bytes, which is the one
 		// direction the node count and the byte count disagree -- recorded
@@ -191,7 +208,7 @@ func TestT2CoreParses(t *testing.T) {
 		// stopped there because it parsed at the COMMA's power and levels 4
 		// and 5 are below it. Back to the 17 the symbol-table deref note
 		// above records, by a different route.
-		"comp/redef.t": 21, "comp/require.t": 12, "comp/retainedlines.t": 17,
+		"comp/redef.t": 21, "comp/require.t": 10, "comp/retainedlines.t": 17,
 		"comp/uproto.t": 3, "comp/use.t": 11, "comp/utf.t": 3,
 		"opbasic/arith.t": 179, "opbasic/cmp.t": 6, "opbasic/concat.t": 6,
 		"opbasic/magic_phase.t": 7,

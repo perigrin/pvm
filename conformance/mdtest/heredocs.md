@@ -13,13 +13,14 @@ its own. Measured, `<<"EOT"` with an interpolation gives tier 01's
 indistinguishable from the same strings written inline. The token facts
 are what say a heredoc was written at all.
 
-All three refuse, all three name `trailing_tokens`, and that is one gap
-rather than three. The LEXER produces the opener and the body as two
-tokens in the right order with the right text -- every token fact here
-passes. The parser has no grammar rule for a body token arriving where a
-new statement should start. Naming the code in all three is what makes
-"one gap" falsifiable: the day one of them begins refusing elsewhere,
-these cases report the change instead of skipping on in silence.
+All three parse. They did not: all three refused with `trailing_tokens`,
+and it was one gap rather than three -- the LEXER produced the opener and
+the body as two tokens in the right order with the right text, and the
+parser had no grammar rule for a body token arriving where a new statement
+should start. `01a0c13f-aaf8` closed it by making the body a child of the
+statement its opener sits in, consumed AFTER the terminator because that
+is where the bytes are. One rule closed all three, which is what "one
+gap" predicted.
 
 This tier also settles a question GLOSSARY.md deferred: a heredoc body
 token INCLUDES its terminator line. Perl cannot adjudicate -- there is no
@@ -28,16 +29,16 @@ needs, which is to know where the body ends.
 
 ## The interpolating heredoc
 
-`<<"EOT"` interpolates. The declaration itself PARSES: measured,
-`my $h = <<"EOT";` arrives as a declaration whose two terms are `$h` and
-the opener, with no Unknown in it. The Unknown spans what comes NEXT --
-the body token and the `print` after it -- and its code is
-`trailing_tokens`, an expression that parsed with bytes remaining.
+`<<"EOT"` interpolates. The statement arrives as a declaration whose two
+terms are `$h` and the opener, and a THIRD child holding the body -- one
+statement spanning from `my` past its own `;` to the end of the terminator
+line, because that is where the body's bytes are.
 
-That is the heredoc's reordering stated as a parser failure. The output
-proves the CONTENT and proves nothing about the spelling; a case
-asserting only `parses` would report the same failure and leave the
-boundary unlocated.
+It refused with `trailing_tokens` before `01a0c13f-aaf8`: the declaration
+itself parsed, and the Unknown spanned what came NEXT -- the body token
+and the `print` after it. The output proves the CONTENT and proves nothing
+about the spelling; a case asserting only `parses` would have reported
+that failure and left the boundary unlocated.
 
 ```perl
 my $name = "world";
@@ -49,8 +50,6 @@ print $h;
 
 ```behavior
 parses: yes
-refuses: unfiled
-refusal: trailing_tokens
 ```
 
 ```output
@@ -77,9 +76,11 @@ observable: the case above prints `hello world` and this prints
 about a heredoc -- where it starts, where it ends, that it is a heredoc
 at all -- is invisible below the token stream.
 
-Refuses with the SAME CODE, and that is the claim rather than a copied
-line: a refusal that changed cause between the two would mean the parser
-sees the quoting, and it does not.
+Parses like its pair, and that is the claim rather than a copied line: the
+parser sees ONE opener token and ONE body token in either spelling, so a
+rule that reads one reads both. Before `01a0c13f-aaf8` the two refused with
+the same code, for the same reason -- the parser never saw the quoting
+then either.
 
 ```perl
 my $name = "world";
@@ -92,8 +93,6 @@ print "$name\n";
 
 ```behavior
 parses: yes
-refuses: unfiled
-refusal: trailing_tokens
 ```
 
 ```output
@@ -127,8 +126,6 @@ print $h;
 
 ```behavior
 parses: yes
-refuses: unfiled
-refusal: trailing_tokens
 ```
 
 ```output

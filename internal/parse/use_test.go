@@ -270,7 +270,12 @@ func TestClassCorpusRatchet(t *testing.T) {
 	// 45 -> 43 when a declarator kept its subscript: `field $x{k}` no longer
 	// splits, and a declaration's initialiser accepts any assignment
 	// operator rather than only `=`.
-	const want = 43
+	//
+	// 43 -> 40 when a heredoc body became a child of the statement its
+	// opener sits in. Three Unknowns, one each in `method.t`, `inherit.t`
+	// and `gh22169.t` -- measured, and the same three the T2 shortfall map
+	// dropped in this commit.
+	const want = 40
 	if unknown != want {
 		t.Errorf("t/class holds %d Unknown nodes, want %d: update this pin in "+
 			"the same commit as the change that moved it", unknown, want)
