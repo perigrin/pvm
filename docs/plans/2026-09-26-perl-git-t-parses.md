@@ -103,15 +103,146 @@ The two causes above account for at most a few hundred of 7,745 nodes. The
 remaining mass is unattributed, and the honest statement is that this document
 does not yet know what it is. Specifically:
 
-- The `}` bucket is 1,118 nodes; a labelled block explains some unknown share
-  of it. The brace-context probe walked back to the nearest `{`, which finds an
-  INNER brace when blocks nest, so its top three entries (`}`, `)`, empty) are
-  probe artifacts rather than findings.
+- ~~The `}` bucket is 1,118 nodes; a labelled block explains some unknown
+  share of it.~~ **Measured; see "The `}` bucket, attributed" below.** A
+  labelled bare block owns 284 of the 1,118 (25.4%). The bucket is 98.5%
+  cascade, so the opener at the leftover brace is usually not the cause.
 - `not_a_term` at 1,584 nodes in 192 files has had no bucketing pass at all.
 - The `like $@, qr/.../` and `is $s, join(...)` spans that recur are
   parenless-call shapes. Today's declared/undeclared work closed those when the
   callee is declared in-file; these come from `test.pl`, which is `require`d at
   runtime and deliberately unresolved.
+
+## The `}` bucket, attributed
+
+Measured 2026-09-26 at `2dc301fd`, over all 620 files. Braces matched by
+walking BACKWARDS with a depth counter over `lexer.Tokenize`'s stream, so a
+brace inside a string, regex, heredoc body or comment is never counted -- the
+lexer has already folded each of those into one token. Only 2 of 1,118 closers
+had no matching `{` in the file.
+
+### First: every node in this bucket is `not_a_term`, not `trailing_tokens`
+
+    1118 of 1118  (100%)  refusal = not_a_term
+
+The bucket sits entirely under the SECOND refusal code. The section above reads
+`trailing_tokens` (5,982 nodes, 412 files) as "nearly every failure", and that
+is still true of the node total -- but it is not true of this bucket, and the
+`}` bucket is the largest single span shape in the corpus. Item 1 of the chain,
+bucketing `not_a_term`, is therefore measuring the same 1,118 nodes from the
+other side.
+
+### The bucket is 98.5% cascade
+
+    bare `}` that is its file's FIRST Unknown       17    1.5%
+    bare `}` that follows another Unknown        1,101   98.5%
+
+This is the finding that governs everything else here. A leftover brace is
+almost never where a file first went wrong: it is what the parser emits for the
+rest of the file after ONE earlier failure cost it brace synchronisation. The
+top four files are 454 nodes -- 41% of the bucket -- and in three of them the
+file's first Unknown is `plan tests => N;`, a parenless call to a sub that
+`test.pl` defines at runtime:
+
+    153  re/pat_advanced.t   first Unknown: `{ # The trick is that in EBCDIC ...`
+    134  re/pat.t            first Unknown: `plan tests => 1298;`
+     92  op/switch.t         first Unknown: `plan tests => 197;`
+     75  re/pat_rt_report.t  first Unknown: `plan tests => 2514;`
+
+Confirmed in isolation -- `plan tests => 3;` alone is `Unknown=1`
+(`trailing_tokens`), `plan(tests => 3);` is `Unknown=0`, and `sub plan {}`
+before it is `Unknown=0`. So item 5 of the chain, the `test.pl` decision, is
+upstream of a large part of this bucket rather than a separate tail.
+
+### The corrected opener table
+
+The top 30 openers at the MATCHED brace. `first` counts how many of that
+bucket's nodes are their file's first Unknown -- read it as the column that
+says whether the opener could be a cause at all.
+
+    nodes   share  files  first  opener at the MATCHED brace
+      544   48.7%     70      4  plain bare block (after `}`)
+      124   11.1%     31      2  expression (...) then brace
+      106    9.5%     72      6  LABEL: labelled bare block
+       93    8.3%     34      0  (...) paren beyond the context window
+       81    7.2%     24      0  plain bare block (after `;`)
+       47    4.2%     21      1  if (...)
+       32    2.9%     12      0  for (...)
+       17    1.5%     13      1  eval BLOCK
+        9    0.8%      8      0  plain bare block (after `{`)
+        9    0.8%      5      2  sub BLOCK
+        4    0.4%      1      0  anon hash / hashref after `,`
+        4    0.4%      2      0  elsif (...)
+        4    0.4%      2      0  foreach (...)
+        4    0.4%      1      0  given (...)
+        4    0.4%      1      0  when (...)
+        3    0.3%      3      0  bareword `run_tests`
+        3    0.3%      3      0  else BLOCK
+        2    0.2%      2      0  (closer or opener not locatable)
+        2    0.2%      2      0  bareword `A::MODIFY_SCALAR_ATTRIBUTES`
+        2    0.2%      1      0  other: `$`
+        2    0.2%      2      0  other: `&`
+        2    0.2%      1      0  other: `*`
+        2    0.2%      1      0  subscript or deref after a variable
+        2    0.2%      2      0  unless (...)
+        2    0.2%      2      0  while (...)
+        1    0.1%      1      0  bareword `FETCH`
+        1    0.1%      1      0  bareword `check_message`
+        1    0.1%      1      0  bareword `check_utime_result`
+        1    0.1%      1      0  bareword `hook::after`
+        1    0.1%      1      0  bareword `hook::before2`
+
+    top 30 covers 1,109 of 1,118 (99.2%); tail is 9 nodes in 9 more openers.
+
+Matched braces did fix the artifact the issue named: the nearest-brace walk's
+top three answers were `}` (56), `)` (27) and empty (19), and none of those
+survive as a construct here. But the correction does not produce a cause list,
+because 66.2% of the bucket -- the three `plain bare block` rows plus the two
+paren rows -- names a construct measured at `Unknown=0` in isolation. A plain
+bare block parses. `if (...)` parses. `eval BLOCK` parses, and its 17 nodes
+here are the same artifact the issue predicted, one layer out rather than
+gone. These rows are bystanders holding a brace the parser had already lost.
+
+### Share, measured by ablation instead
+
+Because the bucket is cascade, the opener table cannot say what a construct
+COSTS -- a cause's damage lands on whatever brace comes next, under some other
+row. So each construct was instead rewritten into a form the parser already
+handles, byte-for-byte the same length so no offset moves, and the corpus
+re-measured. The delta is that construct's true share, cascade included.
+
+    ablation                  unknown_total    bare `}`    clean files
+    baseline                          7,745       1,118            185
+    strip `LABEL:` before `{`         7,312         834            194
+    strip given/when/default          7,491       1,026            185
+    strip both                        7,058         742            194
+
+    construct                  owns of the 1,118      turns clean
+    labelled bare block          284    25.4%          +9 files
+    given/when/default            92     8.2%           0 files
+    the two together             376    33.6%          +9 files
+    UNEXPLAINED RESIDUAL         742    66.4%             --
+
+`strip LABEL:` rewrote 171 files and `given/when` 22. Stripping `last LABEL`,
+`next LABEL` and `redo LABEL` as well moves the total by 3 nodes and the bucket
+by 0, so the "second node for `last`" above is real in isolation and
+negligible at corpus scale.
+
+### What this decides
+
+A labelled bare block owns 25.4% of the bucket -- the largest single share any
+construct owns, four times the next, and the only one that turns whole files
+clean (9 of them). The ablation share is 2.7x what the opener table's 9.5% row
+suggests, which is the cascade the opener table cannot see. Its place ahead of
+the other fixes in the chain HOLDS.
+
+But 25.4% is a quarter, not a bucket, and the honest headline is the residual:
+**742 of 1,118 nodes (66.4%) are explained by nothing this document names.**
+Fixing both measured causes leaves the largest span shape in the corpus still
+two-thirds unexplained, and leaves 426 of 435 files dirty. The evidence points
+that residual at the parenless call to a runtime-`require`d `test.pl` -- item 5
+of the chain, which is currently last and produces no code. On this measurement
+it is the item with the most mass behind it.
 
 ## The chain
 
