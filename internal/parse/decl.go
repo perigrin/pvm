@@ -44,8 +44,74 @@ func (p *parser) parseDeclaration(word lexer.Token) *Node {
 		return p.parseSubDecl(word)
 	case text == "package":
 		return p.parsePackageDecl(word)
+	case text == "format":
+		return p.parseFormatDecl(word)
 	}
 	return nil
+}
+
+// parseFormatDecl: `format NAME =` followed by an opaque body.
+//
+// A declaration rather than a statement kind of its own, for the reason
+// Declaration's doc gives: the declarator is in Text, and every consumer that
+// cares reads it there. It sits beside `package` because it shares the shape
+// -- a keyword, an optional bareword name, and a terminator that is not a
+// `;`.
+//
+// The terminator is what makes this form unlike any other. A format
+// declaration ends at a line holding a lone `.`, and the lexer has already
+// found it: `scanFormatBody` (`lexer/pod.go:106`) emits ONE FormatBody token
+// running from the newline after the `=` through that `.`, with no token
+// inside it. So there is nothing to parse here beyond consuming it -- and
+// nothing to parse INSIDE it, which is the point. `@<<<<<` in a picture line
+// is a left-justified column, not an array sigil followed by two left shifts,
+// and tier 13's whole thesis is that the region is delimited without being
+// lexed.
+//
+// No `;` is consumed, because perl does not want one -- the `.` line ends the
+// declaration and the next line is the next statement. Measured on perl
+// 5.42.0, the declaration compiles to nothing at all:
+//
+//	$ perl -MO=Concise -e 'format STDOUT =
+//	> a fixed report line
+//	> .
+//	> write;'
+//	3  <0> enterwrite v ->4
+//
+// One op, and it belongs to `write`. The picture lines are compiled into a
+// format no op mentions, which is why the only assertion available about the
+// body is a token fact.
+//
+// The name is optional: `format =` is the STDOUT default, and perl accepts it.
+func (p *parser) parseFormatDecl(word lexer.Token) *Node {
+	p.advanceTo(word)
+	n := &Node{Kind: Declaration, Text: p.text(word), Start: word.Start}
+
+	if name, ok := p.peekSignificant(); ok && name.Kind == lexer.Word {
+		p.advanceTo(name)
+		n.Children = append(n.Children, &Node{
+			Kind: Term, Text: p.text(name),
+			Start: name.Start, End: name.End,
+		})
+	}
+
+	// The `=`. An ordinary Operator token, as `conformance/README.md`
+	// records: the introducer is two words and an operator, and only the body
+	// is opaque.
+	if eq, ok := p.peekSignificant(); ok && p.text(eq) == "=" {
+		p.advanceTo(eq)
+	}
+
+	// The body, consumed whole and never descended into.
+	if body, ok := p.peekSignificant(); ok && body.Kind == lexer.FormatBody {
+		p.advanceTo(body)
+		n.Children = append(n.Children, &Node{
+			Kind: Term, Start: body.Start, End: body.End,
+		})
+	}
+
+	n.End = p.prevEnd()
+	return n
 }
 
 // parseVarDecl: `my $x`, `my ($a, $b) = @_`, and the rest.

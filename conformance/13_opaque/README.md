@@ -146,15 +146,21 @@ expected shape: none of them asks the parser for a construct it lacks.
 Their opaque regions are a string literal's contents, and a string
 literal is tier 01's.
 
-**Three codes, not one gap.** Every refusing file names the refusal site
-it waits on rather than describing it, and the sites are distinct:
-`unimplemented_statement` for the two format declarations, which are a
-statement keyword the parser does not implement; `trailing_tokens` for the
-three heredocs and the adjacency file, whose statement parses and which
-then meet a body token arriving after the semicolon it belongs to; and
-`not_a_term` for the two data sections, a token that cannot begin a term.
-Three sites for eight files means closing one will not close the
-others, which uncited skips could not have said.
+**Three codes, not one gap -- and closing one closed only its own.**
+Every refusing file names the refusal site it waits on rather than
+describing it, and the sites were distinct: `unimplemented_statement` for
+the two format declarations, which were a statement keyword the parser did
+not implement; `trailing_tokens` for the three heredocs and the adjacency
+file, whose statement parses and which then meet a body token arriving
+after the semicolon it belongs to; and `not_a_term` for the two data
+sections, a token that cannot begin a term. Three sites for eight files
+meant closing one would not close the others, which uncited skips could
+not have said.
+
+That prediction has been tested. `parseFormatDecl` closed
+`unimplemented_statement`: both format cases parse, the adjacency file
+lost that code from its set, and the heredocs and data sections did not
+move -- their codes are still what they were. Two sites remain.
 
 **Every token fact in the tier passes, including in the files that
 refuse.** The lexer already delimits all of them: heredoc openers

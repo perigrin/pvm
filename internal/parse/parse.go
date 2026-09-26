@@ -733,7 +733,9 @@ var statementKeywords = map[string]bool{
 	// goto is GONE: parseGoto reads it, with a bareword as a LABEL rather
 	// than a call -- measured, `goto FOO` says "Can't find label FOO".
 
-	"format": true,
+	// `format` is GONE: parseFormatDecl reads it as a Declaration whose body
+	// is the one FormatBody token the lexer already delimited. `write` was
+	// never here -- it is an ordinary named unary and always parsed.
 }
 
 // braceOpensAnonHash reports whether a `{` at statement start constructs a

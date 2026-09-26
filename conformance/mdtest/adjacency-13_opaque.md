@@ -34,13 +34,18 @@ multi-line opaque regions.
 
 ## The whole tier in one body
 
-THREE CODES, ONE NAMED. Measured, the three Unknowns carry
-`unimplemented_statement` (the format declaration), `trailing_tokens`
-(the heredoc body) and `not_a_term` (the data section) -- the same three
-the format, heredoc and data-section cases carry alone, and nothing else.
-`hasCode` is membership, so naming any one is a true claim; the middle
-one is named because it is the only one whose SPAN says something the
-single-construct cases cannot.
+TWO CODES, ONE NAMED. Measured, the two Unknowns carry `trailing_tokens`
+(the heredoc body) and `not_a_term` (the data section) -- the same two the
+heredoc and data-section cases carry alone, and nothing else. `hasCode` is
+membership, so naming either is a true claim; the first is named because
+it is the only one whose SPAN says something the single-construct cases
+cannot.
+
+There were three. The format declaration carried
+`unimplemented_statement` until `parseFormatDecl` landed, and it now
+parses here as it does in `formats.md` -- one code gone from the set and
+the body's own facts unmoved, because the lexer was never what was
+missing.
 
 THAT SPAN IS THE NEGATIVE THIS CASE EXISTS FOR. Alone, the heredoc's
 `trailing_tokens` Unknown covers the body and the statement after it.

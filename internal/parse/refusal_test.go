@@ -21,8 +21,10 @@ import (
 // refusal was invisible.
 func TestRefusalCodesDistinct(t *testing.T) {
 	// Two sources that refuse for genuinely different reasons.
-	const stmt = "format STDOUT =\n.\n" // a statement form with no implementation
-	const operand = "$a +\n"            // an operator whose operand ran out
+	// `try` rather than `format STDOUT =\n.\n`: parseFormatDecl landed, so
+	// the format declaration is no longer a statement form without one.
+	const stmt = "use feature 'try';\ntry { 1 } catch ($e) { 2 }\n"
+	const operand = "$a +\n" // an operator whose operand ran out
 
 	a := firstRefusalCode(t, stmt)
 	b := firstRefusalCode(t, operand)
@@ -196,7 +198,13 @@ func countUnknownSites(t *testing.T) int {
 // stops testing.
 func refusingSources() []string {
 	return []string{
-		"format STDOUT =\n.\n",      // unimplemented_statement
+		// `try` replaced `format STDOUT =\n.\n` here: parseFormatDecl landed
+		// and the format declaration parses, so the old fixture stopped
+		// reaching this site. Both are valid perl -- measured, `perl -c` on
+		// `use feature "try"; try { 1 } catch ($e) { 2 }` says syntax OK --
+		// which the fixtures hold to, because a fixture perl rejects measures
+		// the parser against a construct that does not exist.
+		"use feature 'try';\ntry { 1 } catch ($e) { 2 }\n", // unimplemented_statement
 		"$a +\n",                    // missing_operand
 		"my $x = $a ? $b;\n",        // ternary_no_colon
 		"my $x = $a .. $b .. $c;\n", // nonassoc_repeated
