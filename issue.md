@@ -1,19 +1,29 @@
 ---
 title: A literal require of a .pl helper contributes its sub NAME declarations
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T16:36:04.048888797Z
-updated: 2026-09-26T17:27:47.030806288Z
+updated: 2026-09-26T18:12:46.289866851Z
 sessions:
 - start_sha: 9325864f86f42d125118a800b15eb0b62d95d6c3
-  end_sha: ""
-  commits: 0
+  end_sha: f046b67477dee13f34a2af9dd56935d8e6989d54
+  commits: 1
   started_at: 2026-09-26T17:27:47.030806288Z
+  ended_at: 2026-09-26T18:12:46.289866851Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-26T17:27:47.030806288Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-26T18:12:46.289866851Z
+observed_paths:
+- internal/parse/call.go
+- internal/parse/module.go
+- internal/parse/required_test.go
+- internal/parse/shape.go
+- internal/parse/use.go
 ---
 
 A `require` of a LITERAL relative `.pl` path contributes its `sub NAME`
