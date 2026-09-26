@@ -4,78 +4,56 @@ state: pending
 urgency: normal
 milestone: corpus-covers-t2
 created: 2026-09-26T02:06:40.108445691Z
-updated: 2026-09-26T02:06:40.108445691Z
+updated: 2026-09-26T02:48:50.995454394Z
 ---
 
-The corpus's largest hole: no case is a parenless call with an argument,
-which is T2 core's single largest failure bucket.
+**CLOSED BY CHAIN-REVIEW, 2026-09-26. The work already exists; this issue
+was filed on a premise that a five-minute check would have refuted.**
 
-## Measured, at b0f1a9e9
+## What this issue claimed
 
-Declaration form and prototype are IRRELEVANT. Argument count is
-everything:
+"The corpus's largest hole: no case is a parenless call with an argument."
 
-    sub answer { 42 }   print answer, "\n";   clean   <- corpus has this
-    sub answer { 42 }   answer;               clean
-    sub f { }           f(8);                 clean
-    sub f { }           f 8;                  UNKNOWN
-    sub f;              f 8;                  UNKNOWN
-    sub f ($) { }       f 8;                  UNKNOWN
-    sub tryeq ($$$$){}  tryeq 1, 13 % 4, 1;   UNKNOWN  <- arith.t, 179
+## What is actually there
 
-The corpus's own call-form slice (`subroutines.md`, "Four spellings of
-one call") passes because all four spellings call with NO arguments. The
-fifth spelling is the one T2 needs.
+`conformance/mdtest/argument-extent.md`, tier 07, five cases:
 
-`%` is not implicated: `f 13 % 4` and `f 8` fail identically, so
-`01a0c10b`'s "`%` read as a hash sigil" is a symptom of argument
-position, not a modulus bug.
+    ## A parenless call is greedy                refuses: 01a0c432-fbd5
+    ## A `($)` prototype cuts the extent to one  refuses: 01a0c432-fbd5
+    ## An undeclared callee is a syntax error    parses: no
+    ## A builtin's extent is cut by a paren
+    ## `lock` is a named unary with its own op
 
-## What perl says, which bounds what may be asserted
+Every case this issue's Scope section proposed to add is present, with
+token facts and a recorded refusal -- including the `parses: no`
+undeclared-callee case that this issue presented as the constraint perl
+forces on us. `b4180102` reached that conclusion by measurement in
+September and wrote it down.
 
-Measured on 5.42.0:
+## No residue
 
-    ok 8;                 SYNTAX ERROR -- "Number found where operator
-                          expected (Do you need to predeclare ok?)"
-    ok $x, 9;             syntax OK -- $x->ok, '???'  INDIRECT OBJECT
-    sub ok {} ok 8, 9;    syntax OK -- a call
-    sub f {} f 13 % 4;    syntax OK -- f 1, constant folded
+Measured before closing, in case the arith.t shape was distinct:
 
-So TWO cases, not one. The undeclared form is `parses: no`, and asserting
-otherwise would have the corpus demand a tree for a program perl rejects
--- WRONG in the gate's sense, and M1's gate is Oracle WRONG = 0.
+    sub f { return "f[@_]" }  print f 1, 2;            1 Unknown
+    sub f { return "f[@_]" }  print f 13 % 4, 2;       1 Unknown
+    sub tryeq ($$$$) { }      tryeq 1, 13 % 4, 1, 'x'; 1 Unknown
 
-## Tier placement
+Identical refusals, all `trailing_tokens`. An EXPRESSION in argument
+position is not a distinct behaviour from a literal, so no new case would
+measure anything the corpus does not already measure.
 
-Tier 07. `entersub`/`leavesub` are tier 07's INTRODUCES, so a case
-needing a `sub` declaration cannot sit in tier 04 -- the dependency lint
-would reject it. This is the "call-form slice from tier 07" the plan
-already names as part of the smallest useful corpus.
+## What the real defect is
 
-## Context
+Both refusing cases cite `01a0c432-fbd5`, whose state is `done`. A reader
+following the citation lands on finished work and concludes the corpus
+says nothing about the construct. That is a CITATION repair, not new
+coverage, and it is now owned by the citation issue in this milestone
+together with the other thirteen.
 
-- paths: `conformance/mdtest/subroutines.md`, `conformance/07_subroutines/README.md`
-- commands: `go test ./internal/conformance/ -count=1`
-- entrypoints: `conformance/mdtest/subroutines.md` ("Four spellings of one call" is the existing case to sit beside)
+## Why the check was not made
 
-## Scope
-
-Cases to add, each with its perl-verified verdict:
-
-- a parenless call to a declared sub with ONE argument
-- the same with several arguments, including a `%` expression (arith.t's shape)
-- the UNDECLARED callee with a numeric argument, `parses: no`
-- the undeclared callee with a SCALAR argument, which perl reads as an
-  indirect-object method call and is therefore a different claim
-
-Each records `refuses:` naming `01a0c13f-6816` where our parser declines,
-so the refusal points at the live issue that fixes it rather than at
-`unfiled`.
-
-## Acceptance criteria
-
-- [ ] A parenless call with arguments is in the corpus (`python3 tools/mdtest/tiersrc.py 07_subroutines | grep -qE '^[a-z_]+ +[0-9$]'`)
-- [ ] The undeclared-callee case asserts perl refuses it (`grep -q 'parses: no' conformance/mdtest/subroutines.md`)
-- [ ] Every new case agrees with perl and our refusals are recorded (`go test ./internal/conformance/ -run '^TestTierSubroutinesPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierSubroutinesPerlValidated'`)
-- [ ] The dependency lint accepts the tier placement (`go test ./internal/conformance/ -run '^TestTierSubroutinesLint$' -count=1 -v | grep -q '^--- PASS: TestTierSubroutinesLint'`)
-- [ ] The suite is green (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
+This issue's own evidence contained the refutation. The measurement it
+quotes reported tier 07 as "10/13 clean" and never asked WHICH three
+refused; two of the three were these cases. Counting by tier and naming
+by construct are different acts, and only the second can notice that a
+construct is already covered.
