@@ -3,8 +3,10 @@ title: The lexer splits -e into a minus and a word, and the whole file-test fami
 state: pending
 urgency: normal
 milestone: m1-parse-the-core
+blocked_by:
+- 01a0ce57-db92-78e5-bbe4-7c28e74db6f3
 created: 2026-09-23T17:51:06.293983513Z
-updated: 2026-09-23T17:51:06.293983513Z
+updated: 2026-09-26T09:00:31.871962523Z
 ---
 
 `-e $f` is a file-test operator and our lexer splits it into a minus and
