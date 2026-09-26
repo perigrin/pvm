@@ -135,7 +135,15 @@ func TestT2CoreParses(t *testing.T) {
 		// removal from this map means.
 		"cmd/mod.t": 1, "cmd/switch.t": 2,
 		"comp/colon.t": 25, "comp/decl.t": 3, "comp/filter_exception.t": 5,
-		"comp/final_line_num.t": 1, "comp/fold.t": 14, "comp/form_scope.t": 17,
+		// comp/form_scope.t 17 -> 7 when parseFormatDecl landed. The file
+		// holds nine format declarations, each of which had been swallowing
+		// the statement that followed it: an unimplemented keyword runs
+		// `skipToStatementEnd`, which takes the NEXT statement's `;` because
+		// a format declaration has none of its own. Measured, the seven left
+		// are all `trailing_tokens` on constructs this issue does not touch
+		// -- `&$clo1(0)`, `make_closure 6` and a bare block in expression
+		// position. Untracked: nothing in the chain owns those.
+		"comp/final_line_num.t": 1, "comp/fold.t": 14, "comp/form_scope.t": 7,
 		"comp/hints.t": 35, "comp/line_debug.t": 4, "comp/multiline.t": 2,
 		// comp/package.t 7 -> 2 across two fixes, both issue 01a0cf3e.
 		// First the filehandle slot learned that a following COMMA

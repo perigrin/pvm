@@ -207,6 +207,23 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 		b.WriteByte('}')
 
 	case Declaration:
+		// `format NAME = <body>` is emitted AS WRITTEN, before the rest,
+		// because there is nothing here a canonical form could normalise.
+		// The body is opaque bytes whose only structure is where it starts
+		// and stops, and both are whitespace: scanFormatBody begins at the
+		// newline after the `=` and ends at a line holding a lone `.`. So
+		// every separator in this form is load-bearing, and re-spacing it is
+		// how it stops being a format -- measured, the shared ` = ` and a
+		// trailing `;` re-lexed as `format STDOUT;` with the body adrift.
+		//
+		// No terminator either: the `.` line already ended the declaration,
+		// which is why blockForm counts this among the forms that write their
+		// own.
+		if n.Text == "format" {
+			b.WriteString(n.SourceText(src))
+			return
+		}
+
 		// `my`, `our`, `local`, `state`, `sub` and `package`. The keyword,
 		// then the children -- a target and optionally an initialiser or a
 		// body. An `=` initialiser arrives as a Binary already holding the
@@ -447,8 +464,15 @@ func blockForm(n *Node) bool {
 	case Conditional, Loop, Phaser, Block, Use, LoopControl, Unknown:
 		return true
 	case Declaration:
-		// `sub f { }` is a block form; `my $x = 1` is not.
 		d := n.Children[len(n.Children)-1]
+		// `format NAME = ... .` ended at its own `.` line, which perl accepts
+		// with no `;` after it. A semicolon here lands INSIDE the next
+		// format body's scan or ahead of the next statement, and either way
+		// the emission stops being a fixpoint.
+		if d.Text == "format" {
+			return true
+		}
+		// `sub f { }` is a block form; `my $x = 1` is not.
 		return len(d.Children) > 0 && d.Children[len(d.Children)-1].Kind == Block
 	}
 	return false

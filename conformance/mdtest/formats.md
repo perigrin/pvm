@@ -14,15 +14,21 @@ and a `write` emits `enter`, `nextstate`, `enterwrite`, `leave`, and the
 declaration accounts for none of them. The picture lines that are the
 actual lexing problem are compiled into a format no op mentions.
 
-Both cases refuse with `unimplemented_statement`, which is not the code
-the heredocs carry. Those parse their statement and then meet a body
-token they have no form for; this one never starts, because `format` is a
-statement keyword the parser does not implement. Measured, the Unknown
-spans `format STDOUT =` through the `write;` that follows it -- the
-declaration and the statement after it swallowed together, which is what
-an unimplemented keyword does to whatever it cannot find an end for. The
-`format body` fact passes in both, so the picture lines are already
-opaque to the lexer and what is missing is above it.
+Both cases parse. They did not until `parseFormatDecl` landed, and what
+they refused with says where the gap was: `unimplemented_statement`, not
+the code the heredocs carry. Those parse their statement and then meet a
+body token they have no form for; this one never started, because
+`format` was a statement keyword the parser did not implement. Measured
+then, the Unknown spanned `format STDOUT =` through the `write;` that
+follows it -- the declaration and the statement after it swallowed
+together, which is what an unimplemented keyword does to whatever it
+cannot find an end for. The `format body` fact passed throughout, which
+is why the fix was above the lexer and not in it: the picture lines were
+already opaque, and only the statement form was missing.
+
+`write` was never the gap. It is an ordinary named unary and parsed all
+along; it arrived in the Unknown only because the `format` above it
+reached down and took it.
 
 ## A format declaration and the `write` that uses it
 
@@ -44,8 +50,6 @@ print "after write\n";
 
 ```behavior
 parses: yes
-refuses: unfiled
-refusal: unimplemented_statement
 ```
 
 ```output
@@ -100,8 +104,6 @@ print "after write\n";
 
 ```behavior
 parses: yes
-refuses: unfiled
-refusal: unimplemented_statement
 ```
 
 ```output

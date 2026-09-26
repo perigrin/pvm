@@ -8,7 +8,7 @@
 # topic's `**Tier NN name.**` line and leaves every key alone. That
 # is the `t/` sweep working, and must not read as a regression.
 #
-# 212 cases, 195 clean, 17 refusing.
+# 212 cases, 197 clean, 15 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -25,7 +25,7 @@ trailing_tokens adjacency-07_subroutines.md/The whole tier in one body
 - adjacency-10_io.md/The whole tier in one body
 trailing_tokens adjacency-11_oo.md/The whole tier in one body
 - adjacency-12_packages.md/The whole tier in one body
-unimplemented_statement,trailing_tokens,not_a_term,tokens adjacency-13_opaque.md/The whole tier in one body
+trailing_tokens,not_a_term,tokens adjacency-13_opaque.md/The whole tier in one body
 - adjacency-14_recursive.md/The whole tier in one body
 - aggregate-operators.md/`each` returns a PAIR where its siblings return a flat list
 - aggregate-operators.md/`push`: the first argument is an array, not an expression
@@ -115,8 +115,8 @@ trailing_tokens,tokens compound-assignment.md/`x=` is word-shaped, and we cannot
 - eval-replacement.md/A second `e`: the replacement re-read as Perl
 - eval-replacement.md/The `/e` flag: an expression in the replacement half
 - eval-replacement.md/`eval STRING`: the re-entry with no delimiter
-unimplemented_statement formats.md/A format declaration and the `write` that uses it
-unimplemented_statement formats.md/A picture line that is not Perl
+- formats.md/A format declaration and the `write` that uses it
+- formats.md/A picture line that is not Perl
 - handles.md/A three-argument open autovivifies the glob
 - handles.md/`<$fh>` in list context reads EVERY remaining line
 - handles.md/`<$fh>` in scalar context reads ONE line
