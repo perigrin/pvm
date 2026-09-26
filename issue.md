@@ -3,8 +3,10 @@ title: Ungated defer is declined as a statement form the parser can already read
 state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
+blocked_by:
+- 01a0dde4-7e56-7338-81c2-f6670cccbb16
 created: 2026-09-23T23:08:33.884597854Z
-updated: 2026-09-26T13:24:40.071406542Z
+updated: 2026-09-26T13:25:51.215199806Z
 sessions:
 - start_sha: 5c84df85b7059abba4a396b055608d6900306f62
   end_sha: ""
