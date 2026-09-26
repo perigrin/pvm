@@ -406,6 +406,42 @@ parses clean where perl errors. Both invalid perl, so unreachable from any
 perl-validated corpus -- and `FuzzParser` does not check fixpoint, so
 nothing would have caught the first.
 
+### The __DATA__ gate, and a close that needed --force
+
+TIER_2 on ten files, verdict IN-SCOPE. Four findings, all fixed in
+`2963c47d`, none a code defect -- every one was a claim that had stopped
+being true.
+
+  - **"canon protects the section's bytes" was FALSE**, and it was the
+    stated reason the sibling `format` issue's canon hazard could not recur
+    here. Canon is blind twice: `canon.go:65` drops Trivia unemitted and
+    `canon_test.go:214`'s `significant()` skips `DataSection`, so both
+    sides of the comparison discard it. The real guard is
+    `TestDataSectionIsTrivia`'s `last.End != len(src)`.
+  - **the leftover refusal was attributed to `write` and a bare block**,
+    and that justified leaving a sentinel `unfiled`. Both parse clean,
+    there is no bare block in the program at all, and the cause is the
+    heredoc BODY. It now cites `01a0c13f-aaf8`.
+  - the same passage said "Three Unknowns" where there is one.
+  - `use_test.go:215` was the fourth copy of the trivia kind set and the
+    only one not updated when a kind was added.
+
+That passage was wrong TWICE about the same thing -- first the count, then
+the cause -- by the same mechanism: read a count off a failing case, name a
+cause, never measure the cause separately. It is this chain's signature
+defect and it recurred inside the commit that was fixing its neighbour.
+
+**The close needed `--force`, twice refused, and the reason is
+structural.** `--state done` reports "session has 0 commits" because the
+implementation commits are under `agent:x7k2-6` and the merge and fix
+commits under the orchestrator. Neither session holds both. That is the
+actor split the orchestration is BUILT on -- each worker gets its own
+identity so mutual exclusion works -- which makes a per-session commit
+count the wrong test for whether an issue's work landed. Forced with the
+evidence written into the issue rather than overridden silently, and the
+gate the note admitted was missing ran first. Its own verify gate then
+reported 6/6.
+
 ### What this milestone cannot reach
 
 The 13 remaining refusals are all `m1-parse-the-core`'s:
