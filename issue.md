@@ -1,10 +1,19 @@
 ---
 title: continue BLOCK is declined, and every op it needs is already claimed
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T17:48:11.618449654Z
-updated: 2026-09-26T17:48:11.618449654Z
+updated: 2026-09-26T18:36:10.823402761Z
+sessions:
+- start_sha: 20c20c3c9f6b7772b719bd7affc1d50f419e1e75
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-26T18:36:10.823402761Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-26T18:36:10.823402761Z
 ---
 
 `continue BLOCK` after a `while` is declined: `continue` is still in
