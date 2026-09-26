@@ -1456,6 +1456,30 @@ T2 is reported rather than targeted -- the tier corpus gates what the parser
 reads -- but it moving the same way is corroboration that the corpus fixes
 are general rather than corpus-shaped.
 
+### THE GOAL IS MET: 216 of 216, zero refusing
+
+Superseded by measurement. The section below said 212 of 213 was the m1 ceiling
+because `defer` needed indirect object notation and lived in v0.1. That
+diagnosis was wrong, and re-measuring it is what moved the ceiling:
+
+    zzz { 1 };              Unknown=0   canon "zzz(){1};"
+    defer { 1 } print "b";  Unknown=1
+
+`WORD BLOCK` was read as an INDEX CALL -- the same mechanism as `ADJUST`
+(01a0dd71) and a bare block in a class body (01a0ddac). Perl's deparse of
+ungated `defer` keeps the block form with NO ARROW, so indirect object notation
+was never the rule involved. Three spellings of one gap.
+
+    corpus       188 of 212  ->  216 of 216 clean, 24 -> 0 refusing
+    t1           475 -> 554 clean (48.2% -> 56.2%), 2353 -> 1960 nodes
+    t1canon      649 -> 721 clean (65.8% -> 73.1%), 337 -> 265 disagreeing
+    t1fidelity   345 -> 369 clean (35.0% -> 37.4%), 641 -> 617 differing
+    t2 core      19 -> 22+ of 56 files clean
+
+Every figure read from its committed ratchet header at `b9f77d9c` and at HEAD.
+
+### The ceiling that was not one
+
 ### The m1 ceiling is reached: 212 of 213
 
 Every refusal m1 owns is closed. The one case still refusing is
