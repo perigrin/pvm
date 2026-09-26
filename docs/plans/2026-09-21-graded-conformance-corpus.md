@@ -1112,14 +1112,35 @@ is making the claim and pointing it at closed work.
 
 Naming all seventeen refusals rather than counting them by tier:
 
-    ten     `refuses: unfiled`            BY DESIGN, see below
-    four    cite a CLOSED issue           01a0c432 (x3), 01a0c35f, 01a0c730
-    three   cite a live issue             01a0ce57, 01a0d087, 01a0c35f
+    sixteen   `refuses: unfiled`        BY DESIGN, see below
+    five      cite a CLOSED issue       01a0c432 (x3), 01a0c35f, 01a0c730
+    three     cite a live issue         01a0ce57, 01a0cf64, 01a0d087
+    --------
+    twenty-four cases record a refusal
 
-FOUR OF SEVENTEEN point at nothing actionable, and `01a0d0c7` already owns
-them. The ten `unfiled` are a deliberate sentinel meaning the case is its
-own record -- an earlier revision of this section counted them as defects,
-which the reader's own test contradicts; see below.
+FIVE point at nothing actionable, and `01a0d0c7` -- whose title already
+says five -- owns them. Two earlier revisions of this section got the
+count wrong in opposite directions: fourteen (counting `unfiled` as a
+defect) and then four (dropping one of the three `01a0c432` sites, and
+listing `01a0c35f` as both closed and live while omitting `01a0cf64`).
+The measurement is `grep -rh 'refuses: 01a0' conformance/mdtest/ | sort |
+uniq -c`, which nothing before this revision ran.
+
+**And "of seventeen" was the wrong denominator.** A citation belongs to a
+CASE; seventeen is the number of cases where the PARSER refuses. Measured,
+the two sets overlap without either containing the other:
+
+    24   record a refusal
+    17   the parser refuses
+    12   a token fact fails
+     5   both
+
+So sixteen `unfiled` and seventeen parse-refusals are different sets whose
+overlap is ten, and an earlier revision's "these ARE the 17" was false. Its
+supporting sentence -- that the unfiled tiers match the dirty count -- was
+false too: three `unfiled` cases are in tier 01, which the same section's
+dirty count reports as 100% clean, because a case with a RECORDED refusal
+skips and never appears dirty.
 
 The repair is a CITATION repair rather than new cases: the cases exist.
 
@@ -1181,7 +1202,7 @@ its argument extent MEASURED rather than assumed. Measured, there is no
 extent, because there is no call." This section re-derived it five days
 later without checking, which is the same failure in miniature.
 
-### Four refusals citing closed issues, and ten that are fine
+### Five refusals citing closed issues, and the two denominators
 
 Found while measuring: sixteen cases carry `refuses: unfiled`.
 
@@ -1190,8 +1211,12 @@ Found while measuring: sixteen cases carry `refuses: unfiled`.
     vstrings.md            2      arithmetic.md       1
     numeric-point.md       1      adjacency-04/-13    2
 
-Their tiers match the dirty count exactly -- 04 has five, 13 has eight --
-so these ARE the 17, already recorded.
+They are NOT the seventeen parse-refusals, and an earlier revision said
+they were. Measured: sixteen unfiled, seventeen parse-refusals, overlap
+ten. By tier the unfiled are 04 five, 13 eight, and **01 three** -- which
+the dirty count above reports as 100% clean, because a recorded refusal
+SKIPS and so never counts as dirty. Two different questions, two different
+denominators.
 
 **They are recorded BY DESIGN and are not the defect.** `unfiled` is a
 deliberate sentinel: `internal/conformance/file.go:275`, the topic-format
