@@ -212,6 +212,68 @@ parses: yes
 210
 ```
 
+## The postfix `foreach` iterates a LIST, and the list is not the body
+
+`EXPR foreach LIST` is the modifier whose trailing operand is a list rather
+than a condition, and it is the only modifier form that still builds the
+`enteriter`/`iter` machinery. Measured, its op stream differs from the
+block `foreach` above by exactly the ops of `$_` against `my $x` -- `gvsv`
+where the block form has `padsv` -- so unlike the postfix `while` directly
+above, which builds no loop frame at all, this one IS the block form's
+optree under a different spelling.
+
+WHICH HALF IS THE BODY is what this case exists to pin, and the output is
+what pins it. `EXPR foreach LIST` runs EXPR once per element of LIST.
+
+The discrimination is in the ASYMMETRY of the source, which is why `@l`
+holds three DIFFERENT elements and the body accumulates them in order.
+Only the correct reading can print `abc`: a reader that took the halves
+the other way round iterates the one-element list `$s .= $_` and runs `@l`
+as its body, which appends nothing and prints the empty string. A case
+whose two halves were interchangeable would pass either way round, and
+three ordered characters is what forbids that.
+
+Our parser read it the swapped way while scoring ZERO refusals. The tree
+was right and the EMISSION was inverted -- `$s += $_ foreach 1..3`
+re-emitted as `foreach ($s += $_) 1 .. 3`, the keyword moved to the front,
+the body parenthesised as though it were a condition, the `;` dropped.
+That is not a parse of anything, and no refusal count could see it: 251
+lines of perl.git `t/` are this shape and every one of them scored clean.
+Issue 01a0dfc7.
+
+The body is `$s .= $_` rather than `print $_` because `print $_` is a
+DIFFERENT open defect -- the parenless `print $VAR` that cannot yet be
+told from `print FILEHANDLE LIST` -- and a case refusing for that reason
+would measure the filehandle slot rather than the modifier. `.=` compiles
+to tier 01's `multiconcat`, not to a `concat` no tier here claims.
+
+The token fact counts, and the count is the falsifying half. This source
+holds exactly ONE `foreach`, so a reader that split the statement in two at
+the keyword -- the body as one statement and a second loop word for the
+list -- produces a count this refuses. There is no negative fact for
+`for`: a negative must name a spelling REACHABLE from the source, and this
+source contains no `for`, so the claim could never fail and would assert
+nothing.
+
+```perl
+my @l = ($ENV{A} // "a", "b", "c");
+my $s = "";
+$s .= $_ foreach @l;
+print "$s\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+abc
+```
+
+```tokens
+one word whose text is "foreach"
+```
+
 ## `continue BLOCK` runs on `next` and not on `last`
 
 There is NO `continue` op. The block is part of the loop it follows, and

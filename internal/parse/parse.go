@@ -277,15 +277,15 @@ type Node struct {
 	// Only meaningful for Call; false everywhere else and not read there.
 	Resolved bool
 
-	// The five flags below follow Resolved's rule: each is meaningful on one
+	// The six flags below follow Resolved's rule: each is meaningful on one
 	// kind of node, false everywhere else, and not read there. A flag that
 	// leaks onto nodes it does not describe is worse than no flag, because a
 	// consumer cannot tell a real answer from a stray one.
 	//
 	// Separate bools rather than a bitfield, and the choice is measured:
-	// Node is 72 bytes with one bool and 72 bytes with five, because they
-	// land in padding the struct already had. A uint8 of bits would also be
-	// 72 and read worse.
+	// Node is the same size with five of them as with six -- measured at 120
+	// bytes either way -- because they land in padding the struct already had.
+	// A uint8 of bits would be 120 too and read worse.
 
 	// Arrow is set on an Index reached through `->`. §4.14 gives `$h{k}` and
 	// `$h->{k}` ONE node with this flag rather than two shapes, because they
@@ -327,6 +327,29 @@ type Node struct {
 	// cost: counting the handle as argument 1 made every typed-handle print
 	// a false Str mismatch.
 	Handle bool
+
+	// Modifier is set on a Conditional or Loop built from a STATEMENT
+	// MODIFIER -- `$y = 1 if $x`, `$s += $_ foreach 1..3` -- rather than from
+	// the block form `if (COND) BLOCK`.
+	//
+	// The two forms are one Kind with the children in OPPOSITE orders. The
+	// block form reads condition first and body second; the modifier form
+	// reads body first and condition second, because applyModifier keeps
+	// children in source order so a node's children tile its span. Nothing
+	// in the tree said which order a given node had, and canon assumed the
+	// block form's -- so every modifier emitted with its two halves swapped
+	// and its keyword moved to the front, at Unknown = 0. `$y = 1 if $x`
+	// came back as `if ($y = 1) $x`, which is not a parse of anything.
+	//
+	// Not derivable from child shape: a modifier body can be any expression,
+	// including one whose last token is a `}` (`$x = sub { 1 } if $y`), and
+	// the block form's Block child can be DECLINED, so "has a direct Block
+	// child" answers neither way round. Not derivable from Start either --
+	// the modifier node starts where its BODY does and the block form starts
+	// at its keyword, but a label shifts the statement start and the arithmetic
+	// stops being a fact about the form. The parser knows which production it
+	// took; the flag records it instead of asking canon to guess.
+	Modifier bool
 
 	// HeredocBody is set on a Term holding a heredoc's body and terminator
 	// line, which is the one child whose bytes lie AFTER its statement's

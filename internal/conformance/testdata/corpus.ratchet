@@ -8,7 +8,7 @@
 # topic's `**Tier NN name.**` line and leaves every key alone. That
 # is the `t/` sweep working, and must not read as a regression.
 #
-# 223 cases, 223 clean, 0 refusing.
+# 224 cases, 224 clean, 0 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -145,6 +145,7 @@
 - loading.md/`use strict;` lexes, and that is all it establishes
 - loops.md/C-style `for` is a `while`
 - loops.md/The block `while`
+- loops.md/The postfix `foreach` iterates a LIST, and the list is not the body
 - loops.md/The postfix loop modifier builds no loop frame
 - loops.md/`continue BLOCK` runs on `next` and not on `last`
 - loops.md/`do BLOCK while COND` is a post-test loop

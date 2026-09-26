@@ -657,7 +657,7 @@ func (p *parser) applyModifier(body *Node, start int) *Node {
 	if text == "if" || text == "unless" {
 		kind = Conditional
 	}
-	n := &Node{Kind: kind, Text: text, Start: start}
+	n := &Node{Kind: kind, Text: text, Start: start, Modifier: true}
 
 	// The condition is a bare expression here, not a parenthesised one:
 	// `$y = 1 if $x` has no parens and `$y = 1 if ($x)` merely has a
@@ -669,9 +669,13 @@ func (p *parser) applyModifier(body *Node, start int) *Node {
 	// its predecessor ends makes it emit the same span twice: measured, the
 	// statement came back as "$y = 1 if $x$y = 1 if $x;".
 	//
-	// Which child is the condition is recorded by Text (the modifier
-	// keyword) plus position, not by ordering. Reordering the tree to match
-	// evaluation would break the invariant that a node's children tile it.
+	// Which child is the condition is recorded by the Modifier flag, not by
+	// ordering: this form reads body-then-condition and the block form reads
+	// condition-then-body, one Kind with two opposite orders. Reordering the
+	// tree to match evaluation would break the invariant that a node's
+	// children tile it, so the flag carries the fact instead. Before it
+	// existed canon read the ordering as the block form's and emitted every
+	// modifier with its halves swapped.
 	if cond := p.parseExpr(0); cond != nil {
 		n.Children = append(n.Children, body, cond)
 	} else {

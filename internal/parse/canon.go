@@ -305,6 +305,39 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 		}
 
 	case Conditional, Loop:
+		// Two forms share this Kind, with their children in OPPOSITE orders,
+		// and the Modifier flag is which one this is.
+		//
+		// The STATEMENT MODIFIER form -- `$y = 1 if $x`, `$s += $_ foreach
+		// 1..3` -- reads body first and condition second, and its keyword sits
+		// BETWEEN them. Emitted by the block form's rule below it came back as
+		// `if ($y = 1) $x`: the keyword moved to the front, the body
+		// parenthesised as though it were the condition, the condition left
+		// bare, and the `;` never written. That is not a parse of anything, and
+		// it scored Unknown = 0 -- a swapped emission is not a refusal, so
+		// nothing but canon could see it. 251 lines of perl.git t/ are this
+		// shape.
+		if n.Modifier {
+			for i, c := range n.Children {
+				if i > 0 {
+					// The keyword separates the halves, and the condition
+					// after it is a BARE expression -- `$y = 1 if $x` has no
+					// parens and `$y = 1 if ($x)` merely has a parenthesised
+					// expression as its condition, which the child's own Paren
+					// flag already carries.
+					b.WriteByte(' ')
+					b.WriteString(n.Text)
+					b.WriteByte(' ')
+				}
+				emit(b, c, src, 0)
+			}
+			// The terminator is the enclosing Statement's to write, and
+			// blockForm is what decides it wants one -- see there for why a
+			// modifier is not a block form even though it shares a Kind with
+			// two that are.
+			return
+		}
+
 		// `if (COND) BLOCK`, `while (COND) BLOCK`, and the rest. Text is the
 		// keyword, kept as written -- `unless` is not rewritten into a
 		// negated `if`, because the CST records what was typed.
@@ -547,7 +580,15 @@ func blockForm(n *Node) bool {
 		return false
 	}
 	switch last.Kind {
-	case Conditional, Loop, Phaser, Block, Use, LoopControl, Unknown:
+	case Conditional, Loop:
+		// The block forms end in a `}` and take no `;`. The STATEMENT
+		// MODIFIER form shares their Kind and ends in an expression, so it
+		// takes one: `$y = 1 if $x` needs its terminator and `if ($x) {...}`
+		// must not grow one. Reading the Kind alone dropped it from every
+		// modifier statement, which is half of why they canon'd as something
+		// that is not Perl.
+		return !last.Modifier
+	case Phaser, Block, Use, LoopControl, Unknown:
 		return true
 	case Declaration:
 		d := last
