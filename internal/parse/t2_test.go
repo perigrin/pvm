@@ -291,7 +291,12 @@ func TestT2CoreParses(t *testing.T) {
 		// bareword + argument, 316 of them with a callee declared by a
 		// `sub NAME` in the same file and 0 with one reachable by import --
 		// no T2 file uses Test::More, they `require './test.pl'`.
-		"comp/final_line_num.t": 1, "comp/fold.t": 2, "comp/form_scope.t": 5,
+		//
+		// comp/form_scope.t 5 -> 2 when `&$coderef` became a call (issue
+		// 01a0df0d). The file calls its closures that way three times --
+		// `&$clo1(0)`, `&$clo2(0)` and `&$next(1)` -- which is the old
+		// convention for passing the caller's `@_` along.
+		"comp/final_line_num.t": 1, "comp/fold.t": 2, "comp/form_scope.t": 2,
 		// comp/hints.t 35 -> 34 and comp/parser.t 65 -> 64 when a
 		// DataSection became trivia (issue 01a0dc84). Each file ends in a
 		// trailing `__END__` and each was spending exactly one Unknown on

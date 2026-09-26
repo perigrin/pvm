@@ -206,7 +206,7 @@ func (p *parser) parseTerm() *Node {
 		// here into one term: `\&f` is a code reference, not a reference to
 		// an ampersand.
 		p.advanceTo(tok)
-		if name, ok := p.peekSignificant(); ok && name.Kind == lexer.Word {
+		if name, ok := p.peekSignificant(); ok && p.ampTakes(name) {
 			p.advanceTo(name)
 			return &Node{
 				Kind: Term, Text: text + p.text(name),
@@ -562,4 +562,45 @@ func (p *parser) parseBracketed(open lexer.Token, closer string, kind Kind) *Nod
 		}
 	}
 	return &Node{Kind: kind, Start: open.Start, End: p.prevEnd(), Children: items}
+}
+
+// ampTakes reports whether `&` joins this token as the name of the sub it
+// calls.
+//
+// A Word always: `&f`. A SCALAR variable too, because `&$coderef` is perl's
+// older calling convention and is how perl's own suite spells a call that
+// passes the caller's `@_` implicitly. Measured on 5.42.0, inside a sub called
+// with (1,2):
+//
+//	&$s;     the callee sees @_ as (1,2)
+//	&$s();   the callee sees @_ empty
+//
+// The other sigils and the subscripted forms are REFUSED, because perl refuses
+// them and agreement is the point:
+//
+//	&@a;      Bareword found where operator expected
+//	&$s[0];   syntax error at -e line 1, near "$s["
+//	&$s{k};   syntax error at -e line 1, near "$s{k"
+//
+// Joining a Variable unconditionally made all three parse clean, which is a
+// wrong tree rather than a wider one -- so the arity of the check is the fix,
+// not an ornament on it.
+func (p *parser) ampTakes(name lexer.Token) bool {
+	if name.Kind == lexer.Word {
+		return true
+	}
+	if name.Kind != lexer.Variable {
+		return false
+	}
+	if text := p.text(name); text == "" || text[0] != '$' {
+		return false
+	}
+	// A subscript after the scalar has no call reading in perl, so the `&`
+	// must not swallow the name and leave the bracket stranded.
+	if next, ok := p.peekAfter(name); ok {
+		if t := p.text(next); t == "[" || t == "{" {
+			return false
+		}
+	}
+	return true
 }

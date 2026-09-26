@@ -227,3 +227,57 @@ parses: yes
 42
 42
 ```
+
+## The ampersand call passes the caller's `@_`
+
+`&$code` with NO parens hands the callee the argument list the *caller*
+received. `&$code()` hands it an empty one, and `$code->()` hands it an
+empty one too. Three spellings of one call, and only the first is
+implicit.
+
+WHY THIS CASE SPENDS A SUB TO SAY IT. `conformance/07_subroutines/03_call_forms.t`
+documents the same claim for the named `&f` form and its own prose admits
+the claim is unobservable there, because the sub it calls ignores `@_` and
+all four spellings print the same value. A case that cannot fail on the
+fact it asserts is prose. So the callee here interpolates `@_`, and the
+three spellings print three different strings: the difference is in the
+output column, where a wrong parse has to disagree.
+
+THE PARENS ARE THE WHOLE DIFFERENCE, which is why `&$code` and `&$code()`
+sit in one statement. A parser that treats the parens as decoration --
+or that drops them -- produces `[x y]` twice and the output says so.
+
+Measured 5.42.0, both spellings are `padsv` then `rv2cv` then `entersub`,
+the same three ops as `$code->()`; the implicit `@_` is a property of the
+CALL FORM rather than of a different op, so this case claims no op the
+tier has not already introduced.
+
+NO TOKEN FACT, DELIBERATELY. The `&` of a call arrives as a FuncSigil
+rather than an Operator -- that is what makes `&f` and `&&` stay
+distinguishable -- and the token-fact vocabulary has no phrase for that
+kind, so there is no true fact to write about it. The claim this case
+exists for lives in the output column instead, where it can fail: a
+parser that loses the parens prints `[x y]` twice. An untrue token fact
+to fill the slot would be worse than none.
+
+PERL REJECTS THE NEIGHBOURING SPELLINGS, and the corpus cannot assert a
+syntax error, so they are recorded here rather than tested: `&@a` is
+"Bareword found where operator expected", and `&$code[0]` and `&$code{k}`
+are syntax errors at the bracket. So `&` takes a scalar and nothing
+subscripted -- a parser that accepts those agrees with nothing.
+
+```perl
+my $show = sub { return "[@_]" };
+sub outer { return "amp=" . &$show . " paren=" . &$show(); }
+print outer("x", "y"), "\n";
+print $show->(), "\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+amp=[x y] paren=[]
+[]
+```

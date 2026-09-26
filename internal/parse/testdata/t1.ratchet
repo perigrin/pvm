@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 587 clean (59.5%), 1773 total.
+# 986 files, 592 clean (60.0%), 1752 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -92,8 +92,8 @@
 0 closed_stderr_unhandled_die.t
 0 closure.t
 0 closure_eval_string.t
-1 code_deref_nonstrict.t
-9 code_ref_defined_exists.t
+0 code_deref_nonstrict.t
+0 code_ref_defined_exists.t
 0 code_ref_forward_glob_assignment.t
 0 code_too_large.t
 0 coderef_survives_stash_delete.t
@@ -255,7 +255,7 @@
 0 end_capture_destruction_order.t
 0 errno_special_vars.t
 0 error_messages.t
-1 eval_after_stash_delete.t
+0 eval_after_stash_delete.t
 6 eval_begin_lexical_storage.t
 0 eval_block_return.t
 0 eval_byte_source_semantics.t
@@ -343,7 +343,7 @@
 0 goto_localized_typeglob_args.t
 0 goto_named_redefinition.t
 9 goto_tailcall_args_cleanup.t
-5 goto_tailcall_cleanup.t
+3 goto_tailcall_cleanup.t
 1 goto_tailcall_core_destroy_order.t
 1 harness_skip_all.t
 0 hash.t
@@ -380,7 +380,7 @@
 0 interpreter_begin_eval_utf8_scope.t
 0 interpreter_capture_assignment_regressions.t
 6 interpreter_chained_method_invocant_lifetime.t
-1 interpreter_code_reference_validation.t
+0 interpreter_code_reference_validation.t
 0 interpreter_coderef_does_not_load_module.t
 0 interpreter_compound_assign_list_rhs.t
 5 interpreter_dbic_regressions.t
@@ -701,7 +701,7 @@
 8 socket_unix_stream.t
 0 sort_localizes_package_ab.t
 0 sort_scalar_context.t
-1 source_anonymous_const_attribute.t
+0 source_anonymous_const_attribute.t
 0 source_filter_begin_install.t
 0 source_filter_caller_line.t
 0 source_filter_delete_oneshot.t
@@ -744,7 +744,7 @@
 17 string_interpolation.t
 0 string_interpolation_at_caret.t
 0 string_interpolation_escaped_hash_key.t
-17 subroutine.t
+11 subroutine.t
 2 subroutine_proto_trailing_comma_stmtend.t
 5 subroutine_prototype.t
 8 subroutine_prototype_args.t

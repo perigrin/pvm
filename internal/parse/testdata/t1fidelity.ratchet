@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 394 clean (40.0%), 592 total.
+# 986 files, 396 clean (40.2%), 590 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -130,7 +130,7 @@
 1 core_global_dynamic_goto.t
 0 core_global_exit_trap.t
 0 core_global_rand_override.t
-1 core_global_sqrt_override.t
+0 core_global_sqrt_override.t
 0 core_global_time_overrides.t
 1 core_module_file_versions.t
 1 core_operator_import_shadow.t
@@ -380,7 +380,7 @@
 0 interpreter_begin_eval_utf8_scope.t
 1 interpreter_capture_assignment_regressions.t
 1 interpreter_chained_method_invocant_lifetime.t
-1 interpreter_code_reference_validation.t
+0 interpreter_code_reference_validation.t
 1 interpreter_coderef_does_not_load_module.t
 1 interpreter_compound_assign_list_rhs.t
 1 interpreter_dbic_regressions.t
