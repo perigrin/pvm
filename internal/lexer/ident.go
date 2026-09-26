@@ -226,8 +226,11 @@ func (l *lexer) noteSignatures(k Kind, start int) {
 			l.signatures = true
 		}
 	case Quote:
-		// A v-string version: `use v5.42.0;` is ONE token, because two dots
-		// make a string and `scanVString` takes it whole. Without this the
+		// A v-string version: `use v5.36;` and `use v5.42.0;` are each ONE
+		// token, because the `v` makes a v-string and `scanVString` takes
+		// it whole. (An earlier revision said TWO DOTS make a string,
+		// which was true while `scanVString` declined on one; it now
+		// claims `v5.36` as well.) Without this the
 		// bundle never turns on and `sub g ($a, $b)` becomes a PROTOTYPE --
 		// the same silent change of meaning the split `v5.36` path guards
 		// against, reached by the other spelling.

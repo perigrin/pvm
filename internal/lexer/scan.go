@@ -315,8 +315,11 @@ func isDigit(c byte) bool { return c >= '0' && c <= '9' }
 // a leading `%`, `<`, `&` and `/`: where a TERM is expected nothing else
 // can start with a dot, and where an OPERATOR is expected a dot is
 // concatenation regardless of what follows.
-// TWO version-string exceptions, both measured rather than defensive,
-// and both found by a test rather than anticipated.
+// ONE version-string exception survives, measured rather than defensive
+// and found by a test rather than anticipated. It was TWO until
+// `scanVString` began claiming a one-dot `v5.36` whole; the paragraphs
+// below record which one went and why, because a count in a header that
+// disagrees with the code beneath it is how a comment starts lying.
 //
 // `use v5.36` USED TO reach here with a term expected and a digit
 // following, because `v5` lexed as an ordinary Word -- so without the
