@@ -1,19 +1,28 @@
 ---
 title: Bucket not_a_term's 1,584 nodes by span, and test each candidate in isolation
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T16:26:40.127300233Z
-updated: 2026-09-26T16:30:23.790542956Z
+updated: 2026-09-26T17:22:19.440131106Z
 sessions:
 - start_sha: 2dc301fdeeec2303d2bfcdc1cae708b09b190c0b
-  end_sha: ""
-  commits: 0
+  end_sha: 9325864f86f42d125118a800b15eb0b62d95d6c3
+  commits: 3
   started_at: 2026-09-26T16:30:23.790542956Z
+  ended_at: 2026-09-26T17:22:19.440131106Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-26T16:30:23.790542956Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-26T17:22:19.440131106Z
+observed_paths:
+- docs/plans/2026-09-26-perl-git-t-parses.md
+- internal/parse/control.go
+- internal/parse/switch_test.go
+- internal/parse/testdata/t1.ratchet
 ---
 
 `not_a_term` is 1,584 Unknown nodes across 192 of perl.git t/'s files and has
