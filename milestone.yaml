@@ -177,3 +177,93 @@ Also noted: the full conformance suite (243s) appears as a criterion in all
 three issues, so the completion gate will spend ~12 minutes running it
 three times. Correct but wasteful; a milestone-level criterion would say it
 once.
+
+## Execute record, 2026-09-26, not backfilled
+
+`crochet:execute`, one orchestrator plus two workers in isolated
+worktrees. Three issues executed; eight commits plus two merges.
+
+Corpus ratchet **188 clean / 24 refusing -> 195 / 17**.
+
+### Gate tiers and outcomes
+
+Every gate was dispatched to a FRESH agent, since the orchestrator wrote
+one of the three commits and the composition rule forbids reviewing your
+own work.
+
+| issue | tier | why | outcome |
+|---|---|---|---|
+| 01a0dba9 | TIER_2 | 8 files > 2 | CLEAN PASS, one message defect |
+| 01a0db78 | TIER_2 | 9 files > 2 | IN-SCOPE, fixed in place (a21b05de) |
+| 01a0dbe8 | TIER_2 | 10 files > 2, shared Pratt entry points, both ratchets moved | IN-SCOPE, **REOPENED** |
+
+All three cleared TIER_1's other three thresholds (difficulty 0.134-0.332
+against 0.4; MPG 2 against 3) and failed only on file count.
+
+### What the gates found that the executors did not
+
+  - **01a0dbe8: `parseBracketed` is the same loop and did not get the
+    fix.** `[$a and $b]` and `{$a and $b}` still refuse where
+    `($a and $b)` now parses, and all three are legal perl. Worse than the
+    original symptom: the operand escapes the bracket, so the tree puts
+    `and` above the declaration. CLAUDE.md names this shape directly --
+    "patching only the path the ticket names leaves every sibling caller
+    still broken". Reopened rather than filed, because it is the same
+    defect.
+  - **01a0dbe8: a `!Unknown` assertion read as a shape guarantee.**
+    `my $x = 1, my $y = 2` parses but nests the comma INSIDE the
+    declarator where perl puts it above both assignments. The commit said
+    that shape "went clean again"; it went non-Unknown.
+  - **01a0db78: a pin lost an assertion.** The `v5.5.630` row promised
+    "both rules are checked here" and only one survived `scanVString`.
+    Proved by a mutation that left three suites green. Measured further
+    and the branch was not merely untested but UNREACHABLE -- `foo.5.6`
+    reaches the Word branch -- so it was deleted and both stale comments
+    corrected.
+  - **01a0dba9: a count in a commit message.** "fails six rows" where the
+    mutation fails three. Corrected in the follow-up commit rather than
+    left, since this repo polices exactly that class.
+
+### What the executors found that no gate would have
+
+Both workers caught defects their own criteria did not cover:
+
+  - **01a0db78** nearly shipped a silent break: making `v5.42.0` one token
+    stopped `noteSignatures` reading the version, so under
+    `use v5.42.0` a signature lexed as a PROTOTYPE. No test caught it --
+    every suite used the one-dot `v5.36`. Found by probing, now guarded in
+    both directions.
+  - **01a0dbe8** introduced and caught its own regression: capping the
+    initialiser at `=`'s power also excluded the COMMA, breaking
+    `my $x = 1, my $y = 2`. Neither ratchet caught it, because no T1 or T2
+    file writes that shape.
+
+### Three tooling defects filed rather than absorbed
+
+  - `01a0dc26` -- a dispatched worktree is based on an ancestor, not the
+    branch tip. Both workers were handed a commit predating
+    `internal/parse/` entirely; both noticed and fast-forwarded, and so did
+    both gates. One that did not would work against the wrong tree
+    silently.
+  - `01a0dc38` -- sanbao's per-issue `hotspot_count` is the repo-wide
+    total: 1195 against 908 tracked files, top entry a file the issue never
+    touched. Real counts were 8, 9 and 10. It changed no tier here, because
+    every real count already exceeds 2 -- but a genuinely small issue would
+    also read 1195 and escalate, which makes the tier decision inert.
+  - `01a0dc26` (one-dot v-strings) -- from 01a0db78's report, left
+    deliberately because `use v5.36` reassembly depends on the split.
+
+### One process mistake of mine
+
+The first PAAD gate was dispatched WITHOUT worktree isolation, and its
+mutation testing appeared in the orchestrator's working tree, nearly
+sweeping into an unrelated commit. The skill warns about exactly this and I
+had applied it to the two execution workers and not to the reviewer,
+because I read "review" as read-only -- while explicitly instructing it to
+mutate. The remaining three gates ran isolated.
+
+### Why this milestone does not complete here
+
+`01a0dbe8` is reopened and `01a0dc26` is open, so the chain has work left.
+Completing would run the verify gate over a chain whose own review said it
+is not done.
