@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: corpus-covers-t2
 created: 2026-09-26T02:07:19.16565421Z
-updated: 2026-09-26T02:07:19.16565421Z
+updated: 2026-09-26T02:56:40.166928624Z
 ---
 
 Four corpus token facts assert something the glossary forbids, and the
@@ -12,12 +12,22 @@ glossary is the corpus's contract with B::SoN and Chalk.
 
 ## Measured, at b0f1a9e9
 
-These four cases have a CLEAN parse and fail only on a token fact:
+THREE cases have a clean parse and fail only on a token fact:
 
     arithmetic.md    Concatenation and repetition      one operator "x"
     comparison.md    The string relations and `cmp`    one operator "cmp"
     comparison.md    `&&` and `and` at two precedences one operator "and"
-    comparison.md    The five logical operators        one operator "xor"
+
+A FOURTH case makes the same assertion about `xor` and is NOT in scope
+here: `comparison.md`'s "The five logical operators" also carries
+`refusal: not_a_term` (comparison.md:112), so it refuses on the parser as
+well as on the fact. It is the only one of the four that does. Rewriting
+its token fact would not make it pass, so it belongs with the parser
+refusals, not with this decision.
+
+Chain-review found this: the first draft called all four "clean", which is
+false for that one, and the error made this issue and the citation issue
+each assume the other owned the case.
 
 Each wants `one operator whose text is "..."` and gets 0, because the
 lexer emits `Word`:
@@ -83,10 +93,32 @@ choosing, because the list decides how large option 2 is.
 - commands: `go test ./internal/conformance/ -count=1`
 - entrypoints: `internal/conformance/categories.go:27` (`"operator": kind(lexer.Operator)`), `conformance/GLOSSARY.md:131` (the `operator` entry)
 
+## Criteria corrected by chain-review, 2026-09-26
+
+Two of the first draft's criteria did not check what they claimed:
+
+  - `! grep -c 'refuses: unfiled' comparison.md | grep -q '^3$'` asserts
+    "the count is not exactly three", so it PASSES at one and two -- a
+    partial fix satisfies it. Measured: counts 0, 1 and 2 all pass. It also
+    passes if the file is deleted, since `grep -c` exits 0 on a readable
+    file and the whole pipeline is negated.
+  - `go test -run '^TestGlossary' | grep -q '^ok'` passes today, before any
+    work, and passes under BOTH routes. It distinguishes nothing.
+
+The replacements name the three cases that must go from SKIP to PASS.
+That is outcome-neutral by construction: rewriting the facts and adding a
+glossary category both make those cases pass, and nothing else does.
+Each of the three case criteria was verified to FAIL now (rc=1). The
+glossary/category-table criterion passes today and is labelled a
+regression guard, because under route 2 it becomes the real gate --
+`categories.go` gains a row and that test is what holds the two lists
+together.
+
 ## Acceptance criteria
 
-- [ ] The glossary and the facts agree, whichever way it was decided (`go test ./internal/conformance/ -run '^TestGlossary' -count=1 | grep -q '^ok'`)
-- [ ] No case in these two topics still refuses on a word-shaped operator fact (`! grep -A3 'parses: yes' conformance/mdtest/arithmetic.md | grep -q 'refuses: unfiled'`)
-- [ ] The comparison topic's word-operator facts no longer sit unfiled (`! grep -c 'refuses: unfiled' conformance/mdtest/comparison.md | grep -q '^3$'`)
-- [ ] The decision is written down where the next reader finds it (`grep -qiE 'word-shaped|not punctuation' conformance/GLOSSARY.md`)
+- [ ] The repetition case passes rather than skipping (`go test ./internal/conformance/ -run '^TestCorpus$' -count=1 -v | grep -q 'PASS: TestCorpus/arithmetic.md/Concatenation_and_repetition'`)
+- [ ] The string-relations case passes rather than skipping (`go test ./internal/conformance/ -run '^TestCorpus$' -count=1 -v | grep -qE 'PASS: TestCorpus/comparison.md/The_string_relations_and_.cmp.'`)
+- [ ] The two-precedences case passes rather than skipping (`go test ./internal/conformance/ -run '^TestCorpus$' -count=1 -v | grep -qE 'PASS: TestCorpus/comparison.md/.&&._and_.and._are_one_op_at_two_precedences'`)
+- [ ] The decision is written where the next reader finds it (`grep -qiE 'word-shaped|not punctuation' conformance/GLOSSARY.md`)
+- [ ] REGRESSION GUARD, passes today: the glossary and the category table still agree (`go test ./internal/conformance/ -run '^TestGlossaryMatchesCategories$' -count=1 -v | grep -q '^--- PASS: TestGlossaryMatchesCategories'`)
 - [ ] The suite is green (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
