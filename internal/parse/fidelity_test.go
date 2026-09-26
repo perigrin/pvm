@@ -124,5 +124,5 @@ func TestCanonFidelityRatchet(t *testing.T) {
 	}
 
 	checkRatchet(t, filepath.Join("testdata", "t1fidelity.ratchet"),
-		"Files whose canon emission does NOT say what the source says (1 = differs).", now)
+		"Files whose canon emission does NOT say what the source says (1 = differs).\n"+t1CorpusNote, now)
 }

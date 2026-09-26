@@ -72,6 +72,17 @@ func t1Files(t *testing.T) (string, []string) {
 	return root, files
 }
 
+// t1CorpusNote says WHICH corpus the three T1 baselines measure, and goes in
+// each of their headers.
+//
+// It is here rather than in renderRatchet because renderRatchet also writes
+// perlgitt.ratchet, which is over perl's own 620 files. A header that named the
+// wrong corpus would be the same defect as a header whose count disagrees with
+// its body: a number that reads as authoritative and is not.
+const t1CorpusNote = "T1 graded is PerlOnJava's unit/*.t at TOP LEVEL. Walking\n" +
+	"recursively gives 1508 files and adding module/ gives 1935;\n" +
+	"both are different corpora. This is the 986."
+
 // countUnknown counts Unknown nodes in a tree.
 //
 // Every Unknown in T1 is a childless leaf as of 3c997a6b, so the recursion is
@@ -136,7 +147,7 @@ func TestParseRatchet(t *testing.T) {
 	}
 
 	checkRatchet(t, filepath.Join("testdata", "t1.ratchet"),
-		"Unknown nodes per T1 file, as parse.Parse produces them.", now)
+		"Unknown nodes per T1 file, as parse.Parse produces them.\n"+t1CorpusNote, now)
 }
 
 // TestParsedFilesRoundTrip is the M1 gate's round-trip metric: everything
@@ -185,10 +196,14 @@ func renderRatchet(what string, counts map[string]int) string {
 	sort.Strings(files)
 
 	var b strings.Builder
-	b.WriteString("# " + what + "\n")
-	b.WriteString("# T1 graded is PerlOnJava's unit/*.t at TOP LEVEL. Walking\n")
-	b.WriteString("# recursively gives 1508 files and adding module/ gives 1935;\n")
-	b.WriteString("# both are different corpora. This is the 986.\n")
+	// what may be several lines: the measurement, then a note saying WHICH
+	// corpus this is. Naming the population is not decoration -- t1, t1canon
+	// and t1fidelity are all over PerlOnJava's 986, while perlgitt is over
+	// perl's own 620, and a brief that conflated two such populations already
+	// cost this project a claim that could not have been true.
+	for _, line := range strings.Split(what, "\n") {
+		b.WriteString("# " + line + "\n")
+	}
 	b.WriteString("#\n")
 	b.WriteString(fmt.Sprintf("# %d files, %d clean (%.1f%%), %d total.\n",
 		len(files), clean, 100*float64(clean)/float64(len(files)), total))

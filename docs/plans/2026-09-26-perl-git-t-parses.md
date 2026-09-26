@@ -488,11 +488,53 @@ three were right to.
 
 ### Still open
 
-- `01a0de97-3c5d` leading `::` (84 files) and `01a0de97-96ac` sub attributes
-  (26) -- dispatched.
-- `01a0de97-77fe` `$::{n}` and `%::` (58 files); `01a0df0d` `&$subref` (36);
-  `01a0de97-b3bd` operandless filetest (19); `01a0dee8` statement modifiers on
-  loop controls (zero-Unknown, wrong tree).
+- `01a0de97-3c5d` leading `::` -- LANDED at `35549df0`, 381 to 386 clean.
+- `01a0de97-96ac` sub attributes -- dispatched.
+- `01a0df71` `atan2` and `fc` are in no arity table, so a parenless call drops
+  its arguments at Unknown=0. Two names, two tables, and the audit that finds
+  the next one.
+- `01a0de97-77fe` `$::{n}` and `%::`; `01a0df0d` `&$subref`; `01a0de97-b3bd`
+  operandless filetest; `01a0dee8` statement modifiers on loop controls
+  (zero-Unknown, wrong tree).
+
+### The reach figures in this document were greps, and greps run high
+
+Bucketing every dirty file's FIRST Unknown at `35549df0` measured three of them
+directly:
+
+| construct | filed from a grep | measured |
+|---|---|---|
+| leading `::` | 84 files | 57 |
+| `&$subref` | 36 files | 7 |
+| `$::{n}` / `%::` | 58 files | 9 |
+
+A `grep -l` counts the construct inside strings, comments, regex bodies and
+heredocs; the token stream does not. A bucket I nearly filed as "the old `'`
+package separator, 33 files" was ONE file once the classifier stopped lumping
+every span that merely contained a quote. (`$main'a` is still `$main::a` in
+5.42 and silent -- verified -- but it is one file.) Read every remaining
+grep-derived figure here as an upper bound.
+
+### The long tail is now the shape of this goal
+
+At `35549df0`: **229 dirty files across 170 DISTINCT first-failure shapes.**
+Grouped by construct rather than by the span's first bytes:
+
+     76 files   769 nodes  unclassified
+     62 files   949 nodes  CASCADE (a bare closer or operator)
+     31 files   136 nodes  other package separator
+      9 files   293 nodes  main stash
+      7 files   141 nodes  ampersand-scalar call
+      7 files    69 nodes  repeat on a list
+      4 files    11 nodes  filetest
+
+The two largest buckets are `)` at 28 files and `}` at 26, and both are cascade:
+a span that begins with a closer is downstream of a refusal that swallowed its
+opener. No single remaining construct reaches ten files. That changes what is
+worth dispatching -- an audit that clears a CLASS (`01a0df71`'s item 3, the three
+arity tables against perl's own keyword list) is now worth more than another
+one-construct issue, because the tail is 170 shapes long and one-at-a-time will
+not finish it.
 - `01a0deeb` **this goal is still gated by no ratchet.** Every number in this
   document came from a throwaway probe. Four instruments in this repo have now
   been caught reporting a figure nobody checked; this is the one measuring the

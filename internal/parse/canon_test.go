@@ -374,5 +374,5 @@ func TestCanonRatchet(t *testing.T) {
 	}
 
 	checkRatchet(t, filepath.Join("testdata", "t1canon.ratchet"),
-		"Files whose canon emission is NOT a fixpoint (1 = disagrees).", now)
+		"Files whose canon emission is NOT a fixpoint (1 = disagrees).\n"+t1CorpusNote, now)
 }
