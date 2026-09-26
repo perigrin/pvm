@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 375 clean (38.0%), 611 total.
+# 986 files, 385 clean (39.0%), 601 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -89,7 +89,7 @@
 1 class_xsaccessor_pp.t
 1 cli_warning_overrides.t
 0 clone.t
-1 closed_stderr_unhandled_die.t
+0 closed_stderr_unhandled_die.t
 1 closure.t
 1 closure_eval_string.t
 1 code_deref_nonstrict.t
@@ -123,7 +123,7 @@
 0 context.t
 1 context_semantics.t
 0 control_flow.t
-1 convert_bencode_xs_java.t
+0 convert_bencode_xs_java.t
 1 core_dump_guarded.t
 1 core_global_additional_overrides.t
 0 core_global_caller_concat.t
@@ -253,7 +253,7 @@
 1 encode_utf8_on_off.t
 1 encoding_pragma.t
 1 end_capture_destruction_order.t
-1 errno_special_vars.t
+0 errno_special_vars.t
 1 error_messages.t
 0 eval_after_stash_delete.t
 1 eval_begin_lexical_storage.t
@@ -281,7 +281,7 @@
 1 evalbytes.t
 1 examples_warning_and_io.t
 0 exiftool_exporter_autoload.t
-1 experimental_equ_warning_category.t
+0 experimental_equ_warning_category.t
 1 experimental_signatures_warning.t
 0 exporter_lexical_compile_scope.t
 0 fcntl_accmode.t
@@ -403,7 +403,7 @@
 1 io_captureoutput_regressions.t
 1 io_compress_regressions.t
 1 io_file_autoload.t
-1 io_flock.t
+0 io_flock.t
 0 io_handle_error.t
 0 io_handle_fresh_fdopen_warning.t
 1 io_layers.t
@@ -411,7 +411,7 @@
 1 io_pipe.t
 1 io_read.t
 1 io_seek.t
-1 io_select_nested_process_handle.t
+0 io_select_nested_process_handle.t
 0 io_slot_blessed.t
 1 io_socket_method_fileno.t
 0 io_socket_ssl_default_exports.t
@@ -620,7 +620,7 @@
 0 refaliasing_containers.t
 0 regex_assertion_conditional.t
 0 regex_byte_replacement_flag.t
-1 regex_callback_abort_cleanup.t
+0 regex_callback_abort_cleanup.t
 1 regex_callback_frame_identity.t
 0 regex_callback_lexical_context.t
 0 regex_callback_package_frame.t
@@ -777,7 +777,7 @@
 1 system_path_lookup.t
 1 tail_calls.t
 0 taint_cwd.t
-1 taint_env_path.t
+0 taint_env_path.t
 1 taint_external_input.t
 1 taint_filespec.t
 1 taint_mode.t
@@ -814,7 +814,7 @@
 1 threads_index_clone_identity.t
 1 threads_inheritance_clone.t
 1 threads_inherited_pipe.t
-1 threads_inplace_edit.t
+0 threads_inplace_edit.t
 1 threads_lazy_compile_snapshot_race.t
 0 threads_lazy_named_sub_unadvertised.t
 1 threads_lifecycle_unadvertised.t
@@ -876,7 +876,7 @@
 0 time_moment_storable.t
 0 top_level_coderef_call.t
 0 transliterate.t
-1 transliterate_dynamic_warning_scope.t
+0 transliterate_dynamic_warning_scope.t
 0 transliterate_more.t
 0 try_catch.t
 0 try_catch_exception_object.t

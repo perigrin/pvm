@@ -141,8 +141,18 @@ func TestT2CoreParses(t *testing.T) {
 		// got intuit_curly's lookahead instead of only map, grep and sort
 		// (issue 01a0d087). rs.t's movers are its seven `if (eval {$/ = ...;
 		// 1})` guards, whose brace was classified from XTerm inside the paren.
-		// What REMAINS in both is `$^O eq '...'`, which is a different gap.
-		"base/lex.t": 27, "base/num.t": 3, "base/rs.t": 1,
+		// What REMAINED in both was `$^O eq '...'`, which was a different
+		// gap -- and it closed: `$^O` lexed as `Variable($^)` plus a
+		// separate Word, and once the caret bound its letter, base/num.t
+		// 3 -> 0 and base/rs.t 1 -> 0. Both are OUT of this map now.
+		//
+		// base/lex.t 27 -> 23 with the same change; it holds `$^F`, `$^Q`
+		// and `$^X`, and the file's own comment calls `$^Q` "an unused
+		// ^Var". comp/line_debug.t (`$^P`) and comp/multiline.t (`$^O`)
+		// also reached zero, and comp/fold.t 6 -> 2 (`$^W`),
+		// comp/hints.t 31 -> 2 (`$^H`, `$^W`), comp/parser.t 29 -> 28,
+		// comp/retainedlines.t 17 -> 13 (`$^P`), opbasic/cmp.t 6 -> 5.
+		"base/lex.t": 23,
 		// class/field.t went 9 -> 10 when quote-op keywords stopped eating
 		// their fat comma, then back to 9 when goto, delete and exists
 		// landed. The rise was never a regression in the parse: reaching
@@ -270,7 +280,7 @@ func TestT2CoreParses(t *testing.T) {
 		// bareword + argument, 316 of them with a callee declared by a
 		// `sub NAME` in the same file and 0 with one reachable by import --
 		// no T2 file uses Test::More, they `require './test.pl'`.
-		"comp/final_line_num.t": 1, "comp/fold.t": 6, "comp/form_scope.t": 5,
+		"comp/final_line_num.t": 1, "comp/fold.t": 2, "comp/form_scope.t": 5,
 		// comp/hints.t 35 -> 34 and comp/parser.t 65 -> 64 when a
 		// DataSection became trivia (issue 01a0dc84). Each file ends in a
 		// trailing `__END__` and each was spending exactly one Unknown on
@@ -278,7 +288,7 @@ func TestT2CoreParses(t *testing.T) {
 		// one token, and the parser was handing that token to the
 		// expression parser, which refused it as `not_a_term`. One node per
 		// file is the whole delta -- nothing else in either file moved.
-		"comp/hints.t": 31, "comp/line_debug.t": 1, "comp/multiline.t": 2,
+		"comp/hints.t": 2,
 		// comp/package.t 7 -> 2 across two fixes, both issue 01a0cf3e.
 		// First the filehandle slot learned that a following COMMA
 		// denies it, which is perl's own rule -- `print FOO, 1` is "No
@@ -298,7 +308,7 @@ func TestT2CoreParses(t *testing.T) {
 		// Its `SKIP:` at line 73 and the `{` at line 74 are on separate
 		// lines, which is why the fix carries the label across trivia rather
 		// than requiring the colon to touch its brace.
-		"comp/parser.t": 29, "comp/parser_run.t": 2, "comp/proto.t": 2,
+		"comp/parser.t": 28, "comp/parser_run.t": 2, "comp/proto.t": 2,
 		// comp/require.t went 11 -> 12 when phaser braces became blocks. The
 		// `BEGIN { ... }` body is now read as statements rather than as one
 		// hashref, and reaching inside it exposed a heredoc the parser did
@@ -331,9 +341,9 @@ func TestT2CoreParses(t *testing.T) {
 		// stopped there because it parsed at the COMMA's power and levels 4
 		// and 5 are below it. Back to the 17 the symbol-table deref note
 		// above records, by a different route.
-		"comp/redef.t": 1, "comp/require.t": 6, "comp/retainedlines.t": 17,
+		"comp/redef.t": 1, "comp/require.t": 6, "comp/retainedlines.t": 13,
 		"comp/uproto.t": 1, "comp/use.t": 1, "comp/utf.t": 3,
-		"opbasic/arith.t": 11, "opbasic/cmp.t": 6, "opbasic/concat.t": 5,
+		"opbasic/arith.t": 11, "opbasic/cmp.t": 5, "opbasic/concat.t": 5,
 	}
 
 	var regressed, improved, nowClean, nowDirty []string

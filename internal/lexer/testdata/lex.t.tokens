@@ -717,8 +717,7 @@ Whitespace     2420   2421  \s
 Number         2421   2424  119
 Semicolon      2424   2425  ;
 Whitespace     2425   2429  \s\n\s\s
-Variable       2429   2431  $^
-Word           2431   2432  Q
+Variable       2429   2432  $^Q
 Whitespace     2432   2433  \s
 Operator       2433   2434  =
 Whitespace     2434   2435  \s
@@ -740,8 +739,7 @@ Word           2542   2544  if
 Whitespace     2544   2545  \s
 Operator       2545   2546  (
 Operator       2546   2547  (
-Variable       2547   2549  $^
-Word           2549   2550  Q
+Variable       2547   2550  $^Q
 Operator       2550   2551  ^
 Word           2551   2553  XX
 CloseBracket   2553   2554  )
@@ -1070,8 +1068,7 @@ Whitespace     3843   3844  \s
 Word           3844   3853  Someother
 Semicolon      3853   3854  ;
 Whitespace     3854   3857  \n\s\s
-Variable       3857   3859  $^
-Word           3859   3860  Q
+Variable       3857   3860  $^Q
 Whitespace     3860   3861  \s
 Operator       3861   3862  =
 Whitespace     3862   3863  \s
@@ -1111,8 +1108,7 @@ Quote          3958   3964  "not\s"
 Whitespace     3964   3965  \s
 Word           3965   3971  unless
 Whitespace     3971   3972  \s
-Variable       3972   3974  $^
-Word           3974   3975  Q
+Variable       3972   3975  $^Q
 Whitespace     3975   3976  \s
 Word           3976   3978  eq
 Whitespace     3978   3979  \s

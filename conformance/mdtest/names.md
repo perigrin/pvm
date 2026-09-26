@@ -1,8 +1,9 @@
-# Names: braces and packages
+# Names: braces, carets and packages
 
 Where the variable's NAME is the question rather than what it holds.
 Braces around a name are punctuation; `$::` is a package-qualified name,
-the scanner row measured at 0.0% clean over fourteen files.
+the scanner row measured at 0.0% clean over fourteen files; `$^O` folds
+the caret into the name where a bare `$^` does not.
 
 **Tier 02 variables.** Introduces `aassign`, `aelem`, `aelemfast`,
 `aelemfast_lex`, `aelemfastlex_store`, `aslice`, `av2arylen`, `delete`,
@@ -52,6 +53,81 @@ parses: yes
 ```output
 42
 2
+```
+
+## `$^O` is one variable and a bare `$^` is another
+
+The caret control variables are the third naming question in this tier,
+and the one where the OUTPUT ALONE CANNOT SEE THE ANSWER. `$^O` lexed as
+`Variable($^)` and a separate `Word(O)` -- two tokens where perl has
+one -- and `my $x = $^O;` still produced a tree that parsed and
+round-tripped, canonicalising to `$^;O()`: the punctuation variable, a
+semicolon, and a call to a sub named `O`. Unknown=0 on a confidently
+wrong tree. That is why this case carries TOKEN FACTS: they fail today
+and the output block does not.
+
+The braced spelling `${^TAINT}` was already right, because
+`bracedNameFollowsAt` grew a caret branch when `TestLexDotTGoldenStream`
+caught `${^TEST}` splitting. One spelling of the rule was repaired and
+its bare sibling was left -- the same shape as `$::`, where `$:` alone is
+also a real variable and the name only forms when something follows.
+
+WHERE THE NAME STOPS is the whole claim, and perl is the authority.
+Measured on 5.42.0 by compiling `my $x = $^C;` for every C: `$^A`
+through `$^Z` compile, and so do `$^_`, `$^^` and `$^[`. A LOWERCASE
+letter does not -- `$^o` is `Bareword found where operator expected`, so
+perl read `$^` and then a word. Digits fail the same way. So the rule is
+the uppercase range plus `_`, `^` and `[`, NOT the identifier class: a
+lexer that took any identifier byte would swallow the word after a bare
+`$^`, which is the format top-of-page name and a real variable.
+
+`$^O` and `$^T` are ASSIGNED here and never printed, because their
+values are the platform name and the start time -- neither is the same
+twice. They still reach the token stream, which is where this case's
+claim lives. `$^W` is the one with a value fixed across platforms, `0`
+under the plain `perl FILE` the runner uses, so it carries the output.
+
+Interpolation is deliberately absent: `"$^"` is `$` followed by a
+literal caret and warns `Use of uninitialized value $`, a different
+question belonging to tier 01. Every op here is a tier 01 or 02
+fixture -- `sassign`, `gvsv`, `const`, `print` -- so a ternary or a
+`defined` would have reached forward into tiers 04 and 06.
+
+Each caret variable is written EXACTLY ONCE, because a token fact
+counts occurrences and the format's only forms are `one` and `no`. So
+every value travels out through a package scalar rather than being
+assigned and then read back -- including the bare `$^`, whose evidence
+is the token fact rather than the output. The negatives carry their
+half of the claim: the split produced a `Word` for the letter, so
+`no word whose text is "O"` is reachable from this source and fails
+whenever the caret stops binding its letter.
+
+```perl
+$::w = $^W;
+$::o = $^O;
+$::t = $^T;
+$::c = $^;
+print $::w, "\n";
+print "read\n";
+```
+
+```behavior
+parses: yes
+```
+
+```tokens
+one variable whose text is "$^W"
+one variable whose text is "$^O"
+one variable whose text is "$^T"
+one variable whose text is "$^"
+no word whose text is "O"
+no word whose text is "W"
+no word whose text is "T"
+```
+
+```output
+0
+read
 ```
 
 ## A package array subscripts through `rv2av`

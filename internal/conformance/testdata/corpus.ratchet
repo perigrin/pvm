@@ -8,7 +8,7 @@
 # topic's `**Tier NN name.**` line and leaves every key alone. That
 # is the `t/` sweep working, and must not read as a regression.
 #
-# 217 cases, 217 clean, 0 refusing.
+# 218 cases, 218 clean, 0 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -159,6 +159,7 @@
 - names.md/A package array subscripts through `rv2av`
 - names.md/A package hash reaches storage through `rv2hv`
 - names.md/A package scalar is where `sassign` enters the corpus
+- names.md/`$^O` is one variable and a bare `$^` is another
 - names.md/`${x}` is one variable, not a dereference
 - numeric-point.md/A decimal point between digits
 - numeric-point.md/A leading decimal point
