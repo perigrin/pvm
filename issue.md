@@ -3,8 +3,10 @@ title: Five refusal citations point at closed issues, and nothing checks
 state: pending
 urgency: normal
 milestone: v0.1
+blocked_by:
+- 01a0db77-887d-7b8a-ae35-9bc561b7f0f7
 created: 2026-09-24T00:18:19.052459875Z
-updated: 2026-09-26T02:53:33.00807224Z
+updated: 2026-09-26T02:56:46.220215699Z
 ---
 
 Five corpus cases carry a `refuses:` record citing an issue that is
