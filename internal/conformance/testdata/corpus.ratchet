@@ -8,7 +8,7 @@
 # topic's `**Tier NN name.**` line and leaves every key alone. That
 # is the `t/` sweep working, and must not read as a regression.
 #
-# 220 cases, 220 clean, 0 refusing.
+# 221 cases, 221 clean, 0 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -183,6 +183,7 @@
 - quote-like-terms.md/The `unpack` template
 - quote-like-terms.md/The angle-bracket glob
 - quote-like-terms.md/The command quote
+- quote-like-terms.md/`glob` and `readpipe`, spelled as functions without parens
 - quote-like-terms.md/`qq`'s arbitrary delimiters
 - range.md/The numeric list range
 - range.md/The string range counts by magic increment

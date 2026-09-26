@@ -223,3 +223,57 @@ one quote-like operator whose text is "qq(p)"
 one quote-like operator whose text is "qq[q]"
 one quote-like operator whose text is "qq!r!"
 ```
+
+## `glob` and `readpipe`, spelled as functions without parens
+
+The two ops above wear a second spelling. `<*.pat>` and `qx{cmd}` are
+delimited terms; `glob $pattern` and `readpipe $cmd` are the same two ops
+reached through an ordinary parenless call, and at the TOKEN layer they
+are indistinguishable from a call to a user sub of either name.
+
+THE WRONG PARSE THIS RULES OUT, and it is why the case is here: a parser
+whose arity table does not hold these names reads each as a call taking
+NOTHING and leaves the argument behind as a separate statement. Measured,
+that emitted `glob();$pattern;` -- an empty call, and the tree round-trips
+and refuses nothing, so the node count cannot see it. `readpipe` was the
+same, and `atan2` too. All three were absent from every arity table this
+parser has, which is what an audit against perl's own keyword list found.
+
+The OUTPUT is the whole discrimination. `scalar(@none)` is 0 either way a
+glob is spelled, so the load-bearing half is `hi` -- present only if
+`readpipe` received `$cmd`. A parser that dropped the argument runs
+`readpipe` with none and prints nothing there.
+
+Both arguments come from `$ENV{X} // default`, the corpus idiom for a
+runtime value, for the reason the `pack` case states: constant arguments
+fold, and a folded `glob` would leave no op for the lint to check.
+`*.nonexistent-xyz` matches nothing in any directory the runner may sit
+in, and `echo hi` writes the same three bytes wherever there is a POSIX
+shell -- the same two choices the delimited cases above made, deliberately,
+so this case is the spelling and nothing else.
+
+The token facts say `word`, not `quote-like operator`: our lexer gives
+both names Kind Word and cannot know that either is a builtin, which is
+the parsing question this case's output answers.
+
+```perl
+my $pattern = $ENV{X} // "*.nonexistent-xyz";
+my @none = glob $pattern;
+my $cmd = $ENV{X} // "echo hi";
+my $out = readpipe $cmd;
+print "got ", scalar(@none), " ", $out;
+```
+
+```behavior
+parses: yes
+```
+
+```output
+got 0 hi
+```
+
+```tokens
+one word whose text is "glob"
+one word whose text is "readpipe"
+no quote-like operator whose text is "readpipe"
+```
