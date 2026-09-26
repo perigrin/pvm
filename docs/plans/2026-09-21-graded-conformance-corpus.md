@@ -1380,11 +1380,56 @@ Three of those gates found a claim wrong in a comment rather than in code,
 which is why the no-false-comments rule is load-bearing here and not
 decoration.
 
-### The 8 that remain, and who owns them
+### The 5 that remain, measured 2026-09-26, and the honest ceiling
 
-Five are m1 work in flight or filed: the file-test operator family
-(01a0cf64), the parenless-call declared/undeclared boundary (01a0c13f-50ee
-and -6816), and `undef` as a named unary. One is `defer` without its
-feature gate, which lives in v0.1 rather than m1. Three are adjacency
-cases -- one case holding a whole tier's vocabulary at once -- and those
-close only when every construct in their tier does.
+The corpus is 213 cases (one contributed by the B::SoN session), 208 clean,
+5 refusing. Each refusal now has a MEASURED cause and a live owner, which
+was not true earlier in the day:
+
+| case | cause | issue |
+|---|---|---|
+| `named-operators`/`undef` | `undef` absent from `namedUnary` | 01a0dd43 |
+| `adjacency-04_operators` | the same `undef @cleared` | 01a0dd43 |
+| `adjacency-07_subroutines` | `no feature "signatures"` turns it ON | 01a0dd6f |
+| `adjacency-11_oo` | `ADJUST` followed by `method` | 01a0dd71 |
+| `ungated`/`defer` | indirect object notation at statement level | 01a0d087 |
+
+### The adjacency cases were NOT waiting on their tiers
+
+An earlier revision of this section said the three adjacency cases "close
+only when every construct in their tier does". That was a guess and it was
+wrong. Bisected by progressive prefix, each holds exactly ONE Unknown, and
+in every case it is a two-construct interaction where each construct alone
+parses clean:
+
+- 07: a non-empty prototype, plus `return` in the body, plus the pragma
+  pair. Drop any one and it parses. `noteSignatures` returns early unless
+  `pendingPragma == 1`, and `pendingPragma` is 2 for `no`, so
+  `no feature "signatures"` turns signatures ON and the prototype is read
+  as a signature.
+- 11: `ADJUST { }` immediately followed by `method`. Reversed parses, two
+  methods parse, `ADJUST` alone parses. Perl accepts both orders.
+- 04: `undef @cleared`, which is the `undef` gap and closes with it.
+
+That is the adjacency property these topics exist to assert, arriving three
+times in one milestone. A one-construct-per-case corpus would have gone
+green over all three.
+
+### 212 of 213 is the m1 ceiling, and `defer` is correctly outside it
+
+`01a0d087` is in v0.1 and belongs there. Measured, the fix is not the
+one-line removal it looks like:
+
+    perl -MO=Deparse -e 'package Foo; sub new {1} package main; new Foo;'
+      -> 'Foo'->new;
+
+`defer BLOCK ARG` and `new Foo;` are the same rule -- INDIRECT OBJECT
+NOTATION at statement level -- which this parser does not implement.
+Removing `defer` from `statementKeywords` fixes two of the three shapes and
+leaves `sub f { defer { 1 } print "b" }` refusing, and it also unmasks a
+canon round-trip defect on `defer.t` that the refusal was hiding
+(`TestCanonTokenIdentity`, token 399). Two ratchets move, not one.
+
+So the corpus cannot reach 213/213 inside m1 without pulling a v0.1 issue
+forward, and that is a milestone decision rather than a parser one. Stated
+here rather than left as an implied 100%.
