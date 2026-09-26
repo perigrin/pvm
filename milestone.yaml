@@ -105,10 +105,10 @@ A clean/dirty ratio is not a measurement of what a corpus asserts.
 
 ## Gate record
 
-`crochet:chain-review`, 2026-09-26, not backfilled. Both lenses ran
-concurrently (alignment, pushback) plus a mechanical AC audit.
+Two rounds, both `crochet:chain-review`, 2026-09-26, neither backfilled.
+Both lenses ran concurrently in each round, plus a mechanical AC audit.
 
-Findings that changed the chain:
+### Round 1 — findings that changed the chain
 
   - alignment: T2 is 19/56 (33.9%), not the 17/56 (30.4%) the body
     asserted -- a five-day-old figure restated as current.
@@ -121,8 +121,59 @@ Findings that changed the chain:
   - chain-review directly: `argument-extent.md` already covers the
     construct.
 
-The AC dry-run could not run as specified: the verify `--dry-run` form
-reads only DONE issues, so an all-pending chain yields nothing. The
-extraction was reproduced by hand over `milestone show --format json`.
+### Round 2 — re-gated after the restructure
 
-Preflight: git-zhi 0.5.2 against a 0.7.2 minimum. Advisory.
+  - chain-review directly: the `xor` case was ORPHANED by round 1 --
+    moved out of the glossary issue, picked up by nothing. Filed as
+    `01a0dbe8`, and measuring it found it wider than one case: all three
+    low-precedence word operators fail inside parens.
+  - alignment: the closed-citation count went 14 -> 4 -> **5**. The
+    previous revision wrote "01a0c432 (x3)" then counted it once, listed
+    `01a0c35f` as both closed and live, and omitted `01a0cf64`.
+  - alignment: "N of seventeen" conflates two denominators. Measured, 24
+    cases record a refusal, 17 refuse on the parser, 12 on a token fact,
+    5 on both. The supporting tier claim was self-refuting: three unfiled
+    cases are in tier 01, which the same section calls 100% clean.
+  - alignment: BOTH dependency edges were cargo-cult. Added on a
+    shared-FILE premise; measured, the citation issue touches four other
+    files entirely and the two `comparison.md` cases sit on different
+    lines. Dropped, which also released `v0.1` from this milestone.
+  - pushback: route 2's cost was overstated by a subsystem. Measured,
+    `categories.go:39-45` already splits one lexer kind by TEXT, so the
+    route costs one heading plus one predicate and THE LEXER DOES NOT
+    CHANGE. A decision taken on the old framing would have been taken on
+    a false price.
+  - pushback: `GLOSSARY.md:12` says the glossary is "derived from perl,
+    not from us", and perlop calls `x`/`cmp`/`and` operators -- evidence
+    FOR route 2 that the issue omitted while calling the question open.
+  - pushback: the prohibition "do not widen the category table" had NO
+    check behind it, and widening it is the cheapest wrong way to close
+    the issue. Verified: every negative operator fact in the corpus names
+    punctuation, and `TestCategoryBoundaries` has one `operator` row, on
+    `-`. A named row is now a criterion.
+  - pushback: two criteria CONTRADICTED their own issue's Scope, whose
+    sanctioned fallback writes a real issue id where the criterion forbade
+    any `refuses:` at all. Narrowed to forbid only the sentinel.
+  - pushback: three guards were unlabelled while a sister criterion was
+    labelled, making the convention unreliable. All six are labelled now.
+
+Criteria after round 2: **20, all extractable; 14 fail today, 6 are
+labelled regression guards.**
+
+### Two process items this gate could not resolve
+
+Recorded rather than left as drift, per Plan Discipline:
+
+  - **The chain tool is 0.5.2 against a 0.7.2 minimum.** Advisory per the
+    preflight spec, but it plausibly explains the dry-run shortfall below.
+    No issue, no owner. Needs one, or an explicit decision to stay.
+  - **The verify `--dry-run` form reads only DONE issues**, so an
+    all-pending chain yields nothing and the mechanical AC audit had to be
+    reproduced by hand over `milestone show --format json` in both rounds.
+    That is the gate's own step 2.5 being unrunnable at the moment it is
+    specified to run.
+
+Also noted: the full conformance suite (243s) appears as a criterion in all
+three issues, so the completion gate will spend ~12 minutes running it
+three times. Correct but wasteful; a milestone-level criterion would say it
+once.
