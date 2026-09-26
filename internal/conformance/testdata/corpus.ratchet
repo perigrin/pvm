@@ -16,7 +16,7 @@
 - adjacency-01_literals.md/The whole tier in one body
 - adjacency-02_variables.md/The whole tier in one body
 - adjacency-03_context.md/The whole tier in one body
-not_a_term,trailing_tokens adjacency-04_operators.md/The whole tier in one body
+trailing_tokens adjacency-04_operators.md/The whole tier in one body
 - adjacency-05_scoping.md/The whole tier in one body
 - adjacency-06_control.md/The whole tier in one body
 trailing_tokens adjacency-07_subroutines.md/The whole tier in one body
@@ -79,7 +79,7 @@ tokens arithmetic.md/Concatenation and repetition
 - comparison.md/Level 11 is the one true `%nonassoc`
 - comparison.md/Level 13 is `chain/na` and the halves differ
 - comparison.md/Punctuation `!`, and the double negative
-not_a_term,tokens comparison.md/The five logical operators
+tokens comparison.md/The five logical operators
 - comparison.md/The numeric relations and `<=>`
 tokens comparison.md/The string relations and `cmp`
 tokens comparison.md/`&&` and `and` are one op at two precedences

@@ -377,7 +377,7 @@ func (p *parser) parseParenList(open lexer.Token) *Node {
 			//
 			// So the loop is resumed with the list in hand rather than
 			// restarted, and the closer is then taken by the code below.
-			if op, isOp := infix[p.text(next)]; isOp && op.BP < infix[","].BP {
+			if op, isOp := infix[p.text(next)]; isOp && op.BP <= bpBelowComma {
 				items = []*Node{p.parseInfix(p.finishList(items, open), 0)}
 				if c, ok := p.peekSignificant(); ok && p.text(c) == ")" {
 					p.advanceTo(c)

@@ -106,7 +106,7 @@ print "count [$count] tag [$tag] flag [$flag] group [$group] chain [$chain]\n";
 ```behavior
 parses: yes
 refuses: unfiled
-refusal: not_a_term
+refusal: trailing_tokens
 ```
 
 ```output

@@ -76,4 +76,17 @@ func TestBareWordInfixStillRegroups(t *testing.T) {
 		}
 		assertShape(t, root, tc.want)
 	}
+
+	// The COMMA is not one of the three and must still be reached from an
+	// initialiser. Stopping the initialiser at the assignment's own right
+	// power excluded it too and made this refuse, which is legal perl:
+	//
+	//	$ perl -MO=Deparse -e 'my $x = 1, my $y = 2;'
+	//	my $x = 1, my $y = 2;
+	//
+	// So the floor is bpBelowComma, and this is the case that says why.
+	root := parseOneExpr(t, "my $x = 1, my $y = 2;")
+	if containsKind(root, parse.Unknown) {
+		t.Errorf("my $x = 1, my $y = 2: refused, want a parse")
+	}
 }
