@@ -1,19 +1,23 @@
 ---
 title: The perl.git t/ goal is gated by no ratchet, so it can regress silently
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T18:12:35.095313178Z
-updated: 2026-09-26T21:10:58.31586339Z
+updated: 2026-09-26T21:11:34.736582226Z
 sessions:
 - start_sha: 2257e08ee261e0a0303f9201d0210d81f034b326
-  end_sha: ""
+  end_sha: 2257e08ee261e0a0303f9201d0210d81f034b326
   commits: 0
   started_at: 2026-09-26T21:10:58.31586339Z
+  ended_at: 2026-09-26T21:11:34.736582226Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-26T21:10:58.31586339Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-26T21:11:34.736582226Z
 ---
 
 The perl.git t/ goal is gated by no ratchet. `parse.Parse` takes no loader, so
