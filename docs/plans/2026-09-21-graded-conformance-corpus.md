@@ -1084,18 +1084,47 @@ This parser over all 209 positive corpus cases, at `b0f1a9e9`:
     07_subroutines  10/13      13_opaque      7/15
     all other ten tiers       100%
 
-Against T2 core in the same tree: **17 of 56 files clean, 30.4%.**
+Against T2 core in the same tree: **19 of 56 files clean, 33.9%**, from
+`TestT2CoreParses`'s own log line. (An earlier revision of this section
+said 17 of 56, 30.4% -- that is the figure at the top of this document,
+measured 2026-09-21, restated here as current without re-running it. The
+number this section exists to correct was itself stale.)
 
-Two instruments, 60 points apart, and the gap is not noise. **The corpus
-does not contain what T2 fails on.** Checked: no corpus case is a
-parenless call with an argument, which is the single largest T2 bucket.
+Two instruments ~58 points apart. The tempting conclusion -- "the corpus
+does not contain what T2 fails on" -- is FALSE, and checking it is what
+this section is for.
 
-### Why that gap is the corpus's problem and not T2's
+`conformance/mdtest/argument-extent.md` holds five tier-07 cases on
+exactly the largest T2 bucket: a parenless call's argument extent, greedy
+and prototype-cut, plus the undeclared callee as `parses: no`. The
+construct was never missing.
 
-A corpus green at 92% while the parser fails a third of real perl files
-is a corpus that has stopped making a claim -- the defect class this
-whole chain keeps finding. The fix is to make the corpus cover the
-construct, not to lower the instrument that noticed.
+What is wrong is the CITATION. Both refusing cases record
+`refuses: 01a0c432-fbd5`, an issue whose state is `done`. A reader
+following it lands on finished work and concludes the corpus says nothing
+about the construct.
+
+### Why the gap is the citations and not the coverage
+
+A corpus green at 92% while the parser fails two thirds of real perl
+files looks like a corpus that has stopped making a claim. Measured, it
+is making the claim and pointing it at closed work.
+
+Naming all seventeen refusals rather than counting them by tier:
+
+    ten     `refuses: unfiled`            BY DESIGN, see below
+    four    cite a CLOSED issue           01a0c432 (x3), 01a0c35f, 01a0c730
+    three   cite a live issue             01a0ce57, 01a0d087, 01a0c35f
+
+FOUR OF SEVENTEEN point at nothing actionable, and `01a0d0c7` already owns
+them. The ten `unfiled` are a deliberate sentinel meaning the case is its
+own record -- an earlier revision of this section counted them as defects,
+which the reader's own test contradicts; see below.
+
+The repair is a CITATION repair rather than new cases: the cases exist.
+
+Counting by tier is what hid it. "07_subroutines 10/13 clean" is three
+refusals unnamed, and two of the three were the parenless-call cases.
 
 ### The construct, isolated
 
@@ -1111,9 +1140,16 @@ everything:
     sub tryeq ($$$$){}  tryeq 1, 13 % 4, 1;   UNKNOWN  <- arith.t, 179 nodes
 
 A parenless call to a DECLARED sub parses with zero arguments and fails
-with any. That is why the corpus's own call-form slice passes while
-`opbasic/arith.t` carries 179 Unknowns: the slice's four spellings all
-call with no arguments, and the one that matters is the fifth.
+with any. `subroutines.md`'s "Four spellings of one call" passes because
+all four spellings call with NO arguments; `argument-extent.md` covers
+the argument-bearing forms and REFUSES, which is why the construct is
+both covered and invisible in a clean/dirty count.
+
+The arith.t shape adds nothing to it. `f 1, 2`, `f 13 % 4, 2` and
+`sub tryeq ($$$$) {} tryeq 1, 13 % 4, 1, 'x'` all refuse identically,
+one `trailing_tokens` each -- so an EXPRESSION in argument position is
+not a distinct behaviour from a literal, and no new case would measure
+anything the corpus does not already measure.
 
 `%` is not implicated. `sub f {} f 13 % 4` and `sub f {} f 8` fail
 identically, so the "`%` read as a hash sigil" reading in `01a0c10b` is
@@ -1137,7 +1173,15 @@ sense and M1's gate is Oracle WRONG = 0. The corpus must assert the
 declared case parses and the undeclared case does not -- two cases, not
 one, and the second is `parses: no`.
 
-### Sixteen refusals with no issue behind them
+It already does both. `argument-extent.md`'s "An undeclared callee is a
+syntax error" is that `parses: no` case, and it was written in
+`b4180102`, whose own commit message records reaching this conclusion by
+measurement: "AC1 asks that a parenless call to an unknown callee have
+its argument extent MEASURED rather than assumed. Measured, there is no
+extent, because there is no call." This section re-derived it five days
+later without checking, which is the same failure in miniature.
+
+### Four refusals citing closed issues, and ten that are fine
 
 Found while measuring: sixteen cases carry `refuses: unfiled`.
 
@@ -1147,29 +1191,52 @@ Found while measuring: sixteen cases carry `refuses: unfiled`.
     numeric-point.md       1      adjacency-04/-13    2
 
 Their tiers match the dirty count exactly -- 04 has five, 13 has eight --
-so these ARE the 17, already recorded, just untracked. `refuses:` was
-designed to name an issue so a refusal points at live work; `unfiled` is
-the corpus admitting it does not.
+so these ARE the 17, already recorded.
 
-**Measured: ZERO are stale.** All sixteen still refuse. A first probe
-reported six stale and was WRONG, in a way worth recording because it is
-this chain's recurring defect wearing new clothes: it counted Unknown
-nodes, while `verdict()` collects TWO kinds of evidence -- refusal codes
-AND token facts. Six cases refuse on a token fact with a clean parse, so
-counting nodes alone reported them as passing. The two-way check was
-working the whole time; the probe measuring it was not.
+**They are recorded BY DESIGN and are not the defect.** `unfiled` is a
+deliberate sentinel: `internal/conformance/file.go:275`, the topic-format
+spelling of `selfRecorded` ("this file"), meaning THE CASE IS ITS OWN
+RECORD. The case body already states the measured behaviour and the tokens
+we produce instead, so an issue would be a second copy free to go stale.
+`TestRefusalCitationMustResolve/unfiled_is_not_looked_up` asserts it and
+passes, and its comment rejects the contrary reading in advance: treating
+the sixteen as citations pointing at nothing is "a claim about the corpus
+that is not true".
+
+**Measured: ZERO are stale.** All sixteen still refuse. Two probes were
+wrong before one was right, and both errors are this chain's recurring
+defect in new clothes:
+
+  - The first counted Unknown nodes and reported six stale. `verdict()`
+    collects TWO kinds of evidence -- refusal codes AND token facts -- and
+    six cases refuse on a fact with a clean parse, so counting nodes alone
+    read them as passing.
+  - The second called all sixteen defects without reading the reader.
+    `grep -rn unfiledRefusal internal/` finds the const, its rationale and
+    the test asserting it, in one command.
+
+Both times the corpus was right and the instrument measuring it was not.
 
 Split by what actually refuses:
 
     ten     the parser refuses -- heredocs (3), formats (2),
-            pod/data (2), the two adjacency bodies, one logical-op case
+            pod/data (2), the two adjacency bodies, the logical-op case
     six     the parse is CLEAN and a TOKEN FACT fails
+              three   a word-shaped operator (`x`, `cmp`, `and`)
+              three   two `scanNumber` gaps (`5e-1`, two vstring forms)
 
-### Four of those six token facts contradict the glossary
+The logical-operators case is in the TEN, not the six. It carries
+`refusal: not_a_term` (comparison.md:112) as well as a failing `xor`
+fact -- the only one of the four word-shaped-operator cases that does.
+An earlier revision counted it in both halves and called all four
+"clean", which is false for it and is why the cleanup issues overlapped.
 
-`x`, `cmp`, `and` and `xor` are each asserted as `one operator whose text
-is "..."`. The lexer emits `Word` for all four and the corpus scores that
-as a refusal. The glossary is the authority the token layer names, and it
+### Three of those facts contradict the glossary
+
+`x`, `cmp` and `and` are each asserted as `one operator whose text is
+"..."`. The lexer emits `Word` and the corpus scores that as a refusal.
+(`xor` makes the same assertion, but its case also carries a parser
+refusal, so it belongs to the ten above and is repaired with them.) The glossary is the authority the token layer names, and it
 says:
 
 > **operator** -- Punctuation denoting an operation: `+`, `.`, `=~`,
@@ -1179,7 +1246,7 @@ says:
 > Keywords are not distinguished from other identifiers at this layer.
 
 `x` is not punctuation. By the glossary's own definition the lexer is
-RIGHT and four corpus facts are wrong. `01a0ce57` independently reached
+RIGHT and these corpus facts are wrong. `01a0ce57` independently reached
 the same conclusion in prose -- "the binary `x` is lexed correctly as a
 Word" -- while the corpus scored the opposite.
 
