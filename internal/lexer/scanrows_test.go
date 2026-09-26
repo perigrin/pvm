@@ -188,14 +188,23 @@ func TestLeadingDotVersionStringUnharmed(t *testing.T) {
 		{`use v5.36;`, []string{
 			"Word(use)", "Word(v5)", "Operator(.)", "Number(36)", "Semicolon(;)",
 		}},
-		// `Number(5.630)` rather than three tokens, and that is
-		// PRE-EXISTING: `scanNumber`'s loop has always taken a single `.`
-		// whole, breaking only on `..`. Verified against HEAD's scan.go.
-		// What this case pins is the FIRST dot -- without the guard it
-		// merges too, giving `Word(v5) Number(.5.630)` and losing the
-		// separator the version reassembly reads.
+		// `v5.5.630` is now ONE token, and that is the v-string rule of
+		// 01a0db78 rather than a loss: two dots make a string, perl agrees
+		// (`length(v5.5.630)` is 3), and `scanVString` takes it whole.
+		//
+		// What this row pinned was that the FIRST dot stay a separator the
+		// version reassembly could read. Nothing is reassembled from one
+		// token, so `noteSignatures` reads the version out of the Quote
+		// directly -- and `TestVStringVersionStillEnablesSignatures` is
+		// where that is checked, in both directions. The claim moved; it
+		// was not dropped.
+		//
+		// The FIRST-dot guard this row was added for is still live for the
+		// ONE-dot form, which `use v5.36;` above is: `scanVString` declines
+		// on one dot, and without `continuesVersionString` the `.36` would
+		// merge into `Word(v5) Number(.36)`.
 		{`v5.5.630`, []string{
-			"Word(v5)", "Operator(.)", "Number(5.630)",
+			"Quote(v5.5.630)",
 		}},
 	} {
 		got := significant(c.src)

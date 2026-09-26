@@ -343,6 +343,8 @@ func scanOne(l *lexer) {
 	//   scanQuoteLike  before words, so `q` is not the bareword `q`
 	//                  -- but it declines in operator position for `x`,
 	//                  `y` and `s`, which are repetition and names there
+	//   scanVString    before words, so `v65.66.67` is not `v65` `.` `66.67`
+	//                  -- but it declines on one dot, so `v5` stays a Word
 	//   scanNumber     before operators, so `1.5` is not `1` `.` `5`
 	for _, scan := range []func(*lexer) bool{
 		scanPod,
@@ -358,6 +360,7 @@ func scanOne(l *lexer) {
 		scanAmp,
 		scanQuoteLike,
 		scanBarePattern,
+		scanVString,
 		scanWord,
 		scanNumber,
 		scanSemicolon,
