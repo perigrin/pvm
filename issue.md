@@ -1,19 +1,28 @@
 ---
 title: given, when and default are statement forms, and default takes no parens
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T16:28:50.389622276Z
-updated: 2026-09-26T16:30:24.025683777Z
+updated: 2026-09-26T17:25:39.478660256Z
 sessions:
 - start_sha: 2dc301fdeeec2303d2bfcdc1cae708b09b190c0b
-  end_sha: ""
-  commits: 0
+  end_sha: 9325864f86f42d125118a800b15eb0b62d95d6c3
+  commits: 3
   started_at: 2026-09-26T16:30:24.025683777Z
+  ended_at: 2026-09-26T17:25:39.478660256Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-26T16:30:24.025683777Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-26T17:25:39.478660256Z
+observed_paths:
+- docs/plans/2026-09-26-perl-git-t-parses.md
+- internal/parse/control.go
+- internal/parse/switch_test.go
+- internal/parse/testdata/t1.ratchet
 ---
 
 `given`/`when`/`default` refuse. Three dirty files in perl.git t/, but
