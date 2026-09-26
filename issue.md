@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: corpus-covers-t2
 created: 2026-09-26T02:08:00.127866819Z
-updated: 2026-09-26T02:08:00.127866819Z
+updated: 2026-09-26T02:55:10.837974209Z
 ---
 
 Two tier-01 cases refuse on a token fact with a clean parse, and both are
@@ -74,12 +74,29 @@ Fix the lexer, then replace `refuses: unfiled` with nothing -- the cases
 should PASS, not point at an issue. If either turns out larger than it
 looks, file it and cite the id; do not leave `unfiled` behind.
 
+## Criteria corrected by chain-review, 2026-09-26
+
+The first draft's criteria were vacuous. `grep -q 'PASS: TestCorpus/numeric-point.md'`
+passes TODAY with the bug unfixed, because `TestCorpus` emits one subtest
+per CASE and numeric-point has four cases that already pass -- so a
+file-level grep matches a sibling. Each criterion below names its case, and
+each was verified to FAIL now (rc=1) and therefore to be falsifiable.
+
+The falsifiable pair is a SCOPE requirement rather than its own criterion:
+`no operator whose text is "-"` fails today for the same reason as
+`one numeric literal whose text is "5e-1"`, and both are token facts on the
+same case. The named-case criterion covers both, because `verdict()`
+collects every failing fact on a case before deciding -- a fix that merged
+the literal while leaving a stray `-` token would keep the case SKIPping
+and the criterion failing. A separate grep would have been a second,
+weaker copy of that.
+
 ## Acceptance criteria
 
-- [ ] An exponent with a sign is one numeric literal (`go test ./internal/lexer/ -count=1 | grep -q '^ok'`)
-- [ ] Both vstring spellings lex as one literal (`go test ./internal/conformance/ -run '^TestCorpus$' -count=1 -v | grep -q 'PASS: TestCorpus/vstrings.md'`)
-- [ ] The exponent case passes rather than skipping (`go test ./internal/conformance/ -run '^TestCorpus$' -count=1 -v | grep -q 'PASS: TestCorpus/numeric-point.md'`)
-- [ ] Neither topic leaves a refusal unfiled (`! grep -q 'refuses: unfiled' conformance/mdtest/vstrings.md`)
-- [ ] The exponent topic leaves no refusal unfiled (`! grep -q 'refuses: unfiled' conformance/mdtest/numeric-point.md`)
-- [ ] The tier-01 lint and perl validation still hold (`go test ./internal/conformance/ -run '^TestTierLiterals' -count=1 | grep -q '^ok'`)
+- [ ] The signed-exponent case passes rather than skipping (`go test ./internal/conformance/ -run '^TestCorpus$' -count=1 -v | grep -q 'PASS: TestCorpus/numeric-point.md/The_sign_of_an_exponent_is_part_of_the_literal'`)
+- [ ] The bare vstring case passes rather than skipping (`go test ./internal/conformance/ -run '^TestCorpus$' -count=1 -v | grep -qE 'PASS: TestCorpus/vstrings.md/Bare:_three_dot-separated_parts'`)
+- [ ] The v-prefix case passes rather than skipping (`go test ./internal/conformance/ -run '^TestCorpus$' -count=1 -v | grep -qE 'PASS: TestCorpus/vstrings.md/The_.v._prefix'`)
+- [ ] Neither vstring case leaves a refusal recorded (`! grep -q 'refuses:' conformance/mdtest/vstrings.md`)
+- [ ] The exponent topic leaves no refusal recorded (`! grep -q 'refuses:' conformance/mdtest/numeric-point.md`)
+- [ ] The lexer's own suite still passes (`go test ./internal/lexer/ -count=1 | grep -q '^ok'`)
 - [ ] The suite is green (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
