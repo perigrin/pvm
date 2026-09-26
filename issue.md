@@ -1,19 +1,32 @@
 ---
 title: Three token facts call a Word an operator, and the glossary says the lexer is right
-state: in-progress
+state: done
 urgency: normal
 milestone: corpus-covers-t2
 created: 2026-09-26T03:02:06.779257794Z
-updated: 2026-09-26T04:48:57.594125598Z
+updated: 2026-09-26T04:56:10.294527675Z
 sessions:
 - start_sha: 58076b8abd0e49c3879c050fa5657dfac841914f
-  end_sha: ""
-  commits: 0
+  end_sha: 7ea2168ccfe9d7426ff0ff94078a69768b0d80bc
+  commits: 1
   started_at: 2026-09-26T04:43:08.977932447Z
+  ended_at: 2026-09-26T04:56:10.294527675Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-26T04:43:08.977932447Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-26T04:56:10.294527675Z
+observed_paths:
+- conformance/GLOSSARY.md
+- conformance/mdtest/arithmetic.md
+- conformance/mdtest/comparison.md
+- conformance/mdtest/compound-assignment.md
+- internal/conformance/categories.go
+- internal/conformance/glossary_test.go
+- internal/conformance/testdata/corpus.ratchet
+- internal/parse/precedence.go
 ---
 
 Four corpus token facts assert something the glossary forbids, and the
