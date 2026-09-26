@@ -1,0 +1,96 @@
+---
+title: A caret control variable lexes as two tokens, so 179 files carry a wrong tree
+state: pending
+urgency: normal
+milestone: perl-git-t-parses
+created: 2026-09-26T18:35:44.781455309Z
+updated: 2026-09-26T18:35:44.781455309Z
+---
+
+`$^O` lexes as `Variable($^)` followed by a separate Word, so every caret
+control variable is two tokens where perl has one. 179 of perl.git t/'s 620
+files use one, and in most spellings the node count is ZERO -- the tree is
+wrong and nothing reports it.
+
+Found by tracing `op/local.t`'s first failure after the require and label fixes
+took the goal to 318 of 620.
+
+## Measured at `20c20c3c`
+
+    source                              Unknown  last var token  canon
+    my $x = $^O;                           0     Variable($^)    $^;O()
+    my $r = $^O eq 'x';                    0     Variable($^)    $^;O() eq 'x'
+    $s = 0 if ($^O eq 'VMS');              1     Variable($^)    ($^ O eq 'VMS')
+    $s = 0 if ($^O);                       1     Variable($^)    ($^ O)
+    $s = 0 if $^O eq 'VMS';                0     Variable($^)    $^ O() eq 'VMS'
+    $s = 0 if ($o eq 'VMS');               0     Variable($o)    fine, the control
+
+The last var token is `$^` in EVERY caret case, including the four that score
+Unknown=0. Perl reads it as one variable:
+
+    perl -MO=Deparse -e 'my $x = $^O;'   ->  my $x = $^O;
+
+So `my $x = $^O;` produces a confident wrong tree: `$^` then a call to `O()`.
+That is the fifth zero-Unknown-and-wrong finding today, and the first where the
+count is zero for the MAJORITY of spellings -- only the parenthesised forms
+refuse, which is why it survived the goal's bucketing passes.
+
+## Reach
+
+    179 of 620 files contain a caret variable (grep -lE '\$\^[A-Z]')
+
+`$^O` dominates -- it is how perl's suite tests for VMS, cygwin, MSWin32 and
+dec_osf. The three span buckets `O eq 'VMS')`, `O eq 'dec_osf')` and
+`O eq 'MSWin32')` together were 49 nodes with 25 of them a file's FIRST
+Unknown, which is how this was found.
+
+I first probed `$^O` in isolation, saw Unknown=0 on four of six spellings, and
+concluded it was NOT a cause. That was wrong, and the reason is the thing worth
+recording: an Unknown count cannot see a mis-lex that still yields a parseable
+tree. The token stream had `Variable($^)` the whole time.
+
+## What already works, so the fix is narrow
+
+`${^TAINT}` is already correct -- `bracedNameFollowsAt` has an explicit caret
+branch (`internal/lexer/scan.go`, the `l.src[i] == '^'` case) added because
+`${^TEST}` splitting was caught by `TestLexDotTGoldenStream`. So the BRACED
+spelling was fixed and the BARE one was not.
+
+That is the same shape as the trivia set diverging in four copies
+(`01a0dd25`-era work): one spelling of a rule was repaired and its sibling was
+left, because nothing tied them together.
+
+## Scope
+
+1. `scanVarName` should take `^` plus one following identifier character as the
+   whole name when the sigil is `$`. Measure the boundary first: `$^` alone is a
+   real punctuation variable (the format top-of-page name), so a bare `$^` with
+   no letter after it must stay one token.
+2. Measure which letters are legal. perlvar lists `$^A` through `$^X` plus
+   `$^_`, and `${^WORD}` for the long names -- check whether a lowercase letter
+   after `$^` is a caret variable or `$^` followed by a word.
+3. A corpus case. `$^O` is tier 02's territory (a punctuation variable) and the
+   case should assert the TOKEN as well as the output, since the output alone
+   passes today for `my $x = $^O;`.
+4. Re-measure perl.git t/ after: the 49 nodes in the three `$^O` buckets are the
+   visible part, but 179 files carry the construct and most are scoring clean on
+   a wrong tree.
+
+## Context
+
+- paths: `internal/lexer/scan.go` (`scanVarName`, `bracedNameFollowsAt`'s caret
+  branch at the `l.src[i] == '^'` case), `internal/lexer/scan.go`'s
+  `scanVariable`
+- commands: `go test ./internal/lexer/ -count=1`,
+  `go test ./internal/parse/ -count=1`
+- related: `01a0deeb` (no ratchet gates the t/ goal, so this cannot regress
+  visibly), `01a0de11` (lintOps sees op names, not flags -- the same
+  instrument-blindness in a different layer)
+
+## Acceptance criteria
+
+- [ ] `$^O` lexes as ONE Variable token (`go test ./internal/lexer/ -run '^TestCaretControlVariable$' -count=1 -v | grep -q '^--- PASS: TestCaretControlVariable'`)
+- [ ] A bare `$^` with no letter after it is still one token (`go test ./internal/lexer/ -run '^TestCaretControlVariable$' -count=1 | grep -q '^ok'`)
+- [ ] `${^TAINT}` still lexes as it does today (`go test ./internal/lexer/ -count=1 | grep -q '^ok'`)
+- [ ] REGRESSION GUARD, passes today: the corpus stays complete (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
+- [ ] REGRESSION GUARD, passes today: the parse ratchets hold (`go test ./internal/parse/ -count=1 | grep -q '^ok'`)
