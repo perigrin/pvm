@@ -60,6 +60,21 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 	//	length ($x) + 1    add(length($x), 1)    the + is outside
 	if next, ok := p.peekSignificant(); ok && p.text(next) == "(" {
 		p.advanceTo(next)
+		// The BLOCK slot is inside the parens for `map({...} @a)`, which is
+		// the same call as `map {...} @a` -- perl's Deparse emits the
+		// parenthesised spelling for both -- so it is read here for the
+		// reason the parenless path reads it below. Canon parenthesises
+		// every call, so without this its own emission of a block argument
+		// did not re-parse: the `;` after the block's last statement ended
+		// the statement and the `}` was orphaned.
+		//
+		// It asks the token, as the parenless path does. The lexer's
+		// listOpParen carry ran intuit_curly at the `(`, so a HASHREF first
+		// argument -- `map({a => 1}, @a)` -- leaves OpensBlock unset and
+		// falls through to parseCallArgs as the ordinary argument it is.
+		if blk := p.parseListOpBlock(text); blk != nil {
+			n.Children = append(n.Children, blk)
+		}
 		if arg := p.parseCallArgs(); arg != nil {
 			n.Children = append(n.Children, arg)
 		}

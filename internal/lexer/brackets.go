@@ -23,6 +23,14 @@ func (l *lexer) peekIsOpenBrace() bool {
 	return false
 }
 
+// peekIsOpenParen reports whether the next non-space byte is `(`, so a
+// block-taking word can tell a parenthesised call from a bare one -- the
+// spelling whose brace its own lookahead cannot reach.
+func (l *lexer) peekIsOpenParen() bool {
+	i := skipSpaceFrom(l.src, l.pos)
+	return i < len(l.src) && l.src[i] == '('
+}
+
 // bracket is what an opener was, recorded so its closer knows what it closed.
 type bracket int
 

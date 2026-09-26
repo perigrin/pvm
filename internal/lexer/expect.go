@@ -116,6 +116,9 @@ type transition struct {
 	// nextBraceIsBlock is intuitCurly's answer for the `{` that follows,
 	// and is meaningful only when nextIsOpenBrace is set.
 	nextBraceIsBlock bool
+	// listOpParen is set on the `(` of a parenthesised `map`, `grep` or
+	// `sort` call, whose brace the WORD's own lookahead could not reach.
+	listOpParen bool
 }
 
 // after returns the state following a token of kind k.
@@ -275,6 +278,28 @@ func (e Expect) after(k Kind, t transition) Expect {
 		// why this is its own state rather than one of the other two.
 		if string(t.text) == "->" {
 			return XPostDeref
+		}
+		// The `(` of a parenthesised `map`, `grep` or `sort`. `map({...} @a)`
+		// is the same call as `map {...} @a` -- perl's own Deparse emits the
+		// parenthesised spelling for BOTH -- but the `(` puts the brace out
+		// of the word's lookahead reach, so without this the brace is
+		// classified from XTerm and reads as an anonymous hash. Canon
+		// parenthesises every call, so its own emission was the shape that
+		// could not be read back.
+		//
+		// intuitCurly still decides, exactly as it does for the bare form:
+		// perl runs it inside the parens too, measured on 5.42.0.
+		//
+		//	map({a => 1}, @a)     map({'a', 1}, @a)     a HASHREF
+		//	map({; a => 1} @a)    map({'a', 1;} @a)     a BLOCK
+		//
+		// So this returns XBlock only on intuitCurly's yes, and XTerm on its
+		// no -- the same two-way branch the WORD case makes.
+		if t.listOpParen && t.nextIsOpenBrace {
+			if t.nextBraceIsBlock {
+				return XBlock
+			}
+			return XTerm
 		}
 		return XTerm
 	case Semicolon:

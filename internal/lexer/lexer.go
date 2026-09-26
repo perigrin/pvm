@@ -242,6 +242,12 @@ type lexer struct {
 	// openedBlock is the same for a `{` that opened one. Both are copied
 	// onto the token as OpensBlock, so the parser does not re-derive them.
 	openedBlock bool
+	// listOpParen is set when the token just emitted was `map`, `grep` or
+	// `sort` with a `(` next, so that `(` can run intuitCurly for the brace
+	// it now precedes. A one-token carry, the same shape as sawSubWord and
+	// for the same reason: the lookahead that settles the brace is the WORD's
+	// to make, and a parenthesised call moves the brace out of its reach.
+	listOpParen bool
 	// sawSubWord and expectPrototype track `sub NAME`, after which a `(`
 	// opens a prototype rather than a list.
 	sawSubWord      bool
@@ -404,15 +410,25 @@ func (l *lexer) emit(k Kind, start int) {
 	l.noteSignatures(k, start)
 	afterDeclName := l.noteSubName(k, start)
 
+	// A block-taking word's `(` inherits the lookahead. `map({...} @a)` puts
+	// the brace one token further along than `map {...} @a`, and the answer
+	// belongs to the same call either way; see listOpParen.
+	inListOpParen := l.listOpParen && k == Operator && l.pos-start == 1 &&
+		l.src[start] == '('
+	l.listOpParen = k == Word && takesBlock(string(l.src[start:l.pos])) &&
+		l.peekIsOpenParen()
+
 	l.expect = l.expect.after(k, transition{
 		text:            l.src[start:l.pos],
 		closedBlock:     l.closedBlock,
 		nextIsOpenBrace: l.peekIsOpenBrace(),
 		afterDeclName:   afterDeclName,
-		// Only a WORD can need the lookahead, and only one of three. Every
-		// other token would pay a byte scan for an answer nothing reads.
-		nextBraceIsBlock: k == Word && takesBlock(string(l.src[start:l.pos])) &&
-			l.intuitCurly(),
+		// Only a WORD can need the lookahead, or the `(` of that word's own
+		// parenthesised call. Every other token would pay a byte scan for an
+		// answer nothing reads.
+		nextBraceIsBlock: (k == Word && takesBlock(string(l.src[start:l.pos])) ||
+			inListOpParen) && l.intuitCurly(),
+		listOpParen: inListOpParen,
 	})
 	l.noteFormat(k, start)
 	// The picture body begins after the newline that ends the declaration.
