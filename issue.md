@@ -1,21 +1,43 @@
 ---
 title: format and write have no statement form, and the lexer already reads the body
-state: in-progress
+state: done
 urgency: normal
 milestone: corpus-covers-t2
 blocks:
 - 01a0dc84-1750-7749-8ad4-6d84f912d517
 created: 2026-09-26T06:58:32.800892893Z
-updated: 2026-09-26T07:02:56.253405025Z
+updated: 2026-09-26T07:47:36.859942618Z
 sessions:
 - start_sha: d1537f9631443c467a73f3e56cf382da4eeab2ae
-  end_sha: ""
-  commits: 0
+  end_sha: 7701fee46d887e272f2d8d76d19e0d3d2b810039
+  commits: 2
   started_at: 2026-09-26T07:01:56.803102854Z
+  ended_at: 2026-09-26T07:47:36.859942618Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-26T07:01:56.803102854Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-26T07:47:36.859942618Z
+observed_paths:
+- conformance/13_opaque/README.md
+- conformance/mdtest/adjacency-13_opaque.md
+- conformance/mdtest/formats.md
+- conformance/mdtest/vstrings.md
+- internal/conformance/testdata/corpus.ratchet
+- internal/lexer/ident.go
+- internal/lexer/lexer.go
+- internal/lexer/scan.go
+- internal/lexer/vnum_test.go
+- internal/parse/canon.go
+- internal/parse/decl.go
+- internal/parse/decl_test.go
+- internal/parse/parse.go
+- internal/parse/refusal_test.go
+- internal/parse/t2_test.go
+- internal/parse/testdata/t1.ratchet
+- internal/parse/use.go
 ---
 
 `format NAME = ... .` and the `write` that uses it refuse with
