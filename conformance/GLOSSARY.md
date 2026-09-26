@@ -146,14 +146,21 @@ and `TestCategoryBoundaries` holds the line in both directions.
 ## word-shaped operator
 
 An operator perl spells with letters rather than punctuation: `x`, `cmp`,
-`eq` `ne` `lt` `gt` `le` `ge`, `and` `or` `not` `xor`, and the compound
-`x=`.
+`eq` `ne` `lt` `gt` `le` `ge`, `and` `or` `not` `xor`, `isa`, and the
+compound `x=`.
 
 `perlop` names them operators in so many words -- "Binary `x` is the
 repetition operator", "Binary `and` returns the logical conjunction",
-"Unary `not` returns the logical negation" -- and lists `x=` among the
-assignment operators. So the category is derived from perl, as this page's
-own rule requires, and not from our lexer, which gives them all Kind Word.
+"Unary `not` returns the logical negation", "Binary `isa` evaluates to
+true when the left argument is an object instance of..." -- and lists `x=`
+among the assignment operators. So the category is derived from perl, as
+this page's own rule requires, and not from our lexer, which gives them
+all Kind Word.
+
+**The list above is prose and the predicate is the authority.**
+`parse.IsWordShapedOperator` reads the precedence tables, so a spelling
+perl has and this paragraph forgot is still in the category. `isa` was
+exactly that on the first pass: the predicate had it, the prose did not.
 
 **These are ALSO [words](#word), and that is not a contradiction.** At the
 token layer `word` is a claim about SPELLING: a bare identifier, keywords

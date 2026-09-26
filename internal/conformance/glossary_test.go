@@ -166,6 +166,15 @@ func TestCategoryBoundaries(t *testing.T) {
 		src:      "my $a = 1; my $b = 0; my $y = ($a and $b);",
 		category: "word-shaped operator", text: "and", want: 1,
 	}, {
+		// `isa` is in the category because the PREDICATE reads the
+		// precedence tables, and it was in them before the glossary's
+		// prose listed it. perlop: "Binary C<isa> evaluates to true when
+		// the left argument is an object instance of", indexed
+		// X<isa operator>. This row is why the prose caught up.
+		name:     "isa is a word-shaped operator the prose first omitted",
+		src:      "my $ok = $obj isa Some::Class;",
+		category: "word-shaped operator", text: "isa", want: 1,
+	}, {
 		name: "a quoted string is one token including its delimiters",
 		src:  `my $x = "hi";`, category: "string literal", text: `"hi"`, want: 1,
 	}, {
