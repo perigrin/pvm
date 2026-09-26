@@ -107,8 +107,6 @@ print "and [$and] or [$or] dor [$dor] not [$not] xor [$xor]\n";
 
 ```behavior
 parses: yes
-refuses: unfiled
-refusal: not_a_term
 ```
 
 ```output

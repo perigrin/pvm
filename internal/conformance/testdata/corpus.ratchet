@@ -8,7 +8,7 @@
 # topic's `**Tier NN name.**` line and leaves every key alone. That
 # is the `t/` sweep working, and must not read as a regression.
 #
-# 212 cases, 191 clean, 21 refusing.
+# 212 cases, 192 clean, 20 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -16,7 +16,7 @@
 - adjacency-01_literals.md/The whole tier in one body
 - adjacency-02_variables.md/The whole tier in one body
 - adjacency-03_context.md/The whole tier in one body
-not_a_term,trailing_tokens adjacency-04_operators.md/The whole tier in one body
+trailing_tokens adjacency-04_operators.md/The whole tier in one body
 - adjacency-05_scoping.md/The whole tier in one body
 - adjacency-06_control.md/The whole tier in one body
 trailing_tokens adjacency-07_subroutines.md/The whole tier in one body
@@ -79,7 +79,7 @@ trailing_tokens argument-extent.md/A parenless call is greedy
 - comparison.md/Level 11 is the one true `%nonassoc`
 - comparison.md/Level 13 is `chain/na` and the halves differ
 - comparison.md/Punctuation `!`, and the double negative
-not_a_term comparison.md/The five logical operators
+- comparison.md/The five logical operators
 - comparison.md/The numeric relations and `<=>`
 - comparison.md/The string relations and `cmp`
 - comparison.md/`&&` and `and` are one op at two precedences

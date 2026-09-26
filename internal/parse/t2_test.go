@@ -169,7 +169,14 @@ func TestT2CoreParses(t *testing.T) {
 		// move -- base/lex.t 1,111 -> 1,114, retainedlines 425 -> 427 -- and
 		// comp/parser.t FELL, 4,869 -> 4,818. TestDerefBlockContentsAreDecided
 		// names this shape as still opaque and asserts it still hedges.
-		"comp/redef.t": 21, "comp/require.t": 12, "comp/retainedlines.t": 19,
+		// comp/retainedlines.t 19 -> 17 when the three word operators below
+		// assignment became reachable (issue 01a0dbe8). ONE site earned
+		// both nodes -- line 65's `(!$seen{$_} and /eval (\d+)/)`, the
+		// file's only parenthesised word operator. The paren's element loop
+		// stopped there because it parsed at the COMMA's power and levels 4
+		// and 5 are below it. Back to the 17 the symbol-table deref note
+		// above records, by a different route.
+		"comp/redef.t": 21, "comp/require.t": 12, "comp/retainedlines.t": 17,
 		"comp/uproto.t": 3, "comp/use.t": 11, "comp/utf.t": 3,
 		"opbasic/arith.t": 179, "opbasic/cmp.t": 6, "opbasic/concat.t": 6,
 		"opbasic/magic_phase.t": 7,

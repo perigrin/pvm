@@ -35,21 +35,33 @@ plan defers that deliberately and names where it goes.
 
 ## The whole tier in one body
 
-FIVE Unknown nodes at three independent sites, and the refusal is the
-point: every construct here appears in a sibling case that PARSES, and
-only the mixture refuses. A one-case-per-construct corpus would have
-gone green over all of it.
+TWO Unknown nodes, both `trailing_tokens`, and the refusal is the point:
+every construct here appears in a sibling case that PARSES, and only the
+mixture refuses. A one-case-per-construct corpus would have gone green
+over all of it.
 
-Three of the five are one failure. `not` arrives as a Word and nothing
-in `parseTerm` can begin a term with it, so the Unknown runs to the
-closing paren and the statement around it has bytes left over.
+The first is `undef @cleared` -- the unary spelling our parser reads as a
+complete term with `@cleared` stranded after it.
 
-The fourth is `undef @cleared` -- the unary spelling our parser reads as
-a complete term with `@cleared` stranded after it.
-
-The fifth is `$t x= 2`: the lexer emits `Word(x) Operator(=)` rather
+The second is `$t x= 2`: the lexer emits `Word(x) Operator(=)` rather
 than forming the `x=` token, so the statement has a Word where an
-operator belongs.
+operator belongs. Tracked by `01a0ce57`.
+
+### What this passage used to say, and why it was wrong twice
+
+It said FIVE nodes at three sites, and attributed three of them to `not`
+arriving as a Word with nothing in `parseTerm` able to begin a term with
+it.
+
+The count is now two, because `01a0dbe8` taught the paren to hold a full
+expression -- `and`, `or` and `xor` bind BELOW the comma, so a paren
+parsing its elements at the comma's power never reached them.
+
+The attribution was wrong before that landed. The site was the
+parenthesised `xor`, not `not`: measured, `(not $a)` parses clean on its
+own and always did, because `not` is PREFIX and `prefix` has it. Reading
+a count off a failing case and then naming a cause for it is how that
+happened; the cause was never measured separately.
 
 The file test is the one construct NOT here. `31_file_test`'s claim is
 `no operator whose text is "-"`, and this body writes `-$n ** 2` and
@@ -106,7 +118,7 @@ print "count [$count] tag [$tag] flag [$flag] group [$group] chain [$chain]\n";
 ```behavior
 parses: yes
 refuses: unfiled
-refusal: not_a_term
+refusal: trailing_tokens
 ```
 
 ```output

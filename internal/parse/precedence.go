@@ -176,6 +176,19 @@ func IsWordShapedOperator(text string) bool {
 	return ok
 }
 
+// bpBelowComma is the floor that admits the comma and excludes everything
+// under it -- which, in the infix table, is exactly `and`, `or` and `xor`.
+//
+// parseExpr stops at `op.BP <= minBP`, so this is `and`'s own power: `and`
+// (50) and `or`/`xor` (40) stop, the comma (80) does not. Levels 6 and 7 sit
+// in the gap and carry no infix entry -- `not` is prefix and the list
+// operators are prefix -- so the three word operators are the whole set.
+//
+// Named because three sites need the same boundary and a literal 50 at each
+// would be three chances to write the wrong one. Derived from the table so
+// it cannot drift from it.
+var bpBelowComma = infix["and"].BP
+
 // prefix is the power a prefix operator passes down for its operand.
 var prefix = map[string]int{
 	"not": 60,  // level 6, takes a listexpr -- swallows commas

@@ -22,7 +22,21 @@ func (p *parser) parseExpr(minBP int) *Node {
 		// nothing consumed; the statement loop decides what that means.
 		return nil
 	}
+	return p.parseInfix(left, minBP)
+}
 
+// parseInfix is parseExpr's loop with the left operand supplied.
+//
+// Split out because a parenthesised expression is not a comma list: perly.y
+// puts `and`, `or` and `xor` ABOVE the comma, so the paren's contents are a
+// full `expr` whose left operand may be the whole list. Measured:
+//
+//	$ perl -MO=Deparse -e 'my @x = (1, 2 and 3);'
+//	my(@x) = ('???', 2) && 3;
+//
+// The `and` took `(1, 2)` as its left operand. parseParenList assembles that
+// list itself, so it needs the loop without the leading parseTerm.
+func (p *parser) parseInfix(left *Node, minBP int) *Node {
 	for {
 		tok, ok := p.peekSignificant()
 		if !ok {

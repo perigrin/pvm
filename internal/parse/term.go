@@ -362,7 +362,29 @@ func (p *parser) parseParenList(open lexer.Token) *Node {
 			p.advanceTo(next)
 			return p.finishList(items, open)
 		default:
-			// Neither a separator nor the closer: stop rather than spin.
+			// Neither a separator nor the closer. The three word operators
+			// below the comma get here: `and`, `or` and `xor` are levels 4
+			// and 5, the comma is 8, so the element loop above -- which
+			// parses at the comma's power -- stops without consuming them
+			// and every `($a and $b)` refused with `not_a_term`.
+			//
+			// perly.y puts them above the comma, so the paren holds a full
+			// `expr` and the list assembled so far is that expr's LEFT
+			// operand. Measured on perl 5.42.0:
+			//
+			//	$ perl -MO=Deparse -e 'my @x = (1, 2 and 3);'
+			//	my(@x) = ('???', 2) && 3;
+			//
+			// So the loop is resumed with the list in hand rather than
+			// restarted, and the closer is then taken by the code below.
+			if op, isOp := infix[p.text(next)]; isOp && op.BP <= bpBelowComma {
+				items = []*Node{p.parseInfix(p.finishList(items, open), 0)}
+				if c, ok := p.peekSignificant(); ok && p.text(c) == ")" {
+					p.advanceTo(c)
+				}
+				return p.finishList(items, open)
+			}
+			// Anything else: stop rather than spin.
 			return p.finishList(items, open)
 		}
 	}
