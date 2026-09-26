@@ -3,6 +3,7 @@
 package conformance
 
 import (
+	"encoding/json"
 	"fmt"
 	"os/exec"
 	"regexp"
@@ -367,13 +368,22 @@ var (
 	issueSeen = map[string]error{}
 )
 
-// issueResolves asks the tracker whether one id exists, once per process.
+// issueResolves asks the tracker whether one id names a LIVE issue, once
+// per process.
 //
-// `git-zhi issue show` exits 0 for an id it finds and 1 for one it does
-// not, including for an issue in any state -- a done issue resolves even
-// though the default `issue list` omits it. The answer is memoised
-// because it cannot change mid-run and each call costs ~0.4s, which the
-// corpus would otherwise pay per citing file.
+// Existence is not the question, and checking only existence is how this
+// guard passed three corpus cases that cited DONE issues from a finished
+// milestone. `git-zhi issue show` exits 0 for an id in any state, so a
+// closed record resolved and the case kept claiming a known gap whose
+// record says the work is over. The state is read from the JSON, which
+// carries it directly.
+//
+// A citation is live in any state but `done` and `cancel`: `pending`,
+// `in-progress` and `paused` are all "someone owns this and it is not
+// finished", which is what a refusal record has to mean.
+//
+// The answer is memoised because it cannot change mid-run and each call
+// costs ~0.4s, which the corpus would otherwise pay per citing file.
 func issueResolves(id string) error {
 	issueOnce.Lock()
 	defer issueOnce.Unlock()
@@ -381,10 +391,40 @@ func issueResolves(id string) error {
 	if err, ok := issueSeen[id]; ok {
 		return err
 	}
-	err := exec.Command(zhiBinary, "issue", "show", id).Run()
-	if err != nil {
-		err = fmt.Errorf("cited issue %s does not resolve: %s cannot find it", id, zhiBinary)
-	}
+	err := issueIsLive(id)
 	issueSeen[id] = err
 	return err
+}
+
+// closedStates are the two states in which an issue is no longer a record
+// of outstanding work. Every other state git-zhi reports -- pending,
+// in-progress, paused -- means the gap is still owned.
+var closedStates = map[string]bool{"done": true, "cancel": true}
+
+// issueIsLive reads one issue's state out of git-zhi's JSON.
+//
+// The JSON is asked for rather than the human output because the state is
+// a field there, and parsing "State:     done" out of aligned text would
+// break the first time the padding changed.
+func issueIsLive(id string) error {
+	out, err := exec.Command(zhiBinary, "issue", "show", id, "--format", "json").Output()
+	if err != nil {
+		return fmt.Errorf("cited issue %s does not resolve: %s cannot find it", id, zhiBinary)
+	}
+
+	var issue struct {
+		State     string `json:"state"`
+		Milestone string `json:"milestone"`
+	}
+	if err := json.Unmarshal(out, &issue); err != nil {
+		return fmt.Errorf("cited issue %s: cannot read %s output: %v", id, zhiBinary, err)
+	}
+	if closedStates[issue.State] {
+		return fmt.Errorf("cited issue %s is %s (milestone %s): a refusal must cite "+
+			"a LIVE record, and a closed one says the work is over while the case "+
+			"still refuses.\n\tEither repoint the citation at the issue that owns "+
+			"the gap, or use `refuses: unfiled` if nothing does",
+			id, issue.State, issue.Milestone)
+	}
+	return nil
 }

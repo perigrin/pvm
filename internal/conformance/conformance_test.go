@@ -696,9 +696,13 @@ func TestRefusalCitationMustResolve(t *testing.T) {
 	t.Run("resolver", func(t *testing.T) {
 		requireZhi(t)
 
-		const real = "01a0c13f-97f5-7f98-b32d-07245ec6ddfe"
+		// A LIVE id, because resolving now means "exists and is not
+		// closed". The id this fixture used before -- `01a0c13f-97f5` --
+		// was itself done, so it stopped being a valid positive case the
+		// moment the state check landed.
+		const real = "01a0d087-28dd-711f-a0d5-54cb8515910c"
 		if err := citationResolves(real); err != nil {
-			t.Errorf("a real id did not resolve: %v", err)
+			t.Errorf("a live id did not resolve: %v", err)
 		}
 
 		const fake = "01a0c13f-97f5-7f98-b32d-07245ec6ddff"
@@ -717,6 +721,31 @@ func TestRefusalCitationMustResolve(t *testing.T) {
 	t.Run("this file is not looked up", func(t *testing.T) {
 		if err := citationResolves(selfRecorded); err != nil {
 			t.Errorf("%q was looked up: %v", selfRecorded, err)
+		}
+	})
+
+	// A CLOSED issue is not a live record, and existence was never the
+	// question. Three corpus cases were found citing done issues from a
+	// finished milestone -- `01a0c730`, `01a0c432` and `01a0c35f`, all
+	// corpus-CONSTRUCTION issues that never owned a parser gap. Each
+	// resolved, so this test passed them while the thing it exists to
+	// prevent had already happened: a live refusal whose record says the
+	// work is finished.
+	//
+	// The id below is `01a0c730`, measured done in milestone
+	// m3-conformance-corpus. If it is ever reopened this test will fail
+	// and want a different done id, which is the correct failure: a
+	// fixture pinned to real tracker state.
+	t.Run("a done issue does not resolve", func(t *testing.T) {
+		requireZhi(t)
+
+		const done = "01a0c730-b241-7765-aaa2-5260d050dce9"
+		err := citationResolves(done)
+		if err == nil {
+			t.Fatalf("done issue %s resolved; a closed record is not a live one", done)
+		}
+		if !strings.Contains(err.Error(), done) {
+			t.Errorf("error = %q, want it to name the id %q", err, done)
 		}
 	})
 

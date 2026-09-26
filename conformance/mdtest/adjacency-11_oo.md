@@ -99,7 +99,7 @@ print ref($c), $c->m, ref($b), $b->hi, $b->$name, $yes, $code, $t, $is, "\n";
 
 ```behavior
 parses: yes
-refuses: 01a0c35f-a487-7aa8-934b-4e68dd0fbaa1
+refuses: 01a0dd71-c671-7245-87c4-0c67cb4c20b9
 refusal: trailing_tokens
 ```
 

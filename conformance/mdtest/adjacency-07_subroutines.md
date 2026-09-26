@@ -132,7 +132,7 @@ print "\n";
 
 ```behavior
 parses: yes
-refuses: 01a0c432-fbd5
+refuses: 01a0dd6f-9891-7095-9b02-d382a25fbb98
 refusal: trailing_tokens
 ```
 

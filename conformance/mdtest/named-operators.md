@@ -60,7 +60,7 @@ print scalar @a, scalar @b, "\n";
 
 ```behavior
 parses: yes
-refuses: 01a0c730-b241-7765-aaa2-5260d050dce9
+refuses: 01a0dd43-bc9e-732f-a121-5843fe4ebf0d
 refusal: trailing_tokens
 ```
 
