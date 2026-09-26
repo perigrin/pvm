@@ -6,7 +6,7 @@ milestone: m1-parse-the-core
 blocks:
 - 01a0c13f-6816-79d2-945a-b84a12d39e6c
 created: 2026-09-20T23:55:47.309990102Z
-updated: 2026-09-26T09:53:36.480830299Z
+updated: 2026-09-26T10:01:25.182712947Z
 sessions:
 - start_sha: 6ae2242dc5addd89075b7c29d0a0777e69d757ef
   end_sha: ""
@@ -22,7 +22,14 @@ transitions:
 perigrin. It is not a choice — perl answers it, and the answer rules out two
 of the three routes.**
 
+**Measured 2026-09-26 (criterion 4). The measurement CONTRADICTS this body's
+central claim about where T2's declarations come from. See "What the
+measurement says" below — the import half is worth ZERO on T2, and the
+in-file half is worth 316 of 354.**
+
 ## What perl does, measured on 5.42.0
+
+Re-verified 2026-09-26 on `/home/perigrin/.local/bin/perl`, v5.42.0:
 
     $ perl -MO=Deparse -e 'ok 8;'
     Number found where operator expected (Do you need to predeclare "ok"?)
@@ -60,23 +67,95 @@ site" is exactly what `knowsShape()` models (call.go:152), what
 `comp/proto.t:566` documents in the corpus -- "prototype checking done if
 sub pre-declared" -- and what 01a0ad3f already built for imports.
 
+## What the measurement says (2026-09-26, criterion 4)
+
+Probe: parse each of T2's 56 files with `parse.Parse`, walk every Unknown
+node, take its source span, and keep the spans whose text OPENS with a
+bareword followed by whitespace and a non-delimiter -- the parenless-call
+shape -- excluding statement keywords and word operators. For each such
+callee, ask two separate questions: is there a `sub NAME` for it anywhere
+in the same file's own tree, and would `parse.ParseWithLoader` with a
+`DirLoader` on the file's own directory resolve it as an import with
+`PrototypeKnown`.
+
+    T2: 550 Unknown nodes total
+    T2: 354 open with a bareword + argument (parenless-call shape)
+      callee declared by `sub NAME` in the SAME FILE: 316   (89.3%)
+      callee declared by a resolvable import:           0   (0.0%)
+      callee genuinely undeclared:                      38  (10.7%)
+
+Each number is its own count, not a share inferred from a total.
+
+**THE IMPORT HALF IS WORTH ZERO ON T2, AND THIS BODY'S REASON FOR EXPECTING
+OTHERWISE IS FALSE.** This body said "`ok` in T2 **is** declared, because
+`Test::More` exports it". Measured: **0 of T2's 56 files contain
+`use Test::More`.** T2 is perl's own core suite; it gets its `ok` from
+`require './test.pl'` (14 files) or from a `sub ok` written in the file
+itself (8 files: `base/num.t`, `comp/colon.t`, `comp/fold.t`,
+`comp/line_debug.t`, `comp/redef.t`, `comp/use.t`, `opbasic/concat.t`,
+`opbasic/magic_phase.t`). `require` is deliberately not resolved --
+`use.go:118` says so, and correctly: `require` is a runtime load with no
+import at all. So 01a0ad3f's import machinery is not the thing that reaches
+T2. The in-file half is.
+
+The 316 in-file-declared sites, by callee, with the prototype perl reads:
+
+    tryeq=147        sub tryeq ($$$$)        opbasic/arith.t
+    ok=67            sub ok ($$) / ($;$) / no proto
+    is=29            in-file sub is
+    like=13  testing=13  try=11  tryeq_sloppy=11 ($$$$)
+    star2=5  sreftest=4  star=4  do_require=3  a_sub=2
+    DESTROY=1 a_hash_ref=1 array_ref_plus=1 mymkdir=1
+    sub_aref=1 sub_array=1 unop=1
+
+By file:
+
+    opbasic/arith.t=169  comp/parser.t=33  comp/proto.t=32
+    comp/colon.t=25      comp/redef.t=20   comp/use.t=10
+    comp/fold.t=8        opbasic/magic_phase.t=7  comp/require.t=3
+    comp/retainedlines.t=3  comp/line_debug.t=2  comp/uproto.t=2
+    comp/hints.t=1       opbasic/concat.t=1
+
+`opbasic/arith.t` alone is 169 of the 316, and its shortfall is 179 -- the
+single densest file in the T2 shortfall map, and `tryeq ($$$$)` is why.
+
+The 38 genuinely-undeclared callees are not a gap: `ADJUST` (5, a class
+phaser in no table), `O`, `undef`, `is` and `like` where the file uses the
+test.pl versions, `continue`, `plan`, `shift`, `split`, `refcount_is`,
+`P`, `T`. perl would reject the bareword-call reading of each, so Unknown
+stays correct for them.
+
+## A SECOND, STRUCTURAL FINDING the body did not anticipate
+
+`parseRoot` (parse.go:404-420) ALREADY reads the file's own `sub NAME`
+declarations into `root.imports` with `PrototypeKnown: true`. Two things
+stop that reaching a call site:
+
+1. It runs AFTER the whole file is parsed, so the calls were already
+   decided. This is deliberate for the `Imports()` accessor -- a sub may be
+   declared below the call -- but it means `knowsShape()` never saw it
+   during the parse.
+2. It is inside `if res != nil`, and T2 measures with `parse.Parse`, whose
+   resolver is nil by contract. So T2 gets no in-file declarations at all,
+   with or without a module on disk.
+
+Fixing the in-file half means declaring a `sub NAME` into the shape table
+AS IT IS PARSED, which is also what perl does -- top to bottom -- and is
+what `conformance/mdtest/argument-extent.md`'s third case pins: `f 1, 2;`
+followed by `sub f {}` is a syntax error BECAUSE the declaration is below.
+A pre-pass over the whole file would get that case WRONG.
+
 ## So what is the actual bug
 
-Not that we decline `ok 8`. That `ok` in T2 **is** declared -- `Test::More`
-exports it -- and we are not using that. The T1 measurement from 01a0ad3f
-says the machinery works when the module is reachable: 460 -> 532 clean
-files, 3,322 -> 2,531 Unknown nodes, when Test::More resolved.
-
-The work is to make the same resolution reach T2, and to check the in-file
-`sub NAME` case, which needs no module at all.
+Not that we decline `ok 8`. That a `sub NAME` declared EARLIER IN THE SAME
+FILE is a declaration `knowsShape()` should see, and does not, because the
+only path that records one runs after the parse and only under a resolver.
 
 ## Scope
 
-1. Measure how many of T2's ~330 parenless-call Unknowns have a callee that
-   IS declared -- by an import whose module is readable, or by a `sub NAME`
-   earlier in the same file. That number is the size of the real fix.
-2. The remainder are genuinely undeclared. Confirm perl also rejects them,
-   file-by-file, and they stay Unknown as correct behaviour.
+1. MEASURED, above. 316 of 354, all in-file; 0 by import.
+2. The remaining 38 are genuinely undeclared and stay Unknown as correct
+   behaviour.
 
 ## The fragments become corpus fixtures
 
@@ -91,6 +170,6 @@ away with the scratch file.
 - [ ] The declared/undeclared boundary is a fixture perl and the parser are both scored on (`go test ./internal/parseoracle/ -run '^TestParenlessCallBoundary$' -count=1 -v | grep -q '^--- PASS: TestParenlessCallBoundary'`)
 - [ ] `sub NAME` earlier in the same file makes a parenless call to it parse (`go test ./internal/parse/ -run '^TestInFileSubDeclarationIsKnown$' -count=1 -v | grep -q '^--- PASS: TestInFileSubDeclarationIsKnown'`)
 - [ ] A genuinely undeclared parenless call stays Unknown, because perl rejects it too (`go test ./internal/parse/ -run '^TestUndeclaredParenlessCallStaysUnknown$' -count=1 -v | grep -q '^--- PASS: TestUndeclaredParenlessCallStaysUnknown'`)
-- [ ] The T2 share whose callee is declared is measured and recorded here, before any fix (`go test ./internal/parse/ -run '^TestT2CoreParses$' -count=1 -v | grep -q '^--- PASS: TestT2CoreParses'`)
+- [x] The T2 share whose callee is declared is measured and recorded here, before any fix (`go test ./internal/parse/ -run '^TestT2CoreParses$' -count=1 -v | grep -q '^--- PASS: TestT2CoreParses'`)
 
-Measured 2026-09-21. Plan: M1. Spec: §4.8.3, §3.2.
+Measured 2026-09-21, re-measured 2026-09-26. Plan: M1. Spec: §4.8.3, §3.2.
