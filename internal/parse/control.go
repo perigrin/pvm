@@ -250,7 +250,17 @@ func (p *parser) parseReturn(word lexer.Token) *Node {
 	p.advanceTo(word)
 	n := &Node{Kind: LoopControl, Text: p.text(word), Start: word.Start}
 
-	if next, ok := p.peekSignificant(); ok && next.Kind != lexer.Semicolon {
+	// A bare `return` at the end of a block has no operand, and the `}` that
+	// follows is not one. `last`, `next` and `redo` never had this bug because
+	// parseLoopControl asks a POSITIVE question -- is the next token a Word
+	// that could be a label -- while this asked `!= Semicolon` and so hunted
+	// an operand into the closer: 4 files and 61 nodes of perl.git t/, with
+	// `sub A::MODIFY_SCALAR_ATTRIBUTES { return }` the first failure in both
+	// op/attrs.t and uni/attrs.t.
+	//
+	// endsStatement is the shared predicate, used here and by parseUse for the
+	// same construct rather than a terminator set invented for each.
+	if next, ok := p.peekSignificant(); ok && !endsStatement(next, p.src) {
 		// Below the comma, so the whole list belongs to the return.
 		if arg := p.parseExpr(bpListOp); arg != nil {
 			n.Children = append(n.Children, arg)

@@ -165,3 +165,44 @@ parses: yes
 ```output
 zero negative positive
 ```
+
+## A bare `return` needs no terminator before the closing brace
+
+`return` with no argument and NO SEMICOLON, last in the sub's body. perl
+makes a statement's final `;` optional before a `}`, so `sub f { return }`
+is legal -- and it is how perl's own suite writes an early-exit stub:
+`sub A::MODIFY_SCALAR_ATTRIBUTES { return }` opens both `op/attrs.t` and
+`uni/attrs.t`.
+
+THE PARSER READ THE CLOSER AS THE OPERAND. `parseReturn` asked whether the
+next token was a semicolon and, at the end of a block, it is a `}` -- so
+the operand hunt consumed the brace, taking it out of the enclosing sub and
+leaving canon to emit a spurious `};`. Measured across perl.git `t/`, four
+files and 61 Unknown nodes (issue 01a0dfb8). `last`, `next` and `redo`
+never had the bug: they ask whether the next token is a WORD that could be
+a label, which a closer is not.
+
+WHAT THE OUTPUT PINS IS THE VALUE, not the parse. A bare `return` yields
+the EMPTY LIST in list context and `undef` in scalar context, and those are
+different claims -- `scalar(@empty)` is 0 rather than 1, so the empty list
+is genuinely empty and not a one-element list holding `undef`. A parser
+that swallowed the brace could still print this if it recovered, which is
+why the unit tests assert the canonical text as well.
+
+```perl
+sub bare { return }
+sub valued { return "v" }
+my @empty = bare();
+my @one   = valued();
+my $scalar = bare();
+print scalar(@empty), " ", scalar(@one), " ",
+      (defined $scalar ? "def" : "undef"), "\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+0 1 undef
+```

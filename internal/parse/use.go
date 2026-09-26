@@ -105,8 +105,19 @@ func (p *parser) parseUse(word lexer.Token) *Node {
 	// half taken as the name above and the remainder reassembled. The Term's
 	// text was the truncated "v5" then and is the whole "v5.36" now; the
 	// span was already correct either way.
+	//
+	// A `}` ends the statement as surely as a `;` does -- the final semicolon
+	// of a block's last statement is optional in perl, and `eval { require
+	// Errno }` as a feature probe is how perl's own suite writes it. Asking
+	// only `!= Semicolon` read the closer as the start of an import list and
+	// the operand hunt then CONSUMED it, taking the `}` out of the enclosing
+	// block: 10 files and 77 nodes of perl.git t/, and a wrong tree rather
+	// than only a count, because canon then emitted a spurious `};`.
+	//
+	// endsStatement is the predicate that already answers this, and answers it
+	// for the same reason -- "a `}` belongs to an enclosing construct".
 	var list *Node
-	if next, ok := p.peekSignificant(); ok && next.Kind != lexer.Semicolon {
+	if next, ok := p.peekSignificant(); ok && !endsStatement(next, p.src) {
 		if arg := p.parseExpr(0); arg != nil {
 			list = arg
 			n.Children = append(n.Children, arg)

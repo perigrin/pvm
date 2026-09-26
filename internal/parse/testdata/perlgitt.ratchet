@@ -1,6 +1,6 @@
 # Unknown nodes per perl.git t/ file, through parse.ParseFileFrom.
 #
-# 620 files, 408 clean (65.8%), 2064 total.
+# 620 files, 415 clean (66.9%), 2028 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -67,7 +67,7 @@
 13 comp/retainedlines.t
 0 comp/term.t
 1 comp/uproto.t
-1 comp/use.t
+0 comp/use.t
 3 comp/utf.t
 0 io/argv.t
 2 io/binmode.t
@@ -98,7 +98,7 @@
 0 io/perlio_fail.t
 0 io/perlio_leaks.t
 0 io/perlio_open.t
-1 io/pipe.t
+0 io/pipe.t
 3 io/print.t
 0 io/pvbm.t
 0 io/read.t
@@ -210,7 +210,7 @@
 4 op/assignwarn.t
 0 op/attrhand.t
 0 op/attrproto.t
-24 op/attrs.t
+23 op/attrs.t
 0 op/auto.t
 0 op/avhv.t
 4 op/bless.t
@@ -223,18 +223,18 @@
 1 op/chdir.t
 2 op/chop.t
 0 op/chr.t
-3 op/closure.t
+2 op/closure.t
 0 op/cmpchain.t
 2 op/concat2.t
 0 op/cond.t
 21 op/const-optree.t
 0 op/context.t
-11 op/coreamp.t
+10 op/coreamp.t
 2 op/coresubs.t
 0 op/cproto.t
 0 op/crypt.t
 3 op/current_sub.t
-1 op/dbm.t
+0 op/dbm.t
 6 op/debug.t
 8 op/decl-refs.t
 2 op/defer.t
@@ -259,7 +259,7 @@
 0 op/exp.t
 0 op/fh.t
 0 op/filehandle.t
-2 op/filetest.t
+1 op/filetest.t
 1 op/filetest_stack_ok.t
 0 op/filetest_t.t
 1 op/flip.t
@@ -288,7 +288,7 @@
 10 op/hook/require.t
 3 op/inc.t
 0 op/inccode-tie.t
-8 op/inccode.t
+2 op/inccode.t
 10 op/incfilter.t
 1 op/index.t
 0 op/index_thr.t
@@ -316,7 +316,7 @@
 0 op/magic-27839.t
 7 op/magic.t
 47 op/method.t
-4 op/mkdir.t
+2 op/mkdir.t
 0 op/multideref.t
 0 op/my.t
 0 op/my_stash.t
@@ -353,7 +353,7 @@
 0 op/refstack.t
 9 op/repeat.t
 0 op/require_37033.t
-1 op/require_errors.t
+0 op/require_errors.t
 0 op/require_gh20577.t
 0 op/require_override.t
 4 op/reset.t
@@ -373,30 +373,30 @@
 0 op/splice.t
 3 op/split.t
 0 op/split_unicode.t
-3 op/sprintf.t
+0 op/sprintf.t
 5 op/sprintf2.t
 0 op/srand.t
-1 op/sselect.t
+0 op/sselect.t
 8 op/stash.t
 0 op/stash_parse_gv.t
-11 op/stat.t
+10 op/stat.t
 0 op/stat_errors.t
 3 op/state.t
 0 op/study.t
 0 op/studytied.t
-10 op/sub.t
-25 op/sub_lval.t
+9 op/sub.t
+24 op/sub_lval.t
 1 op/substr.t
 0 op/substr_left.t
 0 op/substr_thr.t
 0 op/svflags.t
-18 op/svleak.t
+15 op/svleak.t
 44 op/switch.t
 0 op/symbolcache.t
 0 op/sysio.t
-20 op/taint.t
+19 op/taint.t
 0 op/threads-dirh.t
-3 op/threads.t
+1 op/threads.t
 0 op/tie.t
 8 op/tie_fetch_count.t
 0 op/tiearray.t
@@ -404,7 +404,7 @@
 0 op/tiehash.t
 0 op/time.t
 0 op/time_loop.t
-4 op/tr.t
+1 op/tr.t
 0 op/tr_latin1.t
 59 op/try.t
 3 op/undef.t
@@ -520,7 +520,7 @@
 1 re/reg_posixcc.t
 0 re/regex_sets.t
 0 re/regex_sets_compat.t
-3 re/regexp.t
+0 re/regexp.t
 0 re/regexp_noamp.t
 0 re/regexp_nonull.t
 0 re/regexp_normal.t
@@ -586,7 +586,7 @@
 0 test_pl/examples.t
 0 test_pl/plan_skip_all.t
 0 test_pl/tempfile.t
-15 uni/attrs.t
+14 uni/attrs.t
 3 uni/bless.t
 1 uni/caller.t
 0 uni/chomp.t

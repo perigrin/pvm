@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 684 clean (69.4%), 1435 total.
+# 986 files, 686 clean (69.6%), 1429 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -127,7 +127,7 @@
 0 core_dump_guarded.t
 2 core_global_additional_overrides.t
 1 core_global_caller_concat.t
-1 core_global_dynamic_goto.t
+0 core_global_dynamic_goto.t
 2 core_global_exit_trap.t
 3 core_global_rand_override.t
 0 core_global_sqrt_override.t
@@ -153,7 +153,7 @@
 0 cpan_distroprefs_type_tiny_retired.t
 0 cpan_fallback_configure_retry.t
 1 cpan_fallback_prereqs.t
-2 cpan_fallback_readonly_makefile.t
+1 cpan_fallback_readonly_makefile.t
 0 cpan_generic_patch_paths.t
 0 cpan_meta_yaml_dump_after_refaddr_cleanup.t
 0 cpan_parser_tooling_regressions.t
@@ -222,7 +222,7 @@
 0 destroy_zombie_captured_by_db_args.t
 0 devel_cycle.t
 0 devel_lexalias_padwalker.t
-1 devel_peek_cvgv.t
+0 devel_peek_cvgv.t
 1 devel_slowbless_java_xs.t
 0 die_after_lexical_filehandle_scope.t
 0 die_object_eval.t
@@ -260,7 +260,7 @@
 0 eval_block_return.t
 0 eval_byte_source_semantics.t
 0 eval_concat_warning_scope.t
-5 eval_context_stack_reentrancy.t
+4 eval_context_stack_reentrancy.t
 0 eval_foreach_return_value.t
 0 eval_imported_call_comparison_context.t
 0 eval_list_repeat_expression.t
@@ -342,7 +342,7 @@
 0 goto_current_frame_localized_typeglob_args.t
 0 goto_localized_typeglob_args.t
 0 goto_named_redefinition.t
-9 goto_tailcall_args_cleanup.t
+7 goto_tailcall_args_cleanup.t
 3 goto_tailcall_cleanup.t
 1 goto_tailcall_core_destroy_order.t
 1 harness_skip_all.t

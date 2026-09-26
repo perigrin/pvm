@@ -363,7 +363,12 @@ func TestT2CoreParses(t *testing.T) {
 		// and 5 are below it. Back to the 17 the symbol-table deref note
 		// above records, by a different route.
 		"comp/redef.t": 1, "comp/require.t": 6, "comp/retainedlines.t": 13,
-		"comp/uproto.t": 1, "comp/use.t": 1, "comp/utf.t": 3,
+		// comp/use.t 1 -> 0 and LEAVES THIS MAP with the last statement of a
+		// block needing no `;` (issue 01a0dfb8). Its one remaining refusal was
+		// the `}` that `use`'s import-list hunt had swallowed; parseUse now
+		// stops at a closer as it always stopped at a semicolon, so the file
+		// is clean and an entry for it would fail as "now parses cleanly".
+		"comp/uproto.t": 1, "comp/utf.t": 3,
 		// opbasic/concat.t 5 -> 3 with the leading `::` (issue
 		// 01a0de97-3c5d). Two `::is(...)` calls, at lines 776 and 854, both
 		// inside a `package` block that would otherwise hide `test.pl`'s

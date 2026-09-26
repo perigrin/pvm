@@ -8,7 +8,7 @@
 # topic's `**Tier NN name.**` line and leaves every key alone. That
 # is the `t/` sweep working, and must not read as a regression.
 #
-# 222 cases, 222 clean, 0 refusing.
+# 223 cases, 223 clean, 0 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -40,6 +40,7 @@
 - argument-extent.md/A parenless call is greedy
 - argument-extent.md/An undeclared callee is a syntax error
 - argument-extent.md/`lock` is a named unary with its own op
+- arguments.md/A bare `return` needs no terminator before the closing brace
 - arguments.md/A signature names the parameters
 - arguments.md/Arguments arrive in `@_`
 - arguments.md/Explicit return, early and trailing
