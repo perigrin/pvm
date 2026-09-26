@@ -1,12 +1,21 @@
 ---
 title: A heredoc in statement position parses, body and all
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 blocks:
 - 01a0c13f-c7d7-7d9c-9a85-60a59aa26bc0
 created: 2026-09-20T23:56:10.360319979Z
-updated: 2026-09-20T23:56:49.955416699Z
+updated: 2026-09-26T08:58:52.360810507Z
+sessions:
+- start_sha: 2963c47d4099f32e5bcd3a131d0865f204ee28ea
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-26T08:58:52.360810507Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-26T08:58:52.360810507Z
 ---
 
 A heredoc introducer in statement position sinks its statement.
