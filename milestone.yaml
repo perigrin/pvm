@@ -46,15 +46,47 @@ happened here, and it produced an issue to write coverage that existed.
 
 ## What survives, and it is not what the milestone was named for
 
-    01a0db77   Three token facts call a Word an operator, and the
+    01a0dba9   Three token facts call a Word an operator, and the
                glossary says the lexer is right
     01a0db78   scanNumber stops early on a signed exponent and never
                forms a vstring
+    01a0dbe8   A parenthesised and/or/xor refuses, and the bare form is
+               a different program            (found in round 2)
 
-Both are real, both were found by the corpus, and neither is about T2
-coverage. The name `corpus-covers-t2` no longer describes the contents; it
-is kept rather than renamed so the record of what was attempted stays
+All three are real, all three were found by the corpus, and none is about
+T2 coverage. The name `corpus-covers-t2` no longer describes the contents;
+it is kept rather than renamed so the record of what was attempted stays
 findable.
+
+### Round 2 found the orphan round 1 created
+
+Round 1 moved the `xor` case out of the glossary issue, correctly -- it
+also carries `refusal: not_a_term`, so rewriting its token fact would not
+make it pass. But nothing then picked it up: the citation issue
+(`01a0d0c7`) never mentions it and the issue that would have owned it was
+cancelled. `01a0dbe8` is that orphan, measured:
+
+    bare   $a and $b       clean        paren ($a and $b)   UNKNOWN
+    bare   $a or  $b       clean        paren ($a or  $b)   UNKNOWN
+    bare   $a xor $b       clean        paren ($a xor $b)   UNKNOWN
+    paren ($a cmp $b)      clean        paren ($a x 3)      clean
+    paren (not $a)         clean
+
+Only the three operators BELOW assignment in precedence fail, and only
+inside parens. `cmp` and `x` bind tighter than `=` and are reached by a
+different route; `not` is prefix.
+
+The paren is not cosmetic -- perl 5.42.0 reads the two forms as different
+programs. `my $y = ($a and $b)` deparses to `my $y = $a && $b`; bare
+`my $y = $a and $b` deparses to `$b if my $y = $a`, because `and` binds
+looser than `=`. We parse the form that regroups and refuse the one that
+does not.
+
+Both halves of the knowledge are already in the parser: `and`/`or`/`xor`
+are in the precedence table at levels 4-5 (`precedence.go:59-61`) and
+`startsTerm` already knows a word operator is not a term
+(`call.go:347`). What fails is reaching them from inside a parenthesised
+term.
 
 ## The finding worth keeping
 
