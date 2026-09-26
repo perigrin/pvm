@@ -3,6 +3,8 @@ title: Attribute the 1,118 bare-brace Unknowns using matched braces, not the nea
 state: pending
 urgency: normal
 milestone: perl-git-t-parses
+blocks:
+- 01a0de8b-3352-70b3-a419-fd1043662366
 created: 2026-09-26T16:26:49.795028845Z
 updated: 2026-09-26T16:26:49.795028845Z
 ---
