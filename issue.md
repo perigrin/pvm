@@ -1,10 +1,19 @@
 ---
 title: scanNumber stops early on a signed exponent and never forms a vstring
-state: pending
+state: in-progress
 urgency: normal
 milestone: corpus-covers-t2
 created: 2026-09-26T02:08:00.127866819Z
-updated: 2026-09-26T04:18:12.52892451Z
+updated: 2026-09-26T04:41:53.986742234Z
+sessions:
+- start_sha: 58076b8abd0e49c3879c050fa5657dfac841914f
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-26T04:41:53.986742234Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-26T04:41:53.986742234Z
 ---
 
 Two tier-01 cases refuse on a token fact with a clean parse, and both are
