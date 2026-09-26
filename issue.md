@@ -2,9 +2,9 @@
 title: Ungated defer is declined as a statement form the parser can already read
 state: pending
 urgency: normal
-milestone: v0.1
+milestone: m1-parse-the-core
 created: 2026-09-23T23:08:33.884597854Z
-updated: 2026-09-26T12:52:56.492773027Z
+updated: 2026-09-26T12:52:56.617783935Z
 ---
 
 **Re-measured 2026-09-26, and the diagnosis below has changed. This was filed
