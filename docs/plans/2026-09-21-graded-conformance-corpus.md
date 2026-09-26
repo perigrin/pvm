@@ -1048,3 +1048,165 @@ named rather than silent:
 
 Everything else in this document is owned by an issue in
 `m3-conformance-corpus`.
+
+## The M1-M6 rewrite, measured 2026-09-26
+
+"The corpus comes first, and M1-M6 are rewritten around it" was written
+before the corpus existed. It has existed since `b4180102` and been
+through a format port since. This section is what the rewrite turns out
+to be once measured, and it is smaller than the sentence implies because
+three of its five parts already happened.
+
+### What already happened, and where
+
+- **`T1-easy >= 70%` is gone.** `easy_test.go` deleted whole at
+  `b4180102`; the twelve `hardMarkers` moved into the tier READMEs that
+  claim them, leaving `hardMarkerCount = 12` as the only Go.
+- **`T2 100%` never existed as a gate.** Measured at `b4180102`: a
+  comment and a `t.Logf`, no `if` anywhere. Removing it removed a claim,
+  not a check. `TestT2CoreParses`'s real gate -- the per-file
+  `shortfall` map, which fails in BOTH directions -- is untouched and
+  says so in its own log line: "Reported, not targeted -- the tier
+  corpus gates what the parser reads."
+- **The 01-04-plus-07 slice exists.** `TestSmallestUsefulCorpus` demands
+  every file reach `passed` or `knownRefusal`.
+
+So the rewrite's remaining work is not "replace the gates". It is the
+question those three left open.
+
+### The measurement that decides the rest
+
+This parser over all 209 positive corpus cases, at `b0f1a9e9`:
+
+    192 clean, 17 with Unknown        91.9%
+
+    04_operators    29/33      11_oo         16/18
+    07_subroutines  10/13      13_opaque      7/15
+    all other ten tiers       100%
+
+Against T2 core in the same tree: **17 of 56 files clean, 30.4%.**
+
+Two instruments, 60 points apart, and the gap is not noise. **The corpus
+does not contain what T2 fails on.** Checked: no corpus case is a
+parenless call with an argument, which is the single largest T2 bucket.
+
+### Why that gap is the corpus's problem and not T2's
+
+A corpus green at 92% while the parser fails a third of real perl files
+is a corpus that has stopped making a claim -- the defect class this
+whole chain keeps finding. The fix is to make the corpus cover the
+construct, not to lower the instrument that noticed.
+
+### The construct, isolated
+
+Declaration form and prototype are IRRELEVANT. Argument count is
+everything:
+
+    sub answer { 42 }   print answer, "\n";   clean    <- corpus has this
+    sub answer { 42 }   answer;               clean
+    sub f { }           f(8);                 clean
+    sub f { }           f 8;                  UNKNOWN
+    sub f;              f 8;                  UNKNOWN
+    sub f ($) { }       f 8;                  UNKNOWN
+    sub tryeq ($$$$){}  tryeq 1, 13 % 4, 1;   UNKNOWN  <- arith.t, 179 nodes
+
+A parenless call to a DECLARED sub parses with zero arguments and fails
+with any. That is why the corpus's own call-form slice passes while
+`opbasic/arith.t` carries 179 Unknowns: the slice's four spellings all
+call with no arguments, and the one that matters is the fifth.
+
+`%` is not implicated. `sub f {} f 13 % 4` and `sub f {} f 8` fail
+identically, so the "`%` read as a hash sigil" reading in `01a0c10b` is
+a symptom of argument position, not a modulus bug.
+
+### What perl says, which bounds what the corpus may assert
+
+Measured on 5.42.0, and it rules out the obvious fix:
+
+    ok 8;                     SYNTAX ERROR -- "Number found where
+                              operator expected (Do you need to
+                              predeclare ok?)"
+    ok $x, 9;                 syntax OK -- $x->ok, '???'
+                              INDIRECT OBJECT, not a call
+    sub ok {} ok 8, 9;        syntax OK -- a call
+    sub f {} f 13 % 4;        syntax OK -- f 1, constant folded
+
+So a parser that greedily consumes arguments after an UNDECLARED callee
+builds a tree for a program perl rejects, which is WRONG in the gate's
+sense and M1's gate is Oracle WRONG = 0. The corpus must assert the
+declared case parses and the undeclared case does not -- two cases, not
+one, and the second is `parses: no`.
+
+### Sixteen refusals with no issue behind them
+
+Found while measuring: sixteen cases carry `refuses: unfiled`.
+
+    heredocs.md            3      comparison.md       3
+    formats.md             2      pod-and-data.md     2
+    vstrings.md            2      arithmetic.md       1
+    numeric-point.md       1      adjacency-04/-13    2
+
+Their tiers match the dirty count exactly -- 04 has five, 13 has eight --
+so these ARE the 17, already recorded, just untracked. `refuses:` was
+designed to name an issue so a refusal points at live work; `unfiled` is
+the corpus admitting it does not.
+
+**Measured: ZERO are stale.** All sixteen still refuse. A first probe
+reported six stale and was WRONG, in a way worth recording because it is
+this chain's recurring defect wearing new clothes: it counted Unknown
+nodes, while `verdict()` collects TWO kinds of evidence -- refusal codes
+AND token facts. Six cases refuse on a token fact with a clean parse, so
+counting nodes alone reported them as passing. The two-way check was
+working the whole time; the probe measuring it was not.
+
+Split by what actually refuses:
+
+    ten     the parser refuses -- heredocs (3), formats (2),
+            pod/data (2), the two adjacency bodies, one logical-op case
+    six     the parse is CLEAN and a TOKEN FACT fails
+
+### Four of those six token facts contradict the glossary
+
+`x`, `cmp`, `and` and `xor` are each asserted as `one operator whose text
+is "..."`. The lexer emits `Word` for all four and the corpus scores that
+as a refusal. The glossary is the authority the token layer names, and it
+says:
+
+> **operator** -- Punctuation denoting an operation: `+`, `.`, `=~`,
+> `->`, `?`, `:`.
+
+> **word** -- A bare identifier: `foo`, `Foo::Bar`, `my`, `print`.
+> Keywords are not distinguished from other identifiers at this layer.
+
+`x` is not punctuation. By the glossary's own definition the lexer is
+RIGHT and four corpus facts are wrong. `01a0ce57` independently reached
+the same conclusion in prose -- "the binary `x` is lexed correctly as a
+Word" -- while the corpus scored the opposite.
+
+The conflation is a layer confusion, and both layers are individually
+right. Perl emits `repeat` for `$a x 3`, an operator AT THE OP LAYER;
+`categories.go` maps the word "operator" straight to `lexer.Operator`, a
+TOKEN kind. A fact wanting to say "this spells perl's repeat op" has no
+vocabulary for it and reached for the one word that appears in both
+layers.
+
+So this cluster is not parser work at all. Either the four facts are
+rewritten in token vocabulary, or the glossary grows a category for
+word-shaped operators and the lexer follows -- and that is a decision
+about the glossary, which is the corpus's contract with B::SoN and Chalk,
+not a local fix.
+
+The remaining two are real lexer gaps: `5e-1` lexes as
+`Number(5e) Operator(-) Number(1)`, and neither `65.66.67` nor
+`v65.66.67` forms a vstring.
+
+### What this does NOT change
+
+- The `t/` sweep stays deferred to its own milestone, as recorded above.
+  Extending the corpus is not the sweep; the sweep is what finds the
+  constructs the corpus still lacks AFTER this.
+- The `shortfall` ratchet stays. Two instruments measuring different
+  things is correct; one of them pretending to measure the other is not.
+- M2-M6's gates are untouched by this section. M2 lowers the tree this
+  parser builds, so it inherits whatever M1's coverage becomes; nothing
+  in M2's sixteen issues reads the corpus and nothing needs to.
