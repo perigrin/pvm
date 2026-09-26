@@ -81,14 +81,51 @@ func isNiladic(word string) bool {
 // `do` and `eval` also take a brace, but theirs is never a hash -- `do {}` is
 // always a block -- so they need no heuristic and are not here. `sort` takes
 // a comparator block whose `{` is decided the same way, which is why it is.
+//
+// print, printf and say are here for their FILEHANDLE slot, which takes a
+// block: `print {$fh} "x"`. Their brace is ambiguous the same way, so it needs
+// the same lookahead, and so does the parenthesised spelling -- perl accepts
+// that one too, which is what makes it canon's re-readable output. Measured on
+// 5.42.0:
+//
+//	$ perl -MO=Deparse -e 'print({$fh;} "x");'
+//	print {$fh;} 'x';
+//
+// The parens are what canon emits, and without these three that emission did
+// not re-lex: the `{` was classified from XTerm, the `;` ended a statement and
+// the `}` was orphaned. Perl draws the line at the BUILTINS -- an arbitrary
+// word's parenthesised block is a syntax error, `zzz({1;}print "b")` included
+// -- so widening this table past them would claim a form perl rejects.
 var blockTaking = map[string]bool{
 	"map": true, "grep": true, "sort": true,
+	"print": true, "printf": true, "say": true,
 }
 
 // takesBlock reports whether a `{` after this word might open a block.
 func takesBlock(word string) bool {
 	return blockTaking[word]
 }
+
+// ANY word may be followed by a block, which is why the brace after one is
+// classified by intuitCurly rather than by a table. perl reads `WORD BLOCK`
+// three ways and all three put the brace group and what follows in ONE
+// statement. Measured on 5.42.0:
+//
+//	zzz {a};                   zzz { 'a' }       undeclared: indirect method
+//	sub zzz {} zzz {a};        zzz({'a'})        declared: call, anon hash arg
+//	sub zzz(&) {} zzz { 1 };   &zzz(sub { 1; })  prototyped: call, code ref
+//
+// Which reading applies is a symbol-table question, so the lexer cannot pick
+// one -- but it does not have to. All three agree the brace opens a group
+// belonging to this statement, and that is the only thing classification
+// decides. What perl NEVER reads is a call SUBSCRIPTED by a hash, and that is
+// what a word outside the table used to produce: `zzz { 1 } print "b"` lexed
+// as `zzz(){1}` and the `print` after it had no operator before it.
+//
+// takesBlock stays narrow because it answers a DIFFERENT question -- which
+// words have a block-shaped ARGUMENT SLOT the parser fills before the list
+// (parseListOpBlock), and whose parenthesised spelling carries the lookahead
+// past the `(` (listOpParen). Only map, grep and sort do.
 
 // phasers are the compile-time and run-time blocks. A `{` after one is always
 // a block and never a hash, so unlike map/grep/sort they need no lookahead --

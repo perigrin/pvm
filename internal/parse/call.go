@@ -72,8 +72,18 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		// listOpParen carry ran intuit_curly at the `(`, so a HASHREF first
 		// argument -- `map({a => 1}, @a)` -- leaves OpensBlock unset and
 		// falls through to parseCallArgs as the ordinary argument it is.
+		//
+		// A FILEHANDLE block belongs here too, and for the same reason:
+		// `print({$fh;} "x")` is canon's own emission of `print {$fh} "x"` and
+		// perl reads it, so without this canon's output did not re-parse. It
+		// carries Handle, which parseFilehandleSlot's branches set for the
+		// parenless form -- infer reads that flag, and a block in this slot
+		// without it makes every typed-handle print a false Str mismatch.
 		if blk := p.parseListOpBlock(text); blk != nil {
 			n.Children = append(n.Children, blk)
+		} else if fh := p.parseFilehandleBlock(text); fh != nil {
+			fh.Handle = true
+			n.Children = append(n.Children, fh)
 		}
 		if arg := p.parseCallArgs(); arg != nil {
 			n.Children = append(n.Children, arg)
@@ -106,6 +116,8 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 			niladicParse[text] || p.knowsShape(text)
 		return n
 	}
+
+	blk, blockFollows := p.wordBlockFollows()
 
 	switch {
 	case namedUnary[text]:
@@ -185,6 +197,63 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		// cares, and a prototype means the same thing either way.
 		p.parseByShape(n, text)
 
+	case blockFollows:
+		// `WORD BLOCK` and then, optionally, a list: `defer { ... } print "b"`
+		// and an arbitrary `zzz { 1 } print "b"`. The lexer settled that the
+		// brace opens a block rather than a hash (intuitCurly, the same
+		// lookahead map/grep/sort get); what is left is the statement
+		// BOUNDARY, which is that the block and what follows are one
+		// statement.
+		//
+		// Perl reads this three ways depending on the symbol table -- an
+		// indirect method call on the block's value when undeclared, a call
+		// with an anon-hash argument when declared, a call with a code ref
+		// when prototyped `(&)`. Resolving WHICH is M4's, once prototypes
+		// resolve. All three agree on the boundary, so all three are served by
+		// taking the block and then the list, and none of them is the Index
+		// this fell to before: `zzz(){1}`, a call subscripted by a hash, is a
+		// shape perl never produces.
+		//
+		// Resolved stays false for the same reason the default branch's does:
+		// the callee is a bareword whose declaration this parser has not seen.
+		// The SHAPE is known, the callee is not.
+		//
+		// The list is taken only when something is actually there.
+		// `zzz { 1 };` has a `;` next, and parsing a list from it read the
+		// terminator INTO the argument list -- canon `zzz({1;};);` -- which
+		// turned a form that already parsed into an Unknown. endsArgumentList
+		// is the same guard the no-argument path above makes, for the same
+		// reason.
+		//
+		// A `WORD BLOCK` with no `;` may be followed by a whole STATEMENT, and
+		// that statement is not its argument. Measured on 5.42.0, where the two
+		// come back as siblings:
+		//
+		//	$ perl -MO=Deparse -e 'use feature "defer"; while(1){
+		//	      defer { print "d" } if ($i == 3) { last; } }'
+		//	    defer {
+		//	        print 'd';
+		//	    }
+		//	    if ($i == 3) {
+		//	        last;
+		//	    }
+		//
+		// `defer.t` is where this bites: `defer { ... }` on one line and `if
+		// (...) { ... }` on the next, with no terminator between them. Taking
+		// the `if` as an argument emitted `if (defer {...}) ($i == 3){last}`,
+		// two paren groups and not a parse of anything. A modifier is the same
+		// token in the same place -- `zzz { 1 } if $x` is a modifier, never an
+		// argument -- so one check covers both, and `applyModifier` at
+		// statement level already reads it.
+		n.Children = append(n.Children, p.parseBlock(blk))
+		if next, ok := p.peekSignificant(); ok && !endsArgumentList(next, p.src) &&
+			!(next.Kind == lexer.Word && modifiers[p.text(next)]) {
+			if arg := p.parseExpr(bpListOp); arg != nil {
+				n.Children = append(n.Children, arg)
+			}
+		}
+		n.Resolved = false
+
 	default:
 		// A bareword this parser does not know. It might be a user sub taking
 		// a list, a class name, or a hash key -- perl decides with the symbol
@@ -202,6 +271,20 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 
 	n.End = p.prevEnd()
 	return n
+}
+
+// wordBlockFollows reports the `{` of a block immediately following the word
+// just read, or false when the next token is not one.
+//
+// Whether the brace is a block at all was settled by the lexer, which ran
+// perl's intuit_curly over it, so this reads OpensBlock rather than deciding a
+// second time -- the same thing parseListOpBlock does for map, grep and sort.
+func (p *parser) wordBlockFollows() (lexer.Token, bool) {
+	tok, ok := p.peekSignificant()
+	if !ok || !tok.OpensBlock || p.text(tok) != "{" {
+		return lexer.Token{}, false
+	}
+	return tok, true
 }
 
 // endsArgumentList reports whether a token closes the context an operator's
@@ -271,11 +354,13 @@ var takesFilehandle = map[string]bool{
 // takesBlock is the set of list operators whose first slot may be a BLOCK
 // with no comma after it.
 //
-// The same three the lexer's blockTaking table names, and for the same
-// reason: these are the operators where `{` is genuinely ambiguous. The two
-// tables are separate because they answer different questions -- the lexer's
-// decides how to LEX the brace, this one decides whether to read a slot --
-// and a single shared table would couple the packages for three strings.
+// The three operators where the brace is genuinely ambiguous and the slot it
+// fills is the BLOCK argument. The lexer's blockTaking table is wider -- it
+// also names print, printf and say, whose ambiguous brace fills a FILEHANDLE
+// slot rather than this one -- which is exactly why the two tables are
+// separate: the lexer's decides how to LEX the brace, this one decides which
+// slot reads it. A single shared table would answer one question with the
+// other's list, and put a filehandle block in the comparator's slot.
 var takesBlock = map[string]bool{
 	"map": true, "grep": true, "sort": true,
 }
@@ -289,6 +374,24 @@ var takesBlock = map[string]bool{
 // TestBraceDecisionUsesExpectState makes for every other brace.
 func (p *parser) parseListOpBlock(op string) *Node {
 	if !takesBlock[op] {
+		return nil
+	}
+	tok, ok := p.peekSignificant()
+	if !ok || !tok.OpensBlock || p.text(tok) != "{" {
+		return nil
+	}
+	return p.parseBlock(tok)
+}
+
+// parseFilehandleBlock reads the `{$fh}` of a parenthesised `print({$fh} ...)`,
+// or returns nil when there is none.
+//
+// Only the BLOCK form, unlike parseFilehandleSlot: inside parens a bareword or
+// a scalar in the first position is an ordinary argument, and the comma-absence
+// test that tells a handle from an argument outside parens does not apply
+// there. The block form is unambiguous, which is why it is the one canon emits.
+func (p *parser) parseFilehandleBlock(op string) *Node {
+	if !takesFilehandle[op] {
 		return nil
 	}
 	tok, ok := p.peekSignificant()

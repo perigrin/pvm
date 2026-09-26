@@ -663,7 +663,16 @@ func (p *parser) statement() *Node {
 	// TestSourceFileIsStatements did not catch it: the test asserted only
 	// that children TILE the file, which one Unknown satisfies perfectly.
 	// It now asserts a Statement exists as well.
-	if tok, ok := p.peekSignificant(); ok && !endsStatement(tok, p.src) {
+	//
+	// A `WORD BLOCK` statement is COMPLETE at its `}` and takes no `;`, so what
+	// follows it is the next statement rather than a trailing token. perl agrees
+	// -- measured on 5.42.0, `defer { print "d" }` and the `if (...) { ... }` on
+	// the line after it come back as siblings with no terminator between them.
+	// Without this exception `defer.t`'s test 11 refused the pair as one
+	// statement, and the `}` of the `if` was left for canon to emit after an
+	// `if` that had already taken `($i == 3)` as a modifier condition.
+	if tok, ok := p.peekSignificant(); ok && !endsStatement(tok, p.src) &&
+		!endsInBlock(expr) {
 		p.skipToStatementEnd()
 		return &Node{Kind: Unknown, Refusal: TrailingTokens, Start: start, End: p.prevEnd()}
 	}
@@ -792,7 +801,22 @@ var statementKeywords = map[string]bool{
 
 	// use, no, require, the phasers and class are GONE: parseTheRest reads
 	// them. `field` and `method` are read by parseDeclaration.
-	"try": true, "catch": true, "finally": true, "defer": true,
+	//
+	// `defer` is GONE: parseWordTerm reads `WORD BLOCK` as a block followed by
+	// a list, which is the shape `defer { ... }` has and the one perl gives it
+	// under all three of its symbol-table readings. What that entry declined
+	// was the UNGATED reading, where the brace group is an anonymous hash whose
+	// block runs EAGERLY -- verified on 5.42.0, `sub f { defer { print "D\n" }
+	// print "body\n" } f();` prints `D` then `body` and only then fails to find
+	// a `defer` method. Gated, it prints `body` then `D`. Same tokens, same
+	// statement boundary, opposite execution ORDER, and nothing at compile time
+	// tells them apart -- so declining either one declined a shape this parser
+	// can read. Running the block at scope exit is M2's.
+	//
+	// try, catch and finally STAY. They are read as `WORD BLOCK` now too, but
+	// `try BLOCK catch (VAR) BLOCK` is a chain whose second clause takes a
+	// PARENTHESISED VARIABLE before its block, and that shape is not this one.
+	"try": true, "catch": true, "finally": true,
 
 	// Loop controls and `return` take an optional term and are statement
 	// forms in perly.y (levels 2 and 7), not expression operators.

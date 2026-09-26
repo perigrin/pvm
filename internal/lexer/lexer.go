@@ -423,12 +423,13 @@ func (l *lexer) emit(k Kind, start int) {
 		closedBlock:     l.closedBlock,
 		nextIsOpenBrace: l.peekIsOpenBrace(),
 		afterDeclName:   afterDeclName,
-		// Only a WORD can need the lookahead, or the `(` of that word's own
-		// parenthesised call. Every other token would pay a byte scan for an
-		// answer nothing reads.
-		nextBraceIsBlock: (k == Word && takesBlock(string(l.src[start:l.pos])) ||
-			inListOpParen) && l.intuitCurly(),
-		listOpParen: inListOpParen,
+		// Only a WORD can need the lookahead, or the `(` of a block-taking
+		// word's parenthesised call. Every other token would pay a byte scan
+		// for an answer nothing reads. Which word it is does not narrow this:
+		// any of them may be followed by a block, so intuitCurly decides for
+		// all of them -- see keyword.go.
+		nextBraceIsBlock: (k == Word || inListOpParen) && l.intuitCurly(),
+		listOpParen:      inListOpParen,
 	})
 	l.noteFormat(k, start)
 	// The picture body begins after the newline that ends the declaration.

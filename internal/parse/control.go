@@ -357,6 +357,36 @@ var modifiers = map[string]bool{
 // parser has already taken everything it can, and whatever it took is the
 // modifier's body entire. A binding power low enough to express this would
 // have to sit below 0, which is the loop's own floor.
+// endsInBlock reports whether an UNRESOLVED `WORD BLOCK` call's text ends at
+// the block's `}`, so the statement is already closed and a following word
+// starts a new one.
+//
+// Three conditions, each one measured rather than assumed:
+//
+//   - a Call whose LAST child is the Block. `defer { ... }` ends there;
+//     `defer { ... } print "b"` has a list after it and ends where the list
+//     does; `$x = sub { 1 }` is an assignment, not a call.
+//
+//   - UNRESOLVED. `do BLOCK while COND` is a genuine modifier and perl spells
+//     it that way -- measured on 5.42.0:
+//
+//     $ perl -MO=Deparse -e '$x=0; do {$x++;} while ($x < 10);'
+//     do { ++$x } while $x < 10;
+//
+//     `do` is a builtin, so its call is Resolved; the bare `WORD BLOCK` form is
+//     not, because its callee is a bareword whose declaration this parser has
+//     not seen. `cmd/mod.t` and `comp/require.t` are where treating the two
+//     alike refused the `do` form's modifier.
+//
+// The narrowness is the point -- a wider rule refuses the genuine modifier on
+// any statement whose last token happens to be a brace.
+func endsInBlock(body *Node) bool {
+	if body == nil || body.Kind != Call || body.Resolved || len(body.Children) == 0 {
+		return false
+	}
+	return body.Children[len(body.Children)-1].Kind == Block
+}
+
 func (p *parser) applyModifier(body *Node, start int) *Node {
 	// A statement that already ended cannot take a modifier. `my $z;` is
 	// finished at its semicolon, and the `foreach` on the NEXT line starts a
@@ -372,7 +402,31 @@ func (p *parser) applyModifier(body *Node, start int) *Node {
 	// consuming a terminator -- parseVarDecl takes the `;` so the statement
 	// owns its punctuation -- which is why the check lives here rather than
 	// in each caller.
+	//
+	// A BLOCK closes a statement the same way, without a `;`. `defer { ... }`
+	// on one line and `if (...) { ... }` on the next are two statements, and
+	// perl says so -- measured on 5.42.0, they come back as siblings:
+	//
+	//	$ perl -MO=Deparse -e 'use feature "defer"; while(1){
+	//	      defer { print "d" } if ($i == 3) { last; } }'
+	//	    defer { print 'd'; }
+	//	    if ($i == 3) { last; }
+	//
+	// Read as a modifier instead, the `if` took `($i == 3)` as its condition
+	// and orphaned the `{last}` after it, emitting
+	// `if (defer {...}) ($i == 3){last}` -- two paren groups and not a parse of
+	// anything. `defer.t` is where this shows up, and it only became reachable
+	// once `WORD BLOCK` stopped being declined.
+	//
+	// A block-form statement is NOT always finished, which is why the kind of
+	// the closing brace is not enough on its own: `$x = sub { 1 } if $y` is a
+	// genuine modifier on an assignment whose last token is also a `}`. The
+	// difference is whether the BODY is a block form, and blockForm is the
+	// predicate canon already uses to decide the same thing about a `;`.
 	if p.pos > 0 && p.toks[p.pos-1].Kind == lexer.Semicolon {
+		return nil
+	}
+	if endsInBlock(body) {
 		return nil
 	}
 

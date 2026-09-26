@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 719 clean (72.9%), 267 total.
+# 986 files, 721 clean (73.1%), 265 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -242,7 +242,7 @@
 0 double_diamond_closed_stdin.t
 0 dynaloader_load_flags.t
 1 dynamic_constant_sub_inlining.t
-1 dynamic_glob_code_replace.t
+0 dynamic_glob_code_replace.t
 0 encode_charset_provider.t
 0 encode_dynamic_alias.t
 0 encode_export_tags.t
@@ -366,7 +366,7 @@
 1 http_tiny_method_installation.t
 0 http_tiny_transport_failure.t
 0 imported_core_builtin_override.t
-1 inc_hook_prefix_filehandle.t
+0 inc_hook_prefix_filehandle.t
 0 indirect_isa_feature_gate.t
 0 indirect_object_block_list.t
 1 indirect_object_constructor.t
