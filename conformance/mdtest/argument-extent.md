@@ -42,12 +42,15 @@ asserted on the two argument literals rather than on `@_`, because
 `"f[@_]"` is ONE Quote token -- the array never reaches the token stream,
 and a fact about it would be satisfied vacuously.
 
-WHY THIS REFUSES. Our parser reads `f` as a complete term and then finds
-`1` with no operator between them, which is `trailing_tokens`: it has no
-notion that a bareword followed by a list may be a call. The token facts
-are what a fix has to keep true -- there is no `(` anywhere and exactly
-one `,`, so nothing may quietly rewrite this into the parenthesised form
-while claiming to have handled the parenless one.
+HOW THIS CAME TO PASS. Our parser had read `f` as a complete term and then
+found `1` with no operator between them, which was `trailing_tokens`: it had
+no notion that a bareword followed by a list may be a call. It has one now,
+and it is the DECLARATION that supplies it -- a `sub NAME` earlier in the
+file records its prototype where `knowsShape` can find it, so `f` is a list
+operator by the time the call site is read. The token facts still hold and
+still matter: there is no `(` anywhere and exactly one `,`, so nothing has
+quietly rewritten this into the parenthesised form while claiming to have
+handled the parenless one.
 
 ```perl
 sub f { return "f[@_]" }
@@ -57,8 +60,6 @@ print "\n";
 
 ```behavior
 parses: yes
-refuses: 01a0c432-fbd5
-refusal: trailing_tokens
 ```
 
 ```output
@@ -95,9 +96,11 @@ argument and not `g`'s. Note `gv[IV \"$"]` rather than
 differently again. Still one `entersub`, which is why the op lint cannot
 tell these two cases apart and the outputs have to.
 
-WHY THIS REFUSES: the same `trailing_tokens` as its pair, at the same
-place and for the same reason. The prototype is not what our parser
-stumbles on -- it has not got as far as caring.
+HOW THIS CAME TO PASS: the same route as its pair, and the prototype is now
+the part that does the work rather than the part nothing had reached. `($)`
+derives `ShapeUnary`, so the call takes ONE term and the second argument
+falls through to `print` -- which is the difference this case exists to
+measure, and it is now measured on our side too rather than only on perl's.
 
 The token facts assert that `($)` is NOT three punctuation tokens. A
 lexer reading it as `(`, `$`, `)` would produce a stream in which this
@@ -111,8 +114,6 @@ print "\n";
 
 ```behavior
 parses: yes
-refuses: 01a0c432-fbd5
-refusal: trailing_tokens
 ```
 
 ```output

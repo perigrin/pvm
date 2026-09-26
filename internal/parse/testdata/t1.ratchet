@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 493 clean (50.0%), 2280 total.
+# 986 files, 505 clean (51.2%), 2248 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -541,7 +541,7 @@
 5 open_mode_whitespace.t
 0 open_pragma.t
 2 open_pragma_lexical_io.t
-2 open_string_filehandle.t
+1 open_string_filehandle.t
 0 operations.t
 12 operator_overrides.t
 4 our_compile_time_glob.t
@@ -598,12 +598,12 @@
 8 pr694_core_regressions.t
 11 pr709_core_regressions.t
 0 precedence.t
-7 print_bareword_filehandle.t
-3 print_indirect_method_postfix.t
+4 print_bareword_filehandle.t
+2 print_indirect_method_postfix.t
 8 process_current_perl_argv.t
 3 process_pipe_postexit_drain.t
 1 prototype_after_watchdog.t
-2 prototype_backslash_typecheck.t
+0 prototype_backslash_typecheck.t
 0 prototype_caller_line.t
 4 prototype_trailing_comma_infix.t
 0 prototyped_call_caller_line.t
@@ -635,7 +635,7 @@
 0 regex_dynamic_deferred.t
 8 regex_empty_pattern_origin.t
 0 regex_extended_char_class_whitespace.t
-1 regex_first_class_constant_provenance.t
+0 regex_first_class_constant_provenance.t
 0 regex_full_casefold.t
 0 regex_hex_escape_range.t
 0 regex_hint_new_re_diagnostic.t
@@ -744,9 +744,9 @@
 17 string_interpolation.t
 0 string_interpolation_at_caret.t
 0 string_interpolation_escaped_hash_key.t
-18 subroutine.t
+19 subroutine.t
 2 subroutine_proto_trailing_comma_stmtend.t
-6 subroutine_prototype.t
+5 subroutine_prototype.t
 8 subroutine_prototype_args.t
 5 subroutine_return_rvalue.t
 0 subs_pragma.t
@@ -793,35 +793,35 @@
 0 text_balanced.t
 0 text_csv.t
 2 text_qrcode_java_xs.t
-4 threads_api_phase29.t
+0 threads_api_phase29.t
 0 threads_basic_unadvertised.t
 0 threads_captured_object_lifetime.t
 1 threads_cleared_weak_snapshot.t
 0 threads_clone_skip_no_autoload.t
-1 threads_compatibility_activation.t
+0 threads_compatibility_activation.t
 0 threads_cond_timedwait_deadline.t
-2 threads_condition_broadcast_stress.t
-2 threads_create_forms.t
+1 threads_condition_broadcast_stress.t
+0 threads_create_forms.t
 1 threads_destroy_method_return_rescue.t
 1 threads_destroy_weak_slot_rescue.t
 0 threads_detached_list.t
 0 threads_dynamic_code_array_state.t
 0 threads_end_block_ownership.t
 0 threads_end_captured_lifetime.t
-1 threads_entry_compile_error.t
-1 threads_eval_string.t
-2 threads_filehandle_inheritance.t
-1 threads_index_clone_identity.t
-1 threads_inheritance_clone.t
-3 threads_inherited_pipe.t
+0 threads_entry_compile_error.t
+0 threads_eval_string.t
+1 threads_filehandle_inheritance.t
+0 threads_index_clone_identity.t
+0 threads_inheritance_clone.t
+2 threads_inherited_pipe.t
 1 threads_inplace_edit.t
 0 threads_lazy_compile_snapshot_race.t
 0 threads_lazy_named_sub_unadvertised.t
 0 threads_lifecycle_unadvertised.t
 0 threads_lock_compatibility.t
-2 threads_lock_conditions_unadvertised.t
+1 threads_lock_conditions_unadvertised.t
 1 threads_native_resource_diagnostics.t
-3 threads_postfix_create_and_invalid_entry.t
+2 threads_postfix_create_and_invalid_entry.t
 0 threads_public_api_surface.t
 0 threads_qr_literal_validation.t
 0 threads_regex_callback_clone_isolation.t
@@ -830,17 +830,17 @@
 0 threads_regex_capture_snapshot.t
 0 threads_regex_fail_verb.t
 2 threads_regex_literal_compile_warning.t
-1 threads_runtime_regex_lexical_capture.t
-4 threads_shared_blessed_tied.t
+0 threads_runtime_regex_lexical_capture.t
+1 threads_shared_blessed_tied.t
 0 threads_shared_child_capture_release.t
 0 threads_shared_destructive_share.t
 1 threads_shared_fetch_proxy_lifetime.t
-7 threads_shared_final_destroy.t
-1 threads_shared_graphs.t
+5 threads_shared_final_destroy.t
+0 threads_shared_graphs.t
 0 threads_shared_inactive_mode.t
 2 threads_shared_lexical_reassignment.t
 0 threads_shared_nested_proxies.t
-1 threads_shared_reference_validation.t
+0 threads_shared_reference_validation.t
 0 threads_shared_unadvertised.t
 1 threads_source_mapper_snapshot.t
 2 threads_super_chain.t
