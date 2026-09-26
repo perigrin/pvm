@@ -8,7 +8,7 @@
 # topic's `**Tier NN name.**` line and leaves every key alone. That
 # is the `t/` sweep working, and must not read as a regression.
 #
-# 212 cases, 199 clean, 13 refusing.
+# 212 cases, 200 clean, 12 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -91,7 +91,7 @@ trailing_tokens argument-extent.md/A parenless call is greedy
 - compound-assignment.md/The bitwise and shift forms
 - compound-assignment.md/`.=` emits `multiconcat`, not `concat`
 - compound-assignment.md/`//=`, `||=` and `&&=` short-circuit
-trailing_tokens,tokens compound-assignment.md/`x=` is word-shaped, and we cannot lex it
+- compound-assignment.md/`x=` is word-shaped
 - conditionals.md/Adding an `else` changes the op
 - conditionals.md/Block `if` and postfix `if` are one construct
 - conditionals.md/`elsif` is a third form, not `else` followed by `if`

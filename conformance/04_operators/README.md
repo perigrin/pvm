@@ -69,8 +69,12 @@ measuring diverge most, and six places where they do:
   entirely on token facts, while `$u //= 99` leaves a defined `0` alone
   and `$u ||= 99` replaces it -- a difference output can see.
 
-  The thirteenth, `x=`, is the only WORD-SHAPED one and our lexer does
-  not form the token at all. `24_compound_repeat.t` records that refusal.
+  The thirteenth, `x=`, is the only WORD-SHAPED one, and it had to be
+  lexed separately for exactly that reason: a scanner forming compound
+  assignment from punctuation runs never reaches a letter. Our lexer
+  emitted `Word(x) Operator(=)` until `01a0ce57`. `compound-assignment.md`
+  carries the case, and its token fact asserts the glossary's
+  `word-shaped operator` category rather than `operator`.
 
 - **`nbit_and` is a SECOND OP, not a flag on `bit_and`.** Under
   `use v5.28` -- which enables `feature 'bitwise'` -- `&` always treats
