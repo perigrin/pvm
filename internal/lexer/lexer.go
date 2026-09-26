@@ -349,6 +349,7 @@ func scanOne(l *lexer) {
 	//                  -- but it declines with NO dot, so `v5` stays a Word,
 	//                  and on capital V, which perl never reads as a version
 	//   scanNumber     before operators, so `1.5` is not `1` `.` `5`
+	//   scanFileTest   before operators, so `-e` is not `-` `e`
 	for _, scan := range []func(*lexer) bool{
 		scanPod,
 		scanDataSection,
@@ -367,6 +368,7 @@ func scanOne(l *lexer) {
 		scanWord,
 		scanNumber,
 		scanSemicolon,
+		scanFileTest,
 		scanOperator,
 	} {
 		if scan(l) {

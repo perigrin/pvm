@@ -8,7 +8,7 @@
 # topic's `**Tier NN name.**` line and leaves every key alone. That
 # is the `t/` sweep working, and must not read as a regression.
 #
-# 213 cases, 207 clean, 6 refusing.
+# 213 cases, 208 clean, 5 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -213,7 +213,7 @@ trailing_tokens named-operators.md/`undef` is two operators wearing one word
 - tie.md/`tie` is a list operator taking a VARIABLE
 - tie.md/`tied` is a named unary, in boolean position
 - unary.md/Pre and post, increment and decrement
-tokens unary.md/The file-test operators
+- unary.md/The file-test operators
 - unary.md/The magic string increment
 - unary.md/Unary `+` computes nothing and disambiguates
 - ungated.md/`__CLASS__` without the feature is a filehandle

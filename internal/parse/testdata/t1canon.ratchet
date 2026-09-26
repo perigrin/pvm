@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 661 clean (67.0%), 325 total.
+# 986 files, 684 clean (69.4%), 302 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -87,7 +87,7 @@
 1 class_lvalue_method.t
 0 class_xsaccessor_named_cv.t
 0 class_xsaccessor_pp.t
-1 cli_warning_overrides.t
+0 cli_warning_overrides.t
 0 clone.t
 0 closed_stderr_unhandled_die.t
 1 closure.t
@@ -112,11 +112,11 @@
 0 concat_assignment_explicit_mutator.t
 1 concat_assignment_overload.t
 1 concat_assignment_tied_fetch.t
-1 config_core_keywords_header.t
-1 config_core_paths.t
-1 config_encode_probes.t
+0 config_core_keywords_header.t
+0 config_core_paths.t
+0 config_encode_probes.t
 0 config_fork_capability.t
-1 config_startperl_exec.t
+0 config_startperl_exec.t
 0 constant.t
 0 constant_mro_generation.t
 0 constant_stash_proxy.t
@@ -139,7 +139,7 @@
 0 core_qualified_control_flow.t
 0 core_qualified_infix.t
 0 core_subroutine_refs.t
-1 cpan_bundled_io_shadowing.t
+0 cpan_bundled_io_shadowing.t
 1 cpan_bundled_providers.t
 1 cpan_ceph_tie_runtime.t
 1 cpan_dependency_script_path.t
@@ -147,19 +147,19 @@
 0 cpan_distroprefs_class_dbi_match.t
 0 cpan_distroprefs_error_pure_match.t
 0 cpan_distroprefs_jcpan_args.t
-1 cpan_distroprefs_moo_retirement.t
+0 cpan_distroprefs_moo_retirement.t
 1 cpan_distroprefs_signature_migration.t
 0 cpan_distroprefs_type_tiny_match.t
-1 cpan_distroprefs_type_tiny_retired.t
-1 cpan_fallback_configure_retry.t
+0 cpan_distroprefs_type_tiny_retired.t
+0 cpan_fallback_configure_retry.t
 0 cpan_fallback_prereqs.t
-1 cpan_fallback_readonly_makefile.t
+0 cpan_fallback_readonly_makefile.t
 1 cpan_generic_patch_paths.t
 0 cpan_meta_yaml_dump_after_refaddr_cleanup.t
 0 cpan_parser_tooling_regressions.t
 1 cpan_prerequisite_phases.t
 0 cpan_requested_compat.t
-1 cpan_shim_modules.t
+0 cpan_shim_modules.t
 1 cpan_static_recommends.t
 0 cpan_tap_missing_prerequisite.t
 0 cpan_test_dependency_blib.t
@@ -206,7 +206,7 @@
 0 dbi_selectrow_finish.t
 0 dbi_sqlite_uri_connections.t
 0 dbi_storable_bytes.t
-1 dbi_threads_runtime_ownership.t
+0 dbi_threads_runtime_ownership.t
 1 dbic_deep_cycle_weak_shift_regression.t
 1 dbic_quiet_registry_destroy_handoff_regression.t
 0 default_feature_bundle.t
@@ -234,7 +234,7 @@
 0 digest_sha.t
 0 digest_sha1_compat.t
 0 direct_builtin_data_handle.t
-1 directory.t
+0 directory.t
 0 do_block_freetmps_fresh_result.t
 1 do_modern_syntax_and_copy.t
 0 do_quote_like_file_operand.t
@@ -290,21 +290,21 @@
 1 feature_import_in_begin_eval.t
 0 feature_pragma_packages.t
 0 file_glob_bsd_export_tag.t
-1 file_path_nested_make_path.t
-1 file_path_options.t
+0 file_path_nested_make_path.t
+0 file_path_options.t
 1 file_path_remove_tree.t
-1 file_path_rmtree_options.t
+0 file_path_rmtree_options.t
 0 file_temp_handle_methods.t
-1 file_temp_missing_parent.t
-1 file_temp_path_wrapper_lifetime.t
+0 file_temp_missing_parent.t
+0 file_temp_path_wrapper_lifetime.t
 1 file_temp_scalar_deref.t
 0 file_temp_stat_mode.t
-1 file_temp_warnif_regression.t
+0 file_temp_warnif_regression.t
 0 filehandle_dup.t
 0 fileno_reserved_recycle.t
 0 filespec_catpath.t
 0 filespec_tmpdir_env.t
-1 filetest_anonymous_tmpfile.t
+0 filetest_anonymous_tmpfile.t
 0 flipflop.t
 0 flock_reassigned_handle.t
 1 for_loop_test.t
@@ -404,7 +404,7 @@
 1 io_compress_regressions.t
 0 io_file_autoload.t
 1 io_flock.t
-1 io_handle_error.t
+0 io_handle_error.t
 0 io_handle_fresh_fdopen_warning.t
 1 io_layers.t
 0 io_memory.t
@@ -577,7 +577,7 @@
 1 path_tiny_runtime_prereqs.t
 0 perlio_encoding_loads_encode.t
 0 perlio_import_injection.t
-1 perlio_layers_capture.t
+0 perlio_layers_capture.t
 1 perlio_via.t
 0 pipe_close_status.t
 0 pipe_jperl_shebang.t
@@ -681,7 +681,7 @@
 1 scalar_coderef_call_context.t
 0 scalar_dual_value_arithmetic.t
 0 scalar_handle_read.t
-1 scalar_handle_tty_errno.t
+0 scalar_handle_tty_errno.t
 1 scalar_reference_code_destructor.t
 1 scalar_reference_container_lifetime.t
 0 scalar_watcher_java_xs.t

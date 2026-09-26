@@ -25,24 +25,52 @@ func (p *parser) parseTerm() *Node {
 	// A filetest: `-e $f`, `-d $dir`. perl returns UNIOP for these
 	// (toke.c:6255 FTST), so they bind exactly like a named unary.
 	//
-	// The lexer emits `-` and `e` separately, and the `-` would otherwise be
-	// read as unary minus applied to a bareword. Checked here rather than in
-	// the lexer because the distinction needs the parser's position: `$a -e`
-	// is subtraction, `(-e $f)` is a filetest.
-	if text == "-" {
-		if name, ok := p.peekAfter(tok); ok && name.Kind == lexer.Word &&
-			name.End-name.Start == 1 && fileTests[p.src[name.Start]] {
-			p.advanceTo(name)
-			n := &Node{
-				Kind: Call, Text: "-" + p.text(name), Resolved: true,
-				Start: tok.Start,
-			}
-			if arg := p.parseExpr(bpNamedUnary); arg != nil {
+	// `lexer.IsFileTest` recognises the token, which arrives whole: the whole
+	// `-e` is one Operator, because the minus is part of the operator's name
+	// and a lexer that left a bare `-` in front of a word had not yet decided
+	// which of perl's three readings of `-` it meant.
+	//
+	// The decision does NOT need the parser's position, which is what this
+	// code assumed while it was gluing two tokens back together. Measured
+	// 5.42.0, there is no subtraction reading to choose between:
+	//
+	//	$ perl -e 'my $x = 1 -e "/etc";'   syntax error near "1 -e "
+	//
+	// perl forms `-e` there too and then has nowhere to put it. So the lexer
+	// decides it on the two bytes alone and this reads the result.
+	//
+	// THE PAREN CLIFF APPLIES, §4.8.1, and it is not decoration. `-e($f)`
+	// spells the argument list with parens, and a branch that handed `($f)`
+	// to parseExpr got a paren LIST as the child -- so canon wrote its own
+	// parens around one the source already had, `-e(($f))`, and added another
+	// on every pass. That breaks the canon fixpoint rather than merely
+	// looking odd, and `open_mode_whitespace.t` is where it was caught.
+	if lexer.IsFileTest(text) {
+		p.advanceTo(tok)
+		n := &Node{
+			Kind: Call, Text: text, Resolved: true, Start: tok.Start,
+			End: tok.End,
+		}
+		if next, ok := p.peekSignificant(); ok && p.text(next) == "(" {
+			p.advanceTo(next)
+			if arg := p.parseCallArgs(); arg != nil {
 				n.Children = append(n.Children, arg)
+			}
+			if close, ok := p.peekSignificant(); ok && p.text(close) == ")" {
+				p.advanceTo(close)
 			}
 			n.End = p.prevEnd()
 			return n
 		}
+		// No parens: one argument at level 19, so arithmetic binds into the
+		// test and comparison does not. An ABSENT argument is legal and needs
+		// no branch -- `$_="/etc"; print -e;` deparses as `print -e $_`, so
+		// the node keeps the operator's own span and has no child.
+		if arg := p.parseExpr(bpNamedUnary); arg != nil {
+			n.Children = append(n.Children, arg)
+			n.End = p.prevEnd()
+		}
+		return n
 	}
 
 	// Prefix operators. `\` is one of these, and §4.4.5 is not optional

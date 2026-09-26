@@ -103,7 +103,10 @@ parses: yes
 ## The file-test operators
 
 `-e` is a NAMED UNARY whose name is punctuation, and the whole family
-(`-e -d -f -s -z -r -w -x -M -A -C`) was absent from the corpus.
+(`-e -d -f -s -z -r -w -x -M -A -C`) is 27 letters wide. The set was
+measured from the optree rather than transcribed: a letter belongs iff
+`my $v = -L $f;` compiles to an `ft*` op, which admits `o` and `O` --
+both real file tests that Deparse prints back as `-O`.
 
 WHAT A PARSER GETS WRONG IS THE MINUS. `-e $f` is a file test; `-$e` is
 negation; `-bareword` is the string `"-bareword"`. Three readings of one
@@ -113,10 +116,20 @@ Both spellings are written, and the parenthesised one is what makes the
 fork actual: `e($f)` would be a call to an undeclared sub, so that form
 has no reading where `-e` is a minus applied to something.
 
-This case REFUSES, and in a shape the corpus had not recorded before:
-the parser emits no Unknown at all. Our lexer splits `-e` into
-`Operator(-) Word(e)`, the parser reads that as a negated bareword and
-builds a tree, and only the token fact fails.
+THE DECIDING BYTES ARE THE TWO THEMSELVES, not the position. This case
+used to refuse in a shape the corpus had not recorded -- no Unknown node
+at all, only the token fact failing, because the lexer split `-e` into
+`Operator(-) Word(e)` and the parser glued the pair back together. What
+made that glue removable is that there is no subtraction reading to
+choose between: `1 -e "/etc"` is a SYNTAX ERROR, perl having formed `-e`
+and then found nowhere to put it. So the lexer forms the operator whole
+and this case passes on both spellings.
+
+Three boundaries keep the minus honest, and each is a separate
+measurement: `-e1` is `-$f->e1`, a method call, so the letter must not
+begin a longer word; `- e $f` is `-$f->e`, so the two bytes must be
+adjacent; and `{ -e => 1 }` is the string `'-e'`, so a fat comma
+autoquotes the whole thing.
 
 ```perl
 my $f = $ENV{X} // "/etc/hostname";
@@ -125,7 +138,6 @@ print "[", (-e $f), "][", (-e($f)), "]\n";
 
 ```behavior
 parses: yes
-refuses: 01a0cf64-8436-7f82-bcb5-587f0eba266f
 ```
 
 ```output

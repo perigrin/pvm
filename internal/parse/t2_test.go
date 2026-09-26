@@ -112,7 +112,22 @@ func TestT2CoreParses(t *testing.T) {
 		// largest single move in this map, and the survey predicted it:
 		// `base/lex.t` was named there as heredocs plus leading decimals,
 		// and the decimals had already gone.
-		"base/lex.t": 26, "base/num.t": 6, "base/rs.t": 3,
+		//
+		// Then 26 -> 27 when the lexer began forming `-l` as one operator
+		// (issue 01a0cf64), and the RISE IS AN IMPROVEMENT of the same kind
+		// class/field.t's was. `0-5x-l{0};` -- perl #123711's crash case at
+		// byte 12557 -- used to build a tree that round-tripped and was
+		// WRONG:
+		//
+		//	canon "0 - 5x - l(){0};"     a subscript on a call to sub `l`
+		//	perl  "0 - 5 x (-l {0});"    repetition applied to a filetest
+		//
+		// It now refuses with trailing_tokens instead, which is the honest
+		// answer. The blocker is NOT the filetest: `scanNumber` takes the
+		// `x` into `Number(5x)`, so the `-l` never reaches an operator
+		// position at all. That is the `(1)x3` gap 01a0ce57 measured and
+		// left unfixed, and this is a second file where it costs a node.
+		"base/lex.t": 27, "base/num.t": 6, "base/rs.t": 3,
 		// class/field.t went 9 -> 10 when quote-op keywords stopped eating
 		// their fat comma, then back to 9 when goto, delete and exists
 		// landed. The rise was never a regression in the parse: reaching

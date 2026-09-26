@@ -529,3 +529,118 @@ func TestWordShapedCompoundAssignmentTermPosition(t *testing.T) {
 		}
 	}
 }
+
+// TestFileTestIsOneOperator: `-e` is ONE token, not a minus and a word.
+//
+// perlop's named-unary level holds the whole family, 27 letters of it, and
+// the lexer emitted `Operator(-) Word(e)` for every one. `internal/parse`
+// carried a `fileTests` table to glue the pair back together at parse time,
+// which built the right tree and left the token stream wrong -- and the token
+// stream is what `conformance/mdtest/unary.md`'s "The file-test operators"
+// pins with `no operator whose text is "-"`.
+//
+// THE EXPECT STATE IS NOT THE GUARD HERE, which is where this departs from
+// `x=`. Measured 5.42.0, a filetest in what looks like operator position is
+// not subtraction, it is a syntax error:
+//
+//	$ perl -e 'my $x = 1 -e "/etc";'   syntax error near "1 -e "
+//	$ perl -e 'my ($a,$b); $a-e$b;'    syntax error near "$a-e"
+//
+// perl has already formed `-e` in both, and then has nowhere to put it. The
+// one spelling that DOES compile only compiles because `print` takes an
+// indirect filehandle:
+//
+//	$ perl -MO=Concise -e 'my ($a,$b); print $a -e $b;'
+//	  rv2gv <- $a        (the filehandle)
+//	  ftis  <- $b        (the filetest, still one operator)
+//
+// So `-e` forms wherever it appears and the state is not consulted.
+func TestFileTestIsOneOperator(t *testing.T) {
+	for _, c := range []struct {
+		src  string
+		want []string
+	}{
+		// The two spellings the corpus case writes.
+		{`-e $f`, []string{"Operator(-e)", "Variable($f)"}},
+		{`-e($f)`, []string{"Operator(-e)", "Operator(()", "Variable($f)",
+			"CloseBracket())"}},
+
+		// No operand: perl defaults it to `$_`, and the operator is still
+		// whole. Measured, `$_="/etc"; print -e;` deparses as `print -e $_`.
+		{`-e`, []string{"Operator(-e)"}},
+
+		// Stacked filetests are legal since 5.10 and both are operators.
+		// Measured, `-e -f $f` deparses back as itself.
+		{`-e -f $f`, []string{"Operator(-e)", "Operator(-f)",
+			"Variable($f)"}},
+
+		// A letter from each end of the family, so the table is exercised
+		// and not just its first row. All 27 were measured from the optree:
+		// a letter is a filetest iff `-L $f` compiles to an `ft*` op.
+		{`-M $f`, []string{"Operator(-M)", "Variable($f)"}},
+		{`-o $f`, []string{"Operator(-o)", "Variable($f)"}},
+		{`-X $f`, []string{"Operator(-X)", "Variable($f)"}},
+	} {
+		if !streamIs(c.src, c.want...) {
+			t.Errorf("%q lexes as %v, want %v",
+				c.src, significant(c.src), c.want)
+		}
+	}
+}
+
+// TestMinusStillMeansMinus is the filetest's negative, and it carries the
+// three readings of `-` that the issue names.
+//
+// A lexer that takes any letter after a `-` breaks arithmetic; one that takes
+// any single letter breaks the method call; one that ignores the fat comma
+// breaks the option-name idiom. Each row below is a measurement.
+func TestMinusStillMeansMinus(t *testing.T) {
+	for _, c := range []struct {
+		src  string
+		want []string
+	}{
+		// Negation and subtraction, which have no letter to confuse.
+		{`-$x`, []string{"Operator(-)", "Variable($x)"}},
+		{`-5`, []string{"Operator(-)", "Number(5)"}},
+		{`$a - $b`, []string{"Variable($a)", "Operator(-)", "Variable($b)"}},
+
+		// A LONGER word is not a filetest. Measured, `-e1 $f` deparses as
+		// `-$f->e1` and `-exists` is the builtin `exists`, negated -- so the
+		// letter must not be followed by an identifier character.
+		{`-e1 $f`, []string{"Operator(-)", "Word(e1)", "Variable($f)"}},
+		{`-exists $h`, []string{"Operator(-)", "Word(exists)",
+			"Variable($h)"}},
+
+		// A letter that is NOT in the family. Measured, `-n $f` deparses as
+		// `-$f->n`: a method call on the negated scalar, never a filetest.
+		{`-n $f`, []string{"Operator(-)", "Word(n)", "Variable($f)"}},
+
+		// WHITESPACE KILLS IT. This is the sharpest boundary, because the
+		// bytes `-`, `e`, `$f` are all present. Measured:
+		//
+		//	$ perl -MO=Deparse -e 'my $f="/etc"; print - e $f;'
+		//	print -$f->e;
+		//
+		// so `- e` is negate(method call) and `-e` is the filetest. The two
+		// letters must be adjacent.
+		{`- e $f`, []string{"Operator(-)", "Word(e)", "Variable($f)"}},
+
+		// THE FAT COMMA. `-bareword` is the string, and that survives even
+		// when the bareword is a filetest letter. Measured:
+		//
+		//	$ perl -MO=Deparse -e 'my $x = { -e => 1 };'
+		//	my $x = {'-e', 1};
+		//
+		// A `=>` after the letter autoquotes the whole `-e` as a string, so
+		// the filetest must decline in front of one.
+		{`{ -e => 1 }`, []string{"Operator({)", "Operator(-)", "Word(e)",
+			"Operator(=>)", "Number(1)", "CloseBracket(})"}},
+		{`-foo => 1`, []string{"Operator(-)", "Word(foo)", "Operator(=>)",
+			"Number(1)"}},
+	} {
+		if !streamIs(c.src, c.want...) {
+			t.Errorf("%q lexes as %v, want %v",
+				c.src, significant(c.src), c.want)
+		}
+	}
+}
