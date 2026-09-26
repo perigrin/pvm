@@ -1,10 +1,19 @@
 ---
 title: A parenthesised and/or/xor refuses, and the bare form is a different program
-state: pending
+state: in-progress
 urgency: normal
 milestone: corpus-covers-t2
 created: 2026-09-26T04:10:38.190903837Z
-updated: 2026-09-26T04:15:04.10441156Z
+updated: 2026-09-26T04:43:11.609276216Z
+sessions:
+- start_sha: 53de041e579c32a987c8caed904ff7895895e8f3
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-26T04:43:11.609276216Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-26T04:43:11.609276216Z
 ---
 
 `($a and $b)` refuses with `not_a_term`, and so do `or` and `xor`. The
