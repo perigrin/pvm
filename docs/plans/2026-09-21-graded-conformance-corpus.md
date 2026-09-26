@@ -1302,3 +1302,89 @@ The remaining two are real lexer gaps: `5e-1` lexes as
 - M2-M6's gates are untouched by this section. M2 lowers the tree this
   parser builds, so it inherits whatever M1's coverage becomes; nothing
   in M2's sixteen issues reads the corpus and nothing needs to.
+
+### Outcome, measured 2026-09-26 end of session
+
+The section above was written before the work. What actually happened, so
+the next reader compares against a measurement rather than a plan:
+
+    corpus.ratchet    188 -> 204 of 212 clean, 24 -> 8 refusing
+
+Nine root causes closed. Attributed to the landing COMMIT rather than to an
+issue, because several were found by a TIER_2 gate on a different issue
+than the one that fixed them, and a commit is what a reader can check:
+
+| cause | commit |
+|---|---|
+| `word-shaped operator` is its own glossary category | `7ea2168c` |
+| `and`/`or`/`xor` live below the comma; a paren holds a full expr | `ab15f0b3` |
+| the sign of an exponent, and the second dot that makes a string | `77cf71aa` |
+| a bracket holds a full expr too | `a4730ebe` |
+| capital `V` is a bareword, and a test defended the opposite | `e6cbd121` |
+| `format` is a declaration, and `write` was never the gap | `8af023b6` |
+| a data section is trivia, not a statement | `47e5b1ff` |
+| `x=` is the compound assignment spelled with a letter | `c60ed302` |
+| a heredoc body belongs to the statement that opened it | `0f499a6b` |
+
+Per-cause case counts are deliberately omitted. Several cases refuse for
+two reasons at once, so any such set fails to sum to the ratchet delta --
+an earlier draft of this table published one summing to seventeen against a
+move of sixteen. The ratchet header is the figure that adds up, and it says
+188 -> 204.
+
+The glossary cluster resolved the way this section predicted: the
+glossary grew a `word-shaped operator` category, `categories.go` gained a
+row reading `parse.IsWordShapedOperator`, and the lexer was not changed,
+because by the glossary's own definition it was already right.
+
+The five-ratchet movement, all measured and attributed rather than
+regenerated blind:
+
+    t1           475 -> 493 clean (48.2% -> 50.0%), 2353 -> 2280 nodes
+    t1canon      649 -> 661 clean (65.8% -> 67.0%), 337 -> 325 disagreeing
+    t1fidelity   345 -> 357 clean (35.0% -> 36.2%), 641 -> 629 differing
+    t2 shortfall seven entries down; `base/lex.t` 35 -> 26 is the largest
+
+All four baselines are the values at `b9f77d9c`, this session's first
+commit, read out of the committed ratchet files rather than recalled. An
+earlier draft of this paragraph had the t1 pair as 470 -> 493 and
+2397 -> 2280, both wrong, which is the defect the next section names
+happening inside the section that names it.
+
+### What the plan got wrong, and it is the same thing three times
+
+Three issues in this milestone measured to something other than their filed
+cost, each verified against the issue body:
+
+- `01a0dc84` was filed asking for a `__DATA__` statement form. It needed one
+  token added to `isTrivia`'s switch and `decl.go` was untouched -- a
+  `__DATA__` marker is not a declaration, because perl compiles nothing for
+  it.
+- `01a0c13f-aaf8` was filed as a lexer gap for heredocs. The lexer was
+  correct throughout: it emits `HeredocOpen` and `HeredocBody` properly, and
+  the gap was that `parseTerm` had no rule for a body arriving after the `;`.
+- `01a0c13f-50ee` was filed as a three-way design choice for perigrin. It is
+  not a choice -- perl refuses to compile `ok 8` at all, which makes route A
+  WRONG in the oracle's sense rather than merely risky, and leaves route C
+  as perl's own rule rather than a heuristic.
+
+The pattern is not that the estimates were bad. It is that a cost written
+into an issue is a guess until someone probes it, and probing first is
+cheap -- one deparse invocation, or one Unknown count on the construct
+alone rather than on the failing case that contains it.
+
+The related defect, which bit me and four workers: read a count off a
+failing case, name a cause, never measure the cause separately. Six TIER_2
+gates found it in code that had already passed its acceptance criteria.
+Three of those gates found a claim wrong in a comment rather than in code,
+which is why the no-false-comments rule is load-bearing here and not
+decoration.
+
+### The 8 that remain, and who owns them
+
+Five are m1 work in flight or filed: the file-test operator family
+(01a0cf64), the parenless-call declared/undeclared boundary (01a0c13f-50ee
+and -6816), and `undef` as a named unary. One is `defer` without its
+feature gate, which lives in v0.1 rather than m1. Three are adjacency
+cases -- one case holding a whole tier's vocabulary at once -- and those
+close only when every construct in their tier does.
