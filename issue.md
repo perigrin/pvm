@@ -1,21 +1,50 @@
 ---
 title: Decide what a parenless call to an unknown callee does with its arguments
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocks:
 - 01a0c13f-6816-79d2-945a-b84a12d39e6c
 created: 2026-09-20T23:55:47.309990102Z
-updated: 2026-09-26T10:38:41.912104642Z
+updated: 2026-09-26T11:06:23.766682673Z
 sessions:
 - start_sha: 6ae2242dc5addd89075b7c29d0a0777e69d757ef
-  end_sha: ""
-  commits: 0
+  end_sha: 3ef0ae208b19053e94b91fbac2d6ddf19b4f4af4
+  commits: 4
   started_at: 2026-09-26T09:53:36.480830299Z
+  ended_at: 2026-09-26T11:06:23.766682673Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-26T09:53:36.480830299Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-26T11:06:23.766682673Z
+observed_paths:
+- conformance/mdtest/adjacency-06_control.md
+- conformance/mdtest/argument-extent.md
+- conformance/mdtest/unary.md
+- docs/plans/2026-09-21-graded-conformance-corpus.md
+- internal/conformance/testdata/corpus.ratchet
+- internal/lexer/lexer.go
+- internal/lexer/scan.go
+- internal/lexer/scanrows_test.go
+- internal/lexer/testdata/corpus.ratchet
+- internal/lexer/testdata/lex.t.tokens
+- internal/parse/call.go
+- internal/parse/decl.go
+- internal/parse/expr.go
+- internal/parse/fidelity.go
+- internal/parse/infile_test.go
+- internal/parse/keyword.go
+- internal/parse/parse.go
+- internal/parse/shape.go
+- internal/parse/t2_test.go
+- internal/parse/term.go
+- internal/parse/testdata/t1.ratchet
+- internal/parse/testdata/t1canon.ratchet
+- internal/parse/testdata/t1fidelity.ratchet
+- internal/parseoracle/parenless_test.go
 ---
 
 **Rewritten 2026-09-21. This was filed as a three-way design choice for
