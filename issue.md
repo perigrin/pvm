@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: corpus-covers-t2
 created: 2026-09-26T03:02:06.779257794Z
-updated: 2026-09-26T04:17:51.661858649Z
+updated: 2026-09-26T04:18:52.155808246Z
 ---
 
 Four corpus token facts assert something the glossary forbids, and the
@@ -178,5 +178,5 @@ together.
 - [ ] The two-precedences case passes rather than skipping (`go test ./internal/conformance/ -run '^TestCorpus$' -count=1 -v | grep -qE 'PASS: TestCorpus/comparison.md/.&&._and_.and._are_one_op_at_two_precedences'`)
 - [ ] The decision is written where the next reader finds it (`grep -qiE 'word-shaped|not punctuation' conformance/GLOSSARY.md`)
 - [ ] REGRESSION GUARD, passes today: the glossary and the category table still agree (`go test ./internal/conformance/ -run '^TestGlossaryMatchesCategories$' -count=1 -v | grep -q '^--- PASS: TestGlossaryMatchesCategories'`)
-- [ ] A new `TestCategoryBoundaries` row proves `operator` still rejects a word (`go test ./internal/conformance/ -run '^TestCategoryBoundaries$' -count=1 -v | grep -q '^--- PASS: TestCategoryBoundaries'`)
+- [ ] A named row proves `operator` still rejects a word (`go test ./internal/conformance/ -run '^TestCategoryBoundaries$' -count=1 -v | grep -q 'PASS: TestCategoryBoundaries/a_word_shaped_operator_is_not_the_operator_category'`)
 - [ ] REGRESSION GUARD, passes today: the suite is green (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
