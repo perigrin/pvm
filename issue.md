@@ -3,8 +3,10 @@ title: The lexer does not form x=, the word-shaped compound assignment
 state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
+blocks:
+- 01a0cf64-8436-7f82-bcb5-587f0eba266f
 created: 2026-09-23T12:57:39.474460281Z
-updated: 2026-09-26T08:58:57.630191229Z
+updated: 2026-09-26T09:00:31.867520986Z
 sessions:
 - start_sha: 2963c47d4099f32e5bcd3a131d0865f204ee28ea
   end_sha: ""
