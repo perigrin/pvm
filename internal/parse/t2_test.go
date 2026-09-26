@@ -208,7 +208,18 @@ func TestT2CoreParses(t *testing.T) {
 		// map/grep/sort, so the body read as a subscript and everything after
 		// it fell to trailing_tokens. The three that remain are the same
 		// declarations reached through a signature.
-		"class/destruct.t": 2, "class/field.t": 7, "class/gh22169.t": 2,
+		// class/field.t 7 -> 5 with the labelled bare block (issue 01a0de8b),
+		// in two steps, and NEITHER of its labels is on a block:
+		//
+		//	field $forwards  = do { goto HERE; HERE: 1 };
+		//	field $backwards = do { my $x; HERE: ; goto HERE if !$x++; 2 };
+		//
+		// 7 -> 6 was `HERE: 1`, a label on a plain expression statement, which
+		// that site was building by hand without its labels. 6 -> 5 was
+		// `HERE: ;`, a label on an EMPTY statement, whose check ran before the
+		// labels were read and so could not see one. perl accepts both and
+		// Deparse emits `HERE: ;` back verbatim.
+		"class/destruct.t": 2, "class/field.t": 5, "class/gh22169.t": 2,
 		"class/gh23511.t": 1, "class/inherit.t": 4, "class/method.t": 3,
 		// cmd/subval.t and comp/package_block.t left the map entirely with
 		// the `startsTerm` fix -- they parse cleanly now, which is what
@@ -268,12 +279,20 @@ func TestT2CoreParses(t *testing.T) {
 		// comma allowed after filehandle" and `print __PACKAGE__, 1` is
 		// legal. Then `startsTerm` learned that a word OPERATOR is not a
 		// term, which reached `print __PACKAGE__ eq '...' ? ... : ...`.
-		"comp/opsubs.t": 11, "comp/package.t": 1,
+		// comp/opsubs.t 11 -> 9 with the labelled bare block (issue
+		// 01a0de8b). Its one label is `SILENCE_WARNING: {` at line 117;
+		// before the fix that brace lexed as an anonymous hash and the two
+		// statements after it fell to trailing_tokens.
+		"comp/opsubs.t": 9, "comp/package.t": 1,
 		// comp/parser.t 64 -> 55 and comp/parser_run.t 12 -> 5 with the
 		// heredoc body (issue 01a0c13f) -- nine and seven nodes. parser_run.t
 		// is the densest heredoc user in the map: more than half its
 		// refusals were bodies.
-		"comp/parser.t": 29, "comp/parser_run.t": 5, "comp/proto.t": 2,
+		// parser_run.t 5 -> 2 with the labelled bare block (issue 01a0de8b).
+		// Its `SKIP:` at line 73 and the `{` at line 74 are on separate
+		// lines, which is why the fix carries the label across trivia rather
+		// than requiring the colon to touch its brace.
+		"comp/parser.t": 29, "comp/parser_run.t": 2, "comp/proto.t": 2,
 		// comp/require.t went 11 -> 12 when phaser braces became blocks. The
 		// `BEGIN { ... }` body is now read as statements rather than as one
 		// hashref, and reaching inside it exposed a heredoc the parser did

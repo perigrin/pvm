@@ -119,6 +119,10 @@ type transition struct {
 	// listOpParen is set on the `(` of a parenthesised `map`, `grep` or
 	// `sort` call, whose brace the WORD's own lookahead could not reach.
 	listOpParen bool
+	// labelColon is set on the `:` of a `LABEL:` -- a one-byte colon after a
+	// Word that stood at a statement boundary. See lexer.sawLabelWord for
+	// why the colon cannot decide this for itself.
+	labelColon bool
 }
 
 // after returns the state following a token of kind k.
@@ -301,6 +305,42 @@ func (e Expect) after(k Kind, t transition) Expect {
 				return XBlock
 			}
 			return XTerm
+		}
+		// A label's `:` leaves a STATEMENT boundary, which is perl's own
+		// answer -- yyl_colon reaches PREBLOCK for a label (toke.c), and
+		// PREBLOCK is XSTATE.
+		//
+		// This is what `SKIP: { ... }` needed. Without it the `:` left XTerm,
+		// so the `{` was classified from term position and read as an
+		// anonymous hash: `SKIP: { print 1; }` parsed as a hash containing a
+		// print, with its `}` reported as a closed SUBSCRIPT, and the rest of
+		// the file lost brace synchronisation from there.
+		//
+		// Measured over perl.git t/'s 620 files, before and after: 185 -> 196
+		// clean, 7,490 -> 6,956 Unknown nodes, and the bare-`}` bucket
+		// 1,026 -> 691. The ABLATION that ordered this work -- rewriting
+		// `LABEL:` away at identical byte length -- predicted 284 of that
+		// bucket (25.4% of the 1,118 it stood at before given/when landed) and
+		// 9 files; the fix cleared 335 and 11, because ablation can only see
+		// the forms where the label sits on a BLOCK. A label on a plain
+		// statement, on an empty one, or as the first statement inside a block
+		// were each losing their label too, and none of those is visible to it.
+		//
+		// XState rather than XBlock, and the difference matters twice. It puts
+		// the brace where a STATEMENT-START brace is classified, which is the
+		// layer that already refines it: perl runs intuit_curly after a label
+		// too -- `L: {a=>1};` deparses as `L: +{'a', 1};`, a labelled
+		// anonymous HASH -- and the parser's braceOpensAnonHash is what
+		// applies that lookahead, for every statement-start brace at once.
+		// And it makes the NEXT word a statement-boundary word, which is how
+		// `A: B: { ... }` stacks with no second rule.
+		//
+		// A label is not restricted by case or by what it labels: measured on
+		// perl 5.42.0, `skip: { print 1; }` runs, `FOO: print "hi";` runs,
+		// and all of `last`, `next` and `redo` target a bare block's label.
+		// So unlike `given`/`when`, no keyword table narrows this.
+		if t.labelColon {
+			return XState
 		}
 		return XTerm
 	case Semicolon:
