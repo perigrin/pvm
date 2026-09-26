@@ -337,7 +337,13 @@ func TestClassCorpusRatchet(t *testing.T) {
 	// (13 blocks), destruct.t 7 -> 4 (2), gh22169.t 4 -> 2 (5) and
 	// inherit.t 6 -> 4 (4). The other four class files hold none and are
 	// unchanged.
-	const want = 28
+	//
+	// 28 -> 26 when `undef` joined `namedUnary` (issue 01a0dd43). Both
+	// nodes are in `destruct.t`, which writes `undef $notifier;` and
+	// `undef $obj;` and nothing else either change reaches. The two fixes
+	// are independent and compose on that one file: ADJUST took it 7 -> 4
+	// and `undef` takes it 4 -> 2.
+	const want = 26
 	if unknown != want {
 		t.Errorf("t/class holds %d Unknown nodes, want %d: update this pin in "+
 			"the same commit as the change that moved it", unknown, want)

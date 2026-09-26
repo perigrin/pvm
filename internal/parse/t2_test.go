@@ -95,6 +95,15 @@ func TestT2CoreParses(t *testing.T) {
 	// keyword as a quote operator where perl reads it as a name: `$o->s`
 	// and `method y { ... }`. class/class.t left the map entirely.
 	shortfall := map[string]int{
+		// FIVE files moved on one entry, `undef` joining `namedUnary`
+		// (issue 01a0dd43): class/destruct.t 7 -> 5, comp/package.t 2 -> 1,
+		// comp/parser.t 31 -> 29, comp/uproto.t 2 -> 1 and
+		// opbasic/arith.t 21 -> 11. Each delta equals that file's count of
+		// `undef` followed by an argument, counted per file rather than
+		// inferred from the total: arith.t alone writes `undef $a;` and
+		// `undef $s;` five times each, which is the ten. Recorded here
+		// rather than beside each entry because it is one cause.
+		//
 		// `base/lex.t` 37 -> 36 and `base/num.t` 48 -> 44 when the lexer
 		// learned that a `.` before a digit starts a NUMBER where a term
 		// is expected (issue 01a0c13f). Measured before the fix: 5 of
@@ -165,7 +174,12 @@ func TestT2CoreParses(t *testing.T) {
 		// The four class files that did NOT move -- construct.t, field.t,
 		// gh23511.t and method.t -- hold no `ADJUST` at all, which is what
 		// separates a ratchet that improved from one that merely moved.
-		"class/destruct.t": 4, "class/field.t": 7, "class/gh22169.t": 2,
+		//
+		// The unary `undef` then took `class/destruct.t` further, 4 -> 2.
+		// The two fixes are independent and compose: ADJUST closed the
+		// phaser shapes, `undef` the container spellings, and destruct.t
+		// holds both.
+		"class/destruct.t": 2, "class/field.t": 7, "class/gh22169.t": 2,
 		"class/gh23511.t": 1, "class/inherit.t": 4, "class/method.t": 8,
 		// cmd/subval.t and comp/package_block.t left the map entirely with
 		// the `startsTerm` fix -- they parse cleanly now, which is what
@@ -219,12 +233,12 @@ func TestT2CoreParses(t *testing.T) {
 		// comma allowed after filehandle" and `print __PACKAGE__, 1` is
 		// legal. Then `startsTerm` learned that a word OPERATOR is not a
 		// term, which reached `print __PACKAGE__ eq '...' ? ... : ...`.
-		"comp/opsubs.t": 11, "comp/package.t": 2,
+		"comp/opsubs.t": 11, "comp/package.t": 1,
 		// comp/parser.t 64 -> 55 and comp/parser_run.t 12 -> 5 with the
 		// heredoc body (issue 01a0c13f) -- nine and seven nodes. parser_run.t
 		// is the densest heredoc user in the map: more than half its
 		// refusals were bodies.
-		"comp/parser.t": 31, "comp/parser_run.t": 5, "comp/proto.t": 4,
+		"comp/parser.t": 29, "comp/parser_run.t": 5, "comp/proto.t": 4,
 		// comp/require.t went 11 -> 12 when phaser braces became blocks. The
 		// `BEGIN { ... }` body is now read as statements rather than as one
 		// hashref, and reaching inside it exposed a heredoc the parser did
@@ -258,8 +272,8 @@ func TestT2CoreParses(t *testing.T) {
 		// and 5 are below it. Back to the 17 the symbol-table deref note
 		// above records, by a different route.
 		"comp/redef.t": 1, "comp/require.t": 7, "comp/retainedlines.t": 17,
-		"comp/uproto.t": 2, "comp/use.t": 1, "comp/utf.t": 3,
-		"opbasic/arith.t": 21, "opbasic/cmp.t": 6, "opbasic/concat.t": 5,
+		"comp/uproto.t": 1, "comp/use.t": 1, "comp/utf.t": 3,
+		"opbasic/arith.t": 11, "opbasic/cmp.t": 6, "opbasic/concat.t": 5,
 	}
 
 	var regressed, improved, nowClean, nowDirty []string

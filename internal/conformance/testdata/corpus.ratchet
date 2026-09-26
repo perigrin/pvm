@@ -8,7 +8,7 @@
 # topic's `**Tier NN name.**` line and leaves every key alone. That
 # is the `t/` sweep working, and must not read as a regression.
 #
-# 213 cases, 209 clean, 4 refusing.
+# 213 cases, 211 clean, 2 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -16,7 +16,7 @@
 - adjacency-01_literals.md/The whole tier in one body
 - adjacency-02_variables.md/The whole tier in one body
 - adjacency-03_context.md/The whole tier in one body
-trailing_tokens adjacency-04_operators.md/The whole tier in one body
+- adjacency-04_operators.md/The whole tier in one body
 - adjacency-05_scoping.md/The whole tier in one body
 - adjacency-06_control.md/The whole tier in one body
 - adjacency-06_control.md/Two `next` guards in a row, where the first arm carries the second
@@ -154,7 +154,7 @@ trailing_tokens adjacency-07_subroutines.md/The whole tier in one body
 - named-operators.md/`index` reports failure as -1, not undef
 - named-operators.md/`substr` is an lvalue
 - named-operators.md/`substr` takes two, three or four arguments
-trailing_tokens named-operators.md/`undef` is two operators wearing one word
+- named-operators.md/`undef` is two operators wearing one word
 - names.md/A package array subscripts through `rv2av`
 - names.md/A package hash reaches storage through `rv2hv`
 - names.md/A package scalar is where `sassign` enters the corpus
