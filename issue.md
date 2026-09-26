@@ -3,8 +3,10 @@ title: format and write have no statement form, and the lexer already reads the 
 state: in-progress
 urgency: normal
 milestone: corpus-covers-t2
+blocks:
+- 01a0dc84-1750-7749-8ad4-6d84f912d517
 created: 2026-09-26T06:58:32.800892893Z
-updated: 2026-09-26T07:01:56.803102854Z
+updated: 2026-09-26T07:02:56.253405025Z
 sessions:
 - start_sha: d1537f9631443c467a73f3e56cf382da4eeab2ae
   end_sha: ""
