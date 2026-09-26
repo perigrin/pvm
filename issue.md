@@ -1,21 +1,42 @@
 ---
 title: A heredoc in statement position parses, body and all
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocks:
 - 01a0c13f-c7d7-7d9c-9a85-60a59aa26bc0
 created: 2026-09-20T23:56:10.360319979Z
-updated: 2026-09-26T08:58:52.360810507Z
+updated: 2026-09-26T09:52:49.84909574Z
 sessions:
 - start_sha: 2963c47d4099f32e5bcd3a131d0865f204ee28ea
-  end_sha: ""
-  commits: 0
+  end_sha: 6ae2242dc5addd89075b7c29d0a0777e69d757ef
+  commits: 2
   started_at: 2026-09-26T08:58:52.360810507Z
+  ended_at: 2026-09-26T09:52:49.84909574Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-26T08:58:52.360810507Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-26T09:52:49.84909574Z
+observed_paths:
+- conformance/04_operators/README.md
+- conformance/mdtest/adjacency-04_operators.md
+- conformance/mdtest/adjacency-13_opaque.md
+- conformance/mdtest/compound-assignment.md
+- conformance/mdtest/heredocs.md
+- internal/conformance/testdata/corpus.ratchet
+- internal/lexer/scan.go
+- internal/lexer/scanrows_test.go
+- internal/parse/canon.go
+- internal/parse/heredoc_test.go
+- internal/parse/parse.go
+- internal/parse/t2_test.go
+- internal/parse/testdata/t1.ratchet
+- internal/parse/testdata/t1canon.ratchet
+- internal/parse/testdata/t1fidelity.ratchet
+- internal/parse/use_test.go
 ---
 
 A heredoc introducer in statement position sinks its statement.
