@@ -4,6 +4,7 @@
 package parse_test
 
 import (
+	"strings"
 	"testing"
 
 	"tamarou.com/pvm/internal/parse"
@@ -137,6 +138,110 @@ func TestLoopLabels(t *testing.T) {
 		}
 		if containsKind(root, parse.Unknown) {
 			t.Errorf("%q must still parse: %v", src, kinds(root))
+		}
+	}
+}
+
+// TestLabelledBareBlock: `SKIP: { ... }` is a statement, and the label is kept.
+//
+// A bare block parses and a labelled loop parses; a labelled BARE BLOCK did
+// not, and it is the idiom perl's own suite uses for skipping -- present in at
+// least 152 of perl.git t/'s 620 files. The issue counted 148; any single-line
+// count undercounts, because `SKIP:` and its `{` are often on separate lines
+// (t/io/crlf.t:36, t/comp/parser_run.t:73).
+//
+// The label is the whole of it. Measured at 9325864f:
+//
+//	SKIP: { print 1; }    Unknown=1, and the `{` read as an ANON HASH
+//	{ print 1; }          Unknown=0
+//
+// The cause is in the LEXER, not the parser: `OpensBlock` was false on a `{`
+// whose previous significant token is a label's `:`, because Operator left
+// XTerm. perl's yyl_colon reaches PREBLOCK for a label instead.
+//
+// But a label does NOT force a block, and this is the assertion that fails if
+// the fix returns XBlock unconditionally. perl runs intuit_curly after a label
+// too, measured on 5.42.0:
+//
+//	$ perl -MO=Deparse -e 'L: {a=>1};'
+//	L: +{'a', 1};
+//
+// A labelled anonymous HASH, in statement position.
+//
+// All three loop controls target a bare block's label, measured on 5.42.0:
+//
+//	perl -e 'SKIP: { print "a\n"; last SKIP; print "b\n"; }'          -> a
+//	perl -e 'SKIP: { print "a\n"; next SKIP; print "b\n"; }'          -> a
+//	perl -e 'my $n=0; SKIP: { $n++; redo SKIP if $n < 3; }'           -> 3 passes
+//
+// and the label's case does not matter -- `skip: { ... }` runs, so unlike
+// `given`/`when` this rule is general over any word.
+func TestLabelledBareBlock(t *testing.T) {
+	for _, src := range []string{
+		"SKIP: { print 1; }",
+		"SKIP: { last SKIP; }",
+		"SKIP: { next SKIP; }",
+		"SKIP: { redo SKIP; }",
+		"skip: { print 1; }",
+		"A: B: { print 1; }",
+	} {
+		root := parse.Parse([]byte(src))
+		if containsKind(root, parse.Unknown) {
+			t.Errorf("%q must parse: %v", src, kinds(root))
+			continue
+		}
+		if firstOfKind(root, parse.Label) == nil {
+			t.Errorf("%q must produce a Label: %v", src, kinds(root))
+		}
+		// Zero Unknowns is not enough -- `given (1) { }` came back
+		// Unknown=0 and WRONG as an index call, and `SKIP: { print 1; }`
+		// came back with the `{` as an AnonHash. The block must BE a block.
+		if firstOfKind(root, parse.Block) == nil {
+			t.Errorf("%q must produce a Block, not a hash or a subscript: %v",
+				src, kinds(root))
+		}
+		if firstOfKind(root, parse.AnonHash) != nil {
+			t.Errorf("%q read its block as an anonymous hash: %v", src, kinds(root))
+		}
+	}
+
+	// A label on an EMPTY statement. perl accepts it and Deparse emits it
+	// back verbatim:
+	//
+	//	$ perl -MO=Deparse -e 'my $x; HERE: ; goto HERE if !$x++;'
+	//	my $x;
+	//	HERE: ;
+	//
+	// It is in perl's own suite at t/class/field.t:289. Before the fix the
+	// label bytes were in NO node -- the empty-statement check ran before the
+	// labels were read, so the `;` reached the expression parser, refused, and
+	// the Unknown started at the `;` -- which made canon of `HERE: ;` equal
+	// `;`, six bytes short, and its own canon differ again.
+	if root := parse.Parse([]byte("HERE: ;")); containsKind(root, parse.Unknown) {
+		t.Errorf("`HERE: ;` must parse: %v", kinds(root))
+	} else if firstOfKind(root, parse.Label) == nil {
+		t.Errorf("`HERE: ;` must keep its Label: %v", kinds(root))
+	} else if got := parse.Canon(root, []byte("HERE: ;")); !strings.Contains(got, "HERE:") {
+		t.Errorf("canon of `HERE: ;` dropped the label: %q", got)
+	}
+
+	// A label does not make the next `{` a block. intuit_curly still decides.
+	root := parse.Parse([]byte("L: { a => 1 };"))
+	if containsKind(root, parse.Unknown) {
+		t.Errorf("`L: { a => 1 };` must parse: %v", kinds(root))
+	}
+	if firstOfKind(root, parse.AnonHash) == nil {
+		t.Errorf("`L: { a => 1 };` is a labelled anon hash, not a block: %v", kinds(root))
+	}
+
+	// Canon must re-emit the label. A canon that drops it is a canon of
+	// different source, and the fixpoint then hides it because canon of canon
+	// is stable at the WRONG text.
+	for _, src := range []string{"SKIP: { print 1; }", "SKIP: print 1;"} {
+		b := []byte(src)
+		got := parse.Canon(parse.Parse(b), b)
+		if !strings.Contains(got, "SKIP:") {
+			t.Errorf("canon of %q dropped the label: %q", src, got)
 		}
 	}
 }

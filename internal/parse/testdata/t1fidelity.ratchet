@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 369 clean (37.4%), 617 total.
+# 986 files, 375 clean (38.0%), 611 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -116,7 +116,7 @@
 0 config_core_paths.t
 0 config_encode_probes.t
 0 config_fork_capability.t
-1 config_startperl_exec.t
+0 config_startperl_exec.t
 1 constant.t
 1 constant_mro_generation.t
 1 constant_stash_proxy.t
@@ -316,7 +316,7 @@
 0 fork_open_no_command.t
 1 fork_open_output_pump.t
 0 fork_open_wait.t
-1 fork_operator_skip.t
+0 fork_operator_skip.t
 0 format_ref_bless.t
 0 format_test.t
 0 format_variable_evaluation.t
@@ -431,7 +431,7 @@
 1 lexical_sub_prototype_method_invocant.t
 1 life_bitpacked_getopt.t
 0 line.t
-1 list_util.t
+0 list_util.t
 1 list_util_does_not_mark_sub_util_loaded.t
 0 listutil_shared_subutil_backend.t
 1 local.t
@@ -499,7 +499,7 @@
 1 mojolicious_promise_lifecycle_regressions.t
 1 mojolicious_skipped_closure_lifecycle_regression.t
 1 mojolicious_socket_poll_regressions.t
-1 moose_regexpref_constraint.t
+0 moose_regexpref_constraint.t
 1 moose_role_constant_method.t
 1 mro_get_isarev_updates.t
 1 mro_mixed.t
@@ -513,7 +513,7 @@
 1 named_sub_lexical_capture.t
 0 named_undef_visible_code_slot.t
 0 namespace_autoclean_constants.t
-1 namespace_autoclean_xsaccessor.t
+0 namespace_autoclean_xsaccessor.t
 0 namespace_bug_comprehensive.t
 1 native_module_warning_caller.t
 1 nested_call_caller_line.t
@@ -685,7 +685,7 @@
 1 scalar_reference_code_destructor.t
 1 scalar_reference_container_lifetime.t
 1 scalar_watcher_java_xs.t
-1 sdbm_file_writeback.t
+0 sdbm_file_writeback.t
 0 select_interrupt_errno.t
 1 signatures.t
 1 skip_block_hash_disambiguation.t

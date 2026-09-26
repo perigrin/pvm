@@ -108,6 +108,16 @@ func countUnknown(n *parse.Node) int {
 //	jvm_eval_nested_compound_assignment.t   1 -> 3 nodes   1,317 -> 53 bytes
 //	overload_compound_assignment.t          1 -> 10 nodes  2,561 -> 1,424
 //
+// and again while 01a0de8b landed, the labelled bare block:
+//
+//	socket_options.t                        29 -> 39 nodes  4,139 -> 3,160 bytes
+//
+// The file holds seven `SKIP: { ... }` blocks. Each one now OPENS, so the
+// parenless `is`/`ok` calls inside it refuse one statement at a time instead
+// of disappearing into a single swallowed span -- 979 bytes moved out of
+// Unknown, from 76.1% of the file to 58.1%. A rise here is what a cascade
+// looks like when it unwinds.
+//
 // Both read as regressions here and both are large improvements. The
 // discipline that keeps that honest is not a second metric -- it is that
 // every rise must be measured in BYTES before the baseline is regenerated,

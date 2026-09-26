@@ -374,7 +374,19 @@ func TestClassCorpusRatchet(t *testing.T) {
 	// method.t, and they are `method priv { ... }` declarations whose NAME is
 	// followed by a brace: gated on the three-word table, that body lexed as
 	// a subscript and every declaration after it fell to trailing_tokens.
-	const want = 21
+	//
+	// 21 -> 19 with issue 01a0de8b, both nodes in field.t and no other file
+	// in t/class moving. Neither is a labelled BLOCK -- they are the two
+	// labels inside a `do { ... }`:
+	//
+	//	field $forwards  = do { goto HERE; HERE: 1 };
+	//	field $backwards = do { my $x; HERE: ; goto HERE if !$x++; 2 };
+	//
+	// One is a label on a plain expression statement, the other a label on an
+	// EMPTY statement, and the parser was dropping the label in both cases and
+	// then refusing what followed. perl keeps both; Deparse emits `HERE: ;`
+	// back verbatim.
+	const want = 19
 	if unknown != want {
 		t.Errorf("t/class holds %d Unknown nodes, want %d: update this pin in "+
 			"the same commit as the change that moved it", unknown, want)

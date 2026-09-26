@@ -570,6 +570,30 @@ func (p *parser) statement() *Node {
 		}
 	}
 
+	// An EMPTY statement, now that the labels are read. The same check above
+	// runs BEFORE them and so cannot see this one: `HERE: ;` is a label on an
+	// empty statement, which perl accepts and Deparse emits back verbatim --
+	//
+	//	$ perl -MO=Deparse -e 'my $x; HERE: ; goto HERE if !$x++;'
+	//	my $x;
+	//	HERE: ;
+	//	goto HERE unless $x++;
+	//
+	// and without this it fell to the expression path, which was handed a `;`,
+	// refused, and produced an Unknown starting AT the `;`. The label bytes
+	// were then in no node at all -- canon of `HERE: ;` was `;`, six bytes
+	// short, and the canon of that differed again. It is in perl's own suite
+	// at t/class/field.t:289.
+	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
+		p.advanceTo(tok)
+		n := &Node{Kind: Statement, Start: start, End: p.prevEnd()}
+		if len(labels) > 0 {
+			n.Start = labels[0].Start
+			n.Children = labels
+		}
+		return n
+	}
+
 	// A bare block. The lexer's brace stack already decided this `{` opens a
 	// block rather than a subscript or an anonymous hash, and says so on the
 	// token, so the decision is READ here rather than made a second time.
@@ -599,6 +623,14 @@ func (p *parser) statement() *Node {
 	}
 
 	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Word {
+		// NO applyModifier here, and that is issue 01a0dee8: `goto HERE if $x`
+		// comes back as three statements with ZERO Unknown nodes -- `goto
+		// HERE`, an `if` Conditional with no children, and `$x;`. parseGoto
+		// declines the modifier on purpose so this site can apply it (see its
+		// comment at control.go:203) and this site never has. Measured at
+		// 9325864f and unchanged by 01a0de8b, so it is not that issue's to fix;
+		// left alone rather than widened here because `last if $x` also takes
+		// `if` as its LABEL, and the two have to move together.
 		if c := p.parseControlFlow(tok); c != nil {
 			return p.withLabels(labels, c, start)
 		}
@@ -697,7 +729,23 @@ func (p *parser) statement() *Node {
 		p.takeHeredocBodies()
 		return &Node{Kind: Unknown, Refusal: expr.Refusal, Start: start, End: p.prevEnd()}
 	}
-	n := &Node{Kind: Statement, Start: start, Children: []*Node{expr}}
+	// The labels belong on the statement, and this site was dropping them.
+	//
+	// Every other statement form leaves through withLabels; the plain
+	// EXPRESSION statement was built by hand here and its labels went on the
+	// floor. `SKIP: print 1;` came back Unknown=0 -- which is why nothing
+	// caught it -- with canon emitting `print(1);`, a canon of different
+	// source. perl accepts the form (`perl -e 'FOO: print "hi\n";'` prints
+	// hi) and Deparse keeps the label.
+	//
+	// Not routed through withLabels, because this node's span must reach
+	// p.prevEnd() to cover the `;` just consumed, and withLabels ends at its
+	// child. The label children are the whole of what was missing.
+	children := append(append([]*Node{}, labels...), expr)
+	n := &Node{Kind: Statement, Start: start, Children: children}
+	if len(labels) > 0 {
+		n.Start = labels[0].Start
+	}
 	n.Children = append(n.Children, p.takeHeredocBodies()...)
 	n.End = p.prevEnd()
 	return n

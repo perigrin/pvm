@@ -255,6 +255,35 @@ type lexer struct {
 	// sawPackageWord is the same for `package NAME` and `class NAME`, which
 	// are followed by a block or a semicolon but never by a prototype.
 	sawPackageWord bool
+	// sawLabelWord is set when the token just emitted was a Word at a
+	// STATEMENT boundary, so a `:` following it is a label's colon rather
+	// than a ternary's or an attribute's. A one-token carry, the same shape
+	// as listOpParen and sawSubWord, and for the same reason: the `:` cannot
+	// see where its word stood, because the word left XTerm behind it.
+	//
+	// The position is the whole discrimination. Measured on the four shapes
+	// that put a bareword next to a colon:
+	//
+	//	SKIP: { ... }        Word at XSTATE   a label
+	//	$c ? 1 : 0           `:` at XOPERATOR after a Number
+	//	$h{LOOP}             Word at XTERM    a hash key
+	//	sub f :lvalue { }    Word at XTERM    an attribute
+	//
+	// Only the first has a word at a statement boundary, which is the same
+	// question parseLabels answers one layer up.
+	sawLabelWord bool
+	// afterOpenBlock is set when the previous significant token was a `{`
+	// that opened a block, which is the one statement boundary the expect
+	// machine does not name: `after(Operator, ...)` returns XTerm for an
+	// opening brace, so the first statement inside a block stands in term
+	// position as far as the machine is concerned.
+	//
+	// Read only by sawLabelWord, to reach the label in
+	// `if (1) { SKIP: { ... } }`. Teaching the machine that an opening brace
+	// leaves XState would answer it more generally and would also change how
+	// every block's first token is lexed, which is a far larger measurement
+	// than this needs.
+	afterOpenBlock bool
 	// signatures is whether the signatures feature is on, which decides
 	// whether that `(` is a prototype or a signature. File-level, like
 	// utf8Pragma and for the same reason.
@@ -418,6 +447,36 @@ func (l *lexer) emit(k Kind, start int) {
 	l.listOpParen = k == Word && takesBlock(string(l.src[start:l.pos])) &&
 		l.peekIsOpenParen()
 
+	// A label's `:`, carried from the Word before it. Read BEFORE the carry
+	// is reset, for inListOpParen's reason.
+	//
+	// Exactly one byte, so `Foo::bar` -- whose separator the operator scanner
+	// emits as one `::` token -- is a qualified name and not a label. That is
+	// the same test parseLabels applies, and perl's own lexer applies it too.
+	labelColon := l.sawLabelWord && k == Operator && l.pos-start == 1 &&
+		l.src[start] == ':'
+	// Set on a Word at a statement boundary. XState is where a statement may
+	// start, and XBlock is the state `if (...)`'s `)` leaves, where the next
+	// thing is a block.
+	//
+	// afterOpenBlock covers the remaining boundary, the first statement INSIDE
+	// a block; see its own comment for why the machine cannot answer that one.
+	//
+	// A label STACKS, and `A: B: { ... }` needs the second word to qualify
+	// as well. The `:` branch returns XState for exactly that, so the word
+	// after it arrives at a statement boundary and this test holds again
+	// without a second rule.
+	//
+	// Trivia does not clear it, for the reason the expect machine returns `e`
+	// unchanged on Whitespace and Comment: `SKIP : { }` and a label with a
+	// comment after it are the same label. Clearing on trivia would make the
+	// rule hold only when the colon touches its word.
+	if k != Whitespace && k != Comment {
+		l.sawLabelWord = k == Word &&
+			(l.expect == XState || l.expect == XBlock || l.afterOpenBlock)
+		l.afterOpenBlock = l.openedBlock
+	}
+
 	l.expect = l.expect.after(k, transition{
 		text:            l.src[start:l.pos],
 		closedBlock:     l.closedBlock,
@@ -428,8 +487,15 @@ func (l *lexer) emit(k Kind, start int) {
 		// for an answer nothing reads. Which word it is does not narrow this:
 		// any of them may be followed by a block, so intuitCurly decides for
 		// all of them -- see keyword.go.
+		// A label's `:` does NOT need it, even though perl runs intuit_curly
+		// after a label too. It leaves XState, where the brace is classified
+		// the way a statement-start brace already is -- and the parser's
+		// braceOpensAnonHash is what applies the lookahead there, for every
+		// statement-start brace at once. See the labelColon branch in
+		// expect.go.
 		nextBraceIsBlock: (k == Word || inListOpParen) && l.intuitCurly(),
 		listOpParen:      inListOpParen,
+		labelColon:       labelColon,
 	})
 	l.noteFormat(k, start)
 	// The picture body begins after the newline that ends the declaration.

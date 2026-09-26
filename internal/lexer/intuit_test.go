@@ -197,3 +197,81 @@ func TestRightParenRegressionIsNamed(t *testing.T) {
 		}
 	}
 }
+
+// TestLabelColonOpensBlock: a label's `:` leaves a statement boundary, so the
+// brace after it is classified as a block -- but intuit_curly still decides.
+//
+// perl's yyl_colon reaches PREBLOCK for a label, which is XSTATE. Without
+// that the `:` left XTerm, `SKIP: { print 1; }` lexed its brace as an
+// anonymous hash, and the `}` then reported a closed SUBSCRIPT -- so every
+// brace after it in the file was misclassified too. Measured over perl.git t/
+// as 284 of the 1,118 bare-brace Unknowns and 9 whole files.
+//
+// A label does NOT force a block. Measured on perl 5.42.0:
+//
+//	$ perl -MO=Deparse -e 'L: {a=>1};'
+//	L: +{'a', 1};
+//
+// A labelled anonymous HASH, so the same two-way branch the WORD case makes
+// applies here, and the cases below assert both halves.
+//
+// The discrimination is POSITIONAL, not punctuational. Four shapes put a
+// bareword next to a colon and only one is a label; the others are held here
+// so a fix that looked for a colon rather than for a statement boundary fails.
+func TestLabelColonOpensBlock(t *testing.T) {
+	for _, tc := range []struct {
+		src   string
+		block bool
+		why   string
+	}{
+		{"SKIP: { print 1; }", true, "a labelled bare block"},
+		{"SKIP:\n{ print 1; }", true, "the label and its brace on separate lines"},
+		{"SKIP : { print 1; }", true, "space before the colon"},
+		{"skip: { print 1; }", true, "perl accepts a lowercase label"},
+		{"print 1; SKIP: { print 2; }", true, "a label mid-file"},
+		{"if (1) { SKIP: { print 2; } }", true, "a label first inside a block"},
+		// A labelled hash is NOT distinguished here, and that is this layer's
+		// documented boundary rather than a gap: trackBrackets is
+		// "intuit_curly minus its lookahead", and the lookahead is the
+		// parser's decision (spec §4.9.2, and see trackBrackets' own
+		// comment). A statement-start `{ a => 1 };` gets the same `true`, so
+		// the labelled form matching the unlabelled one is exactly right --
+		// the parser's braceOpensAnonHash refines both, and
+		// TestLabelledBareBlock holds that end.
+		{"{ a => 1 };", true, "the unlabelled control: this layer says block too"},
+		{"L: { a => 1 };", true, "so the labelled form must agree with it"},
+	} {
+		opens, found := lastBraceOpensBlock(tc.src)
+		if !found {
+			t.Errorf("%q: no `{` token", tc.src)
+			continue
+		}
+		if opens != tc.block {
+			t.Errorf("%q: OpensBlock is %v, want %v -- %s",
+				tc.src, opens, tc.block, tc.why)
+		}
+	}
+
+	// A label STACKS, and the second word must qualify as one too. `A: B: {`
+	// works because the first `:` returns XState, which is where the second
+	// word then stands -- no second rule.
+	if opens, found := lastBraceOpensBlock("A: B: { print 1; }"); !found || !opens {
+		t.Errorf("`A: B: { ... }` must open a block: opens=%v found=%v", opens, found)
+	}
+
+	// The shapes that are NOT labels, and the ternary is the one that breaks
+	// loudly: a `:` misread as a label there turns the hashref after it into a
+	// block.
+	if opens, found := lastBraceOpensBlock("my $x = $c ? 1 : { a => 1 };"); !found || opens {
+		t.Errorf("a ternary's `:` is not a label -- `{ a => 1 }` after it is a "+
+			"hashref: opens=%v found=%v", opens, found)
+	}
+	// An attribute's brace IS a block, for its own reason (afterDeclName), so
+	// this stays true whichever rule reaches it -- what must not happen is the
+	// `:lvalue` colon being taken for a label, and `f` stands in term position
+	// rather than at a statement boundary, which is what denies it.
+	if opens, found := lastBraceOpensBlock("sub f :lvalue { 1 }"); !found || !opens {
+		t.Errorf("a sub body after an attribute is still a block: opens=%v found=%v",
+			opens, found)
+	}
+}

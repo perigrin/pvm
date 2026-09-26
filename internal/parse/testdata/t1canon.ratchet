@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 721 clean (73.1%), 265 total.
+# 986 files, 737 clean (74.7%), 249 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -108,7 +108,7 @@
 0 compress_raw_zlib_gzip_wrapper.t
 0 compress_zlib_gzerror_eof.t
 1 concat_assign_undef_warning.t
-1 concat_assignment_env_taint.t
+0 concat_assignment_env_taint.t
 0 concat_assignment_explicit_mutator.t
 1 concat_assignment_overload.t
 1 concat_assignment_tied_fetch.t
@@ -140,7 +140,7 @@
 0 core_qualified_infix.t
 0 core_subroutine_refs.t
 0 cpan_bundled_io_shadowing.t
-1 cpan_bundled_providers.t
+0 cpan_bundled_providers.t
 1 cpan_ceph_tie_runtime.t
 0 cpan_dependency_script_path.t
 0 cpan_distroprefs_amazon_dynamodb_match.t
@@ -268,7 +268,7 @@
 0 eval_main_nested_package_method.t
 0 eval_named_sub_capture_fallback.t
 0 eval_nested_lexicals.t
-1 eval_next_propagation.t
+0 eval_next_propagation.t
 1 eval_nonlocal_control_flow.t
 0 eval_return_destroy.t
 0 eval_return_hash.t
@@ -383,7 +383,7 @@
 0 interpreter_code_reference_validation.t
 0 interpreter_coderef_does_not_load_module.t
 0 interpreter_compound_assign_list_rhs.t
-1 interpreter_dbic_regressions.t
+0 interpreter_dbic_regressions.t
 1 interpreter_eval_exception_capture.t
 1 interpreter_eval_modified_args_closure.t
 0 interpreter_eval_named_sub_lexical_mutation.t
@@ -403,7 +403,7 @@
 1 io_captureoutput_regressions.t
 1 io_compress_regressions.t
 0 io_file_autoload.t
-1 io_flock.t
+0 io_flock.t
 0 io_handle_error.t
 0 io_handle_fresh_fdopen_warning.t
 1 io_layers.t
@@ -415,7 +415,7 @@
 0 io_slot_blessed.t
 0 io_socket_method_fileno.t
 0 io_socket_ssl_default_exports.t
-1 ipc_cmd_perlonjava_runtime_detection.t
+0 ipc_cmd_perlonjava_runtime_detection.t
 0 ipc_open3.t
 0 isa_operator_package_bareword.t
 0 join_upgraded_latin1_provenance.t
@@ -431,7 +431,7 @@
 1 lexical_sub_prototype_method_invocant.t
 0 life_bitpacked_getopt.t
 0 line.t
-1 list_util.t
+0 list_util.t
 0 list_util_does_not_mark_sub_util_loaded.t
 0 listutil_shared_subutil_backend.t
 0 local.t
@@ -447,7 +447,7 @@
 1 local_undef.t
 0 localized_named_sub_in_compiled_caller.t
 0 localized_regex_captures.t
-1 localtime_tz.t
+0 localtime_tz.t
 1 loop_label.t
 0 loop_label_bareword_constant.t
 1 loop_modifiers.t
@@ -499,7 +499,7 @@
 1 mojolicious_promise_lifecycle_regressions.t
 0 mojolicious_skipped_closure_lifecycle_regression.t
 0 mojolicious_socket_poll_regressions.t
-1 moose_regexpref_constraint.t
+0 moose_regexpref_constraint.t
 0 moose_role_constant_method.t
 0 mro_get_isarev_updates.t
 1 mro_mixed.t
@@ -513,7 +513,7 @@
 0 named_sub_lexical_capture.t
 0 named_undef_visible_code_slot.t
 0 namespace_autoclean_constants.t
-1 namespace_autoclean_xsaccessor.t
+0 namespace_autoclean_xsaccessor.t
 0 namespace_bug_comprehensive.t
 0 native_module_warning_caller.t
 1 nested_call_caller_line.t
@@ -574,7 +574,7 @@
 1 params_classify_primitives.t
 0 parent.t
 0 parser_syntax_error.t
-1 path_tiny_runtime_prereqs.t
+0 path_tiny_runtime_prereqs.t
 0 perlio_encoding_loads_encode.t
 0 perlio_import_injection.t
 0 perlio_layers_capture.t
@@ -685,18 +685,18 @@
 1 scalar_reference_code_destructor.t
 1 scalar_reference_container_lifetime.t
 0 scalar_watcher_java_xs.t
-1 sdbm_file_writeback.t
+0 sdbm_file_writeback.t
 0 select_interrupt_errno.t
 1 signatures.t
-1 skip_block_hash_disambiguation.t
+0 skip_block_hash_disambiguation.t
 1 slice_context.t
 0 socket_borrowed_name.t
-1 socket_getaddrinfo_ipv6.t
+0 socket_getaddrinfo_ipv6.t
 0 socket_getnameinfo_ipv6_canonical.t
 0 socket_iptos_constants.t
 0 socket_ni_namereqd.t
 0 socket_nonblocking_getpeername.t
-1 socket_options.t
+0 socket_options.t
 1 socket_scope_exit_eof.t
 0 socket_unix_stream.t
 0 sort_localizes_package_ab.t
@@ -775,7 +775,7 @@
 0 system_command_binary_output.t
 0 system_command_utf8_byte_output.t
 1 system_path_lookup.t
-1 tail_calls.t
+0 tail_calls.t
 0 taint_cwd.t
 0 taint_env_path.t
 0 taint_external_input.t
