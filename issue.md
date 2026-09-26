@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: v0.1
 created: 2026-09-24T00:18:19.052459875Z
-updated: 2026-09-24T15:28:32.446878143Z
+updated: 2026-09-26T02:53:33.00807224Z
 ---
 
 Five corpus cases carry a `refuses:` record citing an issue that is
@@ -58,6 +58,40 @@ says `done`.
 Repointing the five is the other half and is mechanical once the check
 names them: each needs an issue describing the gap it actually has, the
 way `01a0cf3e`'s four were repointed at `01a0d087` and friends.
+
+## What a closed citation actually costs, measured 2026-09-26
+
+Found by `crochet:chain-review` on the `corpus-covers-t2` chain, and it is
+the concrete answer to "why does this matter".
+
+`conformance/mdtest/argument-extent.md` holds five tier-07 cases on
+parenless argument extent -- greedy, prototype-cut, and the undeclared
+callee as `parses: no`. Both refusing cases cite `01a0c432-fbd5`, state
+`done`.
+
+A reader followed that citation, found finished work, and concluded the
+corpus had no case for the construct. An issue was then filed to write
+coverage that already existed, with a milestone built around it. It was
+cancelled once the topic was read (`01a0db76`).
+
+So a closed citation does not merely fail to help -- it reads as tracked
+work and actively misleads, where `unfiled` at least reads as an
+admission. That asymmetry is the argument for this check.
+
+## The existing check verifies existence, not openness
+
+Worth stating so nobody concludes this check is already written.
+`TestRefusalCitationMustResolve/corpus` PASSES today while four citation
+sites name `done` issues -- measured at b9f77d9c. It asks whether an id
+RESOLVES, not whether it is OPEN, which is exactly the gap
+`TestRefusalCitationsAreLive` fills.
+
+Also measured: `unfiled` is NOT part of this defect. It is a deliberate
+sentinel (`file.go:275`, `unfiledRefusal`), the topic-format spelling of
+`selfRecorded`, meaning the case is its own record;
+`TestRefusalCitationMustResolve/unfiled_is_not_looked_up` asserts it and
+passes. A chain-review issue proposing to reject `unfiled` was cancelled
+on that evidence. This issue's five are the whole of it.
 
 ## Acceptance criteria
 
