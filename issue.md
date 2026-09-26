@@ -1,19 +1,23 @@
 ---
 title: "A bare closer is not a cascade: use/require and bare return each swallow the closing brace of their block"
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T21:56:52.175899257Z
-updated: 2026-09-26T23:40:27.271157152Z
+updated: 2026-09-26T23:40:34.117333407Z
 sessions:
 - start_sha: f7df2cbd6938f54be1c0e5835425fa26aaa770e9
-  end_sha: ""
+  end_sha: f7df2cbd6938f54be1c0e5835425fa26aaa770e9
   commits: 0
   started_at: 2026-09-26T23:40:27.271157152Z
+  ended_at: 2026-09-26T23:40:34.117333407Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-26T23:40:27.271157152Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-26T23:40:34.117333407Z
 ---
 
 ## Measured finding
