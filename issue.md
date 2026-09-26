@@ -1,10 +1,19 @@
 ---
 title: A one-dot v-string is three tokens, and use v5.36 depends on that
-state: pending
+state: in-progress
 urgency: normal
 milestone: corpus-covers-t2
 created: 2026-09-26T05:18:56.979600412Z
-updated: 2026-09-26T05:18:56.979600412Z
+updated: 2026-09-26T06:08:52.015927486Z
+sessions:
+- start_sha: a21b05dea5e6ec80fb8f1326a65685e6bbcd4087
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-26T06:08:52.015927486Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-26T06:08:52.015927486Z
 ---
 
 `v5.36` is a v-string in perl and three tokens to us. The two-dot forms
