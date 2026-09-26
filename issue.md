@@ -1,10 +1,19 @@
 ---
 title: undef is missing from namedUnary, and its corpus case cites a closed issue
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-26T10:29:59.070448113Z
-updated: 2026-09-26T10:29:59.070448113Z
+updated: 2026-09-26T11:06:33.23291779Z
+sessions:
+- start_sha: 3ef0ae208b19053e94b91fbac2d6ddf19b4f4af4
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-26T11:06:33.23291779Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-26T11:06:33.23291779Z
 ---
 
 `undef` is missing from `namedUnary`, so the unary spelling refuses on every
