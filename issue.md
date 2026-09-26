@@ -4,16 +4,20 @@ state: in-progress
 urgency: normal
 milestone: corpus-covers-t2
 created: 2026-09-26T07:00:39.376307576Z
-updated: 2026-09-26T07:02:01.342336494Z
+updated: 2026-09-26T07:02:45.841983723Z
 sessions:
 - start_sha: d1537f9631443c467a73f3e56cf382da4eeab2ae
-  end_sha: ""
+  end_sha: d1537f9631443c467a73f3e56cf382da4eeab2ae
   commits: 0
   started_at: 2026-09-26T07:02:01.342336494Z
+  ended_at: 2026-09-26T07:02:45.841983723Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-26T07:02:01.342336494Z
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-26T07:02:45.841983723Z
 ---
 
 A `__DATA__` or `__END__` section refuses with `not_a_term`. The lexer
