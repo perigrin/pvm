@@ -1,21 +1,35 @@
 ---
 title: Canon emits a block argument it cannot re-lex, so its output does not re-parse
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocks:
 - 01a0d087-28dd-711f-a0d5-54cb8515910c
 created: 2026-09-26T13:25:34.422410713Z
-updated: 2026-09-26T13:41:15.490585501Z
+updated: 2026-09-26T14:13:00.312141495Z
 sessions:
 - start_sha: 835149b334990bfc762db66e1dd3b5b6a5322c08
-  end_sha: ""
-  commits: 0
+  end_sha: e307e3849d48d3bbe8819783257482baf9898453
+  commits: 2
   started_at: 2026-09-26T13:41:15.490585501Z
+  ended_at: 2026-09-26T14:13:00.312141495Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-26T13:41:15.490585501Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-26T14:13:00.312141495Z
+observed_paths:
+- internal/conformance/ratchet_test.go
+- internal/lexer/brackets.go
+- internal/lexer/expect.go
+- internal/lexer/intuit.go
+- internal/lexer/lexer.go
+- internal/parse/call.go
+- internal/parse/canon_test.go
+- internal/parse/testdata/t1.ratchet
+- internal/parse/testdata/t1canon.ratchet
 ---
 
 Canon writes a `Block` that sits in an argument list as `{` + statements + `}`,
