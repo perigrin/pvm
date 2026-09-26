@@ -11,7 +11,8 @@ the binary ones existed. Depends on 03_context.
 EACH IS ONE OPERATOR TOKEN, not two. `$x += 2` is `Operator("+=")` and
 not `+` followed by `=`, which is the claim the token facts carry and
 the reason this is a topic: thirteen spellings of one lexical rule, and
-one of them our lexer still cannot read.
+twelve of them punctuation. The thirteenth is `x=`, which the lexer had
+to be taught separately for exactly that reason -- see its case below.
 
 ## The arithmetic forms
 
@@ -67,15 +68,21 @@ ab
 one operator whose text is ".="
 ```
 
-## `x=` is word-shaped, and we cannot lex it
+## `x=` is word-shaped
 
 The thirteenth compound assignment and the only one whose operator is a
-WORD. Measured, our lexer emits `Word(x) Operator(=)` rather than
-forming the `x=` token at all, so the statement has a Word where an
-operator belongs.
+WORD. The other twelve are punctuation, so an operator scanner that forms
+them from punctuation runs never reaches this one: our lexer emitted
+`Word(x) Operator(=)` and the statement had a Word where an operator
+belongs, until `takeRepeatAssign` (`internal/lexer/scan.go`) extended a
+word-position `x` into the token.
 
-This case bisects that refusal against `.=` and the binary `x`, both of
-which parse.
+The expect state is what keeps it off the fat comma. `(x=>1)` is a
+bareword and a `=>` because `x` is in TERM position there, while `$t x= 2`
+is operator position -- perl's own rule, and measured: `my @a = ($t x=> 2)`
+is a syntax error near `$t x`, perl having already formed `x=`.
+
+This case bisects against `.=` and the binary `x`, both above.
 
 ```perl
 my $t = $ENV{X} // "ab";
@@ -85,8 +92,6 @@ print "$t\n";
 
 ```behavior
 parses: yes
-refuses: 01a0ce57-db92-78e5-bbe4-7c28e74db6f3
-refusal: trailing_tokens
 ```
 
 ```output

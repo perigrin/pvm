@@ -426,3 +426,106 @@ func TestPunctuationVariablesStillLexHere(t *testing.T) {
 		}
 	}
 }
+
+// TestWordShapedCompoundAssignment: `x=` is ONE token, and the only compound
+// assignment perl spells with a letter.
+//
+// The other twelve are punctuation, so a scanner that forms compound
+// assignment by scanning punctuation runs never reaches this one. Measured
+// before the fix, `$t x= 2` lexed as `Word(x) Operator(=)` -- a Word where an
+// operator belongs, which the parser reported as trailing_tokens.
+//
+// The token is a Word, not an Operator, because that is the kind this lexer
+// gives every word-shaped operator (`x`, `cmp`, `and`); the glossary's
+// `word-shaped operator` category is `Word` plus `parse.IsWordShapedOperator`,
+// which reads `x=` out of the precedence table at level 9.
+//
+// OPERATOR POSITION ONLY, which is perl's own rule and the reason the fat
+// comma survives. Measured 5.42.0:
+//
+//	$ perl -MO=Deparse -e 'my %h = (x=>1);'          my(%h) = ('x', 1);
+//	$ perl -MO=Deparse -e 'my $t; my @a=($t x=> 2);' syntax error near "$t x"
+//
+// In term position `x=>1` is the bareword `x` and a fat comma. In operator
+// position perl has already formed `x=` and the `>` is then junk, which is
+// what the error says.
+func TestWordShapedCompoundAssignment(t *testing.T) {
+	for _, c := range []struct {
+		src  string
+		want []string
+	}{
+		// The operator itself, spaced and unspaced on the right.
+		{`$t x= 2`, []string{"Variable($t)", "Word(x=)", "Number(2)"}},
+		{`$t x=2`, []string{"Variable($t)", "Word(x=)", "Number(2)"}},
+
+		// Binary `x` stays TWO tokens. Without this the fix could not be
+		// told from one that eats any `x`.
+		//
+		// SPACED only. Unspaced `(1)x3` lexes as `Word(x3)` here, which is a
+		// SEPARATE gap -- the identifier scanner takes the digits, and that
+		// is true of `x3` with or without this row -- so it is not asserted
+		// against a fix for `x=`.
+		{`$t x 2`, []string{"Variable($t)", "Word(x)", "Number(2)"}},
+
+		// Greedy by exactly one `=`. Measured, `x==` is a syntax error and
+		// `x=~ 3` is `x=` applied to `~3`:
+		//
+		//	$ perl -e 'my $s="ab"; $s x=~ 3;'  ->  $s x= 18446744073709551612
+		//
+		// so in both cases perl formed `x=` and read the rest separately.
+		{`$t x== 2`, []string{"Variable($t)", "Word(x=)", "Operator(=)",
+			"Number(2)"}},
+		{`$t x=~ 2`, []string{"Variable($t)", "Word(x=)", "Operator(~)",
+			"Number(2)"}},
+
+		// `xx` is not `x`, and the scanner must not form `x=` from the tail
+		// of a longer identifier.
+		{`$t xx= 2`, []string{"Variable($t)", "Word(xx)", "Operator(=)",
+			"Number(2)"}},
+
+		// The name is the variable's, not the operator's: `$tx= 2` is a
+		// variable called `$tx`. scanVariable claims it first, and this pins
+		// that the fix did not reach back into it.
+		{`$tx= 2`, []string{"Variable($tx)", "Operator(=)", "Number(2)"}},
+	} {
+		if !streamIs(c.src, c.want...) {
+			t.Errorf("%q lexes as %v, want %v",
+				c.src, significant(c.src), c.want)
+		}
+	}
+}
+
+// TestWordShapedCompoundAssignmentTermPosition is the negative: in TERM
+// position an `x` followed by `=` is a bareword, never the operator.
+//
+// This is where the fat comma lives, and it is the case that makes the
+// expect-state guard load-bearing rather than decorative.
+func TestWordShapedCompoundAssignmentTermPosition(t *testing.T) {
+	for _, c := range []struct {
+		src  string
+		want []string
+	}{
+		// `x=>1` is the autoquoted bareword and a fat comma. A scanner that
+		// formed `x=` here would leave `Word(x=) Operator(>)`.
+		{`(x=>1)`, []string{"Operator(()", "Word(x)", "Operator(=>)",
+			"Number(1)", "CloseBracket())"}},
+		{`(x => 1)`, []string{"Operator(()", "Word(x)", "Operator(=>)",
+			"Number(1)", "CloseBracket())"}},
+
+		// A hash key and a sub call, both term position.
+		{`$h{x}`, []string{"Variable($h)", "Operator({)", "Word(x)",
+			"CloseBracket(})"}},
+		{`x(1)`, []string{"Word(x)", "Operator(()", "Number(1)",
+			"CloseBracket())"}},
+
+		// A variable NAMED x, which the operator must never touch.
+		{`$x = 1`, []string{"Variable($x)", "Operator(=)", "Number(1)"}},
+		{`$x =~ s/a/b/`, []string{"Variable($x)", "Operator(=~)",
+			"Quote(s/a/b/)"}},
+	} {
+		if !streamIs(c.src, c.want...) {
+			t.Errorf("%q lexes as %v, want %v",
+				c.src, significant(c.src), c.want)
+		}
+	}
+}

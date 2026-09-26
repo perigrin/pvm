@@ -35,19 +35,24 @@ plan defers that deliberately and names where it goes.
 
 ## The whole tier in one body
 
-TWO Unknown nodes, both `trailing_tokens`, and the refusal is the point:
-every construct here appears in a sibling case that PARSES, and only the
+ONE Unknown node, `trailing_tokens`, and the refusal is the point: every
+construct here appears in a sibling case that PARSES, and only the
 mixture refuses. A one-case-per-construct corpus would have gone green
 over all of it.
 
-The first is `undef @cleared` -- the unary spelling our parser reads as a
+It is `undef @cleared` -- the unary spelling our parser reads as a
 complete term with `@cleared` stranded after it.
 
-The second is `$t x= 2`: the lexer emits `Word(x) Operator(=)` rather
-than forming the `x=` token, so the statement has a Word where an
-operator belongs. Tracked by `01a0ce57`.
+### What this passage used to say, and why it was wrong three times
 
-### What this passage used to say, and why it was wrong twice
+It said TWO nodes, the second being `$t x= 2`: the lexer emitted
+`Word(x) Operator(=)` rather than forming the `x=` token, so the
+statement had a Word where an operator belonged. `01a0ce57` fixed that in
+the lexer -- `x=` is the only compound assignment perl spells with a
+letter, which is why the punctuation scanner never reached it -- and
+`compound-assignment.md` carries the case.
+
+### What it said before that, and why it was wrong twice
 
 It said FIVE nodes at three sites, and attributed three of them to `not`
 arriving as a Word with nothing in `parseTerm` able to begin a term with

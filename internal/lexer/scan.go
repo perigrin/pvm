@@ -245,11 +245,61 @@ func scanWord(l *lexer) bool {
 	if !l.scanIdentRunes() {
 		return false
 	}
+	l.takeRepeatAssign(start)
 	// `use utf8` widens the class for everything after it, so the pragma has
 	// to be noticed as it is lexed rather than in a prepass.
 	l.notePragma(start)
 	l.emit(Word, start)
 	return true
+}
+
+// takeRepeatAssign extends a just-scanned `x` into the `x=` operator.
+//
+// `x=` is the thirteenth compound assignment and the ONLY one perl spells
+// with a letter; the other twelve are punctuation, so the operator scanner
+// that forms `+=` and `.=` from punctuation runs never reaches this one.
+// Measured before this existed, `$t x= 2` lexed as `Word(x) Operator(=)` --
+// a Word where an operator belongs, which the parser reported as
+// trailing_tokens.
+//
+// The kind stays WORD, which the caller's emit supplies. That is the kind
+// this lexer gives every word-shaped operator (`x`, `cmp`, `and`), and the
+// glossary's `word-shaped operator` category is Word plus
+// `parse.IsWordShapedOperator` -- which already answers yes for `x=`, reading
+// it out of the precedence table at level 9. A Word also leaves a TERM
+// expected, which is what an operator wants next.
+//
+// OPERATOR POSITION ONLY, and the fat comma is why. Measured 5.42.0:
+//
+//	$ perl -MO=Deparse -e 'my %h = (x=>1);'          my(%h) = ('x', 1);
+//	$ perl -MO=Deparse -e 'my $t; my @a=($t x=> 2);' syntax error near "$t x"
+//
+// In term position `x=>1` is the autoquoted bareword `x` and a `=>`; in
+// operator position perl has already formed `x=` and the `>` is then junk,
+// which is what the error reports. So the expect state decides, exactly as
+// it decides `/` and `<`, and no `=>` exclusion is needed on top of it.
+//
+// ONE `=`, never two. Measured, `x==` is a syntax error and `x=~ 3` applies
+// `x=` to `~3`:
+//
+//	$ perl -e 'my $s="ab"; $s x=~ 3;'  ->  $s x= 18446744073709551612
+//
+// Both readings are perl having formed `x=` and lexed the rest separately,
+// so the scanner stops after the first `=`.
+//
+// EXACTLY the word `x`. `$t xx= 2` is the identifier `xx`, and `$tx= 2` is
+// the variable `$tx` -- scanVariable claims that one before this is reached.
+func (l *lexer) takeRepeatAssign(start int) {
+	if l.expect.wantsTerm() {
+		return
+	}
+	if l.pos != start+1 || l.src[start] != 'x' {
+		return
+	}
+	if l.pos >= len(l.src) || l.src[l.pos] != '=' {
+		return
+	}
+	l.pos++
 }
 
 // scanVString lexes the `v`-prefixed spelling of a v-string: `v65.66.67`.
