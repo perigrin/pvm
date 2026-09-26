@@ -1,12 +1,21 @@
 ---
 title: A labelled bare block is a statement, and last LABEL inside it resolves
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 blocked_by:
 - 01a0de8a-7043-74ea-a42e-e2db217946ec
 created: 2026-09-26T16:27:39.730386781Z
-updated: 2026-09-26T16:27:39.730386781Z
+updated: 2026-09-26T17:24:32.287494729Z
+sessions:
+- start_sha: 9325864f86f42d125118a800b15eb0b62d95d6c3
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-26T17:24:32.287494729Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-26T17:24:32.287494729Z
 ---
 
 `SKIP: { ... }` -- a bare block with a label -- refuses, and `last LABEL` inside
