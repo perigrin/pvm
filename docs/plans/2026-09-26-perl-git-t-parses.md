@@ -406,10 +406,17 @@ isolating constructs rather than by counting their appearances.
 Item 1 is done, and it produced four fixes -- each one a construct that refuses
 in isolation and appears in more than a handful of files. Ordered by reach:
 
-    01a0de97-3c5d-714d-9ded-d68fd50ad296   leading ::, 84 files
+    01a0de97-3c5d-714d-9ded-d68fd50ad296   leading ::, 57 files  DONE
     01a0de97-77fe-733d-8482-cc0c6ad25a51   $::{n} and %::, 58 files
     01a0de97-96ac-791e-bbff-d0b15fa70f60   sub :lvalue etc, 26 files
     01a0de97-b3bd-7c49-a55b-f99acee8f932   filetest with no operand, 19 files
+
+THOSE REACH FIGURES ARE GREP COUNTS AND THE FIRST ONE WAS WRONG BY 27 FILES.
+The leading `::` was filed at 84 and measured at 57 when the fix landed --
+counted on the TOKEN STREAM, so a `::` inside a string, comment, regex or
+heredoc body never counts, because the lexer has already folded each of those
+into one token. A plain grep gives 88. Read the remaining three as upper bounds
+until each is measured the same way; the ordering may not survive.
 
 Two refusing constructs were deliberately NOT filed, because reach does not
 justify an issue:

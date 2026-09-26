@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 572 clean (58.0%), 1828 total.
+# 986 files, 577 clean (58.5%), 1799 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -212,7 +212,7 @@
 1 default_feature_bundle.t
 2 defer.t
 0 defer_implicit_return_cleanup.t
-2 defined_cached_code_ref.t
+0 defined_cached_code_ref.t
 0 defined_dynamic_code.t
 0 definition_pragma_sub_scope.t
 9 demo.t
@@ -343,8 +343,8 @@
 0 goto_localized_typeglob_args.t
 0 goto_named_redefinition.t
 9 goto_tailcall_args_cleanup.t
-14 goto_tailcall_cleanup.t
-2 goto_tailcall_core_destroy_order.t
+5 goto_tailcall_cleanup.t
+1 goto_tailcall_core_destroy_order.t
 1 harness_skip_all.t
 0 hash.t
 2 hash_autovivification.t
@@ -424,7 +424,7 @@
 3 jvm_eval_nested_compound_assignment.t
 0 large_sub_interpreter_fallback.t
 0 lazy_sub_verification_side_effects.t
-3 leading_colon_bareword_call.t
+0 leading_colon_bareword_call.t
 0 less_pragma.t
 0 lexical_reassignment_releases_old_reference.t
 0 lexical_redeclaration_pad_slot.t
@@ -546,7 +546,7 @@
 12 operator_overrides.t
 4 our_compile_time_glob.t
 0 our_compile_time_stash_slots.t
-4 our_package_redeclaration.t
+0 our_package_redeclaration.t
 0 our_stash_compile_time.t
 3 overload_autoload.t
 0 overload_bool_returns_self.t
@@ -676,7 +676,7 @@
 0 returned_blessed_container_nested_destroy.t
 0 returned_closure_captures.t
 0 reverse_list_alias.t
-6 role_tiny_regressions.t
+1 role_tiny_regressions.t
 0 safe_permit_only.t
 2 scalar_coderef_call_context.t
 2 scalar_dual_value_arithmetic.t
@@ -730,7 +730,7 @@
 7 stash_var_keyword_op.t
 0 stat_filehandle_after_rename.t
 0 state.t
-3 statement.t
+0 statement.t
 0 stdin_select_eof.t
 16 storable.t
 0 storable_code_deparse.t
@@ -961,7 +961,7 @@
 0 zz_b_anonymous_cv_introspection.t
 0 zz_block_lexical_call_log_lifetime.t
 0 zz_branch_reset_capture.t
-2 zz_caller_exported_alias.t
+0 zz_caller_exported_alias.t
 0 zz_data_dumper_short_numeric_flags.t
 0 zz_defined_ampersand_assignment.t
 0 zz_eval_defined_named_caller.t

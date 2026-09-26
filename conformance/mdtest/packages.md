@@ -72,3 +72,54 @@ parses: yes
 ```output
 HELLO
 ```
+
+## A LEADING `::` elides `main`
+
+`::shout()` is `main::shout()`: perl reads a name that STARTS with the
+package separator as qualified against `main`. The two spellings name
+the same sub, and the elided one composes with an interior separator --
+`::Greet::hello` is `main::Greet::hello`, which is `Greet::hello`,
+because `Greet` is a package inside `main`.
+
+The case is here rather than in a call-forms topic because the construct
+is a package name, and it is FALSIFIABLE the same way the two cases
+above are: delete the `package main;` line and `shout` lands in
+`Greet::`, so `::shout()` calls an undefined subroutine in `main::` and
+perl dies.
+
+The lexer read the leading colons as an operator, because
+`scanIdentRunes`'s separator branch sat behind an `if !first` guard that
+only ever admitted an INTERIOR separator. `::shout()` arrived as
+`Operator(::) Word(shout)` and the parser refused -- `trailing_tokens`
+as a statement, `not_a_term` as a term. The sigil spellings `$::x`,
+`@::y` and `%::z` were already right: `scanVarName` has its own
+`leadingPackageSeparator` case, so only the two paths through the
+identifier scanner, a bareword and the name after a `&` sigil, were
+affected.
+
+MEASURED perl 5.42.0:
+
+    $ perl -e 'sub main::shout { "HELLO" } print ::shout(), "\n"'
+    HELLO
+
+    $ perl -MO=Deparse -e 'sub main::ok {1} ::ok(1);'
+    sub ok { 1; }
+    ok 1;
+
+```perl
+package Greet;
+sub hello { return "hello" }
+package main;
+sub shout { return "HELLO" }
+print ::shout(), "\n";
+print ::Greet::hello(), "\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+HELLO
+hello
+```

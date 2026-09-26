@@ -386,7 +386,13 @@ func TestClassCorpusRatchet(t *testing.T) {
 	// EMPTY statement, and the parser was dropping the label in both cases and
 	// then refusing what followed. perl keeps both; Deparse emits `HERE: ;`
 	// back verbatim.
-	const want = 19
+	// 19 -> 14 with the leading `::` (issue 01a0de97-3c5d), and the five add
+	// up across exactly two files: gh22169.t 2 -> 0, field.t 5 -> 2. Both
+	// call `test.pl`'s functions from inside a `class` block, which is the
+	// reason perl's suite spells them `::fail(...)` and `::is(...)` -- the
+	// leading separator reaches past the lexically-scoped package to
+	// `main::`. No other file in t/class moved.
+	const want = 14
 	if unknown != want {
 		t.Errorf("t/class holds %d Unknown nodes, want %d: update this pin in "+
 			"the same commit as the change that moved it", unknown, want)

@@ -8,7 +8,7 @@
 # topic's `**Tier NN name.**` line and leaves every key alone. That
 # is the `t/` sweep working, and must not read as a regression.
 #
-# 218 cases, 218 clean, 0 refusing.
+# 219 cases, 219 clean, 0 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -172,6 +172,7 @@
 - numeric-radix.md/Octal by leading zero
 - numeric-radix.md/Octal by the `0o` prefix
 - numeric-radix.md/Underscore separators
+- packages.md/A LEADING `::` elides `main`
 - packages.md/`package Foo { ... }` scopes the switch to a block
 - packages.md/`package Foo;` switches package for the rest of the file
 - pod-and-data.md/A data section holding bytes that are not a program

@@ -402,10 +402,33 @@ func TestLeadingPackageSeparator(t *testing.T) {
 	// `&&` stay distinguishable, and `internal/parse/term.go:97` joins the
 	// two. `&foo` is two tokens for the same reason. What matters is that
 	// the name after the sigil carries its package separator.
-	if got := significant("&::f"); len(got) != 3 ||
-		!strings.HasSuffix(got[len(got)-1], "(f)") {
+	//
+	// It carries it now. This assertion read `len(got) != 3` and a last
+	// token of `(f)`, which pinned the sigil's separateness AND the leading
+	// `::` splitting off as its own Operator -- and the second half was the
+	// defect rather than the design. `scanIdentRunes` would not start a name
+	// at a separator, so `&::f()` refused at the parser. The sigil is still
+	// its own token, which is the rule this case exists for; the name after
+	// it is one Word. See TestLeadingPackageSeparatorInWord.
+	if got := significant("&::f"); len(got) != 2 ||
+		!strings.HasSuffix(got[len(got)-1], "(::f)") {
 		t.Errorf("`&::f` lexes as %v; the sigil is its own token by design, "+
-			"and the name must follow it", got)
+			"and the name after it carries its separator", got)
+	}
+
+	// The sigil stays distinguishable from the operators it shares a byte
+	// with, which is the reason it is a token of its own.
+	for _, c := range []struct {
+		src  string
+		want []string
+	}{
+		{"&f", []string{"FuncSigil(&)", "Word(f)"}},
+		{"$a && $b", []string{"Variable($a)", "Operator(&&)", "Variable($b)"}},
+		{"$a & $b", []string{"Variable($a)", "Operator(&)", "Variable($b)"}},
+	} {
+		if !streamIs(c.src, c.want...) {
+			t.Errorf("%q lexes as %v, want %v", c.src, significant(c.src), c.want)
+		}
 	}
 }
 

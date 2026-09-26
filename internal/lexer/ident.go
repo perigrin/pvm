@@ -106,9 +106,32 @@ func (l *lexer) scanIdentRunes() bool {
 	started := l.pos
 	first := true
 	for l.pos < len(l.src) {
+		// A LEADING `::` elides `main`: `::ok(1)` is `main::ok(1)`. A name
+		// byte after the colons is required, because perl reads a bare `::`
+		// as the bareword string `'::'` -- measured,
+		// `perl -MO=Deparse -e 'my $x = ::;'` prints `my $x = '::';` -- so
+		// there is a real reading to preserve rather than a name to take.
+		// This is the same condition `scanVarName`'s
+		// leadingPackageSeparator already applies to the sigil spelling
+		// `$::x`; only the two paths through this scanner, a bareword and
+		// the name after a `&` function sigil, were left behind.
+		// The byte after the colons must be one that can START a name, not
+		// merely one a name may contain: `::1` is `'::'` then `1` in perl,
+		// measured -- `perl -MO=Deparse -e '::1;'` prints `'???';`, the
+		// bareword string, not a call. scanVarName's leadingPackageSeparator
+		// tests isWordByte, which admits a digit, and reading the same
+		// condition here turned `::1` into one Word.
+		if first && l.src[l.pos] == ':' && l.leadingNameStartFollows() {
+			l.pos += 2
+			first = false
+			continue
+		}
+
 		// A separator joins two name parts. `::` always; `'` only when a name
 		// character follows, or `$'` would start a package name and swallow
-		// the rest of the line.
+		// the rest of the line. The apostrophe can only ever be INTERIOR:
+		// a leading one opens a string, measured --
+		// `perl -e "'ok(1);"` is `Can't find string terminator`.
 		if !first {
 			if l.src[l.pos] == ':' && l.pos+1 < len(l.src) && l.src[l.pos+1] == ':' {
 				l.pos += 2
@@ -138,6 +161,21 @@ func (l *lexer) scanIdentRunes() bool {
 		first = false
 	}
 	return l.pos > started
+}
+
+// leadingNameStartFollows reports whether the `::` at the cursor introduces a
+// name -- both colons, then a byte that can START one.
+//
+// A name-START byte, not any name byte. `::1` is the bareword string `'::'`
+// followed by `1` in perl, so admitting a digit here would make one Word out
+// of two tokens. That is the one place this differs from scanVarName's
+// leadingPackageSeparator, which tests isWordByte for the sigil spelling.
+func (l *lexer) leadingNameStartFollows() bool {
+	if l.pos+2 >= len(l.src) || l.src[l.pos+1] != ':' {
+		return false
+	}
+	r, _ := utf8.DecodeRune(l.src[l.pos+2:])
+	return identStart(r, l.utf8Pragma)
 }
 
 // notePragma watches for `use utf8` and `no utf8` as they are lexed.

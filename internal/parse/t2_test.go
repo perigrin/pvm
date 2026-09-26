@@ -229,7 +229,13 @@ func TestT2CoreParses(t *testing.T) {
 		// `HERE: ;`, a label on an EMPTY statement, whose check ran before the
 		// labels were read and so could not see one. perl accepts both and
 		// Deparse emits `HERE: ;` back verbatim.
-		"class/destruct.t": 2, "class/field.t": 5, "class/gh22169.t": 2,
+		// class/gh22169.t 2 -> 0 and class/field.t 5 -> 2 with the leading
+		// `::` (issue 01a0de97-3c5d). gh22169.t left the map entirely: both
+		// of its refusals were `::fail(...)` and `::pass(...)` called from
+		// inside a `class` block, the shape perl's own suite uses to reach
+		// `test.pl`'s functions past a lexically-scoped package. field.t's
+		// three movers are the `::is(...)` calls at lines 64-66.
+		"class/destruct.t": 2, "class/field.t": 2,
 		"class/gh23511.t": 1, "class/inherit.t": 4, "class/method.t": 3,
 		// cmd/subval.t and comp/package_block.t left the map entirely with
 		// the `startsTerm` fix -- they parse cleanly now, which is what
@@ -308,7 +314,12 @@ func TestT2CoreParses(t *testing.T) {
 		// Its `SKIP:` at line 73 and the `{` at line 74 are on separate
 		// lines, which is why the fix carries the label across trivia rather
 		// than requiring the colon to touch its brace.
-		"comp/parser.t": 28, "comp/parser_run.t": 2, "comp/proto.t": 2,
+		// comp/parser.t 28 -> 27 with the leading `::` (issue
+		// 01a0de97-3c5d). One node, and the file is the torture case for the
+		// construct rather than a user of it: line 399 asserts
+		// `CORE::print::foo` is NOT `CORE::print ::foo`, and lines 517-518
+		// declare `format ::two =`.
+		"comp/parser.t": 27, "comp/parser_run.t": 2, "comp/proto.t": 2,
 		// comp/require.t went 11 -> 12 when phaser braces became blocks. The
 		// `BEGIN { ... }` body is now read as statements rather than as one
 		// hashref, and reaching inside it exposed a heredoc the parser did
@@ -343,7 +354,11 @@ func TestT2CoreParses(t *testing.T) {
 		// above records, by a different route.
 		"comp/redef.t": 1, "comp/require.t": 6, "comp/retainedlines.t": 13,
 		"comp/uproto.t": 1, "comp/use.t": 1, "comp/utf.t": 3,
-		"opbasic/arith.t": 11, "opbasic/cmp.t": 5, "opbasic/concat.t": 5,
+		// opbasic/concat.t 5 -> 3 with the leading `::` (issue
+		// 01a0de97-3c5d). Two `::is(...)` calls, at lines 776 and 854, both
+		// inside a `package` block that would otherwise hide `test.pl`'s
+		// `is`.
+		"opbasic/arith.t": 11, "opbasic/cmp.t": 5, "opbasic/concat.t": 3,
 	}
 
 	var regressed, improved, nowClean, nowDirty []string
