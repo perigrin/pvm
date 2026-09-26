@@ -6,7 +6,7 @@ milestone: corpus-covers-t2
 blocked_by:
 - 01a0dc82-28e1-72d3-82cd-88ed8479f327
 created: 2026-09-26T07:00:39.376307576Z
-updated: 2026-09-26T07:03:43.078417003Z
+updated: 2026-09-26T08:21:56.885968421Z
 sessions:
 - start_sha: d1537f9631443c467a73f3e56cf382da4eeab2ae
   end_sha: d1537f9631443c467a73f3e56cf382da4eeab2ae
@@ -97,6 +97,34 @@ actually holds the work back: nothing should pick this up until
 
 Recorded rather than papered over, because an `in-progress` issue with
 zero commits is exactly the shape that reads as abandoned work later.
+
+## Closed with --force, and this is why
+
+The done transition was REFUSED: "cannot mark done: session has 0 commits".
+Correct as the tool sees it, and wrong about the work.
+
+The commits exist -- `47e5b1ff`, `99b0314e` on the worker's branch, merged
+as `da0d3dfe` -- but they were made by a DISPATCHED WORKER under
+`agent:x7k2-6` in its own worktree, and the merge was made by the
+orchestrator. Neither the worker's session nor the orchestrator's holds
+both, so the "commits in this session" test finds none.
+
+That is the same actor-split the orchestration was designed around: each
+worker gets its own identity so mutual exclusion works, which is exactly
+what makes a per-session commit count the wrong test for whether an issue's
+work landed.
+
+Forced rather than worked around, with the evidence here instead of a
+silent override:
+
+  - six of six acceptance criteria exit 0, run verbatim
+  - corpus ratchet 197 -> 199 clean, 15 -> 13 refusing
+  - four other ratchets moved, every mover verified to be a file with a
+    trailing `__END__`/`__DATA__`
+  - `internal/parse`, `internal/lexer`, `internal/conformance` all green
+  - the PAAD gate for this issue has NOT run; it is the one thing missing,
+    and it is missing because the chain ran out of orchestrator attention,
+    not because it was skipped on purpose
 
 ## Scope
 
