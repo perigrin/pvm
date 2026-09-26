@@ -420,3 +420,73 @@ justify an issue:
   sub-declaration parse site rather than carrying alone.
 - `for my ($a,) (1)` with an empty list slot refuses, and is valid perl. One
   file, `op/for-many.t`, which exists to torture that syntax.
+
+## What the chain actually produced
+
+Measured at `b2084901`, through `ParseFileFrom`:
+
+    620 files, 381 clean (61.5%), 3,169 Unknown nodes
+
+Against the 185 clean (29.8%) and 7,745 nodes this document opened with: the
+clean count doubled and the node count fell by 59%.
+
+| landed | fix | clean | nodes |
+|---|---|---|---|
+| start | -- | 185 | 7,745 |
+| `f046b674` | `require './helper.pl'` contributes declarations | 278 | 4,223 |
+| `20c20c3c` | a colon at a statement boundary opens a block | 318 | 3,589 |
+| `ab8517e9` | `continue BLOCK` | 322 | 3,536 |
+| `b2084901` | a caret control variable is one token | 381 | 3,169 |
+
+Chain items 1 and 2 (bucketing, no code) produced the four fixes above and are
+done. Item 5's decision -- what `require`d `test.pl` means -- was answered by
+implementing it: resolution is in scope, and it was the single largest fix.
+Item 3 landed as `20c20c3c`, item 4 as `9325864f`.
+
+### The measurement that mattered most
+
+Of five causes fixed, **four were found by reading the token stream or the canon
+output, not by counting Unknown nodes.** The caret variable is the clearest
+case: `my $x = $^O;` scored Unknown=0 and canonicalised to `$^;O()` -- a
+variable and a call where perl has one variable. 182 files carried it. Three
+bucketing passes over this corpus walked straight past it, because an Unknown
+count measures whether the parser had a rule, not whether the rule was right.
+
+Six constructs this session scored zero and built a wrong tree: `undef &f`,
+`given (1) {}`, `my $x = defer {1}`, `new Foo;`, `SKIP: print 1;` and `$^O`.
+That is the dominant failure mode in this parser, and a count cannot see it.
+
+### The briefs were wrong more often than they were right
+
+Six of the issue bodies written for this goal named the wrong fix, and every one
+was caught by a worker who measured before implementing:
+
+- `require`'s "resolve relative to the file being parsed" was a **no-op** --
+  477 files `chdir 't'` first, so `./test.pl` already means `t/test.pl`.
+- the label fix was filed against the **parser**; it was one branch in the lexer.
+- the caret rule was scoped to "`^` plus one identifier character"; lowercase and
+  digits are **not** in the name, and an identifier class would have swallowed
+  the word after a bare `$^`.
+- `given`/`when` were described as unimplemented; they were in no keyword table
+  and parsed as `index(call(given,1), call(print))`.
+- an ADJUST brief asserted perl accepts `BUILD { 1 } method m { 2 }`; perl
+  **rejects** it, and our refusal matched perl.
+- `continue`'s reach was understated (53 nodes, 4 files, not 37) and omitted the
+  bare-block form perl accepts.
+
+The practice that worked: treat the issue body as a hypothesis, measure the
+construct in isolation against `/home/perigrin/.local/bin/perl`, and report the
+claims that turn out false. Three workers stopped rather than half-land; all
+three were right to.
+
+### Still open
+
+- `01a0de97-3c5d` leading `::` (84 files) and `01a0de97-96ac` sub attributes
+  (26) -- dispatched.
+- `01a0de97-77fe` `$::{n}` and `%::` (58 files); `01a0df0d` `&$subref` (36);
+  `01a0de97-b3bd` operandless filetest (19); `01a0dee8` statement modifiers on
+  loop controls (zero-Unknown, wrong tree).
+- `01a0deeb` **this goal is still gated by no ratchet.** Every number in this
+  document came from a throwaway probe. Four instruments in this repo have now
+  been caught reporting a figure nobody checked; this is the one measuring the
+  active goal, and until it lands a regression here passes the whole suite.
