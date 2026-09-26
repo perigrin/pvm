@@ -122,10 +122,25 @@ func (p *parser) parseUse(word lexer.Token) *Node {
 	// exists. perl dies here; this parser must not, because parsing text is
 	// not running it.
 	//
-	// `no` and `require` are deliberately not resolved: `no` UNIMPORTS, and
-	// `require` is a runtime load with no import at all.
-	if module != "" && !isVersionPrefix(module) && n.Text == "use" {
+	// `no` is deliberately not resolved, because it UNIMPORTS.
+	//
+	// `require MODULE` is not resolved either, and for the reason that used to
+	// cover `require` entirely: it is a runtime load with NO IMPORT AT ALL, so
+	// there is no export list to apply and nothing enters the caller's scope
+	// by name.
+	//
+	// `require './FILE.pl'` is the exception, and what makes it one is that
+	// perl's own suite writes its helpers that way: a required `.pl` file
+	// declares subs into the CALLER'S package -- it has no `package`
+	// statement of its own -- so every `sub NAME` in it is a name the
+	// requiring file can call. There is no import list to consult because
+	// there is no import; the declarations themselves are the interface.
+	// See resolveRequiredFile for the boundary that keeps this safe.
+	switch {
+	case module != "" && !isVersionPrefix(module) && n.Text == "use":
 		p.resolveImports(module, list)
+	case module == "" && n.Text == "require":
+		p.resolveRequiredFile(list)
 	}
 
 	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
@@ -167,6 +182,85 @@ func (p *parser) resolveImports(module string, list *Node) {
 	}
 	for _, imp := range importsFrom(facts, names, listGiven) {
 		p.imports[imp.Name] = imp
+	}
+}
+
+// resolveRequiredFile reads a `require './helper.pl'` and records every
+// `sub NAME` the helper declares, so a parenless call to one of them parses.
+//
+// list is the require's argument as parsed -- a single Term for the literal
+// spellings, anything at all otherwise.
+//
+// THE BOUNDARY IS THE SAFETY PROPERTY, and each rule is enforced at a named
+// place rather than assumed:
+//
+//  1. A LITERAL string only, here. `require $file` and `require "./$n.pl"`
+//     name a file only at runtime, so they contribute nothing. Measured over
+//     perl.git's `t/`: 503 files hold a literal `require`, against 6 with a
+//     computed one and 3 with an interpolated path, and BOTH kinds occur in
+//     files that also hold a literal one. So refusing them costs nothing and
+//     accepting them would be a guess at a name.
+//  2. Resolved against the file's own directory and then the parse root, in
+//     DirLoader. THE PARSE ROOT IS THE LOAD-BEARING HALF, and it was measured
+//     to be so: 464 of those 503 files run `chdir 't' if -d 't'` before the
+//     require, so `./test.pl` in `t/op/select.t` names `t/test.pl` and NOT
+//     `t/op/test.pl`. Resolving against the requiring file's own directory
+//     alone moves 0 files and 0 nodes; with `t/` as the root it moves 93 files
+//     and 3,267 nodes. The caller supplies the root because only the caller
+//     knows the working directory the suite is run from.
+//  3. Only `sub NAME`, here: facts.protos and not facts.exports. A `.pl`
+//     helper has no `package` and no `@EXPORT`, so its declarations ARE its
+//     interface -- but a variable it declares is not a call shape and brings
+//     nothing.
+//  4. ONE LEVEL, in resolver.resolveFile. A helper's own `require` is not
+//     followed, and it COSTS NOTHING -- measured rather than assumed, because
+//     one helper does nest: `thread_it.pl` requires `./test.pl` at its line
+//     10, so the 13 `*_thr.t` files that require `thread_it.pl` see its subs
+//     and not `test.pl`'s. All 13 were ALREADY CLEAN before this change and
+//     stayed clean after it: they are wrappers that set up a thread and
+//     `require` the real test, with no parenless call site of their own. A
+//     second level would buy zero files and zero nodes.
+//  5. An unreadable or unparseable helper contributes nothing and NEVER fails
+//     the parse -- resolveFile returns "not found", which is the answer a
+//     missing module already gets. `t/` files are parsed from many working
+//     directories, including by a suite with no perl5 checkout at all.
+func (p *parser) resolveRequiredFile(list *Node) {
+	if p.res == nil || list == nil {
+		return
+	}
+
+	// Rule 1, and INTERPOLATION is the half that is easy to miss.
+	// literalNameList reads a single quoted string, which is what a literal
+	// `require` argument is -- but `"./$name.pl"` is ALSO a single quoted
+	// string to it, and names a file only at runtime. A sigil inside a
+	// double-quoted body is what separates the two, so it is checked on the
+	// text AS WRITTEN, before the quotes come off.
+	if interpolates(list.Text) {
+		return
+	}
+	names, ok := literalNameList(list)
+	if !ok || len(names) != 1 || !isRequiredPath(names[0]) {
+		return
+	}
+
+	facts, ok := p.res.resolveFile(names[0])
+	if !ok {
+		return
+	}
+
+	// Rule 3. Every declared sub, with its prototype, because a `.pl` helper
+	// declares into the CALLER'S package and has no export list to narrow
+	// this. Not Local: the name came from another file, and `Local` marks a
+	// sub this file declares itself.
+	if p.imports == nil {
+		p.imports = map[string]Import{}
+	}
+	for name, proto := range facts.protos {
+		p.imports[name] = Import{
+			Name:           name,
+			Prototype:      proto,
+			PrototypeKnown: true,
+		}
 	}
 }
 
