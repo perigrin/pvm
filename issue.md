@@ -1,10 +1,19 @@
 ---
 title: Three token facts call a Word an operator, and the glossary says the lexer is right
-state: pending
+state: in-progress
 urgency: normal
 milestone: corpus-covers-t2
 created: 2026-09-26T03:02:06.779257794Z
-updated: 2026-09-26T04:18:52.155808246Z
+updated: 2026-09-26T04:43:08.977932447Z
+sessions:
+- start_sha: 58076b8abd0e49c3879c050fa5657dfac841914f
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-26T04:43:08.977932447Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-26T04:43:08.977932447Z
 ---
 
 Four corpus token facts assert something the glossary forbids, and the
