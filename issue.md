@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: corpus-covers-t2
 created: 2026-09-26T02:08:00.127866819Z
-updated: 2026-09-26T04:15:31.959483583Z
+updated: 2026-09-26T04:18:12.52892451Z
 ---
 
 Two tier-01 cases refuse on a token fact with a clean parse, and both are
@@ -97,6 +97,18 @@ per CASE and numeric-point has four cases that already pass -- so a
 file-level grep matches a sibling. Each criterion below names its case, and
 each was verified to FAIL now (rc=1) and therefore to be falsifiable.
 
+Two further corrections from round 2:
+
+  - The two `refuses:` criteria said `! grep -q 'refuses:'`, which
+    CONTRADICTS this issue's own Scope. The Scope sanctions a fallback --
+    "if either turns out larger than it looks, file it and cite the id" --
+    and that fallback writes `refuses: <id>`, which the old criterion would
+    reject forever. They now forbid only `refuses: unfiled`, so the
+    sanctioned fallback is reachable and the sentinel is still banned.
+  - The two suite criteria pass today and were unlabelled, while the sister
+    issue labels its guard. They are labelled now: an unlabelled criterion
+    should mean "fails today".
+
 The falsifiable pair is a SCOPE requirement rather than its own criterion:
 `no operator whose text is "-"` fails today for the same reason as
 `one numeric literal whose text is "5e-1"`, and both are token facts on the
@@ -111,7 +123,7 @@ weaker copy of that.
 - [ ] The signed-exponent case passes rather than skipping (`go test ./internal/conformance/ -run '^TestCorpus$' -count=1 -v | grep -q 'PASS: TestCorpus/numeric-point.md/The_sign_of_an_exponent_is_part_of_the_literal'`)
 - [ ] The bare vstring case passes rather than skipping (`go test ./internal/conformance/ -run '^TestCorpus$' -count=1 -v | grep -qE 'PASS: TestCorpus/vstrings.md/Bare:_three_dot-separated_parts'`)
 - [ ] The v-prefix case passes rather than skipping (`go test ./internal/conformance/ -run '^TestCorpus$' -count=1 -v | grep -qE 'PASS: TestCorpus/vstrings.md/The_.v._prefix'`)
-- [ ] Neither vstring case leaves a refusal recorded (`! grep -q 'refuses:' conformance/mdtest/vstrings.md`)
-- [ ] The exponent topic leaves no refusal recorded (`! grep -q 'refuses:' conformance/mdtest/numeric-point.md`)
-- [ ] The lexer's own suite still passes (`go test ./internal/lexer/ -count=1 | grep -q '^ok'`)
-- [ ] The suite is green (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
+- [ ] Neither vstring case leaves the SENTINEL behind (`! grep -q 'refuses: unfiled' conformance/mdtest/vstrings.md`)
+- [ ] The exponent topic leaves no sentinel behind (`! grep -q 'refuses: unfiled' conformance/mdtest/numeric-point.md`)
+- [ ] REGRESSION GUARD, passes today: the lexer's own suite still passes (`go test ./internal/lexer/ -count=1 | grep -q '^ok'`)
+- [ ] REGRESSION GUARD, passes today: the conformance suite is green (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
