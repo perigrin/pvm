@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 475 clean (48.2%), 2353 total.
+# 986 files, 477 clean (48.4%), 2334 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -391,7 +391,7 @@
 8 interpreter_foreach_continue_alias.t
 0 interpreter_globref_code_assignment.t
 6 interpreter_labeled_next_continue_block.t
-1 interpreter_local_hash_slice_coderef_method.t
+0 interpreter_local_hash_slice_coderef_method.t
 0 interpreter_myhash_myarray_scope_exit.t
 2 interpreter_nested_factory_array_lifetime.t
 4 interpreter_next_inside_foreach_continue.t
@@ -612,7 +612,7 @@
 6 pvlv_filehandle.t
 0 qualified_optional_constant.t
 0 rand_scalar_context.t
-13 range.t
+0 range.t
 0 range_operand_context.t
 0 recursion_depth_1000.t
 0 ref.t
@@ -727,7 +727,7 @@
 1 stash_recursive_alias.t
 1 stash_scalar_ref_assignment.t
 0 stash_undefined_code_lookup.t
-12 stash_var_keyword_op.t
+7 stash_var_keyword_op.t
 3 stat_filehandle_after_rename.t
 0 state.t
 5 statement.t

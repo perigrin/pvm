@@ -116,11 +116,33 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 		// nineteen spellings.
 		if eq, ok := p.peekSignificant(); ok && infix[p.text(eq)].Level == assignLevel {
 			p.advanceTo(eq)
-			if init := p.parseExpr(0); init != nil {
+			// Parsed at the assignment's own right power, not at 0, so
+			// anything LOOSER than `=` stops here and belongs above the
+			// declaration rather than inside it. `and`, `or` and `xor` are
+			// levels 4 and 5 against assignment's 9, and that gap is a
+			// different program, not a different grouping. Measured on
+			// perl 5.42.0:
+			//
+			//	$ perl -MO=Deparse -e 'my $a=1; my $b=0; my $y = $a and $b;'
+			//	$b if my $y = $a;
+			//
+			// At 0 the `and` was swallowed and the tree said `my $y = ($a
+			// and $b)`, which is what the PARENTHESISED source means. The
+			// two forms had one tree between them.
+			if init := p.parseExpr(infix[p.text(eq)].rightBP()); init != nil {
 				n.Children = append(n.Children, init)
 			}
 		}
 		n.End = p.prevEnd()
+
+		// A word operator below assignment now stands unconsumed, with the
+		// whole declaration as its left operand. Resuming the loop here is
+		// what puts it above rather than inside.
+		if next, ok := p.peekSignificant(); ok {
+			if op, isOp := infix[p.text(next)]; isOp && op.BP < infix[","].BP {
+				return p.parseInfix(n, 0)
+			}
+		}
 		return n
 	}
 
