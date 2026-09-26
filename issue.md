@@ -1,10 +1,14 @@
 ---
 title: Four token facts call a Word an operator, and the glossary says the lexer is right
-state: pending
+state: cancelled
 urgency: normal
 milestone: corpus-covers-t2
 created: 2026-09-26T02:07:19.16565421Z
-updated: 2026-09-26T03:02:34.093674643Z
+updated: 2026-09-26T03:02:34.28061316Z
+transitions:
+- state: cancelled
+  actor: human:git-zhi
+  timestamp: 2026-09-26T03:02:34.28061316Z
 ---
 
 Superseded by 01a0dba9, same body with a title that matches it.
