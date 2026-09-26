@@ -360,6 +360,68 @@ All nine rewritten as history, none deleted.
     Measured, its `Text` moved from the truncated `"v5"` to `"v5.36"` -- an
     improvement, but a delta the message said had not happened.
 
+### The last two issues, and the corpus at 199/212
+
+| issue | tier | outcome |
+|---|---|---|
+| 01a0dc82 format/write | TIER_2, 11 files | CLEAN on scope, 3 minor findings out |
+| 01a0dc84 __DATA__ | -- | done, 6/6 criteria; gate not yet run |
+
+Corpus **195 -> 199 clean, 17 -> 13 refusing** across the two.
+
+**Both had their stated cost measured to something other than filed.**
+`01a0dc82` assumed two gaps and there was one: `write` already parsed both
+arities, and only looked broken because the unimplemented `format` above it
+ran `skipToStatementEnd`, hunting a `;` a format declaration lacks, and ate
+`write;`'s instead. `01a0dc84` asked for a statement form and needed none:
+`isTrivia` in `parse.go` listed `Whitespace, Comment, Pod` and not
+`DataSection`, while three other places already treated it as trivia. One
+token in a switch.
+
+That is three issues in this milestone whose cost was wrong as filed -- to
+zero, to half, to one line. The lesson is not that the estimates were bad;
+it is that a cost written into an issue is a guess, and probing it first is
+cheap.
+
+**The format gate reproduced both central claims by reversion** rather than
+re-running the criteria: reverting the format change alone showed `write`
+parsing clean on its own, and reverting the two `canon.go` hunks alone
+failed `TestCanonTokenIdentity` on both named T1 files with the `=`-becomes-
+`;` re-lex. It also found an improvement the commit did not claim: `format`
+inside a sub used to swallow the sub's closing brace.
+
+**A gate finding self-resolved between the two merges.** The format gate
+flagged `conformance/13_opaque/README.md`'s "every token fact in the tier
+passes" as false, because the adjacency case failed a data-section fact
+wanting a trailing `\n\n`. The `__DATA__` worker had just fixed that fact
+while settling the trailing-newline rule -- measured, a trailing blank line
+IS data (2 lines vs 3), so the FACTS were wrong and the lexer right. The
+ratchet now reads `trailing_tokens` alone and the README is true again. Two
+agents fixed opposite ends of one defect without coordinating.
+
+Filed from the format gate: `01a0dccb` -- an unterminated format body loses
+canon's FIXPOINT, because `scanFormatBody` emits `UnknownRest` where
+`parseFormatDecl` takes only `FormatBody`; and `format NAME` with no `=`
+parses clean where perl errors. Both invalid perl, so unreachable from any
+perl-validated corpus -- and `FuzzParser` does not check fixpoint, so
+nothing would have caught the first.
+
+### What this milestone cannot reach
+
+The 13 remaining refusals are all `m1-parse-the-core`'s:
+
+    heredoc in statement position     3   01a0c13f-aaf8
+    parenless call with arguments     2   01a0c13f-6816
+    x= unlexed                        1   01a0ce57
+    ungated defer                     1   01a0d087
+    -e file test                      1   01a0cf64
+    undef named unary                 1   01a0c730 -- DONE, stale citation
+    four adjacency bodies             4   free, they sum the rest
+
+This milestone's own remaining issues -- `01a0dc72` (bare `v5`),
+`01a0dc74` (dead code), `01a0dccb` (malformed format) -- move the corpus by
+ZERO. They are hygiene, correctly filed, and not on the goal path.
+
 ### Why this milestone does not complete here
 
 `01a0dbe8` is reopened and `01a0dc26-f9d3` is open, so the chain has work
