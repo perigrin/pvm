@@ -6,7 +6,7 @@ milestone: corpus-covers-t2
 blocked_by:
 - 01a0dba9-b2c1-7d3e-94a2-f56aa62e1906
 created: 2026-09-26T04:10:38.190903837Z
-updated: 2026-09-26T04:10:52.669496056Z
+updated: 2026-09-26T04:11:43.388242106Z
 ---
 
 `($a and $b)` refuses with `not_a_term`, and so do `or` and `xor`. The
@@ -99,11 +99,19 @@ Do not fix this by adding `and`/`or`/`xor` to the term-starter set. The
 operator is NOT a term -- and reversing it would reintroduce the bug that
 change fixed (`print FOO eq "x" ? ...`).
 
+## Criteria: which are progress and which are guards
+
+Four fail today and are progress checks; two pass today and are labelled
+guards. The T2 ratchet is the interesting guard: `TestT2CoreParses` fails
+in BOTH directions, so if this fix makes real-world files parse the
+shortfall map must be updated in the same commit -- the guard catches the
+fix succeeding as well as regressing.
+
 ## Acceptance criteria
 
 - [ ] The parenthesised low-precedence word operators parse (`go test ./internal/parse/ -run '^TestParenthesisedWordInfixParses$' -count=1 -v | grep -q '^--- PASS: TestParenthesisedWordInfixParses'`)
 - [ ] The bare forms still parse, so the fix did not trade one shape for the other (`go test ./internal/parse/ -run '^TestBareWordInfixStillRegroups$' -count=1 -v | grep -q '^--- PASS: TestBareWordInfixStillRegroups'`)
 - [ ] The five-logical-operators case passes rather than skipping (`go test ./internal/conformance/ -run '^TestCorpus$' -count=1 -v | grep -q 'PASS: TestCorpus/comparison.md/The_five_logical_operators'`)
-- [ ] `not` is still prefix and still clean (`go test ./internal/parse/ -count=1 | grep -q '^ok'`)
-- [ ] The T2 ratchet moved in the right direction or held (`go test ./internal/parse/ -run '^TestT2CoreParses$' -count=1 -v | grep -q '^--- PASS: TestT2CoreParses'`)
+- [ ] REGRESSION GUARD, passes today: `not` is still prefix and the parse suite holds (`go test ./internal/parse/ -count=1 | grep -q '^ok'`)
+- [ ] REGRESSION GUARD, passes today: the T2 shortfall ratchet still agrees in both directions (`go test ./internal/parse/ -run '^TestT2CoreParses$' -count=1 -v | grep -q '^--- PASS: TestT2CoreParses'`)
 - [ ] The suite is green (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
