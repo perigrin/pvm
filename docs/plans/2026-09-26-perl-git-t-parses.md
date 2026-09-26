@@ -107,7 +107,10 @@ does not yet know what it is. Specifically:
   share of it.~~ **Measured; see "The `}` bucket, attributed" below.** A
   labelled bare block owns 284 of the 1,118 (25.4%). The bucket is 98.5%
   cascade, so the opener at the leftover brace is usually not the cause.
-- `not_a_term` at 1,584 nodes in 192 files has had no bucketing pass at all.
+- ~~`not_a_term` at 1,584 nodes in 192 files has had no bucketing pass at
+  all.~~ **Measured; see "`not_a_term`, bucketed" below.** 1,543 of its 1,584
+  nodes cannot be causes at all: they only appear after the parser already
+  refused earlier in the same file. The cause surface is 41 nodes in 41 files.
 - The `like $@, qr/.../` and `is $s, join(...)` spans that recur are
   parenless-call shapes. Today's declared/undeclared work closed those when the
   callee is declared in-file; these come from `test.pl`, which is `require`d at
@@ -243,6 +246,136 @@ two-thirds unexplained, and leaves 426 of 435 files dirty. The evidence points
 that residual at the parenless call to a runtime-`require`d `test.pl` -- item 5
 of the chain, which is currently last and produces no code. On this measurement
 it is the item with the most mass behind it.
+## `not_a_term`, bucketed
+
+Measured 2026-09-26 at `2dc301fd`, over the same 620 files: 7,745 Unknown, 435
+dirty, 1,584 `not_a_term` in 81 distinct span buckets. The top 25; every bucket
+below the 25th is a single node in a single file.
+
+    nodes  files  span (leading 24 bytes, newlines escaped)
+     1118    157  "}"
+      164     59  ")"
+       52     23  ":"
+       33      6  ","
+       31     15  "->"
+       16     11  ";"
+       15      5  "::"
+       11      6  "="
+       11      7  "};"
+       10      7  ");"
+        8      3  "..."
+        7      1  ".."
+        7      2  ":;"
+        7      3  "]"
+        6      4  "*"
+        5      2  "()"
+        5      2  "^"
+        4      1  "=>"
+        4      1  "before Apack.pm at - lin"
+        4      1  "no warnings 'experimenta"
+        2      1  "        use threads;\n   "
+        2      1  "Assembling pattern from "
+        2      1  "Bareword found where ope"
+        2      1  "before: Apack.pm\nbefore:"
+        2      1  "package DB;\nsub DB::sub "
+
+**The table is almost worthless on its own, and that is the finding.** 97% of
+`not_a_term`'s mass is one-character punctuation: `}`, `)`, `:`, `,`, `->`. A
+one-byte span names no construct. Grouping the 55 bytes PRECEDING each span
+gave 1,049 distinct contexts for the 1,118 `}` nodes -- a long tail of uniques,
+which is the signature of a cascade rather than of a construct.
+
+**What separates cause from cascade: is the node the FIRST Unknown in its file?**
+
+    not_a_term as its file's FIRST Unknown      41 nodes in  41 files
+    not_a_term with an earlier Unknown before   1543 nodes
+
+1,543 of 1,584 (97.4%) appear only after the parser has already refused
+something earlier in the same file. They are fallout from a prior refusal
+resynchronising, and no fix aimed at them can exist. **`not_a_term` is a
+1,584-node bucket with a 41-node cause surface.** The whole of the remaining
+work in this code is in those 41 files.
+
+### === not_a_term: each construct measured ALONE ===
+
+All 41 first-in-file cases, reduced to the smallest program holding one
+construct, then narrowed until the refusal either survived or vanished. Perl
+5.42.0 (`/home/perigrin/.local/bin/perl`) ran every candidate: **all eleven
+refusing forms are valid perl**, so none of these refusals is correct.
+
+REFUSES in isolation:
+
+    my $r = $::{foo};                 Unknown=1  not_a_term ":"
+    my @k = keys %::;                 Unknown=1  not_a_term ":;"
+    ::ok(1);                          Unknown=1  trailing_tokens
+    my $r = ::f();                    Unknown=1  not_a_term "::"
+    my sub x () { 8 }                 Unknown=1  not_a_term "()"
+    my sub x ($a) { 8 }               Unknown=1  not_a_term "($a)"
+    my $s = sub :lvalue { 1 };        Unknown=1  trailing_tokens ":lvalue { 1 }"
+    sub f :lvalue { 1 }               Unknown=1  trailing_tokens ":lvalue { 1 }"
+    my @x = grep -e, @l;              Unknown=1  not_a_term ","
+    my $x = -e;                       Unknown=1  not_a_term ";"
+    for my ($a,) (1) { }              Unknown=1  not_a_term ")"
+
+NOT A CAUSE -- parses clean in isolation. This is the valuable half, and it is
+what stops the next person aiming a fix at a construct that already works:
+
+    $ {$CX} = 17;                     Unknown=0   space between sigil and brace
+    my $y = ${^XY};                   Unknown=0   caret var in braces
+    formline $f, "a";                 Unknown=0
+    our sub x { 1 }                   Unknown=0   NO prototype
+    state sub x { 1 }                 Unknown=0   NO prototype
+    my sub x { 8 }                    Unknown=0   NO prototype
+    goto &g;                          Unknown=0
+    goto LABEL;                       Unknown=0
+    my $x = -t STDIN;                 Unknown=0   filetest WITH an operand
+    my $x = -e $f;                    Unknown=0   filetest WITH an operand
+    my @a = (1, <<'EOF', 2);          Unknown=0   heredoc as a list element
+    my %h = (time => 1);              Unknown=0
+    my $x = (time\n=>);               Unknown=0   the `=>` quoting a keyword
+    my $v = bless \(my $d = 1), __PACKAGE__;      Unknown=0
+    $main'object = 1;                 Unknown=0   apostrophe package separator
+    threads->create( sub { 1 } );     Unknown=0
+    local *Foo::m = sub { 1 };        Unknown=0
+    my $r = \&UNIVERSAL::isa;         Unknown=0
+    my $re = qr/ (?i: a{2} ) /x;      Unknown=0
+    { my @a; @a=(1..4)\n}             Unknown=0   no semicolon before `}`
+    my $r = $Foo::{bar};              Unknown=0   a NAMED package's stash
+    my @k = keys %Foo::;              Unknown=0   a NAMED package's stash
+    *Foo:: = \%Bar::;                 Unknown=0
+    main::ok(1);                      Unknown=0   the explicit `main::` form
+    my $x = \%Foo::;                  Unknown=0
+    my ($a,) = (1);                   Unknown=0   trailing comma in plain `my`
+    for my ($a,$b) (1,2) { }          Unknown=0   the well-formed list
+    sub x () { 8 }                    Unknown=0   a NAMED sub's prototype
+    my $s = sub { 1 };                Unknown=0   anon sub with NO attribute
+
+Three of those negatives narrow a refusal to its real edge, and the narrowing
+is the point:
+
+- A lexical sub refuses only WITH a parameter list. `my sub x { 8 }` is clean;
+  `my sub x () { 8 }` is not. The defect is the signature/prototype on
+  `my`/`our`/`state sub`, not lexical subs.
+- A stash refuses only for the ANONYMOUS `main` stash. `$Foo::{bar}` and
+  `keys %Foo::` are clean; `$::{bar}` and `keys %::` are not. The defect is the
+  empty package name before `::`, not stash access.
+- A filetest refuses only with NO operand. `-e $f` is clean; `-e` and `grep -e,`
+  are not. The defect is the implicit-`$_` form.
+- `(time\n=>)` was measured a cause and is NOT one; the `=>`-quotes-a-keyword
+  hit in `lex.t` was cascade from an earlier refusal in that file.
+
+### Reach of the refusing constructs, over the same 620 files
+
+    stash elem   $PKG::{name} / %::    in  58 files,  56 of them dirty
+    leading ::   ::name(...)           in  84 files,  76 of them dirty
+    anon/named sub w/ attribute        in  26 files,  25 of them dirty
+    filetest w/ no operand  -e,        in  19 files,  19 of them dirty
+    lexical sub w/ sig or proto        in   6 files,   6 of them dirty
+    for my (list) w/ empty slot        in   1 file,    1 of them dirty
+
+`for my (list)` with an empty slot is `op/for-many.t` alone -- a deliberate
+torture file. It is 63 of the `,` bucket's nodes and one file, so it is not
+worth an issue of its own.
 
 ## The chain
 
@@ -267,3 +400,23 @@ above overturned three of four guesses.
 Items 1, 2 and 5 produce no code. That is deliberate: 435 files is too many to
 fix one at a time, and the only two causes measured so far were found by
 isolating constructs rather than by counting their appearances.
+
+### Filed out of the not_a_term bucketing
+
+Item 1 is done, and it produced four fixes -- each one a construct that refuses
+in isolation and appears in more than a handful of files. Ordered by reach:
+
+    01a0de97-3c5d-714d-9ded-d68fd50ad296   leading ::, 84 files
+    01a0de97-77fe-733d-8482-cc0c6ad25a51   $::{n} and %::, 58 files
+    01a0de97-96ac-791e-bbff-d0b15fa70f60   sub :lvalue etc, 26 files
+    01a0de97-b3bd-7c49-a55b-f99acee8f932   filetest with no operand, 19 files
+
+Two refusing constructs were deliberately NOT filed, because reach does not
+justify an issue:
+
+- A lexical sub with a signature or prototype -- `my sub x () { 8 }`,
+  `my sub x ($a) { 8 }`, and the same for `our` and `state` -- refuses, and is
+  valid perl. Six files. Worth folding into whichever issue next touches the
+  sub-declaration parse site rather than carrying alone.
+- `for my ($a,) (1)` with an empty list slot refuses, and is valid perl. One
+  file, `op/for-many.t`, which exists to torture that syntax.
