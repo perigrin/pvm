@@ -5,6 +5,7 @@ package conformance
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -389,5 +390,60 @@ func TestDuplicateCaseKeyRejected(t *testing.T) {
 	if repeated == 0 {
 		t.Error("no adjacency title is shared between topics; the " +
 			"deliberate repetition this test protects is not in the corpus")
+	}
+}
+
+// TestRatchetHeaderAgreesWithItsBody pins the summary line against the case
+// lines it summarises.
+//
+// `parseRatchetFile` skips every `#` line, so the header was DERIVED on write
+// and IGNORED on read. Measured: the committed baseline's header was edited to
+// "999 cases, 1 clean, 998 refusing" and TestCorpusRatchet still passed, in
+// 0.04s. The one number every report of this corpus quotes was the one number
+// nothing verified.
+//
+// That is a baseline RECALLING rather than RECOMPUTING: right when written,
+// wrong the moment the thing it counts changes, and silent either way. The
+// same failure as a hardcoded denominator in a census script.
+//
+// Counted from the body rather than re-measured from the corpus on purpose --
+// re-measuring would test the corpus, which TestCorpusRatchet already does.
+// What was unguarded is the header AGREEING with the body beside it.
+func TestRatchetHeaderAgreesWithItsBody(t *testing.T) {
+	data, err := os.ReadFile(ratchetPath)
+	if err != nil {
+		t.Fatalf("reading %s: %v", ratchetPath, err)
+	}
+
+	var header string
+	cases, clean := 0, 0
+	for _, line := range strings.Split(string(data), "\n") {
+		switch {
+		case line == "":
+			continue
+		case strings.HasPrefix(line, "# ") && strings.Contains(line, " cases, "):
+			header = strings.TrimPrefix(line, "# ")
+		case strings.HasPrefix(line, "#"):
+			continue
+		default:
+			cases++
+			// A clean case's state is the "-" placeholder; anything else is
+			// a refusal code, which is what refusalState writes.
+			if strings.HasPrefix(line, "- ") {
+				clean++
+			}
+		}
+	}
+
+	if header == "" {
+		t.Fatal("no `# N cases, M clean, K refusing.` line in the baseline")
+	}
+
+	want := fmt.Sprintf("%d cases, %d clean, %d refusing.", cases, clean, cases-clean)
+	if header != want {
+		t.Errorf("header says %q, body holds %q.\n"+
+			"\tThe summary is derived on write and skipped on read, so it can\n"+
+			"\tdrift silently. Regenerate with -conformance.update-ratchet.",
+			header, want)
 	}
 }
