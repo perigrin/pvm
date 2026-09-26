@@ -144,7 +144,14 @@ func TestT2CoreParses(t *testing.T) {
 		// -- `&$clo1(0)`, `make_closure 6` and a bare block in expression
 		// position. Untracked: nothing in the chain owns those.
 		"comp/final_line_num.t": 1, "comp/fold.t": 14, "comp/form_scope.t": 7,
-		"comp/hints.t": 35, "comp/line_debug.t": 4, "comp/multiline.t": 2,
+		// comp/hints.t 35 -> 34 and comp/parser.t 65 -> 64 when a
+		// DataSection became trivia (issue 01a0dc84). Each file ends in a
+		// trailing `__END__` and each was spending exactly one Unknown on
+		// it: the lexer already read the marker and everything after it as
+		// one token, and the parser was handing that token to the
+		// expression parser, which refused it as `not_a_term`. One node per
+		// file is the whole delta -- nothing else in either file moved.
+		"comp/hints.t": 34, "comp/line_debug.t": 4, "comp/multiline.t": 2,
 		// comp/package.t 7 -> 2 across two fixes, both issue 01a0cf3e.
 		// First the filehandle slot learned that a following COMMA
 		// denies it, which is perl's own rule -- `print FOO, 1` is "No
@@ -152,7 +159,7 @@ func TestT2CoreParses(t *testing.T) {
 		// legal. Then `startsTerm` learned that a word OPERATOR is not a
 		// term, which reached `print __PACKAGE__ eq '...' ? ... : ...`.
 		"comp/opsubs.t": 11, "comp/package.t": 2,
-		"comp/parser.t": 65, "comp/parser_run.t": 12, "comp/proto.t": 41,
+		"comp/parser.t": 64, "comp/parser_run.t": 12, "comp/proto.t": 41,
 		// comp/require.t went 11 -> 12 when phaser braces became blocks. The
 		// `BEGIN { ... }` body is now read as statements rather than as one
 		// hashref, and reaching inside it exposes a heredoc the parser does

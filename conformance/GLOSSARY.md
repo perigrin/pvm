@@ -321,6 +321,22 @@ a `__DATA__` section compiles to the same ops as one without. Reading the
 section needs `readline`, which is tier 10's op and says nothing about the
 marker that created the handle.
 
+**The token ends where the FILE ends, and carries whatever trailing
+newline the file has -- no more.** There is no terminator to include, as
+there is for a pod block or a format body: the boundary is end of input.
+So a file whose last byte is a newline gives a token ending in one
+newline, and a fact asserting two is asserting a blank line the file does
+not have.
+
+That boundary has to be stated because a trailing blank line inside a
+section is DATA, not whitespace. Measured under 5.42.0, a section written
+`one\ntwo\n` makes `DATA` yield two lines and one written `one\ntwo\n\n`
+makes it yield three, the last empty. Anywhere else in a Perl program
+trailing whitespace is whitespace and nothing reads it; here it is a
+record. A corpus case's program comes from a ```perl block, which the
+reader gives exactly one trailing newline, so a case cannot assert a
+trailing blank line without writing the bytes some other way.
+
 ---
 
 ## format body

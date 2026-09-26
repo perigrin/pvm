@@ -122,5 +122,5 @@ one pod block whose text is "=pod\n\nProse the lexer eats and the optree never s
 one quote-like operator whose text is "qx{echo hi}"
 one readline operator whose text is "<*.nonexistent-xyz>"
 one readline operator whose text is "<DATA>"
-one data section whose text is "__END__\nfrom the data section\n\n"
+one data section whose text is "__END__\nfrom the data section\n"
 ```

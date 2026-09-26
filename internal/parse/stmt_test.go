@@ -62,6 +62,45 @@ func TestSourceFileIsStatements(t *testing.T) {
 	}
 }
 
+// TestDataSectionIsTrivia: a `__DATA__` or `__END__` section ends the
+// program text, it does not start a statement.
+//
+// The lexer already emits the marker and everything after it as ONE
+// DataSection token, and its own comment calls that token trivia. The
+// parser is the half that had not agreed: a DataSection reaching statement
+// position was handed to the expression parser, which refused it as
+// `not_a_term`.
+//
+// Measured, the SECTION was the discriminator and not the handle: `<DATA>`
+// with no section parsed clean, while `<FOO>`, `<STDIN>` and a program with
+// a section and no readline at all each refused. So the readline is not
+// implicated and the fix is the same route POD already takes.
+//
+// The body is load-bearing text -- it is what `DATA` yields -- so the span
+// is asserted too: the Trivia node must cover the marker through end of
+// file, byte for byte, or round-trip loses data.
+func TestDataSectionIsTrivia(t *testing.T) {
+	for _, src := range []string{
+		"my @lines = <DATA>;\nprint @lines;\n__DATA__\none\ntwo\n",
+		"print 1;\n__END__\n) not ( perl $$$\n",
+	} {
+		root := parse.Parse([]byte(src))
+		if n := firstOfKind(root, parse.Unknown); n != nil {
+			t.Errorf("%q: a data section must not refuse (%v): %v",
+				src, n.Refusal, kinds(root))
+		}
+		if firstOfKind(root, parse.Statement) == nil {
+			t.Errorf("%q: the statements before the marker must parse: %v",
+				src, kinds(root))
+		}
+		last := root.Children[len(root.Children)-1]
+		if last.Kind != parse.Trivia || last.End != len(src) {
+			t.Errorf("%q: the section must be trailing Trivia ending at %d, "+
+				"got %v ending at %d", src, len(src), last.Kind, last.End)
+		}
+	}
+}
+
 // TestExpressionStatementAndBlock: the two forms this issue owns.
 //
 // A bare block is a statement, not a hash constructor. The lexer's brace

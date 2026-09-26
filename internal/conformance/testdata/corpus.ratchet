@@ -8,7 +8,7 @@
 # topic's `**Tier NN name.**` line and leaves every key alone. That
 # is the `t/` sweep working, and must not read as a regression.
 #
-# 212 cases, 197 clean, 15 refusing.
+# 212 cases, 199 clean, 13 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -25,7 +25,7 @@ trailing_tokens adjacency-07_subroutines.md/The whole tier in one body
 - adjacency-10_io.md/The whole tier in one body
 trailing_tokens adjacency-11_oo.md/The whole tier in one body
 - adjacency-12_packages.md/The whole tier in one body
-trailing_tokens,not_a_term,tokens adjacency-13_opaque.md/The whole tier in one body
+trailing_tokens adjacency-13_opaque.md/The whole tier in one body
 - adjacency-14_recursive.md/The whole tier in one body
 - aggregate-operators.md/`each` returns a PAIR where its siblings return a flat list
 - aggregate-operators.md/`push`: the first argument is an array, not an expression
@@ -171,8 +171,8 @@ trailing_tokens named-operators.md/`undef` is two operators wearing one word
 - numeric-radix.md/Underscore separators
 - packages.md/`package Foo { ... }` scopes the switch to a block
 - packages.md/`package Foo;` switches package for the rest of the file
-not_a_term,tokens pod-and-data.md/A data section holding bytes that are not a program
-not_a_term,tokens pod-and-data.md/A data section read back through `DATA`
+- pod-and-data.md/A data section holding bytes that are not a program
+- pod-and-data.md/A data section read back through `DATA`
 - pod-and-data.md/A pod block compiles to nothing
 - pod-and-data.md/A pod block holding text that is not a program
 - quote-like-terms.md/The `pack` template
