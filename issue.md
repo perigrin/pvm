@@ -1,10 +1,14 @@
 ---
 title: Ten refusals say unfiled, so ten recorded gaps point at no work
-state: pending
+state: cancelled
 urgency: normal
 milestone: corpus-covers-t2
 created: 2026-09-26T02:09:22.469057177Z
-updated: 2026-09-26T02:51:21.286028877Z
+updated: 2026-09-26T02:51:21.322608589Z
+transitions:
+- state: cancelled
+  actor: human:git-zhi
+  timestamp: 2026-09-26T02:51:21.322608589Z
 ---
 
 Superseded by 01a0db9f, which covers all FOURTEEN rather than the ten
