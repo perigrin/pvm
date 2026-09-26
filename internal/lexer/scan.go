@@ -629,6 +629,33 @@ func IsFileTest(text string) bool {
 	return len(text) == 2 && text[0] == '-' && fileTests[text[1]]
 }
 
+// IsTrivia reports whether a kind carries no syntax: whitespace, a comment, a
+// pod block, or a data section.
+//
+// Exported for the same reason as IsFileTest, and with a worse history. This
+// set was restated in FOUR places -- `parse.isTrivia`, `fidelity.go`,
+// `canon_test.go` and `use_test.go` -- and when `DataSection` joined it, three
+// were updated and the fourth was not. A TIER_2 gate found the divergence;
+// nothing in the suite did, because `firstWordOf`'s walk cannot reach a data
+// section today and the drift was latent.
+//
+// The test copies live in `package parse_test`, which is why they could not
+// call `parse.isTrivia` and restated it instead. That package boundary is the
+// mechanism, so the predicate belongs HERE, beside the Kind it tests, where
+// every caller can reach it.
+//
+// `HeredocBody` is deliberately absent. It was measured as trivia under
+// 01a0c13f and rejected: canon must emit a body's bytes, and dropping them
+// produced `my $h = <<"EOT";print($h);`, which does not compile. A body is a
+// child of the statement that opened it, not trivia.
+func IsTrivia(k Kind) bool {
+	switch k {
+	case Whitespace, Comment, Pod, DataSection:
+		return true
+	}
+	return false
+}
+
 // scanFileTest lexes `-e`, `-d`, `-M` and the rest of the family as ONE
 // operator whose text includes the minus.
 //
