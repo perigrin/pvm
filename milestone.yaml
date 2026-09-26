@@ -3,9 +3,11 @@ created: 2026-09-26T02:05:12.18453493Z
 state: open
 ---
 
-**REBUILT BY `crochet:chain-review`, 2026-09-26. Four of the original five
-issues were cancelled: three on false premises, one as already owned. What
-survives is two issues, and the milestone's original thesis was wrong.**
+**REBUILT BY `crochet:chain-review` over two rounds, 2026-09-26. Five of
+the original seven issues were cancelled -- three on false premises, one as
+already owned, one for a title that disagreed with its own body -- and round
+2 filed one the restructure had orphaned. Three issues are live, and the
+milestone's original thesis was wrong.**
 
 ## What this milestone was for, and why that was wrong
 
@@ -27,7 +29,7 @@ The construct was never missing. Both refusing cases cite
 finds finished work, and concludes the corpus is silent. That is what
 happened here, and it produced an issue to write coverage that existed.
 
-## What the four cancellations were
+## What the five cancellations were
 
 - **01a0db76** -- "no corpus case is a parenless call with an argument".
   False, as above. Cancelled.
@@ -43,6 +45,9 @@ happened here, and it produced an issue to write coverage that existed.
   which passes and whose comment rejects the framing in advance: treating
   the sixteen as citations pointing at nothing is "a claim about the corpus
   that is not true".
+- **01a0db77** -- superseded by `01a0dba9`, same body with a title that
+  matches it. `issue edit` has no `--title`, and a title saying "Four" over
+  a body saying three is this milestone's own defect class.
 
 ## What survives, and it is not what the milestone was named for
 
