@@ -1,19 +1,36 @@
 ---
 title: continue BLOCK is declined, and every op it needs is already claimed
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T17:48:11.618449654Z
-updated: 2026-09-26T18:36:10.823402761Z
+updated: 2026-09-26T19:45:19.698155701Z
 sessions:
 - start_sha: 20c20c3c9f6b7772b719bd7affc1d50f419e1e75
-  end_sha: ""
-  commits: 0
+  end_sha: b2084901525559c23fe0eef21f146e164b5c4cc9
+  commits: 2
   started_at: 2026-09-26T18:36:10.823402761Z
+  ended_at: 2026-09-26T19:45:19.698155701Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-26T18:36:10.823402761Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-26T19:45:19.698155701Z
+observed_paths:
+- conformance/mdtest/loops.md
+- conformance/mdtest/names.md
+- internal/conformance/testdata/corpus.ratchet
+- internal/lexer/caret_test.go
+- internal/lexer/scan.go
+- internal/lexer/testdata/lex.t.tokens
+- internal/parse/control.go
+- internal/parse/control_test.go
+- internal/parse/parse.go
+- internal/parse/t2_test.go
+- internal/parse/testdata/t1.ratchet
+- internal/parse/testdata/t1fidelity.ratchet
 ---
 
 `continue BLOCK` after a `while` is declined: `continue` is still in
