@@ -260,11 +260,21 @@ func scanWord(l *lexer) bool {
 // parser cannot see that: it receives a valid expression and returns no
 // Unknown node.
 //
-// TWO DOTS are still required, which is what keeps `use v5.36` lexing as
-// the three tokens `internal/parse/use.go` reassembles a version from.
-// Perl calls the one-dot `v5.36` a v-string too -- measured, its length is
-// 2 -- and this lexer does not yet, which is a separate gap from the one
-// the corpus asserts here.
+// ONE DOT is enough when the `v` is there, and that asymmetry is the whole
+// rule. Measured 5.42.0, the same single dot lands in two categories and
+// the prefix is the only difference:
+//
+//	$ perl -e 'my $v = v5.36; print length($v)'   2
+//	$ perl -e 'print 5.36'                        5.36
+//
+// Two characters, so `v5.36` is a string of ordinals; bare `5.36` is the
+// float it looks like, which is why `scanNumber` still needs two dots and
+// this needs one.
+//
+// A dot is STILL required. Perl reads bare `v5` as a v-string too --
+// measured, `length(v5)` is 1 -- but `v5` with no dot is also an ordinary
+// identifier here, and claiming it would take every `v`-plus-digits
+// bareword with it. That is a third gap, not this one.
 func scanVString(l *lexer) bool {
 	if c := l.src[l.pos]; c != 'v' && c != 'V' {
 		return false
@@ -278,7 +288,7 @@ func scanVString(l *lexer) bool {
 		l.pos = start
 		return false
 	}
-	if l.scanNumberRun() < 2 {
+	if l.scanNumberRun() < 1 {
 		l.pos = start
 		return false
 	}
@@ -308,13 +318,20 @@ func isDigit(c byte) bool { return c >= '0' && c <= '9' }
 // TWO version-string exceptions, both measured rather than defensive,
 // and both found by a test rather than anticipated.
 //
-// `use v5.36` reaches here with a term expected and a digit following,
-// because `v5` lexes as an ordinary Word -- so without the first guard
-// the `.36` becomes one Number and `pendingVersionMajor` never sees the
-// Operator it reassembles the version from. The feature bundle then does
-// not turn on, which silently changes what the rest of the file means:
-// `use v5.36` enables signatures, and `sub g ($a, $b)` is a PROTOTYPE
-// without it.
+// `use v5.36` USED TO reach here with a term expected and a digit
+// following, because `v5` lexed as an ordinary Word -- so without the
+// first guard the `.36` became one Number and `pendingVersionMajor` never
+// saw the Operator it reassembles the version from. The feature bundle
+// then did not turn on, which silently changes what the rest of the file
+// means: `use v5.36` enables signatures, and `sub g ($a, $b)` is a
+// PROTOTYPE without it.
+//
+// It no longer reaches here. `scanVString` claims ONE dot as of 01a0dc26,
+// so `v5.36` is one Quote before the number scanner sees a dot at all,
+// and the guard below has no caller left that needs it: measured, both
+// `internal/lexer` and `internal/parse` stay green without it. It is kept
+// for one commit rather than deleted in the same change that stranded it,
+// the way `continuesVersionString`'s Number branch was.
 //
 // `require(v5.5.630)` needs the second. `pendingVersionMajor` clears on
 // the Number it pairs with, so by the third part it is already zero and

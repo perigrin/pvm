@@ -1,8 +1,9 @@
 # V-strings
 
-Two dots make a string. A v-string is the boundary where a thing that
-looks entirely like a number is not one, and GLOSSARY.md records the
-decision under "numeric literal": a v-string is not in that category.
+Two dots make a string, and so does a `v` and one dot. A v-string is the
+boundary where a thing that looks entirely like a number is not one, and
+GLOSSARY.md records the decision under "numeric literal": a v-string is
+not in that category.
 
 **Tier 01 literals.** Introduces `const`, `enter`, `leave`,
 `multiconcat`, `nextstate`, `padrange`, `padsv`, `padsv_store`, `print`,
@@ -89,16 +90,36 @@ nodes -- the same shape the signed exponent records, and the same reason
 the token layer exists.
 
 Fixed under 01a0db78: `scanVString` runs BEFORE the word scanner and
-claims a `v` followed by digits and TWO dots. It declines on one dot, so
-`use v5.36` still lexes as three tokens and `internal/parse/use.go`
-reassembles it as before. `use v5.42.0` has two dots, so it is now one
-token, and `noteSignatures` reads the version out of it rather than out
-of the split -- otherwise the bundle would silently stop turning on.
+claims a `v` followed by digits and dots. `use v5.42.0` is now one token,
+and `noteSignatures` reads the version out of it rather than out of the
+split -- otherwise the bundle would silently stop turning on.
 
-STILL OPEN: the one-dot `v5.36` is a v-string in perl too -- measured,
-`length(v5.36)` is 2 -- and we lex it as a Word, an Operator and a
-Number. That is a second gap, not this one, and correcting it means
-teaching `internal/parse/use.go` to take a version that is one token.
+01a0db78 required TWO dots, which left the one-dot `v5.36` splitting.
+01a0dc26 closed that: the `v` is what decides, not the dot count.
+MEASURED perl 5.42.0 --
+
+    $ perl -e 'my $v = v5.36; print length($v)'
+    2
+    $ perl -e 'print 5.36'
+    5.36
+
+-- so the same single dot lands in two categories and the prefix is the
+only difference between them. `v5.36` is one `Quote` and bare `5.36` is
+still `Number("5.36")`, which is the negative half of the same rule and
+the reason `scanNumber` still counts to two.
+
+`internal/parse/use.go` needed NO change, which the issue had expected to
+be the cost. Measured: a `Quote` never matches the Word-shaped name path
+`use` takes its module from, so the version falls through to `parseExpr`
+and yields the same single `Term` the three-token reassembly built --
+`use v5.36;`, `require v5.36;` and `use v5.36.0;` all parse to one
+version Term.
+
+A DOT IS STILL REQUIRED. Perl reads bare `v5` as a v-string too --
+measured, `length(v5)` is 1 -- and we read it as the identifier `v5`.
+That is a third gap, and it is narrower than it looks: `v5` with no dot
+is a legal bareword, so claiming it takes every `v`-plus-digits name with
+it.
 
 ```perl
 my $v = v65.66.67;
