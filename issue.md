@@ -6,7 +6,7 @@ milestone: corpus-covers-t2
 blocked_by:
 - 01a0dc82-28e1-72d3-82cd-88ed8479f327
 created: 2026-09-26T07:00:39.376307576Z
-updated: 2026-09-26T07:02:56.257771813Z
+updated: 2026-09-26T07:03:43.078417003Z
 sessions:
 - start_sha: d1537f9631443c467a73f3e56cf382da4eeab2ae
   end_sha: d1537f9631443c467a73f3e56cf382da4eeab2ae
@@ -81,6 +81,22 @@ entry does not settle.
 Decide that BEFORE the statement form, because a statement form that makes
 the parse clean leaves the case still failing on the fact, and a reader
 would then think the fix did not work.
+
+## Sequencing, and a state the tool would not clear
+
+BLOCKED BY `01a0dc82` (format/write), because both need a statement form
+and both would edit `internal/parse/stmt.go`. Running them concurrently
+races on one file for no gain.
+
+This issue was `--state start`ed and then paused when that was noticed.
+`--state pause` recorded the transition but left the state
+`in-progress` -- measured, both in the display and in
+`issue show --format json`. So the state is wrong and the EDGE is what
+actually holds the work back: nothing should pick this up until
+`01a0dc82` is done, regardless of what the state says.
+
+Recorded rather than papered over, because an `in-progress` issue with
+zero commits is exactly the shape that reads as abandoned work later.
 
 ## Scope
 
