@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 554 clean (56.2%), 1960 total.
+# 986 files, 554 clean (56.2%), 1958 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -780,7 +780,7 @@
 3 taint_env_path.t
 1 taint_external_input.t
 7 taint_filespec.t
-40 taint_mode.t
+38 taint_mode.t
 1 template_generated_line_directive.t
 2 term_readkey_regressions.t
 1 term_size_perlio_shims.t

@@ -35,8 +35,124 @@ func (p *parser) parseControlFlow(word lexer.Token) *Node {
 		// is as rare as a loop without `last` -- 27 of the class corpus's
 		// Unknowns started here.
 		return p.parseReturn(word)
+	case "given", "when", "default":
+		return p.parseSwitch(word)
 	}
 	return nil
+}
+
+// parseSwitch: `given (EXPR) BLOCK`, `when (EXPR) BLOCK` and `default BLOCK`.
+//
+// DEPRECATED, and implemented anyway. 5.42.0's own `feature.pm` calls it "the
+// Raku given/when construct" and records that it is "enabled by feature bundles
+// 5.10 through 5.34, and disabled from the 5.36 feature" bundle onward -- so
+// nothing written against a modern bundle gets it without asking. It still
+// COMPILES when asked for, perl's own suite still tests it, and `t/op/switch.t`
+// is 292 occurrences of nothing else. A parser whose goal is reading perl.git's
+// `t/` has to read what perl reads: being out of the default bundle is a
+// statement about what programs SHOULD be written, not about what the compiler
+// accepts. Verified on 5.42.0:
+//
+//	$ perl -e 'use feature "switch";
+//	      given (1) { when (1) { print "one\n" } default { print "o\n" } }'
+//	one
+//
+// It does not in fact warn here, which is worth recording because the opposite
+// is widely assumed: `use warnings` and `-w` both compile the form silently on
+// this 5.42.0, so no warning-suppression pragma is needed to exercise it.
+//
+// Returning nil rather than a keyword reading when no block follows, because
+// these three are keywords only in THIS position. Perl lets all three be
+// ordinary subs, and a call is what it reads when the block is absent:
+//
+//	$ perl -e 'sub given { 7 } print given(1), "\n";'
+//	7
+//	$ perl -MO=Deparse -e 'sub default { 42 } default {a=>1};'
+//	default {'a', 1};                       a call with a HASHREF argument
+//
+// So the block has to be there before the keyword reading is taken, and when
+// it is not, nil sends the word back to parseWordTerm as the call it is. The
+// lexer settled whether the brace opens a block at all (intuitCurly), which is
+// what distinguishes `default { print "d" }` from that hashref argument.
+//
+// Gated on the keyword rather than added to the general `WORD BLOCK ARG`
+// machinery (`01a0d087`, `internal/lexer/keyword.go`'s blockTaking) because
+// perl REJECTS the parenthesised shape on an arbitrary word, declared or not:
+//
+//	$ perl -MO=Deparse -e 'zzz (1) { print "a" } print "b";'
+//	syntax error at -e line 1, near ") {"
+//	$ perl -MO=Deparse -e 'sub zzz {} zzz (1) { print "a" } print "b";'
+//	syntax error at -e line 1, near ") {"
+//
+// `default BLOCK` alone DID reach the parenless `WORD BLOCK` path and parsed
+// there, which is why only the parenthesised two needed this -- but it arrives
+// here too, so the three clauses of one construct have one reading and canon
+// emits them alike.
+//
+// Conditional rather than Loop, measured: `given` is not a loop block, so the
+// `elsif`-family kind is the honest one and the `Conditional` canon arm emits
+// `KEYWORD (COND) BLOCK` already.
+//
+//	$ perl -e 'use feature "switch"; no warnings; given (1) { last }'
+//	Can't "last" outside a loop block
+func (p *parser) parseSwitch(word lexer.Token) *Node {
+	text := p.text(word)
+
+	// `default` takes NO parens at all, so its block is the very next token.
+	// The other two take a parenthesised argument first.
+	if text == "default" {
+		if next, ok := p.peekAfter(word); !ok || !next.OpensBlock || p.text(next) != "{" {
+			return nil
+		}
+		p.advanceTo(word)
+		n := &Node{Kind: Conditional, Text: text, Start: word.Start}
+		if blk := p.parseBlockOrDecline(); blk != nil {
+			n.Children = append(n.Children, blk)
+		}
+		n.End = p.prevEnd()
+		return n
+	}
+
+	if next, ok := p.peekAfter(word); !ok || p.text(next) != "(" {
+		return nil
+	}
+
+	// Speculate over the head and REWIND if no block follows it, because a
+	// `(` is not enough to tell the keyword from the sub call. `if` and
+	// `while` can commit on their keyword alone -- nothing else spells them --
+	// but `given(1)` with no block is a call perl accepts, and committing here
+	// turned it into a Conditional with a condition and no body: a tree that
+	// is not a parse of its source, which is the guess the plan forbids.
+	//
+	// A rewind rather than a balanced-paren lookahead because the head is an
+	// arbitrary expression -- `when (@list[0..2])` nests three bracket kinds --
+	// and parseExpr is the thing that already knows where it ends. The same
+	// save/restore parseLabels uses, for the same reason.
+	save := p.pos
+	p.advanceTo(word)
+	n := &Node{Kind: Conditional, Text: text, Start: word.Start}
+
+	// `when`'s argument is an ORDINARY expression, not a shape of its own.
+	// The smartmatch that interprets it is runtime semantics; syntactically a
+	// list, a regex and a slice are all just expressions. All compile on
+	// 5.42.0:
+	//
+	//	when ([1,2,3]) {...}      when (/24/) {...}     when (@list[0..2]) {...}
+	//
+	// so parseParenCondition -- the same head `if` and `while` get -- reads
+	// every spelling and no smartmatch-specific rule is needed.
+	if cond := p.parseParenCondition(); cond != nil {
+		n.Children = append(n.Children, cond)
+	}
+
+	blk := p.parseBlockOrDecline()
+	if blk == nil {
+		p.pos = save
+		return nil
+	}
+	n.Children = append(n.Children, blk)
+	n.End = p.prevEnd()
+	return n
 }
 
 // parseLoopControl: `last`, `next`, `redo`, each with an optional label.
