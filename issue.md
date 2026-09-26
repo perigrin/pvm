@@ -3,10 +3,8 @@ title: A parenthesised and/or/xor refuses, and the bare form is a different prog
 state: pending
 urgency: normal
 milestone: corpus-covers-t2
-blocked_by:
-- 01a0dba9-b2c1-7d3e-94a2-f56aa62e1906
 created: 2026-09-26T04:10:38.190903837Z
-updated: 2026-09-26T04:11:43.388242106Z
+updated: 2026-09-26T04:14:44.051798242Z
 ---
 
 `($a and $b)` refuses with `not_a_term`, and so do `or` and `xor`. The
