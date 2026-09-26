@@ -1,21 +1,51 @@
 ---
 title: Ungated defer is declined as a statement form the parser can already read
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
 - 01a0dde4-7e56-7338-81c2-f6670cccbb16
 created: 2026-09-23T23:08:33.884597854Z
-updated: 2026-09-26T13:25:51.215199806Z
+updated: 2026-09-26T15:47:37.830687536Z
 sessions:
 - start_sha: 5c84df85b7059abba4a396b055608d6900306f62
-  end_sha: ""
-  commits: 0
+  end_sha: 3c0ac58c338f1b2269d264430e141346d1d45b02
+  commits: 5
   started_at: 2026-09-26T12:53:13.691758691Z
+  ended_at: 2026-09-26T15:47:37.830687536Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-26T12:53:13.691758691Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-26T15:47:37.830687536Z
+observed_paths:
+- conformance/mdtest/read-position.md
+- conformance/mdtest/ungated.md
+- internal/conformance/conformance_test.go
+- internal/conformance/ratchet_test.go
+- internal/conformance/testdata/corpus.ratchet
+- internal/lexer/brackets.go
+- internal/lexer/expect.go
+- internal/lexer/intuit.go
+- internal/lexer/keyword.go
+- internal/lexer/lexer.go
+- internal/lexer/scan.go
+- internal/lexer/trivia_test.go
+- internal/parse/call.go
+- internal/parse/canon.go
+- internal/parse/canon_test.go
+- internal/parse/control.go
+- internal/parse/fidelity.go
+- internal/parse/parse.go
+- internal/parse/shape.go
+- internal/parse/t2_test.go
+- internal/parse/testdata/t1.ratchet
+- internal/parse/testdata/t1canon.ratchet
+- internal/parse/testdata/t1fidelity.ratchet
+- internal/parse/use_test.go
+- internal/parse/wordblock_test.go
 ---
 
 **Re-measured 2026-09-26, and the diagnosis below has changed. This was filed
