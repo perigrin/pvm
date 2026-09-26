@@ -1,0 +1,145 @@
+---
+title: atan2 and fc are in no arity table, so a parenless call drops its arguments at Unknown=0
+state: pending
+urgency: normal
+milestone: perl-git-t-parses
+created: 2026-09-26T20:39:01.402801113Z
+updated: 2026-09-26T20:39:01.402801113Z
+---
+
+`atan2` and `fc` are in none of the three parse arity tables, so a parenless
+call to either DROPS ITS ARGUMENTS and scores Unknown=0. The arguments become a
+separate statement.
+
+Found by bucketing the first Unknown of every dirty file at `35549df0`, then
+isolating the four tail shapes that looked like one cause.
+
+## Measured at `35549df0`
+
+    source                          U   canon
+    my $d = atan2 $var, 1 ;         0   my $d = atan2();$var , 1;
+    my $c = ord fc $char;           0   my $c = ord(fc());$char;
+
+Both score ZERO and both are wrong. `atan2()` takes no arguments and `$var , 1`
+becomes a statement of its own -- the argument list is detached, not refused.
+
+Perl reads both as ordinary calls:
+
+    perl -MO=Deparse -e 'my $var=1; my $d = atan2 $var, 1;'
+      ->  my $d = atan2($var, 1);
+
+    perl -MO=Deparse -e 'my $x = atan2 1, 2;'
+      ->  my $x = 0.46364760900080609352;      constant-folded, so BOTH args were taken
+
+That is the seventh zero-Unknown-and-wrong finding in this repo, and the third
+where canon is the only instrument that could see it.
+
+## The boundary, measured over 48 builtins
+
+Exactly two are affected. Probing every two-argument builtin parenless
+(`my $z = NAME $a, $b;`) and every named unary (`my $z = NAME $a;`), and
+looking for the signature `NAME();` in the canon:
+
+    1 of 33 two-arg builtins drop their arguments:   atan2
+    1 of 15 one-arg builtins drop its argument:      fc
+
+`index`, `sprintf`, `join`, `crypt`, `vec`, `substr`, `push`, `sort`, `grep`,
+`map`, `die`, `warn`, `printf`, `open`, `pack`, `unpack`, `seek`, `reverse`,
+`rename`, `symlink`, `kill`, `waitpid`, `chmod`, `chown`, `utime`, `link`,
+`bind`, `connect`, `split`, `rindex`, `unshift` are all CORRECT, as are `ord`,
+`uc`, `lc`, `chr`, `length`, `ref`, `defined`, `quotemeta`, `hex`, `oct`, `log`,
+`sqrt`, `int` and `abs`. So this is not a systemic arity problem: it is two
+names missing from two tables.
+
+## The cause is an absence, not a misclassification
+
+    internal/parse/keyword.go:40    namedUnary
+    internal/parse/keyword.go:73    listOperator
+    internal/parse/keyword.go:122   niladicParse
+
+`grep -n 'atan2\|"fc"' internal/parse/keyword.go` finds NOTHING. `atan2` belongs
+in `listOperator` beside `index`, `crypt` and `vec`, which are all two-argument
+builtins already tabled there. `fc` belongs in `namedUnary` beside `lc` and `uc`.
+
+`internal/lexer/keyword.go`'s `niladic` table is a separate thing and is
+CORRECT here -- its comment already says `fc` "takes arguments and drops out"
+under `use v5.38`, and `fc` is indeed absent from it. The lexer knew; the parser
+tables did not.
+
+## `fc` has a second, separate subtlety -- do NOT conflate them
+
+Unenabled, perl does not read `fc` as a builtin at all:
+
+    perl -MO=Deparse -e 'my $char="a"; my $c = ord fc $char;'
+      ->  my $c = ord $char->fc;                    a METHOD call
+
+    perl -MO=Deparse -e 'use feature "fc"; my $c = ord fc $char;'
+      ->  my $c = ord fc $char;                     the builtin
+
+So `fc` is feature-gated, exactly as `internal/lexer/keyword.go`'s comment
+describes for `say`, `state`, `class` and friends: an unenabled keyword is an
+ordinary bareword. Tabling `fc` unconditionally in `namedUnary` would make us
+disagree with perl on unfeatured source. Measure which behaviour the corpus
+needs before choosing; `atan2` carries no such gate and is the unambiguous half.
+
+## Reach
+
+Small, and that is the point. Two files in perl.git t/ have one of these as
+their FIRST failure (`$dummy = atan2 $var, 1 ;` at 11 nodes, and
+`$mod_cp = ord fc $char;` at 1). The value here is not the file count -- it is
+that a table nobody has audited produced a confident wrong tree, and the same
+audit finds anything else missing.
+
+The long tail is now the shape of this goal: at `35549df0` there are 229 dirty
+files across 170 DISTINCT first-failure shapes, with the two largest buckets
+(`)` at 28 files and `}` at 26) being cascade rather than cause. No single
+construct is worth a dedicated fix any more, so an audit that clears a CLASS is
+worth more than another one-construct issue.
+
+## Two of my own reach figures were measured wrong, again
+
+The same bucketing pass corrected two counts I filed from greps:
+
+    &$subref      filed 36 files, measured 7
+    $::{n} / %::  filed 58 files, measured 9
+
+And a bucket I nearly filed as "old `'` package separator, 33 files" was 1 file
+once the classifier stopped lumping every span containing a quote. `$main'a` IS
+still valid in 5.42 and silent (verified), but it is one file, not a cluster.
+Every reach figure in the design doc taken from `grep -l` should be read as an
+upper bound.
+
+## Scope
+
+1. Add `atan2` to `listOperator`. It is a two-argument builtin and the table
+   already holds every sibling.
+2. Decide `fc` deliberately: it is feature-gated, so tabling it changes how
+   UNFEATURED source parses. Perl reads unenabled `fc $x` as `$x->fc`. Either
+   match that (harder, needs feature state) or table it and record the
+   disagreement with a measurement.
+3. AUDIT the three tables against perl's own `regen/keywords.pl` rather than
+   fixing two names. The lexer's `niladic` table documents having been built
+   that way -- 251 keywords compiled one at a time -- and the parse tables carry
+   no such note. Anything else absent is another zero-Unknown wrong tree
+   waiting.
+4. A corpus case. It must assert the CANON or the token stream, since Unknown=0
+   passes today for both spellings.
+
+## Context
+
+- paths: `internal/parse/keyword.go:40` (`namedUnary`), `:73` (`listOperator`),
+  `:122` (`niladicParse`), `internal/parse/call.go:95` and `:115` (the
+  `n.Resolved` fall-through), `internal/lexer/keyword.go:34` (the `niladic`
+  table that is correct, and its provenance comment)
+- commands: `go test ./internal/parse/ -count=1`,
+  `go test ./internal/conformance/ -count=1`
+- related: `01a0de11` (lintOps sees op names, not flags -- the same
+  instrument-blindness), `01a0deeb` (this goal is gated by no ratchet)
+
+## Acceptance criteria
+
+- [ ] `atan2 $a, $b` parenless keeps both arguments (`go test ./internal/parse/ -run '^TestParenlessBuiltinArity$' -count=1 -v | grep -q '^--- PASS: TestParenlessBuiltinArity'`)
+- [ ] The canon of a parenless `atan2` holds no empty call (`go test ./internal/parse/ -run '^TestParenlessBuiltinArity$' -count=1 | grep -q '^ok'`)
+- [ ] The three parse arity tables are audited against perl's keyword list, with the result recorded (`grep -qiE 'regen/keywords|audited' internal/parse/keyword.go`)
+- [ ] REGRESSION GUARD, passes today: `index`, `sprintf` and `crypt` parenless still take both arguments (`go test ./internal/parse/ -count=1 | grep -q '^ok'`)
+- [ ] REGRESSION GUARD, passes today: the corpus stays complete (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
