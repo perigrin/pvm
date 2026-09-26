@@ -1,6 +1,6 @@
 ---
 title: A parenless call consumes its arguments, so its statement stops falling to Unknown
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
@@ -9,16 +9,20 @@ blocks:
 - 01a0c13f-c7d7-7d9c-9a85-60a59aa26bc0
 - 01a0c13f-e0e2-7b4f-a9d2-06f7edad1e7f
 created: 2026-09-20T23:55:53.237977507Z
-updated: 2026-09-26T11:10:54.478921907Z
+updated: 2026-09-26T11:11:03.406115611Z
 sessions:
 - start_sha: f178e76df654244563b62e3b3f68f49cdfef252b
-  end_sha: ""
+  end_sha: f178e76df654244563b62e3b3f68f49cdfef252b
   commits: 0
   started_at: 2026-09-26T11:10:54.478921907Z
+  ended_at: 2026-09-26T11:11:03.406115611Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-26T11:10:54.478921907Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-26T11:11:03.406115611Z
 ---
 
 The decision issue establishes WHICH route the `default:` arm of
