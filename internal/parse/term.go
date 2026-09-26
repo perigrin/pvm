@@ -377,7 +377,7 @@ func (p *parser) parseParenList(open lexer.Token) *Node {
 			//
 			// So the loop is resumed with the list in hand rather than
 			// restarted, and the closer is then taken by the code below.
-			if op, isOp := infix[p.text(next)]; isOp && op.BP <= bpBelowComma {
+			if p.atOperatorBelowComma() {
 				items = []*Node{p.parseInfix(p.finishList(items, open), 0)}
 				if c, ok := p.peekSignificant(); ok && p.text(c) == ")" {
 					p.advanceTo(c)
@@ -424,6 +424,32 @@ func (p *parser) finishList(items []*Node, open lexer.Token) *Node {
 	}
 }
 
+// commaList is the element list as ONE node, for a caller that must hand it
+// to parseInfix as a left operand.
+//
+// One element is itself: `[$a and $b]` has a single `$a` on the operator's
+// left, and Concise shows no list op there at all. Several become a List,
+// which is the same node parseParenList's finishList builds -- but without
+// its Paren flag, because a bracket is not a paren and the two rules that
+// turn on the flag (§4.10's `("a") x 3`, §4.12.2's list-vs-scalar context)
+// do not apply to a constructor.
+//
+// An empty list cannot reach parseInfix as a left operand, so the caller is
+// told to leave the operator alone -- `[and $b]` is a syntax error in perl and
+// inventing an operand for it would be a worse tree than declining.
+func (p *parser) commaList(items []*Node) *Node {
+	if len(items) == 0 {
+		return nil
+	}
+	if len(items) == 1 {
+		return items[0]
+	}
+	return &Node{
+		Kind: List, Start: items[0].Start, End: p.prevEnd(),
+		Children: items,
+	}
+}
+
 // parseBracketed: `[...]` and `{...}` in term position.
 func (p *parser) parseBracketed(open lexer.Token, closer string, kind Kind) *Node {
 	p.advanceTo(open)
@@ -461,6 +487,38 @@ func (p *parser) parseBracketed(open lexer.Token, closer string, kind Kind) *Nod
 			p.advanceTo(next)
 			return &Node{Kind: kind, Start: open.Start, End: p.prevEnd(), Children: items}
 		default:
+			// The same resume parseParenList's default arm describes, and for
+			// the same reason: a bracket holds a full `expr`, not a comma
+			// list, so the three word operators below the comma stop the
+			// element loop and take what it built as their LEFT operand.
+			// Measured on perl 5.42.0:
+			//
+			//	$ perl -MO=Deparse -e 'my $y = [1, 2 and 3];'
+			//	my $y = [('???', 2) && 3];
+			//
+			// Without it the operand ESCAPED the bracket -- `[$a and $b]`
+			// gave `(and (my $y [$a]) $b)`, a tree in which `and` sits above
+			// the declaration with a one-element arrayref on its left. The
+			// source has both operands inside the brackets, so that was not
+			// a parse of it.
+			//
+			// The left operand is the ELEMENT LIST, not a nested constructor:
+			// Concise shows one `anonlist` for the whole `[...]` with the
+			// `and` inside it, over a plain `list` op.
+			//
+			//	9  <@> anonlist sK*/1
+			//	7     <|> and(other->8) lK/1
+			//	6        <@> list sK
+			//	8        <$> const[IV 3] s
+			//
+			// So the resume hands parseInfix the items assembled so far and
+			// the single result becomes the constructor's only element.
+			if left := p.commaList(items); left != nil && p.atOperatorBelowComma() {
+				items = []*Node{p.parseInfix(left, 0)}
+				if c, ok := p.peekSignificant(); ok && p.text(c) == closer {
+					p.advanceTo(c)
+				}
+			}
 			return &Node{Kind: kind, Start: open.Start, End: p.prevEnd(), Children: items}
 		}
 	}
