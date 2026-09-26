@@ -1,10 +1,14 @@
 ---
 title: The corpus has no parenless call with an argument, which is T2's largest bucket
-state: pending
+state: cancelled
 urgency: normal
 milestone: corpus-covers-t2
 created: 2026-09-26T02:06:40.108445691Z
-updated: 2026-09-26T02:48:50.995454394Z
+updated: 2026-09-26T02:49:06.527416046Z
+transitions:
+- state: cancelled
+  actor: human:git-zhi
+  timestamp: 2026-09-26T02:49:06.527416046Z
 ---
 
 **CLOSED BY CHAIN-REVIEW, 2026-09-26. The work already exists; this issue
