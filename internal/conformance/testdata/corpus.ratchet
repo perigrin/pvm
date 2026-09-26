@@ -8,7 +8,7 @@
 # topic's `**Tier NN name.**` line and leaves every key alone. That
 # is the `t/` sweep working, and must not read as a regression.
 #
-# 213 cases, 212 clean, 1 refusing.
+# 216 cases, 215 clean, 1 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -184,6 +184,9 @@
 - range.md/The numeric list range
 - range.md/The string range counts by magic increment
 - range.md/`..` in scalar context is stateful
+- read-position.md/A read between the `tr///` and its count
+- read-position.md/Both reads in one statement
+- read-position.md/The same read between an `s///` and its count
 - regex-delimiters.md/A bracketing delimiter nests
 - regex-delimiters.md/Bracketing and punctuation delimiters
 - regex-delimiters.md/The comment character as a delimiter
