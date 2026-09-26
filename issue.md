@@ -1,19 +1,45 @@
 ---
 title: "A leading :: names main, and 84 files spell a call that way"
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T16:40:48.477005613Z
-updated: 2026-09-26T20:20:04.799947942Z
+updated: 2026-09-26T21:21:17.240315627Z
 sessions:
 - start_sha: 35549df071251a93f9c8da38980b8285311d7531
-  end_sha: ""
-  commits: 0
+  end_sha: 2257e08ee261e0a0303f9201d0210d81f034b326
+  commits: 2
   started_at: 2026-09-26T20:20:04.799947942Z
+  ended_at: 2026-09-26T21:21:17.240315627Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-26T20:20:04.799947942Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-26T21:21:17.240315627Z
+observed_paths:
+- conformance/07_subroutines/README.md
+- conformance/mdtest/subroutines.md
+- docs/plans/2026-09-26-perl-git-t-parses.md
+- internal/conformance/testdata/corpus.ratchet
+- internal/lexer/lexer.go
+- internal/lexer/proto.go
+- internal/parse/canon.go
+- internal/parse/canon_test.go
+- internal/parse/decl.go
+- internal/parse/fidelity_test.go
+- internal/parse/parse.go
+- internal/parse/perlgitt_test.go
+- internal/parse/ratchet_test.go
+- internal/parse/subattr_test.go
+- internal/parse/t2_test.go
+- internal/parse/term.go
+- internal/parse/testdata/perlgitt.ratchet
+- internal/parse/testdata/t1.ratchet
+- internal/parse/testdata/t1canon.ratchet
+- internal/parse/testdata/t1fidelity.ratchet
+- internal/parse/use.go
 ---
 
 A call written with a leading `::` -- `::ok(1)`, the `main::` shorthand --
