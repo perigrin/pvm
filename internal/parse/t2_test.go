@@ -224,7 +224,13 @@ func TestT2CoreParses(t *testing.T) {
 		// cmd/subval.t and comp/package_block.t left the map entirely with
 		// the `startsTerm` fix -- they parse cleanly now, which is what
 		// removal from this map means.
-		"cmd/mod.t": 1, "cmd/switch.t": 2,
+		//
+		// cmd/switch.t 2 -> 0 with `continue BLOCK` (issue 01a0ded4), and it
+		// left the map too. Both of its refusals were the two `continue {`
+		// blocks at lines 15 and 35, each after a `while`, which is the one
+		// construct the file's Unknowns were. It moved the T2 core's own count
+		// 22 -> 23 of 56, measured either side of the change.
+		"cmd/mod.t": 1,
 		// comp/colon.t 25 -> 0 and opbasic/magic_phase.t 7 -> 0 with the
 		// in-file `sub NAME` declaration (issue 01a0c13f). Both left the map
 		// entirely. Each declares its own `sub ok` and calls it without
