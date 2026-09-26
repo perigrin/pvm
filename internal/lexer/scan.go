@@ -599,6 +599,108 @@ func scanAngle(l *lexer) bool {
 	return true
 }
 
+// fileTests are the 27 letters that make `-X` a file-test operator.
+//
+// perl returns UNIOP for them (toke.c:6255-6261 FTST), so they bind exactly
+// like a named unary. The set was measured rather than transcribed: a letter
+// is a filetest iff `my $v = -L $f;` compiles to an `ft*` op.
+//
+//	$ perl -MO=Concise -e 'my $f="/etc"; my $v = -o $f;'   fteowned
+//	$ perl -MO=Concise -e 'my $f="/etc"; my $v = -n $f;'   method_named "n"
+//
+// The 25 letters Deparse renders back as `-L $f`, plus `o` and `O`, which are
+// filetests that Deparse spells `-O` for both. `a h i j m n q v y` and the
+// remaining capitals are NOT in the family, and `-n $f` is the shape they all
+// take: negate applied to a method call.
+var fileTests = map[byte]bool{
+	'e': true, 'f': true, 'd': true, 'r': true, 'w': true, 'x': true,
+	's': true, 'z': true, 'l': true, 'p': true, 'S': true, 'b': true,
+	'c': true, 't': true, 'u': true, 'g': true, 'k': true, 'T': true,
+	'B': true, 'A': true, 'M': true, 'C': true, 'o': true, 'R': true,
+	'W': true, 'X': true, 'O': true,
+}
+
+// IsFileTest reports whether text is a whole file-test operator, `-e` and the
+// rest of the 27.
+//
+// Exported because the parser needs the same answer and this is where the
+// table lives: two copies of a 27-entry set is two things to keep in step.
+func IsFileTest(text string) bool {
+	return len(text) == 2 && text[0] == '-' && fileTests[text[1]]
+}
+
+// scanFileTest lexes `-e`, `-d`, `-M` and the rest of the family as ONE
+// operator whose text includes the minus.
+//
+// perlop's named-unary level holds the whole family, so this is one rule for
+// 27 spellings. Before it existed the lexer emitted `Operator(-) Word(e)` and
+// left the minus undecided -- and a bare `-` in front of a word has not said
+// which of perl's three readings it meant.
+//
+// THE EXPECT STATE IS NOT THE GUARD, which is where this differs from
+// `takeRepeatAssign`. There is no subtraction reading to protect: measured
+// 5.42.0, a filetest where a term has already been read is a SYNTAX ERROR,
+// not a minus.
+//
+//	$ perl -e 'my $x = 1 -e "/etc";'   syntax error at -e line 1, near "1 -e "
+//	$ perl -e 'my ($a,$b); $a-e$b;'    syntax error at -e line 1, near "$a-e"
+//
+// perl formed `-e` in both and then had nowhere to put it. The one spelling
+// that compiles does so only because `print` takes an indirect filehandle,
+// and the `-e` is STILL one operator there:
+//
+//	$ perl -MO=Concise -e 'my ($a,$b); print $a -e $b;'
+//	  rv2gv <- $a        $a is the filehandle
+//	  ftis  <- $b        and `-e $b` the filetest
+//
+// So the scanner claims `-X` wherever it appears and never consults
+// `l.expect`. Three boundaries decide it instead, each measured:
+//
+// EXACTLY ONE LETTER, not the head of a longer word. `-e1` and `-ee` deparse
+// as `-$f->e1` and `-$f->ee`, method calls on a negated scalar, and `-exists`
+// is the builtin `exists` negated. So the letter must not be followed by an
+// identifier byte.
+//
+// ADJACENT, with no space. This is the sharpest one, because all the bytes of
+// a filetest are present:
+//
+//	$ perl -MO=Deparse -e 'my $f="/etc"; print - e $f;'
+//	print -$f->e;
+//
+// NOT IN FRONT OF A FAT COMMA. `-bareword` is the string `"-bareword"`, and
+// that reading survives when the bareword is a filetest letter:
+//
+//	$ perl -MO=Deparse -e 'my $x = { -e => 1 };'
+//	my $x = {'-e', 1};
+//
+// which is why the `=>` lookahead is here and not in the parser. It is the
+// one place a following token, rather than the two bytes themselves, decides.
+//
+// An absent operand needs no rule: `$_="/etc"; print -e;` deparses as
+// `print -e $_`, so the operator is whole with nothing after it.
+func scanFileTest(l *lexer) bool {
+	if l.src[l.pos] != '-' || l.pos+1 >= len(l.src) {
+		return false
+	}
+	if !fileTests[l.src[l.pos+1]] {
+		return false
+	}
+	// One letter only: a longer word is a method name, not a filetest.
+	after := l.pos + 2
+	if after < len(l.src) && isWordByte(l.src[after]) {
+		return false
+	}
+	// `-e => 1` autoquotes the whole thing as a string key.
+	if sep := skipSpaceFrom(l.src, after); sep+1 < len(l.src) &&
+		l.src[sep] == '=' && l.src[sep+1] == '>' {
+		return false
+	}
+	start := l.pos
+	l.pos = after
+	l.emit(Operator, start)
+	return true
+}
+
 // scanAmp lexes `&` as a function sigil in term position.
 //
 // §0.13 rank 7, 3 corpus files. Spec §3.2's `&` row: operator position yields

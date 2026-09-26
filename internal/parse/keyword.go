@@ -119,12 +119,7 @@ var niladicParse = map[string]bool{
 	"endprotoent": true, "endpwent": true, "endservent": true,
 }
 
-// fileTests are the `-e`, `-f`, `-d` family. perl returns UNIOP for them
-// (toke.c:6255-6261 FTST), so they bind exactly like a named unary.
-var fileTests = map[byte]bool{
-	'e': true, 'f': true, 'd': true, 'r': true, 'w': true, 'x': true,
-	's': true, 'z': true, 'l': true, 'p': true, 'S': true, 'b': true,
-	'c': true, 't': true, 'u': true, 'g': true, 'k': true, 'T': true,
-	'B': true, 'A': true, 'M': true, 'C': true, 'o': true, 'R': true,
-	'W': true, 'X': true, 'O': true,
-}
+// The `-e`, `-f`, `-d` family lives in `internal/lexer`, which forms each of
+// them as ONE operator token and answers `lexer.IsFileTest`. perl returns
+// UNIOP for them (toke.c:6255-6261 FTST), so they bind exactly like a named
+// unary, and `parseTerm` reads them at `bpNamedUnary` for that reason.

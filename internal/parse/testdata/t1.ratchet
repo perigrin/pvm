@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 493 clean (50.0%), 2280 total.
+# 986 files, 494 clean (50.1%), 2277 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -304,7 +304,7 @@
 0 fileno_reserved_recycle.t
 10 filespec_catpath.t
 0 filespec_tmpdir_env.t
-1 filetest_anonymous_tmpfile.t
+0 filetest_anonymous_tmpfile.t
 0 flipflop.t
 0 flock_reassigned_handle.t
 5 for_loop_test.t
@@ -463,7 +463,7 @@
 5 makemaker_bundled_empty_pm.t
 3 makemaker_configure_callback.t
 1 makemaker_empty_pm_to_blib.t
-7 makemaker_exe_files.t
+6 makemaker_exe_files.t
 9 makemaker_generated_pm_dependency.t
 4 makemaker_ignores_test_helpers.t
 3 makemaker_ignores_test_packages.t
@@ -581,7 +581,7 @@
 20 perlio_via.t
 0 pipe_close_status.t
 6 pipe_jperl_shebang.t
-3 plack_runtime_regressions.t
+2 plack_runtime_regressions.t
 0 pod.t
 0 posix_c99_math.t
 0 posix_default_math_exports.t

@@ -393,7 +393,7 @@
     0 op/svleak.t
     0 op/switch.t
     0 op/symbolcache.t
-    1 op/sysio.t
+    0 op/sysio.t
     0 op/taint.t
     0 op/threads-dirh.t
     0 op/threads.t
@@ -444,7 +444,7 @@
     0 porting/checkcase.t
     0 porting/checkcfgvar.t
     0 porting/cmp_version.t
-    1 porting/copyright.t
+    0 porting/copyright.t
     0 porting/corelist.t
     0 porting/cpphdrcheck.t
     0 porting/customized.t

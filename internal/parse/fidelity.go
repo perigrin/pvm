@@ -130,9 +130,19 @@ func equalTokens(a, b []string) bool {
 
 // isName reports whether a token could be a call's name -- the only place
 // the forgiven paren may appear.
+//
+// A leading letter or underscore covers every named call, and a file test is
+// the one call whose name begins with punctuation: `-e` is ONE operator token
+// whose text includes the minus, and canon emits it with the same parens it
+// gives `length`. Without this clause `-e $f` emitted as `-e($f)` failed the
+// forgiveness that `length $x` emitted as `length($x)` receives, which is a
+// difference in the spelling of the name and not in the tree.
 func isName(tok string) bool {
 	if tok == "" {
 		return false
+	}
+	if lexer.IsFileTest(tok) {
+		return true
 	}
 	c := tok[0]
 	return c == '_' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')

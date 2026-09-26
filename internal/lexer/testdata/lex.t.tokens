@@ -2961,8 +2961,7 @@ Whitespace    12556  12557  \n
 Number        12557  12558  0
 Operator      12558  12559  -
 Number        12559  12561  5x
-Operator      12561  12562  -
-Word          12562  12563  l
+Operator      12561  12563  -l
 Operator      12563  12564  {
 Number        12564  12565  0
 CloseBracket  12565  12566  }
