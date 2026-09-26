@@ -1,4 +1,4 @@
-// ABOUTME: delete, exists, goto and do FILE: four keywords absent from the table, so four Unknowns.
+// ABOUTME: delete, exists, goto, do FILE and undef: keywords absent from the table, so Unknowns.
 // ABOUTME: Each is a named unary by parse shape; what it accepts as an argument is a later milestone's.
 
 package parse_test
@@ -106,6 +106,7 @@ func TestKeywordGapsConsumeExactlyTheirArguments(t *testing.T) {
 		"exists $h{k};\nmy $after = 1;\n",
 		"goto &foo;\nmy $after = 1;\n",
 		"do 'f.pl';\nmy $after = 1;\n",
+		"undef @a;\nmy $after = 1;\n",
 	} {
 		root := parse.Parse([]byte(src))
 		if containsKind(root, parse.Unknown) {
@@ -137,13 +138,55 @@ func TestKeywordsAreStillIdentifiers(t *testing.T) {
 		`my $x = $h{exists};`,
 		`my $x = $h{goto};`,
 		`my $x = $h{do};`,
+		`my $x = $h{undef};`,
 		`f(delete => 1);`,
 		`my %h = (exists => 1, goto => 2);`,
+		`my %h = (undef => 1);`,
 	} {
 		root := parse.Parse([]byte(src))
 		if containsKind(root, parse.Unknown) {
 			t.Errorf("%q: a keyword used as an identifier must parse: %v",
 				src, kinds(root))
+		}
+	}
+}
+
+// TestUndefIsANamedUnary: `undef` is two operators wearing one word, and only
+// the niladic one parsed.
+//
+// Classified by the method `keyword.go` documents, on 5.42.0:
+//
+//	undef $x, $y    (undef($x), $y)     the comma is OUTSIDE  -> named unary
+//	length $x, $y   (length($x), $y)    the known-unary control
+//	print $x, $y    print($x, $y)       the known-list control
+//
+// The niladic spelling -- `undef;`, `my $y = undef;` -- already parsed, because
+// a word with nothing to take needs no table entry; `endsArgumentList` sees the
+// `;` or the `,` and the call takes no argument. It is the spelling WITH an
+// argument that had none, and every container sigil paid for it.
+func TestUndefIsANamedUnary(t *testing.T) {
+	for _, src := range []string{
+		`undef @a;`,
+		`undef $x;`,
+		`undef %h;`,
+		`undef $h{k};`,
+		`my @a=(1,2); undef @a;`,
+		`undef $x, $y;`,
+		// The niladic spelling, which parsed before this and must keep doing so.
+		`undef;`,
+		`my $y = undef;`,
+		`my @b=(1,2); @b = undef;`,
+		// The paren cliff, §4.8.1. `undef` must take it like every other named
+		// unary rather than handing `($x)` to parseExpr: that route makes the
+		// parens a CHILD and canon then writes its own, one more pair per pass,
+		// which is a fixpoint bug rather than a cosmetic one. The file-test
+		// operators were caught by exactly that at 3ef0ae20.
+		`undef($x);`,
+		`undef(@a);`,
+	} {
+		root := parse.Parse([]byte(src))
+		if containsKind(root, parse.Unknown) {
+			t.Errorf("%q must parse: %v", src, kinds(root))
 		}
 	}
 }

@@ -275,7 +275,12 @@ func TestClassCorpusRatchet(t *testing.T) {
 	// opener sits in. Three Unknowns, one each in `method.t`, `inherit.t`
 	// and `gh22169.t` -- measured, and the same three the T2 shortfall map
 	// dropped in this commit.
-	const want = 40
+	//
+	// 40 -> 38 when `undef` joined `namedUnary` (issue 01a0dd43). Both
+	// nodes are in `destruct.t`, which writes `undef $notifier;` and
+	// `undef $obj;` and nothing else this change reaches -- the T2
+	// shortfall map records the same file falling 7 -> 5, the same two.
+	const want = 38
 	if unknown != want {
 		t.Errorf("t/class holds %d Unknown nodes, want %d: update this pin in "+
 			"the same commit as the change that moved it", unknown, want)

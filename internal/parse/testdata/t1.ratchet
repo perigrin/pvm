@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 506 clean (51.3%), 2245 total.
+# 986 files, 523 clean (53.0%), 2188 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -50,10 +50,10 @@
 0 bitwise_string.t
 0 bitwise_string_byte_flags.t
 7 bitwise_string_feature.t
-2 bless_existing_scalar_ref_destroy.t
+0 bless_existing_scalar_ref_destroy.t
 0 blessed_code_isa.t
-3 blessed_glob_destroy_lifetime.t
-5 blessed_self_cycle.t
+2 blessed_glob_destroy_lifetime.t
+4 blessed_self_cycle.t
 0 boolean_bitwise_xor.t
 6 borrowed_filehandle_alias.t
 1 builtin_export_lexically.t
@@ -141,7 +141,7 @@
 1 core_subroutine_refs.t
 5 cpan_bundled_io_shadowing.t
 6 cpan_bundled_providers.t
-17 cpan_ceph_tie_runtime.t
+14 cpan_ceph_tie_runtime.t
 5 cpan_dependency_script_path.t
 3 cpan_distroprefs_amazon_dynamodb_match.t
 3 cpan_distroprefs_class_dbi_match.t
@@ -207,7 +207,7 @@
 2 dbi_sqlite_uri_connections.t
 2 dbi_storable_bytes.t
 0 dbi_threads_runtime_ownership.t
-15 dbic_deep_cycle_weak_shift_regression.t
+13 dbic_deep_cycle_weak_shift_regression.t
 5 dbic_quiet_registry_destroy_handoff_regression.t
 1 default_feature_bundle.t
 17 defer.t
@@ -218,7 +218,7 @@
 9 demo.t
 7 dereference_syntax.t
 14 destroy.t
-5 destroy_columnvalue_owner.t
+4 destroy_columnvalue_owner.t
 0 destroy_zombie_captured_by_db_args.t
 3 devel_cycle.t
 0 devel_lexalias_padwalker.t
@@ -234,12 +234,12 @@
 9 digest_sha.t
 1 digest_sha1_compat.t
 0 direct_builtin_data_handle.t
-2 directory.t
+1 directory.t
 0 do_block_freetmps_fresh_result.t
 1 do_modern_syntax_and_copy.t
 0 do_quote_like_file_operand.t
 0 do_subref_parenthesized_syntax.t
-1 double_diamond_closed_stdin.t
+0 double_diamond_closed_stdin.t
 0 dynaloader_load_flags.t
 0 dynamic_constant_sub_inlining.t
 0 dynamic_glob_code_replace.t
@@ -296,7 +296,7 @@
 1 file_path_rmtree_options.t
 0 file_temp_handle_methods.t
 0 file_temp_missing_parent.t
-3 file_temp_path_wrapper_lifetime.t
+2 file_temp_path_wrapper_lifetime.t
 0 file_temp_scalar_deref.t
 0 file_temp_stat_mode.t
 0 file_temp_warnif_regression.t
@@ -379,7 +379,7 @@
 0 integer_pragma_word_arithmetic.t
 0 interpreter_begin_eval_utf8_scope.t
 1 interpreter_capture_assignment_regressions.t
-8 interpreter_chained_method_invocant_lifetime.t
+7 interpreter_chained_method_invocant_lifetime.t
 1 interpreter_code_reference_validation.t
 0 interpreter_coderef_does_not_load_module.t
 0 interpreter_compound_assign_list_rhs.t
@@ -393,7 +393,7 @@
 6 interpreter_labeled_next_continue_block.t
 0 interpreter_local_hash_slice_coderef_method.t
 0 interpreter_myhash_myarray_scope_exit.t
-2 interpreter_nested_factory_array_lifetime.t
+0 interpreter_nested_factory_array_lifetime.t
 4 interpreter_next_inside_foreach_continue.t
 0 interpreter_overloaded_bitwise_not_scalar_context.t
 0 interpreter_parenthesized_local_hash_element.t
@@ -401,7 +401,7 @@
 0 interpreter_scalar_ref_assignment.t
 0 interpreter_short_circuit_rhs_lexical.t
 6 io_captureoutput_regressions.t
-11 io_compress_regressions.t
+10 io_compress_regressions.t
 0 io_file_autoload.t
 8 io_flock.t
 0 io_handle_error.t
@@ -426,7 +426,7 @@
 0 lazy_sub_verification_side_effects.t
 3 leading_colon_bareword_call.t
 0 less_pragma.t
-1 lexical_reassignment_releases_old_reference.t
+0 lexical_reassignment_releases_old_reference.t
 0 lexical_redeclaration_pad_slot.t
 1 lexical_sub_prototype_method_invocant.t
 1 life_bitpacked_getopt.t
@@ -596,13 +596,13 @@
 0 postderef_expression_result.t
 0 postderef_interpolation.t
 8 pr694_core_regressions.t
-11 pr709_core_regressions.t
+10 pr709_core_regressions.t
 0 precedence.t
 4 print_bareword_filehandle.t
 2 print_indirect_method_postfix.t
 8 process_current_perl_argv.t
 3 process_pipe_postexit_drain.t
-1 prototype_after_watchdog.t
+0 prototype_after_watchdog.t
 0 prototype_backslash_typecheck.t
 0 prototype_caller_line.t
 4 prototype_trailing_comma_infix.t
@@ -673,8 +673,8 @@
 2 require_false_inc_cleanup.t
 1 require_module_return.t
 1 require_overloaded_die_stringification.t
-1 returned_blessed_container_nested_destroy.t
-1 returned_closure_captures.t
+0 returned_blessed_container_nested_destroy.t
+0 returned_closure_captures.t
 0 reverse_list_alias.t
 6 role_tiny_regressions.t
 0 safe_permit_only.t
@@ -684,7 +684,7 @@
 0 scalar_handle_tty_errno.t
 0 scalar_reference_code_destructor.t
 0 scalar_reference_container_lifetime.t
-9 scalar_watcher_java_xs.t
+8 scalar_watcher_java_xs.t
 3 sdbm_file_writeback.t
 0 select_interrupt_errno.t
 4 signatures.t
@@ -697,11 +697,11 @@
 0 socket_ni_namereqd.t
 0 socket_nonblocking_getpeername.t
 29 socket_options.t
-14 socket_scope_exit_eof.t
+7 socket_scope_exit_eof.t
 8 socket_unix_stream.t
 0 sort_localizes_package_ab.t
 0 sort_scalar_context.t
-2 source_anonymous_const_attribute.t
+1 source_anonymous_const_attribute.t
 0 source_filter_begin_install.t
 0 source_filter_caller_line.t
 0 source_filter_delete_oneshot.t
@@ -735,7 +735,7 @@
 16 storable.t
 0 storable_code_deparse.t
 0 storable_dclone_tied_scalar_element.t
-3 storable_dclone_weak_refs.t
+0 storable_dclone_weak_refs.t
 0 storable_tied_nested_refs.t
 0 storable_top_blessed_scalar_ref.t
 0 strict_subs_void_bareword.t
@@ -796,14 +796,14 @@
 0 threads_api_phase29.t
 0 threads_basic_unadvertised.t
 0 threads_captured_object_lifetime.t
-1 threads_cleared_weak_snapshot.t
+0 threads_cleared_weak_snapshot.t
 0 threads_clone_skip_no_autoload.t
 0 threads_compatibility_activation.t
 0 threads_cond_timedwait_deadline.t
 1 threads_condition_broadcast_stress.t
 0 threads_create_forms.t
-1 threads_destroy_method_return_rescue.t
-1 threads_destroy_weak_slot_rescue.t
+0 threads_destroy_method_return_rescue.t
+0 threads_destroy_weak_slot_rescue.t
 0 threads_detached_list.t
 0 threads_dynamic_code_array_state.t
 0 threads_end_block_ownership.t
@@ -835,7 +835,7 @@
 0 threads_shared_child_capture_release.t
 0 threads_shared_destructive_share.t
 1 threads_shared_fetch_proxy_lifetime.t
-5 threads_shared_final_destroy.t
+0 threads_shared_final_destroy.t
 0 threads_shared_graphs.t
 0 threads_shared_inactive_mode.t
 2 threads_shared_lexical_reassignment.t
@@ -858,11 +858,11 @@
 8 tie_void_context.t
 1 tied_array_constraint_short_circuit.t
 0 tied_array_delete_local.t
-2 tied_container_undef.t
-2 tied_handle_dup.t
-2 tied_hash_autoviv_refloop_cleanup.t
+0 tied_container_undef.t
+1 tied_handle_dup.t
+1 tied_hash_autoviv_refloop_cleanup.t
 0 tied_hash_destroy_release.t
-1 tied_hash_weak_owner_cleanup.t
+0 tied_hash_weak_owner_cleanup.t
 0 tied_isa_method_lookup.t
 1 tied_lvalue_sub_return.t
 0 tied_scalar_local_mutable_undef.t
@@ -887,9 +887,9 @@
 2 typeglob_print_dynamic_sub.t
 2 typeglob_redefine_warning.t
 0 typeglob_string_alias.t
-6 typeglob_undef_slot_semantics.t
+4 typeglob_undef_slot_semantics.t
 4 umask_restrictive.t
-9 undef_lvalue.t
+5 undef_lvalue.t
 0 undef_typeglob_sub.t
 0 unicode_gcstring_substr.t
 0 unicode_normalize_lowlevel.t
@@ -936,11 +936,11 @@
 1 weak_blessed_watcher_cycle.t
 0 weak_localized_cache_lifetime.t
 1 weak_self_retaining_closure_cycle.t
-1 weak_shift_retained.t
+0 weak_shift_retained.t
 0 weak_shift_temporary.t
 4 weaken.t
 2 weaken_probe_captured_lexical.t
-1 weaken_readonly_ref.t
+0 weaken_readonly_ref.t
 12 x_shebang_switch.t
 1 xml_libxml_external_dtd.t
 4 xml_libxml_get_attributes.t
@@ -959,7 +959,7 @@
 0 yaml_xs_utf8_octets.t
 0 zz_ampersand_postfix_deref.t
 0 zz_b_anonymous_cv_introspection.t
-2 zz_block_lexical_call_log_lifetime.t
+0 zz_block_lexical_call_log_lifetime.t
 0 zz_branch_reset_capture.t
 2 zz_caller_exported_alias.t
 0 zz_data_dumper_short_numeric_flags.t

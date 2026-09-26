@@ -649,15 +649,18 @@ func TestCorpusSkipsAreDocumented(t *testing.T) {
 	// never skips at all: a genuinely refusing file DOES skip, naming its
 	// refusal.
 	//
-	// `undef @a` rather than the `my $x = .5;` this used to carry, for
-	// the reason `TestRefusalCodeMismatchFails` records: the leading
-	// decimal stopped refusing under issue 01a0c13f-97f5, and a fixture
-	// whose premise is a refusal has to be replaced when the refusal is
-	// fixed. The issue cited is the one that still records this one.
+	// `defer` rather than the `undef @a;` this used to carry, which in
+	// turn replaced `my $x = .5;`, for the reason
+	// `TestRefusalCodeMismatchFails` records: a fixture whose premise is a
+	// refusal has to be replaced every time that refusal is fixed. The
+	// decimal stopped refusing under 01a0c13f-97f5 and the unary `undef`
+	// under 01a0dd43-bc9e, each caught by this assertion.
+	//
+	// The issue cited is the one that still records this one.
 	refusing := &File{
-		Source:       "my @a = (1,2); undef @a;\n",
+		Source:       "defer { print \"D\\n\" }\n",
 		ExpectParses: true,
-		Refuses:      "01a0c730-b241-7765-aaa2-5260d050dce9",
+		Refuses:      "01a0d087-28dd-711f-a0d5-54cb8515910c",
 	}
 	v := verdict(t, refusing)
 	if v.kind != knownRefusal {
@@ -833,21 +836,21 @@ func TestAbsentExpectedOutputSkipsCheck(t *testing.T) {
 // predate codes and must keep working; a code is an additional promise,
 // not a new requirement.
 func TestRefusalCodeMismatchFails(t *testing.T) {
-	// `undef @a`, the UNARY spelling, which our parser reads as a
-	// complete term followed by an array with no operator between. Valid
-	// perl -- measured, it empties the array and `scalar(@a)` is 0 -- so
-	// it reaches the parser rather than stopping at perl's adjudication.
+	// `defer`, the 5.36 block statement this parser has no statement form
+	// for. Valid perl -- measured on 5.42.0, the block runs on scope exit --
+	// so it reaches the parser rather than stopping at perl's adjudication.
 	//
-	// This replaced `my $x = .5;`, which stopped refusing when issue
+	// It is the THIRD fixture here, and each replacement is the fixture
+	// guarding itself: a test whose premise is that something refuses has
+	// to notice when it stops. `my $x = .5;` stopped refusing when
 	// 01a0c13f-97f5 taught the lexer that a `.` before a digit starts a
-	// number in term position. The `t.Fatalf` below is what reported
-	// that, which is the fixture guarding itself: a test whose premise is
-	// that something refuses has to notice when it stops.
+	// number in term position; `undef @a;` stopped when 01a0dd43-bc9e added
+	// `undef` to `parse.namedUnary`. The `t.Fatalf` below reported both.
 	//
 	// The code is READ from the parse rather than written here: which
 	// site declines it is the parser's business and may change, and a
 	// literal in this test would then assert the old answer.
-	const src = "my @a = (1,2); undef @a;\n"
+	const src = "defer { print \"D\\n\" }\n"
 
 	const wrong = parse.RefusalCode("missing_operand")
 
@@ -864,7 +867,7 @@ func TestRefusalCodeMismatchFails(t *testing.T) {
 		f := &File{
 			Source:       src,
 			ExpectParses: true,
-			Refuses:      "01a0c13f-97f5-7f98-b32d-07245ec6ddfe",
+			Refuses:      "01a0d087-28dd-711f-a0d5-54cb8515910c",
 			RefusalCode:  wrong,
 		}
 		v := verdict(t, f)
@@ -890,7 +893,7 @@ func TestRefusalCodeMismatchFails(t *testing.T) {
 		f := &File{
 			Source:       src,
 			ExpectParses: true,
-			Refuses:      "01a0c13f-97f5-7f98-b32d-07245ec6ddfe",
+			Refuses:      "01a0d087-28dd-711f-a0d5-54cb8515910c",
 			RefusalCode:  actual[0],
 		}
 		if v := verdict(t, f); v.kind != knownRefusal {
@@ -903,7 +906,7 @@ func TestRefusalCodeMismatchFails(t *testing.T) {
 		f := &File{
 			Source:       src,
 			ExpectParses: true,
-			Refuses:      "01a0c13f-97f5-7f98-b32d-07245ec6ddfe",
+			Refuses:      "01a0d087-28dd-711f-a0d5-54cb8515910c",
 		}
 		if v := verdict(t, f); v.kind != knownRefusal {
 			t.Errorf("verdict = %v, want knownRefusal: the seventeen files "+

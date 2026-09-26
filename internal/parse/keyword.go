@@ -17,17 +17,26 @@ package parse
 //
 // `-p` matters: without it Deparse omits the parens that carry the answer.
 //
-// 80 of them. The spec's §4.1 table lists a subset by hand; this is the whole
+// 81 of them. The spec's §4.1 table lists a subset by hand; this is the whole
 // set as perl 5.42 reports it.
 //
 // The count read 77 while the table held 76 -- an off-by-one that predates
-// the four added here (delete, do, exists, goto), counted rather than
-// assumed. Each of those four was classified by the method above:
+// the four added then (delete, do, exists, goto), counted rather than
+// assumed. Each of those four was classified by the method above, as was
+// `undef`, which the original sweep missed:
 //
 //	(delete $h{'a'}, $y)   comma outside  -> named unary
 //	(exists $h{'a'}, $y)   comma outside  -> named unary
 //	((goto $x), $y)        comma outside  -> named unary
 //	((do $x), $y)          comma outside  -> named unary
+//	(undef($x), $y)        comma outside  -> named unary
+//
+// `undef` is two operators wearing one word: the niladic one needed no entry
+// here, because a word with nothing to take is already a complete term, and
+// only the spelling WITH an argument refused. Declare a lexical first and perl
+// optimises the unary away -- `my $x; undef $x, $y` deparses to `($x = undef,
+// $y)`, no `undef(...)` in sight -- but the comma placement, which is the
+// classifier this method names, is the same either way.
 var namedUnary = map[string]bool{
 	"abs": true, "alarm": true, "caller": true, "chdir": true,
 	"chomp": true, "chop": true, "chr": true, "chroot": true,
@@ -49,7 +58,8 @@ var namedUnary = map[string]bool{
 	"shift": true, "sin": true, "sleep": true, "sqrt": true,
 	"srand": true, "stat": true, "study": true, "tell": true,
 	"telldir": true, "tied": true, "uc": true, "ucfirst": true,
-	"umask": true, "untie": true, "values": true, "write": true,
+	"umask": true, "undef": true, "untie": true, "values": true,
+	"write": true,
 
 	// `my` and `local` are named unaries in perly.y too (§4.6), but they are
 	// declarations here and parseDeclaration owns them. Listed in neither

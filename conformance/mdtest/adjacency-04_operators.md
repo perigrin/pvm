@@ -35,13 +35,19 @@ plan defers that deliberately and names where it goes.
 
 ## The whole tier in one body
 
-ONE Unknown node, `trailing_tokens`, and the refusal is the point: every
-construct here appears in a sibling case that PARSES, and only the
-mixture refuses. A one-case-per-construct corpus would have gone green
-over all of it.
+ZERO Unknown nodes, and the whole tier in one body is why this case is
+kept: every construct here also appears in a sibling case that parses on
+its own, and for three successive gaps the MIXTURE was the only thing
+that refused. A one-case-per-construct corpus would have gone green over
+all of it and seen none of them.
 
-It is `undef @cleared` -- the unary spelling our parser reads as a
-complete term with `@cleared` stranded after it.
+### The last of those gaps, and what closed it
+
+It was `undef @cleared` -- the unary spelling, which the parser read as a
+complete term with `@cleared` stranded after it, because `undef` was
+absent from `parse.namedUnary`. `01a0dd43` added the entry, classified by
+that table's own deparse method: `undef $x, $y` gives `(undef($x), $y)`,
+the comma outside, so it is a named unary.
 
 ### What this passage used to say, and why it was wrong three times
 
@@ -122,8 +128,6 @@ print "count [$count] tag [$tag] flag [$flag] group [$group] chain [$chain]\n";
 
 ```behavior
 parses: yes
-refuses: unfiled
-refusal: trailing_tokens
 ```
 
 ```output
