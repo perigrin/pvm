@@ -187,22 +187,63 @@ func (l *lexer) notePragma(start int) {
 // noteSignatures tracks whether the signatures feature is on, which decides
 // whether a `(` after `sub NAME` is a prototype or a signature.
 //
-// Three spellings turn it on, and all three appear in the corpus:
+// Four spellings turn it on, and the first three appear in the corpus:
 //
 //	use v5.36;            implied by the version bundle, 5.36+
 //	use 5.036;            the same bundle, numeric spelling
 //	use feature 'signatures';
+//	use feature ':5.36';  the feature bundle, 5.36+
+//
+// `no feature` is what turns it back OFF, in either spelling of its argument:
+//
+//	no feature 'signatures';
+//	no feature ':5.36';      the bundle, which NAMES signatures
+//
+// A VERSION ASSERTION IS NOT ONE OF THEM, and that is the asymmetry here.
+// `no v5.36` and `no 5.036` reach this function as the same Word/Quote shapes
+// that `use v5.36` does, but `no VERSION` demands perl be OLDER than that
+// version and touches no feature at all. Measured 5.42.0:
+//
+//	perl -e 'use v5.36; no v5.36;'
+//	  Perls since v5.36.0 too modern--this is v5.42.0, stopped at -e line 1.
+//	perl -MO=Deparse -e 'use v5.36; no 5.036;'
+//	  use feature ':5.36';        <- untouched
+//	  sub BEGIN { no 5.036; }
+//
+// So `use` and `no` are not mirror images: the version arms below turn the
+// feature ON under `use` and do NOTHING under `no`, while only the
+// quoted-feature arm has both directions. The `:5.36` bundle earns its false
+// path because perl expands it and names signatures in the expansion --
+// deparsing `no feature ":5.36"` prints `no feature 'current_sub', ...,
+// 'signatures', ...` -- so turning it off is perl's statement, not our
+// inference.
 //
 // File-level rather than lexically scoped, like utf8Pragma and for the same
 // reason: block scoping is reachable now that a brace stack exists, but it is
 // a behaviour change with its own corpus effect and belongs in its own commit.
+// File-level is enough for the case that found the missing false path:
+// `adjacency-07_subroutines` re-enables with `use feature "signatures"` on the
+// line after the sub, so the toggle is already written at file scope there.
+//
+// LIMITATION, recorded: a `no feature "signatures"` inside a block turns the
+// feature off for the rest of the FILE rather than the rest of the block. When
+// a corpus file does that, this is where scoping goes.
 func (l *lexer) noteSignatures(k Kind, start int) {
-	if l.pendingPragma != 1 {
+	if l.pendingPragma != 1 && l.pendingPragma != 2 {
 		return
 	}
 	text := string(l.src[start:l.pos])
+	// A version is a bundle only under `use`. Under `no` it is a version
+	// assertion about the running perl, which the docstring measures, so the
+	// Word and Number arms and the version half of the Quote arm are reached
+	// under `use` alone. One guard rather than four, because every assignment
+	// they make is `signatures = true` and none of them has a false path.
+	useSpelling := l.pendingPragma == 1
 	switch k {
 	case Word:
+		if !useSpelling {
+			return
+		}
 		// A version bundle DID NOT arrive as one token: `use v5.36;` lexed
 		// as Word("v5") Operator(".") Number(36), because `v5` is a valid
 		// identifier and the lexer had no reason to know better. So the
@@ -220,6 +261,9 @@ func (l *lexer) noteSignatures(k Kind, start int) {
 			l.signatures = true
 		}
 	case Number:
+		if !useSpelling {
+			return
+		}
 		// The minor half of a split `v5.36`, or a whole `use 5.036;`.
 		if l.pendingVersionMajor > 0 {
 			if l.pendingVersionMajor > 5 || (l.pendingVersionMajor == 5 && minorAtLeast(text, 36)) {
@@ -245,16 +289,41 @@ func (l *lexer) noteSignatures(k Kind, start int) {
 		// second dot, so `v5.42.0` needs no parser of its own. It reports
 		// ok=false for a quote that is not a version, which is how
 		// `use feature 'signatures'` below still reaches its own test.
+		//
+		// `no v5.36` reaches this arm with the SAME token shape, and it is a
+		// version assertion rather than a bundle, so the version half is
+		// `use`-only. Returning either way is what keeps a v-string from
+		// falling through to the feature-name test below.
 		if v, ok := versionAtLeast(text, 5, 36); ok {
-			if v {
+			if v && useSpelling {
 				l.signatures = true
 			}
 			return
 		}
 
-		// `use feature 'signatures';`
-		if containsWord(text, "signatures") {
-			l.signatures = true
+		// `use feature 'signatures';` and `no feature 'signatures';`. The
+		// only arm with both directions, and the shape is utf8's two cases
+		// above.
+		//
+		// A FEATURE BUNDLE -- `feature ':5.36'` -- is the same question asked
+		// with a version, and it reaches here rather than the version test
+		// above because `versionAtLeast` declines on the leading colon.
+		// `featureBundleHasSignatures` strips the colon and asks the same
+		// 5.36 threshold, which is the threshold perl uses. Measured 5.42.0,
+		// against the bundle either side of it:
+		//
+		//	use v5.36; no feature ":5.34"; sub g ($) {...} print g 1, 2
+		//	  Too many arguments ...      <- still a SIGNATURE, :5.34 has none
+		//	use v5.36; no feature ":5.36"; sub g ($) {...} print g 1, 2
+		//	  g[1]2                       <- a prototype again
+		//	use v5.36; no feature ":5.40"; ...  g[1]2
+		//
+		// The same boundary the version arms already encode, because a
+		// bundle IS the version's feature set: deparsing
+		// `no feature ":5.36"` prints an expansion naming `'signatures'`,
+		// and `use feature ":5.10"` prints only `'say', 'state', 'switch'`.
+		if containsWord(text, "signatures") || featureBundleHasSignatures(text) {
+			l.signatures = useSpelling
 		}
 	case Operator:
 		// The `.` between the halves; keep the pending major.
@@ -344,6 +413,34 @@ func versionAtLeast(text string, major, minor int) (bool, bool) {
 		return maj > major, true
 	}
 	return min >= minor, true
+}
+
+// featureBundleHasSignatures reports whether a quoted `feature` argument is a
+// version bundle whose feature set includes signatures.
+//
+// A bundle is a version behind a colon -- `':5.36'` -- so this reads off the
+// colon and hands the rest to versionAtLeast, which already knows the 5.36
+// threshold. Measured 5.42.0 (see the call site for the runs): `:5.34` does
+// not name signatures and `:5.36` and later do.
+//
+// The text still carries its quote delimiters, so the colon is at index 1 and
+// not index 0. It is required to be THERE rather than merely somewhere:
+// a feature name is `\w+` and a bundle is `:V.NN`, so a colon anywhere else
+// means the string is neither. Searching loosely made `"a:5.36"` a bundle,
+// which is not a thing perl accepts.
+func featureBundleHasSignatures(text string) bool {
+	if len(text) < 2 || text[1] != ':' {
+		return false
+	}
+	rest := text[2:]
+	// Stop at the closing delimiter, so `":5.36"` hands over `5.36` and not
+	// `5.36"`. versionAtLeast wants digits and dots only.
+	end := 0
+	for end < len(rest) && (rest[end] == '.' || (rest[end] >= '0' && rest[end] <= '9')) {
+		end++
+	}
+	ok, isVersion := versionAtLeast(rest[:end], 5, 36)
+	return isVersion && ok
 }
 
 // containsWord reports whether s holds word as a whole token, so that

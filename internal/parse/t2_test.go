@@ -179,8 +179,24 @@ func TestT2CoreParses(t *testing.T) {
 		// The two fixes are independent and compose: ADJUST closed the
 		// phaser shapes, `undef` the container spellings, and destruct.t
 		// holds both.
+		//
+		// class/method.t 8 -> 6 when `no feature "signatures"` began turning
+		// the feature off (issue 01a0dd6f). Both nodes are on line 33,
+		// `method retnamed ( :$named = 456 )`, inside the
+		// `no feature 'signatures'` block at line 28: the parens are a
+		// Prototype token now rather than a mis-lexed signature.
+		//
+		// That is NOT a tree improvement. A `method` is signatured in perl
+		// regardless -- which is what line 28 exists to test -- so the tree
+		// is still wrong there; it has two fewer refusal SITES. Recorded
+		// because a count falling for the wrong reason is the defect this
+		// map keeps finding.
+		//
+		// Three fixes compose across this block and none of them overlaps
+		// another's files: ADJUST took the phaser shapes, `undef` the
+		// container spellings, and the signatures pragma one method.
 		"class/destruct.t": 2, "class/field.t": 7, "class/gh22169.t": 2,
-		"class/gh23511.t": 1, "class/inherit.t": 4, "class/method.t": 8,
+		"class/gh23511.t": 1, "class/inherit.t": 4, "class/method.t": 6,
 		// cmd/subval.t and comp/package_block.t left the map entirely with
 		// the `startsTerm` fix -- they parse cleanly now, which is what
 		// removal from this map means.
