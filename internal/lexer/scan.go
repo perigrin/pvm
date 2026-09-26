@@ -339,11 +339,23 @@ func startsLeadingDecimal(l *lexer) bool {
 // leading decimal and the token before its dot is the comma; `5 . .5`
 // has a space. Neither is adjacent to a digit-bearing token.
 //
-// Both the `v5` Word and a `Number` count, because the two dots of
-// `v5.5.630` have different predecessors. Checking `pendingVersionMajor`
-// instead would miss every v-string outside a `use`: `noteSignatures`
-// returns early unless a `use` is pending, so `require(v5.5.630)` never
-// sets it.
+// The predecessor is a WORD, and only a word. An earlier revision also
+// accepted a `Number`, because the two dots of `v5.5.630` had different
+// predecessors when that run arrived as three tokens. `scanVString` now
+// claims a two-dot run whole, so nothing reaches a second dot here:
+// measured, `foo.5.6` lexes as `Word(foo) Quote(.5.6)` and
+// `v5.5.630` as one `Quote`.
+//
+// The Number branch was deleted rather than left with a comment
+// promising a test, which is what it had become -- its only witness was
+// the `v5.5.630` row in `scanrows_test.go`, and that row now exercises
+// `scanVString` instead. Deleting it changes no suite: `internal/lexer`
+// and `internal/parse` are green without it.
+//
+// Checking `pendingVersionMajor` instead would still be wrong, for the
+// original reason: it would miss every v-string outside a `use`, because
+// `noteSignatures` returns early unless a `use` is pending, so
+// `require(v5.5.630)` never sets it.
 func continuesVersionString(l *lexer) bool {
 	if len(l.toks) == 0 {
 		return false
@@ -351,9 +363,6 @@ func continuesVersionString(l *lexer) bool {
 	prev := l.toks[len(l.toks)-1]
 	if prev.End != l.pos {
 		return false
-	}
-	if prev.Kind == Number {
-		return true
 	}
 	if prev.Kind != Word {
 		return false

@@ -177,9 +177,16 @@ func TestDotIsStillConcatenation(t *testing.T) {
 // $b)` silently becomes a PROTOTYPE -- a lexical change that alters what
 // the rest of the file means.
 //
-// `require(v5.5.630)` needs a second rule, because by its third part the
-// pending major is already spent. Both are checked here so a future
-// change to either rule fails on the case it breaks.
+// `require(v5.5.630)` NEEDED a second rule while that run arrived as
+// three tokens, because by its third part the pending major was already
+// spent. `scanVString` now claims the run whole, so the second rule --
+// `continuesVersionString`'s Number branch -- became unreachable and was
+// deleted. Measured: deleting it leaves `internal/lexer` and
+// `internal/parse` green, and `foo.5.6` still lexes via the Word branch.
+//
+// The row below therefore checks the FIRST rule and `scanVString`, not
+// both rules. The signatures half of what it once asserted lives in
+// `TestVStringVersionStillEnablesSignatures`.
 func TestLeadingDotVersionStringUnharmed(t *testing.T) {
 	for _, c := range []struct {
 		src  string
