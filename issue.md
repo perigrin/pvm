@@ -1,21 +1,33 @@
 ---
 title: The lexer does not form x=, the word-shaped compound assignment
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocks:
 - 01a0cf64-8436-7f82-bcb5-587f0eba266f
 created: 2026-09-23T12:57:39.474460281Z
-updated: 2026-09-26T09:00:31.867520986Z
+updated: 2026-09-26T09:34:15.420621379Z
 sessions:
 - start_sha: 2963c47d4099f32e5bcd3a131d0865f204ee28ea
-  end_sha: ""
-  commits: 0
+  end_sha: be9e1e5287155ecf985eb920f1c403c3b4ba5c60
+  commits: 1
   started_at: 2026-09-26T08:58:57.630191229Z
+  ended_at: 2026-09-26T09:34:15.420621379Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-26T08:58:57.630191229Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-26T09:34:15.420621379Z
+observed_paths:
+- conformance/04_operators/README.md
+- conformance/mdtest/adjacency-04_operators.md
+- conformance/mdtest/compound-assignment.md
+- internal/conformance/testdata/corpus.ratchet
+- internal/lexer/scan.go
+- internal/lexer/scanrows_test.go
+- internal/parse/testdata/t1.ratchet
 ---
 
 `x=` is the repeat-assignment operator and our lexer does not produce the
