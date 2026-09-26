@@ -1,19 +1,23 @@
 ---
 title: Decide what a runtime-required test.pl means for this goal's ceiling
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T16:29:00.320261836Z
-updated: 2026-09-26T16:36:52.057167893Z
+updated: 2026-09-26T16:37:01.594836403Z
 sessions:
 - start_sha: 2dc301fdeeec2303d2bfcdc1cae708b09b190c0b
-  end_sha: ""
+  end_sha: 2dc301fdeeec2303d2bfcdc1cae708b09b190c0b
   commits: 0
   started_at: 2026-09-26T16:36:52.057167893Z
+  ended_at: 2026-09-26T16:37:01.594836403Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-26T16:36:52.057167893Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-26T16:37:01.594836403Z
 ---
 
 **MEASURED AND DECIDED 2026-09-26 at `2dc301fd`. Decision: read the required
