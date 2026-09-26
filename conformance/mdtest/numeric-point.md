@@ -189,16 +189,17 @@ The second measurement is what makes the split WRONG rather than merely
 different: `5e` is not a number, so a lexer emitting `Number("5e")` has
 produced a token perl would reject.
 
-REFUSES as of 38c95d23. Our lexer produces `Number(5e) Operator(-)
-Number(1)`, and the same split affects `5e+1`, `5E-1` and `1.5e-3`.
-Unsigned `5e1` lexes correctly, which is why it went unnoticed. The
-refusal is LEXICAL, so the parser returns no Unknown node and there is
-no refusal code to name.
+REFUSED as of 38c95d23, and PASSES under 01a0db78. Our lexer produced
+`Number(5e) Operator(-) Number(1)`, and the same split affected `5e+1`,
+`5E-1` and `1.5e-3`. Unsigned `5e1` lexed correctly, which is why it went
+unnoticed. The refusal was LEXICAL, so the parser returned no Unknown
+node and there was no refusal code to name -- the token assertion below
+was the only place it was visible, which is this tier's argument for the
+token layer.
 
-No issue: this case is the record. The construct was found by writing
-it, so there is nowhere earlier for it to have been filed, and
-duplicating the token stream into a tracker would give it a second place
-to go stale.
+`scanNumber` now takes a sign that is ADJACENT to an `e`, and only then:
+`5-1` is still three tokens and `0x1e-1` is still 29, because `e` is a
+hex digit under a radix prefix rather than an exponent marker.
 
 ```perl
 my $x = 5e-1;
@@ -207,7 +208,6 @@ print "$x\n";
 
 ```behavior
 parses: yes
-refuses: unfiled
 ```
 
 ```output

@@ -8,7 +8,7 @@
 # topic's `**Tier NN name.**` line and leaves every key alone. That
 # is the `t/` sweep working, and must not read as a regression.
 #
-# 212 cases, 188 clean, 24 refusing.
+# 212 cases, 191 clean, 21 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -162,7 +162,7 @@ trailing_tokens named-operators.md/`undef` is two operators wearing one word
 - numeric-point.md/A leading decimal point
 - numeric-point.md/A leading minus is not part of the literal
 - numeric-point.md/A trailing decimal point
-tokens numeric-point.md/The sign of an exponent is part of the literal
+- numeric-point.md/The sign of an exponent is part of the literal
 - numeric-radix.md/A decimal integer
 - numeric-radix.md/Binary: the `0b` prefix
 - numeric-radix.md/Hexadecimal: the `0x` prefix
@@ -219,8 +219,8 @@ tokens unary.md/The file-test operators
 unimplemented_statement ungated.md/`defer` without its feature runs the block FIRST
 - ungated.md/`field` without the class feature is a method call
 - ungated.md/`state` without its feature is a method call
-tokens vstrings.md/Bare: three dot-separated parts
-tokens vstrings.md/The `v` prefix
+- vstrings.md/Bare: three dot-separated parts
+- vstrings.md/The `v` prefix
 - writing.md/A bareword handle reaches `print` through `gv`
 - writing.md/`print $fh "x"` differs from `print "x"` only in operands
 - writing.md/`say` is feature-gated, and the featureless spelling compiles

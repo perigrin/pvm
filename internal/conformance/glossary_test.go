@@ -105,9 +105,12 @@ func TestCategoryBoundaries(t *testing.T) {
 		name: "a trailing decimal point is part of the literal",
 		src:  "my $x = 1.;", category: "numeric literal", text: "1.", want: 1,
 	}, {
+		// No `known`: this was skipped until `scanNumber` learned that a
+		// sign directly after an `e` is part of the literal, under M1
+		// issue 01a0db78. It is an ordinary passing row now, following
+		// the leading-decimal precedent above.
 		name: "an exponent sign is part of the literal",
 		src:  "my $x = 5e-1;", category: "numeric literal", text: "5e-1", want: 1,
-		known: "the lexer splits 5e-1 into Number(5e) Operator(-) Number(1); found by 08_signed_exponent.t",
 	}, {
 		name: "an unsigned exponent is one token",
 		src:  "my $x = 5e1;", category: "numeric literal", text: "5e1", want: 1,
@@ -122,9 +125,10 @@ func TestCategoryBoundaries(t *testing.T) {
 		// that would be a number if the rule were "digits and dots".
 		// Measured under 5.42.0: `printf "%vd"` prints 5.42.0 and `$x+0`
 		// is 0, so perl holds a string of ordinals, not the number 5.42.
+		// No `known`: this was skipped until `scanNumber` learned to count
+		// dots before choosing a kind, under M1 issue 01a0db78.
 		name: "a v-string is not a numeric literal",
 		src:  "my $x = 5.42.0;", category: "numeric literal", text: "5.42.0", want: 0,
-		known: "the lexer reads 5.42.0 as Number; perl makes it a v-string (%vd prints 5.42.0, $x+0 is 0)",
 	}, {
 		name: "a variable carries its sigil",
 		src:  "my $x = 1;", category: "variable", text: "$x", want: 1,
