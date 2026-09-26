@@ -187,13 +187,25 @@ func TestDotIsStillConcatenation(t *testing.T) {
 // The row below therefore checks the FIRST rule and `scanVString`, not
 // both rules. The signatures half of what it once asserted lives in
 // `TestVStringVersionStillEnablesSignatures`.
+//
+// NEITHER ROW SPLITS ANY MORE, and the five-token expectation this test
+// once pinned for `use v5.36;` BECAME FALSE under 01a0dc26: `scanVString`
+// now claims ONE dot as well as two, because perl does -- measured,
+// `length(v5.36)` is 2. So the split the comment above describes is
+// history in both rows, and what survives of the claim is that no dot of
+// a version ever becomes a LEADING DECIMAL: `Number(.36)` would be the
+// regression, and one `Quote` is not it. The reassembly in
+// `internal/parse/use.go` is likewise no longer reached by these rows --
+// measured, it needed no change, because a Quote never matches its
+// Word-shaped name path and falls to `parseExpr`, which yields the same
+// one Term.
 func TestLeadingDotVersionStringUnharmed(t *testing.T) {
 	for _, c := range []struct {
 		src  string
 		want []string
 	}{
 		{`use v5.36;`, []string{
-			"Word(use)", "Word(v5)", "Operator(.)", "Number(36)", "Semicolon(;)",
+			"Word(use)", "Quote(v5.36)", "Semicolon(;)",
 		}},
 		// `v5.5.630` is now ONE token, and that is the v-string rule of
 		// 01a0db78 rather than a loss: two dots make a string, perl agrees
@@ -206,10 +218,13 @@ func TestLeadingDotVersionStringUnharmed(t *testing.T) {
 		// where that is checked, in both directions. The claim moved; it
 		// was not dropped.
 		//
-		// The FIRST-dot guard this row was added for is still live for the
-		// ONE-dot form, which `use v5.36;` above is: `scanVString` declines
-		// on one dot, and without `continuesVersionString` the `.36` would
-		// merge into `Word(v5) Number(.36)`.
+		// The FIRST-dot guard this row was added for was still live for the
+		// ONE-dot form while `scanVString` declined on one dot. It no longer
+		// declines, so nothing in this test reaches the guard: measured, the
+		// whole of `internal/lexer` and `internal/parse` stays green with
+		// `continuesVersionString` removed from `startsLeadingDecimal`.
+		// Deleting it belongs to its own commit, the way its Number branch
+		// did.
 		{`v5.5.630`, []string{
 			"Quote(v5.5.630)",
 		}},

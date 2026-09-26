@@ -179,3 +179,77 @@ func TestOneDotIsStillANumber(t *testing.T) {
 		}
 	}
 }
+
+// TestOneDotVString: a `v` prefix makes a v-string of ONE dot too, which is
+// the asymmetry the dot count alone cannot express.
+//
+// Measured perl 5.42.0 -- the same one dot, two categories, and the `v` is
+// the only difference between them:
+//
+//	$ perl -e 'my $v = v5.36; print length($v)'   2
+//	$ perl -e 'print 5.36'                        5.36
+//
+// Two characters, so perl holds a string of ordinals; `5.36` is the float it
+// looks like. We lexed the first as `Word(v5) Operator(.) Number(36)` -- a
+// bareword concatenated with a number, an expression the parser accepts
+// without complaint, so the token assertions are the only place the
+// disagreement shows.
+//
+// `v5.36` is also the spelling every `use` line in this repository's corpus
+// writes, which is why `TestVStringVersionStillEnablesSignatures` covers the
+// feature-gating consequence: the version now reaches `noteSignatures` as one
+// Quote rather than as a split it reassembles.
+func TestOneDotVString(t *testing.T) {
+	for _, src := range []string{"v5.36", "v5.10", "V5.36", "v65.66", "v1.0"} {
+		got := significant(src)
+		want := "Quote(" + src + ")"
+		if len(got) != 1 || got[0] != want {
+			t.Errorf("%q lexes as %v, want [%s]", src, got, want)
+		}
+	}
+
+	// The negative half, and the whole subtlety: ONE dot with NO `v` stays a
+	// number. `5.36` is a float in perl, so a rule that counted dots without
+	// looking for the prefix would break arithmetic.
+	for _, src := range []string{"5.36", "65.66", "1.0"} {
+		got := significant(src)
+		want := "Number(" + src + ")"
+		if len(got) != 1 || got[0] != want {
+			t.Errorf("%q lexes as %v, want [%s]; one dot and no `v` is a "+
+				"float", src, got, want)
+		}
+	}
+
+	// `v5` alone is a BAREWORD, not a v-string: perl needs a dot. Measured:
+	// `perl -e 'my $v = v5; print length($v)'` dies with "Bareword found
+	// where operator expected"... it is `v5` the identifier, so the lexer
+	// must not claim a `v` run with no dot in it.
+	if !streamIs("v5", "Word(v5)") {
+		t.Errorf("%q lexes as %v, want [Word(v5)]", "v5", significant("v5"))
+	}
+}
+
+// TestOneDotVStringInUseRoutes covers the three routes a version reaches the
+// lexer by, because `use`, `require` and the three-part spelling are
+// different paths through `noteSignatures` and `internal/parse/use.go`.
+func TestOneDotVStringInUseRoutes(t *testing.T) {
+	for _, c := range []struct {
+		src  string
+		want []string
+	}{
+		{`use v5.36;`, []string{
+			"Word(use)", "Quote(v5.36)", "Semicolon(;)",
+		}},
+		{`require v5.36;`, []string{
+			"Word(require)", "Quote(v5.36)", "Semicolon(;)",
+		}},
+		{`use v5.36.0;`, []string{
+			"Word(use)", "Quote(v5.36.0)", "Semicolon(;)",
+		}},
+	} {
+		if !streamIs(c.src, c.want...) {
+			t.Errorf("%q lexes as %v, want %v",
+				c.src, significant(c.src), c.want)
+		}
+	}
+}
