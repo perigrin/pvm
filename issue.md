@@ -1,10 +1,19 @@
 ---
 title: given, when and default are statement forms, and default takes no parens
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T16:28:50.389622276Z
-updated: 2026-09-26T16:28:50.389622276Z
+updated: 2026-09-26T16:30:24.025683777Z
+sessions:
+- start_sha: 2dc301fdeeec2303d2bfcdc1cae708b09b190c0b
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-26T16:30:24.025683777Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-26T16:30:24.025683777Z
 ---
 
 `given`/`when`/`default` refuse. Three dirty files in perl.git t/, but
