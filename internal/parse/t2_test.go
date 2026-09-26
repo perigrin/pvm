@@ -152,7 +152,12 @@ func TestT2CoreParses(t *testing.T) {
 		// also reached zero, and comp/fold.t 6 -> 2 (`$^W`),
 		// comp/hints.t 31 -> 2 (`$^H`, `$^W`), comp/parser.t 29 -> 28,
 		// comp/retainedlines.t 17 -> 13 (`$^P`), opbasic/cmp.t 6 -> 5.
-		"base/lex.t": 23,
+		// base/lex.t 23 -> 21 when a sub ATTRIBUTE stopped ending the sub at
+		// the colon. Lines 510-513 hold `&{sub :lvalue { "a" }}` and
+		// `map{sub :lvalue { "a" }} 1`, both ANONYMOUS, and each cost one
+		// node: the parser finished the sub at `sub` and left `:lvalue {
+		// "a" }` as trailing tokens, so one attribute took the whole body.
+		"base/lex.t": 21,
 		// class/field.t went 9 -> 10 when quote-op keywords stopped eating
 		// their fat comma, then back to 9 when goto, delete and exists
 		// landed. The rise was never a regression in the parse: reaching

@@ -3,12 +3,12 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 577 clean (58.5%), 1799 total.
+# 986 files, 587 clean (59.5%), 1773 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
 # is a number nobody can attribute.
-2 anonymous_code_attribute_order.t
+0 anonymous_code_attribute_order.t
 0 anonymous_glob_reference.t
 5 app_cpan_failure_status.t
 1 archive_zip_archive_subclass.t
@@ -17,7 +17,7 @@
 9 array_autovivification.t
 0 array_delete_exists.t
 0 array_deref_size_append.t
-3 attribute_method_named_sub_deparse.t
+0 attribute_method_named_sub_deparse.t
 4 attributes_prototype_warning_scope.t
 0 autoload.t
 0 autoload_byte_method_name.t
@@ -84,7 +84,7 @@
 1 class_c3_componentised_regressions.t
 0 class_default_accessor_names.t
 0 class_incomplete_no_leak.t
-1 class_lvalue_method.t
+0 class_lvalue_method.t
 0 class_xsaccessor_named_cv.t
 3 class_xsaccessor_pp.t
 4 cli_warning_overrides.t
@@ -264,7 +264,7 @@
 0 eval_foreach_return_value.t
 0 eval_imported_call_comparison_context.t
 0 eval_list_repeat_expression.t
-1 eval_lvalue_compile_check.t
+0 eval_lvalue_compile_check.t
 0 eval_main_nested_package_method.t
 0 eval_named_sub_capture_fallback.t
 0 eval_nested_lexicals.t
@@ -378,7 +378,7 @@
 8 input_record_separator_fixed_length.t
 0 integer_pragma_word_arithmetic.t
 0 interpreter_begin_eval_utf8_scope.t
-1 interpreter_capture_assignment_regressions.t
+0 interpreter_capture_assignment_regressions.t
 6 interpreter_chained_method_invocant_lifetime.t
 1 interpreter_code_reference_validation.t
 0 interpreter_coderef_does_not_load_module.t
@@ -451,10 +451,10 @@
 0 loop_label.t
 2 loop_label_bareword_constant.t
 0 loop_modifiers.t
-3 lvalue_list_sub.t
+0 lvalue_list_sub.t
 0 lvalue_substr.t
 0 lvalue_ternary.t
-9 lvalue_unary_plus.t
+0 lvalue_unary_plus.t
 0 lvalue_vec.t
 3 mac_systemdirectory.t
 1 makemaker_autosplit_autoloader_only.t
@@ -687,7 +687,7 @@
 6 scalar_watcher_java_xs.t
 2 sdbm_file_writeback.t
 0 select_interrupt_errno.t
-4 signatures.t
+3 signatures.t
 3 skip_block_hash_disambiguation.t
 0 slice_context.t
 2 socket_borrowed_name.t
@@ -744,7 +744,7 @@
 17 string_interpolation.t
 0 string_interpolation_at_caret.t
 0 string_interpolation_escaped_hash_key.t
-18 subroutine.t
+17 subroutine.t
 2 subroutine_proto_trailing_comma_stmtend.t
 5 subroutine_prototype.t
 8 subroutine_prototype_args.t
@@ -757,7 +757,7 @@
 0 substr_core_edge_semantics.t
 2 substr_live_extent_modes.t
 0 substr_lvalue_live_alias.t
-1 substr_lvalue_magical_parent.t
+0 substr_lvalue_magical_parent.t
 0 substr_lvalue_warning.t
 2 subutil_glob_anon_subname.t
 0 subutil_set_subname_glob_value.t
@@ -864,7 +864,7 @@
 0 tied_hash_destroy_release.t
 0 tied_hash_weak_owner_cleanup.t
 0 tied_isa_method_lookup.t
-1 tied_lvalue_sub_return.t
+0 tied_lvalue_sub_return.t
 0 tied_scalar_local_mutable_undef.t
 0 tied_scalar_self_backing_value.t
 1 tied_stderr_warn.t
@@ -969,7 +969,7 @@
 0 zz_hash_element_assignment_identity.t
 0 zz_list_assignment_destroy_lifetime.t
 0 zz_local_our_aggregate_restore.t
-2 zz_lvalue_wrapper_return.t
+0 zz_lvalue_wrapper_return.t
 0 zz_multidimensional_hash_key.t
 0 zz_nested_map_return.t
 0 zz_open_dup_package_handle.t

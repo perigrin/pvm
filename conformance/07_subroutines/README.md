@@ -46,11 +46,21 @@ pairs against, not the whole reachable set.
 
 ## INTRODUCES
 
-    anoncode argcheck argdefelem argelem entersub leavesub lock
-    return warn
+    anoncode argcheck argdefelem argelem entersub leavesub leavesublv
+    lock return warn
 
-Nine ops. `lock` joined the original eight and is argued for at the end
-of this section; the sentence below is about those eight.
+Ten ops. `lock` joined the original eight and is argued for at the end of
+this section; the sentence below is about those eight.
+
+`leavesublv` is `leavesub` for a sub declared `:lvalue`, and it belongs
+here for the reason `leavesub` does: it is a BODY'S TERMINATOR, and the
+attribute that selects it is part of a subroutine declaration. Measured
+5.42.0, `sub slot :lvalue { $slot }` ends in `leavesublv` where the same
+body without the attribute ends in `leavesub` -- one op replaced by its
+lvalue sibling, and no op added anywhere else. The attribute itself emits
+nothing: it is a property of the CV, applied at compile time, and its only
+trace in the running optree is that terminator and the `/LVINTRO` flag on
+the call being assigned to.
 
 Eight ops, six of which this tier could not claim until the lint learned
 to look inside a CV. `argcheck`, `argdefelem`, `argelem`, `leavesub` and

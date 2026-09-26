@@ -232,7 +232,12 @@ func (p *parser) parseTerm() *Node {
 			// An anonymous sub: `sub { ... }` with no name. Distinguished
 			// from a declaration by what follows -- a `{` rather than a
 			// name -- which is the same test perl makes.
-			if next, ok := p.peekAfter(tok); ok && p.text(next) == "{" {
+			//
+			// An ATTRIBUTE may stand between: `my $f = sub :lvalue { 1 }`
+			// has no name either, and a `:` here cannot be anything else --
+			// `sub` is a keyword, so the colon is not a label's and not a
+			// ternary's.
+			if next, ok := p.peekAfter(tok); ok && (p.text(next) == "{" || p.text(next) == ":") {
 				return p.parseAnonSub(tok)
 			}
 
@@ -295,6 +300,12 @@ func (p *parser) parseAnonSub(word lexer.Token) *Node {
 			Start: proto.Start, End: proto.End,
 		})
 	}
+
+	// Attributes: `my $f = sub :lvalue { 1 }`. Same list, same position, and
+	// the same reason parseSubDecl reads them -- an unread attribute ends the
+	// sub at the colon and leaves the whole body trailing.
+	p.parseAttributes(n)
+
 	if blk := p.parseBlockOrDecline(); blk != nil {
 		n.Children = append(n.Children, blk)
 	}

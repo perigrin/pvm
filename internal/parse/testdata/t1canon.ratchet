@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 737 clean (74.7%), 249 total.
+# 986 files, 758 clean (76.9%), 228 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -17,14 +17,14 @@
 0 array_autovivification.t
 0 array_delete_exists.t
 1 array_deref_size_append.t
-0 attribute_method_named_sub_deparse.t
+1 attribute_method_named_sub_deparse.t
 0 attributes_prototype_warning_scope.t
 1 autoload.t
 1 autoload_byte_method_name.t
 0 autoload_lvalue_assignment.t
 0 autovivification_local.t
 0 b_constants_no_redefinition.t
-1 b_cv_subidentify_metadata.t
+0 b_cv_subidentify_metadata.t
 0 b_deparse_dbic_eval_snippets.t
 1 b_deparse_line_directive_path.t
 0 b_deparse_options.t
@@ -82,9 +82,9 @@
 0 chop_wide_scalars.t
 1 chr_scalar_bounds.t
 0 class_c3_componentised_regressions.t
-1 class_default_accessor_names.t
+0 class_default_accessor_names.t
 1 class_incomplete_no_leak.t
-1 class_lvalue_method.t
+0 class_lvalue_method.t
 0 class_xsaccessor_named_cv.t
 0 class_xsaccessor_pp.t
 0 cli_warning_overrides.t
@@ -184,7 +184,7 @@
 0 custom_warning_thread_registration_isolation.t
 0 custom_warning_thread_snapshot.t
 0 cwd.t
-1 cwd_internal_alias_warnings.t
+0 cwd_internal_alias_warnings.t
 1 cwd_logical_physical.t
 0 data_dump_filter.t
 0 data_dumper_numified.t
@@ -269,7 +269,7 @@
 0 eval_named_sub_capture_fallback.t
 0 eval_nested_lexicals.t
 0 eval_next_propagation.t
-1 eval_nonlocal_control_flow.t
+0 eval_nonlocal_control_flow.t
 0 eval_return_destroy.t
 0 eval_return_hash.t
 0 eval_string_lexical_args_use.t
@@ -334,7 +334,7 @@
 0 glob_scalar_slot_ref.t
 1 glob_slot_hash_deref.t
 0 glob_snapshot_delete.t
-1 global_code_runtime_semantics.t
+0 global_code_runtime_semantics.t
 0 global_empty_hash_keys_history.t
 0 global_substitution_zero_length_retry.t
 0 global_value_runtime_semantics.t
@@ -369,7 +369,7 @@
 0 inc_hook_prefix_filehandle.t
 0 indirect_isa_feature_gate.t
 0 indirect_object_block_list.t
-1 indirect_object_constructor.t
+0 indirect_object_constructor.t
 0 indirect_object_named_args.t
 1 indirect_object_syntax.t
 0 indirect_system_argv0_interpreter.t
@@ -401,7 +401,7 @@
 0 interpreter_scalar_ref_assignment.t
 1 interpreter_short_circuit_rhs_lexical.t
 1 io_captureoutput_regressions.t
-1 io_compress_regressions.t
+0 io_compress_regressions.t
 0 io_file_autoload.t
 0 io_flock.t
 0 io_handle_error.t
@@ -454,7 +454,7 @@
 0 lvalue_list_sub.t
 0 lvalue_substr.t
 0 lvalue_ternary.t
-0 lvalue_unary_plus.t
+1 lvalue_unary_plus.t
 0 lvalue_vec.t
 0 mac_systemdirectory.t
 1 makemaker_autosplit_autoloader_only.t
@@ -485,8 +485,8 @@
 0 method_call_trailing_colons.t
 1 method_resolution_order_c3.t
 1 method_return_ref_ownership.t
-1 mime_base64.t
-1 mime_quotedprint.t
+0 mime_base64.t
+0 mime_quotedprint.t
 0 mime_quotedprint_utf8_flags.t
 0 module_generic_xs.t
 0 module_load_conditional.t
@@ -537,11 +537,11 @@
 0 numeric_integral_nv_multiply.t
 0 numification.t
 0 numification_parser.t
-1 object_pad_native_class.t
+0 object_pad_native_class.t
 0 open_mode_whitespace.t
 0 open_pragma.t
 0 open_pragma_lexical_io.t
-1 open_string_filehandle.t
+0 open_string_filehandle.t
 1 operations.t
 0 operator_overrides.t
 0 our_compile_time_glob.t
@@ -592,7 +592,7 @@
 0 posix_log2.t
 0 posix_socket_constants.t
 0 postderef.t
-1 postderef_coderef_reference.t
+0 postderef_coderef_reference.t
 0 postderef_expression_result.t
 0 postderef_interpolation.t
 0 pr694_core_regressions.t
@@ -602,8 +602,8 @@
 1 print_indirect_method_postfix.t
 0 process_current_perl_argv.t
 1 process_pipe_postexit_drain.t
-1 prototype_after_watchdog.t
-1 prototype_backslash_typecheck.t
+0 prototype_after_watchdog.t
+0 prototype_backslash_typecheck.t
 1 prototype_caller_line.t
 0 prototype_trailing_comma_infix.t
 1 prototyped_call_caller_line.t
@@ -682,7 +682,7 @@
 0 scalar_dual_value_arithmetic.t
 0 scalar_handle_read.t
 0 scalar_handle_tty_errno.t
-1 scalar_reference_code_destructor.t
+0 scalar_reference_code_destructor.t
 1 scalar_reference_container_lifetime.t
 0 scalar_watcher_java_xs.t
 0 sdbm_file_writeback.t
@@ -745,8 +745,8 @@
 0 string_interpolation_at_caret.t
 0 string_interpolation_escaped_hash_key.t
 1 subroutine.t
-1 subroutine_proto_trailing_comma_stmtend.t
-1 subroutine_prototype.t
+0 subroutine_proto_trailing_comma_stmtend.t
+0 subroutine_prototype.t
 0 subroutine_prototype_args.t
 0 subroutine_return_rvalue.t
 1 subs_pragma.t
@@ -799,7 +799,7 @@
 0 threads_cleared_weak_snapshot.t
 0 threads_clone_skip_no_autoload.t
 0 threads_compatibility_activation.t
-1 threads_cond_timedwait_deadline.t
+0 threads_cond_timedwait_deadline.t
 1 threads_condition_broadcast_stress.t
 1 threads_create_forms.t
 1 threads_destroy_method_return_rescue.t
@@ -832,13 +832,13 @@
 0 threads_regex_literal_compile_warning.t
 1 threads_runtime_regex_lexical_capture.t
 1 threads_shared_blessed_tied.t
-1 threads_shared_child_capture_release.t
+0 threads_shared_child_capture_release.t
 1 threads_shared_destructive_share.t
 1 threads_shared_fetch_proxy_lifetime.t
-1 threads_shared_final_destroy.t
+0 threads_shared_final_destroy.t
 1 threads_shared_graphs.t
-1 threads_shared_inactive_mode.t
-1 threads_shared_lexical_reassignment.t
+0 threads_shared_inactive_mode.t
+0 threads_shared_lexical_reassignment.t
 0 threads_shared_nested_proxies.t
 1 threads_shared_reference_validation.t
 0 threads_shared_unadvertised.t

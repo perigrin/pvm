@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 385 clean (39.0%), 601 total.
+# 986 files, 394 clean (40.0%), 592 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -24,7 +24,7 @@
 0 autoload_lvalue_assignment.t
 0 autovivification_local.t
 0 b_constants_no_redefinition.t
-1 b_cv_subidentify_metadata.t
+0 b_cv_subidentify_metadata.t
 1 b_deparse_dbic_eval_snippets.t
 1 b_deparse_line_directive_path.t
 0 b_deparse_options.t
@@ -82,9 +82,9 @@
 0 chop_wide_scalars.t
 1 chr_scalar_bounds.t
 1 class_c3_componentised_regressions.t
-1 class_default_accessor_names.t
+0 class_default_accessor_names.t
 1 class_incomplete_no_leak.t
-1 class_lvalue_method.t
+0 class_lvalue_method.t
 1 class_xsaccessor_named_cv.t
 1 class_xsaccessor_pp.t
 1 cli_warning_overrides.t
@@ -264,7 +264,7 @@
 0 eval_foreach_return_value.t
 0 eval_imported_call_comparison_context.t
 0 eval_list_repeat_expression.t
-1 eval_lvalue_compile_check.t
+0 eval_lvalue_compile_check.t
 0 eval_main_nested_package_method.t
 1 eval_named_sub_capture_fallback.t
 0 eval_nested_lexicals.t
@@ -485,8 +485,8 @@
 1 method_call_trailing_colons.t
 1 method_resolution_order_c3.t
 1 method_return_ref_ownership.t
-1 mime_base64.t
-1 mime_quotedprint.t
+0 mime_base64.t
+0 mime_quotedprint.t
 0 mime_quotedprint_utf8_flags.t
 0 module_generic_xs.t
 1 module_load_conditional.t
@@ -537,7 +537,7 @@
 1 numeric_integral_nv_multiply.t
 1 numification.t
 0 numification_parser.t
-1 object_pad_native_class.t
+0 object_pad_native_class.t
 0 open_mode_whitespace.t
 1 open_pragma.t
 1 open_pragma_lexical_io.t
@@ -757,7 +757,7 @@
 1 substr_core_edge_semantics.t
 1 substr_live_extent_modes.t
 0 substr_lvalue_live_alias.t
-1 substr_lvalue_magical_parent.t
+0 substr_lvalue_magical_parent.t
 1 substr_lvalue_warning.t
 1 subutil_glob_anon_subname.t
 0 subutil_set_subname_glob_value.t
@@ -799,7 +799,7 @@
 0 threads_cleared_weak_snapshot.t
 1 threads_clone_skip_no_autoload.t
 0 threads_compatibility_activation.t
-1 threads_cond_timedwait_deadline.t
+0 threads_cond_timedwait_deadline.t
 1 threads_condition_broadcast_stress.t
 1 threads_create_forms.t
 1 threads_destroy_method_return_rescue.t

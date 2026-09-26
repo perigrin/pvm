@@ -288,8 +288,15 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 			//
 			// A `sub` body is the exception: `sub f { }` has a name and a
 			// Block and no assignment between them.
+			//
+			// A declaration's HEAD -- its prototype and its attributes -- is
+			// separated by a space too, not an `=`. `sub x () { 8 }` emitted
+			// `sub x = () {8;}` before this, which re-lexes as an assignment
+			// to a bareword and Unknown could not see it: the tree was right
+			// and only the emission was wrong, so the count stayed at zero.
 			switch {
-			case i == 0 || c.Kind == Block:
+			case i == 0 || c.Kind == Block ||
+				c.Kind == PrototypeNode || c.Kind == Attribute:
 				b.WriteByte(' ')
 			default:
 				b.WriteString(" = ")

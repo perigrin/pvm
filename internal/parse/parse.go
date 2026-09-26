@@ -83,6 +83,19 @@ const (
 	// the lexer's token kind.
 	PrototypeNode
 
+	// Attribute is one `:name` or `:name(args)` in a declaration's head --
+	// `sub f :lvalue`, `my $x :shared`, `class Point :isa(Shape)`. Text is
+	// the whole attribute INCLUDING the colon and any argument, because the
+	// argument is opaque bytes rather than a subtree.
+	//
+	// It is a kind of its own rather than a Term because canon has to tell a
+	// declaration's HEAD from its INITIALISER, and an attribute is head.
+	// Measured while it was a Term, `my $x :shared = 1;` emitted
+	// `my $x = :shared = 1;` -- two assignments, one source, Unknown=0. A
+	// wrong tree that scored clean, which is the failure mode Unknown exists
+	// to prevent and could not see.
+	Attribute
+
 	// Conditional is `if`/`unless` with its branches. Text is the keyword,
 	// so `unless` is not rewritten into a negated `if` -- the CST records
 	// what was written, and an LSP renaming or formatting it needs the
@@ -183,6 +196,8 @@ func (k Kind) String() string {
 		return "declaration"
 	case PrototypeNode:
 		return "prototype"
+	case Attribute:
+		return "attribute"
 	case Conditional:
 		return "conditional"
 	case Loop:

@@ -84,39 +84,93 @@ func (l *lexer) noteSubName(k Kind, start int) bool {
 		// Trivia between `sub`, the name and the `(` does not reset the
 		// state: `sub  f  ($$)` is one declaration.
 		return false
+	case Operator:
+		// An attribute's colon, which opens or continues a sub's attribute
+		// list. The list sits between the name (or the `sub` itself, for an
+		// anonymous one) and the body, and a BLOCK still follows it, so the
+		// colon must not clear the block expectation. Measured before this,
+		// `sub f :lvalue { 1 }` lexed its `{` as an anonymous hash's and the
+		// whole body was lost.
+		//
+		// Exactly one byte, so `Foo::bar`'s `::` -- emitted as one token --
+		// is a qualified name and not an attribute.
+		if l.inSubAttrs && l.pos-start == 1 && l.src[start] == ':' {
+			l.sawAttrColon = true
+			return true
+		}
+		l.closeDeclHead()
+
 	case Word:
 		word := string(l.src[start:l.pos])
+		// An attribute's name. `:prototype(...)`'s argument IS a prototype,
+		// so it must be scanned as one opaque token: `$)` is a real perl
+		// punctuation variable, and without this the closing paren is
+		// swallowed into a Variable and the sub body goes with it. Measured
+		// on `sub :prototype($) { 1 }`:
+		//
+		//	Operator(:) Word(prototype) Operator(() Variable($))
+		//
+		// Any other attribute's argument is not perl at all, and the parser
+		// scans it by balancing brackets; only `prototype`'s contents can
+		// break that, because only they can hide a `)`.
+		if l.sawAttrColon {
+			l.sawAttrColon = false
+			l.expectPrototype = word == "prototype"
+			return true
+		}
 		switch {
 		case word == "sub" || word == "method":
 			l.sawSubWord = true
 			l.sawPackageWord = false
 			l.expectPrototype = false
+			// An ANONYMOUS sub's attribute list starts right here, with no
+			// name between: `my $f = sub :lvalue { 1 }`.
+			l.inSubAttrs = true
 		case word == "package" || word == "class":
 			// A package or class name is also followed by a block or a
 			// semicolon, but never by a prototype.
 			l.sawPackageWord = true
 			l.sawSubWord = false
 			l.expectPrototype = false
+			l.inSubAttrs = false
 		case l.sawSubWord:
-			// The name after `sub`. A prototype may follow it, and so may a
-			// block.
+			// The name after `sub`. A prototype may follow it, and so may an
+			// attribute list, and so may a block.
 			l.sawSubWord = false
 			l.expectPrototype = true
+			l.inSubAttrs = true
 			return true
 		case l.sawPackageWord:
 			l.sawPackageWord = false
 			l.expectPrototype = false
+			// `class Point :isa(Shape) { }`. A class's attributes take the
+			// same shape, and the block after them is still a block.
+			l.inSubAttrs = true
 			return true
 		default:
-			l.expectPrototype = false
+			l.closeDeclHead()
 		}
 	case Prototype:
-		// `sub f ($$) { ... }` -- the block still follows the prototype.
+		// `sub f ($$) { ... }` -- the block still follows the prototype, and
+		// so may an attribute list: `sub f () :lvalue { }`.
+		l.expectPrototype = false
+		l.inSubAttrs = true
 		return true
 	default:
-		l.sawSubWord = false
-		l.sawPackageWord = false
-		l.expectPrototype = false
+		l.closeDeclHead()
 	}
 	return false
+}
+
+// closeDeclHead clears every declaration-shape carry at once.
+//
+// They are one state -- "a declaration's head is still open" -- spread over
+// four booleans, and clearing three of four is the bug this exists to make
+// impossible.
+func (l *lexer) closeDeclHead() {
+	l.sawSubWord = false
+	l.sawPackageWord = false
+	l.expectPrototype = false
+	l.sawAttrColon = false
+	l.inSubAttrs = false
 }

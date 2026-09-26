@@ -255,6 +255,20 @@ type lexer struct {
 	// sawPackageWord is the same for `package NAME` and `class NAME`, which
 	// are followed by a block or a semicolon but never by a prototype.
 	sawPackageWord bool
+	// inSubAttrs is whether an ATTRIBUTE LIST may start or continue here --
+	// after `sub`, after a sub's name, after its prototype, and after each
+	// attribute already read. A block still follows the list, so this keeps
+	// the block expectation alive across the colons: without it
+	// `sub f :lvalue { 1 }` lexed its `{` as an anonymous hash's and the
+	// whole body was lost.
+	inSubAttrs bool
+	// sawAttrColon is set when the token just emitted was an attribute's `:`,
+	// so the Word after it is the attribute's NAME rather than a bareword. A
+	// one-token carry, the same shape as sawSubWord, and it exists for
+	// `:prototype(...)`: that argument is a prototype and must be scanned
+	// opaquely, because `$)` is a real perl variable that would otherwise eat
+	// the closing paren.
+	sawAttrColon bool
 	// sawLabelWord is set when the token just emitted was a Word at a
 	// STATEMENT boundary, so a `:` following it is a label's colon rather
 	// than a ternary's or an attribute's. A one-token carry, the same shape

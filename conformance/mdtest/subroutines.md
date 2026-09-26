@@ -172,3 +172,58 @@ c[]
 no operator whose text is "-"
 no operator whose text is ">"
 ```
+
+## An attribute stands between the name and the body
+
+`sub f :lvalue { ... }` and `sub :prototype($) { ... }`: an attribute
+list sits after the name (or after `sub` itself, for an anonymous one)
+and after any prototype, and the BODY STILL FOLLOWS IT.
+
+THE ATTRIBUTE IS WHY THIS CASE EXISTS AND WHAT IT ASSERTS IS THE BODY.
+Before this, one attribute cost the rest of the statement: the parser
+finished the sub at the name and left `:lvalue { $slot }` as trailing
+tokens, so `sub slot :lvalue { $slot }` became a bodiless declaration
+followed by an Unknown. Measured over perl.git's `t/`, 26 of 620 files
+use a sub attribute and 25 of those were dirty.
+
+`:lvalue` is the one that makes the body OBSERVABLE rather than merely
+present. An lvalue sub's last expression is assignable, so `slot() = 42`
+writes through the call into `$slot` -- and a parser that lost the body
+has nothing to write through. Measured 5.42.0, the assignment compiles
+`entersub sKMS/LVINTRO` then `sassign`, where a plain sub's call is
+`entersub lKS` and cannot be assigned to at all.
+
+`:prototype($)` is the second form because its argument is not an
+ordinary bracket group. `$)` is a real perl punctuation variable, so a
+scanner balancing parens byte by byte reads `($)` as `(` then the
+variable `$)` and the closing paren is gone -- taking the sub body with
+it. The argument has to be scanned the way `sub f ($$)` is, as one
+opaque prototype.
+
+perl's own deparse writes the colon detached, `sub slot : lvalue`, and
+nothing here depends on that spelling: the attribute's colon and name
+are two tokens either way.
+
+The ops are this tier's and tier 02's -- `entersub` and `anoncode` here,
+`sassign` and `padsv_store` there. An attribute introduces no op of its
+own, which is the point: it is a property of the CV, decided at compile
+time, and the optree that runs afterwards shows only its effect on the
+call's flags.
+
+```perl
+my $slot = 0;
+sub slot :lvalue { $slot }
+slot() = 42;
+print slot(), "\n";
+my $anon = sub :prototype($) { $_[0] * 2 };
+print $anon->(21), "\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+42
+42
+```

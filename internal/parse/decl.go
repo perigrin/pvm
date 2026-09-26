@@ -268,6 +268,12 @@ func (p *parser) parseSubDecl(word lexer.Token) *Node {
 		}
 	}
 
+	// Attributes: `sub f :lvalue { 1 }`, `sub f :prototype($$) { 1 }`. They
+	// sit between the prototype and the body, which is the order perl's own
+	// grammar has (perly.y's subrout: `SUB subname startsub proto subattrlist
+	// subbody`).
+	p.parseAttributes(n)
+
 	// The declaration enters scope HERE, before its own body and before
 	// anything below it is read. That ordering is perl's rule, not a
 	// convenience: perl parses top to bottom, so a call ABOVE the

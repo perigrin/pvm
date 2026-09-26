@@ -326,9 +326,10 @@ func (p *parser) parseClass(word lexer.Token) *Node {
 
 // parseAttributes reads a run of `:name` or `:name(args)` and appends them.
 //
-// Attributes hang off classes, fields, methods and subs alike. They are kept
-// as Term children rather than given their own kind: nothing in this
-// milestone reads them, and a kind nobody reads is a kind that drifts.
+// Attributes hang off classes, fields, methods and subs alike, and each one
+// is an Attribute node: canon has to tell a declaration's HEAD from its
+// INITIALISER, and an attribute is head. As a Term it was indistinguishable
+// and `my $x :shared = 1;` re-emitted as `my $x = :shared = 1;`.
 func (p *parser) parseAttributes(n *Node) {
 	for {
 		colon, ok := p.peekSignificant()
@@ -341,13 +342,25 @@ func (p *parser) parseAttributes(n *Node) {
 		}
 		p.advanceTo(name)
 		attr := &Node{
-			Kind: Term, Text: ":" + p.text(name),
+			Kind: Attribute, Text: ":" + p.text(name),
 			Start: colon.Start, End: name.End,
 		}
 
 		// An optional parenthesised argument, taken as an opaque span: an
 		// attribute's argument is not Perl in general (`:isa(Shape)` is, but
 		// `:lvalue` takes none and XS attributes take arbitrary text).
+		//
+		// `:prototype(...)` arrives as ONE Prototype token, because its
+		// contents are a prototype and the lexer scans them the way it scans
+		// `sub f ($$)`. Balancing brackets cannot read it: `$)` is a real
+		// perl variable and would swallow the closing paren.
+		if proto, ok := p.peekSignificant(); ok && proto.Kind == lexer.Prototype {
+			p.advanceTo(proto)
+			attr.Text += p.text(proto)
+			attr.End = proto.End
+			n.Children = append(n.Children, attr)
+			continue
+		}
 		if open, ok := p.peekSignificant(); ok && p.text(open) == "(" {
 			depth := 0
 			for p.pos < len(p.toks) {
@@ -364,6 +377,12 @@ func (p *parser) parseAttributes(n *Node) {
 				}
 			}
 			attr.End = p.prevEnd()
+			// Text, not just the span. Canon writes Text, so extending only
+			// End DROPPED the argument: measured, `class Point :isa(Shape)`
+			// re-emitted as `class Point :isa` and lost its parent class.
+			// Unknown could not see it -- the tree was right and only the
+			// emission was wrong -- so the count stayed at zero.
+			attr.Text = string(p.src[attr.Start:attr.End])
 		}
 		n.Children = append(n.Children, attr)
 	}
