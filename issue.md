@@ -1,12 +1,21 @@
 ---
 title: Decide what a parenless call to an unknown callee does with its arguments
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 blocks:
 - 01a0c13f-6816-79d2-945a-b84a12d39e6c
 created: 2026-09-20T23:55:47.309990102Z
-updated: 2026-09-21T03:31:37.104043968Z
+updated: 2026-09-26T09:53:36.480830299Z
+sessions:
+- start_sha: 6ae2242dc5addd89075b7c29d0a0777e69d757ef
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-26T09:53:36.480830299Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-26T09:53:36.480830299Z
 ---
 
 **Rewritten 2026-09-21. This was filed as a three-way design choice for
