@@ -6,9 +6,15 @@ package parse
 import "tamarou.com/pvm/internal/lexer"
 
 // phasers are the compile-and-run-phase blocks.
+//
+// `ADJUST` is 5.38's class phaser. It takes the same shape -- a keyword, a
+// block, and no `;` required -- so it takes the same path. That it is only
+// legal inside a `class` body is a semantic check and not a syntactic one:
+// perl parses it anywhere and then rejects it at compile time with
+// "Cannot 'ADJUST' outside of a 'class'", which is M2's to say, not ours.
 var phasers = map[string]bool{
 	"BEGIN": true, "END": true, "CHECK": true,
-	"INIT": true, "UNITCHECK": true,
+	"INIT": true, "UNITCHECK": true, "ADJUST": true,
 }
 
 // parseTheRest handles the statement forms this issue owns, or returns nil.

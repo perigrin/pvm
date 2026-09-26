@@ -146,17 +146,27 @@ func TestT2CoreParses(t *testing.T) {
 		// landed. Not a regression in the parse: reaching further into the
 		// file exposed `ADJUST { ... }`, a class phaser in no table, twice
 		// more. Verified by stashing the change and counting -- 3 Unknowns
-		// at HEAD, 5 after, and every new one is an ADJUST block. Untracked:
-		// nothing in the chain owns ADJUST.
+		// at HEAD, 5 after, and every new one is an ADJUST block.
 		//
 		// class/gh22169.t 5 -> 4, class/inherit.t 7 -> 6 and
 		// class/method.t 9 -> 8 with the heredoc body (issue 01a0c13f). One
 		// node each: each file opens exactly one heredoc. `class/gh23511.t`
 		// holds a `<<` too and did not move -- measured, its Unknown is
 		// elsewhere.
-		"class/destruct.t": 7, "class/field.t": 7, "class/gh22169.t": 4,
-		"class/gh23511.t": 1, "class/inherit.t": 6, "class/method.t": 8,
-		"class/phasers.t": 5,
+		//
+		// `ADJUST` joining both phaser tables took four of these, and only
+		// files that contain one moved:
+		//
+		//	class/phasers.t   5 -> 0, left the map   13 ADJUST blocks
+		//	class/destruct.t  7 -> 4                  2
+		//	class/gh22169.t   4 -> 2                  5
+		//	class/inherit.t   6 -> 4                  4
+		//
+		// The four class files that did NOT move -- construct.t, field.t,
+		// gh23511.t and method.t -- hold no `ADJUST` at all, which is what
+		// separates a ratchet that improved from one that merely moved.
+		"class/destruct.t": 4, "class/field.t": 7, "class/gh22169.t": 2,
+		"class/gh23511.t": 1, "class/inherit.t": 4, "class/method.t": 8,
 		// cmd/subval.t and comp/package_block.t left the map entirely with
 		// the `startsTerm` fix -- they parse cleanly now, which is what
 		// removal from this map means.

@@ -102,9 +102,20 @@ func takesBlock(word string) bool {
 //
 // `class` and `package` are not here: their block is reached through
 // sawPackageWord, which also has a NAME to pass first.
+//
+// `ADJUST` is 5.38's class phaser and belongs with the five: perl reaches
+// PREBLOCK for it too, and needs no `;` after the block. Measured on 5.42.0,
+// two in a row with nothing between them both run, printing 3:
+//
+//	class Foo { field $x = 1; ADJUST { $x = 2 } ADJUST { $x++ } method m { $x } }
+//
+// Its absence was an order-dependent refusal rather than a missing form.
+// `ADJUST { ... }` alone read as a bareword call subscripted by an anonymous
+// hash, which needs a `;` -- so the block alone parsed, and the declaration
+// that followed it did not.
 var phaser = map[string]bool{
 	"BEGIN": true, "END": true, "CHECK": true, "INIT": true,
-	"UNITCHECK": true,
+	"UNITCHECK": true, "ADJUST": true,
 }
 
 // isPhaser reports whether a `{` after this word opens a phaser's block.
