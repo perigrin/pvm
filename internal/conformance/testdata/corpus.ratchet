@@ -8,7 +8,7 @@
 # topic's `**Tier NN name.**` line and leaves every key alone. That
 # is the `t/` sweep working, and must not read as a regression.
 #
-# 212 cases, 204 clean, 8 refusing.
+# 213 cases, 205 clean, 8 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -19,6 +19,7 @@
 trailing_tokens adjacency-04_operators.md/The whole tier in one body
 - adjacency-05_scoping.md/The whole tier in one body
 - adjacency-06_control.md/The whole tier in one body
+- adjacency-06_control.md/Two `next` guards in a row, where the first arm carries the second
 trailing_tokens adjacency-07_subroutines.md/The whole tier in one body
 - adjacency-08_references.md/The whole tier in one body
 - adjacency-09_regex.md/The whole tier in one body

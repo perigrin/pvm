@@ -120,3 +120,46 @@ parses: yes
 if-w0-w1-u3-d2-v3-et-Dx
 -X-t1-c0-fa-fb-p
 ```
+
+## Two `next` guards in a row, where the first arm carries the second
+
+Two consecutive statement-modifier `next` guards inside one loop body.
+
+WHY TWO AND NOT ONE. One `next if` guard is a single conditional jump and
+every implementation handles it. TWO make the first guard's FALL-THROUGH ARM
+carry the second, so an implementation that ends the first arm without
+threading the rest of the body into it loses the second guard silently -- the
+loop then runs an iteration it should have skipped, with no diagnostic. That
+is an adjacency property: each guard alone is fine and the pair is not.
+
+Measured on B::SoN, which is why this case exists: one guard translates, two
+refuse. Reduced from perl's own t/cmd/switch.t:5, which wraps the same shape
+in a sub with a `continue` block -- dropped here because `shift` would pin the
+case to tier 11 and bury a control-flow finding in the OO tier.
+
+The output is the assertion: 2 and 4 must be ABSENT, and an implementation
+that loses the second guard prints 4.
+
+```perl
+my @out;
+for my $i (1 .. 6) {
+    next if $i == 2;
+    next if $i == 4;
+    push @out, $i;
+}
+print "@out\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+1 3 5 6
+```
+
+```ir
+GAP: a loop control (`next`) inside a branch arm is not yet lowered
+     -- only `last` carries an exit edge
+L: GAP
+```
