@@ -314,6 +314,52 @@ Two comments became provably false and were rewritten rather than dropped:
 `ident.go`'s "two dots make a string", and `scan.go`'s "TWO version-string
 exceptions" where one survives.
 
+### The v-string gate found a test defending a bug
+
+TIER_2 on `01a0dc26-f9d3`, verdict IN-SCOPE. Fixed in place (`e6cbd121`)
+rather than reopened, because the fix was one condition and one test list.
+
+`TestOneDotVString` pinned `V5.36` as a v-string. perl, three ways:
+
+    $ perl -e 'my $v = V5.36; print "[$v]"'        [V536]
+    $ perl -Mstrict -e 'my $v = V5.36; print $v'   Bareword "V5" not allowed
+    $ perl -e 'use V5.36; print "ok"'              Can't locate V5.pm in @INC
+
+`V5.36` is the bareword `V5` concatenated with `.36`, and `use V5.36` LOADS
+A MODULE. `versionAtLeast("V5.36", 5, 36)` returned `(true, true)`, so
+`noteSignatures` read a module load as a feature-gating version and turned
+signatures on for it.
+
+The `'V'` acceptance was pre-existing. What the new commit added was the
+ASSERTION making it correct -- in a commit whose own message said "a future
+change that claims `5.36` as a v-string fails rather than passing quietly".
+The reasoning was right and was not extended one letter.
+
+That is the worst shape this chain has found: not a bug the tests missed,
+but a bug the tests defended. A gate that only re-ran the criteria would
+have passed it, because the criteria were the thing that was wrong.
+
+### Nine false comments, and a fair hit on the previous commit
+
+`9ba0064c` corrected three comments and cited CLAUDE.md's rule while doing
+so. Nine more made the same claim, including `lexer.go`'s scanner-order
+table saying `scanVString` "declines on one dot" -- the exact
+header-disagrees-with-code error that commit named -- and `use.go`, the
+file the issue called its entire expected cost.
+
+All nine rewritten as history, none deleted.
+
+### Two corrections to this record
+
+  - `01a0dc74` understated its scope by five times. I filed one dead
+    function; the gate measured ~40 lines across three files. Amended, and
+    each stranded site now names the issue. Its ruling was that the
+    DEFERRAL was right and the RECORD was incomplete, which is the
+    correction taken.
+  - I passed along a worker's claim that the version Term was unchanged.
+    Measured, its `Text` moved from the truncated `"v5"` to `"v5.36"` -- an
+    improvement, but a delta the message said had not happened.
+
 ### Why this milestone does not complete here
 
 `01a0dbe8` is reopened and `01a0dc26-f9d3` is open, so the chain has work
