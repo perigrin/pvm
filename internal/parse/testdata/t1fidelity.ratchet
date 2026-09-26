@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 396 clean (40.2%), 590 total.
+# 986 files, 433 clean (43.9%), 553 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -12,12 +12,12 @@
 0 anonymous_glob_reference.t
 1 app_cpan_failure_status.t
 1 archive_zip_archive_subclass.t
-1 archive_zip_members_matching_qr.t
+0 archive_zip_members_matching_qr.t
 0 array.t
 0 array_autovivification.t
 1 array_delete_exists.t
 1 array_deref_size_append.t
-1 attribute_method_named_sub_deparse.t
+0 attribute_method_named_sub_deparse.t
 1 attributes_prototype_warning_scope.t
 1 autoload.t
 1 autoload_byte_method_name.t
@@ -26,9 +26,9 @@
 0 b_constants_no_redefinition.t
 0 b_cv_subidentify_metadata.t
 1 b_deparse_dbic_eval_snippets.t
-1 b_deparse_line_directive_path.t
+0 b_deparse_line_directive_path.t
 0 b_deparse_options.t
-1 b_deparse_prototype_block.t
+0 b_deparse_prototype_block.t
 1 b_deparse_source_visible.t
 0 b_deparse_source_visible_anon_sub.t
 1 b_end_av.t
@@ -58,7 +58,7 @@
 1 borrowed_filehandle_alias.t
 1 builtin_export_lexically.t
 0 bytes_regex_substitution.t
-1 bytes_regex_substitution_todo.t
+0 bytes_regex_substitution_todo.t
 0 bytes_scope_interpreter.t
 1 caller_anonymous_callback.t
 1 caller_block_terminated_copline.t
@@ -94,7 +94,7 @@
 1 closure_eval_string.t
 1 code_deref_nonstrict.t
 0 code_ref_defined_exists.t
-1 code_ref_forward_glob_assignment.t
+0 code_ref_forward_glob_assignment.t
 1 code_too_large.t
 0 coderef_survives_stash_delete.t
 0 common_sense_refs.t
@@ -124,7 +124,7 @@
 1 context_semantics.t
 0 control_flow.t
 0 convert_bencode_xs_java.t
-1 core_dump_guarded.t
+0 core_dump_guarded.t
 1 core_global_additional_overrides.t
 0 core_global_caller_concat.t
 1 core_global_dynamic_goto.t
@@ -184,7 +184,7 @@
 1 custom_warning_thread_registration_isolation.t
 1 custom_warning_thread_snapshot.t
 0 cwd.t
-1 cwd_internal_alias_warnings.t
+0 cwd_internal_alias_warnings.t
 1 cwd_logical_physical.t
 1 data_dump_filter.t
 0 data_dumper_numified.t
@@ -274,7 +274,7 @@
 0 eval_return_hash.t
 1 eval_string_lexical_args_use.t
 1 eval_string_retrieve_begin_attrs.t
-1 eval_string_seed_alias_cleanup.t
+0 eval_string_seed_alias_cleanup.t
 1 eval_string_source_types.t
 0 eval_syntax_near_not.t
 1 eval_warning_capture.t
@@ -287,12 +287,12 @@
 0 fcntl_accmode.t
 0 fcntl_binary_text.t
 0 fcntl_nofollow.t
-1 feature_import_in_begin_eval.t
+0 feature_import_in_begin_eval.t
 0 feature_pragma_packages.t
 0 file_glob_bsd_export_tag.t
 0 file_path_nested_make_path.t
 0 file_path_options.t
-1 file_path_remove_tree.t
+0 file_path_remove_tree.t
 1 file_path_rmtree_options.t
 0 file_temp_handle_methods.t
 0 file_temp_missing_parent.t
@@ -338,10 +338,10 @@
 1 global_empty_hash_keys_history.t
 1 global_substitution_zero_length_retry.t
 0 global_value_runtime_semantics.t
-1 goto_captured_replaced_sub.t
+0 goto_captured_replaced_sub.t
 1 goto_current_frame_localized_typeglob_args.t
 1 goto_localized_typeglob_args.t
-1 goto_named_redefinition.t
+0 goto_named_redefinition.t
 1 goto_tailcall_args_cleanup.t
 1 goto_tailcall_cleanup.t
 1 goto_tailcall_core_destroy_order.t
@@ -398,7 +398,7 @@
 1 interpreter_overloaded_bitwise_not_scalar_context.t
 1 interpreter_parenthesized_local_hash_element.t
 0 interpreter_raw_utf8_source.t
-1 interpreter_scalar_ref_assignment.t
+0 interpreter_scalar_ref_assignment.t
 1 interpreter_short_circuit_rhs_lexical.t
 1 io_captureoutput_regressions.t
 1 io_compress_regressions.t
@@ -450,9 +450,9 @@
 1 localtime_tz.t
 1 loop_label.t
 1 loop_label_bareword_constant.t
-1 loop_modifiers.t
+0 loop_modifiers.t
 1 lvalue_list_sub.t
-1 lvalue_substr.t
+0 lvalue_substr.t
 1 lvalue_ternary.t
 1 lvalue_unary_plus.t
 0 lvalue_vec.t
@@ -494,10 +494,10 @@
 1 mojolicious_filehandle_regressions.t
 0 mojolicious_gzip_regressions.t
 1 mojolicious_inherited_listener_regression.t
-1 mojolicious_mount_lifecycle_regression.t
+0 mojolicious_mount_lifecycle_regression.t
 0 mojolicious_parser_diagnostic_parity.t
 1 mojolicious_promise_lifecycle_regressions.t
-1 mojolicious_skipped_closure_lifecycle_regression.t
+0 mojolicious_skipped_closure_lifecycle_regression.t
 1 mojolicious_socket_poll_regressions.t
 0 moose_regexpref_constraint.t
 1 moose_role_constant_method.t
@@ -523,12 +523,12 @@
 1 nested_lexical_sub_reclosure.t
 1 netssleay_baseline.t
 1 netssleay_callback_and_empty_pkey.t
-1 netssleay_phase1.t
-1 netssleay_phase2.t
-1 netssleay_phase2b.t
-1 netssleay_phase3_7.t
-1 netssleay_phase4.t
-1 netssleay_phase5_6.t
+0 netssleay_phase1.t
+0 netssleay_phase2.t
+0 netssleay_phase2b.t
+0 netssleay_phase3_7.t
+0 netssleay_phase4.t
+0 netssleay_phase5_6.t
 0 next_method_cache_context.t
 1 next_module_prereq.t
 1 non_begin_phaser_pragma_scope.t
@@ -596,7 +596,7 @@
 0 postderef_expression_result.t
 0 postderef_interpolation.t
 1 pr694_core_regressions.t
-1 pr709_core_regressions.t
+0 pr709_core_regressions.t
 1 precedence.t
 1 print_bareword_filehandle.t
 1 print_indirect_method_postfix.t
@@ -658,7 +658,7 @@
 1 regex_parser_safety_parity.t
 0 regex_posix_class_casefold.t
 0 regex_prune.t
-1 regex_quotemeta_code_block.t
+0 regex_quotemeta_code_block.t
 1 regex_recursive_named_and_numbered_captures.t
 0 regex_recursive_named_backref.t
 0 regex_surrogate_marker_charclass.t
@@ -696,7 +696,7 @@
 1 socket_iptos_constants.t
 0 socket_ni_namereqd.t
 0 socket_nonblocking_getpeername.t
-1 socket_options.t
+0 socket_options.t
 1 socket_scope_exit_eof.t
 0 socket_unix_stream.t
 0 sort_localizes_package_ab.t
@@ -706,9 +706,9 @@
 1 source_filter_caller_line.t
 0 source_filter_delete_oneshot.t
 1 source_filter_eval_require_defaultvar.t
-1 source_filter_scope.t
+0 source_filter_scope.t
 1 source_filter_subroutine_lexical_storage.t
-1 source_filter_use_newline.t
+0 source_filter_use_newline.t
 1 source_location_index.t
 1 source_logical_expression_caller_line.t
 1 source_parenthesized_increment_lvalue.t
@@ -726,7 +726,7 @@
 0 stash_readonly_scalar_ref_assignment.t
 1 stash_recursive_alias.t
 1 stash_scalar_ref_assignment.t
-1 stash_undefined_code_lookup.t
+0 stash_undefined_code_lookup.t
 1 stash_var_keyword_op.t
 0 stat_filehandle_after_rename.t
 1 state.t
@@ -749,7 +749,7 @@
 1 subroutine_prototype.t
 0 subroutine_prototype_args.t
 1 subroutine_return_rvalue.t
-1 subs_pragma.t
+0 subs_pragma.t
 1 subscript_ampersand_calls.t
 1 substitution_failed_count_numeric.t
 1 substitution_optional_qr_capture.t
@@ -758,7 +758,7 @@
 1 substr_live_extent_modes.t
 0 substr_lvalue_live_alias.t
 0 substr_lvalue_magical_parent.t
-1 substr_lvalue_warning.t
+0 substr_lvalue_warning.t
 1 subutil_glob_anon_subname.t
 0 subutil_set_subname_glob_value.t
 1 super.t
@@ -795,7 +795,7 @@
 1 text_qrcode_java_xs.t
 1 threads_api_phase29.t
 1 threads_basic_unadvertised.t
-1 threads_captured_object_lifetime.t
+0 threads_captured_object_lifetime.t
 0 threads_cleared_weak_snapshot.t
 1 threads_clone_skip_no_autoload.t
 0 threads_compatibility_activation.t
@@ -804,9 +804,9 @@
 1 threads_create_forms.t
 1 threads_destroy_method_return_rescue.t
 1 threads_destroy_weak_slot_rescue.t
-1 threads_detached_list.t
+0 threads_detached_list.t
 1 threads_dynamic_code_array_state.t
-1 threads_end_block_ownership.t
+0 threads_end_block_ownership.t
 0 threads_end_captured_lifetime.t
 0 threads_entry_compile_error.t
 1 threads_eval_string.t
@@ -942,7 +942,7 @@
 0 weaken_probe_captured_lexical.t
 0 weaken_readonly_ref.t
 1 x_shebang_switch.t
-1 xml_libxml_external_dtd.t
+0 xml_libxml_external_dtd.t
 1 xml_libxml_get_attributes.t
 1 xml_libxml_reader_core.t
 0 xml_libxml_relaxng.t
@@ -964,7 +964,7 @@
 1 zz_caller_exported_alias.t
 1 zz_data_dumper_short_numeric_flags.t
 0 zz_defined_ampersand_assignment.t
-1 zz_eval_defined_named_caller.t
+0 zz_eval_defined_named_caller.t
 0 zz_forward_code_glob_alias.t
 1 zz_hash_element_assignment_identity.t
 1 zz_list_assignment_destroy_lifetime.t

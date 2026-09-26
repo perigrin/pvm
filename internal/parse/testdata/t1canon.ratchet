@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 767 clean (77.8%), 219 total.
+# 986 files, 828 clean (84.0%), 158 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -12,12 +12,12 @@
 0 anonymous_glob_reference.t
 0 app_cpan_failure_status.t
 0 archive_zip_archive_subclass.t
-1 archive_zip_members_matching_qr.t
+0 archive_zip_members_matching_qr.t
 0 array.t
 0 array_autovivification.t
 0 array_delete_exists.t
 1 array_deref_size_append.t
-1 attribute_method_named_sub_deparse.t
+0 attribute_method_named_sub_deparse.t
 0 attributes_prototype_warning_scope.t
 1 autoload.t
 1 autoload_byte_method_name.t
@@ -26,10 +26,10 @@
 0 b_constants_no_redefinition.t
 0 b_cv_subidentify_metadata.t
 0 b_deparse_dbic_eval_snippets.t
-1 b_deparse_line_directive_path.t
+0 b_deparse_line_directive_path.t
 0 b_deparse_options.t
-1 b_deparse_prototype_block.t
-1 b_deparse_source_visible.t
+0 b_deparse_prototype_block.t
+0 b_deparse_source_visible.t
 0 b_deparse_source_visible_anon_sub.t
 1 b_end_av.t
 0 b_flags_portable.t
@@ -52,13 +52,13 @@
 0 bitwise_string_feature.t
 0 bless_existing_scalar_ref_destroy.t
 0 blessed_code_isa.t
-1 blessed_glob_destroy_lifetime.t
+0 blessed_glob_destroy_lifetime.t
 1 blessed_self_cycle.t
 0 boolean_bitwise_xor.t
 0 borrowed_filehandle_alias.t
 0 builtin_export_lexically.t
 0 bytes_regex_substitution.t
-1 bytes_regex_substitution_todo.t
+0 bytes_regex_substitution_todo.t
 0 bytes_scope_interpreter.t
 1 caller_anonymous_callback.t
 1 caller_block_terminated_copline.t
@@ -107,7 +107,7 @@
 0 compress_raw_zlib_autodetect_regression.t
 0 compress_raw_zlib_gzip_wrapper.t
 0 compress_zlib_gzerror_eof.t
-1 concat_assign_undef_warning.t
+0 concat_assign_undef_warning.t
 0 concat_assignment_env_taint.t
 0 concat_assignment_explicit_mutator.t
 1 concat_assignment_overload.t
@@ -148,13 +148,13 @@
 0 cpan_distroprefs_error_pure_match.t
 0 cpan_distroprefs_jcpan_args.t
 0 cpan_distroprefs_moo_retirement.t
-1 cpan_distroprefs_signature_migration.t
+0 cpan_distroprefs_signature_migration.t
 0 cpan_distroprefs_type_tiny_match.t
 0 cpan_distroprefs_type_tiny_retired.t
 0 cpan_fallback_configure_retry.t
 0 cpan_fallback_prereqs.t
 0 cpan_fallback_readonly_makefile.t
-1 cpan_generic_patch_paths.t
+0 cpan_generic_patch_paths.t
 0 cpan_meta_yaml_dump_after_refaddr_cleanup.t
 0 cpan_parser_tooling_regressions.t
 1 cpan_prerequisite_phases.t
@@ -185,7 +185,7 @@
 0 custom_warning_thread_snapshot.t
 0 cwd.t
 0 cwd_internal_alias_warnings.t
-1 cwd_logical_physical.t
+0 cwd_logical_physical.t
 0 data_dump_filter.t
 0 data_dumper_numified.t
 0 data_handle_absolute_position.t
@@ -196,12 +196,12 @@
 0 dbd_mysql_shim.t
 0 dbd_pg.t
 0 dbd_sqlite_version.t
-1 dbi_ddl_sweeps_unreachable_cursor.t
+0 dbi_ddl_sweeps_unreachable_cursor.t
 0 dbi_do_comment.t
 0 dbi_execute_select_result.t
 0 dbi_fetchrow_hashref_name_lc.t
 0 dbi_handle_code_slots.t
-1 dbi_metadata_fetchall.t
+0 dbi_metadata_fetchall.t
 1 dbi_primary_key.t
 0 dbi_selectrow_finish.t
 0 dbi_sqlite_uri_connections.t
@@ -287,12 +287,12 @@
 0 fcntl_accmode.t
 0 fcntl_binary_text.t
 0 fcntl_nofollow.t
-1 feature_import_in_begin_eval.t
+0 feature_import_in_begin_eval.t
 0 feature_pragma_packages.t
 0 file_glob_bsd_export_tag.t
 0 file_path_nested_make_path.t
 0 file_path_options.t
-1 file_path_remove_tree.t
+0 file_path_remove_tree.t
 0 file_path_rmtree_options.t
 0 file_temp_handle_methods.t
 0 file_temp_missing_parent.t
@@ -308,7 +308,7 @@
 0 flipflop.t
 0 flock_reassigned_handle.t
 1 for_loop_test.t
-1 foreach_implicit_live_array.t
+0 foreach_implicit_live_array.t
 1 foreach_implicit_topic_callback.t
 0 foreach_mutated_array.t
 0 foreach_undef_readonly_alias.t
@@ -341,9 +341,9 @@
 0 goto_captured_replaced_sub.t
 1 goto_current_frame_localized_typeglob_args.t
 1 goto_localized_typeglob_args.t
-1 goto_named_redefinition.t
+0 goto_named_redefinition.t
 0 goto_tailcall_args_cleanup.t
-1 goto_tailcall_cleanup.t
+0 goto_tailcall_cleanup.t
 1 goto_tailcall_core_destroy_order.t
 0 harness_skip_all.t
 1 hash.t
@@ -384,7 +384,7 @@
 0 interpreter_coderef_does_not_load_module.t
 0 interpreter_compound_assign_list_rhs.t
 0 interpreter_dbic_regressions.t
-1 interpreter_eval_exception_capture.t
+0 interpreter_eval_exception_capture.t
 1 interpreter_eval_modified_args_closure.t
 0 interpreter_eval_named_sub_lexical_mutation.t
 0 interpreter_eval_string_argument_capture.t
@@ -400,7 +400,7 @@
 0 interpreter_raw_utf8_source.t
 0 interpreter_scalar_ref_assignment.t
 1 interpreter_short_circuit_rhs_lexical.t
-1 io_captureoutput_regressions.t
+0 io_captureoutput_regressions.t
 0 io_compress_regressions.t
 0 io_file_autoload.t
 0 io_flock.t
@@ -423,7 +423,7 @@
 0 json_xs_compat.t
 1 jvm_eval_nested_compound_assignment.t
 1 large_sub_interpreter_fallback.t
-1 lazy_sub_verification_side_effects.t
+0 lazy_sub_verification_side_effects.t
 0 leading_colon_bareword_call.t
 0 less_pragma.t
 0 lexical_reassignment_releases_old_reference.t
@@ -448,33 +448,33 @@
 0 localized_named_sub_in_compiled_caller.t
 0 localized_regex_captures.t
 0 localtime_tz.t
-1 loop_label.t
+0 loop_label.t
 0 loop_label_bareword_constant.t
-1 loop_modifiers.t
+0 loop_modifiers.t
 0 lvalue_list_sub.t
 0 lvalue_substr.t
 0 lvalue_ternary.t
 1 lvalue_unary_plus.t
 0 lvalue_vec.t
 0 mac_systemdirectory.t
-1 makemaker_autosplit_autoloader_only.t
-1 makemaker_autosplit_pod.t
-1 makemaker_blib_arch.t
-1 makemaker_bundled_empty_pm.t
-1 makemaker_configure_callback.t
-1 makemaker_empty_pm_to_blib.t
-1 makemaker_exe_files.t
-1 makemaker_generated_pm_dependency.t
-1 makemaker_ignores_test_helpers.t
+0 makemaker_autosplit_autoloader_only.t
+0 makemaker_autosplit_pod.t
+0 makemaker_blib_arch.t
+0 makemaker_bundled_empty_pm.t
+0 makemaker_configure_callback.t
+0 makemaker_empty_pm_to_blib.t
+0 makemaker_exe_files.t
+0 makemaker_generated_pm_dependency.t
+0 makemaker_ignores_test_helpers.t
 0 makemaker_ignores_test_packages.t
 0 makemaker_library_data_files.t
-1 makemaker_meta_merge_prereqs.t
-1 makemaker_mymeta_control_chars.t
+0 makemaker_meta_merge_prereqs.t
+0 makemaker_mymeta_control_chars.t
 0 makemaker_pmlibdirs.t
 0 makemaker_postamble_rule_style.t
 0 makemaker_prompt_default.t
-1 makemaker_secondary_bundled_blib.t
-1 makemaker_stale_blib_source.t
+0 makemaker_secondary_bundled_blib.t
+0 makemaker_stale_blib_source.t
 0 map_source_mutation_snapshot.t
 0 map_temporary_weak_refs.t
 0 math_bigint.t
@@ -522,9 +522,9 @@
 1 nested_heredoc.t
 0 nested_lexical_sub_reclosure.t
 1 netssleay_baseline.t
-1 netssleay_callback_and_empty_pkey.t
+0 netssleay_callback_and_empty_pkey.t
 0 netssleay_phase1.t
-1 netssleay_phase2.t
+0 netssleay_phase2.t
 0 netssleay_phase2b.t
 0 netssleay_phase3_7.t
 0 netssleay_phase4.t
@@ -532,7 +532,7 @@
 0 next_method_cache_context.t
 0 next_module_prereq.t
 1 non_begin_phaser_pragma_scope.t
-1 nonblocking_pipe_syswrite.t
+0 nonblocking_pipe_syswrite.t
 0 nonregex_baseline_closure.t
 0 numeric_integral_nv_multiply.t
 0 numification.t
@@ -581,7 +581,7 @@
 1 perlio_via.t
 0 pipe_close_status.t
 0 pipe_jperl_shebang.t
-1 plack_runtime_regressions.t
+0 plack_runtime_regressions.t
 0 pod.t
 0 posix_c99_math.t
 0 posix_default_math_exports.t
@@ -616,7 +616,7 @@
 0 range_operand_context.t
 1 recursion_depth_1000.t
 0 ref.t
-1 ref_utf8_flag.t
+0 ref_utf8_flag.t
 0 refaliasing_containers.t
 0 regex_assertion_conditional.t
 0 regex_byte_replacement_flag.t
@@ -645,7 +645,7 @@
 0 regex_joni_native_keep.t
 0 regex_joni_native_named_character.t
 0 regex_joni_native_script_run.t
-1 regex_joni_search_optimizer.t
+0 regex_joni_search_optimizer.t
 0 regex_joni_unicode_property_family_policy.t
 0 regex_joni_unicode_property_fold_policy.t
 0 regex_long_quoted_token.t
@@ -658,7 +658,7 @@
 0 regex_parser_safety_parity.t
 0 regex_posix_class_casefold.t
 0 regex_prune.t
-1 regex_quotemeta_code_block.t
+0 regex_quotemeta_code_block.t
 0 regex_recursive_named_and_numbered_captures.t
 0 regex_recursive_named_backref.t
 0 regex_surrogate_marker_charclass.t
@@ -675,7 +675,7 @@
 0 require_overloaded_die_stringification.t
 0 returned_blessed_container_nested_destroy.t
 0 returned_closure_captures.t
-1 reverse_list_alias.t
+0 reverse_list_alias.t
 0 role_tiny_regressions.t
 0 safe_permit_only.t
 0 scalar_coderef_call_context.t
@@ -711,7 +711,7 @@
 0 source_filter_use_newline.t
 0 source_location_index.t
 1 source_logical_expression_caller_line.t
-1 source_parenthesized_increment_lvalue.t
+0 source_parenthesized_increment_lvalue.t
 0 source_utf8_octets.t
 0 special_control_globals_stash.t
 0 special_open_glob.t
@@ -730,7 +730,7 @@
 1 stash_var_keyword_op.t
 0 stat_filehandle_after_rename.t
 0 state.t
-1 statement.t
+0 statement.t
 0 stdin_select_eof.t
 0 storable.t
 0 storable_code_deparse.t
@@ -749,7 +749,7 @@
 0 subroutine_prototype.t
 0 subroutine_prototype_args.t
 0 subroutine_return_rvalue.t
-1 subs_pragma.t
+0 subs_pragma.t
 1 subscript_ampersand_calls.t
 0 substitution_failed_count_numeric.t
 0 substitution_optional_qr_capture.t
@@ -758,7 +758,7 @@
 0 substr_live_extent_modes.t
 0 substr_lvalue_live_alias.t
 0 substr_lvalue_magical_parent.t
-1 substr_lvalue_warning.t
+0 substr_lvalue_warning.t
 0 subutil_glob_anon_subname.t
 0 subutil_set_subname_glob_value.t
 1 super.t
@@ -769,17 +769,17 @@
 0 sys_hostname_nonblocking.t
 0 sys_syslog_module.t
 0 sys_syslog_xs.t
-1 sysopen_create_readonly_mode.t
+0 sysopen_create_readonly_mode.t
 0 sysread_syswrite.t
 0 system_child_stdin_eof.t
 0 system_command_binary_output.t
 0 system_command_utf8_byte_output.t
-1 system_path_lookup.t
+0 system_path_lookup.t
 0 tail_calls.t
 0 taint_cwd.t
 0 taint_env_path.t
 0 taint_external_input.t
-1 taint_filespec.t
+0 taint_filespec.t
 1 taint_mode.t
 0 template_generated_line_directive.t
 0 term_readkey_regressions.t
@@ -795,18 +795,18 @@
 1 text_qrcode_java_xs.t
 1 threads_api_phase29.t
 0 threads_basic_unadvertised.t
-1 threads_captured_object_lifetime.t
+0 threads_captured_object_lifetime.t
 0 threads_cleared_weak_snapshot.t
 0 threads_clone_skip_no_autoload.t
 0 threads_compatibility_activation.t
 0 threads_cond_timedwait_deadline.t
-1 threads_condition_broadcast_stress.t
+0 threads_condition_broadcast_stress.t
 1 threads_create_forms.t
 1 threads_destroy_method_return_rescue.t
-1 threads_destroy_weak_slot_rescue.t
-1 threads_detached_list.t
+0 threads_destroy_weak_slot_rescue.t
+0 threads_detached_list.t
 1 threads_dynamic_code_array_state.t
-1 threads_end_block_ownership.t
+0 threads_end_block_ownership.t
 0 threads_end_captured_lifetime.t
 0 threads_entry_compile_error.t
 0 threads_eval_string.t
@@ -844,7 +844,7 @@
 0 threads_shared_unadvertised.t
 1 threads_source_mapper_snapshot.t
 0 threads_super_chain.t
-1 threads_user_property_definition_concurrency.t
+0 threads_user_property_definition_concurrency.t
 0 threads_user_property_snapshot.t
 0 threads_weak_backref_snapshot.t
 1 tie_array.t
@@ -887,7 +887,7 @@
 0 typeglob_print_dynamic_sub.t
 0 typeglob_redefine_warning.t
 0 typeglob_string_alias.t
-1 typeglob_undef_slot_semantics.t
+0 typeglob_undef_slot_semantics.t
 0 umask_restrictive.t
 0 undef_lvalue.t
 0 undef_typeglob_sub.t
@@ -923,7 +923,7 @@
 0 wanted_portable_context.t
 0 warn_die.t
 0 warning_callee_lexical_context.t
-1 warnings.t
+0 warnings.t
 0 warnings_bits.t
 0 warnings_block_callsite_restore.t
 0 warnings_historical_categories.t
@@ -950,7 +950,7 @@
 0 xml_parser_current_element.t
 0 xml_parser_external_entity_sysid.t
 1 xml_parser_parsefile_typeglob.t
-1 xml_parser_tied_handle.t
+0 xml_parser_tied_handle.t
 0 xstring.t
 0 yaml_blessed_load.t
 0 yaml_pp.t
@@ -980,7 +980,7 @@
 0 zz_redo_unless.t
 0 zz_storable_code_eval.t
 0 zz_strict_deref_compile_error.t
-1 zzzz_cgi_sparse_rearrange.t
+0 zzzz_cgi_sparse_rearrange.t
 0 zzzz_env_byte_string.t
 0 zzzz_file_temp_filehandle_identity.t
 0 zzzz_html_entities_undef_unsafe.t
