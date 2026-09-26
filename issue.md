@@ -1,16 +1,20 @@
 ---
 title: A parenthesised and/or/xor refuses, and the bare form is a different program
-state: reopened
+state: in-progress
 urgency: normal
 milestone: corpus-covers-t2
 created: 2026-09-26T04:10:38.190903837Z
-updated: 2026-09-26T05:57:25.207924343Z
+updated: 2026-09-26T06:06:56.589504832Z
 sessions:
 - start_sha: 53de041e579c32a987c8caed904ff7895895e8f3
   end_sha: a29b8aa63bbcdb25e5e87de15eb1ff570e657180
   commits: 495
   started_at: 2026-09-26T04:43:11.609276216Z
   ended_at: 2026-09-26T05:32:11.538954039Z
+- start_sha: a21b05dea5e6ec80fb8f1326a65685e6bbcd4087
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-26T06:06:56.589504832Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
@@ -21,6 +25,9 @@ transitions:
 - state: reopened
   actor: human:git-zhi
   timestamp: 2026-09-26T05:57:25.207924343Z
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-26T06:06:56.589504832Z
 observed_paths:
 - .github/scripts/parseoracle-pin.sh
 - .github/workflows/ci.yml
