@@ -1,10 +1,19 @@
 ---
 title: "A leading :: names main, and 84 files spell a call that way"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T16:40:48.477005613Z
-updated: 2026-09-26T16:40:48.477005613Z
+updated: 2026-09-26T20:20:04.799947942Z
+sessions:
+- start_sha: 35549df071251a93f9c8da38980b8285311d7531
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-26T20:20:04.799947942Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-26T20:20:04.799947942Z
 ---
 
 A call written with a leading `::` -- `::ok(1)`, the `main::` shorthand --
