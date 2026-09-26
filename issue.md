@@ -5,8 +5,9 @@ urgency: normal
 milestone: corpus-covers-t2
 blocks:
 - 01a0d0c7-052d-7744-a682-fe39d2592920
+- 01a0dbe8-6eef-70f7-b685-326278471798
 created: 2026-09-26T03:02:06.779257794Z
-updated: 2026-09-26T03:02:16.403849138Z
+updated: 2026-09-26T04:10:52.646275293Z
 ---
 
 Four corpus token facts assert something the glossary forbids, and the
