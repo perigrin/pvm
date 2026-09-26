@@ -1433,3 +1433,56 @@ canon round-trip defect on `defer.t` that the refusal was hiding
 So the corpus cannot reach 213/213 inside m1 without pulling a v0.1 issue
 forward, and that is a milestone decision rather than a parser one. Stated
 here rather than left as an implied 100%.
+
+### Where every instrument finished, measured 2026-09-26
+
+Five baselines and the T2 metric, all read out of their own committed
+headers at `b9f77d9c` and at HEAD rather than recalled. Every one moved in
+the same direction, which is the check that separates real progress from a
+baseline regenerated blind:
+
+    corpus        188 of 212 -> 211 of 213 clean, 24 -> 2 refusing
+                  (the 213th is the B::SoN session's contributed case)
+    t1            475 -> 523 clean (48.2% -> 53.0%), 2353 -> 2188 nodes
+    t1canon       649 -> 684 clean (65.8% -> 69.4%), 337 -> 302 disagreeing
+    t1fidelity    345 -> 360 clean (35.0% -> 36.5%), 641 -> 626 differing
+    t2 core       19 -> 22 of 56 files clean (33.9% -> 39.3%)
+
+T2 is reported rather than targeted -- the tier corpus gates what the parser
+reads -- but it moving the same way is corroboration that the corpus fixes
+are general rather than corpus-shaped.
+
+### The last two, and why one of them is not m1's
+
+`adjacency-07_subroutines` is `no feature "signatures"` turning signatures
+ON (01a0dd6f), in flight. `ungated/defer` is indirect object notation
+(01a0d087), in v0.1 and correctly there.
+
+### Two defects found by fixing others, both filed
+
+- `01a0dd25-3054`: `scanNumber` takes the `x` of `5x` into `Number(5x)`, so
+  binary `x` against a bare number is lost. Found twice independently -- by
+  the `x=` gate and again by the file-test work, where it costs a node in
+  `base/lex.t`.
+- `01a0ddac`: a bare block in a `class` body reads as an anon hash, losing
+  the declaration after it. The SAME mechanism as `01a0dd71`'s ADJUST bug --
+  a brace group in a class body not being read as a block -- reached by a
+  different spelling.
+
+### What the workers caught in my own issue bodies
+
+Three briefs of mine were wrong about the fix, and each worker caught it by
+measuring before acting:
+
+- The ADJUST brief said "if `BUILD` fails the same way, the fix is one rule".
+  It does fail the same way, and perl REJECTS `BUILD { 1 } method m { 2 }` --
+  our Unknown matched perl. Following the brief would have made the parser
+  accept a program perl refuses.
+- The `undef` brief said perl optimises `undef $x` so no `undef(...)`
+  appears. True only for declared lexicals; undeclared globals deparse to
+  `(undef($x), $y)`.
+- The parenless-call issue asserted `ok` is declared in T2 because
+  `Test::More` exports it. Zero of the 56 T2 files import it.
+
+The instruction to measure before acting has done more work this milestone
+than the instructions about what to do.
