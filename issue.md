@@ -1,21 +1,50 @@
 ---
 title: A labelled bare block is a statement, and last LABEL inside it resolves
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 blocked_by:
 - 01a0de8a-7043-74ea-a42e-e2db217946ec
 created: 2026-09-26T16:27:39.730386781Z
-updated: 2026-09-26T17:24:32.287494729Z
+updated: 2026-09-26T19:49:00.659164896Z
 sessions:
 - start_sha: 9325864f86f42d125118a800b15eb0b62d95d6c3
-  end_sha: ""
-  commits: 0
+  end_sha: b5d2b9830e89b49aec8a647efe18489a6cf55be3
+  commits: 5
   started_at: 2026-09-26T17:24:32.287494729Z
+  ended_at: 2026-09-26T19:49:00.659164896Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-26T17:24:32.287494729Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-26T19:49:00.659164896Z
+observed_paths:
+- conformance/mdtest/loops.md
+- conformance/mdtest/names.md
+- docs/plans/2026-09-26-perl-git-t-parses.md
+- internal/conformance/testdata/corpus.ratchet
+- internal/lexer/caret_test.go
+- internal/lexer/expect.go
+- internal/lexer/intuit_test.go
+- internal/lexer/lexer.go
+- internal/lexer/scan.go
+- internal/lexer/testdata/lex.t.tokens
+- internal/parse/call.go
+- internal/parse/control.go
+- internal/parse/control_test.go
+- internal/parse/module.go
+- internal/parse/parse.go
+- internal/parse/ratchet_test.go
+- internal/parse/required_test.go
+- internal/parse/shape.go
+- internal/parse/t2_test.go
+- internal/parse/testdata/t1.ratchet
+- internal/parse/testdata/t1canon.ratchet
+- internal/parse/testdata/t1fidelity.ratchet
+- internal/parse/use.go
+- internal/parse/use_test.go
 ---
 
 `SKIP: { ... }` -- a bare block with a label -- refuses, and `last LABEL` inside
