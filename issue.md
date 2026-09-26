@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: corpus-covers-t2
 created: 2026-09-26T06:43:08.447239008Z
-updated: 2026-09-26T06:43:08.447239008Z
+updated: 2026-09-26T07:18:15.547836045Z
 ---
 
 `continuesVersionString` now has no reachable caller. `scanVString` claims
@@ -37,6 +37,44 @@ of the v-string fix or incidental to it.
 
 So the function stays, labelled at both comment sites, and this issue owns
 removing it.
+
+## AMENDED: it is not one function, it is about forty lines
+
+The TIER_2 gate on `01a0dc26-f9d3` measured the stranded surface and this
+issue named one fifth of it. Its ruling is worth recording, because the
+principle held and the record did not: separating the stranding from the
+deletion is right, since a history search can then answer which change
+killed a thing -- but an issue naming one function when five things died
+understates the debt, and the next worker will delete
+`continuesVersionString`, see green, and leave the rest.
+
+The full set, each verified dead by neutering it and running the suites:
+
+    internal/lexer/scan.go
+      continuesVersionString                  the whole function
+      startsLeadingDecimal's guard on it
+
+    internal/lexer/ident.go
+      noteSignatures `case Word:` version-prefix branch
+      versionPrefix
+      `case Number:` pending-minor branch
+      `case Operator:` dot-preserving branch
+      minorAtLeast's pending caller
+
+    internal/lexer/lexer.go
+      pendingVersionMajor                     the field
+
+    internal/parse/use.go
+      isVersionPrefix                         dead at BOTH call sites
+      the reassembly loop (use.go ~70-82)     unreachable
+
+Measured: neutering the `case Word:` branch leaves `internal/lexer` and
+`internal/parse` green, which is what takes the rest of the `ident.go`
+chain with it -- nothing sets `pendingVersionMajor`, so nothing reads it.
+
+All these sites now carry a comment saying they are stranded and naming
+this issue, so a reader arriving at any one of them is not misled.
+Deleting them is this issue's work.
 
 ## Scope
 
