@@ -11,16 +11,22 @@ string. Pairing with tier 10 instead would assert nothing -- this tier
 uses no file handle.
 
 MEASURED against our parser, and this is the case the whole
-adjacency-file design was written for:
+adjacency-file design was written for. Before the fix:
 
     class Foo { ADJUST { 1 } }                   parses, 0 Unknowns
     class Foo { ADJUST { 1 } method m { 2 } }    1 Unknown, swallowing both
 
-`ADJUST` alone parses -- that is the ADJUST case in `class.md`, and it
-is green. `ADJUST` followed by anything -- `method`, `field`, or a
-second `ADJUST` -- does not. A corpus of one construct per file goes
-green over this by CONSTRUCTION, because every construct in such a
-corpus is measured alone and every construct alone passes.
+`ADJUST` alone parsed -- that is the ADJUST case in `class.md`, and it
+was green throughout. `ADJUST` followed by anything -- `method`,
+`field`, or a second `ADJUST` -- did not. A corpus of one construct per
+file goes green over this by CONSTRUCTION, because every construct in
+such a corpus is measured alone and every construct alone passed.
+
+The cause was that `ADJUST` sat in neither phaser table, so its `{` was
+classified as an anonymous hash rather than a block; the statement then
+wanted a `;` that valid perl does not write, and the declaration after
+it was swallowed. Adding `ADJUST` beside `BEGIN` in both tables closed
+it, and this case is green in both orders.
 
 ## The whole tier in one body
 
@@ -31,14 +37,13 @@ dynamic one on the result; an infix `isa` and a `can` chain; and a
 classic side are adjacent to each other as well, because a parser that
 switches modes on `class` has to switch back.
 
-The refusal names WHICH SITE declines and the issue names which bug
-somebody believed this was. They are different promises and the case
-makes both. Measured, the Unknown starts at the `ADJUST` keyword and
-runs to the end of the `method` after it -- the expression parser reads
-the ADJUST block, then finds the `method` before the terminator, which
-is `trailing_tokens`. Without the site, a refusal that drifted
-elsewhere would leave this reading as though the ADJUST bug were still
-what it measured.
+This case carried a `refuses:`/`refusal:` pair while the ADJUST gap was
+open. Measured then, the Unknown started at the `ADJUST` keyword and ran
+to the end of the `method` after it: the expression parser read the
+ADJUST block as a subscripted bareword, then found the `method` before
+the terminator, which is the `trailing_tokens` site. Both lines are gone
+now that it parses -- a refusal record kept past its bug hides the
+regression it was written to catch.
 
 `$yes` and `$code` are the argument-extent slice's two constructs
 (issue 01a0c730), adjacent to the dispatch they are not. `$b isa Bar`
@@ -99,8 +104,6 @@ print ref($c), $c->m, ref($b), $b->hi, $b->$name, $yes, $code, $t, $is, "\n";
 
 ```behavior
 parses: yes
-refuses: 01a0dd71-c671-7245-87c4-0c67cb4c20b9
-refusal: trailing_tokens
 ```
 
 ```output

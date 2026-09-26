@@ -77,6 +77,61 @@ func TestPhaserBlocks(t *testing.T) {
 	}
 }
 
+// TestAdjustThenMethod: `ADJUST` is a phaser, so what follows its block is a
+// new statement in either order.
+//
+// The failure this pins was order-dependent, which is what made it an
+// adjacency defect rather than a coverage gap. Measured at the commit before
+// the fix, counting Unknown nodes in the class body:
+//
+//	field $x = 1; ADJUST { $x = 2 } method m { $x }    1
+//	field $x = 1; method m { $x } ADJUST { $x = 2 }    0
+//	field $x = 1; method m { $x } method n { $x }      0
+//	ADJUST { 1 } method m { 1 }                        1
+//
+// Both orders are valid perl. Measured on 5.42.0, both print 2:
+//
+//	class Foo { field $x = 1; ADJUST { $x = 2 } method m { $x } }
+//	class Foo { field $x = 1; method m { $x } ADJUST { $x = 2 } }
+//
+// The cause was that `ADJUST` was in neither phaser table, so its `{` was
+// classified from XTerm as an anonymous hash. Its `}` then reported a closed
+// subscript, the block never closed as a statement, and the declaration that
+// followed was swallowed into a term where a statement belonged. Perl agrees
+// the brace is a block: two ADJUSTs in a row with no `;` between them run
+// both, printing 3 for `ADJUST { $x = 2 } ADJUST { $x++ }` over `field $x =
+// 1`.
+//
+// The reversed order is the regression risk -- it passed before the fix, so
+// only the failing rows here are new.
+func TestAdjustThenMethod(t *testing.T) {
+	for _, src := range []string{
+		// The order that refused.
+		"class C { field $x = 1; ADJUST { $x = 2 } method m { $x } }",
+		"class C { ADJUST { 1 } method m { 1 } }",
+
+		// Not a rule about `method`: any declaration after ADJUST's block.
+		"class C { ADJUST { 1 } sub s { 1 } }",
+		"class C { ADJUST { 1 } field $y = 1; }",
+		"class C { ADJUST { 1 } class D { } }",
+
+		// Two in a row, which perl runs both of.
+		"class C { field $x = 1; ADJUST { $x = 2 } ADJUST { $x++ } }",
+
+		// The reversed order, which parsed before the fix and must keep
+		// parsing.
+		"class C { field $x = 1; method m { $x } ADJUST { $x = 2 } }",
+
+		// The `;` spelling, which parsed before the fix by a different route.
+		"class C { ADJUST { 1 }; method m { 1 } }",
+	} {
+		root := parse.Parse([]byte(src))
+		if containsKind(root, parse.Unknown) {
+			t.Errorf("%q must parse: %v", src, kinds(root))
+		}
+	}
+}
+
 // TestClassSyntax: 5.38's class, field and method, in 12 T2 files.
 //
 // All three are feature-gated, which is why the keyword table's
@@ -144,7 +199,8 @@ func TestSortMapGrepShapes(t *testing.T) {
 // owns. What they are, measured:
 //
 //	method calls   `Testcase1->new`, `$o->can("h")`
-//	ADJUST blocks  a class phaser this issue did not scope
+//	ADJUST blocks  a class phaser this issue did not scope -- since closed,
+//	               which is the twelve nodes the pin below dropped
 //	heredocs       `eval <<'CLASS';`
 //	filetests      the `-d 't'` the named-unary issue left
 //	multiple attrs `field $s :reader :writer = "..."`
@@ -275,7 +331,13 @@ func TestClassCorpusRatchet(t *testing.T) {
 	// opener sits in. Three Unknowns, one each in `method.t`, `inherit.t`
 	// and `gh22169.t` -- measured, and the same three the T2 shortfall map
 	// dropped in this commit.
-	const want = 40
+	//
+	// 40 -> 28 when `ADJUST` joined both phaser tables. Twelve nodes across
+	// four files, and only files holding an `ADJUST` moved: phasers.t 5 -> 0
+	// (13 blocks), destruct.t 7 -> 4 (2), gh22169.t 4 -> 2 (5) and
+	// inherit.t 6 -> 4 (4). The other four class files hold none and are
+	// unchanged.
+	const want = 28
 	if unknown != want {
 		t.Errorf("t/class holds %d Unknown nodes, want %d: update this pin in "+
 			"the same commit as the change that moved it", unknown, want)
