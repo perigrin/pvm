@@ -3,8 +3,10 @@ title: Three token facts call a Word an operator, and the glossary says the lexe
 state: pending
 urgency: normal
 milestone: corpus-covers-t2
+blocks:
+- 01a0d0c7-052d-7744-a682-fe39d2592920
 created: 2026-09-26T03:02:06.779257794Z
-updated: 2026-09-26T03:02:06.779257794Z
+updated: 2026-09-26T03:02:16.403849138Z
 ---
 
 Four corpus token facts assert something the glossary forbids, and the
