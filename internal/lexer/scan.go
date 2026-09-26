@@ -252,6 +252,40 @@ func scanWord(l *lexer) bool {
 	return true
 }
 
+// scanVString lexes the `v`-prefixed spelling of a v-string: `v65.66.67`.
+//
+// It runs BEFORE scanWord, because `v65` is a legal identifier and the word
+// scanner claimed it -- leaving `Word(v65) Operator(.) Number(66.67)`, a
+// concatenation of a bareword with a number where perl has one string. The
+// parser cannot see that: it receives a valid expression and returns no
+// Unknown node.
+//
+// TWO DOTS are still required, which is what keeps `use v5.36` lexing as
+// the three tokens `internal/parse/use.go` reassembles a version from.
+// Perl calls the one-dot `v5.36` a v-string too -- measured, its length is
+// 2 -- and this lexer does not yet, which is a separate gap from the one
+// the corpus asserts here.
+func scanVString(l *lexer) bool {
+	if c := l.src[l.pos]; c != 'v' && c != 'V' {
+		return false
+	}
+	if !l.expect.wantsTerm() {
+		return false
+	}
+	start := l.pos
+	l.pos++
+	if l.pos >= len(l.src) || !isDigit(l.src[l.pos]) {
+		l.pos = start
+		return false
+	}
+	if l.scanNumberRun() < 2 {
+		l.pos = start
+		return false
+	}
+	l.emit(Quote, start)
+	return true
+}
+
 // isDigit reports whether c is an ASCII decimal digit.
 func isDigit(c byte) bool { return c >= '0' && c <= '9' }
 
@@ -328,34 +362,99 @@ func continuesVersionString(l *lexer) bool {
 	return ok
 }
 
-// scanNumber lexes an integer or float literal. The exotic forms -- `0x_1234`,
-// `0x0p0` -- are §0.13 rank 9 and belong to a later issue; this covers what
-// the M0 corpus reaches.
+// scanNumber lexes an integer or float literal, or the v-string that a
+// second decimal point turns the same digits into. The exotic forms --
+// `0x_1234`, `0x0p0` -- are §0.13 rank 9 and belong to a later issue; this
+// covers what the M0 corpus reaches.
+//
+// DOT COUNTING is what separates the two kinds, and it cannot be decided
+// before the run has been scanned: `65.66` is a float and `65.66.67` is the
+// three-character string `ABC`, and they are the same bytes up to the second
+// point. Measured 5.42.0:
+//
+//	$ perl -e 'my $n = 65.66; print $n'          65.66
+//	$ perl -e 'my $v = 65.66.67; print $v'       ABC
+//	$ perl -e 'my $x = 5.42.0; print $x+0'       0
+//
+// The last is the category claim: perl holds a string of ordinals, so `+0`
+// is 0 rather than 5.42. GLOSSARY.md records the decision under "numeric
+// literal" -- a v-string is not in that category.
 func scanNumber(l *lexer) bool {
 	c := l.src[l.pos]
 	if !isDigit(c) && !startsLeadingDecimal(l) {
 		return false
 	}
 	start := l.pos
-	for l.pos < len(l.src) && (isWordByte(l.src[l.pos]) || l.src[l.pos] == '.') {
-		// A DOUBLE dot is the range operator, not part of the literal.
-		// `1..5` is three tokens; consuming the dots gave one Number("1..5")
-		// and the range was gone before the parser saw it.
-		//
-		// `$a..$b` was never affected, so only literal endpoints broke -- and
-		// the cost is measured: `my @r = (1..5)` infers @r as Str, because
-		// `internal/infer/infer.go:645-659` matches the anonymous `.` before
-		// ever seeing `..` (§4.14.2).
-		//
-		// One dot still belongs to the number: `1.5` is a float, and perl
-		// takes `1_000.5` and `1.5e10` whole.
-		if l.src[l.pos] == '.' && l.pos+1 < len(l.src) && l.src[l.pos+1] == '.' {
-			break
-		}
-		l.pos++
+	dots := l.scanNumberRun()
+	// One dot is a float; two make a v-string, which this lexer spells as a
+	// Quote because that is its kind for a string. `internal/conformance/
+	// categories.go` reads a Quote with no operator name as the glossary's
+	// "string literal", and `v` is not a quote-operator name.
+	if dots >= 2 {
+		l.emit(Quote, start)
+		return true
 	}
 	l.emit(Number, start)
 	return true
+}
+
+// scanNumberRun advances the cursor over one numeric run and reports how
+// many decimal points it contained.
+//
+// Shared with scanVString, which differs only in the `v` it consumes first.
+func (l *lexer) scanNumberRun() int {
+	dots := 0
+	// A RADIX PREFIX rules the exponent sign out, because `e` is a hex
+	// digit there rather than an exponent marker. Measured 5.42.0:
+	// `print 0x1e-1` is 29, so that `-` is subtraction.
+	hex := l.pos+1 < len(l.src) && l.src[l.pos] == '0' &&
+		(l.src[l.pos+1] == 'x' || l.src[l.pos+1] == 'X')
+	for l.pos < len(l.src) {
+		c := l.src[l.pos]
+		switch {
+		case c == '.':
+			// A DOUBLE dot is the range operator, not part of the literal.
+			// `1..5` is three tokens; consuming the dots gave one
+			// Number("1..5") and the range was gone before the parser saw
+			// it.
+			//
+			// `$a..$b` was never affected, so only literal endpoints broke
+			// -- and the cost is measured: `my @r = (1..5)` infers @r as
+			// Str, because `internal/infer/infer.go:645-659` matches the
+			// anonymous `.` before ever seeing `..` (§4.14.2).
+			//
+			// One dot still belongs to the number: `1.5` is a float, and
+			// perl takes `1_000.5` and `1.5e10` whole.
+			if l.pos+1 < len(l.src) && l.src[l.pos+1] == '.' {
+				return dots
+			}
+			dots++
+		case isWordByte(c):
+			// The SIGN OF AN EXPONENT is part of the literal, and this is
+			// the only place a sign ever is. Measured 5.42.0:
+			//
+			//	$ perl -e 'print 5e-1'   0.5
+			//	$ perl -e 'print 5e'     Bareword found where operator
+			//	                         expected (Missing operator
+			//	                         before "e"?)
+			//
+			// So `Number("5e")` is a token perl would reject, which is
+			// what makes the old split wrong rather than merely different.
+			// The sign must be ADJACENT to the `e`: `5-1` is arithmetic,
+			// and so is the second `-` of `5e-1-1`.
+			if !hex && (c == 'e' || c == 'E') &&
+				l.pos+2 < len(l.src) &&
+				(l.src[l.pos+1] == '-' || l.src[l.pos+1] == '+') &&
+				isDigit(l.src[l.pos+2]) {
+				l.pos += 2
+				continue
+			}
+		default:
+			return dots
+		}
+		l.pos++
+	}
+	return dots
 }
 
 // scanAngle lexes `<FH>` in term position, and reports false in operator

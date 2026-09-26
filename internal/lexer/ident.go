@@ -226,6 +226,23 @@ func (l *lexer) noteSignatures(k Kind, start int) {
 			l.signatures = true
 		}
 	case Quote:
+		// A v-string version: `use v5.42.0;` is ONE token, because two dots
+		// make a string and `scanVString` takes it whole. Without this the
+		// bundle never turns on and `sub g ($a, $b)` becomes a PROTOTYPE --
+		// the same silent change of meaning the split `v5.36` path guards
+		// against, reached by the other spelling.
+		//
+		// `versionAtLeast` already reads a leading `v` and stops at the
+		// second dot, so `v5.42.0` needs no parser of its own. It reports
+		// ok=false for a quote that is not a version, which is how
+		// `use feature 'signatures'` below still reaches its own test.
+		if v, ok := versionAtLeast(text, 5, 36); ok {
+			if v {
+				l.signatures = true
+			}
+			return
+		}
+
 		// `use feature 'signatures';`
 		if containsWord(text, "signatures") {
 			l.signatures = true
