@@ -298,6 +298,58 @@ func TestCanonTokenIdentity(t *testing.T) {
 	}
 }
 
+// TestCanonBlockArgumentRoundTrips: canon parenthesises a call, so a BLOCK
+// argument lands after a `(` -- and the emission must still re-lex as a
+// block.
+//
+// This is the fixpoint at its smallest. Canon writes `map({$_ + 1;}@a)`,
+// which perl reads: `perl -MO=Deparse` emits that exact spelling for BOTH
+// `map { $_+1 } @a` and the parenthesised form, so the text is not the
+// defect. The defect was that our own lexer classified the `{` from XTerm --
+// it required the brace to be ADJACENT to the word -- so the `;` ended a
+// statement, the `}` was orphaned, and canon's output parsed to Unknown=1
+// and re-emitted as `map({$_ + 1});}@a);`.
+//
+// The hashref reading must survive the same change, which is why the last
+// two cases are here: perl runs intuit_curly inside the parens too, and
+// `map({a => 1}, @a)` is a HASHREF where `map({; a => 1} @a)` is a block.
+// A fix that forced a block after `WORD (` would break the first.
+func TestCanonBlockArgumentRoundTrips(t *testing.T) {
+	for _, src := range []string{
+		"my @a = (1,2);\nmy @b = map { $_ + 1 } @a;\n",
+		"my @b = grep { $_ > 1 } @a;\n",
+		"my @b = sort { $a <=> $b } @a;\n",
+
+		// Already parenthesised in the source, so the emission is the input's
+		// own shape rather than one canon introduced.
+		"my @b = map({$_ + 1;} @a);\n",
+
+		// The hashref reading, which the fix must not swallow.
+		"my @b = map({a => 1}, @a);\n",
+		"my @b = map({; a => 1} @a);\n",
+
+		// `print {$fh} "x"` is the other Block that reaches an argument list
+		// -- 42 of the 46 files this defect touched hold one -- but it does
+		// not parse at all yet, for a reason that is not this one: the
+		// filehandle slot needs `WORD BLOCK ARG`, which is 01a0d087. It is
+		// left out rather than marked skipped because a case that fails for
+		// an unrelated reason measures that reason, not this fix.
+	} {
+		b := []byte(src)
+		once := parse.Canon(parse.Parse(b), b)
+		if ok, why := canonMatches(b); !ok {
+			t.Errorf("canon of %q is not a fixpoint: %s\n  emission %q", src, why, strings.TrimSpace(once))
+		}
+		// A fixpoint is not enough on its own: an emission that fails to
+		// parse can still be stable. The emission must also PARSE, which is
+		// what the orphaned `}` broke.
+		ob := []byte(once)
+		if n := countUnknown(parse.Parse(ob)); n != 0 {
+			t.Errorf("canon of %q does not re-parse: Unknown=%d\n  emission %q", src, n, strings.TrimSpace(once))
+		}
+	}
+}
+
 // TestCanonRatchet: the per-file re-emission result, failing in either
 // direction.
 //

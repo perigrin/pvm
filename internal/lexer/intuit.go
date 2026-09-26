@@ -14,6 +14,13 @@ package lexer
 //	map { a => 1 }, (1,2)     map({'a', 1}, (1, 2))    a HASHREF
 //	map { $_ => 1 } @a        map({$_, 1;} @a)         a BLOCK
 //
+// It runs inside a parenthesised call too, on the same two readings, which is
+// why the `(` carries the lookahead forward rather than forcing a block --
+// also measured on 5.42.0:
+//
+//	map({; a => 1} @a)        map({'a', 1;} @a)        a BLOCK
+//	map({a => 1}, @a)         map({'a', 1}, @a)        a HASHREF
+//
 // A word or string followed by `,` or `=>` is a hashref; everything else is a
 // block -- a leading `;`, an operator, and a VARIABLE before a fat comma,
 // which is why the third line is a block and not a hash. That is the same
