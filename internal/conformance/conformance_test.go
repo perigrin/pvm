@@ -3,6 +3,8 @@
 package conformance
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -705,17 +707,26 @@ func TestRefusalCitationMustResolve(t *testing.T) {
 	t.Run("resolver", func(t *testing.T) {
 		requireZhi(t)
 
-		// A LIVE id, because resolving now means "exists and is not
-		// closed". The id this fixture used before -- `01a0c13f-97f5` --
-		// was itself done, so it stopped being a valid positive case the
-		// moment the state check landed.
-		const real = "01a0d087-28dd-711f-a0d5-54cb8515910c"
+		// A live id, ASKED FOR rather than named. Naming one couples this
+		// fixture to tracker state that moves underneath it: the first
+		// spelling was `01a0c13f-97f5`, which went done; the second was
+		// `01a0d087-28dd`, which went done the moment the last corpus
+		// refusal was implemented -- and this subtest then asserted that a
+		// CLOSED issue resolves, which is the exact thing the sibling
+		// subtest below exists to forbid.
+		//
+		// A fixture that has to be remembered will be wrong. Deriving one
+		// costs a second `git-zhi` call and cannot go stale.
+		real, err := anyLiveIssue()
+		if err != nil {
+			t.Skipf("no live issue to check the resolver against: %v", err)
+		}
 		if err := citationResolves(real); err != nil {
-			t.Errorf("a live id did not resolve: %v", err)
+			t.Errorf("the live id %s did not resolve: %v", real, err)
 		}
 
 		const fake = "01a0c13f-97f5-7f98-b32d-07245ec6ddff"
-		err := citationResolves(fake)
+		err = citationResolves(fake)
 		if err == nil {
 			t.Fatalf("fabricated id %s resolved", fake)
 		}
@@ -798,6 +809,37 @@ func requireZhi(t *testing.T) {
 	if _, err := exec.LookPath(zhiBinary); err != nil {
 		t.Skipf("%s is not installed, so refusal citations cannot be resolved", zhiBinary)
 	}
+}
+
+// anyLiveIssue returns the id of some open issue, for a fixture that needs one
+// and must not name one.
+//
+// Naming a live id couples the fixture to state that moves: two spellings have
+// already gone `done` underneath this test, the second on the very commit that
+// implemented the last corpus refusal. `git-zhi issue list` omits closed
+// issues, so its first entry is live by construction.
+//
+// Deliberately NOT filtered to a milestone or a title. The claim being tested
+// is "the resolver accepts a live id", and any live id demonstrates it; a
+// narrower pick would be another thing to keep in step.
+func anyLiveIssue() (string, error) {
+	out, err := exec.Command(zhiBinary, "issue", "list", "--format", "json").Output()
+	if err != nil {
+		return "", fmt.Errorf("listing issues: %w", err)
+	}
+	var issues []struct {
+		ID    string `json:"id"`
+		State string `json:"state"`
+	}
+	if err := json.Unmarshal(out, &issues); err != nil {
+		return "", fmt.Errorf("reading %s output: %w", zhiBinary, err)
+	}
+	for _, i := range issues {
+		if !closedStates[i.State] && i.ID != "" {
+			return i.ID, nil
+		}
+	}
+	return "", fmt.Errorf("%s lists no open issue", zhiBinary)
 }
 
 // TestEmptyExpectedOutputIsChecked pins that a pinned EMPTY output is an
