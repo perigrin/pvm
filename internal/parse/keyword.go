@@ -61,6 +61,24 @@ var namedUnary = map[string]bool{
 	"umask": true, "undef": true, "untie": true, "values": true,
 	"write": true,
 
+	// The audit against perl's own keyword list -- all 266 names in
+	// `regen/keywords.pl` differenced against these three tables -- found
+	// `glob` and `readpipe` absent from all three, and perl reads each as a
+	// named unary:
+	//
+	//	perl -MO=Deparse,-p -e 'our ($a,$b); my $z = readpipe $a, $b;'
+	//	((my($z) = `$a`), $b);               comma OUTSIDE
+	//	perl -MO=Deparse,-p -e 'our ($a,$b); my $z = glob $a;'
+	//	use File::Glob (); (my($z) = glob($a));
+	//	perl -MO=Deparse,-p -e 'our ($a,$b); my $z = glob $a, $b;'
+	//	Too many arguments for glob         one argument, so not a list op
+	//
+	// Both were the wrong-tree-at-Unknown-zero defect: absent from every
+	// table, `glob $pattern` emitted `glob();$pattern;` -- an empty call with
+	// the argument detached as its own statement. TestParenlessBuiltinArity
+	// asserts the canon, which is the only instrument that saw it.
+	"glob": true, "readpipe": true,
+
 	// `my` and `local` are named unaries in perly.y too (§4.6), but they are
 	// declarations here and parseDeclaration owns them. Listed in neither
 	// table so the declaration path is not shadowed.
@@ -108,9 +126,64 @@ var listOperator = map[string]bool{
 	// list operator with a filehandle slot exactly like `print`.
 	"say": true,
 
+	// `atan2` was absent from all three tables, so `atan2 $var, 1` emitted
+	// `atan2();$var , 1;` -- an empty call with the whole argument list
+	// detached, at Unknown=0. It is a two-argument builtin and the comma is
+	// inside:
+	//
+	//	perl -MO=Deparse,-p -e 'our ($a,$b); my $z = atan2 $a, $b;'
+	//	(my($z) = atan2($a, $b));
+	"atan2": true,
+
 	// `return` is level 7 in perly.y and swallows its list the same way,
 	// but it is a statement form here and statementKeywords owns it.
 }
+
+// The audit of these three tables against perl's own keyword list.
+//
+// The tables above were built by deparsing keywords one at a time, but the
+// SET they were drawn from was never differenced against perl's. `atan2` and
+// `fc` were found by accident, which is the reason for this pass: all 266
+// names in `/home/perigrin/dev/perl5/regen/keywords.pl` were differenced
+// against namedUnary, listOperator and niladicParse, and each of the 78
+// absent names was then put to perl in expression position:
+//
+//	perl -MO=Deparse,-p -e 'our ($a,$b); my $z = KW $a, $b;'
+//
+// Most of the 78 perl itself rejects there (`if`, `while`, `sub`, `else`,
+// `__DATA__`, the phasers) or reads as an infix operator (`eq`, `cmp`, `lt`,
+// `xor`) or a quote-like (`q`, `qw`, `m`, `s`, `tr`). Of the names perl
+// ACCEPTS and hands an argument to, these are owned elsewhere and correctly
+// absent from all three tables:
+//
+//	my, our, local        parseDeclaration
+//	return, last, next, redo, require   statement forms
+//	not                   a unary operator, not a call
+//
+// That left exactly four genuine gaps: `atan2` (list operator, added above),
+// `glob` and `readpipe` (named unaries, added above), and `fc`.
+//
+// `fc` is TABLED DELIBERATELY NOT, and filed as 01a0dfbd. It is
+// feature-gated, and unenabled perl
+// does not read it as a builtin at all:
+//
+//	perl -MO=Deparse,-p -e 'our $a; my $z = fc $a;'
+//	(my($z) = $a->fc);                     a METHOD call
+//	perl -MO=Deparse,-p -e 'use v5.42; our $a; my $z = fc $a, $b;'
+//	(fc($a), $b);                          the builtin, a named unary
+//
+// Tabling it unconditionally would make us disagree with perl on unfeatured
+// source, which is the larger half of the corpus. The disagreement either way
+// is recorded and measured: ONE file in perl.git t/ has a parenless `fc` at
+// all (`re/anyof.t:858`, `$mod_cp = ord fc $char;`), so neither reading
+// changes the ratchet. `evalbytes`, `break`, `default` and `isa` are gated
+// the same way and absent for the same reason; `isa` is in fact an infix
+// operator under `use feature 'isa'`, not a call at all.
+//
+// The audit's measurement lives in TestParenlessBuiltinArity and
+// TestParenlessArityNoDetachedCall: an absent name emits `NAME()` with its
+// arguments detached, at Unknown=0, so the canon is the only instrument that
+// can see the gap.
 
 // niladicParse is a builtin taking no argument at all, so nothing follows it.
 // The lexer has its own copy for the expect state; this one is the parser's,
