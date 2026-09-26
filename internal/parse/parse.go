@@ -826,8 +826,21 @@ func endsStatement(tok lexer.Token, src []byte) bool {
 // statement of its own well before the marker.
 //
 // Trivia here still means every byte lands in a Trivia node, so the
-// section's body round-trips exactly -- which matters more for a data
+// section's body survives in the tree -- which matters more for a data
 // section than for the rest, because those bytes are what `DATA` yields.
+//
+// WHAT GUARDS THAT IS NOT CANON. An earlier revision of this comment
+// credited the round-trip machinery, and the PAAD gate measured otherwise:
+// excluding the section's bytes from the Trivia span leaves
+// `TestCanon*` AND `TestCorpus` green. Canon cannot see it twice over --
+// `canon.go`'s `case Trivia:` drops trivia unemitted, and
+// `canon_test.go`'s `significant()` skips `lexer.DataSection`, so both
+// sides of the comparison have already discarded the section.
+//
+// The guard is `TestDataSectionIsTrivia`'s `last.End != len(src)`
+// assertion in `stmt_test.go`, plus a `TestFuzzSeeds` case that catches an
+// empty trivia node. Both fail on that mutation. Naming the wrong guard is
+// how a guarantee quietly stops being one, so it is named here.
 func isTrivia(k lexer.Kind) bool {
 	switch k {
 	case lexer.Whitespace, lexer.Comment, lexer.Pod, lexer.DataSection:

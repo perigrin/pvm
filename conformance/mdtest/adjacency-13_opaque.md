@@ -57,15 +57,39 @@ heredoc's opaque region and entered the pod block's cleanly, and the
 parser's failure to resume did not compound into a second failure at the
 join.
 
-Three Unknowns for three distinct constructs and nothing more. `qx`, the
-glob and the pod block pass here as they pass alone. So no Unknown
-appears at a JOIN between two constructs, which is the negative worth
-having: the lexer leaves each opaque region cleanly and the failures do
-not compound.
+ONE Unknown, and it is the heredoc BODY. `qx`, the glob and the pod block
+pass here as they pass alone, so no Unknown appears at a JOIN between two
+constructs -- the negative worth having: the lexer leaves each opaque
+region cleanly and the failures do not compound.
+
+The single Unknown spans from the heredoc body through the pod block to
+the glob statement, because a heredoc in statement position is not read
+yet and the leftover bytes carry the rest with them. Tracked by
+`01a0c13f-aaf8` in m1-parse-the-core, which owns the heredoc gap.
+
+### What this passage said before, and why it was wrong twice
+
+It said THREE Unknowns, which was true when written and is now one --
+`format`/`write` and the data section both became statement forms, so two
+of the three closed.
+
+It also said, in the commit that updated the count's neighbour, that the
+survivor was `write` and a bare block. Measured, both halves are false:
+
+    write;                          0 Unknowns
+    print 1; write;                 0 Unknowns
+    format STDOUT = ... . write;    0 Unknowns
+    { 1; }                          0 Unknowns
+    my $here = <<"EOT"; ...         1 Unknown
+
+and there is no bare block anywhere in this case's program. Reading a
+count off a failing case and then naming a cause for it is how that
+happened, twice, in the same passage -- the cause was never measured
+separately either time.
 
 Every token fact below passes. The lexer handles all six constructs
-adjacent to one another; the refusals are the parser's, and the token
-section is what locates them there.
+adjacent to one another; the refusal is the parser's, and the token
+section is what locates it there.
 
 The spelling is `__END__` rather than `__DATA__` to cover the other half
 of the data-section construct -- measured, both end the program text and
@@ -102,7 +126,7 @@ from the data section
 
 ```behavior
 parses: yes
-refuses: unfiled
+refuses: 01a0c13f-aaf8-7c2f-a037-754feea1cf77
 refusal: trailing_tokens
 ```
 

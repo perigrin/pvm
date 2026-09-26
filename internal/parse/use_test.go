@@ -212,7 +212,14 @@ func TestClassCorpusHasNoUseGaps(t *testing.T) {
 func firstWordOf(src []byte, n *parse.Node) string {
 	for _, tok := range lexer.Tokenize(src[n.Start:n.End]) {
 		switch tok.Kind {
-		case lexer.Whitespace, lexer.Comment, lexer.Pod:
+		// DataSection joins the other three: `isTrivia` in parse.go is the
+		// authority and this is the fourth copy of its set. A span holding
+		// a data section would otherwise fall to `case lexer.Word` and
+		// return `__DATA__` as the statement's first word. Not reachable
+		// today -- a section is its own trailing Trivia node -- but the
+		// PAAD gate on 01a0dc84 found this copy diverged when the other
+		// three were updated.
+		case lexer.Whitespace, lexer.Comment, lexer.Pod, lexer.DataSection:
 			continue
 		case lexer.Word:
 			return string(src[n.Start+tok.Start : n.Start+tok.End])
