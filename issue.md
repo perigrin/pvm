@@ -1,10 +1,19 @@
 ---
 title: no feature signatures turns signatures ON, so a prototype is read as a signature
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-26T11:17:53.425614128Z
-updated: 2026-09-26T11:17:53.425614128Z
+updated: 2026-09-26T11:20:37.427904675Z
+sessions:
+- start_sha: f178e76df654244563b62e3b3f68f49cdfef252b
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-26T11:20:37.427904675Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-26T11:20:37.427904675Z
 ---
 
 `no feature "signatures"` turns signatures ON. `noteSignatures` has no path to
