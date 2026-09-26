@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: corpus-covers-t2
 created: 2026-09-26T03:02:06.779257794Z
-updated: 2026-09-26T04:14:44.02621909Z
+updated: 2026-09-26T04:17:51.661858649Z
 ---
 
 Four corpus token facts assert something the glossary forbids, and the
@@ -65,6 +65,43 @@ The glossary already draws this line for a neighbouring case and is worth
 reading before deciding -- `quote-like operator` exists precisely because
 `q{a}` is spelled with an operator NAME but is not punctuation.
 
+## The glossary's own amendment rule, which cuts against this issue's framing
+
+`GLOSSARY.md:12`:
+
+> **It is derived from perl, not from us.** Where a boundary is
+> contestable, the entry cites `perldata`/`perlop` and, where those are
+> silent, a measured `perl` invocation.
+
+So the glossary's CURRENT text is the derivation so far, not the
+authority. And perlop does call `x`, `cmp`, `and`, `or`, `xor` operators
+-- which is evidence FOR route 2 that the argument above omits. This issue
+opened by treating the current `operator` entry as decisive; it is not, and
+a decision taken on that reading would be taken on half the evidence.
+
+Two more rules constrain the execution:
+
+  - `GLOSSARY.md:21` -- every `##` heading is a category name, and
+    `TestGlossaryMatchesCategories` reads them. **Under route 1 the
+    decision prose must go under `###` or inside an existing entry**; a
+    `## Word-shaped operators are not punctuation` heading satisfies the
+    prose criterion and then FAILS the guard, because no `categories.go`
+    row backs it.
+  - `categories.go:15` -- a category may only be added once GLOSSARY.md
+    defines it.
+
+Route 2 also needs B::SoN's agreement, and there is no B::SoN in this
+repo. If that agreement is not obtainable when this issue runs, ROUTE 1 IS
+THE DEFAULT -- stated here so the blocker is named rather than discovered.
+
+## Route 2 has a side effect route 1 does not
+
+Adding the category makes `comparison.md:120`'s `xor` fact pass with no
+edit to that case. Route 1 must rewrite that fact by hand. Either way the
+case stays a SKIP on `not_a_term`, which `01a0dbe8` owns, and neither
+route changes this issue's criteria -- but the asymmetry is real and is
+recorded so nobody discovers it as a surprise.
+
 ## Why this is not a local fix
 
 `GLOSSARY.md` is what lets an unknown block tag be ignored: B::SoN and
@@ -80,12 +117,23 @@ make four facts pass.
    is perl's repeat op" at the token layer -- which may be correct, since
    that IS an op-layer claim and the corpus has an `ir` block for those.
 2. **Add a glossary category** for word-shaped operators (`x`, `cmp`,
-   `and`, `or`, `not`, `xor`, `lt`..`ge`, `eq`, `ne`, `q`-family). Then
-   the lexer follows and `categories.go` gains a row. Larger, and it needs
-   B::SoN's agreement since it changes the shared vocabulary.
+   `and`, `or`, `not`, `xor`, `lt`..`ge`, `eq`, `ne`). Costs one `##`
+   heading plus ONE TEXT-KEYED PREDICATE over `lexer.Word`. **The lexer
+   does not change.**
 
-Recommend measuring which spellings would join the new category BEFORE
-choosing, because the list decides how large option 2 is.
+An earlier draft priced route 2 as "the lexer follows", which is wrong by
+a whole subsystem and would have decided this on a false cost. Measured:
+`categories.go:39-45` already splits ONE lexer kind by TEXT --
+
+    "string literal":      k == lexer.Quote && !lexer.HasQuoteOperator(text)
+    "quote-like operator": k == lexer.Quote &&  lexer.HasQuoteOperator(text)
+
+-- and the glossary's `quote-like operator` entry states the principle:
+"Our lexer gives both the same `Quote` kind, so the category is decided by
+the token's TEXT... That choice is `categories.go`'s, not the corpus's."
+
+So the spelling list is a data table, not a refactor, and its length barely
+moves the cost. Measure it for completeness, not for sizing.
 
 ## Context
 
@@ -105,6 +153,15 @@ Two of the first draft's criteria did not check what they claimed:
   - `go test -run '^TestGlossary' | grep -q '^ok'` passes today, before any
     work, and passes under BOTH routes. It distinguishes nothing.
 
+The cheapest WRONG way to close this issue is to widen
+`"operator": kind(lexer.Operator)` to accept `Word` -- the prose forbids it
+and, measured, nothing else would catch it. Every negative operator fact in
+the corpus names punctuation; the one word-shaped spelling (`"b"`, in
+`numeric-radix.md`) is inside `0b1010` so no `Word("b")` token exists
+either way, and `TestCategoryBoundaries` has a single `operator` row, on
+`-`. Hence the new criterion: add a row asserting `operator` does NOT match
+a word, so the prohibition has a check rather than a sentence.
+
 The replacements name the three cases that must go from SKIP to PASS.
 That is outcome-neutral by construction: rewriting the facts and adding a
 glossary category both make those cases pass, and nothing else does.
@@ -121,4 +178,5 @@ together.
 - [ ] The two-precedences case passes rather than skipping (`go test ./internal/conformance/ -run '^TestCorpus$' -count=1 -v | grep -qE 'PASS: TestCorpus/comparison.md/.&&._and_.and._are_one_op_at_two_precedences'`)
 - [ ] The decision is written where the next reader finds it (`grep -qiE 'word-shaped|not punctuation' conformance/GLOSSARY.md`)
 - [ ] REGRESSION GUARD, passes today: the glossary and the category table still agree (`go test ./internal/conformance/ -run '^TestGlossaryMatchesCategories$' -count=1 -v | grep -q '^--- PASS: TestGlossaryMatchesCategories'`)
-- [ ] The suite is green (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
+- [ ] A new `TestCategoryBoundaries` row proves `operator` still rejects a word (`go test ./internal/conformance/ -run '^TestCategoryBoundaries$' -count=1 -v | grep -q '^--- PASS: TestCategoryBoundaries'`)
+- [ ] REGRESSION GUARD, passes today: the suite is green (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
