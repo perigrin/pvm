@@ -1,12 +1,21 @@
 ---
 title: Attribute the 1,118 bare-brace Unknowns using matched braces, not the nearest one
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 blocks:
 - 01a0de8b-3352-70b3-a419-fd1043662366
 created: 2026-09-26T16:26:49.795028845Z
-updated: 2026-09-26T16:26:49.795028845Z
+updated: 2026-09-26T16:30:23.96674654Z
+sessions:
+- start_sha: 2dc301fdeeec2303d2bfcdc1cae708b09b190c0b
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-26T16:30:23.96674654Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-26T16:30:23.96674654Z
 ---
 
 1,118 of perl.git t/'s 7,745 Unknown nodes are a bare `}` -- eight times the
