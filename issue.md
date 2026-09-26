@@ -1,12 +1,12 @@
 ---
 title: A __DATA__ section has no statement form, and it is the section not the handle
-state: in-progress
+state: done
 urgency: normal
 milestone: corpus-covers-t2
 blocked_by:
 - 01a0dc82-28e1-72d3-82cd-88ed8479f327
 created: 2026-09-26T07:00:39.376307576Z
-updated: 2026-09-26T08:50:45.925189552Z
+updated: 2026-09-26T08:52:05.303683533Z
 sessions:
 - start_sha: d1537f9631443c467a73f3e56cf382da4eeab2ae
   end_sha: d1537f9631443c467a73f3e56cf382da4eeab2ae
@@ -20,6 +20,33 @@ transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-26T07:02:45.841983723Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-26T08:52:05.303683533Z
+observed_paths:
+- conformance/13_opaque/README.md
+- conformance/GLOSSARY.md
+- conformance/mdtest/adjacency-13_opaque.md
+- conformance/mdtest/formats.md
+- conformance/mdtest/pod-and-data.md
+- conformance/mdtest/vstrings.md
+- internal/conformance/testdata/corpus.ratchet
+- internal/lexer/ident.go
+- internal/lexer/lexer.go
+- internal/lexer/scan.go
+- internal/lexer/vnum_test.go
+- internal/parse/canon.go
+- internal/parse/decl.go
+- internal/parse/decl_test.go
+- internal/parse/parse.go
+- internal/parse/refusal_test.go
+- internal/parse/stmt_test.go
+- internal/parse/t2_test.go
+- internal/parse/testdata/t1.ratchet
+- internal/parse/testdata/t1canon.ratchet
+- internal/parse/testdata/t1fidelity.ratchet
+- internal/parse/use.go
+- internal/parse/use_test.go
 ---
 
 A `__DATA__` or `__END__` section refuses with `not_a_term`. The lexer
