@@ -1,10 +1,19 @@
 ---
 title: Ungated defer is declined as a statement form the parser can already read
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-23T23:08:33.884597854Z
-updated: 2026-09-26T12:52:56.617783935Z
+updated: 2026-09-26T12:53:13.691758691Z
+sessions:
+- start_sha: 5c84df85b7059abba4a396b055608d6900306f62
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-26T12:53:13.691758691Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-26T12:53:13.691758691Z
 ---
 
 **Re-measured 2026-09-26, and the diagnosis below has changed. This was filed
