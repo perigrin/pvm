@@ -49,6 +49,50 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 			return left
 		}
 
+		// A TRAILING COMMA is a separator with no element after it, not an
+		// operator missing its operand.
+		//
+		// perl allows one before every closer a list can end at, and perl's
+		// own test suite leans on it: the multi-line `runperl(`,
+		// `foreach my $x (` and `test_opcount(` house style writes the comma
+		// after the last argument so that adding one more is a one-line diff.
+		//
+		// Read as an infix operator, the comma's operand hunt reached the
+		// closer and parseTerm consumed it as `not_a_term`. The count that
+		// cost was the cheap half; the expensive half is that the closer was
+		// then GONE from the construct that owned it, which read the next
+		// token as its own:
+		//
+		//	foreach my $x ($a,) { 1 }
+		//
+		// canon'd as `foreach my $x ($a , ){1})`, the loop BODY having become
+		// a hash subscript on the comma expression. A wrong shape, not a
+		// wrong number, and an Unknown count cannot see it.
+		//
+		// Bucketing every dirty perl.git t/ file's first Unknown span by the
+		// construct it stumbled over made this the largest single cause of
+		// the 620-file corpus: 27 files and 417 nodes, against 10 files for
+		// the runner-up. class/construct.t's note in t2_test.go has named it
+		// since the day it was measured -- "nothing in the chain owns
+		// trailing commas in argument lists" -- and this is that owner.
+		//
+		// The comma is CONSUMED before returning, so the closer is what the
+		// caller peeks at next -- parseParenList's own loop, parseSubscript's
+		// closer check, parseCallArgs' caller -- and each takes it as its
+		// own. Returning without consuming would spin: the comma still binds
+		// above the caller's minBP.
+		//
+		// `left` is non-nil by construction here, so there is always an
+		// element for the separator to follow. `f(,)` -- a comma with nothing
+		// in front of it -- never reaches this loop at all: parseTerm refuses
+		// the comma itself, and that refusal is correct and stays.
+		if text == "," || text == "=>" {
+			if next, ok := p.peekAfter(tok); ok && next.Kind == lexer.CloseBracket {
+				p.advanceTo(tok)
+				return left
+			}
+		}
+
 		// Comparisons take their own path: one may START a chain, EXTEND the
 		// chain it matches, or REJECT where a chain already stands.
 		if cls, _ := compareClass(text); cls != notComparison {

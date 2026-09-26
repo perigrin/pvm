@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 758 clean (76.9%), 228 total.
+# 986 files, 767 clean (77.8%), 219 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -37,7 +37,7 @@
 1 b_hooks_endofscope_require.t
 0 b_object_2svref.t
 0 b_object_2svref_roundtrip.t
-1 b_perlstring_wide.t
+0 b_perlstring_wide.t
 0 b_sv_object_2svref_thread_clone.t
 0 bad_signature.t
 1 bare_block_return.t
@@ -80,7 +80,7 @@
 0 charnames_runtime_lookup.t
 0 chomp.t
 0 chop_wide_scalars.t
-1 chr_scalar_bounds.t
+0 chr_scalar_bounds.t
 0 class_c3_componentised_regressions.t
 0 class_default_accessor_names.t
 1 class_incomplete_no_leak.t
@@ -467,10 +467,10 @@
 1 makemaker_generated_pm_dependency.t
 1 makemaker_ignores_test_helpers.t
 0 makemaker_ignores_test_packages.t
-1 makemaker_library_data_files.t
+0 makemaker_library_data_files.t
 1 makemaker_meta_merge_prereqs.t
 1 makemaker_mymeta_control_chars.t
-1 makemaker_pmlibdirs.t
+0 makemaker_pmlibdirs.t
 0 makemaker_postamble_rule_style.t
 0 makemaker_prompt_default.t
 1 makemaker_secondary_bundled_blib.t
@@ -563,7 +563,7 @@
 0 pack_hex_string_regressions.t
 0 pack_u0_string_directive_boundary.t
 0 pack_u0_unicode_directive_boundary.t
-1 pack_u0_utf8_validation.t
+0 pack_u0_utf8_validation.t
 0 pack_utf8.t
 0 package_decl_stash.t
 0 package_stash_constant_code.t
@@ -655,7 +655,7 @@
 0 regex_named_character_extended_capture.t
 0 regex_negated_caret_class.t
 0 regex_nonunicode_property_warning.t
-1 regex_parser_safety_parity.t
+0 regex_parser_safety_parity.t
 0 regex_posix_class_casefold.t
 0 regex_prune.t
 1 regex_quotemeta_code_block.t
@@ -678,7 +678,7 @@
 1 reverse_list_alias.t
 0 role_tiny_regressions.t
 0 safe_permit_only.t
-1 scalar_coderef_call_context.t
+0 scalar_coderef_call_context.t
 0 scalar_dual_value_arithmetic.t
 0 scalar_handle_read.t
 0 scalar_handle_tty_errno.t
@@ -906,7 +906,7 @@
 0 universal_methods.t
 0 universal_version_diagnostics.t
 0 unpack.t
-1 unpack_short_string.t
+0 unpack_short_string.t
 0 use_adjacent_import_quote.t
 0 use_lib_inc_hook.t
 1 use_vars_glob_strict.t
@@ -948,7 +948,7 @@
 0 xml_libxml_relaxng.t
 0 xml_libxslt.t
 0 xml_parser_current_element.t
-1 xml_parser_external_entity_sysid.t
+0 xml_parser_external_entity_sysid.t
 1 xml_parser_parsefile_typeglob.t
 1 xml_parser_tied_handle.t
 0 xstring.t

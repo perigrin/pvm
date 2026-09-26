@@ -392,7 +392,12 @@ func TestClassCorpusRatchet(t *testing.T) {
 	// reason perl's suite spells them `::fail(...)` and `::is(...)` -- the
 	// leading separator reaches past the lexically-scoped package to
 	// `main::`. No other file in t/class moved.
-	const want = 14
+	//
+	// 14 -> 13 when a trailing comma stopped being read as an operator
+	// missing its operand (issue 01a0dfbd). field.t 2 -> 1: it spells its
+	// `ok(eq_array([...], [...]),` assertions across lines with the comma
+	// last, which is perl's own suite style everywhere a call takes a list.
+	const want = 13
 	if unknown != want {
 		t.Errorf("t/class holds %d Unknown nodes, want %d: update this pin in "+
 			"the same commit as the change that moved it", unknown, want)

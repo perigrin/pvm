@@ -240,7 +240,7 @@ func TestT2CoreParses(t *testing.T) {
 		// inside a `class` block, the shape perl's own suite uses to reach
 		// `test.pl`'s functions past a lexically-scoped package. field.t's
 		// three movers are the `::is(...)` calls at lines 64-66.
-		"class/destruct.t": 2, "class/field.t": 2,
+		"class/destruct.t": 2, "class/field.t": 1,
 		"class/gh23511.t": 1, "class/inherit.t": 4, "class/method.t": 3,
 		// cmd/subval.t and comp/package_block.t left the map entirely with
 		// the `startsTerm` fix -- they parse cleanly now, which is what
@@ -329,7 +329,7 @@ func TestT2CoreParses(t *testing.T) {
 		// construct rather than a user of it: line 399 asserts
 		// `CORE::print::foo` is NOT `CORE::print ::foo`, and lines 517-518
 		// declare `format ::two =`.
-		"comp/parser.t": 27, "comp/parser_run.t": 2, "comp/proto.t": 2,
+		"comp/parser.t": 27, "comp/proto.t": 2,
 		// comp/require.t went 11 -> 12 when phaser braces became blocks. The
 		// `BEGIN { ... }` body is now read as statements rather than as one
 		// hashref, and reaching inside it exposed a heredoc the parser did
