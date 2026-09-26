@@ -4,7 +4,7 @@ state: in-progress
 urgency: normal
 milestone: corpus-covers-t2
 created: 2026-09-26T03:02:06.779257794Z
-updated: 2026-09-26T04:43:08.977932447Z
+updated: 2026-09-26T04:48:57.594125598Z
 sessions:
 - start_sha: 58076b8abd0e49c3879c050fa5657dfac841914f
   end_sha: ""
@@ -187,5 +187,14 @@ together.
 - [ ] The two-precedences case passes rather than skipping (`go test ./internal/conformance/ -run '^TestCorpus$' -count=1 -v | grep -qE 'PASS: TestCorpus/comparison.md/.&&._and_.and._are_one_op_at_two_precedences'`)
 - [ ] The decision is written where the next reader finds it (`grep -qiE 'word-shaped|not punctuation' conformance/GLOSSARY.md`)
 - [ ] REGRESSION GUARD, passes today: the glossary and the category table still agree (`go test ./internal/conformance/ -run '^TestGlossaryMatchesCategories$' -count=1 -v | grep -q '^--- PASS: TestGlossaryMatchesCategories'`)
-- [ ] A named row proves `operator` still rejects a word (`go test ./internal/conformance/ -run '^TestCategoryBoundaries$' -count=1 -v | grep -q 'PASS: TestCategoryBoundaries/a_word_shaped_operator_is_not_the_operator_category'`)
+- [ ] A named row proves `operator` still rejects a word (`go test ./internal/conformance/ -run '^TestCategoryBoundaries$' -count=1 -v | grep -qE 'PASS: TestCategoryBoundaries/a_word.shaped_operator_is_not_the_operator_category'`)
 - [ ] REGRESSION GUARD, passes today: the suite is green (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
+### Criterion corrected during execution
+
+The boundary-row criterion was written `a_word_shaped_operator...` with an
+underscore. Go keeps the HYPHEN from the row name, so the real subtest is
+`a_word-shaped_operator_is_not_the_operator_category` and the criterion
+could never have passed -- a broken pattern rather than a progress check,
+which is the class the chain-review gate hunts and which I wrote anyway.
+Now a regex with `.` for the separator, verified against the actual `-v`
+output rather than against the name I expected.
