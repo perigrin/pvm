@@ -616,7 +616,25 @@ func (p *parser) statement() *Node {
 		// separators qualify. Everything else stays a block, which is what
 		// keeps every bare block, `if` body and loop body working.
 		if !p.braceOpensAnonHash(tok) {
-			return p.withLabels(labels, p.parseBlock(tok), start)
+			blk := p.parseBlock(tok)
+			// A bare block is a loop that runs once, so it takes a `continue`
+			// block like any other. Measured on perl 5.42.0:
+			//
+			//	$ perl -e 'my @s; { push @s,"b" } continue { push @s,"c" }
+			//	           print "@s\n";'
+			//	b c
+			//
+			// Returned as a sibling of the block rather than a child of it,
+			// because the block is the body and the continue clause is not in
+			// it -- `last` inside the body skips the continue, so nesting it
+			// would put a statement that does not run inside the one that does.
+			if cont := p.parseContinueOrDecline(); cont != nil {
+				pair := &Node{Kind: Statement, Start: blk.Start,
+					Children: []*Node{blk, cont}}
+				pair.End = p.prevEnd()
+				return p.withLabels(labels, pair, start)
+			}
+			return p.withLabels(labels, blk, start)
 		}
 		// A hash falls through to the expression path below, which reads the
 		// `{` as the AnonHash parseTerm already builds.
@@ -845,7 +863,24 @@ var statementKeywords = map[string]bool{
 	// `do` is GONE: parseBlockOperator reads `do BLOCK` as a term, and
 	// `do EXPR` is an ordinary named unary. It reached statementKeywords
 	// only because it was unimplemented.
-	"continue": true,
+	//
+	// `continue` is GONE: parseContinueOrDecline reads `continue BLOCK` as part
+	// of the loop it follows, which is what it is -- there is no `continue` op,
+	// and `perl -MO=Concise,-exec` puts the destination on the loop's own
+	// `enterloop` plus an `unstack` at the bottom. Called from the three sites
+	// perl accepts one at: `while`/`until`, the LIST form of `for`/`foreach`,
+	// and a bare block. The C-style `for (;;)` head is NOT one of them, because
+	// perl rejects a continue block there -- measured, `for (my $i=0; $i<3;
+	// $i++) { } continue { }` is a syntax error on 5.42.0 -- so no loop claims
+	// it and the block falls to the general `WORD BLOCK` reading, the same one
+	// `defer { ... }` gets.
+	//
+	// So removing the entry stops DECLINING the word anywhere, including for
+	// BARE `continue;`, which is a different form again -- the jump out of a
+	// `when` block, which perl reports as `Can't "continue" outside a when
+	// block`. That one now reads as a Call, the reading any undeclared bareword
+	// gets, which the harness scores `wider` rather than WRONG. Naming it as its
+	// own construct is M2's, with the rest of the switch family.
 
 	// use, no, require, the phasers and class are GONE: parseTheRest reads
 	// them. `field` and `method` are read by parseDeclaration.

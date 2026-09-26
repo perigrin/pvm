@@ -246,6 +246,98 @@ func TestLabelledBareBlock(t *testing.T) {
 	}
 }
 
+// TestContinueBlock: `continue BLOCK` belongs to the loop it follows.
+//
+// Measured on perl 5.42.0, which is the authority on which forms take one:
+//
+//	while  ($i<3)  {...} continue {$i++}          ->  0 1 2
+//	until  ($i>=3) {...} continue {$i++}          ->  0 1 2
+//	foreach my $x (1..3) {...} continue {...}     ->  b1 c1 b2 c2 b3 c3
+//	{...} continue {...}                          ->  b c
+//	for (my $i=0; $i<3; $i++) {...} continue {..}  ->  SYNTAX ERROR
+//
+// The C-style head is the one form perl REJECTS. TestContinueRejectedFormsStay
+// pins that separately, because a construct perl rejects is one we are right to
+// decline.
+func TestContinueBlock(t *testing.T) {
+	for _, tc := range []struct {
+		src  string
+		kind parse.Kind
+	}{
+		{"while ($i < 3) { $x } continue { $i++ }", parse.Loop},
+		{"until ($i >= 3) { $x } continue { $i++ }", parse.Loop},
+		{"foreach my $x (1..3) { $y } continue { $z }", parse.Loop},
+		{"for my $x (1..3) { $y } continue { $z }", parse.Loop},
+		// A labelled loop still works. The labelled-block fix landed in
+		// internal/lexer/expect.go, so a label before the loop must not
+		// change where the continue block attaches.
+		{"L: while ($i < 3) { $x } continue { $i++ }", parse.Loop},
+		// A BARE block takes one too -- perl runs the block once, then the
+		// continue: `{push @s,"b"} continue {push @s,"c"}` prints `b c`.
+		{"{ $x } continue { $y }", parse.Block},
+	} {
+		root := parse.Parse([]byte(tc.src))
+		if containsKind(root, parse.Unknown) {
+			t.Errorf("%q must parse: %v", tc.src, kinds(root))
+			continue
+		}
+		if firstOfKind(root, tc.kind) == nil {
+			t.Errorf("%q must produce a %v: %v", tc.src, tc.kind, kinds(root))
+		}
+		// Canon must place the keyword back. Without it the continue block
+		// emits as a second bare Block and the word is gone from the source
+		// text -- zero Unknowns and a tree that is not a parse of its bytes.
+		if got := parse.Canon(root, []byte(tc.src)); !strings.Contains(got, "continue") {
+			t.Errorf("canon of %q dropped `continue`: %q", tc.src, got)
+		}
+	}
+}
+
+// TestContinueRejectedFormsStay: a construct perl rejects is one to decline.
+//
+// The C-style `for` head is the only loop head that does NOT take a continue
+// block. Measured on perl 5.42.0:
+//
+//	$ perl -e 'for (my $i=0; $i<3; $i++) { } continue { }'
+//	syntax error at -e line 1, near "} continue "
+//
+// So `continue` must NOT be folded into that loop. And BARE `continue;` is a
+// different statement form -- the jump out of a `when` block -- which is not
+// implemented and must not be read as an empty loop clause.
+func TestContinueRejectedFormsStay(t *testing.T) {
+	// The C-style head. The continue must be a SEPARATE statement from the
+	// loop, which is what refusing to fold it looks like in the tree.
+	src := "for (my $i = 0; $i < 3; $i++) { $x } continue { $y }"
+	root := parse.Parse([]byte(src))
+	loop := firstOfKind(root, parse.Loop)
+	if loop == nil {
+		t.Fatalf("%q lost its Loop: %v", src, kinds(root))
+	}
+	for _, c := range loop.Children {
+		if c.Kind == parse.Loop && c.Text == "continue" {
+			t.Errorf("%q folded a continue block perl rejects into the loop", src)
+		}
+	}
+
+	// Bare `continue;`. perl accepts it inside a `when` block and this parser
+	// does not implement that jump, so it stays declined rather than becoming
+	// a continue clause with no block.
+	root = parse.Parse([]byte("continue;"))
+	if n := firstOfKind(root, parse.Loop); n != nil && n.Text == "continue" {
+		t.Errorf("bare `continue;` was read as a loop clause: %v", kinds(root))
+	}
+
+	// What the rejected C-style spelling DOES become, recorded rather than
+	// asserted as desirable: `continue` is no longer a declined statement
+	// keyword, so its block reaches the general `WORD BLOCK` reading -- the
+	// same one `defer { ... }` gets. That is a statement whose shape this
+	// parser can read; what perl rejects is the PAIRING with the loop, and
+	// the loop no longer claims it. Printed so a later change to that reading
+	// is visible here.
+	t.Logf("C-style continue reads as: %v", kinds(parse.Parse([]byte(src))))
+	t.Logf("bare `continue;` reads as: %v", kinds(parse.Parse([]byte("continue;"))))
+}
+
 func countKind(n *parse.Node, k parse.Kind) int {
 	total := 0
 	if n.Kind == k {

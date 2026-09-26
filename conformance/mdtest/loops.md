@@ -211,3 +211,78 @@ parses: yes
 ```output
 210
 ```
+
+## `continue BLOCK` runs on `next` and not on `last`
+
+There is NO `continue` op. The block is part of the loop it follows, and
+the whole construct is two facts already in this tier: the `next` target on
+`enterloop` points AT the continue block, and the `last` target points past
+it. Measured, and the dump says it in one line:
+
+    d  <{> enterloop(next->12 last->1c redo->e) v
+    ...
+    12     <0> pushmark s              <- the continue block starts HERE
+    13     <0> padav[@s:3,10] lRM
+    ...
+    17     <0> unstack v
+    1c <2> leaveloop vKP/2             <- and `last` lands HERE
+
+So `next` reaches the continue block and `last` jumps over it. That is
+the whole semantics, and it needs no op this tier does not already claim --
+which is the contrast with `given`/`when`, whose five ops are unclaimed.
+
+The OUTPUT is the discriminating half, and it discriminates in both
+directions at once. `c2` with no `b2` is the pass `next` skipped, and the
+continue block still ran. No `c4` at all is the pass `last` left, and the
+continue block did not. A reader that attaches the block correctly but runs
+it on every exit prints a `c4` this refuses; one that treats it as a second
+bare block after the loop runs it ONCE, after the loop is over, and prints a
+single trailing `c4` for the same reason. Three `c` entries for four passes
+is what only the real semantics produces.
+
+`while` is not the only form that takes one. Measured on 5.42.0, `until`
+and the LIST form of `foreach` take one too, and a BARE block takes one --
+a bare block is a loop that runs once, so it runs its continue once:
+
+    { push @s,"b" } continue { push @s,"c" }          ->  b c
+
+The C-style head is the exception, and perl REJECTS it rather than
+accepting it with different semantics:
+
+    $ perl -e 'for (my $i=0; $i<3; $i++) { } continue { }'
+    syntax error at -e line 1, near "} continue "
+
+The token facts count because the word is not always this construct. Bare
+`continue;` is a DIFFERENT statement form -- the jump out of a `when` block,
+which perl reports as `Can't "continue" outside a when block` -- so a reader
+that took the word alone as a loop clause would read the wrong one. This
+source holds exactly one `continue`, and it is followed by a block.
+
+```perl
+my $n = $ENV{N} // 5;
+my $i = 0;
+my @s;
+while ($i < $n) {
+    $i = $i + 1;
+    next if $i == 2;
+    last if $i == 4;
+    push @s, "b$i";
+} continue {
+    push @s, "c$i";
+}
+print "@s\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+b1 c1 c2 b3 c3
+```
+
+```tokens
+one word whose text is "continue"
+one word whose text is "next"
+one word whose text is "last"
+```

@@ -315,6 +315,69 @@ func (p *parser) parseConditional(word lexer.Token) *Node {
 	return n
 }
 
+// parseContinueOrDecline reads the optional `continue BLOCK` that follows a
+// loop body, and returns nil when there is none.
+//
+// A Loop node with `continue` in Text and the block as its only child, which
+// is the kind's documented pattern -- "one kind with the keyword in Text" --
+// and which canon's `case Conditional, Loop` arm already emits as
+// `KEYWORD BLOCK` with no further change.
+//
+// There is no `continue` op to model. The destination is metadata on the loop's
+// own `enterloop`, which is why the block is part of the loop it follows rather
+// than a construct of its own. Measured with `perl -MO=Concise,-exec` over the
+// corpus case in `conformance/mdtest/loops.md`:
+//
+//	d  <{> enterloop(next->12 last->1c redo->e) v
+//	12     <0> pushmark s        the continue block starts at the `next` target
+//	17     <0> unstack v
+//	1c <2> leaveloop vKP/2       and `last` lands past it
+//
+// So `next` reaches the block and `last` jumps over it, which is observable:
+//
+//	while ($i<5) { $i++; next if $i==2; push @s,"b$i" } continue { push @s,"c$i" }
+//	  ->  b1 c1 c2 b3 c3 b4 c4 b5 c5      it RUNS on `next`
+//	while ($i<5) { $i++; last if $i==3; push @s,"b$i" } continue { push @s,"c$i" }
+//	  ->  b1 c1 b2 c2                     it does NOT run on `last`
+//
+// Called from the three sites perl accepts one at -- `while`/`until`, the LIST
+// form of `for`/`foreach`, and a bare block -- rather than from
+// parseBlockOrDecline, because the C-style `for (;;)` head shares that helper
+// and perl REJECTS a continue block after it (see parseFor).
+func (p *parser) parseContinueOrDecline() *Node {
+	word, ok := p.peekSignificant()
+	if !ok || word.Kind != lexer.Word || p.text(word) != "continue" {
+		return nil
+	}
+	// The block has to be there before this reading is taken, because BARE
+	// `continue;` is a DIFFERENT statement form -- the jump out of a `when`
+	// block. Measured on 5.42.0:
+	//
+	//	$ perl -e 'use feature "switch"; no warnings;
+	//	      for (1) { when (1) { print "a\n"; continue } print "b\n" }'
+	//	a
+	//	b
+	//	$ perl -e 'continue: while (1) { last continue }'
+	//	Can't "continue" outside a when block at -e line 1.
+	//
+	// That form is not this one, so with no block following, nil sends the word
+	// back to the ordinary paths -- it reads as a Call, the same reading any
+	// undeclared bareword gets, which is `wider` rather than WRONG and not a
+	// claim to have understood the `when`-jump. Folding it into a loop clause it
+	// is not WOULD have been such a claim.
+	next, ok := p.peekAfter(word)
+	if !ok || !next.OpensBlock || p.text(next) != "{" {
+		return nil
+	}
+	p.advanceTo(word)
+	n := &Node{Kind: Loop, Text: p.text(word), Start: word.Start}
+	if blk := p.parseBlockOrDecline(); blk != nil {
+		n.Children = append(n.Children, blk)
+	}
+	n.End = p.prevEnd()
+	return n
+}
+
 // parseWhile: `while (EXPR) BLOCK`, and `until` which differs only in Text.
 func (p *parser) parseWhile(word lexer.Token) *Node {
 	p.advanceTo(word)
@@ -325,6 +388,9 @@ func (p *parser) parseWhile(word lexer.Token) *Node {
 	}
 	if blk := p.parseBlockOrDecline(); blk != nil {
 		n.Children = append(n.Children, blk)
+	}
+	if cont := p.parseContinueOrDecline(); cont != nil {
+		n.Children = append(n.Children, cont)
 	}
 	n.End = p.prevEnd()
 	return n
@@ -367,11 +433,27 @@ func (p *parser) parseFor(word lexer.Token) *Node {
 		}
 	}
 
-	if head := p.parseForHead(); head != nil {
+	head, cStyle := p.parseForHead()
+	if head != nil {
 		n.Children = append(n.Children, head...)
 	}
 	if blk := p.parseBlockOrDecline(); blk != nil {
 		n.Children = append(n.Children, blk)
+	}
+	// Only the LIST form takes a continue block. perl rejects it after the
+	// C-style head, measured on 5.42.0:
+	//
+	//	$ perl -e 'for (my $i=0; $i<3; $i++) { } continue { }'
+	//	syntax error at -e line 1, near "} continue "
+	//
+	// so folding one in there would read a construct perl does not accept, and
+	// refusing the PAIRING is the point. The `continue` then becomes its own
+	// statement -- measured, a Call with a Block, the general `WORD BLOCK`
+	// reading -- which claims nothing about a loop it does not belong to.
+	if !cStyle {
+		if cont := p.parseContinueOrDecline(); cont != nil {
+			n.Children = append(n.Children, cont)
+		}
 	}
 	n.End = p.prevEnd()
 	return n
@@ -380,25 +462,32 @@ func (p *parser) parseFor(word lexer.Token) *Node {
 // parseForHead reads `( ... )` and returns its parts: one node for a list
 // head, three for a C-style head. An empty slot in `for (;;)` contributes no
 // node, which is why the count is not load-bearing anywhere.
-func (p *parser) parseForHead() []*Node {
+//
+// The second return says the head was C-STYLE, decided by whether a semicolon
+// separated its clauses rather than by counting the parts -- `for (;;)`
+// contributes zero nodes and is still C-style. It is what tells parseFor which
+// of the two forms may take a continue block.
+func (p *parser) parseForHead() ([]*Node, bool) {
 	open, ok := p.peekSignificant()
 	if !ok || p.text(open) != "(" {
-		return nil
+		return nil, false
 	}
 	p.advanceTo(open)
 
 	var parts []*Node
+	cStyle := false
 	for {
 		tok, ok := p.peekSignificant()
 		if !ok {
-			return parts
+			return parts, cStyle
 		}
 		switch {
 		case p.text(tok) == ")":
 			p.advanceTo(tok)
-			return parts
+			return parts, cStyle
 		case tok.Kind == lexer.Semicolon:
 			// An empty slot: `for (;;)`.
+			cStyle = true
 			p.advanceTo(tok)
 			continue
 		}
@@ -412,11 +501,12 @@ func (p *parser) parseForHead() []*Node {
 			part = p.parseExpr(0)
 		}
 		if part == nil {
-			return parts
+			return parts, cStyle
 		}
 		parts = append(parts, part)
 
 		if sep, ok := p.peekSignificant(); ok && sep.Kind == lexer.Semicolon {
+			cStyle = true
 			p.advanceTo(sep)
 		}
 	}
