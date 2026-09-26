@@ -1,12 +1,21 @@
 ---
 title: The lexer splits -e into a minus and a word, and the whole file-test family with it
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
 - 01a0ce57-db92-78e5-bbe4-7c28e74db6f3
 created: 2026-09-23T17:51:06.293983513Z
-updated: 2026-09-26T09:00:31.871962523Z
+updated: 2026-09-26T09:53:36.362796482Z
+sessions:
+- start_sha: 6ae2242dc5addd89075b7c29d0a0777e69d757ef
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-26T09:53:36.362796482Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-26T09:53:36.362796482Z
 ---
 
 `-e $f` is a file-test operator and our lexer splits it into a minus and
