@@ -120,6 +120,33 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 			return
 		}
 
+		// `WORD BLOCK ARG` for a word this parser could not resolve: the block
+		// and then the list, with NO parens around either. perl spells it that
+		// way and accepts only that spelling -- measured on 5.42.0:
+		//
+		//	$ perl -MO=Deparse -e 'zzz { 1 } print "b";'
+		//	zzz {
+		//	    1
+		//	} print('b');
+		//	$ perl -e 'zzz({1;}print "b");'
+		//	syntax error at -e line 1, near ";}"
+		//
+		// So parenthesising this one emits bytes perl rejects, and the reader
+		// agrees with perl: `zzz({1;}print("b"))` does not re-parse.
+		//
+		// Resolved is what separates this from `map({...} @a)` and
+		// `print({$fh;} "x")`, which perl DOES accept parenthesised and which
+		// canon must keep emitting that way. A resolved callee's block fills a
+		// slot its builtin declares; an unresolved one's is the bare
+		// `WORD BLOCK` form, whose reading perl decides from the symbol table.
+		if !n.Resolved && len(n.Children) > 1 && n.Children[0].Kind == Block {
+			b.WriteByte(' ')
+			for _, c := range n.Children {
+				emit(b, c, src, 0)
+			}
+			return
+		}
+
 		b.WriteByte('(')
 		for i, c := range n.Children {
 			// A filehandle slot takes no comma after it -- `print $fh "x"`

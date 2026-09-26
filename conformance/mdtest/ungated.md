@@ -194,15 +194,40 @@ at runtime. This one changes WHEN the code runs. Measured:
     body
     D
 
-Ungated, `defer { ... }` is an indirect method call whose brace group
-is an anonymous hash constructor -- so the BLOCK IS EVALUATED EAGERLY
-to build the hash, printing `D`, and only then does perl look for a
-`defer` method and fail. Gated, the block runs at scope exit, after
-`body`. The two readings produce the same two lines in the OPPOSITE
-ORDER, and the failure arrives after the damage. A parser that always
-treats `defer BLOCK` as a compound statement is wrong on pre-5.36 code;
-one that never does is wrong on modern code, and nothing at compile
-time distinguishes them.
+Ungated, `defer { ... }` is a method call whose INVOCANT is the brace
+group's VALUE -- so the BLOCK IS EVALUATED EAGERLY to produce it,
+printing `D`, and only then does perl look for a `defer` method and
+fail. The error names the invocant, and it is the block's last value
+rather than a hash reference:
+
+    Can't locate object method "defer" via package "1"
+
+`package "1"` -- the `1` the block evaluated to. Confirmed on the
+optree:
+
+    $ perl -MO=Concise -e 'zzz { 1 } print "b";'
+      <.> method_named[PV "zzz"]      invocant const[IV 1]
+
+So the brace group here is a BLOCK whose value is the invocant, not an
+anonymous hash constructor; an earlier draft of this case said hash, and
+the `package "1"` in its own recorded output was already the
+counter-evidence. Gated, the block runs at scope exit, after `body`. The
+two readings produce the same two lines in the OPPOSITE ORDER, and the
+failure arrives after the damage. A parser that always treats `defer
+BLOCK` as a compound statement is wrong on pre-5.36 code; one that never
+does is wrong on modern code, and nothing at compile time distinguishes
+them.
+
+WHICH READING APPLIES IS A SYMBOL-TABLE QUESTION, and perl gives three
+answers for the same bytes:
+
+    zzz {a};                   zzz { 'a' }       undeclared: method call
+    sub zzz {} zzz {a};        zzz({'a'})        declared: anon hash arg
+    sub zzz(&) {} zzz { 1 };   &zzz(sub { 1; })  prototyped: code ref
+
+All three agree on the STATEMENT BOUNDARY -- the brace group and what
+follows belong to one statement -- which is the part a parser can settle
+without the symbol table, and the part this case pins.
 
 What this claims is the ORDER: `D` before `body`, which is the ungated
 reading, where the gated one gives `body` before `D`. Perl's deparse of
@@ -221,8 +246,6 @@ print "end\n";
 
 ```behavior
 parses: yes
-refuses: 01a0d087-28dd-711f-a0d5-54cb8515910c
-refusal: unimplemented_statement
 ```
 
 ```output

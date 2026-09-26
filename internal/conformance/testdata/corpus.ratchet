@@ -8,7 +8,7 @@
 # topic's `**Tier NN name.**` line and leaves every key alone. That
 # is the `t/` sweep working, and must not read as a regression.
 #
-# 216 cases, 215 clean, 1 refusing.
+# 216 cases, 216 clean, 0 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -220,7 +220,7 @@
 - unary.md/The magic string increment
 - unary.md/Unary `+` computes nothing and disambiguates
 - ungated.md/`__CLASS__` without the feature is a filehandle
-unimplemented_statement ungated.md/`defer` without its feature runs the block FIRST
+- ungated.md/`defer` without its feature runs the block FIRST
 - ungated.md/`field` without the class feature is a method call
 - ungated.md/`state` without its feature is a method call
 - vstrings.md/Bare: three dot-separated parts

@@ -136,7 +136,13 @@ func TestT2CoreParses(t *testing.T) {
 		// `x` into `Number(5x)`, so the `-l` never reaches an operator
 		// position at all. That is the `(1)x3` gap 01a0ce57 measured and
 		// left unfixed, and this is a second file where it costs a node.
-		"base/lex.t": 27, "base/num.t": 6, "base/rs.t": 3,
+		//
+		// base/num.t 6 -> 3 and base/rs.t 3 -> 1 when a brace after ANY word
+		// got intuit_curly's lookahead instead of only map, grep and sort
+		// (issue 01a0d087). rs.t's movers are its seven `if (eval {$/ = ...;
+		// 1})` guards, whose brace was classified from XTerm inside the paren.
+		// What REMAINS in both is `$^O eq '...'`, which is a different gap.
+		"base/lex.t": 27, "base/num.t": 3, "base/rs.t": 1,
 		// class/field.t went 9 -> 10 when quote-op keywords stopped eating
 		// their fat comma, then back to 9 when goto, delete and exists
 		// landed. The rise was never a regression in the parse: reaching
@@ -195,8 +201,15 @@ func TestT2CoreParses(t *testing.T) {
 		// Three fixes compose across this block and none of them overlaps
 		// another's files: ADJUST took the phaser shapes, `undef` the
 		// container spellings, and the signatures pragma one method.
+		//
+		// class/method.t 6 -> 3 when a brace after ANY word became a block
+		// (issue 01a0d087). The three are `method priv { ... }` forms whose
+		// NAME is followed by a brace: the lookahead was gated on
+		// map/grep/sort, so the body read as a subscript and everything after
+		// it fell to trailing_tokens. The three that remain are the same
+		// declarations reached through a signature.
 		"class/destruct.t": 2, "class/field.t": 7, "class/gh22169.t": 2,
-		"class/gh23511.t": 1, "class/inherit.t": 4, "class/method.t": 6,
+		"class/gh23511.t": 1, "class/inherit.t": 4, "class/method.t": 3,
 		// cmd/subval.t and comp/package_block.t left the map entirely with
 		// the `startsTerm` fix -- they parse cleanly now, which is what
 		// removal from this map means.
@@ -207,7 +220,13 @@ func TestT2CoreParses(t *testing.T) {
 		// parens throughout, which is what the measurement predicted: 25 and
 		// 7 of the two files' refusals had a callee declared in the same
 		// file, and those are the whole of each count.
-		"comp/decl.t": 3, "comp/filter_exception.t": 5,
+		// comp/decl.t 3 -> 2, comp/hints.t 34 -> 31, comp/proto.t 4 -> 2 and
+		// comp/require.t 7 -> 6 when a brace after ANY word got
+		// intuit_curly's lookahead (issue 01a0d087). The shared mover is
+		// `eval { ... }` inside an expression -- `eval {require 5.005}` and
+		// `eval { prototype(...) }` -- whose brace was classified from XTerm
+		// and read as an anonymous hash, so its `}` closed a subscript.
+		"comp/decl.t": 2, "comp/filter_exception.t": 5,
 		// comp/form_scope.t 17 -> 7 when parseFormatDecl landed. The file
 		// holds nine format declarations, each of which had been swallowing
 		// the statement that followed it: an unimplemented keyword runs
@@ -242,7 +261,7 @@ func TestT2CoreParses(t *testing.T) {
 		// one token, and the parser was handing that token to the
 		// expression parser, which refused it as `not_a_term`. One node per
 		// file is the whole delta -- nothing else in either file moved.
-		"comp/hints.t": 34, "comp/line_debug.t": 1, "comp/multiline.t": 2,
+		"comp/hints.t": 31, "comp/line_debug.t": 1, "comp/multiline.t": 2,
 		// comp/package.t 7 -> 2 across two fixes, both issue 01a0cf3e.
 		// First the filehandle slot learned that a following COMMA
 		// denies it, which is perl's own rule -- `print FOO, 1` is "No
@@ -254,7 +273,7 @@ func TestT2CoreParses(t *testing.T) {
 		// heredoc body (issue 01a0c13f) -- nine and seven nodes. parser_run.t
 		// is the densest heredoc user in the map: more than half its
 		// refusals were bodies.
-		"comp/parser.t": 29, "comp/parser_run.t": 5, "comp/proto.t": 4,
+		"comp/parser.t": 29, "comp/parser_run.t": 5, "comp/proto.t": 2,
 		// comp/require.t went 11 -> 12 when phaser braces became blocks. The
 		// `BEGIN { ... }` body is now read as statements rather than as one
 		// hashref, and reaching inside it exposed a heredoc the parser did
@@ -287,7 +306,7 @@ func TestT2CoreParses(t *testing.T) {
 		// stopped there because it parsed at the COMMA's power and levels 4
 		// and 5 are below it. Back to the 17 the symbol-table deref note
 		// above records, by a different route.
-		"comp/redef.t": 1, "comp/require.t": 7, "comp/retainedlines.t": 17,
+		"comp/redef.t": 1, "comp/require.t": 6, "comp/retainedlines.t": 17,
 		"comp/uproto.t": 1, "comp/use.t": 1, "comp/utf.t": 3,
 		"opbasic/arith.t": 11, "opbasic/cmp.t": 6, "opbasic/concat.t": 5,
 	}

@@ -226,16 +226,17 @@ func (e Expect) after(k Kind, t transition) Expect {
 		if isPhaser(string(t.text)) {
 			return XBlock
 		}
-		// A list operator that takes a block: `map`, `grep`, `sort`. This is
-		// the one brace the preceding token cannot settle, because both
-		// readings are grammatical after these three, so intuitCurly peeks
-		// past it at the first thing INSIDE.
+		// A brace after ANY word. This is the one brace the preceding token
+		// cannot settle, because both readings are grammatical after a word,
+		// so intuitCurly peeks past it at the first thing INSIDE.
 		//
 		// Without this the `{` of `map { ; $_ }` is classified from XTerm and
 		// reads as an anonymous hash, so its `}` reports a closed subscript,
 		// the body never becomes a block, and the list that follows is
-		// orphaned into a statement of its own.
-		if t.nextIsOpenBrace && takesBlock(string(t.text)) {
+		// orphaned into a statement of its own. The same held for `defer { 1 }
+		// print "b"` and for an arbitrary `zzz { 1 } print "b"`; see
+		// keyword.go for why the word itself cannot narrow this.
+		if t.nextIsOpenBrace {
 			if t.nextBraceIsBlock {
 				return XBlock
 			}

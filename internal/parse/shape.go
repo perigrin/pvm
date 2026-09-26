@@ -3,6 +3,8 @@
 
 package parse
 
+import "strings"
+
 // Shape is how a call to a sub parses: what it may take, and in what form.
 //
 // DERIVED from the prototype, never stored beside it. A stored shape would be
@@ -157,6 +159,21 @@ func (p *parser) knowsShape(name string) bool {
 	return ok && imp.PrototypeKnown
 }
 
+// blockShapeTakesList reports whether a ShapeBlock prototype has argument slots
+// after its leading `&`, so a LIST may follow the block.
+//
+// `(&)` has none and `(&@)` does. See parseByShape's ShapeBlock for the deparse
+// output that draws the line here.
+func blockShapeTakesList(proto string) bool {
+	inner := proto
+	if len(inner) >= 2 && inner[0] == '(' && inner[len(inner)-1] == ')' {
+		inner = inner[1 : len(inner)-1]
+	}
+	// Past the `&` itself; a `;` only opens the optional group, so a slot
+	// after it still means a list may be written.
+	return len(strings.TrimLeft(inner[1:], ";")) > 0
+}
+
 // parseByShape consumes a call's arguments according to its prototype, and
 // marks it resolved.
 func (p *parser) parseByShape(n *Node, name string) {
@@ -178,11 +195,31 @@ func (p *parser) parseByShape(n *Node, name string) {
 		// A leading `&` licenses `f { ... } LIST`. The block is optional at
 		// the call -- `first(sub {...}, @a)` is the same sub called the
 		// other way -- so a missing one falls through to the list.
-		if blk := p.parseBlockArgument(); blk != nil {
+		blk := p.parseBlockArgument()
+		if blk != nil {
 			n.Children = append(n.Children, blk)
 		}
-		if arg := p.parseExpr(bpListOp); arg != nil {
-			n.Children = append(n.Children, arg)
+		// A LIST follows only when the prototype has a slot for one. `(&)` is
+		// the block and nothing else, so a comma after it belongs to the
+		// ENCLOSING list -- the same rule ShapeUnary follows, and perl draws
+		// the line in the same place. Measured on 5.42.0:
+		//
+		//	sub es (&)  {1}  is(es { 2 }, 'x', 'y');
+		//	  is &es(sub { 2; }), 'x', 'y';      the commas are is()'s
+		//	sub es (&@) {1}  es { 2 } "x", "y";
+		//	  &es(sub { 2; }, 'x', 'y');         the commas are es()'s
+		//
+		// Taking the list unconditionally swallowed the arguments of the call
+		// AROUND a `(&)` block-call: `caller_anonymous_callback.t`'s
+		// `is(exception_style { ... }, 'main::__ANON__', '...')` lost its two
+		// remaining arguments, and the whole statement fell to Unknown.
+		//
+		// Only when the block was actually taken: without one this is an
+		// ordinary parenless call whose arguments are still ahead of it.
+		if blk == nil || blockShapeTakesList(p.imports[name].Prototype) {
+			if arg := p.parseExpr(bpListOp); arg != nil {
+				n.Children = append(n.Children, arg)
+			}
 		}
 
 	default:

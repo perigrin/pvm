@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 360 clean (36.5%), 626 total.
+# 986 files, 369 clean (37.4%), 617 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -13,7 +13,7 @@
 1 app_cpan_failure_status.t
 1 archive_zip_archive_subclass.t
 1 archive_zip_members_matching_qr.t
-1 array.t
+0 array.t
 0 array_autovivification.t
 1 array_delete_exists.t
 1 array_deref_size_append.t
@@ -151,7 +151,7 @@
 1 cpan_distroprefs_signature_migration.t
 1 cpan_distroprefs_type_tiny_match.t
 0 cpan_distroprefs_type_tiny_retired.t
-1 cpan_fallback_configure_retry.t
+0 cpan_fallback_configure_retry.t
 1 cpan_fallback_prereqs.t
 1 cpan_fallback_readonly_makefile.t
 1 cpan_generic_patch_paths.t
@@ -242,7 +242,7 @@
 1 double_diamond_closed_stdin.t
 0 dynaloader_load_flags.t
 1 dynamic_constant_sub_inlining.t
-1 dynamic_glob_code_replace.t
+0 dynamic_glob_code_replace.t
 0 encode_charset_provider.t
 1 encode_dynamic_alias.t
 1 encode_export_tags.t
@@ -263,7 +263,7 @@
 1 eval_context_stack_reentrancy.t
 0 eval_foreach_return_value.t
 0 eval_imported_call_comparison_context.t
-1 eval_list_repeat_expression.t
+0 eval_list_repeat_expression.t
 1 eval_lvalue_compile_check.t
 0 eval_main_nested_package_method.t
 1 eval_named_sub_capture_fallback.t
@@ -476,7 +476,7 @@
 1 makemaker_secondary_bundled_blib.t
 1 makemaker_stale_blib_source.t
 1 map_source_mutation_snapshot.t
-1 map_temporary_weak_refs.t
+0 map_temporary_weak_refs.t
 0 math_bigint.t
 1 math_bigint_method_chain.t
 0 math_cephes_java_xs.t
@@ -495,7 +495,7 @@
 0 mojolicious_gzip_regressions.t
 1 mojolicious_inherited_listener_regression.t
 1 mojolicious_mount_lifecycle_regression.t
-1 mojolicious_parser_diagnostic_parity.t
+0 mojolicious_parser_diagnostic_parity.t
 1 mojolicious_promise_lifecycle_regressions.t
 1 mojolicious_skipped_closure_lifecycle_regression.t
 1 mojolicious_socket_poll_regressions.t
@@ -591,7 +591,7 @@
 0 posix_locale_export.t
 1 posix_log2.t
 0 posix_socket_constants.t
-1 postderef.t
+0 postderef.t
 1 postderef_coderef_reference.t
 0 postderef_expression_result.t
 0 postderef_interpolation.t
@@ -611,7 +611,7 @@
 1 push_declared_array.t
 0 pvlv_filehandle.t
 0 qualified_optional_constant.t
-1 rand_scalar_context.t
+0 rand_scalar_context.t
 1 range.t
 1 range_operand_context.t
 1 recursion_depth_1000.t
@@ -672,7 +672,7 @@
 1 repeat_zero_dynamic_scalar_context.t
 1 require_false_inc_cleanup.t
 0 require_module_return.t
-1 require_overloaded_die_stringification.t
+0 require_overloaded_die_stringification.t
 1 returned_blessed_container_nested_destroy.t
 1 returned_closure_captures.t
 1 reverse_list_alias.t
@@ -699,7 +699,7 @@
 1 socket_options.t
 1 socket_scope_exit_eof.t
 0 socket_unix_stream.t
-1 sort_localizes_package_ab.t
+0 sort_localizes_package_ab.t
 1 sort_scalar_context.t
 1 source_anonymous_const_attribute.t
 0 source_filter_begin_install.t
@@ -973,7 +973,7 @@
 1 zz_multidimensional_hash_key.t
 1 zz_nested_map_return.t
 1 zz_open_dup_package_handle.t
-0 zz_perlio_encoding_utf8_strict.t
+1 zz_perlio_encoding_utf8_strict.t
 1 zz_perlonjava_process.t
 1 zz_postfix_foreach_compound_assignment.t
 1 zz_recursive_regex.t

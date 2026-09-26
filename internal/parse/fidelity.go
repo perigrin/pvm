@@ -65,9 +65,14 @@ func Faithful(n *Node, src []byte) (bool, string) {
 				return false, fmt.Sprintf("token %d: unbalanced %q in the emission", g, got[g])
 			}
 			// The source must contain the same arguments, unparenthesised.
+			// A block ARGUMENT inside those parens may have acquired its own
+			// trailing `;`, which is difference 2 one level down: `print {$fh}
+			// "x"` is emitted `print({$fh;} "x")` and `map { $_ } @a` as
+			// `map({$_;} @a)`. Forgiving it only in the outer loop failed both,
+			// and the `;` is no more meaningful inside a paren than outside one.
 			inner := got[g+1 : skip]
-			if w+len(inner) <= len(want) && equalTokens(want[w:w+len(inner)], inner) {
-				w += len(inner)
+			if n, ok := matchForgivingSemicolons(want[w:], inner); ok {
+				w += n
 				g = skip + 1
 				continue
 			}
@@ -115,17 +120,31 @@ func matchParen(toks []string, open int) (int, bool) {
 	return 0, false
 }
 
-// equalTokens reports whether two token runs are identical.
-func equalTokens(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
+// matchForgivingSemicolons matches inner against the front of want, forgiving a
+// `;` the emission wrote immediately before a `}` where the source went straight
+// to the brace.
+//
+// The same rewrite Faithful's main loop forgives, applied inside a forgiven
+// paren: `print {$fh} "x"` is emitted as `print({$fh;} "x")` and `map { $_ } @a`
+// as `map({$_;} @a)`, so the arguments agree except for that one semicolon. A
+// `;` is no more meaningful inside a paren than outside one, and forgiving it
+// only outside failed every block argument in the corpus.
+//
+// Returns how many of want's tokens were consumed.
+func matchForgivingSemicolons(want, inner []string) (int, bool) {
+	w := 0
+	for i := 0; i < len(inner); i++ {
+		if w < len(want) && want[w] == inner[i] {
+			w++
+			continue
 		}
+		if inner[i] == ";" && i+1 < len(inner) && inner[i+1] == "}" &&
+			w < len(want) && want[w] == "}" {
+			continue
+		}
+		return 0, false
 	}
-	return true
+	return w, true
 }
 
 // isName reports whether a token could be a call's name -- the only place

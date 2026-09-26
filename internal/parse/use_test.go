@@ -368,7 +368,13 @@ func TestClassCorpusRatchet(t *testing.T) {
 	// Three fixes, three disjoint file sets: ADJUST moved four files,
 	// `undef` moved destruct.t, and this moved method.t. None overlaps
 	// another, which is why the deltas add rather than interact.
-	const want = 24
+	//
+	// 24 -> 21 when a brace after ANY word got intuit_curly's lookahead
+	// instead of only map, grep and sort (issue 01a0d087). All three are in
+	// method.t, and they are `method priv { ... }` declarations whose NAME is
+	// followed by a brace: gated on the three-word table, that body lexed as
+	// a subscript and every declaration after it fell to trailing_tokens.
+	const want = 21
 	if unknown != want {
 		t.Errorf("t/class holds %d Unknown nodes, want %d: update this pin in "+
 			"the same commit as the change that moved it", unknown, want)
