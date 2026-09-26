@@ -108,6 +108,83 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 			// `->(` is a code dereference and `->name` a method call.
 			// Neither is a subscript; both keep the Binary shape.
 			p.advanceTo(tok)
+
+			// A WORD after `->` is a METHOD NAME, and a method name is never
+			// a parenless list operator -- not even when a sub of that name
+			// is declared in this very file. perl dispatches on the invocant
+			// at runtime and the name is only ever a name here. Measured on
+			// 5.42.0:
+			//
+			//	$ perl -MO=Deparse -e \
+			//	    'package C; sub new { bless {} } package main;
+			//	     my $x = C->new->foo;'
+			//	my $x = 'C'->new->foo;
+			//
+			// `new` is declared right there and the chain still reads as two
+			// method calls, not as `new` swallowing `->foo` as an argument
+			// list.
+			//
+			// Read here rather than through parseTerm because parseWordTerm's
+			// job is to decide what a bareword in TERM position means, and
+			// after an arrow the question is already answered. Routing the
+			// name through it made every `Foo->new->bar` in a file declaring
+			// `sub new` refuse: measured, 19 T1 files regressed that way --
+			// `autoload.t`, `tied_hash_autoviv_refloop_cleanup.t` and 17
+			// more -- each stranding the second `->` as `not_a_term`.
+			//
+			// The name takes its OWN argument parens when the source wrote
+			// them, and stays a bare Term when it did not. Both halves are
+			// forced, in opposite directions, by what canon re-emits:
+			//
+			//   - With parens, a Term would leave the `(` to the led loop,
+			//     which reads it as a subscript ON the arrow: `$o->meth(2)`
+			//     came back as `($o -> meth)(2)`, a different grouping. 78 T1
+			//     files, measured.
+			//   - Without parens, a Call gets canon's "always parenthesised"
+			//     treatment and `print $t->join` comes back as
+			//     `print($t -> join())`. Faithful forgives a call acquiring
+			//     ONE set of parens, not a nested pair, so the outer `print(`
+			//     and the inner `join()` together fail it. One T1 file,
+			//     measured -- threads_filehandle_inheritance.t.
+			//
+			// So the node kind follows the source's own spelling, which is
+			// what the tree is for. A parenless method call has no argument
+			// list to record, and a Term records exactly that.
+			if name, ok := p.peekSignificant(); ok && name.Kind == lexer.Word {
+				p.advanceTo(name)
+				right := &Node{
+					Kind: Term, Text: p.text(name),
+					Start: name.Start, End: name.End,
+				}
+				// Only a paren IMMEDIATELY after the name is this method's
+				// argument list. Anything else -- another `->`, an operator,
+				// a terminator -- belongs to the enclosing expression, which
+				// is why there is no parenless argument branch here at all.
+				//
+				// Resolved is true on the Call: `->name` IS a method call,
+				// whatever the invocant turns out to be. The unresolved
+				// `Call{Resolved:false}` of §4.8.3 is for a bareword whose
+				// MEANING is unsettled, and this one's is settled by the arrow.
+				if open, ok := p.peekSignificant(); ok && p.text(open) == "(" {
+					right.Kind = Call
+					right.Resolved = true
+					p.advanceTo(open)
+					if arg := p.parseCallArgs(); arg != nil {
+						right.Children = append(right.Children, arg)
+					}
+					if close, ok := p.peekSignificant(); ok && p.text(close) == ")" {
+						p.advanceTo(close)
+					}
+					right.End = p.prevEnd()
+				}
+				left = &Node{
+					Kind: Binary, Text: text,
+					Start: left.Start, End: right.End,
+					Children: []*Node{left, right},
+				}
+				continue
+			}
+
 			right := p.operand(op.rightBP(), tok)
 			left = &Node{
 				Kind: Binary, Text: text,

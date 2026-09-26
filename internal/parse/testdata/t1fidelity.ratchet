@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 357 clean (36.2%), 629 total.
+# 986 files, 359 clean (36.4%), 627 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -33,7 +33,7 @@
 0 b_deparse_source_visible_anon_sub.t
 1 b_end_av.t
 0 b_flags_portable.t
-1 b_gv_io.t
+0 b_gv_io.t
 1 b_hooks_endofscope_require.t
 0 b_object_2svref.t
 0 b_object_2svref_roundtrip.t
@@ -947,7 +947,7 @@
 1 xml_libxml_reader_core.t
 0 xml_libxml_relaxng.t
 0 xml_libxslt.t
-1 xml_parser_current_element.t
+0 xml_parser_current_element.t
 1 xml_parser_external_entity_sysid.t
 1 xml_parser_parsefile_typeglob.t
 1 xml_parser_tied_handle.t

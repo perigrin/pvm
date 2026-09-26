@@ -142,10 +142,16 @@ func ShapeOf(proto string) Shape {
 
 // knowsShape reports whether this parser can say how a call to name parses.
 //
-// True only for a name whose declaration was actually read. A name known by
-// import but with no visible declaration -- the XS tier -- is false, because
-// guessing "list operator" for `first` would make `first { $_ > 1 } @a` a
-// syntax error, and a wrong shape turns working code into an error.
+// True only for a name whose declaration was actually read -- either from an
+// imported module's source or from a `sub NAME` earlier in this same file. A
+// name known by import but with no visible declaration -- the XS tier -- is
+// false, because guessing "list operator" for `first` would make
+// `first { $_ > 1 } @a` a syntax error, and a wrong shape turns working code
+// into an error.
+//
+// EARLIER is load-bearing for the in-file route and is perl's own rule: the
+// table is filled as declarations are parsed, so a call above a declaration
+// does not see it. See decl.go's declareSub.
 func (p *parser) knowsShape(name string) bool {
 	imp, ok := p.imports[name]
 	return ok && imp.PrototypeKnown

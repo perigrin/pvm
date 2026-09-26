@@ -146,7 +146,13 @@ func TestT2CoreParses(t *testing.T) {
 		// the `startsTerm` fix -- they parse cleanly now, which is what
 		// removal from this map means.
 		"cmd/mod.t": 1, "cmd/switch.t": 2,
-		"comp/colon.t": 25, "comp/decl.t": 3, "comp/filter_exception.t": 5,
+		// comp/colon.t 25 -> 0 and opbasic/magic_phase.t 7 -> 0 with the
+		// in-file `sub NAME` declaration (issue 01a0c13f). Both left the map
+		// entirely. Each declares its own `sub ok` and calls it without
+		// parens throughout, which is what the measurement predicted: 25 and
+		// 7 of the two files' refusals had a callee declared in the same
+		// file, and those are the whole of each count.
+		"comp/decl.t": 3, "comp/filter_exception.t": 5,
 		// comp/form_scope.t 17 -> 7 when parseFormatDecl landed. The file
 		// holds nine format declarations, each of which had been swallowing
 		// the statement that followed it: an unimplemented keyword runs
@@ -155,7 +161,25 @@ func TestT2CoreParses(t *testing.T) {
 		// are all `trailing_tokens` on constructs this issue does not touch
 		// -- `&$clo1(0)`, `make_closure 6` and a bare block in expression
 		// position. Untracked: nothing in the chain owns those.
-		"comp/final_line_num.t": 1, "comp/fold.t": 14, "comp/form_scope.t": 7,
+		// comp/fold.t 14 -> 6, comp/form_scope.t 7 -> 5,
+		// comp/line_debug.t 4 -> 1, comp/parser.t 55 -> 31,
+		// comp/proto.t 41 -> 4, comp/redef.t 21 -> 1, comp/require.t 10 -> 7,
+		// comp/uproto.t 3 -> 2, comp/use.t 11 -> 1,
+		// opbasic/arith.t 179 -> 21 and opbasic/concat.t 6 -> 5 with the
+		// in-file `sub NAME` declaration (issue 01a0c13f).
+		//
+		// `opbasic/arith.t` is the largest move in this map's history, 158
+		// nodes, and the measurement named it before the fix: 169 of its 179
+		// refusals opened with a parenless call whose callee this file
+		// declares, and `sub tryeq ($$$$)` accounts for 147 of them alone.
+		// `comp/proto.t` 41 -> 4 is the same story with prototypes as its
+		// SUBJECT rather than incidentally: the file exists to test them.
+		//
+		// Measured before the fix over all 56 files: 354 refusals open with a
+		// bareword + argument, 316 of them with a callee declared by a
+		// `sub NAME` in the same file and 0 with one reachable by import --
+		// no T2 file uses Test::More, they `require './test.pl'`.
+		"comp/final_line_num.t": 1, "comp/fold.t": 6, "comp/form_scope.t": 5,
 		// comp/hints.t 35 -> 34 and comp/parser.t 65 -> 64 when a
 		// DataSection became trivia (issue 01a0dc84). Each file ends in a
 		// trailing `__END__` and each was spending exactly one Unknown on
@@ -163,7 +187,7 @@ func TestT2CoreParses(t *testing.T) {
 		// one token, and the parser was handing that token to the
 		// expression parser, which refused it as `not_a_term`. One node per
 		// file is the whole delta -- nothing else in either file moved.
-		"comp/hints.t": 34, "comp/line_debug.t": 4, "comp/multiline.t": 2,
+		"comp/hints.t": 34, "comp/line_debug.t": 1, "comp/multiline.t": 2,
 		// comp/package.t 7 -> 2 across two fixes, both issue 01a0cf3e.
 		// First the filehandle slot learned that a following COMMA
 		// denies it, which is perl's own rule -- `print FOO, 1` is "No
@@ -175,7 +199,7 @@ func TestT2CoreParses(t *testing.T) {
 		// heredoc body (issue 01a0c13f) -- nine and seven nodes. parser_run.t
 		// is the densest heredoc user in the map: more than half its
 		// refusals were bodies.
-		"comp/parser.t": 55, "comp/parser_run.t": 5, "comp/proto.t": 41,
+		"comp/parser.t": 31, "comp/parser_run.t": 5, "comp/proto.t": 4,
 		// comp/require.t went 11 -> 12 when phaser braces became blocks. The
 		// `BEGIN { ... }` body is now read as statements rather than as one
 		// hashref, and reaching inside it exposed a heredoc the parser did
@@ -208,10 +232,9 @@ func TestT2CoreParses(t *testing.T) {
 		// stopped there because it parsed at the COMMA's power and levels 4
 		// and 5 are below it. Back to the 17 the symbol-table deref note
 		// above records, by a different route.
-		"comp/redef.t": 21, "comp/require.t": 10, "comp/retainedlines.t": 17,
-		"comp/uproto.t": 3, "comp/use.t": 11, "comp/utf.t": 3,
-		"opbasic/arith.t": 179, "opbasic/cmp.t": 6, "opbasic/concat.t": 6,
-		"opbasic/magic_phase.t": 7,
+		"comp/redef.t": 1, "comp/require.t": 7, "comp/retainedlines.t": 17,
+		"comp/uproto.t": 2, "comp/use.t": 1, "comp/utf.t": 3,
+		"opbasic/arith.t": 21, "opbasic/cmp.t": 6, "opbasic/concat.t": 5,
 	}
 
 	var regressed, improved, nowClean, nowDirty []string

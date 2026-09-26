@@ -152,12 +152,22 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 	case p.knowsShape(text):
 		// A sub this file imported or declared, whose prototype says how a
 		// call to it parses. §4.8.3's "let a later pass decide" is satisfied
-		// HERE when the module's source was readable -- the shape came from a
-		// declaration rather than a guess.
+		// HERE, because the shape came from a declaration rather than a guess.
 		//
-		// This is what makes the parenless form parse at all. Measured: in
-		// T1, 889 of 986 files use Test::More and `subtest` appears 691
-		// times, always without parens.
+		// TWO ROUTES REACH THIS, and the second needs no module at all:
+		//
+		//   - An IMPORT whose module's source was readable. Measured: in T1,
+		//     889 of 986 files use Test::More and `subtest` appears 691
+		//     times, always without parens.
+		//   - A `sub NAME` EARLIER IN THIS FILE, recorded by parseSubDecl as
+		//     it is read (decl.go, declareSub). Measured: 316 of T2's 354
+		//     parenless-call refusals had a callee declared this way and 0
+		//     had one reachable by import -- no T2 file uses Test::More, they
+		//     `require './test.pl'`, and `require` is not resolved.
+		//
+		// Which route supplied the shape is not a distinction this site can
+		// or should make: `Import.Local` records it for a consumer that
+		// cares, and a prototype means the same thing either way.
 		p.parseByShape(n, text)
 
 	default:
@@ -192,15 +202,42 @@ func endsArgumentList(tok lexer.Token, src []byte) bool {
 		// An infix operator cannot start an argument, so the call takes
 		// none: `shift || 1`. A PREFIX operator can -- `die -1` -- so only
 		// the unambiguously-infix ones count.
+		//
+		// The concatenation, comparison and binding operators belong here for
+		// exactly that reason, and perl draws the line in the same place.
+		// Measured on 5.42.0, `sub f { 1 }` in scope:
+		//
+		//	my $v = f . 2;      f() . '2'     the `.` is infix: no argument
+		//	my $v = f == 2;     f() == 2      likewise
+		//	my $v = f eq 2;     f() eq 2      likewise, word-spelled
+		//	my $v = f =~ 2;     f() =~ /2/    likewise
+		//	my $v = f + 2;      f(2)          `+` is PREFIX-capable: argument
+		//	my $v = f - 2;      f(-2)         so is `-`
+		//
+		// `+` and `-` are deliberately absent: perl reads them as the sign of
+		// the argument, and listing them would cut a list perl does not cut.
+		// `*` is absent for a third reason -- measured, `f * 2` is `f(*2)`,
+		// a GLOB, so it starts a term as well.
+		//
+		// `<=>` is absent for that same third reason and it is the surprise
+		// of the set. Measured, `my $v = f <=> 2;` does not deparse as a
+		// comparison at all -- it pulls in `use File::Glob ()`, because after
+		// a list operator's name perl reads `<...>` as a GLOB. So a `<`
+		// starts a term here and must not cut the list.
 		switch string(src[tok.Start:tok.End]) {
-		case ",", "=>", "||", "&&", "//", "=", "?", ":":
+		case ",", "=>", "||", "&&", "//", "=", "?", ":",
+			".", "==", "!=", "=~", "!~":
 			return true
 		}
 	case lexer.Word:
 		// The word-spelled logical operators, which the lexer emits as Word
 		// because they are identifiers by shape.
+		//
+		// The word-spelled COMPARISONS are here for the infix reason above
+		// rather than the logical one: measured, `f eq 2` is `f() eq 2`.
 		switch string(src[tok.Start:tok.End]) {
-		case "or", "and", "xor", "if", "unless", "while", "until", "for", "foreach":
+		case "or", "and", "xor", "if", "unless", "while", "until", "for", "foreach",
+			"eq", "ne", "cmp":
 			return true
 		}
 	}

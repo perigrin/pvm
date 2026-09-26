@@ -268,8 +268,65 @@ func (p *parser) parseSubDecl(word lexer.Token) *Node {
 		}
 	}
 
+	// The declaration enters scope HERE, before its own body and before
+	// anything below it is read. That ordering is perl's rule, not a
+	// convenience: perl parses top to bottom, so a call ABOVE the
+	// declaration is a syntax error and a call below it is a call.
+	// Measured on 5.42.0:
+	//
+	//	$ perl -e 'sub f { } f 1, 2;'      syntax OK
+	//	$ perl -e 'f 1, 2; sub f { }'      Do you need to predeclare "f"?
+	//
+	// `conformance/mdtest/argument-extent.md`'s third case pins the second
+	// form, and a pre-pass over the whole file would parse it as a call and
+	// be WRONG in the oracle's sense. The declaration a call can see is the
+	// one already read.
+	//
+	// Recorded before finishBodyOrSemicolon, which is one shape MORE
+	// permissive than perl and deliberately so. perl does not put the name in
+	// scope for a parenless call inside its OWN body -- measured,
+	// `sub f { f 1 if 0 } f 2;` is `Do you need to predeclare "f"?`, and it
+	// takes a `sub f;` above to make that body legal. Recording after the
+	// body would need the name held aside and replayed, and the only source
+	// it would change is a self-recursive parenless call, which perl rejects:
+	// declining it would be CORRECT and accepting it is `wider`, not WRONG in
+	// a way the gate counts. Named here rather than fixed because the shape
+	// does not occur: measured over all 1,042 T1 and T2 files, there are ZERO
+	// parenless calls to the enclosing sub's own name. The shape to look for,
+	// should one arrive, is exactly that.
+	//
+	// Unconditional on the resolver. parseRoot lifts the same facts onto the
+	// root under `res != nil` for the `Imports()` accessor, and that path
+	// runs after the whole file is parsed -- too late for any call site, and
+	// absent entirely from `Parse`, which is what the T1 and T2 ratchets
+	// measure with. Measured: 316 of T2's 354 parenless-call refusals have a
+	// callee declared by a `sub NAME` in the same file, and 0 have one
+	// reachable by import, because no T2 file uses Test::More.
+	p.declareSub(n)
+
 	p.finishBodyOrSemicolon(n)
 	return n
+}
+
+// declareSub records a `sub NAME` into the shape table, so a call to it
+// further down the file knows how far its arguments run.
+//
+// A sub with no name declares nothing: `sub { ... }` in statement position
+// reaches parseSubDecl and names no callee.
+func (p *parser) declareSub(n *Node) {
+	name, proto := declaredSub(n)
+	if name == "" {
+		return
+	}
+	if p.imports == nil {
+		p.imports = map[string]Import{}
+	}
+	p.imports[name] = Import{
+		Name:           name,
+		Prototype:      proto,
+		PrototypeKnown: true,
+		Local:          true,
+	}
 }
 
 // parsePackageDecl: `package NAME;` and `package NAME { ... }`.
