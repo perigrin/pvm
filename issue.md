@@ -1,19 +1,46 @@
 ---
 title: scanNumber stops early on a signed exponent and never forms a vstring
-state: in-progress
+state: done
 urgency: normal
 milestone: corpus-covers-t2
 created: 2026-09-26T02:08:00.127866819Z
-updated: 2026-09-26T04:41:53.986742234Z
+updated: 2026-09-26T05:30:04.812942343Z
 sessions:
 - start_sha: 58076b8abd0e49c3879c050fa5657dfac841914f
-  end_sha: ""
-  commits: 0
+  end_sha: a29b8aa63bbcdb25e5e87de15eb1ff570e657180
+  commits: 4
   started_at: 2026-09-26T04:41:53.986742234Z
+  ended_at: 2026-09-26T05:30:04.812942343Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-26T04:41:53.986742234Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-26T05:30:04.812942343Z
+observed_paths:
+- conformance/GLOSSARY.md
+- conformance/mdtest/adjacency-04_operators.md
+- conformance/mdtest/arithmetic.md
+- conformance/mdtest/comparison.md
+- conformance/mdtest/compound-assignment.md
+- conformance/mdtest/numeric-point.md
+- conformance/mdtest/vstrings.md
+- internal/conformance/categories.go
+- internal/conformance/glossary_test.go
+- internal/conformance/testdata/corpus.ratchet
+- internal/lexer/ident.go
+- internal/lexer/lexer.go
+- internal/lexer/scan.go
+- internal/lexer/scanrows_test.go
+- internal/lexer/vnum_test.go
+- internal/parse/decl.go
+- internal/parse/expr.go
+- internal/parse/lowlogical_test.go
+- internal/parse/precedence.go
+- internal/parse/t2_test.go
+- internal/parse/term.go
+- internal/parse/testdata/t1.ratchet
 ---
 
 Two tier-01 cases refuse on a token fact with a clean parse, and both are
