@@ -1,10 +1,14 @@
 ---
 title: Fourteen of seventeen refusals point at nothing actionable
-state: pending
+state: cancelled
 urgency: normal
 milestone: corpus-covers-t2
 created: 2026-09-26T02:51:11.245880623Z
-updated: 2026-09-26T02:53:03.560250648Z
+updated: 2026-09-26T02:53:03.706431143Z
+transitions:
+- state: cancelled
+  actor: human:git-zhi
+  timestamp: 2026-09-26T02:53:03.706431143Z
 ---
 
 **CANCELLED BY CHAIN-REVIEW, 2026-09-26. Its count was wrong and what
