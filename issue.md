@@ -4,107 +4,121 @@ state: pending
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T16:29:00.320261836Z
-updated: 2026-09-26T16:29:00.320261836Z
+updated: 2026-09-26T16:36:29.160218782Z
 ---
 
+**MEASURED AND DECIDED 2026-09-26 at `2dc301fd`. Decision: read the required
+file. The question's framing was wrong in a way that changes the answer.**
+
 Perl's own suite gets `ok`, `is`, `like` and `plan` from `t/test.pl`, which it
-`require`s at RUNTIME. `require` is deliberately unresolved, so every
-`like $@, qr/.../` span in this goal's 7,745 Unknown nodes is downstream of that
-choice. DECISION ISSUE -- the deliverable is a written answer, and it may be
-"no change".
+`require`s at RUNTIME. `internal/parse/use.go:118` leaves `require` unresolved
+on purpose.
 
-## Why this blocks the goal's ceiling
+## The size of the question: it is the goal, not a footnote
 
-Measured 2026-09-26, recurring Unknown spans in perl.git t/:
+    files requiring a .pl helper:   dirty=394   clean=108
+    files NOT requiring one:        dirty= 41   clean= 77
+    Unknown nodes in require-ers:   7466
+    Unknown nodes in the rest:       279
 
-      38  "is $s, join('', map chr,"
-      35  "like $@, _create_mismatc"
-      24  "like $@, qr/^Type of arg"
-      23  "like shift @warnings, qr"
-      18  "like $@, qr/^Assigned va"
-      17  "is $a, 123;"
-      14  "like $@, qr/Modification"
-      14  "like $@, qr/^Too many ar"
+    CEILING WITHOUT RESOLVING require:  226 of 620
 
-Every one is a PARENLESS CALL to a test function. `01a0c13f-50ee` closed the
-declared case: a `sub NAME` earlier in the same file resolves, and 316 of T2's
-354 parenless-call sites were that. These are the other kind -- the callee is
-defined in `test.pl` and reached by:
+394 of 435 dirty files require a helper, and they hold **7,466 of 7,745 Unknown
+nodes -- 96.4%**. The other 41 dirty files hold 279 between them.
 
-    require './test.pl';
+So "parse all of perl.git t/ cleanly" is unreachable without an answer here. Not
+"harder"; unreachable. 226 of 620 is the arithmetic ceiling.
 
-`internal/parse/use.go:118` leaves `require` unresolved on purpose. That is
-correct for a parser: `require` is a runtime operation and its argument can be
-computed.
+Spellings, counted:
 
-## What was already established, so it is not re-litigated
+    372  require './test.pl'
+     78  require "./test.pl"
+     22  require './charset_tools.pl'
+     17  require './t/test.pl'
+     15  require './loc_tools.pl'
+     14  require "unicore/UCD.pl"
+     11  require './thread_it.pl'
+      5  require 'test.pl'
 
-`01a0c13f-50ee` measured that ZERO of the 56 T2 files import `Test::More` -- the
-four that mention it do so in comments explaining why they avoid it. Perl's core
-suite deliberately does not depend on the module ecosystem. So "resolve the
-module" is not the shape of an answer here; the callees live in a FILE, required
-by relative path, at runtime.
+All literal relative paths. None computed.
 
-And perl itself refuses an undeclared parenless call:
+## The framing was wrong: perl DOES build a tree, and it is the wrong one
 
-    perl -MO=Deparse -e 'ok 8;'    ->  syntax error near "ok 8"
+The issue said perl knows `ok` is declared because the `require` has already run.
+Measured, that is false -- and the truth is more useful. Perl parses the
+undeclared form as INDIRECT OBJECT NOTATION:
 
-which is why declining these is currently CORRECT rather than a gap. A tree for
-`like $@, qr/x/` where perl builds none would be WRONG in the oracle's sense.
+    perl -MO=Deparse -e 'like $@, qr/x/, "msg";'
+      ->  $@->like, qr/x/, '???';
 
-## The actual question
+    perl -MO=Deparse -e 'is $a, 123;'
+      ->  $a->is, '???';
 
-Perl compiles these files successfully because `require './test.pl'` has ALREADY
-RUN by the time the calls are compiled -- it is at the top of the file, and
-`require` executes at runtime in file order, before the later statements are
-compiled. So perl knows `ok` is declared and we do not.
+    perl -MO=Deparse -e 'sub like {1} like $@, qr/x/, "msg";'
+      ->  like $@, qr/x/, 'msg';          the DECLARED form, a real call
 
-Three routes, and this issue is to choose one and write it down:
+`perl -c base/lex.t` reports **syntax OK** on a file whose `ok` is undeclared at
+compile time, and the failure is at RUNTIME:
 
-**A. Read the required file.** Follow `require './test.pl'` with a literal
-relative path, parse it, and take its `sub NAME` declarations. Honest, matches
-what perl actually does, and bounded -- a literal string argument only, never a
-computed one.
+    Can't call method "like" without a package or object reference
 
-**B. Declare this goal's ceiling.** State that files whose test functions come
-from a runtime `require` cannot reach zero Unknowns, count them, and make that
-the goal's denominator. Cheap and honest, and it means "parse all of t/ cleanly"
-becomes "parse all of t/ that does not require at runtime".
+So perl compiles a method call on `$@`, which is not what the program means, and
+only discovers the problem when it runs. Our Unknown is arguably the more honest
+answer -- but it is not the answer this goal needs, and perl's tree is what the
+oracle compares against.
 
-**C. Neither, and record why.** If A is a slippery slope toward executing the
-program and B redefines the goal, the answer may be that this stays open and the
-goal is understood as asymptotic.
+This is the same defect as `01a0ddc5` (`new Foo;` builds `new(Foo())` where perl
+builds `'Foo'->new`), from the other side: there we build a wrong tree where
+perl builds a method call; here we build none where perl builds a wrong one.
 
-MEASURE THE SIZE OF THE QUESTION FIRST: how many of the 435 dirty files contain
-`require './test.pl'` or a sibling, and how many of those would go clean if its
-`sub NAME` set were known? That number decides whether this is the goal's main
-obstacle or a footnote.
+## Why route A rather than B or C
 
-## Scope
+**A. Read the required file.** Chosen.
 
-1. Count the dirty files that `require` a `.pl` helper by literal relative path.
-2. For a sample, measure how many Unknowns would clear if that file's `sub NAME`
-   declarations were in scope. Use the existing in-file resolution machinery --
-   `knowsShape` at `internal/parse/call.go` and whatever `01a0c13f-50ee` added --
-   pointed at the helper's declarations.
-3. Choose A, B or C, and write the decision into
-   `docs/plans/2026-09-26-perl-git-t-parses.md` with the measurement behind it.
-4. If A: file it as its own issue with the literal-path-only boundary stated.
-   Do not implement it here.
+- The argument is a literal relative path in every one of the 474 occurrences.
+  No computed case to guard against.
+- `test.pl` declares **78 distinct subs** including all of `ok`, `is`, `like`,
+  `plan`, `isnt`, `done_testing`, `skip`, `pass`, `fail`, and parses with only
+  **10 Unknown nodes** in 64,807 bytes. It is readable today.
+- The machinery exists. `01a0c13f-50ee` taught the parser that a `sub NAME`
+  earlier in the SAME FILE is a declaration the call site can see, and measured
+  316 of T2's 354 parenless-call sites as that case. Pointing the same
+  resolution at a required file's declarations is the same mechanism with a
+  different source.
+- Call-site volume, counted across `t/`: `is` 3569, `ok` 759, `like` 713,
+  `skip` 316, `plan` 175, `cmp_ok` 83, `pass` 64, `isnt` 44.
 
-## Context
+**B. Declare the ceiling at 226 of 620.** Rejected. It redefines the goal to
+exclude 76% of its own population, and the excluded part is the part perl's
+suite is actually made of.
 
-- paths: `internal/parse/use.go:118` (`require` left unresolved),
-  `internal/parse/call.go` (`knowsShape`), `docs/plans/2026-09-26-perl-git-t-parses.md`
-- commands: `go test ./internal/parse/ -count=1`
-- files: `/home/perigrin/dev/perl5/t/test.pl` is the helper; `t/base/*.t` and
-  `t/comp/*.t` are dense users of it
-- related: `01a0c13f-50ee` (declared/undeclared boundary), `01a0ad3f` (import
-  resolution, measured worth zero on T2)
+**C. Leave it open.** Rejected. The goal is then permanently unreachable and
+nothing says why.
 
-## Acceptance criteria
+## The boundary that keeps A from becoming "execute the program"
 
-- [ ] The count of dirty files depending on a runtime-required helper is recorded (`grep -qiE 'require .*test\.pl.*[0-9]+ (of|files)|[0-9]+ dirty files require' docs/plans/2026-09-26-perl-git-t-parses.md`)
-- [ ] A decision of A, B or C is written down with its reasoning (`grep -qiE 'decision: (read the required file|declare the ceiling|no change)' docs/plans/2026-09-26-perl-git-t-parses.md`)
-- [ ] REGRESSION GUARD, passes today: the parse suite holds (`go test ./internal/parse/ -count=1 | grep -q '^ok'`)
-- [ ] REGRESSION GUARD, passes today: the corpus ratchet holds (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
+Stated so the implementing issue inherits it:
+
+1. A LITERAL string argument only. `require $file` and `require "./$name.pl"`
+   stay unresolved. Measured: zero of the 474 occurrences are computed, so this
+   costs nothing today and is the whole safety property.
+2. Resolve relative to the FILE BEING PARSED, then to the parse root. `t/` files
+   say `./test.pl` and run with `t/` as cwd; `require './t/test.pl'` (17 files)
+   is the same file reached from the repository root.
+3. Take only `sub NAME` declarations. Not variables, not imports, not side
+   effects.
+4. One level. A required file that itself requires another is not followed --
+   measure whether that costs anything before deciding otherwise.
+5. Unreadable or unparseable helper: the call sites stay Unknown, as now. A
+   missing file must not fail the parse.
+
+## Filed
+
+`01a0de92-e551-7ece-be3c-0f8afc1d1e6b` implements route A with the five
+boundaries above.
+
+## What this issue does NOT decide
+
+Whether a genuinely undeclared parenless call should build perl's indirect-object
+tree. That is `01a0ddc5`'s question and it is in v0.1. This issue is only about
+the callees that ARE declared, in a file we can read.
