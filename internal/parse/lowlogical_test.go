@@ -85,9 +85,45 @@ func TestBareWordInfixStillRegroups(t *testing.T) {
 	//	my $x = 1, my $y = 2;
 	//
 	// So the floor is bpBelowComma, and this is the case that says why.
+	//
+	// KNOWN WRONG SHAPE, asserted deliberately so it cannot be mistaken for
+	// a correct one. perl puts the comma ABOVE both declarations -- measured:
+	//
+	//	$ perl -MO=Concise -e 'my $x = 1, my $y = 2;'
+	//	-     <1> ex-list vK ->8
+	//	4        <1> padsv_store[$x:1,2] vKS/LVINTRO ->5
+	//	6        <1> padsv_store[$y:1,2] vKS/LVINTRO ->7
+	//
+	// Two SIBLING stores under one list, so the perl shape is
+	// `(, (my $x 1) (my $y 2))`. Ours nests the comma inside `$x`'s
+	// initialiser instead. The plain-assignment form is already right --
+	// `$x = 1, $y = 2` gives `(, (= $x 1) (= $y 2))` -- so the declarator is
+	// the outlier, not the comma.
+	//
+	// Not fixed here, and the cost is why. Making it right needs the
+	// declarator to resume the Pratt loop at the COMMA as well as at the
+	// three word operators, and a comma after a declarator is not always a
+	// statement-level comma:
+	//
+	//	ok(!sysopen(my $fh, $link, O_WRONLY|O_CREAT, 0600), ...)
+	//
+	// Measured with that resume in place, the declarator swallowed the rest
+	// of the ARGUMENT list and canon then emitted a paren the source does
+	// not contain -- 18 T1 files went unfaithful, `open my $fh, ...` and
+	// `sysopen(my $fh, ...)` among them, e.g. `fcntl_nofollow.t` token 38:
+	// "source has \"my\", canon has \"(\"". Telling the two commas apart
+	// needs context the declarator does not have, so the wrong shape is
+	// recorded rather than traded for a worse one.
 	root := parseOneExpr(t, "my $x = 1, my $y = 2;")
 	if containsKind(root, parse.Unknown) {
 		t.Errorf("my $x = 1, my $y = 2: refused, want a parse")
+	}
+	const commaDeclKnownWrong = "(my $x (, 1 (my $y 2)))"
+	if got := shape(skipWrappers(root)); got != commaDeclKnownWrong {
+		t.Errorf("my $x = 1, my $y = 2: shape = %s, want the KNOWN-WRONG %s.\n"+
+			"If this now reads %s, perl's own shape, the nesting was fixed: "+
+			"assert that instead and delete this comment.",
+			got, commaDeclKnownWrong, "(, (my $x 1) (my $y 2))")
 	}
 }
 
@@ -157,4 +193,55 @@ func TestBracketedWordInfixParses(t *testing.T) {
 	// comma -- and it is asserted so a fix that broke it would fail here
 	// rather than somewhere downstream.
 	assertShape(t, parseOneExpr(t, "my $y = [$a && $b];"), "(my $y ( (&& $a $b)))")
+}
+
+// TestWordInfixGrouping: the measurements the design rests on.
+//
+// `(1, 2 and 3)` is quoted in parseInfix's doc comment, in parseParenList's
+// code comment and in the commit message that introduced both, as the
+// evidence that these three operators sit ABOVE the comma and take the whole
+// list as a left operand. Nothing asserted it until now.
+//
+// Every shape here was confirmed against perl 5.42.0 before it was written.
+// Associativity needed Concise or an explicit re-paren, because Deparse
+// prints `$a ^^ $b ^^ $c` for the flat form and only re-parenthesises the
+// grouping it does NOT get by default:
+//
+//	$ perl -MO=Deparse -e 'my ($a,$b,$c); my $y = (($a xor $b) xor $c);'
+//	my $y = $a ^^ $b ^^ $c;
+//	$ perl -MO=Deparse -e 'my ($a,$b,$c); my $y = ($a xor ($b xor $c));'
+//	my $y = $a ^^ ($b ^^ $c);
+//
+// The left-grouped source deparses flat and the right-grouped one keeps its
+// parens, so the bare form is LEFT associative.
+func TestWordInfixGrouping(t *testing.T) {
+	for _, tc := range []struct {
+		src  string
+		want string
+	}{
+		// The design's own measurement:
+		//	$ perl -MO=Deparse -e 'my @x = (1, 2 and 3);'
+		//	my(@x) = ('???', 2) && 3;
+		// The `and` took `(1, 2)` as its left operand.
+		{"my $y = (1, 2 and 3);", "(my $y (and ( 1 2) 3))"},
+
+		// Left associative, per the re-paren measurement above.
+		{"my $y = ($a xor $b xor $c);", "(my $y (xor (xor $a $b) $c))"},
+
+		// `and` (level 5) binds tighter than `or`/`xor` (level 4), so the
+		// grouping is the same whichever order they appear in. Measured:
+		//	$ perl -MO=Deparse -e 'my ($a,$b,$c); my $y = ($a and $b or $c);'
+		//	my $y = $a && $b || $c;
+		//	$ perl -MO=Deparse -e 'my ($a,$b,$c); my $y = ($a or $b and $c);'
+		//	my $y = $a || $b && $c;
+		{"my $y = ($a and $b or $c);", "(my $y (or (and $a $b) $c))"},
+		{"my $y = ($a or $b and $c);", "(my $y (or $a (and $b $c)))"},
+	} {
+		root := parseOneExpr(t, tc.src)
+		if containsKind(root, parse.Unknown) {
+			t.Errorf("%q: refused, want a parse", tc.src)
+			continue
+		}
+		assertShape(t, root, tc.want)
+	}
 }
