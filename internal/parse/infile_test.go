@@ -107,3 +107,57 @@ func TestUndeclaredParenlessCallStaysUnknown(t *testing.T) {
 		})
 	}
 }
+
+// TestAResolvingSubDoesNotSwallowItsNeighbours is the guard route A would have
+// needed, and route C still earns it: a resolving local sub is exactly what
+// makes these shapes reachable.
+//
+// Once `sub foo` above the call site resolves, every OTHER bareword `foo` in
+// the file becomes a candidate for being read as a call. Each case below is a
+// bareword that is NOT a call, and perl says so. Measured on 5.42.0:
+//
+//	$ perl -MO=Deparse -e 'sub foo {1} my %h; my $x = $h{foo};'
+//	$x = $h{'foo'};             a hash key, autoquoted
+//	$ perl -MO=Deparse -e 'sub foo {1} my %h = (foo => 1);'
+//	%h = ('foo', 1);            a fat comma LHS, autoquoted
+//	$ perl -MO=Deparse -e 'sub new {1} my $o = Foo->new(1);'
+//	$o = 'Foo'->new(1);         a class name, not a call to new
+//
+// A bare `(foo, 1)` is the one that DOES call, and it is here as the contrast:
+// perl reads it as `(foo(), 1)` once `foo` is declared, so it must not sit in
+// the same list as the three above.
+//
+// Required by 01a0c13f-6816, which names these three as the risk route A
+// carried. They pass today; this test is what keeps them passing.
+func TestAResolvingSubDoesNotSwallowItsNeighbours(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+	}{
+		{
+			name: "a bareword hash key",
+			src:  "sub foo { 1 }\nmy %h;\nmy $x = $h{foo};\n",
+		},
+		{
+			name: "a fat comma LHS",
+			src:  "sub foo { 1 }\nmy %h = (foo => 1);\n",
+		},
+		{
+			name: "a class name before an arrow",
+			src:  "sub new { 1 }\nmy $o = Foo->new(1);\n",
+		},
+		{
+			// The contrast: this one IS a call, and still parses clean.
+			name: "a bare comma list, which does call",
+			src:  "sub foo { 1 }\nmy %h = (foo, 1);\n",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if n := countUnknown(parse.Parse([]byte(c.src))); n != 0 {
+				t.Errorf("want no Unknown nodes, got %d in:\n%s", n, c.src)
+			}
+		})
+	}
+}
