@@ -171,8 +171,15 @@ func (p *parser) parseLoopControl(word lexer.Token) *Node {
 
 	// The label, if there is one. A bareword here is a label rather than a
 	// function call: `last FOO` never calls FOO.
+	//
+	// A MODIFIER word is not a label, which is the test parseGoto already
+	// makes and this one did not: `last if $x` took `if` as the loop's name
+	// and left `$x;` as a statement of its own. Three statements out of one at
+	// Unknown = 0, and the modifier then had nothing to attach to -- issue
+	// 01a0dee8. `unless`, `while`, `until`, `for` and `foreach` are all in
+	// `modifiers` and every one of them had it.
 	if next, ok := p.peekSignificant(); ok && next.Kind == lexer.Word {
-		if !statementKeywords[p.text(next)] {
+		if !statementKeywords[p.text(next)] && !modifiers[p.text(next)] {
 			p.advanceTo(next)
 			n.Children = append(n.Children, &Node{
 				Kind: Label, Text: p.text(next),
@@ -260,7 +267,14 @@ func (p *parser) parseReturn(word lexer.Token) *Node {
 	//
 	// endsStatement is the shared predicate, used here and by parseUse for the
 	// same construct rather than a terminator set invented for each.
-	if next, ok := p.peekSignificant(); ok && !endsStatement(next, p.src) {
+	//
+	// A MODIFIER word is not an operand either, and endsStatement cannot say
+	// so -- it answers about punctuation. `return if $x;` read the `if` as an
+	// expression and came back as `return if();$x;`, a call to a function
+	// named `if`. parseGoto makes the same test for the same reason; a bare
+	// `return` carrying a modifier is the shape that needs it here.
+	if next, ok := p.peekSignificant(); ok && !endsStatement(next, p.src) &&
+		!(next.Kind == lexer.Word && modifiers[p.text(next)]) {
 		// Below the comma, so the whole list belongs to the return.
 		if arg := p.parseExpr(bpListOp); arg != nil {
 			n.Children = append(n.Children, arg)

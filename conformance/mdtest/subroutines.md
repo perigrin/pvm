@@ -281,3 +281,57 @@ parses: yes
 amp=[x y] paren=[]
 []
 ```
+
+## `return LIST` returns every element
+
+`return` takes an optional list, and the list is the whole return value.
+Three spellings in one case because they are three node shapes and one op:
+an UNPARENTHESISED list, a PARENTHESISED one, and a single operand.
+
+Measured 5.42.0, all three are `return` over a `pushmark`ed list, and the
+parens add nothing to the optree -- `sub g { return ($a, $b) }` and
+`sub f { return $a, $b }` deparse alike:
+
+	$ perl -MO=Deparse -e 'sub f { return 1, 2 } sub g { return ($a,$b) }'
+	sub f { return 1, 2; }
+	sub g { return $a, $b; }
+
+THE OUTPUT COLUMN IS WHERE THIS FAILS, and it is written to fail loudly.
+`scalar(@p)` and `scalar(@g)` are the ELEMENT COUNTS, so a parser that
+loses an operand prints `1` where the case says `2`, and one that loses
+both prints `0`. The single-operand `one()` sits beside them because it is
+the spelling that already worked: a fix that repaired the list by breaking
+the scalar would show up in the same three characters.
+
+This is what issue 01a0e013 measured. `return 1, 2;` canon'd as `return ,;`
+and `return ($a, $b);` as `return ;` -- both operands gone at Unknown = 0,
+so nothing but the emission could see it. The cause was neither half of what
+the filing guessed: the parse was already right, and canon's LoopControl
+case spelled every child as its bare `Text`, which for a comma Binary is
+`","` and for a parenthesised List is the empty string.
+
+NO TOKEN FACT, DELIBERATELY, for the reason the ampersand case above gives.
+`return` is a Word and the source holds four of them, so `one word whose
+text is "return"` is false; the commas are Operators and there are several,
+so no `one` fact about them is true either. The vocabulary is `one` or `no`
+and this construct needs a COUNT, which the output column carries instead.
+
+```perl
+my @l = ($ENV{A} // "a", "b");
+sub pair { return $l[0], $l[1]; }
+sub group { return ($l[0], $l[1]); }
+sub one { return $l[0]; }
+my @p = pair();
+my @g = group();
+print scalar(@p), scalar(@g), one(), "\n";
+print "@p|@g\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+22a
+a b|a b
+```

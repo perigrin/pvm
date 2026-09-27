@@ -55,9 +55,18 @@ func TestLastInBlockWithoutSemicolon(t *testing.T) {
 		// `uni/attrs.t` are the same file in two encodings and both OPEN with
 		// `sub A::MODIFY_SCALAR_ATTRIBUTES { return }`, so this is the first
 		// failure in each.
-		{"bare return", "sub f { return }", "sub f {return; }"},
-		{"bare return in bare block", "{ return }", "{return; }"},
-		{"attrs idiom", "sub A::MODIFY_SCALAR_ATTRIBUTES { return }", "sub A::MODIFY_SCALAR_ATTRIBUTES {return; }"},
+		// The TRAILING SPACE these three used to expect was the BLOCK-FORM
+		// spacer, and a LoopControl is not a block form. It was listed as one
+		// in blockForm only because canon's LoopControl case wrote its own
+		// `;`, and writing one there put a `;` in the middle of `last if $x`
+		// -- issue 01a0dee8. With the terminator moved back to the enclosing
+		// Statement, a `return` statement is spelled like every other
+		// non-block statement: `{$x = 1;}` and `{return;}` are one rule, and
+		// perl accepts both -- measured on 5.42.0,
+		// `perl -e 'sub f {return;} sub g {return 1;}'` is syntax OK.
+		{"bare return", "sub f { return }", "sub f {return;}"},
+		{"bare return in bare block", "{ return }", "{return;}"},
+		{"attrs idiom", "sub A::MODIFY_SCALAR_ATTRIBUTES { return }", "sub A::MODIFY_SCALAR_ATTRIBUTES {return;}"},
 
 		// A COMMENT between the keyword and the closer is the same construct,
 		// and it is how `op/closure.t:773` actually spells it -- `return # `
@@ -66,25 +75,28 @@ func TestLastInBlockWithoutSemicolon(t *testing.T) {
 		// reason the spelling is pinned here rather than assumed equivalent:
 		// peekSignificant skips the comment, so the token the guard examines
 		// is the closer either way.
-		{"bare return then comment", "sub f { return # c\n}", "sub f {return; }"},
+		{"bare return then comment", "sub f { return # c\n}", "sub f {return;}"},
 
 		// WITH the semicolon, which is what already worked. Keeping these
 		// beside the new cases is what proves the fix did not simply move the
 		// damage onto the spelling that was correct.
 		{"require with semicolon", "{ require Errno; }", "{require Errno; }"},
-		{"return with semicolon", "sub f { return; }", "sub f {return; }"},
+		{"return with semicolon", "sub f { return; }", "sub f {return;}"},
 
 		// An operand PRESENT must still be read. These are the cases where
 		// asking `!= Semicolon` happened to give the right answer, and a fix
 		// that stops at any non-semicolon would break them.
 		//
-		// `return LIST` is deliberately NOT here. It drops its operands --
-		// `return 1, 2;` canons as `return ,;` -- at Unknown=0 and does so
-		// WITH the semicolon as well as without, so it is a defect in what
-		// parseReturn does with the expression it gets rather than in whether
-		// it looks for one. Filed separately; asserting it here would make
-		// this test fail for a cause it does not fix.
-		{"return with argument", "sub f { return 1 }", "sub f {return 1; }"},
+		// `return LIST` was deliberately NOT here, because it dropped its
+		// operands -- `return 1, 2;` canon'd as `return ,;` -- at Unknown = 0
+		// and did so WITH the semicolon as well as without, a separate cause
+		// from this issue's. It was filed as 01a0e013 and fixed there, and the
+		// cause turned out to be neither half of what the filing guessed:
+		// parseReturn's `parseExpr(bpListOp)` was right all along -- the comma
+		// is BP 80 and bpListOp is 70, so it binds -- and CANON's LoopControl
+		// case was writing `c.Text` for every child, which spells an
+		// expression as its bare punctuation. TestReturnList holds it now.
+		{"return with argument", "sub f { return 1 }", "sub f {return 1;}"},
 		{"import list present", "{ no warnings 'all' }", "{no warnings 'all'; }"},
 		{"import list qw", "{ use POSIX qw(floor) }", "{use POSIX qw(floor); }"},
 
@@ -93,7 +105,7 @@ func TestLastInBlockWithoutSemicolon(t *testing.T) {
 		// Canon writes no space after an interior `;`, which is its house
 		// style and not this issue's to change.
 		{"statement then use", "{ $x = 1; use strict }", "{$x = 1;use strict; }"},
-		{"statement then return", "sub f { $x = 1; return }", "sub f {$x = 1;return; }"},
+		{"statement then return", "sub f { $x = 1; return }", "sub f {$x = 1;return;}"},
 	}
 
 	for _, c := range cases {
@@ -150,17 +162,23 @@ func TestRequireExpressionPathUnaffected(t *testing.T) {
 // parseLoopControl asks a POSITIVE question -- is the next token a Word that
 // could be a label -- rather than the negative `!= Semicolon` that `return`
 // and `use` asked. Widening a shared terminator set must not disturb them.
+//
+// The canon here lost its trailing space when 01a0dee8 moved the `;` out of
+// canon's LoopControl case and back to the enclosing Statement -- a
+// LoopControl is not a block form, and the space was the block-form spacer.
+// The property this guard exists for is unchanged: a bare loop control stops
+// at the closer rather than consuming it.
 func TestBareLoopControlLastInBlock(t *testing.T) {
 	cases := []struct {
 		name  string
 		src   string
 		canon string
 	}{
-		{"last", "{ last }", "{last; }"},
-		{"next", "{ next }", "{next; }"},
-		{"redo", "{ redo }", "{redo; }"},
-		{"goto", "{ goto }", "{goto; }"},
-		{"last with label", "L: while (1) { last L }", "L: while (1) {last L; }"},
+		{"last", "{ last }", "{last;}"},
+		{"next", "{ next }", "{next;}"},
+		{"redo", "{ redo }", "{redo;}"},
+		{"goto", "{ goto }", "{goto;}"},
+		{"last with label", "L: while (1) { last L }", "L: while (1) {last L;}"},
 	}
 
 	for _, c := range cases {

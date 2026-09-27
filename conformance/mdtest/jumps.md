@@ -103,3 +103,54 @@ parses: yes
 ```output
 ace
 ```
+
+## A label AND a statement modifier on one jump
+
+`next OUTER if $y eq "b"` carries both: the LABEL names which loop to jump
+in, and the MODIFIER decides whether to jump at all. They are different
+things in different places and a parser has to keep them apart.
+
+Measured 5.42.0, the label is the jump op's SV operand and the modifier is
+an ordinary conditional around it -- `next("OUTER")` inside the branch --
+so this case claims no op tier 06 has not already introduced. The inner
+loop is what makes the label observable: `next` with no label would
+continue the INNER loop, and the output would differ.
+
+This is where issue 01a0dee8 was measured. `last if $x;` parsed as THREE
+statements with ZERO Unknown nodes, because `parseLoopControl` asked only
+whether the next word was a statement keyword and `if` is not one -- so
+`if` became the LABEL, and the real condition was left as a statement of
+its own. `parseGoto` already made the extra test and said so in its own
+comment; `parseLoopControl` did not, and nothing applied the modifier
+either way.
+
+THE LABELLED FORM IS WHY THIS IS A SEPARATE CASE from the three unlabelled
+jumps above. A parser that takes the modifier word as the label passes an
+unlabelled `last if $x` by accident -- there is no label to be wrong about
+-- and here it must choose between two words that are both barewords in the
+same position.
+
+`last OUTER if $c` is compiled and NOT TAKEN: `$ENV{X}` is unset, so `// 0`
+is a stable false the optimiser cannot see through, and the op is present,
+reachable and not reached. Same technique as `redo` above.
+
+```perl
+my $c = $ENV{X} // 0;
+my @l = ($ENV{A} // "a", "b", "c");
+OUTER: foreach my $x (@l) {
+    foreach my $y (@l) {
+        next OUTER if $y eq "b";
+        last OUTER if $c;
+        print $y;
+    }
+}
+print "\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+aaa
+```

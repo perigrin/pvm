@@ -384,17 +384,40 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 		}
 
 	case LoopControl:
-		// `last`, `next` or `redo`, with an optional label.
+		// `last`, `next`, `redo` and `goto` with an optional label, and
+		// `return` with an optional EXPRESSION.
 		//
 		// The label here is a TARGET, not a statement label: `next L` names
 		// the loop to continue. Emitting the Label node's own form would
-		// write `next L: `, which is a label on an empty statement.
+		// write `next L: `, which is a label on an empty statement -- so a
+		// Label is written as its bare text.
+		//
+		// Everything else is EMITTED, not spelled. Writing `c.Text` for an
+		// expression child deletes the expression and keeps its punctuation:
+		// a Binary's Text is the operator alone, a parenthesised List's is
+		// empty, a Ternary's is "?:" and a Call's is the callee name, so
+		// every `return` with structure under it canon'd as a fragment --
+		// `return ,;`, `return ;`, `return ?:;`, `return f;` -- at
+		// Unknown = 0, which is issue 01a0e013. The parse was RIGHT all
+		// along: the comma is level 8 / BP 80 and parseReturn reads at
+		// bpListOp 70, so it binds and both operands are in the tree. Only
+		// this loop threw them away.
+		//
+		// NO TERMINATOR. The `;` is the enclosing Statement's to write,
+		// decided by blockForm, and every other non-block kind leaves it
+		// there. Writing one here put a `;` in the MIDDLE of a
+		// statement-modifier form -- `last if $x` came back as `last; if $x`
+		// -- because a LoopControl is the modifier's BODY there, not a
+		// statement of its own. That is the emission half of 01a0dee8.
 		b.WriteString(n.Text)
 		for _, c := range n.Children {
 			b.WriteByte(' ')
-			b.WriteString(c.Text)
+			if c.Kind == Label {
+				b.WriteString(c.Text)
+				continue
+			}
+			emit(b, c, src, 0)
 		}
-		b.WriteByte(';')
 
 	case Label:
 		b.WriteString(n.Text)
@@ -588,8 +611,20 @@ func blockForm(n *Node) bool {
 		// modifier statement, which is half of why they canon'd as something
 		// that is not Perl.
 		return !last.Modifier
-	case Phaser, Block, Use, LoopControl, Unknown:
+	case Phaser, Block, Use, Unknown:
 		return true
+	case LoopControl:
+		// NOT a block form. `last`, `next`, `redo`, `goto` and `return` all end
+		// in a label or an expression and all take a `;` -- they were listed
+		// above only because the LoopControl case used to write its own
+		// terminator, and writing one there put a `;` inside `last if $x`.
+		//
+		// The canon of a bare one loses its trailing space as a result:
+		// `{return;}` rather than `{return; }`, which is what every other
+		// non-block statement already gets -- `{$x = 1;}` is the same rule --
+		// and perl accepts it. Measured on 5.42.0,
+		// `perl -e 'sub f {return;} sub g {return 1;}'` is syntax OK.
+		return false
 	case Declaration:
 		d := last
 		// `format NAME = ... .` ended at its own `.` line, which perl accepts
