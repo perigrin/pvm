@@ -41,6 +41,54 @@ parses: yes
 1
 ```
 
+## A bareword key may be spelled like a quote-like operator
+
+`$h{m}` is the key `"m"`, not a match. Every name in perl's quote-like
+set -- `q qq qw qx m qr s tr y` -- autoquotes as a lone bareword
+subscript, measured on 5.42.0:
+
+    $ perl -MO=Deparse -e 'my %h; my $a=$h{m}; my $b=$h{s}; my $c=$h{tr};'
+      ->  $h{'m'}  $h{'s'}  $h{'tr'}
+
+THE OPTREE CANNOT SEE THIS CASE, which is why the token fact carries it.
+The ops are the same `multideref` the case above emits, so a corpus that
+asserted only ops would hold `$h{m}` and `$h{a}` to be the same claim.
+They are not: the LEXER has to decide whether `m` opens an operator, and
+getting it wrong swallows source. Before the fix, `$h{m}` lexed as a
+match whose delimiter was `}`, so the body ran to the NEXT `}` and the
+emission gained a spurious `};`.
+
+A `}` never delimits one of these operators in a program perl will
+COMPILE, in any context and not only a subscript: `perl -e 'sub f { m }'`
+is "Search pattern not terminated". So the subscript is the only spelling
+that compiles, and a lexer needs no bracket-stack knowledge to tell the
+two apart -- the byte after the name settles it. A brace-DELIMITED
+operator in the same position stays an operator, because there that byte
+is `{`: `$h{ m{a} }` deparses to `$h{/a/}`.
+
+The hash is built with QUOTED keys so each bareword below appears
+exactly once, which is what a `one ...` fact requires.
+
+```perl
+my %h = ("m" => 1, "s" => 2, "tr" => 3, "qw" => 4);
+print $h{m}, $h{s}, $h{tr}, $h{qw}, "\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+1234
+```
+
+```tokens
+one word whose text is "m"
+one word whose text is "s"
+one word whose text is "tr"
+one word whose text is "qw"
+```
+
 ## A computed subscript is the only route to `helem`
 
 `$h{a}` is `multideref`. `$h{$k[0]}` is `helem` over an
