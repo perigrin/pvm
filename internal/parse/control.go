@@ -528,9 +528,16 @@ func (p *parser) parseFor(word lexer.Token) *Node {
 			decl.End = p.prevEnd()
 			n.Children = append(n.Children, decl)
 		} else if next.Kind == lexer.Variable {
+			// A BARE loop variable -- `for $i (@l)`, `for $pkg::i (@l)`. It
+			// occupies the same slot the `my` spelling's Declaration does, so
+			// it has to be marked as that slot: a plain Term here is
+			// indistinguishable from a condition, and canon parenthesised it
+			// and emitted the list bare after it (`for ($i) 2 {3;}`) at
+			// Unknown = 0. See Node.LoopVar.
 			p.advanceTo(next)
 			n.Children = append(n.Children, &Node{
 				Kind: Term, Text: p.text(next), Start: next.Start, End: next.End,
+				LoopVar: true,
 			})
 		}
 	}

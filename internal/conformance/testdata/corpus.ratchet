@@ -8,7 +8,7 @@
 # topic's `**Tier NN name.**` line and leaves every key alone. That
 # is the `t/` sweep working, and must not read as a regression.
 #
-# 228 cases, 228 clean, 0 refusing.
+# 229 cases, 229 clean, 0 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -221,6 +221,7 @@
 - symbol-table.md/`*` is a sigil and an operator, resolved by position
 - symbol-table.md/`AUTOLOAD` catches a call to a sub that does not exist
 - symbol-table.md/`\*STDOUT` is a reference to a GLOB, its own type
+- symbol-table.md/`foreach $pkg (LIST)` aliases a PACKAGE variable and restores it
 - taking-references.md/The anonymous array constructor
 - taking-references.md/The backslash in scalar context
 - taking-references.md/The same backslash in list context

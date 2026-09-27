@@ -277,7 +277,7 @@ type Node struct {
 	// Only meaningful for Call; false everywhere else and not read there.
 	Resolved bool
 
-	// The six flags below follow Resolved's rule: each is meaningful on one
+	// The seven flags below follow Resolved's rule: each is meaningful on one
 	// kind of node, false everywhere else, and not read there. A flag that
 	// leaks onto nodes it does not describe is worse than no flag, because a
 	// consumer cannot tell a real answer from a stray one.
@@ -395,6 +395,29 @@ type Node struct {
 	// arguments -- a child there would emit them twice. Canon reads them from
 	// here and writes them after the terminator with the rest.
 	InnerHeredocBodies []*Node
+
+	// LoopVar is set on a `foreach` loop's VARIABLE child -- the `$i` of
+	// `for $i (@l)` -- when that variable was written bare rather than
+	// declared.
+	//
+	// It sits OUTSIDE the parens, where the `my` spelling's Declaration child
+	// already went. A bare variable is a plain Term, which canon could not
+	// tell from a `while` loop's condition, so it parenthesised the variable
+	// and emitted the list bare after it: `for $i (2) {3;}` came back as
+	// `for ($i) 2 {3;}` at Unknown = 0. Not a parse of anything, and only the
+	// canon could see it -- a swapped emission is not a refusal.
+	//
+	// Not derivable from child shape. `for ($x) { }` with no loop variable has
+	// the same one-Term-then-Block children as `for $i (@l) { }` would if the
+	// list were absent, and both are legal perl reading DIFFERENT things --
+	// the first aliases `$_` over `$x`, the second iterates `@l`. Only the
+	// parser knows whether the Term it read came before the `(` or inside it,
+	// which is Modifier's argument for the same reason.
+	//
+	// Meaningful on the CHILD, not on the Loop, because `for $i (@l)` and
+	// `for my $i (@l)` differ in which child is the variable rather than in
+	// what the loop is.
+	LoopVar bool
 }
 
 // SourceText reconstructs the bytes this node covers, walking the tree.
