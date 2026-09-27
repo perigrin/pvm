@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 686 clean (69.6%), 1429 total.
+# 986 files, 688 clean (69.8%), 1452 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -347,7 +347,7 @@
 1 goto_tailcall_core_destroy_order.t
 1 harness_skip_all.t
 0 hash.t
-2 hash_autovivification.t
+8 hash_autovivification.t
 0 hash_interpolation_warning.t
 0 hash_literal_anonymous_ref_cleanup.t
 0 hash_ref_disambiguation.t
@@ -725,7 +725,7 @@
 0 stash_constant_code_identity.t
 4 stash_readonly_scalar_ref_assignment.t
 0 stash_recursive_alias.t
-1 stash_scalar_ref_assignment.t
+0 stash_scalar_ref_assignment.t
 0 stash_undefined_code_lookup.t
 7 stash_var_keyword_op.t
 0 stat_filehandle_after_rename.t
@@ -831,7 +831,7 @@
 0 threads_regex_fail_verb.t
 0 threads_regex_literal_compile_warning.t
 0 threads_runtime_regex_lexical_capture.t
-1 threads_shared_blessed_tied.t
+0 threads_shared_blessed_tied.t
 0 threads_shared_child_capture_release.t
 0 threads_shared_destructive_share.t
 1 threads_shared_fetch_proxy_lifetime.t
@@ -852,7 +852,7 @@
 0 tie_bareword_filehandle_package.t
 36 tie_handle.t
 0 tie_handle_readline_args.t
-8 tie_hash.t
+27 tie_hash.t
 18 tie_scalar.t
 0 tie_scalar_self_reference_destroy.t
 8 tie_void_context.t

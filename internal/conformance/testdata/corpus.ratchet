@@ -8,7 +8,7 @@
 # topic's `**Tier NN name.**` line and leaves every key alone. That
 # is the `t/` sweep working, and must not read as a regression.
 #
-# 224 cases, 224 clean, 0 refusing.
+# 227 cases, 227 clean, 0 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -123,6 +123,7 @@
 - handles.md/`<$fh>` in list context reads EVERY remaining line
 - handles.md/`<$fh>` in scalar context reads ONE line
 - handles.md/`eof($fh)` inspects the glob without making it real
+- hashes.md/A bareword key may be spelled like a quote-like operator
 - hashes.md/A computed subscript is the only route to `helem`
 - hashes.md/A hash slice, where `delete` becomes a real op
 - hashes.md/A hash, and a bareword key
@@ -130,6 +131,7 @@
 - heredocs.md/The indentation-stripping heredoc
 - heredocs.md/The interpolating heredoc
 - heredocs.md/The non-interpolating heredoc
+- jumps.md/A label AND a statement modifier on one jump
 - jumps.md/The three loop-control statements
 - jumps.md/`goto` is one op name over unrelated constructs
 - list-operators-in-context.md/`grep BLOCK` and `grep EXPR`, where the arities disagree
@@ -214,6 +216,7 @@
 - subroutines.md/Calling through a code reference
 - subroutines.md/Four spellings of one call
 - subroutines.md/The ampersand call passes the caller's `@_`
+- subroutines.md/`return LIST` returns every element
 - symbol-table.md/`*` is a sigil and an operator, resolved by position
 - symbol-table.md/`AUTOLOAD` catches a call to a sub that does not exist
 - symbol-table.md/`\*STDOUT` is a reference to a GLOB, its own type

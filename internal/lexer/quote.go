@@ -144,6 +144,43 @@ func scanQuoteLike(l *lexer) bool {
 		return false
 	}
 
+	// A `}` never delimits a quote operator in a program perl will COMPILE,
+	// so a quote-op name that reaches one is the bareword. This holds in
+	// every context and not only in a subscript -- measured on 5.42.0, where
+	// each of these is a fatal error rather than an operator:
+	//
+	//	$ perl -e 'sub f { m }'
+	//	Search pattern not terminated at -e line 1.
+	//	$ perl -e 'for (1) { s }'
+	//	Substitution pattern not terminated at -e line 1.
+	//	$ perl -e 'my @a = map { qw } 1;'
+	//	Can't find string terminator "}" anywhere before EOF at -e line 1.
+	//
+	// The third is the one that shows WHY this is safe to decide on the byte
+	// alone. perl does take the `}` there and then cannot find its closer; a
+	// bareword and a run-to-EOF quote are both refusals of source perl
+	// refuses, so declining costs nothing, while the SUBSCRIPT -- the only
+	// spelling that compiles -- becomes right.
+	//
+	// That is why this asks the BYTE and not the bracket stack. The
+	// construct it appears in is a subscript, where perl autoquotes the key
+	// exactly as it does before a fat comma:
+	//
+	//	$ perl -MO=Deparse -e 'my %h; my $a=$h{m}; my $b=$h{s}; my $c=$h{tr};'
+	//	  ->  $h{'m'}  $h{'s'}  $h{'tr'}
+	//
+	// Without this, `$h{m}` lexed as a match delimited by `}` whose body ran
+	// to the NEXT `}`: the emission gained a spurious `};` and the enclosing
+	// construct lost its closer. `$h{m}{q}` swallowed BOTH subscripts into
+	// one Quote and still scored Unknown=0, so only the canon could see it.
+	//
+	// It declines on the byte AFTER the name, so a brace-delimited operator
+	// in the same position is untouched -- perl reads `$h{ m{a} }` as the
+	// match `/a/`, and there the byte is `{`.
+	if closeBraceFollows(l.src, after) {
+		return false
+	}
+
 	l.pos = after
 	// A '#' GLUED to the keyword is the delimiter; only a '#' reached after
 	// skipping whitespace is a comment. Measured: `q#a#` is the string "a",
@@ -381,6 +418,17 @@ func fatCommaFollows(src []byte, pos int) bool {
 		}
 	}
 	return false
+}
+
+// closeBraceFollows reports whether the next significant byte at pos is `}`.
+//
+// Whitespace is skipped for fatCommaFollows's reason: perl skips it too, and
+// `$h{ m }` deparses to `$h{'m'}`. skipSpaceFrom is the lexer's own space
+// predicate, so this cannot disagree with the rest of the scanner about
+// where whitespace ends.
+func closeBraceFollows(src []byte, pos int) bool {
+	pos = skipSpaceFrom(src, pos)
+	return pos < len(src) && src[pos] == '}'
 }
 
 // HasQuoteOperator reports whether a Quote token's text RUNS an operator
