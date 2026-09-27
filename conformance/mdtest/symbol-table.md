@@ -149,3 +149,56 @@ auto:missing
 ```tokens
 one word whose text is "AUTOLOAD"
 ```
+
+## `foreach $pkg (LIST)` aliases a PACKAGE variable and restores it
+
+The fourth side of the symbol table, and the one that is not a glob
+spelling. `foreach` with a BARE variable rather than a `my` declaration
+aliases the package slot itself for the body of the loop, which is why
+`enteriter`'s operand here is `rv2gv` over a `gv[*i]` -- tier 10's op,
+claimed for its filehandles -- where `foreach my $x` gets a pad slot and
+`padsv`. Measured on 5.42.0:
+
+    foreach my $x (@l)   ->  enteriter ... padsv[$x] LVINTRO
+    foreach $i (@l)      ->  enteriter ... rv2gv <- gv[*i]
+
+The alias is UNDONE at the exit, which is what the third `print` pins:
+`$i` holds `"before"` again after the loop has assigned it twice, so the
+loop localises the global rather than assigning to it. Nothing about that
+is visible in the loop body, and a reader that took the bare spelling for
+an ordinary assignment would print `"b"` on the last line.
+
+THE ORDER OF THE HEAD IS WHAT THIS CASE PINS FOR A PARSER. The variable
+comes before the parens and the list inside them -- `foreach $i (@l)`, not
+`foreach ($i) @l` -- and the two spellings of the head differ only in
+whether a declarator precedes the variable. Our parser read the bare
+variable into the LIST slot and the list into a bare term after it, at
+Unknown = 0, and emitted `for ($i) 2 {3;}`: a tree that is not a parse of
+its source, which only a canon could see (`01a0e071`).
+
+The token facts are the two spellings this case is about, and there is no
+`my` fact even though the source spells one: `my @l` declares the LIST,
+not the loop variable, so a fact counting `my` would assert the opposite
+of the point.
+
+```perl
+our $i = "before";
+my @l = ($ENV{A} // "a", "b");
+foreach $i (@l) { print $i }
+print "\n";
+print "$i\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+ab
+before
+```
+
+```tokens
+one word whose text is "foreach"
+one word whose text is "our"
+```
