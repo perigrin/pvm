@@ -679,15 +679,28 @@ func (p *parser) statement() *Node {
 	}
 
 	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Word {
-		// NO applyModifier here, and that is issue 01a0dee8: `goto HERE if $x`
-		// comes back as three statements with ZERO Unknown nodes -- `goto
-		// HERE`, an `if` Conditional with no children, and `$x;`. parseGoto
-		// declines the modifier on purpose so this site can apply it (see its
-		// comment at control.go:203) and this site never has. Measured at
-		// 9325864f and unchanged by 01a0de8b, so it is not that issue's to fix;
-		// left alone rather than widened here because `last if $x` also takes
-		// `if` as its LABEL, and the two have to move together.
 		if c := p.parseControlFlow(tok); c != nil {
+			// A LOOP CONTROL may carry a statement modifier, and this is the
+			// only site that can apply it: parseLoopControl, parseGoto and
+			// parseReturn each refuse the modifier word deliberately so that
+			// it survives to here (parseGoto says so at control.go:203).
+			// Nothing applied it, so `goto HERE if $x` came back as three
+			// statements with ZERO Unknown nodes -- `goto HERE`, an `if`
+			// Conditional with no children, and `$x;` -- which is issue
+			// 01a0dee8.
+			//
+			// Only the LoopControl kinds. The others parseControlFlow returns
+			// are BLOCK forms, and `if ($a) {1} if ($b) {2}` is two statements
+			// rather than a modifier on the first: perl reads them as siblings
+			// and `endsInBlock` only declines the `Call` spelling of that
+			// shape, so a wider reach here would repeat the `defer.t` bug in a
+			// new place. A LoopControl never ends in a block, so the kind test
+			// is the whole condition.
+			if c.Kind == LoopControl {
+				if mod := p.applyModifier(c, start); mod != nil {
+					return p.withLabels(labels, mod, start)
+				}
+			}
 			return p.withLabels(labels, c, start)
 		}
 		if r := p.parseTheRest(tok); r != nil {
