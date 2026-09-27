@@ -1,6 +1,6 @@
 # Unknown nodes per perl.git t/ file, through parse.ParseFileFrom.
 #
-# 620 files, 415 clean (66.9%), 2028 total.
+# 620 files, 419 clean (67.6%), 2002 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -63,7 +63,7 @@
 0 comp/parser_run.t
 2 comp/proto.t
 1 comp/redef.t
-6 comp/require.t
+4 comp/require.t
 13 comp/retainedlines.t
 0 comp/term.t
 1 comp/uproto.t
@@ -259,8 +259,8 @@
 0 op/exp.t
 0 op/fh.t
 0 op/filehandle.t
-1 op/filetest.t
-1 op/filetest_stack_ok.t
+0 op/filetest.t
+0 op/filetest_stack_ok.t
 0 op/filetest_t.t
 1 op/flip.t
 81 op/for-many.t
@@ -307,7 +307,7 @@
 49 op/lexsub.t
 0 op/lfs.t
 1 op/list.t
-2 op/local.t
+1 op/local.t
 3 op/localref.t
 0 op/lock.t
 0 op/loopctl.t
@@ -316,7 +316,7 @@
 0 op/magic-27839.t
 7 op/magic.t
 47 op/method.t
-2 op/mkdir.t
+0 op/mkdir.t
 0 op/multideref.t
 0 op/my.t
 0 op/my_stash.t
@@ -339,7 +339,7 @@
 0 op/print.t
 0 op/protowarn.t
 0 op/push.t
-1 op/pwent.t
+0 op/pwent.t
 0 op/qr.t
 0 op/quotemeta.t
 0 op/rand.t
@@ -379,7 +379,7 @@
 0 op/sselect.t
 8 op/stash.t
 0 op/stash_parse_gv.t
-10 op/stat.t
+3 op/stat.t
 0 op/stat_errors.t
 3 op/state.t
 0 op/study.t
@@ -391,7 +391,7 @@
 0 op/substr_thr.t
 0 op/svflags.t
 15 op/svleak.t
-44 op/switch.t
+38 op/switch.t
 0 op/symbolcache.t
 0 op/sysio.t
 19 op/taint.t
@@ -455,7 +455,7 @@
 0 porting/extrefs.t
 0 porting/filenames.t
 0 porting/globvar.t
-4 porting/header_parser.t
+3 porting/header_parser.t
 0 porting/libperl.t
 2 porting/maintainers.t
 0 porting/makerel.t
@@ -463,7 +463,7 @@
 4 porting/merge-deltas.t
 0 porting/perlfunc.t
 0 porting/pod_rules.t
-19 porting/podcheck.t
+15 porting/podcheck.t
 1 porting/re_context.t
 0 porting/readme.t
 0 porting/regen.t

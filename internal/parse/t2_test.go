@@ -362,7 +362,13 @@ func TestT2CoreParses(t *testing.T) {
 		// stopped there because it parsed at the COMMA's power and levels 4
 		// and 5 are below it. Back to the 17 the symbol-table deref note
 		// above records, by a different route.
-		"comp/redef.t": 1, "comp/require.t": 6, "comp/retainedlines.t": 13,
+		//
+		// comp/require.t 6 -> 4 when an operandless filetest stopped eating
+		// its terminator (issue 01a0de97-b3bd). Line 37 is
+		// `grep -e, @files_to_delete` -- a `-e` with no operand followed by
+		// a COMMA, which is why the guard tests the infix table and not just
+		// `;` and closers.
+		"comp/redef.t": 1, "comp/require.t": 4, "comp/retainedlines.t": 13,
 		// comp/use.t 1 -> 0 and LEAVES THIS MAP with the last statement of a
 		// block needing no `;` (issue 01a0dfb8). Its one remaining refusal was
 		// the `}` that `use`'s import-list hunt had swallowed; parseUse now

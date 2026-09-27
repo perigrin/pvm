@@ -63,9 +63,42 @@ func (p *parser) parseTerm() *Node {
 			return n
 		}
 		// No parens: one argument at level 19, so arithmetic binds into the
-		// test and comparison does not. An ABSENT argument is legal and needs
-		// no branch -- `$_="/etc"; print -e;` deparses as `print -e $_`, so
-		// the node keeps the operator's own span and has no child.
+		// test and comparison does not. An ABSENT argument is legal --
+		// `$_="/etc"; print -e;` deparses as `print -e $_`, so the node keeps
+		// the operator's own span and has no child.
+		//
+		// The absence needs a BRANCH, which is what this comment used to deny.
+		// `parseExpr` does not return nil at a terminator: it returns an
+		// Unknown spanning whatever it found, so the `;` became the argument
+		// and canon emitted `print(-e(;));`. In the `if` form the whole BLOCK
+		// was absorbed -- `if (-e){print 1}` canon'd as `if (-e(){print(1)}))`
+		// with the parens left unbalanced, which is a wrong SHAPE rather than
+		// a wrong count.
+		//
+		// A terminator is anything that cannot begin a term: the statement's
+		// `;`, a closer (`)` of the `if`, `}` of a `grep` block, `]`), end of
+		// input, or an INFIX OPERATOR. Testing the token is narrower than
+		// testing the result, because an Unknown that spans a REAL operand
+		// must stay in the tree.
+		//
+		// The infix case is not an edge: perl supplies `$_` there too, and
+		// both of these are ordinary in its own suite --
+		//
+		//	perl -MO=Deparse -e '$_="/etc"; -e or die;'
+		//	  ->  die unless -e $_;
+		//	perl -MO=Deparse -e '$_="/etc"; print -e ? 1 : 0;'
+		//	  ->  print -e $_ ? 1 : 0;
+		//
+		// A first version of this guard stopped at `;` and closers alone and
+		// left both of those refusing, which is why the set is the `infix`
+		// table rather than a hand-listed pair of kinds.
+		next, ok := p.peekSignificant()
+		if !ok || next.Kind == lexer.Semicolon || next.Kind == lexer.CloseBracket {
+			return n
+		}
+		if _, isInfix := infix[p.text(next)]; isInfix {
+			return n
+		}
 		if arg := p.parseExpr(bpNamedUnary); arg != nil {
 			n.Children = append(n.Children, arg)
 			n.End = p.prevEnd()
