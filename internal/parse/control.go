@@ -441,7 +441,16 @@ func (p *parser) parseFor(word lexer.Token) *Node {
 		if next.Kind == lexer.Word && declarators[p.text(next)] {
 			p.advanceTo(next)
 			decl := &Node{Kind: Declaration, Text: p.text(next), Start: next.Start}
-			if v, ok := p.peekSignificant(); ok && v.Kind == lexer.Variable {
+			// `for my ($k, $v) (LIST)` iterates several variables at once,
+			// perl 5.36 onward. The FIRST parenthesised group after a
+			// declarator is the variable list and the second is the loop's
+			// LIST; reading the first as the head left the real list with
+			// nowhere to go.
+			if v, ok := p.peekSignificant(); ok && p.text(v) == "(" {
+				if vars := p.parseParenList(v); vars != nil {
+					decl.Children = append(decl.Children, vars)
+				}
+			} else if ok && v.Kind == lexer.Variable {
 				p.advanceTo(v)
 				decl.Children = append(decl.Children, &Node{
 					Kind: Term, Text: p.text(v), Start: v.Start, End: v.End,

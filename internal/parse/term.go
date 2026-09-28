@@ -409,6 +409,15 @@ func (p *parser) parseParenList(open lexer.Token) *Node {
 			p.advanceTo(tok)
 			break
 		}
+		// An empty slot: a comma where an element would start. perl drops it,
+		// measured on 5.42.0 -- `my @a = (1,,,2)` has 2 elements -- and
+		// op/for-many.t spells forty in one variable list. Only AFTER an
+		// element: a leading `(,1)` is a syntax error in perl, so that refusal
+		// stands.
+		if p.text(tok) == "," && len(items) > 0 {
+			p.advanceTo(tok)
+			continue
+		}
 		// Parsed above the comma so each element is its own node. A nil
 		// element means the input ran out mid-list, which the loop's next
 		// peek handles.
