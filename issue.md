@@ -1,10 +1,19 @@
 ---
 title: "The repeat operator touching its count lexes as a word: \"ab\" x4 canons as a call to x4()"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-28T23:15:22.949588881Z
-updated: 2026-09-28T23:15:22.949588881Z
+updated: 2026-09-28T23:31:12.597472111Z
+sessions:
+- start_sha: d8029d82fa384bc5d781d771297fa742dfb4b01e
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-28T23:31:12.597472111Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-28T23:31:12.597472111Z
 ---
 
 The repetition operator written with its count touching it -- `"ab"x4`, `"ab" x4`
