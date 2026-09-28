@@ -1,19 +1,31 @@
 ---
 title: "A heredoc body inside its statement stops it: fresh_perl_is(<<~EOF, ...) loses every argument after the body"
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-28T22:03:29.769297285Z
-updated: 2026-09-28T22:54:45.938771322Z
+updated: 2026-09-28T23:03:46.170148879Z
 sessions:
 - start_sha: 102569cdaab8154c20c34fde9f4e09e2bf2d4a65
-  end_sha: ""
-  commits: 0
+  end_sha: c6fb51f36af20e7039f81cb35302be95b0e07005
+  commits: 1
   started_at: 2026-09-28T22:54:45.938771322Z
+  ended_at: 2026-09-28T23:03:46.170148879Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-28T22:54:45.938771322Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-28T23:03:46.170148879Z
+observed_paths:
+- internal/parse/canon.go
+- internal/parse/heredocarg_test.go
+- internal/parse/parse.go
+- internal/parse/t2_test.go
+- internal/parse/testdata/perlgitt.ratchet
+- internal/parse/testdata/t1.ratchet
+- internal/parse/testdata/t1canon.ratchet
 ---
 
 A heredoc body that falls INSIDE its statement stops the statement. perl reads
