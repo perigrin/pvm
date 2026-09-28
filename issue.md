@@ -1,10 +1,19 @@
 ---
 title: try/catch/finally is declined as a statement keyword, and op/try.t refuses every clause
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-28T22:03:29.531868436Z
-updated: 2026-09-28T22:03:29.531868436Z
+updated: 2026-09-28T22:29:09.370595216Z
+sessions:
+- start_sha: 01e775966608237f2380b27d2433f94283e5146b
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-28T22:29:09.370595216Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-28T22:29:09.370595216Z
 ---
 
 `try BLOCK catch (VAR) BLOCK [finally BLOCK]` under feature 'try' was declined
