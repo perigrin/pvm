@@ -1,10 +1,19 @@
 ---
 title: "The main stash spelled with an empty package name: $::{n} and %::"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T16:41:03.74207397Z
-updated: 2026-09-26T16:41:03.74207397Z
+updated: 2026-09-28T21:55:54.99011159Z
+sessions:
+- start_sha: 9b7b13111f748942d278e8fa83872337288084f6
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-28T21:55:54.99011159Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-28T21:55:54.99011159Z
 ---
 
 The `main` stash spelled with an empty package name -- `$::{name}`, `%::` --
