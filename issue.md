@@ -1,19 +1,32 @@
 ---
 title: try/catch/finally are declined as statement forms, and need a clause chain rather than WORD BLOCK
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-26T15:09:53.411251375Z
-updated: 2026-09-28T22:43:21.688542798Z
+updated: 2026-09-28T22:49:26.307721174Z
 sessions:
 - start_sha: 01e775966608237f2380b27d2433f94283e5146b
-  end_sha: ""
-  commits: 0
+  end_sha: 102569cdaab8154c20c34fde9f4e09e2bf2d4a65
+  commits: 1
   started_at: 2026-09-28T22:43:21.688542798Z
+  ended_at: 2026-09-28T22:49:26.307721174Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-28T22:43:21.688542798Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-28T22:49:26.307721174Z
+observed_paths:
+- internal/conformance/conformance_test.go
+- internal/parse/control.go
+- internal/parse/parse.go
+- internal/parse/refusal_test.go
+- internal/parse/t2_test.go
+- internal/parse/testdata/perlgitt.ratchet
+- internal/parse/testdata/t1.ratchet
+- internal/parse/trycatch_test.go
 ---
 
 `try`, `catch` and `finally` sit in `statementKeywords`, so the whole
