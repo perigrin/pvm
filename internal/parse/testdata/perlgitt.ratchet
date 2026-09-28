@@ -1,6 +1,6 @@
 # Unknown nodes per perl.git t/ file, through parse.ParseFileFrom.
 #
-# 620 files, 431 clean (69.5%), 1482 total.
+# 620 files, 444 clean (71.6%), 1293 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -59,11 +59,11 @@
 0 comp/our.t
 1 comp/package.t
 0 comp/package_block.t
-9 comp/parser.t
+7 comp/parser.t
 0 comp/parser_run.t
 0 comp/proto.t
 1 comp/redef.t
-4 comp/require.t
+3 comp/require.t
 2 comp/retainedlines.t
 0 comp/term.t
 1 comp/uproto.t
@@ -94,7 +94,7 @@
 2 io/open.t
 0 io/openpid.t
 0 io/paragraph_mode.t
-2 io/perlio.t
+0 io/perlio.t
 0 io/perlio_fail.t
 0 io/perlio_leaks.t
 0 io/perlio_open.t
@@ -210,22 +210,22 @@
 4 op/assignwarn.t
 0 op/attrhand.t
 0 op/attrproto.t
-23 op/attrs.t
+20 op/attrs.t
 0 op/auto.t
 0 op/avhv.t
 3 op/bless.t
 1 op/blocks.t
 0 op/bool.t
-18 op/bop.t
-11 op/caller.t
+16 op/bop.t
+7 op/caller.t
 0 op/catch.t
 0 op/chars.t
 1 op/chdir.t
 2 op/chop.t
 0 op/chr.t
-2 op/closure.t
+1 op/closure.t
 0 op/cmpchain.t
-2 op/concat2.t
+1 op/concat2.t
 0 op/cond.t
 21 op/const-optree.t
 0 op/context.t
@@ -235,7 +235,7 @@
 0 op/crypt.t
 3 op/current_sub.t
 0 op/dbm.t
-6 op/debug.t
+0 op/debug.t
 8 op/decl-refs.t
 2 op/defer.t
 0 op/defined.t
@@ -252,7 +252,7 @@
 0 op/dump.t
 2 op/each.t
 0 op/each_array.t
-11 op/eval.t
+10 op/eval.t
 3 op/evalbytes.t
 3 op/exec.t
 1 op/exists_sub.t
@@ -279,13 +279,13 @@
 0 op/groups.t
 29 op/gv.t
 3 op/hash-clear-placeholders.t
-1 op/hash-rt85026.t
+0 op/hash-rt85026.t
 2 op/hash.t
 0 op/hashassign.t
 0 op/hashwarn.t
 0 op/heredoc.t
 0 op/hexfp.t
-10 op/hook/require.t
+0 op/hook/require.t
 3 op/inc.t
 0 op/inccode-tie.t
 2 op/inccode.t
@@ -299,10 +299,10 @@
 0 op/kill0.t
 8 op/kvaslice.t
 0 op/kvhslice.t
-7 op/lc.t
+6 op/lc.t
 0 op/leaky-magic.t
 0 op/length.t
-20 op/lex.t
+9 op/lex.t
 1 op/lex_assign.t
 48 op/lexsub.t
 0 op/lfs.t
@@ -314,8 +314,8 @@
 9 op/lop.t
 18 op/lvref.t
 0 op/magic-27839.t
-6 op/magic.t
-30 op/method.t
+4 op/magic.t
+26 op/method.t
 0 op/mkdir.t
 0 op/multideref.t
 0 op/my.t
@@ -331,7 +331,7 @@
 0 op/ord.t
 1 op/overload_integer.t
 9 op/override.t
-15 op/pack.t
+14 op/pack.t
 0 op/packagev.t
 0 op/pos.t
 4 op/postfixderef.t
@@ -384,7 +384,7 @@
 3 op/state.t
 0 op/study.t
 0 op/studytied.t
-9 op/sub.t
+8 op/sub.t
 24 op/sub_lval.t
 1 op/substr.t
 0 op/substr_left.t
@@ -394,9 +394,9 @@
 38 op/switch.t
 0 op/symbolcache.t
 0 op/sysio.t
-19 op/taint.t
+16 op/taint.t
 0 op/threads-dirh.t
-1 op/threads.t
+0 op/threads.t
 0 op/tie.t
 6 op/tie_fetch_count.t
 0 op/tiearray.t
@@ -422,8 +422,8 @@
 0 op/waitpid.t
 0 op/wantarray.t
 0 op/warn.t
-6 op/while.t
-44 op/write.t
+5 op/while.t
+34 op/write.t
 6 op/yadayada.t
 0 opbasic/arith.t
 5 opbasic/cmp.t
@@ -455,7 +455,7 @@
 0 porting/extrefs.t
 0 porting/filenames.t
 0 porting/globvar.t
-3 porting/header_parser.t
+0 porting/header_parser.t
 0 porting/libperl.t
 2 porting/maintainers.t
 0 porting/makerel.t
@@ -463,7 +463,7 @@
 4 porting/merge-deltas.t
 0 porting/perlfunc.t
 0 porting/pod_rules.t
-15 porting/podcheck.t
+13 porting/podcheck.t
 0 porting/re_context.t
 0 porting/readme.t
 0 porting/regen.t
@@ -489,7 +489,7 @@
 0 re/opt.t
 11 re/overload.t
 21 re/pat.t
-99 re/pat_advanced.t
+93 re/pat_advanced.t
 0 re/pat_advanced_thr.t
 0 re/pat_psycho.t
 0 re/pat_psycho_thr.t
@@ -510,7 +510,7 @@
 0 re/reg_email.t
 0 re/reg_email_thr.t
 0 re/reg_eval.t
-33 re/reg_eval_scope.t
+0 re/reg_eval_scope.t
 0 re/reg_fold.t
 8 re/reg_mesg.t
 2 re/reg_namedcapture.t
@@ -536,7 +536,7 @@
 0 re/script_run.t
 0 re/speed.t
 0 re/speed_thr.t
-2 re/stclass_threads.t
+0 re/stclass_threads.t
 11 re/subst.t
 0 re/substT.t
 0 re/subst_amp.t
@@ -553,14 +553,14 @@
 0 re/uniprops10.t
 0 re/user_prop_race_thr.t
 0 run/cloexec.t
-4 run/dtrace.t
+0 run/dtrace.t
 0 run/exit.t
 0 run/fresh_perl.t
-49 run/locale.t
+4 run/locale.t
 0 run/noswitch.t
-3 run/runenv.t
+0 run/runenv.t
 0 run/runenv_hashseed.t
-1 run/runenv_randseed.t
+0 run/runenv_randseed.t
 2 run/script.t
 0 run/switch-I-and-M.t
 0 run/switch0.t
@@ -573,13 +573,13 @@
 0 run/switchM.t
 0 run/switcha.t
 0 run/switchd-78586.t
-4 run/switchd.t
-6 run/switches.t
+1 run/switchd.t
+5 run/switches.t
 0 run/switchn.t
 0 run/switchp.t
 0 run/switcht.t
 0 run/switchx.t
-14 run/todo.t
+0 run/todo.t
 0 test_pl/_num_to_alpha.t
 4 test_pl/can_isa_ok.t
 0 test_pl/display.t
@@ -619,7 +619,7 @@
 0 win32/crypt.t
 0 win32/fs.t
 0 win32/popen.t
-3 win32/runenv.t
+0 win32/runenv.t
 0 win32/seekdir.t
 0 win32/signal.t
 0 win32/stat.t

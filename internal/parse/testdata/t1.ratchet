@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 697 clean (70.7%), 1403 total.
+# 986 files, 699 clean (70.9%), 1398 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -157,7 +157,7 @@
 0 cpan_generic_patch_paths.t
 0 cpan_meta_yaml_dump_after_refaddr_cleanup.t
 0 cpan_parser_tooling_regressions.t
-2 cpan_prerequisite_phases.t
+0 cpan_prerequisite_phases.t
 0 cpan_requested_compat.t
 0 cpan_shim_modules.t
 0 cpan_static_recommends.t
@@ -260,7 +260,7 @@
 0 eval_block_return.t
 0 eval_byte_source_semantics.t
 0 eval_concat_warning_scope.t
-4 eval_context_stack_reentrancy.t
+2 eval_context_stack_reentrancy.t
 0 eval_foreach_return_value.t
 0 eval_imported_call_comparison_context.t
 0 eval_list_repeat_expression.t
@@ -355,7 +355,7 @@
 0 hash_slot_aliasing.t
 8 hash_util_fieldhash_identity.t
 0 heredoc.t
-1 heredoc_infix_continuation.t
+0 heredoc_infix_continuation.t
 0 hint_hash_scope_destroy.t
 1 html_content_extractor_jsoup.t
 0 html_parser_default_handler.t

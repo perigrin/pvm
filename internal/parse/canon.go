@@ -570,9 +570,11 @@ const atomBP = 1000
 // The kinds that write their own terminator are included: `use strict;` and
 // `next L;` emit theirs in their own case, and a second one here would be a
 // stray token.
-// heredocBodies is the statement's heredoc-body children, in opener order.
+// heredocBodies is the statement's heredoc bodies, in opener order: first the
+// ones that fell inside its span, then the ones after its terminator. Every
+// inner body precedes every trailing one in the source, so the order holds.
 func heredocBodies(n *Node) []*Node {
-	var out []*Node
+	out := append([]*Node{}, n.InnerHeredocBodies...)
 	for _, c := range n.Children {
 		if c.HeredocBody {
 			out = append(out, c)

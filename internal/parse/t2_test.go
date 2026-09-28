@@ -338,7 +338,12 @@ func TestT2CoreParses(t *testing.T) {
 		// construct rather than a user of it: line 399 asserts
 		// `CORE::print::foo` is NOT `CORE::print ::foo`, and lines 517-518
 		// declare `format ::two =`.
-		"comp/parser.t": 9,
+		//
+		// comp/parser.t 9 -> 7 and comp/require.t 4 -> 3 when a heredoc body
+		// inside its statement stopped stopping it (issue 01a0ea0b-6269): a
+		// call whose arguments continue past the body, the fresh_perl_is house
+		// style.
+		"comp/parser.t": 7,
 		// comp/require.t went 11 -> 12 when phaser braces became blocks. The
 		// `BEGIN { ... }` body is now read as statements rather than as one
 		// hashref, and reaching inside it exposed a heredoc the parser did
@@ -377,7 +382,7 @@ func TestT2CoreParses(t *testing.T) {
 		// `grep -e, @files_to_delete` -- a `-e` with no operand followed by
 		// a COMMA, which is why the guard tests the infix table and not just
 		// `;` and closers.
-		"comp/redef.t": 1, "comp/require.t": 4, "comp/retainedlines.t": 2,
+		"comp/redef.t": 1, "comp/require.t": 3, "comp/retainedlines.t": 2,
 		// comp/use.t 1 -> 0 and LEAVES THIS MAP with the last statement of a
 		// block needing no `;` (issue 01a0dfb8). Its one remaining refusal was
 		// the `}` that `use`'s import-list hunt had swallowed; parseUse now

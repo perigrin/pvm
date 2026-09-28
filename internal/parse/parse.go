@@ -369,6 +369,25 @@ type Node struct {
 	// find the semicolon, which is exactly the byte canon SUPPLIES rather
 	// than reads.
 	HeredocBody bool
+
+	// InnerHeredocBodies holds the heredoc bodies that lie INSIDE a
+	// Statement's span rather than after its terminator, set on the Statement
+	// that opened them.
+	//
+	// That happens when the statement continues past the opener's line:
+	//
+	//	fresh_perl_is(<<~'EOF',
+	//	    ...body...
+	//	    EOF
+	//	    "expected");
+	//
+	// perl reads the body from the line after the opener and then resumes the
+	// argument list, so the body's bytes sit between two arguments. They are
+	// not children, because SourceText walks children in position order and
+	// those bytes are already inside the call's span as the gap between its
+	// arguments -- a child there would emit them twice. Canon reads them from
+	// here and writes them after the terminator with the rest.
+	InnerHeredocBodies []*Node
 }
 
 // SourceText reconstructs the bytes this node covers, walking the tree.
@@ -486,9 +505,16 @@ type parser struct {
 // cursor past the trivia as well as the token, so every byte still lands in
 // exactly one node and round-trip holds. A parser that dropped trivia here
 // would have to put it back somewhere.
+//
+// A heredoc body is passed over as well. It is only ever next in line when a
+// statement continues past its opener's line -- `f(<<EOF,` with more
+// arguments after the body -- and there perl resumes the statement after the
+// body exactly as though it were not there. statement() collects the bodies
+// such a statement passed over; takeHeredocBodies collects the ones after its
+// terminator.
 func (p *parser) peekSignificant() (lexer.Token, bool) {
 	for i := p.pos; i < len(p.toks); i++ {
-		if !isTrivia(p.toks[i].Kind) {
+		if k := p.toks[i].Kind; !isTrivia(k) && k != lexer.HeredocBody {
 			return p.toks[i], true
 		}
 	}
@@ -566,6 +592,62 @@ func (p *parser) skipToStatementEnd() {
 // statement, because "which statement does a blank line between two subs
 // belong to" has no good answer and every answer complicates round-trip.
 func (p *parser) statement() *Node {
+	from := p.pos
+	n := p.statementForm()
+	if n != nil && n.Kind == Statement {
+		n.InnerHeredocBodies = p.innerHeredocBodies(from, n)
+	}
+	return n
+}
+
+// innerHeredocBodies is the bodies a statement passed over between its first
+// token and its last: the ones peekSignificant skipped because the statement
+// went on past them.
+//
+// Read off the token range once the statement is built rather than recorded
+// as the cursor passes them, because the parser rewinds -- parseSwitch and
+// parseTry speculate over a head and restore p.pos -- and a record kept on
+// the way through would hold bodies from a reading that was thrown away.
+//
+// A body some statement NESTED in this one already owns is left to it: `f(sub
+// { g(<<EOF, 1) }, 2)` puts the body in the range of both, and it is the inner
+// statement's.
+func (p *parser) innerHeredocBodies(from int, n *Node) []*Node {
+	var inner []*Node
+	for i := from; i < p.pos; i++ {
+		tok := p.toks[i]
+		if tok.Kind != lexer.HeredocBody || ownsBody(n, tok.Start) {
+			continue
+		}
+		inner = append(inner, &Node{
+			Kind: Term, HeredocBody: true, Start: tok.Start, End: tok.End,
+		})
+	}
+	return inner
+}
+
+// ownsBody reports whether a body starting at start is already in the tree
+// under n: as a trailing HeredocBody child of any statement, or as an inner
+// body of a nested one.
+func ownsBody(n *Node, start int) bool {
+	if n.HeredocBody && n.Start == start {
+		return true
+	}
+	for _, b := range n.InnerHeredocBodies {
+		if b.Start == start {
+			return true
+		}
+	}
+	for _, c := range n.Children {
+		if start >= c.Start && start < c.End && ownsBody(c, start) {
+			return true
+		}
+	}
+	return false
+}
+
+// statementForm is statement's body: one statement, or one run of trivia.
+func (p *parser) statementForm() *Node {
 	if isTrivia(p.toks[p.pos].Kind) {
 		start := p.toks[p.pos].Start
 		end := start
@@ -839,13 +921,20 @@ func (p *parser) statement() *Node {
 //
 // A loop rather than one token, because openers stack on a line and the
 // lexer emits one body per opener.
+//
+// It scans the tokens itself rather than asking peekSignificant, which passes
+// over bodies for the statements that continue past one.
 func (p *parser) takeHeredocBodies() []*Node {
 	var bodies []*Node
 	for p.pos < len(p.toks) {
-		tok, ok := p.peekSignificant()
-		if !ok || tok.Kind != lexer.HeredocBody {
+		i := p.pos
+		for i < len(p.toks) && isTrivia(p.toks[i].Kind) {
+			i++
+		}
+		if i == len(p.toks) || p.toks[i].Kind != lexer.HeredocBody {
 			break
 		}
+		tok := p.toks[i]
 		p.advanceTo(tok)
 		bodies = append(bodies, &Node{
 			Kind: Term, HeredocBody: true,
