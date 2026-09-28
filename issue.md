@@ -1,10 +1,19 @@
 ---
 title: A bare block in a class body is read as an anon hash, losing the declaration after it
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-26T12:24:40.484457586Z
-updated: 2026-09-26T12:24:40.484457586Z
+updated: 2026-09-28T23:13:26.573168861Z
+sessions:
+- start_sha: c6fb51f36af20e7039f81cb35302be95b0e07005
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-28T23:13:26.573168861Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-28T23:13:26.573168861Z
 ---
 
 A bare block inside a `class` body is read as an anonymous hash, so the
