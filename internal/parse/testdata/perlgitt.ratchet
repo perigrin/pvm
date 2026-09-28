@@ -1,6 +1,6 @@
 # Unknown nodes per perl.git t/ file, through parse.ParseFileFrom.
 #
-# 620 files, 444 clean (71.6%), 1293 total.
+# 620 files, 452 clean (72.9%), 1054 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -34,7 +34,7 @@
 0 class/field.t
 0 class/gh22169.t
 0 class/gh23511.t
-4 class/inherit.t
+2 class/inherit.t
 3 class/method.t
 0 class/phasers.t
 0 class/threads.t
@@ -51,7 +51,7 @@
 0 comp/filter_exception.t
 1 comp/final_line_num.t
 0 comp/fold.t
-2 comp/form_scope.t
+0 comp/form_scope.t
 2 comp/hints.t
 0 comp/line_debug.t
 0 comp/multiline.t
@@ -89,7 +89,7 @@
 0 io/iofile.t
 0 io/iprefix.t
 4 io/layers.t
-2 io/msg.t
+0 io/msg.t
 0 io/nargv.t
 2 io/open.t
 0 io/openpid.t
@@ -123,8 +123,8 @@
 0 lib/overload_fallback.t
 0 lib/overload_nomethod.t
 0 lib/proxy_constant_subs.t
-6 lib/universal.t
-26 mro/basic.t
+5 lib/universal.t
+10 mro/basic.t
 0 mro/basic_01_c3.t
 0 mro/basic_01_c3_utf8.t
 0 mro/basic_01_dfs.t
@@ -145,7 +145,7 @@
 0 mro/basic_05_c3_utf8.t
 0 mro/basic_05_dfs.t
 0 mro/basic_05_dfs_utf8.t
-17 mro/basic_utf8.t
+5 mro/basic_utf8.t
 0 mro/c3_with_overload.t
 0 mro/c3_with_overload_utf8.t
 1 mro/complex_c3.t
@@ -166,12 +166,12 @@
 0 mro/isa_dfs_utf8.t
 3 mro/isarev.t
 3 mro/isarev_utf8.t
-1 mro/method_caching.t
+0 mro/method_caching.t
 0 mro/method_caching_utf8.t
 0 mro/next_NEXT.t
 0 mro/next_NEXT_utf8.t
-4 mro/next_edgecases.t
-4 mro/next_edgecases_utf8.t
+2 mro/next_edgecases.t
+2 mro/next_edgecases_utf8.t
 4 mro/next_goto.t
 4 mro/next_goto_utf8.t
 0 mro/next_inanon.t
@@ -185,8 +185,8 @@
 0 mro/overload_c3.t
 0 mro/overload_c3_utf8.t
 0 mro/overload_dfs.t
-33 mro/package_aliases.t
-32 mro/package_aliases_utf8.t
+32 mro/package_aliases.t
+31 mro/package_aliases_utf8.t
 0 mro/pkg_gen.t
 0 mro/pkg_gen_utf8.t
 0 mro/recursion_c3.t
@@ -206,14 +206,14 @@
 0 op/append.t
 2 op/args.t
 0 op/arith2.t
-15 op/array.t
+7 op/array.t
 4 op/assignwarn.t
 0 op/attrhand.t
 0 op/attrproto.t
 20 op/attrs.t
 0 op/auto.t
 0 op/avhv.t
-3 op/bless.t
+1 op/bless.t
 1 op/blocks.t
 0 op/bool.t
 16 op/bop.t
@@ -244,7 +244,7 @@
 0 op/die.t
 0 op/die_except.t
 0 op/die_exit.t
-3 op/die_goto.t
+0 op/die_goto.t
 8 op/die_keeperr.t
 0 op/die_unwind.t
 0 op/do.t
@@ -252,7 +252,7 @@
 0 op/dump.t
 2 op/each.t
 0 op/each_array.t
-10 op/eval.t
+3 op/eval.t
 3 op/evalbytes.t
 3 op/exec.t
 1 op/exists_sub.t
@@ -312,7 +312,7 @@
 0 op/lock.t
 0 op/loopctl.t
 9 op/lop.t
-18 op/lvref.t
+14 op/lvref.t
 0 op/magic-27839.t
 4 op/magic.t
 26 op/method.t
@@ -356,7 +356,7 @@
 0 op/require_errors.t
 0 op/require_gh20577.t
 0 op/require_override.t
-3 op/reset.t
+0 op/reset.t
 0 op/reverse.t
 0 op/rt119311.t
 0 op/runlevel.t
@@ -384,14 +384,14 @@
 3 op/state.t
 0 op/study.t
 0 op/studytied.t
-8 op/sub.t
+7 op/sub.t
 24 op/sub_lval.t
 1 op/substr.t
 0 op/substr_left.t
 0 op/substr_thr.t
 0 op/svflags.t
 12 op/svleak.t
-38 op/switch.t
+21 op/switch.t
 0 op/symbolcache.t
 0 op/sysio.t
 16 op/taint.t
@@ -400,7 +400,7 @@
 0 op/tie.t
 6 op/tie_fetch_count.t
 0 op/tiearray.t
-4 op/tiehandle.t
+0 op/tiehandle.t
 0 op/tiehash.t
 0 op/time.t
 0 op/time_loop.t
@@ -475,7 +475,7 @@
 0 re/alpha_assertions.t
 1 re/anyof.t
 0 re/begin-once.t
-2 re/bigfuzzy_not_utf8.t
+1 re/bigfuzzy_not_utf8.t
 0 re/charset.t
 0 re/fold_grind_8.t
 0 re/fold_grind_T.t
@@ -487,15 +487,15 @@
 0 re/keep_tabs.t
 0 re/no_utf8_pm.t
 0 re/opt.t
-11 re/overload.t
-21 re/pat.t
-93 re/pat_advanced.t
+3 re/overload.t
+20 re/pat.t
+3 re/pat_advanced.t
 0 re/pat_advanced_thr.t
 0 re/pat_psycho.t
 0 re/pat_psycho_thr.t
-37 re/pat_re_eval.t
+23 re/pat_re_eval.t
 0 re/pat_re_eval_thr.t
-8 re/pat_rt_report.t
+4 re/pat_rt_report.t
 0 re/pat_rt_report_thr.t
 0 re/pat_special_cc.t
 0 re/pat_special_cc_thr.t
@@ -537,7 +537,7 @@
 0 re/speed.t
 0 re/speed_thr.t
 0 re/stclass_threads.t
-11 re/subst.t
+4 re/subst.t
 0 re/substT.t
 0 re/subst_amp.t
 0 re/subst_wamp.t
@@ -581,13 +581,13 @@
 0 run/switchx.t
 0 run/todo.t
 0 test_pl/_num_to_alpha.t
-4 test_pl/can_isa_ok.t
+0 test_pl/can_isa_ok.t
 0 test_pl/display.t
 0 test_pl/examples.t
 0 test_pl/plan_skip_all.t
 0 test_pl/tempfile.t
 14 uni/attrs.t
-3 uni/bless.t
+0 uni/bless.t
 1 uni/caller.t
 0 uni/chomp.t
 0 uni/class.t
@@ -614,7 +614,7 @@
 0 uni/tr_utf8.t
 0 uni/universal.t
 0 uni/upper.t
-26 uni/variables.t
+10 uni/variables.t
 0 uni/write.t
 0 win32/crypt.t
 0 win32/fs.t

@@ -397,7 +397,12 @@ func TestClassCorpusRatchet(t *testing.T) {
 	// missing its operand (issue 01a0dfbd). field.t 2 -> 1: it spells its
 	// `ok(eq_array([...], [...]),` assertions across lines with the comma
 	// last, which is perl's own suite style everywhere a call takes a list.
-	const want = 13
+	//
+	// 13 -> 11 when a block's opening brace began leaving a statement
+	// boundary (issue 01a0ea25-4fe7). class/inherit.t 4 -> 2: a bare block
+	// as the first member of a class body read as an anonymous hash and lost
+	// the declaration after it, which is issue 01a0ddac-bd24's shape.
+	const want = 11
 	if unknown != want {
 		t.Errorf("t/class holds %d Unknown nodes, want %d: update this pin in "+
 			"the same commit as the change that moved it", unknown, want)

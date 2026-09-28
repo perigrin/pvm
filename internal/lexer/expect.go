@@ -123,6 +123,9 @@ type transition struct {
 	// Word that stood at a statement boundary. See lexer.sawLabelWord for
 	// why the colon cannot decide this for itself.
 	labelColon bool
+	// openedBlock is set on a `{` that opened a block rather than a subscript
+	// or an anonymous hash. See trackBrackets.
+	openedBlock bool
 }
 
 // after returns the state following a token of kind k.
@@ -270,6 +273,22 @@ func (e Expect) after(k Kind, t transition) Expect {
 		// zzz was declared (see isNiladic). That one stays a hedge.
 		return XTerm
 	case Operator:
+		// A block's opening brace leaves a STATEMENT boundary: the first thing
+		// inside a block is a statement, exactly as the first thing in a file
+		// is. perl sets PL_expect = XSTATE in each of yyl_leftcurly's block
+		// cases (toke.c:6688-6697).
+		//
+		// Without it a block's first token was lexed in term position, and a
+		// `{` there -- a block opened as another block's first statement --
+		// was classified as an anonymous hash. `sub r { { $s = 1; $x = 2; } }`
+		// closed its inner block after `$s = 1` and every brace after it was
+		// off by one. XState rather than XBlock for the reason the label
+		// branch below gives: a statement-start brace is refined by the
+		// parser's braceOpensAnonHash, which is where perl's intuit_curly
+		// lookahead is applied.
+		if t.openedBlock {
+			return XState
+		}
 		// `->` is the one operator whose next token is not a plain term.
 		// perl's XPOSTDEREF, and the state was declared for exactly this:
 		//

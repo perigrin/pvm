@@ -250,7 +250,11 @@ func TestT2CoreParses(t *testing.T) {
 		// `test.pl`'s functions past a lexically-scoped package. field.t's
 		// three movers are the `::is(...)` calls at lines 64-66.
 		"class/destruct.t": 2, "class/field.t": 1,
-		"class/gh23511.t": 1, "class/inherit.t": 4, "class/method.t": 3,
+		// class/inherit.t 4 -> 2 and comp/form_scope.t 2 -> 0 when a block's
+		// opening brace began leaving a statement boundary (issue
+		// 01a0ea25-4fe7): a block as another block's first statement had been
+		// an anonymous hash.
+		"class/gh23511.t": 1, "class/inherit.t": 2, "class/method.t": 3,
 		// cmd/subval.t and comp/package_block.t left the map entirely with
 		// the `startsTerm` fix -- they parse cleanly now, which is what
 		// removal from this map means.
@@ -305,7 +309,7 @@ func TestT2CoreParses(t *testing.T) {
 		// 01a0df0d). The file calls its closures that way three times --
 		// `&$clo1(0)`, `&$clo2(0)` and `&$next(1)` -- which is the old
 		// convention for passing the caller's `@_` along.
-		"comp/final_line_num.t": 1, "comp/form_scope.t": 2,
+		"comp/final_line_num.t": 1,
 		// comp/hints.t 35 -> 34 and comp/parser.t 65 -> 64 when a
 		// DataSection became trivia (issue 01a0dc84). Each file ends in a
 		// trailing `__END__` and each was spending exactly one Unknown on

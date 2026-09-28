@@ -286,18 +286,6 @@ type lexer struct {
 	// Only the first has a word at a statement boundary, which is the same
 	// question parseLabels answers one layer up.
 	sawLabelWord bool
-	// afterOpenBlock is set when the previous significant token was a `{`
-	// that opened a block, which is the one statement boundary the expect
-	// machine does not name: `after(Operator, ...)` returns XTerm for an
-	// opening brace, so the first statement inside a block stands in term
-	// position as far as the machine is concerned.
-	//
-	// Read only by sawLabelWord, to reach the label in
-	// `if (1) { SKIP: { ... } }`. Teaching the machine that an opening brace
-	// leaves XState would answer it more generally and would also change how
-	// every block's first token is lexed, which is a far larger measurement
-	// than this needs.
-	afterOpenBlock bool
 	// signatures is whether the signatures feature is on, which decides
 	// whether that `(` is a prototype or a signature. File-level, like
 	// utf8Pragma and for the same reason.
@@ -470,11 +458,9 @@ func (l *lexer) emit(k Kind, start int) {
 	labelColon := l.sawLabelWord && k == Operator && l.pos-start == 1 &&
 		l.src[start] == ':'
 	// Set on a Word at a statement boundary. XState is where a statement may
-	// start, and XBlock is the state `if (...)`'s `)` leaves, where the next
-	// thing is a block.
-	//
-	// afterOpenBlock covers the remaining boundary, the first statement INSIDE
-	// a block; see its own comment for why the machine cannot answer that one.
+	// start -- including the first statement INSIDE a block, since a block's
+	// `{` leaves XState -- and XBlock is the state `if (...)`'s `)` leaves,
+	// where the next thing is a block.
 	//
 	// A label STACKS, and `A: B: { ... }` needs the second word to qualify
 	// as well. The `:` branch returns XState for exactly that, so the word
@@ -487,8 +473,7 @@ func (l *lexer) emit(k Kind, start int) {
 	// rule hold only when the colon touches its word.
 	if k != Whitespace && k != Comment {
 		l.sawLabelWord = k == Word &&
-			(l.expect == XState || l.expect == XBlock || l.afterOpenBlock)
-		l.afterOpenBlock = l.openedBlock
+			(l.expect == XState || l.expect == XBlock)
 	}
 
 	l.expect = l.expect.after(k, transition{
@@ -510,6 +495,7 @@ func (l *lexer) emit(k Kind, start int) {
 		nextBraceIsBlock: (k == Word || inListOpParen) && l.intuitCurly(),
 		listOpParen:      inListOpParen,
 		labelColon:       labelColon,
+		openedBlock:      l.openedBlock,
 	})
 	l.noteFormat(k, start)
 	// The picture body begins after the newline that ends the declaration.

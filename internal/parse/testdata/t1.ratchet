@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 699 clean (70.9%), 1398 total.
+# 986 files, 703 clean (71.3%), 1384 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -40,7 +40,7 @@
 0 b_perlstring_wide.t
 0 b_sv_object_2svref_thread_clone.t
 0 bad_signature.t
-9 bare_block_return.t
+2 bare_block_return.t
 0 bare_sub_ternary_condition.t
 0 base_nested_require_failure.t
 2 begin_feature_import.t
@@ -440,7 +440,7 @@
 0 local_hash_slice_regressions.t
 0 local_isa_method_dispatch.t
 0 local_isa_nested_restore.t
-4 local_nested_loop_control_restore.t
+0 local_nested_loop_control_restore.t
 0 local_our_container_refresh.t
 0 local_our_list_interpreter.t
 0 local_restore_destroy_visibility.t
@@ -800,7 +800,7 @@
 0 threads_clone_skip_no_autoload.t
 0 threads_compatibility_activation.t
 0 threads_cond_timedwait_deadline.t
-1 threads_condition_broadcast_stress.t
+0 threads_condition_broadcast_stress.t
 0 threads_create_forms.t
 0 threads_destroy_method_return_rescue.t
 0 threads_destroy_weak_slot_rescue.t
@@ -819,7 +819,7 @@
 0 threads_lazy_named_sub_unadvertised.t
 0 threads_lifecycle_unadvertised.t
 0 threads_lock_compatibility.t
-1 threads_lock_conditions_unadvertised.t
+0 threads_lock_conditions_unadvertised.t
 0 threads_native_resource_diagnostics.t
 2 threads_postfix_create_and_invalid_entry.t
 0 threads_public_api_surface.t
@@ -844,7 +844,7 @@
 0 threads_shared_unadvertised.t
 0 threads_source_mapper_snapshot.t
 2 threads_super_chain.t
-1 threads_user_property_definition_concurrency.t
+0 threads_user_property_definition_concurrency.t
 0 threads_user_property_snapshot.t
 0 threads_weak_backref_snapshot.t
 29 tie_array.t
