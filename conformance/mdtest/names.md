@@ -202,3 +202,51 @@ parses: yes
 ```output
 1
 ```
+
+## The bare main stash is `$::{...}` with an EMPTY package name
+
+`$::{answer}` is `$main::{'answer'}`: the package name before the
+separator is empty, so the name ends AT the second colon and the
+subscript begins. `%::` is the whole stash.
+
+WHY THE EMPTY NAME IS ITS OWN CASE, and not covered by the `$::x` one
+already above. `$:` is a real punctuation variable -- the set of
+characters a format may break a line on -- so a scanner that ends the
+name at the first colon produces a *valid* variable and strands the
+second colon as an operator. That is why this spelling failed while
+`$main::{n}` and `$Pkg::{n}` were always right: the sibling spellings
+have a name to scan and this one does not.
+
+The scanner guard asked for a word byte after the two colons, which
+`$::x` has and `$::{n}` does not. Two colons are now enough on their own,
+because a scalar named `$:` cannot be followed by a second colon and
+still be `$:`.
+
+THE ASSERTION IS THE OUTPUT, both ways. A key that exists and a key that
+does not, so a parser that reads the subscript as something else cannot
+pass by accident -- `exists` on a stash slot is true only if the symbol
+was installed, and `our $answer` installs one.
+
+Measured 5.42.0: `gv` then `helem`, both introduced by this tier. The
+empty package name costs no op the named spelling does not also use.
+
+The whole stash `%::` is copied into a lexical hash, and the copy has the
+key -- so the bare `%::` spelling is read as the hash it names.
+
+```perl
+our $answer = 42;
+print "found: [", exists $::{answer}, "]\n";
+print "gone: [", exists $::{nosuch}, "]\n";
+my %stash = %::;
+print "stash: [", exists $stash{answer}, "]\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+found: [1]
+gone: []
+stash: [1]
+```

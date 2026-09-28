@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 688 clean (69.8%), 1452 total.
+# 986 files, 694 clean (70.4%), 1416 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -326,14 +326,14 @@
 0 getopt_long_regression.t
 15 glob.t
 0 glob_absolute_directory.t
-12 glob_export_identity.t
+0 glob_export_identity.t
 7 glob_hash_argument_slot.t
 0 glob_numeric_warning.t
-6 glob_pseudo_constant_export.t
+0 glob_pseudo_constant_export.t
 4 glob_scalar_ref_io_method.t
 0 glob_scalar_slot_ref.t
 0 glob_slot_hash_deref.t
-1 glob_snapshot_delete.t
+0 glob_snapshot_delete.t
 0 global_code_runtime_semantics.t
 6 global_empty_hash_keys_history.t
 5 global_substitution_zero_length_retry.t
@@ -504,7 +504,7 @@
 0 mro_get_isarev_updates.t
 11 mro_mixed.t
 0 mro_pkg_gen_sub_definition.t
-2 mro_stash_alias_descendants.t
+0 mro_stash_alias_descendants.t
 0 my_short_circuit_scope_exit.t
 0 named_closure_fallback_handoff.t
 4 named_cv_compiletime_displacement.t
@@ -565,7 +565,7 @@
 2 pack_u0_unicode_directive_boundary.t
 0 pack_u0_utf8_validation.t
 16 pack_utf8.t
-1 package_decl_stash.t
+0 package_decl_stash.t
 2 package_stash_constant_code.t
 0 package_stash_get_or_add_symbol.t
 0 padwalker_closed_over.t
@@ -595,7 +595,7 @@
 2 postderef_coderef_reference.t
 0 postderef_expression_result.t
 0 postderef_interpolation.t
-8 pr694_core_regressions.t
+7 pr694_core_regressions.t
 10 pr709_core_regressions.t
 0 precedence.t
 4 print_bareword_filehandle.t
@@ -609,7 +609,7 @@
 0 prototyped_call_caller_line.t
 0 push_decl_array.t
 0 push_declared_array.t
-6 pvlv_filehandle.t
+4 pvlv_filehandle.t
 0 qualified_optional_constant.t
 0 rand_scalar_context.t
 0 range.t
@@ -626,7 +626,7 @@
 0 regex_callback_package_frame.t
 0 regex_capture_numification.t
 0 regex_capture_sub_scope.t
-2 regex_capture_symbolic_deref.t
+1 regex_capture_symbolic_deref.t
 0 regex_capture_underscore_interpolation.t
 0 regex_code_block_embedded_side_effect.t
 0 regex_control_escape_parity.t
@@ -723,11 +723,11 @@
 0 sprintf_ties_to_even.t
 6 stash_aliasing.t
 0 stash_constant_code_identity.t
-4 stash_readonly_scalar_ref_assignment.t
+0 stash_readonly_scalar_ref_assignment.t
 0 stash_recursive_alias.t
 0 stash_scalar_ref_assignment.t
 0 stash_undefined_code_lookup.t
-7 stash_var_keyword_op.t
+1 stash_var_keyword_op.t
 0 stat_filehandle_after_rename.t
 0 state.t
 0 statement.t

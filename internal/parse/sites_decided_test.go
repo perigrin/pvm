@@ -398,30 +398,27 @@ func TestDerefBlockContentsAreDecided(t *testing.T) {
 		}
 	}
 
-	// What is STILL opaque, and must still hedge. `$::{...}` is a
-	// symbol-table lookup, and the reason it fails is NOT the dereference:
-	// measured, it lexes as
+	// `$::{...}` USED to be opaque and is not any more.
+	//
+	// It failed for a reason that was never the dereference: it lexed as
 	//
 	//	DerefSigil "@"  Operator "{"  Variable "$:"  Operator ":"  ...
 	//
-	// `$:` is a real punctuation variable (the format line-break set), and
-	// leadingPackageSeparator requires a word byte after `::` -- it finds
-	// `{`, declines, and the name ends at the first colon. So the statement
-	// falls to Unknown and every marker is hedged from there.
+	// because `$:` is a real punctuation variable (the format line-break set)
+	// and `leadingPackageSeparator` required a word byte after `::` -- it
+	// found `{`, declined, and the name ended at the first colon. So the
+	// statement fell to Unknown and every marker was hedged from there.
 	//
-	// Named rather than left to look like an oversight, and named
-	// accurately: a `$::` shorthand followed by a SUBSCRIPT rather than a
-	// name is its own gap, not a leftover of this one.
+	// This comment named that as "its own gap, not a leftover of this one",
+	// and issue 01a0de97-77fe closed it: two colons are now enough, so
+	// `$::{n}`, `%::` and `@::` all lex as one Variable. The deref's contents
+	// are decided and nothing hedges.
 	//
-	//	$ perl -MO=Concise,-exec -e 'our @x; my @k=("x"); my @g = @{$::{$k[0]}};'
-	//	  one rv2hv
-	const stillOpaque = `my @g = @{$::{$keys[0]}};`
-	hedged := hedgedKinds(stillOpaque)
-	for _, kind := range markerKindsForTest {
-		if !has(hedged, kind) {
-			t.Errorf("%q: a symbol-table deref is still opaque and must "+
-				"hedge %s; got %v", stillOpaque, kind, hedged)
-		}
+	// Measured: the optree is one rv2hv.
+	const wasOpaque = `my @g = @{$::{$keys[0]}};`
+	if hedged := hedgedKinds(wasOpaque); len(hedged) > 0 {
+		t.Errorf("%q: the symbol-table deref is decided now, yet it hedges %v",
+			wasOpaque, hedged)
 	}
 }
 

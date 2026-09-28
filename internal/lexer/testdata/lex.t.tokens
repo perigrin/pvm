@@ -3294,8 +3294,7 @@ Word          14207  14213  unless
 Whitespace    14213  14214  \s
 Word          14214  14217  ref
 Whitespace    14217  14218  \s
-Variable      14218  14220  $:
-Operator      14220  14221  :
+Variable      14218  14221  $::
 Operator      14221  14222  {
 Word          14222  14225  fop
 CloseBracket  14225  14226  }
@@ -3322,8 +3321,7 @@ Word          14334  14340  unless
 Whitespace    14340  14341  \s
 Word          14341  14344  ref
 Whitespace    14344  14345  \s
-Variable      14345  14347  $:
-Operator      14347  14348  :
+Variable      14345  14348  $::
 Operator      14348  14349  {
 Word          14349  14352  bas
 CloseBracket  14352  14353  }

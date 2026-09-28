@@ -276,9 +276,41 @@ func (l *lexer) caretNameFollows() bool {
 // variable and `$::` with nothing after it is not a name perl accepts, so
 // taking either would trade one wrong answer for another.
 func (l *lexer) leadingPackageSeparator() bool {
-	return l.pos+2 < len(l.src) &&
-		l.src[l.pos+1] == ':' &&
-		isWordByte(l.src[l.pos+2])
+	if l.pos+1 >= len(l.src) || l.src[l.pos+1] != ':' {
+		return false
+	}
+	// TWO COLONS ARE ENOUGH, and nothing after them needs checking.
+	//
+	// This used to require a word byte at pos+2, which admitted `$::x` and
+	// refused the BARE main stash -- `$::{n}`, `%::`, `@::`. There the package
+	// name is empty and the name ends AT the second colon, so there is no word
+	// byte to find, and requiring one let `$:` (a real punctuation variable,
+	// the format line-break set) take the first colon and stranded the second
+	// as an Operator: `$::{n}` lexed as `Variable($:) Operator(:) ...`.
+	//
+	// Measured 5.42.0 -- all three are the main stash:
+	//
+	//	perl -MO=Deparse -e 'our $n = 5; my $r = $::{n};'
+	//	  ->  my $r = $main::{'n'};
+	//	perl -MO=Deparse -e 'my @k = keys %::;'
+	//	  ->  my(@k) = keys %main::;
+	//	perl -e 'print exists $::{STDOUT} ? "yes" : "no"'   ->  yes
+	//
+	// `$main::{n}` and `$Pkg::{n}` were already right, so only the empty
+	// package name was affected -- one spelling of a rule repaired and its
+	// sibling left, the same shape as `${^TAINT}` being right while `$^O` was
+	// wrong.
+	//
+	// A first fix listed the openers `{ [ :` and still left `keys %::;`
+	// refusing, because a `;` ends the name as surely as a subscript does.
+	// Inverting that to "anything but a word byte" then made both branches
+	// unconditional, which is the measurement's real answer: a scalar named
+	// `$:` cannot be followed by a second colon and still be `$:`, so the
+	// second colon alone settles it.
+	//
+	// `$:` ALONE still stays one token, because this guard is never reached
+	// without that second colon.
+	return true
 }
 
 // scanWord lexes a bareword or keyword.

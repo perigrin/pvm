@@ -157,7 +157,16 @@ func TestT2CoreParses(t *testing.T) {
 		// `map{sub :lvalue { "a" }} 1`, both ANONYMOUS, and each cost one
 		// node: the parser finished the sub at `sub` and left `:lvalue {
 		// "a" }` as trailing tokens, so one attribute took the whole body.
-		"base/lex.t": 21,
+		//
+		// 01a0de97-77fe, the bare main stash: `$::{n}`, `%::` and `@::` lexed
+		// as `$:` plus a stray colon, because leadingPackageSeparator wanted a
+		// word byte after the two colons. Five T2 files moved when two colons
+		// became enough -- comp/fold.t and comp/proto.t left the map entirely,
+		// base/lex.t 21 -> 19, comp/parser.t 27 -> 9 and
+		// comp/retainedlines.t 13 -> 2. Every one uses the construct; perl's
+		// own suite reaches into the stash constantly to check what a
+		// declaration installed.
+		"base/lex.t": 19,
 		// class/field.t went 9 -> 10 when quote-op keywords stopped eating
 		// their fat comma, then back to 9 when goto, delete and exists
 		// landed. The rise was never a regression in the parse: reaching
@@ -296,7 +305,7 @@ func TestT2CoreParses(t *testing.T) {
 		// 01a0df0d). The file calls its closures that way three times --
 		// `&$clo1(0)`, `&$clo2(0)` and `&$next(1)` -- which is the old
 		// convention for passing the caller's `@_` along.
-		"comp/final_line_num.t": 1, "comp/fold.t": 2, "comp/form_scope.t": 2,
+		"comp/final_line_num.t": 1, "comp/form_scope.t": 2,
 		// comp/hints.t 35 -> 34 and comp/parser.t 65 -> 64 when a
 		// DataSection became trivia (issue 01a0dc84). Each file ends in a
 		// trailing `__END__` and each was spending exactly one Unknown on
@@ -329,7 +338,7 @@ func TestT2CoreParses(t *testing.T) {
 		// construct rather than a user of it: line 399 asserts
 		// `CORE::print::foo` is NOT `CORE::print ::foo`, and lines 517-518
 		// declare `format ::two =`.
-		"comp/parser.t": 27, "comp/proto.t": 2,
+		"comp/parser.t": 9,
 		// comp/require.t went 11 -> 12 when phaser braces became blocks. The
 		// `BEGIN { ... }` body is now read as statements rather than as one
 		// hashref, and reaching inside it exposed a heredoc the parser did
@@ -368,7 +377,7 @@ func TestT2CoreParses(t *testing.T) {
 		// `grep -e, @files_to_delete` -- a `-e` with no operand followed by
 		// a COMMA, which is why the guard tests the infix table and not just
 		// `;` and closers.
-		"comp/redef.t": 1, "comp/require.t": 4, "comp/retainedlines.t": 13,
+		"comp/redef.t": 1, "comp/require.t": 4, "comp/retainedlines.t": 2,
 		// comp/use.t 1 -> 0 and LEAVES THIS MAP with the last statement of a
 		// block needing no `;` (issue 01a0dfb8). Its one remaining refusal was
 		// the `}` that `use`'s import-list hunt had swallowed; parseUse now

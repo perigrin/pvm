@@ -1,13 +1,13 @@
 # Unknown nodes per perl.git t/ file, through parse.ParseFileFrom.
 #
-# 620 files, 420 clean (67.7%), 1997 total.
+# 620 files, 428 clean (69.0%), 1683 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
 # is a number nobody can attribute.
 0 base/cond.t
 0 base/if.t
-21 base/lex.t
+19 base/lex.t
 0 base/num.t
 0 base/pat.t
 0 base/rs.t
@@ -50,7 +50,7 @@
 2 comp/decl.t
 0 comp/filter_exception.t
 1 comp/final_line_num.t
-2 comp/fold.t
+0 comp/fold.t
 2 comp/form_scope.t
 2 comp/hints.t
 0 comp/line_debug.t
@@ -59,12 +59,12 @@
 0 comp/our.t
 1 comp/package.t
 0 comp/package_block.t
-27 comp/parser.t
+9 comp/parser.t
 0 comp/parser_run.t
-2 comp/proto.t
+0 comp/proto.t
 1 comp/redef.t
 4 comp/require.t
-13 comp/retainedlines.t
+2 comp/retainedlines.t
 0 comp/term.t
 1 comp/uproto.t
 0 comp/use.t
@@ -91,7 +91,7 @@
 4 io/layers.t
 2 io/msg.t
 0 io/nargv.t
-5 io/open.t
+2 io/open.t
 0 io/openpid.t
 0 io/paragraph_mode.t
 2 io/perlio.t
@@ -124,7 +124,7 @@
 0 lib/overload_nomethod.t
 0 lib/proxy_constant_subs.t
 6 lib/universal.t
-27 mro/basic.t
+26 mro/basic.t
 0 mro/basic_01_c3.t
 0 mro/basic_01_c3_utf8.t
 0 mro/basic_01_dfs.t
@@ -164,8 +164,8 @@
 0 mro/isa_c3_utf8.t
 0 mro/isa_dfs.t
 0 mro/isa_dfs_utf8.t
-5 mro/isarev.t
-5 mro/isarev_utf8.t
+3 mro/isarev.t
+3 mro/isarev_utf8.t
 1 mro/method_caching.t
 0 mro/method_caching_utf8.t
 0 mro/next_NEXT.t
@@ -185,10 +185,10 @@
 0 mro/overload_c3.t
 0 mro/overload_c3_utf8.t
 0 mro/overload_dfs.t
-37 mro/package_aliases.t
-36 mro/package_aliases_utf8.t
-2 mro/pkg_gen.t
-2 mro/pkg_gen_utf8.t
+33 mro/package_aliases.t
+32 mro/package_aliases_utf8.t
+0 mro/pkg_gen.t
+0 mro/pkg_gen_utf8.t
 0 mro/recursion_c3.t
 0 mro/recursion_c3_utf8.t
 0 mro/recursion_dfs.t
@@ -213,11 +213,11 @@
 23 op/attrs.t
 0 op/auto.t
 0 op/avhv.t
-4 op/bless.t
+3 op/bless.t
 1 op/blocks.t
 0 op/bool.t
 18 op/bop.t
-13 op/caller.t
+11 op/caller.t
 0 op/catch.t
 0 op/chars.t
 1 op/chdir.t
@@ -252,7 +252,7 @@
 0 op/dump.t
 2 op/each.t
 0 op/each_array.t
-12 op/eval.t
+11 op/eval.t
 3 op/evalbytes.t
 3 op/exec.t
 1 op/exists_sub.t
@@ -270,14 +270,14 @@
 2 op/getpid.t
 1 op/getppid.t
 0 op/glob.t
-4 op/gmagic.t
+3 op/gmagic.t
 3 op/goto-sub.t
 12 op/goto.t
 0 op/goto_xs.t
 0 op/grent.t
 0 op/grep.t
 0 op/groups.t
-135 op/gv.t
+29 op/gv.t
 3 op/hash-clear-placeholders.t
 1 op/hash-rt85026.t
 2 op/hash.t
@@ -289,7 +289,7 @@
 3 op/inc.t
 0 op/inccode-tie.t
 2 op/inccode.t
-10 op/incfilter.t
+0 op/incfilter.t
 1 op/index.t
 0 op/index_thr.t
 0 op/infnan.t
@@ -304,18 +304,18 @@
 0 op/length.t
 20 op/lex.t
 1 op/lex_assign.t
-49 op/lexsub.t
+48 op/lexsub.t
 0 op/lfs.t
 1 op/list.t
-1 op/local.t
+0 op/local.t
 3 op/localref.t
 0 op/lock.t
 0 op/loopctl.t
 9 op/lop.t
 18 op/lvref.t
 0 op/magic-27839.t
-7 op/magic.t
-46 op/method.t
+6 op/magic.t
+30 op/method.t
 0 op/mkdir.t
 0 op/multideref.t
 0 op/my.t
@@ -346,7 +346,7 @@
 15 op/range.t
 0 op/read.t
 0 op/readdir.t
-1 op/readline.t
+0 op/readline.t
 0 op/readline_nb.t
 0 op/recurse.t
 8 op/ref.t
@@ -356,7 +356,7 @@
 0 op/require_errors.t
 0 op/require_gh20577.t
 0 op/require_override.t
-4 op/reset.t
+3 op/reset.t
 0 op/reverse.t
 0 op/rt119311.t
 0 op/runlevel.t
@@ -377,7 +377,7 @@
 3 op/sprintf2.t
 0 op/srand.t
 0 op/sselect.t
-8 op/stash.t
+6 op/stash.t
 0 op/stash_parse_gv.t
 3 op/stat.t
 0 op/stat_errors.t
@@ -390,7 +390,7 @@
 0 op/substr_left.t
 0 op/substr_thr.t
 0 op/svflags.t
-15 op/svleak.t
+12 op/svleak.t
 38 op/switch.t
 0 op/symbolcache.t
 0 op/sysio.t
@@ -398,7 +398,7 @@
 0 op/threads-dirh.t
 1 op/threads.t
 0 op/tie.t
-8 op/tie_fetch_count.t
+6 op/tie_fetch_count.t
 0 op/tiearray.t
 4 op/tiehandle.t
 0 op/tiehash.t
@@ -407,7 +407,7 @@
 1 op/tr.t
 0 op/tr_latin1.t
 59 op/try.t
-3 op/undef.t
+1 op/undef.t
 3 op/universal.t
 0 op/unlink.t
 0 op/unshift.t
@@ -423,7 +423,7 @@
 0 op/wantarray.t
 0 op/warn.t
 6 op/while.t
-49 op/write.t
+44 op/write.t
 6 op/yadayada.t
 11 opbasic/arith.t
 5 opbasic/cmp.t
@@ -464,7 +464,7 @@
 0 porting/perlfunc.t
 0 porting/pod_rules.t
 15 porting/podcheck.t
-1 porting/re_context.t
+0 porting/re_context.t
 0 porting/readme.t
 0 porting/regen.t
 0 porting/ss_dup.t
@@ -537,7 +537,7 @@
 0 re/speed.t
 0 re/speed_thr.t
 2 re/stclass_threads.t
-14 re/subst.t
+11 re/subst.t
 0 re/substT.t
 0 re/subst_amp.t
 0 re/subst_wamp.t
@@ -595,7 +595,7 @@
 0 uni/fold.t
 0 uni/goto.t
 0 uni/greek.t
-94 uni/gv.t
+11 uni/gv.t
 1 uni/labels.t
 0 uni/latin2.t
 0 uni/lex_utf8.t
@@ -604,11 +604,11 @@
 0 uni/opcroak.t
 0 uni/overload.t
 6 uni/package.t
-15 uni/parser.t
+1 uni/parser.t
 0 uni/readline.t
 0 uni/select.t
 0 uni/sprintf.t
-8 uni/stash.t
+6 uni/stash.t
 0 uni/tie.t
 0 uni/title.t
 0 uni/tr_utf8.t
