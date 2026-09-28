@@ -388,7 +388,12 @@ func TestT2CoreParses(t *testing.T) {
 		// 01a0de97-3c5d). Two `::is(...)` calls, at lines 776 and 854, both
 		// inside a `package` block that would otherwise hide `test.pl`'s
 		// `is`.
-		"opbasic/arith.t": 11, "opbasic/cmp.t": 5, "opbasic/concat.t": 3,
+		//
+		// opbasic/arith.t 11 -> 0 and left the map when `try` stopped being a
+		// declined statement keyword (issue 01a0de43-ff83). The file declares
+		// `sub try ($$$)` and calls it eleven times; each call was refused as
+		// the start of a try/catch it never was.
+		"opbasic/cmp.t": 5, "opbasic/concat.t": 3,
 	}
 
 	var regressed, improved, nowClean, nowDirty []string

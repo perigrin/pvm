@@ -37,8 +37,77 @@ func (p *parser) parseControlFlow(word lexer.Token) *Node {
 		return p.parseReturn(word)
 	case "given", "when", "default":
 		return p.parseSwitch(word)
+	case "try":
+		return p.parseTry(word)
 	}
 	return nil
+}
+
+// parseTry: `try BLOCK catch (VAR) BLOCK [finally BLOCK]`, feature 'try'.
+//
+// A statement form -- no `;` after the last block. Measured on perl 5.42.0:
+//
+//	$ perl -e 'use feature "try"; try { die "x\n" } catch ($e) { print "c $e" }
+//	      finally { print "f\n" } print "after\n"'
+//	c x
+//	f
+//	after
+//
+// Taken only when `catch` is followed by `(`, because Try::Tiny spells the
+// same two words as SUBS taking a block -- `try { ... } catch { ... };` -- and
+// that is an expression. The paren is what separates them, with no feature
+// tracking needed: under the feature a bare `catch {` is an error ("catch
+// block requires a (VAR)"), and without it `catch (` is. So anything else
+// rewinds and returns nil, and `try` goes back to the ordinary call path.
+//
+// Conditional rather than Loop for the reason parseSwitch gives: `last`
+// inside a try block leaves the ENCLOSING loop, so a try is not a loop block.
+// The catch and finally clauses are nested Conditionals carrying their own
+// keyword, as `else` is, so canon emits them after the try block unchanged.
+func (p *parser) parseTry(word lexer.Token) *Node {
+	if next, ok := p.peekAfter(word); !ok || p.text(next) != "{" {
+		return nil
+	}
+	save := p.pos
+	p.advanceTo(word)
+	n := &Node{Kind: Conditional, Text: p.text(word), Start: word.Start}
+
+	body := p.parseBlockOrDecline()
+	c, ok := p.peekSignificant()
+	if body == nil || !ok || c.Kind != lexer.Word || p.text(c) != "catch" {
+		p.pos = save
+		return nil
+	}
+	if paren, ok := p.peekAfter(c); !ok || p.text(paren) != "(" {
+		p.pos = save
+		return nil
+	}
+	n.Children = append(n.Children, body)
+
+	p.advanceTo(c)
+	catch := &Node{Kind: Conditional, Text: p.text(c), Start: c.Start}
+	if v := p.parseParenCondition(); v != nil {
+		catch.Children = append(catch.Children, v)
+	}
+	if blk := p.parseBlockOrDecline(); blk != nil {
+		catch.Children = append(catch.Children, blk)
+	}
+	catch.End = p.prevEnd()
+	n.Children = append(n.Children, catch)
+
+	if f, ok := p.peekSignificant(); ok && f.Kind == lexer.Word && p.text(f) == "finally" {
+		if brace, ok := p.peekAfter(f); ok && p.text(brace) == "{" {
+			p.advanceTo(f)
+			fin := &Node{Kind: Conditional, Text: p.text(f), Start: f.Start}
+			if blk := p.parseBlockOrDecline(); blk != nil {
+				fin.Children = append(fin.Children, blk)
+			}
+			fin.End = p.prevEnd()
+			n.Children = append(n.Children, fin)
+		}
+	}
+	n.End = p.prevEnd()
+	return n
 }
 
 // parseSwitch: `given (EXPR) BLOCK`, `when (EXPR) BLOCK` and `default BLOCK`.

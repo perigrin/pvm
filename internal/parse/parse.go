@@ -947,10 +947,12 @@ var statementKeywords = map[string]bool{
 	// tells them apart -- so declining either one declined a shape this parser
 	// can read. Running the block at scope exit is M2's.
 	//
-	// try, catch and finally STAY. They are read as `WORD BLOCK` now too, but
-	// `try BLOCK catch (VAR) BLOCK` is a chain whose second clause takes a
-	// PARENTHESISED VARIABLE before its block, and that shape is not this one.
-	"try": true, "catch": true, "finally": true,
+	// try, catch and finally are GONE: parseTry reads `try BLOCK catch (VAR)
+	// BLOCK [finally BLOCK]`, the one shape of the three `WORD BLOCK` could not
+	// -- a clause taking a PARENTHESISED VARIABLE before its block. Anything
+	// else spelled with those words is Try::Tiny's, whose `try` and `catch`
+	// are subs taking a block, and that is the `WORD BLOCK` reading `defer`
+	// already gets.
 
 	// Loop controls and `return` take an optional term and are statement
 	// forms in perly.y (levels 2 and 7), not expression operators.

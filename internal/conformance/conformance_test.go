@@ -651,24 +651,24 @@ func TestCorpusSkipsAreDocumented(t *testing.T) {
 	// never skips at all: a genuinely refusing file DOES skip, naming its
 	// refusal.
 	//
-	// `try`/`catch` rather than the `defer { ... }` this used to carry,
-	// which in turn replaced `undef @a;` and before that `my $x = .5;`, for
-	// the reason `TestRefusalCodeMismatchFails` records: a fixture whose
-	// premise is a refusal has to be replaced every time that refusal is
-	// fixed. The decimal stopped refusing under 01a0c13f-97f5, the unary
-	// `undef` under 01a0dd43-bc9e, and `defer` under 01a0d087-28dd when
-	// `WORD BLOCK` became readable -- each caught by this assertion.
+	// A lexical sub with a prototype rather than the `try`/`catch` this
+	// used to carry, which replaced `defer { ... }`, `undef @a;` and before
+	// that `my $x = .5;`, for the reason `TestRefusalCodeMismatchFails`
+	// records: a fixture whose premise is a refusal has to be replaced every
+	// time that refusal is fixed. The decimal stopped refusing under
+	// 01a0c13f-97f5, the unary `undef` under 01a0dd43-bc9e, `defer` under
+	// 01a0d087-28dd when `WORD BLOCK` became readable, and `try` under
+	// 01a0de43-ff83 when parseTry landed -- each caught by this assertion.
 	//
-	// `try BLOCK catch (VAR) BLOCK` needs a CLAUSE CHAIN rather than the
-	// `WORD BLOCK` shape that freed `defer`: its second clause takes a
-	// parenthesised variable between the keyword and its block. That is why
-	// it outlived `defer` here, and 01a0de43 owns it.
+	// `my sub e ($);` is valid perl -- `perl -c` says syntax OK on 5.42.0,
+	// and lexical subs need no feature since 5.26 -- and the declarator path
+	// hands `sub` to the anonymous-sub term, which takes no name.
 	//
 	// The issue cited is the one that still records this one.
 	refusing := &File{
-		Source:       "use feature \"try\";\nno warnings;\ntry { 1 } catch ($e) { 2 }\n",
+		Source:       "my sub e ($);\n",
 		ExpectParses: true,
-		Refuses:      "01a0de43-ff83-7af1-a255-0acdac1fac18",
+		Refuses:      "01a0ea2e-9771-7b21-8593-f7b05195d947",
 	}
 	v := verdict(t, refusing)
 	if v.kind != knownRefusal {
@@ -913,27 +913,25 @@ func TestAbsentExpectedOutputSkipsCheck(t *testing.T) {
 // predate codes and must keep working; a code is an additional promise,
 // not a new requirement.
 func TestRefusalCodeMismatchFails(t *testing.T) {
-	// `try`/`catch`, the 5.34 exception statement this parser has no
-	// statement form for. Valid perl -- measured on 5.42.0 under
-	// `use feature "try"` -- so it reaches the parser rather than stopping at
-	// perl's adjudication.
+	// `my sub e ($);`, a lexical sub with a prototype, which the declarator
+	// path reads as `my` plus an anonymous sub that takes no name. Valid
+	// perl -- `perl -c` says syntax OK on 5.42.0 -- so it reaches the parser
+	// rather than stopping at perl's adjudication. 01a0ea2e-9771 owns it.
 	//
-	// It is the FOURTH fixture here, and each replacement is the fixture
+	// It is the FIFTH fixture here, and each replacement is the fixture
 	// guarding itself: a test whose premise is that something refuses has
 	// to notice when it stops. `my $x = .5;` stopped refusing when
 	// 01a0c13f-97f5 taught the lexer that a `.` before a digit starts a
 	// number in term position; `undef @a;` stopped when 01a0dd43-bc9e added
 	// `undef` to `parse.namedUnary`; `defer { ... }` stopped when 01a0d087-28dd
-	// made `WORD BLOCK` a statement. The `t.Fatalf` below reported all three.
-	//
-	// `try` is the one of the four that needs a CLAUSE CHAIN rather than a
-	// shape already in the parser, which is why it is the longest-lived
-	// candidate available: 01a0de43 owns it.
+	// made `WORD BLOCK` a statement; `try { 1 } catch ($e) { 2 }` stopped
+	// when 01a0de43-ff83 added parseTry. The `t.Fatalf` below reported all
+	// four.
 	//
 	// The code is READ from the parse rather than written here: which
 	// site declines it is the parser's business and may change, and a
 	// literal in this test would then assert the old answer.
-	const src = "use feature \"try\";\nno warnings;\ntry { 1 } catch ($e) { 2 }\n"
+	const src = "my sub e ($);\n"
 
 	const wrong = parse.RefusalCode("missing_operand")
 

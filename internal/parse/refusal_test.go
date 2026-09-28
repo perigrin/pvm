@@ -20,11 +20,10 @@ import (
 // indistinguishable, and a refusal that CHANGED CAUSE while staying a
 // refusal was invisible.
 func TestRefusalCodesDistinct(t *testing.T) {
-	// Two sources that refuse for genuinely different reasons.
-	// `try` rather than `format STDOUT =\n.\n`: parseFormatDecl landed, so
-	// the format declaration is no longer a statement form without one.
-	const stmt = "use feature 'try';\ntry { 1 } catch ($e) { 2 }\n"
-	const operand = "$a +\n" // an operator whose operand ran out
+	// Two sources that refuse for genuinely different reasons: a ternary
+	// missing its colon, and an operator whose operand ran out.
+	const stmt = "my $x = $a ? $b;\n"
+	const operand = "$a +\n"
 
 	a := firstRefusalCode(t, stmt)
 	b := firstRefusalCode(t, operand)
@@ -175,10 +174,15 @@ func countUnknownSites(t *testing.T) int {
 // refusingSources are sources that reach the parser's refusal sites, one
 // per code the parser can currently produce.
 //
-// Seven codes, not nine. Two sites are declared and wired but NOT
+// Six codes, not nine. Three sites are declared and wired but NOT
 // REACHABLE from any source today, and saying so is better than a fixture
 // that pretends otherwise:
 //
+//   - unimplemented_statement, parse.go's `statementKeywords` check. The
+//     list is empty: `try`, `catch` and `finally` were its last entries, and
+//     parseTry reads the one shape of theirs `WORD BLOCK` could not. Its
+//     fixture was `use feature 'try'; try { 1 } catch ($e) { 2 }`, which
+//     parses now, and no valid perl reaches the site in its place.
 //   - empty_deref, term.go's `inner == nil`. `${}` lexes as
 //     DerefSigil($) Operator({) CloseBracket(}), and parseExpr inside the
 //     braces returns the `}` as a not_a_term Unknown rather than nil, so
@@ -189,7 +193,7 @@ func countUnknownSites(t *testing.T) int {
 //     significant tokens is consumed before parseStatement is reached, so
 //     parseExpr is never handed nothing.
 //
-// Both are left wired rather than deleted: an unreachable site that
+// All three are left wired rather than deleted: an unreachable site that
 // becomes reachable must arrive with a code, not without one.
 //
 // A fixture that stops refusing -- as `goto &other;` did once goto
@@ -198,13 +202,6 @@ func countUnknownSites(t *testing.T) int {
 // stops testing.
 func refusingSources() []string {
 	return []string{
-		// `try` replaced `format STDOUT =\n.\n` here: parseFormatDecl landed
-		// and the format declaration parses, so the old fixture stopped
-		// reaching this site. Both are valid perl -- measured, `perl -c` on
-		// `use feature "try"; try { 1 } catch ($e) { 2 }` says syntax OK --
-		// which the fixtures hold to, because a fixture perl rejects measures
-		// the parser against a construct that does not exist.
-		"use feature 'try';\ntry { 1 } catch ($e) { 2 }\n", // unimplemented_statement
 		"$a +\n",                    // missing_operand
 		"my $x = $a ? $b;\n",        // ternary_no_colon
 		"my $x = $a .. $b .. $c;\n", // nonassoc_repeated
