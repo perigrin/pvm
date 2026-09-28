@@ -1,19 +1,33 @@
 ---
 title: "A block as a block's first statement reads as a hash: the lexer leaves term position after a block's {"
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-28T22:31:48.966698079Z
-updated: 2026-09-28T23:09:40.014308157Z
+updated: 2026-09-28T23:20:09.896388374Z
 sessions:
 - start_sha: c6fb51f36af20e7039f81cb35302be95b0e07005
-  end_sha: ""
-  commits: 0
+  end_sha: d8029d82fa384bc5d781d771297fa742dfb4b01e
+  commits: 1
   started_at: 2026-09-28T23:09:40.014308157Z
+  ended_at: 2026-09-28T23:20:09.896388374Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-28T23:09:40.014308157Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-28T23:20:09.896388374Z
+observed_paths:
+- internal/lexer/expect.go
+- internal/lexer/lexer.go
+- internal/lexer/openblock_test.go
+- internal/parse/nestedblock_test.go
+- internal/parse/t2_test.go
+- internal/parse/testdata/perlgitt.ratchet
+- internal/parse/testdata/t1.ratchet
+- internal/parse/testdata/t1fidelity.ratchet
+- internal/parse/use_test.go
 ---
 
 A block that is the FIRST statement of another block reads as an anonymous
