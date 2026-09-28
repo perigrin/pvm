@@ -1,10 +1,19 @@
 ---
 title: for my ($k, $v) (LIST) read its variable list as the loop head, and op/for-many.t is nothing else
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-28T22:03:29.384507988Z
-updated: 2026-09-28T22:03:29.384507988Z
+updated: 2026-09-28T22:03:40.114129927Z
+sessions:
+- start_sha: 9b7b13111f748942d278e8fa83872337288084f6
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-28T22:03:40.114129927Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-28T22:03:40.114129927Z
 ---
 
 `for my ($k, $v) (LIST)` -- the multi-variable foreach of perl 5.36 -- read its
