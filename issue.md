@@ -4,7 +4,7 @@ state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-28T22:03:29.531868436Z
-updated: 2026-09-28T22:29:09.370595216Z
+updated: 2026-09-28T22:43:21.551788344Z
 sessions:
 - start_sha: 01e775966608237f2380b27d2433f94283e5146b
   end_sha: ""
@@ -16,27 +16,4 @@ transitions:
   timestamp: 2026-09-28T22:29:09.370595216Z
 ---
 
-`try BLOCK catch (VAR) BLOCK [finally BLOCK]` under feature 'try' was declined
-through `statementKeywords` -- op/try.t carried 59 Unknowns, one per clause.
-
-Measured on 5.42.0, a statement form with no `;` after the last block:
-
-    $ perl -e 'use feature "try"; try { die "x\n" } catch ($e) { print "c $e" }
-          finally { print "f\n" } print "after\n"'
-    c x
-    f
-    after
-
-The keyword reading is taken only when `catch` is followed by `(`. Try::Tiny
-spells the same words as subs taking a block, and perl itself separates the
-two by that paren: under the feature `catch {` is "catch block requires a
-(VAR)", and without it `catch (` is a syntax error. So Try::Tiny stays the
-`WORD BLOCK` call reading `defer` gets, and `statementKeywords` empties.
-
-## Acceptance criteria
-
-- [ ] try/catch/finally parses as one statement and canons to a fixpoint (`go test ./internal/parse/ -run '^TestTryCatch$' -count=1 -v | grep -q '^--- PASS: TestTryCatch'`)
-- [ ] NEGATIVE: Try::Tiny's `try { } catch { };` does not become a try statement (`go test ./internal/parse/ -run '^TestTryTinyStaysACall$' -count=1 -v | grep -q '^--- PASS: TestTryTinyStaysACall'`)
-- [ ] op/try.t is clean in the perl.git t/ ratchet (`grep -q '^0 op/try.t$' internal/parse/testdata/perlgitt.ratchet`)
-- [ ] The refusal inventory still accounts for every site, with unimplemented_statement documented as unreached (`go test ./internal/parse/ -run '^TestEveryUnknownSiteHasACode$' -count=1 -v | grep -q '^--- PASS: TestEveryUnknownSiteHasACode'`)
-- [ ] REGRESSION GUARD: the whole suite holds (`go test ./... -count=1`)
+Duplicate of 01a0de43-ff83-7af1-a255-0acdac1fac18 (milestone m1-parse-the-core), which already owned try/catch and whose criteria name TestTryCatchIsOneStatement. Filed without searching first; the work lands under 01a0de43.
