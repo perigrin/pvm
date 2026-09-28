@@ -320,6 +320,24 @@ func (l *lexer) leadingPackageSeparator() bool {
 // reports Word and leaves the classification alone.
 func scanWord(l *lexer) bool {
 	start := l.pos
+	// The repeat operator touching its count: `"ab"x4` is `x` then `4`.
+	// toke.c splits it before keyword lookup, in operator position only:
+	//
+	//	case 'x':
+	//	    if (isDIGIT(s[1]) && PL_expect == XOPERATOR) {
+	//	        s++;
+	//	        Mop(OP_REPEAT);
+	//	    }
+	//
+	// Before keyword lookup, so no declaration changes it: measured on
+	// 5.42.0, `sub x4 {9} my $x = "ab" x4;` still repeats. The count is left
+	// for scanNumber.
+	if l.expect == XOperator && l.src[start] == 'x' &&
+		start+1 < len(l.src) && l.src[start+1] >= '0' && l.src[start+1] <= '9' {
+		l.pos++
+		l.emit(Word, start)
+		return true
+	}
 	if !l.scanIdentRunes() {
 		return false
 	}

@@ -1,6 +1,6 @@
 # Unknown nodes per perl.git t/ file, through parse.ParseFileFrom.
 #
-# 620 files, 452 clean (72.9%), 1054 total.
+# 620 files, 463 clean (74.7%), 950 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -23,7 +23,7 @@
 0 bigmem/stack.t
 0 bigmem/stack_over.t
 0 bigmem/str.t
-1 bigmem/subst.t
+0 bigmem/subst.t
 0 bigmem/subst2.t
 0 bigmem/sv_gets.t
 0 bigmem/vec.t
@@ -83,7 +83,7 @@
 0 io/errno.t
 0 io/errnosig.t
 0 io/fflush.t
-2 io/fs.t
+0 io/fs.t
 0 io/getcwd.t
 0 io/inplace.t
 0 io/iofile.t
@@ -99,7 +99,7 @@
 0 io/perlio_leaks.t
 0 io/perlio_open.t
 0 io/pipe.t
-3 io/print.t
+1 io/print.t
 0 io/pvbm.t
 0 io/read.t
 1 io/say.t
@@ -117,7 +117,7 @@
 0 lib/commonsense.t
 0 lib/croak.t
 1 lib/cygwin.t
-2 lib/deprecate.t
+0 lib/deprecate.t
 0 lib/mypragma.t
 0 lib/no_load.t
 0 lib/overload_fallback.t
@@ -221,7 +221,7 @@
 0 op/catch.t
 0 op/chars.t
 1 op/chdir.t
-2 op/chop.t
+0 op/chop.t
 0 op/chr.t
 1 op/closure.t
 0 op/cmpchain.t
@@ -229,7 +229,7 @@
 0 op/cond.t
 21 op/const-optree.t
 0 op/context.t
-10 op/coreamp.t
+7 op/coreamp.t
 2 op/coresubs.t
 0 op/cproto.t
 0 op/crypt.t
@@ -262,7 +262,7 @@
 0 op/filetest.t
 0 op/filetest_stack_ok.t
 0 op/filetest_t.t
-1 op/flip.t
+0 op/flip.t
 0 op/for-many.t
 4 op/for.t
 0 op/fork.t
@@ -288,7 +288,7 @@
 0 op/hook/require.t
 3 op/inc.t
 0 op/inccode-tie.t
-2 op/inccode.t
+1 op/inccode.t
 0 op/incfilter.t
 1 op/index.t
 0 op/index_thr.t
@@ -306,13 +306,13 @@
 1 op/lex_assign.t
 48 op/lexsub.t
 0 op/lfs.t
-1 op/list.t
+0 op/list.t
 0 op/local.t
-3 op/localref.t
+0 op/localref.t
 0 op/lock.t
 0 op/loopctl.t
 9 op/lop.t
-14 op/lvref.t
+12 op/lvref.t
 0 op/magic-27839.t
 4 op/magic.t
 26 op/method.t
@@ -326,12 +326,12 @@
 0 op/numconvert.t
 0 op/numify.t
 0 op/numify_chkflags.t
-12 op/oct.t
+0 op/oct.t
 1 op/or.t
 0 op/ord.t
 1 op/overload_integer.t
 9 op/override.t
-14 op/pack.t
+3 op/pack.t
 0 op/packagev.t
 0 op/pos.t
 4 op/postfixderef.t
@@ -351,7 +351,7 @@
 0 op/recurse.t
 8 op/ref.t
 0 op/refstack.t
-9 op/repeat.t
+1 op/repeat.t
 0 op/require_37033.t
 0 op/require_errors.t
 0 op/require_gh20577.t
@@ -369,7 +369,7 @@
 0 op/sleep.t
 0 op/smartkve.t
 8 op/smartmatch.t
-35 op/sort.t
+34 op/sort.t
 0 op/splice.t
 3 op/split.t
 0 op/split_unicode.t
@@ -381,7 +381,7 @@
 0 op/stash_parse_gv.t
 3 op/stat.t
 0 op/stat_errors.t
-3 op/state.t
+2 op/state.t
 0 op/study.t
 0 op/studytied.t
 7 op/sub.t
@@ -390,11 +390,11 @@
 0 op/substr_left.t
 0 op/substr_thr.t
 0 op/svflags.t
-12 op/svleak.t
+3 op/svleak.t
 21 op/switch.t
 0 op/symbolcache.t
 0 op/sysio.t
-16 op/taint.t
+10 op/taint.t
 0 op/threads-dirh.t
 0 op/threads.t
 0 op/tie.t
@@ -404,7 +404,7 @@
 0 op/tiehash.t
 0 op/time.t
 0 op/time_loop.t
-1 op/tr.t
+0 op/tr.t
 0 op/tr_latin1.t
 0 op/try.t
 1 op/undef.t
@@ -412,7 +412,7 @@
 0 op/unlink.t
 0 op/unshift.t
 0 op/upgrade.t
-2 op/utf8cache.t
+1 op/utf8cache.t
 0 op/utf8decode.t
 2 op/utf8magic.t
 0 op/utfhash.t
@@ -423,7 +423,7 @@
 0 op/wantarray.t
 0 op/warn.t
 5 op/while.t
-34 op/write.t
+11 op/write.t
 6 op/yadayada.t
 0 opbasic/arith.t
 5 opbasic/cmp.t
@@ -488,12 +488,12 @@
 0 re/no_utf8_pm.t
 0 re/opt.t
 3 re/overload.t
-20 re/pat.t
+12 re/pat.t
 3 re/pat_advanced.t
 0 re/pat_advanced_thr.t
 0 re/pat_psycho.t
 0 re/pat_psycho_thr.t
-23 re/pat_re_eval.t
+26 re/pat_re_eval.t
 0 re/pat_re_eval_thr.t
 4 re/pat_rt_report.t
 0 re/pat_rt_report_thr.t
@@ -504,7 +504,7 @@
 0 re/qr-72922.t
 0 re/qr.t
 0 re/qr_gc.t
-2 re/qrstack.t
+0 re/qrstack.t
 0 re/recompile.t
 0 re/reg_60508.t
 0 re/reg_email.t
@@ -556,7 +556,7 @@
 0 run/dtrace.t
 0 run/exit.t
 0 run/fresh_perl.t
-4 run/locale.t
+0 run/locale.t
 0 run/noswitch.t
 0 run/runenv.t
 0 run/runenv_hashseed.t
