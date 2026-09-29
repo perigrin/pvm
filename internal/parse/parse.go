@@ -523,6 +523,13 @@ type parser struct {
 	toks []lexer.Token
 	res  *resolver
 
+	// features is the gated builtins `use feature`, `no feature` and a
+	// version bundle have turned on, as the file is read. FILE-level from the
+	// statement on, the way the lexer tracks `signatures`: perl scopes a
+	// feature to its enclosing block, and a `no feature` inside a block that
+	// the file re-enables after it is the ceiling. See noteFeatures.
+	features map[string]bool
+
 	// imports is what this file's `use` statements brought into scope,
 	// accumulated as they are parsed and lifted onto the root at the end.
 	imports map[string]Import

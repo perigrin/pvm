@@ -53,6 +53,30 @@ func keywordName(word string) string {
 	return rest
 }
 
+// gatedUnary are the named unaries that exist only under a feature: `fc` and
+// `evalbytes`. Unfeatured, perl reads `fc $a` as the METHOD call `$a->fc`;
+// featured, as `fc($a)` with a following comma outside it. Measured on
+// 5.42.0 with -MO=Deparse,-p:
+//
+//	use feature "fc"; my $z = fc $a, $b;   ((my($z) = fc($a)), $b)
+//	use v5.14; my $z = fc $a;              (my($z) = $a->fc)
+//
+// This is issue 01a0dfbd-f8d9's option (b): the parser tracks the feature
+// rather than tabling the word unconditionally. The unfeatured method-call
+// reading is not modelled and stays as it was.
+var gatedUnary = map[string]bool{"fc": true, "evalbytes": true}
+
+// namedUnaryHere reports whether a word parses as a named unary at this
+// point in the file: always for namedUnary, and for a gatedUnary when its
+// feature is on or the word is spelled with `CORE::`, which names the builtin
+// whatever is enabled.
+func (p *parser) namedUnaryHere(spelled, text string) bool {
+	if namedUnary[text] {
+		return true
+	}
+	return gatedUnary[text] && (spelled != text || p.features[text])
+}
+
 func (p *parser) parseWordTerm(word lexer.Token) *Node {
 	// spelled is the word as written and is what the node records; text is
 	// what it names, which keywordName gives with any `CORE::` prefix off, so
@@ -116,7 +140,7 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 			p.advanceTo(close)
 		}
 		n.End = p.prevEnd()
-		n.Resolved = namedUnary[text] || listOperator[text] || niladicParse[text]
+		n.Resolved = p.namedUnaryHere(spelled, text) || listOperator[text] || niladicParse[text]
 		return n
 	}
 
@@ -136,7 +160,7 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		// An imported sub called with no arguments is as resolved as a
 		// builtin one: `done_testing;` and `maybe;` are calls whose callee
 		// this parser has seen declared.
-		n.Resolved = namedUnary[text] || listOperator[text] ||
+		n.Resolved = p.namedUnaryHere(spelled, text) || listOperator[text] ||
 			niladicParse[text] || p.knowsShape(text)
 		return n
 	}
@@ -144,7 +168,7 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 	blk, blockFollows := p.wordBlockFollows()
 
 	switch {
-	case namedUnary[text]:
+	case p.namedUnaryHere(spelled, text):
 		// One argument, parsed at level 19 so arithmetic binds into it and
 		// comparison does not.
 		if arg := p.parseExpr(bpNamedUnary); arg != nil {

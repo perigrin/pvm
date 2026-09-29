@@ -1,6 +1,6 @@
 # Unknown nodes per perl.git t/ file, through parse.ParseFileFrom.
 #
-# 620 files, 520 clean (83.9%), 413 total.
+# 620 files, 525 clean (84.7%), 388 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -299,10 +299,10 @@
 0 op/kill0.t
 8 op/kvaslice.t
 0 op/kvhslice.t
-5 op/lc.t
+0 op/lc.t
 0 op/leaky-magic.t
 0 op/length.t
-9 op/lex.t
+2 op/lex.t
 0 op/lex_assign.t
 1 op/lexsub.t
 0 op/lfs.t
@@ -473,7 +473,7 @@
 0 porting/update_authors.t
 0 porting/utils.t
 0 re/alpha_assertions.t
-1 re/anyof.t
+0 re/anyof.t
 0 re/begin-once.t
 1 re/bigfuzzy_not_utf8.t
 0 re/charset.t
@@ -596,7 +596,7 @@
 0 uni/goto.t
 0 uni/greek.t
 3 uni/gv.t
-1 uni/labels.t
+0 uni/labels.t
 0 uni/latin2.t
 0 uni/lex_utf8.t
 0 uni/lower.t
@@ -604,7 +604,7 @@
 0 uni/opcroak.t
 0 uni/overload.t
 1 uni/package.t
-1 uni/parser.t
+0 uni/parser.t
 0 uni/readline.t
 0 uni/select.t
 0 uni/sprintf.t
@@ -614,7 +614,7 @@
 0 uni/tr_utf8.t
 0 uni/universal.t
 0 uni/upper.t
-10 uni/variables.t
+0 uni/variables.t
 0 uni/write.t
 0 win32/crypt.t
 0 win32/fs.t

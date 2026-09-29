@@ -3,7 +3,12 @@
 
 package parse
 
-import "tamarou.com/pvm/internal/lexer"
+import (
+	"strconv"
+	"strings"
+
+	"tamarou.com/pvm/internal/lexer"
+)
 
 // phasers are the compile-and-run-phase blocks.
 //
@@ -147,6 +152,8 @@ func (p *parser) parseUse(word lexer.Token) *Node {
 	// requiring file can call. There is no import list to consult because
 	// there is no import; the declarations themselves are the interface.
 	// See resolveRequiredFile for the boundary that keeps this safe.
+	p.noteFeatures(n.Text, module, list)
+
 	switch {
 	case module != "" && !isVersionPrefix(module) && n.Text == "use":
 		p.resolveImports(module, list)
@@ -159,6 +166,61 @@ func (p *parser) parseUse(word lexer.Token) *Node {
 	}
 	n.End = p.prevEnd()
 	return n
+}
+
+// noteFeatures records what a `use` or `no` statement does to the gated
+// builtins. `use feature LIST` turns each named feature on and `no feature
+// LIST` off; `use VERSION` from 5.15 up turns on the bundle, which names both
+// `fc` and `evalbytes` -- measured, perl's %feature::feature_bundle holds them
+// from "5.15" on and not in "5.14".
+func (p *parser) noteFeatures(verb, module string, list *Node) {
+	if p.features == nil {
+		p.features = map[string]bool{}
+	}
+	switch {
+	case module == "feature" && (verb == "use" || verb == "no") && list != nil:
+		names, ok := literalNameList(list)
+		if !ok {
+			return
+		}
+		for _, name := range names {
+			if gatedUnary[name] {
+				p.features[name] = verb == "use"
+			}
+		}
+	case module == "" && verb == "use" && list != nil:
+		if major, minor, ok := perlVersion(list.Text); ok && (major > 5 || major == 5 && minor >= 15) {
+			for name := range gatedUnary {
+				p.features[name] = true
+			}
+		}
+	}
+}
+
+// perlVersion reads a `use VERSION` argument: `v5.16`, `5.16.0` or the
+// decimal `5.016`, whose fraction perl reads in groups of three digits.
+func perlVersion(text string) (major, minor int, ok bool) {
+	text, dotted := strings.CutPrefix(text, "v")
+	parts := strings.Split(text, ".")
+	if len(parts) < 2 {
+		return 0, 0, false
+	}
+	var err error
+	if major, err = strconv.Atoi(parts[0]); err != nil {
+		return 0, 0, false
+	}
+	frac := parts[1]
+	if len(parts) == 2 && !dotted {
+		// Decimal: 5.016 is 5.16, the first three digits of the fraction.
+		for len(frac) < 3 {
+			frac += "0"
+		}
+		frac = frac[:3]
+	}
+	if minor, err = strconv.Atoi(frac); err != nil {
+		return 0, 0, false
+	}
+	return major, minor, true
 }
 
 // resolveImports reads a module's source and records what it brought in.

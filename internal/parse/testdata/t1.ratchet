@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 722 clean (73.2%), 1331 total.
+# 986 files, 723 clean (73.3%), 1329 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -278,7 +278,7 @@
 0 eval_string_source_types.t
 0 eval_syntax_near_not.t
 0 eval_warning_capture.t
-1 evalbytes.t
+0 evalbytes.t
 0 examples_warning_and_io.t
 0 exiftool_exporter_autoload.t
 0 experimental_equ_warning_category.t
@@ -533,7 +533,7 @@
 0 next_module_prereq.t
 0 non_begin_phaser_pragma_scope.t
 0 nonblocking_pipe_syswrite.t
-6 nonregex_baseline_closure.t
+5 nonregex_baseline_closure.t
 0 numeric_integral_nv_multiply.t
 0 numification.t
 0 numification_parser.t
