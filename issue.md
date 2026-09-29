@@ -1,19 +1,28 @@
 ---
 title: "A handle inside print's parens refuses: print($fh \"x\") is canon's own spelling and does not re-parse"
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T03:26:39.956195905Z
-updated: 2026-09-29T03:26:40.664543526Z
+updated: 2026-09-29T03:33:12.424318626Z
 sessions:
 - start_sha: fd387408677a91fec6c649aae4910288fe43a8d6
-  end_sha: ""
-  commits: 0
+  end_sha: dc1cf141bf6b22beb8acb2b3d552f14ed5840878
+  commits: 1
   started_at: 2026-09-29T03:26:40.664543526Z
+  ended_at: 2026-09-29T03:33:12.424318626Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-29T03:26:40.664543526Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-29T03:33:12.424318626Z
+observed_paths:
+- internal/parse/call.go
+- internal/parse/parenhandle_test.go
+- internal/parse/testdata/perlgitt.ratchet
+- internal/parse/testdata/t1.ratchet
 ---
 
 A filehandle inside print's parens refuses unless it is the `{$fh}` block
