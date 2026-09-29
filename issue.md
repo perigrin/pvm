@@ -1,19 +1,32 @@
 ---
 title: "A CORE::-prefixed keyword is not its keyword: CORE::state $x refuses and CORE::length $s drops its argument"
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T03:08:00.827847771Z
-updated: 2026-09-29T03:08:01.367660372Z
+updated: 2026-09-29T03:13:07.838176912Z
 sessions:
 - start_sha: 5018701de8e42bd5acfd54be73995bc173201a25
-  end_sha: ""
-  commits: 0
+  end_sha: fd387408677a91fec6c649aae4910288fe43a8d6
+  commits: 1
   started_at: 2026-09-29T03:08:01.367660372Z
+  ended_at: 2026-09-29T03:13:07.838176912Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-29T03:08:01.367660372Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-29T03:13:07.838176912Z
+observed_paths:
+- internal/parse/call.go
+- internal/parse/control.go
+- internal/parse/coreprefix_test.go
+- internal/parse/decl.go
+- internal/parse/t2_test.go
+- internal/parse/testdata/perlgitt.ratchet
+- internal/parse/testdata/t1.ratchet
+- internal/parse/use.go
 ---
 
 `CORE::X` is the keyword X whatever else is in scope, and the parser matched the
