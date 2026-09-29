@@ -1,10 +1,19 @@
 ---
 title: "An empty slot inside brackets refuses: `[\"x\",, \"y\"]`"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T15:23:27.484454088Z
-updated: 2026-09-29T15:23:27.484454088Z
+updated: 2026-09-29T15:23:29.258229082Z
+sessions:
+- start_sha: 475b9fc5a315964dff925731d2cb7cf34f2421f7
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T15:23:29.258229082Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T15:23:29.258229082Z
 ---
 
 An empty slot inside `[...]` or `{...}` refuses: `["x",, "y"]`. parseParenList drops a separator with no element after it, and parseBracketed does not.
