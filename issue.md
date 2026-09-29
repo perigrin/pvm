@@ -1,19 +1,27 @@
 ---
 title: "`undef..2` refuses: a range operator after a word is read as its argument"
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T07:40:09.962534186Z
-updated: 2026-09-29T07:40:18.24426033Z
+updated: 2026-09-29T07:48:41.874151912Z
 sessions:
 - start_sha: d6662dfe252501db6de1354bab1263b50feaa372
-  end_sha: ""
-  commits: 0
+  end_sha: a57a36bf42137037fa1a23668d43b9d0d1777d38
+  commits: 1
   started_at: 2026-09-29T07:40:18.24426033Z
+  ended_at: 2026-09-29T07:48:41.874151912Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-29T07:40:18.24426033Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-29T07:48:41.874151912Z
+observed_paths:
+- internal/parse/call.go
+- internal/parse/rangeargs_test.go
+- internal/parse/testdata/perlgitt.ratchet
 ---
 
 endsArgumentList names the infix operators that cannot start a term (`.`, `==`, `->` and the rest), but not the range operators. So a named unary or sub name before `..` or `...` took the operator as the start of its argument: `(undef..2)` canonicalised to `undef(..);2)` and refused twice.
