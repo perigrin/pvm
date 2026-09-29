@@ -46,7 +46,9 @@ func elementlessAfterComma(tok lexer.Token, src []byte) bool {
 		return true
 	}
 	text := string(src[tok.Start:tok.End])
-	if text == "," {
+	// Another separator, plain or fat: `tie $@, => 'main', 1` drops the
+	// comma as `(1,,2)` does.
+	if text == "," || text == "=>" {
 		return true
 	}
 	if tok.Kind != lexer.Word {

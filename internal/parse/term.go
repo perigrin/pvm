@@ -523,7 +523,11 @@ func (p *parser) parseParenList(open lexer.Token) *Node {
 		// op/for-many.t spells forty in one variable list. Only AFTER an
 		// element: a leading `(,1)` is a syntax error in perl, so that refusal
 		// stands.
-		if p.text(tok) == "," && len(items) > 0 {
+		//
+		// A fat comma in that slot is empty the same way -- `(foo, => 1)` is
+		// `(foo(), 1)`, measured -- and it quotes nothing: the word it could
+		// have quoted is behind the comma.
+		if (p.text(tok) == "," || p.text(tok) == "=>") && len(items) > 0 {
 			p.advanceTo(tok)
 			continue
 		}
