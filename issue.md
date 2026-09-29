@@ -1,19 +1,27 @@
 ---
 title: "`$ $name` is not a deref: a spaced second sigil is not seen"
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T12:43:12.746102284Z
-updated: 2026-09-29T12:43:14.236259989Z
+updated: 2026-09-29T12:55:21.068289909Z
 sessions:
 - start_sha: afacf7d206a75c7deb219d34136f542ea5929db1
-  end_sha: ""
-  commits: 0
+  end_sha: db9808e688f56c2993d8a528c48cd171180e3067
+  commits: 1
   started_at: 2026-09-29T12:43:14.236259989Z
+  ended_at: 2026-09-29T12:55:21.068289909Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-29T12:43:14.236259989Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-29T12:55:21.068289909Z
+observed_paths:
+- internal/lexer/scan.go
+- internal/lexer/spacedderef_test.go
+- internal/parse/testdata/perlgitt.ratchet
 ---
 
 A deref sigil separated by spaces from the sigil it applies to -- `$ $name1`, `@ $r` -- does not lex as a deref: startsDerefExpression skips spaces before a brace but checks the byte right after the sigil for a second `$`.
