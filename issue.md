@@ -1,10 +1,19 @@
 ---
 title: "A comma with no element after it refuses unless a closer follows: f(1, , 2) and skip ..., if $m"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T02:42:29.097984945Z
-updated: 2026-09-29T02:42:29.097984945Z
+updated: 2026-09-29T02:47:25.258627448Z
+sessions:
+- start_sha: ae2fb4786754099203add719feedfd96fedd7208
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T02:47:25.258627448Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T02:47:25.258627448Z
 ---
 
 A comma with no element after it is dropped by perl wherever it stands, not
