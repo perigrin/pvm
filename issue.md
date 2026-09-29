@@ -1,10 +1,19 @@
 ---
 title: "Module exports: a bare use imports @EXPORT_OK too, :DEFAULT is read as a name, @EXPORT without our is missed"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T17:44:30.046420853Z
-updated: 2026-09-29T17:44:30.046420853Z
+updated: 2026-09-29T17:44:31.900569489Z
+sessions:
+- start_sha: 4aa05bb40fab4acab33c9adf4eaeb6384ccfa24c
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T17:44:31.900569489Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T17:44:31.900569489Z
 ---
 
 Three gaps in reading a module's exports:
