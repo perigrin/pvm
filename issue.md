@@ -1,10 +1,19 @@
 ---
 title: The sub table is keyed by spelling, so ok, main::ok and ::ok are three subs
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T20:13:05.035618513Z
-updated: 2026-09-26T20:13:05.035618513Z
+updated: 2026-09-29T02:07:45.457821878Z
+sessions:
+- start_sha: 5ded07671843d54f646205a7c0ccd2efa7f728e1
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T02:07:45.457821878Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T02:07:45.457821878Z
 ---
 
 The in-file sub table is keyed by the LITERAL SPELLING of a name, so a
