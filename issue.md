@@ -1,19 +1,27 @@
 ---
 title: "Module exports: a bare use imports @EXPORT_OK too, :DEFAULT is read as a name, @EXPORT without our is missed"
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T17:44:30.046420853Z
-updated: 2026-09-29T17:44:31.900569489Z
+updated: 2026-09-29T17:55:56.74835585Z
 sessions:
 - start_sha: 4aa05bb40fab4acab33c9adf4eaeb6384ccfa24c
-  end_sha: ""
-  commits: 0
+  end_sha: a2c28875f216619c6b27c3f4070515b2f4b5ffbc
+  commits: 1
   started_at: 2026-09-29T17:44:31.900569489Z
+  ended_at: 2026-09-29T17:55:56.74835585Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-29T17:44:31.900569489Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-29T17:55:56.74835585Z
+observed_paths:
+- internal/parse/exportdefault_test.go
+- internal/parse/exports.go
+- internal/parse/testdata/perlgitt.ratchet
 ---
 
 Three gaps in reading a module's exports:
