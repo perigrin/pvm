@@ -198,10 +198,12 @@ func (l *lexer) startsDerefExpression() bool {
 	// `$$ref[0]` is still a dereference of `$ref`. A second sigil with a
 	// NAME after it is the whole rule -- with nothing after it there is
 	// nothing to dereference.
-	if l.src[l.pos] != '$' {
+	// Spaces may stand before the second sigil too: measured on 5.42.0,
+	// `$ $name1` is `$$name1` and `@ $r` is `@$r`.
+	if brace >= len(l.src) || l.src[brace] != '$' {
 		return false
 	}
-	next := l.pos + 1
+	next := brace + 1
 	return next < len(l.src) &&
 		(isWordByte(l.src[next]) || l.src[next] == '{' || l.src[next] == '$')
 }
