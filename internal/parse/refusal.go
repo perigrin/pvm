@@ -106,7 +106,7 @@ var RefusalSites = map[RefusalCode]RefusalSite{
 	// there would erase the distinction the codes exist to make.
 	TrailingTokens: {
 		What:  "an expression parsed but bytes remain before the terminator",
-		Where: "parse.go, parseStatement: !endsStatement",
+		Where: "parse.go, refuseTrailingTokens: !endsStatement, !declarationEnded",
 	},
 	EmptyDeref: {
 		What:  "a `${}` dereference with nothing inside the braces",

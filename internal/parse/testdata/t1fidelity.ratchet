@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 524 clean (53.1%), 462 total.
+# 986 files, 527 clean (53.4%), 459 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -103,7 +103,7 @@
 1 compound_assignment_lvalue_order.t
 0 compress_bzip2_streaming_inflater.t
 0 compress_bzip2_streaming_writer.t
-1 compress_raw_bzip2.t
+0 compress_raw_bzip2.t
 1 compress_raw_zlib_autodetect_regression.t
 1 compress_raw_zlib_gzip_wrapper.t
 0 compress_zlib_gzerror_eof.t
@@ -605,7 +605,7 @@
 0 prototype_after_watchdog.t
 1 prototype_backslash_typecheck.t
 1 prototype_caller_line.t
-1 prototype_trailing_comma_infix.t
+0 prototype_trailing_comma_infix.t
 1 prototyped_call_caller_line.t
 0 push_decl_array.t
 1 push_declared_array.t
@@ -821,7 +821,7 @@
 0 threads_lock_compatibility.t
 1 threads_lock_conditions_unadvertised.t
 1 threads_native_resource_diagnostics.t
-1 threads_postfix_create_and_invalid_entry.t
+0 threads_postfix_create_and_invalid_entry.t
 1 threads_public_api_surface.t
 1 threads_qr_literal_validation.t
 1 threads_regex_callback_clone_isolation.t

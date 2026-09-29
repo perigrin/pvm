@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 925 clean (93.8%), 61 total.
+# 986 files, 932 clean (94.5%), 54 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -83,7 +83,7 @@
 0 chr_scalar_bounds.t
 0 class_c3_componentised_regressions.t
 0 class_default_accessor_names.t
-1 class_incomplete_no_leak.t
+0 class_incomplete_no_leak.t
 0 class_lvalue_method.t
 0 class_xsaccessor_named_cv.t
 0 class_xsaccessor_pp.t
@@ -282,7 +282,7 @@
 0 examples_warning_and_io.t
 0 exiftool_exporter_autoload.t
 0 experimental_equ_warning_category.t
-1 experimental_signatures_warning.t
+0 experimental_signatures_warning.t
 0 exporter_lexical_compile_scope.t
 0 fcntl_accmode.t
 0 fcntl_binary_text.t
@@ -327,7 +327,7 @@
 0 glob.t
 0 glob_absolute_directory.t
 0 glob_export_identity.t
-1 glob_hash_argument_slot.t
+0 glob_hash_argument_slot.t
 0 glob_numeric_warning.t
 0 glob_pseudo_constant_export.t
 0 glob_scalar_ref_io_method.t
@@ -349,7 +349,7 @@
 1 hash.t
 0 hash_autovivification.t
 0 hash_interpolation_warning.t
-1 hash_literal_anonymous_ref_cleanup.t
+0 hash_literal_anonymous_ref_cleanup.t
 1 hash_ref_disambiguation.t
 0 hash_slice_postincrement.t
 1 hash_slot_aliasing.t
@@ -571,7 +571,7 @@
 1 padwalker_closed_over.t
 0 padwalker_set_closed_over.t
 0 padwalker_var_name.t
-1 params_classify_primitives.t
+0 params_classify_primitives.t
 0 parent.t
 0 parser_syntax_error.t
 0 path_tiny_runtime_prereqs.t
@@ -601,7 +601,7 @@
 0 print_bareword_filehandle.t
 0 print_indirect_method_postfix.t
 0 process_current_perl_argv.t
-1 process_pipe_postexit_drain.t
+0 process_pipe_postexit_drain.t
 0 prototype_after_watchdog.t
 0 prototype_backslash_typecheck.t
 0 prototype_caller_line.t
@@ -687,7 +687,7 @@
 0 scalar_watcher_java_xs.t
 0 sdbm_file_writeback.t
 0 select_interrupt_errno.t
-1 signatures.t
+0 signatures.t
 0 skip_block_hash_disambiguation.t
 0 slice_context.t
 0 socket_borrowed_name.t

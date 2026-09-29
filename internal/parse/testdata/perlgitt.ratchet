@@ -1,6 +1,6 @@
 # Unknown nodes per perl.git t/ file, through parse.ParseFileFrom.
 #
-# 620 files, 558 clean (90.0%), 240 total.
+# 620 files, 555 clean (89.5%), 245 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -14,7 +14,7 @@
 0 base/term.t
 0 base/translate.t
 0 base/while.t
-1 benchmark/gh7094-speed-up-keys-on-empty-hash.t
+3 benchmark/gh7094-speed-up-keys-on-empty-hash.t
 0 bigmem/hash.t
 0 bigmem/index.t
 0 bigmem/pos.t
@@ -217,7 +217,7 @@
 0 op/blocks.t
 0 op/bool.t
 1 op/bop.t
-0 op/caller.t
+2 op/caller.t
 0 op/catch.t
 0 op/chars.t
 1 op/chdir.t
@@ -229,7 +229,7 @@
 0 op/cond.t
 8 op/const-optree.t
 0 op/context.t
-2 op/coreamp.t
+3 op/coreamp.t
 0 op/coresubs.t
 0 op/cproto.t
 0 op/crypt.t
@@ -307,7 +307,7 @@
 1 op/lexsub.t
 0 op/lfs.t
 0 op/list.t
-0 op/local.t
+1 op/local.t
 0 op/localref.t
 0 op/lock.t
 0 op/loopctl.t
@@ -317,7 +317,7 @@
 0 op/magic.t
 12 op/method.t
 0 op/mkdir.t
-0 op/multideref.t
+1 op/multideref.t
 0 op/my.t
 0 op/my_stash.t
 0 op/mydef.t
@@ -364,7 +364,7 @@
 0 op/setpgrpstack.t
 0 op/sigdispatch.t
 0 op/signame_canonical.t
-2 op/signatures.t
+4 op/signatures.t
 0 op/sigsystem.t
 0 op/sleep.t
 0 op/smartkve.t
@@ -512,7 +512,7 @@
 0 re/reg_eval.t
 0 re/reg_eval_scope.t
 0 re/reg_fold.t
-8 re/reg_mesg.t
+4 re/reg_mesg.t
 0 re/reg_namedcapture.t
 0 re/reg_nc_tie.t
 0 re/reg_nocapture.t

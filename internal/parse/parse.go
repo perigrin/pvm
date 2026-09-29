@@ -884,6 +884,13 @@ func (p *parser) statementForm() *Node {
 			if mod := p.applyModifier(d, start); mod != nil {
 				return p.withLabels(labels, mod, start)
 			}
+			// Tokens left before the terminator refuse the statement, as they
+			// do for an expression statement below. Unchecked, `my $w = bar
+			// $r;` -- a call that declined its argument -- became two
+			// statements, `my $w = bar();` and `$r;`, at Unknown=0.
+			if !p.declarationEnded(d) {
+				return p.refuseTrailingTokens(start)
+			}
 			return p.withLabels(labels, d, start)
 		}
 
@@ -942,8 +949,7 @@ func (p *parser) statementForm() *Node {
 	// `if` that had already taken `($i == 3)` as a modifier condition.
 	if tok, ok := p.peekSignificant(); ok && !endsStatement(tok, p.src) &&
 		!endsInBlock(expr) {
-		p.skipToStatementEnd()
-		return &Node{Kind: Unknown, Refusal: TrailingTokens, Start: start, End: p.prevEnd()}
+		return p.refuseTrailingTokens(start)
 	}
 
 	// Through the terminating `;` if there is one, so the statement owns its
@@ -1230,6 +1236,29 @@ func (p *parser) withLabels(labels []*Node, n *Node, start int) *Node {
 func endsStatement(tok lexer.Token, src []byte) bool {
 	return tok.Kind == lexer.Semicolon ||
 		(tok.Kind == lexer.CloseBracket && src[tok.Start] == '}')
+}
+
+// refuseTrailingTokens makes the whole statement from start one Unknown: it
+// parsed, but bytes remain before its terminator. The expression statement
+// and the declaration statement both reach it.
+func (p *parser) refuseTrailingTokens(start int) *Node {
+	p.skipToStatementEnd()
+	return &Node{Kind: Unknown, Refusal: TrailingTokens, Start: start, End: p.prevEnd()}
+}
+
+// declarationEnded reports whether a declaration statement has reached its
+// end: it took its own `;` (parseVarDecl does), it ends in a block (`sub f
+// { 1 }`, `my sub f { 1 }`), or what follows is a terminator. These are
+// applyModifier's tests for a statement that has already ended.
+func (p *parser) declarationEnded(d *Node) bool {
+	if p.pos > 0 && p.toks[p.pos-1].Kind == lexer.Semicolon {
+		return true
+	}
+	if d.Kind == Declaration && blockForm(&Node{Kind: Statement, Children: []*Node{d}}) {
+		return true
+	}
+	tok, ok := p.peekSignificant()
+	return !ok || endsStatement(tok, p.src)
 }
 
 // isTrivia reports whether a token carries no program structure.
