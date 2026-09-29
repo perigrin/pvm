@@ -92,6 +92,7 @@ func (l *lexer) trackBrackets(k Kind, start int) {
 		if n := len(l.brackets); n > 0 {
 			top := l.brackets[n-1]
 			l.brackets = l.brackets[:n-1]
+			l.closeLexSubScope()
 			l.closedBlock = top == braceBlock
 		}
 		// A closer with nothing open leaves closedBlock false. An LSP sees

@@ -104,6 +104,11 @@ func scanQuoteLike(l *lexer) bool {
 	if !ok {
 		return false
 	}
+	// A lexical sub of the operator's name shadows it: `my sub s` makes
+	// `s(1)` a call in its scope. See noteLexSub.
+	if l.lexSubInScope(op.name) {
+		return false
+	}
 	after := l.pos + len(op.name)
 
 	// A keyword is only a quote operator if what follows can delimit. `q` in

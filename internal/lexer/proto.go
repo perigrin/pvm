@@ -148,6 +148,7 @@ func (l *lexer) noteSubName(k Kind, start int) bool {
 			// The name after `sub`. A prototype may follow it, and so may an
 			// attribute list, and so may a block.
 			l.sawSubWord = false
+			l.noteLexSub(word)
 			l.expectPrototype = true
 			l.inSubAttrs = true
 			return true
@@ -277,4 +278,48 @@ func (l *lexer) afterArrow(start int) bool {
 	i := l.significantBefore(len(l.toks) - 1)
 	return i >= 0 && l.toks[i].End-l.toks[i].Start == 2 &&
 		string(l.src[l.toks[i].Start:l.toks[i].End]) == "->"
+}
+
+// lexSub is a lexical sub's name and the bracket depth of its scope.
+type lexSub struct {
+	name  string
+	depth int
+}
+
+// noteLexSub records a sub NAME just emitted if a `my`, `state` or `our`
+// stands before its `sub`: a lexical sub, in scope until its block closes.
+// perl lets one shadow a quote operator -- measured on 5.42.0,
+// `{ my sub s { 42 } print s(1) }` prints 42 and `s/a/b/` after the block
+// substitutes again.
+func (l *lexer) noteLexSub(word string) {
+	sub := l.significantBefore(len(l.toks) - 1)
+	if sub < 0 {
+		return
+	}
+	decl := l.significantBefore(sub)
+	if decl < 0 {
+		return
+	}
+	switch string(l.src[l.toks[decl].Start:l.toks[decl].End]) {
+	case "my", "state", "our":
+		l.lexSubs = append(l.lexSubs, lexSub{name: word, depth: len(l.brackets)})
+	}
+}
+
+// closeLexSubScope drops the lexical subs declared inside a block that has
+// just closed.
+func (l *lexer) closeLexSubScope() {
+	for len(l.lexSubs) > 0 && l.lexSubs[len(l.lexSubs)-1].depth > len(l.brackets) {
+		l.lexSubs = l.lexSubs[:len(l.lexSubs)-1]
+	}
+}
+
+// lexSubInScope reports whether a lexical sub of this name is in scope.
+func (l *lexer) lexSubInScope(name string) bool {
+	for _, s := range l.lexSubs {
+		if s.name == name {
+			return true
+		}
+	}
+	return false
 }

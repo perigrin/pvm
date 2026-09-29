@@ -268,6 +268,10 @@ type lexer struct {
 	// sawPackageWord is the same for `package NAME` and `class NAME`, which
 	// are followed by a block or a semicolon but never by a prototype.
 	sawPackageWord bool
+	// lexSubs are the lexical subs in scope, each with the bracket depth it
+	// was declared at: `my sub s { 42 }` makes `s(1)` a call until that
+	// block closes. See lexSubInScope.
+	lexSubs []lexSub
 	// sawPackageName is set on that NAME, so a version after it --
 	// `package Foo 1.0 { }` -- keeps the head open for the block.
 	sawPackageName bool
