@@ -135,8 +135,9 @@ func literalNameList(n *Node) ([]string, bool) {
 		return []string{body}, true
 	}
 
-	// A list of them: every child must itself be literal.
-	if n.Kind == List && len(n.Children) > 0 {
+	// A list of them: every child must itself be literal. With parentheses
+	// the list is a List; without, `use feature 'a', 'b'` is a comma Binary.
+	if (n.Kind == List || n.Kind == Binary && n.Text == ",") && len(n.Children) > 0 {
 		var out []string
 		for _, c := range n.Children {
 			names, ok := literalNameList(c)
