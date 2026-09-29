@@ -1,10 +1,19 @@
 ---
 title: "`qr/(?{<<END})/` lexes its heredoc body as code"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T21:53:09.550184601Z
-updated: 2026-09-29T21:53:09.550184601Z
+updated: 2026-09-29T21:53:10.377968654Z
+sessions:
+- start_sha: 24fabeba92826a9f8d3b7cc6558cf7b853434e4b
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T21:53:10.377968654Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T21:53:10.377968654Z
 ---
 
 A heredoc opened in a pattern's code block, as in `qr/(?{<<END})/` on one line, needs its body taken from the lines after the statement, as perl does (toke.c:11735). The lexer harvested heredoc openers only from /e replacements, so the body lexed as code. perl.git t/base/lex.t:346:
