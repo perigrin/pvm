@@ -39,7 +39,7 @@ func scanVariable(l *lexer) bool {
 	}
 
 	l.pos++
-	if l.pos >= len(l.src) {
+	if l.pos >= len(l.src) || l.bareSignatureSigil(start) {
 		l.emit(Variable, start)
 		return true
 	}

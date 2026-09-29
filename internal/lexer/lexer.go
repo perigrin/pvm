@@ -252,6 +252,14 @@ type lexer struct {
 	// opens a prototype rather than a list.
 	sawSubWord      bool
 	expectPrototype bool
+	// sigPending and sigDepth track a SIGNATURE, the `(...)` after `sub
+	// NAME` when the feature is on. sigPending is set where scanPrototype
+	// declines the parens, and the `(` that follows makes sigDepth 1; it
+	// counts nested parens in default expressions and is 0 outside. At
+	// depth 1 a sigil at an element's start may stand alone -- see
+	// bareSignatureSigil.
+	sigPending bool
+	sigDepth   int
 	// sawPackageWord is the same for `package NAME` and `class NAME`, which
 	// are followed by a block or a semicolon but never by a prototype.
 	sawPackageWord bool
@@ -439,6 +447,7 @@ func (l *lexer) emit(k Kind, start int) {
 	// one token after the `use` that set pendingPragma, and noteSubName does
 	// not touch that state.
 	l.noteSignatures(k, start)
+	l.noteSignatureParens(k, start)
 	afterDeclName := l.noteSubName(k, start)
 
 	// A block-taking word's `(` inherits the lookahead. `map({...} @a)` puts

@@ -3,6 +3,8 @@
 
 package lexer
 
+import "unicode/utf8"
+
 // scanPrototype takes a balanced `(...)` directly after `sub NAME` as one
 // token, without lexing its contents.
 //
@@ -31,6 +33,7 @@ func scanPrototype(l *lexer) bool {
 	//	perl -e 'use v5.36; sub g ($a,$b) {1} print prototype(\&g)' (undef)
 	if l.signatures {
 		l.expectPrototype = false
+		l.sigPending = true
 		return false
 	}
 
@@ -173,4 +176,56 @@ func (l *lexer) closeDeclHead() {
 	l.expectPrototype = false
 	l.sawAttrColon = false
 	l.inSubAttrs = false
+}
+
+// noteSignatureParens keeps sigDepth: the `(` a pending signature was waiting
+// for opens it, parens inside a default expression nest, and the `)` that
+// returns to depth 0 closes it. Any other significant token first means the
+// parens never came.
+func (l *lexer) noteSignatureParens(k Kind, start int) {
+	if k == Whitespace || k == Comment {
+		return
+	}
+	paren := byte(0)
+	if l.pos-start == 1 && (l.src[start] == '(' || l.src[start] == ')') {
+		paren = l.src[start]
+	}
+	if l.sigPending {
+		l.sigPending = false
+		if paren == '(' {
+			l.sigDepth = 1
+		}
+		return
+	}
+	if l.sigDepth == 0 {
+		return
+	}
+	switch paren {
+	case '(':
+		l.sigDepth++
+	case ')':
+		l.sigDepth--
+	}
+}
+
+// bareSignatureSigil reports whether the sigil at start is a signature
+// element on its own -- a placeholder, `($a, $)` -- rather than the start of
+// a variable name. toke.c reads signature elements with yyl_sigvar for
+// exactly this, and its comment names the trap: "the general yylex code
+// would otherwise try to interpret whatever follows as a var; e.g. ($, ...)
+// would be seen as the var '$,'".
+//
+// Only at depth 1, where elements are, and only at an element's start,
+// after the `(` or a `,`: a default expression is ordinary code, and `$)`
+// inside one is still the effective gid.
+func (l *lexer) bareSignatureSigil(start int) bool {
+	if l.sigDepth != 1 || start+1 >= len(l.src) {
+		return false
+	}
+	i := l.significantBefore(len(l.toks))
+	if i < 0 || l.toks[i].End-l.toks[i].Start != 1 || !byteIn(l.src[l.toks[i].Start], "(,") {
+		return false
+	}
+	r, _ := utf8.DecodeRune(l.src[start+1:])
+	return !identStart(r, l.utf8Pragma)
 }
