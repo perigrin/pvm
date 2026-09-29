@@ -598,7 +598,14 @@ func scanVString(l *lexer) bool {
 		l.pos = start
 		return false
 	}
-	if l.scanNumberRun() < 1 {
+	dots := l.scanNumberRun()
+	// A dot with no digit after it is not the v-string's: `v10.v257` is
+	// `v10 . v257`, measured on 5.42.0 to deparse as "\n\x{101}".
+	if l.src[l.pos-1] == '.' {
+		l.pos--
+		dots--
+	}
+	if dots < 1 {
 		l.pos = start
 		return false
 	}
@@ -748,6 +755,9 @@ func (l *lexer) scanNumberRun() int {
 	// `print 0x1e-1` is 29, so that `-` is subtraction.
 	hex := l.pos+1 < len(l.src) && l.src[l.pos] == '0' &&
 		(l.src[l.pos+1] == 'x' || l.src[l.pos+1] == 'X')
+	// Octal too, spelled `0o17` or `017`: `01.1p0` is an octal float.
+	radix := hex || l.pos+1 < len(l.src) && l.src[l.pos] == '0' &&
+		(byteIn(l.src[l.pos+1], "bBoO") || isDigit(l.src[l.pos+1]))
 	for l.pos < len(l.src) {
 		c := l.src[l.pos]
 		switch {
@@ -787,6 +797,15 @@ func (l *lexer) scanNumberRun() int {
 				isDigit(l.src[l.pos+2]) {
 				l.pos += 2
 				continue
+			}
+			// A DECIMAL takes no other letter: its `e` only before a sign,
+			// a digit or `_` (toke.c:13142-13144), so `5x3` is `5 x 3` and
+			// `1if $b` is `1 if $b`, measured on 5.42.0. A radix literal's
+			// letters are its digits and prefix, and stay.
+			if !radix && !isDigit(c) && c != '_' &&
+				!((c == 'e' || c == 'E') && l.pos+1 < len(l.src) &&
+					byteIn(l.src[l.pos+1], "+-0123456789_")) {
+				return dots
 			}
 		default:
 			return dots

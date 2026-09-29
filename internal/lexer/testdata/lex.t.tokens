@@ -2936,7 +2936,8 @@ Comment       12526  12556  #\sUsed\sto\scrash\s[perl\s#123711]
 Whitespace    12556  12557  \n
 Number        12557  12558  0
 Operator      12558  12559  -
-Number        12559  12561  5x
+Number        12559  12560  5
+Word          12560  12561  x
 Operator      12561  12563  -l
 Operator      12563  12564  {
 Number        12564  12565  0
