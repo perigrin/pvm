@@ -1,6 +1,6 @@
 # Unknown nodes per perl.git t/ file, through parse.ParseFileFrom.
 #
-# 620 files, 463 clean (74.7%), 920 total.
+# 620 files, 467 clean (75.3%), 844 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -124,7 +124,7 @@
 0 lib/overload_nomethod.t
 0 lib/proxy_constant_subs.t
 5 lib/universal.t
-10 mro/basic.t
+0 mro/basic.t
 0 mro/basic_01_c3.t
 0 mro/basic_01_c3_utf8.t
 0 mro/basic_01_dfs.t
@@ -145,7 +145,7 @@
 0 mro/basic_05_c3_utf8.t
 0 mro/basic_05_dfs.t
 0 mro/basic_05_dfs_utf8.t
-5 mro/basic_utf8.t
+0 mro/basic_utf8.t
 0 mro/c3_with_overload.t
 0 mro/c3_with_overload_utf8.t
 1 mro/complex_c3.t
@@ -164,14 +164,14 @@
 0 mro/isa_c3_utf8.t
 0 mro/isa_dfs.t
 0 mro/isa_dfs_utf8.t
-3 mro/isarev.t
-3 mro/isarev_utf8.t
+2 mro/isarev.t
+2 mro/isarev_utf8.t
 0 mro/method_caching.t
 0 mro/method_caching_utf8.t
 0 mro/next_NEXT.t
 0 mro/next_NEXT_utf8.t
-2 mro/next_edgecases.t
-2 mro/next_edgecases_utf8.t
+0 mro/next_edgecases.t
+0 mro/next_edgecases_utf8.t
 4 mro/next_goto.t
 4 mro/next_goto_utf8.t
 0 mro/next_inanon.t
@@ -185,8 +185,8 @@
 0 mro/overload_c3.t
 0 mro/overload_c3_utf8.t
 0 mro/overload_dfs.t
-32 mro/package_aliases.t
-31 mro/package_aliases_utf8.t
+4 mro/package_aliases.t
+4 mro/package_aliases_utf8.t
 0 mro/pkg_gen.t
 0 mro/pkg_gen_utf8.t
 0 mro/recursion_c3.t

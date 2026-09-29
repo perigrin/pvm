@@ -124,6 +124,17 @@ func literalNameList(n *Node) ([]string, bool) {
 		return []string{text[1 : len(text)-1]}, true
 	}
 
+	// q(...) and qq(...), with any of perl's delimiters. 61 perl.git t/
+	// files spell `require q(./test.pl)`. A `qq` body that would interpolate
+	// is not a literal -- it names something only at runtime -- which is
+	// the rule resolveRequiredFile applies to `"..."`.
+	if body, interp, ok := genericQuoteBody(text); ok {
+		if interp && strings.ContainsAny(body, "$@") {
+			return nil, false
+		}
+		return []string{body}, true
+	}
+
 	// A list of them: every child must itself be literal.
 	if n.Kind == List && len(n.Children) > 0 {
 		var out []string
@@ -138,6 +149,43 @@ func literalNameList(n *Node) ([]string, bool) {
 	}
 
 	return nil, false
+}
+
+// genericQuoteBody returns the body of a `q` or `qq` quote as written, and
+// whether it is the interpolating `qq`. Whitespace may sit between the
+// operator and its delimiter, as `q (./test.pl)` does; a bracketing delimiter
+// closes with its partner and any other closes with itself.
+func genericQuoteBody(text string) (body string, interp, ok bool) {
+	rest, found := strings.CutPrefix(text, "qq")
+	interp = found
+	if !found {
+		if rest, found = strings.CutPrefix(text, "q"); !found {
+			return "", false, false
+		}
+	}
+	rest = strings.TrimLeft(rest, " \t\n")
+	if len(rest) < 2 {
+		return "", false, false
+	}
+	open := rest[0]
+	shut := open
+	switch open {
+	case '(':
+		shut = ')'
+	case '[':
+		shut = ']'
+	case '{':
+		shut = '}'
+	case '<':
+		shut = '>'
+	}
+	// A word byte after `q` is an identifier (`qux`), not a quote.
+	if open == '_' || open >= '0' && open <= '9' ||
+		open >= 'a' && open <= 'z' || open >= 'A' && open <= 'Z' ||
+		rest[len(rest)-1] != shut {
+		return "", false, false
+	}
+	return rest[1 : len(rest)-1], interp, true
 }
 
 // declaredSub returns a sub declaration's name and prototype. The prototype is
