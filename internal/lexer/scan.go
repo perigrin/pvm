@@ -38,6 +38,15 @@ func scanVariable(l *lexer) bool {
 		return false
 	}
 
+	// `*@` is the glob named `@` -- see globStar. Emitted as the one-byte
+	// name, the way `*-` and `*+` arrive, rather than as a sigil that would
+	// take the `;` after it as an array's name.
+	if c == '@' && l.globStar && l.toks[len(l.toks)-1].End == start {
+		l.pos++
+		l.emit(Operator, start)
+		return true
+	}
+
 	l.pos++
 	if l.pos >= len(l.src) || l.bareSignatureSigil(start) {
 		l.emit(Variable, start)

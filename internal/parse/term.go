@@ -412,7 +412,7 @@ func (p *parser) globWithSpecialName(star lexer.Token) *Node {
 			return nil
 		}
 		last = letter
-	case name.Kind == lexer.Operator && len(text) == 1 && strings.IndexByte("-+/!&", text[0]) >= 0:
+	case name.Kind == lexer.Operator && len(text) == 1 && strings.IndexByte("-+/!&@", text[0]) >= 0:
 		last = name
 	default:
 		return nil

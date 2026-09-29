@@ -260,6 +260,11 @@ type lexer struct {
 	// bareSignatureSigil.
 	sigPending bool
 	sigDepth   int
+	// globStar is set when the token just emitted was a `*` where no
+	// operator was expected -- a glob sigil, not multiplication. toke.c's
+	// yyl_star then reads the name with scan_ident, so a punctuation byte
+	// after it is the name: `*@` is the glob named `@`.
+	globStar bool
 	// sawPackageWord is the same for `package NAME` and `class NAME`, which
 	// are followed by a block or a semicolon but never by a prototype.
 	sawPackageWord bool
@@ -485,6 +490,8 @@ func (l *lexer) emit(k Kind, start int) {
 			(l.expect == XState || l.expect == XBlock)
 	}
 
+	l.globStar = k == Operator && l.pos-start == 1 && l.src[start] == '*' &&
+		l.expect != XOperator && l.expect != XPostDeref
 	l.expect = l.expect.after(k, transition{
 		text:            l.src[start:l.pos],
 		closedBlock:     l.closedBlock,
