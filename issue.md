@@ -1,10 +1,19 @@
 ---
 title: "`5x3` is one Number: a decimal literal takes every letter after it"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T21:32:18.260426258Z
-updated: 2026-09-29T21:32:18.260426258Z
+updated: 2026-09-29T21:32:19.533411187Z
+sessions:
+- start_sha: 8d48b3dc1df62144513426d5387e0d1f67fd38b9
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T21:32:19.533411187Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T21:32:19.533411187Z
 ---
 
 A decimal literal takes every word byte after its digits, so `5x3` lexes as Number("5x3"), `1if $b` as Number("1if") and `0-5x-l{0}` as Number("5x") followed by `-l`. toke.c's scan_num takes a decimal's `e` only when a sign, digit or `_` follows it (toke.c:13142-13144), and it takes no other letter. Radix literals (0x, 0b, 0o, and a leading-zero octal such as the octal float `01.1p0`) keep their letters.
