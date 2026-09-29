@@ -1,10 +1,19 @@
 ---
 title: "Whitespace between a sigil and its name ends the variable: `my $ bits` splits"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T08:05:59.943691725Z
-updated: 2026-09-29T08:36:16.427391626Z
+updated: 2026-09-29T09:39:49.293485096Z
+sessions:
+- start_sha: e0d503eeac20ada45b19d1b3ffd8f9748acf9133
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T09:39:49.293485096Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T09:39:49.293485096Z
 ---
 
 perl allows whitespace between a sigil and its name. The lexer ends the variable at the space, so `my $ bits = sub { ... }->()` became `my $ ;bits() = ...` at Unknown=0, and now refuses as trailing tokens.
