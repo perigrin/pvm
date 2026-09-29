@@ -1,10 +1,19 @@
 ---
 title: The lexer splits &. |. ^. ~. and ^^ into two tokens, though the parser's table already places them
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T05:02:14.224247164Z
-updated: 2026-09-29T05:02:14.224247164Z
+updated: 2026-09-29T05:02:15.26079209Z
+sessions:
+- start_sha: f29b92cd4d9de9fefb99e4b55f458393f2f566e2
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T05:02:15.26079209Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T05:02:15.26079209Z
 ---
 
 The lexer never produces the string-bitwise operators `&.`, `|.`, `^.`, `~.`,
