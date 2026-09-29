@@ -1,19 +1,30 @@
 ---
 title: "A comma with no element after it refuses unless a closer follows: f(1, , 2) and skip ..., if $m"
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T02:42:29.097984945Z
-updated: 2026-09-29T02:47:25.258627448Z
+updated: 2026-09-29T03:03:53.930152719Z
 sessions:
 - start_sha: ae2fb4786754099203add719feedfd96fedd7208
-  end_sha: ""
-  commits: 0
+  end_sha: 5018701de8e42bd5acfd54be73995bc173201a25
+  commits: 1
   started_at: 2026-09-29T02:47:25.258627448Z
+  ended_at: 2026-09-29T03:03:53.930152719Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-29T02:47:25.258627448Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-29T03:03:53.930152719Z
+observed_paths:
+- internal/parse/emptycomma_test.go
+- internal/parse/expr.go
+- internal/parse/parse.go
+- internal/parse/t2_test.go
+- internal/parse/testdata/perlgitt.ratchet
+- internal/parse/testdata/t1.ratchet
 ---
 
 A comma with no element after it is dropped by perl wherever it stands, not
