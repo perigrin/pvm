@@ -1,10 +1,19 @@
 ---
 title: "`//` after shift, pop, undef and the other UNIDOR builtins opens a pattern instead of defined-or"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T06:45:37.925193784Z
-updated: 2026-09-29T06:45:37.925193784Z
+updated: 2026-09-29T06:45:55.825924055Z
+sessions:
+- start_sha: a1440c2f33201ee9ce8a8b103237425c43880b35
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T06:45:55.825924055Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T06:45:55.825924055Z
 ---
 
 The lexer never enters XTERMORDORDOR, so after the nine UNIDOR builtins a `//` opens an empty pattern instead of being defined-or. `is(shift // 7, 7)` refuses, and `my $y = shift // 7;` canonicalises to `my $y = shift(//);7;`, a wrong tree at Unknown=0.
