@@ -1,10 +1,19 @@
 ---
 title: "`$ok = 1 when undef;` refuses: when is not a statement modifier"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T14:00:59.6107833Z
-updated: 2026-09-29T14:00:59.6107833Z
+updated: 2026-09-29T14:01:00.717262011Z
+sessions:
+- start_sha: 7d2278da40ea70a59ac626769fb90220fd166c0e
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T14:01:00.717262011Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T14:01:00.717262011Z
 ---
 
 `when` as a statement modifier refuses: `$ok = 1 when undef;` inside a given block. perly.y admits `expr KW_WHEN condition` under the switch feature, and the parser's modifier table has if, unless, while, until, for and foreach only -- though it reads the `when (...) {...}` statement form unconditionally.
