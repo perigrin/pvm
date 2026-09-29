@@ -1,10 +1,19 @@
 ---
 title: "A glob with a digit, caret or punctuation name refuses: *1, *^R and *- lose their name"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T05:21:17.339485318Z
-updated: 2026-09-29T05:21:17.339485318Z
+updated: 2026-09-29T05:21:17.750541895Z
+sessions:
+- start_sha: 1160b99169804f5ed3dae905df9451608e6f9efe
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T05:21:17.750541895Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T05:21:17.750541895Z
 ---
 
 A glob whose name is not an identifier refuses: the glob term read only a Word,
