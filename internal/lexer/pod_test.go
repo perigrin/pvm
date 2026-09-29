@@ -146,6 +146,24 @@ func TestEndAndDataSection(t *testing.T) {
 	}
 }
 
+// TestCoreDataSection: `CORE::__DATA__` is the same keyword as `__DATA__`
+// (toke.c KEY___DATA__ is reached through the CORE:: lookup too). Measured:
+// a file of `print <DATA>;` then `CORE::__DATA__` prints the line after it.
+// perl.git t/op/coreamp.t:1254.
+func TestCoreDataSection(t *testing.T) {
+	for _, marker := range []string{"CORE::__END__", "CORE::__DATA__"} {
+		src := "print 1;\n" + marker + "\nthis is ) not ( perl $$$\n"
+		tok, ok := firstOfKind(src, DataSection)
+		if !ok {
+			t.Fatalf("%q: no DataSection token", src)
+		}
+		if want := len("print 1;\n"); tok.Start != want || tok.End != len(src) {
+			t.Errorf("%s: data section spans %d-%d, want %d-%d",
+				marker, tok.Start, tok.End, want, len(src))
+		}
+	}
+}
+
 // TestFormatBody: §0.13 rank 3, 8 corpus files, 3 of them in T2.
 //
 // A `format NAME =` line opens a body ending at a lone `.` on its own line --

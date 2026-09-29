@@ -68,10 +68,13 @@ func isPodCut(line []byte) bool {
 // The rest of the file is data, not Perl. One trivia token, so the bytes
 // still round-trip while nothing tries to lex `) not ( perl $$$` as code.
 func scanDataSection(l *lexer) bool {
-	if l.src[l.pos] != '_' || !l.atLineStart() {
+	if !l.atLineStart() {
 		return false
 	}
-	rest := l.src[l.pos:]
+	// CORE::__DATA__ is the same keyword; toke.c reaches KEY___DATA__
+	// through the CORE:: lookup as well.
+	rest := bytes.TrimPrefix(l.src[l.pos:], []byte("CORE::"))
+	prefix := len(l.src[l.pos:]) - len(rest)
 	var marker []byte
 	switch {
 	case bytes.HasPrefix(rest, []byte("__END__")):
@@ -82,7 +85,7 @@ func scanDataSection(l *lexer) bool {
 		return false
 	}
 	// The marker owns its whole line, so `__END__x` is an identifier.
-	after := l.pos + len(marker)
+	after := l.pos + prefix + len(marker)
 	if after < len(l.src) && isWordByte(l.src[after]) {
 		return false
 	}
