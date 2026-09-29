@@ -122,6 +122,17 @@ func scanVariable(l *lexer) bool {
 	// comment then `b` on the next line declares $b. The token keeps the bytes between, so the source
 	// round-trips. Without a name after them, the space is not reached
 	// across -- scanVarName's one-byte punctuation rule stands.
+	// A braced NAME after spaces the same way: `$ {^XY}` is `${^XY}` and
+	// `$ { foo }` is `$foo`, measured on 5.42.0. startsDerefExpression has
+	// already declined it as an expression.
+	if brace := skipBlanks(l.src, l.pos); brace > l.pos && brace < len(l.src) &&
+		l.src[brace] == '{' && l.bracedNameFollowsAt(brace) {
+		l.pos = brace
+		l.scanVarName()
+		l.emit(Variable, start)
+		return true
+	}
+
 	if name := l.nameAfterSpace(l.pos); name > l.pos {
 		l.pos = name
 		l.scanIdentRunes()
@@ -132,6 +143,15 @@ func scanVariable(l *lexer) bool {
 	l.scanVarName()
 	l.emit(Variable, start)
 	return true
+}
+
+// skipBlanks returns the index of the first byte at or after i that is not
+// a space or a tab.
+func skipBlanks(src []byte, i int) int {
+	for i < len(src) && (src[i] == ' ' || src[i] == '\t') {
+		i++
+	}
+	return i
 }
 
 // nameAfterSpace returns where an identifier starts after the whitespace and

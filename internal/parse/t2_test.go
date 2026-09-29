@@ -172,7 +172,9 @@ func TestT2CoreParses(t *testing.T) {
 		// `my @raw, @upgraded, @utf8;`.
 		// base/lex.t 18 -> 17 when the yada statement `...` began parsing
 		// (issue 01a0eb93-a183): line 507 is `map{...} @_`.
-		"base/lex.t": 17,
+		// base/lex.t 17 -> 5 when a braced name after a spaced sigil began
+		// lexing as one variable: `$ {^XY}` at lines 129-139 and beyond.
+		"base/lex.t": 5,
 		// class/field.t went 9 -> 10 when quote-op keywords stopped eating
 		// their fat comma, then back to 9 when goto, delete and exists
 		// landed. The rise was never a regression in the parse: reaching
