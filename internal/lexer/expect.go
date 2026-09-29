@@ -212,6 +212,14 @@ func (e Expect) after(k Kind, t transition) Expect {
 		// `${*$glob}{Keys} = 5;` parsed as a bare block.
 		return XTerm
 	case Word:
+		// A METHOD NAME after `->` has produced a value, so an operator comes
+		// next: `$o->iters / $o->cpu_p` divides. Measured on 5.42.0, Deparse
+		// keeps it as a division, and `$o->n <2` as a comparison. Read as a
+		// term position the `/` opened a pattern that ran on past the
+		// statement.
+		if e == XPostDeref {
+			return XOperator
+		}
 		// A sub or package NAME is followed by a block, not a term. perl
 		// says so with PREBLOCK, which sets XBLOCK -- toke.c:6636 for a sub
 		// name, 8862 for a package.
