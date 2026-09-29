@@ -370,6 +370,9 @@ func (l *lexer) noteSignatures(k Kind, start int) {
 		if containsWord(text, "signatures") || featureBundleHasSignatures(text) {
 			l.signatures = useSpelling
 		}
+		if useSpelling && containsWord(text, "class") {
+			l.classSyntax = true
+		}
 	case Operator:
 		// The `.` between the halves; keep the pending major.
 		if text == "." {

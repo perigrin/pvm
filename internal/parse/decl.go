@@ -3,7 +3,11 @@
 
 package parse
 
-import "tamarou.com/pvm/internal/lexer"
+import (
+	"strings"
+
+	"tamarou.com/pvm/internal/lexer"
+)
 
 // declarators are the variable-introducing keywords. `local` is not one
 // strictly -- it saves and restores a global rather than creating a lexical --
@@ -27,7 +31,10 @@ func (p *parser) parseDeclaration(word lexer.Token) *Node {
 			return lex
 		}
 		return p.parseVarDecl(word)
-	case text == "sub" || text == "method":
+	// `method` declares only under the class feature; elsewhere it is an
+	// ordinary name -- op/method.t calls a sub named method as
+	// `method Pack ("a")`, which is `'Pack'->method('a')`, measured on 5.42.0.
+	case text == "sub" || text == "method" && p.features["class"]:
 		// `sub {` with no name is an anonymous sub, which is an EXPRESSION
 		// and not a declaration. Declining here sends it to parseTerm, whose
 		// anon-sub branch (`term.go:126-132`) has always read it correctly --
@@ -440,6 +447,11 @@ func (p *parser) declareSub(n *Node) {
 		Prototype:      proto,
 		PrototypeKnown: true,
 		Local:          true,
+	}
+	// `sub Pack::method` creates the package Pack as surely as `package
+	// Pack` does, so `method Pack (...)` can name it -- op/method.t:54.
+	if i := strings.LastIndex(name, "::"); i > 0 {
+		p.notePackage(name[:i])
 	}
 }
 

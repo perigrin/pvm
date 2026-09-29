@@ -460,8 +460,13 @@ func TestQuoteOpNameAfterSubOrMethod(t *testing.T) {
 		`sub q { 3 }`,
 		`sub tr { 4 }`,
 		`sub m { 5 }`,
-		`method y { return $y; }`,
-		`method s { 1 }`,
+		// `method` declares only with class syntax in effect -- the
+		// feature, as t/class/field.t has, or a class already declared,
+		// which is the spelling here since a quote in the source would trip
+		// this test's own check. Without it op/method.t calls a sub named
+		// method.
+		`class C; method y { return $y; }`,
+		`class C; method s { 1 }`,
 		// Trivia between the keyword and the name changes nothing.
 		`sub  y  { 1 }`,
 	} {
@@ -492,5 +497,27 @@ func TestQuoteOpStillLexesElsewhere(t *testing.T) {
 			t.Errorf("%q: no Quote token; the keyword is still a quote "+
 				"operator here (tokens %v)", src, Tokenize([]byte(src)))
 		}
+	}
+}
+
+// TestMethodNeedsClassSyntax: without class syntax `method` is a name, so
+// op/method.t's `method Pack ("a")` keeps its parens as arguments rather
+// than a prototype; `use feature 'class'` turns the keyword on. Measured on
+// 5.42.0, `sub Pack::method { "m" } my $x = method Pack ("a");` deparses as
+// `my $x = 'Pack'->method('a');`.
+func TestMethodNeedsClassSyntax(t *testing.T) {
+	for _, tok := range Tokenize([]byte(`my $x = method Pack ("a");`)) {
+		if tok.Kind == Prototype {
+			t.Errorf("without class syntax `method` does not declare; got a Prototype")
+		}
+	}
+	found := false
+	for _, tok := range Tokenize([]byte(`use feature 'class'; method m ($$) { 1 }`)) {
+		if tok.Kind == Prototype {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("under the class feature `method m ($$)` declares with a prototype")
 	}
 }

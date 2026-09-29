@@ -268,6 +268,11 @@ type lexer struct {
 	// sawPackageWord is the same for `package NAME` and `class NAME`, which
 	// are followed by a block or a semicolon but never by a prototype.
 	sawPackageWord bool
+	// classSyntax is set once `use feature 'class'` or a `class NAME`
+	// declaration is seen: from then `method` declares as `sub` does.
+	// Elsewhere it is an ordinary name -- op/method.t calls a sub named
+	// method, `method Pack ("a")`.
+	classSyntax bool
 	// lexSubs are the lexical subs in scope, each with the bracket depth it
 	// was declared at: `my sub s { 42 }` makes `s(1)` a call until that
 	// block closes. See lexSubInScope.

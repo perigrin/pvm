@@ -122,7 +122,7 @@ func (l *lexer) noteSubName(k Kind, start int) bool {
 			return true
 		}
 		switch {
-		case word == "sub" || word == "method":
+		case word == "sub" || word == "method" && l.classSyntax:
 			l.sawSubWord = true
 			l.sawPackageWord = false
 			// An ANONYMOUS sub's prototype or signature follows the keyword
@@ -155,6 +155,10 @@ func (l *lexer) noteSubName(k Kind, start int) bool {
 		case l.sawPackageWord:
 			l.sawPackageWord = false
 			l.sawPackageName = true
+			if i := l.significantBefore(len(l.toks) - 1); i >= 0 &&
+				string(l.src[l.toks[i].Start:l.toks[i].End]) == "class" {
+				l.classSyntax = true
+			}
 			l.expectPrototype = false
 			// `class Point :isa(Shape) { }`. A class's attributes take the
 			// same shape, and the block after them is still a block.

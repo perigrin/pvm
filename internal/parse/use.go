@@ -189,7 +189,7 @@ func (p *parser) noteFeatures(verb, module string, list *Node) {
 			return
 		}
 		for _, name := range names {
-			if gatedUnary[name] || name == "keyword_any" || name == "keyword_all" {
+			if gatedUnary[name] || name == "keyword_any" || name == "keyword_all" || name == "class" {
 				p.features[name] = verb == "use"
 			}
 			if name == "indirect" {
@@ -443,6 +443,13 @@ func (p *parser) parseSpecialSub(word lexer.Token) *Node {
 // parseDeclaration, which already knows `method` as a sub spelling.
 func (p *parser) parseClass(word lexer.Token) *Node {
 	p.advanceTo(word)
+	// A class declaration means class syntax is in effect -- by the feature
+	// or by Object::Pad, which provides the same keywords -- so `method`
+	// declares from here on.
+	if p.features == nil {
+		p.features = map[string]bool{}
+	}
+	p.features["class"] = true
 	n := &Node{Kind: Declaration, Text: p.text(word), Start: word.Start}
 
 	if name, ok := p.peekSignificant(); ok && name.Kind == lexer.Word {
