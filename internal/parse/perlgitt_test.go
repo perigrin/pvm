@@ -59,6 +59,25 @@ func perlGitTFiles(t *testing.T) (string, []string) {
 	return tDir, files
 }
 
+// perlGitTRoots is where perl's suite finds what it loads.
+//
+// Both working directories it runs from: `t/` for `require './test.pl'`, the
+// tree root for `require './t/test.pl'`. And the module directories a BUILT
+// perl has in lib/: test.pl's set_up_inc('../lib') puts lib/ in @INC, and the
+// build copies each dual-life module there from dist/*/lib, cpan/*/lib and
+// ext/*/lib. An unbuilt checkout has them only at those source paths, so
+// `use Carp` and `use File::Spec::Functions` -- dist/Carp/lib and
+// dist/PathTools/lib -- are searched where they are.
+func perlGitTRoots(dir string) []string {
+	root := filepath.Dir(dir)
+	roots := []string{dir, root, filepath.Join(root, "lib")}
+	for _, tree := range []string{"dist", "cpan", "ext"} {
+		libs, _ := filepath.Glob(filepath.Join(root, tree, "*", "lib"))
+		roots = append(roots, libs...)
+	}
+	return roots
+}
+
 // TestPerlGitTRatchet holds the per-file Unknown count over perl.git t/.
 //
 // It calls parse.ParseFileFrom rather than parse.Parse, and that is the whole
@@ -75,12 +94,11 @@ func perlGitTFiles(t *testing.T) (string, []string) {
 // into one swallowed span. When a count rises, explain it before regenerating.
 func TestPerlGitTRatchet(t *testing.T) {
 	dir, files := perlGitTFiles(t)
+	roots := perlGitTRoots(dir)
 
 	now := make(map[string]int, len(files))
 	for _, rel := range files {
-		// Both working directories perl's suite runs from: `t/` for
-		// `require './test.pl'`, the tree root for `require './t/test.pl'`.
-		n, err := parse.ParseFileFrom(filepath.Join(dir, rel), dir, filepath.Dir(dir))
+		n, err := parse.ParseFileFrom(filepath.Join(dir, rel), roots...)
 		if err != nil {
 			continue
 		}
