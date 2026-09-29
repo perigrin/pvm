@@ -196,6 +196,22 @@ var interpreterSubs = map[string]string{
 	"re::regnames":                     "(;$)",
 	"re::regnames_count":               "()",
 	"re::regexp_pattern":               "($)",
+
+	// builtin.c's boot_core_builtin, also at interpreter start. The
+	// prototype follows the call checker: ck_builtin_const "", ck_builtin_func1
+	// "$", ck_builtin_funcN "@", and none for export_lexically.
+	"builtin::true": "()", "builtin::false": "()",
+	"builtin::inf": "()", "builtin::nan": "()",
+	"builtin::is_bool": "($)", "builtin::weaken": "($)",
+	"builtin::unweaken": "($)", "builtin::is_weak": "($)",
+	"builtin::blessed": "($)", "builtin::refaddr": "($)",
+	"builtin::reftype": "($)", "builtin::ceil": "($)",
+	"builtin::floor": "($)", "builtin::is_tainted": "($)",
+	"builtin::trim": "($)", "builtin::stringify": "($)",
+	"builtin::created_as_string": "($)", "builtin::created_as_number": "($)",
+	"builtin::load_module":      "($)",
+	"builtin::indexed":          "(@)",
+	"builtin::export_lexically": "",
 }
 
 // subKey is the sub table's key for a name as spelled: a leading `::` and

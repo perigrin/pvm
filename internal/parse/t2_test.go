@@ -186,7 +186,6 @@ func TestT2CoreParses(t *testing.T) {
 		// same source. field.t:224-228 is a multi-line call with a trailing
 		// comma, so the count rose while the parse got better. Untracked:
 		// nothing in the chain owns trailing commas in argument lists.
-		"class/construct.t": 2,
 		// class/gh22169.t went 3 -> 5 when anonymous subs and signatures
 		// landed. Not a regression in the parse: reaching further into the
 		// file exposed `ADJUST { ... }`, a class phaser in no table, twice

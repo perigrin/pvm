@@ -402,7 +402,11 @@ func TestClassCorpusRatchet(t *testing.T) {
 	// boundary (issue 01a0ea25-4fe7). class/inherit.t 4 -> 2: a bare block
 	// as the first member of a class body read as an anonymous hash and lost
 	// the declaration after it, which is issue 01a0ddac-bd24's shape.
-	const want = 11
+	//
+	// 11 -> 9 when `use builtin LIST` began importing builtin.c's functions
+	// with their prototypes. class/construct.t 2 -> 0: `blessed $obj` and
+	// `reftype $obj`, which unknown are indirect method calls.
+	const want = 9
 	if unknown != want {
 		t.Errorf("t/class holds %d Unknown nodes, want %d: update this pin in "+
 			"the same commit as the change that moved it", unknown, want)

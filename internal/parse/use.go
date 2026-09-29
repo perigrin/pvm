@@ -242,6 +242,10 @@ func perlVersion(text string) (major, minor int, ok bool) {
 // A module that cannot be found contributes nothing, and calls to what it
 // would have exported stay unresolved -- correct, not a gap.
 func (p *parser) resolveImports(module string, list *Node) {
+	if module == "builtin" {
+		p.importBuiltins(list)
+		return
+	}
 	if p.res == nil {
 		return
 	}
@@ -269,6 +273,31 @@ func (p *parser) resolveImports(module string, list *Node) {
 	}
 	for _, imp := range importsFrom(facts, names, listGiven) {
 		p.imports[subKey(imp.Name)] = imp
+	}
+}
+
+// importBuiltins is `use builtin LIST`. There is no module text to read: the
+// functions are the interpreter's own, in interpreterSubs, and the list names
+// which of them come into scope. A name builtin.c does not define -- a
+// version bundle such as ':5.39' among them -- imports nothing here; the
+// bundles are 01a0ec21-d4dc-7883-9f5b-457350a011e0.
+func (p *parser) importBuiltins(list *Node) {
+	if list == nil {
+		return
+	}
+	names, ok := literalNameList(list)
+	if !ok {
+		return
+	}
+	for _, name := range names {
+		proto, ok := interpreterSubs["builtin::"+name]
+		if !ok {
+			continue
+		}
+		if p.imports == nil {
+			p.imports = map[string]Import{}
+		}
+		p.imports[subKey(name)] = Import{Name: name, Prototype: proto, PrototypeKnown: true}
 	}
 }
 
