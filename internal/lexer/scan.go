@@ -868,6 +868,25 @@ var operators = []string{
 
 // scanOperator lexes punctuation.
 func scanOperator(l *lexer) bool {
+	// `~~` is ONE operator, smartmatch, only where an operator is expected;
+	// toke.c:
+	//
+	//	if (FEATURE_SMARTMATCH_IS_ENABLED &&
+	//	    s[1] == '~' && (PL_expect == XOPERATOR || PL_expect == XTERMORDORDOR))
+	//	    ... NCEop(OP_SMARTMATCH);
+	//
+	// In term position it is two bitwise nots, and `~~$x` -- forcing scalar
+	// context -- is an idiom that must keep lexing that way. It is not in the
+	// operators table for that reason: the table is position-blind. The
+	// smartmatch feature is on by default and the lexer does not track it;
+	// `no feature 'smartmatch'` followed by `$x ~~ $y` is the ceiling.
+	if l.src[l.pos] == '~' && l.pos+1 < len(l.src) && l.src[l.pos+1] == '~' &&
+		(l.expect == XOperator || l.expect == XTermOrDorDor) {
+		start := l.pos
+		l.pos += 2
+		l.emit(Operator, start)
+		return true
+	}
 	for _, op := range operators {
 		if l.pos+len(op) > len(l.src) {
 			continue
