@@ -1,10 +1,19 @@
 ---
 title: "`substr $x, 0, 1, = \"a\"` refuses: a comma before `=` looks for an element"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T19:51:01.564381681Z
-updated: 2026-09-29T19:51:01.564381681Z
+updated: 2026-09-29T19:51:02.605860278Z
+sessions:
+- start_sha: a5d54ef27561683c56b464076aa0c5cf21adaded
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T19:51:02.605860278Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T19:51:02.605860278Z
 ---
 
 `substr $x, 0, 1, = "\x{100}"` refuses. The trailing-comma rule drops a comma only when the next token is a closer, a terminator, a modifier or a low-precedence word operator. For `=` it goes looking for an element that does not exist. `=` cannot start an element, and because it binds tighter than the comma, the list ends at the comma and the list operator becomes the assignment's left side.
