@@ -626,22 +626,15 @@ func (p *parser) finishList(items []*Node, open lexer.Token) *Node {
 		// `my ($x) = f()` is 1 and `my $y = f()` is 3. Both measured on
 		// perl 5.42.0.
 		//
-		// Copying field by field rather than dereferencing the node: the
-		// span must widen to cover the parens, so this cannot alias. Every
-		// flag is carried across -- dropping one here would erase an Arrow
-		// on `($h->{k})`, which is the bug this function already had for
-		// Paren.
-		n := items[0]
-		return &Node{
-			Kind: n.Kind, Text: n.Text,
-			Start: open.Start, End: p.prevEnd(),
-			Children: n.Children,
-			Resolved: n.Resolved,
-			Arrow:    n.Arrow,
-			Fat:      n.Fat,
-			Handle:   n.Handle,
-			Paren:    true,
-		}
+		// A copy rather than the node itself: the span must widen to cover
+		// the parens, so this cannot alias. Every flag is carried across,
+		// by copying the whole value -- dropping one here would erase an
+		// Arrow on `($h->{k})`, which is the bug this function once had for
+		// Paren, and an Indirect on `(method $obj ())` in t/op/method.t:79.
+		c := *items[0]
+		c.Start, c.End = open.Start, p.prevEnd()
+		c.Paren = true
+		return &c
 	}
 	return &Node{
 		Kind: List, Start: open.Start, End: p.prevEnd(),

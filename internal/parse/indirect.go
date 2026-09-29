@@ -3,7 +3,11 @@
 
 package parse
 
-import "tamarou.com/pvm/internal/lexer"
+import (
+	"strings"
+
+	"tamarou.com/pvm/internal/lexer"
+)
 
 // notePackage records a package or class name, so a bareword naming it reads
 // as a class. See parseIndirect.
@@ -36,40 +40,68 @@ func (p *parser) notePackage(name string) {
 // `doit $object "FOO"` is `$object->doit('FOO')`, `sub new {1} new Foo` is
 // `new('Foo')`, and under `use v5.36` indirect notation is a syntax error.
 //
-// The OTHER half -- `WORD $var ...` as `$var->WORD(...)`, unless WORD is a
-// known sub or starts uppercase -- is deliberately not read. perl knows every
-// sub from its symbol table; this parser knows only the ones it has read
-// declared or imported, and a sub imported from a module it could not read
-// looks exactly like an unknown word. Measured: reading that half turned
-// `ok $x, 'n'` -- Test::More's `ok`, unresolved -- into `$x->ok(...)` and
-// made 35 T1 files wrong in canon. A refusal there is honest; a method call
-// is a confident wrong tree.
+// The OTHER half -- `WORD $var ...` as `$var->WORD(...)` when WORD has no CV,
+// toke.c:8216 -- and the unknown-sub reading of `WORD Bareword` are read
+// only while the sub table is complete (symbolsOpen). perl knows every sub
+// from its symbol table; this parser knows only the ones it has read declared
+// or imported, and a sub imported from a module it could not read looks
+// exactly like an unknown word. Measured: reading that half unconditionally
+// turned `ok $x, 'n'` -- Test::More's `ok`, unresolved -- into `$x->ok(...)`
+// and made 35 T1 files wrong in canon. With no loader, or once an import it
+// cannot see into has run, a refusal is still the honest answer.
 func (p *parser) parseIndirect(word lexer.Token, spelled, text string) *Node {
-	if p.noIndirect || isPerlKeyword(text) || p.namedUnaryHere(spelled, text) ||
-		infix[text].BP > 0 || modifiers[text] {
+	if p.noIndirect || isPerlKeyword(text) || p.keywordHere(text) ||
+		p.namedUnaryHere(spelled, text) || infix[text].BP > 0 || modifiers[text] {
 		return nil
 	}
 	next, ok := p.peekAfter(word)
 	if !ok {
 		return nil
 	}
+	// unseen: the word is one perl has no CV for. Knowable only while the
+	// sub table is complete (symbolsOpen), and only for an unqualified word,
+	// since a loaded module's XS subs are not in the table by their
+	// qualified names.
+	_, wordKnown := p.lookupSub(spelled)
+	unseen := !p.symbolsOpen && !wordKnown && !strings.ContainsAny(spelled, ":'")
+
+	// `WORD $var`: toke.c:8216, a method call on the scalar when the word has
+	// no CV. Its arguments follow only if a term does -- in `s2 $f + 1` the
+	// `+` is binary and perl reads `$f->s2 + 1`.
+	if next.Kind == lexer.Variable && strings.HasPrefix(p.text(next), "$") {
+		if !unseen {
+			return nil
+		}
+		return p.finishIndirect(word, spelled, next, false)
+	}
+
 	if next.Kind != lexer.Word {
 		return nil
 	}
 	class := p.text(next)
-	if isPerlKeyword(keywordName(class)) || infix[class].BP > 0 || modifiers[class] {
+	if isPerlKeyword(keywordName(class)) || p.keywordHere(keywordName(class)) ||
+		infix[class].BP > 0 || modifiers[class] {
 		return nil
 	}
 	if _, known := p.lookupSub(class); known {
 		return nil
 	}
-	if !p.packages[class] && !interpreterPackages[class] {
+	// A known package, or any bareword after a word perl has no CV for:
+	// intuit_method's `!cv || gv_stashpvn(...)`.
+	if !p.packages[class] && !interpreterPackages[class] && !unseen {
 		return nil
 	}
 	if after, ok := p.peekAfter(next); ok && p.text(after) == "=>" {
 		return nil
 	}
-	invocant := &Node{Kind: Term, Text: class, Start: next.Start, End: next.End}
+	return p.finishIndirect(word, spelled, next, true)
+}
+
+// finishIndirect builds the indirect call whose invocant is the token after
+// word. A bareword invocant takes a list after it, as toke.c's METHCALL0
+// does; a scalar one only a list that begins with a term.
+func (p *parser) finishIndirect(word lexer.Token, spelled string, next lexer.Token, bareword bool) *Node {
+	invocant := &Node{Kind: Term, Text: p.text(next), Start: next.Start, End: next.End}
 
 	p.advanceTo(next)
 	n := &Node{
@@ -86,11 +118,30 @@ func (p *parser) parseIndirect(word lexer.Token, spelled, text string) *Node {
 		if close, ok := p.peekSignificant(); ok && p.text(close) == ")" {
 			p.advanceTo(close)
 		}
-	} else if tok, ok := p.peekSignificant(); ok && !endsArgumentList(tok, p.src) {
+	} else if tok, ok := p.peekSignificant(); ok && !endsArgumentList(tok, p.src) &&
+		(bareword || startsTerm(tok, p.src)) {
 		if arg := p.parseExpr(bpListOp); arg != nil {
 			n.Children = append(n.Children, arg)
 		}
 	}
 	n.End = p.prevEnd()
 	return n
+}
+
+// classKeywords are the keywords the class feature gates. Without it each is
+// an ordinary word -- `method $obj` is `$obj->method` on 5.42.0 -- because
+// keywords.c's keyword() returns 0 for them unless FEATURE_CLASS_IS_ENABLED
+// (keywords.c:1145, 1217, 1549, 1715, 2927).
+var classKeywords = map[string]bool{
+	"class": true, "method": true, "field": true, "ADJUST": true, "__CLASS__": true,
+}
+
+// keywordHere reports whether word is a keyword at this point of the file:
+// toke.c reaches intuit_method only for a word that is not. `last TEST16` and
+// `require mro` are keywords, never a method on TEST16 or mro.
+func (p *parser) keywordHere(word string) bool {
+	if classKeywords[word] {
+		return p.features["class"]
+	}
+	return lexer.IsKeyword(word)
 }

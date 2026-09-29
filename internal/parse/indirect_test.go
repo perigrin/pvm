@@ -27,8 +27,9 @@ import (
 //
 // The tree carries Indirect; canon keeps the spelling and adds the argument
 // parens, which re-parses to the same call and stays faithful to the source. The `WORD $var` half -- `doit $object
-// "FOO"` is `$object->doit('FOO')` -- is not read; see parseIndirect for the
-// measurement that ruled it out.
+// "FOO"` is `$object->doit('FOO')` -- is not read without a loader; see
+// parseIndirect for the measurement behind that, and TestIndirectOnScalar
+// for the half read with one.
 func TestIndirectObjectNotation(t *testing.T) {
 	cases := []struct {
 		src   string

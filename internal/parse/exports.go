@@ -67,6 +67,17 @@ type moduleFacts struct {
 	// none: a name missing from a partial list reads as "not exported" when
 	// the truth is "not known".
 	opaque bool
+
+	// dynamic marks a module that can put subs into its caller that no list
+	// here shows: its own `import`, an `import` inherited from a base other
+	// than Exporter, or a glob assigned under a computed name. What it
+	// defines is known to perl and not to this parser. See symbolsOpen.
+	dynamic bool
+
+	// globs are the names a literal glob assignment defines, `*run_perl =
+	// \&runperl` in t/test.pl: subs as real as a `sub NAME`, with no
+	// prototype this parser can read.
+	globs []string
 }
 
 // readModule pulls the export list and prototypes out of a parsed module.
@@ -85,7 +96,52 @@ func readModule(root *Node) moduleFacts {
 		}
 	}
 	readSubs(root, &facts)
+	if _, ok := facts.protos["import"]; ok {
+		facts.dynamic = true
+	}
+	readDynamic(root, &facts)
 	return facts
+}
+
+// readDynamic finds what can define subs out of this parser's sight --
+// see moduleFacts.dynamic -- and the names literal glob assignments define.
+func readDynamic(n *Node, facts *moduleFacts) {
+	switch {
+	case n.Kind == Use && len(n.Children) > 0 &&
+		(n.Children[0].Text == "parent" || n.Children[0].Text == "base"):
+		for _, c := range n.Children[1:] {
+			names, ok := literalNameList(c)
+			if !ok {
+				facts.dynamic = true
+			}
+			for _, name := range names {
+				if name != "Exporter" && name != "-norequire" {
+					facts.dynamic = true
+				}
+			}
+		}
+	case (n.Kind == Declaration || n.Kind == Binary && n.Text == "=") &&
+		len(n.Children) == 2 && n.Children[0].Text == "@ISA":
+		names, ok := literalNameList(n.Children[1])
+		if !ok {
+			facts.dynamic = true
+		}
+		for _, name := range names {
+			if name != "Exporter" {
+				facts.dynamic = true
+			}
+		}
+	case n.Kind == Binary && n.Text == "=" && len(n.Children) == 2 &&
+		n.Children[0].Kind == Term && strings.HasPrefix(n.Children[0].Text, "*"):
+		if glob := n.Children[0]; glob.Text == "*" {
+			facts.dynamic = true
+		} else {
+			facts.globs = append(facts.globs, strings.TrimPrefix(glob.Text, "*"))
+		}
+	}
+	for _, c := range n.Children {
+		readDynamic(c, facts)
+	}
 }
 
 // readSubs records every NAMED sub declaration, however deeply nested: a

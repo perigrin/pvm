@@ -72,3 +72,7 @@ var perlKeywords = map[string]bool{
 	"when": true, "while": true, "write": true, "x": true, "xor": true,
 	"y": true,
 }
+
+// IsKeyword reports whether word is one of perl's keywords, feature-gated
+// ones included: whether it is a keyword HERE is the caller's question.
+func IsKeyword(word string) bool { return perlKeywords[word] }

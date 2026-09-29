@@ -1,6 +1,6 @@
 # Unknown nodes per perl.git t/ file, through parse.ParseFileFrom.
 #
-# 620 files, 604 clean (97.4%), 37 total.
+# 620 files, 611 clean (98.5%), 22 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -185,8 +185,8 @@
 0 mro/overload_c3.t
 0 mro/overload_c3_utf8.t
 0 mro/overload_dfs.t
-1 mro/package_aliases.t
-1 mro/package_aliases_utf8.t
+0 mro/package_aliases.t
+0 mro/package_aliases_utf8.t
 0 mro/pkg_gen.t
 0 mro/pkg_gen_utf8.t
 0 mro/recursion_c3.t
@@ -267,7 +267,7 @@
 0 op/for.t
 0 op/fork.t
 0 op/fresh_perl_utf8.t
-1 op/getpid.t
+0 op/getpid.t
 0 op/getppid.t
 0 op/glob.t
 0 op/gmagic.t
@@ -277,7 +277,7 @@
 0 op/grent.t
 0 op/grep.t
 0 op/groups.t
-2 op/gv.t
+0 op/gv.t
 3 op/hash-clear-placeholders.t
 0 op/hash-rt85026.t
 0 op/hash.t
@@ -315,7 +315,7 @@
 0 op/lvref.t
 0 op/magic-27839.t
 0 op/magic.t
-7 op/method.t
+0 op/method.t
 0 op/mkdir.t
 0 op/multideref.t
 0 op/my.t
@@ -349,7 +349,7 @@
 0 op/readline.t
 0 op/readline_nb.t
 0 op/recurse.t
-1 op/ref.t
+0 op/ref.t
 0 op/refstack.t
 0 op/repeat.t
 0 op/require_37033.t
@@ -595,7 +595,7 @@
 0 uni/fold.t
 0 uni/goto.t
 0 uni/greek.t
-2 uni/gv.t
+0 uni/gv.t
 0 uni/labels.t
 0 uni/latin2.t
 0 uni/lex_utf8.t

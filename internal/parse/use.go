@@ -251,8 +251,10 @@ func (p *parser) resolveImports(module string, list *Node) {
 	}
 	facts, ok := p.res.resolve(module)
 	if !ok {
+		p.noteImportKnowledge(module, list, true)
 		return
 	}
+	p.noteImportKnowledge(module, list, facts.dynamic || facts.opaque)
 
 	// The module's own subs are callable by their qualified names whatever
 	// it exports: after `use overload;`, `overload::constant 'integer' =>
@@ -283,6 +285,7 @@ func (p *parser) resolveImports(module string, list *Node) {
 			names = got
 		} else if !list.Paren || len(list.Children) != 0 {
 			// A computed import list is opaque: it is not an empty import.
+			p.symbolsOpen = true
 			return
 		}
 	}
@@ -292,6 +295,34 @@ func (p *parser) resolveImports(module string, list *Node) {
 	}
 	for _, imp := range importsFrom(facts, names, listGiven) {
 		p.imports[subKey(imp.Name)] = imp
+	}
+}
+
+// quietPragmas are the core pragmas whose `import` defines no sub in the
+// caller: they switch features, warnings, strictures, layers, @INC or @ISA.
+// Their own modules define `import`, which would otherwise mark them dynamic.
+// `constant` and `subs` are not here: both declare subs this parser does not
+// record.
+var quietPragmas = map[string]bool{
+	"strict": true, "warnings": true, "utf8": true, "open": true,
+	"vars": true, "feature": true, "lib": true, "integer": true,
+	"bytes": true, "less": true, "sort": true, "overload": true,
+	"parent": true, "base": true, "mro": true, "locale": true,
+}
+
+// noteImportKnowledge records whether a `use` left the sub table complete.
+// A module that was not found, whose export list is computed, or that is
+// dynamic may have defined subs in this file that the table does not hold,
+// and from then on an unknown word is no longer one perl lacks a CV for.
+//
+// Config is generated when perl is built, so no source tree holds it; its
+// bare import is %Config alone, and it exports functions only when named.
+func (p *parser) noteImportKnowledge(module string, list *Node, unseen bool) {
+	switch {
+	case quietPragmas[module]:
+	case module == "Config" && list == nil:
+	case unseen || module == "Config":
+		p.symbolsOpen = true
 	}
 }
 
@@ -371,6 +402,7 @@ func (p *parser) resolveRequiredFile(list *Node) {
 	// double-quoted body is what separates the two, so it is checked on the
 	// text AS WRITTEN, before the quotes come off.
 	if interpolates(list.Text) {
+		p.symbolsOpen = true
 		return
 	}
 	names, ok := literalNameList(list)
@@ -379,6 +411,9 @@ func (p *parser) resolveRequiredFile(list *Node) {
 	}
 
 	facts, ok := p.res.resolveFile(names[0])
+	if !ok || facts.dynamic {
+		p.symbolsOpen = true
+	}
 	if !ok {
 		return
 	}
@@ -395,6 +430,12 @@ func (p *parser) resolveRequiredFile(list *Node) {
 			Name:           name,
 			Prototype:      proto,
 			PrototypeKnown: true,
+		}
+	}
+	// A glob it assigns is a sub too, with no prototype this parser reads.
+	for _, name := range facts.globs {
+		if _, ok := p.imports[subKey(name)]; !ok {
+			p.imports[subKey(name)] = Import{Name: name}
 		}
 	}
 }
@@ -419,12 +460,45 @@ func (p *parser) parsePhaser(word lexer.Token) *Node {
 
 	if blk := p.parseBlockOrDecline(); blk != nil {
 		n.Children = append(n.Children, blk)
+		if n.Text == "BEGIN" {
+			p.noteBeginEffects(blk)
+		}
 	}
 	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
 		p.advanceTo(tok)
 	}
 	n.End = p.prevEnd()
 	return n
+}
+
+// noteBeginEffects reads what a BEGIN block does to the sub table before the
+// code after it compiles. A literal glob assignment defines a name: `BEGIN {
+// *BB::e = \&C::e }` in t/op/method.t. A computed glob, an `import` call, a
+// string eval or a `do FILE` may define anything, so the table is no longer
+// complete. See symbolsOpen.
+func (p *parser) noteBeginEffects(n *Node) {
+	switch {
+	case n.Kind == Binary && n.Text == "=" && len(n.Children) == 2 &&
+		n.Children[0].Kind == Term && strings.HasPrefix(n.Children[0].Text, "*"):
+		if name := strings.TrimPrefix(n.Children[0].Text, "*"); name != "" {
+			if p.imports == nil {
+				p.imports = map[string]Import{}
+			}
+			if _, ok := p.imports[subKey(name)]; !ok {
+				p.imports[subKey(name)] = Import{Name: name}
+			}
+		} else {
+			p.symbolsOpen = true
+		}
+	case n.Text == "import" || n.Text == "unimport":
+		p.symbolsOpen = true
+	case n.Kind == Call && (n.Text == "eval" || n.Text == "do") &&
+		len(n.Children) > 0 && n.Children[0].Kind != Block:
+		p.symbolsOpen = true
+	}
+	for _, c := range n.Children {
+		p.noteBeginEffects(c)
+	}
 }
 
 // parseSpecialSub: `DESTROY { ... }` and `AUTOLOAD { ... }`, which declare the

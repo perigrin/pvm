@@ -482,7 +482,7 @@ func parseRoot(src []byte, res *resolver) *Node {
 	root := &Node{Kind: SourceFile, Start: 0, End: len(src)}
 	toks := lexer.Tokenize(src)
 
-	p := &parser{src: src, toks: toks, res: res}
+	p := &parser{src: src, toks: toks, res: res, symbolsOpen: res == nil}
 	for p.pos < len(p.toks) {
 		before := p.pos
 		if n := p.statement(); n != nil {
@@ -553,6 +553,13 @@ type parser struct {
 	// 'indirect'`, or a 5.36+ bundle, which drops it. File-level, like
 	// features.
 	noIndirect bool
+
+	// symbolsOpen is set once a sub may exist that this parse cannot see:
+	// there is no loader, or a `use`, a required file or a BEGIN block did
+	// something this parser does not read -- see noteImportKnowledge. While
+	// it is clear, a word missing from the sub table is one perl has no CV
+	// for either, which is what `WORD $var` as a method call rests on.
+	symbolsOpen bool
 
 	// packages names every `package` and `class` read so far. A bareword
 	// naming one is a class even when the word before it is a known sub --
