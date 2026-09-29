@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 732 clean (74.2%), 1296 total.
+# 986 files, 732 clean (74.2%), 1295 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -496,7 +496,7 @@
 5 mojolicious_inherited_listener_regression.t
 8 mojolicious_mount_lifecycle_regression.t
 6 mojolicious_parser_diagnostic_parity.t
-4 mojolicious_promise_lifecycle_regressions.t
+3 mojolicious_promise_lifecycle_regressions.t
 6 mojolicious_skipped_closure_lifecycle_regression.t
 6 mojolicious_socket_poll_regressions.t
 2 moose_regexpref_constraint.t

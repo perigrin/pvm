@@ -207,6 +207,20 @@ func (e Expect) after(k Kind, t transition) Expect {
 		// `${*$glob}{Keys} = 5;` parsed as a bare block.
 		return XTerm
 	case Word:
+		// A sub or package NAME is followed by a block, not a term. perl
+		// says so with PREBLOCK, which sets XBLOCK -- toke.c:6636 for a sub
+		// name, 8862 for a package.
+		//
+		// Without this the `{` of `sub f { 1 }` is classified from XTerm and
+		// reads as an anonymous hash, so its `}` reports a closed subscript
+		// and the body never becomes a block.
+		//
+		// It is tested before the niladic table because a declared name is
+		// a name whatever builtin it shares a spelling with: `sub time { 1 }`
+		// declares a sub named time.
+		if t.afterDeclName {
+			return XBlock
+		}
 		// A niladic builtin has produced a value, so an operator comes next.
 		// Measured before the table existed:
 		//
@@ -216,16 +230,6 @@ func (e Expect) after(k Kind, t transition) Expect {
 		// for how the 21 niladic keywords were measured.
 		if isNiladic(string(t.text)) {
 			return XOperator
-		}
-		// A sub or package NAME is followed by a block, not a term. perl
-		// says so with PREBLOCK, which sets XBLOCK -- toke.c:6636 for a sub
-		// name, 8862 for a package.
-		//
-		// Without this the `{` of `sub f { 1 }` is classified from XTerm and
-		// reads as an anonymous hash, so its `}` reports a closed subscript
-		// and the body never becomes a block.
-		if t.afterDeclName {
-			return XBlock
 		}
 		// A PHASER's brace is always a block, never a hash, so the word
 		// alone settles it -- no lookahead, the way a sub name needs none.
