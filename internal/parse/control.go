@@ -321,6 +321,38 @@ func (p *parser) parseGoto(word lexer.Token) *Node {
 	return n
 }
 
+// parseRefaliasVar reads `\VAR` or `\my VAR` at the backslash, where VAR is
+// one variable token or `&name`, or returns nil with nothing consumed.
+func (p *parser) parseRefaliasVar(slash lexer.Token) *Node {
+	save := p.pos
+	p.advanceTo(slash)
+	var target *Node
+	if w, ok := p.peekSignificant(); ok && w.Kind == lexer.Word && keywordName(p.text(w)) == "my" {
+		p.advanceTo(w)
+		v, ok := p.peekSignificant()
+		if !ok || v.Kind != lexer.Variable {
+			p.pos = save
+			return nil
+		}
+		p.advanceTo(v)
+		target = &Node{
+			Kind: Declaration, Text: p.text(w), Start: w.Start, End: v.End,
+			Children: []*Node{{Kind: Term, Text: p.text(v), Start: v.Start, End: v.End}},
+		}
+	} else if v, ok := p.peekSignificant(); ok && (v.Kind == lexer.Variable || v.Kind == lexer.FuncSigil) {
+		target = p.parseTerm()
+	}
+	if target == nil {
+		p.pos = save
+		return nil
+	}
+	return &Node{
+		Kind: Unary, Text: "ref",
+		Start: slash.Start, End: target.End,
+		Children: []*Node{target},
+	}
+}
+
 // parseReturn: `return;` and `return LIST;`.
 func (p *parser) parseReturn(word lexer.Token) *Node {
 	n := p.parseReturnTerm(word)
@@ -518,6 +550,16 @@ func (p *parser) parseFor(word lexer.Token) *Node {
 	// statement fell to Unknown.
 	if next, ok := p.peekSignificant(); ok && p.text(next) != "(" {
 		switch {
+		case p.text(next) == "\\":
+			// A REFERENCE to alias through: `for \$x (...)`, `for \@a`,
+			// `for \&f`, and `for \my $x` -- perly.y's `REFGEN
+			// refgen_topic` and `REFGEN KW_MY`. The operand is exactly one
+			// variable: parsed as a prefix operand it took the list as a
+			// call on the variable.
+			if v := p.parseRefaliasVar(next); v != nil {
+				v.LoopVar = true
+				n.Children = append(n.Children, v)
+			}
 		case next.Kind == lexer.Word && declarators[keywordName(p.text(next))]:
 			p.advanceTo(next)
 			decl := &Node{Kind: Declaration, Text: p.text(next), Start: next.Start}
@@ -535,6 +577,11 @@ func (p *parser) parseFor(word lexer.Token) *Node {
 				decl.Children = append(decl.Children, &Node{
 					Kind: Term, Text: p.text(v), Start: v.Start, End: v.End,
 				})
+			} else if ok && p.text(v) == "\\" {
+				// `for my \$x (...)`, perly.y's `KW_MY REFGEN`.
+				if ref := p.parseRefaliasVar(v); ref != nil {
+					decl.Children = append(decl.Children, ref)
+				}
 			}
 			decl.End = p.prevEnd()
 			decl.LoopVar = true
