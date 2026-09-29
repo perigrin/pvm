@@ -19,7 +19,7 @@ var phasers = map[string]bool{
 
 // parseTheRest handles the statement forms this issue owns, or returns nil.
 func (p *parser) parseTheRest(word lexer.Token) *Node {
-	text := p.text(word)
+	text := keywordName(p.text(word))
 	switch {
 	case text == "use" || text == "no" || text == "require":
 		return p.parseUse(word)

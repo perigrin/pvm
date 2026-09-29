@@ -40,20 +40,37 @@ const (
 
 // parseWordTerm turns a bareword in term position into a call, a bareword
 // term, or a declaration-like keyword the caller handles.
+// keywordName is the keyword a word names: `CORE::X` is X, the builtin
+// whatever else is in scope -- measured on 5.42.0, Deparse writes
+// `CORE::state $x`, `CORE::say` and `CORE::length $s` as the bare keywords.
+// `CORE::GLOBAL::` is a namespace for overriding builtins, not a keyword
+// prefix, and is left alone.
+func keywordName(word string) string {
+	rest, ok := strings.CutPrefix(word, "CORE::")
+	if !ok || strings.HasPrefix(rest, "GLOBAL::") {
+		return word
+	}
+	return rest
+}
+
 func (p *parser) parseWordTerm(word lexer.Token) *Node {
-	text := p.text(word)
+	// spelled is the word as written and is what the node records; text is
+	// what it names, which keywordName gives with any `CORE::` prefix off, so
+	// `CORE::length $s` classifies as `length` and still canons as written.
+	spelled := p.text(word)
+	text := keywordName(spelled)
 
 	// A niladic builtin takes nothing: `time`, `wantarray`.
 	if niladicParse[text] {
 		p.advanceTo(word)
 		return &Node{
-			Kind: Call, Text: text, Resolved: true,
+			Kind: Call, Text: spelled, Resolved: true,
 			Start: word.Start, End: word.End,
 		}
 	}
 
 	p.advanceTo(word)
-	n := &Node{Kind: Call, Text: text, Start: word.Start}
+	n := &Node{Kind: Call, Text: spelled, Start: word.Start}
 
 	// The paren cliff, §4.8.1. A `(` immediately after the name makes this a
 	// FUNC1 -- the parens delimit the arguments and nothing beyond them

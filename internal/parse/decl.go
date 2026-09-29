@@ -20,7 +20,7 @@ var declarators = map[string]bool{
 // parseDeclaration parses one declaration, or returns nil if this word does
 // not start one.
 func (p *parser) parseDeclaration(word lexer.Token) *Node {
-	text := p.text(word)
+	text := keywordName(p.text(word))
 	switch {
 	case declarators[text]:
 		if lex := p.parseLexicalSub(word); lex != nil {

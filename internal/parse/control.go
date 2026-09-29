@@ -8,7 +8,7 @@ import "tamarou.com/pvm/internal/lexer"
 // parseControlFlow parses one control-flow statement, or returns nil if this
 // word does not start one.
 func (p *parser) parseControlFlow(word lexer.Token) *Node {
-	switch p.text(word) {
+	switch keywordName(p.text(word)) {
 	case "if", "unless":
 		return p.parseConditional(word)
 	case "while", "until":
@@ -507,7 +507,7 @@ func (p *parser) parseFor(word lexer.Token) *Node {
 	// consuming it here leaves the head unparseable -- measured: the whole
 	// statement fell to Unknown.
 	if next, ok := p.peekSignificant(); ok && p.text(next) != "(" {
-		if next.Kind == lexer.Word && declarators[p.text(next)] {
+		if next.Kind == lexer.Word && declarators[keywordName(p.text(next))] {
 			p.advanceTo(next)
 			decl := &Node{Kind: Declaration, Text: p.text(next), Start: next.Start}
 			// `for my ($k, $v) (LIST)` iterates several variables at once,
@@ -604,7 +604,7 @@ func (p *parser) parseForHead() ([]*Node, bool) {
 		// `for (my $i = 0; ...)` -- and a declaration is not an expression,
 		// so the expression parser cannot read it.
 		var part *Node
-		if tok.Kind == lexer.Word && declarators[p.text(tok)] {
+		if tok.Kind == lexer.Word && declarators[keywordName(p.text(tok))] {
 			part = p.parseVarDeclNoSemi(tok)
 		} else {
 			part = p.parseExpr(0)
