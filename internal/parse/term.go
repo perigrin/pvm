@@ -221,6 +221,20 @@ func (p *parser) parseTerm() *Node {
 		// hash was being built around the very expression being
 		// dereferenced.
 		if open, ok := p.peekSignificant(); ok && p.text(open) == "{" {
+			// The braces hold a BLOCK in perly.y (`indirob: ... | block`),
+			// and almost always one expression. A `;` -- first, or after
+			// that expression -- says there are statements: `${; do { ... }
+			// }`, `${no strict; \$_}`. Measured on 5.42.0, Deparse keeps
+			// both as blocks. They are read as one then, and canon's Block
+			// writes the braces the sigil needs.
+			if p.derefHoldsStatements(open) {
+				blk := p.parseBlock(open)
+				return &Node{
+					Kind: Unary, Text: text,
+					Start: tok.Start, End: blk.End,
+					Children: []*Node{blk},
+				}
+			}
 			p.advanceTo(open)
 			inner := p.parseExpr(0)
 			if close, ok := p.peekSignificant(); ok && p.text(close) == "}" {
@@ -331,6 +345,28 @@ func (p *parser) declaratorTakesTarget(word lexer.Token) bool {
 		return false
 	}
 	return next.Kind == lexer.Variable || p.text(next) == "("
+}
+
+// derefHoldsStatements reports whether the brace at open, after a deref
+// sigil, holds statements rather than one expression: anything but one
+// expression running to the closing `}`. A statement form such as `use
+// strict` is no expression at all, and its refusal skips past the `;`, so
+// the test is what the expression reaches rather than whether a `;` follows
+// it. The cursor is left where it was.
+func (p *parser) derefHoldsStatements(open lexer.Token) bool {
+	save := p.pos
+	defer func() { p.pos = save }()
+	p.advanceTo(open)
+	first, ok := p.peekSignificant()
+	if !ok || p.text(first) == "}" {
+		return false // `${}`: EmptyDeref's, below.
+	}
+	if first.Kind == lexer.Semicolon {
+		return true
+	}
+	p.parseExpr(0)
+	tok, ok := p.peekSignificant()
+	return !ok || p.text(tok) != "}"
 }
 
 // parseAnonSub: `sub { ... }` and `sub ($x) { ... }` with no name.
