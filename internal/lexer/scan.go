@@ -993,6 +993,12 @@ func scanBarePattern(l *lexer) bool {
 	if l.src[l.pos] != '/' || !l.expect.wantsTerm() {
 		return false
 	}
+	// XTERMORDORDOR wants a term, except that `//` is defined-or there:
+	//
+	//	if ((PL_expect == XOPERATOR || PL_expect == XTERMORDORDOR) && s[1] == '/')
+	if l.expect == XTermOrDorDor && l.pos+1 < len(l.src) && l.src[l.pos+1] == '/' {
+		return false
+	}
 	start := l.pos
 	l.pos++
 	if !l.scanDelimitedBody('/', 0) {

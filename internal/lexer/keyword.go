@@ -1,7 +1,9 @@
-// ABOUTME: The keyword table: which builtins leave an operator expected rather than a term.
-// ABOUTME: One bit per keyword, because the expect state has exactly two outcomes.
+// ABOUTME: The keyword tables: which builtins leave an operator expected rather than a term,
+// ABOUTME: and which leave a term expected with `//` still read as defined-or.
 
 package lexer
+
+import "strings"
 
 // niladic is every perl builtin that takes no argument, so a value has just
 // been produced and an OPERATOR comes next.
@@ -64,6 +66,27 @@ var niladic = map[string]bool{
 // does not name.
 func isNiladic(word string) bool {
 	return niladic[word]
+}
+
+// unidor is every named unary toke.c lexes with UNIDOR, which leaves
+// XTERMORDORDOR rather than XTERM, so a `//` after it is defined-or:
+//
+//	$ grep -o 'UNIDOR(OP_[A-Z]*)' toke.c
+//	UNIDOR(OP_GETC) UNIDOR(OP_POP) UNIDOR(OP_POS) UNIDOR(OP_READLINE)
+//	UNIDOR(OP_BACKTICK) UNIDOR(OP_READLINK) UNIDOR(OP_SHIFT)
+//	UNIDOR(OP_UNDEF) UNIDOR(OP_UMASK)
+//
+// OP_BACKTICK is KEY_readpipe.
+var unidor = map[string]bool{
+	"getc": true, "pop": true, "pos": true, "readline": true,
+	"readpipe": true, "readlink": true, "shift": true, "undef": true,
+	"umask": true,
+}
+
+// isUnidor reports whether `//` after this word is defined-or. The CORE::
+// spelling is the same builtin.
+func isUnidor(word string) bool {
+	return unidor[strings.TrimPrefix(word, "CORE::")]
 }
 
 // blockTaking is every builtin whose first argument may be a BLOCK rather

@@ -271,6 +271,14 @@ func (e Expect) after(k Kind, t transition) Expect {
 		// which no table can settle: perl consults the stash, and three
 		// different parses come out of `zzz / 2` depending on whether and how
 		// zzz was declared (see isNiladic). That one stays a hedge.
+		//
+		// A UNIDOR builtin wants a term too, but a `//` after it is
+		// defined-or rather than an empty pattern -- see isUnidor. It sits
+		// after the name and brace cases because `sub pop { ... }` must
+		// still open a block.
+		if isUnidor(string(t.text)) {
+			return XTermOrDorDor
+		}
 		return XTerm
 	case Operator:
 		// A block's opening brace leaves a STATEMENT boundary: the first thing
