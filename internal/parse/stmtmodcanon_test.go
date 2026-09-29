@@ -68,7 +68,12 @@ func TestStatementModifierKeepsItsBody(t *testing.T) {
 		// A list operator body is where the swap was ugliest, because the
 		// emission put a keyword in front of a call and a bare array after
 		// it -- `foreach (push(@r , $_)) @a` is not a parse of anything.
-		{"print $_ foreach @a;", "print $_ foreach @a;"},
+		//
+		// This case once expected `print $_ foreach @a;` verbatim, which is
+		// what canon echoes for an UNKNOWN: `$_` was taken as print's handle,
+		// the statement refused, and the test -- which asserts only the canon
+		// -- matched the echo. Read correctly, the call gains its parens.
+		{"print $_ foreach @a;", "print($_) foreach @a;"},
 
 		// A body whose last token is a `}` but which is NOT a block form.
 		// endsInBlock already declined the modifier for `defer { ... } if`;

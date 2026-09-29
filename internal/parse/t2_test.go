@@ -400,7 +400,9 @@ func TestT2CoreParses(t *testing.T) {
 		// `;` and closers.
 		// comp/require.t left the map when `CORE::require bleah` began
 		// classifying as `require` (issue 01a0eb22).
-		"comp/redef.t": 1, "comp/retainedlines.t": 2,
+		// comp/redef.t left the map when a modifier after print's scalar
+		// stopped making it a handle: `print $warn if length $warn;`.
+		"comp/retainedlines.t": 2,
 		// comp/use.t 1 -> 0 and LEAVES THIS MAP with the last statement of a
 		// block needing no `;` (issue 01a0dfb8). Its one remaining refusal was
 		// the `}` that `use`'s import-list hunt had swallowed; parseUse now

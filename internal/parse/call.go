@@ -628,8 +628,13 @@ func startsTerm(tok lexer.Token, src []byte) bool {
 		//
 		// Asked of `infix` rather than of a list written here, so a word
 		// operator arrives in ONE place and every caller follows.
-		_, isOperator := infix[string(src[tok.Start:tok.End])]
-		return !isOperator
+		//
+		// A statement MODIFIER does not start a term either: `print $warn if
+		// length $warn` prints $warn, measured on 5.42.0. Answering yes made
+		// the scalar a handle and left the modifier nothing to attach to.
+		word := string(src[tok.Start:tok.End])
+		_, isOperator := infix[word]
+		return !isOperator && !modifiers[word]
 	}
 	return false
 }
