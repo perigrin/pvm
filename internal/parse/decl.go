@@ -56,7 +56,10 @@ func (p *parser) parseDeclaration(word lexer.Token) *Node {
 // parseSignature reads a sub's signature as the parenthesised list it is
 // shaped like.
 func (p *parser) parseSignature(n *Node) {
-	if sig := p.parseTerm(); sig != nil {
+	p.inSignature = true
+	sig := p.parseTerm()
+	p.inSignature = false
+	if sig != nil {
 		n.Children = append(n.Children, sig)
 	}
 }

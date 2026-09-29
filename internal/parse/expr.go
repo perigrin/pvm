@@ -270,6 +270,14 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 			}
 		default:
 			p.advanceTo(tok)
+			if p.emptyDefault(left, op) {
+				left = &Node{
+					Kind: Binary, Text: text,
+					Start: left.Start, End: tok.End,
+					Children: []*Node{left},
+				}
+				continue
+			}
 			right := p.operand(op.rightBP(), tok)
 			left = &Node{
 				Kind: Binary, Text: text,
@@ -278,6 +286,20 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 			}
 		}
 	}
+}
+
+// emptyDefault reports whether an assignment has no right operand because it
+// is a signature placeholder's empty default: `($=)`, `($y, $ //=)`. perly.y's
+// optsigscalardefault may be empty after a placeholder, and only there --
+// measured on 5.42.0, `sub c ($x=) {}` is "Optional parameter lacks default
+// expression". The Binary keeps its one child and canon writes its source.
+func (p *parser) emptyDefault(left *Node, op OpInfo) bool {
+	if !p.inSignature || op.Level != assignLevel || left.Kind != Term ||
+		len(p.src[left.Start:left.End]) != 1 {
+		return false
+	}
+	next, ok := p.peekSignificant()
+	return ok && (p.text(next) == "," || p.text(next) == ")")
 }
 
 // operand parses a right-hand operand, substituting an explicit Unknown when
