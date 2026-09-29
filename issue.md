@@ -1,10 +1,19 @@
 ---
 title: "perl's own XSUBs are undeclared: utf8::encode $x refuses though perl defines it at startup"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T02:16:07.059364701Z
-updated: 2026-09-29T02:16:07.059364701Z
+updated: 2026-09-29T02:35:24.624046671Z
+sessions:
+- start_sha: f9c96510c1142c37237b7b0cf0013b9a12ac0bf1
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T02:35:24.624046671Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T02:35:24.624046671Z
 ---
 
 perl defines a table of subs itself, at interpreter start, before any file is
