@@ -3,7 +3,11 @@
 
 package parse
 
-import "tamarou.com/pvm/internal/lexer"
+import (
+	"strings"
+
+	"tamarou.com/pvm/internal/lexer"
+)
 
 // parseTerm parses one term: a literal, a variable, a prefix operator and its
 // operand, a parenthesised list, or an anonymous constructor.
@@ -123,6 +127,15 @@ func (p *parser) parseTerm() *Node {
 	// the parser knows which because parseTerm is only called where a term
 	// is expected.
 	if text == "*" {
+		// A name that is not an identifier: `*1`, `*^R`, `*-`. perl accepts
+		// any variable name here -- measured on 5.42.0, `local *a = *1;`,
+		// `*^R = *foo;` and `*X = *-;` each deparse as written -- and the
+		// lexer emits the star and the name apart, so the glob is assembled
+		// here. Only TOUCHING the star: a digit, `^` and a letter, or a
+		// single punctuation byte.
+		if glob := p.globWithSpecialName(tok); glob != nil {
+			return glob
+		}
 		if name, ok := p.peekAfter(tok); ok &&
 			(name.Kind == lexer.Word || name.Kind == lexer.Variable ||
 				p.text(name) == "{") {
@@ -378,6 +391,50 @@ func (p *parser) prefixAllowed(text string) bool {
 		return true
 	}
 	return false
+}
+
+// globWithSpecialName reads `*1`, `*^R` or `*-` at the star tok, or returns
+// nil. See the glob branch of parseTerm.
+func (p *parser) globWithSpecialName(star lexer.Token) *Node {
+	name, ok := p.peekAfter(star)
+	if !ok || name.Start != star.End {
+		return nil
+	}
+	// last is the final token of the name: the name itself, or the letter
+	// after a caret.
+	var last lexer.Token
+	switch text := p.text(name); {
+	case name.Kind == lexer.Number && isAllDigits(text):
+		last = name
+	case text == "^":
+		letter, ok := p.peekAfter(name)
+		if !ok || letter.Start != name.End || letter.Kind != lexer.Word {
+			return nil
+		}
+		last = letter
+	case name.Kind == lexer.Operator && len(text) == 1 && strings.IndexByte("-+/!&", text[0]) >= 0:
+		last = name
+	default:
+		return nil
+	}
+	p.advanceTo(last)
+	return &Node{
+		Kind: Term, Text: string(p.src[star.Start:last.End]),
+		Start: star.Start, End: last.End,
+	}
+}
+
+// isAllDigits reports whether s is one or more ASCII digits.
+func isAllDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // prefixName distinguishes the unary spelling from the infix one in the
