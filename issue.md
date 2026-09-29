@@ -1,19 +1,29 @@
 ---
 title: "Attributes before a signature split the sub: `sub f :prototype($) ($a) {...}`"
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T08:36:04.080118176Z
-updated: 2026-09-29T08:49:15.048981007Z
+updated: 2026-09-29T09:00:02.188878874Z
 sessions:
 - start_sha: 09b4134381cb566dc9d94e715c6e742875f8d50e
-  end_sha: ""
-  commits: 0
+  end_sha: c54e1e5b90bc395cfaca3eefadfd704a3a4a6ee5
+  commits: 1
   started_at: 2026-09-29T08:49:15.048981007Z
+  ended_at: 2026-09-29T09:00:02.188878874Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-29T08:49:15.048981007Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-29T09:00:02.188878874Z
+observed_paths:
+- internal/lexer/proto.go
+- internal/parse/attrsig_test.go
+- internal/parse/decl.go
+- internal/parse/testdata/perlgitt.ratchet
+- internal/parse/use.go
 ---
 
 Under the signatures feature, a sub's attributes come BEFORE its signature; perl rejects them after ("Subroutine attributes must come before the signature"). parseSubDecl reads the parens first and the attributes second -- the prototype order -- so `sub t105 :prototype($) ($a) { ... }` stops after the attribute list and the signature and body are left over. At Unknown=0 the tree was wrong; since 01a0ec21-837a-73e2-9f6d-dba44e242bd3 it refuses.
