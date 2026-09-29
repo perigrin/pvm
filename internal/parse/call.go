@@ -21,9 +21,11 @@ const (
 	bpNamedUnary = 190
 	bpListOp     = 70
 
-	// A dereference binds tighter than every infix operator, `->` at level
-	// 29 included, so its operand is the braced expression or the single
-	// variable and nothing more.
+	// A dereference binds tighter than every infix and postfix operator --
+	// `->` at level 29 and the subscripts at 32 included -- so its operand
+	// is the braced expression or the single variable and nothing more. At
+	// 320 the operand parse stops before a subscript, whose own power is
+	// 320: below that, `@$r[1,2]` read as a deref of `$r[1,2]`.
 	//
 	// `$$x[0]` is `${$x}[0]` -- the subscript applies to the DEREFERENCE,
 	// not to `$x` -- so the sigil must take its operand before any postfix
@@ -35,7 +37,7 @@ const (
 	//
 	// Deparse prints the arrow form, which is the same operation spelled the
 	// other way -- and is why §4.14 gives both one node with an `Arrow` flag.
-	bpDeref = 300
+	bpDeref = 320
 )
 
 // parseWordTerm turns a bareword in term position into a call, a bareword

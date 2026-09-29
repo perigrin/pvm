@@ -204,9 +204,31 @@ func decidedMarkers(stmt *Node) []decided {
 			//	my %h;  delete $h{a}      0
 			//	our %h; delete local $h{a} 1
 			//
-			// Hedged for a NAMED base and left alone for a dereference: the
-			// `@$r{...}` form is a Unary `@` over this node and is decided
-			// there, where the sigil says a reference is being read.
+			// A SLICE through a reference is rv2hv, decided: `@$r{"a","b"}`
+			// is this node over a Unary `@`, and perl emits the op because a
+			// reference is being read. Measured 1, where the same slice of a
+			// named lexical hash is 0. `@$aref[0,1]` is an array slice --
+			// rv2av -- so the BRACE is what makes this a hash, not the
+			// sigil. `@{$r->{x}}` is an array dereference of an element and
+			// never reaches here: its Index is inside the Unary.
+			//
+			// The Unary is not walked as a node of its own, which would
+			// report nothing for `@` anyway; its operand and the subscript
+			// are.
+			if n.Text == "{" && !n.Arrow && len(n.Children) > 0 &&
+				n.Children[0].Kind == Unary && n.Children[0].Text == "@" {
+				add(parseoracle.SiteKindHash, n)
+				for _, c := range n.Children[0].Children {
+					walk(c)
+				}
+				for _, c := range n.Children[1:] {
+					walk(c)
+				}
+				return
+			}
+
+			// Hedged for a NAMED base and left alone for a dereference,
+			// which is decided above.
 			if n.Text == "{" && len(n.Children) > 0 &&
 				n.Children[0].Kind == Term && !n.Arrow &&
 				isNamedVariable(n.Children[0].Text) {
@@ -233,20 +255,16 @@ func decidedMarkers(stmt *Node) []decided {
 			if n.Text == "%" {
 				add(parseoracle.SiteKindHash, n)
 			}
-			// A SLICE through a reference is rv2hv too: `@$r{"a","b"}` is a
-			// Unary `@` over a brace Index, and perl emits the op because a
-			// reference is being read. Measured 1, where the same slice of a
-			// named lexical hash is 0.
+			// A braced deref of a brace subscript, `@{$::{$keys[0]}}`, is
+			// decided here as one hash site, and its inner Index is not
+			// walked, so the subscript does not hedge the same access. perl
+			// emits one rv2hv for that statement, measured.
 			//
-			// `@$aref[0,1]` is an array slice -- rv2av -- so the BRACE is
-			// what makes this a hash, not the sigil.
+			// The bare slice `@$r{"a","b"}` does not reach here: it is a
+			// subscript on the deref, decided in the Index case.
 			//
-			// The inner Index is NOT walked: this node decides the access,
-			// and letting the subscript hedge it as well would report the
-			// same hash twice, one decided and one not.
 			// NOT `@{$r->{x}}`, which is an ARRAY dereference of a hash
-			// element -- rv2av, a different op. Its Index carries Arrow;
-			// a slice's does not, because `@$r{...}` has no arrow in it.
+			// element -- rv2av, a different op. Its Index carries Arrow.
 			if n.Text == "@" && len(n.Children) == 1 &&
 				n.Children[0].Kind == Index && n.Children[0].Text == "{" &&
 				!n.Children[0].Arrow {

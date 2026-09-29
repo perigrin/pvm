@@ -573,6 +573,11 @@ func bindingPower(n *Node) int {
 	case Ternary:
 		return infix["?"].BP
 	case Unary:
+		// A dereference is a term: a subscript after it applies to it, so
+		// `$$r[0]` is written bare, not as the list slice `($$r)[0]`.
+		if isDerefSigil(n.Text) {
+			return atomBP
+		}
 		return prefix[unaryToken(n.Text)]
 	case Postfix:
 		return infix[n.Text].BP
@@ -606,6 +611,16 @@ func bindingPower(n *Node) int {
 	default:
 		return atomBP
 	}
+}
+
+// isDerefSigil reports whether a Unary's operator is a sigil applied to an
+// expression: `${...}`, `@{...}`, `%{...}`, `*{...}`, `&{...}`.
+func isDerefSigil(op string) bool {
+	switch op {
+	case "$", "@", "%", "*", "&", "$#":
+		return true
+	}
+	return false
 }
 
 // unaryToken spells a Unary node's operation back as its source token.

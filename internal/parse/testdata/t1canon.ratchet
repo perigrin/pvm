@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 932 clean (94.5%), 54 total.
+# 986 files, 954 clean (96.8%), 32 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -31,7 +31,7 @@
 0 b_deparse_prototype_block.t
 0 b_deparse_source_visible.t
 0 b_deparse_source_visible_anon_sub.t
-1 b_end_av.t
+0 b_end_av.t
 0 b_flags_portable.t
 0 b_gv_io.t
 1 b_hooks_endofscope_require.t
@@ -53,7 +53,7 @@
 0 bless_existing_scalar_ref_destroy.t
 0 blessed_code_isa.t
 0 blessed_glob_destroy_lifetime.t
-1 blessed_self_cycle.t
+0 blessed_self_cycle.t
 0 boolean_bitwise_xor.t
 0 borrowed_filehandle_alias.t
 0 builtin_export_lexically.t
@@ -165,7 +165,7 @@
 0 cpan_test_dependency_blib.t
 0 cpan_tooling_posix_yaml_syck.t
 0 cpan_tooling_regressions.t
-1 cpan_tooling_runtime.t
+0 cpan_tooling_runtime.t
 0 cpanel_json_xs_mojo_compat.t
 0 cpanel_json_xs_options.t
 0 crypt_openssl_random_export.t
@@ -346,13 +346,13 @@
 0 goto_tailcall_cleanup.t
 1 goto_tailcall_core_destroy_order.t
 0 harness_skip_all.t
-1 hash.t
+0 hash.t
 0 hash_autovivification.t
 0 hash_interpolation_warning.t
 0 hash_literal_anonymous_ref_cleanup.t
 1 hash_ref_disambiguation.t
 0 hash_slice_postincrement.t
-1 hash_slot_aliasing.t
+0 hash_slot_aliasing.t
 0 hash_util_fieldhash_identity.t
 0 heredoc.t
 0 heredoc_infix_continuation.t
@@ -391,7 +391,7 @@
 0 interpreter_foreach_continue_alias.t
 0 interpreter_globref_code_assignment.t
 0 interpreter_labeled_next_continue_block.t
-1 interpreter_local_hash_slice_coderef_method.t
+0 interpreter_local_hash_slice_coderef_method.t
 0 interpreter_myhash_myarray_scope_exit.t
 0 interpreter_nested_factory_array_lifetime.t
 0 interpreter_next_inside_foreach_continue.t
@@ -496,7 +496,7 @@
 0 mojolicious_inherited_listener_regression.t
 0 mojolicious_mount_lifecycle_regression.t
 0 mojolicious_parser_diagnostic_parity.t
-1 mojolicious_promise_lifecycle_regressions.t
+0 mojolicious_promise_lifecycle_regressions.t
 0 mojolicious_skipped_closure_lifecycle_regression.t
 0 mojolicious_socket_poll_regressions.t
 0 moose_regexpref_constraint.t
@@ -565,10 +565,10 @@
 0 pack_u0_unicode_directive_boundary.t
 0 pack_u0_utf8_validation.t
 0 pack_utf8.t
-1 package_decl_stash.t
+0 package_decl_stash.t
 0 package_stash_constant_code.t
 0 package_stash_get_or_add_symbol.t
-1 padwalker_closed_over.t
+0 padwalker_closed_over.t
 0 padwalker_set_closed_over.t
 0 padwalker_var_name.t
 0 params_classify_primitives.t
@@ -736,7 +736,7 @@
 0 storable_code_deparse.t
 0 storable_dclone_tied_scalar_element.t
 0 storable_dclone_weak_refs.t
-1 storable_tied_nested_refs.t
+0 storable_tied_nested_refs.t
 0 storable_top_blessed_scalar_ref.t
 0 strict_subs_void_bareword.t
 0 string_case_escape.t
@@ -792,7 +792,7 @@
 0 test_more.t
 0 text_balanced.t
 0 text_csv.t
-1 text_qrcode_java_xs.t
+0 text_qrcode_java_xs.t
 0 threads_api_phase29.t
 0 threads_basic_unadvertised.t
 0 threads_captured_object_lifetime.t
@@ -824,7 +824,7 @@
 0 threads_postfix_create_and_invalid_entry.t
 0 threads_public_api_surface.t
 0 threads_qr_literal_validation.t
-1 threads_regex_callback_clone_isolation.t
+0 threads_regex_callback_clone_isolation.t
 0 threads_regex_callback_reuse.t
 0 threads_regex_callback_shared_wrapper.t
 0 threads_regex_capture_snapshot.t
@@ -833,10 +833,10 @@
 0 threads_runtime_regex_lexical_capture.t
 0 threads_shared_blessed_tied.t
 0 threads_shared_child_capture_release.t
-1 threads_shared_destructive_share.t
+0 threads_shared_destructive_share.t
 0 threads_shared_fetch_proxy_lifetime.t
 0 threads_shared_final_destroy.t
-1 threads_shared_graphs.t
+0 threads_shared_graphs.t
 0 threads_shared_inactive_mode.t
 0 threads_shared_lexical_reassignment.t
 0 threads_shared_nested_proxies.t
@@ -847,19 +847,19 @@
 0 threads_user_property_definition_concurrency.t
 0 threads_user_property_snapshot.t
 0 threads_weak_backref_snapshot.t
-1 tie_array.t
+0 tie_array.t
 0 tie_autovivification.t
 0 tie_bareword_filehandle_package.t
 0 tie_handle.t
-1 tie_handle_readline_args.t
-1 tie_hash.t
+0 tie_handle_readline_args.t
+0 tie_hash.t
 0 tie_scalar.t
 0 tie_scalar_self_reference_destroy.t
 0 tie_void_context.t
 0 tied_array_constraint_short_circuit.t
 0 tied_array_delete_local.t
-1 tied_container_undef.t
-1 tied_handle_dup.t
+0 tied_container_undef.t
+0 tied_handle_dup.t
 1 tied_hash_autoviv_refloop_cleanup.t
 0 tied_hash_destroy_release.t
 0 tied_hash_weak_owner_cleanup.t
@@ -949,7 +949,7 @@
 0 xml_libxslt.t
 0 xml_parser_current_element.t
 0 xml_parser_external_entity_sysid.t
-1 xml_parser_parsefile_typeglob.t
+0 xml_parser_parsefile_typeglob.t
 0 xml_parser_tied_handle.t
 0 xstring.t
 0 yaml_blessed_load.t
@@ -959,7 +959,7 @@
 0 yaml_xs_utf8_octets.t
 0 zz_ampersand_postfix_deref.t
 0 zz_b_anonymous_cv_introspection.t
-1 zz_block_lexical_call_log_lifetime.t
+0 zz_block_lexical_call_log_lifetime.t
 0 zz_branch_reset_capture.t
 0 zz_caller_exported_alias.t
 0 zz_data_dumper_short_numeric_flags.t
@@ -967,7 +967,7 @@
 0 zz_eval_defined_named_caller.t
 0 zz_forward_code_glob_alias.t
 0 zz_hash_element_assignment_identity.t
-1 zz_list_assignment_destroy_lifetime.t
+0 zz_list_assignment_destroy_lifetime.t
 0 zz_local_our_aggregate_restore.t
 0 zz_lvalue_wrapper_return.t
 0 zz_multidimensional_hash_key.t
