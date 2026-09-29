@@ -1,6 +1,6 @@
 # Unknown nodes per perl.git t/ file, through parse.ParseFileFrom.
 #
-# 620 files, 472 clean (76.1%), 817 total.
+# 620 files, 472 clean (76.1%), 775 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -206,7 +206,7 @@
 0 op/append.t
 2 op/args.t
 0 op/arith2.t
-7 op/array.t
+5 op/array.t
 4 op/assignwarn.t
 0 op/attrhand.t
 0 op/attrproto.t
@@ -227,7 +227,7 @@
 0 op/cmpchain.t
 1 op/concat2.t
 0 op/cond.t
-21 op/const-optree.t
+12 op/const-optree.t
 0 op/context.t
 7 op/coreamp.t
 1 op/coresubs.t
@@ -237,7 +237,7 @@
 0 op/dbm.t
 0 op/debug.t
 8 op/decl-refs.t
-2 op/defer.t
+1 op/defer.t
 0 op/defined.t
 0 op/defins.t
 0 op/delete.t
@@ -304,7 +304,7 @@
 0 op/length.t
 9 op/lex.t
 0 op/lex_assign.t
-45 op/lexsub.t
+19 op/lexsub.t
 0 op/lfs.t
 0 op/list.t
 0 op/local.t
@@ -312,7 +312,7 @@
 0 op/lock.t
 0 op/loopctl.t
 9 op/lop.t
-12 op/lvref.t
+10 op/lvref.t
 0 op/magic-27839.t
 4 op/magic.t
 26 op/method.t
@@ -384,7 +384,7 @@
 2 op/state.t
 0 op/study.t
 0 op/studytied.t
-7 op/sub.t
+5 op/sub.t
 17 op/sub_lval.t
 1 op/substr.t
 0 op/substr_left.t

@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 518 clean (52.5%), 468 total.
+# 986 files, 520 clean (52.7%), 466 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -428,7 +428,7 @@
 1 less_pragma.t
 1 lexical_reassignment_releases_old_reference.t
 0 lexical_redeclaration_pad_slot.t
-1 lexical_sub_prototype_method_invocant.t
+0 lexical_sub_prototype_method_invocant.t
 1 life_bitpacked_getopt.t
 0 line.t
 0 list_util.t
@@ -520,7 +520,7 @@
 0 nested_eval_block_goto_missing.t
 0 nested_for_loops.t
 1 nested_heredoc.t
-1 nested_lexical_sub_reclosure.t
+0 nested_lexical_sub_reclosure.t
 1 netssleay_baseline.t
 1 netssleay_callback_and_empty_pkey.t
 0 netssleay_phase1.t

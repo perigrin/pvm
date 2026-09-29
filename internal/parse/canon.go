@@ -632,6 +632,11 @@ func blockForm(n *Node) bool {
 		return false
 	case Declaration:
 		d := last
+		// A lexical sub is a declarator wrapping the sub declaration, so the
+		// sub's own shape decides: `my sub f { 1 }` ends in its block.
+		for len(d.Children) == 1 && d.Children[0].Kind == Declaration {
+			d = d.Children[0]
+		}
 		// `format NAME = ... .` ended at its own `.` line, which perl accepts
 		// with no `;` after it. A semicolon here lands INSIDE the next
 		// format body's scan or ahead of the next statement, and either way

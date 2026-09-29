@@ -23,6 +23,9 @@ func (p *parser) parseDeclaration(word lexer.Token) *Node {
 	text := p.text(word)
 	switch {
 	case declarators[text]:
+		if lex := p.parseLexicalSub(word); lex != nil {
+			return lex
+		}
 		return p.parseVarDecl(word)
 	case text == "sub" || text == "method":
 		// `sub {` with no name is an anonymous sub, which is an EXPRESSION
@@ -48,6 +51,40 @@ func (p *parser) parseDeclaration(word lexer.Token) *Node {
 		return p.parseFormatDecl(word)
 	}
 	return nil
+}
+
+// parseLexicalSub: `my sub NAME`, `our sub NAME`, `state sub NAME`, or nil
+// when the declarator is not followed by a named sub.
+//
+// The declarator path handed `sub` to the anonymous-sub term, which takes no
+// name, so the name fell out as a call -- `our sub h;` canon'd as
+// `our sub();h();` at Unknown=0. Each form is valid on 5.42.0; lexical subs
+// need no feature since 5.26.
+//
+// The sub is read by parseSubDecl, so a lexical sub gets the name, prototype
+// or signature, attributes and body a package sub does, and is declared for
+// the calls below it the same way. The declarator wraps it as a Declaration
+// whose one child is the sub, which canon emits as `my sub NAME ...`.
+//
+// A `{` after `sub` is an anonymous sub -- `my $f = sub {...}` never reaches
+// here, and `my sub {` is not perl -- so a name is required.
+func (p *parser) parseLexicalSub(word lexer.Token) *Node {
+	if p.text(word) == "local" || p.text(word) == "field" {
+		return nil
+	}
+	sub, ok := p.peekAfter(word)
+	if !ok || sub.Kind != lexer.Word || p.text(sub) != "sub" {
+		return nil
+	}
+	if name, ok := p.peekAfter(sub); !ok || name.Kind != lexer.Word {
+		return nil
+	}
+	p.advanceTo(word)
+	inner := p.parseSubDecl(sub)
+	return &Node{
+		Kind: Declaration, Text: p.text(word),
+		Start: word.Start, End: inner.End, Children: []*Node{inner},
+	}
 }
 
 // parseFormatDecl: `format NAME =` followed by an opaque body.
