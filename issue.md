@@ -1,10 +1,19 @@
 ---
 title: "`method Pack (\"a\")` is read as a method declaration: method is a keyword only under class syntax"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T16:25:21.950693881Z
-updated: 2026-09-29T16:25:21.950693881Z
+updated: 2026-09-29T16:25:23.647064322Z
+sessions:
+- start_sha: 238bba9e7e6e81f19c86aa070aaf3e2230bccb92
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T16:25:23.647064322Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T16:25:23.647064322Z
 ---
 
 The lexer and the parser both read `method` as the class feature's declarator everywhere. Without class syntax it is an ordinary name: op/method.t declares `sub Pack::method` and calls it through indirect object syntax, `method Pack ("a")`, which became a method declaration named Pack with `("a")` as its prototype.
