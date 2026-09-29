@@ -141,32 +141,38 @@ func (l *lexer) takePendingHeredocs() {
 		// `<<ENE . ${` whose body swallows the rest of the file, and the
 		// stream stopped 141 bytes short. Only a whole-corpus check found it,
 		// which is the argument for the ratchet this issue adds.
-		found := false
-		for l.pos < len(l.src) {
-			lineStart := l.pos
-			lineEnd := bytes.IndexByte(l.src[l.pos:], '\n')
-			if lineEnd < 0 {
-				// The last line has no newline. Consume it and stop.
-				l.pos = len(l.src)
-				break
-			}
-			line := l.src[lineStart : lineStart+lineEnd]
-			l.pos = lineStart + lineEnd + 1
-
-			candidate := line
-			if h.indent {
-				candidate = bytes.TrimLeft(candidate, " \t")
-			}
-			if bytes.Equal(candidate, h.term) {
-				l.emit(HeredocBody, start)
-				found = true
-				break
-			}
-		}
-		if !found && l.pos > start {
+		var found bool
+		l.pos, found = heredocBodyEnd(l.src, l.pos, h)
+		if found {
+			l.emit(HeredocBody, start)
+		} else if l.pos > start {
 			// Ran to EOF without the terminator: still every byte, reported
 			// as unterminated rather than dropped.
 			l.emit(UnknownRest, start)
 		}
 	}
+}
+
+// heredocBodyEnd returns where h's body, starting at pos, ends: just past its
+// terminator line, and whether that line was found. Without it the body runs
+// to EOF.
+func heredocBodyEnd(src []byte, pos int, h pendingHeredoc) (int, bool) {
+	for pos < len(src) {
+		lineEnd := bytes.IndexByte(src[pos:], '\n')
+		if lineEnd < 0 {
+			// The last line has no newline. Consume it and stop.
+			return len(src), false
+		}
+		line := src[pos : pos+lineEnd]
+		pos += lineEnd + 1
+
+		candidate := line
+		if h.indent {
+			candidate = bytes.TrimLeft(candidate, " \t")
+		}
+		if bytes.Equal(candidate, h.term) {
+			return pos, true
+		}
+	}
+	return pos, false
 }

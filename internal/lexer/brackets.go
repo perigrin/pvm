@@ -10,9 +10,21 @@ package lexer
 // It does not tokenize ahead: the lexer stays single-pass, and a lookahead
 // that lexed would have to undo its own state changes.
 func (l *lexer) peekIsOpenBrace() bool {
+	pending := l.pending
 	for i := l.pos; i < len(l.src); i++ {
 		switch l.src[i] {
-		case ' ', '\t', '\n', '\r':
+		case '\n':
+			// Queued heredoc bodies start after this newline, and perl has
+			// already cut them out of the line it looks ahead in: the `{`
+			// after `for (split /\n/, <<'EOF')` and its body is the loop's.
+			j := i + 1
+			for _, h := range pending {
+				j, _ = heredocBodyEnd(l.src, j, h)
+			}
+			pending = nil
+			i = j - 1
+			continue
+		case ' ', '\t', '\r':
 			continue
 		case '{':
 			return true
