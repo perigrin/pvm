@@ -1,19 +1,31 @@
 ---
 title: "Lexical sub declarations lose their name: our sub h; canons as our sub();h();"
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-28T22:41:57.10531075Z
-updated: 2026-09-29T00:46:49.082416982Z
+updated: 2026-09-29T01:02:38.956824631Z
 sessions:
 - start_sha: 468aa62746c7cda08884e4f3e2c6c593febca14f
-  end_sha: ""
-  commits: 0
+  end_sha: 0e922405660ff6594b872dc84d304bd97ad26489
+  commits: 1
   started_at: 2026-09-29T00:46:49.082416982Z
+  ended_at: 2026-09-29T01:02:38.956824631Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-29T00:46:49.082416982Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-29T01:02:38.956824631Z
+observed_paths:
+- internal/conformance/conformance_test.go
+- internal/parse/canon.go
+- internal/parse/decl.go
+- internal/parse/lexsub_test.go
+- internal/parse/testdata/perlgitt.ratchet
+- internal/parse/testdata/t1.ratchet
+- internal/parse/testdata/t1fidelity.ratchet
 ---
 
 Lexical sub declarations -- `my sub`, `our sub`, `state sub` -- are read as a
