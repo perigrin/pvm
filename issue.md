@@ -1,10 +1,19 @@
 ---
 title: "$#+ and $#- lex as $# and an operator: the last index of @+ refuses"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T04:42:21.816204177Z
-updated: 2026-09-29T04:42:21.816204177Z
+updated: 2026-09-29T04:42:22.690790398Z
+sessions:
+- start_sha: 2ff17048eb0761ee20df9012bdcda59e36ef6136
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T04:42:22.690790398Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T04:42:22.690790398Z
 ---
 
 `$#+` and `$#-` -- the last index of @+ and @- -- lex as the variable `$#`
