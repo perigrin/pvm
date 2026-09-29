@@ -751,6 +751,24 @@ func (p *parser) statementForm() *Node {
 		return n
 	}
 
+	// The YADA-YADA statement: `sub f { ... }`. A statement form and only
+	// that -- measured on 5.42.0, `my $x = ...;` and `... if 0;` are both
+	// syntax errors, and `sub f { ... }` deparses as `die 'Unimplemented'`.
+	// `...` is the range operator's spelling everywhere else, so it is read
+	// here, whole, with no modifier, and nowhere in the expression grammar.
+	if tok, ok := p.peekSignificant(); ok && p.text(tok) == "..." {
+		if next, ok := p.peekAfter(tok); !ok || endsStatement(next, p.src) {
+			p.advanceTo(tok)
+			yada := &Node{Kind: Term, Text: "...", Start: tok.Start, End: tok.End}
+			if semi, ok := p.peekSignificant(); ok && semi.Kind == lexer.Semicolon {
+				p.advanceTo(semi)
+			}
+			n := p.withLabels(labels, yada, start)
+			n.End = p.prevEnd()
+			return n
+		}
+	}
+
 	// A bare block. The lexer's brace stack already decided this `{` opens a
 	// block rather than a subscript or an anonymous hash, and says so on the
 	// token, so the decision is READ here rather than made a second time.
