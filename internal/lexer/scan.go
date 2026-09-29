@@ -1044,7 +1044,10 @@ func scanOperator(l *lexer) bool {
 			// every other operator opens a term. Without the distinction,
 			// `$x[0] <FH>` reads its angle brackets as a readline.
 			kind := Operator
-			if op == ")" || op == "]" || op == "}" {
+			// Except `*]`, the glob named `]` (see globStar): a name, and
+			// taken as a closer it would pop whatever bracket is open.
+			globName := op == "]" && l.globStar && l.toks[len(l.toks)-1].End == start
+			if (op == ")" || op == "]" || op == "}") && !globName {
 				kind = CloseBracket
 			}
 			l.emit(kind, start)

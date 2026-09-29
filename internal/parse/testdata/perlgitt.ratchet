@@ -1,6 +1,6 @@
 # Unknown nodes per perl.git t/ file, through parse.ParseFileFrom.
 #
-# 620 files, 573 clean (92.4%), 187 total.
+# 620 files, 573 clean (92.4%), 186 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -398,7 +398,7 @@
 0 op/threads-dirh.t
 0 op/threads.t
 0 op/tie.t
-4 op/tie_fetch_count.t
+3 op/tie_fetch_count.t
 0 op/tiearray.t
 0 op/tiehandle.t
 0 op/tiehash.t
