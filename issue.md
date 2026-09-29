@@ -1,19 +1,28 @@
 ---
 title: DESTROY { ... } without sub is read as a call that takes the next statement
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T03:56:54.872473231Z
-updated: 2026-09-29T03:56:55.802662661Z
+updated: 2026-09-29T04:03:33.662666845Z
 sessions:
 - start_sha: 12eb345487d543ca4032f88c401ae4e77d397464
-  end_sha: ""
-  commits: 0
+  end_sha: 5d2714d168d308b5530a60aaa642e86854743afc
+  commits: 1
   started_at: 2026-09-29T03:56:55.802662661Z
+  ended_at: 2026-09-29T04:03:33.662666845Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-29T03:56:55.802662661Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-29T04:03:33.662666845Z
+observed_paths:
+- internal/parse/specialsub_test.go
+- internal/parse/t2_test.go
+- internal/parse/testdata/perlgitt.ratchet
+- internal/parse/use.go
 ---
 
 `DESTROY { ... }` and `AUTOLOAD { ... }` at statement start declare the sub,
