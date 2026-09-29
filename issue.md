@@ -1,19 +1,30 @@
 ---
 title: "system { \"ls\" } LIST orphans its list: system and exec have print's indirect-object slot"
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T04:34:19.05212845Z
-updated: 2026-09-29T04:34:20.566784227Z
+updated: 2026-09-29T04:40:09.86324255Z
 sessions:
 - start_sha: 01a2c320ae90cbb6b06d417640bfc830f33b0d91
-  end_sha: ""
-  commits: 0
+  end_sha: 2ff17048eb0761ee20df9012bdcda59e36ef6136
+  commits: 1
   started_at: 2026-09-29T04:34:20.566784227Z
+  ended_at: 2026-09-29T04:40:09.86324255Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-29T04:34:20.566784227Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-29T04:40:09.86324255Z
+observed_paths:
+- internal/lexer/keyword.go
+- internal/parse/call.go
+- internal/parse/indirectprog_test.go
+- internal/parse/testdata/perlgitt.ratchet
+- internal/parse/testdata/t1.ratchet
+- internal/parse/testdata/t1canon.ratchet
 ---
 
 `system` and `exec` take their program in an indirect-object slot, the same
