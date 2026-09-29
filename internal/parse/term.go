@@ -286,6 +286,16 @@ func (p *parser) parseTerm() *Node {
 		// here into one term: `\&f` is a code reference, not a reference to
 		// an ampersand.
 		p.advanceTo(tok)
+		// Braces holding statements, as `${; ...}`'s do: `&{; $c }(1)`,
+		// measured on 5.42.0 to deparse as `&{$c;}(1)`.
+		if open, ok := p.peekSignificant(); ok && p.text(open) == "{" && p.derefHoldsStatements(open) {
+			blk := p.parseBlock(open)
+			return &Node{
+				Kind: Unary, Text: text,
+				Start: tok.Start, End: blk.End,
+				Children: []*Node{blk},
+			}
+		}
 		if name, ok := p.peekSignificant(); ok && p.ampTakes(name) {
 			p.advanceTo(name)
 			return &Node{
