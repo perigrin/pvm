@@ -70,21 +70,34 @@ func readModule(root *Node) moduleFacts {
 	facts := moduleFacts{protos: map[string]string{}}
 	for _, stmt := range root.Children {
 		for _, n := range stmt.Children {
-			if n.Kind != Declaration {
-				continue
-			}
-			switch n.Text {
-			case "our", "my", "local":
+			if n.Kind == Declaration && (n.Text == "our" || n.Text == "my" || n.Text == "local") {
 				readExportAssignment(n, &facts)
-			case "sub":
-				name, proto := declaredSub(n)
-				if name != "" {
-					facts.protos[name] = proto
-				}
 			}
 		}
 	}
+	readSubs(root, &facts)
 	return facts
+}
+
+// readSubs records every NAMED sub declaration, however deeply nested: a
+// named sub is package-global wherever it is declared. t/test.pl declares
+// `sub watchdog ($;$)` inside a `{ # Closure ... }` block, measured to be
+// callable after it on 5.42.0. A lexical sub -- `my sub`, `state sub` -- is
+// not, so the walk does not enter those declarations.
+func readSubs(n *Node, facts *moduleFacts) {
+	if n.Kind == Declaration {
+		switch n.Text {
+		case "my", "state":
+			return
+		case "sub":
+			if name, proto := declaredSub(n); name != "" {
+				facts.protos[name] = proto
+			}
+		}
+	}
+	for _, c := range n.Children {
+		readSubs(c, facts)
+	}
 }
 
 // readExportAssignment reads `our @EXPORT = qw(...)` and its EXPORT_OK
