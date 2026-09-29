@@ -407,6 +407,7 @@ func (p *parser) parsePackageDecl(word lexer.Token) *Node {
 			Kind: Term, Text: p.text(name),
 			Start: name.Start, End: name.End,
 		})
+		p.notePackage(p.text(name))
 	}
 
 	// An optional version: `package Foo 1.0;`.

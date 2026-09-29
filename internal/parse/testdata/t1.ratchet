@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 729 clean (73.9%), 1302 total.
+# 986 files, 730 clean (74.0%), 1298 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -599,7 +599,7 @@
 10 pr709_core_regressions.t
 0 precedence.t
 4 print_bareword_filehandle.t
-2 print_indirect_method_postfix.t
+1 print_indirect_method_postfix.t
 6 process_current_perl_argv.t
 2 process_pipe_postexit_drain.t
 0 prototype_after_watchdog.t
@@ -821,7 +821,7 @@
 0 threads_lock_compatibility.t
 0 threads_lock_conditions_unadvertised.t
 0 threads_native_resource_diagnostics.t
-2 threads_postfix_create_and_invalid_entry.t
+1 threads_postfix_create_and_invalid_entry.t
 0 threads_public_api_surface.t
 0 threads_qr_literal_validation.t
 0 threads_regex_callback_clone_isolation.t
@@ -872,7 +872,7 @@
 0 time_hires_ualarm.t
 0 time_hires_version.t
 0 time_localtime_core.t
-13 time_moment_java_xs.t
+12 time_moment_java_xs.t
 2 time_moment_storable.t
 0 top_level_coderef_call.t
 5 transliterate.t
@@ -923,7 +923,7 @@
 1 wanted_portable_context.t
 0 warn_die.t
 0 warning_callee_lexical_context.t
-1 warnings.t
+0 warnings.t
 6 warnings_bits.t
 0 warnings_block_callsite_restore.t
 0 warnings_historical_categories.t

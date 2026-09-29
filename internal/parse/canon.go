@@ -90,6 +90,21 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 		// Dropped. See Canon.
 
 	case Call:
+		// Indirect object notation keeps its spelling, method then class,
+		// and gains the argument parens every call gets: `new Foo "a"` is
+		// written `new Foo("a")`. That re-parses to the same call -- the
+		// class is a package this file declares or loads, which is what
+		// made parseIndirect read it -- and it differs from the source only
+		// in the parens Faithful already forgives. The arrow form perl's
+		// Deparse writes would reorder the tokens, and fidelity would count
+		// every correct indirect call as a misparse.
+		if n.Indirect && len(n.Children) > 0 {
+			b.WriteString(n.Text)
+			b.WriteByte(' ')
+			b.WriteString(n.Children[0].Text)
+			emit(b, &Node{Kind: Call, Resolved: true, Children: n.Children[1:]}, src, 0)
+			return
+		}
 		// Always parenthesised, and that is the whole case chapter 7 names.
 		// `print (1+2)*3` is `print(1+2) * 3`, and a tree that read it as
 		// `print((1+2)*3)` has the same leaves in the same order -- so the

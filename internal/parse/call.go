@@ -84,6 +84,10 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 	spelled := p.text(word)
 	text := keywordName(spelled)
 
+	if n := p.parseIndirect(word, spelled, text); n != nil {
+		return n
+	}
+
 	// A niladic builtin takes nothing: `time`, `wantarray`.
 	if niladicParse[text] {
 		p.advanceTo(word)

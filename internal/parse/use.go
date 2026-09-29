@@ -155,6 +155,9 @@ func (p *parser) parseUse(word lexer.Token) *Node {
 	// there is no import; the declarations themselves are the interface.
 	// See resolveRequiredFile for the boundary that keeps this safe.
 	p.noteFeatures(n.Text, module, list)
+	if module != "" && !isVersionPrefix(module) && n.Text != "no" {
+		p.notePackage(module)
+	}
 
 	switch {
 	case module != "" && !isVersionPrefix(module) && n.Text == "use":
@@ -189,12 +192,21 @@ func (p *parser) noteFeatures(verb, module string, list *Node) {
 			if gatedUnary[name] {
 				p.features[name] = verb == "use"
 			}
+			if name == "indirect" {
+				p.noIndirect = verb == "no"
+			}
 		}
 	case module == "" && verb == "use" && list != nil:
-		if major, minor, ok := perlVersion(list.Text); ok && (major > 5 || major == 5 && minor >= 15) {
+		major, minor, ok := perlVersion(list.Text)
+		if ok && (major > 5 || major == 5 && minor >= 15) {
 			for name := range gatedUnary {
 				p.features[name] = true
 			}
+		}
+		// The 5.36 bundle drops `indirect` -- measured, `use v5.36; new
+		// Foo;` is a syntax error on 5.42.0.
+		if ok && (major > 5 || major == 5 && minor >= 35) {
+			p.noIndirect = true
 		}
 	}
 }
@@ -410,6 +422,7 @@ func (p *parser) parseClass(word lexer.Token) *Node {
 			Kind: Term, Text: p.text(name),
 			Start: name.Start, End: name.End,
 		})
+		p.notePackage(p.text(name))
 	}
 
 	// An optional version: `class Point 1.0 { }`.

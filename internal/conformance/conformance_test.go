@@ -662,15 +662,17 @@ func TestCorpusSkipsAreDocumented(t *testing.T) {
 	// 01a0ea2e-9771 -- each caught by this assertion.
 	//
 	// `new Foo "a"` is valid perl -- `perl -c` says syntax OK on 5.42.0,
-	// outside the 5.36 bundle that disables indirect calls -- and deciding it
-	// needs the symbol table, which is why it is the longest-lived candidate
-	// available.
+	// outside the 5.36 bundle that disables indirect calls. 01a0ddc5-b591
+	// read indirect notation on a class this parse KNOWS; `Foo` here is not
+	// one, and deciding it needs the symbol table the parser has only in
+	// part, which is why it is the longest-lived candidate available. 01a0ebb0-6329
+	// owns what is left.
 	//
 	// The issue cited is the one that still records this one.
 	refusing := &File{
 		Source:       "my $x = new Foo \"a\";\n",
 		ExpectParses: true,
-		Refuses:      "01a0ddc5-b591-75b2-89c3-107e21883bb7",
+		Refuses:      "01a0ebb0-6329-7a13-b398-a5120ec9bbe8",
 	}
 	v := verdict(t, refusing)
 	if v.kind != knownRefusal {
@@ -915,10 +917,11 @@ func TestAbsentExpectedOutputSkipsCheck(t *testing.T) {
 // predate codes and must keep working; a code is an additional promise,
 // not a new requirement.
 func TestRefusalCodeMismatchFails(t *testing.T) {
-	// `new Foo "a"`, indirect object syntax: a method call on the class
-	// name, which reading it needs the symbol table to decide. Valid perl --
+	// `new Foo "a"`, indirect object syntax on a class this parse does not
+	// know: a method call perl decides from its symbol table. Valid perl --
 	// `perl -c` says syntax OK on 5.42.0 -- so it reaches the parser rather
-	// than stopping at perl's adjudication. 01a0ddc5-b591 owns it.
+	// than stopping at perl's adjudication. 01a0ebb0-6329 owns it; 01a0ddc5-b591 read
+	// the half a static parser can.
 	//
 	// It is the SIXTH fixture here, and each replacement is the fixture
 	// guarding itself: a test whose premise is that something refuses has

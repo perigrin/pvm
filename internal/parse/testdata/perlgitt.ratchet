@@ -1,6 +1,6 @@
 # Unknown nodes per perl.git t/ file, through parse.ParseFileFrom.
 #
-# 620 files, 545 clean (87.9%), 292 total.
+# 620 files, 547 clean (88.2%), 284 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -206,7 +206,7 @@
 0 op/append.t
 0 op/args.t
 0 op/arith2.t
-4 op/array.t
+2 op/array.t
 0 op/assignwarn.t
 0 op/attrhand.t
 0 op/attrproto.t
@@ -302,7 +302,7 @@
 0 op/lc.t
 0 op/leaky-magic.t
 0 op/length.t
-2 op/lex.t
+1 op/lex.t
 0 op/lex_assign.t
 1 op/lexsub.t
 0 op/lfs.t
@@ -330,7 +330,7 @@
 0 op/or.t
 0 op/ord.t
 1 op/overload_integer.t
-8 op/override.t
+7 op/override.t
 1 op/pack.t
 0 op/packagev.t
 0 op/pos.t
@@ -349,7 +349,7 @@
 0 op/readline.t
 0 op/readline_nb.t
 0 op/recurse.t
-2 op/ref.t
+1 op/ref.t
 0 op/refstack.t
 0 op/repeat.t
 0 op/require_37033.t
@@ -369,7 +369,7 @@
 0 op/sleep.t
 0 op/smartkve.t
 0 op/smartmatch.t
-2 op/sort.t
+0 op/sort.t
 0 op/splice.t
 0 op/split.t
 0 op/split_unicode.t
@@ -475,7 +475,7 @@
 0 re/alpha_assertions.t
 0 re/anyof.t
 0 re/begin-once.t
-1 re/bigfuzzy_not_utf8.t
+0 re/bigfuzzy_not_utf8.t
 0 re/charset.t
 0 re/fold_grind_8.t
 0 re/fold_grind_T.t

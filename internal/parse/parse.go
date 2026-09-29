@@ -335,6 +335,13 @@ type Node struct {
 	// no comma after it for the same reason.
 	Comparator bool
 
+	// Indirect is set on a Call written in indirect object notation --
+	// `new Foo ARGS`, `doit $obj ARGS` -- whose FIRST child is the invocant
+	// and the rest the arguments. The children stay in source order, which
+	// puts the invocant after the method name; canon writes the arrow form
+	// perl's Deparse writes, `'Foo'->new(ARGS)`. See parseIndirect.
+	Indirect bool
+
 	// Modifier is set on a Conditional or Loop built from a STATEMENT
 	// MODIFIER -- `$y = 1 if $x`, `$s += $_ foreach 1..3` -- rather than from
 	// the block form `if (COND) BLOCK`.
@@ -529,6 +536,16 @@ type parser struct {
 	// feature to its enclosing block, and a `no feature` inside a block that
 	// the file re-enables after it is the ceiling. See noteFeatures.
 	features map[string]bool
+
+	// noIndirect is set where indirect object notation is off: `no feature
+	// 'indirect'`, or a 5.36+ bundle, which drops it. File-level, like
+	// features.
+	noIndirect bool
+
+	// packages names every `package` and `class` read so far. A bareword
+	// naming one is a class even when the word before it is a known sub --
+	// toke.c's intuit_method tests `gv_stashpvn` for exactly that.
+	packages map[string]bool
 
 	// imports is what this file's `use` statements brought into scope,
 	// accumulated as they are parsed and lifted onto the root at the end.
