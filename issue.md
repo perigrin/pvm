@@ -1,10 +1,19 @@
 ---
 title: require './t/test.pl' after chdir '..' is not resolved, so porting/ files lose test.pl's subs
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-28T22:31:49.144380373Z
-updated: 2026-09-28T22:31:49.144380373Z
+updated: 2026-09-29T01:03:23.783603362Z
+sessions:
+- start_sha: 0e922405660ff6594b872dc84d304bd97ad26489
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T01:03:23.783603362Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T01:03:23.783603362Z
 ---
 
 Seventeen porting/ files load their helper as `require './t/test.pl'`, after
