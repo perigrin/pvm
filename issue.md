@@ -1,19 +1,28 @@
 ---
 title: "A label before a block's closing brace refuses: `sub f { ...; _: }`"
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T16:51:34.072457106Z
-updated: 2026-09-29T16:51:35.189195601Z
+updated: 2026-09-29T17:01:24.545345171Z
 sessions:
 - start_sha: ae4b9b0e8875942ad5c851e8579d4cc18fc2db12
-  end_sha: ""
-  commits: 0
+  end_sha: b35c6e687b9de13b50bf628e2cb0ef568cb80100
+  commits: 1
   started_at: 2026-09-29T16:51:35.189195601Z
+  ended_at: 2026-09-29T17:01:24.545345171Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-29T16:51:35.189195601Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-29T17:01:24.545345171Z
+observed_paths:
+- internal/parse/labelbeforeclose_test.go
+- internal/parse/parse.go
+- internal/parse/t2_test.go
+- internal/parse/testdata/perlgitt.ratchet
 ---
 
 A label with no statement after it before a block's `}` refuses: `sub MODIFY_CODE_ATTRIBUTES { ...; _: }`. The parser takes `LABEL: ;` as a labelled empty statement, but after a label it only looks for a `;`; a `}` there went to the expression path and refused, and the block lost its closer.
