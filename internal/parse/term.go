@@ -658,6 +658,12 @@ func (p *parser) parseBracketed(open lexer.Token, closer string, kind Kind) *Nod
 			p.advanceTo(tok)
 			break
 		}
+		// An empty slot, as in parseParenList: `["x",, "y"]` has two
+		// elements, measured on 5.42.0. Only after an element.
+		if (p.text(tok) == "," || p.text(tok) == "=>") && len(items) > 0 {
+			p.advanceTo(tok)
+			continue
+		}
 		if item := p.parseExpr(infix[","].BP); item != nil {
 			items = append(items, item)
 		}
