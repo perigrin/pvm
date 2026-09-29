@@ -55,6 +55,10 @@ type moduleFacts struct {
 	// exports are the names in @EXPORT and @EXPORT_OK.
 	exports []string
 
+	// defaults are the names in @EXPORT alone: what a bare `use` imports,
+	// and what `:DEFAULT` names in an import list.
+	defaults []string
+
 	// protos maps a declared sub's name to its prototype string.
 	protos map[string]string
 
@@ -70,7 +74,12 @@ func readModule(root *Node) moduleFacts {
 	facts := moduleFacts{protos: map[string]string{}}
 	for _, stmt := range root.Children {
 		for _, n := range stmt.Children {
-			if n.Kind == Declaration && (n.Text == "our" || n.Text == "my" || n.Text == "local") {
+			switch {
+			case n.Kind == Declaration && (n.Text == "our" || n.Text == "my" || n.Text == "local"):
+				readExportAssignment(n, &facts)
+			case n.Kind == Binary && n.Text == "=":
+				// `@EXPORT = qw(...)` with no declarator, as Devel::Peek
+				// spells it: the same package array.
 				readExportAssignment(n, &facts)
 			}
 		}
@@ -106,7 +115,8 @@ func readExportAssignment(n *Node, facts *moduleFacts) {
 	if len(n.Children) < 2 {
 		return
 	}
-	switch n.Children[0].Text {
+	array := n.Children[0].Text
+	switch array {
 	case "@EXPORT", "@EXPORT_OK":
 	default:
 		return
@@ -119,6 +129,9 @@ func readExportAssignment(n *Node, facts *moduleFacts) {
 		return
 	}
 	facts.exports = append(facts.exports, names...)
+	if array == "@EXPORT" {
+		facts.defaults = append(facts.defaults, names...)
+	}
 }
 
 // literalNameList reads a `qw(...)` or a list of quoted strings, and reports
@@ -227,9 +240,23 @@ func importsFrom(facts moduleFacts, list []string, listGiven bool) []Import {
 		return nil
 	}
 
-	wanted := facts.exports
+	// A bare `use` imports @EXPORT only -- measured on 5.42.0, an
+	// @EXPORT_OK name is not defined after it. In a list, `:DEFAULT` names
+	// @EXPORT; another tag is %EXPORT_TAGS, which is not read, and a `!` or
+	// `/pattern/` entry is a negation or a match, so each contributes
+	// nothing rather than a false name.
+	wanted := facts.defaults
 	if listGiven {
-		wanted = list
+		wanted = nil
+		for _, name := range list {
+			switch {
+			case name == ":DEFAULT":
+				wanted = append(wanted, facts.defaults...)
+			case strings.HasPrefix(name, ":") || strings.HasPrefix(name, "!") || strings.HasPrefix(name, "/"):
+			default:
+				wanted = append(wanted, strings.TrimPrefix(name, "&"))
+			}
+		}
 	}
 
 	out := make([]Import, 0, len(wanted))
