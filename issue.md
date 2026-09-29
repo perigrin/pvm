@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T22:01:56.90867962Z
-updated: 2026-09-26T22:12:02.021271707Z
+updated: 2026-09-29T02:48:03.110341418Z
 ---
 
 ## Measured finding
@@ -146,6 +146,18 @@ the test file are in this session's scratchpad as `trailingcomma.patch` and
 `trailingcomma_test.go`.
 
 </details>
+
+## Closing note, 2026-09-29
+
+Landed in 652f4792 and never closed, which the chain review of this milestone
+found. Closed with --force because the criteria below cannot be checked as
+written: every command is in bare backticks, which git-zhi does not extract,
+and the ratchet criteria pin the counts AT 652f4792 (406 clean, 2211 total),
+which later fixes have moved on. The behavioural criteria were re-run on
+ae2fb478 and pass: TestTrailingCommaBeforeCloserIsNotATerm (with its
+only_a_comma and foreach_list cases), TestQuoteOp*, and
+TestParenthesisedWordInfixParses. The follow-on for a comma before anything
+else that cannot start an element is 01a0eb0a-ce6a-7065-826f-1ac6d2adf2e9.
 
 ## Acceptance criteria
 
