@@ -1,10 +1,19 @@
 ---
 title: "`any( {...} LIST)` refuses: any and all take a block under their features"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T13:33:10.89887846Z
-updated: 2026-09-29T13:33:10.89887846Z
+updated: 2026-09-29T13:33:11.421605325Z
+sessions:
+- start_sha: 526d95e0d62a9397cf0ccf3b36b0c00e1d193265
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T13:33:11.421605325Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T13:33:11.421605325Z
 ---
 
 Under `use feature qw(keyword_any keyword_all)`, `any` and `all` are builtins that take BLOCK LIST as grep does. The parser reads the block only for map, grep and sort, and the lexer carries brace lookahead into `(` only for its block-taking words, so `any( { $_ > 10 } 1 .. 20)` refuses.
