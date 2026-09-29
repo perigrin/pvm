@@ -294,7 +294,8 @@ func hasModifier(mods []byte, c byte) bool {
 }
 
 // queueHeredocsIn scans an /e replacement for heredoc openers and queues
-// them, so their bodies are taken after the current line.
+// them, so their bodies are taken after the current line -- unless the
+// replacement itself has a line after the opener, which then holds the body.
 //
 // A sub-lexer over the replacement's bytes: it shares nothing with the outer
 // cursor, and only the pending queue crosses back.
@@ -303,6 +304,19 @@ func (l *lexer) queueHeredocsIn(start, end int) {
 	for sub.pos < end {
 		before := sub.pos
 		if scanHeredocOpen(sub) {
+			continue
+		}
+		// A newline inside the replacement: the bodies queued so far are
+		// the replacement's own next lines. perl looks in the construct's
+		// buffer first and climbs to the parent's only when it has no
+		// newline (toke.c:11735).
+		if sub.src[sub.pos] == '\n' && len(sub.pending) > 0 {
+			pos := sub.pos + 1
+			for _, h := range sub.pending {
+				pos, _ = heredocBodyEnd(sub.src, pos, h)
+			}
+			sub.pending = nil
+			sub.pos = pos
 			continue
 		}
 		sub.pos++
