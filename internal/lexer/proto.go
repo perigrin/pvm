@@ -233,6 +233,9 @@ func (l *lexer) bareSignatureSigil(start int) bool {
 	if i < 0 || l.toks[i].End-l.toks[i].Start != 1 || !byteIn(l.src[l.toks[i].Start], "(,") {
 		return false
 	}
+	if l.nameAfterSpace(start+1) > start+1 {
+		return false // `$\n a`: the name is past the space.
+	}
 	r, _ := utf8.DecodeRune(l.src[start+1:])
 	return !identStart(r, l.utf8Pragma)
 }

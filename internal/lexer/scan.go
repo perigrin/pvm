@@ -109,9 +109,49 @@ func scanVariable(l *lexer) bool {
 		return true
 	}
 
+	// Whitespace and comments may stand between a sigil and its NAME, as
+	// they may before a deref's brace: scan_ident runs skipspace first.
+	// Measured on 5.42.0, `my $ bits = 1` declares $bits, and a `$` then a
+	// comment then `b` on the next line declares $b. The token keeps the bytes between, so the source
+	// round-trips. Without a name after them, the space is not reached
+	// across -- scanVarName's one-byte punctuation rule stands.
+	if name := l.nameAfterSpace(l.pos); name > l.pos {
+		l.pos = name
+		l.scanIdentRunes()
+		l.emit(Variable, start)
+		return true
+	}
+
 	l.scanVarName()
 	l.emit(Variable, start)
 	return true
+}
+
+// nameAfterSpace returns where an identifier starts after the whitespace and
+// comments from i, or i when no whitespace or comment is there or no name
+// follows them.
+func (l *lexer) nameAfterSpace(i int) int {
+	j := i
+	for j < len(l.src) {
+		switch c := l.src[j]; {
+		case c == ' ' || c == '\t' || c == '\n' || c == '\r':
+			j++
+		case c == '#':
+			for j < len(l.src) && l.src[j] != '\n' {
+				j++
+			}
+		default:
+			if j == i {
+				return i
+			}
+			r, _ := utf8.DecodeRune(l.src[j:])
+			if identStart(r, l.utf8Pragma) {
+				return j
+			}
+			return i
+		}
+	}
+	return i
 }
 
 // startsDerefExpression reports whether the sigil at l.pos-1 is applied to an
