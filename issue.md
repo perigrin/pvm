@@ -1,10 +1,19 @@
 ---
 title: "`f 1, || 2` refuses: a comma before an operator ends the list only for assignment"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T22:20:52.960997107Z
-updated: 2026-09-29T22:20:52.960997107Z
+updated: 2026-09-29T22:20:53.896953992Z
+sessions:
+- start_sha: e5da762ddfc9da30d8dd6e16c6d2fe3d8f008058
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T22:20:53.896953992Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T22:20:53.896953992Z
 ---
 
 A comma followed by an operator that cannot begin an element ends the list, and perl then applies the operator to the list operator's call. The rule was limited to assignment operators (and too wide there): `ok open(...), '...', || _diag $!` refused, and `f 1, += 2`, which perl rejects, was accepted.
