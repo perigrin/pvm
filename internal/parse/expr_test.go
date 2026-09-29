@@ -143,6 +143,36 @@ func TestComparisonAcrossLevels(t *testing.T) {
 	}
 }
 
+// TestParenthesisedComparisonIsATerm: parentheses end a termrelop or
+// termeqop, so a comparison in them neither joins the chain beside it nor
+// blocks a second operator at its own level. Measured with perl 5.42:
+//
+//	$ perl -MO=Deparse,-p -e '($a == $b) == 0; ($a cmp $b) == 0;'
+//	(($a == $b) == 0);
+//	(($a cmp $b) == 0);
+//	$ perl -e 'my ($a,$b)=(1,2); print +(($a == $b) == 0) ? "y":"n", (($a == $b == 0) ? "y":"n")'
+//	yn
+//
+// So the grouped form and the chain are different programs, and canon must
+// keep the parentheses.
+func TestParenthesisedComparisonIsATerm(t *testing.T) {
+	for _, src := range []string{
+		"ok(($a == $b) == 0);",
+		"ok(($a cmp $b) == 0);",
+		"ok(($a <=> $b) <=> 0);",
+		"ok(($a < $b) < $c);",
+	} {
+		root := parse.Parse([]byte(src))
+		if containsKind(root, parse.Unknown) {
+			t.Errorf("%q: perl accepts this; got %s", src, shape(root))
+			continue
+		}
+		if got := parse.Canon(root, []byte(src)); got != src {
+			t.Errorf("%q: canon %q drops the grouping", src, got)
+		}
+	}
+}
+
 // TestTernaryAndAssignment: both are right associative and they nest at
 // different levels. Measured:
 //

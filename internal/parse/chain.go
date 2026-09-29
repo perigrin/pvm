@@ -80,7 +80,7 @@ func (p *parser) parseComparison(left *Node, op OpInfo, cls cmpClass, minBP int)
 	chainable := cls == chRelop || cls == chEqop
 
 	// Extend: the standing chain is of this operator's own class.
-	if left.Kind == CmpChain && chainClass(left) == cls {
+	if isComparison(left) && chainClass(left) == cls {
 		p.advanceTo(tok)
 		right := p.operand(op.BP, tok)
 		left.Children = append(left.Children, right)
@@ -128,8 +128,13 @@ func sameLevel(a, b cmpClass) bool {
 }
 
 // isComparison reports whether this node is already a reduced termrelop --
-// a chain, or a Binary built from a comparison operator.
+// a chain, or a Binary built from a comparison operator. A parenthesised one
+// is not: the parentheses make it a term, so `($a == $b) == 0` compares the
+// first result with 0 rather than chaining.
 func isComparison(n *Node) bool {
+	if n.Paren {
+		return false
+	}
 	if n.Kind == CmpChain {
 		return true
 	}

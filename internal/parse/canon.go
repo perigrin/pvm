@@ -480,6 +480,12 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 			//	syntax error, near "2 .."
 			l, r = info.BP+1, info.BP+1
 		}
+		// A comparison that reached a Binary is a non-chaining one, and
+		// perly.y's yyerror productions give it the same both-sides rule
+		// (chain.go): `($a <=> $b) <=> 0` written bare is a syntax error.
+		if c, _ := compareClass(n.Text); c != notComparison {
+			l, r = info.BP+1, info.BP+1
+		}
 		// A fat comma autoquotes the word to its left, so `a => 1` is the
 		// string "a" and writing `a()` calls it (§4.5.4). The flag form is
 		// handled in emitCommaSeparated; inside a call's arguments the `=>`
