@@ -744,6 +744,17 @@ func (p *parser) applyModifier(body *Node, start int) *Node {
 	if endsInBlock(body) {
 		return nil
 	}
+	// A DECLARATION ending in its own block is finished the same way: `sub t
+	// { 1 }`, `package P { ... }` and `my sub t { 1 }` take no `;`, and the
+	// `for` or `if` on the next line is a new statement. Measured on 5.42.0,
+	// `sub t { 1 } if ($x) { 2 }` deparses as two siblings. Read as a
+	// modifier, every loop after a named sub was folded into it -- at
+	// Unknown=0 for `if` and `while`, since the orphaned block then read as
+	// a bare one. blockForm is canon's predicate for the same question, so
+	// the two cannot disagree about which declarations end in a block.
+	if body.Kind == Declaration && blockForm(&Node{Kind: Statement, Children: []*Node{body}}) {
+		return nil
+	}
 
 	word, ok := p.peekSignificant()
 	if !ok || word.Kind != lexer.Word || !modifiers[p.text(word)] {

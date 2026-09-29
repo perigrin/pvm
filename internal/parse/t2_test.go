@@ -277,7 +277,11 @@ func TestT2CoreParses(t *testing.T) {
 		// `eval { ... }` inside an expression -- `eval {require 5.005}` and
 		// `eval { prototype(...) }` -- whose brace was classified from XTerm
 		// and read as an anonymous hash, so its `}` closed a subscript.
-		"comp/decl.t": 2, "comp/filter_exception.t": 5,
+		// comp/decl.t 2 -> 0 and comp/utf.t 3 -> 0, and comp/require.t 3 -> 2,
+		// when a declaration ending in its own block stopped taking the next
+		// line's `for` or `if` as a modifier (issue 01a0eac8). comp/utf.t's
+		// four nested loops sat after `sub test { ... }`.
+		"comp/filter_exception.t": 5,
 		// comp/form_scope.t 17 -> 7 when parseFormatDecl landed. The file
 		// holds nine format declarations, each of which had been swallowing
 		// the statement that followed it: an unimplemented keyword runs
@@ -386,13 +390,13 @@ func TestT2CoreParses(t *testing.T) {
 		// `grep -e, @files_to_delete` -- a `-e` with no operand followed by
 		// a COMMA, which is why the guard tests the infix table and not just
 		// `;` and closers.
-		"comp/redef.t": 1, "comp/require.t": 3, "comp/retainedlines.t": 2,
+		"comp/redef.t": 1, "comp/require.t": 2, "comp/retainedlines.t": 2,
 		// comp/use.t 1 -> 0 and LEAVES THIS MAP with the last statement of a
 		// block needing no `;` (issue 01a0dfb8). Its one remaining refusal was
 		// the `}` that `use`'s import-list hunt had swallowed; parseUse now
 		// stops at a closer as it always stopped at a semicolon, so the file
 		// is clean and an entry for it would fail as "now parses cleanly".
-		"comp/uproto.t": 1, "comp/utf.t": 3,
+		"comp/uproto.t": 1,
 		// opbasic/concat.t 5 -> 3 with the leading `::` (issue
 		// 01a0de97-3c5d). Two `::is(...)` calls, at lines 776 and 854, both
 		// inside a `package` block that would otherwise hide `test.pl`'s

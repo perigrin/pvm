@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 712 clean (72.2%), 1362 total.
+# 986 files, 718 clean (72.8%), 1343 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -80,7 +80,7 @@
 0 charnames_runtime_lookup.t
 0 chomp.t
 0 chop_wide_scalars.t
-4 chr_scalar_bounds.t
+2 chr_scalar_bounds.t
 0 class_c3_componentised_regressions.t
 0 class_default_accessor_names.t
 0 class_incomplete_no_leak.t
@@ -107,7 +107,7 @@
 3 compress_raw_zlib_autodetect_regression.t
 0 compress_raw_zlib_gzip_wrapper.t
 0 compress_zlib_gzerror_eof.t
-1 concat_assign_undef_warning.t
+0 concat_assign_undef_warning.t
 4 concat_assignment_env_taint.t
 0 concat_assignment_explicit_mutator.t
 0 concat_assignment_overload.t
@@ -236,7 +236,7 @@
 0 direct_builtin_data_handle.t
 1 directory.t
 0 do_block_freetmps_fresh_result.t
-1 do_modern_syntax_and_copy.t
+0 do_modern_syntax_and_copy.t
 0 do_quote_like_file_operand.t
 0 do_subref_parenthesized_syntax.t
 0 double_diamond_closed_stdin.t
@@ -343,8 +343,8 @@
 0 goto_localized_typeglob_args.t
 0 goto_named_redefinition.t
 7 goto_tailcall_args_cleanup.t
-3 goto_tailcall_cleanup.t
-1 goto_tailcall_core_destroy_order.t
+0 goto_tailcall_cleanup.t
+0 goto_tailcall_core_destroy_order.t
 1 harness_skip_all.t
 0 hash.t
 8 hash_autovivification.t
@@ -521,7 +521,7 @@
 7 nested_for_loops.t
 1 nested_heredoc.t
 2 nested_lexical_sub_reclosure.t
-5 netssleay_baseline.t
+2 netssleay_baseline.t
 1 netssleay_callback_and_empty_pkey.t
 0 netssleay_phase1.t
 0 netssleay_phase2.t
@@ -740,11 +740,11 @@
 0 storable_top_blessed_scalar_ref.t
 0 strict_subs_void_bareword.t
 0 string_case_escape.t
-5 string_control_punctuation.t
+4 string_control_punctuation.t
 17 string_interpolation.t
 0 string_interpolation_at_caret.t
 0 string_interpolation_escaped_hash_key.t
-8 subroutine.t
+3 subroutine.t
 2 subroutine_proto_trailing_comma_stmtend.t
 5 subroutine_prototype.t
 8 subroutine_prototype_args.t
@@ -755,7 +755,7 @@
 0 substitution_optional_qr_capture.t
 5 substitution_replacement_pos.t
 0 substr_core_edge_semantics.t
-1 substr_live_extent_modes.t
+0 substr_live_extent_modes.t
 0 substr_lvalue_live_alias.t
 0 substr_lvalue_magical_parent.t
 0 substr_lvalue_warning.t
@@ -787,7 +787,7 @@
 0 test2_refcount_probe.t
 0 test_builder_global_warning_suppression.t
 0 test_builder_level.t
-1 test_deep_memory_regression.t
+0 test_deep_memory_regression.t
 0 test_exporter_heavy_caller.t
 2 test_more.t
 0 text_balanced.t

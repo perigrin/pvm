@@ -1,6 +1,6 @@
 # Unknown nodes per perl.git t/ file, through parse.ParseFileFrom.
 #
-# 620 files, 474 clean (76.5%), 715 total.
+# 620 files, 485 clean (78.2%), 620 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -47,7 +47,7 @@
 0 comp/bproto.t
 0 comp/cmdopt.t
 0 comp/colon.t
-2 comp/decl.t
+0 comp/decl.t
 0 comp/filter_exception.t
 1 comp/final_line_num.t
 0 comp/fold.t
@@ -63,12 +63,12 @@
 0 comp/parser_run.t
 0 comp/proto.t
 1 comp/redef.t
-3 comp/require.t
+2 comp/require.t
 2 comp/retainedlines.t
 0 comp/term.t
 1 comp/uproto.t
 0 comp/use.t
-3 comp/utf.t
+0 comp/utf.t
 0 io/argv.t
 2 io/binmode.t
 0 io/bom.t
@@ -204,19 +204,19 @@
 0 op/anonsub.t
 4 op/any_all.t
 0 op/append.t
-2 op/args.t
+0 op/args.t
 0 op/arith2.t
 5 op/array.t
-4 op/assignwarn.t
+0 op/assignwarn.t
 0 op/attrhand.t
 0 op/attrproto.t
 20 op/attrs.t
 0 op/auto.t
 0 op/avhv.t
-1 op/bless.t
+0 op/bless.t
 1 op/blocks.t
 0 op/bool.t
-16 op/bop.t
+15 op/bop.t
 7 op/caller.t
 0 op/catch.t
 0 op/chars.t
@@ -245,7 +245,7 @@
 0 op/die_except.t
 0 op/die_exit.t
 0 op/die_goto.t
-8 op/die_keeperr.t
+0 op/die_keeperr.t
 0 op/die_unwind.t
 0 op/do.t
 3 op/dor.t
@@ -271,22 +271,22 @@
 1 op/getppid.t
 0 op/glob.t
 3 op/gmagic.t
-3 op/goto-sub.t
+1 op/goto-sub.t
 12 op/goto.t
 0 op/goto_xs.t
 0 op/grent.t
 0 op/grep.t
 0 op/groups.t
-29 op/gv.t
+23 op/gv.t
 3 op/hash-clear-placeholders.t
 0 op/hash-rt85026.t
-2 op/hash.t
+1 op/hash.t
 0 op/hashassign.t
 0 op/hashwarn.t
 0 op/heredoc.t
 0 op/hexfp.t
 0 op/hook/require.t
-3 op/inc.t
+0 op/inc.t
 0 op/inccode-tie.t
 1 op/inccode.t
 0 op/incfilter.t
@@ -304,7 +304,7 @@
 0 op/length.t
 9 op/lex.t
 0 op/lex_assign.t
-19 op/lexsub.t
+2 op/lexsub.t
 0 op/lfs.t
 0 op/list.t
 0 op/local.t
@@ -312,7 +312,7 @@
 0 op/lock.t
 0 op/loopctl.t
 9 op/lop.t
-10 op/lvref.t
+9 op/lvref.t
 0 op/magic-27839.t
 4 op/magic.t
 26 op/method.t
@@ -363,7 +363,7 @@
 0 op/select.t
 0 op/setpgrpstack.t
 5 op/sigdispatch.t
-2 op/signame_canonical.t
+1 op/signame_canonical.t
 2 op/signatures.t
 0 op/sigsystem.t
 0 op/sleep.t
@@ -385,7 +385,7 @@
 0 op/study.t
 0 op/studytied.t
 5 op/sub.t
-17 op/sub_lval.t
+14 op/sub_lval.t
 1 op/substr.t
 0 op/substr_left.t
 0 op/substr_thr.t
@@ -432,10 +432,10 @@
 0 opbasic/qq.t
 0 perf/benchmarks.t
 9 perf/opcount.t
-3 perf/optree.t
+0 perf/optree.t
 0 perf/speed.t
 0 perf/taint.t
-1 porting/FindExt.t
+0 porting/FindExt.t
 0 porting/args_assert.t
 0 porting/authors.t
 4 porting/bench.t
@@ -463,7 +463,7 @@
 4 porting/merge-deltas.t
 0 porting/perlfunc.t
 0 porting/pod_rules.t
-10 porting/podcheck.t
+9 porting/podcheck.t
 0 porting/re_context.t
 0 porting/readme.t
 0 porting/regen.t
@@ -493,7 +493,7 @@
 0 re/pat_advanced_thr.t
 0 re/pat_psycho.t
 0 re/pat_psycho_thr.t
-26 re/pat_re_eval.t
+0 re/pat_re_eval.t
 0 re/pat_re_eval_thr.t
 4 re/pat_rt_report.t
 0 re/pat_rt_report_thr.t
@@ -516,7 +516,7 @@
 2 re/reg_namedcapture.t
 1 re/reg_nc_tie.t
 0 re/reg_nocapture.t
-1 re/reg_pmod.t
+0 re/reg_pmod.t
 1 re/reg_posixcc.t
 0 re/regex_sets.t
 0 re/regex_sets_compat.t
@@ -595,7 +595,7 @@
 0 uni/fold.t
 0 uni/goto.t
 0 uni/greek.t
-11 uni/gv.t
+4 uni/gv.t
 1 uni/labels.t
 0 uni/latin2.t
 0 uni/lex_utf8.t
