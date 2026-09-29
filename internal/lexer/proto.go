@@ -198,6 +198,13 @@ func (l *lexer) noteSignatureParens(k Kind, start int) {
 		return
 	}
 	if l.sigDepth == 0 {
+		// A signature after an attribute list: `sub f :lvalue ($x) {...}`.
+		// An attribute's own argument touches its name (toke.c tests
+		// `*d == '('` right after it), so a `(` inside the list that does
+		// not is the signature.
+		if paren == '(' && l.signatures && l.inSubAttrs && !l.touchesAttributeName(start) {
+			l.sigDepth = 1
+		}
 		return
 	}
 	switch paren {
@@ -228,4 +235,17 @@ func (l *lexer) bareSignatureSigil(start int) bool {
 	}
 	r, _ := utf8.DecodeRune(l.src[start+1:])
 	return !identStart(r, l.utf8Pragma)
+}
+
+// touchesAttributeName reports whether the token just before start is an
+// attribute's name -- a Word after a `:` -- ending exactly there. The `sub`
+// of an anonymous sub is a Word too, and `sub($x)` is its signature.
+func (l *lexer) touchesAttributeName(start int) bool {
+	n := len(l.toks)
+	if n < 3 {
+		return false
+	}
+	prev, colon := l.toks[n-2], l.toks[n-3]
+	return prev.Kind == Word && prev.End == start &&
+		colon.End-colon.Start == 1 && l.src[colon.Start] == ':'
 }

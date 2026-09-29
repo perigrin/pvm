@@ -53,6 +53,25 @@ func (p *parser) parseDeclaration(word lexer.Token) *Node {
 	return nil
 }
 
+// parseSignature reads a sub's signature as the parenthesised list it is
+// shaped like.
+func (p *parser) parseSignature(n *Node) {
+	if sig := p.parseTerm(); sig != nil {
+		n.Children = append(n.Children, sig)
+	}
+}
+
+// hasHead reports whether a sub declaration already holds a prototype or a
+// signature -- a parenthesised child.
+func hasHead(n *Node) bool {
+	for _, c := range n.Children {
+		if c.Kind == PrototypeNode || c.Paren {
+			return true
+		}
+	}
+	return false
+}
+
 // parseLexicalSub: `my sub NAME`, `our sub NAME`, `state sub NAME`, or nil
 // when the declarator is not followed by a named sub.
 //
@@ -320,9 +339,7 @@ func (p *parser) parseSubDecl(word lexer.Token) *Node {
 		// is shaped like: `($x, $y)`, `($x = 1)`, `(@rest)`. Whether each
 		// element is a parameter, and what its default means, is M2's --
 		// this milestone owns the syntax.
-		if sig := p.parseTerm(); sig != nil {
-			n.Children = append(n.Children, sig)
-		}
+		p.parseSignature(n)
 	}
 
 	// Attributes: `sub f :lvalue { 1 }`, `sub f :prototype($$) { 1 }`. They
@@ -330,6 +347,18 @@ func (p *parser) parseSubDecl(word lexer.Token) *Node {
 	// grammar has (perly.y's subrout: `SUB subname startsub proto subattrlist
 	// subbody`).
 	p.parseAttributes(n)
+
+	// Under the signatures feature the order is the other way round: the
+	// attributes come FIRST and the signature after them, and perl rejects
+	// the prototype order -- "Subroutine attributes must come before the
+	// signature". Measured on 5.42.0, `sub t106 :prototype(@) ($a) { $a }`
+	// deparses unchanged. Read here only when no head came before the
+	// attributes.
+	if !hasHead(n) {
+		if open, ok := p.peekSignificant(); ok && p.text(open) == "(" {
+			p.parseSignature(n)
+		}
+	}
 
 	// The declaration enters scope HERE, before its own body and before
 	// anything below it is read. That ordering is perl's rule, not a

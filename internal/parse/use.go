@@ -506,7 +506,11 @@ func (p *parser) parseAttributes(n *Node) {
 			n.Children = append(n.Children, attr)
 			continue
 		}
-		if open, ok := p.peekSignificant(); ok && p.text(open) == "(" {
+		// Only a paren TOUCHING the name is its argument: toke.c tests
+		// `*d == '('` directly after it. A spaced one is a syntax error
+		// without signatures and the signature with them -- measured on
+		// 5.42.0, `sub g :lvalue ($x, $) { $x }` deparses unchanged.
+		if open, ok := p.peekSignificant(); ok && p.text(open) == "(" && open.Start == name.End {
 			depth := 0
 			for p.pos < len(p.toks) {
 				tok := p.toks[p.pos]
