@@ -166,7 +166,11 @@ func TestT2CoreParses(t *testing.T) {
 		// comp/retainedlines.t 13 -> 2. Every one uses the construct; perl's
 		// own suite reaches into the stash constantly to check what a
 		// declaration installed.
-		"base/lex.t": 19,
+		//
+		// base/lex.t 19 -> 18 and opbasic/cmp.t 5 -> 4 when a comma with no
+		// element after it stopped refusing (issue 01a0eb0a). cmp.t line 32 is
+		// `my @raw, @upgraded, @utf8;`.
+		"base/lex.t": 18,
 		// class/field.t went 9 -> 10 when quote-op keywords stopped eating
 		// their fat comma, then back to 9 when goto, delete and exists
 		// landed. The rise was never a regression in the parse: reaching
@@ -410,7 +414,7 @@ func TestT2CoreParses(t *testing.T) {
 		// opbasic/concat.t 3 -> 2 when a declaration with no initialiser
 		// became the left operand of the infix operator after it (issue
 		// 01a0eab6). Line 784 is `my $a . $foo; # weird but legal`.
-		"opbasic/cmp.t": 5, "opbasic/concat.t": 2,
+		"opbasic/cmp.t": 4, "opbasic/concat.t": 2,
 	}
 
 	var regressed, improved, nowClean, nowDirty []string

@@ -825,6 +825,20 @@ func (p *parser) statementForm() *Node {
 			//
 			// It may also carry a modifier: `my $x = 1 if $c`. parseVarDecl
 			// stops at the `if`, leaving it here.
+			//
+			// And it may be the first element of a comma list standing as a
+			// statement: `my $aa, $bb, $cc;` deparses unchanged on 5.42.0.
+			// Read HERE, at statement level, and not in parseVarDecl, because
+			// a declaration inside a call's argument list -- `open my $fh,
+			// '<', $f` -- must leave the commas to the call. Taken there, they
+			// made every such call a single parenthesised list argument.
+			if tok, ok := p.peekSignificant(); ok && p.text(tok) == "," && d.Kind == Declaration {
+				d = p.parseInfix(d, bpBelowComma)
+				if semi, ok := p.peekSignificant(); ok && semi.Kind == lexer.Semicolon {
+					p.advanceTo(semi)
+					d.End = p.prevEnd()
+				}
+			}
 			if mod := p.applyModifier(d, start); mod != nil {
 				return p.withLabels(labels, mod, start)
 			}

@@ -1,13 +1,13 @@
 # Unknown nodes per perl.git t/ file, through parse.ParseFileFrom.
 #
-# 620 files, 504 clean (81.3%), 476 total.
+# 620 files, 512 clean (82.6%), 444 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
 # is a number nobody can attribute.
 0 base/cond.t
 0 base/if.t
-19 base/lex.t
+18 base/lex.t
 0 base/num.t
 0 base/pat.t
 0 base/rs.t
@@ -185,8 +185,8 @@
 0 mro/overload_c3.t
 0 mro/overload_c3_utf8.t
 0 mro/overload_dfs.t
-4 mro/package_aliases.t
-4 mro/package_aliases_utf8.t
+3 mro/package_aliases.t
+3 mro/package_aliases_utf8.t
 0 mro/pkg_gen.t
 0 mro/pkg_gen_utf8.t
 0 mro/recursion_c3.t
@@ -198,7 +198,7 @@
 0 mro/vulcan_dfs.t
 0 mro/vulcan_dfs_utf8.t
 0 op/64bitint.t
-1 op/aassign.t
+0 op/aassign.t
 0 op/alarm.t
 2 op/anonconst.t
 0 op/anonsub.t
@@ -229,7 +229,7 @@
 0 op/cond.t
 11 op/const-optree.t
 0 op/context.t
-7 op/coreamp.t
+6 op/coreamp.t
 1 op/coresubs.t
 0 op/cproto.t
 0 op/crypt.t
@@ -250,12 +250,12 @@
 0 op/do.t
 3 op/dor.t
 0 op/dump.t
-2 op/each.t
+0 op/each.t
 0 op/each_array.t
 3 op/eval.t
 3 op/evalbytes.t
 1 op/exec.t
-1 op/exists_sub.t
+0 op/exists_sub.t
 0 op/exp.t
 0 op/fh.t
 0 op/filehandle.t
@@ -264,7 +264,7 @@
 0 op/filetest_t.t
 0 op/flip.t
 0 op/for-many.t
-4 op/for.t
+3 op/for.t
 0 op/fork.t
 0 op/fresh_perl_utf8.t
 2 op/getpid.t
@@ -299,12 +299,12 @@
 0 op/kill0.t
 8 op/kvaslice.t
 0 op/kvhslice.t
-6 op/lc.t
+5 op/lc.t
 0 op/leaky-magic.t
 0 op/length.t
 9 op/lex.t
 0 op/lex_assign.t
-2 op/lexsub.t
+1 op/lexsub.t
 0 op/lfs.t
 0 op/list.t
 0 op/local.t
@@ -327,11 +327,11 @@
 0 op/numify.t
 0 op/numify_chkflags.t
 0 op/oct.t
-1 op/or.t
+0 op/or.t
 0 op/ord.t
 1 op/overload_integer.t
 9 op/override.t
-2 op/pack.t
+1 op/pack.t
 0 op/packagev.t
 0 op/pos.t
 3 op/postfixderef.t
@@ -374,19 +374,19 @@
 0 op/split.t
 0 op/split_unicode.t
 0 op/sprintf.t
-3 op/sprintf2.t
+2 op/sprintf2.t
 0 op/srand.t
 0 op/sselect.t
 0 op/stash.t
 0 op/stash_parse_gv.t
 3 op/stat.t
 0 op/stat_errors.t
-1 op/state.t
+0 op/state.t
 0 op/study.t
 0 op/studytied.t
 4 op/sub.t
-9 op/sub_lval.t
-1 op/substr.t
+8 op/sub_lval.t
+0 op/substr.t
 0 op/substr_left.t
 0 op/substr_thr.t
 0 op/svflags.t
@@ -394,7 +394,7 @@
 21 op/switch.t
 0 op/symbolcache.t
 0 op/sysio.t
-10 op/taint.t
+6 op/taint.t
 0 op/threads-dirh.t
 0 op/threads.t
 0 op/tie.t
@@ -426,12 +426,12 @@
 5 op/write.t
 6 op/yadayada.t
 0 opbasic/arith.t
-5 opbasic/cmp.t
+4 opbasic/cmp.t
 2 opbasic/concat.t
 0 opbasic/magic_phase.t
 0 opbasic/qq.t
 0 perf/benchmarks.t
-9 perf/opcount.t
+8 perf/opcount.t
 0 perf/optree.t
 0 perf/speed.t
 0 perf/taint.t
@@ -463,7 +463,7 @@
 4 porting/merge-deltas.t
 0 porting/perlfunc.t
 0 porting/pod_rules.t
-9 porting/podcheck.t
+8 porting/podcheck.t
 0 porting/re_context.t
 0 porting/readme.t
 0 porting/regen.t
@@ -487,15 +487,15 @@
 0 re/keep_tabs.t
 0 re/no_utf8_pm.t
 0 re/opt.t
-3 re/overload.t
+2 re/overload.t
 11 re/pat.t
-3 re/pat_advanced.t
+0 re/pat_advanced.t
 0 re/pat_advanced_thr.t
 0 re/pat_psycho.t
 0 re/pat_psycho_thr.t
 0 re/pat_re_eval.t
 0 re/pat_re_eval_thr.t
-3 re/pat_rt_report.t
+1 re/pat_rt_report.t
 0 re/pat_rt_report_thr.t
 0 re/pat_special_cc.t
 0 re/pat_special_cc_thr.t
@@ -514,7 +514,7 @@
 0 re/reg_fold.t
 8 re/reg_mesg.t
 2 re/reg_namedcapture.t
-1 re/reg_nc_tie.t
+0 re/reg_nc_tie.t
 0 re/reg_nocapture.t
 0 re/reg_pmod.t
 0 re/reg_posixcc.t
@@ -537,7 +537,7 @@
 0 re/speed.t
 0 re/speed_thr.t
 0 re/stclass_threads.t
-3 re/subst.t
+2 re/subst.t
 0 re/substT.t
 0 re/subst_amp.t
 0 re/subst_wamp.t

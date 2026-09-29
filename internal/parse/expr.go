@@ -36,6 +36,26 @@ func (p *parser) parseExpr(minBP int) *Node {
 //
 // The `and` took `(1, 2)` as its left operand. parseParenList assembles that
 // list itself, so it needs the loop without the leading parseTerm.
+// elementlessAfterComma reports whether a comma followed by tok separates
+// nothing: tok cannot begin an element, so the comma is dropped. A closer, a
+// terminator, another comma, a statement modifier, and the three word
+// operators below the comma.
+func elementlessAfterComma(tok lexer.Token, src []byte) bool {
+	switch tok.Kind {
+	case lexer.CloseBracket, lexer.Semicolon:
+		return true
+	}
+	text := string(src[tok.Start:tok.End])
+	if text == "," {
+		return true
+	}
+	if tok.Kind != lexer.Word {
+		return false
+	}
+	op, isInfix := infix[text]
+	return modifiers[text] || isInfix && op.BP <= bpBelowComma
+}
+
 func (p *parser) parseInfix(left *Node, minBP int) *Node {
 	for {
 		tok, ok := p.peekSignificant()
@@ -86,10 +106,23 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 		// element for the separator to follow. `f(,)` -- a comma with nothing
 		// in front of it -- never reaches this loop at all: parseTerm refuses
 		// the comma itself, and that refusal is correct and stays.
+		//
+		// The same holds before anything else that cannot start an element.
+		// perl drops the comma, measured on 5.42.0 with -MO=Deparse:
+		//
+		//	f(1, , 2);               f 1, 2;         another comma
+		//	skip "x", 2, if $m;      skip 'x', 2 if $m;   a modifier
+		//	close $fh, or die;       die unless close $fh; a word operator
+		//
+		// So the comma is dropped and the loop goes on. What follows then
+		// decides by the loop's own rule: a closer, a terminator or a
+		// modifier is not infix and ends the expression; another comma is
+		// looked at in turn; `or`, `and` and `xor` are parsed as the
+		// operators they are, with this list as their left operand.
 		if text == "," || text == "=>" {
-			if next, ok := p.peekAfter(tok); ok && next.Kind == lexer.CloseBracket {
+			if next, ok := p.peekAfter(tok); ok && elementlessAfterComma(next, p.src) {
 				p.advanceTo(tok)
-				return left
+				continue
 			}
 		}
 
