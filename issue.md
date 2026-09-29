@@ -1,10 +1,19 @@
 ---
 title: "A comma before a fat comma refuses: `tie $@, => \"main\", 1`"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T13:11:42.079218768Z
-updated: 2026-09-29T13:11:42.079218768Z
+updated: 2026-09-29T13:11:43.168905374Z
+sessions:
+- start_sha: a5b8c9b1d7843b16fbf0cabe247695a68e21f8a6
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T13:11:43.168905374Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T13:11:43.168905374Z
 ---
 
 A comma directly followed by a fat comma refuses: `tie $@, => 'main', 1;`, `(1, => 2)`. perl drops a separator with no element after it, and a fat comma is a separator; the parser's empty-slot rules -- parseInfix's elementlessAfterComma and parseParenList's empty slot -- took only a plain `,` there.
