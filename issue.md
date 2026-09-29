@@ -1,10 +1,19 @@
 ---
 title: require q(./test.pl) is not a literal path, so its helper's subs are never declared
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-28T23:52:22.724446205Z
-updated: 2026-09-28T23:52:22.724446205Z
+updated: 2026-09-29T00:16:35.907778568Z
+sessions:
+- start_sha: 0aaccdcbebea1a3bfae177cf641ba27c12f1b049
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T00:16:35.907778568Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T00:16:35.907778568Z
 ---
 
 `require q(./test.pl)` is not resolved, so none of test.pl's subs are declared
