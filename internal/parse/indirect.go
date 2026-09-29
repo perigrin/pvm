@@ -63,7 +63,7 @@ func (p *parser) parseIndirect(word lexer.Token, spelled, text string) *Node {
 	if _, known := p.lookupSub(class); known {
 		return nil
 	}
-	if !p.packages[class] {
+	if !p.packages[class] && !interpreterPackages[class] {
 		return nil
 	}
 	if after, ok := p.peekAfter(next); ok && p.text(after) == "=>" {

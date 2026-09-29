@@ -217,6 +217,18 @@ var interpreterSubs = map[string]string{
 	"builtin::export_lexically": "",
 }
 
+// interpreterPackages are the packages perl defines before any file is
+// compiled: perl.c's perl_parse runs boot_core_PerlIO, boot_core_UNIVERSAL --
+// which takes universal.c's these_details and vxs.inc's `version` methods --
+// and boot_core_builtin. Each is a package the indirect object reading can
+// name with nothing loaded: measured on 5.42.0, `new version "1.2"` is
+// `'version'->new('1.2')`.
+var interpreterPackages = map[string]bool{
+	"UNIVERSAL": true, "utf8": true, "Internals": true, "constant": true,
+	"re": true, "version": true, "PerlIO": true, "PerlIO::Layer": true,
+	"Tie::Hash::NamedCapture": true, "builtin": true,
+}
+
 // subKey is the sub table's key for a name as spelled: a leading `::` and
 // then a leading `main::` come off, so `ok`, `::ok` and `main::ok` are one
 // sub, as they are to perl. Measured on 5.42.0, `sub main::ok {1} ::ok(1)`
