@@ -70,6 +70,10 @@ func scanVariable(l *lexer) bool {
 			switch b := l.src[l.pos]; {
 			case b == '+' || b == '-' || b == '@':
 				l.pos++
+			case b == '*' && l.expect == XPostDeref:
+				// `$r->$#*`, the postfix last index: the star closes the
+				// dereference as it does in `->@*`.
+				l.pos++
 			case isWordByte(b) || b == '{' || b == '$' || b == ':':
 				l.scanVarName()
 			}
