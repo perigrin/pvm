@@ -1,10 +1,19 @@
 ---
 title: fc is feature-gated and in no arity table, so a parenless call drops its argument at Unknown=0
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T22:02:44.311964663Z
-updated: 2026-09-26T22:02:44.311964663Z
+updated: 2026-09-29T03:46:25.063563651Z
+sessions:
+- start_sha: 6f2cd1d339c41288f07145a861f08949e579b862
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T03:46:25.063563651Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T03:46:25.063563651Z
 ---
 
 The `fc` builtin is feature-gated and is in none of the three parse arity
