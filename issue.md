@@ -1,10 +1,19 @@
 ---
 title: A Unicode letter number, `ⅲ`, is not an identifier character under use utf8
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T14:46:43.376463174Z
-updated: 2026-09-29T14:46:43.376463174Z
+updated: 2026-09-29T14:46:45.155806016Z
+sessions:
+- start_sha: e60f44cabd8d3937bca2a7fcf7e39f7eccbe7b58
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T14:46:45.155806016Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T14:46:45.155806016Z
 ---
 
 Under `use utf8`, a letter number (Unicode category Nl, such as `ⅲ` U+2172) does not lex as an identifier character. identStart and identContinue ask unicode.IsLetter, which is the L categories alone; perl's identifier is \p{XID_Start} and \p{Word}, and \p{Word} takes Nl through Alphabetic.
