@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: v0.1
 created: 2026-09-26T12:51:56.944311859Z
-updated: 2026-09-26T12:51:56.944311859Z
+updated: 2026-09-29T01:01:54.732041961Z
 ---
 
 `new Foo;` builds `new(Foo())` where perl builds `'Foo'->new`. Zero Unknown
@@ -92,6 +92,13 @@ block.
 - commands: `go test ./internal/parse/ -count=1`,
   `go test ./internal/parseoracle/ -count=1`
 - entrypoint: wherever a resolved bareword callee takes its arguments
+
+## Where the fixtures point here
+
+`internal/conformance/conformance_test.go`'s `TestCorpusSkipsAreDocumented` and
+`TestRefusalCodeMismatchFails` need a construct that still refuses, and use
+`my $x = new Foo "a";` naming THIS issue. When it lands both fail with "no
+longer refuses; replace this fixture", which is the harness working.
 
 ## Acceptance criteria
 
