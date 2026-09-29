@@ -1,10 +1,19 @@
 ---
 title: "`CORE::my` and `CORE::our` refuse in expression position"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T10:40:48.835553402Z
-updated: 2026-09-29T10:40:48.835553402Z
+updated: 2026-09-29T10:40:50.485120557Z
+sessions:
+- start_sha: d779cb6b4445aee68bc6a11be71d4c22f84c74c8
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T10:40:50.485120557Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T10:40:50.485120557Z
 ---
 
 The statement path names a declarator through keywordName, so `CORE::state $x = 1;` parses, but the term path (parseTerm's declarator branch, and canon's binding power for a declaration) looked the spelling up as written. `f(CORE::my $x)` and `(CORE::our $z = 1) + 1` refused.
