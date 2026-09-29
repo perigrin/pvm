@@ -1,10 +1,19 @@
 ---
 title: "`use feature 'a', 'b'` turns nothing on: a bare comma list of names is not read"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T15:12:08.069544922Z
-updated: 2026-09-29T15:12:08.069544922Z
+updated: 2026-09-29T15:12:09.817332259Z
+sessions:
+- start_sha: 9fdecbffea973c5465219b1cf4275e67bc552d02
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T15:12:09.817332259Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T15:12:09.817332259Z
 ---
 
 `use feature 'evalbytes', 'unicode_eval';` turns nothing on: literalNameList reads qw(), one quoted string and a parenthesised list, but not the bare comma list perl allows after `use`, which parses as a comma Binary. So a parenless `evalbytes "..."` after it refuses.
