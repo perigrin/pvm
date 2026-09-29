@@ -192,7 +192,7 @@ func (p *parser) resolveImports(module string, list *Node) {
 		p.imports = map[string]Import{}
 	}
 	for _, imp := range importsFrom(facts, names, listGiven) {
-		p.imports[imp.Name] = imp
+		p.imports[subKey(imp.Name)] = imp
 	}
 }
 
@@ -267,7 +267,7 @@ func (p *parser) resolveRequiredFile(list *Node) {
 		p.imports = map[string]Import{}
 	}
 	for name, proto := range facts.protos {
-		p.imports[name] = Import{
+		p.imports[subKey(name)] = Import{
 			Name:           name,
 			Prototype:      proto,
 			PrototypeKnown: true,

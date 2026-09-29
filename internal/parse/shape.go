@@ -155,8 +155,21 @@ func ShapeOf(proto string) Shape {
 // table is filled as declarations are parsed, so a call above a declaration
 // does not see it. See decl.go's declareSub.
 func (p *parser) knowsShape(name string) bool {
-	imp, ok := p.imports[name]
+	imp, ok := p.imports[subKey(name)]
 	return ok && imp.PrototypeKnown
+}
+
+// subKey is the sub table's key for a name as spelled: a leading `::` and
+// then a leading `main::` come off, so `ok`, `::ok` and `main::ok` are one
+// sub, as they are to perl. Measured on 5.42.0, `sub main::ok {1} ::ok(1)`
+// calls it and Deparse spells both halves `ok`. A name qualified into any
+// OTHER package keeps its qualification: `Foo::bar` is not `bar`.
+//
+// Applied at every read and write of p.imports, because a key normalised on
+// one side only is the mismatch this exists to remove.
+func subKey(name string) string {
+	name = strings.TrimPrefix(name, "::")
+	return strings.TrimPrefix(name, "main::")
 }
 
 // blockShapeTakesList reports whether a ShapeBlock prototype has argument slots
@@ -179,7 +192,7 @@ func blockShapeTakesList(proto string) bool {
 func (p *parser) parseByShape(n *Node, name string) {
 	n.Resolved = true
 
-	switch ShapeOf(p.imports[name].Prototype) {
+	switch ShapeOf(p.imports[subKey(name)].Prototype) {
 	case ShapeNiladic:
 		// `()` takes nothing, so what follows is an operator rather than an
 		// argument: `nil + 1` is `nil() + 1`.
@@ -216,7 +229,7 @@ func (p *parser) parseByShape(n *Node, name string) {
 		//
 		// Only when the block was actually taken: without one this is an
 		// ordinary parenless call whose arguments are still ahead of it.
-		if blk == nil || blockShapeTakesList(p.imports[name].Prototype) {
+		if blk == nil || blockShapeTakesList(p.imports[subKey(name)].Prototype) {
 			if arg := p.parseExpr(bpListOp); arg != nil {
 				n.Children = append(n.Children, arg)
 			}

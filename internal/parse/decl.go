@@ -384,7 +384,7 @@ func (p *parser) declareSub(n *Node) {
 	if p.imports == nil {
 		p.imports = map[string]Import{}
 	}
-	p.imports[name] = Import{
+	p.imports[subKey(name)] = Import{
 		Name:           name,
 		Prototype:      proto,
 		PrototypeKnown: true,

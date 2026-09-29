@@ -1,6 +1,6 @@
 # Unknown nodes per perl.git t/ file, through parse.ParseFileFrom.
 #
-# 620 files, 487 clean (78.5%), 614 total.
+# 620 files, 496 clean (80.0%), 501 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -160,7 +160,7 @@
 0 mro/inconsistent_c3_utf8.t
 0 mro/isa_aliases.t
 0 mro/isa_aliases_utf8.t
-1 mro/isa_c3.t
+0 mro/isa_c3.t
 0 mro/isa_c3_utf8.t
 0 mro/isa_dfs.t
 0 mro/isa_dfs_utf8.t
@@ -206,26 +206,26 @@
 0 op/append.t
 0 op/args.t
 0 op/arith2.t
-5 op/array.t
+4 op/array.t
 0 op/assignwarn.t
 0 op/attrhand.t
 0 op/attrproto.t
-20 op/attrs.t
+3 op/attrs.t
 0 op/auto.t
 0 op/avhv.t
 0 op/bless.t
-1 op/blocks.t
+0 op/blocks.t
 0 op/bool.t
 15 op/bop.t
-7 op/caller.t
+1 op/caller.t
 0 op/catch.t
 0 op/chars.t
 1 op/chdir.t
 0 op/chop.t
 0 op/chr.t
-1 op/closure.t
+0 op/closure.t
 0 op/cmpchain.t
-1 op/concat2.t
+0 op/concat2.t
 0 op/cond.t
 11 op/const-optree.t
 0 op/context.t
@@ -254,7 +254,7 @@
 0 op/each_array.t
 3 op/eval.t
 3 op/evalbytes.t
-3 op/exec.t
+1 op/exec.t
 1 op/exists_sub.t
 0 op/exp.t
 0 op/fh.t
@@ -270,14 +270,14 @@
 2 op/getpid.t
 1 op/getppid.t
 0 op/glob.t
-3 op/gmagic.t
+0 op/gmagic.t
 1 op/goto-sub.t
 12 op/goto.t
 0 op/goto_xs.t
 0 op/grent.t
 0 op/grep.t
 0 op/groups.t
-23 op/gv.t
+8 op/gv.t
 3 op/hash-clear-placeholders.t
 0 op/hash-rt85026.t
 1 op/hash.t
@@ -315,7 +315,7 @@
 9 op/lvref.t
 0 op/magic-27839.t
 4 op/magic.t
-26 op/method.t
+13 op/method.t
 0 op/mkdir.t
 0 op/multideref.t
 0 op/my.t
@@ -369,7 +369,7 @@
 0 op/sleep.t
 0 op/smartkve.t
 8 op/smartmatch.t
-4 op/sort.t
+3 op/sort.t
 0 op/splice.t
 3 op/split.t
 0 op/split_unicode.t
@@ -377,7 +377,7 @@
 3 op/sprintf2.t
 0 op/srand.t
 0 op/sselect.t
-6 op/stash.t
+0 op/stash.t
 0 op/stash_parse_gv.t
 3 op/stat.t
 0 op/stat_errors.t
@@ -385,7 +385,7 @@
 0 op/study.t
 0 op/studytied.t
 4 op/sub.t
-14 op/sub_lval.t
+9 op/sub_lval.t
 1 op/substr.t
 0 op/substr_left.t
 0 op/substr_thr.t
@@ -408,7 +408,7 @@
 0 op/tr_latin1.t
 0 op/try.t
 1 op/undef.t
-3 op/universal.t
+1 op/universal.t
 0 op/unlink.t
 0 op/unshift.t
 0 op/upgrade.t
@@ -423,7 +423,7 @@
 0 op/wantarray.t
 0 op/warn.t
 5 op/while.t
-11 op/write.t
+5 op/write.t
 6 op/yadayada.t
 0 opbasic/arith.t
 5 opbasic/cmp.t
@@ -586,29 +586,29 @@
 0 test_pl/examples.t
 0 test_pl/plan_skip_all.t
 0 test_pl/tempfile.t
-14 uni/attrs.t
+2 uni/attrs.t
 0 uni/bless.t
-1 uni/caller.t
+0 uni/caller.t
 0 uni/chomp.t
 0 uni/class.t
 0 uni/eval.t
 0 uni/fold.t
 0 uni/goto.t
 0 uni/greek.t
-4 uni/gv.t
+3 uni/gv.t
 1 uni/labels.t
 0 uni/latin2.t
 0 uni/lex_utf8.t
 0 uni/lower.t
-7 uni/method.t
+0 uni/method.t
 0 uni/opcroak.t
 0 uni/overload.t
-6 uni/package.t
+1 uni/package.t
 1 uni/parser.t
 0 uni/readline.t
 0 uni/select.t
 0 uni/sprintf.t
-6 uni/stash.t
+0 uni/stash.t
 0 uni/tie.t
 0 uni/title.t
 0 uni/tr_utf8.t
