@@ -325,7 +325,9 @@ func TestT2CoreParses(t *testing.T) {
 		// one token, and the parser was handing that token to the
 		// expression parser, which refused it as `not_a_term`. One node per
 		// file is the whole delta -- nothing else in either file moved.
-		"comp/hints.t": 2,
+		//
+		// comp/hints.t 2 -> 0 and left the map when `DESTROY { ... }` began
+		// declaring the sub, as `sub DESTROY` does (its line 256).
 		// comp/package.t 7 -> 2 across two fixes, both issue 01a0cf3e.
 		// First the filehandle slot learned that a following COMMA
 		// denies it, which is perl's own rule -- `print FOO, 1` is "No

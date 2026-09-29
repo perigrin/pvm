@@ -30,6 +30,8 @@ func (p *parser) parseTheRest(word lexer.Token) *Node {
 		return p.parseUse(word)
 	case phasers[text]:
 		return p.parsePhaser(word)
+	case text == "DESTROY" || text == "AUTOLOAD":
+		return p.parseSpecialSub(word)
 	case text == "class":
 		return p.parseClass(word)
 	}
@@ -362,6 +364,34 @@ func (p *parser) parsePhaser(word lexer.Token) *Node {
 		p.advanceTo(tok)
 	}
 	n.End = p.prevEnd()
+	return n
+}
+
+// parseSpecialSub: `DESTROY { ... }` and `AUTOLOAD { ... }`, which declare the
+// sub with no `sub` before them, or nil when no block follows.
+//
+// toke.c sends both to yyl_sub at a statement boundary, alongside the phasers:
+//
+//	case KEY_AUTOLOAD: case KEY_DESTROY: case KEY_BEGIN: ... case KEY_END:
+//	    if (PL_expect == XSTATE)
+//	        return yyl_sub(aTHX_ PL_bufptr, key);
+//
+// Unlike a phaser the result is an ordinary named sub -- Deparse writes `sub
+// DESTROY { ... }` -- so it is built as the Declaration `sub NAME BLOCK`
+// parseSubDecl would give, declared for the calls below it. Read only here,
+// in statement position; elsewhere the word is a word, and `$obj->DESTROY`
+// a method name.
+func (p *parser) parseSpecialSub(word lexer.Token) *Node {
+	if next, ok := p.peekAfter(word); !ok || p.text(next) != "{" {
+		return nil
+	}
+	p.advanceTo(word)
+	n := &Node{Kind: Declaration, Text: "sub", Start: word.Start}
+	n.Children = append(n.Children, &Node{
+		Kind: Term, Text: p.text(word), Start: word.Start, End: word.End,
+	})
+	p.declareSub(n)
+	p.finishBodyOrSemicolon(n)
 	return n
 }
 
