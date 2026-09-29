@@ -254,6 +254,25 @@ func (p *parser) resolveImports(module string, list *Node) {
 		return
 	}
 
+	// The module's own subs are callable by their qualified names whatever
+	// it exports: after `use overload;`, `overload::constant 'integer' =>
+	// sub {...}` calls lib/overload.pm's `sub constant`. Recorded before the
+	// import list is read, which a computed list abandons: loading is not
+	// importing. Keyed under the module's name, which is the package a
+	// conventional module declares.
+	//
+	// Kept apart from the imports: they are known, not imported.
+	for name, proto := range facts.protos {
+		if strings.Contains(name, "::") {
+			continue
+		}
+		if p.moduleSubs == nil {
+			p.moduleSubs = map[string]Import{}
+		}
+		q := module + "::" + name
+		p.moduleSubs[q] = Import{Name: q, Prototype: proto, PrototypeKnown: true}
+	}
+
 	// An import list restricts what is imported, and `use M ()` -- an empty
 	// list -- is the explicit "load but import nothing" form, which is NOT
 	// the same as omitting the list.
@@ -273,22 +292,6 @@ func (p *parser) resolveImports(module string, list *Node) {
 	}
 	for _, imp := range importsFrom(facts, names, listGiven) {
 		p.imports[subKey(imp.Name)] = imp
-	}
-	// The module's own subs are callable by their qualified names whatever
-	// it exports: after `use overload;`, `overload::constant 'integer' =>
-	// sub {...}` calls lib/overload.pm's `sub constant`. Keyed under the
-	// module's name, which is the package a conventional module declares.
-	//
-	// Kept apart from the imports: they are known, not imported.
-	for name, proto := range facts.protos {
-		if strings.Contains(name, "::") {
-			continue
-		}
-		if p.moduleSubs == nil {
-			p.moduleSubs = map[string]Import{}
-		}
-		q := module + "::" + name
-		p.moduleSubs[q] = Import{Name: q, Prototype: proto, PrototypeKnown: true}
 	}
 }
 
