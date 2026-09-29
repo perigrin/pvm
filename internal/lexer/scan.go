@@ -42,13 +42,26 @@ func scanVariable(l *lexer) bool {
 		return true
 	}
 
-	// `$#` is either last-index (`$#name`, `$#{...}`, `$#$ref`) or the
-	// variable named `#`. A following identifier character or brace means
-	// last-index; anything else -- including `[` -- means the name is `#`.
+	// `$#` is either last-index (`$#name`, `$#{...}`, `$#$ref`, `$#+`) or the
+	// variable named `#`. toke.c's test is the byte after it:
+	//
+	//	if (   s[1] == '#'
+	//	    && (   isIDFIRST_lazy_if_safe(s+2, PL_bufend, UTF)
+	//	        || memCHRs("{$:+-@", s[2])))
+	//
+	// `+`, `-` and `@` are one-byte punctuation names -- `$#+` is the last
+	// index of @+, measured `2` after `"ab" =~ /(a)(b)/` on 5.42.0 -- and
+	// `:` begins a package-qualified one, `$#::x`. Anything else, `[`
+	// included, means the name is `#`.
 	if c == '$' && l.src[l.pos] == '#' {
 		l.pos++
-		if l.pos < len(l.src) && (isWordByte(l.src[l.pos]) || l.src[l.pos] == '{' || l.src[l.pos] == '$') {
-			l.scanVarName()
+		if l.pos < len(l.src) {
+			switch b := l.src[l.pos]; {
+			case b == '+' || b == '-' || b == '@':
+				l.pos++
+			case isWordByte(b) || b == '{' || b == '$' || b == ':':
+				l.scanVarName()
+			}
 		}
 		l.emit(Variable, start)
 		return true
