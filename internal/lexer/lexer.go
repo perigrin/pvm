@@ -463,8 +463,12 @@ func (l *lexer) emit(k Kind, start int) {
 	// belongs to the same call either way; see listOpParen.
 	inListOpParen := l.listOpParen && k == Operator && l.pos-start == 1 &&
 		l.src[start] == '('
-	l.listOpParen = k == Word && takesBlock(string(l.src[start:l.pos])) &&
-		l.peekIsOpenParen()
+	// Trivia does not clear the carry: `map ({...} @a)` has a space between
+	// the word and its paren, and the call is the same one.
+	if k != Whitespace && k != Comment {
+		l.listOpParen = k == Word && takesBlock(string(l.src[start:l.pos])) &&
+			l.peekIsOpenParen()
+	}
 
 	// A label's `:`, carried from the Word before it. Read BEFORE the carry
 	// is reset, for inListOpParen's reason.
