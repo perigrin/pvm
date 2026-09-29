@@ -517,7 +517,8 @@ func (p *parser) parseFor(word lexer.Token) *Node {
 	// consuming it here leaves the head unparseable -- measured: the whole
 	// statement fell to Unknown.
 	if next, ok := p.peekSignificant(); ok && p.text(next) != "(" {
-		if next.Kind == lexer.Word && declarators[keywordName(p.text(next))] {
+		switch {
+		case next.Kind == lexer.Word && declarators[keywordName(p.text(next))]:
 			p.advanceTo(next)
 			decl := &Node{Kind: Declaration, Text: p.text(next), Start: next.Start}
 			// `for my ($k, $v) (LIST)` iterates several variables at once,
@@ -537,7 +538,7 @@ func (p *parser) parseFor(word lexer.Token) *Node {
 			}
 			decl.End = p.prevEnd()
 			n.Children = append(n.Children, decl)
-		} else if next.Kind == lexer.Variable {
+		case next.Kind == lexer.Variable:
 			// A BARE loop variable -- `for $i (@l)`, `for $pkg::i (@l)`. It
 			// occupies the same slot the `my` spelling's Declaration does, so
 			// it has to be marked as that slot: a plain Term here is
@@ -549,6 +550,15 @@ func (p *parser) parseFor(word lexer.Token) *Node {
 				Kind: Term, Text: p.text(next), Start: next.Start, End: next.End,
 				LoopVar: true,
 			})
+		case next.Kind == lexer.DerefSigil && p.src[next.Start] == '$':
+			// A DEREFERENCED scalar: `for ${*$f} (...)`, `for $$r (...)`.
+			// perl aliases through the reference -- measured on 5.42.0,
+			// Deparse keeps `foreach ${*$f;} (5, 11, 33)`. The deref is the
+			// term the sigil starts, and it takes the same slot.
+			if v := p.parseTerm(); v != nil {
+				v.LoopVar = true
+				n.Children = append(n.Children, v)
+			}
 		}
 	}
 
