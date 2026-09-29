@@ -103,7 +103,12 @@ func (p *parser) parseLexicalSub(word lexer.Token) *Node {
 		return nil
 	}
 	sub, ok := p.peekAfter(word)
-	if !ok || sub.Kind != lexer.Word || p.text(sub) != "sub" {
+	if !ok || sub.Kind != lexer.Word {
+		return nil
+	}
+	// `my method NAME` under class syntax is the lexical method, 5.42's, as
+	// `my sub NAME` is the lexical sub.
+	if kw := p.text(sub); kw != "sub" && (kw != "method" || !p.features["class"]) {
 		return nil
 	}
 	if name, ok := p.peekAfter(sub); !ok || name.Kind != lexer.Word {

@@ -410,7 +410,10 @@ func TestClassCorpusRatchet(t *testing.T) {
 	// 9 -> 7 when a class's version became part of its head (lexer and
 	// canon). class/inherit.t 2 -> 0: `class Testcase2A 1.23 { }` read its
 	// block as an anonymous hash after the number.
-	const want = 7
+	//
+	// 7 -> 4 when `my method NAME` began declaring a lexical method under
+	// class syntax. class/method.t 3 -> 0.
+	const want = 4
 	if unknown != want {
 		t.Errorf("t/class holds %d Unknown nodes, want %d: update this pin in "+
 			"the same commit as the change that moved it", unknown, want)
