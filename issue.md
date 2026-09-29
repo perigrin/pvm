@@ -7,7 +7,7 @@ blocked_by:
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 - 01a0b835-1270-7b32-9f0a-18fe7c555bae
 created: 2026-09-16T06:00:39.116126082Z
-updated: 2026-09-19T05:48:07.737427577Z
+updated: 2026-09-29T01:00:28.463018682Z
 sessions:
 - start_sha: 528b9d835526d7a2c3acb41646c44cf6fd145437
   end_sha: 528b9d835526d7a2c3acb41646c44cf6fd145437
@@ -23,50 +23,103 @@ transitions:
   timestamp: 2026-09-19T05:47:32.896618539Z
 ---
 
-Two files are pinned as WRONG in the corpus baseline, and the pin comes out
-when they do.
+`new Foo;` builds `new(Foo())` where perl builds `'Foo'->new`. Zero Unknown
+nodes and the wrong tree, so nothing in the suite notices. Found while
+measuring `01a0d087`, which asserts indirect object notation is unimplemented
+-- it is worse than unimplemented, it is silently mis-implemented for the
+declared case.
 
-    comp/our.t       metric 8
-    op/universal.t   metric 16
+## Measured
 
-Both are defects in the TREE-SITTER grammar, which is what the harness still
-measures (`run.go:381` calls `parser.New()`). Findings §0.11 has the analysis
-and `marker_gaps_test.go` has the regression tests.
+Perl, 5.42.0 at `/home/perigrin/.local/bin/perl`:
 
-## Why they are pinned rather than zero
+    perl -MO=Deparse -e 'package Foo; sub new {1} package main; new Foo;'
+      -> 'Foo'->new;                     a METHOD call on the string "Foo"
 
-Commit `a69d8f1c` introduced these and left `TestCorpusBaselineIsIntact`
-tripped on purpose, as a signal. It stayed tripped, and a permanently-red
-test is one nobody reads -- worse, a red suite cannot show the NEXT
-regression. An absolute zero that has never held stops being a gate and
-becomes scenery.
+    perl -MO=Deparse -e 'package Foo; sub new {1} package main; new Foo 1, 2;'
+      -> 'Foo'->new(1, 2);
 
-The pin names both PATHS rather than a count. A count of 2 would let one
-defect be fixed and a different one appear with the gate silent; measured,
-that swap passes a count and fails the pin.
+Ours, counting Unknown nodes and reading canon:
 
-## What removes it
+    new Foo;      (sub new declared in-file)   Unknown=0  canon "new(Foo());"
+    new Foo;      (undeclared)                 Unknown=1  canon "new Foo;"
+    new Foo 1, 2;                              Unknown=1  canon "new Foo 1, 2;"
 
-Either:
+So the DECLARED case parses clean and builds a function call whose argument
+is a bareword call, where perl builds a method call on a class name. The
+undeclared case refuses, which is correct-by-accident: perl also cannot
+resolve it, though for a different reason.
 
-1. **The M1 gate lands** and the harness measures `internal/parse` instead of
-   the tree-sitter grammar. This is the expected route, and `comp/our.t`'s
-   cause is already fixed there -- the M1 lexer reads `if (/TIE/)` as
-   `Quote("/TIE/")`, not division. Verified.
-2. **Someone fixes the tree-sitter grammar's two defects** directly. Real
-   work on a parser M1-M6 exist to replace, so probably not worth it.
+## Why it went unnoticed, and why it matters
 
-Either way the closing move is the same: delete the pin block in
-`ratchet_test.go`, restore `!= 0`, re-baseline in the same commit, and update
-findings §0.11.
+`01a0ad3f` and `01a0c13f-50ee` taught the parser that a `sub NAME` earlier in
+the file is a declaration the call site can see. That is right, and it is
+what makes `new Foo;` resolve. But `new` resolving as a FUNCTION is the wrong
+resolution when the next token is a bareword that names a package: perl's
+rule is that `WORD BAREWORD` is indirect object notation, and the bareword is
+the invocant.
 
-If only ONE is fixed, replace the pin with the remaining path rather than
-loosening it to a count.
+Zero Unknowns means every ratchet reports this as clean. It is the same class
+of defect as `undef &f` (found under `01a0dd43`, which scored Unknown=0 while
+building `binary call call`): a confident wrong tree that round-trips.
 
-## Acceptance
+## Not urgent, and the reason is measured
 
-- [ ] The WRONG pin is gone and the gate asserts zero (`go test ./internal/parseoracle/ -run '^TestCorpusBaselineIsIntact$' -count=1 -v | grep -q '^--- PASS: TestCorpusBaselineIsIntact'`)
-- [ ] The baseline holds no WRONG rows (`grep -c '^WRONG' internal/parseoracle/testdata/ratchet/baseline.txt | grep -q '^0$'`)
-- [ ] Findings §0.11 records the change with the measurement that produced it
+Nothing in T2's 56 files writes `WORD BAREWORD` in this shape -- grepped for
+`^\s*(new|open)\s+[A-Z]\w*\s*;` across base, comp, cmd, opbasic and class,
+zero hits. So it costs no ratchet node today and is latent rather than
+active. It will stop being latent the moment the corpus grows a case for it,
+which is the right time to fix it.
 
-Findings: §0.11. Introduced by a69d8f1c; pinned by the commit that closes this issue's parent.
+## The `defer` relationship, which is what I was actually measuring
+
+`01a0d087` says `defer BLOCK ARG` and `new Foo;` need the same rule. Measured,
+they do NOT:
+
+    defer { 1 } print "b";     Unknown=1  canon "defer { 1 }print(\"b\");"
+    zzz { 1 } print "b";       Unknown=1  canon "zzz { 1 } print \"b\";"
+    zzz { 1 };                 Unknown=0  canon "zzz(){1};"
+
+`WORD BLOCK` alone is read as an INDEX CALL -- `zzz(){1}`, a call subscripted
+by an anon hash -- which is exactly the mechanism `01a0dd71` fixed for
+`ADJUST` and `01a0ddac` records for a bare block in a class body. Three
+spellings of one gap: a brace group after a word is not being read as a
+block.
+
+`WORD BAREWORD` is a different gap and this issue is it.
+
+## Scope
+
+1. In statement position, `WORD BAREWORD` where the bareword looks like a
+   package name is a method call on that name. Measure the boundary first:
+   `new Foo::Bar;`, `new $class;`, `print STDERR "x";` (a filehandle, NOT
+   this rule) and `open FH, "<", $f;` all wear the same shape and do not all
+   mean the same thing.
+2. Decide what to do about the DECLARED case specifically, since that is the
+   one that currently builds a wrong tree rather than refusing. Refusing
+   would be a regression in node count and an improvement in honesty; the
+   oracle gate (WRONG = 0) says honesty wins.
+3. A corpus case, in tier 11, pinning `'Foo'->new` against `new Foo`.
+
+## Context
+
+- paths: `internal/parse/call.go` (`knowsShape`, the parenless-call path),
+  `internal/parse/parse.go` (statement dispatch)
+- commands: `go test ./internal/parse/ -count=1`,
+  `go test ./internal/parseoracle/ -count=1`
+- entrypoint: wherever a resolved bareword callee takes its arguments
+
+## Where the fixtures point here
+
+`internal/conformance/conformance_test.go`'s `TestCorpusSkipsAreDocumented` and
+`TestRefusalCodeMismatchFails` need a construct that still refuses, and use
+`my $x = new Foo "a";` naming THIS issue. When it lands both fail with "no
+longer refuses; replace this fixture", which is the harness working.
+
+## Acceptance criteria
+
+- [ ] `new Foo;` builds a method call on the class name (`go test ./internal/parse/ -run '^TestIndirectObjectNotation$' -count=1 -v | grep -q '^--- PASS: TestIndirectObjectNotation'`)
+- [ ] The filehandle shapes are unaffected (`go test ./internal/parse/ -run '^TestIndirectObjectNotation$' -count=1 | grep -q '^ok'`)
+- [ ] REGRESSION GUARD, passes today: the parse ratchets hold (`go test ./internal/parse/ -count=1 | grep -q '^ok'`)
+- [ ] REGRESSION GUARD, passes today: the oracle holds (`go test ./internal/parseoracle/ -count=1 | grep -q '^ok'`)
+- [ ] REGRESSION GUARD, passes today: the corpus ratchet holds (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
