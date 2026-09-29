@@ -3,7 +3,10 @@
 
 package lexer
 
-import "unicode/utf8"
+import (
+	"strings"
+	"unicode/utf8"
+)
 
 // scanVariable lexes a sigil and its name.
 //
@@ -442,12 +445,28 @@ func scanWord(l *lexer) bool {
 	if !l.scanIdentRunes() {
 		return false
 	}
+	l.keywordBeforeApostrophe(start)
 	l.takeRepeatAssign(start)
 	// `use utf8` widens the class for everything after it, so the pragma has
 	// to be noticed as it is lexed rather than in a prepass.
 	l.notePragma(start)
 	l.emit(Word, start)
 	return true
+}
+
+// keywordBeforeApostrophe ends a word at an apostrophe that follows a
+// keyword: the apostrophe opens a string there. toke.c's yyl_keylookup scans
+// the first word WITHOUT package parts and looks it up; only a non-keyword
+// goes on to yyl_just_a_word, where `'` joins a package name. So `print'x'`
+// prints and `eval'f()'` evals, while `foo'bar` is `foo::bar`. A `::` comes
+// first in toke.c too, so a word already qualified with one is left alone.
+func (l *lexer) keywordBeforeApostrophe(start int) {
+	word := string(l.src[start:l.pos])
+	i := strings.IndexByte(word, '\'')
+	if i <= 0 || strings.Contains(word[:i], "::") || !perlKeywords[word[:i]] {
+		return
+	}
+	l.pos = start + i
 }
 
 // takeRepeatAssign extends a just-scanned `x` into the `x=` operator.
