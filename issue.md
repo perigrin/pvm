@@ -1,19 +1,28 @@
 ---
 title: "print $fh <<'EOF' lexes << as a shift: the filehandle slot never leaves operator position"
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T03:39:15.639427053Z
-updated: 2026-09-29T03:39:16.949676433Z
+updated: 2026-09-29T03:44:35.994027606Z
 sessions:
 - start_sha: dc1cf141bf6b22beb8acb2b3d552f14ed5840878
-  end_sha: ""
-  commits: 0
+  end_sha: 6f2cd1d339c41288f07145a861f08949e579b862
+  commits: 1
   started_at: 2026-09-29T03:39:16.949676433Z
+  ended_at: 2026-09-29T03:44:35.994027606Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-29T03:39:16.949676433Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-29T03:44:35.994027606Z
+observed_paths:
+- internal/lexer/fhslot_test.go
+- internal/lexer/lexer.go
+- internal/parse/testdata/perlgitt.ratchet
+- internal/parse/testdata/t1.ratchet
 ---
 
 `print $fh <<'EOF'` lexes the `<<` as a left shift, so the heredoc body is read
