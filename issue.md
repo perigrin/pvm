@@ -1,19 +1,27 @@
 ---
 title: "Canon drops the parens around a declaration: (my $s = \"abc\") =~ /x/ re-emits as a different program"
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-28T22:31:49.085135865Z
-updated: 2026-09-29T01:16:58.472370341Z
+updated: 2026-09-29T01:24:56.91718619Z
 sessions:
 - start_sha: e17aed8838af225cdce8ff82160a3b8c35b1550b
-  end_sha: ""
-  commits: 0
+  end_sha: dcff31ae6c112a7e482d7b723105a1bd8790a900
+  commits: 1
   started_at: 2026-09-29T01:16:58.472370341Z
+  ended_at: 2026-09-29T01:24:56.91718619Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-29T01:16:58.472370341Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-29T01:24:56.91718619Z
+observed_paths:
+- internal/parse/canon.go
+- internal/parse/declparen_test.go
+- internal/parse/testdata/t1fidelity.ratchet
 ---
 
 Canon drops the parentheses around a declaration, at Unknown=0, and emits a
