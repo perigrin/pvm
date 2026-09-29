@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T20:55:26.202515665Z
-updated: 2026-09-29T20:55:26.202515665Z
+updated: 2026-09-29T23:19:24.53317257Z
 ---
 
 A format argument line may open a `{` block that spans lines, and that block may itself declare a format. perl.git t/op/write.t:1938-1950:
@@ -25,8 +25,8 @@ A format argument line may open a `{` block that spans lines, and that block may
 
 scanFormatBody ends the outer body at the first lone `.`, which belongs to the nested BIRDS format, so `"nest" } .` is left as code and the `}` refuses. In LEX_FORMLINE perl lexes argument lines as Perl, so a brace there opens a real block, and the body ends only at a `.` outside it.
 
-The body is one opaque FormatBody token today. Fixing this means either lexing argument lines as Perl or tracking their brackets. Both are design choices about how format bodies are represented, so this needs a decision before code.
+perlform settles the representation: "the expressions may be spread out to more than one line if enclosed in braces. If so, the opening brace must be the first token on the first line." So the body stays one opaque FormatBody token, and only its end moves. A braced argument line is lexed by a sub-lexer up to its matching `}`, which handles the nested format as ordinary Perl, and the body resumes after it. Measured with perl 5.42: the NEST/BIRDS shape writes "birds" then "nest" and runs the statement after the outer `.`.
 
 ## Acceptance criteria
 
-- [ ] perl.git t/op/write.t parses clean (`go test ./internal/parse/ -run '^TestPerlGitTRatchet$' -count=1` with `0 op/write.t` in internal/parse/testdata/perlgitt.ratchet)
+- [ ] A braced argument block holding a nested format stays in the body (`go test ./internal/lexer/ -run '^TestFormatArgumentBlock$' -count=1 -v | grep -q '^--- PASS: TestFormatArgumentBlock'`)
