@@ -134,6 +134,13 @@ func (l *lexer) scanIdentRunes() bool {
 			continue
 		}
 
+		// So does a leading `'` in a declared name: `sub 'Hello'_he_said`.
+		if first && l.declNameApostrophe() {
+			l.pos++
+			first = false
+			continue
+		}
+
 		// A separator joins two name parts. `::` always; `'` only when a name
 		// character follows, or `$'` would start a package name and swallow
 		// the rest of the line. The apostrophe can only ever be INTERIOR:
@@ -182,6 +189,26 @@ func (l *lexer) leadingNameStartFollows() bool {
 		return false
 	}
 	r, _ := utf8.DecodeRune(l.src[l.pos+2:])
+	return identStart(r, l.utf8Pragma)
+}
+
+// declNameApostrophe reports whether the cursor is on a `'` that begins the
+// name after `sub` or `format`, with an identifier start after it. toke.c
+// scans those names with scan_word, whose parse_ident reads such a `'` as
+// `::` in the first position as in any other: `sub 'Hello'_he_said` declares
+// Hello::_he_said, measured on 5.42.0. Anywhere else it opens a string.
+func (l *lexer) declNameApostrophe() bool {
+	if l.src[l.pos] != '\'' || l.pos+1 >= len(l.src) {
+		return false
+	}
+	afterFormat := false
+	if i := l.significantBefore(len(l.toks)); l.sawFormatWord && i >= 0 {
+		afterFormat = string(l.src[l.toks[i].Start:l.toks[i].End]) == "format"
+	}
+	if !l.sawSubWord && !afterFormat {
+		return false
+	}
+	r, _ := utf8.DecodeRune(l.src[l.pos+1:])
 	return identStart(r, l.utf8Pragma)
 }
 

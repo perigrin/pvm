@@ -70,6 +70,11 @@ func pairedCloser(open rune) rune {
 func scanQuoteLike(l *lexer) bool {
 	start := l.pos
 
+	// A declared name's leading apostrophe is a separator: see
+	// declNameApostrophe.
+	if l.declNameApostrophe() {
+		return false
+	}
 	// A plain string form is its own delimiter: '...', "...", `...`.
 	if c := rune(l.src[l.pos]); c == '\'' || c == '"' || c == '`' {
 		l.pos++

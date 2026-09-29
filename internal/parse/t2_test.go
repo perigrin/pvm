@@ -364,8 +364,10 @@ func TestT2CoreParses(t *testing.T) {
 		// labelling an empty statement (line 594, `eval{a:}`).
 		// comp/parser.t 6 -> 2 when a `)` looked past a queued heredoc body
 		// for its `{` (line 169, `foreach ... (split /\n/, <<'EOF')`); the
-		// four were braces that loop's body orphaned.
-		"comp/parser.t": 2,
+		// four were braces that loop's body orphaned. comp/parser.t 2 -> 0,
+		// out of the map, when a declared name's leading apostrophe became a
+		// package separator: `sub 'Hello'_he_said` and `format 'one =`
+		// (lines 480 and 506).
 		// comp/require.t went 11 -> 12 when phaser braces became blocks. The
 		// `BEGIN { ... }` body is now read as statements rather than as one
 		// hashref, and reaching inside it exposed a heredoc the parser did
