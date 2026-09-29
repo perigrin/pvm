@@ -1,19 +1,27 @@
 ---
 title: "A niladic builtin's name after `sub` loses its body: `sub time { 1 }` parses as a forward declaration and a bare block"
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T06:45:13.42664501Z
-updated: 2026-09-29T06:57:05.938031108Z
+updated: 2026-09-29T07:08:49.466690289Z
 sessions:
 - start_sha: d1037956815eca1e624d44e35f143745d546d2f7
-  end_sha: ""
-  commits: 0
+  end_sha: d652b604c81ba213b86fa345de7c344c89ca1eb6
+  commits: 1
   started_at: 2026-09-29T06:57:05.938031108Z
+  ended_at: 2026-09-29T07:08:49.466690289Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-29T06:57:05.938031108Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-29T07:08:49.466690289Z
+observed_paths:
+- internal/lexer/expect.go
+- internal/lexer/niladicsub_test.go
+- internal/parse/testdata/t1.ratchet
 ---
 
 In lexer/expect.go the Word transition tests isNiladic before afterDeclName, so the word after `sub` returns XOperator and the `{` is never classified as the body. The tree is wrong at Unknown=0:
