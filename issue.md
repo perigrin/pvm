@@ -1,19 +1,35 @@
 ---
 title: new Foo builds new(Foo()) where perl builds a method call on the class name
-state: in-progress
+state: done
 urgency: normal
 milestone: v0.1
 created: 2026-09-26T12:51:56.944311859Z
-updated: 2026-09-29T05:35:16.049019218Z
+updated: 2026-09-29T05:49:19.033553395Z
 sessions:
 - start_sha: ef36d1ef0486ea3dddfc702d261fdc29c7b92cb0
-  end_sha: ""
-  commits: 0
+  end_sha: 9c48146ef630f3df38870b9dc5d83c4ecb775b6b
+  commits: 1
   started_at: 2026-09-29T05:35:16.049019218Z
+  ended_at: 2026-09-29T05:49:19.033553395Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-29T05:35:16.049019218Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-29T05:49:19.033553395Z
+observed_paths:
+- internal/conformance/conformance_test.go
+- internal/parse/call.go
+- internal/parse/canon.go
+- internal/parse/decl.go
+- internal/parse/indirect.go
+- internal/parse/indirect_test.go
+- internal/parse/parse.go
+- internal/parse/testdata/perlgitt.ratchet
+- internal/parse/testdata/t1.ratchet
+- internal/parse/testdata/t1fidelity.ratchet
+- internal/parse/use.go
 ---
 
 `new Foo;` builds `new(Foo())` where perl builds `'Foo'->new`. Zero Unknown
