@@ -184,7 +184,7 @@ func TestIdentifierPackageSeparators(t *testing.T) {
 	lastToken(t, `@Foo'Bar'baz`, Variable)
 
 	// `$'` is the postmatch variable: the apostrophe is the NAME, not a
-	// separator, because no identifier character precedes it.
+	// separator, because no identifier start follows it.
 	lastToken(t, `$'`, Variable)
 
 	// The corpus line that needs both readings at once. A lexer that treats
@@ -205,6 +205,37 @@ func TestIdentifierPackageSeparators(t *testing.T) {
 		if tok.Kind == Quote {
 			t.Errorf("%q: an apostrophe opened a string at [%d,%d); both are "+
 				"package separators or variable names", src, tok.Start, tok.End)
+		}
+	}
+}
+
+// TestLeadingApostropheSeparator: an apostrophe right after the sigil is a
+// separator too when an identifier start follows, and names main. toke.c's
+// parse_ident takes it at any position, the first included:
+//
+//	(   *s == '\''
+//	 && FEATURE_APOS_AS_NAME_SEP_IS_ENABLED
+//	 && isIDFIRST_lazy_if_safe(s+1, s_end, is_utf8))
+//
+// Measured on 5.42.0:
+//
+//	$ perl -e '$main::b = 5; "xy" =~ /x/; print $'"'"'b, "|", $'"'"''
+//	5|y
+//
+// So the full corpus line comp/package.t:17, `$main'a = $'b;`, is two
+// package variables. Split, `$'` took the postmatch and `b` became a call.
+func TestLeadingApostropheSeparator(t *testing.T) {
+	for _, src := range []string{`$'b`, `@'b`, `$'b'c`} {
+		toks := significant(Tokenize([]byte(src)))
+		if len(toks) != 1 || toks[0].Kind != Variable {
+			t.Errorf("%q: want one Variable, got %d tokens", src, len(toks))
+		}
+	}
+	// No identifier start after it: the postmatch variable, then the rest.
+	for _, src := range []string{"$';", "$' b", "$'1"} {
+		toks := significant(Tokenize([]byte(src)))
+		if len(toks) < 2 || src[toks[0].Start:toks[0].End] != "$'" {
+			t.Errorf("%q: want the postmatch variable `$'` first", src)
 		}
 	}
 }

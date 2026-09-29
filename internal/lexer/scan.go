@@ -3,6 +3,8 @@
 
 package lexer
 
+import "unicode/utf8"
+
 // scanVariable lexes a sigil and its name.
 //
 // The `$#` forms are the trap this exists for, and t/base/lex.t line 10 is
@@ -187,10 +189,24 @@ func (l *lexer) scanVarName() {
 	}
 	switch c := l.src[l.pos]; {
 	case c == '\'':
-		// `$'` is the postmatch variable: the apostrophe is the whole name.
-		// A separator needs an identifier character BEFORE it, and there is
-		// none here.
+		// `$'` is the postmatch variable: the apostrophe is the whole name
+		// -- unless an identifier start follows, when it is the old package
+		// separator naming main. toke.c's parse_ident takes it at the first
+		// position as at any other; measured, `$main::b = 5; print $'b`
+		// prints 5. So comp/package.t:17's `$'b` is `$main::b`.
+		//
+		// ponytail: ungated, as the interior separator in scanIdentRunes is.
+		// perl gates both on feature apostrophe_as_package_separator, off
+		// from the 5.41 bundle; there `$'b` is `$'` and a bareword, a syntax
+		// error in every spelling but `$'x3`-style repeats. Gate both when
+		// the lexer tracks feature bundles: 01a0ec10-0f98-7801-afbf-5c02bdc9c3c9.
 		l.pos++
+		if l.pos < len(l.src) {
+			r, _ := utf8.DecodeRune(l.src[l.pos:])
+			if identStart(r, l.utf8Pragma) {
+				l.scanIdentRunes()
+			}
+		}
 	case c == ':' && l.leadingPackageSeparator():
 		// `$::x` is `$main::x`. scanIdentRunes requires a leading identifier
 		// byte and `:` is not one, so this lexed as `Variable("$:")` -- a

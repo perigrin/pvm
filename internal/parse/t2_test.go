@@ -339,7 +339,7 @@ func TestT2CoreParses(t *testing.T) {
 		// 01a0de8b). Its one label is `SILENCE_WARNING: {` at line 117;
 		// before the fix that brace lexed as an anonymous hash and the two
 		// statements after it fell to trailing_tokens.
-		"comp/opsubs.t": 9, "comp/package.t": 1,
+		"comp/opsubs.t": 9,
 		// comp/parser.t 64 -> 55 and comp/parser_run.t 12 -> 5 with the
 		// heredoc body (issue 01a0c13f) -- nine and seven nodes. parser_run.t
 		// is the densest heredoc user in the map: more than half its
