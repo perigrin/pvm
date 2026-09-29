@@ -1,6 +1,6 @@
 # Unknown nodes per perl.git t/ file, through parse.ParseFileFrom.
 #
-# 620 files, 467 clean (75.3%), 844 total.
+# 620 files, 472 clean (76.1%), 817 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -148,8 +148,8 @@
 0 mro/basic_utf8.t
 0 mro/c3_with_overload.t
 0 mro/c3_with_overload_utf8.t
-1 mro/complex_c3.t
-1 mro/complex_c3_utf8.t
+0 mro/complex_c3.t
+0 mro/complex_c3_utf8.t
 0 mro/complex_dfs.t
 0 mro/complex_dfs_utf8.t
 0 mro/dbic_c3.t
@@ -172,8 +172,8 @@
 0 mro/next_NEXT_utf8.t
 0 mro/next_edgecases.t
 0 mro/next_edgecases_utf8.t
-4 mro/next_goto.t
-4 mro/next_goto_utf8.t
+0 mro/next_goto.t
+0 mro/next_goto_utf8.t
 0 mro/next_inanon.t
 0 mro/next_inanon_utf8.t
 0 mro/next_ineval.t
@@ -230,10 +230,10 @@
 21 op/const-optree.t
 0 op/context.t
 7 op/coreamp.t
-2 op/coresubs.t
+1 op/coresubs.t
 0 op/cproto.t
 0 op/crypt.t
-3 op/current_sub.t
+2 op/current_sub.t
 0 op/dbm.t
 0 op/debug.t
 8 op/decl-refs.t
@@ -303,8 +303,8 @@
 0 op/leaky-magic.t
 0 op/length.t
 9 op/lex.t
-1 op/lex_assign.t
-48 op/lexsub.t
+0 op/lex_assign.t
+45 op/lexsub.t
 0 op/lfs.t
 0 op/list.t
 0 op/local.t
@@ -349,7 +349,7 @@
 0 op/readline.t
 0 op/readline_nb.t
 0 op/recurse.t
-8 op/ref.t
+7 op/ref.t
 0 op/refstack.t
 1 op/repeat.t
 0 op/require_37033.t
@@ -385,7 +385,7 @@
 0 op/study.t
 0 op/studytied.t
 7 op/sub.t
-24 op/sub_lval.t
+17 op/sub_lval.t
 1 op/substr.t
 0 op/substr_left.t
 0 op/substr_thr.t
@@ -463,7 +463,7 @@
 4 porting/merge-deltas.t
 0 porting/perlfunc.t
 0 porting/pod_rules.t
-13 porting/podcheck.t
+10 porting/podcheck.t
 0 porting/re_context.t
 0 porting/readme.t
 0 porting/regen.t

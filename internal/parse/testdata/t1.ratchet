@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 704 clean (71.4%), 1378 total.
+# 986 files, 711 clean (72.1%), 1363 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -11,7 +11,7 @@
 0 anonymous_code_attribute_order.t
 0 anonymous_glob_reference.t
 0 app_cpan_failure_status.t
-1 archive_zip_archive_subclass.t
+0 archive_zip_archive_subclass.t
 0 archive_zip_members_matching_qr.t
 0 array.t
 9 array_autovivification.t
@@ -81,7 +81,7 @@
 0 chomp.t
 0 chop_wide_scalars.t
 4 chr_scalar_bounds.t
-1 class_c3_componentised_regressions.t
+0 class_c3_componentised_regressions.t
 0 class_default_accessor_names.t
 0 class_incomplete_no_leak.t
 0 class_lvalue_method.t
@@ -296,7 +296,7 @@
 0 file_path_rmtree_options.t
 0 file_temp_handle_methods.t
 0 file_temp_missing_parent.t
-1 file_temp_path_wrapper_lifetime.t
+0 file_temp_path_wrapper_lifetime.t
 0 file_temp_scalar_deref.t
 0 file_temp_stat_mode.t
 0 file_temp_warnif_regression.t
@@ -496,7 +496,7 @@
 5 mojolicious_inherited_listener_regression.t
 8 mojolicious_mount_lifecycle_regression.t
 6 mojolicious_parser_diagnostic_parity.t
-6 mojolicious_promise_lifecycle_regressions.t
+4 mojolicious_promise_lifecycle_regressions.t
 6 mojolicious_skipped_closure_lifecycle_regression.t
 6 mojolicious_socket_poll_regressions.t
 2 moose_regexpref_constraint.t
@@ -697,7 +697,7 @@
 0 socket_ni_namereqd.t
 0 socket_nonblocking_getpeername.t
 39 socket_options.t
-7 socket_scope_exit_eof.t
+6 socket_scope_exit_eof.t
 8 socket_unix_stream.t
 0 sort_localizes_package_ab.t
 0 sort_scalar_context.t
@@ -744,7 +744,7 @@
 17 string_interpolation.t
 0 string_interpolation_at_caret.t
 0 string_interpolation_escaped_hash_key.t
-11 subroutine.t
+8 subroutine.t
 2 subroutine_proto_trailing_comma_stmtend.t
 5 subroutine_prototype.t
 8 subroutine_prototype_args.t
@@ -762,7 +762,7 @@
 1 subutil_glob_anon_subname.t
 0 subutil_set_subname_glob_value.t
 0 super.t
-2 super_method_error_display.t
+0 super_method_error_display.t
 0 super_methods.t
 0 symbol_delete_package.t
 0 symbol_star_brace_qualify_to_ref.t
@@ -834,7 +834,7 @@
 0 threads_shared_blessed_tied.t
 0 threads_shared_child_capture_release.t
 0 threads_shared_destructive_share.t
-1 threads_shared_fetch_proxy_lifetime.t
+0 threads_shared_fetch_proxy_lifetime.t
 0 threads_shared_final_destroy.t
 0 threads_shared_graphs.t
 0 threads_shared_inactive_mode.t
@@ -843,7 +843,7 @@
 0 threads_shared_reference_validation.t
 0 threads_shared_unadvertised.t
 0 threads_source_mapper_snapshot.t
-2 threads_super_chain.t
+0 threads_super_chain.t
 0 threads_user_property_definition_concurrency.t
 0 threads_user_property_snapshot.t
 0 threads_weak_backref_snapshot.t
@@ -860,7 +860,7 @@
 0 tied_array_delete_local.t
 0 tied_container_undef.t
 0 tied_handle_dup.t
-1 tied_hash_autoviv_refloop_cleanup.t
+0 tied_hash_autoviv_refloop_cleanup.t
 0 tied_hash_destroy_release.t
 0 tied_hash_weak_owner_cleanup.t
 0 tied_isa_method_lookup.t

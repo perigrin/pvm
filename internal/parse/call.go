@@ -336,9 +336,14 @@ func endsArgumentList(tok lexer.Token, src []byte) bool {
 		// comparison at all -- it pulls in `use File::Glob ()`, because after
 		// a list operator's name perl reads `<...>` as a GLOB. So a `<`
 		// starts a term here and must not cut the list.
+		//
+		// `->` is here for the same reason: it cannot start a term, so the
+		// call before it takes none and the arrow applies to its result.
+		// Measured, `sub t (;$) { 1 } my $x = t->m(1);` deparses as
+		// `t()->m(1)`, and `shift->m` is every accessor's first line.
 		switch string(src[tok.Start:tok.End]) {
 		case ",", "=>", "||", "&&", "//", "=", "?", ":",
-			".", "==", "!=", "=~", "!~":
+			".", "==", "!=", "=~", "!~", "->":
 			return true
 		}
 	case lexer.Word:
