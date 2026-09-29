@@ -123,10 +123,23 @@ func scanFormatBody(l *lexer) bool {
 	}
 
 	start := l.pos
+	// argsNext: the line before was a picture line with a field in it, so
+	// this one holds the values -- perlform's alternation of picture and
+	// argument lines.
+	argsNext := false
 	for l.pos < len(l.src) {
 		lineStart := l.pos
 		lineEnd := lineStart + lineLen(l.src[lineStart:])
 		line := l.src[lineStart:lineEnd]
+		if trimmed := bytes.TrimLeft(line, " \t"); argsNext && bytes.HasPrefix(trimmed, []byte("{")) {
+			// "The expressions may be spread out to more than one line if
+			// enclosed in braces" (perlform). The block is Perl, so a
+			// `.` inside it -- a nested format's own end, in
+			// t/op/write.t:1938 -- is not this body's.
+			lineStart = l.skipFormatArgumentBlock(lineStart + len(line) - len(trimmed))
+			lineEnd = lineStart + lineLen(l.src[lineStart:])
+			line = nil
+		}
 		l.pos = lineEnd
 		if l.pos < len(l.src) {
 			l.pos++
@@ -135,9 +148,25 @@ func scanFormatBody(l *lexer) bool {
 			l.emit(FormatBody, start)
 			return true
 		}
+		argsNext = !argsNext && line != nil && line[0] != '#' && bytes.ContainsAny(line, "@^")
 	}
 	l.emit(UnknownRest, start)
 	return true
+}
+
+// skipFormatArgumentBlock lexes the braced argument block opening at open
+// with a lexer of its own, and returns where its closing brace is. Its
+// tokens are the body's bytes and are not emitted; the block's end is all
+// the body needs.
+func (l *lexer) skipFormatArgumentBlock(open int) int {
+	sub := &lexer{src: l.src, pos: open, expect: XState, utf8Pragma: l.utf8Pragma}
+	for sub.pos < len(sub.src) {
+		scanOne(sub)
+		if n := len(sub.toks); n > 0 && sub.toks[n-1].Kind == CloseBracket && len(sub.brackets) == 0 {
+			return sub.toks[n-1].Start
+		}
+	}
+	return len(l.src)
 }
 
 // noteFormat watches for the `=` that ends a `format NAME =` line, so the
