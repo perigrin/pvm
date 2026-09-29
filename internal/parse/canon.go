@@ -326,6 +326,9 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 			case i == 0 || c.Kind == Block ||
 				c.Kind == PrototypeNode || c.Kind == Attribute:
 				b.WriteByte(' ')
+			case i == 1 && n.Children[0].Kind == TypeName:
+				// `my Foo $f`: the variable follows its class.
+				b.WriteByte(' ')
 			case (n.Text == "sub" || n.Text == "method") && c.Paren:
 				b.WriteByte(' ')
 				if c.Kind != List {
@@ -420,6 +423,9 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 			emit(b, c, src, 0)
 		}
 		b.WriteByte(';')
+
+	case TypeName:
+		b.WriteString(n.Text)
 
 	case Phaser:
 		// `BEGIN`, `END` and the rest, each with a block.
@@ -581,9 +587,13 @@ func bindingPower(n *Node) int {
 		// The initialiser is either a second child (`my $x = 1`) or an
 		// assignment Binary the target list was parsed into (`my ($a, $b) =
 		// @_`).
-		if declarators[n.Text] {
-			last := n.Children[len(n.Children)-1:]
-			if len(n.Children) > 1 ||
+		if declarators[n.Text] && len(n.Children) > 0 {
+			kids := n.Children
+			if len(kids) > 1 && kids[0].Kind == TypeName {
+				kids = kids[1:]
+			}
+			last := kids[len(kids)-1:]
+			if len(kids) > 1 ||
 				len(last) == 1 && last[0].Kind == Binary && infix[last[0].Text].Level == assignLevel {
 				return infix["="].BP
 			}

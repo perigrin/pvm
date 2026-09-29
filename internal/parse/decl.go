@@ -200,6 +200,24 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 	p.advanceTo(word)
 	n := &Node{Kind: Declaration, Text: p.text(word), Start: word.Start}
 
+	// A typed lexical: `my Foo $f`, `our Foo::Bar ($a, $b)`. toke.c's KEY_my
+	// branch takes a package name after `my`, `our` or `state` as the
+	// variable's class (find_in_my_stash) -- `local` takes none. Read as a
+	// call, the class split the statement: `my Foo();$f;`.
+	switch keywordName(p.text(word)) {
+	case "my", "our", "state":
+		if class, ok := p.peekSignificant(); ok && class.Kind == lexer.Word {
+			if next, ok := p.peekAfter(class); ok &&
+				(next.Kind == lexer.Variable || p.text(next) == "(") {
+				p.advanceTo(class)
+				n.Children = append(n.Children, &Node{
+					Kind: TypeName, Text: p.text(class),
+					Start: class.Start, End: class.End,
+				})
+			}
+		}
+	}
+
 	// The variable, then any attributes, then an optional initialiser.
 	// Attributes come between: `field $x :param = 1` and `my $x :shared = 1`
 	// both put them after the name, where an expression parser would read

@@ -158,6 +158,10 @@ const (
 	// opens a block -- so this kind records a decision rather than repeating
 	// one.
 	Block
+
+	// TypeName is the class of a typed lexical, `my Foo $f`: the first child
+	// of its Declaration, ahead of the variable.
+	TypeName
 )
 
 func (k Kind) String() string {
@@ -212,6 +216,8 @@ func (k Kind) String() string {
 		return "use"
 	case Phaser:
 		return "phaser"
+	case TypeName:
+		return "type_name"
 	}
 	return "?"
 }
