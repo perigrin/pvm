@@ -1,10 +1,19 @@
 ---
 title: for $i (LIST) without my swaps its variable and its list at Unknown=0
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-27T01:18:44.077340739Z
-updated: 2026-09-27T01:18:44.077340739Z
+updated: 2026-09-29T01:43:18.361517308Z
+sessions:
+- start_sha: 92e674eb3b0bbe192651d845f0206f37ed6f80eb
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T01:43:18.361517308Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T01:43:18.361517308Z
 ---
 
 `for $i (LIST)` without `my` SWAPS its variable and its list, at Unknown=0. The
