@@ -675,6 +675,9 @@ var modifiers = map[string]bool{
 	"if": true, "unless": true,
 	"while": true, "until": true,
 	"for": true, "foreach": true,
+	// perly.y's `expr KW_WHEN condition`, under the switch feature, which
+	// the parser does not track -- as it does not for the `when` statement.
+	"when": true,
 }
 
 // applyModifier wraps an already-parsed expression in the modifier that
@@ -784,7 +787,7 @@ func (p *parser) applyModifier(body *Node, start int) *Node {
 
 	text := p.text(word)
 	kind := Loop
-	if text == "if" || text == "unless" {
+	if text == "if" || text == "unless" || text == "when" {
 		kind = Conditional
 	}
 	n := &Node{Kind: kind, Text: text, Start: start, Modifier: true}
