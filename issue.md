@@ -4,7 +4,7 @@ state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T08:19:53.771628631Z
-updated: 2026-09-29T08:19:54.4680783Z
+updated: 2026-09-29T08:23:34.931305919Z
 sessions:
 - start_sha: 908e6f5973a65e853f2dce0be7bafa7f7495192e
   end_sha: ""
@@ -25,7 +25,11 @@ Measured with perl 5.42:
     $ perl -e 'use feature "signatures"; sub f = ($a) { $a }'
     Illegal declaration of subroutine main::f at -e line 1.
 
-Deparse writes `sub f ($a) {`. The count cannot see it, since Unknown=0 throughout.
+Deparse writes `sub f ($a) {`.
+
+A one-element signature with a default is worse: the element is its own node with Paren set, not a List, and canon rebuilt it without the parentheses:
+
+    use feature "signatures"; sub d ($x = 1) { $x }  canon: sub d = $x = 1 {$x;} The count cannot see it, since Unknown=0 throughout.
 
 ## Acceptance criteria
 
