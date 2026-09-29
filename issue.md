@@ -1,19 +1,28 @@
 ---
 title: require './t/test.pl' after chdir '..' is not resolved, so porting/ files lose test.pl's subs
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-28T22:31:49.144380373Z
-updated: 2026-09-29T01:03:23.783603362Z
+updated: 2026-09-29T01:15:44.171461946Z
 sessions:
 - start_sha: 0e922405660ff6594b872dc84d304bd97ad26489
-  end_sha: ""
-  commits: 0
+  end_sha: e17aed8838af225cdce8ff82160a3b8c35b1550b
+  commits: 1
   started_at: 2026-09-29T01:03:23.783603362Z
+  ended_at: 2026-09-29T01:15:44.171461946Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-29T01:03:23.783603362Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-29T01:15:44.171461946Z
+observed_paths:
+- internal/parse/module.go
+- internal/parse/perlgitt_test.go
+- internal/parse/required_test.go
+- internal/parse/testdata/perlgitt.ratchet
 ---
 
 Seventeen porting/ files load their helper as `require './t/test.pl'`, after
