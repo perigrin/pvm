@@ -1,10 +1,19 @@
 ---
 title: new Foo builds new(Foo()) where perl builds a method call on the class name
-state: pending
+state: in-progress
 urgency: normal
 milestone: v0.1
 created: 2026-09-26T12:51:56.944311859Z
-updated: 2026-09-29T01:01:54.732041961Z
+updated: 2026-09-29T05:35:16.049019218Z
+sessions:
+- start_sha: ef36d1ef0486ea3dddfc702d261fdc29c7b92cb0
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T05:35:16.049019218Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T05:35:16.049019218Z
 ---
 
 `new Foo;` builds `new(Foo())` where perl builds `'Foo'->new`. Zero Unknown
