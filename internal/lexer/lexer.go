@@ -497,6 +497,9 @@ func (l *lexer) emit(k Kind, start int) {
 		labelColon:       labelColon,
 		openedBlock:      l.openedBlock,
 	})
+	if k == Variable && l.handleSlotTakesTerm(start) {
+		l.expect = XTerm
+	}
 	l.noteFormat(k, start)
 	// The picture body begins after the newline that ends the declaration.
 	if l.pendingFormat && k == Whitespace && l.pos > start &&
@@ -504,6 +507,108 @@ func (l *lexer) emit(k Kind, start int) {
 		l.pendingFormat = false
 		l.inFormat = true
 	}
+}
+
+// handleTakers are the builtins whose first slot may hold a scalar
+// filehandle or program with no comma after it: `print $fh LIST`,
+// `system $prog LIST`.
+//
+// perl applies the heuristic below after ANY list operator (toke.c tests
+// PL_last_lop), including a user's. The lexer cannot know a user's list
+// operators, so it is limited to the builtins whose slot this is. A user sub
+// taking a handle the same way is the ceiling, and the upgrade is the
+// parser's declared-shape table.
+var handleTakers = map[string]bool{
+	"print": true, "printf": true, "say": true, "exec": true, "system": true,
+}
+
+// handleSlotTakesTerm reports whether the scalar just emitted at start fills a
+// handleTakers slot, so a TERM follows it rather than an operator.
+//
+// It is toke.c's yyl_dollar heuristic for a scalar in a list operator's first
+// slot followed by whitespace: perl peeks at the next character and sets
+// XTERM when it can only start a term. Measured on 5.42.0 with -MO=Deparse,
+// `print $f <<"EOT"` is a heredoc, `print $f /2/` a pattern and `print $f -1`
+// a negative number, while `print $x - 1` and `print $x == 1` stay operators.
+func (l *lexer) handleSlotTakesTerm(start int) bool {
+	if l.src[start] != '$' || l.pos >= len(l.src) || !isSpace(l.src[l.pos]) {
+		return false
+	}
+	prev := l.significantBefore(len(l.toks) - 1)
+	// The parenthesised call counts too: toke.c compares PL_last_lop with the
+	// token TWO back, and for `print($fh` that is still `print`. Measured,
+	// `print($f <<"EOT")` is a heredoc on 5.42.0 -- and it is canon's own
+	// spelling, so without this its emission did not re-parse.
+	if prev >= 0 && l.src[l.toks[prev].Start] == '(' && l.toks[prev].End-l.toks[prev].Start == 1 {
+		prev = l.significantBefore(prev)
+	}
+	if prev < 0 || l.toks[prev].Kind != Word ||
+		!handleTakers[string(l.src[l.toks[prev].Start:l.toks[prev].End])] {
+		return false
+	}
+	s := l.pos
+	for s < len(l.src) && isSpace(l.src[s]) {
+		s++
+	}
+	if s >= len(l.src) {
+		return false
+	}
+	c := l.src[s]
+	next := byte(0)
+	if s+1 < len(l.src) {
+		next = l.src[s+1]
+	}
+	isIDFirst := func(b byte) bool {
+		return b == '_' || b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z' || b >= 0x80
+	}
+	switch {
+	case byteIn(c, "$@\"'`q"):
+		return true // print $fh "foo"
+	case byteIn(c, "&*<%") && isIDFirst(next):
+		return true // print $fh &sub
+	case isIDFirst(c):
+		e := s
+		for e < len(l.src) && (isIDFirst(l.src[e]) || l.src[e] >= '0' && l.src[e] <= '9') {
+			e++
+		}
+		// The binary operators spelled as words exclude the handle reading.
+		switch string(l.src[s:e]) {
+		case "x", "eq", "ne", "gt", "lt", "ge", "le", "cmp":
+			return false
+		}
+		return true // print $fh length(), print $fh subr()
+	case c >= '0' && c <= '9':
+		return true // print $fh 3
+	case c == '.' && next >= '0' && next <= '9':
+		return true // print $fh .3
+	case (c == '?' || c == '-' || c == '+') && next != 0 && !isSpace(next) && next != '=':
+		return true // print $fh -1
+	case c == '/' && next != 0 && !isSpace(next) && next != '=' && next != '/':
+		return true // print $fh /.../
+	case c == '<' && next == '<' && s+2 < len(l.src) && !isSpace(l.src[s+2]) && l.src[s+2] != '=':
+		return true // print $fh <<"EOF"
+	}
+	return false
+}
+
+// significantBefore is the index of the last non-trivia token before i, or -1.
+func (l *lexer) significantBefore(i int) int {
+	for i--; i >= 0; i-- {
+		if k := l.toks[i].Kind; k != Whitespace && k != Comment {
+			return i
+		}
+	}
+	return -1
+}
+
+// byteIn reports whether c is one of the bytes in set.
+func byteIn(c byte, set string) bool {
+	for i := 0; i < len(set); i++ {
+		if set[i] == c {
+			return true
+		}
+	}
+	return false
 }
 
 // bytesContainNewline reports whether b holds a newline.
