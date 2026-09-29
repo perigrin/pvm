@@ -45,7 +45,14 @@ func identStart(r rune, utf8Pragma bool) bool {
 	if !utf8Pragma {
 		return false
 	}
-	return unicode.IsLetter(r) && isXIDStart(r)
+	return isWordLetter(r) && isXIDStart(r)
+}
+
+// isWordLetter reports whether r is a letter as \p{Word} counts one: the L
+// categories and Nl, the letter numbers, which \p{Word} takes through
+// Alphabetic. Measured on 5.42.0, `use utf8; my $ⅷ = 8;` names $ⅷ.
+func isWordLetter(r rune) bool {
+	return unicode.IsLetter(r) || unicode.Is(unicode.Nl, r)
 }
 
 // identContinue reports whether r may appear after the first character.
@@ -61,7 +68,7 @@ func identContinue(r rune, utf8Pragma bool) bool {
 	if !utf8Pragma {
 		return false
 	}
-	return (unicode.IsLetter(r) || unicode.IsDigit(r)) && isXIDContinue(r)
+	return (isWordLetter(r) || unicode.IsDigit(r)) && isXIDContinue(r)
 }
 
 // isXIDStart and isXIDContinue approximate the Unicode XID properties with
