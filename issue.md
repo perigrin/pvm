@@ -1,10 +1,19 @@
 ---
 title: "A declaration followed by an infix operator refuses: my $s =~ /x/ canons as my $s;=~ /x/"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T01:10:55.839984345Z
-updated: 2026-09-29T01:10:55.839984345Z
+updated: 2026-09-29T01:17:40.341228278Z
+sessions:
+- start_sha: e17aed8838af225cdce8ff82160a3b8c35b1550b
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T01:17:40.341228278Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T01:17:40.341228278Z
 ---
 
 A declaration without an initialiser, followed by any infix operator other than
