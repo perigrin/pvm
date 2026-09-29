@@ -1,19 +1,28 @@
 ---
 title: "`$'b` splits into the postmatch and a bareword: a leading apostrophe is a package separator too"
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T07:27:50.555588785Z
-updated: 2026-09-29T07:28:29.138436107Z
+updated: 2026-09-29T07:38:48.797801401Z
 sessions:
 - start_sha: db395c977bc74bac6e005d6f1048bf7d70b43aa9
-  end_sha: ""
-  commits: 0
+  end_sha: d6662dfe252501db6de1354bab1263b50feaa372
+  commits: 1
   started_at: 2026-09-29T07:28:29.138436107Z
+  ended_at: 2026-09-29T07:38:48.797801401Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-29T07:28:29.138436107Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-29T07:38:48.797801401Z
+observed_paths:
+- internal/lexer/ident_test.go
+- internal/lexer/scan.go
+- internal/parse/t2_test.go
+- internal/parse/testdata/perlgitt.ratchet
 ---
 
 The lexer takes `'` as a package separator only between identifier characters, so `$'b` lexed as the postmatch variable `$'` and a bareword `b`. toke.c's parse_ident takes the apostrophe at the first position as at any other, when an identifier start follows:
