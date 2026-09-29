@@ -436,9 +436,13 @@ func TestMirrorManagerConcurrentAccess(t *testing.T) {
 }
 
 func TestMirrorSelectionStrategies(t *testing.T) {
-	// Create multiple test servers with different response times
+	// Create multiple test servers with different response times. The
+	// fastest leads the next by 100ms: the mirrors are measured concurrently,
+	// and a 10ms gap -- 20 against 30 -- was reordered by the scheduler
+	// under `make test`'s parallel packages, failing a test about the
+	// strategy's choice rather than about sleep.
 	servers := make([]*httptest.Server, 4)
-	responseTimes := []time.Duration{50, 20, 80, 30} // milliseconds
+	responseTimes := []time.Duration{200, 20, 300, 120} // milliseconds
 
 	for i, delay := range responseTimes {
 		delay := delay // capture loop variable
