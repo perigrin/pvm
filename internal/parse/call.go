@@ -391,9 +391,12 @@ func endsArgumentList(tok lexer.Token, src []byte) bool {
 		// call before it takes none and the arrow applies to its result.
 		// Measured, `sub t (;$) { 1 } my $x = t->m(1);` deparses as
 		// `t()->m(1)`, and `shift->m` is every accessor's first line.
+		//
+		// The range operators likewise: measured, `(undef..2)` is
+		// `((undef) .. 2)` and `(g ... 2)` is `(g() ... 2)`.
 		switch string(src[tok.Start:tok.End]) {
 		case ",", "=>", "||", "&&", "//", "=", "?", ":",
-			".", "==", "!=", "=~", "!~", "->":
+			".", "==", "!=", "=~", "!~", "->", "..", "...":
 			return true
 		}
 	case lexer.Word:
