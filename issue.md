@@ -1,10 +1,19 @@
 ---
 title: TestMirrorSelectionStrategies orders 20 ms and 30 ms sleeps by wall clock and fails under load
-state: pending
+state: in-progress
 urgency: normal
 milestone: v0.1
 created: 2026-09-29T13:54:19.462807812Z
-updated: 2026-09-29T13:54:19.462807812Z
+updated: 2026-09-29T16:03:29.005253751Z
+sessions:
+- start_sha: 5436629d157e3c7ed7335113d825ff3f9b4ecd44
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T16:03:29.005253751Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T16:03:29.005253751Z
 ---
 
 `internal/cpan/mirror_manager_test.go`'s TestMirrorSelectionStrategies starts four local servers that sleep 50, 20, 80 and 30 ms and asserts StrategyFastest picks the 20 ms one. The 20 and 30 ms servers are 10 ms apart, and under load the scheduler can reorder them, so `make test` fails on a package no change touched:
