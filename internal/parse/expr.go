@@ -126,6 +126,15 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 				p.advanceTo(tok)
 				continue
 			}
+			// An assignment operator cannot begin an element either, but it
+			// binds tighter than the comma, so the list ENDS at the comma
+			// rather than becoming its left side: `substr $x, 0, 1, = "a"`
+			// is `substr($x, 0, 1) = "a"`, measured on 5.42.0.
+			if next, ok := p.peekAfter(tok); ok && next.Kind != lexer.Word &&
+				infix[p.text(next)].Level == infix["="].Level {
+				p.advanceTo(tok)
+				return left
+			}
 		}
 
 		// Comparisons take their own path: one may START a chain, EXTEND the
