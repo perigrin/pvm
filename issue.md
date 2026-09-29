@@ -4,10 +4,8 @@ state: pending
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T06:45:13.42664501Z
-updated: 2026-09-29T06:45:13.42664501Z
+updated: 2026-09-29T06:45:23.404065452Z
 ---
-
-A niladic builtin's name after `sub` loses its body: `sub time { 1 }` parses as a forward declaration and a bare block
 
 In lexer/expect.go the Word transition tests isNiladic before afterDeclName, so the word after `sub` returns XOperator and the `{` is never classified as the body. The tree is wrong at Unknown=0:
 
