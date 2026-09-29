@@ -1,19 +1,28 @@
 ---
 title: require q(./test.pl) is not a literal path, so its helper's subs are never declared
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-28T23:52:22.724446205Z
-updated: 2026-09-29T00:16:35.907778568Z
+updated: 2026-09-29T00:24:19.068156618Z
 sessions:
 - start_sha: 0aaccdcbebea1a3bfae177cf641ba27c12f1b049
-  end_sha: ""
-  commits: 0
+  end_sha: 0c70adb2c77f4e06e9adf757e2199a2580c48a09
+  commits: 1
   started_at: 2026-09-29T00:16:35.907778568Z
+  ended_at: 2026-09-29T00:24:19.068156618Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-29T00:16:35.907778568Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-29T00:24:19.068156618Z
+observed_paths:
+- internal/parse/exports.go
+- internal/parse/qrequire_test.go
+- internal/parse/requirequote_test.go
+- internal/parse/testdata/perlgitt.ratchet
 ---
 
 `require q(./test.pl)` is not resolved, so none of test.pl's subs are declared
