@@ -1,10 +1,19 @@
 ---
 title: "A block-form declaration takes the next line's for/if as a modifier: sub t {1} then if (...) {...} is one statement"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T01:29:36.846496384Z
-updated: 2026-09-29T01:29:36.846496384Z
+updated: 2026-09-29T01:45:28.952809945Z
+sessions:
+- start_sha: 92e674eb3b0bbe192651d845f0206f37ed6f80eb
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T01:45:28.952809945Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T01:45:28.952809945Z
 ---
 
 A declaration that ends in its own block does not end its statement, so the
