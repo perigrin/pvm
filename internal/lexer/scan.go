@@ -242,9 +242,28 @@ func (l *lexer) scanVarName() {
 		// Measured: `perl -MO=Deparse -e 'my $x = $^O;'` -> `my $x = $^O;`
 		l.pos += 2
 	case c == '$':
-		// A dereference: $$ref, @$ref.
+		// `$$` followed by a name is a dereference -- `$$ref`, `@$ref` --
+		// and otherwise it is the process id, a whole name on its own.
+		// toke.c's scan_ident takes the dereference only when an identifier
+		// start, a digit, another `$`, a `{` or `::` follows:
+		//
+		//	if (*s == '$' && s[1]
+		//	    && (   isIDFIRST_lazy_if_safe(s+1, PL_bufend, is_utf8)
+		//	        || isDIGIT_A((U8)s[1]) || s[1] == '$' || s[1] == '{'
+		//	        || memBEGINs(s+1, ..., "::")) )
+		//
+		// Recursing unconditionally took the NEXT byte as a punctuation name,
+		// so `$$,`, `$$;`, `$$)` and even `$$ ` each lexed as one variable
+		// that swallowed a comma, a terminator, a closer or a space.
+		// Measured, `my @a = ($$, 1)` has two elements.
 		l.pos++
-		l.scanVarName()
+		if l.pos < len(l.src) {
+			n := l.src[l.pos]
+			if isWordByte(n) || n == '$' || n == '{' ||
+				n == ':' && l.pos+1 < len(l.src) && l.src[l.pos+1] == ':' {
+				l.scanVarName()
+			}
+		}
 	default:
 		// A punctuation variable: $_, $0, $!, $@, $/ and the rest. One byte.
 		l.pos++
