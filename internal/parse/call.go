@@ -94,17 +94,18 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		// argument -- `map({a => 1}, @a)` -- leaves OpensBlock unset and
 		// falls through to parseCallArgs as the ordinary argument it is.
 		//
-		// A FILEHANDLE block belongs here too, and for the same reason:
-		// `print({$fh;} "x")` is canon's own emission of `print {$fh} "x"` and
-		// perl reads it, so without this canon's output did not re-parse. It
-		// carries Handle, which parseFilehandleSlot's branches set for the
-		// parenless form -- infer reads that flag, and a block in this slot
-		// without it makes every typed-handle print a false Str mismatch.
+		// A FILEHANDLE belongs here too, in all three spellings the parenless
+		// path reads, and by the same no-comma rule. Measured on 5.42.0 with
+		// -MO=Deparse: `print($fh "x")` and `print(STDERR "y")` are handles,
+		// `print($a, "z")` a list. Canon writes a handle as `print($fh "x")`
+		// or `print({$fh;} "x")`, so without this its own output did not
+		// re-parse. It carries Handle, which infer reads -- a handle counted
+		// as argument 1 makes every typed-handle print a false Str mismatch.
 		if blk := p.parseListOpBlock(text); blk != nil {
 			n.Children = append(n.Children, blk)
 		} else if cmp := p.parseSortComparator(text); cmp != nil {
 			n.Children = append(n.Children, cmp)
-		} else if fh := p.parseFilehandleBlock(text); fh != nil {
+		} else if fh := p.parseFilehandleSlot(text); fh != nil {
 			fh.Handle = true
 			n.Children = append(n.Children, fh)
 		}
@@ -476,24 +477,6 @@ func isPerlKeyword(word string) bool {
 		return true
 	}
 	return false
-}
-
-// parseFilehandleBlock reads the `{$fh}` of a parenthesised `print({$fh} ...)`,
-// or returns nil when there is none.
-//
-// Only the BLOCK form, unlike parseFilehandleSlot: inside parens a bareword or
-// a scalar in the first position is an ordinary argument, and the comma-absence
-// test that tells a handle from an argument outside parens does not apply
-// there. The block form is unambiguous, which is why it is the one canon emits.
-func (p *parser) parseFilehandleBlock(op string) *Node {
-	if !takesFilehandle[op] {
-		return nil
-	}
-	tok, ok := p.peekSignificant()
-	if !ok || !tok.OpensBlock || p.text(tok) != "{" {
-		return nil
-	}
-	return p.parseBlock(tok)
 }
 
 // parseFilehandleSlot reads `STDERR`, `$fh` or `{$fh}` before a list, or
