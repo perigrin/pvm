@@ -1,10 +1,19 @@
 ---
 title: A signature placeholder with an empty default, `($=)`, refuses
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T08:36:04.033606018Z
-updated: 2026-09-29T08:36:04.033606018Z
+updated: 2026-09-29T09:01:43.467486835Z
+sessions:
+- start_sha: c54e1e5b90bc395cfaca3eefadfd704a3a4a6ee5
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T09:01:43.467486835Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T09:01:43.467486835Z
 ---
 
 A signature placeholder may take an empty default, `($=)`: an optional parameter whose value is discarded. The parser reads the signature as a parenthesised list, where `$ =` is an assignment with no right operand, and refuses.
