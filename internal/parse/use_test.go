@@ -406,7 +406,11 @@ func TestClassCorpusRatchet(t *testing.T) {
 	// 11 -> 9 when `use builtin LIST` began importing builtin.c's functions
 	// with their prototypes. class/construct.t 2 -> 0: `blessed $obj` and
 	// `reftype $obj`, which unknown are indirect method calls.
-	const want = 9
+	//
+	// 9 -> 7 when a class's version became part of its head (lexer and
+	// canon). class/inherit.t 2 -> 0: `class Testcase2A 1.23 { }` read its
+	// block as an anonymous hash after the number.
+	const want = 7
 	if unknown != want {
 		t.Errorf("t/class holds %d Unknown nodes, want %d: update this pin in "+
 			"the same commit as the change that moved it", unknown, want)

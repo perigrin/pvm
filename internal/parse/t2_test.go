@@ -259,7 +259,7 @@ func TestT2CoreParses(t *testing.T) {
 		// opening brace began leaving a statement boundary (issue
 		// 01a0ea25-4fe7): a block as another block's first statement had been
 		// an anonymous hash.
-		"class/gh23511.t": 1, "class/inherit.t": 2, "class/method.t": 3,
+		"class/gh23511.t": 1, "class/method.t": 3,
 		// cmd/subval.t and comp/package_block.t left the map entirely with
 		// the `startsTerm` fix -- they parse cleanly now, which is what
 		// removal from this map means.

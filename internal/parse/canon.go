@@ -326,6 +326,10 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 			case i == 0 || c.Kind == Block ||
 				c.Kind == PrototypeNode || c.Kind == Attribute:
 				b.WriteByte(' ')
+			case n.Text == "package" || n.Text == "class":
+				// A name, a version, attributes and a block: no initialiser,
+				// so nothing takes ` = `. `package Foo = 1.0;` is not Perl.
+				b.WriteByte(' ')
 			case i == 1 && n.Children[0].Kind == TypeName:
 				// `my Foo $f`: the variable follows its class.
 				b.WriteByte(' ')

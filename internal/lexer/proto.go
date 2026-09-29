@@ -145,6 +145,7 @@ func (l *lexer) noteSubName(k Kind, start int) bool {
 			return true
 		case l.sawPackageWord:
 			l.sawPackageWord = false
+			l.sawPackageName = true
 			l.expectPrototype = false
 			// `class Point :isa(Shape) { }`. A class's attributes take the
 			// same shape, and the block after them is still a block.
@@ -153,6 +154,15 @@ func (l *lexer) noteSubName(k Kind, start int) bool {
 		default:
 			l.closeDeclHead()
 		}
+	case Number:
+		// `package Foo 1.0 { }`, `class Point 1.0 :isa(Shape) { }`: a
+		// version after a package or class name is part of the head, and
+		// the block after it is still the body.
+		if l.sawPackageName {
+			l.sawPackageName = false
+			return true
+		}
+		l.closeDeclHead()
 	case Prototype:
 		// `sub f ($$) { ... }` -- the block still follows the prototype, and
 		// so may an attribute list: `sub f () :lvalue { }`.
@@ -173,6 +183,7 @@ func (l *lexer) noteSubName(k Kind, start int) bool {
 func (l *lexer) closeDeclHead() {
 	l.sawSubWord = false
 	l.sawPackageWord = false
+	l.sawPackageName = false
 	l.expectPrototype = false
 	l.sawAttrColon = false
 	l.inSubAttrs = false

@@ -194,6 +194,11 @@ func (e Expect) after(k Kind, t transition) Expect {
 		}
 		return XOperator
 	case Variable, Number, Quote, Readline, FuncSigil:
+		// A package's version is the one Number a block may follow:
+		// `package Foo 1.0 { }`. See noteSubName.
+		if k == Number && t.afterDeclName {
+			return XBlock
+		}
 		return XOperator
 	case DerefSigil:
 		// A sigil applied to an expression has NOT produced a value yet: what

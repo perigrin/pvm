@@ -268,6 +268,9 @@ type lexer struct {
 	// sawPackageWord is the same for `package NAME` and `class NAME`, which
 	// are followed by a block or a semicolon but never by a prototype.
 	sawPackageWord bool
+	// sawPackageName is set on that NAME, so a version after it --
+	// `package Foo 1.0 { }` -- keeps the head open for the block.
+	sawPackageName bool
 	// inSubAttrs is whether an ATTRIBUTE LIST may start or continue here --
 	// after `sub`, after a sub's name, after its prototype, and after each
 	// attribute already read. A block still follows the list, so this keeps
