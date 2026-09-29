@@ -113,6 +113,13 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		}
 	}
 
+	// `Foo::` is a class-name string: toke.c:8072 strips the `::` and makes
+	// a constant without looking for a sub, so there is no callee.
+	if len(spelled) > 2 && strings.HasSuffix(spelled, "::") {
+		p.advanceTo(word)
+		return &Node{Kind: Term, Text: spelled, Start: word.Start, End: word.End}
+	}
+
 	// A niladic builtin takes nothing: `time`, `wantarray`.
 	if niladicParse[text] {
 		p.advanceTo(word)
