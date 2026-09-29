@@ -594,8 +594,9 @@ func bindingPower(n *Node) int {
 		return infix["?"].BP
 	case Unary:
 		// A dereference is a term: a subscript after it applies to it, so
-		// `$$r[0]` is written bare, not as the list slice `($$r)[0]`.
-		if isDerefSigil(n.Text) {
+		// `$$r[0]` is written bare, not as the list slice `($$r)[0]`. So is
+		// a named parameter's `:$name`, which is one parameter.
+		if isDerefSigil(n.Text) || n.Text == ":" {
 			return atomBP
 		}
 		return prefix[unaryToken(n.Text)]

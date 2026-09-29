@@ -26,6 +26,20 @@ func (p *parser) parseTerm() *Node {
 	}
 	text := p.text(tok)
 
+	// A named parameter, blead's `:$name` (perly.y's `optcolon PERLY_DOLLAR
+	// sigvar`, perlsub since 5.43.5): in a signature, the one `:` a term can
+	// begin with. A ternary's `:` in a default is in operator position and
+	// never reaches here.
+	if p.inSignature && text == ":" {
+		if v, ok := p.peekAfter(tok); ok && v.Kind == lexer.Variable && strings.HasPrefix(p.text(v), "$") {
+			p.advanceTo(v)
+			return &Node{
+				Kind: Unary, Text: ":", Start: tok.Start, End: v.End,
+				Children: []*Node{{Kind: Term, Text: p.text(v), Start: v.Start, End: v.End}},
+			}
+		}
+	}
+
 	// A filetest: `-e $f`, `-d $dir`. perl returns UNIOP for these
 	// (toke.c:6255 FTST), so they bind exactly like a named unary.
 	//
