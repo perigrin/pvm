@@ -1,19 +1,39 @@
 ---
 title: "A declaration followed by an infix operator refuses: my $s =~ /x/ canons as my $s;=~ /x/"
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T01:10:55.839984345Z
-updated: 2026-09-29T01:17:40.341228278Z
+updated: 2026-09-29T02:06:10.522053928Z
 sessions:
 - start_sha: e17aed8838af225cdce8ff82160a3b8c35b1550b
-  end_sha: ""
-  commits: 0
+  end_sha: 5ded07671843d54f646205a7c0ccd2efa7f728e1
+  commits: 4
   started_at: 2026-09-29T01:17:40.341228278Z
+  ended_at: 2026-09-29T02:06:10.522053928Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-29T01:17:40.341228278Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-29T02:06:10.522053928Z
+observed_paths:
+- conformance/mdtest/symbol-table.md
+- internal/conformance/testdata/corpus.ratchet
+- internal/parse/canon.go
+- internal/parse/control.go
+- internal/parse/decl.go
+- internal/parse/declleft_test.go
+- internal/parse/declparen_test.go
+- internal/parse/forbarevar_test.go
+- internal/parse/parse.go
+- internal/parse/subthenstmt_test.go
+- internal/parse/t2_test.go
+- internal/parse/testdata/perlgitt.ratchet
+- internal/parse/testdata/t1.ratchet
+- internal/parse/testdata/t1canon.ratchet
+- internal/parse/testdata/t1fidelity.ratchet
 ---
 
 A declaration without an initialiser, followed by any infix operator other than
