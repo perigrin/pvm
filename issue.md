@@ -1,19 +1,27 @@
 ---
 title: A signature sub canonicalises as `sub f = ($a) {...}`, which perl rejects
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T08:19:53.771628631Z
-updated: 2026-09-29T08:23:34.931305919Z
+updated: 2026-09-29T08:34:04.257499824Z
 sessions:
 - start_sha: 908e6f5973a65e853f2dce0be7bafa7f7495192e
-  end_sha: ""
-  commits: 0
+  end_sha: cbb11b367c3b0b91e97a6f5765e7f983549520bf
+  commits: 1
   started_at: 2026-09-29T08:19:54.4680783Z
+  ended_at: 2026-09-29T08:34:04.257499824Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-29T08:19:54.4680783Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-29T08:34:04.257499824Z
+observed_paths:
+- internal/parse/canon.go
+- internal/parse/sigcanon_test.go
+- internal/parse/testdata/t1fidelity.ratchet
 ---
 
 A signature is a parenthesised list child of the sub's Declaration, and canon joins it to the name with ` = `, the separator for a variable's initialiser. The tree is right and the emission is not Perl:
