@@ -1,10 +1,19 @@
 ---
 title: "A package or class version is not part of the head: `package Foo = 1.0` in canon, and the block after it is lost"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T10:14:08.7025049Z
-updated: 2026-09-29T10:14:08.7025049Z
+updated: 2026-09-29T10:14:09.303717955Z
+sessions:
+- start_sha: 5f106d9d86951f7f7804461574c45246da5500d3
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T10:14:09.303717955Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T10:14:09.303717955Z
 ---
 
 A package or class version is read as a plain child of the declaration, so two readers get it wrong:
