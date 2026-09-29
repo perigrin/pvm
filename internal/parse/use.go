@@ -264,14 +264,16 @@ func (p *parser) resolveImports(module string, list *Node) {
 	// conventional module declares.
 	//
 	// Kept apart from the imports: they are known, not imported.
+	// A name already qualified -- an XS PACKAGE other than the module's
+	// own, or a `sub Other::name` -- is known by that name.
 	for name, proto := range facts.protos {
-		if strings.Contains(name, "::") {
-			continue
-		}
 		if p.moduleSubs == nil {
 			p.moduleSubs = map[string]Import{}
 		}
-		q := module + "::" + name
+		q := name
+		if !strings.Contains(name, "::") {
+			q = module + "::" + name
+		}
 		p.moduleSubs[q] = Import{Name: q, Prototype: proto, PrototypeKnown: true}
 	}
 

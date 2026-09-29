@@ -16,6 +16,9 @@ import (
 // directories; a test hands back bytes it wrote itself, so the suite needs no
 // installed module and no particular layout to be true.
 //
+// A third spelling, `My::Mod.xs`, asks for a module's XS source, which names
+// the subs it implements in C; see XSSubs.
+//
 // One seam serves both spellings because the caller's question is identical --
 // "bytes for this name, if you have them" -- and because the resolver's cache
 // and cycle set are then shared: `./test.pl`, written 459 times across
@@ -37,20 +40,36 @@ type Loader func(name string) ([]byte, bool)
 //
 // The first directory is normally the using file's own, which is what makes a
 // local module -- never installed anywhere -- resolvable at all.
+//
+// A module is also found where its source tree keeps it: `My::Mod` as
+// `My-Mod/Mod.pm`, the distribution directory with the module's last part in
+// it, which is where ExtUtils::MakeMaker takes a top-level .pm from --
+// perl.git's ext/Devel-Peek/Peek.pm is Devel::Peek. Its XS source sits
+// beside it there, `My-Mod/Mod.xs`, and is found either way.
 func DirLoader(dirs ...string) Loader {
 	return func(name string) ([]byte, bool) {
-		rel := name
+		rels := []string{name}
 		if !isRequiredPath(name) {
-			rel = filepath.Join(strings.Split(name, "::")...) + ".pm"
+			ext := ".pm"
+			if module, ok := strings.CutSuffix(name, ".xs"); ok {
+				name, ext = module, ".xs"
+			}
+			parts := strings.Split(name, "::")
+			rels = []string{
+				filepath.Join(parts...) + ext,
+				filepath.Join(strings.Join(parts, "-"), parts[len(parts)-1]+ext),
+			}
 		}
 		for _, dir := range dirs {
-			src, err := os.ReadFile(filepath.Join(dir, rel))
-			if err != nil {
-				// Unreadable is not found. Distinguishing them would buy a
-				// caller nothing: neither can resolve the import.
-				continue
+			for _, rel := range rels {
+				src, err := os.ReadFile(filepath.Join(dir, rel))
+				if err != nil {
+					// Unreadable is not found. Distinguishing them would buy
+					// a caller nothing: neither can resolve the import.
+					continue
+				}
+				return src, true
 			}
-			return src, true
 		}
 		return nil, false
 	}
@@ -208,6 +227,16 @@ func (r *resolver) resolve(module string) (moduleFacts, bool) {
 	r.loaded = append(r.loaded, module)
 
 	facts := readModule(parseRoot(src, r))
+	// Its XS subs are as real as the ones it declares, once it has loaded.
+	// A sub the module declares in Perl keeps that declaration's prototype.
+	if xs, ok := r.load(module + ".xs"); ok {
+		for name, proto := range XSSubs(xs) {
+			name = strings.TrimPrefix(name, module+"::")
+			if _, declared := facts.protos[name]; !declared {
+				facts.protos[name] = proto
+			}
+		}
+	}
 	if r.facts == nil {
 		r.facts = map[string]moduleFacts{}
 	}

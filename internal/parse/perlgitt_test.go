@@ -68,12 +68,20 @@ func perlGitTFiles(t *testing.T) (string, []string) {
 // ext/*/lib. An unbuilt checkout has them only at those source paths, so
 // `use Carp` and `use File::Spec::Functions` -- dist/Carp/lib and
 // dist/PathTools/lib -- are searched where they are.
+//
+// The build also copies a distribution's top-level module and compiles its
+// XS: ext/Devel-Peek/Peek.pm and Peek.xs are Devel::Peek. dist/, cpan/ and
+// ext/ themselves are roots for that, where DirLoader's source-tree lookup
+// finds `Devel-Peek/Peek.pm`.
 func perlGitTRoots(dir string) []string {
 	root := filepath.Dir(dir)
 	roots := []string{dir, root, filepath.Join(root, "lib")}
 	for _, tree := range []string{"dist", "cpan", "ext"} {
 		libs, _ := filepath.Glob(filepath.Join(root, tree, "*", "lib"))
 		roots = append(roots, libs...)
+	}
+	for _, tree := range []string{"dist", "cpan", "ext"} {
+		roots = append(roots, filepath.Join(root, tree))
 	}
 	return roots
 }
