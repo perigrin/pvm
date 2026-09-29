@@ -1,19 +1,27 @@
 ---
 title: "$#+ and $#- lex as $# and an operator: the last index of @+ refuses"
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T04:42:21.816204177Z
-updated: 2026-09-29T04:42:22.690790398Z
+updated: 2026-09-29T04:47:49.892897088Z
 sessions:
 - start_sha: 2ff17048eb0761ee20df9012bdcda59e36ef6136
-  end_sha: ""
-  commits: 0
+  end_sha: 7e3713d302ede624a4828ec22a3ed861f5ffc651
+  commits: 1
   started_at: 2026-09-29T04:42:22.690790398Z
+  ended_at: 2026-09-29T04:47:49.892897088Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-29T04:42:22.690790398Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-29T04:47:49.892897088Z
+observed_paths:
+- internal/lexer/lastidx_test.go
+- internal/lexer/scan.go
+- internal/parse/testdata/perlgitt.ratchet
 ---
 
 `$#+` and `$#-` -- the last index of @+ and @- -- lex as the variable `$#`
