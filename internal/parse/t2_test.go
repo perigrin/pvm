@@ -179,8 +179,8 @@ func TestT2CoreParses(t *testing.T) {
 		// decimal literal stopped taking letters: `0-5x-l{0}` at line 516.
 		// base/lex.t 3 -> 1 when a multi-line /e replacement kept its own
 		// heredoc body (line 323); the two were line 336, which that body
-		// had swallowed.
-		"base/lex.t": 1,
+		// had swallowed. base/lex.t 1 -> 0, out of the map, when a pattern's
+		// code block queued its heredoc: `qr/(?{<<END})/` at line 346.
 		// class/field.t went 9 -> 10 when quote-op keywords stopped eating
 		// their fat comma, then back to 9 when goto, delete and exists
 		// landed. The rise was never a regression in the parse: reaching

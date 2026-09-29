@@ -1866,10 +1866,7 @@ Whitespace     7708   7709  \s
 Quote          7709   7726  '(?^:(?{<<END}))'
 Semicolon      7726   7727  ;
 Whitespace     7727   7728  \n
-Word           7728   7731  foo
-Whitespace     7731   7732  \n
-Word           7732   7735  END
-Whitespace     7735   7736  \n
+HeredocBody    7728   7736  foo\nEND\n
 Word           7736   7741  print
 Whitespace     7741   7742  \s
 Quote          7742   7788  "ok\s$test\s-\shere-doc\sin\ssingle-line\sre-eval\n"

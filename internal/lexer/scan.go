@@ -1144,7 +1144,9 @@ func scanBarePattern(l *lexer) bool {
 		l.emit(UnknownRest, start)
 		return true
 	}
+	patEnd := l.pos - 1
 	l.scanModifiers()
 	l.emit(Quote, start)
+	l.queueCodeBlockHeredocs(start+1, patEnd)
 	return true
 }

@@ -1,9 +1,12 @@
 // ABOUTME: Quote-like operators: q qq qw m s tr y qr and the plain string forms.
-// ABOUTME: Delimiter scanning only — no interpolation, no regex parsing, no heredocs.
+// ABOUTME: Delimiter scanning, plus the heredoc openers in /e replacements and code blocks.
 
 package lexer
 
-import "unicode/utf8"
+import (
+	"bytes"
+	"unicode/utf8"
+)
 
 // quoteOp describes one keyword-introduced quote-like operator.
 //
@@ -224,9 +227,14 @@ func scanQuoteLike(l *lexer) bool {
 	l.pos += utf8.RuneLen(open) // past the opening delimiter, whole
 	replStart := 0
 
+	patStart := l.pos
 	if !l.scanDelimitedBody(open, close) {
 		l.emit(UnknownRest, start)
 		return true
+	}
+	patEnd := l.pos - utf8.RuneLen(open)
+	if close != 0 {
+		patEnd = l.pos - utf8.RuneLen(close)
 	}
 
 	if op.parts == 3 {
@@ -280,7 +288,41 @@ func scanQuoteLike(l *lexer) bool {
 	if op.parts == 3 && replStart > 0 && hasModifier(l.src[replEnd:l.pos], 'e') {
 		l.queueHeredocsIn(replStart, replEnd)
 	}
+	if (op.name == "m" || op.name == "qr" || op.name == "s") && open != '\'' {
+		l.queueCodeBlockHeredocs(patStart, patEnd)
+	}
 	return true
+}
+
+// queueCodeBlockHeredocs queues the heredocs opened inside a pattern's code
+// blocks, `(?{ ... })` and `(??{ ... })`, whose code perl lexes as perl:
+// `qr/(?{<<END})/` reads its body from the lines after the statement. Only
+// the code is scanned, so a `<<` in the regex text stays regex text.
+//
+// ponytail: the block's end is found by counting braces, so a brace inside
+// a string in the code miscounts; perl's own sublexer would be the upgrade.
+func (l *lexer) queueCodeBlockHeredocs(start, end int) {
+	for i := start; i < end; i++ {
+		rest := l.src[i:end]
+		if !bytes.HasPrefix(rest, []byte("(?{")) && !bytes.HasPrefix(rest, []byte("(??{")) {
+			continue
+		}
+		open := i + bytes.IndexByte(rest, '{')
+		depth, j := 0, open
+		for ; j < end; j++ {
+			switch l.src[j] {
+			case '{':
+				depth++
+			case '}':
+				depth--
+			}
+			if depth == 0 {
+				break
+			}
+		}
+		l.queueHeredocsIn(open+1, j)
+		i = j
+	}
 }
 
 // hasModifier reports whether the modifier run contains c.
