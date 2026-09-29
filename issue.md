@@ -1,10 +1,19 @@
 ---
 title: A prototype's optional slots are not counted, so ($;$) parses as unary and drops its second argument
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T02:17:43.942577971Z
-updated: 2026-09-29T02:17:43.942577971Z
+updated: 2026-09-29T02:18:00.221825456Z
+sessions:
+- start_sha: b845d9b4e8940e6f86d5c0d3f74acc5510290083
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T02:18:00.221825456Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T02:18:00.221825456Z
 ---
 
 ShapeOf counts only the MANDATORY slots of a prototype, so a prototype with
