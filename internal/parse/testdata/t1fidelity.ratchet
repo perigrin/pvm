@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 559 clean (56.7%), 427 total.
+# 986 files, 565 clean (57.3%), 421 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -63,7 +63,7 @@
 1 caller_anonymous_callback.t
 1 caller_block_terminated_copline.t
 1 caller_conditional_block_line.t
-1 caller_exported_first_statement_in_if.t
+0 caller_exported_first_statement_in_if.t
 1 caller_if_condition_line.t
 1 caller_line_number.t
 1 caller_multiline_chained_call_line.t
@@ -219,7 +219,7 @@
 0 dereference_syntax.t
 0 destroy.t
 0 destroy_columnvalue_owner.t
-1 destroy_zombie_captured_by_db_args.t
+0 destroy_zombie_captured_by_db_args.t
 1 devel_cycle.t
 0 devel_lexalias_padwalker.t
 1 devel_peek_cvgv.t
@@ -521,7 +521,7 @@
 0 nested_for_loops.t
 1 nested_heredoc.t
 0 nested_lexical_sub_reclosure.t
-1 netssleay_baseline.t
+0 netssleay_baseline.t
 1 netssleay_callback_and_empty_pkey.t
 0 netssleay_phase1.t
 0 netssleay_phase2.t
@@ -621,7 +621,7 @@
 0 regex_assertion_conditional.t
 0 regex_byte_replacement_flag.t
 0 regex_callback_abort_cleanup.t
-1 regex_callback_frame_identity.t
+0 regex_callback_frame_identity.t
 0 regex_callback_lexical_context.t
 0 regex_callback_package_frame.t
 0 regex_capture_numification.t
@@ -683,7 +683,7 @@
 0 scalar_handle_read.t
 0 scalar_handle_tty_errno.t
 1 scalar_reference_code_destructor.t
-1 scalar_reference_container_lifetime.t
+0 scalar_reference_container_lifetime.t
 1 scalar_watcher_java_xs.t
 0 sdbm_file_writeback.t
 0 select_interrupt_errno.t
@@ -703,7 +703,7 @@
 1 sort_scalar_context.t
 1 source_anonymous_const_attribute.t
 0 source_filter_begin_install.t
-1 source_filter_caller_line.t
+0 source_filter_caller_line.t
 0 source_filter_delete_oneshot.t
 1 source_filter_eval_require_defaultvar.t
 0 source_filter_scope.t

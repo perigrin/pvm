@@ -410,11 +410,9 @@ type Node struct {
 	InnerHeredocBodies []*Node
 
 	// LoopVar is set on a `foreach` loop's VARIABLE child -- the `$i` of
-	// `for $i (@l)` -- when that variable was written bare rather than
-	// declared.
+	// `for $i (@l)`, and the Declaration of `for my $i (@l)`.
 	//
-	// It sits OUTSIDE the parens, where the `my` spelling's Declaration child
-	// already went. A bare variable is a plain Term, which canon could not
+	// It sits OUTSIDE the parens. A bare variable is a plain Term, which canon could not
 	// tell from a `while` loop's condition, so it parenthesised the variable
 	// and emitted the list bare after it: `for $i (2) {3;}` came back as
 	// `for ($i) 2 {3;}` at Unknown = 0. Not a parse of anything, and only the

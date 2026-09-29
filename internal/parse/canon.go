@@ -408,13 +408,13 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 			switch {
 			// A Block is the body. A nested Conditional is the `else` or
 			// `elsif` -- it carries its own keyword and parens, so wrapping
-			// it emits `(else {...})`. A Declaration is a foreach's loop
-			// variable, which sits OUTSIDE the parens: `for my $x (@l)`. So
-			// does a BARE loop variable, which is a Term and needs the flag
-			// to be told from a condition -- `for $x (@l)` emitted
-			// `for ($x) @l` without it.
-			case c.Kind == Block || c.Kind == Conditional ||
-				c.Kind == Declaration || c.LoopVar:
+			// it emits `(else {...})`. A foreach's loop variable sits
+			// OUTSIDE the parens, declared or bare -- `for my $x (@l)`,
+			// `for $x (@l)` -- and the parser marks it LoopVar. The Kind
+			// cannot say so: a condition that declares, `if (my $x = f())`,
+			// is a Declaration too, and so is a list whose one element is
+			// `sub {}`.
+			case c.Kind == Block || c.Kind == Conditional || c.LoopVar:
 				emit(b, c, src, 0)
 			case cond:
 				// The condition, and only it, is parenthesised: here the

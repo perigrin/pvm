@@ -537,6 +537,7 @@ func (p *parser) parseFor(word lexer.Token) *Node {
 				})
 			}
 			decl.End = p.prevEnd()
+			decl.LoopVar = true
 			n.Children = append(n.Children, decl)
 		case next.Kind == lexer.Variable:
 			// A BARE loop variable -- `for $i (@l)`, `for $pkg::i (@l)`. It
