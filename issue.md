@@ -1,10 +1,19 @@
 ---
 title: "A lowercase bareword filehandle refuses: print foo \"x\" is a handle in perl whatever the case"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T04:11:40.019954771Z
-updated: 2026-09-29T04:11:40.019954771Z
+updated: 2026-09-29T04:11:40.598658473Z
+sessions:
+- start_sha: 5d2714d168d308b5530a60aaa642e86854743afc
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T04:11:40.598658473Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T04:11:40.598658473Z
 ---
 
 A lowercase bareword in print's handle slot refuses, because the parser took
