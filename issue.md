@@ -1,10 +1,19 @@
 ---
 title: "print $x if $c takes $x as a filehandle: a statement modifier is read as a term"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T05:59:34.016442834Z
-updated: 2026-09-29T05:59:34.016442834Z
+updated: 2026-09-29T05:59:35.25354043Z
+sessions:
+- start_sha: 9c48146ef630f3df38870b9dc5d83c4ecb775b6b
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T05:59:35.25354043Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T05:59:35.25354043Z
 ---
 
 `print $x if $c` refuses: the scalar is taken as print's filehandle, and the
