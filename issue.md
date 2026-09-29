@@ -1,10 +1,19 @@
 ---
 title: "The yada statement ... refuses: sub f { ... } is perl's own placeholder body"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T05:11:56.035357072Z
-updated: 2026-09-29T05:11:56.035357072Z
+updated: 2026-09-29T05:11:57.631560033Z
+sessions:
+- start_sha: b8fecf7e33510c839f9187567c7e28afc742ae60
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T05:11:57.631560033Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T05:11:57.631560033Z
 ---
 
 The yada-yada statement `...` refuses everywhere:
