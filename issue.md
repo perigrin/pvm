@@ -1,19 +1,29 @@
 ---
 title: "print $x if $c takes $x as a filehandle: a statement modifier is read as a term"
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T05:59:34.016442834Z
-updated: 2026-09-29T05:59:35.25354043Z
+updated: 2026-09-29T06:06:07.680505759Z
 sessions:
 - start_sha: 9c48146ef630f3df38870b9dc5d83c4ecb775b6b
-  end_sha: ""
-  commits: 0
+  end_sha: dd6d465c06a187d2b082b2526fd3a06a4bf4645f
+  commits: 1
   started_at: 2026-09-29T05:59:35.25354043Z
+  ended_at: 2026-09-29T06:06:07.680505759Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-29T05:59:35.25354043Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-29T06:06:07.680505759Z
+observed_paths:
+- internal/parse/call.go
+- internal/parse/printmod_test.go
+- internal/parse/stmtmodcanon_test.go
+- internal/parse/t2_test.go
+- internal/parse/testdata/perlgitt.ratchet
 ---
 
 `print $x if $c` refuses: the scalar is taken as print's filehandle, and the
