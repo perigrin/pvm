@@ -1,19 +1,30 @@
 ---
 title: "XS subs are unknown: a module's .xs names and prototypes are never read"
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T23:08:35.758163908Z
-updated: 2026-09-29T23:08:37.184290914Z
+updated: 2026-09-29T23:15:29.674660654Z
 sessions:
 - start_sha: fa2f9a5dc1174e5734013c5815469461ce48ea07
-  end_sha: ""
-  commits: 0
+  end_sha: 85a1b24708885d3b391109f081d755998f949c7c
+  commits: 1
   started_at: 2026-09-29T23:08:37.184290914Z
+  ended_at: 2026-09-29T23:15:29.674660654Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-29T23:08:37.184290914Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-29T23:15:29.674660654Z
+observed_paths:
+- internal/parse/module.go
+- internal/parse/perlgitt_test.go
+- internal/parse/testdata/perlgitt.ratchet
+- internal/parse/use.go
+- internal/parse/xs.go
+- internal/parse/xs_test.go
 ---
 
 Subs a module implements in XS are invisible to the parser. `Time::HiRes::usleep $big_delay;`, `Dump \%hash;` after `use Devel::Peek`, and `mro::get_isarev $args[0]` all refuse, because neither the name nor its prototype appears in any `.pm`. perl knows both once the module loads, and both come from the module's `.xs` by xsubpp's rules (ExtUtils::ParseXS; Node.pm's proto_string):
