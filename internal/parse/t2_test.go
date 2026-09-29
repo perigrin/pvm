@@ -360,7 +360,9 @@ func TestT2CoreParses(t *testing.T) {
 		// inside its statement stopped stopping it (issue 01a0ea0b-6269): a
 		// call whose arguments continue past the body, the fresh_perl_is house
 		// style.
-		"comp/parser.t": 7,
+		// comp/parser.t 7 -> 6 when a label before a block's `}` began
+		// labelling an empty statement (line 594, `eval{a:}`).
+		"comp/parser.t": 6,
 		// comp/require.t went 11 -> 12 when phaser braces became blocks. The
 		// `BEGIN { ... }` body is now read as statements rather than as one
 		// hashref, and reaching inside it exposed a heredoc the parser did

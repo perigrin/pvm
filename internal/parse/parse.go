@@ -776,6 +776,20 @@ func (p *parser) statementForm() *Node {
 		return n
 	}
 
+	// A label with nothing after it but the block's `}` -- or the end of
+	// the file -- labels an empty statement too: measured on 5.42.0,
+	// `sub f { $x = 1; _: }` deparses with `_: ;` as its last statement.
+	// op/attrs.t spells `sub MODIFY_CODE_ATTRIBUTES { ...; _: }`. The `}`
+	// is the block's, so it is left for the block.
+	if len(labels) > 0 {
+		if tok, ok := p.peekSignificant(); !ok || (tok.Kind == lexer.CloseBracket && p.src[tok.Start] == '}') {
+			return &Node{
+				Kind: Statement, Start: labels[0].Start, End: labels[len(labels)-1].End,
+				Children: labels,
+			}
+		}
+	}
+
 	// The YADA-YADA statement: `sub f { ... }`. A statement form and only
 	// that -- measured on 5.42.0, `my $x = ...;` and `... if 0;` are both
 	// syntax errors, and `sub f { ... }` deparses as `die 'Unimplemented'`.
