@@ -1,6 +1,6 @@
 # Unknown nodes per perl.git t/ file, through parse.ParseFileFrom.
 #
-# 620 files, 527 clean (85.0%), 380 total.
+# 620 files, 530 clean (85.5%), 370 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -99,7 +99,7 @@
 0 io/perlio_leaks.t
 0 io/perlio_open.t
 0 io/pipe.t
-1 io/print.t
+0 io/print.t
 0 io/pvbm.t
 0 io/read.t
 0 io/say.t
@@ -252,7 +252,7 @@
 0 op/dump.t
 0 op/each.t
 0 op/each_array.t
-2 op/eval.t
+1 op/eval.t
 3 op/evalbytes.t
 1 op/exec.t
 0 op/exists_sub.t
@@ -390,7 +390,7 @@
 0 op/substr_left.t
 0 op/substr_thr.t
 0 op/svflags.t
-2 op/svleak.t
+1 op/svleak.t
 19 op/switch.t
 0 op/symbolcache.t
 0 op/sysio.t
@@ -422,7 +422,7 @@
 0 op/waitpid.t
 0 op/wantarray.t
 0 op/warn.t
-5 op/while.t
+0 op/while.t
 5 op/write.t
 6 op/yadayada.t
 0 opbasic/arith.t
@@ -561,7 +561,7 @@
 0 run/runenv.t
 0 run/runenv_hashseed.t
 0 run/runenv_randseed.t
-2 run/script.t
+0 run/script.t
 0 run/switch-I-and-M.t
 0 run/switch0.t
 0 run/switchC.t

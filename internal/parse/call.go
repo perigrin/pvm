@@ -524,10 +524,10 @@ func (p *parser) parseFilehandleSlot(op string) *Node {
 		// disambiguate an expression in the slot.
 		return p.parseBlock(tok)
 
-	case tok.Kind == lexer.Word && isBarewordHandle(p.text(tok)):
-		// A bareword handle. Only ALL-CAPS names qualify, which is perl's
-		// own convention and what keeps `print foo 1` from stealing a
-		// function call into the slot.
+	case tok.Kind == lexer.Word && p.isBarewordHandle(p.text(tok)):
+		// A bareword handle: any word that is neither a builtin nor a sub
+		// this parse knows, which is perl's rule -- see isBarewordHandle.
+		// A declared `foo` keeps `print foo 1` a call.
 		//
 		// AND ONLY WHEN NO COMMA FOLLOWS, which is perl's actual rule and
 		// the same test the `$fh` branch below makes. Measured on 5.42.0:
@@ -573,26 +573,27 @@ func (p *parser) parseFilehandleSlot(op string) *Node {
 	return nil
 }
 
-// isBarewordHandle reports whether a bareword looks like a filehandle.
+// isBarewordHandle reports whether a bareword can fill a handle slot.
 //
-// perl's rule is the symbol table's, which a static parser does not have, so
-// this uses the convention perl's own documentation recommends and every
-// corpus file follows: an all-caps name. STDERR, STDOUT, FH, OUT.
+// perl's rule is not a naming convention. Measured on 5.42.0 with -MO=Deparse:
+//
+//	print foo "x";                 print foo 'x';      a handle, lower case
+//	sub foo {1} print foo "x";     print foo('x');     a declared sub: a call
+//	print length "x";              print 1;            a builtin
+//
+// So a word is a handle unless it names a builtin or a sub this parse has
+// already seen declared or imported. The ALL-CAPS test that stood here took
+// `STDERR` and missed `print tmp "..."` (op/while.t) and `print foo "ok 6\n"`
+// (io/print.t).
 //
 // THE SHAPE IS ONLY HALF THE TEST. What follows the word decides the
 // rest, and the caller applies it -- see parseFilehandleSlot.
-func isBarewordHandle(word string) bool {
-	if word == "" {
+func (p *parser) isBarewordHandle(word string) bool {
+	if word == "" || isPerlKeyword(keywordName(word)) {
 		return false
 	}
-	for i := 0; i < len(word); i++ {
-		c := word[i]
-		if (c >= 'A' && c <= 'Z') || c == '_' || (c >= '0' && c <= '9') {
-			continue
-		}
-		return false
-	}
-	return true
+	_, known := p.lookupSub(word)
+	return !known
 }
 
 // startsTerm reports whether a token begins a new term rather than continuing
