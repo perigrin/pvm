@@ -591,7 +591,7 @@ func bindingPower(n *Node) int {
 		// The initialiser is either a second child (`my $x = 1`) or an
 		// assignment Binary the target list was parsed into (`my ($a, $b) =
 		// @_`).
-		if declarators[n.Text] && len(n.Children) > 0 {
+		if declarators[keywordName(n.Text)] && len(n.Children) > 0 {
 			kids := n.Children
 			if len(kids) > 1 && kids[0].Kind == TypeName {
 				kids = kids[1:]

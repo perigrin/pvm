@@ -264,7 +264,7 @@ func (p *parser) parseTerm() *Node {
 	case lexer.Word:
 		text := p.text(tok)
 		switch {
-		case declarators[text] && p.declaratorTakesTarget(tok):
+		case declarators[keywordName(text)] && p.declaratorTakesTarget(tok):
 			// A declaration in EXPRESSION position: `open my $fh, $p`,
 			// `f(my $x)`. perly.y makes `my` a named unary at level 19
 			// (§4.6), so it is a term here as much as a statement form.

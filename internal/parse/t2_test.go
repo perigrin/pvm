@@ -420,7 +420,6 @@ func TestT2CoreParses(t *testing.T) {
 		// opbasic/concat.t 3 -> 2 when a declaration with no initialiser
 		// became the left operand of the infix operator after it (issue
 		// 01a0eab6). Line 784 is `my $a . $foo; # weird but legal`.
-		"opbasic/concat.t": 2,
 	}
 
 	var regressed, improved, nowClean, nowDirty []string
