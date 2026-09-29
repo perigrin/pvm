@@ -274,6 +274,22 @@ func (p *parser) resolveImports(module string, list *Node) {
 	for _, imp := range importsFrom(facts, names, listGiven) {
 		p.imports[subKey(imp.Name)] = imp
 	}
+	// The module's own subs are callable by their qualified names whatever
+	// it exports: after `use overload;`, `overload::constant 'integer' =>
+	// sub {...}` calls lib/overload.pm's `sub constant`. Keyed under the
+	// module's name, which is the package a conventional module declares.
+	//
+	// Kept apart from the imports: they are known, not imported.
+	for name, proto := range facts.protos {
+		if strings.Contains(name, "::") {
+			continue
+		}
+		if p.moduleSubs == nil {
+			p.moduleSubs = map[string]Import{}
+		}
+		q := module + "::" + name
+		p.moduleSubs[q] = Import{Name: q, Prototype: proto, PrototypeKnown: true}
+	}
 }
 
 // importBuiltins is `use builtin LIST`. There is no module text to read: the

@@ -530,6 +530,10 @@ func parseRoot(src []byte, res *resolver) *Node {
 
 // parser is the cursor over the token stream.
 type parser struct {
+	// moduleSubs are the subs a loaded module declares, by qualified name --
+	// `overload::constant` after `use overload;`. Known, not imported.
+	moduleSubs map[string]Import
+
 	// inSignature is set while a sub's signature is read, where a
 	// placeholder's `=` may have nothing after it -- see emptyDefault.
 	inSignature bool

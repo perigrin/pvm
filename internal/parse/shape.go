@@ -163,6 +163,9 @@ func (p *parser) lookupSub(name string) (Import, bool) {
 	if imp, ok := p.imports[subKey(name)]; ok {
 		return imp, true
 	}
+	if imp, ok := p.moduleSubs[subKey(name)]; ok {
+		return imp, true
+	}
 	if proto, ok := interpreterSubs[name]; ok {
 		return Import{Name: name, Prototype: proto, PrototypeKnown: true}, true
 	}
