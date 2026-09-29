@@ -4,7 +4,7 @@ state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T12:03:54.094791562Z
-updated: 2026-09-29T12:03:55.569282834Z
+updated: 2026-09-29T12:14:57.548940764Z
 sessions:
 - start_sha: 06f95ce2afd792f1c807c1e28af6aa913a2fda95
   end_sha: ""
@@ -24,7 +24,7 @@ Measured with perl 5.42:
     foreach ${*$f;} (5, 11, 33) {
     foreach $$r (1, 2) {
 
-perl.git t/op/for.t:766.
+perl.git t/op/for.t:767.
 
 ## Acceptance criteria
 
