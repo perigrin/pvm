@@ -3,7 +3,11 @@
 
 package parse
 
-import "tamarou.com/pvm/internal/lexer"
+import (
+	"strings"
+
+	"tamarou.com/pvm/internal/lexer"
+)
 
 // parseExpr consumes infix operators whose binding power exceeds minBP.
 //
@@ -56,6 +60,24 @@ func elementlessAfterComma(tok lexer.Token, src []byte) bool {
 	}
 	op, isInfix := infix[text]
 	return modifiers[text] || isInfix && op.BP <= bpBelowComma
+}
+
+// endsListAfterComma reports whether tok, just after a comma, ends the list:
+// an infix operator that cannot begin a term where one is expected. One whose
+// first byte DOES begin a term there is read as that term by perl, and the
+// line is rejected -- measured on 5.42.0, `f 1, += 2` is a syntax error,
+// `f 1, ** 2` reads a glob and `f 1, // 2` a pattern -- so those are left
+// to refuse. `&` is not among them: the lexer already makes `&&` and `&&=`
+// Operators and a lone `&` a FuncSigil, so an Operator here is the former.
+func endsListAfterComma(tok lexer.Token, src []byte) bool {
+	if tok.Kind != lexer.Operator {
+		return false
+	}
+	text := string(src[tok.Start:tok.End])
+	if _, isInfix := infix[text]; !isInfix {
+		return false
+	}
+	return !strings.ContainsRune(`+-*/%<\~([{`, rune(text[0]))
 }
 
 func (p *parser) parseInfix(left *Node, minBP int) *Node {
@@ -126,12 +148,12 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 				p.advanceTo(tok)
 				continue
 			}
-			// An assignment operator cannot begin an element either, but it
-			// binds tighter than the comma, so the list ENDS at the comma
-			// rather than becoming its left side: `substr $x, 0, 1, = "a"`
-			// is `substr($x, 0, 1) = "a"`, measured on 5.42.0.
-			if next, ok := p.peekAfter(tok); ok && next.Kind != lexer.Word &&
-				infix[p.text(next)].Level == infix["="].Level {
+			// An operator that cannot begin an element either, but binds
+			// tighter than the comma: the list ENDS at the comma rather than
+			// becoming its left side. `substr $x, 0, 1, = "a"` is
+			// `substr($x, 0, 1) = "a"` and `f 1, || 2` is `f(1) || 2`,
+			// measured on 5.42.0.
+			if next, ok := p.peekAfter(tok); ok && endsListAfterComma(next, p.src) {
 				p.advanceTo(tok)
 				return left
 			}
