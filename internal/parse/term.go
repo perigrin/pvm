@@ -391,7 +391,9 @@ func (p *parser) derefHoldsStatements(open lexer.Token) bool {
 	if !ok || p.text(first) == "}" {
 		return false // `${}`: EmptyDeref's, below.
 	}
-	if first.Kind == lexer.Semicolon {
+	// So does the yada, which is a statement and never an expression
+	// (perly.y:759): `${...}++` dies Unimplemented, measured on 5.42.0.
+	if first.Kind == lexer.Semicolon || p.text(first) == "..." {
 		return true
 	}
 	p.parseExpr(0)
