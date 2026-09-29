@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 732 clean (74.2%), 1295 total.
+# 986 files, 735 clean (74.5%), 1285 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -210,7 +210,7 @@
 12 dbic_deep_cycle_weak_shift_regression.t
 5 dbic_quiet_registry_destroy_handoff_regression.t
 0 default_feature_bundle.t
-2 defer.t
+1 defer.t
 0 defer_implicit_return_cleanup.t
 0 defined_cached_code_ref.t
 0 defined_dynamic_code.t
@@ -309,7 +309,7 @@
 0 flock_reassigned_handle.t
 0 for_loop_test.t
 0 foreach_implicit_live_array.t
-3 foreach_implicit_topic_callback.t
+0 foreach_implicit_topic_callback.t
 0 foreach_mutated_array.t
 0 foreach_undef_readonly_alias.t
 5 fork_fixed_plan_skip.t
@@ -421,7 +421,7 @@
 0 join_upgraded_latin1_provenance.t
 0 json_parse_compat.t
 0 json_xs_compat.t
-3 jvm_eval_nested_compound_assignment.t
+0 jvm_eval_nested_compound_assignment.t
 0 large_sub_interpreter_fallback.t
 0 lazy_sub_verification_side_effects.t
 0 leading_colon_bareword_call.t
@@ -744,7 +744,7 @@
 17 string_interpolation.t
 0 string_interpolation_at_caret.t
 0 string_interpolation_escaped_hash_key.t
-3 subroutine.t
+1 subroutine.t
 0 subroutine_proto_trailing_comma_stmtend.t
 5 subroutine_prototype.t
 8 subroutine_prototype_args.t
@@ -856,7 +856,7 @@
 18 tie_scalar.t
 0 tie_scalar_self_reference_destroy.t
 8 tie_void_context.t
-1 tied_array_constraint_short_circuit.t
+0 tied_array_constraint_short_circuit.t
 0 tied_array_delete_local.t
 0 tied_container_undef.t
 0 tied_handle_dup.t

@@ -323,6 +323,18 @@ func (p *parser) parseGoto(word lexer.Token) *Node {
 
 // parseReturn: `return;` and `return LIST;`.
 func (p *parser) parseReturn(word lexer.Token) *Node {
+	n := p.parseReturnTerm(word)
+	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
+		p.advanceTo(tok)
+	}
+	n.End = p.prevEnd()
+	return n
+}
+
+// parseReturnTerm is `return` and its optional list, without the statement's
+// `;`. toke.c lexes return as OLDLOP(OP_RETURN), a list operator wherever it
+// stands, so parseWordTerm reads it here too: `$a and return 1` returns 1.
+func (p *parser) parseReturnTerm(word lexer.Token) *Node {
 	p.advanceTo(word)
 	n := &Node{Kind: LoopControl, Text: p.text(word), Start: word.Start}
 
@@ -334,23 +346,21 @@ func (p *parser) parseReturn(word lexer.Token) *Node {
 	// `sub A::MODIFY_SCALAR_ATTRIBUTES { return }` the first failure in both
 	// op/attrs.t and uni/attrs.t.
 	//
-	// endsStatement is the shared predicate, used here and by parseUse for the
-	// same construct rather than a terminator set invented for each.
+	// endsArgumentList is the shared predicate, the one every list
+	// operator's argument list stops at, because return is one: toke.c's
+	// OLDLOP. It answers for the terminator and the `}` above, and for a
+	// MODIFIER word, which is not an operand either -- `return if $x;` read
+	// the `if` as an expression and came back as `return if();$x;`, a call
+	// to a function named `if`.
 	//
-	// A MODIFIER word is not an operand either, and endsStatement cannot say
-	// so -- it answers about punctuation. `return if $x;` read the `if` as an
-	// expression and came back as `return if();$x;`, a call to a function
-	// named `if`. parseGoto makes the same test for the same reason; a bare
-	// `return` carrying a modifier is the shape that needs it here.
-	if next, ok := p.peekSignificant(); ok && !endsStatement(next, p.src) &&
-		!(next.Kind == lexer.Word && modifiers[p.text(next)]) {
+	// Inside an expression it also answers for the `:` of a ternary and any
+	// closer. Measured on 5.42.0, `$c ? return : uc($_)` deparses as
+	// `($c ? (return) : uc($_))`: the bare return takes nothing.
+	if next, ok := p.peekSignificant(); ok && !endsArgumentList(next, p.src) {
 		// Below the comma, so the whole list belongs to the return.
 		if arg := p.parseExpr(bpListOp); arg != nil {
 			n.Children = append(n.Children, arg)
 		}
-	}
-	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
-		p.advanceTo(tok)
 	}
 	n.End = p.prevEnd()
 	return n

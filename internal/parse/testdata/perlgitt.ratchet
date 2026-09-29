@@ -1,6 +1,6 @@
 # Unknown nodes per perl.git t/ file, through parse.ParseFileFrom.
 #
-# 620 files, 551 clean (88.9%), 275 total.
+# 620 files, 555 clean (89.5%), 262 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -227,7 +227,7 @@
 0 op/cmpchain.t
 0 op/concat2.t
 0 op/cond.t
-10 op/const-optree.t
+8 op/const-optree.t
 0 op/context.t
 2 op/coreamp.t
 0 op/coresubs.t
@@ -237,7 +237,7 @@
 0 op/dbm.t
 0 op/debug.t
 8 op/decl-refs.t
-1 op/defer.t
+0 op/defer.t
 0 op/defined.t
 0 op/defins.t
 0 op/delete.t
@@ -331,7 +331,7 @@
 0 op/ord.t
 1 op/overload_integer.t
 7 op/override.t
-1 op/pack.t
+0 op/pack.t
 0 op/packagev.t
 0 op/pos.t
 3 op/postfixderef.t
@@ -374,17 +374,17 @@
 0 op/split.t
 0 op/split_unicode.t
 0 op/sprintf.t
-2 op/sprintf2.t
+0 op/sprintf2.t
 0 op/srand.t
 0 op/sselect.t
 0 op/stash.t
 0 op/stash_parse_gv.t
-3 op/stat.t
+0 op/stat.t
 0 op/stat_errors.t
 0 op/state.t
 0 op/study.t
 0 op/studytied.t
-3 op/sub.t
+2 op/sub.t
 8 op/sub_lval.t
 0 op/substr.t
 0 op/substr_left.t
@@ -423,7 +423,7 @@
 0 op/wantarray.t
 0 op/warn.t
 0 op/while.t
-5 op/write.t
+2 op/write.t
 0 op/yadayada.t
 0 opbasic/arith.t
 0 opbasic/cmp.t

@@ -88,6 +88,10 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		return n
 	}
 
+	if text == "return" {
+		return p.parseReturnTerm(word)
+	}
+
 	// A niladic builtin takes nothing: `time`, `wantarray`.
 	if niladicParse[text] {
 		p.advanceTo(word)
