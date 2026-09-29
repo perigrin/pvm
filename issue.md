@@ -1,10 +1,19 @@
 ---
 title: Indirect object notation with an unknown class, or WORD $var, needs the symbol table the parser does not have
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T05:43:20.616611766Z
-updated: 2026-09-29T05:43:20.616611766Z
+updated: 2026-09-29T22:52:34.213267385Z
+sessions:
+- start_sha: 1bb6f94e6508cdb97d0a1f778c5f5fbf7dac20ac
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T22:52:34.213267385Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T22:52:34.213267385Z
 ---
 
 Indirect object notation is read (01a0ddc5-b591) only where the class is a
