@@ -1,19 +1,29 @@
 ---
 title: "`$ {^XY}` lexes as the variable `$ ` and a brace group"
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T13:46:21.291785208Z
-updated: 2026-09-29T13:46:21.822402521Z
+updated: 2026-09-29T13:59:53.710441944Z
 sessions:
 - start_sha: b9356616d0498b89062d8c2e0666ec39e089aef8
-  end_sha: ""
-  commits: 0
+  end_sha: 7d2278da40ea70a59ac626769fb90220fd166c0e
+  commits: 1
   started_at: 2026-09-29T13:46:21.822402521Z
+  ended_at: 2026-09-29T13:59:53.710441944Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-29T13:46:21.822402521Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-29T13:59:53.710441944Z
+observed_paths:
+- internal/lexer/scan.go
+- internal/lexer/spacedbrace_test.go
+- internal/lexer/testdata/lex.t.tokens
+- internal/parse/t2_test.go
+- internal/parse/testdata/perlgitt.ratchet
 ---
 
 A braced variable name after a spaced sigil -- `$ {^XY}`, `$ { foo }` -- lexes as the one-byte punctuation variable `$ ` followed by a stray brace group. startsDerefExpression skips spaces to see the brace and correctly declines it as an expression, but the name path then read the space as the name.
