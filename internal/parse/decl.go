@@ -217,7 +217,9 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 		// Level 9 is the whole assignment class in one token group
 		// (toke.c:250), so the test is the level rather than a list of
 		// nineteen spellings.
+		hadInit := false
 		if eq, ok := p.peekSignificant(); ok && infix[p.text(eq)].Level == assignLevel {
+			hadInit = true
 			p.advanceTo(eq)
 			// Parsed above the three word operators rather than at 0, so
 			// `and`, `or` and `xor` stop here and belong ABOVE the
@@ -241,13 +243,31 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 		}
 		n.End = p.prevEnd()
 
+		// With NO initialiser, any other infix operator takes the whole
+		// declaration as its left operand. Measured on 5.42.0, each
+		// deparses unchanged: `my $s =~ /x/;`, `my $t . 'a';`, `our @a ==
+		// 1;`. Left unconsumed, each refused as trailing_tokens. Read up to
+		// the comma and no further, so the word operators below it still
+		// reach the test that follows, and `my $x, my $y` keeps the reading
+		// it already had.
+		left := n
+		if !hadInit {
+			if op, ok := p.peekSignificant(); ok {
+				text := p.text(op)
+				if info, isInfix := infix[text]; isInfix && info.Level != assignLevel &&
+					text != "," && text != "=>" && info.BP > bpBelowComma {
+					left = p.parseInfix(n, bpBelowComma)
+				}
+			}
+		}
+
 		// A word operator below the comma now stands unconsumed, with the
 		// whole declaration as its left operand. Resuming the loop here is
 		// what puts it above rather than inside.
 		if p.atOperatorBelowComma() {
-			return p.parseInfix(n, 0)
+			return p.parseInfix(left, 0)
 		}
-		return n
+		return left
 	}
 
 	// A list target -- `my ($a, $b) = @_` -- or anything else, parsed as one

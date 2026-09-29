@@ -1,6 +1,6 @@
 # Unknown nodes per perl.git t/ file, through parse.ParseFileFrom.
 #
-# 620 files, 485 clean (78.2%), 620 total.
+# 620 files, 487 clean (78.5%), 614 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -227,7 +227,7 @@
 0 op/cmpchain.t
 1 op/concat2.t
 0 op/cond.t
-12 op/const-optree.t
+11 op/const-optree.t
 0 op/context.t
 7 op/coreamp.t
 1 op/coresubs.t
@@ -288,7 +288,7 @@
 0 op/hook/require.t
 0 op/inc.t
 0 op/inccode-tie.t
-1 op/inccode.t
+0 op/inccode.t
 0 op/incfilter.t
 1 op/index.t
 0 op/index_thr.t
@@ -351,7 +351,7 @@
 0 op/recurse.t
 7 op/ref.t
 0 op/refstack.t
-1 op/repeat.t
+0 op/repeat.t
 0 op/require_37033.t
 0 op/require_errors.t
 0 op/require_gh20577.t
@@ -381,10 +381,10 @@
 0 op/stash_parse_gv.t
 3 op/stat.t
 0 op/stat_errors.t
-2 op/state.t
+1 op/state.t
 0 op/study.t
 0 op/studytied.t
-5 op/sub.t
+4 op/sub.t
 14 op/sub_lval.t
 1 op/substr.t
 0 op/substr_left.t
@@ -427,7 +427,7 @@
 6 op/yadayada.t
 0 opbasic/arith.t
 5 opbasic/cmp.t
-3 opbasic/concat.t
+2 opbasic/concat.t
 0 opbasic/magic_phase.t
 0 opbasic/qq.t
 0 perf/benchmarks.t

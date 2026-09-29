@@ -406,7 +406,10 @@ func TestT2CoreParses(t *testing.T) {
 		// declined statement keyword (issue 01a0de43-ff83). The file declares
 		// `sub try ($$$)` and calls it eleven times; each call was refused as
 		// the start of a try/catch it never was.
-		"opbasic/cmp.t": 5, "opbasic/concat.t": 3,
+		// opbasic/concat.t 3 -> 2 when a declaration with no initialiser
+		// became the left operand of the infix operator after it (issue
+		// 01a0eab6). Line 784 is `my $a . $foo; # weird but legal`.
+		"opbasic/cmp.t": 5, "opbasic/concat.t": 2,
 	}
 
 	var regressed, improved, nowClean, nowDirty []string
