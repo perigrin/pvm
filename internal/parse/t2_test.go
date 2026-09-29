@@ -339,8 +339,9 @@ func TestT2CoreParses(t *testing.T) {
 		// comp/opsubs.t 11 -> 9 with the labelled bare block (issue
 		// 01a0de8b). Its one label is `SILENCE_WARNING: {` at line 117;
 		// before the fix that brace lexed as an anonymous hash and the two
-		// statements after it fell to trailing_tokens.
-		"comp/opsubs.t": 9,
+		// statements after it fell to trailing_tokens. comp/opsubs.t 9 -> 0,
+		// out of the map, when a quote-operator word after `&` became a sub
+		// name: `&m('amper')` at lines 122-179.
 		// comp/parser.t 64 -> 55 and comp/parser_run.t 12 -> 5 with the
 		// heredoc body (issue 01a0c13f) -- nine and seven nodes. parser_run.t
 		// is the densest heredoc user in the map: more than half its

@@ -99,6 +99,12 @@ func scanQuoteLike(l *lexer) bool {
 	if l.expect == XPostDeref || l.sawSubWord {
 		return false
 	}
+	// After the `&` sigil the word is a sub's NAME as well: `&m('x')` calls
+	// the sub m. Measured on 5.42.0, Deparse keeps `&m('a')`, `&s('b')` and
+	// `&y('c')` as calls.
+	if n := len(l.toks); n > 0 && l.toks[n-1].Kind == FuncSigil && l.toks[n-1].End == l.pos {
+		return false
+	}
 
 	op, ok := quoteOpAt(l.src, l.pos)
 	if !ok {
