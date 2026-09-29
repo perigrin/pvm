@@ -1,19 +1,23 @@
 ---
 title: A trailing comma is a separator with no element, and the closer it swallowed made a wrong tree
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T22:01:56.90867962Z
-updated: 2026-09-29T02:48:03.410930666Z
+updated: 2026-09-29T02:48:04.008935112Z
 sessions:
 - start_sha: ae2fb4786754099203add719feedfd96fedd7208
-  end_sha: ""
+  end_sha: ae2fb4786754099203add719feedfd96fedd7208
   commits: 0
   started_at: 2026-09-29T02:48:03.410930666Z
+  ended_at: 2026-09-29T02:48:04.008935112Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-29T02:48:03.410930666Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-29T02:48:04.008935112Z
 ---
 
 ## Measured finding
