@@ -125,7 +125,15 @@ func (l *lexer) noteSubName(k Kind, start int) bool {
 		case word == "sub" || word == "method":
 			l.sawSubWord = true
 			l.sawPackageWord = false
-			l.expectPrototype = false
+			// An ANONYMOUS sub's prototype or signature follows the keyword
+			// directly: `sub (&) { ... }`, `sub ($x) { ... }`. A named one's
+			// follows its name, and the name resets this below. After `->`
+			// the word is a method name and its parens are arguments.
+			//
+			// `sub` only: `method` is a keyword under the class feature
+			// alone, which the lexer does not track, and elsewhere it is an
+			// ordinary name -- op/args.t calls `method('foo', 'bar')`.
+			l.expectPrototype = word == "sub" && !l.afterArrow(start)
 			// An ANONYMOUS sub's attribute list starts right here, with no
 			// name between: `my $f = sub :lvalue { 1 }`.
 			l.inSubAttrs = true
@@ -262,4 +270,11 @@ func (l *lexer) touchesAttributeName(start int) bool {
 	prev, colon := l.toks[n-2], l.toks[n-3]
 	return prev.Kind == Word && prev.End == start &&
 		colon.End-colon.Start == 1 && l.src[colon.Start] == ':'
+}
+
+// afterArrow reports whether the significant token before start is `->`.
+func (l *lexer) afterArrow(start int) bool {
+	i := l.significantBefore(len(l.toks) - 1)
+	return i >= 0 && l.toks[i].End-l.toks[i].Start == 2 &&
+		string(l.src[l.toks[i].Start:l.toks[i].End]) == "->"
 }

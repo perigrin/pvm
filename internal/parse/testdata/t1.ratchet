@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 736 clean (74.6%), 1284 total.
+# 986 files, 739 clean (74.9%), 1277 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -125,13 +125,13 @@
 28 control_flow.t
 10 convert_bencode_xs_java.t
 0 core_dump_guarded.t
-2 core_global_additional_overrides.t
-1 core_global_caller_concat.t
+0 core_global_additional_overrides.t
+0 core_global_caller_concat.t
 0 core_global_dynamic_goto.t
-2 core_global_exit_trap.t
+0 core_global_exit_trap.t
 3 core_global_rand_override.t
 0 core_global_sqrt_override.t
-5 core_global_time_overrides.t
+3 core_global_time_overrides.t
 0 core_module_file_versions.t
 0 core_operator_import_shadow.t
 0 core_operator_source_position.t

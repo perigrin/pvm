@@ -283,7 +283,11 @@ func (p *parser) parseTerm() *Node {
 			// has no name either, and a `:` here cannot be anything else --
 			// `sub` is a keyword, so the colon is not a label's and not a
 			// ternary's.
-			if next, ok := p.peekAfter(tok); ok && (p.text(next) == "{" || p.text(next) == ":") {
+			//
+			// So may a prototype or signature: `sub (&) { ... }`, `sub ($x)
+			// { ... }`.
+			if next, ok := p.peekAfter(tok); ok && (p.text(next) == "{" || p.text(next) == ":" ||
+				next.Kind == lexer.Prototype || p.text(next) == "(") {
 				return p.parseAnonSub(tok)
 			}
 
@@ -345,12 +349,24 @@ func (p *parser) parseAnonSub(word lexer.Token) *Node {
 			Kind: PrototypeNode, Text: p.text(proto),
 			Start: proto.Start, End: proto.End,
 		})
+	} else if open, ok := p.peekSignificant(); ok && p.text(open) == "(" {
+		// A signature: the lexer leaves the parens as code when the feature
+		// is on, as it does after a named sub.
+		p.parseSignature(n)
 	}
 
 	// Attributes: `my $f = sub :lvalue { 1 }`. Same list, same position, and
 	// the same reason parseSubDecl reads them -- an unread attribute ends the
 	// sub at the colon and leaves the whole body trailing.
 	p.parseAttributes(n)
+
+	// A signature after the attributes, the order the feature requires:
+	// `sub :lvalue ($x) { $x }`. See parseSubDecl.
+	if !hasHead(n) {
+		if open, ok := p.peekSignificant(); ok && p.text(open) == "(" {
+			p.parseSignature(n)
+		}
+	}
 
 	if blk := p.parseBlockOrDecline(); blk != nil {
 		n.Children = append(n.Children, blk)

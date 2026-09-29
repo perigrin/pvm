@@ -266,7 +266,10 @@ func TestProtoCorpusLexes(t *testing.T) {
 	//
 	// Pinned exactly so a regression in either direction is visible. Update
 	// it when the corpus pin moves, and say why in the commit.
-	const wantProtos = 32
+	//
+	// 32 -> 34 when an anonymous sub's prototype began lexing as one:
+	// `*X::foo4 = sub ($) {'ok'};` at line 494 and `sub ($$$$$$$) {}` at 891.
+	const wantProtos = 34
 	if protos != wantProtos {
 		t.Errorf("comp/proto.t: %d Prototype tokens, want %d", protos, wantProtos)
 	}
