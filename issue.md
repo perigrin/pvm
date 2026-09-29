@@ -1,10 +1,19 @@
 ---
 title: "A parenthesised comparison joins the chain beside it: ($a == $b) == 0 becomes $a == $b == 0"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T06:29:44.028699987Z
-updated: 2026-09-29T06:29:44.028699987Z
+updated: 2026-09-29T06:29:53.220417898Z
+sessions:
+- start_sha: 1c3d665b4ed12f5ee63d275633b45474baf71c1f
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T06:29:53.220417898Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T06:29:53.220417898Z
 ---
 
 The comparison parser read a parenthesised comparison as a still-open termrelop or termeqop. So `($a == $b) == 0` extended the chain into `$a == $b == 0`, a different program at Unknown=0, and `($a cmp $b) == 0` refused as a second eqop. Parentheses end the production in perly.y; the grouped comparison is a term.
