@@ -323,10 +323,49 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 		return left
 	}
 
+	// A list target with ATTRIBUTES: `my ($c, @g, %b) : teapots = qw[...]`.
+	// They sit between the list and the initialiser, as a scalar's do, so
+	// the shape is the scalar path's -- target, attributes, initialiser --
+	// which canon already writes. Measured on 5.42.0, Deparse keeps
+	// `my($c, @g, %b) :teapots = ('a', 'b', 'c')`.
+	if d := p.listDeclWithAttributes(n); d != nil {
+		return d
+	}
+
 	// A list target -- `my ($a, $b) = @_` -- or anything else, parsed as one
 	// expression so the assignment at level 9 is already inside it.
 	if target := p.parseExpr(0); target != nil {
 		n.Children = append(n.Children, target)
+	}
+	n.End = p.prevEnd()
+	return n
+}
+
+// listDeclWithAttributes reads `(LIST) :ATTR... [= INIT]` into n, or returns
+// nil with nothing consumed when the list has no attribute after it.
+func (p *parser) listDeclWithAttributes(n *Node) *Node {
+	open, ok := p.peekSignificant()
+	if !ok || p.text(open) != "(" {
+		return nil
+	}
+	save := p.pos
+	list := p.parseTerm()
+	colon, ok := p.peekSignificant()
+	if list == nil || !ok || p.text(colon) != ":" {
+		p.pos = save
+		return nil
+	}
+	if name, ok := p.peekAfter(colon); !ok || name.Kind != lexer.Word {
+		p.pos = save
+		return nil
+	}
+	n.Children = append(n.Children, list)
+	p.parseAttributes(n)
+	if eq, ok := p.peekSignificant(); ok && infix[p.text(eq)].Level == assignLevel {
+		p.advanceTo(eq)
+		if init := p.parseExpr(bpBelowComma); init != nil {
+			n.Children = append(n.Children, init)
+		}
 	}
 	n.End = p.prevEnd()
 	return n
