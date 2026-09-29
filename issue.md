@@ -1,10 +1,19 @@
 ---
 title: "A declaring condition loses its parens in canon: `if (my $x = f())` becomes `if my $x = f()`"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T14:20:33.981610508Z
-updated: 2026-09-29T14:20:33.981610508Z
+updated: 2026-09-29T14:20:35.4974998Z
+sessions:
+- start_sha: 580b9d981afc942c4fa785b856dca63174928fdb
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T14:20:35.4974998Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T14:20:35.4974998Z
 ---
 
 Canon takes ANY Declaration child of a Conditional or Loop for a foreach loop variable and writes it without parentheses, so a condition that declares loses them, as does a foreach list whose one element is an anonymous sub -- at Unknown=0:
