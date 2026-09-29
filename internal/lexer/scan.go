@@ -299,6 +299,13 @@ func (l *lexer) scanVarName() {
 		// see leadingPackageSeparator.
 		l.pos += 2
 		l.scanIdentRunes()
+	case c >= '0' && c <= '9':
+		// A digit name is the whole run of digits: scan_ident's parse_ident
+		// runs with STOP_AT_FIRST_NON_DIGIT. Measured on 5.42.0, `@119797`
+		// is one array and `$10` the tenth capture.
+		for l.pos < len(l.src) && l.src[l.pos] >= '0' && l.src[l.pos] <= '9' {
+			l.pos++
+		}
 	case l.scanIdentRunes():
 		// Consumed by the identifier scanner, which handles both package
 		// separators and the utf8-widened class.
