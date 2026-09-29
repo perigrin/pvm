@@ -136,10 +136,30 @@ func (p *parser) parseTerm() *Node {
 		if glob := p.globWithSpecialName(tok); glob != nil {
 			return glob
 		}
+		// A deref'd scalar names the slot too: `*$$foo`, measured on
+		// 5.42.0 to deparse as written.
+		if next, ok := p.peekAfter(tok); ok && next.Kind == lexer.DerefSigil {
+			p.advanceTo(tok)
+			operand := p.operand(bpDeref, tok)
+			return &Node{
+				Kind: Term, Text: "*",
+				Start: tok.Start, End: operand.End,
+				Children: []*Node{operand},
+			}
+		}
 		if name, ok := p.peekAfter(tok); ok &&
 			(name.Kind == lexer.Word || name.Kind == lexer.Variable ||
 				p.text(name) == "{") {
 			p.advanceTo(tok)
+			// Braces holding statements, as `${; ...}`'s do: `*{;undef}`.
+			if p.text(name) == "{" && p.derefHoldsStatements(name) {
+				blk := p.parseBlock(name)
+				return &Node{
+					Kind: Term, Text: "*",
+					Start: tok.Start, End: blk.End,
+					Children: []*Node{blk},
+				}
+			}
 			if p.text(name) == "{" {
 				// The braces of `*{EXPR}` GROUP; they do not construct.
 				// Calling parseTerm here read the `{` as an anonymous hash,
