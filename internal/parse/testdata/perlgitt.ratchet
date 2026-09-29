@@ -1,6 +1,6 @@
 # Unknown nodes per perl.git t/ file, through parse.ParseFileFrom.
 #
-# 620 files, 497 clean (80.2%), 500 total.
+# 620 files, 504 clean (81.3%), 476 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -88,7 +88,7 @@
 0 io/inplace.t
 0 io/iofile.t
 0 io/iprefix.t
-4 io/layers.t
+0 io/layers.t
 0 io/msg.t
 0 io/nargv.t
 2 io/open.t
@@ -123,7 +123,7 @@
 0 lib/overload_fallback.t
 0 lib/overload_nomethod.t
 0 lib/proxy_constant_subs.t
-5 lib/universal.t
+0 lib/universal.t
 0 mro/basic.t
 0 mro/basic_01_c3.t
 0 mro/basic_01_c3_utf8.t
@@ -277,7 +277,7 @@
 0 op/grent.t
 0 op/grep.t
 0 op/groups.t
-8 op/gv.t
+7 op/gv.t
 3 op/hash-clear-placeholders.t
 0 op/hash-rt85026.t
 1 op/hash.t
@@ -290,7 +290,7 @@
 0 op/inccode-tie.t
 0 op/inccode.t
 0 op/incfilter.t
-1 op/index.t
+0 op/index.t
 0 op/index_thr.t
 0 op/infnan.t
 0 op/int.t
@@ -331,10 +331,10 @@
 0 op/ord.t
 1 op/overload_integer.t
 9 op/override.t
-3 op/pack.t
+2 op/pack.t
 0 op/packagev.t
 0 op/pos.t
-4 op/postfixderef.t
+3 op/postfixderef.t
 0 op/pow.t
 0 op/print.t
 0 op/protowarn.t
@@ -349,7 +349,7 @@
 0 op/readline.t
 0 op/readline_nb.t
 0 op/recurse.t
-7 op/ref.t
+6 op/ref.t
 0 op/refstack.t
 0 op/repeat.t
 0 op/require_37033.t
@@ -371,7 +371,7 @@
 8 op/smartmatch.t
 3 op/sort.t
 0 op/splice.t
-3 op/split.t
+0 op/split.t
 0 op/split_unicode.t
 0 op/sprintf.t
 3 op/sprintf2.t
@@ -414,7 +414,7 @@
 0 op/upgrade.t
 1 op/utf8cache.t
 0 op/utf8decode.t
-2 op/utf8magic.t
+0 op/utf8magic.t
 0 op/utfhash.t
 0 op/utftaint.t
 0 op/vec.t
@@ -488,14 +488,14 @@
 0 re/no_utf8_pm.t
 0 re/opt.t
 3 re/overload.t
-12 re/pat.t
+11 re/pat.t
 3 re/pat_advanced.t
 0 re/pat_advanced_thr.t
 0 re/pat_psycho.t
 0 re/pat_psycho_thr.t
 0 re/pat_re_eval.t
 0 re/pat_re_eval_thr.t
-4 re/pat_rt_report.t
+3 re/pat_rt_report.t
 0 re/pat_rt_report_thr.t
 0 re/pat_special_cc.t
 0 re/pat_special_cc_thr.t
@@ -517,7 +517,7 @@
 1 re/reg_nc_tie.t
 0 re/reg_nocapture.t
 0 re/reg_pmod.t
-1 re/reg_posixcc.t
+0 re/reg_posixcc.t
 0 re/regex_sets.t
 0 re/regex_sets_compat.t
 0 re/regexp.t
@@ -537,7 +537,7 @@
 0 re/speed.t
 0 re/speed_thr.t
 0 re/stclass_threads.t
-4 re/subst.t
+3 re/subst.t
 0 re/substT.t
 0 re/subst_amp.t
 0 re/subst_wamp.t
@@ -564,7 +564,7 @@
 2 run/script.t
 0 run/switch-I-and-M.t
 0 run/switch0.t
-1 run/switchC.t
+0 run/switchC.t
 0 run/switchDx.t
 0 run/switchF.t
 0 run/switchF1.t

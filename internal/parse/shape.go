@@ -153,8 +153,49 @@ func ShapeOf(proto string) Shape {
 // table is filled as declarations are parsed, so a call above a declaration
 // does not see it. See decl.go's declareSub.
 func (p *parser) knowsShape(name string) bool {
-	imp, ok := p.imports[subKey(name)]
+	imp, ok := p.lookupSub(name)
 	return ok && imp.PrototypeKnown
+}
+
+// lookupSub finds a sub this parse knows the shape of: one the file declared
+// or imported, and failing that one perl itself defines at startup.
+func (p *parser) lookupSub(name string) (Import, bool) {
+	if imp, ok := p.imports[subKey(name)]; ok {
+		return imp, true
+	}
+	if proto, ok := interpreterSubs[name]; ok {
+		return Import{Name: name, Prototype: proto, PrototypeKnown: true}, true
+	}
+	return Import{}, false
+}
+
+// interpreterSubs are the subs perl defines itself, before any file is
+// compiled: universal.c's `these_details[]`, registered at interpreter start.
+// A parenless call to one resolves with nothing loaded -- measured on 5.42.0,
+// `my $s = "\x{100}"; utf8::encode $s; print length $s` prints 2.
+//
+// Prototypes are universal.c's, in this package's spelling: parens included,
+// NULL as "" (no prototype, a list operator) and the empty prototype as "()".
+// `mro::get_isarev` is deliberately absent: it is ext/mro's XS, loaded by
+// `use mro`, not the interpreter's.
+var interpreterSubs = map[string]string{
+	"UNIVERSAL::isa": "", "UNIVERSAL::can": "", "UNIVERSAL::DOES": "",
+	"UNIVERSAL::import": "", "UNIVERSAL::unimport": "",
+	"utf8::is_utf8": "", "utf8::valid": "", "utf8::encode": "",
+	"utf8::decode": "", "utf8::upgrade": "", "utf8::downgrade": "",
+	"utf8::native_to_unicode": "", "utf8::unicode_to_native": "",
+	"Internals::SvREADONLY":            `(\[$%@];$)`,
+	"Internals::SvREFCNT":              `(\[$%@];$)`,
+	"Internals::hv_clear_placeholders": `(\%)`,
+	"Internals::stack_refcounted":      "",
+	"Internals::getcwd":                "()",
+	"constant::_make_const":            `(\[$@])`,
+	"PerlIO::get_layers":               "(*;@)",
+	"re::is_regexp":                    "($)",
+	"re::regname":                      "(;$$)",
+	"re::regnames":                     "(;$)",
+	"re::regnames_count":               "()",
+	"re::regexp_pattern":               "($)",
 }
 
 // subKey is the sub table's key for a name as spelled: a leading `::` and
@@ -168,6 +209,12 @@ func (p *parser) knowsShape(name string) bool {
 func subKey(name string) string {
 	name = strings.TrimPrefix(name, "::")
 	return strings.TrimPrefix(name, "main::")
+}
+
+// subPrototype is the prototype lookupSub finds for name, "" when none.
+func (p *parser) subPrototype(name string) string {
+	imp, _ := p.lookupSub(name)
+	return imp.Prototype
 }
 
 // blockShapeTakesList reports whether a ShapeBlock prototype has argument slots
@@ -190,7 +237,7 @@ func blockShapeTakesList(proto string) bool {
 func (p *parser) parseByShape(n *Node, name string) {
 	n.Resolved = true
 
-	switch ShapeOf(p.imports[subKey(name)].Prototype) {
+	switch ShapeOf(p.subPrototype(name)) {
 	case ShapeNiladic:
 		// `()` takes nothing, so what follows is an operator rather than an
 		// argument: `nil + 1` is `nil() + 1`.
@@ -227,7 +274,7 @@ func (p *parser) parseByShape(n *Node, name string) {
 		//
 		// Only when the block was actually taken: without one this is an
 		// ordinary parenless call whose arguments are still ahead of it.
-		if blk == nil || blockShapeTakesList(p.imports[subKey(name)].Prototype) {
+		if blk == nil || blockShapeTakesList(p.subPrototype(name)) {
 			if arg := p.parseExpr(bpListOp); arg != nil {
 				n.Children = append(n.Children, arg)
 			}
