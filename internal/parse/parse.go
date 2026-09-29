@@ -328,6 +328,13 @@ type Node struct {
 	// a false Str mismatch.
 	Handle bool
 
+	// Comparator is set on the comparator slot of `sort SUBNAME LIST` and
+	// `sort $subref LIST`: the sub that orders the list, which is not an
+	// element of it. parseSortComparator decides it from the absence of a
+	// comma, the way parseFilehandleSlot decides a handle, and canon writes
+	// no comma after it for the same reason.
+	Comparator bool
+
 	// Modifier is set on a Conditional or Loop built from a STATEMENT
 	// MODIFIER -- `$y = 1 if $x`, `$s += $_ foreach 1..3` -- rather than from
 	// the block form `if (COND) BLOCK`.

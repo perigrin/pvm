@@ -3,7 +3,11 @@
 
 package parse
 
-import "tamarou.com/pvm/internal/lexer"
+import (
+	"strings"
+
+	"tamarou.com/pvm/internal/lexer"
+)
 
 // Binding powers for the two call shapes, spec §4.2.
 //
@@ -81,6 +85,8 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		// without it makes every typed-handle print a false Str mismatch.
 		if blk := p.parseListOpBlock(text); blk != nil {
 			n.Children = append(n.Children, blk)
+		} else if cmp := p.parseSortComparator(text); cmp != nil {
+			n.Children = append(n.Children, cmp)
 		} else if fh := p.parseFilehandleBlock(text); fh != nil {
 			fh.Handle = true
 			n.Children = append(n.Children, fh)
@@ -146,6 +152,8 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		// byte in the tree, round-tripping, and not a parse of its source.
 		if blk := p.parseListOpBlock(text); blk != nil {
 			n.Children = append(n.Children, blk)
+		} else if cmp := p.parseSortComparator(text); cmp != nil {
+			n.Children = append(n.Children, cmp)
 		}
 		// A filehandle slot works the same way and for the same reason:
 		//
@@ -387,6 +395,65 @@ func (p *parser) parseListOpBlock(op string) *Node {
 		return nil
 	}
 	return p.parseBlock(tok)
+}
+
+// parseSortComparator reads the SUBNAME or `$subref` of `sort SUBNAME LIST`,
+// or returns nil when there is none.
+//
+// perl's rule is toke.c's KEY_sort:
+//
+//	s = force_word(s, BAREWORD, CHECK_KEYWORD | ALLOW_PACKAGE);
+//
+// A word that is NOT a perl keyword is forced to a bareword, the comparator's
+// name, so `sort keys %h` sorts the keys and `sort foo @h` sorts by foo. A
+// declared sub is no exception -- that is perl's documented gotcha, and the
+// reason `sort uniq @x` does not do what it looks like. perly.y's
+// `LSTOP indirob listexpr` admits a scalar in the same slot.
+//
+// Taken only when a term follows with no comma, the test parseFilehandleSlot
+// makes: `sort $x, $y` sorts two scalars. Measured on 5.42.0, with and without
+// parens:
+//
+//	sort foo 3,1,2    3,2,1      sort $s 3,1,2     1,2,3
+//	sort(foo 3,1,2)   3,2,1      sort($s 3,1,2)    1,2,3
+func (p *parser) parseSortComparator(op string) *Node {
+	if op != "sort" {
+		return nil
+	}
+	tok, ok := p.peekSignificant()
+	if !ok {
+		return nil
+	}
+	switch {
+	case tok.Kind == lexer.Variable && p.src[tok.Start] == '$':
+	case tok.Kind == lexer.Word && !isPerlKeyword(p.text(tok)):
+	default:
+		return nil
+	}
+	if next, ok := p.peekAfter(tok); !ok || !startsTerm(next, p.src) {
+		return nil
+	}
+	p.advanceTo(tok)
+	return &Node{
+		Kind: Term, Text: p.text(tok), Comparator: true,
+		Start: tok.Start, End: tok.End,
+	}
+}
+
+// isPerlKeyword reports whether perl's keyword() would claim a word, which is
+// what CHECK_KEYWORD tests: every builtin, the declarators, and the handful of
+// statement-forming words that are not builtins. A `CORE::` spelling names a
+// builtin by definition.
+func isPerlKeyword(word string) bool {
+	if namedUnary[word] || listOperator[word] || niladicParse[word] ||
+		declarators[word] || strings.HasPrefix(word, "CORE::") {
+		return true
+	}
+	switch word {
+	case "sub", "do", "eval", "return":
+		return true
+	}
+	return false
 }
 
 // parseFilehandleBlock reads the `{$fh}` of a parenthesised `print({$fh} ...)`,

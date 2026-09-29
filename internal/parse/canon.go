@@ -154,7 +154,10 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 			// the handle AS an argument. Only a space separates them, and
 			// omitting it emits `print($fh"x")`, which is stable under the
 			// fixpoint and still wrong.
-			if i > 0 && n.Children[i-1].Handle {
+			//
+			// A sort comparator is the same shape: `sort foo @a` orders by foo,
+			// and `sort foo, @a` sorts foo's result with the rest.
+			if i > 0 && (n.Children[i-1].Handle || n.Children[i-1].Comparator) {
 				b.WriteByte(' ')
 			}
 			emit(b, c, src, 0)
