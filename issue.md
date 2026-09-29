@@ -1,19 +1,32 @@
 ---
 title: "A package or class version is not part of the head: `package Foo = 1.0` in canon, and the block after it is lost"
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T10:14:08.7025049Z
-updated: 2026-09-29T10:14:09.303717955Z
+updated: 2026-09-29T10:26:23.313612571Z
 sessions:
 - start_sha: 5f106d9d86951f7f7804461574c45246da5500d3
-  end_sha: ""
-  commits: 0
+  end_sha: b6e97e516aebc8886a7d447e799c99ffacb8761b
+  commits: 1
   started_at: 2026-09-29T10:14:09.303717955Z
+  ended_at: 2026-09-29T10:26:23.313612571Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-29T10:14:09.303717955Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-29T10:26:23.313612571Z
+observed_paths:
+- internal/lexer/expect.go
+- internal/lexer/lexer.go
+- internal/lexer/proto.go
+- internal/parse/canon.go
+- internal/parse/pkgversion_test.go
+- internal/parse/t2_test.go
+- internal/parse/testdata/perlgitt.ratchet
+- internal/parse/use_test.go
 ---
 
 A package or class version is read as a plain child of the declaration, so two readers get it wrong:
