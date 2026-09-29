@@ -82,9 +82,13 @@ func ShapeOf(proto string) Shape {
 		return ShapeBlock
 	}
 
-	// Count the MANDATORY argument slots, and notice a slurpy one.
-	//
-	// `;` opens the optional group, so slots after it do not raise the count.
+	// Count EVERY argument slot, mandatory and optional, and notice a slurpy
+	// one. perl's line between a named unary and a list operator is the
+	// total: measured on 5.42.0 with `perl -MO=Deparse,-p -e 'sub f (P) {}
+	// my ($a,$b); f $a, $b;'`, `$`, `;$`, `_`, `*`, `\@` and `;\@` give
+	// `(f($a), $b)` while `$;$`, `;$$` and `\@;$` give `f($a, $b)`. Counting
+	// only the mandatory slots read `($;$)` as unary and dropped its second
+	// argument.
 	// A `\` escapes the slot that follows -- `\@` is ONE argument and takes a
 	// single term, measured:
 	//
@@ -95,11 +99,12 @@ func ShapeOf(proto string) Shape {
 	//
 	//	$ perl -MO=Deparse,-p -e 'sub sl (@) { } sl 1, 2, 3;'
 	//	sl(1, 2, 3);
-	slots, optional, slurpy := 0, false, false
+	slots, slurpy := 0, false
 	for i := 0; i < len(inner); i++ {
 		switch c := inner[i]; c {
 		case ';':
-			optional = true
+			// Opens the optional group. Its slots count toward the total
+			// like any other, so the `;` itself decides nothing here.
 		case '\\':
 			// A reference slot: one argument whatever follows the backslash,
 			// including a `[...]` group of alternatives.
@@ -109,20 +114,14 @@ func ShapeOf(proto string) Shape {
 					i++
 				}
 			}
-			if !optional {
-				slots++
-			}
+			slots++
 		case '@', '%':
 			// Slurpy, and only when not escaped -- the `\` case above
 			// consumed those already.
 			slurpy = true
-			if !optional {
-				slots++
-			}
-		case '$', '&', '*', '+':
-			if !optional {
-				slots++
-			}
+			slots++
+		case '$', '&', '*', '+', '_':
+			slots++
 		}
 	}
 
@@ -130,13 +129,12 @@ func ShapeOf(proto string) Shape {
 	case slurpy:
 		// Anything slurpy takes the whole list, whatever precedes it.
 		return ShapeList
-	case slots == 0 && !optional:
+	case slots == 0:
 		// `()` -- takes nothing, so what follows is an operator.
 		return ShapeNiladic
-	case slots <= 1:
-		// One mandatory slot, or none with an optional group: unary at the
-		// call site. It takes at most one term and never swallows a
-		// following comma.
+	case slots == 1:
+		// Exactly one slot, mandatory or optional: unary at the call site.
+		// It takes at most one term and never swallows a following comma.
 		return ShapeUnary
 	}
 	return ShapeList

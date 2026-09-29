@@ -396,7 +396,8 @@ func TestT2CoreParses(t *testing.T) {
 		// the `}` that `use`'s import-list hunt had swallowed; parseUse now
 		// stops at a closer as it always stopped at a semicolon, so the file
 		// is clean and an entry for it would fail as "now parses cleanly".
-		"comp/uproto.t": 1,
+		// comp/uproto.t left the map when ShapeOf began counting optional
+		// slots and `_` (issue 01a0eaf4): the file is `_` prototypes.
 		// opbasic/concat.t 5 -> 3 with the leading `::` (issue
 		// 01a0de97-3c5d). Two `::is(...)` calls, at lines 776 and 854, both
 		// inside a `package` block that would otherwise hide `test.pl`'s
