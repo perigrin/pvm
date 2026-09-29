@@ -312,10 +312,34 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 			// `sub x = () {8;}` before this, which re-lexes as an assignment
 			// to a bareword and Unknown could not see it: the tree was right
 			// and only the emission was wrong, so the count stayed at zero.
+			//
+			// A SIGNATURE is part of the head as well, and arrives as the
+			// parenthesised list parseSubDecl read it as. ` = ` there wrote
+			// `sub f = ($a) {...}`, which perl rejects as an illegal
+			// declaration. A one-element signature is that element's own
+			// node with Paren set rather than a List. A leaf's span covers
+			// the parentheses and its source text keeps them; a compound
+			// node is rebuilt from its children and loses them, so they are
+			// written here when missing: otherwise `sub f ($x = 1)` came
+			// back as `sub f $x = 1`.
 			switch {
 			case i == 0 || c.Kind == Block ||
 				c.Kind == PrototypeNode || c.Kind == Attribute:
 				b.WriteByte(' ')
+			case (n.Text == "sub" || n.Text == "method") && c.Paren:
+				b.WriteByte(' ')
+				if c.Kind != List {
+					var sig strings.Builder
+					emit(&sig, c, src, 0)
+					if !strings.HasPrefix(sig.String(), "(") {
+						b.WriteByte('(')
+						b.WriteString(sig.String())
+						b.WriteByte(')')
+					} else {
+						b.WriteString(sig.String())
+					}
+					continue
+				}
 			default:
 				b.WriteString(" = ")
 			}

@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 527 clean (53.4%), 459 total.
+# 986 files, 529 clean (53.7%), 457 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -83,7 +83,7 @@
 1 chr_scalar_bounds.t
 1 class_c3_componentised_regressions.t
 0 class_default_accessor_names.t
-1 class_incomplete_no_leak.t
+0 class_incomplete_no_leak.t
 0 class_lvalue_method.t
 1 class_xsaccessor_named_cv.t
 1 class_xsaccessor_pp.t
@@ -282,7 +282,7 @@
 1 examples_warning_and_io.t
 0 exiftool_exporter_autoload.t
 0 experimental_equ_warning_category.t
-1 experimental_signatures_warning.t
+0 experimental_signatures_warning.t
 0 exporter_lexical_compile_scope.t
 0 fcntl_accmode.t
 0 fcntl_binary_text.t
