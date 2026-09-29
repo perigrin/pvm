@@ -1,10 +1,19 @@
 ---
 title: The lexer splits ~~ into two bitwise nots in operator position, so every smartmatch breaks its expression
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T04:25:06.896787187Z
-updated: 2026-09-29T04:25:06.896787187Z
+updated: 2026-09-29T04:25:07.817961178Z
+sessions:
+- start_sha: f2a1da6dc9413d6e9dc27b8333880632eda6b19d
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T04:25:07.817961178Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T04:25:07.817961178Z
 ---
 
 The lexer emits `~~` as two `~` tokens, so a smartmatch splits the expression
