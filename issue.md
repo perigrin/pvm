@@ -1,10 +1,19 @@
 ---
 title: "A refaliasing foreach variable, `for \\my $x (...)`, splits the loop from its list"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T14:33:47.579219797Z
-updated: 2026-09-29T14:33:47.579219797Z
+updated: 2026-09-29T14:33:49.229480093Z
+sessions:
+- start_sha: a2b774c555f0d3426b100328495938681de26fe7
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T14:33:49.229480093Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T14:33:49.229480093Z
 ---
 
 A foreach loop variable that is a reference to alias through -- `for \my $x (...)`, `for my \$x (...)`, `for \$x (...)`, `for \@a`, `for \%h`, `for \&f` -- leaves the `foreach` as an empty loop statement, and the rest parses as an expression statement where the `\` operand swallows the list as a call on the variable. A wrong tree at Unknown=0.
