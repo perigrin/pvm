@@ -1,10 +1,19 @@
 ---
 title: A format argument block holding a nested format ends the outer body early
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T20:55:26.202515665Z
-updated: 2026-09-29T23:19:24.53317257Z
+updated: 2026-09-29T23:19:24.790034874Z
+sessions:
+- start_sha: 85a1b24708885d3b391109f081d755998f949c7c
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T23:19:24.790034874Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T23:19:24.790034874Z
 ---
 
 A format argument line may open a `{` block that spans lines, and that block may itself declare a format. perl.git t/op/write.t:1938-1950:
