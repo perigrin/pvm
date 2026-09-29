@@ -108,8 +108,8 @@ func ParseFile(path string) (*Node, error) {
 	return ParseFileFrom(path, "")
 }
 
-// ParseFileFrom is ParseFile with a second search directory: the root the
-// parse is rooted at, searched after the file's own.
+// ParseFileFrom is ParseFile with more search directories: the roots the
+// parse is rooted at, searched in order after the file's own.
 //
 // A required helper is named RELATIVE TO A WORKING DIRECTORY, not to the file
 // that names it, and perl.git's `t/` disagrees about which directory that is.
@@ -125,15 +125,24 @@ func ParseFile(path string) (*Node, error) {
 // and 0 nodes over the 620-file corpus; adding `t/` as the root moves 93 files
 // and 3,267 nodes.
 //
-// An empty root searches only the file's own directory, which is ParseFile.
-func ParseFileFrom(path, root string) (*Node, error) {
+// MORE THAN ONE ROOT, because the suite itself runs from two working
+// directories and each spelling works only from its own: the 17 files that
+// write `./t/test.pl` reach the top of the tree first -- `use TestInit
+// qw(T)`, or `chdir '..' if -f 'test.pl'` -- and a parse rooted at `t/` alone
+// found nothing for them. The perl.git harness passes `t/` and its parent.
+//
+// An empty root is skipped, and with none the file's own directory is the
+// only one searched, which is ParseFile.
+func ParseFileFrom(path string, roots ...string) (*Node, error) {
 	src, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
 	dirs := []string{filepath.Dir(path)}
-	if root != "" {
-		dirs = append(dirs, root)
+	for _, root := range roots {
+		if root != "" {
+			dirs = append(dirs, root)
+		}
 	}
 	return ParseWithLoader(src, DirLoader(dirs...)), nil
 }

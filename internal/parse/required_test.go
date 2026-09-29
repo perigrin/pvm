@@ -243,3 +243,40 @@ func TestRequiredFileIsResolvedFromTheParseRoot(t *testing.T) {
 		t.Errorf("Unknown nodes = %d, want 0", got)
 	}
 }
+
+// TestRequireFromPerlRoot: perl's own suite runs from TWO working
+// directories, and a parse rooted at only one of them loses the other's
+// helpers.
+//
+// 464 files `chdir 't'` and write `require './test.pl'`; 17 in porting/ reach
+// the top of the tree first -- `use TestInit qw(T)`, or `chdir '..' if -f
+// 'test.pl'` -- and write `require './t/test.pl'`. Each spelling works only
+// from its own directory, so the parse is given both and each file's require
+// finds the one it names.
+func TestRequireFromPerlRoot(t *testing.T) {
+	dir := t.TempDir()
+	tDir := filepath.Join(dir, "t")
+	if err := os.MkdirAll(filepath.Join(tDir, "porting"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tDir, "test.pl"),
+		[]byte("sub ok { 1 }\n1;\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, src := range []string{
+		"require './t/test.pl';\nok 1, 'x';\n",
+		"require './test.pl';\nok 1, 'x';\n",
+	} {
+		main := filepath.Join(tDir, "porting", "main.t")
+		if err := os.WriteFile(main, []byte(src), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		root, err := parse.ParseFileFrom(main, tDir, dir)
+		if err != nil {
+			t.Fatalf("ParseFileFrom: %v", err)
+		}
+		if got := countUnknown(root); got != 0 {
+			t.Errorf("%q from roots t/ and its parent: %d Unknown, want 0", src, got)
+		}
+	}
+}

@@ -78,7 +78,9 @@ func TestPerlGitTRatchet(t *testing.T) {
 
 	now := make(map[string]int, len(files))
 	for _, rel := range files {
-		n, err := parse.ParseFileFrom(filepath.Join(dir, rel), dir)
+		// Both working directories perl's suite runs from: `t/` for
+		// `require './test.pl'`, the tree root for `require './t/test.pl'`.
+		n, err := parse.ParseFileFrom(filepath.Join(dir, rel), dir, filepath.Dir(dir))
 		if err != nil {
 			continue
 		}
