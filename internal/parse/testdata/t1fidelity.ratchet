@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 541 clean (54.9%), 445 total.
+# 986 files, 559 clean (56.7%), 427 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -212,7 +212,7 @@
 1 default_feature_bundle.t
 1 defer.t
 0 defer_implicit_return_cleanup.t
-1 defined_cached_code_ref.t
+0 defined_cached_code_ref.t
 0 defined_dynamic_code.t
 0 definition_pragma_sub_scope.t
 0 demo.t
@@ -245,7 +245,7 @@
 0 dynamic_glob_code_replace.t
 0 encode_charset_provider.t
 0 encode_dynamic_alias.t
-1 encode_export_tags.t
+0 encode_export_tags.t
 0 encode_fb_quiet.t
 0 encode_find_encoding_class.t
 0 encode_find_encoding_load_order.t
@@ -296,7 +296,7 @@
 1 file_path_rmtree_options.t
 0 file_temp_handle_methods.t
 0 file_temp_missing_parent.t
-1 file_temp_path_wrapper_lifetime.t
+0 file_temp_path_wrapper_lifetime.t
 0 file_temp_scalar_deref.t
 0 file_temp_stat_mode.t
 0 file_temp_warnif_regression.t
@@ -311,7 +311,7 @@
 1 foreach_implicit_live_array.t
 0 foreach_implicit_topic_callback.t
 0 foreach_mutated_array.t
-1 foreach_undef_readonly_alias.t
+0 foreach_undef_readonly_alias.t
 0 fork_fixed_plan_skip.t
 0 fork_open_no_command.t
 1 fork_open_output_pump.t
@@ -332,7 +332,7 @@
 0 glob_pseudo_constant_export.t
 1 glob_scalar_ref_io_method.t
 0 glob_scalar_slot_ref.t
-1 glob_slot_hash_deref.t
+0 glob_slot_hash_deref.t
 1 glob_snapshot_delete.t
 0 global_code_runtime_semantics.t
 1 global_empty_hash_keys_history.t
@@ -346,7 +346,7 @@
 1 goto_tailcall_cleanup.t
 1 goto_tailcall_core_destroy_order.t
 0 harness_skip_all.t
-1 hash.t
+0 hash.t
 0 hash_autovivification.t
 1 hash_interpolation_warning.t
 1 hash_literal_anonymous_ref_cleanup.t
@@ -504,7 +504,7 @@
 1 mro_get_isarev_updates.t
 0 mro_mixed.t
 1 mro_pkg_gen_sub_definition.t
-1 mro_stash_alias_descendants.t
+0 mro_stash_alias_descendants.t
 0 my_short_circuit_scope_exit.t
 1 named_closure_fallback_handoff.t
 0 named_cv_compiletime_displacement.t
@@ -568,10 +568,10 @@
 1 package_decl_stash.t
 0 package_stash_constant_code.t
 0 package_stash_get_or_add_symbol.t
-1 padwalker_closed_over.t
+0 padwalker_closed_over.t
 1 padwalker_set_closed_over.t
 0 padwalker_var_name.t
-1 params_classify_primitives.t
+0 params_classify_primitives.t
 0 parent.t
 0 parser_syntax_error.t
 1 path_tiny_runtime_prereqs.t
@@ -722,10 +722,10 @@
 0 sprintf_high_precision_g.t
 0 sprintf_ties_to_even.t
 0 stash_aliasing.t
-1 stash_constant_code_identity.t
+0 stash_constant_code_identity.t
 0 stash_readonly_scalar_ref_assignment.t
 1 stash_recursive_alias.t
-1 stash_scalar_ref_assignment.t
+0 stash_scalar_ref_assignment.t
 0 stash_undefined_code_lookup.t
 1 stash_var_keyword_op.t
 0 stat_filehandle_after_rename.t
@@ -746,7 +746,7 @@
 0 string_interpolation_escaped_hash_key.t
 1 subroutine.t
 1 subroutine_proto_trailing_comma_stmtend.t
-1 subroutine_prototype.t
+0 subroutine_prototype.t
 0 subroutine_prototype_args.t
 1 subroutine_return_rvalue.t
 0 subs_pragma.t
@@ -792,7 +792,7 @@
 1 test_more.t
 0 text_balanced.t
 0 text_csv.t
-1 text_qrcode_java_xs.t
+0 text_qrcode_java_xs.t
 1 threads_api_phase29.t
 0 threads_basic_unadvertised.t
 0 threads_captured_object_lifetime.t
@@ -833,7 +833,7 @@
 1 threads_runtime_regex_lexical_capture.t
 1 threads_shared_blessed_tied.t
 0 threads_shared_child_capture_release.t
-1 threads_shared_destructive_share.t
+0 threads_shared_destructive_share.t
 1 threads_shared_fetch_proxy_lifetime.t
 1 threads_shared_final_destroy.t
 1 threads_shared_graphs.t
@@ -866,7 +866,7 @@
 1 tied_isa_method_lookup.t
 0 tied_lvalue_sub_return.t
 0 tied_scalar_local_mutable_undef.t
-1 tied_scalar_self_backing_value.t
+0 tied_scalar_self_backing_value.t
 0 tied_stderr_warn.t
 0 time_hires_override.t
 0 time_hires_ualarm.t
@@ -902,7 +902,7 @@
 1 universal_does_unblessed_and_parent.t
 0 universal_import_methods.t
 0 universal_io_can.t
-1 universal_isa_plain_class.t
+0 universal_isa_plain_class.t
 1 universal_methods.t
 0 universal_version_diagnostics.t
 0 unpack.t
@@ -949,7 +949,7 @@
 0 xml_libxslt.t
 0 xml_parser_current_element.t
 1 xml_parser_external_entity_sysid.t
-1 xml_parser_parsefile_typeglob.t
+0 xml_parser_parsefile_typeglob.t
 1 xml_parser_tied_handle.t
 0 xstring.t
 0 yaml_blessed_load.t
@@ -962,7 +962,7 @@
 1 zz_block_lexical_call_log_lifetime.t
 1 zz_branch_reset_capture.t
 1 zz_caller_exported_alias.t
-1 zz_data_dumper_short_numeric_flags.t
+0 zz_data_dumper_short_numeric_flags.t
 0 zz_defined_ampersand_assignment.t
 0 zz_eval_defined_named_caller.t
 0 zz_forward_code_glob_alias.t

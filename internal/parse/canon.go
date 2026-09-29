@@ -193,6 +193,17 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 			b.WriteByte(' ')
 		}
 		if len(n.Children) == 1 {
+			// A dereference keeps its braces unless the operand is a plain
+			// scalar variable: `$$name` reads only that, so `${$h->{k}}`
+			// written bare is `${$h}->{k}`, a different program -- measured
+			// on 5.42.0, one yields the value and the other dies with "Not a
+			// SCALAR reference". A Block operand writes its own braces.
+			if c := n.Children[0]; isDerefSigil(op) && c.Kind != Block && !bareDerefOperand(c) {
+				b.WriteByte('{')
+				emit(b, c, src, 0)
+				b.WriteByte('}')
+				break
+			}
 			emit(b, n.Children[0], src, prefix[op])
 		}
 
@@ -619,6 +630,19 @@ func isDerefSigil(op string) bool {
 	switch op {
 	case "$", "@", "%", "*", "&", "$#":
 		return true
+	}
+	return false
+}
+
+// bareDerefOperand reports whether a dereference's operand may follow its
+// sigil without braces: a scalar variable, or a scalar dereference of one --
+// `@$r`, `$$$r`.
+func bareDerefOperand(c *Node) bool {
+	switch {
+	case c.Kind == Term && strings.HasPrefix(c.Text, "$") && !c.Paren:
+		return true
+	case c.Kind == Unary && c.Text == "$" && len(c.Children) == 1:
+		return bareDerefOperand(c.Children[0])
 	}
 	return false
 }

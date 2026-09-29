@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 954 clean (96.8%), 32 total.
+# 986 files, 965 clean (97.9%), 21 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -34,7 +34,7 @@
 0 b_end_av.t
 0 b_flags_portable.t
 0 b_gv_io.t
-1 b_hooks_endofscope_require.t
+0 b_hooks_endofscope_require.t
 0 b_object_2svref.t
 0 b_object_2svref_roundtrip.t
 0 b_perlstring_wide.t
@@ -212,7 +212,7 @@
 0 default_feature_bundle.t
 0 defer.t
 0 defer_implicit_return_cleanup.t
-1 defined_cached_code_ref.t
+0 defined_cached_code_ref.t
 0 defined_dynamic_code.t
 0 definition_pragma_sub_scope.t
 0 demo.t
@@ -260,7 +260,7 @@
 0 eval_block_return.t
 0 eval_byte_source_semantics.t
 0 eval_concat_warning_scope.t
-1 eval_context_stack_reentrancy.t
+0 eval_context_stack_reentrancy.t
 0 eval_foreach_return_value.t
 0 eval_imported_call_comparison_context.t
 0 eval_list_repeat_expression.t
@@ -332,7 +332,7 @@
 0 glob_pseudo_constant_export.t
 0 glob_scalar_ref_io_method.t
 0 glob_scalar_slot_ref.t
-1 glob_slot_hash_deref.t
+0 glob_slot_hash_deref.t
 0 glob_snapshot_delete.t
 0 global_code_runtime_semantics.t
 0 global_empty_hash_keys_history.t
@@ -504,7 +504,7 @@
 0 mro_get_isarev_updates.t
 0 mro_mixed.t
 0 mro_pkg_gen_sub_definition.t
-1 mro_stash_alias_descendants.t
+0 mro_stash_alias_descendants.t
 0 my_short_circuit_scope_exit.t
 0 named_closure_fallback_handoff.t
 0 named_cv_compiletime_displacement.t
@@ -635,7 +635,7 @@
 0 regex_dynamic_deferred.t
 0 regex_empty_pattern_origin.t
 0 regex_extended_char_class_whitespace.t
-1 regex_first_class_constant_provenance.t
+0 regex_first_class_constant_provenance.t
 0 regex_full_casefold.t
 0 regex_hex_escape_range.t
 0 regex_hint_new_re_diagnostic.t
@@ -722,12 +722,12 @@
 0 sprintf_high_precision_g.t
 0 sprintf_ties_to_even.t
 0 stash_aliasing.t
-1 stash_constant_code_identity.t
+0 stash_constant_code_identity.t
 0 stash_readonly_scalar_ref_assignment.t
 0 stash_recursive_alias.t
-1 stash_scalar_ref_assignment.t
+0 stash_scalar_ref_assignment.t
 0 stash_undefined_code_lookup.t
-1 stash_var_keyword_op.t
+0 stash_var_keyword_op.t
 0 stat_filehandle_after_rename.t
 0 state.t
 0 statement.t
@@ -740,7 +740,7 @@
 0 storable_top_blessed_scalar_ref.t
 0 strict_subs_void_bareword.t
 0 string_case_escape.t
-1 string_control_punctuation.t
+0 string_control_punctuation.t
 0 string_interpolation.t
 0 string_interpolation_at_caret.t
 0 string_interpolation_escaped_hash_key.t
@@ -902,7 +902,7 @@
 0 universal_does_unblessed_and_parent.t
 0 universal_import_methods.t
 0 universal_io_can.t
-1 universal_isa_plain_class.t
+0 universal_isa_plain_class.t
 0 universal_methods.t
 0 universal_version_diagnostics.t
 0 unpack.t
