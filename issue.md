@@ -1,10 +1,19 @@
 ---
 title: "sort with a comparator orphans its list: sort $s 4,1,3 canons as sort($s);4 , 1 , 3"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-28T23:15:23.877389868Z
-updated: 2026-09-28T23:15:23.877389868Z
+updated: 2026-09-29T00:06:37.443647694Z
+sessions:
+- start_sha: f196c8a1cfd85c12aac31986c2dfd014375fbf79
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T00:06:37.443647694Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T00:06:37.443647694Z
 ---
 
 `sort SUBNAME LIST` and `sort $subref LIST` read the comparator as sort's only
