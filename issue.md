@@ -1,10 +1,19 @@
 ---
 title: "`${...}` refuses: a deref brace starting with the yada holds a statement"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T21:18:44.495327618Z
-updated: 2026-09-29T21:18:44.495327618Z
+updated: 2026-09-29T21:18:45.212747058Z
+sessions:
+- start_sha: cdce17ba38e34775d6fdb03af3c29de1cf161880
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T21:18:45.212747058Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T21:18:45.212747058Z
 ---
 
 `${...}` refuses. derefHoldsStatements reads the yada as an attempted expression. `...` is a statement and never an expression (perly.y:759, bare_statement_yadayada), so braces that begin with it hold statements.
