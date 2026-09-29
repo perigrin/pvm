@@ -1,19 +1,29 @@
 ---
 title: "$$ swallows the byte after it: f($$, 1) lexes the comma into the variable"
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T04:51:36.703917912Z
-updated: 2026-09-29T04:51:37.177887211Z
+updated: 2026-09-29T04:58:49.350349956Z
 sessions:
 - start_sha: 7e3713d302ede624a4828ec22a3ed861f5ffc651
-  end_sha: ""
-  commits: 0
+  end_sha: f29b92cd4d9de9fefb99e4b55f458393f2f566e2
+  commits: 1
   started_at: 2026-09-29T04:51:37.177887211Z
+  ended_at: 2026-09-29T04:58:49.350349956Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-29T04:51:37.177887211Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-29T04:58:49.350349956Z
+observed_paths:
+- internal/lexer/pidvar_test.go
+- internal/lexer/scan.go
+- internal/parse/testdata/perlgitt.ratchet
+- internal/parse/testdata/t1.ratchet
+- internal/parse/testdata/t1fidelity.ratchet
 ---
 
 `$$` -- the process id -- followed by a comma, a terminator, a closer or even
