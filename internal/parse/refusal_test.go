@@ -202,12 +202,12 @@ func countUnknownSites(t *testing.T) int {
 // stops testing.
 func refusingSources() []string {
 	return []string{
-		"$a +\n",                    // missing_operand
-		"my $x = $a ? $b;\n",        // ternary_no_colon
-		"my $x = $a .. $b .. $c;\n", // nonassoc_repeated
-		"my $x = $a < $b == $c;\n",  // chain_class_mismatch
-		"my $x = ${};\n",            // not_a_term
-		"$a $b;\n",                  // trailing_tokens
+		"$a +\n",                     // missing_operand
+		"my $x = $a ? $b;\n",         // ternary_no_colon
+		"my $x = $a .. $b .. $c;\n",  // nonassoc_repeated
+		"my $x = $a <=> $b == $c;\n", // chain_class_mismatch
+		"my $x = ${};\n",             // not_a_term
+		"$a $b;\n",                   // trailing_tokens
 	}
 }
 

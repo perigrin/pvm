@@ -109,6 +109,40 @@ func TestComparisonChains(t *testing.T) {
 	}
 }
 
+// TestComparisonAcrossLevels: the yyerror productions of perly.y reject a
+// relational operator after a termrelop and an equality operator after a
+// termeqop, but relop binds tighter than eqop, so one of each is a
+// termeqop over a termrelop. A parenthesised comparison is a term, so
+// nothing stands to its left. Measured with perl 5.42:
+//
+//	$ perl -MO=Deparse,-p -e '$a < $b == $c; $a == $b < $c; ($a < $b) < $c;'
+//	(($a < $b) == $c);
+//	($a == ($b < $c));
+//	(($a < $b) < $c);
+//	$ perl -e '$a <=> $b == $c'
+//	syntax error at -e line 1, near "$b =="
+func TestComparisonAcrossLevels(t *testing.T) {
+	for _, src := range []string{
+		"$a < $b == $c",
+		"$a == $b < $c",
+		"$a lt $b <=> $c",
+		"($a < $b) < $c",
+		"($a == $b) == $c",
+		"(-(-$x) < 0) == ($x < 0)",
+	} {
+		root := parseOneExpr(t, src)
+		if containsKind(root, parse.Unknown) {
+			t.Errorf("%q: perl accepts this; got %s", src, shape(root))
+		}
+	}
+	for _, src := range []string{"$a <=> $b == $c", "$a == $b <=> $c"} {
+		root := parseOneExpr(t, src)
+		if !containsKind(root, parse.Unknown) {
+			t.Errorf("%q: two eqop-level operators; got %s", src, shape(root))
+		}
+	}
+}
+
 // TestTernaryAndAssignment: both are right associative and they nest at
 // different levels. Measured:
 //

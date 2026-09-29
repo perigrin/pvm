@@ -42,7 +42,7 @@ func compareClass(text string) (cmpClass, bool) {
 //
 // A chain may not MIX classes: `$a < $b == $c` is two different comparisons,
 // not one three-operand chain, because CHRELOP and CHEQOP are separate
-// classes in perly.y.
+// classes in perly.y. The relop chain is the left operand of the eqop.
 func chainClass(n *Node) cmpClass {
 	if n.Kind != CmpChain {
 		return notComparison
@@ -72,7 +72,8 @@ func chainClass(n *Node) cmpClass {
 //
 //	left is not a comparison    start: a chain if chainable, else a Binary
 //	left is a chain, same class extend it by one operand
-//	left is any other comparison reject
+//	left is any other comparison of this level  reject
+//	left is a comparison of the other level     start, with it as an operand
 func (p *parser) parseComparison(left *Node, op OpInfo, cls cmpClass, minBP int) *Node {
 	tok, _ := p.peekSignificant()
 	text := p.text(tok)
@@ -87,11 +88,12 @@ func (p *parser) parseComparison(left *Node, op OpInfo, cls cmpClass, minBP int)
 		return left
 	}
 
-	// Reject: a comparison already stands, and this one cannot join it.
-	// Covers `$a <=> $b <=> $c` (ncEqop never chains), `$a < $b isa Foo`
-	// (different class), and `$a < $b == $c` (CHRELOP and CHEQOP are
-	// separate classes even though they are adjacent levels).
-	if isComparison(left) {
+	// Reject: a comparison of this operator's level already stands, and
+	// this one cannot join it. Covers `$a <=> $b <=> $c` (ncEqop never
+	// chains) and `$a < $b isa Foo` (different class, same level). A
+	// comparison of the other level is an ordinary operand: `$a < $b == $c`
+	// is a termeqop over a termrelop.
+	if isComparison(left) && sameLevel(comparisonClass(left), cls) {
 		start := left.Start
 		p.skipToStatementEnd()
 		return &Node{Kind: Unknown, Refusal: ChainClassMismatch, Start: start, End: p.prevEnd()}
@@ -109,6 +111,20 @@ func (p *parser) parseComparison(left *Node, op OpInfo, cls cmpClass, minBP int)
 		Start: left.Start, End: right.End,
 		Children: []*Node{left, right},
 	}
+}
+
+// comparisonClass reports the class of the operator a comparison node was
+// built from.
+func comparisonClass(n *Node) cmpClass {
+	c, _ := compareClass(n.Text)
+	return c
+}
+
+// sameLevel reports whether two classes share a precedence level: the
+// relational classes sit at one level, the equality classes at the next.
+func sameLevel(a, b cmpClass) bool {
+	relational := func(c cmpClass) bool { return c == chRelop || c == ncRelop }
+	return relational(a) == relational(b)
 }
 
 // isComparison reports whether this node is already a reduced termrelop --

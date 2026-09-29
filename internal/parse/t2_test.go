@@ -270,7 +270,6 @@ func TestT2CoreParses(t *testing.T) {
 		// blocks at lines 15 and 35, each after a `while`, which is the one
 		// construct the file's Unknowns were. It moved the T2 core's own count
 		// 22 -> 23 of 56, measured either side of the change.
-		"cmd/mod.t": 1,
 		// comp/colon.t 25 -> 0 and opbasic/magic_phase.t 7 -> 0 with the
 		// in-file `sub NAME` declaration (issue 01a0c13f). Both left the map
 		// entirely. Each declares its own `sub ok` and calls it without

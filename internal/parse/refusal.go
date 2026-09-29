@@ -65,8 +65,8 @@ const (
 	// the branch that is not there.
 	TernaryNoColon RefusalCode = "ternary_no_colon"
 
-	// ChainClassMismatch: `$a < $b == $c` -- comparison operators from
-	// classes that do not chain with each other.
+	// ChainClassMismatch: `$a <=> $b == $c` -- two comparison operators
+	// at one precedence level that do not chain with each other.
 	ChainClassMismatch RefusalCode = "chain_class_mismatch"
 )
 
