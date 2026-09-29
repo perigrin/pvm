@@ -1,10 +1,19 @@
 ---
 title: "A call before -> takes the arrow as its argument: shift->m canons as shift(->);m()"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T00:32:51.563768272Z
-updated: 2026-09-29T00:32:51.563768272Z
+updated: 2026-09-29T00:33:08.179846967Z
+sessions:
+- start_sha: 0c70adb2c77f4e06e9adf757e2199a2580c48a09
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T00:33:08.179846967Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T00:33:08.179846967Z
 ---
 
 A call with no parens followed by `->` takes the arrow as its argument:
