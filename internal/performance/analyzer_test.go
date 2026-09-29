@@ -110,9 +110,13 @@ func TestAnalyzer_SlowestOperations(t *testing.T) {
 		{"medium_op", 10 * time.Millisecond},
 	}
 
+	// Each measurement is backdated by its duration rather than slept
+	// through: the test is about the analyzer's ORDERING, and three sleeps of
+	// 1, 10 and 50ms were reordered by the scheduler under make test's
+	// parallel packages. What remains between the two calls is microseconds.
 	for _, op := range operations {
 		ctx := analyzer.StartMeasurement(op.name)
-		time.Sleep(op.duration)
+		ctx.startTime = ctx.startTime.Add(-op.duration)
 		ctx.Finish()
 	}
 
