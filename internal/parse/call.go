@@ -618,7 +618,9 @@ func (p *parser) isBarewordHandle(word string) bool {
 // an expression -- the test that separates `print $fh "a"` from `print $x, 1`.
 func startsTerm(tok lexer.Token, src []byte) bool {
 	switch tok.Kind {
-	case lexer.Variable, lexer.Number, lexer.Quote, lexer.HeredocOpen:
+	// A DerefSigil is the `$` of `$$code` or the `@` of `@$lines`: a sigil
+	// applied to an expression, which begins a term as a variable does.
+	case lexer.Variable, lexer.Number, lexer.Quote, lexer.HeredocOpen, lexer.DerefSigil:
 		return true
 	case lexer.Word:
 		// A word that is an INFIX OPERATOR continues the expression
