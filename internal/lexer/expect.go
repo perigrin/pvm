@@ -389,6 +389,10 @@ func (e Expect) after(k Kind, t transition) Expect {
 		return XTerm
 	case Semicolon:
 		return XState
+	case FormatBody:
+		// A format is bracketed like a block: its `=` saved XSTATE on the
+		// bracket stack (toke.c:6689) and its `.` pops it (toke.c:6862).
+		return XState
 	}
 	return e
 }
