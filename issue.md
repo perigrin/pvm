@@ -1,10 +1,19 @@
 ---
 title: "`&{; $c }` refuses: the braces after `&` never hold statements"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T20:37:38.054345818Z
-updated: 2026-09-29T20:37:38.054345818Z
+updated: 2026-09-29T20:37:38.915025349Z
+sessions:
+- start_sha: ceece6a8325cbfa3675d34f61eef2a7b50f11497
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T20:37:38.915025349Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T20:37:38.915025349Z
 ---
 
 The braces after `&` are read only as one expression, so `&{; $c }(1)` and `goto &{ 1; $coderef; }` refuse. perly.y gives `&` the same `indirob: ... | block` operand that `$` and `@` have, and derefHoldsStatements already makes that call for them.
