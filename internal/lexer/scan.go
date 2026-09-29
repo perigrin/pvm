@@ -890,16 +890,40 @@ func scanComment(l *lexer) bool {
 
 // operators is checked longest-first so `<=>` is not read as `<=` then `>`.
 var operators = []string{
-	"<=>", "**=", "||=", "&&=", "//=", "...", "<<=", ">>=",
+	"<=>", "**=", "||=", "&&=", "//=", "...", "<<=", ">>=", "^^=",
 	"=~", "!~", "->", "++", "--", "**", "==", "!=", "<=", ">=",
-	"&&", "||", "//", "..", "::", "+=", "-=", "*=", "/=", ".=",
+	"&&", "||", "^^", "//", "..", "::", "+=", "-=", "*=", "/=", ".=",
 	"%=", "^=", "|=", "&=", "=>", "<<", ">>",
 	"+", "-", "*", "/", "%", ".", ",", "=", "<", ">", "!", "?", ":",
 	"&", "|", "^", "~", "(", ")", "[", "]", "{", "}", "\\",
 }
 
+// bitwiseStringOps are the `bitwise` feature's string operators and their
+// assignments, longest first. See scanOperator for why they are not in the
+// operators table.
+var bitwiseStringOps = []string{"&.=", "|.=", "^.=", "&.", "|.", "^.", "~."}
+
 // scanOperator lexes punctuation.
 func scanOperator(l *lexer) bool {
+	// The string-bitwise operators exist only under the `bitwise` feature,
+	// and without it the `.` belongs to what follows: measured on 5.42.0,
+	// `$a |.5` is `$a | 0.5` unfeatured and `$a |. 5` featured. The lexer
+	// does not track that feature, so the operator is taken whenever the `.`
+	// is NOT immediately followed by a digit -- which reads every spaced
+	// spelling right, and `$a |.5` under the feature is the ceiling.
+	for _, op := range bitwiseStringOps {
+		end := l.pos + len(op)
+		if end > len(l.src) || string(l.src[l.pos:end]) != op {
+			continue
+		}
+		if op[len(op)-1] == '.' && end < len(l.src) && l.src[end] >= '0' && l.src[end] <= '9' {
+			break
+		}
+		start := l.pos
+		l.pos = end
+		l.emit(Operator, start)
+		return true
+	}
 	// `~~` is ONE operator, smartmatch, only where an operator is expected;
 	// toke.c:
 	//
