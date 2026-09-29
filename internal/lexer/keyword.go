@@ -123,6 +123,12 @@ var blockTaking = map[string]bool{
 	"map": true, "grep": true, "sort": true,
 	"print": true, "printf": true, "say": true,
 	"system": true, "exec": true,
+
+	// Builtins only under their features (keyword_any, keyword_all), which
+	// the lexer does not track. Listed so `any(` carries the brace
+	// lookahead a bare `any {` already gets; for a user sub of that name the
+	// same intuition decides, as it does after any word.
+	"any": true, "all": true,
 }
 
 // takesBlock reports whether a `{` after this word might open a block.

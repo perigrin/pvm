@@ -454,7 +454,7 @@ var takesBlock = map[string]bool{
 // disagree with the token stream that produced it -- the same argument
 // TestBraceDecisionUsesExpectState makes for every other brace.
 func (p *parser) parseListOpBlock(op string) *Node {
-	if !takesBlock[op] {
+	if !takesBlock[op] && !p.featureTakesBlock(op) {
 		return nil
 	}
 	tok, ok := p.peekSignificant()
@@ -462,6 +462,15 @@ func (p *parser) parseListOpBlock(op string) *Node {
 		return nil
 	}
 	return p.parseBlock(tok)
+}
+
+// featureTakesBlock reports whether op is `any` or `all` with its feature
+// on: `use feature 'keyword_any'` makes `any BLOCK LIST` a builtin that
+// takes a block as grep does, parenthesised or not. Measured on 5.42.0, `use
+// feature qw(keyword_any); any( { $_ > 10 } 1 .. 20)` is true, and without
+// the feature the same line is a syntax error.
+func (p *parser) featureTakesBlock(op string) bool {
+	return (op == "any" || op == "all") && p.features["keyword_"+op]
 }
 
 // parseSortComparator reads the SUBNAME or `$subref` of `sort SUBNAME LIST`,
