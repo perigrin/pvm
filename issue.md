@@ -1,19 +1,27 @@
 ---
 title: "Statements inside a deref's braces refuse: `${no strict; \\$_}` is a block"
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T11:14:23.1199479Z
-updated: 2026-09-29T11:14:24.374507794Z
+updated: 2026-09-29T11:25:42.740094649Z
 sessions:
 - start_sha: 6b290e3fffc263ae13d2ba3e264ba977dac27e82
-  end_sha: ""
-  commits: 0
+  end_sha: 58ec17c604eea4eb0da7275b0880828d474bb3f9
+  commits: 1
   started_at: 2026-09-29T11:14:24.374507794Z
+  ended_at: 2026-09-29T11:25:42.740094649Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-29T11:14:24.374507794Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-29T11:25:42.740094649Z
+observed_paths:
+- internal/parse/derefblock_test.go
+- internal/parse/term.go
+- internal/parse/testdata/perlgitt.ratchet
 ---
 
 The braces after a deref sigil hold a BLOCK in perly.y (`indirob: BAREWORD | scalar | block | PRIVATEREF`), and the parser reads them as one expression, so statements inside refuse: `${no strict; \$_}`, `${; do { j: \(my $foo = "foo") } }`.
