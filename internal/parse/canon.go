@@ -524,6 +524,22 @@ func bindingPower(n *Node) int {
 			return infix[","].BP
 		}
 		return atomBP
+	case Declaration:
+		// A variable declaration WITH an initialiser is an assignment, and
+		// binds like one. At an atom's power it was never parenthesised, so
+		// `(my $s = "abc") =~ /x/` re-emitted as `my $s = "abc" =~ /x/` --
+		// the match bound to "abc" first, a different program, at Unknown=0.
+		// The initialiser is either a second child (`my $x = 1`) or an
+		// assignment Binary the target list was parsed into (`my ($a, $b) =
+		// @_`).
+		if declarators[n.Text] {
+			last := n.Children[len(n.Children)-1:]
+			if len(n.Children) > 1 ||
+				len(last) == 1 && last[0].Kind == Binary && infix[last[0].Text].Level == assignLevel {
+				return infix["="].BP
+			}
+		}
+		return atomBP
 	default:
 		return atomBP
 	}
