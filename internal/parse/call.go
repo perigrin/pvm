@@ -408,8 +408,15 @@ func endsArgumentList(tok lexer.Token, src []byte) bool {
 //
 // Not every list operator has one -- `push @a, 1` has no handle slot and
 // treating `@a` as one would be wrong -- so the set is explicit.
+//
+// `system` and `exec` share the slot: it holds the program to run rather than
+// a handle, in the same three spellings and by the same no-comma rule.
+// Measured on 5.42.0 with -MO=Deparse, `system { "ls" } "ls", "-l"` is
+// `system({'ls';} 'ls', '-l')` and `system $shell "-sh"` keeps `$shell` in
+// the slot.
 var takesFilehandle = map[string]bool{
 	"print": true, "printf": true, "say": true,
+	"system": true, "exec": true,
 }
 
 // takesBlock is the set of list operators whose first slot may be a BLOCK

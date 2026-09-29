@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 723 clean (73.3%), 1326 total.
+# 986 files, 725 clean (73.5%), 1315 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -108,7 +108,7 @@
 0 compress_raw_zlib_gzip_wrapper.t
 0 compress_zlib_gzerror_eof.t
 0 concat_assign_undef_warning.t
-4 concat_assignment_env_taint.t
+2 concat_assignment_env_taint.t
 0 concat_assignment_explicit_mutator.t
 0 concat_assignment_overload.t
 0 concat_assignment_tied_fetch.t
@@ -372,7 +372,7 @@
 0 indirect_object_constructor.t
 0 indirect_object_named_args.t
 18 indirect_object_syntax.t
-1 indirect_system_argv0_interpreter.t
+0 indirect_system_argv0_interpreter.t
 0 infinity.t
 0 inherited_autoload_stub.t
 8 input_record_separator_fixed_length.t
@@ -780,7 +780,7 @@
 1 taint_env_path.t
 0 taint_external_input.t
 3 taint_filespec.t
-8 taint_mode.t
+0 taint_mode.t
 0 template_generated_line_directive.t
 2 term_readkey_regressions.t
 1 term_size_perlio_shims.t

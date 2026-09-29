@@ -99,6 +99,7 @@ func isNiladic(word string) bool {
 var blockTaking = map[string]bool{
 	"map": true, "grep": true, "sort": true,
 	"print": true, "printf": true, "say": true,
+	"system": true, "exec": true,
 }
 
 // takesBlock reports whether a `{` after this word might open a block.
