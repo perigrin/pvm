@@ -1,10 +1,19 @@
 ---
 title: "A label before a block's closing brace refuses: `sub f { ...; _: }`"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T16:51:34.072457106Z
-updated: 2026-09-29T16:51:34.072457106Z
+updated: 2026-09-29T16:51:35.189195601Z
+sessions:
+- start_sha: ae4b9b0e8875942ad5c851e8579d4cc18fc2db12
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T16:51:35.189195601Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T16:51:35.189195601Z
 ---
 
 A label with no statement after it before a block's `}` refuses: `sub MODIFY_CODE_ATTRIBUTES { ...; _: }`. The parser takes `LABEL: ;` as a labelled empty statement, but after a label it only looks for a `;`; a `}` there went to the expression path and refused, and the block lost its closer.
