@@ -1,10 +1,19 @@
 ---
 title: "A relational comparison under an equality one refuses: $a < $b == $c is valid perl"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T06:14:05.911471897Z
-updated: 2026-09-29T06:14:05.911471897Z
+updated: 2026-09-29T06:14:14.942099914Z
+sessions:
+- start_sha: dd6d465c06a187d2b082b2526fd3a06a4bf4645f
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T06:14:14.942099914Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T06:14:14.942099914Z
 ---
 
 The comparison parser rejects any comparison whose left operand is already a comparison of a different class. perly.y's yyerror productions reject only a second operator at the *same* level (termrelop followed by a relop, termeqop followed by an eqop). Relop binds tighter than eqop, so `$a < $b == $c` is `($a < $b) == $c`.
