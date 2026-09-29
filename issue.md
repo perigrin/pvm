@@ -1,10 +1,19 @@
 ---
 title: "`blessed $obj` after `use builtin qw(blessed)` refuses: builtin:: functions are unknown to the parser"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T07:47:15.219965373Z
-updated: 2026-09-29T07:47:15.219965373Z
+updated: 2026-09-29T07:49:21.399037887Z
+sessions:
+- start_sha: a57a36bf42137037fa1a23668d43b9d0d1777d38
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-29T07:49:21.399037887Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-29T07:49:21.399037887Z
 ---
 
 The builtin:: functions are the interpreter's own, registered by builtin.c's boot_core_builtin at startup, and `use builtin LIST` imports them by name. The parser knew neither, so an imported `blessed $obj` was `WORD $var` with an unknown WORD and refused (01a0ebb0-6329-7a13-b398-a5120ec9bbe8's deliberate half). A qualified `builtin::reftype $r, 1` took no argument at all.
