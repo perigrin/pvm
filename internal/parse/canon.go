@@ -90,6 +90,15 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 		// Dropped. See Canon.
 
 	case Call:
+		// `require MODULE` keeps its bareword bare: written `require(mro)`
+		// it would re-parse with `mro` as a call rather than a module name.
+		if keywordName(n.Text) == "require" && len(n.Children) == 1 &&
+			n.Children[0].Kind == Term && isBarewordText(n.Children[0].Text) {
+			b.WriteString(n.Text)
+			b.WriteByte(' ')
+			b.WriteString(n.Children[0].Text)
+			break
+		}
 		// Indirect object notation keeps its spelling, method then class,
 		// and gains the argument parens every call gets: `new Foo "a"` is
 		// written `new Foo("a")`. That re-parses to the same call -- the
@@ -645,6 +654,16 @@ func bareDerefOperand(c *Node) bool {
 		return bareDerefOperand(c.Children[0])
 	}
 	return false
+}
+
+// isBarewordText reports whether s is spelled as a bareword: a name, maybe
+// package-qualified, and not a variable, number or string.
+func isBarewordText(s string) bool {
+	if s == "" {
+		return false
+	}
+	c := s[0]
+	return c == '_' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z'
 }
 
 // unaryToken spells a Unary node's operation back as its source token.

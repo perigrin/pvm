@@ -94,6 +94,25 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		return p.parseReturnTerm(word)
 	}
 
+	// `require MODULE` inside an expression: a named unary whose operand is
+	// a bareword module name -- `(require Foo, 2)`, `... or require mro,
+	// diag "x"`, measured on 5.42.0. At a statement's start the Use path
+	// reads it; here the name is its one operand and the expression goes on.
+	if text == "require" {
+		if name, ok := p.peekAfter(word); ok && name.Kind == lexer.Word &&
+			!isPerlKeyword(keywordName(p.text(name))) {
+			if after, ok := p.peekAfter(name); !ok || p.text(after) != "=>" {
+				p.advanceTo(name)
+				p.notePackage(p.text(name))
+				return &Node{
+					Kind: Call, Text: spelled, Resolved: true,
+					Start: word.Start, End: name.End,
+					Children: []*Node{{Kind: Term, Text: p.text(name), Start: name.Start, End: name.End}},
+				}
+			}
+		}
+	}
+
 	// A niladic builtin takes nothing: `time`, `wantarray`.
 	if niladicParse[text] {
 		p.advanceTo(word)
