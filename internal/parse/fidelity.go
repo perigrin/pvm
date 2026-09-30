@@ -142,6 +142,18 @@ func matchForgivingSemicolons(want, inner []string) (int, bool) {
 			w < len(want) && want[w] == "}" {
 			continue
 		}
+		// A call's added parens inside these ones: the forgiven difference
+		// one level down, forgiven the same way. `print create Foo sub {...}`
+		// is emitted `print(create Foo(sub {...}))`.
+		if inner[i] == "(" && i > 0 && isName(inner[i-1]) {
+			if skip, ok := matchParen(inner, i); ok {
+				if n, ok := matchForgivingSemicolons(want[w:], inner[i+1:skip]); ok {
+					w += n
+					i = skip
+					continue
+				}
+			}
+		}
 		return 0, false
 	}
 	return w, true

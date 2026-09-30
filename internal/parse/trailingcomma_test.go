@@ -39,24 +39,24 @@ func TestTrailingCommaBeforeCloserIsNotATerm(t *testing.T) {
 		// The call argument list: `parseCallArgs` hands the whole inside to
 		// parseExpr, so the comma's operand hunt runs straight into the `)`.
 		// 27 of the 67 bare-closer files in perl.git t/ are this shape.
-		{"call one arg", "f($a,);", "f($a);"},
-		{"call two args", "f($a, $b,);", "f($a , $b);"},
+		{"call one arg", "f($a,);", "f($a ,);"},
+		{"call two args", "f($a, $b,);", "f($a , $b ,);"},
 
 		// A named list operator's parenthesised form takes the same path.
-		{"list op", `is(index($a, "bar",    ), 5);`, `is(index($a , "bar") , 5);`},
+		{"list op", `is(index($a, "bar",    ), 5);`, `is(index($a , "bar" ,) , 5);`},
 
 		// The loop list, where the damage is structural rather than a count:
 		// the swallowed `)` left the body `{ 1 }` to be read as a subscript.
-		{"foreach list", "foreach my $x ($a,) { 1 }", "foreach my $x ($a) {1;}"},
+		{"foreach list", "foreach my $x ($a,) { 1 }", "foreach my $x ($a ,) {1;}"},
 
 		// A hash subscript is a list too, and it was the third caller. With
 		// the comma gone the key is a BAREWORD KEY rather than a call, which
 		// is what perl reads there -- `$h{a}` auto-quotes -- so the canon
 		// loses the `()` the broken parse had invented around it.
-		{"hash subscript", "$h{a,};", "$h{a};"},
+		{"hash subscript", "$h{a,};", "$h{a ,};"},
 
 		// The fat comma is the same separator and must behave the same way.
-		{"fat comma", "f(a => 1,);", "f(a => 1);"},
+		{"fat comma", "f(a => 1,);", "f(a => 1 ,);"},
 
 		// A comma with nothing at all in front of it is NOT this case: there
 		// is no element for the separator to follow, so the refusal stands.
@@ -65,6 +65,8 @@ func TestTrailingCommaBeforeCloserIsNotATerm(t *testing.T) {
 		{"only a comma", "f(,);", "f(,);"},
 	}
 
+	// Canon writes the trailing comma back where the source had it
+	// (perigrin, 2026-09-30); the tree drops it, as perl does.
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			src := []byte(c.src)

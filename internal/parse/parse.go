@@ -429,6 +429,13 @@ type Node struct {
 	// `for my $i (@l)` differ in which child is the variable rather than in
 	// what the loop is.
 	LoopVar bool
+
+	// TrailingComma is the separator, `,` or `=>`, the source wrote after
+	// this node with no element after it -- `f(1, 2,)`. perl drops it
+	// (measured on 5.42.0, `f(1, 2,)` deparses as `f(1, 2)`), and so does
+	// the tree's shape; canon writes it back so the emission says what the
+	// source says (perigrin, 2026-09-30).
+	TrailingComma string
 }
 
 // SourceText reconstructs the bytes this node covers, walking the tree.

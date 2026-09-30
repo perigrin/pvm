@@ -554,13 +554,17 @@ func prefixName(text string) string {
 func (p *parser) parseParenList(open lexer.Token) *Node {
 	p.advanceTo(open)
 
+	// seps are the separators since the last item. More than one, or any
+	// before the closer, are kept on that item for canon; see keepSeps.
 	var items []*Node
+	var seps []string
 	for {
 		tok, ok := p.peekSignificant()
 		if !ok {
 			break
 		}
 		if p.text(tok) == ")" {
+			keepSeps(items, seps, 1)
 			p.advanceTo(tok)
 			break
 		}
@@ -575,12 +579,15 @@ func (p *parser) parseParenList(open lexer.Token) *Node {
 		// have quoted is behind the comma.
 		if (p.text(tok) == "," || p.text(tok) == "=>") && len(items) > 0 {
 			p.advanceTo(tok)
+			seps = append(seps, p.text(tok))
 			continue
 		}
 		// Parsed above the comma so each element is its own node. A nil
 		// element means the input ran out mid-list, which the loop's next
 		// peek handles.
 		if item := p.parseExpr(infix[","].BP); item != nil {
+			keepSeps(items, seps, 2)
+			seps = nil
 			items = append(items, item)
 		}
 
@@ -598,6 +605,7 @@ func (p *parser) parseParenList(open lexer.Token) *Node {
 				items[len(items)-1].Fat = true
 			}
 			p.advanceTo(next)
+			seps = []string{p.text(next)}
 		case ")":
 			p.advanceTo(next)
 			return p.finishList(items, open)
@@ -687,13 +695,16 @@ func (p *parser) commaList(items []*Node) *Node {
 func (p *parser) parseBracketed(open lexer.Token, closer string, kind Kind) *Node {
 	p.advanceTo(open)
 
+	// seps: see parseParenList.
 	var items []*Node
+	var seps []string
 	for {
 		tok, ok := p.peekSignificant()
 		if !ok {
 			break
 		}
 		if p.text(tok) == closer {
+			keepSeps(items, seps, 1)
 			p.advanceTo(tok)
 			break
 		}
@@ -701,9 +712,12 @@ func (p *parser) parseBracketed(open lexer.Token, closer string, kind Kind) *Nod
 		// elements, measured on 5.42.0. Only after an element.
 		if (p.text(tok) == "," || p.text(tok) == "=>") && len(items) > 0 {
 			p.advanceTo(tok)
+			seps = append(seps, p.text(tok))
 			continue
 		}
 		if item := p.parseExpr(infix[","].BP); item != nil {
+			keepSeps(items, seps, 2)
+			seps = nil
 			items = append(items, item)
 		}
 
@@ -722,6 +736,7 @@ func (p *parser) parseBracketed(open lexer.Token, closer string, kind Kind) *Nod
 				items[len(items)-1].Fat = true
 			}
 			p.advanceTo(next)
+			seps = []string{p.text(next)}
 		case closer:
 			p.advanceTo(next)
 			return &Node{Kind: kind, Start: open.Start, End: p.prevEnd(), Children: items}
@@ -803,4 +818,26 @@ func (p *parser) ampTakes(name lexer.Token) bool {
 		}
 	}
 	return true
+}
+
+// keepSeps keeps, on the last item, the separators written after it when
+// there are at least min of them: 1 before a closer, where any separator is
+// trailing, and 2 before another item, where one is the item separator.
+// Kept, they are all of what canon writes after that item. See
+// Node.TrailingComma and emitCommaSeparated.
+func keepSeps(items []*Node, seps []string, min int) {
+	if len(items) == 0 || len(seps) < min {
+		return
+	}
+	items[len(items)-1].TrailingComma = strings.Join(seps, " ")
+}
+
+// markTrailing records a separator with no element after it on the element
+// before it, for canon to write back. See Node.TrailingComma.
+func markTrailing(n *Node, sep string) {
+	if n.TrailingComma == "" {
+		n.TrailingComma = sep
+		return
+	}
+	n.TrailingComma += " " + sep
 }

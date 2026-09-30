@@ -30,10 +30,12 @@ func TestTrailingCommaBeforeAssignment(t *testing.T) {
 			t.Errorf("%q: perl accepts this; got %s", src, shape(root))
 			continue
 		}
-		got := parse.Canon(root, []byte(src))
-		want := parse.Canon(parse.Parse([]byte(same)), []byte(same))
+		// The trees agree; canon keeps the source's trailing comma, so the
+		// comparison is of shape (see TestCanonKeepsTrailingComma).
+		got := shape(root)
+		want := shape(parse.Parse([]byte(same)))
 		if got != want {
-			t.Errorf("%q: canon %q, want %q as for %q", src, got, want, same)
+			t.Errorf("%q: shape %s, want %s as for %q", src, got, want, same)
 		}
 	}
 }
@@ -51,10 +53,13 @@ func TestTrailingCommaBeforeAssignment(t *testing.T) {
 //	f 1, . "x";      f(1) . 'x';
 //	f 1, != 2;       f(1) != 2;
 //
+// So does `->`: `f 1, ->m` is `f(1)->m` and `f 1 => ->m` the same, which
+// is how PerlOnJava unit/threads_postfix_create_and_invalid_entry.t chains
+// `create threads sub {...}=>->join`.
+//
 // An operator whose first byte DOES begin a term there is read as that
 // term, and perl rejects the line: `f 1, += 2` is a syntax error, `f 1, **
-// 2` reads a glob, `f 1, // 2` a pattern, `f 1, -> 2` a negation. Those
-// stay refused.
+// 2` reads a glob and `f 1, // 2` a pattern. Those stay refused.
 //
 // perl.git t/io/open.t:281, `ok open(...), '...',` then `|| _diag $!`.
 func TestTrailingCommaBeforeOperator(t *testing.T) {
@@ -69,16 +74,21 @@ func TestTrailingCommaBeforeOperator(t *testing.T) {
 		`sub f {} f 1, != 2;`:    `sub f {} f(1) != 2;`,
 		`sub f {} f 1, ||= 2;`:   `sub f {} f(1) ||= 2;`,
 		`sub f {} f 1, >>= 2;`:   `sub f {} f(1) >>= 2;`,
+		`sub f {} f 1, ->m;`:     `sub f {} f(1)->m;`,
+		`sub f {} f 1 => ->m;`:   `sub f {} f(1)->m;`,
+		`sub f {} f 1, -> [0];`:  `sub f {} f(1)->[0];`,
 	} {
 		root := parse.Parse([]byte(src))
 		if containsKind(root, parse.Unknown) {
 			t.Errorf("%q: perl accepts this; got %s", src, shape(root))
 			continue
 		}
-		got := parse.Canon(root, []byte(src))
-		want := parse.Canon(parse.Parse([]byte(same)), []byte(same))
+		// The trees agree; canon keeps the source's trailing comma, so the
+		// comparison is of shape (see TestCanonKeepsTrailingComma).
+		got := shape(root)
+		want := shape(parse.Parse([]byte(same)))
 		if got != want {
-			t.Errorf("%q: canon %q, want %q as for %q", src, got, want, same)
+			t.Errorf("%q: shape %s, want %s as for %q", src, got, want, same)
 		}
 	}
 	for _, src := range []string{

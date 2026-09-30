@@ -77,6 +77,11 @@ func endsListAfterComma(tok lexer.Token, src []byte) bool {
 	if _, isInfix := infix[text]; !isInfix {
 		return false
 	}
+	// `->` begins no term, though its `-` would: `f 1, ->m` is `f(1)->m`,
+	// measured on 5.42.0.
+	if text == "->" {
+		return true
+	}
 	return !strings.ContainsRune(`+-*/%<\~([{`, rune(text[0]))
 }
 
@@ -146,6 +151,7 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 		if text == "," || text == "=>" {
 			if next, ok := p.peekAfter(tok); ok && elementlessAfterComma(next, p.src) {
 				p.advanceTo(tok)
+				markTrailing(left, text)
 				continue
 			}
 			// An operator that cannot begin an element either, but binds
@@ -155,6 +161,7 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 			// measured on 5.42.0.
 			if next, ok := p.peekAfter(tok); ok && endsListAfterComma(next, p.src) {
 				p.advanceTo(tok)
+				markTrailing(left, text)
 				return left
 			}
 		}

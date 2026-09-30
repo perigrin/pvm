@@ -30,6 +30,12 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 		b.WriteByte('(')
 		defer b.WriteByte(')')
 	}
+	// A trailing separator the source wrote goes after the node, inside any
+	// parens added above: `f 1, || 2` is written `f(1 ,) || 2`. See
+	// Node.TrailingComma.
+	if n.TrailingComma != "" {
+		defer b.WriteString(" " + n.TrailingComma)
+	}
 
 	switch n.Kind {
 	case SourceFile:
@@ -596,9 +602,15 @@ func emitCommaSeparated(b *strings.Builder, n *Node, src []byte) {
 			// are not interchangeable: `(a => 1)` is the string "a" where
 			// `(a, 1)` is a call to a (§4.5.4). Emitting the plain comma
 			// changes what the list contains.
-			if n.Children[i-1].Fat {
+			//
+			// An element that kept its separators (TrailingComma) has
+			// already written them; only a space follows.
+			switch {
+			case n.Children[i-1].TrailingComma != "":
+				b.WriteByte(' ')
+			case n.Children[i-1].Fat:
 				b.WriteString(" => ")
-			} else {
+			default:
 				b.WriteString(", ")
 			}
 		}
