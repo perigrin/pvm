@@ -429,8 +429,12 @@ func endsArgumentList(tok lexer.Token, src []byte) bool {
 		// The range operators likewise: measured, `(undef..2)` is
 		// `((undef) .. 2)` and `(g ... 2)` is `(g() ... 2)`.
 		switch string(src[tok.Start:tok.End]) {
+		// So do `|`, `^`, `>`, `>=` and `>>`: measured, `f | 2` is `f() | 2`
+		// for a list operator and a `(;$)` sub alike. `&` and `%` begin a
+		// term -- `f & 2` is `f(&2)` -- and stay out.
 		case ",", "=>", "||", "&&", "//", "=", "?", ":",
-			".", "==", "!=", "=~", "!~", "->", "..", "...":
+			".", "==", "!=", "=~", "!~", "->", "..", "...",
+			"|", "^", ">", ">=", ">>":
 			return true
 		}
 	case lexer.Word:
