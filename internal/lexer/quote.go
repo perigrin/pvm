@@ -86,6 +86,9 @@ func scanQuoteLike(l *lexer) bool {
 			return true
 		}
 		l.emit(Quote, start)
+		if c == '"' {
+			l.queueBlockHeredocs(start+1, l.pos-1, interpolationOpeners)
+		}
 		return true
 	}
 
@@ -289,22 +292,37 @@ func scanQuoteLike(l *lexer) bool {
 		l.queueHeredocsIn(replStart, replEnd)
 	}
 	if (op.name == "m" || op.name == "qr" || op.name == "s") && open != '\'' {
-		l.queueCodeBlockHeredocs(patStart, patEnd)
+		l.queueBlockHeredocs(patStart, patEnd, codeBlockOpeners)
+	}
+	if op.name == "qq" && open != '\'' {
+		l.queueBlockHeredocs(patStart, patEnd, interpolationOpeners)
 	}
 	return true
 }
 
-// queueCodeBlockHeredocs queues the heredocs opened inside a pattern's code
-// blocks, `(?{ ... })` and `(??{ ... })`, whose code perl lexes as perl:
-// `qr/(?{<<END})/` reads its body from the lines after the statement. Only
-// the code is scanned, so a `<<` in the regex text stays regex text.
+// codeBlockOpeners begin a pattern's code blocks; interpolationOpeners the
+// blocks a double-quoted string interpolates, `@{[ ... ]}` and `${\ ... }`.
+var (
+	codeBlockOpeners     = []string{"(?{", "(??{"}
+	interpolationOpeners = []string{"@{", "${"}
+)
+
+// queueBlockHeredocs queues the heredocs opened inside the blocks, begun by
+// one of openers, whose code perl lexes as perl: `qr/(?{<<END})/` and
+// `"x @{[ <<'EOT' ]} x"` both read their body from the lines after the
+// statement, measured on 5.42.0. Only the code is scanned, so a `<<` in the
+// text around it stays text, and an escaped opener -- `\${` -- is text too.
 //
 // ponytail: the block's end is found by counting braces, so a brace inside
 // a string in the code miscounts; perl's own sublexer would be the upgrade.
-func (l *lexer) queueCodeBlockHeredocs(start, end int) {
+func (l *lexer) queueBlockHeredocs(start, end int, openers []string) {
 	for i := start; i < end; i++ {
 		rest := l.src[i:end]
-		if !bytes.HasPrefix(rest, []byte("(?{")) && !bytes.HasPrefix(rest, []byte("(??{")) {
+		found := false
+		for _, o := range openers {
+			found = found || bytes.HasPrefix(rest, []byte(o))
+		}
+		if !found || escapedAt(l.src, start, i) {
 			continue
 		}
 		open := i + bytes.IndexByte(rest, '{')
@@ -555,4 +573,14 @@ func isAsciiLetter(c byte) bool {
 // issue; this is only enough to tell `q` from `q_thing`.
 func isWordByte(c byte) bool {
 	return isAsciiLetter(c) || c >= '0' && c <= '9' || c == '_'
+}
+
+// escapedAt reports whether src[i] is escaped: an odd run of backslashes
+// before it, not reaching back past start.
+func escapedAt(src []byte, start, i int) bool {
+	n := 0
+	for j := i - 1; j >= start && src[j] == '\\'; j-- {
+		n++
+	}
+	return n%2 == 1
 }
