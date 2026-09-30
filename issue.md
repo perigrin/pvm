@@ -1,10 +1,19 @@
 ---
 title: "`f 1, ->m` refuses: `->` does not end a list after a trailing comma"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-30T19:54:02.772041056Z
-updated: 2026-09-30T19:54:02.772041056Z
+updated: 2026-09-30T19:54:22.68727095Z
+sessions:
+- start_sha: b0cbd07e4158684348740061a01793ac17d40fcf
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-30T19:54:22.68727095Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-30T19:54:22.68727095Z
 ---
 
 `create threads sub {...}=>->join->()()` refuses. After a trailing comma or fat comma, `->` doesn't end the list, because the rule excluded every operator starting with `-`. That exclusion came from `f 1, -> 2`, which is invalid only because of the `2`.
