@@ -627,6 +627,26 @@ func (p *parser) parsePhaser(word lexer.Token) *Node {
 	return n
 }
 
+// aliasTarget is the sub a `\&NAME` names, with its prototype when this
+// parser knows it: a CORE:: builtin from coreProtos, or a sub in the table.
+func (p *parser) aliasTarget(n *Node) (Import, bool) {
+	if n.Kind != Unary || n.Text != "ref" || len(n.Children) != 1 {
+		return Import{}, false
+	}
+	name, ok := strings.CutPrefix(n.Children[0].Text, "&")
+	if !ok || name == "" {
+		return Import{}, false
+	}
+	if builtin, isCore := strings.CutPrefix(name, "CORE::"); isCore {
+		proto, known := coreProtos[builtin]
+		return Import{Name: name, Prototype: "(" + proto + ")"}, known
+	}
+	if imp, known := p.lookupSub(name); known && imp.PrototypeKnown {
+		return imp, true
+	}
+	return Import{}, false
+}
+
 // noteBeginEffects reads what a BEGIN block does to the sub table before the
 // code after it compiles. A literal glob assignment defines a name: `BEGIN {
 // *BB::e = \&C::e }` in t/op/method.t. A computed glob, an `import` call, a
@@ -640,7 +660,11 @@ func (p *parser) noteBeginEffects(n *Node) {
 			if p.imports == nil {
 				p.imports = map[string]Import{}
 			}
-			if _, ok := p.imports[subKey(name)]; !ok {
+			// An alias takes its target's prototype: `*my_push =
+			// \&CORE::push` is `\@@`, measured on 5.42.0.
+			if imp, ok := p.aliasTarget(n.Children[1]); ok {
+				p.imports[subKey(name)] = Import{Name: name, Prototype: imp.Prototype, PrototypeKnown: true}
+			} else if _, ok := p.imports[subKey(name)]; !ok {
 				p.imports[subKey(name)] = Import{Name: name}
 			}
 		} else {
