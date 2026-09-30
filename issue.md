@@ -1,10 +1,19 @@
 ---
 title: A heredoc in a multi-line string's one-line block is queued past the string
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-30T18:50:09.142781156Z
-updated: 2026-09-30T18:50:09.142781156Z
+updated: 2026-09-30T18:50:10.704200711Z
+sessions:
+- start_sha: 51b72146eadb4ff692d269aa362884d9b3c8c7c2
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-30T18:50:10.704200711Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-30T18:50:10.704200711Z
 ---
 
 51b72146 queued a heredoc opened in a string's `@{...}` block for the lines after the statement whenever the block itself had no newline. But perl's scan_heredoc looks for the newline in the enclosing construct (toke.c:11735), which is the whole string. In `"@{[ <<E1 ]}foo\nE1\n"` the body `E1\n` is inside the string: measured with perl 5.42, it prints "[foo\n]".
