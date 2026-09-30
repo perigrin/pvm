@@ -100,12 +100,17 @@ func perlGitTRoots(dir string) []string {
 // refusal that opens up can raise the count while the refused BYTES fall,
 // because inner statements start refusing one at a time instead of vanishing
 // into one swallowed span. When a count rises, explain it before regenerating.
+//
+// A file perl itself rejects is not counted here; see perlRejects.
 func TestPerlGitTRatchet(t *testing.T) {
 	dir, files := perlGitTFiles(t)
 	roots := perlGitTRoots(dir)
 
 	now := make(map[string]int, len(files))
 	for _, rel := range files {
+		if _, rejected := perlRejects[rel]; rejected {
+			continue
+		}
 		n, err := parse.ParseFileFrom(filepath.Join(dir, rel), roots...)
 		if err != nil {
 			continue
@@ -115,6 +120,55 @@ func TestPerlGitTRatchet(t *testing.T) {
 
 	checkRatchet(t, filepath.Join("testdata", "perlgitt.ratchet"),
 		"Unknown nodes per perl.git t/ file, through parse.ParseFileFrom.", now)
+}
+
+// perlRejects are the perl.git t/ files perl cannot compile, by design, with
+// the line perl reports the error on. For these a refusal is the right
+// answer and accepting the file would be the bug, so they leave the Unknown
+// count and are held to that instead, by TestPerlGitTRejects.
+//
+// comp/final_line_num.t tests perl's own error reporting: it ends in `print
+// 1+`, and its BEGIN __DIE__ handler prints "ok 1" only when the syntax error
+// is reported on the line it recorded, 13. Without the handler, 5.42.0 dies
+// "syntax error at ... at EOF" with status 255. A `perl -c` sweep of every
+// file finds no other that 5.42.0 rejects outside blead-only syntax (the
+// named parameters of op/signatures.t, the refaliased multi-variable foreach
+// of op/for-many.t), which blead accepts.
+var perlRejects = map[string]int{
+	"comp/final_line_num.t": 13,
+}
+
+// TestPerlGitTRejects: each file perl rejects is refused, and first on the
+// line perl reports. Accepting it, or refusing it anywhere else, fails.
+func TestPerlGitTRejects(t *testing.T) {
+	dir, _ := perlGitTFiles(t)
+	for rel, line := range perlRejects {
+		path := filepath.Join(dir, rel)
+		src, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		n, err := parse.ParseFileFrom(path, perlGitTRoots(dir)...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := firstUnknownLine(n, src); got != line {
+			t.Errorf("%s: first refusal on line %d, perl rejects it on line %d (0 = accepted)", rel, got, line)
+		}
+	}
+}
+
+// firstUnknownLine is the line the first Unknown starts on, or 0.
+func firstUnknownLine(n *parse.Node, src []byte) int {
+	if n.Kind == parse.Unknown {
+		return strings.Count(string(src[:n.Start]), "\n") + 1
+	}
+	for _, c := range n.Children {
+		if line := firstUnknownLine(c, src); line != 0 {
+			return line
+		}
+	}
+	return 0
 }
 
 // TestPerlGitTRatchetHeaderAgreesWithItsBody reads the header back.
