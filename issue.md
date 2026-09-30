@@ -1,19 +1,28 @@
 ---
 title: "`*my_push = \\&CORE::push` leaves my_push shapeless: an alias should take its target's prototype"
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-30T18:27:47.126800997Z
-updated: 2026-09-30T18:27:48.875514558Z
+updated: 2026-09-30T18:35:28.053919094Z
 sessions:
 - start_sha: 1a15ffd68adb98185d45dc93c6585a6cc8a8b33e
-  end_sha: ""
-  commits: 0
+  end_sha: fed0bab5ed153c134139df0f67090f36146d3ffc
+  commits: 1
   started_at: 2026-09-30T18:27:48.875514558Z
+  ended_at: 2026-09-30T18:35:28.053919094Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-30T18:27:48.875514558Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-30T18:35:28.053919094Z
+observed_paths:
+- internal/parse/coreprotos.go
+- internal/parse/globalias_test.go
+- internal/parse/testdata/t1.ratchet
+- internal/parse/use.go
 ---
 
 `BEGIN { *my_push = \&CORE::push; } my_push @arr2, 4, 5, 6;` refuses. A glob assignment in BEGIN records the name with its prototype unknown. An alias takes its target's prototype.
