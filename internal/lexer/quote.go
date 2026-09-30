@@ -478,6 +478,18 @@ func (l *lexer) scanDelimitedBody(open, close rune) bool {
 			if depth == 0 {
 				return true
 			}
+		case c == '\n' && len(l.pending) > 0:
+			// A heredoc queued on this line takes the next lines even though
+			// this body runs on: perl's scan_heredoc removes them from the
+			// input when it lexes the opener, and the body resumes after
+			// them. Measured on 5.42.0, `<<E21 . 'single\nE21 content\nE21\n
+			// quoted'` is "E21 content\n" . "single\nquoted". The skipped
+			// lines stay inside this token's span.
+			l.pos++
+			for _, h := range l.pending {
+				l.pos, _ = heredocBodyEnd(l.src, l.pos, h)
+			}
+			l.pending = nil
 		case close != 0 && c == open:
 			// Only a bracketing pair nests; a self-closing delimiter reaches
 			// the case above first and ends the body.
