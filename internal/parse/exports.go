@@ -3,7 +3,10 @@
 
 package parse
 
-import "strings"
+import (
+	"slices"
+	"strings"
+)
 
 // Import is one name a `use` brought into scope.
 //
@@ -74,6 +77,11 @@ type moduleFacts struct {
 	// defines is known to perl and not to this parser. See symbolsOpen.
 	dynamic bool
 
+	// loadsXS marks a module that loads C code -- XSLoader::load or a
+	// DynaLoader bootstrap. Its subs may be C with prototypes this parser
+	// has not read; see importsFrom.
+	loadsXS bool
+
 	// globs are the names a literal glob assignment defines, `*run_perl =
 	// \&runperl` in t/test.pl: subs as real as a `sub NAME`, with no
 	// prototype this parser can read.
@@ -103,9 +111,18 @@ func readModule(root *Node) moduleFacts {
 	return facts
 }
 
+// xsLoaders are the calls that load a module's C code.
+var xsLoaders = map[string]bool{
+	"XSLoader::load": true, "bootstrap": true,
+	"DynaLoader::bootstrap": true, "bootstrap_inherit": true,
+}
+
 // readDynamic finds what can define subs out of this parser's sight --
 // see moduleFacts.dynamic -- and the names literal glob assignments define.
 func readDynamic(n *Node, facts *moduleFacts) {
+	if xsLoaders[n.Text] {
+		facts.loadsXS = true
+	}
 	switch {
 	case n.Kind == Use && len(n.Children) > 0 &&
 		(n.Children[0].Text == "parent" || n.Children[0].Text == "base"):
@@ -318,6 +335,18 @@ func importsFrom(facts moduleFacts, list []string, listGiven bool) []Import {
 	out := make([]Import, 0, len(wanted))
 	for _, name := range wanted {
 		proto, known := facts.protos[name]
+		// Exported but never declared: the module builds it out of sight,
+		// as File::Spec::Functions assigns `*{$meth}` in a loop. A sub
+		// built in Perl that way is taken to have no prototype (perigrin's
+		// decision, 2026-09-30) -- catdir has none, measured on 5.42.0. A
+		// module that loads C keeps it unknown: its sub may be XS with a
+		// prototype, as List::Util's `first` is `&@`.
+		//
+		// Only a name the module exports: a list also carries arguments
+		// that are not subs at all -- `use feature 'defer'`.
+		if !known && !facts.loadsXS && slices.Contains(facts.exports, name) {
+			proto, known = "", true
+		}
 		out = append(out, Import{
 			Name:           name,
 			Prototype:      proto,
