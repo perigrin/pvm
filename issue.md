@@ -1,10 +1,19 @@
 ---
 title: Faithful counts a dropped trailing comma as a misread
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T22:20:52.861463591Z
-updated: 2026-09-30T19:54:22.526268991Z
+updated: 2026-09-30T19:54:22.610874355Z
+sessions:
+- start_sha: b0cbd07e4158684348740061a01793ac17d40fcf
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-30T19:54:22.610874355Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-30T19:54:22.610874355Z
 ---
 
 Faithful failed every file with a trailing comma, even when canon's tree was right. Canon dropped the separator, as perl does (`f(1, 2,)` deparses as `f(1, 2)`), and Faithful forgave only an added paren after a call name and a `;` before a closing `}`.
