@@ -147,3 +147,21 @@ func TestIndirectUnknownClass(t *testing.T) {
 		t.Errorf("%q: read as a method with no loader", src)
 	}
 }
+
+// TestUseIfImportFails: `use if COND, MODULE, LIST` imports only when COND
+// is true at compile time, which this parser cannot evaluate. By perigrin's
+// decision (2026-09-30) the import is assumed to fail: it defines no sub and
+// leaves the sub table complete, so a name it would have imported is an
+// unknown word -- `catfile $dir, 'aaa'` reads as perl reads an unknown word,
+// `$dir->catfile, 'aaa'`. perl.git t/op/coreamp.t:842.
+func TestUseIfImportFails(t *testing.T) {
+	src := `use if !is_miniperl(), File::Spec::Functions, qw "catfile"; my $dir; my $f = catfile $dir, 'aaa';`
+	root := parse.ParseWithLoader([]byte(src), parse.DirLoader(t.TempDir()))
+	if got := countUnknown(root); got != 0 {
+		t.Errorf("%q: %d Unknown, want 0; got %s", src, got, shape(root))
+	}
+	call := indirectCall(root, "catfile")
+	if call == nil || call.Children[0].Text != "$dir" || len(call.Children) != 1 {
+		t.Errorf("%q: want `$dir->catfile` with no arguments; got %s", src, shape(root))
+	}
+}

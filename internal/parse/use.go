@@ -287,7 +287,11 @@ func (p *parser) resolveImports(module string, list *Node) {
 			names = got
 		} else if !list.Paren || len(list.Children) != 0 {
 			// A computed import list is opaque: it is not an empty import.
-			p.symbolsOpen = true
+			// It hides subs only from a module whose import defines them --
+			// `use overload '%{}' => sub {...}` defines none.
+			if !quietPragmas[module] && module != "if" {
+				p.symbolsOpen = true
+			}
 			return
 		}
 	}
@@ -319,9 +323,13 @@ var quietPragmas = map[string]bool{
 //
 // Config is generated when perl is built, so no source tree holds it; its
 // bare import is %Config alone, and it exports functions only when named.
+//
+// `use if COND, MODULE, LIST` imports only when COND holds at compile time,
+// which this parser cannot evaluate. The import is assumed to fail (perigrin's
+// decision, 2026-09-30): it defines nothing, and the table stays complete.
 func (p *parser) noteImportKnowledge(module string, list *Node, unseen bool) {
 	switch {
-	case quietPragmas[module]:
+	case quietPragmas[module] || module == "if":
 	case module == "Config" && list == nil:
 	case unseen || module == "Config":
 		p.symbolsOpen = true
