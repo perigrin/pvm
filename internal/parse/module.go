@@ -153,6 +153,15 @@ func ParseFile(path string) (*Node, error) {
 // An empty root is skipped, and with none the file's own directory is the
 // only one searched, which is ParseFile.
 func ParseFileFrom(path string, roots ...string) (*Node, error) {
+	return ParseFileAssumingUseIf(path, false, roots...)
+}
+
+// ParseFileAssumingUseIf is ParseFileFrom with the answer to every `use if`
+// condition given. `use if COND, MODULE, LIST` imports only when COND holds
+// at compile time, which a parse cannot evaluate, so a file using it has two
+// readings: passes, and it is `use MODULE LIST`; fails, and it defines
+// nothing. ParseFileFrom takes the failing one.
+func ParseFileAssumingUseIf(path string, passes bool, roots ...string) (*Node, error) {
 	src, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -163,7 +172,7 @@ func ParseFileFrom(path string, roots ...string) (*Node, error) {
 			dirs = append(dirs, root)
 		}
 	}
-	return ParseWithLoader(src, DirLoader(dirs...)), nil
+	return parseRoot(src, &resolver{load: DirLoader(dirs...), seen: map[string]bool{}, useIfPasses: passes}), nil
 }
 
 // ParseWithLoader parses src, resolving `use` through the given loader.
@@ -197,6 +206,10 @@ type resolver struct {
 	// own `require` of another one is not followed. Rule 4, one level, and it
 	// lives here because this is the only place that can see the depth.
 	inRequiredFile bool
+
+	// useIfPasses answers every `use if` condition true; see
+	// ParseFileAssumingUseIf.
+	useIfPasses bool
 }
 
 // resolve parses a module's source once and returns what it says about

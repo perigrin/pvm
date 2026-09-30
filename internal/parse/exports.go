@@ -212,9 +212,13 @@ func readExportAssignment(n *Node, facts *moduleFacts) {
 func literalNameList(n *Node) ([]string, bool) {
 	text := strings.TrimSpace(n.Text)
 
-	// qw(a b c), with any of perl's delimiters.
-	if strings.HasPrefix(text, "qw") && len(text) > 3 {
-		return strings.Fields(text[3 : len(text)-1]), true
+	// qw(a b c), with any of perl's delimiters, and space may stand before
+	// the delimiter: `qw "catfile"` in t/op/coreamp.t:842.
+	if body, ok := strings.CutPrefix(text, "qw"); ok {
+		// A word byte after `qw` is an identifier (`qwerty`), not a quote.
+		if body = strings.TrimLeft(body, " \t\n"); len(body) >= 2 && !isWordByteAt(body, 0) {
+			return strings.Fields(body[1 : len(body)-1]), true
+		}
 	}
 
 	// A single quoted string.
@@ -354,4 +358,10 @@ func importsFrom(facts moduleFacts, list []string, listGiven bool) []Import {
 		})
 	}
 	return out
+}
+
+// isWordByteAt reports whether s[i] can continue an identifier.
+func isWordByteAt(s string, i int) bool {
+	c := s[i]
+	return c == '_' || c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z'
 }

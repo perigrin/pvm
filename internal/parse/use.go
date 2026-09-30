@@ -249,6 +249,15 @@ func (p *parser) resolveImports(module string, list *Node) {
 	if p.res == nil {
 		return
 	}
+	// `use if COND, MODULE, LIST`, with COND taken to hold: `use MODULE
+	// LIST`. See ParseFileAssumingUseIf.
+	if module == "if" && p.res.useIfPasses {
+		if target, rest, ok := useIfTarget(list); ok {
+			p.notePackage(target)
+			p.resolveImports(target, rest)
+		}
+		return
+	}
 	facts, ok := p.res.resolve(module)
 	if !ok {
 		p.noteImportKnowledge(module, list, true)
@@ -302,6 +311,50 @@ func (p *parser) resolveImports(module string, list *Node) {
 	for _, imp := range importsFrom(facts, names, listGiven) {
 		p.imports[subKey(imp.Name)] = imp
 	}
+}
+
+// useIfTarget splits `use if`'s list into the module it loads and that
+// module's own import list, which is nil when none is given.
+func useIfTarget(list *Node) (module string, rest *Node, ok bool) {
+	var items []*Node
+	var flatten func(*Node)
+	flatten = func(n *Node) {
+		switch {
+		case n.Kind == Binary && (n.Text == "," || n.Text == "=>"):
+			for _, c := range n.Children {
+				flatten(c)
+			}
+		case n.Kind == List:
+			for _, c := range n.Children {
+				flatten(c)
+			}
+		default:
+			items = append(items, n)
+		}
+	}
+	if list == nil {
+		return "", nil, false
+	}
+	flatten(list)
+	if len(items) < 2 {
+		return "", nil, false
+	}
+	switch names, lit := literalNameList(items[1]); {
+	case lit && len(names) == 1:
+		module = names[0]
+	case len(items[1].Children) == 0 && isBarewordText(items[1].Text):
+		module = items[1].Text
+	default:
+		return "", nil, false
+	}
+	for _, n := range items[2:] {
+		if rest == nil {
+			rest = n
+			continue
+		}
+		rest = &Node{Kind: Binary, Text: ",", Start: rest.Start, End: n.End, Children: []*Node{rest, n}}
+	}
+	return module, rest, true
 }
 
 // quietPragmas are the core pragmas whose `import` defines no sub in the

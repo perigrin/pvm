@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -121,6 +122,42 @@ func TestPerlGitTRatchet(t *testing.T) {
 	checkRatchet(t, filepath.Join("testdata", "perlgitt.ratchet"),
 		"Unknown nodes per perl.git t/ file, through parse.ParseFileFrom.", now)
 }
+
+// TestPerlGitTUseIfPasses reads each file that uses `use if` the other way:
+// the ratchet takes every condition as failing, and here each holds, so the
+// import happens. A file is clean only if it is clean both ways (perigrin,
+// 2026-09-30); this names the ones that are not.
+func TestPerlGitTUseIfPasses(t *testing.T) {
+	dir, files := perlGitTFiles(t)
+	roots := perlGitTRoots(dir)
+	var dirty []string
+	checked := 0
+	for _, rel := range files {
+		if _, rejected := perlRejects[rel]; rejected {
+			continue
+		}
+		path := filepath.Join(dir, rel)
+		src, err := os.ReadFile(path)
+		if err != nil || !useIfLine.Match(src) {
+			continue
+		}
+		checked++
+		n, err := parse.ParseFileAssumingUseIf(path, true, roots...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := countUnknown(n); got != 0 {
+			dirty = append(dirty, fmt.Sprintf("%s: %d Unknown", rel, got))
+		}
+	}
+	if len(dirty) > 0 {
+		t.Errorf("clean with `use if` failing, not with it passing:\n  %s", strings.Join(dirty, "\n  "))
+	}
+	t.Logf("%d files use `use if`", checked)
+}
+
+// useIfLine finds a `use if` statement.
+var useIfLine = regexp.MustCompile(`(?m)^\s*use\s+if\b`)
 
 // perlRejects are the perl.git t/ files perl cannot compile, by design, with
 // the line perl reports the error on. For these a refusal is the right
