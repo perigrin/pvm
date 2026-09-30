@@ -189,7 +189,7 @@ func (p *parser) noteFeatures(verb, module string, list *Node) {
 			return
 		}
 		for _, name := range names {
-			if gatedUnary[name] || name == "keyword_any" || name == "keyword_all" || name == "class" || name == "defer" {
+			if gatedUnary[name] || name == "keyword_any" || name == "keyword_all" || name == "class" || name == "defer" || name == "isa" {
 				p.features[name] = verb == "use"
 			}
 			if name == "indirect" {
@@ -207,6 +207,8 @@ func (p *parser) noteFeatures(verb, module string, list *Node) {
 		// Foo;` is a syntax error on 5.42.0.
 		if ok && (major > 5 || major == 5 && minor >= 35) {
 			p.noIndirect = true
+			// And takes `isa` in: feature.pm's :5.36 bundle names it.
+			p.features["isa"] = true
 		}
 	}
 }

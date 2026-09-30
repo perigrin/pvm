@@ -51,7 +51,7 @@ func (p *parser) notePackage(name string) {
 // cannot see into has run, a refusal is still the honest answer.
 func (p *parser) parseIndirect(word lexer.Token, spelled, text string) *Node {
 	if p.noIndirect || isPerlKeyword(text) || p.keywordHere(text) ||
-		p.namedUnaryHere(spelled, text) || infix[text].BP > 0 || modifiers[text] {
+		p.namedUnaryHere(spelled, text) || p.operatorHere(text) || modifiers[text] {
 		return nil
 	}
 	next, ok := p.peekAfter(word)
@@ -80,7 +80,7 @@ func (p *parser) parseIndirect(word lexer.Token, spelled, text string) *Node {
 	}
 	class := p.text(next)
 	if isPerlKeyword(keywordName(class)) || p.keywordHere(keywordName(class)) ||
-		infix[class].BP > 0 || modifiers[class] {
+		p.operatorHere(class) || modifiers[class] {
 		return nil
 	}
 	if _, known := p.lookupSub(class); known {
@@ -128,20 +128,31 @@ func (p *parser) finishIndirect(word lexer.Token, spelled string, next lexer.Tok
 	return n
 }
 
-// classKeywords are the keywords the class feature gates. Without it each is
-// an ordinary word -- `method $obj` is `$obj->method` on 5.42.0 -- because
-// keywords.c's keyword() returns 0 for them unless FEATURE_CLASS_IS_ENABLED
-// (keywords.c:1145, 1217, 1549, 1715, 2927).
-var classKeywords = map[string]bool{
-	"class": true, "method": true, "field": true, "ADJUST": true, "__CLASS__": true,
+// gatedKeywords are keywords a feature gates, by the feature. Without it each
+// is an ordinary word -- `method $obj` is `$obj->method` and `isa
+// Local::Child('X')` is `'Local::Child'->isa('X')` on 5.42.0 -- because
+// keywords.c's keyword() returns 0 for them unless the feature is on
+// (keywords.c:1145, 1217, 1549, 1715, 2927 for class; 353 for isa).
+var gatedKeywords = map[string]string{
+	"class": "class", "method": "class", "field": "class", "ADJUST": "class", "__CLASS__": "class",
+	"isa": "isa",
 }
 
 // keywordHere reports whether word is a keyword at this point of the file:
 // toke.c reaches intuit_method only for a word that is not. `last TEST16` and
 // `require mro` are keywords, never a method on TEST16 or mro.
 func (p *parser) keywordHere(word string) bool {
-	if classKeywords[word] {
-		return p.features["class"]
+	if feature, gated := gatedKeywords[word]; gated {
+		return p.features[feature]
 	}
 	return lexer.IsKeyword(word)
+}
+
+// operatorHere reports whether word is an infix operator at this point:
+// `isa` is one only under its feature.
+func (p *parser) operatorHere(word string) bool {
+	if feature, gated := gatedKeywords[word]; gated {
+		return infix[word].BP > 0 && p.features[feature]
+	}
+	return infix[word].BP > 0
 }
