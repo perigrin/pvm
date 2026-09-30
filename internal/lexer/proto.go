@@ -327,3 +327,83 @@ func (l *lexer) lexSubInScope(name string) bool {
 	}
 	return false
 }
+
+// The states of noteConstSub.
+const (
+	constNone      = iota
+	constSawUse    // `use`
+	constSawPragma // `use constant`
+	constInHash    // `use constant {`
+	constSawSub    // `sub`
+	constSawName   // `sub NAME`, its name in constKey
+)
+
+// noteConstSub records a name declared with the empty prototype, which
+// perl's lexer sees in its symbol table: `use constant NAME`, each key of
+// `use constant { K => ... }`, and `sub NAME ()`. Measured on 5.42.0,
+// `prototype "main::X"` is "" for all three.
+func (l *lexer) noteConstSub(k Kind, start int) {
+	if k == Whitespace || k == Comment {
+		return
+	}
+	text := string(l.src[start:l.pos])
+	declare := func(name string) {
+		if l.constSubs == nil {
+			l.constSubs = map[string]bool{}
+		}
+		l.constSubs[name] = true
+	}
+	switch l.constState {
+	case constSawUse:
+		if k == Word && text == "constant" {
+			l.constState = constSawPragma
+			return
+		}
+	case constSawPragma:
+		switch {
+		case k == Word:
+			declare(text)
+		case k == Quote && len(text) >= 2 && (text[0] == '\'' || text[0] == '"'):
+			declare(text[1 : len(text)-1])
+		case text == "{":
+			l.constState, l.constDepth, l.constKey = constInHash, 1, ""
+			return
+		}
+	case constInHash:
+		switch {
+		case text == "{" || text == "[" || text == "(":
+			l.constDepth++
+		case k == CloseBracket:
+			if l.constDepth--; l.constDepth == 0 {
+				l.constState = constNone
+			}
+		case l.constDepth == 1 && text == "=>" && l.constKey != "":
+			declare(l.constKey)
+		case l.constDepth == 1 && k == Word:
+			l.constKey = text
+			return
+		case l.constDepth == 1 && k == Quote && len(text) >= 2 && (text[0] == '\'' || text[0] == '"'):
+			l.constKey = text[1 : len(text)-1]
+			return
+		}
+		l.constKey = ""
+		return
+	case constSawSub:
+		if k == Word {
+			l.constState, l.constKey = constSawName, text
+			return
+		}
+	case constSawName:
+		if k == Prototype && text == "()" {
+			declare(l.constKey)
+		}
+	}
+	switch {
+	case k == Word && text == "use":
+		l.constState = constSawUse
+	case k == Word && text == "sub":
+		l.constState = constSawSub
+	default:
+		l.constState = constNone
+	}
+}

@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 745 clean (75.6%), 1262 total.
+# 986 files, 746 clean (75.7%), 1260 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -117,7 +117,7 @@
 0 config_encode_probes.t
 0 config_fork_capability.t
 2 config_startperl_exec.t
-2 constant.t
+0 constant.t
 0 constant_mro_generation.t
 0 constant_stash_proxy.t
 8 context.t

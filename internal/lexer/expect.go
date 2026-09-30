@@ -110,6 +110,9 @@ type transition struct {
 	// nextIsOpenBrace is whether a `{` follows, ignoring whitespace. perl
 	// looks ahead exactly this far at a `)`; see yyl_rightparen.
 	nextIsOpenBrace bool
+	// declaredNiladic is set on a Word declared with the empty prototype:
+	// see lexer.constSubs.
+	declaredNiladic bool
 	// afterDeclName is set on the NAME of a `sub NAME` or `package NAME`,
 	// after which a block is expected rather than a term.
 	afterDeclName bool
@@ -241,7 +244,7 @@ func (e Expect) after(k Kind, t transition) Expect {
 		//
 		// The slash opened a pattern that ran to end of input. See keyword.go
 		// for how the 21 niladic keywords were measured.
-		if isNiladic(string(t.text)) {
+		if isNiladic(string(t.text)) || t.declaredNiladic {
 			return XOperator
 		}
 		// A PHASER's brace is always a block, never a hash, so the word

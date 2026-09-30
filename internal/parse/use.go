@@ -246,6 +246,10 @@ func (p *parser) resolveImports(module string, list *Node) {
 		p.importBuiltins(list)
 		return
 	}
+	if module == "constant" {
+		p.importConstants(list)
+		return
+	}
 	if p.res == nil {
 		return
 	}
@@ -328,6 +332,63 @@ func (p *parser) resolveImports(module string, list *Node) {
 	}
 }
 
+// listItems flattens a `use` list -- commas, fat commas and parens -- into
+// its elements.
+func listItems(n *Node) []*Node {
+	if n.Kind == Binary && (n.Text == "," || n.Text == "=>") || n.Kind == List {
+		var items []*Node
+		for _, c := range n.Children {
+			items = append(items, listItems(c)...)
+		}
+		return items
+	}
+	return []*Node{n}
+}
+
+// importConstants is `use constant`. constant.pm defines each name in the
+// caller as a sub with the empty prototype -- measured on 5.42.0,
+// `prototype "main::X"` is "" for `use constant X => 2`, for a hash of them
+// and for a list constant -- so `Y / X` divides. There is no module text to
+// read, as there is none for `use builtin`, so this holds with no loader.
+// The first element names one constant, or a `{...}` names one per key.
+func (p *parser) importConstants(list *Node) {
+	if list == nil {
+		return
+	}
+	items := listItems(list)
+	var names []string
+	if first := items[0]; first.Kind == AnonHash {
+		for _, c := range first.Children {
+			for i, kv := range listItems(c) {
+				if i%2 == 0 {
+					if got, ok := constantName(kv); ok {
+						names = append(names, got)
+					}
+				}
+			}
+		}
+	} else if got, ok := constantName(first); ok {
+		names = append(names, got)
+	}
+	if p.imports == nil {
+		p.imports = map[string]Import{}
+	}
+	for _, name := range names {
+		p.imports[subKey(name)] = Import{Name: name, Prototype: "()", PrototypeKnown: true}
+	}
+}
+
+// constantName reads a constant's name: a bareword or a literal string.
+func constantName(n *Node) (string, bool) {
+	if got, ok := literalNameList(n); ok && len(got) == 1 {
+		return got[0], true
+	}
+	if len(n.Children) == 0 && isBarewordText(n.Text) {
+		return n.Text, true
+	}
+	return "", false
+}
+
 // builderImportList reads a Test::Builder::Module subclass's import list as
 // its import does (perl 5.42.0's Test/Builder/Module.pm:75-122): the names
 // under each `import => [...]` are imported, and everything else is handed to
@@ -337,18 +398,7 @@ func builderImportList(list *Node) (names []string, given, ok bool) {
 	if list == nil {
 		return nil, false, true
 	}
-	var items []*Node
-	var flatten func(*Node)
-	flatten = func(n *Node) {
-		if n.Kind == Binary && (n.Text == "," || n.Text == "=>") || n.Kind == List {
-			for _, c := range n.Children {
-				flatten(c)
-			}
-			return
-		}
-		items = append(items, n)
-	}
-	flatten(list)
+	items := listItems(list)
 	for i := 0; i < len(items); i++ {
 		key, lit := literalNameList(items[i])
 		if !(lit && len(key) == 1 && key[0] == "import") && items[i].Text != "import" {
@@ -373,26 +423,10 @@ func builderImportList(list *Node) (names []string, given, ok bool) {
 // useIfTarget splits `use if`'s list into the module it loads and that
 // module's own import list, which is nil when none is given.
 func useIfTarget(list *Node) (module string, rest *Node, ok bool) {
-	var items []*Node
-	var flatten func(*Node)
-	flatten = func(n *Node) {
-		switch {
-		case n.Kind == Binary && (n.Text == "," || n.Text == "=>"):
-			for _, c := range n.Children {
-				flatten(c)
-			}
-		case n.Kind == List:
-			for _, c := range n.Children {
-				flatten(c)
-			}
-		default:
-			items = append(items, n)
-		}
-	}
 	if list == nil {
 		return "", nil, false
 	}
-	flatten(list)
+	items := listItems(list)
 	if len(items) < 2 {
 		return "", nil, false
 	}

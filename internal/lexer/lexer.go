@@ -333,6 +333,17 @@ type lexer struct {
 	pendingFormat bool
 	// inFormat is set when the picture body should be taken next.
 	inFormat bool
+	// constSubs are the names declared with the empty prototype -- `use
+	// constant NAME`, the keys of `use constant {...}`, `sub NAME () {...}`.
+	// A value has been produced after one, so an operator follows, as perl's
+	// lexer decides from the symbol table. constState and the rest track the
+	// declaration being read; see noteConstSub.
+	//
+	// ponytail: one table for the file; perl scopes these to a package.
+	constSubs  map[string]bool
+	constState int
+	constDepth int
+	constKey   string
 }
 
 // step runs one scan and enforces spec §7.6.2 invariant 4: every step
@@ -514,6 +525,7 @@ func (l *lexer) emit(k Kind, start int) {
 		closedBlock:     l.closedBlock,
 		nextIsOpenBrace: l.peekIsOpenBrace(),
 		afterDeclName:   afterDeclName,
+		declaredNiladic: k == Word && l.constSubs[string(l.src[start:l.pos])],
 		// Only a WORD can need the lookahead, or the `(` of a block-taking
 		// word's parenthesised call. Every other token would pay a byte scan
 		// for an answer nothing reads. Which word it is does not narrow this:
@@ -534,6 +546,7 @@ func (l *lexer) emit(k Kind, start int) {
 		l.expect = XTerm
 	}
 	l.noteFormat(k, start)
+	l.noteConstSub(k, start)
 	// The picture body begins after the newline that ends the declaration.
 	if l.pendingFormat && k == Whitespace && l.pos > start &&
 		bytesContainNewline(l.src[start:l.pos]) {
