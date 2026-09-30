@@ -105,6 +105,19 @@ func (lv *LazyValue[T]) Load(ctx context.Context) (T, error) {
 	lv.mu.Lock()
 	defer lv.mu.Unlock()
 
+	// Another goroutine may have started loading between the read lock's
+	// release and this one's acquisition; it runs loadFunc with the lock
+	// released, so wait for it rather than loading a second time.
+	for lv.loading {
+		select {
+		case <-ctx.Done():
+			var zero T
+			return zero, ctx.Err()
+		default:
+			lv.loadCond.Wait()
+		}
+	}
+
 	// Double-check after acquiring write lock
 	if lv.loaded &&
 		(lv.ttl == 0 || time.Since(lv.lastLoad) <= lv.ttl) &&
