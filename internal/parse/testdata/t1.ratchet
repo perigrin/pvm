@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 741 clean (75.2%), 1273 total.
+# 986 files, 742 clean (75.3%), 1268 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -137,7 +137,7 @@
 0 core_operator_source_position.t
 1 core_qualified_builtin_prototype.t
 0 core_qualified_control_flow.t
-5 core_qualified_infix.t
+0 core_qualified_infix.t
 1 core_subroutine_refs.t
 2 cpan_bundled_io_shadowing.t
 3 cpan_bundled_providers.t
