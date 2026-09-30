@@ -39,8 +39,30 @@ func (p *parser) parseControlFlow(word lexer.Token) *Node {
 		return p.parseSwitch(word)
 	case "try":
 		return p.parseTry(word)
+	case "defer":
+		if p.features["defer"] {
+			return p.parseDefer(word)
+		}
 	}
 	return nil
+}
+
+// parseDefer: `defer BLOCK`, feature 'defer'. A statement form like `try`,
+// ending at its block: measured on 5.42.0, `{ defer { ... } { ... } }`
+// deparses as a defer and a bare block, siblings. Read as a word taking a
+// block, the second block became an anonymous-hash argument. Shaped as
+// parseTry shapes `try`, a Conditional named by its keyword.
+func (p *parser) parseDefer(word lexer.Token) *Node {
+	if next, ok := p.peekAfter(word); !ok || p.text(next) != "{" {
+		return nil
+	}
+	p.advanceTo(word)
+	n := &Node{Kind: Conditional, Text: p.text(word), Start: word.Start}
+	if blk := p.parseBlockOrDecline(); blk != nil {
+		n.Children = append(n.Children, blk)
+	}
+	n.End = p.prevEnd()
+	return n
 }
 
 // parseTry: `try BLOCK catch (VAR) BLOCK [finally BLOCK]`, feature 'try'.

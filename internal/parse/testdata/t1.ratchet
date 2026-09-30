@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 746 clean (75.7%), 1260 total.
+# 986 files, 747 clean (75.8%), 1259 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -210,7 +210,7 @@
 12 dbic_deep_cycle_weak_shift_regression.t
 5 dbic_quiet_registry_destroy_handoff_regression.t
 0 default_feature_bundle.t
-1 defer.t
+0 defer.t
 0 defer_implicit_return_cleanup.t
 0 defined_cached_code_ref.t
 0 defined_dynamic_code.t

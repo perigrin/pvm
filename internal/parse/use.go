@@ -189,7 +189,7 @@ func (p *parser) noteFeatures(verb, module string, list *Node) {
 			return
 		}
 		for _, name := range names {
-			if gatedUnary[name] || name == "keyword_any" || name == "keyword_all" || name == "class" {
+			if gatedUnary[name] || name == "keyword_any" || name == "keyword_all" || name == "class" || name == "defer" {
 				p.features[name] = verb == "use"
 			}
 			if name == "indirect" {
