@@ -349,7 +349,10 @@ func TestPostfixDerefStillLexes(t *testing.T) {
 		{`$r->%*`, Variable},
 		{`$r->$*`, Variable},
 		{`$r->$m`, Variable},
-		{`$r->&*`, FuncSigil},
+		// `&*` and `**` are whole dereferences, like `@*`: see
+		// TestPostDerefCodeAndGlob.
+		{`$r->&*`, Variable},
+		{`$r->**`, Variable},
 	} {
 		// The token AT the sigil, not the first of its kind: `$r` is a
 		// Variable too, and spanOfKind would return that one.

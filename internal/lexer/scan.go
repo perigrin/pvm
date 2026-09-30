@@ -1150,3 +1150,20 @@ func scanBarePattern(l *lexer) bool {
 	l.queueCodeBlockHeredocs(start+1, patEnd)
 	return true
 }
+
+// scanPostDerefStar lexes `&*` and `**` after `->` as the whole postfix
+// dereference they are, one Variable each, as `->@*` is: `$r->&*` is `&$r`
+// and `$r->**` is `*$r`, measured on 5.42.0. Elsewhere `&` is the function
+// sigil and `**` is exponentiation.
+func scanPostDerefStar(l *lexer) bool {
+	if l.expect != XPostDeref || l.pos+1 >= len(l.src) || l.src[l.pos+1] != '*' {
+		return false
+	}
+	if c := l.src[l.pos]; c != '&' && c != '*' {
+		return false
+	}
+	start := l.pos
+	l.pos += 2
+	l.emit(Variable, start)
+	return true
+}

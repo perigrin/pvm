@@ -421,6 +421,7 @@ func scanOne(l *lexer) {
 		// variables, and scanVariable is what was reading `($$)` as
 		// Variable("$$)") -- closing paren included.
 		scanPrototype,
+		scanPostDerefStar,
 		scanVariable,
 		scanAngle,
 		scanAmp,
