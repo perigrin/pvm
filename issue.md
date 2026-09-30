@@ -1,10 +1,19 @@
 ---
 title: "`use Test::More tests => 9` imports nothing: the plan list is read as names"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-30T16:29:04.338119751Z
-updated: 2026-09-30T16:29:04.338119751Z
+updated: 2026-09-30T16:29:05.325303549Z
+sessions:
+- start_sha: 2149d9471a9dd509899efbe7860716bf6b6daeeb
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-30T16:29:05.325303549Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-30T16:29:05.325303549Z
 ---
 
 `use Test::More tests => 9;` imports nothing. The import reader takes `tests => 9` for a computed name list and gives up, so `is` and `ok` are unknown and every parenless call refuses. Test::More's import is Test::Builder::Module's (perl 5.42's Test/Builder/Module.pm:75-122):
