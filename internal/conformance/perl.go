@@ -72,6 +72,13 @@ func perlPath() (string, error) {
 	return perlFound, perlErr
 }
 
+// PerlPath is perlPath for other packages' tests: the T1 parse ratchet
+// resolves modules from this perl's @INC, and it must be the same perl the
+// corpus is measured against.
+func PerlPath() (string, error) {
+	return perlPath()
+}
+
 // findPerl returns the first candidate that IS the measured version.
 //
 // Checking the version rather than merely finding an executable is the

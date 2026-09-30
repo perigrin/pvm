@@ -7,12 +7,14 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"testing"
 
+	"tamarou.com/pvm/internal/conformance"
 	"tamarou.com/pvm/internal/parse"
 )
 
@@ -134,20 +136,43 @@ func countUnknown(n *parse.Node) int {
 // every rise must be measured in BYTES before the baseline is regenerated,
 // and the finding recorded in the commit. A rise nobody explained is a
 // regression; a rise with a byte count beside it is evidence.
+//
+// Each file is parsed as perl compiles it, with its `use` statements
+// resolved: through a loader rooted at the file's own directory and at the
+// @INC of the perl the corpus is measured against (perigrin, 2026-09-30).
+// Without one, every file that calls Test::More's `is` or `ok` without
+// parentheses refused on a name perl knows -- about 200 files of T1.
 func TestParseRatchet(t *testing.T) {
 	dir, files := t1Files(t)
+	roots := t1Roots(t)
 
 	now := make(map[string]int, len(files))
 	for _, rel := range files {
-		src, err := os.ReadFile(filepath.Join(dir, rel))
+		n, err := parse.ParseFileFrom(filepath.Join(dir, rel), roots...)
 		if err != nil {
 			continue
 		}
-		now[rel] = countUnknown(parse.Parse(src))
+		now[rel] = countUnknown(n)
 	}
 
 	checkRatchet(t, filepath.Join("testdata", "t1.ratchet"),
-		"Unknown nodes per T1 file, as parse.Parse produces them.\n"+t1CorpusNote, now)
+		"Unknown nodes per T1 file, through parse.ParseFileFrom with perl 5.42's @INC.\n"+t1CorpusNote, now)
+}
+
+// t1Roots is the @INC of the perl the corpus is measured against: where it
+// finds the modules a T1 file uses. Skips when that perl is not installed,
+// as t1Files skips when the corpus is not.
+func t1Roots(t *testing.T) []string {
+	t.Helper()
+	perl, err := conformance.PerlPath()
+	if err != nil {
+		t.Skipf("no perl 5.42 to resolve T1's modules from: %v", err)
+	}
+	out, err := exec.Command(perl, "-e", `print "$_\n" for grep { !ref && -d } @INC`).Output()
+	if err != nil {
+		t.Skipf("asking %s for @INC: %v", perl, err)
+	}
+	return strings.Fields(string(out))
 }
 
 // TestParsedFilesRoundTrip is the M1 gate's round-trip metric: everything
