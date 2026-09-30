@@ -1,19 +1,28 @@
 ---
 title: "`isa Local::Child(...)` refuses: isa is an operator even without its feature"
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-30T18:13:36.275883211Z
-updated: 2026-09-30T18:13:38.399245594Z
+updated: 2026-09-30T18:20:23.239976808Z
 sessions:
 - start_sha: 089821909379f1e6551fefc022bf8887661d4cf4
-  end_sha: ""
-  commits: 0
+  end_sha: 1a15ffd68adb98185d45dc93c6585a6cc8a8b33e
+  commits: 1
   started_at: 2026-09-30T18:13:38.399245594Z
+  ended_at: 2026-09-30T18:20:23.239976808Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-30T18:13:38.399245594Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-30T18:20:23.239976808Z
+observed_paths:
+- internal/parse/indirect.go
+- internal/parse/isaindirect_test.go
+- internal/parse/testdata/t1.ratchet
+- internal/parse/use.go
 ---
 
 `ok(isa Local::Child('Local::Child'), ...)` refuses. `isa` is in the infix table unconditionally, so parseIndirect never reads it as a method. keywords.c:353 returns KEY_isa only under FEATURE_ISA_IS_ENABLED, and without that feature `isa` is an ordinary word.
