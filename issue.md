@@ -1,10 +1,19 @@
 ---
 title: "`opt_five | opt_three` refuses: `|` does not end a sub's arguments"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-30T18:03:39.216391287Z
-updated: 2026-09-30T18:03:39.216391287Z
+updated: 2026-09-30T18:03:40.58447572Z
+sessions:
+- start_sha: 826a07cd41c07a965caad08affb84b6b9cce9f0f
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-30T18:03:40.58447572Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-30T18:03:40.58447572Z
 ---
 
 `opt_five | opt_three` refuses. `|` is not in the operators that end a sub's argument list, so the parser tries to read it as the start of an argument.
