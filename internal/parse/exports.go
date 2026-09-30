@@ -77,6 +77,9 @@ type moduleFacts struct {
 	// defines is known to perl and not to this parser. See symbolsOpen.
 	dynamic bool
 
+	// tags are %EXPORT_TAGS, where its lists are literal: tag to names.
+	tags map[string][]string
+
 	// builder marks a Test::Builder::Module subclass, whose import list is
 	// plan arguments plus `import => [...]`; see builderImportList.
 	builder bool
@@ -204,11 +207,20 @@ func readExportAssignment(n *Node, facts *moduleFacts) {
 	array := n.Children[0].Text
 	switch array {
 	case "@EXPORT", "@EXPORT_OK":
+	case "%EXPORT_TAGS":
+		readExportTags(n.Children[1], facts)
+		return
 	default:
 		return
 	}
 
 	names, ok := literalNameList(n.Children[1])
+	if !ok {
+		// A list built from the module's own tags is as literal as the
+		// tags: `@EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } )` in perl 5.42.0's
+		// Hash/Util/FieldHash.pm.
+		names, ok = tagBuiltList(n.Children[1], facts.tags)
+	}
 	if !ok {
 		// Computed, so nothing about this module is trustworthy.
 		facts.opaque = true
@@ -218,6 +230,73 @@ func readExportAssignment(n *Node, facts *moduleFacts) {
 	if array == "@EXPORT" {
 		facts.defaults = append(facts.defaults, names...)
 	}
+}
+
+// readExportTags reads `%EXPORT_TAGS = ( tag => [ names ], ... )`, keeping
+// each tag whose list is literal.
+func readExportTags(n *Node, facts *moduleFacts) {
+	items := listItems(n)
+	for i := 0; i+1 < len(items); i += 2 {
+		key, ok := constantName(items[i])
+		if !ok || items[i+1].Kind != AnonArray {
+			continue
+		}
+		var names []string
+		literal := true
+		for _, c := range items[i+1].Children {
+			got, ok := literalNameList(c)
+			if !ok {
+				literal = false
+				break
+			}
+			names = append(names, got...)
+		}
+		if literal {
+			if facts.tags == nil {
+				facts.tags = map[string][]string{}
+			}
+			facts.tags[key] = names
+		}
+	}
+}
+
+// tagBuiltList reads an export list whose elements are literal names or
+// `@{ $EXPORT_TAGS{tag} }` of a tag already read.
+func tagBuiltList(n *Node, tags map[string][]string) ([]string, bool) {
+	var out []string
+	for _, item := range listItems(n) {
+		if got, ok := literalNameList(item); ok {
+			out = append(out, got...)
+			continue
+		}
+		if item.Kind != Unary || item.Text != "@" || len(item.Children) != 1 {
+			return nil, false
+		}
+		idx := item.Children[0]
+		if idx.Kind != Index || len(idx.Children) != 2 || idx.Children[0].Text != "$EXPORT_TAGS" {
+			return nil, false
+		}
+		key, ok := constantName(idx.Children[1])
+		names, known := tags[key]
+		if !ok || !known {
+			return nil, false
+		}
+		out = append(out, names...)
+	}
+	return out, true
+}
+
+// unknownTag reports whether an import list names a `:tag` the module's
+// tags do not hold -- what it imports is then not known.
+func unknownTag(facts moduleFacts, list []string) bool {
+	for _, name := range list {
+		if tag, ok := strings.CutPrefix(name, ":"); ok && tag != "DEFAULT" {
+			if _, known := facts.tags[tag]; !known {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // literalNameList reads a `qw(...)` or a list of quoted strings, and reports
@@ -332,9 +411,9 @@ func importsFrom(facts moduleFacts, list []string, listGiven bool) []Import {
 
 	// A bare `use` imports @EXPORT only -- measured on 5.42.0, an
 	// @EXPORT_OK name is not defined after it. In a list, `:DEFAULT` names
-	// @EXPORT; another tag is %EXPORT_TAGS, which is not read, and a `!` or
-	// `/pattern/` entry is a negation or a match, so each contributes
-	// nothing rather than a false name.
+	// @EXPORT and another `:tag` names its %EXPORT_TAGS list; a tag not read
+	// (see unknownTag), and a `!` or `/pattern/` entry -- a negation or a
+	// match -- contribute nothing rather than a false name.
 	wanted := facts.defaults
 	if listGiven {
 		wanted = nil
@@ -342,7 +421,9 @@ func importsFrom(facts moduleFacts, list []string, listGiven bool) []Import {
 			switch {
 			case name == ":DEFAULT":
 				wanted = append(wanted, facts.defaults...)
-			case strings.HasPrefix(name, ":") || strings.HasPrefix(name, "!") || strings.HasPrefix(name, "/"):
+			case strings.HasPrefix(name, ":"):
+				wanted = append(wanted, facts.tags[strings.TrimPrefix(name, ":")]...)
+			case strings.HasPrefix(name, "!") || strings.HasPrefix(name, "/"):
 			default:
 				wanted = append(wanted, strings.TrimPrefix(name, "&"))
 			}

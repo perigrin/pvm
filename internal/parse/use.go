@@ -329,6 +329,12 @@ func (p *parser) resolveImports(module string, list *Node) {
 	if p.imports == nil {
 		p.imports = map[string]Import{}
 	}
+	// A quiet pragma's list is its arguments, not names -- `use open qw(
+	// :utf8 :std )` names layers -- so only another module's unread tag
+	// leaves the table incomplete.
+	if listGiven && !quietPragmas[module] && unknownTag(facts, names) {
+		p.symbolsOpen = true
+	}
 	for _, imp := range importsFrom(facts, names, listGiven) {
 		p.imports[subKey(imp.Name)] = imp
 	}
