@@ -1,10 +1,19 @@
 ---
 title: "An exported sub built out of sight refuses: assume it has no prototype"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-30T00:34:50.695819919Z
-updated: 2026-09-30T00:34:50.695819919Z
+updated: 2026-09-30T00:34:51.422167754Z
+sessions:
+- start_sha: f59ce40ba15896278e591b95e50c273f2a36ebfe
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-30T00:34:51.422167754Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-30T00:34:51.422167754Z
 ---
 
 A name a module exports but never declares is imported with its prototype unknown, so every parenless call to it refuses. perl.git t/op/chdir.t:188, `$ENV{$key} = catdir $Cwd, 'op';`: File::Spec::Functions lists catdir in @EXPORT and builds it with `*{$meth} = ...` in a loop over @EXPORT. perl 5.42 reports `prototype "main::catdir"` as undef, so the call is `catdir($Cwd, 'op')`.
