@@ -27,6 +27,16 @@ func TestInterpolationHeredoc(t *testing.T) {
 	if len(bodies) != 2 || bodies[0] != "HERE\nEOT\n" || bodies[1] != "body\nE2\n" {
 		t.Errorf("heredoc bodies %q, want [\"HERE\\nEOT\\n\" \"body\\nE2\\n\"]", bodies)
 	}
+	// The string, not the block, is the construct whose next line holds the
+	// body: `"@{[ <<E1 ]}foo\nE1\n"` prints "[foo\n]", measured on 5.42.0.
+	// PerlOnJava unit/nested_heredoc.t:7-9.
+	multi := "my $v1 = \"@{[ <<E1 ]}foo\nE1\n\";\nprint 1;\n"
+	if tok, ok := firstOfKind(multi, HeredocBody); ok {
+		t.Errorf("%q: HeredocBody %q; the body is inside the string", multi, multi[tok.Start:tok.End])
+	}
+	if _, ok := firstOfKind(multi, UnknownRest); ok {
+		t.Errorf("%q: UnknownRest; the body is inside the string", multi)
+	}
 	if _, ok := firstOfKind("my $s = \"a \\${ <<E } b\";\nprint 1;\n", HeredocBody); ok {
 		t.Errorf("an escaped `\\${` opened a heredoc")
 	}

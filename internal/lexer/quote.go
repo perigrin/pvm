@@ -338,7 +338,7 @@ func (l *lexer) queueBlockHeredocs(start, end int, openers []string) {
 				break
 			}
 		}
-		l.queueHeredocsIn(open+1, j)
+		l.queueHeredocsWithin(open+1, j, end)
 		i = j
 	}
 }
@@ -360,10 +360,24 @@ func hasModifier(mods []byte, c byte) bool {
 // A sub-lexer over the replacement's bytes: it shares nothing with the outer
 // cursor, and only the pending queue crosses back.
 func (l *lexer) queueHeredocsIn(start, end int) {
+	l.queueHeredocsWithin(start, end, end)
+}
+
+// queueHeredocsWithin is queueHeredocsIn for code that sits inside a larger
+// construct: openers are looked for in [start, blockEnd), but a body is
+// taken from the construct's next line up to constructEnd. perl's
+// scan_heredoc looks in the construct's buffer (toke.c:11735), and the
+// construct is the whole string or pattern: `"@{[ <<E1 ]}foo\nE1\n"` takes
+// `E1\n` from the string, measured on 5.42.0.
+func (l *lexer) queueHeredocsWithin(start, blockEnd, constructEnd int) {
+	end := constructEnd
 	sub := &lexer{src: l.src[:end], pos: start, expect: XTerm}
 	for sub.pos < end {
+		if sub.pos >= blockEnd && len(sub.pending) == 0 {
+			break
+		}
 		before := sub.pos
-		if scanHeredocOpen(sub) {
+		if sub.pos < blockEnd && scanHeredocOpen(sub) {
 			continue
 		}
 		// A newline inside the replacement: the bodies queued so far are
