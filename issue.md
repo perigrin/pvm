@@ -1,19 +1,27 @@
 ---
 title: "`\"x @{[ <<EOT ]} x\"` lexes its heredoc body as code"
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-30T18:39:35.353388254Z
-updated: 2026-09-30T18:39:36.594742915Z
+updated: 2026-09-30T18:45:50.234735181Z
 sessions:
 - start_sha: fed0bab5ed153c134139df0f67090f36146d3ffc
-  end_sha: ""
-  commits: 0
+  end_sha: 51b72146eadb4ff692d269aa362884d9b3c8c7c2
+  commits: 1
   started_at: 2026-09-30T18:39:36.594742915Z
+  ended_at: 2026-09-30T18:45:50.234735181Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-30T18:39:36.594742915Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-30T18:45:50.234735181Z
+observed_paths:
+- internal/lexer/interpheredoc_test.go
+- internal/lexer/quote.go
+- internal/lexer/scan.go
 ---
 
 `my $text = "x @{[ <<'EOT' ]} x";` lexes its heredoc body (`HERE\nEOT\n`) as code. perl lexes a double-quoted string's `@{...}` and `${...}` blocks as Perl, and a heredoc opened there on a single line takes its body from the lines after the statement, like one in a pattern's `(?{...})`, which is already handled.
