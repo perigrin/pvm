@@ -1,10 +1,19 @@
 ---
 title: "Core XS shapes are invisible to T1: read .xs from the perl.git checkout"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-30T21:55:19.017136126Z
-updated: 2026-09-30T21:55:19.017136126Z
+updated: 2026-09-30T21:55:21.511706334Z
+sessions:
+- start_sha: 0bc0f3fb5263c6cd3ab48bfb5280a344d6171f9d
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-30T21:55:21.511706334Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-30T21:55:21.511706334Z
 ---
 
 An installed perl ships no .xs files, so with perl 5.42's @INC as T1's loader, XS subs have no visible shape. Storable's `dclone` is `$` only in dist/Storable/Storable.xs. perigrin decided (2026-09-30) to read core modules' .xs from the perl.git checkout: T1's roots gain its dist/, cpan/ and ext/ after @INC.
