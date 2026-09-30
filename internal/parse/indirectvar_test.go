@@ -165,3 +165,28 @@ func TestUseIfImportFails(t *testing.T) {
 		t.Errorf("%q: want `$dir->catfile` with no arguments; got %s", src, shape(root))
 	}
 }
+
+// TestVariableGlobKeepsTableComplete: a computed glob assigned a reference
+// to a scalar, array or hash defines a variable, not a sub -- perl 5.42.0's
+// Test/More.pm:210 exports $TODO with `*{"$to\::TODO"} = \our $TODO;` -- so
+// it leaves the sub table as complete as it was. A code reference or an
+// anonymous sub may define anything and still does not. PerlOnJava
+// unit/compress_raw_bzip2.t:29, `new Compress::Raw::Bunzip2(1, 1)` after
+// `use Test::More`.
+func TestVariableGlobKeepsTableComplete(t *testing.T) {
+	lib := t.TempDir()
+	write := func(name, body string) {
+		if err := os.WriteFile(filepath.Join(lib, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("VarGlob.pm", "package VarGlob;\nsub mark { my $to = caller; *{\"$to\\::TODO\"} = \\our $TODO; }\n1;\n")
+	write("CodeGlob.pm", "package CodeGlob;\nsub mark { my $to = caller; *{\"$to\\::f\"} = sub { 1 }; }\n1;\n")
+	load := parse.DirLoader(lib)
+	if indirectCall(parse.ParseWithLoader([]byte("use VarGlob; my ($b) = new Some::Class(1);"), load), "new") == nil {
+		t.Errorf("a scalar glob left the table incomplete")
+	}
+	if indirectCall(parse.ParseWithLoader([]byte("use CodeGlob; my $f; s2 $f;"), load), "s2") != nil {
+		t.Errorf("a code glob left the table complete")
+	}
+}

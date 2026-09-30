@@ -271,6 +271,12 @@ func (p *parser) resolveImports(module string, list *Node) {
 	}
 	p.noteImportKnowledge(module, list, facts.dynamic || facts.opaque)
 
+	// The packages its XS declares exist once it loads: `new
+	// Compress::Raw::Bunzip2(1, 1)` is a method call on one.
+	for _, pkg := range facts.packages {
+		p.notePackage(pkg)
+	}
+
 	// The module's own subs are callable by their qualified names whatever
 	// it exports: after `use overload;`, `overload::constant 'integer' =>
 	// sub {...}` calls lib/overload.pm's `sub constant`. Recorded before the

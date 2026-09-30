@@ -162,6 +162,12 @@ func TestParseRatchet(t *testing.T) {
 // t1Roots is the @INC of the perl the corpus is measured against: where it
 // finds the modules a T1 file uses. Skips when that perl is not installed,
 // as t1Files skips when the corpus is not.
+//
+// An installed perl ships no .xs, so the perl.git checkout's dist/, cpan/
+// and ext/ follow, when it is present, for a core module's XS source:
+// Storable's `dclone` is `$` only in dist/Storable/Storable.xs (perigrin,
+// 2026-09-30). Being after @INC, they are reached for a module's .pm only
+// when perl 5.42 does not have it.
 func t1Roots(t *testing.T) []string {
 	t.Helper()
 	perl, err := conformance.PerlPath()
@@ -172,7 +178,21 @@ func t1Roots(t *testing.T) []string {
 	if err != nil {
 		t.Skipf("asking %s for @INC: %v", perl, err)
 	}
-	return strings.Fields(string(out))
+	roots := strings.Fields(string(out))
+	if root := perl5Root(); root != "" {
+		for _, tree := range []string{"dist", "cpan", "ext"} {
+			if dir := filepath.Join(root, tree); isDir(dir) {
+				roots = append(roots, dir)
+			}
+		}
+	}
+	return roots
+}
+
+// isDir reports whether path names a directory.
+func isDir(path string) bool {
+	fi, err := os.Stat(path)
+	return err == nil && fi.IsDir()
 }
 
 // TestParsedFilesRoundTrip is the M1 gate's round-trip metric: everything

@@ -77,6 +77,11 @@ type moduleFacts struct {
 	// defines is known to perl and not to this parser. See symbolsOpen.
 	dynamic bool
 
+	// packages are the packages the module's XS declares beyond its own --
+	// Compress::Raw::Bzip2's Bzip2.xs declares Compress::Raw::Bunzip2 -- which
+	// exist once it loads.
+	packages []string
+
 	// tags are %EXPORT_TAGS, where its lists are literal: tag to names.
 	tags map[string][]string
 
@@ -116,6 +121,19 @@ func readModule(root *Node) moduleFacts {
 	}
 	readDynamic(root, &facts)
 	return facts
+}
+
+// isVariableRef reports whether n is a reference to a scalar, array or hash:
+// `\$x`, `\@x`, `\our $TODO`.
+func isVariableRef(n *Node) bool {
+	if n.Kind != Unary || n.Text != "ref" || len(n.Children) != 1 {
+		return false
+	}
+	target := n.Children[0]
+	if target.Kind == Declaration && len(target.Children) == 1 {
+		target = target.Children[0]
+	}
+	return target.Kind == Term && target.Text != "" && strings.ContainsRune("$@%", rune(target.Text[0]))
 }
 
 // xsLoaders are the calls that load a module's C code.
@@ -167,7 +185,11 @@ func readDynamic(n *Node, facts *moduleFacts) {
 	case n.Kind == Binary && n.Text == "=" && len(n.Children) == 2 &&
 		n.Children[0].Kind == Term && strings.HasPrefix(n.Children[0].Text, "*"):
 		if glob := n.Children[0]; glob.Text == "*" {
-			facts.dynamic = true
+			// A variable's reference defines a variable, not a sub: Test/
+			// More.pm:210 exports $TODO this way. Anything else may be code.
+			if !isVariableRef(n.Children[1]) {
+				facts.dynamic = true
+			}
 		} else {
 			facts.globs = append(facts.globs, strings.TrimPrefix(glob.Text, "*"))
 		}

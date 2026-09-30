@@ -6,6 +6,7 @@ package parse
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -244,6 +245,10 @@ func (r *resolver) resolve(module string) (moduleFacts, bool) {
 	// A sub the module declares in Perl keeps that declaration's prototype.
 	if xs, ok := r.load(module + ".xs"); ok {
 		for name, proto := range XSSubs(xs) {
+			if i := strings.LastIndex(name, "::"); i > 0 && name[:i] != module &&
+				!slices.Contains(facts.packages, name[:i]) {
+				facts.packages = append(facts.packages, name[:i])
+			}
 			name = strings.TrimPrefix(name, module+"::")
 			if _, declared := facts.protos[name]; !declared {
 				facts.protos[name] = proto

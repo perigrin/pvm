@@ -122,3 +122,31 @@ func TestXSModuleLoads(t *testing.T) {
 		t.Errorf("dump_it imported as %+v, want prototype ($;$) known", imp)
 	}
 }
+
+// TestXSPackageIsKnown: a PACKAGE an XS file declares is a package once the
+// module loads, so `new Pkg(...)` on it is a method call. Measured on 5.42.0,
+// `use Compress::Raw::Bzip2; my ($b, $e) = new Compress::Raw::Bunzip2(1, 1);`
+// deparses as `'Compress::Raw::Bunzip2'->new(1, 1)` -- Compress::Raw::Bunzip2
+// is declared only in cpan/Compress-Raw-Bzip2/Bzip2.xs. PerlOnJava
+// unit/compress_raw_bzip2.t:29.
+func TestXSPackageIsKnown(t *testing.T) {
+	root := t.TempDir()
+	dist := filepath.Join(root, "Foo-Bar")
+	if err := os.MkdirAll(dist, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	pm := "package Foo::Bar;\nrequire XSLoader;\nXSLoader::load();\n1;\n"
+	xs := "MODULE = Foo::Bar\t\tPACKAGE = Foo::Unzip\n\nvoid\nnew(class, a, b)\n\tchar * class\n"
+	for name, body := range map[string]string{"Bar.pm": pm, "Bar.xs": xs} {
+		if err := os.WriteFile(filepath.Join(dist, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// NotThere leaves the sub table incomplete, so only knowing the
+	// package makes this a method call.
+	src := "use NotThere; use Foo::Bar; my ($u, $e) = new Foo::Unzip(1, 1);"
+	n := parse.ParseWithLoader([]byte(src), parse.DirLoader(root))
+	if call := indirectCall(n, "new"); call == nil || call.Children[0].Text != "Foo::Unzip" {
+		t.Errorf("%q: want 'Foo::Unzip'->new(1, 1); got %s", src, shape(n))
+	}
+}

@@ -24,16 +24,25 @@ import (
 // metric "should move a lot" from a change that only the loader-aware parser
 // could see -- so the two populations stay in separate functions with separate
 // names rather than sharing a helper with a flag.
+// perl5Root is the perl.git checkout: PERL5_CORPUS, or ~/dev/perl5. Empty
+// when neither can be named; whether it exists is the caller's question.
+func perl5Root() string {
+	if root := os.Getenv("PERL5_CORPUS"); root != "" {
+		return root
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(home, "dev", "perl5")
+}
+
 func perlGitTFiles(t *testing.T) (string, []string) {
 	t.Helper()
 
-	root := os.Getenv("PERL5_CORPUS")
+	root := perl5Root()
 	if root == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			t.Skipf("no PERL5_CORPUS and no home directory: %v", err)
-		}
-		root = filepath.Join(home, "dev", "perl5")
+		t.Skip("no PERL5_CORPUS and no home directory")
 	}
 	tDir := filepath.Join(root, "t")
 	if _, err := os.Stat(tDir); err != nil {
