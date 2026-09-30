@@ -235,6 +235,19 @@ func (p *parser) parseSwitch(word lexer.Token) *Node {
 // Without these a loop body containing one falls to Unknown, which makes
 // every real loop in the corpus unparseable -- the forms arrive together.
 func (p *parser) parseLoopControl(word lexer.Token) *Node {
+	n := p.parseLoopControlTerm(word)
+	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
+		p.advanceTo(tok)
+	}
+	n.End = p.prevEnd()
+	return n
+}
+
+// parseLoopControlTerm is the keyword and its label, with no `;`: what
+// parseLoopControl reads at a statement's start, and what an expression
+// holds -- `$p = $b and last BIN if $b`, measured on 5.42.0 to deparse as
+// written.
+func (p *parser) parseLoopControlTerm(word lexer.Token) *Node {
 	p.advanceTo(word)
 	n := &Node{Kind: LoopControl, Text: p.text(word), Start: word.Start}
 
@@ -255,9 +268,6 @@ func (p *parser) parseLoopControl(word lexer.Token) *Node {
 				Start: next.Start, End: next.End,
 			})
 		}
-	}
-	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
-		p.advanceTo(tok)
 	}
 	n.End = p.prevEnd()
 	return n

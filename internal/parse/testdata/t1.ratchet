@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 744 clean (75.5%), 1264 total.
+# 986 files, 745 clean (75.6%), 1262 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -379,7 +379,7 @@
 0 integer_pragma_word_arithmetic.t
 0 interpreter_begin_eval_utf8_scope.t
 0 interpreter_capture_assignment_regressions.t
-3 interpreter_chained_method_invocant_lifetime.t
+2 interpreter_chained_method_invocant_lifetime.t
 0 interpreter_code_reference_validation.t
 0 interpreter_coderef_does_not_load_module.t
 0 interpreter_compound_assign_list_rhs.t
@@ -449,7 +449,7 @@
 0 localized_regex_captures.t
 1 localtime_tz.t
 0 loop_label.t
-1 loop_label_bareword_constant.t
+0 loop_label_bareword_constant.t
 0 loop_modifiers.t
 0 lvalue_list_sub.t
 0 lvalue_substr.t

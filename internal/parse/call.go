@@ -120,6 +120,12 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		return &Node{Kind: Term, Text: spelled, Start: word.Start, End: word.End}
 	}
 
+	// A loop control in an expression, with its label: `... and last BIN`.
+	switch text {
+	case "last", "next", "redo":
+		return p.parseLoopControlTerm(word)
+	}
+
 	// A niladic builtin takes nothing: `time`, `wantarray`.
 	if niladicParse[text] {
 		p.advanceTo(word)
