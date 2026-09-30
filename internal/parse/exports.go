@@ -77,6 +77,10 @@ type moduleFacts struct {
 	// defines is known to perl and not to this parser. See symbolsOpen.
 	dynamic bool
 
+	// builder marks a Test::Builder::Module subclass, whose import list is
+	// plan arguments plus `import => [...]`; see builderImportList.
+	builder bool
+
 	// loadsXS marks a module that loads C code -- XSLoader::load or a
 	// DynaLoader bootstrap. Its subs may be C with prototypes this parser
 	// has not read; see importsFrom.
@@ -117,6 +121,19 @@ var xsLoaders = map[string]bool{
 	"DynaLoader::bootstrap": true, "bootstrap_inherit": true,
 }
 
+// noteBase records a base class. Exporter's import is the one the export
+// lists describe. Test::Builder::Module's is modelled -- see
+// builderImportList. Any other base's import may define subs unseen.
+func noteBase(name string, facts *moduleFacts) {
+	switch name {
+	case "Exporter", "-norequire":
+	case "Test::Builder::Module":
+		facts.builder = true
+	default:
+		facts.dynamic = true
+	}
+}
+
 // readDynamic finds what can define subs out of this parser's sight --
 // see moduleFacts.dynamic -- and the names literal glob assignments define.
 func readDynamic(n *Node, facts *moduleFacts) {
@@ -132,9 +149,7 @@ func readDynamic(n *Node, facts *moduleFacts) {
 				facts.dynamic = true
 			}
 			for _, name := range names {
-				if name != "Exporter" && name != "-norequire" {
-					facts.dynamic = true
-				}
+				noteBase(name, facts)
 			}
 		}
 	case (n.Kind == Declaration || n.Kind == Binary && n.Text == "=") &&
@@ -144,9 +159,7 @@ func readDynamic(n *Node, facts *moduleFacts) {
 			facts.dynamic = true
 		}
 		for _, name := range names {
-			if name != "Exporter" {
-				facts.dynamic = true
-			}
+			noteBase(name, facts)
 		}
 	case n.Kind == Binary && n.Text == "=" && len(n.Children) == 2 &&
 		n.Children[0].Kind == Term && strings.HasPrefix(n.Children[0].Text, "*"):

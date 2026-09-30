@@ -286,6 +286,21 @@ func (p *parser) resolveImports(module string, list *Node) {
 		p.moduleSubs[q] = Import{Name: q, Prototype: proto, PrototypeKnown: true}
 	}
 
+	if facts.builder {
+		names, given, ok := builderImportList(list)
+		if !ok {
+			p.symbolsOpen = true
+			return
+		}
+		if p.imports == nil {
+			p.imports = map[string]Import{}
+		}
+		for _, imp := range importsFrom(facts, names, given) {
+			p.imports[subKey(imp.Name)] = imp
+		}
+		return
+	}
+
 	// An import list restricts what is imported, and `use M ()` -- an empty
 	// list -- is the explicit "load but import nothing" form, which is NOT
 	// the same as omitting the list.
@@ -311,6 +326,48 @@ func (p *parser) resolveImports(module string, list *Node) {
 	for _, imp := range importsFrom(facts, names, listGiven) {
 		p.imports[subKey(imp.Name)] = imp
 	}
+}
+
+// builderImportList reads a Test::Builder::Module subclass's import list as
+// its import does (perl 5.42.0's Test/Builder/Module.pm:75-122): the names
+// under each `import => [...]` are imported, and everything else is handed to
+// plan(). given is false when there is no `import` pair, which imports
+// @EXPORT. ok is false when a pair's names are not literal.
+func builderImportList(list *Node) (names []string, given, ok bool) {
+	if list == nil {
+		return nil, false, true
+	}
+	var items []*Node
+	var flatten func(*Node)
+	flatten = func(n *Node) {
+		if n.Kind == Binary && (n.Text == "," || n.Text == "=>") || n.Kind == List {
+			for _, c := range n.Children {
+				flatten(c)
+			}
+			return
+		}
+		items = append(items, n)
+	}
+	flatten(list)
+	for i := 0; i < len(items); i++ {
+		key, lit := literalNameList(items[i])
+		if !(lit && len(key) == 1 && key[0] == "import") && items[i].Text != "import" {
+			continue
+		}
+		if i+1 >= len(items) || items[i+1].Kind != AnonArray {
+			return nil, false, false
+		}
+		for _, c := range items[i+1].Children {
+			got, lit := literalNameList(c)
+			if !lit {
+				return nil, false, false
+			}
+			names = append(names, got...)
+		}
+		given = true
+		i++
+	}
+	return names, given, true
 }
 
 // useIfTarget splits `use if`'s list into the module it loads and that
