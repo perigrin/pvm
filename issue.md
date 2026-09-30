@@ -4,20 +4,16 @@ state: pending
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T22:20:52.861463591Z
-updated: 2026-09-29T22:20:52.861463591Z
+updated: 2026-09-30T19:54:22.526268991Z
 ---
 
-Faithful fails every file with a trailing comma, even though canon's tree is right. Canon drops the separator, as perl does (`f(1, 2,)` deparses as `f(1, 2)`). Faithful forgives only an added paren after a call name and a `;` before a closing `}`:
+Faithful failed every file with a trailing comma, even when canon's tree was right. Canon dropped the separator, as perl does (`f(1, 2,)` deparses as `f(1, 2)`), and Faithful forgave only an added paren after a call name and a `;` before a closing `}`.
 
-    f(1, 2,);            faithful=false  token 5: source has ",", canon has ")"
-    my @a = (1, 2,);     faithful=false
-    sub f {} f 1, 2,;    faithful=false
-    print 1, if $x;      faithful=false
+perigrin decided (2026-09-30) that canon keeps trailing commas where the source wrote them, rather than Faithful forgiving the difference. The parser records the separators it drops on the element before them (Node.TrailingComma), and canon writes them back. When an element is followed by several separators, all of them are kept in source order and canon writes no separator of its own after it, so `(1, => 2)` stays `(1 , => 2)`.
 
-So t1fidelity counts these files as misread. PerlOnJava unit/prototype_trailing_comma_infix.t went 0 -> 1 when its lines began to parse: before, they were Unknown and compared verbatim.
-
-A third forgiven difference would be: a source `,` that canon omits, where the next source token is canon's next token and cannot begin an element (a closer, `;`, `,`, `=>`, a modifier, or an operator). That condition keeps it from hiding two elements merged into one. This changes what the fidelity harness measures, so it needs perigrin's decision before code.
+A second limit showed up once PerlOnJava unit/print_indirect_method_postfix.t parsed: Faithful forgave a call's added parens only at the top level, not inside another call's forgiven parens (`print(create Foo(sub {...}))`). The same forgiveness now applies one level down.
 
 ## Acceptance criteria
 
-- [ ] `f(1, 2,);` is faithful (a test asserting parse.Faithful on the trailing-comma forms, named in the fix)
+- [ ] Canon keeps trailing commas and stays faithful (`go test ./internal/parse/ -run '^TestCanonKeepsTrailingComma$' -count=1 -v | grep -q '^--- PASS: TestCanonKeepsTrailingComma'`)
+- [ ] A nested call's added parens are forgiven (`go test ./internal/parse/ -run '^TestFaithfulNestedCallParens$' -count=1 -v | grep -q '^--- PASS: TestFaithfulNestedCallParens'`)
