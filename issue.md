@@ -1,10 +1,19 @@
 ---
 title: "`use if` is read only as failing: parse it both ways"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-30T00:48:36.055750268Z
-updated: 2026-09-30T00:48:36.055750268Z
+updated: 2026-09-30T00:48:38.230831185Z
+sessions:
+- start_sha: ecb04d74383f860ea152ed4286c0b779d42a4bd1
+  end_sha: ""
+  commits: 0
+  started_at: 2026-09-30T00:48:38.230831185Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-09-30T00:48:38.230831185Z
 ---
 
 The ratchet reads every `use if COND, MODULE, LIST` as failing, because its condition is known only at compile time. perigrin decided (2026-09-30) that a file using it must be clean both ways: failing, where it defines nothing, and passing, where it is `use MODULE LIST`.
