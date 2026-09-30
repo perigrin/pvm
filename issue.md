@@ -1,19 +1,25 @@
 ---
 title: "LazyValue.Load loads twice: the write-lock double-check ignores an in-flight load"
-state: in-progress
+state: done
 urgency: normal
 milestone: v0.1
 created: 2026-09-30T17:08:31.003430451Z
-updated: 2026-09-30T17:08:33.182924704Z
+updated: 2026-09-30T17:14:05.385045398Z
 sessions:
 - start_sha: 4aff87bf40eedf08eb1e0b1db5cb540885f609d4
-  end_sha: ""
-  commits: 0
+  end_sha: 98bc2b046d3284ab998f0715af957f130c3596b2
+  commits: 1
   started_at: 2026-09-30T17:08:33.182924704Z
+  ended_at: 2026-09-30T17:14:05.385045398Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-09-30T17:08:33.182924704Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-09-30T17:14:05.385045398Z
+observed_paths:
+- internal/memory/lazy.go
 ---
 
 TestLazyValueConcurrency fails intermittently, as in `make test` on 2026-09-30. The failure: "Expected load count 1, got 9", with each goroutine getting a different value. It reproduced once in 300 runs of `go test ./internal/memory -run TestLazyValueConcurrency -count=300`.
