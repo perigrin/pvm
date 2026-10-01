@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: v0.1
 created: 2026-09-30T21:55:19.14961642Z
-updated: 2026-10-01T04:01:38.346580915Z
+updated: 2026-10-01T05:44:13.124131576Z
 ---
 
 perigrin (2026-09-30): "eventually we should discuss type libraries similar to TypeScript". Some modules define their interface in ways no static reading of their source can recover:
@@ -32,6 +32,16 @@ Open, raised by rebel: the residue is two shapes. Runtime-built imports (Mojolic
 Grammar extensions are already declarative in Perl. Future::AsyncAwait's .xs registers `register_xs_parse_sublike("async", ...)` (flags PREFIX|BODY_OPTIONAL|ALLOW_PKGNAME) and `register_xs_parse_keyword("await", ...)` (piece XPK_TERMEXPR_SCALARCTX, permit_hintkey "Future::AsyncAwait/async"). Syntax::Keyword::Try, Object::Pad and others use the same XS::Parse::Keyword/Sublike/Infix registries. So a declaration file can carry three kinds of entry: subs (name, prototype, later types), keywords (name plus a piece sequence in XS::Parse::Keyword's vocabulary, lexically gated like `isa`/`defer`), and sublikes/infix operators. One generic piece interpreter in the parser, not a rule per module. Our own feature-gated syntax (defer, isa, try, class/field/method) would be the first entries, the lib.d.ts row, to prove the format on syntax already parsed correctly. Start with explicit declaration files; reading XS::Parse hook structs straight from .xs is a later optimisation.
 
 Decided by perigrin (2026-10-01): source filters (Filter::Simple, Filter::Util::Call) and Devel::Declare rewrite source text, and not parsing them is fine. They stay refusals; source_filter_subroutine_lexical_storage.t is out of scope for type libraries.
+
+## Landed (2026-10-01)
+
+- a70a294e (01a0f5c5): declaration files for subs, embedded under internal/parse/declarations/ as `Module/Name.pmd`, read in place of the module's source whether or not it is installed. Moose, Moose::Role, Mojolicious::Lite. A literal `M->import` in BEGIN now applies as `use M`.
+- 15fb2815 (01a0f5f7): declared syntax, `:sublike(PREFIX)`, `:keyword(PIECES)` and `:statement(PIECES)`, pieces TERMEXPR, BLOCK and ANONSUB. Future::AsyncAwait.
+- 5374dda4: parse.Session, which made the corpus ratchets fast enough to keep adding to (T1 241s -> 4s).
+
+T1 is 985 of 986; the one left is the source filter, out of scope by decision.
+
+Still open: types (perigrin's `sub :infix + (Num $x, Num $y) Num;` -- the attribute-after-name spelling used here, `sub await :keyword(...)`, is what our Perl parser already reads; an operator name like `+` will need the attribute-first form and a parser of its own); a user search path for declaration files beyond the embedded set; the remaining XS::Parse pieces and non-PREFIX sublikes; lexical rather than file-wide scope for declared syntax.
 
 ## Acceptance criteria
 
