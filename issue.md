@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: v0.1
 created: 2026-09-30T21:55:19.14961642Z
-updated: 2026-10-01T16:09:25.298495727Z
+updated: 2026-10-01T16:42:02.07134847Z
 ---
 
 perigrin (2026-09-30): "eventually we should discuss type libraries similar to TypeScript". Some modules define their interface in ways no static reading of their source can recover:
@@ -61,6 +61,8 @@ Decided by perigrin (2026-10-01), `:context(...)`: an attribute like `:prototype
     multi sub localtime :prototype(;$) :context($) (Int $time = time) Str;
     multi sub localtime :prototype(;$) :context(@) (Int $time = time) List[Int];
 
+The design is written up as docs/rfcs/0001-type-libraries.md (374f971d), each section marked Implemented, Decided or Open. perigrin (2026-10-01): the .pmt syntax *is* typed Perl, and it is accepted only in .pmt files.
+
 ## Acceptance criteria
 
-- [ ] A design for module declaration files is written and agreed (`sh -c 'ls docs/plans/*type-librar* >/dev/null'`)
+- [ ] A design for module declaration files is written and agreed (`test -f docs/rfcs/0001-type-libraries.md`)
