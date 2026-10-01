@@ -298,6 +298,17 @@ func (p *parser) resolveImports(module string, list *Node) {
 		p.moduleSubs[q] = Import{Name: q, Prototype: proto, PrototypeKnown: true}
 	}
 
+	// Its declared syntax comes into scope with any import -- `use M ()`
+	// calls no import, and brings none.
+	if len(facts.syntax) > 0 && (list == nil || !list.Paren || len(list.Children) > 0) {
+		if p.syntax == nil {
+			p.syntax = map[string]declaredSyntax{}
+		}
+		for name, s := range facts.syntax {
+			p.syntax[name] = s
+		}
+	}
+
 	if facts.builder {
 		names, given, ok := builderImportList(list)
 		if !ok {

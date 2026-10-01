@@ -75,3 +75,56 @@ func TestBeginImportIsUse(t *testing.T) {
 		t.Errorf("a computed import left the table complete")
 	}
 }
+
+// TestDeclaredKeywords: a keyword plugin is a grammar extension, not a sub,
+// and Future::AsyncAwait's .xs states its grammar as data that XS::Parse::
+// Sublike and XS::Parse::Keyword interpret: `async` is a PREFIX on `sub`,
+// `await` takes one XPK_TERMEXPR, and CANCEL takes an XPK_ANONSUB and builds
+// a statement (KEYWORD_PLUGIN_STMT). Its declaration file says the same, and
+// the keywords exist once the module is imported. Measured on 5.42.0 with
+// Future::AsyncAwait 0.71:
+//
+//   - `await $f + 1` is await($f + 1), and `(await $f, 3)` is a two-element
+//     list: a term expression runs down to assignment and stops at a comma
+//     (toke.c:14265, parse_termexpr; B::Concise shows the add under await);
+//   - `CANCEL { 1 } print "x";` compiles: the statement ends at its block;
+//   - `my $c = async sub { 1 };` is an anonymous async sub.
+//
+// PerlOnJava unit/custom_warning_async_suspend_state.t:27.
+func TestDeclaredKeywords(t *testing.T) {
+	load := parse.DirLoader(t.TempDir())
+	use := "use Future::AsyncAwait; "
+	for _, src := range []string{
+		"async sub f { my ($g) = @_; await $g; } f(1);",
+		"async sub g { my $f; CANCEL { 1 } print \"x\"; }",
+		"my $x; my $c = async sub { await $x };",
+	} {
+		n := parse.ParseWithLoader([]byte(use+src), load)
+		if bad := collectUnknownNodes(n); len(bad) > 0 {
+			t.Errorf("%q: refused; got %s", src, shape(n))
+		}
+	}
+
+	n := parse.ParseWithLoader([]byte(use+"async sub f { my $f; my $r = await $f + 1, 2; }"), load)
+	decl := firstOfKind(n, parse.Declaration)
+	if decl == nil || decl.Text != "async" || len(decl.Children) != 1 || decl.Children[0].Text != "sub" {
+		t.Fatalf("want async wrapping sub f; got %s", shape(n))
+	}
+	if await := findCall(n, "await"); await == nil || len(await.Children) != 1 || await.Children[0].Text != "+" {
+		t.Errorf("want await($f + 1); got %s", shape(n))
+	}
+
+	n = parse.ParseWithLoader([]byte(use+"async sub g { CANCEL { 1 } print \"x\"; }"), load)
+	if c := firstOfKind(n, parse.Conditional); c == nil || c.Text != "CANCEL" {
+		t.Errorf("want a CANCEL statement; got %s", shape(n))
+	}
+
+	// Without the import there are no keywords: `use Future::AsyncAwait ()`
+	// loads it and never calls import.
+	for _, src := range []string{"async sub f { 1 }", "use Future::AsyncAwait (); async sub f { 1 }"} {
+		n := parse.ParseWithLoader([]byte(src), load)
+		if d := firstOfKind(n, parse.Declaration); d != nil && d.Text == "async" {
+			t.Errorf("%q: async declared a sub with no import; got %s", src, shape(n))
+		}
+	}
+}

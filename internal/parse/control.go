@@ -44,7 +44,7 @@ func (p *parser) parseControlFlow(word lexer.Token) *Node {
 			return p.parseDefer(word)
 		}
 	}
-	return nil
+	return p.parseDeclaredStatement(word)
 }
 
 // parseDefer: `defer BLOCK`, feature 'defer'. A statement form like `try`,

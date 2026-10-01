@@ -1,0 +1,15 @@
+# ABOUTME: Declares the syntax Future::AsyncAwait adds once imported: async subs, await, CANCEL.
+# ABOUTME: Read from its AsyncAwait.xs registrations, version 0.71; it exports no subs.
+package Future::AsyncAwait;
+
+# register_xs_parse_sublike("async"): XS_PARSE_SUBLIKE_FLAG_PREFIX, a prefix
+# on `sub`.
+sub async :sublike(PREFIX);
+
+# register_xs_parse_keyword("await"): one XPK_TERMEXPR_SCALARCTX, building an
+# expression.
+sub await :keyword(TERMEXPR);
+
+# register_xs_parse_keyword("CANCEL"): one XPK_ANONSUB, and build_cancel
+# returns KEYWORD_PLUGIN_STMT, so it is a statement ending at its block.
+sub CANCEL :statement(ANONSUB);

@@ -321,6 +321,12 @@ func (p *parser) parseTerm() *Node {
 
 	case lexer.Word:
 		text := p.text(tok)
+		if d := p.parsePrefixedAnonSub(tok); d != nil {
+			return d
+		}
+		if d := p.parseDeclaredExpression(tok); d != nil {
+			return d
+		}
 		switch {
 		case declarators[keywordName(text)] && p.declaratorTakesTarget(tok):
 			// A declaration in EXPRESSION position: `open my $fh, $p`,

@@ -94,6 +94,10 @@ type moduleFacts struct {
 	// has not read; see importsFrom.
 	loadsXS bool
 
+	// syntax are the keywords and sub prefixes a declaration file states,
+	// which the module's import brings into scope.
+	syntax map[string]declaredSyntax
+
 	// globs are the names a literal glob assignment defines, `*run_perl =
 	// \&runperl` in t/test.pl: subs as real as a `sub NAME`, with no
 	// prototype this parser can read.
@@ -210,7 +214,12 @@ func readSubs(n *Node, facts *moduleFacts) {
 		case "my", "state":
 			return
 		case "sub":
-			if name, proto := declaredSub(n); name != "" {
+			if name, s, ok := declaredSyntaxOf(n); ok {
+				if facts.syntax == nil {
+					facts.syntax = map[string]declaredSyntax{}
+				}
+				facts.syntax[name] = s
+			} else if name, proto := declaredSub(n); name != "" {
 				facts.protos[name] = proto
 			}
 		}
@@ -420,6 +429,22 @@ func declaredSub(n *Node) (name, proto string) {
 		}
 	}
 	return name, proto
+}
+
+// declaredSyntaxOf reads a declaration file's `sub NAME :keyword(...)` and
+// its kin: grammar, not a sub. See declaredSyntax.
+func declaredSyntaxOf(n *Node) (name string, s declaredSyntax, ok bool) {
+	for _, c := range n.Children {
+		switch c.Kind {
+		case Term:
+			if name == "" {
+				name = c.Text
+			}
+		case Attribute:
+			s, ok = readSyntaxAttribute(c.Text)
+		}
+	}
+	return name, s, ok && name != ""
 }
 
 // importsFrom applies one `use` to the facts its module reported.

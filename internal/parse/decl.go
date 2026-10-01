@@ -25,6 +25,9 @@ var declarators = map[string]bool{
 // not start one.
 func (p *parser) parseDeclaration(word lexer.Token) *Node {
 	text := keywordName(p.text(word))
+	if d := p.parsePrefixedSubDecl(word); d != nil {
+		return d
+	}
 	switch {
 	case declarators[text]:
 		if lex := p.parseLexicalSub(word); lex != nil {

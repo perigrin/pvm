@@ -556,6 +556,10 @@ type parser struct {
 	// the file re-enables after it is the ceiling. See noteFeatures.
 	features map[string]bool
 
+	// syntax are the keywords and sub prefixes imported modules declare,
+	// file-wide from their import on as features are. See declaredSyntax.
+	syntax map[string]declaredSyntax
+
 	// noIndirect is set where indirect object notation is off: `no feature
 	// 'indirect'`, or a 5.36+ bundle, which drops it. File-level, like
 	// features.
