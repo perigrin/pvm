@@ -116,12 +116,15 @@ func TestPerlGitTRatchet(t *testing.T) {
 	dir, files := perlGitTFiles(t)
 	roots := perlGitTRoots(dir)
 
+	// One Session reads each module once for the whole corpus; see
+	// parse.Session.
+	s := parse.NewSession()
 	now := make(map[string]int, len(files))
 	for _, rel := range files {
 		if _, rejected := perlRejects[rel]; rejected {
 			continue
 		}
-		n, err := parse.ParseFileFrom(filepath.Join(dir, rel), roots...)
+		n, err := s.ParseFileFrom(filepath.Join(dir, rel), roots...)
 		if err != nil {
 			continue
 		}

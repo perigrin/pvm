@@ -163,6 +163,44 @@ func ParseFileFrom(path string, roots ...string) (*Node, error) {
 // readings: passes, and it is `use MODULE LIST`; fails, and it defines
 // nothing. ParseFileFrom takes the failing one.
 func ParseFileAssumingUseIf(path string, passes bool, roots ...string) (*Node, error) {
+	return parseFile(path, passes, roots, nil)
+}
+
+// Session parses many files and reads each module once: what a module says
+// about itself is shared by every parse that searches the same directories.
+// A corpus run parses hundreds of files using the same modules, and reading
+// Test::More and everything it uses again for each file is what made the T1
+// ratchet outlast go test's ten-minute timeout.
+//
+// Sharing is safe because a module's facts depend only on its source and the
+// directories its own imports are found in. Files searching different ones --
+// the file's own directory comes first, and may hold its own Foo.pm -- share
+// nothing. The parses of one Session behave as one parse of all its files
+// would: within a parse, a module is already read once however many uses
+// name it.
+//
+// LoadedModules of a Session parse names only the modules that parse read,
+// not those an earlier one already had. A Session is not for concurrent use.
+type Session struct {
+	shared map[string]*resolver
+}
+
+// NewSession returns a Session that has read nothing yet.
+func NewSession() *Session {
+	return &Session{shared: map[string]*resolver{}}
+}
+
+// ParseFileFrom is the package's ParseFileFrom, sharing module facts with this
+// Session's other parses.
+func (s *Session) ParseFileFrom(path string, roots ...string) (*Node, error) {
+	return parseFile(path, false, roots, s)
+}
+
+// parseFile reads and parses path, searching its own directory and then
+// roots. With a Session, the resolver's module facts and visited set are the
+// ones every parse searching the same directories shares; its loaded list is
+// this parse's own.
+func parseFile(path string, passes bool, roots []string, s *Session) (*Node, error) {
 	src, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -173,7 +211,17 @@ func ParseFileAssumingUseIf(path string, passes bool, roots ...string) (*Node, e
 			dirs = append(dirs, root)
 		}
 	}
-	return parseRoot(src, &resolver{load: DirLoader(dirs...), seen: map[string]bool{}, useIfPasses: passes}), nil
+	r := &resolver{load: DirLoader(dirs...), seen: map[string]bool{}, useIfPasses: passes}
+	if s != nil {
+		key := strings.Join(dirs, "\x00")
+		if shared, ok := s.shared[key]; ok {
+			r.seen, r.facts = shared.seen, shared.facts
+		} else {
+			r.facts = map[string]moduleFacts{}
+			s.shared[key] = r
+		}
+	}
+	return parseRoot(src, r), nil
 }
 
 // ParseWithLoader parses src, resolving `use` through the given loader.

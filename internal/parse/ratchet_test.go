@@ -142,13 +142,16 @@ func countUnknown(n *parse.Node) int {
 // @INC of the perl the corpus is measured against (perigrin, 2026-09-30).
 // Without one, every file that calls Test::More's `is` or `ok` without
 // parentheses refused on a name perl knows -- about 200 files of T1.
+//
+// One Session reads each module once for the whole corpus; see parse.Session.
 func TestParseRatchet(t *testing.T) {
 	dir, files := t1Files(t)
 	roots := t1Roots(t)
 
+	s := parse.NewSession()
 	now := make(map[string]int, len(files))
 	for _, rel := range files {
-		n, err := parse.ParseFileFrom(filepath.Join(dir, rel), roots...)
+		n, err := s.ParseFileFrom(filepath.Join(dir, rel), roots...)
 		if err != nil {
 			continue
 		}
