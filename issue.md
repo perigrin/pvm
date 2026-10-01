@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: v0.1
 created: 2026-09-30T21:55:19.14961642Z
-updated: 2026-10-01T03:40:36.346980582Z
+updated: 2026-10-01T04:01:38.346580915Z
 ---
 
 perigrin (2026-09-30): "eventually we should discuss type libraries similar to TypeScript". Some modules define their interface in ways no static reading of their source can recover:
@@ -26,6 +26,12 @@ perl5-son owns the type-library design; start from it rather than inventing one.
 - pvm 2026-09-17 (01a0ad3f): imports resolve by parsing the module's own source, with no perl subprocess at parse or build time. A declaration file covers what that reading cannot; it does not replace it.
 
 Open, raised by rebel: the residue is two shapes. Runtime-built imports (Mojolicious::Lite, Moose::Exporter, Filter::Simple) are names and prototypes a declaration can state. A keyword plugin (Future::AsyncAwait) is a grammar extension, not a name; whether one format carries both is the load-bearing question.
+
+## Proposed answer to the open question (2026-10-01)
+
+Grammar extensions are already declarative in Perl. Future::AsyncAwait's .xs registers `register_xs_parse_sublike("async", ...)` (flags PREFIX|BODY_OPTIONAL|ALLOW_PKGNAME) and `register_xs_parse_keyword("await", ...)` (piece XPK_TERMEXPR_SCALARCTX, permit_hintkey "Future::AsyncAwait/async"). Syntax::Keyword::Try, Object::Pad and others use the same XS::Parse::Keyword/Sublike/Infix registries. So a declaration file can carry three kinds of entry: subs (name, prototype, later types), keywords (name plus a piece sequence in XS::Parse::Keyword's vocabulary, lexically gated like `isa`/`defer`), and sublikes/infix operators. One generic piece interpreter in the parser, not a rule per module. Our own feature-gated syntax (defer, isa, try, class/field/method) would be the first entries, the lib.d.ts row, to prove the format on syntax already parsed correctly. Start with explicit declaration files; reading XS::Parse hook structs straight from .xs is a later optimisation.
+
+Decided by perigrin (2026-10-01): source filters (Filter::Simple, Filter::Util::Call) and Devel::Declare rewrite source text, and not parsing them is fine. They stay refusals; source_filter_subroutine_lexical_storage.t is out of scope for type libraries.
 
 ## Acceptance criteria
 
