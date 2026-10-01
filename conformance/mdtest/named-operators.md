@@ -4,13 +4,13 @@ Operators spelled as words, and the question they all raise: HOW FAR
 DOES THE ARGUMENT RUN.
 
 **Tier 04 operators.** Introduces `defined`, `undef`, `chr`, `ord`,
-`index`, `sprintf`, `substr`, `uc`. Depends on 03_context.
+`index`, `length`, `sprintf`, `substr`, `uc`. Depends on 03_context.
 
-Four of these fold away when their operands are constant -- `chr(74)`
+Five of these fold away when their operands are constant -- `chr(74)`
 arrives as `const[PV "J"]` -- so each case spells its construct with a
 runtime operand, the rule the rest of this tier lives under.
 
-WHAT MAKES THEM A TOPIC rather than eight unrelated builtins is that the
+WHAT MAKES THEM A TOPIC rather than nine unrelated builtins is that the
 op name answers almost nothing about them. `substr` is one op for three
 arities and for the lvalue form; `sprintf` is one op whose argument
 count is decided by its format's CONTENTS; `undef` is one word for two
@@ -223,4 +223,26 @@ parses: yes
 
 ```output
 ABC-def
+```
+
+## `length` measures a concatenation, and a comma ends it
+
+`length $s . "de", "-", 1` measures `"abcde"`: concatenation binds
+tighter than a named unary, so `. "de"` is inside the operand, and the
+comma is below it, so the rest are `print`'s. With a constant operand it
+folds -- `length "abc"` arrives as `const[IV 3]` -- so the case uses a
+runtime one. Measured 5.42.0, the stream holds `multiconcat` and then
+`length[t3] sK/1`.
+
+```perl
+my $s = "abc";
+print length $s . "de", "-", 1, "\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+5-1
 ```

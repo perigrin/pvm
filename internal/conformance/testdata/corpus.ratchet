@@ -8,7 +8,7 @@
 # topic's `**Tier NN name.**` line and leaves every key alone. That
 # is the `t/` sweep working, and must not read as a regression.
 #
-# 239 cases, 239 clean, 0 refusing.
+# 242 cases, 242 clean, 0 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -165,6 +165,7 @@
 - named-operators.md/`%*d` makes the format consume an argument
 - named-operators.md/`chr` and `ord`, folded and unfolded
 - named-operators.md/`index` reports failure as -1, not undef
+- named-operators.md/`length` measures a concatenation, and a comma ends it
 - named-operators.md/`substr` is an lvalue
 - named-operators.md/`substr` takes two, three or four arguments
 - named-operators.md/`uc` is a named unary, so a comma ends its argument
@@ -209,10 +210,12 @@
 - regex-delimiters.md/Bracketing and punctuation delimiters
 - regex-delimiters.md/The comment character as a delimiter
 - regex-matching.md/A constant pattern compiles once
+- regex-matching.md/A match in void context, kept for its captures
 - regex-matching.md/An interpolated pattern adds `regcomp`
 - regex-matching.md/Substitution mutates in place
 - regex-matching.md/The binding operator emits nothing
 - regex-matching.md/The negated binding is two ops
+- regex-matching.md/`pos` and `\G` on a signature parameter
 - regex-pattern-positions.md/`pos` is a named operator in lvalue position
 - regex-pattern-positions.md/`split`'s first argument is a pattern
 - regex-quote-likes.md/A compiled pattern, uncoupled from matching
