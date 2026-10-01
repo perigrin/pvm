@@ -8,7 +8,7 @@
 # topic's `**Tier NN name.**` line and leaves every key alone. That
 # is the `t/` sweep working, and must not read as a regression.
 #
-# 238 cases, 238 clean, 0 refusing.
+# 239 cases, 239 clean, 0 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -221,6 +221,7 @@
 - strings.md/Single quotes do not
 - strings.md/`q` with three delimiters
 - subroutines.md/A named subroutine, declared and called
+- subroutines.md/A sub whose last statement is a loop
 - subroutines.md/An anonymous subroutine is a value
 - subroutines.md/An attribute stands between the name and the body
 - subroutines.md/Calling through a code reference

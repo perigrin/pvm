@@ -335,3 +335,31 @@ parses: yes
 22a
 a b|a b
 ```
+
+## A sub whose last statement is a loop
+
+A sub returns the value of its last statement, and when that statement
+is a loop, the value is the loop's last failed test: perl's shared false.
+It is ONE value in list context and `""` in scalar context, never
+anything the body computed, for `foreach` and `while` alike. Measured,
+`builtin::is_bool` is true for both. Found by B::SoN translating chalk's
+lib/ and running chalk's own suite against the emitted Perl, which
+compiled and gave a wrong answer; it was the cause of 99 of chalk's
+failing test files.
+
+```perl
+sub last_is_for   { my @seen; for my $x (@_) { push @seen, $x * 2 } }
+sub last_is_while { my $i = 0; while ($i < 2) { $i++ } }
+my @f = last_is_for(1, 2);
+my @w = last_is_while();
+my $s = last_is_for(3);
+print scalar(@f), scalar(@w), "[", $f[0], "][", $s, "]\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+11[][]
+```
