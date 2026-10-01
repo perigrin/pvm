@@ -9,7 +9,7 @@ import (
 )
 
 // declarations holds one file per declared module, `Moose::Role` at
-// `declarations/Moose/Role.pmd`. TypeScript's `@types/Foo` is the model: an
+// `declarations/Moose/Role.pmt`. TypeScript's `@types/Foo` is the model: an
 // interface ASSERTED over code this parser never reads, for a module whose
 // own `import` builds what it defines -- Moose::Exporter, a monkey_patch
 // loop -- so that no reading of its source can recover it.
@@ -23,6 +23,6 @@ var declarations embed.FS
 
 // declaration returns the declaration file for module, if there is one.
 func declaration(module string) ([]byte, bool) {
-	src, err := declarations.ReadFile(path.Join("declarations", strings.ReplaceAll(module, "::", "/")+".pmd"))
+	src, err := declarations.ReadFile(path.Join("declarations", strings.ReplaceAll(module, "::", "/")+".pmt"))
 	return src, err == nil
 }
