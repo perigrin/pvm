@@ -157,11 +157,28 @@ that are named unaries; a builtin with no prototype is otherwise a list
 operator, as an ordinary sub is.
 
 ```perl
-sub print (FileHandle $fh = select(), Str @args = ($_)) Bool;
+sub print (FileHandle $fh = select(), @args = ($_)) Bool;
 ```
 
 The default handle is the selected one, not STDOUT, and `print` with no
-arguments prints `$_` (measured).
+arguments prints `$_` (measured). Its slurpy stays untyped; see the next
+section.
+
+### A slurpy takes no bare element type (*Decided*)
+
+`Str @args` is not allowed (perigrin). It is ambiguous twice over:
+
+- **Which container.** `List[Str]`, the flattened values the caller
+  passes, or `Array[Str]`, the copy a body would hold.
+- **What `Str` asserts.** That each argument *is* a `Str` (membership),
+  or that each *becomes* one (coercion). `print` needs the coercion
+  reading, since perl prints a hash reference as `HASH(0x...)` and `Ref`
+  is not under `Str`. `bless (Ref $ref)` needs membership, since perl
+  dies on anything else.
+
+A slurpy (`@` or `%`) is therefore either untyped or typed with an
+explicit container type, once the paper defines one. Until then it is
+untyped.
 
 ### Multi declarations (*Decided*)
 
@@ -229,21 +246,23 @@ perl5-son extend one lattice:
 1. **Parametric containers.** The lattice is flat. `List[T]` (values in
    flight, covariant) and `Array[T]` (a container, invariant) differ;
    `Hash[T]` flattens to `List[Str|T]`; `ArrayRef[T]` should follow from
-   `Array[T]`. Until the paper decides, a type on a slurpy in a `.pmt`
-   means the element type of the caller's flattened list: `Str @args`
-   reads as `List[Str]`.
-2. **Lvalue lists.** `chomp` and `chop` modify their arguments in
+   `Array[T]`. Until the paper decides, a slurpy in a `.pmt` is
+   untyped (see "A slurpy takes no bare element type").
+2. **Membership or coercion.** Whether a parameter type says what an
+   argument *is* or what it *becomes*. `print` and `bless` need
+   different answers, so a declaration may need to spell both.
+3. **Lvalue lists.** `chomp` and `chop` modify their arguments in
    place, which neither `List[Str]` nor `Array[Str]` says.
-3. **Tuples.** `each` returns `(Str, T)` for a hash, which wants a type
+4. **Tuples.** `each` returns `(Str, T)` for a hash, which wants a type
    like `List[Str, T]`.
-4. **Multi and context-indexed function types** have no counterpart in
+5. **Multi and context-indexed function types** have no counterpart in
    the paper's function types yet.
 
 Separate from the paper:
 
-5. A search path for user-written `.pmt` files beside the embedded set.
-6. The remaining XS::Parse pieces, and sublikes other than `PREFIX`.
-7. Lexical rather than file-wide scope for declared syntax.
+6. A search path for user-written `.pmt` files beside the embedded set.
+7. The remaining XS::Parse pieces, and sublikes other than `PREFIX`.
+8. Lexical rather than file-wide scope for declared syntax.
 
 ## Rejected alternatives
 
