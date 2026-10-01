@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: v0.1
 created: 2026-09-30T21:55:19.14961642Z
-updated: 2026-10-01T15:27:52.614317784Z
+updated: 2026-10-01T15:43:18.280419419Z
 ---
 
 perigrin (2026-09-30): "eventually we should discuss type libraries similar to TypeScript". Some modules define their interface in ways no static reading of their source can recover:
@@ -47,6 +47,8 @@ Still open: types (perigrin's `sub :infix + (Num $x, Num $y) Num;` -- the attrib
 Decided by perigrin (2026-10-01): declaration files keep perl's order -- name, attributes, then signature. An operator is `sub + :infix (Num $x, Num $y) Num;`, not `sub :infix + (...)`.
 
 The fully typed form (perigrin, 2026-10-01): `sub NAME :attributes (Type $var, ...) Type { ... }`; a declaration ends in `;` where the body would be, and an anonymous sub omits NAME. perl 5.42 already parses the name, attributes and plain signature in that order; a typed parameter and the return type after `)` are the two pieces the parser must add.
+
+Decided by perigrin (2026-10-01): typed parameters and return types are valid only in .pmt files, for now. Measured on 5.42: without the signatures feature `sub f (Ref $x) {...}` is valid Perl (a prototype string), so accepting types in ordinary source would misread it. The parser reads them in a declaration mode used for .pmt; types/signatures.go's 27 typed builtins then move into CORE.pmt, comments included, and signatures.go goes.
 
 ## Acceptance criteria
 
