@@ -6,6 +6,7 @@ import (
 	"embed"
 	"path"
 	"strings"
+	"sync"
 )
 
 // declarations holds one file per declared module, `Moose::Role` at
@@ -26,3 +27,30 @@ func declaration(module string) ([]byte, bool) {
 	src, err := declarations.ReadFile(path.Join("declarations", strings.ReplaceAll(module, "::", "/")+".pmt"))
 	return src, err == nil
 }
+
+// coreTable is perl's builtins by name, each to its prototype without
+// parentheses: `bless` to `$;$`. It is built by parsing declarations/CORE.pmt,
+// the declaration file for the language itself -- TypeScript's lib.d.ts to a
+// module declaration's @types/Foo.
+//
+// Built on first use rather than at package init: the parse that builds it is
+// the parser that consults it. CORE.pmt aliases nothing, so building it never
+// asks for it.
+func coreTable() map[string]string {
+	coreOnce.Do(func() {
+		src, ok := declaration("CORE")
+		if !ok {
+			panic("parse: declarations/CORE.pmt is not embedded")
+		}
+		coreMap = map[string]string{}
+		for name, proto := range readModule(Parse(src)).protos {
+			coreMap[name] = strings.TrimSuffix(strings.TrimPrefix(proto, "("), ")")
+		}
+	})
+	return coreMap
+}
+
+var (
+	coreOnce sync.Once
+	coreMap  map[string]string
+)

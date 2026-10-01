@@ -3,6 +3,8 @@
 
 package lexer
 
+import "sort"
+
 // perlKeywords is regen/keywords.pl's list after its __END__, with the
 // `+` and `-` override marks removed and NULL dropped: 266 words.
 // ponytail: blead's list, not 5.42's. A keyword blead added, written with an
@@ -76,3 +78,13 @@ var perlKeywords = map[string]bool{
 // IsKeyword reports whether word is one of perl's keywords, feature-gated
 // ones included: whether it is a keyword HERE is the caller's question.
 func IsKeyword(word string) bool { return perlKeywords[word] }
+
+// Keywords lists perl's keywords, sorted.
+func Keywords() []string {
+	out := make([]string, 0, len(perlKeywords))
+	for k := range perlKeywords {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}

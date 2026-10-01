@@ -651,7 +651,7 @@ func (p *parser) parsePhaser(word lexer.Token) *Node {
 }
 
 // aliasTarget is the sub a `\&NAME` names, with its prototype when this
-// parser knows it: a CORE:: builtin from coreProtos, or a sub in the table.
+// parser knows it: a CORE:: builtin from coreTable, or a sub in the table.
 func (p *parser) aliasTarget(n *Node) (Import, bool) {
 	if n.Kind != Unary || n.Text != "ref" || len(n.Children) != 1 {
 		return Import{}, false
@@ -661,7 +661,7 @@ func (p *parser) aliasTarget(n *Node) (Import, bool) {
 		return Import{}, false
 	}
 	if builtin, isCore := strings.CutPrefix(name, "CORE::"); isCore {
-		proto, known := coreProtos[builtin]
+		proto, known := coreTable()[builtin]
 		return Import{Name: name, Prototype: "(" + proto + ")"}, known
 	}
 	if imp, known := p.lookupSub(name); known && imp.PrototypeKnown {

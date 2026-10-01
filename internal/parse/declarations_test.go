@@ -128,3 +128,20 @@ func TestDeclaredKeywords(t *testing.T) {
 		}
 	}
 }
+
+// TestPrototypeAttribute: `:prototype(...)` is the prototype when a sub has a
+// signature, and the form CORE.pmt declares builtins in. A module declaring
+// `sub one :prototype($) ($x) { $x }` exports a named unary: measured on
+// 5.42.0, `my @r = (one $a, $b);` deparses as `(one($a), $b)`.
+func TestPrototypeAttribute(t *testing.T) {
+	lib := t.TempDir()
+	pm := "package Pm;\nuse v5.36;\nour @EXPORT = qw(one);\nuse Exporter \"import\";\nsub one :prototype($) ($x) { $x }\n1;\n"
+	if err := os.WriteFile(filepath.Join(lib, "Pm.pm"), []byte(pm), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	src := "use Pm; my ($a, $b); my @r = (one $a, $b);"
+	n := parse.ParseWithLoader([]byte(src), parse.DirLoader(lib))
+	if call := findCall(n, "one"); call == nil || len(call.Children) != 1 || call.Children[0].Text != "$a" {
+		t.Errorf("%q: want one($a), $b; got %s", src, shape(n))
+	}
+}

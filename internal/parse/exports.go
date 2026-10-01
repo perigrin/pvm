@@ -417,6 +417,11 @@ func genericQuoteBody(text string) (body string, interp, ok bool) {
 
 // declaredSub returns a sub declaration's name and prototype. The prototype is
 // empty when the declaration carries none, which is itself an answer.
+//
+// `:prototype(...)` is a prototype too, the spelling a sub with a signature
+// needs and the one CORE.pmt declares builtins in: `sub one :prototype($)
+// ($x) { $x }` is a named unary, measured on 5.42.0. Returned in parentheses,
+// as a PrototypeNode's text is.
 func declaredSub(n *Node) (name, proto string) {
 	for _, c := range n.Children {
 		switch c.Kind {
@@ -426,6 +431,10 @@ func declaredSub(n *Node) (name, proto string) {
 			}
 		case PrototypeNode:
 			proto = c.Text
+		case Attribute:
+			if body, ok := strings.CutPrefix(c.Text, ":prototype("); ok && strings.HasSuffix(body, ")") {
+				proto = "(" + body
+			}
 		}
 	}
 	return name, proto
