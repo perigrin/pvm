@@ -1,19 +1,34 @@
 ---
 title: "Declared syntax: keywords and sub prefixes from a declaration file (Future::AsyncAwait)"
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-10-01T05:37:08.107276027Z
-updated: 2026-10-01T05:37:08.850550978Z
+updated: 2026-10-01T05:43:56.102996951Z
 sessions:
 - start_sha: a70a294e499e5fca37b1ed8035f11e3db6698468
-  end_sha: ""
-  commits: 0
+  end_sha: 15fb2815b160523529f4f281200819087e7cf9e0
+  commits: 1
   started_at: 2026-10-01T05:37:08.850550978Z
+  ended_at: 2026-10-01T05:43:56.102996951Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-01T05:37:08.850550978Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-01T05:43:56.102996951Z
+observed_paths:
+- internal/parse/control.go
+- internal/parse/decl.go
+- internal/parse/declarations/Future/AsyncAwait.pmd
+- internal/parse/declarations_test.go
+- internal/parse/exports.go
+- internal/parse/parse.go
+- internal/parse/syntax.go
+- internal/parse/term.go
+- internal/parse/testdata/t1.ratchet
+- internal/parse/use.go
 ---
 
 Second slice of type libraries (01a0f450-9ded-7c8a-8c8b-c04734752b2d): declared syntax. A keyword plugin is a grammar extension, not a name, but plugins built on XS::Parse::Keyword and XS::Parse::Sublike state their grammar as data. Future::AsyncAwait 0.71's AsyncAwait.xs registers `async` as a sublike with XS_PARSE_SUBLIKE_FLAG_PREFIX, `await` with one XPK_TERMEXPR_SCALARCTX, and CANCEL with one XPK_ANONSUB whose build returns KEYWORD_PLUGIN_STMT.
