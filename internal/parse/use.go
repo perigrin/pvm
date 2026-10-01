@@ -664,7 +664,16 @@ func (p *parser) aliasTarget(n *Node) (Import, bool) {
 // *BB::e = \&C::e }` in t/op/method.t. A computed glob, an `import` call, a
 // string eval or a `do FILE` may define anything, so the table is no longer
 // complete. See symbolsOpen.
+//
+// An import called on a literal class name is `use`: `BEGIN { require M;
+// M->import(LIST) }` imports what `use M LIST` does, and is applied the same
+// way -- see beginImport.
 func (p *parser) noteBeginEffects(n *Node) {
+	if module, list, ok := beginImport(n); ok {
+		p.notePackage(module)
+		p.resolveImports(module, list)
+		return
+	}
 	switch {
 	case n.Kind == Binary && n.Text == "=" && len(n.Children) == 2 &&
 		n.Children[0].Kind == Term && strings.HasPrefix(n.Children[0].Text, "*"):
@@ -691,6 +700,31 @@ func (p *parser) noteBeginEffects(n *Node) {
 	for _, c := range n.Children {
 		p.noteBeginEffects(c)
 	}
+}
+
+// beginImport reads `M->import`, `M->import()` and `M->import(LIST)` with M a
+// literal class name, returning M and the import list as `use M` would hold
+// it: nil for no list, an empty parenthesised List for `()`.
+func beginImport(n *Node) (module string, list *Node, ok bool) {
+	if n.Kind != Binary || n.Text != "->" || len(n.Children) != 2 {
+		return "", nil, false
+	}
+	class, method := n.Children[0], n.Children[1]
+	if class.Kind != Call || len(class.Children) != 0 || !isBarewordText(class.Text) ||
+		method.Text != "import" {
+		return "", nil, false
+	}
+	switch {
+	case method.Kind == Term:
+		return class.Text, nil, true
+	case method.Kind != Call:
+		return "", nil, false
+	case len(method.Children) == 0:
+		return class.Text, &Node{Kind: List, Paren: true, Start: method.End, End: method.End}, true
+	case len(method.Children) == 1:
+		return class.Text, method.Children[0], true
+	}
+	return class.Text, &Node{Kind: List, Paren: true, Start: method.Start, End: method.End, Children: method.Children}, true
 }
 
 // parseSpecialSub: `DESTROY { ... }` and `AUTOLOAD { ... }`, which declare the

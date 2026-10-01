@@ -282,7 +282,13 @@ func (r *resolver) resolve(module string) (moduleFacts, bool) {
 	// read during that parse, and a cycle returns here before it can finish.
 	r.seen[module] = true
 
-	src, ok := r.load(module)
+	// A declaration states what the module defines and is read in its
+	// place, installed or not: it exists because the module's source cannot
+	// show it.
+	src, ok := declaration(module)
+	if !ok {
+		src, ok = r.load(module)
+	}
 	if !ok {
 		return moduleFacts{}, false
 	}
