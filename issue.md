@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: v0.1
 created: 2026-09-30T21:55:19.14961642Z
-updated: 2026-10-01T16:05:12.996041838Z
+updated: 2026-10-01T16:07:47.396313835Z
 ---
 
 perigrin (2026-09-30): "eventually we should discuss type libraries similar to TypeScript". Some modules define their interface in ways no static reading of their source can recover:
@@ -56,10 +56,10 @@ Decided by perigrin (2026-10-01), multi: a .pmt declaration may be `multi sub NA
 
 Blocked on the paper (~/dev/types-paper, perigrin: "we need to add parametric types to the paper"): parametric containers (List[T] covariant vs Array[T]; Hash[T] flattening to List[Str|T]; ArrayRef[T]; lvalue lists for chomp), tuples (List[Str, T] for each), and multi/context-indexed function types. Until then a type on a slurpy in a .pmt is the element type of the caller's flattened list.
 
-Decided by perigrin (2026-10-01), `:context(...)`: an attribute like `:prototype` naming the contexts a declaration answers for, from wantarray's three -- `scalar`, `list`, `void` (proposed spelling; a list like `:context(scalar, list)` allowed). Without it a declaration answers for every context. Its presence signals wantarray-like behaviour. A call in a context no declaration answers for has no type (Unknown): `sub sort :context(list) (...) List;` leaves scalar sort undeclared, as perldoc leaves it undefined. Example:
+Decided by perigrin (2026-10-01), `:context(...)`: an attribute like `:prototype` naming the contexts a declaration answers for, from wantarray's three, spelled in prototype sigils (perigrin): `:context($)` scalar, `:context(@)` list, `:context()` void, `:context($@)` scalar or list. As with :prototype, absent and empty differ: no :context answers for every context, `:context()` for void alone. Without it a declaration answers for every context. Its presence signals wantarray-like behaviour. A call in a context no declaration answers for has no type (Unknown): `sub sort :context(@) (...) List;` leaves scalar sort undeclared, as perldoc leaves it undefined. Example:
 
-    multi sub localtime :prototype(;$) :context(scalar) (Int $time = time) Str;
-    multi sub localtime :prototype(;$) :context(list)   (Int $time = time) List[Int];
+    multi sub localtime :prototype(;$) :context($) (Int $time = time) Str;
+    multi sub localtime :prototype(;$) :context(@) (Int $time = time) List[Int];
 
 ## Acceptance criteria
 
