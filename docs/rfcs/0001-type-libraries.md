@@ -178,7 +178,62 @@ section.
 
 A slurpy (`@` or `%`) is therefore either untyped or typed with an
 explicit container type, once the paper defines one. Until then it is
-untyped.
+untyped. `print`, with its container explicit (perigrin):
+
+```perl
+sub print (FileHandle $fh = select(), List[Str] @args = ($_)) Bool;
+```
+
+Inside the brackets the membership-or-coercion question remains: for
+`print`, `Str` must mean "becomes a Str".
+
+### A typed signature and a prototype say the same thing (*Decided*)
+
+A prototype's characters are parameter types seen from the caller.
+`\@` means the caller writes an actual array, passed whole; `@` means
+the rest of the call, flattened. That is the `Array`/`List`
+distinction (perigrin), so
+
+```perl
+sub push (Array @, List @) Int;      # prototype \@@; returns the new length
+```
+
+carries `push`'s prototype in its types. Measured on 5.42.0, each
+prototype character corresponds to a parameter:
+
+| prototype | the caller writes (measured) | parameter |
+|---|---|---|
+| `$` | any expression, in scalar context: with `@a = (5, 6, 7)`, `one(@a)` passes 3 | `Scalar $` |
+| `@`, `%` | the rest of the call, flattened | `List @` |
+| `\@`, `\%` | an actual array or hash, passed whole | `Array @`, `Hash %` |
+| `\$` | an actual scalar variable: `sref(1)` dies, "must be scalar (not constant item)" | a scalar container (open) |
+| `\[$@%]` | any one of those containers | their union |
+| `+` | one array or hash, passed whole, or one scalar: `plus(%h)` sees a HASH, `plus(1,2)` is too many arguments | `Array\|Hash\|Scalar` |
+| `&` (first) | a block or a code reference | `Code &` |
+| `*` | a bareword filehandle or any scalar: `star(STDOUT)`, `star($s)` | `Glob *` |
+| `_` | a scalar, defaulting to `$_` | `Scalar $ = $_` |
+| `;` | marks what follows as optional | parameters with defaults |
+
+**Derivation goes both directions** (perigrin):
+
+- A declaration with only a prototype gets the coarse typed signature
+  the table gives: `sub foo ($$)` reads as `(Scalar $, Scalar $)`.
+- A typed declaration gets its prototype from its types, and needs no
+  `:prototype(...)`.
+- A declaration with both must have them agree; disagreement is an
+  error in the declaration file.
+
+The directions are not symmetric. Types are finer than prototypes
+(`Str $` and `Int $` both give `$`), so prototype to types to prototype
+round-trips, and types to prototype to types loses precision. A test
+can hold the derived prototypes to `prototype("CORE::name")` for all
+188 builtins.
+
+In a `.pmt`, a parameter's sigil is the caller's view, as a prototype's
+characters are. This departs from Perl's signatures on purpose: perl
+rejects `sub f (@a, @b)` ("Multiple slurpy parameters not allowed"),
+but in `(Array @, List @)` only the final `List` or `Hash` parameter is
+slurpy.
 
 ### Multi declarations (*Decided*)
 
@@ -263,6 +318,10 @@ Separate from the paper:
 6. A search path for user-written `.pmt` files beside the embedded set.
 7. The remaining XS::Parse pieces, and sublikes other than `PREFIX`.
 8. Lexical rather than file-wide scope for declared syntax.
+9. How a builtin with no prototype opts out of derivation. `print`'s
+   typed signature would derive a prototype `print` does not have, and
+   applying it would change how `print` parses.
+10. A type for `\$`'s scalar container, distinct from a scalar value.
 
 ## Rejected alternatives
 
