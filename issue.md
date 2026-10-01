@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: v0.1
 created: 2026-09-30T21:55:19.14961642Z
-updated: 2026-10-01T16:03:59.106926474Z
+updated: 2026-10-01T16:05:12.996041838Z
 ---
 
 perigrin (2026-09-30): "eventually we should discuss type libraries similar to TypeScript". Some modules define their interface in ways no static reading of their source can recover:
@@ -52,9 +52,14 @@ Decided by perigrin (2026-10-01): typed parameters and return types are valid on
 
 Decided by perigrin (2026-10-01), builtins with no prototype: CORE.pmt declares their types and a shape attribute (`:unary` for the 8 unary ones; no prototype means list operator), and their special forms (filehandle slot, BLOCK first, pattern first, `defined &f`) stay in the parser. parse/keyword.go's tables then derive from CORE.pmt and are deleted, after a test shows the derived shapes agree with them. A type on a slurpy names its elements: `sub print (FileHandle $fh = select(), Str @args = ($_)) Bool;` -- the default handle is the selected one, not STDOUT, and print stringifies (measured on 5.42).
 
-Decided by perigrin (2026-10-01), multi: a .pmt declaration may be `multi sub NAME ...`, several signatures for one name, and a call site selects one by arity, by argument types that are not subtypes of each other, or by call context (`:scalar`/`:list`, a function that effectively uses wantarray). When the call site cannot decide, the consumer joins the candidates. Bounded polymorphism needs no multi: `abs (Num $x) Num` narrows by meet(join(args), declared). Measured examples: `each %h` gives (Str, v) and `each @a` gives (Int, v); `select(FH)` returns the previous handle and `select(r,w,e,t)` a count; `localtime` is a Str in scalar context and a List[Int] in list context, and the scalar value is not one of the list's.
+Decided by perigrin (2026-10-01), multi: a .pmt declaration may be `multi sub NAME ...`, several signatures for one name, and a call site selects one by arity, by argument types that are not subtypes of each other, or by call context. When the call site cannot decide, the consumer joins the candidates. Bounded polymorphism needs no multi: `abs (Num $x) Num` narrows by meet(join(args), declared). Measured examples: `each %h` gives (Str, v) and `each @a` gives (Int, v); `select(FH)` returns the previous handle and `select(r,w,e,t)` a count; `localtime` is a Str in scalar context and a List[Int] in list context, and the scalar value is not one of the list's.
 
 Blocked on the paper (~/dev/types-paper, perigrin: "we need to add parametric types to the paper"): parametric containers (List[T] covariant vs Array[T]; Hash[T] flattening to List[Str|T]; ArrayRef[T]; lvalue lists for chomp), tuples (List[Str, T] for each), and multi/context-indexed function types. Until then a type on a slurpy in a .pmt is the element type of the caller's flattened list.
+
+Decided by perigrin (2026-10-01), `:context(...)`: an attribute like `:prototype` naming the contexts a declaration answers for, from wantarray's three -- `scalar`, `list`, `void` (proposed spelling; a list like `:context(scalar, list)` allowed). Without it a declaration answers for every context. Its presence signals wantarray-like behaviour. A call in a context no declaration answers for has no type (Unknown): `sub sort :context(list) (...) List;` leaves scalar sort undeclared, as perldoc leaves it undefined. Example:
+
+    multi sub localtime :prototype(;$) :context(scalar) (Int $time = time) Str;
+    multi sub localtime :prototype(;$) :context(list)   (Int $time = time) List[Int];
 
 ## Acceptance criteria
 
