@@ -206,3 +206,26 @@ parses: yes
 ```output
 0 1 undef
 ```
+
+## A `map` topic passed to a sub
+
+`$_` inside `map` is an alias for the current element, and passing it
+to a sub passes that alias on, so perl flags the `gvsv` `OPf_MOD`. It
+is still a read of the current element, not of the global `$_`: an
+implementation that reads the flag as a write, or the op as the
+global, prints the wrong thing. Found by B::SoN translating chalk's
+lib/ and running chalk's own suite against the emitted Perl.
+
+```perl
+sub shout { return uc $_[0] }
+my @loud = map { shout($_) } qw(a b c);
+print "@loud\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+A B C
+```

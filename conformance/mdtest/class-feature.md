@@ -125,3 +125,60 @@ parses: yes
 ```output
 Foo
 ```
+
+## A `:param` field defaulting to a folded boolean
+
+`!!0` and `!!1` fold at compile time to perl's shared immortals `sv_no`
+and `sv_yes`, which B reports as `B::SPECIAL` rather than an IV, NV or
+PV. A reader that knows only those three drops the default, and the
+`:param` becomes required: `Flags->new` with no arguments then dies.
+Found by B::SoN translating chalk's lib/ and running chalk's own suite
+against the emitted Perl, which compiled and gave a wrong answer.
+
+```perl
+use feature 'class';
+no warnings 'experimental::class';
+class Flags { field $quiet :param :reader = !!0; field $loud :param :reader = !!1; }
+my $f = Flags->new;
+print $f->quiet ? "q" : "-", $f->loud ? "l" : "-", Flags->new(quiet => 1)->quiet ? "Q" : "-", "\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+-lQ
+```
+
+## A field post-increment whose value is used
+
+`$count++` on a field must store the incremented value AND yield the
+old one, here after a guarded early return that leaves the field
+untouched. An implementation that only stores, or only yields, numbers
+the keys wrongly. Found the same way as the case above.
+
+```perl
+use feature 'class';
+no warnings 'experimental::class';
+class Index {
+    field %id_for;
+    field $count = 0;
+    method register ($key) {
+        return $id_for{$key} if exists $id_for{$key};
+        my $id = $count++;
+        $id_for{$key} = $id;
+        return $id;
+    }
+}
+my $ix = Index->new;
+print join(",", $ix->register("a"), $ix->register("b"), $ix->register("a"), $ix->register("c")), "\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+0,1,0,2
+```

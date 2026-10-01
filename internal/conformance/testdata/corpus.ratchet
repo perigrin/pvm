@@ -8,7 +8,7 @@
 # topic's `**Tier NN name.**` line and leaves every key alone. That
 # is the `t/` sweep working, and must not read as a regression.
 #
-# 229 cases, 229 clean, 0 refusing.
+# 233 cases, 233 clean, 0 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -40,6 +40,7 @@
 - argument-extent.md/A parenless call is greedy
 - argument-extent.md/An undeclared callee is a syntax error
 - argument-extent.md/`lock` is a named unary with its own op
+- arguments.md/A `map` topic passed to a sub
 - arguments.md/A bare `return` needs no terminator before the closing brace
 - arguments.md/A signature names the parameters
 - arguments.md/Arguments arrive in `@_`
@@ -72,6 +73,8 @@
 - blocks-and-terminations.md/`eval BLOCK` is a control construct
 - blocks-and-terminations.md/`exit` leaves the program, and `eval BLOCK` does not catch it
 - blocks-and-terminations.md/`time` is niladic
+- class-feature.md/A `:param` field defaulting to a folded boolean
+- class-feature.md/A field post-increment whose value is used
 - class-feature.md/An empty class body
 - class-feature.md/`ADJUST` alone in a class body
 - class-feature.md/`field` and `method` in a class body
@@ -159,6 +162,7 @@
 - named-operators.md/`index` reports failure as -1, not undef
 - named-operators.md/`substr` is an lvalue
 - named-operators.md/`substr` takes two, three or four arguments
+- named-operators.md/`uc` is a named unary, so a comma ends its argument
 - named-operators.md/`undef` is two operators wearing one word
 - names.md/A package array subscripts through `rv2av`
 - names.md/A package hash reaches storage through `rv2hv`
