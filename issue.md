@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: v0.1
 created: 2026-09-30T21:55:19.14961642Z
-updated: 2026-10-01T14:46:30.480530443Z
+updated: 2026-10-01T14:48:49.324562653Z
 ---
 
 perigrin (2026-09-30): "eventually we should discuss type libraries similar to TypeScript". Some modules define their interface in ways no static reading of their source can recover:
@@ -42,6 +42,8 @@ Decided by perigrin (2026-10-01): source filters (Filter::Simple, Filter::Util::
 T1 is 985 of 986; the one left is the source filter, out of scope by decision.
 
 Still open: types (perigrin's `sub :infix + (Num $x, Num $y) Num;` -- the attribute-after-name spelling used here, `sub await :keyword(...)`, is what our Perl parser already reads; measured on 5.42, perl's order is name, attributes, then signature (`sub f :lvalue ($x)` is OK; `sub :lvalue f` is a syntax error), so an operator declaration fits as `sub + :infix (Num $x, Num $y) Num;`, the order of perigrin's 2026-09-17 spelling, and only the `+` name and the types need a parser of their own); a user search path for declaration files beyond the embedded set; the remaining XS::Parse pieces and non-PREFIX sublikes; lexical rather than file-wide scope for declared syntax.
+
+Decided by perigrin (2026-10-01): declaration files keep perl's order -- name, attributes, then signature. An operator is `sub + :infix (Num $x, Num $y) Num;`, not `sub :infix + (...)`.
 
 ## Acceptance criteria
 
