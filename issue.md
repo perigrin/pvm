@@ -1,10 +1,19 @@
 ---
 title: The builtin table is parsed from declarations/CORE.pmt
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-10-01T15:14:51.218241251Z
-updated: 2026-10-01T15:14:51.218241251Z
+updated: 2026-10-01T15:14:53.546333211Z
+sessions:
+- start_sha: a3095b73ecc19394831f35b4980b7ed48bb1d9be
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-01T15:14:53.546333211Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-01T15:14:53.546333211Z
 ---
 
 The builtin table is the type library for the language itself, TypeScript's lib.d.ts. perigrin (2026-10-01): it is a file of declarations, `sub bless :prototype($;$) (Ref $ref, Str $class = __PACKAGE__) Object;`, parsed to build the default table. Today that table is coreprotos.go, a Go map generated from perl.
