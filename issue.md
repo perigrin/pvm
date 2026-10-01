@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: v0.1
 created: 2026-09-30T21:55:19.14961642Z
-updated: 2026-10-01T14:52:01.242711065Z
+updated: 2026-10-01T15:27:52.614317784Z
 ---
 
 perigrin (2026-09-30): "eventually we should discuss type libraries similar to TypeScript". Some modules define their interface in ways no static reading of their source can recover:
@@ -37,6 +37,7 @@ Decided by perigrin (2026-10-01): source filters (Filter::Simple, Filter::Util::
 
 - a70a294e (01a0f5c5): declaration files for subs, embedded under internal/parse/declarations/ as `Module/Name.pmt` (renamed from .pmd in a3095b73), read in place of the module's source whether or not it is installed. Moose, Moose::Role, Mojolicious::Lite. A literal `M->import` in BEGIN now applies as `use M`.
 - 15fb2815 (01a0f5f7): declared syntax, `:sublike(PREFIX)`, `:keyword(PIECES)` and `:statement(PIECES)`, pieces TERMEXPR, BLOCK and ANONSUB. Future::AsyncAwait.
+- 36df6a2c (01a0f808): declarations/CORE.pmt, the lib.d.ts row: the 188 prototyped builtins as `sub NAME :prototype(PROTO);`, parsed to build the default builtin table (coreprotos.go deleted); types go on these lines. `:prototype(...)` is read as a prototype everywhere.
 - 5374dda4: parse.Session, which made the corpus ratchets fast enough to keep adding to (T1 241s -> 4s).
 
 T1 is 985 of 986; the one left is the source filter, out of scope by decision.
