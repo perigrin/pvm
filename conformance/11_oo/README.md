@@ -40,7 +40,7 @@ use -- pairing with 10 would assert nothing.
 
 ## INTRODUCES
 
-    anonhash bless emptyavhv isa method method_named method_super methstart shift stub
+    anonhash bless emptyavhv isa method method_named method_super methstart stub
     tie tied
 
 ## Why those ops, and not the ones the source implies
@@ -61,14 +61,15 @@ the `class` side.
   resolved entirely at compile time.
 
 - **`methstart` and `shift` are the two spellings' prefixes, and this
-  tier owns both.** Every `method` body opens with `methstart`, which
-  binds the invocant and the field pad; a `sub` body doing the same job
-  opens with `shift`. Two spellings of the same object system produce two
-  disjoint op prefixes, so a parser that handles one learns nothing about
-  the other, which is the argument for this tier covering both systems
-  rather than picking one.
+  tier exercises both.** Every `method` body opens with `methstart`,
+  which binds the invocant and the field pad; a `sub` body doing the same
+  job opens with `shift`. Two spellings of the same object system produce
+  two disjoint op prefixes, so a parser that handles one learns nothing
+  about the other, which is the argument for this tier covering both
+  systems rather than picking one. This tier introduces `methstart`;
+  `shift` is tier 02's, and the `sub` spelling reuses it.
 
-  Both were unclaimable until `opsOf` learned to look inside a CV.
+  Both were unmeasurable here until `opsOf` learned to look inside a CV.
   `perl -MO=Concise,-exec file.pl` with no sub named dumps THE MAIN
   PROGRAM ALONE, and a method body is a CV, so nothing a file could be
   written to do put `methstart` where the lint looked. `opsOf` now
@@ -77,15 +78,11 @@ the `class` side.
   `00_adjacency.t` and `08_class_field_method.t`, `shift` from
   `06_indirect_new.t`.
 
-  **`shift` is claimed HERE rather than in tier 02, and the reason is a
-  gap rather than a judgement.** The op is not really this tier's
-  subject: `shift @a` outside any sub emits it too, and tier 02 is where
-  arrays live. But the corpus's rule is that the tier which EMITS an op
-  first owns it, and no tier-02 or tier-04 file emits `shift` at all --
-  claiming it there would fail `TestCorpusLints`, which reports a README
-  claiming an op no file emits. A tier-02 file exercising `shift @a`
-  would move the claim to where it belongs, and until one exists the
-  claim sits with the first tier that actually compiles the op.
+  **`shift` belongs to tier 02, where arrays live.** `shift @a` outside
+  any sub emits it, and the corpus's rule is that the tier which EMITS an
+  op first owns it. `aggregate-operators.md` exercises `shift @a`, so the
+  claim sits there, and this tier's `my $self = shift` uses an earlier
+  tier's op.
 
   `leavesub`, which every method body here also ends in, belongs to tier
   07: it is emitted first by the subroutine tier, which is where the

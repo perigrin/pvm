@@ -229,3 +229,46 @@ parses: yes
 ```output
 A B C
 ```
+
+## A loop variable passed to a sub
+
+The argument is an alias the callee could write through `$_[0]`, and
+it is still the loop's value on each pass: `twice` reads `1`, `2` and
+`3`. Found by B::SoN translating chalk's lib/ and running chalk's own suite
+against the emitted Perl, which compiled and gave a wrong answer.
+
+```perl
+sub twice { return $_[0] * 2 }
+my @r;
+for my $n (1 .. 3) { push @r, twice($n) }
+print "@r\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+2 4 6
+```
+
+## A foreach alias written through `$_[0]`
+
+`$x` aliases each element of `@a`, and `$_[0]` aliases `$x`, so the
+callee's `$_[0]++` reaches the array itself. Found by B::SoN translating chalk's lib/ and running chalk's own suite
+against the emitted Perl, which compiled and gave a wrong answer.
+
+```perl
+sub bump { $_[0]++ }
+my @a = (1, 2);
+for my $x (@a) { bump($x) }
+print "@a\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+2 3
+```

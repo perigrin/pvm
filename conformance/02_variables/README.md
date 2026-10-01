@@ -33,7 +33,7 @@ subject and `print` is tier 10's. Using a construct is not introducing it.
 
 ## INTRODUCES
 
-    aassign aelem aelemfast aelemfast_lex aelemfastlex_store aslice av2arylen delete each gv gvsv helem hslice multideref padav padhv push rv2av rv2hv sassign unshift values
+    aassign aelem aelemfast aelemfast_lex aelemfastlex_store aslice av2arylen delete each gv gvsv helem hslice multideref padav padhv push rv2av rv2hv sassign shift unshift values
 
 ## Why those ops, and not the ones the source implies
 

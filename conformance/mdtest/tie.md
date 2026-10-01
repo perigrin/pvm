@@ -5,7 +5,7 @@ Two words one lexer would call one family, and two different argument
 grammars.
 
 **Tier 11 oo.** Introduces `anonhash`, `bless`, `emptyavhv`, `isa`,
-`method`, `method_named`, `method_super`, `methstart`, `shift`, `stub`,
+`method`, `method_named`, `method_super`, `methstart`, `stub`,
 `tie`, `tied`. Depends on 08_references.
 
 Both words were UNCLAIMED by every tier of this corpus, and the

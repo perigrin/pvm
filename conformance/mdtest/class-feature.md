@@ -5,7 +5,7 @@ would call the subject of this tier and that produce, between them,
 tier 05's `enterloop` and `leaveloop` plus `stub` and `methstart`.
 
 **Tier 11 oo.** Introduces `anonhash`, `bless`, `emptyavhv`, `isa`,
-`method`, `method_named`, `method_super`, `methstart`, `shift`, `stub`,
+`method`, `method_named`, `method_super`, `methstart`, `stub`,
 `tie`, `tied`. Depends on 08_references.
 
 This is the sharpest case in the corpus of a construct the optimiser

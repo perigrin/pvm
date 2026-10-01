@@ -4,7 +4,7 @@ The classic object system: a reference plus a string, and the four ops
 perl uses to find a method on the result.
 
 **Tier 11 oo.** Introduces `anonhash`, `bless`, `emptyavhv`, `isa`,
-`method`, `method_named`, `method_super`, `methstart`, `shift`, `stub`,
+`method`, `method_named`, `method_super`, `methstart`, `stub`,
 `tie`, `tied`. Depends on 08_references.
 
 What this tier adds is how the callee is found; the `entersub` and

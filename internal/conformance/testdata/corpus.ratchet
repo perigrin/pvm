@@ -8,7 +8,7 @@
 # topic's `**Tier NN name.**` line and leaves every key alone. That
 # is the `t/` sweep working, and must not read as a regression.
 #
-# 233 cases, 233 clean, 0 refusing.
+# 238 cases, 238 clean, 0 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -30,6 +30,7 @@
 - adjacency-14_recursive.md/The whole tier in one body
 - aggregate-operators.md/`each` returns a PAIR where its siblings return a flat list
 - aggregate-operators.md/`push`: the first argument is an array, not an expression
+- aggregate-operators.md/`shift`: the rule again, and the array gives up an element
 - aggregate-operators.md/`unshift`: the same rule at the other end
 - aggregate-operators.md/`values` takes the container, not a flattened list
 - aggregates-in-context.md/The comma operator in scalar context discards its left operands
@@ -42,6 +43,8 @@
 - argument-extent.md/`lock` is a named unary with its own op
 - arguments.md/A `map` topic passed to a sub
 - arguments.md/A bare `return` needs no terminator before the closing brace
+- arguments.md/A foreach alias written through `$_[0]`
+- arguments.md/A loop variable passed to a sub
 - arguments.md/A signature names the parameters
 - arguments.md/Arguments arrive in `@_`
 - arguments.md/Explicit return, early and trailing
@@ -106,10 +109,12 @@
 - declarations.md/`my` shadows, and the outer binding survives
 - declarations.md/`our` names a package variable, and the shadow proves it
 - declarations.md/`state` scopes like `my`, and initialises once
+- dereferencing.md/A dereference returned takes the caller's context
 - dereferencing.md/The `%{ }` and `${ }{ }` hash dereferences
 - dereferencing.md/The `@{ }` whole-array dereference
 - dereferencing.md/The arrow dereference
 - dereferencing.md/The brace dereference of an array reference
+- dereferencing.md/The last index through a reference, three ways
 - dereferencing.md/The postfix `$r->@*` dereference
 - dereferencing.md/The sigil-only `@$r` dereference
 - dynamic-scope.md/A bare block is a scope, and a loop that runs once
