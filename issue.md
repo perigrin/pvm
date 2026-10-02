@@ -3,8 +3,10 @@ title: Type CORE.pmt's prototyped builtins and hold every derived prototype to p
 state: pending
 urgency: normal
 milestone: type-libraries
+blocked_by:
+- 01a0fd9b-4850-704d-8c14-c15add6194f2
 created: 2026-10-02T17:13:29.229586875Z
-updated: 2026-10-02T17:13:29.229586875Z
+updated: 2026-10-02T17:14:09.897937098Z
 ---
 
 ## Prerequisites
