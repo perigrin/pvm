@@ -9,7 +9,7 @@ blocks:
 - 01a0fd9b-4ca3-7d55-82ac-ba125816ee71
 - 01a0fd9b-5017-78d0-ae38-331cbe6a9866
 created: 2026-10-02T17:13:27.899092724Z
-updated: 2026-10-02T17:14:11.263841758Z
+updated: 2026-10-02T17:24:05.20119943Z
 ---
 
 ## Prerequisites
@@ -41,6 +41,13 @@ RFC 0001 "Multi declarations": `multi sub NAME ...` gives several signatures for
 - [ ] Write failing test `TestBoundedResultIsMeetOfJoin`: `abs (Num $x) Num` applied to `Int` gives `Int`
 - [ ] Implement `Meet` and the result rule; run test to verify pass; `make test`; commit
 
+### Negative Scenarios
+
+- outside a `.pmt`, `multi` is not a declarator: `sub multi { 1 } multi(1);` in ordinary source parses as it does today and records no candidates (`go test ./internal/parse/ -run '^TestMultiOnlyInPmt$' -count=1 -v | grep -q '^--- PASS: TestMultiOnlyInPmt'`)
+- candidates whose argument types are subtypes of each other (`(Num $x) Num` and `(Int $x) Int`) are not chosen by most-specific type: an `Int` argument leaves the call undecided, so the result is the join (RFC: selection uses types that are not subtypes of each other) (`go test ./internal/types/ -run '^TestSelectSubtypeRelatedCandidatesJoin$' -count=1 -v | grep -q '^--- PASS: TestSelectSubtypeRelatedCandidatesJoin'`)
+- selection over zero candidates or an empty argument list returns no type without panicking (`go test ./internal/types/ -run '^TestSelectEmptyCandidates$' -count=1 -v | grep -q '^--- PASS: TestSelectEmptyCandidates'`)
+- a call whose arity no candidate accepts (`each` with two arguments) -- no type, or the join? The RFC only says an undecided call joins; needs perigrin's ruling (`go test ./internal/types/ -run '^TestSelectNoArityMatch$' -count=1 -v | grep -q '^--- PASS: TestSelectNoArityMatch'`)
+
 ## Acceptance criteria
 
 - [ ] a multi sub keeps every candidate for its name (`go test ./internal/parse/ -run '^TestPmtMultiSubKeepsEveryCandidate$' -count=1 -v | grep -q '^--- PASS: TestPmtMultiSubKeepsEveryCandidate'`)
@@ -48,3 +55,6 @@ RFC 0001 "Multi declarations": `multi sub NAME ...` gives several signatures for
 - [ ] a call selects a multi candidate by argument types (`go test ./internal/types/ -run '^TestSelectByArgumentTypes$' -count=1 -v | grep -q '^--- PASS: TestSelectByArgumentTypes'`)
 - [ ] an undecided call joins the candidates (`go test ./internal/types/ -run '^TestSelectJoinsWhenUndecided$' -count=1 -v | grep -q '^--- PASS: TestSelectJoinsWhenUndecided'`)
 - [ ] a bounded declaration returns the meet of the joined arguments and the declared type (`go test ./internal/types/ -run '^TestBoundedResultIsMeetOfJoin$' -count=1 -v | grep -q '^--- PASS: TestBoundedResultIsMeetOfJoin'`)
+- [ ] multi is not a declarator in ordinary source (`go test ./internal/parse/ -run '^TestMultiOnlyInPmt$' -count=1 -v | grep -q '^--- PASS: TestMultiOnlyInPmt'`)
+- [ ] subtype-related candidates do not select by most-specific type (`go test ./internal/types/ -run '^TestSelectSubtypeRelatedCandidatesJoin$' -count=1 -v | grep -q '^--- PASS: TestSelectSubtypeRelatedCandidatesJoin'`)
+- [ ] selection with no candidates returns no type (`go test ./internal/types/ -run '^TestSelectEmptyCandidates$' -count=1 -v | grep -q '^--- PASS: TestSelectEmptyCandidates'`)
