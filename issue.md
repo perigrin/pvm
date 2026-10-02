@@ -3,8 +3,10 @@ title: Declare grep, map and sort as multis in CORE.pmt, with sort's invocant sl
 state: pending
 urgency: normal
 milestone: type-libraries
+blocked_by:
+- 01a0fd9b-49b2-7ea9-bfa1-ba398baadc3f
 created: 2026-10-02T17:13:29.757085237Z
-updated: 2026-10-02T17:13:29.757085237Z
+updated: 2026-10-02T17:14:12.703991601Z
 ---
 
 ## Prerequisites
