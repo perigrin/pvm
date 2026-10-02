@@ -456,6 +456,17 @@ multi sub select ($r, $w, $e, Num $timeout) Int;   # a count
 
 When the call site cannot decide, the consumer joins the candidates.
 
+**A call whose arity no candidate accepts fails** (perigrin,
+2026-10-02, stricter than perl where perl only finds out at run time).
+Where perl refuses at compile time, the parser refuses too: measured on
+5.42, `select(1, 2)` dies "Not enough arguments for select system call",
+`localtime(1, 2)` "Too many arguments for localtime", and `each()`,
+`sort()` and `grep()` "Not enough arguments". Where perl would compile
+the call -- a candidate set with no prototype, or a library dispatching
+at run time -- the parse stays as perl reads it and `psc check` reports
+an error. The join is never used to type a call the declarations rule
+out.
+
 Bounded polymorphism needs no `multi`. `abs (Num $x) Num` already
 accepts an `Int`, and the result is `meet(join(arguments), declared)`,
 so `abs` of an `Int` is an `Int`.
