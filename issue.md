@@ -9,7 +9,7 @@ blocked_by:
 blocks:
 - 01a0fd9b-519d-7b42-886e-2222a3076986
 created: 2026-10-02T17:13:29.367336401Z
-updated: 2026-10-02T17:14:17.153522046Z
+updated: 2026-10-02T17:24:12.292266883Z
 ---
 
 ## Prerequisites
@@ -35,7 +35,16 @@ RFC 0001 "Builtins with no prototype": about 20 builtins have no prototype perl 
 - [ ] Write failing test `TestCoreSelectAndEachAreMultis`: `select` and `each` each have two candidates with the RFC's signatures, and `each`'s derived prototype is perl's
 - [ ] Implement; run test to verify pass; `make test`; commit
 
+### Negative Scenarios
+
+- no-prototype declarations stay out of `coreTable()`: none of the names held in the test appears there, so `aliasTarget` never reads one as `()` (`go test ./internal/parse/ -run '^TestCoreNoPrototypeBuiltinsOutOfCoreTable$' -count=1 -v | grep -q '^--- PASS: TestCoreNoPrototypeBuiltinsOutOfCoreTable'`)
+- `:unary` is not inferred: for one measured named unary, `NAME $a, $b` parses as `(NAME $a), $b`, and for one unmarked no-prototype builtin it parses as one call with two arguments (measure both with B::Deparse) (`go test ./internal/parse/ -run '^TestCoreUnaryAndListOperatorParseDiffer$' -count=1 -v | grep -q '^--- PASS: TestCoreUnaryAndListOperatorParseDiffer'`)
+- `each` on a scalar (`each $x`), which perl 5.42 forbids (Experimental each on scalar is now forbidden), matches neither `each` candidate (`go test ./internal/parse/ -run '^TestCoreEachRefusesScalar$' -count=1 -v | grep -q '^--- PASS: TestCoreEachRefusesScalar'`)
+
 ## Acceptance criteria
 
 - [ ] CORE.pmt declares the no-prototype builtins and :unary marks the named unaries (`go test ./internal/parse/ -run '^TestCoreUnaryBuiltins$' -count=1 -v | grep -q '^--- PASS: TestCoreUnaryBuiltins'`)
 - [ ] select and each are declared as multis (`go test ./internal/parse/ -run '^TestCoreSelectAndEachAreMultis$' -count=1 -v | grep -q '^--- PASS: TestCoreSelectAndEachAreMultis'`)
+- [ ] no-prototype builtins stay out of the prototype table (`go test ./internal/parse/ -run '^TestCoreNoPrototypeBuiltinsOutOfCoreTable$' -count=1 -v | grep -q '^--- PASS: TestCoreNoPrototypeBuiltinsOutOfCoreTable'`)
+- [ ] a :unary builtin and a list-operator builtin parse differently (`go test ./internal/parse/ -run '^TestCoreUnaryAndListOperatorParseDiffer$' -count=1 -v | grep -q '^--- PASS: TestCoreUnaryAndListOperatorParseDiffer'`)
+- [ ] each on a scalar matches neither candidate (`go test ./internal/parse/ -run '^TestCoreEachRefusesScalar$' -count=1 -v | grep -q '^--- PASS: TestCoreEachRefusesScalar'`)
