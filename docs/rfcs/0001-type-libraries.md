@@ -456,6 +456,19 @@ multi sub select ($r, $w, $e, Num $timeout) Int;   # a count
 
 When the call site cannot decide, the consumer joins the candidates.
 
+**The most specific candidate wins** (perigrin, 2026-10-02). When more
+than one candidate accepts a call because their parameters are related
+by subtyping -- `multi sub f (Int $x) Str;` beside `multi sub f (Num $x)
+Int;`, called with an `Int` -- the candidate whose parameters are all
+subtypes of the other's is selected, as multi dispatch does in Raku,
+CLOS and Julia; the lattice's `Int <: Num` makes "more specific"
+precise. Candidates with no single most specific one for some argument
+types -- `(Int $a, Num $b)` beside `(Num $a, Int $b)`, called with two
+`Int`s -- are ambiguous, and the declaration is an error. A narrower
+candidate whose result is only what narrowing within the wider one's
+bound would give (`(Int $x) Int` beside `(Num $x) Num`) is redundant,
+and `psc` may warn about it.
+
 **A call whose arity no candidate accepts fails** (perigrin,
 2026-10-02, stricter than perl where perl only finds out at run time).
 Where perl refuses at compile time, the parser refuses too: measured on
