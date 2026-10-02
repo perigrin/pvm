@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: type-libraries
 created: 2026-10-02T01:42:09.165064836Z
-updated: 2026-10-02T01:42:09.165064836Z
+updated: 2026-10-02T03:25:57.87427995Z
 ---
 
 perigrin (2026-10-01): parametric types go into the paper (~/dev/types-paper) first, so pvm and perl5-son extend one lattice. RFC 0001's open questions 1, 3, 4 and 5 wait on it:
@@ -13,6 +13,7 @@ perigrin (2026-10-01): parametric types go into the paper (~/dev/types-paper) fi
 - Lvalue lists: `chomp`/`chop` modify their arguments in place.
 - Tuples: `each` returns `(Str, T)` for a hash.
 - Function types with several signatures, selected by arity, argument type or context.
+- Blessing and reftype: an `IO::File` object is a blessed reference of reftype `GLOB`, and the lattice files every blessed reference under `Object`, losing the `GLOB`. RFC 0001's type-names section keeps such objects out of `FileHandle` until this is settled.
 
 Membership in the paper is defined through interpretation (`v ∈ T` iff interpreting `v` through `T` is lossless and its contracts hold), and the parametric section should keep that definition.
 
