@@ -6,8 +6,10 @@ milestone: type-libraries
 blocked_by:
 - 01a0fd9b-43ea-716e-9bb8-dd93ce3bbfcb
 - 01a0fd9b-46c4-7a8c-b8d6-498c5182a47f
+blocks:
+- 01a0fd9b-4f8d-71ca-bac4-24eceb1dc4a4
 created: 2026-10-02T17:13:27.376660947Z
-updated: 2026-10-02T17:13:59.520361624Z
+updated: 2026-10-02T17:14:09.894567312Z
 ---
 
 ## Prerequisites
