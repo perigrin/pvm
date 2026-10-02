@@ -3,8 +3,10 @@ title: "Read the :lvalue parameter attribute and derive the \\$ prototype from i
 state: pending
 urgency: normal
 milestone: type-libraries
+blocked_by:
+- 01a0fd9b-43ea-716e-9bb8-dd93ce3bbfcb
 created: 2026-10-02T17:13:27.376660947Z
-updated: 2026-10-02T17:13:27.376660947Z
+updated: 2026-10-02T17:13:57.806637144Z
 ---
 
 ## Prerequisites
