@@ -11,7 +11,7 @@ blocked_by:
 blocks:
 - 01a0fd9b-55cb-70cd-a9da-929190cb581c
 created: 2026-10-02T17:13:29.757085237Z
-updated: 2026-10-02T17:24:13.584145047Z
+updated: 2026-10-02T17:26:34.257501577Z
 ---
 
 ## Prerequisites
@@ -37,6 +37,7 @@ RFC 0001 "Builtins that keep their own parse": perlsub reimplements `grep` as `s
 - [ ] Run test to verify failure: `go test ./internal/parse/ -run '^TestCoreGrepMapSortAreMultis$' -count=1 -v`
 - [ ] Add the declarations with their measurement comments; run test to verify pass; `make test`; commit
 - [ ] Re-mark the RFC headings "Builtins with no prototype" and "Builtins that keep their own parse" `(*Implemented*, <sha>)`; commit
+- [ ] Doc: the RFC's "CORE.pmt: the builtin table" section describes only the 188 prototyped keywords; add that the file also declares the builtins with no prototype, and that those stay out of the prototype table; commit
 
 ### Negative Scenarios
 
