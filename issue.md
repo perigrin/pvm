@@ -6,7 +6,7 @@ milestone: type-libraries
 blocks:
 - 01a0fa47-146b-7047-84b6-20ac55c1b0f6
 created: 2026-10-02T01:42:03.565080543Z
-updated: 2026-10-02T16:09:25.725616837Z
+updated: 2026-10-02T17:17:25.502315611Z
 sessions:
 - start_sha: 67d3a077587718198731eaaf6b7174ae3c0f7706
   end_sha: 6c938c5eff02955da4df223cf875311045a9ee9f
@@ -34,4 +34,4 @@ perigrin decides; the decision lands in RFC 0001 as a section `### Operator decl
 
 ## Acceptance criteria
 
-- [ ] The RFC records the decision (`grep -qF '### Operator declarations (*Decided*' docs/rfcs/0001-type-libraries.md`)
+- [ ] The RFC records the decision, decided or since implemented (`grep -q '^### Operator declarations (\*\(Decided\|Implemented\)\*' docs/rfcs/0001-type-libraries.md`)
