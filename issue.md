@@ -9,8 +9,9 @@ blocks:
 - 01a0fa46-b610-7b2f-ad27-3e6a5365dbeb
 - 01a0fa46-be8b-7823-9c6c-5be1406b57b8
 - 01a0fa46-ece2-7c78-87ed-84da0b5d65f9
+- 01a0fa46-fccf-7f53-a476-c02f8f07616d
 created: 2026-10-02T01:42:09.873559281Z
-updated: 2026-10-02T01:42:28.339101367Z
+updated: 2026-10-02T01:42:33.516327752Z
 ---
 
 RFC 0001, "Typed Perl, in `.pmt` only": `sub NAME :attributes (Type $var, ...) Type;`. perl 5.42 rejects a typed parameter and a return type, so `internal/parse` needs a declaration mode, used only when reading a `.pmt`, that accepts an optional type before each parameter and one after `)`, including type expressions `A|B` and `Name[...]`, and attaches them to the declaration. An unknown type name fails. Ordinary source is unaffected: without the signatures feature `sub f (Ref $x) {...}` is valid Perl whose parentheses are a prototype, and it must still parse that way. Re-mark the RFC section *Implemented*.
