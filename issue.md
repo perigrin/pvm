@@ -9,7 +9,7 @@ blocked_by:
 blocks:
 - 01a0fd9b-5670-78d0-84be-9b9618e9b081
 created: 2026-10-02T17:13:30.472741835Z
-updated: 2026-10-02T17:24:17.033148624Z
+updated: 2026-10-02T17:27:10.811221042Z
 ---
 
 ## Prerequisites
@@ -26,6 +26,8 @@ updated: 2026-10-02T17:24:17.033148624Z
 - entrypoints: RFC 0001 "Operator declarations", "Operators that fork"; `internal/types/select.go`
 
 `..` is a range in list context and a flip-flop in scalar context: a `:context` multi (`...` likewise). `x` repeats a list only when its left operand is parenthesised -- measured on 5.42, `(1,2) x 2` and `(@a) x 2` give `1 2 1 2`, `"ab" x 2` gives `abab`, `@a x 2` gives `22` -- so `multi sub x :infix(MUL) (List @l, Int $n) List;` and `multi sub x :infix(MUL) (Str $s, Int $n) Str;`. The parenthesis is a parse fact, as the comma is for map: `List` and `Str` are subtypes of each other's family, so types cannot select, and the call site must say whether the left operand is a parenthesised list (the caller-view sigil `@` against `$`). Remeasure each case with perl. This finishes "Operator declarations".
+
+Measured on 5.42 (chain review): the parenthesised left operand selects the list repeat only in LIST context. `my $x = (1,2) x 2` and `my $x = (@a) x 2` give `22`; `my @l = (1,2) x 2` gives `1 2 1 2`. So the `List` candidate also carries `:context(@)`.
 
 ## Steps
 
