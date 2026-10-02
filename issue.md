@@ -1,6 +1,6 @@
 ---
 title: "Parse typed Perl in .pmt files: typed parameters, defaults and return types"
-state: pending
+state: cancelled
 urgency: normal
 milestone: type-libraries
 blocked_by:
@@ -13,7 +13,11 @@ blocks:
 - 01a0fa47-146b-7047-84b6-20ac55c1b0f6
 - 01a0fafc-0dd7-7cd6-bfc3-262c0b8019eb
 created: 2026-10-02T01:42:09.873559281Z
-updated: 2026-10-02T05:00:21.292132893Z
+updated: 2026-10-02T17:18:12.42397858Z
+transitions:
+- state: cancelled
+  actor: human:git-zhi
+  timestamp: 2026-10-02T17:18:12.42397858Z
 ---
 
 RFC 0001, "Typed Perl, in `.pmt` only": `sub NAME :attributes (Type $var, ...) Type;`. perl 5.42 rejects a typed parameter and a return type, so `internal/parse` needs a declaration mode, used only when reading a `.pmt`, that accepts an optional type before each parameter and one after `)`, including type expressions `A|B` and `Name[...]`, and attaches them to the declaration. An unknown type name fails. Ordinary source is unaffected: without the signatures feature `sub f (Ref $x) {...}` is valid Perl whose parentheses are a prototype, and it must still parse that way. Re-mark the RFC section *Implemented*.
