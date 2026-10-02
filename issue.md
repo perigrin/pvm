@@ -7,7 +7,7 @@ blocks:
 - 01a0fd9b-4139-773b-8676-e148e90c42bd
 - 01a0fd9b-49b2-7ea9-bfa1-ba398baadc3f
 created: 2026-10-02T17:13:25.182848094Z
-updated: 2026-10-02T17:14:01.365227963Z
+updated: 2026-10-02T17:22:45.816130734Z
 ---
 
 ## Prerequisites
@@ -36,6 +36,7 @@ RFC 0001 "Type names" (perigrin, 2026-10-02): `IO` joins the lattice as a leaf (
 - [ ] Write failing test `TestTypeFromName`: every name in `typeNames` (plus `FileHandle`, `Boolean`) round-trips; `Str|Undef` gives `Str|Undef`; an unknown name (`Strng`) and a malformed union (`Str|`) return an error
 - [ ] Implement `FromName(string) (Type, error)` in `internal/types/names.go` (ABOUTME header)
 - [ ] Run test to verify pass; `make test`; commit
+- [ ] Doc: add `IO` and `FileHandle` (a handle: `Glob|GlobRef|IO`) beside `Boolean` in the type list of `internal/data/help/types.md`; `go test ./internal/cli/ -run '^TestShowTypesHelp$' -count=1`; commit
 
 ## Acceptance criteria
 
@@ -43,3 +44,4 @@ RFC 0001 "Type names" (perigrin, 2026-10-02): `IO` joins the lattice as a leaf (
 - [ ] the lattice names Boolean as the paper does (`go test ./internal/types/ -run '^TestBooleanIsThePapersName$' -count=1 -v | grep -q '^--- PASS: TestBooleanIsThePapersName'`)
 - [ ] a type name or A|B union resolves, and an unknown name is an error (`go test ./internal/types/ -run '^TestTypeFromName$' -count=1 -v | grep -q '^--- PASS: TestTypeFromName'`)
 - [ ] no Go code still names types.Bool (`sh -c '! grep -rqw types.Bool internal cmd'`)
+- [ ] pvm help types names IO, FileHandle and Boolean, and not Bool (`sh -c 'grep -qw IO internal/data/help/types.md && grep -qw FileHandle internal/data/help/types.md && grep -qw Boolean internal/data/help/types.md && ! grep -qw Bool internal/data/help/types.md'`)
