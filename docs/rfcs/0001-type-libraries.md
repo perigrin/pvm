@@ -411,14 +411,15 @@ XS::Parse::Infix operator uses the same spelling.
 
 - `..` is a range in list context and a flip-flop in scalar context: a
   `:context` multi.
-- `x` repeats a list only when its left operand is parenthesised.
+- `x` repeats a list only when its left operand is parenthesised and
+  it is evaluated in list context: `my $x = (1,2) x 2` gives `22`.
   Measured on 5.42: `(1,2) x 2` and `(@a) x 2` give `1 2 1 2`, while
   `"ab" x 2` gives `abab` and `@a x 2` gives `22` (the count, in scalar
   context, repeated as a string). The parenthesis selects the variant,
   a parse fact, as the comma does for `map`:
 
 ```perl
-multi sub x :infix(MUL) (List @l, Int $n) List;   # (LIST) x N
+multi sub x :infix(MUL) :context(@) (List @l, Int $n) List;   # (LIST) x N
 multi sub x :infix(MUL) (Str $s, Int $n) Str;     # EXPR x N
 ```
 
