@@ -182,3 +182,96 @@ parses: yes
 ```output
 0,1,0,2
 ```
+
+## A string built into a field
+
+perl fuses the build and the store into one op: `$log .= "<$x>"` and
+`$log = "[$log]"` are each a `multiconcat` writing the field's slot,
+with no assignment op to see. A reader that takes the slot for a
+lexical rebinds a name and never writes the field. Both forms, in a
+method and in an ADJUST block. Found by B::SoN translating chalk's lib/ and running chalk's own suite
+against the emitted Perl: a silent drop, wrong through perl5-son 63fa6fa.
+
+```perl
+use feature 'class';
+no warnings 'experimental::class';
+class Log {
+    field $log = "";
+    ADJUST { $log .= "start" }
+    method add ($x) { $log .= "<$x>"; return $self }
+    method close { $log = "[$log]"; return $log }
+}
+print Log->new->add("a")->add("b")->close, "\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+[start<a><b>]
+```
+
+## `//=` into a field from a call
+
+The right side of `//=` runs only when the field is undefined, and the
+store happens only then. Here it is a method call, so running it on the
+other path shows in the call count. chalk's IR nodes default their
+operands this way in ADJUST. Found by B::SoN translating chalk's lib/ and running chalk's own suite
+against the emitted Perl: a silent drop, wrong through perl5-son 63fa6fa.
+
+```perl
+use feature 'class';
+no warnings 'experimental::class';
+class Node {
+    field $inputs :param;
+    field $left :param = undef;
+    field $calls = 0;
+    ADJUST { $left //= $self->first }
+    method first { $calls++; return $inputs->[0] }
+    method left { return $left }
+    method calls { return $calls }
+}
+my $a = Node->new(inputs => [7, 8]);
+my $b = Node->new(inputs => [7, 8], left => 1);
+print join(",", $a->left, $a->calls, $b->left, $b->calls), "\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+7,1,1,0
+```
+
+## A subclass's ADJUST when its parent has one
+
+Every ADJUST block of the class chain runs, the parent's first. A
+reader that separates a class's own blocks from inherited ones by
+counting the parent's must count them: the class's own block is the
+one this case watches. Found by B::SoN translating chalk's lib/ and running chalk's own suite
+against the emitted Perl: a silent drop, wrong through perl5-son 63fa6fa.
+
+```perl
+use feature 'class';
+no warnings 'experimental::class';
+class Base {
+    field $trail = "";
+    ADJUST { $trail .= "b" }
+    method mark ($c) { $trail .= $c; return }
+    method trail { return $trail }
+}
+class Derived :isa(Base) {
+    ADJUST { $self->mark("d") }
+}
+print Derived->new->trail, "\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+bd
+```

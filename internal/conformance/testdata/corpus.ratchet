@@ -8,7 +8,7 @@
 # topic's `**Tier NN name.**` line and leaves every key alone. That
 # is the `t/` sweep working, and must not read as a regression.
 #
-# 242 cases, 242 clean, 0 refusing.
+# 245 cases, 245 clean, 0 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -78,7 +78,10 @@
 - blocks-and-terminations.md/`time` is niladic
 - class-feature.md/A `:param` field defaulting to a folded boolean
 - class-feature.md/A field post-increment whose value is used
+- class-feature.md/A string built into a field
+- class-feature.md/A subclass's ADJUST when its parent has one
 - class-feature.md/An empty class body
+- class-feature.md/`//=` into a field from a call
 - class-feature.md/`ADJUST` alone in a class body
 - class-feature.md/`field` and `method` in a class body
 - code-references.md/The code reference and the call through it
