@@ -2,9 +2,9 @@
 title: "Discuss type libraries: declaration files for what a module defines"
 state: pending
 urgency: normal
-milestone: v0.1
+milestone: type-libraries
 created: 2026-09-30T21:55:19.14961642Z
-updated: 2026-10-01T16:42:02.07134847Z
+updated: 2026-10-02T01:43:36.460862183Z
 ---
 
 perigrin (2026-09-30): "eventually we should discuss type libraries similar to TypeScript". Some modules define their interface in ways no static reading of their source can recover:
