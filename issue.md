@@ -3,8 +3,10 @@ title: Derive the parser's keyword shapes from CORE.pmt and remove the hand-kept
 state: pending
 urgency: normal
 milestone: type-libraries
+blocked_by:
+- 01a0fd9b-519d-7b42-886e-2222a3076986
 created: 2026-10-02T17:13:30.827426197Z
-updated: 2026-10-02T17:13:30.827426197Z
+updated: 2026-10-02T17:14:20.411212131Z
 ---
 
 ## Prerequisites
