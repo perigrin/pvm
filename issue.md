@@ -7,7 +7,7 @@ blocks:
 - 01a0fd9b-4139-773b-8676-e148e90c42bd
 - 01a0fd9b-49b2-7ea9-bfa1-ba398baadc3f
 created: 2026-10-02T17:13:25.182848094Z
-updated: 2026-10-02T17:23:40.679754463Z
+updated: 2026-10-02T17:26:17.971747624Z
 ---
 
 ## Prerequisites
@@ -36,6 +36,7 @@ RFC 0001 "Type names" (perigrin, 2026-10-02): `IO` joins the lattice as a leaf (
 - [ ] Write failing test `TestTypeFromName`: every name in `typeNames` (plus `FileHandle`, `Boolean`) round-trips; `Str|Undef` gives `Str|Undef`; an unknown name (`Strng`) and a malformed union (`Str|`) return an error
 - [ ] Implement `FromName(string) (Type, error)` in `internal/types/names.go` (ABOUTME header)
 - [ ] Run test to verify pass; `make test`; commit
+- [ ] Doc: add `IO` and `FileHandle` (a handle: `Glob|GlobRef|IO`) beside `Boolean` in the type list of `internal/data/help/types.md`; `go test ./internal/cli/ -run '^TestShowTypesHelp$' -count=1`; commit
 
 ### Negative Scenarios
 
@@ -52,3 +53,4 @@ RFC 0001 "Type names" (perigrin, 2026-10-02): `IO` joins the lattice as a leaf (
 - [ ] malformed or partly unknown type names are errors, not panics (`go test ./internal/types/ -run '^TestTypeFromNameRejectsMalformed$' -count=1 -v | grep -q '^--- PASS: TestTypeFromNameRejectsMalformed'`)
 - [ ] the retired name Bool is no longer accepted (`go test ./internal/types/ -run '^TestTypeFromNameRejectsBool$' -count=1 -v | grep -q '^--- PASS: TestTypeFromNameRejectsBool'`)
 - [ ] a string or a blessed object is not a FileHandle (`go test ./internal/types/ -run '^TestFileHandleExcludesStrAndObject$' -count=1 -v | grep -q '^--- PASS: TestFileHandleExcludesStrAndObject'`)
+- [ ] pvm help types names IO, FileHandle and Boolean, and not Bool (`sh -c 'grep -qw IO internal/data/help/types.md && grep -qw FileHandle internal/data/help/types.md && grep -qw Boolean internal/data/help/types.md && ! grep -qw Bool internal/data/help/types.md'`)
