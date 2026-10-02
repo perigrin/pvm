@@ -1,6 +1,6 @@
 ---
 title: "multi sub: several declarations for one name"
-state: pending
+state: cancelled
 urgency: normal
 milestone: type-libraries
 blocked_by:
@@ -10,7 +10,11 @@ blocks:
 - 01a0fa46-fccf-7f53-a476-c02f8f07616d
 - 01a0fafc-0dd7-7cd6-bfc3-262c0b8019eb
 created: 2026-10-02T01:42:27.298629109Z
-updated: 2026-10-02T05:00:23.434241708Z
+updated: 2026-10-02T17:18:12.674361527Z
+transitions:
+- state: cancelled
+  actor: human:git-zhi
+  timestamp: 2026-10-02T17:18:12.674361527Z
 ---
 
 RFC 0001, "Multi declarations": a declaration may be `multi sub`, several signatures for one name, selected at a call site by arity or by argument types that are not subtypes of each other. Measured: `each %h` gives (Str, v) and `each @a` (Int, v); `select(FH)` returns the previous handle and `select(r,w,e,t)` a count. When the call site cannot decide, the consumer joins the candidates. Bounded polymorphism (`abs`) needs no multi. Re-mark the RFC section *Implemented*.
