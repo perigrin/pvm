@@ -3,8 +3,10 @@ title: Parse the invocant colon in .pmt signatures and declare print, printf, sa
 state: pending
 urgency: normal
 milestone: type-libraries
+blocked_by:
+- 01a0fd9b-3fbf-7c6e-90a7-919d8670f758
 created: 2026-10-02T17:13:27.729943188Z
-updated: 2026-10-02T17:13:27.729943188Z
+updated: 2026-10-02T17:14:01.369044362Z
 ---
 
 ## Prerequisites
