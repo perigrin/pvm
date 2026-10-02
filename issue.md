@@ -10,7 +10,7 @@ blocks:
 - 01a0fd9b-4f8d-71ca-bac4-24eceb1dc4a4
 - 01a0fd9b-5017-78d0-ae38-331cbe6a9866
 created: 2026-10-02T17:13:27.376660947Z
-updated: 2026-10-02T17:14:10.560105668Z
+updated: 2026-10-02T17:24:01.313878358Z
 ---
 
 ## Prerequisites
@@ -39,9 +39,16 @@ RFC 0001 "The scalar container" (perigrin, 2026-10-02): a parameter that must be
 - [ ] Implement in the call path; run test to verify pass; `make test` (watch the T1/T2 ratchets); commit
 - [ ] Re-mark the RFC heading "The scalar container" `(*Implemented*, <sha>)`; commit
 
+### Negative Scenarios
+
+- `:lvalue` goes after the variable, as `field $x :param`: `sub f (Scalar :lvalue $x);` is refused, and an unknown parameter attribute (`Scalar $x :bogus`) is an error that derives no `\$` (the RFC is silent on unknown parameter attributes; error matches unknown type names) (`go test ./internal/parse/ -run '^TestParamAttributeMisplacedOrUnknownRefused$' -count=1 -v | grep -q '^--- PASS: TestParamAttributeMisplacedOrUnknownRefused'`)
+- a `\$` slot refuses the other forms perl 5.42 refuses at compile time (measured): `sref(@a)` and `sref(%h)` (must be scalar), `sref()` (Not enough arguments), `sref($x, $y)` (Too many arguments); `sref(my $z)` and `sref(substr($x, 0, 1))` are accepted (`go test ./internal/parse/ -run '^TestRefScalarSlotRefusesAggregatesAndArity$' -count=1 -v | grep -q '^--- PASS: TestRefScalarSlotRefusesAggregatesAndArity'`)
+
 ## Acceptance criteria
 
 - [ ] an :lvalue scalar parameter derives the \$ prototype (`go test ./internal/parse/ -run '^TestLvalueParamDerivesRefPrototype$' -count=1 -v | grep -q '^--- PASS: TestLvalueParamDerivesRefPrototype'`)
 - [ ] an :lvalue slurpy such as chomp's parses (`go test ./internal/parse/ -run '^TestPmtLvalueSlurpyParses$' -count=1 -v | grep -q '^--- PASS: TestPmtLvalueSlurpyParses'`)
 - [ ] a constant or sub result passed to a \$ slot is refused, as perl refuses it (`go test ./internal/parse/ -run '^TestRefScalarSlotRefusesConstants$' -count=1 -v | grep -q '^--- PASS: TestRefScalarSlotRefusesConstants'`)
 - [ ] the RFC section on the scalar container is implemented (`grep -q '^### The scalar container.*(\*Implemented\*' docs/rfcs/0001-type-libraries.md`)
+- [ ] a misplaced or unknown parameter attribute is refused (`go test ./internal/parse/ -run '^TestParamAttributeMisplacedOrUnknownRefused$' -count=1 -v | grep -q '^--- PASS: TestParamAttributeMisplacedOrUnknownRefused'`)
+- [ ] a \$ slot refuses aggregates and wrong arity as perl does (`go test ./internal/parse/ -run '^TestRefScalarSlotRefusesAggregatesAndArity$' -count=1 -v | grep -q '^--- PASS: TestRefScalarSlotRefusesAggregatesAndArity'`)
