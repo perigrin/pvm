@@ -1,0 +1,8 @@
+name: type-libraries
+resolution: "sh -c '! grep -q \"(\\*Decided\\*)\" docs/rfcs/0001-type-libraries.md'"
+created: 2026-10-02T01:40:31.847878349Z
+---
+
+Build RFC 0001 (docs/rfcs/0001-type-libraries.md): the typed half of the type library. Declaration files already state names, prototypes and syntax; this milestone makes them typed Perl -- typed signatures, multi, :context, prototype/type derivation -- folds keyword.go and types/signatures.go into CORE.pmt, and has internal/infer read the declarations.
+
+Done when every RFC section marked *Decided* has been built and re-marked *Implemented*; the resolution command checks that no *Decided* section remains. Decisions perigrin has not yet made are issues here too, because the builds depend on them.
