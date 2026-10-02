@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a0fd9b-5670-78d0-84be-9b9618e9b081
 created: 2026-10-02T17:13:30.827426197Z
-updated: 2026-10-02T17:23:04.996214212Z
+updated: 2026-10-02T17:24:19.122539271Z
 ---
 
 ## Prerequisites
@@ -17,7 +17,7 @@ updated: 2026-10-02T17:23:04.996214212Z
 
 ## Context
 
-- paths: `internal/parse/keyword.go` (deleted), `internal/parse/call.go`, `internal/parse/indirect.go`, `internal/parse/declarations.go`, `internal/parse/declarations/CORE.pmt`, `internal/parse/coreshapes_test.go` (new), `docs/specs/perl-parser/04-expressions.md`
+- paths: `internal/parse/keyword.go` (deleted), `internal/parse/call.go`, `internal/parse/indirect.go`, `internal/parse/declarations.go`, `internal/parse/declarations/CORE.pmt`, `internal/parse/coreshapes_test.go` (new)
 - commands: `go test ./internal/parse/ -count=1`
 - commands: full gate `make test` (100% green before every commit; never `--no-verify`)
 - perl 5.42 for measuring behaviour: `/home/perigrin/.local/bin/perl` (measure, never assume)
@@ -32,10 +32,16 @@ RFC 0001 "Typed Perl, in `.pmt` only": `internal/parse/keyword.go` folds into CO
 - [ ] Implement the derivation; resolve every disagreement by measuring perl; run test to verify pass; `make test`; commit
 - [ ] Switch `call.go` and `indirect.go` to the derived shapes; `make test`; commit
 - [ ] Move keyword.go's measurement comments into CORE.pmt; delete keyword.go; `make test` (ratchets unchanged); commit
-- [ ] Doc: `docs/specs/perl-parser/04-expressions.md` §4.14.2 cites `internal/parse/keyword.go` for `delete` and `exists`; re-measure whether `delete $h{k};` and `exists $h{k};` still parse as `Unknown`, and restate the note against `CORE.pmt`; commit
+
+### Negative Scenarios
+
+- a name CORE.pmt does not declare (`frobnicate`) derives no keyword shape: it parses as an ordinary sub call, never as a named unary or niladic (`go test ./internal/parse/ -run '^TestCoreShapesUnknownNameHasNoShape$' -count=1 -v | grep -q '^--- PASS: TestCoreShapesUnknownNameHasNoShape'`)
+- the shape comparison is not tautological: a golden set with one name removed or one CORE.pmt line with a wrong `:unary` is reported as a disagreement naming the builtin (`go test ./internal/parse/ -run '^TestCoreDerivedShapesCatchesMismatch$' -count=1 -v | grep -q '^--- PASS: TestCoreDerivedShapesCatchesMismatch'`)
+- parse behaviour does not move: the existing parse tests and the T1/T2 ratchets pass unchanged after the switch (`go test ./internal/parse/ -count=1`) (`go test ./internal/parse/ -count=1`)
 
 ## Acceptance criteria
 
 - [ ] keyword shapes derived from CORE.pmt equal the measured sets (`go test ./internal/parse/ -run '^TestCoreDerivedShapes$' -count=1 -v | grep -q '^--- PASS: TestCoreDerivedShapes'`)
 - [ ] the hand-kept keyword tables are gone (`sh -c '! grep -rqwE "namedUnary|listOperator|niladicParse" --include="*.go" --exclude="*_test.go" internal/parse'`)
-- [ ] the parser spec no longer cites the deleted keyword table (`sh -c '! grep -q "keyword\.go" docs/specs/perl-parser/04-expressions.md'`)
+- [ ] an undeclared name derives no keyword shape (`go test ./internal/parse/ -run '^TestCoreShapesUnknownNameHasNoShape$' -count=1 -v | grep -q '^--- PASS: TestCoreShapesUnknownNameHasNoShape'`)
+- [ ] the shape check reports a disagreement (`go test ./internal/parse/ -run '^TestCoreDerivedShapesCatchesMismatch$' -count=1 -v | grep -q '^--- PASS: TestCoreDerivedShapesCatchesMismatch'`)
