@@ -8,7 +8,7 @@ blocked_by:
 - 01a0fd9b-5698-70cf-b6e4-8899a83b0fe0
 - 01a0c115-df67-7d69-8883-73d40b0ae15d
 created: 2026-10-02T17:13:31.136589197Z
-updated: 2026-10-02T17:14:28.29111268Z
+updated: 2026-10-02T17:23:11.202428854Z
 ---
 
 ## Prerequisites
@@ -19,7 +19,7 @@ updated: 2026-10-02T17:14:28.29111268Z
 
 ## Context
 
-- paths: `internal/infer/infer.go`, `internal/infer/declared_test.go` (new), `test/e2e/psc_check_test.go`, `test/e2e/testdata/`
+- paths: `internal/infer/infer.go`, `internal/infer/declared_test.go` (new), `test/e2e/psc_check_test.go`, `test/e2e/testdata/`, `internal/data/help/types.md`
 - commands: `go test ./internal/infer/ -count=1`, `go test ./test/e2e/ -run '^TestPSCCheck' -count=1`
 - commands: full gate `make test` (100% green before every commit; never `--no-verify`)
 - perl 5.42 for measuring behaviour: `/home/perigrin/.local/bin/perl` (measure, never assume)
@@ -37,6 +37,7 @@ The milestone body's "internal/infer reads the declarations": once m2 has moved 
 - [ ] Write failing e2e test `TestPSCCheckUsesDeclarations` in `test/e2e/psc_check_test.go`: `psc check` on a fixture reports a coercion mismatch that only the declaration's types reveal
 - [ ] Run test to verify failure: `go test ./test/e2e/ -run '^TestPSCCheckUsesDeclarations$' -count=1 -v`
 - [ ] Make it pass; `make test`; commit
+- [ ] Doc: in the "Declaration Files" section of `internal/data/help/types.md`, say that `psc check` types a call to a declared sub from its declaration, using the e2e fixture's diagnostic as the example; keep "Typed Perl is valid only in `.pmt` files, and you cannot yet add your own" (a user search path is RFC open question 6); `go test ./internal/cli/ -run '^TestShowTypesHelp$' -count=1`; commit
 
 ## Acceptance criteria
 
