@@ -279,8 +279,11 @@ evaluated per element, as `grep EXPR`'s is.
   to the parameter as a whole.
 
 A slurpy (`@` or `%`) is therefore either untyped or typed with an
-explicit container type, once the paper defines one. Until then it is
-untyped. `print`, with its container explicit (perigrin):
+explicit container type. Container types such as `List[Str]` parse now,
+and like all typed Perl only in `.pmt` files (perigrin, 2026-10-02);
+what they mean -- variance, flattening, `Array[T]` against `List[T]` --
+is provisional until the paper defines it. `print`, with its container
+explicit:
 
 ```perl
 sub print (FileHandle $fh = select(): List[Str] @args = ($_)) Boolean;
