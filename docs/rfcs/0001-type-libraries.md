@@ -147,6 +147,29 @@ builtins) and `internal/parse/keyword.go` (parse shapes) fold into it,
 each after a test shows the file agrees with the table it replaces. The
 comments recording their measurements move with them.
 
+### Type names (*Decided*)
+
+A `.pmt` names types from the lattice in `internal/types`, and an
+unknown name is an error. perigrin, 2026-10-02:
+
+- **Unions are spelled `A|B`**, as `Str|Undef`. The lattice is a bitmask,
+  so a union is an OR, and it is what Moose and Type::Tiny users already
+  write.
+- **`IO` joins the lattice** (the paper has it), and **`FileHandle` is a
+  named union, `Glob|GlobRef|IO`**, defined in the lattice as `Ref` and
+  `Scalar` are, so a `.pmt` needs no alias syntax. Measured on 5.42: a
+  bareword handle is a `Glob`, `open my $fh` gives a `GLOB` reference,
+  and `*STDOUT{IO}` is an IO object. A string naming a handle is not a
+  `FileHandle`: under `use strict`, `print {"STDOUT"} ...` dies ("Can't
+  use string ("STDOUT") as a symbol ref"). A blessed handle such as an
+  `IO::File` object is reftype `GLOB` but files under `Object`, so it is
+  not a `FileHandle` until the paper says how blessing and reftype
+  combine.
+- **Names follow the paper.** The lattice's `Bool` is the paper's
+  `Boolean`, and a `.pmt` writes `Boolean`.
+- **The paper's other types** (`VString`, `Format`, `Void`, `LValueRef`)
+  join the lattice when a declaration first needs one.
+
 ### Builtins with no prototype (*Decided*)
 
 About 20 builtins have no prototype because their parse is their own:
