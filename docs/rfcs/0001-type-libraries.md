@@ -311,7 +311,7 @@ prototype character corresponds to a parameter:
 | `$` | any expression, in scalar context: with `@a = (5, 6, 7)`, `one(@a)` passes 3 | `Scalar $` |
 | `@`, `%` | the rest of the call, flattened | `List @` |
 | `\@`, `\%` | an actual array or hash, passed whole | `Array @`, `Hash %` |
-| `\$` | an actual scalar variable: `sref(1)` dies, "must be scalar (not constant item)" | a scalar container (open) |
+| `\$` | any scalar lvalue, passed as a reference: `sref(1)` dies, "must be scalar (not constant item)" | `Scalar $x :lvalue` |
 | `\[$@%]` | any one of those containers | their union |
 | `+` | one array or hash, passed whole, or one scalar: `plus(%h)` sees a HASH, `plus(1,2)` is too many arguments | `Array\|Hash\|Scalar` |
 | `&` (first) | a block or a code reference | `Code &` |
@@ -339,6 +339,31 @@ characters are. This departs from Perl's signatures on purpose: perl
 rejects `sub f (@a, @b)` ("Multiple slurpy parameters not allowed"),
 but in `(Array @, List @)` only the final `List` or `Hash` parameter is
 slurpy.
+
+### The scalar container (*Decided*)
+
+perigrin, 2026-10-02: a parameter that must be an assignable place, and
+whose callee receives the place rather than its value, carries
+`:lvalue` -- the word Perl already uses for an assignable place
+(`sub f :lvalue`), in the position the class feature gives attributes
+(`field $x :param`). It derives the prototype `\$`:
+
+```perl
+sub sref (Scalar $x :lvalue);     # prototype \$
+```
+
+Measured on 5.42, `\$` accepts any scalar lvalue, not only a variable:
+`$x`, `$h{k}`, `$a[0]`, `f()->[0]` and `$x = 7` (the assignment runs,
+then its target is passed) each arrive as a `SCALAR` reference, and
+`substr($x, 0, 1)` arrives as an `LVALUE` reference, the paper's
+`LValueRef`. A constant (`1`, `"str"`) or a sub's result (`f()`) dies:
+"must be scalar (not constant item)", "(not subroutine entry)". So the
+property is lvalue-ness, not "unevaluated": `$x = 7` is evaluated.
+
+`Array @a` and `Hash %h` need no `:lvalue`: `\@` and `\%` take an
+actual aggregate by definition. On the parse side the same attribute
+states `chomp`'s and `chop`'s in-place list, `List[Str] @args :lvalue`;
+what an lvalue list is as a type stays the paper's question.
 
 ### Multi declarations (*Decided*)
 
@@ -412,7 +437,9 @@ perl5-son extend one lattice:
    argument *is* or what it *becomes*. `print` and `bless` need
    different answers, so a declaration may need to spell both.
 3. **Lvalue lists.** `chomp` and `chop` modify their arguments in
-   place, which neither `List[Str]` nor `Array[Str]` says.
+   place, which neither `List[Str]` nor `Array[Str]` says. A declaration
+   can mark the parameter `:lvalue` (see "The scalar container"); what
+   such a list is as a type is the paper's.
 4. **Tuples.** `each` returns `(Str, T)` for a hash, which wants a type
    like `List[Str, T]`.
 5. **Multi and context-indexed function types** have no counterpart in
@@ -432,9 +459,8 @@ Separate from the paper:
     something like `$x :no_eval`, which has a Perl precedent in the
     class feature's `field $x :param` (attributes after the variable).
     The same attribute family may answer 9 (deferred, repeated
-    evaluation is a different property from never) and bears on the
-    scalar container below (pass the container, not its value).
-11. A type for `\$`'s scalar container, distinct from a scalar value.
+    evaluation is a different property from never). `:lvalue` (see
+    "The scalar container") is the first attribute of that family.
 
 ## Rejected alternatives
 
