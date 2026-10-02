@@ -3,8 +3,10 @@ title: Derive prototypes from typed signatures and typed signatures from prototy
 state: pending
 urgency: normal
 milestone: type-libraries
+blocked_by:
+- 01a0fa46-a8d1-77c5-97d8-66cf3b4ec55d
 created: 2026-10-02T01:42:15.435660195Z
-updated: 2026-10-02T01:42:15.435660195Z
+updated: 2026-10-02T01:42:17.747427525Z
 ---
 
 RFC 0001, "A typed signature and a prototype say the same thing": its table maps each prototype character to a parameter type, measured on 5.42. A prototype-only declaration gets the coarse typed signature; a typed one gets its prototype and needs no `:prototype`; one with both must agree, and disagreement is an error in the file. The derived prototypes are held to `prototype("CORE::name")` for all 188 builtins. Re-mark the RFC section *Implemented*.
