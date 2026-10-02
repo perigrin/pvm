@@ -5,8 +5,9 @@ urgency: normal
 milestone: type-libraries
 blocked_by:
 - 01a0fa46-902d-73c3-b74c-c6bf23263f42
+- 01a0fa46-a8d1-77c5-97d8-66cf3b4ec55d
 created: 2026-10-02T01:42:37.41941306Z
-updated: 2026-10-02T01:42:40.998729607Z
+updated: 2026-10-02T01:42:42.194926764Z
 ---
 
 signatures.go's `binaryOps` and `unaryOps` become operator declarations in CORE.pmt, spelled as D2 decides (`sub + :infix (Num $x, Num $y) Num;`), with the result rule each needs. The parser reads an operator name where a sub name stands. A test holds each operator's declaration equal to its signatures.go row, except where D2's result rule deliberately corrects one (`Int + Int`). Re-mark the RFC's operator section *Implemented*.
