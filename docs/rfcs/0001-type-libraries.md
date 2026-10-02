@@ -318,7 +318,7 @@ the rest of the call, flattened. That is the `Array`/`List`
 distinction (perigrin), so
 
 ```perl
-sub push (Array @, List @) Int;      # prototype \@@; returns the new length
+sub push (Array \@a, List @list) Int;   # prototype \@@; returns the new length
 ```
 
 carries `push`'s prototype in its types. Measured on 5.42.0, each
@@ -328,8 +328,8 @@ prototype character corresponds to a parameter:
 |---|---|---|
 | `$` | any expression, in scalar context: with `@a = (5, 6, 7)`, `one(@a)` passes 3 | `Scalar $` |
 | `@`, `%` | the rest of the call, flattened | `List @` |
-| `\@`, `\%` | an actual array or hash, passed whole | `Array @`, `Hash %` |
-| `\$` | any scalar lvalue, passed as a reference: `sref(1)` dies, "must be scalar (not constant item)" | `Scalar $x :lvalue` |
+| `\@`, `\%` | an actual array or hash, passed whole | `Array \@a`, `Hash \%h` |
+| `\$` | any scalar lvalue, passed as a reference: `sref(1)` dies, "must be scalar (not constant item)" | `Scalar \$x` |
 | `\[$@%]` | any one of those containers | their union |
 | `+` | one array or hash, passed whole, or one scalar: `plus(%h)` sees a HASH, `plus(1,2)` is too many arguments | `Array\|Hash\|Scalar` |
 | `&` (first) | a block or a code reference | `Code &` |
@@ -353,22 +353,42 @@ can hold the derived prototypes to `prototype("CORE::name")` for all
 188 builtins.
 
 In a `.pmt`, a parameter's sigil is the caller's view, as a prototype's
-characters are. This departs from Perl's signatures on purpose: perl
-rejects `sub f (@a, @b)` ("Multiple slurpy parameters not allowed"),
-but in `(Array @, List @)` only the final `List` or `Hash` parameter is
-slurpy.
+characters are. A backslashed parameter aliases the caller's container
+(see "The scalar container"); an unbackslashed `List @` is the rest of
+the call, flattened. So in `(Array \@a, List @list)` only the final
+parameter is slurpy, where perl's own signatures reject two aggregates
+("Multiple slurpy parameters not allowed").
+
+A `List` parameter must be last (perigrin, 2026-10-02). Measured on
+5.42, a signature `(@a, $x)` dies "Slurpy parameter not last", and a
+prototype `(@$)` warns "Prototype after '@'": its `$` can never be
+filled, since the `@` takes every argument. A declaration with
+anything after a `List` parameter is an error, which points to
+`Array \@a` for a single array followed by more parameters (`\@$`).
 
 ### The scalar container (*Decided*)
 
-perigrin, 2026-10-02: a parameter that must be an assignable place, and
-whose callee receives the place rather than its value, carries
-`:lvalue` -- the word Perl already uses for an assignable place
-(`sub f :lvalue`), in the position the class feature gives attributes
-(`field $x :param`). It derives the prototype `\$`:
+perigrin, 2026-10-02: a parameter that aliases the caller's container
+is written with a backslash, as Perl writes aliasing. perlref,
+"Assigning to References" (5.22+): assigning to a reference "performs
+an aliasing operation, so that the variable name referenced on the
+left-hand side becomes an alias for the thing referenced on the
+right-hand side". Measured on 5.42, after `\my @a = \@orig; push @a,
+3`, `@orig` holds the 3; after `\my $t = \$s; $t = "y"`, `$s` is `"y"`.
+A backslashed parameter says the same: it is an alias for what the
+caller wrote, which is exactly what `\$`, `\@` and `\%` deliver.
 
 ```perl
-sub sref (Scalar $x :lvalue);     # prototype \$
+sub sref (Scalar \$x);                       # prototype \$
+sub push (Array \@a, List @list) Int;        # prototype \@@
+sub chomp (List[Str] \(@args = ($_))) Int;   # each element aliased
 ```
+
+`\(@args)` is perlref's list form, a reference to each element, so
+`chomp`'s declaration says it writes through every argument: measured,
+`chomp(@l, $x)` chomps both, and bare `chomp` chomps `$_`. `Array @a`
+(a container type with a flattening sigil) is not valid. This replaces
+an earlier `:lvalue` parameter attribute for the same job.
 
 Measured on 5.42, `\$` accepts any scalar lvalue, not only a variable:
 `$x`, `$h{k}`, `$a[0]`, `f()->[0]` and `$x = 7` (the assignment runs,
@@ -378,10 +398,7 @@ then its target is passed) each arrive as a `SCALAR` reference, and
 "must be scalar (not constant item)", "(not subroutine entry)". So the
 property is lvalue-ness, not "unevaluated": `$x = 7` is evaluated.
 
-`Array @a` and `Hash %h` need no `:lvalue`: `\@` and `\%` take an
-actual aggregate by definition. On the parse side the same attribute
-states `chomp`'s and `chop`'s in-place list, `List[Str] @args :lvalue`;
-what an lvalue list is as a type stays the paper's question.
+What an aliased list is as a type stays the paper's question.
 
 ### Operator declarations (*Decided*)
 
@@ -431,8 +448,8 @@ name. A call site selects one by arity, by argument types that are not
 subtypes of each other, or by context:
 
 ```perl
-multi sub each (Hash %h)  List;                    # (Str, value)
-multi sub each (Array @a) List;                    # (Int, value)
+multi sub each (Hash \%h)  List;                   # (Str, value)
+multi sub each (Array \@a) List;                   # (Int, value)
 multi sub select (FileHandle $fh) Str;             # the previous handle
 multi sub select ($r, $w, $e, Num $timeout) Int;   # a count
 ```
@@ -494,8 +511,8 @@ perl5-son extend one lattice:
 2. *(Resolved: see "What a parameter type means".)*
 3. **Lvalue lists.** `chomp` and `chop` modify their arguments in
    place, which neither `List[Str]` nor `Array[Str]` says. A declaration
-   can mark the parameter `:lvalue` (see "The scalar container"); what
-   such a list is as a type is the paper's.
+   spells it `\(@args)` (see "The scalar container"); what such a list
+   is as a type is the paper's.
 4. **Tuples.** `each` returns `(Str, T)` for a hash, which wants a type
    like `List[Str, T]`.
 5. **Multi and context-indexed function types** have no counterpart in
@@ -515,8 +532,7 @@ Separate from the paper:
     something like `$x :no_eval`, which has a Perl precedent in the
     class feature's `field $x :param` (attributes after the variable).
     The same attribute family may answer 9 (deferred, repeated
-    evaluation is a different property from never). `:lvalue` (see
-    "The scalar container") is the first attribute of that family.
+    evaluation is a different property from never).
 
 ## Rejected alternatives
 
