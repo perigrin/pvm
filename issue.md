@@ -6,7 +6,7 @@ milestone: type-libraries
 blocks:
 - 01a0fa46-be8b-7823-9c6c-5be1406b57b8
 created: 2026-10-02T01:42:07.024701879Z
-updated: 2026-10-02T05:45:34.709133245Z
+updated: 2026-10-02T17:17:26.055023951Z
 sessions:
 - start_sha: 32ed4bbd8aac49e99ed796c1496b5b6e4f132973
   end_sha: 4ee57eb8009511283e7a3120ba36301640feb9fe
@@ -30,4 +30,4 @@ perigrin decides; the decision lands in RFC 0001 as `### The scalar container (*
 
 ## Acceptance criteria
 
-- [ ] The RFC records the decision (`grep -qF '### The scalar container (*Decided*' docs/rfcs/0001-type-libraries.md`)
+- [ ] The RFC records the decision, decided or since implemented (`grep -q '^### The scalar container (\*\(Decided\|Implemented\)\*' docs/rfcs/0001-type-libraries.md`)
