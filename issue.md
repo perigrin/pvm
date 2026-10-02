@@ -10,7 +10,7 @@ blocks:
 - 01a0fd9b-5468-7355-a22e-1b16fa5ee354
 - 01a0fd9b-5698-70cf-b6e4-8899a83b0fe0
 created: 2026-10-02T17:13:28.48300713Z
-updated: 2026-10-02T17:14:25.788845713Z
+updated: 2026-10-02T17:24:07.195410164Z
 ---
 
 ## Prerequisites
@@ -39,6 +39,12 @@ RFC 0001 "`:context(...)`": a declaration names the contexts it answers for in p
 - [ ] Implement; run test to verify pass; `make test`; commit
 - [ ] Re-mark the RFC headings "Multi declarations" and "`:context(...)`" `(*Implemented*, <sha>)`; commit
 
+### Negative Scenarios
+
+- malformed `:context` spellings are errors: `:context(%)`, `:context(x)`, an unclosed `:context(` (`go test ./internal/parse/ -run '^TestPmtContextAttributeMalformed$' -count=1 -v | grep -q '^--- PASS: TestPmtContextAttributeMalformed'`)
+- void context is answered only by an absent attribute or `:context()`: a void call to candidates that are only `:context($)` and `:context(@)` has no type (`go test ./internal/types/ -run '^TestSelectVoidContextUnanswered$' -count=1 -v | grep -q '^--- PASS: TestSelectVoidContextUnanswered'`)
+- boolean context is scalar, so a boolean call to a `:context(@)`-only declaration has no type (it does not fall back to the list candidate) (`go test ./internal/types/ -run '^TestSelectBooleanIsNotList$' -count=1 -v | grep -q '^--- PASS: TestSelectBooleanIsNotList'`)
+
 ## Acceptance criteria
 
 - [ ] :context reads every spelling, and absent differs from empty (`go test ./internal/parse/ -run '^TestPmtContextAttribute$' -count=1 -v | grep -q '^--- PASS: TestPmtContextAttribute'`)
@@ -46,3 +52,6 @@ RFC 0001 "`:context(...)`": a declaration names the contexts it answers for in p
 - [ ] a call in a context no candidate answers for has no type (`go test ./internal/types/ -run '^TestSelectNoContextAnswerHasNoType$' -count=1 -v | grep -q '^--- PASS: TestSelectNoContextAnswerHasNoType'`)
 - [ ] the RFC section on multi declarations is implemented (`grep -q '^### Multi declarations.*(\*Implemented\*' docs/rfcs/0001-type-libraries.md`)
 - [ ] the RFC section on :context is implemented (`grep -q '^### .:context.*(\*Implemented\*' docs/rfcs/0001-type-libraries.md`)
+- [ ] malformed :context spellings are errors (`go test ./internal/parse/ -run '^TestPmtContextAttributeMalformed$' -count=1 -v | grep -q '^--- PASS: TestPmtContextAttributeMalformed'`)
+- [ ] a void call to scalar and list candidates has no type (`go test ./internal/types/ -run '^TestSelectVoidContextUnanswered$' -count=1 -v | grep -q '^--- PASS: TestSelectVoidContextUnanswered'`)
+- [ ] a boolean call to a list-only declaration has no type (`go test ./internal/types/ -run '^TestSelectBooleanIsNotList$' -count=1 -v | grep -q '^--- PASS: TestSelectBooleanIsNotList'`)
