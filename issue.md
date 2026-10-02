@@ -1,19 +1,28 @@
 ---
 title: "Discuss type libraries: declaration files for what a module defines"
-state: in-progress
+state: done
 urgency: normal
 milestone: type-libraries
 created: 2026-09-30T21:55:19.14961642Z
-updated: 2026-10-02T01:43:44.091779509Z
+updated: 2026-10-02T16:40:27.982911357Z
 sessions:
 - start_sha: 84ecc3da82ef42d1f02a9b917c70a498b4e103d0
-  end_sha: ""
-  commits: 0
+  end_sha: a00d5d96b52c570a64b237c3b9ac452494865c1f
+  commits: 8
   started_at: 2026-10-02T01:43:44.091779509Z
+  ended_at: 2026-10-02T16:40:27.982911357Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-02T01:43:44.091779509Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-02T16:40:27.982911357Z
+observed_paths:
+- conformance/mdtest/class-feature.md
+- docs/rfcs/0001-type-libraries.md
+- internal/conformance/testdata/corpus.ratchet
+- internal/performance/analyzer_test.go
 ---
 
 perigrin (2026-09-30): "eventually we should discuss type libraries similar to TypeScript". Some modules define their interface in ways no static reading of their source can recover:
