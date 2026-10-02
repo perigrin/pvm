@@ -365,6 +365,45 @@ actual aggregate by definition. On the parse side the same attribute
 states `chomp`'s and `chop`'s in-place list, `List[Str] @args :lvalue`;
 what an lvalue list is as a type stays the paper's question.
 
+### Operator declarations (*Decided*)
+
+perigrin, 2026-10-02, **provisional**: these spellings stand for now and
+may change as operators are declared.
+
+**No result rule.** `sub + :infix(ADD) (Num $x, Num $y) Num;` is
+complete. `Int <: Num` in the lattice, so `Num` is an upper bound that
+`Int + Int = Int` satisfies; recovering `Int` for two `Int`s is
+inference narrowing within that bound, not something the declaration
+states. (Settled earlier with bson; see perl5-son's
+`docs/plans/2026-09-16-a-declaration-syntax-for-signatures.md`,
+"Problem 1 (WITHDRAWN)".)
+
+**Fixity and precedence.** `:infix(CLASS)`, `:prefix` and `:postfix`.
+The class names perl's precedence levels in XS::Parse::Infix's
+vocabulary, which already classifies user-defined infix operators that
+way (`XPI_CLS_ADD_MISC`, `MUL_MISC`, `POW_MISC`, `LOGICAL_AND_MISC`,
+`LOGICAL_OR_MISC`, `ASSIGN_MISC`, `LOW_MISC`, `HIGH_MISC`, and the
+predicate classes `RELATION`, `EQUALITY`, `ORDERING`, `MATCHRE`, `ISA`),
+written without the `XPI_CLS_` prefix and `_MISC` suffix. The parser's
+precedence table stays authoritative, and a test holds each `CORE.pmt`
+operator's class to its level there. A library declaring an
+XS::Parse::Infix operator uses the same spelling.
+
+**Operators that fork** are multis:
+
+- `..` is a range in list context and a flip-flop in scalar context: a
+  `:context` multi.
+- `x` repeats a list only when its left operand is parenthesised.
+  Measured on 5.42: `(1,2) x 2` and `(@a) x 2` give `1 2 1 2`, while
+  `"ab" x 2` gives `abab` and `@a x 2` gives `22` (the count, in scalar
+  context, repeated as a string). The parenthesis selects the variant,
+  a parse fact, as the comma does for `map`:
+
+```perl
+multi sub x :infix(MUL) (List @l, Int $n) List;   # (LIST) x N
+multi sub x :infix(MUL) (Str $s, Int $n) Str;     # EXPR x N
+```
+
 ### Multi declarations (*Decided*)
 
 Some builtins return different types depending on how they are called.
