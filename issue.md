@@ -3,8 +3,10 @@ title: Type calls to imported library subs from their .pmt declarations and sele
 state: pending
 urgency: normal
 milestone: type-libraries
+blocked_by:
+- 01a0fd9b-5670-78d0-84be-9b9618e9b081
 created: 2026-10-02T17:13:31.136589197Z
-updated: 2026-10-02T17:13:31.136589197Z
+updated: 2026-10-02T17:14:26.450894696Z
 ---
 
 ## Prerequisites
