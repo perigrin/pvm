@@ -1,0 +1,15 @@
+---
+title: A slurpy in a .pmt takes no bare element type, and its sigils are the caller's view
+state: pending
+urgency: normal
+milestone: type-libraries
+created: 2026-10-02T01:42:13.264416913Z
+updated: 2026-10-02T01:42:13.264416913Z
+---
+
+RFC 0001, "A slurpy takes no bare element type": `Str @args` is rejected (ambiguous container and assertion); a slurpy is untyped or carries an explicit container type, `List[Str] @args`. In a `.pmt` a sigil is the caller's view, as a prototype's characters are: in `(Array @, List @)` only the final `List` or `Hash` parameter is slurpy, which perl's own signatures reject ("Multiple slurpy parameters not allowed"). Re-mark the RFC section *Implemented*.
+
+## Acceptance criteria
+
+- [ ] Bare typed slurpies are rejected and caller-view sigils parse (`go test ./internal/parse/ -run '^TestPmtSlurpyRule$' -count=1 -v | grep -q '^--- PASS: TestPmtSlurpyRule'`)
+- [ ] The RFC section is implemented (`grep -qF '### A slurpy takes no bare element type (*Implemented*' docs/rfcs/0001-type-libraries.md`)
