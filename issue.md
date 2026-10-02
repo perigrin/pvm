@@ -1,12 +1,21 @@
 ---
 title: Decide how an operator declaration states its result rule and fixity
-state: pending
+state: in-progress
 urgency: normal
 milestone: type-libraries
 blocks:
 - 01a0fa47-146b-7047-84b6-20ac55c1b0f6
 created: 2026-10-02T01:42:03.565080543Z
-updated: 2026-10-02T01:42:40.980855064Z
+updated: 2026-10-02T16:04:41.338749028Z
+sessions:
+- start_sha: 67d3a077587718198731eaaf6b7174ae3c0f7706
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-02T16:04:41.338749028Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-02T16:04:41.338749028Z
 ---
 
 RFC 0001 agrees operators are declared as `sub + :infix (Num $x, Num $y) Num;` and says nothing past the name. Three things are open:
