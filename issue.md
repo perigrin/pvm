@@ -11,7 +11,7 @@ blocks:
 - 01a0fd9b-519d-7b42-886e-2222a3076986
 - 01a0fd9b-5698-70cf-b6e4-8899a83b0fe0
 created: 2026-10-02T17:13:27.729943188Z
-updated: 2026-10-02T17:14:24.823990371Z
+updated: 2026-10-02T17:24:02.731078076Z
 ---
 
 ## Prerequisites
@@ -40,8 +40,17 @@ RFC 0001 "Builtins that keep their own parse": a leading slot taken with no comm
 - [ ] Measure each form with perl, then write failing test `TestCoreDeclaresInvocantBuiltins`: CORE.pmt declares typed `print`, `printf`, `say`, `exec`, `system` with an invocant; none appears in `coreTable()`
 - [ ] Add the declarations (with the measurement comments) and an accessor for typed core declarations; run test to verify pass; `make test`; commit
 
+### Negative Scenarios
+
+- the colon marks only a leading slot: a colon after the second parameter (`(Str $a, Str $b: List @l)`), two colons, or a colon with nothing before it (`(: List @l)`) is refused (`go test ./internal/parse/ -run '^TestPmtInvocantColonMisplacedRefused$' -count=1 -v | grep -q '^--- PASS: TestPmtInvocantColonMisplacedRefused'`)
+- an invocant signature with an explicit prototype (`sub f :prototype($@) (Str $p: List @a);`) is a disagreement error, since the colon derives no prototype (`go test ./internal/parse/ -run '^TestInvocantColonWithPrototypeIsError$' -count=1 -v | grep -q '^--- PASS: TestInvocantColonWithPrototypeIsError'`)
+- the parser's own parse of `print STDERR LIST`, `print {$fh} LIST`, bare `print` and `exec {"/bin/sh"} @args` is unchanged: compare against golden trees held in the test (`go test ./internal/parse/ -run '^TestInvocantBuiltinParseUnchanged$' -count=1 -v | grep -q '^--- PASS: TestInvocantBuiltinParseUnchanged'`)
+
 ## Acceptance criteria
 
 - [ ] the invocant colon parses in a .pmt signature (`go test ./internal/parse/ -run '^TestPmtInvocantColonParses$' -count=1 -v | grep -q '^--- PASS: TestPmtInvocantColonParses'`)
 - [ ] a signature with an invocant colon derives no prototype (`go test ./internal/parse/ -run '^TestInvocantColonDerivesNoPrototype$' -count=1 -v | grep -q '^--- PASS: TestInvocantColonDerivesNoPrototype'`)
 - [ ] CORE.pmt declares print, printf, say, exec and system with an invocant (`go test ./internal/parse/ -run '^TestCoreDeclaresInvocantBuiltins$' -count=1 -v | grep -q '^--- PASS: TestCoreDeclaresInvocantBuiltins'`)
+- [ ] an invocant colon anywhere but after the first parameter is refused (`go test ./internal/parse/ -run '^TestPmtInvocantColonMisplacedRefused$' -count=1 -v | grep -q '^--- PASS: TestPmtInvocantColonMisplacedRefused'`)
+- [ ] an invocant colon with an explicit prototype is an error (`go test ./internal/parse/ -run '^TestInvocantColonWithPrototypeIsError$' -count=1 -v | grep -q '^--- PASS: TestInvocantColonWithPrototypeIsError'`)
+- [ ] declaring the invocant builtins leaves their parse unchanged (`go test ./internal/parse/ -run '^TestInvocantBuiltinParseUnchanged$' -count=1 -v | grep -q '^--- PASS: TestInvocantBuiltinParseUnchanged'`)
