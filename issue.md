@@ -3,8 +3,10 @@ title: Declare the plain no-prototype builtins in CORE.pmt and read :unary
 state: pending
 urgency: normal
 milestone: type-libraries
+blocked_by:
+- 01a0fd9b-4850-704d-8c14-c15add6194f2
 created: 2026-10-02T17:13:29.367336401Z
-updated: 2026-10-02T17:13:29.367336401Z
+updated: 2026-10-02T17:14:10.563361307Z
 ---
 
 ## Prerequisites
