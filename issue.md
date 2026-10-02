@@ -11,7 +11,7 @@ blocks:
 - 01a0fd9b-4a5b-7e94-ad87-756dfcfe1f4c
 - 01a0fd9b-53a9-703f-82ab-eeb38765f7f1
 created: 2026-10-02T17:13:25.560580634Z
-updated: 2026-10-02T17:23:54.727622541Z
+updated: 2026-10-02T17:26:21.933706621Z
 ---
 
 ## Prerequisites
@@ -20,7 +20,7 @@ updated: 2026-10-02T17:23:54.727622541Z
 
 ## Context
 
-- paths: `internal/parse/decl.go`, `internal/parse/exports.go`, `internal/parse/module.go`, `internal/parse/declarations.go`, `internal/parse/parse.go`, `internal/lexer/proto.go`, `internal/types/declared.go` (new), `internal/parse/pmt_test.go` (new), `internal/parse/declarations/Moose.pmt`, `internal/parse/declarations/Moose/Role.pmt`, `internal/parse/declarations/Mojolicious/Lite.pmt`, `docs/rfcs/0001-type-libraries.md`
+- paths: `internal/parse/decl.go`, `internal/parse/exports.go`, `internal/parse/module.go`, `internal/parse/declarations.go`, `internal/parse/parse.go`, `internal/lexer/proto.go`, `internal/types/declared.go` (new), `internal/parse/pmt_test.go` (new), `internal/parse/declarations/Moose.pmt`, `internal/parse/declarations/Moose/Role.pmt`, `internal/parse/declarations/Mojolicious/Lite.pmt`, `docs/rfcs/0001-type-libraries.md`, `internal/data/help/types.md`
 - commands: `go test ./internal/parse/ -count=1`, `go test ./internal/lexer/ -count=1`
 - commands: full gate `make test` (100% green before every commit; never `--no-verify`)
 - perl 5.42 for measuring behaviour: `/home/perigrin/.local/bin/perl` (measure, never assume)
@@ -41,6 +41,7 @@ RFC 0001 "Declaration order: Perl's", "Type names", and the parse half of "Typed
 - [ ] Write failing test `TestTypedSyntaxOnlyInPmt`: the same `sub f (Ref $x) { 1 }` parsed as ordinary source keeps `(Ref $x)` as a prototype and records no types
 - [ ] Run test to verify pass (fix if not); `make test`; commit
 - [ ] Re-mark the RFC headings "Declaration order: Perl's" and "Type names" `(*Implemented*, <sha>)`; commit
+- [ ] Doc: the Mojolicious::Lite example in `internal/data/help/types.md` and in the RFC's "Declaration files" section shows `sub group (&);`; change both to the shipped spelling, `sub group :prototype(&);`; `go test ./internal/cli/ -run '^TestShowTypesHelp$' -count=1`; commit
 
 ### Negative Scenarios
 
@@ -59,3 +60,4 @@ RFC 0001 "Declaration order: Perl's", "Type names", and the parse half of "Typed
 - [ ] malformed or truncated .pmt declarations are errors, not panics (`go test ./internal/parse/ -run '^TestPmtMalformedTypedDeclarationIsError$' -count=1 -v | grep -q '^--- PASS: TestPmtMalformedTypedDeclarationIsError'`)
 - [ ] an unknown return type in a .pmt is an error (`go test ./internal/parse/ -run '^TestPmtUnknownReturnTypeIsError$' -count=1 -v | grep -q '^--- PASS: TestPmtUnknownReturnTypeIsError'`)
 - [ ] the signatures feature does not enable typed Perl in ordinary source (`go test ./internal/parse/ -run '^TestTypedSyntaxNotEnabledBySignaturesFeature$' -count=1 -v | grep -q '^--- PASS: TestTypedSyntaxNotEnabledBySignaturesFeature'`)
+- [ ] the help page and the RFC show the shipped prototype spelling (`sh -c '! grep -qF "sub group (&)" internal/data/help/types.md docs/rfcs/0001-type-libraries.md'`)
