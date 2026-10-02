@@ -170,6 +170,19 @@ unknown name is an error. perigrin, 2026-10-02:
 - **The paper's other types** (`VString`, `Format`, `Void`, `LValueRef`)
   join the lattice when a declaration first needs one.
 
+### One language for every `.pmt` (*Decided*)
+
+perigrin, 2026-10-02: everything `CORE.pmt` can say, any library's
+`.pmt` can say too -- typed signatures, `multi`, `:context`, the
+invocant colon, declared syntax. `CORE.pmt` is the declaration file for
+the interpreter, not a dialect of its own. A construct no Perl-level sub
+can have (the invocant colon) is still declarable for a library,
+because a keyword plugin can build what a sub cannot.
+
+Typed Perl is meant to outlive pvm's parser: Chalk is to read the same
+`.pmt` files in time, so the syntax should stay something a second
+implementation can parse from this RFC alone.
+
 ### Builtins with no prototype (*Decided*)
 
 About 20 builtins have no prototype perl can report. `CORE.pmt`
@@ -243,9 +256,10 @@ multi sub sort (Code|Str $by: List @list) List;
 sub exec (Str $program: List[Str] @args) Boolean;
 ```
 
-A signature with an invocant colon derives no prototype, matching perl,
-and is meaningful only in `CORE.pmt`: no Perl-level sub can have the
-slot. Perl's `method` takes `$self` implicitly and never lists an
+A signature with an invocant colon derives no prototype, matching perl.
+No Perl-level sub can have the slot, but a keyword plugin can build it,
+so any `.pmt` may declare one (see "One language for every `.pmt`").
+Perl's `method` takes `$self` implicitly and never lists an
 invocant, so the colon cannot collide with one. For `sort` the slot
 names a comparison routine, which may be a string (`sort $n @x` with
 `$n = "byname"`); with a comma the string is data instead
@@ -413,7 +427,13 @@ Separate from the paper:
    and `map EXPR`'s first argument is, where every other parameter is
    evaluated once per call.
 10. How to declare `defined &f` (and `exists &f`), whose operand names a
-    sub that perl does not call. Today the parser handles the form.
+    sub that perl does not call (measured: neither calls `f`). Today the
+    parser handles the form. perigrin suggests a parameter attribute,
+    something like `$x :no_eval`, which has a Perl precedent in the
+    class feature's `field $x :param` (attributes after the variable).
+    The same attribute family may answer 9 (deferred, repeated
+    evaluation is a different property from never) and bears on the
+    scalar container below (pass the container, not its value).
 11. A type for `\$`'s scalar container, distinct from a scalar value.
 
 ## Rejected alternatives
