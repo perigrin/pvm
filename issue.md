@@ -3,8 +3,10 @@ title: Declare the forking operators .. and x as multis in CORE.pmt
 state: pending
 urgency: normal
 milestone: type-libraries
+blocked_by:
+- 01a0fd9b-4ca3-7d55-82ac-ba125816ee71
 created: 2026-10-02T17:13:30.472741835Z
-updated: 2026-10-02T17:13:30.472741835Z
+updated: 2026-10-02T17:14:19.161835807Z
 ---
 
 ## Prerequisites
