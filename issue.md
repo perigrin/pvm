@@ -12,7 +12,7 @@ blocks:
 - 01a0fa46-e28a-7469-998f-ebdd26d18494
 - 01a0fa46-fccf-7f53-a476-c02f8f07616d
 created: 2026-10-02T01:42:15.435660195Z
-updated: 2026-10-02T01:42:34.003065316Z
+updated: 2026-10-02T01:43:08.017734771Z
 ---
 
 RFC 0001, "A typed signature and a prototype say the same thing": its table maps each prototype character to a parameter type, measured on 5.42. A prototype-only declaration gets the coarse typed signature; a typed one gets its prototype and needs no `:prototype`; one with both must agree, and disagreement is an error in the file. The derived prototypes are held to `prototype("CORE::name")` for all 188 builtins. Re-mark the RFC section *Implemented*.
@@ -22,3 +22,4 @@ RFC 0001, "A typed signature and a prototype say the same thing": its table maps
 - [ ] Derivation both ways, and agreement checked (`go test ./internal/parse/ -run '^TestPrototypeTypeDerivation$' -count=1 -v | grep -q '^--- PASS: TestPrototypeTypeDerivation'`)
 - [ ] Derived prototypes equal perl's for every builtin (`go test ./internal/parse/ -run '^TestCoreDerivedPrototypesArePerls$' -count=1 -v | grep -q '^--- PASS: TestCoreDerivedPrototypesArePerls'`)
 - [ ] The RFC section is implemented (`grep -qF '### A typed signature and a prototype say the same thing (*Implemented*' docs/rfcs/0001-type-libraries.md`)
+- [ ] The RFC's opt-out and scalar-container sections are implemented (`sh -c "grep -qF '### Builtins that keep their own parse (*Implemented*' docs/rfcs/0001-type-libraries.md && grep -qF '### The scalar container (*Implemented*' docs/rfcs/0001-type-libraries.md"`)
