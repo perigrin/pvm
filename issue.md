@@ -11,7 +11,7 @@ blocked_by:
 blocks:
 - 01a0fd9b-55cb-70cd-a9da-929190cb581c
 created: 2026-10-02T17:13:29.757085237Z
-updated: 2026-10-02T17:23:02.729733487Z
+updated: 2026-10-02T17:24:13.584145047Z
 ---
 
 ## Prerequisites
@@ -37,10 +37,16 @@ RFC 0001 "Builtins that keep their own parse": perlsub reimplements `grep` as `s
 - [ ] Run test to verify failure: `go test ./internal/parse/ -run '^TestCoreGrepMapSortAreMultis$' -count=1 -v`
 - [ ] Add the declarations with their measurement comments; run test to verify pass; `make test`; commit
 - [ ] Re-mark the RFC headings "Builtins with no prototype" and "Builtins that keep their own parse" `(*Implemented*, <sha>)`; commit
-- [ ] Doc: the RFC's "CORE.pmt: the builtin table" section describes only the 188 prototyped keywords; add that the file also declares the builtins with no prototype, and that those stay out of the prototype table; commit
+
+### Negative Scenarios
+
+- scalar `sort` has no type: every sort candidate carries `:context(@)`, so a scalar call selects none (measured: `my $n = sort 3,1,2` is undef) (`go test ./internal/parse/ -run '^TestCoreSortScalarHasNoType$' -count=1 -v | grep -q '^--- PASS: TestCoreSortScalarHasNoType'`)
+- grep, map and sort stay out of `coreTable()` and `TestCoreDeclarationsArePerls` stays green (`go test ./internal/parse/ -run '^TestCoreGrepMapSortOutOfCoreTable$' -count=1 -v | grep -q '^--- PASS: TestCoreGrepMapSortOutOfCoreTable'`)
 
 ## Acceptance criteria
 
 - [ ] CORE.pmt declares grep, map and sort as multis (`go test ./internal/parse/ -run '^TestCoreGrepMapSortAreMultis$' -count=1 -v | grep -q '^--- PASS: TestCoreGrepMapSortAreMultis'`)
 - [ ] the RFC section on builtins with no prototype is implemented (`grep -q '^### Builtins with no prototype.*(\*Implemented\*' docs/rfcs/0001-type-libraries.md`)
 - [ ] the RFC section on builtins that keep their own parse is implemented (`grep -q '^### Builtins that keep their own parse.*(\*Implemented\*' docs/rfcs/0001-type-libraries.md`)
+- [ ] a scalar sort selects no candidate (`go test ./internal/parse/ -run '^TestCoreSortScalarHasNoType$' -count=1 -v | grep -q '^--- PASS: TestCoreSortScalarHasNoType'`)
+- [ ] grep, map and sort stay out of the prototype table (`go test ./internal/parse/ -run '^TestCoreGrepMapSortOutOfCoreTable$' -count=1 -v | grep -q '^--- PASS: TestCoreGrepMapSortOutOfCoreTable'`)
