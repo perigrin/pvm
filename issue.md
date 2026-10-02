@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a0fd9b-5468-7355-a22e-1b16fa5ee354
 created: 2026-10-02T17:13:30.281662921Z
-updated: 2026-10-02T17:14:19.682338246Z
+updated: 2026-10-02T17:24:16.118745912Z
 ---
 
 ## Prerequisites
@@ -35,8 +35,21 @@ RFC 0001 "Operator declarations" (provisional spellings): an operator is declare
 - [ ] Write failing test `TestCoreOperatorClassesMatchPrecedence`: each declared infix operator's class names the level `precedence.go` gives it
 - [ ] Fix any disagreeing declaration (the table is authoritative); run test to verify pass; `make test`; commit
 
+### Negative Scenarios
+
+- fixity is spelled one way: `:infix` with no class, `:prefix(ADD)`, and two fixities on one line (`:infix(ADD) :prefix`) are errors (`go test ./internal/parse/ -run '^TestPmtOperatorFixityErrors$' -count=1 -v | grep -q '^--- PASS: TestPmtOperatorFixityErrors'`)
+- arity follows fixity: an infix with one parameter (`sub + :infix(ADD) (Num $x) Num;`) or a prefix with two is an error (`go test ./internal/parse/ -run '^TestPmtOperatorArityMatchesFixity$' -count=1 -v | grep -q '^--- PASS: TestPmtOperatorArityMatchesFixity'`)
+- declaration order holds for operators: `sub + (Num $x, Num $y) :infix(ADD) Num;` is refused (`go test ./internal/parse/ -run '^TestPmtOperatorAttributeAfterSignatureRefused$' -count=1 -v | grep -q '^--- PASS: TestPmtOperatorAttributeAfterSignatureRefused'`)
+- symbol names are `.pmt`-only: `sub + { 1 }` in ordinary source declares no operator (`go test ./internal/parse/ -run '^TestOperatorSymbolOnlyInPmt$' -count=1 -v | grep -q '^--- PASS: TestOperatorSymbolOnlyInPmt'`)
+- the class check is not tautological: a deliberately wrong class (`sub * :infix(ADD) ...`) run through the same check is reported (`go test ./internal/parse/ -run '^TestCoreOperatorClassCheckCatchesMismatch$' -count=1 -v | grep -q '^--- PASS: TestCoreOperatorClassCheckCatchesMismatch'`)
+
 ## Acceptance criteria
 
 - [ ] operator declarations parse with their fixity and class (`go test ./internal/parse/ -run '^TestPmtOperatorDeclarationParses$' -count=1 -v | grep -q '^--- PASS: TestPmtOperatorDeclarationParses'`)
 - [ ] CORE.pmt types the plain operators as measured (`go test ./internal/parse/ -run '^TestCoreOperatorTypesMatchMeasured$' -count=1 -v | grep -q '^--- PASS: TestCoreOperatorTypesMatchMeasured'`)
 - [ ] each declared operator class matches the precedence table (`go test ./internal/parse/ -run '^TestCoreOperatorClassesMatchPrecedence$' -count=1 -v | grep -q '^--- PASS: TestCoreOperatorClassesMatchPrecedence'`)
+- [ ] a missing class, a class on a prefix, or two fixities is an error (`go test ./internal/parse/ -run '^TestPmtOperatorFixityErrors$' -count=1 -v | grep -q '^--- PASS: TestPmtOperatorFixityErrors'`)
+- [ ] an operator whose arity does not match its fixity is an error (`go test ./internal/parse/ -run '^TestPmtOperatorArityMatchesFixity$' -count=1 -v | grep -q '^--- PASS: TestPmtOperatorArityMatchesFixity'`)
+- [ ] an operator attribute after the signature is refused (`go test ./internal/parse/ -run '^TestPmtOperatorAttributeAfterSignatureRefused$' -count=1 -v | grep -q '^--- PASS: TestPmtOperatorAttributeAfterSignatureRefused'`)
+- [ ] ordinary source declares no operator (`go test ./internal/parse/ -run '^TestOperatorSymbolOnlyInPmt$' -count=1 -v | grep -q '^--- PASS: TestOperatorSymbolOnlyInPmt'`)
+- [ ] the precedence check reports a wrong class (`go test ./internal/parse/ -run '^TestCoreOperatorClassCheckCatchesMismatch$' -count=1 -v | grep -q '^--- PASS: TestCoreOperatorClassCheckCatchesMismatch'`)
