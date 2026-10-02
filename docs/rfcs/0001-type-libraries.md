@@ -275,11 +275,8 @@ evaluated per element, as `grep EXPR`'s is.
 
 - **Which container.** `List[Str]`, the flattened values the caller
   passes, or `Array[Str]`, the copy a body would hold.
-- **What `Str` asserts.** That each argument *is* a `Str` (membership),
-  or that each *becomes* one (coercion). `print` needs the coercion
-  reading, since perl prints a hash reference as `HASH(0x...)` and `Ref`
-  is not under `Str`. `bless (Ref $ref)` needs membership, since perl
-  dies on anything else.
+- **Which elements.** Whether `Str` applies to each flattened value or
+  to the parameter as a whole.
 
 A slurpy (`@` or `%`) is therefore either untyped or typed with an
 explicit container type, once the paper defines one. Until then it is
@@ -289,8 +286,26 @@ untyped. `print`, with its container explicit (perigrin):
 sub print (FileHandle $fh = select(): List[Str] @args = ($_)) Boolean;
 ```
 
-Inside the brackets the membership-or-coercion question remains: for
-`print`, `Str` must mean "becomes a Str".
+See "What a parameter type means" for what `Str` asserts there.
+
+### What a parameter type means (*Implemented*)
+
+perigrin, 2026-10-02. A parameter type is the type the operation
+coerces its argument to; there is no second, "membership" reading. The
+paper defines membership as a lossless round trip (interpreting `v`
+through `T` loses nothing, and `v` meets `T`'s operation contracts) and
+subtyping as containment of those memberships plus the contracts, so
+`A <: B` exactly when an `A` survives `B`'s round trip. An argument of
+type `A` fits a parameter of type `T` when `A <: T`; otherwise the
+coercion is lossy, which is what `psc check` already reports as
+`coercion-mismatch` (`expected Num, got Str`).
+
+What perl then does is the operation's contract, not the type's
+meaning. `print $hashref` is a lossy `Ref`-through-`Str` round trip and
+perl prints `HASH(0x...)` and continues; `bless "x"` has no coercion to
+`Ref` and perl dies. Same reading, two contracts. (Marked *Implemented*
+because it states the meaning `psc check` already applies; there is
+nothing to build.)
 
 ### A typed signature and a prototype say the same thing (*Decided*)
 
@@ -472,9 +487,7 @@ perl5-son extend one lattice:
    `Hash[T]` flattens to `List[Str|T]`; `ArrayRef[T]` should follow from
    `Array[T]`. Until the paper decides, a slurpy in a `.pmt` is
    untyped (see "A slurpy takes no bare element type").
-2. **Membership or coercion.** Whether a parameter type says what an
-   argument *is* or what it *becomes*. `print` and `bless` need
-   different answers, so a declaration may need to spell both.
+2. *(Resolved: see "What a parameter type means".)*
 3. **Lvalue lists.** `chomp` and `chop` modify their arguments in
    place, which neither `List[Str]` nor `Array[Str]` says. A declaration
    can mark the parameter `:lvalue` (see "The scalar container"); what
