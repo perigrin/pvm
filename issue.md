@@ -3,8 +3,10 @@ title: Enforce the slurpy rule and caller-view sigils in .pmt signatures
 state: pending
 urgency: normal
 milestone: type-libraries
+blocked_by:
+- 01a0fd9b-4139-773b-8676-e148e90c42bd
 created: 2026-10-02T17:13:26.249797267Z
-updated: 2026-10-02T17:13:26.249797267Z
+updated: 2026-10-02T17:13:54.764850595Z
 ---
 
 ## Prerequisites
