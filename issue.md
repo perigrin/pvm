@@ -3,8 +3,10 @@ title: Add IO, FileHandle and Boolean to the type lattice, with lookup by name
 state: pending
 urgency: normal
 milestone: type-libraries
+blocks:
+- 01a0fd9b-4139-773b-8676-e148e90c42bd
 created: 2026-10-02T17:13:25.182848094Z
-updated: 2026-10-02T17:13:25.182848094Z
+updated: 2026-10-02T17:13:52.656739989Z
 ---
 
 ## Prerequisites
