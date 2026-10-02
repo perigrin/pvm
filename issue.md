@@ -6,8 +6,9 @@ milestone: type-libraries
 blocked_by:
 - 01a0fa46-a8d1-77c5-97d8-66cf3b4ec55d
 - 01a0fa46-be8b-7823-9c6c-5be1406b57b8
+- 01a0fa46-ece2-7c78-87ed-84da0b5d65f9
 created: 2026-10-02T05:00:17.750893693Z
-updated: 2026-10-02T05:00:22.83021776Z
+updated: 2026-10-02T05:00:23.438643118Z
 ---
 
 RFC 0001, "One language for every `.pmt`" (perigrin, 2026-10-02): everything CORE.pmt can say, a library's `.pmt` can say -- typed signatures, `multi`, `:context`, the invocant colon, declared syntax. Nothing in the reader may special-case CORE. A test declares each construct in a module `.pmt` (not CORE) and parses a call through it. Chalk is to read the same files in time, so the syntax stays parseable from the RFC alone.
