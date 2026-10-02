@@ -8,7 +8,7 @@ blocked_by:
 - 01a0fd9b-5698-70cf-b6e4-8899a83b0fe0
 - 01a0c115-df67-7d69-8883-73d40b0ae15d
 created: 2026-10-02T17:13:31.136589197Z
-updated: 2026-10-02T17:23:11.202428854Z
+updated: 2026-10-02T17:24:24.861564703Z
 ---
 
 ## Prerequisites
@@ -19,7 +19,7 @@ updated: 2026-10-02T17:23:11.202428854Z
 
 ## Context
 
-- paths: `internal/infer/infer.go`, `internal/infer/declared_test.go` (new), `test/e2e/psc_check_test.go`, `test/e2e/testdata/`, `internal/data/help/types.md`
+- paths: `internal/infer/infer.go`, `internal/infer/declared_test.go` (new), `test/e2e/psc_check_test.go`, `test/e2e/testdata/`
 - commands: `go test ./internal/infer/ -count=1`, `go test ./test/e2e/ -run '^TestPSCCheck' -count=1`
 - commands: full gate `make test` (100% green before every commit; never `--no-verify`)
 - perl 5.42 for measuring behaviour: `/home/perigrin/.local/bin/perl` (measure, never assume)
@@ -37,10 +37,20 @@ The milestone body's "internal/infer reads the declarations": once m2 has moved 
 - [ ] Write failing e2e test `TestPSCCheckUsesDeclarations` in `test/e2e/psc_check_test.go`: `psc check` on a fixture reports a coercion mismatch that only the declaration's types reveal
 - [ ] Run test to verify failure: `go test ./test/e2e/ -run '^TestPSCCheckUsesDeclarations$' -count=1 -v`
 - [ ] Make it pass; `make test`; commit
-- [ ] Doc: in the "Declaration Files" section of `internal/data/help/types.md`, say that `psc check` types a call to a declared sub from its declaration, using the e2e fixture's diagnostic as the example; keep "Typed Perl is valid only in `.pmt` files, and you cannot yet add your own" (a user search path is RFC open question 6); `go test ./internal/cli/ -run '^TestShowTypesHelp$' -count=1`; commit
+
+### Negative Scenarios
+
+- a call to an imported sub whose module has no `.pmt` gets no declared type (unchanged behaviour) (`go test ./internal/infer/ -run '^TestInferUndeclaredImportUntyped$' -count=1 -v | grep -q '^--- PASS: TestInferUndeclaredImportUntyped'`)
+- context with no answer has no type at a real call site: `my $n = sort @x` is untyped, not `List` (`go test ./internal/infer/ -run '^TestInferScalarSortHasNoType$' -count=1 -v | grep -q '^--- PASS: TestInferScalarSortHasNoType'`)
+- the comma decides sort: `sort $n @x` selects the invocant candidate, `sort "byname", @x` the plain one with the string as data (measured) (`go test ./internal/infer/ -run '^TestInferSortCommaSelectsPlain$' -count=1 -v | grep -q '^--- PASS: TestInferSortCommaSelectsPlain'`)
+- `psc check` raises no false positive: on a fixture whose arguments fit the declaration, it reports no coercion mismatch (`go test ./test/e2e/ -run '^TestPSCCheckDeclarationsNoFalsePositive$' -count=1 -v | grep -q '^--- PASS: TestPSCCheckDeclarationsNoFalsePositive'`)
 
 ## Acceptance criteria
 
 - [ ] infer types a call from its .pmt declaration (`go test ./internal/infer/ -run '^TestInferTypesCallFromDeclaration$' -count=1 -v | grep -q '^--- PASS: TestInferTypesCallFromDeclaration'`)
 - [ ] infer selects a multi candidate at the call site (`go test ./internal/infer/ -run '^TestInferSelectsMultiAtCallSite$' -count=1 -v | grep -q '^--- PASS: TestInferSelectsMultiAtCallSite'`)
 - [ ] psc check reports what a declaration reveals (`go test ./test/e2e/ -run '^TestPSCCheckUsesDeclarations$' -count=1 -v | grep -q '^--- PASS: TestPSCCheckUsesDeclarations'`)
+- [ ] a call into a module with no .pmt gets no declared type (`go test ./internal/infer/ -run '^TestInferUndeclaredImportUntyped$' -count=1 -v | grep -q '^--- PASS: TestInferUndeclaredImportUntyped'`)
+- [ ] a scalar sort call site has no type (`go test ./internal/infer/ -run '^TestInferScalarSortHasNoType$' -count=1 -v | grep -q '^--- PASS: TestInferScalarSortHasNoType'`)
+- [ ] a comma after the sort routine makes it data (`go test ./internal/infer/ -run '^TestInferSortCommaSelectsPlain$' -count=1 -v | grep -q '^--- PASS: TestInferSortCommaSelectsPlain'`)
+- [ ] psc check reports no mismatch where arguments fit a declaration (`go test ./test/e2e/ -run '^TestPSCCheckDeclarationsNoFalsePositive$' -count=1 -v | grep -q '^--- PASS: TestPSCCheckDeclarationsNoFalsePositive'`)
