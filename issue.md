@@ -9,7 +9,7 @@ blocked_by:
 blocks:
 - 01a0fd9b-5700-7514-a143-2caed2d06d8b
 created: 2026-10-02T17:13:31.032351231Z
-updated: 2026-10-02T17:14:27.299820721Z
+updated: 2026-10-02T17:24:22.981846305Z
 ---
 
 ## Prerequisites
@@ -36,8 +36,17 @@ RFC 0001 "One language for every `.pmt`" (perigrin, 2026-10-02): everything CORE
 - [ ] Implement; run test to verify pass; `make test`; commit
 - [ ] Re-mark the RFC heading "One language for every `.pmt`" `(*Implemented*, <sha>)`; commit
 
+### Negative Scenarios
+
+- a library `.pmt` obeys the same rules as CORE.pmt: an unknown type name or a bare-typed slurpy in the fixture is an error naming the module (`go test ./internal/parse/ -run '^TestLibraryPmtDeclarationErrors$' -count=1 -v | grep -q '^--- PASS: TestLibraryPmtDeclarationErrors'`)
+- `use My::Lib ()` imports neither subs nor declared syntax (RFC: `use M ()` calls no import and brings none) (`go test ./internal/parse/ -run '^TestLibraryPmtEmptyImportBringsNothing$' -count=1 -v | grep -q '^--- PASS: TestLibraryPmtEmptyImportBringsNothing'`)
+- a sub declared in the fixture but not in `@EXPORT` is not visible after a bare `use` (`go test ./internal/parse/ -run '^TestLibraryPmtUnexportedSubNotImported$' -count=1 -v | grep -q '^--- PASS: TestLibraryPmtUnexportedSubNotImported'`)
+
 ## Acceptance criteria
 
 - [ ] a library .pmt reads every construct CORE.pmt uses (`go test ./internal/parse/ -run '^TestLibraryPmtSpeaksCoreLanguage$' -count=1 -v | grep -q '^--- PASS: TestLibraryPmtSpeaksCoreLanguage'`)
 - [ ] imports from a library .pmt carry their signatures (`go test ./internal/parse/ -run '^TestLibraryPmtImportsCarryTypes$' -count=1 -v | grep -q '^--- PASS: TestLibraryPmtImportsCarryTypes'`)
 - [ ] the RFC section on one language is implemented (`grep -q '^### One language.*(\*Implemented\*' docs/rfcs/0001-type-libraries.md`)
+- [ ] a library .pmt reports the same declaration errors as CORE.pmt (`go test ./internal/parse/ -run '^TestLibraryPmtDeclarationErrors$' -count=1 -v | grep -q '^--- PASS: TestLibraryPmtDeclarationErrors'`)
+- [ ] use with an empty list imports no subs and no syntax (`go test ./internal/parse/ -run '^TestLibraryPmtEmptyImportBringsNothing$' -count=1 -v | grep -q '^--- PASS: TestLibraryPmtEmptyImportBringsNothing'`)
+- [ ] an unexported library sub is not imported (`go test ./internal/parse/ -run '^TestLibraryPmtUnexportedSubNotImported$' -count=1 -v | grep -q '^--- PASS: TestLibraryPmtUnexportedSubNotImported'`)
