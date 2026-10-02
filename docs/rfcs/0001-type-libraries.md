@@ -172,20 +172,88 @@ unknown name is an error. perigrin, 2026-10-02:
 
 ### Builtins with no prototype (*Decided*)
 
-About 20 builtins have no prototype because their parse is their own:
-`print`'s filehandle slot, `grep`/`map`/`sort`'s leading block,
-`split`'s pattern, `defined &f`. Their special forms stay in the
-parser. `CORE.pmt` declares their types, and `:unary` marks the eight
-that are named unaries; a builtin with no prototype is otherwise a list
-operator, as an ordinary sub is.
+About 20 builtins have no prototype perl can report. `CORE.pmt`
+declares their types, and `:unary` marks the eight that are named
+unaries; a builtin with no prototype is otherwise a list operator, as an
+ordinary sub is. Most of their forms turn out to be declarable; see
+"Builtins that keep their own parse" for which, and how.
 
 ```perl
-sub print (FileHandle $fh = select(), @args = ($_)) Bool;
+sub print (FileHandle $fh = select(): List[Str] @args = ($_)) Boolean;
 ```
 
 The default handle is the selected one, not STDOUT, and `print` with no
-arguments prints `$_` (measured). Its slurpy stays untyped; see the next
-section.
+arguments prints `$_` (measured).
+
+### Builtins that keep their own parse (*Decided*)
+
+perigrin, 2026-10-02. Measured on 5.42 throughout.
+
+**No prototype is the default prototype.** A sub with no prototype and
+one with `(@)` parse identically in every form tried (`f $a, $b`,
+`f @a, $b`, `f { 1 }`, `f`, `f + 1`, `f->[0]`, `f @a ? 1 : 2`); only
+`prototype()` tells them apart, `undef` against `'@'`. So a declaration
+that derives `@` is a sub with no prototype, and a one-argument CPAN sub
+with none is declared from the caller's side, `(List @args)`, not
+`(Str $x)`: the latter claims a `$` prototype the sub lacks. The
+`CORE.pmt` check treats perl's `undef` as a derived `@`.
+
+**Most "special forms" are multis.** perlsub reimplements `grep` as
+`sub mygrep (&@)`, and that covers the block form exactly. The
+expression form is not a block: `grep /a/ || 1, @l` deparses with the
+same shape as a `($@)` sub's `g((/a/ || 1), @l)`. What differs is
+evaluation, not parse (`grep $n++ >= 0, 1 .. 3` evaluates the
+expression 3 times). So:
+
+```perl
+multi sub grep (Code &block, List @list) List;    # &@
+multi sub grep (Scalar $expr, List @list) List;   # $@
+multi sub map  (Code &block, List @list) List;
+multi sub map  (Scalar $expr, List @list) List;
+multi sub sort (Code &block, List @list) List;
+multi sub sort (List @list) List;
+```
+
+**`map`'s and `grep`'s brace is variant selection.** Both guess whether
+`{` opens a block or a hash constructor from its first tokens; a `&@`
+sub never guesses. Wherever perl's guess disagrees with what follows
+the closing brace, perl rejects the program: `map { "\L$_" => 1 } @a`
+(guessed hash, no comma) and `map { $_ => 1 }, @a` (guessed block,
+then a comma) are both syntax errors. So a comma after `}` selects the
+expression variant and its absence the block variant, which agrees with
+perl on every program perl accepts. The first argument's type selects
+the variant, as in Chalk, decided by that comma rather than by the
+braces' contents: `map { $_ => 1 } @a` holds pairs and is still a
+valid block. The parser keeps perl's first-tokens guess only to refuse
+what perl refuses.
+
+**A leading slot with no comma is written with the invocant colon.**
+`print STDERR LIST`, `sort byname @x` and `exec {'/bin/sh'} @args` take
+their first argument with no comma after it, which no prototype
+character expresses; perl reports `undef` for the prototype of `print`,
+`printf`, `say`, `sort`, `exec` and `system`, and silently ignores a
+`CORE::GLOBAL::sort` override. perldoc calls `print`'s and `exec`'s
+slot an indirect object, but it is not the `indirect` feature: under
+`use v5.36` `new Foo` fails while all three still work. A declaration
+spells the slot with Raku's invocant colon:
+
+```perl
+sub print (FileHandle $fh = select(): List[Str] @args = ($_)) Boolean;
+multi sub sort (Code|Str $by: List @list) List;
+sub exec (Str $program: List[Str] @args) Boolean;
+```
+
+A signature with an invocant colon derives no prototype, matching perl,
+and is meaningful only in `CORE.pmt`: no Perl-level sub can have the
+slot. Perl's `method` takes `$self` implicitly and never lists an
+invocant, so the colon cannot collide with one. For `sort` the slot
+names a comparison routine, which may be a string (`sort $n @x` with
+`$n = "byname"`); with a comma the string is data instead
+(`sort "byname", @x`).
+
+Two cases are open questions (9 and 10 below), not decided: `defined
+&f`, whose operand perl does not call, and how to type a parameter
+evaluated per element, as `grep EXPR`'s is.
 
 ### A slurpy takes no bare element type (*Decided*)
 
@@ -204,7 +272,7 @@ explicit container type, once the paper defines one. Until then it is
 untyped. `print`, with its container explicit (perigrin):
 
 ```perl
-sub print (FileHandle $fh = select(), List[Str] @args = ($_)) Bool;
+sub print (FileHandle $fh = select(): List[Str] @args = ($_)) Boolean;
 ```
 
 Inside the brackets the membership-or-coercion question remains: for
@@ -341,10 +409,12 @@ Separate from the paper:
 6. A search path for user-written `.pmt` files beside the embedded set.
 7. The remaining XS::Parse pieces, and sublikes other than `PREFIX`.
 8. Lexical rather than file-wide scope for declared syntax.
-9. How a builtin with no prototype opts out of derivation. `print`'s
-   typed signature would derive a prototype `print` does not have, and
-   applying it would change how `print` parses.
-10. A type for `\$`'s scalar container, distinct from a scalar value.
+9. How to type a parameter evaluated once per element, as `grep EXPR`'s
+   and `map EXPR`'s first argument is, where every other parameter is
+   evaluated once per call.
+10. How to declare `defined &f` (and `exists &f`), whose operand names a
+    sub that perl does not call. Today the parser handles the form.
+11. A type for `\$`'s scalar container, distinct from a scalar value.
 
 ## Rejected alternatives
 
