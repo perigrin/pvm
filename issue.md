@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a0fd9b-5670-78d0-84be-9b9618e9b081
 created: 2026-10-02T17:13:29.229586875Z
-updated: 2026-10-02T17:24:10.488948268Z
+updated: 2026-10-02T17:26:29.729816458Z
 ---
 
 ## Prerequisites
@@ -17,7 +17,7 @@ updated: 2026-10-02T17:24:10.488948268Z
 
 ## Context
 
-- paths: `internal/parse/declarations/CORE.pmt`, `internal/parse/declarations.go`, `internal/parse/coretypes_test.go` (new), `internal/parse/export_test.go`, `docs/rfcs/0001-type-libraries.md`
+- paths: `internal/parse/declarations/CORE.pmt`, `internal/parse/declarations.go`, `internal/parse/coretypes_test.go` (new), `internal/parse/export_test.go`, `docs/rfcs/0001-type-libraries.md`, `internal/data/help/types.md`
 - commands: `go test ./internal/parse/ -count=1`
 - commands: full gate `make test` (100% green before every commit; never `--no-verify`)
 - perl 5.42 for measuring behaviour: `/home/perigrin/.local/bin/perl` (measure, never assume)
@@ -33,6 +33,7 @@ Every one of CORE.pmt's 188 prototyped builtins gets a typed signature (RFC "Typ
 - [ ] Write failing test `TestCoreTypesMatchMeasuredSignatures`: the 27 golden rows (arity, argument and return types) equal their CORE.pmt declarations
 - [ ] Move signatures.go's measurement comments into CORE.pmt; fix any line that disagrees, measuring which side is right; run test to verify pass; `make test`; commit
 - [ ] Re-mark the RFC heading "A typed signature and a prototype say the same thing" `(*Implemented*, <sha>)`; commit
+- [ ] Doc: `internal/data/help/types.md` says the shipped files "use only the plain-Perl part"; replace that with a sentence saying `CORE.pmt` carries typed declarations, and show its typed `bless` line; in the RFC's "CORE.pmt: the builtin table" section, show typed lines in place of the bare-prototype ones; `go test ./internal/cli/ -run '^TestShowTypesHelp$' -count=1`; commit
 
 ### Negative Scenarios
 
@@ -46,3 +47,4 @@ Every one of CORE.pmt's 188 prototyped builtins gets a typed signature (RFC "Typ
 - [ ] the RFC section on typed signatures and prototypes is implemented (`grep -q '^### A typed signature and a prototype.*(\*Implemented\*' docs/rfcs/0001-type-libraries.md`)
 - [ ] the CORE prototype check reports a wrong line (`go test ./internal/parse/ -run '^TestCoreDerivedPrototypeCheckCatchesMismatch$' -count=1 -v | grep -q '^--- PASS: TestCoreDerivedPrototypeCheckCatchesMismatch'`)
 - [ ] every prototyped CORE.pmt line is typed and the file has no declaration errors (`go test ./internal/parse/ -run '^TestCoreEveryPrototypedLineIsTyped$' -count=1 -v | grep -q '^--- PASS: TestCoreEveryPrototypedLineIsTyped'`)
+- [ ] the help page shows a typed CORE.pmt declaration and no longer calls the shipped files untyped (`sh -c '! grep -q "plain-Perl part" internal/data/help/types.md && grep -qF "sub bless" internal/data/help/types.md'`)
