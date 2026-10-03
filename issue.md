@@ -10,24 +10,24 @@ blocked_by:
 blocks:
 - 01a0fd9b-5700-7514-a143-2caed2d06d8b
 created: 2026-10-02T17:13:30.992763407Z
-updated: 2026-10-02T17:26:42.60395188Z
+updated: 2026-10-03T11:13:47.680609057Z
 ---
 
 ## Prerequisites
 
-- [ ] Type CORE.pmt's prototyped builtins and hold every derived prototype to perl
+- [ ] Type CORE.pmt's remaining builtins, with localtime and gmtime as :context multis
+- [ ] Declare grep, map and sort as multis in CORE.pmt, with sort's invocant slot
 - [ ] Declare the forking operators .. and x as multis in CORE.pmt
-- [ ] Derive the parser's keyword shapes from CORE.pmt and remove the hand-kept keyword table
 
 ## Context
 
-- paths: `internal/infer/infer.go`, `internal/infer/core_test.go` (new), `internal/parse/declarations.go`, `internal/types/signatures.go` (deleted), `internal/types/signatures_test.go` (deleted), `internal/types/signatures_audit_test.go` (deleted), `docs/rfcs/0001-type-libraries.md`, `docs/specs/perl-parser/04-expressions.md`
+- paths: `internal/infer/infer.go`, `internal/infer/core_test.go` (new), `internal/parse/declarations.go`, `internal/types/signatures.go` (deleted), `internal/types/signatures_test.go` (deleted), `internal/types/signatures_audit_test.go` (deleted), `docs/specs/perl-parser/04-expressions.md`
 - commands: `go test ./internal/infer/ -count=1`, `go test ./internal/parse/ -count=1`
 - commands: full gate `make test` (100% green before every commit; never `--no-verify`)
 - perl 5.42 for measuring behaviour: `/home/perigrin/.local/bin/perl` (measure, never assume)
 - entrypoints: the lookups `types.GetBinaryOp`/`GetUnaryOp`/`GetBuiltin` at `internal/infer/infer.go:432`, `:604`, `:652`, `:693`, `:881`, `:1009`, `:3944`, `:4004`, `:4048`; `coreTable` (`internal/parse/declarations.go:39`)
 
-The last fold of RFC 0001 "Typed Perl, in `.pmt` only": `internal/types/signatures.go` (27 typed builtins, `binaryOps`, `unaryOps`) folds into CORE.pmt, whose lines now carry the same types (held by the CORE type tests). internal/infer looks builtins and operators up in CORE.pmt by name through an exported accessor in `internal/parse` (infer does not import it yet; `internal/parse` does not import infer, so there is no cycle). This changes only where lookups come from: infer still walks tree-sitter until m2 retires it (01a0c115), and m2 is also editing `infer.go`, so expect merge friction and keep the diff to the lookup sites. Where CORE.pmt is more precise than signatures.go, measure and update the expectation. `signatures_audit_test.go` holds measurements; carry any not already in the CORE tests into `internal/infer/core_test.go` before deleting it. With keyword.go already gone, this re-marks the section.
+The builtin-type fold of RFC 0001 "Typed Perl, in `.pmt` only": `internal/types/signatures.go` (40 typed builtins, `binaryOps`, `unaryOps`) folds into CORE.pmt, whose lines now carry the same types (held by the CORE type tests). internal/infer looks builtins and operators up in CORE.pmt by name through an exported accessor in `internal/parse` (infer does not import it yet; `internal/parse` does not import infer, so there is no cycle). This changes only where lookups come from: infer still walks tree-sitter until m2 retires it (01a0c115), and m2 is also editing `infer.go`, so expect merge friction and keep the diff to the lookup sites. Where CORE.pmt is more precise than signatures.go, measure and update the expectation. `signatures_audit_test.go` holds measurements; carry any not already in the CORE tests into `internal/infer/core_test.go` before deleting it. The parser's keyword table folds after this issue (the keyword-shape issue), and that issue re-marks the section once both tables are gone.
 
 ## Steps
 
@@ -37,8 +37,7 @@ The last fold of RFC 0001 "Typed Perl, in `.pmt` only": `internal/types/signatur
 - [ ] Write failing test `TestInferTypesOperatorsFromCore`: an operator result typed from its CORE.pmt declaration, including `x` with a parenthesised left operand
 - [ ] Switch the operator lookups; run test to verify pass; `make test`; commit
 - [ ] Carry remaining audit measurements over; delete signatures.go and its tests; `make test`; commit
-- [ ] Re-mark the RFC heading "Typed Perl, in `.pmt` only" `(*Implemented*, <sha>)`; commit
-- [ ] Doc: repoint the `Range` row of `docs/specs/perl-parser/04-expressions.md` §4.14.2 from `signatures.go:182` to `..`'s declaration in `CORE.pmt`, and restate the RFC's "Typed Perl" paragraph on folding the two tables in the present tense (`CORE.pmt` is the builtin table); commit
+- [ ] Doc: repoint the `Range` row of `docs/specs/perl-parser/04-expressions.md` §4.14.2 from `signatures.go:182` to `..`'s declaration in `CORE.pmt`; commit
 
 ### Negative Scenarios
 
@@ -51,7 +50,6 @@ The last fold of RFC 0001 "Typed Perl, in `.pmt` only": `internal/types/signatur
 - [ ] infer types builtin calls from CORE.pmt (`go test ./internal/infer/ -run '^TestInferTypesBuiltinsFromCore$' -count=1 -v | grep -q '^--- PASS: TestInferTypesBuiltinsFromCore'`)
 - [ ] infer types operators from CORE.pmt (`go test ./internal/infer/ -run '^TestInferTypesOperatorsFromCore$' -count=1 -v | grep -q '^--- PASS: TestInferTypesOperatorsFromCore'`)
 - [ ] the builtin table in internal/types is gone (`sh -c '! grep -rqwE "GetBuiltin|GetBinaryOp|GetUnaryOp" --include="*.go" internal'`)
-- [ ] the RFC section on typed Perl is implemented (`grep -q '^### Typed Perl, in .*(\*Implemented\*' docs/rfcs/0001-type-libraries.md`)
 - [ ] infer gives no builtin type to an undeclared name (`go test ./internal/infer/ -run '^TestInferUndeclaredNameHasNoCoreType$' -count=1 -v | grep -q '^--- PASS: TestInferUndeclaredNameHasNoCoreType'`)
 - [ ] coercion mismatches survive the switch to CORE.pmt (`go test ./internal/infer/ -run '^TestInferCoreCoercionMismatchStillReported$' -count=1 -v | grep -q '^--- PASS: TestInferCoreCoercionMismatchStillReported'`)
 - [ ] infer types a parenthesised x in scalar context as Str (`go test ./internal/infer/ -run '^TestInferRepeatScalarContextIsStr$' -count=1 -v | grep -q '^--- PASS: TestInferRepeatScalarContextIsStr'`)
