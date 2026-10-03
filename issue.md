@@ -1,5 +1,5 @@
 ---
-title: Type CORE.pmt's prototyped builtins and hold every derived prototype to perl
+title: Check CORE.pmt's derived prototypes against perl, with signatures.go's measured rows
 state: pending
 urgency: normal
 milestone: type-libraries
@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a0fd9b-5670-78d0-84be-9b9618e9b081
 created: 2026-10-02T17:13:29.229586875Z
-updated: 2026-10-03T11:13:46.203425915Z
+updated: 2026-10-03T11:14:17.363797428Z
 ---
 
 ## Prerequisites
