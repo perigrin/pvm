@@ -3,11 +3,13 @@ title: Parse operator declarations and type perl's plain operators in CORE.pmt
 state: pending
 urgency: normal
 milestone: type-libraries
+blocked_by:
+- 01a10177-49d9-7915-975e-2a8e3da943bf
 blocks:
 - 01a0fd9b-5468-7355-a22e-1b16fa5ee354
 - 01a0fd9b-5698-70cf-b6e4-8899a83b0fe0
 created: 2026-10-02T17:13:30.281662921Z
-updated: 2026-10-03T11:16:12.116129107Z
+updated: 2026-10-03T11:16:20.969988992Z
 ---
 
 ## Prerequisites
