@@ -3,8 +3,10 @@ title: "Refuse at parse time what perl refuses at compile time: constants in \\$
 state: pending
 urgency: normal
 milestone: type-libraries
+blocked_by:
+- 01a0fd9b-46c4-7a8c-b8d6-498c5182a47f
 created: 2026-10-03T11:12:40.060535979Z
-updated: 2026-10-03T11:13:48.13053555Z
+updated: 2026-10-03T11:15:44.505265827Z
 ---
 
 ## Prerequisites
