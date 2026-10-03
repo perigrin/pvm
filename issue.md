@@ -8,24 +8,25 @@ blocked_by:
 - 01a0fd9b-5698-70cf-b6e4-8899a83b0fe0
 - 01a0c115-df67-7d69-8883-73d40b0ae15d
 created: 2026-10-02T17:13:31.136589197Z
-updated: 2026-10-02T17:26:45.531091966Z
+updated: 2026-10-03T11:13:47.918970643Z
 ---
 
 ## Prerequisites
 
 - [ ] Have internal/infer read builtin and operator types from CORE.pmt and remove internal/types' builtin table
 - [ ] Let a library .pmt use every construct CORE.pmt uses
+- [ ] Refuse at parse time what perl refuses at compile time: constants in \$ slots and arities no declaration accepts
 - [ ] Retire the tree-sitter vocabulary from internal/infer (m2-lower-the-tree, 01a0c115-df67-7d69-8883-73d40b0ae15d)
 
 ## Context
 
-- paths: `internal/infer/infer.go`, `internal/infer/declared_test.go` (new), `test/e2e/psc_check_test.go`, `test/e2e/testdata/`, `internal/data/help/types.md`
+- paths: `internal/infer/infer.go`, `docs/rfcs/0001-type-libraries.md`, `internal/infer/declared_test.go` (new), `test/e2e/psc_check_test.go`, `test/e2e/testdata/`, `internal/data/help/types.md`
 - commands: `go test ./internal/infer/ -count=1`, `go test ./test/e2e/ -run '^TestPSCCheck' -count=1`
 - commands: full gate `make test` (100% green before every commit; never `--no-verify`)
 - perl 5.42 for measuring behaviour: `/home/perigrin/.local/bin/perl` (measure, never assume)
 - entrypoints: `internal/infer/infer.go` call-site typing (after m2 it walks `internal/parse` nodes), `internal/types/select.go`, `parse.Imports` (`internal/parse/exports.go:49`)
 
-The milestone body's "internal/infer reads the declarations": once m2 has moved infer onto `internal/parse`, a call to a sub imported from a module with a `.pmt` is typed from that declaration, and a call to a multi -- builtin or library -- selects its candidate at the call site by arity, argument types, context or operand shape through `internal/types/select.go`, joining when undecided. This changes what `psc check` reports wherever a declaration is more precise, which is why it waits for m2's behaviour-preserving cutover. It re-marks no RFC section (outside the RFC gate, inside the milestone). Use a shipped declaration (e.g. `Moose.pmt`) or extend one with measured types for the e2e case.
+The milestone body's "internal/infer reads the declarations": once m2 has moved infer onto `internal/parse`, a call to a sub imported from a module with a `.pmt` is typed from that declaration, and a call to a multi -- builtin or library -- selects its candidate at the call site by arity, argument types, context or operand shape through `internal/types/select.go`, joining when undecided. This changes what `psc check` reports wherever a declaration is more precise, which is why it waits for m2's behaviour-preserving cutover. This is RFC 0001 "Call sites" (perigrin, 2026-10-02): `infer` applies the selection rules of "Multi declarations" and "`:context(...)`" at a real call -- the arguments' inferred types, the call's arity and its context -- and takes the selected candidate's return type, joining only when the call site cannot decide. When the declarations rule a call out, it fails: where perl would compile the call (a candidate set with no prototype, or a library dispatching at run time) the parse stays as perl reads it and `psc check` reports an error; where perl refuses at compile time the parser has already refused (the parse-time refusal issue). This completes "Call sites", so it re-marks it. Use a shipped declaration (e.g. `Moose.pmt`) or extend one with measured types for the e2e case.
 
 ## Steps
 
@@ -37,6 +38,9 @@ The milestone body's "internal/infer reads the declarations": once m2 has moved 
 - [ ] Write failing e2e test `TestPSCCheckUsesDeclarations` in `test/e2e/psc_check_test.go`: `psc check` on a fixture reports a coercion mismatch that only the declaration's types reveal
 - [ ] Run test to verify failure: `go test ./test/e2e/ -run '^TestPSCCheckUsesDeclarations$' -count=1 -v`
 - [ ] Make it pass; `make test`; commit
+- [ ] Write failing test `TestInferNoCandidateArityIsError` in `internal/infer/declared_test.go`: a call to a library multi with no prototype whose arity no candidate accepts is reported as an error, and gets no joined type
+- [ ] Implement; run test to verify pass; `make test`; commit
+- [ ] Re-mark the RFC heading "Call sites" `(*Implemented*, <sha>)`; commit
 - [ ] Doc: in the "Declaration Files" section of `internal/data/help/types.md`, say that `psc check` types a call to a declared sub from its declaration, using the e2e fixture's diagnostic as the example; keep "Typed Perl is valid only in `.pmt` files, and you cannot yet add your own" (a user search path is RFC open question 6); `go test ./internal/cli/ -run '^TestShowTypesHelp$' -count=1`; commit
 
 ### Negative Scenarios
@@ -55,3 +59,5 @@ The milestone body's "internal/infer reads the declarations": once m2 has moved 
 - [ ] a scalar sort call site has no type (`go test ./internal/infer/ -run '^TestInferScalarSortHasNoType$' -count=1 -v | grep -q '^--- PASS: TestInferScalarSortHasNoType'`)
 - [ ] a comma after the sort routine makes it data (`go test ./internal/infer/ -run '^TestInferSortCommaSelectsPlain$' -count=1 -v | grep -q '^--- PASS: TestInferSortCommaSelectsPlain'`)
 - [ ] psc check reports no mismatch where arguments fit a declaration (`go test ./test/e2e/ -run '^TestPSCCheckDeclarationsNoFalsePositive$' -count=1 -v | grep -q '^--- PASS: TestPSCCheckDeclarationsNoFalsePositive'`)
+- [ ] a call whose arity no candidate accepts is an error at the call site (`go test ./internal/infer/ -run '^TestInferNoCandidateArityIsError$' -count=1 -v | grep -q '^--- PASS: TestInferNoCandidateArityIsError'`)
+- [ ] the RFC section on call sites is implemented (`grep -q '^### Call sites (\*Implemented\*' docs/rfcs/0001-type-libraries.md`)
