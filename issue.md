@@ -3,12 +3,14 @@ title: Enforce the slurpy rule and a final List parameter in .pmt signatures
 state: pending
 urgency: normal
 milestone: type-libraries
+blocked_by:
+- 01a10177-49d9-7915-975e-2a8e3da943bf
 blocks:
 - 01a0fd9b-4850-704d-8c14-c15add6194f2
 - 01a0fd9b-49b2-7ea9-bfa1-ba398baadc3f
 - 01a0fd9b-46c4-7a8c-b8d6-498c5182a47f
 created: 2026-10-02T17:13:26.249797267Z
-updated: 2026-10-03T11:15:43.403380847Z
+updated: 2026-10-03T11:16:17.1941184Z
 ---
 
 ## Prerequisites
