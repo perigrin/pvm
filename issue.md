@@ -8,12 +8,12 @@ blocked_by:
 blocks:
 - 01a0fd9b-5468-7355-a22e-1b16fa5ee354
 created: 2026-10-02T17:13:30.281662921Z
-updated: 2026-10-02T17:24:16.118745912Z
+updated: 2026-10-03T11:13:47.234783927Z
 ---
 
 ## Prerequisites
 
-- [ ] Parse typed declarations in .pmt files: typed parameters, defaults and return types
+- [ ] Parse return types and type expressions in .pmt declarations
 
 ## Context
 
