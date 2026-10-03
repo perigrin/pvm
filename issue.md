@@ -7,7 +7,7 @@ blocks:
 - 01a0fd9b-4139-773b-8676-e148e90c42bd
 - 01a0fd9b-49b2-7ea9-bfa1-ba398baadc3f
 created: 2026-10-02T17:13:25.182848094Z
-updated: 2026-10-02T17:26:17.971747624Z
+updated: 2026-10-03T11:13:44.132103586Z
 ---
 
 ## Prerequisites
@@ -16,7 +16,7 @@ updated: 2026-10-02T17:26:17.971747624Z
 
 ## Context
 
-- paths: `internal/types/types.go`, `internal/types/names.go` (new), `internal/types/names_test.go` (new), `internal/types/types_test.go`, `internal/types/lattice_oracle_test.go`, `internal/types/paper_alignment_test.go`, `internal/infer/` (every `types.Bool` use), `internal/data/help/types.md`
+- paths: `internal/types/types.go`, `internal/types/names.go` (new), `internal/types/names_test.go` (new), `internal/types/types_test.go`, `internal/types/lattice_oracle_test.go`, `internal/types/paper_alignment_test.go`, `internal/types/narrowing_test.go`, `internal/types/gotchas_test.go`, `internal/types/coercion_test.go`, `internal/types/signatures_test.go`, `internal/types/coercion.go`, `internal/types/join.go`, `internal/types/narrowing.go`, `internal/types/signatures.go`, `internal/infer/diagnostics.go`, `internal/infer/` (every `types.Bool` use: also `infer.go`, `diagnostics_test.go`, `infer_test.go`, `precision_test.go`), `internal/data/help/types.md` (list from `grep -rlw Bool internal/types` and `grep -rlw types.Bool --include='*.go' internal cmd`)
 - commands: `go test ./internal/types/ -count=1`, `go test ./internal/infer/ -count=1`
 - commands: full gate `make test` (100% green before every commit; never `--no-verify`)
 - perl 5.42 for measuring behaviour: `/home/perigrin/.local/bin/perl` (measure, never assume)
