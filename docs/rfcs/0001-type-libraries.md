@@ -444,8 +444,8 @@ multi sub x :infix(MUL) (Str $s, Int $n) Str;     # EXPR x N
 
 Some builtins return different types depending on how they are called.
 A declaration may be `multi sub`, giving several signatures for one
-name. A call site selects one by arity, by argument types that are not
-subtypes of each other, or by context:
+name. The selection rules pick one by arity, by argument types, or by
+context; applying them at a real call in `infer` is "Call sites" below:
 
 ```perl
 multi sub each (Hash \%h)  List;                   # (Str, value)
@@ -514,6 +514,19 @@ list result is `0`, an `Int`.
 Boolean context counts as scalar. Measured on 5.42, `wantarray` reports
 scalar inside `if (f())`, `!f()` and `f() and ...`, so no Perl-level
 sub can tell them apart.
+
+### Call sites (*Decided*)
+
+perigrin, 2026-10-02. "Multi declarations" and "`:context(...)`" cover
+declaring candidates and the rules that select among them, built and
+tested on their own. This section is the consumer: `infer` types a call
+to a declared builtin or library sub by applying those rules at the call
+site -- the arguments' inferred types, the call's arity and its context
+-- and takes the selected candidate's return type. When the call site
+cannot decide between candidates it joins them; when the declarations
+rule the call out, it fails as "Multi declarations" says. It waits on
+`infer` running on `internal/parse` (milestone m2-lower-the-tree), which
+is why it is a section of its own.
 
 ### Corpus runs share module reads (*Implemented*, 5374dda4)
 
