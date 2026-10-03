@@ -3,8 +3,10 @@ title: Type CORE.pmt's array, list and hash builtins
 state: pending
 urgency: normal
 milestone: type-libraries
+blocked_by:
+- 01a0fd9b-4f8d-71ca-bac4-24eceb1dc4a4
 created: 2026-10-03T11:12:38.523502989Z
-updated: 2026-10-03T11:13:46.554898799Z
+updated: 2026-10-03T11:15:58.990918367Z
 ---
 
 ## Prerequisites
