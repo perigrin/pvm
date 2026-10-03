@@ -10,7 +10,7 @@ blocks:
 - 01a0fd9b-5468-7355-a22e-1b16fa5ee354
 - 01a0fd9b-5698-70cf-b6e4-8899a83b0fe0
 created: 2026-10-02T17:13:28.48300713Z
-updated: 2026-10-02T17:24:07.195410164Z
+updated: 2026-10-03T11:13:45.813581752Z
 ---
 
 ## Prerequisites
@@ -25,7 +25,7 @@ updated: 2026-10-02T17:24:07.195410164Z
 - perl 5.42 for measuring behaviour: `/home/perigrin/.local/bin/perl` (measure, never assume)
 - entrypoints: `internal/types/select.go`; how `:prototype(...)` is read in `declaredSub` (`internal/parse/exports.go:425`)
 
-RFC 0001 "`:context(...)`": a declaration names the contexts it answers for in prototype sigils -- no attribute: every context; `:context($)` scalar; `:context(@)` list; `:context()` void; `:context($@)` scalar or list. As with `:prototype`, absent and empty differ. A call in a context no candidate answers for has no type (`sub sort :context(@) ...`: scalar sort is undefined). Boolean context counts as scalar (measured: `wantarray` reports scalar inside `if (f())`, `!f()`, `f() and ...`). Context selects a declaration; narrowing cannot stand in for it (`my $t = localtime(0)` is a date string). This completes the selection rules, so it re-marks both "Multi declarations" and "`:context(...)`".
+RFC 0001 "`:context(...)`": a declaration names the contexts it answers for in prototype sigils -- no attribute: every context; `:context($)` scalar; `:context(@)` list; `:context()` void; `:context($@)` scalar or list. As with `:prototype`, absent and empty differ. A call in a context no candidate answers for has no type (`sub sort :context(@) ...`: scalar sort is undefined). Boolean context counts as scalar (measured: `wantarray` reports scalar inside `if (f())`, `!f()`, `f() and ...`). Context selects a declaration; narrowing cannot stand in for it (`my $t = localtime(0)` is a date string). This completes the selection rules, built and tested on their own, so it re-marks both "Multi declarations" and "`:context(...)`" (perigrin, 2026-10-03). Applying the rules at a real call in `infer` is RFC "Call sites", the call-site issue's; refusing at parse time what perl refuses at compile time is the parse-time refusal issue's.
 
 ## Steps
 
