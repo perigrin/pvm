@@ -272,3 +272,28 @@ parses: yes
 ```output
 2 3
 ```
+
+## An iterator passed to a call, over read-only values
+
+A foreach iterator aliases its element, and a callee given it may change the element through `$_[0]`. These elements are constants, which perl never writes: writing each one back after the body dies "Modification of a read-only value". Found by B::SoN translating chalk's lib/ and running chalk's own suite against the emitted Perl.
+
+```perl
+sub id { $_[0] }
+sub keep {
+    my $out = "";
+    for my $x (@_) {
+        next unless id($x) > 1;
+        $out .= $x;
+    }
+    return $out;
+}
+print keep(1, 2, 3), "\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+23
+```

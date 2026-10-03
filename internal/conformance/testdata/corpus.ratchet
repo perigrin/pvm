@@ -8,7 +8,7 @@
 # topic's `**Tier NN name.**` line and leaves every key alone. That
 # is the `t/` sweep working, and must not read as a regression.
 #
-# 255 cases, 255 clean, 0 refusing.
+# 261 cases, 261 clean, 0 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -47,6 +47,7 @@
 - arguments.md/A foreach alias written through `$_[0]`
 - arguments.md/A loop variable passed to a sub
 - arguments.md/A signature names the parameters
+- arguments.md/An iterator passed to a call, over read-only values
 - arguments.md/Arguments arrive in `@_`
 - arguments.md/Explicit return, early and trailing
 - arguments.md/`@_` aliases the caller's variables
@@ -235,7 +236,12 @@
 - strings.md/Double quotes process escapes
 - strings.md/Single quotes do not
 - strings.md/`q` with three delimiters
+- subroutines.md/A call under a statement modifier inside an if
+- subroutines.md/A chain of ands with calls, guarding next
+- subroutines.md/A defined-or whose right side calls, in a loop body
+- subroutines.md/A die guarded inside a loop body
 - subroutines.md/A named subroutine, declared and called
+- subroutines.md/A print under a modifier, ending a sub
 - subroutines.md/A sub whose last statement is a loop
 - subroutines.md/An anonymous subroutine is a value
 - subroutines.md/An attribute stands between the name and the body
