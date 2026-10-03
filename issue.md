@@ -1,5 +1,5 @@
 ---
-title: "Read the :lvalue parameter attribute and derive the \\$ prototype from it"
+title: "Parse aliased parameters (\\$x, \\@a, \\%h, \\(@list)) and derive \\$, \\@ and \\% from them"
 state: pending
 urgency: normal
 milestone: type-libraries
@@ -10,7 +10,7 @@ blocks:
 - 01a0fd9b-4f8d-71ca-bac4-24eceb1dc4a4
 - 01a0fd9b-5017-78d0-ae38-331cbe6a9866
 created: 2026-10-02T17:13:27.376660947Z
-updated: 2026-10-03T11:13:45.282567031Z
+updated: 2026-10-03T11:14:17.322780072Z
 ---
 
 ## Prerequisites
