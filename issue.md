@@ -1,5 +1,5 @@
 ---
-title: Declare the plain no-prototype builtins in CORE.pmt and read :unary
+title: Declare the no-prototype builtins and each's multi in CORE.pmt, and read :unary
 state: pending
 urgency: normal
 milestone: type-libraries
@@ -9,7 +9,7 @@ blocked_by:
 blocks:
 - 01a0fd9b-519d-7b42-886e-2222a3076986
 created: 2026-10-02T17:13:29.367336401Z
-updated: 2026-10-03T11:13:46.894377022Z
+updated: 2026-10-03T11:14:17.407922521Z
 ---
 
 ## Prerequisites
