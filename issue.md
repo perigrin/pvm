@@ -1,5 +1,5 @@
 ---
-title: "Parse typed declarations in .pmt files: typed parameters, defaults and return types"
+title: Parse typed parameters and defaults in .pmt declarations
 state: pending
 urgency: normal
 milestone: type-libraries
@@ -11,7 +11,7 @@ blocks:
 - 01a0fd9b-4a5b-7e94-ad87-756dfcfe1f4c
 - 01a0fd9b-53a9-703f-82ab-eeb38765f7f1
 created: 2026-10-02T17:13:25.560580634Z
-updated: 2026-10-03T11:13:44.352962792Z
+updated: 2026-10-03T11:14:17.21962738Z
 ---
 
 ## Prerequisites
