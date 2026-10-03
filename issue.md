@@ -9,7 +9,7 @@ blocked_by:
 blocks:
 - 01a0fd9b-5670-78d0-84be-9b9618e9b081
 created: 2026-10-02T17:13:30.472741835Z
-updated: 2026-10-02T17:27:10.811221042Z
+updated: 2026-10-03T11:13:47.362904896Z
 ---
 
 ## Prerequisites
@@ -25,9 +25,9 @@ updated: 2026-10-02T17:27:10.811221042Z
 - perl 5.42 for measuring behaviour: `/home/perigrin/.local/bin/perl` (measure, never assume)
 - entrypoints: RFC 0001 "Operator declarations", "Operators that fork"; `internal/types/select.go`
 
-`..` is a range in list context and a flip-flop in scalar context: a `:context` multi (`...` likewise). `x` repeats a list only when its left operand is parenthesised -- measured on 5.42, `(1,2) x 2` and `(@a) x 2` give `1 2 1 2`, `"ab" x 2` gives `abab`, `@a x 2` gives `22` -- so `multi sub x :infix(MUL) (List @l, Int $n) List;` and `multi sub x :infix(MUL) (Str $s, Int $n) Str;`. The parenthesis is a parse fact, as the comma is for map: `List` and `Str` are subtypes of each other's family, so types cannot select, and the call site must say whether the left operand is a parenthesised list (the caller-view sigil `@` against `$`). Remeasure each case with perl. This finishes "Operator declarations".
+`..` is a range in list context and a flip-flop in scalar context: a `:context` multi (`...` likewise). `x` repeats a list only when its left operand is parenthesised -- measured on 5.42, `(1,2) x 2` and `(@a) x 2` give `1 2 1 2`, `"ab" x 2` gives `abab`, `@a x 2` gives `22` -- so `multi sub x :infix(MUL) :context(@) (List @l, Int $n) List;` and `multi sub x :infix(MUL) (Str $s, Int $n) Str;` (RFC "Operators that fork", 4423a77a). The parenthesis is a parse fact, as the comma is for map: `List` and `Str` are subtypes of each other's family, so types cannot select, and the call site must say whether the left operand is a parenthesised list (the caller-view sigil `@` against `$`). Remeasure each case with perl. This finishes "Operator declarations".
 
-Measured on 5.42 (chain review): the parenthesised left operand selects the list repeat only in LIST context. `my $x = (1,2) x 2` and `my $x = (@a) x 2` give `22`; `my @l = (1,2) x 2` gives `1 2 1 2`. So the `List` candidate also carries `:context(@)`.
+Measured on 5.42 (chain review): the parenthesised left operand selects the list repeat only in LIST context. `my $x = (1,2) x 2` and `my $x = (@a) x 2` give `22`; `my @l = (1,2) x 2` gives `1 2 1 2`. So the `List` candidate also carries `:context(@)`. Selection order matters under "the most specific candidate wins" (multi issue): if `Str <: List` in the lattice, specificity alone would pick the `Str` candidate for `(1,2) x 2` in list context, so the operand shape (a parenthesised left operand) and the context rule the `Str` candidate out first; `TestSelectByOperandShape` holds that order.
 
 ## Steps
 
@@ -36,7 +36,7 @@ Measured on 5.42 (chain review): the parenthesised left operand selects the list
 - [ ] Add the declarations; run test to verify pass; `make test`; commit
 - [ ] Write failing test `TestSelectByOperandShape` in `internal/types/select_test.go`: x's candidates select the `List` one for a parenthesised-list left operand and the `Str` one otherwise
 - [ ] Implement; run test to verify pass; `make test`; commit
-- [ ] Write failing test `TestCoreRepeatIsShapeMulti`: CORE.pmt declares both `x` candidates with class `MUL`
+- [ ] Write failing test `TestCoreRepeatIsShapeMulti`: CORE.pmt declares both `x` candidates with class `MUL`, the `List` one carrying `:context(@)`
 - [ ] Add the declarations; run test to verify pass; `make test`; commit
 - [ ] Re-mark the RFC heading "Operator declarations" `(*Implemented*, <sha>)`; commit
 
@@ -50,7 +50,7 @@ Measured on 5.42 (chain review): the parenthesised left operand selects the list
 
 - [ ] the range operators are declared as context multis (`go test ./internal/parse/ -run '^TestCoreRangeIsContextMulti$' -count=1 -v | grep -q '^--- PASS: TestCoreRangeIsContextMulti'`)
 - [ ] a parenthesised left operand selects the list repetition (`go test ./internal/types/ -run '^TestSelectByOperandShape$' -count=1 -v | grep -q '^--- PASS: TestSelectByOperandShape'`)
-- [ ] x is declared as a multi selected by its left operand (`go test ./internal/parse/ -run '^TestCoreRepeatIsShapeMulti$' -count=1 -v | grep -q '^--- PASS: TestCoreRepeatIsShapeMulti'`)
+- [ ] x is declared as a multi selected by its left operand, its List candidate list-context only (`go test ./internal/parse/ -run '^TestCoreRepeatIsShapeMulti$' -count=1 -v | grep -q '^--- PASS: TestCoreRepeatIsShapeMulti'`)
 - [ ] the RFC section on operator declarations is implemented (`grep -q '^### Operator declarations.*(\*Implemented\*' docs/rfcs/0001-type-libraries.md`)
 - [ ] a parenthesised x in scalar context selects the string repetition (`go test ./internal/types/ -run '^TestSelectRepeatScalarContextIsStr$' -count=1 -v | grep -q '^--- PASS: TestSelectRepeatScalarContextIsStr'`)
 - [ ] an unparenthesised array left of x selects the string repetition (`go test ./internal/types/ -run '^TestSelectRepeatBareArrayIsStr$' -count=1 -v | grep -q '^--- PASS: TestSelectRepeatBareArrayIsStr'`)
