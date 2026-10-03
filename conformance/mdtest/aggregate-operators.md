@@ -1,14 +1,14 @@
 # The aggregate-argument operators
 
-`push`, `unshift`, `shift`, `values` and `each` share an ARGUMENT RULE nothing
+`push`, `unshift`, `shift`, `values`, `keys` and `each` share an ARGUMENT RULE nothing
 else in the corpus has: the first argument is the aggregate ITSELF, not
 an expression to be flattened.
 
 **Tier 02 variables.** Introduces `aassign`, `aelem`, `aelemfast`,
 `aelemfast_lex`, `aelemfastlex_store`, `aslice`, `av2arylen`, `delete`,
-`each`, `gv`, `gvsv`, `helem`, `hslice`, `multideref`, `padav`, `padhv`,
-`push`, `rv2av`, `rv2hv`, `sassign`, `shift`, `unshift`, `values`. Depends on
-01_literals.
+`each`, `gv`, `gvsv`, `helem`, `hslice`, `keys`, `multideref`, `padav`,
+`padhv`, `push`, `rv2av`, `rv2hv`, `sassign`, `shift`, `unshift`,
+`values`. Depends on 01_literals.
 
 Measured, `push @a, @tail` emits `padav[@a] lRM` and `padav[@tail] l` --
 the SAME op with different flags, the container slot against the
@@ -21,8 +21,8 @@ They also emit ops of their own, which is the opposite of what the
 is worth stating. `keys` is the trap: `scalar(keys %h)` compiles `keys`
 away to the flag `sM/KEYS`, but measured, `my @k = keys %h` in LIST
 context emits a `keys` op just as `values` does. The flag is a property
-of the CONTEXT, not of the keyword, so nothing below writes `keys` at
-all rather than quietly adding an op the tier has never claimed.
+of the CONTEXT, not of the keyword, so the `keys` case below writes it
+in list context, where the op is real, and the tier claims it.
 
 ## `push`: the first argument is an array, not an expression
 
@@ -187,6 +187,39 @@ parses: yes
 
 ```tokens
 one word whose text is "values"
+```
+
+## `keys` in list context is an op, not a flag
+
+`keys %h` takes the container as `values` does and returns the other
+half of each entry. In scalar context it compiles away to the flag
+`sM/KEYS` on the `padhv`; assigned to an array it is LIST context, and
+measured, it emits an op of its own: `padhv[%h:1,3] lRM` then
+`keys[t4] lK/1`, the `values` case's shape with the other name. A
+parser that treats `keys` as the flag everywhere drops the op exactly
+where the list is used.
+
+ONE KEY, for the `values` case's reason: hash order is not guaranteed,
+and with one key the list's only member is determined.
+
+```perl
+my %h = (a => 7);
+my @k = keys %h;
+print scalar(@k), "\n";
+print $k[0], "\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+1
+a
+```
+
+```tokens
+one word whose text is "keys"
 ```
 
 ## `each` returns a PAIR where its siblings return a flat list

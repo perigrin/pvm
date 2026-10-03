@@ -340,3 +340,22 @@ called
 one string literal whose text is "\"hi\""
 one word whose text is "can"
 ```
+
+## A signature's placeholder parameter keeps its place
+
+`($, $phi)` takes two arguments and names the second: called as a class method, the class name fills the placeholder. Found by B::SoN translating chalk's lib/ and running chalk's own suite
+against the emitted Perl.
+
+```perl
+use v5.36;
+package Optimizer { sub collapse ($, $phi) { return "c$phi" } }
+print Optimizer->collapse(7), " ", (eval { Optimizer->collapse(); 1 } ? "ran" : "too few"), "\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+c7 too few
+```

@@ -33,7 +33,7 @@ subject and `print` is tier 10's. Using a construct is not introducing it.
 
 ## INTRODUCES
 
-    aassign aelem aelemfast aelemfast_lex aelemfastlex_store aslice av2arylen delete each gv gvsv helem hslice multideref padav padhv push rv2av rv2hv sassign shift unshift values
+    aassign aelem aelemfast aelemfast_lex aelemfastlex_store aslice av2arylen delete each gv gvsv helem hslice keys multideref padav padhv push rv2av rv2hv sassign shift unshift values
 
 ## Why those ops, and not the ones the source implies
 
@@ -103,7 +103,9 @@ so far.
   context emits a `keys` op just as `values` does. The flag is a
   property of the CONTEXT, not of the keyword, so `16_values.t` writes
   no `keys` at all rather than quietly adding an op the tier has never
-  claimed.
+  claimed. The list-context op is claimed by
+  `aggregate-operators.md`, whose `keys` case writes `my @k = keys %h`
+  and pins the element as the `values` case does.
 
 Two further measurements shape the tier's files rather than its op list.
 `print "@a"` emits `join` and `gvsv` -- the `gvsv` is `$"`, which the

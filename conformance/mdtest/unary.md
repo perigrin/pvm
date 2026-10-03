@@ -147,3 +147,25 @@ parses: yes
 ```tokens
 no operator whose text is "-"
 ```
+
+## Pre- and post-increment of an element, used
+
+The post form yields the old value and the pre form the new one, each exactly once; the second `++$h{a}` sees the first's store. Found by B::SoN translating chalk's lib/ and running chalk's own suite
+against the emitted Perl.
+
+```perl
+my %h;
+my $a1 = $h{a}++;
+my $a2 = $h{a}++;
+my $b1 = ++$h{b};
+my $b2 = ++$h{b};
+print "$a1 $a2 $h{a} $b1 $b2 $h{b}\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+0 1 2 1 2 2
+```

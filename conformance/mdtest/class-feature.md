@@ -275,3 +275,104 @@ parses: yes
 ```output
 bd
 ```
+
+## A list builtin a sub returns takes the caller's context
+
+`return values %h` is a list in list context and a count in scalar context; its op records neither, because the caller decides. chalk's MOP lists its classes this way. Found by B::SoN translating chalk's lib/ and running chalk's own suite
+against the emitted Perl.
+
+```perl
+use feature 'class';
+no warnings 'experimental::class';
+class Registry {
+    field %classes;
+    method add ($name) { $classes{$name} = 1; return $self }
+    method classes { return values %classes }
+}
+my $r = Registry->new->add("A")->add("B");
+my @all = $r->classes;
+my $n = $r->classes;
+print scalar(@all), " $n\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+2 2
+```
+
+## A list assignment into a field aggregate
+
+`%registry = $graphs->%*` stores into the object's field. Nothing in the method reads it afterwards, so a reader that keeps only what the method itself consumes drops the statement. Found by B::SoN translating chalk's lib/ and running chalk's own suite
+against the emitted Perl.
+
+```perl
+use feature 'class';
+no warnings 'experimental::class';
+class Holder {
+    field %registry;
+    field @order;
+    method register ($graphs) { %registry = $graphs->%*; @order = sort keys %registry; return $self }
+    method clear { @order = (); return $self }
+    method summary { return scalar(keys %registry) . ":" . join(",", @order) }
+}
+my $h = Holder->new->register({ b => 2, a => 1 });
+print $h->summary, " ", $h->clear->summary, "\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+2:a,b 2:
+```
+
+## A call in a ternary arm runs only on that arm
+
+The method call is the arm's value, and the arm is taken only when the element is defined. Run unconditionally, it calls a method on undef. Found by B::SoN translating chalk's lib/ and running chalk's own suite
+against the emitted Perl.
+
+```perl
+use v5.36;
+use feature 'class';
+no warnings 'experimental::class';
+class Node { field $id :param; method id { return $id } }
+sub ids ($in) { return join(",", map { defined($_) ? $_->id : "undef" } $in->@*) }
+sub fib ($n) { return $n < 2 ? $n : fib($n - 1) + fib($n - 2) }
+print ids([Node->new(id => 1), undef, Node->new(id => 3)]), " ", fib(10), "\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+1,undef,3 55
+```
+
+## A method returning an array, called in list context
+
+The method's `return @parts` is a list to a list-context caller and a count to a scalar one; the call site's context decides. chalk's IR nodes build their content hash as `join('|', $op, $self->_serialize_inputs())`. Found by B::SoN translating chalk's lib/ and running chalk's own suite
+against the emitted Perl.
+
+```perl
+use feature 'class';
+no warnings 'experimental::class';
+class Node {
+    method parts { my @p; push @p, "a", "b"; return @p }
+    method hash  { return join("|", "op", $self->parts) }
+    method count { my $c = $self->parts; return $c }
+}
+print Node->new->hash, " ", Node->new->count, "\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+op|a|b 2
+```

@@ -8,7 +8,7 @@
 # topic's `**Tier NN name.**` line and leaves every key alone. That
 # is the `t/` sweep working, and must not read as a regression.
 #
-# 245 cases, 245 clean, 0 refusing.
+# 255 cases, 255 clean, 0 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -29,6 +29,7 @@
 - adjacency-13_opaque.md/The whole tier in one body
 - adjacency-14_recursive.md/The whole tier in one body
 - aggregate-operators.md/`each` returns a PAIR where its siblings return a flat list
+- aggregate-operators.md/`keys` in list context is an op, not a flag
 - aggregate-operators.md/`push`: the first argument is an array, not an expression
 - aggregate-operators.md/`shift`: the rule again, and the array gives up an element
 - aggregate-operators.md/`unshift`: the same rule at the other end
@@ -65,6 +66,7 @@
 - bitwise.md/`&` on strings, ungated: the string bitwise operation
 - bless-dispatch.md/A method name in a scalar
 - bless-dispatch.md/A method name written out
+- bless-dispatch.md/A signature's placeholder parameter keeps its place
 - bless-dispatch.md/Indirect object notation: `new Foo`
 - bless-dispatch.md/SUPER:: dispatch
 - bless-dispatch.md/The `->can(...)->()` chain is two calls
@@ -77,7 +79,11 @@
 - blocks-and-terminations.md/`exit` leaves the program, and `eval BLOCK` does not catch it
 - blocks-and-terminations.md/`time` is niladic
 - class-feature.md/A `:param` field defaulting to a folded boolean
+- class-feature.md/A call in a ternary arm runs only on that arm
 - class-feature.md/A field post-increment whose value is used
+- class-feature.md/A list assignment into a field aggregate
+- class-feature.md/A list builtin a sub returns takes the caller's context
+- class-feature.md/A method returning an array, called in list context
 - class-feature.md/A string built into a field
 - class-feature.md/A subclass's ADJUST when its parent has one
 - class-feature.md/An empty class body
@@ -156,10 +162,13 @@
 - loading.md/`use POSIX ();` loads the file and suppresses import
 - loading.md/`use POSIX;` loads the file AND calls import
 - loading.md/`use strict;` lexes, and that is all it establishes
+- loops.md/A post-increment of undef yields 0
 - loops.md/C-style `for` is a `while`
+- loops.md/Named scalars in a map, grep or foreach list
 - loops.md/The block `while`
 - loops.md/The postfix `foreach` iterates a LIST, and the list is not the body
 - loops.md/The postfix loop modifier builds no loop frame
+- loops.md/The seen-hash idiom
 - loops.md/`continue BLOCK` runs on `next` and not on `last`
 - loops.md/`do BLOCK while COND` is a post-test loop
 - loops.md/`foreach` emits `enteriter`/`iter` and no `enterloop`
@@ -245,6 +254,7 @@
 - tie.md/`tie` is a list operator taking a VARIABLE
 - tie.md/`tied` is a named unary, in boolean position
 - unary.md/Pre and post, increment and decrement
+- unary.md/Pre- and post-increment of an element, used
 - unary.md/The file-test operators
 - unary.md/The magic string increment
 - unary.md/Unary `+` computes nothing and disambiguates

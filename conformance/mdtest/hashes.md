@@ -5,9 +5,9 @@ and `delete` -- that mostly leave no op behind.
 
 **Tier 02 variables.** Introduces `aassign`, `aelem`, `aelemfast`,
 `aelemfast_lex`, `aelemfastlex_store`, `aslice`, `av2arylen`, `delete`,
-`each`, `gv`, `gvsv`, `helem`, `hslice`, `multideref`, `padav`, `padhv`,
-`push`, `rv2av`, `rv2hv`, `sassign`, `shift`, `unshift`, `values`. Depends on
-01_literals.
+`each`, `gv`, `gvsv`, `helem`, `hslice`, `keys`, `multideref`, `padav`,
+`padhv`, `push`, `rv2av`, `rv2hv`, `sassign`, `shift`, `unshift`,
+`values`. Depends on 01_literals.
 
 Hash order is not guaranteed, so nothing below prints a hash's contents.
 `scalar(keys %h)` asks how many rather than which, and that is the count
@@ -23,8 +23,8 @@ that swallows most element access in this tier; `helem` survives only
 where the subscript is an expression, which is the next case. `keys`
 likewise emits no op of its own here -- it becomes a FLAG on the
 `padhv`, `sM/KEYS`. That flag is a property of SCALAR context, not of
-the keyword; in list context `keys` emits an op, which is why the
-aggregate-operators topic writes `values` and no `keys` at all.
+the keyword; in list context `keys` emits an op, which is the
+aggregate-operators topic's `keys` case.
 
 ```perl
 my %h = (a => 1, b => 2);

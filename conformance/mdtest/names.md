@@ -7,9 +7,9 @@ the caret into the name where a bare `$^` does not.
 
 **Tier 02 variables.** Introduces `aassign`, `aelem`, `aelemfast`,
 `aelemfast_lex`, `aelemfastlex_store`, `aslice`, `av2arylen`, `delete`,
-`each`, `gv`, `gvsv`, `helem`, `hslice`, `multideref`, `padav`, `padhv`,
-`push`, `rv2av`, `rv2hv`, `sassign`, `shift`, `unshift`, `values`. Depends on
-01_literals.
+`each`, `gv`, `gvsv`, `helem`, `hslice`, `keys`, `multideref`, `padav`,
+`padhv`, `push`, `rv2av`, `rv2hv`, `sassign`, `shift`, `unshift`,
+`values`. Depends on 01_literals.
 
 The package spellings are also where the tier's op list stops matching
 the source a reader would write first. `sassign` -- the plain scalar
