@@ -3,8 +3,10 @@ title: Parse return types and type expressions in .pmt declarations
 state: pending
 urgency: normal
 milestone: type-libraries
+blocked_by:
+- 01a0fd9b-4139-773b-8676-e148e90c42bd
 created: 2026-10-03T11:12:37.336939532Z
-updated: 2026-10-03T11:13:44.656690046Z
+updated: 2026-10-03T11:15:41.715750698Z
 ---
 
 ## Prerequisites
