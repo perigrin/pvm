@@ -3,13 +3,11 @@ title: Parse multi sub declarations and select a candidate by arity and argument
 state: pending
 urgency: normal
 milestone: type-libraries
-blocked_by:
-- 01a0fd9b-4139-773b-8676-e148e90c42bd
 blocks:
 - 01a0fd9b-4ca3-7d55-82ac-ba125816ee71
 - 01a0fd9b-5017-78d0-ae38-331cbe6a9866
 created: 2026-10-02T17:13:27.899092724Z
-updated: 2026-10-03T11:13:45.622955274Z
+updated: 2026-10-03T11:15:28.232954854Z
 ---
 
 ## Prerequisites
