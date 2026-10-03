@@ -9,12 +9,13 @@ blocks:
 - 01a0fd9b-4850-704d-8c14-c15add6194f2
 - 01a0fd9b-49b2-7ea9-bfa1-ba398baadc3f
 created: 2026-10-02T17:13:26.980057702Z
-updated: 2026-10-02T17:23:59.668618192Z
+updated: 2026-10-03T11:13:45.133798645Z
 ---
 
 ## Prerequisites
 
-- [ ] Parse typed declarations in .pmt files: typed parameters, defaults and return types
+- [ ] Parse typed parameters and defaults in .pmt declarations
+- [ ] Enforce the slurpy rule and a final List parameter in .pmt signatures
 
 ## Context
 
@@ -24,14 +25,14 @@ updated: 2026-10-02T17:23:59.668618192Z
 - perl 5.42 for measuring behaviour: `/home/perigrin/.local/bin/perl` (measure, never assume)
 - entrypoints: RFC 0001 table under "A typed signature and a prototype say the same thing"; `declaredSub` (`internal/parse/exports.go:425`); `ShapeOf` (`internal/parse/shape.go:60`) for how a prototype is read today
 
-The RFC's table maps each prototype character to a parameter, measured on 5.42. This issue builds both directions for every row except `\$` (the `:lvalue` issue owns that row): a prototype-only declaration gets the coarse typed signature (`sub foo ($$)` reads as `(Scalar $, Scalar $)`), a typed declaration gets its prototype with no `:prototype(...)`, and a declaration with both must agree or the file is in error. Rows: `$` Scalar $; `@`,`%` List @; `\@`,`\%` Array @, Hash %; `\[$@%]` their union; `+` Array|Hash|Scalar; leading `&` Code &; `*` Glob *; `_` Scalar $ = $_; `;` parameters with defaults. A derived `@` means no prototype: perl reports `undef` for a sub with none, and the two parse identically (RFC "Builtins that keep their own parse"). Types are finer than prototypes, so prototype to types to prototype round-trips; the reverse loses precision. Expected values live in the test. Re-marking the section waits for the CORE.pmt issue, which holds all 188 derivations to perl.
+The RFC's table maps each prototype character to a parameter, measured on 5.42. This issue builds both directions for every row that takes no backslash: a prototype-only declaration gets the coarse typed signature (`sub foo ($$)` reads as `(Scalar $, Scalar $)`), a typed declaration gets its prototype with no `:prototype(...)`, and a declaration with both must agree or the file is in error. Rows: `$` Scalar $; `@`,`%` List @; `+` Array|Hash|Scalar; leading `&` Code &; `*` Glob *; `_` Scalar $ = $_; `;` parameters with defaults. The aliasing rows (`\$`, `\@`, `\%`, `\[...]`) belong to the aliased-parameter issue, which parses the backslash, and to the multi-candidate rule in the no-prototype builtins issue. A derived `@` means no prototype: perl reports `undef` for a sub with none, and the two parse identically (RFC "Builtins that keep their own parse"). A prototype with anything after `@` or `%` (`@$`, measured: "Prototype after '@'") derives no signature: it is the final-`List` error of the previous issue, pointing to `\@$`. Types are finer than prototypes, so prototype to types to prototype round-trips; the reverse loses precision. Expected values live in the test. Re-marking the section waits for the last CORE.pmt typing batch, which holds all 188 derivations to perl.
 
 ## Steps
 
-- [ ] Write failing test `TestDeriveTypesFromPrototype` in `internal/parse/derive_test.go`: one case per table row (except `\$`) from prototype to signature
+- [ ] Write failing test `TestDeriveTypesFromPrototype` in `internal/parse/derive_test.go`: one case per unbackslashed table row from prototype to signature
 - [ ] Run test to verify failure: `go test ./internal/parse/ -run '^TestDeriveTypesFromPrototype$' -count=1 -v`
 - [ ] Implement in `internal/parse/derive.go` (ABOUTME header); run test to verify pass; `make test`; commit
-- [ ] Write failing test `TestDerivePrototypeFromTypes`: one case per row from signature to prototype, plus the round trip prototype to types to prototype for each row
+- [ ] Write failing test `TestDerivePrototypeFromTypes`: one case per unbackslashed row from signature to prototype, plus the round trip prototype to types to prototype for each row
 - [ ] Implement; run test to verify pass; `make test`; commit
 - [ ] Write failing test `TestDerivedAtMeansNoPrototype`: `sub f (List @args);` derives no prototype, recorded as perl records a sub with none
 - [ ] Implement; run test to verify pass; `make test`; commit
@@ -42,8 +43,9 @@ The RFC's table maps each prototype character to a parameter, measured on 5.42. 
 
 - a prototype character outside the table (`:prototype(Q)`, `:prototype(\x)`) is an error in the declaration file, not a guessed signature (perl 5.42 only warns: Illegal character in prototype) (`go test ./internal/parse/ -run '^TestDeriveRejectsUnknownPrototypeCharacter$' -count=1 -v | grep -q '^--- PASS: TestDeriveRejectsUnknownPrototypeCharacter'`)
 - an empty prototype `()` derives zero parameters and is distinct from no prototype, which derives `List @` (absent and empty differ) (`go test ./internal/parse/ -run '^TestDeriveEmptyPrototypeIsNotAbsent$' -count=1 -v | grep -q '^--- PASS: TestDeriveEmptyPrototypeIsNotAbsent'`)
-- more disagreements are caught, not only arity: `:prototype($;$) (Scalar $x, Scalar $y)` (the `;` has no default), `:prototype(\@) (List @l)` (Array against List), `:prototype(&@) (Scalar $f, List @l)` (Code against Scalar) (`go test ./internal/parse/ -run '^TestPrototypeTypeDisagreementKinds$' -count=1 -v | grep -q '^--- PASS: TestPrototypeTypeDisagreementKinds'`)
+- more disagreements are caught, not only arity: `:prototype($;$) (Scalar $x, Scalar $y)` (the `;` has no default), `:prototype(&@) (Scalar $f, List @l)` (Code against Scalar) (`go test ./internal/parse/ -run '^TestPrototypeTypeDisagreementKinds$' -count=1 -v | grep -q '^--- PASS: TestPrototypeTypeDisagreementKinds'`)
 - a required parameter after a defaulted one (`sub f (Str $x = 1, Str $y);`) cannot derive a `;` prototype and is an error, as perl 5.42 dies: Mandatory parameter follows optional parameter (`go test ./internal/parse/ -run '^TestDeriveMandatoryAfterOptionalIsError$' -count=1 -v | grep -q '^--- PASS: TestDeriveMandatoryAfterOptionalIsError'`)
+- a prototype with anything after `@` (`:prototype(@$)`) derives no signature and is the final-`List` error pointing to `\@$` (`go test ./internal/parse/ -run '^TestDerivePrototypeAfterAtIsError$' -count=1 -v | grep -q '^--- PASS: TestDerivePrototypeAfterAtIsError'`)
 
 ## Acceptance criteria
 
@@ -53,5 +55,6 @@ The RFC's table maps each prototype character to a parameter, measured on 5.42. 
 - [ ] a prototype that disagrees with the types is an error (`go test ./internal/parse/ -run '^TestPrototypeTypeDisagreementIsError$' -count=1 -v | grep -q '^--- PASS: TestPrototypeTypeDisagreementIsError'`)
 - [ ] an unknown prototype character is an error, not a guess (`go test ./internal/parse/ -run '^TestDeriveRejectsUnknownPrototypeCharacter$' -count=1 -v | grep -q '^--- PASS: TestDeriveRejectsUnknownPrototypeCharacter'`)
 - [ ] an empty prototype differs from no prototype (`go test ./internal/parse/ -run '^TestDeriveEmptyPrototypeIsNotAbsent$' -count=1 -v | grep -q '^--- PASS: TestDeriveEmptyPrototypeIsNotAbsent'`)
-- [ ] optionality, Array/List and Code/Scalar disagreements are errors (`go test ./internal/parse/ -run '^TestPrototypeTypeDisagreementKinds$' -count=1 -v | grep -q '^--- PASS: TestPrototypeTypeDisagreementKinds'`)
+- [ ] optionality and Code/Scalar disagreements are errors (`go test ./internal/parse/ -run '^TestPrototypeTypeDisagreementKinds$' -count=1 -v | grep -q '^--- PASS: TestPrototypeTypeDisagreementKinds'`)
 - [ ] a mandatory parameter after an optional one is an error (`go test ./internal/parse/ -run '^TestDeriveMandatoryAfterOptionalIsError$' -count=1 -v | grep -q '^--- PASS: TestDeriveMandatoryAfterOptionalIsError'`)
+- [ ] a prototype with anything after @ derives the final-List error (`go test ./internal/parse/ -run '^TestDerivePrototypeAfterAtIsError$' -count=1 -v | grep -q '^--- PASS: TestDerivePrototypeAfterAtIsError'`)
