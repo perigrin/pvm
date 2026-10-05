@@ -2,7 +2,12 @@
 
 - **Status:** Accepted in part. Sections marked *Implemented* have
   landed; *Decided* sections are agreed and not yet built; *Open*
-  sections wait on the types paper.
+  sections wait on the types paper. A section is *Implemented* when its
+  rule is built and tested; the example declarations a section shows
+  (`chomp`, `select`, `localtime`, ...) are illustrations, written into
+  `CORE.pmt` and tested against perl by the issues that type the
+  builtins (perigrin, 2026-10-05). A section that states a directive
+  about specific lines, not an example, is built when those lines are.
 - **Date:** 2026-10-01
 - **Issue:** 01a0f450-9ded-7c8a-8c8b-c04734752b2d
 - **Decided by:** perigrin
@@ -582,8 +587,9 @@ perl5-son extend one lattice:
 1. **Parametric containers.** The lattice is flat. `List[T]` (values in
    flight, covariant) and `Array[T]` (a container, invariant) differ;
    `Hash[T]` flattens to `List[Str|T]`; `ArrayRef[T]` should follow from
-   `Array[T]`. Until the paper decides, a slurpy in a `.pmt` is
-   untyped (see "A slurpy takes no bare element type").
+   `Array[T]`. Container types such as `List[Str]` already parse in `.pmt` files
+   (see "A slurpy takes no bare element type"); what they mean waits on
+   the paper.
 2. *(Resolved: see "What a parameter type means".)*
 3. **Lvalue lists.** `chomp` and `chop` modify their arguments in
    place, which neither `List[Str]` nor `Array[Str]` says. A declaration
