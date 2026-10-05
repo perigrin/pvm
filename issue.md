@@ -4,7 +4,6 @@ state: pending
 urgency: normal
 milestone: type-libraries
 blocked_by:
-- 01a0fd9b-46c4-7a8c-b8d6-498c5182a47f
 - 01a0fd9b-4a5b-7e94-ad87-756dfcfe1f4c
 - 01a0fd9b-519d-7b42-886e-2222a3076986
 - 01a10dc1-3530-762f-9a03-177445629c6b
@@ -12,7 +11,7 @@ blocked_by:
 blocks:
 - 01a0fd9b-5700-7514-a143-2caed2d06d8b
 created: 2026-10-03T11:12:40.060535979Z
-updated: 2026-10-05T20:30:25.110946287Z
+updated: 2026-10-05T20:30:25.356494736Z
 ---
 
 ## Prerequisites
