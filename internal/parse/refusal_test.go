@@ -76,7 +76,7 @@ func TestEveryUnknownSiteHasACode(t *testing.T) {
 	}
 }
 
-// TestRefusalCodeInventory: the ten sites are enumerated where a reader
+// TestRefusalCodeInventory: the eleven sites are enumerated where a reader
 // finds them, and the enumeration is what the code READS.
 //
 // A test that merely counted would be a second list free to disagree with
@@ -89,11 +89,11 @@ func TestEveryUnknownSiteHasACode(t *testing.T) {
 func TestRefusalCodeInventory(t *testing.T) {
 	// The site count is COUNTED FROM THE SOURCE, not written down here. A
 	// constant would be the second list this test exists to prevent: add
-	// an eleventh `&Node{Kind: Unknown, ...}` and a hardcoded ten would go
+	// a twelfth `&Node{Kind: Unknown, ...}` and a hardcoded eleven would go
 	// on passing while the new site refused anonymously.
 	sites := countUnknownSites(t)
 
-	// Nine codes for ten sites, and the tenth is accounted for rather
+	// Ten codes for eleven sites, and the eleventh is accounted for rather
 	// than forgotten: parse.go's `expr.Kind == Unknown` widens an existing
 	// Unknown from the expression to the statement and carries the inner
 	// code outward. It is a change of span, not of cause, so it declares
@@ -174,7 +174,7 @@ func countUnknownSites(t *testing.T) int {
 // refusingSources are sources that reach the parser's refusal sites, one
 // per code the parser can currently produce.
 //
-// Six codes, not nine. Three sites are declared and wired but NOT
+// Seven codes, not ten. Three sites are declared and wired but NOT
 // REACHABLE from any source today, and saying so is better than a fixture
 // that pretends otherwise:
 //
@@ -208,6 +208,7 @@ func refusingSources() []string {
 		"my $x = $a <=> $b == $c;\n", // chain_class_mismatch
 		"my $x = ${};\n",             // not_a_term
 		"$a $b;\n",                   // trailing_tokens
+		"map { $_",                   // unclosed_brace
 	}
 }
 

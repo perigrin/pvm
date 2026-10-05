@@ -133,3 +133,70 @@ func TestMapGrepAnonHashBeforeComma(t *testing.T) {
 		})
 	}
 }
+
+// assertRefused fails unless every source parses with an Unknown in it.
+func assertRefused(t *testing.T, srcs []string) {
+	t.Helper()
+	for _, src := range srcs {
+		t.Run(src, func(t *testing.T) {
+			if got := countUnknown(parse.Parse([]byte(src))); got == 0 {
+				t.Errorf("Parse(%q) has no Unknown; perl refuses it", src)
+			}
+		})
+	}
+}
+
+// TestMapGrepRefusesWhatPerlRefuses: wherever perl's first-tokens guess
+// disagrees with whether the first argument ends at a comma, perl rejects
+// the program, and so does the parser. Measured on 5.42.0, each a syntax
+// error:
+//
+//	map { "\L$_" => 1 } @a       guessed hash, no comma
+//	map { "a", 1 } @a            guessed hash, no comma
+//	map { $_ => 1 }, @a          guessed block, then a comma
+//	map { 1 } => @a              guessed block, then a fat comma
+//	map { $_ => 1 }->{a}, @a     guessed block, continued as if a hash
+func TestMapGrepRefusesWhatPerlRefuses(t *testing.T) {
+	var srcs []string
+	for _, op := range []string{"map", "grep"} {
+		for _, body := range []string{
+			`{ "\L$_" => 1 } @a`,
+			`{ "a", 1 } @a`,
+			`{ $_ => 1 }, @a`,
+			`{ 1 } => @a`,
+			`{ $_ => 1 }->{a}, @a`,
+		} {
+			srcs = append(srcs, op+" "+body+";")
+		}
+	}
+	assertRefused(t, srcs)
+}
+
+// TestMapGrepBraceEdgeRefusals: more forms perl 5.42.0 refuses, each a
+// syntax error:
+//
+//	map {} @a                  empty braces are a hash, and no comma
+//	map({} @a)                 the same inside parentheses
+//	map {; "a" => 1 }, @a      a `;` forces a block, then a comma
+//	grep { 1 } ;               a block with no list
+func TestMapGrepBraceEdgeRefusals(t *testing.T) {
+	var srcs []string
+	for _, op := range []string{"map", "grep"} {
+		for _, body := range []string{
+			` {} @a`,
+			`({} @a)`,
+			` {; "a" => 1 }, @a`,
+			` { 1 } `,
+		} {
+			srcs = append(srcs, op+body+";")
+		}
+	}
+	assertRefused(t, srcs)
+}
+
+// TestMapGrepUnterminatedBrace: a brace that never closes is an error,
+// not a panic or a hang. perl 5.42.0 says "Missing right curly or square
+// bracket" for both.
+func TestMapGrepUnterminatedBrace(t *testing.T) {
+	assertRefused(t, []string{"map { $_", "grep { $_", "map { 1 } @a, map { $_"})
+}

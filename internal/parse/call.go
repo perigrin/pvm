@@ -508,8 +508,36 @@ func (p *parser) parseListOpBlock(op string) *Node {
 		if next, ok := p.peekAfter(tok); ok && p.text(next) == "}" {
 			return nil
 		}
+		// A brace that never closes is perl's "Missing right curly or
+		// square bracket", not a block that runs to the end of input.
+		// parseBlock accepts that silently, which an LSP wants of a
+		// half-typed statement block, so map and grep refuse it here.
+		if !p.braceCloses(tok) {
+			p.pos = len(p.toks)
+			return &Node{Kind: Unknown, Refusal: UnclosedBrace, Start: tok.Start, End: p.prevEnd()}
+		}
 	}
 	return p.parseBlock(tok)
+}
+
+// braceCloses reports whether the `{` at open has a matching `}`.
+func (p *parser) braceCloses(open lexer.Token) bool {
+	depth := 0
+	for _, tok := range p.toks[p.pos:] {
+		if tok.Start < open.Start {
+			continue
+		}
+		switch p.text(tok) {
+		case "{":
+			depth++
+		case "}":
+			depth--
+			if depth == 0 {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // featureTakesBlock reports whether op is `any` or `all` with its feature
