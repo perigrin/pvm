@@ -28,6 +28,16 @@ func declaration(module string) ([]byte, bool) {
 	return src, err == nil
 }
 
+// readDeclaration reads a declaration file. Its language is typed Perl (RFC
+// 0001, "Typed Perl, in `.pmt` only"): a module's own source is never read
+// this way, so `sub f (Ref $x) { }` there stays perl's prototype.
+func readDeclaration(src []byte, res *resolver) moduleFacts {
+	root, p := parseSource(src, res, true)
+	facts := readModule(root)
+	facts.signatures, facts.errs = p.signatures, p.typedErrs
+	return facts
+}
+
 // coreTable is perl's builtins by name, each to its prototype without
 // parentheses: `bless` to `$;$`. It is built by parsing declarations/CORE.pmt,
 // the declaration file for the language itself -- TypeScript's lib.d.ts to a
@@ -43,7 +53,7 @@ func coreTable() map[string]string {
 			panic("parse: declarations/CORE.pmt is not embedded")
 		}
 		coreMap = map[string]string{}
-		for name, proto := range readModule(Parse(src)).protos {
+		for name, proto := range readDeclaration(src, nil).protos {
 			coreMap[name] = strings.TrimSuffix(strings.TrimPrefix(proto, "("), ")")
 		}
 	})

@@ -3,7 +3,10 @@
 
 package parse
 
-import "tamarou.com/pvm/internal/lexer"
+import (
+	"tamarou.com/pvm/internal/lexer"
+	"tamarou.com/pvm/internal/types"
+)
 
 // Kind names what a node is.
 type Kind int
@@ -486,10 +489,21 @@ func Parse(src []byte) *Node {
 // parseRoot is Parse with a resolver threaded through it. A nil resolver
 // resolves nothing, which is what Parse promises.
 func parseRoot(src []byte, res *resolver) *Node {
-	root := &Node{Kind: SourceFile, Start: 0, End: len(src)}
-	toks := lexer.Tokenize(src)
+	root, _ := parseSource(src, res, false)
+	return root
+}
 
-	p := &parser{src: src, toks: toks, res: res, symbolsOpen: res == nil}
+// parseSource is parseRoot, reading typed Perl when typed is set, and
+// returning the parser too: a declaration file's typed signatures are left
+// on it. See readDeclaration.
+func parseSource(src []byte, res *resolver, typed bool) (*Node, *parser) {
+	root := &Node{Kind: SourceFile, Start: 0, End: len(src)}
+	tokenize := lexer.Tokenize
+	if typed {
+		tokenize = lexer.TokenizeTyped
+	}
+
+	p := &parser{src: src, toks: tokenize(src), res: res, symbolsOpen: res == nil, typed: typed}
 	for p.pos < len(p.toks) {
 		before := p.pos
 		if n := p.statement(); n != nil {
@@ -532,7 +546,7 @@ func parseRoot(src []byte, res *resolver) *Node {
 			}
 		}
 	}
-	return root
+	return root, p
 }
 
 // parser is the cursor over the token stream.
@@ -544,6 +558,13 @@ type parser struct {
 	// inSignature is set while a sub's signature is read, where a
 	// placeholder's `=` may have nothing after it -- see emptyDefault.
 	inSignature bool
+
+	// typed is set while a `.pmt` declaration file is read: its signatures
+	// are typed Perl. signatures holds each one read, by sub name, and
+	// typedErrs the ones that could not be. See parseTypedSignature.
+	typed      bool
+	signatures map[string]types.Signature
+	typedErrs  []error
 
 	src  []byte
 	toks []lexer.Token

@@ -1,0 +1,30 @@
+// ABOUTME: A sub's typed signature as a .pmt declaration states it: each parameter's type and default.
+// ABOUTME: Read by internal/parse; held here so its consumers need not import the parser.
+
+package types
+
+// Signature is the typed parameter list of a .pmt declaration, RFC 0001
+// "Typed Perl, in `.pmt` only": `sub bless :prototype($;$) (Ref $ref, Str
+// $class = __PACKAGE__);`.
+type Signature struct {
+	Params []Param
+}
+
+// Param is one typed parameter, `Str $class = __PACKAGE__`.
+type Param struct {
+	// Name is the variable's name without its sigil: "class".
+	Name string
+
+	// Sigil is '$' for a scalar, '@' or '%' for a slurpy.
+	Sigil byte
+
+	// Type is the lattice type the parameter's type name resolves to.
+	Type Type
+
+	// Default is the default expression as written, "" when there is none.
+	Default string
+
+	// Required is whether a call must pass this argument. A scalar with no
+	// default is required, as in a perl signature.
+	Required bool
+}

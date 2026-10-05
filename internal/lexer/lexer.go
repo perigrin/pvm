@@ -207,7 +207,19 @@ type Token struct {
 // constantly and a lexer that gives up on the first bad byte is useless to
 // it. Spec §7.6.2 invariant 1: never panic, on any input.
 func Tokenize(src []byte) []Token {
-	l := &lexer{src: src, expect: XState}
+	return tokenize(&lexer{src: src, expect: XState})
+}
+
+// TokenizeTyped is Tokenize for typed Perl, the language of a `.pmt`
+// declaration file (RFC 0001, "Typed Perl, in `.pmt` only"). The signatures
+// feature is on from the first byte, so the `(` after `sub NAME` opens a
+// signature and never a prototype: a declaration file spells its prototypes
+// `:prototype(...)`, as perl requires once signatures are on.
+func TokenizeTyped(src []byte) []Token {
+	return tokenize(&lexer{src: src, expect: XState, signatures: true})
+}
+
+func tokenize(l *lexer) []Token {
 	for l.pos < len(l.src) {
 		l.step(scanOne)
 	}

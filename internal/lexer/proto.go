@@ -31,7 +31,10 @@ func scanPrototype(l *lexer) bool {
 	//
 	//	perl -e 'sub f ($$) {1} print prototype(\&f)'              $$
 	//	perl -e 'use v5.36; sub g ($a,$b) {1} print prototype(\&g)' (undef)
-	if l.signatures {
+	//
+	// `:prototype(...)`'s argument is a prototype either way: it is where
+	// the prototype goes when the feature is on.
+	if l.signatures && !l.atPrototypeAttribute() {
 		l.expectPrototype = false
 		l.sigPending = true
 		return false
@@ -70,6 +73,20 @@ func scanPrototype(l *lexer) bool {
 	l.pos = start
 	l.expectPrototype = false
 	return false
+}
+
+// atPrototypeAttribute reports whether the `(` at l.pos is the argument of
+// a `:prototype` attribute: the word `prototype` touches it, after a `:`
+// (`sub f : prototype($;$)` is the same attribute, measured on 5.42.0).
+func (l *lexer) atPrototypeAttribute() bool {
+	n := len(l.toks)
+	c := l.significantBefore(n - 1)
+	if c < 0 {
+		return false
+	}
+	word, colon := l.toks[n-1], l.toks[c]
+	return word.Kind == Word && word.End == l.pos && string(l.src[word.Start:word.End]) == "prototype" &&
+		colon.End-colon.Start == 1 && l.src[colon.Start] == ':'
 }
 
 // noteSubName tracks whether a prototype may start at the next `(`, and

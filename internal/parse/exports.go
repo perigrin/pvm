@@ -6,6 +6,8 @@ package parse
 import (
 	"slices"
 	"strings"
+
+	"tamarou.com/pvm/internal/types"
 )
 
 // Import is one name a `use` brought into scope.
@@ -97,6 +99,12 @@ type moduleFacts struct {
 	// syntax are the keywords and sub prefixes a declaration file states,
 	// which the module's import brings into scope.
 	syntax map[string]declaredSyntax
+
+	// signatures are a declaration file's typed signatures, by sub name,
+	// and errs the ones it states that could not be read. Empty for a
+	// module's own source, which is never typed Perl. See readDeclaration.
+	signatures map[string]types.Signature
+	errs       []error
 
 	// globs are the names a literal glob assignment defines, `*run_perl =
 	// \&runperl` in t/test.pl: subs as real as a `sub NAME`, with no

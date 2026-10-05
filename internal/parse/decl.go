@@ -4,9 +4,12 @@
 package parse
 
 import (
+	"errors"
+	"fmt"
 	"strings"
 
 	"tamarou.com/pvm/internal/lexer"
+	"tamarou.com/pvm/internal/types"
 )
 
 // declarators are the variable-introducing keywords. `local` is not one
@@ -67,12 +70,105 @@ func (p *parser) parseDeclaration(word lexer.Token) *Node {
 // parseSignature reads a sub's signature as the parenthesised list it is
 // shaped like.
 func (p *parser) parseSignature(n *Node) {
+	if p.typed && p.parseTypedSignature(n) {
+		return
+	}
 	p.inSignature = true
 	sig := p.parseTerm()
 	p.inSignature = false
 	if sig != nil {
 		n.Children = append(n.Children, sig)
 	}
+}
+
+// parseTypedSignature reads a `.pmt` declaration's typed signature, RFC 0001
+// "Typed Perl, in `.pmt` only": `(Ref $ref, Str $class = __PACKAGE__)`, each
+// parameter a lattice type name, a variable and an optional default. It is
+// recorded on p.signatures under the sub's name.
+//
+// A signature it cannot read is an error on p.typedErrs, and nothing is
+// recorded -- a partial signature would claim parameters the declaration
+// does not state. It then reports false with nothing consumed, and the
+// parens are read as parseSignature reads any signature.
+func (p *parser) parseTypedSignature(n *Node) bool {
+	save := p.pos
+	open, _ := p.peekSignificant()
+	p.advanceTo(open)
+	sig := &Node{Kind: List, Paren: true, Start: open.Start}
+	var s types.Signature
+	err := func() error {
+		for {
+			tok, ok := p.peekSignificant()
+			if ok && p.text(tok) == ")" {
+				p.advanceTo(tok)
+				return nil
+			}
+			param, node, err := p.typedParam()
+			if err != nil {
+				return err
+			}
+			s.Params = append(s.Params, param)
+			sig.Children = append(sig.Children, node)
+			if sep, ok := p.peekSignificant(); ok && p.text(sep) == "," {
+				p.advanceTo(sep)
+			} else if !ok || p.text(sep) != ")" {
+				return fmt.Errorf("parameter %c%s is not followed by `,` or `)`", param.Sigil, param.Name)
+			}
+		}
+	}()
+	name, _ := declaredSub(n)
+	if err != nil {
+		p.typedErrs = append(p.typedErrs, fmt.Errorf("sub %s: %w", name, err))
+		p.pos = save
+		return false
+	}
+	sig.End = p.prevEnd()
+	n.Children = append(n.Children, sig)
+	if p.signatures == nil {
+		p.signatures = map[string]types.Signature{}
+	}
+	p.signatures[name] = s
+	return true
+}
+
+// typedParam reads one parameter of a typed signature, `Str $class =
+// __PACKAGE__`, into its Param and the node that covers it: a Declaration
+// whose text is the type name, as `my`'s is its declarator, holding the
+// variable and the default.
+func (p *parser) typedParam() (types.Param, *Node, error) {
+	tok, ok := p.peekSignificant()
+	if !ok {
+		return types.Param{}, nil, errors.New("signature not terminated")
+	}
+	if tok.Kind != lexer.Word {
+		return types.Param{}, nil, fmt.Errorf("want a type name, got %q", p.text(tok))
+	}
+	typ, err := types.FromName(p.text(tok))
+	if err != nil {
+		return types.Param{}, nil, err
+	}
+	p.advanceTo(tok)
+	v, ok := p.peekSignificant()
+	if !ok || v.Kind != lexer.Variable || v.End-v.Start < 2 || !strings.ContainsRune("$@%", rune(p.src[v.Start])) {
+		return types.Param{}, nil, fmt.Errorf("type %s names no variable", p.text(tok))
+	}
+	p.advanceTo(v)
+	param := types.Param{Name: p.text(v)[1:], Sigil: p.src[v.Start], Type: typ, Required: p.src[v.Start] == '$'}
+	node := &Node{Kind: Declaration, Text: p.text(tok), Start: tok.Start, Children: []*Node{
+		{Kind: Term, Text: p.text(v), Start: v.Start, End: v.End},
+	}}
+	if eq, ok := p.peekSignificant(); ok && p.text(eq) == "=" {
+		p.advanceTo(eq)
+		def := p.parseExpr(bpBelowComma)
+		if def == nil {
+			return types.Param{}, nil, fmt.Errorf("default for %s has no expression", p.text(v))
+		}
+		node.Children = append(node.Children, def)
+		param.Default = string(p.src[def.Start:def.End])
+		param.Required = false
+	}
+	node.End = p.prevEnd()
+	return param, node, nil
 }
 
 // hasHead reports whether a sub declaration already holds a prototype or a

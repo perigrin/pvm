@@ -285,8 +285,9 @@ func (r *resolver) resolve(module string) (moduleFacts, bool) {
 	// A declaration states what the module defines and is read in its
 	// place, installed or not: it exists because the module's source cannot
 	// show it.
-	src, ok := declaration(module)
-	if !ok {
+	src, declared := declaration(module)
+	ok := declared
+	if !declared {
 		src, ok = r.load(module)
 	}
 	if !ok {
@@ -294,7 +295,12 @@ func (r *resolver) resolve(module string) (moduleFacts, bool) {
 	}
 	r.loaded = append(r.loaded, module)
 
-	facts := readModule(parseRoot(src, r))
+	var facts moduleFacts
+	if declared {
+		facts = readDeclaration(src, r)
+	} else {
+		facts = readModule(parseRoot(src, r))
+	}
 	// Its XS subs are as real as the ones it declares, once it has loaded.
 	// A sub the module declares in Perl keeps that declaration's prototype.
 	if xs, ok := r.load(module + ".xs"); ok {
