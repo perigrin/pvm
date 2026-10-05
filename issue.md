@@ -1,5 +1,5 @@
 ---
-title: "Parse aliased parameters (\\$x, \\@a, \\%h, \\(@list)) and derive \\$, \\@ and \\% from them"
+title: "Parse aliased parameters (\\$x, \\@a, \\%h, \\&c, \\(@list)) and derive \\$, \\@, \\% and \\& from them"
 state: pending
 urgency: normal
 milestone: type-libraries
@@ -11,7 +11,7 @@ blocks:
 - 01a0fd9b-5017-78d0-ae38-331cbe6a9866
 - 01a0fd9b-5698-70cf-b6e4-8899a83b0fe0
 created: 2026-10-02T17:13:27.376660947Z
-updated: 2026-10-05T14:18:45.856837383Z
+updated: 2026-10-05T14:19:52.418131114Z
 ---
 
 ## Prerequisites
