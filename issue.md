@@ -6,7 +6,7 @@ milestone: type-libraries
 blocks:
 - 01a0fd9b-519d-7b42-886e-2222a3076986
 created: 2026-10-02T17:13:28.933338968Z
-updated: 2026-10-05T22:57:46.220286883Z
+updated: 2026-10-05T22:59:34.663793809Z
 sessions:
 - start_sha: 579dfb99ea6dd63d2b66cfcf3547201f41d18513
   end_sha: 579dfb99ea6dd63d2b66cfcf3547201f41d18513
@@ -59,5 +59,5 @@ RFC 0001 "Builtins that keep their own parse": `map`'s and `grep`'s brace is var
 - [ ] empty braces, forced blocks before a comma, and a block with no list are refused (`go test ./internal/parse/ -run '^TestMapGrepBraceEdgeRefusals$' -count=1 -v | grep -q '^--- PASS: TestMapGrepBraceEdgeRefusals'`)
 - [ ] an anon hash before the comma is the expression variant (`go test ./internal/parse/ -run '^TestMapGrepAnonHashBeforeComma$' -count=1 -v | grep -q '^--- PASS: TestMapGrepAnonHashBeforeComma'`)
 - [ ] an unterminated map brace is an error, not a panic (`go test ./internal/parse/ -run '^TestMapGrepUnterminatedBrace$' -count=1 -v | grep -q '^--- PASS: TestMapGrepUnterminatedBrace'`)
-- [ ] the RFC no longer says the comma follows the closing brace (`sh -c '! grep -q "a comma after \`}\` selects" docs/rfcs/0001-type-libraries.md'`)
+- [ ] the RFC no longer says the comma follows the closing brace (`sh -c '! grep -q "a comma after .}. selects" docs/rfcs/0001-type-libraries.md'`)
 - [ ] the parser spec's brace rule cites the RFC's comma rule (`sh -c "sed -n '/^### 4.9.2/,/^### 4.9.3/p' docs/specs/perl-parser/04-expressions.md | grep -q 'RFC 0001'"`)
