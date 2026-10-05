@@ -382,12 +382,21 @@ caller wrote, which is exactly what `\$`, `\@` and `\%` deliver.
 sub sref (Scalar \$x);                       # prototype \$
 sub push (Array \@a, List @list) Int;        # prototype \@@
 sub chomp (List[Str] \(@args = ($_))) Int;   # each element aliased
+sub any (Code \&block, List @list) Boolean;  # prototype \&@
 ```
 
 `\(@args)` is perlref's list form, a reference to each element, so
 `chomp`'s declaration says it writes through every argument: measured,
 `chomp(@l, $x)` chomps both, and bare `chomp` chomps `$_`. `Array @a`
-(a container type with a flattening sigil) is not valid. This replaces
+(a container type with a flattening sigil) is not valid. A code slot
+is `Code \&c`: perlref lists `\&sub` among the forms refaliasing
+accepts (`\&foo = \&bar` makes `foo()` mean `bar()`, measured). A glob
+slot (`\*`, inside `\[$@%*]` for `tie`, `tied`, `untie`, `lock`,
+`undef` and `pos`) has no spelling yet (perigrin, 2026-10-03): perl
+cannot alias a glob this way -- `\*G = \*STDOUT` is a compile error,
+"Can't modify reference to ref-to-glob cast" -- so `Glob \*g` would be
+an extension rather than Perl's syntax. Until it is decided those six
+builtins keep prototype-only lines in `CORE.pmt`, untyped. This replaces
 an earlier `:lvalue` parameter attribute for the same job.
 
 Measured on 5.42, `\$` accepts any scalar lvalue, not only a variable:
@@ -471,14 +480,9 @@ and `psc` may warn about it.
 
 **A call whose arity no candidate accepts fails** (perigrin,
 2026-10-02, stricter than perl where perl only finds out at run time).
-Where perl refuses at compile time, the parser refuses too: measured on
-5.42, `select(1, 2)` dies "Not enough arguments for select system call",
-`localtime(1, 2)` "Too many arguments for localtime", and `each()`,
-`sort()` and `grep()` "Not enough arguments". Where perl would compile
-the call -- a candidate set with no prototype, or a library dispatching
-at run time -- the parse stays as perl reads it and `psc check` reports
-an error. The join is never used to type a call the declarations rule
-out.
+The selection rules report it as a failure, never a join. The parser's
+half is "Refusing what perl refuses"; the `psc check` half is "Call
+sites".
 
 Bounded polymorphism needs no `multi`. `abs (Num $x) Num` already
 accepts an `Int`, and the result is `meet(join(arguments), declared)`,
@@ -514,6 +518,24 @@ list result is `0`, an `Int`.
 Boolean context counts as scalar. Measured on 5.42, `wantarray` reports
 scalar inside `if (f())`, `!f()` and `f() and ...`, so no Perl-level
 sub can tell them apart.
+
+### Refusing what perl refuses (*Decided*)
+
+perigrin, 2026-10-02. Where perl refuses a call at compile time, the
+parser refuses it too, for prototypes read from module source as well
+as for `.pmt` declarations. Measured on 5.42:
+
+- A call whose arity no declaration accepts: `select(1, 2)` dies "Not
+  enough arguments for select system call", `localtime(1, 2)` "Too many
+  arguments for localtime", and `each()`, `sort()` and `grep()` "Not
+  enough arguments".
+- A constant or a sub's result passed to a `\$` slot: `sref(1)` dies
+  "Type of arg 1 to main::sref must be scalar (not constant item)",
+  `sref(f())` "(not subroutine entry)".
+
+Where perl would compile the call -- a candidate set with no prototype,
+or a library dispatching at run time -- the parse stays as perl reads it
+and `psc check` reports an error ("Call sites").
 
 ### Call sites (*Decided*)
 
@@ -570,6 +592,10 @@ Separate from the paper:
     class feature's `field $x :param` (attributes after the variable).
     The same attribute family may answer 9 (deferred, repeated
     evaluation is a different property from never).
+11. How to spell a glob slot (`\*` in a prototype) in a declaration.
+    Perl's refaliasing has no glob form, so the backslash rule does not
+    carry over; `lock`, `undef`, `tie`, `tied`, `untie` and `pos` stay
+    untyped until this is settled.
 
 ## Rejected alternatives
 
