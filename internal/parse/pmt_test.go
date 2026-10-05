@@ -160,3 +160,23 @@ func TestPmtUnionAndContainerTypes(t *testing.T) {
 		}
 	}
 }
+
+// TestPmtUnknownTypeNameIsError: RFC 0001 "Type names", a `.pmt` names types
+// from the lattice and an unknown name is an error naming it, alone or as a
+// member of a union. Names are the paper's, so `Bool` is unknown too: the
+// lattice's spelling is `Boolean`. Nothing is recorded for the sub.
+func TestPmtUnknownTypeNameIsError(t *testing.T) {
+	for src, want := range map[string]string{
+		"sub f (Strng $x);\n":     `sub f: unknown type name "Strng"`,
+		"sub f (Str|Strng $x);\n": `sub f: unknown type name "Strng"`,
+		"sub f (Bool $x);\n":      `sub f: unknown type name "Bool"`,
+	} {
+		facts := readDeclaration([]byte(src), nil)
+		if len(facts.errs) != 1 || facts.errs[0].Error() != want {
+			t.Errorf("%q: got errors %v, want %q", src, facts.errs, want)
+		}
+		if sig, ok := facts.signatures["f"]; ok {
+			t.Errorf("%q: recorded %+v", src, sig)
+		}
+	}
+}
