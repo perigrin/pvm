@@ -20,5 +20,5 @@ sub super;
 sub inner;
 sub augment;
 sub confess;
-sub blessed ($);
+sub blessed :prototype($);
 sub meta;

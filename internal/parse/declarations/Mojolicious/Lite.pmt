@@ -18,7 +18,7 @@ sub websocket;
 sub new;
 sub app;
 sub del;
-sub group (&);
+sub group :prototype(&);
 sub helper;
 sub hook;
 sub plugin;

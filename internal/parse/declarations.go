@@ -16,7 +16,7 @@ import (
 // loop -- so that no reading of its source can recover it.
 //
 // A declaration is written in the module syntax the resolver already reads:
-// `our @EXPORT` for what a bare `use` imports, `sub NAME (PROTO);` for each
+// `our @EXPORT` for what a bare `use` imports, `sub NAME :prototype(PROTO);` for each
 // sub and its prototype. So it is read by the same parse as a module.
 //
 //go:embed declarations
