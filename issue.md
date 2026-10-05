@@ -3,8 +3,10 @@ title: Type CORE.pmt's system, user, network, IPC, socket and control-flow built
 state: pending
 urgency: normal
 milestone: type-libraries
+blocked_by:
+- 01a10177-4c46-7807-b01c-b90e4c645a5b
 created: 2026-10-05T14:18:57.557243435Z
-updated: 2026-10-05T14:18:57.557243435Z
+updated: 2026-10-05T14:20:17.167875179Z
 ---
 
 ## Prerequisites
