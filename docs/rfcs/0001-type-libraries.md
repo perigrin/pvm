@@ -240,15 +240,24 @@ multi sub sort (List @list = die) List;
 
 **`map`'s and `grep`'s brace is variant selection.** Both guess whether
 `{` opens a block or a hash constructor from its first tokens; a `&@`
-sub never guesses. Wherever perl's guess disagrees with what follows
-the closing brace, perl rejects the program: `map { "\L$_" => 1 } @a`
+sub never guesses. Wherever perl's guess disagrees with where the
+first argument ends, perl rejects the program: `map { "\L$_" => 1 } @a`
 (guessed hash, no comma) and `map { $_ => 1 }, @a` (guessed block,
-then a comma) are both syntax errors. So a comma after `}` selects the
-expression variant and its absence the block variant, which agrees with
-perl on every program perl accepts. The first argument's type selects
-the variant, as in Chalk, decided by that comma rather than by the
-braces' contents: `map { $_ => 1 } @a` holds pairs and is still a
-valid block. The parser keeps perl's first-tokens guess only to refuse
+then a comma) are both syntax errors. So the comma that ends the first
+argument selects the expression variant and its absence the block
+variant. That comma need not follow `}` directly: perl 5.42 accepts
+`map { foo => 1 }->{foo}, @a`, `map { "a" => 1 } ? 1 : 2, @a` and
+`map {}->{a}, @a`, a hash constructor continued before the comma, and
+refuses `map { $_ => 1 }->{a}, @a`. Measured over 46 forms, perl
+refuses wherever its guess and that comma disagree, so on every
+program perl accepts the two pick the same variant. (It refuses more
+besides: after a hash constructor's `}` perl expects a term, so
+`map { "a" => 1 } + 1, @a` is a syntax error while `. "x"`, `|| 1`
+and `->{a}` in the same place are not.) The first
+argument's type selects the variant, as in Chalk, decided by that comma
+rather than by the braces' contents: `map { $_ => 1 } @a` holds pairs
+and is still a valid block. The parser keeps perl's first-tokens guess,
+with an empty `{}` read as a hash as toke.c reads it, only to refuse
 what perl refuses.
 
 **A leading slot with no comma is written with the invocant colon.**
