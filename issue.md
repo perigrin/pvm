@@ -1,13 +1,22 @@
 ---
 title: Add IO, FileHandle and Boolean to the type lattice, with lookup by name
-state: pending
+state: in-progress
 urgency: normal
 milestone: type-libraries
 blocks:
 - 01a0fd9b-4139-773b-8676-e148e90c42bd
 - 01a0fd9b-49b2-7ea9-bfa1-ba398baadc3f
 created: 2026-10-02T17:13:25.182848094Z
-updated: 2026-10-05T20:29:15.069739928Z
+updated: 2026-10-05T20:57:54.794519708Z
+sessions:
+- start_sha: 72e01c14633b2d8485579d615a654443d94c1f70
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-05T20:57:54.794519708Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-05T20:57:54.794519708Z
 ---
 
 ## Prerequisites
