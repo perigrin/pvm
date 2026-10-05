@@ -1,6 +1,6 @@
 ---
 title: Parse typed parameters and defaults in .pmt declarations
-state: pending
+state: in-progress
 urgency: normal
 milestone: type-libraries
 blocked_by:
@@ -9,7 +9,16 @@ blocks:
 - 01a0fd9b-46c4-7a8c-b8d6-498c5182a47f
 - 01a10177-49d9-7915-975e-2a8e3da943bf
 created: 2026-10-02T17:13:25.560580634Z
-updated: 2026-10-05T17:36:38.735451678Z
+updated: 2026-10-05T23:10:52.509379968Z
+sessions:
+- start_sha: 337657c599353a2fbf768616a29f3eebc377d0a3
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-05T23:10:52.509379968Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-05T23:10:52.509379968Z
 ---
 
 ## Prerequisites
