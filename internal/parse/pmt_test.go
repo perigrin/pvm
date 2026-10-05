@@ -180,3 +180,27 @@ func TestPmtUnknownTypeNameIsError(t *testing.T) {
 		}
 	}
 }
+
+// TestPmtSignatureBeforeAttributesRefused: RFC 0001 "Declaration order:
+// Perl's", name, then attributes, then signature. Measured on 5.42.0 under
+// `use v5.36`, `sub f :lvalue ($x) {}` compiles and both `sub f ($x) :lvalue
+// {}` and `sub f ($x) :lvalue;` die "Subroutine attributes must come before
+// the signature". A `.pmt` refuses the same order with perl's words, and
+// records no signature for it.
+func TestPmtSignatureBeforeAttributesRefused(t *testing.T) {
+	src := "sub f (Str $x) :lvalue;\n"
+	facts := readDeclaration([]byte(src), nil)
+	want := "sub f: subroutine attributes must come before the signature"
+	if len(facts.errs) != 1 || facts.errs[0].Error() != want {
+		t.Errorf("got errors %v, want %q", facts.errs, want)
+	}
+	if sig, ok := facts.signatures["f"]; ok {
+		t.Errorf("recorded %+v", sig)
+	}
+	if root, _ := parseSource([]byte(src), nil, true); root.SourceText([]byte(src)) != src {
+		t.Errorf("round trip lost bytes")
+	}
+	if ok := readDeclaration([]byte("sub f :lvalue (Str $x);\n"), nil); len(ok.errs) > 0 || len(ok.signatures["f"].Params) != 1 {
+		t.Errorf("perl's order: got errors %v, signature %+v", ok.errs, ok.signatures)
+	}
+}

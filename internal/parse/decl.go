@@ -585,6 +585,7 @@ func (p *parser) parseSubDecl(word lexer.Token) *Node {
 
 	// The prototype, if the lexer found one. Recognition is its job; this
 	// only carries the result so M4 has something to resolve.
+	sigFirst := false
 	if proto, ok := p.peekSignificant(); ok && proto.Kind == lexer.Prototype {
 		p.advanceTo(proto)
 		n.Children = append(n.Children, &Node{
@@ -604,13 +605,24 @@ func (p *parser) parseSubDecl(word lexer.Token) *Node {
 		// element is a parameter, and what its default means, is M2's --
 		// this milestone owns the syntax.
 		p.parseSignature(n)
+		sigFirst = true
 	}
 
 	// Attributes: `sub f :lvalue { 1 }`, `sub f :prototype($$) { 1 }`. They
 	// sit between the prototype and the body, which is the order perl's own
 	// grammar has (perly.y's subrout: `SUB subname startsub proto subattrlist
 	// subbody`).
+	attrsAt := len(n.Children)
 	p.parseAttributes(n)
+
+	// Typed Perl is read with signatures on, so it keeps their order and
+	// refuses a signature before the attributes as perl does (RFC 0001,
+	// "Declaration order: Perl's"). The signature is not recorded.
+	if p.typed && sigFirst && len(n.Children) > attrsAt {
+		name, _ := declaredSub(n)
+		delete(p.signatures, name)
+		p.typedErrs = append(p.typedErrs, fmt.Errorf("sub %s: subroutine attributes must come before the signature", name))
+	}
 
 	// Under the signatures feature the order is the other way round: the
 	// attributes come FIRST and the signature after them, and perl rejects
