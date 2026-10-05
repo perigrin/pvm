@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: v0.1
 created: 2026-10-05T22:57:12.511225441Z
-updated: 2026-10-05T22:57:12.511225441Z
+updated: 2026-10-05T23:02:19.494036679Z
 ---
 
 ## Context
@@ -16,14 +16,17 @@ updated: 2026-10-05T22:57:12.511225441Z
 Found while building 01a0fd9b-4e65-7397-836f-140fdc7feb53 (map/grep comma rule). Two forms perl 5.42 refuses that pvm accepts with 0 Unknown:
 
 1. After a map/grep hash constructor's `}`, perl expects a term, so `map { "a" => 1 } + 1, @a` is a syntax error, as are `- 1`, `* 1`, `x 2`, `// 1`, `<=> 1`, `% 2`, `/ 2`, `< 1` there; `. "x"`, `== 1`, `|| 1`, `&&`, `=~`, `or`, `? :` and `->` are accepted. (Recorded in RFC 0001 and spec §4.9.2.)
+3. `sort { $a` at end of input: perl refuses it, pvm parses it silently. The unclosed-brace check (`braceCloses`, `UnclosedBrace`) runs for map and grep only; spec §4.9.2's sketch applies it to sort too (found by the alignment gate on 01a0fd9b-4e65-7397-836f-140fdc7feb53).
 2. `map { 1 }` at end of input with no `;`: perl says "syntax error at EOF"; `grep { 1 } ;` is already refused.
 
 ## Steps
 
 - [ ] Re-measure every listed operator with perl; write failing test `TestMapGrepHashBraceThenTermOperatorRefused`; implement in the map/grep path only; `make test`; commit
 - [ ] Write failing test `TestMapGrepBlockAtEOFRefused`; implement; `make test`; commit
+- [ ] Write failing test `TestSortUnclosedBraceRefused`; extend the unclosed-brace check to sort; `make test`; commit
 
 ## Acceptance criteria
 
 - [ ] a hash brace followed by an operator perl reads as a term is refused (`go test ./internal/parse/ -run '^TestMapGrepHashBraceThenTermOperatorRefused$' -count=1 -v | grep -q '^--- PASS: TestMapGrepHashBraceThenTermOperatorRefused'`)
 - [ ] a map block at EOF with no list is refused (`go test ./internal/parse/ -run '^TestMapGrepBlockAtEOFRefused$' -count=1 -v | grep -q '^--- PASS: TestMapGrepBlockAtEOFRefused'`)
+- [ ] an unclosed sort brace is refused (`go test ./internal/parse/ -run '^TestSortUnclosedBraceRefused$' -count=1 -v | grep -q '^--- PASS: TestSortUnclosedBraceRefused'`)
