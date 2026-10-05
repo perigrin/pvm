@@ -10,14 +10,13 @@ blocked_by:
 blocks:
 - 01a10c6e-9a95-719a-80e2-2e33037d0096
 created: 2026-10-03T11:12:38.523502989Z
-updated: 2026-10-05T14:20:19.1457598Z
+updated: 2026-10-05T20:29:04.294756639Z
 ---
 
 ## Prerequisites
 
 - [ ] Check CORE.pmt's derived prototypes against perl, with signatures.go's measured rows
-- [ ] Declare the no-prototype builtins and each's multi in CORE.pmt, and read :unary
-- [ ] Read :context(...) and select a multi candidate by calling context
+- [ ] Derive one prototype from several multi candidates
 
 ## Context
 
@@ -25,9 +24,9 @@ updated: 2026-10-05T14:20:19.1457598Z
 - commands: `go test ./internal/parse/ -count=1`
 - commands: full gate `make test` (100% green before every commit; never `--no-verify`)
 - perl 5.42 for measuring behaviour: `/home/perigrin/.local/bin/perl` (measure, never assume)
-- entrypoints: `TestCoreDerivedPrototypesArePerls` (`internal/parse/coretypes_test.go`, the harness); `perl -MPod::Functions -e 'print "@{$Kinds{ARRAY}} @{$Kinds{LIST}} @{$Kinds{HASH}}"'`; `internal/types/signatures.go:42-43` (the measured `keys` and `values` rows); the multi-candidate prototype rule the no-prototype builtins issue adds; RFC 0001 "`:context(...)`" (the `localtime` spelling the `keys`/`values` multis follow)
+- entrypoints: `TestCoreDerivedPrototypesArePerls` (`internal/parse/coretypes_test.go`, the harness); `perl -MPod::Functions -e 'print "@{$Kinds{ARRAY}} @{$Kinds{LIST}} @{$Kinds{HASH}}"'`; `internal/types/signatures.go:42-43` (the measured `keys` and `values` rows); the multi-candidate prototype rule the multi-candidate derivation issue adds (it follows the `:context(...)` issue, so `:context` is read before this batch); RFC 0001 "`:context(...)`" (the `localtime` spelling the `keys`/`values` multis follow)
 
-Second batch, by perlfunc's categories "Functions for real @ARRAYs", "Functions for list data" and "Functions for real %HASHes" (Pod::Functions kinds `ARRAY`, `LIST`, `HASH`), intersected with CORE.pmt's prototyped lines, excluding `each`, which the no-prototype builtins issue declares as a multi: `all`, `any`, `keys`, `pop`, `push`, `shift`, `splice`, `unshift`, `values`, `join`, `unpack` (measured on 5.42; `push` to `splice` and `join` were typed with the measured rows). `all` and `any` are `sub all (Code \&block, List @list) Boolean;` and `sub any (Code \&block, List @list) Boolean;` (perigrin, 2026-10-05; RFC "The scalar container"), whose derived prototype is perl's `\&@` by the aliased-parameters issue's `\&` row. `keys` and `values` are `\[%@]` and context-dependent: measured, `my $n = keys %h` is 2 for a two-key hash and `my $m = values @a` is 3 for a three-element array, while list context gives the list. So each is declared as `:context` multis, as `localtime` is, over the two containers the multi-candidate rule requires: `multi sub keys :context($) (Hash \%h) Int;`, `multi sub keys :context($) (Array \@a) Int;`, `multi sub keys :context(@) (Hash \%h) List;`, `multi sub keys :context(@) (Array \@a) List;`, and the same for `values`; the derived prototype is still `\[%@]`. Copy their two signatures.go rows (the `List` results) into the test as golden values for the `:context(@)` candidates (never compare against signatures.go, which a later issue deletes). Every type is measured on perl 5.42 and recorded as a comment. Hold the batch's names in the test. Re-marks no RFC section.
+Second batch, by perlfunc's categories "Functions for real @ARRAYs", "Functions for list data" and "Functions for real %HASHes" (Pod::Functions kinds `ARRAY`, `LIST`, `HASH`), intersected with CORE.pmt's prototyped lines, excluding `each`, which the no-prototype builtins issue declares as a multi (this batch does not wait for it: `each` keeps its one prototype-only line until that issue replaces it): `all`, `any`, `keys`, `pop`, `push`, `shift`, `splice`, `unshift`, `values`, `join`, `unpack` (measured on 5.42; `push` to `splice` and `join` were typed with the measured rows). `all` and `any` are `sub all (Code \&block, List @list) Boolean;` and `sub any (Code \&block, List @list) Boolean;` (perigrin, 2026-10-05; RFC "The scalar container"), whose derived prototype is perl's `\&@` by the aliased-parameters issue's `\&` row. `keys` and `values` are `\[%@]` and context-dependent: measured, `my $n = keys %h` is 2 for a two-key hash and `my $m = values @a` is 3 for a three-element array, while list context gives the list. So each is declared as `:context` multis, as `localtime` is, over the two containers; the multi-candidate rule groups the four candidates by parameters only, ignoring `:context` and the return type: `multi sub keys :context($) (Hash \%h) Int;`, `multi sub keys :context($) (Array \@a) Int;`, `multi sub keys :context(@) (Hash \%h) List;`, `multi sub keys :context(@) (Array \@a) List;`, and the same for `values`; the derived prototype is still `\[%@]`. Copy their two signatures.go rows (the `List` results) into the test as golden values for the `:context(@)` candidates (never compare against signatures.go, which a later issue deletes). Every type is measured on perl 5.42 and recorded as a comment. Hold the batch's names in the test. Re-marks no RFC section.
 
 ## Steps
 
