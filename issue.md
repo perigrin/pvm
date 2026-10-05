@@ -11,7 +11,7 @@ blocks:
 - 01a0fd9b-49b2-7ea9-bfa1-ba398baadc3f
 - 01a10177-547c-73a9-a302-f25f579a4cb3
 created: 2026-10-02T17:13:26.980057702Z
-updated: 2026-10-03T11:15:44.49576583Z
+updated: 2026-10-05T17:37:31.583101817Z
 ---
 
 ## Prerequisites
@@ -27,7 +27,7 @@ updated: 2026-10-03T11:15:44.49576583Z
 - perl 5.42 for measuring behaviour: `/home/perigrin/.local/bin/perl` (measure, never assume)
 - entrypoints: RFC 0001 table under "A typed signature and a prototype say the same thing"; `declaredSub` (`internal/parse/exports.go:425`); `ShapeOf` (`internal/parse/shape.go:60`) for how a prototype is read today
 
-The RFC's table maps each prototype character to a parameter, measured on 5.42. This issue builds both directions for every row that takes no backslash: a prototype-only declaration gets the coarse typed signature (`sub foo ($$)` reads as `(Scalar $, Scalar $)`), a typed declaration gets its prototype with no `:prototype(...)`, and a declaration with both must agree or the file is in error. Rows: `$` Scalar $; `@`,`%` List @; `+` Array|Hash|Scalar; leading `&` Code &; `*` Glob *; `_` Scalar $ = $_; `;` parameters with defaults. The aliasing rows (`\$`, `\@`, `\%`, `\[...]`) belong to the aliased-parameter issue, which parses the backslash, and to the multi-candidate rule in the no-prototype builtins issue. A derived `@` means no prototype: perl reports `undef` for a sub with none, and the two parse identically (RFC "Builtins that keep their own parse"). A prototype with anything after `@` or `%` (`@$`, measured: "Prototype after '@'") derives no signature: it is the final-`List` error of the previous issue, pointing to `\@$`. Types are finer than prototypes, so prototype to types to prototype round-trips; the reverse loses precision. Expected values live in the test. Re-marking the section waits for the last CORE.pmt typing batch, which holds all 188 derivations to perl.
+The RFC's table maps each prototype character to a parameter, measured on 5.42. This issue builds both directions for every row that takes no backslash: a prototype-only declaration gets the coarse typed signature (`sub foo ($$)` reads as `(Scalar $, Scalar $)`), a typed declaration gets its prototype with no `:prototype(...)`, and a declaration with both must agree or the file is in error. Rows: `$` Scalar $; `@`,`%` List @; `+` Array|Hash|Scalar; leading `&` Code &; `*` Glob *; `_` Scalar $ = $_; `;` parameters with defaults other than `die`. RFC 0001 "A required argument defaults to `die`" (perigrin, 2026-10-05): a `die` default runs only when its argument is omitted, so it makes the parameter required (recorded as required by the typed-parameters issue); derivation places no `;` before it, and only a non-`die` default makes a parameter optional, so `(Scalar $x = die)` derives `$` and `(Scalar $x = 1)` derives `;$`. The aliasing rows (`\$`, `\@`, `\%`, `\[...]`) belong to the aliased-parameter issue, which parses the backslash, and to the multi-candidate rule in the no-prototype builtins issue. A derived `@` means no prototype: perl reports `undef` for a sub with none, and the two parse identically (RFC "Builtins that keep their own parse"). A prototype with anything after `@` or `%` (`@$`, measured: "Prototype after '@'") derives no signature: it is the final-`List` error of the previous issue, pointing to `\@$`. Types are finer than prototypes, so prototype to types to prototype round-trips; the reverse loses precision. Expected values live in the test. Re-marking the section waits for the last CORE.pmt typing batch, which holds all 188 derivations to perl.
 
 ## Steps
 
@@ -36,6 +36,8 @@ The RFC's table maps each prototype character to a parameter, measured on 5.42. 
 - [ ] Implement in `internal/parse/derive.go` (ABOUTME header); run test to verify pass; `make test`; commit
 - [ ] Write failing test `TestDerivePrototypeFromTypes`: one case per unbackslashed row from signature to prototype, plus the round trip prototype to types to prototype for each row
 - [ ] Implement; run test to verify pass; `make test`; commit
+- [ ] Write failing test `TestDeriveDieDefaultIsRequired`: `(Scalar $x = die)` derives `$`; `(Scalar $x = 1)` derives `;$`; `(Scalar $x, Scalar $y = die)` derives `$$`
+- [ ] Run test to verify failure, implement, run test to verify pass: `go test ./internal/parse/ -run '^TestDeriveDieDefaultIsRequired$' -count=1 -v`; `make test`; commit
 - [ ] Write failing test `TestDerivedAtMeansNoPrototype`: `sub f (List @args);` derives no prototype, recorded as perl records a sub with none
 - [ ] Implement; run test to verify pass; `make test`; commit
 - [ ] Write failing test `TestPrototypeTypeDisagreementIsError`: `sub f :prototype($$) (Scalar $x);` is an error in the declaration file; `sub f :prototype($) (Str $x);` is not
@@ -53,6 +55,7 @@ The RFC's table maps each prototype character to a parameter, measured on 5.42. 
 
 - [ ] a prototype-only declaration gets the coarse typed signature (`go test ./internal/parse/ -run '^TestDeriveTypesFromPrototype$' -count=1 -v | grep -q '^--- PASS: TestDeriveTypesFromPrototype'`)
 - [ ] a typed declaration gets its prototype from its types (`go test ./internal/parse/ -run '^TestDerivePrototypeFromTypes$' -count=1 -v | grep -q '^--- PASS: TestDerivePrototypeFromTypes'`)
+- [ ] a die default is required and derives no ; before it (`go test ./internal/parse/ -run '^TestDeriveDieDefaultIsRequired$' -count=1 -v | grep -q '^--- PASS: TestDeriveDieDefaultIsRequired'`)
 - [ ] a derived @ means no prototype (`go test ./internal/parse/ -run '^TestDerivedAtMeansNoPrototype$' -count=1 -v | grep -q '^--- PASS: TestDerivedAtMeansNoPrototype'`)
 - [ ] a prototype that disagrees with the types is an error (`go test ./internal/parse/ -run '^TestPrototypeTypeDisagreementIsError$' -count=1 -v | grep -q '^--- PASS: TestPrototypeTypeDisagreementIsError'`)
 - [ ] an unknown prototype character is an error, not a guess (`go test ./internal/parse/ -run '^TestDeriveRejectsUnknownPrototypeCharacter$' -count=1 -v | grep -q '^--- PASS: TestDeriveRejectsUnknownPrototypeCharacter'`)
