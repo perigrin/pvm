@@ -10,7 +10,7 @@ blocked_by:
 blocks:
 - 01a0fd9b-5700-7514-a143-2caed2d06d8b
 created: 2026-10-03T11:12:40.060535979Z
-updated: 2026-10-05T14:18:47.969529188Z
+updated: 2026-10-05T17:36:36.008983665Z
 ---
 
 ## Prerequisites
@@ -33,7 +33,7 @@ RFC 0001 "Refusing what perl refuses" (perigrin, 2026-10-02): where perl refuses
 - **A `\$` slot takes a scalar lvalue.** `sref(1)` and `sref("s")` die "Type of arg 1 to main::sref must be scalar (not constant item)"; `sref(f())` "(not subroutine entry)"; `sref(@a)` "(not private array)"; `sref(%h)` "(not private hash)"; `sref()` "Not enough arguments for main::sref"; `sref($x, $y)` "Too many arguments for main::sref". `sref($x)`, `sref($h{k})`, `sref($x = 7)`, `sref(my $z)` and `sref(substr($x, 0, 1))` compile. The property is lvalue-ness, not "unevaluated".
 - **An arity no declaration accepts.** `select(1, 2)` and `select(1, 2, 3)` die "Not enough arguments for select system call", `select(1, 2, 3, 4, 5)` "Too many arguments"; `localtime(1, 2)` and `gmtime(1, 2)` "Too many arguments"; `each()`, `grep()`, `map()` and `push()` "Not enough arguments". `chomp()`, `localtime()`, `select()`, `push(@a)` and `grep { 1 } ()` compile (`select()` matches `select`'s `() Str` candidate, perigrin 2026-10-05).
 
-Both apply to prototypes read from module source (`sub sref (\$)` in a `.pm`) as well as to `.pmt` declarations and CORE.pmt's candidates (the arity a candidate set accepts comes from `internal/types/select.go`). A call perl compiles is never refused: a sub with no prototype, or a library dispatching at run time, keeps perl's parse, and `psc check` reports what the declarations rule out (the call-site issue). Refusing more can move ratchet files; every file that moves is checked against `perl -c`, and the ratchet is updated only for moves that match perl. One measured case is not expressible from the declarations and needs perigrin's ruling: `sort ()` and bare `sort` die "Not enough arguments for sort" while `sort(())` and `sort @empty` compile, though `sort`'s `(List @list)` candidate accepts zero arguments. This completes the section, so it re-marks "Refusing what perl refuses".
+Both apply to prototypes read from module source (`sub sref (\$)` in a `.pm`) as well as to `.pmt` declarations and CORE.pmt's candidates (the arity a candidate set accepts comes from `internal/types/select.go`). A call perl compiles is never refused: a sub with no prototype, or a library dispatching at run time, keeps perl's parse, and `psc check` reports what the declarations rule out (the call-site issue). Refusing more can move ratchet files; every file that moves is checked against `perl -c`, and the ratchet is updated only for moves that match perl. RFC 0001 "A required argument defaults to `die`" (perigrin, 2026-10-05) settles `sort`: `sort ()` and bare `sort` die "Not enough arguments for sort" while `sort(())` and `sort @empty` compile, and CORE.pmt's plain candidate `multi sub sort (List @list = die) List;` says exactly that. The refusal counts a parameter whose default is `die` as required (recorded on `types.Param` by the typed-parameters issue), so `sort()` is refused by the same arity rule as `grep()`, with no sort special case; a `List` with no default still accepts zero arguments. This completes the section, so it re-marks "Refusing what perl refuses".
 
 ## Steps
 
@@ -44,6 +44,8 @@ Both apply to prototypes read from module source (`sub sref (\$)` in a `.pm`) as
 - [ ] Implement; run test to verify pass; `make test`; commit
 - [ ] Write failing test `TestBuiltinArityPerlRefusesIsRefused`: `select(1, 2)`, `select(1, 2, 3, 4, 5)`, `localtime(1, 2)`, `gmtime(1, 2)`, `each()`, `grep()`, `map()` and `push()` are refused
 - [ ] Implement from the candidates' arity; run test to verify pass; `make test`; commit
+- [ ] Write failing test `TestArityRefusalDieDefaultIsRequired`: `sort()` and bare `sort` are refused with the same arity refusal code as `grep()`, because the plain candidate's `@list` defaults to `die`; `sort(())` and `my @e; sort @e` are not refused; the refusal path reads requiredness from the declaration and names no builtin
+- [ ] Run test to verify failure, implement, run test to verify pass: `go test ./internal/parse/ -run '^TestArityRefusalDieDefaultIsRequired$' -count=1 -v`; `make test`; commit
 - [ ] Ratchet audit: run `TestParseRatchet`, `TestPerlGitTRatchet` and `go test ./internal/conformance/ -count=1`; for every file whose count moves, run `perl -c` on it; update the ratchet only for moves that match perl, and fix the refusal for any that do not; `make test`; commit
 - [ ] Re-mark the RFC heading "Refusing what perl refuses" `(*Implemented*, <sha>)`; commit
 
@@ -53,7 +55,7 @@ Both apply to prototypes read from module source (`sub sref (\$)` in a `.pm`) as
 - a library sub with no prototype, declared in a `.pmt` as a multi whose candidates do not accept the call, is not refused by the parser: perl compiles it, so the parse stays perl's (`go test ./internal/parse/ -run '^TestArityRefusalLeavesUnprototypedCallsAlone$' -count=1 -v | grep -q '^--- PASS: TestArityRefusalLeavesUnprototypedCallsAlone'`)
 - the same `\$` refusal applies to a prototype read from module source: a `.pm` declaring `sub sref (\$)` and a caller passing `1` is refused exactly as the `.pmt` case is (`go test ./internal/parse/ -run '^TestRefScalarSlotFromModuleSource$' -count=1 -v | grep -q '^--- PASS: TestRefScalarSlotFromModuleSource'`)
 - each refusal names its own code, distinct from every other refusal site, so a corpus file can tell a constant in a `\$` slot from an arity refusal (`go test ./internal/parse/ -run '^TestArityRefusalCodesDistinct$' -count=1 -v | grep -q '^--- PASS: TestArityRefusalCodesDistinct'`)
-- `sort ()` and bare `sort`, which perl refuses though `(List @list)` accepts zero arguments: needs perigrin's ruling before it becomes a criterion (`go test ./internal/parse/ -run '^TestSortEmptyFollowsPerl$' -count=1 -v | grep -q '^--- PASS: TestSortEmptyFollowsPerl'`)
+- a parameter whose default is `die` is required (RFC 0001 "A required argument defaults to `die`"): `sort()` and bare `sort` are refused through `(List @list = die)`, as perl refuses them at compile time, while `sort(())` and `sort @e` are not; no sort special case (`go test ./internal/parse/ -run '^TestArityRefusalDieDefaultIsRequired$' -count=1 -v | grep -q '^--- PASS: TestArityRefusalDieDefaultIsRequired'`)
 
 ## Acceptance criteria
 
@@ -63,6 +65,7 @@ Both apply to prototypes read from module source (`sub sref (\$)` in a `.pm`) as
 - [ ] calls perl compiles are not refused (`go test ./internal/parse/ -run '^TestArityRefusalKeepsWhatPerlAccepts$' -count=1 -v | grep -q '^--- PASS: TestArityRefusalKeepsWhatPerlAccepts'`)
 - [ ] unprototyped library calls keep the parse perl gives them (`go test ./internal/parse/ -run '^TestArityRefusalLeavesUnprototypedCallsAlone$' -count=1 -v | grep -q '^--- PASS: TestArityRefusalLeavesUnprototypedCallsAlone'`)
 - [ ] a \$ prototype from module source is enforced as a .pmt one is (`go test ./internal/parse/ -run '^TestRefScalarSlotFromModuleSource$' -count=1 -v | grep -q '^--- PASS: TestRefScalarSlotFromModuleSource'`)
+- [ ] a parameter whose default is `die` is required, so `sort()` is refused and `sort(())` is not, with no sort special case (`go test ./internal/parse/ -run '^TestArityRefusalDieDefaultIsRequired$' -count=1 -v | grep -q '^--- PASS: TestArityRefusalDieDefaultIsRequired'`)
 - [ ] each refusal has its own code (`go test ./internal/parse/ -run '^TestArityRefusalCodesDistinct$' -count=1 -v | grep -q '^--- PASS: TestArityRefusalCodesDistinct'`)
 - [ ] the T1 ratchet holds after the audit (`go test ./internal/parse/ -run '^TestParseRatchet$' -count=1 -timeout 600s -v | grep -q '^--- PASS: TestParseRatchet'`)
 - [ ] the perl.git t/ ratchet holds after the audit (`go test ./internal/parse/ -run '^TestPerlGitTRatchet$' -count=1 -timeout 600s -v | grep -q '^--- PASS: TestPerlGitTRatchet'`)
