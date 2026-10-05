@@ -224,7 +224,7 @@ multi sub grep (Scalar $expr, List @list) List;   # $@
 multi sub map  (Code &block, List @list) List;
 multi sub map  (Scalar $expr, List @list) List;
 multi sub sort (Code &block, List @list) List;
-multi sub sort (List @list) List;
+multi sub sort (List @list = die) List;
 ```
 
 **`map`'s and `grep`'s brace is variant selection.** Both guess whether
@@ -459,6 +459,7 @@ context; applying them at a real call in `infer` is "Call sites" below:
 ```perl
 multi sub each (Hash \%h)  List;                   # (Str, value)
 multi sub each (Array \@a) List;                   # (Int, value)
+multi sub select () Str;                           # the selected handle
 multi sub select (FileHandle $fh) Str;             # the previous handle
 multi sub select ($r, $w, $e, Num $timeout) Int;   # a count
 ```
@@ -536,6 +537,22 @@ as for `.pmt` declarations. Measured on 5.42:
 Where perl would compile the call -- a candidate set with no prototype,
 or a library dispatching at run time -- the parse stays as perl reads it
 and `psc check` reports an error ("Call sites").
+
+**A required argument defaults to `die`** (perigrin, 2026-10-05). In a
+perl signature a default runs only when its argument is omitted, so
+`$x = die "..."` makes `$x` required (measured: `f(1)` is 1, `f()`
+dies). A declaration says the same: `multi sub sort (List @list = die)
+List;` -- `sort()` is refused, while `sort(())` and `sort @e` write an
+argument and pass, which is perl's rule (measured: only `sort()` among
+`push(@a)`, `die()`, `reverse()`, `unlink()`, `return()` and the like
+fails to compile). A `List` parameter with no default accepts zero
+arguments, as perl's own slurpy does (`sub h (@l)`, `h()` is 0), so no
+other declaration needs anything. No special case for `sort` remains.
+
+A default on a slurpy parameter is a typed-Perl extension: perl's
+signatures reject it ("A slurpy parameter may not have a default
+value"). `.pmt` declarations use it for `= die` here and for `print`'s
+`= ($_)`.
 
 ### Call sites (*Decided*)
 
