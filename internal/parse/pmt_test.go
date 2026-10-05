@@ -3,6 +3,8 @@
 package parse
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -70,5 +72,26 @@ func TestTypedSyntaxOnlyInPmt(t *testing.T) {
 	}
 	if typed := readDeclaration(src, nil); len(typed.signatures["f"].Params) != 1 {
 		t.Errorf("the same text in a .pmt: got %+v, want one typed param", typed.signatures)
+	}
+}
+
+// TestTypedSyntaxNotEnabledBySignaturesFeature: the signatures feature puts
+// the lexer in the signature mode a .pmt uses, but not the parser in typed
+// Perl. In a .pm under `use v5.36`, `sub f (Ref $x) { 1 }` is a signature
+// perl refuses -- measured on 5.42.0, "A signature parameter must start with
+// '$', '@' or '%'" -- and it records no types.
+func TestTypedSyntaxNotEnabledBySignaturesFeature(t *testing.T) {
+	lib := t.TempDir()
+	pm := "package Pm;\nuse v5.36;\nsub f (Ref $x) { 1 }\n1;\n"
+	if err := os.WriteFile(filepath.Join(lib, "Pm.pm"), []byte(pm), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r := &resolver{load: DirLoader(lib), seen: map[string]bool{}}
+	facts, ok := r.resolve("Pm")
+	if !ok {
+		t.Fatal("Pm.pm not reached")
+	}
+	if len(facts.signatures) > 0 || len(facts.errs) > 0 {
+		t.Errorf("a .pm under use v5.36 recorded types: %v, errors %v", facts.signatures, facts.errs)
 	}
 }
