@@ -10,7 +10,7 @@ blocks:
 - 01a0fd9b-4850-704d-8c14-c15add6194f2
 - 01a0fd9b-49b2-7ea9-bfa1-ba398baadc3f
 created: 2026-10-02T17:13:26.980057702Z
-updated: 2026-10-05T20:30:25.338385929Z
+updated: 2026-10-05T23:14:40.076357023Z
 ---
 
 ## Prerequisites
@@ -29,6 +29,8 @@ updated: 2026-10-05T20:30:25.338385929Z
 The RFC's table maps each prototype character to a parameter, measured on 5.42. This issue builds both directions for every row that takes no backslash: a prototype-only declaration gets the coarse typed signature (`sub foo ($$)` reads as `(Scalar $, Scalar $)`), a typed declaration gets its prototype with no `:prototype(...)`, and a declaration with both must agree or the file is in error. Rows: `$` Scalar $; `@`,`%` List @; `+` Array|Hash|Scalar; leading `&` Code &; `*` Glob *; `_` Scalar $ = $_; `;` parameters with defaults other than `die`. RFC 0001 "A required argument defaults to `die`" (perigrin, 2026-10-05): a `die` default runs only when its argument is omitted, so it makes the parameter required (recorded as required by the typed-parameters issue); derivation places no `;` before it, and only a non-`die` default makes a parameter optional, so `(Scalar $x = die)` derives `$` and `(Scalar $x = 1)` derives `;$`. The aliasing rows (`\$`, `\@`, `\%`, `\[...]`) belong to the aliased-parameter issue, which parses the backslash, and to the multi-candidate derivation issue. A derived `@` means no prototype: perl reports `undef` for a sub with none, and the two parse identically (RFC "Builtins that keep their own parse"). A prototype with anything after `@` or `%` (`@$`, measured: "Prototype after '@'") derives no signature: it is the final-`List` error of the previous issue, pointing to `\@$`. Types are finer than prototypes, so prototype to types to prototype round-trips; the reverse loses precision. Expected values live in the test. Re-marking the section waits for the last CORE.pmt typing batch, which holds all 188 derivations to perl.
 
 ## Steps
+
+- [ ] Write failing test `TestPmtDeclarationErrorsSurface`: a shipped-style `.pmt` with a malformed typed signature (`sub f (Str);`) read through `coreTable` and through the resolver reports the declaration error (today `moduleFacts.errs` is recorded by `readDeclaration` but discarded at `internal/parse/declarations.go:56` and `internal/parse/module.go:299`; found by the alignment gate on 01a0fd9b-4139-773b-8676-e148e90c42bd); implement so a declaration error is reported, not dropped; `make test`; commit
 
 - [ ] Write failing test `TestDeriveTypesFromPrototype` in `internal/parse/derive_test.go`: one case per unbackslashed table row from prototype to signature
 - [ ] Run test to verify failure: `go test ./internal/parse/ -run '^TestDeriveTypesFromPrototype$' -count=1 -v`
@@ -62,3 +64,4 @@ The RFC's table maps each prototype character to a parameter, measured on 5.42. 
 - [ ] optionality and Code/Scalar disagreements are errors (`go test ./internal/parse/ -run '^TestPrototypeTypeDisagreementKinds$' -count=1 -v | grep -q '^--- PASS: TestPrototypeTypeDisagreementKinds'`)
 - [ ] a mandatory parameter after an optional one is an error (`go test ./internal/parse/ -run '^TestDeriveMandatoryAfterOptionalIsError$' -count=1 -v | grep -q '^--- PASS: TestDeriveMandatoryAfterOptionalIsError'`)
 - [ ] a prototype with anything after @ derives the final-List error (`go test ./internal/parse/ -run '^TestDerivePrototypeAfterAtIsError$' -count=1 -v | grep -q '^--- PASS: TestDerivePrototypeAfterAtIsError'`)
+- [ ] a malformed .pmt declaration's error is reported, not dropped (`go test ./internal/parse/ -run '^TestPmtDeclarationErrorsSurface$' -count=1 -v | grep -q '^--- PASS: TestPmtDeclarationErrorsSurface'`)
