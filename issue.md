@@ -7,7 +7,7 @@ blocked_by:
 - 01a0fd9b-519d-7b42-886e-2222a3076986
 - 01a0fd9b-5670-78d0-84be-9b9618e9b081
 created: 2026-10-02T17:13:30.827426197Z
-updated: 2026-10-03T11:16:14.279487839Z
+updated: 2026-10-05T20:29:08.379816273Z
 ---
 
 ## Prerequisites
@@ -18,7 +18,7 @@ updated: 2026-10-03T11:16:14.279487839Z
 ## Context
 
 - paths: `internal/parse/keyword.go` (deleted), `docs/rfcs/0001-type-libraries.md`, `internal/parse/call.go`, `internal/parse/indirect.go`, `internal/parse/declarations.go`, `internal/parse/declarations/CORE.pmt`, `internal/parse/coreshapes_test.go` (new), `docs/specs/perl-parser/04-expressions.md`
-- commands: `go test ./internal/parse/ -count=1`
+- commands: `go test ./internal/parse/ -count=1` (measured on this tree, 2026-10-05: 30s for the whole package, ratchets included, well under the 300s `git-zhi verify` allows a command)
 - commands: full gate `make test` (100% green before every commit; never `--no-verify`)
 - perl 5.42 for measuring behaviour: `/home/perigrin/.local/bin/perl` (measure, never assume)
 - entrypoints: `namedUnary`, `listOperator`, `niladicParse` (`internal/parse/keyword.go:40`, `:91`, `:195`); their consumers `internal/parse/call.go:75-76`, `:130`, `:185`, `:205-221`, `:560` and `internal/parse/indirect.go:54`; `ShapeOf` (`internal/parse/shape.go:60`)
@@ -49,4 +49,6 @@ RFC 0001 "Typed Perl, in `.pmt` only": `internal/parse/keyword.go` folds into CO
 - [ ] an undeclared name derives no keyword shape (`go test ./internal/parse/ -run '^TestCoreShapesUnknownNameHasNoShape$' -count=1 -v | grep -q '^--- PASS: TestCoreShapesUnknownNameHasNoShape'`)
 - [ ] the shape check reports a disagreement (`go test ./internal/parse/ -run '^TestCoreDerivedShapesCatchesMismatch$' -count=1 -v | grep -q '^--- PASS: TestCoreDerivedShapesCatchesMismatch'`)
 - [ ] the parser spec no longer cites the deleted keyword table (`sh -c '! grep -q "keyword\.go" docs/specs/perl-parser/04-expressions.md'`)
+- [ ] the RFC no longer counts 27 typed builtins (`sh -c '! grep -q "27 typed" docs/rfcs/0001-type-libraries.md'`)
+- [ ] parse behaviour does not move: the existing parse tests and the ratchets pass after the switch (`go test ./internal/parse/ -count=1`)
 - [ ] the RFC section on typed Perl is implemented (`grep -q '^### Typed Perl, in .*(\*Implemented\*' docs/rfcs/0001-type-libraries.md`)
