@@ -54,3 +54,21 @@ func TestPmtSlurpyDefaultsParse(t *testing.T) {
 		}
 	}
 }
+
+// TestTypedSyntaxOnlyInPmt: typed Perl is read only from a declaration file.
+// In ordinary source, without the signatures feature, the parens after `sub
+// NAME` are a prototype whatever they hold. Measured on 5.42.0, `sub f (Ref
+// $x) { 1 } print prototype(\&f)` prints `Ref $x`.
+func TestTypedSyntaxOnlyInPmt(t *testing.T) {
+	src := []byte("sub f (Ref $x) { 1 }\n")
+	facts := readModule(Parse(src))
+	if got := facts.protos["f"]; got != "(Ref $x)" {
+		t.Errorf("prototype: got %q, want %q", got, "(Ref $x)")
+	}
+	if len(facts.signatures) > 0 || len(facts.errs) > 0 {
+		t.Errorf("ordinary source recorded types: %v, errors %v", facts.signatures, facts.errs)
+	}
+	if typed := readDeclaration(src, nil); len(typed.signatures["f"].Params) != 1 {
+		t.Errorf("the same text in a .pmt: got %+v, want one typed param", typed.signatures)
+	}
+}
