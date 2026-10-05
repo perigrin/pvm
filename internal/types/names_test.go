@@ -111,3 +111,13 @@ func TestFileHandleExcludesStrAndObject(t *testing.T) {
 		}
 	}
 }
+
+// TestTypeFromNameSpacedUnionAndNone: RFC 0001 "Type names" allows spaces
+// around `|`, and lets a .pmt write None, the bottom type.
+func TestTypeFromNameSpacedUnionAndNone(t *testing.T) {
+	for name, want := range map[string]Type{"Str | Undef": Str | Undef, "None": None} {
+		if got, err := FromName(name); err != nil || got != want {
+			t.Errorf("FromName(%q) = %v, %v; want %v", name, got, err, want)
+		}
+	}
+}

@@ -159,7 +159,9 @@ unknown name is an error. perigrin, 2026-10-02:
 
 - **Unions are spelled `A|B`**, as `Str|Undef`. The lattice is a bitmask,
   so a union is an OR, and it is what Moose and Type::Tiny users already
-  write.
+  write. Spaces around `|` are allowed (`Str | Undef`), as Moose allows
+  them. `None`, the bottom type, may be written: it is the return type
+  of a sub that never returns, such as `exit`.
 - **`IO` joins the lattice** (the paper has it), and **`FileHandle` is a
   named union, `Glob|GlobRef|IO`**, defined in the lattice as `Ref` and
   `Scalar` are, so a `.pmt` needs no alias syntax. Measured on 5.42: a
