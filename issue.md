@@ -3,8 +3,10 @@ title: Type CORE.pmt's process, time, object and miscellaneous builtins, with lo
 state: pending
 urgency: normal
 milestone: type-libraries
+blocked_by:
+- 01a10177-5057-7f6f-bfa1-363a4568ae80
 created: 2026-10-05T14:18:57.039335349Z
-updated: 2026-10-05T14:18:57.039335349Z
+updated: 2026-10-05T14:20:14.346785392Z
 ---
 
 ## Prerequisites
