@@ -5,9 +5,13 @@ package types
 
 // Signature is the typed parameter list of a .pmt declaration, RFC 0001
 // "Typed Perl, in `.pmt` only": `sub bless :prototype($;$) (Ref $ref, Str
-// $class = __PACKAGE__);`.
+// $class = __PACKAGE__) Object;`.
 type Signature struct {
 	Params []Param
+
+	// Returns is the lattice type the declaration states after its closing
+	// paren, Unknown when it states none.
+	Returns Type
 }
 
 // Param is one typed parameter, `Str $class = __PACKAGE__`.

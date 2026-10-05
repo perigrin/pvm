@@ -83,8 +83,9 @@ func (p *parser) parseSignature(n *Node) {
 
 // parseTypedSignature reads a `.pmt` declaration's typed signature, RFC 0001
 // "Typed Perl, in `.pmt` only": `(Ref $ref, Str $class = __PACKAGE__)`, each
-// parameter a lattice type name, a variable and an optional default. It is
-// recorded on p.signatures under the sub's name.
+// parameter a lattice type name, a variable and an optional default, then
+// the return type, if one is stated. It is recorded on p.signatures under the
+// sub's name.
 //
 // A signature it cannot read is an error on p.typedErrs, and nothing is
 // recorded -- a partial signature would claim parameters the declaration
@@ -96,12 +97,16 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 	p.advanceTo(open)
 	sig := &Node{Kind: List, Paren: true, Start: open.Start}
 	var s types.Signature
+	var ret *Node
 	err := func() error {
 		for {
 			tok, ok := p.peekSignificant()
 			if ok && p.text(tok) == ")" {
 				p.advanceTo(tok)
-				return nil
+				sig.End = p.prevEnd()
+				var err error
+				s.Returns, ret, err = p.returnType()
+				return err
 			}
 			param, node, err := p.typedParam()
 			if err != nil {
@@ -126,13 +131,51 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 		p.pos = save
 		return false
 	}
-	sig.End = p.prevEnd()
 	n.Children = append(n.Children, sig)
+	if ret != nil {
+		n.Children = append(n.Children, ret)
+	}
 	if p.signatures == nil {
 		p.signatures = map[string]types.Signature{}
 	}
 	p.signatures[name] = s
 	return true
+}
+
+// returnType reads the type a `.pmt` declaration states after its signature,
+// `) Object;`, where a definition would have its body. A declaration with no
+// type name there states none. The `;` is left for finishBodyOrSemicolon.
+func (p *parser) returnType() (types.Type, *Node, error) {
+	if tok, ok := p.peekSignificant(); !ok || tok.Kind != lexer.Word {
+		return types.Unknown, nil, nil
+	}
+	typ, node, err := p.typeExpr()
+	if err != nil {
+		return types.Unknown, nil, err
+	}
+	end, ok := p.peekSignificant()
+	switch {
+	case !ok:
+		return types.Unknown, nil, fmt.Errorf("return type %s not terminated", node.Text)
+	case end.Kind != lexer.Semicolon:
+		return types.Unknown, nil, fmt.Errorf("return type %s is not followed by `;`", node.Text)
+	}
+	return typ, node, nil
+}
+
+// typeExpr reads a type expression, a lattice type name, into its Type and a
+// TypeName node covering it.
+func (p *parser) typeExpr() (types.Type, *Node, error) {
+	tok, ok := p.peekSignificant()
+	if !ok || tok.Kind != lexer.Word {
+		return types.Unknown, nil, errors.New("want a type name")
+	}
+	typ, err := types.FromName(p.text(tok))
+	if err != nil {
+		return types.Unknown, nil, err
+	}
+	p.advanceTo(tok)
+	return typ, &Node{Kind: TypeName, Text: p.text(tok), Start: tok.Start, End: tok.End}, nil
 }
 
 // typedParam reads one parameter of a typed signature, `Str $class =

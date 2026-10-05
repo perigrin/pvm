@@ -117,3 +117,23 @@ func TestPmtMalformedTypedDeclarationIsError(t *testing.T) {
 		}
 	}
 }
+
+// TestPmtReturnType: RFC 0001 "Typed Perl, in `.pmt` only". After the
+// signature's closing paren a declaration states its return type, where a
+// definition would have its body: `sub NAME :attrs (Type $v, ...) Type;`.
+func TestPmtReturnType(t *testing.T) {
+	facts := readDeclaration([]byte("sub bless :prototype($;$) (Ref $ref, Str $class = __PACKAGE__) Object;\n"), nil)
+	if len(facts.errs) > 0 {
+		t.Fatalf("errors: %v", facts.errs)
+	}
+	sig, ok := facts.signatures["bless"]
+	if !ok || sig.Returns != types.Object {
+		t.Errorf("return type: got %+v (recorded %v), want %v", sig, ok, types.Object)
+	}
+	if len(sig.Params) != 2 {
+		t.Errorf("params: got %+v, want two", sig.Params)
+	}
+	if got := facts.protos["bless"]; got != "($;$)" {
+		t.Errorf("prototype: got %q, want %q", got, "($;$)")
+	}
+}
