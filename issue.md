@@ -3,8 +3,10 @@ title: Derive one prototype from several multi candidates
 state: pending
 urgency: normal
 milestone: type-libraries
+blocked_by:
+- 01a0fd9b-4850-704d-8c14-c15add6194f2
 created: 2026-10-05T20:28:48.152828461Z
-updated: 2026-10-05T20:28:48.152828461Z
+updated: 2026-10-05T20:30:10.297377852Z
 ---
 
 ## Prerequisites
