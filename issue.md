@@ -1,5 +1,5 @@
 ---
-title: "Refuse at parse time what perl refuses at compile time: constants in \\$ slots and arities no declaration accepts"
+title: Refuse at parse time the call arities perl refuses at compile time
 state: pending
 urgency: normal
 milestone: type-libraries
@@ -11,7 +11,7 @@ blocked_by:
 blocks:
 - 01a0fd9b-5700-7514-a143-2caed2d06d8b
 created: 2026-10-03T11:12:40.060535979Z
-updated: 2026-10-05T20:30:25.356494736Z
+updated: 2026-10-05T20:31:10.668390467Z
 ---
 
 ## Prerequisites
