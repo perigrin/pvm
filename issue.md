@@ -13,7 +13,7 @@ blocks:
 - 01a0fd9b-5670-78d0-84be-9b9618e9b081
 - 01a10177-547c-73a9-a302-f25f579a4cb3
 created: 2026-10-02T17:13:29.757085237Z
-updated: 2026-10-03T11:16:09.998812213Z
+updated: 2026-10-05T17:36:33.761924803Z
 ---
 
 ## Prerequisites
@@ -31,7 +31,7 @@ updated: 2026-10-03T11:16:09.998812213Z
 - perl 5.42 for measuring behaviour: `/home/perigrin/.local/bin/perl` (measure, never assume)
 - entrypoints: RFC 0001 "Builtins that keep their own parse" (the six multi lines and `multi sub sort (Code|Str $by: List @list) List;`), `parseListOpBlock` (`internal/parse/call.go:492`), `internal/types/signatures.go:109-111` (the measured `map`, `grep` and `sort` rows)
 
-RFC 0001 "Builtins that keep their own parse": perlsub reimplements `grep` as `sub mygrep (&@)`, and the expression form deparses as a `($@)` sub's would, so grep and map are each a `Code &block, List @list` multi and a `Scalar $expr, List @list` multi; the comma after the brace (previous issue) is what selects. `sort` is `(Code &block, List @list)`, `(List @list)`, and `(Code|Str $by: List @list)` for `sort byname @x` and `sort $n @x`; with a comma the string is data (`sort "byname", @x`). Scalar sort is undefined, so sort's candidates carry `:context(@)`. perl reports `undef` for all three prototypes, so none enters `coreTable()`. This finishes both "Builtins with no prototype" and "Builtins that keep their own parse". Open questions 9 and 10 (per-element evaluation, `defined &f`) stay open. `map`, `grep` and `sort` are three of the twelve builtins `internal/types/signatures.go` types that have no prototype; copy their rows into the test as golden values, compared with the block candidate for `map` and `grep` and the plain candidate for `sort` -- never compare against signatures.go, which a later issue deletes.
+RFC 0001 "Builtins that keep their own parse": perlsub reimplements `grep` as `sub mygrep (&@)`, and the expression form deparses as a `($@)` sub's would, so grep and map are each a `Code &block, List @list` multi and a `Scalar $expr, List @list` multi; the comma after the brace (previous issue) is what selects. `sort` is `(Code &block, List @list)`, `(List @list = die)`, and `(Code|Str $by: List @list)` for `sort byname @x` and `sort $n @x`; with a comma the string is data (`sort "byname", @x`). RFC 0001 "A required argument defaults to `die`" (perigrin, 2026-10-05): the plain candidate's `= die` default makes `@list` required, so a call that writes no argument (`sort()`, bare `sort`) selects no candidate, while `sort(())` and `sort @e` write one and select the plain candidate (measured: only `sort()` fails to compile); a `List` with no default accepts zero arguments, so no other line needs a default. The parse-time refusal that acts on this is the refusal issue's; this issue holds the declaration and its candidate selection. Scalar sort is undefined, so sort's candidates carry `:context(@)`. perl reports `undef` for all three prototypes, so none enters `coreTable()`. This finishes both "Builtins with no prototype" and "Builtins that keep their own parse". Open questions 9 and 10 (per-element evaluation, `defined &f`) stay open. `map`, `grep` and `sort` are three of the twelve builtins `internal/types/signatures.go` types that have no prototype; copy their rows into the test as golden values, compared with the block candidate for `map` and `grep` and the plain candidate for `sort` -- never compare against signatures.go, which a later issue deletes.
 
 ## Steps
 
@@ -40,6 +40,8 @@ RFC 0001 "Builtins that keep their own parse": perlsub reimplements `grep` as `s
 - [ ] Add the declarations with their measurement comments; run test to verify pass; `make test`; commit
 - [ ] Write failing test `TestCoreGrepMapSortMatchMeasuredSignatures`: the three golden rows equal their candidates; fix any line that disagrees, measuring which side is right
 - [ ] Run test to verify pass; `make test`; commit
+- [ ] Measure `perl -c` on `sort()`, `sort`, `sort(())` and `my @e; sort @e`, then write failing test `TestCoreSortRequiresAWrittenArgument`: the plain candidate is `(List @list = die)` with `@list` recorded as required; a call with no written argument selects no sort candidate; `sort(())` and `sort @e` parse and select the plain candidate
+- [ ] Run test to verify failure, fix the declaration or selection, run test to verify pass: `go test ./internal/parse/ -run '^TestCoreSortRequiresAWrittenArgument$' -count=1 -v`; `make test`; commit
 - [ ] Re-mark the RFC headings "Builtins with no prototype" and "Builtins that keep their own parse" `(*Implemented*, <sha>)`; commit
 - [ ] Doc: the RFC's "CORE.pmt: the builtin table" section describes only the 188 prototyped keywords; add that the file also declares the builtins with no prototype, and that those stay out of the prototype table; commit
 
@@ -56,3 +58,4 @@ RFC 0001 "Builtins that keep their own parse": perlsub reimplements `grep` as `s
 - [ ] a scalar sort selects no candidate (`go test ./internal/parse/ -run '^TestCoreSortScalarHasNoType$' -count=1 -v | grep -q '^--- PASS: TestCoreSortScalarHasNoType'`)
 - [ ] grep, map and sort stay out of the prototype table (`go test ./internal/parse/ -run '^TestCoreGrepMapSortOutOfCoreTable$' -count=1 -v | grep -q '^--- PASS: TestCoreGrepMapSortOutOfCoreTable'`)
 - [ ] grep, map and sort carry the measured signatures (`go test ./internal/parse/ -run '^TestCoreGrepMapSortMatchMeasuredSignatures$' -count=1 -v | grep -q '^--- PASS: TestCoreGrepMapSortMatchMeasuredSignatures'`)
+- [ ] sort's plain candidate requires a written argument through its `= die` default (`go test ./internal/parse/ -run '^TestCoreSortRequiresAWrittenArgument$' -count=1 -v | grep -q '^--- PASS: TestCoreSortRequiresAWrittenArgument'`)
