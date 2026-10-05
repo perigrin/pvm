@@ -1,22 +1,49 @@
 ---
 title: Add IO, FileHandle and Boolean to the type lattice, with lookup by name
-state: in-progress
+state: done
 urgency: normal
 milestone: type-libraries
 blocks:
 - 01a0fd9b-4139-773b-8676-e148e90c42bd
 - 01a0fd9b-49b2-7ea9-bfa1-ba398baadc3f
 created: 2026-10-02T17:13:25.182848094Z
-updated: 2026-10-05T20:57:54.794519708Z
+updated: 2026-10-05T21:42:15.204000453Z
 sessions:
 - start_sha: 72e01c14633b2d8485579d615a654443d94c1f70
-  end_sha: ""
-  commits: 0
+  end_sha: cb757bbc63faca15b99fe95baf733420e1f8a374
+  commits: 4
   started_at: 2026-10-05T20:57:54.794519708Z
+  ended_at: 2026-10-05T21:42:15.204000453Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-05T20:57:54.794519708Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-05T21:42:15.204000453Z
+observed_paths:
+- docs/specs/perl-parser/04-expressions.md
+- internal/data/help/types.md
+- internal/infer/diagnostics.go
+- internal/infer/diagnostics_test.go
+- internal/infer/infer.go
+- internal/infer/infer_test.go
+- internal/infer/precision_test.go
+- internal/infer/testdata/observe_types.pl
+- internal/types/coercion.go
+- internal/types/coercion_test.go
+- internal/types/gotchas_test.go
+- internal/types/lattice_oracle_test.go
+- internal/types/names.go
+- internal/types/names_test.go
+- internal/types/narrowing.go
+- internal/types/narrowing_test.go
+- internal/types/paper_alignment_test.go
+- internal/types/signatures.go
+- internal/types/signatures_test.go
+- internal/types/testdata/lattice_oracle.pl
+- internal/types/types.go
+- internal/types/types_test.go
 ---
 
 ## Prerequisites
