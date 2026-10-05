@@ -103,7 +103,7 @@ func TestPaperBottomTopTypes(t *testing.T) {
 		types.ScalarRef, types.ArrayRef, types.HashRef, types.CodeRef,
 		types.GlobRef, types.Object, types.Ref,
 		types.Array, types.Hash, types.List,
-		types.Code, types.Glob,
+		types.Code, types.Glob, types.IO, types.FileHandle,
 		types.Scalar, types.Any,
 	}
 	for _, typ := range allTypes {
@@ -229,6 +229,7 @@ func TestPaperEveryHierarchyEdge(t *testing.T) {
 		// Top-level types: not under Scalar or List.
 		{types.Code, types.Any},
 		{types.Glob, types.Any},
+		{types.IO, types.Any},
 	}
 
 	for _, e := range edges {
@@ -286,6 +287,10 @@ func TestPaperNonEdges(t *testing.T) {
 		"Code is NOT under List")
 	assert.False(t, types.IsSubtype(types.Glob, types.List),
 		"Glob is NOT under List")
+	assert.False(t, types.IsSubtype(types.IO, types.Scalar),
+		"IO is NOT a Scalar -- the paper places it beside Code and Glob")
+	assert.False(t, types.IsSubtype(types.IO, types.List),
+		"IO is NOT under List")
 
 	// Glob and GlobRef are distinct: a bareword filehandle is a Glob, a
 	// lexical one (open my $fh) is a GlobRef. One operand requirement

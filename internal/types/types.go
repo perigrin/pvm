@@ -41,6 +41,13 @@ const (
 	Hash  Type = 1 << 14 // Hash
 	Code  Type = 1 << 15 // Subroutine/code
 	Glob  Type = 1 << 16 // Typeglob
+
+	// IO is what a glob's IO slot holds: the slot type, placed by the paper
+	// at the top of the lattice beside Code and Glob. Like Code it is never
+	// a value -- `*STDOUT{IO}` is a REFERENCE to it, blessed into IO::File,
+	// and so measures as an Object, as a Regex does (testdata/
+	// lattice_oracle.pl witnesses it on the Object <: Ref edge).
+	IO Type = 1 << 19
 )
 
 // Sentinel types.
@@ -95,8 +102,15 @@ const (
 	// one of the arities a list admits.
 	List Type = Array | Hash | Scalar
 
+	// FileHandle is what a handle may be (RFC 0001, "Type names"): a
+	// bareword handle is a Glob, `open my $fh` gives a GlobRef, and the IO
+	// slot holds an IO. A string naming a handle is not one -- under `use
+	// strict` `print {"STDOUT"} ...` dies -- and a blessed IO::File is an
+	// Object until the paper says how blessing and reftype combine.
+	FileHandle Type = Glob | GlobRef | IO
+
 	// Any is the top type — all concrete type bits.
-	Any Type = List | Code | Glob
+	Any Type = List | Code | Glob | IO
 )
 
 // typeNames maps known Type masks/values to their canonical string names.
@@ -122,12 +136,15 @@ var typeNames = map[Type]string{
 	Hash:      "Hash",
 	Code:      "Code",
 	Glob:      "Glob",
+	IO:        "IO",
 	None:      "None",
 	// Parent masks
 	Ref:    "Ref",
 	Scalar: "Scalar",
 	List:   "List",
 	Any:    "Any",
+	// FileHandle names a union, as Ref does.
+	FileHandle: "FileHandle",
 }
 
 // allLeafBits lists all leaf type bits (both exported and internal) in ascending
@@ -155,6 +172,7 @@ var allLeafBits = []struct {
 	{Glob, "Glob"},
 	{NaN, "NaN"},
 	{Inf, "Inf"},
+	{IO, "IO"},
 }
 
 // String returns the human-readable name for the type. Known masks return

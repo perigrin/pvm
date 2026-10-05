@@ -195,8 +195,12 @@ my @EDGES = (
       witnesses => [ [ 'sub{1}', sub { 1 } ] ] },
     { child => 'GlobRef', parent => 'Ref',
       witnesses => [ [ '\\*STDOUT', \*STDOUT ] ] },
+    # An IO handle's value is an Object, as a Regex is: `*STDOUT{IO}` is a
+    # reference of reftype IO blessed into IO::File. The IO the reference
+    # points at is the slot type, a top-level leaf like Code, never a value.
     { child => 'Object', parent => 'Ref',
-      witnesses => [ [ 'bless {}', bless( {}, 'Lattice::Witness' ) ] ] },
+      witnesses => [ [ 'bless {}', bless( {}, 'Lattice::Witness' ) ],
+                     [ '*STDOUT{IO}', *STDOUT{IO} ] ] },
     { child => 'Regex', parent => 'Object',
       witnesses => [ [ 'qr/x/', qr/x/ ] ] },
 
