@@ -60,7 +60,7 @@ package Mojolicious::Lite;
 our @EXPORT = qw(any get post put ... group helper hook plugin under);
 
 sub get;
-sub group (&);
+sub group :prototype(&);
 ```
 
 `our @EXPORT` lists what a bare `use` imports. Each `sub` line declares

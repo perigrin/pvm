@@ -75,7 +75,7 @@ our @EXPORT = qw(
 );
 
 sub get;
-sub group (&);
+sub group :prototype(&);
 ```
 
 Typed Perl is valid only in `.pmt` files, and you cannot yet add your
