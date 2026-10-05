@@ -497,6 +497,18 @@ func (p *parser) parseListOpBlock(op string) *Node {
 	if !ok || !tok.OpensBlock || p.text(tok) != "{" {
 		return nil
 	}
+	// An EMPTY brace after map or grep is a hash constructor: toke.c's
+	// yyl_leftcurly answers HASHBRACK for a `}` straight after the `{`
+	// (toke.c:6706) before its first-tokens heuristic runs. The lexer's
+	// intuitCurly cannot say so, because it runs after every word and an
+	// empty `else {}` is a block. Measured on 5.42.0, `map {}, @a` is
+	// `map {}, @a` and `map {} @a` a syntax error, which the anon hash
+	// parsed here refuses as trailing tokens.
+	if op == "map" || op == "grep" {
+		if next, ok := p.peekAfter(tok); ok && p.text(next) == "}" {
+			return nil
+		}
+	}
 	return p.parseBlock(tok)
 }
 
