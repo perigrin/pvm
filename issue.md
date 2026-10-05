@@ -1,19 +1,26 @@
 ---
 title: "RFC 0001: *STDOUT{IO} is a blessed reference that measures as an Object, not an IO"
-state: in-progress
+state: done
 urgency: normal
 milestone: type-libraries
 created: 2026-10-05T21:44:42.006185086Z
-updated: 2026-10-05T21:46:04.322217427Z
+updated: 2026-10-05T22:03:22.753612208Z
 sessions:
 - start_sha: cb757bbc63faca15b99fe95baf733420e1f8a374
-  end_sha: ""
-  commits: 0
+  end_sha: 884aeb3b1817c98c203ae87518fc23cea5bcdf8c
+  commits: 2
   started_at: 2026-10-05T21:46:04.322217427Z
+  ended_at: 2026-10-05T22:03:22.753612208Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-05T21:46:04.322217427Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-05T22:03:22.753612208Z
+observed_paths:
+- docs/rfcs/0001-type-libraries.md
+- internal/types/names_test.go
 ---
 
 ## Context
