@@ -9,14 +9,14 @@ blocked_by:
 - 01a0c115-df67-7d69-8883-73d40b0ae15d
 - 01a10177-547c-73a9-a302-f25f579a4cb3
 created: 2026-10-02T17:13:31.136589197Z
-updated: 2026-10-03T11:16:31.894156981Z
+updated: 2026-10-05T20:31:28.559794059Z
 ---
 
 ## Prerequisites
 
 - [ ] Have internal/infer read builtin and operator types from CORE.pmt and remove internal/types' builtin table
 - [ ] Let a library .pmt use every construct CORE.pmt uses
-- [ ] Refuse at parse time what perl refuses at compile time: constants in \$ slots and arities no declaration accepts
+- [ ] Refuse at parse time the call arities perl refuses at compile time
 - [ ] Retire the tree-sitter vocabulary from internal/infer (m2-lower-the-tree, 01a0c115-df67-7d69-8883-73d40b0ae15d)
 
 ## Context
