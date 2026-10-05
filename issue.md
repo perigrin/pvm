@@ -11,12 +11,12 @@ blocks:
 - 01a10177-4e7b-7d2c-8d2a-2033647ffc4a
 - 01a10177-5057-7f6f-bfa1-363a4568ae80
 created: 2026-10-02T17:13:29.229586875Z
-updated: 2026-10-03T11:16:01.522757698Z
+updated: 2026-10-05T14:18:46.10891661Z
 ---
 
 ## Prerequisites
 
-- [ ] Parse aliased parameters (\$x, \@a, \%h, \(@list)) and derive \$, \@ and \% from them
+- [ ] Parse aliased parameters (\$x, \@a, \%h, \&c, \(@list)) and derive \$, \@, \% and \& from them
 
 ## Context
 
