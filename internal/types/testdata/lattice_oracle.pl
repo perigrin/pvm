@@ -163,7 +163,7 @@ my @EDGES = (
 
     # THE EDGE THE PAPER GOT WRONG TWICE. Both polarities, because `true`
     # passes and `false` does not.
-    { child => 'Bool', parent => 'Str',
+    { child => 'Boolean', parent => 'Str',
       witnesses => [ [ 'true', !!1 ], [ 'false', !!0 ] ] },
 
     # NaN and Inf: the placement this alignment corrected. They pass Str
@@ -177,7 +177,7 @@ my @EDGES = (
     # --- direct children of Scalar ---
     { child => 'Str',   parent => 'Scalar',
       witnesses => [ [ 'hi', 'hi' ], [ 'empty', '' ] ] },
-    { child => 'Bool',  parent => 'Scalar',
+    { child => 'Boolean',  parent => 'Scalar',
       witnesses => [ [ 'true', !!1 ], [ 'false', !!0 ] ] },
     { child => 'Undef', parent => 'Scalar',
       witnesses => [ [ 'undef', undef ] ] },

@@ -21,7 +21,7 @@ type Type uint32
 // (a union of this leaf plus descendants).
 const (
 	Undef   Type = 1 << 0  // Undefined value
-	Bool    Type = 1 << 1  // Boolean value
+	Boolean Type = 1 << 1  // Boolean value
 	Int     Type = 1 << 2  // Integer value
 	numLeaf Type = 1 << 3  // Floating-point leaf (3.14 — Num but not Int)
 	strLeaf Type = 1 << 4  // String leaf ("hello" — Str but not Num)
@@ -93,7 +93,7 @@ const (
 	Ref Type = ScalarRef | ArrayRef | HashRef | CodeRef | GlobRef | Object
 
 	// Scalar is the scalar family mask — all types that fit in a scalar variable.
-	Scalar Type = Undef | Bool | Str | DualVar | Ref
+	Scalar Type = Undef | Boolean | Str | DualVar | Ref
 
 	// List is the aggregate family mask. Arity orders the top of the lattice:
 	// Scalar denotes {1} and List denotes {0,1,2,...}, so Scalar <: List by
@@ -118,7 +118,7 @@ const (
 var typeNames = map[Type]string{
 	Unknown:   "Unknown",
 	Undef:     "Undef",
-	Bool:      "Bool",
+	Boolean:   "Boolean",
 	Int:       "Int",
 	Num:       "Num",
 	Str:       "Str",
@@ -154,7 +154,7 @@ var allLeafBits = []struct {
 	name string
 }{
 	{Undef, "Undef"},
-	{Bool, "Bool"},
+	{Boolean, "Boolean"},
 	{Int, "Int"},
 	{numLeaf, "Num"},
 	{strLeaf, "Str"},

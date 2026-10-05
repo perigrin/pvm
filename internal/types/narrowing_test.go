@@ -456,12 +456,12 @@ func TestNarrowByGuardBool(t *testing.T) {
 	// Scalar under is_bool guard → Bool
 	narrowed, ok := types.NarrowByGuard(types.Scalar, guard)
 	assert.True(t, ok, "Scalar narrows under bool guard")
-	assert.Equal(t, types.Bool, narrowed, "Scalar under bool guard → Bool")
+	assert.Equal(t, types.Boolean, narrowed, "Scalar under bool guard → Bool")
 
 	// Bool under is_bool guard → unchanged
-	narrowed, ok = types.NarrowByGuard(types.Bool, guard)
+	narrowed, ok = types.NarrowByGuard(types.Boolean, guard)
 	assert.False(t, ok, "Bool already matches bool guard")
-	assert.Equal(t, types.Bool, narrowed)
+	assert.Equal(t, types.Boolean, narrowed)
 
 	// Int under is_bool guard → None (Int has no Bool bit)
 	narrowed, ok = types.NarrowByGuard(types.Int, guard)
@@ -475,10 +475,10 @@ func TestNegateGuardBool(t *testing.T) {
 	// Scalar negated by is_bool → Scalar minus Bool bit
 	narrowed, ok := types.NegateGuard(types.Scalar, guard)
 	assert.True(t, ok, "Scalar negates under bool guard")
-	assert.True(t, narrowed&types.Bool == 0, "negated bool should remove Bool bit")
+	assert.True(t, narrowed&types.Boolean == 0, "negated bool should remove Bool bit")
 
 	// Bool negated by is_bool → None (unreachable)
-	narrowed, ok = types.NegateGuard(types.Bool, guard)
+	narrowed, ok = types.NegateGuard(types.Boolean, guard)
 	assert.True(t, ok, "Bool negates under bool guard")
 	assert.Equal(t, types.None, narrowed, "Bool negated by bool guard → None")
 }

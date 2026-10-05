@@ -15,7 +15,7 @@ Int <: Num <: Str <: Scalar <: List
 ```
 
 Every integer is a number, every number stringifies, and every scalar is
-a one-element list. Alongside these sit `Undef`, `Bool`, the reference
+a one-element list. Alongside these sit `Undef`, `Boolean`, the reference
 types (`ScalarRef`, `ArrayRef`, `HashRef`, `CodeRef`, `GlobRef`,
 `Object`), and the containers `Array` and `Hash`.
 

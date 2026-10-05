@@ -26,3 +26,12 @@ func TestIOLeafAndFileHandleUnion(t *testing.T) {
 		t.Errorf("IO is not under FileHandle and Any")
 	}
 }
+
+// TestBooleanIsThePapersName: RFC 0001 "Type names" -- names follow the
+// paper, which says Boolean, so a .pmt writes Boolean and the lattice
+// prints it.
+func TestBooleanIsThePapersName(t *testing.T) {
+	if got := Boolean.String(); got != "Boolean" {
+		t.Errorf("Boolean.String() = %q", got)
+	}
+}

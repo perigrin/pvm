@@ -50,10 +50,10 @@ const booleanisable = Scalar
 // siblings. (Symbolic references are a separate mechanism and are off under
 // `use strict`, which PSC assumes.)
 var coercionTargets = map[Type]Type{
-	Str:  stringifiable,
-	Num:  numifiable,
-	Int:  numifiable, // "To Integer": as Num, then truncated toward zero
-	Bool: booleanisable,
+	Str:     stringifiable,
+	Num:     numifiable,
+	Int:     numifiable, // "To Integer": as Num, then truncated toward zero
+	Boolean: booleanisable,
 }
 
 // IsCoercible reports whether Perl will convert a value of type from into a
