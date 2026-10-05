@@ -1,21 +1,25 @@
 ---
 title: Choose the map and grep variant by the comma after the closing brace
-state: in-progress
+state: done
 urgency: normal
 milestone: type-libraries
 blocks:
 - 01a0fd9b-519d-7b42-886e-2222a3076986
 created: 2026-10-02T17:13:28.933338968Z
-updated: 2026-10-05T22:57:22.914190622Z
+updated: 2026-10-05T22:57:46.220286883Z
 sessions:
 - start_sha: 579dfb99ea6dd63d2b66cfcf3547201f41d18513
-  end_sha: ""
+  end_sha: 579dfb99ea6dd63d2b66cfcf3547201f41d18513
   commits: 0
   started_at: 2026-10-05T22:57:22.914190622Z
+  ended_at: 2026-10-05T22:57:46.220286883Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-05T22:57:22.914190622Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-05T22:57:46.220286883Z
 ---
 
 ## Prerequisites
