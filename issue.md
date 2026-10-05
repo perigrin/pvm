@@ -9,7 +9,7 @@ blocks:
 - 01a0fd9b-46c4-7a8c-b8d6-498c5182a47f
 - 01a10177-49d9-7915-975e-2a8e3da943bf
 created: 2026-10-02T17:13:25.560580634Z
-updated: 2026-10-05T14:18:44.838014181Z
+updated: 2026-10-05T17:36:38.735451678Z
 ---
 
 ## Prerequisites
@@ -24,7 +24,7 @@ updated: 2026-10-05T14:18:44.838014181Z
 - perl 5.42 for measuring behaviour: `/home/perigrin/.local/bin/perl` (measure, never assume)
 - entrypoints: `parseSubDecl` (`internal/parse/decl.go:383`), `declaredSub` (`internal/parse/exports.go:425`), `readModule`/`readSubs` (`exports.go:108`, `:211`), the declaration read path (`internal/parse/module.go:288`, `internal/parse/declarations.go:39`), `parseRoot` (`internal/parse/parse.go:487`), the lexer's prototype-vs-signature switch (`internal/lexer/proto.go:34`)
 
-The first half of RFC 0001 "Typed Perl, in `.pmt` only": a `.pmt` declaration is `sub NAME :attrs (Type $v = default, ...) Type;`, and this issue reads everything up to the closing parenthesis -- the `.pmt` entry point, the lexer's signature mode, typed parameters named by a single lattice name, and defaults. Return types, unions, container types and unknown-name errors are the next issue's. Today `parseSubDecl` reads name, attributes, then the signature as a parenthesised list, and `declaredSub` returns only name and prototype; nothing reads types. Typed Perl is accepted only when the source is a `.pmt`, so the declaration read path needs its own parse entry point (a parser flag set by `module.go:288` and `coreTable`), and `.pm`/`.pl` behaviour must not change: without the signatures feature `sub f (Ref $x) {...}` is a prototype. In typed mode the lexer reads `(` after `sub NAME` as a signature, as `l.signatures` does. Hold the parsed signature as a value from `internal/types` (`types.Signature`/`types.Param` in `internal/types/declared.go`: name, sigil, type, default text; the return type field is filled by the next issue) so later selection and infer code consume it without importing `internal/parse`. Before signature mode is switched on, the shipped declarations' three bare prototypes (`sub blessed ($);` at `Moose.pmt:21` and `Moose/Role.pmt:23`, `sub group (&);` at `Mojolicious/Lite.pmt:21`) move to `:prototype(...)`, as perl itself requires once signatures are on, so signature mode never meets a bare prototype. Re-marks no RFC section.
+The first half of RFC 0001 "Typed Perl, in `.pmt` only": a `.pmt` declaration is `sub NAME :attrs (Type $v = default, ...) Type;`, and this issue reads everything up to the closing parenthesis -- the `.pmt` entry point, the lexer's signature mode, typed parameters named by a single lattice name, and defaults. Return types, unions, container types and unknown-name errors are the next issue's. Today `parseSubDecl` reads name, attributes, then the signature as a parenthesised list, and `declaredSub` returns only name and prototype; nothing reads types. Typed Perl is accepted only when the source is a `.pmt`, so the declaration read path needs its own parse entry point (a parser flag set by `module.go:288` and `coreTable`), and `.pm`/`.pl` behaviour must not change: without the signatures feature `sub f (Ref $x) {...}` is a prototype. In typed mode the lexer reads `(` after `sub NAME` as a signature, as `l.signatures` does. Hold the parsed signature as a value from `internal/types` (`types.Signature`/`types.Param` in `internal/types/declared.go`: name, sigil, type, default text; the return type field is filled by the next issue) so later selection and infer code consume it without importing `internal/parse`. Defaults parse on slurpy parameters too: RFC 0001 "A required argument defaults to `die`" (perigrin, 2026-10-05) makes a default on a slurpy a typed-Perl extension (perl's signatures reject it, "A slurpy parameter may not have a default value"), used for `= ($_)` (`print`, `chomp`) and `= die` (`sort`). A `die` default runs only when its argument is omitted, so it makes the parameter required: record it as required on `types.Param`, not as an optional parameter with a default. Before signature mode is switched on, the shipped declarations' three bare prototypes (`sub blessed ($);` at `Moose.pmt:21` and `Moose/Role.pmt:23`, `sub group (&);` at `Mojolicious/Lite.pmt:21`) move to `:prototype(...)`, as perl itself requires once signatures are on, so signature mode never meets a bare prototype. Re-marks no RFC section.
 
 ## Steps
 
@@ -34,6 +34,8 @@ The first half of RFC 0001 "Typed Perl, in `.pmt` only": a `.pmt` declaration is
 - [ ] Run test to verify failure: `go test ./internal/parse/ -run '^TestPmtTypedParameters$' -count=1 -v`
 - [ ] Add the `.pmt` parse entry point and lexer signature mode; read parameter types (via `types.FromName`) and defaults into `types.Signature`; record them in `moduleFacts` beside `protos`
 - [ ] Run test to verify pass; `make test`; commit
+- [ ] Write failing test `TestPmtSlurpyDefaultsParse`: in a `.pmt`, `sub f (List @l = ($_));` gives one slurpy with the default `($_)`, optional; `sub g (List @list = die);` gives one slurpy recorded as required; `sub h (List @list);` gives one slurpy, optional with no default
+- [ ] Run test to verify failure, implement, run test to verify pass: `go test ./internal/parse/ -run '^TestPmtSlurpyDefaultsParse$' -count=1 -v`; `make test`; commit
 - [ ] Write failing test `TestTypedSyntaxOnlyInPmt`: the same `sub f (Ref $x) { 1 }` parsed as ordinary source keeps `(Ref $x)` as a prototype and records no types
 - [ ] Run test to verify pass (fix if not); `make test`; commit
 - [ ] Write failing test `TestTypedSyntaxNotEnabledBySignaturesFeature`: in a `.pm` under `use v5.36`, `sub f (Ref $x) { 1 }` records no types
@@ -48,6 +50,7 @@ The first half of RFC 0001 "Typed Perl, in `.pmt` only": a `.pmt` declaration is
 ## Acceptance criteria
 
 - [ ] a .pmt declaration carries typed parameters and defaults (`go test ./internal/parse/ -run '^TestPmtTypedParameters$' -count=1 -v | grep -q '^--- PASS: TestPmtTypedParameters'`)
+- [ ] defaults on slurpy parameters parse, and a die default is recorded as required (`go test ./internal/parse/ -run '^TestPmtSlurpyDefaultsParse$' -count=1 -v | grep -q '^--- PASS: TestPmtSlurpyDefaultsParse'`)
 - [ ] ordinary source still reads (Ref $x) as a prototype (`go test ./internal/parse/ -run '^TestTypedSyntaxOnlyInPmt$' -count=1 -v | grep -q '^--- PASS: TestTypedSyntaxOnlyInPmt'`)
 - [ ] malformed or truncated .pmt parameters are errors, not panics (`go test ./internal/parse/ -run '^TestPmtMalformedTypedDeclarationIsError$' -count=1 -v | grep -q '^--- PASS: TestPmtMalformedTypedDeclarationIsError'`)
 - [ ] the signatures feature does not enable typed Perl in ordinary source (`go test ./internal/parse/ -run '^TestTypedSyntaxNotEnabledBySignaturesFeature$' -count=1 -v | grep -q '^--- PASS: TestTypedSyntaxNotEnabledBySignaturesFeature'`)
