@@ -10,7 +10,7 @@ blocks:
 - 01a0fd9b-49b2-7ea9-bfa1-ba398baadc3f
 - 01a0fd9b-46c4-7a8c-b8d6-498c5182a47f
 created: 2026-10-02T17:13:26.249797267Z
-updated: 2026-10-03T11:16:17.1941184Z
+updated: 2026-10-05T20:29:18.662910625Z
 ---
 
 ## Prerequisites
@@ -25,7 +25,7 @@ updated: 2026-10-03T11:16:17.1941184Z
 - perl 5.42 for measuring behaviour: `/home/perigrin/.local/bin/perl` (measure, never assume)
 - entrypoints: the typed-signature and type-expression reader in `internal/parse/decl.go`; `types.Param`
 
-RFC 0001 "A slurpy takes no bare element type", and the final-`List` rule from "A typed signature and a prototype say the same thing" (perigrin, 2026-10-02). `Str @args` is refused (ambiguous container, ambiguous element assertion); a slurpy is untyped or carries an explicit container type (`List[Str] @args`, parsed by the previous issue). A container type with a flattening sigil (`Array @a`, `Hash %h`) is not valid: a parameter that takes the caller's container is backslashed (`Array \@a`, the aliased-parameter issue's). A `List` parameter must be last: measured on 5.42, a signature `(@a, $x)` dies "Slurpy parameter not last" and a prototype `(@$)` warns "Prototype after '@'", since its `$` can never be filled; a declaration with anything after a `List` parameter is an error whose message points to `Array \@a` for a single array followed by more parameters (`\@$`). This completes the slurpy section, so it re-marks it; the final-`List` rule is part of the typed-signature section, which the last CORE.pmt typing batch re-marks.
+RFC 0001 "A slurpy takes no bare element type", and the final-`List` rule from "A typed signature and a prototype say the same thing" (perigrin, 2026-10-02). `Str @args` is refused (ambiguous container, ambiguous element assertion); a slurpy is untyped or carries an explicit container type (`List[Str] @args`, parsed by the previous issue). A container type with a flattening sigil (`Array @a`, `Hash %h`) is not valid: a parameter that takes the caller's container is backslashed (`Array \@a`, the aliased-parameter issue's). A `List` parameter must be last: measured on 5.42, a signature `(@a, $x)` dies "Slurpy parameter not last" and a prototype `(@$)` warns "Prototype after '@'", since its `$` can never be filled; a declaration with anything after a `List` parameter is an error whose message points to `Array \@a` for a single array followed by more parameters (`\@$`). This completes the slurpy section, so it re-marks it; Under the RFC's convention (perigrin, 2026-10-05, commit 72e01c14), a section is Implemented when its rule is built and tested: the re-mark here covers the rule, and the section's example declaration (`print` with `List[Str] @args = ($_)`) is an illustration that belongs to the invocant-colon issue, which writes it into CORE.pmt and tests it against perl; the final-`List` rule is part of the typed-signature section, which the last CORE.pmt typing batch re-marks.
 
 ## Steps
 
