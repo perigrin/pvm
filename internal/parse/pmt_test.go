@@ -30,3 +30,27 @@ func TestPmtTypedParameters(t *testing.T) {
 		t.Errorf("signature: got %+v (recorded %v), want %+v", got, ok, want)
 	}
 }
+
+// TestPmtSlurpyDefaultsParse: a default on a slurpy is a typed-Perl
+// extension (perl's signatures reject it, "A slurpy parameter may not have a
+// default value"), used for `print`'s `= ($_)` and `sort`'s `= die`. RFC 0001
+// "A required argument defaults to `die`": a `die` default runs only when
+// its argument is omitted, so it makes the parameter required, and is not
+// recorded as a default. A slurpy with no default accepts zero arguments, as
+// perl's own does.
+func TestPmtSlurpyDefaultsParse(t *testing.T) {
+	facts := readDeclaration([]byte("sub f (List @l = ($_));\nsub g (List @list = die);\nsub h (List @list);\n"), nil)
+	if len(facts.errs) > 0 {
+		t.Fatalf("errors: %v", facts.errs)
+	}
+	for name, want := range map[string]types.Param{
+		"f": {Name: "l", Sigil: '@', Type: types.List, Default: "($_)"},
+		"g": {Name: "list", Sigil: '@', Type: types.List, Required: true},
+		"h": {Name: "list", Sigil: '@', Type: types.List},
+	} {
+		got, ok := facts.signatures[name]
+		if !ok || !reflect.DeepEqual(got, types.Signature{Params: []types.Param{want}}) {
+			t.Errorf("%s: got %+v (recorded %v), want one param %+v", name, got, ok, want)
+		}
+	}
+}

@@ -164,8 +164,13 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 			return types.Param{}, nil, fmt.Errorf("default for %s has no expression", p.text(v))
 		}
 		node.Children = append(node.Children, def)
-		param.Default = string(p.src[def.Start:def.End])
-		param.Required = false
+		// A `die` default runs only when the argument is omitted, so it
+		// makes the parameter required rather than optional (RFC 0001, "A
+		// required argument defaults to `die`").
+		param.Required = def.Kind == Call && keywordName(def.Text) == "die"
+		if !param.Required {
+			param.Default = string(p.src[def.Start:def.End])
+		}
 	}
 	node.End = p.prevEnd()
 	return param, node, nil

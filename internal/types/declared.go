@@ -25,6 +25,9 @@ type Param struct {
 	Default string
 
 	// Required is whether a call must pass this argument. A scalar with no
-	// default is required, as in a perl signature.
+	// default is required, as in a perl signature. A slurpy is not: it
+	// accepts zero arguments. A `= die` default makes either required (RFC
+	// 0001 "A required argument defaults to `die`"): it runs only when the
+	// argument is omitted, so it is recorded here and not as a Default.
 	Required bool
 }
