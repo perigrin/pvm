@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: type-libraries
 created: 2026-10-02T01:42:09.165064836Z
-updated: 2026-10-05T20:29:32.470364682Z
+updated: 2026-10-05T21:12:01.61813549Z
 ---
 
 ## Context
@@ -20,6 +20,7 @@ perigrin (2026-10-01): parametric types go into the paper (~/dev/types-paper) fi
 - Tuples: `each` returns `(Str, T)` for a hash.
 - Function types with several signatures, selected by arity, argument type or context.
 - Blessing and reftype: an `IO::File` object is a blessed reference of reftype `GLOB`, and the lattice files every blessed reference under `Object`, losing the `GLOB`. RFC 0001's type-names section keeps such objects out of `FileHandle` until this is settled.
+- Blessing and reftype, a measured precedent (2026-10-05): with the lattice oracle's own predicates, `*STDOUT{IO}` and `*{$fh}{IO}` are references of reftype IO blessed into IO::File, so they classify as Object -- exactly as qr// (reftype REGEXP, blessed Regexp) does, which the lattice already makes a leaf UNDER Object (Regex). An IO reference is the same shape; whether it becomes a leaf under Object beside Regex (making FileHandle = Glob|GlobRef|<IO reference>) is the question. pvm commit 02df00ad witnesses `*STDOUT{IO}` on the oracle's Object <: Ref edge.
 
 Membership in the paper is defined through interpretation (`v ∈ T` iff interpreting `v` through `T` is lossless and its contracts hold), and the parametric section should keep that definition.
 
