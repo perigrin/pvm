@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a10c6e-9a95-719a-80e2-2e33037d0096
 created: 2026-10-03T11:12:37.957978283Z
-updated: 2026-10-05T14:20:17.165017245Z
+updated: 2026-10-05T20:29:13.663181593Z
 ---
 
 ## Prerequisites
@@ -23,7 +23,7 @@ updated: 2026-10-05T14:20:17.165017245Z
 - perl 5.42 for measuring behaviour: `/home/perigrin/.local/bin/perl` (measure, never assume)
 - entrypoints: `TestCoreDerivedPrototypesArePerls` (`internal/parse/coretypes_test.go`, the harness); perlfunc's own categories, `perl -MPod::Functions -e 'print "@{$Kinds{String}} @{$Kinds{Regexp}} @{$Kinds{Math}}"'` ("Perl Functions by Category" in `perldoc perlfunc`)
 
-First of three batches typing CORE.pmt's prototyped builtins, batched by perlfunc's own categories: this one is "Functions for SCALARs or strings", "Regular expressions and pattern matching" and "Numeric functions" (Pod::Functions kinds `String`, `Regexp`, `Math`), intersected with CORE.pmt's prototyped lines and without `pos` -- 29 names measured on 5.42, of which the measured-rows issue already typed 14. `pos` (`;\[$*]`) is in `Regexp` but holds a glob slot, which has no spelling yet (RFC open question 11, perigrin 2026-10-03): its line stays prototype-only, untyped, and is left out of this batch's names; the last batch's every-line check exempts it with the other five glob-slot lines. Every type is measured on perl 5.42 and the measurement recorded as a comment above its line, as signatures.go's were; element types the paper has not defined are written as plain `List`. Each line is held to the harness, so its derived prototype must be perl's. Hold the batch's names in the test, computed once with the command above, never against a hand-kept table. Re-marks no RFC section.
+First of five batches typing CORE.pmt's prototyped builtins, batched by perlfunc's own categories: this one is "Functions for SCALARs or strings", "Regular expressions and pattern matching" and "Numeric functions" (Pod::Functions kinds `String`, `Regexp`, `Math`), intersected with CORE.pmt's prototyped lines and without `pos` -- 29 names measured on 5.42, of which the measured-rows issue already typed 14. `pos` (`;\[$*]`) is in `Regexp` but holds a glob slot, which has no spelling yet (RFC open question 11, perigrin 2026-10-03): its line stays prototype-only, untyped, and is left out of this batch's names; the last batch's every-line check exempts it with the other five glob-slot lines. Every type is measured on perl 5.42 and the measurement recorded as a comment above its line, as signatures.go's were; element types the paper has not defined are written as plain `List`. Each line is held to the harness, so its derived prototype must be perl's. Hold the batch's names in the test, computed once with the command above, never against a hand-kept table. Re-marks no RFC section.
 
 ## Steps
 
