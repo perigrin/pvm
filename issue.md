@@ -11,12 +11,12 @@ blocks:
 - 01a0fd9b-5700-7514-a143-2caed2d06d8b
 - 01a0fd9b-55cb-70cd-a9da-929190cb581c
 created: 2026-10-02T17:13:30.992763407Z
-updated: 2026-10-05T14:20:27.817375321Z
+updated: 2026-10-05T20:29:05.812460689Z
 ---
 
 ## Prerequisites
 
-- [ ] Type CORE.pmt's system, user, network, IPC, socket and control-flow builtins, and hold every prototyped line typed
+- [ ] Type CORE.pmt's array, list and hash builtins
 - [ ] Declare grep, map and sort as multis in CORE.pmt, with sort's invocant slot
 - [ ] Declare the forking operators .. and x as multis in CORE.pmt
 
@@ -28,7 +28,7 @@ updated: 2026-10-05T14:20:27.817375321Z
 - perl 5.42 for measuring behaviour: `/home/perigrin/.local/bin/perl` (measure, never assume)
 - entrypoints: the lookups `types.GetBinaryOp`/`GetUnaryOp`/`GetBuiltin` at `internal/infer/infer.go:432`, `:604`, `:652`, `:693`, `:881`, `:1009`, `:3944`, `:4004`, `:4048`; `coreTable` (`internal/parse/declarations.go:39`)
 
-The builtin-type fold of RFC 0001 "Typed Perl, in `.pmt` only": `internal/types/signatures.go` (40 typed builtins, `binaryOps`, `unaryOps`) folds into CORE.pmt, whose lines now carry the same types (held by the CORE type tests). internal/infer looks builtins and operators up in CORE.pmt by name through an exported accessor in `internal/parse` (infer does not import it yet; `internal/parse` does not import infer, so there is no cycle). This changes only where lookups come from: infer still walks tree-sitter until m2 retires it (01a0c115), and m2 is also editing `infer.go`, so expect merge friction and keep the diff to the lookup sites. Where CORE.pmt is more precise than signatures.go, measure and update the expectation. `signatures_audit_test.go` holds measurements; carry any not already in the CORE tests into `internal/infer/core_test.go` before deleting it. The parser's keyword table folds after this issue (the keyword-shape issue), and that issue re-marks the section once both tables are gone.
+The builtin-type fold of RFC 0001 "Typed Perl, in `.pmt` only": `internal/types/signatures.go` (40 typed builtins, `binaryOps`, `unaryOps`) folds into CORE.pmt, whose lines now carry the same types (held by the CORE type tests). Those 40 rows are typed by the measured-rows issue, the invocant-colon issue (`print`, `say`), the no-prototype builtins issue, the `grep`/`map`/`sort` issue and the array, list and hash batch, so this issue follows those and not the remaining typing batches: it needs the 40 rows, not all 188 lines, and a builtin CORE.pmt has not typed yet was untyped in signatures.go too. internal/infer looks builtins and operators up in CORE.pmt by name through an exported accessor in `internal/parse` (infer does not import it yet; `internal/parse` does not import infer, so there is no cycle). This changes only where lookups come from: infer still walks tree-sitter until m2 retires it (01a0c115), and m2 is also editing `infer.go`, so expect merge friction and keep the diff to the lookup sites. Where CORE.pmt is more precise than signatures.go, measure and update the expectation. `signatures_audit_test.go` holds measurements; carry any not already in the CORE tests into `internal/infer/core_test.go` before deleting it. The parser's keyword table folds after this issue (the keyword-shape issue), and that issue re-marks the section once both tables are gone.
 
 ## Steps
 
