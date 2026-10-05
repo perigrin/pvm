@@ -11,7 +11,7 @@ blocks:
 - 01a10177-4e7b-7d2c-8d2a-2033647ffc4a
 - 01a10c6e-988f-7aa6-811d-0e462abc442a
 created: 2026-10-02T17:13:28.48300713Z
-updated: 2026-10-05T14:20:28.01836517Z
+updated: 2026-10-05T20:29:23.315048324Z
 ---
 
 ## Prerequisites
@@ -26,7 +26,7 @@ updated: 2026-10-05T14:20:28.01836517Z
 - perl 5.42 for measuring behaviour: `/home/perigrin/.local/bin/perl` (measure, never assume)
 - entrypoints: `internal/types/select.go`; how `:prototype(...)` is read in `declaredSub` (`internal/parse/exports.go:425`)
 
-RFC 0001 "`:context(...)`": a declaration names the contexts it answers for in prototype sigils -- no attribute: every context; `:context($)` scalar; `:context(@)` list; `:context()` void; `:context($@)` scalar or list. As with `:prototype`, absent and empty differ. A call in a context no candidate answers for has no type (`sub sort :context(@) ...`: scalar sort is undefined). Boolean context counts as scalar (measured: `wantarray` reports scalar inside `if (f())`, `!f()`, `f() and ...`). Context selects a declaration; narrowing cannot stand in for it (`my $t = localtime(0)` is a date string). This completes the selection rules, built and tested on their own, so it re-marks both "Multi declarations" and "`:context(...)`" (perigrin, 2026-10-03). Applying the rules at a real call in `infer` is RFC "Call sites", the call-site issue's; refusing at parse time what perl refuses at compile time is the parse-time refusal issue's.
+RFC 0001 "`:context(...)`": a declaration names the contexts it answers for in prototype sigils -- no attribute: every context; `:context($)` scalar; `:context(@)` list; `:context()` void; `:context($@)` scalar or list. As with `:prototype`, absent and empty differ. A call in a context no candidate answers for has no type (`sub sort :context(@) ...`: scalar sort is undefined). Boolean context counts as scalar (measured: `wantarray` reports scalar inside `if (f())`, `!f()`, `f() and ...`). Context selects a declaration; narrowing cannot stand in for it (`my $t = localtime(0)` is a date string). This completes the selection rules, built and tested on their own, so it re-marks both "Multi declarations" and "`:context(...)`" (perigrin, 2026-10-03). Under the RFC's convention (perigrin, 2026-10-05, commit 72e01c14), a section is Implemented when its rule is built and tested: the re-mark here covers the rule, and the sections' example declarations (`each` and `select`, `localtime`, `sort`) are illustrations that belong to the typing batches -- the no-prototype builtins issue, the process-and-time batch and the `grep`/`map`/`sort` issue -- which write them into CORE.pmt and test them against perl. The tests here use literal declarations in the test, not CORE.pmt's lines. Applying the rules at a real call in `infer` is RFC "Call sites", the call-site issue's; refusing at parse time what perl refuses at compile time is the parse-time refusal issue's.
 
 ## Steps
 
