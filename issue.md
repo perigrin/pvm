@@ -1,5 +1,5 @@
 ---
-title: Type CORE.pmt's remaining builtins, with localtime and gmtime as :context multis
+title: Type CORE.pmt's I/O, file and directory builtins
 state: pending
 urgency: normal
 milestone: type-libraries
@@ -11,7 +11,7 @@ blocked_by:
 blocks:
 - 01a0fd9b-5670-78d0-84be-9b9618e9b081
 created: 2026-10-03T11:12:38.999799272Z
-updated: 2026-10-05T14:18:46.497318791Z
+updated: 2026-10-05T14:19:52.64444047Z
 ---
 
 ## Prerequisites
