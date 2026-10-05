@@ -17,7 +17,9 @@ Int <: Num <: Str <: Scalar <: List
 Every integer is a number, every number stringifies, and every scalar is
 a one-element list. Alongside these sit `Undef`, `Boolean`, the reference
 types (`ScalarRef`, `ArrayRef`, `HashRef`, `CodeRef`, `GlobRef`,
-`Object`), and the containers `Array` and `Hash`.
+`Object`), the containers `Array` and `Hash`, and `IO`, what a
+filehandle's IO slot holds. A filehandle is a `FileHandle`: a bareword
+handle (`Glob`), a lexical one (`GlobRef`) or an `IO`.
 
 A check such as `defined($x)` or `ref($x)` narrows a value's type inside
 the branch it guards.
