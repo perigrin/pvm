@@ -11,12 +11,12 @@ blocks:
 - 01a0fd9b-5700-7514-a143-2caed2d06d8b
 - 01a0fd9b-55cb-70cd-a9da-929190cb581c
 created: 2026-10-02T17:13:30.992763407Z
-updated: 2026-10-03T11:16:29.543773687Z
+updated: 2026-10-05T14:18:46.811011441Z
 ---
 
 ## Prerequisites
 
-- [ ] Type CORE.pmt's remaining builtins, with localtime and gmtime as :context multis
+- [ ] Type CORE.pmt's system, user, network, IPC, socket and control-flow builtins, and hold every prototyped line typed
 - [ ] Declare grep, map and sort as multis in CORE.pmt, with sort's invocant slot
 - [ ] Declare the forking operators .. and x as multis in CORE.pmt
 
