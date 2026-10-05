@@ -149,7 +149,7 @@ func (p *parser) returnType() (types.Type, *Node, error) {
 	if tok, ok := p.peekSignificant(); !ok || tok.Kind != lexer.Word {
 		return types.Unknown, nil, nil
 	}
-	typ, node, err := p.typeExpr()
+	typ, _, node, err := p.typeExpr()
 	if err != nil {
 		return types.Unknown, nil, err
 	}
@@ -163,19 +163,57 @@ func (p *parser) returnType() (types.Type, *Node, error) {
 	return typ, node, nil
 }
 
-// typeExpr reads a type expression, a lattice type name, into its Type and a
-// TypeName node covering it.
-func (p *parser) typeExpr() (types.Type, *Node, error) {
-	tok, ok := p.peekSignificant()
-	if !ok || tok.Kind != lexer.Word {
-		return types.Unknown, nil, errors.New("want a type name")
+// typeExpr reads a type expression into its Type, its element type, and a
+// TypeName node covering it. RFC 0001 "Type names": a lattice type name, a
+// union `A|B` with spaces around `|` allowed, or a container type
+// `Name[Type]` such as `List[Str]`, whose element is returned beside it.
+//
+// ponytail: a union of containers ORs their elements and a nested
+// container's element is its outer container, until the paper says what
+// containers mean.
+func (p *parser) typeExpr() (typ, elem types.Type, node *Node, err error) {
+	start := -1
+	for {
+		tok, ok := p.peekSignificant()
+		if !ok || tok.Kind != lexer.Word {
+			if start < 0 {
+				return types.Unknown, types.Unknown, nil, errors.New("want a type name")
+			}
+			return types.Unknown, types.Unknown, nil, fmt.Errorf("union %s has no type after `|`", p.src[start:p.prevEnd()])
+		}
+		if start < 0 {
+			start = tok.Start
+		}
+		member, err := types.FromName(p.text(tok))
+		if err != nil {
+			return types.Unknown, types.Unknown, nil, fmt.Errorf("unknown type name %q", p.text(tok))
+		}
+		p.advanceTo(tok)
+		typ |= member
+		if open, ok := p.peekSignificant(); ok && p.text(open) == "[" {
+			p.advanceTo(open)
+			if end, ok := p.peekSignificant(); ok && p.text(end) == "]" {
+				return types.Unknown, types.Unknown, nil, fmt.Errorf("container type %s has no element type", p.src[tok.Start:end.End])
+			}
+			inner, _, _, err := p.typeExpr()
+			if err != nil {
+				return types.Unknown, types.Unknown, nil, err
+			}
+			end, ok := p.peekSignificant()
+			if !ok || p.text(end) != "]" {
+				return types.Unknown, types.Unknown, nil, fmt.Errorf("container type %s is not closed by `]`", p.src[tok.Start:p.prevEnd()])
+			}
+			p.advanceTo(end)
+			elem |= inner
+		}
+		bar, ok := p.peekSignificant()
+		if !ok || p.text(bar) != "|" {
+			break
+		}
+		p.advanceTo(bar)
 	}
-	typ, err := types.FromName(p.text(tok))
-	if err != nil {
-		return types.Unknown, nil, err
-	}
-	p.advanceTo(tok)
-	return typ, &Node{Kind: TypeName, Text: p.text(tok), Start: tok.Start, End: tok.End}, nil
+	text := string(p.src[start:p.prevEnd()])
+	return typ, elem, &Node{Kind: TypeName, Text: text, Start: start, End: p.prevEnd()}, nil
 }
 
 // typedParam reads one parameter of a typed signature, `Str $class =
@@ -190,18 +228,17 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 	if tok.Kind != lexer.Word {
 		return types.Param{}, nil, fmt.Errorf("want a type name, got %q", p.text(tok))
 	}
-	typ, err := types.FromName(p.text(tok))
+	typ, elem, tn, err := p.typeExpr()
 	if err != nil {
 		return types.Param{}, nil, err
 	}
-	p.advanceTo(tok)
 	v, ok := p.peekSignificant()
 	if !ok || v.Kind != lexer.Variable || v.End-v.Start < 2 || !strings.ContainsRune("$@%", rune(p.src[v.Start])) {
-		return types.Param{}, nil, fmt.Errorf("type %s names no variable", p.text(tok))
+		return types.Param{}, nil, fmt.Errorf("type %s names no variable", tn.Text)
 	}
 	p.advanceTo(v)
-	param := types.Param{Name: p.text(v)[1:], Sigil: p.src[v.Start], Type: typ, Required: p.src[v.Start] == '$'}
-	node := &Node{Kind: Declaration, Text: p.text(tok), Start: tok.Start, Children: []*Node{
+	param := types.Param{Name: p.text(v)[1:], Sigil: p.src[v.Start], Type: typ, Element: elem, Required: p.src[v.Start] == '$'}
+	node := &Node{Kind: Declaration, Text: tn.Text, Start: tok.Start, Children: []*Node{
 		{Kind: Term, Text: p.text(v), Start: v.Start, End: v.End},
 	}}
 	if eq, ok := p.peekSignificant(); ok && p.text(eq) == "=" {

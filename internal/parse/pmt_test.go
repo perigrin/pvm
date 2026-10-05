@@ -137,3 +137,26 @@ func TestPmtReturnType(t *testing.T) {
 		t.Errorf("prototype: got %q, want %q", got, "($;$)")
 	}
 }
+
+// TestPmtUnionAndContainerTypes: RFC 0001 "Type names" spells a union `A|B`,
+// spaces around `|` allowed, and "A slurpy takes no bare element type" gives a
+// slurpy a container type, `List[Str] @args`. The container is the param's
+// type and its element is recorded beside it.
+func TestPmtUnionAndContainerTypes(t *testing.T) {
+	facts := readDeclaration([]byte("sub f (Str|Undef $x, Str | Undef $y) Str | Undef;\nsub g (List[Str] @args);\nsub h (Str $x) None;\n"), nil)
+	if len(facts.errs) > 0 {
+		t.Fatalf("errors: %v", facts.errs)
+	}
+	for name, want := range map[string]types.Signature{
+		"f": {Params: []types.Param{
+			{Name: "x", Sigil: '$', Type: types.Str | types.Undef, Required: true},
+			{Name: "y", Sigil: '$', Type: types.Str | types.Undef, Required: true},
+		}, Returns: types.Str | types.Undef},
+		"g": {Params: []types.Param{{Name: "args", Sigil: '@', Type: types.List, Element: types.Str}}},
+		"h": {Params: []types.Param{{Name: "x", Sigil: '$', Type: types.Str, Required: true}}, Returns: types.None},
+	} {
+		if got, ok := facts.signatures[name]; !ok || !reflect.DeepEqual(got, want) {
+			t.Errorf("%s: got %+v (recorded %v), want %+v", name, got, ok, want)
+		}
+	}
+}

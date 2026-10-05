@@ -25,6 +25,13 @@ type Param struct {
 	// Type is the lattice type the parameter's type name resolves to.
 	Type Type
 
+	// Element is the element type of a container type, Str for `List[Str]
+	// @args`, Unknown when the type names no element. What a container
+	// means is provisional until the paper defines it (RFC 0001, "A slurpy
+	// takes no bare element type"), so the element is recorded beside the
+	// container and the lattice stays flat.
+	Element Type
+
 	// Default is the default expression as written, "" when there is none.
 	Default string
 
