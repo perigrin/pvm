@@ -9,7 +9,7 @@ import (
 
 // TestIOLeafAndFileHandleUnion: RFC 0001 "Type names". IO joins the lattice
 // as a top-level leaf beside Code and Glob -- the paper's hierarchy puts it
-// there, and measured on 5.42 `*STDOUT{IO}` is an IO object, not a scalar --
+// there; the value `*STDOUT{IO}` is a blessed reference to it, an Object --
 // and FileHandle is the named union Glob|GlobRef|IO a handle may be: a
 // bareword handle is a Glob, `open my $fh` gives a GLOB reference.
 func TestIOLeafAndFileHandleUnion(t *testing.T) {

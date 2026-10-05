@@ -164,7 +164,11 @@ unknown name is an error. perigrin, 2026-10-02:
   named union, `Glob|GlobRef|IO`**, defined in the lattice as `Ref` and
   `Scalar` are, so a `.pmt` needs no alias syntax. Measured on 5.42: a
   bareword handle is a `Glob`, `open my $fh` gives a `GLOB` reference,
-  and `*STDOUT{IO}` is an IO object. A string naming a handle is not a
+  and `IO` names what a glob's IO slot holds -- the slot type, at the
+  top of the lattice beside `Code`, never a value. The value
+  `*STDOUT{IO}` is a reference to it, of reftype `IO` blessed into
+  `IO::File`, and measures as an `Object`, as `qr//` does (the lattice
+  oracle witnesses it on its `Object <: Ref` edge). A string naming a handle is not a
   `FileHandle`: under `use strict`, `print {"STDOUT"} ...` dies ("Can't
   use string ("STDOUT") as a symbol ref"). A blessed handle such as an
   `IO::File` object is reftype `GLOB` but files under `Object`, so it is
