@@ -12,16 +12,15 @@ blocked_by:
 blocks:
 - 01a0fd9b-5700-7514-a143-2caed2d06d8b
 created: 2026-10-02T17:13:31.032351231Z
-updated: 2026-10-03T11:16:12.171896537Z
+updated: 2026-10-05T14:18:47.293704922Z
 ---
 
 ## Prerequisites
 
 - [ ] Parse the invocant colon in .pmt signatures and declare print, printf, say, exec and system with it
-- [ ] Read :context(...) and select a multi candidate by calling context
-- [ ] Parse aliased parameters (\$x, \@a, \%h, \(@list)) and derive \$, \@ and \% from them
+- [ ] Parse aliased parameters (\$x, \@a, \%h, \&c, \(@list)) and derive \$, \@, \% and \& from them
 - [ ] Declare the no-prototype builtins and each's multi in CORE.pmt, and read :unary
-- [ ] Parse operator declarations and type perl's plain operators in CORE.pmt
+- [ ] Declare the forking operators .. and x as multis in CORE.pmt (after `:context(...)` and operator declarations)
 
 ## Context
 
