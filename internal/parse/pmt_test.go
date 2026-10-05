@@ -95,3 +95,25 @@ func TestTypedSyntaxNotEnabledBySignaturesFeature(t *testing.T) {
 		t.Errorf("a .pm under use v5.36 recorded types: %v, errors %v", facts.signatures, facts.errs)
 	}
 }
+
+// TestPmtMalformedTypedDeclarationIsError: a typed signature that cannot be
+// read is an error that says what is wrong, not a panic and not a partial
+// record. The tree still covers every byte.
+func TestPmtMalformedTypedDeclarationIsError(t *testing.T) {
+	for src, want := range map[string]string{
+		"sub f (Str $x":        "sub f: signature not terminated",
+		"sub f (Str);\n":       "sub f: type Str names no variable",
+		"sub f (Str $x = );\n": "sub f: default for $x has no expression",
+	} {
+		facts := readDeclaration([]byte(src), nil)
+		if len(facts.errs) != 1 || facts.errs[0].Error() != want {
+			t.Errorf("%q: got errors %v, want %q", src, facts.errs, want)
+		}
+		if sig, ok := facts.signatures["f"]; ok {
+			t.Errorf("%q: recorded %+v", src, sig)
+		}
+		if root, _ := parseSource([]byte(src), nil, true); root.SourceText([]byte(src)) != src {
+			t.Errorf("%q: round trip lost bytes", src)
+		}
+	}
+}

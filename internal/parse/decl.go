@@ -109,9 +109,13 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 			}
 			s.Params = append(s.Params, param)
 			sig.Children = append(sig.Children, node)
-			if sep, ok := p.peekSignificant(); ok && p.text(sep) == "," {
+			sep, ok := p.peekSignificant()
+			switch {
+			case !ok:
+				return errors.New("signature not terminated")
+			case p.text(sep) == ",":
 				p.advanceTo(sep)
-			} else if !ok || p.text(sep) != ")" {
+			case p.text(sep) != ")":
 				return fmt.Errorf("parameter %c%s is not followed by `,` or `)`", param.Sigil, param.Name)
 			}
 		}
@@ -159,7 +163,10 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 	}}
 	if eq, ok := p.peekSignificant(); ok && p.text(eq) == "=" {
 		p.advanceTo(eq)
-		def := p.parseExpr(bpBelowComma)
+		var def *Node
+		if next, ok := p.peekSignificant(); ok && p.text(next) != "," && p.text(next) != ")" {
+			def = p.parseExpr(bpBelowComma)
+		}
 		if def == nil {
 			return types.Param{}, nil, fmt.Errorf("default for %s has no expression", p.text(v))
 		}
