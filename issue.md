@@ -10,7 +10,7 @@ blocks:
 - 01a0fd9b-4a5b-7e94-ad87-756dfcfe1f4c
 - 01a0fd9b-53a9-703f-82ab-eeb38765f7f1
 created: 2026-10-03T11:12:37.336939532Z
-updated: 2026-10-05T14:18:45.193970051Z
+updated: 2026-10-05T20:29:17.225696065Z
 ---
 
 ## Prerequisites
@@ -25,7 +25,7 @@ updated: 2026-10-05T14:18:45.193970051Z
 - perl 5.42 for measuring behaviour: `/home/perigrin/.local/bin/perl` (measure, never assume)
 - entrypoints: the typed-signature reader the previous issue added to `internal/parse/decl.go`; `types.Signature`/`types.Param` (`internal/types/declared.go`); `types.FromName` (`internal/types/names.go`)
 
-The second half of the parse: RFC 0001 "Declaration order: Perl's", "Type names", and the rest of the parse of "Typed Perl, in `.pmt` only". After the closing parenthesis a `.pmt` declaration carries a return type before its `;` (`sub bless :prototype($;$) (Ref $ref, Str $class = __PACKAGE__) Object;`). Type expressions grow from a single name to a union `A|B` (`Str|Undef`) and a container type `Name[Type]` (`List[Str]`) -- container types parse now, only in `.pmt` files, and what they mean is provisional until the paper (record the element type on the param; the lattice stays flat). An unknown name, as a parameter type, a return type, or inside a union or container, is an error naming it. Declaration order is perl's: attributes before the signature; measured on 5.42, `sub f :lvalue ($x) {}` compiles and `sub f ($x) :lvalue {}` dies ("Subroutine attributes must come before the signature"). This issue completes both "Declaration order" and "Type names" (the lattice half came first), so it re-marks them.
+The second half of the parse: RFC 0001 "Declaration order: Perl's", "Type names", and the rest of the parse of "Typed Perl, in `.pmt` only". After the closing parenthesis a `.pmt` declaration carries a return type before its `;` (`sub bless :prototype($;$) (Ref $ref, Str $class = __PACKAGE__) Object;`). Type expressions grow from a single name to a union `A|B` (`Str|Undef`) and a container type `Name[Type]` (`List[Str]`) -- container types parse now, only in `.pmt` files, and what they mean is provisional until the paper (record the element type on the param; the lattice stays flat). An unknown name, as a parameter type, a return type, or inside a union or container, is an error naming it. Declaration order is perl's: attributes before the signature; measured on 5.42, `sub f :lvalue ($x) {}` compiles and `sub f ($x) :lvalue {}` dies ("Subroutine attributes must come before the signature"). This issue completes both "Declaration order" and "Type names" (the lattice half came first), so it re-marks them. Under the RFC's convention (perigrin, 2026-10-05, commit 72e01c14), a section is Implemented when its rule is built and tested: the re-mark here covers the rule, and the sections' example declarations (`bless`'s typed line, the operator `sub + :infix (Num $x, Num $y) Num;`) are illustrations that belong to the typing batches and the operator issues, which write them into CORE.pmt and test them against perl.
 
 ## Steps
 
