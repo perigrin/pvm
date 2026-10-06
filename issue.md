@@ -9,7 +9,7 @@ blocked_by:
 - 01a10177-5057-7f6f-bfa1-363a4568ae80
 - 01a10c6e-988f-7aa6-811d-0e462abc442a
 created: 2026-10-05T14:18:57.557243435Z
-updated: 2026-10-06T17:06:23.488051434Z
+updated: 2026-10-06T17:11:44.869546411Z
 sessions:
 - start_sha: bbcf54860c14ed10b826ded5ec4531d0116a534f
   end_sha: bbcf54860c14ed10b826ded5ec4531d0116a534f
@@ -58,11 +58,13 @@ Last batch, by perlfunc's categories "Fetching user and group info", "Fetching n
 - the exemption list is exact, not a loophole: the same check over a copy of CORE.pmt with one non-glob line left untyped (`sub socket :prototype(*$$$);`) reports it, and over a copy with `pos` typed reports that too (`go test ./internal/parse/ -run '^TestCoreEveryLineCheckExemptsOnlyGlobSlots$' -count=1 -v | grep -q '^--- PASS: TestCoreEveryLineCheckExemptsOnlyGlobSlots'`)
 - a niladic control-flow keyword (`__FILE__`, `wantarray`, `break`: prototype `()`) is typed with zero parameters, so its derived prototype stays `()` (`go test ./internal/parse/ -run '^TestCoreNiladicFlowKeywordsTypedEmpty$' -count=1 -v | grep -q '^--- PASS: TestCoreNiladicFlowKeywordsTypedEmpty'`)
 
+The exemptions grew from six to nine on 2026-10-06: catch, isa and method report a `()` prototype but no call reaches them, so they are held prototype-only until perigrin rules on 01a111b5-1a31-70f3-9a21-023067e90a6f. The milestone goal's "except the six glob-slot lines" waits on that ruling.
+
 ## Acceptance criteria
 
 - [ ] CORE.pmt types every user, network, socket, IPC and control-flow builtin (`go test ./internal/parse/ -run '^TestCoreSystemFlowBuiltinsTyped$' -count=1 -v | grep -q '^--- PASS: TestCoreSystemFlowBuiltinsTyped'`)
-- [ ] every prototyped CORE.pmt line but the six glob-slot lines is typed and the file has no declaration errors (`go test ./internal/parse/ -run '^TestCoreEveryPrototypedLineIsTyped$' -count=1 -v | grep -q '^--- PASS: TestCoreEveryPrototypedLineIsTyped'`)
+- [ ] every prototyped CORE.pmt line but the six glob-slot lines and catch/isa/method (prototype-only pending 01a111b5-1a31-70f3-9a21-023067e90a6f) is typed and the file has no declaration errors (`go test ./internal/parse/ -run '^TestCoreEveryPrototypedLineIsTyped$' -count=1 -v | grep -q '^--- PASS: TestCoreEveryPrototypedLineIsTyped'`)
 - [ ] every prototype derived from CORE.pmt types is perl's (`go test ./internal/parse/ -run '^TestCoreDerivedPrototypesArePerls$' -count=1 -v | grep -q '^--- PASS: TestCoreDerivedPrototypesArePerls'`)
-- [ ] the every-line check exempts exactly the glob-slot lines (`go test ./internal/parse/ -run '^TestCoreEveryLineCheckExemptsOnlyGlobSlots$' -count=1 -v | grep -q '^--- PASS: TestCoreEveryLineCheckExemptsOnlyGlobSlots'`)
+- [ ] the every-line check exempts exactly the prototype-only lines -- the six glob-slot lines and catch/isa/method (`go test ./internal/parse/ -run '^TestCoreEveryLineCheckExemptsOnlyPrototypeOnlyLines$' -count=1 -v | grep -q '^--- PASS: TestCoreEveryLineCheckExemptsOnlyPrototypeOnlyLines'`)
 - [ ] niladic control-flow keywords derive an empty prototype (`go test ./internal/parse/ -run '^TestCoreNiladicFlowKeywordsTypedEmpty$' -count=1 -v | grep -q '^--- PASS: TestCoreNiladicFlowKeywordsTypedEmpty'`)
 - [ ] the RFC section on typed signatures and prototypes is implemented (`grep -q '^### A typed signature and a prototype.*(\*Implemented\*' docs/rfcs/0001-type-libraries.md`)
