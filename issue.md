@@ -8,11 +8,12 @@ blocked_by:
 - 01a0fd9b-5670-78d0-84be-9b9618e9b081
 - 01a1113c-eb6e-7e0e-8554-bcb5231478eb
 created: 2026-10-02T17:13:30.827426197Z
-updated: 2026-10-06T12:53:49.013343966Z
+updated: 2026-10-06T12:53:50.293688337Z
 ---
 
 ## Prerequisites
 
+- [ ] split has no prototype but typed positional parameters: typed Perl has no spelling for it
 - [ ] Declare grep, map and sort as multis in CORE.pmt, with sort's invocant slot
 - [ ] Have internal/infer read builtin and operator types from CORE.pmt and remove internal/types' builtin table
 
