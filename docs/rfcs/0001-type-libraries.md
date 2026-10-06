@@ -292,7 +292,7 @@ Two cases are open questions (9 and 10 below), not decided: `defined
 &f`, whose operand perl does not call, and how to type a parameter
 evaluated per element, as `grep EXPR`'s is.
 
-### A slurpy takes no bare element type (*Decided*)
+### A slurpy takes no bare element type (*Implemented*, 26084781, 54784319)
 
 `Str @args` is not allowed (perigrin). It is ambiguous twice over:
 
