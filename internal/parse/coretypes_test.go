@@ -57,8 +57,11 @@ func TestCoreDerivedPrototypesArePerls(t *testing.T) {
 	for _, b := range bad {
 		t.Error(b)
 	}
-	if checked != 188 {
-		t.Errorf("checked %d CORE.pmt lines; perl prototypes 188 builtins", checked)
+	// The 188 builtins perl prototypes, and return, which perl gives none
+	// and whose types derive `@`. The other builtins with no prototype
+	// derive none, by `:unary`, an invocant colon or a multi's candidates.
+	if checked != 189 {
+		t.Errorf("checked %d CORE.pmt lines; perl prototypes 188 builtins, and return derives @", checked)
 	}
 }
 

@@ -23,6 +23,12 @@ type Signature struct {
 	// Context is the set of calling contexts the declaration answers for,
 	// its `:context(...)`.
 	Context Contexts
+
+	// Unary is whether the declaration states `:unary`, RFC 0001
+	// "Builtins with no prototype": a builtin with no prototype that perl
+	// reads as a named unary, so `defined $a, $b` is `(defined $a), $b`.
+	// Without it such a builtin is a list operator, as an ordinary sub is.
+	Unary bool
 }
 
 // Contexts is a set of calling contexts, RFC 0001 "`:context(...)`":

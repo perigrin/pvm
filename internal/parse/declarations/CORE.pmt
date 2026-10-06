@@ -45,6 +45,14 @@ sub caller :prototype(;$);
 sub catch :prototype();
 sub chdir :prototype(;$);
 sub chmod :prototype(@);
+# chomp and chop have no prototype and are named unaries: `chomp $a, $b`
+# is `chomp($a), $b` (B::Deparse -p). Each takes a LIST and writes through
+# every element of it, `$_` with none: `chomp(@l, $x)` chomps both, bare
+# `chomp` chomps `$_`. chomp returns how many characters it removed
+# (`chomp(@l, $x)` over three lines is 3), chop the last one it removed
+# (`$_ = "ab"; chop` is "b").
+sub chomp :unary (List[Str] \(@args = ($_))) Int;
+sub chop :unary (List[Str] \(@args = ($_))) Str;
 sub chown :prototype(@);
 sub chr (Int $code = $_) Str;
 sub chroot :prototype(_);
@@ -63,9 +71,26 @@ sub cos (Num $number = $_) Num;
 sub crypt (Str $plaintext, Str $salt) Str;
 sub dbmclose :prototype(\%);
 sub dbmopen :prototype(\%$$);
+# defined, delete and exists have no prototype and are named unaries:
+# `defined $a, $b` is `defined($a), $b`, `delete $h{a}, $b` is
+# `delete($h{a}), $b` (B::Deparse -p). defined takes `$_` with none
+# (`defined()` is false with `$_` undef); delete and exists need their
+# element, "Not enough arguments" without. Their operand is an element,
+# which neither reads: open question 10 asks how to say so.
+sub defined :unary (Scalar $thing = $_) Boolean;
+sub delete :unary (Scalar $element) Scalar;
 # die and warn take a LIST of strings, which may be empty: `die()` and
 # `warn()` compile (measured). die never returns; warn returns true.
 sub die :prototype(@) (List[Str] @message) None;
+# do, eval and goto have no prototype and are named unaries: `do $a, $b`
+# is `(do $a), $b` (B::Deparse -p). Their block forms, `do {}` and
+# `eval {}`, are the parser's. do runs a file, which it must be given
+# (`do;` is a syntax error), and yields its last value, or undef when it
+# cannot (`do "/nonexistent"` is undef). eval runs a string, `$_` with none
+# (`$_ = "1+2"; eval` is 3). goto never returns: with no label, or an
+# empty one, it dies "goto must have label" alike, at run time; given code,
+# `goto $cr`, it calls it as `goto &f` does.
+sub do :unary (Str $file) Any;
 sub dump :prototype();
 sub each :prototype(\[%@]);
 sub endgrent :prototype();
@@ -75,7 +100,9 @@ sub endprotoent :prototype();
 sub endpwent :prototype();
 sub endservent :prototype();
 sub eof :prototype(;*);
+sub eval :unary (Str $code = $_) Any;
 sub evalbytes :prototype(_);
+sub exists :unary (Scalar $element) Boolean;
 sub exit :prototype(;$);
 # Measured as cos, above.
 sub exp (Num $number = $_) Num;
@@ -116,6 +143,8 @@ sub getsockname :prototype(*);
 sub getsockopt :prototype(*$$);
 sub glob :prototype(_;);
 sub gmtime :prototype(;$);
+# Measured with do, above.
+sub goto :unary (Str|Code $label = "") None;
 # hex and oct read a string of digits, `$_` with none, and yield its
 # integer: hex("ff") is 255 as an IV, hex("zz") 0, oct("755") 493. oct
 # reads a 0x, 0b or 0o prefix, hex only 0x. Past an IV the integer is
@@ -195,6 +224,10 @@ sub recv :prototype(*\$$$);
 sub ref (Scalar $thing = $_) Str;
 sub rename :prototype($$);
 sub reset :prototype(;$);
+# return has no prototype and takes a LIST: `return $a, $b` returns both
+# (B::Deparse -p), `return()` compiles. It leaves the sub, so its own value
+# is never used.
+sub return (List[Any] @values) Any;
 # reverse is context-dependent: a reversed list in list context, a
 # reversed string in scalar context. List covers both, since Scalar <:
 # List. `reverse()` compiles (measured).
@@ -211,6 +244,15 @@ sub rmdir :prototype(_);
 sub scalar (Scalar $expr) Scalar;
 sub seek :prototype(*$$);
 sub seekdir :prototype(*$);
+# select has no prototype and is a list operator: `select $a, $b` takes
+# both, and is "Not enough arguments for select system call". It forks on
+# arity. With no argument it yields the selected handle (`select()` is
+# "main::STDOUT"); with one it selects that handle and yields the one
+# selected before; with four it is the select system call, yielding how
+# many descriptors are ready (`select(undef, undef, undef, 0)` is 0).
+multi sub select () Str;
+multi sub select (FileHandle $fh) Str;
+multi sub select ($r, $w, $e, Num $timeout) Int;
 sub semctl :prototype($$$$);
 sub semget :prototype($$$);
 sub semop :prototype($$);

@@ -127,6 +127,7 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 		if s.Context, err = declaredContext(n); err != nil {
 			return err
 		}
+		s.Unary = slices.ContainsFunc(n.Children, func(c *Node) bool { return c.Kind == Attribute && c.Text == ":unary" })
 		operator := len(fixityAttrs(n)) > 0
 		for {
 			tok, ok := p.peekSignificant()
