@@ -522,7 +522,7 @@ multi sub each (Hash \%h)  List;                   # (Str, value)
 multi sub each (Array \@a) List;                   # (Int, value)
 multi sub select () Str;                           # the selected handle
 multi sub select (FileHandle $fh) Str;             # the previous handle
-multi sub select ($r, $w, $e, Num $timeout) Int;   # a count
+multi sub select ($r, $w, $e, Num $timeout) List;  # (nfound, timeleft)
 ```
 
 When the call site cannot decide, the consumer joins the candidates.

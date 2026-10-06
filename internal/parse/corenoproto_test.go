@@ -112,7 +112,8 @@ func rowsOf(sigs []types.Signature) []measuredRow {
 // TestCoreSelectAndEachAreMultis: select and each are the RFC's multis
 // ("Multi declarations"). select forks on arity: `() Str` for the
 // selected handle, `(FileHandle $fh) Str` for the one selected before, and
-// `($r, $w, $e, Num $timeout) Int` for the system call's count. each forks
+// `($r, $w, $e, Num $timeout) List` for the system call's (nfound,
+// timeleft), measured as TestCoreDeleteSliceAndSelectListRows says. each forks
 // on the container its operand is, and its two candidates derive perl's
 // `\[%@]`.
 func TestCoreSelectAndEachAreMultis(t *testing.T) {
@@ -121,7 +122,7 @@ func TestCoreSelectAndEachAreMultis(t *testing.T) {
 		"select": {
 			{0, nil, types.Str},
 			{1, []types.Type{types.FileHandle}, types.Str},
-			{4, []types.Type{types.Unknown, types.Unknown, types.Unknown, types.Num}, types.Int},
+			{4, []types.Type{types.Unknown, types.Unknown, types.Unknown, types.Num}, types.List},
 		},
 		"each": {
 			{1, []types.Type{types.Hash}, types.List},
@@ -207,10 +208,11 @@ func TestCoreUnaryAndListOperatorParseDiffer(t *testing.T) {
 // split's row is TestCoreSplitDeclared's.
 func TestCoreNoPrototypeBuiltinsMatchMeasuredSignatures(t *testing.T) {
 	golden := map[string]measuredRow{
-		// The operand is an element, which perl does not read: open
-		// question 10. A slice yields a list, `delete @h{qw(a b)}` (1, 2),
-		// which the row's Scalar does not cover.
-		"delete":  {1, []types.Type{types.Scalar}, types.Scalar},
+		// An element's operand, which perl does not read (open question
+		// 10), is a Scalar; a slice's yields a list, `delete @h{qw(a b)}`
+		// (1, 2), so the union of the two candidates is List, where
+		// signatures.go's Scalar row covered only the element.
+		"delete":  {1, []types.Type{types.List}, types.List},
 		"exists":  {1, []types.Type{types.Scalar}, types.Boolean},
 		"each":    {1, []types.Type{types.Hash | types.Array}, types.List},
 		"chomp":   {0, []types.Type{types.Str}, types.Int},
