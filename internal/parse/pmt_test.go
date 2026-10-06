@@ -447,3 +447,20 @@ func TestMultiOnlyInPmt(t *testing.T) {
 		t.Errorf("multi sub in ordinary source: got %+v, want it refused as Unknown", bad.Children)
 	}
 }
+
+// TestMultiAmbiguousCandidatesIsError: RFC 0001 "Multi declarations".
+// Candidates with no single most specific one for some argument types are
+// ambiguous, and the declaration is an error naming the sub: two Ints fit
+// both `(Int $a, Num $b)` and `(Num $a, Int $b)`, and neither is more
+// specific. A third candidate for exactly two Ints, more specific than
+// both, decides the call and makes the declaration valid.
+func TestMultiAmbiguousCandidatesIsError(t *testing.T) {
+	pair := "multi sub f (Int $a, Num $b) Str;\nmulti sub f (Num $a, Int $b) Str;\n"
+	pmtRefuses(t, map[string]string{
+		pair: "sub f: candidates (Int $a, Num $b) and (Num $a, Int $b) are ambiguous for (Int, Int)",
+	})
+	facts := readDeclaration([]byte(pair+"multi sub f (Int $a, Int $b) Str;\n"), nil)
+	if len(facts.errs) > 0 || len(facts.signatures["f"]) != 3 {
+		t.Errorf("with (Int $a, Int $b): got errors %v, candidates %+v", facts.errs, facts.signatures["f"])
+	}
+}

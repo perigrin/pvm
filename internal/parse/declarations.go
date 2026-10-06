@@ -5,9 +5,13 @@ package parse
 import (
 	"embed"
 	"fmt"
+	"maps"
 	"path"
+	"slices"
 	"strings"
 	"sync"
+
+	"tamarou.com/pvm/internal/types"
 )
 
 // declarations holds one file per declared module, `Moose::Role` at
@@ -46,6 +50,14 @@ func readDeclaration(src []byte, res *resolver) moduleFacts {
 	for _, n := range root.Children {
 		if n.Kind == Unknown && len(p.typedErrs) == 0 {
 			facts.errs = append(facts.errs, fmt.Errorf("not a declaration: %q", strings.TrimSpace(n.SourceText(src))))
+		}
+	}
+	// A name whose candidates are ambiguous records none, as a signature
+	// that cannot be read records nothing (RFC 0001, "Multi declarations").
+	for _, name := range slices.Sorted(maps.Keys(facts.signatures)) {
+		if err := types.Ambiguity(facts.signatures[name]); err != nil {
+			facts.errs = append(facts.errs, fmt.Errorf("sub %s: %w", name, err))
+			delete(facts.signatures, name)
 		}
 	}
 	return facts

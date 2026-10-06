@@ -3,6 +3,11 @@
 
 package types
 
+import (
+	"fmt"
+	"strings"
+)
+
 // Outcome is what selection over a name's candidates concluded.
 type Outcome int
 
@@ -96,4 +101,80 @@ func (s Signature) paramType(i int) Type {
 		return Any
 	}
 	return p.Type
+}
+
+// Ambiguity reports a pair of candidates with no single most specific one
+// for some call, RFC 0001 "Multi declarations": `(Int $a, Num $b)` beside
+// `(Num $a, Int $b)`, both fitting two Ints. A pair is ambiguous for n
+// arguments when both take n, every parameter's types overlap, neither is
+// strictly more specific, and no third candidate takes exactly the overlap
+// -- `(Int $a, Int $b)` decides the call above. Identical candidates are
+// ambiguous: each is as specific as the other, and neither is more.
+func Ambiguity(cands []Signature) error {
+	most := 0
+	for _, c := range cands {
+		most = max(most, len(c.Params))
+	}
+	for i, a := range cands {
+		for j := i + 1; j < len(cands); j++ {
+			// A slurpy takes any count past its parameters, so one past
+			// the longest stands for them all.
+			for n := range most + 2 {
+				if overlap, ok := ambiguous(cands, i, j, n); ok {
+					return fmt.Errorf("candidates %s and %s are ambiguous for (%s)", a.params(), cands[j].params(), overlap)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// ambiguous reports whether candidates i and j are ambiguous for n
+// arguments, and the argument types both fit. Only a third candidate can
+// decide between them.
+func ambiguous(cands []Signature, i, j, n int) (string, bool) {
+	a, b := cands[i], cands[j]
+	if !a.accepts(n) || !b.accepts(n) {
+		return "", false
+	}
+	if a.asSpecific(b, n) != b.asSpecific(a, n) {
+		return "", false
+	}
+	overlap := make([]Type, n)
+	names := make([]string, n)
+	for k := range n {
+		overlap[k] = a.paramType(k) & b.paramType(k)
+		if overlap[k] == 0 {
+			return "", false
+		}
+		names[k] = overlap[k].String()
+	}
+	for k, c := range cands {
+		if k != i && k != j && c.accepts(n) && c.takesExactly(overlap) {
+			return "", false
+		}
+	}
+	return strings.Join(names, ", "), true
+}
+
+// takesExactly reports whether s's parameter types are exactly ts.
+func (s Signature) takesExactly(ts []Type) bool {
+	for i, t := range ts {
+		if s.paramType(i) != t {
+			return false
+		}
+	}
+	return true
+}
+
+// params renders s's parameter list as a .pmt states it, `(Int $a, Num $b)`.
+func (s Signature) params() string {
+	ps := make([]string, len(s.Params))
+	for i, p := range s.Params {
+		ps[i] = fmt.Sprintf("%c%s", p.Sigil, p.Name)
+		if p.Type != Unknown {
+			ps[i] = p.Type.String() + " " + ps[i]
+		}
+	}
+	return "(" + strings.Join(ps, ", ") + ")"
 }

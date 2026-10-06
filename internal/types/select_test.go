@@ -87,3 +87,20 @@ func TestSelectMostSpecificCandidate(t *testing.T) {
 	numFirst := []Signature{intOrNum[1], intOrNum[0]}
 	wantSelected(t, numFirst, []Type{Int}, 1, Str)
 }
+
+// TestMultiAmbiguityEdgeCases: candidates with disjoint parameter types
+// share no call, so `each`'s Hash and Array are not ambiguous; identical
+// candidates fit every call alike, and neither is more specific.
+func TestMultiAmbiguityEdgeCases(t *testing.T) {
+	if err := Ambiguity(eachCandidates); err != nil {
+		t.Errorf("each: got %v, want no ambiguity", err)
+	}
+	if err := Ambiguity(intOrNum); err != nil {
+		t.Errorf("Int beside Num: got %v, want no ambiguity", err)
+	}
+	dup := []Signature{intOrNum[0], intOrNum[0]}
+	want := "candidates (Int $x) and (Int $x) are ambiguous for (Int)"
+	if err := Ambiguity(dup); err == nil || err.Error() != want {
+		t.Errorf("duplicates: got %v, want %q", err, want)
+	}
+}
