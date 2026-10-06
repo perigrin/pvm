@@ -132,7 +132,7 @@ adjacent; and `{ -e => 1 }` is the string `'-e'`, so a fat comma
 autoquotes the whole thing.
 
 ```perl
-my $f = $ENV{X} // "/etc/hostname";
+my $f = $ENV{X} // $^X;
 print "[", (-e $f), "][", (-e($f)), "]\n";
 ```
 
