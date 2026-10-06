@@ -9,7 +9,7 @@ blocked_by:
 - 01a0c115-df67-7d69-8883-73d40b0ae15d
 - 01a10177-547c-73a9-a302-f25f579a4cb3
 created: 2026-10-02T17:13:31.136589197Z
-updated: 2026-10-06T15:24:26.078278166Z
+updated: 2026-10-06T17:35:45.873650929Z
 ---
 
 ## Prerequisites
@@ -38,6 +38,8 @@ From the alignment gate on 01a0fd9b-5468-7355-a22e-1b16fa5ee354: context-only mu
 From 01a11146-c4da-79e4-8232-6ad2e731f3e7: `delete` is now two candidates, `(List @slice = die) List` and `(Scalar $element) Scalar`, chosen by operand SHAPE through `SelectShaped`. A call site must pass a slice operand (`@h{...}`, `@a[...]`, `%h{...}`, `%a[...]`) as `@`-shaped and an element (`$h{a}`, `$a[1]`) as `$`-shaped, or every delete selects the element candidate. Add a test that `delete @h{qw(a b)}` is typed List.
 
 From 01a0fd9b-519d-7b42-886e-2222a3076986: sort's invocant candidate `(Code|Str $by: List @list = die)` is never selected, because `types.Select` only handles calls that write no invocant (it ignores candidates whose invocant is required). A call site that writes one -- `sort byname @x`, `sort $by @x`, `sort { ... } @x` -- must pass the invocant to selection. Add a test that `sort byname @x` selects that candidate.
+
+From the alignment gate on 01a0fd9b-5670-78d0-84be-9b9618e9b081: infer takes calling context only from assignments (`assignedContext`), so `=~` in a condition (`if ($s =~ /b/)`, a ternary's condition, `!`'s operand) is typed List where it was Boolean -- sound, but wider hints. RFC 0001 ":context(...)" says boolean context is scalar: give conditions scalar context when call sites are built, with a test that `if ($s =~ /b/)`'s match is Boolean.
 
 ## Steps
 
