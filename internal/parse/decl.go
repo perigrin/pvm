@@ -425,6 +425,12 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 		// makes the parameter required rather than optional (RFC 0001, "A
 		// required argument defaults to `die`").
 		param.Required = def.Kind == Call && keywordName(def.Text) == "die"
+		// The default fills a `\$` slot as an argument would, so it is held
+		// to what perl accepts there: `Scalar \$x = 1` derives `;\$`, and
+		// `sref(1)` is "must be scalar (not constant item)".
+		if alias && param.Sigil == '$' && p.notScalarLvalue(def) {
+			return types.Param{}, nil, fmt.Errorf(`aliased \%s defaults to %s, which a \$ slot refuses; it takes a scalar lvalue`, p.text(v), p.src[def.Start:def.End])
+		}
 		if !param.Required {
 			param.Default = string(p.src[def.Start:def.End])
 		}
@@ -484,6 +490,13 @@ func (p *parser) parseLexicalSub(word lexer.Token) *Node {
 	}
 	p.advanceTo(word)
 	inner := p.parseSubDecl(sub)
+	// perl does not hold a lexical sub's result to a `\$` slot: measured on
+	// 5.42.0, `sub sref (\$) {} my sub g {} sref(g())` compiles.
+	if name, _ := declaredSub(inner); name != "" {
+		imp := p.imports[subKey(name)]
+		imp.Lvalue = true
+		p.imports[subKey(name)] = imp
+	}
 	return &Node{
 		Kind: Declaration, Text: p.text(word),
 		Start: word.Start, End: inner.End, Children: []*Node{inner},

@@ -80,11 +80,10 @@ func refScalarSlots(proto string) (slots []protoSlot, slurpy bool) {
 	return slots, false
 }
 
-// commaItems splits an argument list at its unparenthesised commas. A
-// parenthesised list is one argument: measured on 5.42.0, `sref(($x, $y))`
-// compiles.
+// commaItems splits an argument list at its commas. A parenthesised list is
+// a List, and one argument: measured on 5.42.0, `sref(($x, $y))` compiles.
 func commaItems(n *Node) []*Node {
-	if n.Kind == Binary && (n.Text == "," || n.Text == "=>") && !n.Paren {
+	if n.Kind == Binary && (n.Text == "," || n.Text == "=>") {
 		var items []*Node
 		for _, c := range n.Children {
 			items = append(items, commaItems(c)...)

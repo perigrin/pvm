@@ -43,8 +43,9 @@ type Import struct {
 	// an import, and its own prototype is the one that applies.
 	Local bool
 
-	// Lvalue marks a local sub declared `:lvalue`, whose result a `\$`
-	// prototype slot accepts. See notScalarLvalue.
+	// Lvalue marks a local sub whose result a `\$` prototype slot accepts:
+	// one declared `:lvalue`, or a lexical sub, which perl does not check.
+	// See notScalarLvalue.
 	Lvalue bool
 }
 
