@@ -119,6 +119,36 @@ func TestCoreDerivedShapes(t *testing.T) {
 	}
 }
 
+// TestCoreShapesUnknownNameHasNoShape: a name CORE.pmt does not declare is no
+// keyword, so it parses as an ordinary sub call, never a named unary or a
+// niladic.
+func TestCoreShapesUnknownNameHasNoShape(t *testing.T) {
+	p := &parser{}
+	if s, ok := p.plainKeywordShape("frobnicate"); ok {
+		t.Errorf("frobnicate derives the shape %v; CORE.pmt does not declare it", s)
+	}
+	if p.isPerlKeyword("frobnicate") {
+		t.Error("frobnicate is a keyword; CORE.pmt does not declare it")
+	}
+	// A sub declared with no prototype takes the whole list, where a named
+	// unary would leave the comma outside and a niladic take nothing:
+	// measured, `sub frobnicate {} frobnicate $x, $y` deparses as
+	// `frobnicate($x, $y)`.
+	src := []byte("sub frobnicate {} frobnicate $x, $y;")
+	if got := Canon(Parse(src), src); !strings.Contains(got, "frobnicate($x , $y)") {
+		t.Errorf("frobnicate takes the whole list: %s", got)
+	}
+	// Bare, it is a call to a sub this parse has not seen, unresolved,
+	// where a niladic builtin is resolved.
+	call := Parse([]byte("frobnicate;"))
+	for call.Kind != Call && len(call.Children) > 0 {
+		call = call.Children[len(call.Children)-1]
+	}
+	if call.Kind != Call || call.Resolved {
+		t.Errorf("frobnicate; is an unresolved call, got %v resolved=%v", call.Kind, call.Resolved)
+	}
+}
+
 // TestCoreDerivedShapesCatchesMismatch: the comparison is not tautological.
 // A golden set short a name, and a CORE.pmt line with a wrong `:unary`, are
 // each reported as a disagreement naming the builtin.
@@ -167,4 +197,22 @@ func shapeDisagreements(derived, golden map[string]Shape) []string {
 		}
 	}
 	return out
+}
+
+// TestCoreShapesReachTheParser: a call parses in the shape CORE.pmt
+// derives, where the hand-kept tables said otherwise. glob and
+// getprotobynumber are list operators, so a comparison after the argument
+// is inside the call. Measured on perl 5.42.0 with -MO=Deparse,-p:
+//
+//	my @f = glob $a lt 5;               (my(@f) = glob(($a lt 5)))
+//	my $p = getprotobynumber $a < 5;    (my $p = getprotobynumber(($a < 5)))
+func TestCoreShapesReachTheParser(t *testing.T) {
+	for src, want := range map[string]string{
+		"my @f = glob $a lt 5;":            "my @f = glob($a lt 5);",
+		"my $p = getprotobynumber $a < 5;": "my $p = getprotobynumber($a < 5);",
+	} {
+		if got := Canon(Parse([]byte(src)), []byte(src)); got != want {
+			t.Errorf("%s\n  got  %s\n  want %s", src, got, want)
+		}
+	}
 }

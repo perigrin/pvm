@@ -90,8 +90,11 @@ sub catch :prototype();
 # (measured: `chdir DH` and `chdir($dh)` change into an opened directory).
 # With none it takes $ENV{HOME} when that exists, even empty, and
 # $ENV{LOGDIR} otherwise; with neither it fails, as chdir(undef) does
-# (measured). It yields true or false.
-sub chdir (Str|FileHandle $dir = exists $ENV{HOME} ? $ENV{HOME} : $ENV{LOGDIR}) Boolean;
+# (measured). It yields true or false. Its default calls exists with
+# parentheses: a `.pmt` is read without the keyword shapes this file
+# derives, since reading it is what builds them, so a parenless `exists`
+# there would be an unknown word's call taking the rest of the expression.
+sub chdir (Str|FileHandle $dir = exists($ENV{HOME}) ? $ENV{HOME} : $ENV{LOGDIR}) Boolean;
 # chmod, chown and utime take a LIST that leads with the mode, the owner
 # and group, or the times, and then the files, which a `@` prototype does
 # not tell apart: `chmod()` compiles (measured). Each yields how many files

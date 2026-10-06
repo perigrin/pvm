@@ -21,7 +21,7 @@ import (
 // scalar lvalues are refused here; anything this parser cannot classify
 // keeps its parse. A builtin of the same name is the builtin, not the sub.
 func (p *parser) refuseRefScalarSlot(n *Node) *Node {
-	if n == nil || n.Kind != Call || isPerlKeyword(keywordName(n.Text)) {
+	if n == nil || n.Kind != Call || p.isPerlKeyword(keywordName(n.Text)) {
 		return n
 	}
 	imp, ok := p.lookupSub(n.Text)
@@ -142,7 +142,7 @@ func (p *parser) notScalarLvalue(a *Node) bool {
 // declaredNonLvalue reports whether name is a sub this file declared, before
 // this point and not as a builtin's name, without `:lvalue`.
 func (p *parser) declaredNonLvalue(name string) bool {
-	if isPerlKeyword(keywordName(name)) {
+	if p.isPerlKeyword(keywordName(name)) {
 		return false
 	}
 	imp, ok := p.lookupSub(name)

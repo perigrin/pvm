@@ -92,15 +92,53 @@ func plainKeywordShapes(shapes map[string]Shape) map[string]Shape {
 	return plain
 }
 
-// namedUnaryHere reports whether a word parses as a named unary at this
-// point in the file: always for namedUnary, and for a gatedUnary when its
-// feature is on or the word is spelled with `CORE::`, which names the builtin
-// whatever is enabled.
-func (p *parser) namedUnaryHere(spelled, text string) bool {
-	if namedUnary[text] {
-		return true
+// plainKeywordShape is plainKeywordShapes' shape for name, and false for a
+// name that has none.
+func (p *parser) plainKeywordShape(name string) (Shape, bool) {
+	if listOperator[name] {
+		return ShapeList, true
 	}
-	return gatedUnary[text] && (spelled != text || p.features[text])
+	if _, gated := gatedWords[name]; gated || ownParse[name] {
+		return 0, false
+	}
+	shape, ok := p.coreShapes()[name]
+	return shape, ok
+}
+
+// coreShapes is CORE.pmt's keyword shapes for this parse. A `.pmt` is read
+// without them: CORE.pmt is one, and reading it is what builds them. Its
+// declarations' heads, from which the shapes derive, call no builtin.
+func (p *parser) coreShapes() map[string]Shape {
+	if p.typed {
+		return nil
+	}
+	return coreShapes()
+}
+
+// keywordShape is the shape a word parses in as a builtin at this point in
+// the file, and false when it is not one here. A word a feature gates is
+// the builtin when its feature is on or it is spelled with `CORE::`, which
+// names the builtin whatever is enabled.
+func (p *parser) keywordShape(spelled, text string) (Shape, bool) {
+	if _, gated := gatedWords[text]; gated && !ownParse[text] && (spelled != text || !p.gatedOff(text)) {
+		shape, ok := p.coreShapes()[text]
+		return shape, ok
+	}
+	return p.plainKeywordShape(text)
+}
+
+// namedUnaryHere reports whether a word parses as a named unary at this
+// point in the file.
+func (p *parser) namedUnaryHere(spelled, text string) bool {
+	shape, ok := p.keywordShape(spelled, text)
+	return ok && shape == ShapeUnary
+}
+
+// keywordHas reports whether a word parses as a builtin of the given shape
+// at this point in the file.
+func (p *parser) keywordHas(spelled, text string, shape Shape) bool {
+	got, ok := p.keywordShape(spelled, text)
+	return ok && got == shape
 }
 
 func (p *parser) parseWordTerm(word lexer.Token) *Node {
@@ -124,7 +162,7 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 	// reads it; here the name is its one operand and the expression goes on.
 	if text == "require" {
 		if name, ok := p.peekAfter(word); ok && name.Kind == lexer.Word &&
-			!isPerlKeyword(keywordName(p.text(name))) {
+			!p.isPerlKeyword(keywordName(p.text(name))) {
 			if after, ok := p.peekAfter(name); !ok || p.text(after) != "=>" {
 				p.advanceTo(name)
 				p.notePackage(p.text(name))
@@ -151,7 +189,7 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 	}
 
 	// A niladic builtin takes nothing: `time`, `wantarray`.
-	if niladicParse[text] {
+	if p.keywordHas(spelled, text, ShapeNiladic) {
 		p.advanceTo(word)
 		return &Node{
 			Kind: Call, Text: spelled, Resolved: true,
@@ -206,7 +244,7 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 			p.advanceTo(close)
 		}
 		n.End = p.prevEnd()
-		n.Resolved = p.namedUnaryHere(spelled, text) || listOperator[text] || niladicParse[text]
+		_, n.Resolved = p.keywordShape(spelled, text)
 		return n
 	}
 
@@ -229,8 +267,8 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		// An imported sub called with no arguments is as resolved as a
 		// builtin one: `done_testing;` and `maybe;` are calls whose callee
 		// this parser has seen declared.
-		n.Resolved = p.namedUnaryHere(spelled, text) || listOperator[text] ||
-			niladicParse[text] || p.knowsShape(text)
+		_, keyword := p.keywordShape(spelled, text)
+		n.Resolved = keyword || p.knowsShape(text)
 		return n
 	}
 
@@ -245,7 +283,7 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		}
 		n.Resolved = true
 
-	case listOperator[text]:
+	case p.keywordHas(spelled, text, ShapeList):
 		// A BLOCK slot comes before the list, and what makes it a slot
 		// rather than a first argument is the ABSENCE of a comma:
 		//
@@ -605,7 +643,7 @@ func (p *parser) parseSortComparator(op string) *Node {
 	}
 	switch {
 	case tok.Kind == lexer.Variable && p.src[tok.Start] == '$':
-	case tok.Kind == lexer.Word && !isPerlKeyword(p.text(tok)):
+	case tok.Kind == lexer.Word && !p.isPerlKeyword(p.text(tok)):
 	default:
 		return nil
 	}
@@ -627,8 +665,8 @@ func (p *parser) parseSortComparator(op string) *Node {
 // what CHECK_KEYWORD tests: every builtin, the declarators, and the handful of
 // statement-forming words that are not builtins. A `CORE::` spelling names a
 // builtin by definition.
-func isPerlKeyword(word string) bool {
-	if namedUnary[word] || listOperator[word] || niladicParse[word] ||
+func (p *parser) isPerlKeyword(word string) bool {
+	if _, ok := p.plainKeywordShape(word); ok ||
 		declarators[word] || strings.HasPrefix(word, "CORE::") {
 		return true
 	}
@@ -734,7 +772,7 @@ func (p *parser) parseFilehandleSlot(op string) *Node {
 // THE SHAPE IS ONLY HALF THE TEST. What follows the word decides the
 // rest, and the caller applies it -- see parseFilehandleSlot.
 func (p *parser) isBarewordHandle(word string) bool {
-	if word == "" || isPerlKeyword(keywordName(word)) {
+	if word == "" || p.isPerlKeyword(keywordName(word)) {
 		return false
 	}
 	_, known := p.lookupSub(word)

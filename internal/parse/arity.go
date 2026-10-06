@@ -44,7 +44,7 @@ func (p *parser) refuseArity(n *Node) *Node {
 // on 5.42.0, `sub f ($$) {} f(1)` is "Not enough arguments for main::f".
 func (p *parser) arityAccepted(name string, count int) bool {
 	builtin := keywordName(name)
-	if !isPerlKeyword(builtin) {
+	if !p.isPerlKeyword(builtin) {
 		if imp, ok := p.lookupSub(name); ok {
 			return !imp.PrototypeKnown || imp.Prototype == "" || prototypeAccepts(imp.Prototype, count)
 		}

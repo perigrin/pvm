@@ -50,7 +50,7 @@ func (p *parser) notePackage(name string) {
 // and made 35 T1 files wrong in canon. With no loader, or once an import it
 // cannot see into has run, a refusal is still the honest answer.
 func (p *parser) parseIndirect(word lexer.Token, spelled, text string) *Node {
-	if p.noIndirect || isPerlKeyword(text) || p.keywordHere(text) ||
+	if p.noIndirect || p.isPerlKeyword(text) || p.keywordHere(text) ||
 		p.namedUnaryHere(spelled, text) || p.operatorHere(text) || modifiers[text] {
 		return nil
 	}
@@ -79,7 +79,7 @@ func (p *parser) parseIndirect(word lexer.Token, spelled, text string) *Node {
 		return nil
 	}
 	class := p.text(next)
-	if isPerlKeyword(keywordName(class)) || p.keywordHere(keywordName(class)) ||
+	if p.isPerlKeyword(keywordName(class)) || p.keywordHere(keywordName(class)) ||
 		p.operatorHere(class) || modifiers[class] {
 		return nil
 	}
