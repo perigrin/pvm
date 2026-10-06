@@ -32,6 +32,8 @@ func (p *parser) parseDeclaration(word lexer.Token) *Node {
 		return d
 	}
 	switch {
+	case p.typed && text == "multi":
+		return p.parseMultiSubDecl(word)
 	case declarators[text]:
 		if lex := p.parseLexicalSub(word); lex != nil {
 			return lex
@@ -67,6 +69,26 @@ func (p *parser) parseDeclaration(word lexer.Token) *Node {
 	return nil
 }
 
+// parseMultiSubDecl: a `.pmt`'s `multi sub NAME ...`, RFC 0001 "Multi
+// declarations", one of several signatures for its name. It wraps the sub as
+// a prefix does (parsePrefixedSubDecl), or returns nil when no named sub
+// follows. Only a `.pmt` reads it: in ordinary source `multi` is the name it
+// has always been.
+func (p *parser) parseMultiSubDecl(word lexer.Token) *Node {
+	sub, ok := p.peekAfter(word)
+	if !ok || p.text(sub) != "sub" {
+		return nil
+	}
+	if name, ok := p.peekAfter(sub); !ok || name.Kind != lexer.Word {
+		return nil
+	}
+	p.advanceTo(word)
+	p.multi = true
+	inner := p.parseSubDecl(sub)
+	p.multi = false
+	return &Node{Kind: Declaration, Text: p.text(word), Start: word.Start, End: inner.End, Children: []*Node{inner}}
+}
+
 // parseSignature reads a sub's signature as the parenthesised list it is
 // shaped like.
 func (p *parser) parseSignature(n *Node) {
@@ -85,7 +107,8 @@ func (p *parser) parseSignature(n *Node) {
 // "Typed Perl, in `.pmt` only": `(Ref $ref, Str $class = __PACKAGE__)`, each
 // parameter a lattice type name, a variable and an optional default, then
 // the return type, if one is stated. It is recorded on p.signatures under the
-// sub's name.
+// sub's name: as its only signature, or for a `multi sub` after the
+// candidates already read.
 //
 // A signature it cannot read is an error on p.typedErrs, and nothing is
 // recorded -- a partial signature would claim parameters the declaration
@@ -147,9 +170,12 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 		n.Children = append(n.Children, ret)
 	}
 	if p.signatures == nil {
-		p.signatures = map[string]types.Signature{}
+		p.signatures = map[string][]types.Signature{}
 	}
-	p.signatures[name] = s
+	if !p.multi {
+		delete(p.signatures, name)
+	}
+	p.signatures[name] = append(p.signatures[name], s)
 	return true
 }
 
@@ -231,15 +257,17 @@ func (p *parser) typeExpr() (typ, elem types.Type, node *Node, err error) {
 // typedParam reads one parameter of a typed signature, `Str $class =
 // __PACKAGE__`, into its Param and the node that covers it: a Declaration
 // whose text is the type name, as `my`'s is its declarator, holding the
-// variable and the default. A slurpy may be untyped, `@args`; its Type is
-// Unknown and its Declaration's text is empty.
+// variable and the default. A parameter may be untyped, `@args` or `$r`; its
+// Type is Unknown and its Declaration's text is empty.
 func (p *parser) typedParam() (types.Param, *Node, error) {
 	tok, ok := p.peekSignificant()
 	if !ok {
 		return types.Param{}, nil, errors.New("signature not terminated")
 	}
+	// A scalar may be untyped as a slurpy may: RFC 0001 "Multi
+	// declarations" states `($r, $w, $e, Num $timeout)`.
 	typ, elem, tn := types.Unknown, types.Unknown, &Node{}
-	if tok.Kind != lexer.Variable || !strings.ContainsRune("@%", rune(p.src[tok.Start])) {
+	if tok.Kind != lexer.Variable {
 		if tok.Kind != lexer.Word {
 			return types.Param{}, nil, fmt.Errorf("want a type name, got %q", p.text(tok))
 		}
@@ -646,7 +674,11 @@ func (p *parser) parseSubDecl(word lexer.Token) *Node {
 	// "Declaration order: Perl's"). The signature is not recorded.
 	if p.typed && sigFirst && len(n.Children) > attrsAt {
 		name, _ := declaredSub(n)
-		delete(p.signatures, name)
+		if sigs := p.signatures[name]; len(sigs) > 1 {
+			p.signatures[name] = sigs[:len(sigs)-1]
+		} else {
+			delete(p.signatures, name)
+		}
 		p.typedErrs = append(p.typedErrs, fmt.Errorf("sub %s: subroutine attributes must come before the signature", name))
 	}
 

@@ -28,7 +28,7 @@ func TestPmtTypedParameters(t *testing.T) {
 		{Name: "ref", Sigil: '$', Type: types.Ref, Required: true},
 		{Name: "class", Sigil: '$', Type: types.Str, Default: "__PACKAGE__"},
 	}}
-	if got, ok := facts.signatures["bless"]; !ok || !reflect.DeepEqual(got, want) {
+	if got, ok := facts.signatures["bless"]; !ok || !reflect.DeepEqual(got, []types.Signature{want}) {
 		t.Errorf("signature: got %+v (recorded %v), want %+v", got, ok, want)
 	}
 }
@@ -51,7 +51,7 @@ func TestPmtSlurpyDefaultsParse(t *testing.T) {
 		"h": {Name: "list", Sigil: '@', Type: types.List},
 	} {
 		got, ok := facts.signatures[name]
-		if !ok || !reflect.DeepEqual(got, types.Signature{Params: []types.Param{want}}) {
+		if !ok || !reflect.DeepEqual(got, []types.Signature{{Params: []types.Param{want}}}) {
 			t.Errorf("%s: got %+v (recorded %v), want one param %+v", name, got, ok, want)
 		}
 	}
@@ -70,7 +70,7 @@ func TestTypedSyntaxOnlyInPmt(t *testing.T) {
 	if len(facts.signatures) > 0 || len(facts.errs) > 0 {
 		t.Errorf("ordinary source recorded types: %v, errors %v", facts.signatures, facts.errs)
 	}
-	if typed := readDeclaration(src, nil); len(typed.signatures["f"].Params) != 1 {
+	if typed := readDeclaration(src, nil); len(typed.signatures["f"]) != 1 || len(typed.signatures["f"][0].Params) != 1 {
 		t.Errorf("the same text in a .pmt: got %+v, want one typed param", typed.signatures)
 	}
 }
@@ -126,8 +126,12 @@ func TestPmtReturnType(t *testing.T) {
 	if len(facts.errs) > 0 {
 		t.Fatalf("errors: %v", facts.errs)
 	}
-	sig, ok := facts.signatures["bless"]
-	if !ok || sig.Returns != types.Object {
+	sigs, ok := facts.signatures["bless"]
+	if !ok || len(sigs) != 1 {
+		t.Fatalf("got %+v, want one signature", sigs)
+	}
+	sig := sigs[0]
+	if sig.Returns != types.Object {
 		t.Errorf("return type: got %+v (recorded %v), want %v", sig, ok, types.Object)
 	}
 	if len(sig.Params) != 2 {
@@ -155,7 +159,7 @@ func TestPmtUnionAndContainerTypes(t *testing.T) {
 		"g": {Params: []types.Param{{Name: "args", Sigil: '@', Type: types.List, Element: types.Str}}},
 		"h": {Params: []types.Param{{Name: "x", Sigil: '$', Type: types.Str, Required: true}}, Returns: types.None},
 	} {
-		if got, ok := facts.signatures[name]; !ok || !reflect.DeepEqual(got, want) {
+		if got, ok := facts.signatures[name]; !ok || !reflect.DeepEqual(got, []types.Signature{want}) {
 			t.Errorf("%s: got %+v (recorded %v), want %+v", name, got, ok, want)
 		}
 	}
@@ -200,7 +204,7 @@ func TestPmtSignatureBeforeAttributesRefused(t *testing.T) {
 	if root, _ := parseSource([]byte(src), nil, true); root.SourceText([]byte(src)) != src {
 		t.Errorf("round trip lost bytes")
 	}
-	if ok := readDeclaration([]byte("sub f :lvalue (Str $x);\n"), nil); len(ok.errs) > 0 || len(ok.signatures["f"].Params) != 1 {
+	if ok := readDeclaration([]byte("sub f :lvalue (Str $x);\n"), nil); len(ok.errs) > 0 || len(ok.signatures["f"]) != 1 || len(ok.signatures["f"][0].Params) != 1 {
 		t.Errorf("perl's order: got errors %v, signature %+v", ok.errs, ok.signatures)
 	}
 }
@@ -278,7 +282,7 @@ func TestPmtUnionWithNone(t *testing.T) {
 		t.Fatalf("errors: %v", facts.errs)
 	}
 	want := types.Signature{Params: []types.Param{{Name: "x", Sigil: '$', Type: types.Str, Required: true}}, Returns: types.Str}
-	if got := facts.signatures["f"]; !reflect.DeepEqual(got, want) {
+	if got := facts.signatures["f"]; !reflect.DeepEqual(got, []types.Signature{want}) {
 		t.Errorf("got %+v, want %+v", got, want)
 	}
 	if got, err := types.FromName("None|Str"); err != nil || got != types.Str {
@@ -316,7 +320,7 @@ func TestPmtBareSlurpyTypeRefused(t *testing.T) {
 		"g": {Name: "args", Sigil: '@', Type: types.List, Element: types.Str},
 		"h": {Name: "h", Sigil: '%', Type: types.List, Element: types.Str},
 	} {
-		if got, ok := facts.signatures[name]; !ok || !reflect.DeepEqual(got, types.Signature{Params: []types.Param{want}}) {
+		if got, ok := facts.signatures[name]; !ok || !reflect.DeepEqual(got, []types.Signature{{Params: []types.Param{want}}}) {
 			t.Errorf("%s: got %+v (recorded %v), want one param %+v", name, got, ok, want)
 		}
 	}
@@ -375,8 +379,71 @@ func TestPmtModuloAfterIndexInDefault(t *testing.T) {
 	if len(facts.errs) > 0 {
 		t.Fatalf("errors: %v", facts.errs)
 	}
-	want := types.Signature{Params: []types.Param{{Name: "x", Sigil: '$', Type: types.Int, Default: "$a[0] % 2"}}}
+	want := []types.Signature{{Params: []types.Param{{Name: "x", Sigil: '$', Type: types.Int, Default: "$a[0] % 2"}}}}
 	if got := facts.signatures["f"]; !reflect.DeepEqual(got, want) {
 		t.Errorf("got %+v, want %+v", got, want)
+	}
+}
+
+// TestPmtMultiSubKeepsEveryCandidate: RFC 0001 "Multi declarations". A
+// `multi sub` gives one of several signatures for its name, and every one is
+// kept, in the order declared.
+func TestPmtMultiSubKeepsEveryCandidate(t *testing.T) {
+	facts := readDeclaration([]byte("multi sub select (FileHandle $fh) Str;\nmulti sub select ($r, $w, $e, Num $timeout) Int;\n"), nil)
+	if len(facts.errs) > 0 {
+		t.Fatalf("errors: %v", facts.errs)
+	}
+	want := []types.Signature{
+		{Params: []types.Param{{Name: "fh", Sigil: '$', Type: types.FileHandle, Required: true}}, Returns: types.Str},
+		{Params: []types.Param{
+			{Name: "r", Sigil: '$', Required: true},
+			{Name: "w", Sigil: '$', Required: true},
+			{Name: "e", Sigil: '$', Required: true},
+			{Name: "timeout", Sigil: '$', Type: types.Num, Required: true},
+		}, Returns: types.Int},
+	}
+	if got := facts.signatures["select"]; !reflect.DeepEqual(got, want) {
+		t.Errorf("candidates: got %+v, want %+v", got, want)
+	}
+}
+
+// TestPmtMultiCandidateRefusedAlone: a `multi sub` candidate refused for its
+// declaration order (RFC 0001, "Declaration order: Perl's") is not recorded,
+// and the candidates read before it are kept.
+func TestPmtMultiCandidateRefusedAlone(t *testing.T) {
+	facts := readDeclaration([]byte("multi sub f (Int $x) Str;\nmulti sub f (Str $x) :lvalue;\n"), nil)
+	want := "sub f: subroutine attributes must come before the signature"
+	if len(facts.errs) != 1 || facts.errs[0].Error() != want {
+		t.Errorf("got errors %v, want %q", facts.errs, want)
+	}
+	if got := facts.signatures["f"]; len(got) != 1 || got[0].Params[0].Type != types.Int {
+		t.Errorf("candidates: got %+v, want only the Int one", got)
+	}
+}
+
+// TestMultiOnlyInPmt: `multi` declares only in a declaration file. In
+// ordinary source it is the name it has always been: `sub multi { 1 }
+// multi(1);` declares and calls a sub named multi, as perl 5.42.0 runs it,
+// and records no candidates.
+func TestMultiOnlyInPmt(t *testing.T) {
+	src := []byte("sub multi { 1 } multi(1);\n")
+	root := Parse(src)
+	if got, want := Canon(root, src), "sub multi {1;} multi(1);"; got != want {
+		t.Errorf("canon: got %q, want %q", got, want)
+	}
+	facts := readModule(root)
+	if _, ok := facts.protos["multi"]; !ok {
+		t.Errorf("sub multi not declared: %v", facts.protos)
+	}
+	if len(facts.signatures) > 0 || len(facts.errs) > 0 {
+		t.Errorf("ordinary source recorded candidates: %v, errors %v", facts.signatures, facts.errs)
+	}
+
+	// Nor is `multi sub` a declaration there: perl 5.42.0 refuses `multi
+	// sub f { 1 }`, "syntax error at -e line 1, near "multi sub f "", and
+	// the parse does not accept it.
+	bad := Parse([]byte("multi sub f { 1 }\n"))
+	if len(bad.Children) == 0 || bad.Children[0].Kind != Unknown {
+		t.Errorf("multi sub in ordinary source: got %+v, want it refused as Unknown", bad.Children)
 	}
 }

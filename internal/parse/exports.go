@@ -101,9 +101,11 @@ type moduleFacts struct {
 	syntax map[string]declaredSyntax
 
 	// signatures are a declaration file's typed signatures, by sub name,
-	// and errs the ones it states that could not be read. Empty for a
-	// module's own source, which is never typed Perl. See readDeclaration.
-	signatures map[string]types.Signature
+	// and errs the ones it states that could not be read. A `multi sub`
+	// name has one per candidate, in the order declared; any other has
+	// one. Empty for a module's own source, which is never typed Perl. See
+	// readDeclaration.
+	signatures map[string][]types.Signature
 	errs       []error
 
 	// globs are the names a literal glob assignment defines, `*run_perl =

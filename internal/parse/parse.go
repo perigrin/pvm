@@ -563,8 +563,12 @@ type parser struct {
 	// are typed Perl. signatures holds each one read, by sub name, and
 	// typedErrs the ones that could not be. See parseTypedSignature.
 	typed      bool
-	signatures map[string]types.Signature
+	signatures map[string][]types.Signature
 	typedErrs  []error
+
+	// multi is set while a `.pmt`'s `multi sub` is read: its signature is
+	// one more candidate for its name rather than the name's only one.
+	multi bool
 
 	src  []byte
 	toks []lexer.Token
