@@ -6,9 +6,13 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"os/exec"
+	"regexp"
 	"slices"
+	"strings"
 	"testing"
 
+	"tamarou.com/pvm/internal/conformance"
 	"tamarou.com/pvm/internal/parse"
 	"tamarou.com/pvm/internal/types"
 )
@@ -168,6 +172,118 @@ func TestCoreTypesMatchMeasuredSignatures(t *testing.T) {
 		}
 		if got, want := rowOf(sigs[0]), golden[name]; fmt.Sprint(got) != fmt.Sprint(want) {
 			t.Errorf("%s: CORE.pmt has %v; measured %v", name, got, want)
+		}
+	}
+}
+
+// perlFunctionKinds asks perl 5.42's Pod::Functions for the builtins
+// perlfunc files under each kind ("Perl Functions by Category" in perlfunc),
+// keeping those perl prototypes: a batch of CORE.pmt's prototyped lines.
+func perlFunctionKinds(t *testing.T, kinds ...string) []string {
+	t.Helper()
+	protos := perlPrototypes(t)
+	perl, err := conformance.PerlPath()
+	if err != nil {
+		t.Skipf("no perl 5.42 to ask: %v", err)
+	}
+	args := append([]string{"-MPod::Functions", "-e", `print "@{$Kinds{$_}}\n" for @ARGV`, "--"}, kinds...)
+	out, err := exec.Command(perl, args...).Output()
+	if err != nil {
+		t.Fatalf("asking perl: %v", err)
+	}
+	var names []string
+	for _, name := range strings.Fields(string(out)) {
+		if _, ok := protos[name]; ok && !slices.Contains(names, name) {
+			names = append(names, name)
+		}
+	}
+	slices.Sort(names)
+	return names
+}
+
+// untypedLines reports each of names that a CORE.pmt declares with no
+// types, a prototype-only line. Such a line has the signature its prototype
+// gives, but no prototype states a return type, which a typed line does.
+func untypedLines(src []byte, names []string) []string {
+	sigs, err := parse.CoreSignaturesOf(src)
+	if err != nil {
+		return []string{err.Error()}
+	}
+	var bad []string
+	for _, name := range names {
+		if len(sigs[name]) == 0 || sigs[name][0].Returns == types.Unknown {
+			bad = append(bad, name)
+		}
+	}
+	return bad
+}
+
+// stringNumericRegexBuiltins is perlfunc's "Functions for SCALARs or
+// strings", "Regular expressions and pattern matching" and "Numeric
+// functions" among CORE.pmt's prototyped lines, without pos: its glob slot
+// has no spelling yet (RFC 0001, open question 11), so its line stays
+// prototype-only.
+func stringNumericRegexBuiltins(t *testing.T) []string {
+	t.Helper()
+	names := slices.DeleteFunc(perlFunctionKinds(t, "String", "Regexp", "Math"),
+		func(name string) bool { return name == "pos" })
+	// Measured on 5.42.0: an empty or short answer is perl not being asked.
+	if len(names) != 29 {
+		t.Fatalf("Pod::Functions gives %d prototyped string, regex and numeric builtins besides pos, %v; measured 29", len(names), names)
+	}
+	return names
+}
+
+// TestCoreStringNumericRegexBuiltinsTyped: every string, regex and numeric
+// builtin has a typed CORE.pmt line.
+func TestCoreStringNumericRegexBuiltinsTyped(t *testing.T) {
+	src, err := os.ReadFile("declarations/CORE.pmt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range untypedLines(src, stringNumericRegexBuiltins(t)) {
+		t.Errorf("%s: CORE.pmt declares it untyped", name)
+	}
+}
+
+// TestCoreBatchCheckCatchesUntypedLine: the batch check is not
+// tautological. Over a copy of CORE.pmt whose crypt line is prototype-only
+// again, it reports crypt, and nothing else.
+func TestCoreBatchCheckCatchesUntypedLine(t *testing.T) {
+	src, err := os.ReadFile("declarations/CORE.pmt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	crypt := regexp.MustCompile(`(?m)^sub crypt .*;$`)
+	if len(crypt.FindAll(src, -1)) != 1 {
+		t.Fatal("CORE.pmt has no one crypt line to untype")
+	}
+	untyped := crypt.ReplaceAll(src, []byte(`sub crypt :prototype($$);`))
+	if bad := untypedLines(untyped, stringNumericRegexBuiltins(t)); !slices.Equal(bad, []string{"crypt"}) {
+		t.Errorf("reported %q; want crypt alone", bad)
+	}
+}
+
+// TestCoreFeatureGatedBuiltinTypedParseUnchanged: fc, a builtin only under
+// the fc feature or as CORE::fc, is typed like the rest of its batch, and its
+// parse is what it was before: without the feature perl reads `fc $a` as the
+// method call `$a->fc`, which this parser leaves as it was (featuregated_test.go).
+func TestCoreFeatureGatedBuiltinTypedParseUnchanged(t *testing.T) {
+	src, err := os.ReadFile("declarations/CORE.pmt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bad := untypedLines(src, []string{"fc"}); len(bad) != 0 {
+		t.Errorf("CORE.pmt declares fc untyped")
+	}
+	for src, canon := range map[string]string{
+		`my $z = fc $a, $b;`:                   `my $z = fc $a, $b;`,
+		`use feature 'fc'; my $z = fc $a, $b;`: `use feature 'fc'; my $z = fc($a) , $b;`,
+		`my $m = ord CORE::fc $c;`:             `my $m = ord(CORE::fc($c));`,
+	} {
+		n := parse.Parse([]byte(src))
+		if got := strings.TrimSpace(parse.Canon(n, []byte(src))); got != canon {
+			t.Errorf("Canon(%q):\n  got  %s\n  want %s", src, got, canon)
 		}
 	}
 }

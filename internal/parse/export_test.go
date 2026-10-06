@@ -2,6 +2,8 @@
 // ABOUTME: Compiled only under go test.
 package parse
 
+import "tamarou.com/pvm/internal/types"
+
 // CoreTable is coreTable, for TestCoreDeclarationsArePerls (coretable_test.go): its test asks
 // perl through conformance, which imports this package.
 var CoreTable = coreTable
@@ -31,3 +33,11 @@ func DerivedPrototypes(src []byte) (map[string]string, error) {
 // CoreSignatures is coreSignatures, for TestCoreTypesMatchMeasuredSignatures
 // (coretypes_test.go).
 var CoreSignatures = coreSignatures
+
+// CoreSignaturesOf reads a CORE.pmt as coreProtos does and gives its typed
+// signatures by builtin, for the batch checks in coretypes_test.go, which
+// run over copies of the file as well as the file itself.
+func CoreSignaturesOf(src []byte) (map[string][]types.Signature, error) {
+	_, sigs, err := coreProtos(src)
+	return sigs, err
+}
