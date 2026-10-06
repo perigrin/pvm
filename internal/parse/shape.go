@@ -129,12 +129,21 @@ func ShapeOf(proto string) Shape {
 	case slurpy:
 		// Anything slurpy takes the whole list, whatever precedes it.
 		return ShapeList
-	case slots == 0:
-		// `()` -- takes nothing, so what follows is an operator.
+	case inner == "":
+		// `()` -- takes nothing, so what follows is an operator. Only the
+		// empty prototype: `(;)` has no slot either, but perl reads it as a
+		// list operator (toke.c, FUNC0SUB only when protolen is 0).
 		return ShapeNiladic
-	case slots == 1:
+	case slots == 1 && !strings.HasSuffix(inner, ";"):
 		// Exactly one slot, mandatory or optional: unary at the call site.
 		// It takes at most one term and never swallows a following comma.
+		//
+		// The slot must END the prototype: toke.c strips the leading `;`s
+		// and asks for one slot then the end, so `($;)` and `(_;)` are list
+		// operators. Measured on 5.42.0, `sub f ($;) {} f $a < 5` is
+		// `f(($a < 5))` and `f $a, $b` is "Too many arguments for main::f";
+		// perl's own `glob` (`_;`) and `getprotobynumber` (`$;`) parse the
+		// same way.
 		return ShapeUnary
 	}
 	return ShapeList

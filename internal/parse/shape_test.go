@@ -53,6 +53,45 @@ func TestShapeDerivedFromPrototype(t *testing.T) {
 	}
 }
 
+// TestShapeOfTrailingSemicolonIsListOp: a prototype is a named unary only
+// when its one slot is its last character, a leading `;` aside -- toke.c
+// strips the leading `;`s and asks for one slot and then the end. Anything
+// after the slot, a trailing `;` included, makes a list operator, and a
+// prototype of only `;` takes a list too, where `()` takes nothing.
+// Measured on perl 5.42.0:
+//
+//	$ perl -MO=Deparse,-p -e 'sub f ($;) {} our ($a,$b); my $z = f $a, $b;'
+//	Too many arguments for main::f       the comma is inside
+//	$ perl -MO=Deparse,-p -e 'sub f ($;) {} our $a; my $z = f $a < 5;'
+//	(my($z) = f(($a < 5)));              the comparison is inside
+//	$ perl -MO=Deparse,-p -e 'sub f (;$) {} our ($a,$b); my $z = f $a, $b;'
+//	((my($z) = f($a)), $b);
+//
+// with `(_;)`, `(\@;)`, `($;;)` and `(;)` refused as `($;)` is.
+func TestShapeOfTrailingSemicolonIsListOp(t *testing.T) {
+	for _, c := range []struct {
+		proto string
+		want  parse.Shape
+	}{
+		{"($;)", parse.ShapeList},
+		{"(_;)", parse.ShapeList},
+		{`(\@;)`, parse.ShapeList},
+		{"($;;)", parse.ShapeList},
+		{"(;)", parse.ShapeList},
+		{"(;$)", parse.ShapeUnary},
+		{"(;;$)", parse.ShapeUnary},
+	} {
+		if got := parse.ShapeOf(c.proto); got != c.want {
+			t.Errorf("ShapeOf(%q) = %v, want %v", c.proto, got, c.want)
+		}
+	}
+
+	src := []byte("sub f ($;) {} my $z = f $a < 5;")
+	if got := parse.Canon(parse.Parse(src), src); got != "sub f ($;) {} my $z = f($a < 5);" {
+		t.Errorf("a ($;) sub takes the list: %s", got)
+	}
+}
+
 // TestOptionalArgPrototype: `(;$)` parses with zero and with one argument.
 //
 //	$ perl -e 'sub p (;$) {...} print p(), " ", p("x");'
