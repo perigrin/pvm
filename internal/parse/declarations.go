@@ -66,6 +66,26 @@ func readDeclaration(src []byte, res *resolver) moduleFacts {
 			delete(facts.signatures, name)
 		}
 	}
+	// A declaration with only a prototype gets the typed signature its
+	// prototype gives (RFC 0001, "A typed signature and a prototype say
+	// the same thing").
+	for _, name := range slices.Sorted(maps.Keys(facts.protos)) {
+		proto := facts.protos[name]
+		if _, typed := facts.signatures[name]; typed || proto == "" {
+			continue
+		}
+		sig, derived, err := typesFromPrototype(strings.TrimSuffix(strings.TrimPrefix(proto, "("), ")"))
+		if err != nil {
+			facts.errs = append(facts.errs, fmt.Errorf("sub %s: %w", name, err))
+			continue
+		}
+		if derived {
+			if facts.signatures == nil {
+				facts.signatures = map[string][]types.Signature{}
+			}
+			facts.signatures[name] = []types.Signature{sig}
+		}
+	}
 	return facts
 }
 
