@@ -634,3 +634,25 @@ func TestPmtAliasedParamsParse(t *testing.T) {
 		}
 	}
 }
+
+// TestPmtMalformedAliasedParamRefused: a backslash RFC 0001 "The scalar
+// container" does not define is an error, not a guess. An aliased array
+// or hash is the caller's container, so its type is Array or Hash; the
+// list form must be closed and hold an array; and a glob slot, `\*`, has
+// no spelling (open question 11): perl cannot alias a glob, measured on
+// 5.42.0 `\*G = \*STDOUT` is "Can't modify reference to ref-to-glob cast".
+func TestPmtMalformedAliasedParamRefused(t *testing.T) {
+	cases := map[string]string{
+		"sub f (Str \\@a);\n":                    `sub f: aliased \@a has type Str; the caller's array is Array \@a`,
+		"sub f (Array \\%h);\n":                  `sub f: aliased \%h has type Array; the caller's hash is Hash \%h`,
+		"sub f (List[Str] \\(@args, Str $x));\n": "sub f: list form \\(@args is not closed by `)`",
+		"sub f (List[Str] \\(Str $x));\n":        `sub f: list form \( holds "Str"; it holds an array, as in \(@args)`,
+		"sub f (Glob \\*g);\n":                   `sub f: aliased glob \*g has no spelling (RFC 0001, open question 11)`,
+	}
+	pmtRefuses(t, cases)
+	for src := range cases {
+		if proto := readDeclaration([]byte(src), nil).protos["f"]; proto != "" {
+			t.Errorf("%q: derived prototype %q", src, proto)
+		}
+	}
+}

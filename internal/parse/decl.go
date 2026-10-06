@@ -361,6 +361,17 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 	param := types.Param{Name: p.text(v)[1:], Sigil: p.src[v.Start], Type: typ, Element: elem, Alias: alias, AliasEach: each}
 	slurpy := param.Slurpy()
 	param.Required = !slurpy
+	// An aliased array or hash is the caller's container, and a glob slot
+	// has no spelling: perl cannot alias a glob (RFC 0001, "The scalar
+	// container").
+	switch {
+	case alias && param.Sigil == '*':
+		return types.Param{}, nil, fmt.Errorf(`aliased glob \%s has no spelling (RFC 0001, open question 11)`, p.text(v))
+	case alias && param.Sigil == '@' && typ != types.Array:
+		return types.Param{}, nil, fmt.Errorf(`aliased \%s has type %s; the caller's array is Array \%s`, p.text(v), tn.Text, p.text(v))
+	case alias && param.Sigil == '%' && typ != types.Hash:
+		return types.Param{}, nil, fmt.Errorf(`aliased \%s has type %s; the caller's hash is Hash \%s`, p.text(v), tn.Text, p.text(v))
+	}
 	// RFC 0001 "The scalar container": a parameter that takes the caller's
 	// container is backslashed, so `Array @a` is not valid.
 	if slurpy && typ != types.Unknown && typ != types.List && typ&^(types.Array|types.Hash) == 0 {
