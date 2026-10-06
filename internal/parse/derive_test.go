@@ -3,7 +3,9 @@
 package parse
 
 import (
+	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	"tamarou.com/pvm/internal/types"
@@ -382,6 +384,38 @@ func TestDeriveMultiCandidatesGroupByParameters(t *testing.T) {
 		facts := readDeclaration([]byte(src), nil)
 		if len(facts.errs) > 0 || facts.protos["f"] != want {
 			t.Errorf("%q: errors %v, prototype %q, want %s", src, facts.errs, facts.protos["f"], want)
+		}
+	}
+}
+
+// TestDeriveMultiCandidatesRefusesInexpressible: candidates that differ in
+// two aliased positions, or in arity, or in a position that is not
+// aliased, derive no single prototype; nor does a candidate with an
+// invocant colon. Where the declaration requires a prototype by stating
+// one, that is an error naming the sub, never a guess. A stated `\[...]`
+// must also list its containers in the candidates' declaration order:
+// perl keeps a prototype as written (measured on 5.42, `sub f (\[@%])`
+// reports `\[@%]` and `sub g (\[%@])` reports `\[%@]`). Without a stated
+// prototype the candidates have none, as perl reports none for `grep`
+// and `select`.
+func TestDeriveMultiCandidatesRefusesInexpressible(t *testing.T) {
+	twoPositions := "multi sub f :prototype(%s) (Hash \\%%h, Hash \\%%g) List;\nmulti sub f :prototype(%s) (Array \\@a, Array \\@b) List;\n"
+	arity := "multi sub f :prototype(%s) (Hash \\%%h) List;\nmulti sub f :prototype(%s) (Array \\@a, Scalar $x) List;\n"
+	unaliased := "multi sub f :prototype(%s) (Code &block, List @list) List;\nmulti sub f :prototype(%s) (Scalar $expr, List @list) List;\n"
+	invocant := "multi sub f :prototype(%s) :context($) (FileHandle $fh: List @l) Int;\nmulti sub f :prototype(%s) :context(@) (FileHandle $fh: List @l) List;\n"
+	declared := func(src, proto string) string { return fmt.Sprintf(src, proto, proto) }
+	pmtRefuses(t, map[string]string{
+		declared(twoPositions, `\[%@]\[%@]`): `sub f: :prototype(\[%@]\[%@]) disagrees with its types: its candidates give (\%\%), (\@\@), which no one prototype states`,
+		declared(arity, `\[%@]`):             `sub f: :prototype(\[%@]) disagrees with its types: its candidates give (\%), (\@$), which no one prototype states`,
+		declared(unaliased, `&@`):            `sub f: :prototype(&@) disagrees with its types: its candidates give (&@), ($@), which no one prototype states`,
+		declared(invocant, `@`):              `sub f: :prototype(@) disagrees with its types: an invocant colon derives no prototype`,
+		"multi sub f :prototype(\\[@%]) (Hash \\%h) List;\nmulti sub f :prototype(\\[@%]) (Array \\@a) List;\n": `sub f: :prototype(\[@%]) disagrees with its types, which give (\[%@])`,
+	})
+	for _, src := range []string{twoPositions, arity, unaliased, invocant} {
+		src = strings.ReplaceAll(fmt.Sprintf(src, "", ""), " :prototype()", "")
+		facts := readDeclaration([]byte(src), nil)
+		if proto, ok := facts.protos["f"]; len(facts.errs) > 0 || proto != "" || len(facts.signatures["f"]) != 2 {
+			t.Errorf("%q: errors %v, prototype %q (recorded %v), signatures %+v; want two candidates and no prototype", src, facts.errs, proto, ok, facts.signatures["f"])
 		}
 	}
 }

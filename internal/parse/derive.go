@@ -3,6 +3,7 @@
 package parse
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -135,42 +136,48 @@ func agreement(declared, fromTypes string) error {
 // prototypes differ only in which container one aliased parameter takes,
 // `\%` in one and `\@` in another, derive RFC 0001's `\[$@%]` row with
 // those containers in declaration order: `each`'s `(Hash \%h)` and
-// `(Array \@a)` derive `\[%@]`. ok is false for candidates no one
-// prototype states.
-func prototypeFromCandidates(sigs []types.Signature) (proto string, ok bool) {
+// `(Array \@a)` derive `\[%@]`. Candidates that differ in more than one
+// position, in arity, or in a position that is not aliased derive none,
+// and nor does a candidate with an invocant colon; err says why, for a
+// declaration that states a prototype they must give.
+func prototypeFromCandidates(sigs []types.Signature) (proto string, err error) {
 	// Candidates group by their parameters, as the prototype sees them:
 	// `:context` and the return type never split a group, so `keys`'
 	// four candidates are two groups and `localtime`'s two are one.
 	var protos []string
 	for _, s := range sigs {
+		if s.Invocant != nil {
+			return "", errors.New("an invocant colon derives no prototype")
+		}
 		if p := prototypeFromTypes(s); !slices.Contains(protos, p) {
 			protos = append(protos, p)
 		}
 	}
 	// A `\` is always followed by its sigil, so one differing byte after
 	// a shared `\` is one aliased position whose container differs.
+	inexpressible := fmt.Errorf("its candidates give (%s), which no one prototype states", strings.Join(protos, "), ("))
 	at := -1
 	for _, p := range protos[1:] {
 		if len(p) != len(protos[0]) {
-			return "", false
+			return "", inexpressible
 		}
 	}
 	for i := range len(protos[0]) {
 		for _, p := range protos[1:] {
 			if p[i] != protos[0][i] && at != i {
 				if at >= 0 || i == 0 || protos[0][i-1] != '\\' {
-					return "", false
+					return "", inexpressible
 				}
 				at = i
 			}
 		}
 	}
 	if at < 0 {
-		return protos[0], true
+		return protos[0], nil
 	}
 	var union strings.Builder
 	for _, p := range protos {
 		union.WriteByte(p[at])
 	}
-	return protos[0][:at-1] + `\[` + union.String() + "]" + protos[0][at+1:], true
+	return protos[0][:at-1] + `\[` + union.String() + "]" + protos[0][at+1:], nil
 }

@@ -100,9 +100,27 @@ func readDeclaration(src []byte, res *resolver) moduleFacts {
 	// `:prototype(...)`; one that states both must have them agree.
 	for _, name := range slices.Sorted(maps.Keys(facts.signatures)) {
 		sigs := facts.signatures[name]
+		// A multi's candidates derive one prototype. Where they derive
+		// none, a stated prototype is an error; without one they have
+		// none, as perl reports none for grep and select.
 		if len(sigs) > 1 {
-			if proto, ok := prototypeFromCandidates(sigs); ok && facts.protos[name] == "" && proto != "@" {
+			proto, err := prototypeFromCandidates(sigs)
+			declared := facts.protos[name]
+			switch {
+			case declared != "" && err != nil:
+				err = fmt.Errorf(":prototype%s disagrees with its types: %w", declared, err)
+			// perl keeps a `\[...]` as written, so a stated one must list
+			// the containers in the candidates' order.
+			case declared != "" && strings.Contains(proto, `\[`) && declared != "("+proto+")":
+				err = fmt.Errorf(":prototype%s disagrees with its types, which give (%s)", declared, proto)
+			case declared != "":
+				err = agreement(declared, proto)
+			case err == nil && proto != "@":
 				facts.protos[name] = "(" + proto + ")"
+			}
+			if declared != "" && err != nil {
+				facts.errs = append(facts.errs, fmt.Errorf("sub %s: %w", name, err))
+				delete(facts.signatures, name)
 			}
 			continue
 		}
