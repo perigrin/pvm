@@ -19,7 +19,9 @@
 # derive `@` writes `:prototype(@)`, since a derived `@` is no prototype.
 package CORE;
 
-sub __CLASS__ :prototype();
+# __CLASS__ yields the class of the instance under construction or whose
+# method runs, a string: in `class F`'s method it is "F", POK (measured).
+sub __CLASS__ () Str;
 sub __FILE__ :prototype();
 sub __LINE__ :prototype();
 sub __PACKAGE__ :prototype();
@@ -30,7 +32,10 @@ sub __SUB__ :prototype();
 # (measured).
 sub abs (Num $number = $_) Num;
 sub accept :prototype(**);
-sub alarm :prototype(_);
+# alarm schedules a SIGALRM in whole seconds, `$_` with none (measured:
+# `$_ = 3; alarm` sets 3, alarm(2.9) sets 2), and yields the seconds left
+# of the one before, 0 if none: undef for a negative time, with a warning.
+sub alarm (Int $seconds = $_) Int|Undef;
 # all and any take a block and then a LIST, which may be empty: `all {1} ()`
 # is true, and `all()` is "Not enough arguments" (measured). The block is a
 # literal block; `all sub {1}, 1` is a syntax error. Each returns a boolean
@@ -50,7 +55,14 @@ sub bind :prototype(*$);
 sub binmode (Glob *fh, Str $layer = ":raw") Boolean|Undef;
 sub bless (Ref $ref, Str $class = __PACKAGE__) Object;
 sub break :prototype();
-sub caller :prototype(;$);
+# caller yields the frame's package, file and line in list context, and
+# its package in scalar context -- the list's first value, so List covers
+# both -- and undef, or the empty list, past the top of the stack
+# (measured). Given a level it yields eleven values, the sub, whether it
+# was called with arguments, its context and more after those three:
+# inside a sub `caller` gives three, `caller(0)` eleven. No level states
+# the default, so it names the call, as srand's does (01a1105e).
+sub caller (Int $level = caller()) List;
 sub catch :prototype();
 # chdir changes to a directory named by a string or held by a handle
 # (measured: `chdir DH` and `chdir($dh)` change into an opened directory).
@@ -167,8 +179,13 @@ sub fcntl (Glob *fh, Int $function, Scalar $argument) Str|Undef;
 sub fileno (Glob *fh) Int|Undef;
 # flock yields 1 or 0 as an IV (measured: locking a closed handle is 0).
 sub flock (Glob *fh, Int $operation) Int;
-sub fork :prototype();
-sub formline :prototype($@);
+# fork yields the child's pid to the parent and 0 to the child, as an IV,
+# and undef when it cannot fork (measured under `prlimit --nproc=1`).
+sub fork () Int|Undef;
+# formline formats a LIST through a picture into $^A, and yields true
+# (measured). The list may be empty: `formline("@<<")` compiles, and
+# `formline()` is "Not enough arguments".
+sub formline (Str $picture, List @list) Boolean;
 # getc reads one character, from STDIN with none (measured: with a file
 # argument and "Z" piped in, `getc` is "Z"), and yields undef at end of
 # file or for a closed handle.
@@ -184,9 +201,16 @@ sub getnetbyaddr :prototype($$);
 sub getnetbyname :prototype($);
 sub getnetent :prototype();
 sub getpeername :prototype(*);
-sub getpgrp :prototype(;$);
-sub getppid :prototype();
-sub getpriority :prototype($$);
+# getpgrp yields a process's group, the current process's with none, as
+# for 0 (measured: getpgrp() and getpgrp(0) agree), and -1 as an IV for a
+# process that does not exist.
+sub getpgrp (Int $pid = 0) Int;
+# getppid yields the parent's pid, an IV (measured).
+sub getppid () Int;
+# getpriority takes both its arguments, `getpriority(0)` being "Not enough
+# arguments", and yields the priority, -1 as an IV on error -- which is a
+# priority too (measured: getpriority(99, 0) is -1).
+sub getpriority (Int $which, Int $who) Int;
 sub getprotobyname :prototype($);
 sub getprotobynumber :prototype($;);
 sub getprotoent :prototype();
@@ -202,7 +226,16 @@ sub getsockopt :prototype(*$$);
 # scalar context the next one, undef past the last -- one of the list's
 # values, so List covers both. `_;` keeps its `;`, which no type states.
 sub glob :prototype(_;) (Str $pattern = $_) List;
-sub gmtime :prototype(;$);
+# gmtime and localtime fork on context (RFC 0001, "`:context(...)`"). In
+# scalar context each yields a date string, `my $t = localtime(0)` being
+# "Thu Jan  1 00:00:00 1970" (POK), and undef for a time out of range
+# (`localtime(1e20)` is undef, with a warning). In list context each yields
+# nine integers, (0, 0, 0, 1, 0, 70, 4, 0, 0) for 0, or none out of range:
+# the string is none of them. The year is NV only, 70 being whole, as hex's
+# overflow is (measured with B::svref_2object). The time is now with none
+# (`gmtime()` is today's date), which undef is not: gmtime(undef) is 1970.
+multi sub gmtime :context($) (Int $time = time) Str|Undef;
+multi sub gmtime :context(@) (Int $time = time) List[Int];
 # Measured with do, above.
 sub goto :unary (Str|Code $label = "") None;
 # hex and oct read a string of digits, `$_` with none, and yield its
@@ -234,7 +267,10 @@ multi sub keys :context($) (Hash \%h) Int;
 multi sub keys :context($) (Array \@a) Int;
 multi sub keys :context(@) (Hash \%h) List;
 multi sub keys :context(@) (Array \@a) List;
-sub kill :prototype(@);
+# kill takes a LIST, the signal and then the processes, which may be
+# empty: `kill()` compiles (measured). It yields how many processes it
+# signalled, as an IV: kill(0, $$) is 1, kill(0, 999999) 0.
+sub kill :prototype(@) (List @list) Int;
 # Measured as uc, below.
 sub lc (Str $string = $_) Str;
 # Measured as uc, below.
@@ -243,7 +279,9 @@ sub length (Str $string = $_) Int;
 # Measured as chroot, above: link("nope", "h") is 0 as an IV.
 sub link (Str $old, Str $new) Int;
 sub listen :prototype(*$);
-sub localtime :prototype(;$);
+# Measured as gmtime, above.
+multi sub localtime :context($) (Int $time = time) Str|Undef;
+multi sub localtime :context(@) (Int $time = time) List[Int];
 sub lock :prototype(\[$@%&*]);
 # Measured as cos, above.
 sub log (Num $number = $_) Num;
@@ -263,7 +301,11 @@ sub msgctl :prototype($$$);
 sub msgget :prototype($$);
 sub msgrcv :prototype($$$$$);
 sub msgsnd :prototype($$$);
-sub not :prototype($;);
+# not negates its operand in scalar context (measured: with two elements,
+# `not @a` is false) and yields a boolean. perl's `$;` is its own parse,
+# which takes nothing too: `not()` compiles and is true. `$;` keeps its
+# `;`, which no type states.
+sub not :prototype($;) (Scalar $x) Boolean;
 # Measured as hex, above.
 sub oct (Str $string = $_) Int;
 # open takes a handle and then a mode and a LIST: a mode with the file
@@ -280,12 +322,19 @@ sub ord (Str $string = $_) Int;
 # pack takes a template and then the LIST of values it packs into one
 # string: `pack()` is "Not enough arguments", `pack("A")` compiles.
 sub pack (Str $template, List @list) Str;
-sub pipe :prototype(**);
+# pipe opens a read and a write handle, both required (`pipe(R)` is "Not
+# enough arguments"), and yields true, or undef when it cannot (measured
+# under `prlimit --nofile=8`, "Too many open files").
+sub pipe (Glob *read, Glob *write) Boolean|Undef;
 # pop and shift take the array whole, defaulting to `@_` in a sub and to
 # `@ARGV` outside one (measured: `perl -e 'print pop' x y` prints y).
 sub pop (Array \@array = @_) Scalar;
 sub pos :prototype(;\[$*]);
-sub prototype :prototype(_);
+# prototype takes a sub's name or a reference to it, `$_` with none
+# (measured: `$_ = "CORE::push"; prototype` is "\@@", prototype(\&CORE::push)
+# the same), and yields the prototype, or undef for a sub with none or a
+# builtin whose parse is its own (prototype("CORE::print") is undef).
+sub prototype (Str|Code $function = $_) Str|Undef;
 # push, unshift and splice take a LIST, not Any. Everything flattens into
 # it -- measured, scalars, arrays, hashes and refs all append -- so List
 # accepts every value Any did, while still excluding Code and Glob. Any is
@@ -321,12 +370,25 @@ sub readline (Glob *fh = *ARGV) List;
 # readlink yields a link's target, `$_` with none, or undef for a file
 # that is not a link (measured).
 sub readlink (Str $path = $_) Str|Undef;
-sub readpipe :prototype(_);
+# readpipe runs a command, `$_` with none (measured: `$_ = "echo z";
+# readpipe` is "z\n"), and forks on context: in list context its output a
+# line to an element, in scalar context all of it as one string --
+# readpipe("echo a; echo b") is ("a\n", "b\n") or "a\nb\n", POK, which is
+# not one of the list's values. A command that cannot run is undef in
+# scalar context and empty in list context.
+multi sub readpipe :context($) (Str $command = $_) Str|Undef;
+multi sub readpipe :context(@) (Str $command = $_) List[Str];
 sub recv :prototype(*\$$$);
 sub ref (Scalar $thing = $_) Str;
 # Measured as chroot, above: rename("nope", "x") is 0 as an IV.
 sub rename (Str $old, Str $new) Int;
-sub reset :prototype(;$);
+# reset clears the variables whose names start with the letters given and
+# yields true (measured: builtin::is_bool). With none it resets the `m?..?`
+# matches instead, which neither "" nor undef does (measured: after
+# reset("") and reset(undef) a `m?x?` that matched still fails, after
+# reset() it matches again). No expression states that, so the default
+# names the call, as srand's does (01a1105e).
+sub reset (Str $chars = reset()) Boolean;
 # return has no prototype and takes a LIST: `return $a, $b` returns both
 # (B::Deparse -p), `return()` compiles. It leaves the sub, so its own value
 # is never used.
@@ -371,8 +433,13 @@ sub send :prototype(*$$;$);
 sub setgrent :prototype();
 sub sethostent :prototype($);
 sub setnetent :prototype($);
-sub setpgrp :prototype(;$$);
-sub setpriority :prototype($$$);
+# setpgrp sets a process's group, 0 and 0 with none: the current process
+# to its own (measured: after setpgrp(), getpgrp() is $$). It and
+# setpriority yield 1 or 0 as an IV (setpgrp(999999, 0) is 0), not one of
+# perl's booleans.
+sub setpgrp (Int $pid = 0, Int $pgrp = 0) Int;
+# Measured as setpgrp, above: setpriority(0, 999999, 0) is 0 as an IV.
+sub setpriority (Int $which, Int $who, Int $priority) Int;
 sub setprotoent :prototype($);
 sub setpwent :prototype();
 sub setservent :prototype($);
@@ -386,7 +453,12 @@ sub shmwrite :prototype($$$$);
 sub shutdown :prototype(*$);
 # Measured as cos, above.
 sub sin (Num $number = $_) Num;
-sub sleep :prototype(;$);
+# sleep takes whole seconds, sleep(1.7) sleeping 1, and yields the seconds
+# it slept, an IV. With none it sleeps for ever, and reads no `$_`
+# (measured: with `$_ = 1`, `sleep` was still asleep after 3 seconds),
+# while sleep(undef) is sleep(0). No expression states that, so the
+# default names the call, as srand's does (01a1105e).
+sub sleep (Int $seconds = sleep()) Int;
 sub socket :prototype(*$$$);
 sub socketpair :prototype(**$$$);
 # splice takes the array whole, then a LIST as push does. With no length
@@ -444,8 +516,12 @@ sub tell (Glob *fh = ${^LAST_FH}) Int;
 sub telldir (Glob *dh) Int|Undef;
 sub tie :prototype(\[$@%*]$@);
 sub tied :prototype(\[$@%*]);
-sub time :prototype();
-sub times :prototype();
+# time yields the seconds since the epoch, an IV (measured).
+sub time () Int;
+# times yields the user and system times of this process and of its
+# children, four floats, NOK (measured); in scalar context the user time,
+# the list's first, so List covers both.
+sub times () List[Num];
 # truncate takes a handle or a file name, so its `$` slot is either
 # (measured: `truncate F, 1` with F a bareword handle, and
 # truncate("a", 1), both cut the file), and yields true, or undef on
@@ -487,8 +563,12 @@ multi sub values :context(@) (Array \@a) List;
 # string, all three required (`vec("a", 0)` does not compile): vec("abc",
 # 0, 8) is 97 as an IV, and past the string's end 0 (measured).
 sub vec (Str $string, Int $offset, Int $bits) Int;
-sub wait :prototype();
-sub waitpid :prototype($$);
+# wait and waitpid yield the pid of the child reaped, and -1 as an IV for
+# none (measured: wait with no child, waitpid(999999, 0)). waitpid takes
+# both its arguments: `waitpid(1)` is "Not enough arguments".
+sub wait () Int;
+# Measured as wait, above.
+sub waitpid (Int $pid, Int $flags) Int;
 sub wantarray :prototype();
 # Measured as die, above.
 sub warn :prototype(@) (List[Str] @message) Boolean;
