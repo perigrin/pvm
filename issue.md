@@ -1,6 +1,6 @@
 ---
 title: Declare the no-prototype builtins and each's multi in CORE.pmt, and read :unary
-state: in-progress
+state: done
 urgency: normal
 milestone: type-libraries
 blocked_by:
@@ -11,16 +11,20 @@ blocks:
 - 01a0fd9b-5698-70cf-b6e4-8899a83b0fe0
 - 01a10c6e-988f-7aa6-811d-0e462abc442a
 created: 2026-10-02T17:13:29.367336401Z
-updated: 2026-10-06T13:03:48.092263696Z
+updated: 2026-10-06T13:03:48.181978985Z
 sessions:
 - start_sha: c07da91e8d669a67e056ae4d14822f15e8f80fae
-  end_sha: ""
+  end_sha: c07da91e8d669a67e056ae4d14822f15e8f80fae
   commits: 0
   started_at: 2026-10-06T13:03:48.092263696Z
+  ended_at: 2026-10-06T13:03:48.181978985Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-06T13:03:48.092263696Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-06T13:03:48.181978985Z
 ---
 
 ## Prerequisites
