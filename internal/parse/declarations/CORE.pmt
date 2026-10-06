@@ -152,12 +152,20 @@ multi sub each (Array \@a) List;
 # password files and yield true, a boolean, in either context (measured:
 # builtin::is_bool of each).
 sub endgrent () Boolean;
-sub endhostent :prototype();
-sub endnetent :prototype();
-sub endprotoent :prototype();
+# endhostent, endnetent, endprotoent and endservent close the hosts,
+# networks, protocols and services databases, and sethostent, setnetent,
+# setprotoent and setservent rewind them, keeping them open across lookups
+# when given a true value; each yields true, a boolean, in either context
+# (measured: builtin::is_bool of each).
+sub endhostent () Boolean;
+# Measured as endhostent, above.
+sub endnetent () Boolean;
+# Measured as endhostent, above.
+sub endprotoent () Boolean;
 # Measured as endgrent, above.
 sub endpwent () Boolean;
-sub endservent :prototype();
+# Measured as endhostent, above.
+sub endservent () Boolean;
 # eof and tell take the last handle read with none, ${^LAST_FH} (measured:
 # after reading B, `eof` and `tell` answer for B, not for A read before
 # it). `eof()` with empty parentheses is another builtin, the end of the
@@ -206,17 +214,36 @@ sub getgrent () List;
 sub getgrgid (Int $gid) List;
 # Measured as getgrent, above.
 sub getgrnam (Str $name) List;
-sub gethostbyaddr :prototype($$);
-sub gethostbyname :prototype($);
-sub gethostent :prototype();
+# gethostbyaddr, gethostbyname and gethostent yield a host's record, its
+# name, aliases, address type, address length and packed addresses, in list
+# context, and one of those fields in scalar context: gethostbyaddr and
+# gethostent the name, gethostbyname the first packed address (measured:
+# for "localhost" "\x7f\0\0\1", the record's fifth field, POK) -- one of the
+# list's values, so List covers both. A host that does not resolve is the
+# empty list, and undef in scalar context. gethostbyaddr takes the packed
+# address and its type, AF_INET's 2.
+sub gethostbyaddr (Str $addr, Int $addrtype) List;
+# Measured as gethostbyaddr, above.
+sub gethostbyname (Str $name) List;
+# Measured as gethostbyaddr, above.
+sub gethostent () List;
 # getlogin yields the login name of the controlling terminal from utmp,
 # a string, and undef when there is none (measured: undef with no
 # controlling terminal, and under `script`, whose terminal utmp does not
 # list).
 sub getlogin () Str|Undef;
-sub getnetbyaddr :prototype($$);
-sub getnetbyname :prototype($);
-sub getnetent :prototype();
+# getnetbyaddr, getnetbyname and getnetent yield a network's record, its
+# name, aliases, address type and number, in list context, and one of
+# those fields in scalar context: getnetbyaddr and getnetent the name,
+# getnetbyname the number (measured: for "link-local" 2851995648 as an
+# IV, the record's fourth field) -- one of the list's values, so List
+# covers both. A network not listed is the empty list, and undef in scalar
+# context.
+sub getnetbyaddr (Int $addr, Int $addrtype) List;
+# Measured as getnetbyaddr, above.
+sub getnetbyname (Str $name) List;
+# Measured as getnetbyaddr, above.
+sub getnetent () List;
 sub getpeername :prototype(*);
 # getpgrp yields a process's group, the current process's with none, as
 # for 0 (measured: getpgrp() and getpgrp(0) agree), and -1 as an IV for a
@@ -228,9 +255,18 @@ sub getppid () Int;
 # arguments", and yields the priority, -1 as an IV on error -- which is a
 # priority too (measured: getpriority(99, 0) is -1).
 sub getpriority (Int $which, Int $who) Int;
-sub getprotobyname :prototype($);
-sub getprotobynumber :prototype($;);
-sub getprotoent :prototype();
+# getprotobyname, getprotobynumber and getprotoent yield a protocol's
+# record, its name, aliases and number, in list context, and one of those
+# fields in scalar context: getprotobynumber and getprotoent the name,
+# getprotobyname the number (measured: getprotobyname("tcp") is 6 as an
+# IV) -- one of the list's values, so List covers both. A protocol not
+# listed is the empty list, and undef in scalar context.
+sub getprotobyname (Str $name) List;
+# Measured as getprotobyname, above. Its `$;` keeps its `;`, which no type
+# states, as not's does: `getprotobynumber()` is "Not enough arguments".
+sub getprotobynumber :prototype($;) (Int $number) List;
+# Measured as getprotobyname, above.
+sub getprotoent () List;
 # getpwent, getpwnam and getpwuid yield a user's record, nine fields from
 # the name to the shell, in list context, and one of those fields in scalar
 # context: getpwent and getpwuid the name, getpwnam the uid (measured:
@@ -242,9 +278,17 @@ sub getpwent () List;
 sub getpwnam (Str $name) List;
 # Measured as getpwent, above.
 sub getpwuid (Int $uid) List;
-sub getservbyname :prototype($$);
-sub getservbyport :prototype($$);
-sub getservent :prototype();
+# getservbyname, getservbyport and getservent yield a service's record,
+# its name, aliases, port and protocol, in list context, and one of those
+# fields in scalar context: getservbyport and getservent the name,
+# getservbyname the port (measured: getservbyname("http", "tcp") is 80 as
+# an IV) -- one of the list's values, so List covers both. A service not
+# listed is the empty list, and undef in scalar context.
+sub getservbyname (Str $name, Str $proto) List;
+# Measured as getservbyname, above.
+sub getservbyport (Int $port, Str $proto) List;
+# Measured as getservbyname, above.
+sub getservent () List;
 sub getsockname :prototype(*);
 sub getsockopt :prototype(*$$);
 # glob expands a pattern, `$_` with none: in list context every match, in
@@ -457,8 +501,11 @@ sub semop :prototype($$);
 sub send :prototype(*$$;$);
 # Measured as endgrent, above.
 sub setgrent () Boolean;
-sub sethostent :prototype($);
-sub setnetent :prototype($);
+# Measured as endhostent, above. The flag is read for its truth, and may
+# be any scalar.
+sub sethostent (Scalar $stayopen) Boolean;
+# Measured as sethostent, above.
+sub setnetent (Scalar $stayopen) Boolean;
 # setpgrp sets a process's group, 0 and 0 with none: the current process
 # to its own (measured: after setpgrp(), getpgrp() is $$). It and
 # setpriority yield 1 or 0 as an IV (setpgrp(999999, 0) is 0), not one of
@@ -466,10 +513,12 @@ sub setnetent :prototype($);
 sub setpgrp (Int $pid = 0, Int $pgrp = 0) Int;
 # Measured as setpgrp, above: setpriority(0, 999999, 0) is 0 as an IV.
 sub setpriority (Int $which, Int $who, Int $priority) Int;
-sub setprotoent :prototype($);
+# Measured as sethostent, above.
+sub setprotoent (Scalar $stayopen) Boolean;
 # Measured as endgrent, above.
 sub setpwent () Boolean;
-sub setservent :prototype($);
+# Measured as sethostent, above.
+sub setservent (Scalar $stayopen) Boolean;
 sub setsockopt :prototype(*$$$);
 # Measured as pop, above.
 sub shift (Array \@array = @_) Scalar;
