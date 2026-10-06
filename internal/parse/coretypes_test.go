@@ -21,7 +21,9 @@ import (
 // gives -- derived from its types where the line is typed, as written where
 // it is not -- to perl's, and reports each line that disagrees, naming its
 // builtin. A file in error derives nothing, so its errors are the report.
-// checked is how many lines it compared.
+// checked is how many lines it compared. Perl's undef is a derived `@`
+// (RFC 0001, "Builtins that keep their own parse"): a sub with no
+// prototype and one with `(@)` parse alike.
 func corePrototypeDisagreements(src []byte, perl map[string]string) (checked int, bad []string) {
 	derived, err := parse.DerivedPrototypes(src)
 	if err != nil {
@@ -31,6 +33,7 @@ func corePrototypeDisagreements(src []byte, perl map[string]string) (checked int
 		checked++
 		want, ok := perl[name]
 		switch {
+		case !ok && derived[name] == "@":
 		case !ok:
 			bad = append(bad, fmt.Sprintf("%s: CORE.pmt gives (%s); perl reports no prototype", name, derived[name]))
 		case derived[name] != want:
