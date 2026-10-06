@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"tamarou.com/pvm/internal/infer"
+	"tamarou.com/pvm/internal/parse"
 	"tamarou.com/pvm/internal/types"
 )
 
@@ -124,4 +125,56 @@ func TestInferTypesOperatorsFromCore(t *testing.T) {
 // "22", perl evaluating the parenthesised list in scalar context.
 func TestInferRepeatScalarContextIsStr(t *testing.T) {
 	assert.Equal(t, types.Str, lookupType(t, "my $x = (1,2) x 2;", "$x"))
+}
+
+// TestInferCoreListSlotsTakeEveryValue: push, unshift and join take a LIST,
+// into which everything flattens -- measured on 5.42, scalars, arrays,
+// hashes and references all append, and `join ":", @foo` joins the array's
+// elements. keys, values and each take a hash or, since 5.12, an array.
+// None of these calls is a mismatch.
+func TestInferCoreListSlotsTakeEveryValue(t *testing.T) {
+	for _, src := range []string{
+		`my @a; my @b; my %h; push @a, 1, "s", {}, [], sub {1}, \*STDOUT, @b, %h;`,
+		`my @a; my @b; my %h; unshift @a, 1, "s", {}, [], sub {1}, @b, %h;`,
+		`my @foo; my $s = join ":", @foo;`,
+		`my $s = join ":", "a", "b";`,
+		`my @a; my %h; my @k = keys @a; my @v = values %h; my @e = each @a;`,
+	} {
+		_, diags := analyzeSource(t, []byte(src))
+		assert.Empty(t, diags, "%q", src)
+	}
+}
+
+// TestCoreListSlotExcludesCodeAndGlob: a LIST slot is not Any. Any is the
+// escape hatch that disables checking; List still excludes the compiled CV
+// and the typeglob, which no perl scalar holds, so the slot keeps
+// constraining something.
+func TestCoreListSlotExcludesCodeAndGlob(t *testing.T) {
+	for _, name := range []string{"push", "unshift", "join"} {
+		sigs := parse.CoreBuiltin(name)
+		require.Len(t, sigs, 1, name)
+		list := sigs[0].Params[1].Type
+		assert.Equal(t, types.List, list, name)
+		assert.False(t, types.TypeSatisfies(types.Code, list), "%s takes no bare CV", name)
+		assert.False(t, types.TypeSatisfies(types.Glob, list), "%s takes no typeglob", name)
+	}
+}
+
+// TestInferSplitPatternTakesRegexOrStr: split's pattern is a compiled Regex
+// or a plain Str, which perl compiles into one: measured on 5.42, `split
+// /:/, $x`, `split ":", $x`, `split $sep, $x` and `split qr/:/, $x` all give
+// ("a","b","c") for "a:b:c". A reference there is still a mismatch.
+func TestInferSplitPatternTakesRegexOrStr(t *testing.T) {
+	if len(parse.CoreBuiltin("split")) == 0 {
+		t.Skip("CORE.pmt declares no split until its ruling (01a1113c), so infer does not type it")
+	}
+	for _, src := range []string{
+		`my $x = "a:b:c"; my @f = split ":", $x;`,
+		`my $x = "a:b:c"; my @f = split qr/:/, $x;`,
+	} {
+		_, diags := analyzeSource(t, []byte(src))
+		assert.Empty(t, diags, "%q", src)
+	}
+	_, diags := analyzeSource(t, []byte(`my $h = {}; my $x = "a:b:c"; my @f = split $h, $x;`))
+	assert.NotEmpty(t, diags, "a reference is not a pattern")
 }
