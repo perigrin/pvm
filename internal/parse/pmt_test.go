@@ -329,3 +329,22 @@ func TestPmtBareUnionSlurpyRefused(t *testing.T) {
 		"sub f (Str|Undef @args);\n": "sub f: slurpy @args has a bare element type Str|Undef; write a container type, List[Str|Undef] @args",
 	})
 }
+
+// TestPmtContainerWithFlatteningSigilRefused: RFC 0001 "The scalar
+// container", `Array @a` (a container type with a flattening sigil) is not
+// valid. A parameter that takes the caller's container is backslashed,
+// `Array \@a`, and the error names that spelling. `Array @a` is not quietly
+// read as the aliased array: it records no parameter and derives no
+// prototype.
+func TestPmtContainerWithFlatteningSigilRefused(t *testing.T) {
+	cases := map[string]string{
+		"sub f (Array @a);\n": `sub f: container type Array with flattening sigil @a; a parameter that takes the caller's container is Array \@a`,
+		"sub f (Hash %h);\n":  `sub f: container type Hash with flattening sigil %h; a parameter that takes the caller's container is Hash \%h`,
+	}
+	pmtRefuses(t, cases)
+	for src := range cases {
+		if proto := readDeclaration([]byte(src), nil).protos["f"]; proto != "" {
+			t.Errorf("%q: derived prototype %q", src, proto)
+		}
+	}
+}

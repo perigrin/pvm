@@ -243,6 +243,11 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 	}
 	p.advanceTo(v)
 	param := types.Param{Name: p.text(v)[1:], Sigil: p.src[v.Start], Type: typ, Element: elem, Required: p.src[v.Start] == '$'}
+	// RFC 0001 "The scalar container": a parameter that takes the caller's
+	// container is backslashed, so `Array @a` is not valid.
+	if param.Sigil != '$' && typ != types.Unknown && typ != types.List && typ&^(types.Array|types.Hash) == 0 {
+		return types.Param{}, nil, fmt.Errorf(`container type %s with flattening sigil %s; a parameter that takes the caller's container is %s \%s`, tn.Text, p.text(v), tn.Text, p.text(v))
+	}
 	// RFC 0001 "A slurpy takes no bare element type": `Str @args` leaves
 	// both the container and what `Str` applies to unsaid.
 	if param.Sigil != '$' && typ != types.Unknown && typ != types.List {
