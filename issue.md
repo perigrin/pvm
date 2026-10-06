@@ -1,6 +1,6 @@
 ---
 title: Declare grep, map and sort as multis in CORE.pmt, with sort's invocant slot
-state: in-progress
+state: done
 urgency: normal
 milestone: type-libraries
 blocked_by:
@@ -13,16 +13,20 @@ blocks:
 - 01a0fd9b-5670-78d0-84be-9b9618e9b081
 - 01a10177-547c-73a9-a302-f25f579a4cb3
 created: 2026-10-02T17:13:29.757085237Z
-updated: 2026-10-06T15:33:26.045068795Z
+updated: 2026-10-06T15:39:50.336006782Z
 sessions:
 - start_sha: f01da9242721bb8bdc3d709ede1cc7d2cf7f3da4
-  end_sha: ""
+  end_sha: f01da9242721bb8bdc3d709ede1cc7d2cf7f3da4
   commits: 0
   started_at: 2026-10-06T15:33:26.045068795Z
+  ended_at: 2026-10-06T15:39:50.336006782Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-06T15:33:26.045068795Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-06T15:39:50.336006782Z
 ---
 
 ## Prerequisites
