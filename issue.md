@@ -9,7 +9,7 @@ blocked_by:
 - 01a10177-5057-7f6f-bfa1-363a4568ae80
 - 01a10c6e-988f-7aa6-811d-0e462abc442a
 created: 2026-10-05T14:18:57.557243435Z
-updated: 2026-10-06T17:11:44.869546411Z
+updated: 2026-10-06T17:12:19.256241861Z
 sessions:
 - start_sha: bbcf54860c14ed10b826ded5ec4531d0116a534f
   end_sha: bbcf54860c14ed10b826ded5ec4531d0116a534f
@@ -55,7 +55,7 @@ Last batch, by perlfunc's categories "Fetching user and group info", "Fetching n
 ### Negative Scenarios
 
 - no CORE.pmt line is left half-done: every prototyped line but the six named glob-slot lines carries a typed signature, and the file reads with no declaration errors (`go test ./internal/parse/ -run '^TestCoreEveryPrototypedLineIsTyped$' -count=1 -v | grep -q '^--- PASS: TestCoreEveryPrototypedLineIsTyped'`)
-- the exemption list is exact, not a loophole: the same check over a copy of CORE.pmt with one non-glob line left untyped (`sub socket :prototype(*$$$);`) reports it, and over a copy with `pos` typed reports that too (`go test ./internal/parse/ -run '^TestCoreEveryLineCheckExemptsOnlyGlobSlots$' -count=1 -v | grep -q '^--- PASS: TestCoreEveryLineCheckExemptsOnlyGlobSlots'`)
+- the exemption list is exact, not a loophole: the same check over a copy of CORE.pmt with one non-glob line left untyped (`sub socket :prototype(*$$$);`) reports it, and over a copy with `pos` typed reports that too (`go test ./internal/parse/ -run '^TestCoreEveryLineCheckExemptsOnlyPrototypeOnlyLines$' -count=1 -v | grep -q '^--- PASS: TestCoreEveryLineCheckExemptsOnlyPrototypeOnlyLines'`)
 - a niladic control-flow keyword (`__FILE__`, `wantarray`, `break`: prototype `()`) is typed with zero parameters, so its derived prototype stays `()` (`go test ./internal/parse/ -run '^TestCoreNiladicFlowKeywordsTypedEmpty$' -count=1 -v | grep -q '^--- PASS: TestCoreNiladicFlowKeywordsTypedEmpty'`)
 
 The exemptions grew from six to nine on 2026-10-06: catch, isa and method report a `()` prototype but no call reaches them, so they are held prototype-only until perigrin rules on 01a111b5-1a31-70f3-9a21-023067e90a6f. The milestone goal's "except the six glob-slot lines" waits on that ruling.
