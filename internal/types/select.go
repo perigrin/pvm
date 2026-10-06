@@ -47,11 +47,33 @@ type Selection struct {
 // ListCtx or VoidCtx. What a call whose context is undetermined passes is
 // RFC 0001 "Call sites"'s; no candidate takes UnknownCtx.
 func Select(cands []Signature, args []Type, ctx Context) Selection {
-	var fit []int
+	return SelectShaped(cands, args, "", ctx)
+}
+
+// SelectShaped is Select for a call whose operands' shapes the call site
+// states, RFC 0001 "Operators that fork": shapes[i] is `@` when the i'th
+// operand is a parenthesised list, `(1,2) x 2`, and `$` otherwise. The
+// parenthesis is a parse fact, so types cannot stand in for it. A `@`
+// parameter takes only a `@` operand. A `$` parameter takes either, as perl
+// evaluates a parenthesised list in scalar context: `my $x = (1,2) x 2` is
+// `22`. Candidates taking every `@` operand as a list rule out those taking
+// one as a scalar, before the most specific is sought. With no shapes
+// stated, as for a call to a sub, none is ruled out by shape.
+func SelectShaped(cands []Signature, args []Type, shapes string, ctx Context) Selection {
+	var fit, asLists []int
 	for i, c := range cands {
-		if c.contexts()&ContextSet(ctx) != 0 && c.accepts(len(args)) && c.fits(args) {
-			fit = append(fit, i)
+		if c.contexts()&ContextSet(ctx) == 0 || !c.accepts(len(args)) || !c.fits(args) {
+			continue
 		}
+		if takes, lists := c.takesShapes(shapes); takes {
+			fit = append(fit, i)
+			if lists {
+				asLists = append(asLists, i)
+			}
+		}
+	}
+	if len(asLists) > 0 {
+		fit = asLists
 	}
 	if len(fit) == 0 {
 		return Selection{Outcome: Failed, Candidate: -1}
@@ -115,6 +137,21 @@ func (s Signature) fits(args []Type) bool {
 		}
 	}
 	return true
+}
+
+// takesShapes reports whether s takes operands of the given shapes, a `@`
+// parameter only a `@` operand, and whether it takes every `@` operand as
+// a list.
+func (s Signature) takesShapes(shapes string) (takes, asLists bool) {
+	asLists = true
+	for i, shape := range shapes {
+		list := len(s.Params) > 0 && s.Params[min(i, len(s.Params)-1)].Sigil == '@'
+		if list && shape != '@' {
+			return false, false
+		}
+		asLists = asLists && (list || shape != '@')
+	}
+	return true, asLists
 }
 
 // paramType is the type the i'th argument is taken as: its parameter's,

@@ -109,6 +109,18 @@ func (l *lexer) sigilAttribute(word string) bool {
 // Only directly after the keyword -- otherwise `f ($x)` and `my ($a, $b)`
 // would scan their parens as prototypes.
 func (l *lexer) noteSubName(k Kind, start int) bool {
+	// An attribute's argument touches its name; until its `)` the head
+	// stays open.
+	open := k == Operator && l.pos-start == 1 && l.src[start] == '('
+	if k != Whitespace && k != Comment && (l.attrArgDepth > 0 || open && l.inSubAttrs && l.touchesAttributeName(start)) {
+		switch {
+		case open:
+			l.attrArgDepth++
+		case k == CloseBracket && l.src[start] == ')':
+			l.attrArgDepth--
+		}
+		return true
+	}
 	switch k {
 	case Whitespace, Comment:
 		// Trivia between `sub`, the name and the `(` does not reset the
@@ -227,6 +239,7 @@ func (l *lexer) closeDeclHead() {
 	l.expectPrototype = false
 	l.sawAttrColon = false
 	l.inSubAttrs = false
+	l.attrArgDepth = 0
 }
 
 // noteSignatureParens keeps sigDepth: the `(` a pending signature was waiting

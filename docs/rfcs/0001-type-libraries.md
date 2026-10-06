@@ -439,7 +439,7 @@ property is lvalue-ness, not "unevaluated": `$x = 7` is evaluated.
 
 What an aliased list is as a type stays the paper's question.
 
-### Operator declarations (*Decided*)
+### Operator declarations (*Implemented*, d76d94b1, b5b1f905, 94d4c5c2, 31cf13bc, edbd7955, 0a726b85, a6fcb6e8, 1776c37f)
 
 perigrin, 2026-10-02, **provisional**: these spellings stand for now and
 may change as operators are declared.
@@ -467,9 +467,9 @@ same spelling.
 
 XS::Parse::Infix classes no operator at the levels of `&`, of `|` and
 `^`, or of `<<` and `>>` (perigrin, 2026-10-06), so `CORE.pmt` coins
-`BITAND`, `BITOR` and `SHIFT` for them. The three exist only for
-`CORE.pmt`: XS::Parse::Infix cannot register an operator at those
-levels, so no library declares one there.
+`BITAND`, `BITOR` and `SHIFT` for them, and `RANGE` likewise for `..`
+and `...`. They exist only for `CORE.pmt`: XS::Parse::Infix cannot
+register an operator at those levels, so no library declares one there.
 
 **Operators that fork** are multis:
 
@@ -486,6 +486,24 @@ levels, so no library declares one there.
 multi sub x :infix(MUL) :context(@) (List @l, Int $n) List;   # (LIST) x N
 multi sub x :infix(MUL) (Str $s, Int $n) Str;     # EXPR x N
 ```
+
+  The call site states each operand's shape, `@` for a parenthesised
+  list and `$` otherwise. A `@` parameter takes only a `@` operand, and
+  a candidate taking each `@` operand as a list is selected before one
+  taking it as a scalar; without that, `Str <: List` would make the
+  `Str` candidate the most specific. An operator's `@` parameter is one
+  operand, so it may come before another.
+- `=~` forks on context: in list context a match is its captures and
+  `s///g` its count; in scalar context a match is a boolean, `s///` and
+  `tr///` a count, and `s///r` and `tr///r` the new string.
+- `\` forks on a parenthesis as `x` does: `my @r = \(1,2,3)` is three
+  references, `my @r = \@a` one.
+
+Which operands are `@`-shaped is the operator's, for "Call sites" to
+apply. Measured on 5.42, `qw(a b) x 2` is `a b a b`, a `qw` list shaped
+as a parenthesised one; and to `\` a sub call is a list too, `my @r =
+\f()` being a reference to each value `f` returns, where `f() x 2`
+repeats a string.
 
 ### Multi declarations (*Implemented*, d7ff54be, e0927971, 597f89f2, 56fdf0e2, 2a00759b, 1f2f170c, 263ec15e, d44fb222)
 

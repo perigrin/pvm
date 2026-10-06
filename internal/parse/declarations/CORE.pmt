@@ -204,8 +204,8 @@ sub write :prototype(;*);
 # Operators (RFC 0001, "Operator declarations"): each under its symbol, with
 # its fixity and, for an infix one, the class naming its precedence level in
 # the parser's table. The types are upper bounds: `Int + Int` is an Int within
-# `Num`, and narrowing it is inference's. `..`, `...` and `x` fork on context
-# or on a parenthesis and are not declared here.
+# `Num`, and narrowing it is inference's. An operator that forks on context or
+# on a parenthesis is a multi, one candidate for each branch.
 
 # Arithmetic
 sub + :infix(ADD) (Num $x, Num $y) Num;
@@ -218,6 +218,11 @@ sub ** :infix(POW) (Num $x, Num $y) Num;
 # String
 sub . :infix(ADD) (Str $x, Str $y) Str;
 
+# Repetition: a list when the left operand is parenthesised and the call is
+# in list context, `(1,2) x 2`; otherwise a string, `"ab" x 2`.
+multi sub x :infix(MUL) :context(@) (List @l, Int $n) List;
+multi sub x :infix(MUL) (Str $s, Int $n) Str;
+
 # Numeric comparison
 sub == :infix(EQUALITY) (Num $x, Num $y) Boolean;
 sub != :infix(EQUALITY) (Num $x, Num $y) Boolean;
@@ -225,7 +230,8 @@ sub < :infix(RELATION) (Num $x, Num $y) Boolean;
 sub > :infix(RELATION) (Num $x, Num $y) Boolean;
 sub <= :infix(RELATION) (Num $x, Num $y) Boolean;
 sub >= :infix(RELATION) (Num $x, Num $y) Boolean;
-sub <=> :infix(ORDERING) (Num $x, Num $y) Int;
+# undef when an operand is NaN: `("nan"+0) <=> 1`.
+sub <=> :infix(ORDERING) (Num $x, Num $y) Int|Undef;
 
 # String comparison
 sub eq :infix(EQUALITY) (Str $x, Str $y) Boolean;
@@ -254,9 +260,19 @@ sub >> :infix(SHIFT) (Int $x, Int $y) Int;
 # Type test
 sub isa :infix(ISA) (Scalar $x, Str $y) Boolean;
 
-# Regex binding
-sub =~ :infix(MATCHRE) (Str $x, Regex $y) Boolean;
+# Regex binding: in list context a match's captures, or s///'s count; in
+# scalar context a match's boolean, s/// or tr///'s count, or s///r or
+# tr///r's new string.
+multi sub =~ :infix(MATCHRE) :context(@) (Str $x, Regex $y) List;
+multi sub =~ :infix(MATCHRE) :context($) (Str $x, Regex $y) Boolean|Str;
 sub !~ :infix(MATCHRE) (Str $x, Regex $y) Boolean;
+
+# Range: a range in list context, a flip-flop in scalar context, whose
+# result is a sequence number as a string ("", "1", "2", "3E0").
+multi sub .. :infix(RANGE) :context(@) (Str $x, Str $y) List;
+multi sub .. :infix(RANGE) :context($) (Any $x, Any $y) Str;
+multi sub ... :infix(RANGE) :context(@) (Str $x, Str $y) List;
+multi sub ... :infix(RANGE) :context($) (Any $x, Any $y) Str;
 
 # Assignment
 sub = :infix(ASSIGN) (Any $x, Any $y) Any;
@@ -267,4 +283,7 @@ sub + :prefix (Num $x) Num;
 sub ! :prefix (Any $x) Boolean;
 sub not :prefix (Any $x) Boolean;
 sub ~ :prefix (Int $x) Int;
-sub \ :prefix (Any $x) Ref;
+# A reference to each element of a parenthesised list in list context,
+# `\(1,2,3)`; otherwise one reference.
+multi sub \ :prefix :context(@) (List @l) List;
+multi sub \ :prefix (Any $x) Ref;

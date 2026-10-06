@@ -292,3 +292,74 @@ func TestSelectVoidContextUnanswered(t *testing.T) {
 func TestSelectBooleanIsNotList(t *testing.T) {
 	wantFailedIn(t, sortCandidates, BooleanCtx, []Type{Int, Int})
 }
+
+// repeatCandidates are RFC 0001's `x`:
+//
+//	multi sub x :infix(MUL) :context(@) (List @l, Int $n) List;   # (LIST) x N
+//	multi sub x :infix(MUL) (Str $s, Int $n) Str;                 # EXPR x N
+var repeatCandidates = []Signature{
+	in(sig(List, Param{Name: "l", Sigil: '@', Type: List}, scalar("n", Int)), ListCtx),
+	sig(Str, scalar("s", Str), scalar("n", Int)),
+}
+
+// wantShapedIn checks that operands of types args and shapes, in context
+// ctx, select candidate want, returning ret.
+func wantShapedIn(t *testing.T, cands []Signature, ctx Context, args []Type, shapes string, want int, ret Type) {
+	t.Helper()
+	got := SelectShaped(cands, args, shapes, ctx)
+	if got.Outcome != Selected || got.Candidate != want || got.Returns != ret {
+		t.Errorf("%v shaped %q in %v: got %+v, want candidate %d selected, returning %v", args, shapes, ctx, got, want, ret)
+	}
+}
+
+// TestSelectByOperandShape: RFC 0001 "Operators that fork". `x` repeats a
+// list only when its left operand is parenthesised, a parse fact the call
+// site states as the operand's shape: `@` for a parenthesised list, `$`
+// otherwise. Measured on 5.42.0, `my @l = (1,2) x 2` is `1 2 1 2` and
+// `my @l = "ab" x 2` is `abab`. A list of Ints is an Int to the lattice
+// (Scalar <: List), which fits both candidates, and Str <: List would make
+// the Str one the most specific; the shape rules it out first.
+func TestSelectByOperandShape(t *testing.T) {
+	wantShapedIn(t, repeatCandidates, ListCtx, []Type{Int, Int}, "@$", 0, List)
+	wantShapedIn(t, repeatCandidates, ListCtx, []Type{Str, Int}, "$$", 1, Str)
+	// A call stating no shapes, a sub's, is selected as Select selects it.
+	wantShapedIn(t, repeatCandidates, ListCtx, []Type{Int, Int}, "", 1, Str)
+}
+
+// TestSelectRepeatScalarContextIsStr: a parenthesised left operand repeats
+// a list only in list context. Measured on 5.42.0, `my $x = (1,2) x 2` and
+// `my $x = (@a) x 2` (two elements) are both `22`: perl evaluates the
+// parenthesised list in scalar context, and the Str candidate takes it.
+func TestSelectRepeatScalarContextIsStr(t *testing.T) {
+	wantShapedIn(t, repeatCandidates, ScalarCtx, []Type{Int, Int}, "@$", 1, Str)
+	wantShapedIn(t, repeatCandidates, BooleanCtx, []Type{Int, Int}, "@$", 1, Str)
+}
+
+// TestSelectRepeatBareArrayIsStr: an unparenthesised array is no list to
+// `x`. Measured on 5.42.0, `my @l = @a x 2` with two elements is `22`, the
+// count repeated as a string. Even of unknown type, the operand's shape
+// rules the List candidate out, so the call is not undecided between them.
+func TestSelectRepeatBareArrayIsStr(t *testing.T) {
+	wantShapedIn(t, repeatCandidates, ListCtx, []Type{Int, Int}, "$$", 1, Str)
+	wantShapedIn(t, repeatCandidates, ListCtx, []Type{Unknown, Int}, "$$", 1, Str)
+}
+
+// rangeCandidates are CORE.pmt's `..`, a range in list context and a
+// flip-flop in scalar context:
+//
+//	multi sub .. :infix(RANGE) :context(@) (Str $x, Str $y) List;
+//	multi sub .. :infix(RANGE) :context($) (Any $x, Any $y) Str;
+var rangeCandidates = []Signature{
+	in(sig(List, scalar("x", Str), scalar("y", Str)), ListCtx),
+	in(sig(Str, scalar("x", Any), scalar("y", Any)), ScalarCtx),
+}
+
+// TestSelectRangeBooleanIsFlipFlop: boolean context is scalar, so `if (/a/
+// .. /b/)` is the flip-flop. Measured on 5.42.0, `if (/x/ .. /y/)` over `a
+// x b c y d` is true for `x b c y`, the flip-flop's lines. Int operands,
+// which the range candidate also takes, are a flip-flop there too.
+func TestSelectRangeBooleanIsFlipFlop(t *testing.T) {
+	wantSelectedIn(t, rangeCandidates, BooleanCtx, []Type{Boolean, Boolean}, 1, Str)
+	wantSelectedIn(t, rangeCandidates, BooleanCtx, []Type{Int, Int}, 1, Str)
+	wantSelectedIn(t, rangeCandidates, ListCtx, []Type{Int, Int}, 0, List)
+}

@@ -13,10 +13,12 @@ import (
 
 // operatorDecl is one operator a `.pmt` declares: `sub + :infix(ADD) (Num $x,
 // Num $y) Num;` is "+", "infix", "ADD" and its signature. A prefix or postfix
-// operator has no class.
+// operator has no class. multi is set for a `multi sub`, one of several
+// candidates for its symbol (RFC 0001, "Operators that fork").
 type operatorDecl struct {
 	name, fixity, class string
 	sig                 types.Signature
+	multi               bool
 }
 
 // operatorClasses are the classes `:infix(CLASS)` may name, each to the
@@ -25,9 +27,9 @@ type operatorDecl struct {
 // prefix and `_MISC` suffix. LOW and HIGH are the plugin hooks either side of
 // the core operators, levels 3 and 28.
 //
-// BITOR, BITAND and SHIFT are not XS::Parse::Infix's: it classes no operator
-// at those levels, so it cannot register one there, and they exist only for
-// CORE.pmt to declare perl's own.
+// BITOR, BITAND, SHIFT and RANGE are not XS::Parse::Infix's: it classes no
+// operator at those levels, so it cannot register one there, and they exist
+// only for CORE.pmt to declare perl's own.
 var operatorClasses = map[string]int{
 	"LOW":             3,
 	"LOGICAL_OR_LOW":  4,
@@ -36,6 +38,7 @@ var operatorClasses = map[string]int{
 	"BITAND":          15,
 	"SHIFT":           21,
 	"ASSIGN":          9,
+	"RANGE":           11,
 	"LOGICAL_OR":      12,
 	"LOGICAL_AND":     13,
 	"EQUALITY":        16,
@@ -85,6 +88,7 @@ func (p *parser) declareOperator(n *Node) {
 		p.typedErrs = append(p.typedErrs, fmt.Errorf("sub %s: %w", name, err))
 		return
 	}
+	op.multi = p.multi
 	p.operators = append(p.operators, op)
 }
 

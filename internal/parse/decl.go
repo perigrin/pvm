@@ -126,6 +126,7 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 		if s.Context, err = declaredContext(n); err != nil {
 			return err
 		}
+		operator := len(fixityAttrs(n)) > 0
 		for {
 			tok, ok := p.peekSignificant()
 			if ok && p.text(tok) == ")" {
@@ -137,8 +138,9 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 			}
 			// A List parameter takes every remaining argument, so nothing
 			// can follow it (RFC 0001, "A typed signature and a prototype
-			// say the same thing").
-			if n := len(s.Params); n > 0 && s.Params[n-1].Slurpy() {
+			// say the same thing"). An operator's is one operand, a
+			// parenthesised list (RFC 0001, "Operators that fork").
+			if n := len(s.Params); n > 0 && s.Params[n-1].Slurpy() && !operator {
 				last := s.Params[n-1]
 				container := "Array"
 				if last.Sigil == '%' {
@@ -153,7 +155,8 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 			// Everything after a prototype's `;` is optional, so a required
 			// parameter after an optional one has no prototype; perl 5.42
 			// refuses it, "Mandatory parameter follows optional parameter".
-			if param.Required {
+			// An operator has no prototype, and takes each operand.
+			if param.Required && !operator {
 				for _, before := range s.Params {
 					if !before.Required {
 						return fmt.Errorf("mandatory parameter %c%s follows optional parameter %c%s", param.Sigil, param.Name, before.Sigil, before.Name)

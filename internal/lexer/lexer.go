@@ -309,6 +309,11 @@ type lexer struct {
 	// opaquely, because `$)` is a real perl variable that would otherwise eat
 	// the closing paren.
 	sawAttrColon bool
+	// attrArgDepth is the paren depth inside an attribute's argument,
+	// `:Foo(bar)`, whose contents the parser reads opaquely. Nothing in it
+	// closes the declaration's head, so an attribute after it is still an
+	// attribute: `sub f :Foo(bar) :prototype($) { 1 }`.
+	attrArgDepth int
 	// sawLabelWord is set when the token just emitted was a Word at a
 	// STATEMENT boundary, so a `:` following it is a label's colon rather
 	// than a ternary's or an attribute's. A one-token carry, the same shape
