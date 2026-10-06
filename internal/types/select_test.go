@@ -104,3 +104,20 @@ func TestMultiAmbiguityEdgeCases(t *testing.T) {
 		t.Errorf("duplicates: got %v, want %q", err, want)
 	}
 }
+
+// TestSelectNoArityMatch: RFC 0001 "Multi declarations", a call whose
+// arity no candidate accepts fails (perigrin, 2026-10-02): `each` with two
+// arguments has no candidate and no type, never the join of the two.
+func TestSelectNoArityMatch(t *testing.T) {
+	wantFailed(t, eachCandidates, []Type{Hash, Hash})
+}
+
+// TestSelectEmptyCandidates: selection over no candidates, or a call with
+// no arguments that every candidate requires, has no type, and does not
+// panic.
+func TestSelectEmptyCandidates(t *testing.T) {
+	wantFailed(t, nil, nil)
+	wantFailed(t, nil, []Type{Int})
+	wantFailed(t, []Signature{}, nil)
+	wantFailed(t, eachCandidates, nil)
+}
