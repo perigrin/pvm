@@ -1,6 +1,6 @@
 ---
 title: "Parse aliased parameters (\\$x, \\@a, \\%h, \\&c, \\(@list)) and derive \\$, \\@, \\% and \\& from them"
-state: in-progress
+state: done
 urgency: normal
 milestone: type-libraries
 blocked_by:
@@ -12,16 +12,20 @@ blocks:
 - 01a10dc1-3499-7e2b-9e6f-d935084437fa
 - 01a10dc1-3530-762f-9a03-177445629c6b
 created: 2026-10-02T17:13:27.376660947Z
-updated: 2026-10-06T08:56:18.108079595Z
+updated: 2026-10-06T08:56:18.282478383Z
 sessions:
 - start_sha: 3c0c517fbcb6634d7c96c94b50430cebf214de5d
-  end_sha: ""
+  end_sha: 3c0c517fbcb6634d7c96c94b50430cebf214de5d
   commits: 0
   started_at: 2026-10-06T08:56:18.108079595Z
+  ended_at: 2026-10-06T08:56:18.282478383Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-06T08:56:18.108079595Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-06T08:56:18.282478383Z
 ---
 
 ## Prerequisites
