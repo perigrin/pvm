@@ -99,3 +99,29 @@ func TestInferCoreCoercionMismatchStillReported(t *testing.T) {
 		assert.Equal(t, c.severity, diags[0].Severity, "%q: %s", c.src, diags[0].Message)
 	}
 }
+
+// TestInferTypesOperatorsFromCore: an operator's result is its CORE.pmt
+// declaration's. `sub <=> :infix(ORDERING) (Num $x, Num $y) Int|Undef;`:
+// measured, `1 <=> "nan"` is undef. `x` forks on its left operand's
+// parenthesis and its context: measured, `my @y = (1,2) x 2` is (1,2,1,2)
+// and `my $s = "ab" x 2` is "abab".
+func TestInferTypesOperatorsFromCore(t *testing.T) {
+	cases := []struct {
+		src, name string
+		want      types.Type
+	}{
+		{"my $c = 1 <=> 2;", "$c", types.Int | types.Undef},
+		{"my @y = (1,2) x 2;", "@y", types.List},
+		{`my $s = "ab" x 2;`, "$s", types.Str},
+	}
+	for _, c := range cases {
+		assert.Equal(t, c.want, lookupType(t, c.src, c.name), "%q", c.src)
+	}
+}
+
+// TestInferRepeatScalarContextIsStr: a parenthesised `x` in scalar context
+// is the string repetition, not a list: measured, `my $x = (1,2) x 2` is
+// "22", perl evaluating the parenthesised list in scalar context.
+func TestInferRepeatScalarContextIsStr(t *testing.T) {
+	assert.Equal(t, types.Str, lookupType(t, "my $x = (1,2) x 2;", "$x"))
+}

@@ -230,8 +230,16 @@ func CoreBuiltin(name string) []types.Signature {
 	return coreSignatures()[name]
 }
 
-// readCore reads CORE.pmt, once, into coreTable's and coreSignatures's
-// tables.
+// CoreOperator is the typed signatures CORE.pmt declares for the operator
+// spelled op of fixity "infix" or "prefix", one per candidate, and nil for
+// one it does not declare. internal/infer types operators from it.
+func CoreOperator(op, fixity string) []types.Signature {
+	readCore()
+	return coreOps[[2]string{op, fixity}]
+}
+
+// readCore reads CORE.pmt, once, into coreTable's, coreSignatures's and
+// CoreOperator's tables.
 func readCore() {
 	coreOnce.Do(func() {
 		src, ok := declaration("CORE")
@@ -239,7 +247,7 @@ func readCore() {
 			panic("parse: declarations/CORE.pmt is not embedded")
 		}
 		var err error
-		if coreMap, coreSigs, err = coreProtos(src); err != nil {
+		if coreMap, coreSigs, coreOps, err = coreDeclarations(src); err != nil {
 			panic("parse: declarations/CORE.pmt: " + err.Error())
 		}
 	})
@@ -249,9 +257,21 @@ func readCore() {
 // hold. A file in error builds neither: a builtin it misdeclares would parse
 // wrong.
 func coreProtos(src []byte) (map[string]string, map[string][]types.Signature, error) {
+	protos, sigs, _, err := coreDeclarations(src)
+	return protos, sigs, err
+}
+
+// coreDeclarations is coreProtos with CoreOperator's table: each operator's
+// candidates by its symbol and fixity.
+func coreDeclarations(src []byte) (map[string]string, map[string][]types.Signature, map[[2]string][]types.Signature, error) {
 	facts := readDeclaration(src, nil)
 	if len(facts.errs) > 0 {
-		return nil, nil, errors.Join(facts.errs...)
+		return nil, nil, nil, errors.Join(facts.errs...)
+	}
+	ops := map[[2]string][]types.Signature{}
+	for _, op := range facts.operators {
+		key := [2]string{op.name, op.fixity}
+		ops[key] = append(ops[key], op.sig)
 	}
 	protos := map[string]string{}
 	for name, proto := range facts.protos {
@@ -262,11 +282,12 @@ func coreProtos(src []byte) (map[string]string, map[string][]types.Signature, er
 		}
 		protos[name] = strings.TrimSuffix(strings.TrimPrefix(proto, "("), ")")
 	}
-	return protos, facts.signatures, nil
+	return protos, facts.signatures, ops, nil
 }
 
 var (
 	coreOnce sync.Once
 	coreMap  map[string]string
 	coreSigs map[string][]types.Signature
+	coreOps  map[[2]string][]types.Signature
 )

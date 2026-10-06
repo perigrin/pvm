@@ -430,10 +430,6 @@ func inferBinaryExprType(node *parser.Node, source []byte, annotations map[uint3
 	if op == "" {
 		return types.Unknown
 	}
-	sig, ok := types.GetBinaryOp(op)
-	if !ok {
-		return types.Unknown
-	}
 
 	// Collect the two named children (left and right operands).
 	var left, right *parser.Node
@@ -450,9 +446,15 @@ func inferBinaryExprType(node *parser.Node, source []byte, annotations map[uint3
 		}
 	}
 
+	ctx := assignedContext(node)
+	sigs := operatorCandidates(op, "infix", ctx, left, right)
+	if len(sigs) == 0 {
+		return types.Unknown
+	}
+
 	// Check operand types against the signature.
-	checkBinaryOperand(left, source, annotations, diags, sig.Left, op, "left")
-	checkBinaryOperand(right, source, annotations, diags, sig.Right, op, "right")
+	checkBinaryOperand(left, source, annotations, diags, builtinArgType(sigs, 0), op, "left")
+	checkBinaryOperand(right, source, annotations, diags, builtinArgType(sigs, 1), op, "right")
 
 	// A logical operator yields ONE OF ITS OPERANDS rather than a type of its
 	// own — measured, `undef // "s"` is "s", `0 || 42` is 42, `1 && "x"` is
@@ -469,12 +471,20 @@ func inferBinaryExprType(node *parser.Node, source []byte, annotations map[uint3
 	if op == "=~" && hasChildOfKind(node, "substitution_regexp") {
 		return types.Str
 	}
+	// A MATCH is the other arm of CORE.pmt's scalar `=~`, Boolean|Str: the
+	// Str is s///'s and tr///'s count. Measured, `"abc" =~ /b/` is 1 and
+	// `"abc" =~ /z/` is "", both booleans, so a scalar-context match is
+	// Boolean.
+	if op == "=~" && ctx == types.ScalarCtx && hasChildOfKind(node, "match_regexp") {
+		return types.Boolean
+	}
 
-	if sig.Result == types.Any && logicalOps[op] {
+	result := builtinReturns(sigs)
+	if result == types.Any && logicalOps[op] {
 		return types.Join(operandType(left, annotations), operandType(right, annotations))
 	}
 
-	return sig.Result
+	return result
 }
 
 // checkBinaryOperand verifies that an operand's inferred type satisfies the
@@ -602,8 +612,8 @@ func inferUnaryExprType(node *parser.Node, source []byte, annotations map[uint32
 	if op == "" {
 		return types.Unknown
 	}
-	sig, ok := types.GetUnaryOp(op)
-	if !ok {
+	sigs := parse.CoreOperator(op, "prefix")
+	if len(sigs) == 0 {
 		return types.Unknown
 	}
 
@@ -624,7 +634,7 @@ func inferUnaryExprType(node *parser.Node, source []byte, annotations map[uint32
 		}
 	}
 
-	return sig.Result
+	return builtinReturns(sigs)
 }
 
 // findOperatorText returns the operator token of a binary-family node.
@@ -650,10 +660,7 @@ func findOperatorText(node *parser.Node, source []byte) string {
 			continue
 		}
 		text := child.Text(source)
-		if _, ok := types.GetBinaryOp(text); ok {
-			return text
-		}
-		if _, ok := types.GetUnaryOp(text); ok {
+		if len(parse.CoreOperator(text, "infix")) > 0 || len(parse.CoreOperator(text, "prefix")) > 0 {
 			return text
 		}
 	}
@@ -1906,6 +1913,70 @@ func builtinArgActual(name string, actual types.Type) types.Type {
 		return narrowed
 	}
 	return actual
+}
+
+// operatorCandidates is the CORE.pmt candidates of the operator op of
+// fixity that a use with these operands in context ctx can be: those
+// taking the operands' shapes, RFC 0001 "Operators that fork" -- a
+// parenthesised operand, `(1,2) x 2`, is `@`-shaped -- and answering for ctx,
+// or for any context when ctx is UnknownCtx. The operands' types do not
+// choose between them; that is RFC 0001 "Call sites"'.
+func operatorCandidates(op, fixity string, ctx types.Context, operands ...*parser.Node) []types.Signature {
+	shapes := ""
+	for _, o := range operands {
+		if o != nil && o.Kind() == "list_expression" {
+			shapes += "@"
+		} else {
+			shapes += "$"
+		}
+	}
+	ctxs := []types.Context{ctx}
+	if ctx == types.UnknownCtx {
+		ctxs = []types.Context{types.ScalarCtx, types.ListCtx, types.VoidCtx}
+	}
+	var takes []types.Signature
+	for _, c := range parse.CoreOperator(op, fixity) {
+		for _, x := range ctxs {
+			if types.SelectShaped([]types.Signature{c}, make([]types.Type, len(shapes)), shapes, x).Outcome != types.Failed {
+				takes = append(takes, c)
+				break
+			}
+		}
+	}
+	return takes
+}
+
+// assignedContext is the context an assignment evaluates node in when node
+// is its right side: scalar context for a scalar or an element on the left,
+// list context for an array, a hash or a parenthesised list, `my ($a) = ...`
+// included. Anywhere else it is UnknownCtx.
+func assignedContext(node *parser.Node) types.Context {
+	parent := node.Parent()
+	if parent == nil || parent.Kind() != "assignment_expression" || parent.NamedChildCount() < 2 {
+		return types.UnknownCtx
+	}
+	if rhs := parent.NamedChild(parent.NamedChildCount() - 1); rhs.StartByte() != node.StartByte() || rhs.Kind() != node.Kind() {
+		return types.UnknownCtx
+	}
+	lhs := parent.NamedChild(0)
+	if lhs.Kind() == "variable_declaration" {
+		for i := 0; i < lhs.ChildCount(); i++ {
+			if c := lhs.Child(i); c != nil && !c.IsNamed() && c.Kind() == "(" {
+				return types.ListCtx
+			}
+		}
+		if lhs.NamedChildCount() != 1 {
+			return types.UnknownCtx
+		}
+		lhs = lhs.NamedChild(0)
+	}
+	switch lhs.Kind() {
+	case "scalar", "array_element_expression", "hash_element_expression":
+		return types.ScalarCtx
+	case "array", "hash", "list_expression":
+		return types.ListCtx
+	}
+	return types.UnknownCtx
 }
 
 // builtinMinArity is the fewest arguments any of a builtin's candidates
@@ -4011,10 +4082,6 @@ func collectBinaryConstraints(
 	if op == "" {
 		return
 	}
-	sig, ok := types.GetBinaryOp(op)
-	if !ok {
-		return
-	}
 
 	// Find left and right operands.
 	var left, right *parser.Node
@@ -4030,20 +4097,24 @@ func collectBinaryConstraints(
 			break
 		}
 	}
+	sigs := operatorCandidates(op, "infix", assignedContext(node), left, right)
+	if len(sigs) == 0 {
+		return
+	}
 
 	// Check if left operand is a param.
 	if left != nil {
 		name := resolveVarName(left, source)
-		if idx, ok := paramSet[name]; ok && sig.Left != types.Any {
-			constraints[idx] &= sig.Left
+		if idx, ok := paramSet[name]; ok && builtinArgType(sigs, 0) != types.Any {
+			constraints[idx] &= builtinArgType(sigs, 0)
 		}
 	}
 
 	// Check if right operand is a param.
 	if right != nil {
 		name := resolveVarName(right, source)
-		if idx, ok := paramSet[name]; ok && sig.Right != types.Any {
-			constraints[idx] &= sig.Right
+		if idx, ok := paramSet[name]; ok && builtinArgType(sigs, 1) != types.Any {
+			constraints[idx] &= builtinArgType(sigs, 1)
 		}
 	}
 }
