@@ -1,6 +1,6 @@
 ---
 title: "Refuse constants and sub results in \\$ slots"
-state: in-progress
+state: done
 urgency: normal
 milestone: type-libraries
 blocked_by:
@@ -8,16 +8,20 @@ blocked_by:
 blocks:
 - 01a10177-547c-73a9-a302-f25f579a4cb3
 created: 2026-10-05T20:28:48.303887564Z
-updated: 2026-10-06T11:08:09.715478378Z
+updated: 2026-10-06T11:08:09.923808589Z
 sessions:
 - start_sha: f130a47829bc47468b271d9480f78c9bb6fa9036
-  end_sha: ""
+  end_sha: f130a47829bc47468b271d9480f78c9bb6fa9036
   commits: 0
   started_at: 2026-10-06T11:08:09.715478378Z
+  ended_at: 2026-10-06T11:08:09.923808589Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-06T11:08:09.715478378Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-06T11:08:09.923808589Z
 ---
 
 ## Prerequisites
