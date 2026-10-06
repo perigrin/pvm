@@ -1,6 +1,6 @@
 ---
 title: Refuse at parse time the call arities perl refuses at compile time
-state: pending
+state: in-progress
 urgency: normal
 milestone: type-libraries
 blocked_by:
@@ -11,7 +11,16 @@ blocked_by:
 blocks:
 - 01a0fd9b-5700-7514-a143-2caed2d06d8b
 created: 2026-10-03T11:12:40.060535979Z
-updated: 2026-10-06T15:03:56.77638692Z
+updated: 2026-10-06T17:54:00.928334872Z
+sessions:
+- start_sha: 43f860ac514a389aecd9988fd600b789123a44fc
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-06T17:54:00.928334872Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-06T17:54:00.928334872Z
 ---
 
 ## Prerequisites
