@@ -42,7 +42,7 @@ type Param struct {
 	Name string
 
 	// Sigil is '$' for a scalar, '&' for a code slot, '*' for a glob
-	// slot, '@' or '%' for a slurpy.
+	// slot, '@' or '%' for an array or hash: a slurpy, unless Alias.
 	Sigil byte
 
 	// Type is the lattice type the parameter's type name resolves to.

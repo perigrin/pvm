@@ -337,8 +337,9 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 	if ok && p.text(v) == `\` {
 		p.advanceTo(v)
 		v, ok = p.peekSignificant()
-		alias = !ok || p.text(v) != "("
-		if each = !alias; each {
+		each = ok && p.text(v) == "("
+		alias = !each
+		if each {
 			p.advanceTo(v)
 			v, ok = p.peekSignificant()
 			if !ok || v.Kind != lexer.Variable || p.src[v.Start] != '@' {
