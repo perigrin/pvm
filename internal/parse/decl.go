@@ -138,7 +138,7 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 			// A List parameter takes every remaining argument, so nothing
 			// can follow it (RFC 0001, "A typed signature and a prototype
 			// say the same thing").
-			if n := len(s.Params); n > 0 && (s.Params[n-1].Sigil == '@' || s.Params[n-1].Sigil == '%') {
+			if n := len(s.Params); n > 0 && s.Params[n-1].Slurpy() {
 				last := s.Params[n-1]
 				container := "Array"
 				if last.Sigil == '%' {
@@ -330,6 +330,23 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 		}
 	}
 	v, ok := p.peekSignificant()
+	// RFC 0001 "The scalar container": a backslash aliases what the caller
+	// writes, as perlref's refaliasing does. `\$x`, `\@a`, `\%h` and `\&c`
+	// alias one container; the list form `\(@args)` aliases each argument.
+	alias, each := false, false
+	if ok && p.text(v) == `\` {
+		p.advanceTo(v)
+		v, ok = p.peekSignificant()
+		each = ok && p.text(v) == "("
+		alias = !each
+		if each {
+			p.advanceTo(v)
+			v, ok = p.peekSignificant()
+			if !ok || v.Kind != lexer.Variable || p.src[v.Start] != '@' {
+				return types.Param{}, nil, fmt.Errorf(`list form \( holds %q; it holds an array, as in \(@args)`, p.text(v))
+			}
+		}
+	}
 	last := v
 	// A code or glob slot, `Code &block` or `Glob *fh`, lexes as its sigil
 	// and then a word; the two are one variable when they touch.
@@ -342,8 +359,20 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 		return types.Param{}, nil, fmt.Errorf("type %s names no variable", tn.Text)
 	}
 	p.advanceTo(last)
-	slurpy := p.src[v.Start] == '@' || p.src[v.Start] == '%'
-	param := types.Param{Name: p.text(v)[1:], Sigil: p.src[v.Start], Type: typ, Element: elem, Required: !slurpy}
+	param := types.Param{Name: p.text(v)[1:], Sigil: p.src[v.Start], Type: typ, Element: elem, Alias: alias, AliasEach: each}
+	slurpy := param.Slurpy()
+	param.Required = !slurpy
+	// An aliased array or hash is the caller's container, and a glob slot
+	// has no spelling: perl cannot alias a glob (RFC 0001, "The scalar
+	// container").
+	switch {
+	case alias && param.Sigil == '*':
+		return types.Param{}, nil, fmt.Errorf(`aliased glob \%s has no spelling (RFC 0001, open question 11)`, p.text(v))
+	case alias && param.Sigil == '@' && typ != types.Array:
+		return types.Param{}, nil, fmt.Errorf(`aliased \%s has type %s; the caller's array is Array \%s`, p.text(v), tn.Text, p.text(v))
+	case alias && param.Sigil == '%' && typ != types.Hash:
+		return types.Param{}, nil, fmt.Errorf(`aliased \%s has type %s; the caller's hash is Hash \%s`, p.text(v), tn.Text, p.text(v))
+	}
 	// RFC 0001 "The scalar container": a parameter that takes the caller's
 	// container is backslashed, so `Array @a` is not valid.
 	if slurpy && typ != types.Unknown && typ != types.List && typ&^(types.Array|types.Hash) == 0 {
@@ -375,6 +404,13 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 		if !param.Required {
 			param.Default = string(p.src[def.Start:def.End])
 		}
+	}
+	if each {
+		end, ok := p.peekSignificant()
+		if !ok || p.text(end) != ")" {
+			return types.Param{}, nil, fmt.Errorf(`list form \(%s is not closed by `+"`)`", p.text(v))
+		}
+		p.advanceTo(end)
 	}
 	node.End = p.prevEnd()
 	return param, node, nil

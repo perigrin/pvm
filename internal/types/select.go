@@ -99,7 +99,7 @@ func (s Signature) accepts(n int) bool {
 		if p.Required {
 			least++
 		}
-		slurpy = slurpy || p.Sigil == '@' || p.Sigil == '%'
+		slurpy = slurpy || p.Slurpy()
 	}
 	return n >= least && (slurpy || n <= len(s.Params))
 }

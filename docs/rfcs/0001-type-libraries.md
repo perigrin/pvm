@@ -396,7 +396,7 @@ filled, since the `@` takes every argument. A declaration with
 anything after a `List` parameter is an error, which points to
 `Array \@a` for a single array followed by more parameters (`\@$`).
 
-### The scalar container (*Decided*)
+### The scalar container (*Implemented*, 1a6f3e93, 7a0ea048, 3c6a73bb, e6fba74e, 352d0eca)
 
 perigrin, 2026-10-02: a parameter that aliases the caller's container
 is written with a backslash, as Perl writes aliasing. perlref,

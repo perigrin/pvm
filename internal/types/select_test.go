@@ -139,6 +139,15 @@ func TestSelectCodeAndGlobAreNotSlurpy(t *testing.T) {
 	wantFailed(t, []Signature{sig(Str, Param{Name: "fh", Sigil: '*', Type: Glob, Required: true})}, []Type{Glob, Glob})
 }
 
+// TestSelectAliasedContainerIsNotSlurpy: RFC 0001 "The scalar container",
+// a backslashed `Array \@a` or `Hash \%h` is the one container the caller
+// writes, so it takes exactly one argument whatever its sigil; push's
+// `(Array \@a, List @list)` takes the rest only in its final parameter.
+func TestSelectAliasedContainerIsNotSlurpy(t *testing.T) {
+	wantFailed(t, []Signature{sig(Str, Param{Name: "a", Sigil: '@', Type: Array, Alias: true, Required: true})}, []Type{Array, Array})
+	wantFailed(t, []Signature{sig(Str, Param{Name: "h", Sigil: '%', Type: Hash, Alias: true, Required: true})}, []Type{Hash, Hash})
+}
+
 // TestSelectEmptyCandidates: selection over no candidates, or a call with
 // no arguments that every candidate requires, has no type, and does not
 // panic.

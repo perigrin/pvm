@@ -246,3 +246,107 @@ func TestDeclaredTrailingSemicolonIsKept(t *testing.T) {
 		}
 	}
 }
+
+// TestAliasedParamsDerivePrototypes: RFC 0001's table rows `\$`, `\@` and
+// `\%`, read both ways. An aliased parameter derives its backslashed
+// character, and a backslashed prototype character derives the aliased
+// parameter: an Array or Hash passed whole, or a Scalar lvalue, each one
+// required argument. Measured on 5.42.0, `sub f (\@) {} f()` is "Not
+// enough arguments", and `f(@x)` passes an ARRAY reference.
+func TestAliasedParamsDerivePrototypes(t *testing.T) {
+	rows := map[string]types.Param{
+		`\$`: {Sigil: '$', Type: types.Scalar, Alias: true, Required: true},
+		`\@`: {Sigil: '@', Type: types.Array, Alias: true, Required: true},
+		`\%`: {Sigil: '%', Type: types.Hash, Alias: true, Required: true},
+	}
+	for typed, want := range map[string]string{
+		`(Scalar \$x)`: `\$`,
+		`(Array \@a)`:  `\@`,
+		`(Hash \%h)`:   `\%`,
+	} {
+		facts := readDeclaration([]byte("sub f "+typed+";\n"), nil)
+		if len(facts.errs) > 0 || facts.protos["f"] != "("+want+")" {
+			t.Errorf("%s: errors %v, prototype %q, want (%s)", typed, facts.errs, facts.protos["f"], want)
+		}
+	}
+	for proto, want := range rows {
+		facts := readDeclaration([]byte("sub f :prototype("+proto+");\n"), nil)
+		if got := facts.signatures["f"]; len(facts.errs) > 0 || !reflect.DeepEqual(got, []types.Signature{{Params: []types.Param{want}}}) {
+			t.Errorf("(%s): errors %v, got %+v, want %+v", proto, facts.errs, got, want)
+		}
+		sig, derived, err := typesFromPrototype(proto)
+		if back := prototypeFromTypes(sig); err != nil || !derived || back != proto {
+			t.Errorf("(%s): derived %v, error %v, round trip gave %q", proto, derived, err, back)
+		}
+	}
+}
+
+// TestPushRoundTripsRefArrayAt: RFC 0001's `sub push (Array \@a, List
+// @list) Int;`. In a `.pmt` a sigil is the caller's view, so only the
+// final parameter is slurpy and the array before it is one argument: the
+// declaration derives perl's `\@@` (measured on 5.42.0,
+// `prototype("CORE::push")`), and `:prototype(\@@)` derives the two
+// parameters back.
+func TestPushRoundTripsRefArrayAt(t *testing.T) {
+	sig := typedSignature(t, "sub f (Array \\@a, List @list) Int;\n")
+	if got := prototypeFromTypes(sig); got != `\@@` {
+		t.Errorf("prototype: got %q, want \\@@", got)
+	}
+	if !sig.Params[0].Required || sig.Params[0].Slurpy() || !sig.Params[1].Slurpy() {
+		t.Errorf("only the final parameter should be slurpy: %+v", sig.Params)
+	}
+	facts := readDeclaration([]byte("sub f :prototype(\\@@);\n"), nil)
+	want := []types.Signature{{Params: []types.Param{
+		{Sigil: '@', Type: types.Array, Alias: true, Required: true},
+		protoList,
+	}}}
+	if got := facts.signatures["f"]; len(facts.errs) > 0 || !reflect.DeepEqual(got, want) {
+		t.Errorf("(\\@@): errors %v, got %+v, want %+v", facts.errs, got, want)
+	}
+	if back := prototypeFromTypes(want[0]); back != `\@@` {
+		t.Errorf("(\\@@): round trip gave %q", back)
+	}
+}
+
+// TestCodeAliasDerivesRefAmp: RFC 0001 "The scalar container", a code
+// slot aliased as perlref's `\&foo = \&bar` aliases a sub, `Code \&c`,
+// derives `\&` where an unbackslashed `Code &c` derives `&`. So `sub any
+// (Code \&block, List @list) Boolean;` derives perl's `\&@` (measured on
+// 5.42.0, `prototype("CORE::any")` and `prototype("CORE::all")`), and
+// `:prototype(\&@)` derives the two parameters back.
+func TestCodeAliasDerivesRefAmp(t *testing.T) {
+	code := types.Param{Sigil: '&', Type: types.Code, Alias: true, Required: true}
+	sig := typedSignature(t, "sub f (Code \\&c);\n")
+	if named := (types.Param{Name: "c", Sigil: '&', Type: types.Code, Alias: true, Required: true}); !reflect.DeepEqual(sig.Params, []types.Param{named}) {
+		t.Errorf("Code \\&c: got %+v, want %+v", sig.Params, named)
+	}
+	if got := prototypeFromTypes(sig); got != `\&` {
+		t.Errorf("Code \\&c: prototype %q, want \\&", got)
+	}
+	if got := prototypeFromTypes(typedSignature(t, "sub f (Code \\&block, List @list) Boolean;\n")); got != `\&@` {
+		t.Errorf("any: prototype %q, want \\&@", got)
+	}
+	for proto, want := range map[string][]types.Param{
+		`\&`:  {code},
+		`\&@`: {code, protoList},
+	} {
+		facts := readDeclaration([]byte("sub f :prototype("+proto+");\n"), nil)
+		if got := facts.signatures["f"]; len(facts.errs) > 0 || !reflect.DeepEqual(got, []types.Signature{{Params: want}}) {
+			t.Errorf("(%s): errors %v, got %+v, want %+v", proto, facts.errs, got, want)
+		}
+		if back := prototypeFromTypes(types.Signature{Params: want}); back != proto {
+			t.Errorf("(%s): round trip gave %q", proto, back)
+		}
+	}
+}
+
+// TestAliasedPrototypeDisagreementIsError: `\@` is an Array passed whole
+// and `@` the rest of the call, flattened (RFC 0001, "A typed signature and
+// a prototype say the same thing"), so a declaration whose prototype says
+// one and whose types say the other is in error.
+func TestAliasedPrototypeDisagreementIsError(t *testing.T) {
+	pmtRefuses(t, map[string]string{
+		"sub f :prototype(\\@) (List @l);\n":  `sub f: :prototype(\@) disagrees with its types, which give (@)`,
+		"sub f :prototype(@) (Array \\@a);\n": `sub f: :prototype(@) disagrees with its types, which give (\@)`,
+	})
+}

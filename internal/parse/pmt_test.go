@@ -604,3 +604,92 @@ func TestPmtDeclarationErrorsSurface(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// TestPmtAliasedParamsParse: RFC 0001 "The scalar container". A parameter
+// that aliases the caller's container is backslashed, as perlref's
+// refaliasing writes it: `Scalar \$x`, `Array \@a`, `Hash \%h`, and a
+// container type before one, `Array[Str] \@a`. Each takes exactly one
+// argument, so each is required. `\(@args)` is perlref's list form, a
+// reference to each element: `List[Str] \(@args = ($_))` aliases every
+// argument and, like any List parameter, takes the rest of the call.
+func TestPmtAliasedParamsParse(t *testing.T) {
+	for src, want := range map[string]types.Param{
+		"sub f (Scalar \\$x);\n":                {Name: "x", Sigil: '$', Type: types.Scalar, Alias: true, Required: true},
+		"sub f (Array \\@a);\n":                 {Name: "a", Sigil: '@', Type: types.Array, Alias: true, Required: true},
+		"sub f (Hash \\%h);\n":                  {Name: "h", Sigil: '%', Type: types.Hash, Alias: true, Required: true},
+		"sub f (Array[Str] \\@a);\n":            {Name: "a", Sigil: '@', Type: types.Array, Element: types.Str, Alias: true, Required: true},
+		"sub f (Hash[Str] \\%h);\n":             {Name: "h", Sigil: '%', Type: types.Hash, Element: types.Str, Alias: true, Required: true},
+		"sub f (List[Str] \\(@args = ($_)));\n": {Name: "args", Sigil: '@', Type: types.List, Element: types.Str, AliasEach: true, Default: "($_)"},
+	} {
+		facts := readDeclaration([]byte(src), nil)
+		if len(facts.errs) > 0 {
+			t.Errorf("%q: errors %v", src, facts.errs)
+			continue
+		}
+		if got := facts.signatures["f"]; !reflect.DeepEqual(got, []types.Signature{{Params: []types.Param{want}}}) {
+			t.Errorf("%q: got %+v, want one param %+v", src, got, want)
+		}
+		if root, _ := parseSource([]byte(src), nil, true); root.SourceText([]byte(src)) != src {
+			t.Errorf("%q: round trip lost bytes", src)
+		}
+	}
+}
+
+// TestPmtMalformedAliasedParamRefused: a backslash RFC 0001 "The scalar
+// container" does not define is an error, not a guess. An aliased array
+// or hash is the caller's container, so its type is Array or Hash; the
+// list form must be closed and hold an array; and a glob slot, `\*`, has
+// no spelling (open question 11): perl cannot alias a glob, measured on
+// 5.42.0 `\*G = \*STDOUT` is "Can't modify reference to ref-to-glob cast".
+func TestPmtMalformedAliasedParamRefused(t *testing.T) {
+	cases := map[string]string{
+		"sub f (Str \\@a);\n":                    `sub f: aliased \@a has type Str; the caller's array is Array \@a`,
+		"sub f (Array \\%h);\n":                  `sub f: aliased \%h has type Array; the caller's hash is Hash \%h`,
+		"sub f (List[Str] \\(@args, Str $x));\n": "sub f: list form \\(@args is not closed by `)`",
+		"sub f (List[Str] \\(Str $x));\n":        `sub f: list form \( holds "Str"; it holds an array, as in \(@args)`,
+		"sub f (Glob \\*g);\n":                   `sub f: aliased glob \*g has no spelling (RFC 0001, open question 11)`,
+	}
+	pmtRefuses(t, cases)
+	for src := range cases {
+		if proto := readDeclaration([]byte(src), nil).protos["f"]; proto != "" {
+			t.Errorf("%q: derived prototype %q", src, proto)
+		}
+	}
+}
+
+// TestParamAttributeRefused: the backslash replaces an earlier `:lvalue`
+// parameter attribute (RFC 0001, "The scalar container"), and no
+// parameter takes an attribute: perl 5.42.0 refuses `sub f ($x :lvalue)`,
+// "Illegal operator following parameter in a subroutine signature". The
+// declaration is in error and derives no `\$`.
+func TestParamAttributeRefused(t *testing.T) {
+	cases := map[string]string{
+		"sub f (Scalar $x :lvalue);\n": "sub f: parameter $x is not followed by `,` or `)`",
+		"sub f (Scalar $x :bogus);\n":  "sub f: parameter $x is not followed by `,` or `)`",
+	}
+	pmtRefuses(t, cases)
+	for src := range cases {
+		if proto := readDeclaration([]byte(src), nil).protos["f"]; proto != "" {
+			t.Errorf("%q: derived prototype %q", src, proto)
+		}
+	}
+}
+
+// TestAliasedParamOnlyInPmt: the backslashed parameter is typed Perl, read
+// only from a declaration file. In ordinary source without signatures the
+// parens after `sub NAME` are a prototype whatever they hold: measured on
+// 5.42.0, `sub f (\$x) { 1 } print prototype(\&f)` prints `\$x`.
+func TestAliasedParamOnlyInPmt(t *testing.T) {
+	for src, want := range map[string]string{
+		"sub f (\\$x) { 1 }\n":        `(\$x)`,
+		"sub f (Scalar \\$x) { 1 }\n": `(Scalar \$x)`,
+	} {
+		facts := readModule(Parse([]byte(src)))
+		if got := facts.protos["f"]; got != want {
+			t.Errorf("%q: prototype %q, want %q", src, got, want)
+		}
+		if len(facts.signatures) > 0 || len(facts.errs) > 0 {
+			t.Errorf("%q: ordinary source recorded types: %v, errors %v", src, facts.signatures, facts.errs)
+		}
+	}
+}
