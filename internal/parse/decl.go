@@ -138,8 +138,8 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 			// A List parameter takes every remaining argument, so nothing
 			// can follow it (RFC 0001, "A typed signature and a prototype
 			// say the same thing").
-			if len(s.Params) > 0 && s.Params[len(s.Params)-1].Sigil != '$' {
-				last := s.Params[len(s.Params)-1]
+			if n := len(s.Params); n > 0 && (s.Params[n-1].Sigil == '@' || s.Params[n-1].Sigil == '%') {
+				last := s.Params[n-1]
 				container := "Array"
 				if last.Sigil == '%' {
 					container = "Hash"
@@ -320,19 +320,28 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 		}
 	}
 	v, ok := p.peekSignificant()
-	if !ok || v.Kind != lexer.Variable || v.End-v.Start < 2 || !strings.ContainsRune("$@%", rune(p.src[v.Start])) {
+	last := v
+	// A code or glob slot, `Code &block` or `Glob *fh`, lexes as its sigil
+	// and then a word; the two are one variable when they touch.
+	if ok && (p.text(v) == "&" || p.text(v) == "*") {
+		if w, ok := p.peekAfter(v); ok && w.Kind == lexer.Word && w.Start == v.End {
+			v.End, v.Kind, last = w.End, lexer.Variable, w
+		}
+	}
+	if !ok || v.Kind != lexer.Variable || v.End-v.Start < 2 || !strings.ContainsRune("$@%&*", rune(p.src[v.Start])) {
 		return types.Param{}, nil, fmt.Errorf("type %s names no variable", tn.Text)
 	}
-	p.advanceTo(v)
-	param := types.Param{Name: p.text(v)[1:], Sigil: p.src[v.Start], Type: typ, Element: elem, Required: p.src[v.Start] == '$'}
+	p.advanceTo(last)
+	slurpy := p.src[v.Start] == '@' || p.src[v.Start] == '%'
+	param := types.Param{Name: p.text(v)[1:], Sigil: p.src[v.Start], Type: typ, Element: elem, Required: !slurpy}
 	// RFC 0001 "The scalar container": a parameter that takes the caller's
 	// container is backslashed, so `Array @a` is not valid.
-	if param.Sigil != '$' && typ != types.Unknown && typ != types.List && typ&^(types.Array|types.Hash) == 0 {
+	if slurpy && typ != types.Unknown && typ != types.List && typ&^(types.Array|types.Hash) == 0 {
 		return types.Param{}, nil, fmt.Errorf(`container type %s with flattening sigil %s; a parameter that takes the caller's container is %s \%s`, tn.Text, p.text(v), tn.Text, p.text(v))
 	}
 	// RFC 0001 "A slurpy takes no bare element type": `Str @args` leaves
 	// both the container and what `Str` applies to unsaid.
-	if param.Sigil != '$' && typ != types.Unknown && typ != types.List {
+	if slurpy && typ != types.Unknown && typ != types.List {
 		return types.Param{}, nil, fmt.Errorf("slurpy %s has a bare element type %s; write a container type, List[%s] %s", p.text(v), tn.Text, tn.Text, p.text(v))
 	}
 	node := &Node{Kind: Declaration, Text: tn.Text, Start: tok.Start, Children: []*Node{

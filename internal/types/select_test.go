@@ -131,6 +131,14 @@ func TestSelectNoArityMatch(t *testing.T) {
 	wantFailed(t, eachCandidates, []Type{Hash, Hash})
 }
 
+// TestSelectCodeAndGlobAreNotSlurpy: a code or glob slot, `Code &block`
+// or `Glob *fh`, takes one argument as a scalar does; only `@` and `%`
+// take the rest of the call.
+func TestSelectCodeAndGlobAreNotSlurpy(t *testing.T) {
+	wantFailed(t, []Signature{sig(Str, Param{Name: "block", Sigil: '&', Type: Code, Required: true})}, []Type{Code, Code})
+	wantFailed(t, []Signature{sig(Str, Param{Name: "fh", Sigil: '*', Type: Glob, Required: true})}, []Type{Glob, Glob})
+}
+
 // TestSelectEmptyCandidates: selection over no candidates, or a call with
 // no arguments that every candidate requires, has no type, and does not
 // panic.

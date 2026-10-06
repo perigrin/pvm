@@ -404,6 +404,30 @@ func TestPmtDefaultBeforeAnotherParameter(t *testing.T) {
 	}
 }
 
+// TestPmtCodeAndGlobParameters: RFC 0001's table gives a leading `&` as
+// `Code &` and `*` as `Glob *`, the slots a prototype names by those
+// characters, as `multi sub grep (Code &block, List @list) List;` writes
+// one. Each is required, as a `$` is; neither flattens, so a parameter may
+// follow it.
+func TestPmtCodeAndGlobParameters(t *testing.T) {
+	src := "sub f (Code &block, Glob *fh, List @list);\n"
+	facts := readDeclaration([]byte(src), nil)
+	if len(facts.errs) > 0 {
+		t.Fatalf("errors: %v", facts.errs)
+	}
+	want := []types.Signature{{Params: []types.Param{
+		{Name: "block", Sigil: '&', Type: types.Code, Required: true},
+		{Name: "fh", Sigil: '*', Type: types.Glob, Required: true},
+		{Name: "list", Sigil: '@', Type: types.List},
+	}}}
+	if got := facts.signatures["f"]; !reflect.DeepEqual(got, want) {
+		t.Errorf("got %+v, want %+v", got, want)
+	}
+	if root, _ := parseSource([]byte(src), nil, true); root.SourceText([]byte(src)) != src {
+		t.Errorf("round trip lost bytes")
+	}
+}
+
 // TestPmtMultiSubKeepsEveryCandidate: RFC 0001 "Multi declarations". A
 // `multi sub` gives one of several signatures for its name, and every one is
 // kept, in the order declared.

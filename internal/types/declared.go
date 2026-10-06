@@ -41,7 +41,8 @@ type Param struct {
 	// Name is the variable's name without its sigil: "class".
 	Name string
 
-	// Sigil is '$' for a scalar, '@' or '%' for a slurpy.
+	// Sigil is '$' for a scalar, '&' for a code slot, '*' for a glob
+	// slot, '@' or '%' for a slurpy.
 	Sigil byte
 
 	// Type is the lattice type the parameter's type name resolves to.
