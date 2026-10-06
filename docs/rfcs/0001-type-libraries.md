@@ -508,9 +508,14 @@ The selection rules report it as a failure, never a join. The parser's
 half is "Refusing what perl refuses"; the `psc check` half is "Call
 sites".
 
-Bounded polymorphism needs no `multi`. `abs (Num $x) Num` already
-accepts an `Int`, and the result is `meet(join(arguments), declared)`,
-so `abs` of an `Int` is an `Int`.
+**A call's type is the selected candidate's declared return type**
+(perigrin, 2026-10-06). An `Int` argument reaches a `Num` parameter
+through `Int <: Num`, so `sqrt (Num $x) Num` and `abs (Num $x) Num` of
+an `Int` are each a `Num`, which is sound. An earlier draft typed the
+result `meet(join(arguments), declared)`, which would have made
+`sqrt`, `atan2` and `chr` of `Int`s `Int`s. Measured on 5.42.0 with
+`B::svref_2object`, `sqrt(2)`, `sqrt(4)` and `atan2(1,1)` are floats
+(NOK only), and `chr(65)` is a string (POK only).
 
 ### `:context(...)` (*Decided*)
 

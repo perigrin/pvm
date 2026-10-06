@@ -153,3 +153,14 @@ func TestSelectJoinsWhenUndecided(t *testing.T) {
 func TestSelectArityFailureIsNotJoined(t *testing.T) {
 	wantFailed(t, eachCandidates, []Type{Unknown, Unknown})
 }
+
+// TestResultIsDeclaredReturnType: RFC 0001 "Multi declarations", a call's
+// result is the selected candidate's declared return type (perigrin). An Int
+// reaches `sqrt (Num $x) Num` and `abs (Num $x) Num` through Int <: Num, and
+// each result is a Num: measured on 5.42.0, sqrt(4) is a float.
+func TestResultIsDeclaredReturnType(t *testing.T) {
+	sqrt := []Signature{sig(Num, scalar("x", Num))}
+	wantSelected(t, sqrt, []Type{Int}, 0, Num)
+	abs := []Signature{sig(Num, scalar("x", Num))}
+	wantSelected(t, abs, []Type{Int}, 0, Num)
+}
