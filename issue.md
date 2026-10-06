@@ -9,7 +9,7 @@ blocked_by:
 - 01a0c115-df67-7d69-8883-73d40b0ae15d
 - 01a10177-547c-73a9-a302-f25f579a4cb3
 created: 2026-10-02T17:13:31.136589197Z
-updated: 2026-10-06T03:27:24.904834371Z
+updated: 2026-10-06T05:27:24.379727769Z
 ---
 
 ## Prerequisites
@@ -30,6 +30,8 @@ updated: 2026-10-06T03:27:24.904834371Z
 The milestone body's "internal/infer reads the declarations": once m2 has moved infer onto `internal/parse`, a call to a sub imported from a module with a `.pmt` is typed from that declaration, and a call to a multi -- builtin or library -- selects its candidate at the call site by arity, argument types, context or operand shape through `internal/types/select.go`, joining when undecided. This changes what `psc check` reports wherever a declaration is more precise, which is why it waits for m2's behaviour-preserving cutover. This is RFC 0001 "Call sites" (perigrin, 2026-10-02): `infer` applies the selection rules of "Multi declarations" and "`:context(...)`" at a real call -- the arguments' inferred types, the call's arity and its context -- and takes the selected candidate's return type, joining only when the call site cannot decide. When the declarations rule a call out, it fails: where perl would compile the call (a candidate set with no prototype, or a library dispatching at run time) the parse stays as perl reads it and `psc check` reports an error; where perl refuses at compile time the parser has already refused (the parse-time refusal issue). This completes "Call sites", so it re-marks it. Use a shipped declaration (e.g. `Moose.pmt`) or extend one with measured types for the e2e case.
 
 Open question from the alignment gate on 01a0fd9b-4a5b-7e94-ad87-756dfcfe1f4c (2026-10-06): `types.Select` returns Failed when a call's arity fits but its argument types do not, so a single-candidate `sqrt(Str)` comes back Failed with type Unknown. perigrin's ruling that a parameter type is its coercion target (RFC "What a parameter type means") implies a single fitting-arity candidate is still selected and `psc check` reports `coercion-mismatch`; argument types should decide only BETWEEN candidates. Settle this before call sites consume `Select`.
+
+From the alignment gate on 01a0fd9b-4ca3-7d55-82ac-ba125816ee71: `types.Select(cands, args, ctx)` returns Failed when `ctx` is `UnknownCtx`, because no candidate answers for an unknown context. RFC 0001 "Multi declarations" says the CONSUMER joins when the call site cannot decide, and Failed means the call is ruled out -- which `psc check` would report as an error. Add a step: a call whose context cannot be determined joins the candidates (or Select reports Undecided), with a failing test first.
 
 ## Steps
 
