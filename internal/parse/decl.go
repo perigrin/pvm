@@ -220,18 +220,22 @@ func (p *parser) typeExpr() (typ, elem types.Type, node *Node, err error) {
 // typedParam reads one parameter of a typed signature, `Str $class =
 // __PACKAGE__`, into its Param and the node that covers it: a Declaration
 // whose text is the type name, as `my`'s is its declarator, holding the
-// variable and the default.
+// variable and the default. A slurpy may be untyped, `@args`; its Type is
+// Unknown and its Declaration's text is empty.
 func (p *parser) typedParam() (types.Param, *Node, error) {
 	tok, ok := p.peekSignificant()
 	if !ok {
 		return types.Param{}, nil, errors.New("signature not terminated")
 	}
-	if tok.Kind != lexer.Word {
-		return types.Param{}, nil, fmt.Errorf("want a type name, got %q", p.text(tok))
-	}
-	typ, elem, tn, err := p.typeExpr()
-	if err != nil {
-		return types.Param{}, nil, err
+	typ, elem, tn := types.Unknown, types.Unknown, &Node{}
+	if tok.Kind != lexer.Variable || !strings.ContainsRune("@%", rune(p.src[tok.Start])) {
+		if tok.Kind != lexer.Word {
+			return types.Param{}, nil, fmt.Errorf("want a type name, got %q", p.text(tok))
+		}
+		var err error
+		if typ, elem, tn, err = p.typeExpr(); err != nil {
+			return types.Param{}, nil, err
+		}
 	}
 	v, ok := p.peekSignificant()
 	if !ok || v.Kind != lexer.Variable || v.End-v.Start < 2 || !strings.ContainsRune("$@%", rune(p.src[v.Start])) {
@@ -239,6 +243,11 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 	}
 	p.advanceTo(v)
 	param := types.Param{Name: p.text(v)[1:], Sigil: p.src[v.Start], Type: typ, Element: elem, Required: p.src[v.Start] == '$'}
+	// RFC 0001 "A slurpy takes no bare element type": `Str @args` leaves
+	// both the container and what `Str` applies to unsaid.
+	if param.Sigil != '$' && typ != types.Unknown && typ != types.List {
+		return types.Param{}, nil, fmt.Errorf("slurpy %s has a bare element type %s; write a container type, List[%s] %s", p.text(v), tn.Text, tn.Text, p.text(v))
+	}
 	node := &Node{Kind: Declaration, Text: tn.Text, Start: tok.Start, Children: []*Node{
 		{Kind: Term, Text: p.text(v), Start: v.Start, End: v.End},
 	}}

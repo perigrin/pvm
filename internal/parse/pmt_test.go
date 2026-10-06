@@ -297,3 +297,35 @@ func TestPmtAttributesBeforeNameRefused(t *testing.T) {
 		"sub :lvalue f;\n": `not a declaration: "lvalue f;"`,
 	})
 }
+
+// TestPmtBareSlurpyTypeRefused: RFC 0001 "A slurpy takes no bare element
+// type". `Str @args` is ambiguous twice over, in its container and in what
+// `Str` applies to, so it is refused. A slurpy is untyped or carries an
+// explicit container type.
+func TestPmtBareSlurpyTypeRefused(t *testing.T) {
+	pmtRefuses(t, map[string]string{
+		"sub f (Str @args);\n": "sub f: slurpy @args has a bare element type Str; write a container type, List[Str] @args",
+		"sub f (Int %h);\n":    "sub f: slurpy %h has a bare element type Int; write a container type, List[Int] %h",
+	})
+	facts := readDeclaration([]byte("sub f (@args);\nsub g (List[Str] @args);\n"), nil)
+	if len(facts.errs) > 0 {
+		t.Fatalf("errors: %v", facts.errs)
+	}
+	for name, want := range map[string]types.Param{
+		"f": {Name: "args", Sigil: '@', Type: types.Unknown},
+		"g": {Name: "args", Sigil: '@', Type: types.List, Element: types.Str},
+	} {
+		if got, ok := facts.signatures[name]; !ok || !reflect.DeepEqual(got, types.Signature{Params: []types.Param{want}}) {
+			t.Errorf("%s: got %+v (recorded %v), want one param %+v", name, got, ok, want)
+		}
+	}
+}
+
+// TestPmtBareUnionSlurpyRefused: a union is still a bare element type, so
+// `Str|Undef @args` is refused as `Str @args` is (RFC 0001, "A slurpy takes
+// no bare element type").
+func TestPmtBareUnionSlurpyRefused(t *testing.T) {
+	pmtRefuses(t, map[string]string{
+		"sub f (Str|Undef @args);\n": "sub f: slurpy @args has a bare element type Str|Undef; write a container type, List[Str|Undef] @args",
+	})
+}
