@@ -53,3 +53,35 @@ func TestCoreDerivedPrototypesArePerls(t *testing.T) {
 		t.Errorf("checked %d CORE.pmt lines; perl prototypes 188 builtins", checked)
 	}
 }
+
+// TestCoreDerivedPrototypeCheckCatchesMismatch: the check is not
+// tautological. A wrong push line run through it is reported, naming push:
+// `(List @a, List @l)` is a declaration error, a List parameter that is not
+// last, so it derives nothing; `(Array \@array, Scalar $x)` reads, and
+// derives `\@$` where perl says `\@@`.
+func TestCoreDerivedPrototypeCheckCatchesMismatch(t *testing.T) {
+	perl := perlPrototypes(t)
+	for line, want := range map[string]string{
+		`sub push (List @a, List @l) Int;`:         "sub push: List parameter @a is not last; a single array followed by more parameters is Array \\@a",
+		`sub push (Array \@array, Scalar $x) Int;`: `push: CORE.pmt gives (\@$); perl says (\@@)`,
+	} {
+		_, bad := corePrototypeDisagreements([]byte("package CORE;\n"+line+"\n"), perl)
+		if len(bad) != 1 || bad[0] != want {
+			t.Errorf("%s: reported %q; want %q", line, bad, want)
+		}
+	}
+}
+
+// TestCoreTypedLineDisagreeingWithItsPrototype: a typed CORE.pmt line whose
+// types derive another prototype than the `:prototype(...)` it carries is a
+// declaration error. Neither side wins: the file builds no table at all.
+func TestCoreTypedLineDisagreeingWithItsPrototype(t *testing.T) {
+	derived, err := parse.DerivedPrototypes([]byte("package CORE;\nsub push :prototype(\\@@) (List @a) Int;\n"))
+	want := `sub push: :prototype(\@@) disagrees with its types, which give (@)`
+	if err == nil || err.Error() != want {
+		t.Errorf("error %v; want %q", err, want)
+	}
+	if derived != nil {
+		t.Errorf("a file in error built %v", derived)
+	}
+}
