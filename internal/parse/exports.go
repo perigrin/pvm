@@ -42,6 +42,10 @@ type Import struct {
 	// Local marks a name the using file declares itself. A local sub shadows
 	// an import, and its own prototype is the one that applies.
 	Local bool
+
+	// Lvalue marks a local sub declared `:lvalue`, whose result a `\$`
+	// prototype slot accepts. See notScalarLvalue.
+	Lvalue bool
 }
 
 // Imports names everything a parsed file's `use` statements brought into

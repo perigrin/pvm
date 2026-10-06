@@ -6,6 +6,7 @@ package parse
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"tamarou.com/pvm/internal/lexer"
@@ -904,12 +905,24 @@ func (p *parser) declareSub(n *Node) {
 		Prototype:      proto,
 		PrototypeKnown: true,
 		Local:          true,
+		Lvalue:         lvalueSub(n),
 	}
 	// `sub Pack::method` creates the package Pack as surely as `package
 	// Pack` does, so `method Pack (...)` can name it -- op/method.t:54.
 	if i := strings.LastIndex(name, "::"); i > 0 {
 		p.notePackage(name[:i])
 	}
+}
+
+// lvalueSub reports whether a sub declaration carries `:lvalue`, which perl
+// also accepts spaced and among other attributes: `sub g : method lvalue`.
+func lvalueSub(n *Node) bool {
+	for _, c := range n.Children {
+		if c.Kind == Attribute && slices.Contains(strings.Fields(strings.ReplaceAll(c.Text, ":", " ")), "lvalue") {
+			return true
+		}
+	}
+	return false
 }
 
 // parsePackageDecl: `package NAME;` and `package NAME { ... }`.

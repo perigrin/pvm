@@ -362,7 +362,7 @@ func (p *parser) parseTerm() *Node {
 				return p.parseBlockOperator(tok)
 			}
 		}
-		return p.parseWordTerm(tok)
+		return p.refuseRefScalarSlot(p.parseWordTerm(tok))
 
 	case lexer.Variable, lexer.Number, lexer.Quote,
 		lexer.Readline, lexer.HeredocOpen:
