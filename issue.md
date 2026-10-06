@@ -1,6 +1,6 @@
 ---
 title: Type CORE.pmt's array, list and hash builtins
-state: in-progress
+state: done
 urgency: normal
 milestone: type-libraries
 blocked_by:
@@ -10,16 +10,24 @@ blocks:
 - 01a10c6e-9a95-719a-80e2-2e33037d0096
 - 01a0fd9b-5670-78d0-84be-9b9618e9b081
 created: 2026-10-03T11:12:38.523502989Z
-updated: 2026-10-06T11:49:21.83556866Z
+updated: 2026-10-06T12:01:14.555119443Z
 sessions:
 - start_sha: 4a69c8318a6bf0b72c57f0ed2e81ab5049079af6
-  end_sha: ""
-  commits: 0
+  end_sha: 127d1725aefb4eb9a93b8d6eb7e0b6bc6628c1ba
+  commits: 1
   started_at: 2026-10-06T11:49:21.83556866Z
+  ended_at: 2026-10-06T12:01:14.555119443Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-06T11:49:21.83556866Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-06T12:01:14.555119443Z
+observed_paths:
+- internal/parse/corearray_test.go
+- internal/parse/coretypes_test.go
+- internal/parse/declarations/CORE.pmt
 ---
 
 ## Prerequisites
