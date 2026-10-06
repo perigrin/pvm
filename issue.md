@@ -13,7 +13,7 @@ blocks:
 - 01a0fd9b-5670-78d0-84be-9b9618e9b081
 - 01a10177-547c-73a9-a302-f25f579a4cb3
 created: 2026-10-02T17:13:29.757085237Z
-updated: 2026-10-06T15:39:50.336006782Z
+updated: 2026-10-06T15:40:23.025904649Z
 sessions:
 - start_sha: f01da9242721bb8bdc3d709ede1cc7d2cf7f3da4
   end_sha: f01da9242721bb8bdc3d709ede1cc7d2cf7f3da4
@@ -65,10 +65,11 @@ From the alignment gate on 01a0fd9b-49b2-7ea9-bfa1-ba398baadc3f, two gaps that b
 - scalar `sort` has no type: every sort candidate carries `:context(@)`, so a scalar call selects none (measured: `my $n = sort 3,1,2` is undef) (`go test ./internal/parse/ -run '^TestCoreSortScalarHasNoType$' -count=1 -v | grep -q '^--- PASS: TestCoreSortScalarHasNoType'`)
 - grep, map and sort stay out of `coreTable()` and `TestCoreDeclarationsArePerls` stays green (`go test ./internal/parse/ -run '^TestCoreGrepMapSortOutOfCoreTable$' -count=1 -v | grep -q '^--- PASS: TestCoreGrepMapSortOutOfCoreTable'`)
 
+The criterion that RFC 0001 "Builtins with no prototype" is marked Implemented moved to 01a1113c-eb6e-7e0e-8554-bcb5231478eb on 2026-10-06: the section says CORE.pmt types every no-prototype builtin, and split is declared only by that issue.
+
 ## Acceptance criteria
 
 - [ ] CORE.pmt declares grep, map and sort as multis (`go test ./internal/parse/ -run '^TestCoreGrepMapSortAreMultis$' -count=1 -v | grep -q '^--- PASS: TestCoreGrepMapSortAreMultis'`)
-- [ ] the RFC section on builtins with no prototype is implemented (`grep -q '^### Builtins with no prototype.*(\*Implemented\*' docs/rfcs/0001-type-libraries.md`)
 - [ ] the RFC section on builtins that keep their own parse is implemented (`grep -q '^### Builtins that keep their own parse.*(\*Implemented\*' docs/rfcs/0001-type-libraries.md`)
 - [ ] a scalar sort selects no candidate (`go test ./internal/parse/ -run '^TestCoreSortScalarHasNoType$' -count=1 -v | grep -q '^--- PASS: TestCoreSortScalarHasNoType'`)
 - [ ] grep, map and sort stay out of the prototype table (`go test ./internal/parse/ -run '^TestCoreGrepMapSortOutOfCoreTable$' -count=1 -v | grep -q '^--- PASS: TestCoreGrepMapSortOutOfCoreTable'`)
