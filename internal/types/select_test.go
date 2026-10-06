@@ -2,7 +2,10 @@
 // ABOUTME: Candidates are built in Go, as a .pmt's `multi sub` lines would declare them.
 package types
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 // scalar is a required scalar parameter of type t, `Int $x`; Unknown is
 // a parameter that states no type, `$r`.
@@ -238,4 +241,37 @@ func TestSelectByContext(t *testing.T) {
 		wantSelectedIn(t, localtimeCandidates, ListCtx, args, 1, List)
 		wantSelectedIn(t, localtimeCandidates, BooleanCtx, args, 0, Str)
 	}
+}
+
+// sortCandidates is RFC 0001's list-only `sort`, `sub sort :context(@)
+// (...) List;`, whose scalar call is undefined: measured on 5.42.0,
+// `scalar(sort(1,2))` is undef.
+var sortCandidates = []Signature{
+	in(sig(List, Param{Name: "list", Sigil: '@', Type: List}), ListCtx),
+}
+
+// TestSelectNoContextAnswerHasNoType: RFC 0001 "`:context(...)`", a call
+// in a context no candidate answers for has no type. Scalar sort fails; it
+// is not the list candidate's List.
+func TestSelectNoContextAnswerHasNoType(t *testing.T) {
+	wantFailedIn(t, sortCandidates, ScalarCtx, []Type{Int, Int})
+	wantSelectedIn(t, sortCandidates, ListCtx, []Type{Int, Int}, 0, List)
+}
+
+// TestSelectVoidContextUnanswered: only a declaration stating no
+// `:context`, or `:context()`, answers for void context, so a void call to
+// localtime's scalar and list candidates has no type. A `:context()`
+// candidate beside them takes it, and so does one stating no `:context`.
+func TestSelectVoidContextUnanswered(t *testing.T) {
+	wantFailedIn(t, localtimeCandidates, VoidCtx, []Type{Int})
+	withVoid := append(slices.Clone(localtimeCandidates), in(sig(Undef, Param{Name: "time", Sigil: '$', Type: Int, Default: "time"}), VoidCtx))
+	wantSelectedIn(t, withVoid, VoidCtx, []Type{Int}, 2, Undef)
+	wantSelectedIn(t, intOrNum, VoidCtx, []Type{Int}, 0, Str)
+}
+
+// TestSelectBooleanIsNotList: boolean context is scalar, so a boolean call
+// to the list-only sort has no type; it does not fall back to the list
+// candidate.
+func TestSelectBooleanIsNotList(t *testing.T) {
+	wantFailedIn(t, sortCandidates, BooleanCtx, []Type{Int, Int})
 }
