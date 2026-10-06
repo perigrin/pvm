@@ -350,3 +350,16 @@ func TestAliasedPrototypeDisagreementIsError(t *testing.T) {
 		"sub f :prototype(@) (Array \\@a);\n": `sub f: :prototype(@) disagrees with its types, which give (\@)`,
 	})
 }
+
+// TestDerivePrototypeFromMultiCandidates: RFC 0001's `\[$@%]` row, "any one
+// of those containers". A multi still has one prototype, so `each`'s two
+// candidates, which differ only in the container their one aliased
+// parameter takes, derive `\[%@]`, the containers in declaration order.
+// Measured on 5.42, `prototype("CORE::each")` is `\[%@]`.
+func TestDerivePrototypeFromMultiCandidates(t *testing.T) {
+	src := "multi sub f (Hash \\%h) List;\nmulti sub f (Array \\@a) List;\n"
+	facts := readDeclaration([]byte(src), nil)
+	if len(facts.errs) > 0 || facts.protos["f"] != `(\[%@])` {
+		t.Errorf("each: errors %v, prototype %q, want (\\[%%@])", facts.errs, facts.protos["f"])
+	}
+}

@@ -128,3 +128,43 @@ func agreement(declared, fromTypes string) error {
 	}
 	return nil
 }
+
+// prototypeFromCandidates gives the one prototype, without its
+// parentheses, that a multi's candidates state together. Candidates whose
+// prototypes differ only in which container one aliased parameter takes,
+// `\%` in one and `\@` in another, derive RFC 0001's `\[$@%]` row with
+// those containers in declaration order: `each`'s `(Hash \%h)` and
+// `(Array \@a)` derive `\[%@]`. ok is false for candidates no one
+// prototype states.
+func prototypeFromCandidates(sigs []types.Signature) (proto string, ok bool) {
+	protos := make([]string, len(sigs))
+	for i, s := range sigs {
+		protos[i] = prototypeFromTypes(s)
+	}
+	// A `\` is always followed by its sigil, so one differing byte after
+	// a shared `\` is one aliased position whose container differs.
+	at := -1
+	for _, p := range protos[1:] {
+		if len(p) != len(protos[0]) {
+			return "", false
+		}
+	}
+	for i := range len(protos[0]) {
+		for _, p := range protos[1:] {
+			if p[i] != protos[0][i] && at != i {
+				if at >= 0 || i == 0 || protos[0][i-1] != '\\' {
+					return "", false
+				}
+				at = i
+			}
+		}
+	}
+	if at < 0 {
+		return protos[0], true
+	}
+	var union strings.Builder
+	for _, p := range protos {
+		union.WriteByte(p[at])
+	}
+	return protos[0][:at-1] + `\[` + union.String() + "]" + protos[0][at+1:], true
+}
