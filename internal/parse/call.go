@@ -85,11 +85,18 @@ var ownParse = map[string]bool{"dump": true, "method": true}
 func plainKeywordShapes(shapes map[string]Shape) map[string]Shape {
 	plain := map[string]Shape{}
 	for name, shape := range shapes {
-		if _, gated := gatedWords[name]; !gated && !ownParse[name] {
+		if plainShaped(name) {
 			plain[name] = shape
 		}
 	}
 	return plain
+}
+
+// plainShaped reports whether a builtin spelled plainly in a file with no
+// feature on takes its CORE.pmt shape.
+func plainShaped(name string) bool {
+	_, gated := gatedWords[name]
+	return !gated && !ownParse[name]
 }
 
 // plainKeywordShape is plainKeywordShapes' shape for name, and false for a
@@ -98,7 +105,7 @@ func (p *parser) plainKeywordShape(name string) (Shape, bool) {
 	if listOperator[name] {
 		return ShapeList, true
 	}
-	if _, gated := gatedWords[name]; gated || ownParse[name] {
+	if !plainShaped(name) {
 		return 0, false
 	}
 	shape, ok := p.coreShapes()[name]
@@ -130,8 +137,7 @@ func (p *parser) keywordShape(spelled, text string) (Shape, bool) {
 // namedUnaryHere reports whether a word parses as a named unary at this
 // point in the file.
 func (p *parser) namedUnaryHere(spelled, text string) bool {
-	shape, ok := p.keywordShape(spelled, text)
-	return ok && shape == ShapeUnary
+	return p.keywordHas(spelled, text, ShapeUnary)
 }
 
 // keywordHas reports whether a word parses as a builtin of the given shape
