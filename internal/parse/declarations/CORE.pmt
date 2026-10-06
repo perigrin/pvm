@@ -33,7 +33,10 @@ sub accept :prototype(**);
 sub alarm :prototype(_);
 sub all :prototype(\&@);
 sub any :prototype(\&@);
-sub atan2 :prototype($$);
+# atan2 takes both its arguments, y then x: `atan2(1)` is "Not enough
+# arguments". Its result is a float, NOK even where it is whole: atan2(0, 1)
+# is 0 as an NV (measured with B::svref_2object).
+sub atan2 (Num $y, Num $x) Num;
 sub bind :prototype(*$);
 sub binmode :prototype(*;$);
 sub bless (Ref $ref, Str $class = __PACKAGE__) Object;
@@ -49,8 +52,15 @@ sub close :prototype(;*);
 sub closedir :prototype(*);
 sub connect :prototype(*$);
 sub continue :prototype();
-sub cos :prototype(_);
-sub crypt :prototype($$);
+# cos, exp, log, sin and sqrt each take a number, `$_` with none (measured:
+# `$_ = 0; cos()` is 1), and yield a float, NOK even where it is whole:
+# cos(0) is 1 as an NV. log of a number not above zero and sqrt of a
+# negative one die.
+sub cos (Num $number = $_) Num;
+# crypt takes the plaintext and the salt, both: `crypt("a")` is "Not enough
+# arguments". It yields the digest, or "*0" for a salt it cannot use
+# (measured: crypt("pw", "ab") is "abzlUXK5ed5rs", crypt("pw", "!") "*0").
+sub crypt (Str $plaintext, Str $salt) Str;
 sub dbmclose :prototype(\%);
 sub dbmopen :prototype(\%$$);
 # die and warn take a LIST of strings, which may be empty: `die()` and
@@ -67,8 +77,12 @@ sub endservent :prototype();
 sub eof :prototype(;*);
 sub evalbytes :prototype(_);
 sub exit :prototype(;$);
-sub exp :prototype(_);
-sub fc :prototype(_);
+# Measured as cos, above.
+sub exp (Num $number = $_) Num;
+# fc casefolds a string, `$_` with none (measured: `$_ = "XY"; CORE::fc()`
+# is "xy"). It is a builtin only under the fc feature or spelled CORE::fc;
+# the line types the builtin, whatever reads the word.
+sub fc (Str $string = $_) Str;
 sub fcntl :prototype(*$$);
 sub fileno :prototype(*);
 sub flock :prototype(*$);
@@ -102,7 +116,12 @@ sub getsockname :prototype(*);
 sub getsockopt :prototype(*$$);
 sub glob :prototype(_;);
 sub gmtime :prototype(;$);
-sub hex :prototype(_);
+# hex and oct read a string of digits, `$_` with none, and yield its
+# integer: hex("ff") is 255 as an IV, hex("zz") 0, oct("755") 493. oct
+# reads a 0x, 0b or 0o prefix, hex only 0x. Past an IV the integer is
+# an NV, with an overflow warning: hex("ffffffffffffffffff") is
+# 4.72236648286965e+21 -- whole still, as int's is (measured).
+sub hex (Str $string = $_) Int;
 # index and rindex search a string for a substring and yield a position,
 # or -1 when absent -- an Int either way. The position defaults to the
 # start for index and the end for rindex (measured: `rindex($s, "b")` and
@@ -127,7 +146,8 @@ sub link :prototype($$);
 sub listen :prototype(*$);
 sub localtime :prototype(;$);
 sub lock :prototype(\[$@%&*]);
-sub log :prototype(_);
+# Measured as cos, above.
+sub log (Num $number = $_) Num;
 sub lstat :prototype(;*);
 sub method :prototype();
 sub mkdir :prototype(_;$);
@@ -136,11 +156,14 @@ sub msgget :prototype($$);
 sub msgrcv :prototype($$$$$);
 sub msgsnd :prototype($$$);
 sub not :prototype($;);
-sub oct :prototype(_);
+# Measured as hex, above.
+sub oct (Str $string = $_) Int;
 sub open :prototype(*;$@);
 sub opendir :prototype(*$);
 sub ord (Str $string = $_) Int;
-sub pack :prototype($@);
+# pack takes a template and then the LIST of values it packs into one
+# string: `pack()` is "Not enough arguments", `pack("A")` compiles.
+sub pack (Str $template, List @list) Str;
 sub pipe :prototype(**);
 # pop and shift take the array whole, defaulting to `@_` in a sub and to
 # `@ARGV` outside one (measured: `perl -e 'print pop' x y` prints y).
@@ -155,8 +178,12 @@ sub prototype :prototype(_);
 # `unshift(@a)` compile (measured), so the list may be empty; `push()` is
 # "Not enough arguments".
 sub push (Array \@array, List @list) Int;
-sub quotemeta :prototype(_);
-sub rand :prototype(;$);
+# quotemeta backslashes a string's non-word characters, `$_` with none
+# (measured: `$_ = "a+"; quotemeta` is "a\+").
+sub quotemeta (Str $string = $_) Str;
+# rand yields a float below its argument, 1 with none: after srand(7),
+# rand(), rand(1) and rand(0) are the same number (measured).
+sub rand (Num $max = 1) Num;
 sub read :prototype(*\$$;$);
 sub readdir :prototype(*);
 sub readline :prototype(;*);
@@ -202,7 +229,8 @@ sub shmget :prototype($$$);
 sub shmread :prototype($$$$);
 sub shmwrite :prototype($$$$);
 sub shutdown :prototype(*$);
-sub sin :prototype(_);
+# Measured as cos, above.
+sub sin (Num $number = $_) Num;
 sub sleep :prototype(;$);
 sub socket :prototype(*$$$);
 sub socketpair :prototype(**$$$);
@@ -213,10 +241,19 @@ sub socketpair :prototype(**$$$);
 sub splice (Array \@array, Int $offset = 0, Int $length = scalar(@array), List @list) List;
 # sprintf takes a format and then the LIST of values it interpolates.
 sub sprintf (Str $format, List @list) Str;
-sub sqrt :prototype(_);
-sub srand :prototype(;$);
+# Measured as cos, above.
+sub sqrt (Num $number = $_) Num;
+# srand seeds rand and returns the seed, an integer (srand(5) is 5 as an
+# IV, srand(3.7) 3) -- but seed 0 comes back as the string "0 but true",
+# so the result is Str. With no argument perl "(semi-)randomly chooses a
+# seed" (perlfunc), or takes PERL_RAND_SEED's; no expression states that
+# choice, so the default names the call that makes it.
+sub srand (Int $seed = srand()) Str;
 sub stat :prototype(;*);
-sub study :prototype(_);
+# study is a no-op since 5.16 that still answers: true for a defined
+# string, `$_` with none, and false for undef (measured: study("x") is 1,
+# study(undef) "").
+sub study (Str $string = $_) Boolean;
 # substr's fourth argument is the string that replaces the part it
 # returns: measured, `substr($s, 0, 1, 5)` makes "abc" "5bc". Without it
 # nothing is replaced, as replacing the part with itself does -- except
