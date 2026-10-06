@@ -4,7 +4,9 @@ package parse
 
 import (
 	"embed"
+	"errors"
 	"fmt"
+	"io/fs"
 	"maps"
 	"path"
 	"slices"
@@ -25,11 +27,15 @@ import (
 // sub and its prototype. So it is read by the same parse as a module.
 //
 //go:embed declarations
-var declarations embed.FS
+var embedded embed.FS
+
+// declarations is where declaration files are read from: the embedded
+// ones, or a test's own.
+var declarations fs.FS = embedded
 
 // declaration returns the declaration file for module, if there is one.
 func declaration(module string) ([]byte, bool) {
-	src, err := declarations.ReadFile(path.Join("declarations", strings.ReplaceAll(module, "::", "/")+".pmt"))
+	src, err := fs.ReadFile(declarations, path.Join("declarations", strings.ReplaceAll(module, "::", "/")+".pmt"))
 	return src, err == nil
 }
 
@@ -77,12 +83,26 @@ func coreTable() map[string]string {
 		if !ok {
 			panic("parse: declarations/CORE.pmt is not embedded")
 		}
-		coreMap = map[string]string{}
-		for name, proto := range readDeclaration(src, nil).protos {
-			coreMap[name] = strings.TrimSuffix(strings.TrimPrefix(proto, "("), ")")
+		var err error
+		if coreMap, err = coreProtos(src); err != nil {
+			panic("parse: declarations/CORE.pmt: " + err.Error())
 		}
 	})
 	return coreMap
+}
+
+// coreProtos reads a CORE.pmt into the table coreTable holds. A file in
+// error builds no table: a builtin it misdeclares would parse wrong.
+func coreProtos(src []byte) (map[string]string, error) {
+	facts := readDeclaration(src, nil)
+	if len(facts.errs) > 0 {
+		return nil, errors.Join(facts.errs...)
+	}
+	protos := map[string]string{}
+	for name, proto := range facts.protos {
+		protos[name] = strings.TrimSuffix(strings.TrimPrefix(proto, "("), ")")
+	}
+	return protos, nil
 }
 
 var (

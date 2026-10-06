@@ -3,10 +3,12 @@
 package parse
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
+	"testing/fstest"
 
 	"tamarou.com/pvm/internal/types"
 )
@@ -518,4 +520,46 @@ func TestPmtContextAttributeMalformed(t *testing.T) {
 		"sub f :context(x) (Str $x) Str;\n": "sub f: :context(x) names no context with x; a context is $ or @",
 		"sub f :context($ (Str $x) Str;\n":  "sub f: :context( is not closed by `)`",
 	})
+}
+
+// TestPmtDeclarationErrorsSurface: a declaration file in error is reported,
+// not dropped. `sub f (Str);` names a type and no variable, so the file is
+// in error whether CORE.pmt is read for the builtin table or a module's
+// declaration is read in place of its source; and every shipped declaration
+// reads clean.
+func TestPmtDeclarationErrorsSurface(t *testing.T) {
+	bad := []byte("sub f (Str);\n")
+	if _, err := coreProtos(bad); err == nil || err.Error() != "sub f: type Str names no variable" {
+		t.Errorf("core table: got %v, want the declaration's error", err)
+	}
+
+	saved := declarations
+	declarations = fstest.MapFS{"declarations/Bad.pmt": {Data: bad}}
+	defer func() { declarations = saved }()
+	// Used directly, and from a required helper.
+	helper := func(name string) ([]byte, bool) { return []byte("use Bad;\n"), name == "./h.pl" }
+	for _, src := range []string{"use Bad;\n", "require './h.pl';\n"} {
+		root := ParseWithLoader([]byte(src), helper)
+		if errs := DeclarationErrors(root); len(errs) != 1 || errs[0].Error() != "Bad: sub f: type Str names no variable" {
+			t.Errorf("%q: got %v, want the declaration's error", src, errs)
+		}
+	}
+	declarations = saved
+
+	err := fs.WalkDir(declarations, "declarations", func(name string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		src, err := fs.ReadFile(declarations, name)
+		if err != nil {
+			return err
+		}
+		if errs := readDeclaration(src, nil).errs; len(errs) > 0 {
+			t.Errorf("%s: %v", name, errs)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 }

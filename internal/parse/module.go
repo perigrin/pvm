@@ -4,6 +4,7 @@
 package parse
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -247,6 +248,10 @@ type resolver struct {
 	seen   map[string]bool
 	loaded []string
 
+	// declErrs are the errors in the declaration files this parse read, each
+	// prefixed by its module's name.
+	declErrs []error
+
 	// facts caches what each module's source said about itself, so a module
 	// used twice is read once as well as parsed once.
 	facts map[string]moduleFacts
@@ -298,6 +303,9 @@ func (r *resolver) resolve(module string) (moduleFacts, bool) {
 	var facts moduleFacts
 	if declared {
 		facts = readDeclaration(src, r)
+		for _, err := range facts.errs {
+			r.declErrs = append(r.declErrs, fmt.Errorf("%s: %w", module, err))
+		}
 	} else {
 		facts = readModule(parseRoot(src, r))
 	}
@@ -373,10 +381,10 @@ func (r *resolver) resolveFile(path string) (moduleFacts, bool) {
 	inner.inRequiredFile = true
 	facts := readModule(parseRoot(src, &inner))
 
-	// `loaded` is a SLICE, so the inner parse's appends are not visible on the
-	// outer resolver and must be taken back explicitly. The maps need no such
-	// handling.
-	r.loaded = inner.loaded
+	// `loaded` and `declErrs` are SLICES, so the inner parse's appends are
+	// not visible on the outer resolver and must be taken back explicitly.
+	// The maps need no such handling.
+	r.loaded, r.declErrs = inner.loaded, inner.declErrs
 
 	r.facts[path] = facts
 	return facts, true
@@ -391,4 +399,18 @@ func LoadedModules(root *Node) []string {
 		return nil
 	}
 	return root.loaded
+}
+
+// DeclarationErrors are the errors in the declaration files read while
+// parsing this tree, each naming its module. A shipped declaration in error
+// is a fault in pvm, not in the parsed source, so it is reported here and
+// does not fail the parse. As with LoadedModules, a Session parse reports
+// only the declarations that parse read.
+//
+// Empty for a tree from Parse, which reads none.
+func DeclarationErrors(root *Node) []error {
+	if root == nil {
+		return nil
+	}
+	return root.declErrs
 }

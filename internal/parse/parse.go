@@ -248,6 +248,10 @@ type Node struct {
 	// span arithmetic above and never affects round-trip.
 	loaded []string
 
+	// declErrs are the errors in the declaration files the parse read. Root
+	// only, same reasoning as loaded. Read through DeclarationErrors.
+	declErrs []error
+
 	// imports is what the file's `use` statements brought into scope, plus
 	// the subs it declares itself. Root only, same reasoning as loaded.
 	// Read through Imports.
@@ -520,6 +524,7 @@ func parseSource(src []byte, res *resolver, typed bool) (*Node, *parser) {
 	}
 	if res != nil {
 		root.loaded = res.loaded
+		root.declErrs = res.declErrs
 		root.imports = p.imports
 
 		// A local sub shadows an import, and its OWN prototype is the one
