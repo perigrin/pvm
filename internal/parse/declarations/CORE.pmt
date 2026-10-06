@@ -55,7 +55,14 @@ sub bind :prototype(*$);
 sub binmode (Glob *fh, Str $layer = ":raw") Boolean|Undef;
 sub bless (Ref $ref, Str $class = __PACKAGE__) Object;
 sub break :prototype();
-sub caller :prototype(;$);
+# caller yields the frame's package, file and line in list context, and
+# its package in scalar context -- the list's first value, so List covers
+# both -- and undef, or the empty list, past the top of the stack
+# (measured). Given a level it yields eleven values, the sub, whether it
+# was called with arguments, its context and more after those three:
+# inside a sub `caller` gives three, `caller(0)` eleven. No level states
+# the default, so it names the call, as srand's does (01a1105e).
+sub caller (Int $level = caller()) List;
 sub catch :prototype();
 # chdir changes to a directory named by a string or held by a handle
 # (measured: `chdir DH` and `chdir($dh)` change into an opened directory).
