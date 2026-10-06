@@ -484,7 +484,8 @@ sub tell (Glob *fh = ${^LAST_FH}) Int;
 sub telldir (Glob *dh) Int|Undef;
 sub tie :prototype(\[$@%*]$@);
 sub tied :prototype(\[$@%*]);
-sub time :prototype();
+# time yields the seconds since the epoch, an IV (measured).
+sub time () Int;
 # times yields the user and system times of this process and of its
 # children, four floats, NOK (measured); in scalar context the user time,
 # the list's first, so List covers both.

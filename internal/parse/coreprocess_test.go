@@ -75,3 +75,26 @@ func TestCoreLocaltimeVoidHasNoType(t *testing.T) {
 		}
 	}
 }
+
+// TestCoreNiladicBuiltinsTypedEmpty: a builtin perl prototypes `()` --
+// `time`, `wait`, `fork` -- is typed with no parameters, never with an
+// empty list's `List @l`, which would derive `@`. So its derived
+// prototype is the empty one, present in the prototype table, and not
+// absent as a builtin with no prototype is.
+func TestCoreNiladicBuiltinsTypedEmpty(t *testing.T) {
+	perl := perlPrototypes(t)
+	core := parse.CoreSignatures()
+	table := parse.CoreTable()
+	for _, name := range []string{"fork", "time", "wait"} {
+		if proto, ok := perl[name]; !ok || proto != "" {
+			t.Errorf("%s: perl reports (%s), present %v; measured ()", name, proto, ok)
+		}
+		sigs := core[name]
+		if len(sigs) != 1 || len(sigs[0].Params) != 0 || sigs[0].Returns == types.Unknown {
+			t.Errorf("%s: CORE.pmt has %+v; want one typed line with no parameters", name, sigs)
+		}
+		if proto, ok := table[name]; !ok || proto != "" {
+			t.Errorf("%s: the prototype table has (%s), present %v; want ()", name, proto, ok)
+		}
+	}
+}
