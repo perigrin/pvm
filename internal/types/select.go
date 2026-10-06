@@ -31,7 +31,7 @@ type Selection struct {
 // 0001 "Multi declarations".
 func Select(cands []Signature, args []Type) Selection {
 	for i, c := range cands {
-		if c.accepts(len(args)) {
+		if c.accepts(len(args)) && c.fits(args) {
 			return Selection{Outcome: Selected, Candidate: i, Returns: c.Returns}
 		}
 	}
@@ -50,4 +50,27 @@ func (s Signature) accepts(n int) bool {
 		slurpy = slurpy || p.Sigil != '$'
 	}
 	return n >= least && (slurpy || n <= len(s.Params))
+}
+
+// fits reports whether every argument's type is a subtype of its
+// parameter's (RFC 0001, "What a parameter type means"). A parameter that
+// states no type takes any argument; arguments past the last parameter are
+// the slurpy's.
+func (s Signature) fits(args []Type) bool {
+	for i, a := range args {
+		if !IsSubtype(a, s.paramType(i)) {
+			return false
+		}
+	}
+	return true
+}
+
+// paramType is the type the i'th argument is taken as: its parameter's,
+// the slurpy's past the end, and Any where no type is stated.
+func (s Signature) paramType(i int) Type {
+	p := s.Params[min(i, len(s.Params)-1)]
+	if p.Type == Unknown {
+		return Any
+	}
+	return p.Type
 }

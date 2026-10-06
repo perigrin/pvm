@@ -60,3 +60,11 @@ func TestSelectByArity(t *testing.T) {
 	wantSelected(t, selectCandidates, []Type{GlobRef}, 1, Str)
 	wantSelected(t, selectCandidates, []Type{Undef, Undef, Undef, Num}, 2, Int)
 }
+
+// TestSelectByArgumentTypes: among candidates that take the call's number
+// of arguments, the one whose parameter types the arguments fit, `each %h`
+// against `each @a`.
+func TestSelectByArgumentTypes(t *testing.T) {
+	wantSelected(t, eachCandidates, []Type{Hash}, 0, List)
+	wantSelected(t, eachCandidates, []Type{Array}, 1, List)
+}
