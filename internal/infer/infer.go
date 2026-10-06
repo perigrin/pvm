@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"tamarou.com/pvm/internal/parse"
 	"tamarou.com/pvm/internal/parser"
 	"tamarou.com/pvm/internal/types"
 )
@@ -690,8 +691,8 @@ func inferFunctionCallType(
 
 	// Check builtins first (authoritative — prevents user subs from
 	// shadowing builtin return types).
-	sig, ok := types.GetBuiltin(name)
-	if !ok {
+	sigs := parse.CoreBuiltin(name)
+	if len(sigs) == 0 {
 		// Fully-qualified call (e.g. Foo::Bar::baz) — resolve via index.
 		if idx != nil && strings.Contains(name, "::") {
 			sep := strings.LastIndex(name, "::")
@@ -714,21 +715,22 @@ func inferFunctionCallType(
 	args := collectCallArgs(node, source)
 
 	// Validate arity.
-	if len(args) < sig.MinArity {
+	if least := builtinMinArity(sigs); len(args) < least {
 		*diags = append(*diags, Diagnostic{
 			StartByte: node.StartByte(),
 			EndByte:   node.EndByte(),
 			Severity:  Error,
 			Code:      CodeArityMismatch,
-			Message:   arityMessage(name, sig.MinArity, len(args)),
+			Message:   arityMessage(name, least, len(args)),
 		})
-		return sig.ReturnType
+		return builtinReturns(sigs)
 	}
 
 	// Validate argument types.
 	for i, arg := range args {
 		argType := annotations[arg.StartByte()]
-		expectedType := builtinArgType(sig, i)
+		expectedType := builtinArgType(sigs, i)
+		argType = builtinArgActual(name, argType)
 		if !activeOptions.skipUnknownOperand(argType) && !activeOptions.satisfies(argType, expectedType) {
 			argVarName := ExtractArgVarName(arg, source)
 			*diags = append(*diags, Diagnostic{
@@ -745,7 +747,7 @@ func inferFunctionCallType(
 	if t, ok := contextualReturnType(name, args, source, st, annotations); ok {
 		return t
 	}
-	return sig.ReturnType
+	return builtinReturns(sigs)
 }
 
 // inferMethodCallType handles method_call_expression nodes such as Foo->new()
@@ -878,27 +880,28 @@ func inferFunc1opCallType(
 		return types.Unknown
 	}
 
-	sig, ok := types.GetBuiltin(name)
-	if !ok {
+	sigs := parse.CoreBuiltin(name)
+	if len(sigs) == 0 {
 		return types.Unknown
 	}
 
 	args := collectCallArgs(node, source)
 
-	if len(args) < sig.MinArity {
+	if least := builtinMinArity(sigs); len(args) < least {
 		*diags = append(*diags, Diagnostic{
 			StartByte: node.StartByte(),
 			EndByte:   node.EndByte(),
 			Severity:  Error,
 			Code:      CodeArityMismatch,
-			Message:   arityMessage(name, sig.MinArity, len(args)),
+			Message:   arityMessage(name, least, len(args)),
 		})
-		return sig.ReturnType
+		return builtinReturns(sigs)
 	}
 
 	for i, arg := range args {
 		argType := annotations[arg.StartByte()]
-		expectedType := builtinArgType(sig, i)
+		expectedType := builtinArgType(sigs, i)
+		argType = builtinArgActual(name, argType)
 		if !activeOptions.skipUnknownOperand(argType) && !activeOptions.satisfies(argType, expectedType) {
 			argVarName := ExtractArgVarName(arg, source)
 			*diags = append(*diags, Diagnostic{
@@ -915,7 +918,7 @@ func inferFunc1opCallType(
 	if t, ok := contextualReturnType(name, args, source, st, annotations); ok {
 		return t
 	}
-	return sig.ReturnType
+	return builtinReturns(sigs)
 }
 
 // contextualReturnType handles builtins whose result type depends on the
@@ -1006,11 +1009,11 @@ func inferFunc0opCallType(
 	if name == "" {
 		return types.Unknown
 	}
-	sig, ok := types.GetBuiltin(name)
-	if !ok {
+	sigs := parse.CoreBuiltin(name)
+	if len(sigs) == 0 {
 		return types.Unknown
 	}
-	return sig.ReturnType
+	return builtinReturns(sigs)
 }
 
 // collectCallArgs gathers the actual argument nodes for a function call.
@@ -1858,17 +1861,84 @@ func operandType(n *parser.Node, annotations map[uint32]types.Type) types.Type {
 	return types.Unknown
 }
 
-// builtinArgType returns the expected type for the i-th argument of a builtin,
-// treating the last ArgType as variadic (repeated for all trailing arguments).
-func builtinArgType(sig types.BuiltinSig, i int) types.Type {
-	if len(sig.ArgTypes) == 0 {
+// builtinArgType returns the expected type for the i-th argument of a builtin
+// whose CORE.pmt candidates are sigs: the join of what each candidate taking
+// an i-th argument takes there. Choosing one candidate is RFC 0001 "Call
+// sites"', so an argument some candidate takes is not a mismatch. A slurpy
+// takes every trailing argument, and one stating an element type, `List[Str]
+// @args`, takes each as that element. Any where no candidate says.
+func builtinArgType(sigs []types.Signature, i int) types.Type {
+	t := types.Unknown
+	for _, s := range sigs {
+		if len(s.Params) == 0 {
+			continue
+		}
+		p := s.Params[min(i, len(s.Params)-1)]
+		if i >= len(s.Params) && !p.Slurpy() {
+			continue
+		}
+		pt := p.Type
+		if p.Element != types.Unknown {
+			pt = p.Element
+		}
+		if pt == types.Unknown {
+			return types.Any
+		}
+		t = types.Join(t, pt)
+	}
+	if t == types.Unknown {
 		return types.Any
 	}
-	if i < len(sig.ArgTypes) {
-		return sig.ArgTypes[i]
+	return t
+}
+
+// builtinArgActual is an argument's type as the builtin name takes it.
+// scalar's argument is in the scalar context the builtin exists to impose,
+// so an aggregate there is its count: measured, `scalar(@a)` on (1,2,3) is
+// 3. Another `$` slot takes an aggregate as the mistake perl calls it:
+// `length(@a)` warns "did you mean scalar(@a)?" and `defined(@a)` does not
+// compile. As in checkBinaryOperand, only a genuine aggregate narrows.
+func builtinArgActual(name string, actual types.Type) types.Type {
+	if name != "scalar" || (actual != types.Array && actual != types.Hash && actual != types.List) {
+		return actual
 	}
-	// Variadic: last element repeated.
-	return sig.ArgTypes[len(sig.ArgTypes)-1]
+	if narrowed, ok := types.NarrowByContext(actual, types.ScalarCtx); ok {
+		return narrowed
+	}
+	return actual
+}
+
+// builtinMinArity is the fewest arguments any of a builtin's candidates
+// takes: its required parameters, and its invocant when that is required.
+func builtinMinArity(sigs []types.Signature) int {
+	least := -1
+	for _, s := range sigs {
+		n := 0
+		if s.Invocant != nil && s.Invocant.Required {
+			n++
+		}
+		for _, p := range s.Params {
+			if p.Required {
+				n++
+			}
+		}
+		if least < 0 || n < least {
+			least = n
+		}
+	}
+	return least
+}
+
+// builtinReturns is a builtin call's type from its candidates' declared
+// return types. Selecting a candidate at the call site is RFC 0001 "Call
+// sites"', so a multi's call is the join of its candidates', as for a call
+// site that cannot decide.
+func builtinReturns(sigs []types.Signature) types.Type {
+	t := types.Unknown
+	for _, s := range sigs {
+		t = types.Join(t, s.Returns)
+	}
+	return t
 }
 
 // arityMessage produces a human-readable arity mismatch message.
@@ -4001,8 +4071,8 @@ func collectCallConstraints(
 		}
 	}
 
-	sig, ok := types.GetBuiltin(funcName)
-	if !ok {
+	sigs := parse.CoreBuiltin(funcName)
+	if len(sigs) == 0 {
 		return
 	}
 
@@ -4012,7 +4082,7 @@ func collectCallConstraints(
 		if !isParam {
 			continue
 		}
-		expectedType := builtinArgType(sig, i)
+		expectedType := builtinArgType(sigs, i)
 		if expectedType != types.Any {
 			constraints[idx] &= expectedType
 		}
@@ -4045,8 +4115,8 @@ func collectFunc1opConstraints(
 		return
 	}
 
-	sig, ok := types.GetBuiltin(funcName)
-	if !ok {
+	sigs := parse.CoreBuiltin(funcName)
+	if len(sigs) == 0 {
 		return
 	}
 
@@ -4056,7 +4126,7 @@ func collectFunc1opConstraints(
 		return
 	}
 
-	expectedType := builtinArgType(sig, 0)
+	expectedType := builtinArgType(sigs, 0)
 	if expectedType != types.Any {
 		constraints[idx] &= expectedType
 	}

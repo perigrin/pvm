@@ -223,6 +223,13 @@ func coreSignatures() map[string][]types.Signature {
 	return coreSigs
 }
 
+// CoreBuiltin is the typed signatures CORE.pmt states or derives for the
+// builtin name, one per candidate, and nil for a name it does not declare.
+// internal/infer types builtin calls from it.
+func CoreBuiltin(name string) []types.Signature {
+	return coreSignatures()[name]
+}
+
 // readCore reads CORE.pmt, once, into coreTable's and coreSignatures's
 // tables.
 func readCore() {
