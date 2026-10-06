@@ -11,7 +11,7 @@ blocked_by:
 blocks:
 - 01a0fd9b-5700-7514-a143-2caed2d06d8b
 created: 2026-10-02T17:13:31.032351231Z
-updated: 2026-10-05T20:29:11.021990035Z
+updated: 2026-10-06T07:22:22.3486891Z
 ---
 
 ## Prerequisites
@@ -30,6 +30,8 @@ updated: 2026-10-05T20:29:11.021990035Z
 - entrypoints: the declaration read path (`internal/parse/module.go:288`), `readModule` (`internal/parse/exports.go:108`), `export_test.go` for exposing an internal entry point to tests
 
 RFC 0001 "One language for every `.pmt`" (perigrin, 2026-10-02): everything CORE.pmt can say, any library's `.pmt` can say -- typed signatures, container types, aliased parameters (`Scalar \$x`, `Array \@a`, `List[Str] \(@args)`), `multi`, `:context`, the invocant colon, `:unary`, operators (`:infix(CLASS)`, `:prefix`, `:postfix`; RFC "Operator declarations": a library declaring an XS::Parse::Infix operator uses the same spelling), declared syntax. CORE.pmt is the declaration file for the interpreter, not a dialect. The invocant colon is declarable for a library because a keyword plugin can build what a sub cannot. The syntax should stay something a second implementation (Chalk) can parse from the RFC alone. A user search path for `.pmt` files is open question 6 and out of scope: feed the fixture through the same read path the embedded declarations use, via `export_test.go`.
+
+From the alignment gate on 01a0fd9b-46c4-7a8c-b8d6-498c5182a47f: declaration errors are kept by the resolver and read with `parse.DeclarationErrors(root)`, but nothing outside tests calls it, so a broken library .pmt is never shown to a user. When library .pmt files become user-writable here, psc must report them: add a step with a test that `psc check` on a file importing a module whose .pmt is in error prints the declaration error.
 
 ## Steps
 
