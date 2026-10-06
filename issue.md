@@ -1,6 +1,6 @@
 ---
 title: Enforce the slurpy rule and a final List parameter in .pmt signatures
-state: pending
+state: in-progress
 urgency: normal
 milestone: type-libraries
 blocked_by:
@@ -10,7 +10,16 @@ blocks:
 - 01a0fd9b-49b2-7ea9-bfa1-ba398baadc3f
 - 01a0fd9b-46c4-7a8c-b8d6-498c5182a47f
 created: 2026-10-02T17:13:26.249797267Z
-updated: 2026-10-05T20:29:18.662910625Z
+updated: 2026-10-06T01:28:27.799948383Z
+sessions:
+- start_sha: 836d0d5516dd6cb86c7549e943180666e0e70813
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-06T01:28:27.799948383Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-06T01:28:27.799948383Z
 ---
 
 ## Prerequisites
