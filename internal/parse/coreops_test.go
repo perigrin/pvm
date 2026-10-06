@@ -146,12 +146,12 @@ func coreOperators(t *testing.T) []operatorDecl {
 	return facts.operators
 }
 
-// TestCoreOperatorTypesMatchMeasured: CORE.pmt types perl's plain operators
-// -- those that do not fork on context or on a parenthesis, which leaves out
-// `..`, `...` and `x` -- with the operand and result types below, measured
-// on 5.42.0: under the declared operand types each result is within its
-// bound (`<=>` and `cmp` give -1, 0 or 1; the predicates give perl's
-// booleans; `&&`, `||`, `//`, `and`, `or` and `=` give an operand).
+// TestCoreOperatorTypesMatchMeasured: CORE.pmt types perl's operators with
+// the operand and result types below, measured on 5.42.0: under the declared
+// operand types each result is within its bound (`<=>` and `cmp` give -1, 0
+// or 1; the predicates give perl's booleans; `&&`, `||`, `//`, `and`, `or`
+// and `=` give an operand). An operator that forks has a row for each
+// candidate, keyed by the `:context` it states.
 //
 // The rows are golden values, held here rather than read from anywhere
 // else, so the declarations answer to them alone.
@@ -189,6 +189,9 @@ func TestCoreOperatorTypesMatchMeasured(t *testing.T) {
 
 		"infix =": bin(A, A, A),
 
+		"infix .. :context(@)": bin(S, S, types.List), "infix .. :context($)": bin(A, A, S),
+		"infix ... :context(@)": bin(S, S, types.List), "infix ... :context($)": bin(A, A, S),
+
 		"prefix -": un(N, N), "prefix +": un(N, N), "prefix !": un(A, B),
 		"prefix not": un(A, B), "prefix ~": un(I, I), `prefix \`: un(A, types.Ref),
 	}
@@ -198,7 +201,17 @@ func TestCoreOperatorTypesMatchMeasured(t *testing.T) {
 		for _, p := range op.sig.Params {
 			r.operands = append(r.operands, p.Type)
 		}
-		got[op.fixity+" "+op.name] = r
+		key := op.fixity + " " + op.name
+		switch op.sig.Context {
+		case types.ContextSet(types.ListCtx):
+			key += " :context(@)"
+		case types.ContextSet(types.ScalarCtx):
+			key += " :context($)"
+		}
+		if _, dup := got[key]; dup {
+			t.Errorf("%s: declared twice", key)
+		}
+		got[key] = r
 	}
 	for key, w := range want {
 		g, ok := got[key]
@@ -233,5 +246,43 @@ func TestCoreOperatorClassesMatchPrecedence(t *testing.T) {
 	}
 	if n == 0 {
 		t.Error("CORE.pmt declares no infix operator")
+	}
+}
+
+// coreCandidates are CORE.pmt's declarations of the operator sym with the
+// given fixity, in the order the file states them.
+func coreCandidates(t *testing.T, fixity, sym string) []operatorDecl {
+	t.Helper()
+	var out []operatorDecl
+	for _, op := range coreOperators(t) {
+		if op.fixity == fixity && op.name == sym {
+			out = append(out, op)
+		}
+	}
+	return out
+}
+
+// TestCoreRangeIsContextMulti: RFC 0001 "Operators that fork". `..` is a
+// range in list context and a flip-flop in scalar context, so CORE.pmt
+// declares it as a `:context` multi, and `...` likewise. Measured on
+// 5.42.0: `my @l = ("a".."c")` is `a b c` and `(1.7..3.2)` is `1 2 3`; in
+// scalar context `/x/ .. /y/` over `a x b c y d` gives "", "1", "2", "3",
+// "4E0", "", each a string. `...` gives the same in both.
+func TestCoreRangeIsContextMulti(t *testing.T) {
+	param := func(n string, ty types.Type) types.Param {
+		return types.Param{Name: n, Sigil: '$', Type: ty, Required: true}
+	}
+	for _, sym := range []string{"..", "..."} {
+		want := []operatorDecl{
+			{name: sym, fixity: "infix", class: "RANGE", multi: true, sig: types.Signature{
+				Params: []types.Param{param("x", types.Str), param("y", types.Str)}, Returns: types.List,
+				Context: types.ContextSet(types.ListCtx)}},
+			{name: sym, fixity: "infix", class: "RANGE", multi: true, sig: types.Signature{
+				Params: []types.Param{param("x", types.Any), param("y", types.Any)}, Returns: types.Str,
+				Context: types.ContextSet(types.ScalarCtx)}},
+		}
+		if got := coreCandidates(t, "infix", sym); !reflect.DeepEqual(got, want) {
+			t.Errorf("%s:\n got %+v\nwant %+v", sym, got, want)
+		}
 	}
 }

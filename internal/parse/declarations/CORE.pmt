@@ -204,8 +204,8 @@ sub write :prototype(;*);
 # Operators (RFC 0001, "Operator declarations"): each under its symbol, with
 # its fixity and, for an infix one, the class naming its precedence level in
 # the parser's table. The types are upper bounds: `Int + Int` is an Int within
-# `Num`, and narrowing it is inference's. `..`, `...` and `x` fork on context
-# or on a parenthesis and are not declared here.
+# `Num`, and narrowing it is inference's. An operator that forks on context or
+# on a parenthesis is a multi, one candidate for each branch.
 
 # Arithmetic
 sub + :infix(ADD) (Num $x, Num $y) Num;
@@ -257,6 +257,13 @@ sub isa :infix(ISA) (Scalar $x, Str $y) Boolean;
 # Regex binding
 sub =~ :infix(MATCHRE) (Str $x, Regex $y) Boolean;
 sub !~ :infix(MATCHRE) (Str $x, Regex $y) Boolean;
+
+# Range: a range in list context, a flip-flop in scalar context, whose
+# result is a sequence number as a string ("", "1", "2", "3E0").
+multi sub .. :infix(RANGE) :context(@) (Str $x, Str $y) List;
+multi sub .. :infix(RANGE) :context($) (Any $x, Any $y) Str;
+multi sub ... :infix(RANGE) :context(@) (Str $x, Str $y) List;
+multi sub ... :infix(RANGE) :context($) (Any $x, Any $y) Str;
 
 # Assignment
 sub = :infix(ASSIGN) (Any $x, Any $y) Any;
