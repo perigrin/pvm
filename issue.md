@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a10177-547c-73a9-a302-f25f579a4cb3
 created: 2026-10-05T20:28:48.303887564Z
-updated: 2026-10-05T20:30:23.113008763Z
+updated: 2026-10-06T08:53:43.205184657Z
 ---
 
 ## Prerequisites
@@ -25,6 +25,8 @@ updated: 2026-10-05T20:30:23.113008763Z
 - entrypoints: `parseByShape` (`internal/parse/shape.go:268`), `subPrototype`/`lookupSub` (`shape.go:246`, `:162`), `parseCallArgs` (`internal/parse/call.go:699`), the refusal codes and their inventory `RefusalSites` (`internal/parse/refusal.go`)
 
 RFC 0001 "Refusing what perl refuses" (perigrin, 2026-10-02), its first family: a `\$` slot takes a scalar lvalue, and the parser refuses what perl refuses there, as an Unknown with its own refusal code. Measured on 5.42 with `sub f {} sub sref (\$) {}`: `sref(1)` and `sref("s")` die "Type of arg 1 to main::sref must be scalar (not constant item)"; `sref(f())` "(not subroutine entry)"; `sref(@a)` "(not private array)"; `sref(%h)` "(not private hash)"; `sref()` "Not enough arguments for main::sref"; `sref($x, $y)` "Too many arguments for main::sref". `sref($x)`, `sref($h{k})`, `sref($a[0])`, `sref(f()->[0])`, `sref($x = 7)`, `sref(my $z)` and `sref(substr($x, 0, 1))` compile. The property is lvalue-ness, not "unevaluated". The rule applies to a `\$` from a prototype read from module source (`sub sref (\$)` in a `.pm`) as well as to a `.pmt` declaration's `Scalar \$x` (the aliased-parameter issue's). The other family, a call whose arity no declaration accepts (`select(1, 2)`, `grep()`, `sort()` through `= die`), is the arity refusal issue's, which follows this one and re-marks the section once both are built; this issue re-marks no section. Refusing more can move ratchet files: every file that moves is checked against `perl -c`, and the ratchet is updated only for moves that match perl.
+
+Also from the alignment gate on 01a0fd9b-4850-704d-8c14-c15add6194f2: a .pmt may write `Scalar \$x = 1`, which derives `;\$` with a CONSTANT default -- one perl would refuse in a `\$` slot. Refuse a constant default on an aliased scalar parameter here too, with a failing test.
 
 ## Steps
 
