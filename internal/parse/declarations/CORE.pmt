@@ -181,8 +181,10 @@ sub push (Array \@array, List @list) Int;
 # quotemeta backslashes a string's non-word characters, `$_` with none
 # (measured: `$_ = "a+"; quotemeta` is "a\+").
 sub quotemeta (Str $string = $_) Str;
-# rand yields a float below its argument, 1 with none: after srand(7),
-# rand(), rand(1) and rand(0) are the same number (measured).
+# rand yields a float between 0 and its argument, which is 1 when it is 0
+# or absent: after srand(7), rand(), rand(1) and rand(0) are the same
+# number, and a negative argument gives a negative float (rand(-1) after
+# srand(1) is -0.0416, measured).
 sub rand (Num $max = 1) Num;
 sub read :prototype(*\$$;$);
 sub readdir :prototype(*);
