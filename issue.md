@@ -11,7 +11,7 @@ blocks:
 - 01a0fd9b-5698-70cf-b6e4-8899a83b0fe0
 - 01a10c6e-988f-7aa6-811d-0e462abc442a
 created: 2026-10-02T17:13:29.367336401Z
-updated: 2026-10-05T20:30:16.961054844Z
+updated: 2026-10-06T10:35:48.223933263Z
 ---
 
 ## Prerequisites
@@ -28,6 +28,8 @@ updated: 2026-10-05T20:30:16.961054844Z
 - entrypoints: `namedUnary` in `internal/parse/keyword.go:40` (the measured named unaries), the lexer's keyword list (`lexer.Keywords()`), `coreTable` (`internal/parse/declarations.go:39`), `internal/parse/derive.go` (the multi-candidate rule, built by the multi-candidate derivation issue), `internal/types/signatures.go:44-84` (the measured rows for `delete`, `exists`, `each`, `chomp`, `chop`, `split`, `defined`, `return`)
 
 RFC 0001 "Builtins with no prototype": about 20 builtins have no prototype perl reports. CORE.pmt declares their types; `:unary` marks the ones that parse as named unaries; a builtin with no prototype is otherwise a list operator, as an ordinary sub is. This issue declares the plain ones -- including `chomp` and `chop` as `sub chomp (List[Str] \(@args = ($_))) Int;` (each element aliased; measured: `chomp(@l, $x)` chomps both, bare `chomp` chomps `$_`), and `select` as the RFC's multi plus a zero-argument candidate (perigrin, 2026-10-05): `multi sub select () Str;`, `multi sub select (FileHandle $fh) Str;`, `multi sub select ($r, $w, $e, Num $timeout) Int;` (measured on 5.42: `select()` compiles and returns the selected handle, `main::STDOUT`). It also declares `each`, which is prototyped (`\[%@]`, measured), as the RFC's multi, `multi sub each (Hash \%h) List;` and `multi sub each (Array \@a) List;`; its two candidates derive perl's `\[%@]` by the multi-candidate derivation rule, which the multi-candidate derivation issue built and tested on its own (it groups candidates by parameters only); this issue uses it and does not change it. `print`/`exec` and kin came with the invocant colon; `grep`/`map`/`sort` are the next issue's. Find the no-prototype set with perl (keywords whose `prototype("CORE::k")` is undef and which are functions) and the unary subset by the deparse method `keyword.go` records; hold the expected names in the test, not against keyword.go. Copy signatures.go's rows for `delete`, `exists`, `chomp`, `chop`, `split`, `defined`, `return` and `each` into the test as golden values -- never compare against signatures.go, which a later issue deletes. Declarations with no derived prototype stay out of `coreTable()` (see `aliasTarget`, `internal/parse/use.go:655`), so `TestCoreDeclarationsArePerls` and `TestCoreDerivedPrototypesArePerls` stay green.
+
+From the alignment gate on 01a0fd9b-4f8d-71ca-bac4-24eceb1dc4a4: RFC 0001 says the CORE.pmt check treats perl's undef prototype as a derived `@`, but the harness (`corePrototypeDisagreements` in internal/parse/coretypes_test.go) reports any derived prototype where perl has none as "perl reports no prototype". No line hits it yet; the no-prototype builtins this issue types will. Add the rule to the harness first, with a failing test.
 
 ## Steps
 
