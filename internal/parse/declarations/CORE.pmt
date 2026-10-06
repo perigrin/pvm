@@ -384,10 +384,23 @@ sub method :prototype();
 # (measured under umask 0: a directory made without a mode is 0777).
 # Measured as chroot, above: mkdir of an existing directory is 0 as an IV.
 sub mkdir (Str $dir = $_, Int $mode = 0777) Int;
-sub msgctl :prototype($$$);
-sub msgget :prototype($$);
-sub msgrcv :prototype($$$$$);
-sub msgsnd :prototype($$$);
+# msgctl, semctl and shmctl yield the call's result, 0 being the string
+# "0 but true", and undef on error (measured: IPC_STAT and IPC_RMID are
+# "0 but true" as a PV, semctl's GETVAL of 3 is 3 as an IV, and a removed
+# id undef). The last argument is the call's integer or a buffer IPC_STAT
+# writes into.
+sub msgctl (Int $id, Int $cmd, Scalar $arg) Str|Undef;
+# msgget, semget and shmget yield the id, an IV, which may be 0 (measured:
+# the first IPC_PRIVATE queue was 0), and undef on error (measured: a key
+# with no queue and no IPC_CREAT).
+sub msgget (Int $key, Int $flags) Int|Undef;
+# msgrcv receives into the scalar it is given, though its prototype is `$`,
+# not `\$` (measured: "zz" becomes the packed type and "hi"),
+# and, as msgsnd, semop, shmread and shmwrite do, yields 1 or 0 as an IV:
+# an empty queue under IPC_NOWAIT, or a bad id, is 0.
+sub msgrcv (Int $id, Scalar $var, Int $size, Int $type, Int $flags) Int;
+# Measured as msgrcv, above.
+sub msgsnd (Int $id, Str $msg, Int $flags) Int;
 # not negates its operand in scalar context (measured: with two elements,
 # `not @a` is false) and yields a boolean. perl's `$;` is its own parse,
 # which takes nothing too: `not()` compiles and is true. `$;` keeps its
@@ -517,9 +530,12 @@ sub seekdir (Glob *dh, Int $position) Boolean|Undef;
 multi sub select () Str;
 multi sub select (FileHandle $fh) Str;
 multi sub select ($r, $w, $e, Num $timeout) List;
-sub semctl :prototype($$$$);
-sub semget :prototype($$$);
-sub semop :prototype($$);
+# Measured as msgctl, above.
+sub semctl (Int $id, Int $semnum, Int $cmd, Scalar $arg) Str|Undef;
+# Measured as msgget, above.
+sub semget (Int $key, Int $nsems, Int $flags) Int|Undef;
+# Measured as msgrcv, above. The operations are a packed string.
+sub semop (Int $id, Str $opstring) Int;
 # send yields how many bytes it sent, an IV, and undef on failure. With an
 # address it sends there; with none it sends to the connected peer, which
 # no address states: on a connected datagram socket an undef or empty
@@ -550,10 +566,15 @@ sub setservent (Scalar $stayopen) Boolean;
 sub setsockopt (Glob *socket, Int $level, Int $optname, Scalar $optval) Boolean|Undef;
 # Measured as pop, above.
 sub shift (Array \@array = @_) Scalar;
-sub shmctl :prototype($$$);
-sub shmget :prototype($$$);
-sub shmread :prototype($$$$);
-sub shmwrite :prototype($$$$);
+# Measured as msgctl, above.
+sub shmctl (Int $id, Int $cmd, Scalar $arg) Str|Undef;
+# Measured as msgget, above.
+sub shmget (Int $key, Int $size, Int $flags) Int|Undef;
+# Measured as msgrcv, above: shmread reads into the scalar it is given,
+# "q" becoming "hello".
+sub shmread (Int $id, Scalar $var, Int $pos, Int $size) Int;
+# Measured as msgrcv, above.
+sub shmwrite (Int $id, Str $string, Int $pos, Int $size) Int;
 # shutdown yields 1 as an IV, 0 for a socket not connected and undef for a
 # closed handle (measured).
 sub shutdown (Glob *socket, Int $how) Int|Undef;
