@@ -122,6 +122,10 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 	var s types.Signature
 	var ret *Node
 	err := func() error {
+		var err error
+		if s.Context, err = declaredContext(n); err != nil {
+			return err
+		}
 		for {
 			tok, ok := p.peekSignificant()
 			if ok && p.text(tok) == ")" {
@@ -183,6 +187,33 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 	}
 	p.signatures[name] = append(p.signatures[name], s)
 	return true
+}
+
+// declaredContext reads a declaration's `:context(...)`, RFC 0001
+// "`:context(...)`": the contexts it answers for, in prototype sigils, `$`
+// scalar and `@` list, and none at all void. A declaration with no
+// `:context` answers for every context.
+func declaredContext(n *Node) (types.Contexts, error) {
+	for _, c := range n.Children {
+		body, ok := strings.CutPrefix(c.Text, ":context(")
+		if c.Kind != Attribute || !ok {
+			continue
+		}
+		set := types.ContextSet(types.VoidCtx)
+		if body != ")" {
+			set = 0
+		}
+		for _, sigil := range strings.TrimSuffix(body, ")") {
+			switch sigil {
+			case '$':
+				set |= types.ContextSet(types.ScalarCtx)
+			case '@':
+				set |= types.ContextSet(types.ListCtx)
+			}
+		}
+		return set, nil
+	}
+	return types.EveryContext, nil
 }
 
 // returnType reads the type a `.pmt` declaration states after its signature,

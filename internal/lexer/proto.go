@@ -78,6 +78,7 @@ func scanPrototype(l *lexer) bool {
 // atPrototypeAttribute reports whether the `(` at l.pos is the argument of
 // a `:prototype` attribute: the word `prototype` touches it, after a `:`
 // (`sub f : prototype($;$)` is the same attribute, measured on 5.42.0).
+// In typed Perl `:context(...)` is one too; see sigilAttribute.
 func (l *lexer) atPrototypeAttribute() bool {
 	n := len(l.toks)
 	c := l.significantBefore(n - 1)
@@ -85,8 +86,17 @@ func (l *lexer) atPrototypeAttribute() bool {
 		return false
 	}
 	word, colon := l.toks[n-1], l.toks[c]
-	return word.Kind == Word && word.End == l.pos && string(l.src[word.Start:word.End]) == "prototype" &&
+	return word.Kind == Word && word.End == l.pos && l.sigilAttribute(string(l.src[word.Start:word.End])) &&
 		colon.End-colon.Start == 1 && l.src[colon.Start] == ':'
+}
+
+// sigilAttribute reports whether an attribute named word takes prototype
+// sigils as its argument: `:prototype(...)`, and in typed Perl RFC 0001's
+// `:context(...)`, whose `:context($)` would otherwise lex `$)` as a
+// variable. perl has no `:context`, so ordinary source scans it as any
+// other attribute.
+func (l *lexer) sigilAttribute(word string) bool {
+	return word == "prototype" || l.typed && word == "context"
 }
 
 // noteSubName tracks whether a prototype may start at the next `(`, and
@@ -135,7 +145,7 @@ func (l *lexer) noteSubName(k Kind, start int) bool {
 		// break that, because only they can hide a `)`.
 		if l.sawAttrColon {
 			l.sawAttrColon = false
-			l.expectPrototype = word == "prototype"
+			l.expectPrototype = l.sigilAttribute(word)
 			return true
 		}
 		switch {

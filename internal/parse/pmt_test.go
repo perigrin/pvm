@@ -464,3 +464,46 @@ func TestMultiAmbiguousCandidatesIsError(t *testing.T) {
 		t.Errorf("with (Int $a, Int $b): got errors %v, candidates %+v", facts.errs, facts.signatures["f"])
 	}
 }
+
+// TestPmtContextAttribute: RFC 0001 "`:context(...)`". A declaration names
+// the contexts it answers for in prototype sigils, read into five distinct
+// sets: `$` scalar, `@` list, `()` void, `$@` scalar or list, and no
+// attribute, which answers for every context. As with `:prototype`, absent
+// and empty differ: `:context()` is void alone. Beside `:prototype(...)`,
+// as localtime is declared, each attribute keeps its own argument.
+func TestPmtContextAttribute(t *testing.T) {
+	src := "multi sub localtime :prototype(;$) :context($) (Int $time = time) Str;\n" +
+		"multi sub localtime :prototype(;$) :context(@) (Int $time = time) List[Int];\n" +
+		"sub v :context() () Str;\n" +
+		"sub sl :context($@) () Str;\n" +
+		"sub every () Str;\n"
+	facts := readDeclaration([]byte(src), nil)
+	if len(facts.errs) > 0 {
+		t.Fatalf("errors: %v", facts.errs)
+	}
+	if got := facts.protos["localtime"]; got != "(;$)" {
+		t.Errorf("localtime prototype: got %q, want %q", got, "(;$)")
+	}
+	read := func(name string, i int) types.Contexts {
+		sigs := facts.signatures[name]
+		if len(sigs) <= i {
+			t.Fatalf("%s: got %+v, want candidate %d", name, sigs, i)
+		}
+		return sigs[i].Context
+	}
+	got := []types.Contexts{read("localtime", 0), read("localtime", 1), read("v", 0), read("sl", 0), read("every", 0)}
+	want := []types.Contexts{
+		types.ContextSet(types.ScalarCtx), types.ContextSet(types.ListCtx), types.ContextSet(types.VoidCtx),
+		types.ContextSet(types.ScalarCtx, types.ListCtx), types.EveryContext,
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("contexts: got %v, want %v", got, want)
+	}
+	for i := range want {
+		for j := i + 1; j < len(want); j++ {
+			if want[i] == want[j] {
+				t.Errorf("contexts %d and %d are the same set, %v", i, j, want[i])
+			}
+		}
+	}
+}

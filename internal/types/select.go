@@ -149,10 +149,12 @@ func Ambiguity(cands []Signature) error {
 
 // ambiguous reports whether candidates i and j are ambiguous for n
 // arguments, and the argument types both fit. Only a third candidate can
-// decide between them.
+// decide between them, in every context both answer for. Candidates with
+// no context in common share no call: context selects between them.
 func ambiguous(cands []Signature, i, j, n int) (string, bool) {
 	a, b := cands[i], cands[j]
-	if !a.accepts(n) || !b.accepts(n) {
+	shared := a.contexts() & b.contexts()
+	if !a.accepts(n) || !b.accepts(n) || shared == 0 {
 		return "", false
 	}
 	if a.asSpecific(b, n) != b.asSpecific(a, n) {
@@ -168,11 +170,20 @@ func ambiguous(cands []Signature, i, j, n int) (string, bool) {
 		names[k] = overlap[k].String()
 	}
 	for k, c := range cands {
-		if k != i && k != j && c.accepts(n) && c.takesExactly(overlap) {
+		if k != i && k != j && c.accepts(n) && c.takesExactly(overlap) && c.contexts()&shared == shared {
 			return "", false
 		}
 	}
 	return strings.Join(names, ", "), true
+}
+
+// contexts is the set of contexts s answers for: its `:context(...)`, or
+// every context when it states none.
+func (s Signature) contexts() Contexts {
+	if s.Context == EveryContext {
+		return ContextSet(ScalarCtx, ListCtx, VoidCtx)
+	}
+	return s.Context
 }
 
 // takesExactly reports whether s's parameter types are exactly ts.

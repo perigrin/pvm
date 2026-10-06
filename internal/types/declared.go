@@ -12,6 +12,28 @@ type Signature struct {
 	// Returns is the lattice type the declaration states after its closing
 	// paren, Unknown when it states none.
 	Returns Type
+
+	// Context is the set of calling contexts the declaration answers for,
+	// its `:context(...)`.
+	Context Contexts
+}
+
+// Contexts is a set of calling contexts, RFC 0001 "`:context(...)`":
+// `:context($@)` is ContextSet(ScalarCtx, ListCtx) and `:context()` is
+// ContextSet(VoidCtx). As with `:prototype`, absent and empty differ: a
+// declaration stating no `:context` is EveryContext.
+type Contexts uint8
+
+// EveryContext is the set of a declaration that states no `:context`.
+const EveryContext Contexts = 0
+
+// ContextSet is the set holding each of cs.
+func ContextSet(cs ...Context) Contexts {
+	var s Contexts
+	for _, c := range cs {
+		s |= 1 << c
+	}
+	return s
 }
 
 // Param is one typed parameter, `Str $class = __PACKAGE__`.

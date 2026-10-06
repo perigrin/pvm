@@ -164,3 +164,49 @@ func TestResultIsDeclaredReturnType(t *testing.T) {
 	abs := []Signature{sig(Num, scalar("x", Num))}
 	wantSelected(t, abs, []Type{Int}, 0, Num)
 }
+
+// in is sig answering only for the contexts cs, `:context(...)`.
+func in(s Signature, cs ...Context) Signature {
+	s.Context = ContextSet(cs...)
+	return s
+}
+
+// localtimeCandidates are RFC 0001's `localtime`, the same parameters
+// forked by context:
+//
+//	multi sub localtime :prototype(;$) :context($) (Int $time = time) Str;
+//	multi sub localtime :prototype(;$) :context(@) (Int $time = time) List[Int];
+var localtimeCandidates = []Signature{
+	in(sig(Str, Param{Name: "time", Sigil: '$', Type: Int, Default: "time"}), ScalarCtx),
+	in(sig(List, Param{Name: "time", Sigil: '$', Type: Int, Default: "time"}), ListCtx),
+}
+
+// TestMultiContextForkNotAmbiguous: RFC 0001 "`:context(...)`", context
+// selects a declaration, so candidates whose parameters are the same and
+// whose contexts are disjoint share no call. Candidates that both answer
+// for scalar context are still ambiguous there, and the error names it.
+func TestMultiContextForkNotAmbiguous(t *testing.T) {
+	if err := Ambiguity(localtimeCandidates); err != nil {
+		t.Errorf("localtime: got %v, want no ambiguity", err)
+	}
+	both := []Signature{localtimeCandidates[0], in(localtimeCandidates[1], ScalarCtx, ListCtx)}
+	want := "candidates (Int $time) and (Int $time) are ambiguous for ()"
+	if err := Ambiguity(both); err == nil || err.Error() != want {
+		t.Errorf("overlapping contexts: got %v, want %q", err, want)
+	}
+	if err := Ambiguity([]Signature{localtimeCandidates[0], localtimeCandidates[0]}); err == nil {
+		t.Errorf("duplicate scalar candidates: got no ambiguity")
+	}
+
+	// A third candidate decides a pair only in the contexts it answers
+	// for: `(Int $a, Int $b)` in list context leaves two Ints in scalar
+	// context ambiguous.
+	crossed := []Signature{
+		sig(Str, scalar("a", Int), scalar("b", Num)),
+		sig(Str, scalar("a", Num), scalar("b", Int)),
+		in(sig(Str, scalar("a", Int), scalar("b", Int)), ListCtx),
+	}
+	if err := Ambiguity(crossed); err == nil {
+		t.Errorf("decided in list context only: got no ambiguity")
+	}
+}
