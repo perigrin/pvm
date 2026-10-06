@@ -100,8 +100,8 @@ func TestCoreDeclaresInvocantBuiltins(t *testing.T) {
 		}
 	}
 	for _, args := range [][]types.Type{{types.Str, types.Str}, {types.ArrayRef}} {
-		if got := types.Select(sigs["print"], args, types.ListCtx); got.Outcome != types.Selected || got.Returns != types.Boolean {
-			t.Errorf("print%v: got %+v, want print selected, returning Boolean", args, got)
+		if got := types.Select(sigs["print"], args, types.ListCtx); got.Outcome != types.Selected || got.Returns != types.Boolean|types.Undef {
+			t.Errorf("print%v: got %+v, want print selected, returning Boolean|Undef", args, got)
 		}
 	}
 }
@@ -117,7 +117,9 @@ func TestCoreInvocantBuiltinsMatchMeasuredSignatures(t *testing.T) {
 		args     []types.Type
 		returns  types.Type
 	}
-	measured := row{minArity: 0, args: []types.Type{types.Str}, returns: types.Boolean}
+	// signatures.go's rows said Boolean; measured on 5.42, a print or say
+	// to a closed handle returns undef, so the result is Boolean|Undef.
+	measured := row{minArity: 0, args: []types.Type{types.Str}, returns: types.Boolean | types.Undef}
 	for _, name := range []string{"print", "say"} {
 		sigs := coreSignatures()[name]
 		if len(sigs) != 1 {
@@ -138,6 +140,18 @@ func TestCoreInvocantBuiltinsMatchMeasuredSignatures(t *testing.T) {
 		if !reflect.DeepEqual(got, measured) {
 			t.Errorf("%s: CORE.pmt declares %d required, %v -> %v; measured %d required, %v -> %v",
 				name, got.minArity, got.args, got.returns, measured.minArity, measured.args, measured.returns)
+		}
+	}
+}
+
+// TestCorePrintFamilyReturnsUndefOnFailure: measured on 5.42, print, printf
+// and say return a boolean when the write succeeds and undef when it fails
+// (a closed handle), as the I/O batch writes binmode and close's kin.
+func TestCorePrintFamilyReturnsUndefOnFailure(t *testing.T) {
+	for _, name := range []string{"print", "printf", "say"} {
+		sigs := coreSignatures()[name]
+		if len(sigs) != 1 || sigs[0].Returns != types.Boolean|types.Undef {
+			t.Errorf("%s: CORE.pmt declares %+v; want one signature returning Boolean|Undef", name, sigs)
 		}
 	}
 }

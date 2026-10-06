@@ -453,9 +453,11 @@ sub write (Glob *fh = select()) Boolean;
 # printf's format is the list's first element, not a parameter of its own:
 # `@a = ("<%s-%s>", "a", "b"); printf @a` prints "<a-b>", where sprintf's
 # `$@` takes scalar(@a). Each returns 1, or undef when the write fails.
-sub print (FileHandle $fh = select(): List[Str] @args = ($_)) Boolean;
-sub printf (FileHandle $fh = select(): List @args = ($_)) Boolean;
-sub say (FileHandle $fh = select(): List[Str] @args = ($_)) Boolean;
+# Each returns a boolean when the write succeeds and undef when it fails:
+# to a closed handle all three give undef (measured).
+sub print (FileHandle $fh = select(): List[Str] @args = ($_)) Boolean|Undef;
+sub printf (FileHandle $fh = select(): List @args = ($_)) Boolean|Undef;
+sub say (FileHandle $fh = select(): List[Str] @args = ($_)) Boolean|Undef;
 
 # exec and system: the slot is the program to run, `exec {'/bin/sh'} @args`
 # or `system $shell "-sh"`, and with it the list may not be empty: `exec
