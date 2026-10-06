@@ -217,7 +217,7 @@ sub print (FileHandle $fh = select(): List[Str] @args = ($_)) Boolean;
 The default handle is the selected one, not STDOUT, and `print` with no
 arguments prints `$_` (measured).
 
-### Builtins that keep their own parse (*Decided*)
+### Builtins that keep their own parse (*Implemented*, eb839b7d, 2bccec6f, cb25b36c, 828544ec, c1107251, efed93fd, b8e22b93, db6c2483, 6556db7f)
 
 perigrin, 2026-10-02. Measured on 5.42 throughout.
 
