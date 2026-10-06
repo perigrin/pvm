@@ -169,6 +169,12 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 	if ret != nil {
 		n.Children = append(n.Children, ret)
 	}
+	// An operator's signature is its own, not a sub's of the same name
+	// (`not` is both); declareOperator takes it.
+	if len(fixityAttrs(n)) > 0 {
+		p.operatorSig = s
+		return true
+	}
 	if p.signatures == nil {
 		p.signatures = map[string][]types.Signature{}
 	}
@@ -625,6 +631,7 @@ func (p *parser) listDeclWithAttributes(n *Node) *Node {
 func (p *parser) parseSubDecl(word lexer.Token) *Node {
 	p.advanceTo(word)
 	n := &Node{Kind: Declaration, Text: p.text(word), Start: word.Start}
+	errsBefore := len(p.typedErrs)
 
 	// The name. An anonymous sub has none, and `sub { ... }` is an
 	// expression rather than a declaration -- but it reaches here only as a
@@ -692,6 +699,13 @@ func (p *parser) parseSubDecl(word lexer.Token) *Node {
 		if open, ok := p.peekSignificant(); ok && p.text(open) == "(" {
 			p.parseSignature(n)
 		}
+	}
+
+	// A typed declaration stating a fixity is an operator's (RFC 0001,
+	// "Operator declarations"), recorded once its signature has been read
+	// without error.
+	if p.typed && len(p.typedErrs) == errsBefore {
+		p.declareOperator(n)
 	}
 
 	// The declaration enters scope HERE, before its own body and before

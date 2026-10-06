@@ -39,7 +39,7 @@ func declaration(module string) ([]byte, bool) {
 func readDeclaration(src []byte, res *resolver) moduleFacts {
 	root, p := parseSource(src, res, true)
 	facts := readModule(root)
-	facts.signatures, facts.errs = p.signatures, p.typedErrs
+	facts.signatures, facts.errs, facts.operators = p.signatures, p.typedErrs, p.operators
 	// A statement the parser could not read declares nothing, so it is an
 	// error rather than a silent gap: `sub :lvalue f;` is no declaration.
 	//

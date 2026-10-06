@@ -108,6 +108,10 @@ type moduleFacts struct {
 	signatures map[string][]types.Signature
 	errs       []error
 
+	// operators are a declaration file's operator declarations, in the
+	// order it states them. See operatorDecl.
+	operators []operatorDecl
+
 	// globs are the names a literal glob assignment defines, `*run_perl =
 	// \&runperl` in t/test.pl: subs as real as a `sub NAME`, with no
 	// prototype this parser can read.
@@ -229,6 +233,8 @@ func readSubs(n *Node, facts *moduleFacts) {
 					facts.syntax = map[string]declaredSyntax{}
 				}
 				facts.syntax[name] = s
+			} else if len(fixityAttrs(n)) > 0 {
+				// An operator, not a sub; see declareOperator.
 			} else if name, proto := declaredSub(n); name != "" {
 				facts.protos[name] = proto
 			}

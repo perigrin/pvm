@@ -1039,6 +1039,33 @@ var operators = []string{
 // operators table.
 var bitwiseStringOps = []string{"&.=", "|.=", "^.=", "&.", "|.", "^.", "~."}
 
+// scanOperatorName lexes the symbol a typed-Perl operator declaration is
+// named by, `sub + :infix(ADD) (Num $x, Num $y) Num;` (RFC 0001, "Operator
+// declarations"), as the Word a sub's name is. Only in a `.pmt`: in perl,
+// measured on 5.42.0, `sub + { 1 }` is "Illegal declaration of anonymous
+// subroutine". A bracket, comma or colon after `sub` still opens a
+// signature, a body or an attribute.
+func scanOperatorName(l *lexer) bool {
+	if !l.typed || !l.sawSubWord {
+		return false
+	}
+	for _, ops := range [][]string{bitwiseStringOps, operators} {
+		for _, op := range ops {
+			if !strings.HasPrefix(string(l.src[l.pos:min(l.pos+len(op), len(l.src))]), op) {
+				continue
+			}
+			if strings.ContainsAny(op, "()[]{},:") {
+				return false
+			}
+			start := l.pos
+			l.pos += len(op)
+			l.emit(Word, start)
+			return true
+		}
+	}
+	return false
+}
+
 // scanOperator lexes punctuation.
 func scanOperator(l *lexer) bool {
 	// The string-bitwise operators exist only under the `bitwise` feature,

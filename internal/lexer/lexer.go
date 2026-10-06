@@ -215,6 +215,9 @@ func Tokenize(src []byte) []Token {
 // feature is on from the first byte, so the `(` after `sub NAME` opens a
 // signature and never a prototype: a declaration file spells its prototypes
 // `:prototype(...)`, as perl requires once signatures are on.
+//
+// An operator is declared under its symbol, `sub + :infix(ADD) ...`, so the
+// symbol after `sub` is read as the sub's name; see scanOperatorName.
 func TokenizeTyped(src []byte) []Token {
 	return tokenize(&lexer{src: src, expect: XState, signatures: true, typed: true})
 }
@@ -328,8 +331,9 @@ type lexer struct {
 	// utf8Pragma and for the same reason.
 	signatures bool
 	// typed is set for typed Perl, a `.pmt` declaration file, where a
-	// container type may stand before a hash parameter: `List[Str] %h`.
-	// See containerTypeSigil.
+	// container type may stand before a hash parameter: `List[Str] %h`
+	// (see containerTypeSigil), and where `sub +` names an operator (see
+	// scanOperatorName).
 	typed bool
 	// pendingVersionMajor held the `5` of a `use v5.36` whose version
 	// arrived split across three tokens -- Word("v5"), Operator("."),
@@ -443,6 +447,10 @@ func scanOne(l *lexer) {
 		scanPod,
 		scanDataSection,
 		scanComment,
+		// Before every scanner that reads punctuation as something else:
+		// `sub <<`, `sub /` and `sub %` name operators, not a heredoc, a
+		// pattern and a hash.
+		scanOperatorName,
 		scanHeredocOpen,
 		// Before scanVariable: the sigils inside a prototype are not
 		// variables, and scanVariable is what was reading `($$)` as

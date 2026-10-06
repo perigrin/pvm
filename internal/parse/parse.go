@@ -565,6 +565,11 @@ type parser struct {
 	typed      bool
 	signatures map[string][]types.Signature
 	typedErrs  []error
+	operators  []operatorDecl
+
+	// operatorSig is the signature of the operator declaration being read;
+	// see declareOperator.
+	operatorSig types.Signature
 
 	// multi is set while a `.pmt`'s `multi sub` is read: its signature is
 	// one more candidate for its name rather than the name's only one.
