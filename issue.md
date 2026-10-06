@@ -1,6 +1,6 @@
 ---
 title: Type CORE.pmt's string, numeric and regex builtins
-state: in-progress
+state: done
 urgency: normal
 milestone: type-libraries
 blocked_by:
@@ -8,16 +8,20 @@ blocked_by:
 blocks:
 - 01a10c6e-9a95-719a-80e2-2e33037d0096
 created: 2026-10-03T11:12:37.957978283Z
-updated: 2026-10-06T11:15:05.095552868Z
+updated: 2026-10-06T11:15:05.29482936Z
 sessions:
 - start_sha: bc832959484d0baaa61b2e4c0358264fb3f1aa62
-  end_sha: ""
+  end_sha: bc832959484d0baaa61b2e4c0358264fb3f1aa62
   commits: 0
   started_at: 2026-10-06T11:15:05.095552868Z
+  ended_at: 2026-10-06T11:15:05.29482936Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-06T11:15:05.095552868Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-06T11:15:05.29482936Z
 ---
 
 ## Prerequisites
