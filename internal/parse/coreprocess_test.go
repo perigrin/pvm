@@ -5,6 +5,7 @@ package parse_test
 import (
 	"os"
 	"regexp"
+	"slices"
 	"testing"
 
 	"tamarou.com/pvm/internal/parse"
@@ -95,6 +96,83 @@ func TestCoreNiladicBuiltinsTypedEmpty(t *testing.T) {
 		}
 		if proto, ok := table[name]; !ok || proto != "" {
 			t.Errorf("%s: the prototype table has (%s), present %v; want ()", name, proto, ok)
+		}
+	}
+}
+
+// globSlotBuiltins are the batch's lines that hold a glob slot, `\[$@%*]`
+// and kin, which has no spelling yet (RFC 0001, open question 11,
+// perigrin 2026-10-03): they stay prototype-only.
+var globSlotBuiltins = []string{"lock", "tie", "tied", "undef", "untie"}
+
+// processTimeMiscBuiltins is perlfunc's "Functions for processes and
+// process groups", "Time-related functions", "Keywords related to Perl
+// modules", "Keywords related to classes and object-orientation",
+// "Keywords related to scoping" and "Miscellaneous functions" among
+// CORE.pmt's prototyped lines, with catch, isa and not, the prototyped
+// keywords Pod::Functions files under no kind, and without the names the
+// earlier batches hold (dbmopen and dbmclose are files) or the glob-slot
+// lines.
+func processTimeMiscBuiltins(t *testing.T) []string {
+	t.Helper()
+	others := perlFunctionKinds(t, "String", "Regexp", "Math", "ARRAY", "LIST", "HASH", "I/O", "Binary", "File")
+	names := slices.DeleteFunc(perlFunctionKinds(t, "Process", "Time", "Modules", "Objects", "Namespace", "Misc"),
+		func(name string) bool {
+			return slices.Contains(others, name) || slices.Contains(globSlotBuiltins, name)
+		})
+	names = append(names, "catch", "isa", "not")
+	slices.Sort(names)
+	// Measured on 5.42.0: 34 lines, less the five glob-slot ones. An empty
+	// or short answer is perl not being asked.
+	if len(names) != 29 {
+		t.Fatalf("Pod::Functions gives %d prototyped process, time, object, scoping and miscellaneous builtins, %v; measured 29", len(names), names)
+	}
+	return names
+}
+
+// uncallableKeywords are the batch's names perl prototypes `()` that no
+// call reaches, so no value is there to measure: `CORE::isa()` and
+// `CORE::catch()` are syntax errors, `CORE::method()` is "Cannot 'method'
+// outside of a 'class'", and `&CORE::isa`, `&CORE::catch` and
+// `&CORE::method` are undefined subroutines (measured on 5.42). isa is
+// typed as the infix operator it is; how a keyword like these is typed
+// waits on a ruling, so their lines stay prototype-only.
+var uncallableKeywords = []string{"catch", "isa", "method"}
+
+// TestCoreProcessTimeMiscBuiltinsTyped: every process, time, module,
+// object, scoping and miscellaneous builtin has a typed CORE.pmt line, but
+// for the glob-slot lines and the uncallable keywords, which are still
+// prototype-only.
+func TestCoreProcessTimeMiscBuiltinsTyped(t *testing.T) {
+	src, err := os.ReadFile("declarations/CORE.pmt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := slices.DeleteFunc(processTimeMiscBuiltins(t),
+		func(name string) bool { return slices.Contains(uncallableKeywords, name) })
+	for _, name := range untypedLines(src, names) {
+		t.Errorf("%s: CORE.pmt declares it untyped", name)
+	}
+	if bad := untypedLines(src, uncallableKeywords); !slices.Equal(bad, uncallableKeywords) {
+		t.Errorf("of %v, CORE.pmt leaves %v untyped; want all of them until a ruling", uncallableKeywords, bad)
+	}
+}
+
+// TestCoreGlobSlotLinesStayUntyped: lock, tie, tied, undef and untie are
+// not typed by a guess. Each keeps its prototype-only line, with no
+// return type, and the prototype table still has perl's.
+func TestCoreGlobSlotLinesStayUntyped(t *testing.T) {
+	src, err := os.ReadFile("declarations/CORE.pmt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bad := untypedLines(src, globSlotBuiltins); !slices.Equal(bad, globSlotBuiltins) {
+		t.Errorf("of %v, CORE.pmt leaves %v untyped; want all of them", globSlotBuiltins, bad)
+	}
+	perl, table := perlPrototypes(t), parse.CoreTable()
+	for _, name := range globSlotBuiltins {
+		if table[name] != perl[name] {
+			t.Errorf("%s: the prototype table has (%s); perl says (%s)", name, table[name], perl[name])
 		}
 	}
 }
