@@ -168,6 +168,12 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 				return errors.New("signature not terminated")
 			case p.text(sep) == ",":
 				p.advanceTo(sep)
+			// RFC 0001 "Builtins that keep their own parse": the invocant
+			// colon marks the first parameter as the slot a call fills with
+			// no comma after it, held apart from the positional ones.
+			case p.text(sep) == ":" && len(s.Params) == 1 && s.Invocant == nil:
+				p.advanceTo(sep)
+				s.Invocant, s.Params = &s.Params[0], nil
 			case p.text(sep) != ")":
 				return fmt.Errorf("parameter %c%s is not followed by `,` or `)`", param.Sigil, param.Name)
 			}
