@@ -3,6 +3,8 @@
 package parse_test
 
 import (
+	"fmt"
+	"os"
 	"testing"
 
 	"tamarou.com/pvm/internal/parse"
@@ -52,6 +54,59 @@ func TestCoreArrayListHashBuiltinsTyped(t *testing.T) {
 		}
 		if len(core[name]) != 4 || counts[scalar] != 2 || counts[list] != 2 {
 			t.Errorf("%s: CORE.pmt has %d candidates by context %v; want two :context($) and two :context(@)", name, len(core[name]), counts)
+		}
+	}
+}
+
+// TestCoreKeysValuesMatchMeasuredSignatures: keys' and values' list-context
+// candidates together carry the rows internal/types/signatures.go measured,
+// copied here so the check outlives that file -- one argument, a hash or an
+// array, giving a List. Their scalar-context candidates return the count,
+// an Int, and each name's candidates derive perl's `\[%@]`.
+func TestCoreKeysValuesMatchMeasuredSignatures(t *testing.T) {
+	golden := map[string]measuredRow{
+		"keys":   {1, []types.Type{types.Hash | types.Array}, types.List},
+		"values": {1, []types.Type{types.Hash | types.Array}, types.List},
+	}
+	src, err := os.ReadFile("declarations/CORE.pmt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	derived, err := parse.DerivedPrototypes(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	core := parse.CoreSignatures()
+	for _, name := range []string{"keys", "values"} {
+		// The list-context candidates, one per container, read as the
+		// one row signatures.go wrote: their argument types joined.
+		var listRow *measuredRow
+		for _, s := range core[name] {
+			row := rowOf(s)
+			switch s.Context {
+			case types.ContextSet(types.ScalarCtx):
+				if row.Returns != types.Int {
+					t.Errorf("%s: a :context($) candidate returns %v; measured Int", name, row.Returns)
+				}
+			case types.ContextSet(types.ListCtx):
+				if listRow == nil {
+					listRow = &row
+					continue
+				}
+				if len(row.Args) != len(listRow.Args) || row.MinArity != listRow.MinArity || row.Returns != listRow.Returns {
+					t.Errorf("%s: :context(@) candidates %v and %v differ beyond their argument types", name, *listRow, row)
+					continue
+				}
+				for i := range row.Args {
+					listRow.Args[i] |= row.Args[i]
+				}
+			}
+		}
+		if listRow == nil || fmt.Sprint(*listRow) != fmt.Sprint(golden[name]) {
+			t.Errorf("%s: CORE.pmt's :context(@) candidates have %v; measured %v", name, listRow, golden[name])
+		}
+		if derived[name] != `\[%@]` {
+			t.Errorf("%s: candidates derive (%s); perl says (\\[%%@])", name, derived[name])
 		}
 	}
 }
