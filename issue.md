@@ -12,7 +12,7 @@ blocks:
 - 01a10dc1-3499-7e2b-9e6f-d935084437fa
 - 01a10dc1-3530-762f-9a03-177445629c6b
 created: 2026-10-02T17:13:27.376660947Z
-updated: 2026-10-05T20:30:21.199443256Z
+updated: 2026-10-06T01:50:58.416245127Z
 ---
 
 ## Prerequisites
@@ -29,6 +29,8 @@ updated: 2026-10-05T20:30:21.199443256Z
 - entrypoints: `internal/parse/derive.go`; the param reader in `internal/parse/decl.go`; `types.Param` (`internal/types/declared.go`)
 
 RFC 0001 "The scalar container" (perigrin, 2026-10-02): a parameter that aliases the caller's container is written with a backslash, as Perl writes aliasing (perlref, "Assigning to References"). `Scalar \$x` derives `\$`, `Array \@a` derives `\@`, `Hash \%h` derives `\%`, `Code \&c` derives `\&` (a code slot, perlref's `\&sub` refaliasing form: `\&foo = \&bar` makes `foo()` mean `bar()`, measured), so `sub any (Code \&block, List @list) Boolean;` derives perl's `\&@` (measured: `prototype("CORE::any")` and `prototype("CORE::all")` are `\&@`); `sub push (Array \@a, List @list) Int;` derives `\@@`, and in it only the final parameter is slurpy (the caller's view; perl's own signatures would reject two aggregates). `\(@args)` is perlref's list form, a reference to each element: `sub chomp (List[Str] \(@args = ($_))) Int;` says chomp writes through every argument (measured: `chomp(@l, $x)` chomps both, bare `chomp` chomps `$_`). Record the alias on `types.Param` (a flag, plus the list form). There is no `:lvalue` parameter attribute. Measured on 5.42, `\$` accepts any scalar lvalue (`$x`, `$h{k}`, `$a[0]`, `f()->[0]`, `$x = 7`, `substr($x, 0, 1)`); refusing what perl refuses at call sites is not this issue's: constants, sub results and aggregates in a `\$` slot are the `\$`-slot refusal issue's, and wrong arity the arity refusal issue's. A glob slot (`\*`) has no spelling (RFC open question 11): `Glob \*g` is not read. What an aliased list is as a type stays the paper's question. This completes the section, so it re-marks "The scalar container". Under the RFC's convention (perigrin, 2026-10-05, commit 72e01c14), a section is Implemented when its rule is built and tested: the re-mark here covers the rule, and the section's example declarations (`sref`, `push`, `chomp`, `any`) are illustrations that belong to the typing batches -- `push` to the measured-rows issue, `chomp` to the no-prototype builtins issue, `any` to the array, list and hash batch -- which write them into CORE.pmt and test them against perl; the tests here use literal declarations. The section's one directive about specific lines, that the six glob-slot builtins (`lock`, `undef`, `tie`, `tied`, `untie`, `pos`) keep prototype-only lines in CORE.pmt, untyped, holds today (those lines are prototype-only now) and is enforced by the last typing batch's every-line check (`TestCoreEveryPrototypedLineIsTyped` and `TestCoreEveryLineCheckExemptsOnlyGlobSlots`), which fails if any of the six is typed.
+
+Also covers a container type before an aliased hash or array: `Hash[Str] \%h` and `Array[Str] \@a` must parse (today both fail with "type Hash[Str] names no variable", as `Array \@a` does). The flattening-sigil error added by 01a0fd9b-43ea-716e-9bb8-dd93ce3bbfcb already points users to that spelling. The lexer's `containerTypeSigil` (internal/lexer/proto.go) reads `%` after a container's `]` as a sigil, but nothing reads it after `\`.
 
 ## Steps
 
