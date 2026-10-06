@@ -268,3 +268,32 @@ func TestContainerTypeOnlyInPmt(t *testing.T) {
 		t.Errorf("ordinary source recorded types: %v, errors %v", facts.signatures, facts.errs)
 	}
 }
+
+// TestPmtUnionWithNone: None is the bottom type, so a union with it is the
+// other member -- its sentinel bit must not leak into the recorded type, as
+// types.Join holds for inferred types. Likewise through FromName.
+func TestPmtUnionWithNone(t *testing.T) {
+	facts := readDeclaration([]byte("sub f (Str|None $x) None|Str;\n"), nil)
+	if len(facts.errs) > 0 {
+		t.Fatalf("errors: %v", facts.errs)
+	}
+	want := types.Signature{Params: []types.Param{{Name: "x", Sigil: '$', Type: types.Str, Required: true}}, Returns: types.Str}
+	if got := facts.signatures["f"]; !reflect.DeepEqual(got, want) {
+		t.Errorf("got %+v, want %+v", got, want)
+	}
+	if got, err := types.FromName("None|Str"); err != nil || got != types.Str {
+		t.Errorf("FromName(None|Str) = %v, %v; want Str", got, err)
+	}
+}
+
+// TestPmtAttributesBeforeNameRefused: RFC 0001 "Declaration order", the name
+// comes first. Measured on 5.42, `sub :lvalue f;` is no declaration at all
+// -- perl reads the label `sub:` and the indirect call `'f'->lvalue` -- and
+// under `use v5.36`, the bundle a .pmt is read with, it is a syntax error.
+// Any statement a .pmt cannot read is reported, never silently skipped;
+// here, as in perl, `sub:` reads as a label and the rest is unread.
+func TestPmtAttributesBeforeNameRefused(t *testing.T) {
+	pmtRefuses(t, map[string]string{
+		"sub :lvalue f;\n": `not a declaration: "lvalue f;"`,
+	})
+}

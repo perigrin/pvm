@@ -172,6 +172,7 @@ func (p *parser) returnType() (types.Type, *Node, error) {
 // container's element is its outer container, until the paper says what
 // containers mean.
 func (p *parser) typeExpr() (typ, elem types.Type, node *Node, err error) {
+	typ = types.None
 	start := -1
 	for {
 		tok, ok := p.peekSignificant()
@@ -189,7 +190,7 @@ func (p *parser) typeExpr() (typ, elem types.Type, node *Node, err error) {
 			return types.Unknown, types.Unknown, nil, fmt.Errorf("unknown type name %q", p.text(tok))
 		}
 		p.advanceTo(tok)
-		typ |= member
+		typ = types.Join(typ, member)
 		if open, ok := p.peekSignificant(); ok && p.text(open) == "[" {
 			p.advanceTo(open)
 			if end, ok := p.peekSignificant(); ok && p.text(end) == "]" {
@@ -204,7 +205,7 @@ func (p *parser) typeExpr() (typ, elem types.Type, node *Node, err error) {
 				return types.Unknown, types.Unknown, nil, fmt.Errorf("container type %s is not closed by `]`", p.src[tok.Start:p.prevEnd()])
 			}
 			p.advanceTo(end)
-			elem |= inner
+			elem = types.Join(elem, inner)
 		}
 		bar, ok := p.peekSignificant()
 		if !ok || p.text(bar) != "|" {

@@ -26,7 +26,7 @@ var typesByName = func() map[string]Type {
 // prints: "Boolean", not "Bool" or "bool". An unknown or empty member is an
 // error that names it.
 func FromName(name string) (Type, error) {
-	var t Type
+	t := None
 	for _, part := range strings.Split(name, "|") {
 		part = strings.TrimSpace(part)
 		member, ok := typesByName[part]
@@ -36,7 +36,7 @@ func FromName(name string) (Type, error) {
 			}
 			return Unknown, fmt.Errorf("unknown type name %q in %q", part, name)
 		}
-		t |= member
+		t = Join(t, member)
 	}
 	return t, nil
 }

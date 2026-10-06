@@ -4,6 +4,7 @@ package parse
 
 import (
 	"embed"
+	"fmt"
 	"path"
 	"strings"
 	"sync"
@@ -35,6 +36,18 @@ func readDeclaration(src []byte, res *resolver) moduleFacts {
 	root, p := parseSource(src, res, true)
 	facts := readModule(root)
 	facts.signatures, facts.errs = p.signatures, p.typedErrs
+	// A statement the parser could not read declares nothing, so it is an
+	// error rather than a silent gap: `sub :lvalue f;` is no declaration.
+	//
+	// ponytail: a malformed typed signature also leaves its statement
+	// Unknown, so unread statements are reported only when the typed reader
+	// raised nothing; the file is in error either way. Per-statement error
+	// spans would report both when a file has several faults.
+	for _, n := range root.Children {
+		if n.Kind == Unknown && len(p.typedErrs) == 0 {
+			facts.errs = append(facts.errs, fmt.Errorf("not a declaration: %q", strings.TrimSpace(n.SourceText(src))))
+		}
+	}
 	return facts
 }
 

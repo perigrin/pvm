@@ -117,7 +117,10 @@ declared, which also fixed two perl.git files whose own subs use it.
 A declaration follows Perl's order: name, then attributes, then
 signature. Measured on 5.42, `sub f :lvalue ($x) {}` compiles,
 `sub f ($x) :lvalue {}` dies ("Subroutine attributes must come before
-the signature") and `sub :lvalue f {}` is a syntax error. An operator
+the signature"), and `sub :lvalue f {}` is no declaration: perl reads
+the label `sub:` and the indirect call `'f'->lvalue({})`, which `use
+v5.36` refuses as a syntax error. A `.pmt` reports any statement it
+cannot read as "not a declaration". An operator
 is therefore `sub + :infix (Num $x, Num $y) Num;`.
 
 ### Typed Perl, in `.pmt` only (*Decided*)
