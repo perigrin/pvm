@@ -19,7 +19,9 @@
 # derive `@` writes `:prototype(@)`, since a derived `@` is no prototype.
 package CORE;
 
-sub __CLASS__ :prototype();
+# __CLASS__ yields the class of the instance under construction or whose
+# method runs, a string: in `class F`'s method it is "F", POK (measured).
+sub __CLASS__ () Str;
 sub __FILE__ :prototype();
 sub __LINE__ :prototype();
 sub __PACKAGE__ :prototype();
