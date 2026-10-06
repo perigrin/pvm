@@ -148,11 +148,15 @@ sub dump :prototype();
 # (measured on 5.42).
 multi sub each (Hash \%h) List;
 multi sub each (Array \@a) List;
-sub endgrent :prototype();
+# endgrent, endpwent, setgrent and setpwent close or rewind the group and
+# password files and yield true, a boolean, in either context (measured:
+# builtin::is_bool of each).
+sub endgrent () Boolean;
 sub endhostent :prototype();
 sub endnetent :prototype();
 sub endprotoent :prototype();
-sub endpwent :prototype();
+# Measured as endgrent, above.
+sub endpwent () Boolean;
 sub endservent :prototype();
 # eof and tell take the last handle read with none, ${^LAST_FH} (measured:
 # after reading B, `eof` and `tell` answer for B, not for A read before
@@ -191,13 +195,25 @@ sub formline (Str $picture, List @list) Boolean;
 # argument and "Z" piped in, `getc` is "Z"), and yields undef at end of
 # file or for a closed handle.
 sub getc (Glob *fh = *STDIN) Str|Undef;
-sub getgrent :prototype();
-sub getgrgid :prototype($);
-sub getgrnam :prototype($);
+# getgrent, getgrgid and getgrnam yield a group's record, its name,
+# password, gid and members, in list context, and one of those fields in
+# scalar context: getgrent and getgrgid the name, getgrnam the gid
+# (measured: getgrnam's is the record's gid, an IV) -- one of the list's
+# values, so List covers both. A group that does not exist, or the end of
+# the file, is the empty list, and undef in scalar context.
+sub getgrent () List;
+# Measured as getgrent, above.
+sub getgrgid (Int $gid) List;
+# Measured as getgrent, above.
+sub getgrnam (Str $name) List;
 sub gethostbyaddr :prototype($$);
 sub gethostbyname :prototype($);
 sub gethostent :prototype();
-sub getlogin :prototype();
+# getlogin yields the login name of the controlling terminal from utmp,
+# a string, and undef when there is none (measured: undef with no
+# controlling terminal, and under `script`, whose terminal utmp does not
+# list).
+sub getlogin () Str|Undef;
 sub getnetbyaddr :prototype($$);
 sub getnetbyname :prototype($);
 sub getnetent :prototype();
@@ -215,9 +231,17 @@ sub getpriority (Int $which, Int $who) Int;
 sub getprotobyname :prototype($);
 sub getprotobynumber :prototype($;);
 sub getprotoent :prototype();
-sub getpwent :prototype();
-sub getpwnam :prototype($);
-sub getpwuid :prototype($);
+# getpwent, getpwnam and getpwuid yield a user's record, nine fields from
+# the name to the shell, in list context, and one of those fields in scalar
+# context: getpwent and getpwuid the name, getpwnam the uid (measured:
+# getpwnam's is 1001 as an IV, the record's third field) -- one of the
+# list's values, so List covers both. A user that does not exist, or the
+# end of the file, is the empty list, and undef in scalar context.
+sub getpwent () List;
+# Measured as getpwent, above.
+sub getpwnam (Str $name) List;
+# Measured as getpwent, above.
+sub getpwuid (Int $uid) List;
 sub getservbyname :prototype($$);
 sub getservbyport :prototype($$);
 sub getservent :prototype();
@@ -431,7 +455,8 @@ sub semctl :prototype($$$$);
 sub semget :prototype($$$);
 sub semop :prototype($$);
 sub send :prototype(*$$;$);
-sub setgrent :prototype();
+# Measured as endgrent, above.
+sub setgrent () Boolean;
 sub sethostent :prototype($);
 sub setnetent :prototype($);
 # setpgrp sets a process's group, 0 and 0 with none: the current process
@@ -442,7 +467,8 @@ sub setpgrp (Int $pid = 0, Int $pgrp = 0) Int;
 # Measured as setpgrp, above: setpriority(0, 999999, 0) is 0 as an IV.
 sub setpriority (Int $which, Int $who, Int $priority) Int;
 sub setprotoent :prototype($);
-sub setpwent :prototype();
+# Measured as endgrent, above.
+sub setpwent () Boolean;
 sub setservent :prototype($);
 sub setsockopt :prototype(*$$$);
 # Measured as pop, above.
