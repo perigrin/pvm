@@ -18,6 +18,56 @@
 # "A typed signature and a prototype say the same thing"): `bless`'s
 # `(Ref $ref, Str $class = __PACKAGE__)` derives `$;$`. One whose types
 # derive `@` writes `:prototype(@)`, since a derived `@` is no prototype.
+#
+# Each line also says how a call to its builtin parses (TestCoreDerivedShapes):
+# a named unary takes ONE argument without parens, so `KW $x, $y` is
+# `KW($x), $y`; a list operator swallows the whole comma list, `KW($x, $y)`;
+# a niladic takes nothing, so what follows it is an operator. A prototype
+# says which as it would for a sub; with none, `:unary` marks a named unary
+# and the rest are list operators. The shapes were measured, not
+# transcribed. Every one of perl's keywords was deparsed as
+#
+#   perl -MO=Deparse,-p -e 'my $x; my $y; KW $x, $y;'
+#
+# and classified by where the comma landed:
+#
+#   (length($x), $y)     the comma is OUTSIDE   -> named unary
+#   print($x, $y)        the comma is INSIDE    -> list operator
+#
+# `-p` matters: without it Deparse omits the parens that carry the answer.
+# A "Too many arguments" refusal is the comma INSIDE: perl took the second
+# argument and then refused it.
+#
+# The set those were drawn from was then differenced against perl's own:
+# all 266 names in regen/keywords.pl, each absent one put to perl in
+# expression position,
+#
+#   perl -MO=Deparse,-p -e 'our ($a,$b); my $z = KW $a, $b;'
+#
+# Most of them perl rejects there (`if`, `while`, `sub`, `else`, `__DATA__`,
+# the phasers) or reads as an infix operator (`eq`, `cmp`, `lt`, `xor`) or a
+# quote-like (`q`, `qw`, `m`, `s`, `tr`). Of the names perl ACCEPTS and
+# hands an argument to, these parse as their own forms and have no line
+# here: `my`, `our` and `local` are declarations (named unaries in perly.y,
+# §4.6, but parseDeclaration owns them), and `last`, `next`, `redo` and
+# `require` are statement forms. An absent builtin emits `NAME()` with its
+# arguments detached, at Unknown=0, so the canon is the only instrument that
+# sees one missing: TestParenlessBuiltinArity and
+# TestParenlessArityNoDetachedCall hold the audit.
+#
+# A builtin a feature gates -- `fc`, `evalbytes`, `any`, `all`, `isa`,
+# `__CLASS__`, `catch`, `break`, `__SUB__` -- takes its shape only with its
+# feature on or spelled `CORE::NAME`; unenabled perl does not read it as a
+# builtin at all:
+#
+#   perl -MO=Deparse,-p -e 'our $a; my $z = fc $a;'
+#   (my($z) = $a->fc);                     a METHOD call
+#   perl -MO=Deparse,-p -e 'use v5.42; our $a; my $z = fc $a, $b;'
+#   (fc($a), $b);                          the builtin, a named unary
+#
+# Shaping it unconditionally would disagree with perl on unfeatured source,
+# the larger half of the corpus. `say` is gated too, but is a list operator
+# whatever is enabled, with a filehandle slot exactly like `print`'s.
 package CORE;
 
 # __CLASS__ yields the class of the instance under construction or whose
@@ -60,7 +110,11 @@ sub all (Code \&block, List @list) Boolean;
 sub any (Code \&block, List @list) Boolean;
 # atan2 takes both its arguments, y then x: `atan2(1)` is "Not enough
 # arguments". Its result is a float, NOK even where it is whole: atan2(0, 1)
-# is 0 as an NV (measured with B::svref_2object).
+# is 0 as an NV (measured with B::svref_2object). It is a list operator, the
+# comma inside:
+#
+#   perl -MO=Deparse,-p -e 'our ($a,$b); my $z = atan2 $a, $b;'
+#   (my($z) = atan2($a, $b));
 sub atan2 (Num $y, Num $x) Num;
 # bind, connect, listen, setsockopt, socket and socketpair yield true, a
 # boolean, or undef on failure (measured: binding a bound socket, connecting
@@ -147,7 +201,10 @@ sub dbmopen (Hash \%hash, Str $dbname, Int $mode) Object|Undef;
 # `delete($h{a}), $b` (B::Deparse -p). defined takes `$_` with none
 # (`defined()` is false with `$_` undef); delete and exists need their
 # element, "Not enough arguments" without. Their operand is an element,
-# which neither reads: open question 10 asks how to say so.
+# which neither reads: open question 10 asks how to say so. Measured:
+#
+#   (delete $h{'a'}, $y)   comma outside  -> named unary
+#   (exists $h{'a'}, $y)   comma outside  -> named unary
 sub defined :unary (Scalar $thing = $_) Boolean;
 # delete of a slice, a `@` operand, yields its values: `delete @h{qw(a b)}`
 # is (1, 2) and `delete %h{qw(a b)}` (a, 1, b, 2). In scalar context it is
@@ -164,7 +221,10 @@ sub die :prototype(@) (List[Str] @message) None;
 # cannot (`do "/nonexistent"` is undef). eval runs a string, `$_` with none
 # (`$_ = "1+2"; eval` is 3). goto never returns: with no label, or an
 # empty one, it dies "goto must have label" alike, at run time; given code,
-# `goto $cr`, it calls it as `goto &f` does.
+# `goto $cr`, it calls it as `goto &f` does. Measured:
+#
+#   ((goto $x), $y)        comma outside  -> named unary
+#   ((do $x), $y)          comma outside  -> named unary
 sub do :unary (Str $file) Any;
 # Measured as break, above.
 sub dump () None;
@@ -336,7 +396,14 @@ sub getsockname (Glob *socket) Str|Undef;
 sub getsockopt (Glob *socket, Int $level, Int $optname) Str|Undef;
 # glob expands a pattern, `$_` with none: in list context every match, in
 # scalar context the next one, undef past the last -- one of the list's
-# values, so List covers both. `_;` keeps its `;`, which no type states.
+# values, so List covers both. `_;` keeps its `;`, which no type states,
+# and makes glob a list operator, as toke.c's LOP reads it: the comma and a
+# comparison are inside, and perl refuses a second argument.
+#
+#   perl -MO=Deparse,-p -e 'our ($a,$b); my $z = glob $a lt 5;'
+#   (my($z) = glob(($a lt 5)));
+#   perl -MO=Deparse,-p -e 'our ($a,$b); my $z = glob $a, $b;'
+#   Too many arguments for glob
 sub glob :prototype(_;) (Str $pattern = $_) List;
 # gmtime and localtime fork on context (RFC 0001, "`:context(...)`"). In
 # scalar context each yields a date string, `my $t = localtime(0)` being
@@ -368,7 +435,12 @@ sub ioctl (Glob *fh, Int $function, Scalar $argument) Str|Undef;
 sub isa :prototype();
 # join takes a separator and then a LIST, not a series of strings: Str
 # there rejected `join ":", @foo`. Measured: join(":", @f) flattens the
-# array, and `join(":")` compiles, with an empty list.
+# array, and `join(":")` compiles, with an empty list. It is a list
+# operator, which the keyword sweep missed because perl constant-folds
+# `join ",", $x, $y`; verified by hand:
+#
+#   perl -MO=Deparse -e 'my @a=(1,2); print join ",", @a, "x";'
+#   print join(',', @a, 'x');
 sub join (Str $separator, List @list) Str;
 # keys takes one hash or array, never a scalar or a list: `keys $ref` is
 # "Experimental keys on scalar is now forbidden", and `keys;` "Not enough
@@ -501,7 +573,10 @@ sub readlink (Str $path = $_) Str|Undef;
 # line to an element, in scalar context all of it as one string --
 # readpipe("echo a; echo b") is ("a\n", "b\n") or "a\nb\n", POK, which is
 # not one of the list's values. A command that cannot run is undef in
-# scalar context and empty in list context.
+# scalar context and empty in list context. It is a named unary:
+#
+#   perl -MO=Deparse,-p -e 'our ($a,$b); my $z = readpipe $a, $b;'
+#   ((my($z) = `$a`), $b);               comma OUTSIDE
 multi sub readpipe :context($) (Str $command = $_) Str|Undef;
 multi sub readpipe :context(@) (Str $command = $_) List[Str];
 # recv fills the caller's buffer, as read does (measured: three bytes of
@@ -521,7 +596,8 @@ sub rename (Str $old, Str $new) Int;
 sub reset (Str $chars = reset()) Boolean;
 # return has no prototype and takes a LIST: `return $a, $b` returns both
 # (B::Deparse -p), `return()` compiles. It leaves the sub, so its own value
-# is never used.
+# is never used. It is a list operator at perly.y's level 7, though the
+# parser reads it as a statement form.
 sub return (List[Any] @values) Any;
 # reverse is context-dependent: a reversed list in list context, a
 # reversed string in scalar context -- `my $s = reverse "ab", "cd"` is
@@ -694,6 +770,16 @@ sub ucfirst (Str $string = $_) Str;
 # umask(umask()) are both 23) -- while umask(undef) sets 0. No other
 # expression states that default, so it names the call, as srand's does.
 sub umask (Int $mask = umask()) Int;
+# undef is two operators wearing one word. The niladic one is already a
+# complete term; with an argument it is a named unary, which the keyword
+# sweep missed and its own measurement found:
+#
+#   (undef($x), $y)        comma outside  -> named unary
+#
+# Declare a lexical first and perl optimises the unary away -- `my $x; undef
+# $x, $y` deparses to `($x = undef, $y)`, no `undef(...)` in sight -- but the
+# comma placement, which is what the classification reads, is the same
+# either way.
 sub undef :prototype(;\[$@%&*]);
 # unlink deletes the files of a LIST, `$_` with none (measured: `$_ =
 # "f2"; unlink` deletes f2), and yields how many it deleted.

@@ -189,6 +189,11 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 	}
 
 	// A niladic builtin takes nothing: `time`, `wantarray`.
+	//
+	// The lexer keeps its own niladic table for the expect state. The
+	// lexer's question is "does an operator come next", the parser's is
+	// "does this take an operand", and they are the same set today only by
+	// coincidence.
 	if p.keywordHas(spelled, text, ShapeNiladic) {
 		p.advanceTo(word)
 		return &Node{
