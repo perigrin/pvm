@@ -13,7 +13,7 @@ blocks:
 - 01a0fd9b-5670-78d0-84be-9b9618e9b081
 - 01a10177-547c-73a9-a302-f25f579a4cb3
 created: 2026-10-02T17:13:29.757085237Z
-updated: 2026-10-05T17:36:33.761924803Z
+updated: 2026-10-06T08:52:18.539548756Z
 ---
 
 ## Prerequisites
@@ -32,6 +32,8 @@ updated: 2026-10-05T17:36:33.761924803Z
 - entrypoints: RFC 0001 "Builtins that keep their own parse" (the six multi lines and `multi sub sort (Code|Str $by: List @list) List;`), `parseListOpBlock` (`internal/parse/call.go:492`), `internal/types/signatures.go:109-111` (the measured `map`, `grep` and `sort` rows)
 
 RFC 0001 "Builtins that keep their own parse": perlsub reimplements `grep` as `sub mygrep (&@)`, and the expression form deparses as a `($@)` sub's would, so grep and map are each a `Code &block, List @list` multi and a `Scalar $expr, List @list` multi; the comma after the brace (previous issue) is what selects. `sort` is `(Code &block, List @list)`, `(List @list = die)`, and `(Code|Str $by: List @list)` for `sort byname @x` and `sort $n @x`; with a comma the string is data (`sort "byname", @x`). RFC 0001 "A required argument defaults to `die`" (perigrin, 2026-10-05): the plain candidate's `= die` default makes `@list` required, so a call that writes no argument (`sort()`, bare `sort`) selects no candidate, while `sort(())` and `sort @e` write one and select the plain candidate (measured: only `sort()` fails to compile); a `List` with no default accepts zero arguments, so no other line needs a default. The parse-time refusal that acts on this is the refusal issue's; this issue holds the declaration and its candidate selection. Scalar sort is undefined, so sort's candidates carry `:context(@)`. perl reports `undef` for all three prototypes, so none enters `coreTable()`. This finishes both "Builtins with no prototype" and "Builtins that keep their own parse". Open questions 9 and 10 (per-element evaluation, `defined &f`) stay open. `map`, `grep` and `sort` are three of the twelve builtins `internal/types/signatures.go` types that have no prototype; copy their rows into the test as golden values, compared with the block candidate for `map` and `grep` and the plain candidate for `sort` -- never compare against signatures.go, which a later issue deletes.
+
+From the alignment gate on 01a0fd9b-49b2-7ea9-bfa1-ba398baadc3f, two gaps that bite once sort's `(Code|Str $by: List @list)` candidate lands: (1) `readDeclaration` skips the invocant-vs-prototype check for a name with more than one candidate (`len(sigs) != 1 -> continue`), so `multi sub f :prototype($@) (Str $p: List @a);` beside a second variant reads with no error and its declared prototype is silently dropped (recorded as ""); (2) `types.Ambiguity` ignores `Signature.Invocant`, so two candidates differing only in their invocant type are compared wrongly. Add failing tests for both before declaring sort's invocant multi.
 
 ## Steps
 
