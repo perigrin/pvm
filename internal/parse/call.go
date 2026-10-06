@@ -197,7 +197,10 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 	// Measured: `shift;` and `die;` between them are the first failure in
 	// dozens of T1 files, and `... or die;` appears in almost every file
 	// that opens a filehandle.
-	if next, ok := p.peekSignificant(); !ok || endsArgumentList(next, p.src) {
+	// `isa` is infix under its feature: measured on 5.42.0, `undef isa
+	// "BaseClass"` is `(undef) isa 'BaseClass'`.
+	if next, ok := p.peekSignificant(); !ok || endsArgumentList(next, p.src) ||
+		next.Kind == lexer.Word && p.text(next) == "isa" && p.operatorHere("isa") {
 		n.End = p.prevEnd()
 		// An imported sub called with no arguments is as resolved as a
 		// builtin one: `done_testing;` and `maybe;` are calls whose callee
@@ -653,7 +656,16 @@ func (p *parser) parseFilehandleSlot(op string) *Node {
 		// right in both readings. A list of exempt names was tried first
 		// and was wrong on `__CLASS__` and missing `__SUB__` -- one fault
 		// each way, from encoding a judgement perl does not make.
-		if next, ok := p.peekAfter(tok); !ok || !startsTerm(next, p.src) {
+		next, ok := p.peekAfter(tok)
+		if !ok || !startsTerm(next, p.src) {
+			return nil
+		}
+		// A word before a PACKAGE name is an indirect method call, which
+		// parseIndirect reads. Measured on 5.42.0 with -MO=Deparse:
+		//
+		//	package Bar; sub x {} package main; print FOO Bar "x";
+		//	print 'Bar'->FOO('x');
+		if class := p.text(next); next.Kind == lexer.Word && (p.packages[class] || interpreterPackages[class]) {
 			return nil
 		}
 		p.advanceTo(tok)

@@ -615,6 +615,16 @@ type parser struct {
 	// toke.c's intuit_method tests `gv_stashpvn` for exactly that.
 	packages map[string]bool
 
+	// lexical holds the lexical subs in scope, by bare name; see
+	// declareLexical.
+	lexical map[string]Import
+
+	// pkg is the package the parse stands in, "" for main: `package NAME;`
+	// sets it to the end of the enclosing block, and `package NAME BLOCK`
+	// for the block alone. Unqualified sub names are keyed in it; see
+	// subKey.
+	pkg string
+
 	// imports is what this file's `use` statements brought into scope,
 	// accumulated as they are parsed and lifted onto the root at the end.
 	imports map[string]Import
@@ -1126,6 +1136,10 @@ func (p *parser) takeHeredocBodies() []*Node {
 func (p *parser) parseBlock(open lexer.Token) *Node {
 	p.advanceTo(open)
 	n := &Node{Kind: Block, Start: open.Start}
+	// A `package NAME;` inside the block lasts to its end, as perl scopes
+	// it: `package A; { package B; } s2(1)` calls A::s2.
+	pkg := p.pkg
+	defer func() { p.pkg = pkg }()
 
 	for p.pos < len(p.toks) {
 		tok := p.toks[p.pos]
