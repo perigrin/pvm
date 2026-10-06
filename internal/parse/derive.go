@@ -73,8 +73,11 @@ func typesFromPrototype(proto string) (sig types.Signature, derived bool, err er
 // prototypeFromTypes gives the prototype, without its parentheses, that a
 // typed signature's parameters state, the table read the other way. Types
 // are finer than prototypes, so `Str $x` and `Scalar $x` both give `$`;
-// a `$` parameter whose type admits an array or a hash gives `+`, and one
-// defaulting to `$_` gives `_`. A `;` goes before the first optional
+// a `$` parameter typed exactly List (`Array|Hash|Scalar`) gives `+`, and one
+// defaulting to `$_` gives `_`. A wider or other type stays `$`: measured on
+// 5.42, `f(@a)` passes an ARRAY reference under `+` but the count under `$`.
+// A trailing `;` is not a type, so `$;` and `;` come back as `$` and nothing;
+// a declaration that writes them keeps its declared prototype. A `;` goes before the first optional
 // parameter other than `_`, which is optional of itself.
 func prototypeFromTypes(sig types.Signature) string {
 	var b strings.Builder
@@ -87,7 +90,7 @@ func prototypeFromTypes(sig types.Signature) string {
 			semicolon = true
 		}
 		switch {
-		case p.Sigil == '$' && p.Type&(types.Array|types.Hash) != 0:
+		case p.Sigil == '$' && p.Type == types.List:
 			b.WriteByte('+')
 		case topic:
 			b.WriteByte('_')

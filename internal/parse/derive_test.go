@@ -204,3 +204,45 @@ func TestDerivePrototypeAfterAtIsError(t *testing.T) {
 		"sub f :prototype($%;$);\n": `sub f: prototype ($%;$): List parameter % is not last; a single hash followed by more parameters is Hash \%, as in ($\%;$)`,
 	})
 }
+
+// TestDerivePlusOnlyFromList: `+` is the table's `Array|Hash|Scalar $x`
+// and nothing wider or narrower. Measured on 5.42, `f(@a)` passes an ARRAY
+// reference under `+` and the count under `$`, so a `$` parameter typed Any
+// or Array|Str is a `$`, not a `+`.
+func TestDerivePlusOnlyFromList(t *testing.T) {
+	for typed, want := range map[string]string{
+		"(Any $x)":       "$",
+		"(Array|Str $x)": "$",
+		"(Scalar $x)":    "$",
+		"(List $x)":      "+",
+	} {
+		if got := prototypeFromTypes(typedSignature(t, "sub f "+typed+";\n")); got != want {
+			t.Errorf("%s: got %q, want %q", typed, got, want)
+		}
+	}
+}
+
+// TestDeclaredTrailingSemicolonIsKept: types cannot say a trailing `;`.
+// Measured on 5.42, `f 1, 2` under `($;)` is "Too many arguments" -- a list
+// operator -- while under `($)` it reads `f(1), 2`; and `g 1` under `(;)` is
+// "Too many arguments" where `()` is a syntax error. So `$;` and `;` do not
+// round-trip through types, a declared `:prototype($;)` agrees with
+// `(Scalar $x)`, and the declared prototype is what the declaration keeps.
+func TestDeclaredTrailingSemicolonIsKept(t *testing.T) {
+	for src, want := range map[string]string{
+		"sub f :prototype($;) (Scalar $x);\n": "($;)",
+		"sub g :prototype(;) ();\n":           "(;)",
+	} {
+		facts := readDeclaration([]byte(src), nil)
+		name := src[4:5]
+		if len(facts.errs) > 0 || facts.protos[name] != want {
+			t.Errorf("%q: errors %v, prototype %q, want %s", src, facts.errs, facts.protos[name], want)
+		}
+	}
+	for proto, back := range map[string]string{"$;": "$", ";": ""} {
+		sig, _, _ := typesFromPrototype(proto)
+		if got := prototypeFromTypes(sig); got != back {
+			t.Errorf("(%s) through types gave %q, want %q: a trailing ; is not a type", proto, got, back)
+		}
+	}
+}

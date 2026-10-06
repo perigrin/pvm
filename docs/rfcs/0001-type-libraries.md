@@ -350,12 +350,12 @@ prototype character corresponds to a parameter:
 | prototype | the caller writes (measured) | parameter |
 |---|---|---|
 | `$` | any expression, in scalar context: with `@a = (5, 6, 7)`, `one(@a)` passes 3 | `Scalar $` |
-| `@`, `%` | the rest of the call, flattened | `List @` |
+| `@`, `%` | the rest of the call, flattened | `List @`, `List %` |
 | `\@`, `\%` | an actual array or hash, passed whole | `Array \@a`, `Hash \%h` |
 | `\$` | any scalar lvalue, passed as a reference: `sref(1)` dies, "must be scalar (not constant item)" | `Scalar \$x` |
 | `\[$@%]` | any one of those containers | their union |
-| `+` | one array or hash, passed whole, or one scalar: `plus(%h)` sees a HASH, `plus(1,2)` is too many arguments | `Array\|Hash\|Scalar` |
-| `&` (first) | a block or a code reference | `Code &` |
+| `+` | one array or hash, passed whole, or one scalar: `plus(%h)` sees a HASH, `plus(1,2)` is too many arguments | `Array\|Hash\|Scalar $`, exactly: a wider type such as `Any $` is a `$` |
+| `&` | a block or a code reference when first; elsewhere `sub {...}` or `\&name` | `Code &` |
 | `*` | a bareword filehandle or any scalar: `star(STDOUT)`, `star($s)` | `Glob *` |
 | `_` | a scalar, defaulting to `$_` | `Scalar $ = $_` |
 | `;` | marks what follows as optional | parameters with defaults |
@@ -371,7 +371,14 @@ prototype character corresponds to a parameter:
 
 The directions are not symmetric. Types are finer than prototypes
 (`Str $` and `Int $` both give `$`), so prototype to types to prototype
-round-trips, and types to prototype to types loses precision. A test
+round-trips, and types to prototype to types loses precision. The one
+exception is a trailing `;`, which no type states: measured on 5.42,
+`f 1, 2` under `($;)` is "Too many arguments" -- a list operator --
+while under `($)` it reads `f(1), 2`, and `g 1` under `(;)` is "Too
+many arguments" where `()` is a syntax error. So `$;` and `;` come back
+from types as `$` and nothing; a declaration that needs them writes
+`:prototype($;)`, which agrees with `(Scalar $x)` and is the prototype
+kept (`not` and `getprotobynumber` in CORE.pmt). A test
 can hold the derived prototypes to `prototype("CORE::name")` for all
 188 builtins.
 
