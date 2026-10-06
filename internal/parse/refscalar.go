@@ -28,7 +28,7 @@ func (p *parser) refuseRefScalarSlot(n *Node) *Node {
 	if !ok || !imp.PrototypeKnown {
 		return n
 	}
-	slots, slurpy := refScalarSlots(imp.Prototype)
+	slots, _ := refScalarSlots(imp.Prototype)
 	if !slices.ContainsFunc(slots, func(s protoSlot) bool { return s.refScalar }) {
 		return n
 	}
@@ -36,12 +36,12 @@ func (p *parser) refuseRefScalarSlot(n *Node) *Node {
 	for _, c := range n.Children {
 		args = append(args, commaItems(c)...)
 	}
-	// Arity, measured: `sref()` is "Not enough arguments for main::sref"
-	// and `sref($x, $y)` "Too many arguments for main::sref".
-	refused := !slurpy && len(args) > len(slots)
+	// A slot left empty, or an argument past the last, is the arity
+	// refusal's (arity.go): `sref()` is "Not enough arguments for
+	// main::sref".
+	refused := false
 	for i, slot := range slots {
-		refused = refused || !slot.optional && i >= len(args) ||
-			slot.refScalar && i < len(args) && p.notScalarLvalue(args[i])
+		refused = refused || slot.refScalar && i < len(args) && p.notScalarLvalue(args[i])
 	}
 	if refused {
 		return &Node{Kind: Unknown, Refusal: RefScalarSlot, Start: n.Start, End: n.End}

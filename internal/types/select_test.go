@@ -381,3 +381,23 @@ func TestSelectRangeBooleanIsFlipFlop(t *testing.T) {
 	wantSelectedIn(t, rangeCandidates, BooleanCtx, []Type{Int, Int}, 1, Str)
 	wantSelectedIn(t, rangeCandidates, ListCtx, []Type{Int, Int}, 0, List)
 }
+
+// TestAcceptsArity: Accepts is the arity half of selection, in any context.
+// select takes none, one or four arguments; each takes exactly one. A
+// candidate whose invocant is required, `(Str $program: List @args)`, takes
+// a call that writes the invocant as its first argument.
+func TestAcceptsArity(t *testing.T) {
+	for n, want := range map[int]bool{0: true, 1: true, 2: false, 3: false, 4: true, 5: false} {
+		if got := Accepts(selectCandidates, n); got != want {
+			t.Errorf("select with %d arguments: Accepts %v, want %v", n, got, want)
+		}
+	}
+	if Accepts(eachCandidates, 0) || !Accepts(eachCandidates, 1) || Accepts(eachCandidates, 2) {
+		t.Errorf("each takes exactly one argument")
+	}
+	program := scalar("program", Str)
+	system := []Signature{{Invocant: &program, Params: []Param{{Name: "args", Sigil: '@', Type: List}}, Returns: Int}}
+	if Accepts(system, 0) || !Accepts(system, 1) || !Accepts(system, 3) {
+		t.Errorf("system takes its program and any list after it")
+	}
+}

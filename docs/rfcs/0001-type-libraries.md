@@ -607,7 +607,7 @@ Boolean context counts as scalar. Measured on 5.42, `wantarray` reports
 scalar inside `if (f())`, `!f()` and `f() and ...`, so no Perl-level
 sub can tell them apart.
 
-### Refusing what perl refuses (*Decided*)
+### Refusing what perl refuses (*Implemented*, 1f6ae965, 98a376b3, 48c2da55, 7ff4e757, 335cccdf, 1ef08a0a, 4488a1ae)
 
 perigrin, 2026-10-02. Where perl refuses a call at compile time, the
 parser refuses it too, for prototypes read from module source as well
@@ -620,6 +620,15 @@ as for `.pmt` declarations. Measured on 5.42:
 - A constant or a sub's result passed to a `\$` slot: `sref(1)` dies
   "Type of arg 1 to main::sref must be scalar (not constant item)",
   `sref(f())` "(not subroutine entry)".
+
+Some builtins parse more loosely than their declarations say, and the
+declaration cannot carry both: `not()` compiles and is true, though
+`sub not :prototype($;) (Scalar $x)` requires the argument, because
+perl's `$;` means one thing for a user sub and another for `not`.
+Measured by calling every CORE.pmt builtin with none to six arguments,
+such a builtin is refused only on the side perl refuses: `close($x, $x)`
+compiles and `closedir()` does not; `system()` compiles and `do($x, $x)`
+does not; and `fc($x, $x)` without its feature is a user's sub.
 
 Where perl would compile the call -- a candidate set with no prototype,
 or a library dispatching at run time -- the parse stays as perl reads it

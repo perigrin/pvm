@@ -321,3 +321,20 @@ func containsKind(n *parse.Node, k parse.Kind) bool {
 	}
 	return false
 }
+
+// TestNotWithParensIsATerm: `not` followed by `(` is a function of the
+// parenthesised list alone -- toke.c's KEY_not returns FUN1 there -- so a
+// comma or an operator after it is the enclosing expression's. Measured on
+// 5.42.0 with -MO=Deparse,-p: `(not(0), 1)` is `((!0), 1)`, `not (1) + 1`
+// folds as `(!1) + 1`, and `is(not(), 1, "x")` passes is three arguments
+// (perl.git t/op/not.t); `not 1, 2` still negates the whole list.
+func TestNotWithParensIsATerm(t *testing.T) {
+	for src, want := range map[string]string{
+		"(not(0), 1)":    "( (not 0) 1)",
+		"not (1) + 1":    "(+ (not 1) 1)",
+		"f(not(), 1, 2)": "(f (, (, (not ) 1) 2))",
+		"not 1, 2":       "(not (, 1 2))",
+	} {
+		assertShape(t, parseOneExpr(t, src), want)
+	}
+}

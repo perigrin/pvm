@@ -17,7 +17,7 @@ package parse
 // afterwards.
 type RefusalCode string
 
-// Eleven codes for twelve `&Node{Kind: Unknown, ...}` sites. The twelfth is
+// Twelve codes for thirteen `&Node{Kind: Unknown, ...}` sites. The thirteenth is
 // parse.go's `expr.Kind == Unknown`, which propagates an existing code
 // outward rather than declaring one; see the note in RefusalSites.
 //
@@ -25,7 +25,7 @@ type RefusalCode string
 // adding a constant AND an inventory entry, which is one edit in one
 // file. RefusalSites below is what makes the pair inseparable.
 //
-// Two of the eleven -- EmptyDeref and NotAnExpression -- are wired but not
+// Two of the twelve -- EmptyDeref and NotAnExpression -- are wired but not
 // reachable from any source today. They are not dead code: they are the
 // codes those sites will carry the day parseExpr can return nil there,
 // and an unreachable site that becomes reachable must arrive with a code
@@ -77,6 +77,11 @@ const (
 	// that is not a scalar lvalue -- `sref(1)` -- which perl rejects as
 	// "Type of arg 1 to main::sref must be scalar".
 	RefScalarSlot RefusalCode = "ref_scalar_slot"
+
+	// CallArity: a call passes a number of arguments no declaration of its
+	// sub accepts -- `each()`, `select(1, 2)` -- which perl rejects as "Not
+	// enough arguments" or "Too many arguments".
+	CallArity RefusalCode = "call_arity"
 )
 
 // RefusalSite says what one code means and where the site lives.
@@ -108,7 +113,7 @@ var RefusalSites = map[RefusalCode]RefusalSite{
 		What:  "the statement is not a known form and parses as no expression",
 		Where: "parse.go, parseStatement: expr == nil",
 	},
-	// The twelfth site, parse.go's `expr.Kind == Unknown`, has no code of
+	// The thirteenth site, parse.go's `expr.Kind == Unknown`, has no code of
 	// its own and is deliberately absent from this table. It widens an
 	// Unknown from the expression to the statement -- a change of SPAN,
 	// not of cause -- and carries the inner code outward unchanged. A code
@@ -148,5 +153,9 @@ var RefusalSites = map[RefusalCode]RefusalSite{
 	RefScalarSlot: {
 		What:  "a `\\$` prototype slot given what perl refuses there",
 		Where: "refscalar.go, refuseRefScalarSlot",
+	},
+	CallArity: {
+		What:  "a call with a number of arguments no declaration accepts",
+		Where: "arity.go, refuseArity",
 	},
 }

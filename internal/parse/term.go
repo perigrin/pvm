@@ -129,6 +129,14 @@ func (p *parser) parseTerm() *Node {
 	// the signal the whole fidelity harness was built to measure.
 	if bp, isPrefix := prefix[text]; isPrefix && p.prefixAllowed(text) {
 		p.advanceTo(tok)
+		// `not (` is a function of the parenthesised list alone: toke.c's
+		// KEY_not returns FUN1 when a `(` follows, and NOTOP, which takes
+		// the whole listexpr, otherwise. Measured on 5.42.0 with
+		// -MO=Deparse,-p, `(not(0), 1)` is `((!0), 1)` and `not (1) + 1`
+		// is `(!1) + 1`. At bpDeref nothing after the `)` binds into it.
+		if next, ok := p.peekSignificant(); ok && text == "not" && p.text(next) == "(" {
+			bp = bpDeref
+		}
 		operand := p.operand(bp, tok)
 		return &Node{
 			Kind: Unary, Text: prefixName(text),
@@ -362,7 +370,7 @@ func (p *parser) parseTerm() *Node {
 				return p.parseBlockOperator(tok)
 			}
 		}
-		return p.refuseRefScalarSlot(p.parseWordTerm(tok))
+		return p.refuseArity(p.refuseRefScalarSlot(p.parseWordTerm(tok)))
 
 	case lexer.Variable, lexer.Number, lexer.Quote,
 		lexer.Readline, lexer.HeredocOpen:

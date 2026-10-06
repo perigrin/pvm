@@ -73,14 +73,17 @@ func TestRefScalarSlotRefusesConstants(t *testing.T) {
 // dies "(not private array)", `sref(%h)` "(not private hash)", `sref(@$r)`
 // "(not array dereference)" and `sref(my @q)` "(not private array)";
 // `sref()` and a bare `sref` die "Not enough arguments for main::sref" and
-// `sref($x, $y)` "Too many arguments". `sref(my $z)` and `sref(substr($x,
+// `sref($x, $y)` "Too many arguments", which is the arity refusal's code,
+// not the slot's. `sref(my $z)` and `sref(substr($x,
 // 0, 1))` compile, as do a slice, `sref(@a[0])`, a parenless `sref $x, $y`
 // whose comma is the enclosing list's, an optional slot left empty,
 // `sopt()` under `(;\$)`, and comp/proto.t's `sreftest my $a = 'quidgley',
 // $i++` under `(\$$)`.
 func TestRefScalarSlotRefusesAggregatesAndArity(t *testing.T) {
 	wantRefScalarRefusal(t, "sref(@a)", "sref(%h)", "sref(@$r)", "sref(%{$r})",
-		"sref(my @q)", "sref(our %q)", "sref()", "sref", "sref($x, $y)")
+		"sref(my @q)", "sref(our %q)")
+	wantArityRefusal(t, refScalarPrelude+"sref();\n", refScalarPrelude+"sref;\n",
+		refScalarPrelude+"sref($x, $y);\n")
 	wantNoRefusal(t,
 		refScalarPrelude+"sref(my $z);\n",
 		refScalarPrelude+"sref(substr($x, 0, 1));\n",
