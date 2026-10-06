@@ -9,7 +9,7 @@ blocked_by:
 - 01a0c115-df67-7d69-8883-73d40b0ae15d
 - 01a10177-547c-73a9-a302-f25f579a4cb3
 created: 2026-10-02T17:13:31.136589197Z
-updated: 2026-10-06T08:56:04.910435148Z
+updated: 2026-10-06T13:41:33.934063119Z
 ---
 
 ## Prerequisites
@@ -34,6 +34,8 @@ Open question from the alignment gate on 01a0fd9b-4a5b-7e94-ad87-756dfcfe1f4c (2
 From the alignment gate on 01a0fd9b-4ca3-7d55-82ac-ba125816ee71: `types.Select(cands, args, ctx)` returns Failed when `ctx` is `UnknownCtx`, because no candidate answers for an unknown context. RFC 0001 "Multi declarations" says the CONSUMER joins when the call site cannot decide, and Failed means the call is ruled out -- which `psc check` would report as an error. Add a step: a call whose context cannot be determined joins the candidates (or Select reports Undecided), with a failing test first.
 
 From the alignment gate on 01a0fd9b-5468-7355-a22e-1b16fa5ee354: context-only multis (`..`, `...`, `=~`, `\`) have no candidate answering VOID, so `SelectShaped` returns Failed for `$s =~ s/a/b/g;` in void context -- ordinary perl, which the old plain `=~` declaration typed. For `..` and `\` perl warns "Useless use ... in void context", but `=~` in void is idiomatic. A call site must treat a void-context Failed as untyped, never as an error: add a void `=~` case beside the scalar-sort negative scenario, failing first.
+
+From 01a11146-c4da-79e4-8232-6ad2e731f3e7: `delete` is now two candidates, `(List @slice = die) List` and `(Scalar $element) Scalar`, chosen by operand SHAPE through `SelectShaped`. A call site must pass a slice operand (`@h{...}`, `@a[...]`, `%h{...}`, `%a[...]`) as `@`-shaped and an element (`$h{a}`, `$a[1]`) as `$`-shaped, or every delete selects the element candidate. Add a test that `delete @h{qw(a b)}` is typed List.
 
 ## Steps
 
