@@ -119,13 +119,21 @@ func prototypeFromTypes(sig types.Signature) string {
 // disagrees with the one its types give. The declared one is read through
 // the table first, so what the table does not tell apart agrees. A
 // prototype the table does not derive is not compared (see
-// typesFromPrototype).
+// typesFromPrototype), except a `\[...]`, which a multi's candidates
+// derive: it is compared as written, since perl keeps it as written
+// (measured on 5.42, `sub f (\[@%])` reports `\[@%]`), less a trailing
+// `;`, which no type states.
 func agreement(declared, fromTypes string) error {
-	sig, derived, err := typesFromPrototype(strings.TrimSuffix(strings.TrimPrefix(declared, "("), ")"))
-	if err != nil || !derived {
-		return err
+	proto := strings.TrimSuffix(strings.TrimPrefix(declared, "("), ")")
+	canon := strings.TrimRight(proto, ";")
+	if !strings.Contains(proto, `\[`) {
+		sig, derived, err := typesFromPrototype(proto)
+		if err != nil || !derived {
+			return err
+		}
+		canon = prototypeFromTypes(sig)
 	}
-	if canon := prototypeFromTypes(sig); canon != fromTypes {
+	if canon != fromTypes {
 		return fmt.Errorf(":prototype%s disagrees with its types, which give (%s)", declared, fromTypes)
 	}
 	return nil

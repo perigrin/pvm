@@ -452,3 +452,20 @@ func TestDeriveSingleMultiCandidateIsPlain(t *testing.T) {
 		t.Errorf("one candidate: got %q, error %v, want \\%%", got, err)
 	}
 }
+
+// TestStatedUnionPrototypeAgrees: a stated `\[...]` is compared with the
+// prototype the candidates give, for one candidate and for several, so
+// one they do not give is an error, never accepted as written. A trailing
+// `;` is not a type, so `:prototype(\[%@];)` agrees with each's
+// candidates as `:prototype($;)` agrees with `(Scalar $x)`.
+func TestStatedUnionPrototypeAgrees(t *testing.T) {
+	pmtRefuses(t, map[string]string{
+		"multi sub f :prototype(\\[@$]) :context($) (Hash \\%h) Int;\nmulti sub f :prototype(\\[@$]) :context(@) (Hash \\%h) List;\n": `sub f: :prototype(\[@$]) disagrees with its types, which give (\%)`,
+		"multi sub f :prototype(\\[@$]) (Hash \\%h) List;\n":                                                                          `sub f: :prototype(\[@$]) disagrees with its types, which give (\%)`,
+		"sub f :prototype(\\[@$]) (Hash \\%h) List;\n":                                                                                `sub f: :prototype(\[@$]) disagrees with its types, which give (\%)`,
+	})
+	facts := readDeclaration([]byte("multi sub f :prototype(\\[%@];) (Hash \\%h) List;\nmulti sub f :prototype(\\[%@];) (Array \\@a) List;\n"), nil)
+	if len(facts.errs) > 0 || facts.protos["f"] != `(\[%@];)` {
+		t.Errorf(`\[%%@];: errors %v, prototype %q, want (\[%%@];)`, facts.errs, facts.protos["f"])
+	}
+}
