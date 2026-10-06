@@ -319,7 +319,7 @@ func (p *parser) resolveImports(module string, list *Node) {
 			p.imports = map[string]Import{}
 		}
 		for _, imp := range importsFrom(facts, names, given) {
-			p.imports[subKey(imp.Name)] = imp
+			p.imports[p.subKey(imp.Name)] = imp
 		}
 		return
 	}
@@ -353,7 +353,7 @@ func (p *parser) resolveImports(module string, list *Node) {
 		p.symbolsOpen = true
 	}
 	for _, imp := range importsFrom(facts, names, listGiven) {
-		p.imports[subKey(imp.Name)] = imp
+		p.imports[p.subKey(imp.Name)] = imp
 	}
 }
 
@@ -399,7 +399,7 @@ func (p *parser) importConstants(list *Node) {
 		p.imports = map[string]Import{}
 	}
 	for _, name := range names {
-		p.imports[subKey(name)] = Import{Name: name, Prototype: "()", PrototypeKnown: true}
+		p.imports[p.subKey(name)] = Import{Name: name, Prototype: "()", PrototypeKnown: true}
 	}
 }
 
@@ -523,10 +523,10 @@ func (p *parser) importBuiltins(list *Node) {
 		if !ok {
 			continue
 		}
-		if p.imports == nil {
-			p.imports = map[string]Import{}
-		}
-		p.imports[subKey(name)] = Import{Name: name, Prototype: proto, PrototypeKnown: true}
+		// Lexical, as `my sub` is: in scope whatever package follows.
+		// Measured on 5.42.0, `use builtin "refaddr"; package P; my $a =
+		// refaddr $x, 1` compiles.
+		p.declareLexical(Import{Name: name, Prototype: proto, PrototypeKnown: true})
 	}
 }
 
@@ -605,7 +605,7 @@ func (p *parser) resolveRequiredFile(list *Node) {
 		p.imports = map[string]Import{}
 	}
 	for name, proto := range facts.protos {
-		p.imports[subKey(name)] = Import{
+		p.imports[p.subKey(name)] = Import{
 			Name:           name,
 			Prototype:      proto,
 			PrototypeKnown: true,
@@ -613,8 +613,8 @@ func (p *parser) resolveRequiredFile(list *Node) {
 	}
 	// A glob it assigns is a sub too, with no prototype this parser reads.
 	for _, name := range facts.globs {
-		if _, ok := p.imports[subKey(name)]; !ok {
-			p.imports[subKey(name)] = Import{Name: name}
+		if _, ok := p.imports[p.subKey(name)]; !ok {
+			p.imports[p.subKey(name)] = Import{Name: name}
 		}
 	}
 }
@@ -653,6 +653,14 @@ func (p *parser) parsePhaser(word lexer.Token) *Node {
 // aliasTarget is the sub a `\&NAME` names, with its prototype when this
 // parser knows it: a CORE:: builtin from coreTable, or a sub in the table.
 func (p *parser) aliasTarget(n *Node) (Import, bool) {
+	// A whole glob, `*bar::is = *is`, aliases the sub with the rest: measured
+	// on 5.42.0, bar::ff then carries main::ff's `\$`.
+	if glob, ok := strings.CutPrefix(n.Text, "*"); ok && n.Kind == Term && glob != "" {
+		if imp, known := p.lookupSub(glob); known && imp.PrototypeKnown {
+			return imp, true
+		}
+		return Import{}, false
+	}
 	if n.Kind != Unary || n.Text != "ref" || len(n.Children) != 1 {
 		return Import{}, false
 	}
@@ -695,9 +703,9 @@ func (p *parser) noteBeginEffects(n *Node) {
 			// An alias takes its target's prototype: `*my_push =
 			// \&CORE::push` is `\@@`, measured on 5.42.0.
 			if imp, ok := p.aliasTarget(n.Children[1]); ok {
-				p.imports[subKey(name)] = Import{Name: name, Prototype: imp.Prototype, PrototypeKnown: true}
-			} else if _, ok := p.imports[subKey(name)]; !ok {
-				p.imports[subKey(name)] = Import{Name: name}
+				p.imports[p.subKey(name)] = Import{Name: name, Prototype: imp.Prototype, PrototypeKnown: true}
+			} else if _, ok := p.imports[p.subKey(name)]; !ok {
+				p.imports[p.subKey(name)] = Import{Name: name}
 			}
 		} else {
 			p.symbolsOpen = true
@@ -769,7 +777,7 @@ func (p *parser) parseSpecialSub(word lexer.Token) *Node {
 // parseClass: 5.38's `class NAME { ... }` and `class NAME;`.
 //
 // Structurally a package with a different keyword, so it shares
-// finishBodyOrSemicolon. `field` and `method` inside the body are handled by
+// finishPackage. `field` and `method` inside the body are handled by
 // parseDeclaration, which already knows `method` as a sub spelling.
 func (p *parser) parseClass(word lexer.Token) *Node {
 	p.advanceTo(word)
@@ -802,7 +810,7 @@ func (p *parser) parseClass(word lexer.Token) *Node {
 	// Attributes: `class Point :isa(Shape) { }`.
 	p.parseAttributes(n)
 
-	p.finishBodyOrSemicolon(n)
+	p.finishPackage(n)
 	return n
 }
 

@@ -490,12 +490,14 @@ func (p *parser) parseLexicalSub(word lexer.Token) *Node {
 	}
 	p.advanceTo(word)
 	inner := p.parseSubDecl(sub)
-	// perl does not hold a lexical sub's result to a `\$` slot: measured on
-	// 5.42.0, `sub sref (\$) {} my sub g {} sref(g())` compiles.
+	// A lexical sub is in scope whatever package follows: measured on
+	// 5.42.0, `my sub s2 (\$) {} package B; s2(1)` meets the `\$`. And perl
+	// does not hold its result to a `\$` slot: `sub sref (\$) {} my sub g {}
+	// sref(g())` compiles.
 	if name, _ := declaredSub(inner); name != "" {
-		imp := p.imports[subKey(name)]
+		imp := p.imports[p.subKey(name)]
 		imp.Lvalue = true
-		p.imports[subKey(name)] = imp
+		p.declareLexical(imp)
 	}
 	return &Node{
 		Kind: Declaration, Text: p.text(word),
@@ -932,7 +934,7 @@ func (p *parser) declareSub(n *Node) {
 	if p.imports == nil {
 		p.imports = map[string]Import{}
 	}
-	p.imports[subKey(name)] = Import{
+	p.imports[p.subKey(name)] = Import{
 		Name:           name,
 		Prototype:      proto,
 		PrototypeKnown: true,
@@ -984,8 +986,23 @@ func (p *parser) parsePackageDecl(word lexer.Token) *Node {
 		})
 	}
 
-	p.finishBodyOrSemicolon(n)
+	p.finishPackage(n)
 	return n
+}
+
+// finishPackage ends a `package` or `class` declaration and moves the parse
+// into its package: to the end of the enclosing block for `package NAME;`,
+// and for its own block alone for `package NAME BLOCK`. Measured on 5.42.0,
+// `package A { sub s2 (\$) {} } s2(1)` calls main::s2.
+func (p *parser) finishPackage(n *Node) {
+	prev := p.pkg
+	if len(n.Children) > 0 && n.Children[0].Kind == Term {
+		p.pkg = n.Children[0].Text
+	}
+	p.finishBodyOrSemicolon(n)
+	if last := n.Children[len(n.Children)-1]; last.Kind == Block {
+		p.pkg = prev
+	}
 }
 
 // finishBodyOrSemicolon consumes the `( Block | ";" )` that ends a sub or
