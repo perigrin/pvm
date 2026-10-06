@@ -76,3 +76,28 @@ func TestInvocantColonWithPrototypeIsError(t *testing.T) {
 		"sub f :prototype($@) (Str $p: List @a);\n": "sub f: :prototype($@) disagrees with its types: an invocant colon derives no prototype",
 	})
 }
+
+// TestCoreDeclaresInvocantBuiltins: CORE.pmt types the builtins whose
+// leading slot takes no comma, each with an invocant. None of them has a
+// prototype, so none is in coreTable, which holds only builtins that do:
+// aliasTarget reads presence there as a known prototype.
+//
+// The slot sits outside positional binding, so a call's arguments all
+// bind to the list after it: print(Str, Str) and print(ArrayRef) select
+// print, where a positional FileHandle would refuse both.
+func TestCoreDeclaresInvocantBuiltins(t *testing.T) {
+	sigs := coreSignatures()
+	for _, name := range []string{"print", "printf", "say", "exec", "system"} {
+		if got := sigs[name]; len(got) != 1 || got[0].Invocant == nil {
+			t.Errorf("%s: CORE.pmt declares %+v, want one signature with an invocant", name, got)
+		}
+		if proto, ok := coreTable()[name]; ok {
+			t.Errorf("%s: in coreTable with prototype (%s)", name, proto)
+		}
+	}
+	for _, args := range [][]types.Type{{types.Str, types.Str}, {types.ArrayRef}} {
+		if got := types.Select(sigs["print"], args, types.ListCtx); got.Outcome != types.Selected || got.Returns != types.Boolean {
+			t.Errorf("print%v: got %+v, want print selected, returning Boolean", args, got)
+		}
+	}
+}
