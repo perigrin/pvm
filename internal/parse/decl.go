@@ -765,6 +765,15 @@ func (p *parser) parseSubDecl(word lexer.Token) *Node {
 		}
 	}
 
+	// A declaration in error derives nothing; see readDeclaration.
+	if p.typed && len(p.typedErrs) > errsBefore {
+		if p.inError == nil {
+			p.inError = map[string]bool{}
+		}
+		name, _ := declaredSub(n)
+		p.inError[name] = true
+	}
+
 	// The declaration enters scope HERE, before its own body and before
 	// anything below it is read. That ordering is perl's rule, not a
 	// convenience: perl parses top to bottom, so a call ABOVE the

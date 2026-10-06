@@ -572,6 +572,9 @@ type parser struct {
 	typedErrs  []error
 	operators  []operatorDecl
 
+	// inError names the subs whose declaration is one of typedErrs.
+	inError map[string]bool
+
 	// operatorSig is the signature of the operator declaration being read;
 	// see declareOperator.
 	operatorSig types.Signature

@@ -58,26 +58,36 @@ func readDeclaration(src []byte, res *resolver) moduleFacts {
 			facts.errs = append(facts.errs, fmt.Errorf("not a declaration: %q", strings.TrimSpace(n.SourceText(src))))
 		}
 	}
+	inError := p.inError
+	if inError == nil {
+		inError = map[string]bool{}
+	}
 	// A name whose candidates are ambiguous records none, as a signature
 	// that cannot be read records nothing (RFC 0001, "Multi declarations").
 	for _, name := range slices.Sorted(maps.Keys(facts.signatures)) {
 		if err := types.Ambiguity(facts.signatures[name]); err != nil {
 			facts.errs = append(facts.errs, fmt.Errorf("sub %s: %w", name, err))
 			delete(facts.signatures, name)
+			inError[name] = true
 		}
 	}
 	// A declaration with only a prototype gets the typed signature its
 	// prototype gives (RFC 0001, "A typed signature and a prototype say
-	// the same thing").
+	// the same thing"). With none, it takes the rest of the call; an empty
+	// one, `()`, takes nothing.
 	for _, name := range slices.Sorted(maps.Keys(facts.protos)) {
 		proto := facts.protos[name]
-		if _, typed := facts.signatures[name]; typed || proto == "" {
+		if _, typed := facts.signatures[name]; typed || inError[name] {
 			continue
 		}
-		sig, derived, err := typesFromPrototype(strings.TrimSuffix(strings.TrimPrefix(proto, "("), ")"))
-		if err != nil {
-			facts.errs = append(facts.errs, fmt.Errorf("sub %s: %w", name, err))
-			continue
+		sig, derived := types.Signature{Params: []types.Param{{Sigil: '@', Type: types.List}}}, true
+		if proto != "" {
+			var err error
+			sig, derived, err = typesFromPrototype(strings.TrimSuffix(strings.TrimPrefix(proto, "("), ")"))
+			if err != nil {
+				facts.errs = append(facts.errs, fmt.Errorf("sub %s: %w", name, err))
+				continue
+			}
 		}
 		if derived {
 			if facts.signatures == nil {

@@ -130,3 +130,21 @@ func TestDerivedAtMeansNoPrototype(t *testing.T) {
 		t.Errorf("errors %v, prototype %q (declared %v), want none", facts.errs, proto, ok)
 	}
 }
+
+// TestDeriveEmptyPrototypeIsNotAbsent: as with perl's `prototype`, absent
+// and empty differ. `sub f :prototype();` takes no arguments and derives
+// no parameters; `sub g;` has no prototype and derives `List @`, the rest
+// of the call. A declaration whose typed signature is in error derives
+// nothing: it has a signature, just not one that can be read.
+func TestDeriveEmptyPrototypeIsNotAbsent(t *testing.T) {
+	facts := readDeclaration([]byte("sub f :prototype();\nsub g;\nsub h (Str);\n"), nil)
+	if f := facts.signatures["f"]; len(f) != 1 || len(f[0].Params) != 0 {
+		t.Errorf("(): got %+v, want one signature with no parameters", f)
+	}
+	if g := facts.signatures["g"]; !reflect.DeepEqual(g, []types.Signature{{Params: []types.Param{protoList}}}) {
+		t.Errorf("none: got %+v, want (List @)", g)
+	}
+	if h, ok := facts.signatures["h"]; ok {
+		t.Errorf("in error: got %+v, want no signature", h)
+	}
+}
