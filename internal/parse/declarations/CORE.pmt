@@ -92,7 +92,13 @@ sub die :prototype(@) (List[Str] @message) None;
 # `goto $cr`, it calls it as `goto &f` does.
 sub do :unary (Str $file) Any;
 sub dump :prototype();
-sub each :prototype(\[%@]);
+# each takes a hash or an array whole, and its two candidates derive
+# perl's `\[%@]`. It yields the next key and value, the index for an array
+# (`each @a` over (5, 6) is (0, 5)), or in scalar context the key alone.
+# A scalar is no operand: "Experimental each on scalar is now forbidden"
+# (measured on 5.42).
+multi sub each (Hash \%h) List;
+multi sub each (Array \@a) List;
 sub endgrent :prototype();
 sub endhostent :prototype();
 sub endnetent :prototype();

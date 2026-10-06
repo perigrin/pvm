@@ -3,6 +3,8 @@
 package parse_test
 
 import (
+	"fmt"
+	"os"
 	"slices"
 	"testing"
 
@@ -93,5 +95,50 @@ func TestCoreUnaryDerivesNoPrototype(t *testing.T) {
 	want := "sub defined: :prototype(_) disagrees with :unary, which derives no prototype"
 	if err == nil || err.Error() != want {
 		t.Errorf("error %v; want %q", err, want)
+	}
+}
+
+// rowsOf reads each of a name's candidates as a measuredRow.
+func rowsOf(sigs []types.Signature) []measuredRow {
+	rows := make([]measuredRow, len(sigs))
+	for i, s := range sigs {
+		rows[i] = rowOf(s)
+	}
+	return rows
+}
+
+// TestCoreSelectAndEachAreMultis: select and each are the RFC's multis
+// ("Multi declarations"). select forks on arity: `() Str` for the
+// selected handle, `(FileHandle $fh) Str` for the one selected before, and
+// `($r, $w, $e, Num $timeout) Int` for the system call's count. each forks
+// on the container its operand is, and its two candidates derive perl's
+// `\[%@]`.
+func TestCoreSelectAndEachAreMultis(t *testing.T) {
+	core := parse.CoreSignatures()
+	for name, want := range map[string][]measuredRow{
+		"select": {
+			{0, nil, types.Str},
+			{1, []types.Type{types.FileHandle}, types.Str},
+			{4, []types.Type{types.Unknown, types.Unknown, types.Unknown, types.Num}, types.Int},
+		},
+		"each": {
+			{1, []types.Type{types.Hash}, types.List},
+			{1, []types.Type{types.Array}, types.List},
+		},
+	} {
+		if got := rowsOf(core[name]); fmt.Sprint(got) != fmt.Sprint(want) {
+			t.Errorf("%s: CORE.pmt has %v; want %v", name, got, want)
+		}
+	}
+	src, err := os.ReadFile("declarations/CORE.pmt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	derived, err := parse.DerivedPrototypes(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := derived["each"], perlPrototypes(t)["each"]; got != want {
+		t.Errorf("each derives (%s); perl says (%s)", got, want)
 	}
 }
