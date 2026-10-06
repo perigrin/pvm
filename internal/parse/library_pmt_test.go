@@ -330,3 +330,43 @@ func TestLibraryPmtDeclarationErrors(t *testing.T) {
 	}
 	declarations = saved
 }
+
+// TestLibraryPmtDefaultsCallBuiltinsParenless: a library `.pmt`'s defaults
+// read builtins in the shapes CORE.pmt derives, as perl reads them: `lc $x,
+// ...` is `lc($x), ...` and `exists $ENV{HOME} ? ...` puts the `?` outside
+// exists. Only CORE.pmt's own read goes without the shapes it builds.
+func TestLibraryPmtDefaultsCallBuiltinsParenless(t *testing.T) {
+	for src, want := range map[string][]string{
+		"sub f (Str $s = lc $x, Int $n = 1) Str;\n":                             {"lc $x", "1"},
+		"sub f (Int $l = length $x, Int $n = 1) Int;\n":                         {"length $x", "1"},
+		"sub f (Str $d = exists $ENV{HOME} ? $ENV{HOME} : $ENV{LOGDIR}) Str;\n": {"exists $ENV{HOME} ? $ENV{HOME} : $ENV{LOGDIR}"},
+	} {
+		facts := readLibraryDeclaration([]byte(src), nil)
+		if len(facts.errs) > 0 {
+			t.Errorf("%s: %v", src, facts.errs)
+			continue
+		}
+		sigs := facts.signatures["f"]
+		if len(sigs) != 1 || len(sigs[0].Params) != len(want) {
+			t.Errorf("%s: signatures %+v", src, sigs)
+			continue
+		}
+		for i, def := range want {
+			if got := sigs[0].Params[i].Default; got != def {
+				t.Errorf("%s: parameter %d defaults to %q, want %q", src, i, got, def)
+			}
+		}
+	}
+}
+
+// TestLibraryPmtAliasedDefaultCallsBuiltin: a builtin's name is the builtin
+// inside a library `.pmt` too, even where the file declares a sub of that
+// name, so a `\$` default calling it is not refused as a declared sub's
+// result. Outside a `.pmt` the same holds: "A builtin of the same name is
+// the builtin, not the sub" (refuseRefScalarSlot).
+func TestLibraryPmtAliasedDefaultCallsBuiltin(t *testing.T) {
+	src := "sub lc (Str $s) Str;\nsub f (Scalar \\$x = lc($y)) Int;\n"
+	if facts := readLibraryDeclaration([]byte(src), nil); len(facts.errs) > 0 {
+		t.Errorf("%s: %v", src, facts.errs)
+	}
+}

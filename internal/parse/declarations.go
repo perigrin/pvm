@@ -43,7 +43,13 @@ func declaration(module string) ([]byte, bool) {
 // 0001, "Typed Perl, in `.pmt` only"): a module's own source is never read
 // this way, so `sub f (Ref $x) { }` there stays perl's prototype.
 func readDeclaration(src []byte, res *resolver) moduleFacts {
-	root, p := parseSource(src, res, true)
+	return readDeclarationWith(newParser(src, res, true))
+}
+
+// readDeclarationWith is readDeclaration with the parser it reads by.
+func readDeclarationWith(p *parser) moduleFacts {
+	root, p := parseWith(p)
+	src := p.src
 	facts := readModule(root)
 	facts.signatures, facts.errs, facts.operators = p.signatures, p.typedErrs, p.operators
 	// A statement the parser could not read declares nothing, so it is an
@@ -292,7 +298,9 @@ func coreProtos(src []byte) (map[string]string, map[string][]types.Signature, er
 // coreDeclarations is coreProtos with CoreOperator's table: each operator's
 // candidates by its symbol and fixity.
 func coreDeclarations(src []byte) (map[string]string, map[string][]types.Signature, map[[2]string][]types.Signature, error) {
-	facts := readDeclaration(src, nil)
+	p := newParser(src, nil, true)
+	p.buildingCore = true
+	facts := readDeclarationWith(p)
 	if len(facts.errs) > 0 {
 		return nil, nil, nil, errors.Join(facts.errs...)
 	}

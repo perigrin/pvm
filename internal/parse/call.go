@@ -112,11 +112,13 @@ func (p *parser) plainKeywordShape(name string) (Shape, bool) {
 	return shape, ok
 }
 
-// coreShapes is CORE.pmt's keyword shapes for this parse. A `.pmt` is read
-// without them: CORE.pmt is one, and reading it is what builds them. Its
-// declarations' heads, from which the shapes derive, call no builtin.
+// coreShapes is CORE.pmt's keyword shapes for this parse. The read of
+// CORE.pmt that builds them goes without: asking for them there would wait on
+// that read itself. Its declarations' heads, from which the shapes derive,
+// call no builtin, so only its default expressions read every word as an
+// unknown sub's.
 func (p *parser) coreShapes() map[string]Shape {
-	if p.typed {
+	if p.buildingCore {
 		return nil
 	}
 	return coreShapes()

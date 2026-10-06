@@ -145,9 +145,10 @@ sub catch :prototype();
 # With none it takes $ENV{HOME} when that exists, even empty, and
 # $ENV{LOGDIR} otherwise; with neither it fails, as chdir(undef) does
 # (measured). It yields true or false. Its default calls exists with
-# parentheses: a `.pmt` is read without the keyword shapes this file
-# derives, since reading it is what builds them, so a parenless `exists`
-# there would be an unknown word's call taking the rest of the expression.
+# parentheses: this file is read without the keyword shapes it derives,
+# since that read is what builds them, so a parenless `exists` here would be
+# an unknown word's call taking the rest of the expression, the `?:`
+# included. A library's `.pmt` is read with them and may write it bare.
 sub chdir (Str|FileHandle $dir = exists($ENV{HOME}) ? $ENV{HOME} : $ENV{LOGDIR}) Boolean;
 # chmod, chown and utime take a LIST that leads with the mode, the owner
 # and group, or the times, and then the files, which a `@` prototype does

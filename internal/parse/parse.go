@@ -501,13 +501,22 @@ func parseRoot(src []byte, res *resolver) *Node {
 // returning the parser too: a declaration file's typed signatures are left
 // on it. See readDeclaration.
 func parseSource(src []byte, res *resolver, typed bool) (*Node, *parser) {
-	root := &Node{Kind: SourceFile, Start: 0, End: len(src)}
+	return parseWith(newParser(src, res, typed))
+}
+
+// newParser is a parser over src, not yet run. See parseSource.
+func newParser(src []byte, res *resolver, typed bool) *parser {
 	tokenize := lexer.Tokenize
 	if typed {
 		tokenize = lexer.TokenizeTyped
 	}
+	return &parser{src: src, toks: tokenize(src), res: res, symbolsOpen: res == nil, typed: typed}
+}
 
-	p := &parser{src: src, toks: tokenize(src), res: res, symbolsOpen: res == nil, typed: typed}
+// parseWith runs p over its source, returning the tree and p.
+func parseWith(p *parser) (*Node, *parser) {
+	root := &Node{Kind: SourceFile, Start: 0, End: len(p.src)}
+	res := p.res
 	for p.pos < len(p.toks) {
 		before := p.pos
 		if n := p.statement(); n != nil {
@@ -569,8 +578,13 @@ type parser struct {
 	// typedErrs the ones that could not be. See parseTypedSignature.
 	typed      bool
 	signatures map[string][]types.Signature
-	typedErrs  []error
-	operators  []operatorDecl
+
+	// buildingCore is set while CORE.pmt is read to build the builtin
+	// tables, which then do not yet exist: the keyword shapes are derived
+	// from that read, so it cannot consult them. See coreShapes.
+	buildingCore bool
+	typedErrs    []error
+	operators    []operatorDecl
 
 	// inError names the subs whose declaration is one of typedErrs.
 	inError map[string]bool
