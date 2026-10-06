@@ -37,3 +37,23 @@ func TestPmtInvocantColonParses(t *testing.T) {
 		}
 	}
 }
+
+// TestInvocantColonDerivesNoPrototype: a signature with an invocant colon
+// derives no prototype, whatever follows the colon, matching perl: measured
+// on 5.42.0, `prototype("CORE::$_")` is undef for print, printf, say, exec
+// and system. No prototype is recorded as perl records a sub with none, the
+// empty string.
+func TestInvocantColonDerivesNoPrototype(t *testing.T) {
+	facts := readDeclaration([]byte("sub exec (Str $program: List[Str] @args) Boolean;\nsub f (Str $p: Str $x);\n"), nil)
+	if len(facts.errs) > 0 {
+		t.Fatalf("errors: %v", facts.errs)
+	}
+	for _, name := range []string{"exec", "f"} {
+		if proto, ok := facts.protos[name]; !ok || proto != "" {
+			t.Errorf("%s: prototype %q (declared %v), want none", name, proto, ok)
+		}
+		if len(facts.signatures[name]) != 1 {
+			t.Errorf("%s: signatures %+v, want one", name, facts.signatures[name])
+		}
+	}
+}

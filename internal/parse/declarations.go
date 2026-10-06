@@ -105,6 +105,13 @@ func readDeclaration(src []byte, res *resolver) moduleFacts {
 		if len(sigs) != 1 {
 			continue
 		}
+		// No prototype character takes an argument with no comma after
+		// it, so a signature with an invocant derives none, as perl
+		// reports none for print (RFC 0001, "Builtins that keep their own
+		// parse").
+		if sigs[0].Invocant != nil {
+			continue
+		}
 		proto := prototypeFromTypes(sigs[0])
 		var err error
 		if facts.protos[name] != "" {
