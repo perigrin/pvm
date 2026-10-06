@@ -198,7 +198,16 @@ sub getsockopt :prototype(*$$);
 # scalar context the next one, undef past the last -- one of the list's
 # values, so List covers both. `_;` keeps its `;`, which no type states.
 sub glob :prototype(_;) (Str $pattern = $_) List;
-sub gmtime :prototype(;$);
+# gmtime and localtime fork on context (RFC 0001, "`:context(...)`"). In
+# scalar context each yields a date string, `my $t = localtime(0)` being
+# "Thu Jan  1 00:00:00 1970" (POK), and undef for a time out of range
+# (`localtime(1e20)` is undef, with a warning). In list context each yields
+# nine integers, (0, 0, 0, 1, 0, 70, 4, 0, 0) for 0, or none out of range:
+# the string is none of them. The year is NV only, 70 being whole, as hex's
+# overflow is (measured with B::svref_2object). The time is now with none
+# (`gmtime()` is today's date), which undef is not: gmtime(undef) is 1970.
+multi sub gmtime :context($) (Int $time = time) Str|Undef;
+multi sub gmtime :context(@) (Int $time = time) List[Int];
 # Measured with do, above.
 sub goto :unary (Str|Code $label = "") None;
 # hex and oct read a string of digits, `$_` with none, and yield its
@@ -239,7 +248,9 @@ sub length (Str $string = $_) Int;
 # Measured as chroot, above: link("nope", "h") is 0 as an IV.
 sub link (Str $old, Str $new) Int;
 sub listen :prototype(*$);
-sub localtime :prototype(;$);
+# Measured as gmtime, above.
+multi sub localtime :context($) (Int $time = time) Str|Undef;
+multi sub localtime :context(@) (Int $time = time) List[Int];
 sub lock :prototype(\[$@%&*]);
 # Measured as cos, above.
 sub log (Num $number = $_) Num;
