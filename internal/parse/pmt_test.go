@@ -204,3 +204,67 @@ func TestPmtSignatureBeforeAttributesRefused(t *testing.T) {
 		t.Errorf("perl's order: got errors %v, signature %+v", ok.errs, ok.signatures)
 	}
 }
+
+// pmtRefuses reads each source as a `.pmt` and wants exactly the one error
+// given for it, no signature recorded for f, and every byte still in the tree.
+func pmtRefuses(t *testing.T, cases map[string]string) {
+	t.Helper()
+	for src, want := range cases {
+		facts := readDeclaration([]byte(src), nil)
+		if len(facts.errs) != 1 || facts.errs[0].Error() != want {
+			t.Errorf("%q: got errors %v, want %q", src, facts.errs, want)
+		}
+		if sig, ok := facts.signatures["f"]; ok {
+			t.Errorf("%q: recorded %+v", src, sig)
+		}
+		if root, _ := parseSource([]byte(src), nil, true); root.SourceText([]byte(src)) != src {
+			t.Errorf("%q: round trip lost bytes", src)
+		}
+	}
+}
+
+// TestPmtUnknownReturnTypeIsError: an unknown name as the return type is the
+// error an unknown parameter type is (RFC 0001, "Type names").
+func TestPmtUnknownReturnTypeIsError(t *testing.T) {
+	pmtRefuses(t, map[string]string{
+		"sub f (Str $x) Strng;\n":     `sub f: unknown type name "Strng"`,
+		"sub f (Str $x) Str|Strng;\n": `sub f: unknown type name "Strng"`,
+	})
+}
+
+// TestPmtMalformedReturnTypeIsError: a return type that cannot be read is an
+// error that says what is wrong, not a panic.
+func TestPmtMalformedReturnTypeIsError(t *testing.T) {
+	pmtRefuses(t, map[string]string{
+		"sub f (Str $x) Str":         "sub f: return type Str not terminated",
+		"sub f (Str $x) Str|;\n":     "sub f: union Str| has no type after `|`",
+		"sub f (Str $x) Str { 1 }\n": "sub f: return type Str is not followed by `;`",
+	})
+}
+
+// TestPmtMalformedContainerTypeRefused: a container type that cannot be read
+// is an error naming the bad part, not a panic (RFC 0001, "A slurpy takes no
+// bare element type").
+func TestPmtMalformedContainerTypeRefused(t *testing.T) {
+	pmtRefuses(t, map[string]string{
+		"sub f (List[Str @args);\n":    "sub f: container type List[Str is not closed by `]`",
+		"sub f (List[] @args);\n":      "sub f: container type List[] has no element type",
+		"sub f (List[Strng] @args);\n": `sub f: unknown type name "Strng"`,
+		"sub f (Strng[Str] @args);\n":  `sub f: unknown type name "Strng"`,
+	})
+}
+
+// TestContainerTypeOnlyInPmt: container types are typed Perl, read only from
+// a declaration file. In ordinary source, without the signatures feature,
+// the parens are a prototype whatever they hold. Measured on 5.42.0, `sub f
+// (List[Str] @args) { 1 } print prototype(\&f)` prints `List[Str] @args`.
+func TestContainerTypeOnlyInPmt(t *testing.T) {
+	src := []byte("sub f (List[Str] @args) { 1 }\n")
+	facts := readModule(Parse(src))
+	if got := facts.protos["f"]; got != "(List[Str] @args)" {
+		t.Errorf("prototype: got %q, want %q", got, "(List[Str] @args)")
+	}
+	if len(facts.signatures) > 0 || len(facts.errs) > 0 {
+		t.Errorf("ordinary source recorded types: %v, errors %v", facts.signatures, facts.errs)
+	}
+}
