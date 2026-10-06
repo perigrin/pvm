@@ -1850,10 +1850,13 @@ Named builtins that B::SoN gives their own kind — `Delete`, `Exists`,
 `Chomp` (chomp/chop), `Count`, `Length` — are `Call{Name}` here, and the
 sibling's reasons for splitting them (perl has distinct `schomp`/`schop` ops;
 `exists` is membership, not definedness — measured, `exists $h{u}` is true
-for `u => undef`) are facts a `Call`'s name already carries. Two of them do
-not parse: `delete $h{k};` and `exists $h{k};` are each `Unknown`, because
-neither word is in `internal/parse/keyword.go`. `chomp $x;` parses. That
-is a keyword-table gap, PARSER, and independent of this list.
+for `u => undef`) are facts a `Call`'s name already carries. All of them
+parse: `delete $h{k};`, `exists $h{k};` and `chomp $x;` are each a
+resolved `call` whose one argument is the element or the variable,
+because `CORE.pmt` marks `delete`, `exists` and `chomp` `:unary`, which
+makes each a named unary (measured on 5.42.0 with `-MO=Deparse,-p`,
+`(delete $h{a}, $b)` is `(delete $h{'a'}, $b)`, the comma outside the
+call).
 
 ### 4.14.3 The flags
 
