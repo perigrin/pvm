@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: type-libraries
 created: 2026-10-06T08:40:10.661906883Z
-updated: 2026-10-06T08:40:10.661906883Z
+updated: 2026-10-06T11:09:11.37015034Z
 ---
 
 ## Context
@@ -13,6 +13,8 @@ updated: 2026-10-06T08:40:10.661906883Z
 - commands: `make test`; perl 5.42 `/home/perigrin/.local/bin/perl`
 
 From 01a0fd9b-49b2-7ea9-bfa1-ba398baadc3f. CORE.pmt declares exec and system as the RFC writes them, `(Str $program: List[Str] @args)`, which makes the program slot REQUIRED. Measured on 5.42, it is optional: `exec "ls";`, a bare `exec;` and `system "ls";` all compile, with the program taken from the list; only `exec {"/bin/ls"} "ls";` fills the slot. print's slot is optional through its default (`FileHandle $fh = select()`), but exec's has no default value to write, and typed Perl has no spelling for "optional, no default". Nothing reads `Required` on an invocant yet, so nothing is wrong today.
+
+The same gap for an ordinary parameter, from 01a10177-4c46-7807-b01c-b90e4c645a5b: perl chooses srand's seed itself when it gets none, and no expression states that -- `undef` gives "Integer overflow in srand" and seed UV_MAX, `time()` is not what perl uses. CORE.pmt has `sub srand (Int $seed = srand()) Str;`, a circular default naming the call that makes the choice. One spelling for "optional, no default" should serve both an invocant slot (exec, system) and a parameter (srand).
 
 ## Steps
 
