@@ -1,10 +1,19 @@
 ---
 title: A .pmt parameter type must fit its slot, and aliased parameters print with their backslash
-state: pending
+state: in-progress
 urgency: normal
 milestone: type-libraries
 created: 2026-10-06T08:53:38.742701359Z
-updated: 2026-10-06T08:53:38.742701359Z
+updated: 2026-10-06T13:46:23.392180657Z
+sessions:
+- start_sha: 26bdde901a32213a3a9b612e036893c409c965ee
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-06T13:46:23.392180657Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-06T13:46:23.392180657Z
 ---
 
 ## Context
