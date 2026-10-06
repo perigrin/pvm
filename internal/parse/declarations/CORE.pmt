@@ -259,8 +259,11 @@ sub >> :infix(SHIFT) (Int $x, Int $y) Int;
 # Type test
 sub isa :infix(ISA) (Scalar $x, Str $y) Boolean;
 
-# Regex binding
-sub =~ :infix(MATCHRE) (Str $x, Regex $y) Boolean;
+# Regex binding: in list context a match's captures, or s///'s count; in
+# scalar context a match's boolean, s/// or tr///'s count, or s///r or
+# tr///r's new string.
+multi sub =~ :infix(MATCHRE) :context(@) (Str $x, Regex $y) List;
+multi sub =~ :infix(MATCHRE) :context($) (Str $x, Regex $y) Boolean|Str;
 sub !~ :infix(MATCHRE) (Str $x, Regex $y) Boolean;
 
 # Range: a range in list context, a flip-flop in scalar context, whose
@@ -279,4 +282,7 @@ sub + :prefix (Num $x) Num;
 sub ! :prefix (Any $x) Boolean;
 sub not :prefix (Any $x) Boolean;
 sub ~ :prefix (Int $x) Int;
-sub \ :prefix (Any $x) Ref;
+# A reference to each element of a parenthesised list in list context,
+# `\(1,2,3)`; otherwise one reference.
+multi sub \ :prefix :context(@) (List @l) List;
+multi sub \ :prefix (Any $x) Ref;

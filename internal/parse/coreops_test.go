@@ -187,7 +187,8 @@ func TestCoreOperatorTypesMatchMeasured(t *testing.T) {
 
 		"infix isa": bin(types.Scalar, S, B),
 
-		"infix =~": bin(S, types.Regex, B), "infix !~": bin(S, types.Regex, B),
+		"infix =~ :context(@)": bin(S, types.Regex, types.List), "infix =~ :context($)": bin(S, types.Regex, B|S),
+		"infix !~": bin(S, types.Regex, B),
 
 		"infix =": bin(A, A, A),
 
@@ -196,6 +197,7 @@ func TestCoreOperatorTypesMatchMeasured(t *testing.T) {
 
 		"prefix -": un(N, N), "prefix +": un(N, N), "prefix !": un(A, B),
 		"prefix not": un(A, B), "prefix ~": un(I, I), `prefix \`: un(A, types.Ref),
+		`prefix \ :context(@)`: un(types.List, types.List),
 	}
 	got := map[string]row{}
 	for _, op := range coreOperators(t) {
@@ -327,5 +329,44 @@ func TestPmtListParameterLastOnlyForSubs(t *testing.T) {
 	facts = readDeclaration([]byte("sub f (List @l, Int $n) List;\n"), nil)
 	if len(facts.errs) != 1 {
 		t.Errorf("sub: errors %v, want the List parameter refused", facts.errs)
+	}
+}
+
+// TestCoreMatchIsContextMulti: `=~` forks on context. Measured on 5.42.0,
+// in list context `("ab" =~ qr/(a)(b)/)` is the captures `a b`, a match
+// with none is `(1)` or `()`, and `s///g` is its count. In scalar context
+// a match is perl's boolean, `s///g` and `tr///` a count (3), and `s///r`
+// and `tr///r` the new string ("baa"): a Boolean or a Str.
+func TestCoreMatchIsContextMulti(t *testing.T) {
+	params := []types.Param{
+		{Name: "x", Sigil: '$', Type: types.Str, Required: true},
+		{Name: "y", Sigil: '$', Type: types.Regex, Required: true},
+	}
+	want := []operatorDecl{
+		{name: "=~", fixity: "infix", class: "MATCHRE", multi: true, sig: types.Signature{
+			Params: params, Returns: types.List, Context: types.ContextSet(types.ListCtx)}},
+		{name: "=~", fixity: "infix", class: "MATCHRE", multi: true, sig: types.Signature{
+			Params: params, Returns: types.Boolean | types.Str, Context: types.ContextSet(types.ScalarCtx)}},
+	}
+	if got := coreCandidates(t, "infix", "=~"); !reflect.DeepEqual(got, want) {
+		t.Errorf("=~:\n got %+v\nwant %+v", got, want)
+	}
+}
+
+// TestCoreRefgenIsShapeMulti: `\` forks on a parenthesis as `x` does.
+// Measured on 5.42.0, `my @r = \(1,2,3)` and `my @r = \(@a)` are three
+// SCALAR references, while `my @r = \@a` is one ARRAY reference, and
+// `my $r = \(1,2,3)` is a reference to the 3.
+func TestCoreRefgenIsShapeMulti(t *testing.T) {
+	want := []operatorDecl{
+		{name: `\`, fixity: "prefix", multi: true, sig: types.Signature{
+			Params:  []types.Param{{Name: "l", Sigil: '@', Type: types.List}},
+			Returns: types.List, Context: types.ContextSet(types.ListCtx)}},
+		{name: `\`, fixity: "prefix", multi: true, sig: types.Signature{
+			Params:  []types.Param{{Name: "x", Sigil: '$', Type: types.Any, Required: true}},
+			Returns: types.Ref}},
+	}
+	if got := coreCandidates(t, "prefix", `\`); !reflect.DeepEqual(got, want) {
+		t.Errorf(`\:`+"\n got %+v\nwant %+v", got, want)
 	}
 }
