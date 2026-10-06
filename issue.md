@@ -10,7 +10,7 @@ blocks:
 - 01a0fd9b-5670-78d0-84be-9b9618e9b081
 - 01a0fd9b-5698-70cf-b6e4-8899a83b0fe0
 created: 2026-10-02T17:13:30.472741835Z
-updated: 2026-10-05T14:20:29.714714666Z
+updated: 2026-10-06T04:34:49.025766702Z
 ---
 
 ## Prerequisites
@@ -29,6 +29,14 @@ updated: 2026-10-05T14:20:29.714714666Z
 `..` is a range in list context and a flip-flop in scalar context: a `:context` multi (`...` likewise). `x` repeats a list only when its left operand is parenthesised -- measured on 5.42, `(1,2) x 2` and `(@a) x 2` give `1 2 1 2`, `"ab" x 2` gives `abab`, `@a x 2` gives `22` -- so `multi sub x :infix(MUL) :context(@) (List @l, Int $n) List;` and `multi sub x :infix(MUL) (Str $s, Int $n) Str;` (RFC "Operators that fork", 4423a77a). The parenthesis is a parse fact, as the comma is for map: `List` and `Str` are subtypes of each other's family, so types cannot select, and the call site must say whether the left operand is a parenthesised list (the caller-view sigil `@` against `$`). Remeasure each case with perl. This finishes "Operator declarations".
 
 Measured on 5.42 (chain review): the parenthesised left operand selects the list repeat only in LIST context. `my $x = (1,2) x 2` and `my $x = (@a) x 2` give `22`; `my @l = (1,2) x 2` gives `1 2 1 2`. So the `List` candidate also carries `:context(@)`. Selection order matters under "the most specific candidate wins" (multi issue): if `Str <: List` in the lattice, specificity alone would pick the `Str` candidate for `(1,2) x 2` in list context, so the operand shape (a parenthesised left operand) and the context rule the `Str` candidate out first; `TestSelectByOperandShape` holds that order.
+
+Also from the alignment gate on 01a0fd9b-53a9-703f-82ab-eeb38765f7f1 (measured on 5.42): two more plain operators CORE.pmt now declares fork the way `..` and `x` do, and `<=>` exceeds its declared result:
+- `=~` is declared `Boolean`, but in list context `("ab" =~ qr/(a)(b)/)` returns the captures (`a`, `b`), and `s///g` returns a count (3): a `:context` multi, plus `s///`'s count.
+- `\` forks on a parenthesis as `x` does: `my @r = \(1,2,3)` gives three references.
+- `("nan"+0) <=> 1` is undef, outside `Int`: the declared result is `Int|Undef`.
+- The doc comment on `TestCoreOperatorTypesMatchMeasured` claims every result is measured within its bound, which is false for these until this issue fixes them.
+
+Add steps: declare `=~` and `\` as multis with failing tests first, widen `<=>`'s result, and correct that comment.
 
 ## Steps
 
