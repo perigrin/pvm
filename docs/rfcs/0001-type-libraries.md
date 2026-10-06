@@ -104,13 +104,18 @@ calls no import and brings none. Perl scopes these lexically.
 for, one line each, and parsing it builds the default builtin table:
 
 ```perl
-sub bless :prototype($;$);
-sub push  :prototype(\@@);
+sub bless (Ref $ref, Str $class = __PACKAGE__) Object;
+sub push (Array \@array, List @list) Int;
+sub atan2 :prototype($$);
 ```
 
-A test asks perl for every keyword's prototype and holds the file to
-the answer. `:prototype(...)` is read as a prototype wherever a sub is
-declared, which also fixed two perl.git files whose own subs use it.
+A typed line's prototype is the one its types derive (`$;$` and `\@@`
+here); a line not yet typed writes its own. A test asks perl for every
+keyword's prototype and holds the file to the answer, and another holds
+each line's derived prototype to it
+(`TestCoreDerivedPrototypesArePerls`). `:prototype(...)` is read as a
+prototype wherever a sub is declared, which also fixed two perl.git
+files whose own subs use it.
 
 ### Declaration order: Perl's (*Implemented*, 098211c6)
 
