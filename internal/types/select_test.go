@@ -68,3 +68,22 @@ func TestSelectByArgumentTypes(t *testing.T) {
 	wantSelected(t, eachCandidates, []Type{Hash}, 0, List)
 	wantSelected(t, eachCandidates, []Type{Array}, 1, List)
 }
+
+// intOrNum are `multi sub f (Int $x) Str;` beside `multi sub f (Num $x)
+// Int;`, whose parameters are related by subtyping: Int <: Num.
+var intOrNum = []Signature{
+	sig(Str, scalar("x", Int)),
+	sig(Int, scalar("x", Num)),
+}
+
+// TestSelectMostSpecificCandidate: RFC 0001 "Multi declarations", the
+// most specific candidate wins (perigrin, 2026-10-02). An Int fits both
+// candidates, and the Int one, whose parameters are all subtypes of the
+// other's, is selected; a Num fits only the Num one. Declared the other
+// way round, the Int candidate still wins.
+func TestSelectMostSpecificCandidate(t *testing.T) {
+	wantSelected(t, intOrNum, []Type{Int}, 0, Str)
+	wantSelected(t, intOrNum, []Type{Num}, 1, Int)
+	numFirst := []Signature{intOrNum[1], intOrNum[0]}
+	wantSelected(t, numFirst, []Type{Int}, 1, Str)
+}
