@@ -189,7 +189,7 @@ unknown name is an error. perigrin, 2026-10-02:
 - **The paper's other types** (`VString`, `Format`, `Void`, `LValueRef`)
   join the lattice when a declaration first needs one.
 
-### One language for every `.pmt` (*Decided*)
+### One language for every `.pmt` (*Implemented*, 79191842, d1338cd2, b6bea9c6)
 
 perigrin, 2026-10-02: everything `CORE.pmt` can say, any library's
 `.pmt` can say too -- typed signatures, `multi`, `:context`, the
@@ -197,6 +197,11 @@ invocant colon, declared syntax. `CORE.pmt` is the declaration file for
 the interpreter, not a dialect of its own. A construct no Perl-level sub
 can have (the invocant colon) is still declarable for a library,
 because a keyword plugin can build what a sub cannot.
+
+A library's `.pmt` is held to `CORE.pmt`'s rules, and its errors name
+the module. The one difference is the operator classes coined for
+`CORE.pmt` (see "Operator declarations"), which a library may not name.
+A sub a library exports is imported with its typed signatures.
 
 Typed Perl is meant to outlive pvm's parser: Chalk is to read the same
 `.pmt` files in time, so the syntax should stay something a second
