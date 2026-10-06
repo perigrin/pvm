@@ -2,7 +2,12 @@
 // ABOUTME: Each case was measured with perl 5.42.0's `perl -c`; the arity comes from the declarations, never a builtin's name.
 package parse
 
-import "testing"
+import (
+	"os"
+	"strings"
+	"testing"
+	"testing/fstest"
+)
 
 // wantArityRefusal wants each source refused, once, with the arity code.
 func wantArityRefusal(t *testing.T, srcs ...string) {
@@ -106,6 +111,54 @@ func TestArityRefusalCodesDistinct(t *testing.T) {
 	} {
 		if got := refusedAs(src); len(got) != 1 || got[0] != want {
 			t.Errorf("%q: refusals %v, want one %s", src, got, want)
+		}
+	}
+}
+
+// TestArityRefusalDieDefaultIsRequired: RFC 0001 "A required argument
+// defaults to `die`". sort's plain candidate is `(List @list = die)`, so a
+// sort that writes no argument is refused by the same rule, and with the
+// same code, as `grep()`. Measured on 5.42.0, `sort()` and bare `sort` are
+// "Not enough arguments for sort", while `sort(())` and `my @e; sort @e`
+// compile. The refusal reads requiredness from the declaration: arity.go
+// names no sort.
+func TestArityRefusalDieDefaultIsRequired(t *testing.T) {
+	wantArityRefusal(t, "sort();\n", "my @r = sort;\n", "grep();\n")
+	wantNoRefusal(t, "sort(());\n", "my @e; sort @e;\n")
+	src, err := os.ReadFile("arity.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(src), `"sort"`) {
+		t.Errorf("arity.go names sort; requiredness is the declaration's")
+	}
+}
+
+// TestArityRefusalLeavesUnprototypedCallsAlone: a library sub with no
+// prototype is a list operator to perl whatever a declaration says of it,
+// so a call its `.pmt` candidates do not accept keeps its parse, and `psc
+// check` reports it ("Call sites"). Measured on 5.42.0 with a module M
+// exporting `sub f { }`, `use M; f(1, 2, 3)` compiles.
+func TestArityRefusalLeavesUnprototypedCallsAlone(t *testing.T) {
+	saved := declarations
+	defer func() { declarations = saved }()
+	none := func(string) ([]byte, bool) { return nil, false }
+	for _, tc := range []struct {
+		name string
+		decl fstest.MapFS
+		load Loader
+	}{
+		{".pm", fstest.MapFS{}, func(name string) ([]byte, bool) {
+			return []byte("package M;\nour @EXPORT = qw(f);\nsub f { }\n1;\n"), name == "M"
+		}},
+		{".pmt", fstest.MapFS{"declarations/M.pmt": {Data: []byte(
+			"package M;\nour @EXPORT = qw(f);\nmulti sub f (Int $x) Int;\nmulti sub f (Int $x, Int $y) Int;\n")}}, none},
+	} {
+		declarations = tc.decl
+		for _, src := range []string{"use M; f();\n", "use M; f(1, 2, 3);\n"} {
+			if got := refusalsIn(ParseWithLoader([]byte(src), tc.load)); len(got) > 0 {
+				t.Errorf("%s: %q refused %v; perl compiles it", tc.name, src, got)
+			}
 		}
 	}
 }
