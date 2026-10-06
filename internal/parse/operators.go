@@ -52,6 +52,11 @@ var operatorClasses = map[string]int{
 	"HIGH":            28,
 }
 
+// coreOnlyClasses are the classes operatorClasses coins for CORE.pmt, which
+// a library's declaration may not name: XS::Parse::Infix cannot register an
+// operator at their levels.
+var coreOnlyClasses = map[string]bool{"BITOR": true, "BITAND": true, "SHIFT": true, "RANGE": true}
+
 // operatorArity is how many operands each fixity takes.
 var operatorArity = map[string]int{"infix": 2, "prefix": 1, "postfix": 1}
 

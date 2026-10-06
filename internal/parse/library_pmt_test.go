@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"slices"
 	"testing"
+	"testing/fstest"
 
 	"tamarou.com/pvm/internal/types"
 )
@@ -107,6 +108,75 @@ func TestLibraryPmtOperatorsAndUnary(t *testing.T) {
 	}
 	if proto := facts.protos["size"]; proto != "" {
 		t.Errorf("size: derived prototype %q", proto)
+	}
+}
+
+// TestLibraryPmtCoinedClassRefused: RFC 0001 "Operator declarations".
+// BITAND, BITOR, SHIFT and RANGE are coined for CORE.pmt: XS::Parse::Infix
+// classes no operator at those levels, so it cannot register one there,
+// and a library .pmt naming one is in error, naming its module. CORE.pmt
+// names them.
+func TestLibraryPmtCoinedClassRefused(t *testing.T) {
+	saved := declarations
+	t.Cleanup(func() { declarations = saved })
+	for _, class := range []string{"BITAND", "BITOR", "SHIFT", "RANGE"} {
+		src := "package Coined;\nsub op :infix(" + class + ") (Int $x, Int $y) Int;\n"
+		declarations = fstest.MapFS{"declarations/Coined.pmt": {Data: []byte(src)}}
+		root := ParseWithLoader([]byte("use Coined;\n"), func(string) ([]byte, bool) { return nil, false })
+		want := "Coined: sub op: operator class " + class + " is CORE.pmt's; XS::Parse::Infix registers no operator at its level"
+		if errs := DeclarationErrors(root); len(errs) != 1 || errs[0].Error() != want {
+			t.Errorf("%s: got %v, want %q", class, errs, want)
+		}
+		if facts := resolveLibrary(t, "Coined"); len(facts.operators) > 0 {
+			t.Errorf("%s: recorded %+v", class, facts.operators)
+		}
+	}
+	if _, _, err := coreProtos([]byte("sub & :infix(BITAND) (Int $x, Int $y) Int;\n")); err != nil {
+		t.Errorf("CORE.pmt's reading refused BITAND: %v", err)
+	}
+	// Reached by a `use`, CORE.pmt is still the interpreter's file.
+	declarations = saved
+	if errs := DeclarationErrors(ParseWithLoader([]byte("use CORE;\n"), func(string) ([]byte, bool) { return nil, false })); len(errs) > 0 {
+		t.Errorf("use CORE: %v", errs)
+	}
+}
+
+// TestPmtUnaryTakesOneOperand: `:unary` marks a named unary (RFC 0001,
+// "Builtins with no prototype"), which takes at most one operand, so a
+// signature stating two is an error and records nothing; an invocant is
+// an operand too. One operand, or a list form as chomp's, is a unary's.
+func TestPmtUnaryTakesOneOperand(t *testing.T) {
+	pmtRefuses(t, map[string]string{
+		"sub f :unary (Scalar $x, Scalar $y) Int;\n":   "sub f: :unary takes at most one operand, the signature has 2",
+		"sub f :unary (FileHandle $fh: Str $x) Int;\n": "sub f: :unary takes at most one operand, the signature has 2",
+	})
+	for _, src := range []string{
+		"sub f :unary (Scalar $x = $_) Int;\n",
+		"sub f :unary (List[Str] \\(@args = ($_))) Int;\n",
+	} {
+		typedSignature(t, src)
+	}
+}
+
+// TestPmtAmbiguousOperatorCandidatesIsError: RFC 0001 "Multi
+// declarations" holds for an operator's candidates as for a sub's (RFC
+// 0001, "Operators that fork" makes them multis): candidates with no
+// single most specific one are ambiguous, the declaration is an error
+// naming the operator, and none of its candidates is recorded.
+func TestPmtAmbiguousOperatorCandidatesIsError(t *testing.T) {
+	src := "multi sub plus :infix(ADD) (Int $a, Num $b) Num;\nmulti sub plus :infix(ADD) (Num $a, Int $b) Num;\n"
+	facts := readDeclaration([]byte(src), nil)
+	want := "sub plus: candidates (Int $a, Num $b) and (Num $a, Int $b) are ambiguous for (Int, Int)"
+	if len(facts.errs) != 1 || facts.errs[0].Error() != want {
+		t.Errorf("got errors %v, want %q", facts.errs, want)
+	}
+	if len(facts.operators) > 0 {
+		t.Errorf("recorded %+v", facts.operators)
+	}
+	// A prefix and an infix operator of one symbol are two operators.
+	both := readDeclaration([]byte("sub - :prefix (Num $x) Num;\nsub - :infix(ADD) (Num $x, Num $y) Num;\n"), nil)
+	if len(both.errs) > 0 || len(both.operators) != 2 {
+		t.Errorf("prefix and infix -: errors %v, operators %+v", both.errs, both.operators)
 	}
 }
 

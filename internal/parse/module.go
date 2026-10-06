@@ -301,13 +301,17 @@ func (r *resolver) resolve(module string) (moduleFacts, bool) {
 	r.loaded = append(r.loaded, module)
 
 	var facts moduleFacts
-	if declared {
-		facts = readDeclaration(src, r)
-		for _, err := range facts.errs {
-			r.declErrs = append(r.declErrs, fmt.Errorf("%s: %w", module, err))
-		}
-	} else {
+	switch {
+	case !declared:
 		facts = readModule(parseRoot(src, r))
+	// CORE.pmt is the interpreter's declaration file, not a library's.
+	case module == "CORE":
+		facts = readDeclaration(src, r)
+	default:
+		facts = readLibraryDeclaration(src, r)
+	}
+	for _, err := range facts.errs {
+		r.declErrs = append(r.declErrs, fmt.Errorf("%s: %w", module, err))
 	}
 	// Its XS subs are as real as the ones it declares, once it has loaded.
 	// A sub the module declares in Perl keeps that declaration's prototype.
