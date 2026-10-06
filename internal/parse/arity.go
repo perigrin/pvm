@@ -18,9 +18,12 @@ import (
 // `use Time::HiRes qw(sleep); sleep(1, 2)` and `BEGIN {
 // *CORE::GLOBAL::localtime = sub {1} } localtime(1, 2)` compile.
 //
-// ponytail: an override installed by a module this parse does not read, or
-// by `use subs`, is not seen; record those as imports if a corpus file
-// calls an overridden builtin with an arity its own declaration refuses.
+// ponytail: a module's DEFAULT export, `use M;` with no list and M unread,
+// may override a builtin unseen. The ones measured on 5.42.0 keep an arity
+// within the builtin's: `use autodie; chdir(1, 2)` and `use bigint; hex(1,
+// 2)` are "Too many arguments", and `unlink()` and `oct()` compile with or
+// without them. Treat an unread module's default import as overriding if
+// one turns up that accepts what its builtin refuses.
 //
 // A `.pmt` is not checked: CORE.pmt is one, and reading it builds the
 // candidates this consults.
@@ -47,7 +50,8 @@ func (p *parser) arityAccepted(name string, count int) bool {
 		}
 	}
 	cands := coreSignatures()[builtin]
-	if len(cands) == 0 || p.overridden(builtin) || types.Accepts(cands, count) {
+	if len(cands) == 0 || name == builtin && (p.overridden(builtin) || p.gatedOff(builtin)) ||
+		types.Accepts(cands, count) {
 		return true
 	}
 	switch looseArity[builtin] {
@@ -109,12 +113,17 @@ func (p *parser) mayBeIndirect(n *Node) bool {
 	return strings.Contains(a.Text, "::") || p.packages[a.Text] || interpreterPackages[a.Text]
 }
 
-// overridden reports whether this parse has seen a sub named name, or a
-// CORE::GLOBAL:: override of it, that a call to the builtin may be.
+// overridden reports whether a call to the builtin name, spelled without
+// `CORE::`, may be an override: a sub this parse has seen, a CORE::GLOBAL::
+// override, or a word a `use` list names, whose module may export it
+// unread. Measured on 5.42.0, `use POSIX qw(localtime); localtime(1, 2)`
+// and `use subs "localtime"; localtime(1, 2)` compile, while `use POSIX
+// (); localtime(1, 2)` and `use Time::HiRes qw(sleep); CORE::sleep(1, 2)`
+// are "Too many arguments".
 func (p *parser) overridden(name string) bool {
 	_, sub := p.lookupSub(name)
 	_, global := p.lookupSub("CORE::GLOBAL::" + name)
-	return sub || global
+	return sub || global || p.listed[name]
 }
 
 // argCount is how many arguments a call writes: each child, a block or a
@@ -162,8 +171,7 @@ const (
 	looseExtra
 
 	// looseAny: any count compiles. `not()` takes no operand to its own
-	// parse, `CORE::dump($x)` a label, and a word gated on a feature,
-	// `fc($x, $x)`, is a user's sub without it.
+	// parse, and `CORE::dump($x)` a label.
 	looseAny
 )
 
@@ -172,11 +180,8 @@ const (
 // Measured on 5.42.0 by calling every CORE.pmt builtin with none to six
 // arguments, plain and as `CORE::NAME`, and running `perl -c` over each
 // call refused here; each name below compiled at least once, and every
-// refused call on the other side of its looseness died.
-//
-// ponytail: a feature-gated word is loose whatever the file enables;
-// read p.features if a corpus file calls `fc` with the feature on and an
-// arity perl refuses.
+// refused call on the other side of its looseness died. A word gated on a
+// feature is gatedWords', not this table's.
 var looseArity = map[string]looseness{
 	"system": looseEmpty, "exec": looseEmpty, "do": looseEmpty,
 
@@ -187,7 +192,42 @@ var looseArity = map[string]looseness{
 	"fileno": looseExtra, "getc": looseExtra, "getpeername": looseExtra,
 	"getsockname": looseExtra, "readdir": looseExtra, "rewinddir": looseExtra,
 
-	"not": looseAny, "dump": looseAny, "fc": looseAny, "evalbytes": looseAny,
-	"any": looseAny, "all": looseAny, "catch": looseAny, "method": looseAny,
-	"isa": looseAny, "break": looseAny, "__CLASS__": looseAny, "__SUB__": looseAny,
+	// evalbytes takes a parenthesised list as eval does: measured,
+	// `CORE::evalbytes($x, $x)` compiles.
+	"evalbytes": looseExtra,
+
+	// method is a declarator under the class feature: `method { 1 }` is
+	// an anonymous method, measured to compile (perl.git t/class/field.t),
+	// and its candidates take no argument.
+	"not": looseAny, "dump": looseAny, "method": looseAny,
+}
+
+// gatedWords are the builtins that exist only under a feature, each to the
+// feature's name in p.features. Spelled plainly with the feature off, the
+// word is a user's sub, which perl calls with any arguments; spelled
+// `CORE::NAME`, or with the feature on, it is the builtin. Measured on
+// 5.42.0 with `perl -c`: `fc($x, $x)` and `any()` compile, while `use
+// feature "fc"`, `use v5.16` and `CORE::fc` make `fc($x, $x)` "Too many
+// arguments for fc", and `use feature "keyword_any"` or `CORE::any()` make
+// `any()` "Not enough arguments for any". With the feature on or as
+// `CORE::NAME`, perl refuses `isa($x)`, `catch($x)`, `break($x)`,
+// `__SUB__($x)` and `__CLASS__($x)` outright. method, a declarator under
+// its feature, is looseArity's.
+//
+// try, switch and current_sub are not among the features p.features
+// tracks, so catch, break and __SUB__ map to a name it never sets: their
+// plain spelling is always taken for a user's sub, which refuses less than
+// perl does and never more.
+var gatedWords = map[string]string{
+	"fc": "fc", "evalbytes": "evalbytes",
+	"any": "keyword_any", "all": "keyword_all",
+	"isa": "isa", "__CLASS__": "class",
+	"catch": "try", "break": "switch", "__SUB__": "current_sub",
+}
+
+// gatedOff reports whether name is a builtin gated on a feature this file
+// has not turned on, so that its plain spelling names a user's sub.
+func (p *parser) gatedOff(name string) bool {
+	feature, gated := gatedWords[name]
+	return gated && !p.features[feature]
 }

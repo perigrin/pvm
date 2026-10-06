@@ -615,6 +615,11 @@ type parser struct {
 	// toke.c's intuit_method tests `gv_stashpvn` for exactly that.
 	packages map[string]bool
 
+	// listed names every word a `use` list names, whether or not the
+	// module's source is read: an override of a builtin may be among them,
+	// `use Time::HiRes qw(sleep)`. See refuseArity.
+	listed map[string]bool
+
 	// lexical holds the lexical subs in scope, by bare name; see
 	// declareLexical.
 	lexical map[string]Import
