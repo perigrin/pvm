@@ -204,3 +204,37 @@ func TestDerivePrototypeAfterAtIsError(t *testing.T) {
 		"sub f :prototype($%;$);\n": `sub f: prototype ($%;$): List parameter % is not last; a single hash followed by more parameters is Hash \%, as in ($\%;$)`,
 	})
 }
+
+// TestAliasedParamsDerivePrototypes: RFC 0001's table rows `\$`, `\@` and
+// `\%`, read both ways. An aliased parameter derives its backslashed
+// character, and a backslashed prototype character derives the aliased
+// parameter: an Array or Hash passed whole, or a Scalar lvalue, each one
+// required argument. Measured on 5.42.0, `sub f (\@) {} f()` is "Not
+// enough arguments", and `f(@x)` passes an ARRAY reference.
+func TestAliasedParamsDerivePrototypes(t *testing.T) {
+	rows := map[string]types.Param{
+		`\$`: {Sigil: '$', Type: types.Scalar, Alias: true, Required: true},
+		`\@`: {Sigil: '@', Type: types.Array, Alias: true, Required: true},
+		`\%`: {Sigil: '%', Type: types.Hash, Alias: true, Required: true},
+	}
+	for typed, want := range map[string]string{
+		`(Scalar \$x)`: `\$`,
+		`(Array \@a)`:  `\@`,
+		`(Hash \%h)`:   `\%`,
+	} {
+		facts := readDeclaration([]byte("sub f "+typed+";\n"), nil)
+		if len(facts.errs) > 0 || facts.protos["f"] != "("+want+")" {
+			t.Errorf("%s: errors %v, prototype %q, want (%s)", typed, facts.errs, facts.protos["f"], want)
+		}
+	}
+	for proto, want := range rows {
+		facts := readDeclaration([]byte("sub f :prototype("+proto+");\n"), nil)
+		if got := facts.signatures["f"]; len(facts.errs) > 0 || !reflect.DeepEqual(got, []types.Signature{{Params: []types.Param{want}}}) {
+			t.Errorf("(%s): errors %v, got %+v, want %+v", proto, facts.errs, got, want)
+		}
+		sig, derived, err := typesFromPrototype(proto)
+		if back := prototypeFromTypes(sig); err != nil || !derived || back != proto {
+			t.Errorf("(%s): derived %v, error %v, round trip gave %q", proto, derived, err, back)
+		}
+	}
+}

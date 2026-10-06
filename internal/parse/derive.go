@@ -14,16 +14,20 @@ import (
 //
 //	$ Scalar $      @ List @      % List %      + Array|Hash|Scalar $
 //	& Code &        * Glob *      _ Scalar $ = $_
+//	\$ Scalar \$x   \@ Array \@a   \% Hash \%h
 //
 // and `;` makes each parameter after it optional. A parameter derived
 // from a prototype has no name, since a prototype names none.
 //
-// derived is false for a prototype holding a backslash before a
-// container (`\@`, `\[$@%]`): aliased parameters are derived by
-// 01a0fd9b-4850-704d-8c14-c15add6194f2 ("Parse aliased parameters"),
-// which parses the backslash, and until then such a declaration states no
-// typed signature.
+// derived is false for `\&`, `\*` and `\[...]`. A glob slot has no
+// spelling (RFC 0001, "The scalar container"), and one of several
+// containers, `\[%@]`, is the prototype a multi's candidates derive, by
+// 01a10dc1-3499-7e2b-9e6f-d935084437fa ("Derive one prototype from several
+// multi candidates").
 func typesFromPrototype(proto string) (sig types.Signature, derived bool, err error) {
+	// The type each backslashed character's parameter takes: the one
+	// container the caller writes.
+	aliasTypes := map[byte]types.Type{'$': types.Scalar, '@': types.Array, '%': types.Hash}
 	optional, list := false, -1
 	for i := 0; i < len(proto); i++ {
 		c := proto[i]
@@ -57,14 +61,19 @@ func typesFromPrototype(proto string) (sig types.Signature, derived bool, err er
 		case '*':
 			p = types.Param{Sigil: '*', Type: types.Glob}
 		case '\\':
-			if i+1 < len(proto) && strings.IndexByte("$@%&*[", proto[i+1]) >= 0 {
+			if i+1 < len(proto) && strings.IndexByte("$@%", proto[i+1]) >= 0 {
+				i++
+				p = types.Param{Sigil: proto[i], Type: aliasTypes[proto[i]], Alias: true}
+				break
+			}
+			if i+1 < len(proto) && strings.IndexByte("&*[", proto[i+1]) >= 0 {
 				return types.Signature{}, false, nil
 			}
 			return types.Signature{}, false, fmt.Errorf("prototype (%s) has %q, which is not a prototype character", proto, proto[i:min(i+2, len(proto))])
 		default:
 			return types.Signature{}, false, fmt.Errorf("prototype (%s) has %q, which is not a prototype character", proto, proto[i:i+1])
 		}
-		p.Required = c != '@' && c != '%' && c != '_' && !optional
+		p.Required = !p.Slurpy() && c != '_' && !optional
 		sig.Params = append(sig.Params, p)
 	}
 	return sig, true, nil
@@ -80,13 +89,16 @@ func prototypeFromTypes(sig types.Signature) string {
 	var b strings.Builder
 	semicolon := false
 	for _, p := range sig.Params {
-		slurpy := p.Sigil == '@' || p.Sigil == '%'
+		slurpy := p.Slurpy()
 		topic := p.Sigil == '$' && p.Default == "$_"
 		if !p.Required && !slurpy && !topic && !semicolon {
 			b.WriteByte(';')
 			semicolon = true
 		}
 		switch {
+		case p.Alias:
+			b.WriteByte('\\')
+			b.WriteByte(p.Sigil)
 		case p.Sigil == '$' && p.Type&(types.Array|types.Hash) != 0:
 			b.WriteByte('+')
 		case topic:
@@ -101,8 +113,8 @@ func prototypeFromTypes(sig types.Signature) string {
 // agreement reports a declared prototype, in its parentheses, that
 // disagrees with the one its types give. The declared one is read through
 // the table first, so what the table does not tell apart agrees. A
-// backslashed prototype is not compared: aliased parameters are not
-// derived yet (see typesFromPrototype).
+// prototype the table does not derive is not compared (see
+// typesFromPrototype).
 func agreement(declared, fromTypes string) error {
 	sig, derived, err := typesFromPrototype(strings.TrimSuffix(strings.TrimPrefix(declared, "("), ")"))
 	if err != nil || !derived {
