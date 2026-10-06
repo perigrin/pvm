@@ -138,7 +138,7 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 			// A List parameter takes every remaining argument, so nothing
 			// can follow it (RFC 0001, "A typed signature and a prototype
 			// say the same thing").
-			if n := len(s.Params); n > 0 && (s.Params[n-1].Sigil == '@' || s.Params[n-1].Sigil == '%') {
+			if n := len(s.Params); n > 0 && s.Params[n-1].Slurpy() {
 				last := s.Params[n-1]
 				container := "Array"
 				if last.Sigil == '%' {

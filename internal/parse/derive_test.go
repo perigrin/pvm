@@ -238,3 +238,30 @@ func TestAliasedParamsDerivePrototypes(t *testing.T) {
 		}
 	}
 }
+
+// TestPushRoundTripsRefArrayAt: RFC 0001's `sub push (Array \@a, List
+// @list) Int;`. In a `.pmt` a sigil is the caller's view, so only the
+// final parameter is slurpy and the array before it is one argument: the
+// declaration derives perl's `\@@` (measured on 5.42.0,
+// `prototype("CORE::push")`), and `:prototype(\@@)` derives the two
+// parameters back.
+func TestPushRoundTripsRefArrayAt(t *testing.T) {
+	sig := typedSignature(t, "sub f (Array \\@a, List @list) Int;\n")
+	if got := prototypeFromTypes(sig); got != `\@@` {
+		t.Errorf("prototype: got %q, want \\@@", got)
+	}
+	if !sig.Params[0].Required || sig.Params[0].Slurpy() || !sig.Params[1].Slurpy() {
+		t.Errorf("only the final parameter should be slurpy: %+v", sig.Params)
+	}
+	facts := readDeclaration([]byte("sub f :prototype(\\@@);\n"), nil)
+	want := []types.Signature{{Params: []types.Param{
+		{Sigil: '@', Type: types.Array, Alias: true, Required: true},
+		protoList,
+	}}}
+	if got := facts.signatures["f"]; len(facts.errs) > 0 || !reflect.DeepEqual(got, want) {
+		t.Errorf("(\\@@): errors %v, got %+v, want %+v", facts.errs, got, want)
+	}
+	if back := prototypeFromTypes(want[0]); back != `\@@` {
+		t.Errorf("(\\@@): round trip gave %q", back)
+	}
+}
