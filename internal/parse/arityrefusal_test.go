@@ -162,3 +162,102 @@ func TestArityRefusalLeavesUnprototypedCallsAlone(t *testing.T) {
 		}
 	}
 }
+
+// TestPrototypeArityPerlRefusesIsRefused: RFC 0001 "Refusing what perl
+// refuses" holds for prototypes read from source too. Measured on 5.42.0
+// with `perl -c`, each refused call dies "Not enough arguments for
+// main::f" or "Too many arguments", and each kept one compiles: an
+// optional slot, `_`, a block with an empty list, a slurpy, a call through
+// `&`, which ignores the prototype, and a parenthesised list, which perl
+// counts as one argument but a builtin may not.
+func TestPrototypeArityPerlRefusesIsRefused(t *testing.T) {
+	wantArityRefusal(t,
+		"sub f ($$) {} f(1);\n", "sub f ($$) {} f(1, 2, 3);\n",
+		"sub f ($$); f(1);\n", "sub f ($$) {} main::f(1);\n",
+		"sub f ($) {} f;\n", "sub f (;$) {} f(1, 2);\n",
+		"sub f ($;$) {} f(1, 2, 3);\n", "sub f () {} f(1);\n",
+		"sub f (&@) {} f();\n", "sub f (&) {} f(sub {1}, 2);\n",
+		"sub f (\\[$@%]) {} f();\n", "my @a; sub f (\\@) {} f(@a, 1);\n",
+		"use constant PI => 3; PI(1);\n", "builtin::true(1);\n",
+	)
+	wantNoRefusal(t,
+		"sub f (;$) {} f();\n", "sub f (_) {} f();\n", "sub f (&@) {} f { 1 } 2;\n",
+		"my @a; sub f (@) {} f(@a, 1, 2);\n", "sub f ($$) {} &f(1);\n",
+		"sub f ($$) {} f((1, 2));\n", "sub f ($$) {} f(1, 2);\n",
+	)
+}
+
+// TestPrototypeArityFromModuleSource: a prototype read from a module's
+// source, or derived from a `.pmt` signature, refuses as one written in
+// the file does. Measured on 5.42.0 with a module M exporting `sub two
+// ($$) { }`, `use M; two(1)` dies "Not enough arguments for M::two".
+func TestPrototypeArityFromModuleSource(t *testing.T) {
+	saved := declarations
+	defer func() { declarations = saved }()
+	none := func(string) ([]byte, bool) { return nil, false }
+	for _, tc := range []struct {
+		name string
+		decl fstest.MapFS
+		load Loader
+	}{
+		{".pm", fstest.MapFS{}, func(name string) ([]byte, bool) {
+			return []byte("package M;\nour @EXPORT = qw(two);\nsub two ($$) { }\n1;\n"), name == "M"
+		}},
+		{".pmt", fstest.MapFS{"declarations/M.pmt": {Data: []byte(
+			"package M;\nour @EXPORT = qw(two);\nsub two (Int $x, Int $y) Int;\n")}}, none},
+	} {
+		declarations = tc.decl
+		if got := refusalsIn(ParseWithLoader([]byte("use M; two(1);\n"), tc.load)); len(got) != 1 || got[0] != CallArity {
+			t.Errorf("%s: two(1) refusals %v, want one %s", tc.name, got, CallArity)
+		}
+		if got := refusalsIn(ParseWithLoader([]byte("use M; two(1, 2);\n"), tc.load)); len(got) > 0 {
+			t.Errorf("%s: two(1, 2) refused %v", tc.name, got)
+		}
+	}
+}
+
+// TestSortComparatorBeforeParens: in `sort NAME (LIST)` the name is the
+// comparator, not a call of the list. Measured on 5.42.0 with
+// -MO=Deparse,-p, `sort foo (3, 1)` and `sort foo(3, 1)` are both `sort foo
+// 3, 1`; perl.git t/op/sort.t sorts `cmp_as_string (1,5,4,7,3,2,3)` under a
+// `($$)` prototype, which as a call would be "Too many arguments".
+func TestSortComparatorBeforeParens(t *testing.T) {
+	for _, src := range []string{
+		"sub cmp_as_string ($$) {} my @b = sort cmp_as_string (1, 5, 4);\n",
+		"sub foo ($$) {} my @b = sort foo(3, 1);\n",
+	} {
+		var sort *Node
+		var walk func(*Node)
+		walk = func(n *Node) {
+			if n.Kind == Call && n.Text == "sort" {
+				sort = n
+			}
+			for _, c := range n.Children {
+				walk(c)
+			}
+		}
+		root := Parse([]byte(src))
+		walk(root)
+		if got := refusalsIn(root); len(got) > 0 {
+			t.Errorf("%q: refused %v; perl compiles it", src, got)
+		}
+		if sort == nil || len(sort.Children) != 2 || !sort.Children[0].Comparator {
+			t.Errorf("%q: sort's first argument is not its comparator", src)
+		}
+	}
+}
+
+// TestArityRefusalLeavesIndirectObjectsAlone: a call whose first argument
+// is a bare class name may be perl's indirect method call, to which no
+// prototype applies, so its arity is not refused. Measured on 5.42.0 with
+// -MO=Deparse,-p: under `package P; sub new ($$;$) {}`, `new IO::File` is
+// `'IO::File'->new`, and under Test::More's `is ($$;$)`, `is
+// Time::Moment->from_string("x")->to_string, "a", "b"` passes is three
+// arguments (T1's indirect_object_constructor.t and
+// time_moment_java_xs.t).
+func TestArityRefusalLeavesIndirectObjectsAlone(t *testing.T) {
+	wantNoRefusal(t,
+		"package P; sub new ($$;$) {} my $fh = new IO::File;\n",
+		"sub is ($$;$) {} package Time::Moment; package main; is Time::Moment->from_string(\"x\")->to_string, \"a\", \"b\";\n",
+	)
+}

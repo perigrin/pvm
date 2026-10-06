@@ -585,7 +585,11 @@ func (p *parser) parseSortComparator(op string) *Node {
 	default:
 		return nil
 	}
-	if next, ok := p.peekAfter(tok); !ok || !startsTerm(next, p.src) {
+	// A `(` after a NAME opens the list, not the name's arguments: measured
+	// on 5.42.0 with -MO=Deparse,-p, `sort foo (3,1)` and `sort foo(3,1)`
+	// are both `sort foo 3, 1`.
+	next, ok := p.peekAfter(tok)
+	if !ok || !startsTerm(next, p.src) && !(tok.Kind == lexer.Word && p.text(next) == "(") {
 		return nil
 	}
 	p.advanceTo(tok)

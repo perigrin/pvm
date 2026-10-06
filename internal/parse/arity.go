@@ -2,12 +2,17 @@
 // ABOUTME: RFC 0001 "Refusing what perl refuses": the arity is the declarations', save for builtins whose own parse is looser.
 package parse
 
-import "tamarou.com/pvm/internal/types"
+import (
+	"strings"
 
-// refuseArity returns n, or an Unknown spanning it when n calls a builtin
-// with a number of arguments none of CORE.pmt's candidates for it accepts.
-// Measured on 5.42.0, `each()` is "Not enough arguments for each" and
-// `localtime(1, 2)` "Too many arguments for localtime".
+	"tamarou.com/pvm/internal/types"
+)
+
+// refuseArity returns n, or an Unknown spanning it when n calls a sub with
+// a number of arguments its prototype refuses, or a builtin with a number
+// none of CORE.pmt's candidates for it accepts. Measured on 5.42.0,
+// `each()` is "Not enough arguments for each" and `localtime(1, 2)` "Too
+// many arguments for localtime".
 //
 // A builtin the file overrides is not the builtin: measured on 5.42.0,
 // `use Time::HiRes qw(sleep); sleep(1, 2)` and `BEGIN {
@@ -20,19 +25,43 @@ import "tamarou.com/pvm/internal/types"
 // A `.pmt` is not checked: CORE.pmt is one, and reading it builds the
 // candidates this consults.
 func (p *parser) refuseArity(n *Node) *Node {
-	if n == nil || n.Kind != Call || p.typed {
-		return n
-	}
-	name := keywordName(n.Text)
-	cands := coreSignatures()[name]
-	if len(cands) == 0 || looseArity[name] || p.overridden(name) || p.mayBeAutoquoted(n) {
+	if n == nil || n.Kind != Call || p.typed || p.mayBeAutoquoted(n) || p.mayBeIndirect(n) {
 		return n
 	}
 	count, exact := argCount(n)
-	if exact && !types.Accepts(cands, count) {
+	if exact && !p.arityAccepted(n.Text, count) {
 		return &Node{Kind: Unknown, Refusal: CallArity, Start: n.Start, End: n.End}
 	}
 	return n
+}
+
+// arityAccepted reports whether a call to name may pass count arguments:
+// whether its prototype takes that many, or, for a builtin, whether one of
+// its candidates does. A sub with no prototype takes any number. Measured
+// on 5.42.0, `sub f ($$) {} f(1)` is "Not enough arguments for main::f".
+func (p *parser) arityAccepted(name string, count int) bool {
+	builtin := keywordName(name)
+	if !isPerlKeyword(builtin) {
+		if imp, ok := p.lookupSub(name); ok {
+			return !imp.PrototypeKnown || imp.Prototype == "" || prototypeAccepts(imp.Prototype, count)
+		}
+	}
+	cands := coreSignatures()[builtin]
+	return len(cands) == 0 || looseArity[builtin] || p.overridden(builtin) || types.Accepts(cands, count)
+}
+
+// prototypeAccepts reports whether a prototype, parens included, takes
+// count arguments: at least its slots before the `;`, `_` aside, and no
+// more than it has unless one is slurpy.
+func prototypeAccepts(proto string, count int) bool {
+	slots, slurpy := refScalarSlots(proto)
+	least := 0
+	for _, s := range slots {
+		if !s.optional {
+			least++
+		}
+	}
+	return count >= least && (slurpy || count <= len(slots))
 }
 
 // mayBeAutoquoted reports whether n is a bare word that a following `=>`
@@ -46,6 +75,22 @@ func (p *parser) mayBeAutoquoted(n *Node) bool {
 	}
 	next, ok := p.peekSignificant()
 	return ok && (p.text(next) == "=>" || p.text(next) == "}")
+}
+
+// mayBeIndirect reports whether n's first argument is a bare class name,
+// `new IO::File`, which perl may read as an indirect method call, where no
+// prototype applies: measured on 5.42.0 with -MO=Deparse,-p, under
+// `package P; sub new ($$;$) {}`, `new IO::File` is `'IO::File'->new`.
+func (p *parser) mayBeIndirect(n *Node) bool {
+	if len(n.Children) == 0 {
+		return false
+	}
+	a := n.Children[0]
+	if a.Kind != Call && a.Kind != Term || len(a.Children) > 0 || a.Text == "" ||
+		a.End-a.Start != len(a.Text) || strings.IndexByte("$@%&*", a.Text[0]) >= 0 {
+		return false
+	}
+	return strings.Contains(a.Text, "::") || p.packages[a.Text] || interpreterPackages[a.Text]
 }
 
 // overridden reports whether this parse has seen a sub named name, or a
@@ -75,9 +120,10 @@ func argCount(n *Node) (count int, exact bool) {
 // parenthesisedList reports whether a is a parenthesised list, `(1, 2)`,
 // or a declaration of anything but one variable, `my ($r, $w)`. A
 // declaration's child is not always the list alone: `pipe my ($r, $w) or
-// die` (perl.git t/op/getppid.t) parses with the `or` inside the `my`.
+// die` (perl.git t/op/getppid.t) parses with the `or` inside the `my`. An
+// anonymous sub, `sub {1}`, is one argument.
 func parenthesisedList(a *Node) bool {
-	if a.Kind == Declaration {
+	if a.Kind == Declaration && a.Text != "sub" {
 		return len(a.Children) != 1 || a.Children[0].Kind != Term
 	}
 	return a.Kind == List
