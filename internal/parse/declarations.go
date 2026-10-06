@@ -238,8 +238,35 @@ func CoreOperator(op, fixity string) []types.Signature {
 	return coreOps[[2]string{op, fixity}]
 }
 
-// readCore reads CORE.pmt, once, into coreTable's, coreSignatures's and
-// CoreOperator's tables.
+// coreShapes is perl's builtins by name, each to the shape a call to it
+// parses in: named unary, list operator or niladic (deriveShapes).
+func coreShapes() map[string]Shape {
+	readCore()
+	return coreShp
+}
+
+// deriveShapes is the parse shape of each builtin CORE.pmt declares. A
+// builtin with a prototype parses as a sub with that prototype would
+// (ShapeOf); one with none is a named unary when `:unary` says so (RFC 0001,
+// "Builtins with no prototype"), and otherwise a list operator, as a sub
+// with no prototype is.
+func deriveShapes(protos map[string]string, sigs map[string][]types.Signature) map[string]Shape {
+	shapes := map[string]Shape{}
+	for name, cands := range sigs {
+		if cands[0].Unary {
+			shapes[name] = ShapeUnary
+		} else {
+			shapes[name] = ShapeList
+		}
+	}
+	for name, proto := range protos {
+		shapes[name] = ShapeOf("(" + proto + ")")
+	}
+	return shapes
+}
+
+// readCore reads CORE.pmt, once, into coreTable's, coreSignatures's,
+// CoreOperator's and coreShapes's tables.
 func readCore() {
 	coreOnce.Do(func() {
 		src, ok := declaration("CORE")
@@ -250,6 +277,7 @@ func readCore() {
 		if coreMap, coreSigs, coreOps, err = coreDeclarations(src); err != nil {
 			panic("parse: declarations/CORE.pmt: " + err.Error())
 		}
+		coreShp = deriveShapes(coreMap, coreSigs)
 	})
 }
 
@@ -290,4 +318,5 @@ var (
 	coreMap  map[string]string
 	coreSigs map[string][]types.Signature
 	coreOps  map[[2]string][]types.Signature
+	coreShp  map[string]Shape
 )

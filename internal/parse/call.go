@@ -68,6 +68,30 @@ func keywordName(word string) string {
 // reading is not modelled and stays as it was.
 var gatedUnary = map[string]bool{"fc": true, "evalbytes": true}
 
+// ownParse are the builtins whose CORE.pmt prototype, the one perl reports,
+// does not say how a call to them parses, so they take no keyword shape
+// from it. perl reports `()` for both, and neither takes nothing:
+//
+//   - dump takes a label, as goto does: measured on 5.42.0, `CORE::dump +
+//     1` deparses as `CORE::dump 1`, and plain `dump` is refused, "dump()
+//     must be written as CORE::dump() as of Perl 5.30".
+//   - method is a declarator under the class feature, and an ordinary word
+//     without it; an anonymous `method { ... }` is a code ref.
+var ownParse = map[string]bool{"dump": true, "method": true}
+
+// plainKeywordShapes is the keyword shape of each builtin in shapes as it is
+// spelled plainly in a file with no feature on: less the builtins a feature
+// gates, which are then a user's sub, and those whose parse is their own.
+func plainKeywordShapes(shapes map[string]Shape) map[string]Shape {
+	plain := map[string]Shape{}
+	for name, shape := range shapes {
+		if _, gated := gatedWords[name]; !gated && !ownParse[name] {
+			plain[name] = shape
+		}
+	}
+	return plain
+}
+
 // namedUnaryHere reports whether a word parses as a named unary at this
 // point in the file: always for namedUnary, and for a gatedUnary when its
 // feature is on or the word is spelled with `CORE::`, which names the builtin
