@@ -47,6 +47,11 @@ type Import struct {
 	// one declared `:lvalue`, or a lexical sub, which perl does not check.
 	// See notScalarLvalue.
 	Lvalue bool
+
+	// Signatures are the typed signatures the module's declaration file
+	// states or derives for the sub, one per `multi sub` candidate. Empty
+	// for a sub no declaration file types.
+	Signatures []types.Signature
 }
 
 // Imports names everything a parsed file's `use` statements brought into
@@ -526,6 +531,7 @@ func importsFrom(facts moduleFacts, list []string, listGiven bool) []Import {
 			Name:           name,
 			Prototype:      proto,
 			PrototypeKnown: known,
+			Signatures:     facts.signatures[name],
 		})
 	}
 	return out

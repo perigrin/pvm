@@ -71,6 +71,32 @@ func readDeclaration(src []byte, res *resolver) moduleFacts {
 			inError[name] = true
 		}
 	}
+	// An operator's `multi sub` candidates (RFC 0001, "Operators that
+	// fork") are held to the same rule. A prefix and an infix of one
+	// symbol are two operators.
+	cands := map[[2]string][]types.Signature{}
+	for _, op := range facts.operators {
+		if op.multi {
+			key := [2]string{op.name, op.fixity}
+			cands[key] = append(cands[key], op.sig)
+		}
+	}
+	ambiguous := map[[2]string]bool{}
+	for _, op := range facts.operators {
+		key := [2]string{op.name, op.fixity}
+		sigs, unchecked := cands[key]
+		if !unchecked {
+			continue
+		}
+		delete(cands, key)
+		if err := types.Ambiguity(sigs); err != nil {
+			facts.errs = append(facts.errs, fmt.Errorf("sub %s: %w", op.name, err))
+			ambiguous[key] = true
+		}
+	}
+	facts.operators = slices.DeleteFunc(facts.operators, func(op operatorDecl) bool {
+		return op.multi && ambiguous[[2]string{op.name, op.fixity}]
+	})
 	// A declaration with only a prototype gets the typed signature its
 	// prototype gives (RFC 0001, "A typed signature and a prototype say
 	// the same thing"). With none, it takes the rest of the call; an empty
@@ -157,6 +183,22 @@ func readDeclaration(src []byte, res *resolver) moduleFacts {
 			facts.protos[name] = "(" + proto + ")"
 		}
 	}
+	return facts
+}
+
+// readLibraryDeclaration reads a library's declaration file, in CORE.pmt's
+// language (RFC 0001, "One language for every `.pmt`") less the operator
+// classes coined for CORE.pmt alone. An operator naming one is an error and
+// is not recorded.
+func readLibraryDeclaration(src []byte, res *resolver) moduleFacts {
+	facts := readDeclaration(src, res)
+	facts.operators = slices.DeleteFunc(facts.operators, func(op operatorDecl) bool {
+		if !coreOnlyClasses[op.class] {
+			return false
+		}
+		facts.errs = append(facts.errs, fmt.Errorf("sub %s: operator class %s is CORE.pmt's; XS::Parse::Infix registers no operator at its level", op.name, op.class))
+		return true
+	})
 	return facts
 }
 

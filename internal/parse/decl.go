@@ -134,6 +134,15 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 			if ok && p.text(tok) == ")" {
 				p.advanceTo(tok)
 				sig.End = p.prevEnd()
+				// A named unary takes at most one operand, and an
+				// invocant is one.
+				operands := len(s.Params)
+				if s.Invocant != nil {
+					operands++
+				}
+				if s.Unary && operands > 1 {
+					return fmt.Errorf(":unary takes at most one operand, the signature has %d", operands)
+				}
 				var err error
 				s.Returns, ret, err = p.returnType()
 				return err
