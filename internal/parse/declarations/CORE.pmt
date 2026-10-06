@@ -230,7 +230,8 @@ sub < :infix(RELATION) (Num $x, Num $y) Boolean;
 sub > :infix(RELATION) (Num $x, Num $y) Boolean;
 sub <= :infix(RELATION) (Num $x, Num $y) Boolean;
 sub >= :infix(RELATION) (Num $x, Num $y) Boolean;
-sub <=> :infix(ORDERING) (Num $x, Num $y) Int;
+# undef when an operand is NaN: `("nan"+0) <=> 1`.
+sub <=> :infix(ORDERING) (Num $x, Num $y) Int|Undef;
 
 # String comparison
 sub eq :infix(EQUALITY) (Str $x, Str $y) Boolean;

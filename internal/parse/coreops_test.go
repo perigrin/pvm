@@ -147,11 +147,14 @@ func coreOperators(t *testing.T) []operatorDecl {
 }
 
 // TestCoreOperatorTypesMatchMeasured: CORE.pmt types perl's operators with
-// the operand and result types below, measured on 5.42.0: under the declared
-// operand types each result is within its bound (`<=>` and `cmp` give -1, 0
-// or 1; the predicates give perl's booleans; `&&`, `||`, `//`, `and`, `or`
-// and `=` give an operand). An operator that forks has a row for each
-// candidate, keyed by the `:context` it states.
+// the operand and result types below, measured on 5.42.0. `cmp` gives -1, 0
+// or 1, and so does `<=>`, or undef when an operand is NaN; the predicates
+// give perl's booleans; `&&`, `||`, `//`, `and`, `or` and `=` give an
+// operand. An operator that forks has a row for each candidate, keyed by
+// the `:context` it states.
+//
+// One bound is exceeded: arithmetic on Nums can leave Num, which excludes
+// Inf and NaN. Measured, `1e308*10` is Inf and `(-1)**0.5` is NaN.
 //
 // The rows are golden values, held here rather than read from anywhere
 // else, so the declarations answer to them alone.
@@ -173,7 +176,7 @@ func TestCoreOperatorTypesMatchMeasured(t *testing.T) {
 
 		"infix ==": bin(N, N, B), "infix !=": bin(N, N, B), "infix <": bin(N, N, B),
 		"infix >": bin(N, N, B), "infix <=": bin(N, N, B), "infix >=": bin(N, N, B),
-		"infix <=>": bin(N, N, I),
+		"infix <=>": bin(N, N, I|types.Undef),
 
 		"infix eq": bin(S, S, B), "infix ne": bin(S, S, B), "infix lt": bin(S, S, B),
 		"infix gt": bin(S, S, B), "infix le": bin(S, S, B), "infix ge": bin(S, S, B),
