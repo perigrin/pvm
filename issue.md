@@ -1,6 +1,6 @@
 ---
 title: Type CORE.pmt's I/O, file and directory builtins
-state: in-progress
+state: done
 urgency: normal
 milestone: type-libraries
 blocked_by:
@@ -9,16 +9,20 @@ blocks:
 - 01a10c6e-988f-7aa6-811d-0e462abc442a
 - 01a10c6e-9a95-719a-80e2-2e33037d0096
 created: 2026-10-03T11:12:38.999799272Z
-updated: 2026-10-06T12:34:45.605073495Z
+updated: 2026-10-06T12:34:48.957838392Z
 sessions:
 - start_sha: a212040646ef72ff7ccc7e915848fbf3e03b590c
-  end_sha: ""
+  end_sha: a212040646ef72ff7ccc7e915848fbf3e03b590c
   commits: 0
   started_at: 2026-10-06T12:34:45.605073495Z
+  ended_at: 2026-10-06T12:34:48.957838392Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-06T12:34:45.605073495Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-06T12:34:48.957838392Z
 ---
 
 ## Prerequisites
