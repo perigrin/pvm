@@ -2,7 +2,10 @@
 // ABOUTME: RFC 0001 "Refusing what perl refuses": a \$ slot takes a scalar lvalue, and nothing else compiles.
 package parse
 
-import "strings"
+import (
+	"slices"
+	"strings"
+)
 
 // refuseRefScalarSlot returns n, or an Unknown spanning it when n calls a sub
 // whose prototype has a `\$` slot and the call fills that slot with an
@@ -25,38 +28,56 @@ func (p *parser) refuseRefScalarSlot(n *Node) *Node {
 	if !ok || !imp.PrototypeKnown {
 		return n
 	}
+	slots, slurpy := refScalarSlots(imp.Prototype)
+	if !slices.ContainsFunc(slots, func(s protoSlot) bool { return s.refScalar }) {
+		return n
+	}
 	var args []*Node
 	for _, c := range n.Children {
 		args = append(args, commaItems(c)...)
 	}
-	for i, slot := range refScalarSlots(imp.Prototype) {
-		if slot && i < len(args) && p.notScalarLvalue(args[i]) {
-			return &Node{Kind: Unknown, Refusal: RefScalarSlot, Start: n.Start, End: n.End}
-		}
+	// Arity, measured: `sref()` is "Not enough arguments for main::sref"
+	// and `sref($x, $y)` "Too many arguments for main::sref".
+	refused := !slurpy && len(args) > len(slots)
+	for i, slot := range slots {
+		refused = refused || !slot.optional && i >= len(args) ||
+			slot.refScalar && i < len(args) && p.notScalarLvalue(args[i])
+	}
+	if refused {
+		return &Node{Kind: Unknown, Refusal: RefScalarSlot, Start: n.Start, End: n.End}
 	}
 	return n
 }
 
-// refScalarSlots reads a prototype, parens included, into one entry per
-// argument slot, true where the slot is `\$`. A `\[...]` group is one slot.
-func refScalarSlots(proto string) []bool {
+// protoSlot is one argument slot of a prototype: whether it is `\$`, and
+// whether it follows the `;` that makes the rest optional.
+type protoSlot struct{ refScalar, optional bool }
+
+// refScalarSlots reads a prototype, parens included, into its argument
+// slots, and reports whether a final `@` or `%` takes the rest of the
+// list. A `\[...]` group is one slot; `_` is optional of itself.
+func refScalarSlots(proto string) (slots []protoSlot, slurpy bool) {
 	inner := strings.TrimSuffix(strings.TrimPrefix(proto, "("), ")")
-	var slots []bool
+	optional := false
 	for i := 0; i < len(inner); i++ {
-		switch inner[i] {
+		switch c := inner[i]; c {
+		case ';':
+			optional = true
 		case '\\':
 			i++
-			slots = append(slots, i < len(inner) && inner[i] == '$')
+			slots = append(slots, protoSlot{refScalar: i < len(inner) && inner[i] == '$', optional: optional})
 			if i < len(inner) && inner[i] == '[' {
 				for i < len(inner) && inner[i] != ']' {
 					i++
 				}
 			}
-		case '$', '&', '*', '+', '_', '@', '%':
-			slots = append(slots, false)
+		case '@', '%':
+			return slots, true
+		case '$', '&', '*', '+', '_':
+			slots = append(slots, protoSlot{optional: optional || c == '_'})
 		}
 	}
-	return slots
+	return slots, false
 }
 
 // commaItems splits an argument list at its unparenthesised commas. A
@@ -74,8 +95,8 @@ func commaItems(n *Node) []*Node {
 }
 
 // notScalarLvalue reports whether an argument is certainly not a scalar
-// lvalue: a literal constant, or the result of a sub this file declared
-// earlier without `:lvalue`. Measured on 5.42.0, a sub perl has not seen
+// lvalue: a literal constant, a whole array or hash, or the result of a sub
+// this file declared earlier without `:lvalue`. Measured on 5.42.0, a sub perl has not seen
 // declared may yet be an lvalue sub, so `sref(g()); sub g {}` compiles; so
 // does a lexical sub's result, `my sub g {} sref(g())`.
 //
@@ -97,7 +118,16 @@ func (p *parser) notScalarLvalue(a *Node) bool {
 			return true
 		case text[0] == '&':
 			return p.declaredNonLvalue(text[1:])
+		case text[0] == '@' || text[0] == '%':
+			// A whole array or hash; a slice, `@a[0]`, is an Index.
+			return len(text) > 1
 		}
+	case Unary:
+		// `@$r`, `%{$r}`: a whole aggregate through a reference.
+		return a.Text == "@" || a.Text == "%"
+	case Declaration:
+		// `my @q`, `our %q`: a declared aggregate.
+		return len(a.Children) == 1 && a.Children[0].Kind == Term && p.notScalarLvalue(a.Children[0])
 	case Call:
 		return p.declaredNonLvalue(a.Text)
 	case Index:

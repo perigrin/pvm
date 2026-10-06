@@ -61,3 +61,27 @@ func TestRefScalarSlotRefusesConstants(t *testing.T) {
 		refScalarPrelude+"sref($x = 7);\n",
 	)
 }
+
+// TestRefScalarSlotRefusesAggregatesAndArity: measured on 5.42.0, `sref(@a)`
+// dies "(not private array)", `sref(%h)` "(not private hash)", `sref(@$r)`
+// "(not array dereference)" and `sref(my @q)` "(not private array)";
+// `sref()` and a bare `sref` die "Not enough arguments for main::sref" and
+// `sref($x, $y)` "Too many arguments". `sref(my $z)` and `sref(substr($x,
+// 0, 1))` compile, as do a slice, `sref(@a[0])`, a parenless `sref $x, $y`
+// whose comma is the enclosing list's, an optional slot left empty,
+// `sopt()` under `(;\$)`, and comp/proto.t's `sreftest my $a = 'quidgley',
+// $i++` under `(\$$)`.
+func TestRefScalarSlotRefusesAggregatesAndArity(t *testing.T) {
+	wantRefScalarRefusal(t, "sref(@a)", "sref(%h)", "sref(@$r)", "sref(%{$r})",
+		"sref(my @q)", "sref(our %q)", "sref()", "sref", "sref($x, $y)")
+	wantNoRefusal(t,
+		refScalarPrelude+"sref(my $z);\n",
+		refScalarPrelude+"sref(substr($x, 0, 1));\n",
+		refScalarPrelude+"sref(@a[0]);\n",
+		refScalarPrelude+"sref $x, $y;\n",
+		"sub sopt (;\\$); my $x; sopt(); sopt($x);\n",
+		"sub stwo (\\$$); my $x; stwo($x, 1);\n",
+		// comp/proto.t:623: the comma after an initialiser is the call's.
+		"sub stwo (\\$$); my $i; stwo my $a = 'quidgley', $i++;\n",
+	)
+}
