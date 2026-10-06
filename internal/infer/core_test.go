@@ -221,3 +221,26 @@ func TestInferContextBuiltinsFollowContext(t *testing.T) {
 		assert.Equal(t, c.want, lookupType(t, c.src, c.name), "%q", c.src)
 	}
 }
+
+// TestInferMultiBuiltinNarrowsByArityAndShape: a multi with no `:context`
+// is cut to the candidates its call's arity and operand shapes take before
+// their returns are joined, without consulting argument types. Measured on
+// 5.42: `my $d = delete $h{a}` is the deleted value, "x"; `my @s = delete
+// @g{qw(a b)}` is (1, 2); `my $o = select(STDERR)` is "main::STDOUT", as is
+// `select()`; four-argument select in list context has two elements.
+func TestInferMultiBuiltinNarrowsByArityAndShape(t *testing.T) {
+	cases := []struct {
+		src, name string
+		want      types.Type
+	}{
+		{"my %h; my $d = delete $h{a};", "$d", types.Scalar},
+		{"my @a; my $d = delete $a[1];", "$d", types.Scalar},
+		{"my %h; my @d = delete @h{qw(a b)};", "@d", types.List},
+		{"my $o = select(STDERR);", "$o", types.Str},
+		{"my $o = select();", "$o", types.Str},
+		{"my @r = select(undef, undef, undef, 0.1);", "@r", types.List},
+	}
+	for _, c := range cases {
+		assert.Equal(t, c.want, lookupType(t, c.src, c.name), "%q", c.src)
+	}
+}

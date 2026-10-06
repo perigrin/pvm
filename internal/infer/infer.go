@@ -730,7 +730,7 @@ func inferFunctionCallType(
 			Code:      CodeArityMismatch,
 			Message:   arityMessage(name, least, len(args)),
 		})
-		return builtinReturns(sigs, assignedContext(node))
+		return callReturns(sigs, args, assignedContext(node))
 	}
 
 	// Validate argument types.
@@ -754,7 +754,7 @@ func inferFunctionCallType(
 	if t, ok := contextualReturnType(name, args, source, st, annotations); ok {
 		return t
 	}
-	return builtinReturns(sigs, assignedContext(node))
+	return callReturns(sigs, args, assignedContext(node))
 }
 
 // inferMethodCallType handles method_call_expression nodes such as Foo->new()
@@ -902,7 +902,7 @@ func inferFunc1opCallType(
 			Code:      CodeArityMismatch,
 			Message:   arityMessage(name, least, len(args)),
 		})
-		return builtinReturns(sigs, assignedContext(node))
+		return callReturns(sigs, args, assignedContext(node))
 	}
 
 	for i, arg := range args {
@@ -925,7 +925,7 @@ func inferFunc1opCallType(
 	if t, ok := contextualReturnType(name, args, source, st, annotations); ok {
 		return t
 	}
-	return builtinReturns(sigs, assignedContext(node))
+	return callReturns(sigs, args, assignedContext(node))
 }
 
 // contextualReturnType handles builtins whose result type depends on the
@@ -1990,6 +1990,45 @@ func builtinMinArity(sigs []types.Signature) int {
 		}
 	}
 	return least
+}
+
+// callReturns is a builtin call's type in context ctx: builtinReturns over
+// the candidates the call's arity and operand shapes take, found without
+// consulting argument types. An element, `$h{a}`, is `$`-shaped and a
+// slice, `@h{...}` or `%h{...}`, `@`-shaped, so `delete $h{a}` is the
+// Scalar candidate's and `select(STDERR)` the one-argument candidate's,
+// where joining every candidate's would give List and a scalar assignment
+// would make that a count. SelectShaped's `@` parameter takes only a `@`
+// operand, which is a fork's rule; a slurpy any operand flattens into,
+// push's, takes no `$` operand under it, so a call no candidate takes by
+// shape is cut by arity alone. One no candidate takes even so, an arity
+// already reported, is the join of every candidate answering for ctx.
+func callReturns(sigs []types.Signature, args []*parser.Node, ctx types.Context) types.Type {
+	shapes := ""
+	for _, a := range args {
+		if a.Kind() == "slice_expression" || a.Kind() == "keyval_expression" {
+			shapes += "@"
+		} else {
+			shapes += "$"
+		}
+	}
+	ctxs := []types.Context{ctx}
+	if ctx == types.UnknownCtx {
+		ctxs = []types.Context{types.ScalarCtx, types.ListCtx, types.VoidCtx}
+	}
+	unknown := make([]types.Type, len(args))
+	for _, sh := range []string{shapes, ""} {
+		t, taken := types.Unknown, false
+		for _, x := range ctxs {
+			if sel := types.SelectShaped(sigs, unknown, sh, x); sel.Outcome != types.Failed {
+				t, taken = types.Join(t, sel.Returns), true
+			}
+		}
+		if taken {
+			return t
+		}
+	}
+	return builtinReturns(sigs, ctx)
 }
 
 // builtinReturns is a builtin call's type in context ctx from its
