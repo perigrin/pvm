@@ -101,3 +101,20 @@ func TestDerivePrototypeFromTypes(t *testing.T) {
 		}
 	}
 }
+
+// TestDeriveDieDefaultIsRequired: RFC 0001 "A required argument defaults
+// to `die`". A `die` default runs only when its argument is omitted, so
+// the parameter is required and derivation puts no `;` before it; only a
+// default other than `die` makes a parameter optional.
+func TestDeriveDieDefaultIsRequired(t *testing.T) {
+	for typed, want := range map[string]string{
+		"(Scalar $x = die)":            "$",
+		"(Scalar $x = 1)":              ";$",
+		"(Scalar $x, Scalar $y = die)": "$$",
+	} {
+		got, err := prototypeFromTypes(typedSignature(t, "sub f "+typed+";\n"))
+		if err != nil || got != want {
+			t.Errorf("%s: got %q, %v, want %q", typed, got, err, want)
+		}
+	}
+}
