@@ -11,7 +11,7 @@ blocked_by:
 blocks:
 - 01a0fd9b-5700-7514-a143-2caed2d06d8b
 created: 2026-10-02T17:13:31.032351231Z
-updated: 2026-10-06T08:56:07.597933984Z
+updated: 2026-10-06T12:53:32.489653095Z
 ---
 
 ## Prerequisites
@@ -34,6 +34,8 @@ RFC 0001 "One language for every `.pmt`" (perigrin, 2026-10-02): everything CORE
 From the alignment gate on 01a0fd9b-46c4-7a8c-b8d6-498c5182a47f: declaration errors are kept by the resolver and read with `parse.DeclarationErrors(root)`, but nothing outside tests calls it, so a broken library .pmt is never shown to a user. When library .pmt files become user-writable here, psc must report them: add a step with a test that `psc check` on a file importing a module whose .pmt is in error prints the declaration error.
 
 From the alignment gate on 01a0fd9b-5468-7355-a22e-1b16fa5ee354: `types.Ambiguity` is applied to sub multis but not to an operator's multi candidates (facts.operators), so two ambiguous operator candidates are not an error. A library .pmt that may declare operators needs the same check, with a failing test; and nothing stops a library .pmt from declaring one of the CORE-only coined classes (BITAND, BITOR, SHIFT, RANGE), which RFC 0001 reserves for CORE.pmt.
+
+From the alignment gate on 01a0fd9b-5017-78d0-ae38-331cbe6a9866: `:unary` is not validated -- it is accepted on a signature with two required parameters, `(Scalar $x, Scalar $y)`, though a named unary takes at most one argument. A library .pmt that may write `:unary` needs that check, with a failing test.
 
 ## Steps
 
