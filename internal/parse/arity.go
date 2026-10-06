@@ -47,7 +47,23 @@ func (p *parser) arityAccepted(name string, count int) bool {
 		}
 	}
 	cands := coreSignatures()[builtin]
-	return len(cands) == 0 || looseArity[builtin] || p.overridden(builtin) || types.Accepts(cands, count)
+	if len(cands) == 0 || p.overridden(builtin) || types.Accepts(cands, count) {
+		return true
+	}
+	switch looseArity[builtin] {
+	case looseAny:
+		return true
+	case looseEmpty:
+		return count == 0
+	case looseExtra:
+		// Too many is the loose side: some smaller count is accepted.
+		for k := range count {
+			if types.Accepts(cands, k) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // prototypeAccepts reports whether a prototype, parens included, takes
@@ -129,28 +145,49 @@ func parenthesisedList(a *Node) bool {
 	return a.Kind == List
 }
 
+// looseness is which side of its candidates' arity a builtin's own parse
+// accepts beyond them.
+type looseness int
+
+const (
+	// looseNone: the candidates say what perl refuses.
+	looseNone looseness = iota
+
+	// looseEmpty: an empty call compiles, `system()`, `exec`, `do()`,
+	// while one with too many arguments, `do($x, $x)`, does not.
+	looseEmpty
+
+	// looseExtra: a named unary takes a parenthesised list, so too many
+	// arguments compile, `close($x, $x)`, while too few, `scalar()`, do not.
+	looseExtra
+
+	// looseAny: any count compiles. `not()` takes no operand to its own
+	// parse, `CORE::dump($x)` a label, and a word gated on a feature,
+	// `fc($x, $x)`, is a user's sub without it.
+	looseAny
+)
+
 // looseArity are the builtins whose own parse accepts calls their CORE.pmt
-// candidates refuse, so the candidates cannot say what perl refuses.
+// candidates refuse, so the candidates cannot say what perl refuses there.
 // Measured on 5.42.0 by calling every CORE.pmt builtin with none to six
 // arguments, plain and as `CORE::NAME`, and running `perl -c` over each
-// call refused here; each name below compiled at least once:
+// call refused here; each name below compiled at least once, and every
+// refused call on the other side of its looseness died.
 //
-//	not()  CORE::not()          the operand is optional to the parse
-//	system()  exec  do()        an empty list
-//	CORE::dump($x)              its operand is a label
-//	close($x, $x)  eval($x, $x) a named unary takes a parenthesised list
-//	fc($x, $x)  any()           without its feature, a user's sub
-//
-// ponytail: a whole name is exempt, so `scalar()`, which perl refuses, is
-// not refused either; split the exemption by direction (none or too many)
-// if a corpus file needs the other half.
-var looseArity = map[string]bool{
-	"not": true, "system": true, "exec": true, "do": true, "dump": true,
-	"eval": true, "scalar": true, "prototype": true, "write": true,
-	"stat": true, "lstat": true, "readline": true, "tell": true,
-	"telldir": true, "close": true, "closedir": true, "eof": true,
-	"fileno": true, "getc": true, "getpeername": true, "getsockname": true,
-	"readdir": true, "rewinddir": true,
-	"fc": true, "evalbytes": true, "any": true, "all": true, "catch": true,
-	"method": true, "isa": true, "break": true, "__CLASS__": true, "__SUB__": true,
+// ponytail: a feature-gated word is loose whatever the file enables;
+// read p.features if a corpus file calls `fc` with the feature on and an
+// arity perl refuses.
+var looseArity = map[string]looseness{
+	"system": looseEmpty, "exec": looseEmpty, "do": looseEmpty,
+
+	"eval": looseExtra, "scalar": looseExtra, "prototype": looseExtra,
+	"write": looseExtra, "stat": looseExtra, "lstat": looseExtra,
+	"readline": looseExtra, "tell": looseExtra, "telldir": looseExtra,
+	"close": looseExtra, "closedir": looseExtra, "eof": looseExtra,
+	"fileno": looseExtra, "getc": looseExtra, "getpeername": looseExtra,
+	"getsockname": looseExtra, "readdir": looseExtra, "rewinddir": looseExtra,
+
+	"not": looseAny, "dump": looseAny, "fc": looseAny, "evalbytes": looseAny,
+	"any": looseAny, "all": looseAny, "catch": looseAny, "method": looseAny,
+	"isa": looseAny, "break": looseAny, "__CLASS__": looseAny, "__SUB__": looseAny,
 }

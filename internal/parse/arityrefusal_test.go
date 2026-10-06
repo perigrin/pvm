@@ -261,3 +261,21 @@ func TestArityRefusalLeavesIndirectObjectsAlone(t *testing.T) {
 		"sub is ($$;$) {} package Time::Moment; package main; is Time::Moment->from_string(\"x\")->to_string, \"a\", \"b\";\n",
 	)
 }
+
+// TestLooseBuiltinsRefuseTheirOtherSide: a builtin whose own parse is
+// looser than its candidates on one side is still refused on the other.
+// Measured on 5.42.0 with `perl -c`: `close($x, $x)` and `scalar($x, $x)`
+// compile, but `scalar()`, `closedir()`, `fileno`, `getpeername()`,
+// `getsockname()`, `readdir()`, `rewinddir()` and `telldir()` die "Not
+// enough arguments"; `do()` compiles, but `do($x, $x)` dies "Too many
+// arguments for do "file"".
+func TestLooseBuiltinsRefuseTheirOtherSide(t *testing.T) {
+	var srcs []string
+	for _, call := range []string{
+		"scalar()", "closedir()", "fileno", "getpeername()", "getsockname()",
+		"readdir()", "rewinddir()", "telldir()", "do($x, $x)",
+	} {
+		srcs = append(srcs, "my $x; "+call+";\n")
+	}
+	wantArityRefusal(t, srcs...)
+}
