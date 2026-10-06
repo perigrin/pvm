@@ -480,7 +480,7 @@ multi sub x :infix(MUL) :context(@) (List @l, Int $n) List;   # (LIST) x N
 multi sub x :infix(MUL) (Str $s, Int $n) Str;     # EXPR x N
 ```
 
-### Multi declarations (*Decided*)
+### Multi declarations (*Implemented*, d7ff54be, e0927971, 597f89f2, 56fdf0e2, 2a00759b, 1f2f170c, 263ec15e, d44fb222)
 
 Some builtins return different types depending on how they are called.
 A declaration may be `multi sub`, giving several signatures for one
@@ -525,7 +525,7 @@ result `meet(join(arguments), declared)`, which would have made
 `B::svref_2object`, `sqrt(2)`, `sqrt(4)` and `atan2(1,1)` are floats
 (NOK only), and `chr(65)` is a string (POK only).
 
-### `:context(...)` (*Decided*)
+### `:context(...)` (*Implemented*, b39d89e2, aa01ec08, d44fb222, 1cd52775)
 
 A function whose type depends on its calling context (one that
 effectively branches on `wantarray`) says so with `:context`, spelled
