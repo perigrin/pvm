@@ -216,3 +216,22 @@ func TestCoreOperatorTypesMatchMeasured(t *testing.T) {
 		}
 	}
 }
+
+// TestCoreOperatorClassesMatchPrecedence: each infix operator CORE.pmt
+// declares names, by its class, the level precedence.go gives it. The table
+// is authoritative (RFC 0001, "Operator declarations").
+func TestCoreOperatorClassesMatchPrecedence(t *testing.T) {
+	n := 0
+	for _, op := range coreOperators(t) {
+		if op.fixity != "infix" {
+			continue
+		}
+		n++
+		if err := precedenceMismatch(op); err != nil {
+			t.Error(err)
+		}
+	}
+	if n == 0 {
+		t.Error("CORE.pmt declares no infix operator")
+	}
+}
