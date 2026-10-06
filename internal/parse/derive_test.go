@@ -419,3 +419,36 @@ func TestDeriveMultiCandidatesRefusesInexpressible(t *testing.T) {
 		}
 	}
 }
+
+// TestDeriveMultiCandidatesIgnoreReturnType: candidates with the same
+// parameters and different return types, and no `:context`, are one
+// group: they derive one prototype, and do not count as a position
+// differing. The pair is read before the ambiguity check, which refuses
+// such a declaration for selection, not for its prototype.
+func TestDeriveMultiCandidatesIgnoreReturnType(t *testing.T) {
+	for src, want := range map[string]string{
+		"multi sub f (Hash \\%h) Int;\nmulti sub f (Hash \\%h) List;\n":                                 `\%`,
+		"multi sub f (Hash \\%h) Int;\nmulti sub f (Hash \\%h) List;\nmulti sub f (Array \\@a) List;\n": `\[%@]`,
+	} {
+		_, p := parseSource([]byte(src), nil, true)
+		if len(p.typedErrs) > 0 {
+			t.Fatalf("%q: errors %v", src, p.typedErrs)
+		}
+		if got, err := prototypeFromCandidates(p.signatures["f"]); err != nil || got != want {
+			t.Errorf("%q: got %q, error %v, want %s", src, got, err, want)
+		}
+	}
+}
+
+// TestDeriveSingleMultiCandidateIsPlain: a multi with one candidate derives
+// what the plain derivation gives it, `\%` and not `\[%]`.
+func TestDeriveSingleMultiCandidateIsPlain(t *testing.T) {
+	facts := readDeclaration([]byte("multi sub f (Hash \\%h) List;\n"), nil)
+	if len(facts.errs) > 0 || facts.protos["f"] != `(\%)` {
+		t.Errorf("errors %v, prototype %q, want (\\%%)", facts.errs, facts.protos["f"])
+	}
+	_, p := parseSource([]byte("multi sub f (Hash \\%h) List;\n"), nil, true)
+	if got, err := prototypeFromCandidates(p.signatures["f"]); err != nil || got != `\%` {
+		t.Errorf("one candidate: got %q, error %v, want \\%%", got, err)
+	}
+}
