@@ -1,19 +1,23 @@
 ---
 title: delete of a slice and four-argument select return lists, which their CORE.pmt rows do not say
-state: in-progress
+state: done
 urgency: normal
 milestone: type-libraries
 created: 2026-10-06T12:53:33.017885437Z
-updated: 2026-10-06T14:14:41.650993839Z
+updated: 2026-10-06T14:14:42.072836223Z
 sessions:
 - start_sha: 7c49ae4f180e9c84cf8c01a4d9ce30fed5c9b881
-  end_sha: ""
+  end_sha: 7c49ae4f180e9c84cf8c01a4d9ce30fed5c9b881
   commits: 0
   started_at: 2026-10-06T14:14:41.650993839Z
+  ended_at: 2026-10-06T14:14:42.072836223Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-06T14:14:41.650993839Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-06T14:14:42.072836223Z
 ---
 
 ## Context
