@@ -42,7 +42,7 @@ var builtins = map[string]BuiltinSig{
 	"keys":   {MinArity: 1, ArgTypes: []Type{Hash | Array}, ReturnType: List},
 	"values": {MinArity: 1, ArgTypes: []Type{Hash | Array}, ReturnType: List},
 	"delete": {MinArity: 1, ArgTypes: []Type{Scalar}, ReturnType: Scalar},
-	"exists": {MinArity: 1, ArgTypes: []Type{Scalar}, ReturnType: Bool},
+	"exists": {MinArity: 1, ArgTypes: []Type{Scalar}, ReturnType: Boolean},
 	"each":   {MinArity: 1, ArgTypes: []Type{Hash | Array}, ReturnType: List},
 
 	"length": {MinArity: 0, ArgTypes: []Type{Str}, ReturnType: Int},
@@ -65,7 +65,7 @@ var builtins = map[string]BuiltinSig{
 	"sprintf": {MinArity: 1, ArgTypes: []Type{Str, List}, ReturnType: Str},
 	"substr":  {MinArity: 2, ArgTypes: []Type{Str, Num, Num}, ReturnType: Str},
 
-	"defined": {MinArity: 0, ArgTypes: []Type{Scalar}, ReturnType: Bool},
+	"defined": {MinArity: 0, ArgTypes: []Type{Scalar}, ReturnType: Boolean},
 	"ref":     {MinArity: 0, ArgTypes: []Type{Scalar}, ReturnType: Str},
 	// scalar() imposes scalar context on anything, so List rather than Any:
 	// every value can be evaluated in scalar context, and List still excludes
@@ -75,12 +75,12 @@ var builtins = map[string]BuiltinSig{
 	"scalar": {MinArity: 1, ArgTypes: []Type{List}, ReturnType: Scalar},
 
 	"die":  {MinArity: 0, ArgTypes: []Type{Str}, ReturnType: None},
-	"warn": {MinArity: 0, ArgTypes: []Type{Str}, ReturnType: Bool},
+	"warn": {MinArity: 0, ArgTypes: []Type{Str}, ReturnType: Boolean},
 
 	"bless": {MinArity: 1, ArgTypes: []Type{Ref, Str}, ReturnType: Object},
 
-	"print":  {MinArity: 0, ArgTypes: []Type{Str}, ReturnType: Bool},
-	"say":    {MinArity: 0, ArgTypes: []Type{Str}, ReturnType: Bool},
+	"print":  {MinArity: 0, ArgTypes: []Type{Str}, ReturnType: Boolean},
+	"say":    {MinArity: 0, ArgTypes: []Type{Str}, ReturnType: Boolean},
 	"return": {MinArity: 0, ArgTypes: []Type{Any}, ReturnType: Any},
 
 	// Numeric transforms. abs follows its argument and int always truncates
@@ -139,21 +139,21 @@ var binaryOps = map[string]BinaryOpSig{
 	"x": {Left: Str, Right: Int, Result: Str},
 
 	// Numeric comparison
-	"==":  {Left: Num, Right: Num, Result: Bool},
-	"!=":  {Left: Num, Right: Num, Result: Bool},
-	"<":   {Left: Num, Right: Num, Result: Bool},
-	">":   {Left: Num, Right: Num, Result: Bool},
-	"<=":  {Left: Num, Right: Num, Result: Bool},
-	">=":  {Left: Num, Right: Num, Result: Bool},
+	"==":  {Left: Num, Right: Num, Result: Boolean},
+	"!=":  {Left: Num, Right: Num, Result: Boolean},
+	"<":   {Left: Num, Right: Num, Result: Boolean},
+	">":   {Left: Num, Right: Num, Result: Boolean},
+	"<=":  {Left: Num, Right: Num, Result: Boolean},
+	">=":  {Left: Num, Right: Num, Result: Boolean},
 	"<=>": {Left: Num, Right: Num, Result: Int},
 
 	// String comparison
-	"eq":  {Left: Str, Right: Str, Result: Bool},
-	"ne":  {Left: Str, Right: Str, Result: Bool},
-	"lt":  {Left: Str, Right: Str, Result: Bool},
-	"gt":  {Left: Str, Right: Str, Result: Bool},
-	"le":  {Left: Str, Right: Str, Result: Bool},
-	"ge":  {Left: Str, Right: Str, Result: Bool},
+	"eq":  {Left: Str, Right: Str, Result: Boolean},
+	"ne":  {Left: Str, Right: Str, Result: Boolean},
+	"lt":  {Left: Str, Right: Str, Result: Boolean},
+	"gt":  {Left: Str, Right: Str, Result: Boolean},
+	"le":  {Left: Str, Right: Str, Result: Boolean},
+	"ge":  {Left: Str, Right: Str, Result: Boolean},
 	"cmp": {Left: Str, Right: Str, Result: Int},
 
 	// Logical
@@ -162,7 +162,7 @@ var binaryOps = map[string]BinaryOpSig{
 	"//":  {Left: Any, Right: Any, Result: Any},
 	"and": {Left: Any, Right: Any, Result: Any},
 	"or":  {Left: Any, Right: Any, Result: Any},
-	"xor": {Left: Any, Right: Any, Result: Bool},
+	"xor": {Left: Any, Right: Any, Result: Boolean},
 
 	// Bitwise
 	"&":  {Left: Int, Right: Int, Result: Int},
@@ -172,11 +172,11 @@ var binaryOps = map[string]BinaryOpSig{
 	">>": {Left: Int, Right: Int, Result: Int},
 
 	// Type test
-	"isa": {Left: Scalar, Right: Str, Result: Bool},
+	"isa": {Left: Scalar, Right: Str, Result: Boolean},
 
 	// Regex binding
-	"=~": {Left: Str, Right: Regex, Result: Bool},
-	"!~": {Left: Str, Right: Regex, Result: Bool},
+	"=~": {Left: Str, Right: Regex, Result: Boolean},
+	"!~": {Left: Str, Right: Regex, Result: Boolean},
 
 	// Range
 	"..":  {Left: Int, Right: Int, Result: List},
@@ -197,8 +197,8 @@ func GetBinaryOp(op string) (BinaryOpSig, bool) {
 var unaryOps = map[string]UnaryOpSig{
 	"-":   {Operand: Num, Result: Num},
 	"+":   {Operand: Num, Result: Num},
-	"!":   {Operand: Any, Result: Bool},
-	"not": {Operand: Any, Result: Bool},
+	"!":   {Operand: Any, Result: Boolean},
+	"not": {Operand: Any, Result: Boolean},
 	"~":   {Operand: Int, Result: Int},
 	`\`:   {Operand: Any, Result: Ref},
 }

@@ -348,3 +348,70 @@ one word whose text is "continue"
 one word whose text is "next"
 one word whose text is "last"
 ```
+
+## The seen-hash idiom
+
+`$seen{$k}++` yields the element's value from before the store. A reader that reads the element where the value is used -- after the store -- skips every key. chalk's T2 type-narrowing pass is exactly this loop, and it narrowed nothing. Found by B::SoN translating chalk's lib/ and running chalk's own suite
+against the emitted Perl.
+
+```perl
+my %seen;
+my $out = "";
+for my $k (qw(a a b a c)) {
+    next if $seen{$k}++;
+    $out .= $k;
+}
+print "$out\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+abc
+```
+
+## A post-increment of undef yields 0
+
+`pp_postinc` sets its result to 0 when the old value is not defined. A post-decrement does not, and a string comes back as it was. Found by B::SoN translating chalk's lib/ and running chalk's own suite
+against the emitted Perl.
+
+```perl
+my ($x, $y, %h);
+my $p = $x++;
+my $q = $y--;
+my $r = $h{k}++;
+my $s = "aa";
+my $t = $s++;
+print join(",", map { defined $_ ? "[$_]" : "undef" } $p, $q, $r, $t), "\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+[0],undef,[0],[aa]
+```
+
+## Named scalars in a map, grep or foreach list
+
+Each list element is aliased to `$_` or the loop variable, so perl flags the operand as a modifiable lvalue. It is still read for its value. Found by B::SoN translating chalk's lib/ and running chalk's own suite
+against the emitted Perl.
+
+```perl
+my $p = 1 + time() * 0;
+my $q = 2 + time() * 0;
+my $o = "";
+for my $v ($p, $q) { $o .= "[$v]" }
+print join(",", map { "[$_]" } $p, $q), " ", join(",", grep { $_ > 1 } $p, $q), " $o\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+[1],[2] 2 [1][2]
+```

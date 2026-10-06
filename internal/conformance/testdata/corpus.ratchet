@@ -8,7 +8,7 @@
 # topic's `**Tier NN name.**` line and leaves every key alone. That
 # is the `t/` sweep working, and must not read as a regression.
 #
-# 229 cases, 229 clean, 0 refusing.
+# 261 cases, 261 clean, 0 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -29,7 +29,9 @@
 - adjacency-13_opaque.md/The whole tier in one body
 - adjacency-14_recursive.md/The whole tier in one body
 - aggregate-operators.md/`each` returns a PAIR where its siblings return a flat list
+- aggregate-operators.md/`keys` in list context is an op, not a flag
 - aggregate-operators.md/`push`: the first argument is an array, not an expression
+- aggregate-operators.md/`shift`: the rule again, and the array gives up an element
 - aggregate-operators.md/`unshift`: the same rule at the other end
 - aggregate-operators.md/`values` takes the container, not a flattened list
 - aggregates-in-context.md/The comma operator in scalar context discards its left operands
@@ -40,8 +42,12 @@
 - argument-extent.md/A parenless call is greedy
 - argument-extent.md/An undeclared callee is a syntax error
 - argument-extent.md/`lock` is a named unary with its own op
+- arguments.md/A `map` topic passed to a sub
 - arguments.md/A bare `return` needs no terminator before the closing brace
+- arguments.md/A foreach alias written through `$_[0]`
+- arguments.md/A loop variable passed to a sub
 - arguments.md/A signature names the parameters
+- arguments.md/An iterator passed to a call, over read-only values
 - arguments.md/Arguments arrive in `@_`
 - arguments.md/Explicit return, early and trailing
 - arguments.md/`@_` aliases the caller's variables
@@ -61,6 +67,7 @@
 - bitwise.md/`&` on strings, ungated: the string bitwise operation
 - bless-dispatch.md/A method name in a scalar
 - bless-dispatch.md/A method name written out
+- bless-dispatch.md/A signature's placeholder parameter keeps its place
 - bless-dispatch.md/Indirect object notation: `new Foo`
 - bless-dispatch.md/SUPER:: dispatch
 - bless-dispatch.md/The `->can(...)->()` chain is two calls
@@ -72,7 +79,16 @@
 - blocks-and-terminations.md/`eval BLOCK` is a control construct
 - blocks-and-terminations.md/`exit` leaves the program, and `eval BLOCK` does not catch it
 - blocks-and-terminations.md/`time` is niladic
+- class-feature.md/A `:param` field defaulting to a folded boolean
+- class-feature.md/A call in a ternary arm runs only on that arm
+- class-feature.md/A field post-increment whose value is used
+- class-feature.md/A list assignment into a field aggregate
+- class-feature.md/A list builtin a sub returns takes the caller's context
+- class-feature.md/A method returning an array, called in list context
+- class-feature.md/A string built into a field
+- class-feature.md/A subclass's ADJUST when its parent has one
 - class-feature.md/An empty class body
+- class-feature.md/`//=` into a field from a call
 - class-feature.md/`ADJUST` alone in a class body
 - class-feature.md/`field` and `method` in a class body
 - code-references.md/The code reference and the call through it
@@ -103,10 +119,12 @@
 - declarations.md/`my` shadows, and the outer binding survives
 - declarations.md/`our` names a package variable, and the shadow proves it
 - declarations.md/`state` scopes like `my`, and initialises once
+- dereferencing.md/A dereference returned takes the caller's context
 - dereferencing.md/The `%{ }` and `${ }{ }` hash dereferences
 - dereferencing.md/The `@{ }` whole-array dereference
 - dereferencing.md/The arrow dereference
 - dereferencing.md/The brace dereference of an array reference
+- dereferencing.md/The last index through a reference, three ways
 - dereferencing.md/The postfix `$r->@*` dereference
 - dereferencing.md/The sigil-only `@$r` dereference
 - dynamic-scope.md/A bare block is a scope, and a loop that runs once
@@ -145,10 +163,13 @@
 - loading.md/`use POSIX ();` loads the file and suppresses import
 - loading.md/`use POSIX;` loads the file AND calls import
 - loading.md/`use strict;` lexes, and that is all it establishes
+- loops.md/A post-increment of undef yields 0
 - loops.md/C-style `for` is a `while`
+- loops.md/Named scalars in a map, grep or foreach list
 - loops.md/The block `while`
 - loops.md/The postfix `foreach` iterates a LIST, and the list is not the body
 - loops.md/The postfix loop modifier builds no loop frame
+- loops.md/The seen-hash idiom
 - loops.md/`continue BLOCK` runs on `next` and not on `last`
 - loops.md/`do BLOCK while COND` is a post-test loop
 - loops.md/`foreach` emits `enteriter`/`iter` and no `enterloop`
@@ -157,8 +178,10 @@
 - named-operators.md/`%*d` makes the format consume an argument
 - named-operators.md/`chr` and `ord`, folded and unfolded
 - named-operators.md/`index` reports failure as -1, not undef
+- named-operators.md/`length` measures a concatenation, and a comma ends it
 - named-operators.md/`substr` is an lvalue
 - named-operators.md/`substr` takes two, three or four arguments
+- named-operators.md/`uc` is a named unary, so a comma ends its argument
 - named-operators.md/`undef` is two operators wearing one word
 - names.md/A package array subscripts through `rv2av`
 - names.md/A package hash reaches storage through `rv2hv`
@@ -200,10 +223,12 @@
 - regex-delimiters.md/Bracketing and punctuation delimiters
 - regex-delimiters.md/The comment character as a delimiter
 - regex-matching.md/A constant pattern compiles once
+- regex-matching.md/A match in void context, kept for its captures
 - regex-matching.md/An interpolated pattern adds `regcomp`
 - regex-matching.md/Substitution mutates in place
 - regex-matching.md/The binding operator emits nothing
 - regex-matching.md/The negated binding is two ops
+- regex-matching.md/`pos` and `\G` on a signature parameter
 - regex-pattern-positions.md/`pos` is a named operator in lvalue position
 - regex-pattern-positions.md/`split`'s first argument is a pattern
 - regex-quote-likes.md/A compiled pattern, uncoupled from matching
@@ -211,7 +236,13 @@
 - strings.md/Double quotes process escapes
 - strings.md/Single quotes do not
 - strings.md/`q` with three delimiters
+- subroutines.md/A call under a statement modifier inside an if
+- subroutines.md/A chain of ands with calls, guarding next
+- subroutines.md/A defined-or whose right side calls, in a loop body
+- subroutines.md/A die guarded inside a loop body
 - subroutines.md/A named subroutine, declared and called
+- subroutines.md/A print under a modifier, ending a sub
+- subroutines.md/A sub whose last statement is a loop
 - subroutines.md/An anonymous subroutine is a value
 - subroutines.md/An attribute stands between the name and the body
 - subroutines.md/Calling through a code reference
@@ -229,6 +260,7 @@
 - tie.md/`tie` is a list operator taking a VARIABLE
 - tie.md/`tied` is a named unary, in boolean position
 - unary.md/Pre and post, increment and decrement
+- unary.md/Pre- and post-increment of an element, used
 - unary.md/The file-test operators
 - unary.md/The magic string increment
 - unary.md/Unary `+` computes nothing and disambiguates

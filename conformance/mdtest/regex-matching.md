@@ -178,3 +178,51 @@ parses: yes
 one variable whose text is "$p"
 no operator whose text is "/"
 ```
+
+## `pos` and `\G` on a signature parameter
+
+`pos($input) = $position` and the `\G` match after it both name the
+same variable: the parameter's own copy, not the caller's string. The
+match anchors where `pos` was set, so each call answers from its own
+starting point. Found by B::SoN translating chalk's lib/ and running chalk's own suite
+against the emitted Perl, which compiled and gave a wrong answer; with
+the next case, it was why chalk's grammar matcher never advanced.
+
+```perl
+use v5.36;
+sub token_end ($input, $position, $pattern) {
+    pos($input) = $position;
+    return $input =~ /\G($pattern)/ ? $position + length($1) : undef;
+}
+print token_end("aab", 1, "a+"), " ", token_end("aab", 2, "b"), " ",
+      defined token_end("aab", 0, "b") ? "matched" : "none", "\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+2 3 none
+```
+
+## A match in void context, kept for its captures
+
+`$s =~ /(\w+)=(\w+)/;` discards the match's value, and its captures
+remain: `$1` and `$2` are set for the statements after it. Found by B::SoN translating chalk's lib/ and running chalk's own suite
+against the emitted Perl, which compiled and gave a wrong answer; with
+the previous case, it was why chalk's grammar matcher never advanced.
+
+```perl
+my $s = "key=value";
+$s =~ /(\w+)=(\w+)/;
+print "$2 $1\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+value key
+```

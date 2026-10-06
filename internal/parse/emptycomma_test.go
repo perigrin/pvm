@@ -18,16 +18,19 @@ import (
 //	close $fh, or die;                  die unless close $fh;
 //	open my $fh, , "<", $f;             open my $fh, '<', $f;
 //	my $aa, $bb, $cc;                   my $aa, $bb, $cc;
+//
+// Canon keeps the separators where the source wrote them (perigrin,
+// 2026-09-30); the tree drops the empty slots, as perl does.
 func TestEmptyCommaSlot(t *testing.T) {
 	cases := []struct {
 		src   string
 		canon string
 	}{
-		{"sub f {} f(1, , 2);", "sub f {} f(1 , 2);"},
-		{"sub f {} f 1, , 2;", "sub f {} f(1 , 2);"},
-		{`sub skip {} skip "x", 2, if $m;`, `sub skip {} skip("x" , 2) if $m;`},
-		{"close $fh, or die;", "close($fh) or die();"},
-		{`open my $fh, , "<", $f;`, `open(my $fh , "<" , $f);`},
+		{"sub f {} f(1, , 2);", "sub f {} f(1 , , 2);"},
+		{"sub f {} f 1, , 2;", "sub f {} f(1 , , 2);"},
+		{`sub skip {} skip "x", 2, if $m;`, `sub skip {} skip("x" , 2 ,) if $m;`},
+		{"close $fh, or die;", "close($fh) , or die();"},
+		{`open my $fh, , "<", $f;`, `open(my $fh , , "<" , $f);`},
 		{"my $aa, $bb, $cc;", "my $aa , $bb , $cc;"},
 	}
 	for _, c := range cases {

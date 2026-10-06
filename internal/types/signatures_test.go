@@ -76,7 +76,7 @@ func TestGetBuiltinDefined(t *testing.T) {
 	require.True(t, ok, "defined should be a known builtin")
 	assert.Equal(t, 0, sig.MinArity)
 	assert.Equal(t, []types.Type{types.Scalar}, sig.ArgTypes)
-	assert.Equal(t, types.Bool, sig.ReturnType)
+	assert.Equal(t, types.Boolean, sig.ReturnType)
 }
 
 // TestGetBuiltinUnknown verifies that an unknown builtin name returns false.
@@ -135,7 +135,7 @@ func TestGetBinaryOpComparison(t *testing.T) {
 			require.True(t, ok, "%q should be a known binary op", op)
 			assert.Equal(t, types.Num, sig.Left)
 			assert.Equal(t, types.Num, sig.Right)
-			assert.Equal(t, types.Bool, sig.Result)
+			assert.Equal(t, types.Boolean, sig.Result)
 		})
 	}
 }
@@ -159,7 +159,7 @@ func TestGetBinaryOpStringCmp(t *testing.T) {
 			require.True(t, ok, "%q should be a known binary op", op)
 			assert.Equal(t, types.Str, sig.Left)
 			assert.Equal(t, types.Str, sig.Right)
-			assert.Equal(t, types.Bool, sig.Result)
+			assert.Equal(t, types.Boolean, sig.Result)
 		})
 	}
 }
@@ -189,8 +189,8 @@ func TestGetUnaryOp(t *testing.T) {
 	}{
 		{"-", types.Num, types.Num},
 		{"+", types.Num, types.Num},
-		{"!", types.Any, types.Bool},
-		{"not", types.Any, types.Bool},
+		{"!", types.Any, types.Boolean},
+		{"not", types.Any, types.Boolean},
 		{"~", types.Int, types.Int},
 		{`\`, types.Any, types.Ref},
 	}

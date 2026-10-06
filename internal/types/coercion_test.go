@@ -26,7 +26,7 @@ import (
 func TestCoercionIsNotSubtyping(t *testing.T) {
 	// Everything stringifies, including references — but they are not Strs.
 	for _, from := range []types.Type{
-		types.Undef, types.Bool, types.Int, types.Num,
+		types.Undef, types.Boolean, types.Int, types.Num,
 		types.HashRef, types.ArrayRef, types.CodeRef, types.Object,
 	} {
 		assert.True(t, types.IsCoercible(from, types.Str),
@@ -44,9 +44,9 @@ func TestCoercionIsNotSubtyping(t *testing.T) {
 		"Str is NOT a Num — 'hello' numifies to 0, losing the value")
 
 	// Everything booleanises: the paper's "To Boolean" rules take all values.
-	assert.True(t, types.IsCoercible(types.HashRef, types.Bool),
+	assert.True(t, types.IsCoercible(types.HashRef, types.Boolean),
 		"HashRef coerces to Bool — every value has a truth value")
-	assert.False(t, types.IsSubtype(types.HashRef, types.Bool),
+	assert.False(t, types.IsSubtype(types.HashRef, types.Boolean),
 		"HashRef is NOT a Bool")
 }
 
@@ -170,7 +170,7 @@ func TestCoercionMismatch(t *testing.T) {
 
 func TestStrictUnknownSatisfiesNothing(t *testing.T) {
 	for _, required := range []types.Type{
-		types.Int, types.Num, types.Str, types.Bool, types.Scalar,
+		types.Int, types.Num, types.Str, types.Boolean, types.Scalar,
 		types.HashRef, types.ArrayRef, types.Object, types.List,
 	} {
 		assert.False(t, types.TypeSatisfiesStrict(types.Unknown, required),
@@ -196,7 +196,7 @@ func TestStrictAnyStillAccepts(t *testing.T) {
 
 func TestStrictDiffersOnlyOnUnknown(t *testing.T) {
 	known := []types.Type{
-		types.Undef, types.Bool, types.Int, types.Num, types.Str,
+		types.Undef, types.Boolean, types.Int, types.Num, types.Str,
 		types.NaN, types.Inf, types.DualVar, types.Regex,
 		types.ScalarRef, types.ArrayRef, types.HashRef, types.CodeRef,
 		types.GlobRef, types.Object, types.Ref, types.Scalar,
@@ -256,7 +256,7 @@ func TestJoinBasics(t *testing.T) {
 
 func TestJoinBooleanInt(t *testing.T) {
 	for _, other := range []types.Type{types.Int, types.Str, types.Undef} {
-		j := types.Join(types.Bool, other)
+		j := types.Join(types.Boolean, other)
 
 		assert.True(t, types.IsSubtype(j, types.Scalar),
 			"Bool ⊔ %s is within Scalar", other)
@@ -264,7 +264,7 @@ func TestJoinBooleanInt(t *testing.T) {
 			"Bool ⊔ %s must NOT be within Str — `false` stringifies to \"\", not \"0\"", other)
 
 		// Both arms survive the merge.
-		assert.True(t, types.IsSubtype(types.Bool, j), "Bool <: Bool ⊔ %s", other)
+		assert.True(t, types.IsSubtype(types.Boolean, j), "Bool <: Bool ⊔ %s", other)
 		assert.True(t, types.IsSubtype(other, j), "%s <: Bool ⊔ %s", other, other)
 	}
 }

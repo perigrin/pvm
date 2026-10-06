@@ -31,7 +31,10 @@ func scanPrototype(l *lexer) bool {
 	//
 	//	perl -e 'sub f ($$) {1} print prototype(\&f)'              $$
 	//	perl -e 'use v5.36; sub g ($a,$b) {1} print prototype(\&g)' (undef)
-	if l.signatures {
+	//
+	// `:prototype(...)`'s argument is a prototype either way: it is where
+	// the prototype goes when the feature is on.
+	if l.signatures && !l.atPrototypeAttribute() {
 		l.expectPrototype = false
 		l.sigPending = true
 		return false
@@ -70,6 +73,20 @@ func scanPrototype(l *lexer) bool {
 	l.pos = start
 	l.expectPrototype = false
 	return false
+}
+
+// atPrototypeAttribute reports whether the `(` at l.pos is the argument of
+// a `:prototype` attribute: the word `prototype` touches it, after a `:`
+// (`sub f : prototype($;$)` is the same attribute, measured on 5.42.0).
+func (l *lexer) atPrototypeAttribute() bool {
+	n := len(l.toks)
+	c := l.significantBefore(n - 1)
+	if c < 0 {
+		return false
+	}
+	word, colon := l.toks[n-1], l.toks[c]
+	return word.Kind == Word && word.End == l.pos && string(l.src[word.Start:word.End]) == "prototype" &&
+		colon.End-colon.Start == 1 && l.src[colon.Start] == ':'
 }
 
 // noteSubName tracks whether a prototype may start at the next `(`, and
@@ -264,6 +281,35 @@ func (l *lexer) bareSignatureSigil(start int) bool {
 	return !identStart(r, l.utf8Pragma)
 }
 
+// containerTypeSigil reports whether a `%` in operator position is a hash
+// parameter's sigil after a container type, `List[Str] %h` in a typed
+// signature (RFC 0001, "A slurpy takes no bare element type"). The `]`
+// before it closes a `[` that follows a type name, a Word; an element's `]`
+// in a default, `$a[0] % 2`, closes one that follows a variable, and its
+// `%` stays modulo. Typed Perl only: ordinary source never reads it.
+func (l *lexer) containerTypeSigil() bool {
+	if !l.typed || l.sigDepth != 1 {
+		return false
+	}
+	i := l.significantBefore(len(l.toks))
+	for depth := 0; i >= 0; i = l.significantBefore(i) {
+		switch l.src[l.toks[i].Start] {
+		case ']':
+			depth++
+		case '[':
+			depth--
+		}
+		if depth == 0 {
+			break
+		}
+	}
+	if i < 0 || l.src[l.toks[i].Start] != '[' {
+		return false
+	}
+	name := l.significantBefore(i)
+	return name >= 0 && l.toks[name].Kind == Word
+}
+
 // touchesAttributeName reports whether the token just before start is an
 // attribute's name -- a Word after a `:` -- ending exactly there. The `sub`
 // of an anonymous sub is a Word too, and `sub($x)` is its signature.
@@ -326,4 +372,84 @@ func (l *lexer) lexSubInScope(name string) bool {
 		}
 	}
 	return false
+}
+
+// The states of noteConstSub.
+const (
+	constNone      = iota
+	constSawUse    // `use`
+	constSawPragma // `use constant`
+	constInHash    // `use constant {`
+	constSawSub    // `sub`
+	constSawName   // `sub NAME`, its name in constKey
+)
+
+// noteConstSub records a name declared with the empty prototype, which
+// perl's lexer sees in its symbol table: `use constant NAME`, each key of
+// `use constant { K => ... }`, and `sub NAME ()`. Measured on 5.42.0,
+// `prototype "main::X"` is "" for all three.
+func (l *lexer) noteConstSub(k Kind, start int) {
+	if k == Whitespace || k == Comment {
+		return
+	}
+	text := string(l.src[start:l.pos])
+	declare := func(name string) {
+		if l.constSubs == nil {
+			l.constSubs = map[string]bool{}
+		}
+		l.constSubs[name] = true
+	}
+	switch l.constState {
+	case constSawUse:
+		if k == Word && text == "constant" {
+			l.constState = constSawPragma
+			return
+		}
+	case constSawPragma:
+		switch {
+		case k == Word:
+			declare(text)
+		case k == Quote && len(text) >= 2 && (text[0] == '\'' || text[0] == '"'):
+			declare(text[1 : len(text)-1])
+		case text == "{":
+			l.constState, l.constDepth, l.constKey = constInHash, 1, ""
+			return
+		}
+	case constInHash:
+		switch {
+		case text == "{" || text == "[" || text == "(":
+			l.constDepth++
+		case k == CloseBracket:
+			if l.constDepth--; l.constDepth == 0 {
+				l.constState = constNone
+			}
+		case l.constDepth == 1 && text == "=>" && l.constKey != "":
+			declare(l.constKey)
+		case l.constDepth == 1 && k == Word:
+			l.constKey = text
+			return
+		case l.constDepth == 1 && k == Quote && len(text) >= 2 && (text[0] == '\'' || text[0] == '"'):
+			l.constKey = text[1 : len(text)-1]
+			return
+		}
+		l.constKey = ""
+		return
+	case constSawSub:
+		if k == Word {
+			l.constState, l.constKey = constSawName, text
+			return
+		}
+	case constSawName:
+		if k == Prototype && text == "()" {
+			declare(l.constKey)
+		}
+	}
+	switch {
+	case k == Word && text == "use":
+		l.constState = constSawUse
+	case k == Word && text == "sub":
+		l.constState = constSawSub
+	default:
+		l.constState = constNone
+	}
 }

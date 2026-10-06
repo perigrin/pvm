@@ -128,8 +128,8 @@ func SuggestGuard(varName string, actual, expected types.Type) string {
 	}
 
 	// Priority 3: builtin::is_bool() — would narrowing to Bool help?
-	if actual&types.Bool != 0 {
-		narrowed := actual & types.Bool
+	if actual&types.Boolean != 0 {
+		narrowed := actual & types.Boolean
 		if guardNarrowingSatisfies(narrowed, expected) {
 			return "Add guard: if (builtin::is_bool(" + varName + ")) { ... }"
 		}

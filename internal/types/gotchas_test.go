@@ -157,15 +157,15 @@ func TestGotchaRefTypeStringification(t *testing.T) {
 
 func TestGotchaBoolPrimitive(t *testing.T) {
 	// Bool is NOT a subtype of Int
-	assert.False(t, types.IsSubtype(types.Bool, types.Int),
+	assert.False(t, types.IsSubtype(types.Boolean, types.Int),
 		"Bool is NOT Int — is_bool() primitives are distinct from 0/1")
 
 	// Bool is NOT a subtype of Num
-	assert.False(t, types.IsSubtype(types.Bool, types.Num),
+	assert.False(t, types.IsSubtype(types.Boolean, types.Num),
 		"Bool is NOT Num — primitive booleans are not numbers")
 
 	// Bool IS a subtype of Scalar
-	assert.True(t, types.IsSubtype(types.Bool, types.Scalar),
+	assert.True(t, types.IsSubtype(types.Boolean, types.Scalar),
 		"Bool IS Scalar — booleans are valid scalar values")
 
 	// GuardBool narrows Int to None (an Int cannot be a primitive boolean)

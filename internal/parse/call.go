@@ -120,6 +120,12 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		return &Node{Kind: Term, Text: spelled, Start: word.Start, End: word.End}
 	}
 
+	// A loop control in an expression, with its label: `... and last BIN`.
+	switch text {
+	case "last", "next", "redo":
+		return p.parseLoopControlTerm(word)
+	}
+
 	// A niladic builtin takes nothing: `time`, `wantarray`.
 	if niladicParse[text] {
 		p.advanceTo(word)
@@ -423,8 +429,12 @@ func endsArgumentList(tok lexer.Token, src []byte) bool {
 		// The range operators likewise: measured, `(undef..2)` is
 		// `((undef) .. 2)` and `(g ... 2)` is `(g() ... 2)`.
 		switch string(src[tok.Start:tok.End]) {
+		// So do `|`, `^`, `>`, `>=` and `>>`: measured, `f | 2` is `f() | 2`
+		// for a list operator and a `(;$)` sub alike. `&` and `%` begin a
+		// term -- `f & 2` is `f(&2)` -- and stay out.
 		case ",", "=>", "||", "&&", "//", "=", "?", ":",
-			".", "==", "!=", "=~", "!~", "->", "..", "...":
+			".", "==", "!=", "=~", "!~", "->", "..", "...",
+			"|", "^", ">", ">=", ">>":
 			return true
 		}
 	case lexer.Word:
@@ -487,7 +497,47 @@ func (p *parser) parseListOpBlock(op string) *Node {
 	if !ok || !tok.OpensBlock || p.text(tok) != "{" {
 		return nil
 	}
+	// An EMPTY brace after map or grep is a hash constructor: toke.c's
+	// yyl_leftcurly answers HASHBRACK for a `}` straight after the `{`
+	// (toke.c:6706) before its first-tokens heuristic runs. The lexer's
+	// intuitCurly cannot say so, because it runs after every word and an
+	// empty `else {}` is a block. Measured on 5.42.0, `map {}, @a` is
+	// `map {}, @a` and `map {} @a` a syntax error, which the anon hash
+	// parsed here refuses as trailing tokens.
+	if op == "map" || op == "grep" {
+		if next, ok := p.peekAfter(tok); ok && p.text(next) == "}" {
+			return nil
+		}
+		// A brace that never closes is perl's "Missing right curly or
+		// square bracket", not a block that runs to the end of input.
+		// parseBlock accepts that silently, which an LSP wants of a
+		// half-typed statement block, so map and grep refuse it here.
+		if !p.braceCloses(tok) {
+			p.pos = len(p.toks)
+			return &Node{Kind: Unknown, Refusal: UnclosedBrace, Start: tok.Start, End: p.prevEnd()}
+		}
+	}
 	return p.parseBlock(tok)
+}
+
+// braceCloses reports whether the `{` at open has a matching `}`.
+func (p *parser) braceCloses(open lexer.Token) bool {
+	depth := 0
+	for _, tok := range p.toks[p.pos:] {
+		if tok.Start < open.Start {
+			continue
+		}
+		switch p.text(tok) {
+		case "{":
+			depth++
+		case "}":
+			depth--
+			if depth == 0 {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // featureTakesBlock reports whether op is `any` or `all` with its feature

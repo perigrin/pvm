@@ -4,9 +4,12 @@
 package parse
 
 import (
+	"errors"
+	"fmt"
 	"strings"
 
 	"tamarou.com/pvm/internal/lexer"
+	"tamarou.com/pvm/internal/types"
 )
 
 // declarators are the variable-introducing keywords. `local` is not one
@@ -25,7 +28,12 @@ var declarators = map[string]bool{
 // not start one.
 func (p *parser) parseDeclaration(word lexer.Token) *Node {
 	text := keywordName(p.text(word))
+	if d := p.parsePrefixedSubDecl(word); d != nil {
+		return d
+	}
 	switch {
+	case p.typed && text == "multi":
+		return p.parseMultiSubDecl(word)
 	case declarators[text]:
 		if lex := p.parseLexicalSub(word); lex != nil {
 			return lex
@@ -61,15 +69,258 @@ func (p *parser) parseDeclaration(word lexer.Token) *Node {
 	return nil
 }
 
+// parseMultiSubDecl: a `.pmt`'s `multi sub NAME ...`, RFC 0001 "Multi
+// declarations", one of several signatures for its name. It wraps the sub as
+// a prefix does (parsePrefixedSubDecl), or returns nil when no named sub
+// follows. Only a `.pmt` reads it: in ordinary source `multi` is the name it
+// has always been.
+func (p *parser) parseMultiSubDecl(word lexer.Token) *Node {
+	sub, ok := p.peekAfter(word)
+	if !ok || p.text(sub) != "sub" {
+		return nil
+	}
+	if name, ok := p.peekAfter(sub); !ok || name.Kind != lexer.Word {
+		return nil
+	}
+	p.advanceTo(word)
+	p.multi = true
+	inner := p.parseSubDecl(sub)
+	p.multi = false
+	return &Node{Kind: Declaration, Text: p.text(word), Start: word.Start, End: inner.End, Children: []*Node{inner}}
+}
+
 // parseSignature reads a sub's signature as the parenthesised list it is
 // shaped like.
 func (p *parser) parseSignature(n *Node) {
+	if p.typed && p.parseTypedSignature(n) {
+		return
+	}
 	p.inSignature = true
 	sig := p.parseTerm()
 	p.inSignature = false
 	if sig != nil {
 		n.Children = append(n.Children, sig)
 	}
+}
+
+// parseTypedSignature reads a `.pmt` declaration's typed signature, RFC 0001
+// "Typed Perl, in `.pmt` only": `(Ref $ref, Str $class = __PACKAGE__)`, each
+// parameter a lattice type name, a variable and an optional default, then
+// the return type, if one is stated. It is recorded on p.signatures under the
+// sub's name: as its only signature, or for a `multi sub` after the
+// candidates already read.
+//
+// A signature it cannot read is an error on p.typedErrs, and nothing is
+// recorded -- a partial signature would claim parameters the declaration
+// does not state. It then reports false with nothing consumed, and the
+// parens are read as parseSignature reads any signature.
+func (p *parser) parseTypedSignature(n *Node) bool {
+	save := p.pos
+	open, _ := p.peekSignificant()
+	p.advanceTo(open)
+	sig := &Node{Kind: List, Paren: true, Start: open.Start}
+	var s types.Signature
+	var ret *Node
+	err := func() error {
+		for {
+			tok, ok := p.peekSignificant()
+			if ok && p.text(tok) == ")" {
+				p.advanceTo(tok)
+				sig.End = p.prevEnd()
+				var err error
+				s.Returns, ret, err = p.returnType()
+				return err
+			}
+			// A List parameter takes every remaining argument, so nothing
+			// can follow it (RFC 0001, "A typed signature and a prototype
+			// say the same thing").
+			if len(s.Params) > 0 && s.Params[len(s.Params)-1].Sigil != '$' {
+				last := s.Params[len(s.Params)-1]
+				container := "Array"
+				if last.Sigil == '%' {
+					container = "Hash"
+				}
+				return fmt.Errorf(`List parameter %c%s is not last; a single array followed by more parameters is %s \%c%s`, last.Sigil, last.Name, container, last.Sigil, last.Name)
+			}
+			param, node, err := p.typedParam()
+			if err != nil {
+				return err
+			}
+			s.Params = append(s.Params, param)
+			sig.Children = append(sig.Children, node)
+			sep, ok := p.peekSignificant()
+			switch {
+			case !ok:
+				return errors.New("signature not terminated")
+			case p.text(sep) == ",":
+				p.advanceTo(sep)
+			case p.text(sep) != ")":
+				return fmt.Errorf("parameter %c%s is not followed by `,` or `)`", param.Sigil, param.Name)
+			}
+		}
+	}()
+	name, _ := declaredSub(n)
+	if err != nil {
+		p.typedErrs = append(p.typedErrs, fmt.Errorf("sub %s: %w", name, err))
+		p.pos = save
+		return false
+	}
+	n.Children = append(n.Children, sig)
+	if ret != nil {
+		n.Children = append(n.Children, ret)
+	}
+	// An operator's signature is its own, not a sub's of the same name
+	// (`not` is both); declareOperator takes it.
+	if len(fixityAttrs(n)) > 0 {
+		p.operatorSig = s
+		return true
+	}
+	if p.signatures == nil {
+		p.signatures = map[string][]types.Signature{}
+	}
+	if !p.multi {
+		delete(p.signatures, name)
+	}
+	p.signatures[name] = append(p.signatures[name], s)
+	return true
+}
+
+// returnType reads the type a `.pmt` declaration states after its signature,
+// `) Object;`, where a definition would have its body. A declaration with no
+// type name there states none. The `;` is left for finishBodyOrSemicolon.
+func (p *parser) returnType() (types.Type, *Node, error) {
+	if tok, ok := p.peekSignificant(); !ok || tok.Kind != lexer.Word {
+		return types.Unknown, nil, nil
+	}
+	typ, _, node, err := p.typeExpr()
+	if err != nil {
+		return types.Unknown, nil, err
+	}
+	end, ok := p.peekSignificant()
+	switch {
+	case !ok:
+		return types.Unknown, nil, fmt.Errorf("return type %s not terminated", node.Text)
+	case end.Kind != lexer.Semicolon:
+		return types.Unknown, nil, fmt.Errorf("return type %s is not followed by `;`", node.Text)
+	}
+	return typ, node, nil
+}
+
+// typeExpr reads a type expression into its Type, its element type, and a
+// TypeName node covering it. RFC 0001 "Type names": a lattice type name, a
+// union `A|B` with spaces around `|` allowed, or a container type
+// `Name[Type]` such as `List[Str]`, whose element is returned beside it.
+//
+// ponytail: a union of containers ORs their elements and a nested
+// container's element is its outer container, until the paper says what
+// containers mean.
+func (p *parser) typeExpr() (typ, elem types.Type, node *Node, err error) {
+	typ = types.None
+	start := -1
+	for {
+		tok, ok := p.peekSignificant()
+		if !ok || tok.Kind != lexer.Word {
+			if start < 0 {
+				return types.Unknown, types.Unknown, nil, errors.New("want a type name")
+			}
+			return types.Unknown, types.Unknown, nil, fmt.Errorf("union %s has no type after `|`", p.src[start:p.prevEnd()])
+		}
+		if start < 0 {
+			start = tok.Start
+		}
+		member, err := types.FromName(p.text(tok))
+		if err != nil {
+			return types.Unknown, types.Unknown, nil, fmt.Errorf("unknown type name %q", p.text(tok))
+		}
+		p.advanceTo(tok)
+		typ = types.Join(typ, member)
+		if open, ok := p.peekSignificant(); ok && p.text(open) == "[" {
+			p.advanceTo(open)
+			if end, ok := p.peekSignificant(); ok && p.text(end) == "]" {
+				return types.Unknown, types.Unknown, nil, fmt.Errorf("container type %s has no element type", p.src[tok.Start:end.End])
+			}
+			inner, _, _, err := p.typeExpr()
+			if err != nil {
+				return types.Unknown, types.Unknown, nil, err
+			}
+			end, ok := p.peekSignificant()
+			if !ok || p.text(end) != "]" {
+				return types.Unknown, types.Unknown, nil, fmt.Errorf("container type %s is not closed by `]`", p.src[tok.Start:p.prevEnd()])
+			}
+			p.advanceTo(end)
+			elem = types.Join(elem, inner)
+		}
+		bar, ok := p.peekSignificant()
+		if !ok || p.text(bar) != "|" {
+			break
+		}
+		p.advanceTo(bar)
+	}
+	text := string(p.src[start:p.prevEnd()])
+	return typ, elem, &Node{Kind: TypeName, Text: text, Start: start, End: p.prevEnd()}, nil
+}
+
+// typedParam reads one parameter of a typed signature, `Str $class =
+// __PACKAGE__`, into its Param and the node that covers it: a Declaration
+// whose text is the type name, as `my`'s is its declarator, holding the
+// variable and the default. A parameter may be untyped, `@args` or `$r`; its
+// Type is Unknown and its Declaration's text is empty.
+func (p *parser) typedParam() (types.Param, *Node, error) {
+	tok, ok := p.peekSignificant()
+	if !ok {
+		return types.Param{}, nil, errors.New("signature not terminated")
+	}
+	// A scalar may be untyped as a slurpy may: RFC 0001 "Multi
+	// declarations" states `($r, $w, $e, Num $timeout)`.
+	typ, elem, tn := types.Unknown, types.Unknown, &Node{}
+	if tok.Kind != lexer.Variable {
+		if tok.Kind != lexer.Word {
+			return types.Param{}, nil, fmt.Errorf("want a type name, got %q", p.text(tok))
+		}
+		var err error
+		if typ, elem, tn, err = p.typeExpr(); err != nil {
+			return types.Param{}, nil, err
+		}
+	}
+	v, ok := p.peekSignificant()
+	if !ok || v.Kind != lexer.Variable || v.End-v.Start < 2 || !strings.ContainsRune("$@%", rune(p.src[v.Start])) {
+		return types.Param{}, nil, fmt.Errorf("type %s names no variable", tn.Text)
+	}
+	p.advanceTo(v)
+	param := types.Param{Name: p.text(v)[1:], Sigil: p.src[v.Start], Type: typ, Element: elem, Required: p.src[v.Start] == '$'}
+	// RFC 0001 "The scalar container": a parameter that takes the caller's
+	// container is backslashed, so `Array @a` is not valid.
+	if param.Sigil != '$' && typ != types.Unknown && typ != types.List && typ&^(types.Array|types.Hash) == 0 {
+		return types.Param{}, nil, fmt.Errorf(`container type %s with flattening sigil %s; a parameter that takes the caller's container is %s \%s`, tn.Text, p.text(v), tn.Text, p.text(v))
+	}
+	// RFC 0001 "A slurpy takes no bare element type": `Str @args` leaves
+	// both the container and what `Str` applies to unsaid.
+	if param.Sigil != '$' && typ != types.Unknown && typ != types.List {
+		return types.Param{}, nil, fmt.Errorf("slurpy %s has a bare element type %s; write a container type, List[%s] %s", p.text(v), tn.Text, tn.Text, p.text(v))
+	}
+	node := &Node{Kind: Declaration, Text: tn.Text, Start: tok.Start, Children: []*Node{
+		{Kind: Term, Text: p.text(v), Start: v.Start, End: v.End},
+	}}
+	if eq, ok := p.peekSignificant(); ok && p.text(eq) == "=" {
+		p.advanceTo(eq)
+		var def *Node
+		if next, ok := p.peekSignificant(); ok && p.text(next) != "," && p.text(next) != ")" {
+			def = p.parseExpr(bpBelowComma)
+		}
+		if def == nil {
+			return types.Param{}, nil, fmt.Errorf("default for %s has no expression", p.text(v))
+		}
+		node.Children = append(node.Children, def)
+		// A `die` default runs only when the argument is omitted, so it
+		// makes the parameter required rather than optional (RFC 0001, "A
+		// required argument defaults to `die`").
+		param.Required = def.Kind == Call && keywordName(def.Text) == "die"
+		if !param.Required {
+			param.Default = string(p.src[def.Start:def.End])
+		}
+	}
+	node.End = p.prevEnd()
+	return param, node, nil
 }
 
 // hasHead reports whether a sub declaration already holds a prototype or a
@@ -380,6 +631,7 @@ func (p *parser) listDeclWithAttributes(n *Node) *Node {
 func (p *parser) parseSubDecl(word lexer.Token) *Node {
 	p.advanceTo(word)
 	n := &Node{Kind: Declaration, Text: p.text(word), Start: word.Start}
+	errsBefore := len(p.typedErrs)
 
 	// The name. An anonymous sub has none, and `sub { ... }` is an
 	// expression rather than a declaration -- but it reaches here only as a
@@ -394,6 +646,7 @@ func (p *parser) parseSubDecl(word lexer.Token) *Node {
 
 	// The prototype, if the lexer found one. Recognition is its job; this
 	// only carries the result so M4 has something to resolve.
+	sigFirst := false
 	if proto, ok := p.peekSignificant(); ok && proto.Kind == lexer.Prototype {
 		p.advanceTo(proto)
 		n.Children = append(n.Children, &Node{
@@ -413,13 +666,28 @@ func (p *parser) parseSubDecl(word lexer.Token) *Node {
 		// element is a parameter, and what its default means, is M2's --
 		// this milestone owns the syntax.
 		p.parseSignature(n)
+		sigFirst = true
 	}
 
 	// Attributes: `sub f :lvalue { 1 }`, `sub f :prototype($$) { 1 }`. They
 	// sit between the prototype and the body, which is the order perl's own
 	// grammar has (perly.y's subrout: `SUB subname startsub proto subattrlist
 	// subbody`).
+	attrsAt := len(n.Children)
 	p.parseAttributes(n)
+
+	// Typed Perl is read with signatures on, so it keeps their order and
+	// refuses a signature before the attributes as perl does (RFC 0001,
+	// "Declaration order: Perl's"). The signature is not recorded.
+	if p.typed && sigFirst && len(n.Children) > attrsAt {
+		name, _ := declaredSub(n)
+		if sigs := p.signatures[name]; len(sigs) > 1 {
+			p.signatures[name] = sigs[:len(sigs)-1]
+		} else {
+			delete(p.signatures, name)
+		}
+		p.typedErrs = append(p.typedErrs, fmt.Errorf("sub %s: subroutine attributes must come before the signature", name))
+	}
 
 	// Under the signatures feature the order is the other way round: the
 	// attributes come FIRST and the signature after them, and perl rejects
@@ -431,6 +699,13 @@ func (p *parser) parseSubDecl(word lexer.Token) *Node {
 		if open, ok := p.peekSignificant(); ok && p.text(open) == "(" {
 			p.parseSignature(n)
 		}
+	}
+
+	// A typed declaration stating a fixity is an operator's (RFC 0001,
+	// "Operator declarations"), recorded once its signature has been read
+	// without error.
+	if p.typed && len(p.typedErrs) == errsBefore {
+		p.declareOperator(n)
 	}
 
 	// The declaration enters scope HERE, before its own body and before

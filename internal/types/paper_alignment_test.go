@@ -98,12 +98,12 @@ func TestPaperUnionIsEither(t *testing.T) {
 func TestPaperBottomTopTypes(t *testing.T) {
 	// None (bottom) is a subtype of every type
 	allTypes := []types.Type{
-		types.Undef, types.Bool, types.Int, types.Num, types.Str,
+		types.Undef, types.Boolean, types.Int, types.Num, types.Str,
 		types.DualVar, types.NaN, types.Inf, types.Regex,
 		types.ScalarRef, types.ArrayRef, types.HashRef, types.CodeRef,
 		types.GlobRef, types.Object, types.Ref,
 		types.Array, types.Hash, types.List,
-		types.Code, types.Glob,
+		types.Code, types.Glob, types.IO, types.FileHandle,
 		types.Scalar, types.Any,
 	}
 	for _, typ := range allTypes {
@@ -207,7 +207,7 @@ func TestPaperEveryHierarchyEdge(t *testing.T) {
 		// Scalar branch.
 		{types.Undef, types.Scalar},
 		{types.Str, types.Scalar},
-		{types.Bool, types.Scalar},
+		{types.Boolean, types.Scalar},
 		{types.DualVar, types.Scalar},
 		{types.Ref, types.Scalar},
 
@@ -229,6 +229,7 @@ func TestPaperEveryHierarchyEdge(t *testing.T) {
 		// Top-level types: not under Scalar or List.
 		{types.Code, types.Any},
 		{types.Glob, types.Any},
+		{types.IO, types.Any},
 	}
 
 	for _, e := range edges {
@@ -286,6 +287,10 @@ func TestPaperNonEdges(t *testing.T) {
 		"Code is NOT under List")
 	assert.False(t, types.IsSubtype(types.Glob, types.List),
 		"Glob is NOT under List")
+	assert.False(t, types.IsSubtype(types.IO, types.Scalar),
+		"IO is NOT a Scalar -- the paper places it beside Code and Glob")
+	assert.False(t, types.IsSubtype(types.IO, types.List),
+		"IO is NOT under List")
 
 	// Glob and GlobRef are distinct: a bareword filehandle is a Glob, a
 	// lexical one (open my $fh) is a GlobRef. One operand requirement
@@ -316,7 +321,7 @@ func TestPaperNonEdges(t *testing.T) {
 	}
 
 	// Undef, Bool and DualVar are siblings of Str under Scalar, not under it.
-	for _, sibling := range []types.Type{types.Undef, types.Bool, types.DualVar} {
+	for _, sibling := range []types.Type{types.Undef, types.Boolean, types.DualVar} {
 		assert.False(t, types.IsSubtype(sibling, types.Str),
 			"%s is NOT under Str — it is a sibling of Str beneath Scalar", sibling)
 		assert.True(t, types.IsSubtype(sibling, types.Scalar),

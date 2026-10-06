@@ -1,13 +1,13 @@
 # Unknown nodes per perl.git t/ file, through parse.ParseFileFrom.
 #
-# 620 files, 602 clean (97.1%), 45 total.
+# 619 files, 619 clean (100.0%), 0 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
 # is a number nobody can attribute.
 0 base/cond.t
 0 base/if.t
-5 base/lex.t
+0 base/lex.t
 0 base/num.t
 0 base/pat.t
 0 base/rs.t
@@ -49,7 +49,6 @@
 0 comp/colon.t
 0 comp/decl.t
 0 comp/filter_exception.t
-1 comp/final_line_num.t
 0 comp/fold.t
 0 comp/form_scope.t
 0 comp/hints.t
@@ -79,7 +78,7 @@
 0 io/defout.t
 0 io/dup.t
 0 io/eintr.t
-1 io/eintr_print.t
+0 io/eintr_print.t
 0 io/errno.t
 0 io/errnosig.t
 0 io/fflush.t
@@ -91,7 +90,7 @@
 0 io/layers.t
 0 io/msg.t
 0 io/nargv.t
-1 io/open.t
+0 io/open.t
 0 io/openpid.t
 0 io/paragraph_mode.t
 0 io/perlio.t
@@ -164,8 +163,8 @@
 0 mro/isa_c3_utf8.t
 0 mro/isa_dfs.t
 0 mro/isa_dfs_utf8.t
-1 mro/isarev.t
-1 mro/isarev_utf8.t
+0 mro/isarev.t
+0 mro/isarev_utf8.t
 0 mro/method_caching.t
 0 mro/method_caching_utf8.t
 0 mro/next_NEXT.t
@@ -185,8 +184,8 @@
 0 mro/overload_c3.t
 0 mro/overload_c3_utf8.t
 0 mro/overload_dfs.t
-1 mro/package_aliases.t
-1 mro/package_aliases_utf8.t
+0 mro/package_aliases.t
+0 mro/package_aliases_utf8.t
 0 mro/pkg_gen.t
 0 mro/pkg_gen_utf8.t
 0 mro/recursion_c3.t
@@ -220,7 +219,7 @@
 0 op/caller.t
 0 op/catch.t
 0 op/chars.t
-1 op/chdir.t
+0 op/chdir.t
 0 op/chop.t
 0 op/chr.t
 0 op/closure.t
@@ -229,7 +228,7 @@
 0 op/cond.t
 0 op/const-optree.t
 0 op/context.t
-2 op/coreamp.t
+0 op/coreamp.t
 0 op/coresubs.t
 0 op/cproto.t
 0 op/crypt.t
@@ -267,7 +266,7 @@
 0 op/for.t
 0 op/fork.t
 0 op/fresh_perl_utf8.t
-1 op/getpid.t
+0 op/getpid.t
 0 op/getppid.t
 0 op/glob.t
 0 op/gmagic.t
@@ -277,8 +276,8 @@
 0 op/grent.t
 0 op/grep.t
 0 op/groups.t
-2 op/gv.t
-3 op/hash-clear-placeholders.t
+0 op/gv.t
+0 op/hash-clear-placeholders.t
 0 op/hash-rt85026.t
 0 op/hash.t
 0 op/hashassign.t
@@ -315,7 +314,7 @@
 0 op/lvref.t
 0 op/magic-27839.t
 0 op/magic.t
-7 op/method.t
+0 op/method.t
 0 op/mkdir.t
 0 op/multideref.t
 0 op/my.t
@@ -349,7 +348,7 @@
 0 op/readline.t
 0 op/readline_nb.t
 0 op/recurse.t
-1 op/ref.t
+0 op/ref.t
 0 op/refstack.t
 0 op/repeat.t
 0 op/require_37033.t
@@ -364,7 +363,7 @@
 0 op/setpgrpstack.t
 0 op/sigdispatch.t
 0 op/signame_canonical.t
-13 op/signatures.t
+0 op/signatures.t
 0 op/sigsystem.t
 0 op/sleep.t
 0 op/smartkve.t
@@ -423,7 +422,7 @@
 0 op/wantarray.t
 0 op/warn.t
 0 op/while.t
-1 op/write.t
+0 op/write.t
 0 op/yadayada.t
 0 opbasic/arith.t
 0 opbasic/cmp.t
@@ -595,7 +594,7 @@
 0 uni/fold.t
 0 uni/goto.t
 0 uni/greek.t
-2 uni/gv.t
+0 uni/gv.t
 0 uni/labels.t
 0 uni/latin2.t
 0 uni/lex_utf8.t

@@ -30,6 +30,12 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 		b.WriteByte('(')
 		defer b.WriteByte(')')
 	}
+	// A trailing separator the source wrote goes after the node, inside any
+	// parens added above: `f 1, || 2` is written `f(1 ,) || 2`. See
+	// Node.TrailingComma.
+	if n.TrailingComma != "" {
+		defer b.WriteString(" " + n.TrailingComma)
+	}
 
 	switch n.Kind {
 	case SourceFile:
@@ -38,12 +44,38 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 		}
 
 	case Statement:
+		var stmt strings.Builder
 		for _, c := range n.Children {
 			if c.HeredocBody {
 				continue // after the terminator; see below
 			}
-			emit(b, c, src, 0)
+			emit(&stmt, c, src, 0)
 		}
+		text := stmt.String()
+		// A NEWLINE ALREADY IN THE STATEMENT after its heredoc opener -- a
+		// quote that runs on, `... eq q(hello\n)` -- is where perl reads the
+		// bodies from: its scan_heredoc takes the lines after the opener's
+		// line wherever they fall, and the quote resumes after them. So the
+		// bodies go there, not after the terminator, or perl reads the
+		// quote's own lines as the body. Measured on 5.42.0,
+		// `<<E21 . 'single\nE21 content\nE21\nquoted'` is
+		// "E21 content\n" . "single\nquoted".
+		if bodies := heredocBodies(n); len(bodies) > 0 {
+			if at := newlineAfterOpener(n, text); at >= 0 {
+				b.WriteString(text[:at+1])
+				for _, c := range bodies {
+					b.WriteString(c.SourceText(src))
+				}
+				b.WriteString(text[at+1:])
+				if !blockForm(n) {
+					b.WriteByte(';')
+				} else {
+					b.WriteByte(' ')
+				}
+				return
+			}
+		}
+		b.WriteString(text)
 		// A HEREDOC BODY GOES AFTER THE TERMINATOR, ON ITS OWN LINE, and
 		// both halves of that are required rather than cosmetic. Perl reads
 		// a body from the line FOLLOWING the opener's line, so
@@ -570,9 +602,15 @@ func emitCommaSeparated(b *strings.Builder, n *Node, src []byte) {
 			// are not interchangeable: `(a => 1)` is the string "a" where
 			// `(a, 1)` is a call to a (§4.5.4). Emitting the plain comma
 			// changes what the list contains.
-			if n.Children[i-1].Fat {
+			//
+			// An element that kept its separators (TrailingComma) has
+			// already written them; only a space follows.
+			switch {
+			case n.Children[i-1].TrailingComma != "":
+				b.WriteByte(' ')
+			case n.Children[i-1].Fat:
 				b.WriteString(" => ")
-			} else {
+			default:
 				b.WriteString(", ")
 			}
 		}
@@ -594,8 +632,9 @@ func bindingPower(n *Node) int {
 		return infix["?"].BP
 	case Unary:
 		// A dereference is a term: a subscript after it applies to it, so
-		// `$$r[0]` is written bare, not as the list slice `($$r)[0]`.
-		if isDerefSigil(n.Text) {
+		// `$$r[0]` is written bare, not as the list slice `($$r)[0]`. So is
+		// a named parameter's `:$name`, which is one parameter.
+		if isDerefSigil(n.Text) || n.Text == ":" {
 			return atomBP
 		}
 		return prefix[unaryToken(n.Text)]
@@ -713,6 +752,45 @@ const atomBP = 1000
 // heredocBodies is the statement's heredoc bodies, in opener order: first the
 // ones that fell inside its span, then the ones after its terminator. Every
 // inner body precedes every trailing one in the source, so the order holds.
+// newlineAfterOpener is the offset, in a statement's emitted text, of the
+// first newline after its first heredoc opener, or -1 when the opener's line
+// runs to the statement's end.
+//
+// ponytail: the opener is found by its spelling, so a string holding the
+// same `<<TERM` earlier in the statement is taken for it; emit offsets would
+// be the upgrade.
+func newlineAfterOpener(n *Node, text string) int {
+	opener := firstHeredocOpener(n)
+	if opener == "" {
+		return -1
+	}
+	at := strings.Index(text, opener)
+	if at < 0 {
+		return -1
+	}
+	nl := strings.IndexByte(text[at:], '\n')
+	if nl < 0 {
+		return -1
+	}
+	return at + nl
+}
+
+// firstHeredocOpener is the spelling of the first `<<TERM` under n.
+func firstHeredocOpener(n *Node) string {
+	if n.Kind == Term && strings.HasPrefix(n.Text, "<<") && len(n.Children) == 0 {
+		return n.Text
+	}
+	for _, c := range n.Children {
+		if c.HeredocBody {
+			continue
+		}
+		if got := firstHeredocOpener(c); got != "" {
+			return got
+		}
+	}
+	return ""
+}
+
 func heredocBodies(n *Node) []*Node {
 	out := append([]*Node{}, n.InnerHeredocBodies...)
 	for _, c := range n.Children {

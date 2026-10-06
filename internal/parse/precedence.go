@@ -291,3 +291,20 @@ var levelsPresent = map[int]string{
 	31: "infix: ( -- postfix call",
 	32: "infix: [ { -- postfix subscript",
 }
+
+// coreQualifiedOps are the word operators perl also accepts spelled with
+// CORE::, meaning the bare word -- measured on 5.42.0 with -MO=Deparse,
+// `$r = $a CORE::eq $b` is `$r = $a eq $b`. Entered in the tables under the
+// spelled name, so every lookup sees them and canon keeps the spelling.
+var coreQualifiedOps = []string{
+	"eq", "ne", "lt", "gt", "le", "ge", "cmp", "x", "and", "or", "xor", "isa",
+}
+
+func init() {
+	for _, op := range coreQualifiedOps {
+		infix["CORE::"+op] = infix[op]
+		if c, ok := cmpClasses[op]; ok {
+			cmpClasses["CORE::"+op] = c
+		}
+	}
+}

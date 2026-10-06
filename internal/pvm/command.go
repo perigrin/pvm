@@ -5028,7 +5028,7 @@ func newHelpTypesCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "types",
 		Short: "Type system documentation and examples",
-		Long:  "Comprehensive guide to PVM's type system including syntax, examples, and migration tips",
+		Long:  "How PVM finds types in ordinary Perl, checking files with psc check, and the .pmt declaration files it ships",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			helpManager := cli.NewHelpManager()
 			return showTypesHelp(cmd, helpManager)

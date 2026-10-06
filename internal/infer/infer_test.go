@@ -183,7 +183,7 @@ func TestInferEqualityExpression(t *testing.T) {
 	annotations, _ := analyzeSource(t, src)
 	typ, ok := findNodeType(annotations, src, "1 == 2")
 	require.True(t, ok, "equality_expression '1 == 2' should be annotated")
-	assert.Equal(t, types.Bool, typ, "equality should return Bool")
+	assert.Equal(t, types.Boolean, typ, "equality should return Bool")
 }
 
 func TestInferRelationalExpression(t *testing.T) {
@@ -191,7 +191,7 @@ func TestInferRelationalExpression(t *testing.T) {
 	annotations, _ := analyzeSource(t, src)
 	typ, ok := findNodeType(annotations, src, "1 < 2")
 	require.True(t, ok, "relational_expression '1 < 2' should be annotated")
-	assert.Equal(t, types.Bool, typ, "less-than should return Bool")
+	assert.Equal(t, types.Boolean, typ, "less-than should return Bool")
 }
 
 func TestInferStringConcatExpression(t *testing.T) {
@@ -221,7 +221,7 @@ func TestInferUnaryNot(t *testing.T) {
 	annotations, _ := analyzeSource(t, src)
 	typ, ok := findNodeType(annotations, src, "!1")
 	require.True(t, ok, "unary_expression '!1' should be annotated")
-	assert.Equal(t, types.Bool, typ, "logical not should return Bool")
+	assert.Equal(t, types.Boolean, typ, "logical not should return Bool")
 }
 
 func TestInferUnaryMinus(t *testing.T) {
@@ -1186,7 +1186,7 @@ func TestGuardLibraryIsBoolNarrows(t *testing.T) {
 	require.True(t, len(offsets) >= 3)
 	ifBodyTyp, ok := annotations[offsets[2]]
 	assert.True(t, ok, "if-body $x should be annotated")
-	assert.Equal(t, types.Bool, ifBodyTyp, "is_bool guard narrows to Bool")
+	assert.Equal(t, types.Boolean, ifBodyTyp, "is_bool guard narrows to Bool")
 }
 
 func TestGuardLibraryNegatedBlessed(t *testing.T) {
@@ -2730,7 +2730,7 @@ func TestMatchInListContextYieldsCaptures(t *testing.T) {
 	for _, name := range []string{"$a", "$b"} {
 		sym, found := st.Lookup(name)
 		require.True(t, found, "%s should be in the symbol table", name)
-		assert.NotEqual(t, types.Bool, sym.Type,
+		assert.NotEqual(t, types.Boolean, sym.Type,
 			"%s is a capture, not the match's boolean", name)
 		assert.True(t, types.IsSubtype(types.Str, sym.Type),
 			"%s is a Str — perl hands back the matched substring, got %s", name, sym.Type)
@@ -2745,7 +2745,7 @@ func TestMatchInScalarContextIsBool(t *testing.T) {
 
 	sym, found := st.Lookup("$ok")
 	require.True(t, found, "$ok should be in the symbol table")
-	assert.Equal(t, types.Bool, sym.Type, "a scalar-context match is a boolean")
+	assert.Equal(t, types.Boolean, sym.Type, "a scalar-context match is a boolean")
 }
 
 // TestCaptureVariableIsStr verifies that a capture is narrower than the sigil
@@ -3060,7 +3060,7 @@ func TestSubstitutionReturnTypes(t *testing.T) {
 		sym, found := st.Lookup(name)
 		require.True(t, found, "%s: %s should be in the symbol table", tc.name, name)
 		assert.Equal(t, tc.want, sym.Type, "%s", tc.name)
-		assert.NotEqual(t, types.Bool, sym.Type,
+		assert.NotEqual(t, types.Boolean, sym.Type,
 			"%s: a substitution is not a boolean", tc.name)
 	}
 }

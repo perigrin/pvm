@@ -274,3 +274,45 @@ parses: yes
 ```tokens
 one operator whose text is "\\"
 ```
+
+## The last index through a reference, three ways
+
+`$#$r`, `$#{$r}` and `$r->$#*` all name the last index of the array
+`$r` refers to, and none of them is the length of the reference or the
+array. Found by B::SoN translating chalk's lib/ and running chalk's own suite
+against the emitted Perl, which compiled and gave a wrong answer.
+
+```perl
+my $r = [5, 6, 7];
+print $#$r, " ", $#{$r}, " ", $r->$#*, "\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+2 2 2
+```
+
+## A dereference returned takes the caller's context
+
+`return $r->@*` hands back the elements in list context and their count
+in scalar context, never the reference: the `rv2av` is compiled
+wanting the CALLER's context. Found by B::SoN translating chalk's lib/ and running chalk's own suite
+against the emitted Perl, which compiled and gave a wrong answer.
+
+```perl
+sub items { my $r = shift; return $r->@* }
+my @got = items([1, 2, 3]);
+my $count = items([4, 5]);
+print scalar(@got), " ", $count, "\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+3 2
+```

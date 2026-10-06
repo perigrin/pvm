@@ -4,7 +4,7 @@ The classic object system: a reference plus a string, and the four ops
 perl uses to find a method on the result.
 
 **Tier 11 oo.** Introduces `anonhash`, `bless`, `emptyavhv`, `isa`,
-`method`, `method_named`, `method_super`, `methstart`, `shift`, `stub`,
+`method`, `method_named`, `method_super`, `methstart`, `stub`,
 `tie`, `tied`. Depends on 08_references.
 
 What this tier adds is how the callee is found; the `entersub` and
@@ -339,4 +339,23 @@ called
 ```tokens
 one string literal whose text is "\"hi\""
 one word whose text is "can"
+```
+
+## A signature's placeholder parameter keeps its place
+
+`($, $phi)` takes two arguments and names the second: called as a class method, the class name fills the placeholder. Found by B::SoN translating chalk's lib/ and running chalk's own suite
+against the emitted Perl.
+
+```perl
+use v5.36;
+package Optimizer { sub collapse ($, $phi) { return "c$phi" } }
+print Optimizer->collapse(7), " ", (eval { Optimizer->collapse(); 1 } ? "ran" : "too few"), "\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+c7 too few
 ```

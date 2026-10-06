@@ -37,7 +37,7 @@ func scanVariable(l *lexer) bool {
 	// they are modulus and... also `@` is never an operator, but `%` is, and
 	// dispatching on position here is what keeps `$a % $b` from lexing as a
 	// hash.
-	if c == '%' && !l.expect.wantsTerm() {
+	if c == '%' && !l.expect.wantsTerm() && !l.containerTypeSigil() {
 		return false
 	}
 
@@ -598,7 +598,14 @@ func scanVString(l *lexer) bool {
 		l.pos = start
 		return false
 	}
-	if l.scanNumberRun() < 1 {
+	dots := l.scanNumberRun()
+	// A dot with no digit after it is not the v-string's: `v10.v257` is
+	// `v10 . v257`, measured on 5.42.0 to deparse as "\n\x{101}".
+	if l.src[l.pos-1] == '.' {
+		l.pos--
+		dots--
+	}
+	if dots < 1 {
 		l.pos = start
 		return false
 	}
@@ -748,6 +755,9 @@ func (l *lexer) scanNumberRun() int {
 	// `print 0x1e-1` is 29, so that `-` is subtraction.
 	hex := l.pos+1 < len(l.src) && l.src[l.pos] == '0' &&
 		(l.src[l.pos+1] == 'x' || l.src[l.pos+1] == 'X')
+	// Octal too, spelled `0o17` or `017`: `01.1p0` is an octal float.
+	radix := hex || l.pos+1 < len(l.src) && l.src[l.pos] == '0' &&
+		(byteIn(l.src[l.pos+1], "bBoO") || isDigit(l.src[l.pos+1]))
 	for l.pos < len(l.src) {
 		c := l.src[l.pos]
 		switch {
@@ -787,6 +797,15 @@ func (l *lexer) scanNumberRun() int {
 				isDigit(l.src[l.pos+2]) {
 				l.pos += 2
 				continue
+			}
+			// A DECIMAL takes no other letter: its `e` only before a sign,
+			// a digit or `_` (toke.c:13142-13144), so `5x3` is `5 x 3` and
+			// `1if $b` is `1 if $b`, measured on 5.42.0. A radix literal's
+			// letters are its digits and prefix, and stay.
+			if !radix && !isDigit(c) && c != '_' &&
+				!((c == 'e' || c == 'E') && l.pos+1 < len(l.src) &&
+					byteIn(l.src[l.pos+1], "+-0123456789_")) {
+				return dots
 			}
 		default:
 			return dots
@@ -1020,6 +1039,33 @@ var operators = []string{
 // operators table.
 var bitwiseStringOps = []string{"&.=", "|.=", "^.=", "&.", "|.", "^.", "~."}
 
+// scanOperatorName lexes the symbol a typed-Perl operator declaration is
+// named by, `sub + :infix(ADD) (Num $x, Num $y) Num;` (RFC 0001, "Operator
+// declarations"), as the Word a sub's name is. Only in a `.pmt`: in perl,
+// measured on 5.42.0, `sub + { 1 }` is "Illegal declaration of anonymous
+// subroutine". A bracket, comma or colon after `sub` still opens a
+// signature, a body or an attribute.
+func scanOperatorName(l *lexer) bool {
+	if !l.typed || !l.sawSubWord {
+		return false
+	}
+	for _, ops := range [][]string{bitwiseStringOps, operators} {
+		for _, op := range ops {
+			if !strings.HasPrefix(string(l.src[l.pos:min(l.pos+len(op), len(l.src))]), op) {
+				continue
+			}
+			if strings.ContainsAny(op, "()[]{},:") {
+				return false
+			}
+			start := l.pos
+			l.pos += len(op)
+			l.emit(Word, start)
+			return true
+		}
+	}
+	return false
+}
+
 // scanOperator lexes punctuation.
 func scanOperator(l *lexer) bool {
 	// The string-bitwise operators exist only under the `bitwise` feature,
@@ -1125,7 +1171,26 @@ func scanBarePattern(l *lexer) bool {
 		l.emit(UnknownRest, start)
 		return true
 	}
+	patEnd := l.pos - 1
 	l.scanModifiers()
 	l.emit(Quote, start)
+	l.queueBlockHeredocs(start+1, patEnd, codeBlockOpeners)
+	return true
+}
+
+// scanPostDerefStar lexes `&*` and `**` after `->` as the whole postfix
+// dereference they are, one Variable each, as `->@*` is: `$r->&*` is `&$r`
+// and `$r->**` is `*$r`, measured on 5.42.0. Elsewhere `&` is the function
+// sigil and `**` is exponentiation.
+func scanPostDerefStar(l *lexer) bool {
+	if l.expect != XPostDeref || l.pos+1 >= len(l.src) || l.src[l.pos+1] != '*' {
+		return false
+	}
+	if c := l.src[l.pos]; c != '&' && c != '*' {
+		return false
+	}
+	start := l.pos
+	l.pos += 2
+	l.emit(Variable, start)
 	return true
 }

@@ -20,7 +20,7 @@ func TestTypeString(t *testing.T) {
 		{types.Any, "Any"},
 		{types.Scalar, "Scalar"},
 		{types.Undef, "Undef"},
-		{types.Bool, "Bool"},
+		{types.Boolean, "Boolean"},
 		{types.Str, "Str"},
 		{types.Num, "Num"},
 		{types.Int, "Int"},
@@ -56,7 +56,7 @@ func TestTypeStringArbitraryUnion(t *testing.T) {
 	// The zero value with no bits set is Unknown.
 	assert.Equal(t, "Unknown", types.Type(0).String())
 	// A union of two named leaf types that has no named mask is displayed as A|B.
-	assert.Equal(t, "Undef|Bool", types.Type(types.Undef|types.Bool).String())
+	assert.Equal(t, "Undef|Boolean", types.Type(types.Undef|types.Boolean).String())
 }
 
 func TestIsSubtypeDirect(t *testing.T) {
@@ -67,7 +67,7 @@ func TestIsSubtypeDirect(t *testing.T) {
 	}{
 		{types.Scalar, types.Any},
 		{types.Undef, types.Scalar},
-		{types.Bool, types.Scalar},
+		{types.Boolean, types.Scalar},
 		{types.Str, types.Scalar},
 		{types.Num, types.Str},
 		{types.Int, types.Num},
@@ -179,10 +179,10 @@ func TestTypeSatisfiesUnknown(t *testing.T) {
 func TestBitsetLeafTypesAreDistinct(t *testing.T) {
 	// Every leaf type must be a power of two (single bit set).
 	leaves := []types.Type{
-		types.Undef, types.Bool, types.Int,
+		types.Undef, types.Boolean, types.Int,
 		types.DualVar, types.NaN, types.Inf, types.Regex, types.ScalarRef, types.ArrayRef,
 		types.HashRef, types.CodeRef, types.GlobRef,
-		types.Array, types.Hash, types.Code, types.Glob,
+		types.Array, types.Hash, types.Code, types.Glob, types.IO,
 	}
 	seen := types.Type(0)
 	for _, leaf := range leaves {
@@ -217,9 +217,9 @@ func TestParentMasksContainDescendants(t *testing.T) {
 }
 
 func TestStringUnionDisplay(t *testing.T) {
-	union := types.Int | types.Bool
+	union := types.Int | types.Boolean
 	s := union.String()
 	assert.Contains(t, s, "Int")
-	assert.Contains(t, s, "Bool")
+	assert.Contains(t, s, "Boolean")
 	assert.Contains(t, s, "|")
 }

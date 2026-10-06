@@ -26,6 +26,20 @@ func (p *parser) parseTerm() *Node {
 	}
 	text := p.text(tok)
 
+	// A named parameter, blead's `:$name` (perly.y's `optcolon PERLY_DOLLAR
+	// sigvar`, perlsub since 5.43.5): in a signature, the one `:` a term can
+	// begin with. A ternary's `:` in a default is in operator position and
+	// never reaches here.
+	if p.inSignature && text == ":" {
+		if v, ok := p.peekAfter(tok); ok && v.Kind == lexer.Variable && strings.HasPrefix(p.text(v), "$") {
+			p.advanceTo(v)
+			return &Node{
+				Kind: Unary, Text: ":", Start: tok.Start, End: v.End,
+				Children: []*Node{{Kind: Term, Text: p.text(v), Start: v.Start, End: v.End}},
+			}
+		}
+	}
+
 	// A filetest: `-e $f`, `-d $dir`. perl returns UNIOP for these
 	// (toke.c:6255 FTST), so they bind exactly like a named unary.
 	//
@@ -307,6 +321,12 @@ func (p *parser) parseTerm() *Node {
 
 	case lexer.Word:
 		text := p.text(tok)
+		if d := p.parsePrefixedAnonSub(tok); d != nil {
+			return d
+		}
+		if d := p.parseDeclaredExpression(tok); d != nil {
+			return d
+		}
 		switch {
 		case declarators[keywordName(text)] && p.declaratorTakesTarget(tok):
 			// A declaration in EXPRESSION position: `open my $fh, $p`,
@@ -391,7 +411,9 @@ func (p *parser) derefHoldsStatements(open lexer.Token) bool {
 	if !ok || p.text(first) == "}" {
 		return false // `${}`: EmptyDeref's, below.
 	}
-	if first.Kind == lexer.Semicolon {
+	// So does the yada, which is a statement and never an expression
+	// (perly.y:759): `${...}++` dies Unimplemented, measured on 5.42.0.
+	if first.Kind == lexer.Semicolon || p.text(first) == "..." {
 		return true
 	}
 	p.parseExpr(0)
@@ -538,13 +560,17 @@ func prefixName(text string) string {
 func (p *parser) parseParenList(open lexer.Token) *Node {
 	p.advanceTo(open)
 
+	// seps are the separators since the last item. More than one, or any
+	// before the closer, are kept on that item for canon; see keepSeps.
 	var items []*Node
+	var seps []string
 	for {
 		tok, ok := p.peekSignificant()
 		if !ok {
 			break
 		}
 		if p.text(tok) == ")" {
+			keepSeps(items, seps, 1)
 			p.advanceTo(tok)
 			break
 		}
@@ -559,12 +585,15 @@ func (p *parser) parseParenList(open lexer.Token) *Node {
 		// have quoted is behind the comma.
 		if (p.text(tok) == "," || p.text(tok) == "=>") && len(items) > 0 {
 			p.advanceTo(tok)
+			seps = append(seps, p.text(tok))
 			continue
 		}
 		// Parsed above the comma so each element is its own node. A nil
 		// element means the input ran out mid-list, which the loop's next
 		// peek handles.
 		if item := p.parseExpr(infix[","].BP); item != nil {
+			keepSeps(items, seps, 2)
+			seps = nil
 			items = append(items, item)
 		}
 
@@ -582,6 +611,7 @@ func (p *parser) parseParenList(open lexer.Token) *Node {
 				items[len(items)-1].Fat = true
 			}
 			p.advanceTo(next)
+			seps = []string{p.text(next)}
 		case ")":
 			p.advanceTo(next)
 			return p.finishList(items, open)
@@ -624,22 +654,15 @@ func (p *parser) finishList(items []*Node, open lexer.Token) *Node {
 		// `my ($x) = f()` is 1 and `my $y = f()` is 3. Both measured on
 		// perl 5.42.0.
 		//
-		// Copying field by field rather than dereferencing the node: the
-		// span must widen to cover the parens, so this cannot alias. Every
-		// flag is carried across -- dropping one here would erase an Arrow
-		// on `($h->{k})`, which is the bug this function already had for
-		// Paren.
-		n := items[0]
-		return &Node{
-			Kind: n.Kind, Text: n.Text,
-			Start: open.Start, End: p.prevEnd(),
-			Children: n.Children,
-			Resolved: n.Resolved,
-			Arrow:    n.Arrow,
-			Fat:      n.Fat,
-			Handle:   n.Handle,
-			Paren:    true,
-		}
+		// A copy rather than the node itself: the span must widen to cover
+		// the parens, so this cannot alias. Every flag is carried across,
+		// by copying the whole value -- dropping one here would erase an
+		// Arrow on `($h->{k})`, which is the bug this function once had for
+		// Paren, and an Indirect on `(method $obj ())` in t/op/method.t:79.
+		c := *items[0]
+		c.Start, c.End = open.Start, p.prevEnd()
+		c.Paren = true
+		return &c
 	}
 	return &Node{
 		Kind: List, Start: open.Start, End: p.prevEnd(),
@@ -678,13 +701,16 @@ func (p *parser) commaList(items []*Node) *Node {
 func (p *parser) parseBracketed(open lexer.Token, closer string, kind Kind) *Node {
 	p.advanceTo(open)
 
+	// seps: see parseParenList.
 	var items []*Node
+	var seps []string
 	for {
 		tok, ok := p.peekSignificant()
 		if !ok {
 			break
 		}
 		if p.text(tok) == closer {
+			keepSeps(items, seps, 1)
 			p.advanceTo(tok)
 			break
 		}
@@ -692,9 +718,12 @@ func (p *parser) parseBracketed(open lexer.Token, closer string, kind Kind) *Nod
 		// elements, measured on 5.42.0. Only after an element.
 		if (p.text(tok) == "," || p.text(tok) == "=>") && len(items) > 0 {
 			p.advanceTo(tok)
+			seps = append(seps, p.text(tok))
 			continue
 		}
 		if item := p.parseExpr(infix[","].BP); item != nil {
+			keepSeps(items, seps, 2)
+			seps = nil
 			items = append(items, item)
 		}
 
@@ -713,6 +742,7 @@ func (p *parser) parseBracketed(open lexer.Token, closer string, kind Kind) *Nod
 				items[len(items)-1].Fat = true
 			}
 			p.advanceTo(next)
+			seps = []string{p.text(next)}
 		case closer:
 			p.advanceTo(next)
 			return &Node{Kind: kind, Start: open.Start, End: p.prevEnd(), Children: items}
@@ -794,4 +824,26 @@ func (p *parser) ampTakes(name lexer.Token) bool {
 		}
 	}
 	return true
+}
+
+// keepSeps keeps, on the last item, the separators written after it when
+// there are at least min of them: 1 before a closer, where any separator is
+// trailing, and 2 before another item, where one is the item separator.
+// Kept, they are all of what canon writes after that item. See
+// Node.TrailingComma and emitCommaSeparated.
+func keepSeps(items []*Node, seps []string, min int) {
+	if len(items) == 0 || len(seps) < min {
+		return
+	}
+	items[len(items)-1].TrailingComma = strings.Join(seps, " ")
+}
+
+// markTrailing records a separator with no element after it on the element
+// before it, for canon to write back. See Node.TrailingComma.
+func markTrailing(n *Node, sep string) {
+	if n.TrailingComma == "" {
+		n.TrailingComma = sep
+		return
+	}
+	n.TrailingComma += " " + sep
 }

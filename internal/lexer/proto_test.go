@@ -50,6 +50,35 @@ func TestPrototypeIsOpaque(t *testing.T) {
 	}
 }
 
+// TestPrototypeAttributeUnderSignatures: `:prototype(...)`'s argument is a
+// prototype whether or not the signatures feature is on -- it is where a
+// prototype goes once it is, measured on 5.42.0:
+//
+//	use v5.36; sub f :prototype($;$) ($x, $y) { 1 }
+//	print prototype(\&f)                                  $;$
+//
+// Only the `(` after `sub NAME` changes meaning with the feature. Lexed as
+// code, `$;` and `$)` are punctuation variables and the second takes the
+// closing paren, and the rest of the file, with it. The same holds in a
+// `.pmt`, whose signatures are on from the first byte.
+func TestPrototypeAttributeUnderSignatures(t *testing.T) {
+	for _, tc := range []struct {
+		src, proto string
+		tokenize   func([]byte) []Token
+	}{
+		{"use v5.36; sub f :prototype($;$) ($x, $y) { 1 }", "($;$)", Tokenize},
+		{"use v5.36; sub f :prototype($) ($x) { 1 }", "($)", Tokenize},
+		{"use v5.36; sub f : prototype($;$) ($x, $y) { 1 }", "($;$)", Tokenize},
+		{"sub bless :prototype($;$) (Ref $ref, Str $class);", "($;$)", TokenizeTyped},
+	} {
+		toks := tc.tokenize([]byte(tc.src))
+		if !hasToken(toks, []byte(tc.src), Prototype, tc.proto) {
+			t.Errorf("%q: no Prototype token %q: %s",
+				tc.src, tc.proto, renderKinds(toks, []byte(tc.src)))
+		}
+	}
+}
+
 // TestPrototypeOnlyAfterSubName keeps the scan from eating ordinary parens.
 //
 // `f ($x)` is a call, not a declaration, and `my ($a, $b)` is a list. Only a

@@ -5,9 +5,9 @@ another, and adjacent to tier 01's literals.
 
 **Tier 02 variables.** Introduces `aassign`, `aelem`, `aelemfast`,
 `aelemfast_lex`, `aelemfastlex_store`, `aslice`, `av2arylen`, `delete`,
-`each`, `gv`, `gvsv`, `helem`, `hslice`, `multideref`, `padav`, `padhv`,
-`push`, `rv2av`, `rv2hv`, `sassign`, `unshift`, `values`. Depends on
-01_literals. The mixture itself is the subject; it introduces
+`each`, `gv`, `gvsv`, `helem`, `hslice`, `keys`, `multideref`, `padav`,
+`padhv`, `push`, `rv2av`, `rv2hv`, `sassign`, `shift`, `unshift`,
+`values`. Depends on 01_literals. The mixture itself is the subject; it introduces
 nothing of its own.
 
 The tier's other sixteen cases are one construct each, which is what

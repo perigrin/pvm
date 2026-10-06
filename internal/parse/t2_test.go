@@ -174,7 +174,13 @@ func TestT2CoreParses(t *testing.T) {
 		// (issue 01a0eb93-a183): line 507 is `map{...} @_`.
 		// base/lex.t 17 -> 5 when a braced name after a spaced sigil began
 		// lexing as one variable: `$ {^XY}` at lines 129-139 and beyond.
-		"base/lex.t": 5,
+		// base/lex.t 5 -> 4 when a deref's braces could hold the yada
+		// statement: `${...}++` at line 504. base/lex.t 4 -> 3 when a
+		// decimal literal stopped taking letters: `0-5x-l{0}` at line 516.
+		// base/lex.t 3 -> 1 when a multi-line /e replacement kept its own
+		// heredoc body (line 323); the two were line 336, which that body
+		// had swallowed. base/lex.t 1 -> 0, out of the map, when a pattern's
+		// code block queued its heredoc: `qr/(?{<<END})/` at line 346.
 		// class/field.t went 9 -> 10 when quote-op keywords stopped eating
 		// their fat comma, then back to 9 when goto, delete and exists
 		// landed. The rise was never a regression in the parse: reaching

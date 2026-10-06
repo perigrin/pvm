@@ -206,3 +206,94 @@ parses: yes
 ```output
 0 1 undef
 ```
+
+## A `map` topic passed to a sub
+
+`$_` inside `map` is an alias for the current element, and passing it
+to a sub passes that alias on, so perl flags the `gvsv` `OPf_MOD`. It
+is still a read of the current element, not of the global `$_`: an
+implementation that reads the flag as a write, or the op as the
+global, prints the wrong thing. Found by B::SoN translating chalk's
+lib/ and running chalk's own suite against the emitted Perl.
+
+```perl
+sub shout { return uc $_[0] }
+my @loud = map { shout($_) } qw(a b c);
+print "@loud\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+A B C
+```
+
+## A loop variable passed to a sub
+
+The argument is an alias the callee could write through `$_[0]`, and
+it is still the loop's value on each pass: `twice` reads `1`, `2` and
+`3`. Found by B::SoN translating chalk's lib/ and running chalk's own suite
+against the emitted Perl, which compiled and gave a wrong answer.
+
+```perl
+sub twice { return $_[0] * 2 }
+my @r;
+for my $n (1 .. 3) { push @r, twice($n) }
+print "@r\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+2 4 6
+```
+
+## A foreach alias written through `$_[0]`
+
+`$x` aliases each element of `@a`, and `$_[0]` aliases `$x`, so the
+callee's `$_[0]++` reaches the array itself. Found by B::SoN translating chalk's lib/ and running chalk's own suite
+against the emitted Perl, which compiled and gave a wrong answer.
+
+```perl
+sub bump { $_[0]++ }
+my @a = (1, 2);
+for my $x (@a) { bump($x) }
+print "@a\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+2 3
+```
+
+## An iterator passed to a call, over read-only values
+
+A foreach iterator aliases its element, and a callee given it may change the element through `$_[0]`. These elements are constants, which perl never writes: writing each one back after the body dies "Modification of a read-only value". Found by B::SoN translating chalk's lib/ and running chalk's own suite against the emitted Perl.
+
+```perl
+sub id { $_[0] }
+sub keep {
+    my $out = "";
+    for my $x (@_) {
+        next unless id($x) > 1;
+        $out .= $x;
+    }
+    return $out;
+}
+print keep(1, 2, 3), "\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+23
+```

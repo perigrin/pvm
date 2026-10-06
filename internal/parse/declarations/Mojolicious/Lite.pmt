@@ -1,0 +1,25 @@
+# ABOUTME: Declares the Mojolicious::Lite DSL, which its import monkey-patches into the caller.
+# ABOUTME: Measured on perl 5.42.0 with Mojolicious 9.49: only group carries a prototype.
+package Mojolicious::Lite;
+
+our @EXPORT = qw(
+    any get options patch post put query websocket
+    new app del group helper hook plugin under
+);
+
+sub any;
+sub get;
+sub options;
+sub patch;
+sub post;
+sub put;
+sub query;
+sub websocket;
+sub new;
+sub app;
+sub del;
+sub group :prototype(&);
+sub helper;
+sub hook;
+sub plugin;
+sub under;

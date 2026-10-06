@@ -6,6 +6,7 @@ package parse
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -15,6 +16,9 @@ import (
 // It is the seam between the parser and the filesystem. Production searches
 // directories; a test hands back bytes it wrote itself, so the suite needs no
 // installed module and no particular layout to be true.
+//
+// A third spelling, `My::Mod.xs`, asks for a module's XS source, which names
+// the subs it implements in C; see XSSubs.
 //
 // One seam serves both spellings because the caller's question is identical --
 // "bytes for this name, if you have them" -- and because the resolver's cache
@@ -37,20 +41,36 @@ type Loader func(name string) ([]byte, bool)
 //
 // The first directory is normally the using file's own, which is what makes a
 // local module -- never installed anywhere -- resolvable at all.
+//
+// A module is also found where its source tree keeps it: `My::Mod` as
+// `My-Mod/Mod.pm`, the distribution directory with the module's last part in
+// it, which is where ExtUtils::MakeMaker takes a top-level .pm from --
+// perl.git's ext/Devel-Peek/Peek.pm is Devel::Peek. Its XS source sits
+// beside it there, `My-Mod/Mod.xs`, and is found either way.
 func DirLoader(dirs ...string) Loader {
 	return func(name string) ([]byte, bool) {
-		rel := name
+		rels := []string{name}
 		if !isRequiredPath(name) {
-			rel = filepath.Join(strings.Split(name, "::")...) + ".pm"
+			ext := ".pm"
+			if module, ok := strings.CutSuffix(name, ".xs"); ok {
+				name, ext = module, ".xs"
+			}
+			parts := strings.Split(name, "::")
+			rels = []string{
+				filepath.Join(parts...) + ext,
+				filepath.Join(strings.Join(parts, "-"), parts[len(parts)-1]+ext),
+			}
 		}
 		for _, dir := range dirs {
-			src, err := os.ReadFile(filepath.Join(dir, rel))
-			if err != nil {
-				// Unreadable is not found. Distinguishing them would buy a
-				// caller nothing: neither can resolve the import.
-				continue
+			for _, rel := range rels {
+				src, err := os.ReadFile(filepath.Join(dir, rel))
+				if err != nil {
+					// Unreadable is not found. Distinguishing them would buy
+					// a caller nothing: neither can resolve the import.
+					continue
+				}
+				return src, true
 			}
-			return src, true
 		}
 		return nil, false
 	}
@@ -134,6 +154,53 @@ func ParseFile(path string) (*Node, error) {
 // An empty root is skipped, and with none the file's own directory is the
 // only one searched, which is ParseFile.
 func ParseFileFrom(path string, roots ...string) (*Node, error) {
+	return ParseFileAssumingUseIf(path, false, roots...)
+}
+
+// ParseFileAssumingUseIf is ParseFileFrom with the answer to every `use if`
+// condition given. `use if COND, MODULE, LIST` imports only when COND holds
+// at compile time, which a parse cannot evaluate, so a file using it has two
+// readings: passes, and it is `use MODULE LIST`; fails, and it defines
+// nothing. ParseFileFrom takes the failing one.
+func ParseFileAssumingUseIf(path string, passes bool, roots ...string) (*Node, error) {
+	return parseFile(path, passes, roots, nil)
+}
+
+// Session parses many files and reads each module once: what a module says
+// about itself is shared by every parse that searches the same directories.
+// A corpus run parses hundreds of files using the same modules, and reading
+// Test::More and everything it uses again for each file is what made the T1
+// ratchet outlast go test's ten-minute timeout.
+//
+// Sharing is safe because a module's facts depend only on its source and the
+// directories its own imports are found in. Files searching different ones --
+// the file's own directory comes first, and may hold its own Foo.pm -- share
+// nothing. The parses of one Session behave as one parse of all its files
+// would: within a parse, a module is already read once however many uses
+// name it.
+//
+// LoadedModules of a Session parse names only the modules that parse read,
+// not those an earlier one already had. A Session is not for concurrent use.
+type Session struct {
+	shared map[string]*resolver
+}
+
+// NewSession returns a Session that has read nothing yet.
+func NewSession() *Session {
+	return &Session{shared: map[string]*resolver{}}
+}
+
+// ParseFileFrom is the package's ParseFileFrom, sharing module facts with this
+// Session's other parses.
+func (s *Session) ParseFileFrom(path string, roots ...string) (*Node, error) {
+	return parseFile(path, false, roots, s)
+}
+
+// parseFile reads and parses path, searching its own directory and then
+// roots. With a Session, the resolver's module facts and visited set are the
+// ones every parse searching the same directories shares; its loaded list is
+// this parse's own.
+func parseFile(path string, passes bool, roots []string, s *Session) (*Node, error) {
 	src, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -144,7 +211,17 @@ func ParseFileFrom(path string, roots ...string) (*Node, error) {
 			dirs = append(dirs, root)
 		}
 	}
-	return ParseWithLoader(src, DirLoader(dirs...)), nil
+	r := &resolver{load: DirLoader(dirs...), seen: map[string]bool{}, useIfPasses: passes}
+	if s != nil {
+		key := strings.Join(dirs, "\x00")
+		if shared, ok := s.shared[key]; ok {
+			r.seen, r.facts = shared.seen, shared.facts
+		} else {
+			r.facts = map[string]moduleFacts{}
+			s.shared[key] = r
+		}
+	}
+	return parseRoot(src, r), nil
 }
 
 // ParseWithLoader parses src, resolving `use` through the given loader.
@@ -178,6 +255,10 @@ type resolver struct {
 	// own `require` of another one is not followed. Rule 4, one level, and it
 	// lives here because this is the only place that can see the depth.
 	inRequiredFile bool
+
+	// useIfPasses answers every `use if` condition true; see
+	// ParseFileAssumingUseIf.
+	useIfPasses bool
 }
 
 // resolve parses a module's source once and returns what it says about
@@ -201,13 +282,39 @@ func (r *resolver) resolve(module string) (moduleFacts, bool) {
 	// read during that parse, and a cycle returns here before it can finish.
 	r.seen[module] = true
 
-	src, ok := r.load(module)
+	// A declaration states what the module defines and is read in its
+	// place, installed or not: it exists because the module's source cannot
+	// show it.
+	src, declared := declaration(module)
+	ok := declared
+	if !declared {
+		src, ok = r.load(module)
+	}
 	if !ok {
 		return moduleFacts{}, false
 	}
 	r.loaded = append(r.loaded, module)
 
-	facts := readModule(parseRoot(src, r))
+	var facts moduleFacts
+	if declared {
+		facts = readDeclaration(src, r)
+	} else {
+		facts = readModule(parseRoot(src, r))
+	}
+	// Its XS subs are as real as the ones it declares, once it has loaded.
+	// A sub the module declares in Perl keeps that declaration's prototype.
+	if xs, ok := r.load(module + ".xs"); ok {
+		for name, proto := range XSSubs(xs) {
+			if i := strings.LastIndex(name, "::"); i > 0 && name[:i] != module &&
+				!slices.Contains(facts.packages, name[:i]) {
+				facts.packages = append(facts.packages, name[:i])
+			}
+			name = strings.TrimPrefix(name, module+"::")
+			if _, declared := facts.protos[name]; !declared {
+				facts.protos[name] = proto
+			}
+		}
+	}
 	if r.facts == nil {
 		r.facts = map[string]moduleFacts{}
 	}

@@ -48,7 +48,7 @@ type perlEdge struct {
 // a silently ignored edge is the failure mode this whole file exists to avoid.
 var oracleTypes = map[string]types.Type{
 	"Undef":     types.Undef,
-	"Bool":      types.Bool,
+	"Boolean":   types.Boolean,
 	"Int":       types.Int,
 	"Num":       types.Num,
 	"Str":       types.Str,
@@ -140,13 +140,13 @@ func TestLatticeOracleMeasuredBothFactors(t *testing.T) {
 		if e.Holds == 0 {
 			sawFailure = true
 		}
-		if e.Child == "Bool" && e.Parent == "Str" {
+		if e.Child == "Boolean" && e.Parent == "Str" {
 			sawBoolStr = true
-			assert.Equal(t, 0, e.Holds, "Bool <: Str must not hold")
+			assert.Equal(t, 0, e.Holds, "Boolean <: Str must not hold")
 			assert.Equal(t, 1, e.Factor2,
-				"Bool <: Str factor 2 (substitutability) SHOULD pass — string ops work on booleans uncoerced")
+				"Boolean <: Str factor 2 (substitutability) SHOULD pass — string ops work on booleans uncoerced")
 			assert.Equal(t, 0, e.Factor1,
-				"Bool <: Str factor 1 (membership) should fail")
+				"Boolean <: Str factor 1 (membership) should fail")
 			assert.Equal(t, []string{"false"}, e.F1Fail,
 				"only `false` should fail — `true` passes, which is why single-value testing got this wrong")
 		}
@@ -154,5 +154,5 @@ func TestLatticeOracleMeasuredBothFactors(t *testing.T) {
 	assert.True(t, sawFailure,
 		"no edge failed — the oracle is not discriminating, every predicate may be returning true")
 	assert.True(t, sawBoolStr,
-		"the Bool <: Str edge is missing — it is the worked example both factors exist for")
+		"the Boolean <: Str edge is missing — it is the worked example both factors exist for")
 }

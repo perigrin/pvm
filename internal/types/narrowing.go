@@ -175,7 +175,7 @@ func NarrowByGuard(typ Type, guard GuardPattern) (Type, bool) {
 		if effective == Unknown {
 			effective = Any
 		}
-		result := effective & Bool
+		result := effective & Boolean
 		return narrowResult(result, effective)
 
 	default:
@@ -219,7 +219,7 @@ func NegateGuard(typ Type, guard GuardPattern) (Type, bool) {
 		return effective, false
 
 	case GuardBool:
-		result := effective &^ Bool
+		result := effective &^ Boolean
 		return narrowResult(result, effective)
 
 	default:

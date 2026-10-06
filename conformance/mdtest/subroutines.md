@@ -335,3 +335,150 @@ parses: yes
 22a
 a b|a b
 ```
+
+## A sub whose last statement is a loop
+
+A sub returns the value of its last statement, and when that statement
+is a loop, the value is the loop's last failed test: perl's shared false.
+It is ONE value in list context and `""` in scalar context, never
+anything the body computed, for `foreach` and `while` alike. Measured,
+`builtin::is_bool` is true for both. Found by B::SoN translating chalk's
+lib/ and running chalk's own suite against the emitted Perl, which
+compiled and gave a wrong answer; it was the cause of 99 of chalk's
+failing test files.
+
+```perl
+sub last_is_for   { my @seen; for my $x (@_) { push @seen, $x * 2 } }
+sub last_is_while { my $i = 0; while ($i < 2) { $i++ } }
+my @f = last_is_for(1, 2);
+my @w = last_is_while();
+my $s = last_is_for(3);
+print scalar(@f), scalar(@w), "[", $f[0], "][", $s, "]\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+11[][]
+```
+
+## A die guarded inside a loop body
+
+The guard runs on each element; the `die` leaves the loop and the sub on the element that fails it. A reader that steps past the `die` returns "ok" for both calls. Found by B::SoN translating chalk's lib/ and running chalk's own suite against the emitted Perl.
+
+```perl
+sub check {
+    for my $x (@_) {
+        die "too big: $x\n" if $x > 1;
+    }
+    return "ok";
+}
+print eval { check(1, 0) } // $@, "\n";
+print eval { check(1, 9) } // $@;
+```
+
+```behavior
+parses: yes
+```
+
+```output
+ok
+too big: 9
+```
+
+## A defined-or whose right side calls, in a loop body
+
+The call runs only for the undefined elements: twice, not three times and not never. Found by B::SoN translating chalk's lib/ and running chalk's own suite against the emitted Perl.
+
+```perl
+my $calls = 0;
+sub fallback { $calls++; return 7 }
+my $out = "";
+for my $x (undef, 2, undef) {
+    my $v = $x // fallback();
+    $out .= $v;
+}
+print "$out $calls\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+727 2
+```
+
+## A chain of ands with calls, guarding next
+
+Each `id()` runs only when the operands to its left were true, so the calls are counted: 1 for the first element, 3 each for the others. Found by B::SoN translating chalk's lib/ and running chalk's own suite against the emitted Perl.
+
+```perl
+my $calls = 0;
+sub id { $calls++; return $_[0] }
+my $out = "";
+for my $x (1, 2, 3, 9) {
+    next unless id($x) && id($x) > 1 && id($x) < 9;
+    $out .= $x;
+}
+print "$out $calls\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+23 11
+```
+
+## A call under a statement modifier inside an if
+
+The call runs only when both guards hold -- once in three calls of `f`. Found by B::SoN translating chalk's lib/ and running chalk's own suite against the emitted Perl.
+
+```perl
+my $calls = 0;
+sub helper { $calls++ }
+sub f {
+    my ($x, $y) = @_;
+    if ($x > 3) {
+        helper() if $y > 3;
+    }
+}
+f(5, 5); f(5, 1); f(1, 5);
+print "$calls\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+1
+```
+
+## A print under a modifier, ending a sub
+
+The `if` is the sub's last statement, so it takes the caller's context: the inner modifier is neither void nor a plain value, and its print still runs only when both guards hold. Found by B::SoN translating chalk's lib/ and running chalk's own suite against the emitted Perl.
+
+```perl
+sub report {
+    my ($x, $y) = @_;
+    if ($x > 3) {
+        print "both $x $y\n" if $y > 3;
+    }
+}
+report(5, 5);
+report(5, 1);
+report(1, 5);
+```
+
+```behavior
+parses: yes
+```
+
+```output
+both 5 5
+```

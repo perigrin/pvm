@@ -1024,15 +1024,45 @@ or a comparator, and requires it between plain list elements.
 The whole ambiguity reduces to: after `sort`/`map`/`grep`, is `{` a block or an
 anonymous hash? `toke.c` sets `PL_expect = XREF` (`toke.c:8756`) and
 `yyl_leftcurly` falls through to the lookahead heuristic of chapter 3 §3.3.
-The practical rule for a Go implementation:
+
+For `map` and `grep` the brace selects a variant, and RFC 0001 "Builtins that
+keep their own parse" states the rule a Go implementation follows: **the comma
+that ends the first argument selects the expression variant, and its absence
+the block variant.** The comma need not follow `}` directly. Measured on 5.42,
+perl accepts `map { foo => 1 }->{foo}, @a`, `map { "a" => 1 } ? 1 : 2, @a` and
+`map {}->{a}, @a` as a hash constructor continued before the comma.
+
+perl itself decides from the first tokens inside the brace, and refuses the
+program wherever that guess disagrees with where the first argument ends:
+
+| Source | perl's guess | First argument ends | perl 5.42 |
+|---|---|---|---|
+| `map { $_ => 1 } @a` | block | no comma | a block holding pairs |
+| `map { "a" => 1 }, @a` | hash | at a comma | an anon hash |
+| `map { "\L$_" => 1 } @a` | hash | no comma | syntax error |
+| `map { $_ => 1 }, @a` | block | at a comma | syntax error |
+| `map { $_ => 1 }->{a}, @a` | block | at a comma | syntax error |
+| `map {}, @a` | hash (`toke.c:6706`) | at a comma | an anon hash |
+| `map {} @a` | hash | no comma | syntax error |
+| `map {; "a" => 1 }, @a` | block | at a comma | syntax error |
+
+So on every program perl accepts the guess and the comma pick the same
+variant, and the parser keeps perl's first-tokens guess only to refuse what
+perl refuses. A Go implementation may read the guess and let the comma or list
+the other variant leaves behind refuse as trailing tokens:
 
 ```go
-// After sort/map/grep, a '{' is a BLOCK unless the lookahead says otherwise.
-// Mirrors toke.c's XREF handling plus the anon-hash heuristic.
+// After sort/map/grep, a '{' is read as perl's first-tokens guess
+// classified it (ch3 §3.3). For map and grep that guess and the comma
+// ending the first argument agree on every program perl accepts, so a
+// disagreement is left behind as trailing tokens and refused.
 func (p *Parser) parseMapGrepSortFirstArg(name string) (Node, bool /*isBlock*/) {
 	if p.at("{") {
-		if p.looksLikeAnonHash() { // ch3 §3.3, verbatim
-			return p.parseTerm(), false
+		if !p.braceCloses() {
+			return p.refuse(UnclosedBrace), false // "Missing right curly"
+		}
+		if p.looksLikeAnonHash() || (name != "sort" && p.emptyBraces()) {
+			return nil, false // the first argument, parsed as a term
 		}
 		return p.parseBlock(), true
 	}
@@ -1047,6 +1077,13 @@ func (p *Parser) parseMapGrepSortFirstArg(name string) (Node, bool /*isBlock*/) 
 	return nil, false // fall through to plain list parsing
 }
 ```
+
+An empty `{}` is perl's hash guess (`yyl_leftcurly` answers `HASHBRACK` for a
+`}` straight after the `{`), but the check belongs to `map` and `grep` alone:
+the lexer's guess runs after every word, and an empty `else {}` is a block.
+perl also refuses some operators after a hash constructor's `}`, where it
+expects a term: `map { "a" => 1 } + 1, @a` is a syntax error while `. "x"`,
+`|| 1` and `->{a}` in the same place are not.
 
 `looksLikeAnonHash` must be the same predicate used in §4.4.4 and in chapter
 5 §5.12; keep one implementation, specified by chapter 3 §3.3. Record the guess on the node — `MapGrep{BlockGuessed: true}` —
@@ -1799,7 +1836,7 @@ status. "C" counts are uses in `internal/infer` of the old grammar name.
 | `AnonSub` | in expression position, `my $f = sub { 1 }` → `[declaration "my" [term "$f"] [declaration "sub" [block ...]]]`. **In statement position `sub { 1 };` → two statements**, `[declaration "sub"]` spanning only `sub` and `[anon_hash [term "1"]]` — a wrong tree that round-trips, which is the failure `Unknown` exists to prevent (`parse.go:14-26`). `statement()` reaches `parseDeclaration` before `parseTerm`'s anon-sub check, and `finishBodyOrSemicolon` sees a `{` the lexer classified as a term. `Sig`: PARSER (signatures row above). With `use v5.36;`, `my $f = sub ($x) { 1 };` → `[index "{" [call "sub" [term "$x"]] [term "1"]]` | C: `anonymous_subroutine_expression` (1) | SHIPPED in expression position; PARSER in statement position and for `Sig` |
 | `AnonList`, `AnonHash` | `anon_array`, `anon_hash`; `+{a=>1}` → `[unary "pos" [anon_hash ...]]`. **`{a=>1};` at statement start → `block`** holding a `=>` statement, then an `Unknown` for the `;`. perl disagrees: `B::Deparse` gives `+{'a', 1};` — the `toke.c:6698-6842` heuristic fires at statement start too. A wrong tree that round-trips | C: `anonymous_array_expression` (3), `anonymous_hash_expression` (1). SoN: `ArrayLiteral`/`HashLiteral`, renamed from `ArrayRef`/`HashRef` after the name asserted reference-ness the stamp contradicted (37 corpus cases). Here `[...]` *is* unambiguously a reference constructor, so the local names are not unsound; the rename is §4.14.6 | SHIPPED; statement-start `{` PARSER |
 | `Ref` | `\@a` → `[unary "ref" [term "@a"]]`; `\($a,$b)` → `[unary "ref" [list ...]]` | C: `refgen_expression` (1), `ref` (1) | LOWERING |
-| `FileTest` | `-e $f` → `[call "-e" resolved=true [term "$f"]]`; `-r _` → operand `call "_"` (rule 3) | C: none as a kind; the old grammar folds `-e` into `func1op_call_expression` and the builtin table returns `Bool`, which works | LOWERING (rename); SPECULATIVE as a distinct kind — no file-test-specific rule exists |
+| `FileTest` | `-e $f` → `[call "-e" resolved=true [term "$f"]]`; `-r _` → operand `call "_"` (rule 3) | C: none as a kind; the old grammar folds `-e` into `func1op_call_expression` and the builtin table returns `Boolean`, which works | LOWERING (rename); SPECULATIVE as a distinct kind — no file-test-specific rule exists |
 | `Readline{Magic}` | `<STDIN>`, `<$fh>`, `<>` → one `term`; **`<<>>;` → `[binary ">>" [unknown "<<"] [unknown ">"]]`** — the lexer does not know the 5.22 form | C: none; `infer.go:78-84` uses `my $line = <$T>` as the canonical irreducible `Unknown`, which is what the kind lets it name | LOWERING for `<FH>`/`<$fh>`/`<>`; PARSER (lexer) for `<<>>` |
 | `Glob` | `<*.c>;` → `Unknown`; `glob("*.c")` → `call "glob" resolved=false` | C: none | PARSER for `<...>`; SPECULATIVE consumer |
 | `LoopEx` | `last FOO` → `[loop_control "last" [label "FOO"]]`; `next;` likewise; `return` is also `loop_control` (`return (1,2)` → `[loop_control "return" [list ...]]`); `goto &foo;` → `Unknown` | C: `return_expression` (3); `blockAlwaysExits` (`infer.go:3312-3342`) detects `return`/`die`/`exit` by text and will need `last`/`next` for correct branch joins | SHIPPED; `goto` PARSER |

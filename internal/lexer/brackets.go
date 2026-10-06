@@ -3,6 +3,8 @@
 
 package lexer
 
+import "bytes"
+
 // peekIsOpenBrace reports whether the next non-space byte is `{`.
 //
 // One byte of lookahead past whitespace, which is exactly what perl does at a
@@ -25,6 +27,16 @@ func (l *lexer) peekIsOpenBrace() bool {
 			i = j - 1
 			continue
 		case ' ', '\t', '\r':
+			continue
+		case '#':
+			// A comment, skipped as perl's skipspace skips it: `if ($x) # c`
+			// with its `{` on the next line. Up to the newline, which the
+			// case above then takes.
+			nl := bytes.IndexByte(l.src[i:], '\n')
+			if nl < 0 {
+				return false
+			}
+			i += nl - 1
 			continue
 		case '{':
 			return true

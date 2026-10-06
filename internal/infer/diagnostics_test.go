@@ -65,7 +65,7 @@ func TestSuggestGuardObject(t *testing.T) {
 func TestSuggestGuardBool(t *testing.T) {
 	// Scalar actual, Bool expected — defined() fires first because
 	// Scalar &^ Undef still contains Bool.
-	suggestion := infer.SuggestGuard("$x", types.Scalar, types.Bool)
+	suggestion := infer.SuggestGuard("$x", types.Scalar, types.Boolean)
 	assert.Equal(t, "Add guard: if (defined($x)) { ... }", suggestion)
 }
 
@@ -73,7 +73,7 @@ func TestSuggestGuardBoolDirect(t *testing.T) {
 	// Bool|Int actual, Bool expected — no Undef bit, so P1 skips.
 	// P2 (ref): no Ref bits, skips. P3 (is_bool): Bool & (Bool|Int) = Bool,
 	// guardNarrowingSatisfies(Bool, Bool) = true.
-	suggestion := infer.SuggestGuard("$x", types.Bool|types.Int, types.Bool)
+	suggestion := infer.SuggestGuard("$x", types.Boolean|types.Int, types.Boolean)
 	assert.Equal(t, "Add guard: if (builtin::is_bool($x)) { ... }", suggestion)
 }
 

@@ -1,0 +1,22 @@
+# ABOUTME: Declares what `use Moose` defines in its caller, which Moose::Exporter builds out of sight.
+# ABOUTME: Measured on perl 5.42.0 with Moose 2.4000: only blessed carries a prototype.
+package Moose;
+
+our @EXPORT = qw(
+    extends with has before after around override augment
+    super inner confess blessed meta
+);
+
+sub extends;
+sub with;
+sub has;
+sub before;
+sub after;
+sub around;
+sub override;
+sub augment;
+sub super;
+sub inner;
+sub confess;
+sub blessed :prototype($);
+sub meta;

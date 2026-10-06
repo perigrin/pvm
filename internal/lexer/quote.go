@@ -1,9 +1,12 @@
 // ABOUTME: Quote-like operators: q qq qw m s tr y qr and the plain string forms.
-// ABOUTME: Delimiter scanning only — no interpolation, no regex parsing, no heredocs.
+// ABOUTME: Delimiter scanning, plus the heredoc openers in /e replacements and code blocks.
 
 package lexer
 
-import "unicode/utf8"
+import (
+	"bytes"
+	"unicode/utf8"
+)
 
 // quoteOp describes one keyword-introduced quote-like operator.
 //
@@ -83,6 +86,9 @@ func scanQuoteLike(l *lexer) bool {
 			return true
 		}
 		l.emit(Quote, start)
+		if c == '"' {
+			l.queueBlockHeredocs(start+1, l.pos-1, interpolationOpeners)
+		}
 		return true
 	}
 
@@ -224,9 +230,14 @@ func scanQuoteLike(l *lexer) bool {
 	l.pos += utf8.RuneLen(open) // past the opening delimiter, whole
 	replStart := 0
 
+	patStart := l.pos
 	if !l.scanDelimitedBody(open, close) {
 		l.emit(UnknownRest, start)
 		return true
+	}
+	patEnd := l.pos - utf8.RuneLen(open)
+	if close != 0 {
+		patEnd = l.pos - utf8.RuneLen(close)
 	}
 
 	if op.parts == 3 {
@@ -280,7 +291,56 @@ func scanQuoteLike(l *lexer) bool {
 	if op.parts == 3 && replStart > 0 && hasModifier(l.src[replEnd:l.pos], 'e') {
 		l.queueHeredocsIn(replStart, replEnd)
 	}
+	if (op.name == "m" || op.name == "qr" || op.name == "s") && open != '\'' {
+		l.queueBlockHeredocs(patStart, patEnd, codeBlockOpeners)
+	}
+	if op.name == "qq" && open != '\'' {
+		l.queueBlockHeredocs(patStart, patEnd, interpolationOpeners)
+	}
 	return true
+}
+
+// codeBlockOpeners begin a pattern's code blocks; interpolationOpeners the
+// blocks a double-quoted string interpolates, `@{[ ... ]}` and `${\ ... }`.
+var (
+	codeBlockOpeners     = []string{"(?{", "(??{"}
+	interpolationOpeners = []string{"@{", "${"}
+)
+
+// queueBlockHeredocs queues the heredocs opened inside the blocks, begun by
+// one of openers, whose code perl lexes as perl: `qr/(?{<<END})/` and
+// `"x @{[ <<'EOT' ]} x"` both read their body from the lines after the
+// statement, measured on 5.42.0. Only the code is scanned, so a `<<` in the
+// text around it stays text, and an escaped opener -- `\${` -- is text too.
+//
+// ponytail: the block's end is found by counting braces, so a brace inside
+// a string in the code miscounts; perl's own sublexer would be the upgrade.
+func (l *lexer) queueBlockHeredocs(start, end int, openers []string) {
+	for i := start; i < end; i++ {
+		rest := l.src[i:end]
+		found := false
+		for _, o := range openers {
+			found = found || bytes.HasPrefix(rest, []byte(o))
+		}
+		if !found || escapedAt(l.src, start, i) {
+			continue
+		}
+		open := i + bytes.IndexByte(rest, '{')
+		depth, j := 0, open
+		for ; j < end; j++ {
+			switch l.src[j] {
+			case '{':
+				depth++
+			case '}':
+				depth--
+			}
+			if depth == 0 {
+				break
+			}
+		}
+		l.queueHeredocsWithin(open+1, j, end)
+		i = j
+	}
 }
 
 // hasModifier reports whether the modifier run contains c.
@@ -294,15 +354,43 @@ func hasModifier(mods []byte, c byte) bool {
 }
 
 // queueHeredocsIn scans an /e replacement for heredoc openers and queues
-// them, so their bodies are taken after the current line.
+// them, so their bodies are taken after the current line -- unless the
+// replacement itself has a line after the opener, which then holds the body.
 //
 // A sub-lexer over the replacement's bytes: it shares nothing with the outer
 // cursor, and only the pending queue crosses back.
 func (l *lexer) queueHeredocsIn(start, end int) {
+	l.queueHeredocsWithin(start, end, end)
+}
+
+// queueHeredocsWithin is queueHeredocsIn for code that sits inside a larger
+// construct: openers are looked for in [start, blockEnd), but a body is
+// taken from the construct's next line up to constructEnd. perl's
+// scan_heredoc looks in the construct's buffer (toke.c:11735), and the
+// construct is the whole string or pattern: `"@{[ <<E1 ]}foo\nE1\n"` takes
+// `E1\n` from the string, measured on 5.42.0.
+func (l *lexer) queueHeredocsWithin(start, blockEnd, constructEnd int) {
+	end := constructEnd
 	sub := &lexer{src: l.src[:end], pos: start, expect: XTerm}
 	for sub.pos < end {
+		if sub.pos >= blockEnd && len(sub.pending) == 0 {
+			break
+		}
 		before := sub.pos
-		if scanHeredocOpen(sub) {
+		if sub.pos < blockEnd && scanHeredocOpen(sub) {
+			continue
+		}
+		// A newline inside the replacement: the bodies queued so far are
+		// the replacement's own next lines. perl looks in the construct's
+		// buffer first and climbs to the parent's only when it has no
+		// newline (toke.c:11735).
+		if sub.src[sub.pos] == '\n' && len(sub.pending) > 0 {
+			pos := sub.pos + 1
+			for _, h := range sub.pending {
+				pos, _ = heredocBodyEnd(sub.src, pos, h)
+			}
+			sub.pending = nil
+			sub.pos = pos
 			continue
 		}
 		sub.pos++
@@ -390,6 +478,18 @@ func (l *lexer) scanDelimitedBody(open, close rune) bool {
 			if depth == 0 {
 				return true
 			}
+		case c == '\n' && len(l.pending) > 0:
+			// A heredoc queued on this line takes the next lines even though
+			// this body runs on: perl's scan_heredoc removes them from the
+			// input when it lexes the opener, and the body resumes after
+			// them. Measured on 5.42.0, `<<E21 . 'single\nE21 content\nE21\n
+			// quoted'` is "E21 content\n" . "single\nquoted". The skipped
+			// lines stay inside this token's span.
+			l.pos++
+			for _, h := range l.pending {
+				l.pos, _ = heredocBodyEnd(l.src, l.pos, h)
+			}
+			l.pending = nil
 		case close != 0 && c == open:
 			// Only a bracketing pair nests; a self-closing delimiter reaches
 			// the case above first and ends the body.
@@ -499,4 +599,14 @@ func isAsciiLetter(c byte) bool {
 // issue; this is only enough to tell `q` from `q_thing`.
 func isWordByte(c byte) bool {
 	return isAsciiLetter(c) || c >= '0' && c <= '9' || c == '_'
+}
+
+// escapedAt reports whether src[i] is escaped: an odd run of backslashes
+// before it, not reaching back past start.
+func escapedAt(src []byte, start, i int) bool {
+	n := 0
+	for j := i - 1; j >= start && src[j] == '\\'; j-- {
+		n++
+	}
+	return n%2 == 1
 }

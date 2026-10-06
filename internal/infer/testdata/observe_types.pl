@@ -44,7 +44,7 @@ sub observe ($v) {
     }
 
     # Boolean first: a marked boolean also looks like an integer.
-    return 'Bool' if is_bool($v);
+    return 'Boolean' if is_bool($v);
 
     # Int before Num, since every integer is also a number.
     return 'Int' if $v =~ /\A-?[0-9]+\z/;

@@ -47,7 +47,7 @@ func TestHeredocBodyInsideItsStatement(t *testing.T) {
 			"f(<<~'EOF' , \"n\");\n  body\n  EOF\n"},
 		{"opener on its own line, trailing comma",
 			"f(\n  <<~EOF,\n    body\n    EOF\n  2,\n);\n",
-			"f(<<~EOF , 2);\n    body\n    EOF\n"},
+			"f(<<~EOF , 2 ,);\n    body\n    EOF\n"},
 		// A body inside a nested statement belongs to THAT statement, and the
 		// outer one must not claim it a second time.
 		{"nested in a block",

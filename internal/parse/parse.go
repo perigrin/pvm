@@ -3,7 +3,10 @@
 
 package parse
 
-import "tamarou.com/pvm/internal/lexer"
+import (
+	"tamarou.com/pvm/internal/lexer"
+	"tamarou.com/pvm/internal/types"
+)
 
 // Kind names what a node is.
 type Kind int
@@ -429,6 +432,13 @@ type Node struct {
 	// `for my $i (@l)` differ in which child is the variable rather than in
 	// what the loop is.
 	LoopVar bool
+
+	// TrailingComma is the separator, `,` or `=>`, the source wrote after
+	// this node with no element after it -- `f(1, 2,)`. perl drops it
+	// (measured on 5.42.0, `f(1, 2,)` deparses as `f(1, 2)`), and so does
+	// the tree's shape; canon writes it back so the emission says what the
+	// source says (perigrin, 2026-09-30).
+	TrailingComma string
 }
 
 // SourceText reconstructs the bytes this node covers, walking the tree.
@@ -479,10 +489,21 @@ func Parse(src []byte) *Node {
 // parseRoot is Parse with a resolver threaded through it. A nil resolver
 // resolves nothing, which is what Parse promises.
 func parseRoot(src []byte, res *resolver) *Node {
-	root := &Node{Kind: SourceFile, Start: 0, End: len(src)}
-	toks := lexer.Tokenize(src)
+	root, _ := parseSource(src, res, false)
+	return root
+}
 
-	p := &parser{src: src, toks: toks, res: res}
+// parseSource is parseRoot, reading typed Perl when typed is set, and
+// returning the parser too: a declaration file's typed signatures are left
+// on it. See readDeclaration.
+func parseSource(src []byte, res *resolver, typed bool) (*Node, *parser) {
+	root := &Node{Kind: SourceFile, Start: 0, End: len(src)}
+	tokenize := lexer.Tokenize
+	if typed {
+		tokenize = lexer.TokenizeTyped
+	}
+
+	p := &parser{src: src, toks: tokenize(src), res: res, symbolsOpen: res == nil, typed: typed}
 	for p.pos < len(p.toks) {
 		before := p.pos
 		if n := p.statement(); n != nil {
@@ -525,7 +546,7 @@ func parseRoot(src []byte, res *resolver) *Node {
 			}
 		}
 	}
-	return root
+	return root, p
 }
 
 // parser is the cursor over the token stream.
@@ -538,6 +559,22 @@ type parser struct {
 	// placeholder's `=` may have nothing after it -- see emptyDefault.
 	inSignature bool
 
+	// typed is set while a `.pmt` declaration file is read: its signatures
+	// are typed Perl. signatures holds each one read, by sub name, and
+	// typedErrs the ones that could not be. See parseTypedSignature.
+	typed      bool
+	signatures map[string][]types.Signature
+	typedErrs  []error
+	operators  []operatorDecl
+
+	// operatorSig is the signature of the operator declaration being read;
+	// see declareOperator.
+	operatorSig types.Signature
+
+	// multi is set while a `.pmt`'s `multi sub` is read: its signature is
+	// one more candidate for its name rather than the name's only one.
+	multi bool
+
 	src  []byte
 	toks []lexer.Token
 	res  *resolver
@@ -549,10 +586,21 @@ type parser struct {
 	// the file re-enables after it is the ceiling. See noteFeatures.
 	features map[string]bool
 
+	// syntax are the keywords and sub prefixes imported modules declare,
+	// file-wide from their import on as features are. See declaredSyntax.
+	syntax map[string]declaredSyntax
+
 	// noIndirect is set where indirect object notation is off: `no feature
 	// 'indirect'`, or a 5.36+ bundle, which drops it. File-level, like
 	// features.
 	noIndirect bool
+
+	// symbolsOpen is set once a sub may exist that this parse cannot see:
+	// there is no loader, or a `use`, a required file or a BEGIN block did
+	// something this parser does not read -- see noteImportKnowledge. While
+	// it is clear, a word missing from the sub table is one perl has no CV
+	// for either, which is what `WORD $var` as a method call rests on.
+	symbolsOpen bool
 
 	// packages names every `package` and `class` read so far. A bareword
 	// naming one is a class even when the word before it is a known sub --

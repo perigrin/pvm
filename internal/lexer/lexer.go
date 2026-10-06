@@ -207,7 +207,22 @@ type Token struct {
 // constantly and a lexer that gives up on the first bad byte is useless to
 // it. Spec §7.6.2 invariant 1: never panic, on any input.
 func Tokenize(src []byte) []Token {
-	l := &lexer{src: src, expect: XState}
+	return tokenize(&lexer{src: src, expect: XState})
+}
+
+// TokenizeTyped is Tokenize for typed Perl, the language of a `.pmt`
+// declaration file (RFC 0001, "Typed Perl, in `.pmt` only"). The signatures
+// feature is on from the first byte, so the `(` after `sub NAME` opens a
+// signature and never a prototype: a declaration file spells its prototypes
+// `:prototype(...)`, as perl requires once signatures are on.
+//
+// An operator is declared under its symbol, `sub + :infix(ADD) ...`, so the
+// symbol after `sub` is read as the sub's name; see scanOperatorName.
+func TokenizeTyped(src []byte) []Token {
+	return tokenize(&lexer{src: src, expect: XState, signatures: true, typed: true})
+}
+
+func tokenize(l *lexer) []Token {
 	for l.pos < len(l.src) {
 		l.step(scanOne)
 	}
@@ -315,6 +330,11 @@ type lexer struct {
 	// whether that `(` is a prototype or a signature. File-level, like
 	// utf8Pragma and for the same reason.
 	signatures bool
+	// typed is set for typed Perl, a `.pmt` declaration file, where a
+	// container type may stand before a hash parameter: `List[Str] %h`
+	// (see containerTypeSigil), and where `sub +` names an operator (see
+	// scanOperatorName).
+	typed bool
 	// pendingVersionMajor held the `5` of a `use v5.36` whose version
 	// arrived split across three tokens -- Word("v5"), Operator("."),
 	// Number(36) -- because `v5` lexed as an ordinary identifier.
@@ -333,6 +353,17 @@ type lexer struct {
 	pendingFormat bool
 	// inFormat is set when the picture body should be taken next.
 	inFormat bool
+	// constSubs are the names declared with the empty prototype -- `use
+	// constant NAME`, the keys of `use constant {...}`, `sub NAME () {...}`.
+	// A value has been produced after one, so an operator follows, as perl's
+	// lexer decides from the symbol table. constState and the rest track the
+	// declaration being read; see noteConstSub.
+	//
+	// ponytail: one table for the file; perl scopes these to a package.
+	constSubs  map[string]bool
+	constState int
+	constDepth int
+	constKey   string
 }
 
 // step runs one scan and enforces spec §7.6.2 invariant 4: every step
@@ -416,11 +447,16 @@ func scanOne(l *lexer) {
 		scanPod,
 		scanDataSection,
 		scanComment,
+		// Before every scanner that reads punctuation as something else:
+		// `sub <<`, `sub /` and `sub %` name operators, not a heredoc, a
+		// pattern and a hash.
+		scanOperatorName,
 		scanHeredocOpen,
 		// Before scanVariable: the sigils inside a prototype are not
 		// variables, and scanVariable is what was reading `($$)` as
 		// Variable("$$)") -- closing paren included.
 		scanPrototype,
+		scanPostDerefStar,
 		scanVariable,
 		scanAngle,
 		scanAmp,
@@ -513,6 +549,7 @@ func (l *lexer) emit(k Kind, start int) {
 		closedBlock:     l.closedBlock,
 		nextIsOpenBrace: l.peekIsOpenBrace(),
 		afterDeclName:   afterDeclName,
+		declaredNiladic: k == Word && l.constSubs[string(l.src[start:l.pos])],
 		// Only a WORD can need the lookahead, or the `(` of a block-taking
 		// word's parenthesised call. Every other token would pay a byte scan
 		// for an answer nothing reads. Which word it is does not narrow this:
@@ -533,6 +570,7 @@ func (l *lexer) emit(k Kind, start int) {
 		l.expect = XTerm
 	}
 	l.noteFormat(k, start)
+	l.noteConstSub(k, start)
 	// The picture body begins after the newline that ends the declaration.
 	if l.pendingFormat && k == Whitespace && l.pos > start &&
 		bytesContainNewline(l.src[start:l.pos]) {

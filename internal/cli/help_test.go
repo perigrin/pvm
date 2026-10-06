@@ -350,9 +350,10 @@ func TestShowTypesHelp(t *testing.T) {
 	outputStr := output.String()
 
 	expectedSections := []string{
-		"PVM Type Annotations",
-		"Basic Type Syntax",
-		"Parsing Type-Annotated Perl",
+		"PVM Types",
+		"How PVM Finds Types",
+		"Checking a File",
+		"Declaration Files",
 	}
 
 	for _, section := range expectedSections {
@@ -363,9 +364,10 @@ func TestShowTypesHelp(t *testing.T) {
 
 	// Check for specific content examples
 	expectedContent := []string{
-		"my Int $count = 42;",
-		"psc parse",
-		"psc analyze",
+		"psc check",
+		"Int <: Num <: Str <: Scalar <: List",
+		".pmt",
+		"docs/rfcs/0001-type-libraries.md",
 	}
 
 	for _, content := range expectedContent {

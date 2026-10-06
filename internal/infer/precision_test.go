@@ -46,7 +46,7 @@ type observation struct {
 // observedToLattice maps an observed type name to the PSC type it should be.
 var observedToLattice = map[string]types.Type{
 	"Undef":     types.Undef,
-	"Bool":      types.Bool,
+	"Boolean":   types.Boolean,
 	"Int":       types.Int,
 	"Num":       types.Num,
 	"Str":       types.Str,

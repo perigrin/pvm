@@ -189,7 +189,7 @@ func (p *parser) noteFeatures(verb, module string, list *Node) {
 			return
 		}
 		for _, name := range names {
-			if gatedUnary[name] || name == "keyword_any" || name == "keyword_all" || name == "class" {
+			if gatedUnary[name] || name == "keyword_any" || name == "keyword_all" || name == "class" || name == "defer" || name == "isa" {
 				p.features[name] = verb == "use"
 			}
 			if name == "indirect" {
@@ -207,6 +207,8 @@ func (p *parser) noteFeatures(verb, module string, list *Node) {
 		// Foo;` is a syntax error on 5.42.0.
 		if ok && (major > 5 || major == 5 && minor >= 35) {
 			p.noIndirect = true
+			// And takes `isa` in: feature.pm's :5.36 bundle names it.
+			p.features["isa"] = true
 		}
 	}
 }
@@ -246,12 +248,33 @@ func (p *parser) resolveImports(module string, list *Node) {
 		p.importBuiltins(list)
 		return
 	}
+	if module == "constant" {
+		p.importConstants(list)
+		return
+	}
 	if p.res == nil {
+		return
+	}
+	// `use if COND, MODULE, LIST`, with COND taken to hold: `use MODULE
+	// LIST`. See ParseFileAssumingUseIf.
+	if module == "if" && p.res.useIfPasses {
+		if target, rest, ok := useIfTarget(list); ok {
+			p.notePackage(target)
+			p.resolveImports(target, rest)
+		}
 		return
 	}
 	facts, ok := p.res.resolve(module)
 	if !ok {
+		p.noteImportKnowledge(module, list, true)
 		return
+	}
+	p.noteImportKnowledge(module, list, facts.dynamic || facts.opaque)
+
+	// The packages its XS declares exist once it loads: `new
+	// Compress::Raw::Bunzip2(1, 1)` is a method call on one.
+	for _, pkg := range facts.packages {
+		p.notePackage(pkg)
 	}
 
 	// The module's own subs are callable by their qualified names whatever
@@ -262,15 +285,43 @@ func (p *parser) resolveImports(module string, list *Node) {
 	// conventional module declares.
 	//
 	// Kept apart from the imports: they are known, not imported.
+	// A name already qualified -- an XS PACKAGE other than the module's
+	// own, or a `sub Other::name` -- is known by that name.
 	for name, proto := range facts.protos {
-		if strings.Contains(name, "::") {
-			continue
-		}
 		if p.moduleSubs == nil {
 			p.moduleSubs = map[string]Import{}
 		}
-		q := module + "::" + name
+		q := name
+		if !strings.Contains(name, "::") {
+			q = module + "::" + name
+		}
 		p.moduleSubs[q] = Import{Name: q, Prototype: proto, PrototypeKnown: true}
+	}
+
+	// Its declared syntax comes into scope with any import -- `use M ()`
+	// calls no import, and brings none.
+	if len(facts.syntax) > 0 && (list == nil || !list.Paren || len(list.Children) > 0) {
+		if p.syntax == nil {
+			p.syntax = map[string]declaredSyntax{}
+		}
+		for name, s := range facts.syntax {
+			p.syntax[name] = s
+		}
+	}
+
+	if facts.builder {
+		names, given, ok := builderImportList(list)
+		if !ok {
+			p.symbolsOpen = true
+			return
+		}
+		if p.imports == nil {
+			p.imports = map[string]Import{}
+		}
+		for _, imp := range importsFrom(facts, names, given) {
+			p.imports[subKey(imp.Name)] = imp
+		}
+		return
 	}
 
 	// An import list restricts what is imported, and `use M ()` -- an empty
@@ -283,6 +334,11 @@ func (p *parser) resolveImports(module string, list *Node) {
 			names = got
 		} else if !list.Paren || len(list.Children) != 0 {
 			// A computed import list is opaque: it is not an empty import.
+			// It hides subs only from a module whose import defines them --
+			// `use overload '%{}' => sub {...}` defines none.
+			if !quietPragmas[module] && module != "if" {
+				p.symbolsOpen = true
+			}
 			return
 		}
 	}
@@ -290,8 +346,162 @@ func (p *parser) resolveImports(module string, list *Node) {
 	if p.imports == nil {
 		p.imports = map[string]Import{}
 	}
+	// A quiet pragma's list is its arguments, not names -- `use open qw(
+	// :utf8 :std )` names layers -- so only another module's unread tag
+	// leaves the table incomplete.
+	if listGiven && !quietPragmas[module] && unknownTag(facts, names) {
+		p.symbolsOpen = true
+	}
 	for _, imp := range importsFrom(facts, names, listGiven) {
 		p.imports[subKey(imp.Name)] = imp
+	}
+}
+
+// listItems flattens a `use` list -- commas, fat commas and parens -- into
+// its elements.
+func listItems(n *Node) []*Node {
+	if n.Kind == Binary && (n.Text == "," || n.Text == "=>") || n.Kind == List {
+		var items []*Node
+		for _, c := range n.Children {
+			items = append(items, listItems(c)...)
+		}
+		return items
+	}
+	return []*Node{n}
+}
+
+// importConstants is `use constant`. constant.pm defines each name in the
+// caller as a sub with the empty prototype -- measured on 5.42.0,
+// `prototype "main::X"` is "" for `use constant X => 2`, for a hash of them
+// and for a list constant -- so `Y / X` divides. There is no module text to
+// read, as there is none for `use builtin`, so this holds with no loader.
+// The first element names one constant, or a `{...}` names one per key.
+func (p *parser) importConstants(list *Node) {
+	if list == nil {
+		return
+	}
+	items := listItems(list)
+	var names []string
+	if first := items[0]; first.Kind == AnonHash {
+		for _, c := range first.Children {
+			for i, kv := range listItems(c) {
+				if i%2 == 0 {
+					if got, ok := constantName(kv); ok {
+						names = append(names, got)
+					}
+				}
+			}
+		}
+	} else if got, ok := constantName(first); ok {
+		names = append(names, got)
+	}
+	if p.imports == nil {
+		p.imports = map[string]Import{}
+	}
+	for _, name := range names {
+		p.imports[subKey(name)] = Import{Name: name, Prototype: "()", PrototypeKnown: true}
+	}
+}
+
+// constantName reads a constant's name: a bareword or a literal string.
+func constantName(n *Node) (string, bool) {
+	if got, ok := literalNameList(n); ok && len(got) == 1 {
+		return got[0], true
+	}
+	if len(n.Children) == 0 && isBarewordText(n.Text) {
+		return n.Text, true
+	}
+	return "", false
+}
+
+// builderImportList reads a Test::Builder::Module subclass's import list as
+// its import does (perl 5.42.0's Test/Builder/Module.pm:75-122): the names
+// under each `import => [...]` are imported, and everything else is handed to
+// plan(). given is false when there is no `import` pair, which imports
+// @EXPORT. ok is false when a pair's names are not literal.
+func builderImportList(list *Node) (names []string, given, ok bool) {
+	if list == nil {
+		return nil, false, true
+	}
+	items := listItems(list)
+	for i := 0; i < len(items); i++ {
+		key, lit := literalNameList(items[i])
+		if !(lit && len(key) == 1 && key[0] == "import") && items[i].Text != "import" {
+			continue
+		}
+		if i+1 >= len(items) || items[i+1].Kind != AnonArray {
+			return nil, false, false
+		}
+		for _, c := range items[i+1].Children {
+			got, lit := literalNameList(c)
+			if !lit {
+				return nil, false, false
+			}
+			names = append(names, got...)
+		}
+		given = true
+		i++
+	}
+	return names, given, true
+}
+
+// useIfTarget splits `use if`'s list into the module it loads and that
+// module's own import list, which is nil when none is given.
+func useIfTarget(list *Node) (module string, rest *Node, ok bool) {
+	if list == nil {
+		return "", nil, false
+	}
+	items := listItems(list)
+	if len(items) < 2 {
+		return "", nil, false
+	}
+	switch names, lit := literalNameList(items[1]); {
+	case lit && len(names) == 1:
+		module = names[0]
+	case len(items[1].Children) == 0 && isBarewordText(items[1].Text):
+		module = items[1].Text
+	default:
+		return "", nil, false
+	}
+	for _, n := range items[2:] {
+		if rest == nil {
+			rest = n
+			continue
+		}
+		rest = &Node{Kind: Binary, Text: ",", Start: rest.Start, End: n.End, Children: []*Node{rest, n}}
+	}
+	return module, rest, true
+}
+
+// quietPragmas are the core pragmas whose `import` defines no sub in the
+// caller: they switch features, warnings, strictures, layers, @INC or @ISA.
+// Their own modules define `import`, which would otherwise mark them dynamic.
+// `constant` and `subs` are not here: both declare subs this parser does not
+// record.
+var quietPragmas = map[string]bool{
+	"strict": true, "warnings": true, "utf8": true, "open": true,
+	"vars": true, "feature": true, "lib": true, "integer": true,
+	"bytes": true, "less": true, "sort": true, "overload": true,
+	"parent": true, "base": true, "mro": true, "locale": true,
+}
+
+// noteImportKnowledge records whether a `use` left the sub table complete.
+// A module that was not found, whose export list is computed, or that is
+// dynamic may have defined subs in this file that the table does not hold,
+// and from then on an unknown word is no longer one perl lacks a CV for.
+//
+// Config is generated when perl is built, so no source tree holds it; its
+// bare import is %Config alone, and it exports functions only when named.
+//
+// `use if COND, MODULE, LIST` imports only when COND holds at compile time,
+// which this parser cannot evaluate. The import is assumed to fail (perigrin's
+// decision, 2026-09-30): it defines nothing, and the table stays complete.
+func (p *parser) noteImportKnowledge(module string, list *Node, unseen bool) {
+	switch {
+	case quietPragmas[module] || module == "if":
+	case module == "Config" && list == nil:
+	case unseen || module == "Config":
+		p.symbolsOpen = true
 	}
 }
 
@@ -371,6 +581,7 @@ func (p *parser) resolveRequiredFile(list *Node) {
 	// double-quoted body is what separates the two, so it is checked on the
 	// text AS WRITTEN, before the quotes come off.
 	if interpolates(list.Text) {
+		p.symbolsOpen = true
 		return
 	}
 	names, ok := literalNameList(list)
@@ -379,6 +590,9 @@ func (p *parser) resolveRequiredFile(list *Node) {
 	}
 
 	facts, ok := p.res.resolveFile(names[0])
+	if !ok || facts.dynamic {
+		p.symbolsOpen = true
+	}
 	if !ok {
 		return
 	}
@@ -395,6 +609,12 @@ func (p *parser) resolveRequiredFile(list *Node) {
 			Name:           name,
 			Prototype:      proto,
 			PrototypeKnown: true,
+		}
+	}
+	// A glob it assigns is a sub too, with no prototype this parser reads.
+	for _, name := range facts.globs {
+		if _, ok := p.imports[subKey(name)]; !ok {
+			p.imports[subKey(name)] = Import{Name: name}
 		}
 	}
 }
@@ -419,12 +639,103 @@ func (p *parser) parsePhaser(word lexer.Token) *Node {
 
 	if blk := p.parseBlockOrDecline(); blk != nil {
 		n.Children = append(n.Children, blk)
+		if n.Text == "BEGIN" {
+			p.noteBeginEffects(blk)
+		}
 	}
 	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
 		p.advanceTo(tok)
 	}
 	n.End = p.prevEnd()
 	return n
+}
+
+// aliasTarget is the sub a `\&NAME` names, with its prototype when this
+// parser knows it: a CORE:: builtin from coreTable, or a sub in the table.
+func (p *parser) aliasTarget(n *Node) (Import, bool) {
+	if n.Kind != Unary || n.Text != "ref" || len(n.Children) != 1 {
+		return Import{}, false
+	}
+	name, ok := strings.CutPrefix(n.Children[0].Text, "&")
+	if !ok || name == "" {
+		return Import{}, false
+	}
+	if builtin, isCore := strings.CutPrefix(name, "CORE::"); isCore {
+		proto, known := coreTable()[builtin]
+		return Import{Name: name, Prototype: "(" + proto + ")"}, known
+	}
+	if imp, known := p.lookupSub(name); known && imp.PrototypeKnown {
+		return imp, true
+	}
+	return Import{}, false
+}
+
+// noteBeginEffects reads what a BEGIN block does to the sub table before the
+// code after it compiles. A literal glob assignment defines a name: `BEGIN {
+// *BB::e = \&C::e }` in t/op/method.t. A computed glob, an `import` call, a
+// string eval or a `do FILE` may define anything, so the table is no longer
+// complete. See symbolsOpen.
+//
+// An import called on a literal class name is `use`: `BEGIN { require M;
+// M->import(LIST) }` imports what `use M LIST` does, and is applied the same
+// way -- see beginImport.
+func (p *parser) noteBeginEffects(n *Node) {
+	if module, list, ok := beginImport(n); ok {
+		p.notePackage(module)
+		p.resolveImports(module, list)
+		return
+	}
+	switch {
+	case n.Kind == Binary && n.Text == "=" && len(n.Children) == 2 &&
+		n.Children[0].Kind == Term && strings.HasPrefix(n.Children[0].Text, "*"):
+		if name := strings.TrimPrefix(n.Children[0].Text, "*"); name != "" {
+			if p.imports == nil {
+				p.imports = map[string]Import{}
+			}
+			// An alias takes its target's prototype: `*my_push =
+			// \&CORE::push` is `\@@`, measured on 5.42.0.
+			if imp, ok := p.aliasTarget(n.Children[1]); ok {
+				p.imports[subKey(name)] = Import{Name: name, Prototype: imp.Prototype, PrototypeKnown: true}
+			} else if _, ok := p.imports[subKey(name)]; !ok {
+				p.imports[subKey(name)] = Import{Name: name}
+			}
+		} else {
+			p.symbolsOpen = true
+		}
+	case n.Text == "import" || n.Text == "unimport":
+		p.symbolsOpen = true
+	case n.Kind == Call && (n.Text == "eval" || n.Text == "do") &&
+		len(n.Children) > 0 && n.Children[0].Kind != Block:
+		p.symbolsOpen = true
+	}
+	for _, c := range n.Children {
+		p.noteBeginEffects(c)
+	}
+}
+
+// beginImport reads `M->import`, `M->import()` and `M->import(LIST)` with M a
+// literal class name, returning M and the import list as `use M` would hold
+// it: nil for no list, an empty parenthesised List for `()`.
+func beginImport(n *Node) (module string, list *Node, ok bool) {
+	if n.Kind != Binary || n.Text != "->" || len(n.Children) != 2 {
+		return "", nil, false
+	}
+	class, method := n.Children[0], n.Children[1]
+	if class.Kind != Call || len(class.Children) != 0 || !isBarewordText(class.Text) ||
+		method.Text != "import" {
+		return "", nil, false
+	}
+	switch {
+	case method.Kind == Term:
+		return class.Text, nil, true
+	case method.Kind != Call:
+		return "", nil, false
+	case len(method.Children) == 0:
+		return class.Text, &Node{Kind: List, Paren: true, Start: method.End, End: method.End}, true
+	case len(method.Children) == 1:
+		return class.Text, method.Children[0], true
+	}
+	return class.Text, &Node{Kind: List, Paren: true, Start: method.Start, End: method.End, Children: method.Children}, true
 }
 
 // parseSpecialSub: `DESTROY { ... }` and `AUTOLOAD { ... }`, which declare the

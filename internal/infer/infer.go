@@ -575,7 +575,7 @@ func checkBinaryOperand(
 	// Comparison operators stay a warning regardless, since they execute via
 	// coercion in every case.
 	severity := Error
-	valueLike := types.Bool | types.Str | types.DualVar | types.Object
+	valueLike := types.Boolean | types.Str | types.DualVar | types.Object
 	if types.IsCoercible(actual, expected) &&
 		types.IsSubtype(actual, valueLike) && types.IsSubtype(expected, valueLike) {
 		severity = Warning
@@ -1514,7 +1514,7 @@ func listElementType(rhs *parser.Node, source []byte, st *SymbolTable, annotatio
 // PSC cannot see whether a given class declares one without resolving it
 // across files. Reporting an error asserts the conversion is impossible.
 func argumentSeverity(actual, expected types.Type) Severity {
-	valueLike := types.Bool | types.Str | types.DualVar | types.Object
+	valueLike := types.Boolean | types.Str | types.DualVar | types.Object
 	if types.IsCoercible(actual, expected) &&
 		types.IsSubtype(actual, valueLike) && types.IsSubtype(expected, valueLike) {
 		return Warning
