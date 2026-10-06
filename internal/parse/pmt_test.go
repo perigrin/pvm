@@ -387,6 +387,23 @@ func TestPmtModuloAfterIndexInDefault(t *testing.T) {
 	}
 }
 
+// TestPmtDefaultBeforeAnotherParameter: a default ends at the comma, so a
+// parameter can follow it. Measured on 5.42.0, `sub f ($x = 1, $y = $_)`
+// gives "1 u" for `f()` with `$_ = "u"`.
+func TestPmtDefaultBeforeAnotherParameter(t *testing.T) {
+	facts := readDeclaration([]byte("sub f (Scalar $x = 1, Scalar $y = $_);\n"), nil)
+	if len(facts.errs) > 0 {
+		t.Fatalf("errors: %v", facts.errs)
+	}
+	want := []types.Signature{{Params: []types.Param{
+		{Name: "x", Sigil: '$', Type: types.Scalar, Default: "1"},
+		{Name: "y", Sigil: '$', Type: types.Scalar, Default: "$_"},
+	}}}
+	if got := facts.signatures["f"]; !reflect.DeepEqual(got, want) {
+		t.Errorf("got %+v, want %+v", got, want)
+	}
+}
+
 // TestPmtMultiSubKeepsEveryCandidate: RFC 0001 "Multi declarations". A
 // `multi sub` gives one of several signatures for its name, and every one is
 // kept, in the order declared.

@@ -341,8 +341,9 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 	if eq, ok := p.peekSignificant(); ok && p.text(eq) == "=" {
 		p.advanceTo(eq)
 		var def *Node
+		// The comma ends the default and begins the next parameter.
 		if next, ok := p.peekSignificant(); ok && p.text(next) != "," && p.text(next) != ")" {
-			def = p.parseExpr(bpBelowComma)
+			def = p.parseExpr(infix[","].BP)
 		}
 		if def == nil {
 			return types.Param{}, nil, fmt.Errorf("default for %s has no expression", p.text(v))
