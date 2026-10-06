@@ -1,19 +1,23 @@
 ---
 title: A sub declared in one package may count as declared in another
-state: in-progress
+state: done
 urgency: normal
 milestone: v0.1
 created: 2026-10-06T10:59:35.644284842Z
-updated: 2026-10-06T12:07:51.931978144Z
+updated: 2026-10-06T12:07:52.091156162Z
 sessions:
 - start_sha: c391da4f920448d9a062cf049a4e591d9ed1d24a
-  end_sha: ""
+  end_sha: c391da4f920448d9a062cf049a4e591d9ed1d24a
   commits: 0
   started_at: 2026-10-06T12:07:51.931978144Z
+  ended_at: 2026-10-06T12:07:52.091156162Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-06T12:07:51.931978144Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-06T12:07:52.091156162Z
 ---
 
 ## Context
