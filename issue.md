@@ -6,7 +6,7 @@ milestone: type-libraries
 blocks:
 - 01a0fd9b-55cb-70cd-a9da-929190cb581c
 created: 2026-10-06T12:42:47.53409794Z
-updated: 2026-10-06T15:40:23.100733112Z
+updated: 2026-10-06T17:35:43.341339734Z
 ---
 
 ## Context
@@ -21,6 +21,8 @@ From 01a0fd9b-5017-78d0-ae38-331cbe6a9866, which left `split` undeclared because
 - `:unary` (named unary, derives no prototype) is the wrong parse shape; an invocant colon and a multi do not apply.
 
 So typed Perl needs a way to say "these parameters are typed and positional, but the declaration derives no prototype and parses as a list operator" -- perhaps an attribute in the family of `:unary` (e.g. `:listop`), or a rule that a builtin in "Builtins that keep their own parse" derives none.
+
+Cost of waiting, from 01a0fd9b-5670-78d0-84be-9b9618e9b081: internal/infer now reads CORE.pmt and internal/types/signatures.go is deleted, so until split is declared a `split` call is UNTYPED (it was List) and its pattern-argument check is lost -- `split $hashref, $x` goes unreported. TestInferSplitPatternTakesRegexOrStr holds the check and unskips itself once CORE.pmt declares split.
 
 ## Steps
 
