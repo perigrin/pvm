@@ -1,6 +1,6 @@
 ---
 title: Derive one prototype from several multi candidates
-state: in-progress
+state: done
 urgency: normal
 milestone: type-libraries
 blocked_by:
@@ -11,16 +11,20 @@ blocks:
 - 01a10177-4e7b-7d2c-8d2a-2033647ffc4a
 - 01a10c6e-988f-7aa6-811d-0e462abc442a
 created: 2026-10-05T20:28:48.152828461Z
-updated: 2026-10-06T10:23:32.756537595Z
+updated: 2026-10-06T10:23:33.713327991Z
 sessions:
 - start_sha: 04bad7b12391f27dfdfd6ca5d23b64192cbc6c78
-  end_sha: ""
+  end_sha: 04bad7b12391f27dfdfd6ca5d23b64192cbc6c78
   commits: 0
   started_at: 2026-10-06T10:23:32.756537595Z
+  ended_at: 2026-10-06T10:23:33.713327991Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-06T10:23:32.756537595Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-06T10:23:33.713327991Z
 ---
 
 ## Prerequisites
