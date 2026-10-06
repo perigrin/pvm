@@ -5,6 +5,8 @@ package parse_test
 import (
 	"fmt"
 	"os"
+	"regexp"
+	"slices"
 	"testing"
 
 	"tamarou.com/pvm/internal/parse"
@@ -125,5 +127,62 @@ func TestCoreKeysScalarContextIsCount(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+// TestCoreAllAnyDeriveRefAmpAt: all and any are `(Code \&block, List
+// @list) Boolean` (perigrin, 2026-10-05; RFC 0001 "The scalar container"),
+// whose types derive perl's `\&@`.
+func TestCoreAllAnyDeriveRefAmpAt(t *testing.T) {
+	src, err := os.ReadFile("declarations/CORE.pmt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	derived, err := parse.DerivedPrototypes(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []types.Param{
+		{Name: "block", Sigil: '&', Type: types.Code, Required: true, Alias: true},
+		{Name: "list", Sigil: '@', Type: types.List},
+	}
+	core := parse.CoreSignatures()
+	for _, name := range []string{"all", "any"} {
+		sigs := core[name]
+		if len(sigs) != 1 || !slices.Equal(sigs[0].Params, want) || sigs[0].Returns != types.Boolean {
+			t.Errorf("%s: CORE.pmt has %+v; want (Code \\&block, List @list) Boolean", name, sigs)
+		}
+		if derived[name] != `\&@` {
+			t.Errorf("%s: types derive (%s); perl says (\\&@)", name, derived[name])
+		}
+	}
+}
+
+// TestCoreKeysValuesRefuseScalar: perl 5.42 refuses `keys $x` and `values
+// $x` ("Experimental keys on scalar is now forbidden"), so a scalar argument
+// fits none of their candidates, in either context.
+func TestCoreKeysValuesRefuseScalar(t *testing.T) {
+	core := parse.CoreSignatures()
+	for _, name := range []string{"keys", "values"} {
+		for _, ctx := range []types.Context{types.ScalarCtx, types.ListCtx} {
+			if sel := types.Select(core[name], []types.Type{types.Scalar}, ctx); sel.Outcome != types.Failed {
+				t.Errorf("%s of a Scalar in context %v: %+v; want no candidate", name, ctx, sel)
+			}
+		}
+	}
+}
+
+// TestCoreEachDeclaredOnce: this batch leaves each to the no-prototype
+// builtins issue, so CORE.pmt declares it once -- one plain line, or a set
+// of multi candidates, never both and never two plain lines.
+func TestCoreEachDeclaredOnce(t *testing.T) {
+	src, err := os.ReadFile("declarations/CORE.pmt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain := regexp.MustCompile(`(?m)^sub each\b`).FindAll(src, -1)
+	multi := regexp.MustCompile(`(?m)^multi sub each\b`).FindAll(src, -1)
+	if len(plain) > 1 || (len(plain) == 1) == (len(multi) > 0) {
+		t.Errorf("CORE.pmt declares each in %d plain lines and %d multi candidates; want one declaration set", len(plain), len(multi))
 	}
 }
