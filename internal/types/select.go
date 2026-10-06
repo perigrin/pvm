@@ -243,7 +243,7 @@ func (s Signature) takesExactly(ts []Type) bool {
 func (s Signature) params() string {
 	ps := make([]string, len(s.Params))
 	for i, p := range s.Params {
-		ps[i] = fmt.Sprintf("%c%s", p.Sigil, p.Name)
+		ps[i] = p.Variable()
 		if p.Type != Unknown {
 			ps[i] = p.Type.String() + " " + ps[i]
 		}

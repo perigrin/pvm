@@ -150,7 +150,7 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 				if last.Sigil == '%' {
 					container = "Hash"
 				}
-				return fmt.Errorf(`List parameter %c%s is not last; a single array followed by more parameters is %s \%c%s`, last.Sigil, last.Name, container, last.Sigil, last.Name)
+				return fmt.Errorf(`List parameter %s is not last; a single array followed by more parameters is %s \%c%s`, last.Variable(), container, last.Sigil, last.Name)
 			}
 			param, node, err := p.typedParam()
 			if err != nil {
@@ -163,7 +163,7 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 			if param.Required && !operator {
 				for _, before := range s.Params {
 					if !before.Required {
-						return fmt.Errorf("mandatory parameter %c%s follows optional parameter %c%s", param.Sigil, param.Name, before.Sigil, before.Name)
+						return fmt.Errorf("mandatory parameter %s follows optional parameter %s", param.Variable(), before.Variable())
 					}
 				}
 			}
@@ -178,7 +178,7 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 			// A colon touching a word is a parameter attribute (`$x :lvalue`),
 			// which perl refuses, not the invocant colon (`$by: List @list`).
 			case p.text(sep) == ":" && touchesWord(p, sep):
-				return fmt.Errorf("parameter %c%s is not followed by `,` or `)`", param.Sigil, param.Name)
+				return fmt.Errorf("parameter %s is not followed by `,` or `)`", param.Variable())
 			// RFC 0001 "Builtins that keep their own parse": the invocant
 			// colon marks the first parameter as the slot a call fills with
 			// no comma after it, held apart from the positional ones.
@@ -186,14 +186,14 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 				// The slot holds one item, so a List, by its sigil or its
 				// type, is no invocant.
 				if param.Sigil == '@' || param.Sigil == '%' || param.Type == types.List {
-					return fmt.Errorf("invocant %c%s is a List; an invocant slot holds one item", param.Sigil, param.Name)
+					return fmt.Errorf("invocant %s is a List; an invocant slot holds one item", param.Variable())
 				}
 				p.advanceTo(sep)
 				s.Invocant, s.Params = &s.Params[0], nil
 			case p.text(sep) == ":":
-				return fmt.Errorf("invocant colon after %c%s; only the first parameter is an invocant", param.Sigil, param.Name)
+				return fmt.Errorf("invocant colon after %s; only the first parameter is an invocant", param.Variable())
 			case p.text(sep) != ")":
-				return fmt.Errorf("parameter %c%s is not followed by `,` or `)`", param.Sigil, param.Name)
+				return fmt.Errorf("parameter %s is not followed by `,` or `)`", param.Variable())
 			}
 		}
 	}()
@@ -408,17 +408,17 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 		slot = `\` + slot
 	}
 	if holds := slotHolds(param.Sigil, alias, typ); holds != "" {
-		return types.Param{}, nil, fmt.Errorf("%s%s has type %s; a %s slot holds %s", slot, param.Name, tn.Text, slot, holds)
+		return types.Param{}, nil, fmt.Errorf("%s has type %s; a %s slot holds %s", param.Variable(), tn.Text, slot, holds)
 	}
 	// RFC 0001 "The scalar container": a parameter that takes the caller's
 	// container is backslashed, so `Array @a` is not valid.
 	if slurpy && typ != types.Unknown && typ != types.List && typ&^(types.Array|types.Hash) == 0 {
-		return types.Param{}, nil, fmt.Errorf(`container type %s with flattening sigil %s; a parameter that takes the caller's container is %s \%s`, tn.Text, p.text(v), tn.Text, p.text(v))
+		return types.Param{}, nil, fmt.Errorf(`container type %s with flattening sigil %s; a parameter that takes the caller's container is %s \%s`, tn.Text, param.Variable(), tn.Text, p.text(v))
 	}
 	// RFC 0001 "A slurpy takes no bare element type": `Str @args` leaves
 	// both the container and what `Str` applies to unsaid.
 	if slurpy && typ != types.Unknown && typ != types.List {
-		return types.Param{}, nil, fmt.Errorf("slurpy %s has a bare element type %s; write a container type, List[%s] %s", p.text(v), tn.Text, tn.Text, p.text(v))
+		return types.Param{}, nil, fmt.Errorf("slurpy %s has a bare element type %s; write a container type, List[%s] %s", param.Variable(), tn.Text, tn.Text, param.Variable())
 	}
 	node := &Node{Kind: Declaration, Text: tn.Text, Start: tok.Start, Children: []*Node{
 		{Kind: Term, Text: p.text(v), Start: v.Start, End: v.End},

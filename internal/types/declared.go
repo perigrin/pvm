@@ -84,6 +84,19 @@ type Param struct {
 	AliasEach bool
 }
 
+// Variable is the parameter's variable as a declaration writes it, with
+// the backslash an aliased one takes: `$x`, `\@a`, `\(@args)`.
+func (p Param) Variable() string {
+	v := string(p.Sigil) + p.Name
+	switch {
+	case p.Alias:
+		return `\` + v
+	case p.AliasEach:
+		return `\(` + v + ")"
+	}
+	return v
+}
+
 // Slurpy reports whether the parameter takes the rest of the call: an
 // `@` or `%` that does not alias one container.
 func (p Param) Slurpy() bool {
