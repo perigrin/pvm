@@ -108,6 +108,17 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 				s.Returns, ret, err = p.returnType()
 				return err
 			}
+			// A List parameter takes every remaining argument, so nothing
+			// can follow it (RFC 0001, "A typed signature and a prototype
+			// say the same thing").
+			if len(s.Params) > 0 && s.Params[len(s.Params)-1].Sigil != '$' {
+				last := s.Params[len(s.Params)-1]
+				container := "Array"
+				if last.Sigil == '%' {
+					container = "Hash"
+				}
+				return fmt.Errorf(`List parameter %c%s is not last; a single array followed by more parameters is %s \%c%s`, last.Sigil, last.Name, container, last.Sigil, last.Name)
+			}
 			param, node, err := p.typedParam()
 			if err != nil {
 				return err

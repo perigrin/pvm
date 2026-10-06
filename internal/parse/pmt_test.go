@@ -348,3 +348,19 @@ func TestPmtContainerWithFlatteningSigilRefused(t *testing.T) {
 		}
 	}
 }
+
+// TestPmtNonFinalListParam: RFC 0001 "A typed signature and a prototype say
+// the same thing", a List parameter must be last. Measured on 5.42.0, the
+// signature `(@a, $x)` dies "Slurpy parameter not last", `(@a, @b)` dies
+// "Multiple slurpy parameters not allowed", and the prototype `(@$)` warns
+// "Prototype after '@'": the `@` takes every argument. The prototype `\@$`
+// passes the array whole and fills its `$`, so the error points to
+// `Array \@a`. An untyped slurpy is a List parameter too.
+func TestPmtNonFinalListParam(t *testing.T) {
+	want := `sub f: List parameter @a is not last; a single array followed by more parameters is Array \@a`
+	pmtRefuses(t, map[string]string{
+		"sub f (List @a, Str $x);\n":  want,
+		"sub f (List @a, List @b);\n": want,
+		"sub f (@a, $x);\n":           want,
+	})
+}
