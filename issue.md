@@ -1,19 +1,28 @@
 ---
 title: ShapeOf reads a ($;) prototype as named unary; perl makes a user sub with it a list operator
-state: in-progress
+state: done
 urgency: normal
 milestone: v0.1
 created: 2026-10-06T07:22:17.984195552Z
-updated: 2026-10-06T20:29:35.68573568Z
+updated: 2026-10-06T20:52:42.02849744Z
 sessions:
 - start_sha: 99fed916148c08d826249cc82a99de5080a45746
-  end_sha: ""
-  commits: 0
+  end_sha: d10681eb99498bd3891226e1277775c852353264
+  commits: 1
   started_at: 2026-10-06T20:29:35.68573568Z
+  ended_at: 2026-10-06T20:52:42.02849744Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-06T20:29:35.68573568Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-06T20:52:42.02849744Z
+observed_paths:
+- internal/parse/arityrefusal_test.go
+- internal/parse/library_pmt_test.go
+- internal/parse/pmt_test.go
+- internal/parse/refscalar_test.go
 ---
 
 ## Context
