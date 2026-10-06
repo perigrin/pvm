@@ -11,7 +11,7 @@ blocked_by:
 blocks:
 - 01a0fd9b-5700-7514-a143-2caed2d06d8b
 created: 2026-10-03T11:12:40.060535979Z
-updated: 2026-10-05T20:31:10.668390467Z
+updated: 2026-10-06T15:03:56.77638692Z
 ---
 
 ## Prerequisites
@@ -31,6 +31,8 @@ updated: 2026-10-05T20:31:10.668390467Z
 - entrypoints: `parseByShape` (`internal/parse/shape.go:268`), `subPrototype`/`lookupSub` (`shape.go:246`, `:162`), `parseCallArgs` (`internal/parse/call.go:699`), the refusal codes and their inventory `RefusalSites` (`internal/parse/refusal.go`), the `\$`-slot refusal code the previous refusal issue added, `internal/types/select.go` for candidate arity
 
 RFC 0001 "Refusing what perl refuses" (perigrin, 2026-10-02), its second family: a call whose arity no declaration accepts. Where perl refuses it at compile time the parser refuses it too, as an Unknown with its own refusal code. Measured on 5.42: `select(1, 2)` and `select(1, 2, 3)` die "Not enough arguments for select system call", `select(1, 2, 3, 4, 5)` "Too many arguments"; `localtime(1, 2)` and `gmtime(1, 2)` "Too many arguments" (their candidates are the process-and-time typing batch's, which this issue follows); `each()`, `grep()`, `map()` and `push()` "Not enough arguments". `chomp()`, `localtime()`, `select()`, `push(@a)` and `grep { 1 } ()` compile (`select()` matches `select`'s `() Str` candidate, perigrin 2026-10-05). The first family, a constant, sub result or aggregate in a `\$` slot, is the `\$`-slot refusal issue's, which this one follows. The rule applies to prototypes read from module source as well as to `.pmt` declarations and CORE.pmt's candidates (the arity a candidate set accepts comes from `internal/types/select.go`). A call perl compiles is never refused: a sub with no prototype, or a library dispatching at run time, keeps perl's parse, and `psc check` reports what the declarations rule out (the call-site issue). Refusing more can move ratchet files; every file that moves is checked against `perl -c`, and the ratchet is updated only for moves that match perl. RFC 0001 "A required argument defaults to `die`" (perigrin, 2026-10-05) settles `sort`: `sort ()` and bare `sort` die "Not enough arguments for sort" while `sort(())` and `sort @empty` compile, and CORE.pmt's plain candidate `multi sub sort (List @list = die) List;` says exactly that. The refusal counts a parameter whose default is `die` as required (recorded on `types.Param` by the typed-parameters issue), so `sort()` is refused by the same arity rule as `grep()`, with no sort special case; a `List` with no default still accepts zero arguments. With the `\$` family already built, this completes the section's rule, so it re-marks "Refusing what perl refuses".
+
+From the alignment gate on 01a10c6e-988f-7aa6-811d-0e462abc442a, measured on 5.42: `not()` compiles and is true (as `not(undef)` is), but CORE.pmt declares `sub not :prototype($;) (Scalar $x) Boolean;` with the argument REQUIRED, and a user sub with prototype `$;` dies "Not enough arguments" when called with none -- perl's `$;` means one thing for a user sub and another for the builtin `not`, which parses on its own. The line cannot carry both: `(Scalar $x = undef)` derives `;$`, which disagrees with the `$;` perl reports. So refusing on arity here must exempt `not()` (and check every other builtin whose own parse is looser than its prototype), with a test that `not()` is not refused.
 
 ## Steps
 
