@@ -99,12 +99,15 @@ func readDeclaration(src []byte, res *resolver) moduleFacts {
 	// A typed declaration gets its prototype from its types, and needs no
 	// `:prototype(...)`; one that states both must have them agree.
 	for _, name := range slices.Sorted(maps.Keys(facts.signatures)) {
+		// A multi's candidates derive one prototype by
+		// 01a10dc1-3499-7e2b-9e6f-d935084437fa.
 		sigs := facts.signatures[name]
 		if len(sigs) != 1 {
 			continue
 		}
-		proto, err := prototypeFromTypes(sigs[0])
-		if err == nil && facts.protos[name] != "" {
+		proto := prototypeFromTypes(sigs[0])
+		var err error
+		if facts.protos[name] != "" {
 			err = agreement(facts.protos[name], proto)
 		}
 		switch {

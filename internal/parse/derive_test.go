@@ -79,9 +79,8 @@ func TestDerivePrototypeFromTypes(t *testing.T) {
 		"(Scalar $x = $_, Int $y = 0)":    "_;$",
 		"(Scalar $x = 1, Scalar $y = $_)": ";$_",
 	} {
-		got, err := prototypeFromTypes(typedSignature(t, "sub f "+typed+";\n"))
-		if err != nil || got != want {
-			t.Errorf("%s: got %q, %v, want %q", typed, got, err, want)
+		if got := prototypeFromTypes(typedSignature(t, "sub f "+typed+";\n")); got != want {
+			t.Errorf("%s: got %q, want %q", typed, got, want)
 		}
 	}
 
@@ -96,8 +95,8 @@ func TestDerivePrototypeFromTypes(t *testing.T) {
 			t.Errorf("(%s): derived %v, error %v", proto, derived, err)
 			continue
 		}
-		if back, err := prototypeFromTypes(sig); err != nil || back != proto {
-			t.Errorf("(%s): round trip gave %q, %v", proto, back, err)
+		if back := prototypeFromTypes(sig); back != proto {
+			t.Errorf("(%s): round trip gave %q", proto, back)
 		}
 	}
 }
@@ -112,9 +111,8 @@ func TestDeriveDieDefaultIsRequired(t *testing.T) {
 		"(Scalar $x = 1)":              ";$",
 		"(Scalar $x, Scalar $y = die)": "$$",
 	} {
-		got, err := prototypeFromTypes(typedSignature(t, "sub f "+typed+";\n"))
-		if err != nil || got != want {
-			t.Errorf("%s: got %q, %v, want %q", typed, got, err, want)
+		if got := prototypeFromTypes(typedSignature(t, "sub f "+typed+";\n")); got != want {
+			t.Errorf("%s: got %q, want %q", typed, got, want)
 		}
 	}
 }

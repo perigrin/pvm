@@ -19,9 +19,9 @@ import (
 // from a prototype has no name, since a prototype names none.
 //
 // derived is false for a prototype holding a backslash before a
-// container (`\@`, `\[$@%]`): aliased parameters are derived by the
-// aliased-parameter issue (01a0fd9b, "Parse aliased parameters"), which
-// parses the backslash, and until then such a declaration states no
+// container (`\@`, `\[$@%]`): aliased parameters are derived by
+// 01a0fd9b-4850-704d-8c14-c15add6194f2 ("Parse aliased parameters"),
+// which parses the backslash, and until then such a declaration states no
 // typed signature.
 func typesFromPrototype(proto string) (sig types.Signature, derived bool, err error) {
 	optional, list := false, -1
@@ -76,7 +76,7 @@ func typesFromPrototype(proto string) (sig types.Signature, derived bool, err er
 // a `$` parameter whose type admits an array or a hash gives `+`, and one
 // defaulting to `$_` gives `_`. A `;` goes before the first optional
 // parameter other than `_`, which is optional of itself.
-func prototypeFromTypes(sig types.Signature) (string, error) {
+func prototypeFromTypes(sig types.Signature) string {
 	var b strings.Builder
 	semicolon := false
 	for _, p := range sig.Params {
@@ -95,7 +95,7 @@ func prototypeFromTypes(sig types.Signature) (string, error) {
 			b.WriteByte(p.Sigil)
 		}
 	}
-	return b.String(), nil
+	return b.String()
 }
 
 // agreement reports a declared prototype, in its parentheses, that
@@ -108,7 +108,7 @@ func agreement(declared, fromTypes string) error {
 	if err != nil || !derived {
 		return err
 	}
-	if canon, _ := prototypeFromTypes(sig); canon != fromTypes {
+	if canon := prototypeFromTypes(sig); canon != fromTypes {
 		return fmt.Errorf(":prototype%s disagrees with its types, which give (%s)", declared, fromTypes)
 	}
 	return nil
