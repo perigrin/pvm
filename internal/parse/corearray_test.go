@@ -110,3 +110,20 @@ func TestCoreKeysValuesMatchMeasuredSignatures(t *testing.T) {
 		}
 	}
 }
+
+// TestCoreKeysScalarContextIsCount: context selects between keys'
+// candidates, RFC 0001 "`:context(...)`". `my $n = keys %h` is the count,
+// an Int, and `my @k = keys %h` the list; values, and an array, alike.
+func TestCoreKeysScalarContextIsCount(t *testing.T) {
+	core := parse.CoreSignatures()
+	for _, name := range []string{"keys", "values"} {
+		for _, container := range []types.Type{types.Hash, types.Array} {
+			for ctx, want := range map[types.Context]types.Type{types.ScalarCtx: types.Int, types.ListCtx: types.List} {
+				sel := types.Select(core[name], []types.Type{container}, ctx)
+				if sel.Outcome != types.Selected || sel.Returns != want {
+					t.Errorf("%s of a %v in context %v: %+v; want the %v candidate selected", name, container, ctx, sel, want)
+				}
+			}
+		}
+	}
+}
