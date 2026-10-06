@@ -186,7 +186,13 @@ sub quotemeta (Str $string = $_) Str;
 # number, and a negative argument gives a negative float (rand(-1) after
 # srand(1) is -0.0416, measured).
 sub rand (Num $max = 1) Num;
-sub read :prototype(*\$$;$);
+# read and sysread fill the caller's buffer from a handle and yield how many
+# characters they read: 0 at end of file, undef on error (measured: reading
+# a closed handle is undef). Without an offset the buffer is replaced from
+# its start, as offset 0 does (measured: both leave "XYZWVU" as "ab").
+# A `*` slot is `Glob *`: a bareword handle or any scalar (RFC 0001, "A
+# typed signature and a prototype say the same thing"), here and below.
+sub read (Glob *fh, Scalar \$buffer, Int $length, Int $offset = 0) Int|Undef;
 sub readdir :prototype(*);
 sub readline :prototype(;*);
 sub readlink :prototype(_);
@@ -264,11 +270,21 @@ sub study (Str $string = $_) Boolean;
 # a length it returns the rest of the string.
 sub substr (Str $string, Num $offset, Num $length = length($string), Str $replacement = substr($string, $offset, $length)) Str;
 sub symlink :prototype($$);
-sub syscall :prototype($@);
+# syscall takes the call's number and then the LIST of its arguments, which
+# may be empty (`syscall(39)` compiles and is getpid), and yields the
+# call's result, -1 on error (measured: an unknown number is -1).
+sub syscall (Int $number, List @args) Int;
 sub sysopen :prototype(*$$;$);
-sub sysread :prototype(*\$$;$);
-sub sysseek :prototype(*$$);
-sub syswrite :prototype(*$;$$);
+# Measured as read, above.
+sub sysread (Glob *fh, Scalar \$buffer, Int $length, Int $offset = 0) Int|Undef;
+# sysseek yields the new position, a position of 0 being the string
+# "0 but true", and undef on error (measured: sysseek($fh, 3, 0) is 3 as
+# an IV, sysseek($fh, 0, 0) "0 but true" as a PV, a closed handle undef).
+sub sysseek (Glob *fh, Int $position, Int $whence) Str|Undef;
+# syswrite writes the whole string from its start when given no length,
+# as length($string) and offset 0 do (measured: both write 5 bytes of
+# "hello"), and yields how many it wrote, undef on error.
+sub syswrite (Glob *fh, Str $string, Int $length = length($string), Int $offset = 0) Int|Undef;
 sub tell :prototype(;*);
 sub telldir :prototype(*);
 sub tie :prototype(\[$@%*]$@);
@@ -291,7 +307,10 @@ sub unshift (Array \@array, List @list) Int;
 sub untie :prototype(\[$@%*]);
 sub utime :prototype(@);
 sub values :prototype(\[%@]);
-sub vec :prototype($$$);
+# vec reads the unsigned integer of a width of bits at an offset in a
+# string, all three required (`vec("a", 0)` does not compile): vec("abc",
+# 0, 8) is 97 as an IV, and past the string's end 0 (measured).
+sub vec (Str $string, Int $offset, Int $bits) Int;
 sub wait :prototype();
 sub waitpid :prototype($$);
 sub wantarray :prototype();
