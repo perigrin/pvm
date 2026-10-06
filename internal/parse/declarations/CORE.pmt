@@ -27,7 +27,7 @@ sub any :prototype(\&@);
 sub atan2 :prototype($$);
 sub bind :prototype(*$);
 sub binmode :prototype(*;$);
-sub bless :prototype($;$);
+sub bless (Ref $ref, Str $class = __PACKAGE__) Object;
 sub break :prototype();
 sub caller :prototype(;$);
 sub catch :prototype();
