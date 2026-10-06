@@ -131,6 +131,17 @@ func readDeclaration(src []byte, res *resolver) moduleFacts {
 			}
 			continue
 		}
+		// `:unary` states the parse of a builtin perl gives no prototype
+		// (RFC 0001, "Builtins with no prototype"), so its types derive
+		// none: `defined`'s `(Scalar $thing = $_)` would otherwise claim
+		// the `_` perl does not report.
+		if sigs[0].Unary {
+			if declared := facts.protos[name]; declared != "" {
+				facts.errs = append(facts.errs, fmt.Errorf("sub %s: :prototype%s disagrees with :unary, which derives no prototype", name, declared))
+				delete(facts.signatures, name)
+			}
+			continue
+		}
 		proto := prototypeFromTypes(sigs[0])
 		var err error
 		if facts.protos[name] != "" {
