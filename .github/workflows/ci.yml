@@ -63,6 +63,20 @@ jobs:
       with:
         go-version: '1.24.4'
 
+    # T1's parse ratchet resolves each file's imports through perl 5.42's @INC,
+    # and skips without that perl -- a skip the step at the end of this job
+    # fails. ubuntu-latest ships an older perl, so install the one the
+    # fidelity workflow pins, read by the same script rather than named here.
+    - name: Read the perl pin
+      id: perlpin
+      run: sh .github/scripts/parseoracle-pin.sh >> "$GITHUB_OUTPUT"
+
+    - name: Install the pinned perl
+      uses: shogo82148/actions-setup-perl@v1
+      with:
+        perl-version: ${{ steps.perlpin.outputs.perl_version }}
+        multi-thread: ${{ steps.perlpin.outputs.threads == 'define' }}
+
     # Both pins are read before Go exists on the runner, so shell rather than a
     # Go helper. The perl5 revision comes from the oracle's pin because it is
     # the same corpus at the same revision -- a second file recording the same
