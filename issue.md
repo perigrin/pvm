@@ -1,6 +1,6 @@
 ---
 title: Check CORE.pmt's derived prototypes against perl, with signatures.go's measured rows
-state: in-progress
+state: done
 urgency: normal
 milestone: type-libraries
 blocked_by:
@@ -11,16 +11,20 @@ blocks:
 - 01a10177-4e7b-7d2c-8d2a-2033647ffc4a
 - 01a10177-5057-7f6f-bfa1-363a4568ae80
 created: 2026-10-02T17:13:29.229586875Z
-updated: 2026-10-06T10:38:36.913449206Z
+updated: 2026-10-06T10:38:37.073614341Z
 sessions:
 - start_sha: 5b633dbe58730e39043c96b80a7c075d13def78f
-  end_sha: ""
+  end_sha: 5b633dbe58730e39043c96b80a7c075d13def78f
   commits: 0
   started_at: 2026-10-06T10:38:36.913449206Z
+  ended_at: 2026-10-06T10:38:37.073614341Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-06T10:38:36.913449206Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-06T10:38:37.073614341Z
 ---
 
 ## Prerequisites
