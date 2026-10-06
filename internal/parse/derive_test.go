@@ -148,3 +148,28 @@ func TestDeriveEmptyPrototypeIsNotAbsent(t *testing.T) {
 		t.Errorf("in error: got %+v, want no signature", h)
 	}
 }
+
+// TestPrototypeTypeDisagreementIsError: a declaration with both a
+// prototype and types must have them agree, or the declaration file is
+// in error. `(Scalar $x)` gives `$`, which is not `$$`; `(Str $x)` gives
+// `$`, which is `:prototype($)`, since types are finer than prototypes.
+func TestPrototypeTypeDisagreementIsError(t *testing.T) {
+	pmtRefuses(t, map[string]string{
+		"sub f :prototype($$) (Scalar $x);\n": "sub f: :prototype($$) disagrees with its types, which give ($)",
+	})
+	facts := readDeclaration([]byte("sub f :prototype($) (Str $x);\n"), nil)
+	if len(facts.errs) > 0 || len(facts.signatures["f"]) != 1 || facts.protos["f"] != "($)" {
+		t.Errorf("agreeing: errors %v, signatures %+v, prototype %q", facts.errs, facts.signatures["f"], facts.protos["f"])
+	}
+}
+
+// TestPrototypeTypeDisagreementKinds: a disagreement is caught whatever it
+// is about, not only the count of parameters: optionality, a `;` before a
+// parameter with no default, and the slot, a Code `&` where the types
+// state a Scalar `$`.
+func TestPrototypeTypeDisagreementKinds(t *testing.T) {
+	pmtRefuses(t, map[string]string{
+		"sub f :prototype($;$) (Scalar $x, Scalar $y);\n": "sub f: :prototype($;$) disagrees with its types, which give ($$)",
+		"sub f :prototype(&@) (Scalar $f, List @l);\n":    "sub f: :prototype(&@) disagrees with its types, which give ($@)",
+	})
+}

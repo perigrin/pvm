@@ -85,3 +85,19 @@ func prototypeFromTypes(sig types.Signature) (string, error) {
 	}
 	return b.String(), nil
 }
+
+// agreement reports a declared prototype, in its parentheses, that
+// disagrees with the one its types give. The declared one is read through
+// the table first, so what the table does not tell apart agrees. A
+// backslashed prototype is not compared: aliased parameters are not
+// derived yet (see typesFromPrototype).
+func agreement(declared, fromTypes string) error {
+	sig, derived, err := typesFromPrototype(strings.TrimSuffix(strings.TrimPrefix(declared, "("), ")"))
+	if err != nil || !derived {
+		return err
+	}
+	if canon, _ := prototypeFromTypes(sig); canon != fromTypes {
+		return fmt.Errorf(":prototype%s disagrees with its types, which give (%s)", declared, fromTypes)
+	}
+	return nil
+}

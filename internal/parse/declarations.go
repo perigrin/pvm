@@ -97,20 +97,23 @@ func readDeclaration(src []byte, res *resolver) moduleFacts {
 		}
 	}
 	// A typed declaration gets its prototype from its types, and needs no
-	// `:prototype(...)`.
+	// `:prototype(...)`; one that states both must have them agree.
 	for _, name := range slices.Sorted(maps.Keys(facts.signatures)) {
 		sigs := facts.signatures[name]
-		if len(sigs) != 1 || facts.protos[name] != "" {
+		if len(sigs) != 1 {
 			continue
 		}
 		proto, err := prototypeFromTypes(sigs[0])
-		if err != nil {
-			facts.errs = append(facts.errs, fmt.Errorf("sub %s: %w", name, err))
-			continue
+		if err == nil && facts.protos[name] != "" {
+			err = agreement(facts.protos[name], proto)
 		}
+		switch {
+		case err != nil:
+			facts.errs = append(facts.errs, fmt.Errorf("sub %s: %w", name, err))
+			delete(facts.signatures, name)
 		// A derived `@` is no prototype: perl reports none for a sub
 		// without one, and the two parse alike.
-		if proto != "@" {
+		case facts.protos[name] == "" && proto != "@":
 			facts.protos[name] = "(" + proto + ")"
 		}
 	}
