@@ -124,7 +124,10 @@ func TestCoreSelectAndEachAreMultis(t *testing.T) {
 			{1, []types.Type{types.FileHandle}, types.Str},
 			{4, []types.Type{types.Unknown, types.Unknown, types.Unknown, types.Num}, types.List},
 		},
+		// Scalar context first: the key alone, or undef when done.
 		"each": {
+			{1, []types.Type{types.Hash}, types.Str | types.Undef},
+			{1, []types.Type{types.Array}, types.Int | types.Undef},
 			{1, []types.Type{types.Hash}, types.List},
 			{1, []types.Type{types.Array}, types.List},
 		},
@@ -158,10 +161,11 @@ func TestCoreSelectNoArgumentsSelectsHandle(t *testing.T) {
 
 // TestCoreEachRefusesScalar: each on a scalar, `each $x`, matches neither
 // candidate. perl 5.42 refuses it at compile time: "Experimental each on
-// scalar is now forbidden". A hash and an array each select their own.
+// scalar is now forbidden". A hash and an array each select their own
+// list-context candidate.
 func TestCoreEachRefusesScalar(t *testing.T) {
 	each := parse.CoreSignatures()["each"]
-	for arg, want := range map[types.Type]int{types.Scalar: -1, types.Hash: 0, types.Array: 1} {
+	for arg, want := range map[types.Type]int{types.Scalar: -1, types.Hash: 2, types.Array: 3} {
 		if sel := types.Select(each, []types.Type{arg}, types.ListCtx); sel.Candidate != want || (want < 0) != (sel.Outcome == types.Failed) {
 			t.Errorf("each %v selects %+v; want candidate %d", arg, sel, want)
 		}
@@ -261,5 +265,22 @@ func TestCoreSplitDeclared(t *testing.T) {
 	sigs := parse.CoreSignatures()["split"]
 	if len(sigs) != 1 || fmt.Sprint(rowOf(sigs[0])) != fmt.Sprint(want) {
 		t.Errorf("split: CORE.pmt has %v; measured %v", sigs, want)
+	}
+}
+
+// TestCoreEachScalarContextIsTheKey: measured on 5.42, each in scalar
+// context yields the key alone -- a hash's key ("a", a Str) or an array's
+// index (0, IOK) -- and undef once the iteration is done, which is not
+// one of the list-context values (the key and the value). So each is
+// :context candidates, as keys and values are.
+func TestCoreEachScalarContextIsTheKey(t *testing.T) {
+	each := parse.CoreSignatures()["each"]
+	for container, want := range map[types.Type]types.Type{types.Hash: types.Str | types.Undef, types.Array: types.Int | types.Undef} {
+		if sel := types.Select(each, []types.Type{container}, types.ScalarCtx); sel.Outcome != types.Selected || sel.Returns != want {
+			t.Errorf("each of a %v in scalar context: %+v; want %v", container, sel, want)
+		}
+		if sel := types.Select(each, []types.Type{container}, types.ListCtx); sel.Outcome != types.Selected || sel.Returns != types.List {
+			t.Errorf("each of a %v in list context: %+v; want List", container, sel)
+		}
 	}
 }
