@@ -113,3 +113,20 @@ func TestOperatorSymbolOnlyInPmt(t *testing.T) {
 		}
 	}
 }
+
+// TestCoreOperatorClassCheckCatchesMismatch: the check that holds a declared
+// class to precedence.go is not tautological. `*` is a MULOP, so a `*`
+// declared ADD is reported, and one declared MUL is not.
+func TestCoreOperatorClassCheckCatchesMismatch(t *testing.T) {
+	facts := readDeclaration([]byte("sub * :infix(ADD) (Num $x, Num $y) Num;\nsub * :infix(MUL) (Num $x, Num $y) Num;\n"), nil)
+	if len(facts.errs) > 0 || len(facts.operators) != 2 {
+		t.Fatalf("errors %v, operators %+v", facts.errs, facts.operators)
+	}
+	want := "sub *: class ADD is level 22, and precedence.go puts * at level 23"
+	if err := precedenceMismatch(facts.operators[0]); err == nil || err.Error() != want {
+		t.Errorf("ADD: got %v, want %q", err, want)
+	}
+	if err := precedenceMismatch(facts.operators[1]); err != nil {
+		t.Errorf("MUL: got %v, want none", err)
+	}
+}

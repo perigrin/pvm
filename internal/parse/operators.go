@@ -100,3 +100,16 @@ func operatorOf(name string, attrs []string, sig types.Signature) (operatorDecl,
 	}
 	return operatorDecl{name: name, fixity: fixity, class: class, sig: sig}, nil
 }
+
+// precedenceMismatch reports an infix operator whose class names a level
+// other than the one precedence.go gives it. The table is authoritative
+// (RFC 0001, "Operator declarations"); the class says the same thing again.
+func precedenceMismatch(op operatorDecl) error {
+	if op.fixity != "infix" {
+		return nil
+	}
+	if level, want := operatorClasses[op.class], infix[op.name].Level; level != want {
+		return fmt.Errorf("sub %s: class %s is level %d, and precedence.go puts %s at level %d", op.name, op.class, level, op.name, want)
+	}
+	return nil
+}
