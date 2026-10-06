@@ -143,3 +143,35 @@ func TestCoreGrepMapSortMatchMeasuredSignatures(t *testing.T) {
 		}
 	}
 }
+
+// TestCoreSortRequiresAWrittenArgument: RFC 0001 "A required argument
+// defaults to `die`". sort's plain candidate is `(List @list = die)`, its
+// list recorded as required rather than as a default, so a call that
+// writes no argument selects no sort candidate. Measured on 5.42, `sort()`
+// and bare `sort` are "Not enough arguments for sort", while `sort(())`
+// and `my @e; sort @e` write one, compile, and select the plain candidate.
+func TestCoreSortRequiresAWrittenArgument(t *testing.T) {
+	sort := parse.CoreSignatures()["sort"]
+	if len(sort) != 3 {
+		t.Fatalf("sort: CORE.pmt declares %d candidates; want 3", len(sort))
+	}
+	want := []types.Param{{Name: "list", Sigil: '@', Type: types.List, Required: true}}
+	if got := sort[1].Params; fmt.Sprint(got) != fmt.Sprint(want) || sort[1].Invocant != nil {
+		t.Errorf("sort's plain candidate is %+v; want %+v", sort[1], want)
+	}
+	if sel := types.Select(sort, nil, types.ListCtx); sel.Outcome != types.Failed {
+		t.Errorf("sort() selects %+v; want no candidate", sel)
+	}
+	for src, arg := range map[string]types.Type{
+		"my @r = sort(());\n":       types.List,
+		"my @e; my @r = sort @e;\n": types.Array,
+	} {
+		root := parse.Parse([]byte(src))
+		if containsKind(root, parse.Unknown) {
+			t.Errorf("%q: parses with an Unknown node", src)
+		}
+		if sel := types.Select(sort, []types.Type{arg}, types.ListCtx); sel.Outcome != types.Selected || sel.Candidate != 1 {
+			t.Errorf("%q: selects %+v; want the plain candidate, 1", src, sel)
+		}
+	}
+}
