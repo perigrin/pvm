@@ -5,6 +5,7 @@ package types
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -36,6 +37,9 @@ type Selection struct {
 // 0001 "Multi declarations". Of the candidates the call fits, the most
 // specific wins (perigrin, 2026-10-02): the one whose parameters are all
 // subtypes of every other's, as multi dispatch does in Raku, CLOS and Julia.
+// When the call site cannot decide -- an argument of unknown type fits more
+// than one candidate, or none is most specific -- the call's type is the
+// join of theirs. A call no candidate takes fails, and is never joined.
 func Select(cands []Signature, args []Type) Selection {
 	var fit []int
 	for i, c := range cands {
@@ -46,13 +50,27 @@ func Select(cands []Signature, args []Type) Selection {
 	if len(fit) == 0 {
 		return Selection{Outcome: Failed, Candidate: -1}
 	}
-	best := fit[0]
-	for _, i := range fit {
-		if cands[i].asSpecific(cands[best], len(args)) {
-			best = i
+	if len(fit) == 1 || !slices.Contains(args, Unknown) {
+		if best, ok := mostSpecific(cands, fit, len(args)); ok {
+			return Selection{Outcome: Selected, Candidate: best, Returns: cands[best].Returns}
 		}
 	}
-	return Selection{Outcome: Selected, Candidate: best, Returns: cands[best].Returns}
+	joined := Unknown
+	for _, i := range fit {
+		joined = Join(joined, cands[i].Returns)
+	}
+	return Selection{Outcome: Undecided, Candidate: -1, Returns: joined}
+}
+
+// mostSpecific is the candidate of fit as specific as every other, if one
+// is, for a call of n arguments.
+func mostSpecific(cands []Signature, fit []int, n int) (int, bool) {
+	for _, i := range fit {
+		if !slices.ContainsFunc(fit, func(j int) bool { return !cands[i].asSpecific(cands[j], n) }) {
+			return i, true
+		}
+	}
+	return -1, false
 }
 
 // asSpecific reports whether, for a call of n arguments, each of s's
@@ -82,11 +100,11 @@ func (s Signature) accepts(n int) bool {
 
 // fits reports whether every argument's type is a subtype of its
 // parameter's (RFC 0001, "What a parameter type means"). A parameter that
-// states no type takes any argument; arguments past the last parameter are
-// the slurpy's.
+// states no type takes any argument, and an argument of unknown type may be
+// any parameter's; arguments past the last parameter are the slurpy's.
 func (s Signature) fits(args []Type) bool {
 	for i, a := range args {
-		if !IsSubtype(a, s.paramType(i)) {
+		if a != Unknown && !IsSubtype(a, s.paramType(i)) {
 			return false
 		}
 	}

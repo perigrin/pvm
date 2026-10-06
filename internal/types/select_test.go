@@ -121,3 +121,35 @@ func TestSelectEmptyCandidates(t *testing.T) {
 	wantFailed(t, []Signature{}, nil)
 	wantFailed(t, eachCandidates, nil)
 }
+
+// TestSelectJoinsWhenUndecided: RFC 0001 "Multi declarations", when the
+// call site cannot decide -- an argument of unknown type -- the call's type
+// is the join of the candidates' returns.
+func TestSelectJoinsWhenUndecided(t *testing.T) {
+	cands := []Signature{
+		sig(Str, scalar("h", Hash)),
+		sig(ArrayRef, scalar("a", Array)),
+	}
+	got := Select(cands, []Type{Unknown})
+	if got.Outcome != Undecided || got.Candidate != -1 || got.Returns != Str|ArrayRef {
+		t.Errorf("got %+v, want undecided, returning %v", got, Str|ArrayRef)
+	}
+
+	// Nor can it decide between candidates with no most specific one,
+	// which a .pmt refuses (Ambiguity) and Go may still build.
+	crossed := []Signature{
+		sig(Str, scalar("a", Int), scalar("b", Num)),
+		sig(ArrayRef, scalar("a", Num), scalar("b", Int)),
+	}
+	got = Select(crossed, []Type{Int, Int})
+	if got.Outcome != Undecided || got.Candidate != -1 || got.Returns != Str|ArrayRef {
+		t.Errorf("crossed: got %+v, want undecided, returning %v", got, Str|ArrayRef)
+	}
+}
+
+// TestSelectArityFailureIsNotJoined: an unknown argument type does not
+// rescue an arity failure. `each` with two arguments of unknown type still
+// fails rather than joining.
+func TestSelectArityFailureIsNotJoined(t *testing.T) {
+	wantFailed(t, eachCandidates, []Type{Unknown, Unknown})
+}
