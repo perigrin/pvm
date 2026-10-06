@@ -863,6 +863,15 @@ func (p *parser) parseSubDecl(word lexer.Token) *Node {
 		p.declareOperator(n)
 	}
 
+	// `:unary` says how a no-prototype builtin's one operand parses, so it
+	// needs the signature that states the operand; without one the line
+	// would read as the list operator `:unary` denies.
+	if p.typed && len(p.typedErrs) == errsBefore && !hasHead(n) &&
+		slices.ContainsFunc(n.Children, func(c *Node) bool { return c.Kind == Attribute && c.Text == ":unary" }) {
+		name, _ := declaredSub(n)
+		p.typedErrs = append(p.typedErrs, fmt.Errorf("sub %s: :unary needs a typed signature stating its operand", name))
+	}
+
 	// A malformed `:context` with a signature after it is refused by
 	// parseTypedSignature. One never closed swallows the signature, so it
 	// is refused here.

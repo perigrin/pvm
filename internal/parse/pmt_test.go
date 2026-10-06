@@ -693,3 +693,15 @@ func TestAliasedParamOnlyInPmt(t *testing.T) {
 		}
 	}
 }
+
+// TestPmtUnaryWithoutSignatureIsError: `:unary` says how a no-prototype
+// builtin's one operand parses, so it needs the signature that states the
+// operand. Without one the attribute would be dropped and the line read as
+// a list operator, the parse `:unary` exists to deny.
+func TestPmtUnaryWithoutSignatureIsError(t *testing.T) {
+	facts := readDeclaration([]byte("sub foo :unary;\n"), nil)
+	want := "sub foo: :unary needs a typed signature stating its operand"
+	if len(facts.errs) != 1 || facts.errs[0].Error() != want {
+		t.Errorf("got errors %v, want %q", facts.errs, want)
+	}
+}

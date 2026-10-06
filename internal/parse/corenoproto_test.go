@@ -40,7 +40,7 @@ func TestCoreDerivedPrototypeCheckReadsUndefAsAt(t *testing.T) {
 // (`my`, `sub`, `package`, `use` and kin) and the statement forms the
 // parser owns, `last`, `next`, `redo` and `require` (keyword.go). grep,
 // map and sort are declared with their own parse, by the issue after this
-// one; split waits on a ruling (TestCoreSplitDeclared).
+// one; split waits on a ruling, filed as 01a1113c (TestCoreSplitDeclared).
 var noPrototypeBuiltins = []string{
 	"chomp", "chop", "defined", "delete", "do", "eval", "exec", "exists",
 	"goto", "print", "printf", "return", "say", "select", "system",
@@ -250,9 +250,10 @@ func TestCoreNoPrototypeBuiltinsMatchMeasuredSignatures(t *testing.T) {
 // `(Regex|Str $pattern = ' ', Str $string = $_, Int $limit = 0) List`
 // says and the `;$_$` it derives claims as a prototype. `(List @args)`
 // derives `@` but says the string flattens, which perl measures false.
-// No rule of RFC 0001's spells both, so the line waits on a ruling.
+// No rule of RFC 0001's spells both, so the line waits on a ruling, filed
+// as 01a1113c.
 func TestCoreSplitDeclared(t *testing.T) {
-	t.Skip("split's declaration waits on a ruling: its measured types derive a prototype perl does not report")
+	t.Skip("split's declaration waits on a ruling (01a1113c): its measured types derive a prototype perl does not report")
 	// The row internal/types/signatures.go measured, which the line is to carry.
 	want := measuredRow{0, []types.Type{types.Regex | types.Str, types.Str, types.Int}, types.List}
 	sigs := parse.CoreSignatures()["split"]
