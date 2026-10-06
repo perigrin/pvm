@@ -131,6 +131,19 @@ func (s Signature) accepts(n int) bool {
 	return n >= least && (slurpy || n <= len(s.Params))
 }
 
+// Accepts reports whether some candidate takes a call of n arguments, in
+// any context: the arity half of Select. A call that writes an invocant
+// counts it among its n, as Ambiguity's byInvocant does.
+func Accepts(cands []Signature, n int) bool {
+	for _, written := range []bool{false, true} {
+		view, _ := byInvocant(cands, written)
+		if slices.ContainsFunc(view, func(c Signature) bool { return c.accepts(n) }) {
+			return true
+		}
+	}
+	return false
+}
+
 // fits reports whether every argument's type is a subtype of its
 // parameter's (RFC 0001, "What a parameter type means"). A parameter that
 // states no type takes any argument, and an argument of unknown type may be
