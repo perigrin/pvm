@@ -101,3 +101,39 @@ func TestCoreDeclaresInvocantBuiltins(t *testing.T) {
 		}
 	}
 }
+
+// TestCoreInvocantBuiltinsMatchMeasuredSignatures: CORE.pmt's print and say
+// carry the signatures measured for them before CORE.pmt typed them: no
+// argument required, each taken as a Str, and a Boolean returned. The rows
+// are golden values, copied here, so the declarations answer to them alone.
+// The handle is the invocant, not an argument.
+func TestCoreInvocantBuiltinsMatchMeasuredSignatures(t *testing.T) {
+	type row struct {
+		minArity int
+		args     []types.Type
+		returns  types.Type
+	}
+	measured := row{minArity: 0, args: []types.Type{types.Str}, returns: types.Boolean}
+	for _, name := range []string{"print", "say"} {
+		sigs := coreSignatures()[name]
+		if len(sigs) != 1 {
+			t.Errorf("%s: CORE.pmt declares %+v, want one signature", name, sigs)
+			continue
+		}
+		got := row{returns: sigs[0].Returns}
+		for _, p := range sigs[0].Params {
+			if p.Required {
+				got.minArity++
+			}
+			arg := p.Type
+			if p.Element != types.Unknown {
+				arg = p.Element
+			}
+			got.args = append(got.args, arg)
+		}
+		if !reflect.DeepEqual(got, measured) {
+			t.Errorf("%s: CORE.pmt declares %d required, %v -> %v; measured %d required, %v -> %v",
+				name, got.minArity, got.args, got.returns, measured.minArity, measured.args, measured.returns)
+		}
+	}
+}
