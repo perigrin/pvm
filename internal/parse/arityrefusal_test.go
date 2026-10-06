@@ -300,3 +300,31 @@ func TestArityRefusalLeavesImportedOverridesAlone(t *testing.T) {
 		"use POSIX (); localtime(1, 2);\n",
 	)
 }
+
+// TestFeatureGatedWordIsTheBuiltinWhenOn: a word gated on a feature is a
+// user's sub only in its plain spelling with the feature off. Measured on
+// 5.42.0 with `perl -c`: `fc($x, $x)` and `any()` compile, while `use
+// feature "fc"`, `use v5.16` and `CORE::fc` make `fc($x, $x)` "Too many
+// arguments for fc", and `use feature "keyword_any"` or `CORE::any()` make
+// `any()` "Not enough arguments for any". evalbytes takes a parenthesised
+// list as eval does, so `CORE::evalbytes($x, $x)` compiles.
+func TestFeatureGatedWordIsTheBuiltinWhenOn(t *testing.T) {
+	wantArityRefusal(t,
+		"use feature \"fc\"; my $x; fc($x, $x);\n",
+		"use v5.16; my $x; fc($x, $x);\n",
+		"my $x; CORE::fc($x, $x);\n",
+		"use feature \"keyword_any\"; no warnings; any();\n",
+		"no warnings; CORE::any();\n",
+		"use feature \"keyword_all\"; no warnings; all();\n",
+		"no warnings; CORE::all();\n",
+	)
+	wantNoRefusal(t,
+		"my $x; fc($x, $x);\n", "any();\n", "all();\n",
+		"my $x; evalbytes($x, $x);\n", "my $x; CORE::evalbytes($x, $x);\n",
+		"use feature \"evalbytes\"; my $x; evalbytes($x, $x);\n",
+		"CORE::not();\n", "CORE::dump(1);\n",
+		// An anonymous method is a declaration, not a call (perl.git
+		// t/class/field.t).
+		"use v5.38; use experimental \"class\"; class C { method m { my $f = method { 1 }; } }\n",
+	)
+}

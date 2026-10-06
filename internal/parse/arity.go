@@ -50,7 +50,8 @@ func (p *parser) arityAccepted(name string, count int) bool {
 		}
 	}
 	cands := coreSignatures()[builtin]
-	if len(cands) == 0 || name == builtin && p.overridden(builtin) || types.Accepts(cands, count) {
+	if len(cands) == 0 || name == builtin && (p.overridden(builtin) || p.gatedOff(builtin)) ||
+		types.Accepts(cands, count) {
 		return true
 	}
 	switch looseArity[builtin] {
@@ -170,8 +171,7 @@ const (
 	looseExtra
 
 	// looseAny: any count compiles. `not()` takes no operand to its own
-	// parse, `CORE::dump($x)` a label, and a word gated on a feature,
-	// `fc($x, $x)`, is a user's sub without it.
+	// parse, and `CORE::dump($x)` a label.
 	looseAny
 )
 
@@ -180,11 +180,8 @@ const (
 // Measured on 5.42.0 by calling every CORE.pmt builtin with none to six
 // arguments, plain and as `CORE::NAME`, and running `perl -c` over each
 // call refused here; each name below compiled at least once, and every
-// refused call on the other side of its looseness died.
-//
-// ponytail: a feature-gated word is loose whatever the file enables;
-// read p.features if a corpus file calls `fc` with the feature on and an
-// arity perl refuses.
+// refused call on the other side of its looseness died. A word gated on a
+// feature is gatedWords', not this table's.
 var looseArity = map[string]looseness{
 	"system": looseEmpty, "exec": looseEmpty, "do": looseEmpty,
 
@@ -195,7 +192,42 @@ var looseArity = map[string]looseness{
 	"fileno": looseExtra, "getc": looseExtra, "getpeername": looseExtra,
 	"getsockname": looseExtra, "readdir": looseExtra, "rewinddir": looseExtra,
 
-	"not": looseAny, "dump": looseAny, "fc": looseAny, "evalbytes": looseAny,
-	"any": looseAny, "all": looseAny, "catch": looseAny, "method": looseAny,
-	"isa": looseAny, "break": looseAny, "__CLASS__": looseAny, "__SUB__": looseAny,
+	// evalbytes takes a parenthesised list as eval does: measured,
+	// `CORE::evalbytes($x, $x)` compiles.
+	"evalbytes": looseExtra,
+
+	// method is a declarator under the class feature: `method { 1 }` is
+	// an anonymous method, measured to compile (perl.git t/class/field.t),
+	// and its candidates take no argument.
+	"not": looseAny, "dump": looseAny, "method": looseAny,
+}
+
+// gatedWords are the builtins that exist only under a feature, each to the
+// feature's name in p.features. Spelled plainly with the feature off, the
+// word is a user's sub, which perl calls with any arguments; spelled
+// `CORE::NAME`, or with the feature on, it is the builtin. Measured on
+// 5.42.0 with `perl -c`: `fc($x, $x)` and `any()` compile, while `use
+// feature "fc"`, `use v5.16` and `CORE::fc` make `fc($x, $x)` "Too many
+// arguments for fc", and `use feature "keyword_any"` or `CORE::any()` make
+// `any()` "Not enough arguments for any". With the feature on or as
+// `CORE::NAME`, perl refuses `isa($x)`, `catch($x)`, `break($x)`,
+// `__SUB__($x)` and `__CLASS__($x)` outright. method, a declarator under
+// its feature, is looseArity's.
+//
+// try, switch and current_sub are not among the features p.features
+// tracks, so catch, break and __SUB__ map to a name it never sets: their
+// plain spelling is always taken for a user's sub, which refuses less than
+// perl does and never more.
+var gatedWords = map[string]string{
+	"fc": "fc", "evalbytes": "evalbytes",
+	"any": "keyword_any", "all": "keyword_all",
+	"isa": "isa", "__CLASS__": "class",
+	"catch": "try", "break": "switch", "__SUB__": "current_sub",
+}
+
+// gatedOff reports whether name is a builtin gated on a feature this file
+// has not turned on, so that its plain spelling names a user's sub.
+func (p *parser) gatedOff(name string) bool {
+	feature, gated := gatedWords[name]
+	return gated && !p.features[feature]
 }
