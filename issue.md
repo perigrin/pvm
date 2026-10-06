@@ -1,6 +1,6 @@
 ---
 title: Type CORE.pmt's array, list and hash builtins
-state: pending
+state: in-progress
 urgency: normal
 milestone: type-libraries
 blocked_by:
@@ -10,7 +10,16 @@ blocks:
 - 01a10c6e-9a95-719a-80e2-2e33037d0096
 - 01a0fd9b-5670-78d0-84be-9b9618e9b081
 created: 2026-10-03T11:12:38.523502989Z
-updated: 2026-10-05T20:30:15.520722271Z
+updated: 2026-10-06T11:49:21.83556866Z
+sessions:
+- start_sha: 4a69c8318a6bf0b72c57f0ed2e81ab5049079af6
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-06T11:49:21.83556866Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-06T11:49:21.83556866Z
 ---
 
 ## Prerequisites
