@@ -218,6 +218,11 @@ sub ** :infix(POW) (Num $x, Num $y) Num;
 # String
 sub . :infix(ADD) (Str $x, Str $y) Str;
 
+# Repetition: a list when the left operand is parenthesised and the call is
+# in list context, `(1,2) x 2`; otherwise a string, `"ab" x 2`.
+multi sub x :infix(MUL) :context(@) (List @l, Int $n) List;
+multi sub x :infix(MUL) (Str $s, Int $n) Str;
+
 # Numeric comparison
 sub == :infix(EQUALITY) (Num $x, Num $y) Boolean;
 sub != :infix(EQUALITY) (Num $x, Num $y) Boolean;

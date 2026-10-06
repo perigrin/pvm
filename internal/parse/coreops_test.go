@@ -169,6 +169,8 @@ func TestCoreOperatorTypesMatchMeasured(t *testing.T) {
 
 		"infix .": bin(S, S, S),
 
+		"infix x :context(@)": bin(types.List, I, types.List), "infix x": bin(S, I, S),
+
 		"infix ==": bin(N, N, B), "infix !=": bin(N, N, B), "infix <": bin(N, N, B),
 		"infix >": bin(N, N, B), "infix <=": bin(N, N, B), "infix >=": bin(N, N, B),
 		"infix <=>": bin(N, N, I),
@@ -284,5 +286,46 @@ func TestCoreRangeIsContextMulti(t *testing.T) {
 		if got := coreCandidates(t, "infix", sym); !reflect.DeepEqual(got, want) {
 			t.Errorf("%s:\n got %+v\nwant %+v", sym, got, want)
 		}
+	}
+}
+
+// TestCoreRepeatIsShapeMulti: RFC 0001 "Operators that fork". `x` repeats
+// a list only when its left operand is parenthesised and the call is in
+// list context, so CORE.pmt declares two MUL candidates, `(LIST) x N` for
+// list context and `EXPR x N` for any. Measured on 5.42.0: `my @l = (1,2)
+// x 2` is `1 2 1 2`; `my $x = (1,2) x 2`, `my @l = @a x 2` and `"ab" x 2`
+// are strings, `22`, `22` and `abab`. The List operand is one operand, a
+// parenthesised list, so an operator's `@` parameter may come first.
+func TestCoreRepeatIsShapeMulti(t *testing.T) {
+	want := []operatorDecl{
+		{name: "x", fixity: "infix", class: "MUL", multi: true, sig: types.Signature{
+			Params: []types.Param{
+				{Name: "l", Sigil: '@', Type: types.List},
+				{Name: "n", Sigil: '$', Type: types.Int, Required: true},
+			},
+			Returns: types.List, Context: types.ContextSet(types.ListCtx)}},
+		{name: "x", fixity: "infix", class: "MUL", multi: true, sig: types.Signature{
+			Params: []types.Param{
+				{Name: "s", Sigil: '$', Type: types.Str, Required: true},
+				{Name: "n", Sigil: '$', Type: types.Int, Required: true},
+			},
+			Returns: types.Str}},
+	}
+	if got := coreCandidates(t, "infix", "x"); !reflect.DeepEqual(got, want) {
+		t.Errorf("x:\n got %+v\nwant %+v", got, want)
+	}
+}
+
+// TestPmtListParameterLastOnlyForSubs: a sub's List parameter takes every
+// remaining argument, so nothing may follow it; an operator's is one
+// operand, and may.
+func TestPmtListParameterLastOnlyForSubs(t *testing.T) {
+	facts := readDeclaration([]byte("sub x :infix(MUL) (List @l, Int $n) List;\n"), nil)
+	if len(facts.errs) > 0 || len(facts.operators) != 1 {
+		t.Errorf("operator: errors %v, operators %+v", facts.errs, facts.operators)
+	}
+	facts = readDeclaration([]byte("sub f (List @l, Int $n) List;\n"), nil)
+	if len(facts.errs) != 1 {
+		t.Errorf("sub: errors %v, want the List parameter refused", facts.errs)
 	}
 }
