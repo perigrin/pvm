@@ -44,18 +44,39 @@ sub any (Code \&block, List @list) Boolean;
 # is 0 as an NV (measured with B::svref_2object).
 sub atan2 (Num $y, Num $x) Num;
 sub bind :prototype(*$);
-sub binmode :prototype(*;$);
+# binmode sets a handle's layers, :raw with none (measured: on a :crlf
+# handle `binmode $fh` and `binmode $fh, ":raw"` leave the same layers),
+# and yields true, or undef for a closed handle.
+sub binmode (Glob *fh, Str $layer = ":raw") Boolean|Undef;
 sub bless (Ref $ref, Str $class = __PACKAGE__) Object;
 sub break :prototype();
 sub caller :prototype(;$);
 sub catch :prototype();
-sub chdir :prototype(;$);
-sub chmod :prototype(@);
-sub chown :prototype(@);
+# chdir changes to a directory named by a string or held by a handle
+# (measured: `chdir DH` and `chdir($dh)` change into an opened directory).
+# With none it takes $ENV{HOME} when that exists, even empty, and
+# $ENV{LOGDIR} otherwise; with neither it fails, as chdir(undef) does
+# (measured). It yields true or false.
+sub chdir (Str|FileHandle $dir = exists $ENV{HOME} ? $ENV{HOME} : $ENV{LOGDIR}) Boolean;
+# chmod, chown and utime take a LIST that leads with the mode, the owner
+# and group, or the times, and then the files, which a `@` prototype does
+# not tell apart: `chmod()` compiles (measured). Each yields how many files
+# it changed: chmod(0644, "f", "nope") is 1 as an IV.
+sub chmod :prototype(@) (List @list) Int;
+# Measured as chmod, above.
+sub chown :prototype(@) (List @list) Int;
 sub chr (Int $code = $_) Str;
-sub chroot :prototype(_);
-sub close :prototype(;*);
-sub closedir :prototype(*);
+# chroot takes a directory, `$_` with none, and yields 1 or 0 as an IV
+# (measured: a missing directory is 0), as link, mkdir, rename, rmdir and
+# symlink do: a count of one, not one of perl's booleans.
+sub chroot (Str $dir = $_) Int;
+# close and write take the selected handle with none (measured: `select
+# $h; close` closes $h), and yield true or false: closing a closed handle
+# is false, not undef. write dies for a handle with no format.
+sub close (Glob *fh = select()) Boolean;
+# closedir, rewinddir and seekdir yield true, or undef for a closed
+# dirhandle (measured).
+sub closedir (Glob *dh) Boolean|Undef;
 sub connect :prototype(*$);
 sub continue :prototype();
 # cos, exp, log, sin and sqrt each take a number, `$_` with none (measured:
@@ -67,8 +88,13 @@ sub cos (Num $number = $_) Num;
 # arguments". It yields the digest, or "*0" for a salt it cannot use
 # (measured: crypt("pw", "ab") is "abzlUXK5ed5rs", crypt("pw", "!") "*0").
 sub crypt (Str $plaintext, Str $salt) Str;
-sub dbmclose :prototype(\%);
-sub dbmopen :prototype(\%$$);
+# dbmclose unties the hash and yields true, even for one never opened
+# (measured).
+sub dbmclose (Hash \%hash) Boolean;
+# dbmopen ties the hash to a database and yields the tied object, an
+# AnyDBM_File, or undef when it cannot open one (measured: a missing
+# directory, or a mode of undef for a database that does not exist).
+sub dbmopen (Hash \%hash, Str $dbname, Int $mode) Object|Undef;
 # die and warn take a LIST of strings, which may be empty: `die()` and
 # `warn()` compile (measured). die never returns; warn returns true.
 sub die :prototype(@) (List[Str] @message) None;
@@ -80,7 +106,12 @@ sub endnetent :prototype();
 sub endprotoent :prototype();
 sub endpwent :prototype();
 sub endservent :prototype();
-sub eof :prototype(;*);
+# eof and tell take the last handle read with none, ${^LAST_FH} (measured:
+# after reading B, `eof` and `tell` answer for B, not for A read before
+# it). `eof()` with empty parentheses is another builtin, the end of the
+# ARGV files, which a signature cannot tell from `eof`. eof yields a
+# boolean; tell the position, -1 for a closed handle.
+sub eof (Glob *fh = ${^LAST_FH}) Boolean;
 sub evalbytes :prototype(_);
 sub exit :prototype(;$);
 # Measured as cos, above.
@@ -89,12 +120,22 @@ sub exp (Num $number = $_) Num;
 # is "xy"). It is a builtin only under the fc feature or spelled CORE::fc;
 # the line types the builtin, whatever reads the word.
 sub fc (Str $string = $_) Str;
-sub fcntl :prototype(*$$);
-sub fileno :prototype(*);
-sub flock :prototype(*$);
+# fcntl and ioctl yield the call's result, 0 being the string "0 but true",
+# and undef on error (measured: F_GETFD of a close-on-exec handle is 1 as
+# an IV, of another "0 but true" as a PV, of a closed handle undef). The
+# third argument is the call's integer or a buffer it writes into.
+sub fcntl (Glob *fh, Int $function, Scalar $argument) Str|Undef;
+# fileno yields the descriptor, -1 for an in-memory handle, and undef for
+# a closed one (measured).
+sub fileno (Glob *fh) Int|Undef;
+# flock yields 1 or 0 as an IV (measured: locking a closed handle is 0).
+sub flock (Glob *fh, Int $operation) Int;
 sub fork :prototype();
 sub formline :prototype($@);
-sub getc :prototype(;*);
+# getc reads one character, from STDIN with none (measured: with a file
+# argument and "Z" piped in, `getc` is "Z"), and yields undef at end of
+# file or for a closed handle.
+sub getc (Glob *fh = *STDIN) Str|Undef;
 sub getgrent :prototype();
 sub getgrgid :prototype($);
 sub getgrnam :prototype($);
@@ -120,7 +161,10 @@ sub getservbyport :prototype($$);
 sub getservent :prototype();
 sub getsockname :prototype(*);
 sub getsockopt :prototype(*$$);
-sub glob :prototype(_;);
+# glob expands a pattern, `$_` with none: in list context every match, in
+# scalar context the next one, undef past the last -- one of the list's
+# values, so List covers both. `_;` keeps its `;`, which no type states.
+sub glob :prototype(_;) (Str $pattern = $_) List;
 sub gmtime :prototype(;$);
 # hex and oct read a string of digits, `$_` with none, and yield its
 # integer: hex("ff") is 255 as an IV, hex("zz") 0, oct("755") 493. oct
@@ -135,7 +179,8 @@ sub hex (Str $string = $_) Int;
 sub index (Str $string, Str $substring, Int $position = 0) Int;
 # Measured as abs, above.
 sub int (Num $number = $_) Int;
-sub ioctl :prototype(*$$);
+# Measured as fcntl, above.
+sub ioctl (Glob *fh, Int $function, Scalar $argument) Str|Undef;
 sub isa :prototype();
 # join takes a separator and then a LIST, not a series of strings: Str
 # there rejected `join ":", @foo`. Measured: join(":", @f) flattens the
@@ -156,15 +201,25 @@ sub lc (Str $string = $_) Str;
 # Measured as uc, below.
 sub lcfirst (Str $string = $_) Str;
 sub length (Str $string = $_) Int;
-sub link :prototype($$);
+# Measured as chroot, above: link("nope", "h") is 0 as an IV.
+sub link (Str $old, Str $new) Int;
 sub listen :prototype(*$);
 sub localtime :prototype(;$);
 sub lock :prototype(\[$@%&*]);
 # Measured as cos, above.
 sub log (Num $number = $_) Num;
-sub lstat :prototype(;*);
+# lstat and stat take a file name, a handle or a dirhandle, `$_` with none
+# (measured: `stat` and `stat STDIN` each give 13 fields). In list context
+# the 13 fields, or none when the file is missing; in scalar context
+# whether it succeeded, a boolean -- not one of the fields, so two
+# candidates.
+multi sub lstat :context(@) (Glob *file = $_) List;
+multi sub lstat :context($) (Glob *file = $_) Boolean;
 sub method :prototype();
-sub mkdir :prototype(_;$);
+# mkdir takes a directory, `$_` with none, and a mode, 0777 with none
+# (measured under umask 0: a directory made without a mode is 0777).
+# Measured as chroot, above: mkdir of an existing directory is 0 as an IV.
+sub mkdir (Str $dir = $_, Int $mode = 0777) Int;
 sub msgctl :prototype($$$);
 sub msgget :prototype($$);
 sub msgrcv :prototype($$$$$);
@@ -172,8 +227,16 @@ sub msgsnd :prototype($$$);
 sub not :prototype($;);
 # Measured as hex, above.
 sub oct (Str $string = $_) Int;
-sub open :prototype(*;$@);
-sub opendir :prototype(*$);
+# open takes a handle and then a mode and a LIST: a mode with the file
+# name in it, or a mode followed by a file name, or by a command and its
+# arguments. With neither, the one-argument form, the file name is the
+# package scalar of the handle's name, ${*$fh} (measured: `our $OF = "f";
+# open(OF)` opens f). It yields 1, a piped open the child's pid, and undef
+# on failure (measured).
+sub open (Glob *fh, Str $mode = ${*$fh}, List @list) Int|Undef;
+# opendir yields true, or undef on failure (measured: opening a missing
+# directory is undef).
+sub opendir (Glob *dh, Str $dir) Boolean|Undef;
 sub ord (Str $string = $_) Int;
 # pack takes a template and then the LIST of values it packs into one
 # string: `pack()` is "Not enough arguments", `pack("A")` compiles.
@@ -200,14 +263,30 @@ sub quotemeta (Str $string = $_) Str;
 # number, and a negative argument gives a negative float (rand(-1) after
 # srand(1) is -0.0416, measured).
 sub rand (Num $max = 1) Num;
-sub read :prototype(*\$$;$);
-sub readdir :prototype(*);
-sub readline :prototype(;*);
-sub readlink :prototype(_);
+# read and sysread fill the caller's buffer from a handle and yield how many
+# characters they read: 0 at end of file, undef on error (measured: reading
+# a closed handle is undef). Without an offset the buffer is replaced from
+# its start, as offset 0 does (measured: both leave "XYZWVU" as "ab").
+# A `*` slot is `Glob *`: a bareword handle or any scalar (RFC 0001, "A
+# typed signature and a prototype say the same thing"), here and below.
+sub read (Glob *fh, Scalar \$buffer, Int $length, Int $offset = 0) Int|Undef;
+# readdir yields every remaining entry in list context and the next one in
+# scalar context, undef past the last -- one of the list's values, so
+# List covers both. A closed dirhandle is undef (measured).
+sub readdir (Glob *dh) List;
+# readline reads from ARGV with none (measured: `readline` and
+# `readline(*ARGV)` read the same lines), and yields every remaining line
+# in list context and the next one in scalar context, undef at end of file
+# -- one of the list's values, so List covers both.
+sub readline (Glob *fh = *ARGV) List;
+# readlink yields a link's target, `$_` with none, or undef for a file
+# that is not a link (measured).
+sub readlink (Str $path = $_) Str|Undef;
 sub readpipe :prototype(_);
 sub recv :prototype(*\$$$);
 sub ref (Scalar $thing = $_) Str;
-sub rename :prototype($$);
+# Measured as chroot, above: rename("nope", "x") is 0 as an IV.
+sub rename (Str $old, Str $new) Int;
 sub reset :prototype(;$);
 # reverse is context-dependent: a reversed list in list context, a
 # reversed string in scalar context -- `my $s = reverse "ab", "cd"` is
@@ -215,18 +294,22 @@ sub reset :prototype(;$);
 # is its own candidate. `reverse()` compiles (measured).
 multi sub reverse :prototype(@) :context($) (List @list) Str;
 multi sub reverse :prototype(@) :context(@) (List @list) List;
-sub rewinddir :prototype(*);
+# Measured as closedir, above.
+sub rewinddir (Glob *dh) Boolean|Undef;
 # Measured as index, above.
 sub rindex (Str $string, Str $substring, Int $position = length($string)) Int;
-sub rmdir :prototype(_);
+# Measured as chroot, above: rmdir of a missing directory is 0 as an IV.
+sub rmdir (Str $dir = $_) Int;
 # scalar() imposes scalar context on anything: its argument is coerced to
 # a Scalar, as a `$` prototype's is (measured: with `@a = (5, 6, 7)`,
 # `scalar(@a)` is 3). The return type depends on the argument and is
 # inference's to compute -- a signature can only name one type, and this
 # builtin's answer is "whatever the argument becomes".
 sub scalar (Scalar $expr) Scalar;
-sub seek :prototype(*$$);
-sub seekdir :prototype(*$);
+# seek yields true, or false for a closed handle (measured).
+sub seek (Glob *fh, Int $position, Int $whence) Boolean;
+# Measured as closedir, above.
+sub seekdir (Glob *dh, Int $position) Boolean|Undef;
 sub semctl :prototype($$$$);
 sub semget :prototype($$$);
 sub semop :prototype($$);
@@ -267,7 +350,9 @@ sub sqrt (Num $number = $_) Num;
 # seed" (perlfunc), or takes PERL_RAND_SEED's; no expression states that
 # choice, so the default names the call that makes it.
 sub srand (Int $seed = srand()) Str;
-sub stat :prototype(;*);
+# Measured as lstat, above.
+multi sub stat :context(@) (Glob *file = $_) List;
+multi sub stat :context($) (Glob *file = $_) Boolean;
 # study is a no-op since 5.16 that still answers: true for a defined
 # string, `$_` with none, and false for undef (measured: study("x") is 1,
 # study(undef) "").
@@ -279,28 +364,55 @@ sub study (Str $string = $_) Boolean;
 # undef but the 4-argument form dies, "substr outside of string". Without
 # a length it returns the rest of the string.
 sub substr (Str $string, Num $offset, Num $length = length($string), Str $replacement = substr($string, $offset, $length)) Str;
-sub symlink :prototype($$);
-sub syscall :prototype($@);
-sub sysopen :prototype(*$$;$);
-sub sysread :prototype(*\$$;$);
-sub sysseek :prototype(*$$);
-sub syswrite :prototype(*$;$$);
-sub tell :prototype(;*);
-sub telldir :prototype(*);
+# Measured as chroot, above: symlink to a name that exists is 0 as an IV.
+sub symlink (Str $old, Str $new) Int;
+# syscall takes the call's number and then the LIST of its arguments, which
+# may be empty (`syscall(39)` compiles and is getpid), and yields the
+# call's result, -1 on error (measured: an unknown number is -1).
+sub syscall (Int $number, List @args) Int;
+# sysopen takes a handle, a path and the O_ flags, and permissions, 0666
+# with none (measured under umask 0: a file it creates is 0666). It yields
+# true, or undef on failure.
+sub sysopen (Glob *fh, Str $path, Int $mode, Int $perms = 0666) Boolean|Undef;
+# Measured as read, above.
+sub sysread (Glob *fh, Scalar \$buffer, Int $length, Int $offset = 0) Int|Undef;
+# sysseek yields the new position, a position of 0 being the string
+# "0 but true", and undef on error (measured: sysseek($fh, 3, 0) is 3 as
+# an IV, sysseek($fh, 0, 0) "0 but true" as a PV, a closed handle undef).
+sub sysseek (Glob *fh, Int $position, Int $whence) Str|Undef;
+# syswrite writes the whole string from its start when given no length,
+# as length($string) and offset 0 do (measured: both write 5 bytes of
+# "hello"), and yields how many it wrote, undef on error.
+sub syswrite (Glob *fh, Str $string, Int $length = length($string), Int $offset = 0) Int|Undef;
+# Measured as eof, above.
+sub tell (Glob *fh = ${^LAST_FH}) Int;
+# telldir yields the position, undef for a closed dirhandle (measured).
+sub telldir (Glob *dh) Int|Undef;
 sub tie :prototype(\[$@%*]$@);
 sub tied :prototype(\[$@%*]);
 sub time :prototype();
 sub times :prototype();
-sub truncate :prototype($$);
+# truncate takes a handle or a file name, so its `$` slot is either
+# (measured: `truncate F, 1` with F a bareword handle, and
+# truncate("a", 1), both cut the file), and yields true, or undef on
+# failure.
+sub truncate (Str|FileHandle $file, Int $length) Boolean|Undef;
 # String transforms. Each takes a string and yields one; return types
 # measured on 5.42 rather than transcribed. With no argument each takes
 # `$_`: `uc()` compiles (measured).
 sub uc (Str $string = $_) Str;
 # Measured as uc, above.
 sub ucfirst (Str $string = $_) Str;
-sub umask :prototype(;$);
+# umask sets the mask and yields the one before it. With no argument it
+# sets nothing, which umask(umask()) also does -- it yields the current
+# mask and sets it again (measured: after umask 027, umask() and
+# umask(umask()) are both 23) -- while umask(undef) sets 0. No other
+# expression states that default, so it names the call, as srand's does.
+sub umask (Int $mask = umask()) Int;
 sub undef :prototype(;\[$@%&*]);
-sub unlink :prototype(@);
+# unlink deletes the files of a LIST, `$_` with none (measured: `$_ =
+# "f2"; unlink` deletes f2), and yields how many it deleted.
+sub unlink :prototype(@) (List[Str] @files = ($_)) Int;
 # unpack takes a template and a string, defaulting to `$_`: `unpack("A1
 # A1")` unpacks `$_`, `unpack()` is "Not enough arguments", and a third
 # argument "Too many" (measured). In scalar context it returns the first
@@ -310,19 +422,24 @@ sub unpack (Str $template, Str $string = $_) List;
 # Measured as push, above.
 sub unshift (Array \@array, List @list) Int;
 sub untie :prototype(\[$@%*]);
-sub utime :prototype(@);
+# Measured as chmod, above: utime(undef, undef, "f", "nope") is 1.
+sub utime :prototype(@) (List @list) Int;
 # Measured as keys, above.
 multi sub values :context($) (Hash \%h) Int;
 multi sub values :context($) (Array \@a) Int;
 multi sub values :context(@) (Hash \%h) List;
 multi sub values :context(@) (Array \@a) List;
-sub vec :prototype($$$);
+# vec reads the unsigned integer of a width of bits at an offset in a
+# string, all three required (`vec("a", 0)` does not compile): vec("abc",
+# 0, 8) is 97 as an IV, and past the string's end 0 (measured).
+sub vec (Str $string, Int $offset, Int $bits) Int;
 sub wait :prototype();
 sub waitpid :prototype($$);
 sub wantarray :prototype();
 # Measured as die, above.
 sub warn :prototype(@) (List[Str] @message) Boolean;
-sub write :prototype(;*);
+# Measured as close, above: write to a closed handle is false.
+sub write (Glob *fh = select()) Boolean;
 
 # Builtins with a leading slot taken with no comma after it (RFC 0001,
 # "Builtins that keep their own parse"), written with the invocant colon.
