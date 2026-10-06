@@ -57,3 +57,22 @@ func TestInvocantColonDerivesNoPrototype(t *testing.T) {
 		}
 	}
 }
+
+// TestPmtInvocantColonMisplacedRefused: the colon marks only a leading
+// slot, so it follows the first parameter and nothing else -- not a later
+// one, not a second time, and not an empty slot.
+func TestPmtInvocantColonMisplacedRefused(t *testing.T) {
+	pmtRefuses(t, map[string]string{
+		"sub f (Str $a, Str $b: List @l);\n": "sub f: invocant colon after $b; only the first parameter is an invocant",
+		"sub f (Str $a: Str $b: List @l);\n": "sub f: invocant colon after $b; only the first parameter is an invocant",
+		"sub f (: List @l);\n":               "sub f: invocant colon with no parameter before it",
+	})
+}
+
+// TestInvocantColonWithPrototypeIsError: an invocant colon derives no
+// prototype, so any `:prototype(...)` beside one disagrees with its types.
+func TestInvocantColonWithPrototypeIsError(t *testing.T) {
+	pmtRefuses(t, map[string]string{
+		"sub f :prototype($@) (Str $p: List @a);\n": "sub f: :prototype($@) disagrees with its types: an invocant colon derives no prototype",
+	})
+}

@@ -110,6 +110,10 @@ func readDeclaration(src []byte, res *resolver) moduleFacts {
 		// reports none for print (RFC 0001, "Builtins that keep their own
 		// parse").
 		if sigs[0].Invocant != nil {
+			if declared := facts.protos[name]; declared != "" {
+				facts.errs = append(facts.errs, fmt.Errorf("sub %s: :prototype%s disagrees with its types: an invocant colon derives no prototype", name, declared))
+				delete(facts.signatures, name)
+			}
 			continue
 		}
 		proto := prototypeFromTypes(sigs[0])

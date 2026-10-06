@@ -135,6 +135,9 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 				s.Returns, ret, err = p.returnType()
 				return err
 			}
+			if ok && p.text(tok) == ":" && len(s.Params) == 0 && s.Invocant == nil {
+				return errors.New("invocant colon with no parameter before it")
+			}
 			// A List parameter takes every remaining argument, so nothing
 			// can follow it (RFC 0001, "A typed signature and a prototype
 			// say the same thing").
@@ -174,6 +177,8 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 			case p.text(sep) == ":" && len(s.Params) == 1 && s.Invocant == nil:
 				p.advanceTo(sep)
 				s.Invocant, s.Params = &s.Params[0], nil
+			case p.text(sep) == ":":
+				return fmt.Errorf("invocant colon after %c%s; only the first parameter is an invocant", param.Sigil, param.Name)
 			case p.text(sep) != ")":
 				return fmt.Errorf("parameter %c%s is not followed by `,` or `)`", param.Sigil, param.Name)
 			}
