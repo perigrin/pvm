@@ -27,3 +27,7 @@ func DerivedPrototypes(src []byte) (map[string]string, error) {
 	}
 	return protos, nil
 }
+
+// CoreSignatures is coreSignatures, for TestCoreTypesMatchMeasuredSignatures
+// (coretypes_test.go).
+var CoreSignatures = coreSignatures

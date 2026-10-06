@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"tamarou.com/pvm/internal/parse"
+	"tamarou.com/pvm/internal/types"
 )
 
 // corePrototypeDisagreements holds the prototype each line of a CORE.pmt
@@ -83,5 +84,89 @@ func TestCoreTypedLineDisagreeingWithItsPrototype(t *testing.T) {
 	}
 	if derived != nil {
 		t.Errorf("a file in error built %v", derived)
+	}
+}
+
+// measuredRow is a builtin's typing as internal/types/signatures.go wrote
+// it: the fewest arguments a call passes, each argument's type in order,
+// a slurpy's element standing for every argument it takes, and the return
+// type. Its fields are exported so that fmt prints their types by name.
+type measuredRow struct {
+	MinArity int
+	Args     []types.Type
+	Returns  types.Type
+}
+
+// rowOf reads a declaration in measuredRow's terms. A required parameter
+// counts toward the arity; a slurpy `List[Str] @args` is its element, Str,
+// and a plain `List @list` is List.
+func rowOf(sig types.Signature) measuredRow {
+	row := measuredRow{Returns: sig.Returns}
+	for _, p := range sig.Params {
+		if p.Required {
+			row.MinArity++
+		}
+		typ := p.Type
+		if p.Slurpy() && p.Element != types.Unknown {
+			typ = p.Element
+		}
+		row.Args = append(row.Args, typ)
+	}
+	return row
+}
+
+// TestCoreTypesMatchMeasuredSignatures: CORE.pmt carries the measured
+// types of the 25 prototyped builtins internal/types/signatures.go types,
+// each row copied here so the check outlives that file. Where a row
+// disagreed with perl 5.42 it is perl's here, and says what was measured.
+func TestCoreTypesMatchMeasuredSignatures(t *testing.T) {
+	golden := map[string]measuredRow{
+		// MinArity was 2 for push, unshift and join: `push(@a)`,
+		// `unshift(@a)` and `join(":")` compile, while `push()` and
+		// `join()` are "Not enough arguments".
+		"push":    {1, []types.Type{types.Array, types.List}, types.Int},
+		"pop":     {0, []types.Type{types.Array}, types.Scalar},
+		"shift":   {0, []types.Type{types.Array}, types.Scalar},
+		"unshift": {1, []types.Type{types.Array, types.List}, types.Int},
+		"splice":  {1, []types.Type{types.Array, types.Int, types.Int, types.List}, types.List},
+		"length":  {0, []types.Type{types.Str}, types.Int},
+		"chr":     {0, []types.Type{types.Int}, types.Str},
+		"ord":     {0, []types.Type{types.Str}, types.Int},
+		"join":    {1, []types.Type{types.Str, types.List}, types.Str},
+		"sprintf": {1, []types.Type{types.Str, types.List}, types.Str},
+		// The fourth argument is the replacement string, not another
+		// number: `substr($s, 0, 1, 5)` makes "abc" "5bc".
+		"substr": {2, []types.Type{types.Str, types.Num, types.Num, types.Str}, types.Str},
+		"ref":    {0, []types.Type{types.Scalar}, types.Str},
+		// The argument is coerced to a Scalar, as a `$` prototype's is:
+		// with `@a = (5, 6, 7)`, `scalar(@a)` is 3. A `$` parameter typed
+		// List would derive `+`, which perl's `$` is not.
+		"scalar": {1, []types.Type{types.Scalar}, types.Scalar},
+		"die":    {0, []types.Type{types.Str}, types.None},
+		"warn":   {0, []types.Type{types.Str}, types.Boolean},
+		"bless":  {1, []types.Type{types.Ref, types.Str}, types.Object},
+		// MinArity was 1 for abs, int, uc, lc, ucfirst, lcfirst and
+		// reverse: each compiles with no argument, `abs()` and `uc()`
+		// taking `$_` and `reverse()` an empty list.
+		"abs":     {0, []types.Type{types.Num}, types.Num},
+		"int":     {0, []types.Type{types.Num}, types.Int},
+		"uc":      {0, []types.Type{types.Str}, types.Str},
+		"lc":      {0, []types.Type{types.Str}, types.Str},
+		"ucfirst": {0, []types.Type{types.Str}, types.Str},
+		"lcfirst": {0, []types.Type{types.Str}, types.Str},
+		"index":   {2, []types.Type{types.Str, types.Str, types.Int}, types.Int},
+		"rindex":  {2, []types.Type{types.Str, types.Str, types.Int}, types.Int},
+		"reverse": {0, []types.Type{types.List}, types.List},
+	}
+	core := parse.CoreSignatures()
+	for _, name := range slices.Sorted(maps.Keys(golden)) {
+		sigs := core[name]
+		if len(sigs) != 1 {
+			t.Errorf("%s: CORE.pmt declares %d signatures; want one", name, len(sigs))
+			continue
+		}
+		if got, want := rowOf(sigs[0]), golden[name]; fmt.Sprint(got) != fmt.Sprint(want) {
+			t.Errorf("%s: CORE.pmt has %v; measured %v", name, got, want)
+		}
 	}
 }

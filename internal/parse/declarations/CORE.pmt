@@ -12,6 +12,11 @@
 # function (`if`, `my`) or its parse is its own (`sort`). The builtins whose
 # leading slot takes no comma, `print` among them, are typed after the
 # prototyped ones.
+#
+# A typed line carries its prototype in its types and writes none (RFC 0001,
+# "A typed signature and a prototype say the same thing"): `bless`'s
+# `(Ref $ref, Str $class = __PACKAGE__)` derives `$;$`. One whose types
+# derive `@` writes `:prototype(@)`, since a derived `@` is no prototype.
 package CORE;
 
 sub __CLASS__ :prototype();
@@ -19,7 +24,11 @@ sub __FILE__ :prototype();
 sub __LINE__ :prototype();
 sub __PACKAGE__ :prototype();
 sub __SUB__ :prototype();
-sub abs :prototype(_);
+# Numeric transforms. abs follows its argument and int always truncates to
+# an integer; both are narrowed further by inference, which a signature
+# cannot express. With no argument each takes `$_`: `abs()` compiles
+# (measured).
+sub abs (Num $number = $_) Num;
 sub accept :prototype(**);
 sub alarm :prototype(_);
 sub all :prototype(\&@);
@@ -34,7 +43,7 @@ sub catch :prototype();
 sub chdir :prototype(;$);
 sub chmod :prototype(@);
 sub chown :prototype(@);
-sub chr :prototype(_);
+sub chr (Int $code = $_) Str;
 sub chroot :prototype(_);
 sub close :prototype(;*);
 sub closedir :prototype(*);
@@ -44,7 +53,9 @@ sub cos :prototype(_);
 sub crypt :prototype($$);
 sub dbmclose :prototype(\%);
 sub dbmopen :prototype(\%$$);
-sub die :prototype(@);
+# die and warn take a LIST of strings, which may be empty: `die()` and
+# `warn()` compile (measured). die never returns; warn returns true.
+sub die :prototype(@) (List[Str] @message) None;
 sub dump :prototype();
 sub each :prototype(\[%@]);
 sub endgrent :prototype();
@@ -92,16 +103,26 @@ sub getsockopt :prototype(*$$);
 sub glob :prototype(_;);
 sub gmtime :prototype(;$);
 sub hex :prototype(_);
-sub index :prototype($$;$);
-sub int :prototype(_);
+# index and rindex search a string for a substring and yield a position,
+# or -1 when absent -- an Int either way. The position defaults to the
+# start for index and the end for rindex (measured: `rindex($s, "b")` and
+# `rindex($s, "b", length($s))` agree).
+sub index (Str $string, Str $substring, Int $position = 0) Int;
+# Measured as abs, above.
+sub int (Num $number = $_) Int;
 sub ioctl :prototype(*$$);
 sub isa :prototype();
-sub join :prototype($@);
+# join takes a separator and then a LIST, not a series of strings: Str
+# there rejected `join ":", @foo`. Measured: join(":", @f) flattens the
+# array, and `join(":")` compiles, with an empty list.
+sub join (Str $separator, List @list) Str;
 sub keys :prototype(\[%@]);
 sub kill :prototype(@);
-sub lc :prototype(_);
-sub lcfirst :prototype(_);
-sub length :prototype(_);
+# Measured as uc, below.
+sub lc (Str $string = $_) Str;
+# Measured as uc, below.
+sub lcfirst (Str $string = $_) Str;
+sub length (Str $string = $_) Int;
 sub link :prototype($$);
 sub listen :prototype(*$);
 sub localtime :prototype(;$);
@@ -118,13 +139,22 @@ sub not :prototype($;);
 sub oct :prototype(_);
 sub open :prototype(*;$@);
 sub opendir :prototype(*$);
-sub ord :prototype(_);
+sub ord (Str $string = $_) Int;
 sub pack :prototype($@);
 sub pipe :prototype(**);
-sub pop :prototype(;\@);
+# pop and shift take the array whole, defaulting to `@_` in a sub and to
+# `@ARGV` outside one (measured: `perl -e 'print pop' x y` prints y).
+sub pop (Array \@array = @_) Scalar;
 sub pos :prototype(;\[$*]);
 sub prototype :prototype(_);
-sub push :prototype(\@@);
+# push, unshift and splice take a LIST, not Any. Everything flattens into
+# it -- measured, scalars, arrays, hashes and refs all append -- so List
+# accepts every value Any did, while still excluding Code and Glob. Any is
+# the annotation escape hatch and has no business standing in for an
+# unexamined slot. Each returns the array's new length. `push(@a)` and
+# `unshift(@a)` compile (measured), so the list may be empty; `push()` is
+# "Not enough arguments".
+sub push (Array \@array, List @list) Int;
 sub quotemeta :prototype(_);
 sub rand :prototype(;$);
 sub read :prototype(*\$$;$);
@@ -133,14 +163,23 @@ sub readline :prototype(;*);
 sub readlink :prototype(_);
 sub readpipe :prototype(_);
 sub recv :prototype(*\$$$);
-sub ref :prototype(_);
+sub ref (Scalar $thing = $_) Str;
 sub rename :prototype($$);
 sub reset :prototype(;$);
-sub reverse :prototype(@);
+# reverse is context-dependent: a reversed list in list context, a
+# reversed string in scalar context. List covers both, since Scalar <:
+# List. `reverse()` compiles (measured).
+sub reverse :prototype(@) (List @list) List;
 sub rewinddir :prototype(*);
-sub rindex :prototype($$;$);
+# Measured as index, above.
+sub rindex (Str $string, Str $substring, Int $position = length($string)) Int;
 sub rmdir :prototype(_);
-sub scalar :prototype($);
+# scalar() imposes scalar context on anything: its argument is coerced to
+# a Scalar, as a `$` prototype's is (measured: with `@a = (5, 6, 7)`,
+# `scalar(@a)` is 3). The return type depends on the argument and is
+# inference's to compute -- a signature can only name one type, and this
+# builtin's answer is "whatever the argument becomes".
+sub scalar (Scalar $expr) Scalar;
 sub seek :prototype(*$$);
 sub seekdir :prototype(*$);
 sub semctl :prototype($$$$);
@@ -156,7 +195,8 @@ sub setprotoent :prototype($);
 sub setpwent :prototype();
 sub setservent :prototype($);
 sub setsockopt :prototype(*$$$);
-sub shift :prototype(;\@);
+# Measured as pop, above.
+sub shift (Array \@array = @_) Scalar;
 sub shmctl :prototype($$$);
 sub shmget :prototype($$$);
 sub shmread :prototype($$$$);
@@ -166,13 +206,22 @@ sub sin :prototype(_);
 sub sleep :prototype(;$);
 sub socket :prototype(*$$$);
 sub socketpair :prototype(**$$$);
-sub splice :prototype(\@;$$@);
-sub sprintf :prototype($@);
+# splice takes the array whole, then a LIST as push does. With no length
+# it removes to the end, as `scalar(@array)` does, a length past the end
+# being clipped (measured: `splice(@a, 1)` and `splice(@a, 1, scalar(@a))`
+# remove the same elements, from either end of the offset).
+sub splice (Array \@array, Int $offset = 0, Int $length = scalar(@array), List @list) List;
+# sprintf takes a format and then the LIST of values it interpolates.
+sub sprintf (Str $format, List @list) Str;
 sub sqrt :prototype(_);
 sub srand :prototype(;$);
 sub stat :prototype(;*);
 sub study :prototype(_);
-sub substr :prototype($$;$$);
+# substr's fourth argument is the string that replaces the part it
+# returns: measured, `substr($s, 0, 1, 5)` makes "abc" "5bc". Without it
+# nothing is replaced, as replacing the part with itself does; without a
+# length it returns the rest of the string.
+sub substr (Str $string, Num $offset, Num $length = length($string), Str $replacement = substr($string, $offset, $length)) Str;
 sub symlink :prototype($$);
 sub syscall :prototype($@);
 sub sysopen :prototype(*$$;$);
@@ -186,13 +235,18 @@ sub tied :prototype(\[$@%*]);
 sub time :prototype();
 sub times :prototype();
 sub truncate :prototype($$);
-sub uc :prototype(_);
-sub ucfirst :prototype(_);
+# String transforms. Each takes a string and yields one; return types
+# measured on 5.42 rather than transcribed. With no argument each takes
+# `$_`: `uc()` compiles (measured).
+sub uc (Str $string = $_) Str;
+# Measured as uc, above.
+sub ucfirst (Str $string = $_) Str;
 sub umask :prototype(;$);
 sub undef :prototype(;\[$@%&*]);
 sub unlink :prototype(@);
 sub unpack :prototype($_);
-sub unshift :prototype(\@@);
+# Measured as push, above.
+sub unshift (Array \@array, List @list) Int;
 sub untie :prototype(\[$@%*]);
 sub utime :prototype(@);
 sub values :prototype(\[%@]);
@@ -200,7 +254,8 @@ sub vec :prototype($$$);
 sub wait :prototype();
 sub waitpid :prototype($$);
 sub wantarray :prototype();
-sub warn :prototype(@);
+# Measured as die, above.
+sub warn :prototype(@) (List[Str] @message) Boolean;
 sub write :prototype(;*);
 
 # Builtins with a leading slot taken with no comma after it (RFC 0001,
