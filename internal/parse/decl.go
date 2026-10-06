@@ -136,6 +136,9 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 				s.Returns, ret, err = p.returnType()
 				return err
 			}
+			if ok && p.text(tok) == ":" && len(s.Params) == 0 && s.Invocant == nil {
+				return errors.New("invocant colon with no parameter before it")
+			}
 			// A List parameter takes every remaining argument, so nothing
 			// can follow it (RFC 0001, "A typed signature and a prototype
 			// say the same thing"). An operator's is one operand, a
@@ -171,6 +174,23 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 				return errors.New("signature not terminated")
 			case p.text(sep) == ",":
 				p.advanceTo(sep)
+			// A colon touching a word is a parameter attribute (`$x :lvalue`),
+			// which perl refuses, not the invocant colon (`$by: List @list`).
+			case p.text(sep) == ":" && touchesWord(p, sep):
+				return fmt.Errorf("parameter %c%s is not followed by `,` or `)`", param.Sigil, param.Name)
+			// RFC 0001 "Builtins that keep their own parse": the invocant
+			// colon marks the first parameter as the slot a call fills with
+			// no comma after it, held apart from the positional ones.
+			case p.text(sep) == ":" && len(s.Params) == 1 && s.Invocant == nil:
+				// The slot holds one item, so a List, by its sigil or its
+				// type, is no invocant.
+				if param.Sigil == '@' || param.Sigil == '%' || param.Type == types.List {
+					return fmt.Errorf("invocant %c%s is a List; an invocant slot holds one item", param.Sigil, param.Name)
+				}
+				p.advanceTo(sep)
+				s.Invocant, s.Params = &s.Params[0], nil
+			case p.text(sep) == ":":
+				return fmt.Errorf("invocant colon after %c%s; only the first parameter is an invocant", param.Sigil, param.Name)
 			case p.text(sep) != ")":
 				return fmt.Errorf("parameter %c%s is not followed by `,` or `)`", param.Sigil, param.Name)
 			}
@@ -774,8 +794,11 @@ func (p *parser) parseSubDecl(word lexer.Token) *Node {
 
 	// Typed Perl is read with signatures on, so it keeps their order and
 	// refuses a signature before the attributes as perl does (RFC 0001,
-	// "Declaration order: Perl's"). The signature is not recorded.
-	if p.typed && sigFirst && len(n.Children) > attrsAt {
+	// "Declaration order: Perl's"). The signature is not recorded. A
+	// signature already refused is not refused again: what the fallback
+	// read of its parens leaves, `(%h: List @b)`'s `: List`, is no
+	// attribute the declaration states.
+	if p.typed && sigFirst && len(n.Children) > attrsAt && len(p.typedErrs) == errsBefore {
 		name, _ := declaredSub(n)
 		if sigs := p.signatures[name]; len(sigs) > 1 {
 			p.signatures[name] = sigs[:len(sigs)-1]
@@ -932,4 +955,11 @@ func (p *parser) finishBodyOrSemicolon(n *Node) {
 		}
 	}
 	n.End = p.prevEnd()
+}
+
+// touchesWord reports whether a word begins right where tok ends, with no
+// space between: the `:lvalue` of an attribute rather than a separator.
+func touchesWord(p *parser, tok lexer.Token) bool {
+	next, ok := p.peekAfter(tok)
+	return ok && next.Kind == lexer.Word && next.Start == tok.End
 }

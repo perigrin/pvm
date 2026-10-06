@@ -7,6 +7,13 @@ package types
 // "Typed Perl, in `.pmt` only": `sub bless :prototype($;$) (Ref $ref, Str
 // $class = __PACKAGE__) Object;`.
 type Signature struct {
+	// Invocant is the leading slot a call fills with no comma after it,
+	// RFC 0001 "Builtins that keep their own parse": `print STDERR LIST`'s
+	// handle, written `(FileHandle $fh = select(): List[Str] @args)`. nil
+	// when the declaration has none. It is not one of Params, so it never
+	// binds an argument by position.
+	Invocant *Param
+
 	Params []Param
 
 	// Returns is the lattice type the declaration states after its closing

@@ -105,6 +105,17 @@ func readDeclaration(src []byte, res *resolver) moduleFacts {
 		if len(sigs) != 1 {
 			continue
 		}
+		// No prototype character takes an argument with no comma after
+		// it, so a signature with an invocant derives none, as perl
+		// reports none for print (RFC 0001, "Builtins that keep their own
+		// parse").
+		if sigs[0].Invocant != nil {
+			if declared := facts.protos[name]; declared != "" {
+				facts.errs = append(facts.errs, fmt.Errorf("sub %s: :prototype%s disagrees with its types: an invocant colon derives no prototype", name, declared))
+				delete(facts.signatures, name)
+			}
+			continue
+		}
 		proto := prototypeFromTypes(sigs[0])
 		var err error
 		if facts.protos[name] != "" {
@@ -132,34 +143,55 @@ func readDeclaration(src []byte, res *resolver) moduleFacts {
 // the parser that consults it. CORE.pmt aliases nothing, so building it never
 // asks for it.
 func coreTable() map[string]string {
+	readCore()
+	return coreMap
+}
+
+// coreSignatures is perl's builtins by name, each to the typed signatures
+// CORE.pmt states or derives for it -- print's too, which has no prototype
+// and so no place in coreTable.
+func coreSignatures() map[string][]types.Signature {
+	readCore()
+	return coreSigs
+}
+
+// readCore reads CORE.pmt, once, into coreTable's and coreSignatures's
+// tables.
+func readCore() {
 	coreOnce.Do(func() {
 		src, ok := declaration("CORE")
 		if !ok {
 			panic("parse: declarations/CORE.pmt is not embedded")
 		}
 		var err error
-		if coreMap, err = coreProtos(src); err != nil {
+		if coreMap, coreSigs, err = coreProtos(src); err != nil {
 			panic("parse: declarations/CORE.pmt: " + err.Error())
 		}
 	})
-	return coreMap
 }
 
-// coreProtos reads a CORE.pmt into the table coreTable holds. A file in
-// error builds no table: a builtin it misdeclares would parse wrong.
-func coreProtos(src []byte) (map[string]string, error) {
+// coreProtos reads a CORE.pmt into the tables coreTable and coreSignatures
+// hold. A file in error builds neither: a builtin it misdeclares would parse
+// wrong.
+func coreProtos(src []byte) (map[string]string, map[string][]types.Signature, error) {
 	facts := readDeclaration(src, nil)
 	if len(facts.errs) > 0 {
-		return nil, errors.Join(facts.errs...)
+		return nil, nil, errors.Join(facts.errs...)
 	}
 	protos := map[string]string{}
 	for name, proto := range facts.protos {
+		// A builtin with no prototype, print's "", has no entry: aliasTarget
+		// reads presence here as a known prototype.
+		if proto == "" {
+			continue
+		}
 		protos[name] = strings.TrimSuffix(strings.TrimPrefix(proto, "("), ")")
 	}
-	return protos, nil
+	return protos, facts.signatures, nil
 }
 
 var (
 	coreOnce sync.Once
 	coreMap  map[string]string
+	coreSigs map[string][]types.Signature
 )

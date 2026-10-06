@@ -570,7 +570,7 @@ func TestPmtContextAttributeMalformed(t *testing.T) {
 // reads clean.
 func TestPmtDeclarationErrorsSurface(t *testing.T) {
 	bad := []byte("sub f (Str);\n")
-	if _, err := coreProtos(bad); err == nil || err.Error() != "sub f: type Str names no variable" {
+	if _, _, err := coreProtos(bad); err == nil || err.Error() != "sub f: type Str names no variable" {
 		t.Errorf("core table: got %v, want the declaration's error", err)
 	}
 

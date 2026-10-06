@@ -9,7 +9,9 @@
 #       print "sub $k :prototype($p);\n" if defined $p }'
 #
 # A keyword missing here has no prototype perl can report: it is not a
-# function (`if`, `my`) or its parse is its own (`print`, `sort`).
+# function (`if`, `my`) or its parse is its own (`sort`). The builtins whose
+# leading slot takes no comma, `print` among them, are typed after the
+# prototyped ones.
 package CORE;
 
 sub __CLASS__ :prototype();
@@ -200,6 +202,30 @@ sub waitpid :prototype($$);
 sub wantarray :prototype();
 sub warn :prototype(@);
 sub write :prototype(;*);
+
+# Builtins with a leading slot taken with no comma after it (RFC 0001,
+# "Builtins that keep their own parse"), written with the invocant colon.
+# They derive no prototype: measured on 5.42.0, `prototype("CORE::$_")` is
+# undef for each.
+#
+# print, say and printf: the slot is a handle, `print STDERR LIST` or
+# `print {$fh} LIST`, and the default is the selected one, not STDOUT
+# (`select $h; print "x"` writes to $h). With no list each takes `$_`:
+# `$_ = "topic"; print` prints "topic", and `print STDOUT` alone does too.
+# printf's format is the list's first element, not a parameter of its own:
+# `@a = ("<%s-%s>", "a", "b"); printf @a` prints "<a-b>", where sprintf's
+# `$@` takes scalar(@a). Each returns 1, or undef when the write fails.
+sub print (FileHandle $fh = select(): List[Str] @args = ($_)) Boolean;
+sub printf (FileHandle $fh = select(): List @args = ($_)) Boolean;
+sub say (FileHandle $fh = select(): List[Str] @args = ($_)) Boolean;
+
+# exec and system: the slot is the program to run, `exec {'/bin/sh'} @args`
+# or `system $shell "-sh"`, and with it the list may not be empty: `exec
+# {"/bin/echo"};` is a syntax error. exec returns only on failure, false;
+# system returns the wait status, `system "true"` 0, `system "false"` 256
+# and a program that cannot run -1.
+sub exec (Str $program: List[Str] @args) Boolean;
+sub system (Str $program: List[Str] @args) Int;
 
 # Operators (RFC 0001, "Operator declarations"): each under its symbol, with
 # its fixity and, for an infix one, the class naming its precedence level in
