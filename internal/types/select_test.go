@@ -35,21 +35,37 @@ var eachCandidates = []Signature{
 	sig(List, scalar("a", Array)),
 }
 
-// wantSelected checks that args select candidate want, returning ret.
+// wantSelected checks that args select candidate want, returning ret, in
+// scalar context: a candidate stating no `:context` answers for every one.
 func wantSelected(t *testing.T, cands []Signature, args []Type, want int, ret Type) {
 	t.Helper()
-	got := Select(cands, args)
+	wantSelectedIn(t, cands, ScalarCtx, args, want, ret)
+}
+
+// wantSelectedIn checks that args in context ctx select candidate want,
+// returning ret.
+func wantSelectedIn(t *testing.T, cands []Signature, ctx Context, args []Type, want int, ret Type) {
+	t.Helper()
+	got := Select(cands, args, ctx)
 	if got.Outcome != Selected || got.Candidate != want || got.Returns != ret {
-		t.Errorf("%v: got %+v, want candidate %d selected, returning %v", args, got, want, ret)
+		t.Errorf("%v in %v: got %+v, want candidate %d selected, returning %v", args, ctx, got, want, ret)
 	}
 }
 
-// wantFailed checks that args select nothing and have no type.
+// wantFailed checks that args select nothing and have no type, in scalar
+// context.
 func wantFailed(t *testing.T, cands []Signature, args []Type) {
 	t.Helper()
-	got := Select(cands, args)
+	wantFailedIn(t, cands, ScalarCtx, args)
+}
+
+// wantFailedIn checks that args in context ctx select nothing and have no
+// type.
+func wantFailedIn(t *testing.T, cands []Signature, ctx Context, args []Type) {
+	t.Helper()
+	got := Select(cands, args, ctx)
 	if got.Outcome != Failed || got.Candidate != -1 || got.Returns != Unknown {
-		t.Errorf("%v: got %+v, want a failure with no candidate and no type", args, got)
+		t.Errorf("%v in %v: got %+v, want a failure with no candidate and no type", args, ctx, got)
 	}
 }
 
@@ -130,7 +146,7 @@ func TestSelectJoinsWhenUndecided(t *testing.T) {
 		sig(Str, scalar("h", Hash)),
 		sig(ArrayRef, scalar("a", Array)),
 	}
-	got := Select(cands, []Type{Unknown})
+	got := Select(cands, []Type{Unknown}, ScalarCtx)
 	if got.Outcome != Undecided || got.Candidate != -1 || got.Returns != Str|ArrayRef {
 		t.Errorf("got %+v, want undecided, returning %v", got, Str|ArrayRef)
 	}
@@ -141,7 +157,7 @@ func TestSelectJoinsWhenUndecided(t *testing.T) {
 		sig(Str, scalar("a", Int), scalar("b", Num)),
 		sig(ArrayRef, scalar("a", Num), scalar("b", Int)),
 	}
-	got = Select(crossed, []Type{Int, Int})
+	got = Select(crossed, []Type{Int, Int}, ScalarCtx)
 	if got.Outcome != Undecided || got.Candidate != -1 || got.Returns != Str|ArrayRef {
 		t.Errorf("crossed: got %+v, want undecided, returning %v", got, Str|ArrayRef)
 	}
@@ -208,5 +224,18 @@ func TestMultiContextForkNotAmbiguous(t *testing.T) {
 	}
 	if err := Ambiguity(crossed); err == nil {
 		t.Errorf("decided in list context only: got no ambiguity")
+	}
+}
+
+// TestSelectByContext: RFC 0001 "`:context(...)`", a call selects the
+// candidate that answers for its calling context. Measured on 5.42.0,
+// `my $t = localtime(0)` is "Thu Jan  1 00:00:00 1970" and `my @l =
+// localtime(0)` is nine integers. Boolean context is scalar: `wantarray`
+// reports scalar inside `if (f())`, `!f()` and `f() and ...`.
+func TestSelectByContext(t *testing.T) {
+	for _, args := range [][]Type{nil, {Int}} {
+		wantSelectedIn(t, localtimeCandidates, ScalarCtx, args, 0, Str)
+		wantSelectedIn(t, localtimeCandidates, ListCtx, args, 1, List)
+		wantSelectedIn(t, localtimeCandidates, BooleanCtx, args, 0, Str)
 	}
 }

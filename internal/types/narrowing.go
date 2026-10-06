@@ -14,6 +14,11 @@ const (
 	VoidCtx                   // Expression result is discarded (void context)
 )
 
+// BooleanCtx is scalar context. Measured on 5.42.0, `wantarray` reports
+// scalar inside `if (f())`, `!f()` and `f() and ...`, so no Perl-level sub
+// can tell them apart (RFC 0001, "`:context(...)`").
+const BooleanCtx = ScalarCtx
+
 // contextNames maps Context values to their human-readable string representations.
 var contextNames = map[Context]string{
 	UnknownCtx: "Unknown",

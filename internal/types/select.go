@@ -33,17 +33,23 @@ type Selection struct {
 	Returns   Type
 }
 
-// Select picks the candidate for a call with arguments of types args, RFC
-// 0001 "Multi declarations". Of the candidates the call fits, the most
-// specific wins (perigrin, 2026-10-02): the one whose parameters are all
-// subtypes of every other's, as multi dispatch does in Raku, CLOS and Julia.
-// When the call site cannot decide -- an argument of unknown type fits more
-// than one candidate, or none is most specific -- the call's type is the
-// join of theirs. A call no candidate takes fails, and is never joined.
-func Select(cands []Signature, args []Type) Selection {
+// Select picks the candidate for a call in context ctx with arguments of
+// types args, RFC 0001 "Multi declarations". A candidate takes only calls
+// in the contexts its `:context(...)` names ("`:context(...)`"). Of the
+// candidates the call fits, the most specific wins (perigrin, 2026-10-02):
+// the one whose parameters are all subtypes of every other's, as multi
+// dispatch does in Raku, CLOS and Julia. When the call site cannot decide
+// -- an argument of unknown type fits more than one candidate, or none is
+// most specific -- the call's type is the join of theirs. A call no
+// candidate takes fails, and is never joined.
+//
+// ctx is the context the call is in: ScalarCtx (BooleanCtx is the same),
+// ListCtx or VoidCtx. What a call whose context is undetermined passes is
+// RFC 0001 "Call sites"'s; no candidate takes UnknownCtx.
+func Select(cands []Signature, args []Type, ctx Context) Selection {
 	var fit []int
 	for i, c := range cands {
-		if c.accepts(len(args)) && c.fits(args) {
+		if c.contexts()&ContextSet(ctx) != 0 && c.accepts(len(args)) && c.fits(args) {
 			fit = append(fit, i)
 		}
 	}
