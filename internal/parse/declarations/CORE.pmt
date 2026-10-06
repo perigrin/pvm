@@ -32,7 +32,12 @@ sub __SUB__ :prototype();
 # cannot express. With no argument each takes `$_`: `abs()` compiles
 # (measured).
 sub abs (Num $number = $_) Num;
-sub accept :prototype(**);
+# accept takes a new handle and a listening socket, both required
+# (`accept(S)` is "Not enough arguments"), and yields the peer's packed
+# address, a string, or undef on failure (measured: accepting on a
+# closed handle is undef). A `*` slot is `Glob *`, here and in the socket
+# builtins below.
+sub accept (Glob *new, Glob *socket) Str|Undef;
 # alarm schedules a SIGALRM in whole seconds, `$_` with none (measured:
 # `$_ = 3; alarm` sets 3, alarm(2.9) sets 2), and yields the seconds left
 # of the one before, 0 if none: undef for a negative time, with a warning.
@@ -49,7 +54,11 @@ sub any (Code \&block, List @list) Boolean;
 # arguments". Its result is a float, NOK even where it is whole: atan2(0, 1)
 # is 0 as an NV (measured with B::svref_2object).
 sub atan2 (Num $y, Num $x) Num;
-sub bind :prototype(*$);
+# bind, connect, listen, setsockopt, socket and socketpair yield true, a
+# boolean, or undef on failure (measured: binding a bound socket, connecting
+# to a closed port and any of them on a closed handle are undef). bind and
+# connect take a packed address.
+sub bind (Glob *socket, Str $name) Boolean|Undef;
 # binmode sets a handle's layers, :raw with none (measured: on a :crlf
 # handle `binmode $fh` and `binmode $fh, ":raw"` leave the same layers),
 # and yields true, or undef for a closed handle.
@@ -98,7 +107,8 @@ sub close (Glob *fh = select()) Boolean;
 # closedir, rewinddir and seekdir yield true, or undef for a closed
 # dirhandle (measured).
 sub closedir (Glob *dh) Boolean|Undef;
-sub connect :prototype(*$);
+# Measured as bind, above.
+sub connect (Glob *socket, Str $name) Boolean|Undef;
 sub continue :prototype();
 # cos, exp, log, sin and sqrt each take a number, `$_` with none (measured:
 # `$_ = 0; cos()` is 1), and yield a float, NOK even where it is whole:
@@ -244,7 +254,10 @@ sub getnetbyaddr (Int $addr, Int $addrtype) List;
 sub getnetbyname (Str $name) List;
 # Measured as getnetbyaddr, above.
 sub getnetent () List;
-sub getpeername :prototype(*);
+# getpeername and getsockname yield the packed address of a socket's peer
+# or its own, a string, and undef for a closed handle or, for getpeername,
+# a socket not connected (measured).
+sub getpeername (Glob *socket) Str|Undef;
 # getpgrp yields a process's group, the current process's with none, as
 # for 0 (measured: getpgrp() and getpgrp(0) agree), and -1 as an IV for a
 # process that does not exist.
@@ -289,8 +302,12 @@ sub getservbyname (Str $name, Str $proto) List;
 sub getservbyport (Int $port, Str $proto) List;
 # Measured as getservbyname, above.
 sub getservent () List;
-sub getsockname :prototype(*);
-sub getsockopt :prototype(*$$);
+# Measured as getpeername, above.
+sub getsockname (Glob *socket) Str|Undef;
+# getsockopt yields the option's packed value, a string (measured:
+# SO_REUSEADDR once set is "\1\0\0\0"), and undef on failure, an unknown
+# level or a closed handle.
+sub getsockopt (Glob *socket, Int $level, Int $optname) Str|Undef;
 # glob expands a pattern, `$_` with none: in list context every match, in
 # scalar context the next one, undef past the last -- one of the list's
 # values, so List covers both. `_;` keeps its `;`, which no type states.
@@ -347,7 +364,8 @@ sub lcfirst (Str $string = $_) Str;
 sub length (Str $string = $_) Int;
 # Measured as chroot, above: link("nope", "h") is 0 as an IV.
 sub link (Str $old, Str $new) Int;
-sub listen :prototype(*$);
+# Measured as bind, above.
+sub listen (Glob *socket, Int $queuesize) Boolean|Undef;
 # Measured as gmtime, above.
 multi sub localtime :context($) (Int $time = time) Str|Undef;
 multi sub localtime :context(@) (Int $time = time) List[Int];
@@ -447,7 +465,11 @@ sub readlink (Str $path = $_) Str|Undef;
 # scalar context and empty in list context.
 multi sub readpipe :context($) (Str $command = $_) Str|Undef;
 multi sub readpipe :context(@) (Str $command = $_) List[Str];
-sub recv :prototype(*\$$$);
+# recv fills the caller's buffer, as read does (measured: three bytes of
+# "hello" leave "zz" as "hel"), and yields the sender's packed address, the
+# empty string for a stream socket, and undef on failure (measured: a
+# datagram's sender is a 16-byte sockaddr_in, a closed handle undef).
+sub recv (Glob *socket, Scalar \$buffer, Int $length, Int $flags) Str|Undef;
 sub ref (Scalar $thing = $_) Str;
 # Measured as chroot, above: rename("nope", "x") is 0 as an IV.
 sub rename (Str $old, Str $new) Int;
@@ -498,7 +520,12 @@ multi sub select ($r, $w, $e, Num $timeout) List;
 sub semctl :prototype($$$$);
 sub semget :prototype($$$);
 sub semop :prototype($$);
-sub send :prototype(*$$;$);
+# send yields how many bytes it sent, an IV, and undef on failure. With an
+# address it sends there; with none it sends to the connected peer, which
+# no address states: on a connected datagram socket an undef or empty
+# address fails where none sends (measured). So the default names the
+# call, as srand's does (01a1105e).
+sub send (Glob *socket, Str $msg, Int $flags, Str $to = send(*socket, $msg, $flags)) Int|Undef;
 # Measured as endgrent, above.
 sub setgrent () Boolean;
 # Measured as endhostent, above. The flag is read for its truth, and may
@@ -519,14 +546,17 @@ sub setprotoent (Scalar $stayopen) Boolean;
 sub setpwent () Boolean;
 # Measured as sethostent, above.
 sub setservent (Scalar $stayopen) Boolean;
-sub setsockopt :prototype(*$$$);
+# Measured as bind, above. The value is an integer or a packed string.
+sub setsockopt (Glob *socket, Int $level, Int $optname, Scalar $optval) Boolean|Undef;
 # Measured as pop, above.
 sub shift (Array \@array = @_) Scalar;
 sub shmctl :prototype($$$);
 sub shmget :prototype($$$);
 sub shmread :prototype($$$$);
 sub shmwrite :prototype($$$$);
-sub shutdown :prototype(*$);
+# shutdown yields 1 as an IV, 0 for a socket not connected and undef for a
+# closed handle (measured).
+sub shutdown (Glob *socket, Int $how) Int|Undef;
 # Measured as cos, above.
 sub sin (Num $number = $_) Num;
 # sleep takes whole seconds, sleep(1.7) sleeping 1, and yields the seconds
@@ -535,8 +565,10 @@ sub sin (Num $number = $_) Num;
 # while sleep(undef) is sleep(0). No expression states that, so the
 # default names the call, as srand's does (01a1105e).
 sub sleep (Int $seconds = sleep()) Int;
-sub socket :prototype(*$$$);
-sub socketpair :prototype(**$$$);
+# Measured as bind, above: an unknown domain is undef.
+sub socket (Glob *socket, Int $domain, Int $type, Int $protocol) Boolean|Undef;
+# Measured as bind, above: an unknown domain is undef.
+sub socketpair (Glob *socket1, Glob *socket2, Int $domain, Int $type, Int $protocol) Boolean|Undef;
 # splice takes the array whole, then a LIST as push does. With no length
 # it removes to the end, as `scalar(@array)` does, a length past the end
 # being clipped (measured: `splice(@a, 1)` and `splice(@a, 1, scalar(@a))`
