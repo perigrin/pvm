@@ -479,7 +479,7 @@ func inferBinaryExprType(node *parser.Node, source []byte, annotations map[uint3
 		return types.Boolean
 	}
 
-	result := builtinReturns(sigs)
+	result := builtinReturns(sigs, types.UnknownCtx)
 	if result == types.Any && logicalOps[op] {
 		return types.Join(operandType(left, annotations), operandType(right, annotations))
 	}
@@ -634,7 +634,7 @@ func inferUnaryExprType(node *parser.Node, source []byte, annotations map[uint32
 		}
 	}
 
-	return builtinReturns(sigs)
+	return builtinReturns(sigs, types.UnknownCtx)
 }
 
 // findOperatorText returns the operator token of a binary-family node.
@@ -730,7 +730,7 @@ func inferFunctionCallType(
 			Code:      CodeArityMismatch,
 			Message:   arityMessage(name, least, len(args)),
 		})
-		return builtinReturns(sigs)
+		return builtinReturns(sigs, assignedContext(node))
 	}
 
 	// Validate argument types.
@@ -754,7 +754,7 @@ func inferFunctionCallType(
 	if t, ok := contextualReturnType(name, args, source, st, annotations); ok {
 		return t
 	}
-	return builtinReturns(sigs)
+	return builtinReturns(sigs, assignedContext(node))
 }
 
 // inferMethodCallType handles method_call_expression nodes such as Foo->new()
@@ -902,7 +902,7 @@ func inferFunc1opCallType(
 			Code:      CodeArityMismatch,
 			Message:   arityMessage(name, least, len(args)),
 		})
-		return builtinReturns(sigs)
+		return builtinReturns(sigs, assignedContext(node))
 	}
 
 	for i, arg := range args {
@@ -925,7 +925,7 @@ func inferFunc1opCallType(
 	if t, ok := contextualReturnType(name, args, source, st, annotations); ok {
 		return t
 	}
-	return builtinReturns(sigs)
+	return builtinReturns(sigs, assignedContext(node))
 }
 
 // contextualReturnType handles builtins whose result type depends on the
@@ -939,14 +939,6 @@ func inferFunc1opCallType(
 func contextualReturnType(name string, args []*parser.Node, source []byte, st *SymbolTable, annotations map[uint32]types.Type) (types.Type, bool) {
 	if name == "sprintf" && len(args) >= 1 {
 		return sprintfResultType(args[0], source, annotations)
-	}
-
-	// reverse is the exception to "a List in scalar context is a count":
-	// measured, `reverse("abc")` is "cba" and `reverse(@a)` on (1,2,3) is
-	// "321" — it concatenates its arguments and reverses the STRING. Every
-	// other List-returning builtin gives a count.
-	if name == "reverse" {
-		return types.Str, true
 	}
 
 	// int() truncates toward zero, so the result is an Int whatever went in —
@@ -1020,7 +1012,7 @@ func inferFunc0opCallType(
 	if len(sigs) == 0 {
 		return types.Unknown
 	}
-	return builtinReturns(sigs)
+	return builtinReturns(sigs, assignedContext(node))
 }
 
 // collectCallArgs gathers the actual argument nodes for a function call.
@@ -2000,14 +1992,21 @@ func builtinMinArity(sigs []types.Signature) int {
 	return least
 }
 
-// builtinReturns is a builtin call's type from its candidates' declared
-// return types. Selecting a candidate at the call site is RFC 0001 "Call
-// sites"', so a multi's call is the join of its candidates', as for a call
-// site that cannot decide.
-func builtinReturns(sigs []types.Signature) types.Type {
+// builtinReturns is a builtin call's type in context ctx from its
+// candidates' declared return types: the join of those answering for ctx,
+// RFC 0001 "`:context(...)`", or of all of them when ctx is UnknownCtx.
+// reverse is why: measured, `my @r = reverse "ab", "cd"` is ("cd","ab")
+// and `my $s = reverse "ab", "cd"` is "dcba", where a list in scalar
+// context would be a count. A context no candidate answers for, a scalar
+// sort's, has no type. Selecting by argument types is RFC 0001 "Call
+// sites"', so a multi's call is otherwise the join of its candidates', as
+// for a call site that cannot decide.
+func builtinReturns(sigs []types.Signature, ctx types.Context) types.Type {
 	t := types.Unknown
 	for _, s := range sigs {
-		t = types.Join(t, s.Returns)
+		if ctx == types.UnknownCtx || s.Context == types.EveryContext || s.Context&types.ContextSet(ctx) != 0 {
+			t = types.Join(t, s.Returns)
+		}
 	}
 	return t
 }

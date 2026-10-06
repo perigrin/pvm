@@ -178,3 +178,46 @@ func TestInferSplitPatternTakesRegexOrStr(t *testing.T) {
 	_, diags := analyzeSource(t, []byte(`my $h = {}; my $x = "a:b:c"; my @f = split $h, $x;`))
 	assert.NotEmpty(t, diags, "a reference is not a pattern")
 }
+
+// TestInferReverseFollowsContext: reverse is two `:context` candidates, a
+// list in list context and a string in scalar context. Measured on 5.42,
+// with @x = ("ab","cd"), `my @r = reverse @x` is ("cd","ab") and `my $s =
+// reverse @x` is "dcba". Where the call's context is unknown, its type is
+// the join of the two, Str ⊔ List = List.
+func TestInferReverseFollowsContext(t *testing.T) {
+	assert.Equal(t, types.List, lookupType(t, "my @x; my @r = reverse @x;", "@r"))
+	assert.Equal(t, types.Str, lookupType(t, "my @x; my $s = reverse @x;", "$s"))
+
+	src := []byte("my @x; frobnicate(reverse @x);")
+	ann, _ := analyzeSource(t, src)
+	got, _ := findNodeType(ann, src, "reverse @x")
+	assert.Equal(t, types.List, got)
+}
+
+// TestInferContextBuiltinsFollowContext: the other builtins CORE.pmt
+// declares as `:context` candidates take the candidate their assignment's
+// context selects. Measured on 5.42: `my $n = keys %h` is the count, `my $t
+// = localtime 0` is "Thu Jan  1 00:00:00 1970" where the list form has nine
+// elements, `my $p = readpipe("echo hi")` is "hi\n", and `my $st = stat
+// "/"` is 1.
+func TestInferContextBuiltinsFollowContext(t *testing.T) {
+	cases := []struct {
+		src, name string
+		want      types.Type
+	}{
+		{"my %h; my $n = keys %h;", "$n", types.Int},
+		{"my %h; my @k = keys %h;", "@k", types.List},
+		{"my %h; my $n = values %h;", "$n", types.Int},
+		{"my $t = localtime(0);", "$t", types.Str | types.Undef},
+		{"my @l = localtime(0);", "@l", types.List},
+		{"my $t = gmtime(0);", "$t", types.Str | types.Undef},
+		{"my $p = readpipe('echo');", "$p", types.Str | types.Undef},
+		{"my @p = readpipe('echo');", "@p", types.List},
+		{"my $s = stat('/');", "$s", types.Boolean},
+		{"my @s = stat('/');", "@s", types.List},
+		{"my $s = lstat('/');", "$s", types.Boolean},
+	}
+	for _, c := range cases {
+		assert.Equal(t, c.want, lookupType(t, c.src, c.name), "%q", c.src)
+	}
+}
