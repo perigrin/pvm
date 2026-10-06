@@ -1,6 +1,6 @@
 ---
 title: Declare the forking operators .. and x as multis in CORE.pmt
-state: in-progress
+state: done
 urgency: normal
 milestone: type-libraries
 blocked_by:
@@ -10,16 +10,20 @@ blocks:
 - 01a0fd9b-5670-78d0-84be-9b9618e9b081
 - 01a0fd9b-5698-70cf-b6e4-8899a83b0fe0
 created: 2026-10-02T17:13:30.472741835Z
-updated: 2026-10-06T09:06:22.569844641Z
+updated: 2026-10-06T09:06:22.692685674Z
 sessions:
 - start_sha: f1adc965eb2a39250bb3225b5cc5834c23ebb915
-  end_sha: ""
+  end_sha: f1adc965eb2a39250bb3225b5cc5834c23ebb915
   commits: 0
   started_at: 2026-10-06T09:06:22.569844641Z
+  ended_at: 2026-10-06T09:06:22.692685674Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-06T09:06:22.569844641Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-06T09:06:22.692685674Z
 ---
 
 ## Prerequisites
