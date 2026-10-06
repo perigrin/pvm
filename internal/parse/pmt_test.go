@@ -656,3 +656,40 @@ func TestPmtMalformedAliasedParamRefused(t *testing.T) {
 		}
 	}
 }
+
+// TestParamAttributeRefused: the backslash replaces an earlier `:lvalue`
+// parameter attribute (RFC 0001, "The scalar container"), and no
+// parameter takes an attribute: perl 5.42.0 refuses `sub f ($x :lvalue)`,
+// "Illegal operator following parameter in a subroutine signature". The
+// declaration is in error and derives no `\$`.
+func TestParamAttributeRefused(t *testing.T) {
+	cases := map[string]string{
+		"sub f (Scalar $x :lvalue);\n": "sub f: parameter $x is not followed by `,` or `)`",
+		"sub f (Scalar $x :bogus);\n":  "sub f: parameter $x is not followed by `,` or `)`",
+	}
+	pmtRefuses(t, cases)
+	for src := range cases {
+		if proto := readDeclaration([]byte(src), nil).protos["f"]; proto != "" {
+			t.Errorf("%q: derived prototype %q", src, proto)
+		}
+	}
+}
+
+// TestAliasedParamOnlyInPmt: the backslashed parameter is typed Perl, read
+// only from a declaration file. In ordinary source without signatures the
+// parens after `sub NAME` are a prototype whatever they hold: measured on
+// 5.42.0, `sub f (\$x) { 1 } print prototype(\&f)` prints `\$x`.
+func TestAliasedParamOnlyInPmt(t *testing.T) {
+	for src, want := range map[string]string{
+		"sub f (\\$x) { 1 }\n":        `(\$x)`,
+		"sub f (Scalar \\$x) { 1 }\n": `(Scalar \$x)`,
+	} {
+		facts := readModule(Parse([]byte(src)))
+		if got := facts.protos["f"]; got != want {
+			t.Errorf("%q: prototype %q, want %q", src, got, want)
+		}
+		if len(facts.signatures) > 0 || len(facts.errs) > 0 {
+			t.Errorf("%q: ordinary source recorded types: %v, errors %v", src, facts.signatures, facts.errs)
+		}
+	}
+}

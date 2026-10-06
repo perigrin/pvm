@@ -297,3 +297,14 @@ func TestCodeAliasDerivesRefAmp(t *testing.T) {
 		}
 	}
 }
+
+// TestAliasedPrototypeDisagreementIsError: `\@` is an Array passed whole
+// and `@` the rest of the call, flattened (RFC 0001, "A typed signature and
+// a prototype say the same thing"), so a declaration whose prototype says
+// one and whose types say the other is in error.
+func TestAliasedPrototypeDisagreementIsError(t *testing.T) {
+	pmtRefuses(t, map[string]string{
+		"sub f :prototype(\\@) (List @l);\n":  `sub f: :prototype(\@) disagrees with its types, which give (@)`,
+		"sub f :prototype(@) (Array \\@a);\n": `sub f: :prototype(@) disagrees with its types, which give (\@)`,
+	})
+}
