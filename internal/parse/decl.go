@@ -432,7 +432,7 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 			def = p.parseExpr(infix[","].BP)
 		}
 		if def == nil {
-			return types.Param{}, nil, fmt.Errorf("default for %s has no expression", p.text(v))
+			return types.Param{}, nil, fmt.Errorf("default for %s has no expression", param.Variable())
 		}
 		node.Children = append(node.Children, def)
 		// A `die` default runs only when the argument is omitted, so it

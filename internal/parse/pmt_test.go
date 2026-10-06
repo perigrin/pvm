@@ -707,6 +707,7 @@ func TestPmtMessagesPrintAlias(t *testing.T) {
 		"sub f (Scalar \\$x Str $y);\n":            "sub f: parameter \\$x is not followed by `,` or `)`",
 		"sub f (List[Str] \\(@a): Str $x);\n":      `sub f: invocant \(@a) is a List; an invocant slot holds one item`,
 		"sub f (Scalar $s, Array \\@a: Str $x);\n": `sub f: invocant colon after \@a; only the first parameter is an invocant`,
+		"sub f (Scalar \\$x =);\n":                 `sub f: default for \$x has no expression`,
 	})
 }
 
