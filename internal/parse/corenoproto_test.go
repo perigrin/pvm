@@ -39,8 +39,8 @@ func TestCoreDerivedPrototypeCheckReadsUndefAsAt(t *testing.T) {
 // and which Pod::Functions files as functions, less the declarators
 // (`my`, `sub`, `package`, `use` and kin) and the statement forms the
 // parser owns, `last`, `next`, `redo` and `require` (keyword.go). grep,
-// map and sort are declared with their own parse, by the issue after this
-// one; split waits on a ruling, filed as 01a1113c (TestCoreSplitDeclared).
+// map and sort keep their own parse and are held by coregrepmapsort_test.go;
+// split waits on a ruling, filed as 01a1113c (TestCoreSplitDeclared).
 var noPrototypeBuiltins = []string{
 	"chomp", "chop", "defined", "delete", "do", "eval", "exec", "exists",
 	"goto", "print", "printf", "return", "say", "select", "system",
