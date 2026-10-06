@@ -397,6 +397,19 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 	case alias && param.Sigil == '%' && typ != types.Hash:
 		return types.Param{}, nil, fmt.Errorf(`aliased \%s has type %s; the caller's hash is Hash \%s`, p.text(v), tn.Text, p.text(v))
 	}
+	// The rest of RFC 0001's table: a code slot holds Code, a `\$` slot a
+	// Scalar type, and a `$` slot one scalar, which no aggregate or Code
+	// is. A `*` slot holds a bareword handle or any scalar (measured on
+	// 5.42.0, `star(STDOUT)` arrives as a string, `star(*STDOUT)` as a
+	// GLOB reference, `star(@a)` as the count), so it refuses only what
+	// a `$` slot refuses.
+	slot := string(param.Sigil)
+	if alias {
+		slot = `\` + slot
+	}
+	if holds := slotHolds(param.Sigil, alias, typ); holds != "" {
+		return types.Param{}, nil, fmt.Errorf("%s%s has type %s; a %s slot holds %s", slot, param.Name, tn.Text, slot, holds)
+	}
 	// RFC 0001 "The scalar container": a parameter that takes the caller's
 	// container is backslashed, so `Array @a` is not valid.
 	if slurpy && typ != types.Unknown && typ != types.List && typ&^(types.Array|types.Hash) == 0 {
@@ -444,6 +457,23 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 	}
 	node.End = p.prevEnd()
 	return param, node, nil
+}
+
+// slotHolds says what a slot holds when typ does not fit it, and "" when
+// it does or the parameter is untyped.
+func slotHolds(sigil byte, alias bool, typ types.Type) string {
+	switch {
+	case typ == types.Unknown:
+	case sigil == '&' && typ != types.Code:
+		return "Code"
+	case sigil == '*' && types.IsSubtype(typ, types.Array|types.Hash|types.Code):
+		return "a glob or a scalar"
+	case sigil == '$' && alias && !types.IsSubtype(typ, types.Scalar):
+		return "a Scalar type"
+	case sigil == '$' && !alias && types.IsSubtype(typ, types.Array|types.Hash|types.Code):
+		return "a scalar"
+	}
+	return ""
 }
 
 // hasHead reports whether a sub declaration already holds a prototype or a
