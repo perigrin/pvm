@@ -175,6 +175,11 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 			// colon marks the first parameter as the slot a call fills with
 			// no comma after it, held apart from the positional ones.
 			case p.text(sep) == ":" && len(s.Params) == 1 && s.Invocant == nil:
+				// The slot holds one item, so a List, by its sigil or its
+				// type, is no invocant.
+				if param.Sigil == '@' || param.Sigil == '%' || param.Type == types.List {
+					return fmt.Errorf("invocant %c%s is a List; an invocant slot holds one item", param.Sigil, param.Name)
+				}
 				p.advanceTo(sep)
 				s.Invocant, s.Params = &s.Params[0], nil
 			case p.text(sep) == ":":
@@ -746,8 +751,11 @@ func (p *parser) parseSubDecl(word lexer.Token) *Node {
 
 	// Typed Perl is read with signatures on, so it keeps their order and
 	// refuses a signature before the attributes as perl does (RFC 0001,
-	// "Declaration order: Perl's"). The signature is not recorded.
-	if p.typed && sigFirst && len(n.Children) > attrsAt {
+	// "Declaration order: Perl's"). The signature is not recorded. A
+	// signature already refused is not refused again: what the fallback
+	// read of its parens leaves, `(%h: List @b)`'s `: List`, is no
+	// attribute the declaration states.
+	if p.typed && sigFirst && len(n.Children) > attrsAt && len(p.typedErrs) == errsBefore {
 		name, _ := declaredSub(n)
 		if sigs := p.signatures[name]; len(sigs) > 1 {
 			p.signatures[name] = sigs[:len(sigs)-1]
