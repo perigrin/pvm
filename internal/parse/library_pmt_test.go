@@ -135,7 +135,7 @@ func TestLibraryPmtCoinedClassRefused(t *testing.T) {
 	t.Cleanup(func() { declarations = saved })
 	for _, class := range []string{"BITAND", "BITOR", "SHIFT", "RANGE"} {
 		src := "package Coined;\nsub op :infix(" + class + ") (Int $x, Int $y) Int;\n"
-		declarations = fstest.MapFS{"declarations/Coined.pmt": {Data: []byte(src)}}
+		declarations = layeredFS{top: fstest.MapFS{"declarations/Coined.pmt": {Data: []byte(src)}}, base: saved}
 		root := ParseWithLoader([]byte("use Coined;\n"), func(string) ([]byte, bool) { return nil, false })
 		want := "Coined: sub op: operator class " + class + " is CORE.pmt's; XS::Parse::Infix registers no operator at its level"
 		if errs := DeclarationErrors(root); len(errs) != 1 || errs[0].Error() != want {
@@ -322,7 +322,7 @@ func TestLibraryPmtDeclarationErrors(t *testing.T) {
 		"sub f (Array @a);":        `sub f: container type Array with flattening sigil @a; a parameter that takes the caller's container is Array \@a`,
 		"multi sub f (Int $a, Num $b);\nmulti sub f (Num $a, Int $b);": "sub f: candidates (Int $a, Num $b) and (Num $a, Int $b) are ambiguous for (Int, Int)",
 	} {
-		declarations = fstest.MapFS{"declarations/My/Bad.pmt": {Data: []byte("package My::Bad;\n" + line + "\n")}}
+		declarations = layeredFS{top: fstest.MapFS{"declarations/My/Bad.pmt": {Data: []byte("package My::Bad;\n" + line + "\n")}}, base: saved}
 		errs := DeclarationErrors(ParseWithLoader([]byte("use My::Bad;\n"), noModules))
 		if want = "My::Bad: " + want; len(errs) != 1 || errs[0].Error() != want {
 			t.Errorf("%q: got %v, want %q", line, errs, want)

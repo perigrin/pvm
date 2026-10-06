@@ -114,7 +114,7 @@ func TestRefScalarSlotFromModuleSource(t *testing.T) {
 		}},
 		{".pmt", fstest.MapFS{"declarations/M.pmt": {Data: []byte("package M;\nour @EXPORT = qw(sref);\nsub sref (Scalar \\$x);\n")}}, none},
 	} {
-		declarations = tc.decl
+		declarations = layeredFS{top: tc.decl, base: saved}
 		if got := refusalsIn(ParseWithLoader([]byte("use M; sref(1);\n"), tc.load)); len(got) != 1 || got[0] != RefScalarSlot {
 			t.Errorf("%s: sref(1) refusals %v, want one %s", tc.name, got, RefScalarSlot)
 		}

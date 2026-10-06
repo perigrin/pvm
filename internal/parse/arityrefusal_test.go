@@ -154,7 +154,7 @@ func TestArityRefusalLeavesUnprototypedCallsAlone(t *testing.T) {
 		{".pmt", fstest.MapFS{"declarations/M.pmt": {Data: []byte(
 			"package M;\nour @EXPORT = qw(f);\nmulti sub f (Int $x) Int;\nmulti sub f (Int $x, Int $y) Int;\n")}}, none},
 	} {
-		declarations = tc.decl
+		declarations = layeredFS{top: tc.decl, base: saved}
 		for _, src := range []string{"use M; f();\n", "use M; f(1, 2, 3);\n"} {
 			if got := refusalsIn(ParseWithLoader([]byte(src), tc.load)); len(got) > 0 {
 				t.Errorf("%s: %q refused %v; perl compiles it", tc.name, src, got)
@@ -206,7 +206,7 @@ func TestPrototypeArityFromModuleSource(t *testing.T) {
 		{".pmt", fstest.MapFS{"declarations/M.pmt": {Data: []byte(
 			"package M;\nour @EXPORT = qw(two);\nsub two (Int $x, Int $y) Int;\n")}}, none},
 	} {
-		declarations = tc.decl
+		declarations = layeredFS{top: tc.decl, base: saved}
 		if got := refusalsIn(ParseWithLoader([]byte("use M; two(1);\n"), tc.load)); len(got) != 1 || got[0] != CallArity {
 			t.Errorf("%s: two(1) refusals %v, want one %s", tc.name, got, CallArity)
 		}

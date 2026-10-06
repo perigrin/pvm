@@ -577,7 +577,7 @@ func TestPmtDeclarationErrorsSurface(t *testing.T) {
 	}
 
 	saved := declarations
-	declarations = fstest.MapFS{"declarations/Bad.pmt": {Data: bad}}
+	declarations = layeredFS{top: fstest.MapFS{"declarations/Bad.pmt": {Data: bad}}, base: saved}
 	defer func() { declarations = saved }()
 	// Used directly, and from a required helper.
 	helper := func(name string) ([]byte, bool) { return []byte("use Bad;\n"), name == "./h.pl" }
