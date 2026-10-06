@@ -24,20 +24,29 @@ type operatorDecl struct {
 // Infix's classification (XSParseInfix.h, XPI_CLS_*) without the `XPI_CLS_`
 // prefix and `_MISC` suffix. LOW and HIGH are the plugin hooks either side of
 // the core operators, levels 3 and 28.
+//
+// BITOR, BITAND and SHIFT are not XS::Parse::Infix's: it classes no operator
+// at those levels, so it cannot register one there, and they exist only for
+// CORE.pmt to declare perl's own.
 var operatorClasses = map[string]int{
-	"LOW":         3,
-	"ASSIGN":      9,
-	"LOGICAL_OR":  12,
-	"LOGICAL_AND": 13,
-	"EQUALITY":    16,
-	"ORDERING":    16,
-	"RELATION":    17,
-	"ISA":         17,
-	"ADD":         22,
-	"MUL":         23,
-	"MATCHRE":     24,
-	"POW":         26,
-	"HIGH":        28,
+	"LOW":             3,
+	"LOGICAL_OR_LOW":  4,
+	"LOGICAL_AND_LOW": 5,
+	"BITOR":           14,
+	"BITAND":          15,
+	"SHIFT":           21,
+	"ASSIGN":          9,
+	"LOGICAL_OR":      12,
+	"LOGICAL_AND":     13,
+	"EQUALITY":        16,
+	"ORDERING":        16,
+	"RELATION":        17,
+	"ISA":             17,
+	"ADD":             22,
+	"MUL":             23,
+	"MATCHRE":         24,
+	"POW":             26,
+	"HIGH":            28,
 }
 
 // operatorArity is how many operands each fixity takes.

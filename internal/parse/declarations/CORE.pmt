@@ -200,3 +200,71 @@ sub waitpid :prototype($$);
 sub wantarray :prototype();
 sub warn :prototype(@);
 sub write :prototype(;*);
+
+# Operators (RFC 0001, "Operator declarations"): each under its symbol, with
+# its fixity and, for an infix one, the class naming its precedence level in
+# the parser's table. The types are upper bounds: `Int + Int` is an Int within
+# `Num`, and narrowing it is inference's. `..`, `...` and `x` fork on context
+# or on a parenthesis and are not declared here.
+
+# Arithmetic
+sub + :infix(ADD) (Num $x, Num $y) Num;
+sub - :infix(ADD) (Num $x, Num $y) Num;
+sub * :infix(MUL) (Num $x, Num $y) Num;
+sub / :infix(MUL) (Num $x, Num $y) Num;
+sub % :infix(MUL) (Num $x, Num $y) Num;
+sub ** :infix(POW) (Num $x, Num $y) Num;
+
+# String
+sub . :infix(ADD) (Str $x, Str $y) Str;
+
+# Numeric comparison
+sub == :infix(EQUALITY) (Num $x, Num $y) Boolean;
+sub != :infix(EQUALITY) (Num $x, Num $y) Boolean;
+sub < :infix(RELATION) (Num $x, Num $y) Boolean;
+sub > :infix(RELATION) (Num $x, Num $y) Boolean;
+sub <= :infix(RELATION) (Num $x, Num $y) Boolean;
+sub >= :infix(RELATION) (Num $x, Num $y) Boolean;
+sub <=> :infix(ORDERING) (Num $x, Num $y) Int;
+
+# String comparison
+sub eq :infix(EQUALITY) (Str $x, Str $y) Boolean;
+sub ne :infix(EQUALITY) (Str $x, Str $y) Boolean;
+sub lt :infix(RELATION) (Str $x, Str $y) Boolean;
+sub gt :infix(RELATION) (Str $x, Str $y) Boolean;
+sub le :infix(RELATION) (Str $x, Str $y) Boolean;
+sub ge :infix(RELATION) (Str $x, Str $y) Boolean;
+sub cmp :infix(ORDERING) (Str $x, Str $y) Int;
+
+# Logical
+sub && :infix(LOGICAL_AND) (Any $x, Any $y) Any;
+sub || :infix(LOGICAL_OR) (Any $x, Any $y) Any;
+sub // :infix(LOGICAL_OR) (Any $x, Any $y) Any;
+sub and :infix(LOGICAL_AND_LOW) (Any $x, Any $y) Any;
+sub or :infix(LOGICAL_OR_LOW) (Any $x, Any $y) Any;
+sub xor :infix(LOGICAL_OR_LOW) (Any $x, Any $y) Boolean;
+
+# Bitwise
+sub & :infix(BITAND) (Int $x, Int $y) Int;
+sub | :infix(BITOR) (Int $x, Int $y) Int;
+sub ^ :infix(BITOR) (Int $x, Int $y) Int;
+sub << :infix(SHIFT) (Int $x, Int $y) Int;
+sub >> :infix(SHIFT) (Int $x, Int $y) Int;
+
+# Type test
+sub isa :infix(ISA) (Scalar $x, Str $y) Boolean;
+
+# Regex binding
+sub =~ :infix(MATCHRE) (Str $x, Regex $y) Boolean;
+sub !~ :infix(MATCHRE) (Str $x, Regex $y) Boolean;
+
+# Assignment
+sub = :infix(ASSIGN) (Any $x, Any $y) Any;
+
+# Unary
+sub - :prefix (Num $x) Num;
+sub + :prefix (Num $x) Num;
+sub ! :prefix (Any $x) Boolean;
+sub not :prefix (Any $x) Boolean;
+sub ~ :prefix (Int $x) Int;
+sub \ :prefix (Any $x) Ref;

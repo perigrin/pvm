@@ -449,12 +449,20 @@ states. (Settled earlier with bson; see perl5-son's
 The class names perl's precedence levels in XS::Parse::Infix's
 vocabulary, which already classifies user-defined infix operators that
 way (`XPI_CLS_ADD_MISC`, `MUL_MISC`, `POW_MISC`, `LOGICAL_AND_MISC`,
-`LOGICAL_OR_MISC`, `ASSIGN_MISC`, `LOW_MISC`, `HIGH_MISC`, and the
-predicate classes `RELATION`, `EQUALITY`, `ORDERING`, `MATCHRE`, `ISA`),
-written without the `XPI_CLS_` prefix and `_MISC` suffix. The parser's
-precedence table stays authoritative, and a test holds each `CORE.pmt`
-operator's class to its level there. A library declaring an
-XS::Parse::Infix operator uses the same spelling.
+`LOGICAL_OR_MISC`, `LOGICAL_AND_LOW_MISC`, `LOGICAL_OR_LOW_MISC`,
+`ASSIGN_MISC`, `LOW_MISC`, `HIGH_MISC`, and the predicate classes
+`RELATION`, `EQUALITY`, `ORDERING`, `MATCHRE`, `ISA`), written without
+the `XPI_CLS_` prefix and `_MISC` suffix: `and` is `LOGICAL_AND_LOW`,
+`or` and `xor` are `LOGICAL_OR_LOW`. The parser's precedence table stays
+authoritative, and a test holds each `CORE.pmt` operator's class to its
+level there. A library declaring an XS::Parse::Infix operator uses the
+same spelling.
+
+XS::Parse::Infix classes no operator at the levels of `&`, of `|` and
+`^`, or of `<<` and `>>` (perigrin, 2026-10-06), so `CORE.pmt` coins
+`BITAND`, `BITOR` and `SHIFT` for them. The three exist only for
+`CORE.pmt`: XS::Parse::Infix cannot register an operator at those
+levels, so no library declares one there.
 
 **Operators that fork** are multis:
 

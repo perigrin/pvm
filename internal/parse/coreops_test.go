@@ -130,3 +130,89 @@ func TestCoreOperatorClassCheckCatchesMismatch(t *testing.T) {
 		t.Errorf("MUL: got %v, want none", err)
 	}
 }
+
+// coreOperators reads CORE.pmt's operator declarations, failing the test on
+// any error in the file.
+func coreOperators(t *testing.T) []operatorDecl {
+	t.Helper()
+	src, ok := declaration("CORE")
+	if !ok {
+		t.Fatal("declarations/CORE.pmt is not embedded")
+	}
+	facts := readDeclaration(src, nil)
+	if len(facts.errs) > 0 {
+		t.Fatalf("CORE.pmt: %v", facts.errs)
+	}
+	return facts.operators
+}
+
+// TestCoreOperatorTypesMatchMeasured: CORE.pmt types perl's plain operators
+// -- those that do not fork on context or on a parenthesis, which leaves out
+// `..`, `...` and `x` -- with the operand and result types below, measured
+// on 5.42.0: under the declared operand types each result is within its
+// bound (`<=>` and `cmp` give -1, 0 or 1; the predicates give perl's
+// booleans; `&&`, `||`, `//`, `and`, `or` and `=` give an operand).
+//
+// The rows are golden values, held here rather than read from anywhere
+// else, so the declarations answer to them alone.
+func TestCoreOperatorTypesMatchMeasured(t *testing.T) {
+	type row struct {
+		operands []types.Type
+		result   types.Type
+	}
+	bin := func(l, r, res types.Type) row { return row{[]types.Type{l, r}, res} }
+	un := func(o, res types.Type) row { return row{[]types.Type{o}, res} }
+	N, S, I, B, A := types.Num, types.Str, types.Int, types.Boolean, types.Any
+	want := map[string]row{
+		"infix +": bin(N, N, N), "infix -": bin(N, N, N), "infix *": bin(N, N, N),
+		"infix /": bin(N, N, N), "infix %": bin(N, N, N), "infix **": bin(N, N, N),
+
+		"infix .": bin(S, S, S),
+
+		"infix ==": bin(N, N, B), "infix !=": bin(N, N, B), "infix <": bin(N, N, B),
+		"infix >": bin(N, N, B), "infix <=": bin(N, N, B), "infix >=": bin(N, N, B),
+		"infix <=>": bin(N, N, I),
+
+		"infix eq": bin(S, S, B), "infix ne": bin(S, S, B), "infix lt": bin(S, S, B),
+		"infix gt": bin(S, S, B), "infix le": bin(S, S, B), "infix ge": bin(S, S, B),
+		"infix cmp": bin(S, S, I),
+
+		"infix &&": bin(A, A, A), "infix ||": bin(A, A, A), "infix //": bin(A, A, A),
+		"infix and": bin(A, A, A), "infix or": bin(A, A, A), "infix xor": bin(A, A, B),
+
+		"infix &": bin(I, I, I), "infix |": bin(I, I, I), "infix ^": bin(I, I, I),
+		"infix <<": bin(I, I, I), "infix >>": bin(I, I, I),
+
+		"infix isa": bin(types.Scalar, S, B),
+
+		"infix =~": bin(S, types.Regex, B), "infix !~": bin(S, types.Regex, B),
+
+		"infix =": bin(A, A, A),
+
+		"prefix -": un(N, N), "prefix +": un(N, N), "prefix !": un(A, B),
+		"prefix not": un(A, B), "prefix ~": un(I, I), `prefix \`: un(A, types.Ref),
+	}
+	got := map[string]row{}
+	for _, op := range coreOperators(t) {
+		r := row{result: op.sig.Returns}
+		for _, p := range op.sig.Params {
+			r.operands = append(r.operands, p.Type)
+		}
+		got[op.fixity+" "+op.name] = r
+	}
+	for key, w := range want {
+		g, ok := got[key]
+		if !ok {
+			t.Errorf("%s: not declared in CORE.pmt", key)
+			continue
+		}
+		if !reflect.DeepEqual(g, w) {
+			t.Errorf("%s: CORE.pmt declares %v -> %v, measured %v -> %v", key, g.operands, g.result, w.operands, w.result)
+		}
+	}
+	for key := range got {
+		if _, ok := want[key]; !ok {
+			t.Errorf("%s: declared in CORE.pmt with no measured row", key)
+		}
+	}
+}
