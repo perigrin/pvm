@@ -6,7 +6,7 @@ milestone: type-libraries
 blocks:
 - 01a0fd9b-55cb-70cd-a9da-929190cb581c
 created: 2026-10-06T12:42:47.53409794Z
-updated: 2026-10-06T12:53:48.693845038Z
+updated: 2026-10-06T15:40:23.100733112Z
 ---
 
 ## Context
@@ -30,3 +30,4 @@ So typed Perl needs a way to say "these parameters are typed and positional, but
 ## Acceptance criteria
 
 - [ ] split is declared with its measured types and no derived prototype (`go test ./internal/parse/ -run '^TestCoreSplitDeclared$' -count=1 -v | grep -q '^--- PASS: TestCoreSplitDeclared'`)
+- [ ] the RFC section on builtins with no prototype is implemented (`grep -q '^### Builtins with no prototype.*(\*Implemented\*' docs/rfcs/0001-type-libraries.md`)
