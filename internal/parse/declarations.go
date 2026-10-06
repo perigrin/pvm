@@ -98,7 +98,11 @@ func readDeclaration(src []byte, res *resolver) moduleFacts {
 			facts.errs = append(facts.errs, fmt.Errorf("sub %s: %w", name, err))
 			continue
 		}
-		facts.protos[name] = "(" + proto + ")"
+		// A derived `@` is no prototype: perl reports none for a sub
+		// without one, and the two parse alike.
+		if proto != "@" {
+			facts.protos[name] = "(" + proto + ")"
+		}
 	}
 	return facts
 }

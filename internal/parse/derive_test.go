@@ -118,3 +118,15 @@ func TestDeriveDieDefaultIsRequired(t *testing.T) {
 		}
 	}
 }
+
+// TestDerivedAtMeansNoPrototype: a typed declaration whose types derive
+// `@` has no prototype, recorded as perl records a sub with none -- the
+// empty prototype string. Measured on 5.42.0, `prototype(\&f)` is undef
+// for `sub f;`, and a sub with none parses as one with `@` (RFC 0001,
+// "Builtins that keep their own parse").
+func TestDerivedAtMeansNoPrototype(t *testing.T) {
+	facts := readDeclaration([]byte("sub f (List @args);\n"), nil)
+	if proto, ok := facts.protos["f"]; len(facts.errs) > 0 || !ok || proto != "" {
+		t.Errorf("errors %v, prototype %q (declared %v), want none", facts.errs, proto, ok)
+	}
+}
