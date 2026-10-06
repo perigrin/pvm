@@ -117,6 +117,13 @@ each line's derived prototype to it
 prototype wherever a sub is declared, which also fixed two perl.git
 files whose own subs use it.
 
+The file also declares the builtins perl reports no prototype for --
+`print`, `defined`, `grep`, `sort` and the rest ("Builtins with no
+prototype", "Builtins that keep their own parse"). Their lines derive
+none, so they stay out of the prototype table, where a name's presence
+would read as a prototype it does not have; their typed signatures are
+read beside the table's.
+
 ### Declaration order: Perl's (*Implemented*, 098211c6)
 
 A declaration follows Perl's order: name, then attributes, then
@@ -222,7 +229,7 @@ sub print (FileHandle $fh = select(): List[Str] @args = ($_)) Boolean;
 The default handle is the selected one, not STDOUT, and `print` with no
 arguments prints `$_` (measured).
 
-### Builtins that keep their own parse (*Decided*)
+### Builtins that keep their own parse (*Implemented*, eb839b7d, 2bccec6f, cb25b36c, 828544ec, c1107251, efed93fd, b8e22b93, db6c2483, 6556db7f)
 
 perigrin, 2026-10-02. Measured on 5.42 throughout.
 
@@ -243,13 +250,20 @@ evaluation, not parse (`grep $n++ >= 0, 1 .. 3` evaluates the
 expression 3 times). So:
 
 ```perl
-multi sub grep (Code &block, List @list) List;    # &@
-multi sub grep (Scalar $expr, List @list) List;   # $@
-multi sub map  (Code &block, List @list) List;
+multi sub grep (Code &block, List @list = die) List;    # &@
+multi sub grep (Scalar $expr, List @list) List;         # $@
+multi sub map  (Code &block, List @list = die) List;
 multi sub map  (Scalar $expr, List @list) List;
-multi sub sort (Code &block, List @list) List;
+multi sub sort (Code &block, List @list = die) List;
 multi sub sort (List @list = die) List;
 ```
+
+After a block the list must be written, though it may be empty:
+`grep {1} ()` and `sort { $a <=> $b } ()` compile, while `grep {1};`,
+`map({1})` and `sort { $a <=> $b };` are syntax errors, so the block
+candidates' lists default to `die` ("A required argument defaults to
+`die`"). After grep's or map's expression it may be left out:
+`grep(1)` compiles.
 
 **`map`'s and `grep`'s brace is variant selection.** Both guess whether
 `{` opens a block or a hash constructor from its first tokens; a `&@`
@@ -285,7 +299,7 @@ spells the slot with Raku's invocant colon:
 
 ```perl
 sub print (FileHandle $fh = select(): List[Str] @args = ($_)) Boolean;
-multi sub sort (Code|Str $by: List @list) List;
+multi sub sort (Code|Str $by: List @list = die) List;
 sub exec (Str $program: List[Str] @args) Boolean;
 ```
 
@@ -296,7 +310,9 @@ Perl's `method` takes `$self` implicitly and never lists an
 invocant, so the colon cannot collide with one. For `sort` the slot
 names a comparison routine, which may be a string (`sort $n @x` with
 `$n = "byname"`); with a comma the string is data instead
-(`sort "byname", @x`).
+(`sort "byname", @x`). Its list must be written too: with none after
+it the routine is the list, `sort byname` yielding "byname" while
+`sort byname ()` yields nothing (measured).
 
 Two cases are open questions (9 and 10 below), not decided: `defined
 &f`, whose operand perl does not call, and how to type a parameter
@@ -618,7 +634,10 @@ argument and pass, which is perl's rule (measured: only `sort()` among
 `push(@a)`, `die()`, `reverse()`, `unlink()`, `return()` and the like
 fails to compile). A `List` parameter with no default accepts zero
 arguments, as perl's own slurpy does (`sub h (@l)`, `h()` is 0), so no
-other declaration needs anything. No special case for `sort` remains.
+other declaration needs anything beyond the block forms of grep, map
+and sort and sort's invocant form, whose list perl requires too
+("Builtins that keep their own parse"). No special case for `sort`
+remains.
 
 A default on a slurpy parameter is a typed-Perl extension: perl's
 signatures reject it ("A slurpy parameter may not have a default
