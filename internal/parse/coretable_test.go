@@ -22,7 +22,9 @@ func TestCoreDeclarationsArePerls(t *testing.T) {
 	if err != nil {
 		t.Skipf("no perl 5.42 to ask: %v", err)
 	}
-	cmd := exec.Command(perl, "-e", `while (my $k = <STDIN>) { chomp $k;
+	// binmode: on Windows perl's text-mode STDOUT writes CRLF, which would
+	// leave a \r on every prototype.
+	cmd := exec.Command(perl, "-e", `binmode STDOUT; while (my $k = <STDIN>) { chomp $k;
 	    my $p = eval { prototype("CORE::$k") };
 	    print "$k\t$p\n" if defined $p }`)
 	cmd.Stdin = strings.NewReader(strings.Join(lexer.Keywords(), "\n") + "\n")

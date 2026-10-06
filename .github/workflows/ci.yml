@@ -34,6 +34,22 @@ jobs:
       with:
         go-version: '1.24.4'
 
+    # The conformance corpus and the CORE.pmt check run their programs under
+    # perl 5.42.0, the perl every corpus expectation was measured on, and
+    # ubuntu-latest and macos-latest ship older ones. The windows-latest
+    # image already carries a 5.42 Strawberry perl.
+    - name: Read the perl pin
+      id: perlpin
+      if: matrix.os != 'Windows'
+      run: sh .github/scripts/parseoracle-pin.sh >> "$GITHUB_OUTPUT"
+
+    - name: Install the pinned perl
+      if: matrix.os != 'Windows'
+      uses: shogo82148/actions-setup-perl@v1
+      with:
+        perl-version: ${{ steps.perlpin.outputs.perl_version }}
+        multi-thread: ${{ steps.perlpin.outputs.threads == 'define' }}
+
     - name: Build
       run: go build ./...
 
