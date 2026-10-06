@@ -64,4 +64,21 @@ type Param struct {
 	// 0001 "A required argument defaults to `die`"): it runs only when the
 	// argument is omitted, so it is recorded here and not as a Default.
 	Required bool
+
+	// Alias is whether the parameter is backslashed, `Array \@a`: it
+	// aliases the one container the caller writes, as perlref's
+	// refaliasing does (RFC 0001, "The scalar container"), and takes
+	// exactly one argument whatever its sigil.
+	Alias bool
+
+	// AliasEach is whether the parameter is perlref's list form, `List[Str]
+	// \(@args)`: it aliases each argument, and takes the rest of the call
+	// as an unbackslashed List parameter does.
+	AliasEach bool
+}
+
+// Slurpy reports whether the parameter takes the rest of the call: an
+// `@` or `%` that does not alias one container.
+func (p Param) Slurpy() bool {
+	return (p.Sigil == '@' || p.Sigil == '%') && !p.Alias
 }

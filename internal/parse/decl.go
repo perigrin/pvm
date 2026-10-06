@@ -330,6 +330,22 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 		}
 	}
 	v, ok := p.peekSignificant()
+	// RFC 0001 "The scalar container": a backslash aliases what the caller
+	// writes, as perlref's refaliasing does. `\$x`, `\@a`, `\%h` and `\&c`
+	// alias one container; the list form `\(@args)` aliases each argument.
+	alias, each := false, false
+	if ok && p.text(v) == `\` {
+		p.advanceTo(v)
+		v, ok = p.peekSignificant()
+		alias = !ok || p.text(v) != "("
+		if each = !alias; each {
+			p.advanceTo(v)
+			v, ok = p.peekSignificant()
+			if !ok || v.Kind != lexer.Variable || p.src[v.Start] != '@' {
+				return types.Param{}, nil, fmt.Errorf(`list form \( holds %q; it holds an array, as in \(@args)`, p.text(v))
+			}
+		}
+	}
 	last := v
 	// A code or glob slot, `Code &block` or `Glob *fh`, lexes as its sigil
 	// and then a word; the two are one variable when they touch.
@@ -342,8 +358,9 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 		return types.Param{}, nil, fmt.Errorf("type %s names no variable", tn.Text)
 	}
 	p.advanceTo(last)
-	slurpy := p.src[v.Start] == '@' || p.src[v.Start] == '%'
-	param := types.Param{Name: p.text(v)[1:], Sigil: p.src[v.Start], Type: typ, Element: elem, Required: !slurpy}
+	param := types.Param{Name: p.text(v)[1:], Sigil: p.src[v.Start], Type: typ, Element: elem, Alias: alias, AliasEach: each}
+	slurpy := param.Slurpy()
+	param.Required = !slurpy
 	// RFC 0001 "The scalar container": a parameter that takes the caller's
 	// container is backslashed, so `Array @a` is not valid.
 	if slurpy && typ != types.Unknown && typ != types.List && typ&^(types.Array|types.Hash) == 0 {
@@ -375,6 +392,13 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 		if !param.Required {
 			param.Default = string(p.src[def.Start:def.End])
 		}
+	}
+	if each {
+		end, ok := p.peekSignificant()
+		if !ok || p.text(end) != ")" {
+			return types.Param{}, nil, fmt.Errorf(`list form \(%s is not closed by `+"`)`", p.text(v))
+		}
+		p.advanceTo(end)
 	}
 	node.End = p.prevEnd()
 	return param, node, nil

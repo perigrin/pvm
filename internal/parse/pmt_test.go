@@ -604,3 +604,33 @@ func TestPmtDeclarationErrorsSurface(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// TestPmtAliasedParamsParse: RFC 0001 "The scalar container". A parameter
+// that aliases the caller's container is backslashed, as perlref's
+// refaliasing writes it: `Scalar \$x`, `Array \@a`, `Hash \%h`, and a
+// container type before one, `Array[Str] \@a`. Each takes exactly one
+// argument, so each is required. `\(@args)` is perlref's list form, a
+// reference to each element: `List[Str] \(@args = ($_))` aliases every
+// argument and, like any List parameter, takes the rest of the call.
+func TestPmtAliasedParamsParse(t *testing.T) {
+	for src, want := range map[string]types.Param{
+		"sub f (Scalar \\$x);\n":                {Name: "x", Sigil: '$', Type: types.Scalar, Alias: true, Required: true},
+		"sub f (Array \\@a);\n":                 {Name: "a", Sigil: '@', Type: types.Array, Alias: true, Required: true},
+		"sub f (Hash \\%h);\n":                  {Name: "h", Sigil: '%', Type: types.Hash, Alias: true, Required: true},
+		"sub f (Array[Str] \\@a);\n":            {Name: "a", Sigil: '@', Type: types.Array, Element: types.Str, Alias: true, Required: true},
+		"sub f (Hash[Str] \\%h);\n":             {Name: "h", Sigil: '%', Type: types.Hash, Element: types.Str, Alias: true, Required: true},
+		"sub f (List[Str] \\(@args = ($_)));\n": {Name: "args", Sigil: '@', Type: types.List, Element: types.Str, AliasEach: true, Default: "($_)"},
+	} {
+		facts := readDeclaration([]byte(src), nil)
+		if len(facts.errs) > 0 {
+			t.Errorf("%q: errors %v", src, facts.errs)
+			continue
+		}
+		if got := facts.signatures["f"]; !reflect.DeepEqual(got, []types.Signature{{Params: []types.Param{want}}}) {
+			t.Errorf("%q: got %+v, want one param %+v", src, got, want)
+		}
+		if root, _ := parseSource([]byte(src), nil, true); root.SourceText([]byte(src)) != src {
+			t.Errorf("%q: round trip lost bytes", src)
+		}
+	}
+}
