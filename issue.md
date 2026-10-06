@@ -1,6 +1,6 @@
 ---
 title: Type CORE.pmt's process, time, object and miscellaneous builtins, with localtime and gmtime as :context multis
-state: pending
+state: in-progress
 urgency: normal
 milestone: type-libraries
 blocked_by:
@@ -11,7 +11,16 @@ blocks:
 - 01a10c6e-9a95-719a-80e2-2e33037d0096
 - 01a10177-547c-73a9-a302-f25f579a4cb3
 created: 2026-10-05T14:18:57.039335349Z
-updated: 2026-10-05T20:30:25.093087445Z
+updated: 2026-10-06T15:02:34.991440209Z
+sessions:
+- start_sha: f24878f216ee2095e30322b83521a8d081b6d60a
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-06T15:02:34.991440209Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-06T15:02:34.991440209Z
 ---
 
 ## Prerequisites
