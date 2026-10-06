@@ -124,11 +124,11 @@ func TestCoreEveryPrototypedLineIsTyped(t *testing.T) {
 	}
 }
 
-// TestCoreEveryLineCheckExemptsOnlyGlobSlots: the exemptions are exact,
+// TestCoreEveryLineCheckExemptsOnlyPrototypeOnlyLines: the exemptions are exact,
 // not a loophole. Over a copy of CORE.pmt whose socket line is
 // prototype-only again the check reports socket, and over copies with pos
 // or catch typed it reports that line.
-func TestCoreEveryLineCheckExemptsOnlyGlobSlots(t *testing.T) {
+func TestCoreEveryLineCheckExemptsOnlyPrototypeOnlyLines(t *testing.T) {
 	perl := perlPrototypes(t)
 	src, err := os.ReadFile("declarations/CORE.pmt")
 	if err != nil {
