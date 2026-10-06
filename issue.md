@@ -1,6 +1,6 @@
 ---
 title: Parse the invocant colon in .pmt signatures and declare print, printf, say, exec and system with it
-state: pending
+state: in-progress
 urgency: normal
 milestone: type-libraries
 blocked_by:
@@ -11,7 +11,16 @@ blocks:
 - 01a0fd9b-519d-7b42-886e-2222a3076986
 - 01a0fd9b-5698-70cf-b6e4-8899a83b0fe0
 created: 2026-10-02T17:13:27.729943188Z
-updated: 2026-10-06T03:27:30.137212828Z
+updated: 2026-10-06T09:14:12.600058766Z
+sessions:
+- start_sha: f1adc965eb2a39250bb3225b5cc5834c23ebb915
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-06T09:14:12.600058766Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-06T09:14:12.600058766Z
 ---
 
 ## Prerequisites
