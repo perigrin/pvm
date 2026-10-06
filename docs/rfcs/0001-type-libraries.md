@@ -117,6 +117,13 @@ each line's derived prototype to it
 prototype wherever a sub is declared, which also fixed two perl.git
 files whose own subs use it.
 
+The file also declares the builtins perl reports no prototype for --
+`print`, `defined`, `grep`, `sort` and the rest ("Builtins with no
+prototype", "Builtins that keep their own parse"). Their lines derive
+none, so they stay out of the prototype table, where a name's presence
+would read as a prototype it does not have; their typed signatures are
+read beside the table's.
+
 ### Declaration order: Perl's (*Implemented*, 098211c6)
 
 A declaration follows Perl's order: name, then attributes, then
