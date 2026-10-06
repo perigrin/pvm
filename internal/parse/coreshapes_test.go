@@ -216,3 +216,55 @@ func TestCoreShapesReachTheParser(t *testing.T) {
 		}
 	}
 }
+
+// TestGatedBuiltinsTakeTheirShapeUnderTheirFeature: a builtin a feature
+// gates takes its CORE.pmt shape with the feature on, and is an unknown
+// word's call with it off. Measured on perl 5.42.0 with -MO=Deparse,-p:
+//
+//	use feature "keyword_any"; my $r = any { $_ } @a;   CORE::any({$_;} @a)
+//	use feature "keyword_all"; my $r = all { $_ } @a;   CORE::all({$_;} @a)
+//	my $r = any { $_ } @a;                              (any { $_ } @a)
+//	use feature "current_sub"; my $s = __SUB__ + 1;     (__SUB__ + 1)
+//	use v5.16; my $s = __SUB__ + 1;                     (__SUB__ + 1)
+//	my $s = __SUB__ + 1;                                ('__SUB__' + 1)
+//
+// Unfeatured, `any` and `all` are a block and a list after a word perl does
+// not know, and `__SUB__` a bareword string.
+func TestGatedBuiltinsTakeTheirShapeUnderTheirFeature(t *testing.T) {
+	for _, c := range []struct {
+		src, canon, call string
+		resolved         bool
+	}{
+		{"use feature 'keyword_any'; my $r = any { $_ } @a;", "use feature 'keyword_any'; my $r = any({$_;}@a);", "any", true},
+		{"use feature 'keyword_all'; my $r = all { $_ } @a;", "use feature 'keyword_all'; my $r = all({$_;}@a);", "all", true},
+		{"my $r = any { $_ } @a;", "my $r = any {$_;}@a;", "any", false},
+		{"my $r = all { $_ } @a;", "my $r = all {$_;}@a;", "all", false},
+		{"use feature 'current_sub'; my $s = __SUB__ + 1;", "use feature 'current_sub'; my $s = __SUB__() + 1;", "__SUB__", true},
+		{"use v5.16; my $s = __SUB__ + 1;", "use v5.16; my $s = __SUB__() + 1;", "__SUB__", true},
+		{"my $s = CORE::__SUB__ + 1;", "my $s = CORE::__SUB__() + 1;", "CORE::__SUB__", true},
+		{"my $s = __SUB__ + 1;", "my $s = __SUB__() + 1;", "__SUB__", false},
+	} {
+		root := Parse([]byte(c.src))
+		if got := Canon(root, []byte(c.src)); got != c.canon {
+			t.Errorf("%s\n  got  %s\n  want %s", c.src, got, c.canon)
+		}
+		call := findCallNamed(root, c.call)
+		if call == nil {
+			t.Errorf("%s: no call to %s", c.src, c.call)
+		} else if call.Resolved != c.resolved {
+			t.Errorf("%s: %s resolved=%v, want %v", c.src, c.call, call.Resolved, c.resolved)
+		}
+	}
+}
+
+func findCallNamed(n *Node, name string) *Node {
+	if n.Kind == Call && n.Text == name {
+		return n
+	}
+	for _, c := range n.Children {
+		if got := findCallNamed(c, name); got != nil {
+			return got
+		}
+	}
+	return nil
+}

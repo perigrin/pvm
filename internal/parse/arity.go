@@ -214,10 +214,9 @@ var looseArity = map[string]looseness{
 // `__SUB__($x)` and `__CLASS__($x)` outright. method, a declarator under
 // its feature, is looseArity's.
 //
-// try, switch and current_sub are not among the features p.features
-// tracks, so catch, break and __SUB__ map to a name it never sets: their
-// plain spelling is always taken for a user's sub, which refuses less than
-// perl does and never more.
+// try and switch are not among the features p.features tracks, so catch
+// and break map to a name it never sets: their plain spelling is always
+// taken for a user's sub, which refuses less than perl does and never more.
 var gatedWords = map[string]string{
 	"fc": "fc", "evalbytes": "evalbytes",
 	"any": "keyword_any", "all": "keyword_all",

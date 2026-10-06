@@ -189,7 +189,7 @@ func (p *parser) noteFeatures(verb, module string, list *Node) {
 			return
 		}
 		for _, name := range names {
-			if gatedUnary[name] || name == "keyword_any" || name == "keyword_all" || name == "class" || name == "defer" || name == "isa" {
+			if gatedUnary[name] || name == "keyword_any" || name == "keyword_all" || name == "class" || name == "defer" || name == "isa" || name == "current_sub" {
 				p.features[name] = verb == "use"
 			}
 			if name == "indirect" {
@@ -202,6 +202,9 @@ func (p *parser) noteFeatures(verb, module string, list *Node) {
 			for name := range gatedUnary {
 				p.features[name] = true
 			}
+			// current_sub is in the same bundle: measured, `use v5.16;
+			// __SUB__ + 1` deparses as `(__SUB__ + 1)`, the builtin.
+			p.features["current_sub"] = true
 		}
 		// The 5.36 bundle drops `indirect` -- measured, `use v5.36; new
 		// Foo;` is a syntax error on 5.42.0.
