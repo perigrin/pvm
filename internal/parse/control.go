@@ -705,7 +705,7 @@ func (p *parser) parseForHead() ([]*Node, bool) {
 		// so the expression parser cannot read it.
 		var part *Node
 		if tok.Kind == lexer.Word && declarators[keywordName(p.text(tok))] {
-			part = p.parseVarDeclNoSemi(tok)
+			part = p.parseVarDeclHead(tok)
 		} else {
 			part = p.parseExpr(0)
 		}

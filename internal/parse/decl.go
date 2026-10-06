@@ -561,13 +561,32 @@ func (p *parser) parseFormatDecl(word lexer.Token) *Node {
 // ordinary assignment. That keeps the declaration from re-implementing
 // assignment, which is already at level 9.
 func (p *parser) parseVarDecl(word lexer.Token) *Node {
-	n := p.parseVarDeclNoSemi(word)
+	n := p.parseVarDeclHead(word)
 	// The terminating `;` belongs to the declaration, like any other
 	// statement's. Without it the statement ends before the semicolon and
 	// the leftover becomes an Unknown sitting beside a perfectly good tree.
 	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
 		p.advanceTo(tok)
 		n.End = p.prevEnd()
+	}
+	return n
+}
+
+// parseVarDeclHead reads a declaration that begins a whole expression -- a
+// statement, or a C-style for head's clause -- and the comma list it heads.
+// The initialiser stops at the comma, which belongs ABOVE the declaration,
+// as it does for a plain assignment. Measured on 5.42.0 with -MO=Deparse,-p:
+//
+//	my $x = 1, my $y = 2;     ((my($x) = 1), (my($y) = 2));
+//	for (my $i = 0, my $j = 1; ...)   for (((my($i) = 0), (my($j) = 1)); ...
+//
+// A declaration in term position -- `sysopen(my $fh, ...)`, `foo my $a = 1,
+// 2` -- leaves the comma to the expression it sits in, which already reads
+// it as the enclosing list's.
+func (p *parser) parseVarDeclHead(word lexer.Token) *Node {
+	n := p.parseVarDeclNoSemi(word)
+	if next, ok := p.peekSignificant(); ok && (p.text(next) == "," || p.text(next) == "=>") {
+		return p.parseInfix(n, 0)
 	}
 	return n
 }
@@ -642,7 +661,7 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 		if eq, ok := p.peekSignificant(); ok && infix[p.text(eq)].Level == assignLevel {
 			hadInit = true
 			p.advanceTo(eq)
-			// Parsed above the three word operators rather than at 0, so
+			// Parsed at the assignment's own right power, so the comma and
 			// `and`, `or` and `xor` stop here and belong ABOVE the
 			// declaration instead of inside it. That gap is a different
 			// program, not a different grouping. Measured on perl 5.42.0:
@@ -654,11 +673,11 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 			// and $b)`, which is what the PARENTHESISED source means. The
 			// two forms had one tree between them.
 			//
-			// The floor is bpBelowComma and NOT the assignment's own right
-			// power, which would also have excluded the COMMA at 80 --
-			// measured, `my $x = 1, my $y = 2` is legal perl and deparses
-			// unchanged, so the comma must still be reached from here.
-			if init := p.parseExpr(bpBelowComma); init != nil {
+			// The comma belongs above the declaration too: measured,
+			// `my $x = 1, my $y = 2` is `((my($x) = 1), (my($y) = 2))`.
+			// parseVarDeclHead reads it there for a declaration that heads
+			// its expression; in term position the enclosing list does.
+			if init := p.parseExpr(infix[p.text(eq)].rightBP()); init != nil {
 				n.Children = append(n.Children, init)
 			}
 		}
