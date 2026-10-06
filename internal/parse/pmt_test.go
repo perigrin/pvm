@@ -507,3 +507,15 @@ func TestPmtContextAttribute(t *testing.T) {
 		}
 	}
 }
+
+// TestPmtContextAttributeMalformed: RFC 0001 "`:context(...)`" spells
+// contexts in two prototype sigils, `$` and `@`. Any other character is an
+// error naming it, and a `:context(` never closed is an error, not a
+// declaration that silently answers for every context.
+func TestPmtContextAttributeMalformed(t *testing.T) {
+	pmtRefuses(t, map[string]string{
+		"sub f :context(%) (Str $x) Str;\n": "sub f: :context(%) names no context with %; a context is $ or @",
+		"sub f :context(x) (Str $x) Str;\n": "sub f: :context(x) names no context with x; a context is $ or @",
+		"sub f :context($ (Str $x) Str;\n":  "sub f: :context( is not closed by `)`",
+	})
+}

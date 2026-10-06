@@ -192,23 +192,29 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 // declaredContext reads a declaration's `:context(...)`, RFC 0001
 // "`:context(...)`": the contexts it answers for, in prototype sigils, `$`
 // scalar and `@` list, and none at all void. A declaration with no
-// `:context` answers for every context.
+// `:context` answers for every context. Any other spelling is an error.
 func declaredContext(n *Node) (types.Contexts, error) {
 	for _, c := range n.Children {
 		body, ok := strings.CutPrefix(c.Text, ":context(")
 		if c.Kind != Attribute || !ok {
 			continue
 		}
-		set := types.ContextSet(types.VoidCtx)
-		if body != ")" {
-			set = 0
+		body, ok = strings.CutSuffix(body, ")")
+		if !ok {
+			return 0, errors.New(":context( is not closed by `)`")
 		}
-		for _, sigil := range strings.TrimSuffix(body, ")") {
+		if body == "" {
+			return types.ContextSet(types.VoidCtx), nil
+		}
+		var set types.Contexts
+		for _, sigil := range body {
 			switch sigil {
 			case '$':
 				set |= types.ContextSet(types.ScalarCtx)
 			case '@':
 				set |= types.ContextSet(types.ListCtx)
+			default:
+				return 0, fmt.Errorf("%s names no context with %c; a context is $ or @", c.Text, sigil)
 			}
 		}
 		return set, nil
@@ -737,6 +743,16 @@ func (p *parser) parseSubDecl(word lexer.Token) *Node {
 	// without error.
 	if p.typed && len(p.typedErrs) == errsBefore {
 		p.declareOperator(n)
+	}
+
+	// A malformed `:context` with a signature after it is refused by
+	// parseTypedSignature. One never closed swallows the signature, so it
+	// is refused here.
+	if p.typed && len(p.typedErrs) == errsBefore {
+		if _, err := declaredContext(n); err != nil {
+			name, _ := declaredSub(n)
+			p.typedErrs = append(p.typedErrs, fmt.Errorf("sub %s: %w", name, err))
+		}
 	}
 
 	// The declaration enters scope HERE, before its own body and before
