@@ -39,23 +39,24 @@ func candidateOf(sig types.Signature) candidate {
 
 // TestCoreGrepMapSortAreMultis: RFC 0001 "Builtins that keep their own
 // parse". grep and map are each a block candidate, `(Code &block, List
-// @list)` as perlsub's `sub mygrep (&@)`, and an expression candidate,
-// `(Scalar $expr, List @list)`, the `($@)` shape B::Deparse gives `grep
-// /a/ || 1, @l`. sort is a block candidate, a plain one whose list is
-// required, and an invocant candidate for `sort byname @x` and `sort $n
-// @x`; scalar sort is undefined, so each answers for list context alone.
+// @list = die)` as perlsub's `sub mygrep (&@)` but with its list written,
+// and an expression candidate, `(Scalar $expr, List @list)`, the `($@)`
+// shape B::Deparse gives `grep /a/ || 1, @l`. sort is a block candidate,
+// a plain one and an invocant candidate for `sort byname @x` and `sort $n
+// @x`, each with its list written; scalar sort is undefined, so each
+// answers for list context alone.
 func TestCoreGrepMapSortAreMultis(t *testing.T) {
 	list := types.ContextSet(types.ListCtx)
-	block := candidate{measuredRow{1, []types.Type{types.Code, types.List}, types.List}, "&@", types.Unknown, types.EveryContext}
+	block := candidate{measuredRow{2, []types.Type{types.Code, types.List}, types.List}, "&@", types.Unknown, types.EveryContext}
 	expr := candidate{measuredRow{1, []types.Type{types.Scalar, types.List}, types.List}, "$@", types.Unknown, types.EveryContext}
 	core := parse.CoreSignatures()
 	for name, want := range map[string][]candidate{
 		"grep": {block, expr},
 		"map":  {block, expr},
 		"sort": {
-			{measuredRow{1, []types.Type{types.Code, types.List}, types.List}, "&@", types.Unknown, list},
+			{measuredRow{2, []types.Type{types.Code, types.List}, types.List}, "&@", types.Unknown, list},
 			{measuredRow{1, []types.Type{types.List}, types.List}, "@", types.Unknown, list},
-			{measuredRow{0, []types.Type{types.List}, types.List}, "@", types.Code | types.Str, list},
+			{measuredRow{1, []types.Type{types.List}, types.List}, "@", types.Code | types.Str, list},
 		},
 	} {
 		var got []candidate
@@ -114,5 +115,31 @@ func TestCoreSortScalarHasNoType(t *testing.T) {
 	}
 	if sel := types.Select(sort, args, types.ListCtx); sel.Outcome != types.Selected || sel.Candidate != 1 {
 		t.Errorf("list sort selects %+v; want the plain candidate, 1", sel)
+	}
+}
+
+// TestCoreGrepMapSortMatchMeasuredSignatures: CORE.pmt carries the
+// measured types internal/types/signatures.go gives grep, map and sort,
+// each row copied here so the check outlives that file, and compared with
+// the block candidate for grep and map and the plain one for sort. The
+// block candidate's arity of two is perl's: after a block the list must be
+// written, `grep {1};` being a syntax error and `grep {1} ()` compiling.
+func TestCoreGrepMapSortMatchMeasuredSignatures(t *testing.T) {
+	golden := map[string]struct {
+		candidate int
+		row       measuredRow
+	}{
+		"map":  {0, measuredRow{2, []types.Type{types.Code, types.List}, types.List}},
+		"grep": {0, measuredRow{2, []types.Type{types.Code, types.List}, types.List}},
+		"sort": {1, measuredRow{1, []types.Type{types.List}, types.List}},
+	}
+	core := parse.CoreSignatures()
+	for _, name := range grepMapSort {
+		want := golden[name]
+		if sigs := core[name]; len(sigs) <= want.candidate {
+			t.Errorf("%s: CORE.pmt has %d candidates; want candidate %d", name, len(sigs), want.candidate)
+		} else if got := rowOf(sigs[want.candidate]); fmt.Sprint(got) != fmt.Sprint(want.row) {
+			t.Errorf("%s: CORE.pmt has %v; measured %v", name, got, want.row)
+		}
 	}
 }

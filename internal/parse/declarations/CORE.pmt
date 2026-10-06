@@ -524,23 +524,29 @@ sub system (Str $program: List[Str] @args) Int;
 # candidate; the expression form deparses as a `($@)` sub's would, `grep
 # /a/ || 1, @l` as `g((/a/ || 1), @l)`. The comma that ends the first
 # argument selects the expression candidate, its absence the block one.
-# The list may be empty: `grep 1` and `map {1} ()` compile and yield
-# nothing, while `grep()` is "Not enough arguments for grep". In scalar
-# context each yields a count, `my $n = grep { 1 } 1, 2, 3` is 3.
-multi sub grep (Code &block, List @list) List;
+# After a block the list must be written, though it may be empty: `grep
+# {1} ()` compiles and yields nothing, while `grep {1};` and `map({1})` are
+# syntax errors, so the block candidate's list defaults to `die`. After an
+# expression it may be left out: `grep(1)` and `map(1)` compile. `grep()`
+# is "Not enough arguments for grep". In scalar context each yields a
+# count, `my $n = grep { 1 } 1, 2, 3` is 3.
+multi sub grep (Code &block, List @list = die) List;
 multi sub grep (Scalar $expr, List @list) List;
-multi sub map (Code &block, List @list) List;
+multi sub map (Code &block, List @list = die) List;
 multi sub map (Scalar $expr, List @list) List;
-# sort: a block, `sort { $b cmp $a } @x`; a plain list, which must be
-# written, `sort()` and bare `sort` being "Not enough arguments for sort"
-# while `sort(())` and `my @e; sort @e` compile; or a comparison routine
-# in the leading slot, named or held in a scalar, `sort byname @x` and
-# `sort $n @x` with `$n = "byname"`. With a comma the string is data:
-# `sort "byname", @x` sorts it among the rest. Scalar sort is undefined:
-# `my $n = sort 3, 1, 2` leaves $n undef.
-multi sub sort :context(@) (Code &block, List @list) List;
+# sort: a block, `sort { $b cmp $a } @x`; a plain list; or a comparison
+# routine in the leading slot, named or held in a scalar, `sort byname @x`
+# and `sort $n @x` with `$n = "byname"`. With a comma the string is data:
+# `sort "byname", @x` sorts it among the rest. Each needs its list
+# written, though it may be empty: `sort()` and bare `sort` are "Not
+# enough arguments for sort" while `sort(())` and `my @e; sort @e`
+# compile; `sort { $a <=> $b };` is a syntax error while `sort { $a <=> $b
+# } ()` compiles; and with no list after it the routine is the list,
+# `sort byname` yielding "byname" while `sort byname ()` yields nothing.
+# Scalar sort is undefined: `my $n = sort 3, 1, 2` leaves $n undef.
+multi sub sort :context(@) (Code &block, List @list = die) List;
 multi sub sort :context(@) (List @list = die) List;
-multi sub sort :context(@) (Code|Str $by: List @list) List;
+multi sub sort :context(@) (Code|Str $by: List @list = die) List;
 
 # Operators (RFC 0001, "Operator declarations"): each under its symbol, with
 # its fixity and, for an infix one, the class naming its precedence level in
