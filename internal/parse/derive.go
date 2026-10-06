@@ -4,6 +4,7 @@ package parse
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"tamarou.com/pvm/internal/types"
@@ -137,9 +138,14 @@ func agreement(declared, fromTypes string) error {
 // `(Array \@a)` derive `\[%@]`. ok is false for candidates no one
 // prototype states.
 func prototypeFromCandidates(sigs []types.Signature) (proto string, ok bool) {
-	protos := make([]string, len(sigs))
-	for i, s := range sigs {
-		protos[i] = prototypeFromTypes(s)
+	// Candidates group by their parameters, as the prototype sees them:
+	// `:context` and the return type never split a group, so `keys`'
+	// four candidates are two groups and `localtime`'s two are one.
+	var protos []string
+	for _, s := range sigs {
+		if p := prototypeFromTypes(s); !slices.Contains(protos, p) {
+			protos = append(protos, p)
+		}
 	}
 	// A `\` is always followed by its sigil, so one differing byte after
 	// a shared `\` is one aliased position whose container differs.

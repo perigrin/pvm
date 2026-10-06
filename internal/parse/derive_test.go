@@ -363,3 +363,25 @@ func TestDerivePrototypeFromMultiCandidates(t *testing.T) {
 		t.Errorf("each: errors %v, prototype %q, want (\\[%%@])", facts.errs, facts.protos["f"])
 	}
 }
+
+// TestDeriveMultiCandidatesGroupByParameters: candidates group by their
+// parameters only, so `:context` and the return type never split a group.
+// `keys`' four candidates are two groups, Hash and Array, and derive
+// `\[%@]`; `localtime`'s two share `(Int $time = time)` and derive `;$`.
+// Measured on 5.42, `prototype("CORE::keys")` is `\[%@]` and
+// `prototype("CORE::localtime")` is `;$`.
+func TestDeriveMultiCandidatesGroupByParameters(t *testing.T) {
+	for src, want := range map[string]string{
+		"multi sub f :context($) (Hash \\%h) Int;\n" +
+			"multi sub f :context($) (Array \\@a) Int;\n" +
+			"multi sub f :context(@) (Hash \\%h) List;\n" +
+			"multi sub f :context(@) (Array \\@a) List;\n": `(\[%@])`,
+		"multi sub f :context($) (Int $time = time) Str;\n" +
+			"multi sub f :context(@) (Int $time = time) List[Int];\n": "(;$)",
+	} {
+		facts := readDeclaration([]byte(src), nil)
+		if len(facts.errs) > 0 || facts.protos["f"] != want {
+			t.Errorf("%q: errors %v, prototype %q, want %s", src, facts.errs, facts.protos["f"], want)
+		}
+	}
+}
