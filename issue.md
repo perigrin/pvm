@@ -1,6 +1,6 @@
 ---
 title: Type CORE.pmt's system, user, network, IPC, socket and control-flow builtins, and hold every prototyped line typed
-state: pending
+state: in-progress
 urgency: normal
 milestone: type-libraries
 blocked_by:
@@ -9,7 +9,16 @@ blocked_by:
 - 01a10177-5057-7f6f-bfa1-363a4568ae80
 - 01a10c6e-988f-7aa6-811d-0e462abc442a
 created: 2026-10-05T14:18:57.557243435Z
-updated: 2026-10-05T20:29:55.71180749Z
+updated: 2026-10-06T17:06:23.348846391Z
+sessions:
+- start_sha: bbcf54860c14ed10b826ded5ec4531d0116a534f
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-06T17:06:23.348846391Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-06T17:06:23.348846391Z
 ---
 
 ## Prerequisites
