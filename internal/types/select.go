@@ -114,8 +114,13 @@ func (s Signature) asSpecific(o Signature, n int) bool {
 
 // accepts reports whether s takes n arguments: at least its required
 // parameters, and no more than it has unless one is a slurpy. A required
-// slurpy, `List @list = die`, takes at least one.
+// slurpy, `List @list = die`, takes at least one. The n arguments are a
+// call's comma-separated ones, which write no invocant, so a candidate
+// whose invocant is required takes none.
 func (s Signature) accepts(n int) bool {
+	if s.Invocant != nil && s.Invocant.Required {
+		return false
+	}
 	least, slurpy := 0, false
 	for _, p := range s.Params {
 		if p.Required {
@@ -171,23 +176,53 @@ func (s Signature) paramType(i int) Type {
 // strictly more specific, and no third candidate takes exactly the overlap
 // -- `(Int $a, Int $b)` decides the call above. Identical candidates are
 // ambiguous: each is as specific as the other, and neither is more.
+//
+// A call either writes an invocant or does not (RFC 0001, "Builtins that
+// keep their own parse"), so candidates are compared over each kind of
+// call apart: sort's `(Code|Str $by: List @list)` and `(List @list = die)`
+// share none.
 func Ambiguity(cands []Signature) error {
-	most := 0
-	for _, c := range cands {
-		most = max(most, len(c.Params))
-	}
-	for i, a := range cands {
-		for j := i + 1; j < len(cands); j++ {
-			// A slurpy takes any count past its parameters, so one past
-			// the longest stands for them all.
-			for n := range most + 2 {
-				if overlap, ok := ambiguous(cands, i, j, n); ok {
-					return fmt.Errorf("candidates %s and %s are ambiguous for (%s)", a.params(), cands[j].params(), overlap)
+	for _, written := range []bool{false, true} {
+		view, orig := byInvocant(cands, written)
+		most := 0
+		for _, c := range view {
+			most = max(most, len(c.Params))
+		}
+		for i := range view {
+			for j := i + 1; j < len(view); j++ {
+				// A slurpy takes any count past its parameters, so one past
+				// the longest stands for them all.
+				for n := range most + 2 {
+					if overlap, ok := ambiguous(view, i, j, n); ok {
+						return fmt.Errorf("candidates %s and %s are ambiguous for (%s)", cands[orig[i]].params(), cands[orig[j]].params(), overlap)
+					}
 				}
 			}
 		}
 	}
 	return nil
+}
+
+// byInvocant is the candidates that take a call which writes an invocant,
+// or which writes none, each as a signature over that call's arguments,
+// with the index in cands of the candidate it stands for. A written
+// invocant is the call's first argument. A required invocant takes only a
+// call that writes one; one with a default, print's, takes either.
+func byInvocant(cands []Signature, written bool) (view []Signature, orig []int) {
+	for i, c := range cands {
+		switch {
+		case written && c.Invocant != nil:
+			inv := *c.Invocant
+			inv.Required = true
+			c.Params = append([]Param{inv}, c.Params...)
+		case !written && (c.Invocant == nil || !c.Invocant.Required):
+		default:
+			continue
+		}
+		c.Invocant = nil
+		view, orig = append(view, c), append(orig, i)
+	}
+	return view, orig
 }
 
 // ambiguous reports whether candidates i and j are ambiguous for n
@@ -239,14 +274,23 @@ func (s Signature) takesExactly(ts []Type) bool {
 	return true
 }
 
-// params renders s's parameter list as a .pmt states it, `(Int $a, Num $b)`.
+// params renders s's parameter list as a .pmt states it, `(Int $a, Num $b)`
+// or, with an invocant, `(Code $c: List @l)`.
 func (s Signature) params() string {
 	ps := make([]string, len(s.Params))
 	for i, p := range s.Params {
-		ps[i] = fmt.Sprintf("%c%s", p.Sigil, p.Name)
-		if p.Type != Unknown {
-			ps[i] = p.Type.String() + " " + ps[i]
-		}
+		ps[i] = p.decl()
+	}
+	if s.Invocant != nil {
+		return "(" + s.Invocant.decl() + ": " + strings.Join(ps, ", ") + ")"
 	}
 	return "(" + strings.Join(ps, ", ") + ")"
+}
+
+// decl renders p as a .pmt states it, without its default: `Int $a`.
+func (p Param) decl() string {
+	if p.Type == Unknown {
+		return fmt.Sprintf("%c%s", p.Sigil, p.Name)
+	}
+	return fmt.Sprintf("%s %c%s", p.Type, p.Sigil, p.Name)
 }
