@@ -216,7 +216,7 @@ func Tokenize(src []byte) []Token {
 // signature and never a prototype: a declaration file spells its prototypes
 // `:prototype(...)`, as perl requires once signatures are on.
 func TokenizeTyped(src []byte) []Token {
-	return tokenize(&lexer{src: src, expect: XState, signatures: true})
+	return tokenize(&lexer{src: src, expect: XState, signatures: true, typed: true})
 }
 
 func tokenize(l *lexer) []Token {
@@ -327,6 +327,10 @@ type lexer struct {
 	// whether that `(` is a prototype or a signature. File-level, like
 	// utf8Pragma and for the same reason.
 	signatures bool
+	// typed is set for typed Perl, a `.pmt` declaration file, where a
+	// container type may stand before a hash parameter: `List[Str] %h`.
+	// See containerTypeSigil.
+	typed bool
 	// pendingVersionMajor held the `5` of a `use v5.36` whose version
 	// arrived split across three tokens -- Word("v5"), Operator("."),
 	// Number(36) -- because `v5` lexed as an ordinary identifier.

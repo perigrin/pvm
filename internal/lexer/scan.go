@@ -37,7 +37,7 @@ func scanVariable(l *lexer) bool {
 	// they are modulus and... also `@` is never an operator, but `%` is, and
 	// dispatching on position here is what keeps `$a % $b` from lexing as a
 	// hash.
-	if c == '%' && !l.expect.wantsTerm() {
+	if c == '%' && !l.expect.wantsTerm() && !l.containerTypeSigil() {
 		return false
 	}
 

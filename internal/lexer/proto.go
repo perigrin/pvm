@@ -281,6 +281,35 @@ func (l *lexer) bareSignatureSigil(start int) bool {
 	return !identStart(r, l.utf8Pragma)
 }
 
+// containerTypeSigil reports whether a `%` in operator position is a hash
+// parameter's sigil after a container type, `List[Str] %h` in a typed
+// signature (RFC 0001, "A slurpy takes no bare element type"). The `]`
+// before it closes a `[` that follows a type name, a Word; an element's `]`
+// in a default, `$a[0] % 2`, closes one that follows a variable, and its
+// `%` stays modulo. Typed Perl only: ordinary source never reads it.
+func (l *lexer) containerTypeSigil() bool {
+	if !l.typed || l.sigDepth != 1 {
+		return false
+	}
+	i := l.significantBefore(len(l.toks))
+	for depth := 0; i >= 0; i = l.significantBefore(i) {
+		switch l.src[l.toks[i].Start] {
+		case ']':
+			depth++
+		case '[':
+			depth--
+		}
+		if depth == 0 {
+			break
+		}
+	}
+	if i < 0 || l.src[l.toks[i].Start] != '[' {
+		return false
+	}
+	name := l.significantBefore(i)
+	return name >= 0 && l.toks[name].Kind == Word
+}
+
 // touchesAttributeName reports whether the token just before start is an
 // attribute's name -- a Word after a `:` -- ending exactly there. The `sub`
 // of an anonymous sub is a Word too, and `sub($x)` is its signature.

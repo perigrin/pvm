@@ -307,13 +307,14 @@ func TestPmtBareSlurpyTypeRefused(t *testing.T) {
 		"sub f (Str @args);\n": "sub f: slurpy @args has a bare element type Str; write a container type, List[Str] @args",
 		"sub f (Int %h);\n":    "sub f: slurpy %h has a bare element type Int; write a container type, List[Int] %h",
 	})
-	facts := readDeclaration([]byte("sub f (@args);\nsub g (List[Str] @args);\n"), nil)
+	facts := readDeclaration([]byte("sub f (@args);\nsub g (List[Str] @args);\nsub h (List[Str] %h);\n"), nil)
 	if len(facts.errs) > 0 {
 		t.Fatalf("errors: %v", facts.errs)
 	}
 	for name, want := range map[string]types.Param{
 		"f": {Name: "args", Sigil: '@', Type: types.Unknown},
 		"g": {Name: "args", Sigil: '@', Type: types.List, Element: types.Str},
+		"h": {Name: "h", Sigil: '%', Type: types.List, Element: types.Str},
 	} {
 		if got, ok := facts.signatures[name]; !ok || !reflect.DeepEqual(got, types.Signature{Params: []types.Param{want}}) {
 			t.Errorf("%s: got %+v (recorded %v), want one param %+v", name, got, ok, want)
@@ -338,8 +339,9 @@ func TestPmtBareUnionSlurpyRefused(t *testing.T) {
 // prototype.
 func TestPmtContainerWithFlatteningSigilRefused(t *testing.T) {
 	cases := map[string]string{
-		"sub f (Array @a);\n": `sub f: container type Array with flattening sigil @a; a parameter that takes the caller's container is Array \@a`,
-		"sub f (Hash %h);\n":  `sub f: container type Hash with flattening sigil %h; a parameter that takes the caller's container is Hash \%h`,
+		"sub f (Array @a);\n":     `sub f: container type Array with flattening sigil @a; a parameter that takes the caller's container is Array \@a`,
+		"sub f (Hash %h);\n":      `sub f: container type Hash with flattening sigil %h; a parameter that takes the caller's container is Hash \%h`,
+		"sub f (Hash[Str] %h);\n": `sub f: container type Hash[Str] with flattening sigil %h; a parameter that takes the caller's container is Hash[Str] \%h`,
 	}
 	pmtRefuses(t, cases)
 	for src := range cases {
@@ -363,4 +365,18 @@ func TestPmtNonFinalListParam(t *testing.T) {
 		"sub f (List @a, List @b);\n": want,
 		"sub f (@a, $x);\n":           want,
 	})
+}
+
+// TestPmtModuloAfterIndexInDefault: a `%` after a container type's `]` is
+// a hash sigil, `List[Str] %h`, but a `%` after an element's `]` in a
+// default is still modulo.
+func TestPmtModuloAfterIndexInDefault(t *testing.T) {
+	facts := readDeclaration([]byte("sub f (Int $x = $a[0] % 2);\n"), nil)
+	if len(facts.errs) > 0 {
+		t.Fatalf("errors: %v", facts.errs)
+	}
+	want := types.Signature{Params: []types.Param{{Name: "x", Sigil: '$', Type: types.Int, Default: "$a[0] % 2"}}}
+	if got := facts.signatures["f"]; !reflect.DeepEqual(got, want) {
+		t.Errorf("got %+v, want %+v", got, want)
+	}
 }
