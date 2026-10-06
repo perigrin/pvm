@@ -112,7 +112,7 @@ A test asks perl for every keyword's prototype and holds the file to
 the answer. `:prototype(...)` is read as a prototype wherever a sub is
 declared, which also fixed two perl.git files whose own subs use it.
 
-### Declaration order: Perl's (*Decided*)
+### Declaration order: Perl's (*Implemented*, 098211c6)
 
 A declaration follows Perl's order: name, then attributes, then
 signature. Measured on 5.42, `sub f :lvalue ($x) {}` compiles,
@@ -152,7 +152,7 @@ builtins) and `internal/parse/keyword.go` (parse shapes) fold into it,
 each after a test shows the file agrees with the table it replaces. The
 comments recording their measurements move with them.
 
-### Type names (*Decided*)
+### Type names (*Implemented*, 02df00ad, cd485cd0, b2c809fc, 54784319)
 
 A `.pmt` names types from the lattice in `internal/types`, and an
 unknown name is an error. perigrin, 2026-10-02:
