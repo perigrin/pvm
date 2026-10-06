@@ -1,6 +1,6 @@
 ---
 title: Parse return types and type expressions in .pmt declarations
-state: in-progress
+state: done
 urgency: normal
 milestone: type-libraries
 blocked_by:
@@ -10,16 +10,20 @@ blocks:
 - 01a0fd9b-4a5b-7e94-ad87-756dfcfe1f4c
 - 01a0fd9b-53a9-703f-82ab-eeb38765f7f1
 created: 2026-10-03T11:12:37.336939532Z
-updated: 2026-10-06T00:12:24.556947251Z
+updated: 2026-10-06T00:12:24.61962481Z
 sessions:
 - start_sha: a59be849cf4cbf3cec10b4655a01884d284fb625
-  end_sha: ""
+  end_sha: a59be849cf4cbf3cec10b4655a01884d284fb625
   commits: 0
   started_at: 2026-10-06T00:12:24.556947251Z
+  ended_at: 2026-10-06T00:12:24.61962481Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-06T00:12:24.556947251Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-06T00:12:24.61962481Z
 ---
 
 ## Prerequisites
