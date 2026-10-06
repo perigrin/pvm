@@ -1,6 +1,6 @@
 ---
 title: Parse multi sub declarations and select a candidate by arity and argument types
-state: in-progress
+state: done
 urgency: normal
 milestone: type-libraries
 blocked_by:
@@ -9,16 +9,20 @@ blocks:
 - 01a0fd9b-4ca3-7d55-82ac-ba125816ee71
 - 01a10177-547c-73a9-a302-f25f579a4cb3
 created: 2026-10-02T17:13:27.899092724Z
-updated: 2026-10-06T03:22:03.794731133Z
+updated: 2026-10-06T03:22:03.863228625Z
 sessions:
 - start_sha: 263ec15edfff866e44c37f80e9802f77515ec73f
-  end_sha: ""
+  end_sha: 263ec15edfff866e44c37f80e9802f77515ec73f
   commits: 0
   started_at: 2026-10-06T03:22:03.794731133Z
+  ended_at: 2026-10-06T03:22:03.863228625Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-06T03:22:03.794731133Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-06T03:22:03.863228625Z
 ---
 
 ## Prerequisites
