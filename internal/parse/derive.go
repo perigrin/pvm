@@ -24,14 +24,25 @@ import (
 // parses the backslash, and until then such a declaration states no
 // typed signature.
 func typesFromPrototype(proto string) (sig types.Signature, derived bool, err error) {
-	optional := false
+	optional, list := false, -1
 	for i := 0; i < len(proto); i++ {
 		c := proto[i]
-		var p types.Param
-		switch c {
-		case ';':
+		if c == ';' {
 			optional = true
 			continue
+		}
+		// The `@` or `%` takes every argument, so nothing after it can be
+		// filled: the final-List rule, as the typed reader enforces it.
+		if list >= 0 {
+			container, kind := "Array", "array"
+			if proto[list] == '%' {
+				container, kind = "Hash", "hash"
+			}
+			return types.Signature{}, false, fmt.Errorf(`prototype (%s): List parameter %c is not last; a single %s followed by more parameters is %s \%c, as in (%s\%s)`,
+				proto, proto[list], kind, container, proto[list], proto[:list], proto[list:])
+		}
+		var p types.Param
+		switch c {
 		case '$':
 			p = types.Param{Sigil: '$', Type: types.Scalar}
 		case '_':
@@ -40,6 +51,7 @@ func typesFromPrototype(proto string) (sig types.Signature, derived bool, err er
 			p = types.Param{Sigil: '$', Type: types.Array | types.Hash | types.Scalar}
 		case '@', '%':
 			p = types.Param{Sigil: c, Type: types.List}
+			list = i
 		case '&':
 			p = types.Param{Sigil: '&', Type: types.Code}
 		case '*':

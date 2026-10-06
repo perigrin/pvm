@@ -150,6 +150,16 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 			if err != nil {
 				return err
 			}
+			// Everything after a prototype's `;` is optional, so a required
+			// parameter after an optional one has no prototype; perl 5.42
+			// refuses it, "Mandatory parameter follows optional parameter".
+			if param.Required {
+				for _, before := range s.Params {
+					if !before.Required {
+						return fmt.Errorf("mandatory parameter %c%s follows optional parameter %c%s", param.Sigil, param.Name, before.Sigil, before.Name)
+					}
+				}
+			}
 			s.Params = append(s.Params, param)
 			sig.Children = append(sig.Children, node)
 			sep, ok := p.peekSignificant()

@@ -173,3 +173,36 @@ func TestPrototypeTypeDisagreementKinds(t *testing.T) {
 		"sub f :prototype(&@) (Scalar $f, List @l);\n":    "sub f: :prototype(&@) disagrees with its types, which give ($@)",
 	})
 }
+
+// TestDeriveRejectsUnknownPrototypeCharacter: a prototype character
+// outside the table is an error in the declaration file, not a guessed
+// signature. perl 5.42.0 only warns, "Illegal character in prototype for
+// main::f : Q", and for `\x` the same.
+func TestDeriveRejectsUnknownPrototypeCharacter(t *testing.T) {
+	pmtRefuses(t, map[string]string{
+		"sub f :prototype(Q);\n":    `sub f: prototype (Q) has "Q", which is not a prototype character`,
+		"sub f :prototype($\\x);\n": `sub f: prototype ($\x) has "\\x", which is not a prototype character`,
+	})
+}
+
+// TestDeriveMandatoryAfterOptionalIsError: a required parameter after an
+// optional one has no prototype, since everything after a `;` is
+// optional, and is an error as perl 5.42.0 makes it one: `sub f ($x = 1,
+// $y) {}` dies "Mandatory parameter follows optional parameter".
+func TestDeriveMandatoryAfterOptionalIsError(t *testing.T) {
+	pmtRefuses(t, map[string]string{
+		"sub f (Str $x = 1, Str $y);\n":      "sub f: mandatory parameter $y follows optional parameter $x",
+		"sub f (Scalar $x = $_, Code &c);\n": "sub f: mandatory parameter &c follows optional parameter $x",
+	})
+}
+
+// TestDerivePrototypeAfterAtIsError: a prototype with anything after `@`
+// or `%` derives no signature: the `@` takes every argument, so what
+// follows can never be filled (perl 5.42.0 warns "Prototype after '@'").
+// It is the final-List error, pointing to `\@` for a single array.
+func TestDerivePrototypeAfterAtIsError(t *testing.T) {
+	pmtRefuses(t, map[string]string{
+		"sub f :prototype(@$);\n":   `sub f: prototype (@$): List parameter @ is not last; a single array followed by more parameters is Array \@, as in (\@$)`,
+		"sub f :prototype($%;$);\n": `sub f: prototype ($%;$): List parameter % is not last; a single hash followed by more parameters is Hash \%, as in ($\%;$)`,
+	})
+}
