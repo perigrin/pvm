@@ -1,6 +1,6 @@
 ---
 title: Let a library .pmt use every construct CORE.pmt uses
-state: in-progress
+state: done
 urgency: normal
 milestone: type-libraries
 blocked_by:
@@ -11,16 +11,20 @@ blocked_by:
 blocks:
 - 01a0fd9b-5700-7514-a143-2caed2d06d8b
 created: 2026-10-02T17:13:31.032351231Z
-updated: 2026-10-06T15:14:47.126446535Z
+updated: 2026-10-06T15:14:47.293013336Z
 sessions:
 - start_sha: 946db66bea66035c8d0fb8d36476efd4d05008f8
-  end_sha: ""
+  end_sha: 946db66bea66035c8d0fb8d36476efd4d05008f8
   commits: 0
   started_at: 2026-10-06T15:14:47.126446535Z
+  ended_at: 2026-10-06T15:14:47.293013336Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-06T15:14:47.126446535Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-06T15:14:47.293013336Z
 ---
 
 ## Prerequisites
