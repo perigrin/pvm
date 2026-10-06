@@ -31,8 +31,14 @@ sub __SUB__ :prototype();
 sub abs (Num $number = $_) Num;
 sub accept :prototype(**);
 sub alarm :prototype(_);
-sub all :prototype(\&@);
-sub any :prototype(\&@);
+# all and any take a block and then a LIST, which may be empty: `all {1} ()`
+# is true, and `all()` is "Not enough arguments" (measured). The block is a
+# literal block; `all sub {1}, 1` is a syntax error. Each returns a boolean
+# in every context, one value even in list context (measured: builtin's
+# is_bool is true of both results).
+sub all (Code \&block, List @list) Boolean;
+# Measured as all, above.
+sub any (Code \&block, List @list) Boolean;
 # atan2 takes both its arguments, y then x: `atan2(1)` is "Not enough
 # arguments". Its result is a float, NOK even where it is whole: atan2(0, 1)
 # is 0 as an NV (measured with B::svref_2object).
@@ -135,7 +141,15 @@ sub isa :prototype();
 # there rejected `join ":", @foo`. Measured: join(":", @f) flattens the
 # array, and `join(":")` compiles, with an empty list.
 sub join (Str $separator, List @list) Str;
-sub keys :prototype(\[%@]);
+# keys takes one hash or array, never a scalar or a list: `keys $ref` is
+# "Experimental keys on scalar is now forbidden", and `keys;` "Not enough
+# arguments" (measured). Its scalar-context value is a count -- with two
+# keys, `my $n = keys %h` is 2, and with three elements, `my $m = keys @a`
+# is 3, each IOK only -- which is not one of the list-context values.
+multi sub keys :context($) (Hash \%h) Int;
+multi sub keys :context($) (Array \@a) Int;
+multi sub keys :context(@) (Hash \%h) List;
+multi sub keys :context(@) (Array \@a) List;
 sub kill :prototype(@);
 # Measured as uc, below.
 sub lc (Str $string = $_) Str;
@@ -285,12 +299,21 @@ sub ucfirst (Str $string = $_) Str;
 sub umask :prototype(;$);
 sub undef :prototype(;\[$@%&*]);
 sub unlink :prototype(@);
-sub unpack :prototype($_);
+# unpack takes a template and a string, defaulting to `$_`: `unpack("A1
+# A1")` unpacks `$_`, `unpack()` is "Not enough arguments", and a third
+# argument "Too many" (measured). In scalar context it returns the first
+# value the list would hold (`unpack("A1 A1", "ab")` is "a"), so List covers
+# both contexts, since Scalar <: List.
+sub unpack (Str $template, Str $string = $_) List;
 # Measured as push, above.
 sub unshift (Array \@array, List @list) Int;
 sub untie :prototype(\[$@%*]);
 sub utime :prototype(@);
-sub values :prototype(\[%@]);
+# Measured as keys, above.
+multi sub values :context($) (Hash \%h) Int;
+multi sub values :context($) (Array \@a) Int;
+multi sub values :context(@) (Hash \%h) List;
+multi sub values :context(@) (Array \@a) List;
 sub vec :prototype($$$);
 sub wait :prototype();
 sub waitpid :prototype($$);
