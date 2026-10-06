@@ -22,11 +22,11 @@ func sig(ret Type, params ...Param) Signature {
 //
 //	multi sub select () Str;
 //	multi sub select (FileHandle $fh) Str;
-//	multi sub select ($r, $w, $e, Num $timeout) Int;
+//	multi sub select ($r, $w, $e, Num $timeout) List;
 var selectCandidates = []Signature{
 	sig(Str),
 	sig(Str, scalar("fh", FileHandle)),
-	sig(Int, scalar("r", Unknown), scalar("w", Unknown), scalar("e", Unknown), scalar("timeout", Num)),
+	sig(List, scalar("r", Unknown), scalar("w", Unknown), scalar("e", Unknown), scalar("timeout", Num)),
 }
 
 // eachCandidates are RFC 0001's `each`, `(Hash \%h) List` and `(Array \@a)
@@ -77,7 +77,7 @@ func wantFailedIn(t *testing.T, cands []Signature, ctx Context, args []Type) {
 func TestSelectByArity(t *testing.T) {
 	wantSelected(t, selectCandidates, nil, 0, Str)
 	wantSelected(t, selectCandidates, []Type{GlobRef}, 1, Str)
-	wantSelected(t, selectCandidates, []Type{Undef, Undef, Undef, Num}, 2, Int)
+	wantSelected(t, selectCandidates, []Type{Undef, Undef, Undef, Num}, 2, List)
 }
 
 // TestSelectByArgumentTypes: among candidates that take the call's number

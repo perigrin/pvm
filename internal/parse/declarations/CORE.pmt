@@ -110,7 +110,11 @@ sub dbmopen (Hash \%hash, Str $dbname, Int $mode) Object|Undef;
 # element, "Not enough arguments" without. Their operand is an element,
 # which neither reads: open question 10 asks how to say so.
 sub defined :unary (Scalar $thing = $_) Boolean;
-sub delete :unary (Scalar $element) Scalar;
+# delete of a slice, a `@` operand, yields its values: `delete @h{qw(a b)}`
+# is (1, 2) and `delete %h{qw(a b)}` (a, 1, b, 2). In scalar context it is
+# the last of them, so context does not fork it (measured).
+multi sub delete :unary (List @slice = die) List;
+multi sub delete :unary (Scalar $element) Scalar;
 # die and warn take a LIST of strings, which may be empty: `die()` and
 # `warn()` compile (measured). die never returns; warn returns true.
 sub die :prototype(@) (List[Str] @message) None;
@@ -354,10 +358,12 @@ sub seekdir (Glob *dh, Int $position) Boolean|Undef;
 # arity. With no argument it yields the selected handle (`select()` is
 # "main::STDOUT"); with one it selects that handle and yields the one
 # selected before; with four it is the select system call, yielding how
-# many descriptors are ready (`select(undef, undef, undef, 0)` is 0).
+# many descriptors are ready and the time left, (nfound, timeleft):
+# `select(undef, undef, undef, 0)` is (0, 0). In scalar context it is
+# nfound, the first of them, so context does not fork it (measured).
 multi sub select () Str;
 multi sub select (FileHandle $fh) Str;
-multi sub select ($r, $w, $e, Num $timeout) Int;
+multi sub select ($r, $w, $e, Num $timeout) List;
 sub semctl :prototype($$$$);
 sub semget :prototype($$$);
 sub semop :prototype($$);
