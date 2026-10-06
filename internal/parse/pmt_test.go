@@ -657,6 +657,59 @@ func TestPmtMalformedAliasedParamRefused(t *testing.T) {
 	}
 }
 
+// TestPmtSlotTypeMismatchRefused: a parameter's type is what its slot
+// holds, by RFC 0001's table ("A typed signature and a prototype say the
+// same thing"): a `&` or `\&` slot holds Code, a `\$` slot a Scalar type,
+// and a `$` slot one scalar, so a type with no scalar member (Array, Hash,
+// Code) is no `$`. A `*` slot holds a bareword handle or any scalar:
+// measured on 5.42.0, `sub star (*)` receives `star(*STDOUT)` and
+// `star($fh)` as GLOB references, `star(STDOUT)` and `star("f")` as
+// strings, `star(@a)` as the count and `star(sub {1})` as a CODE
+// reference, so a glob or any scalar type fits it and an aggregate or
+// Code does not. A mismatch derives nothing.
+func TestPmtSlotTypeMismatchRefused(t *testing.T) {
+	cases := map[string]string{
+		"sub f (Str \\&c);\n":                   `sub f: \&c has type Str; a \& slot holds Code`,
+		"sub f (Str &c);\n":                     `sub f: &c has type Str; a & slot holds Code`,
+		"sub f (Array *g);\n":                   `sub f: *g has type Array; a * slot holds a glob or a scalar`,
+		"sub f (Code *g);\n":                    `sub f: *g has type Code; a * slot holds a glob or a scalar`,
+		"sub f (Array \\$x);\n":                 `sub f: \$x has type Array; a \$ slot holds a Scalar type`,
+		"sub f (Code \\$x);\n":                  `sub f: \$x has type Code; a \$ slot holds a Scalar type`,
+		"sub f :prototype(\\$) (Array \\$x);\n": `sub f: \$x has type Array; a \$ slot holds a Scalar type`,
+		"sub f (Array $x);\n":                   `sub f: $x has type Array; a $ slot holds a scalar`,
+		"sub f (Array|Hash $x);\n":              `sub f: $x has type Array|Hash; a $ slot holds a scalar`,
+	}
+	pmtRefuses(t, cases)
+	// Each type the table gives its slot fits it, as do the shapes
+	// CORE.pmt states.
+	for _, src := range []string{
+		"sub f (Code &c);\n", "sub f (Code \\&c);\n", "sub f (Glob *g);\n",
+		"sub f (FileHandle *g);\n", "sub f (GlobRef *g);\n", "sub f (Str *g);\n",
+		"sub f (Str|FileHandle *g);\n", "sub f (Int \\$x);\n",
+		"sub f (Scalar \\$x);\n", "sub f (FileHandle $fh);\n", "sub f (Any $x);\n",
+		"sub f (Array|Hash|Scalar $x);\n", "sub f (Str|FileHandle $x);\n", "sub f (Ref $x);\n",
+	} {
+		typedSignature(t, src)
+	}
+}
+
+// TestPmtMessagesPrintAlias: an error names an aliased parameter as the
+// declaration writes it, with its backslash, so a suggestion never
+// spells `Array @a`, which is not valid (RFC 0001, "The scalar
+// container"), and `Str \(@a)` is told `List[Str] \(@a)`, keeping the
+// alias.
+func TestPmtMessagesPrintAlias(t *testing.T) {
+	pmtRefuses(t, map[string]string{
+		"sub f (Str \\(@a));\n":                    `sub f: slurpy \(@a) has a bare element type Str; write a container type, List[Str] \(@a)`,
+		"sub f (Array \\(@a));\n":                  `sub f: container type Array with flattening sigil \(@a); a parameter that takes the caller's container is Array \@a`,
+		"sub f (List[Str] \\(@a), Str $x);\n":      `sub f: List parameter \(@a) is not last; a single array followed by more parameters is Array \@a`,
+		"sub f (Scalar \\$x = $y, Scalar \\$z);\n": `sub f: mandatory parameter \$z follows optional parameter \$x`,
+		"sub f (Scalar \\$x Str $y);\n":            "sub f: parameter \\$x is not followed by `,` or `)`",
+		"sub f (List[Str] \\(@a): Str $x);\n":      `sub f: invocant \(@a) is a List; an invocant slot holds one item`,
+		"sub f (Scalar $s, Array \\@a: Str $x);\n": `sub f: invocant colon after \@a; only the first parameter is an invocant`,
+	})
+}
+
 // TestParamAttributeRefused: the backslash replaces an earlier `:lvalue`
 // parameter attribute (RFC 0001, "The scalar container"), and no
 // parameter takes an attribute: perl 5.42.0 refuses `sub f ($x :lvalue)`,

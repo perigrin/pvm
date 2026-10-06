@@ -124,6 +124,24 @@ func TestMultiAmbiguityEdgeCases(t *testing.T) {
 	}
 }
 
+// TestSignatureParamsPrintAlias: an ambiguity error prints each
+// candidate's parameters as the declaration writes them, so an aliased
+// parameter keeps its backslash (RFC 0001, "The scalar container"):
+// `\@a` printed as `@a` would be `Array @a`, which is not valid.
+func TestSignatureParamsPrintAlias(t *testing.T) {
+	s := Signature{Params: []Param{
+		{Name: "a", Sigil: '@', Type: Array, Alias: true},
+		{Name: "h", Sigil: '%', Type: Hash, Alias: true},
+		{Name: "x", Sigil: '$', Type: Scalar, Alias: true},
+		{Name: "c", Sigil: '&', Type: Code, Alias: true},
+		{Name: "args", Sigil: '@', Type: List, AliasEach: true},
+	}}
+	want := `(Array \@a, Hash \%h, Scalar \$x, Code \&c, List \(@args))`
+	if got := s.params(); got != want {
+		t.Errorf("got %s, want %s", got, want)
+	}
+}
+
 // TestSelectNoArityMatch: RFC 0001 "Multi declarations", a call whose
 // arity no candidate accepts fails (perigrin, 2026-10-02): `each` with two
 // arguments has no candidate and no type, never the join of the two.
