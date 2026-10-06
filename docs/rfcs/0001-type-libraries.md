@@ -359,7 +359,7 @@ perl prints `HASH(0x...)` and continues; `bless "x"` has no coercion to
 because it states the meaning `psc check` already applies; there is
 nothing to build.)
 
-### A typed signature and a prototype say the same thing (*Decided*)
+### A typed signature and a prototype say the same thing (*Implemented*, 37153b30, 7a0ea048, ffaddd08, 56a13978, 521fb37e)
 
 A prototype's characters are parameter types seen from the caller.
 `\@` means the caller writes an actual array, passed whole; `@` means
