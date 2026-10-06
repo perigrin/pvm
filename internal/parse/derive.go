@@ -57,3 +57,31 @@ func typesFromPrototype(proto string) (sig types.Signature, derived bool, err er
 	}
 	return sig, true, nil
 }
+
+// prototypeFromTypes gives the prototype, without its parentheses, that a
+// typed signature's parameters state, the table read the other way. Types
+// are finer than prototypes, so `Str $x` and `Scalar $x` both give `$`;
+// a `$` parameter whose type admits an array or a hash gives `+`, and one
+// defaulting to `$_` gives `_`. A `;` goes before the first optional
+// parameter other than `_`, which is optional of itself.
+func prototypeFromTypes(sig types.Signature) (string, error) {
+	var b strings.Builder
+	semicolon := false
+	for _, p := range sig.Params {
+		slurpy := p.Sigil == '@' || p.Sigil == '%'
+		topic := p.Sigil == '$' && p.Default == "$_"
+		if !p.Required && !slurpy && !topic && !semicolon {
+			b.WriteByte(';')
+			semicolon = true
+		}
+		switch {
+		case p.Sigil == '$' && p.Type&(types.Array|types.Hash) != 0:
+			b.WriteByte('+')
+		case topic:
+			b.WriteByte('_')
+		default:
+			b.WriteByte(p.Sigil)
+		}
+	}
+	return b.String(), nil
+}

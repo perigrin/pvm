@@ -49,3 +49,55 @@ func TestDeriveTypesFromPrototype(t *testing.T) {
 		}
 	}
 }
+
+// typedSignature reads one typed declaration's signature, failing the
+// test on any error.
+func typedSignature(t *testing.T, src string) types.Signature {
+	t.Helper()
+	facts := readDeclaration([]byte(src), nil)
+	if len(facts.errs) > 0 || len(facts.signatures["f"]) != 1 {
+		t.Fatalf("%q: errors %v, signatures %+v", src, facts.errs, facts.signatures)
+	}
+	return facts.signatures["f"][0]
+}
+
+// TestDerivePrototypeFromTypes: a typed declaration gets its prototype from
+// its types and needs no `:prototype(...)`, one case per row that takes no
+// backslash. Types are finer than prototypes, so `Str $x` gives `$` as
+// `Scalar $x` does; and prototype to types to prototype round-trips for
+// every row.
+func TestDerivePrototypeFromTypes(t *testing.T) {
+	for typed, want := range map[string]string{
+		"(Scalar $x, Str $y)":             "$$",
+		"(List @l)":                       "@",
+		"(List %h)":                       "%",
+		"(Array|Hash|Scalar $x)":          "+",
+		"(Code &block, List @l)":          "&@",
+		"(Glob *fh)":                      "*",
+		"(Scalar $x = $_)":                "_",
+		"(Scalar $x, Scalar $y = 1)":      "$;$",
+		"(Scalar $x = $_, Int $y = 0)":    "_;$",
+		"(Scalar $x = 1, Scalar $y = $_)": ";$_",
+	} {
+		got, err := prototypeFromTypes(typedSignature(t, "sub f "+typed+";\n"))
+		if err != nil || got != want {
+			t.Errorf("%s: got %q, %v, want %q", typed, got, err, want)
+		}
+	}
+
+	facts := readDeclaration([]byte("sub f (Scalar $x, Str $y);\n"), nil)
+	if len(facts.errs) > 0 || facts.protos["f"] != "($$)" {
+		t.Errorf("declaration: errors %v, prototype %q, want ($$)", facts.errs, facts.protos["f"])
+	}
+
+	for _, proto := range []string{"$$", "@", "%", "+", "&@", "*", "_", "$;$", "_;$", ";$_", ""} {
+		sig, derived, err := typesFromPrototype(proto)
+		if err != nil || !derived {
+			t.Errorf("(%s): derived %v, error %v", proto, derived, err)
+			continue
+		}
+		if back, err := prototypeFromTypes(sig); err != nil || back != proto {
+			t.Errorf("(%s): round trip gave %q, %v", proto, back, err)
+		}
+	}
+}

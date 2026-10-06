@@ -86,6 +86,20 @@ func readDeclaration(src []byte, res *resolver) moduleFacts {
 			facts.signatures[name] = []types.Signature{sig}
 		}
 	}
+	// A typed declaration gets its prototype from its types, and needs no
+	// `:prototype(...)`.
+	for _, name := range slices.Sorted(maps.Keys(facts.signatures)) {
+		sigs := facts.signatures[name]
+		if len(sigs) != 1 || facts.protos[name] != "" {
+			continue
+		}
+		proto, err := prototypeFromTypes(sigs[0])
+		if err != nil {
+			facts.errs = append(facts.errs, fmt.Errorf("sub %s: %w", name, err))
+			continue
+		}
+		facts.protos[name] = "(" + proto + ")"
+	}
 	return facts
 }
 
