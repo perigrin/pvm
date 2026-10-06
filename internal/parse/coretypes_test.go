@@ -166,11 +166,24 @@ func TestCoreTypesMatchMeasuredSignatures(t *testing.T) {
 	core := parse.CoreSignatures()
 	for _, name := range slices.Sorted(maps.Keys(golden)) {
 		sigs := core[name]
-		if len(sigs) != 1 {
-			t.Errorf("%s: CORE.pmt declares %d signatures; want one", name, len(sigs))
+		// A row measured one value per call; a builtin perl answers by
+		// context (reverse) is held to the candidate list context selects.
+		sig := types.Signature{}
+		switch {
+		case len(sigs) == 1:
+			sig = sigs[0]
+		case len(sigs) > 1:
+			sel := types.Select(sigs, golden[name].Args, types.ListCtx)
+			if sel.Outcome != types.Selected {
+				t.Errorf("%s: no single list-context candidate among %d: %+v", name, len(sigs), sel)
+				continue
+			}
+			sig = sigs[sel.Candidate]
+		default:
+			t.Errorf("%s: CORE.pmt declares no signature", name)
 			continue
 		}
-		if got, want := rowOf(sigs[0]), golden[name]; fmt.Sprint(got) != fmt.Sprint(want) {
+		if got, want := rowOf(sig), golden[name]; fmt.Sprint(got) != fmt.Sprint(want) {
 			t.Errorf("%s: CORE.pmt has %v; measured %v", name, got, want)
 		}
 	}

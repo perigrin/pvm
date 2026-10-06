@@ -186,3 +186,18 @@ func TestCoreEachDeclaredOnce(t *testing.T) {
 		t.Errorf("CORE.pmt declares each in %d plain lines and %d multi candidates; want one declaration set", len(plain), len(multi))
 	}
 }
+
+// TestCoreReverseIsContextMulti: measured on 5.42, `reverse` in scalar
+// context concatenates its list and reverses the string --
+// `my $s = reverse "ab", "cd"` is "dcba", POK -- which is not one of the
+// list-context values (`("cd", "ab")`). RFC 0001's case for `:context`, so
+// a Str candidate for scalar context beside the List one.
+func TestCoreReverseIsContextMulti(t *testing.T) {
+	core := parse.CoreSignatures()
+	for ctx, want := range map[types.Context]types.Type{types.ScalarCtx: types.Str, types.ListCtx: types.List} {
+		sel := types.Select(core["reverse"], []types.Type{types.Str, types.Str}, ctx)
+		if sel.Outcome != types.Selected || sel.Returns != want {
+			t.Errorf("reverse in context %v: %+v; want %v", ctx, sel, want)
+		}
+	}
+}

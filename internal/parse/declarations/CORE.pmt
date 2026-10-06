@@ -210,9 +210,11 @@ sub ref (Scalar $thing = $_) Str;
 sub rename :prototype($$);
 sub reset :prototype(;$);
 # reverse is context-dependent: a reversed list in list context, a
-# reversed string in scalar context. List covers both, since Scalar <:
-# List. `reverse()` compiles (measured).
-sub reverse :prototype(@) (List @list) List;
+# reversed string in scalar context -- `my $s = reverse "ab", "cd"` is
+# "dcba" (POK), not one of the list values ("cd", "ab"), so each context
+# is its own candidate. `reverse()` compiles (measured).
+multi sub reverse :prototype(@) :context($) (List @list) Str;
+multi sub reverse :prototype(@) :context(@) (List @list) List;
 sub rewinddir :prototype(*);
 # Measured as index, above.
 sub rindex (Str $string, Str $substring, Int $position = length($string)) Int;
