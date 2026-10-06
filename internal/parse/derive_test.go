@@ -265,3 +265,35 @@ func TestPushRoundTripsRefArrayAt(t *testing.T) {
 		t.Errorf("(\\@@): round trip gave %q", back)
 	}
 }
+
+// TestCodeAliasDerivesRefAmp: RFC 0001 "The scalar container", a code
+// slot aliased as perlref's `\&foo = \&bar` aliases a sub, `Code \&c`,
+// derives `\&` where an unbackslashed `Code &c` derives `&`. So `sub any
+// (Code \&block, List @list) Boolean;` derives perl's `\&@` (measured on
+// 5.42.0, `prototype("CORE::any")` and `prototype("CORE::all")`), and
+// `:prototype(\&@)` derives the two parameters back.
+func TestCodeAliasDerivesRefAmp(t *testing.T) {
+	code := types.Param{Sigil: '&', Type: types.Code, Alias: true, Required: true}
+	sig := typedSignature(t, "sub f (Code \\&c);\n")
+	if named := (types.Param{Name: "c", Sigil: '&', Type: types.Code, Alias: true, Required: true}); !reflect.DeepEqual(sig.Params, []types.Param{named}) {
+		t.Errorf("Code \\&c: got %+v, want %+v", sig.Params, named)
+	}
+	if got := prototypeFromTypes(sig); got != `\&` {
+		t.Errorf("Code \\&c: prototype %q, want \\&", got)
+	}
+	if got := prototypeFromTypes(typedSignature(t, "sub f (Code \\&block, List @list) Boolean;\n")); got != `\&@` {
+		t.Errorf("any: prototype %q, want \\&@", got)
+	}
+	for proto, want := range map[string][]types.Param{
+		`\&`:  {code},
+		`\&@`: {code, protoList},
+	} {
+		facts := readDeclaration([]byte("sub f :prototype("+proto+");\n"), nil)
+		if got := facts.signatures["f"]; len(facts.errs) > 0 || !reflect.DeepEqual(got, []types.Signature{{Params: want}}) {
+			t.Errorf("(%s): errors %v, got %+v, want %+v", proto, facts.errs, got, want)
+		}
+		if back := prototypeFromTypes(types.Signature{Params: want}); back != proto {
+			t.Errorf("(%s): round trip gave %q", proto, back)
+		}
+	}
+}

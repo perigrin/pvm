@@ -14,12 +14,12 @@ import (
 //
 //	$ Scalar $      @ List @      % List %      + Array|Hash|Scalar $
 //	& Code &        * Glob *      _ Scalar $ = $_
-//	\$ Scalar \$x   \@ Array \@a   \% Hash \%h
+//	\$ Scalar \$x   \@ Array \@a   \% Hash \%h   \& Code \&c
 //
 // and `;` makes each parameter after it optional. A parameter derived
 // from a prototype has no name, since a prototype names none.
 //
-// derived is false for `\&`, `\*` and `\[...]`. A glob slot has no
+// derived is false for `\*` and `\[...]`. A glob slot has no
 // spelling (RFC 0001, "The scalar container"), and one of several
 // containers, `\[%@]`, is the prototype a multi's candidates derive, by
 // 01a10dc1-3499-7e2b-9e6f-d935084437fa ("Derive one prototype from several
@@ -27,7 +27,7 @@ import (
 func typesFromPrototype(proto string) (sig types.Signature, derived bool, err error) {
 	// The type each backslashed character's parameter takes: the one
 	// container the caller writes.
-	aliasTypes := map[byte]types.Type{'$': types.Scalar, '@': types.Array, '%': types.Hash}
+	aliasTypes := map[byte]types.Type{'$': types.Scalar, '@': types.Array, '%': types.Hash, '&': types.Code}
 	optional, list := false, -1
 	for i := 0; i < len(proto); i++ {
 		c := proto[i]
@@ -61,12 +61,12 @@ func typesFromPrototype(proto string) (sig types.Signature, derived bool, err er
 		case '*':
 			p = types.Param{Sigil: '*', Type: types.Glob}
 		case '\\':
-			if i+1 < len(proto) && strings.IndexByte("$@%", proto[i+1]) >= 0 {
+			if i+1 < len(proto) && strings.IndexByte("$@%&", proto[i+1]) >= 0 {
 				i++
 				p = types.Param{Sigil: proto[i], Type: aliasTypes[proto[i]], Alias: true}
 				break
 			}
-			if i+1 < len(proto) && strings.IndexByte("&*[", proto[i+1]) >= 0 {
+			if i+1 < len(proto) && strings.IndexByte("*[", proto[i+1]) >= 0 {
 				return types.Signature{}, false, nil
 			}
 			return types.Signature{}, false, fmt.Errorf("prototype (%s) has %q, which is not a prototype character", proto, proto[i:min(i+2, len(proto))])
