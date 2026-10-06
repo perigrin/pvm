@@ -23,10 +23,18 @@ package CORE;
 # __CLASS__ yields the class of the instance under construction or whose
 # method runs, a string: in `class F`'s method it is "F", POK (measured).
 sub __CLASS__ () Str;
-sub __FILE__ :prototype();
-sub __LINE__ :prototype();
-sub __PACKAGE__ :prototype();
-sub __SUB__ :prototype();
+# __FILE__ and __PACKAGE__ yield the file name and the package being
+# compiled, strings (measured: "-e" and "main", POK).
+sub __FILE__ () Str;
+# __LINE__ yields the line number, a string of digits: under `perl -e`
+# on its second line it is "2", POK and not IOK (measured with
+# B::svref_2object). Its value is an integer.
+sub __LINE__ () Int;
+# Measured as __FILE__, above.
+sub __PACKAGE__ () Str;
+# __SUB__ yields a reference to the sub it is in, and undef outside one
+# (measured).
+sub __SUB__ () CodeRef|Undef;
 # Numeric transforms. abs follows its argument and int always truncates to
 # an integer; both are narrowed further by inference, which a signature
 # cannot express. With no argument each takes `$_`: `abs()` compiles
@@ -64,7 +72,11 @@ sub bind (Glob *socket, Str $name) Boolean|Undef;
 # and yields true, or undef for a closed handle.
 sub binmode (Glob *fh, Str $layer = ":raw") Boolean|Undef;
 sub bless (Ref $ref, Str $class = __PACKAGE__) Object;
-sub break :prototype();
+# break, continue and dump never return: break leaves a given block and
+# continue a when block, each dying "Can't "break" outside a given block"
+# and "Can't "continue" outside a when block" elsewhere, and CORE::dump
+# aborts the process (measured: status 134, SIGABRT).
+sub break () None;
 # caller yields the frame's package, file and line in list context, and
 # its package in scalar context -- the list's first value, so List covers
 # both -- and undef, or the empty list, past the top of the stack
@@ -109,7 +121,8 @@ sub close (Glob *fh = select()) Boolean;
 sub closedir (Glob *dh) Boolean|Undef;
 # Measured as bind, above.
 sub connect (Glob *socket, Str $name) Boolean|Undef;
-sub continue :prototype();
+# Measured as break, above.
+sub continue () None;
 # cos, exp, log, sin and sqrt each take a number, `$_` with none (measured:
 # `$_ = 0; cos()` is 1), and yield a float, NOK even where it is whole:
 # cos(0) is 1 as an NV. log of a number not above zero and sqrt of a
@@ -150,7 +163,8 @@ sub die :prototype(@) (List[Str] @message) None;
 # empty one, it dies "goto must have label" alike, at run time; given code,
 # `goto $cr`, it calls it as `goto &f` does.
 sub do :unary (Str $file) Any;
-sub dump :prototype();
+# Measured as break, above.
+sub dump () None;
 # each takes a hash or an array whole, and its two candidates derive
 # perl's `\[%@]`. It yields the next key and value, the index for an array
 # (`each @a` over (5, 6) is (0, 5)), or in scalar context the key alone.
@@ -183,9 +197,14 @@ sub endservent () Boolean;
 # boolean; tell the position, -1 for a closed handle.
 sub eof (Glob *fh = ${^LAST_FH}) Boolean;
 sub eval :unary (Str $code = $_) Any;
-sub evalbytes :prototype(_);
+# evalbytes runs a string of bytes, `$_` with none (measured: `$_ =
+# "4*2"; evalbytes()` is 8), and yields what eval does, its last value:
+# evalbytes("(1,2)") is (1, 2), and the empty list on a syntax error.
+sub evalbytes (Str $code = $_) Any;
 sub exists :unary (Scalar $element) Boolean;
-sub exit :prototype(;$);
+# exit never returns. Its status is 0 with none, as with exit(0) or
+# exit(undef), and truncated to an integer: exit 3.7 exits 3 (measured).
+sub exit (Int $status = 0) None;
 # Measured as cos, above.
 sub exp (Num $number = $_) Num;
 # fc casefolds a string, `$_` with none (measured: `$_ = "XY"; CORE::fc()`
@@ -698,7 +717,9 @@ sub vec (Str $string, Int $offset, Int $bits) Int;
 sub wait () Int;
 # Measured as wait, above.
 sub waitpid (Int $pid, Int $flags) Int;
-sub wantarray :prototype();
+# wantarray yields true in list context, false in scalar context, both
+# booleans, and undef in void context (measured: builtin::is_bool).
+sub wantarray () Boolean|Undef;
 # Measured as die, above.
 sub warn :prototype(@) (List[Str] @message) Boolean;
 # Measured as close, above: write to a closed handle is false.
