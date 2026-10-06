@@ -279,3 +279,24 @@ func TestLooseBuiltinsRefuseTheirOtherSide(t *testing.T) {
 	}
 	wantArityRefusal(t, srcs...)
 }
+
+// TestArityRefusalLeavesImportedOverridesAlone: a builtin's name in a `use`
+// list may be an override from a module this parse does not read, and a
+// call to it is the override's. Measured on 5.42.0 with `perl -c`, each
+// kept call compiles, while the refused ones die "Too many arguments": an
+// override never takes the `CORE::` spelling, and `use POSIX ()` imports
+// nothing.
+func TestArityRefusalLeavesImportedOverridesAlone(t *testing.T) {
+	wantNoRefusal(t,
+		"use Time::HiRes qw(alarm); alarm(1, 0.5);\n",
+		"use Time::HiRes qw(sleep); sleep(1, 2);\n",
+		"use POSIX qw(abs); abs(1, 2);\n",
+		"use POSIX qw(localtime); localtime(1, 2);\n",
+		"use subs qw(each); each();\n",
+		"use subs \"localtime\"; localtime(1, 2);\n",
+	)
+	wantArityRefusal(t,
+		"use Time::HiRes qw(sleep); CORE::sleep(1, 2);\n",
+		"use POSIX (); localtime(1, 2);\n",
+	)
+}

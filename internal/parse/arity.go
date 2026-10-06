@@ -18,9 +18,12 @@ import (
 // `use Time::HiRes qw(sleep); sleep(1, 2)` and `BEGIN {
 // *CORE::GLOBAL::localtime = sub {1} } localtime(1, 2)` compile.
 //
-// ponytail: an override installed by a module this parse does not read, or
-// by `use subs`, is not seen; record those as imports if a corpus file
-// calls an overridden builtin with an arity its own declaration refuses.
+// ponytail: a module's DEFAULT export, `use M;` with no list and M unread,
+// may override a builtin unseen. The ones measured on 5.42.0 keep an arity
+// within the builtin's: `use autodie; chdir(1, 2)` and `use bigint; hex(1,
+// 2)` are "Too many arguments", and `unlink()` and `oct()` compile with or
+// without them. Treat an unread module's default import as overriding if
+// one turns up that accepts what its builtin refuses.
 //
 // A `.pmt` is not checked: CORE.pmt is one, and reading it builds the
 // candidates this consults.
@@ -47,7 +50,7 @@ func (p *parser) arityAccepted(name string, count int) bool {
 		}
 	}
 	cands := coreSignatures()[builtin]
-	if len(cands) == 0 || p.overridden(builtin) || types.Accepts(cands, count) {
+	if len(cands) == 0 || name == builtin && p.overridden(builtin) || types.Accepts(cands, count) {
 		return true
 	}
 	switch looseArity[builtin] {
@@ -109,12 +112,17 @@ func (p *parser) mayBeIndirect(n *Node) bool {
 	return strings.Contains(a.Text, "::") || p.packages[a.Text] || interpreterPackages[a.Text]
 }
 
-// overridden reports whether this parse has seen a sub named name, or a
-// CORE::GLOBAL:: override of it, that a call to the builtin may be.
+// overridden reports whether a call to the builtin name, spelled without
+// `CORE::`, may be an override: a sub this parse has seen, a CORE::GLOBAL::
+// override, or a word a `use` list names, whose module may export it
+// unread. Measured on 5.42.0, `use POSIX qw(localtime); localtime(1, 2)`
+// and `use subs "localtime"; localtime(1, 2)` compile, while `use POSIX
+// (); localtime(1, 2)` and `use Time::HiRes qw(sleep); CORE::sleep(1, 2)`
+// are "Too many arguments".
 func (p *parser) overridden(name string) bool {
 	_, sub := p.lookupSub(name)
 	_, global := p.lookupSub("CORE::GLOBAL::" + name)
-	return sub || global
+	return sub || global || p.listed[name]
 }
 
 // argCount is how many arguments a call writes: each child, a block or a

@@ -252,6 +252,7 @@ func (p *parser) resolveImports(module string, list *Node) {
 		p.importConstants(list)
 		return
 	}
+	p.noteListed(module, list)
 	if p.res == nil {
 		return
 	}
@@ -354,6 +355,21 @@ func (p *parser) resolveImports(module string, list *Node) {
 	}
 	for _, imp := range importsFrom(facts, names, listGiven) {
 		p.imports[p.subKey(imp.Name)] = imp
+	}
+}
+
+// noteListed records the words a `use` list names. A quiet pragma's list
+// is its arguments, `use feature "fc"`, and names no sub.
+func (p *parser) noteListed(module string, list *Node) {
+	if list == nil || quietPragmas[module] {
+		return
+	}
+	names, _ := literalNameList(list)
+	for _, name := range names {
+		if p.listed == nil {
+			p.listed = map[string]bool{}
+		}
+		p.listed[name] = true
 	}
 }
 
