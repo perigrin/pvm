@@ -219,8 +219,10 @@ sub stat :prototype(;*);
 sub study :prototype(_);
 # substr's fourth argument is the string that replaces the part it
 # returns: measured, `substr($s, 0, 1, 5)` makes "abc" "5bc". Without it
-# nothing is replaced, as replacing the part with itself does; without a
-# length it returns the rest of the string.
+# nothing is replaced, as replacing the part with itself does -- except
+# past the end of the string, where the 3-argument form warns and returns
+# undef but the 4-argument form dies, "substr outside of string". Without
+# a length it returns the rest of the string.
 sub substr (Str $string, Num $offset, Num $length = length($string), Str $replacement = substr($string, $offset, $length)) Str;
 sub symlink :prototype($$);
 sub syscall :prototype($@);

@@ -147,7 +147,8 @@ func TestCoreTypesMatchMeasuredSignatures(t *testing.T) {
 		"bless":  {1, []types.Type{types.Ref, types.Str}, types.Object},
 		// MinArity was 1 for abs, int, uc, lc, ucfirst, lcfirst and
 		// reverse: each compiles with no argument, `abs()` and `uc()`
-		// taking `$_` and `reverse()` an empty list.
+		// taking `$_`, and `reverse()` an empty list in list context but
+		// `$_` reversed in scalar context ("xyz" gives "zyx").
 		"abs":     {0, []types.Type{types.Num}, types.Num},
 		"int":     {0, []types.Type{types.Num}, types.Int},
 		"uc":      {0, []types.Type{types.Str}, types.Str},

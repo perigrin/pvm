@@ -109,10 +109,6 @@ func readDeclaration(src []byte, res *resolver) moduleFacts {
 			switch {
 			case declared != "" && err != nil:
 				err = fmt.Errorf(":prototype%s disagrees with its types: %w", declared, err)
-			// perl keeps a `\[...]` as written, so a stated one must list
-			// the containers in the candidates' order.
-			case declared != "" && strings.Contains(proto, `\[`) && declared != "("+proto+")":
-				err = fmt.Errorf(":prototype%s disagrees with its types, which give (%s)", declared, proto)
 			case declared != "":
 				err = agreement(declared, proto)
 			case err == nil && proto != "@":
