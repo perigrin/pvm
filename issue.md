@@ -1,6 +1,6 @@
 ---
 title: Have internal/infer read builtin and operator types from CORE.pmt and remove internal/types' builtin table
-state: in-progress
+state: done
 urgency: normal
 milestone: type-libraries
 blocked_by:
@@ -11,16 +11,20 @@ blocks:
 - 01a0fd9b-5700-7514-a143-2caed2d06d8b
 - 01a0fd9b-55cb-70cd-a9da-929190cb581c
 created: 2026-10-02T17:13:30.992763407Z
-updated: 2026-10-06T17:34:58.108443972Z
+updated: 2026-10-06T17:34:58.209236417Z
 sessions:
 - start_sha: a34e2c5c5aadcbc6c31f48f0d8a7710bfe9708fb
-  end_sha: ""
+  end_sha: a34e2c5c5aadcbc6c31f48f0d8a7710bfe9708fb
   commits: 0
   started_at: 2026-10-06T17:34:58.108443972Z
+  ended_at: 2026-10-06T17:34:58.209236417Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-06T17:34:58.108443972Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-06T17:34:58.209236417Z
 ---
 
 ## Prerequisites
