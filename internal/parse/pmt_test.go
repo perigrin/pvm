@@ -3,10 +3,12 @@
 package parse
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -587,21 +589,52 @@ func TestPmtDeclarationErrorsSurface(t *testing.T) {
 	}
 	declarations = saved
 
-	err := fs.WalkDir(declarations, "declarations", func(name string, d fs.DirEntry, err error) error {
+	for _, e := range shippedDeclarationErrors(t, declarations) {
+		t.Error(e)
+	}
+}
+
+// shippedDeclarationErrors reads every declaration file in fsys as the
+// resolver would -- CORE.pmt in CORE's language, every other file as a
+// library's -- and returns each error with its file's name.
+func shippedDeclarationErrors(t *testing.T, fsys fs.FS) []string {
+	t.Helper()
+	var out []string
+	err := fs.WalkDir(fsys, "declarations", func(name string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return err
 		}
-		src, err := fs.ReadFile(declarations, name)
+		src, err := fs.ReadFile(fsys, name)
 		if err != nil {
 			return err
 		}
-		if errs := readDeclaration(src, nil).errs; len(errs) > 0 {
-			t.Errorf("%s: %v", name, errs)
+		read := readLibraryDeclaration
+		if name == "declarations/CORE.pmt" {
+			read = readDeclaration
+		}
+		for _, e := range read(src, nil).errs {
+			out = append(out, fmt.Sprintf("%s: %v", name, e))
 		}
 		return nil
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+	return out
+}
+
+// TestShippedLibraryPmtRefusesCoinedClass: RFC 0001 "One language for every
+// .pmt" -- a library may not name the operator classes coined for CORE.pmt,
+// so the check over the shipped files reads each library file as a library.
+func TestShippedLibraryPmtRefusesCoinedClass(t *testing.T) {
+	line := "sub zz :infix(BITAND) (Int $x, Int $y) Int;\n"
+	fsys := fstest.MapFS{
+		"declarations/CORE.pmt": {Data: []byte(line)},
+		"declarations/Foo.pmt":  {Data: []byte(line)},
+	}
+	errs := shippedDeclarationErrors(t, fsys)
+	if len(errs) != 1 || !strings.HasPrefix(errs[0], "declarations/Foo.pmt: ") {
+		t.Errorf("got %q; want one error, for the library file", errs)
 	}
 }
 
