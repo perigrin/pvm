@@ -219,3 +219,100 @@ func TestLibraryPmtAliasedAndContainerParams(t *testing.T) {
 		t.Errorf("join_all:\n got %+v\nwant %+v", got, join)
 	}
 }
+
+// noModules is a loader that finds no module source: the fixture is read
+// from its declaration alone.
+func noModules(string) ([]byte, bool) { return nil, false }
+
+// TestLibraryPmtImportsCarryTypes: a file that `use`s a library sees each
+// sub its @EXPORT names with the prototype and the typed signatures its
+// .pmt states or derives, and a call site parses by that prototype:
+// `need`'s derived `$` makes `need $a, $b` need($a), $b.
+func TestLibraryPmtImportsCarryTypes(t *testing.T) {
+	useLibraryFixture(t)
+	facts := resolveLibrary(t, "My::Lib")
+	src := []byte("use My::Lib; my ($a, $b); my @r = (need $a, $b);\n")
+	root := ParseWithLoader(src, noModules)
+	imports := Imports(root)
+	for name, proto := range map[string]string{
+		"join_all": "($@)", "alias_all": `(\$\@\&@)`, "need": "($)", "pick": "($)",
+		"when_": "()", "emit": "", "size": "",
+	} {
+		imp, ok := imports[name]
+		if !ok || !imp.PrototypeKnown || imp.Prototype != proto {
+			t.Errorf("%s: got %+v, want prototype %q", name, imp, proto)
+			continue
+		}
+		if want := facts.signatures[name]; len(want) == 0 || !reflect.DeepEqual(imp.Signatures, want) {
+			t.Errorf("%s: signatures %+v, want %+v", name, imp.Signatures, want)
+		}
+	}
+	if got, want := Canon(root, src), "use My::Lib; my ($a, $b);my @r = (need($a), $b);"; got != want {
+		t.Errorf("canon: got %q, want %q", got, want)
+	}
+}
+
+// TestLibraryPmtEmptyImportBringsNothing: RFC 0001 "Declared syntax":
+// `use M ()` calls no import and brings none, so `use My::Lib ()` imports
+// no sub and no keyword. With a bare `use`, `await $f + 1, 2` is the
+// declared term expression, await($f + 1), 2.
+func TestLibraryPmtEmptyImportBringsNothing(t *testing.T) {
+	useLibraryFixture(t)
+	body := " my ($f, $r); $r = (await $f + 1, 2);\n"
+	src := []byte("use My::Lib ();" + body)
+	root := ParseWithLoader(src, noModules)
+	for _, name := range []string{"join_all", "need", "pick", "emit", "size", "hidden"} {
+		if imp, ok := Imports(root)[name]; ok {
+			t.Errorf("%s imported: %+v", name, imp)
+		}
+	}
+	bare := []byte("use My::Lib;" + body)
+	withSyntax, without := Canon(ParseWithLoader(bare, noModules), bare), Canon(root, src)
+	if want := "use My::Lib; my ($f, $r);$r = (await($f + 1), 2);"; withSyntax != want {
+		t.Errorf("bare use: got %q, want %q", withSyntax, want)
+	}
+	if without == "use My::Lib (); my ($f, $r);$r = (await($f + 1), 2);" {
+		t.Errorf("use My::Lib (): await parsed as the declared keyword: %q", without)
+	}
+}
+
+// TestLibraryPmtUnexportedSubNotImported: a sub the fixture declares but
+// its @EXPORT does not name is not visible after a bare `use`, as an
+// @EXPORT_OK name is not; it is known by its qualified name.
+func TestLibraryPmtUnexportedSubNotImported(t *testing.T) {
+	useLibraryFixture(t)
+	root := ParseWithLoader([]byte("use My::Lib;\n"), noModules)
+	if imp, ok := Imports(root)["hidden"]; ok {
+		t.Errorf("hidden imported: %+v", imp)
+	}
+	if _, ok := Imports(root)["need"]; !ok {
+		t.Errorf("need not imported")
+	}
+}
+
+// TestLibraryPmtDeclarationErrors: a library .pmt obeys CORE.pmt's rules,
+// and each fault is an error naming the module: an unknown type name, a
+// bare-typed slurpy, a parameter after a List, a container type with a
+// flattening sigil, and ambiguous multi candidates. The fixture's own
+// declarations are not in error.
+func TestLibraryPmtDeclarationErrors(t *testing.T) {
+	useLibraryFixture(t)
+	if errs := DeclarationErrors(ParseWithLoader([]byte("use My::Lib;\n"), noModules)); len(errs) > 0 {
+		t.Errorf("My::Lib: %v", errs)
+	}
+	saved := declarations
+	for line, want := range map[string]string{
+		"sub f (Strng $x);":        `sub f: unknown type name "Strng"`,
+		"sub f (Str @a);":          "sub f: slurpy @a has a bare element type Str; write a container type, List[Str] @a",
+		"sub f (List @a, Str $x);": `sub f: List parameter @a is not last; a single array followed by more parameters is Array \@a`,
+		"sub f (Array @a);":        `sub f: container type Array with flattening sigil @a; a parameter that takes the caller's container is Array \@a`,
+		"multi sub f (Int $a, Num $b);\nmulti sub f (Num $a, Int $b);": "sub f: candidates (Int $a, Num $b) and (Num $a, Int $b) are ambiguous for (Int, Int)",
+	} {
+		declarations = fstest.MapFS{"declarations/My/Bad.pmt": {Data: []byte("package My::Bad;\n" + line + "\n")}}
+		errs := DeclarationErrors(ParseWithLoader([]byte("use My::Bad;\n"), noModules))
+		if want = "My::Bad: " + want; len(errs) != 1 || errs[0].Error() != want {
+			t.Errorf("%q: got %v, want %q", line, errs, want)
+		}
+	}
+	declarations = saved
+}
