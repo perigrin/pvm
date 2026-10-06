@@ -30,7 +30,10 @@ sub __SUB__ :prototype();
 # (measured).
 sub abs (Num $number = $_) Num;
 sub accept :prototype(**);
-sub alarm :prototype(_);
+# alarm schedules a SIGALRM in whole seconds, `$_` with none (measured:
+# `$_ = 3; alarm` sets 3, alarm(2.9) sets 2), and yields the seconds left
+# of the one before, 0 if none: undef for a negative time, with a warning.
+sub alarm (Int $seconds = $_) Int|Undef;
 # all and any take a block and then a LIST, which may be empty: `all {1} ()`
 # is true, and `all()` is "Not enough arguments" (measured). The block is a
 # literal block; `all sub {1}, 1` is a syntax error. Each returns a boolean
@@ -163,7 +166,9 @@ sub fcntl (Glob *fh, Int $function, Scalar $argument) Str|Undef;
 sub fileno (Glob *fh) Int|Undef;
 # flock yields 1 or 0 as an IV (measured: locking a closed handle is 0).
 sub flock (Glob *fh, Int $operation) Int;
-sub fork :prototype();
+# fork yields the child's pid to the parent and 0 to the child, as an IV,
+# and undef when it cannot fork (measured under `prlimit --nproc=1`).
+sub fork () Int|Undef;
 sub formline :prototype($@);
 # getc reads one character, from STDIN with none (measured: with a file
 # argument and "Z" piped in, `getc` is "Z"), and yields undef at end of
@@ -180,9 +185,16 @@ sub getnetbyaddr :prototype($$);
 sub getnetbyname :prototype($);
 sub getnetent :prototype();
 sub getpeername :prototype(*);
-sub getpgrp :prototype(;$);
-sub getppid :prototype();
-sub getpriority :prototype($$);
+# getpgrp yields a process's group, the current process's with none, as
+# for 0 (measured: getpgrp() and getpgrp(0) agree), and -1 as an IV for a
+# process that does not exist.
+sub getpgrp (Int $pid = 0) Int;
+# getppid yields the parent's pid, an IV (measured).
+sub getppid () Int;
+# getpriority takes both its arguments, `getpriority(0)` being "Not enough
+# arguments", and yields the priority, -1 as an IV on error -- which is a
+# priority too (measured: getpriority(99, 0) is -1).
+sub getpriority (Int $which, Int $who) Int;
 sub getprotobyname :prototype($);
 sub getprotobynumber :prototype($;);
 sub getprotoent :prototype();
@@ -239,7 +251,10 @@ multi sub keys :context($) (Hash \%h) Int;
 multi sub keys :context($) (Array \@a) Int;
 multi sub keys :context(@) (Hash \%h) List;
 multi sub keys :context(@) (Array \@a) List;
-sub kill :prototype(@);
+# kill takes a LIST, the signal and then the processes, which may be
+# empty: `kill()` compiles (measured). It yields how many processes it
+# signalled, as an IV: kill(0, $$) is 1, kill(0, 999999) 0.
+sub kill :prototype(@) (List @list) Int;
 # Measured as uc, below.
 sub lc (Str $string = $_) Str;
 # Measured as uc, below.
@@ -287,7 +302,10 @@ sub ord (Str $string = $_) Int;
 # pack takes a template and then the LIST of values it packs into one
 # string: `pack()` is "Not enough arguments", `pack("A")` compiles.
 sub pack (Str $template, List @list) Str;
-sub pipe :prototype(**);
+# pipe opens a read and a write handle, both required (`pipe(R)` is "Not
+# enough arguments"), and yields true, or undef when it cannot (measured
+# under `prlimit --nofile=8`, "Too many open files").
+sub pipe (Glob *read, Glob *write) Boolean|Undef;
 # pop and shift take the array whole, defaulting to `@_` in a sub and to
 # `@ARGV` outside one (measured: `perl -e 'print pop' x y` prints y).
 sub pop (Array \@array = @_) Scalar;
@@ -328,7 +346,14 @@ sub readline (Glob *fh = *ARGV) List;
 # readlink yields a link's target, `$_` with none, or undef for a file
 # that is not a link (measured).
 sub readlink (Str $path = $_) Str|Undef;
-sub readpipe :prototype(_);
+# readpipe runs a command, `$_` with none (measured: `$_ = "echo z";
+# readpipe` is "z\n"), and forks on context: in list context its output a
+# line to an element, in scalar context all of it as one string --
+# readpipe("echo a; echo b") is ("a\n", "b\n") or "a\nb\n", POK, which is
+# not one of the list's values. A command that cannot run is undef in
+# scalar context and empty in list context.
+multi sub readpipe :context($) (Str $command = $_) Str|Undef;
+multi sub readpipe :context(@) (Str $command = $_) List[Str];
 sub recv :prototype(*\$$$);
 sub ref (Scalar $thing = $_) Str;
 # Measured as chroot, above: rename("nope", "x") is 0 as an IV.
@@ -376,8 +401,13 @@ sub send :prototype(*$$;$);
 sub setgrent :prototype();
 sub sethostent :prototype($);
 sub setnetent :prototype($);
-sub setpgrp :prototype(;$$);
-sub setpriority :prototype($$$);
+# setpgrp sets a process's group, 0 and 0 with none: the current process
+# to its own (measured: after setpgrp(), getpgrp() is $$). It and
+# setpriority yield 1 or 0 as an IV (setpgrp(999999, 0) is 0), not one of
+# perl's booleans.
+sub setpgrp (Int $pid = 0, Int $pgrp = 0) Int;
+# Measured as setpgrp, above: setpriority(0, 999999, 0) is 0 as an IV.
+sub setpriority (Int $which, Int $who, Int $priority) Int;
 sub setprotoent :prototype($);
 sub setpwent :prototype();
 sub setservent :prototype($);
@@ -391,7 +421,12 @@ sub shmwrite :prototype($$$$);
 sub shutdown :prototype(*$);
 # Measured as cos, above.
 sub sin (Num $number = $_) Num;
-sub sleep :prototype(;$);
+# sleep takes whole seconds, sleep(1.7) sleeping 1, and yields the seconds
+# it slept, an IV. With none it sleeps for ever, and reads no `$_`
+# (measured: with `$_ = 1`, `sleep` was still asleep after 3 seconds),
+# while sleep(undef) is sleep(0). No expression states that, so the
+# default names the call, as srand's does (01a1105e).
+sub sleep (Int $seconds = sleep()) Int;
 sub socket :prototype(*$$$);
 sub socketpair :prototype(**$$$);
 # splice takes the array whole, then a LIST as push does. With no length
@@ -450,7 +485,10 @@ sub telldir (Glob *dh) Int|Undef;
 sub tie :prototype(\[$@%*]$@);
 sub tied :prototype(\[$@%*]);
 sub time :prototype();
-sub times :prototype();
+# times yields the user and system times of this process and of its
+# children, four floats, NOK (measured); in scalar context the user time,
+# the list's first, so List covers both.
+sub times () List[Num];
 # truncate takes a handle or a file name, so its `$` slot is either
 # (measured: `truncate F, 1` with F a bareword handle, and
 # truncate("a", 1), both cut the file), and yields true, or undef on
@@ -492,8 +530,12 @@ multi sub values :context(@) (Array \@a) List;
 # string, all three required (`vec("a", 0)` does not compile): vec("abc",
 # 0, 8) is 97 as an IV, and past the string's end 0 (measured).
 sub vec (Str $string, Int $offset, Int $bits) Int;
-sub wait :prototype();
-sub waitpid :prototype($$);
+# wait and waitpid yield the pid of the child reaped, and -1 as an IV for
+# none (measured: wait with no child, waitpid(999999, 0)). waitpid takes
+# both its arguments: `waitpid(1)` is "Not enough arguments".
+sub wait () Int;
+# Measured as wait, above.
+sub waitpid (Int $pid, Int $flags) Int;
 sub wantarray :prototype();
 # Measured as die, above.
 sub warn :prototype(@) (List[Str] @message) Boolean;
