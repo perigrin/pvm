@@ -1,6 +1,6 @@
 ---
 title: Parse operator declarations and type perl's plain operators in CORE.pmt
-state: in-progress
+state: done
 urgency: normal
 milestone: type-libraries
 blocked_by:
@@ -8,16 +8,20 @@ blocked_by:
 blocks:
 - 01a0fd9b-5468-7355-a22e-1b16fa5ee354
 created: 2026-10-02T17:13:30.281662921Z
-updated: 2026-10-06T04:08:36.482978549Z
+updated: 2026-10-06T04:08:36.528218834Z
 sessions:
 - start_sha: b1131799b6f6c1d1db02fc7b204d43b85af37dcc
-  end_sha: ""
+  end_sha: b1131799b6f6c1d1db02fc7b204d43b85af37dcc
   commits: 0
   started_at: 2026-10-06T04:08:36.482978549Z
+  ended_at: 2026-10-06T04:08:36.528218834Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-06T04:08:36.482978549Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-06T04:08:36.528218834Z
 ---
 
 ## Prerequisites
