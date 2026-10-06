@@ -1,6 +1,6 @@
 ---
 title: Read :context(...) and select a multi candidate by calling context
-state: pending
+state: in-progress
 urgency: normal
 milestone: type-libraries
 blocked_by:
@@ -10,7 +10,16 @@ blocks:
 - 01a0fd9b-5468-7355-a22e-1b16fa5ee354
 - 01a10dc1-3499-7e2b-9e6f-d935084437fa
 created: 2026-10-02T17:13:28.48300713Z
-updated: 2026-10-05T20:30:18.742258992Z
+updated: 2026-10-06T05:20:04.373014221Z
+sessions:
+- start_sha: 007fbbffeff724026118b1ba246fcf5d177df5f2
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-06T05:20:04.373014221Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-06T05:20:04.373014221Z
 ---
 
 ## Prerequisites
