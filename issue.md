@@ -1,19 +1,23 @@
 ---
 title: exec's and system's program slot is optional in perl, but CORE.pmt declares it required
-state: in-progress
+state: done
 urgency: normal
 milestone: type-libraries
 created: 2026-10-06T08:40:10.661906883Z
-updated: 2026-10-07T21:31:44.437146462Z
+updated: 2026-10-07T21:31:44.556572411Z
 sessions:
 - start_sha: 951d595808be5e3c54d345b83ee638a24fd588cf
-  end_sha: ""
+  end_sha: 951d595808be5e3c54d345b83ee638a24fd588cf
   commits: 0
   started_at: 2026-10-07T21:31:44.437146462Z
+  ended_at: 2026-10-07T21:31:44.556572411Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-07T21:31:44.437146462Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-07T21:31:44.556572411Z
 ---
 
 ## Context
