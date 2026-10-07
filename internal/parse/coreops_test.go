@@ -153,8 +153,9 @@ func coreOperators(t *testing.T) []operatorDecl {
 // operand. An operator that forks has a row for each candidate, keyed by
 // the `:context` it states.
 //
-// One bound is exceeded: arithmetic on Nums can leave Num, which excludes
-// Inf and NaN. Measured, `1e308*10` is Inf and `(-1)**0.5` is NaN.
+// Arithmetic on Nums can leave Num, which excludes Inf and NaN, and its
+// result says so: measured, `1e308*10` is Inf and `(-1)**0.5` is NaN
+// (TestCoreArithmeticReturnsWhatPerlReturns).
 //
 // The rows are golden values, held here rather than read from anywhere
 // else, so the declarations answer to them alone.
@@ -167,8 +168,8 @@ func TestCoreOperatorTypesMatchMeasured(t *testing.T) {
 	un := func(o, res types.Type) row { return row{[]types.Type{o}, res} }
 	N, S, I, B, A := types.Num, types.Str, types.Int, types.Boolean, types.Any
 	want := map[string]row{
-		"infix +": bin(N, N, N), "infix -": bin(N, N, N), "infix *": bin(N, N, N),
-		"infix /": bin(N, N, N), "infix %": bin(N, N, N), "infix **": bin(N, N, N),
+		"infix +": bin(N, N, N|types.Inf), "infix -": bin(N, N, N|types.Inf), "infix *": bin(N, N, N|types.Inf),
+		"infix /": bin(N, N, N|types.Inf), "infix %": bin(N, N, N), "infix **": bin(N, N, N|types.NaN|types.Inf),
 
 		"infix .": bin(S, S, S),
 
@@ -233,6 +234,58 @@ func TestCoreOperatorTypesMatchMeasured(t *testing.T) {
 	for key := range got {
 		if _, ok := want[key]; !ok {
 			t.Errorf("%s: declared in CORE.pmt with no measured row", key)
+		}
+	}
+}
+
+// TestCoreArithmeticReturnsWhatPerlReturns: a numeric operator or builtin's
+// operands are Num, which excludes Inf and NaN, but its result is what perl
+// returns for them (perigrin, 2026-10-07; the paper's [Plus] rule types the
+// operands through Num and the result only as a number). Measured on 5.42.0
+// with finite operands, Inf and -Inf alike being the lattice's unsigned Inf.
+// `+`, `-`, `*` and `/` overflow but never give NaN: `1e308 + 1e308`,
+// `-1e308 - 1e308`, `-1e308 * 10` and `1e308 / 1e-308` are Inf or -Inf, and
+// x/0 dies "Illegal division by zero". `**` gives both: `10 ** 400` and
+// `0 ** -1` are Inf, `(-10) ** 401` -Inf, `(-1) ** 0.5` and `(-8) ** (1/3)`
+// NaN. `%` is finite, `1e308 % 7` being 3 and `7.5 % -1e308` -1e308, and a
+// modulus truncating to 0 dies "Illegal modulus zero". Prefix `-` of 1e308 is
+// -1e308, and prefix `+` is its operand. exp(1000) is Inf. hex("f" x 256)
+// and oct("7" x 400) are Inf, with an overflow warning, and returned. The
+// rest stay finite: abs(-1e308), int(-1e308), sqrt(1e308), log(5e-324),
+// sin(1e308), cos(-1e308), atan2(1e308, 1e-308), atan2(0, 0), rand(1e308)
+// and rand(-1e308); sqrt(-1), log(0) and log(-1) die, which is no value.
+func TestCoreArithmeticReturnsWhatPerlReturns(t *testing.T) {
+	returns := func(sigs []types.Signature) []types.Type {
+		var out []types.Type
+		for _, s := range sigs {
+			out = append(out, s.Returns)
+		}
+		return out
+	}
+	N, I := types.Num, types.Int
+	operators := map[string]types.Type{
+		"+": N | types.Inf, "-": N | types.Inf, "*": N | types.Inf, "/": N | types.Inf,
+		"**": N | types.NaN | types.Inf, "%": N,
+	}
+	for op, want := range operators {
+		sigs := CoreOperator(op, "infix")
+		if len(sigs) != 1 || sigs[0].Returns != want {
+			t.Errorf("infix %s: CORE.pmt declares results %v, measured %v", op, returns(sigs), want)
+		}
+	}
+	for _, op := range []string{"-", "+"} {
+		if sigs := CoreOperator(op, "prefix"); len(sigs) != 1 || sigs[0].Returns != N {
+			t.Errorf("prefix %s: CORE.pmt declares results %v, measured Num", op, returns(sigs))
+		}
+	}
+	builtins := map[string]types.Type{
+		"exp": N | types.Inf, "hex": I | types.Inf, "oct": I | types.Inf,
+		"abs": N, "int": I, "sqrt": N, "log": N, "sin": N, "cos": N, "atan2": N, "rand": N,
+	}
+	for name, want := range builtins {
+		sigs := CoreBuiltin(name)
+		if len(sigs) != 1 || sigs[0].Returns != want {
+			t.Errorf("%s: CORE.pmt declares results %v, measured %v", name, returns(sigs), want)
 		}
 	}
 }

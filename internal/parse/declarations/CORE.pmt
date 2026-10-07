@@ -277,8 +277,9 @@ sub exists :unary (Scalar $element) Boolean;
 # exit never returns. Its status is 0 with none, as with exit(0) or
 # exit(undef), and truncated to an integer: exit 3.7 exits 3 (measured).
 sub exit (Int $status = 0) None;
-# Measured as cos, above.
-sub exp (Num $number = $_) Num;
+# Measured as cos, above, except that exp overflows: exp(1000) is Inf
+# (measured), so its result is Num|Inf (TestCoreArithmeticReturnsWhatPerlReturns).
+sub exp (Num $number = $_) Num|Inf;
 # fc casefolds a string, `$_` with none (measured: `$_ = "XY"; CORE::fc()`
 # is "xy"). It is a builtin only under the fc feature or spelled CORE::fc;
 # the line types the builtin, whatever reads the word.
@@ -426,8 +427,10 @@ sub goto :unary (Str|Code $label = "") None;
 # integer: hex("ff") is 255 as an IV, hex("zz") 0, oct("755") 493. oct
 # reads a 0x, 0b or 0o prefix, hex only 0x. Past an IV the integer is
 # an NV, with an overflow warning: hex("ffffffffffffffffff") is
-# 4.72236648286965e+21 -- whole still, as int's is (measured).
-sub hex (Str $string = $_) Int;
+# 4.72236648286965e+21 -- whole still, as int's is (measured). Past a
+# double it is Inf, with the same warning: hex("f" x 256) and oct("7" x 400)
+# are Inf (measured), so the result is Int|Inf.
+sub hex (Str $string = $_) Int|Inf;
 # index and rindex search a string for a substring and yield a position,
 # or -1 when absent -- an Int either way. The position defaults to the
 # start for index and the end for rindex (measured: `rindex($s, "b")` and
@@ -516,7 +519,7 @@ sub msgsnd (Int $id, Str $msg, Int $flags) Int;
 # `;`, which no type states.
 sub not :prototype($;) (Scalar $x) Boolean;
 # Measured as hex, above.
-sub oct (Str $string = $_) Int;
+sub oct (Str $string = $_) Int|Inf;
 # open takes a handle and then a mode and a LIST: a mode with the file
 # name in it, or a mode followed by a file name, or by a command and its
 # arguments. With neither, the one-argument form, the file name is the
@@ -916,13 +919,20 @@ multi sub sort :context(@) (Code|Str $by: List @list = die) List;
 # `Num`, and narrowing it is inference's. An operator that forks on context or
 # on a parenthesis is a multi, one candidate for each branch.
 
-# Arithmetic
-sub + :infix(ADD) (Num $x, Num $y) Num;
-sub - :infix(ADD) (Num $x, Num $y) Num;
-sub * :infix(MUL) (Num $x, Num $y) Num;
-sub / :infix(MUL) (Num $x, Num $y) Num;
+# Arithmetic. The operands are Num, which excludes Inf and NaN, and the
+# result is what perl returns for them (RFC 0001, "Operator declarations"),
+# measured on 5.42 with finite operands
+# (TestCoreArithmeticReturnsWhatPerlReturns). `+`, `-`, `*` and `/` overflow:
+# `1e308 + 1e308` is Inf, `-1e308 * 10` -Inf, `1e308 / 1e-308` Inf, and the
+# lattice's Inf is either sign; x/0 dies. `**` overflows and gives NaN too:
+# `10 ** 400` and `0 ** -1` are Inf, `(-1) ** 0.5` NaN. `%` stays finite,
+# `1e308 % 7` being 3, and a modulus of 0 dies.
+sub + :infix(ADD) (Num $x, Num $y) Num|Inf;
+sub - :infix(ADD) (Num $x, Num $y) Num|Inf;
+sub * :infix(MUL) (Num $x, Num $y) Num|Inf;
+sub / :infix(MUL) (Num $x, Num $y) Num|Inf;
 sub % :infix(MUL) (Num $x, Num $y) Num;
-sub ** :infix(POW) (Num $x, Num $y) Num;
+sub ** :infix(POW) (Num $x, Num $y) Num|NaN|Inf;
 
 # String
 sub . :infix(ADD) (Str $x, Str $y) Str;

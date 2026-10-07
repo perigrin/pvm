@@ -24,10 +24,10 @@ func lookupType(t *testing.T, src, name string) types.Type {
 }
 
 // TestInferTypesBuiltinsFromCore: a builtin is typed by its CORE.pmt line,
-// `sub hex (Str $string = $_) Int;`. Measured, `hex("ff")` is 255, created
-// as a number.
+// `sub hex (Str $string = $_) Int|Inf;`. Measured, `hex("ff")` is 255, created
+// as a number, and `hex("f" x 256)` is Inf.
 func TestInferTypesBuiltinsFromCore(t *testing.T) {
-	assert.Equal(t, types.Int, lookupType(t, `my $n = hex("ff");`, "$n"))
+	assert.Equal(t, types.Int|types.Inf, lookupType(t, `my $n = hex("ff");`, "$n"))
 }
 
 // TestInferCoreArityAcceptsPerlsCalls: a call perl compiles is not flagged
