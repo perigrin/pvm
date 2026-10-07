@@ -144,7 +144,7 @@ v5.36` refuses as a syntax error. A `.pmt` reports any statement it
 cannot read as "not a declaration". An operator
 is therefore `sub + :infix (Num $x, Num $y) Num;`.
 
-### Typed Perl, in `.pmt` only (*Decided*)
+### Typed Perl, in `.pmt` only (*Implemented*, a3c0200c, 3247bd4a, 26f0f472, b695e2b4, 0cfefff4, acc10ef3, 5a22ba3b, d2094988)
 
 The syntax of `.pmt` files is **typed Perl** (perigrin): Perl whose
 declarations carry types. The full form of a declaration is
@@ -226,7 +226,7 @@ Typed Perl is meant to outlive pvm's parser: Chalk is to read the same
 `.pmt` files in time, so the syntax should stay something a second
 implementation can parse from this RFC alone.
 
-### Builtins with no prototype (*Decided*)
+### Builtins with no prototype (*Implemented*, 3d340622, d1338cd2, 0cfefff4, e00fc501, 79a16715)
 
 About 20 builtins have no prototype perl can report. `CORE.pmt`
 declares their types, and `:unary` marks the eight that are named
@@ -235,11 +235,11 @@ ordinary sub is. Most of their forms turn out to be declarable; see
 "Builtins that keep their own parse" for which, and how.
 
 ```perl
-sub print (FileHandle $fh = select(): List[Str] @args = ($_)) Boolean;
+sub print (FileHandle $fh = select(): List[Str] @args = ($_)) Boolean|Undef;
 ```
 
 The default handle is the selected one, not STDOUT, and `print` with no
-arguments prints `$_` (measured).
+arguments prints `$_`; to a closed handle it returns undef (measured).
 
 **`:listop` types a list operator's positional parameters** (perigrin,
 2026-10-07: "go with :listop for now"). It is `:unary`'s sibling: a line
