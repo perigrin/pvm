@@ -337,7 +337,7 @@ slot an indirect object, but it is not the `indirect` feature: under
 spells the slot with Raku's invocant colon:
 
 ```perl
-sub print (FileHandle $fh = select(): List[Str] @args = ($_)) Boolean;
+sub print (FileHandle $fh = select(): List[Str] @args = ($_)) Boolean|Undef;
 multi sub sort (Code|Str $by: List @list = die) List;
 sub exec (Str $program: List[Str] @args) Boolean;
 ```
@@ -374,7 +374,7 @@ is provisional until the paper defines it. `print`, with its container
 explicit:
 
 ```perl
-sub print (FileHandle $fh = select(): List[Str] @args = ($_)) Boolean;
+sub print (FileHandle $fh = select(): List[Str] @args = ($_)) Boolean|Undef;
 ```
 
 See "What a parameter type means" for what `Str` asserts there.

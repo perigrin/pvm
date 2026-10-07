@@ -132,6 +132,15 @@ func readDeclarationWith(p *parser) moduleFacts {
 	// `:prototype(...)`; one that states both must have them agree.
 	for _, name := range slices.Sorted(maps.Keys(facts.signatures)) {
 		sigs := facts.signatures[name]
+		// One line refuses `:unary` beside `:listop` (decl.go); a multi's
+		// candidates may not split them either, or the shape would follow
+		// line order.
+		if slices.ContainsFunc(sigs, func(s types.Signature) bool { return s.Unary }) &&
+			slices.ContainsFunc(sigs, func(s types.Signature) bool { return s.ListOp }) {
+			facts.errs = append(facts.errs, fmt.Errorf("sub %s: :unary and :listop are two parses; a builtin parses as one", name))
+			delete(facts.signatures, name)
+			continue
+		}
 		// `:listop` states a builtin perl gives no prototype but whose
 		// parameters are typed and positional (RFC 0001, "Builtins with no
 		// prototype"), so its types derive none, a multi's candidates as

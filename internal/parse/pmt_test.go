@@ -813,3 +813,22 @@ func TestPmtListopAndUnaryIsError(t *testing.T) {
 		"sub f :unary :listop (Scalar $x) Int;\n": "sub f: :unary and :listop are two parses; a builtin parses as one",
 	})
 }
+
+// TestPmtUnaryAndListopAcrossCandidatesRefused: RFC 0001 "Builtins with no
+// prototype" -- `:listop` beside `:unary` is two parses for one builtin,
+// an error whether one line states both or a multi's candidates split
+// them, in either order; otherwise the shape would follow line order.
+func TestPmtUnaryAndListopAcrossCandidatesRefused(t *testing.T) {
+	unary := "multi sub f :unary :context($) (Scalar $x) Int;\n"
+	listop := "multi sub f :listop :context(@) (Scalar $x) List;\n"
+	want := "sub f: :unary and :listop are two parses; a builtin parses as one"
+	for _, src := range []string{unary + listop, listop + unary} {
+		facts := readDeclaration([]byte(src), nil)
+		if len(facts.errs) != 1 || facts.errs[0].Error() != want {
+			t.Errorf("%q: got errors %v, want %q", src, facts.errs, want)
+		}
+		if sig, ok := facts.signatures["f"]; ok {
+			t.Errorf("%q: recorded %+v", src, sig)
+		}
+	}
+}
