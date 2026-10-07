@@ -1,6 +1,6 @@
 ---
 title: Derive the parser's keyword shapes from CORE.pmt and remove the hand-kept keyword table
-state: in-progress
+state: done
 urgency: normal
 milestone: type-libraries
 blocked_by:
@@ -8,16 +8,20 @@ blocked_by:
 - 01a0fd9b-5670-78d0-84be-9b9618e9b081
 - 01a1113c-eb6e-7e0e-8554-bcb5231478eb
 created: 2026-10-02T17:13:30.827426197Z
-updated: 2026-10-07T20:19:21.097450792Z
+updated: 2026-10-07T20:19:21.155656333Z
 sessions:
 - start_sha: 23e4c45ddfa7065d1eed3976d6e90153c8a3106a
-  end_sha: ""
+  end_sha: 23e4c45ddfa7065d1eed3976d6e90153c8a3106a
   commits: 0
   started_at: 2026-10-07T20:19:21.097450792Z
+  ended_at: 2026-10-07T20:19:21.155656333Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-07T20:19:21.097450792Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-07T20:19:21.155656333Z
 ---
 
 ## Prerequisites
