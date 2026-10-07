@@ -117,6 +117,9 @@ type moduleFacts struct {
 	// readDeclaration.
 	signatures map[string][]types.Signature
 	errs       []error
+	// warns are what a declaration file states that is read, but read
+	// otherwise than it says. A warning drops nothing, as an error does.
+	warns []error
 
 	// operators are a declaration file's operator declarations, in the
 	// order it states them. See operatorDecl.

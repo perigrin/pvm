@@ -570,7 +570,7 @@ as a parenthesised one; and to `\` a sub call is a list too, `my @r =
 \f()` being a reference to each value `f` returns, where `f() x 2`
 repeats a string.
 
-### Multi declarations (*Implemented*, d7ff54be, e0927971, 597f89f2, 56fdf0e2, 2a00759b, 1f2f170c, 263ec15e, d44fb222)
+### Multi declarations (*Implemented*, d7ff54be, e0927971, 597f89f2, 56fdf0e2, 2a00759b, 1f2f170c, 263ec15e, d44fb222, 7341cfec, 7e129204)
 
 Some builtins return different types depending on how they are called.
 A declaration may be `multi sub`, giving several signatures for one
@@ -586,6 +586,15 @@ multi sub select ($r, $w, $e, Num $timeout) List;  # (nfound, timeleft)
 ```
 
 When the call site cannot decide, the consumer joins the candidates.
+
+**A name declared both as `sub` and as `multi sub` is a multi, with a
+warning** (perigrin, 2026-10-07). Every candidate is kept, in the order
+declared, whichever line comes first, and the declaration file carries
+the warning `sub f: declared both as sub and as multi sub; read as a
+multi`; it is no error, and drops nothing. A plain `sub f` still
+replaces an earlier plain `sub f` when the file declares no `multi sub
+f`. A declaration file's warnings reach the parse root beside its
+errors, each naming its module.
 
 **The most specific candidate wins** (perigrin, 2026-10-02). When more
 than one candidate accepts a call because their parameters are related
