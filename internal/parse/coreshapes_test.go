@@ -75,10 +75,13 @@ var goldenListOperator = []string{
 	//	perl -MO=Deparse,-p -e 'our ($a,$b); my @z = (not $a < $b, 2);'
 	//	(my(@z) = (!(($a < $b), 2)));
 	"return", "not",
-	// `split` is a list operator too, but CORE.pmt has no line for it: it
-	// has no prototype but typed positional parameters, and typed Perl has
-	// no spelling for that yet (01a1113c). Until it does, the parser keeps
-	// split's shape by hand, and this comparison leaves it out.
+	// `split` is a list operator, though the sweep's form cannot show it:
+	// perl rewrites `split /$x/, $y` into a three-argument form, so the
+	// comparison inside its first argument is what places the comma:
+	//
+	//	perl -MO=Deparse,-p -e 'our ($a,$c); my @z = split /,/, $a < 5, 2;'
+	//	(my @z = split(/,/, ($a < 5), 2));
+	"split",
 }
 
 var goldenNiladic = []string{

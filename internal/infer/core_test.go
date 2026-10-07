@@ -165,9 +165,6 @@ func TestCoreListSlotExcludesCodeAndGlob(t *testing.T) {
 // /:/, $x`, `split ":", $x`, `split $sep, $x` and `split qr/:/, $x` all give
 // ("a","b","c") for "a:b:c". A reference there is still a mismatch.
 func TestInferSplitPatternTakesRegexOrStr(t *testing.T) {
-	if len(parse.CoreBuiltin("split")) == 0 {
-		t.Skip("CORE.pmt declares no split until its ruling (01a1113c), so infer does not type it")
-	}
 	for _, src := range []string{
 		`my $x = "a:b:c"; my @f = split ":", $x;`,
 		`my $x = "a:b:c"; my @f = split qr/:/, $x;`,

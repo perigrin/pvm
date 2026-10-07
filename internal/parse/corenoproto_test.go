@@ -39,11 +39,10 @@ func TestCoreDerivedPrototypeCheckReadsUndefAsAt(t *testing.T) {
 // and which Pod::Functions files as functions, less the declarators
 // (`my`, `sub`, `package`, `use` and kin) and the statement forms the
 // parser owns, `last`, `next`, `redo` and `require` (keyword.go). grep,
-// map and sort keep their own parse and are held by coregrepmapsort_test.go;
-// split waits on a ruling, filed as 01a1113c (TestCoreSplitDeclared).
+// map and sort keep their own parse and are held by coregrepmapsort_test.go.
 var noPrototypeBuiltins = []string{
 	"chomp", "chop", "defined", "delete", "do", "eval", "exec", "exists",
-	"goto", "print", "printf", "return", "say", "select", "system",
+	"goto", "print", "printf", "return", "say", "select", "split", "system",
 }
 
 // namedUnaryBuiltins are those of noPrototypeBuiltins perl reads as named
@@ -238,8 +237,8 @@ func TestCoreUnaryAndListOperatorParseDiffer(t *testing.T) {
 // TestCoreNoPrototypeBuiltinsMatchMeasuredSignatures: CORE.pmt carries the
 // measured types internal/types/signatures.go gives the builtins with no
 // prototype, and each, each row copied here so the check outlives that
-// file. each's row is the union of its candidates', position by position.
-// split's row is TestCoreSplitDeclared's.
+// file. each's and split's rows are the union of their candidates',
+// position by position.
 func TestCoreNoPrototypeBuiltinsMatchMeasuredSignatures(t *testing.T) {
 	golden := map[string]measuredRow{
 		// An element's operand, which perl does not read (open question
@@ -253,6 +252,10 @@ func TestCoreNoPrototypeBuiltinsMatchMeasuredSignatures(t *testing.T) {
 		"chop":    {0, []types.Type{types.Str}, types.Str},
 		"defined": {0, []types.Type{types.Scalar}, types.Boolean},
 		"return":  {0, []types.Type{types.Any}, types.Any},
+		// signatures.go's row, List, was split's list-context return; in
+		// scalar context it is the count, `my $n = split /,/, "a,b,c"`
+		// being 3.
+		"split": {0, []types.Type{types.Regex | types.Str, types.Str, types.Int}, types.Int | types.List},
 	}
 	core := parse.CoreSignatures()
 	for _, name := range slices.Sorted(maps.Keys(golden)) {
@@ -279,22 +282,35 @@ func TestCoreNoPrototypeBuiltinsMatchMeasuredSignatures(t *testing.T) {
 }
 
 // TestCoreSplitDeclared: split has no prototype and is a list operator,
-// `split $a, $b` being `split(/$a/, $b, 0)` (B::Deparse -p), so its line
-// must derive `@` or nothing. Its measured types derive more: the string
-// is taken in scalar context (`split /,/, @a` over two elements is "2")
-// and a fourth argument is "Too many arguments for split", which
-// `(Regex|Str $pattern = ' ', Str $string = $_, Int $limit = 0) List`
-// says and the `;$_$` it derives claims as a prototype. `(List @args)`
-// derives `@` but says the string flattens, which perl measures false.
-// No rule of RFC 0001's spells both, so the line waits on a ruling, filed
-// as 01a1113c.
+// `split $a, $b` being `split(/$a/, $b, 0)` (B::Deparse -p), yet its
+// parameters are typed and positional, so CORE.pmt declares it `:listop`
+// (RFC 0001, "Builtins with no prototype") and its types derive no
+// prototype. Measured on 5.42: the pattern is a compiled Regex or a Str
+// perl compiles, and with none it is ' ', splitting `$_` on whitespace
+// (`split;` deparses as `split(' ', $_, 0)`); the string is taken in
+// scalar context (`split /,/, @a` over two elements splits "2"); a fourth
+// argument is "Too many arguments for split". It forks on context: the
+// fields in list context, their count in scalar context (`my $n = split
+// /,/, "a,b,c"` is 3).
 func TestCoreSplitDeclared(t *testing.T) {
-	t.Skip("split's declaration waits on a ruling (01a1113c): its measured types derive a prototype perl does not report")
-	// The row internal/types/signatures.go measured, which the line is to carry.
-	want := measuredRow{0, []types.Type{types.Regex | types.Str, types.Str, types.Int}, types.List}
+	params := []types.Type{types.Regex | types.Str, types.Str, types.Int}
+	want := []measuredRow{{0, params, types.Int}, {0, params, types.List}}
 	sigs := parse.CoreSignatures()["split"]
-	if len(sigs) != 1 || fmt.Sprint(rowOf(sigs[0])) != fmt.Sprint(want) {
-		t.Errorf("split: CORE.pmt has %v; measured %v", sigs, want)
+	if got := rowsOf(sigs); fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("split: CORE.pmt has %v; measured %v", got, want)
+	}
+	for i, s := range sigs {
+		if !s.ListOp {
+			t.Errorf("split: candidate %d is not :listop", i)
+		}
+	}
+	if proto, ok := parse.CoreTable()["split"]; ok {
+		t.Errorf("split: in the prototype table as (%s); perl reports none", proto)
+	}
+	for ctx, want := range map[types.Context]types.Type{types.ScalarCtx: types.Int, types.ListCtx: types.List} {
+		if sel := types.Select(sigs, []types.Type{types.Str, types.Str}, ctx); sel.Outcome != types.Selected || sel.Returns != want {
+			t.Errorf("split in %v context: %+v; want %v", ctx, sel, want)
+		}
 	}
 }
 

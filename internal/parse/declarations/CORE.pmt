@@ -708,6 +708,17 @@ sub socketpair (Glob *socket1, Glob *socket2, Int $domain, Int $type, Int $proto
 # being clipped (measured: `splice(@a, 1)` and `splice(@a, 1, scalar(@a))`
 # remove the same elements, from either end of the offset).
 sub splice (Array \@array, Int $offset = 0, Int $length = scalar(@array), List @list) List;
+# split has no prototype and is a list operator, yet its parameters are
+# typed and positional, so it is `:listop` (RFC 0001, "Builtins with no
+# prototype") and its types derive no prototype. The pattern is a compiled
+# Regex or a Str perl compiles into one (`split ":", $x` and `split qr/:/,
+# $x` alike); with none it is ' ', splitting `$_` on whitespace (`split;`
+# deparses as `split(' ', $_, 0)`). The string is taken in scalar context:
+# `split /,/, @a` over two elements splits "2". A fourth argument is "Too
+# many arguments for split". In list context it yields the fields, in
+# scalar context their count: `my $n = split /,/, "a,b,c"` is 3 (measured).
+multi sub split :listop :context($) (Regex|Str $pattern = ' ', Str $string = $_, Int $limit = 0) Int;
+multi sub split :listop :context(@) (Regex|Str $pattern = ' ', Str $string = $_, Int $limit = 0) List;
 # sprintf takes a format and then the LIST of values it interpolates.
 sub sprintf (Str $format, List @list) Str;
 # Measured as cos, above.
