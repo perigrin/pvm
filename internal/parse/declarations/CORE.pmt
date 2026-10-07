@@ -869,9 +869,12 @@ sub say (FileHandle $fh = select(): List[Str] @args = ($_)) Boolean|Undef;
 # or `system $shell "-sh"`, and with it the list may not be empty: `exec
 # {"/bin/echo"};` is a syntax error. exec returns only on failure, false;
 # system returns the wait status, `system "true"` 0, `system "false"` 256
-# and a program that cannot run -1.
-sub exec (Str $program: List[Str] @args) Boolean;
-sub system (Str $program: List[Str] @args) Int;
+# and a program that cannot run -1. The slot is optional (perigrin,
+# 2026-10-07): `exec "ls"` and `system "true"` compile, the program taken
+# from the list, so it defaults to the list's first element -- a default
+# naming a parameter declared after it.
+sub exec (Str $program = $args[0]: List[Str] @args) Boolean;
+sub system (Str $program = $args[0]: List[Str] @args) Int;
 
 # grep, map and sort keep their own parse (RFC 0001, "Builtins that keep
 # their own parse"), and each is a multi whose candidates derive no

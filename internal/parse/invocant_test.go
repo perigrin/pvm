@@ -155,3 +155,21 @@ func TestCorePrintFamilyReturnsUndefOnFailure(t *testing.T) {
 		}
 	}
 }
+
+// TestCoreExecSlotIsOptional: perigrin, 2026-10-07 -- exec's and system's
+// program slot is optional, defaulting to the list's first element:
+// measured on 5.42, `exec "ls"` and `system "true"` compile with the
+// program taken from the list. CORE.pmt writes that default as `$args[0]`,
+// a default naming a parameter declared after it.
+func TestCoreExecSlotIsOptional(t *testing.T) {
+	for _, name := range []string{"exec", "system"} {
+		sigs := coreSignatures()[name]
+		if len(sigs) != 1 || sigs[0].Invocant == nil {
+			t.Errorf("%s: CORE.pmt declares %+v; want one signature with an invocant", name, sigs)
+			continue
+		}
+		if inv := sigs[0].Invocant; inv.Required || inv.Default != "$args[0]" {
+			t.Errorf("%s: invocant %+v; want optional, defaulting to $args[0]", name, *inv)
+		}
+	}
+}

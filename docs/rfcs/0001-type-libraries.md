@@ -692,6 +692,18 @@ signatures reject it ("A slurpy parameter may not have a default
 value"). `.pmt` declarations use it for `= die` here and for `print`'s
 `= ($_)`.
 
+**A default perl computes is written as the call itself** (perigrin,
+2026-10-07). Every optional argument has a default, but some are values
+only perl can produce: `srand` with none seeds from `/dev/urandom` or the
+time and pid, `sleep` with none sleeps for ever, `caller` with none
+gives its three-field frame. No expression states those, so the default
+is the bare call, which is exactly what omitting the argument does:
+`sub srand (Int $seed = srand()) Str;`, likewise `umask`, `sleep`,
+`caller`, `reset` and `send`'s address. A default may also name a
+parameter declared after it: `exec`'s and `system`'s program slot is
+optional, the program taken from the list (`exec "ls"` compiles), so
+`sub exec (Str $program = $args[0]: List[Str] @args) Boolean;`.
+
 ### Call sites (*Decided*)
 
 perigrin, 2026-10-02. "Multi declarations" and "`:context(...)`" cover
