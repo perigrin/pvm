@@ -694,8 +694,9 @@ value"). `.pmt` declarations use it for `= die` here and for `print`'s
 
 **A default perl computes is written as the call itself** (perigrin,
 2026-10-07). Every optional argument has a default, but some are values
-only perl can produce: `srand` with none seeds from `/dev/urandom` or the
-time and pid, `sleep` with none sleeps for ever, `caller` with none
+only perl can produce: `srand` with none calls perl's own `Perl_seed()`
+(util.c), which reads entropy -- `getentropy`, else `/dev/urandom`, else
+a hash of the time, pid and stack -- `sleep` with none sleeps for ever, `caller` with none
 gives its three-field frame. No expression states those, so the default
 is the bare call, which is exactly what omitting the argument does:
 `sub srand (Int $seed = srand()) Str;`, likewise `umask`, `sleep`,

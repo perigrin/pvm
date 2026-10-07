@@ -732,9 +732,11 @@ sub sprintf (Str $format, List @list) Str;
 sub sqrt (Num $number = $_) Num;
 # srand seeds rand and returns the seed, an integer (srand(5) is 5 as an
 # IV, srand(3.7) 3) -- but seed 0 comes back as the string "0 but true",
-# so the result is Str. With no argument perl "(semi-)randomly chooses a
-# seed" (perlfunc), or takes PERL_RAND_SEED's; no expression states that
-# choice, so the default names the call that makes it.
+# so the result is Str. With no argument perl calls its Perl_seed()
+# (util.c: getentropy, else /dev/urandom, else time, pid and stack hashed),
+# or takes PERL_RAND_SEED's. srand() returns the seed it set, so
+# srand(srand()) is srand() exactly (measured: reseeding with the returned
+# value repeats rand's sequence) -- the default is that call.
 sub srand (Int $seed = srand()) Str;
 # Measured as lstat, above.
 multi sub stat :context(@) (Glob *file = $_) List;
