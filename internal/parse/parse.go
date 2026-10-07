@@ -589,6 +589,10 @@ type parser struct {
 	// inError names the subs whose declaration is one of typedErrs.
 	inError map[string]bool
 
+	// declaredMulti and declaredPlain name the subs with a signature read
+	// from a `multi sub` and from a plain `sub`; a name may be in both.
+	declaredMulti, declaredPlain map[string]bool
+
 	// operatorSig is the signature of the operator declaration being read;
 	// see declareOperator.
 	operatorSig types.Signature

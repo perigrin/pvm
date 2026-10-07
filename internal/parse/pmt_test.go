@@ -452,6 +452,54 @@ func TestPmtMultiSubKeepsEveryCandidate(t *testing.T) {
 	}
 }
 
+// TestPmtPlainAndMultiSubMixIsAMultiWithAWarning: RFC 0001 "Multi
+// declarations". A name declared both as `sub` and as `multi sub` is a
+// multi: every candidate is kept, in the order declared, whichever comes
+// first, and the file carries one warning naming the sub and no error. Two
+// plain `sub f` lines with no `multi sub f` keep only the last, silently.
+// Once mixed, the multi rules apply: `:context` candidates fork on context.
+func TestPmtPlainAndMultiSubMixIsAMultiWithAWarning(t *testing.T) {
+	intSig := types.Signature{Params: []types.Param{{Name: "x", Sigil: '$', Type: types.Int, Required: true}}, Returns: types.Str}
+	strSig := types.Signature{Params: []types.Param{{Name: "x", Sigil: '$', Type: types.Str, Required: true}}, Returns: types.Int}
+	numSig := types.Signature{Params: []types.Param{{Name: "x", Sigil: '$', Type: types.Num, Required: true}}, Returns: types.Str}
+	warning := "sub f: declared both as sub and as multi sub; read as a multi"
+	for _, tc := range []struct {
+		src  string
+		want []types.Signature
+	}{
+		{"sub f (Int $x) Str;\nmulti sub f (Str $x) Int;\n", []types.Signature{intSig, strSig}},
+		{"multi sub f (Int $x) Str;\nsub f (Str $x) Int;\n", []types.Signature{intSig, strSig}},
+		{"sub f (Int $x) Str;\nsub f (Num $x) Str;\nmulti sub f (Str $x) Int;\n", []types.Signature{intSig, numSig, strSig}},
+	} {
+		facts := readDeclaration([]byte(tc.src), nil)
+		if len(facts.errs) > 0 {
+			t.Errorf("%q: errors %v", tc.src, facts.errs)
+		}
+		if len(facts.warns) != 1 || facts.warns[0].Error() != warning {
+			t.Errorf("%q: got warnings %v, want %q", tc.src, facts.warns, warning)
+		}
+		if got := facts.signatures["f"]; !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("%q: candidates got %+v, want %+v", tc.src, got, tc.want)
+		}
+	}
+
+	plain := readDeclaration([]byte("sub f (Int $x) Str;\nsub f (Str $x) Int;\n"), nil)
+	if len(plain.errs) > 0 || len(plain.warns) > 0 {
+		t.Errorf("two plain subs: errors %v, warnings %v", plain.errs, plain.warns)
+	}
+	if got := plain.signatures["f"]; !reflect.DeepEqual(got, []types.Signature{strSig}) {
+		t.Errorf("two plain subs: got %+v, want only the last", got)
+	}
+
+	ctx := readDeclaration([]byte("sub g :context($) () Str;\nmulti sub g :context(@) () List;\n"), nil)
+	if len(ctx.errs) > 0 || len(ctx.warns) != 1 {
+		t.Errorf("context mix: errors %v, warnings %v", ctx.errs, ctx.warns)
+	}
+	if got := ctx.signatures["g"]; len(got) != 2 || got[0].Context != types.ContextSet(types.ScalarCtx) || got[1].Context != types.ContextSet(types.ListCtx) {
+		t.Errorf("context mix: got %+v, want a scalar and a list candidate", got)
+	}
+}
+
 // TestPmtMultiCandidateRefusedAlone: a `multi sub` candidate refused for its
 // declaration order (RFC 0001, "Declaration order: Perl's") is not recorded,
 // and the candidates read before it are kept.
@@ -569,7 +617,7 @@ func TestPmtContextAttributeMalformed(t *testing.T) {
 // not dropped. `sub f (Str);` names a type and no variable, so the file is
 // in error whether CORE.pmt is read for the builtin table or a module's
 // declaration is read in place of its source; and every shipped declaration
-// reads clean.
+// reads clean, with no error and no warning.
 func TestPmtDeclarationErrorsSurface(t *testing.T) {
 	bad := []byte("sub f (Str);\n")
 	if _, _, err := coreProtos(bad); err == nil || err.Error() != "sub f: type Str names no variable" {
@@ -596,7 +644,7 @@ func TestPmtDeclarationErrorsSurface(t *testing.T) {
 
 // shippedDeclarationErrors reads every declaration file in fsys as the
 // resolver would -- CORE.pmt in CORE's language, every other file as a
-// library's -- and returns each error with its file's name.
+// library's -- and returns each error and warning with its file's name.
 func shippedDeclarationErrors(t *testing.T, fsys fs.FS) []string {
 	t.Helper()
 	var out []string
@@ -612,8 +660,12 @@ func shippedDeclarationErrors(t *testing.T, fsys fs.FS) []string {
 		if name == "declarations/CORE.pmt" {
 			read = readDeclaration
 		}
-		for _, e := range read(src, nil).errs {
+		facts := read(src, nil)
+		for _, e := range facts.errs {
 			out = append(out, fmt.Sprintf("%s: %v", name, e))
+		}
+		for _, w := range facts.warns {
+			out = append(out, fmt.Sprintf("%s: warning: %v", name, w))
 		}
 		return nil
 	})

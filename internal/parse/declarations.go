@@ -52,6 +52,16 @@ func readDeclarationWith(p *parser) moduleFacts {
 	src := p.src
 	facts := readModule(root)
 	facts.signatures, facts.errs, facts.operators = p.signatures, p.typedErrs, p.operators
+	// A plain `sub` replaces the one declared before it, unless the name is
+	// also a `multi sub`: then it is a multi, keeping every candidate in the
+	// order declared, with a warning (RFC 0001, "Multi declarations").
+	for _, name := range slices.Sorted(maps.Keys(p.declaredPlain)) {
+		if p.declaredMulti[name] {
+			facts.warns = append(facts.warns, fmt.Errorf("sub %s: declared both as sub and as multi sub; read as a multi", name))
+		} else if sigs := facts.signatures[name]; len(sigs) > 1 {
+			facts.signatures[name] = sigs[len(sigs)-1:]
+		}
+	}
 	// A statement the parser could not read declares nothing, so it is an
 	// error rather than a silent gap: `sub :lvalue f;` is no declaration.
 	//

@@ -230,8 +230,16 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 	if p.signatures == nil {
 		p.signatures = map[string][]types.Signature{}
 	}
-	if !p.multi {
-		delete(p.signatures, name)
+	// Every candidate is kept until the whole file is read: whether a
+	// plain `sub` replaces the one before it depends on whether the name is
+	// also a `multi sub`, below it or above. See readDeclaration.
+	if p.declaredMulti == nil {
+		p.declaredMulti, p.declaredPlain = map[string]bool{}, map[string]bool{}
+	}
+	if p.multi {
+		p.declaredMulti[name] = true
+	} else {
+		p.declaredPlain[name] = true
 	}
 	p.signatures[name] = append(p.signatures[name], s)
 	return true
