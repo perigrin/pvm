@@ -1,19 +1,23 @@
 ---
 title: A .pmt that declares one name both as sub and as multi sub reads it as a multi, with a warning
-state: in-progress
+state: done
 urgency: normal
 milestone: type-libraries
 created: 2026-10-06T03:27:30.293600081Z
-updated: 2026-10-07T21:47:23.569744893Z
+updated: 2026-10-07T21:47:23.627263146Z
 sessions:
 - start_sha: 07cc780f72630b0802c7e086b4174f04ac531b3f
-  end_sha: ""
+  end_sha: 07cc780f72630b0802c7e086b4174f04ac531b3f
   commits: 0
   started_at: 2026-10-07T21:47:23.569744893Z
+  ended_at: 2026-10-07T21:47:23.627263146Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-07T21:47:23.569744893Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-07T21:47:23.627263146Z
 ---
 
 ## Context
