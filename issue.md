@@ -1,10 +1,10 @@
 ---
-title: A .pmt that declares one name both as sub and as multi sub is an error
+title: A .pmt that declares one name both as sub and as multi sub reads it as a multi, with a warning
 state: pending
 urgency: normal
 milestone: type-libraries
 created: 2026-10-06T03:27:30.293600081Z
-updated: 2026-10-07T21:02:00.570266824Z
+updated: 2026-10-07T21:02:12.031204641Z
 ---
 
 ## Context
