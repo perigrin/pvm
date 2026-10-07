@@ -1,21 +1,25 @@
 ---
 title: "split has no prototype but typed positional parameters: typed Perl has no spelling for it"
-state: in-progress
+state: done
 urgency: normal
 milestone: type-libraries
 blocks:
 - 01a0fd9b-55cb-70cd-a9da-929190cb581c
 created: 2026-10-06T12:42:47.53409794Z
-updated: 2026-10-07T20:19:07.957952755Z
+updated: 2026-10-07T20:19:08.028109944Z
 sessions:
 - start_sha: 23e4c45ddfa7065d1eed3976d6e90153c8a3106a
-  end_sha: ""
+  end_sha: 23e4c45ddfa7065d1eed3976d6e90153c8a3106a
   commits: 0
   started_at: 2026-10-07T20:19:07.957952755Z
+  ended_at: 2026-10-07T20:19:08.028109944Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-07T20:19:07.957952755Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-07T20:19:08.028109944Z
 ---
 
 ## Context
