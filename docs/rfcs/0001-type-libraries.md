@@ -587,6 +587,15 @@ multi sub select ($r, $w, $e, Num $timeout) List;  # (nfound, timeleft)
 
 When the call site cannot decide, the consumer joins the candidates.
 
+**A name declared both as `sub` and as `multi sub` is a multi, with a
+warning** (perigrin, 2026-10-07). Every candidate is kept, in the order
+declared, whichever line comes first, and the declaration file carries
+the warning `sub f: declared both as sub and as multi sub; read as a
+multi`; it is no error, and drops nothing. A plain `sub f` still
+replaces an earlier plain `sub f` when the file declares no `multi sub
+f`. A declaration file's warnings reach the parse root beside its
+errors, each naming its module.
+
 **The most specific candidate wins** (perigrin, 2026-10-02). When more
 than one candidate accepts a call because their parameters are related
 by subtyping -- `multi sub f (Int $x) Str;` beside `multi sub f (Num $x)

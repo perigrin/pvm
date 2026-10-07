@@ -249,8 +249,9 @@ type resolver struct {
 	loaded []string
 
 	// declErrs are the errors in the declaration files this parse read, each
-	// prefixed by its module's name.
-	declErrs []error
+	// prefixed by its module's name, and declWarns their warnings.
+	declErrs  []error
+	declWarns []error
 
 	// facts caches what each module's source said about itself, so a module
 	// used twice is read once as well as parsed once.
@@ -312,6 +313,9 @@ func (r *resolver) resolve(module string) (moduleFacts, bool) {
 	}
 	for _, err := range facts.errs {
 		r.declErrs = append(r.declErrs, fmt.Errorf("%s: %w", module, err))
+	}
+	for _, warn := range facts.warns {
+		r.declWarns = append(r.declWarns, fmt.Errorf("%s: %w", module, warn))
 	}
 	// Its XS subs are as real as the ones it declares, once it has loaded.
 	// A sub the module declares in Perl keeps that declaration's prototype.
@@ -385,10 +389,10 @@ func (r *resolver) resolveFile(path string) (moduleFacts, bool) {
 	inner.inRequiredFile = true
 	facts := readModule(parseRoot(src, &inner))
 
-	// `loaded` and `declErrs` are SLICES, so the inner parse's appends are
-	// not visible on the outer resolver and must be taken back explicitly.
-	// The maps need no such handling.
-	r.loaded, r.declErrs = inner.loaded, inner.declErrs
+	// `loaded`, `declErrs` and `declWarns` are SLICES, so the inner parse's
+	// appends are not visible on the outer resolver and must be taken back
+	// explicitly. The maps need no such handling.
+	r.loaded, r.declErrs, r.declWarns = inner.loaded, inner.declErrs, inner.declWarns
 
 	r.facts[path] = facts
 	return facts, true
@@ -417,4 +421,16 @@ func DeclarationErrors(root *Node) []error {
 		return nil
 	}
 	return root.declErrs
+}
+
+// DeclarationWarnings are the warnings in the declaration files read while
+// parsing this tree, each naming its module, as DeclarationErrors are its
+// errors. A warning drops nothing from the declaration it is about.
+//
+// Empty for a tree from Parse, which reads none.
+func DeclarationWarnings(root *Node) []error {
+	if root == nil {
+		return nil
+	}
+	return root.declWarns
 }

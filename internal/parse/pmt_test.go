@@ -642,6 +642,28 @@ func TestPmtDeclarationErrorsSurface(t *testing.T) {
 	}
 }
 
+// TestDeclarationWarningsReachTheRoot: a declaration file's warnings travel
+// beside its errors to the parse root, each naming its module, whether the
+// module is used directly or from a required helper. A warning is not an
+// error: the file mixing `sub f` and `multi sub f` reports none.
+func TestDeclarationWarningsReachTheRoot(t *testing.T) {
+	mix := []byte("package Mix;\nsub f (Int $x) Str;\nmulti sub f (Str $x) Int;\n")
+	saved := declarations
+	declarations = layeredFS{top: fstest.MapFS{"declarations/Mix.pmt": {Data: mix}}, base: saved}
+	defer func() { declarations = saved }()
+	helper := func(name string) ([]byte, bool) { return []byte("use Mix;\n"), name == "./h.pl" }
+	want := "Mix: sub f: declared both as sub and as multi sub; read as a multi"
+	for _, src := range []string{"use Mix;\n", "require './h.pl';\n"} {
+		root := ParseWithLoader([]byte(src), helper)
+		if warns := DeclarationWarnings(root); len(warns) != 1 || warns[0].Error() != want {
+			t.Errorf("%q: got warnings %v, want %q", src, warns, want)
+		}
+		if errs := DeclarationErrors(root); len(errs) > 0 {
+			t.Errorf("%q: got errors %v, want none", src, errs)
+		}
+	}
+}
+
 // shippedDeclarationErrors reads every declaration file in fsys as the
 // resolver would -- CORE.pmt in CORE's language, every other file as a
 // library's -- and returns each error and warning with its file's name.

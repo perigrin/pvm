@@ -252,6 +252,10 @@ type Node struct {
 	// only, same reasoning as loaded. Read through DeclarationErrors.
 	declErrs []error
 
+	// declWarns are the declaration files' warnings, as declErrs are their
+	// errors. Read through DeclarationWarnings.
+	declWarns []error
+
 	// imports is what the file's `use` statements brought into scope, plus
 	// the subs it declares itself. Root only, same reasoning as loaded.
 	// Read through Imports.
@@ -534,6 +538,7 @@ func parseWith(p *parser) (*Node, *parser) {
 	if res != nil {
 		root.loaded = res.loaded
 		root.declErrs = res.declErrs
+		root.declWarns = res.declWarns
 		root.imports = p.imports
 
 		// A local sub shadows an import, and its OWN prototype is the one
