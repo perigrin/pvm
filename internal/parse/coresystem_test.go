@@ -70,8 +70,7 @@ func TestCoreNiladicFlowKeywordsTypedEmpty(t *testing.T) {
 // types, each with what holds it so. lock, pos, tie, tied, undef and
 // untie hold a glob slot, which has no spelling yet (RFC 0001, open
 // question 11, perigrin 2026-10-03; "The scalar container" keeps them
-// prototype-only). catch, isa and method are keywords no call reaches,
-// so there is no value to measure (01a111b5-1a31-70f3-9a21-023067e90a6f).
+// prototype-only). The keywordLines are prototype-only too.
 var prototypeOnlyLines = map[string]string{
 	"lock":   "a glob slot, RFC 0001 open question 11",
 	"pos":    "a glob slot, RFC 0001 open question 11",
@@ -79,9 +78,26 @@ var prototypeOnlyLines = map[string]string{
 	"tied":   "a glob slot, RFC 0001 open question 11",
 	"undef":  "a glob slot, RFC 0001 open question 11",
 	"untie":  "a glob slot, RFC 0001 open question 11",
-	"catch":  "no call reaches it, 01a111b5-1a31-70f3-9a21-023067e90a6f",
-	"isa":    "no call reaches it, 01a111b5-1a31-70f3-9a21-023067e90a6f",
-	"method": "no call reaches it, 01a111b5-1a31-70f3-9a21-023067e90a6f",
+	"catch":  keywordLines["catch"],
+	"method": keywordLines["method"],
+}
+
+// keywordLines are the names perl prototypes `()` that are keywords, like
+// try and sub, not builtins to type (perigrin, 2026-10-07): no call
+// reaches them -- `CORE::catch()` is a syntax error, `CORE::method()` is
+// "Cannot 'method' outside of a 'class'", and `&CORE::catch`,
+// `&CORE::method` are undefined subroutines (measured on 5.42). Each keeps
+// the `()` line that holds CORE.pmt to prototype("CORE::name").
+var keywordLines = map[string]string{
+	"catch":  "a keyword like try and sub, not a builtin (perigrin, 2026-10-07)",
+	"method": "a keyword like try and sub, not a builtin (perigrin, 2026-10-07)",
+}
+
+// typedByOperator reports a builtin whose types its operator declaration
+// states: isa is the infix operator (perigrin, 2026-10-07), so its `()`
+// line, kept to match prototype("CORE::isa"), needs no types of its own.
+func typedByOperator(name string) bool {
+	return len(parse.CoreOperator(name, "infix")) > 0 || len(parse.CoreOperator(name, "prefix")) > 0
 }
 
 // untypedPrototypedLines reports each builtin perl prototypes whose
@@ -97,7 +113,7 @@ func untypedPrototypedLines(src []byte, perl map[string]string) []string {
 	var bad []string
 	for _, name := range names {
 		why, exempt := prototypeOnlyLines[name]
-		switch isUntyped := slices.Contains(untyped, name); {
+		switch isUntyped := slices.Contains(untyped, name) && !typedByOperator(name); {
 		case exempt && !isUntyped:
 			bad = append(bad, fmt.Sprintf("%s: typed, though it stays prototype-only (%s)", name, why))
 		case !exempt && isUntyped:
@@ -137,7 +153,7 @@ func TestCoreEveryLineCheckExemptsOnlyPrototypeOnlyLines(t *testing.T) {
 	for _, c := range []struct{ name, line, want string }{
 		{"socket", `sub socket :prototype(*$$$);`, "socket: CORE.pmt declares it untyped"},
 		{"pos", `sub pos (Scalar $x = $_) Int|Undef;`, "pos: typed, though it stays prototype-only (a glob slot, RFC 0001 open question 11)"},
-		{"catch", `sub catch () None;`, "catch: typed, though it stays prototype-only (no call reaches it, 01a111b5-1a31-70f3-9a21-023067e90a6f)"},
+		{"catch", `sub catch () None;`, "catch: typed, though it stays prototype-only (a keyword like try and sub, not a builtin (perigrin, 2026-10-07))"},
 	} {
 		re := regexp.MustCompile(`(?m)^sub ` + c.name + ` .*;$`)
 		if len(re.FindAll(src, -1)) != 1 {

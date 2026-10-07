@@ -106,16 +106,25 @@ for, one line each, and parsing it builds the default builtin table:
 ```perl
 sub bless (Ref $ref, Str $class = __PACKAGE__) Object;
 sub push (Array \@array, List @list) Int;
-sub atan2 :prototype($$);
+sub lock :prototype(\[$@%&*]);
 ```
 
 A typed line's prototype is the one its types derive (`$;$` and `\@@`
-here); a line not yet typed writes its own. A test asks perl for every
+here); a prototype-only line writes its own. A test asks perl for every
 keyword's prototype and holds the file to the answer, and another holds
 each line's derived prototype to it
 (`TestCoreDerivedPrototypesArePerls`). `:prototype(...)` is read as a
 prototype wherever a sub is declared, which also fixed two perl.git
 files whose own subs use it.
+
+Every line is typed but eight, which stay prototype-only. The six that
+hold a glob slot -- `lock`, `pos`, `tie`, `tied`, `undef`, `untie` --
+wait on its spelling (open question 11). `catch` and `method` are
+keywords, like `try` and `sub`, not builtins to type (perigrin,
+2026-10-07): no call reaches them, and their `()` lines are there only
+because `prototype("CORE::catch")` answers. `isa`, which perl also
+answers `()` for, is the infix operator, typed by its `:infix`
+declaration ("Operator declarations").
 
 The file also declares the builtins perl reports no prototype for --
 `print`, `defined`, `grep`, `sort` and the rest ("Builtins with no

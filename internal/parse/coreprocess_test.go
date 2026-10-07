@@ -130,31 +130,21 @@ func processTimeMiscBuiltins(t *testing.T) []string {
 	return names
 }
 
-// uncallableKeywords are the batch's names perl prototypes `()` that no
-// call reaches, so no value is there to measure: `CORE::isa()` and
-// `CORE::catch()` are syntax errors, `CORE::method()` is "Cannot 'method'
-// outside of a 'class'", and `&CORE::isa`, `&CORE::catch` and
-// `&CORE::method` are undefined subroutines (measured on 5.42). isa is
-// typed as the infix operator it is; how a keyword like these is typed
-// waits on a ruling, so their lines stay prototype-only.
-var uncallableKeywords = []string{"catch", "isa", "method"}
-
 // TestCoreProcessTimeMiscBuiltinsTyped: every process, time, module,
 // object, scoping and miscellaneous builtin has a typed CORE.pmt line, but
-// for the glob-slot lines and the uncallable keywords, which are still
-// prototype-only.
+// for the keywordLines, which are no builtins; isa is typed by its infix
+// declaration.
 func TestCoreProcessTimeMiscBuiltinsTyped(t *testing.T) {
 	src, err := os.ReadFile("declarations/CORE.pmt")
 	if err != nil {
 		t.Fatal(err)
 	}
 	names := slices.DeleteFunc(processTimeMiscBuiltins(t),
-		func(name string) bool { return slices.Contains(uncallableKeywords, name) })
+		func(name string) bool { return keywordLines[name] != "" })
 	for _, name := range untypedLines(src, names) {
-		t.Errorf("%s: CORE.pmt declares it untyped", name)
-	}
-	if bad := untypedLines(src, uncallableKeywords); !slices.Equal(bad, uncallableKeywords) {
-		t.Errorf("of %v, CORE.pmt leaves %v untyped; want all of them until a ruling", uncallableKeywords, bad)
+		if !typedByOperator(name) {
+			t.Errorf("%s: CORE.pmt declares it untyped", name)
+		}
 	}
 }
 
@@ -174,5 +164,31 @@ func TestCoreGlobSlotLinesStayUntyped(t *testing.T) {
 		if table[name] != perl[name] {
 			t.Errorf("%s: the prototype table has (%s); perl says (%s)", name, table[name], perl[name])
 		}
+	}
+}
+
+// TestCoreUncallableKeywordsSettled: perigrin, 2026-10-07 -- catch and
+// method are keywords, like try and sub, not builtins to type; isa is the
+// infix operator, typed by its operator declaration. perl reports `()` for
+// all three, so each keeps that line; the every-line check holds catch and
+// method as keywords and counts isa typed.
+func TestCoreUncallableKeywordsSettled(t *testing.T) {
+	for _, k := range []string{"catch", "method"} {
+		if keywordLines[k] == "" {
+			t.Errorf("%s: not held as a keyword", k)
+		}
+	}
+	if _, exempt := prototypeOnlyLines["isa"]; exempt {
+		t.Error("isa is exempt, but its infix declaration types it")
+	}
+	if ops := parse.CoreOperator("isa", "infix"); len(ops) == 0 || ops[0].Returns != types.Boolean {
+		t.Errorf("isa: infix declaration %+v; want one returning Boolean", ops)
+	}
+	src, err := os.ReadFile("declarations/CORE.pmt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, b := range untypedPrototypedLines(src, perlPrototypes(t)) {
+		t.Error(b)
 	}
 }
