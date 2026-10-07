@@ -1,19 +1,23 @@
 ---
 title: "catch, isa and method have a () prototype but no call reaches them: type them or exclude them"
-state: in-progress
+state: done
 urgency: normal
 milestone: type-libraries
 created: 2026-10-06T14:54:03.825712198Z
-updated: 2026-10-07T16:24:47.534612932Z
+updated: 2026-10-07T16:24:47.638023598Z
 sessions:
 - start_sha: 25a995c59df828540f32cd08fdd2e41998b1b78f
-  end_sha: ""
+  end_sha: 25a995c59df828540f32cd08fdd2e41998b1b78f
   commits: 0
   started_at: 2026-10-07T16:24:47.534612932Z
+  ended_at: 2026-10-07T16:24:47.638023598Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-07T16:24:47.534612932Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-07T16:24:47.638023598Z
 ---
 
 ## Context
