@@ -38,7 +38,7 @@ func TestCoreDerivedPrototypeCheckReadsUndefAsAt(t *testing.T) {
 // CORE.pmt declares: the keywords whose `prototype("CORE::k")` is undef
 // and which Pod::Functions files as functions, less the declarators
 // (`my`, `sub`, `package`, `use` and kin) and the statement forms the
-// parser owns, `last`, `next`, `redo` and `require` (keyword.go). grep,
+// parser owns, `last`, `next`, `redo` and `require` (call.go). grep,
 // map and sort keep their own parse and are held by coregrepmapsort_test.go.
 var noPrototypeBuiltins = []string{
 	"chomp", "chop", "defined", "delete", "do", "eval", "exec", "exists",

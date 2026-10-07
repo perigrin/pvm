@@ -173,13 +173,11 @@ string or undef"; the paper may choose another.
 
 `CORE.pmt` is the builtin table. `internal/infer` reads each builtin's
 types from it, and the parser derives each builtin's parse shape from it
--- named unary, list operator or niladic -- from its prototype or its
-`:unary`; `TestCoreDerivedShapes` holds the derived shapes to the sets
-perl was measured to give. The comments recording those measurements are
-on `CORE.pmt`'s lines. One shape is not derived yet: `split`'s, a list
-operator, which `internal/parse/keyword.go` keeps until typed Perl can
-declare a builtin with no prototype but typed positional parameters
-(01a1113c).
+-- named unary, list operator or niladic -- from its prototype, its
+`:unary` or its `:listop`; `TestCoreDerivedShapes` holds the derived
+shapes to the sets perl was measured to give. The comments recording
+those measurements are on `CORE.pmt`'s lines. No hand-kept table of
+builtins remains beside it, of types or of parse shapes.
 
 ### Type names (*Implemented*, 02df00ad, cd485cd0, b2c809fc, 54784319)
 

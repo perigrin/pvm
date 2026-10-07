@@ -268,7 +268,8 @@ func coreShapes() map[string]Shape {
 // builtin with a prototype parses as a sub with that prototype would
 // (ShapeOf); one with none is a named unary when `:unary` says so (RFC 0001,
 // "Builtins with no prototype"), and otherwise a list operator, as a sub
-// with no prototype is.
+// with no prototype is: split's `:listop` line, whose types derive no
+// prototype, is one.
 func deriveShapes(protos map[string]string, sigs map[string][]types.Signature) map[string]Shape {
 	shapes := map[string]Shape{}
 	for name, cands := range sigs {

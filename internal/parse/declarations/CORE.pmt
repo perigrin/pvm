@@ -717,6 +717,13 @@ sub splice (Array \@array, Int $offset = 0, Int $length = scalar(@array), List @
 # `split /,/, @a` over two elements splits "2". A fourth argument is "Too
 # many arguments for split". In list context it yields the fields, in
 # scalar context their count: `my $n = split /,/, "a,b,c"` is 3 (measured).
+#
+# `split` is a list operator, which the keyword sweep missed because perl
+# rewrites `split /$x/, $y` into a three-argument form, so it did not
+# deparse to the shape the classifier looked for. Verified by hand on 5.42.0:
+#
+#   perl -MO=Deparse,-p -e 'our ($a,$c); my @z = split /,/, $a < 5, 2;'
+#   (my @z = split(/,/, ($a < 5), 2));
 multi sub split :listop :context($) (Regex|Str $pattern = ' ', Str $string = $_, Int $limit = 0) Int;
 multi sub split :listop :context(@) (Regex|Str $pattern = ' ', Str $string = $_, Int $limit = 0) List;
 # sprintf takes a format and then the LIST of values it interpolates.

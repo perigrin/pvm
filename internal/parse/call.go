@@ -102,9 +102,6 @@ func plainShaped(name string) bool {
 // plainKeywordShape is plainKeywordShapes' shape for name, and false for a
 // name that has none.
 func (p *parser) plainKeywordShape(name string) (Shape, bool) {
-	if listOperator[name] {
-		return ShapeList, true
-	}
 	if !plainShaped(name) {
 		return 0, false
 	}
