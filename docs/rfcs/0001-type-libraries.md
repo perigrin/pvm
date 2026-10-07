@@ -243,6 +243,33 @@ sub print (FileHandle $fh = select(): List[Str] @args = ($_)) Boolean;
 The default handle is the selected one, not STDOUT, and `print` with no
 arguments prints `$_` (measured).
 
+**`:listop` types a list operator's positional parameters** (perigrin,
+2026-10-07: "go with :listop for now"). It is `:unary`'s sibling: a line
+stating it is a builtin with no prototype that parses as a list operator,
+and its types derive no prototype. `split` needs it. `prototype("CORE::split")`
+is `undef` and `split $a, $b` deparses as `split(/$a/, $b, 0)`, a list
+operator, yet its parameters are positional and typed: the string is
+taken in scalar context (`split /,/, @a` over two elements splits "2"),
+a fourth argument is "Too many arguments for split", and with no
+arguments it splits `$_` on whitespace. Without `:listop` its types would
+derive `;$_$`, a prototype perl does not report, and `(List @args)`, which
+derives `@`, says the string is flattened, which perl shows is false.
+
+```perl
+multi sub split :listop :context($) (Regex|Str $pattern = ' ', Str $string = $_, Int $limit = 0) Int;
+multi sub split :listop :context(@) (Regex|Str $pattern = ' ', Str $string = $_, Int $limit = 0) List;
+```
+
+A `:listop` line is held as a `:unary` one is. A `:prototype(...)`
+beside it is an error, since it derives none; so is `:listop` with no
+typed signature, which would leave it nothing to say, and `:listop`
+beside `:unary`, two parses for one builtin. A multi's candidates derive
+none when any of them states it. The `CORE.pmt` check, which reads
+perl's `undef` as a derived `@`, has no derived prototype of a `:listop`
+line to hold to perl's. A library `.pmt` states `:listop` as `CORE.pmt`
+does, under the same rules ("One language for every `.pmt`"), for an
+XS sub with no prototype but typed positional parameters.
+
 ### Builtins that keep their own parse (*Implemented*, eb839b7d, 2bccec6f, cb25b36c, 828544ec, c1107251, efed93fd, b8e22b93, db6c2483, 6556db7f)
 
 perigrin, 2026-10-02. Measured on 5.42 throughout.

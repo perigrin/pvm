@@ -29,6 +29,13 @@ type Signature struct {
 	// reads as a named unary, so `defined $a, $b` is `(defined $a), $b`.
 	// Without it such a builtin is a list operator, as an ordinary sub is.
 	Unary bool
+
+	// ListOp is whether the declaration states `:listop`, RFC 0001
+	// "Builtins with no prototype": a builtin with no prototype whose
+	// parameters are typed and positional, so its types derive none. split
+	// is one: `split $a, $b` is `split(/$a/, $b, 0)`, a list operator, yet
+	// it takes its string in scalar context.
+	ListOp bool
 }
 
 // Contexts is a set of calling contexts, RFC 0001 "`:context(...)`":

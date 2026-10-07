@@ -100,6 +100,36 @@ func TestCoreUnaryDerivesNoPrototype(t *testing.T) {
 	}
 }
 
+// TestCoreListopDerivesNoPrototype: a `:listop` line's types derive no
+// prototype, as perl reports none for split: its `(Regex|Str $pattern =
+// ' ', Str $string = $_, Int $limit = 0)` would otherwise give `;$_$`. So it
+// stays out of the prototype table, the CORE.pmt check finds nothing of
+// it to hold to perl's, and a `:prototype` stated beside it is an error.
+// A multi's candidates are held to it as a single line is.
+func TestCoreListopDerivesNoPrototype(t *testing.T) {
+	for _, src := range []string{
+		"package CORE;\nsub split :listop (Regex|Str $pattern = ' ', Str $string = $_, Int $limit = 0) List;\n",
+		"package CORE;\nmulti sub split :listop :context($) (Regex|Str $pattern = ' ', Str $string = $_, Int $limit = 0) Int;\n" +
+			"multi sub split :listop :context(@) (Regex|Str $pattern = ' ', Str $string = $_, Int $limit = 0) List;\n",
+	} {
+		derived, err := parse.DerivedPrototypes([]byte(src))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if proto, ok := derived["split"]; ok {
+			t.Errorf("%s: split derives (%s); want none", src, proto)
+		}
+		if checked, bad := corePrototypeDisagreements([]byte(src), perlPrototypes(t)); checked != 0 || bad != nil {
+			t.Errorf("%s: the CORE.pmt check held %d lines to perl, reporting %q; want none", src, checked, bad)
+		}
+	}
+	_, err := parse.DerivedPrototypes([]byte("package CORE;\nsub split :prototype(@) :listop (Regex|Str $pattern = ' ', Str $string = $_, Int $limit = 0) List;\n"))
+	want := "sub split: :prototype(@) disagrees with :listop, which derives no prototype"
+	if err == nil || err.Error() != want {
+		t.Errorf("error %v; want %q", err, want)
+	}
+}
+
 // rowsOf reads each of a name's candidates as a measuredRow.
 func rowsOf(sigs []types.Signature) []measuredRow {
 	rows := make([]measuredRow, len(sigs))

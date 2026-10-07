@@ -127,7 +127,11 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 		if s.Context, err = declaredContext(n); err != nil {
 			return err
 		}
-		s.Unary = slices.ContainsFunc(n.Children, func(c *Node) bool { return c.Kind == Attribute && c.Text == ":unary" })
+		s.Unary = hasAttribute(n, ":unary")
+		s.ListOp = hasAttribute(n, ":listop")
+		if s.Unary && s.ListOp {
+			return errors.New(":unary and :listop are two parses; a builtin parses as one")
+		}
 		operator := len(fixityAttrs(n)) > 0
 		for {
 			tok, ok := p.peekSignificant()
@@ -231,6 +235,12 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 	}
 	p.signatures[name] = append(p.signatures[name], s)
 	return true
+}
+
+// hasAttribute reports whether the declaration n states the attribute
+// spelled attr, `:unary` or `:listop`.
+func hasAttribute(n *Node, attr string) bool {
+	return slices.ContainsFunc(n.Children, func(c *Node) bool { return c.Kind == Attribute && c.Text == attr })
 }
 
 // declaredContext reads a declaration's `:context(...)`, RFC 0001
@@ -905,10 +915,15 @@ func (p *parser) parseSubDecl(word lexer.Token) *Node {
 	// `:unary` says how a no-prototype builtin's one operand parses, so it
 	// needs the signature that states the operand; without one the line
 	// would read as the list operator `:unary` denies.
-	if p.typed && len(p.typedErrs) == errsBefore && !hasHead(n) &&
-		slices.ContainsFunc(n.Children, func(c *Node) bool { return c.Kind == Attribute && c.Text == ":unary" }) {
+	if p.typed && len(p.typedErrs) == errsBefore && !hasHead(n) && hasAttribute(n, ":unary") {
 		name, _ := declaredSub(n)
 		p.typedErrs = append(p.typedErrs, fmt.Errorf("sub %s: :unary needs a typed signature stating its operand", name))
+	}
+	// `:listop` says a no-prototype builtin's parameters are typed, so
+	// without the signature that types them it says nothing.
+	if p.typed && len(p.typedErrs) == errsBefore && !hasHead(n) && hasAttribute(n, ":listop") {
+		name, _ := declaredSub(n)
+		p.typedErrs = append(p.typedErrs, fmt.Errorf("sub %s: :listop needs a typed signature stating its parameters", name))
 	}
 
 	// A malformed `:context` with a signature after it is refused by

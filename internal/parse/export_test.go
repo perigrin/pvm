@@ -23,8 +23,8 @@ func DerivedPrototypes(src []byte) (map[string]string, error) {
 	for name, s := range sigs {
 		// A multi's candidates derive one prototype by
 		// 01a10dc1-3499-7e2b-9e6f-d935084437fa; an invocant derives none,
-		// and so does `:unary`.
-		if _, ok := protos[name]; !ok && len(s) == 1 && s[0].Invocant == nil && !s[0].Unary {
+		// and so do `:unary` and `:listop`.
+		if _, ok := protos[name]; !ok && len(s) == 1 && s[0].Invocant == nil && !s[0].Unary && !s[0].ListOp {
 			protos[name] = prototypeFromTypes(s[0])
 		}
 	}

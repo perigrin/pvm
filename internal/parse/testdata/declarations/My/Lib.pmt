@@ -2,7 +2,7 @@
 # ABOUTME: RFC 0001 "One language for every .pmt": a library's .pmt says what CORE.pmt can.
 package My::Lib;
 
-our @EXPORT = qw(join_all alias_all need pick when_ emit size);
+our @EXPORT = qw(join_all alias_all need pick when_ emit size fields);
 
 # A typed sub whose slurpy has a container type.
 sub join_all (Str $sep, List[Str] @parts) Str;
@@ -26,6 +26,9 @@ sub emit (FileHandle $fh: List[Str] @args) Boolean;
 
 # A named unary.
 sub size :unary (Scalar $x = $_) Int;
+
+# A list operator with typed positional parameters and no prototype.
+sub fields :listop (Str $sep = ' ', Str $line = $_) List;
 
 # An operator.
 sub plus :infix(ADD) (Num $x, Num $y) Num;

@@ -132,6 +132,19 @@ func readDeclarationWith(p *parser) moduleFacts {
 	// `:prototype(...)`; one that states both must have them agree.
 	for _, name := range slices.Sorted(maps.Keys(facts.signatures)) {
 		sigs := facts.signatures[name]
+		// `:listop` states a builtin perl gives no prototype but whose
+		// parameters are typed and positional (RFC 0001, "Builtins with no
+		// prototype"), so its types derive none, a multi's candidates as
+		// a single line's: split's `(Regex|Str $pattern = ' ', Str $string
+		// = $_, Int $limit = 0)` would otherwise claim the `;$_$` perl does
+		// not report.
+		if slices.ContainsFunc(sigs, func(s types.Signature) bool { return s.ListOp }) {
+			if declared := facts.protos[name]; declared != "" {
+				facts.errs = append(facts.errs, fmt.Errorf("sub %s: :prototype%s disagrees with :listop, which derives no prototype", name, declared))
+				delete(facts.signatures, name)
+			}
+			continue
+		}
 		// A multi's candidates derive one prototype. Where they derive
 		// none, a stated prototype is an error; without one they have
 		// none, as perl reports none for grep and select.

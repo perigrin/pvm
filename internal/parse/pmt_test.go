@@ -792,3 +792,24 @@ func TestPmtUnaryWithoutSignatureIsError(t *testing.T) {
 		t.Errorf("got errors %v, want %q", facts.errs, want)
 	}
 }
+
+// TestPmtListopWithoutSignatureIsError: `:listop` says a builtin with no
+// prototype has typed positional parameters (RFC 0001, "Builtins with no
+// prototype"), so a line stating no signature has nothing for it to say:
+// it is an error, as `:unary` without one is.
+func TestPmtListopWithoutSignatureIsError(t *testing.T) {
+	facts := readDeclaration([]byte("sub foo :listop;\n"), nil)
+	want := "sub foo: :listop needs a typed signature stating its parameters"
+	if len(facts.errs) != 1 || facts.errs[0].Error() != want {
+		t.Errorf("got errors %v, want %q", facts.errs, want)
+	}
+}
+
+// TestPmtListopAndUnaryIsError: `:unary` and `:listop` are two parses, a
+// named unary and a list operator, and a builtin parses as one. A line
+// stating both is an error and records nothing.
+func TestPmtListopAndUnaryIsError(t *testing.T) {
+	pmtRefuses(t, map[string]string{
+		"sub f :unary :listop (Scalar $x) Int;\n": "sub f: :unary and :listop are two parses; a builtin parses as one",
+	})
+}

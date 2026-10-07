@@ -58,7 +58,7 @@ func TestLibraryPmtSpeaksCoreLanguage(t *testing.T) {
 		t.Fatalf("errors: %v", facts.errs)
 	}
 	for name, n := range map[string]int{
-		"join_all": 1, "alias_all": 1, "need": 1, "pick": 2, "when_": 2, "emit": 1, "size": 1, "hidden": 1,
+		"join_all": 1, "alias_all": 1, "need": 1, "pick": 2, "when_": 2, "emit": 1, "size": 1, "fields": 1, "hidden": 1,
 	} {
 		if got := len(facts.signatures[name]); got != n {
 			t.Errorf("%s: %d signatures, want %d", name, got, n)
@@ -76,7 +76,7 @@ func TestLibraryPmtSpeaksCoreLanguage(t *testing.T) {
 	if _, ok := facts.syntax["await"]; !ok {
 		t.Errorf("await: no declared syntax")
 	}
-	if want := []string{"join_all", "alias_all", "need", "pick", "when_", "emit", "size"}; !slices.Equal(facts.defaults, want) {
+	if want := []string{"join_all", "alias_all", "need", "pick", "when_", "emit", "size", "fields"}; !slices.Equal(facts.defaults, want) {
 		t.Errorf("@EXPORT: got %v, want %v", facts.defaults, want)
 	}
 
@@ -122,6 +122,21 @@ func TestLibraryPmtOperatorsAndUnary(t *testing.T) {
 	}
 	if proto := facts.protos["size"]; proto != "" {
 		t.Errorf("size: derived prototype %q", proto)
+	}
+}
+
+// TestLibraryPmtListop: RFC 0001 "One language for every `.pmt`" and
+// "Builtins with no prototype": a library's `:listop` sub is read with its
+// typed signature and derives no prototype, as CORE.pmt's split does. Its
+// `(Str $sep = ' ', Str $line = $_)` would otherwise derive `;$_`.
+func TestLibraryPmtListop(t *testing.T) {
+	useLibraryFixture(t)
+	facts := resolveLibrary(t, "My::Lib")
+	if got := facts.signatures["fields"]; len(got) != 1 || len(got[0].Params) != 2 || !got[0].ListOp {
+		t.Errorf("fields: %+v", got)
+	}
+	if proto := facts.protos["fields"]; proto != "" {
+		t.Errorf("fields: derived prototype %q", proto)
 	}
 }
 
