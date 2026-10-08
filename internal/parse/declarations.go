@@ -288,7 +288,7 @@ func CoreBuiltin(name string) []types.Signature {
 }
 
 // CoreOperator is the typed signatures CORE.pmt declares for the operator
-// spelled op of fixity "infix" or "prefix", one per candidate, and nil for
+// spelled op of fixity "infix", "prefix" or "postfix", one per candidate, and nil for
 // one it does not declare. internal/infer types operators from it.
 func CoreOperator(op, fixity string) []types.Signature {
 	readCore()

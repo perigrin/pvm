@@ -44,9 +44,34 @@ func (p *parser) refuseRefScalarSlot(n *Node) *Node {
 		refused = refused || slot.refScalar && i < len(args) && p.notScalarLvalue(args[i])
 	}
 	if refused {
-		return &Node{Kind: Unknown, Refusal: RefScalarSlot, Start: n.Start, End: n.End}
+		return refusedScalarLvalue(n)
 	}
 	return n
+}
+
+// refuseAliasedOperand returns n, the node of the prefix or postfix
+// operator op, or an Unknown spanning it when CORE.pmt declares op's
+// operand an aliased scalar, `\$`, and n's operand is certainly not a
+// scalar lvalue: a `\$` operand refuses what a `\$` slot does. Measured on
+// 5.42.0, `++1` is "Can't modify constant item in preincrement (++)" as
+// `sref(1)` is refused. CORE.pmt's own read, which CoreOperator's table
+// comes from, is not checked.
+func (p *parser) refuseAliasedOperand(n *Node, op, fixity string) *Node {
+	if p.buildingCore || len(n.Children) != 1 || !p.notScalarLvalue(n.Children[0]) {
+		return n
+	}
+	for _, sig := range CoreOperator(op, fixity) {
+		if len(sig.Params) == 1 && sig.Params[0].Alias && sig.Params[0].Sigil == '$' {
+			return refusedScalarLvalue(n)
+		}
+	}
+	return n
+}
+
+// refusedScalarLvalue is the Unknown spanning n that a `\$` slot or
+// operand refuses it as.
+func refusedScalarLvalue(n *Node) *Node {
+	return &Node{Kind: Unknown, Refusal: RefScalarSlot, Start: n.Start, End: n.End}
 }
 
 // protoSlot is one argument slot of a prototype: whether it is `\$`, and

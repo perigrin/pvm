@@ -191,11 +191,11 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 			left = p.parseTernary(left, op)
 		case "++", "--":
 			p.advanceTo(tok)
-			left = &Node{
+			left = p.refuseAliasedOperand(&Node{
 				Kind: Postfix, Text: text,
 				Start: left.Start, End: p.prevEnd(),
 				Children: []*Node{left},
-			}
+			}, text, "postfix")
 		case "(", "[", "{":
 			left = p.parseSubscript(left, text)
 		case "->":

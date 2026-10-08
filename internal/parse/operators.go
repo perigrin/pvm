@@ -350,12 +350,12 @@ func classedLevels(order []precLevel) map[string]bool {
 // shapeRelations places each shape's level, perly.y's own rows for the
 // named operators: a named unary (UNIOP) between `<<` and `isa`, a list
 // operator (LSTOP) below `=` -- perlop's `,` lies between, and is not yet
-// declared -- and above `not`, and a term tighter than `**`.
+// declared -- and above `not`, and a term tighter than `++`.
 var shapeRelations = map[Shape]operatorDecl{
 	ShapeUnary:   {fixity: "unary", tighter: []string{"isa"}, looser: []string{"<<"}, assoc: "nonassoc"},
 	ShapeList:    {fixity: "listop", tighter: []string{"not"}, looser: []string{"="}, assoc: "nonassoc"},
 	ShapeBlock:   {fixity: "listop", tighter: []string{"not"}, looser: []string{"="}, assoc: "nonassoc"},
-	ShapeNiladic: {fixity: "term", tighter: []string{"**"}, assoc: "left"},
+	ShapeNiladic: {fixity: "term", tighter: []string{"++"}, assoc: "left"},
 }
 
 // corePrecedenceDecls is what a CORE.pmt's precedence order is derived
@@ -419,13 +419,6 @@ var undeclaredOperators = slices.Concat([]operatorDecl{
 	//   my $x = $a ? $b : ($c ? $d : $e);
 	{name: "?", fixity: "infix", tighter: []string{"="}, looser: []string{".."}, assoc: "right"},
 	{name: "->", fixity: "infix", tighter: []string{"++"}, assoc: "left"},
-
-	// 01a11923-baa0, `++` and `--`, prefix and postfix in one level, which
-	// `**` is looser than.
-	{name: "++", fixity: "prefix", tighter: []string{"**"}, assoc: "nonassoc"},
-	{name: "--", fixity: "prefix", equiv: []string{"++"}},
-	{name: "++", fixity: "postfix", equiv: []string{"++"}},
-	{name: "--", fixity: "postfix", equiv: []string{"++"}},
 
 	// The postfix call and subscripts, perly.y's PERLY_PAREN_OPEN and its
 	// brackets, the tightest operators: the terms, which `time` names the
