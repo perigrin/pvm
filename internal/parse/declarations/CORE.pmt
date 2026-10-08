@@ -136,9 +136,10 @@ sub break () None;
 # both -- and undef, or the empty list, past the top of the stack
 # (measured). Given a level it yields eleven values, the sub, whether it
 # was called with arguments, its context and more after those three:
-# inside a sub `caller` gives three, `caller(0)` eleven. No level states
-# the default, so it names the call, as srand's does (01a1105e).
-sub caller (Int $level = caller()) List;
+# inside a sub `caller` gives three, `caller(0)` eleven. Both are List,
+# so one signature says it. No level states what an absent one does, so
+# the level is Optional, absent with no default.
+sub caller (Optional[Int] $level) List;
 # catch is a keyword, like try and sub, not a builtin to type (perigrin,
 # 2026-10-07): `CORE::catch()` is a syntax error and `&CORE::catch` an
 # undefined subroutine (measured on 5.42). The line holds CORE.pmt to
@@ -605,9 +606,9 @@ sub rename (Str $old, Str $new) Int;
 # yields true (measured: builtin::is_bool). With none it resets the `m?..?`
 # matches instead, which neither "" nor undef does (measured: after
 # reset("") and reset(undef) a `m?x?` that matched still fails, after
-# reset() it matches again). No expression states that, so the default
-# names the call, as srand's does (01a1105e).
-sub reset (Str $chars = reset()) Boolean;
+# reset() it matches again), and yields true either way. No expression
+# states that, so the letters are Optional, absent with no default.
+sub reset (Optional[Str] $chars) Boolean;
 # return has no prototype and takes a LIST: `return $a, $b` returns both
 # (B::Deparse -p), `return()` compiles. It leaves the sub, so its own value
 # is never used. It is a list operator at perly.y's level 7, though the
@@ -658,9 +659,9 @@ sub semop (Int $id, Str $opstring) Int;
 # send yields how many bytes it sent, an IV, and undef on failure. With an
 # address it sends there; with none it sends to the connected peer, which
 # no address states: on a connected datagram socket an undef or empty
-# address fails where none sends (measured). So the default names the
-# call, as srand's does (01a1105e).
-sub send (Glob *socket, Str $msg, Int $flags, Str $to = send(*socket, $msg, $flags)) Int|Undef;
+# address fails where none sends (measured). So the address is Optional,
+# absent with no default.
+sub send (Glob *socket, Str $msg, Int $flags, Optional[Str] $to) Maybe[Int];
 # Measured as endgrent, above.
 sub setgrent () Boolean;
 # Measured as endhostent, above. The flag is read for its truth, and may
@@ -702,9 +703,11 @@ sub sin (Num $number = $_) Num;
 # sleep takes whole seconds, sleep(1.7) sleeping 1, and yields the seconds
 # it slept, an IV. With none it sleeps for ever, and reads no `$_`
 # (measured: with `$_ = 1`, `sleep` was still asleep after 3 seconds),
-# while sleep(undef) is sleep(0). No expression states that, so the
-# default names the call, as srand's does (01a1105e).
-sub sleep (Int $seconds = sleep()) Int;
+# while sleep(undef) is sleep(0). Interrupted, sleep() yields the seconds
+# it slept as sleep(n) does (measured: 1 after `alarm 1`). No expression
+# states sleeping for ever, so the seconds are Optional, absent with no
+# default.
+sub sleep (Optional[Int] $seconds) Int;
 # Measured as bind, above: an unknown domain is undef.
 sub socket (Glob *socket, Int $domain, Int $type, Int $protocol) Boolean|Undef;
 # Measured as bind, above: an unknown domain is undef.
@@ -742,8 +745,10 @@ sub sqrt (Num $number = $_) Num;
 # (util.c: getentropy, else /dev/urandom, else time, pid and stack hashed),
 # or takes PERL_RAND_SEED's. srand() returns the seed it set, so
 # srand(srand()) is srand() exactly (measured: reseeding with the returned
-# value repeats rand's sequence) -- the default is that call.
-sub srand (Int $seed = srand()) Str;
+# value repeats rand's sequence). No expression states the seed perl
+# computes, so it is Optional, absent with no default: srand() is the Void
+# case, while srand(@e) is srand(0), an empty array one scalar under `;$`.
+sub srand (Optional[Int] $seed) Str;
 # Measured as lstat, above.
 multi sub stat :context(@) (Glob *file = $_) List;
 multi sub stat :context($) (Glob *file = $_) Boolean;
@@ -755,9 +760,10 @@ sub study (Str $string = $_) Boolean;
 # returns: measured, `substr($s, 0, 1, 5)` makes "abc" "5bc". Without it
 # nothing is replaced, as replacing the part with itself does -- except
 # past the end of the string, where the 3-argument form warns and returns
-# undef but the 4-argument form dies, "substr outside of string". Without
-# a length it returns the rest of the string.
-sub substr (Str $string, Num $offset, Num $length = length($string), Str $replacement = substr($string, $offset, $length)) Str;
+# undef but the 4-argument form dies, "substr outside of string". So no
+# expression states an absent replacement, and it is Optional, absent with
+# no default. Without a length it returns the rest of the string.
+sub substr (Str $string, Num $offset, Num $length = length($string), Optional[Str] $replacement) Str;
 # Measured as chroot, above: symlink to a name that exists is 0 as an IV.
 sub symlink (Str $old, Str $new) Int;
 # syscall takes the call's number and then the LIST of its arguments, which
@@ -804,9 +810,9 @@ sub ucfirst (Str $string = $_) Str;
 # umask sets the mask and yields the one before it. With no argument it
 # sets nothing, which umask(umask()) also does -- it yields the current
 # mask and sets it again (measured: after umask 027, umask() and
-# umask(umask()) are both 23) -- while umask(undef) sets 0. No other
-# expression states that default, so it names the call, as srand's does.
-sub umask (Int $mask = umask()) Int;
+# umask(umask()) are both 23) -- while umask(undef) sets 0. No expression
+# states setting nothing, so the mask is Optional, absent with no default.
+sub umask (Optional[Int] $mask) Int;
 # undef is two operators wearing one word. The niladic one is already a
 # complete term; with an argument it is a named unary, which the keyword
 # sweep missed and its own measurement found:

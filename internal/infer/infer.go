@@ -1865,7 +1865,8 @@ func operandType(n *parser.Node, annotations map[uint32]types.Type) types.Type {
 // an i-th argument takes there. Choosing one candidate is RFC 0001 "Call
 // sites"', so an argument some candidate takes is not a mismatch. A slurpy
 // takes every trailing argument, and one stating an element type, `List[Str]
-// @args`, takes each as that element. Any where no candidate says.
+// @args`, takes each as that element. A slot that may be absent takes a
+// written argument as its type less Void. Any where no candidate says.
 func builtinArgType(sigs []types.Signature, i int) types.Type {
 	t := types.Unknown
 	for _, s := range sigs {
@@ -1879,6 +1880,12 @@ func builtinArgType(sigs []types.Signature, i int) types.Type {
 		pt := p.Type
 		if p.Element != types.Unknown {
 			pt = p.Element
+		}
+		// An argument that is written is never absent, so an
+		// `Optional[Int]` slot holds it to Int. Any is the permissive top,
+		// not a union with Void, and stays Any.
+		if !p.Slurpy() && pt != types.Any {
+			pt &^= types.Void
 		}
 		if pt == types.Unknown {
 			return types.Any
