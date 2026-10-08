@@ -3,8 +3,10 @@ title: Truly-no-default calls are their own candidate; the bare-call default con
 state: pending
 urgency: normal
 milestone: type-libraries
+blocked_by:
+- 01a11937-22da-7250-b922-fabda15009a7
 created: 2026-10-08T01:59:02.643468486Z
-updated: 2026-10-08T02:01:36.00256929Z
+updated: 2026-10-08T02:01:37.643260735Z
 ---
 
 ## Context
