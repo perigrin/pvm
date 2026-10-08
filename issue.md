@@ -10,7 +10,7 @@ blocks:
 - 01a0fd9b-5468-7355-a22e-1b16fa5ee354
 - 01a10dc1-3499-7e2b-9e6f-d935084437fa
 created: 2026-10-02T17:13:28.48300713Z
-updated: 2026-10-06T05:20:04.576979619Z
+updated: 2026-10-08T18:40:54.136431018Z
 sessions:
 - start_sha: 007fbbffeff724026118b1ba246fcf5d177df5f2
   end_sha: 007fbbffeff724026118b1ba246fcf5d177df5f2
@@ -43,7 +43,7 @@ RFC 0001 "`:context(...)`": a declaration names the contexts it answers for in p
 ## Steps
 
 - [ ] Write failing test `TestPmtContextAttribute`: `:context($)`, `:context(@)`, `:context()`, `:context($@)` and no attribute are read as five distinct context sets
-- [ ] Run test to verify failure: `go test ./internal/parse/ -run '^TestPmtContextAttribute$' -count=1 -v`
+- [ ] Run test to verify failure: `go test ./internal/parse/ -run '^TestContextAttributeRefused$' -count=1 -v`
 - [ ] Implement; run test to verify pass; `make test`; commit
 - [ ] Write failing test `TestSelectByContext`: localtime's `:context($) ... Str` and `:context(@) ... List[Int]` select by scalar, list, and boolean (as scalar) context
 - [ ] Run test to verify failure: `go test ./internal/types/ -run '^TestSelectByContext$' -count=1 -v`
@@ -54,17 +54,21 @@ RFC 0001 "`:context(...)`": a declaration names the contexts it answers for in p
 
 ### Negative Scenarios
 
-- malformed `:context` spellings are errors: `:context(%)`, `:context(x)`, an unclosed `:context(` (`go test ./internal/parse/ -run '^TestPmtContextAttributeMalformed$' -count=1 -v | grep -q '^--- PASS: TestPmtContextAttributeMalformed'`)
-- void context is answered only by an absent attribute or `:context()`: a void call to candidates that are only `:context($)` and `:context(@)` has no type (`go test ./internal/types/ -run '^TestSelectVoidContextUnanswered$' -count=1 -v | grep -q '^--- PASS: TestSelectVoidContextUnanswered'`)
+- malformed `:context` spellings are errors: `:context(%)`, `:context(x)`, an unclosed `:context(` (`go test ./internal/parse/ -run '^TestContextAttributeRefused$' -count=1 -v | grep -q '^--- PASS: TestContextAttributeRefused'`)
+- void context is answered only by an absent attribute or `:context()`: a void call to candidates that are only `:context($)` and `:context(@)` has no type (`go test ./internal/types/ -run '^TestSelectVoidContext$' -count=1 -v | grep -q '^--- PASS: TestSelectVoidContext'`)
 - boolean context is scalar, so a boolean call to a `:context(@)`-only declaration has no type (it does not fall back to the list candidate) (`go test ./internal/types/ -run '^TestSelectBooleanIsNotList$' -count=1 -v | grep -q '^--- PASS: TestSelectBooleanIsNotList'`)
 
 ## Acceptance criteria
 
-- [ ] :context reads every spelling, and absent differs from empty (`go test ./internal/parse/ -run '^TestPmtContextAttribute$' -count=1 -v | grep -q '^--- PASS: TestPmtContextAttribute'`)
+- [ ] :context reads every spelling, and absent differs from empty (`go test ./internal/parse/ -run '^TestContextAttributeRefused$' -count=1 -v | grep -q '^--- PASS: TestContextAttributeRefused'`)
 - [ ] a call selects a candidate by its calling context (`go test ./internal/types/ -run '^TestSelectByContext$' -count=1 -v | grep -q '^--- PASS: TestSelectByContext'`)
 - [ ] a call in a context no candidate answers for has no type (`go test ./internal/types/ -run '^TestSelectNoContextAnswerHasNoType$' -count=1 -v | grep -q '^--- PASS: TestSelectNoContextAnswerHasNoType'`)
 - [ ] the RFC section on multi declarations is implemented (`grep -q '^### Multi declarations.*(\*Implemented\*' docs/rfcs/0001-type-libraries.md`)
-- [ ] the RFC section on :context is implemented (`grep -q '^### .:context.*(\*Implemented\*' docs/rfcs/0001-type-libraries.md`)
-- [ ] malformed :context spellings are errors (`go test ./internal/parse/ -run '^TestPmtContextAttributeMalformed$' -count=1 -v | grep -q '^--- PASS: TestPmtContextAttributeMalformed'`)
-- [ ] a void call to scalar and list candidates has no type (`go test ./internal/types/ -run '^TestSelectVoidContextUnanswered$' -count=1 -v | grep -q '^--- PASS: TestSelectVoidContextUnanswered'`)
+- [ ] the RFC section on :context is implemented (`grep -q '^### Context selects by return type (\*Implemented\*' docs/rfcs/0001-type-libraries.md`)
+- [ ] malformed :context spellings are errors (`go test ./internal/parse/ -run '^TestContextAttributeRefused$' -count=1 -v | grep -q '^--- PASS: TestContextAttributeRefused'`)
+- [ ] a void call to scalar and list candidates has no type (`go test ./internal/types/ -run '^TestSelectVoidContext$' -count=1 -v | grep -q '^--- PASS: TestSelectVoidContext'`)
 - [ ] a boolean call to a list-only declaration has no type (`go test ./internal/types/ -run '^TestSelectBooleanIsNotList$' -count=1 -v | grep -q '^--- PASS: TestSelectBooleanIsNotList'`)
+
+### Criteria superseded (2026-10-08)
+
+01a11920-411a dropped `:context` (perigrin: "multi and return type handle it"): a `:context` attribute is now refused, and a multi selects by return type. This issue's criteria that named the attribute's tests now name their replacements: TestPmtContextAttribute and TestPmtContextAttributeMalformed -> TestContextAttributeRefused; TestSelectVoidContextUnanswered -> TestSelectVoidContext (void context with no Void candidate falls back to scalar); the RFC section `:context(...)` -> "Context selects by return type".
