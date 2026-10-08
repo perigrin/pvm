@@ -1,6 +1,6 @@
 ---
 title: "Drop :context: a multi selects by return type in the calling context"
-state: in-progress
+state: done
 urgency: normal
 milestone: type-libraries
 blocked_by:
@@ -9,7 +9,7 @@ blocked_by:
 blocks:
 - 01a118fe-8e5f-717a-b046-6020db95c724
 created: 2026-10-08T01:28:26.650675969Z
-updated: 2026-10-08T09:58:19.606471674Z
+updated: 2026-10-08T10:57:12.191161454Z
 sessions:
 - start_sha: 04a6ca62d20d1d53be57651b769964909706bf69
   end_sha: 04a6ca62d20d1d53be57651b769964909706bf69
@@ -17,9 +17,10 @@ sessions:
   started_at: 2026-10-08T08:31:40.328391047Z
   ended_at: 2026-10-08T08:39:39.426869668Z
 - start_sha: 5f2311c758d827fdcb132ebd657a21508edaa80a
-  end_sha: ""
-  commits: 0
+  end_sha: cd34146a827f624890247b5c2383db9e2261ebc9
+  commits: 1
   started_at: 2026-10-08T09:58:19.606471674Z
+  ended_at: 2026-10-08T10:57:12.191161454Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
@@ -30,6 +31,43 @@ transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-08T09:58:19.606471674Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-08T10:57:12.191161454Z
+observed_paths:
+- docs/rfcs/0001-type-libraries.md
+- docs/specs/perl-parser/04-expressions.md
+- internal/infer/core_test.go
+- internal/infer/infer.go
+- internal/lexer/proto.go
+- internal/lexer/proto_test.go
+- internal/lexer/scanrows_test.go
+- internal/parse/call.go
+- internal/parse/canon.go
+- internal/parse/chain.go
+- internal/parse/corearray_test.go
+- internal/parse/coregrepmapsort_test.go
+- internal/parse/corenoproto_test.go
+- internal/parse/coreops_test.go
+- internal/parse/coreprocess_test.go
+- internal/parse/decl.go
+- internal/parse/declarations.go
+- internal/parse/declarations/CORE.pmt
+- internal/parse/derive.go
+- internal/parse/derive_test.go
+- internal/parse/expr.go
+- internal/parse/expr_test.go
+- internal/parse/library_pmt_test.go
+- internal/parse/operators.go
+- internal/parse/parse.go
+- internal/parse/pmt_test.go
+- internal/parse/precedence.go
+- internal/parse/precrelations_test.go
+- internal/parse/testdata/declarations/My/Lib.pmt
+- internal/types/declared.go
+- internal/types/narrowing.go
+- internal/types/select.go
+- internal/types/select_test.go
 ---
 
 ## Context
