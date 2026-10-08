@@ -341,6 +341,11 @@ func TestCoreRangeIsContextMulti(t *testing.T) {
 				Params: []types.Param{param("x", types.Any), param("y", types.Any)}, Returns: types.Str,
 				Context: types.ContextSet(types.ScalarCtx)}},
 		}
+		// `..` anchors RANGE's level, and its first candidate states the
+		// level's relation and associativity.
+		if sym == ".." {
+			want[0].tighter, want[0].assoc = []string{"="}, "nonassoc"
+		}
 		if got := coreCandidates(t, "infix", sym); !reflect.DeepEqual(got, want) {
 			t.Errorf("%s:\n got %+v\nwant %+v", sym, got, want)
 		}
@@ -399,7 +404,7 @@ func TestCoreMatchIsContextMulti(t *testing.T) {
 		{Name: "y", Sigil: '$', Type: types.Regex, Required: true},
 	}
 	want := []operatorDecl{
-		{name: "=~", fixity: "infix", class: "MATCHRE", multi: true, sig: types.Signature{
+		{name: "=~", fixity: "infix", class: "MATCHRE", multi: true, tighter: []string{"*"}, assoc: "left", sig: types.Signature{
 			Params: params, Returns: types.List, Context: types.ContextSet(types.ListCtx)}},
 		{name: "=~", fixity: "infix", class: "MATCHRE", multi: true, sig: types.Signature{
 			Params: params, Returns: types.Boolean | types.Str, Context: types.ContextSet(types.ScalarCtx)}},
@@ -415,7 +420,7 @@ func TestCoreMatchIsContextMulti(t *testing.T) {
 // `my $r = \(1,2,3)` is a reference to the 3.
 func TestCoreRefgenIsShapeMulti(t *testing.T) {
 	want := []operatorDecl{
-		{name: `\`, fixity: "prefix", multi: true, sig: types.Signature{
+		{name: `\`, fixity: "prefix", multi: true, equiv: []string{"!"}, sig: types.Signature{
 			Params:  []types.Param{{Name: "l", Sigil: '@', Type: types.List}},
 			Returns: types.List, Context: types.ContextSet(types.ListCtx)}},
 		{name: `\`, fixity: "prefix", multi: true, sig: types.Signature{

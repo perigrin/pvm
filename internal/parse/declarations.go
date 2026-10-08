@@ -51,7 +51,7 @@ func readDeclarationWith(p *parser) moduleFacts {
 	root, p := parseWith(p)
 	src := p.src
 	facts := readModule(root)
-	facts.signatures, facts.errs, facts.operators = p.signatures, p.typedErrs, p.operators
+	facts.signatures, facts.errs, facts.operators, facts.relations = p.signatures, p.typedErrs, p.operators, p.relations
 	// A plain `sub` replaces the one declared before it, unless the name is
 	// also a `multi sub`: then it is a multi, keeping every candidate in the
 	// order declared, with a warning (RFC 0001, "Multi declarations").
@@ -314,6 +314,13 @@ func readCore() {
 		}
 		var err error
 		if coreMap, coreSigs, coreOps, err = coreDeclarations(src); err != nil {
+			panic("parse: declarations/CORE.pmt: " + err.Error())
+		}
+		// Its operators' relations and its builtins' shapes derive one
+		// precedence order (RFC 0001, "Precedence is a relation between
+		// operators"). A library's operators relate to CORE.pmt's, so the
+		// order is CORE.pmt's.
+		if _, err := precedenceOrder(corePrecedenceDecls(src, coreShp)); err != nil {
 			panic("parse: declarations/CORE.pmt: " + err.Error())
 		}
 		coreShp = deriveShapes(coreMap, coreSigs)

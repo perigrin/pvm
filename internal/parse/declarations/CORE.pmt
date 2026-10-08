@@ -233,7 +233,10 @@ sub die :prototype(@) (List[Str] @message) None;
 #   ((do $x), $y)          comma outside  -> named unary
 sub do :unary (Str $file) Any;
 # Measured as break, above.
-sub dump () None;
+# Its operand, though perl reports `()`, is read at the assignment level as
+# goto's is: `CORE::dump $x = 1` is `CORE::dump ($x = 1)`, so the line
+# states `:equiv(=)`.
+sub dump :equiv(=) () None;
 # each takes a hash or an array whole, and its two candidates derive
 # perl's `\[%@]`. It yields the next key and value, the index for an array
 # (`each @a` over (5, 6) is (0, 5)), or in scalar context the key alone --
@@ -422,8 +425,11 @@ sub glob :prototype(_;) (Str $pattern = $_) List;
 # (`gmtime()` is today's date), which undef is not: gmtime(undef) is 1970.
 multi sub gmtime :context($) (Int $time = time) Str|Undef;
 multi sub gmtime :context(@) (Int $time = time) List[Int];
-# Measured with do, above.
-sub goto :unary (Str|Code $label = "") None;
+# Measured with do, above. Its operand is read at the assignment level,
+# `goto $x = 1` being `goto ($x = 1)`, as perlop puts it, so the line states
+# `:equiv(=)` where a named unary's shape would place it tighter than `<`
+# (RFC 0001, "Precedence is a relation between operators").
+sub goto :unary :equiv(=) (Str|Code $label = "") None;
 # hex and oct read a string of digits, `$_` with none, and yield its
 # integer: hex("ff") is 255 as an IV, hex("zz") 0, oct("755") 493. oct
 # reads a 0x, 0b or 0o prefix, hex only 0x. Past an IV the integer is
@@ -927,6 +933,16 @@ multi sub sort :context(@) (Code|Str $by: List @list = die) List;
 # the parser's table. The types are upper bounds: `Int + Int` is an Int within
 # `Num`, and narrowing it is inference's. An operator that forks on context or
 # on a parenthesis is a multi, one candidate for each branch.
+#
+# Each level's precedence is a relation to another's (RFC 0001, "Precedence
+# is a relation between operators"): a class's anchor -- `+` for ADD, `*`
+# for MUL -- or a prefix operator states `:tighter` the next level perlop's
+# table puts below it among those declared here, and the level's
+# associativity, perlop's; the rest of a level are `:equiv` to it, a class
+# saying so for an infix one. TestCoreDerivedPrecedenceIsPerlops holds the
+# order those derive to perlop's table. A level perlop lists that is not
+# declared here is passed over: `..` is `:tighter(=)` though `?:` lies
+# between them.
 
 # Arithmetic. The operands are Num, which excludes Inf and NaN, and the
 # result is what perl returns for them (RFC 0001, "Operator declarations"),
@@ -936,12 +952,12 @@ multi sub sort :context(@) (Code|Str $by: List @list = die) List;
 # lattice's Inf is either sign; x/0 dies. `**` overflows and gives NaN too:
 # `10 ** 400` and `0 ** -1` are Inf, `(-1) ** 0.5` NaN. `%` stays finite,
 # `1e308 % 7` being 3, and a modulus of 0 dies.
-sub + :infix(ADD) (Num $x, Num $y) Num|Inf;
+sub + :infix(ADD) :tighter(<<) :assoc(left) (Num $x, Num $y) Num|Inf;
 sub - :infix(ADD) (Num $x, Num $y) Num|Inf;
-sub * :infix(MUL) (Num $x, Num $y) Num|Inf;
+sub * :infix(MUL) :tighter(+) :assoc(left) (Num $x, Num $y) Num|Inf;
 sub / :infix(MUL) (Num $x, Num $y) Num|Inf;
 sub % :infix(MUL) (Num $x, Num $y) Num;
-sub ** :infix(POW) (Num $x, Num $y) Num|NaN|Inf;
+sub ** :infix(POW) :tighter(!) :assoc(right) (Num $x, Num $y) Num|NaN|Inf;
 
 # String
 sub . :infix(ADD) (Str $x, Str $y) Str;
@@ -952,14 +968,14 @@ multi sub x :infix(MUL) :context(@) (List @l, Int $n) List;
 multi sub x :infix(MUL) (Str $s, Int $n) Str;
 
 # Numeric comparison
-sub == :infix(EQUALITY) (Num $x, Num $y) Boolean;
+sub == :infix(EQUALITY) :tighter(&) :assoc(chain_na) (Num $x, Num $y) Boolean;
 sub != :infix(EQUALITY) (Num $x, Num $y) Boolean;
-sub < :infix(RELATION) (Num $x, Num $y) Boolean;
+sub < :infix(RELATION) :tighter(==) :assoc(chained) (Num $x, Num $y) Boolean;
 sub > :infix(RELATION) (Num $x, Num $y) Boolean;
 sub <= :infix(RELATION) (Num $x, Num $y) Boolean;
 sub >= :infix(RELATION) (Num $x, Num $y) Boolean;
 # undef when an operand is NaN: `("nan"+0) <=> 1`.
-sub <=> :infix(ORDERING) (Num $x, Num $y) Int|Undef;
+sub <=> :infix(ORDERING) :equiv(==) (Num $x, Num $y) Int|Undef;
 
 # String comparison
 sub eq :infix(EQUALITY) (Str $x, Str $y) Boolean;
@@ -971,47 +987,47 @@ sub ge :infix(RELATION) (Str $x, Str $y) Boolean;
 sub cmp :infix(ORDERING) (Str $x, Str $y) Int;
 
 # Logical
-sub && :infix(LOGICAL_AND) (Any $x, Any $y) Any;
-sub || :infix(LOGICAL_OR) (Any $x, Any $y) Any;
+sub && :infix(LOGICAL_AND) :tighter(||) :assoc(left) (Any $x, Any $y) Any;
+sub || :infix(LOGICAL_OR) :tighter(..) :assoc(left) (Any $x, Any $y) Any;
 sub // :infix(LOGICAL_OR) (Any $x, Any $y) Any;
-sub and :infix(LOGICAL_AND_LOW) (Any $x, Any $y) Any;
-sub or :infix(LOGICAL_OR_LOW) (Any $x, Any $y) Any;
+sub and :infix(LOGICAL_AND_LOW) :tighter(or) :assoc(left) (Any $x, Any $y) Any;
+sub or :infix(LOGICAL_OR_LOW) :assoc(left) (Any $x, Any $y) Any;
 sub xor :infix(LOGICAL_OR_LOW) (Any $x, Any $y) Boolean;
 
 # Bitwise
-sub & :infix(BITAND) (Int $x, Int $y) Int;
-sub | :infix(BITOR) (Int $x, Int $y) Int;
+sub & :infix(BITAND) :tighter(|) :assoc(left) (Int $x, Int $y) Int;
+sub | :infix(BITOR) :tighter(&&) :assoc(left) (Int $x, Int $y) Int;
 sub ^ :infix(BITOR) (Int $x, Int $y) Int;
-sub << :infix(SHIFT) (Int $x, Int $y) Int;
+sub << :infix(SHIFT) :tighter(isa) :assoc(left) (Int $x, Int $y) Int;
 sub >> :infix(SHIFT) (Int $x, Int $y) Int;
 
 # Type test
-sub isa :infix(ISA) (Scalar $x, Str $y) Boolean;
+sub isa :infix(ISA) :tighter(<) :assoc(nonassoc) (Scalar $x, Str $y) Boolean;
 
 # Regex binding: in list context a match's captures, or s///'s count; in
 # scalar context a match's boolean, s/// or tr///'s count, or s///r or
 # tr///r's new string.
-multi sub =~ :infix(MATCHRE) :context(@) (Str $x, Regex $y) List;
+multi sub =~ :infix(MATCHRE) :tighter(*) :assoc(left) :context(@) (Str $x, Regex $y) List;
 multi sub =~ :infix(MATCHRE) :context($) (Str $x, Regex $y) Boolean|Str;
 sub !~ :infix(MATCHRE) (Str $x, Regex $y) Boolean;
 
 # Range: a range in list context, a flip-flop in scalar context, whose
 # result is a sequence number as a string ("", "1", "2", "3E0").
-multi sub .. :infix(RANGE) :context(@) (Str $x, Str $y) List;
+multi sub .. :infix(RANGE) :tighter(=) :assoc(nonassoc) :context(@) (Str $x, Str $y) List;
 multi sub .. :infix(RANGE) :context($) (Any $x, Any $y) Str;
 multi sub ... :infix(RANGE) :context(@) (Str $x, Str $y) List;
 multi sub ... :infix(RANGE) :context($) (Any $x, Any $y) Str;
 
 # Assignment
-sub = :infix(ASSIGN) (Any $x, Any $y) Any;
+sub = :infix(ASSIGN) :tighter(not) :assoc(right) (Any $x, Any $y) Any;
 
 # Unary
-sub - :prefix (Num $x) Num;
-sub + :prefix (Num $x) Num;
-sub ! :prefix (Any $x) Boolean;
-sub not :prefix (Any $x) Boolean;
-sub ~ :prefix (Int $x) Int;
+sub - :prefix :equiv(!) (Num $x) Num;
+sub + :prefix :equiv(!) (Num $x) Num;
+sub ! :prefix :tighter(=~) :assoc(right) (Any $x) Boolean;
+sub not :prefix :tighter(and) :assoc(right) (Any $x) Boolean;
+sub ~ :prefix :equiv(!) (Int $x) Int;
 # A reference to each element of a parenthesised list in list context,
 # `\(1,2,3)`; otherwise one reference.
-multi sub \ :prefix :context(@) (List @l) List;
+multi sub \ :prefix :equiv(!) :context(@) (List @l) List;
 multi sub \ :prefix (Any $x) Ref;

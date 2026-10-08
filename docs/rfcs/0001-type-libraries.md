@@ -658,10 +658,26 @@ sub ⊕ :infix :tighter(+) :looser(*) :assoc(left) (Num $x, Num $y) Num;
   and `^`, `<<` and `>>`, `..`) need no name of their own: they are
   named by their operators, and the coined `BITAND`, `BITOR`, `SHIFT`
   and `RANGE` go.
-- The shapes that are no infix level relate the same way: `:prefix`,
-  `:unary` and `:listop` operators state where they bind -- a named
-  unary between `<<`/`>>` and `isa`, `not` between `..` and `and`, a
-  rightward list operator below `,`.
+- A `:prefix` operator relates the same way: `not` states that it is
+  tighter than `and`, and `!` that it is tighter than `=~`.
+- **A named operator's level is derived, not stated** (perigrin,
+  2026-10-08), from its shape, as the shape is from its prototype. This
+  is perl's own rule, measured on 5.42 with user subs: a `($)`, `(_)` or
+  `(;$)` prototype makes `u 1 < 2, 3` parse as `(u(1) < 2), 3`, a named
+  unary tighter than `<`; `(@)` makes it `u(1 < 2, 3)`, a list operator;
+  `()` makes `u 1` a syntax error, a term. The builtins agree: `defined
+  $x < 2`, `ref $x < 2`, `chdir $x < 2` and `sleep $x < 2` are each
+  `(op($x) < 2)`. So a builtin's line carries no relation: its `:unary`
+  or `:listop`, or failing those the prototype its signature derives,
+  puts it in perlop's row -- a named unary between `<<`/`>>` and `isa`,
+  a rightward list operator below `,`, a term above everything -- and
+  `:tighter`, `:looser` and `:equiv` are for the symbolic and
+  word-shaped operators, the `:infix` and `:prefix` lines. The control
+  words are the stated exception: `goto` and `dump` have no prototype
+  that places them, and perl parses their operand at the assignment
+  level (`goto $x = 1` is `goto ($x = 1)`, `goto $x, 1` is `(goto $x),
+  1`), so their lines state `:equiv(=)`. A builtin that is also an
+  operator, `not`, has the operator's level.
 
 **The parser derives a total order** by sorting the relations
 topologically. A `.pmt` whose relations form a cycle, or leave two

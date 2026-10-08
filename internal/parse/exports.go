@@ -125,6 +125,10 @@ type moduleFacts struct {
 	// order it states them. See operatorDecl.
 	operators []operatorDecl
 
+	// relations are the precedence relations its named operators state,
+	// each with fixity "named": goto's `:equiv(=)`.
+	relations []operatorDecl
+
 	// globs are the names a literal glob assignment defines, `*run_perl =
 	// \&runperl` in t/test.pl: subs as real as a `sub NAME`, with no
 	// prototype this parser can read.
