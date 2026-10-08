@@ -510,11 +510,15 @@ func parseSource(src []byte, res *resolver, typed bool) (*Node, *parser) {
 
 // newParser is a parser over src, not yet run. See parseSource.
 func newParser(src []byte, res *resolver, typed bool) *parser {
-	tokenize := lexer.Tokenize
+	// A program is lexed with the operators CORE.pmt reads a word before,
+	// and a `.pmt`, CORE.pmt's own among them, with the lexer's.
+	var toks []lexer.Token
 	if typed {
-		tokenize = lexer.TokenizeTyped
+		toks = lexer.TokenizeTyped(src)
+	} else {
+		toks = lexer.TokenizeBarewords(src, coreBarewordOperators())
 	}
-	return &parser{src: src, toks: tokenize(src), res: res, symbolsOpen: res == nil, typed: typed}
+	return &parser{src: src, toks: toks, res: res, symbolsOpen: res == nil, typed: typed}
 }
 
 // parseWith runs p over its source, returning the tree and p.

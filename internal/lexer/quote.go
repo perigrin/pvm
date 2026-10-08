@@ -167,7 +167,7 @@ func scanQuoteLike(l *lexer) bool {
 	// so `{ s => 1 }` lexes as a substitution and everything after it
 	// becomes one opaque token. Whitespace before the `=>` is skipped
 	// because perl skips it.
-	if fatCommaFollows(l.src, after) {
+	if l.barewordOpFollows(after) {
 		return false
 	}
 
@@ -371,7 +371,7 @@ func (l *lexer) queueHeredocsIn(start, end int) {
 // `E1\n` from the string, measured on 5.42.0.
 func (l *lexer) queueHeredocsWithin(start, blockEnd, constructEnd int) {
 	end := constructEnd
-	sub := &lexer{src: l.src[:end], pos: start, expect: XTerm}
+	sub := &lexer{src: l.src[:end], pos: start, expect: XTerm, barewordOps: l.barewordOps}
 	for sub.pos < end {
 		if sub.pos >= blockEnd && len(sub.pending) == 0 {
 			break
@@ -523,19 +523,18 @@ func (l *lexer) scanModifiers() {
 }
 
 // quoteOpAt matches the longest quote-operator keyword at pos.
-// fatCommaFollows reports whether the next significant bytes at pos are `=>`.
+// barewordOpFollows reports whether the next significant bytes at pos are
+// an operator whose left operand is read as a word, `=>`.
 //
 // Only whitespace is skipped, and only horizontal whitespace plus newlines --
 // a comment between a word and its fat comma is legal Perl but vanishingly
 // rare, and reaching for it here would mean re-implementing comment skipping
 // in a function whose whole job is one two-byte lookahead.
-func fatCommaFollows(src []byte, pos int) bool {
-	for pos < len(src) {
-		switch src[pos] {
-		case ' ', '\t', '\n', '\r':
-			pos++
-		default:
-			return pos+1 < len(src) && src[pos] == '=' && src[pos+1] == '>'
+func (l *lexer) barewordOpFollows(pos int) bool {
+	pos = skipSpaceFrom(l.src, pos)
+	for _, op := range l.barewordOps {
+		if bytes.HasPrefix(l.src[pos:], []byte(op)) {
+			return true
 		}
 	}
 	return false
@@ -543,7 +542,7 @@ func fatCommaFollows(src []byte, pos int) bool {
 
 // closeBraceFollows reports whether the next significant byte at pos is `}`.
 //
-// Whitespace is skipped for fatCommaFollows's reason: perl skips it too, and
+// Whitespace is skipped for barewordOpFollows's reason: perl skips it too, and
 // `$h{ m }` deparses to `$h{'m'}`. skipSpaceFrom is the lexer's own space
 // predicate, so this cannot disagree with the rest of the scanner about
 // where whitespace ends.

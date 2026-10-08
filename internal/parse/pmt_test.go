@@ -768,10 +768,14 @@ func TestPmtMessagesPrintAlias(t *testing.T) {
 
 // TestParamAttributeRefused: the backslash replaces an earlier `:lvalue`
 // parameter attribute (RFC 0001, "The scalar container"), and no
-// parameter takes an attribute: perl 5.42.0 refuses `sub f ($x :lvalue)`,
+// parameter takes an attribute but `:bareword`, a parser hint (RFC 0001,
+// "Operator declarations"): perl 5.42.0 refuses `sub f ($x :lvalue)`,
 // "Illegal operator following parameter in a subroutine signature". The
 // declaration is in error and derives no `\$`.
 func TestParamAttributeRefused(t *testing.T) {
+	if facts := readDeclaration([]byte("sub f (Str $x :bareword);\n"), nil); len(facts.errs) > 0 || !facts.signatures["f"][0].Params[0].Bareword {
+		t.Errorf(":bareword: errors %v, signatures %+v", facts.errs, facts.signatures["f"])
+	}
 	cases := map[string]string{
 		"sub f (Scalar $x :lvalue);\n": "sub f: parameter $x is not followed by `,` or `)`",
 		"sub f (Scalar $x :bogus);\n":  "sub f: parameter $x is not followed by `,` or `)`",

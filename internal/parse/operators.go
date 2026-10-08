@@ -349,12 +349,11 @@ func classedLevels(order []precLevel) map[string]bool {
 
 // shapeRelations places each shape's level, perly.y's own rows for the
 // named operators: a named unary (UNIOP) between `<<` and `isa`, a list
-// operator (LSTOP) below `=` -- perlop's `,` lies between, and is not yet
-// declared -- and above `not`, and a term tighter than `++`.
+// operator (LSTOP) below `,` and above `not`, and a term tighter than `++`.
 var shapeRelations = map[Shape]operatorDecl{
 	ShapeUnary:   {fixity: "unary", tighter: []string{"isa"}, looser: []string{"<<"}, assoc: "nonassoc"},
-	ShapeList:    {fixity: "listop", tighter: []string{"not"}, looser: []string{"="}, assoc: "nonassoc"},
-	ShapeBlock:   {fixity: "listop", tighter: []string{"not"}, looser: []string{"="}, assoc: "nonassoc"},
+	ShapeList:    {fixity: "listop", tighter: []string{"not"}, looser: []string{","}, assoc: "nonassoc"},
+	ShapeBlock:   {fixity: "listop", tighter: []string{"not"}, looser: []string{","}, assoc: "nonassoc"},
 	ShapeNiladic: {fixity: "term", tighter: []string{"++"}, assoc: "left"},
 }
 
@@ -398,11 +397,6 @@ func precedenceDeclsOf(facts moduleFacts, shapes map[string]Shape) []operatorDec
 // the operators the parser reads that CORE.pmt has no line for yet. Each
 // group names the issue that declares it, and leaves this list when it does.
 var undeclaredOperators = []operatorDecl{
-	// 01a118fe-8e5f, perlop's `,` and `=>`. `,` lies between a rightward list operator, which swallows it, and
-	// `=`; `=>` is a comma that autoquotes its left bareword.
-	{name: ",", fixity: "infix", tighter: []string{"print"}, looser: []string{"="}, assoc: "left"},
-	{name: "=>", fixity: "infix", equiv: []string{","}},
-
 	// 01a11923-baeb, `?:` and `->`. The ternary is right associative,
 	// measured:
 	//   perl -MO=Deparse -e 'my $x = $a ? $b : $c ? $d : $e;'

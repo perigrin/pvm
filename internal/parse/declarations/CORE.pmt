@@ -1075,6 +1075,25 @@ sub ||= :infix(ASSIGN) (Scalar \$x, Scalar $y) Scalar;
 sub //= :infix(ASSIGN) (Scalar \$x, Scalar $y) Scalar;
 sub ^^= :infix(ASSIGN) (Scalar \$x, Scalar $y) Boolean;
 
+# The comma, between `=` and a rightward list operator, which swallows it.
+# It is the flattening, so it is an exception to the final-List rule
+# (perigrin, 2026-10-08): in list context it appends, `(@a, 3)` with
+# `@a = (1, 2)` being 3 elements and `(1, (2, 3))` 3; in scalar context it
+# evaluates its left and gives its right, `my $x = (4, 5)` being 5 with a
+# "Useless use of a constant" warning, measured on 5.42.
+multi sub , :infix :looser(=) :assoc(left) (List @l, List @r) List;
+multi sub , :infix (Scalar $l, Scalar $r) Scalar;
+# `=>` is the comma that reads the bareword to its left as a word: its
+# `:bareword` operand is a parser hint, the operand read as a word and not
+# an expression, and its type, Str, is what the word becomes. The lexer
+# reads which operators have one from here. Measured on 5.42 under strict,
+# with `sub foo { "CALLED" }`: `(foo => 1)` gives "foo" where `(foo, 1)`
+# gives "CALLED", `(time => 1)` gives "time" where `(time, 1)` gives the
+# time, and `(nosuch => 1)` gives "nosuch" where `(nosuch, 1)` is "Bareword
+# not allowed while strict subs".
+multi sub => :infix :equiv(,) (Str $lhs :bareword, List @rhs) List;
+multi sub => :infix :equiv(,) (Str $lhs :bareword, Scalar $rhs) Scalar;
+
 # Unary. Minus and plus are perly.y's UMINUS.
 sub - :prefix :equiv(!) (Num $x) Num;
 # Unary plus is a no-op that exists to force term parsing.

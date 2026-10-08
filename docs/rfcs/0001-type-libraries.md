@@ -644,6 +644,30 @@ as a parenthesised one; and to `\` a sub call is a list too, `my @r =
 \f()` being a reference to each value `f` returns, where `f() x 2`
 repeats a string.
 
+**`:bareword`** is a parameter attribute, and the only one a `.pmt`
+parameter takes (perigrin, 2026-10-08). It is a parser hint, not a type
+coercion: the operand is read as a word, not an expression, and the
+parameter's type says what the word becomes. `=>` is the comma whose
+left operand is one:
+
+```perl
+multi sub => :infix :equiv(,) (Str $lhs :bareword, List @rhs) List;
+multi sub => :infix :equiv(,) (Str $lhs :bareword, Scalar $rhs) Scalar;
+```
+
+The type alone does not do it, because the quoting decides what the
+operand is before any type applies. Measured on 5.42 under `use
+strict`, with `sub foo { "CALLED" }`: `(foo => 1)` gives "foo" where
+`(foo, 1)` gives "CALLED"; `(time => 1)` gives "time" where `(time, 1)`
+gives the time; and `(nosuch => 1)` gives "nosuch" where `(nosuch, 1)`
+is "Bareword not allowed while strict subs". The lexer reads which
+operators have a `:bareword` left operand from `CORE.pmt`: a program
+is lexed with them, so `s => 1` is the word `s` and not a substitution
+and `-e => 1` the word `-e` and not a file test, and `CORE.pmt` itself
+is lexed with the lexer's own list, which a test holds to `CORE.pmt`'s
+(TestFatCommaAutoquotes, TestLexerBarewordOperatorsAreCores). Elsewhere
+the parser treats `=>` as the comma it is `:equiv` to.
+
 ### Precedence is a relation between operators (*Decided*)
 
 The goal (perigrin, 2026-10-08): every builtin and operator is defined

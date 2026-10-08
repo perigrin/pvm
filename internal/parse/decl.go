@@ -511,6 +511,14 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 			param.Default = string(p.src[def.Start:def.End])
 		}
 	}
+	// `:bareword` is the one parameter attribute (RFC 0001, "Operator
+	// declarations"): a colon touching that word after the variable.
+	if colon, ok := p.peekSignificant(); ok && p.text(colon) == ":" && touchesWord(p, colon) {
+		if word, _ := p.peekAfter(colon); p.text(word) == "bareword" {
+			p.advanceTo(word)
+			param.Bareword = true
+		}
+	}
 	if each {
 		end, ok := p.peekSignificant()
 		if !ok || p.text(end) != ")" {

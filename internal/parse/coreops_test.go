@@ -3,12 +3,14 @@
 package parse
 
 import (
+	"fmt"
 	"maps"
 	"reflect"
 	"slices"
 	"strings"
 	"testing"
 
+	"tamarou.com/pvm/internal/lexer"
 	"tamarou.com/pvm/internal/types"
 )
 
@@ -179,7 +181,8 @@ func coreOperators(t *testing.T) []operatorDecl {
 // give perl's booleans; `&&`, `||`, `//`, `and`, `or` and `=` give an
 // operand, and `^^`, `~~` and `^^=` perl's boolean; the string bitwise
 // operators give a string; a compound assignment gives its left operand,
-// holding what its operator gives. An operator that forks has a row for each candidate, its list
+// holding what its operator gives; `,` and `=>` append in list context and
+// give their right operand in scalar context. An operator that forks has a row for each candidate, its list
 // candidate's keyed "(list)": the one whose return type answers list
 // context (RFC 0001, "Context selects by return type").
 //
@@ -248,6 +251,9 @@ func TestCoreOperatorTypesMatchMeasured(t *testing.T) {
 		"infix &.=": bin(types.Scalar, S, S), "infix |.=": bin(types.Scalar, S, S), "infix ^.=": bin(types.Scalar, S, S),
 		"infix &&=": bin(types.Scalar, types.Scalar, types.Scalar), "infix ||=": bin(types.Scalar, types.Scalar, types.Scalar),
 		"infix //=": bin(types.Scalar, types.Scalar, types.Scalar), "infix ^^=": bin(types.Scalar, types.Scalar, B),
+
+		"infix , (list)": bin(types.List, types.List, types.List), "infix ,": bin(types.Scalar, types.Scalar, types.Scalar),
+		"infix => (list)": bin(S, types.List, types.List), "infix =>": bin(S, types.Scalar, types.Scalar),
 	}
 	got := map[string]row{}
 	for _, op := range coreOperators(t) {
@@ -583,5 +589,115 @@ func TestCoreDeclaresRemainingInfix(t *testing.T) {
 		if _, ok := want[[2]string{op.fixity, op.name}]; ok {
 			t.Errorf("undeclaredOperators still places %s %s", op.fixity, op.name)
 		}
+	}
+}
+
+// TestCoreDeclaresComma: `,` is perlop's `left , =>` row, between `=` and
+// a rightward list operator, and forks on context (perigrin, 2026-10-08).
+// Measured on 5.42.0: in list context it appends, `(@a, 3)` with `@a =
+// (1, 2)` being 3 elements and `(1, (2, 3))` 3; in scalar context it
+// evaluates its left and gives its right, `my $x = (4, 5)` being 5 with a
+// "Useless use of a constant" warning. `=>` is the same operator, `(4 =>
+// 5)` being 5 too, but reads its left operand as a word
+// (TestFatCommaAutoquotes).
+func TestCoreDeclaresComma(t *testing.T) {
+	param := func(n string, sigil byte, ty types.Type, required bool) types.Param {
+		return types.Param{Name: n, Sigil: sigil, Type: ty, Required: required}
+	}
+	lhs := types.Param{Name: "lhs", Sigil: '$', Type: types.Str, Required: true, Bareword: true}
+	want := map[string][]operatorDecl{
+		",": {
+			{name: ",", fixity: "infix", multi: true, looser: []string{"="}, assoc: "left", sig: types.Signature{
+				Params: []types.Param{param("l", '@', types.List, false), param("r", '@', types.List, false)}, Returns: types.List}},
+			{name: ",", fixity: "infix", multi: true, sig: types.Signature{
+				Params: []types.Param{param("l", '$', types.Scalar, true), param("r", '$', types.Scalar, true)}, Returns: types.Scalar}},
+		},
+		"=>": {
+			{name: "=>", fixity: "infix", multi: true, equiv: []string{","}, sig: types.Signature{
+				Params: []types.Param{lhs, param("rhs", '@', types.List, false)}, Returns: types.List}},
+			{name: "=>", fixity: "infix", multi: true, equiv: []string{","}, sig: types.Signature{
+				Params: []types.Param{lhs, param("rhs", '$', types.Scalar, true)}, Returns: types.Scalar}},
+		},
+	}
+	for sym, w := range want {
+		if got := coreCandidates(t, "infix", sym); !reflect.DeepEqual(got, w) {
+			t.Errorf("%s:\n got %+v\nwant %+v", sym, got, w)
+		}
+	}
+}
+
+// TestFatCommaAutoquotes: `=>` reads the bareword to its left as a word,
+// because CORE.pmt's `=>` takes `Str $lhs :bareword` -- a parser hint that
+// the operand is a word and not an expression, its type saying what the
+// word becomes. Measured on 5.42.0 under strict, with `sub foo { "CALLED"
+// }`: `(foo => 1)` gives "foo" where `(foo, 1)` gives "CALLED", `(time =>
+// 1)` "time", `(s => 1)` "s", and `(nosuch => 1)` "nosuch" where `(nosuch,
+// 1)` is "Bareword not allowed while strict subs". The lexer quotes
+// through the operators it is given, and a parse gives it CORE.pmt's.
+func TestFatCommaAutoquotes(t *testing.T) {
+	for _, sym := range []string{"=>", ","} {
+		for _, op := range coreCandidates(t, "infix", sym) {
+			if got := op.sig.Params[0].Bareword; got != (sym == "=>") {
+				t.Errorf("%s's left operand :bareword is %v", sym, got)
+			}
+		}
+	}
+	if got := coreBarewordOperators(); !slices.Equal(got, []string{"=>"}) {
+		t.Errorf("CORE.pmt's :bareword operators are %v, want [=>]", got)
+	}
+
+	// The lexer reads `s` as a word before an operator it is told reads
+	// one, and as a substitution before any other; `-e` likewise as a
+	// word or as a file test.
+	tokenAt := func(src string, ops []string, at string) string {
+		i := strings.Index(src, at)
+		for _, tok := range lexer.TokenizeBarewords([]byte(src), ops) {
+			if tok.Start == i {
+				return fmt.Sprintf("%v %q", tok.Kind, src[tok.Start:tok.End])
+			}
+		}
+		return "none"
+	}
+	for _, c := range []struct {
+		src, at string
+		ops     []string
+		want    string
+	}{
+		{"my %h = (s => 1);", "s", []string{"=>"}, `Word "s"`},
+		{"my %h = (s => 1);", "s", nil, `UnknownRest "s => 1);"`},
+		{"my %h = (-e => 1);", "-e", []string{"=>"}, `Operator "-"`},
+		{"my %h = (-e => 1);", "-e", nil, `Operator "-e"`},
+	} {
+		if got := tokenAt(c.src, c.ops, c.at); got != c.want {
+			t.Errorf("%q with :bareword operators %v: %s is %s, want %s", c.src, c.ops, c.at, got, c.want)
+		}
+	}
+
+	// A parse reads with CORE.pmt's: the word before `=>` is quoted, a
+	// declared sub's name and a builtin's alike, and the one before `,` is
+	// a call.
+	root := Parse([]byte("sub foo { 'CALLED' } my @a = (foo => 1, time => 2, s => 3, nosuch => 4, foo, 5);"))
+	var words []string
+	var walk func(n *Node)
+	walk = func(n *Node) {
+		if n.Kind == Call && n.Fat {
+			words = append(words, n.Text)
+		}
+		for _, c := range n.Children {
+			walk(c)
+		}
+	}
+	walk(root)
+	if want := []string{"foo", "time", "s", "nosuch"}; !slices.Equal(words, want) {
+		t.Errorf("quoted words %v, want %v", words, want)
+	}
+}
+
+// TestLexerBarewordOperatorsAreCores: the operators the lexer reads a word
+// before when no CORE.pmt has been read -- CORE.pmt's own read, and a
+// caller of lexer.Tokenize -- are CORE.pmt's `:bareword` ones.
+func TestLexerBarewordOperatorsAreCores(t *testing.T) {
+	if !slices.Equal(lexer.BarewordOperators, coreBarewordOperators()) {
+		t.Errorf("lexer.BarewordOperators is %v, CORE.pmt's %v", lexer.BarewordOperators, coreBarewordOperators())
 	}
 }

@@ -982,8 +982,7 @@ func scanFileTest(l *lexer) bool {
 		return false
 	}
 	// `-e => 1` autoquotes the whole thing as a string key.
-	if sep := skipSpaceFrom(l.src, after); sep+1 < len(l.src) &&
-		l.src[sep] == '=' && l.src[sep+1] == '>' {
+	if l.barewordOpFollows(after) {
 		return false
 	}
 	start := l.pos
