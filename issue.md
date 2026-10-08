@@ -1,12 +1,21 @@
 ---
 title: An argument with no default is typed Void|T; the bare-call default convention goes
-state: pending
+state: in-progress
 urgency: normal
 milestone: type-libraries
 blocked_by:
 - 01a11937-22da-7250-b922-fabda15009a7
 created: 2026-10-08T01:59:02.643468486Z
-updated: 2026-10-08T02:09:17.776755463Z
+updated: 2026-10-08T03:25:50.339102105Z
+sessions:
+- start_sha: 7b12bfdb14a0370e96efe35f6a981ca724418447
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-08T03:25:50.339102105Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-08T03:25:50.339102105Z
 ---
 
 ## Context
