@@ -16,7 +16,7 @@ const (
 
 // BooleanCtx is scalar context. Measured on 5.42.0, `wantarray` reports
 // scalar inside `if (f())`, `!f()` and `f() and ...`, so no Perl-level sub
-// can tell them apart (RFC 0001, "`:context(...)`").
+// can tell them apart (RFC 0001, "Context selects by return type").
 const BooleanCtx = ScalarCtx
 
 // contextNames maps Context values to their human-readable string representations.

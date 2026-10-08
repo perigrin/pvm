@@ -244,10 +244,10 @@ sub dump :equiv(=) () None;
 # iteration is done, which is none of the list's values, so each context
 # is its own candidate, as for keys. A scalar is no operand: "Experimental
 # each on scalar is now forbidden" (measured on 5.42).
-multi sub each :context($) (Hash \%h) Str|Undef;
-multi sub each :context($) (Array \@a) Int|Undef;
-multi sub each :context(@) (Hash \%h) List;
-multi sub each :context(@) (Array \@a) List;
+multi sub each (Hash \%h) Str|Undef;
+multi sub each (Array \@a) Int|Undef;
+multi sub each (Hash \%h) List;
+multi sub each (Array \@a) List;
 # endgrent, endpwent, setgrent and setpwent close or rewind the group and
 # password files and yield true, a boolean, in either context (measured:
 # builtin::is_bool of each).
@@ -415,16 +415,17 @@ sub getsockopt (Glob *socket, Int $level, Int $optname) Str|Undef;
 #   perl -MO=Deparse,-p -e 'our ($a,$b); my $z = glob $a, $b;'
 #   Too many arguments for glob
 sub glob :prototype(_;) (Str $pattern = $_) List;
-# gmtime and localtime fork on context (RFC 0001, "`:context(...)`"). In
-# scalar context each yields a date string, `my $t = localtime(0)` being
-# "Thu Jan  1 00:00:00 1970" (POK), and undef for a time out of range
-# (`localtime(1e20)` is undef, with a warning). In list context each yields
-# nine integers, (0, 0, 0, 1, 0, 70, 4, 0, 0) for 0, or none out of range:
-# the string is none of them. The year is NV only, 70 being whole, as hex's
-# overflow is (measured with B::svref_2object). The time is now with none
-# (`gmtime()` is today's date), which undef is not: gmtime(undef) is 1970.
-multi sub gmtime :context($) (Int $time = time) Str|Undef;
-multi sub gmtime :context(@) (Int $time = time) List[Int];
+# gmtime and localtime fork on context (RFC 0001, "Context selects by
+# return type"). In scalar context each yields a date string, `my $t =
+# localtime(0)` being "Thu Jan  1 00:00:00 1970" (POK), and undef for a
+# time out of range (`localtime(1e20)` is undef, with a warning). In list
+# context each yields nine integers, (0, 0, 0, 1, 0, 70, 4, 0, 0) for 0,
+# or none out of range: the string is none of them. The year is NV only,
+# 70 being whole, as hex's overflow is (measured with B::svref_2object).
+# The time is now with none (`gmtime()` is today's date), which undef is
+# not: gmtime(undef) is 1970.
+multi sub gmtime (Int $time = time) Str|Undef;
+multi sub gmtime (Int $time = time) List[Int];
 # Measured with do, above. Its operand is read at the assignment level,
 # `goto $x = 1` being `goto ($x = 1)`, as perlop puts it, so the line states
 # `:equiv(=)` where a named unary's shape would place it tighter than `<`
@@ -465,10 +466,10 @@ sub join (Str $separator, List @list) Str;
 # arguments" (measured). Its scalar-context value is a count -- with two
 # keys, `my $n = keys %h` is 2, and with three elements, `my $m = keys @a`
 # is 3, each IOK only -- which is not one of the list-context values.
-multi sub keys :context($) (Hash \%h) Int;
-multi sub keys :context($) (Array \@a) Int;
-multi sub keys :context(@) (Hash \%h) List;
-multi sub keys :context(@) (Array \@a) List;
+multi sub keys (Hash \%h) Int;
+multi sub keys (Array \@a) Int;
+multi sub keys (Hash \%h) List;
+multi sub keys (Array \@a) List;
 # kill takes a LIST, the signal and then the processes, which may be
 # empty: `kill()` compiles (measured). It yields how many processes it
 # signalled, as an IV: kill(0, $$) is 1, kill(0, 999999) 0.
@@ -483,8 +484,8 @@ sub link (Str $old, Str $new) Int;
 # Measured as bind, above.
 sub listen (Glob *socket, Int $queuesize) Boolean|Undef;
 # Measured as gmtime, above.
-multi sub localtime :context($) (Int $time = time) Str|Undef;
-multi sub localtime :context(@) (Int $time = time) List[Int];
+multi sub localtime (Int $time = time) Str|Undef;
+multi sub localtime (Int $time = time) List[Int];
 sub lock :prototype(\[$@%&*]);
 # Measured as cos, above.
 sub log (Num $number = $_) Num;
@@ -493,8 +494,8 @@ sub log (Num $number = $_) Num;
 # the 13 fields, or none when the file is missing; in scalar context
 # whether it succeeded, a boolean -- not one of the fields, so two
 # candidates.
-multi sub lstat :context(@) (Glob *file = $_) List;
-multi sub lstat :context($) (Glob *file = $_) Boolean;
+multi sub lstat (Glob *file = $_) List;
+multi sub lstat (Glob *file = $_) Boolean;
 # method is a keyword, like sub, not a builtin to type (perigrin,
 # 2026-10-07): `CORE::method()` is "Cannot 'method' outside of a 'class'"
 # (measured on 5.42). The line holds CORE.pmt to prototype("CORE::method").
@@ -598,8 +599,8 @@ sub readlink (Str $path = $_) Str|Undef;
 #
 #   perl -MO=Deparse,-p -e 'our ($a,$b); my $z = readpipe $a, $b;'
 #   ((my($z) = `$a`), $b);               comma OUTSIDE
-multi sub readpipe :context($) (Str $command = $_) Str|Undef;
-multi sub readpipe :context(@) (Str $command = $_) List[Str];
+multi sub readpipe (Str $command = $_) Str|Undef;
+multi sub readpipe (Str $command = $_) List[Str];
 # recv fills the caller's buffer, as read does (measured: three bytes of
 # "hello" leave "zz" as "hel"), and yields the sender's packed address, the
 # empty string for a stream socket, and undef on failure (measured: a
@@ -627,8 +628,8 @@ sub return (List[Any] @values) Any;
 # reverses `$_` in scalar context: with `$_ = "xyz"`, bare `reverse`,
 # `reverse()`, `reverse(@empty)` and `reverse(())` are all "zyx"; in list
 # context each is the empty list, so only the scalar candidate defaults.
-multi sub reverse :prototype(@) :context($) (List @list = ($_)) Str;
-multi sub reverse :prototype(@) :context(@) (List @list) List;
+multi sub reverse :prototype(@) (List @list = ($_)) Str;
+multi sub reverse :prototype(@) (List @list) List;
 # Measured as closedir, above.
 sub rewinddir (Glob *dh) Boolean|Undef;
 # Measured as index, above.
@@ -739,8 +740,8 @@ sub splice (Array \@array, Int $offset = 0, Int $length = scalar(@array), List @
 #
 #   perl -MO=Deparse,-p -e 'our ($a,$c); my @z = split /,/, $a < 5, 2;'
 #   (my @z = split(/,/, ($a < 5), 2));
-multi sub split :listop :context($) (Regex|Str $pattern = ' ', Str $string = $_, Int $limit = 0) Int;
-multi sub split :listop :context(@) (Regex|Str $pattern = ' ', Str $string = $_, Int $limit = 0) List;
+multi sub split :listop (Regex|Str $pattern = ' ', Str $string = $_, Int $limit = 0) Int;
+multi sub split :listop (Regex|Str $pattern = ' ', Str $string = $_, Int $limit = 0) List;
 # sprintf takes a format and then the LIST of values it interpolates.
 sub sprintf (Str $format, List @list) Str;
 # Measured as cos, above.
@@ -756,8 +757,8 @@ sub sqrt (Num $number = $_) Num;
 # case, while srand(@e) is srand(0), an empty array one scalar under `;$`.
 sub srand (Optional[Int] $seed) Str;
 # Measured as lstat, above.
-multi sub stat :context(@) (Glob *file = $_) List;
-multi sub stat :context($) (Glob *file = $_) Boolean;
+multi sub stat (Glob *file = $_) List;
+multi sub stat (Glob *file = $_) Boolean;
 # study is a no-op since 5.16 that still answers: true for a defined
 # string, `$_` with none, and false for undef (measured: study("x") is 1,
 # study(undef) "").
@@ -845,10 +846,10 @@ sub untie :prototype(\[$@%*]);
 # Measured as chmod, above: utime(undef, undef, "f", "nope") is 1.
 sub utime :prototype(@) (List @list) Int;
 # Measured as keys, above.
-multi sub values :context($) (Hash \%h) Int;
-multi sub values :context($) (Array \@a) Int;
-multi sub values :context(@) (Hash \%h) List;
-multi sub values :context(@) (Array \@a) List;
+multi sub values (Hash \%h) Int;
+multi sub values (Array \@a) Int;
+multi sub values (Hash \%h) List;
+multi sub values (Array \@a) List;
 # vec reads the unsigned integer of a width of bits at an offset in a
 # string, all three required (`vec("a", 0)` does not compile): vec("abc",
 # 0, 8) is 97 as an IV, and past the string's end 0 (measured).
@@ -924,9 +925,9 @@ multi sub map (Scalar $expr, List @list) List;
 # } ()` compiles; and with no list after it the routine is the list,
 # `sort byname` yielding "byname" while `sort byname ()` yields nothing.
 # Scalar sort is undefined: `my $n = sort 3, 1, 2` leaves $n undef.
-multi sub sort :context(@) (Code &block, List @list = die) List;
-multi sub sort :context(@) (List @list = die) List;
-multi sub sort :context(@) (Code|Str $by: List @list = die) List;
+multi sub sort (Code &block, List @list = die) List;
+multi sub sort (List @list = die) List;
+multi sub sort (Code|Str $by: List @list = die) List;
 
 # Operators (RFC 0001, "Operator declarations"): each under its symbol, with
 # its fixity and, for an infix one, the class naming its precedence level in
@@ -967,7 +968,7 @@ sub . :infix(ADD) (Str $x, Str $y) Str;
 
 # Repetition, a MULOP: a list when the left operand is parenthesised and the
 # call is in list context, `(1,2) x 2`; otherwise a string, `"ab" x 2`.
-multi sub x :infix(MUL) :context(@) (List @l, Int $n) List;
+multi sub x :infix(MUL) (List @l, Int $n) List;
 multi sub x :infix(MUL) (Str $s, Int $n) Str;
 
 # Numeric comparison
@@ -1011,17 +1012,17 @@ sub isa :infix(ISA) :tighter(<) :assoc(nonassoc) (Scalar $x, Str $y) Boolean;
 # Regex binding: in list context a match's captures, or s///'s count; in
 # scalar context a match's boolean, s/// or tr///'s count, or s///r or
 # tr///r's new string.
-multi sub =~ :infix(MATCHRE) :tighter(*) :assoc(left) :context(@) (Str $x, Regex $y) List;
-multi sub =~ :infix(MATCHRE) :context($) (Str $x, Regex $y) Boolean|Str;
+multi sub =~ :infix(MATCHRE) :tighter(*) :assoc(left) (Str $x, Regex $y) List;
+multi sub =~ :infix(MATCHRE) (Str $x, Regex $y) Boolean|Str;
 sub !~ :infix(MATCHRE) (Str $x, Regex $y) Boolean;
 
 # Range: a range in list context, a flip-flop in scalar context, whose
 # result is a sequence number as a string ("", "1", "2", "3E0"). It does not
 # associate, measured: `my $x = 1 .. 2 .. 3;` is a syntax error near "2 ..".
-multi sub .. :infix :tighter(=) :assoc(nonassoc) :context(@) (Str $x, Str $y) List;
-multi sub .. :infix :context($) (Any $x, Any $y) Str;
-multi sub ... :infix :equiv(..) :context(@) (Str $x, Str $y) List;
-multi sub ... :infix :context($) (Any $x, Any $y) Str;
+multi sub .. :infix :tighter(=) :assoc(nonassoc) (Str $x, Str $y) List;
+multi sub .. :infix (Any $x, Any $y) Str;
+multi sub ... :infix :equiv(..) (Str $x, Str $y) List;
+multi sub ... :infix (Any $x, Any $y) Str;
 
 # Assignment
 sub = :infix(ASSIGN) :tighter(not) :assoc(right) (Any $x, Any $y) Any;
@@ -1037,5 +1038,5 @@ sub ~ :prefix :equiv(!) (Int $x) Int;
 # `\` is REFGEN, the srefgen the fidelity harness measures: a reference to
 # each element of a parenthesised list in list context,
 # `\(1,2,3)`; otherwise one reference.
-multi sub \ :prefix :equiv(!) :context(@) (List @l) List;
+multi sub \ :prefix :equiv(!) (List @l) List;
 multi sub \ :prefix (Any $x) Ref;

@@ -153,8 +153,8 @@ func agreement(declared, fromTypes string) error {
 // declaration that states a prototype they must give.
 func prototypeFromCandidates(sigs []types.Signature) (proto string, err error) {
 	// Candidates group by their parameters, as the prototype sees them:
-	// `:context` and the return type never split a group, so `keys`'
-	// four candidates are two groups and `localtime`'s two are one.
+	// the return type never splits a group, so `keys`' four candidates
+	// are two groups and `localtime`'s two are one.
 	var protos []string
 	for _, s := range sigs {
 		if s.Invocant != nil {

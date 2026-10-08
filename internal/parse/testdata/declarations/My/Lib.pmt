@@ -17,9 +17,9 @@ sub need (Str $name = die) Str;
 multi sub pick (Int $i) Str;
 multi sub pick (Str $s) Int;
 
-# A :context multi.
-multi sub when_ :context($) () Str;
-multi sub when_ :context(@) () List[Str];
+# A context multi: a scalar return and a list return.
+multi sub when_ () Str;
+multi sub when_ () List[Str];
 
 # The invocant colon.
 sub emit (FileHandle $fh: List[Str] @args) Boolean;

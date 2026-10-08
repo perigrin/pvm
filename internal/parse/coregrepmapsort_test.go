@@ -17,17 +17,16 @@ import (
 var grepMapSort = []string{"grep", "map", "sort"}
 
 // candidate is a measuredRow beside what a row does not say: each
-// parameter's sigil, the invocant's type, and the contexts answered for.
+// parameter's sigil and the invocant's type.
 type candidate struct {
 	Row      measuredRow
 	Sigils   string
 	Invocant types.Type
-	Context  types.Contexts
 }
 
 // candidateOf reads a declaration in candidate's terms.
 func candidateOf(sig types.Signature) candidate {
-	c := candidate{Row: rowOf(sig), Context: sig.Context}
+	c := candidate{Row: rowOf(sig)}
 	for _, p := range sig.Params {
 		c.Sigils += string(p.Sigil)
 	}
@@ -43,20 +42,18 @@ func candidateOf(sig types.Signature) candidate {
 // and an expression candidate, `(Scalar $expr, List @list)`, the `($@)`
 // shape B::Deparse gives `grep /a/ || 1, @l`. sort is a block candidate,
 // a plain one and an invocant candidate for `sort byname @x` and `sort $n
-// @x`, each with its list written; scalar sort is undefined, so each
-// answers for list context alone.
+// @x`, each with its list written.
 func TestCoreGrepMapSortAreMultis(t *testing.T) {
-	list := types.ContextSet(types.ListCtx)
-	block := candidate{measuredRow{2, []types.Type{types.Code, types.List}, types.List}, "&@", types.Unknown, types.EveryContext}
-	expr := candidate{measuredRow{1, []types.Type{types.Scalar, types.List}, types.List}, "$@", types.Unknown, types.EveryContext}
+	block := candidate{measuredRow{2, []types.Type{types.Code, types.List}, types.List}, "&@", types.Unknown}
+	expr := candidate{measuredRow{1, []types.Type{types.Scalar, types.List}, types.List}, "$@", types.Unknown}
 	core := parse.CoreSignatures()
 	for name, want := range map[string][]candidate{
 		"grep": {block, expr},
 		"map":  {block, expr},
 		"sort": {
-			{measuredRow{2, []types.Type{types.Code, types.List}, types.List}, "&@", types.Unknown, list},
-			{measuredRow{1, []types.Type{types.List}, types.List}, "@", types.Unknown, list},
-			{measuredRow{1, []types.Type{types.List}, types.List}, "@", types.Code | types.Str, list},
+			{measuredRow{2, []types.Type{types.Code, types.List}, types.List}, "&@", types.Unknown},
+			{measuredRow{1, []types.Type{types.List}, types.List}, "@", types.Unknown},
+			{measuredRow{1, []types.Type{types.List}, types.List}, "@", types.Code | types.Str},
 		},
 	} {
 		var got []candidate
@@ -100,21 +97,21 @@ func TestCoreGrepMapSortOutOfCoreTable(t *testing.T) {
 	}
 }
 
-// TestCoreSortScalarHasNoType: every sort candidate answers for list
-// context alone, so a call in scalar context selects none and has no type.
-// Measured on 5.42, `my $n = sort 3,1,2` leaves $n undef. The same call
-// in list context selects the plain candidate.
-func TestCoreSortScalarHasNoType(t *testing.T) {
+// TestCoreSortScalarIsCoerced: every sort candidate returns a List, so no
+// candidate's return type answers scalar context, and a scalar call is
+// the plain candidate's, as in list context, its List coerced by the
+// context (RFC 0001, "Context selects by return type"). Measured on 5.42,
+// `my $n = sort 3,1,2` leaves $n undef, which no candidate states.
+func TestCoreSortScalarIsCoerced(t *testing.T) {
 	sort := parse.CoreSignatures()["sort"]
 	if len(sort) != 3 {
 		t.Fatalf("sort: CORE.pmt declares %d candidates; want 3", len(sort))
 	}
 	args := []types.Type{types.Int, types.Int, types.Int}
-	if sel := types.Select(sort, args, types.ScalarCtx); sel.Outcome != types.Failed || sel.Returns != types.Unknown {
-		t.Errorf("scalar sort selects %+v; want no candidate and no type", sel)
-	}
-	if sel := types.Select(sort, args, types.ListCtx); sel.Outcome != types.Selected || sel.Candidate != 1 {
-		t.Errorf("list sort selects %+v; want the plain candidate, 1", sel)
+	for _, ctx := range []types.Context{types.ScalarCtx, types.ListCtx} {
+		if sel := types.Select(sort, args, ctx); sel.Outcome != types.Selected || sel.Candidate != 1 || sel.Returns != types.List {
+			t.Errorf("sort in %v selects %+v; want the plain candidate, 1, returning List", ctx, sel)
+		}
 	}
 }
 

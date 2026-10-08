@@ -1917,9 +1917,10 @@ func builtinArgActual(name string, actual types.Type) types.Type {
 // operatorCandidates is the CORE.pmt candidates of the operator op of
 // fixity that a use with these operands in context ctx can be: those
 // taking the operands' shapes, RFC 0001 "Operators that fork" -- a
-// parenthesised operand, `(1,2) x 2`, is `@`-shaped -- and answering for ctx,
-// or for any context when ctx is UnknownCtx. The operands' types do not
-// choose between them; that is RFC 0001 "Call sites"'.
+// parenthesised operand, `(1,2) x 2`, is `@`-shaped -- and answering ctx
+// ("Context selects by return type"), or any context when ctx is
+// UnknownCtx. The operands' types do not choose between them; that is RFC
+// 0001 "Call sites"'.
 func operatorCandidates(op, fixity string, ctx types.Context, operands ...*parser.Node) []types.Signature {
 	shapes := ""
 	for _, o := range operands {
@@ -1933,13 +1934,17 @@ func operatorCandidates(op, fixity string, ctx types.Context, operands ...*parse
 	if ctx == types.UnknownCtx {
 		ctxs = []types.Context{types.ScalarCtx, types.ListCtx, types.VoidCtx}
 	}
+	cands := parse.CoreOperator(op, fixity)
+	taken := map[int]bool{}
+	for _, x := range ctxs {
+		for _, i := range types.Taking(cands, make([]types.Type, len(shapes)), shapes, x) {
+			taken[i] = true
+		}
+	}
 	var takes []types.Signature
-	for _, c := range parse.CoreOperator(op, fixity) {
-		for _, x := range ctxs {
-			if types.SelectShaped([]types.Signature{c}, make([]types.Type, len(shapes)), shapes, x).Outcome != types.Failed {
-				takes = append(takes, c)
-				break
-			}
+	for i, c := range cands {
+		if taken[i] {
+			takes = append(takes, c)
 		}
 	}
 	return takes
@@ -2039,20 +2044,23 @@ func callReturns(sigs []types.Signature, args []*parser.Node, ctx types.Context)
 }
 
 // builtinReturns is a builtin call's type in context ctx from its
-// candidates' declared return types: the join of those answering for ctx,
-// RFC 0001 "`:context(...)`", or of all of them when ctx is UnknownCtx.
-// reverse is why: measured, `my @r = reverse "ab", "cd"` is ("cd","ab")
-// and `my $s = reverse "ab", "cd"` is "dcba", where a list in scalar
-// context would be a count. A context no candidate answers for, a scalar
-// sort's, has no type. Selecting by argument types is RFC 0001 "Call
-// sites"', so a multi's call is otherwise the join of its candidates', as
-// for a call site that cannot decide.
+// candidates' declared return types: the join of those answering ctx, RFC
+// 0001 "Context selects by return type", or of all of them when ctx is
+// UnknownCtx. reverse is why: measured, `my @r = reverse "ab", "cd"` is
+// ("cd","ab") and `my $s = reverse "ab", "cd"` is "dcba", where a list in
+// scalar context would be a count. Selecting by argument types is RFC 0001
+// "Call sites"', so a multi's call is otherwise the join of its
+// candidates', as for a call site that cannot decide.
 func builtinReturns(sigs []types.Signature, ctx types.Context) types.Type {
 	t := types.Unknown
-	for _, s := range sigs {
-		if ctx == types.UnknownCtx || s.Context == types.EveryContext || s.Context&types.ContextSet(ctx) != 0 {
+	if ctx == types.UnknownCtx {
+		for _, s := range sigs {
 			t = types.Join(t, s.Returns)
 		}
+		return t
+	}
+	for _, i := range types.Answering(sigs, ctx) {
+		t = types.Join(t, sigs[i].Returns)
 	}
 	return t
 }

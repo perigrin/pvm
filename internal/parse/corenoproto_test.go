@@ -108,8 +108,8 @@ func TestCoreUnaryDerivesNoPrototype(t *testing.T) {
 func TestCoreListopDerivesNoPrototype(t *testing.T) {
 	for _, src := range []string{
 		"package CORE;\nsub split :listop (Regex|Str $pattern = ' ', Str $string = $_, Int $limit = 0) List;\n",
-		"package CORE;\nmulti sub split :listop :context($) (Regex|Str $pattern = ' ', Str $string = $_, Int $limit = 0) Int;\n" +
-			"multi sub split :listop :context(@) (Regex|Str $pattern = ' ', Str $string = $_, Int $limit = 0) List;\n",
+		"package CORE;\nmulti sub split :listop (Regex|Str $pattern = ' ', Str $string = $_, Int $limit = 0) Int;\n" +
+			"multi sub split :listop (Regex|Str $pattern = ' ', Str $string = $_, Int $limit = 0) List;\n",
 	} {
 		derived, err := parse.DerivedPrototypes([]byte(src))
 		if err != nil {
@@ -318,7 +318,7 @@ func TestCoreSplitDeclared(t *testing.T) {
 // context yields the key alone -- a hash's key ("a", a Str) or an array's
 // index (0, IOK) -- and undef once the iteration is done, which is not
 // one of the list-context values (the key and the value). So each is
-// :context candidates, as keys and values are.
+// candidates whose return types fork on context, as keys and values are.
 func TestCoreEachScalarContextIsTheKey(t *testing.T) {
 	each := parse.CoreSignatures()["each"]
 	for container, want := range map[types.Type]types.Type{types.Hash: types.Str | types.Undef, types.Array: types.Int | types.Undef} {

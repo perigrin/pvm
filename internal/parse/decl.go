@@ -124,7 +124,7 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 	var ret *Node
 	err := func() error {
 		var err error
-		if s.Context, err = declaredContext(n); err != nil {
+		if err = refuseContext(n); err != nil {
 			return err
 		}
 		s.Unary = hasAttribute(n, ":unary")
@@ -252,37 +252,16 @@ func hasAttribute(n *Node, attr string) bool {
 	return slices.ContainsFunc(n.Children, func(c *Node) bool { return c.Kind == Attribute && c.Text == attr })
 }
 
-// declaredContext reads a declaration's `:context(...)`, RFC 0001
-// "`:context(...)`": the contexts it answers for, in prototype sigils, `$`
-// scalar and `@` list, and none at all void. A declaration with no
-// `:context` answers for every context. Any other spelling is an error.
-func declaredContext(n *Node) (types.Contexts, error) {
+// refuseContext refuses a declaration's `:context(...)`: a candidate's
+// return type says which calling context selects it, RFC 0001 "Context
+// selects by return type", so the attribute would state it twice.
+func refuseContext(n *Node) error {
 	for _, c := range n.Children {
-		body, ok := strings.CutPrefix(c.Text, ":context(")
-		if c.Kind != Attribute || !ok {
-			continue
+		if c.Kind == Attribute && strings.HasPrefix(c.Text, ":context(") {
+			return errors.New(":context is no attribute; a candidate's return type says which context selects it")
 		}
-		body, ok = strings.CutSuffix(body, ")")
-		if !ok {
-			return 0, errors.New(":context( is not closed by `)`")
-		}
-		if body == "" {
-			return types.ContextSet(types.VoidCtx), nil
-		}
-		var set types.Contexts
-		for _, sigil := range body {
-			switch sigil {
-			case '$':
-				set |= types.ContextSet(types.ScalarCtx)
-			case '@':
-				set |= types.ContextSet(types.ListCtx)
-			default:
-				return 0, fmt.Errorf("%s names no context with %c; a context is $ or @", c.Text, sigil)
-			}
-		}
-		return set, nil
 	}
-	return types.EveryContext, nil
+	return nil
 }
 
 // returnType reads the type a `.pmt` declaration states after its signature,
@@ -983,11 +962,11 @@ func (p *parser) parseSubDecl(word lexer.Token) *Node {
 		p.typedErrs = append(p.typedErrs, fmt.Errorf("sub %s: :listop needs a typed signature stating its parameters", name))
 	}
 
-	// A malformed `:context` with a signature after it is refused by
-	// parseTypedSignature. One never closed swallows the signature, so it
-	// is refused here.
+	// A `:context` with a signature after it is refused by
+	// parseTypedSignature. One with none, or never closed so that it
+	// swallows the signature, is refused here.
 	if p.typed && len(p.typedErrs) == errsBefore {
-		if _, err := declaredContext(n); err != nil {
+		if err := refuseContext(n); err != nil {
 			name, _ := declaredSub(n)
 			p.typedErrs = append(p.typedErrs, fmt.Errorf("sub %s: %w", name, err))
 		}

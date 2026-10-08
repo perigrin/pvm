@@ -458,7 +458,8 @@ func TestPmtMultiSubKeepsEveryCandidate(t *testing.T) {
 // multi: every candidate is kept, in the order declared, whichever comes
 // first, and the file carries one warning naming the sub and no error. Two
 // plain `sub f` lines with no `multi sub f` keep only the last, silently.
-// Once mixed, the multi rules apply: `:context` candidates fork on context.
+// Once mixed, the multi rules apply: candidates whose return types answer
+// different contexts fork on context.
 func TestPmtPlainAndMultiSubMixIsAMultiWithAWarning(t *testing.T) {
 	intSig := types.Signature{Params: []types.Param{{Name: "x", Sigil: '$', Type: types.Int, Required: true}}, Returns: types.Str}
 	strSig := types.Signature{Params: []types.Param{{Name: "x", Sigil: '$', Type: types.Str, Required: true}}, Returns: types.Int}
@@ -492,11 +493,11 @@ func TestPmtPlainAndMultiSubMixIsAMultiWithAWarning(t *testing.T) {
 		t.Errorf("two plain subs: got %+v, want only the last", got)
 	}
 
-	ctx := readDeclaration([]byte("sub g :context($) () Str;\nmulti sub g :context(@) () List;\n"), nil)
+	ctx := readDeclaration([]byte("sub g () Str;\nmulti sub g () List;\n"), nil)
 	if len(ctx.errs) > 0 || len(ctx.warns) != 1 {
 		t.Errorf("context mix: errors %v, warnings %v", ctx.errs, ctx.warns)
 	}
-	if got := ctx.signatures["g"]; len(got) != 2 || got[0].Context != types.ContextSet(types.ScalarCtx) || got[1].Context != types.ContextSet(types.ListCtx) {
+	if got := ctx.signatures["g"]; len(got) != 2 || got[0].Returns != types.Str || got[1].Returns != types.List {
 		t.Errorf("context mix: got %+v, want a scalar and a list candidate", got)
 	}
 }
@@ -557,61 +558,6 @@ func TestMultiAmbiguousCandidatesIsError(t *testing.T) {
 	if len(facts.errs) > 0 || len(facts.signatures["f"]) != 3 {
 		t.Errorf("with (Int $a, Int $b): got errors %v, candidates %+v", facts.errs, facts.signatures["f"])
 	}
-}
-
-// TestPmtContextAttribute: RFC 0001 "`:context(...)`". A declaration names
-// the contexts it answers for in prototype sigils, read into five distinct
-// sets: `$` scalar, `@` list, `()` void, `$@` scalar or list, and no
-// attribute, which answers for every context. As with `:prototype`, absent
-// and empty differ: `:context()` is void alone. Beside `:prototype(...)`,
-// as localtime is declared, each attribute keeps its own argument.
-func TestPmtContextAttribute(t *testing.T) {
-	src := "multi sub localtime :prototype(;$) :context($) (Int $time = time) Str;\n" +
-		"multi sub localtime :prototype(;$) :context(@) (Int $time = time) List[Int];\n" +
-		"sub v :context() () Str;\n" +
-		"sub sl :context($@) () Str;\n" +
-		"sub every () Str;\n"
-	facts := readDeclaration([]byte(src), nil)
-	if len(facts.errs) > 0 {
-		t.Fatalf("errors: %v", facts.errs)
-	}
-	if got := facts.protos["localtime"]; got != "(;$)" {
-		t.Errorf("localtime prototype: got %q, want %q", got, "(;$)")
-	}
-	read := func(name string, i int) types.Contexts {
-		sigs := facts.signatures[name]
-		if len(sigs) <= i {
-			t.Fatalf("%s: got %+v, want candidate %d", name, sigs, i)
-		}
-		return sigs[i].Context
-	}
-	got := []types.Contexts{read("localtime", 0), read("localtime", 1), read("v", 0), read("sl", 0), read("every", 0)}
-	want := []types.Contexts{
-		types.ContextSet(types.ScalarCtx), types.ContextSet(types.ListCtx), types.ContextSet(types.VoidCtx),
-		types.ContextSet(types.ScalarCtx, types.ListCtx), types.EveryContext,
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("contexts: got %v, want %v", got, want)
-	}
-	for i := range want {
-		for j := i + 1; j < len(want); j++ {
-			if want[i] == want[j] {
-				t.Errorf("contexts %d and %d are the same set, %v", i, j, want[i])
-			}
-		}
-	}
-}
-
-// TestPmtContextAttributeMalformed: RFC 0001 "`:context(...)`" spells
-// contexts in two prototype sigils, `$` and `@`. Any other character is an
-// error naming it, and a `:context(` never closed is an error, not a
-// declaration that silently answers for every context.
-func TestPmtContextAttributeMalformed(t *testing.T) {
-	pmtRefuses(t, map[string]string{
-		"sub f :context(%) (Str $x) Str;\n": "sub f: :context(%) names no context with %; a context is $ or @",
-		"sub f :context(x) (Str $x) Str;\n": "sub f: :context(x) names no context with x; a context is $ or @",
-		"sub f :context($ (Str $x) Str;\n":  "sub f: :context( is not closed by `)`",
-	})
 }
 
 // TestPmtDeclarationErrorsSurface: a declaration file in error is reported,
@@ -895,8 +841,8 @@ func TestPmtListopAndUnaryIsError(t *testing.T) {
 // an error whether one line states both or a multi's candidates split
 // them, in either order; otherwise the shape would follow line order.
 func TestPmtUnaryAndListopAcrossCandidatesRefused(t *testing.T) {
-	unary := "multi sub f :unary :context($) (Scalar $x) Int;\n"
-	listop := "multi sub f :listop :context(@) (Scalar $x) List;\n"
+	unary := "multi sub f :unary (Scalar $x) Int;\n"
+	listop := "multi sub f :listop (Scalar $x) List;\n"
 	want := "sub f: :unary and :listop are two parses; a builtin parses as one"
 	for _, src := range []string{unary + listop, listop + unary} {
 		facts := readDeclaration([]byte(src), nil)
@@ -907,4 +853,98 @@ func TestPmtUnaryAndListopAcrossCandidatesRefused(t *testing.T) {
 			t.Errorf("%q: recorded %+v", src, sig)
 		}
 	}
+}
+
+// wantReturns checks that a call to cands with args in context ctx selects
+// a candidate returning want.
+func wantReturns(t *testing.T, what string, cands []types.Signature, args []types.Type, ctx types.Context, want types.Type) {
+	t.Helper()
+	if sel := types.Select(cands, args, ctx); sel.Outcome != types.Selected || sel.Returns != want {
+		t.Errorf("%s in %v: selects %+v; want %v", what, ctx, sel, want)
+	}
+}
+
+// TestContextSelectsByReturnType: RFC 0001 "Context selects by return
+// type". A call site's context is a demand on its result, so of candidates
+// with the same parameters, list context selects the one whose return type
+// is a list and scalar context the one whose return type is a scalar.
+// reverse is the pure case: measured on 5.42, `my $s = reverse "ab", "cd"`
+// is "dcba" and `my @r = reverse "ab", "cd"` is ("cd", "ab"). CORE.pmt's
+// split, each, keys and localtime fork the same way.
+func TestContextSelectsByReturnType(t *testing.T) {
+	facts := readDeclaration([]byte("multi sub rev (List @list) Str;\nmulti sub rev (List @list) List;\n"), nil)
+	if len(facts.errs) > 0 {
+		t.Fatalf("rev: errors %v", facts.errs)
+	}
+	strs := []types.Type{types.Str, types.Str}
+	wantReturns(t, "rev", facts.signatures["rev"], strs, types.ScalarCtx, types.Str)
+	wantReturns(t, "rev", facts.signatures["rev"], strs, types.ListCtx, types.List)
+
+	core := coreSignatures()
+	for _, c := range []struct {
+		name         string
+		args         []types.Type
+		scalar, list types.Type
+	}{
+		{"reverse", strs, types.Str, types.List},
+		{"split", strs, types.Int, types.List},
+		{"each", []types.Type{types.Hash}, types.Str | types.Undef, types.List},
+		{"each", []types.Type{types.Array}, types.Int | types.Undef, types.List},
+		{"keys", []types.Type{types.Hash}, types.Int, types.List},
+		{"keys", []types.Type{types.Array}, types.Int, types.List},
+		{"localtime", []types.Type{types.Int}, types.Str | types.Undef, types.List},
+	} {
+		wantReturns(t, c.name, core[c.name], c.args, types.ScalarCtx, c.scalar)
+		wantReturns(t, c.name, core[c.name], c.args, types.ListCtx, c.list)
+	}
+}
+
+// TestVoidContextSelectsVoidReturn: a candidate returning Void, the empty
+// list, is the one void context selects, over candidates returning a
+// scalar or a list. Void context is a form of scalar context (perlglossary,
+// "void context"), so with no Void candidate it selects the scalar one:
+// localtime in void context is its Str|Undef candidate's.
+func TestVoidContextSelectsVoidReturn(t *testing.T) {
+	src := "multi sub f (Int $x) Void;\nmulti sub f (Int $x) Str;\nmulti sub f (Int $x) List;\n"
+	facts := readDeclaration([]byte(src), nil)
+	if len(facts.errs) > 0 {
+		t.Fatalf("errors %v", facts.errs)
+	}
+	ints := []types.Type{types.Int}
+	wantReturns(t, "f", facts.signatures["f"], ints, types.VoidCtx, types.Void)
+	wantReturns(t, "f", facts.signatures["f"], ints, types.ScalarCtx, types.Str)
+	wantReturns(t, "f", facts.signatures["f"], ints, types.ListCtx, types.List)
+	wantReturns(t, "localtime", coreSignatures()["localtime"], ints, types.VoidCtx, types.Str|types.Undef)
+}
+
+// TestReturnTypeContextAmbiguity: RFC 0001 "Multi declarations". Two
+// candidates with the same parameters whose return types answer the same
+// context share every call, so the declaration is ambiguous: two lists,
+// two scalars or two Voids. A list beside a scalar is a context fork.
+func TestReturnTypeContextAmbiguity(t *testing.T) {
+	ambiguous := "sub f: candidates (Int $x) and (Int $x) are ambiguous for (Int)"
+	pmtRefuses(t, map[string]string{
+		"multi sub f (Int $x) List;\nmulti sub f (Int $x) List[Str];\n": ambiguous,
+		"multi sub f (Int $x) Str;\nmulti sub f (Int $x) Int;\n":        ambiguous,
+		"multi sub f (Int $x) Void;\nmulti sub f (Int $x) Void;\n":      ambiguous,
+	})
+	fork := readDeclaration([]byte("multi sub f (Int $x) Str;\nmulti sub f (Int $x) List[Str];\n"), nil)
+	if len(fork.errs) > 0 || len(fork.signatures["f"]) != 2 {
+		t.Errorf("scalar and list: errors %v, candidates %+v", fork.errs, fork.signatures["f"])
+	}
+}
+
+// TestContextAttributeRefused: a candidate's return type says which
+// context selects it, so a `.pmt` line stating `:context(...)` is a
+// declaration error naming the attribute.
+func TestContextAttributeRefused(t *testing.T) {
+	refused := "sub f: :context is no attribute; a candidate's return type says which context selects it"
+	pmtRefuses(t, map[string]string{
+		"sub f :context($) (Str $x) Str;\n":        refused,
+		"multi sub f :context(@) (Str $x) List;\n": refused,
+		"sub f :context() (Str $x) Void;\n":        refused,
+		"sub f :context(%) (Str $x) Str;\n":        refused,
+		"sub f :context($) ;\n":                    refused,
+		"sub f :context($ (Str $x) Str;\n":         refused,
+	})
 }

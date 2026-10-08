@@ -48,14 +48,13 @@ func TestCoreArrayListHashBuiltinsTyped(t *testing.T) {
 			t.Errorf("%s: CORE.pmt has %+v; want one line taking Code \\&block first", name, sigs)
 		}
 	}
-	scalar, list := types.ContextSet(types.ScalarCtx), types.ContextSet(types.ListCtx)
 	for _, name := range []string{"keys", "values"} {
-		counts := map[types.Contexts]int{}
+		counts := map[types.Context]int{}
 		for _, s := range core[name] {
-			counts[s.Context]++
+			counts[s.Answers()]++
 		}
-		if len(core[name]) != 4 || counts[scalar] != 2 || counts[list] != 2 {
-			t.Errorf("%s: CORE.pmt has %d candidates by context %v; want two :context($) and two :context(@)", name, len(core[name]), counts)
+		if len(core[name]) != 4 || counts[types.ScalarCtx] != 2 || counts[types.ListCtx] != 2 {
+			t.Errorf("%s: CORE.pmt has %d candidates by context %v; want two scalar returns and two list returns", name, len(core[name]), counts)
 		}
 	}
 }
@@ -85,18 +84,18 @@ func TestCoreKeysValuesMatchMeasuredSignatures(t *testing.T) {
 		var listRow *measuredRow
 		for _, s := range core[name] {
 			row := rowOf(s)
-			switch s.Context {
-			case types.ContextSet(types.ScalarCtx):
+			switch s.Answers() {
+			case types.ScalarCtx:
 				if row.Returns != types.Int {
-					t.Errorf("%s: a :context($) candidate returns %v; measured Int", name, row.Returns)
+					t.Errorf("%s: a scalar-context candidate returns %v; measured Int", name, row.Returns)
 				}
-			case types.ContextSet(types.ListCtx):
+			case types.ListCtx:
 				if listRow == nil {
 					listRow = &row
 					continue
 				}
 				if len(row.Args) != len(listRow.Args) || row.MinArity != listRow.MinArity || row.Returns != listRow.Returns {
-					t.Errorf("%s: :context(@) candidates %v and %v differ beyond their argument types", name, *listRow, row)
+					t.Errorf("%s: list-context candidates %v and %v differ beyond their argument types", name, *listRow, row)
 					continue
 				}
 				for i := range row.Args {
@@ -105,7 +104,7 @@ func TestCoreKeysValuesMatchMeasuredSignatures(t *testing.T) {
 			}
 		}
 		if listRow == nil || fmt.Sprint(*listRow) != fmt.Sprint(golden[name]) {
-			t.Errorf("%s: CORE.pmt's :context(@) candidates have %v; measured %v", name, listRow, golden[name])
+			t.Errorf("%s: CORE.pmt's list-context candidates have %v; measured %v", name, listRow, golden[name])
 		}
 		if derived[name] != `\[%@]` {
 			t.Errorf("%s: candidates derive (%s); perl says (\\[%%@])", name, derived[name])
@@ -114,7 +113,7 @@ func TestCoreKeysValuesMatchMeasuredSignatures(t *testing.T) {
 }
 
 // TestCoreKeysScalarContextIsCount: context selects between keys'
-// candidates, RFC 0001 "`:context(...)`". `my $n = keys %h` is the count,
+// candidates, RFC 0001 "Context selects by return type". `my $n = keys %h` is the count,
 // an Int, and `my @k = keys %h` the list; values, and an array, alike.
 func TestCoreKeysScalarContextIsCount(t *testing.T) {
 	core := parse.CoreSignatures()
@@ -190,8 +189,9 @@ func TestCoreEachDeclaredOnce(t *testing.T) {
 // TestCoreReverseIsContextMulti: measured on 5.42, `reverse` in scalar
 // context concatenates its list and reverses the string --
 // `my $s = reverse "ab", "cd"` is "dcba", POK -- which is not one of the
-// list-context values (`("cd", "ab")`). RFC 0001's case for `:context`, so
-// a Str candidate for scalar context beside the List one.
+// list-context values (`("cd", "ab")`). RFC 0001's case for "Context
+// selects by return type", so a Str candidate for scalar context beside
+// the List one.
 func TestCoreReverseIsContextMulti(t *testing.T) {
 	core := parse.CoreSignatures()
 	for ctx, want := range map[types.Context]types.Type{types.ScalarCtx: types.Str, types.ListCtx: types.List} {
@@ -209,18 +209,18 @@ func TestCoreReverseIsContextMulti(t *testing.T) {
 // candidate's list parameter defaults to `($_)` and the list candidate's
 // has no default; both still derive perl's `@`.
 func TestCoreReverseScalarDefaultsToTopic(t *testing.T) {
-	want := map[types.Contexts]types.Param{
-		types.ContextSet(types.ScalarCtx): {Name: "list", Sigil: '@', Type: types.List, Default: "($_)"},
-		types.ContextSet(types.ListCtx):   {Name: "list", Sigil: '@', Type: types.List},
+	want := map[types.Context]types.Param{
+		types.ScalarCtx: {Name: "list", Sigil: '@', Type: types.List, Default: "($_)"},
+		types.ListCtx:   {Name: "list", Sigil: '@', Type: types.List},
 	}
 	core := parse.CoreSignatures()
 	if len(core["reverse"]) != len(want) {
-		t.Fatalf("reverse: CORE.pmt has %+v; want a :context($) and a :context(@) candidate", core["reverse"])
+		t.Fatalf("reverse: CORE.pmt has %+v; want a scalar and a list candidate", core["reverse"])
 	}
 	for _, s := range core["reverse"] {
-		w, ok := want[s.Context]
+		w, ok := want[s.Answers()]
 		if !ok || len(s.Params) != 1 || s.Params[0] != w {
-			t.Errorf("reverse :context %v takes %+v; want %+v", s.Context, s.Params, w)
+			t.Errorf("reverse in %v context takes %+v; want %+v", s.Answers(), s.Params, w)
 		}
 	}
 	src, err := os.ReadFile("declarations/CORE.pmt")

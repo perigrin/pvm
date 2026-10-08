@@ -87,7 +87,8 @@ func TestPrototypeAttributeUnderSignatures(t *testing.T) {
 //	sub f :Foo(bar) :prototype($) { 1 } print prototype(\&f)    $
 //
 // In a `.pmt`, `:context(...)` after `:infix(CLASS)` is the same shape,
-// RFC 0001's `multi sub x :infix(MUL) :context(@) (...)`.
+// `multi sub x :infix(MUL) :context(@) (...)`, which the declaration
+// reader then refuses by name.
 func TestPrototypeAttributeAfterAttributeArgument(t *testing.T) {
 	for _, tc := range []struct {
 		src, proto string

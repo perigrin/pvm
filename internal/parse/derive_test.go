@@ -372,19 +372,19 @@ func TestDerivePrototypeFromMultiCandidates(t *testing.T) {
 }
 
 // TestDeriveMultiCandidatesGroupByParameters: candidates group by their
-// parameters only, so `:context` and the return type never split a group.
+// parameters only, so the return type never splits a group.
 // `keys`' four candidates are two groups, Hash and Array, and derive
 // `\[%@]`; `localtime`'s two share `(Int $time = time)` and derive `;$`.
 // Measured on 5.42, `prototype("CORE::keys")` is `\[%@]` and
 // `prototype("CORE::localtime")` is `;$`.
 func TestDeriveMultiCandidatesGroupByParameters(t *testing.T) {
 	for src, want := range map[string]string{
-		"multi sub f :context($) (Hash \\%h) Int;\n" +
-			"multi sub f :context($) (Array \\@a) Int;\n" +
-			"multi sub f :context(@) (Hash \\%h) List;\n" +
-			"multi sub f :context(@) (Array \\@a) List;\n": `(\[%@])`,
-		"multi sub f :context($) (Int $time = time) Str;\n" +
-			"multi sub f :context(@) (Int $time = time) List[Int];\n": "(;$)",
+		"multi sub f (Hash \\%h) Int;\n" +
+			"multi sub f (Array \\@a) Int;\n" +
+			"multi sub f (Hash \\%h) List;\n" +
+			"multi sub f (Array \\@a) List;\n": `(\[%@])`,
+		"multi sub f (Int $time = time) Str;\n" +
+			"multi sub f (Int $time = time) List[Int];\n": "(;$)",
 	} {
 		facts := readDeclaration([]byte(src), nil)
 		if len(facts.errs) > 0 || facts.protos["f"] != want {
@@ -407,7 +407,7 @@ func TestDeriveMultiCandidatesRefusesInexpressible(t *testing.T) {
 	twoPositions := "multi sub f :prototype(%s) (Hash \\%%h, Hash \\%%g) List;\nmulti sub f :prototype(%s) (Array \\@a, Array \\@b) List;\n"
 	arity := "multi sub f :prototype(%s) (Hash \\%%h) List;\nmulti sub f :prototype(%s) (Array \\@a, Scalar $x) List;\n"
 	unaliased := "multi sub f :prototype(%s) (Code &block, List @list) List;\nmulti sub f :prototype(%s) (Scalar $expr, List @list) List;\n"
-	invocant := "multi sub f :prototype(%s) :context($) (FileHandle $fh: List @l) Int;\nmulti sub f :prototype(%s) :context(@) (FileHandle $fh: List @l) List;\n"
+	invocant := "multi sub f :prototype(%s) (FileHandle $fh: List @l) Int;\nmulti sub f :prototype(%s) (FileHandle $fh: List @l) List;\n"
 	declared := func(src, proto string) string { return fmt.Sprintf(src, proto, proto) }
 	pmtRefuses(t, map[string]string{
 		declared(twoPositions, `\[%@]\[%@]`): `sub f: :prototype(\[%@]\[%@]) disagrees with its types: its candidates give (\%\%), (\@\@), which no one prototype states`,
@@ -426,10 +426,10 @@ func TestDeriveMultiCandidatesRefusesInexpressible(t *testing.T) {
 }
 
 // TestDeriveMultiCandidatesIgnoreReturnType: candidates with the same
-// parameters and different return types, and no `:context`, are one
-// group: they derive one prototype, and do not count as a position
-// differing. The pair is read before the ambiguity check, which refuses
-// such a declaration for selection, not for its prototype.
+// parameters and different return types are one group: they derive one
+// prototype, and do not count as a position differing. The candidates are
+// read before the ambiguity check, which judges them for selection, not
+// for their prototype.
 func TestDeriveMultiCandidatesIgnoreReturnType(t *testing.T) {
 	for src, want := range map[string]string{
 		"multi sub f (Hash \\%h) Int;\nmulti sub f (Hash \\%h) List;\n":                                 `\%`,
@@ -465,9 +465,9 @@ func TestDeriveSingleMultiCandidateIsPlain(t *testing.T) {
 // candidates as `:prototype($;)` agrees with `(Scalar $x)`.
 func TestStatedUnionPrototypeAgrees(t *testing.T) {
 	pmtRefuses(t, map[string]string{
-		"multi sub f :prototype(\\[@$]) :context($) (Hash \\%h) Int;\nmulti sub f :prototype(\\[@$]) :context(@) (Hash \\%h) List;\n": `sub f: :prototype(\[@$]) disagrees with its types, which give (\%)`,
-		"multi sub f :prototype(\\[@$]) (Hash \\%h) List;\n":                                                                          `sub f: :prototype(\[@$]) disagrees with its types, which give (\%)`,
-		"sub f :prototype(\\[@$]) (Hash \\%h) List;\n":                                                                                `sub f: :prototype(\[@$]) disagrees with its types, which give (\%)`,
+		"multi sub f :prototype(\\[@$]) (Hash \\%h) Int;\nmulti sub f :prototype(\\[@$]) (Hash \\%h) List;\n": `sub f: :prototype(\[@$]) disagrees with its types, which give (\%)`,
+		"multi sub f :prototype(\\[@$]) (Hash \\%h) List;\n":                                                  `sub f: :prototype(\[@$]) disagrees with its types, which give (\%)`,
+		"sub f :prototype(\\[@$]) (Hash \\%h) List;\n":                                                        `sub f: :prototype(\[@$]) disagrees with its types, which give (\%)`,
 	})
 	facts := readDeclaration([]byte("multi sub f :prototype(\\[%@];) (Hash \\%h) List;\nmulti sub f :prototype(\\[%@];) (Array \\@a) List;\n"), nil)
 	if len(facts.errs) > 0 || facts.protos["f"] != `(\[%@];)` {
