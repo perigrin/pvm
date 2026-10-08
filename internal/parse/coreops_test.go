@@ -569,4 +569,9 @@ func TestCoreDeclaresRemainingInfix(t *testing.T) {
 			t.Errorf("%s %s:\n got %+v\nwant %+v", key[0], key[1], got, w)
 		}
 	}
+	for _, op := range undeclaredOperators {
+		if _, ok := want[[2]string{op.fixity, op.name}]; ok {
+			t.Errorf("undeclaredOperators still places %s %s", op.fixity, op.name)
+		}
+	}
 }
