@@ -276,19 +276,40 @@ func TestSelectByContext(t *testing.T) {
 	}
 }
 
-// sortCandidates is RFC 0001's `sort`, whose only return is a list.
+// sortCandidates is RFC 0001's `sort`: a list in list context, and in
+// scalar context undef, measured on 5.42 (`scalar(sort(1,2))` is undef).
 var sortCandidates = []Signature{
+	sig(List, Param{Name: "list", Sigil: '@', Type: List}),
+	sig(Undef, Param{Name: "list", Sigil: '@', Type: List}),
+}
+
+// grepCandidates is a `grep` whose only return is a list.
+var grepCandidates = []Signature{
 	sig(List, Param{Name: "list", Sigil: '@', Type: List}),
 }
 
-// TestSelectNoContextAnswerCoerces: RFC 0001 "Context selects by return
-// type". A call in a context no candidate's return type answers is taken
-// by every candidate, and the context coerces the result as it coerces
-// any value: a scalar or boolean sort is the List candidate's, as a scalar
-// grep is.
+// TestSelectNoContextAnswerHasNoType: RFC 0001 "Context selects by return
+// type". Scalar sort is its Undef candidate's, not the list candidate's
+// List: a call selects the candidate whose return type answers its
+// context.
+func TestSelectNoContextAnswerHasNoType(t *testing.T) {
+	wantSelectedIn(t, sortCandidates, ScalarCtx, []Type{Int, Int}, 1, Undef)
+	wantSelectedIn(t, sortCandidates, ListCtx, []Type{Int, Int}, 0, List)
+}
+
+// TestSelectBooleanIsNotList: boolean context is scalar, so a boolean
+// sort is its Undef candidate's; it does not fall back to the list one.
+func TestSelectBooleanIsNotList(t *testing.T) {
+	wantSelectedIn(t, sortCandidates, BooleanCtx, []Type{Int, Int}, 1, Undef)
+}
+
+// TestSelectNoContextAnswerCoerces: a call in a context no candidate's
+// return type answers is taken by every candidate, and the context
+// coerces the result as it coerces any value: a scalar or boolean grep is
+// the List candidate's.
 func TestSelectNoContextAnswerCoerces(t *testing.T) {
 	for _, ctx := range []Context{ScalarCtx, BooleanCtx, ListCtx} {
-		wantSelectedIn(t, sortCandidates, ctx, []Type{Int, Int}, 0, List)
+		wantSelectedIn(t, grepCandidates, ctx, []Type{Int, Int}, 0, List)
 	}
 }
 

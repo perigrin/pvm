@@ -924,10 +924,16 @@ multi sub map (Scalar $expr, List @list) List;
 # compile; `sort { $a <=> $b };` is a syntax error while `sort { $a <=> $b
 # } ()` compiles; and with no list after it the routine is the list,
 # `sort byname` yielding "byname" while `sort byname ()` yields nothing.
-# Scalar sort is undefined: `my $n = sort 3, 1, 2` leaves $n undef.
+# Scalar sort is undefined: `my $n = sort 3, 1, 2` leaves $n undef, as do
+# `sort { $a <=> $b } @a`, `sort by @a` and `sort $n @a`, each warning
+# "Useless use of sort in scalar context", and `if (sort @a)` is false
+# (measured). So each form has a scalar candidate returning Undef.
 multi sub sort (Code &block, List @list = die) List;
 multi sub sort (List @list = die) List;
 multi sub sort (Code|Str $by: List @list = die) List;
+multi sub sort (Code &block, List @list = die) Undef;
+multi sub sort (List @list = die) Undef;
+multi sub sort (Code|Str $by: List @list = die) Undef;
 
 # Operators (RFC 0001, "Operator declarations"): each under its symbol, with
 # its fixity and, for an infix one, the class naming its precedence level in

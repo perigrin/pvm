@@ -792,9 +792,11 @@ list result is `0`, an `Int`.
 Of the candidates that take a call, those whose return type answers its
 context are selected among, before the most specific is sought. When
 none does, every one is, and the context coerces the result as it
-coerces any value: `grep` and `sort` return only lists, so a scalar call
-to either is its `List`, coerced. Measured on 5.42, a scalar `sort`
-leaves undef, which no candidate states. Void context is a form of scalar context
+coerces any value: `grep` returns only a list, so a scalar `grep` is its
+`List`, coerced. Where perl's scalar answer is no coercion of the list,
+a scalar candidate states it: measured on 5.42, every form of a scalar
+`sort` is undef, so each of sort's list candidates has a twin with the
+same parameters returning `Undef`. Void context is a form of scalar context
 (perlglossary, "void context"), so a call in void context with no `Void`
 candidate is the scalar candidate's. Two candidates with the same
 parameters whose return types answer the same context share every call,
