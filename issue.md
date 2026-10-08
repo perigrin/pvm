@@ -1,12 +1,12 @@
 ---
-title: CORE.pmt declares every operator perlop names
+title: "CORE.pmt declares perlop's remaining infix operators: ^^, string-bitwise, compound assignment, , and =>"
 state: pending
 urgency: normal
 milestone: type-libraries
 blocked_by:
 - 01a118fe-8e34-7b3e-af7b-e426488966d0
 created: 2026-10-08T00:51:38.207321952Z
-updated: 2026-10-08T01:32:13.192816867Z
+updated: 2026-10-08T01:32:14.312161724Z
 ---
 
 ## Context
