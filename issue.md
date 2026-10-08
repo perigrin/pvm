@@ -3,8 +3,10 @@ title: "The lattice has a Void type: arity 0, under List, beside Scalar"
 state: pending
 urgency: normal
 milestone: type-libraries
+blocks:
+- 01a11920-411a-7cea-b78f-c1568aba6d25
 created: 2026-10-08T01:53:26.234239053Z
-updated: 2026-10-08T01:53:26.234239053Z
+updated: 2026-10-08T01:53:30.14121297Z
 ---
 
 ## Context
