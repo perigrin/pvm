@@ -201,3 +201,37 @@ func TestCoreReverseIsContextMulti(t *testing.T) {
 		}
 	}
 }
+
+// TestCoreReverseScalarDefaultsToTopic: measured on 5.42, with
+// `$_ = "xyz"`, bare `reverse`, `reverse()`, `reverse(@empty)` and
+// `reverse(())` in scalar context are all "zyx" -- an empty list reverses
+// `$_` -- while in list context each is the empty list. So the scalar
+// candidate's list parameter defaults to `($_)` and the list candidate's
+// has no default; both still derive perl's `@`.
+func TestCoreReverseScalarDefaultsToTopic(t *testing.T) {
+	want := map[types.Contexts]types.Param{
+		types.ContextSet(types.ScalarCtx): {Name: "list", Sigil: '@', Type: types.List, Default: "($_)"},
+		types.ContextSet(types.ListCtx):   {Name: "list", Sigil: '@', Type: types.List},
+	}
+	core := parse.CoreSignatures()
+	if len(core["reverse"]) != len(want) {
+		t.Fatalf("reverse: CORE.pmt has %+v; want a :context($) and a :context(@) candidate", core["reverse"])
+	}
+	for _, s := range core["reverse"] {
+		w, ok := want[s.Context]
+		if !ok || len(s.Params) != 1 || s.Params[0] != w {
+			t.Errorf("reverse :context %v takes %+v; want %+v", s.Context, s.Params, w)
+		}
+	}
+	src, err := os.ReadFile("declarations/CORE.pmt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	derived, err := parse.DerivedPrototypes(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if derived["reverse"] != "@" {
+		t.Errorf("reverse derives prototype %q; want perl's %q", derived["reverse"], "@")
+	}
+}

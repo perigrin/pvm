@@ -616,8 +616,11 @@ sub return (List[Any] @values) Any;
 # reverse is context-dependent: a reversed list in list context, a
 # reversed string in scalar context -- `my $s = reverse "ab", "cd"` is
 # "dcba" (POK), not one of the list values ("cd", "ab"), so each context
-# is its own candidate. `reverse()` compiles (measured).
-multi sub reverse :prototype(@) :context($) (List @list) Str;
+# is its own candidate. `reverse()` compiles (measured). An empty list
+# reverses `$_` in scalar context: with `$_ = "xyz"`, bare `reverse`,
+# `reverse()`, `reverse(@empty)` and `reverse(())` are all "zyx"; in list
+# context each is the empty list, so only the scalar candidate defaults.
+multi sub reverse :prototype(@) :context($) (List @list = ($_)) Str;
 multi sub reverse :prototype(@) :context(@) (List @list) List;
 # Measured as closedir, above.
 sub rewinddir (Glob *dh) Boolean|Undef;
