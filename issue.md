@@ -6,7 +6,7 @@ milestone: type-libraries
 blocked_by:
 - 01a11920-411a-7cea-b78f-c1568aba6d25
 created: 2026-10-08T00:51:38.207321952Z
-updated: 2026-10-08T13:15:40.172207563Z
+updated: 2026-10-08T13:17:34.493128133Z
 ---
 
 ## Context
@@ -16,6 +16,8 @@ updated: 2026-10-08T13:15:40.172207563Z
 - perl 5.42: `/home/perigrin/.local/bin/perl`; perlop's table: `~/dev/perl5/pod/perlop.pod` at the corpus pin (94e5086608), "Operator Precedence and Associativity"
 
 Goal (perigrin, 2026-10-08): every builtin and operator is defined with a signature in CORE.pmt that lets it be parsed, and the parser is derived from CORE.pmt. RFC 0001 "Precedence is a relation between operators": a partial order on each operator line -- `:tighter(OP)`, `:looser(OP)`, `:equiv(OP)`, `:assoc(...)` -- sorted topologically into a total order. CORE.pmt declares the plain and forking infix operators, but perlop's table names more: `^^` (5.40 logical xor), the string-bitwise `&.` `|.` `^.` and prefix `~.`, the compound assignments `+= -= *= /= .= x= **= %= <<= >>= &= |= ^= &&= ||= //= &.= |.= ^.=`, and `,` `=>` (perlop's `left , =>` row). Declare them with relations (`:equiv(||)` etc.) and, once 01a11920-411a lands, without `:context`.
+
+Smartmatch `~~` is also undeclared, and perlop's table lists it in the `==` row (non-chaining, `cmpClasses`); measured on 5.42, `1 ~~ 1` is true. Declare it too (measure its operand and result types; note any deprecation warning 5.42 emits).
 
 Rulings (perigrin, 2026-10-08):
 
@@ -27,6 +29,7 @@ Context is no longer an attribute: a multi selects by return type in the calling
 
 ## Steps
 
+- [ ] Write failing test `TestUndeclaredOperatorsAreOnlyTernaryArrowAndSubscripts`: after this issue (and D2, 01a11923-baa0, which removes `++`/`--`), `undeclaredOperators` places only `?`, `->`, `(`, `[`, `{`, and the compound assignments are CORE.pmt lines
 - [ ] Measure each operator's operand and result types on 5.42
 - [ ] Declare `^^`, the string-bitwise operators and the compound assignments, failing tests first; `make test`; commit
 - [ ] Remove each operator this issue declares from `undeclaredOperators` in internal/parse/operators.go (`^^`, `&.`, `|.`, `^.`, `~.`, `~~`, `,`, `=>` and the compound assignments (`compoundAssignments()`)), so its level comes from its CORE.pmt line; the parser's binding powers must not change (TestParserPrecedenceFromCore)
@@ -36,6 +39,6 @@ Context is no longer an attribute: a multi selects by return type in the calling
 
 - [ ] `,` alone breaks the final-List rule (`go test ./internal/parse/ -run '^TestCommaIsTheFinalListException$' -count=1 -v | grep -q '^--- PASS: TestCommaIsTheFinalListException'`)
 - [ ] `=>` quotes through its parameter's :autoquote (`go test ./internal/parse/ -run '^TestFatCommaAutoquotes$' -count=1 -v | grep -q '^--- PASS: TestFatCommaAutoquotes'`)
-- [ ] undeclaredOperators no longer places these operators (`sh -c '! grep -nE "name: \"(\\^\\^|&\\.|\\|\\.|\\^\\.|~\\.|,|=>)\"" internal/parse/operators.go'`)
+- [ ] undeclaredOperators keeps only `?`, `->`, `(`, `[` and `{`, and compoundAssignments is gone (`go test ./internal/parse/ -run '^TestUndeclaredOperatorsAreOnlyTernaryArrowAndSubscripts$' -count=1 -v | grep -q '^--- PASS: TestUndeclaredOperatorsAreOnlyTernaryArrowAndSubscripts'`)
 - [ ] every infix operator in perlop's table, and `~.`, has a CORE.pmt line (`go test ./internal/parse/ -run '^TestCoreDeclaresEveryPerlopInfixOperator$' -count=1 -v | grep -q '^--- PASS: TestCoreDeclaresEveryPerlopInfixOperator'`)
 - [ ] CORE.pmt declares no operator perlop's table does not name (`go test ./internal/parse/ -run '^TestCoreDeclaresNoUnknownOperator$' -count=1 -v | grep -q '^--- PASS: TestCoreDeclaresNoUnknownOperator'`)
