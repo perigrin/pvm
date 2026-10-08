@@ -3,8 +3,10 @@ title: "CORE.pmt declares perlop's remaining infix operators: ^^, string-bitwise
 state: pending
 urgency: normal
 milestone: type-libraries
+blocked_by:
+- 01a11920-411a-7cea-b78f-c1568aba6d25
 created: 2026-10-08T00:51:38.207321952Z
-updated: 2026-10-08T01:32:22.343906634Z
+updated: 2026-10-08T01:32:24.578273341Z
 ---
 
 ## Context
