@@ -3,8 +3,10 @@ title: "CORE.pmt declares ++ and -- as prefix and postfix"
 state: pending
 urgency: normal
 milestone: type-libraries
+blocked_by:
+- 01a118fe-8d68-71a8-ab06-cc12d7a20589
 created: 2026-10-08T01:32:14.368080588Z
-updated: 2026-10-08T01:32:14.368080588Z
+updated: 2026-10-08T01:32:25.277999977Z
 ---
 
 ## Context
