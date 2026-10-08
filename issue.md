@@ -6,7 +6,7 @@ milestone: type-libraries
 blocked_by:
 - 01a118fe-8d68-71a8-ab06-cc12d7a20589
 created: 2026-10-08T01:32:14.368080588Z
-updated: 2026-10-08T01:32:25.277999977Z
+updated: 2026-10-08T09:50:02.518926699Z
 ---
 
 ## Context
@@ -19,6 +19,7 @@ Goal (perigrin, 2026-10-08): every builtin and operator is defined with a signat
 
 ## Steps
 
+- [ ] Remove `++`/`--` (both fixities) from `undeclaredOperators` in internal/parse/operators.go so their level comes from their CORE.pmt lines; the parser's binding powers must not change (TestParserPrecedenceFromCore)
 - [ ] Measure on 5.42; write failing tests; declare `++` and `--` as `:prefix` and `:postfix` with their level; `make test`; commit
 
 ## Acceptance criteria
