@@ -365,8 +365,8 @@ func TestSelectRepeatBareArrayIsStr(t *testing.T) {
 // rangeCandidates are CORE.pmt's `..`, a range in list context and a
 // flip-flop in scalar context:
 //
-//	multi sub .. :infix(RANGE) :context(@) (Str $x, Str $y) List;
-//	multi sub .. :infix(RANGE) :context($) (Any $x, Any $y) Str;
+//	multi sub .. :infix :tighter(=) :assoc(nonassoc) :context(@) (Str $x, Str $y) List;
+//	multi sub .. :infix :context($) (Any $x, Any $y) Str;
 var rangeCandidates = []Signature{
 	in(sig(List, scalar("x", Str), scalar("y", Str)), ListCtx),
 	in(sig(Str, scalar("x", Any), scalar("y", Any)), ScalarCtx),

@@ -3,7 +3,10 @@
 package parse
 
 import (
+	"maps"
 	"reflect"
+	"slices"
+	"strings"
 	"testing"
 
 	"tamarou.com/pvm/internal/types"
@@ -73,11 +76,10 @@ func operatorRefuses(t *testing.T, cases map[string]string) {
 }
 
 // TestPmtOperatorFixityErrors: fixity is spelled one way. An infix operator
-// names its class, a prefix one names none, and a declaration has one
+// may name its class, a prefix one names none, and a declaration has one
 // fixity.
 func TestPmtOperatorFixityErrors(t *testing.T) {
 	operatorRefuses(t, map[string]string{
-		"sub + :infix (Num $x, Num $y) Num;\n":              "sub +: :infix needs a class",
 		"sub ! :prefix(ADD) (Scalar $x) Boolean;\n":         "sub !: :prefix takes no class",
 		"sub + :infix(ADD) :prefix (Num $x, Num $y) Num;\n": "sub +: two fixities, :infix(ADD) and :prefix",
 	})
@@ -128,6 +130,32 @@ func TestCoreOperatorClassCheckCatchesMismatch(t *testing.T) {
 	}
 	if err := precedenceMismatch(facts.operators[1]); err != nil {
 		t.Errorf("MUL: got %v, want none", err)
+	}
+}
+
+// xpiClasses are XS::Parse::Infix's classes (XSParseInfix.h, XPI_CLS_*),
+// spelled as RFC 0001 "Fixity and precedence" spells them.
+var xpiClasses = []string{"LOW", "LOGICAL_OR_LOW", "LOGICAL_AND_LOW", "ASSIGN", "LOGICAL_OR", "LOGICAL_AND",
+	"EQUALITY", "ORDERING", "RELATION", "ISA", "ADD", "MUL", "MATCHRE", "POW", "HIGH"}
+
+// TestCoreClassesAreXPIs: `:infix(CLASS)` names only XS::Parse::Infix's
+// classes (RFC 0001, "Fixity and precedence"), so every class CORE.pmt
+// names is one, and the levels it classes no operator at are named by
+// their operators: no BITAND, BITOR, SHIFT or RANGE remains.
+func TestCoreClassesAreXPIs(t *testing.T) {
+	if got := slices.Sorted(maps.Keys(operatorClasses)); !reflect.DeepEqual(got, slices.Sorted(slices.Values(xpiClasses))) {
+		t.Errorf("operatorClasses are %v, want XS::Parse::Infix's %v", got, slices.Sorted(slices.Values(xpiClasses)))
+	}
+	for _, op := range coreOperators(t) {
+		if op.class != "" && !slices.Contains(xpiClasses, op.class) {
+			t.Errorf("sub %s: class %s is not XS::Parse::Infix's", op.name, op.class)
+		}
+	}
+	src, _ := declaration("CORE")
+	for _, coined := range []string{"BITAND", "BITOR", "SHIFT", "RANGE"} {
+		if strings.Contains(string(src), ":infix("+coined+")") {
+			t.Errorf("CORE.pmt names the class %s", coined)
+		}
 	}
 }
 
@@ -291,7 +319,7 @@ func TestCoreArithmeticReturnsWhatPerlReturns(t *testing.T) {
 }
 
 // TestCoreOperatorClassesMatchPrecedence: each infix operator CORE.pmt
-// declares names, by its class, the level precedence.go gives it. The table
+// declares with a class names, by it, the level precedence.go gives it. The table
 // is authoritative (RFC 0001, "Operator declarations").
 func TestCoreOperatorClassesMatchPrecedence(t *testing.T) {
 	n := 0
@@ -334,17 +362,20 @@ func TestCoreRangeIsContextMulti(t *testing.T) {
 	}
 	for _, sym := range []string{"..", "..."} {
 		want := []operatorDecl{
-			{name: sym, fixity: "infix", class: "RANGE", multi: true, sig: types.Signature{
+			{name: sym, fixity: "infix", multi: true, sig: types.Signature{
 				Params: []types.Param{param("x", types.Str), param("y", types.Str)}, Returns: types.List,
 				Context: types.ContextSet(types.ListCtx)}},
-			{name: sym, fixity: "infix", class: "RANGE", multi: true, sig: types.Signature{
+			{name: sym, fixity: "infix", multi: true, sig: types.Signature{
 				Params: []types.Param{param("x", types.Any), param("y", types.Any)}, Returns: types.Str,
 				Context: types.ContextSet(types.ScalarCtx)}},
 		}
-		// `..` anchors RANGE's level, and its first candidate states the
-		// level's relation and associativity.
+		// XS::Parse::Infix classes no operator at their level, so it is
+		// named by `..`, whose first candidate states the level's relation
+		// and associativity, and `...`'s first joins it.
 		if sym == ".." {
 			want[0].tighter, want[0].assoc = []string{"="}, "nonassoc"
+		} else {
+			want[0].equiv = []string{".."}
 		}
 		if got := coreCandidates(t, "infix", sym); !reflect.DeepEqual(got, want) {
 			t.Errorf("%s:\n got %+v\nwant %+v", sym, got, want)

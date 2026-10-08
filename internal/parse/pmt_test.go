@@ -698,11 +698,12 @@ func shippedDeclarationErrors(t *testing.T, fsys fs.FS) []string {
 	return out
 }
 
-// TestShippedLibraryPmtRefusesCoinedClass: RFC 0001 "One language for every
-// .pmt" -- a library may not name the operator classes coined for CORE.pmt,
-// so the check over the shipped files reads each library file as a library.
-func TestShippedLibraryPmtRefusesCoinedClass(t *testing.T) {
-	line := "sub zz :infix(BITAND) (Int $x, Int $y) Int;\n"
+// TestShippedLibraryPmtRefusesUnclassedLevel: RFC 0001 "One language for
+// every .pmt" -- a library may not join a level XS::Parse::Infix classes no
+// operator at, as CORE.pmt's own operators do, so the check over the
+// shipped files reads each library file as a library.
+func TestShippedLibraryPmtRefusesUnclassedLevel(t *testing.T) {
+	line := "sub zz :infix :equiv(&) (Int $x, Int $y) Int;\n"
 	fsys := fstest.MapFS{
 		"declarations/CORE.pmt": {Data: []byte(line)},
 		"declarations/Foo.pmt":  {Data: []byte(line)},

@@ -225,19 +225,38 @@ func readDeclarationWith(p *parser) moduleFacts {
 }
 
 // readLibraryDeclaration reads a library's declaration file, in CORE.pmt's
-// language (RFC 0001, "One language for every `.pmt`") less the operator
-// classes coined for CORE.pmt alone. An operator naming one is an error and
-// is not recorded.
+// language (RFC 0001, "One language for every `.pmt`"). XS::Parse::Infix
+// cannot register an operator at a level it classes none at, so a library's
+// infix operator joining one by `:equiv` is an error and is not recorded.
 func readLibraryDeclaration(src []byte, res *resolver) moduleFacts {
 	facts := readDeclaration(src, res)
 	facts.operators = slices.DeleteFunc(facts.operators, func(op operatorDecl) bool {
-		if !coreOnlyClasses[op.class] {
+		if op.fixity != "infix" {
 			return false
 		}
-		facts.errs = append(facts.errs, fmt.Errorf("sub %s: operator class %s is CORE.pmt's; XS::Parse::Infix registers no operator at its level", op.name, op.class))
-		return true
+		for _, name := range op.equiv {
+			if classed, ok := coreLevelClassed(name); ok && !classed {
+				facts.errs = append(facts.errs, fmt.Errorf("sub %s: :equiv(%s) is a level XS::Parse::Infix registers no operator at", op.name, name))
+				return true
+			}
+		}
+		return false
 	})
 	return facts
+}
+
+// coreLevelClassed reports whether XS::Parse::Infix classes the level of
+// the CORE.pmt operator name, resolving name as a relation does: the infix
+// or named operator of its spelling, and otherwise the prefix, postfix or
+// shaped one. ok is false for a name CORE.pmt does not declare.
+func coreLevelClassed(name string) (classed, ok bool) {
+	readCore()
+	for _, label := range []string{name, "prefix " + name, "postfix " + name, "unary " + name, "listop " + name, "term " + name} {
+		if classed, ok := coreClassed[label]; ok {
+			return classed, true
+		}
+	}
+	return false, false
 }
 
 // coreTable is perl's builtins by name, each to its prototype without
@@ -316,14 +335,16 @@ func readCore() {
 		if coreMap, coreSigs, coreOps, err = coreDeclarations(src); err != nil {
 			panic("parse: declarations/CORE.pmt: " + err.Error())
 		}
+		coreShp = deriveShapes(coreMap, coreSigs)
 		// Its operators' relations and its builtins' shapes derive one
 		// precedence order (RFC 0001, "Precedence is a relation between
 		// operators"). A library's operators relate to CORE.pmt's, so the
 		// order is CORE.pmt's.
-		if _, err := precedenceOrder(corePrecedenceDecls(src, coreShp)); err != nil {
+		order, err := precedenceOrder(corePrecedenceDecls(src, coreShp))
+		if err != nil {
 			panic("parse: declarations/CORE.pmt: " + err.Error())
 		}
-		coreShp = deriveShapes(coreMap, coreSigs)
+		coreClassed = classedLevels(order)
 	})
 }
 
@@ -367,4 +388,7 @@ var (
 	coreSigs map[string][]types.Signature
 	coreOps  map[[2]string][]types.Signature
 	coreShp  map[string]Shape
+	// coreClassed is each operator of CORE.pmt's precedence order, by
+	// its label there, to whether XS::Parse::Infix classes its level.
+	coreClassed map[string]bool
 )
