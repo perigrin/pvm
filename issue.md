@@ -6,7 +6,7 @@ milestone: type-libraries
 blocked_by:
 - 01a11920-411a-7cea-b78f-c1568aba6d25
 created: 2026-10-08T00:51:38.207321952Z
-updated: 2026-10-08T01:32:24.578273341Z
+updated: 2026-10-08T09:49:54.730540945Z
 ---
 
 ## Context
@@ -23,9 +23,11 @@ Goal (perigrin, 2026-10-08): every builtin and operator is defined with a signat
 
 - [ ] Measure each operator's operand and result types on 5.42
 - [ ] Declare `^^`, the string-bitwise operators and the compound assignments, failing tests first; `make test`; commit
+- [ ] Remove each operator this issue declares from `undeclaredOperators` in internal/parse/operators.go (`^^`, `&.`, `|.`, `^.`, `~.`, `~~`, `,`, `=>` and the compound assignments (`compoundAssignments()`)), so its level comes from its CORE.pmt line; the parser's binding powers must not change (TestParserPrecedenceFromCore)
 - [ ] Bring the final-List exemption and `=>`'s autoquote spelling to perigrin; record in RFC 0001; declare `,` and `=>`, failing tests first; `make test`; commit
 
 ## Acceptance criteria
 
+- [ ] undeclaredOperators no longer places these operators (`sh -c '! grep -nE "name: \"(\\^\\^|&\\.|\\|\\.|\\^\\.|~\\.|,|=>)\"" internal/parse/operators.go'`)
 - [ ] every infix operator in perlop's table, and `~.`, has a CORE.pmt line (`go test ./internal/parse/ -run '^TestCoreDeclaresEveryPerlopInfixOperator$' -count=1 -v | grep -q '^--- PASS: TestCoreDeclaresEveryPerlopInfixOperator'`)
 - [ ] CORE.pmt declares no operator perlop's table does not name (`go test ./internal/parse/ -run '^TestCoreDeclaresNoUnknownOperator$' -count=1 -v | grep -q '^--- PASS: TestCoreDeclaresNoUnknownOperator'`)
