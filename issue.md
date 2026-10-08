@@ -1,5 +1,5 @@
 ---
-title: CORE.pmt states the precedence table as @PRECEDENCE, with perlop's associativity
+title: CORE.pmt states each operator's precedence as a relation to another, with perlop's associativity
 state: pending
 urgency: normal
 milestone: type-libraries
@@ -8,7 +8,7 @@ blocks:
 - 01a118fe-8e34-7b3e-af7b-e426488966d0
 - 01a118fe-8e93-74b8-b0d3-5d447b2613eb
 created: 2026-10-08T00:51:37.959731974Z
-updated: 2026-10-08T01:11:09.484491032Z
+updated: 2026-10-08T01:11:09.615037995Z
 ---
 
 ## Context
