@@ -1,22 +1,40 @@
 ---
 title: The lattice has a Void type, and Maybe[T] and Optional[T] are the joins Undef|T and Void|T
-state: in-progress
+state: done
 urgency: normal
 milestone: type-libraries
 blocks:
 - 01a11920-411a-7cea-b78f-c1568aba6d25
 - 01a1193c-44f3-7f27-bd9c-a789eb9a74e2
 created: 2026-10-08T01:53:26.234239053Z
-updated: 2026-10-08T02:17:16.933211588Z
+updated: 2026-10-08T03:15:37.051429696Z
 sessions:
 - start_sha: 214a28feeaf479afafe15410e923f54e81a1a919
-  end_sha: ""
-  commits: 0
+  end_sha: 7b12bfdb14a0370e96efe35f6a981ca724418447
+  commits: 2
   started_at: 2026-10-08T02:17:16.933211588Z
+  ended_at: 2026-10-08T03:15:37.051429696Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-08T02:17:16.933211588Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-08T03:15:37.051429696Z
+observed_paths:
+- docs/rfcs/0001-type-libraries.md
+- internal/parse/corearray_test.go
+- internal/parse/decl.go
+- internal/parse/declarations/CORE.pmt
+- internal/parse/derive.go
+- internal/parse/derive_test.go
+- internal/parse/invocant_test.go
+- internal/parse/pmt_test.go
+- internal/parse/wrapper_test.go
+- internal/types/names.go
+- internal/types/narrowing.go
+- internal/types/types.go
+- internal/types/void_test.go
 ---
 
 ## Context
