@@ -1,6 +1,6 @@
 ---
 title: The parser's operator precedence and associativity come from CORE.pmt's relations
-state: in-progress
+state: done
 urgency: normal
 milestone: type-libraries
 blocked_by:
@@ -9,16 +9,35 @@ blocked_by:
 blocks:
 - 01a11923-bb28-76fc-bce5-078b86077ca4
 created: 2026-10-08T00:51:38.110268863Z
-updated: 2026-10-08T09:14:10.203628911Z
+updated: 2026-10-08T09:57:17.230117872Z
 sessions:
 - start_sha: b2750dd0677c83a05291e2da5bc3246872c9edbd
-  end_sha: ""
-  commits: 0
+  end_sha: 5f2311c758d827fdcb132ebd657a21508edaa80a
+  commits: 1
   started_at: 2026-10-08T09:14:10.203628911Z
+  ended_at: 2026-10-08T09:57:17.230117872Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-08T09:14:10.203628911Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-08T09:57:17.230117872Z
+observed_paths:
+- docs/rfcs/0001-type-libraries.md
+- internal/parse/call.go
+- internal/parse/canon.go
+- internal/parse/chain.go
+- internal/parse/coreops_test.go
+- internal/parse/decl.go
+- internal/parse/declarations.go
+- internal/parse/declarations/CORE.pmt
+- internal/parse/expr.go
+- internal/parse/expr_test.go
+- internal/parse/operators.go
+- internal/parse/parse.go
+- internal/parse/precedence.go
+- internal/parse/precrelations_test.go
 ---
 
 ## Context
