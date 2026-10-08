@@ -5,6 +5,7 @@ package parse
 import (
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -40,6 +41,13 @@ func TestCorePrecedenceRelationsAreParsed(t *testing.T) {
 		t.Errorf("relations:\n got %+v\nwant %+v", got, want)
 	}
 
+	// A named operator perl places apart from its shape states its level
+	// on its own line: goto's operand is read at `=`'s level.
+	named := readDeclaration([]byte("sub goto :unary :equiv(=) (Str $label) None;\n"), nil)
+	if want := []operatorDecl{{name: "goto", fixity: "named", equiv: []string{"="}}}; len(named.errs) > 0 || !reflect.DeepEqual(named.relations, want) {
+		t.Errorf("goto: errors %v, relations %+v, want %+v", named.errs, named.relations, want)
+	}
+
 	operatorRefuses(t, map[string]string{
 		"sub + :infix(ADD) :assoc(sideways) (Num $x, Num $y) Num;\n": `sub +: unknown associativity "sideways"`,
 		"sub + :infix(ADD) :tighter() (Num $x, Num $y) Num;\n":       "sub +: :tighter names no operator",
@@ -51,7 +59,7 @@ func TestCorePrecedenceRelationsAreParsed(t *testing.T) {
 func precedenceRefuses(t *testing.T, cases map[string]string) {
 	t.Helper()
 	for src, want := range cases {
-		if _, err := precedenceOrder(coreOperatorDecls([]byte(src))); err == nil || err.Error() != want {
+		if _, err := precedenceOrder(corePrecedenceDecls([]byte(src), nil)); err == nil || err.Error() != want {
 			t.Errorf("%q: got error %v, want %q", src, err, want)
 		}
 	}
@@ -90,12 +98,11 @@ func TestPrecedenceAssocConflict(t *testing.T) {
 // perlopTable is perlop's "Operator Precedence and Associativity" at the
 // corpus pin (perl5 94e5086608, pod/perlop.pod), highest precedence first,
 // each row's associativity in `:assoc`'s spelling (perlop's `chain/na` is
-// `chain_na`). An infix operator is its symbol and a prefix one `prefix
-// SYMBOL`. Rows perlop describes rather than lists hold no operator:
-// "terms and list operators (leftward)", "named unary operators" and "list
-// operators (rightward)"; the operators perlop puts in the `=` row besides
-// the assignments, goto last next redo dump, are named unaries' shape, not
-// operators, and are not listed.
+// `chain_na`). An infix operator is its symbol, a prefix one `prefix
+// SYMBOL`, and a named one placed by its line its name. The rows perlop
+// describes rather than lists, "terms and list operators (leftward)",
+// "named unary operators" and "list operators (rightward)", hold a named
+// operator by its shape, `term`, `unary` and `listop` (perlopShapeRows).
 var perlopTable = []precLevel{
 	{assoc: "left"}, // terms and list operators (leftward)
 	{assoc: "left", ops: []string{"->"}},
@@ -116,7 +123,7 @@ var perlopTable = []precLevel{
 	{assoc: "left", ops: []string{"||", "^^", "//"}},
 	{assoc: "nonassoc", ops: []string{"..", "..."}},
 	{assoc: "right", ops: []string{"?"}},
-	{assoc: "right", ops: []string{"=", "+=", "-=", "*=", "/=", ".=", "%=", "**=", "x=", "&=", "|=", "^=", "<<=", ">>=", "&&=", "||=", "//=", "&.=", "|.=", "^.=", "^^="}},
+	{assoc: "right", ops: []string{"=", "+=", "-=", "*=", "/=", ".=", "%=", "**=", "x=", "&=", "|=", "^=", "<<=", ">>=", "&&=", "||=", "//=", "&.=", "|.=", "^.=", "^^=", "goto", "last", "next", "redo", "dump"}},
 	{assoc: "left", ops: []string{",", "=>"}},
 	{assoc: "nonassoc"}, // list operators (rightward)
 	{assoc: "right", ops: []string{"prefix not"}},
@@ -124,54 +131,137 @@ var perlopTable = []precLevel{
 	{assoc: "left", ops: []string{"or", "xor"}},
 }
 
-// TestCoreDerivedPrecedenceIsPerlops: the order and associativity CORE.pmt's
-// relations derive are perlop's table, row for row. The comparison is over
-// the operators CORE.pmt declares: perlop's rows are cut to those, and a
-// row left empty drops out. perlop names operators CORE.pmt does not yet
-// declare -- `->`, `++` and `--`, `~.`, `~~`, `&.`, `|.`, `^.`, `^^`, `?:`,
-// the compound assignments, `,` and `=>` -- and its named unary and list
-// operator rows are no operator's, so those have no place in the
-// comparison until CORE.pmt declares them. Every operator CORE.pmt
-// declares must be in perlop's table.
+// perlopShapeRows is the row of perlopTable each shape's named operators
+// are in: a term (and a list operator with its parentheses) in the first,
+// a named unary in its own, and a list operator without them below `,`.
+var perlopShapeRows = map[string]int{"term": 0, "unary": 9, "listop": 21}
+
+// TestCoreDerivedPrecedenceIsPerlops: the order and associativity CORE.pmt
+// derives, from its operators' relations and its builtins' shapes, are
+// perlop's table, row for row: each derived level's operators are all in
+// one row, with that row's associativity, and the levels run down the
+// table, each in a lower row than the last. The comparison is over what
+// CORE.pmt declares. perlop names operators CORE.pmt does not yet declare
+// -- `->`, `++` and `--`, `~.`, `~~`, `&.`, `|.`, `^.`, `^^`, `?:`, the
+// compound assignments, `,` and `=>`, and last, next and redo, which are
+// statement forms here -- and those have no place in the comparison until
+// it does. Every operator CORE.pmt declares must be in perlop's table.
 func TestCoreDerivedPrecedenceIsPerlops(t *testing.T) {
-	got, err := precedenceOrder(coreOperators(t))
+	rowOf := map[string]int{}
+	for i, row := range perlopTable {
+		for _, op := range row.ops {
+			rowOf[op] = i
+		}
+	}
+	row := func(op string) (int, bool) {
+		if i, ok := rowOf[op]; ok {
+			return i, true
+		}
+		shape, _, _ := strings.Cut(op, " ")
+		i, ok := perlopShapeRows[shape]
+		return i, ok
+	}
+	last := -1
+	for _, l := range coreOrder(t) {
+		want := -1
+		for _, op := range l.ops {
+			i, ok := row(op)
+			switch {
+			case !ok:
+				t.Errorf("CORE.pmt declares %s, which perlop's table does not list", op)
+			case want < 0:
+				want = i
+			case i != want:
+				t.Errorf("%s is in perlop's row %d, and its level's first operator %s in row %d", op, i, l.ops[0], want)
+			}
+		}
+		if want < 0 {
+			continue
+		}
+		if want <= last {
+			t.Errorf("level %v is perlop's row %d, after row %d", l.ops, want, last)
+		}
+		if l.assoc != perlopTable[want].assoc {
+			t.Errorf("level %v: :assoc(%s), perlop's row %d says %s", l.ops, l.assoc, want, perlopTable[want].assoc)
+		}
+		last = want
+	}
+}
+
+// coreOrder is the precedence order CORE.pmt derives, failing the test
+// when it derives none.
+func coreOrder(t *testing.T) []precLevel {
+	t.Helper()
+	src, ok := declaration("CORE")
+	if !ok {
+		t.Fatal("declarations/CORE.pmt is not embedded")
+	}
+	order, err := precedenceOrder(corePrecedenceDecls(src, coreShapes()))
 	if err != nil {
 		t.Fatal(err)
 	}
-	declared := map[string]bool{}
-	for _, l := range got {
-		for _, op := range l.ops {
-			declared[op] = true
+	return order
+}
+
+// levelOf is the index in order of the level holding op, or -1.
+func levelOf(order []precLevel, op string) int {
+	for i, l := range order {
+		if slices.Contains(l.ops, op) {
+			return i
 		}
 	}
-	listed := map[string]bool{}
-	var want []precLevel
-	for _, row := range perlopTable {
-		var ops []string
-		for _, op := range row.ops {
-			listed[op] = true
-			if declared[op] {
-				ops = append(ops, op)
-			}
+	return -1
+}
+
+// TestCoreShapeLevels: a named operator's level is derived from its shape,
+// as its prototype is, and not stated (RFC 0001, "Precedence is a relation
+// between operators"). Measured on 5.42.0 with -MO=Deparse,-p: `defined $x
+// < 2`, `ref $x < 2`, `chdir $x < 2` and `sleep $x < 2` are `(op($x) <
+// 2)`, a named unary between `<<`/`>>` and `isa`; `print STDOUT $x < 2,
+// 3` is `print(STDOUT ($x < 2), 3)`, a list operator, which perlop puts
+// below `,` -- CORE.pmt declares no `,` yet, so it is held below `=` and
+// above `not`, its declared neighbours; `time ** 2` is `(time ** 2)`, a
+// term. `not $x < 2` is `not(($x < 2))`: `not` is a prefix operator
+// between `..` and `and`, though CORE.pmt also has it as a builtin. `goto
+// $x = 1` is `goto ($x = 1)` and `CORE::dump $x = 1` `CORE::dump ($x =
+// 1)`: the control words have no prototype that says so, and their lines
+// state `:equiv(=)`.
+func TestCoreShapeLevels(t *testing.T) {
+	order := coreOrder(t)
+	at := func(op string) int {
+		i := levelOf(order, op)
+		if i < 0 {
+			t.Fatalf("%s: no level in %+v", op, order)
 		}
-		if len(ops) > 0 {
-			want = append(want, precLevel{ops: ops, assoc: row.assoc})
+		return i
+	}
+	between := func(op, tighter, looser string) {
+		if !(at(tighter) < at(op) && at(op) < at(looser)) {
+			t.Errorf("%s at level %d, want between %s (%d) and %s (%d)", op, at(op), tighter, at(tighter), looser, at(looser))
 		}
 	}
-	for op := range declared {
-		if !listed[op] {
-			t.Errorf("CORE.pmt declares %s, which perlop's table does not list", op)
+	for _, op := range []string{"unary defined", "unary ref", "unary chdir", "unary sleep", "unary chomp"} {
+		between(op, "<<", "isa")
+		if at(op) != at("unary defined") {
+			t.Errorf("%s is not in defined's level", op)
 		}
 	}
-	// Within a row the order is the declaration's, so compare rows as sets.
-	norm := func(ls []precLevel) []precLevel {
-		var out []precLevel
-		for _, l := range ls {
-			out = append(out, precLevel{ops: slices.Sorted(slices.Values(l.ops)), assoc: l.assoc})
-		}
-		return out
+	between("prefix not", "..", "and")
+	if levelOf(order, "unary not") >= 0 {
+		t.Errorf("not has a named unary's level beside its prefix operator's")
 	}
-	if !reflect.DeepEqual(norm(got), norm(want)) {
-		t.Errorf("derived order:\n got %+v\nwant %+v", norm(got), norm(want))
+	for _, op := range []string{"listop print", "listop join", "listop split", "listop grep"} {
+		between(op, "=", "prefix not")
+		if at(op) != at("listop print") {
+			t.Errorf("%s is not in print's level", op)
+		}
+	}
+	if at("term time") >= at("**") {
+		t.Errorf("time at level %d, want tighter than ** (%d)", at("term time"), at("**"))
+	}
+	for _, op := range []string{"goto", "dump"} {
+		if at(op) != at("=") {
+			t.Errorf("%s at level %d, want ='s (%d)", op, at(op), at("="))
+		}
 	}
 }

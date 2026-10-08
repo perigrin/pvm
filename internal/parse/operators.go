@@ -6,6 +6,7 @@ package parse
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -126,10 +127,18 @@ func fixityAttrs(n *Node) []string {
 // cannot record is an error on p.typedErrs.
 func (p *parser) declareOperator(n *Node) {
 	attrs := fixityAttrs(n)
+	name, _ := declaredSub(n)
+	// A named operator's level is its shape's, derived as its prototype
+	// is; one perl places elsewhere, goto at `=`'s level, states it.
 	if len(attrs) == 0 {
+		rel := operatorDecl{name: name, fixity: "named"}
+		if err := readRelations(n, &rel); err != nil {
+			p.typedErrs = append(p.typedErrs, fmt.Errorf("sub %s: %w", name, err))
+		} else if rel.tighter != nil || rel.looser != nil || rel.equiv != nil || rel.assoc != "" {
+			p.relations = append(p.relations, rel)
+		}
 		return
 	}
-	name, _ := declaredSub(n)
 	sig := p.operatorSig
 	p.operatorSig = types.Signature{}
 	op, err := operatorOf(name, attrs, sig)
@@ -215,7 +224,8 @@ func precedenceMismatch(op operatorDecl) error {
 }
 
 // precLevel is one level of a derived precedence order: its operators, an
-// infix one by its symbol and any other as `prefix -`, and its
+// infix one and a named one stating its level by its name, and any other by
+// its fixity or shape and name, `prefix -` or `unary defined`, and its
 // associativity.
 type precLevel struct {
 	ops   []string
@@ -243,13 +253,13 @@ func precedenceOrder(ops []operatorDecl) ([]precLevel, error) {
 		}
 	}
 	label := func(i int) string {
-		if keys[i][1] == "infix" {
+		if keys[i][1] == "infix" || keys[i][1] == "named" {
 			return keys[i][0]
 		}
 		return keys[i][1] + " " + keys[i][0]
 	}
 	target := func(op operatorDecl, attr, name string) (int, error) {
-		for _, fixity := range []string{"infix", "prefix", "postfix"} {
+		for _, fixity := range []string{"infix", "prefix", "postfix", "named", "unary", "listop", "term"} {
 			if j, ok := index[key{name, fixity}]; ok {
 				return j, nil
 			}
@@ -368,4 +378,47 @@ func precedenceOrder(ops []operatorDecl) ([]precLevel, error) {
 		}
 	}
 	return order, nil
+}
+
+// shapeRelations places each shape's level, perly.y's own rows for the
+// named operators: a named unary (UNIOP) between `<<` and `isa`, a list
+// operator (LSTOP) below `=` -- perlop's `,` lies between, and is not yet
+// declared -- and above `not`, and a term tighter than `**`.
+var shapeRelations = map[Shape]operatorDecl{
+	ShapeUnary:   {fixity: "unary", tighter: []string{"isa"}, looser: []string{"<<"}, assoc: "nonassoc"},
+	ShapeList:    {fixity: "listop", tighter: []string{"not"}, looser: []string{"="}, assoc: "nonassoc"},
+	ShapeBlock:   {fixity: "listop", tighter: []string{"not"}, looser: []string{"="}, assoc: "nonassoc"},
+	ShapeNiladic: {fixity: "term", tighter: []string{"**"}, assoc: "left"},
+}
+
+// corePrecedenceDecls is what a CORE.pmt's precedence order is derived
+// from: its operators' relations, its named operators' stated ones, and a
+// level for each other builtin, its shape's (RFC 0001, "Precedence is a
+// relation between operators"). A builtin's level is derived from its
+// shape as the shape is from its prototype; a builtin that is also an
+// operator, `not`, has the operator's level.
+func corePrecedenceDecls(src []byte, shapes map[string]Shape) []operatorDecl {
+	p := newParser(src, nil, true)
+	p.buildingCore = true
+	facts := readDeclarationWith(p)
+	out := slices.Concat(facts.operators, facts.relations)
+	placed := map[string]bool{}
+	for _, op := range out {
+		placed[op.name] = true
+	}
+	first := map[string]string{}
+	for _, name := range slices.Sorted(maps.Keys(shapes)) {
+		if placed[name] {
+			continue
+		}
+		rel := shapeRelations[shapes[name]]
+		rel.name = name
+		if anchor, ok := first[rel.fixity]; ok {
+			rel = operatorDecl{name: name, fixity: rel.fixity, equiv: []string{anchor}}
+		} else {
+			first[rel.fixity] = name
+		}
+		out = append(out, rel)
+	}
+	return out
 }

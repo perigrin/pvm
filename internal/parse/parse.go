@@ -590,6 +590,9 @@ type parser struct {
 	buildingCore bool
 	typedErrs    []error
 	operators    []operatorDecl
+	// relations are the precedence relations stated on named operators'
+	// lines; see declareOperator.
+	relations []operatorDecl
 
 	// inError names the subs whose declaration is one of typedErrs.
 	inError map[string]bool

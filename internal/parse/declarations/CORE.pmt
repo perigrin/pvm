@@ -232,7 +232,10 @@ sub die :prototype(@) (List[Str] @message) None;
 #   ((do $x), $y)          comma outside  -> named unary
 sub do :unary (Str $file) Any;
 # Measured as break, above.
-sub dump () None;
+# Its operand, though perl reports `()`, is read at the assignment level as
+# goto's is: `CORE::dump $x = 1` is `CORE::dump ($x = 1)`, so the line
+# states `:equiv(=)`.
+sub dump :equiv(=) () None;
 # each takes a hash or an array whole, and its two candidates derive
 # perl's `\[%@]`. It yields the next key and value, the index for an array
 # (`each @a` over (5, 6) is (0, 5)), or in scalar context the key alone --
@@ -421,8 +424,11 @@ sub glob :prototype(_;) (Str $pattern = $_) List;
 # (`gmtime()` is today's date), which undef is not: gmtime(undef) is 1970.
 multi sub gmtime :context($) (Int $time = time) Str|Undef;
 multi sub gmtime :context(@) (Int $time = time) List[Int];
-# Measured with do, above.
-sub goto :unary (Str|Code $label = "") None;
+# Measured with do, above. Its operand is read at the assignment level,
+# `goto $x = 1` being `goto ($x = 1)`, as perlop puts it, so the line states
+# `:equiv(=)` where a named unary's shape would place it tighter than `<`
+# (RFC 0001, "Precedence is a relation between operators").
+sub goto :unary :equiv(=) (Str|Code $label = "") None;
 # hex and oct read a string of digits, `$_` with none, and yield its
 # integer: hex("ff") is 255 as an IV, hex("zz") 0, oct("755") 493. oct
 # reads a 0x, 0b or 0o prefix, hex only 0x. Past an IV the integer is
