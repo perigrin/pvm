@@ -405,7 +405,8 @@ func TestCoreRangeIsContextMulti(t *testing.T) {
 // list context and `EXPR x N` for any. Measured on 5.42.0: `my @l = (1,2)
 // x 2` is `1 2 1 2`; `my $x = (1,2) x 2`, `my @l = @a x 2` and `"ab" x 2`
 // are strings, `22`, `22` and `abab`. The List operand is one operand, a
-// parenthesised list, so an operator's `@` parameter may come first.
+// parenthesised list its comma flattens, so `x`'s `@` parameter may come
+// first (TestCommaIsTheFinalListException).
 func TestCoreRepeatIsShapeMulti(t *testing.T) {
 	want := []operatorDecl{
 		{name: "x", fixity: "infix", class: "MUL", multi: true, sig: types.Signature{
@@ -426,18 +427,27 @@ func TestCoreRepeatIsShapeMulti(t *testing.T) {
 	}
 }
 
-// TestPmtListParameterLastOnlyForSubs: a sub's List parameter takes every
-// remaining argument, so nothing may follow it; an operator's is one
-// operand, and may.
-func TestPmtListParameterLastOnlyForSubs(t *testing.T) {
-	facts := readDeclaration([]byte("sub x :infix(MUL) (List @l, Int $n) List;\n"), nil)
-	if len(facts.errs) > 0 || len(facts.operators) != 1 {
-		t.Errorf("operator: errors %v, operators %+v", facts.errs, facts.operators)
+// TestCommaIsTheFinalListException: a List parameter takes every remaining
+// argument, so nothing may follow it -- except in the operators whose comma
+// does the flattening (perigrin, 2026-10-08): `,`, `=>` its quoting form,
+// and `x`, whose left operand is a list its comma flattens. Measured on
+// 5.42.0, `(@a, 3)` with `@a = (1, 2)` is 3 elements and `(1, (2, 3))` 3,
+// so no operand of `,` is distinguishable from its flattening. Any other
+// operator, and any sub, with a non-final List parameter is refused.
+func TestCommaIsTheFinalListException(t *testing.T) {
+	for _, src := range []string{
+		"sub , :infix (List @l, List @r) List;\n",
+		"sub => :infix (List @l, List @r) List;\n",
+		"sub x :infix(MUL) (List @l, Int $n) List;\n",
+	} {
+		if facts := readDeclaration([]byte(src), nil); len(facts.errs) > 0 || len(facts.operators) != 1 {
+			t.Errorf("%q: errors %v, operators %+v", src, facts.errs, facts.operators)
+		}
 	}
-	facts = readDeclaration([]byte("sub f (List @l, Int $n) List;\n"), nil)
-	if len(facts.errs) != 1 {
-		t.Errorf("sub: errors %v, want the List parameter refused", facts.errs)
-	}
+	operatorRefuses(t, map[string]string{
+		"sub + :infix(ADD) (List @l, Int $n) List;\n": `sub +: List parameter @l is not last; a single array followed by more parameters is Array \@l`,
+		"sub f (List @l, Int $n) List;\n":             `sub f: List parameter @l is not last; a single array followed by more parameters is Array \@l`,
+	})
 }
 
 // TestCoreMatchIsContextMulti: `=~` forks on context. Measured on 5.42.0,

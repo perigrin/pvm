@@ -1049,8 +1049,10 @@ var positionalOps = []string{"~~", "x="}
 // named by, `sub + :infix(ADD) (Num $x, Num $y) Num;` (RFC 0001, "Operator
 // declarations"), as the Word a sub's name is. Only in a `.pmt`: in perl,
 // measured on 5.42.0, `sub + { 1 }` is "Illegal declaration of anonymous
-// subroutine". A bracket, comma or colon after `sub` still opens a
-// signature, a body or an attribute.
+// subroutine". A bracket after `sub` still opens a signature or a body,
+// and a colon an attribute. A comma is the comma operator's name: perl has
+// no `sub ,`, measured on 5.42.0, `(sub, 1)` being "Illegal declaration of
+// anonymous subroutine".
 func scanOperatorName(l *lexer) bool {
 	if !l.typed || !l.sawSubWord {
 		return false
@@ -1060,7 +1062,7 @@ func scanOperatorName(l *lexer) bool {
 			if !strings.HasPrefix(string(l.src[l.pos:min(l.pos+len(op), len(l.src))]), op) {
 				continue
 			}
-			if strings.ContainsAny(op, "()[]{},:") {
+			if strings.ContainsAny(op, "()[]{}:") {
 				return false
 			}
 			start := l.pos

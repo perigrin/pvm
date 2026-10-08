@@ -487,6 +487,26 @@ filled, since the `@` takes every argument. A declaration with
 anything after a `List` parameter is an error, which points to
 `Array \@a` for a single array followed by more parameters (`\@$`).
 
+The rule is there for list flattening, so the operators whose comma
+does the flattening are its exceptions (perigrin, 2026-10-08): `,`,
+`=>` (its quoting form) and `x`. "There is absolutely no way to
+distinguish `(@a, @b)` from `(@a)` in Perl": the comma is the
+flattening, so the rule about flattened arguments does not bind it.
+Measured on 5.42, `(@a, 3)` with `@a = (1, 2)` is 3 elements, the left
+operand flattening too; `(1, (2, 3))` is 3 elements; and `my $x = (4,
+5)` is 5, with a "Useless use of a constant" warning. So `,` is
+
+```perl
+multi sub , :infix :looser(=) :assoc(left) (List @l, List @r) List;   # list context: append
+multi sub , :infix (Scalar $l, Scalar $r) Scalar;                     # scalar context: the right
+```
+
+`x` is one for the same reason: its list candidate's left operand is a
+parenthesised list its comma flattens (see "Operator declarations").
+The exceptions are named, not operators in general: any other operator,
+and every sub, with a non-final `List` parameter is a declaration error
+(TestCommaIsTheFinalListException).
+
 ### The scalar container (*Implemented*, 1a6f3e93, 7a0ea048, 3c6a73bb, e6fba74e, 352d0eca)
 
 perigrin, 2026-10-02: a parameter that aliases the caller's container
@@ -609,8 +629,9 @@ multi sub x :infix(MUL) (Str $s, Int $n) Str;     # EXPR x N
   taking it as a scalar; without that, `Str <: List` would make the
   `Str` candidate the most specific. Context comes first: in scalar
   context the `Str` candidate's return answers it, so `my $x = (1,2) x
-  2` is the `Str` one's. An operator's `@` parameter is one
-  operand, so it may come before another.
+  2` is the `Str` one's. The `@` parameter comes before another:
+  `x` is one of the operators the final-List rule names as exceptions
+  (see "A typed signature and a prototype say the same thing").
 - `=~` forks on context: in list context a match is its captures and
   `s///g` its count; in scalar context a match is a boolean, `s///` and
   `tr///` a count, and `s///r` and `tr///r` the new string.

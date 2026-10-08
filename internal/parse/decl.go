@@ -117,6 +117,7 @@ func (p *parser) parseSignature(n *Node) {
 // parens are read as parseSignature reads any signature.
 func (p *parser) parseTypedSignature(n *Node) bool {
 	save := p.pos
+	name, _ := declaredSub(n)
 	open, _ := p.peekSignificant()
 	p.advanceTo(open)
 	sig := &Node{Kind: List, Paren: true, Start: open.Start}
@@ -156,9 +157,9 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 			}
 			// A List parameter takes every remaining argument, so nothing
 			// can follow it (RFC 0001, "A typed signature and a prototype
-			// say the same thing"). An operator's is one operand, a
-			// parenthesised list (RFC 0001, "Operators that fork").
-			if n := len(s.Params); n > 0 && s.Params[n-1].Slurpy() && !operator {
+			// say the same thing"), except in the operators whose comma
+			// does the flattening, flatteningOperators.
+			if n := len(s.Params); n > 0 && s.Params[n-1].Slurpy() && !(operator && flatteningOperators[name]) {
 				last := s.Params[n-1]
 				container := "Array"
 				if last.Sigil == '%' {
@@ -212,7 +213,6 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 			}
 		}
 	}()
-	name, _ := declaredSub(n)
 	if err != nil {
 		p.typedErrs = append(p.typedErrs, fmt.Errorf("sub %s: %w", name, err))
 		p.pos = save
@@ -245,6 +245,13 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 	p.signatures[name] = append(p.signatures[name], s)
 	return true
 }
+
+// flatteningOperators are the operators a non-final List parameter is
+// allowed in (perigrin, 2026-10-08): `,` and `=>`, its quoting form, whose
+// operands perl cannot tell from their flattening -- `(@a, @b)` and `(@a)`
+// are both just lists -- and `x`, whose left operand is a parenthesised
+// list its comma flattens.
+var flatteningOperators = map[string]bool{",": true, "=>": true, "x": true}
 
 // hasAttribute reports whether the declaration n states the attribute
 // spelled attr, `:unary` or `:listop`.
