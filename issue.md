@@ -1,12 +1,12 @@
 ---
-title: Truly-no-default calls are their own candidate; the bare-call default convention goes
+title: An argument with no default is typed Void|T; the bare-call default convention goes
 state: pending
 urgency: normal
 milestone: type-libraries
 blocked_by:
 - 01a11937-22da-7250-b922-fabda15009a7
 created: 2026-10-08T01:59:02.643468486Z
-updated: 2026-10-08T02:05:12.449392713Z
+updated: 2026-10-08T02:05:12.611425253Z
 ---
 
 ## Context
