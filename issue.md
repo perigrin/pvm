@@ -1,6 +1,6 @@
 ---
 title: "Drop :context: a multi selects by return type in the calling context"
-state: pending
+state: in-progress
 urgency: normal
 milestone: type-libraries
 blocked_by:
@@ -9,7 +9,16 @@ blocked_by:
 blocks:
 - 01a118fe-8e5f-717a-b046-6020db95c724
 created: 2026-10-08T01:28:26.650675969Z
-updated: 2026-10-08T01:53:32.274600776Z
+updated: 2026-10-08T08:31:40.328391047Z
+sessions:
+- start_sha: 04a6ca62d20d1d53be57651b769964909706bf69
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-08T08:31:40.328391047Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-08T08:31:40.328391047Z
 ---
 
 ## Context
