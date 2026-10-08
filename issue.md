@@ -1,6 +1,6 @@
 ---
 title: CORE.pmt states each operator's precedence as a relation to another, with perlop's associativity
-state: pending
+state: in-progress
 urgency: normal
 milestone: type-libraries
 blocks:
@@ -10,7 +10,16 @@ blocks:
 - 01a11920-411a-7cea-b78f-c1568aba6d25
 - 01a11923-baa0-774c-9058-4d7e8995a73e
 created: 2026-10-08T00:51:37.959731974Z
-updated: 2026-10-08T01:32:25.273788818Z
+updated: 2026-10-08T02:17:16.758195489Z
+sessions:
+- start_sha: 214a28feeaf479afafe15410e923f54e81a1a919
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-08T02:17:16.758195489Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-08T02:17:16.758195489Z
 ---
 
 ## Context
