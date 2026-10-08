@@ -589,7 +589,12 @@ as a parenthesised one; and to `\` a sub call is a list too, `my @r =
 \f()` being a reference to each value `f` returns, where `f() x 2`
 repeats a string.
 
-### Precedence classes are the shared precedence table (*Decided*)
+### Precedence is a relation between operators (*Decided*)
+
+The goal (perigrin, 2026-10-08): every builtin and operator is defined
+with a signature in `CORE.pmt` that lets it be parsed, and the parser
+is derived from `CORE.pmt` -- as its keyword shapes already are. An
+operator's precedence is part of that definition.
 
 pvm and Chalk each keep a precedence table by hand -- pvm's
 `internal/parse/precedence.go` with the class map in
@@ -597,54 +602,47 @@ pvm and Chalk each keep a precedence table by hand -- pvm's
 `Chalk::Grammar::Perl::PrecedenceTable` feeding its Precedence
 semiring -- and the two already disagree: Chalk gives `isa` its own
 level tighter than the relational operators, as perlop does, while
-pvm puts it beside them. `CORE.pmt` already names every core
-operator's class, so it becomes the one table both read, as it became
-the one builtin table (perigrin, 2026-10-08).
+pvm puts it beside them. Both become readings of `CORE.pmt`.
 
-**The table is data in `CORE.pmt`.** It lists the classes tightest
-first, one row per perlop level, each with its associativity, as plain
-Perl a `.pmt` may already hold -- no new syntax, and Chalk, a Perl
-parser, reads it as it reads any declaration:
+**Precedence is a partial order, stated on each operator** (perigrin,
+2026-10-08), as Raku states it with `is tighter`, `is looser` and
+`is equiv`, rather than a numbered table: a library that declares an
+infix operator must be able to place it between two existing levels
+without renumbering anything. An operator line relates itself to an
+operator it can see:
 
 ```perl
-our @PRECEDENCE = (           # tightest first; perlop's rows
-    [ right    => 'POW' ],                         # **
-    [ left     => 'MATCHRE' ],                     # =~ !~
-    [ left     => 'MUL' ],                         # * / % x
-    [ left     => 'ADD' ],                         # + - .
-    [ left     => 'SHIFT' ],                       # << >>
-    [ nonassoc => 'ISA' ],                         # isa
-    [ chained  => 'RELATION' ],                    # < > <= >= lt gt le ge
-    [ chain_na => 'EQUALITY', 'ORDERING' ],        # == != eq ne <=> cmp
-    [ left     => 'BITAND' ],                      # & &.
-    [ left     => 'BITOR' ],                       # | ^ |. ^.
-    [ left     => 'LOGICAL_AND' ],                 # &&
-    [ left     => 'LOGICAL_OR' ],                  # || ^^ //
-    [ nonassoc => 'RANGE' ],                       # .. ...
-    [ right    => 'ASSIGN' ],                      # = += -= ...
-    [ left     => 'LOGICAL_AND_LOW' ],             # and
-    [ left     => 'LOGICAL_OR_LOW' ],              # or xor
-);
+sub * :infix :tighter(+) :assoc(left) (Num $x, Num $y) Num|Inf;
+sub + :infix :assoc(left) (Num $x, Num $y) Num|Inf;
+sub - :infix :equiv(+) (Num $x, Num $y) Num|Inf;
+sub . :infix :equiv(+) (Str $x, Str $y) Str;
+sub ⊕ :infix :tighter(+) :looser(*) :assoc(left) (Num $x, Num $y) Num;
 ```
 
-`HIGH` and `LOW` sit above the first row and below the last, the hooks
-XS::Parse::Infix gives plugins. The rows that are no class keep their
-own declarations: prefix operators are `:prefix`, named unaries
-`:unary` and rightward list operators `:listop`, and each of those
-shapes has perlop's level -- a named unary between `<<`/`>>` and `isa`,
-`not` between `..` and `and`, a list operator below `,`.
+- `:tighter(OP)` and `:looser(OP)` order the operator's level against
+  another operator's; `:equiv(OP)` puts it in that operator's level,
+  whose associativity it takes.
+- `:assoc(...)` is perlop's: `left`, `right`, `nonassoc`, `chained`
+  (`<` `<=` ...) or `chain_na` (`==` `!=` ...). A level states it once.
+- XS::Parse::Infix's classes remain a spelling of a level:
+  `:infix(ADD)` is `:infix :equiv(+)`, so a library writes the class it
+  registers with. Levels XS::Parse::Infix does not class (`&`, `|`
+  and `^`, `<<` and `>>`, `..`) need no name of their own: they are
+  named by their operators, and the coined `BITAND`, `BITOR`, `SHIFT`
+  and `RANGE` go.
+- The shapes that are no infix level relate the same way: `:prefix`,
+  `:unary` and `:listop` operators state where they bind -- a named
+  unary between `<<`/`>>` and `isa`, `not` between `..` and `and`, a
+  rightward list operator below `,`.
 
-**Each row's associativity is perlop's**, which XS::Parse::Infix's
-classes do not carry. Several classes may share a row (`EQUALITY` and
-`ORDERING`), because XS::Parse::Infix splits operators by meaning, not
-by precedence.
-
-**Both parsers derive from it.** pvm's class levels and its precedence
-table are checked against `@PRECEDENCE`, not the other way round, and a
-test holds `@PRECEDENCE` to perlop's own table. Chalk's
-`PrecedenceTable` becomes a reading of the same rows. Every operator
-perlop's table names that is an infix operator has a `:infix` line,
-including `^^`, `&.`, `|.`, `^.` and the compound assignments.
+**Both parsers derive a total order** by sorting the relations
+topologically. A `.pmt` whose relations form a cycle, or leave two
+levels unordered where a parse needs an answer, is a declaration error
+naming the operators. `CORE.pmt`'s relations reproduce perlop's table
+exactly, and a test holds the derived order and associativity to
+perlop's own table. Every operator perlop's table names that is an
+infix or prefix operator has a line, including `^^`, `&.`, `|.`, `^.`,
+`~.`, the compound assignments and `++`/`--`.
 
 ### Multi declarations (*Implemented*, d7ff54be, e0927971, 597f89f2, 56fdf0e2, 2a00759b, 1f2f170c, 263ec15e, d44fb222, 7341cfec, 7e129204)
 
