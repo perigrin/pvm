@@ -1,6 +1,6 @@
 ---
 title: The parser's operator precedence and associativity come from CORE.pmt's relations
-state: pending
+state: in-progress
 urgency: normal
 milestone: type-libraries
 blocked_by:
@@ -9,7 +9,16 @@ blocked_by:
 blocks:
 - 01a11923-bb28-76fc-bce5-078b86077ca4
 created: 2026-10-08T00:51:38.110268863Z
-updated: 2026-10-08T01:32:28.0747775Z
+updated: 2026-10-08T09:14:10.203628911Z
+sessions:
+- start_sha: b2750dd0677c83a05291e2da5bc3246872c9edbd
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-08T09:14:10.203628911Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-08T09:14:10.203628911Z
 ---
 
 ## Context
