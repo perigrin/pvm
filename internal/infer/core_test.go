@@ -241,3 +241,21 @@ func TestInferMultiBuiltinNarrowsByArityAndShape(t *testing.T) {
 		assert.Equal(t, c.want, lookupType(t, c.src, c.name), "%q", c.src)
 	}
 }
+
+// TestInferOptionalSlotTakesItsType: `sub srand (Optional[Int] $seed)
+// Str;` may be called with no argument, the Void case, and an argument
+// that is written is never absent, so it is held to Int as an Int slot
+// holds it: `srand("x")` warns as `abs("abc")` does, saying Int.
+func TestInferOptionalSlotTakesItsType(t *testing.T) {
+	for _, src := range []string{`srand();`, `srand(1);`, `my $n = send(STDOUT, "m", 0);`} {
+		_, diags := analyzeSource(t, []byte(src))
+		assert.Empty(t, diags, "%q", src)
+	}
+	for _, src := range []string{`srand("x");`, `sleep("x");`, `umask("x");`} {
+		_, diags := analyzeSource(t, []byte(src))
+		require.Len(t, diags, 1, "%q", src)
+		assert.Equal(t, infer.CodeTypeMismatch, diags[0].Code, "%q", src)
+		assert.Equal(t, infer.Warning, diags[0].Severity, "%q: %s", src, diags[0].Message)
+		assert.Contains(t, diags[0].Message, "expects Int, got Str", "%q", src)
+	}
+}

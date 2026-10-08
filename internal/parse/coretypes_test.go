@@ -147,7 +147,8 @@ func TestCoreTypesMatchMeasuredSignatures(t *testing.T) {
 		"sprintf": {1, []types.Type{types.Str, types.List}, types.Str},
 		// The fourth argument is the replacement string, not another
 		// number: `substr($s, 0, 1, 5)` makes "abc" "5bc".
-		"substr": {2, []types.Type{types.Str, types.Num, types.Num, types.Str}, types.Str},
+		// substr's replacement may be absent, with no default: Optional[Str].
+		"substr": {2, []types.Type{types.Str, types.Num, types.Num, types.Void | types.Str}, types.Str},
 		"ref":    {0, []types.Type{types.Scalar}, types.Str},
 		// The argument is coerced to a Scalar, as a `$` prototype's is:
 		// with `@a = (5, 6, 7)`, `scalar(@a)` is 3. A `$` parameter typed

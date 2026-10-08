@@ -210,15 +210,18 @@ func TestDerivePrototypeAfterAtIsError(t *testing.T) {
 // TestDerivePlusOnlyFromList: `+` is the table's `Array|Hash|Scalar $x`
 // and nothing wider or narrower, but for Void: List is that union and
 // Void, and the empty list in a `+` slot arrives as undef (measured on
-// 5.42, `f(())` passes one undef). Measured on 5.42, `f(@a)` passes an
-// ARRAY reference under `+` and the count under `$`, so a `$` parameter
-// typed Any or Array|Str is a `$`, not a `+`.
+// 5.42, `f(())` passes one undef). Void makes the slot one that may be
+// absent, so `List $x` is `;+`: under `(;+)` perl's `g()` passes nothing.
+// Measured on 5.42, `f(@a)` passes an ARRAY reference under `+` and the
+// count under `$`, so a `$` parameter typed Any or Array|Str is a `$`,
+// not a `+`.
 func TestDerivePlusOnlyFromList(t *testing.T) {
 	for typed, want := range map[string]string{
-		"(Any $x)":       "$",
-		"(Array|Str $x)": "$",
-		"(Scalar $x)":    "$",
-		"(List $x)":      "+",
+		"(Any $x)":               "$",
+		"(Array|Str $x)":         "$",
+		"(Scalar $x)":            "$",
+		"(Array|Hash|Scalar $x)": "+",
+		"(List $x)":              ";+",
 	} {
 		if got := prototypeFromTypes(typedSignature(t, "sub f "+typed+";\n")); got != want {
 			t.Errorf("%s: got %q, want %q", typed, got, want)

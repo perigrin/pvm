@@ -219,6 +219,18 @@ unknown name is an error. perigrin, 2026-10-02:
   and seeds 18446744073709551615, an `Int` slot holding undef,
   `Maybe[Int]`; `srand()` seeds itself, a slot holding nothing,
   `Optional[Int]`.
+- **A parameter whose type includes `Void` may be absent, with no
+  default** (perigrin, 2026-10-08). `sub srand (Optional[Int] $seed)
+  Str;` says what perl does with no seed, which no expression states, and
+  derives `;$`: the table puts a `;` before it. A written argument is
+  never absent, so it is held to the type less `Void`: `srand("x")` is
+  told `Int`, and `srand(@e)` is `srand(0)`, the array one scalar under
+  `;$`. `Any` is the permissive top, as TypeScript's `any` is beside its
+  `void` (`f(x: number | void)` allows `f()`, `f(x: any)` does not), not
+  a union that happens to hold `Void`, so an `Any` parameter is required.
+  `List` is such a union, so `List $` derives `;+`. A slurpy takes zero
+  arguments already, and `Optional[Int] $x = die` is an error: `die`
+  requires what `Void` says may be absent.
 - **The paper's other types** (`VString`, `Format`, `LValueRef`) join
   the lattice when a declaration first needs one.
 
@@ -433,11 +445,11 @@ prototype character corresponds to a parameter:
 | `\@`, `\%` | an actual array or hash, passed whole | `Array \@a`, `Hash \%h` |
 | `\$` | any scalar lvalue, passed as a reference: `sref(1)` dies, "must be scalar (not constant item)" | `Scalar \$x` |
 | `\[$@%]` | any one of those containers | their union |
-| `+` | one array or hash, passed whole, or one scalar: `plus(%h)` sees a HASH, `plus(1,2)` is too many arguments | `Array\|Hash\|Scalar $`, exactly, or that and `Void`, `List $`: `plus(())` passes one undef. A wider type such as `Any $` is a `$` |
+| `+` | one array or hash, passed whole, or one scalar: `plus(%h)` sees a HASH, `plus(1,2)` is too many arguments | `Array\|Hash\|Scalar $`, exactly; `plus(())` passes one undef. That and `Void`, `List $`, may be absent, and is `;+`: under `(;+)` `g()` passes nothing. A wider type such as `Any $` is a `$` |
 | `&` | a block or a code reference when first; elsewhere `sub {...}` or `\&name` | `Code &` |
 | `*` | a bareword filehandle or any scalar: `star(STDOUT)`, `star($s)` | `Glob *` |
 | `_` | a scalar, defaulting to `$_` | `Scalar $ = $_` |
-| `;` | marks what follows as optional | parameters with defaults |
+| `;` | marks what follows as optional | parameters with defaults, or whose type includes `Void` |
 
 **Derivation goes both directions** (perigrin):
 
@@ -794,18 +806,18 @@ signatures reject it ("A slurpy parameter may not have a default
 value"). `.pmt` declarations use it for `= die` here and for `print`'s
 `= ($_)`.
 
-**A default perl computes is written as the call itself** (perigrin,
-2026-10-07). Every optional argument has a default, but some are values
-only perl can produce: `srand` with none calls perl's own `Perl_seed()`
+**An argument perl computes when it is absent has no default**
+(perigrin, 2026-10-08). `srand` with none calls perl's own `Perl_seed()`
 (util.c), which reads entropy -- `getentropy`, else `/dev/urandom`, else
-a hash of the time, pid and stack -- `sleep` with none sleeps for ever, `caller` with none
-gives its three-field frame. No expression states those, so the default
-is the bare call, which is exactly what omitting the argument does:
-`sub srand (Int $seed = srand()) Str;`, likewise `umask`, `sleep`,
-`caller`, `reset` and `send`'s address. A default may also name a
-parameter declared after it: `exec`'s and `system`'s program slot is
-optional, the program taken from the list (`exec "ls"` compiles), so
-`sub exec (Str $program = $args[0]: List[Str] @args) Boolean;`.
+a hash of the time, pid and stack -- `sleep` with none sleeps for ever,
+`caller` with none gives its three-field frame. No expression states
+those, so the parameter is `Optional[T]`, which may be absent with no
+default: `sub srand (Optional[Int] $seed) Str;`, likewise `umask`,
+`sleep`, `caller`, `reset`, `send`'s address and `substr`'s
+replacement. A default may also name a parameter declared after it:
+`exec`'s and `system`'s program slot is optional, the program taken from
+the list (`exec "ls"` compiles), so `sub exec (Str $program = $args[0]:
+List[Str] @args) Boolean;`.
 
 ### Call sites (*Decided*)
 

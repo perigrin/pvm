@@ -451,7 +451,13 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 	p.advanceTo(last)
 	param := types.Param{Name: p.text(v)[1:], Sigil: p.src[v.Start], Type: typ, Element: elem, Alias: alias, AliasEach: each}
 	slurpy := param.Slurpy()
-	param.Required = !slurpy
+	// A parameter whose type includes Void may be absent, with no default
+	// (RFC 0001, "`Maybe[T]` is `Undef|T` and `Optional[T]` is `Void|T`"):
+	// `Optional[Int] $seed` is srand's, `srand()` the Void case. Any is the
+	// permissive top, as TypeScript's `any` beside its `void`, not a union
+	// that happens to hold Void, so an Any parameter is required.
+	absent := typ&types.Void != 0 && typ != types.Any
+	param.Required = !slurpy && !absent
 	// An aliased array or hash is the caller's container, and a glob slot
 	// has no spelling: perl cannot alias a glob (RFC 0001, "The scalar
 	// container").
@@ -478,8 +484,8 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 	}
 	// RFC 0001 "The scalar container": a parameter that takes the caller's
 	// container is backslashed, so `Array @a` is not valid. A slurpy's type
-	// is List, with or without Void.
-	list := typ|types.Void == types.List
+	// is List, with or without Void, or Void alone, the empty list.
+	list := typ|types.Void == types.List || typ == types.Void
 	if slurpy && typ != types.Unknown && !list && typ&^(types.Array|types.Hash) == 0 {
 		return types.Param{}, nil, fmt.Errorf(`container type %s with flattening sigil %s; a parameter that takes the caller's container is %s \%s`, tn.Text, param.Variable(), tn.Text, p.text(v))
 	}
@@ -506,6 +512,9 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 		// makes the parameter required rather than optional (RFC 0001, "A
 		// required argument defaults to `die`").
 		param.Required = def.Kind == Call && keywordName(def.Text) == "die"
+		if param.Required && absent && !slurpy {
+			return types.Param{}, nil, fmt.Errorf("%s has type %s, which may be absent, and defaults to die, which requires it", param.Variable(), tn.Text)
+		}
 		// The default fills a `\$` slot as an argument would, so it is held
 		// to what perl accepts there: `Scalar \$x = 1` derives `;\$`, and
 		// `sref(1)` is "must be scalar (not constant item)".
