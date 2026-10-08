@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a118fe-8dfe-7c0e-bcbe-06fd8374d1a6
 created: 2026-10-08T00:51:38.164240057Z
-updated: 2026-10-08T21:55:30.202888474Z
+updated: 2026-10-08T22:11:45.83657091Z
 sessions:
 - start_sha: 04a6ca62d20d1d53be57651b769964909706bf69
   end_sha: b2750dd0677c83a05291e2da5bc3246872c9edbd
@@ -49,11 +49,11 @@ Goal (perigrin, 2026-10-08): every builtin and operator is defined with a signat
 - [ ] Write failing test `TestLibraryCoinedClassRefused`: a library .pmt naming a removed class is an unknown-class declaration error
 - [ ] Respell those lines with relations; drop `coreOnlyClasses` in favour of "a library may not place an operator at a level XS::Parse::Infix cannot register at" if XS::Parse::Infix's limits still apply; restate RFC 0001 "Fixity and precedence"; `make test`; commit
 
+### Reworded (2026-10-08)
+
+perigrin: the goal's condition that the four retired class names "appear nowhere" applies to the tests too, so the criteria no longer name them: TestLibraryCoinedClassRefused is TestLibraryUnknownClassRefused (an unknown class is refused; the retired names are unknown classes like any other), and TestCoreClassesAreXPIs checks that every CORE.pmt class is XS::Parse::Infix's, which rules them out without listing them.
+
 ## Acceptance criteria
 
 - [ ] a library .pmt naming a class XS::Parse::Infix does not have is a declaration error (`go test ./internal/parse/ -run '^TestLibraryUnknownClassRefused$' -count=1 -v | grep -q '^--- PASS: TestLibraryUnknownClassRefused'`)
 - [ ] every class CORE.pmt names is XS::Parse::Infix's (`go test ./internal/parse/ -run '^TestCoreClassesAreXPIs$' -count=1 -v | grep -q '^--- PASS: TestCoreClassesAreXPIs'`)
-
-### Criteria reworded (2026-10-08)
-
-perigrin: the goal's condition that the four retired class names "appear nowhere" applies to the tests too, so the criteria no longer name them: TestLibraryCoinedClassRefused is TestLibraryUnknownClassRefused (an unknown class is refused; the retired names are unknown classes like any other), and TestCoreClassesAreXPIs checks that every CORE.pmt class is XS::Parse::Infix's, which rules them out without listing them.
