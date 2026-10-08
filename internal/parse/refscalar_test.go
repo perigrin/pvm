@@ -302,3 +302,26 @@ func TestPrintWordBeforePackageIsAMethod(t *testing.T) {
 		"{ package Bar; sub create {} } print create Bar sub { 1 };\n",
 	)
 }
+
+// TestIncDecRefusesConstant: `++` and `--` take an aliased scalar, `\$`,
+// and perl refuses what a `\$` slot refuses. Measured on 5.42.0 with
+// `perl -c`: `++1` is "Can't modify constant item in preincrement (++)",
+// `1++` in postincrement, `--1` in predecrement, `++"a"` a constant item
+// too, `++f()` "Can't modify non-lvalue subroutine call of &main::f", and
+// `++@a` "Can't modify private array". `$h{x}++` and `$x->[0]++` compile.
+func TestIncDecRefusesConstant(t *testing.T) {
+	for _, src := range []string{
+		"++1;\n", "1++;\n", "--1;\n", "1--;\n", "++\"a\";\n",
+		"sub f {} ++f();\n", "my @a; ++@a;\n",
+	} {
+		if got := refusedAs(src); !slices.Equal(got, []RefusalCode{RefScalarSlot}) {
+			t.Errorf("%q: refusals %v, want one %s", src, got, RefScalarSlot)
+		}
+	}
+	wantNoRefusal(t,
+		"my $x; ++$x; $x++; --$x; $x--;\n",
+		"my %h; $h{x}++;\n",
+		"my $x; $x->[0]++;\n",
+		"my $x; my $y = $x++ ** 2 + -$x--;\n",
+	)
+}

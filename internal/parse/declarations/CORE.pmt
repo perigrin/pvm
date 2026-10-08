@@ -1046,3 +1046,19 @@ sub ~ :prefix :equiv(!) (Int $x) Int;
 # `\(1,2,3)`; otherwise one reference.
 multi sub \ :prefix :equiv(!) (List @l) List;
 multi sub \ :prefix (Any $x) Ref;
+
+# Increment and decrement, each prefix and postfix in one level, which `**`
+# is looser than, on an aliased scalar: perl refuses `++1`, "Can't modify
+# constant item in preincrement (++)". The operand is any scalar -- undef, a
+# number, a string, a reference -- measured on 5.42. Prefix `++` gives the
+# new value, a number or a string's magic increment: "aa" becomes "ab", "Az"
+# "Ba", "zz" "aaa", "a9" "b0", while "abc1x" becomes 1 and "9" 10, so the
+# operand's type does not choose between them and Str covers both. Prefix
+# `--` has no string magic: "aa" becomes -1, "inf" Inf and "nan" NaN. The
+# prefix forms give the operand itself, `\(++$x)` aliasing $x. Postfix gives
+# the old value, except that postfix `++` gives 0 for undef where postfix
+# `--` gives undef.
+sub ++ :prefix :tighter(**) :assoc(nonassoc) (Scalar \$x) Str;
+sub -- :prefix :equiv(++) (Scalar \$x) Num|NaN|Inf;
+sub ++ :postfix :equiv(++) (Scalar \$x) Boolean|Str|DualVar|Ref;
+sub -- :postfix :equiv(++) (Scalar \$x) Scalar;

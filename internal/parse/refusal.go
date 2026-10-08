@@ -75,7 +75,9 @@ const (
 
 	// RefScalarSlot: a call fills a `\$` prototype slot with something
 	// that is not a scalar lvalue -- `sref(1)` -- which perl rejects as
-	// "Type of arg 1 to main::sref must be scalar".
+	// "Type of arg 1 to main::sref must be scalar", or an operator's `\$`
+	// operand is one -- `++1` -- which perl rejects as "Can't modify
+	// constant item in preincrement (++)".
 	RefScalarSlot RefusalCode = "ref_scalar_slot"
 
 	// CallArity: a call passes a number of arguments no declaration of its
@@ -151,8 +153,8 @@ var RefusalSites = map[RefusalCode]RefusalSite{
 		Where: "call.go, parseListOpBlock",
 	},
 	RefScalarSlot: {
-		What:  "a `\\$` prototype slot given what perl refuses there",
-		Where: "refscalar.go, refuseRefScalarSlot",
+		What:  "a `\\$` prototype slot or operand given what perl refuses there",
+		Where: "refscalar.go, refuseRefScalarSlot and refuseAliasedOperand",
 	},
 	CallArity: {
 		What:  "a call with a number of arguments no declaration accepts",

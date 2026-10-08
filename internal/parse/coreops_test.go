@@ -230,6 +230,9 @@ func TestCoreOperatorTypesMatchMeasured(t *testing.T) {
 		"prefix -": un(N, N), "prefix +": un(N, N), "prefix !": un(A, B),
 		"prefix not": un(A, B), "prefix ~": un(I, I), `prefix \`: un(A, types.Ref),
 		`prefix \ (list)`: un(types.List, types.List),
+
+		"prefix ++": un(types.Scalar, S), "prefix --": un(types.Scalar, N|types.NaN|types.Inf),
+		"postfix ++": un(types.Scalar, B|S|types.DualVar|types.Ref), "postfix --": un(types.Scalar, types.Scalar),
 	}
 	got := map[string]row{}
 	for _, op := range coreOperators(t) {
@@ -458,5 +461,38 @@ func TestCoreRefgenIsShapeMulti(t *testing.T) {
 	}
 	if got := coreCandidates(t, "prefix", `\`); !reflect.DeepEqual(got, want) {
 		t.Errorf(`\:`+"\n got %+v\nwant %+v", got, want)
+	}
+}
+
+// TestCoreDeclaresIncDec: `++` and `--` are each prefix and postfix, in one
+// level perlop's table makes `nonassoc` and puts above `**`, on an aliased
+// scalar: perl refuses `++1`, "Can't modify constant item in preincrement".
+// Measured on 5.42.0, the operand is any scalar: undef, a number, a string,
+// a reference. Prefix `++` gives the new value: a number, or a string's
+// magic increment ("aa" is "ab", "Az" "Ba", "zz" "aaa", "a9" "b0"), Str
+// covering both. Prefix `--` has no string magic: "aa" is -1, and "inf"
+// Inf and "nan" NaN. Postfix gives the old value, but postfix `++` gives 0
+// for undef where postfix `--` gives undef.
+func TestCoreDeclaresIncDec(t *testing.T) {
+	operand := []types.Param{{Name: "x", Sigil: '$', Type: types.Scalar, Required: true, Alias: true}}
+	want := map[[2]string][]operatorDecl{
+		{"prefix", "++"}: {{name: "++", fixity: "prefix", tighter: []string{"**"}, assoc: "nonassoc",
+			sig: types.Signature{Params: operand, Returns: types.Str}}},
+		{"prefix", "--"}: {{name: "--", fixity: "prefix", equiv: []string{"++"},
+			sig: types.Signature{Params: operand, Returns: types.Num | types.NaN | types.Inf}}},
+		{"postfix", "++"}: {{name: "++", fixity: "postfix", equiv: []string{"++"},
+			sig: types.Signature{Params: operand, Returns: types.Boolean | types.Str | types.DualVar | types.Ref}}},
+		{"postfix", "--"}: {{name: "--", fixity: "postfix", equiv: []string{"++"},
+			sig: types.Signature{Params: operand, Returns: types.Scalar}}},
+	}
+	for key, w := range want {
+		if got := coreCandidates(t, key[0], key[1]); !reflect.DeepEqual(got, w) {
+			t.Errorf("%s %s:\n got %+v\nwant %+v", key[0], key[1], got, w)
+		}
+	}
+	for _, op := range undeclaredOperators {
+		if op.name == "++" || op.name == "--" {
+			t.Errorf("undeclaredOperators still places %s %s", op.fixity, op.name)
+		}
 	}
 }

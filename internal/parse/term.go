@@ -138,11 +138,11 @@ func (p *parser) parseTerm() *Node {
 			bp = bpDeref
 		}
 		operand := p.operand(bp, tok)
-		return &Node{
+		return p.refuseAliasedOperand(&Node{
 			Kind: Unary, Text: prefixName(text),
 			Start: tok.Start, End: operand.End,
 			Children: []*Node{operand},
-		}
+		}, text, "prefix")
 	}
 
 	// A glob: `*foo`, `*{$name}`, `*$glob`. A term, not multiplication -- and

@@ -98,15 +98,16 @@ func TestPrecedenceAssocConflict(t *testing.T) {
 // perlopTable is perlop's "Operator Precedence and Associativity" at the
 // corpus pin (perl5 94e5086608, pod/perlop.pod), highest precedence first,
 // each row's associativity in `:assoc`'s spelling (perlop's `chain/na` is
-// `chain_na`). An infix operator is its symbol, a prefix one `prefix
-// SYMBOL`, and a named one placed by its line its name. The rows perlop
+// `chain_na`). An infix operator is its symbol, a prefix or postfix one
+// `prefix SYMBOL` or `postfix SYMBOL`, and a named one placed by its line
+// its name. The rows perlop
 // describes rather than lists, "terms and list operators (leftward)",
 // "named unary operators" and "list operators (rightward)", hold a named
 // operator by its shape, `term`, `unary` and `listop` (perlopShapeRows).
 var perlopTable = []precLevel{
 	{assoc: "left"}, // terms and list operators (leftward)
 	{assoc: "left", ops: []string{"->"}},
-	{assoc: "nonassoc", ops: []string{"++", "--", "prefix ++", "prefix --"}},
+	{assoc: "nonassoc", ops: []string{"postfix ++", "postfix --", "prefix ++", "prefix --"}},
 	{assoc: "right", ops: []string{"**"}},
 	{assoc: "right", ops: []string{"prefix !", "prefix ~", "prefix ~.", `prefix \`, "prefix +", "prefix -"}},
 	{assoc: "left", ops: []string{"=~", "!~"}},
@@ -142,10 +143,9 @@ var perlopShapeRows = map[string]int{"term": 0, "unary": 9, "listop": 21}
 // one row, with that row's associativity, and the levels run down the
 // table, each in a lower row than the last. The comparison is over what
 // CORE.pmt declares. perlop names operators CORE.pmt does not yet declare
-// -- `->`, `++` and `--`, `~.`, `~~`, `&.`, `|.`, `^.`, `^^`, `?:`, the
-// compound assignments, `,` and `=>`, and last, next and redo, which are
-// statement forms here -- and those have no place in the comparison until
-// it does. Every operator CORE.pmt declares must be in perlop's table.
+// -- `->`, `~.`, `~~`, `&.`, `|.`, `^.`, `^^`, `?:`, the compound
+// assignments, `,` and `=>`, and last, next and redo, which are statement
+// forms here -- and those have no place in the comparison until it does. Every operator CORE.pmt declares must be in perlop's table.
 func TestCoreDerivedPrecedenceIsPerlops(t *testing.T) {
 	rowOf := map[string]int{}
 	for i, row := range perlopTable {
