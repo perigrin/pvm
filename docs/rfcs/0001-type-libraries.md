@@ -672,7 +672,7 @@ is lexed with the lexer's own list, which a test holds to `CORE.pmt`'s
 (TestFatCommaAutoquotes, TestLexerBarewordOperatorsAreCores). Elsewhere
 the parser treats `=>` as the comma it is `:equiv` to.
 
-### Precedence is a relation between operators (*Decided*)
+### Precedence is a relation between operators (*Implemented*, 04a6ca62, b2750dd0, 5f2311c7, 2119cf83, 02fcb424, b8aef969)
 
 The goal (perigrin, 2026-10-08): every builtin and operator is defined
 with a signature in `CORE.pmt` that lets it be parsed, and the parser
@@ -813,7 +813,7 @@ result `meet(join(arguments), declared)`, which would have made
 `B::svref_2object`, `sqrt(2)`, `sqrt(4)` and `atan2(1,1)` are floats
 (NOK only), and `chr(65)` is a string (POK only).
 
-### Context selects by return type (*Implemented*)
+### Context selects by return type (*Implemented*, cd34146a)
 
 A function whose type depends on its calling context (one that
 effectively branches on `wantarray`) is a multi whose candidates return
