@@ -1,12 +1,12 @@
 ---
-title: Chalk reads its precedence table from CORE.pmt's @PRECEDENCE
+title: Chalk reads its precedence from CORE.pmt's operator relations
 state: pending
 urgency: normal
 milestone: type-libraries
 blocked_by:
 - 01a118fe-8d68-71a8-ab06-cc12d7a20589
 created: 2026-10-08T00:51:38.259862798Z
-updated: 2026-10-08T01:11:20.397327399Z
+updated: 2026-10-08T01:11:20.801797966Z
 ---
 
 ## Context
