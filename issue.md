@@ -13,7 +13,7 @@ blocks:
 - 01a0fd9b-5670-78d0-84be-9b9618e9b081
 - 01a10177-547c-73a9-a302-f25f579a4cb3
 created: 2026-10-02T17:13:29.757085237Z
-updated: 2026-10-08T18:40:58.996003026Z
+updated: 2026-10-08T22:11:53.470070425Z
 sessions:
 - start_sha: f01da9242721bb8bdc3d709ede1cc7d2cf7f3da4
   end_sha: f01da9242721bb8bdc3d709ede1cc7d2cf7f3da4
@@ -67,6 +67,10 @@ From the alignment gate on 01a0fd9b-49b2-7ea9-bfa1-ba398baadc3f, two gaps that b
 
 The criterion that RFC 0001 "Builtins with no prototype" is marked Implemented moved to 01a1113c-eb6e-7e0e-8554-bcb5231478eb on 2026-10-06: the section says CORE.pmt types every no-prototype builtin, and split is declared only by that issue.
 
+### Superseded (2026-10-08)
+
+01a11920-411a dropped `:context` (perigrin: "multi and return type handle it"): a `:context` attribute is now refused, and a multi selects by return type. This issue's criteria that named the attribute's tests now name their replacements: TestCoreSortScalarHasNoType -> TestCoreSortScalarIsUndef (scalar sort is its Undef candidate's, measured undef on 5.42).
+
 ## Acceptance criteria
 
 - [ ] CORE.pmt declares grep, map and sort as multis (`go test ./internal/parse/ -run '^TestCoreGrepMapSortAreMultis$' -count=1 -v | grep -q '^--- PASS: TestCoreGrepMapSortAreMultis'`)
@@ -75,7 +79,3 @@ The criterion that RFC 0001 "Builtins with no prototype" is marked Implemented m
 - [ ] grep, map and sort stay out of the prototype table (`go test ./internal/parse/ -run '^TestCoreGrepMapSortOutOfCoreTable$' -count=1 -v | grep -q '^--- PASS: TestCoreGrepMapSortOutOfCoreTable'`)
 - [ ] grep, map and sort carry the measured signatures (`go test ./internal/parse/ -run '^TestCoreGrepMapSortMatchMeasuredSignatures$' -count=1 -v | grep -q '^--- PASS: TestCoreGrepMapSortMatchMeasuredSignatures'`)
 - [ ] sort's plain candidate requires a written argument through its `= die` default (`go test ./internal/parse/ -run '^TestCoreSortRequiresAWrittenArgument$' -count=1 -v | grep -q '^--- PASS: TestCoreSortRequiresAWrittenArgument'`)
-
-### Criteria superseded (2026-10-08)
-
-01a11920-411a dropped `:context` (perigrin: "multi and return type handle it"): a `:context` attribute is now refused, and a multi selects by return type. This issue's criteria that named the attribute's tests now name their replacements: TestCoreSortScalarHasNoType -> TestCoreSortScalarIsUndef (scalar sort is its Undef candidate's, measured undef on 5.42).
