@@ -45,7 +45,7 @@ func streamIs(src string, want ...string) bool {
 // The cost is measured in §4.14.2: `my @r = (1..5)` infers `@r` as `Str`,
 // because `findOperatorText` (`internal/infer/infer.go:645-659`) matches the
 // anonymous `.` before ever seeing `..`, while `..`'s declaration in
-// CORE.pmt, `multi sub .. :infix :tighter(=) :assoc(nonassoc) :context(@) (Str $x, Str $y) List`,
+// CORE.pmt, `multi sub .. :infix :tighter(=) :assoc(nonassoc) (Str $x, Str $y) List`,
 // has List waiting for a token that never arrives. perl:
 // `$r[0]+1` is 2, so the elements are numbers.
 func TestNumericRangeIsNotOneToken(t *testing.T) {

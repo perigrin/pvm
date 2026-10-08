@@ -78,7 +78,7 @@ func scanPrototype(l *lexer) bool {
 // atPrototypeAttribute reports whether the `(` at l.pos is the argument of
 // a `:prototype` attribute: the word `prototype` touches it, after a `:`
 // (`sub f : prototype($;$)` is the same attribute, measured on 5.42.0).
-// In typed Perl `:context(...)` is one too; see sigilAttribute.
+// In typed Perl `:context(...)` lexes as one too; see sigilAttribute.
 func (l *lexer) atPrototypeAttribute() bool {
 	n := len(l.toks)
 	c := l.significantBefore(n - 1)
@@ -91,10 +91,13 @@ func (l *lexer) atPrototypeAttribute() bool {
 }
 
 // sigilAttribute reports whether an attribute named word takes prototype
-// sigils as its argument: `:prototype(...)`, and in typed Perl RFC 0001's
+// sigils as its argument: `:prototype(...)`, and in typed Perl
 // `:context(...)`, whose `:context($)` would otherwise lex `$)` as a
-// variable. perl has no `:context`, so ordinary source scans it as any
-// other attribute.
+// variable. A `.pmt`'s return type says which context selects a candidate
+// (RFC 0001, "Context selects by return type"), so the declaration reader
+// refuses `:context` by name, which it can once the attribute lexes whole.
+// perl has no `:context`, so ordinary source scans it as any other
+// attribute.
 func (l *lexer) sigilAttribute(word string) bool {
 	return word == "prototype" || l.typed && word == "context"
 }

@@ -34,11 +34,11 @@ type Selection struct {
 }
 
 // Select picks the candidate for a call in context ctx with arguments of
-// types args, RFC 0001 "Multi declarations". A candidate takes only calls
-// in the contexts its `:context(...)` names ("`:context(...)`"). Of the
-// candidates the call fits, the most specific wins (perigrin, 2026-10-02):
-// the one whose parameters are all subtypes of every other's, as multi
-// dispatch does in Raku, CLOS and Julia. When the call site cannot decide
+// types args, RFC 0001 "Multi declarations". Of the candidates the call
+// fits, those whose return type answers ctx are taken ("Context selects by
+// return type"; see Taking). Of those, the most specific wins (perigrin,
+// 2026-10-02): the one whose parameters are all subtypes of every other's,
+// as multi dispatch does in Raku, CLOS and Julia. When the call site cannot decide
 // -- an argument of unknown type fits more than one candidate, or none is
 // most specific -- the call's type is the join of theirs. A call no
 // candidate takes fails, and is never joined.
@@ -60,21 +60,7 @@ func Select(cands []Signature, args []Type, ctx Context) Selection {
 // one as a scalar, before the most specific is sought. With no shapes
 // stated, as for a call to a sub, none is ruled out by shape.
 func SelectShaped(cands []Signature, args []Type, shapes string, ctx Context) Selection {
-	var fit, asLists []int
-	for i, c := range cands {
-		if c.contexts()&ContextSet(ctx) == 0 || !c.accepts(len(args)) || !c.fits(args) {
-			continue
-		}
-		if takes, lists := c.takesShapes(shapes); takes {
-			fit = append(fit, i)
-			if lists {
-				asLists = append(asLists, i)
-			}
-		}
-	}
-	if len(asLists) > 0 {
-		fit = asLists
-	}
+	fit := Taking(cands, args, shapes, ctx)
 	if len(fit) == 0 {
 		return Selection{Outcome: Failed, Candidate: -1}
 	}
@@ -88,6 +74,82 @@ func SelectShaped(cands []Signature, args []Type, shapes string, ctx Context) Se
 		joined = Join(joined, cands[i].Returns)
 	}
 	return Selection{Outcome: Undecided, Candidate: -1, Returns: joined}
+}
+
+// Taking is the candidates of cands, by index, a call in context ctx with
+// arguments of types args and operands of the given shapes can be, before
+// the most specific is sought: those that take its arity, argument types
+// and shapes, then of those the ones Answering ctx, then of those the ones
+// taking every `@` operand as a list, if any do. Context comes before
+// shape: `my $x = (1,2) x 2` is `22`, the Str candidate's, though the List
+// one takes the parenthesised operand as a list.
+func Taking(cands []Signature, args []Type, shapes string, ctx Context) []int {
+	var fit []int
+	for i, c := range cands {
+		if takes, _ := c.takesShapes(shapes); takes && c.accepts(len(args)) && c.fits(args) {
+			fit = append(fit, i)
+		}
+	}
+	fit = answering(cands, fit, ctx)
+	asLists := slices.DeleteFunc(slices.Clone(fit), func(i int) bool {
+		_, lists := cands[i].takesShapes(shapes)
+		return !lists
+	})
+	if len(asLists) > 0 {
+		return asLists
+	}
+	return fit
+}
+
+// Answering is the candidates of cands, by index, that answer a call in
+// context ctx, RFC 0001 "Context selects by return type": those whose
+// return type answers ctx (see Signature.Answers), or, when none does,
+// every one, whose result the context coerces as it coerces any value --
+// grep's List is a count in scalar context. Void context is a form of
+// scalar context (perlglossary, "void context"), so with no Void candidate
+// it is answered as scalar context is. No candidate answers UnknownCtx, a
+// context the call site has not determined.
+func Answering(cands []Signature, ctx Context) []int {
+	all := make([]int, len(cands))
+	for i := range cands {
+		all[i] = i
+	}
+	return answering(cands, all, ctx)
+}
+
+// answering is Answering over the candidates among.
+func answering(cands []Signature, among []int, ctx Context) []int {
+	if ctx == UnknownCtx {
+		return nil
+	}
+	wants := []Context{ctx}
+	if ctx == VoidCtx {
+		wants = append(wants, ScalarCtx)
+	}
+	for _, want := range wants {
+		matched := slices.DeleteFunc(slices.Clone(among), func(i int) bool { return cands[i].Answers() != want })
+		if len(matched) > 0 {
+			return matched
+		}
+	}
+	return among
+}
+
+// Answers is the calling context s's return type answers: VoidCtx for
+// Void, ListCtx for a list -- a return holding an Array or a Hash, as
+// List, List[...], Array and Hash do -- and ScalarCtx for any other
+// stated return. A list is not a subtype test: Scalar <: List, so every
+// scalar return is under List too. UnknownCtx when s states no return.
+func (s Signature) Answers() Context {
+	switch {
+	case s.Returns == Void:
+		return VoidCtx
+	case s.Returns&(Array|Hash) != 0:
+		return ListCtx
+	case s.Returns == Unknown:
+		return UnknownCtx
+	}
+	return ScalarCtx
 }
 
 // mostSpecific is the candidate of fit as specific as every other, if one
@@ -239,13 +301,13 @@ func byInvocant(cands []Signature, written bool) (view []Signature, orig []int) 
 }
 
 // ambiguous reports whether candidates i and j are ambiguous for n
-// arguments, and the argument types both fit. Only a third candidate can
-// decide between them, in every context both answer for. Candidates with
-// no context in common share no call: context selects between them.
+// arguments, and the argument types both fit. Only a third candidate
+// answering the same context can decide between them. Candidates whose
+// return types answer different contexts share no call: context selects
+// between them.
 func ambiguous(cands []Signature, i, j, n int) (string, bool) {
 	a, b := cands[i], cands[j]
-	shared := a.contexts() & b.contexts()
-	if !a.accepts(n) || !b.accepts(n) || shared == 0 {
+	if !a.accepts(n) || !b.accepts(n) || a.Answers() != b.Answers() {
 		return "", false
 	}
 	if a.asSpecific(b, n) != b.asSpecific(a, n) {
@@ -261,20 +323,11 @@ func ambiguous(cands []Signature, i, j, n int) (string, bool) {
 		names[k] = overlap[k].String()
 	}
 	for k, c := range cands {
-		if k != i && k != j && c.accepts(n) && c.takesExactly(overlap) && c.contexts()&shared == shared {
+		if k != i && k != j && c.accepts(n) && c.takesExactly(overlap) && c.Answers() == a.Answers() {
 			return "", false
 		}
 	}
 	return strings.Join(names, ", "), true
-}
-
-// contexts is the set of contexts s answers for: its `:context(...)`, or
-// every context when it states none.
-func (s Signature) contexts() Contexts {
-	if s.Context == EveryContext {
-		return ContextSet(ScalarCtx, ListCtx, VoidCtx)
-	}
-	return s.Context
 }
 
 // takesExactly reports whether s's parameter types are exactly ts.

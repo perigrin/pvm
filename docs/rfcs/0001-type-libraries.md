@@ -237,8 +237,8 @@ unknown name is an error. perigrin, 2026-10-02:
 ### One language for every `.pmt` (*Implemented*, 79191842, d1338cd2, b6bea9c6)
 
 perigrin, 2026-10-02: everything `CORE.pmt` can say, any library's
-`.pmt` can say too -- typed signatures, `multi`, `:context`, the
-invocant colon, declared syntax. `CORE.pmt` is the declaration file for
+`.pmt` can say too -- typed signatures, `multi` and its context forks,
+the invocant colon, declared syntax. `CORE.pmt` is the declaration file for
 the interpreter, not a dialect of its own. A construct no Perl-level sub
 can have (the invocant colon) is still declarable for a library,
 because a keyword plugin can build what a sub cannot.
@@ -280,8 +280,8 @@ derive `;$_$`, a prototype perl does not report, and `(List @args)`, which
 derives `@`, says the string is flattened, which perl shows is false.
 
 ```perl
-multi sub split :listop :context($) (Regex|Str $pattern = ' ', Str $string = $_, Int $limit = 0) Int;
-multi sub split :listop :context(@) (Regex|Str $pattern = ' ', Str $string = $_, Int $limit = 0) List;
+multi sub split :listop (Regex|Str $pattern = ' ', Str $string = $_, Int $limit = 0) Int;
+multi sub split :listop (Regex|Str $pattern = ' ', Str $string = $_, Int $limit = 0) List;
 ```
 
 A `:listop` line is held as a `:unary` one is. A `:prototype(...)`
@@ -590,7 +590,7 @@ those levels, so a library's infix operator may not join one: `sub ⊕
 **Operators that fork** are multis:
 
 - `..` is a range in list context and a flip-flop in scalar context: a
-  `:context` multi.
+  multi whose return types fork on context.
 - `x` repeats a list only when its left operand is parenthesised and
   it is evaluated in list context: `my $x = (1,2) x 2` gives `22`.
   Measured on 5.42: `(1,2) x 2` and `(@a) x 2` give `1 2 1 2`, while
@@ -599,7 +599,7 @@ those levels, so a library's infix operator may not join one: `sub ⊕
   a parse fact, as the comma does for `map`:
 
 ```perl
-multi sub x :infix(MUL) :context(@) (List @l, Int $n) List;   # (LIST) x N
+multi sub x :infix(MUL) (List @l, Int $n) List;   # (LIST) x N
 multi sub x :infix(MUL) (Str $s, Int $n) Str;     # EXPR x N
 ```
 
@@ -607,7 +607,9 @@ multi sub x :infix(MUL) (Str $s, Int $n) Str;     # EXPR x N
   list and `$` otherwise. A `@` parameter takes only a `@` operand, and
   a candidate taking each `@` operand as a list is selected before one
   taking it as a scalar; without that, `Str <: List` would make the
-  `Str` candidate the most specific. An operator's `@` parameter is one
+  `Str` candidate the most specific. Context comes first: in scalar
+  context the `Str` candidate's return answers it, so `my $x = (1,2) x
+  2` is the `Str` one's. An operator's `@` parameter is one
   operand, so it may come before another.
 - `=~` forks on context: in list context a match is its captures and
   `s///g` its count; in scalar context a match is a boolean, `s///` and
@@ -757,36 +759,57 @@ result `meet(join(arguments), declared)`, which would have made
 `B::svref_2object`, `sqrt(2)`, `sqrt(4)` and `atan2(1,1)` are floats
 (NOK only), and `chr(65)` is a string (POK only).
 
-### `:context(...)` (*Implemented*, b39d89e2, aa01ec08, d44fb222, 1cd52775)
+### Context selects by return type (*Implemented*)
 
 A function whose type depends on its calling context (one that
-effectively branches on `wantarray`) says so with `:context`, spelled
-in prototype sigils:
+effectively branches on `wantarray`) is a multi whose candidates return
+different types (perigrin, 2026-10-08). The paper calls this
+return-type dispatch: the call site's context is a demand on the
+result, and the candidate whose return type meets it is selected. Each
+return type answers one context:
 
-| attribute | answers for |
+| return type | answers |
 |---|---|
-| none | every context |
-| `:context($)` | scalar |
-| `:context(@)` | list |
-| `:context()` | void |
-| `:context($@)` | scalar or list |
+| `Void` | void |
+| a list: one holding `Array` or `Hash`, as `List`, `List[T]`, `Array` and `Hash` do | list |
+| any other | scalar |
 
-As with `:prototype`, absent and empty differ. A call in a context no
-declaration answers for has no type:
+"A list" is not a subtype test: `Scalar <: List`, so every scalar
+return type is under `List` too. Context is still decided at the call
+site, syntactically; what says which candidate answers it is the
+return type. Each of the 37 `CORE.pmt` candidates that stated a
+`:context` attribute returns a type answering the context it stated.
 
 ```perl
-multi sub localtime :prototype(;$) :context($) (Int $time = time) Str;
-multi sub localtime :prototype(;$) :context(@) (Int $time = time) List[Int];
-sub sort :context(@) (...) List;     # scalar sort is undefined
+multi sub localtime :prototype(;$) (Int $time = time) Str|Undef;
+multi sub localtime :prototype(;$) (Int $time = time) List[Int];
 ```
 
 Context selects a declaration; narrowing cannot stand in for it.
 `my $t = localtime(0)` is a date string, while the first element of the
 list result is `0`, an `Int`.
 
+Of the candidates that take a call, those whose return type answers its
+context are selected among, before the most specific is sought. When
+none does, every one is, and the context coerces the result as it
+coerces any value: `grep` returns only a list, so a scalar `grep` is its
+`List`, coerced. Where perl's scalar answer is no coercion of the list,
+a scalar candidate states it: measured on 5.42, every form of a scalar
+`sort` is undef, so each of sort's list candidates has a twin with the
+same parameters returning `Undef`. Void context is a form of scalar context
+(perlglossary, "void context"), so a call in void context with no `Void`
+candidate is the scalar candidate's. Two candidates with the same
+parameters whose return types answer the same context share every call,
+so they are ambiguous, a declaration error; a scalar return beside a list
+one is a fork.
+
 Boolean context counts as scalar. Measured on 5.42, `wantarray` reports
 scalar inside `if (f())`, `!f()` and `f() and ...`, so no Perl-level
 sub can tell them apart.
+
+A `:context(...)` attribute is a declaration error naming it: the
+return type already says which context a candidate answers, and an
+attribute beside it could only repeat it or contradict it.
 
 ### Refusing what perl refuses (*Implemented*, 1f6ae965, 98a376b3, 48c2da55, 7ff4e757, 335cccdf, 1ef08a0a, 4488a1ae)
 
@@ -849,7 +872,8 @@ List[Str] @args) Boolean;`.
 
 ### Call sites (*Decided*)
 
-perigrin, 2026-10-02. "Multi declarations" and "`:context(...)`" cover
+perigrin, 2026-10-02. "Multi declarations" and "Context selects by
+return type" cover
 declaring candidates and the rules that select among them, built and
 tested on their own. This section is the consumer: `infer` types a call
 to a declared builtin or library sub by applying those rules at the call

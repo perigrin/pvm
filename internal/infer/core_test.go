@@ -176,8 +176,9 @@ func TestInferSplitPatternTakesRegexOrStr(t *testing.T) {
 	assert.NotEmpty(t, diags, "a reference is not a pattern")
 }
 
-// TestInferReverseFollowsContext: reverse is two `:context` candidates, a
-// list in list context and a string in scalar context. Measured on 5.42,
+// TestInferReverseFollowsContext: reverse is two candidates whose return
+// types fork on context, a list in list context and a string in scalar
+// context. Measured on 5.42,
 // with @x = ("ab","cd"), `my @r = reverse @x` is ("cd","ab") and `my $s =
 // reverse @x` is "dcba". Where the call's context is unknown, its type is
 // the join of the two, Str ⊔ List = List.
@@ -192,8 +193,8 @@ func TestInferReverseFollowsContext(t *testing.T) {
 }
 
 // TestInferContextBuiltinsFollowContext: the other builtins CORE.pmt
-// declares as `:context` candidates take the candidate their assignment's
-// context selects. Measured on 5.42: `my $n = keys %h` is the count, `my $t
+// declares as candidates whose return types fork on context take the
+// candidate their assignment's context selects. Measured on 5.42: `my $n = keys %h` is the count, `my $t
 // = localtime 0` is "Thu Jan  1 00:00:00 1970" where the list form has nine
 // elements, `my $p = readpipe("echo hi")` is "hi\n", and `my $st = stat
 // "/"` is 1.
@@ -219,8 +220,8 @@ func TestInferContextBuiltinsFollowContext(t *testing.T) {
 	}
 }
 
-// TestInferMultiBuiltinNarrowsByArityAndShape: a multi with no `:context`
-// is cut to the candidates its call's arity and operand shapes take before
+// TestInferMultiBuiltinNarrowsByArityAndShape: a multi that does not fork
+// on context is cut to the candidates its call's arity and operand shapes take before
 // their returns are joined, without consulting argument types. Measured on
 // 5.42: `my $d = delete $h{a}` is the deleted value, "x"; `my @s = delete
 // @g{qw(a b)}` is (1, 2); `my $o = select(STDERR)` is "main::STDOUT", as is

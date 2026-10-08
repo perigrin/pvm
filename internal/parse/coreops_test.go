@@ -177,8 +177,9 @@ func coreOperators(t *testing.T) []operatorDecl {
 // the operand and result types below, measured on 5.42.0. `cmp` gives -1, 0
 // or 1, and so does `<=>`, or undef when an operand is NaN; the predicates
 // give perl's booleans; `&&`, `||`, `//`, `and`, `or` and `=` give an
-// operand. An operator that forks has a row for each candidate, keyed by
-// the `:context` it states.
+// operand. An operator that forks has a row for each candidate, its list
+// candidate's keyed "(list)": the one whose return type answers list
+// context (RFC 0001, "Context selects by return type").
 //
 // Arithmetic on Nums can leave Num, which excludes Inf and NaN, and its
 // result says so: measured, `1e308*10` is Inf and `(-1)**0.5` is NaN
@@ -200,7 +201,7 @@ func TestCoreOperatorTypesMatchMeasured(t *testing.T) {
 
 		"infix .": bin(S, S, S),
 
-		"infix x :context(@)": bin(types.List, I, types.List), "infix x": bin(S, I, S),
+		"infix x (list)": bin(types.List, I, types.List), "infix x": bin(S, I, S),
 
 		"infix ==": bin(N, N, B), "infix !=": bin(N, N, B), "infix <": bin(N, N, B),
 		"infix >": bin(N, N, B), "infix <=": bin(N, N, B), "infix >=": bin(N, N, B),
@@ -218,17 +219,17 @@ func TestCoreOperatorTypesMatchMeasured(t *testing.T) {
 
 		"infix isa": bin(types.Scalar, S, B),
 
-		"infix =~ :context(@)": bin(S, types.Regex, types.List), "infix =~ :context($)": bin(S, types.Regex, B|S),
+		"infix =~ (list)": bin(S, types.Regex, types.List), "infix =~": bin(S, types.Regex, B|S),
 		"infix !~": bin(S, types.Regex, B),
 
 		"infix =": bin(A, A, A),
 
-		"infix .. :context(@)": bin(S, S, types.List), "infix .. :context($)": bin(A, A, S),
-		"infix ... :context(@)": bin(S, S, types.List), "infix ... :context($)": bin(A, A, S),
+		"infix .. (list)": bin(S, S, types.List), "infix ..": bin(A, A, S),
+		"infix ... (list)": bin(S, S, types.List), "infix ...": bin(A, A, S),
 
 		"prefix -": un(N, N), "prefix +": un(N, N), "prefix !": un(A, B),
 		"prefix not": un(A, B), "prefix ~": un(I, I), `prefix \`: un(A, types.Ref),
-		`prefix \ :context(@)`: un(types.List, types.List),
+		`prefix \ (list)`: un(types.List, types.List),
 	}
 	got := map[string]row{}
 	for _, op := range coreOperators(t) {
@@ -237,11 +238,8 @@ func TestCoreOperatorTypesMatchMeasured(t *testing.T) {
 			r.operands = append(r.operands, p.Type)
 		}
 		key := op.fixity + " " + op.name
-		switch op.sig.Context {
-		case types.ContextSet(types.ListCtx):
-			key += " :context(@)"
-		case types.ContextSet(types.ScalarCtx):
-			key += " :context($)"
+		if op.multi && op.sig.Returns&(types.Array|types.Hash) != 0 {
+			key += " (list)"
 		}
 		if _, dup := got[key]; dup {
 			t.Errorf("%s: declared twice", key)
@@ -353,7 +351,8 @@ func coreCandidates(t *testing.T, fixity, sym string) []operatorDecl {
 
 // TestCoreRangeIsContextMulti: RFC 0001 "Operators that fork". `..` is a
 // range in list context and a flip-flop in scalar context, so CORE.pmt
-// declares it as a `:context` multi, and `...` likewise. Measured on
+// declares it as a multi whose return types fork on context, and `...`
+// likewise. Measured on
 // 5.42.0: `my @l = ("a".."c")` is `a b c` and `(1.7..3.2)` is `1 2 3`; in
 // scalar context `/x/ .. /y/` over `a x b c y d` gives "", "1", "2", "3",
 // "4E0", "", each a string. `...` gives the same in both.
@@ -364,11 +363,9 @@ func TestCoreRangeIsContextMulti(t *testing.T) {
 	for _, sym := range []string{"..", "..."} {
 		want := []operatorDecl{
 			{name: sym, fixity: "infix", multi: true, sig: types.Signature{
-				Params: []types.Param{param("x", types.Str), param("y", types.Str)}, Returns: types.List,
-				Context: types.ContextSet(types.ListCtx)}},
+				Params: []types.Param{param("x", types.Str), param("y", types.Str)}, Returns: types.List}},
 			{name: sym, fixity: "infix", multi: true, sig: types.Signature{
-				Params: []types.Param{param("x", types.Any), param("y", types.Any)}, Returns: types.Str,
-				Context: types.ContextSet(types.ScalarCtx)}},
+				Params: []types.Param{param("x", types.Any), param("y", types.Any)}, Returns: types.Str}},
 		}
 		// XS::Parse::Infix classes no operator at their level, so it is
 		// named by `..`, whose first candidate states the level's relation
@@ -398,7 +395,7 @@ func TestCoreRepeatIsShapeMulti(t *testing.T) {
 				{Name: "l", Sigil: '@', Type: types.List},
 				{Name: "n", Sigil: '$', Type: types.Int, Required: true},
 			},
-			Returns: types.List, Context: types.ContextSet(types.ListCtx)}},
+			Returns: types.List}},
 		{name: "x", fixity: "infix", class: "MUL", multi: true, sig: types.Signature{
 			Params: []types.Param{
 				{Name: "s", Sigil: '$', Type: types.Str, Required: true},
@@ -437,9 +434,9 @@ func TestCoreMatchIsContextMulti(t *testing.T) {
 	}
 	want := []operatorDecl{
 		{name: "=~", fixity: "infix", class: "MATCHRE", multi: true, tighter: []string{"*"}, assoc: "left", sig: types.Signature{
-			Params: params, Returns: types.List, Context: types.ContextSet(types.ListCtx)}},
+			Params: params, Returns: types.List}},
 		{name: "=~", fixity: "infix", class: "MATCHRE", multi: true, sig: types.Signature{
-			Params: params, Returns: types.Boolean | types.Str, Context: types.ContextSet(types.ScalarCtx)}},
+			Params: params, Returns: types.Boolean | types.Str}},
 	}
 	if got := coreCandidates(t, "infix", "=~"); !reflect.DeepEqual(got, want) {
 		t.Errorf("=~:\n got %+v\nwant %+v", got, want)
@@ -454,7 +451,7 @@ func TestCoreRefgenIsShapeMulti(t *testing.T) {
 	want := []operatorDecl{
 		{name: `\`, fixity: "prefix", multi: true, equiv: []string{"!"}, sig: types.Signature{
 			Params:  []types.Param{{Name: "l", Sigil: '@', Type: types.List}},
-			Returns: types.List, Context: types.ContextSet(types.ListCtx)}},
+			Returns: types.List}},
 		{name: `\`, fixity: "prefix", multi: true, sig: types.Signature{
 			Params:  []types.Param{{Name: "x", Sigil: '$', Type: types.Any, Required: true}},
 			Returns: types.Ref}},

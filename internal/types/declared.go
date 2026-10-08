@@ -17,12 +17,10 @@ type Signature struct {
 	Params []Param
 
 	// Returns is the lattice type the declaration states after its closing
-	// paren, Unknown when it states none.
+	// paren, Unknown when it states none. It is also the calling context
+	// the declaration answers, RFC 0001 "Context selects by return type";
+	// see Answers.
 	Returns Type
-
-	// Context is the set of calling contexts the declaration answers for,
-	// its `:context(...)`.
-	Context Contexts
 
 	// Unary is whether the declaration states `:unary`, RFC 0001
 	// "Builtins with no prototype": a builtin with no prototype that perl
@@ -36,24 +34,6 @@ type Signature struct {
 	// is one: `split $a, $b` is `split(/$a/, $b, 0)`, a list operator, yet
 	// it takes its string in scalar context.
 	ListOp bool
-}
-
-// Contexts is a set of calling contexts, RFC 0001 "`:context(...)`":
-// `:context($@)` is ContextSet(ScalarCtx, ListCtx) and `:context()` is
-// ContextSet(VoidCtx). As with `:prototype`, absent and empty differ: a
-// declaration stating no `:context` is EveryContext.
-type Contexts uint8
-
-// EveryContext is the set of a declaration that states no `:context`.
-const EveryContext Contexts = 0
-
-// ContextSet is the set holding each of cs.
-func ContextSet(cs ...Context) Contexts {
-	var s Contexts
-	for _, c := range cs {
-		s |= 1 << c
-	}
-	return s
 }
 
 // Param is one typed parameter, `Str $class = __PACKAGE__`.

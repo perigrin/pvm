@@ -13,12 +13,13 @@ import (
 )
 
 // TestCoreLocaltimeGmtimeAreContextMultis: localtime and gmtime are RFC
-// 0001's `:context` example. Measured on 5.42, `my $t = localtime(0)` is
-// the date string "Thu Jan  1 00:00:00 1970" (POK), while in list context
-// it is nine numbers whose first is 0 -- the string is none of them. So a
-// `:context($)` candidate gives the string, undef for a time out of range
-// (`localtime(1e20)` is undef), and a `:context(@)` one `List[Int]`; their
-// one `Int $time = time` parameter derives perl's `;$`.
+// 0001's "Context selects by return type" example. Measured on 5.42, `my
+// $t = localtime(0)` is the date string "Thu Jan  1 00:00:00 1970" (POK),
+// while in list context it is nine numbers whose first is 0 -- the string
+// is none of them. So a scalar-context candidate gives the string, undef
+// for a time out of range (`localtime(1e20)` is undef), and a list-context
+// one `List[Int]`; their one `Int $time = time` parameter derives perl's
+// `;$`.
 func TestCoreLocaltimeGmtimeAreContextMultis(t *testing.T) {
 	src, err := os.ReadFile("declarations/CORE.pmt")
 	if err != nil {
@@ -31,27 +32,22 @@ func TestCoreLocaltimeGmtimeAreContextMultis(t *testing.T) {
 	param := []types.Param{{Name: "time", Sigil: '$', Type: types.Int, Default: "time"}}
 	core := parse.CoreSignatures()
 	for _, name := range []string{"localtime", "gmtime"} {
-		returns := map[types.Contexts]types.Type{}
+		returns := map[types.Context]types.Type{}
 		for _, s := range core[name] {
 			if len(s.Params) != 1 || s.Params[0] != param[0] {
 				t.Errorf("%s: a candidate takes %+v; want (Int $time = time)", name, s.Params)
 			}
-			returns[s.Context] = s.Returns
-		}
-		want := map[types.Contexts]types.Type{
-			types.ContextSet(types.ScalarCtx): types.Str | types.Undef,
-			types.ContextSet(types.ListCtx):   types.List,
+			returns[s.Answers()] = s.Returns
 		}
 		if len(core[name]) != 2 || len(returns) != 2 ||
-			returns[types.ContextSet(types.ScalarCtx)] != want[types.ContextSet(types.ScalarCtx)] ||
-			returns[types.ContextSet(types.ListCtx)] != want[types.ContextSet(types.ListCtx)] {
-			t.Errorf("%s: CORE.pmt has %+v; want a :context($) Str|Undef and a :context(@) List[Int] candidate", name, core[name])
+			returns[types.ScalarCtx] != types.Str|types.Undef || returns[types.ListCtx] != types.List {
+			t.Errorf("%s: CORE.pmt has %+v; want a Str|Undef and a List[Int] candidate", name, core[name])
 		}
 		// The lattice keeps a return type's container, not its element, so
 		// List[Int] is asked of the line itself.
-		list := regexp.MustCompile(`(?m)^multi sub ` + name + ` :context\(@\) \(Int \$time = time\) List\[Int\];$`)
+		list := regexp.MustCompile(`(?m)^multi sub ` + name + ` \(Int \$time = time\) List\[Int\];$`)
 		if len(list.FindAll(src, -1)) != 1 {
-			t.Errorf("%s: CORE.pmt has no one :context(@) line returning List[Int]", name)
+			t.Errorf("%s: CORE.pmt has no one line returning List[Int]", name)
 		}
 		if derived[name] != ";$" {
 			t.Errorf("%s: candidates derive (%s); perl says (;$)", name, derived[name])
@@ -59,15 +55,16 @@ func TestCoreLocaltimeGmtimeAreContextMultis(t *testing.T) {
 	}
 }
 
-// TestCoreLocaltimeVoidHasNoType: neither of localtime's or gmtime's
-// candidates answers for void context, so a call there has no type (RFC
-// 0001, "`:context(...)`": a call in a context no declaration answers for
-// has no type), while scalar and list context each select their own.
-func TestCoreLocaltimeVoidHasNoType(t *testing.T) {
+// TestCoreLocaltimeVoidIsScalar: neither of localtime's or gmtime's
+// candidates returns Void, and void context is a form of scalar context
+// (perlglossary, "void context"), so a call there is the scalar
+// candidate's (RFC 0001, "Context selects by return type"), while scalar
+// and list context each select their own.
+func TestCoreLocaltimeVoidIsScalar(t *testing.T) {
 	core := parse.CoreSignatures()
 	for _, name := range []string{"localtime", "gmtime"} {
-		if sel := types.Select(core[name], nil, types.VoidCtx); sel.Outcome != types.Failed || sel.Returns != types.Unknown {
-			t.Errorf("%s in void context: %+v; want no candidate and no type", name, sel)
+		if sel := types.Select(core[name], nil, types.VoidCtx); sel.Outcome != types.Selected || sel.Returns != types.Str|types.Undef {
+			t.Errorf("%s in void context: %+v; want the scalar candidate, Str|Undef", name, sel)
 		}
 		for _, ctx := range []types.Context{types.ScalarCtx, types.ListCtx} {
 			if sel := types.Select(core[name], []types.Type{types.Int}, ctx); sel.Outcome != types.Selected {
