@@ -225,9 +225,33 @@ func readDeclarationWith(p *parser) moduleFacts {
 }
 
 // readLibraryDeclaration reads a library's declaration file, in CORE.pmt's
-// language (RFC 0001, "One language for every `.pmt`").
+// language (RFC 0001, "One language for every `.pmt`"). Its infix
+// operators must take a level among the parser's (libraryInfix): a bare
+// `:infix` places its operator at none, and relations that derive no order
+// place none of them. Either is an error, and the operators it is about
+// are not recorded.
 func readLibraryDeclaration(src []byte, res *resolver) moduleFacts {
-	return readDeclaration(src, res)
+	facts := readDeclaration(src, res)
+	var infixOps []operatorDecl
+	facts.operators = slices.DeleteFunc(facts.operators, func(op operatorDecl) bool {
+		if op.fixity != "infix" {
+			return false
+		}
+		if op.class == "" && op.tighter == nil && op.looser == nil && op.equiv == nil {
+			facts.errs = append(facts.errs, fmt.Errorf("sub %s: :infix places it at no level; state :tighter, :looser or :equiv", op.name))
+			return true
+		}
+		infixOps = append(infixOps, op)
+		return false
+	})
+	if len(infixOps) == 0 {
+		return facts
+	}
+	if _, err := libraryInfix(infixOps); err != nil {
+		facts.errs = append(facts.errs, err)
+		facts.operators = slices.DeleteFunc(facts.operators, func(op operatorDecl) bool { return op.fixity == "infix" })
+	}
+	return facts
 }
 
 // coreTable is perl's builtins by name, each to its prototype without

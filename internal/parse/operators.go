@@ -175,6 +175,22 @@ func operatorOf(name string, attrs []string, sig types.Signature) (operatorDecl,
 	return operatorDecl{name: name, fixity: fixity, class: class, sig: sig}, nil
 }
 
+// inCycle is remaining, the levels a topological sort is left with, less
+// those looser than the cycle and on none: each step drops the levels no
+// remaining level is looser than, so the error names a cycle's operators
+// and not every level below it.
+func inCycle(remaining []int, looser map[int][]int) []int {
+	for {
+		kept := slices.DeleteFunc(slices.Clone(remaining), func(r int) bool {
+			return !slices.ContainsFunc(looser[r], func(l int) bool { return slices.Contains(remaining, l) })
+		})
+		if len(kept) == len(remaining) {
+			return kept
+		}
+		remaining = kept
+	}
+}
+
 // precLevel is one level of a derived precedence order: its operators, an
 // infix one and a named one stating its level by its name, and any other by
 // its fixity or shape and name, `prefix -` or `unary defined`, and its
@@ -318,7 +334,7 @@ func precedenceOrder(ops []operatorDecl) ([]precLevel, error) {
 		}
 		switch {
 		case len(ready) == 0:
-			return nil, fmt.Errorf("precedence relations form a cycle among %s", names(remaining))
+			return nil, fmt.Errorf("precedence relations form a cycle among %s", names(inCycle(remaining, looser)))
 		case len(ready) > 1:
 			return nil, fmt.Errorf("precedence relations leave %s unordered", names(ready))
 		}

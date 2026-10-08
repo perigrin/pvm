@@ -7,6 +7,7 @@ import (
 	"os"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -238,6 +239,82 @@ func TestLibraryOperatorParses(t *testing.T) {
 		if got := lastStatementGrouping(t, src); got != want {
 			t.Errorf("%q: got %s, want %s", src, got, want)
 		}
+	}
+}
+
+// hasBinary reports whether op is a binary operator anywhere under n.
+func hasBinary(n *Node, op string) bool {
+	if n.Kind == Binary && n.Text == op {
+		return true
+	}
+	return slices.ContainsFunc(n.Children, func(c *Node) bool { return hasBinary(c, op) })
+}
+
+// TestLibraryOperatorErrors: a library's operator is an operator only
+// where the library is in scope, from its import on, and `use M ()`
+// imports none. A library whose relations form a cycle with CORE.pmt's,
+// or whose bare `:infix` places its operator nowhere, is in error naming
+// the operators, and its operator is none; so is a library whose
+// operators derive no order with those of a library already in scope.
+func TestLibraryOperatorErrors(t *testing.T) {
+	saved := declarations
+	t.Cleanup(func() { declarations = saved })
+	library := func(line string) {
+		declarations = layeredFS{top: fstest.MapFS{"declarations/Lib.pmt": {Data: []byte("package Lib;\n" + line + "\n")}}, base: saved}
+	}
+	library("sub ⊕ :infix :tighter(+) :looser(*) :assoc(left) (Num $x, Num $y) Num;")
+	for _, src := range []string{"1 ⊕ 2;", "use Lib ();\n1 ⊕ 2;", "1 ⊕ 2;\nuse Lib;"} {
+		if root := ParseWithLoader([]byte(src), noModules); hasBinary(root, "⊕") {
+			t.Errorf("%q: ⊕ parsed as an operator", src)
+		}
+	}
+	if root := ParseWithLoader([]byte("use Lib;\n1 ⊕ 2;"), noModules); !hasBinary(root, "⊕") {
+		t.Errorf("use Lib: ⊕ is no operator")
+	}
+
+	library("sub ⊕ :infix :tighter(*) :looser(+) (Num $x, Num $y) Num;")
+	root := ParseWithLoader([]byte("use Lib;\n1 ⊕ 2;"), noModules)
+	errs := DeclarationErrors(root)
+	if len(errs) != 1 || !strings.HasPrefix(errs[0].Error(), "Lib: precedence relations form a cycle among ") {
+		t.Fatalf("cycle: got %v", errs)
+	}
+	named := strings.Split(strings.TrimPrefix(errs[0].Error(), "Lib: precedence relations form a cycle among "), ", ")
+	for _, op := range []string{"⊕", "+", "*"} {
+		if !slices.Contains(named, op) {
+			t.Errorf("cycle: %q does not name %s", errs[0], op)
+		}
+	}
+	if slices.Contains(named, "or") || slices.Contains(named, "**") {
+		t.Errorf("cycle: %q names operators outside it", errs[0])
+	}
+	if hasBinary(root, "⊕") {
+		t.Errorf("cycle: ⊕ parsed as an operator")
+	}
+
+	library("sub ⊕ :infix (Num $x, Num $y) Num;")
+	root = ParseWithLoader([]byte("use Lib;\n1 ⊕ 2;"), noModules)
+	want := "Lib: sub ⊕: :infix places it at no level; state :tighter, :looser or :equiv"
+	if errs := DeclarationErrors(root); len(errs) != 1 || errs[0].Error() != want {
+		t.Errorf("bare :infix: got %v, want %q", errs, want)
+	}
+	if hasBinary(root, "⊕") {
+		t.Errorf("bare :infix: ⊕ parsed as an operator")
+	}
+
+	// Two libraries each in order alone, and not together: the second
+	// one's import is the error, and brings no operator.
+	line := " :infix :tighter(+) :looser(*) (Num $x, Num $y) Num;\n"
+	declarations = layeredFS{top: fstest.MapFS{
+		"declarations/A.pmt": {Data: []byte("package A;\nsub ⊕" + line)},
+		"declarations/B.pmt": {Data: []byte("package B;\nsub ⊗" + line)},
+	}, base: saved}
+	root = ParseWithLoader([]byte("use A;\nuse B;\n1 ⊕ 2;\n1 ⊗ 3;"), noModules)
+	want = "B: precedence relations leave ⊕, ⊗ unordered"
+	if errs := DeclarationErrors(root); len(errs) != 1 || errs[0].Error() != want {
+		t.Errorf("A and B: got %v, want %q", errs, want)
+	}
+	if !hasBinary(root, "⊕") || hasBinary(root, "⊗") {
+		t.Errorf("A and B: want ⊕ an operator and ⊗ none")
 	}
 }
 
