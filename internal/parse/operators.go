@@ -418,9 +418,9 @@ var undeclaredOperators = []operatorDecl{
 // postfix operators', the prefix operators', and those a named unary's and
 // a list operator's operands are parsed at.
 type bindingPowers struct {
-	infix              map[string]OpInfo
-	prefix             map[string]int
-	namedUnary, listOp int
+	infix           map[string]OpInfo
+	prefix          map[string]int
+	unaryOp, listOp int
 	// levels is the power of each operator's level, by its label in the
 	// order (precLevel).
 	levels map[string]int
@@ -462,7 +462,7 @@ func deriveBindingPowers(decls []operatorDecl) (bindingPowers, error) {
 			case fixity == "prefix":
 				bp.prefix[name] = power
 			case fixity == "unary":
-				bp.namedUnary = power
+				bp.unaryOp = power
 			case fixity == "listop":
 				bp.listOp = power
 			}

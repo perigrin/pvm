@@ -131,7 +131,7 @@ func derivePowers() {
 		for _, op := range coreQualifiedOps {
 			bp.infix["CORE::"+op] = bp.infix[op]
 		}
-		infix, prefix, bpNamedUnary, bpListOp = bp.infix, bp.prefix, bp.namedUnary, bp.listOp
+		infix, prefix, bpNamedUnary, bpListOp = bp.infix, bp.prefix, bp.unaryOp, bp.listOp
 		bpDeref = infix["["].BP
 		bpBelowComma = infix["and"].BP
 	})
