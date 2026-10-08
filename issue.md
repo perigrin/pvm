@@ -9,7 +9,7 @@ blocked_by:
 blocks:
 - 01a118fe-8e5f-717a-b046-6020db95c724
 created: 2026-10-08T01:28:26.650675969Z
-updated: 2026-10-08T01:53:30.159035117Z
+updated: 2026-10-08T01:53:32.274600776Z
 ---
 
 ## Context
@@ -20,17 +20,19 @@ updated: 2026-10-08T01:53:30.159035117Z
 
 perigrin, 2026-10-08: drop `:context`, since multi and the return type handle it. A call site's context is a demand on the result: list context selects the candidate whose return type is a list (`List`, `List[...]`), scalar context the one whose return type is not. Measured over CORE.pmt: all 37 `:context` candidates already obey this (every `:context(@)` returns a list type, every `:context($)` a scalar one), so the attribute states nothing the return type does not. `reverse` is the pure case: identical parameters, `Str` versus `List`. `x`'s list candidate is also chosen by its parenthesised left operand, which the `List @l` shape check already enforces.
 
-Context is still decided syntactically at the call site; only the attribute goes, not context analysis. Open point for perigrin before the RFC text is final: `:context()` (void). No CORE.pmt line uses it; 5 test fixtures do. Not `None`, which is "does not return" (`die`, `exit`, `goto`...). The types paper's arity-0 type is `Void := {()}`, the empty list -- "returns nothing" versus None's "does not return" -- which pvm's lattice does not have (only `VoidCtx`). Either add `Void` and a void candidate returns it, or drop void-context selection since no declaration needs it.
+Context is still decided syntactically at the call site; only the attribute goes, not context analysis. Void context (perigrin, 2026-10-08): the lattice gains `Void` (the arity-0 type, `{()}`; not `None`, which is "does not return") in 01a11937-22da-7250-b922-fabda15009a7; a candidate returning `Void` is the void-context candidate, as `:context()` was. The 5 test fixtures using `:context()` become `Void` returns.
 
 ## Steps
 
 - [ ] Write failing test `TestContextSelectsByReturnType`: with the `:context` attributes removed from a fixture multi (`reverse`-shaped: same params, `Str` and `List` returns), scalar context selects the `Str` candidate and list context the `List` one; also `split`, `each`, `keys`, `localtime` as CORE.pmt declares them
 - [ ] Write failing test `TestContextAttributeRefused`: a `.pmt` line stating `:context(...)` is a declaration error naming it
+- [ ] Write failing test `TestVoidContextSelectsVoidReturn`: in void context a candidate returning `Void` is selected over one returning a scalar or list type
 - [ ] Write failing test `TestReturnTypeContextAmbiguity`: two candidates with the same parameters and both list (or both scalar) returns are an ambiguity declaration error
 - [ ] Implement selection by return type; delete `Contexts` and the attribute reader; drop `:context` from CORE.pmt's 37 lines; restate RFC 0001 "`:context(...)`"; infer and psc results must not change (existing tests unchanged); `make test`; commit
 
 ## Acceptance criteria
 
+- [ ] void context selects the Void-returning candidate (`go test ./internal/types/ ./internal/parse/ -run '^TestVoidContextSelectsVoidReturn$' -count=1 -v | grep -q '^--- PASS: TestVoidContextSelectsVoidReturn'`)
 - [ ] context selects by return type (`go test ./internal/types/ ./internal/parse/ -run '^TestContextSelectsByReturnType$' -count=1 -v | grep -q '^--- PASS: TestContextSelectsByReturnType'`)
 - [ ] a :context attribute is refused (`go test ./internal/parse/ -run '^TestContextAttributeRefused$' -count=1 -v | grep -q '^--- PASS: TestContextAttributeRefused'`)
 - [ ] same-shaped returns are ambiguous (`go test ./internal/types/ ./internal/parse/ -run '^TestReturnTypeContextAmbiguity$' -count=1 -v | grep -q '^--- PASS: TestReturnTypeContextAmbiguity'`)
