@@ -509,13 +509,32 @@ What an aliased list is as a type stays the paper's question.
 perigrin, 2026-10-02, **provisional**: these spellings stand for now and
 may change as operators are declared.
 
-**No result rule.** `sub + :infix(ADD) (Num $x, Num $y) Num;` is
-complete. `Int <: Num` in the lattice, so `Num` is an upper bound that
-`Int + Int = Int` satisfies; recovering `Int` for two `Int`s is
+**No result rule.** `sub + :infix(ADD) (Num $x, Num $y) Num|Inf;` is
+complete. `Int <: Num|Inf` in the lattice, so `Num|Inf` is an upper bound
+that `Int + Int = Int` satisfies; recovering `Int` for two `Int`s is
 inference narrowing within that bound, not something the declaration
 states. (Settled earlier with bson; see perl5-son's
 `docs/plans/2026-09-16-a-declaration-syntax-for-signatures.md`,
 "Problem 1 (WITHDRAWN)".)
+
+**A result is what perl returns.** perigrin, 2026-10-07. An operator's
+operands are the type it coerces them to, and its result is what perl
+returns for operands of those types, which may leave them. The paper's
+`[Plus]` rule says the same: its premises `v ⇓^Num n` type the operands
+through `Num`, and its conclusion is only the number `n₁ + n₂`, which
+`Num` need not hold, since `Num` excludes `Inf` and `NaN` (Theorem 3).
+Measured on 5.42 with finite operands, `1e308 + 1e308` is `Inf`,
+`-1e308 * 10` is `-Inf` (the lattice's `Inf` is either sign) and
+`(-1) ** 0.5` is `NaN`, so `+`, `-`, `*` and `/` are declared
+`(Num $x, Num $y) Num|Inf` and `**` `(Num $x, Num $y) Num|NaN|Inf`;
+`%` stays `Num`. The builtins follow the same rule: `exp` is `Num|Inf`,
+`hex` and `oct` `Int|Inf`. A case that dies, `1/0` or `sqrt(-1)`, is no
+value and widens nothing. `TestCoreArithmeticReturnsWhatPerlReturns`
+holds each declaration to its measurement.
+
+A result of `Num|Inf` passed where `Num` is wanted is a lossy coercion,
+and `psc check` reports it: `my $c = $a * $b; $c + 1` warns
+`left operand of "+": expected Num, got Int|Num|Inf`.
 
 **Fixity and precedence.** `:infix(CLASS)`, `:prefix` and `:postfix`.
 The class names perl's precedence levels in XS::Parse::Infix's
