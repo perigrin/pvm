@@ -177,7 +177,9 @@ func coreOperators(t *testing.T) []operatorDecl {
 // the operand and result types below, measured on 5.42.0. `cmp` gives -1, 0
 // or 1, and so does `<=>`, or undef when an operand is NaN; the predicates
 // give perl's booleans; `&&`, `||`, `//`, `and`, `or` and `=` give an
-// operand. An operator that forks has a row for each candidate, its list
+// operand, and `^^`, `~~` and `^^=` perl's boolean; the string bitwise
+// operators give a string; a compound assignment gives its left operand,
+// holding what its operator gives. An operator that forks has a row for each candidate, its list
 // candidate's keyed "(list)": the one whose return type answers list
 // context (RFC 0001, "Context selects by return type").
 //
@@ -233,6 +235,19 @@ func TestCoreOperatorTypesMatchMeasured(t *testing.T) {
 
 		"prefix ++": un(types.Scalar, S), "prefix --": un(types.Scalar, N|types.NaN|types.Inf),
 		"postfix ++": un(types.Scalar, B|S|types.DualVar|types.Ref), "postfix --": un(types.Scalar, types.Scalar),
+
+		"infix ^^": bin(A, A, B), "infix ~~": bin(A, A, B),
+		"infix &.": bin(S, S, S), "infix |.": bin(S, S, S), "infix ^.": bin(S, S, S), "prefix ~.": un(S, S),
+
+		"infix +=": bin(types.Scalar, N, N|types.Inf), "infix -=": bin(types.Scalar, N, N|types.Inf),
+		"infix *=": bin(types.Scalar, N, N|types.Inf), "infix /=": bin(types.Scalar, N, N|types.Inf),
+		"infix **=": bin(types.Scalar, N, N|types.NaN|types.Inf), "infix %=": bin(types.Scalar, N, N),
+		"infix .=": bin(types.Scalar, S, S), "infix x=": bin(types.Scalar, I, S),
+		"infix &=": bin(types.Scalar, I, I), "infix |=": bin(types.Scalar, I, I), "infix ^=": bin(types.Scalar, I, I),
+		"infix <<=": bin(types.Scalar, I, I), "infix >>=": bin(types.Scalar, I, I),
+		"infix &.=": bin(types.Scalar, S, S), "infix |.=": bin(types.Scalar, S, S), "infix ^.=": bin(types.Scalar, S, S),
+		"infix &&=": bin(types.Scalar, types.Scalar, types.Scalar), "infix ||=": bin(types.Scalar, types.Scalar, types.Scalar),
+		"infix //=": bin(types.Scalar, types.Scalar, types.Scalar), "infix ^^=": bin(types.Scalar, types.Scalar, B),
 	}
 	got := map[string]row{}
 	for _, op := range coreOperators(t) {
@@ -493,6 +508,65 @@ func TestCoreDeclaresIncDec(t *testing.T) {
 	for _, op := range undeclaredOperators {
 		if op.name == "++" || op.name == "--" {
 			t.Errorf("undeclaredOperators still places %s %s", op.fixity, op.name)
+		}
+	}
+}
+
+// TestCoreDeclaresRemainingInfix: perlop's operators past the plain ones.
+// Measured on 5.42.0: `^^` is 5.40's logical xor, in `||`'s level, and
+// gives perl's boolean (builtin::is_bool) for any operands. The string
+// bitwise operators, under `use feature 'bitwise'`, take their operands as
+// strings and give a string -- `3 &. 5` is "1" -- in their numeric forms'
+// levels, and `~.` is `~`'s. Smartmatch `~~` is in `==`'s level and gives
+// perl's boolean; it warns nothing on 5.42 without `use v5.42`, whose bundle
+// turns the smartmatch feature off and makes `1 ~~ 1` a syntax error. Each
+// compound assignment is in `=`'s level, its left operand an aliased scalar
+// -- `1 += 2` is "Can't modify constant item in addition (+)", `@a x= 3`
+// "Can't modify private array in repeat (x)" -- and its result is that
+// scalar, `\($x += 1)` aliasing $x, holding what its operator gives. The
+// logical ones take their right operand in scalar context: `$x ||= (4, 5)`
+// is 5.
+func TestCoreDeclaresRemainingInfix(t *testing.T) {
+	param := func(n string, ty types.Type) types.Param {
+		return types.Param{Name: n, Sigil: '$', Type: ty, Required: true}
+	}
+	pair := func(l, r types.Type) []types.Param { return []types.Param{param("x", l), param("y", r)} }
+	want := map[[2]string][]operatorDecl{
+		{"infix", "^^"}: {{name: "^^", fixity: "infix", class: "LOGICAL_OR",
+			sig: types.Signature{Params: pair(types.Any, types.Any), Returns: types.Boolean}}},
+		{"infix", "&."}: {{name: "&.", fixity: "infix", equiv: []string{"&"},
+			sig: types.Signature{Params: pair(types.Str, types.Str), Returns: types.Str}}},
+		{"infix", "|."}: {{name: "|.", fixity: "infix", equiv: []string{"|"},
+			sig: types.Signature{Params: pair(types.Str, types.Str), Returns: types.Str}}},
+		{"infix", "^."}: {{name: "^.", fixity: "infix", equiv: []string{"|"},
+			sig: types.Signature{Params: pair(types.Str, types.Str), Returns: types.Str}}},
+		{"prefix", "~."}: {{name: "~.", fixity: "prefix", equiv: []string{"!"},
+			sig: types.Signature{Params: []types.Param{param("x", types.Str)}, Returns: types.Str}}},
+		{"infix", "~~"}: {{name: "~~", fixity: "infix", class: "EQUALITY",
+			sig: types.Signature{Params: pair(types.Any, types.Any), Returns: types.Boolean}}},
+	}
+	aliased := types.Param{Name: "x", Sigil: '$', Type: types.Scalar, Required: true, Alias: true}
+	for _, c := range []struct {
+		ops           []string
+		right, result types.Type
+	}{
+		{[]string{"+=", "-=", "*=", "/="}, types.Num, types.Num | types.Inf},
+		{[]string{"**="}, types.Num, types.Num | types.NaN | types.Inf},
+		{[]string{"%="}, types.Num, types.Num},
+		{[]string{".=", "&.=", "|.=", "^.="}, types.Str, types.Str},
+		{[]string{"x="}, types.Int, types.Str},
+		{[]string{"&=", "|=", "^=", "<<=", ">>="}, types.Int, types.Int},
+		{[]string{"&&=", "||=", "//="}, types.Scalar, types.Scalar},
+		{[]string{"^^="}, types.Scalar, types.Boolean},
+	} {
+		for _, op := range c.ops {
+			want[[2]string{"infix", op}] = []operatorDecl{{name: op, fixity: "infix", class: "ASSIGN",
+				sig: types.Signature{Params: []types.Param{aliased, param("y", c.right)}, Returns: c.result}}}
+		}
+	}
+	for key, w := range want {
+		if got := coreCandidates(t, key[0], key[1]); !reflect.DeepEqual(got, w) {
+			t.Errorf("%s %s:\n got %+v\nwant %+v", key[0], key[1], got, w)
 		}
 	}
 }

@@ -325,3 +325,27 @@ func TestIncDecRefusesConstant(t *testing.T) {
 		"my $x; my $y = $x++ ** 2 + -$x--;\n",
 	)
 }
+
+// TestCompoundAssignmentRefusesConstant: a compound assignment's left
+// operand is an aliased scalar, `\$`, as `++`'s is. Measured on 5.42.0 with
+// `perl -c`: `1 += 2` is "Can't modify constant item in addition (+)",
+// `"a" .= "b"` in concatenation, `1 ^^= 2` in logical xor, `@a x= 3` "Can't
+// modify private array in repeat (x)", `%h &&= 3` private hash, `f() += 1`
+// "Can't modify non-lvalue subroutine call of &main::f". `$a[0] += 1`,
+// `$x ^^= 2` and `($x, $y) += 1` compile.
+func TestCompoundAssignmentRefusesConstant(t *testing.T) {
+	for _, src := range []string{
+		"1 += 2;\n", "\"a\" .= \"b\";\n", "1 ^^= 2;\n", "my @a; @a x= 3;\n",
+		"my %h; %h &&= 3;\n", "sub f {} f() += 1;\n",
+	} {
+		if got := refusedAs(src); !slices.Equal(got, []RefusalCode{RefScalarSlot}) {
+			t.Errorf("%q: refusals %v, want one %s", src, got, RefScalarSlot)
+		}
+	}
+	wantNoRefusal(t,
+		"my @a; $a[0] += 1;\n",
+		"my $x; $x ^^= 2; $x .= 'a'; $x //= 3;\n",
+		"my ($x, $y); ($x, $y) += 1;\n",
+		"my %h; $h{x} ||= 1;\n",
+	)
+}

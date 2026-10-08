@@ -319,11 +319,11 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 				continue
 			}
 			right := p.operand(op.rightBP(), tok)
-			left = &Node{
+			left = p.refuseAliasedOperand(&Node{
 				Kind: Binary, Text: text,
 				Start: left.Start, End: right.End,
 				Children: []*Node{left, right},
-			}
+			}, text, "infix")
 		}
 	}
 }

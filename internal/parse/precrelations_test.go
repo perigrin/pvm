@@ -143,9 +143,9 @@ var perlopShapeRows = map[string]int{"term": 0, "unary": 9, "listop": 21}
 // one row, with that row's associativity, and the levels run down the
 // table, each in a lower row than the last. The comparison is over what
 // CORE.pmt declares. perlop names operators CORE.pmt does not yet declare
-// -- `->`, `~.`, `~~`, `&.`, `|.`, `^.`, `^^`, `?:`, the compound
-// assignments, `,` and `=>`, and last, next and redo, which are statement
-// forms here -- and those have no place in the comparison until it does. Every operator CORE.pmt declares must be in perlop's table.
+// -- `->`, `?:`, `,` and `=>`, and last, next and redo, which are
+// statement forms here -- and those have no place in the comparison until
+// it does. Every operator CORE.pmt declares must be in perlop's table.
 func TestCoreDerivedPrecedenceIsPerlops(t *testing.T) {
 	rowOf := map[string]int{}
 	for i, row := range perlopTable {
