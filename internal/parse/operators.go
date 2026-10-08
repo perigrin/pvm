@@ -4,7 +4,6 @@
 package parse
 
 import (
-	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -15,7 +14,8 @@ import (
 
 // operatorDecl is one operator a `.pmt` declares: `sub + :infix(ADD) (Num $x,
 // Num $y) Num;` is "+", "infix", "ADD" and its signature. A prefix or postfix
-// operator has no class. multi is set for a `multi sub`, one of several
+// operator has no class, nor an infix one at a level XS::Parse::Infix does
+// not class, `sub & :infix`. multi is set for a `multi sub`, one of several
 // candidates for its symbol (RFC 0001, "Operators that fork").
 //
 // tighter, looser and equiv are the operators its `:tighter(OP)`,
@@ -45,11 +45,7 @@ func (op operatorDecl) equivs() []string {
 var classAnchors = map[string]string{
 	"LOGICAL_OR_LOW":  "or",
 	"LOGICAL_AND_LOW": "and",
-	"BITOR":           "|",
-	"BITAND":          "&",
-	"SHIFT":           "<<",
 	"ASSIGN":          "=",
-	"RANGE":           "..",
 	"LOGICAL_OR":      "||",
 	"LOGICAL_AND":     "&&",
 	"EQUALITY":        "==",
@@ -72,18 +68,14 @@ var assocs = map[string]bool{"left": true, "right": true, "nonassoc": true, "cha
 // prefix and `_MISC` suffix. LOW and HIGH are the plugin hooks either side of
 // the core operators, levels 3 and 28.
 //
-// BITOR, BITAND, SHIFT and RANGE are not XS::Parse::Infix's: it classes no
-// operator at those levels, so it cannot register one there, and they exist
-// only for CORE.pmt to declare perl's own.
+// XS::Parse::Infix classes no operator at the levels of `&`, of `|` and `^`,
+// of `<<` and `>>`, or of `..` and `...`, so no class names them: those
+// levels are named by their operators.
 var operatorClasses = map[string]int{
 	"LOW":             3,
 	"LOGICAL_OR_LOW":  4,
 	"LOGICAL_AND_LOW": 5,
-	"BITOR":           14,
-	"BITAND":          15,
-	"SHIFT":           21,
 	"ASSIGN":          9,
-	"RANGE":           11,
 	"LOGICAL_OR":      12,
 	"LOGICAL_AND":     13,
 	"EQUALITY":        16,
@@ -96,11 +88,6 @@ var operatorClasses = map[string]int{
 	"POW":             26,
 	"HIGH":            28,
 }
-
-// coreOnlyClasses are the classes operatorClasses coins for CORE.pmt, which
-// a library's declaration may not name: XS::Parse::Infix cannot register an
-// operator at their levels.
-var coreOnlyClasses = map[string]bool{"BITOR": true, "BITAND": true, "SHIFT": true, "RANGE": true}
 
 // operatorArity is how many operands each fixity takes.
 var operatorArity = map[string]int{"infix": 2, "prefix": 1, "postfix": 1}
@@ -195,10 +182,7 @@ func operatorOf(name string, attrs []string, sig types.Signature) (operatorDecl,
 	}
 	fixity, class, hasClass := strings.Cut(strings.TrimPrefix(attrs[0], ":"), "(")
 	class = strings.TrimSuffix(class, ")")
-	switch {
-	case fixity == "infix" && !hasClass:
-		return operatorDecl{}, errors.New(":infix needs a class")
-	case fixity != "infix" && hasClass:
+	if fixity != "infix" && hasClass {
 		return operatorDecl{}, fmt.Errorf(":%s takes no class", fixity)
 	}
 	if _, ok := operatorClasses[class]; hasClass && !ok {
@@ -213,8 +197,10 @@ func operatorOf(name string, attrs []string, sig types.Signature) (operatorDecl,
 // precedenceMismatch reports an infix operator whose class names a level
 // other than the one precedence.go gives it. The table is authoritative
 // (RFC 0001, "Operator declarations"); the class says the same thing again.
+// An operator with no class names its level by its relations, which
+// TestCoreDerivedPrecedenceIsPerlops holds to perlop's.
 func precedenceMismatch(op operatorDecl) error {
-	if op.fixity != "infix" {
+	if op.fixity != "infix" || op.class == "" {
 		return nil
 	}
 	if level, want := operatorClasses[op.class], infix[op.name].Level; level != want {
@@ -378,6 +364,21 @@ func precedenceOrder(ops []operatorDecl) ([]precLevel, error) {
 		}
 	}
 	return order, nil
+}
+
+// classedLevels is each operator of order, by its label, to whether
+// XS::Parse::Infix classes its level: whether the level holds a class's
+// anchor.
+func classedLevels(order []precLevel) map[string]bool {
+	anchors := slices.Collect(maps.Values(classAnchors))
+	out := map[string]bool{}
+	for _, l := range order {
+		classed := slices.ContainsFunc(l.ops, func(op string) bool { return slices.Contains(anchors, op) })
+		for _, op := range l.ops {
+			out[op] = classed
+		}
+	}
+	return out
 }
 
 // shapeRelations places each shape's level, perly.y's own rows for the

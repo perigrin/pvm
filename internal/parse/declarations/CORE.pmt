@@ -995,11 +995,11 @@ sub or :infix(LOGICAL_OR_LOW) :assoc(left) (Any $x, Any $y) Any;
 sub xor :infix(LOGICAL_OR_LOW) (Any $x, Any $y) Boolean;
 
 # Bitwise
-sub & :infix(BITAND) :tighter(|) :assoc(left) (Int $x, Int $y) Int;
-sub | :infix(BITOR) :tighter(&&) :assoc(left) (Int $x, Int $y) Int;
-sub ^ :infix(BITOR) (Int $x, Int $y) Int;
-sub << :infix(SHIFT) :tighter(isa) :assoc(left) (Int $x, Int $y) Int;
-sub >> :infix(SHIFT) (Int $x, Int $y) Int;
+sub & :infix :tighter(|) :assoc(left) (Int $x, Int $y) Int;
+sub | :infix :tighter(&&) :assoc(left) (Int $x, Int $y) Int;
+sub ^ :infix :equiv(|) (Int $x, Int $y) Int;
+sub << :infix :tighter(isa) :assoc(left) (Int $x, Int $y) Int;
+sub >> :infix :equiv(<<) (Int $x, Int $y) Int;
 
 # Type test
 sub isa :infix(ISA) :tighter(<) :assoc(nonassoc) (Scalar $x, Str $y) Boolean;
@@ -1013,10 +1013,10 @@ sub !~ :infix(MATCHRE) (Str $x, Regex $y) Boolean;
 
 # Range: a range in list context, a flip-flop in scalar context, whose
 # result is a sequence number as a string ("", "1", "2", "3E0").
-multi sub .. :infix(RANGE) :tighter(=) :assoc(nonassoc) :context(@) (Str $x, Str $y) List;
-multi sub .. :infix(RANGE) :context($) (Any $x, Any $y) Str;
-multi sub ... :infix(RANGE) :context(@) (Str $x, Str $y) List;
-multi sub ... :infix(RANGE) :context($) (Any $x, Any $y) Str;
+multi sub .. :infix :tighter(=) :assoc(nonassoc) :context(@) (Str $x, Str $y) List;
+multi sub .. :infix :context($) (Any $x, Any $y) Str;
+multi sub ... :infix :equiv(..) :context(@) (Str $x, Str $y) List;
+multi sub ... :infix :context($) (Any $x, Any $y) Str;
 
 # Assignment
 sub = :infix(ASSIGN) :tighter(not) :assoc(right) (Any $x, Any $y) Any;

@@ -140,19 +140,19 @@ func TestLibraryPmtListop(t *testing.T) {
 	}
 }
 
-// TestLibraryPmtCoinedClassRefused: RFC 0001 "Operator declarations".
-// BITAND, BITOR, SHIFT and RANGE are coined for CORE.pmt: XS::Parse::Infix
-// classes no operator at those levels, so it cannot register one there,
-// and a library .pmt naming one is in error, naming its module. CORE.pmt
-// names them.
-func TestLibraryPmtCoinedClassRefused(t *testing.T) {
+// TestLibraryCoinedClassRefused: RFC 0001 "Fixity and precedence". Only
+// XS::Parse::Infix's classes are spellable in `:infix(CLASS)`; the levels
+// it classes no operator at are named by their operators. A library .pmt
+// naming a class XS::Parse::Infix does not have is in error, naming its
+// module, and records no operator.
+func TestLibraryCoinedClassRefused(t *testing.T) {
 	saved := declarations
 	t.Cleanup(func() { declarations = saved })
 	for _, class := range []string{"BITAND", "BITOR", "SHIFT", "RANGE"} {
 		src := "package Coined;\nsub op :infix(" + class + ") (Int $x, Int $y) Int;\n"
 		declarations = layeredFS{top: fstest.MapFS{"declarations/Coined.pmt": {Data: []byte(src)}}, base: saved}
 		root := ParseWithLoader([]byte("use Coined;\n"), func(string) ([]byte, bool) { return nil, false })
-		want := "Coined: sub op: operator class " + class + " is CORE.pmt's; XS::Parse::Infix registers no operator at its level"
+		want := "Coined: sub op: unknown operator class \"" + class + "\""
 		if errs := DeclarationErrors(root); len(errs) != 1 || errs[0].Error() != want {
 			t.Errorf("%s: got %v, want %q", class, errs, want)
 		}
@@ -160,10 +160,34 @@ func TestLibraryPmtCoinedClassRefused(t *testing.T) {
 			t.Errorf("%s: recorded %+v", class, facts.operators)
 		}
 	}
-	if _, _, err := coreProtos([]byte("sub & :infix(BITAND) (Int $x, Int $y) Int;\n")); err != nil {
-		t.Errorf("CORE.pmt's reading refused BITAND: %v", err)
+}
+
+// TestLibraryEquivUnclassedLevelRefused: XS::Parse::Infix classes no
+// operator at the levels of `&`, of `|` and `^`, of `<<` and `>>`, or of
+// `..` and `...`, so it cannot register one there, and a library's infix
+// operator may not join one by `:equiv`. One joining a level it classes,
+// `+`'s, is a library's to declare. Reached by a `use`, CORE.pmt is still
+// the interpreter's file.
+func TestLibraryEquivUnclassedLevelRefused(t *testing.T) {
+	saved := declarations
+	t.Cleanup(func() { declarations = saved })
+	for _, level := range []string{"&", "|", "^", "<<", ">>", "..", "..."} {
+		src := "package Unclassed;\nsub op :infix :equiv(" + level + ") (Int $x, Int $y) Int;\n"
+		declarations = layeredFS{top: fstest.MapFS{"declarations/Unclassed.pmt": {Data: []byte(src)}}, base: saved}
+		root := ParseWithLoader([]byte("use Unclassed;\n"), func(string) ([]byte, bool) { return nil, false })
+		want := "Unclassed: sub op: :equiv(" + level + ") is a level XS::Parse::Infix registers no operator at"
+		if errs := DeclarationErrors(root); len(errs) != 1 || errs[0].Error() != want {
+			t.Errorf("%s: got %v, want %q", level, errs, want)
+		}
+		if facts := resolveLibrary(t, "Unclassed"); len(facts.operators) > 0 {
+			t.Errorf("%s: recorded %+v", level, facts.operators)
+		}
 	}
-	// Reached by a `use`, CORE.pmt is still the interpreter's file.
+	src := "package Classed;\nsub op :infix :equiv(+) (Int $x, Int $y) Int;\n"
+	declarations = layeredFS{top: fstest.MapFS{"declarations/Classed.pmt": {Data: []byte(src)}}, base: saved}
+	if facts := resolveLibrary(t, "Classed"); len(facts.errs) > 0 || len(facts.operators) != 1 {
+		t.Errorf(":equiv(+): errors %v, operators %+v", facts.errs, facts.operators)
+	}
 	declarations = saved
 	if errs := DeclarationErrors(ParseWithLoader([]byte("use CORE;\n"), func(string) ([]byte, bool) { return nil, false })); len(errs) > 0 {
 		t.Errorf("use CORE: %v", errs)

@@ -576,10 +576,15 @@ level there. A library declaring an XS::Parse::Infix operator uses the
 same spelling.
 
 XS::Parse::Infix classes no operator at the levels of `&`, of `|` and
-`^`, or of `<<` and `>>` (perigrin, 2026-10-06), so `CORE.pmt` coins
-`BITAND`, `BITOR` and `SHIFT` for them, and `RANGE` likewise for `..`
-and `...`. They exist only for `CORE.pmt`: XS::Parse::Infix cannot
-register an operator at those levels, so no library declares one there.
+`^`, or of `<<` and `>>` (perigrin, 2026-10-06), nor at that of `..`
+and `...`. Those levels have no class: they are named by their
+operators, and their lines state their relations (see "Precedence is a
+relation between operators") -- `sub & :infix :tighter(|)
+:assoc(left)`, `sub ^ :infix :equiv(|)` -- so only XS::Parse::Infix's
+own class names are spellable in `:infix(CLASS)`, and a library naming
+another is in error. XS::Parse::Infix cannot register an operator at
+those levels, so a library's infix operator may not join one: `sub ⊕
+:infix :equiv(&)` is a declaration error.
 
 **Operators that fork** are multis:
 
@@ -655,9 +660,8 @@ sub ⊕ :infix :tighter(+) :looser(*) :assoc(left) (Num $x, Num $y) Num;
 - XS::Parse::Infix's classes remain a spelling of a level:
   `:infix(ADD)` is `:infix :equiv(+)`, so a library writes the class it
   registers with. Levels XS::Parse::Infix does not class (`&`, `|`
-  and `^`, `<<` and `>>`, `..`) need no name of their own: they are
-  named by their operators, and the coined `BITAND`, `BITOR`, `SHIFT`
-  and `RANGE` go.
+  and `^`, `<<` and `>>`, `..` and `...`) need no name of their own:
+  they are named by their operators.
 - A `:prefix` operator relates the same way: `not` states that it is
   tighter than `and`, and `!` that it is tighter than `=~`.
 - **A named operator's level is derived, not stated** (perigrin,
