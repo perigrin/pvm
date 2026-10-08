@@ -6,7 +6,7 @@ milestone: type-libraries
 blocked_by:
 - 01a11937-22da-7250-b922-fabda15009a7
 created: 2026-10-08T01:59:02.643468486Z
-updated: 2026-10-08T02:05:12.611425253Z
+updated: 2026-10-08T02:09:17.776755463Z
 ---
 
 ## Context
@@ -16,11 +16,11 @@ updated: 2026-10-08T02:05:12.611425253Z
 
 perigrin, 2026-10-08: the bare-call default convention goes. Its six lines -- `sub srand (Int $seed = srand()) Str;` and likewise `caller`, `reset`, `sleep`, `umask` and `send`'s `$to` -- state a self-referential default for what is truly no default: perl computes something no expression states.
 
-An argument that may be absent with no default is typed with `Void` (the arity-0 type, 01a11937-22da-7250-b922-fabda15009a7), in a union when it may also be present (perigrin, 2026-10-08):
+An argument that may be absent with no default is typed `Optional[T]`, which is `Void|T` (the arity-0 type and the alias both from 01a11937-22da-7250-b922-fabda15009a7; perigrin, 2026-10-08):
 
 ```perl
-sub srand (Void|Int $seed) Str;
-sub send (Glob *socket, Str $msg, Int $flags, Void|Str $to) Int|Undef;
+sub srand (Optional[Int] $seed) Str;
+sub send (Glob *socket, Str $msg, Int $flags, Optional[Str] $to) Maybe[Int];
 ```
 
 No multi: one signature says it, and a multi stays only where the result type differs (measure each; `caller` with and without a level return different fields, possibly the same type). `Void $` spells an absent scalar slot, `Void @` an empty list; `()` stays for a sub that takes nothing at all (`sub break () None;`).
