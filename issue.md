@@ -1,12 +1,21 @@
 ---
 title: A library's own infix operator parses at the level its relations give
-state: pending
+state: in-progress
 urgency: normal
 milestone: type-libraries
 blocked_by:
 - 01a118fe-8dfe-7c0e-bcbe-06fd8374d1a6
 created: 2026-10-08T01:32:14.504542887Z
-updated: 2026-10-08T12:57:54.072525972Z
+updated: 2026-10-08T12:58:09.075211894Z
+sessions:
+- start_sha: cd34146a827f624890247b5c2383db9e2261ebc9
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-08T12:58:09.075211894Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-08T12:58:09.075211894Z
 ---
 
 ## Context
