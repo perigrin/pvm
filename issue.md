@@ -5,8 +5,10 @@ urgency: normal
 milestone: type-libraries
 blocked_by:
 - 01a118fe-8d68-71a8-ab06-cc12d7a20589
+blocks:
+- 01a118fe-8e5f-717a-b046-6020db95c724
 created: 2026-10-08T00:51:38.164240057Z
-updated: 2026-10-08T00:51:57.20901962Z
+updated: 2026-10-08T00:51:59.548357057Z
 ---
 
 ## Context
