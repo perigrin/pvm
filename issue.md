@@ -1,21 +1,35 @@
 ---
 title: An argument with no default is typed Void|T; the bare-call default convention goes
-state: in-progress
+state: done
 urgency: normal
 milestone: type-libraries
 blocked_by:
 - 01a11937-22da-7250-b922-fabda15009a7
 created: 2026-10-08T01:59:02.643468486Z
-updated: 2026-10-08T03:25:50.339102105Z
+updated: 2026-10-08T05:08:29.91042071Z
 sessions:
 - start_sha: 7b12bfdb14a0370e96efe35f6a981ca724418447
-  end_sha: ""
-  commits: 0
+  end_sha: d613ec5208e8a942ed1b426a84469e080ddb9f20
+  commits: 1
   started_at: 2026-10-08T03:25:50.339102105Z
+  ended_at: 2026-10-08T05:08:29.91042071Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-08T03:25:50.339102105Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-08T05:08:29.91042071Z
+observed_paths:
+- docs/rfcs/0001-type-libraries.md
+- internal/infer/core_test.go
+- internal/infer/infer.go
+- internal/parse/coretypes_test.go
+- internal/parse/decl.go
+- internal/parse/declarations/CORE.pmt
+- internal/parse/derive_test.go
+- internal/parse/selfdefault_test.go
+- internal/parse/voidparam_test.go
 ---
 
 ## Context
