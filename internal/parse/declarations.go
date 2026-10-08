@@ -316,8 +316,21 @@ func readCore() {
 		if coreMap, coreSigs, coreOps, err = coreDeclarations(src); err != nil {
 			panic("parse: declarations/CORE.pmt: " + err.Error())
 		}
+		// Its operators' relations derive one precedence order (RFC 0001,
+		// "Precedence is a relation between operators"). A library's
+		// operators relate to CORE.pmt's, so the order is CORE.pmt's.
+		if _, err := precedenceOrder(coreOperatorDecls(src)); err != nil {
+			panic("parse: declarations/CORE.pmt: " + err.Error())
+		}
 		coreShp = deriveShapes(coreMap, coreSigs)
 	})
+}
+
+// coreOperatorDecls is the operators a CORE.pmt declares.
+func coreOperatorDecls(src []byte) []operatorDecl {
+	p := newParser(src, nil, true)
+	p.buildingCore = true
+	return readDeclarationWith(p).operators
 }
 
 // coreProtos reads a CORE.pmt into the tables coreTable and coreSignatures
