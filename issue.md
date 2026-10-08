@@ -1,21 +1,49 @@
 ---
 title: "CORE.pmt declares perlop's remaining infix operators: ^^, string-bitwise, compound assignment, , and =>"
-state: in-progress
+state: done
 urgency: normal
 milestone: type-libraries
 blocked_by:
 - 01a11920-411a-7cea-b78f-c1568aba6d25
 created: 2026-10-08T00:51:38.207321952Z
-updated: 2026-10-08T13:31:26.536235335Z
+updated: 2026-10-08T18:20:35.147482146Z
 sessions:
 - start_sha: 2119cf8320b21d098168c402561bd8751f2a69ca
-  end_sha: ""
-  commits: 0
+  end_sha: b8aef969cdfc6d3d3676c808be6c01cc77911d10
+  commits: 2
   started_at: 2026-10-08T13:31:26.536235335Z
+  ended_at: 2026-10-08T18:20:35.147482146Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-08T13:31:26.536235335Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-08T18:20:35.147482146Z
+observed_paths:
+- docs/rfcs/0001-type-libraries.md
+- internal/lexer/lexer.go
+- internal/lexer/pod.go
+- internal/lexer/quote.go
+- internal/lexer/scan.go
+- internal/lexer/symbolop_test.go
+- internal/parse/commaassign_test.go
+- internal/parse/coreops_test.go
+- internal/parse/decl.go
+- internal/parse/declarations.go
+- internal/parse/declarations/CORE.pmt
+- internal/parse/expr.go
+- internal/parse/library_pmt_test.go
+- internal/parse/operators.go
+- internal/parse/parse.go
+- internal/parse/pmt_test.go
+- internal/parse/precedence.go
+- internal/parse/precrelations_test.go
+- internal/parse/refscalar.go
+- internal/parse/refscalar_test.go
+- internal/parse/term.go
+- internal/parse/use.go
+- internal/types/declared.go
 ---
 
 ## Context
