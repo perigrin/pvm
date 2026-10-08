@@ -10,7 +10,7 @@ blocks:
 - 01a0fd9b-5468-7355-a22e-1b16fa5ee354
 - 01a10dc1-3499-7e2b-9e6f-d935084437fa
 created: 2026-10-02T17:13:28.48300713Z
-updated: 2026-10-08T18:40:54.136431018Z
+updated: 2026-10-08T22:11:48.757090568Z
 sessions:
 - start_sha: 007fbbffeff724026118b1ba246fcf5d177df5f2
   end_sha: 007fbbffeff724026118b1ba246fcf5d177df5f2
@@ -58,6 +58,10 @@ RFC 0001 "`:context(...)`": a declaration names the contexts it answers for in p
 - void context is answered only by an absent attribute or `:context()`: a void call to candidates that are only `:context($)` and `:context(@)` has no type (`go test ./internal/types/ -run '^TestSelectVoidContext$' -count=1 -v | grep -q '^--- PASS: TestSelectVoidContext'`)
 - boolean context is scalar, so a boolean call to a `:context(@)`-only declaration has no type (it does not fall back to the list candidate) (`go test ./internal/types/ -run '^TestSelectBooleanIsNotList$' -count=1 -v | grep -q '^--- PASS: TestSelectBooleanIsNotList'`)
 
+### Superseded (2026-10-08)
+
+01a11920-411a dropped `:context` (perigrin: "multi and return type handle it"): a `:context` attribute is now refused, and a multi selects by return type. This issue's criteria that named the attribute's tests now name their replacements: TestPmtContextAttribute and TestPmtContextAttributeMalformed -> TestContextAttributeRefused; TestSelectVoidContextUnanswered -> TestSelectVoidContext (void context with no Void candidate falls back to scalar); the RFC section `:context(...)` -> "Context selects by return type".
+
 ## Acceptance criteria
 
 - [ ] :context reads every spelling, and absent differs from empty (`go test ./internal/parse/ -run '^TestContextAttributeRefused$' -count=1 -v | grep -q '^--- PASS: TestContextAttributeRefused'`)
@@ -68,7 +72,3 @@ RFC 0001 "`:context(...)`": a declaration names the contexts it answers for in p
 - [ ] malformed :context spellings are errors (`go test ./internal/parse/ -run '^TestContextAttributeRefused$' -count=1 -v | grep -q '^--- PASS: TestContextAttributeRefused'`)
 - [ ] a void call to scalar and list candidates has no type (`go test ./internal/types/ -run '^TestSelectVoidContext$' -count=1 -v | grep -q '^--- PASS: TestSelectVoidContext'`)
 - [ ] a boolean call to a list-only declaration has no type (`go test ./internal/types/ -run '^TestSelectBooleanIsNotList$' -count=1 -v | grep -q '^--- PASS: TestSelectBooleanIsNotList'`)
-
-### Criteria superseded (2026-10-08)
-
-01a11920-411a dropped `:context` (perigrin: "multi and return type handle it"): a `:context` attribute is now refused, and a multi selects by return type. This issue's criteria that named the attribute's tests now name their replacements: TestPmtContextAttribute and TestPmtContextAttributeMalformed -> TestContextAttributeRefused; TestSelectVoidContextUnanswered -> TestSelectVoidContext (void context with no Void candidate falls back to scalar); the RFC section `:context(...)` -> "Context selects by return type".
