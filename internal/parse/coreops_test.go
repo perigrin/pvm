@@ -3,12 +3,14 @@
 package parse
 
 import (
+	"fmt"
 	"maps"
 	"reflect"
 	"slices"
 	"strings"
 	"testing"
 
+	"tamarou.com/pvm/internal/lexer"
 	"tamarou.com/pvm/internal/types"
 )
 
@@ -177,7 +179,10 @@ func coreOperators(t *testing.T) []operatorDecl {
 // the operand and result types below, measured on 5.42.0. `cmp` gives -1, 0
 // or 1, and so does `<=>`, or undef when an operand is NaN; the predicates
 // give perl's booleans; `&&`, `||`, `//`, `and`, `or` and `=` give an
-// operand. An operator that forks has a row for each candidate, its list
+// operand, and `^^`, `~~` and `^^=` perl's boolean; the string bitwise
+// operators give a string; a compound assignment gives its left operand,
+// holding what its operator gives; `,` and `=>` append in list context and
+// give their right operand in scalar context. An operator that forks has a row for each candidate, its list
 // candidate's keyed "(list)": the one whose return type answers list
 // context (RFC 0001, "Context selects by return type").
 //
@@ -233,6 +238,22 @@ func TestCoreOperatorTypesMatchMeasured(t *testing.T) {
 
 		"prefix ++": un(types.Scalar, S), "prefix --": un(types.Scalar, N|types.NaN|types.Inf),
 		"postfix ++": un(types.Scalar, B|S|types.DualVar|types.Ref), "postfix --": un(types.Scalar, types.Scalar),
+
+		"infix ^^": bin(A, A, B), "infix ~~": bin(A, A, B),
+		"infix &.": bin(S, S, S), "infix |.": bin(S, S, S), "infix ^.": bin(S, S, S), "prefix ~.": un(S, S),
+
+		"infix +=": bin(types.Scalar, N, N|types.Inf), "infix -=": bin(types.Scalar, N, N|types.Inf),
+		"infix *=": bin(types.Scalar, N, N|types.Inf), "infix /=": bin(types.Scalar, N, N|types.Inf),
+		"infix **=": bin(types.Scalar, N, N|types.NaN|types.Inf), "infix %=": bin(types.Scalar, N, N),
+		"infix .=": bin(types.Scalar, S, S), "infix x=": bin(types.Scalar, I, S),
+		"infix &=": bin(types.Scalar, I, I), "infix |=": bin(types.Scalar, I, I), "infix ^=": bin(types.Scalar, I, I),
+		"infix <<=": bin(types.Scalar, I, I), "infix >>=": bin(types.Scalar, I, I),
+		"infix &.=": bin(types.Scalar, S, S), "infix |.=": bin(types.Scalar, S, S), "infix ^.=": bin(types.Scalar, S, S),
+		"infix &&=": bin(types.Scalar, types.Scalar, types.Scalar), "infix ||=": bin(types.Scalar, types.Scalar, types.Scalar),
+		"infix //=": bin(types.Scalar, types.Scalar, types.Scalar), "infix ^^=": bin(types.Scalar, types.Scalar, B),
+
+		"infix , (list)": bin(types.List, types.List, types.List), "infix ,": bin(types.Scalar, types.Scalar, types.Scalar),
+		"infix => (list)": bin(S, types.List, types.List), "infix =>": bin(S, types.Scalar, types.Scalar),
 	}
 	got := map[string]row{}
 	for _, op := range coreOperators(t) {
@@ -390,7 +411,8 @@ func TestCoreRangeIsContextMulti(t *testing.T) {
 // list context and `EXPR x N` for any. Measured on 5.42.0: `my @l = (1,2)
 // x 2` is `1 2 1 2`; `my $x = (1,2) x 2`, `my @l = @a x 2` and `"ab" x 2`
 // are strings, `22`, `22` and `abab`. The List operand is one operand, a
-// parenthesised list, so an operator's `@` parameter may come first.
+// parenthesised list its comma flattens, so `x`'s `@` parameter may come
+// first (TestCommaIsTheFinalListException).
 func TestCoreRepeatIsShapeMulti(t *testing.T) {
 	want := []operatorDecl{
 		{name: "x", fixity: "infix", class: "MUL", multi: true, sig: types.Signature{
@@ -411,18 +433,27 @@ func TestCoreRepeatIsShapeMulti(t *testing.T) {
 	}
 }
 
-// TestPmtListParameterLastOnlyForSubs: a sub's List parameter takes every
-// remaining argument, so nothing may follow it; an operator's is one
-// operand, and may.
-func TestPmtListParameterLastOnlyForSubs(t *testing.T) {
-	facts := readDeclaration([]byte("sub x :infix(MUL) (List @l, Int $n) List;\n"), nil)
-	if len(facts.errs) > 0 || len(facts.operators) != 1 {
-		t.Errorf("operator: errors %v, operators %+v", facts.errs, facts.operators)
+// TestCommaIsTheFinalListException: a List parameter takes every remaining
+// argument, so nothing may follow it -- except in the operators whose comma
+// does the flattening (perigrin, 2026-10-08): `,`, `=>` its quoting form,
+// and `x`, whose left operand is a list its comma flattens. Measured on
+// 5.42.0, `(@a, 3)` with `@a = (1, 2)` is 3 elements and `(1, (2, 3))` 3,
+// so no operand of `,` is distinguishable from its flattening. Any other
+// operator, and any sub, with a non-final List parameter is refused.
+func TestCommaIsTheFinalListException(t *testing.T) {
+	for _, src := range []string{
+		"sub , :infix (List @l, List @r) List;\n",
+		"sub => :infix (List @l, List @r) List;\n",
+		"sub x :infix(MUL) (List @l, Int $n) List;\n",
+	} {
+		if facts := readDeclaration([]byte(src), nil); len(facts.errs) > 0 || len(facts.operators) != 1 {
+			t.Errorf("%q: errors %v, operators %+v", src, facts.errs, facts.operators)
+		}
 	}
-	facts = readDeclaration([]byte("sub f (List @l, Int $n) List;\n"), nil)
-	if len(facts.errs) != 1 {
-		t.Errorf("sub: errors %v, want the List parameter refused", facts.errs)
-	}
+	operatorRefuses(t, map[string]string{
+		"sub + :infix(ADD) (List @l, Int $n) List;\n": `sub +: List parameter @l is not last; a single array followed by more parameters is Array \@l`,
+		"sub f (List @l, Int $n) List;\n":             `sub f: List parameter @l is not last; a single array followed by more parameters is Array \@l`,
+	})
 }
 
 // TestCoreMatchIsContextMulti: `=~` forks on context. Measured on 5.42.0,
@@ -494,5 +525,179 @@ func TestCoreDeclaresIncDec(t *testing.T) {
 		if op.name == "++" || op.name == "--" {
 			t.Errorf("undeclaredOperators still places %s %s", op.fixity, op.name)
 		}
+	}
+}
+
+// TestCoreDeclaresRemainingInfix: perlop's operators past the plain ones.
+// Measured on 5.42.0: `^^` is 5.40's logical xor, in `||`'s level, and
+// gives perl's boolean (builtin::is_bool) for any operands. The string
+// bitwise operators, under `use feature 'bitwise'`, take their operands as
+// strings and give a string -- `3 &. 5` is "1" -- in their numeric forms'
+// levels, and `~.` is `~`'s. Smartmatch `~~` is in `==`'s level and gives
+// perl's boolean; it warns nothing on 5.42 without `use v5.42`, whose bundle
+// turns the smartmatch feature off and makes `1 ~~ 1` a syntax error. Each
+// compound assignment is in `=`'s level, its left operand an aliased scalar
+// -- `1 += 2` is "Can't modify constant item in addition (+)", `@a x= 3`
+// "Can't modify private array in repeat (x)" -- and its result is that
+// scalar, `\($x += 1)` aliasing $x, holding what its operator gives. The
+// logical ones take their right operand in scalar context: `$x ||= (4, 5)`
+// is 5.
+func TestCoreDeclaresRemainingInfix(t *testing.T) {
+	param := func(n string, ty types.Type) types.Param {
+		return types.Param{Name: n, Sigil: '$', Type: ty, Required: true}
+	}
+	pair := func(l, r types.Type) []types.Param { return []types.Param{param("x", l), param("y", r)} }
+	want := map[[2]string][]operatorDecl{
+		{"infix", "^^"}: {{name: "^^", fixity: "infix", class: "LOGICAL_OR",
+			sig: types.Signature{Params: pair(types.Any, types.Any), Returns: types.Boolean}}},
+		{"infix", "&."}: {{name: "&.", fixity: "infix", equiv: []string{"&"},
+			sig: types.Signature{Params: pair(types.Str, types.Str), Returns: types.Str}}},
+		{"infix", "|."}: {{name: "|.", fixity: "infix", equiv: []string{"|"},
+			sig: types.Signature{Params: pair(types.Str, types.Str), Returns: types.Str}}},
+		{"infix", "^."}: {{name: "^.", fixity: "infix", equiv: []string{"|"},
+			sig: types.Signature{Params: pair(types.Str, types.Str), Returns: types.Str}}},
+		{"prefix", "~."}: {{name: "~.", fixity: "prefix", equiv: []string{"!"},
+			sig: types.Signature{Params: []types.Param{param("x", types.Str)}, Returns: types.Str}}},
+		{"infix", "~~"}: {{name: "~~", fixity: "infix", class: "EQUALITY",
+			sig: types.Signature{Params: pair(types.Any, types.Any), Returns: types.Boolean}}},
+	}
+	aliased := types.Param{Name: "x", Sigil: '$', Type: types.Scalar, Required: true, Alias: true}
+	for _, c := range []struct {
+		ops           []string
+		right, result types.Type
+	}{
+		{[]string{"+=", "-=", "*=", "/="}, types.Num, types.Num | types.Inf},
+		{[]string{"**="}, types.Num, types.Num | types.NaN | types.Inf},
+		{[]string{"%="}, types.Num, types.Num},
+		{[]string{".=", "&.=", "|.=", "^.="}, types.Str, types.Str},
+		{[]string{"x="}, types.Int, types.Str},
+		{[]string{"&=", "|=", "^=", "<<=", ">>="}, types.Int, types.Int},
+		{[]string{"&&=", "||=", "//="}, types.Scalar, types.Scalar},
+		{[]string{"^^="}, types.Scalar, types.Boolean},
+	} {
+		for _, op := range c.ops {
+			want[[2]string{"infix", op}] = []operatorDecl{{name: op, fixity: "infix", class: "ASSIGN",
+				sig: types.Signature{Params: []types.Param{aliased, param("y", c.right)}, Returns: c.result}}}
+		}
+	}
+	for key, w := range want {
+		if got := coreCandidates(t, key[0], key[1]); !reflect.DeepEqual(got, w) {
+			t.Errorf("%s %s:\n got %+v\nwant %+v", key[0], key[1], got, w)
+		}
+	}
+	for _, op := range undeclaredOperators {
+		if _, ok := want[[2]string{op.fixity, op.name}]; ok {
+			t.Errorf("undeclaredOperators still places %s %s", op.fixity, op.name)
+		}
+	}
+}
+
+// TestCoreDeclaresComma: `,` is perlop's `left , =>` row, between `=` and
+// a rightward list operator, and forks on context (perigrin, 2026-10-08).
+// Measured on 5.42.0: in list context it appends, `(@a, 3)` with `@a =
+// (1, 2)` being 3 elements and `(1, (2, 3))` 3; in scalar context it
+// evaluates its left and gives its right, `my $x = (4, 5)` being 5 with a
+// "Useless use of a constant" warning. `=>` is the same operator, `(4 =>
+// 5)` being 5 too, but reads its left operand as a word
+// (TestFatCommaAutoquotes).
+func TestCoreDeclaresComma(t *testing.T) {
+	param := func(n string, sigil byte, ty types.Type, required bool) types.Param {
+		return types.Param{Name: n, Sigil: sigil, Type: ty, Required: required}
+	}
+	lhs := types.Param{Name: "lhs", Sigil: '$', Type: types.Str, Required: true, Bareword: true}
+	want := map[string][]operatorDecl{
+		",": {
+			{name: ",", fixity: "infix", multi: true, looser: []string{"="}, assoc: "left", sig: types.Signature{
+				Params: []types.Param{param("l", '@', types.List, false), param("r", '@', types.List, false)}, Returns: types.List}},
+			{name: ",", fixity: "infix", multi: true, sig: types.Signature{
+				Params: []types.Param{param("l", '$', types.Scalar, true), param("r", '$', types.Scalar, true)}, Returns: types.Scalar}},
+		},
+		"=>": {
+			{name: "=>", fixity: "infix", multi: true, equiv: []string{","}, sig: types.Signature{
+				Params: []types.Param{lhs, param("rhs", '@', types.List, false)}, Returns: types.List}},
+			{name: "=>", fixity: "infix", multi: true, equiv: []string{","}, sig: types.Signature{
+				Params: []types.Param{lhs, param("rhs", '$', types.Scalar, true)}, Returns: types.Scalar}},
+		},
+	}
+	for sym, w := range want {
+		if got := coreCandidates(t, "infix", sym); !reflect.DeepEqual(got, w) {
+			t.Errorf("%s:\n got %+v\nwant %+v", sym, got, w)
+		}
+	}
+}
+
+// TestFatCommaAutoquotes: `=>` reads the bareword to its left as a word,
+// because CORE.pmt's `=>` takes `Str $lhs :bareword` -- a parser hint that
+// the operand is a word and not an expression, its type saying what the
+// word becomes. Measured on 5.42.0 under strict, with `sub foo { "CALLED"
+// }`: `(foo => 1)` gives "foo" where `(foo, 1)` gives "CALLED", `(time =>
+// 1)` "time", `(s => 1)` "s", and `(nosuch => 1)` "nosuch" where `(nosuch,
+// 1)` is "Bareword not allowed while strict subs". The lexer quotes
+// through the operators it is given, and a parse gives it CORE.pmt's.
+func TestFatCommaAutoquotes(t *testing.T) {
+	for _, sym := range []string{"=>", ","} {
+		for _, op := range coreCandidates(t, "infix", sym) {
+			if got := op.sig.Params[0].Bareword; got != (sym == "=>") {
+				t.Errorf("%s's left operand :bareword is %v", sym, got)
+			}
+		}
+	}
+	if got := coreBarewordOperators(); !slices.Equal(got, []string{"=>"}) {
+		t.Errorf("CORE.pmt's :bareword operators are %v, want [=>]", got)
+	}
+
+	// The lexer reads `s` as a word before an operator it is told reads
+	// one, and as a substitution before any other; `-e` likewise as a
+	// word or as a file test.
+	tokenAt := func(src string, ops []string, at string) string {
+		i := strings.Index(src, at)
+		for _, tok := range lexer.TokenizeBarewords([]byte(src), ops) {
+			if tok.Start == i {
+				return fmt.Sprintf("%v %q", tok.Kind, src[tok.Start:tok.End])
+			}
+		}
+		return "none"
+	}
+	for _, c := range []struct {
+		src, at string
+		ops     []string
+		want    string
+	}{
+		{"my %h = (s => 1);", "s", []string{"=>"}, `Word "s"`},
+		{"my %h = (s => 1);", "s", nil, `UnknownRest "s => 1);"`},
+		{"my %h = (-e => 1);", "-e", []string{"=>"}, `Operator "-"`},
+		{"my %h = (-e => 1);", "-e", nil, `Operator "-e"`},
+	} {
+		if got := tokenAt(c.src, c.ops, c.at); got != c.want {
+			t.Errorf("%q with :bareword operators %v: %s is %s, want %s", c.src, c.ops, c.at, got, c.want)
+		}
+	}
+
+	// A parse reads with CORE.pmt's: the word before `=>` is quoted, a
+	// declared sub's name and a builtin's alike, and the one before `,` is
+	// a call.
+	root := Parse([]byte("sub foo { 'CALLED' } my @a = (foo => 1, time => 2, s => 3, nosuch => 4, foo, 5);"))
+	var words []string
+	var walk func(n *Node)
+	walk = func(n *Node) {
+		if n.Kind == Call && n.Fat {
+			words = append(words, n.Text)
+		}
+		for _, c := range n.Children {
+			walk(c)
+		}
+	}
+	walk(root)
+	if want := []string{"foo", "time", "s", "nosuch"}; !slices.Equal(words, want) {
+		t.Errorf("quoted words %v, want %v", words, want)
+	}
+}
+
+// TestLexerBarewordOperatorsAreCores: the operators the lexer reads a word
+// before when no CORE.pmt has been read -- CORE.pmt's own read, and a
+// caller of lexer.Tokenize -- are CORE.pmt's `:bareword` ones.
+func TestLexerBarewordOperatorsAreCores(t *testing.T) {
+	if !slices.Equal(lexer.BarewordOperators, coreBarewordOperators()) {
+		t.Errorf("lexer.BarewordOperators is %v, CORE.pmt's %v", lexer.BarewordOperators, coreBarewordOperators())
 	}
 }

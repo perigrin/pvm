@@ -487,6 +487,26 @@ filled, since the `@` takes every argument. A declaration with
 anything after a `List` parameter is an error, which points to
 `Array \@a` for a single array followed by more parameters (`\@$`).
 
+The rule is there for list flattening, so the operators whose comma
+does the flattening are its exceptions (perigrin, 2026-10-08): `,`,
+`=>` (its quoting form) and `x`. "There is absolutely no way to
+distinguish `(@a, @b)` from `(@a)` in Perl": the comma is the
+flattening, so the rule about flattened arguments does not bind it.
+Measured on 5.42, `(@a, 3)` with `@a = (1, 2)` is 3 elements, the left
+operand flattening too; `(1, (2, 3))` is 3 elements; and `my $x = (4,
+5)` is 5, with a "Useless use of a constant" warning. So `,` is
+
+```perl
+multi sub , :infix :looser(=) :assoc(left) (List @l, List @r) List;   # list context: append
+multi sub , :infix (Scalar $l, Scalar $r) Scalar;                     # scalar context: the right
+```
+
+`x` is one for the same reason: its list candidate's left operand is a
+parenthesised list its comma flattens (see "Operator declarations").
+The exceptions are named, not operators in general: any other operator,
+and every sub, with a non-final `List` parameter is a declaration error
+(TestCommaIsTheFinalListException).
+
 ### The scalar container (*Implemented*, 1a6f3e93, 7a0ea048, 3c6a73bb, e6fba74e, 352d0eca)
 
 perigrin, 2026-10-02: a parameter that aliases the caller's container
@@ -613,8 +633,9 @@ multi sub x :infix(MUL) (Str $s, Int $n) Str;     # EXPR x N
   taking it as a scalar; without that, `Str <: List` would make the
   `Str` candidate the most specific. Context comes first: in scalar
   context the `Str` candidate's return answers it, so `my $x = (1,2) x
-  2` is the `Str` one's. An operator's `@` parameter is one
-  operand, so it may come before another.
+  2` is the `Str` one's. The `@` parameter comes before another:
+  `x` is one of the operators the final-List rule names as exceptions
+  (see "A typed signature and a prototype say the same thing").
 - `=~` forks on context: in list context a match is its captures and
   `s///g` its count; in scalar context a match is a boolean, `s///` and
   `tr///` a count, and `s///r` and `tr///r` the new string.
@@ -626,6 +647,30 @@ apply. Measured on 5.42, `qw(a b) x 2` is `a b a b`, a `qw` list shaped
 as a parenthesised one; and to `\` a sub call is a list too, `my @r =
 \f()` being a reference to each value `f` returns, where `f() x 2`
 repeats a string.
+
+**`:bareword`** is a parameter attribute, and the only one a `.pmt`
+parameter takes (perigrin, 2026-10-08). It is a parser hint, not a type
+coercion: the operand is read as a word, not an expression, and the
+parameter's type says what the word becomes. `=>` is the comma whose
+left operand is one:
+
+```perl
+multi sub => :infix :equiv(,) (Str $lhs :bareword, List @rhs) List;
+multi sub => :infix :equiv(,) (Str $lhs :bareword, Scalar $rhs) Scalar;
+```
+
+The type alone does not do it, because the quoting decides what the
+operand is before any type applies. Measured on 5.42 under `use
+strict`, with `sub foo { "CALLED" }`: `(foo => 1)` gives "foo" where
+`(foo, 1)` gives "CALLED"; `(time => 1)` gives "time" where `(time, 1)`
+gives the time; and `(nosuch => 1)` gives "nosuch" where `(nosuch, 1)`
+is "Bareword not allowed while strict subs". The lexer reads which
+operators have a `:bareword` left operand from `CORE.pmt`: a program
+is lexed with them, so `s => 1` is the word `s` and not a substitution
+and `-e => 1` the word `-e` and not a file test, and `CORE.pmt` itself
+is lexed with the lexer's own list, which a test holds to `CORE.pmt`'s
+(TestFatCommaAutoquotes, TestLexerBarewordOperatorsAreCores). Elsewhere
+the parser treats `=>` as the comma it is `:equiv` to.
 
 ### Precedence is a relation between operators (*Decided*)
 

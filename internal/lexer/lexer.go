@@ -207,7 +207,20 @@ type Token struct {
 // constantly and a lexer that gives up on the first bad byte is useless to
 // it. Spec §7.6.2 invariant 1: never panic, on any input.
 func Tokenize(src []byte) []Token {
-	return tokenize(&lexer{src: src, expect: XState})
+	return TokenizeBarewords(src, BarewordOperators)
+}
+
+// BarewordOperators are the operators whose left operand Tokenize and
+// TokenizeTyped read as a word: CORE.pmt's `:bareword` ones, which a
+// caller that has read CORE.pmt passes to TokenizeBarewords. These are
+// what CORE.pmt's own read is lexed with, and parse's
+// TestLexerBarewordOperatorsAreCores holds them to CORE.pmt's.
+var BarewordOperators = []string{"=>"}
+
+// TokenizeBarewords is Tokenize with the operators whose left operand is
+// read as a word, `s => 1` quoting `s` rather than opening a substitution.
+func TokenizeBarewords(src []byte, barewordOps []string) []Token {
+	return tokenize(&lexer{src: src, expect: XState, barewordOps: barewordOps})
 }
 
 // TokenizeTyped is Tokenize for typed Perl, the language of a `.pmt`
@@ -219,7 +232,7 @@ func Tokenize(src []byte) []Token {
 // An operator is declared under its symbol, `sub + :infix(ADD) ...`, so the
 // symbol after `sub` is read as the sub's name; see scanOperatorName.
 func TokenizeTyped(src []byte) []Token {
-	return tokenize(&lexer{src: src, expect: XState, signatures: true, typed: true})
+	return tokenize(&lexer{src: src, expect: XState, signatures: true, typed: true, barewordOps: BarewordOperators})
 }
 
 func tokenize(l *lexer) []Token {
@@ -235,6 +248,8 @@ type lexer struct {
 	src  []byte
 	pos  int
 	toks []Token
+	// barewordOps are the operators whose left operand is read as a word.
+	barewordOps []string
 	// expect is the term-vs-operator state. A file starts at a statement
 	// boundary, which is where POD and labels are recognised.
 	expect Expect

@@ -983,8 +983,7 @@ func scanFileTest(l *lexer) bool {
 		return false
 	}
 	// `-e => 1` autoquotes the whole thing as a string key.
-	if sep := skipSpaceFrom(l.src, after); sep+1 < len(l.src) &&
-		l.src[sep] == '=' && l.src[sep+1] == '>' {
+	if l.barewordOpFollows(after) {
 		return false
 	}
 	start := l.pos
@@ -1040,14 +1039,22 @@ var operators = []string{
 // operators table.
 var bitwiseStringOps = []string{"&.=", "|.=", "^.=", "&.", "|.", "^.", "~."}
 
+// positionalOps are the operators the operators table leaves out because
+// what they lex as depends on position: `~~` is two `~` in term position
+// (see scanOperator), and `x=` is the word `x` and a `=` there (see
+// takeRepeatAssign). A declaration's name is always the operator.
+var positionalOps = []string{"~~", "x="}
+
 // scanOperatorName lexes the symbol a typed-Perl operator declaration is
 // named by, `sub + :infix(ADD) (Num $x, Num $y) Num;` (RFC 0001, "Operator
 // declarations"), as the Word a sub's name is. Only in a `.pmt`: in perl,
 // measured on 5.42.0, `sub + { 1 }` is "Illegal declaration of anonymous
-// subroutine". A bracket, comma or colon after `sub` still opens a
-// signature, a body or an attribute. A library's operator may be one
-// non-ASCII symbol, `sub ⊕ :infix ...`, as an operator plugin may register
-// one; see symbolRune.
+// subroutine". A bracket after `sub` still opens a signature or a body,
+// and a colon an attribute. A comma is the comma operator's name: perl has
+// no `sub ,`, measured on 5.42.0, `(sub, 1)` being "Illegal declaration of
+// anonymous subroutine". A library's operator may be one non-ASCII symbol,
+// `sub ⊕ :infix ...`, as an operator plugin may register one; see
+// symbolRune.
 func scanOperatorName(l *lexer) bool {
 	if !l.typed || !l.sawSubWord {
 		return false
@@ -1058,12 +1065,12 @@ func scanOperatorName(l *lexer) bool {
 		l.emit(Word, start)
 		return true
 	}
-	for _, ops := range [][]string{bitwiseStringOps, operators} {
+	for _, ops := range [][]string{positionalOps, bitwiseStringOps, operators} {
 		for _, op := range ops {
 			if !strings.HasPrefix(string(l.src[l.pos:min(l.pos+len(op), len(l.src))]), op) {
 				continue
 			}
-			if strings.ContainsAny(op, "()[]{},:") {
+			if strings.ContainsAny(op, "()[]{}:") {
 				return false
 			}
 			start := l.pos

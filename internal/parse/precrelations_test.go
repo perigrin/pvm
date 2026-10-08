@@ -3,6 +3,7 @@
 package parse
 
 import (
+	"os"
 	"reflect"
 	"slices"
 	"strings"
@@ -143,9 +144,8 @@ var perlopShapeRows = map[string]int{"term": 0, "unary": 9, "listop": 21}
 // one row, with that row's associativity, and the levels run down the
 // table, each in a lower row than the last. The comparison is over what
 // CORE.pmt declares. perlop names operators CORE.pmt does not yet declare
-// -- `->`, `~.`, `~~`, `&.`, `|.`, `^.`, `^^`, `?:`, the compound
-// assignments, `,` and `=>`, and last, next and redo, which are statement
-// forms here -- and those have no place in the comparison until it does. Every operator CORE.pmt declares must be in perlop's table.
+// -- `->` and `?:`, and last, next and redo, which are statement forms
+// here -- and those have no place in the comparison until it does. Every operator CORE.pmt declares must be in perlop's table.
 func TestCoreDerivedPrecedenceIsPerlops(t *testing.T) {
 	rowOf := map[string]int{}
 	for i, row := range perlopTable {
@@ -219,8 +219,7 @@ func levelOf(order []precLevel, op string) int {
 // < 2`, `ref $x < 2`, `chdir $x < 2` and `sleep $x < 2` are `(op($x) <
 // 2)`, a named unary between `<<`/`>>` and `isa`; `print STDOUT $x < 2,
 // 3` is `print(STDOUT ($x < 2), 3)`, a list operator, which perlop puts
-// below `,` -- CORE.pmt declares no `,` yet, so it is held below `=` and
-// above `not`, its declared neighbours; `time ** 2` is `(time ** 2)`, a
+// between `,` and `not`; `time ** 2` is `(time ** 2)`, a
 // term. `not $x < 2` is `not(($x < 2))`: `not` is a prefix operator
 // between `..` and `and`, though CORE.pmt also has it as a builtin. `goto
 // $x = 1` is `goto ($x = 1)` and `CORE::dump $x = 1` `CORE::dump ($x =
@@ -251,7 +250,7 @@ func TestCoreShapeLevels(t *testing.T) {
 		t.Errorf("not has a named unary's level beside its prefix operator's")
 	}
 	for _, op := range []string{"listop print", "listop join", "listop split", "listop grep"} {
-		between(op, "=", "prefix not")
+		between(op, ",", "prefix not")
 		if at(op) != at("listop print") {
 			t.Errorf("%s is not in print's level", op)
 		}
@@ -360,4 +359,95 @@ func parserOrder(t *testing.T) []precLevel {
 		t.Fatal(err)
 	}
 	return order
+}
+
+// TestUndeclaredOperatorsAreOnlyTernaryArrowAndSubscripts: every operator
+// perlop's table names but `?:` and `->` has a CORE.pmt line, so the
+// parser places by relations kept in Go only those two, which
+// 01a11923-baeb declares, and the postfix call and subscripts, which
+// perlop's table has no row for. The compound assignments are CORE.pmt
+// lines, and no Go function lists them.
+func TestUndeclaredOperatorsAreOnlyTernaryArrowAndSubscripts(t *testing.T) {
+	var got []string
+	for _, op := range undeclaredOperators {
+		got = append(got, op.name)
+	}
+	if want := []string{"?", "->", "(", "[", "{"}; !slices.Equal(got, want) {
+		t.Errorf("undeclaredOperators places %v, want %v", got, want)
+	}
+	src, err := os.ReadFile("operators.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(src), "func compoundAssignments(") {
+		t.Errorf("operators.go still lists the compound assignments in compoundAssignments")
+	}
+}
+
+// perlopNamed are the operators perlop's table lists by name that are not
+// infix: goto and dump state their level on their lines, and last, next
+// and redo are statement forms here.
+var perlopNamed = map[string]bool{"goto": true, "last": true, "next": true, "redo": true, "dump": true}
+
+// TestCoreDeclaresEveryPerlopInfixOperator: each infix operator perlop's
+// table lists, and prefix `~.`, has a CORE.pmt line, but `?:` and `->`,
+// which 01a11923-baeb declares (undeclaredOperators places them until
+// then).
+func TestCoreDeclaresEveryPerlopInfixOperator(t *testing.T) {
+	declared := map[string]bool{}
+	for _, op := range coreOperators(t) {
+		declared[op.fixity+" "+op.name] = true
+	}
+	for _, row := range perlopTable {
+		for _, op := range row.ops {
+			if strings.Contains(op, " ") || perlopNamed[op] || op == "?" || op == "->" {
+				continue
+			}
+			if !declared["infix "+op] {
+				t.Errorf("perlop's infix %s has no CORE.pmt line", op)
+			}
+		}
+	}
+	if !declared["prefix ~."] {
+		t.Errorf("perlop's prefix ~. has no CORE.pmt line")
+	}
+}
+
+// operatorsPerlopLacks is the operators of ops perlop's table does not
+// list, an infix one by its symbol and a prefix or postfix one by its
+// fixity and symbol, as perlopTable spells them.
+func operatorsPerlopLacks(ops []operatorDecl) []string {
+	listed := map[string]bool{}
+	for _, row := range perlopTable {
+		for _, op := range row.ops {
+			listed[op] = true
+		}
+	}
+	var out []string
+	for _, op := range ops {
+		label := op.name
+		if op.fixity != "infix" {
+			label = op.fixity + " " + op.name
+		}
+		if !listed[label] && !slices.Contains(out, label) {
+			out = append(out, label)
+		}
+	}
+	return out
+}
+
+// TestCoreDeclaresNoUnknownOperator: CORE.pmt declares perl's operators,
+// so each it declares is in perlop's table. A CORE.pmt declaring one perl
+// does not have, an infix `!`, is caught.
+func TestCoreDeclaresNoUnknownOperator(t *testing.T) {
+	if got := operatorsPerlopLacks(coreOperators(t)); len(got) > 0 {
+		t.Errorf("CORE.pmt declares %v, which perlop's table does not list", got)
+	}
+	fixture := readDeclaration([]byte("sub ! :infix (Any $x, Any $y) Any;\nsub + :infix(ADD) (Num $x, Num $y) Num;\n"), nil)
+	if len(fixture.errs) > 0 {
+		t.Fatalf("fixture: %v", fixture.errs)
+	}
+	if got := operatorsPerlopLacks(fixture.operators); !slices.Equal(got, []string{"!"}) {
+		t.Errorf("fixture: perlop lacks %v, want [!]", got)
+	}
 }

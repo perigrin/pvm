@@ -290,6 +290,13 @@ func CoreOperator(op, fixity string) []types.Signature {
 	return coreOps[[2]string{op, fixity}]
 }
 
+// coreBarewordOperators is the infix operators CORE.pmt declares whose
+// left operand is `:bareword`, read as a word: `=>`.
+func coreBarewordOperators() []string {
+	readCore()
+	return coreBareword
+}
+
 // coreShapes is perl's builtins by name, each to the shape a call to it
 // parses in: named unary, list operator or niladic (deriveShapes).
 func coreShapes() map[string]Shape {
@@ -333,6 +340,12 @@ func readCore() {
 			panic("parse: declarations/CORE.pmt: " + err.Error())
 		}
 		coreShp = deriveShapes(coreMap, coreSigs)
+		for key, sigs := range coreOps {
+			if key[1] == "infix" && slices.ContainsFunc(sigs, func(s types.Signature) bool { return s.Params[0].Bareword }) {
+				coreBareword = append(coreBareword, key[0])
+			}
+		}
+		slices.Sort(coreBareword)
 	})
 }
 
@@ -382,4 +395,7 @@ var (
 	coreSigs map[string][]types.Signature
 	coreOps  map[[2]string][]types.Signature
 	coreShp  map[string]Shape
+	// coreBareword is the infix operators whose left operand CORE.pmt
+	// declares `:bareword`.
+	coreBareword []string
 )

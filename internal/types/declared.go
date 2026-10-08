@@ -75,6 +75,12 @@ type Param struct {
 	// \(@args)`: it aliases each argument, and takes the rest of the call
 	// as an unbackslashed List parameter does.
 	AliasEach bool
+
+	// Bareword is whether the parameter is `:bareword`, a parser hint: the
+	// operand is read as a word, not an expression, and its Type says what
+	// the word becomes. `=>`'s left operand is one, `foo => 1` passing
+	// "foo" (RFC 0001, "Operator declarations").
+	Bareword bool
 }
 
 // Variable is the parameter's variable as a declaration writes it, with

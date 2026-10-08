@@ -350,12 +350,11 @@ func precedenceOrder(ops []operatorDecl) ([]precLevel, error) {
 
 // shapeRelations places each shape's level, perly.y's own rows for the
 // named operators: a named unary (UNIOP) between `<<` and `isa`, a list
-// operator (LSTOP) below `=` -- perlop's `,` lies between, and is not yet
-// declared -- and above `not`, and a term tighter than `++`.
+// operator (LSTOP) below `,` and above `not`, and a term tighter than `++`.
 var shapeRelations = map[Shape]operatorDecl{
 	ShapeUnary:   {fixity: "unary", tighter: []string{"isa"}, looser: []string{"<<"}, assoc: "nonassoc"},
-	ShapeList:    {fixity: "listop", tighter: []string{"not"}, looser: []string{"="}, assoc: "nonassoc"},
-	ShapeBlock:   {fixity: "listop", tighter: []string{"not"}, looser: []string{"="}, assoc: "nonassoc"},
+	ShapeList:    {fixity: "listop", tighter: []string{"not"}, looser: []string{","}, assoc: "nonassoc"},
+	ShapeBlock:   {fixity: "listop", tighter: []string{"not"}, looser: []string{","}, assoc: "nonassoc"},
 	ShapeNiladic: {fixity: "term", tighter: []string{"++"}, assoc: "left"},
 }
 
@@ -398,22 +397,7 @@ func precedenceDeclsOf(facts moduleFacts, shapes map[string]Shape) []operatorDec
 // undeclaredOperators places, by relations as their CORE.pmt lines will,
 // the operators the parser reads that CORE.pmt has no line for yet. Each
 // group names the issue that declares it, and leaves this list when it does.
-var undeclaredOperators = slices.Concat([]operatorDecl{
-	// 01a118fe-8e5f, perlop's remaining infix operators. `^^` is 5.40's
-	// logical xor, sharing `||`'s level (toke.c:6441); the string-bitwise
-	// operators share their numeric forms' levels; `~~` is a non-chaining
-	// equality operator (cmpClasses).
-	{name: "^^", fixity: "infix", equiv: []string{"||"}},
-	{name: "&.", fixity: "infix", equiv: []string{"&"}},
-	{name: "|.", fixity: "infix", equiv: []string{"|"}},
-	{name: "^.", fixity: "infix", equiv: []string{"|"}},
-	{name: "~.", fixity: "prefix", equiv: []string{"~"}},
-	{name: "~~", fixity: "infix", equiv: []string{"=="}},
-	// `,` lies between a rightward list operator, which swallows it, and
-	// `=`; `=>` is a comma that autoquotes its left bareword.
-	{name: ",", fixity: "infix", tighter: []string{"print"}, looser: []string{"="}, assoc: "left"},
-	{name: "=>", fixity: "infix", equiv: []string{","}},
-
+var undeclaredOperators = []operatorDecl{
 	// 01a11923-baeb, `?:` and `->`. The ternary is right associative,
 	// measured:
 	//   perl -MO=Deparse -e 'my $x = $a ? $b : $c ? $d : $e;'
@@ -428,18 +412,6 @@ var undeclaredOperators = slices.Concat([]operatorDecl{
 	{name: "(", fixity: "postfix", tighter: []string{"->"}, assoc: "left"},
 	{name: "[", fixity: "postfix", tighter: []string{"("}, looser: []string{"time"}, assoc: "left"},
 	{name: "{", fixity: "postfix", equiv: []string{"["}},
-}, compoundAssignments())
-
-// compoundAssignments are the operators `=` and an infix operator spell
-// together, each in `=`'s level: they and `=` are one token class,
-// toke.c:250. Declaring them is 01a118fe-8e5f's too.
-func compoundAssignments() []operatorDecl {
-	var out []operatorDecl
-	for _, op := range []string{"+=", "-=", "*=", "/=", ".=", "%=", "**=", "x=", "||=", "&&=", "//=",
-		"|=", "&=", "^=", "<<=", ">>=", "|.=", "&.=", "^.=", "^^="} {
-		out = append(out, operatorDecl{name: op, fixity: "infix", equiv: []string{"="}})
-	}
-	return out
 }
 
 // bindingPowers are the powers the Pratt parser binds with: the infix and

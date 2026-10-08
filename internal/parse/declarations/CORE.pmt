@@ -996,6 +996,11 @@ sub le :infix(RELATION) (Str $x, Str $y) Boolean;
 sub ge :infix(RELATION) (Str $x, Str $y) Boolean;
 sub cmp :infix(ORDERING) (Str $x, Str $y) Int;
 
+# Smartmatch, a non-chaining equality operator (cmpClasses), gives perl's
+# boolean, measured on 5.42: `1 ~~ 1` is true and warns nothing. `use v5.42`
+# turns the smartmatch feature off, and `1 ~~ 1` is then a syntax error.
+sub ~~ :infix(EQUALITY) (Any $x, Any $y) Boolean;
+
 # Logical
 sub && :infix(LOGICAL_AND) :tighter(||) :assoc(left) (Any $x, Any $y) Any;
 sub || :infix(LOGICAL_OR) :tighter(..) :assoc(left) (Any $x, Any $y) Any;
@@ -1004,6 +1009,9 @@ sub and :infix(LOGICAL_AND_LOW) :tighter(or) :assoc(left) (Any $x, Any $y) Any;
 sub or :infix(LOGICAL_OR_LOW) :assoc(left) (Any $x, Any $y) Any;
 # xor is not a level of its own: toke.c:9224 lexes it as or's OROP.
 sub xor :infix(LOGICAL_OR_LOW) (Any $x, Any $y) Boolean;
+# `^^` is 5.40's logical xor, in `||`'s level (toke.c:6441), and gives
+# perl's boolean, true or false, measured on 5.42.
+sub ^^ :infix(LOGICAL_OR) (Any $x, Any $y) Boolean;
 
 # Bitwise
 sub & :infix :tighter(|) :assoc(left) (Int $x, Int $y) Int;
@@ -1011,6 +1019,12 @@ sub | :infix :tighter(&&) :assoc(left) (Int $x, Int $y) Int;
 sub ^ :infix :equiv(|) (Int $x, Int $y) Int;
 sub << :infix :tighter(isa) :assoc(left) (Int $x, Int $y) Int;
 sub >> :infix :equiv(<<) (Int $x, Int $y) Int;
+# String bitwise, under `use feature 'bitwise'`, in the numeric forms'
+# levels: the operands are strings and so is the result, measured on 5.42,
+# `3 &. 5` being "1". Without the feature `&.` is a syntax error.
+sub &. :infix :equiv(&) (Str $x, Str $y) Str;
+sub |. :infix :equiv(|) (Str $x, Str $y) Str;
+sub ^. :infix :equiv(|) (Str $x, Str $y) Str;
 
 # Type test
 sub isa :infix(ISA) :tighter(<) :assoc(nonassoc) (Scalar $x, Str $y) Boolean;
@@ -1032,6 +1046,53 @@ multi sub ... :infix (Any $x, Any $y) Str;
 
 # Assignment
 sub = :infix(ASSIGN) :tighter(not) :assoc(right) (Any $x, Any $y) Any;
+# Compound assignment, `=` and an infix operator spelled together, in `=`'s
+# level: they and `=` are one token class, toke.c:250. The left operand is
+# an aliased scalar: perl refuses `1 += 2`, "Can't modify constant item in
+# addition (+)", and `@a x= 3`, "Can't modify private array in repeat (x)".
+# The result is that scalar, `\($x += 1)` aliasing $x, holding what the
+# operator gives, measured on 5.42. The logical ones take their right
+# operand in scalar context, `$x ||= (4, 5)` assigning 5, and `^^=` gives
+# perl's boolean.
+sub += :infix(ASSIGN) (Scalar \$x, Num $y) Num|Inf;
+sub -= :infix(ASSIGN) (Scalar \$x, Num $y) Num|Inf;
+sub *= :infix(ASSIGN) (Scalar \$x, Num $y) Num|Inf;
+sub /= :infix(ASSIGN) (Scalar \$x, Num $y) Num|Inf;
+sub **= :infix(ASSIGN) (Scalar \$x, Num $y) Num|NaN|Inf;
+sub %= :infix(ASSIGN) (Scalar \$x, Num $y) Num;
+sub .= :infix(ASSIGN) (Scalar \$x, Str $y) Str;
+sub x= :infix(ASSIGN) (Scalar \$x, Int $y) Str;
+sub &= :infix(ASSIGN) (Scalar \$x, Int $y) Int;
+sub |= :infix(ASSIGN) (Scalar \$x, Int $y) Int;
+sub ^= :infix(ASSIGN) (Scalar \$x, Int $y) Int;
+sub <<= :infix(ASSIGN) (Scalar \$x, Int $y) Int;
+sub >>= :infix(ASSIGN) (Scalar \$x, Int $y) Int;
+sub &.= :infix(ASSIGN) (Scalar \$x, Str $y) Str;
+sub |.= :infix(ASSIGN) (Scalar \$x, Str $y) Str;
+sub ^.= :infix(ASSIGN) (Scalar \$x, Str $y) Str;
+sub &&= :infix(ASSIGN) (Scalar \$x, Scalar $y) Scalar;
+sub ||= :infix(ASSIGN) (Scalar \$x, Scalar $y) Scalar;
+sub //= :infix(ASSIGN) (Scalar \$x, Scalar $y) Scalar;
+sub ^^= :infix(ASSIGN) (Scalar \$x, Scalar $y) Boolean;
+
+# The comma, between `=` and a rightward list operator, which swallows it.
+# It is the flattening, so it is an exception to the final-List rule
+# (perigrin, 2026-10-08): in list context it appends, `(@a, 3)` with
+# `@a = (1, 2)` being 3 elements and `(1, (2, 3))` 3; in scalar context it
+# evaluates its left and gives its right, `my $x = (4, 5)` being 5 with a
+# "Useless use of a constant" warning, measured on 5.42.
+multi sub , :infix :looser(=) :assoc(left) (List @l, List @r) List;
+multi sub , :infix (Scalar $l, Scalar $r) Scalar;
+# `=>` is the comma that reads the bareword to its left as a word: its
+# `:bareword` operand is a parser hint, the operand read as a word and not
+# an expression, and its type, Str, is what the word becomes. The lexer
+# reads which operators have one from here. Measured on 5.42 under strict,
+# with `sub foo { "CALLED" }`: `(foo => 1)` gives "foo" where `(foo, 1)`
+# gives "CALLED", `(time => 1)` gives "time" where `(time, 1)` gives the
+# time, and `(nosuch => 1)` gives "nosuch" where `(nosuch, 1)` is "Bareword
+# not allowed while strict subs".
+multi sub => :infix :equiv(,) (Str $lhs :bareword, List @rhs) List;
+multi sub => :infix :equiv(,) (Str $lhs :bareword, Scalar $rhs) Scalar;
 
 # Unary. Minus and plus are perly.y's UMINUS.
 sub - :prefix :equiv(!) (Num $x) Num;
@@ -1041,6 +1102,9 @@ sub ! :prefix :tighter(=~) :assoc(right) (Any $x) Boolean;
 # not takes a listexpr: it swallows commas.
 sub not :prefix :tighter(and) :assoc(right) (Any $x) Boolean;
 sub ~ :prefix :equiv(!) (Int $x) Int;
+# String complement, under `use feature 'bitwise'`: `~."ab"` is a string
+# of two characters, measured on 5.42.
+sub ~. :prefix :equiv(!) (Str $x) Str;
 # `\` is REFGEN, the srefgen the fidelity harness measures: a reference to
 # each element of a parenthesised list in list context,
 # `\(1,2,3)`; otherwise one reference.
