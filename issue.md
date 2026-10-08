@@ -1,10 +1,19 @@
 ---
 title: isa may have its own precedence level in perl, above the relational operators
-state: pending
+state: in-progress
 urgency: normal
 milestone: v0.1
 created: 2026-10-06T04:34:49.185358746Z
-updated: 2026-10-08T00:52:02.918115473Z
+updated: 2026-10-08T09:58:01.48381321Z
+sessions:
+- start_sha: 5f2311c758d827fdcb132ebd657a21508edaa80a
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-08T09:58:01.48381321Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-08T09:58:01.48381321Z
 ---
 
 ## Context
