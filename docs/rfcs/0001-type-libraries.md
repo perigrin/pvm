@@ -651,13 +651,19 @@ repeats a string.
 **`:bareword`** is a parameter attribute, and the only one a `.pmt`
 parameter takes (perigrin, 2026-10-08). It is a parser hint, not a type
 coercion: the operand is read as a word, not an expression, and the
-parameter's type says what the word becomes. `=>` is the comma whose
+parameter's type says what the operand becomes. `=>` is the comma whose
 left operand is one:
 
 ```perl
-multi sub => :infix :equiv(,) (Str $lhs :bareword, List @rhs) List;
-multi sub => :infix :equiv(,) (Str $lhs :bareword, Scalar $rhs) Scalar;
+multi sub => :infix :equiv(,) (List @lhs :bareword, List @rhs) List;
+multi sub => :infix :equiv(,) (Scalar $lhs :bareword, Scalar $rhs) Scalar;
 ```
+
+The hint applies only when a word is there. Any other left operand is
+read as `,`'s is, so the type covers both (perigrin, 2026-10-08): a word
+becomes a Str, which List admits, and `(@a => 3)` with `@a = (1, 2)` is
+3 elements, measured on 5.42. A multi could not tell the two apart, since
+whether a word is there is a fact of the parse, not of a type.
 
 The type alone does not do it, because the quoting decides what the
 operand is before any type applies. Measured on 5.42 under `use

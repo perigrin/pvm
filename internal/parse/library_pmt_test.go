@@ -141,15 +141,15 @@ func TestLibraryPmtListop(t *testing.T) {
 	}
 }
 
-// TestLibraryCoinedClassRefused: RFC 0001 "Fixity and precedence". Only
+// TestLibraryUnknownClassRefused: RFC 0001 "Fixity and precedence". Only
 // XS::Parse::Infix's classes are spellable in `:infix(CLASS)`; the levels
 // it classes no operator at are named by their operators. A library .pmt
 // naming a class XS::Parse::Infix does not have is in error, naming its
 // module, and records no operator.
-func TestLibraryCoinedClassRefused(t *testing.T) {
+func TestLibraryUnknownClassRefused(t *testing.T) {
 	saved := declarations
 	t.Cleanup(func() { declarations = saved })
-	for _, class := range []string{"BITAND", "BITOR", "SHIFT", "RANGE"} {
+	for _, class := range []string{"NOSUCH", "ADDITION"} {
 		src := "package Coined;\nsub op :infix(" + class + ") (Int $x, Int $y) Int;\n"
 		declarations = layeredFS{top: fstest.MapFS{"declarations/Coined.pmt": {Data: []byte(src)}}, base: saved}
 		root := ParseWithLoader([]byte("use Coined;\n"), func(string) ([]byte, bool) { return nil, false })

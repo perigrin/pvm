@@ -1085,14 +1085,16 @@ multi sub , :infix :looser(=) :assoc(left) (List @l, List @r) List;
 multi sub , :infix (Scalar $l, Scalar $r) Scalar;
 # `=>` is the comma that reads the bareword to its left as a word: its
 # `:bareword` operand is a parser hint, the operand read as a word and not
-# an expression, and its type, Str, is what the word becomes. The lexer
-# reads which operators have one from here. Measured on 5.42 under strict,
+# an expression, and its type says what it becomes: a word becomes a Str,
+# which List admits, and any other left operand is a list, `(@a => 3)` with
+# `@a = (1, 2)` being 3 elements (perigrin, 2026-10-08). The lexer reads
+# which operators have one from here. Measured on 5.42 under strict,
 # with `sub foo { "CALLED" }`: `(foo => 1)` gives "foo" where `(foo, 1)`
 # gives "CALLED", `(time => 1)` gives "time" where `(time, 1)` gives the
 # time, and `(nosuch => 1)` gives "nosuch" where `(nosuch, 1)` is "Bareword
 # not allowed while strict subs".
-multi sub => :infix :equiv(,) (Str $lhs :bareword, List @rhs) List;
-multi sub => :infix :equiv(,) (Str $lhs :bareword, Scalar $rhs) Scalar;
+multi sub => :infix :equiv(,) (List @lhs :bareword, List @rhs) List;
+multi sub => :infix :equiv(,) (Scalar $lhs :bareword, Scalar $rhs) Scalar;
 
 # Unary. Minus and plus are perly.y's UMINUS.
 sub - :prefix :equiv(!) (Num $x) Num;

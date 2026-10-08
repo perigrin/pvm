@@ -142,7 +142,7 @@ var xpiClasses = []string{"LOW", "LOGICAL_OR_LOW", "LOGICAL_AND_LOW", "ASSIGN", 
 // TestCoreClassesAreXPIs: `:infix(CLASS)` names only XS::Parse::Infix's
 // classes (RFC 0001, "Fixity and precedence"), so every class CORE.pmt
 // names is one, and the levels it classes no operator at are named by
-// their operators: no BITAND, BITOR, SHIFT or RANGE remains.
+// their operators, not by a class of pvm's own.
 func TestCoreClassesAreXPIs(t *testing.T) {
 	if got := slices.Sorted(maps.Keys(classAnchors)); !reflect.DeepEqual(got, slices.Sorted(slices.Values(xpiClasses))) {
 		t.Errorf("classAnchors are %v, want XS::Parse::Infix's %v", got, slices.Sorted(slices.Values(xpiClasses)))
@@ -150,12 +150,6 @@ func TestCoreClassesAreXPIs(t *testing.T) {
 	for _, op := range coreOperators(t) {
 		if op.class != "" && !slices.Contains(xpiClasses, op.class) {
 			t.Errorf("sub %s: class %s is not XS::Parse::Infix's", op.name, op.class)
-		}
-	}
-	src, _ := declaration("CORE")
-	for _, coined := range []string{"BITAND", "BITOR", "SHIFT", "RANGE"} {
-		if strings.Contains(string(src), ":infix("+coined+")") {
-			t.Errorf("CORE.pmt names the class %s", coined)
 		}
 	}
 }
@@ -253,7 +247,7 @@ func TestCoreOperatorTypesMatchMeasured(t *testing.T) {
 		"infix //=": bin(types.Scalar, types.Scalar, types.Scalar), "infix ^^=": bin(types.Scalar, types.Scalar, B),
 
 		"infix , (list)": bin(types.List, types.List, types.List), "infix ,": bin(types.Scalar, types.Scalar, types.Scalar),
-		"infix => (list)": bin(S, types.List, types.List), "infix =>": bin(S, types.Scalar, types.Scalar),
+		"infix => (list)": bin(types.List, types.List, types.List), "infix =>": bin(types.Scalar, types.Scalar, types.Scalar),
 	}
 	got := map[string]row{}
 	for _, op := range coreOperators(t) {
@@ -604,7 +598,10 @@ func TestCoreDeclaresComma(t *testing.T) {
 	param := func(n string, sigil byte, ty types.Type, required bool) types.Param {
 		return types.Param{Name: n, Sigil: sigil, Type: ty, Required: required}
 	}
-	lhs := types.Param{Name: "lhs", Sigil: '$', Type: types.Str, Required: true, Bareword: true}
+	// A bare word on `=>`'s left becomes a Str, which List admits; any
+	// other left operand is a list, `(@a => 3)` being 3 elements.
+	listLHS := types.Param{Name: "lhs", Sigil: '@', Type: types.List, Bareword: true}
+	scalarLHS := types.Param{Name: "lhs", Sigil: '$', Type: types.Scalar, Required: true, Bareword: true}
 	want := map[string][]operatorDecl{
 		",": {
 			{name: ",", fixity: "infix", multi: true, looser: []string{"="}, assoc: "left", sig: types.Signature{
@@ -614,9 +611,9 @@ func TestCoreDeclaresComma(t *testing.T) {
 		},
 		"=>": {
 			{name: "=>", fixity: "infix", multi: true, equiv: []string{","}, sig: types.Signature{
-				Params: []types.Param{lhs, param("rhs", '@', types.List, false)}, Returns: types.List}},
+				Params: []types.Param{listLHS, param("rhs", '@', types.List, false)}, Returns: types.List}},
 			{name: "=>", fixity: "infix", multi: true, equiv: []string{","}, sig: types.Signature{
-				Params: []types.Param{lhs, param("rhs", '$', types.Scalar, true)}, Returns: types.Scalar}},
+				Params: []types.Param{scalarLHS, param("rhs", '$', types.Scalar, true)}, Returns: types.Scalar}},
 		},
 	}
 	for sym, w := range want {
@@ -627,7 +624,7 @@ func TestCoreDeclaresComma(t *testing.T) {
 }
 
 // TestFatCommaAutoquotes: `=>` reads the bareword to its left as a word,
-// because CORE.pmt's `=>` takes `Str $lhs :bareword` -- a parser hint that
+// because CORE.pmt's `=>` takes `List @lhs :bareword` -- a parser hint that
 // the operand is a word and not an expression, its type saying what the
 // word becomes. Measured on 5.42.0 under strict, with `sub foo { "CALLED"
 // }`: `(foo => 1)` gives "foo" where `(foo, 1)` gives "CALLED", `(time =>
