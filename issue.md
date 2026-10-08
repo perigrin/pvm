@@ -1,12 +1,21 @@
 ---
 title: "CORE.pmt declares perlop's remaining infix operators: ^^, string-bitwise, compound assignment, , and =>"
-state: pending
+state: in-progress
 urgency: normal
 milestone: type-libraries
 blocked_by:
 - 01a11920-411a-7cea-b78f-c1568aba6d25
 created: 2026-10-08T00:51:38.207321952Z
-updated: 2026-10-08T13:17:34.493128133Z
+updated: 2026-10-08T13:31:26.536235335Z
+sessions:
+- start_sha: 2119cf8320b21d098168c402561bd8751f2a69ca
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-08T13:31:26.536235335Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-08T13:31:26.536235335Z
 ---
 
 ## Context
