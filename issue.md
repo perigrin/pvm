@@ -1,5 +1,5 @@
 ---
-title: Operators name their @PRECEDENCE row; the coined classes BITAND, BITOR, SHIFT and RANGE go
+title: "The coined classes BITAND, BITOR, SHIFT and RANGE go: those levels are named by their operators"
 state: pending
 urgency: normal
 milestone: type-libraries
@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a118fe-8e5f-717a-b046-6020db95c724
 created: 2026-10-08T00:51:38.164240057Z
-updated: 2026-10-08T01:11:15.777018198Z
+updated: 2026-10-08T01:11:15.903471516Z
 ---
 
 ## Context
