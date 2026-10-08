@@ -192,6 +192,55 @@ func TestLibraryOperatorMayUseAnyLevel(t *testing.T) {
 	}
 }
 
+// grouping writes n with each binary operator's operands parenthesised,
+// and anything else as its source.
+func grouping(n *Node, src []byte) string {
+	if n.Kind == Binary && len(n.Children) == 2 {
+		return "(" + grouping(n.Children[0], src) + " " + n.Text + " " + grouping(n.Children[1], src) + ")"
+	}
+	return n.SourceText(src)
+}
+
+// lastStatementGrouping parses src and returns its last statement's
+// expression, grouped.
+func lastStatementGrouping(t *testing.T, src string) string {
+	t.Helper()
+	root := ParseWithLoader([]byte(src), noModules)
+	if errs := DeclarationErrors(root); len(errs) > 0 {
+		t.Errorf("%q: %v", src, errs)
+	}
+	stmt := root.Children[len(root.Children)-1]
+	if len(stmt.Children) == 0 {
+		return stmt.Kind.String() + " " + stmt.SourceText([]byte(src))
+	}
+	return grouping(stmt.Children[0], []byte(src))
+}
+
+// TestLibraryOperatorParses: RFC 0001 "Precedence is a relation between
+// operators". A library's own infix operator joins the parser's order
+// where its relations put it, so with the library in scope `⊕ :tighter(+)
+// :looser(*)` parses between `+` and `*`, grouping leftward as its
+// :assoc says; and one spelled with XS::Parse::Infix's class,
+// `plus :infix(ADD)`, groups as `+` does.
+func TestLibraryOperatorParses(t *testing.T) {
+	useLibraryFixture(t)
+	saved := declarations
+	src := "package Between;\nsub ⊕ :infix :tighter(+) :looser(*) :assoc(left) (Num $x, Num $y) Num;\n"
+	declarations = layeredFS{top: fstest.MapFS{"declarations/Between.pmt": {Data: []byte(src)}}, base: saved}
+	for src, want := range map[string]string{
+		"use Between;\n1 + 2 ⊕ 3 * 4;":          "(1 + (2 ⊕ (3 * 4)))",
+		"use Between;\n1 * 2 ⊕ 3 + 4;":          "(((1 * 2) ⊕ 3) + 4)",
+		"use Between;\n1 ⊕ 2 ⊕ 3;":              "((1 ⊕ 2) ⊕ 3)",
+		"use utf8; use Between;\n$a ⊕ $b ** 2;": "($a ⊕ ($b ** 2))",
+		"use My::Lib;\n1 * 2 plus 3 + 4;":       "(((1 * 2) plus 3) + 4)",
+		"use My::Lib;\n1 plus 2 * 3;":           "(1 plus (2 * 3))",
+	} {
+		if got := lastStatementGrouping(t, src); got != want {
+			t.Errorf("%q: got %s, want %s", src, got, want)
+		}
+	}
+}
+
 // TestPmtUnaryTakesOneOperand: `:unary` marks a named unary (RFC 0001,
 // "Builtins with no prototype"), which takes at most one operand, so a
 // signature stating two is an error and records nothing; an invocant is

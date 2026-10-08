@@ -1149,6 +1149,14 @@ func scanOperator(l *lexer) bool {
 			return true
 		}
 	}
+	// A library's operator, `⊕`: an operator wherever it stands, which
+	// the parser reads as one only where the library is in scope.
+	if n := l.symbolRune(); n > 0 {
+		start := l.pos
+		l.pos += n
+		l.emit(Operator, start)
+		return true
+	}
 	return false
 }
 

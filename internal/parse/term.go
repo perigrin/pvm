@@ -114,7 +114,7 @@ func (p *parser) parseTerm() *Node {
 		if !ok || next.Kind == lexer.Semicolon || next.Kind == lexer.CloseBracket {
 			return n
 		}
-		if _, isInfix := infix[p.text(next)]; isInfix {
+		if _, isInfix := p.infixOp(p.text(next)); isInfix {
 			return n
 		}
 		if arg := p.parseExpr(bpNamedUnary); arg != nil {

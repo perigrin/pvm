@@ -4,6 +4,8 @@
 package parse
 
 import (
+	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -310,6 +312,24 @@ func (p *parser) resolveImports(module string, list *Node) {
 		}
 		for name, s := range facts.syntax {
 			p.syntax[name] = s
+		}
+	}
+
+	// So do its infix operators, placed among perl's and those of the
+	// libraries already in scope. Ones that derive no order with them are
+	// an error, and come into scope with none.
+	var ops []operatorDecl
+	for _, op := range facts.operators {
+		if op.fixity == "infix" {
+			ops = append(ops, op)
+		}
+	}
+	if len(ops) > 0 && (list == nil || !list.Paren || len(list.Children) > 0) {
+		inScope := slices.Concat(p.libraryOps, ops)
+		if powers, err := libraryInfix(inScope); err != nil {
+			p.res.declErrs = append(p.res.declErrs, fmt.Errorf("%s: %w", module, err))
+		} else {
+			p.libraryOps, p.libraryInfix = inScope, powers
 		}
 	}
 

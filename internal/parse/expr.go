@@ -85,6 +85,16 @@ func endsListAfterComma(tok lexer.Token, src []byte) bool {
 	return !strings.ContainsRune(`+-*/%<\~([{`, rune(text[0]))
 }
 
+// infixOp is the infix or postfix operator text spells: perl's, or one an
+// imported library declares.
+func (p *parser) infixOp(text string) (OpInfo, bool) {
+	if op, ok := p.libraryInfix[text]; ok {
+		return op, true
+	}
+	op, ok := infix[text]
+	return op, ok
+}
+
 func (p *parser) parseInfix(left *Node, minBP int) *Node {
 	for {
 		tok, ok := p.peekSignificant()
@@ -93,7 +103,7 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 		}
 		text := p.text(tok)
 
-		op, ok := infix[text]
+		op, ok := p.infixOp(text)
 		if !ok || op.BP <= minBP {
 			return left
 		}
@@ -375,7 +385,7 @@ func (p *parser) parseNonassoc(left *Node, op OpInfo, tok lexer.Token) *Node {
 	if !ok {
 		return n
 	}
-	if nextOp, isOp := infix[p.text(next)]; isOp && nextOp.BP == op.BP {
+	if nextOp, isOp := p.infixOp(p.text(next)); isOp && nextOp.BP == op.BP {
 		start := n.Start
 		p.skipToStatementEnd()
 		return &Node{Kind: Unknown, Refusal: NonassocRepeated, Start: start, End: p.prevEnd()}
