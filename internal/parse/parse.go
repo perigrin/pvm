@@ -627,6 +627,12 @@ type parser struct {
 	// file-wide from their import on as features are. See declaredSyntax.
 	syntax map[string]declaredSyntax
 
+	// libraryOps are the infix operators imported modules declare, and
+	// libraryInfix their binding powers among the parser's, file-wide from
+	// their import on as syntax is. See infixOp.
+	libraryOps   []operatorDecl
+	libraryInfix map[string]OpInfo
+
 	// noIndirect is set where indirect object notation is off: `no feature
 	// 'indirect'`, or a 5.36+ bundle, which drops it. File-level, like
 	// features.

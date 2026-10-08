@@ -583,9 +583,13 @@ operators, and their lines state their relations (see "Precedence is a
 relation between operators") -- `sub & :infix :tighter(|)
 :assoc(left)`, `sub ^ :infix :equiv(|)` -- so only XS::Parse::Infix's
 own class names are spellable in `:infix(CLASS)`, and a library naming
-another is in error. XS::Parse::Infix cannot register an operator at
-those levels, so a library's infix operator may not join one: `sub ⊕
-:infix :equiv(&)` is a declaration error.
+another is in error. XS::Parse::Infix is an influence, not a limitation
+(perigrin, 2026-10-08): a library's infix operator may take any level
+its relations give, `:equiv` of any operator, those levels included
+(`sub ⊕ :infix :equiv(&)` binds as `&`), or a level of its own between
+two (`:tighter(+) :looser(*)`). A library's bare `:infix`, with no class
+and no relation, places its operator at no level and is a declaration
+error naming it.
 
 **Operators that fork** are multis:
 
@@ -703,7 +707,12 @@ infix, prefix or postfix operator has a line, including `^^`, `&.`,
 beside the parser (`undeclaredOperators` in
 `internal/parse/operators.go`) until its line is written. A library's own operator joins the same order, so
 `sub ⊕ :infix :tighter(+) :looser(*)` parses between `+` and `*`
-wherever the library is in scope.
+wherever the library is in scope: from its import to the end of the
+file, as its declared syntax is, and `use M ()` brings none. A library
+whose relations form a cycle with `CORE.pmt`'s, or two libraries in
+scope whose operators are left unordered, are a declaration error
+naming the operators. An operator may be spelled with a non-ASCII
+symbol, `⊕`, as an operator plugin may register one.
 
 ### Multi declarations (*Implemented*, d7ff54be, e0927971, 597f89f2, 56fdf0e2, 2a00759b, 1f2f170c, 263ec15e, d44fb222, 7341cfec, 7e129204)
 
@@ -916,7 +925,8 @@ Separate from the paper:
 
 6. A search path for user-written `.pmt` files beside the embedded set.
 7. The remaining XS::Parse pieces, and sublikes other than `PREFIX`.
-8. Lexical rather than file-wide scope for declared syntax.
+8. Lexical rather than file-wide scope for declared syntax and a
+   library's operators.
 9. How to type a parameter evaluated once per element, as `grep EXPR`'s
    and `map EXPR`'s first argument is, where every other parameter is
    evaluated once per call.

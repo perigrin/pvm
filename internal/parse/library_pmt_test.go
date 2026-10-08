@@ -7,6 +7,7 @@ import (
 	"os"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -162,35 +163,158 @@ func TestLibraryCoinedClassRefused(t *testing.T) {
 	}
 }
 
-// TestLibraryEquivUnclassedLevelRefused: XS::Parse::Infix classes no
-// operator at the levels of `&`, of `|` and `^`, of `<<` and `>>`, or of
-// `..` and `...`, so it cannot register one there, and a library's infix
-// operator may not join one by `:equiv`. One joining a level it classes,
-// `+`'s, is a library's to declare. Reached by a `use`, CORE.pmt is still
-// the interpreter's file.
-func TestLibraryEquivUnclassedLevelRefused(t *testing.T) {
+// TestLibraryOperatorMayUseAnyLevel: RFC 0001 "Fixity and precedence".
+// XS::Parse::Infix is an influence, not a limitation: a library's infix
+// operator may join any operator's level by `:equiv`, including the levels
+// XS::Parse::Infix classes no operator at, and binds as that operator does.
+func TestLibraryOperatorMayUseAnyLevel(t *testing.T) {
 	saved := declarations
 	t.Cleanup(func() { declarations = saved })
-	for _, level := range []string{"&", "|", "^", "<<", ">>", "..", "..."} {
-		src := "package Unclassed;\nsub op :infix :equiv(" + level + ") (Int $x, Int $y) Int;\n"
-		declarations = layeredFS{top: fstest.MapFS{"declarations/Unclassed.pmt": {Data: []byte(src)}}, base: saved}
-		root := ParseWithLoader([]byte("use Unclassed;\n"), func(string) ([]byte, bool) { return nil, false })
-		want := "Unclassed: sub op: :equiv(" + level + ") is a level XS::Parse::Infix registers no operator at"
-		if errs := DeclarationErrors(root); len(errs) != 1 || errs[0].Error() != want {
-			t.Errorf("%s: got %v, want %q", level, errs, want)
+	for _, level := range []string{"&", "|", "^", "<<", ">>", "..", "...", "+"} {
+		src := "package Anywhere;\nsub ⊕ :infix :equiv(" + level + ") (Int $x, Int $y) Int;\n"
+		declarations = layeredFS{top: fstest.MapFS{"declarations/Anywhere.pmt": {Data: []byte(src)}}, base: saved}
+		if errs := DeclarationErrors(ParseWithLoader([]byte("use Anywhere;\n"), noModules)); len(errs) > 0 {
+			t.Errorf("%s: %v", level, errs)
+			continue
 		}
-		if facts := resolveLibrary(t, "Unclassed"); len(facts.operators) > 0 {
-			t.Errorf("%s: recorded %+v", level, facts.operators)
+		facts := resolveLibrary(t, "Anywhere")
+		if len(facts.operators) != 1 || facts.operators[0].name != "⊕" {
+			t.Errorf("%s: operators %+v", level, facts.operators)
+			continue
+		}
+		powers, err := libraryInfix(facts.operators)
+		if err != nil {
+			t.Errorf("%s: %v", level, err)
+			continue
+		}
+		if got, want := powers["⊕"], infix[level]; got != want {
+			t.Errorf("%s: ⊕ binds %+v, want %+v", level, got, want)
 		}
 	}
-	src := "package Classed;\nsub op :infix :equiv(+) (Int $x, Int $y) Int;\n"
-	declarations = layeredFS{top: fstest.MapFS{"declarations/Classed.pmt": {Data: []byte(src)}}, base: saved}
-	if facts := resolveLibrary(t, "Classed"); len(facts.errs) > 0 || len(facts.operators) != 1 {
-		t.Errorf(":equiv(+): errors %v, operators %+v", facts.errs, facts.operators)
+}
+
+// grouping writes n with each binary operator's operands parenthesised,
+// and anything else as its source.
+func grouping(n *Node, src []byte) string {
+	if n.Kind == Binary && len(n.Children) == 2 {
+		return "(" + grouping(n.Children[0], src) + " " + n.Text + " " + grouping(n.Children[1], src) + ")"
 	}
-	declarations = saved
-	if errs := DeclarationErrors(ParseWithLoader([]byte("use CORE;\n"), func(string) ([]byte, bool) { return nil, false })); len(errs) > 0 {
-		t.Errorf("use CORE: %v", errs)
+	return n.SourceText(src)
+}
+
+// lastStatementGrouping parses src and returns its last statement's
+// expression, grouped.
+func lastStatementGrouping(t *testing.T, src string) string {
+	t.Helper()
+	root := ParseWithLoader([]byte(src), noModules)
+	if errs := DeclarationErrors(root); len(errs) > 0 {
+		t.Errorf("%q: %v", src, errs)
+	}
+	stmt := root.Children[len(root.Children)-1]
+	if len(stmt.Children) == 0 {
+		return stmt.Kind.String() + " " + stmt.SourceText([]byte(src))
+	}
+	return grouping(stmt.Children[0], []byte(src))
+}
+
+// TestLibraryOperatorParses: RFC 0001 "Precedence is a relation between
+// operators". A library's own infix operator joins the parser's order
+// where its relations put it, so with the library in scope `⊕ :tighter(+)
+// :looser(*)` parses between `+` and `*`, grouping leftward as its
+// :assoc says; and one spelled with XS::Parse::Infix's class,
+// `plus :infix(ADD)`, groups as `+` does.
+func TestLibraryOperatorParses(t *testing.T) {
+	useLibraryFixture(t)
+	saved := declarations
+	src := "package Between;\nsub ⊕ :infix :tighter(+) :looser(*) :assoc(left) (Num $x, Num $y) Num;\n"
+	declarations = layeredFS{top: fstest.MapFS{"declarations/Between.pmt": {Data: []byte(src)}}, base: saved}
+	for src, want := range map[string]string{
+		"use Between;\n1 + 2 ⊕ 3 * 4;":          "(1 + (2 ⊕ (3 * 4)))",
+		"use Between;\n1 * 2 ⊕ 3 + 4;":          "(((1 * 2) ⊕ 3) + 4)",
+		"use Between;\n1 ⊕ 2 ⊕ 3;":              "((1 ⊕ 2) ⊕ 3)",
+		"use utf8; use Between;\n$a ⊕ $b ** 2;": "($a ⊕ ($b ** 2))",
+		"use My::Lib;\n1 * 2 plus 3 + 4;":       "(((1 * 2) plus 3) + 4)",
+		"use My::Lib;\n1 plus 2 * 3;":           "(1 plus (2 * 3))",
+	} {
+		if got := lastStatementGrouping(t, src); got != want {
+			t.Errorf("%q: got %s, want %s", src, got, want)
+		}
+	}
+}
+
+// hasBinary reports whether op is a binary operator anywhere under n.
+func hasBinary(n *Node, op string) bool {
+	if n.Kind == Binary && n.Text == op {
+		return true
+	}
+	return slices.ContainsFunc(n.Children, func(c *Node) bool { return hasBinary(c, op) })
+}
+
+// TestLibraryOperatorErrors: a library's operator is an operator only
+// where the library is in scope, from its import on, and `use M ()`
+// imports none. A library whose relations form a cycle with CORE.pmt's,
+// or whose bare `:infix` places its operator nowhere, is in error naming
+// the operators, and its operator is none; so is a library whose
+// operators derive no order with those of a library already in scope.
+func TestLibraryOperatorErrors(t *testing.T) {
+	saved := declarations
+	t.Cleanup(func() { declarations = saved })
+	library := func(line string) {
+		declarations = layeredFS{top: fstest.MapFS{"declarations/Lib.pmt": {Data: []byte("package Lib;\n" + line + "\n")}}, base: saved}
+	}
+	library("sub ⊕ :infix :tighter(+) :looser(*) :assoc(left) (Num $x, Num $y) Num;")
+	for _, src := range []string{"1 ⊕ 2;", "use Lib ();\n1 ⊕ 2;", "1 ⊕ 2;\nuse Lib;"} {
+		if root := ParseWithLoader([]byte(src), noModules); hasBinary(root, "⊕") {
+			t.Errorf("%q: ⊕ parsed as an operator", src)
+		}
+	}
+	if root := ParseWithLoader([]byte("use Lib;\n1 ⊕ 2;"), noModules); !hasBinary(root, "⊕") {
+		t.Errorf("use Lib: ⊕ is no operator")
+	}
+
+	library("sub ⊕ :infix :tighter(*) :looser(+) (Num $x, Num $y) Num;")
+	root := ParseWithLoader([]byte("use Lib;\n1 ⊕ 2;"), noModules)
+	errs := DeclarationErrors(root)
+	if len(errs) != 1 || !strings.HasPrefix(errs[0].Error(), "Lib: precedence relations form a cycle among ") {
+		t.Fatalf("cycle: got %v", errs)
+	}
+	named := strings.Split(strings.TrimPrefix(errs[0].Error(), "Lib: precedence relations form a cycle among "), ", ")
+	for _, op := range []string{"⊕", "+", "*"} {
+		if !slices.Contains(named, op) {
+			t.Errorf("cycle: %q does not name %s", errs[0], op)
+		}
+	}
+	if slices.Contains(named, "or") || slices.Contains(named, "**") {
+		t.Errorf("cycle: %q names operators outside it", errs[0])
+	}
+	if hasBinary(root, "⊕") {
+		t.Errorf("cycle: ⊕ parsed as an operator")
+	}
+
+	library("sub ⊕ :infix (Num $x, Num $y) Num;")
+	root = ParseWithLoader([]byte("use Lib;\n1 ⊕ 2;"), noModules)
+	want := "Lib: sub ⊕: :infix places it at no level; state :tighter, :looser or :equiv"
+	if errs := DeclarationErrors(root); len(errs) != 1 || errs[0].Error() != want {
+		t.Errorf("bare :infix: got %v, want %q", errs, want)
+	}
+	if hasBinary(root, "⊕") {
+		t.Errorf("bare :infix: ⊕ parsed as an operator")
+	}
+
+	// Two libraries each in order alone, and not together: the second
+	// one's import is the error, and brings no operator.
+	line := " :infix :tighter(+) :looser(*) (Num $x, Num $y) Num;\n"
+	declarations = layeredFS{top: fstest.MapFS{
+		"declarations/A.pmt": {Data: []byte("package A;\nsub ⊕" + line)},
+		"declarations/B.pmt": {Data: []byte("package B;\nsub ⊗" + line)},
+	}, base: saved}
+	root = ParseWithLoader([]byte("use A;\nuse B;\n1 ⊕ 2;\n1 ⊗ 3;"), noModules)
+	want = "B: precedence relations leave ⊕, ⊗ unordered"
+	if errs := DeclarationErrors(root); len(errs) != 1 || errs[0].Error() != want {
+		t.Errorf("A and B: got %v, want %q", errs, want)
+	}
+	if !hasBinary(root, "⊕") || hasBinary(root, "⊗") {
+		t.Errorf("A and B: want ⊕ an operator and ⊗ none")
 	}
 }
 

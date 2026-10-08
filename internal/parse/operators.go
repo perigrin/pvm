@@ -175,6 +175,22 @@ func operatorOf(name string, attrs []string, sig types.Signature) (operatorDecl,
 	return operatorDecl{name: name, fixity: fixity, class: class, sig: sig}, nil
 }
 
+// inCycle is remaining, the levels a topological sort is left with, less
+// those looser than the cycle and on none: each step drops the levels no
+// remaining level is looser than, so the error names a cycle's operators
+// and not every level below it.
+func inCycle(remaining []int, looser map[int][]int) []int {
+	for {
+		kept := slices.DeleteFunc(slices.Clone(remaining), func(r int) bool {
+			return !slices.ContainsFunc(looser[r], func(l int) bool { return slices.Contains(remaining, l) })
+		})
+		if len(kept) == len(remaining) {
+			return kept
+		}
+		remaining = kept
+	}
+}
+
 // precLevel is one level of a derived precedence order: its operators, an
 // infix one and a named one stating its level by its name, and any other by
 // its fixity or shape and name, `prefix -` or `unary defined`, and its
@@ -318,7 +334,7 @@ func precedenceOrder(ops []operatorDecl) ([]precLevel, error) {
 		}
 		switch {
 		case len(ready) == 0:
-			return nil, fmt.Errorf("precedence relations form a cycle among %s", names(remaining))
+			return nil, fmt.Errorf("precedence relations form a cycle among %s", names(inCycle(remaining, looser)))
 		case len(ready) > 1:
 			return nil, fmt.Errorf("precedence relations leave %s unordered", names(ready))
 		}
@@ -330,21 +346,6 @@ func precedenceOrder(ops []operatorDecl) ([]precLevel, error) {
 		}
 	}
 	return order, nil
-}
-
-// classedLevels is each operator of order, by its label, to whether
-// XS::Parse::Infix classes its level: whether the level holds a class's
-// anchor.
-func classedLevels(order []precLevel) map[string]bool {
-	anchors := slices.Collect(maps.Values(classAnchors))
-	out := map[string]bool{}
-	for _, l := range order {
-		classed := slices.ContainsFunc(l.ops, func(op string) bool { return slices.Contains(anchors, op) })
-		for _, op := range l.ops {
-			out[op] = classed
-		}
-	}
-	return out
 }
 
 // shapeRelations places each shape's level, perly.y's own rows for the
@@ -448,6 +449,9 @@ type bindingPowers struct {
 	infix              map[string]OpInfo
 	prefix             map[string]int
 	namedUnary, listOp int
+	// levels is the power of each operator's level, by its label in the
+	// order (precLevel).
+	levels map[string]int
 }
 
 // opAssoc is the parser's associativity for each `:assoc`. A chaining
@@ -472,10 +476,11 @@ func deriveBindingPowers(decls []operatorDecl) (bindingPowers, error) {
 			infixNames[op.name] = true
 		}
 	}
-	bp := bindingPowers{infix: map[string]OpInfo{}, prefix: map[string]int{}}
+	bp := bindingPowers{infix: map[string]OpInfo{}, prefix: map[string]int{}, levels: map[string]int{}}
 	for i, l := range order {
 		power := (len(order) - i) * 10
 		for _, op := range l.ops {
+			bp.levels[op] = power
 			fixity, name, spaced := strings.Cut(op, " ")
 			switch {
 			case !spaced && infixNames[op]:
@@ -492,4 +497,69 @@ func deriveBindingPowers(decls []operatorDecl) (bindingPowers, error) {
 		}
 	}
 	return bp, nil
+}
+
+// libraryInfix derives the binding powers of ops, a library's infix
+// operators, from their relations to the parser's operators and to each
+// other (RFC 0001, "Precedence is a relation between operators"). They
+// join the parser's order, whose levels keep their powers: an operator
+// in one of its levels binds at that level's power, and a level of the
+// library's own binds between the powers of the levels either side, so
+// every comparison the Pratt loop makes is the one a derivation of the
+// whole order would give. Relations that derive no order are an error
+// naming the operators.
+func libraryInfix(ops []operatorDecl) (map[string]OpInfo, error) {
+	derivePowers()
+	order, err := precedenceOrder(slices.Concat(coreOrderDecls, ops))
+	if err != nil {
+		return nil, err
+	}
+	powerOf := func(l precLevel) (int, bool) {
+		for _, op := range l.ops {
+			if power, ok := levelPowers[op]; ok {
+				return power, true
+			}
+		}
+		return 0, false
+	}
+	// ponytail: the parser's levels are ten apart, so at most nine of a
+	// library's levels fit between two of them; space the powers wider if
+	// a library ever needs more.
+	// Above the tightest level there is room for every level.
+	powers := make([]int, len(order))
+	hi := len(order) * 10
+	var run []int
+	place := func(lo int) error {
+		if len(run) > 0 && len(run) >= hi-lo {
+			return fmt.Errorf("precedence relations place %d levels between two of perl's, which hold at most %d", len(run), hi-lo-1)
+		}
+		for j, i := range run {
+			powers[i] = hi - (hi-lo)*(j+1)/(len(run)+1)
+		}
+		run = run[:0]
+		return nil
+	}
+	for i, l := range order {
+		power, ok := powerOf(l)
+		if !ok {
+			run = append(run, i)
+			continue
+		}
+		if err := place(power); err != nil {
+			return nil, err
+		}
+		powers[i], hi = power, power
+	}
+	if err := place(0); err != nil {
+		return nil, err
+	}
+	out := map[string]OpInfo{}
+	for i, l := range order {
+		for _, op := range ops {
+			if op.fixity == "infix" && slices.Contains(l.ops, op.name) {
+				out[op.name] = OpInfo{BP: powers[i], Assoc: opAssoc[l.assoc]}
+			}
+		}
+	}
+	return out, nil
 }
