@@ -1,12 +1,21 @@
 ---
 title: "CORE.pmt declares ++ and -- as prefix and postfix"
-state: pending
+state: in-progress
 urgency: normal
 milestone: type-libraries
 blocked_by:
 - 01a118fe-8d68-71a8-ab06-cc12d7a20589
 created: 2026-10-08T01:32:14.368080588Z
-updated: 2026-10-08T09:50:02.518926699Z
+updated: 2026-10-08T12:58:08.751763415Z
+sessions:
+- start_sha: cd34146a827f624890247b5c2383db9e2261ebc9
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-08T12:58:08.751763415Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-08T12:58:08.751763415Z
 ---
 
 ## Context
