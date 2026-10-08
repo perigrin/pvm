@@ -62,14 +62,17 @@ func TestInvocantColonDerivesNoPrototype(t *testing.T) {
 // slot, so it follows the first parameter and nothing else -- not a later
 // one, not a second time, and not an empty slot. The slot holds one item,
 // so a List before the colon, by its sigil or its type, is refused too.
+// List less Void, `Array|Hash|Scalar`, is the type a `+` slot takes, and
+// is refused as List is.
 func TestPmtInvocantColonMisplacedRefused(t *testing.T) {
 	pmtRefuses(t, map[string]string{
-		"sub f (Str $a, Str $b: List @l);\n": "sub f: invocant colon after $b; only the first parameter is an invocant",
-		"sub f (Str $a: Str $b: List @l);\n": "sub f: invocant colon after $b; only the first parameter is an invocant",
-		"sub f (: List @l);\n":               "sub f: invocant colon with no parameter before it",
-		"sub f (List @a: List @b);\n":        "sub f: invocant @a is a List; an invocant slot holds one item",
-		"sub f (%h: List @b);\n":             "sub f: invocant %h is a List; an invocant slot holds one item",
-		"sub f (List $x: List @b);\n":        "sub f: invocant $x is a List; an invocant slot holds one item",
+		"sub f (Str $a, Str $b: List @l);\n":       "sub f: invocant colon after $b; only the first parameter is an invocant",
+		"sub f (Str $a: Str $b: List @l);\n":       "sub f: invocant colon after $b; only the first parameter is an invocant",
+		"sub f (: List @l);\n":                     "sub f: invocant colon with no parameter before it",
+		"sub f (List @a: List @b);\n":              "sub f: invocant @a is a List; an invocant slot holds one item",
+		"sub f (%h: List @b);\n":                   "sub f: invocant %h is a List; an invocant slot holds one item",
+		"sub f (List $x: List @b);\n":              "sub f: invocant $x is a List; an invocant slot holds one item",
+		"sub f (Array|Hash|Scalar $x: List @b);\n": "sub f: invocant $x is a List; an invocant slot holds one item",
 	})
 }
 

@@ -315,7 +315,7 @@ func TestPmtBareSlurpyTypeRefused(t *testing.T) {
 		"sub f (Str @args);\n": "sub f: slurpy @args has a bare element type Str; write a container type, List[Str] @args",
 		"sub f (Int %h);\n":    "sub f: slurpy %h has a bare element type Int; write a container type, List[Int] %h",
 	})
-	facts := readDeclaration([]byte("sub f (@args);\nsub g (List[Str] @args);\nsub h (List[Str] %h);\n"), nil)
+	facts := readDeclaration([]byte("sub f (@args);\nsub g (List[Str] @args);\nsub h (List[Str] %h);\nsub i (Array|Hash|Scalar @args);\n"), nil)
 	if len(facts.errs) > 0 {
 		t.Fatalf("errors: %v", facts.errs)
 	}
@@ -323,6 +323,7 @@ func TestPmtBareSlurpyTypeRefused(t *testing.T) {
 		"f": {Name: "args", Sigil: '@', Type: types.Unknown},
 		"g": {Name: "args", Sigil: '@', Type: types.List, Element: types.Str},
 		"h": {Name: "h", Sigil: '%', Type: types.List, Element: types.Str},
+		"i": {Name: "args", Sigil: '@', Type: types.Array | types.Hash | types.Scalar},
 	} {
 		if got, ok := facts.signatures[name]; !ok || !reflect.DeepEqual(got, []types.Signature{{Params: []types.Param{want}}}) {
 			t.Errorf("%s: got %+v (recorded %v), want one param %+v", name, got, ok, want)
