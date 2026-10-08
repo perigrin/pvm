@@ -1,19 +1,26 @@
 ---
 title: reverse's scalar candidate does not declare its $_ default
-state: in-progress
+state: done
 urgency: normal
 milestone: type-libraries
 created: 2026-10-08T01:28:39.358534484Z
-updated: 2026-10-08T02:17:17.092264995Z
+updated: 2026-10-08T03:02:22.226439177Z
 sessions:
 - start_sha: 214a28feeaf479afafe15410e923f54e81a1a919
-  end_sha: ""
-  commits: 0
+  end_sha: 1f50f2fc90253e617fd33be4ca5bd5d7c4797c17
+  commits: 1
   started_at: 2026-10-08T02:17:17.092264995Z
+  ended_at: 2026-10-08T03:02:22.226439177Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-08T02:17:17.092264995Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-08T03:02:22.226439177Z
+observed_paths:
+- internal/parse/corearray_test.go
+- internal/parse/declarations/CORE.pmt
 ---
 
 ## Context
