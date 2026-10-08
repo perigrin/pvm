@@ -1,12 +1,12 @@
 ---
-title: The parser's operator precedence and associativity come from CORE.pmt's @PRECEDENCE
+title: The parser's operator precedence and associativity come from CORE.pmt's relations
 state: pending
 urgency: normal
 milestone: type-libraries
 blocked_by:
 - 01a118fe-8d68-71a8-ab06-cc12d7a20589
 created: 2026-10-08T00:51:38.110268863Z
-updated: 2026-10-08T01:11:11.613207004Z
+updated: 2026-10-08T01:11:12.039221179Z
 ---
 
 ## Context
