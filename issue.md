@@ -6,7 +6,7 @@ milestone: type-libraries
 blocked_by:
 - 01a11937-22da-7250-b922-fabda15009a7
 created: 2026-10-08T01:59:02.643468486Z
-updated: 2026-10-08T02:01:37.643260735Z
+updated: 2026-10-08T02:02:17.24047724Z
 ---
 
 ## Context
@@ -17,23 +17,23 @@ updated: 2026-10-08T02:01:37.643260735Z
 perigrin, 2026-10-08: the bare-call default convention goes ("I don't think we need" it). Its six lines -- `sub srand (Int $seed = srand()) Str;` and likewise `caller`, `reset`, `sleep`, `umask` and `send`'s `$to` -- state a self-referential default for what is truly no default: perl computes something no expression states. A truly-no-default case is its own candidate instead:
 
 ```perl
-multi sub srand () Str;            # perl picks the seed (Perl_seed)
+multi sub srand (Void $) Str;      # perl picks the seed (Perl_seed)
 multi sub srand (Int $seed) Str;
 ```
 
-Measured: `srand(@e)` is `srand(0)` ("0 but true"), not `srand()`, since the prototype is `;$` -- so for these six the empty case is only "no argument written", which `()` states (as `sub break () None;` does). `(Void @)` is strictly equivalent (perigrin, 2026-10-08): the prototype is derived from the candidates and governs how arguments are read before selection, so selection sees the same values either way -- `srand(@e)` is one scalar under the derived `;$` and matches neither; `f(@empty)` under a derived `@` flattens to nothing and matches both. A `Void @` parameter therefore derives no prototype character, as `()` has none. Either spelling is accepted; 01a11937-22da-7250-b922-fabda15009a7 adds `Void`. Defaults that ARE values stay: `select()` (the current filehandle) on close/write/print/printf/say, `exec`'s `= $args[0]`.
+Measured: `srand(@e)` is `srand(0)` ("0 but true"), not `srand()`, since the prototype is `;$` -- so for these six the empty case is only "no argument in that scalar slot". Spelling (perigrin, 2026-10-08): `Void $` for an absent scalar slot, `Void @` for an empty list -- `multi sub srand (Void $) Str;`, `multi sub send (Glob *socket, Str $msg, Int $flags, Void $to) Int|Undef;`. `()` stays for a sub that takes nothing at all (`sub break () None;`). The prototype is derived from the candidates and governs how arguments are read before selection, so a Void parameter derives no prototype character: `(Void $)` with `(Int $seed)` derives `;$`, `send`'s two derive `*$$;$`, `(Void @)` with `(List @l)` derives `@`.
 
-Prototype derivation must keep perl's prototypes (`;$` for five, `*$$;$` for send): candidates that are prefixes of one another derive a `;` where the shortest ends -- today `prototypeFromCandidates` derives none when arities differ.
+Prototype derivation must keep perl's prototypes (`;$` for five, `*$$;$` for send): candidates that agree except for trailing Void parameters derive a `;` where the Void ones begin -- today `prototypeFromCandidates` derives none when arities differ.
 
 ## Steps
 
 - [ ] Write failing test `TestCandidatePrefixesDeriveSemicolon`: candidates `()` and `($)` derive `;$`; `(*$$)` and `(*$$$)` derive `*$$;$`; candidates that differ other than by a trailing extension still derive none (negative)
-- [ ] Write failing test `TestVoidListEquivalentToEmpty`: a `(Void @)` candidate derives the same prototype as `()` (no character), so `(Void @)` with `(Int $seed)` derives `;$`; and selection picks it for exactly the calls `()` is picked for
+- [ ] Write failing test `TestVoidParamDerivesNothing`: `(Void $)` with `(Int $seed)` derives `;$`; `(Void @)` with `(List @l)` derives `@`; a Void parameter followed by a non-Void one is a declaration error (negative); `srand()` selects the `Void $` candidate and `srand(@e)` the `Int` one
 - [ ] Write failing test `TestCoreHasNoSelfReferentialDefault`: no CORE.pmt parameter defaults to a call of its own sub, and the six are multis whose empty-or-shorter candidate stands for perl's own choice; their derived prototypes equal perl's (`prototype("CORE::srand")` etc.)
 - [ ] Measure each candidate's return on 5.42 (`caller` with and without a level differ in fields); declare; remove the convention from RFC 0001 (keep "a default may name a later parameter"); `make test`; commit
 
 ## Acceptance criteria
 
-- [ ] (Void @) and () are equivalent (`go test ./internal/parse/ -run '^TestVoidListEquivalentToEmpty$' -count=1 -v | grep -q '^--- PASS: TestVoidListEquivalentToEmpty'`)
+- [ ] a Void parameter derives no prototype character, and only trails (`go test ./internal/parse/ -run '^TestVoidParamDerivesNothing$' -count=1 -v | grep -q '^--- PASS: TestVoidParamDerivesNothing'`)
 - [ ] prefix candidates derive a ; prototype (`go test ./internal/parse/ -run '^TestCandidatePrefixesDeriveSemicolon$' -count=1 -v | grep -q '^--- PASS: TestCandidatePrefixesDeriveSemicolon'`)
 - [ ] no CORE.pmt default calls its own sub (`go test ./internal/parse/ -run '^TestCoreHasNoSelfReferentialDefault$' -count=1 -v | grep -q '^--- PASS: TestCoreHasNoSelfReferentialDefault'`)
