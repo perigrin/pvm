@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a118fe-8e5f-717a-b046-6020db95c724
 created: 2026-10-08T01:28:26.650675969Z
-updated: 2026-10-08T01:32:24.557122639Z
+updated: 2026-10-08T01:51:03.439489017Z
 ---
 
 ## Context
@@ -19,7 +19,7 @@ updated: 2026-10-08T01:32:24.557122639Z
 
 perigrin, 2026-10-08: drop `:context`, since multi and the return type handle it. A call site's context is a demand on the result: list context selects the candidate whose return type is a list (`List`, `List[...]`), scalar context the one whose return type is not. Measured over CORE.pmt: all 37 `:context` candidates already obey this (every `:context(@)` returns a list type, every `:context($)` a scalar one), so the attribute states nothing the return type does not. `reverse` is the pure case: identical parameters, `Str` versus `List`. `x`'s list candidate is also chosen by its parenthesised left operand, which the `List @l` shape check already enforces.
 
-Context is still decided syntactically at the call site; only the attribute goes, not context analysis. Open point for perigrin before the RFC text is final: `:context()` (void) — no CORE.pmt line uses it; propose it is a `None` return type.
+Context is still decided syntactically at the call site; only the attribute goes, not context analysis. Open point for perigrin before the RFC text is final: `:context()` (void). No CORE.pmt line uses it; 5 test fixtures do. Not `None`, which is "does not return" (`die`, `exit`, `goto`...). The types paper's arity-0 type is `Void := {()}`, the empty list -- "returns nothing" versus None's "does not return" -- which pvm's lattice does not have (only `VoidCtx`). Either add `Void` and a void candidate returns it, or drop void-context selection since no declaration needs it.
 
 ## Steps
 
