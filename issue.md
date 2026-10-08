@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: v0.1
 created: 2026-10-06T04:34:49.185358746Z
-updated: 2026-10-06T04:34:49.185358746Z
+updated: 2026-10-08T00:52:02.918115473Z
 ---
 
 ## Context
@@ -13,6 +13,8 @@ updated: 2026-10-06T04:34:49.185358746Z
 - commands: `make test`; perl 5.42 `/home/perigrin/.local/bin/perl`, `perldoc perlop`
 
 `precedence.go` puts `isa` at level 17 with the relational operators. perlop's precedence table lists `isa` as its own non-associative level, just above the relational operators (found by the alignment gate on 01a0fd9b-53a9-703f-82ab-eeb38765f7f1, not verified against perly.y). If perl binds `isa` tighter than `<`, an expression mixing them parses differently.
+
+Now covered by 01a118fe-8dfe-7c0e-bcbe-06fd8374d1a6 (the parser's precedence derived from CORE.pmt's @PRECEDENCE), whose second criterion is TestIsaPrecedenceMatchesPerl; perlop's table confirms `isa` has its own row, tighter than the relational operators (2026-10-08). Close this when that issue lands.
 
 ## Steps
 
