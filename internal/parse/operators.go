@@ -32,17 +32,25 @@ type operatorDecl struct {
 // equivs is the operators whose level op is in: those its `:equiv(OP)`
 // names, and its class's anchor, `:infix(MUL)` being `:equiv(*)`.
 func (op operatorDecl) equivs() []string {
-	if anchor, ok := classAnchors[op.class]; ok {
+	if anchor := classAnchors[op.class]; anchor != "" {
 		return append(slices.Clone(op.equiv), anchor)
 	}
 	return op.equiv
 }
 
-// classAnchors is the operator each class of operatorClasses stands for the
-// level of, so `:infix(CLASS)` reads as `:equiv` of it. LOW and HIGH have
-// none: they are XS::Parse::Infix's plugin levels, where perl has no
-// operator.
+// classAnchors are the classes `:infix(CLASS)` may name, each to the
+// operator it stands for the level of, so `:infix(CLASS)` reads as `:equiv`
+// of it. RFC 0001: XS::Parse::Infix's classification (XSParseInfix.h,
+// XPI_CLS_*) without the `XPI_CLS_` prefix and `_MISC` suffix. LOW and HIGH
+// have no anchor: they are XS::Parse::Infix's plugin levels either side of
+// the core operators, where perl has no operator.
+//
+// XS::Parse::Infix classes no operator at the levels of `&`, of `|` and
+// `^`, of `<<` and `>>`, or of `..` and `...`, so no class names them:
+// those levels are named by their operators.
 var classAnchors = map[string]string{
+	"LOW":             "",
+	"HIGH":            "",
 	"LOGICAL_OR_LOW":  "or",
 	"LOGICAL_AND_LOW": "and",
 	"ASSIGN":          "=",
@@ -61,33 +69,6 @@ var classAnchors = map[string]string{
 // assocs are the associativities `:assoc(...)` may state, perlop's:
 // `chained` for `<` and its row, `chain_na` for `==` and its.
 var assocs = map[string]bool{"left": true, "right": true, "nonassoc": true, "chained": true, "chain_na": true}
-
-// operatorClasses are the classes `:infix(CLASS)` may name, each to the
-// perly.y level in precedence.go that it stands for. RFC 0001: XS::Parse::
-// Infix's classification (XSParseInfix.h, XPI_CLS_*) without the `XPI_CLS_`
-// prefix and `_MISC` suffix. LOW and HIGH are the plugin hooks either side of
-// the core operators, levels 3 and 28.
-//
-// XS::Parse::Infix classes no operator at the levels of `&`, of `|` and `^`,
-// of `<<` and `>>`, or of `..` and `...`, so no class names them: those
-// levels are named by their operators.
-var operatorClasses = map[string]int{
-	"LOW":             3,
-	"LOGICAL_OR_LOW":  4,
-	"LOGICAL_AND_LOW": 5,
-	"ASSIGN":          9,
-	"LOGICAL_OR":      12,
-	"LOGICAL_AND":     13,
-	"EQUALITY":        16,
-	"ORDERING":        16,
-	"RELATION":        17,
-	"ISA":             17,
-	"ADD":             22,
-	"MUL":             23,
-	"MATCHRE":         24,
-	"POW":             26,
-	"HIGH":            28,
-}
 
 // operatorArity is how many operands each fixity takes.
 var operatorArity = map[string]int{"infix": 2, "prefix": 1, "postfix": 1}
@@ -185,28 +166,13 @@ func operatorOf(name string, attrs []string, sig types.Signature) (operatorDecl,
 	if fixity != "infix" && hasClass {
 		return operatorDecl{}, fmt.Errorf(":%s takes no class", fixity)
 	}
-	if _, ok := operatorClasses[class]; hasClass && !ok {
+	if _, ok := classAnchors[class]; hasClass && !ok {
 		return operatorDecl{}, fmt.Errorf("unknown operator class %q", class)
 	}
 	if want := operatorArity[fixity]; len(sig.Params) != want {
 		return operatorDecl{}, fmt.Errorf(":%s takes %s, the signature has %d", fixity, []string{"", "one operand", "two operands"}[want], len(sig.Params))
 	}
 	return operatorDecl{name: name, fixity: fixity, class: class, sig: sig}, nil
-}
-
-// precedenceMismatch reports an infix operator whose class names a level
-// other than the one precedence.go gives it. The table is authoritative
-// (RFC 0001, "Operator declarations"); the class says the same thing again.
-// An operator with no class names its level by its relations, which
-// TestCoreDerivedPrecedenceIsPerlops holds to perlop's.
-func precedenceMismatch(op operatorDecl) error {
-	if op.fixity != "infix" || op.class == "" {
-		return nil
-	}
-	if level, want := operatorClasses[op.class], infix[op.name].Level; level != want {
-		return fmt.Errorf("sub %s: class %s is level %d, and precedence.go puts %s at level %d", op.name, op.class, level, op.name, want)
-	}
-	return nil
 }
 
 // precLevel is one level of a derived precedence order: its operators, an
@@ -401,7 +367,11 @@ var shapeRelations = map[Shape]operatorDecl{
 func corePrecedenceDecls(src []byte, shapes map[string]Shape) []operatorDecl {
 	p := newParser(src, nil, true)
 	p.buildingCore = true
-	facts := readDeclarationWith(p)
+	return precedenceDeclsOf(readDeclarationWith(p), shapes)
+}
+
+// precedenceDeclsOf is corePrecedenceDecls of a CORE.pmt already read.
+func precedenceDeclsOf(facts moduleFacts, shapes map[string]Shape) []operatorDecl {
 	out := slices.Concat(facts.operators, facts.relations)
 	placed := map[string]bool{}
 	for _, op := range out {
@@ -422,4 +392,111 @@ func corePrecedenceDecls(src []byte, shapes map[string]Shape) []operatorDecl {
 		out = append(out, rel)
 	}
 	return out
+}
+
+// undeclaredOperators places, by relations as their CORE.pmt lines will,
+// the operators the parser reads that CORE.pmt has no line for yet. Each
+// group names the issue that declares it, and leaves this list when it does.
+var undeclaredOperators = slices.Concat([]operatorDecl{
+	// 01a118fe-8e5f, perlop's remaining infix operators. `^^` is 5.40's
+	// logical xor, sharing `||`'s level (toke.c:6441); the string-bitwise
+	// operators share their numeric forms' levels; `~~` is a non-chaining
+	// equality operator (cmpClasses).
+	{name: "^^", fixity: "infix", equiv: []string{"||"}},
+	{name: "&.", fixity: "infix", equiv: []string{"&"}},
+	{name: "|.", fixity: "infix", equiv: []string{"|"}},
+	{name: "^.", fixity: "infix", equiv: []string{"|"}},
+	{name: "~.", fixity: "prefix", equiv: []string{"~"}},
+	{name: "~~", fixity: "infix", equiv: []string{"=="}},
+	// `,` lies between a rightward list operator, which swallows it, and
+	// `=`; `=>` is a comma that autoquotes its left bareword.
+	{name: ",", fixity: "infix", tighter: []string{"print"}, looser: []string{"="}, assoc: "left"},
+	{name: "=>", fixity: "infix", equiv: []string{","}},
+
+	// 01a11923-baeb, `?:` and `->`. The ternary is right associative,
+	// measured:
+	//   perl -MO=Deparse -e 'my $x = $a ? $b : $c ? $d : $e;'
+	//   my $x = $a ? $b : ($c ? $d : $e);
+	{name: "?", fixity: "infix", tighter: []string{"="}, looser: []string{".."}, assoc: "right"},
+	{name: "->", fixity: "infix", tighter: []string{"++"}, assoc: "left"},
+
+	// 01a11923-baa0, `++` and `--`, prefix and postfix in one level, which
+	// `**` is looser than.
+	{name: "++", fixity: "prefix", tighter: []string{"**"}, assoc: "nonassoc"},
+	{name: "--", fixity: "prefix", equiv: []string{"++"}},
+	{name: "++", fixity: "postfix", equiv: []string{"++"}},
+	{name: "--", fixity: "postfix", equiv: []string{"++"}},
+
+	// The postfix call and subscripts, perly.y's PERLY_PAREN_OPEN and its
+	// brackets, the tightest operators: the terms, which `time` names the
+	// level of, are tighter still. perlop's table has no row for them, and
+	// no issue gives them a CORE.pmt line.
+	{name: "(", fixity: "postfix", tighter: []string{"->"}, assoc: "left"},
+	{name: "[", fixity: "postfix", tighter: []string{"("}, looser: []string{"time"}, assoc: "left"},
+	{name: "{", fixity: "postfix", equiv: []string{"["}},
+}, compoundAssignments())
+
+// compoundAssignments are the operators `=` and an infix operator spell
+// together, each in `=`'s level: they and `=` are one token class,
+// toke.c:250. Declaring them is 01a118fe-8e5f's too.
+func compoundAssignments() []operatorDecl {
+	var out []operatorDecl
+	for _, op := range []string{"+=", "-=", "*=", "/=", ".=", "%=", "**=", "x=", "||=", "&&=", "//=",
+		"|=", "&=", "^=", "<<=", ">>=", "|.=", "&.=", "^.=", "^^="} {
+		out = append(out, operatorDecl{name: op, fixity: "infix", equiv: []string{"="}})
+	}
+	return out
+}
+
+// bindingPowers are the powers the Pratt parser binds with: the infix and
+// postfix operators', the prefix operators', and those a named unary's and
+// a list operator's operands are parsed at.
+type bindingPowers struct {
+	infix              map[string]OpInfo
+	prefix             map[string]int
+	namedUnary, listOp int
+}
+
+// opAssoc is the parser's associativity for each `:assoc`. A chaining
+// level groups leftward; which of its operators chain is cmpClasses'.
+var opAssoc = map[string]Assoc{
+	"left": AssocLeft, "right": AssocRight, "nonassoc": AssocNone,
+	"chained": AssocLeft, "chain_na": AssocLeft,
+}
+
+// deriveBindingPowers derives the parser's binding powers from the
+// precedence order decls derive: each level binds ten above the next
+// looser one, the loosest at ten, so a right-associative operator's right
+// operand (OpInfo.rightBP) stops only at a looser level.
+func deriveBindingPowers(decls []operatorDecl) (bindingPowers, error) {
+	order, err := precedenceOrder(decls)
+	if err != nil {
+		return bindingPowers{}, err
+	}
+	infixNames := map[string]bool{}
+	for _, op := range decls {
+		if op.fixity == "infix" {
+			infixNames[op.name] = true
+		}
+	}
+	bp := bindingPowers{infix: map[string]OpInfo{}, prefix: map[string]int{}}
+	for i, l := range order {
+		power := (len(order) - i) * 10
+		for _, op := range l.ops {
+			fixity, name, spaced := strings.Cut(op, " ")
+			switch {
+			case !spaced && infixNames[op]:
+				bp.infix[op] = OpInfo{BP: power, Assoc: opAssoc[l.assoc]}
+			case fixity == "postfix":
+				bp.infix[name] = OpInfo{BP: power, Assoc: opAssoc[l.assoc]}
+			case fixity == "prefix":
+				bp.prefix[name] = power
+			case fixity == "unary":
+				bp.namedUnary = power
+			case fixity == "listop":
+				bp.listOp = power
+			}
+		}
+	}
+	return bp, nil
 }

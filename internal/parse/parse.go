@@ -519,6 +519,9 @@ func newParser(src []byte, res *resolver, typed bool) *parser {
 
 // parseWith runs p over its source, returning the tree and p.
 func parseWith(p *parser) (*Node, *parser) {
+	if !p.buildingCore {
+		derivePowers()
+	}
 	root := &Node{Kind: SourceFile, Start: 0, End: len(p.src)}
 	res := p.res
 	for p.pos < len(p.toks) {

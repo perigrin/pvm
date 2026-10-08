@@ -930,7 +930,7 @@ multi sub sort :context(@) (Code|Str $by: List @list = die) List;
 
 # Operators (RFC 0001, "Operator declarations"): each under its symbol, with
 # its fixity and, for an infix one, the class naming its precedence level in
-# the parser's table. The types are upper bounds: `Int + Int` is an Int within
+# XS::Parse::Infix's vocabulary. The types are upper bounds: `Int + Int` is an Int within
 # `Num`, and narrowing it is inference's. An operator that forks on context or
 # on a parenthesis is a multi, one candidate for each branch.
 #
@@ -940,7 +940,8 @@ multi sub sort :context(@) (Code|Str $by: List @list = die) List;
 # table puts below it among those declared here, and the level's
 # associativity, perlop's; the rest of a level are `:equiv` to it, a class
 # saying so for an infix one. TestCoreDerivedPrecedenceIsPerlops holds the
-# order those derive to perlop's table. A level perlop lists that is not
+# order those derive to perlop's table, and the parser binds by it
+# (TestParserPrecedenceFromCore). A level perlop lists that is not
 # declared here is passed over: `..` is `:tighter(=)` though `?:` lies
 # between them.
 
@@ -957,13 +958,15 @@ sub - :infix(ADD) (Num $x, Num $y) Num|Inf;
 sub * :infix(MUL) :tighter(+) :assoc(left) (Num $x, Num $y) Num|Inf;
 sub / :infix(MUL) (Num $x, Num $y) Num|Inf;
 sub % :infix(MUL) (Num $x, Num $y) Num;
+# `**` is right associative and tighter than unary minus, measured:
+# `2**3**2` is 512, and `-2**2` is -4.
 sub ** :infix(POW) :tighter(!) :assoc(right) (Num $x, Num $y) Num|NaN|Inf;
 
-# String
+# String. Concatenation is an ADDOP: `"a" . 1 + 2` is 'a1' + 2.
 sub . :infix(ADD) (Str $x, Str $y) Str;
 
-# Repetition: a list when the left operand is parenthesised and the call is
-# in list context, `(1,2) x 2`; otherwise a string, `"ab" x 2`.
+# Repetition, a MULOP: a list when the left operand is parenthesised and the
+# call is in list context, `(1,2) x 2`; otherwise a string, `"ab" x 2`.
 multi sub x :infix(MUL) :context(@) (List @l, Int $n) List;
 multi sub x :infix(MUL) (Str $s, Int $n) Str;
 
@@ -992,6 +995,7 @@ sub || :infix(LOGICAL_OR) :tighter(..) :assoc(left) (Any $x, Any $y) Any;
 sub // :infix(LOGICAL_OR) (Any $x, Any $y) Any;
 sub and :infix(LOGICAL_AND_LOW) :tighter(or) :assoc(left) (Any $x, Any $y) Any;
 sub or :infix(LOGICAL_OR_LOW) :assoc(left) (Any $x, Any $y) Any;
+# xor is not a level of its own: toke.c:9224 lexes it as or's OROP.
 sub xor :infix(LOGICAL_OR_LOW) (Any $x, Any $y) Boolean;
 
 # Bitwise
@@ -1012,7 +1016,8 @@ multi sub =~ :infix(MATCHRE) :context($) (Str $x, Regex $y) Boolean|Str;
 sub !~ :infix(MATCHRE) (Str $x, Regex $y) Boolean;
 
 # Range: a range in list context, a flip-flop in scalar context, whose
-# result is a sequence number as a string ("", "1", "2", "3E0").
+# result is a sequence number as a string ("", "1", "2", "3E0"). It does not
+# associate, measured: `my $x = 1 .. 2 .. 3;` is a syntax error near "2 ..".
 multi sub .. :infix :tighter(=) :assoc(nonassoc) :context(@) (Str $x, Str $y) List;
 multi sub .. :infix :context($) (Any $x, Any $y) Str;
 multi sub ... :infix :equiv(..) :context(@) (Str $x, Str $y) List;
@@ -1021,13 +1026,16 @@ multi sub ... :infix :context($) (Any $x, Any $y) Str;
 # Assignment
 sub = :infix(ASSIGN) :tighter(not) :assoc(right) (Any $x, Any $y) Any;
 
-# Unary
+# Unary. Minus and plus are perly.y's UMINUS.
 sub - :prefix :equiv(!) (Num $x) Num;
+# Unary plus is a no-op that exists to force term parsing.
 sub + :prefix :equiv(!) (Num $x) Num;
 sub ! :prefix :tighter(=~) :assoc(right) (Any $x) Boolean;
+# not takes a listexpr: it swallows commas.
 sub not :prefix :tighter(and) :assoc(right) (Any $x) Boolean;
 sub ~ :prefix :equiv(!) (Int $x) Int;
-# A reference to each element of a parenthesised list in list context,
+# `\` is REFGEN, the srefgen the fidelity harness measures: a reference to
+# each element of a parenthesised list in list context,
 # `\(1,2,3)`; otherwise one reference.
 multi sub \ :prefix :equiv(!) :context(@) (List @l) List;
 multi sub \ :prefix (Any $x) Ref;

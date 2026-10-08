@@ -116,19 +116,18 @@ func TestOperatorSymbolOnlyInPmt(t *testing.T) {
 	}
 }
 
-// TestCoreOperatorClassCheckCatchesMismatch: the check that holds a declared
-// class to precedence.go is not tautological. `*` is a MULOP, so a `*`
-// declared ADD is reported, and one declared MUL is not.
+// TestCoreOperatorClassCheckCatchesMismatch: a class is a relation, so one
+// its operator's other relations contradict is a declaration error. `*`
+// declared ADD while tighter than `+` would be tighter than its own level,
+// and declared MUL it is not.
 func TestCoreOperatorClassCheckCatchesMismatch(t *testing.T) {
-	facts := readDeclaration([]byte("sub * :infix(ADD) (Num $x, Num $y) Num;\nsub * :infix(MUL) (Num $x, Num $y) Num;\n"), nil)
-	if len(facts.errs) > 0 || len(facts.operators) != 2 {
-		t.Fatalf("errors %v, operators %+v", facts.errs, facts.operators)
-	}
-	want := "sub *: class ADD is level 22, and precedence.go puts * at level 23"
-	if err := precedenceMismatch(facts.operators[0]); err == nil || err.Error() != want {
-		t.Errorf("ADD: got %v, want %q", err, want)
-	}
-	if err := precedenceMismatch(facts.operators[1]); err != nil {
+	precedenceRefuses(t, map[string]string{
+		"sub + :infix(ADD) :assoc(left) (Num $x, Num $y) Num;\n" +
+			"sub * :infix(ADD) :tighter(+) :assoc(left) (Num $x, Num $y) Num;\n": "precedence relations form a cycle among +, *",
+	})
+	ok := "sub + :infix(ADD) :assoc(left) (Num $x, Num $y) Num;\n" +
+		"sub * :infix(MUL) :tighter(+) :assoc(left) (Num $x, Num $y) Num;\n"
+	if _, err := precedenceOrder(corePrecedenceDecls([]byte(ok), nil)); err != nil {
 		t.Errorf("MUL: got %v, want none", err)
 	}
 }
@@ -143,8 +142,8 @@ var xpiClasses = []string{"LOW", "LOGICAL_OR_LOW", "LOGICAL_AND_LOW", "ASSIGN", 
 // names is one, and the levels it classes no operator at are named by
 // their operators: no BITAND, BITOR, SHIFT or RANGE remains.
 func TestCoreClassesAreXPIs(t *testing.T) {
-	if got := slices.Sorted(maps.Keys(operatorClasses)); !reflect.DeepEqual(got, slices.Sorted(slices.Values(xpiClasses))) {
-		t.Errorf("operatorClasses are %v, want XS::Parse::Infix's %v", got, slices.Sorted(slices.Values(xpiClasses)))
+	if got := slices.Sorted(maps.Keys(classAnchors)); !reflect.DeepEqual(got, slices.Sorted(slices.Values(xpiClasses))) {
+		t.Errorf("classAnchors are %v, want XS::Parse::Infix's %v", got, slices.Sorted(slices.Values(xpiClasses)))
 	}
 	for _, op := range coreOperators(t) {
 		if op.class != "" && !slices.Contains(xpiClasses, op.class) {
@@ -319,21 +318,23 @@ func TestCoreArithmeticReturnsWhatPerlReturns(t *testing.T) {
 }
 
 // TestCoreOperatorClassesMatchPrecedence: each infix operator CORE.pmt
-// declares with a class names, by it, the level precedence.go gives it. The table
-// is authoritative (RFC 0001, "Operator declarations").
+// declares with a class binds, in the parser, as the operator its class
+// stands for: `/`, declared MUL, as `*`.
 func TestCoreOperatorClassesMatchPrecedence(t *testing.T) {
+	coreShapes()
 	n := 0
 	for _, op := range coreOperators(t) {
-		if op.fixity != "infix" {
+		anchor := classAnchors[op.class]
+		if op.fixity != "infix" || anchor == "" {
 			continue
 		}
 		n++
-		if err := precedenceMismatch(op); err != nil {
-			t.Error(err)
+		if infix[op.name] != infix[anchor] {
+			t.Errorf("sub %s: class %s, and it binds as %+v where %s binds as %+v", op.name, op.class, infix[op.name], anchor, infix[anchor])
 		}
 	}
 	if n == 0 {
-		t.Error("CORE.pmt declares no infix operator")
+		t.Error("CORE.pmt declares no classed infix operator")
 	}
 }
 
