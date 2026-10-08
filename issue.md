@@ -3,8 +3,10 @@ title: A library's own infix operator parses at the level its relations give
 state: pending
 urgency: normal
 milestone: type-libraries
+blocked_by:
+- 01a118fe-8dfe-7c0e-bcbe-06fd8374d1a6
 created: 2026-10-08T01:32:14.504542887Z
-updated: 2026-10-08T01:32:14.504542887Z
+updated: 2026-10-08T01:32:28.07820372Z
 ---
 
 ## Context
