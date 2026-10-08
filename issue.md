@@ -1,6 +1,6 @@
 ---
 title: "The coined classes BITAND, BITOR, SHIFT and RANGE go: those levels are named by their operators"
-state: in-progress
+state: done
 urgency: normal
 milestone: type-libraries
 blocked_by:
@@ -8,16 +8,31 @@ blocked_by:
 blocks:
 - 01a118fe-8dfe-7c0e-bcbe-06fd8374d1a6
 created: 2026-10-08T00:51:38.164240057Z
-updated: 2026-10-08T08:39:40.484424344Z
+updated: 2026-10-08T09:13:45.078812533Z
 sessions:
 - start_sha: 04a6ca62d20d1d53be57651b769964909706bf69
-  end_sha: ""
-  commits: 0
+  end_sha: b2750dd0677c83a05291e2da5bc3246872c9edbd
+  commits: 1
   started_at: 2026-10-08T08:39:40.484424344Z
+  ended_at: 2026-10-08T09:13:45.078812533Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-08T08:39:40.484424344Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-08T09:13:45.078812533Z
+observed_paths:
+- docs/rfcs/0001-type-libraries.md
+- docs/specs/perl-parser/04-expressions.md
+- internal/lexer/scanrows_test.go
+- internal/parse/coreops_test.go
+- internal/parse/declarations.go
+- internal/parse/declarations/CORE.pmt
+- internal/parse/library_pmt_test.go
+- internal/parse/operators.go
+- internal/parse/pmt_test.go
+- internal/types/select_test.go
 ---
 
 ## Context
