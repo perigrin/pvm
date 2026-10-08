@@ -570,9 +570,10 @@ way (`XPI_CLS_ADD_MISC`, `MUL_MISC`, `POW_MISC`, `LOGICAL_AND_MISC`,
 `ASSIGN_MISC`, `LOW_MISC`, `HIGH_MISC`, and the predicate classes
 `RELATION`, `EQUALITY`, `ORDERING`, `MATCHRE`, `ISA`), written without
 the `XPI_CLS_` prefix and `_MISC` suffix: `and` is `LOGICAL_AND_LOW`,
-`or` and `xor` are `LOGICAL_OR_LOW`. The parser's precedence table stays
-authoritative, and a test holds each `CORE.pmt` operator's class to its
-level there. A library declaring an XS::Parse::Infix operator uses the
+`or` and `xor` are `LOGICAL_OR_LOW`. A class is a relation, `:equiv` of
+the operator it stands for the level of, and the parser's precedence is
+derived from the relations (see "Precedence is a relation between
+operators"). A library declaring an XS::Parse::Infix operator uses the
 same spelling.
 
 XS::Parse::Infix classes no operator at the levels of `&`, of `|` and
@@ -627,15 +628,20 @@ with a signature in `CORE.pmt` that lets it be parsed, and the parser
 is derived from `CORE.pmt` -- as its keyword shapes already are. An
 operator's precedence is part of that definition.
 
-pvm and Chalk each keep a precedence table by hand -- pvm's
-`internal/parse/precedence.go` with the class map in
+pvm and Chalk each kept a precedence table by hand -- pvm's in
+`internal/parse/precedence.go` with a class map in
 `internal/parse/operators.go`, Chalk's
 `Chalk::Grammar::Perl::PrecedenceTable` feeding its Precedence
-semiring -- and the two already disagree: Chalk gives `isa` its own
-level tighter than the relational operators, as perlop does, while
-pvm puts it beside them. pvm's becomes a reading of `CORE.pmt`; the
-relations are plain Perl any other implementation can read, and
-whether one does is that implementation's own work.
+semiring -- and the two disagreed: Chalk gives `isa` its own level
+tighter than the relational operators, as perlop does, while pvm put
+it beside them, as perly.y does (toke.c lexes `isa` as an NCRELOP).
+pvm's is now a reading of `CORE.pmt`: its binding powers are derived
+from the relations, with `isa` in perlop's row. Measured on 5.42, the
+two placements differ only in what perl refuses: `$x isa Foo < 1` and
+`$a < $b isa Foo` are both syntax errors, so an unparenthesised `isa`
+and a relational operator never stand together, and the parser refuses
+both orders. The relations are plain Perl any other implementation can
+read, and whether one does is that implementation's own work.
 
 **Precedence is a partial order, stated on each operator** (perigrin,
 2026-10-08), as Raku states it with `is tighter`, `is looser` and
@@ -691,7 +697,9 @@ exactly, and a test holds the derived order and associativity to
 perlop's own table. Every operator perlop's table names that is an
 infix, prefix or postfix operator has a line, including `^^`, `&.`,
 `|.`, `^.`, `~.`, the compound assignments, `,` and `=>`, and
-`++`/`--`. A library's own operator joins the same order, so
+`++`/`--`. One with no line yet is placed by the same relations, kept
+beside the parser (`undeclaredOperators` in
+`internal/parse/operators.go`) until its line is written. A library's own operator joins the same order, so
 `sub ⊕ :infix :tighter(+) :looser(*)` parses between `+` and `*`
 wherever the library is in scope.
 

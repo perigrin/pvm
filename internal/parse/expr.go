@@ -334,7 +334,7 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 // measured on 5.42.0, `sub c ($x=) {}` is "Optional parameter lacks default
 // expression". The Binary keeps its one child and canon writes its source.
 func (p *parser) emptyDefault(left *Node, op OpInfo) bool {
-	if !p.inSignature || op.Level != assignLevel || left.Kind != Term ||
+	if !p.inSignature || !isAssignment(op) || left.Kind != Term ||
 		len(p.src[left.Start:left.End]) != 1 {
 		return false
 	}
@@ -375,7 +375,7 @@ func (p *parser) parseNonassoc(left *Node, op OpInfo, tok lexer.Token) *Node {
 	if !ok {
 		return n
 	}
-	if nextOp, isOp := infix[p.text(next)]; isOp && nextOp.Level == op.Level {
+	if nextOp, isOp := infix[p.text(next)]; isOp && nextOp.BP == op.BP {
 		start := n.Start
 		p.skipToStatementEnd()
 		return &Node{Kind: Unknown, Refusal: NonassocRepeated, Start: start, End: p.prevEnd()}

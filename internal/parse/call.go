@@ -9,37 +9,6 @@ import (
 	"tamarou.com/pvm/internal/lexer"
 )
 
-// Binding powers for the two call shapes, spec §4.2.
-//
-// A named unary is level 19: tighter than comparison at 17, looser than
-// arithmetic at 22. That is why `length $x + 1` is `length($x + 1)` and
-// `length $x < 5` is `length($x) < 5` -- both measured on the optree.
-//
-// A list operator is level 7, below the comma at 8, which is exactly how it
-// swallows the whole list.
-const (
-	bpNamedUnary = 190
-	bpListOp     = 70
-
-	// A dereference binds tighter than every infix and postfix operator --
-	// `->` at level 29 and the subscripts at 32 included -- so its operand
-	// is the braced expression or the single variable and nothing more. At
-	// 320 the operand parse stops before a subscript, whose own power is
-	// 320: below that, `@$r[1,2]` read as a deref of `$r[1,2]`.
-	//
-	// `$$x[0]` is `${$x}[0]` -- the subscript applies to the DEREFERENCE,
-	// not to `$x` -- so the sigil must take its operand before any postfix
-	// gets a chance. Parsing at 300 leaves `[0]` to the caller's led loop,
-	// which then wraps the whole Unary in an Index. Measured on perl 5.42.0:
-	//
-	//	$ perl -MO=Deparse -e 'my $r = [7]; print $$r[0];'
-	//	print $r->[0];
-	//
-	// Deparse prints the arrow form, which is the same operation spelled the
-	// other way -- and is why §4.14 gives both one node with an `Arrow` flag.
-	bpDeref = 320
-)
-
 // parseWordTerm turns a bareword in term position into a call, a bareword
 // term, or a declaration-like keyword the caller handles.
 // keywordName is the keyword a word names: `CORE::X` is X, the builtin

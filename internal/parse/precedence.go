@@ -1,9 +1,13 @@
-// ABOUTME: The 32 precedence levels of perly.y as a Pratt binding-power table.
-// ABOUTME: Level order is perly.y declaration order; BP is level*10, leaving room to insert.
+// ABOUTME: The Pratt binding powers, derived from CORE.pmt's precedence relations.
+// ABOUTME: Also the census of perly.y's 32 levels, which the conformance tiers measure against.
 
 package parse
 
-import "sort"
+import (
+	"slices"
+	"sort"
+	"sync"
+)
 
 // Assoc is how an operator groups when it meets one of equal power.
 type Assoc uint8
@@ -20,10 +24,6 @@ const (
 
 // OpInfo is one infix or postfix entry.
 type OpInfo struct {
-	// Level is the perly.y declaration index, 1 (loosest) to 32 (tightest).
-	// Kept alongside BP so the table can be checked against perly.y by
-	// counting rather than by reading binding powers.
-	Level int
 	BP    int
 	Assoc Assoc
 }
@@ -38,106 +38,101 @@ func (o OpInfo) rightBP() int {
 	return o.BP
 }
 
-// infix is the complete infix and postfix table, spec §4.2.
+// The parser's binding powers, spec §4.2, derived from the precedence
+// relations CORE.pmt states (RFC 0001, "Precedence is a relation between
+// operators") by derivePowers: infix holds the infix and postfix operators,
+// prefix the power a prefix operator passes down for its operand,
+// bpNamedUnary and bpListOp the powers a named unary's and a list
+// operator's operands are parsed at.
 //
-// Thirty-two levels, counted rather than remembered:
+// A named unary is tighter than comparison and looser than the shifts, so
+// `length $x + 1` is `length($x + 1)` and `length $x < 5` is `length($x) <
+// 5` -- both measured on the optree. A list operator is below the comma,
+// which is exactly how it swallows the whole list.
+var (
+	infix                  map[string]OpInfo
+	prefix                 map[string]int
+	bpNamedUnary, bpListOp int
+
+	// bpDeref is the subscripts' own power: a dereference binds tighter
+	// than every infix and postfix operator below them -- `->` included
+	// -- so its operand is the braced expression or the single variable
+	// and nothing more, and the parse stops before a subscript: below
+	// that, `@$r[1,2]` read as a deref of `$r[1,2]`.
+	//
+	// `$$x[0]` is `${$x}[0]` -- the subscript applies to the DEREFERENCE,
+	// not to `$x` -- so the sigil must take its operand before any postfix
+	// gets a chance. Parsing at a power below the subscripts' leaves `[0]`
+	// to the caller's led loop, which then wraps the whole Unary in an
+	// Index. Measured on perl 5.42.0:
+	//
+	//	$ perl -MO=Deparse -e 'my $r = [7]; print $$r[0];'
+	//	print $r->[0];
+	//
+	// Deparse prints the arrow form, which is the same operation spelled
+	// the other way -- and is why §4.14 gives both one node with an
+	// `Arrow` flag.
+	bpDeref int
+
+	// bpBelowComma is the floor that admits the comma and excludes
+	// everything under it -- which, in the infix table, is exactly `and`,
+	// `or` and `xor`.
+	//
+	// parseExpr stops at `op.BP <= minBP`, so this is `and`'s own power:
+	// `and` and `or`/`xor` stop, the comma does not. `not` and the list
+	// operators sit in the gap and carry no infix entry -- `not` is prefix
+	// and the list operators are prefix -- so the three word operators are
+	// the whole set. Below the comma is the `and or not` versus `&& ||`
+	// cliff of §4.1.1.
+	//
+	// Named because three sites need the same boundary and a literal at
+	// each would be three chances to write the wrong one. Derived from the
+	// table so it cannot drift from it.
+	bpBelowComma int
+
+	powersOnce sync.Once
+)
+
+// derivePowers derives the binding powers, once, from CORE.pmt's relations
+// and the operators it has no line for (undeclaredOperators). Every
+// parse but CORE.pmt's own derives them first, through parseWith.
 //
-//	$ grep -cE '^%(left|right|nonassoc)' perly.y
-//	32
-//	$ grep -cE '^%nonassoc' perly.y
-//	11
-//
-// An earlier pass in this project wrote "33" into a README from memory and it
-// propagated. The number is cheap to check.
-//
-// Levels 1, 3, 18, 28 and 30 carry no lexable operator -- they are
-// pseudo-tokens and plugin hooks -- so they appear in levelsPresent rather
-// than here. Levels 2, 7, 19, 20 and 25 are prefix forms and live in prefix.
-var infix = map[string]OpInfo{
-	// 4-5: the lowest logical operators. Below the comma at 8, which is the
-	// `and or not` versus `&& ||` cliff of §4.1.1.
-	"or":  {4, 40, AssocLeft},
-	"xor": {4, 40, AssocLeft}, // NOT its own level -- toke.c:9224
-	"and": {5, 50, AssocLeft},
-
-	// 8: comma. `=>` is a comma that autoquotes its left bareword.
-	",":  {8, 80, AssocLeft},
-	"=>": {8, 80, AssocLeft},
-
-	// 9: assignment, right associative. One token class in toke.c:250.
-	"=": {9, 90, AssocRight}, "+=": {9, 90, AssocRight},
-	"-=": {9, 90, AssocRight}, "*=": {9, 90, AssocRight},
-	"/=": {9, 90, AssocRight}, ".=": {9, 90, AssocRight},
-	"%=": {9, 90, AssocRight}, "**=": {9, 90, AssocRight},
-	"x=": {9, 90, AssocRight}, "||=": {9, 90, AssocRight},
-	"&&=": {9, 90, AssocRight}, "//=": {9, 90, AssocRight},
-	"|=": {9, 90, AssocRight}, "&=": {9, 90, AssocRight},
-	"^=": {9, 90, AssocRight}, "<<=": {9, 90, AssocRight},
-	">>=": {9, 90, AssocRight}, "|.=": {9, 90, AssocRight},
-	"&.=": {9, 90, AssocRight}, "^.=": {9, 90, AssocRight},
-	"^^=": {9, 90, AssocRight},
-
-	// 10: ternary, right associative. Measured:
-	//   perl -MO=Deparse -e 'my $x = $a ? $b : $c ? $d : $e;'
-	//   my $x = $a ? $b : ($c ? $d : $e);
-	"?": {10, 100, AssocRight},
-
-	// 11: range, NONASSOC. Measured: `my $x = 1 .. 2 .. 3;` is
-	// "syntax error near 2 ..".
-	"..": {11, 110, AssocNone}, "...": {11, 110, AssocNone},
-
-	// 12-13.
-	"||": {12, 120, AssocLeft}, "//": {12, 120, AssocLeft},
-	"^^": {12, 120, AssocLeft}, // toke.c:6441 -- shares || level
-	"&&": {13, 130, AssocLeft},
-
-	// 14-15: bitwise.
-	"|": {14, 140, AssocLeft}, "^": {14, 140, AssocLeft},
-	"|.": {14, 140, AssocLeft}, "^.": {14, 140, AssocLeft},
-	"&": {15, 150, AssocLeft}, "&.": {15, 150, AssocLeft},
-
-	// 16: equality. The chaining half is handled in §4.3, not here.
-	"==": {16, 160, AssocLeft}, "!=": {16, 160, AssocLeft},
-	"eq": {16, 160, AssocLeft}, "ne": {16, 160, AssocLeft},
-	"<=>": {16, 160, AssocLeft}, "cmp": {16, 160, AssocLeft},
-	"~~": {16, 160, AssocLeft},
-
-	// 17: relational.
-	"<": {17, 170, AssocLeft}, ">": {17, 170, AssocLeft},
-	"<=": {17, 170, AssocLeft}, ">=": {17, 170, AssocLeft},
-	"lt": {17, 170, AssocLeft}, "gt": {17, 170, AssocLeft},
-	"le": {17, 170, AssocLeft}, "ge": {17, 170, AssocLeft},
-	"isa": {17, 170, AssocLeft}, // toke.c:8697 -- NON-chaining
-
-	// 21-23.
-	"<<": {21, 210, AssocLeft}, ">>": {21, 210, AssocLeft},
-	"+": {22, 220, AssocLeft}, "-": {22, 220, AssocLeft},
-	".": {22, 220, AssocLeft}, // concat is an ADDOP: `"a" . 1 + 2` is 'a1' + 2
-	"*": {23, 230, AssocLeft}, "/": {23, 230, AssocLeft},
-	"%": {23, 230, AssocLeft},
-	"x": {23, 230, AssocLeft}, // repetition is a MULOP
-
-	// 24: binding.
-	"=~": {24, 240, AssocLeft}, "!~": {24, 240, AssocLeft},
-
-	// 26: exponentiation, right associative AND tighter than unary minus.
-	// Measured: 2**3**2 is 512, and -2**2 is -4.
-	"**": {26, 260, AssocRight},
-
-	// 27: postfix inc/dec.
-	"++": {27, 270, AssocNone}, "--": {27, 270, AssocNone},
-
-	// 29-32: the postfix chain, tightest in the grammar.
-	"->": {29, 290, AssocLeft},
-	"(":  {31, 310, AssocLeft},
-	"[":  {32, 320, AssocLeft},
-	"{":  {32, 320, AssocLeft},
+// CORE.pmt is read for them before any power exists, so a default
+// expression a power is needed to read, chdir's `$dir = $_`, is misread and
+// its declaration is in error. What the powers are derived from is the
+// operator lines and the levels the builtins' shapes are in, which that
+// read does not miss: TestParserPrecedenceFromCore holds the powers to the
+// ones a read with them derives, and readCore, reading with them, refuses
+// a CORE.pmt in error.
+func derivePowers() {
+	powersOnce.Do(func() {
+		src, ok := declaration("CORE")
+		if !ok {
+			panic("parse: declarations/CORE.pmt is not embedded")
+		}
+		p := newParser(src, nil, true)
+		p.buildingCore = true
+		facts := readDeclarationWith(p)
+		decls := precedenceDeclsOf(facts, deriveShapes(protoTable(facts), facts.signatures))
+		bp, err := deriveBindingPowers(slices.Concat(decls, undeclaredOperators))
+		if err != nil {
+			panic("parse: declarations/CORE.pmt: " + err.Error())
+		}
+		for _, op := range coreQualifiedOps {
+			bp.infix["CORE::"+op] = bp.infix[op]
+		}
+		infix, prefix, bpNamedUnary, bpListOp = bp.infix, bp.prefix, bp.namedUnary, bp.listOp
+		bpDeref = infix["["].BP
+		bpBelowComma = infix["and"].BP
+	})
 }
 
-// assignLevel is perly.y's assignment level. `=` and the eighteen compound
-// forms are ONE token class in toke.c:250, so code that asks "is this an
+// isAssignment reports whether op is `=` or one of its compound forms.
+// They are ONE token class in toke.c:250, so code that asks "is this an
 // assignment" tests the level rather than listing the spellings.
-const assignLevel = 9
+func isAssignment(op OpInfo) bool {
+	return op.BP != 0 && op.BP == infix["="].BP
+}
 
 // IsWordShapedOperator reports whether text spells one of perl's operators
 // with letters rather than punctuation: `x`, `cmp`, `eq`, `and`, `not` and
@@ -169,25 +164,13 @@ func IsWordShapedOperator(text string) bool {
 	if !isLetter {
 		return false
 	}
+	derivePowers()
 	if _, ok := infix[text]; ok {
 		return true
 	}
 	_, ok := prefix[text]
 	return ok
 }
-
-// bpBelowComma is the floor that admits the comma and excludes everything
-// under it -- which, in the infix table, is exactly `and`, `or` and `xor`.
-//
-// parseExpr stops at `op.BP <= minBP`, so this is `and`'s own power: `and`
-// (50) and `or`/`xor` (40) stop, the comma (80) does not. Levels 6 and 7 sit
-// in the gap and carry no infix entry -- `not` is prefix and the list
-// operators are prefix -- so the three word operators are the whole set.
-//
-// Named because three sites need the same boundary and a literal 50 at each
-// would be three chances to write the wrong one. Derived from the table so
-// it cannot drift from it.
-var bpBelowComma = infix["and"].BP
 
 // atOperatorBelowComma reports whether the next significant token is one of
 // the three word operators below the comma.
@@ -211,21 +194,21 @@ func (p *parser) atOperatorBelowComma() bool {
 	return isOp && op.BP <= bpBelowComma
 }
 
-// prefix is the power a prefix operator passes down for its operand.
-var prefix = map[string]int{
-	"not": 60,  // level 6, takes a listexpr -- swallows commas
-	"!":   250, // level 25
-	"~":   250,
-	"~.":  250,
-	"-":   250, // UMINUS
-	"+":   250, // UMINUS -- a no-op that exists to force term parsing
-	"\\":  250, // REFGEN: the srefgen the fidelity harness measures
-	"++":  270, // PREINC
-	"--":  270, // PREDEC
-}
-
-// levelsPresent records which of the 32 perly.y levels this table accounts
-// for, and how.
+// levelsPresent records which of the 32 perly.y levels this parser
+// accounts for, and how. Thirty-two levels, counted rather than remembered:
+//
+//	$ grep -cE '^%(left|right|nonassoc)' perly.y
+//	32
+//	$ grep -cE '^%nonassoc' perly.y
+//	11
+//
+// An earlier pass in this project wrote "33" into a README from memory and it
+// propagated. The number is cheap to check.
+//
+// perly.y has no row of its own for `isa`: toke.c:8697 lexes it as an
+// NCRELOP, at level 17 with the relational operators. perlop's table, and
+// CORE.pmt's relations, give it its own row, tighter than theirs; perl
+// refuses the two unparenthesised together either way (chain.go).
 //
 // Five levels carry no lexable operator: 1 PREC_LOW is a pseudo-token used
 // only via %prec, 3/18/28 are XS infix-plugin hooks, and 30 is
@@ -247,6 +230,7 @@ func LevelsAccountedFor() map[int]string {
 // NonassocOperators returns the infix operators declared %nonassoc, whose
 // repetition is a syntax error rather than a grouping.
 func NonassocOperators() []string {
+	derivePowers()
 	var out []string
 	for op, info := range infix {
 		if info.Assoc == AssocNone {
@@ -295,14 +279,14 @@ var levelsPresent = map[int]string{
 // coreQualifiedOps are the word operators perl also accepts spelled with
 // CORE::, meaning the bare word -- measured on 5.42.0 with -MO=Deparse,
 // `$r = $a CORE::eq $b` is `$r = $a eq $b`. Entered in the tables under the
-// spelled name, so every lookup sees them and canon keeps the spelling.
+// spelled name, so every lookup sees them and canon keeps the spelling:
+// derivePowers enters them in infix, and init in cmpClasses.
 var coreQualifiedOps = []string{
 	"eq", "ne", "lt", "gt", "le", "ge", "cmp", "x", "and", "or", "xor", "isa",
 }
 
 func init() {
 	for _, op := range coreQualifiedOps {
-		infix["CORE::"+op] = infix[op]
 		if c, ok := cmpClasses[op]; ok {
 			cmpClasses["CORE::"+op] = c
 		}

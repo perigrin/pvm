@@ -265,3 +265,99 @@ func TestCoreShapeLevels(t *testing.T) {
 		}
 	}
 }
+
+// parserAssoc is the associativity the Pratt loop gives each `:assoc`. A
+// chaining level groups leftward, its chaining being the comparison path's
+// (cmpClasses).
+var parserAssoc = map[string]Assoc{
+	"left": AssocLeft, "right": AssocRight, "nonassoc": AssocNone,
+	"chained": AssocLeft, "chain_na": AssocLeft,
+}
+
+// TestParserPrecedenceFromCore: the binding power and associativity the
+// parser uses for each operator are the order CORE.pmt's relations derive
+// (RFC 0001, "Precedence is a relation between operators"). Each level's
+// operators bind with one power, each level's tighter than the next, with
+// its associativity: an infix or postfix operator by the infix table, a
+// prefix one by the prefix table, a named unary and a list operator by the
+// powers their operands are parsed at. A term takes no operand, and goto
+// and dump keep their own parse, so neither has a power to compare. A
+// chaining level's operators are the comparisons that chain: `chained` is
+// `<` and its row, and `chain_na` `==`'s, where `<=>` and `cmp` do not chain.
+func TestParserPrecedenceFromCore(t *testing.T) {
+	type power struct {
+		bp    int
+		assoc Assoc
+		infix bool
+	}
+	powerOf := func(op string) (power, bool) {
+		shape, name, spaced := strings.Cut(op, " ")
+		switch {
+		case !spaced, shape == "postfix":
+			if !spaced {
+				name = op
+			}
+			info, ok := infix[name]
+			return power{info.BP, info.Assoc, true}, ok
+		case shape == "prefix":
+			bp, ok := prefix[name]
+			return power{bp: bp}, ok
+		case shape == "unary":
+			return power{bp: bpNamedUnary}, true
+		case shape == "listop":
+			return power{bp: bpListOp}, true
+		}
+		return power{}, false
+	}
+	last := 0
+	for _, l := range parserOrder(t) {
+		bp := 0
+		for _, op := range l.ops {
+			if op == "goto" || op == "dump" || strings.HasPrefix(op, "term ") {
+				continue
+			}
+			p, ok := powerOf(op)
+			if !ok {
+				t.Errorf("%s: the parser has no power for it", op)
+				continue
+			}
+			if bp == 0 {
+				bp = p.bp
+			} else if p.bp != bp {
+				t.Errorf("%s binds at %d, and its level %v at %d", op, p.bp, l.ops, bp)
+			}
+			if p.infix && p.assoc != parserAssoc[l.assoc] {
+				t.Errorf("%s: the parser's associativity is %v, CORE.pmt's level :assoc(%s)", op, p.assoc, l.assoc)
+			}
+			if cls := cmpClasses[op]; l.assoc == "chained" && cls != chRelop || l.assoc == "chain_na" && cls != chEqop && cls != ncEqop {
+				t.Errorf("%s: comparison class %d in a level of :assoc(%s)", op, cls, l.assoc)
+			}
+			if alias, ok := infix["CORE::"+op]; ok && alias != infix[op] {
+				t.Errorf("CORE::%s binds as %+v, %s as %+v", op, alias, op, infix[op])
+			}
+		}
+		if bp == 0 {
+			continue
+		}
+		if last != 0 && bp >= last {
+			t.Errorf("level %v binds at %d, not looser than the level before it at %d", l.ops, bp, last)
+		}
+		last = bp
+	}
+}
+
+// parserOrder is the precedence order the parser's powers are held to:
+// CORE.pmt's, with the operators it has no line for, read as any parse
+// reads, with the powers derived.
+func parserOrder(t *testing.T) []precLevel {
+	t.Helper()
+	src, ok := declaration("CORE")
+	if !ok {
+		t.Fatal("declarations/CORE.pmt is not embedded")
+	}
+	order, err := precedenceOrder(slices.Concat(corePrecedenceDecls(src, coreShapes()), undeclaredOperators))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return order
+}

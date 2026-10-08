@@ -780,7 +780,7 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 		// (toke.c:250), so the test is the level rather than a list of
 		// nineteen spellings.
 		hadInit := false
-		if eq, ok := p.peekSignificant(); ok && infix[p.text(eq)].Level == assignLevel {
+		if eq, ok := p.peekSignificant(); ok && isAssignment(infix[p.text(eq)]) {
 			hadInit = true
 			p.advanceTo(eq)
 			// Parsed at the assignment's own right power, so the comma and
@@ -816,7 +816,7 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 		if !hadInit {
 			if op, ok := p.peekSignificant(); ok {
 				text := p.text(op)
-				if info, isInfix := infix[text]; isInfix && info.Level != assignLevel &&
+				if info, isInfix := infix[text]; isInfix && !isAssignment(info) &&
 					text != "," && text != "=>" && info.BP > bpBelowComma {
 					left = p.parseInfix(n, bpBelowComma)
 				}
@@ -870,7 +870,7 @@ func (p *parser) listDeclWithAttributes(n *Node) *Node {
 	}
 	n.Children = append(n.Children, list)
 	p.parseAttributes(n)
-	if eq, ok := p.peekSignificant(); ok && infix[p.text(eq)].Level == assignLevel {
+	if eq, ok := p.peekSignificant(); ok && isAssignment(infix[p.text(eq)]) {
 		p.advanceTo(eq)
 		if init := p.parseExpr(bpBelowComma); init != nil {
 			n.Children = append(n.Children, init)

@@ -327,6 +327,8 @@ func deriveShapes(protos map[string]string, sigs map[string][]types.Signature) m
 // CoreOperator's and coreShapes's tables.
 func readCore() {
 	coreOnce.Do(func() {
+		// Its tables are read with the parser's powers, as every parse is.
+		derivePowers()
 		src, ok := declaration("CORE")
 		if !ok {
 			panic("parse: declarations/CORE.pmt is not embedded")
@@ -370,6 +372,12 @@ func coreDeclarations(src []byte) (map[string]string, map[string][]types.Signatu
 		key := [2]string{op.name, op.fixity}
 		ops[key] = append(ops[key], op.sig)
 	}
+	return protoTable(facts), facts.signatures, ops, nil
+}
+
+// protoTable is a CORE.pmt's builtins by name, each to its prototype
+// without the parentheses.
+func protoTable(facts moduleFacts) map[string]string {
 	protos := map[string]string{}
 	for name, proto := range facts.protos {
 		// A builtin with no prototype, print's "", has no entry: aliasTarget
@@ -379,7 +387,7 @@ func coreDeclarations(src []byte) (map[string]string, map[string][]types.Signatu
 		}
 		protos[name] = strings.TrimSuffix(strings.TrimPrefix(proto, "("), ")")
 	}
-	return protos, facts.signatures, ops, nil
+	return protos
 }
 
 var (

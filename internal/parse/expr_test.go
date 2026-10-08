@@ -30,9 +30,13 @@ func TestPrecedenceTableComplete(t *testing.T) {
 	//   grep -cE '^%nonassoc' perly.y  ->  11
 	// Of those 11, five carry no lexable operator (1, 3, 18, 28, 30) and
 	// three are prefix or statement forms handled elsewhere (2, 7, 20), so
-	// the infix table holds the remaining three: .. ... ++ --.
-	if got := parse.NonassocOperators(); len(got) != 4 {
-		t.Errorf("nonassoc infix operators = %v, want 4 (.. ... ++ --)", got)
+	// the infix table holds the remaining three: .. ... ++ --. And isa,
+	// which perly.y declares %left as an NCRELOP and perlop's table, which
+	// the parser's powers are derived from, nonassoc: measured on 5.42.0,
+	// `$x isa Foo isa Bar` is a syntax error (TestIsaPrecedenceMatchesPerl).
+	want := "++ -- .. ... CORE::isa isa"
+	if got := strings.Join(parse.NonassocOperators(), " "); got != want {
+		t.Errorf("nonassoc infix operators = %s, want %s", got, want)
 	}
 }
 
@@ -139,6 +143,62 @@ func TestComparisonAcrossLevels(t *testing.T) {
 		root := parseOneExpr(t, src)
 		if !containsKind(root, parse.Unknown) {
 			t.Errorf("%q: two eqop-level operators; got %s", src, shape(root))
+		}
+	}
+}
+
+// TestIsaPrecedenceMatchesPerl: perlop gives `isa` its own nonassoc row,
+// tighter than the relational operators and looser than the named unaries,
+// and CORE.pmt's relations say so. What perl's grammar does with that,
+// measured on 5.42.0 with `use v5.36; -MO=Deparse,-p`:
+//
+//	$x isa Foo == 1          ((${'x'} isa 'Foo') == 1)
+//	1 == $x isa Foo          (1 == (${'x'} isa 'Foo'))
+//	$x isa Foo <=> 1         (($x isa 'Foo') <=> 1)
+//	$x isa Foo << 1          (${'x'} isa ('Foo' << 1))
+//	defined $x isa Foo       (defined(${'x'}) isa 'Foo')
+//	!$x isa Foo              ((!$x) isa 'Foo')
+//	($x isa Foo) < 1         (($x isa 'Foo') < 1)
+//	$a < ($b isa Foo)        ($a < ($b isa 'Foo'))
+//	$x isa Foo < 1           syntax error, near "Foo <"
+//	$a < $b isa Foo          syntax error, near "$b isa"
+//	$x isa Foo lt 1          syntax error, near "Foo lt"
+//	$x lt $y isa Foo         syntax error, near "$y isa"
+//	$x isa Foo isa Bar       syntax error, near "Foo isa"
+//
+// toke.c lexes `isa` as an NCRELOP, a relational operator that does not
+// chain, so an unparenthesised `isa` and a relational operator never stand
+// together, whichever is written first: binding tighter than `<` is never
+// seen as a grouping, only as the refusal.
+func TestIsaPrecedenceMatchesPerl(t *testing.T) {
+	for src, want := range map[string]string{
+		"$x isa Foo == 1":    "(== (isa $x Foo) 1)",
+		"1 == $x isa Foo":    "(== 1 (isa $x Foo))",
+		"$x isa Foo <=> 1":   "(<=> (isa $x Foo) 1)",
+		"$x isa Foo << 1":    "(isa $x (<< Foo 1))",
+		"defined $x isa Foo": "(isa (defined $x) Foo)",
+		"!$x isa Foo":        "(isa (! $x) Foo)",
+		"($x isa Foo) < 1":   "(< (isa $x Foo) 1)",
+		"$a < ($b isa Foo)":  "(< $a (isa $b Foo))",
+	} {
+		root := parseOneExpr(t, src)
+		if containsKind(root, parse.Unknown) {
+			t.Errorf("%q: perl accepts this; got %s", src, shape(root))
+			continue
+		}
+		if got := shape(skipWrappers(root)); got != want {
+			t.Errorf("%q: shape = %s, want %s", src, got, want)
+		}
+	}
+	for _, src := range []string{
+		"$x isa Foo < 1",
+		"$a < $b isa Foo",
+		"$x isa Foo lt 1",
+		"$x lt $y isa Foo",
+		"$x isa Foo isa Bar",
+	} {
+		if root := parseOneExpr(t, src); !containsKind(root, parse.Unknown) {
+			t.Errorf("%q: perl refuses this; got %s", src, shape(root))
 		}
 	}
 }
