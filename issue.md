@@ -1,13 +1,22 @@
 ---
 title: The lattice has a Void type, and Maybe[T] and Optional[T] are the joins Undef|T and Void|T
-state: pending
+state: in-progress
 urgency: normal
 milestone: type-libraries
 blocks:
 - 01a11920-411a-7cea-b78f-c1568aba6d25
 - 01a1193c-44f3-7f27-bd9c-a789eb9a74e2
 created: 2026-10-08T01:53:26.234239053Z
-updated: 2026-10-08T02:15:21.304587015Z
+updated: 2026-10-08T02:17:16.933211588Z
+sessions:
+- start_sha: 214a28feeaf479afafe15410e923f54e81a1a919
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-08T02:17:16.933211588Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-08T02:17:16.933211588Z
 ---
 
 ## Context
