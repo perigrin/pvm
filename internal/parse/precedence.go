@@ -90,6 +90,13 @@ var (
 	// table so it cannot drift from it.
 	bpBelowComma int
 
+	// coreOrderDecls are the relations the powers are derived from, and
+	// levelPowers the power of each operator's level, by its label in
+	// the order: what a library's operators are placed among
+	// (libraryInfix).
+	coreOrderDecls []operatorDecl
+	levelPowers    map[string]int
+
 	powersOnce sync.Once
 )
 
@@ -114,10 +121,12 @@ func derivePowers() {
 		p.buildingCore = true
 		facts := readDeclarationWith(p)
 		decls := precedenceDeclsOf(facts, deriveShapes(protoTable(facts), facts.signatures))
-		bp, err := deriveBindingPowers(slices.Concat(decls, undeclaredOperators))
+		coreOrderDecls = slices.Concat(decls, undeclaredOperators)
+		bp, err := deriveBindingPowers(coreOrderDecls)
 		if err != nil {
 			panic("parse: declarations/CORE.pmt: " + err.Error())
 		}
+		levelPowers = bp.levels
 		for _, op := range coreQualifiedOps {
 			bp.infix["CORE::"+op] = bp.infix[op]
 		}

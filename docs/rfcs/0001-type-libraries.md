@@ -583,9 +583,11 @@ operators, and their lines state their relations (see "Precedence is a
 relation between operators") -- `sub & :infix :tighter(|)
 :assoc(left)`, `sub ^ :infix :equiv(|)` -- so only XS::Parse::Infix's
 own class names are spellable in `:infix(CLASS)`, and a library naming
-another is in error. XS::Parse::Infix cannot register an operator at
-those levels, so a library's infix operator may not join one: `sub ⊕
-:infix :equiv(&)` is a declaration error.
+another is in error. XS::Parse::Infix is an influence, not a limitation
+(perigrin, 2026-10-08): a library's infix operator may take any level
+its relations give, `:equiv` of any operator, those levels included
+(`sub ⊕ :infix :equiv(&)` binds as `&`), or a level of its own between
+two (`:tighter(+) :looser(*)`).
 
 **Operators that fork** are multis:
 

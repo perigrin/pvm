@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -642,22 +641,6 @@ func shippedDeclarationErrors(t *testing.T, fsys fs.FS) []string {
 		t.Fatal(err)
 	}
 	return out
-}
-
-// TestShippedLibraryPmtRefusesUnclassedLevel: RFC 0001 "One language for
-// every .pmt" -- a library may not join a level XS::Parse::Infix classes no
-// operator at, as CORE.pmt's own operators do, so the check over the
-// shipped files reads each library file as a library.
-func TestShippedLibraryPmtRefusesUnclassedLevel(t *testing.T) {
-	line := "sub zz :infix :equiv(&) (Int $x, Int $y) Int;\n"
-	fsys := fstest.MapFS{
-		"declarations/CORE.pmt": {Data: []byte(line)},
-		"declarations/Foo.pmt":  {Data: []byte(line)},
-	}
-	errs := shippedDeclarationErrors(t, fsys)
-	if len(errs) != 1 || !strings.HasPrefix(errs[0], "declarations/Foo.pmt: ") {
-		t.Errorf("got %q; want one error, for the library file", errs)
-	}
 }
 
 // TestPmtAliasedParamsParse: RFC 0001 "The scalar container". A parameter

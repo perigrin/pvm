@@ -5,6 +5,7 @@ package lexer
 
 import (
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -1044,10 +1045,18 @@ var bitwiseStringOps = []string{"&.=", "|.=", "^.=", "&.", "|.", "^.", "~."}
 // declarations"), as the Word a sub's name is. Only in a `.pmt`: in perl,
 // measured on 5.42.0, `sub + { 1 }` is "Illegal declaration of anonymous
 // subroutine". A bracket, comma or colon after `sub` still opens a
-// signature, a body or an attribute.
+// signature, a body or an attribute. A library's operator may be one
+// non-ASCII symbol, `sub ⊕ :infix ...`, as an operator plugin may register
+// one; see symbolRune.
 func scanOperatorName(l *lexer) bool {
 	if !l.typed || !l.sawSubWord {
 		return false
+	}
+	if n := l.symbolRune(); n > 0 {
+		start := l.pos
+		l.pos += n
+		l.emit(Word, start)
+		return true
 	}
 	for _, ops := range [][]string{bitwiseStringOps, operators} {
 		for _, op := range ops {
@@ -1064,6 +1073,19 @@ func scanOperatorName(l *lexer) bool {
 		}
 	}
 	return false
+}
+
+// symbolRune is the length of the non-ASCII symbol or punctuation
+// character at the cursor, and 0 where there is none. perl has no such
+// operator, but an operator plugin (XS::Parse::Infix) may register one, as
+// Syntax::Operator::Elem registers `∈`, so a library's `.pmt` may declare
+// one and a file that uses the library may spell it.
+func (l *lexer) symbolRune() int {
+	r, size := utf8.DecodeRune(l.src[l.pos:])
+	if r < utf8.RuneSelf || r == utf8.RuneError || !unicode.IsSymbol(r) && !unicode.IsPunct(r) {
+		return 0
+	}
+	return size
 }
 
 // scanOperator lexes punctuation.

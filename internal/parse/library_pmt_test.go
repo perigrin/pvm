@@ -162,35 +162,33 @@ func TestLibraryCoinedClassRefused(t *testing.T) {
 	}
 }
 
-// TestLibraryEquivUnclassedLevelRefused: XS::Parse::Infix classes no
-// operator at the levels of `&`, of `|` and `^`, of `<<` and `>>`, or of
-// `..` and `...`, so it cannot register one there, and a library's infix
-// operator may not join one by `:equiv`. One joining a level it classes,
-// `+`'s, is a library's to declare. Reached by a `use`, CORE.pmt is still
-// the interpreter's file.
-func TestLibraryEquivUnclassedLevelRefused(t *testing.T) {
+// TestLibraryOperatorMayUseAnyLevel: RFC 0001 "Fixity and precedence".
+// XS::Parse::Infix is an influence, not a limitation: a library's infix
+// operator may join any operator's level by `:equiv`, including the levels
+// XS::Parse::Infix classes no operator at, and binds as that operator does.
+func TestLibraryOperatorMayUseAnyLevel(t *testing.T) {
 	saved := declarations
 	t.Cleanup(func() { declarations = saved })
-	for _, level := range []string{"&", "|", "^", "<<", ">>", "..", "..."} {
-		src := "package Unclassed;\nsub op :infix :equiv(" + level + ") (Int $x, Int $y) Int;\n"
-		declarations = layeredFS{top: fstest.MapFS{"declarations/Unclassed.pmt": {Data: []byte(src)}}, base: saved}
-		root := ParseWithLoader([]byte("use Unclassed;\n"), func(string) ([]byte, bool) { return nil, false })
-		want := "Unclassed: sub op: :equiv(" + level + ") is a level XS::Parse::Infix registers no operator at"
-		if errs := DeclarationErrors(root); len(errs) != 1 || errs[0].Error() != want {
-			t.Errorf("%s: got %v, want %q", level, errs, want)
+	for _, level := range []string{"&", "|", "^", "<<", ">>", "..", "...", "+"} {
+		src := "package Anywhere;\nsub ⊕ :infix :equiv(" + level + ") (Int $x, Int $y) Int;\n"
+		declarations = layeredFS{top: fstest.MapFS{"declarations/Anywhere.pmt": {Data: []byte(src)}}, base: saved}
+		if errs := DeclarationErrors(ParseWithLoader([]byte("use Anywhere;\n"), noModules)); len(errs) > 0 {
+			t.Errorf("%s: %v", level, errs)
+			continue
 		}
-		if facts := resolveLibrary(t, "Unclassed"); len(facts.operators) > 0 {
-			t.Errorf("%s: recorded %+v", level, facts.operators)
+		facts := resolveLibrary(t, "Anywhere")
+		if len(facts.operators) != 1 || facts.operators[0].name != "⊕" {
+			t.Errorf("%s: operators %+v", level, facts.operators)
+			continue
 		}
-	}
-	src := "package Classed;\nsub op :infix :equiv(+) (Int $x, Int $y) Int;\n"
-	declarations = layeredFS{top: fstest.MapFS{"declarations/Classed.pmt": {Data: []byte(src)}}, base: saved}
-	if facts := resolveLibrary(t, "Classed"); len(facts.errs) > 0 || len(facts.operators) != 1 {
-		t.Errorf(":equiv(+): errors %v, operators %+v", facts.errs, facts.operators)
-	}
-	declarations = saved
-	if errs := DeclarationErrors(ParseWithLoader([]byte("use CORE;\n"), func(string) ([]byte, bool) { return nil, false })); len(errs) > 0 {
-		t.Errorf("use CORE: %v", errs)
+		powers, err := libraryInfix(facts.operators)
+		if err != nil {
+			t.Errorf("%s: %v", level, err)
+			continue
+		}
+		if got, want := powers["⊕"], infix[level]; got != want {
+			t.Errorf("%s: ⊕ binds %+v, want %+v", level, got, want)
+		}
 	}
 }
 
