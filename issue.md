@@ -1,10 +1,10 @@
 ---
-title: XS::Parse::Infix's LOW and HIGH classes have no level
+title: "Drop XS::Parse::Infix's LOW and HIGH classes: relations already state those levels"
 state: pending
 urgency: normal
 milestone: type-libraries
 created: 2026-10-08T13:39:49.983282202Z
-updated: 2026-10-08T13:43:05.106490807Z
+updated: 2026-10-08T13:43:05.242668173Z
 ---
 
 ## Context
