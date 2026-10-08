@@ -102,7 +102,8 @@ var (
 
 // derivePowers derives the binding powers, once, from CORE.pmt's relations
 // and the operators it has no line for (undeclaredOperators). Every
-// parse but CORE.pmt's own derives them first, through parseWith.
+// parse but the read of CORE.pmt below derives them first, through
+// parseWith, so a test that reads CORE.pmt alone gets them too.
 //
 // CORE.pmt is read for them before any power exists, so a default
 // expression a power is needed to read, chdir's `$dir = $_`, is misread and
@@ -118,7 +119,7 @@ func derivePowers() {
 			panic("parse: declarations/CORE.pmt is not embedded")
 		}
 		p := newParser(src, nil, true)
-		p.buildingCore = true
+		p.buildingCore, p.derivingPowers = true, true
 		facts := readDeclarationWith(p)
 		decls := precedenceDeclsOf(facts, deriveShapes(protoTable(facts), facts.signatures))
 		coreOrderDecls = slices.Concat(decls, undeclaredOperators)

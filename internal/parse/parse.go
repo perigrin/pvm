@@ -523,7 +523,7 @@ func newParser(src []byte, res *resolver, typed bool) *parser {
 
 // parseWith runs p over its source, returning the tree and p.
 func parseWith(p *parser) (*Node, *parser) {
-	if !p.buildingCore {
+	if !p.derivingPowers {
 		derivePowers()
 	}
 	root := &Node{Kind: SourceFile, Start: 0, End: len(p.src)}
@@ -595,8 +595,12 @@ type parser struct {
 	// tables, which then do not yet exist: the keyword shapes are derived
 	// from that read, so it cannot consult them. See coreShapes.
 	buildingCore bool
-	typedErrs    []error
-	operators    []operatorDecl
+	// derivingPowers is set only on derivePowers' own read of CORE.pmt,
+	// which runs before any binding power exists. Every other parse, a
+	// CORE.pmt read included, derives the powers first.
+	derivingPowers bool
+	typedErrs      []error
+	operators      []operatorDecl
 	// relations are the precedence relations stated on named operators'
 	// lines; see declareOperator.
 	relations []operatorDecl
