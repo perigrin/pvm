@@ -1,21 +1,44 @@
 ---
 title: A library's own infix operator parses at the level its relations give
-state: in-progress
+state: done
 urgency: normal
 milestone: type-libraries
 blocked_by:
 - 01a118fe-8dfe-7c0e-bcbe-06fd8374d1a6
 created: 2026-10-08T01:32:14.504542887Z
-updated: 2026-10-08T12:58:09.075211894Z
+updated: 2026-10-08T13:46:53.333485705Z
 sessions:
 - start_sha: cd34146a827f624890247b5c2383db9e2261ebc9
-  end_sha: ""
-  commits: 0
+  end_sha: 02fcb424cc451d0c3e6139f95f18eef225f04dc0
+  commits: 2
   started_at: 2026-10-08T12:58:09.075211894Z
+  ended_at: 2026-10-08T13:46:53.333485705Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-08T12:58:09.075211894Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-08T13:46:53.333485705Z
+observed_paths:
+- docs/rfcs/0001-type-libraries.md
+- internal/lexer/scan.go
+- internal/lexer/symbolop_test.go
+- internal/parse/coreops_test.go
+- internal/parse/declarations.go
+- internal/parse/declarations/CORE.pmt
+- internal/parse/expr.go
+- internal/parse/library_pmt_test.go
+- internal/parse/operators.go
+- internal/parse/parse.go
+- internal/parse/pmt_test.go
+- internal/parse/precedence.go
+- internal/parse/precrelations_test.go
+- internal/parse/refscalar.go
+- internal/parse/refscalar_test.go
+- internal/parse/refusal.go
+- internal/parse/term.go
+- internal/parse/use.go
 ---
 
 ## Context
