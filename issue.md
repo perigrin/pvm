@@ -1,21 +1,36 @@
 ---
 title: "CORE.pmt declares ++ and -- as prefix and postfix"
-state: in-progress
+state: done
 urgency: normal
 milestone: type-libraries
 blocked_by:
 - 01a118fe-8d68-71a8-ab06-cc12d7a20589
 created: 2026-10-08T01:32:14.368080588Z
-updated: 2026-10-08T12:58:08.751763415Z
+updated: 2026-10-08T13:30:59.457332042Z
 sessions:
 - start_sha: cd34146a827f624890247b5c2383db9e2261ebc9
-  end_sha: ""
-  commits: 0
+  end_sha: 2119cf8320b21d098168c402561bd8751f2a69ca
+  commits: 1
   started_at: 2026-10-08T12:58:08.751763415Z
+  ended_at: 2026-10-08T13:30:59.457332042Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-08T12:58:08.751763415Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-08T13:30:59.457332042Z
+observed_paths:
+- internal/parse/coreops_test.go
+- internal/parse/declarations.go
+- internal/parse/declarations/CORE.pmt
+- internal/parse/expr.go
+- internal/parse/operators.go
+- internal/parse/precrelations_test.go
+- internal/parse/refscalar.go
+- internal/parse/refscalar_test.go
+- internal/parse/refusal.go
+- internal/parse/term.go
 ---
 
 ## Context
