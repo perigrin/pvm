@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a118fe-8e5f-717a-b046-6020db95c724
 created: 2026-10-08T00:51:38.164240057Z
-updated: 2026-10-08T01:11:15.903471516Z
+updated: 2026-10-08T01:32:11.181441428Z
 ---
 
 ## Context
@@ -22,8 +22,10 @@ Goal (perigrin, 2026-10-08): every builtin and operator is defined with a signat
 ## Steps
 
 - [ ] Write failing test `TestCoreClassesAreXPIs`: every `:infix(CLASS)` in CORE.pmt names an XS::Parse::Infix class, and no BITAND, BITOR, SHIFT or RANGE remains
+- [ ] Write failing test `TestLibraryCoinedClassRefused`: a library .pmt naming a removed class is an unknown-class declaration error
 - [ ] Respell those lines with relations; drop `coreOnlyClasses` in favour of "a library may not place an operator at a level XS::Parse::Infix cannot register at" if XS::Parse::Infix's limits still apply; restate RFC 0001 "Fixity and precedence"; `make test`; commit
 
 ## Acceptance criteria
 
+- [ ] a library .pmt naming BITAND, BITOR, SHIFT or RANGE is a declaration error (`go test ./internal/parse/ -run '^TestLibraryCoinedClassRefused$' -count=1 -v | grep -q '^--- PASS: TestLibraryCoinedClassRefused'`)
 - [ ] no coined class names remain (`go test ./internal/parse/ -run '^TestCoreClassesAreXPIs$' -count=1 -v | grep -q '^--- PASS: TestCoreClassesAreXPIs'`)
