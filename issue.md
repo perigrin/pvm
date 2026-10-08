@@ -1,6 +1,6 @@
 ---
 title: CORE.pmt states each operator's precedence as a relation to another, with perlop's associativity
-state: in-progress
+state: done
 urgency: normal
 milestone: type-libraries
 blocks:
@@ -10,16 +10,45 @@ blocks:
 - 01a11920-411a-7cea-b78f-c1568aba6d25
 - 01a11923-baa0-774c-9058-4d7e8995a73e
 created: 2026-10-08T00:51:37.959731974Z
-updated: 2026-10-08T02:17:16.758195489Z
+updated: 2026-10-08T05:35:59.11337188Z
 sessions:
 - start_sha: 214a28feeaf479afafe15410e923f54e81a1a919
-  end_sha: ""
-  commits: 0
+  end_sha: 04a6ca62d20d1d53be57651b769964909706bf69
+  commits: 4
   started_at: 2026-10-08T02:17:16.758195489Z
+  ended_at: 2026-10-08T05:35:59.11337188Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-08T02:17:16.758195489Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-08T05:35:59.11337188Z
+observed_paths:
+- docs/rfcs/0001-type-libraries.md
+- internal/infer/core_test.go
+- internal/infer/infer.go
+- internal/parse/corearray_test.go
+- internal/parse/coreops_test.go
+- internal/parse/coretypes_test.go
+- internal/parse/decl.go
+- internal/parse/declarations.go
+- internal/parse/declarations/CORE.pmt
+- internal/parse/derive.go
+- internal/parse/derive_test.go
+- internal/parse/exports.go
+- internal/parse/invocant_test.go
+- internal/parse/operators.go
+- internal/parse/parse.go
+- internal/parse/pmt_test.go
+- internal/parse/precrelations_test.go
+- internal/parse/selfdefault_test.go
+- internal/parse/voidparam_test.go
+- internal/parse/wrapper_test.go
+- internal/types/names.go
+- internal/types/narrowing.go
+- internal/types/types.go
+- internal/types/void_test.go
 ---
 
 ## Context
