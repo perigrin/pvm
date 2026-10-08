@@ -3,8 +3,10 @@ title: CORE.pmt states the precedence table as @PRECEDENCE, with perlop's associ
 state: pending
 urgency: normal
 milestone: type-libraries
+blocks:
+- 01a118fe-8dfe-7c0e-bcbe-06fd8374d1a6
 created: 2026-10-08T00:51:37.959731974Z
-updated: 2026-10-08T00:51:37.959731974Z
+updated: 2026-10-08T00:51:56.057030097Z
 ---
 
 ## Context
