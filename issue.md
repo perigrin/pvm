@@ -1,10 +1,19 @@
 ---
 title: Arithmetic in CORE.pmt can yield Inf and NaN, which the lattice places outside Num
-state: pending
+state: in-progress
 urgency: normal
 milestone: type-libraries
 created: 2026-10-06T08:56:07.912685152Z
-updated: 2026-10-06T08:56:07.912685152Z
+updated: 2026-10-08T01:04:11.855463565Z
+sessions:
+- start_sha: 71a78d587b054f357c33464a4ed57869aa943b0f
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-08T01:04:11.855463565Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-08T01:04:11.855463565Z
 ---
 
 ## Context
