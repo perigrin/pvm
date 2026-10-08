@@ -602,7 +602,9 @@ pvm and Chalk each keep a precedence table by hand -- pvm's
 `Chalk::Grammar::Perl::PrecedenceTable` feeding its Precedence
 semiring -- and the two already disagree: Chalk gives `isa` its own
 level tighter than the relational operators, as perlop does, while
-pvm puts it beside them. Both become readings of `CORE.pmt`.
+pvm puts it beside them. pvm's becomes a reading of `CORE.pmt`; the
+relations are plain Perl any other implementation can read, and
+whether one does is that implementation's own work.
 
 **Precedence is a partial order, stated on each operator** (perigrin,
 2026-10-08), as Raku states it with `is tighter`, `is looser` and
@@ -635,14 +637,17 @@ sub ⊕ :infix :tighter(+) :looser(*) :assoc(left) (Num $x, Num $y) Num;
   unary between `<<`/`>>` and `isa`, `not` between `..` and `and`, a
   rightward list operator below `,`.
 
-**Both parsers derive a total order** by sorting the relations
+**The parser derives a total order** by sorting the relations
 topologically. A `.pmt` whose relations form a cycle, or leave two
 levels unordered where a parse needs an answer, is a declaration error
 naming the operators. `CORE.pmt`'s relations reproduce perlop's table
 exactly, and a test holds the derived order and associativity to
 perlop's own table. Every operator perlop's table names that is an
-infix or prefix operator has a line, including `^^`, `&.`, `|.`, `^.`,
-`~.`, the compound assignments and `++`/`--`.
+infix, prefix or postfix operator has a line, including `^^`, `&.`,
+`|.`, `^.`, `~.`, the compound assignments, `,` and `=>`, and
+`++`/`--`. A library's own operator joins the same order, so
+`sub ⊕ :infix :tighter(+) :looser(*)` parses between `+` and `*`
+wherever the library is in scope.
 
 ### Multi declarations (*Implemented*, d7ff54be, e0927971, 597f89f2, 56fdf0e2, 2a00759b, 1f2f170c, 263ec15e, d44fb222, 7341cfec, 7e129204)
 
