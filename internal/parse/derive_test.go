@@ -208,9 +208,11 @@ func TestDerivePrototypeAfterAtIsError(t *testing.T) {
 }
 
 // TestDerivePlusOnlyFromList: `+` is the table's `Array|Hash|Scalar $x`
-// and nothing wider or narrower. Measured on 5.42, `f(@a)` passes an ARRAY
-// reference under `+` and the count under `$`, so a `$` parameter typed Any
-// or Array|Str is a `$`, not a `+`.
+// and nothing wider or narrower, but for Void: List is that union and
+// Void, and the empty list in a `+` slot arrives as undef (measured on
+// 5.42, `f(())` passes one undef). Measured on 5.42, `f(@a)` passes an
+// ARRAY reference under `+` and the count under `$`, so a `$` parameter
+// typed Any or Array|Str is a `$`, not a `+`.
 func TestDerivePlusOnlyFromList(t *testing.T) {
 	for typed, want := range map[string]string{
 		"(Any $x)":       "$",

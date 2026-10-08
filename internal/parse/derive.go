@@ -84,9 +84,12 @@ func typesFromPrototype(proto string) (sig types.Signature, derived bool, err er
 // prototypeFromTypes gives the prototype, without its parentheses, that a
 // typed signature's parameters state, the table read the other way. Types
 // are finer than prototypes, so `Str $x` and `Scalar $x` both give `$`;
-// a `$` parameter typed exactly List (`Array|Hash|Scalar`) gives `+`, and one
-// defaulting to `$_` gives `_`. A wider or other type stays `$`: measured on
-// 5.42, `f(@a)` passes an ARRAY reference under `+` but the count under `$`.
+// a `$` parameter typed exactly `Array|Hash|Scalar`, or that and Void,
+// which is List, gives `+`, and one defaulting to `$_` gives `_`. A wider or
+// other type stays `$`: measured on 5.42, `f(@a)` passes an ARRAY reference
+// under `+` but the count under `$`. Void does not change the character:
+// measured on 5.42, `f(())` under `+` passes one undef, the empty list in
+// scalar context, and whether the slot may be left empty is its `;`.
 // A trailing `;` is not a type, so `$;` and `;` come back as `$` and nothing;
 // a declaration that writes them keeps its declared prototype. A `;` goes before the first optional
 // parameter other than `_`, which is optional of itself.
@@ -104,7 +107,7 @@ func prototypeFromTypes(sig types.Signature) string {
 		case p.Alias:
 			b.WriteByte('\\')
 			b.WriteByte(p.Sigil)
-		case p.Sigil == '$' && p.Type == types.List:
+		case p.Sigil == '$' && p.Type|types.Void == types.List:
 			b.WriteByte('+')
 		case topic:
 			b.WriteByte('_')

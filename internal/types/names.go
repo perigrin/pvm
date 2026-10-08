@@ -40,3 +40,17 @@ func FromName(name string) (Type, error) {
 	}
 	return t, nil
 }
+
+// Wrapper reports the type a wrapper name joins with its one parameter,
+// the paper's "Absent and undefined": `Maybe[T]` is `Undef|T`, present and
+// possibly undef, and `Optional[T]` is `Void|T`, possibly absent. Each
+// names a union already in the lattice, not a type of its own.
+func Wrapper(name string) (Type, bool) {
+	switch name {
+	case "Maybe":
+		return Undef, true
+	case "Optional":
+		return Void, true
+	}
+	return Unknown, false
+}

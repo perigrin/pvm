@@ -205,8 +205,22 @@ unknown name is an error. perigrin, 2026-10-02:
   combine.
 - **Names follow the paper.** The lattice's `Bool` is the paper's
   `Boolean`, and a `.pmt` writes `Boolean`.
-- **The paper's other types** (`VString`, `Format`, `Void`, `LValueRef`)
-  join the lattice when a declaration first needs one.
+- **`Void` joins the lattice** (perigrin, 2026-10-08), the paper's
+  `Void := {()}`: arity 0, one inhabitant, the empty list, what returns
+  and yields nothing. It sits under `List` beside `Scalar`, and is not
+  `None`, which does not return. Scalar context coerces it to `Undef`:
+  measured on 5.42, `f(())` under prototype `+` passes one undef. pvm's
+  `List` is `Array|Hash|Scalar|Void`, so `Void|Scalar` is under `List`
+  rather than equal to it as in the paper.
+- **`Maybe[T]` is `Undef|T` and `Optional[T]` is `Void|T`** (perigrin,
+  2026-10-08; the paper's "Absent and undefined"). They are names for
+  those unions, not types of their own, and take exactly one type.
+  Measured on 5.42, `srand(undef)` warns "Use of uninitialized value"
+  and seeds 18446744073709551615, an `Int` slot holding undef,
+  `Maybe[Int]`; `srand()` seeds itself, a slot holding nothing,
+  `Optional[Int]`.
+- **The paper's other types** (`VString`, `Format`, `LValueRef`) join
+  the lattice when a declaration first needs one.
 
 ### One language for every `.pmt` (*Implemented*, 79191842, d1338cd2, b6bea9c6)
 
@@ -419,7 +433,7 @@ prototype character corresponds to a parameter:
 | `\@`, `\%` | an actual array or hash, passed whole | `Array \@a`, `Hash \%h` |
 | `\$` | any scalar lvalue, passed as a reference: `sref(1)` dies, "must be scalar (not constant item)" | `Scalar \$x` |
 | `\[$@%]` | any one of those containers | their union |
-| `+` | one array or hash, passed whole, or one scalar: `plus(%h)` sees a HASH, `plus(1,2)` is too many arguments | `Array\|Hash\|Scalar $`, exactly: a wider type such as `Any $` is a `$` |
+| `+` | one array or hash, passed whole, or one scalar: `plus(%h)` sees a HASH, `plus(1,2)` is too many arguments | `Array\|Hash\|Scalar $`, exactly, or that and `Void`, `List $`: `plus(())` passes one undef. A wider type such as `Any $` is a `$` |
 | `&` | a block or a code reference when first; elsewhere `sub {...}` or `\&name` | `Code &` |
 | `*` | a bareword filehandle or any scalar: `star(STDOUT)`, `star($s)` | `Glob *` |
 | `_` | a scalar, defaulting to `$_` | `Scalar $ = $_` |

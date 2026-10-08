@@ -198,8 +198,9 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 			// no comma after it, held apart from the positional ones.
 			case p.text(sep) == ":" && len(s.Params) == 1 && s.Invocant == nil:
 				// The slot holds one item, so a List, by its sigil or its
-				// type, is no invocant.
-				if param.Sigil == '@' || param.Sigil == '%' || param.Type == types.List {
+				// type, is no invocant. The type is List with or without
+				// Void: `Array|Hash|Scalar` is List less its arity 0.
+				if param.Sigil == '@' || param.Sigil == '%' || param.Type|types.Void == types.List {
 					return fmt.Errorf("invocant %s is a List; an invocant slot holds one item", param.Variable())
 				}
 				p.advanceTo(sep)
@@ -308,7 +309,8 @@ func (p *parser) returnType() (types.Type, *Node, error) {
 // typeExpr reads a type expression into its Type, its element type, and a
 // TypeName node covering it. RFC 0001 "Type names": a lattice type name, a
 // union `A|B` with spaces around `|` allowed, or a container type
-// `Name[Type]` such as `List[Str]`, whose element is returned beside it.
+// `Name[Type]` such as `List[Str]`, whose element is returned beside it,
+// or a wrapper type, `Maybe[Int]`, which is the union it names.
 //
 // ponytail: a union of containers ORs their elements and a nested
 // container's element is its outer container, until the paper says what
@@ -327,27 +329,35 @@ func (p *parser) typeExpr() (typ, elem types.Type, node *Node, err error) {
 		if start < 0 {
 			start = tok.Start
 		}
-		member, err := types.FromName(p.text(tok))
-		if err != nil {
-			return types.Unknown, types.Unknown, nil, fmt.Errorf("unknown type name %q", p.text(tok))
-		}
-		p.advanceTo(tok)
-		typ = types.Join(typ, member)
-		if open, ok := p.peekSignificant(); ok && p.text(open) == "[" {
-			p.advanceTo(open)
-			if end, ok := p.peekSignificant(); ok && p.text(end) == "]" {
-				return types.Unknown, types.Unknown, nil, fmt.Errorf("container type %s has no element type", p.src[tok.Start:end.End])
-			}
-			inner, _, _, err := p.typeExpr()
+		if wrapped, ok := types.Wrapper(p.text(tok)); ok {
+			member, inner, err := p.wrapperType(tok, wrapped)
 			if err != nil {
 				return types.Unknown, types.Unknown, nil, err
 			}
-			end, ok := p.peekSignificant()
-			if !ok || p.text(end) != "]" {
-				return types.Unknown, types.Unknown, nil, fmt.Errorf("container type %s is not closed by `]`", p.src[tok.Start:p.prevEnd()])
+			typ, elem = types.Join(typ, member), types.Join(elem, inner)
+		} else {
+			member, err := types.FromName(p.text(tok))
+			if err != nil {
+				return types.Unknown, types.Unknown, nil, fmt.Errorf("unknown type name %q", p.text(tok))
 			}
-			p.advanceTo(end)
-			elem = types.Join(elem, inner)
+			p.advanceTo(tok)
+			typ = types.Join(typ, member)
+			if open, ok := p.peekSignificant(); ok && p.text(open) == "[" {
+				p.advanceTo(open)
+				if end, ok := p.peekSignificant(); ok && p.text(end) == "]" {
+					return types.Unknown, types.Unknown, nil, fmt.Errorf("container type %s has no element type", p.src[tok.Start:end.End])
+				}
+				inner, _, _, err := p.typeExpr()
+				if err != nil {
+					return types.Unknown, types.Unknown, nil, err
+				}
+				end, ok := p.peekSignificant()
+				if !ok || p.text(end) != "]" {
+					return types.Unknown, types.Unknown, nil, fmt.Errorf("container type %s is not closed by `]`", p.src[tok.Start:p.prevEnd()])
+				}
+				p.advanceTo(end)
+				elem = types.Join(elem, inner)
+			}
 		}
 		bar, ok := p.peekSignificant()
 		if !ok || p.text(bar) != "|" {
@@ -357,6 +367,34 @@ func (p *parser) typeExpr() (typ, elem types.Type, node *Node, err error) {
 	}
 	text := string(p.src[start:p.prevEnd()])
 	return typ, elem, &Node{Kind: TypeName, Text: text, Start: start, End: p.prevEnd()}, nil
+}
+
+// wrapperType reads a wrapper type, `Maybe[Int]`, whose name tok is next:
+// the union of wrapped with its one type parameter, and that parameter's
+// element. A wrapper with no parameter, or more than one, is an error
+// naming it.
+func (p *parser) wrapperType(tok lexer.Token, wrapped types.Type) (typ, elem types.Type, err error) {
+	name := p.text(tok)
+	refused := fmt.Errorf("%s takes one type, as in %s[Int]", name, name)
+	p.advanceTo(tok)
+	open, ok := p.peekSignificant()
+	if !ok || p.text(open) != "[" {
+		return types.Unknown, types.Unknown, refused
+	}
+	p.advanceTo(open)
+	if end, ok := p.peekSignificant(); ok && p.text(end) == "]" {
+		return types.Unknown, types.Unknown, refused
+	}
+	inner, elem, _, err := p.typeExpr()
+	if err != nil {
+		return types.Unknown, types.Unknown, err
+	}
+	end, ok := p.peekSignificant()
+	if !ok || p.text(end) != "]" {
+		return types.Unknown, types.Unknown, refused
+	}
+	p.advanceTo(end)
+	return types.Join(wrapped, inner), elem, nil
 }
 
 // typedParam reads one parameter of a typed signature, `Str $class =
@@ -439,13 +477,15 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 		return types.Param{}, nil, fmt.Errorf("%s has type %s; a %s slot holds %s", param.Variable(), tn.Text, slot, holds)
 	}
 	// RFC 0001 "The scalar container": a parameter that takes the caller's
-	// container is backslashed, so `Array @a` is not valid.
-	if slurpy && typ != types.Unknown && typ != types.List && typ&^(types.Array|types.Hash) == 0 {
+	// container is backslashed, so `Array @a` is not valid. A slurpy's type
+	// is List, with or without Void.
+	list := typ|types.Void == types.List
+	if slurpy && typ != types.Unknown && !list && typ&^(types.Array|types.Hash) == 0 {
 		return types.Param{}, nil, fmt.Errorf(`container type %s with flattening sigil %s; a parameter that takes the caller's container is %s \%s`, tn.Text, param.Variable(), tn.Text, p.text(v))
 	}
 	// RFC 0001 "A slurpy takes no bare element type": `Str @args` leaves
 	// both the container and what `Str` applies to unsaid.
-	if slurpy && typ != types.Unknown && typ != types.List {
+	if slurpy && typ != types.Unknown && !list {
 		return types.Param{}, nil, fmt.Errorf("slurpy %s has a bare element type %s; write a container type, List[%s] %s", param.Variable(), tn.Text, tn.Text, param.Variable())
 	}
 	node := &Node{Kind: Declaration, Text: tn.Text, Start: tok.Start, Children: []*Node{
