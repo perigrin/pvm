@@ -11,7 +11,7 @@ blocks:
 - 01a10c6e-9a95-719a-80e2-2e33037d0096
 - 01a10177-547c-73a9-a302-f25f579a4cb3
 created: 2026-10-05T14:18:57.039335349Z
-updated: 2026-10-06T15:02:35.128077909Z
+updated: 2026-10-08T18:41:09.549065823Z
 sessions:
 - start_sha: f24878f216ee2095e30322b83521a8d081b6d60a
   end_sha: f24878f216ee2095e30322b83521a8d081b6d60a
@@ -54,7 +54,7 @@ Fourth batch, by perlfunc's categories "Functions for processes and process grou
 
 ### Negative Scenarios
 
-- a call to `localtime` or `gmtime` in void context has no type, since neither candidate answers for void (`go test ./internal/parse/ -run '^TestCoreLocaltimeVoidHasNoType$' -count=1 -v | grep -q '^--- PASS: TestCoreLocaltimeVoidHasNoType'`)
+- a call to `localtime` or `gmtime` in void context has no type, since neither candidate answers for void (`go test ./internal/parse/ -run '^TestCoreLocaltimeVoidIsScalar$' -count=1 -v | grep -q '^--- PASS: TestCoreLocaltimeVoidIsScalar'`)
 - a niladic builtin (`time`, `wait`, `fork`: prototype `()`) is typed with zero parameters, not with an empty list parameter, so its derived prototype stays `()` and not absent (`go test ./internal/parse/ -run '^TestCoreNiladicBuiltinsTypedEmpty$' -count=1 -v | grep -q '^--- PASS: TestCoreNiladicBuiltinsTypedEmpty'`)
 - the glob-slot lines are not typed by a guess: `lock`, `undef`, `tie`, `tied` and `untie` keep their prototype-only lines, with no typed signature (`go test ./internal/parse/ -run '^TestCoreGlobSlotLinesStayUntyped$' -count=1 -v | grep -q '^--- PASS: TestCoreGlobSlotLinesStayUntyped'`)
 
@@ -63,6 +63,10 @@ Fourth batch, by perlfunc's categories "Functions for processes and process grou
 - [ ] localtime and gmtime are declared as context multis (`go test ./internal/parse/ -run '^TestCoreLocaltimeGmtimeAreContextMultis$' -count=1 -v | grep -q '^--- PASS: TestCoreLocaltimeGmtimeAreContextMultis'`)
 - [ ] CORE.pmt types every process, time, module, object, scoping and miscellaneous builtin but the glob-slot lines (`go test ./internal/parse/ -run '^TestCoreProcessTimeMiscBuiltinsTyped$' -count=1 -v | grep -q '^--- PASS: TestCoreProcessTimeMiscBuiltinsTyped'`)
 - [ ] every CORE.pmt prototype, derived from its types where typed, is still perl's (`go test ./internal/parse/ -run '^TestCoreDerivedPrototypesArePerls$' -count=1 -v | grep -q '^--- PASS: TestCoreDerivedPrototypesArePerls'`)
-- [ ] a void call to localtime has no type (`go test ./internal/parse/ -run '^TestCoreLocaltimeVoidHasNoType$' -count=1 -v | grep -q '^--- PASS: TestCoreLocaltimeVoidHasNoType'`)
+- [ ] a void call to localtime has no type (`go test ./internal/parse/ -run '^TestCoreLocaltimeVoidIsScalar$' -count=1 -v | grep -q '^--- PASS: TestCoreLocaltimeVoidIsScalar'`)
 - [ ] niladic builtins derive an empty prototype, not an absent one (`go test ./internal/parse/ -run '^TestCoreNiladicBuiltinsTypedEmpty$' -count=1 -v | grep -q '^--- PASS: TestCoreNiladicBuiltinsTypedEmpty'`)
 - [ ] the glob-slot lines stay untyped (`go test ./internal/parse/ -run '^TestCoreGlobSlotLinesStayUntyped$' -count=1 -v | grep -q '^--- PASS: TestCoreGlobSlotLinesStayUntyped'`)
+
+### Criteria superseded (2026-10-08)
+
+01a11920-411a dropped `:context` (perigrin: "multi and return type handle it"): a `:context` attribute is now refused, and a multi selects by return type. This issue's criteria that named the attribute's tests now name their replacements: TestCoreLocaltimeVoidHasNoType -> TestCoreLocaltimeVoidIsScalar (void context with no Void candidate falls back to scalar).
