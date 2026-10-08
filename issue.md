@@ -1,6 +1,6 @@
 ---
 title: "The coined classes BITAND, BITOR, SHIFT and RANGE go: those levels are named by their operators"
-state: pending
+state: in-progress
 urgency: normal
 milestone: type-libraries
 blocked_by:
@@ -8,7 +8,16 @@ blocked_by:
 blocks:
 - 01a118fe-8dfe-7c0e-bcbe-06fd8374d1a6
 created: 2026-10-08T00:51:38.164240057Z
-updated: 2026-10-08T01:32:25.95253377Z
+updated: 2026-10-08T08:39:40.484424344Z
+sessions:
+- start_sha: 04a6ca62d20d1d53be57651b769964909706bf69
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-08T08:39:40.484424344Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-08T08:39:40.484424344Z
 ---
 
 ## Context
