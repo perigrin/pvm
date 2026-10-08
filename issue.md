@@ -7,7 +7,7 @@ blocks:
 - 01a11920-411a-7cea-b78f-c1568aba6d25
 - 01a1193c-44f3-7f27-bd9c-a789eb9a74e2
 created: 2026-10-08T01:53:26.234239053Z
-updated: 2026-10-08T02:12:58.117322914Z
+updated: 2026-10-08T02:15:21.304587015Z
 ---
 
 ## Context
@@ -18,7 +18,7 @@ updated: 2026-10-08T02:12:58.117322914Z
 
 perigrin, 2026-10-08: add a Void type to the lattice. The paper: `Void := {()}`, arity 0, one inhabitant (the empty list) -- "returns nothing", distinct from None's "does not return". Arity orders the top: Void {0}, Scalar {1}, List {0,1,2,...}, so Void <: List, Void and Scalar are incomparable siblings, and List is their join. Scalar context coerces it: `Void ⇓^Scalar undef` (a bare `return` is Void). pvm has only the context marker `VoidCtx`, no type.
 
-Wrapper types (perigrin, 2026-10-08): a parametric wrapper type always equals a join expression -- `Maybe[T]` is `Undef|T` (present, possibly undef; Moose's and Type::Tiny's meaning) and `Optional[T]` is `Void|T` (may be absent; Type::Tiny's Tuple/Dict meaning). They are names for those unions, not new types: `srand(undef)` is `Maybe[Int]` (an Int slot holding undef; measured on 5.42: warns "Use of uninitialized value" and "Integer overflow", seeds 18446744073709551615), `srand()` is `Optional[Int]`. Container types (`List[T]`, `Array[T]`, `Hash[T]`, `Ref[T]`) keep their element-type parameter: `Ref[Array]` etc. already have non-parametric names (`ArrayRef`...), but an element type has none. The paper section is `~/dev/types-paper` (canonical source; gh-pages renders it) "Absent and undefined".
+Wrapper types (perigrin, 2026-10-08; no general rule for parametric types yet): `Maybe[T]` is `Undef|T` (present, possibly undef; Moose's and Type::Tiny's meaning) and `Optional[T]` is `Void|T` (may be absent; Type::Tiny's Tuple/Dict meaning). They are names for those unions, not new types: `srand(undef)` is `Maybe[Int]` (an Int slot holding undef; measured on 5.42: warns "Use of uninitialized value" and "Integer overflow", seeds 18446744073709551615), `srand()` is `Optional[Int]`. Container types (`List[T]`, `Array[T]`, `Hash[T]`, `Ref[T]`) keep their element-type parameter: `Ref[Array]` etc. already have non-parametric names (`ArrayRef`...), but an element type has none. The paper section is `~/dev/types-paper` (canonical source; gh-pages renders it) "Absent and undefined".
 
 In the bitset: a new leaf (bit 20 is free), `List` gains it, `typeNames` spells it `Void`. Watch: anything comparing to exactly `List` (`prototypeFromTypes`'s `+`, `Array|Hash|Scalar` literals) changes meaning when `List` widens -- find each and decide by measurement, not by keeping the old mask.
 
