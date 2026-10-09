@@ -1,19 +1,34 @@
 ---
 title: FuzzParser has no fixpoint invariant, so a canon defect the fuzzer reaches breaks no assertion
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-26T13:59:01.639917324Z
-updated: 2026-10-09T05:31:57.443390482Z
+updated: 2026-10-09T06:12:51.43978509Z
 sessions:
 - start_sha: 0a4028652b10372f819872a4a07866fb7eb15151
-  end_sha: ""
-  commits: 0
+  end_sha: 0cbc6dfb48de6e5fb1f7641ecefb081702ab84f9
+  commits: 3
   started_at: 2026-10-09T05:31:57.443390482Z
+  ended_at: 2026-10-09T06:12:51.43978509Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-09T05:31:57.443390482Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-09T06:12:51.43978509Z
+observed_paths:
+- docs/specs/perl-parser/00-findings.md
+- internal/parse/fuzz_test.go
+- internal/parse/sites.go
+- internal/parse/sites_decided_test.go
+- internal/parseoracle/compare_facts.go
+- internal/parseoracle/cvwalk_test.go
+- internal/parseoracle/ratchet_test.go
+- internal/parseoracle/span_test.go
+- internal/parseoracle/testdata/parse_facts.pl
+- internal/parseoracle/testdata/ratchet/baseline.txt
 ---
 
 `checkParseInvariants` in `internal/parse/fuzz_test.go` asserts three things --
