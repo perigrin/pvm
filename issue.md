@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-19T12:24:07.603930506Z
-updated: 2026-09-19T12:57:06.598396655Z
+updated: 2026-10-09T17:21:18.379742056Z
 sessions:
 - start_sha: 657d0caf0f47c00e90171f5eed8589e133a9d877
   end_sha: ef0efc46cb2a0d24b82c6e69ce9d3ec7f357750e
@@ -78,7 +78,7 @@ Whatever is built must FAIL on the mis-grouped tree above, in the corpus
 sweep and not only in a hand-built unit test. That is the acceptance bar,
 because it is the thing the current sweep cannot do.
 
-## Acceptance
+## Acceptance criteria
 
 - [x] The corpus sweep fails on a tree that is not a parse of its source (`go test ./internal/parse/ -run '^TestCanonFidelityCatchesMisgrouping$' -count=1 -v | grep -q '^--- PASS: TestCanonFidelityCatchesMisgrouping'`)
 - [x] The parenless-call equivalence is the ONLY one quotiented, named and tested (`go test ./internal/parse/ -run '^TestCanonQuotientIsNarrow$' -count=1 -v | grep -q '^--- PASS: TestCanonQuotientIsNarrow'`)
