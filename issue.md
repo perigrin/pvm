@@ -1,10 +1,19 @@
 ---
 title: "Canon is not a fixpoint on no(A(A0)): a parenthesised no operand re-reads differently"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-10-09T21:15:56.35321275Z
-updated: 2026-10-09T21:15:56.35321275Z
+updated: 2026-10-09T21:16:08.35755842Z
+sessions:
+- start_sha: 79cb88417fc43ff03ba5154ef6eb2928fd3b3ea0
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-09T21:16:08.35755842Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-09T21:16:08.35755842Z
 ---
 
 ## Context
