@@ -1,10 +1,19 @@
 ---
 title: "A call paren after a plain term parses: $x() and my $x() are refused by perl"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-10-09T23:49:35.11954988Z
-updated: 2026-10-09T23:49:35.11954988Z
+updated: 2026-10-09T23:54:43.301236642Z
+sessions:
+- start_sha: 419a99b64470f2c2a547bcd922fd613573eb6dbf
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-09T23:54:43.301236642Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-09T23:54:43.301236642Z
 ---
 
 ## Context
