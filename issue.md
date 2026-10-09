@@ -1,5 +1,5 @@
 ---
-title: T2's target excludes what M1 does not own, and says which milestone does
+title: T2 holds all 56 files clean, the file perl refuses refused alike
 state: pending
 urgency: normal
 milestone: m1-parse-the-core
@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a0c10b-7148-77e5-8923-16fbce93c64b
 created: 2026-09-20T23:56:24.16253937Z
-updated: 2026-10-09T03:25:51.192168503Z
+updated: 2026-10-09T03:25:51.334011565Z
 ---
 
 ## Context
