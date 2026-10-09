@@ -172,9 +172,10 @@ func scanQuoteLike(l *lexer) bool {
 	}
 
 	// A `}` never delimits a quote operator in a program perl will COMPILE,
-	// so a quote-op name that reaches one is the bareword. This holds in
-	// every context and not only in a subscript -- measured on 5.42.0, where
-	// each of these is a fatal error rather than an operator:
+	// so a quote-op name that reaches one IN A SUBSCRIPT is the bareword.
+	// Elsewhere perl takes the `}` as the delimiter and refuses -- measured
+	// on 5.42.0, where each of these is a fatal error rather than an
+	// operator:
 	//
 	//	$ perl -e 'sub f { m }'
 	//	Search pattern not terminated at -e line 1.
@@ -183,15 +184,13 @@ func scanQuoteLike(l *lexer) bool {
 	//	$ perl -e 'my @a = map { qw } 1;'
 	//	Can't find string terminator "}" anywhere before EOF at -e line 1.
 	//
-	// The third is the one that shows WHY this is safe to decide on the byte
-	// alone. perl does take the `}` there and then cannot find its closer; a
-	// bareword and a run-to-EOF quote are both refusals of source perl
-	// refuses, so declining costs nothing, while the SUBSCRIPT -- the only
-	// spelling that compiles -- becomes right.
-	//
-	// That is why this asks the BYTE and not the bracket stack. The
-	// construct it appears in is a subscript, where perl autoquotes the key
-	// exactly as it does before a fat comma:
+	// perl takes the `}` there and then cannot find its closer, so outside a
+	// subscript the name stays the operator and lexes as the UnknownRest
+	// perl's refusal is. Declined there too, `A{y}` and `{y}` parsed clean,
+	// and canon's re-lex of `A {y();}` read a transliteration -- found by the
+	// parser fuzzer. The bracket stack says which brace this is. In a
+	// subscript perl autoquotes the key exactly as it does before a fat
+	// comma:
 	//
 	//	$ perl -MO=Deparse -e 'my %h; my $a=$h{m}; my $b=$h{s}; my $c=$h{tr};'
 	//	  ->  $h{'m'}  $h{'s'}  $h{'tr'}
@@ -204,7 +203,7 @@ func scanQuoteLike(l *lexer) bool {
 	// It declines on the byte AFTER the name, so a brace-delimited operator
 	// in the same position is untouched -- perl reads `$h{ m{a} }` as the
 	// match `/a/`, and there the byte is `{`.
-	if closeBraceFollows(l.src, after) {
+	if closeBraceFollows(l.src, after) && l.inSubscript() {
 		return false
 	}
 
@@ -227,7 +226,7 @@ func scanQuoteLike(l *lexer) bool {
 		return true
 	}
 	close := pairedCloser(open)
-	l.pos += utf8.RuneLen(open) // past the opening delimiter, whole
+	l.pos += delimLen(open) // past the opening delimiter, whole
 	replStart := 0
 
 	patStart := l.pos
@@ -235,9 +234,9 @@ func scanQuoteLike(l *lexer) bool {
 		l.emit(UnknownRest, start)
 		return true
 	}
-	patEnd := l.pos - utf8.RuneLen(open)
+	patEnd := l.pos - delimLen(open)
 	if close != 0 {
-		patEnd = l.pos - utf8.RuneLen(close)
+		patEnd = l.pos - delimLen(close)
 	}
 
 	if op.parts == 3 {
@@ -251,7 +250,7 @@ func scanQuoteLike(l *lexer) bool {
 				l.emit(UnknownRest, start)
 				return true
 			}
-			l.pos += utf8.RuneLen(open2)
+			l.pos += delimLen(open2)
 			replStart = l.pos
 			if !l.scanDelimitedBody(open2, pairedCloser(open2)) {
 				l.emit(UnknownRest, start)
@@ -439,11 +438,36 @@ func (l *lexer) skipToDelimiter() (rune, bool) {
 				l.pos++
 			}
 		default:
-			r, _ := utf8.DecodeRune(l.src[l.pos:])
+			r, _ := decodeDelim(l.src[l.pos:])
 			return r, true
 		}
 	}
 	return 0, false
+}
+
+// decodeDelim decodes the delimiter character at the start of b. A byte that
+// is not UTF-8 is a character of its own, one byte wide, as it is to perl
+// without `use utf8`: measured on 5.42.0, `y\xa5a\xa5b\xa5` transliterates
+// and a `\xa6` inside it is pattern, not a closer. Decoded as U+FFFD, every
+// stray byte was the same character and three bytes wide.
+//
+// ponytail: the byte is carried as the lone surrogate 0xDC00+b, Python's
+// surrogateescape, which utf8.DecodeRune never returns -- so it equals only
+// itself.
+func decodeDelim(b []byte) (rune, int) {
+	r, w := utf8.DecodeRune(b)
+	if r == utf8.RuneError && w == 1 {
+		return 0xDC00 + rune(b[0]), 1
+	}
+	return r, w
+}
+
+// delimLen is the width in bytes of a delimiter decodeDelim returned.
+func delimLen(r rune) int {
+	if r >= 0xDC80 && r <= 0xDCFF {
+		return 1
+	}
+	return utf8.RuneLen(r)
 }
 
 // scanDelimitedBody consumes a body and its closing delimiter, reporting
@@ -470,7 +494,7 @@ func (l *lexer) scanDelimitedBody(open, close rune) bool {
 	}
 	depth := 1
 	for l.pos < len(l.src) {
-		c, width := utf8.DecodeRune(l.src[l.pos:])
+		c, width := decodeDelim(l.src[l.pos:])
 		switch {
 		case c == closer:
 			depth--
@@ -575,6 +599,17 @@ func HasQuoteOperator(text string) bool {
 	// longer word: `sort` begins with `s` and is not a substitution.
 	rest := text[len(op.name):]
 	return rest != "" && !isWordByte(rest[0])
+}
+
+// IsQuoteOpName reports whether name is one of perl's quote-like operator
+// names, `q` through `y`, read from the table the lexer itself uses.
+func IsQuoteOpName(name string) bool {
+	for _, op := range quoteOps {
+		if op.name == name {
+			return true
+		}
+	}
+	return false
 }
 
 func quoteOpAt(src []byte, pos int) (quoteOp, bool) {

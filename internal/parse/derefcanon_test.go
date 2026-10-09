@@ -28,6 +28,15 @@ func TestDerefCanonKeepsBraces(t *testing.T) {
 		{"my @v = @{$o->list};", "my @v = @{$o -> list};"},
 		{"my @y = @{$r};", "my @y = @$r;"},
 		{"my $w = $$$r;", "my $w = $$$r;"},
+		// Bare, the operand has to be a name the lexer reads after `$$`:
+		// `$$;` is the pid and then a terminator, and `$$ x` the pid and a
+		// bareword. Measured on 5.42.0, `$; = \"v"; print ${$;}` prints `v`
+		// where `print $$;` prints the pid. The parser fuzzer found it from
+		// `${$#}`, whose bare `$$#` re-lexed as the pid and a comment.
+		{"my $p = ${$;};", "my $p = ${$;};"},
+		{"my $q = ${$ x};", "my $q = ${$ x};"},
+		{"my $n = ${$1};", "my $n = $$1;"},
+		{"my $m = ${$::x};", "my $m = $$::x;"},
 	} {
 		root := parse.Parse([]byte(tc.src))
 		if containsKind(root, parse.Unknown) {

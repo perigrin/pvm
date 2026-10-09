@@ -17,7 +17,7 @@ package parse
 // afterwards.
 type RefusalCode string
 
-// Thirteen codes for fourteen `&Node{Kind: Unknown, ...}` sites. The fourteenth is
+// Fifteen codes for sixteen `&Node{Kind: Unknown, ...}` sites. The sixteenth is
 // parse.go's `expr.Kind == Unknown`, which propagates an existing code
 // outward rather than declaring one; see the note in RefusalSites.
 //
@@ -25,7 +25,7 @@ type RefusalCode string
 // adding a constant AND an inventory entry, which is one edit in one
 // file. RefusalSites below is what makes the pair inseparable.
 //
-// Two of the thirteen -- EmptyDeref and NotAnExpression -- are wired but not
+// Two of the fifteen -- EmptyDeref and NotAnExpression -- are wired but not
 // reachable from any source today. They are not dead code: they are the
 // codes those sites will carry the day parseExpr can return nil there,
 // and an unreachable site that becomes reachable must arrive with a code
@@ -90,6 +90,15 @@ const (
 	// syntax error at EOF. The Unknown spans the last token perl read,
 	// whose line is the one perl reports.
 	UnclosedOpener RefusalCode = "unclosed_opener"
+
+	// FormatNotTerminated: a `format NAME =` the file ends inside, before
+	// a lone `.` line, which perl reports as "Format not terminated".
+	FormatNotTerminated RefusalCode = "format_not_terminated"
+
+	// AmbiguousSigil: a `&` or `*` the lexer read as a sigil and the parser
+	// as an operator, after an undeclared bareword, before a quote-op name
+	// -- `A &y`. perl reads the operator and the quote it begins.
+	AmbiguousSigil RefusalCode = "ambiguous_sigil"
 )
 
 // RefusalSite says what one code means and where the site lives.
@@ -121,7 +130,7 @@ var RefusalSites = map[RefusalCode]RefusalSite{
 		What:  "the statement is not a known form and parses as no expression",
 		Where: "parse.go, parseStatement: expr == nil",
 	},
-	// The fourteenth site, parse.go's `expr.Kind == Unknown`, has no code of
+	// The sixteenth site, parse.go's `expr.Kind == Unknown`, has no code of
 	// its own and is deliberately absent from this table. It widens an
 	// Unknown from the expression to the statement -- a change of SPAN,
 	// not of cause -- and carries the inner code outward unchanged. A code
@@ -169,5 +178,13 @@ var RefusalSites = map[RefusalCode]RefusalSite{
 	UnclosedOpener: {
 		What:  "a bracket still open at end of file",
 		Where: "parse.go, refuseUnclosedOpener",
+	},
+	FormatNotTerminated: {
+		What:  "a format declaration with no `.` line before end of file",
+		Where: "decl.go, parseFormatDecl",
+	},
+	AmbiguousSigil: {
+		What:  "a `&` or `*` after an undeclared bareword, before a quote-op name",
+		Where: "expr.go, parseInfix: refuseAmbiguousSigil",
 	},
 }

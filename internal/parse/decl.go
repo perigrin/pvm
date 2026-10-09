@@ -659,12 +659,21 @@ func (p *parser) parseFormatDecl(word lexer.Token) *Node {
 	}
 
 	// The body, consumed whole and never descended into.
-	if body, ok := p.peekSignificant(); ok && body.Kind == lexer.FormatBody {
-		p.advanceTo(body)
-		n.Children = append(n.Children, &Node{
-			Kind: Term, Start: body.Start, End: body.End,
-		})
+	body, ok := p.peekSignificant()
+	if !ok || body.Kind != lexer.FormatBody {
+		// No `.` line before the end of the file: the lexer found no body,
+		// or an UnknownRest where one began. perl 5.42 says "Format not
+		// terminated" for `format =` and `format =\nabc\n` alike, so the
+		// refusal takes the unterminated body with it.
+		if ok && body.Kind == lexer.UnknownRest {
+			p.advanceTo(body)
+		}
+		return &Node{Kind: Unknown, Refusal: FormatNotTerminated, Start: word.Start, End: p.prevEnd()}
 	}
+	p.advanceTo(body)
+	n.Children = append(n.Children, &Node{
+		Kind: Term, Start: body.Start, End: body.End,
+	})
 
 	n.End = p.prevEnd()
 	return n
@@ -837,9 +846,15 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 
 	// A list target -- `my ($a, $b) = @_` -- or anything else, parsed as one
 	// expression so the assignment at level 9 is already inside it.
-	if target := p.parseExpr(0); target != nil {
-		n.Children = append(n.Children, target)
+	//
+	// Nothing at all after the declarator -- `my` at the end of the file --
+	// is perl's "syntax error at EOF", the declarator a prefix whose operand
+	// ran out, and operand's Unknown spanning the declarator replaces it.
+	target := p.operand(0, word)
+	if target.Kind == Unknown && target.Start == word.Start {
+		return target
 	}
+	n.Children = append(n.Children, target)
 	n.End = p.prevEnd()
 	return n
 }

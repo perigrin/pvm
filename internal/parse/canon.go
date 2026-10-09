@@ -172,7 +172,13 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 		// and writing `a()` would call it. The parser records the autoquote
 		// on the element rather than rewriting the node, because hover and
 		// go-to-definition still want to know a word was written there.
+		// Parenthesised, it is written as its source, `(A=>)`: the word
+		// alone re-reads as a call.
 		if n.Fat && len(n.Children) == 0 {
+			if n.Paren {
+				b.WriteString(n.SourceText(src))
+				return
+			}
 			b.WriteString(n.Text)
 			return
 		}
@@ -257,6 +263,17 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 				emit(b, c, src, 0)
 				b.WriteByte('}')
 				break
+			}
+			// `-` or `+` before an operand that begins with the same byte
+			// would write `--` or `++`, the decrement or increment: perl's
+			// Deparse writes `- -$x` as `-(-$x)`, and so does this.
+			if op == "-" || op == "+" {
+				var operand strings.Builder
+				emit(&operand, n.Children[0], src, prefix[op])
+				if text := operand.String(); strings.HasPrefix(text, op) {
+					b.WriteString("(" + text + ")")
+					break
+				}
 			}
 			emit(b, n.Children[0], src, prefix[op])
 		}
@@ -714,10 +731,16 @@ func isDerefSigil(op string) bool {
 // bareDerefOperand reports whether a dereference's operand may follow its
 // sigil without braces: a scalar variable, or a scalar dereference of one --
 // `@$r`, `$$$r`.
+//
+// The variable's name must be one the lexer reads after a second sigil -- a
+// word byte, `{`, `$` or `::`, toke.c's test -- or the bare form re-reads as
+// something else: `${$;}` written `$$;` is the pid and a terminator.
 func bareDerefOperand(c *Node) bool {
 	switch {
 	case c.Kind == Term && strings.HasPrefix(c.Text, "$") && !c.Paren:
-		return true
+		rest := c.Text[1:]
+		return rest != "" && (isWordByte(rest[0]) || rest[0] == '{' || rest[0] == '$' ||
+			strings.HasPrefix(rest, "::"))
 	case c.Kind == Unary && c.Text == "$" && len(c.Children) == 1:
 		return bareDerefOperand(c.Children[0])
 	}

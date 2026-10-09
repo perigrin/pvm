@@ -52,7 +52,14 @@ func scanVariable(l *lexer) bool {
 	}
 
 	l.pos++
-	if l.pos >= len(l.src) || l.bareSignatureSigil(start) {
+	// A sigil that ends the file has no name: perl 5.42 says "syntax error
+	// at EOF" for `$`, `@` and `%`. Lexed as a Variable it reads back as one
+	// once anything follows it -- `$;` is the subscript separator.
+	if l.pos >= len(l.src) {
+		l.emit(Error, start)
+		return true
+	}
+	if l.bareSignatureSigil(start) {
 		l.emit(Variable, start)
 		return true
 	}
@@ -79,7 +86,12 @@ func scanVariable(l *lexer) bool {
 				// dereference as it does in `->@*`.
 				l.pos++
 			case isWordByte(b) || b == '{' || b == '$' || b == ':':
-				l.scanVarName()
+				if !l.scanVarName() {
+					// `$#{` with no closing brace: perl 5.42 says
+					// "Missing right curly or square bracket".
+					l.emit(UnknownRest, start)
+					return true
+				}
 			}
 		}
 		l.emit(Variable, start)
@@ -261,10 +273,11 @@ func (l *lexer) bracedNameFollowsAt(brace int) bool {
 }
 
 // scanVarName consumes an identifier, a punctuation variable, or a braced
-// name after a sigil.
-func (l *lexer) scanVarName() {
+// name after a sigil. It reports false only for a braced name the file ends
+// inside, which every caller but `$#{`'s has already ruled out.
+func (l *lexer) scanVarName() bool {
 	if l.pos >= len(l.src) {
-		return
+		return true
 	}
 	switch c := l.src[l.pos]; {
 	case c == '\'':
@@ -322,12 +335,13 @@ func (l *lexer) scanVarName() {
 				depth--
 				l.pos++
 				if depth == 0 {
-					return
+					return true
 				}
 				continue
 			}
 			l.pos++
 		}
+		return false
 	case c == '^' && l.caretNameFollows():
 		// A caret control variable: `$^O`, `$^W`, `$^_`. The caret and the
 		// character after it are ONE name, which is the same rule
@@ -363,13 +377,14 @@ func (l *lexer) scanVarName() {
 			n := l.src[l.pos]
 			if isWordByte(n) || n == '$' || n == '{' ||
 				n == ':' && l.pos+1 < len(l.src) && l.src[l.pos+1] == ':' {
-				l.scanVarName()
+				return l.scanVarName()
 			}
 		}
 	default:
 		// A punctuation variable: $_, $0, $!, $@, $/ and the rest. One byte.
 		l.pos++
 	}
+	return true
 }
 
 // caretNameFollows reports whether the `^` at the cursor begins a caret

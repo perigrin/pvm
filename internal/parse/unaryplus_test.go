@@ -36,3 +36,28 @@ func TestCanonUnaryPlusIsPlus(t *testing.T) {
 		}
 	}
 }
+
+// TestCanonNestedMinusIsNotDecrement is the parser fuzzer's `- -!00`. Two
+// prefix minuses written with nothing between them are `--`, the
+// predecrement: measured on 5.42.0, `print --1` is "Can't modify constant
+// item in predecrement (--)". perl's Deparse writes `- -$x` as `-(-$x)` and
+// `- --$x` as `---$x`, so canon parenthesises an operand whose first byte
+// would join the operator.
+func TestCanonNestedMinusIsNotDecrement(t *testing.T) {
+	for _, tc := range []struct{ src, want string }{
+		{"my $x; - -$x;", "my $x;-(-$x);"},
+		{"my $x; - --$x;", "my $x;-(--$x);"},
+		{"my $x; + +$x;", "my $x;+(+$x);"},
+		{"my $x; - +$x;", "my $x;-+$x;"},
+		{"- -!0;", "-(-!0);"},
+	} {
+		got := strings.TrimSpace(parse.Canon(parse.Parse([]byte(tc.src)), []byte(tc.src)))
+		if got != tc.want {
+			t.Errorf("Canon(parse(%q)):\n  got  %q\n  want %q", tc.src, got, tc.want)
+		}
+		again := strings.TrimSpace(parse.Canon(parse.Parse([]byte(got)), []byte(got)))
+		if again != got {
+			t.Errorf("canon is not a fixpoint on %q:\n  once  %q\n  twice %q", tc.src, got, again)
+		}
+	}
+}

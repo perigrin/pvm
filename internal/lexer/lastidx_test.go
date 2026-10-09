@@ -27,3 +27,21 @@ func TestLastIndexOfPunctuationArray(t *testing.T) {
 		t.Errorf("`$# = 1`: `$#` is its own variable")
 	}
 }
+
+// TestUnclosedLastIndexBraceIsUnknownRest is the parser fuzzer's `$#{`: a
+// braced last index the file ends inside. perl 5.42 says "Missing right curly
+// or square bracket" for `$#{` and `$#{a` under `perl -c`. Lexed as a whole
+// Variable, canon wrote it back with a `;` after it, inside the brace that
+// never closed, and every emission grew by one more.
+func TestUnclosedLastIndexBraceIsUnknownRest(t *testing.T) {
+	for src, want := range map[string]Kind{
+		"$#{":   UnknownRest,
+		"$#{a":  UnknownRest,
+		"$#{a}": Variable,
+	} {
+		toks := Tokenize([]byte(src))
+		if len(toks) != 1 || toks[0].Kind != want || toks[0].End != len(src) {
+			t.Errorf("%q: tokens %v, want one %v spanning it all", src, toks, want)
+		}
+	}
+}

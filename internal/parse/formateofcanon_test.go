@@ -51,3 +51,29 @@ func TestFormatAtEOFCanonSettles(t *testing.T) {
 		}
 	}
 }
+
+// TestFormatWithNoBodyRefuses: a format declaration the file ends inside
+// is not a format. perl 5.42 says "Format not terminated" for each of these
+// under `perl -c`, so the parser refuses them rather than building a
+// declaration with no body -- a tree canon wrote back as `format=\n `, whose
+// re-lex took the space as an unterminated body.
+func TestFormatWithNoBodyRefuses(t *testing.T) {
+	for _, src := range []string{"format=", "format =\n", "format STDOUT =", "format =\nabc\n"} {
+		found := collectUnknown(parse.Parse([]byte(src)))
+		if len(found) == 0 || found[0].Refusal != parse.FormatNotTerminated {
+			t.Errorf("%q: want a format_not_terminated refusal, got %v", src, refusalCodes(found))
+		}
+	}
+	if found := collectUnknown(parse.Parse([]byte("format =\n.\n"))); len(found) != 0 {
+		t.Errorf("format =\\n.\\n: an empty format is terminated, but it refuses: %v", found)
+	}
+}
+
+// refusalCodes names the codes of found, for a failure message.
+func refusalCodes(found []*parse.Node) []parse.RefusalCode {
+	var codes []parse.RefusalCode
+	for _, n := range found {
+		codes = append(codes, n.Refusal)
+	}
+	return codes
+}

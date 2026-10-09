@@ -148,7 +148,7 @@ func scanFormatBody(l *lexer) bool {
 			l.emit(FormatBody, start)
 			return true
 		}
-		argsNext = !argsNext && line != nil && line[0] != '#' && bytes.ContainsAny(line, "@^")
+		argsNext = !argsNext && len(line) > 0 && line[0] != '#' && bytes.ContainsAny(line, "@^")
 	}
 	l.emit(UnknownRest, start)
 	return true

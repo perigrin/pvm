@@ -197,3 +197,32 @@ func TestQuoteCommentAsymmetry(t *testing.T) {
 			between, start, end, len(between))
 	}
 }
+
+// TestQuoteNameBeforeCloseBraceIsAKeyOnlyInASubscript is the parser
+// fuzzer's `A{y}`. perl autoquotes a lone quote-op name only in a SUBSCRIPT;
+// in a block or an anonymous hash the name starts the operator and `}` is
+// its delimiter. Measured on 5.42.0 with -MO=Deparse: `$h{y}`, `$r->{y}`,
+// `@h{y}`, `%h{y}`, `$$r{y}`, `@{$r}{y}` and `$r->@{y}` each subscript with
+// the key 'y'; `A{y}`, `{y}`, `my $x = {y};`, `map {y} 1` and `sub f { m }`
+// are each "pattern not terminated". Declined everywhere, those parsed clean,
+// and canon's re-lex of `A {y();}` read a transliteration.
+func TestQuoteNameBeforeCloseBraceIsAKeyOnlyInASubscript(t *testing.T) {
+	for _, src := range []string{
+		"$h{y}", "$r->{y}", "@h{y}", "%h{y}", "$$r{y}", "@{$r}{y}", "$r->@{y}", "$h{ m }",
+	} {
+		for _, tok := range Tokenize([]byte(src)) {
+			if tok.Kind == Quote || tok.Kind == UnknownRest {
+				t.Errorf("%q: lexed %v %q; the subscript's key is a bareword", src, tok.Kind, src[tok.Start:tok.End])
+			}
+		}
+	}
+	for _, src := range []string{"A{y}", "{y}", "my $x = {y};", "map {y} 1", "sub f { m }"} {
+		var refused bool
+		for _, tok := range Tokenize([]byte(src)) {
+			refused = refused || tok.Kind == UnknownRest
+		}
+		if !refused {
+			t.Errorf("%q: no UnknownRest; perl reads the name as an operator with no terminator", src)
+		}
+	}
+}

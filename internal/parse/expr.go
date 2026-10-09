@@ -176,6 +176,10 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 			}
 		}
 
+		if u := p.refuseAmbiguousSigil(left, tok, text); u != nil {
+			return u
+		}
+
 		// Comparisons take their own path: one may START a chain, EXTEND the
 		// chain it matches, or REJECT where a chain already stands.
 		if cls, _ := compareClass(text); cls != notComparison {
@@ -519,4 +523,40 @@ func autoquote(key *Node) {
 	}
 	key.Kind = Term
 	key.Resolved = false
+}
+
+// refuseAmbiguousSigil refuses `A &y` and `A*y`: a `&` or `*` read here as an
+// operator, after a bareword, with a quote-op name glued after it. The lexer
+// has no symbol table, so it read a sigil and shielded the name as a sub's or
+// a glob's; reaching this loop, the parser reads the operator, which perl does
+// for a bareword it has not seen declared -- and then perl reads `y` as the
+// transliteration it begins. Measured on 5.42.0, `A &y;` and `A*y` are
+// refused, while `sub A {} A &y;` calls A with `&y`. Neither reading here is
+// perl's token stream, so the parser reports it rather than guess.
+//
+// The Unknown runs to the end of the statement: what follows the name was
+// lexed for the wrong reading too.
+func (p *parser) refuseAmbiguousSigil(left *Node, tok lexer.Token, text string) *Node {
+	if text != "&" && text != "*" {
+		return nil
+	}
+	if text == "&" && tok.Kind != lexer.FuncSigil {
+		return nil
+	}
+	prev := p.pos - 1
+	for prev >= 0 && (p.toks[prev].Kind == lexer.Whitespace || p.toks[prev].Kind == lexer.Comment) {
+		prev--
+	}
+	if prev < 0 || p.toks[prev].Kind != lexer.Word {
+		return nil
+	}
+	name, ok := p.peekAfter(tok)
+	if !ok || name.Kind != lexer.Word || name.Start != tok.End || !lexer.IsQuoteOpName(p.text(name)) {
+		return nil
+	}
+	if after, ok := p.peekAfter(name); ok && p.text(after) == "=>" {
+		return nil
+	}
+	p.skipToStatementEnd()
+	return &Node{Kind: Unknown, Refusal: AmbiguousSigil, Start: left.Start, End: p.prevEnd()}
 }

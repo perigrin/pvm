@@ -348,3 +348,24 @@ func countKind(n *parse.Node, k parse.Kind) int {
 	}
 	return total
 }
+
+// TestForHeadWithTwoExpressionsRefuses is the parser fuzzer's `for(0A0)`.
+// A for head's clauses are separated by `;`, and two expressions with
+// nothing between them are not a head: measured on 5.42.0, `for(0A0){}`
+// is "Bareword found where operator expected", `for (1 2) {}` "Number found
+// where operator expected", and `for (my $i=0; $i<3 $i++) {}` "Scalar found
+// where operator expected". Read as two parts, canon wrote the second after
+// the head as the loop's body.
+func TestForHeadWithTwoExpressionsRefuses(t *testing.T) {
+	for _, src := range []string{"for(0A0)", "for(0 A0){}", "for (1 2) {}", "for (my $i=0; $i<3 $i++) {}"} {
+		found := collectUnknown(parse.Parse([]byte(src)))
+		if len(found) == 0 || found[0].Refusal != parse.TrailingTokens {
+			t.Errorf("%q: want a trailing_tokens refusal, got %v", src, refusalCodes(found))
+		}
+	}
+	for _, src := range []string{"for (1, 2) {}", "for (my $i=0; $i<3; $i++) {}", "for (;;) {}", "for my $x (@a) {}"} {
+		if found := collectUnknown(parse.Parse([]byte(src))); len(found) != 0 {
+			t.Errorf("%q: perl compiles this, but it refuses: %v", src, refusalCodes(found))
+		}
+	}
+}

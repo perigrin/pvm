@@ -209,3 +209,17 @@ func TestFormatDoesNotSwallowTheNextStatement(t *testing.T) {
 		t.Errorf("the declaration spans %q, want %q", got, want)
 	}
 }
+
+// TestDeclaratorAtEOFRefuses is the parser fuzzer's `my`: a declarator with
+// nothing after it. perl 5.42 says "syntax error at EOF" for `my`, `our`,
+// `local` and `my #` under `perl -c`, as it does for `$a +` -- a prefix whose
+// operand ran out. Built as a declaration with no target, canon wrote it back
+// as `my;`, which re-reads with a refused `;` as its target.
+func TestDeclaratorAtEOFRefuses(t *testing.T) {
+	for _, src := range []string{"my", "our", "local", "my #", "my\n"} {
+		found := collectUnknown(parse.Parse([]byte(src)))
+		if len(found) == 0 || found[0].Refusal != parse.MissingOperand {
+			t.Errorf("%q: want a missing_operand refusal, got %v", src, refusalCodes(found))
+		}
+	}
+}
