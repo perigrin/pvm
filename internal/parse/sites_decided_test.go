@@ -387,12 +387,17 @@ func TestDerefBlockContentsAreDecided(t *testing.T) {
 	for _, c := range []struct {
 		src   string
 		count int
+		// hashHedge is the one hedge a deref of a hash element keeps:
+		// whether perl folds the element into multideref turns on the
+		// context around the deref (TestArrowHashReadHedgesRv2hv), and
+		// that is not something hidden in the block.
+		hashHedge bool
 	}{
 		// The anonymous hash inside the deref, which perl reports once.
-		{`my $x = ${[{a=>214}]}[0];`, 1},
+		{`my $x = ${[{a=>214}]}[0];`, 1, false},
 		// A deref of a plain variable holds no marker at all.
-		{`my $r = ${$h->{k}};`, 0},
-		{`my @a = @{[ 1, 2 ]};`, 0},
+		{`my $r = ${$h->{k}};`, 0, true},
+		{`my @a = @{[ 1, 2 ]};`, 0, false},
 	} {
 		var n int
 		for _, k := range decidedKinds(c.src) {
@@ -404,7 +409,11 @@ func TestDerefBlockContentsAreDecided(t *testing.T) {
 			t.Errorf("%q: %d decided anonhash site(s), want %d",
 				c.src, n, c.count)
 		}
-		if hedged := hedgedKinds(c.src); len(hedged) > 0 {
+		hedged := hedgedKinds(c.src)
+		if c.hashHedge && len(hedged) == 1 && hedged[0] == parseoracle.SiteKindHash {
+			hedged = nil
+		}
+		if len(hedged) > 0 {
 			t.Errorf("%q: nothing is hidden here any more, yet it hedges %v",
 				c.src, hedged)
 		}

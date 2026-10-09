@@ -456,6 +456,64 @@ oracle stops being a reason not to re-run.
 
 ## 0.11 Fidelity across the whole corpus, measured
 
+### A `->{...}` read whose multideref folding is not in the text hedges its rv2hv
+
+*2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0.*
+
+perl's optimiser folds a hash element read through a reference into one
+multideref op, which emits no rv2hv, but only when it can. Sites said
+nothing for every `->{...}`, which is the claim that perl always folds.
+Measured with `-MO=Concise` (live ops only):
+
+```
+my $p; my @x = @{$p->{S}};          rv2av multideref
+my $p; push @{$p->{S}}, 1;          rv2av helem rv2hv
+my $s; push @{$s->{x}{$k}}, 1;      rv2av helem rv2hv helem rv2hv
+my $p; keys %{$p->{S}};             rv2hv helem rv2hv
+my $p; ${$p->{S}} = 1;              helem rv2hv
+my $p; my $x = $p->{a};             multideref     (also $k, $_, $1, -bar, 1.5)
+my $p; my $x = $p->{f()};           helem rv2hv
+sub f(){1} my $p; $p->{f()};        multideref
+my $p; my $x = $p->{a}{f()};        helem multideref
+```
+
+Two things keep the rv2hv, and neither is in the text. A dereferenced
+element keeps it, at every level of the chain, when the context around the
+dereference modifies or vivifies it (push, chomp, grep, map, foreach, a
+sub's arguments, keys, assignment) -- perl's op_lvalue, not the source. A
+key that is not a constant or a plain scalar keeps it unless it
+constant-folds, which turns on declarations, or the element below it
+folded. Sites now hedges rv2hv for a hash element that is the whole
+operand of `@{}`, `%{}`, `${}` or `->@*`/`->%*`/`->$*`/`->$#*`, and for a
+brace subscript through a reference whose key is anything but a constant
+or a plain scalar. Simple-key chains read in place stay decided as no
+rv2hv. The chained `@{$r->{x}{$k}}` and `@{$a[0]{$k}}` no longer decide
+the one hash site the bare `@{$::{$k}}` stash deref does: perl emits two
+or none there, by context. The exact rule is issue 01a12059-30a8.
+
+| Bucket | Files | Share of measured |
+|---|---:|---:|
+| exact | 489 | 82.5% |
+| wider | 79 | 13.3% |
+| **WRONG** | **5** | **0.8%** |
+| no-answer | 20 | 3.4% |
+| *measured (denominator)* | *593* | |
+| excluded, environmental | 26 | — |
+| runner error | 1 | — |
+
+Four files moved, all to a better bucket; no exact file moved.
+Re-baselined at CI's 8m per-file timeout.
+
+- WRONG → wider: `japh/abigail.t` (`@{$program -> {SKIP_OS}}` at 191, 193,
+  199, 204, 205), `op/gmagic.t` (`push @{ $self->{values} }` at 233),
+  `op/ref.t` (`$ref->{shift()}` at 343), `porting/libperl.t`
+  (`push @{$symbols->{xref}{$sym}}` at 212, a `?:` key at 307).
+
+`japh/abigail.t:177`, `push @{$progs [-1] {$key}}`, was matched by the
+decided stash-deref site and is now a hedge; the file is wider either way.
+The five files left WRONG are all a reference or dereference inside an
+interpolated string or regex.
+
 ### Smartmatch against an array or hash reports the reference perl takes
 
 *2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0.*
