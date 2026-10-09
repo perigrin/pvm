@@ -1,12 +1,21 @@
 ---
 title: "The subject honours #line N, reporting perl's line numbers"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 blocks:
 - 01a0a8cd-8fcc-72a8-9ba1-c916eee9992d
 created: 2026-10-09T05:00:09.681039597Z
-updated: 2026-10-09T05:00:42.156131174Z
+updated: 2026-10-09T07:15:14.513771008Z
+sessions:
+- start_sha: d7c31487939158225e0589373b9e583fe7ed61fe
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-09T07:15:14.513771008Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-09T07:15:14.513771008Z
 ---
 
 ## Context
