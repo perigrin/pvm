@@ -640,6 +640,7 @@ func (p *parser) parseParenList(open lexer.Token) *Node {
 			// lowering cannot tell the string "a" from a call to a().
 			if p.text(next) == "=>" && len(items) > 0 {
 				items[len(items)-1].Fat = true
+				markFatOperand(items[len(items)-1])
 			}
 			p.advanceTo(next)
 			seps = []string{p.text(next)}
@@ -783,6 +784,7 @@ func (p *parser) parseBracketed(open lexer.Token, closer string, kind Kind) *Nod
 			// first and a call in the second.
 			if p.text(next) == "=>" && len(items) > 0 {
 				items[len(items)-1].Fat = true
+				markFatOperand(items[len(items)-1])
 			}
 			p.advanceTo(next)
 			seps = []string{p.text(next)}
