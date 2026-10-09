@@ -7,7 +7,7 @@ blocks:
 - 01a0b835-1270-7b32-9f0a-18fe7c555bae
 - 01a0b84d-caa8-71d2-b42b-0c8445bc6026
 created: 2026-09-17T02:44:01.961043269Z
-updated: 2026-09-19T06:36:30.651145868Z
+updated: 2026-10-09T17:21:13.540952705Z
 sessions:
 - start_sha: 528b9d835526d7a2c3acb41646c44cf6fd145437
   end_sha: f066f2ab7533480d37f08cd938d35dc99f850cad
@@ -133,7 +133,7 @@ Same shape as the tie and magic quarantine. Where a module hits one of these,
 its imports stay unknown and calls to them stay `Call{Resolved:false}` --
 which is correct, not a gap.
 
-## Acceptance
+## Acceptance criteria
 
 - [x] A module named in `use` is located on the search path and parsed (`go test ./internal/parse/ -run '^TestResolvesModuleSource$' -count=1 -v | grep -q '^--- PASS: TestResolvesModuleSource'`)
 - [x] `ParseFile` returns an error for an unreadable top-level file and never for anything found during resolution (`go test ./internal/parse/ -run '^TestParseFileErrorIsTheReadOnly$' -count=1 -v | grep -q '^--- PASS: TestParseFileErrorIsTheReadOnly'`)
