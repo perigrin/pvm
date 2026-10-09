@@ -456,6 +456,45 @@ oracle stops being a reason not to re-run.
 
 ## 0.11 Fidelity across the whole corpus, measured
 
+### Smartmatch against an array or hash reports the reference perl takes
+
+*2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0.*
+
+perl compiles each array or hash operand of `~~`, and the condition of
+`when`, through `ref_array_or_hash`, so `1 ~~ @l` is `1 ~~ \@l` (Deparse
+agrees). Measured with `-MO=Concise`:
+
+```
+my @l; 1 ~~ @l;   @l ~~ 1;          1 srefgen   (also %h, @_, @$r, %$r, @{$r})
+my @l; my @m; @l ~~ @m;             2 srefgen
+my $r; 1 ~~ $r->@*;  1 ~~ $r->%*;   1 srefgen
+when (@l) {...}  when (%h) {...}    1 srefgen   (also `print 1 when @l;`)
+my $x; 1 ~~ $x;                     0
+my @l; 1 ~~ @l[0,1];                0           (a slice: anonlist)
+when ([1]) / when (!@l) / when (@l > 1)  0
+```
+
+Sites now decides a reference for each aggregate operand of `~~` and for an
+aggregate `when` condition.
+
+| Bucket | Files | Share of measured |
+|---|---:|---:|
+| exact | 489 | 82.5% |
+| wider | 74 | 12.5% |
+| **WRONG** | **10** | **1.7%** |
+| no-answer | 20 | 3.4% |
+| *measured (denominator)* | *593* | |
+| excluded, environmental | 26 | — |
+| runner error | 1 | — |
+
+Two files moved, none to a worse bucket. Re-baselined at CI's 8m per-file
+timeout.
+
+- WRONG → exact: `op/switch.t` (`when (@list)` at 1101, `when (%list)` at
+  1120).
+- no-answer → exact: `op/smartmatch.t`, whose `/x/ ~~ @a` and `/x/ ~~ %h`
+  srefgens are now answered.
+
 ### A postfix hash slice reports perl's rv2hv
 
 *2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0.*
