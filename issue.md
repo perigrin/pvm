@@ -6,7 +6,7 @@ milestone: m1-parse-the-core
 blocked_by:
 - 01a0badc-a093-7e09-bdfb-002f4a73759f
 created: 2026-09-19T18:17:07.068073736Z
-updated: 2026-09-19T21:12:55.13834552Z
+updated: 2026-10-09T03:24:01.424323473Z
 sessions:
 - start_sha: 25483d2b5bfff159cfc023dec9b050ce0c57c4b3
   end_sha: 25483d2b5bfff159cfc023dec9b050ce0c57c4b3
@@ -63,12 +63,6 @@ so these are the first line of a multi-line statement whose ops belong
 elsewhere -- 01a0badc's shape. Fix that first and re-measure before touching
 this; the residue is what this issue is actually about.
 
-## Acceptance
-
-- [ ] `grep {a=>$_}->{a}` reports an anonhash site (`go test ./internal/parse/ -run '^TestBraceBeforeArrowIsAHashref$' -count=1 -v | grep -q '^--- PASS: TestBraceBeforeArrowIsAHashref'`)
-- [ ] `+{}` does NOT report one, matching perl (`go test ./internal/parse/ -run '^TestBraceBeforeArrowIsAHashref$' -count=1 -v | grep -q '^--- PASS: TestBraceBeforeArrowIsAHashref'`)
-- [ ] The remaining cases are measured and recorded, blocked on 01a0badc (`go test ./internal/parseoracle/ -run '^TestGoParserWrongIsZero$' -count=1 -v | grep -q '^--- PASS: TestGoParserWrongIsZero'`)
-
 Found by 01a0ba79's ranked table. Plan: M1. Spec: §7.1.2, §4.9.2.
 
 
@@ -117,3 +111,9 @@ Worth doing as a pair with whoever next touches anonhash, or folding into
 the "hedge versus detect" decision 01a0bae1-b76f raises -- `+{}` may be
 better answered by declining than by adding a special case for the unary
 plus.
+
+## Acceptance criteria
+
+- [ ] `grep {a=>$_}->{a}` reports an anonhash site (`go test ./internal/parse/ -run '^TestBraceBeforeArrowIsAHashref$' -count=1 -v | grep -q '^--- PASS: TestBraceBeforeArrowIsAHashref'`)
+- [ ] `+{}` does NOT report one, matching perl (`go test ./internal/parse/ -run '^TestBraceBeforeArrowIsAHashref$' -count=1 -v | grep -q '^--- PASS: TestBraceBeforeArrowIsAHashref'`)
+- [ ] The remaining cases are measured and recorded, blocked on 01a0badc (`go test ./internal/parseoracle/ -run '^TestGoParserWrongIsZero$' -count=1 -v | grep -q '^--- PASS: TestGoParserWrongIsZero'`)
