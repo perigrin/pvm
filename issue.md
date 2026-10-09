@@ -1,21 +1,35 @@
 ---
 title: The oracle counts a cloned anon sub's ops once, not twice
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocks:
 - 01a0a8cd-8fcc-72a8-9ba1-c916eee9992d
 created: 2026-10-09T05:00:09.069779735Z
-updated: 2026-10-09T05:00:57.604149967Z
+updated: 2026-10-09T05:52:27.248552979Z
 sessions:
 - start_sha: a341ba06c04d14ad11bda95e66345ad83f611576
-  end_sha: ""
-  commits: 0
+  end_sha: 45f8676f8da23ef71d877edc4a3c6cce3018f9ff
+  commits: 3
   started_at: 2026-10-09T05:00:57.604149967Z
+  ended_at: 2026-10-09T05:52:27.248552979Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-09T05:00:57.604149967Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-09T05:52:27.248552979Z
+observed_paths:
+- docs/specs/perl-parser/00-findings.md
+- internal/lexer/repetitionglued_test.go
+- internal/lexer/scanrows_test.go
+- internal/parse/perlgitt_test.go
+- internal/parse/ratchet_test.go
+- internal/parseoracle/cvwalk_test.go
+- internal/parseoracle/ratchet_test.go
+- internal/parseoracle/testdata/parse_facts.pl
+- internal/parseoracle/testdata/ratchet/baseline.txt
 ---
 
 ## Context
