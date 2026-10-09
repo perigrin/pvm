@@ -1,6 +1,6 @@
 ---
 title: "T2 core is 51 of 56 files: ten Unknowns from two causes"
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
@@ -9,16 +9,20 @@ blocks:
 - 01a11eb2-2162-7f35-8d64-d28c72d24f5b
 - 01a11eb2-21ac-7b07-b0f2-4e21a6b351ff
 created: 2026-09-20T22:59:07.720149993Z
-updated: 2026-10-09T03:44:03.65799767Z
+updated: 2026-10-09T03:44:03.838266023Z
 sessions:
 - start_sha: 8ec19ffcb8e44115e5b60423b138536be1add2ba
-  end_sha: ""
+  end_sha: 8ec19ffcb8e44115e5b60423b138536be1add2ba
   commits: 0
   started_at: 2026-10-09T03:44:03.65799767Z
+  ended_at: 2026-10-09T03:44:03.838266023Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-09T03:44:03.65799767Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-09T03:44:03.838266023Z
 ---
 
 ## Context
