@@ -273,46 +273,21 @@ func TestCorpusBaselineIsIntact(t *testing.T) {
 	}
 
 	// WRONG is the one bucket that is a gate rather than a ratchet: a file
-	// our parser gets positively wrong is a defect, not a coverage gap.
-	//
-	// The target is zero and this pins four, by path. Every one is a
-	// file internal/parse -- the parser this harness measures by default --
-	// commits to a statement perl reads differently. Findings §0.11 has the
-	// cause of each, one line apiece; they share one class: a hash read
-	// through `->{...}` that perl compiles as rv2hv.
-	//
-	// WHY PINNED RATHER THAN ZERO. A permanently-red test is one nobody
-	// reads, and a red suite cannot show the NEXT regression: an absolute
-	// zero that has never held stops being a gate and becomes scenery.
-	// Pinning the exact paths keeps the gate's power -- another WRONG file,
-	// or a different one, still fails -- while making the suite honest about
-	// what is known-broken.
-	//
-	// Not a count: an allowance is where the next defect hides. The paths
-	// are named so that fixing one and gaining another cannot net out.
-	//
-	// HOW TO REMOVE THIS PIN. It comes out when the WRONG rows do, by fixing
-	// internal/parse's defects (issue 01a0a8cd). Delete this block, restore
-	// `!= 0`, re-baseline in the same commit, and update findings §0.11. If
-	// only some are fixed, shrink the pin to the remaining paths rather than
-	// loosening it to a count.
-	wrongPaths := []string{}
-	for path, status := range paths {
-		if status == parseoracle.BucketWrong.String() {
-			wrongPaths = append(wrongPaths, path)
+	// our parser gets positively wrong is a defect, not a coverage gap. The
+	// gate is zero. A construct internal/parse does not yet understand is
+	// hedged (wider), never guessed at -- that is what holds it there.
+	if got := counts[parseoracle.BucketWrong.String()]; got != 0 {
+		wrongPaths := []string{}
+		for path, status := range paths {
+			if status == parseoracle.BucketWrong.String() {
+				wrongPaths = append(wrongPaths, path)
+			}
 		}
-	}
-	sort.Strings(wrongPaths)
-
-	knownWrong := []string{
-		"japh/abigail.t", "op/gmagic.t", "op/ref.t", "porting/libperl.t",
-	}
-	if strings.Join(wrongPaths, " ") != strings.Join(knownWrong, " ") {
-		t.Errorf("baselined WRONG files are %v, want exactly %v\n"+
-			"WRONG is a gate, not a ratchet. A NEW file here is a defect to "+
-			"fix, not to add to the pin; a file LEAVING is a win to record by "+
-			"shrinking the pin and re-baselining in the same commit.",
-			wrongPaths, knownWrong)
+		sort.Strings(wrongPaths)
+		t.Errorf("the baseline holds %d WRONG files, want 0: %v\n"+
+			"WRONG is a gate, not a ratchet. Each is a defect to fix, or a "+
+			"construct to hedge until it is understood -- never one to baseline.",
+			got, wrongPaths)
 	}
 }
 

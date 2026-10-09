@@ -180,6 +180,30 @@ func decidedMarkers(stmt *Node, src []byte) []decided {
 		found = append(found, decided{kind: kind, node: n, unresolved: true})
 	}
 
+	// hedgeDerefElement hedges a hash element read through a reference
+	// that is the whole operand of a dereference: `@{$r->{k}}`,
+	// `%{$r->{k}}`, `${$r->{k}}`, `$r->{k}->@*`. perl folds the element
+	// into multideref when the dereference only reads it, and keeps a
+	// rv2hv for every level of the chain when the context modifies or
+	// vivifies it -- push, chomp, grep, map, foreach, a sub's arguments,
+	// keys, an assignment to it. Measured on 5.42.0:
+	//
+	//	my $p; my @x = @{$p->{S}};          rv2av multideref
+	//	my $p; push @{$p->{S}}, 1;          rv2av helem rv2hv
+	//	my $s; push @{$s->{x}{$k}}, 1;      rv2av helem rv2hv helem rv2hv
+	//	my $p; my %h = %{$p->{S}};          rv2hv multideref
+	//	my $p; keys %{$p->{S}};             rv2hv helem rv2hv
+	//
+	// Which context is which is perl's op_lvalue, not anything in the
+	// text, so this hedges until 01a12059-30a8 decides it.
+	// japh/abigail.t:191, op/gmagic.t:233 and porting/libperl.t:212 are
+	// this shape. `&{$r->{k}}` and `*{$r->{k}}` fold either way.
+	hedgeDerefElement := func(n *Node) {
+		if n.Kind == Index && n.Text == "{" && throughReference(n) {
+			hedge(parseoracle.SiteKindHash, n)
+		}
+	}
+
 	var walk func(*Node)
 	walk = func(n *Node) {
 		// perl: srefgen, for an argument its callee's prototype takes by
@@ -235,6 +259,7 @@ func decidedMarkers(stmt *Node, src []byte) []decided {
 				n.Children[0].Kind == Unary && n.Children[0].Text == "@" {
 				add(parseoracle.SiteKindHash, n)
 				for _, c := range n.Children[0].Children {
+					hedgeDerefElement(c)
 					walk(c)
 				}
 				for _, c := range n.Children[1:] {
@@ -260,6 +285,19 @@ func decidedMarkers(stmt *Node, src []byte) []decided {
 			if n.Text == "{" && len(n.Children) > 0 &&
 				n.Children[0].Kind == Term && !n.Arrow &&
 				isNamedVariable(n.Children[0].Text) {
+				hedge(parseoracle.SiteKindHash, n)
+			}
+
+			// A brace subscript through a reference folds into multideref,
+			// no rv2hv, when its key is a constant or a plain scalar. Any
+			// other key keeps the rv2hv -- `$r->{shift()}` -- unless it
+			// constant-folds, which turns on declarations (`sub f(){1}`
+			// makes `$r->{f()}` fold), or the element below it folded
+			// (`$r->{a}{f()}` emits none). Hedged until 01a12059-30a8
+			// decides it. op/ref.t:343 and porting/libperl.t:307 are this
+			// shape.
+			if n.Text == "{" && len(n.Children) > 1 && throughReference(n) &&
+				!isSimpleKey(n.Children[1]) {
 				hedge(parseoracle.SiteKindHash, n)
 			}
 
@@ -292,15 +330,20 @@ func decidedMarkers(stmt *Node, src []byte) []decided {
 			// subscript on the deref, decided in the Index case.
 			//
 			// NOT `@{$r->{x}}`, which is an ARRAY dereference of a hash
-			// element -- rv2av, a different op. Its Index carries Arrow.
+			// element -- rv2av, a different op. Its Index carries Arrow, and
+			// a chained `@{$r->{x}{$k}}` or `@{$$r{x}}` reads through a
+			// reference the same way; both are hedged below instead.
 			if n.Text == "@" && len(n.Children) == 1 &&
 				n.Children[0].Kind == Index && n.Children[0].Text == "{" &&
-				!n.Children[0].Arrow {
+				!throughReference(n.Children[0]) {
 				add(parseoracle.SiteKindHash, n)
 				for _, c := range n.Children[0].Children {
 					walk(c)
 				}
 				return
+			}
+			if (n.Text == "@" || n.Text == "%" || n.Text == "$") && len(n.Children) == 1 {
+				hedgeDerefElement(n.Children[0])
 			}
 
 		case Call:
@@ -326,6 +369,14 @@ func decidedMarkers(stmt *Node, src []byte) []decided {
 			}
 
 		case Binary:
+			// The postfix spelling of a dereference, `$r->{k}->@*`, is the
+			// same question hedgeDerefElement answers for `@{$r->{k}}`.
+			if n.Text == "->" && len(n.Children) == 2 && n.Children[1].Kind == Term {
+				switch n.Children[1].Text {
+				case "@*", "%*", "$*", "$#*":
+					hedgeDerefElement(n.Children[0])
+				}
+			}
 			// perl: match. `=~` and `!~` bind a pattern; s/// and tr/// are
 			// substitution and transliteration, which perl reports with
 			// different ops, so they are excluded by their own spelling.
@@ -634,6 +685,60 @@ func isNamedHash(text string) bool {
 func isNamedVariable(text string) bool {
 	return len(text) > 1 && (text[0] == '$' || text[0] == '@') &&
 		text[1] != '$' && text[1] != '{'
+}
+
+// throughReference reports whether a brace subscript reads its hash through
+// a reference: `$r->{k}`, `$$r{k}`, or any subscript of a subscript,
+// `$r->{a}{k}` and `$h{a}{k}`, whose implicit arrow the tree leaves off.
+// The postfix slice `$r->@{...}` is decided on its own and excluded.
+func throughReference(n *Node) bool {
+	if len(n.Children) == 0 {
+		return false
+	}
+	base := n.Children[0]
+	switch {
+	case base.Kind == Term && (base.Text == "@" || base.Text == "%"):
+		return false
+	case n.Arrow, base.Kind == Index:
+		return true
+	}
+	return base.Kind == Unary && base.Text == "$"
+}
+
+// isSimpleKey reports whether a hash subscript's key is one perl's
+// multideref takes as it stands: a number, a bareword, `-bareword`, a
+// string that interpolates nothing, or a plain scalar variable. Measured
+// on 5.42.0, `$p->{a}`, `$p->{-bar}`, `$p->{'a$b'}`, `$p->{1.5}`,
+// `$p->{$k}`, `$p->{$_}`, `$p->{$1}` and `$p->{$Foo::x}` all fold.
+//
+// Conservative the safe way: a key it does not recognise hedges, which
+// scores wider, never WRONG.
+func isSimpleKey(k *Node) bool {
+	if k.Kind == Unary && k.Text == "neg" && len(k.Children) == 1 {
+		k = k.Children[0]
+		if k.Kind == Call && len(k.Children) == 0 {
+			return true // `-bar`, a string to perl
+		}
+	}
+	if k.Kind != Term || k.Text == "" {
+		return false
+	}
+	t := k.Text
+	switch {
+	case t[0] == '$':
+		return len(t) > 1 && strings.IndexFunc(t[1:], func(r rune) bool {
+			return r != ':' && (r >= utf8.RuneSelf || !isWordByte(byte(r)))
+		}) < 0
+	case t[0] == '\'':
+		return true
+	case t[0] == '"' || strings.HasPrefix(t, "qq"):
+		return !strings.ContainsAny(t, "$@")
+	case strings.HasPrefix(t, "q") && len(t) > 1 && !isWordByte(t[1]):
+		return true
+	}
+	return strings.IndexFunc(t, func(r rune) bool {
+		return r != '.' && r != ':' && (r >= utf8.RuneSelf || !isWordByte(byte(r)))
+	}) < 0
 }
 
 // isAggregate reports whether a node is a whole array or hash -- what perl's
