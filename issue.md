@@ -7,13 +7,17 @@ blocked_by:
 - 01a0badc-a093-7e09-bdfb-002f4a73759f
 - 01a0b835-1270-7b32-9f0a-18fe7c555bae
 created: 2026-09-19T18:17:07.068073736Z
-updated: 2026-10-09T09:12:17.979193617Z
+updated: 2026-10-09T09:12:50.992886196Z
 sessions:
 - start_sha: 25483d2b5bfff159cfc023dec9b050ce0c57c4b3
   end_sha: 25483d2b5bfff159cfc023dec9b050ce0c57c4b3
   commits: 0
   started_at: 2026-09-19T21:11:22.140962055Z
   ended_at: 2026-09-19T21:12:55.13834552Z
+- start_sha: d2f26fe30e0f079d575302ad99d23d551a83d885
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-09T09:12:50.992886196Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
@@ -24,6 +28,9 @@ transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-09T03:26:34.37807385Z
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-09T09:12:50.992886196Z
 ---
 
 35 WRONG anonhash sites, and most are span attribution -- but three are real
