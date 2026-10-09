@@ -9,7 +9,7 @@ blocked_by:
 blocks:
 - 01a0a75b-5e51-79f0-8af1-95c5aa378706
 created: 2026-09-15T23:16:18.129308407Z
-updated: 2026-09-16T03:59:39.376411412Z
+updated: 2026-10-09T17:21:11.273976455Z
 sessions:
 - start_sha: 5b936a5d9c9c023339bf9efbde2faf62e31f3c78
   end_sha: db0e74738f8ffa324e4e69944faed74122b4e768
@@ -62,7 +62,7 @@ gives the grammar as `( Block | ";" )`. For a fresh parser this is just the
 `;` alternative — the "statement-level leak" §0.13 describes was a
 tree-sitter recovery artifact, not a language subtlety.
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] my, our, local and state parse with single and list targets (`go test ./internal/parse/ -run '^TestVariableDeclarations$' -count=1 -v | grep -q '^--- PASS: TestVariableDeclarations'`)
 - [ ] A sub declaration parses with a block and with a bare `;` (`go test ./internal/parse/ -run '^TestSubDeclarationForms$' -count=1 -v | grep -q '^--- PASS: TestSubDeclarationForms'`)
