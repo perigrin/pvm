@@ -96,8 +96,9 @@ func TestStatementStartBrace(t *testing.T) {
 		"{a=>1, b=>2};",
 		`{"a", 1};`,
 		`{"a" => 1};`,
-		// `{};` is NOT here: perl deparses it as `{}`, a BLOCK, not an empty
-		// hash. Measured. An earlier draft of this test asserted otherwise.
+		// `{};` is in TestEmptyBracesAtStatementAreAnonHash: an empty brace
+		// is a hash too, by its own rule. Deparse writes it `{};` with no
+		// `+`, so read it with -MO=Concise, which shows emptyavhv.
 	} {
 		root := parse.Parse([]byte(src))
 		if containsKind(root, parse.Unknown) {
@@ -128,13 +129,12 @@ func TestBareBlockStillParses(t *testing.T) {
 	for _, src := range []string{
 		"{ my $x = 1; }",
 		"{ f(); g(); }",
-		"{ }",
+		"{ ; }",
 		"if ($x) { 1 }",
 		"while ($x) { f(); }",
-		// `{};` is NOT here either. perl deparses it as `{}`, a block, and
-		// the block parses -- but the trailing `;` becomes an Unknown, which
-		// is an empty-statement defect rather than a brace-classification
-		// one. Present before and after this change. Untracked.
+		// `{ }` and `{};` are NOT here: an empty brace at statement position
+		// is an anonymous hash -- measured with -MO=Concise, emptyavhv --
+		// and TestEmptyBracesAtStatementAreAnonHash owns them.
 		// `LOOP: { last LOOP; }` is NOT here. A labelled bare block is valid
 		// Perl -- `perl -MO=Deparse` gives it back unchanged -- and this
 		// parser declines it today, before and after this change. Its own

@@ -456,6 +456,27 @@ oracle stops being a reason not to re-run.
 
 ## 0.11 Fidelity across the whole corpus, measured
 
+### An empty brace at statement position is an anonymous hash
+
+*2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0.*
+
+perl reads `{` followed by `}`, with only whitespace or comments between, at
+statement position as an anonymous hash (toke.c:6706). Deparse writes it
+`{};` with no `+`, so it is `-MO=Concise` that shows it:
+
+```
+{}   { }   { # c\n }   {\n}   {} ;   L: {}     emptyavhv v/ANONHASH
+sub f { 1; {} }   if ($x) { {} }               emptyavhv
+{{{}}}                                         two enterloops, one emptyavhv
+{ 1 }   { ; }   {;}                            enterloop: a block
+```
+
+The parser read each as an empty block. `braceOpensAnonHash` now answers
+hash for an empty brace, and canon writes an empty bare block as `{;}`, the
+spelling that stays a block. No file changed bucket: comp/parser.t's
+anonhash:125 finding cleared, and it stays WRONG on its interpolation at
+468. The table is the one below.
+
 ### The subject reports perl's line numbers across a `#line` directive
 
 *2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0.*

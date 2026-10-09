@@ -1022,11 +1022,12 @@ func (p *parser) statementForm() *Node {
 		//	{"a", 1};    +{'a', 1}    a hash: STRING then `,`
 		//	{a, 1};      a block      a bareword and a comma is NOT enough
 		//	{$k=>1};     a block      a variable is not a key here
-		//	{};          a block      empty is a block, not an empty hash
+		//	{};          a hash       empty: `}` straight after the `{`
 		//
-		// So the first token must be a word or a string, and only those two
-		// separators qualify. Everything else stays a block, which is what
-		// keeps every bare block, `if` body and loop body working.
+		// So the brace must be empty, or its first token a word or a string
+		// with only those two separators after it. Everything else stays a
+		// block, which is what keeps every bare block, `if` body and loop
+		// body working.
 		if !p.braceOpensAnonHash(tok) {
 			blk := p.parseBlock(tok)
 			// A bare block is a loop that runs once, so it takes a `continue`
@@ -1381,7 +1382,10 @@ var statementKeywords = map[string]bool{
 //	{"a", 1};    +{'a', 1}    STRING then `,`
 //	{a, 1};      a block      a bareword and a comma is NOT enough
 //	{$k=>1};     a block      a variable is not a key here
-//	{};          a block      empty is a block, not an empty hash
+//	{};          a hash       empty: `}` straight after the `{`
+//
+// Deparse writes the empty one `{};`, with no `+`, so -MO=Concise is what
+// shows it is a hash: emptyavhv, not enterloop. `{;}` is a block.
 //
 // Narrow on purpose. The default for a statement-start brace is a block, and
 // it has to be: every bare block, `if` body and loop body in the corpus is
@@ -1390,6 +1394,13 @@ func (p *parser) braceOpensAnonHash(brace lexer.Token) bool {
 	first, ok := p.peekAfter(brace)
 	if !ok {
 		return false
+	}
+
+	// An empty brace -- nothing but whitespace or comments before its `}` --
+	// is an empty hash. toke.c's brace rule reads a `}` straight after the
+	// `{` as HASHBRACK (toke.c:6706), at statement start as after `map`.
+	if first.Kind == lexer.CloseBracket && p.text(first) == "}" {
+		return true
 	}
 
 	// The key must be a word or a string. A variable, a number or anything
