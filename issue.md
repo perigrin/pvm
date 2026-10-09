@@ -9,7 +9,7 @@ blocks:
 - 01a11eb2-2162-7f35-8d64-d28c72d24f5b
 - 01a11eb2-21ac-7b07-b0f2-4e21a6b351ff
 created: 2026-09-20T22:59:07.720149993Z
-updated: 2026-10-09T03:44:03.838266023Z
+updated: 2026-10-09T13:54:12.034703697Z
 sessions:
 - start_sha: 8ec19ffcb8e44115e5b60423b138536be1add2ba
   end_sha: 8ec19ffcb8e44115e5b60423b138536be1add2ba
@@ -56,5 +56,5 @@ The four comp files c7d7 was filed to measure -- comp/parser.t (65), comp/hints.
 
 ## Acceptance criteria
 
-- [ ] each remaining cause has an issue (`sh -c 'git zhi issue list --milestone m1-parse-the-core --format json | grep -q "BEGIN block requires" && git zhi issue list --milestone m1-parse-the-core --format json | grep -q "perl refuses at end of file"'`)
+- [ ] each remaining cause has an issue (`sh -c 'git zhi issue list --all --milestone m1-parse-the-core --format json | grep -q "BEGIN block requires" && git zhi issue list --all --milestone m1-parse-the-core --format json | grep -q "perl refuses at end of file"'`)
 - [ ] the T2 ratchet holds (`go test ./internal/parse/ -run '^TestT2CoreParses$' -count=1 -v | grep -q '^--- PASS: TestT2CoreParses'`)
