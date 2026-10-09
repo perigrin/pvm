@@ -8,76 +8,39 @@ blocked_by:
 blocks:
 - 01a0c10b-7148-77e5-8923-16fbce93c64b
 created: 2026-09-20T23:56:24.16253937Z
-updated: 2026-09-20T23:57:07.958042262Z
+updated: 2026-10-09T03:25:51.192168503Z
 ---
-
-M1's gate says "100% of T2 (56 files)". Some of those 56 files cannot be M1's
-to fix, and a target that includes them is unreachable by construction. The
-plan itself warns against exactly this: "Do not carry an unreachable 100% into
-a gate: that is how a gate becomes advisory."
-
-This issue makes T2's denominator honest, in the test, with each exclusion
-named and attributed to the milestone that owns it.
 
 ## Context
 
-- paths: `internal/parse/t2_test.go`,
-  `docs/plans/2026-09-05-parser-conformance-plan.md` (§"M1 -- Parses the core
-  without error")
-- commands: `go test ./internal/parse/ -run '^TestT2CoreParses$' -count=1 -v`
-- entrypoints: `internal/parse/t2_test.go`, `TestT2CoreParses` and its
-  `shortfall` map
+- paths: `internal/parse/t2_test.go`
+- commands: `make test` (green before every commit; never `--no-verify`); the ratchets `go test ./internal/parse/ -run '^(TestParseRatchet|TestPerlGitTRatchet|TestCanonRatchet|TestT2CoreParses)$' -count=1`, `go test ./internal/conformance/ -run '^TestCorpusRatchet$' -count=1`
+- perl 5.42: `/home/perigrin/.local/bin/perl`; perl.git t/ at `~/dev/perl5/t` (the checkout is not built, so `perl -c` on a file that requires `Config` fails for that reason alone)
 
-## What is out of M1's scope, measured at b6e7c351
+Ruling (perigrin, 2026-10-09): all 56 T2 files parse clean -- no file is excluded as another milestone's. This issue's earlier aim, a scoped denominator excluding what M1 does not own, is withdrawn by that ruling. A file perl itself refuses counts as clean only when internal/parse refuses it the same way.
 
-    comp/proto.t          41 Unknowns   prototype recognition -- M4
-    t/class/*.t (9 files) 52 Unknowns   class syntax; ADJUST and class
-                                        phasers are recorded in the shortfall
-                                        map as owned by NOTHING on the chain
-    block-form filehandle  1 per site   `print {$fh} "x"` -- blocked per the
-                                        m2 refinement
+## Re-measured, 2026-10-09 at 287e85b8
 
-`comp/proto.t` is the unambiguous one: M4 is titled "Prototypes, context, and
-the hard ambiguities", and 41 nodes of prototype work counted against M1's
-100% is 41 nodes M1 cannot move without doing M4's job early.
+T2 core is **51 of 56 files clean (91.1%)** -- not the 30.4% this milestone's surveys were filed against. Ten Unknown nodes remain, in five files, from two causes:
 
-The class files need a judgement, not an assumption -- some class syntax is
-already landed (`class/class.t` left the map) and some is not. The step below
-says to decide each with a measurement rather than by category.
+    class/destruct.t:51,54          refcount_is $obj, 1, ...;
+    class/field.t:333               ... or skip "XS::APItest not available", 1;
+    class/gh23511.t:21              like $@, qr/.../, "...";
+    comp/filter_exception.t:8       plan tests => 4;
+    comp/filter_exception.t:28,30   like $@, qr/.../;
+    comp/filter_exception.t:29 (x2) is eval { require "t/Foo.pm" }, undef;
+    comp/final_line_num.t:13        +
 
-## What this issue does NOT do
+- **Nine nodes: a file a BEGIN block requires declares subs.** All four files open `BEGIN { require './test.pl'; ... }`, so perl knows `plan`, `is ($$@)`, `like ($$@)`, `refcount_is` and `skip` (test.pl:55, 395, 510, 536, 570) when it parses their parenless calls; pvm does not read a file a BEGIN-time `require` loads.
+- **One node: a file perl refuses.** comp/final_line_num.t ends `print 1+` at end of file on purpose: perl reports "syntax error at ... line 13, at EOF", which its own BEGIN `$SIG{__DIE__}` handler checks. Under perigrin's ruling (2026-10-09) such a file is clean only when internal/parse refuses it the same way.
 
-It does not lower the bar to whatever today's number happens to be. A file is
-excluded only when the construct blocking it is owned by a named later
-milestone or a named blocked issue. Everything else stays in, at 100%.
+The four comp files c7d7 was filed to measure -- comp/parser.t (65), comp/hints.t (36), comp/colon.t (25), comp/redef.t (21) -- are clean: all 147 nodes are gone.
 
 ## Steps
 
-- [ ] Write a failing test asserting T2's M1-scoped denominator: the file
-      list minus the exclusions, each exclusion carrying a comment naming the
-      milestone or issue that owns it
-- [ ] Run it and see it fail on today's numbers (`go test ./internal/parse/ -run '^TestT2ScopeIsM1s$' -count=1 -v`)
-- [ ] Implement the split in `TestT2CoreParses`: report BOTH numbers -- clean
-      files over all 56, and clean files over the M1-scoped denominator -- so
-      the plan's metric and the reachable one are both visible and neither is
-      quietly replaced
-- [ ] For each excluded file, confirm by measurement that its Unknowns are
-      ACTUALLY the excluded construct, not a mixture. A file whose Unknowns
-      are half prototypes and half something M1 owns is not excluded; it is
-      partially fixable and stays in.
-- [ ] Update the plan's M1 table to state the scoped target beside the raw
-      one, with the exclusion list and its reason
-- [ ] Run to green and commit
+- [ ] After the two cause issues land: write `TestT2HoldsAll56`, asserting the shortfall map is empty, all 56 files are clean, and comp/final_line_num.t is clean because internal/parse refuses it at end of file as perl does; remove the map's entries; `make test`; commit
 
-## Acceptance Criteria
+## Acceptance criteria
 
-### Positive Scenarios
-
-- [ ] T2's M1-scoped denominator is asserted in the test, with each exclusion
-      naming its owning milestone (`go test ./internal/parse/ -run '^TestT2ScopeIsM1s$' -count=1 -v | grep -q '^--- PASS: TestT2ScopeIsM1s'`)
-- [ ] `TestT2CoreParses` reports both the raw 56-file rate and the M1-scoped
-      rate, and is green (`go test ./internal/parse/ -run '^TestT2CoreParses$' -count=1 -v | grep -q '^--- PASS: TestT2CoreParses'`)
-- [ ] `comp/proto.t` is excluded with M4 named as its owner (`grep -q 'comp/proto.t' internal/parse/t2_test.go`)
-- [ ] The plan records the scoped target beside the raw one (`grep -qi 'scoped' docs/plans/2026-09-05-parser-conformance-plan.md`)
-
-Plan: M1, M4. Survey: 01a0c10b's closing note.
+- [ ] T2 holds all 56 files (`go test ./internal/parse/ -run '^TestT2HoldsAll56$' -count=1 -v | grep -q '^--- PASS: TestT2HoldsAll56'`)
+- [ ] the T2 ratchet holds with an empty shortfall (`go test ./internal/parse/ -run '^TestT2CoreParses$' -count=1 -v | grep -q '56 of 56 files clean'`)
