@@ -9,7 +9,7 @@ blocks:
 - 01a0a75b-5e51-79ef-a59a-3a997f738cca
 - 01a0a75b-95b2-730a-9303-b6aba9adb26c
 created: 2026-09-15T21:52:57.320252116Z
-updated: 2026-09-16T03:13:01.905950482Z
+updated: 2026-10-09T17:21:10.539057068Z
 sessions:
 - start_sha: 68994750d92c543b5e60a6043acc8b215945a4ac
   end_sha: 5b936a5d9c9c023339bf9efbde2faf62e31f3c78
@@ -51,7 +51,7 @@ cascade is not hypothetical: `op/filetest.t:96` derailed a reference at line
 Per the skeleton issue, a statement containing an Unknown also emits
 Unresolved sites of every marker kind, so it scores wider rather than WRONG.
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] A file parses to a sequence of statements with no gaps between spans (`go test ./internal/parse/ -run '^TestSourceFileIsStatements$' -count=1 -v | grep -q '^--- PASS: TestSourceFileIsStatements'`)
 - [ ] An expression statement and a bare block parse (`go test ./internal/parse/ -run '^TestExpressionStatementAndBlock$' -count=1 -v | grep -q '^--- PASS: TestExpressionStatementAndBlock'`)
