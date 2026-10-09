@@ -677,6 +677,12 @@ func (p *parser) finishList(items []*Node, open lexer.Token) *Node {
 		c := *items[0]
 		c.Start, c.End = open.Start, p.prevEnd()
 		c.Paren = true
+		// A leaf is written as its source text, which now holds any
+		// trailing comma inside the parens: `(0,)`. Kept as well, canon
+		// wrote it twice.
+		if len(c.Children) == 0 {
+			c.TrailingComma = ""
+		}
 		return &c
 	}
 	return &Node{

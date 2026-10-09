@@ -63,6 +63,15 @@ func TestTrailingCommaBeforeCloserIsNotATerm(t *testing.T) {
 		// Guarding that keeps the fix from turning a real syntax error into a
 		// silent empty list.
 		{"only a comma", "f(,);", "f(,);"},
+
+		// A parenthesised list of ONE element is that element, its span
+		// widened over the parens, so a leaf's source text already holds
+		// the comma. Written again after it, `(0,)` came back `(0,) ,`, a
+		// comma expression the next pass read differently -- found by the
+		// parser fuzzer from `(0,)`. perl 5.42 Deparses `my @a = (0,);` as
+		// `my(@a) = 0;`.
+		{"paren one leaf", "my @a = (0,);", "my @a = (0,);"},
+		{"paren one variable", "my @a = ($x,);", "my @a = ($x,);"},
 	}
 
 	// Canon writes the trailing comma back where the source had it
