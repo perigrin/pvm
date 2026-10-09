@@ -1,10 +1,19 @@
 ---
 title: Hedge rv2hv for a ->{...} hash read whose multideref folding pvm cannot predict
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-10-09T11:07:58.763658294Z
-updated: 2026-10-09T11:08:31.281702848Z
+updated: 2026-10-09T11:08:55.755849525Z
+sessions:
+- start_sha: 5ae2b3eb8cf8e8b2b63e86042dfbc046cf18a62c
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-09T11:08:55.755849525Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-09T11:08:55.755849525Z
 ---
 
 ## Context
