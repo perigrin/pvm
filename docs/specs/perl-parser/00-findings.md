@@ -456,6 +456,52 @@ oracle stops being a reason not to re-run.
 
 ## 0.11 Fidelity across the whole corpus, measured
 
+### Code inside interpolation hedges every marker
+
+*2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0.*
+
+perl compiles the code inside an interpolating string, regex or heredoc
+into ordinary ops, and internal/parse keeps the literal as one leaf. The
+subject committed to those statements with nothing in them. Measured with
+`-MO=Concise`:
+
+```
+qr/x ${\f($o)} y/                   refgen          (op/coreamp.t:178,248)
+"@{[ g(\&g) ]}"                     srefgen         (op/sub_lval.t:861,863)
+"ba" =~ /b${\do { qr|a| }}/         refgen, match   (re/reg_eval_scope.t:99,101)
+qr/${\ <<END ... END }/             srefgen         (comp/parser.t:468)
+"$_->@{foo}" under postderef_qq     rv2hv           (op/postfixderef.t:340,344,347)
+"@{[ {a=>1} ]}"  "@{[ <STDIN> ]}"   anonhash, readline
+our %h; "@h{qw(a b)}"               rv2hv
+"$x"  "@a"  "${x}"  "$x->method"    no marker
+```
+
+The plan's M1 rule decides the answer: a construct not yet understood is
+reported as unknown. A `${ ... }` or `@{ ... }` around anything but a name,
+or a variable followed by a subscript or a dereferencing arrow, inside an
+interpolating literal or heredoc body now hedges every marker; a pattern's
+own match stays decided. Parsing the embedded code is 01a12059-3011.
+
+| Bucket | Files | Share of measured |
+|---|---:|---:|
+| exact | 489 | 82.5% |
+| wider | 80 | 13.5% |
+| **WRONG** | **4** | **0.7%** |
+| no-answer | 20 | 3.4% |
+| *measured (denominator)* | *593* | |
+| excluded, environmental | 26 | — |
+| runner error | 1 | — |
+
+Five files moved, each to a better bucket. Re-baselined at CI's 8m per-file
+timeout.
+
+- WRONG → wider: `comp/parser.t`, `op/coreamp.t`, `op/postfixderef.t`,
+  `op/sub_lval.t`, `re/reg_eval_scope.t`.
+
+The four left WRONG share one cause, a hash read through `->{...}` that perl
+compiles as rv2hv: `japh/abigail.t`, `op/gmagic.t`, `op/ref.t`,
+`porting/libperl.t`.
+
 ### Smartmatch against an array or hash reports the reference perl takes
 
 *2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0.*
