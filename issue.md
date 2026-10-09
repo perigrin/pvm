@@ -6,7 +6,7 @@ milestone: m1-parse-the-core
 blocked_by:
 - 01a0b84d-caa8-71d2-b42b-0c8445bc6026
 created: 2026-09-19T06:15:09.657423509Z
-updated: 2026-09-19T06:56:11.023803068Z
+updated: 2026-10-09T17:21:17.132572332Z
 sessions:
 - start_sha: 7034e553e623c97cdd9406c3d6b9c8ef5c4b2a55
   end_sha: 9cf2ee6df76d20e3fe3e13c8324e0ca79d8137b9
@@ -123,7 +123,7 @@ If the paper syntax ever gets a parser, a prototype column beside
 `operands`/`result` is a plausible convergence. Not blocking on it; a
 prototype string is trivially liftable.
 
-## Acceptance
+## Acceptance criteria
 
 - [x] Parse shape is DERIVED from the prototype, never stored (`go test ./internal/parse/ -run '^TestShapeDerivedFromPrototype$' -count=1 -v | grep -q '^--- PASS: TestShapeDerivedFromPrototype'`)
 - [x] `(;$)` parses with zero and with one argument (`go test ./internal/parse/ -run '^TestOptionalArgPrototype$' -count=1 -v | grep -q '^--- PASS: TestOptionalArgPrototype'`)
