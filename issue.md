@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-19T18:15:49.871374091Z
-updated: 2026-09-20T02:04:04.677782914Z
+updated: 2026-10-09T17:21:19.352445697Z
 sessions:
 - start_sha: 25483d2b5bfff159cfc023dec9b050ce0c57c4b3
   end_sha: cc4a3d3a4dff59d2e6da66443724d83ccbfb75ec
@@ -107,7 +107,7 @@ would take exact down as well as WRONG, and the exact floor exists to stop
 exactly that. Start by hedging the four shapes above and measure both
 numbers.
 
-## Acceptance
+## Acceptance criteria
 
 - [x] An undecidable hash access hedges rather than committing (`go test ./internal/parse/ -run '^TestUndecidableHashHedges$' -count=1 -v | grep -q '^--- PASS: TestUndecidableHashHedges'`)
 - [x] A decidable one still commits, so exact does not collapse (`go test ./internal/parse/ -run '^TestDecidableHashStillCommits$' -count=1 -v | grep -q '^--- PASS: TestDecidableHashStillCommits'`)
