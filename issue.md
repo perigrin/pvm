@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a0a75b-5e51-79f1-8575-3f30abd05ac9
 created: 2026-09-15T23:16:18.129308407Z
-updated: 2026-09-16T06:28:46.790866963Z
+updated: 2026-10-09T17:21:11.608959059Z
 sessions:
 - start_sha: d2af7ac4e1788a4cb59eec64608b57f6e0855347
   end_sha: 6884c6a13f1c20eacb5dfdf287b194bcc4bb34d4
@@ -52,7 +52,7 @@ re-deriving it.
 `for (my $i = 0; $i < 10; $i++)` and `for my $x (@list)` share a keyword and
 nothing else structurally. Both are in §0.13's corpus.
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] if/elsif/else chains parse, including an elsif with no else (`go test ./internal/parse/ -run '^TestConditionalChains$' -count=1 -v | grep -q '^--- PASS: TestConditionalChains'`)
 - [ ] unless, while and until parse with the same block shape (`go test ./internal/parse/ -run '^TestNegatedAndLoopForms$' -count=1 -v | grep -q '^--- PASS: TestNegatedAndLoopForms'`)
