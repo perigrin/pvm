@@ -13,6 +13,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"tamarou.com/pvm/internal/parse"
 	"tamarou.com/pvm/internal/parseoracle"
@@ -25,13 +27,22 @@ func main() {
 	}
 	path := os.Args[1]
 
+	// Resolved the way perl's own test suite resolves, since that is what the
+	// oracle runs the subject against: from t/, where `require './test.pl'`
+	// names t/test.pl, `./t/test.pl` names the same file from the tree root,
+	// and test.pl's set_up_inc('../lib') puts lib/ in @INC. Without these the
+	// subject would measure a parse that resolves nothing, which is not the
+	// parser the M1 ratchets gate.
+	root, err := parse.ParseFileFrom(path, ".", "..", filepath.Join("..", "lib"))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "cannot read %s: %v\n", path, err)
+		os.Exit(1)
+	}
 	src, err := os.ReadFile(path)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "cannot read %s: %v\n", path, err)
 		os.Exit(1)
 	}
-
-	root := parse.Parse(src)
 
 	// OK is whether this parser believes the file is valid Perl, and the
 	// honest answer is yes: it declines constructs rather than rejecting
@@ -43,12 +54,10 @@ func main() {
 	facts := parseoracle.SubjectFacts{
 		OK: true,
 
-		// Empty rather than nil, and that is the contract: an empty map is
-		// an answer ("I looked and found none"), nil marshals to JSON null,
-		// and null decodes as absent -- which scores as "did not look".
-		// Prototype RESOLUTION is M4's; recognition without resolution has
-		// nothing to report here yet.
-		Prototypes: map[string]string{},
+		// Never nil, and that is the contract: an empty map is an answer
+		// ("I looked and found none"), nil marshals to JSON null, and null
+		// decodes as absent -- which scores as "did not look".
+		Prototypes: prototypes(root),
 
 		CallSites: parse.Sites(root, src),
 	}
@@ -62,4 +71,21 @@ func main() {
 		fmt.Fprintf(os.Stderr, "writing facts for %s: %v\n", path, err)
 		os.Exit(1)
 	}
+}
+
+// prototypes is every prototype the tree carries: the subs this file
+// declares and the ones its imports bring in, each read from a declaration
+// the parse actually saw. A name whose prototype the parse could not see --
+// an XS sub, whose body is in a .so -- is left out rather than guessed.
+//
+// Keyed as perl names them, `name` in main and `Pkg::name` elsewhere, and
+// spelled as prototype() returns them, without the parens.
+func prototypes(root *parse.Node) map[string]string {
+	protos := map[string]string{}
+	for name, imp := range parse.Imports(root) {
+		if imp.PrototypeKnown && imp.Prototype != "" {
+			protos[name] = strings.TrimSuffix(strings.TrimPrefix(imp.Prototype, "("), ")")
+		}
+	}
+	return protos
 }

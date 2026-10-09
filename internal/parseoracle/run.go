@@ -223,8 +223,8 @@ func percent(count, total int) string {
 
 // RunOptions controls a corpus run.
 type RunOptions struct {
-	// Subject is the implementation being measured. Zero means our own
-	// tree-sitter parser, which keeps every existing caller working.
+	// Subject is the implementation being measured. Nil means
+	// internal/parse, run as a subprocess; see askSubject.
 	//
 	// This is what makes the harness implementation-agnostic: perl-lsp,
 	// PerlOnJava, Chalk or a future hand-written Go parser can each be
@@ -258,8 +258,8 @@ type RunOptions struct {
 	Cache *Cache
 }
 
-// Run compiles every file in the corpus through perl, parses it with our
-// parser, and buckets the two against each other.
+// Run compiles every file in the corpus through perl, asks the subject for
+// its account of the same file, and buckets the two against each other.
 //
 // Concurrency is a bounded channel semaphore rather than errgroup: go.mod has
 // no golang.org/x/sync and this needs no new dependency.
@@ -308,10 +308,7 @@ func Run(ctx context.Context, files []string, opts RunOptions) (Report, error) {
 	return report, nil
 }
 
-// measure is one file: ask perl, parse ourselves, compare.
-//
-// Every parser.Parser is created here rather than shared, because a
-// tree-sitter parser holds mutable scan state and this runs concurrently.
+// measure is one file: ask perl, ask the subject, compare.
 func measure(ctx context.Context, path string, opts RunOptions) Result {
 	r := Result{Path: path}
 
@@ -352,34 +349,34 @@ func measure(ctx context.Context, path string, opts RunOptions) Result {
 	return r
 }
 
-// askSubject gets the subject's account of one file. A nil Subject means our
-// own parser, taken in-process: it is already linked in, and spawning a copy
-// of ourselves per file to ask a question we can ask directly would cost the
-// sweep 620 processes for nothing.
+// askSubject gets the subject's account of one file.
 //
-// An external subject is run the way the oracle is run: from opts.Dir, so the
-// relative path the sweep hands it opens, and within opts.Timeout, so the
-// per-file budget the report claims is the one a subject actually gets. A
-// Subject may set either for itself; the run's values are the default, not an
-// override. Without this the subject was handed a path it could not open from
-// wherever the harness happened to be, and an honest one produced a runner
-// error per file while a quiet one produced a fidelity of 0% -- five parser
-// verdicts recording one environmental fact.
-// askSubject runs the subject over one file.
-//
-// A subject is REQUIRED. There was a fallback here that parsed with an
-// in-process tree-sitter parser when none was supplied, and it was the last
-// thing in this package that parsed Perl itself -- which the oracle has no
-// business doing. Perl does the parsing; a subject answers the contract as a
+// A nil Subject means internal/parse, the M1 parser, run as a subprocess like
+// any other subject (see defaultSubject). There was once a fallback here that
+// parsed with an in-process tree-sitter parser, and it was the last thing in
+// this package that parsed Perl itself -- which the oracle has no business
+// doing. Perl does the parsing; a subject answers the contract as a
 // subprocess, "precisely so the harness can measure implementations that are
-// not Go" (subject.go). One code path now, the same one every implementation
-// uses.
+// not Go" (subject.go). The default changes which command is spawned, never
+// the code path: naming internal/parse and naming nothing measure the same.
+//
+// A subject is run the way the oracle is run: from opts.Dir, so the relative
+// path the sweep hands it opens, and within opts.Timeout, so the per-file
+// budget the report claims is the one a subject actually gets. A Subject may
+// set either for itself; the run's values are the default, not an override.
+// Without this the subject was handed a path it could not open from wherever
+// the harness happened to be, and an honest one produced a runner error per
+// file while a quiet one produced a fidelity of 0% -- five parser verdicts
+// recording one environmental fact.
 func askSubject(ctx context.Context, opts RunOptions, path string, _ []byte) (SubjectFacts, error) {
-	if opts.Subject == nil {
-		return SubjectFacts{}, fmt.Errorf("no subject supplied for %s: "+
-			"RunOptions.Subject names the command that answers the contract", path)
+	subject := opts.Subject
+	if subject == nil {
+		var err error
+		if subject, err = defaultSubject(); err != nil {
+			return SubjectFacts{}, err
+		}
 	}
-	s := *opts.Subject
+	s := *subject
 	if s.Dir == "" {
 		s.Dir = opts.Dir
 	}
