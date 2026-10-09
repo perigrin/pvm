@@ -78,6 +78,7 @@ func (p *parser) parseTerm() *Node {
 				p.advanceTo(close)
 			}
 			n.End = p.prevEnd()
+			p.readHandleSlots(n, text)
 			return n
 		}
 		// No parens: one argument at level 19, so arithmetic binds into the
@@ -121,6 +122,7 @@ func (p *parser) parseTerm() *Node {
 			n.Children = append(n.Children, arg)
 			n.End = p.prevEnd()
 		}
+		p.readHandleSlots(n, text)
 		return n
 	}
 
