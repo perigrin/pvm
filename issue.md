@@ -1,5 +1,5 @@
 ---
-title: The parse oracle measures tree-sitter, not the parser M1 is building
+title: The parse oracle's default subject is internal/parse, and its corpus baseline is regenerated against it
 state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a0a8cd-8fcc-72a8-9ba1-c916eee9992d
 created: 2026-09-19T00:00:00Z
-updated: 2026-10-09T03:23:58.928568274Z
+updated: 2026-10-09T03:23:58.976577414Z
 ---
 
 ## Context
