@@ -1,10 +1,19 @@
 ---
 title: map/grep's brace reads an empty {} as a block, though perl reads map {}, @a as a hash
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-10-09T08:17:49.841107029Z
-updated: 2026-10-09T08:17:49.841107029Z
+updated: 2026-10-09T08:35:32.152444656Z
+sessions:
+- start_sha: dd8abfe77cbc8881e7d098ea6f530d2fd51e4ed7
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-09T08:35:32.152444656Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-09T08:35:32.152444656Z
 ---
 
 ## Context
