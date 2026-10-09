@@ -9,7 +9,7 @@ blocked_by:
 blocks:
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-15T23:16:18.129308407Z
-updated: 2026-09-16T22:06:50.071998294Z
+updated: 2026-10-09T17:21:12.102406597Z
 sessions:
 - start_sha: 6884c6a13f1c20eacb5dfdf287b194bcc4bb34d4
   end_sha: 73a01a14099ca4de47ca4119f47356c542e24287
@@ -59,7 +59,7 @@ first token: a bareword or string followed by `,` or `=>` means hashref.
 Match that heuristic, and where it is genuinely ambiguous emit Unknown rather
 than pick — the plan's rule applies to this as much as to anything.
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] Modifier forms parse: if, unless, while, until, for, foreach (`go test ./internal/parse/ -run '^TestStatementModifierForms$' -count=1 -v | grep -q '^--- PASS: TestStatementModifierForms'`)
 - [ ] A modifier binds looser than every expression operator, `or` included (`go test ./internal/parse/ -run '^TestModifierBindsLoosest$' -count=1 -v | grep -q '^--- PASS: TestModifierBindsLoosest'`)
