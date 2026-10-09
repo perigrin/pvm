@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"tamarou.com/pvm/internal/lexer"
+	"tamarou.com/pvm/internal/types"
 )
 
 // parseWordTerm turns a bareword in term position into a call, a bareword
@@ -229,6 +230,9 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		}
 		n.End = p.prevEnd()
 		_, n.Resolved = p.keywordShape(spelled, text)
+		if n.Resolved {
+			p.readHandleSlots(n, text)
+		}
 		return n
 	}
 
@@ -417,6 +421,9 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 	}
 
 	n.End = p.prevEnd()
+	if _, ok := p.keywordShape(spelled, text); ok {
+		p.readHandleSlots(n, text)
+	}
 	return n
 }
 
@@ -799,6 +806,63 @@ func (p *parser) isBarewordHandle(word string) bool {
 	}
 	_, known := p.lookupSub(word)
 	return !known
+}
+
+// readHandleSlots reads a bareword in a builtin's filehandle slot as the
+// handle, where it was read as a call to a sub of that name. perl makes the
+// same turn after the fact: the bareword is a constant until the builtin's
+// check converts one in a handle slot to the glob. Measured on 5.42.0 with
+// -MO=Deparse:
+//
+//	open(FH, "<", $f); close FH        open FH, '<', $f; close FH;
+//	pipe(R, W); -s(FH)                 pipe R, W; -s FH;
+//	sub FH {1} open(FH, "<", $f)       open FH(), '<', $f;
+//	open(FH(), "<", $f)                open FH(), '<', $f;
+//
+// A declared sub, or parens written after the word, keep the call. The
+// slots are CORE.pmt's: a `Glob *` parameter, or one whose type holds a
+// FileHandle. A filetest's one operand is a handle slot too, though CORE.pmt
+// declares no filetest.
+func (p *parser) readHandleSlots(n *Node, name string) {
+	i := 0
+	for _, c := range n.Children {
+		for _, a := range commaItems(c) {
+			if p.handleSlot(name, i) && p.bareHandleCall(a) {
+				*a = Node{Kind: Term, Text: a.Text, Start: a.Start, End: a.End}
+			}
+			i++
+		}
+	}
+}
+
+// handleSlot reports whether argument i of the builtin name is a filehandle
+// slot in any of its candidates.
+//
+// ponytail: any candidate's slot counts, so the four-argument select's
+// first slot takes a bareword as a handle; perl reads one there as a string,
+// and both Deparse as the bare word. Pick the candidate by arity if that
+// ever matters.
+func (p *parser) handleSlot(name string, i int) bool {
+	if lexer.IsFileTest(name) {
+		return i == 0
+	}
+	if p.buildingCore {
+		return false
+	}
+	for _, sig := range CoreBuiltin(name) {
+		if i < len(sig.Params) && (sig.Params[i].Sigil == '*' ||
+			sig.Params[i].Type&types.FileHandle == types.FileHandle) {
+			return true
+		}
+	}
+	return false
+}
+
+// bareHandleCall reports whether a is a bareword read as a call to a sub
+// this parse does not know, written with no parens: `FH`, not `FH()`.
+func (p *parser) bareHandleCall(a *Node) bool {
+	return a.Kind == Call && len(a.Children) == 0 && !a.Resolved &&
+		a.End-a.Start == len(a.Text) && p.isBarewordHandle(a.Text)
 }
 
 // startsTerm reports whether a token begins a new term rather than continuing
