@@ -1,10 +1,19 @@
 ---
 title: Hedge the sites inside interpolation internal/parse does not parse
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-10-09T11:07:58.648536842Z
-updated: 2026-10-09T11:08:29.173648667Z
+updated: 2026-10-09T11:08:55.681435574Z
+sessions:
+- start_sha: 5ae2b3eb8cf8e8b2b63e86042dfbc046cf18a62c
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-09T11:08:55.681435574Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-09T11:08:55.681435574Z
 ---
 
 ## Context
