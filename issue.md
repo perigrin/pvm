@@ -3,8 +3,10 @@ title: "A trailing infix operator perl refuses at end of file is refused, not an
 state: pending
 urgency: normal
 milestone: m1-parse-the-core
+blocked_by:
+- 01a0c10b-7148-77e5-8923-16fbce93c64b
 created: 2026-10-09T03:25:52.940372472Z
-updated: 2026-10-09T03:25:52.940372472Z
+updated: 2026-10-09T03:26:28.261559631Z
 ---
 
 ## Context
