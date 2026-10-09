@@ -653,6 +653,11 @@ type parser struct {
 	// for either, which is what `WORD $var` as a method call rests on.
 	symbolsOpen bool
 
+	// inBegin is set while a BEGIN block's body is read, where a statement
+	// runs before the code after the block compiles. A `require` of a `.pl`
+	// helper declares its subs only there; see resolveRequiredFile.
+	inBegin bool
+
 	// packages names every `package` and `class` read so far. A bareword
 	// naming one is a class even when the word before it is a known sub --
 	// toke.c's intuit_method tests `gv_stashpvn` for exactly that.

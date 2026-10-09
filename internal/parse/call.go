@@ -327,7 +327,7 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		//     parenless-call refusals had a callee declared this way and 0
 		//     had one reachable by import -- no T2 file uses Test::More, they
 		//     `require './test.pl'`.
-		//   - A `.pl` FILE this one `require`d by a literal path, read by
+		//   - A `.pl` FILE this one `require`d by a literal path in BEGIN, read by
 		//     use.go's resolveRequiredFile. That is what closes the T2
 		//     sentence above: `t/test.pl` declares 78 subs, `ok`, `is` and
 		//     `like` among them, and 394 of the 435 dirty files in perl.git's

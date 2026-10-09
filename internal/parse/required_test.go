@@ -1,4 +1,4 @@
-// ABOUTME: A literal `require './helper.pl'` contributes the helper's `sub NAME` declarations.
+// ABOUTME: A literal `require './helper.pl'` in BEGIN contributes the helper's `sub NAME` declarations.
 // ABOUTME: Its boundary: computed, missing and nested requires contribute nothing and never fail the parse.
 
 package parse_test
@@ -12,27 +12,23 @@ import (
 )
 
 // TestRequiredFileDeclarations: a `require` of a LITERAL relative `.pl` path
-// brings that file's `sub NAME` set into scope, so a parenless call to one of
-// them parses.
+// in a BEGIN block brings that file's `sub NAME` set into scope, so a
+// parenless call to one of them parses.
 //
-// This is not what perl does at compile time, and the difference is worth
-// recording because it is the reason this resolution is enrichment rather than
-// emulation. `require` is a RUNTIME load, so at the point perl compiles the
-// call site the subs do not exist yet, and perl reads the undeclared form as
-// INDIRECT OBJECT NOTATION. Measured on 5.42.0:
+// BEGIN is what makes this perl's own reading. Outside it, `require` is a
+// RUNTIME load, so at the point perl compiles the call site the subs do not
+// exist yet, and perl reads the undeclared form as INDIRECT OBJECT NOTATION.
+// Measured on 5.42.0:
 //
 //	$ perl -MO=Deparse -e 'like $@, qr/x/, "msg";'
 //	$@->like, qr/x/, '???';
 //	$ perl -MO=Deparse -e 'sub like {1} like $@, qr/x/, "msg";'
 //	like $@, qr/x/, 'msg';
 //
-// So `perl -c t/base/lex.t` is `syntax OK` and the failure arrives at RUNTIME:
-// "Can't call method \"like\" without a package or object reference". perl
-// compiles a method call on `$@` where the source means a function call, and
-// discovers the mistake only when it runs. A parser whose job is to say what
-// the source MEANS reads the helper instead, which is the tree the source is
-// written against -- 394 of the 435 dirty files in perl.git's `t/` are this
-// shape, holding 7,211 of its 7,490 Unknown nodes.
+// perl's own suite therefore requires its helpers inside BEGIN, and every case
+// below does too; TestBeginRequireDeclaresSubs holds the run-time negative.
+// 394 of the 435 dirty files in perl.git's `t/` were this shape, holding
+// 7,211 of its 7,490 Unknown nodes.
 func TestRequiredFileDeclarations(t *testing.T) {
 	// The boundary rules each get a case, because the safety of this whole
 	// resolution is that it declines rather than guesses.
@@ -54,7 +50,7 @@ func TestRequiredFileDeclarations(t *testing.T) {
 			// `t/`: `require './test.pl'` appears 381 times.
 			name:   "a literal ./helper.pl is read",
 			helper: "sub ok { 1 }\nsub is ($$;$) { 1 }\n1;\n",
-			main:   "require './helper.pl';\nok 1, 'x';\nis 1, 1, 'y';\n",
+			main:   "BEGIN { require './helper.pl'; }\nok 1, 'x';\nis 1, 1, 'y';\n",
 			want:   0,
 			loaded: "./helper.pl",
 		},
@@ -63,7 +59,7 @@ func TestRequiredFileDeclarations(t *testing.T) {
 			// quote character is not part of the name.
 			name:   "the double-quoted spelling is the same file",
 			helper: "sub ok { 1 }\n1;\n",
-			main:   "require \"./helper.pl\";\nok 1, 'x';\n",
+			main:   "BEGIN { require \"./helper.pl\"; }\nok 1, 'x';\n",
 			want:   0,
 			loaded: "./helper.pl",
 		},
@@ -72,7 +68,7 @@ func TestRequiredFileDeclarations(t *testing.T) {
 			// rather than to the file, so it takes the same route.
 			name:   "a bare helper.pl is relative too",
 			helper: "sub ok { 1 }\n1;\n",
-			main:   "require 'helper.pl';\nok 1, 'x';\n",
+			main:   "BEGIN { require 'helper.pl'; }\nok 1, 'x';\n",
 			want:   0,
 			loaded: "helper.pl",
 		},
@@ -83,7 +79,7 @@ func TestRequiredFileDeclarations(t *testing.T) {
 			// rule the in-file route follows.
 			name:   "the prototype travels with the name",
 			helper: "sub one ($) { 1 }\n1;\n",
-			main:   "require './helper.pl';\nmy @a = (one 1, 2);\n",
+			main:   "BEGIN { require './helper.pl'; }\nmy @a = (one 1, 2);\n",
 			want:   0,
 			loaded: "./helper.pl",
 		},
@@ -94,7 +90,7 @@ func TestRequiredFileDeclarations(t *testing.T) {
 			// gives today.
 			name:   "a computed require resolves nothing",
 			helper: "sub ok { 1 }\n1;\n",
-			main:   "my $f = './helper.pl';\nrequire $f;\nok 1, 'x';\n",
+			main:   "BEGIN { my $f = './helper.pl'; require $f; }\nok 1, 'x';\n",
 			want:   1,
 			loaded: "",
 		},
@@ -104,7 +100,7 @@ func TestRequiredFileDeclarations(t *testing.T) {
 			// runtime.
 			name:   "an interpolated path resolves nothing",
 			helper: "sub ok { 1 }\n1;\n",
-			main:   "my $n = 'helper';\nrequire \"./$n.pl\";\nok 1, 'x';\n",
+			main:   "BEGIN { my $n = 'helper'; require \"./$n.pl\"; }\nok 1, 'x';\n",
 			want:   1,
 			loaded: "",
 		},
@@ -116,7 +112,7 @@ func TestRequiredFileDeclarations(t *testing.T) {
 			// perl5 checkout at all.
 			name:   "a missing helper does not fail the parse",
 			helper: "",
-			main:   "require './nosuch.pl';\nok 1, 'x';\n",
+			main:   "BEGIN { require './nosuch.pl'; }\nok 1, 'x';\n",
 			want:   1,
 			loaded: "",
 		},
@@ -126,7 +122,7 @@ func TestRequiredFileDeclarations(t *testing.T) {
 			// stays unresolved.
 			name:   "only sub NAME, not variables",
 			helper: "our $Level = 1;\nour @EXPORT = qw(level);\n1;\n",
-			main:   "require './helper.pl';\nlevel 1, 2;\n",
+			main:   "BEGIN { require './helper.pl'; }\nlevel 1, 2;\n",
 			want:   1,
 			loaded: "./helper.pl",
 		},
@@ -134,8 +130,8 @@ func TestRequiredFileDeclarations(t *testing.T) {
 			// RULE 4: ONE LEVEL. The helper's own `require` is not followed,
 			// so a sub the GRANDCHILD declares is not in scope.
 			name:   "one level only",
-			helper: "require './deeper.pl';\nsub ok { 1 }\n1;\n",
-			main:   "require './helper.pl';\nok 1, 'x';\ndeep 1, 'y';\n",
+			helper: "BEGIN { require './deeper.pl'; }\nsub ok { 1 }\n1;\n",
+			main:   "BEGIN { require './helper.pl'; }\nok 1, 'x';\ndeep 1, 'y';\n",
 			want:   1,
 			loaded: "./helper.pl",
 		},
@@ -147,7 +143,7 @@ func TestRequiredFileDeclarations(t *testing.T) {
 			// here.
 			name:   "a module name is not a path",
 			helper: "",
-			main:   "require Foo::Bar;\n",
+			main:   "BEGIN { require Foo::Bar; }\n",
 			want:   0,
 			loaded: "",
 		},
@@ -230,7 +226,7 @@ func TestRequiredFileIsResolvedFromTheParseRoot(t *testing.T) {
 	// relative to the tree root. Neither `t/t/test.pl` nor a bare
 	// `./t/test.pl` beside the file exists, so only the root search finds it.
 	main := filepath.Join(tDir, "main.t")
-	src := "require './t/test.pl';\nok 1, 'x';\n"
+	src := "BEGIN { require './t/test.pl'; }\nok 1, 'x';\n"
 	if err := os.WriteFile(main, []byte(src), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -264,8 +260,8 @@ func TestRequireFromPerlRoot(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, src := range []string{
-		"require './t/test.pl';\nok 1, 'x';\n",
-		"require './test.pl';\nok 1, 'x';\n",
+		"BEGIN { require './t/test.pl'; }\nok 1, 'x';\n",
+		"BEGIN { require './test.pl'; }\nok 1, 'x';\n",
 	} {
 		main := filepath.Join(tDir, "porting", "main.t")
 		if err := os.WriteFile(main, []byte(src), 0o644); err != nil {
