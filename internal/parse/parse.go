@@ -542,6 +542,7 @@ func parseWith(p *parser) (*Node, *parser) {
 			p.pos++
 		}
 	}
+	p.refuseUnclosedOpener(root)
 	if res != nil {
 		root.loaded = res.loaded
 		root.declErrs = res.declErrs
@@ -573,6 +574,69 @@ func parseWith(p *parser) (*Node, *parser) {
 		}
 	}
 	return root, p
+}
+
+// refuseUnclosedOpener refuses a file that ends with a `(`, `[` or `{` still
+// open. perl reads on to end of file looking for the closer and reports the
+// line of the last token it read -- `sub f {\n1;\n` is "Missing right curly
+// or square bracket at m.pl line 2" -- so the Unknown spans that token.
+//
+// The tree the statements built is kept: an LSP sees a half-typed buffer
+// constantly, and the block it is typing into is still the block. The
+// Unknown goes into the innermost node holding the last token, beside that
+// node's children; a leaf that IS the token is wrapped instead, since two
+// siblings may not share a byte.
+//
+// Openers are counted as the lexer's trackBrackets counts them: a
+// one-byte token, and a closer with nothing open closes nothing.
+func (p *parser) refuseUnclosedOpener(root *Node) {
+	depth := 0
+	var last lexer.Token
+	for _, tok := range p.toks {
+		if isTrivia(tok.Kind) {
+			continue
+		}
+		last = tok
+		if tok.End-tok.Start != 1 {
+			continue
+		}
+		switch p.src[tok.Start] {
+		case '(', '[', '{':
+			depth++
+		case ')', ']', '}':
+			if depth > 0 {
+				depth--
+			}
+		}
+	}
+	if depth == 0 {
+		return
+	}
+	u := &Node{Kind: Unknown, Refusal: UnclosedOpener, Start: last.Start, End: last.End}
+	n := root
+	for {
+		i := len(n.Children) - 1
+		for i >= 0 && n.Children[i].Start > last.Start {
+			i--
+		}
+		if i < 0 || n.Children[i].End <= last.Start {
+			// No child holds the token: it is n's own, and nothing of n's
+			// follows it, since it is the file's last.
+			n.Children = append(n.Children[:i+1], append([]*Node{u}, n.Children[i+1:]...)...)
+			return
+		}
+		c := n.Children[i]
+		if c.Kind == Unknown {
+			// Already refused, by a site that knew more.
+			return
+		}
+		if c.Start == last.Start && c.End == last.End {
+			u.Children = []*Node{c}
+			n.Children[i] = u
+			return
+		}
+		n = c
+	}
 }
 
 // parser is the cursor over the token stream.
