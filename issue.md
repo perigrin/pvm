@@ -3,8 +3,10 @@ title: "A file a BEGIN block requires declares its subs: BEGIN { require './test
 state: pending
 urgency: normal
 milestone: m1-parse-the-core
+blocked_by:
+- 01a0c10b-7148-77e5-8923-16fbce93c64b
 created: 2026-10-09T03:25:52.865747111Z
-updated: 2026-10-09T03:25:52.865747111Z
+updated: 2026-10-09T03:26:27.179494881Z
 ---
 
 ## Context
