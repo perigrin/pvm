@@ -44,3 +44,40 @@ func TestMethodKeywordNeedsClassFeature(t *testing.T) {
 		}
 	}
 }
+
+// TestMethodBodyIsOneStatement: `method m { 1 }` is one statement holding a
+// declaration whose block is the body, as a named sub's is. Measured on
+// 5.42.0:
+//
+//	$ perl -MO=Deparse -e 'use feature "class"; class P { method m { 1 } }'
+//	    method m {
+//	        1;
+//	    }
+func TestMethodBodyIsOneStatement(t *testing.T) {
+	src := `use feature 'class'; class P { method m { 1 } }`
+	root := parse.Parse([]byte(src))
+	if containsKind(root, parse.Unknown) {
+		t.Fatalf("%q: perl accepts this; got %s", src, shape(root))
+	}
+	var body *parse.Node
+	for _, d := range findAll(root, parse.Declaration) {
+		if d.Text == "class" {
+			body = find(d, parse.Block)
+		}
+	}
+	if body == nil {
+		t.Fatalf("%q: no class body:\n%s", src, dumpTree(root, 0))
+	}
+	want := `block
+  statement
+    declaration method
+      term m
+      block
+        statement
+          term 1
+`
+	if got := structure(body); got != want {
+		t.Errorf("%q: want the class body to hold one method statement:\ngot:\n%swant:\n%s",
+			src, got, want)
+	}
+}
