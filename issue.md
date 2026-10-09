@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-10-01T05:24:19.533594975Z
-updated: 2026-10-01T05:24:19.533594975Z
+updated: 2026-10-09T03:24:04.403468602Z
 ---
 
 A bareword class name before `->` is parsed as a Call, and canon renders it as a call: `Future::AsyncAwait->import` canons as `Future::AsyncAwait() -> import` (PerlOnJava unit/custom_warning_async_suspend_state.t:9). perl 5.42.0 reads it as a string invocant:
