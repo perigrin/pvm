@@ -278,6 +278,9 @@ type lexer struct {
 	// for the same reason: the lookahead that settles the brace is the WORD's
 	// to make, and a parenthesised call moves the brace out of its reach.
 	listOpParen bool
+	// listOpEmptyHash rides with listOpParen: the word was one whose empty
+	// brace is a hash (emptyBraceIsHash), which the `(` passes to intuitCurly.
+	listOpEmptyHash bool
 	// sawSubWord and expectPrototype track `sub NAME`, after which a `(`
 	// opens a prototype rather than a list.
 	sawSubWord      bool
@@ -528,11 +531,14 @@ func (l *lexer) emit(k Kind, start int) {
 	// belongs to the same call either way; see listOpParen.
 	inListOpParen := l.listOpParen && k == Operator && l.pos-start == 1 &&
 		l.src[start] == '('
+	emptyIsHash := (k == Word && emptyBraceIsHash(string(l.src[start:l.pos]))) ||
+		(inListOpParen && l.listOpEmptyHash)
 	// Trivia does not clear the carry: `map ({...} @a)` has a space between
 	// the word and its paren, and the call is the same one.
 	if k != Whitespace && k != Comment {
 		l.listOpParen = k == Word && takesBlock(string(l.src[start:l.pos])) &&
 			l.peekIsOpenParen()
+		l.listOpEmptyHash = l.listOpParen && emptyIsHash
 	}
 
 	// A label's `:`, carried from the Word before it. Read BEFORE the carry
@@ -581,7 +587,7 @@ func (l *lexer) emit(k Kind, start int) {
 		// braceOpensAnonHash is what applies the lookahead there, for every
 		// statement-start brace at once. See the labelColon branch in
 		// expect.go.
-		nextBraceIsBlock: (k == Word || inListOpParen) && l.intuitCurly(),
+		nextBraceIsBlock: (k == Word || inListOpParen) && l.intuitCurly(emptyIsHash),
 		listOpParen:      inListOpParen,
 		labelColon:       labelColon,
 		openedBlock:      l.openedBlock,
