@@ -7,7 +7,7 @@ blocked_by:
 - 01a0ac52-a68c-750b-92d4-852abfc54a2f
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-17T03:04:49.380252705Z
-updated: 2026-09-19T01:10:48.710754571Z
+updated: 2026-10-09T17:21:13.75782754Z
 sessions:
 - start_sha: 79468414ccabbf46d8a4bd211c18fe9a200487ca
   end_sha: 1b21e398ccd962c900969acf3c1912a7c3aafa01
@@ -137,7 +137,7 @@ Stashed as `deref-lexer-only-01CRysQ`, SHA af8ca8f76b87e29d7837dedb2cce1848fddd9
   as an expression (verified against perl: the block does contain POD and an
   expression, and evaluates).
 
-## Acceptance
+## Acceptance criteria
 
 - [x] `${$h->{k}}`, `@{[ ... ]}`, `$$x`, `@$x` each have their interior in the tree as children (`go test ./internal/parse/ -run '^TestDereferenceHasInterior$' -count=1 -v | grep -q '^--- PASS: TestDereferenceHasInterior'`)
 - [x] `${name}` stays one Variable, `$$` stays the process id, `${^TAINT}` stays a name (`go test ./internal/parse/ -run '^TestBracedNameIsNotADereference$|^TestPunctuationVariablesStillLex$' -count=1 -v | grep -q '^--- PASS'`)
