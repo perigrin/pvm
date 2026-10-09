@@ -273,10 +273,14 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 			if joins, ok := map[string]string{"-": "-", "+": "+", "!": "~"}[op]; ok {
 				var operand strings.Builder
 				emit(&operand, n.Children[0], src, prefix[op])
+				// The operand is emitted once and its text reused: emitting it
+				// again here doubles the work at every level of `!!!!$x`.
 				if text := operand.String(); strings.HasPrefix(text, joins) {
 					b.WriteString("(" + text + ")")
-					break
+				} else {
+					b.WriteString(text)
 				}
+				break
 			}
 			emit(b, n.Children[0], src, prefix[op])
 		}
