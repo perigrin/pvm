@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-15T23:16:32.305576942Z
-updated: 2026-09-16T22:52:11.815659585Z
+updated: 2026-10-09T17:21:12.905482395Z
 sessions:
 - start_sha: 63681bf7fbdc9c75a27f2f44d8025ebf4571556d
   end_sha: 1f0669412eaad35c8b13ec0d8ff60c75120a330a
@@ -74,7 +74,7 @@ Spec §4.9. Three shapes (§4.9.1), the `{` decision (§4.9.2), and context
 inside the block (§4.9.3). The `{` decision is the modifier issue's; the call
 shapes are here.
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] use and no parse with module, version and import list forms (`go test ./internal/parse/ -run '^TestUseAndNoForms$' -count=1 -v | grep -q '^--- PASS: TestUseAndNoForms'`)
 - [ ] BEGIN and the other phasers parse as named blocks (`go test ./internal/parse/ -run '^TestPhaserBlocks$' -count=1 -v | grep -q '^--- PASS: TestPhaserBlocks'`)
