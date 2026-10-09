@@ -65,6 +65,16 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 			emit(&stmt, c, src, 0)
 		}
 		text := stmt.String()
+		// An expression statement whose emission begins with `{` begins with
+		// an anonymous hash -- `({0})` or `({0}) . 1` with the parens gone --
+		// and a bare `{` at statement position re-reads as a block unless
+		// braceOpensAnonHash says otherwise (`{a => 1}`, `{}`). Where it
+		// would, perl's Deparse writes `+{0};`, and so does this. The text is
+		// re-parsed to ask, so the answer is the parser's own.
+		if strings.HasPrefix(text, "{") && n.Children[0].Kind != Block && n.Children[0].Kind != Unknown &&
+			rereadsAsBlock(text) {
+			text = "+" + text
+		}
 		// A NEWLINE ALREADY IN THE STATEMENT after its heredoc opener -- a
 		// quote that runs on, `... eq q(hello\n)` -- is where perl reads the
 		// bodies from: its scan_heredoc takes the lines after the opener's
@@ -876,6 +886,15 @@ func lastForm(n *Node) *Node {
 		}
 	}
 	return nil
+}
+
+// rereadsAsBlock reports whether a statement's text, written bare, begins
+// with a bare block. ponytail: a re-parse per statement that starts with an
+// anonymous hash, which is rare; a text-level braceOpensAnonHash if it shows.
+func rereadsAsBlock(text string) bool {
+	root := Parse([]byte(text))
+	return len(root.Children) > 0 && len(root.Children[0].Children) > 0 &&
+		root.Children[0].Children[0].Kind == Block
 }
 
 func blockForm(n *Node) bool {
