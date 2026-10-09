@@ -1,21 +1,46 @@
 ---
 title: Smartmatch against an array or hash reports the reference perl takes
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocks:
 - 01a0a8cd-8fcc-72a8-9ba1-c916eee9992d
 created: 2026-10-09T05:00:09.762705181Z
-updated: 2026-10-09T07:15:14.631817417Z
+updated: 2026-10-09T09:11:08.143290595Z
 sessions:
 - start_sha: d7c31487939158225e0589373b9e583fe7ed61fe
-  end_sha: ""
-  commits: 0
+  end_sha: d2f26fe30e0f079d575302ad99d23d551a83d885
+  commits: 4
   started_at: 2026-10-09T07:15:14.631817417Z
+  ended_at: 2026-10-09T09:11:08.143290595Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-09T07:15:14.631817417Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-09T09:11:08.143290595Z
+observed_paths:
+- docs/specs/perl-parser/00-findings.md
+- internal/parse/canon.go
+- internal/parse/canon_test.go
+- internal/parse/cmd/subject/main.go
+- internal/parse/cmd/subject/main_test.go
+- internal/parse/emptybraces_test.go
+- internal/parse/lastindexblock_test.go
+- internal/parse/parse.go
+- internal/parse/perllines_test.go
+- internal/parse/postfixhashslice_test.go
+- internal/parse/refusal.go
+- internal/parse/refusal_test.go
+- internal/parse/sites.go
+- internal/parse/smartmatchaggregate_test.go
+- internal/parse/stmt_test.go
+- internal/parse/term.go
+- internal/parse/unclosed_test.go
+- internal/parse/wrongtree_test.go
+- internal/parseoracle/ratchet_test.go
+- internal/parseoracle/testdata/ratchet/baseline.txt
 ---
 
 ## Context
