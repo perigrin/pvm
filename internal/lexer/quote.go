@@ -601,6 +601,17 @@ func HasQuoteOperator(text string) bool {
 	return rest != "" && !isWordByte(rest[0])
 }
 
+// IsQuoteOpName reports whether name is one of perl's quote-like operator
+// names, `q` through `y`, read from the table the lexer itself uses.
+func IsQuoteOpName(name string) bool {
+	for _, op := range quoteOps {
+		if op.name == name {
+			return true
+		}
+	}
+	return false
+}
+
 func quoteOpAt(src []byte, pos int) (quoteOp, bool) {
 	for _, op := range quoteOps {
 		if pos+len(op.name) > len(src) {

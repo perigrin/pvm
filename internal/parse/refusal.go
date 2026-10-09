@@ -17,7 +17,7 @@ package parse
 // afterwards.
 type RefusalCode string
 
-// Fourteen codes for fifteen `&Node{Kind: Unknown, ...}` sites. The fifteenth is
+// Fifteen codes for sixteen `&Node{Kind: Unknown, ...}` sites. The sixteenth is
 // parse.go's `expr.Kind == Unknown`, which propagates an existing code
 // outward rather than declaring one; see the note in RefusalSites.
 //
@@ -25,7 +25,7 @@ type RefusalCode string
 // adding a constant AND an inventory entry, which is one edit in one
 // file. RefusalSites below is what makes the pair inseparable.
 //
-// Two of the fourteen -- EmptyDeref and NotAnExpression -- are wired but not
+// Two of the fifteen -- EmptyDeref and NotAnExpression -- are wired but not
 // reachable from any source today. They are not dead code: they are the
 // codes those sites will carry the day parseExpr can return nil there,
 // and an unreachable site that becomes reachable must arrive with a code
@@ -94,6 +94,11 @@ const (
 	// FormatNotTerminated: a `format NAME =` the file ends inside, before
 	// a lone `.` line, which perl reports as "Format not terminated".
 	FormatNotTerminated RefusalCode = "format_not_terminated"
+
+	// AmbiguousSigil: a `&` or `*` the lexer read as a sigil and the parser
+	// as an operator, after an undeclared bareword, before a quote-op name
+	// -- `A &y`. perl reads the operator and the quote it begins.
+	AmbiguousSigil RefusalCode = "ambiguous_sigil"
 )
 
 // RefusalSite says what one code means and where the site lives.
@@ -125,7 +130,7 @@ var RefusalSites = map[RefusalCode]RefusalSite{
 		What:  "the statement is not a known form and parses as no expression",
 		Where: "parse.go, parseStatement: expr == nil",
 	},
-	// The fifteenth site, parse.go's `expr.Kind == Unknown`, has no code of
+	// The sixteenth site, parse.go's `expr.Kind == Unknown`, has no code of
 	// its own and is deliberately absent from this table. It widens an
 	// Unknown from the expression to the statement -- a change of SPAN,
 	// not of cause -- and carries the inner code outward unchanged. A code
@@ -177,5 +182,9 @@ var RefusalSites = map[RefusalCode]RefusalSite{
 	FormatNotTerminated: {
 		What:  "a format declaration with no `.` line before end of file",
 		Where: "decl.go, parseFormatDecl",
+	},
+	AmbiguousSigil: {
+		What:  "a `&` or `*` after an undeclared bareword, before a quote-op name",
+		Where: "expr.go, parseInfix: refuseAmbiguousSigil",
 	},
 }
