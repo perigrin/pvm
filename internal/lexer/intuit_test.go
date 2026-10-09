@@ -298,6 +298,19 @@ func TestRightParenRegressionIsNamed(t *testing.T) {
 	// body comes first.
 	for _, w := range []string{"BEGIN", "END", "CHECK", "INIT", "UNITCHECK"} {
 		src := w + " { my $x = 1; }\n{ use Foo; }\n"
+		// The phaser's own brace is decided on the token, by the lexer. A
+		// body that reads as a hash on its contents alone is the case only
+		// the phaser table decides: perl 5.42 Deparses
+		// `BEGIN { a => 1 } { use strict; }` as a sub body and a bare block.
+		hashy := w + " { a => 1 }\n{ use Foo; }\n"
+		if own, found := opensBlockAt(hashy, 0); !found || !own {
+			t.Errorf("%s: the phaser's own brace must open a block on the "+
+				"token (found=%v)", w, found)
+		}
+		if after, found := lastBraceOpensBlock(hashy); !found || !after {
+			t.Errorf("%s: the bare block after a hash-looking phaser body "+
+				"must open a block (found=%v)", w, found)
+		}
 		opens, found := lastBraceOpensBlock(src)
 		if !found {
 			t.Errorf("%s: no `{` token", w)
