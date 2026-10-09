@@ -340,8 +340,19 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 		// No terminator either: the `.` line already ended the declaration,
 		// which is why blockForm counts this among the forms that write their
 		// own.
+		//
+		// The `.` line is closed with a newline when the source ended on it.
+		// perl ends a format at a `.` followed by blanks and then a newline OR
+		// the end of the file, so the source is right without one -- but the
+		// statement separator written after this form would land on that
+		// line, the re-lex would take it into the body, and every emission
+		// would grow by a space.
 		if n.Text == "format" {
-			b.WriteString(n.SourceText(src))
+			text := n.SourceText(src)
+			b.WriteString(text)
+			if !strings.HasSuffix(text, "\n") {
+				b.WriteByte('\n')
+			}
 			return
 		}
 
