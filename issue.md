@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a0a70f-0fe8-7d8e-9c2d-d9aa50bef115
 created: 2026-09-15T21:52:57.173529962Z
-updated: 2026-09-16T01:33:03.603115724Z
+updated: 2026-10-09T17:21:10.41739683Z
 sessions:
 - start_sha: f7c176f07ececc07a1e649c83fa5bece81624dfd
   end_sha: 68994750d92c543b5e60a6043acc8b215945a4ac
@@ -83,7 +83,7 @@ Named unaries and list operators are their own issue: they are where
 precedence stops being a table and starts consulting the keyword table.
 Method calls (§4.5) and sort/map/grep (§4.9) are M2's.
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] All 32 precedence levels are present, in perly.y order (`go test ./internal/parse/ -run '^TestPrecedenceTableComplete$' -count=1 -v | grep -q '^--- PASS: TestPrecedenceTableComplete'`)
 - [ ] Right associativity holds: 2**3**2 groups right (`go test ./internal/parse/ -run '^TestRightAssociative$' -count=1 -v | grep -q '^--- PASS: TestRightAssociative'`)
