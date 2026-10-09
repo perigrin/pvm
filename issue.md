@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-18T22:28:03.205765477Z
-updated: 2026-09-19T01:30:28.234190551Z
+updated: 2026-10-09T14:07:59.823808663Z
 sessions:
 - start_sha: 1b21e398ccd962c900969acf3c1912a7c3aafa01
   end_sha: 528b9d835526d7a2c3acb41646c44cf6fd145437
@@ -64,20 +64,6 @@ the broad rule happens to paper over the next brace.
 That is a postfix-slice sigil defect rather than a brace one, and 01a0ad52
 owns it. This issue is the narrowing that follows.
 
-## Acceptance criteria
-
-- [x] `BEGIN { ... }` followed by a bare block parses, and so do END, CHECK,
-      INIT and UNITCHECK
-- [x] The brace of `BEGIN {` is OpensBlock on the token, not decided again in
-      the parser
-- [x] The CloseBracket rule is narrowed to `)`, matching yyl_rightparen, with
-      no T1 regression
-- [x] The comments at the CloseBracket rule and in
-      `TestRightParenRegressionIsNamed` are replaced by what the code then
-      does
-- [x] A test names the shape, not the implementation: a phaser takes a block
-
-
 ## Done, 2026-09-19 (528b9d83)
 
     T1 clean       460      (unmoved)
@@ -122,3 +108,20 @@ second brace as opening a block, which the broad rule did. A `)` never closes
 a subscript, so the paren test subsumes it and keeping the check would be a
 condition that can never fire. TestRightParenLookaheadIsParenOnly passed
 before the removal and after.
+
+### Runnable commands added (2026-10-09)
+
+These criteria were prose with no command, so `git zhi verify` reported them
+unverifiable. Each now names the test that holds it. The phaser's own brace
+had no direct test -- only the bare block after it was asserted, and that
+body reads as a block without the phaser table -- so
+TestRightParenRegressionIsNamed now also asserts a hash-looking phaser body
+(`BEGIN { a => 1 }`), shown to fail with the table disabled.
+
+## Acceptance criteria
+
+- [x] `BEGIN { ... }` followed by a bare block parses, and so do END, CHECK, INIT and UNITCHECK (`go test ./internal/lexer/ -run '^TestRightParenRegressionIsNamed$' -count=1 -v | grep -q '^--- PASS: TestRightParenRegressionIsNamed'`)
+- [x] The brace of `BEGIN {` is OpensBlock on the token, not decided again in the parser (`go test ./internal/lexer/ -run '^TestRightParenRegressionIsNamed$' -count=1 -v | grep -q '^--- PASS: TestRightParenRegressionIsNamed'`)
+- [x] The CloseBracket rule is narrowed to `)`, matching yyl_rightparen, with no T1 regression (`sh -c "go test ./internal/lexer/ -run '^TestRightParenLookaheadIsParenOnly$' -count=1 -v | grep -q '^--- PASS: TestRightParenLookaheadIsParenOnly' && go test ./internal/parse/ -run '^TestParseRatchet$' -count=1 -v | grep -q '^--- PASS: TestParseRatchet'"`)
+- [x] The comments at the CloseBracket rule and in TestRightParenRegressionIsNamed say what the code does (`grep -q 'rather than the record of a debt' internal/lexer/intuit_test.go`)
+- [x] A test names the shape, not the implementation: a phaser takes a block (`go test ./internal/parse/ -run '^TestPhaserBlocks$' -count=1 -v | grep -q '^--- PASS: TestPhaserBlocks'`)
