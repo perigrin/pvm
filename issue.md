@@ -1,12 +1,21 @@
 ---
 title: "A call that fills a \\ or * prototype slot reports perl's reference site, lexical subs included"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 blocks:
 - 01a0a8cd-8fcc-72a8-9ba1-c916eee9992d
 created: 2026-10-09T05:00:08.759092832Z
-updated: 2026-10-09T05:00:31.210337351Z
+updated: 2026-10-09T06:08:05.228114687Z
+sessions:
+- start_sha: 563f5ab2119ee9c4fb919fc3dcd8e1c570d2c746
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-09T06:08:05.228114687Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-09T06:08:05.228114687Z
 ---
 
 ## Context
