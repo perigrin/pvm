@@ -6,7 +6,7 @@ milestone: m1-parse-the-core
 blocked_by:
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-16T06:13:00.800228773Z
-updated: 2026-09-19T12:24:23.68844246Z
+updated: 2026-10-09T17:21:13.175906596Z
 sessions:
 - start_sha: c3e65b4f5f9e760b2dac649b6094639e1508428d
   end_sha: 0c00558236cd0390188a786142520c32468bf8c7
@@ -95,7 +95,7 @@ Files that do not parse are Unknown and do not enter the denominator. A file
 that PARSES and re-emits differently is a defect with a location, not a
 coverage gap -- which is why the target is 100% rather than a percentage.
 
-## Acceptance
+## Acceptance criteria
 
 - [x] `canon` emits Perl from a tree, with the tree's own parenthesisation (`go test ./internal/parse/ -run '^TestCanonEmitsTreeParens$' -count=1 -v | grep -q '^--- PASS: TestCanonEmitsTreeParens'`)
 - [x] A deliberately mis-grouped tree re-emits differently from its source (`go test ./internal/parse/ -run '^TestCanonCatchesMisgrouping$' -count=1 -v | grep -q '^--- PASS: TestCanonCatchesMisgrouping'`)
