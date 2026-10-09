@@ -8,7 +8,7 @@ blocks:
 - 01a0a75b-5e51-79f1-8575-3f30abd05ac9
 - 01a0a75b-5e51-79ef-a59a-3a997f738cca
 created: 2026-09-15T23:16:25.851305082Z
-updated: 2026-09-16T00:08:25.237568294Z
+updated: 2026-10-09T17:21:12.506703288Z
 sessions:
 - start_sha: 94812b693b2ab8ad26f49473ffc5cc060f959e4b
   end_sha: f7c176f07ececc07a1e649c83fa5bece81624dfd
@@ -88,7 +88,7 @@ KINDS without erroring; t/base/lex.t contains neither a niladic keyword nor a
 `}`-then-term. A committed misread no gate can see is the more dangerous
 failure, and the case for the per-marker oracle over a token-count ratchet.
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] A keyword table classifies each builtin as named unary, list operator or term (`go test ./internal/lexer/ -run '^TestKeywordTableClassifies$' -count=1 -v | grep -q '^--- PASS: TestKeywordTableClassifies'`)
 - [ ] `time / 2` lexes the slash as division, not a pattern (`go test ./internal/lexer/ -run '^TestKeywordAfterNiladicIsOperator$' -count=1 -v | grep -q '^--- PASS: TestKeywordAfterNiladicIsOperator'`)
