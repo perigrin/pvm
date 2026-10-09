@@ -1,10 +1,19 @@
 ---
 title: "A bareword filehandle in open's first slot canonicalises as a sub call: open(FH, ...) emits open(FH() , ...)"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-10-09T08:56:11.112212718Z
-updated: 2026-10-09T08:56:11.112212718Z
+updated: 2026-10-09T09:25:07.048451626Z
+sessions:
+- start_sha: 13c3009925f756eda5650f5e3f134fc0bbf9ef5a
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-09T09:25:07.048451626Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-09T09:25:07.048451626Z
 ---
 
 ## Context
