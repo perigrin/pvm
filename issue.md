@@ -1,6 +1,6 @@
 ---
 title: Record what T2's ten remaining Unknowns are, beside the shortfall map
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
@@ -10,7 +10,16 @@ blocked_by:
 blocks:
 - 01a0c10b-7148-77e5-8923-16fbce93c64b
 created: 2026-09-20T23:56:17.751068121Z
-updated: 2026-10-09T03:25:47.961933346Z
+updated: 2026-10-09T03:27:24.566924324Z
+sessions:
+- start_sha: 287e85b834f36ff072bd9398794ceec01d1eec61
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-09T03:27:24.566924324Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-09T03:27:24.566924324Z
 ---
 
 ## Context
