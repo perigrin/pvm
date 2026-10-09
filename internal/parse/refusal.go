@@ -17,7 +17,7 @@ package parse
 // afterwards.
 type RefusalCode string
 
-// Twelve codes for thirteen `&Node{Kind: Unknown, ...}` sites. The thirteenth is
+// Thirteen codes for fourteen `&Node{Kind: Unknown, ...}` sites. The fourteenth is
 // parse.go's `expr.Kind == Unknown`, which propagates an existing code
 // outward rather than declaring one; see the note in RefusalSites.
 //
@@ -25,7 +25,7 @@ type RefusalCode string
 // adding a constant AND an inventory entry, which is one edit in one
 // file. RefusalSites below is what makes the pair inseparable.
 //
-// Two of the twelve -- EmptyDeref and NotAnExpression -- are wired but not
+// Two of the thirteen -- EmptyDeref and NotAnExpression -- are wired but not
 // reachable from any source today. They are not dead code: they are the
 // codes those sites will carry the day parseExpr can return nil there,
 // and an unreachable site that becomes reachable must arrive with a code
@@ -84,6 +84,12 @@ const (
 	// sub accepts -- `each()`, `select(1, 2)` -- which perl rejects as "Not
 	// enough arguments" or "Too many arguments".
 	CallArity RefusalCode = "call_arity"
+
+	// UnclosedOpener: a `(`, `[` or `{` still open at end of file, which
+	// perl reports as "Missing right curly or square bracket" or as a
+	// syntax error at EOF. The Unknown spans the last token perl read,
+	// whose line is the one perl reports.
+	UnclosedOpener RefusalCode = "unclosed_opener"
 )
 
 // RefusalSite says what one code means and where the site lives.
@@ -115,7 +121,7 @@ var RefusalSites = map[RefusalCode]RefusalSite{
 		What:  "the statement is not a known form and parses as no expression",
 		Where: "parse.go, parseStatement: expr == nil",
 	},
-	// The thirteenth site, parse.go's `expr.Kind == Unknown`, has no code of
+	// The fourteenth site, parse.go's `expr.Kind == Unknown`, has no code of
 	// its own and is deliberately absent from this table. It widens an
 	// Unknown from the expression to the statement -- a change of SPAN,
 	// not of cause -- and carries the inner code outward unchanged. A code
@@ -159,5 +165,9 @@ var RefusalSites = map[RefusalCode]RefusalSite{
 	CallArity: {
 		What:  "a call with a number of arguments no declaration accepts",
 		Where: "arity.go, refuseArity",
+	},
+	UnclosedOpener: {
+		What:  "a bracket still open at end of file",
+		Where: "parse.go, refuseUnclosedOpener",
 	},
 }
