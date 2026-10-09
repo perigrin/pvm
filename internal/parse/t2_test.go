@@ -89,7 +89,8 @@ func TestT2CoreParses(t *testing.T) {
 	}
 
 	// Pinned at d83e21a9: file -> Unknown nodes, for every file that is not
-	// clean. A file absent from this map must parse cleanly.
+	// clean. A file absent from this map must parse cleanly, or, if perl
+	// refuses it (perlRejects), be refused first on the line perl reports.
 	//
 	// The t/class counts moved when the lexer stopped reading a quote-op
 	// keyword as a quote operator where perl reads it as a name: `$o->s`
@@ -115,8 +116,9 @@ func TestT2CoreParses(t *testing.T) {
 	// One is a file perl refuses. comp/final_line_num.t ends `print 1+` at
 	// end of file on purpose, and perl reports "syntax error at ... line 13,
 	// at EOF", which the file's own BEGIN `$SIG{__DIE__}` handler checks.
-	// That file is clean only when internal/parse refuses it the same way
-	// (issue 01a11eb2-21ac).
+	// That file is clean only when internal/parse refuses it the same way,
+	// and it does: missing_operand on the `+`, line 13. perlRejects holds it
+	// to that line, so it is out of this map (issue 01a11eb2-21ac).
 	shortfall := map[string]int{
 		// FIVE files moved on one entry, `undef` joining `namedUnary`
 		// (issue 01a0dd43): class/destruct.t 7 -> 5, comp/package.t 2 -> 1,
@@ -348,7 +350,6 @@ func TestT2CoreParses(t *testing.T) {
 		// 01a0df0d). The file calls its closures that way three times --
 		// `&$clo1(0)`, `&$clo2(0)` and `&$next(1)` -- which is the old
 		// convention for passing the caller's `@_` along.
-		"comp/final_line_num.t": 1,
 		// comp/hints.t 35 -> 34 and comp/parser.t 65 -> 64 when a
 		// DataSection became trivia (issue 01a0dc84). Each file ends in a
 		// trailing `__END__` and each was spending exactly one Unknown on
@@ -467,7 +468,18 @@ func TestT2CoreParses(t *testing.T) {
 		if err != nil {
 			continue
 		}
-		n := countUnknown(parse.Parse(src))
+		tree := parse.Parse(src)
+		n := countUnknown(tree)
+		// A file perl refuses is clean when it is refused on the line perl
+		// reports. perlRejects records that line, measured on 5.42.0.
+		if line, refused := perlRejects[rel]; refused {
+			if got := firstUnknownLine(tree, src); got != line {
+				t.Errorf("%s: first refusal on line %d, perl refuses it on line %d (0 = accepted)",
+					rel, got, line)
+				continue
+			}
+			n = 0
+		}
 		if n == 0 {
 			clean++
 		}
