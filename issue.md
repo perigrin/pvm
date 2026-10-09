@@ -10,7 +10,7 @@ blocks:
 - 01a0bae2-e4fe-74e9-82cb-562c3fa8adf6
 - 01a11eb2-21e9-75a7-ae19-ce6f6a358be2
 created: 2026-09-19T00:00:00Z
-updated: 2026-10-09T04:33:18.994724826Z
+updated: 2026-10-09T21:17:12.929809088Z
 sessions:
 - start_sha: 287e85b834f36ff072bd9398794ceec01d1eec61
   end_sha: 98d028499fdad30e12a1e2e54cc03ddb455833f4
@@ -78,9 +78,16 @@ So nothing in make test has ever measured internal/parse against the corpus, and
 - [ ] Regenerate `baseline.txt` against internal/parse in the same commit; report the bucket movement in bytes and counts in the commit body; record the starting exact-match rate (files `exact` of files measured) in findings §0.11
 - [ ] `make test`; commit
 
+### The corpus criterion runs at CI's timeout (2026-10-09)
+
+At the 60s default per-file timeout the sweep is load-sensitive: it
+failed inside `git zhi verify` while the same sweep at CI's 8m passed
+minutes later. The criterion now sets `PARSEORACLE_TIMEOUT=8m` as CI
+does, and a 40m `go test` timeout for the ~9-minute run.
+
 ## Acceptance criteria
 
 - [ ] the oracle's default subject is internal/parse (`go test ./internal/parseoracle/ -run '^TestDefaultSubjectIsInternalParse$' -count=1 -v | grep -q '^--- PASS: TestDefaultSubjectIsInternalParse'`)
 - [ ] the subject answers all five markers honestly (`go test ./internal/parse/cmd/subject/ -run '^TestSubjectAnswersAllFiveMarkers$' -count=1 -v | grep -q '^--- PASS: TestSubjectAnswersAllFiveMarkers'`)
-- [ ] the corpus ratchet passes against internal/parse (`go test ./internal/parseoracle/ -run '^TestRatchetCorpus$' -count=1 -v -parseoracle.corpus | grep -q '^--- PASS: TestRatchetCorpus'`)
+- [ ] the corpus ratchet passes against internal/parse (`PARSEORACLE_TIMEOUT=8m go test ./internal/parseoracle/ -run '^TestRatchetCorpus$' -count=1 -v -timeout 40m -parseoracle.corpus | grep -q '^--- PASS: TestRatchetCorpus'`)
 - [ ] findings §0.11 records the parser measured and the starting exact rate (`grep -q 'measures internal/parse' docs/specs/perl-parser/00-findings.md`)
