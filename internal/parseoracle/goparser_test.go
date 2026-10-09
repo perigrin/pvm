@@ -41,6 +41,48 @@ func goSubject(t *testing.T) *parseoracle.Subject {
 	return &parseoracle.Subject{Command: []string{bin}}
 }
 
+// TestDefaultSubjectIsInternalParse: a run that names no subject measures
+// internal/parse, through the same subprocess every other subject answers
+// from. The oracle still parses no Perl in-process; the default is which
+// command it spawns, not a second code path.
+//
+// Asserted by agreement with goSubject, file by file, because that is the
+// claim: naming internal/parse and naming nothing are the same measurement.
+// A default that errored, or measured something else, disagrees here.
+func TestDefaultSubjectIsInternalParse(t *testing.T) {
+	files := fixtureCorpus(t)
+
+	byDefault, err := parseoracle.Run(context.Background(), files, parseoracle.RunOptions{})
+	if err != nil {
+		t.Fatalf("Run with no subject: %v", err)
+	}
+	named, err := parseoracle.Run(context.Background(), files,
+		parseoracle.RunOptions{Subject: goSubject(t)})
+	if err != nil {
+		t.Fatalf("Run with internal/parse named: %v", err)
+	}
+
+	for _, f := range byDefault.Files {
+		if f.Err != "" {
+			t.Errorf("%s: the default subject failed: %s", f.Path, f.Err)
+		}
+	}
+	if byDefault.Measured() == 0 {
+		t.Fatalf("the default subject produced no verdicts over %d files", len(files))
+	}
+	if len(byDefault.Files) != len(named.Files) {
+		t.Fatalf("default run has %d files, named run %d", len(byDefault.Files), len(named.Files))
+	}
+	for i, f := range byDefault.Files {
+		g := named.Files[i]
+		if f.Path != g.Path || f.Excluded != g.Excluded || f.Err != g.Err ||
+			f.Verdict.Bucket != g.Verdict.Bucket || f.Verdict.Detail != g.Verdict.Detail {
+			t.Errorf("%s: by default %v %q, naming internal/parse %v %q",
+				f.Path, f.Verdict.Bucket, f.Verdict.Detail, g.Verdict.Bucket, g.Verdict.Detail)
+		}
+	}
+}
+
 // t2Corpus returns the T2 core files, relative to the corpus t/ directory.
 func t2Corpus(t *testing.T) (root string, files []string) {
 	t.Helper()
@@ -157,9 +199,10 @@ func TestGoParserWrongIsZero(t *testing.T) {
 	// `ratchet_test.go:300-335`: an allowance is where the next defect hides.
 	// A different WRONG file still fails, and so does proto.t disappearing.
 	//
-	// HOW TO REMOVE THIS PIN: when prototype resolution lands, the subject
-	// reports a populated Prototypes map instead of `map[string]string{}`
-	// (`internal/parse/cmd/subject/main.go:51`) and these sites decide.
+	// HOW TO REMOVE THIS PIN: when prototype resolution lands, these sites
+	// decide. The subject already reports the prototypes its tree carries
+	// (`prototypes` in `internal/parse/cmd/subject/main.go`), but CompareFacts
+	// scores the call sites, not that map, so the sites have to change.
 	// Delete the pin and restore the bare `len(names) != 0` check in the same
 	// commit. Note that `sreftest` is declared in the SAME FILE seven lines
 	// above its call, so a within-file prototype table would close this

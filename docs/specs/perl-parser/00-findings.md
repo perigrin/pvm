@@ -456,6 +456,115 @@ oracle stops being a reason not to re-run.
 
 ## 0.11 Fidelity across the whole corpus, measured
 
+### The harness measures internal/parse
+
+*2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0 (the pin in
+`internal/parseoracle/testdata/corpus.pin`).*
+
+The oracle's default subject is the M1 parser: a run that names no subject
+measures internal/parse, through `internal/parse/cmd/subject` as a
+subprocess, so the oracle still parses no Perl itself. The subject parses
+with `parse.ParseFileFrom`, resolving `use` and `require` the way perl's
+suite does from `t/` (`.`, `..`, `../lib`), and reports the prototypes its
+tree carries. `baseline.txt` was regenerated against it:
+
+```
+PARSEORACLE_SHIM=<shim> PERL5_CORPUS=~/dev/perl5 PARSEORACLE_TIMEOUT=8m \
+  go test ./internal/parseoracle/ -run TestRatchetCorpus -parseoracle.corpus -parseoracle.update -v
+```
+
+| Bucket | Files | Share of measured |
+|---|---:|---:|
+| exact | 473 | 79.8% |
+| wider | 68 | 11.5% |
+| **WRONG** | **27** | **4.6%** |
+| no-answer | 25 | 4.2% |
+| *measured (denominator)* | *593* | |
+| excluded, environmental | 26 | — |
+| runner error | 1 | — |
+
+**The starting exact rate is 473 of 593 measured files, 79.8%.** Of those,
+269 have a marker in play and 204 have none. The per-file baseline fails in
+both directions, `exact` included, so it is now the exact-match ratchet
+against internal/parse.
+
+Against the tree-sitter baseline it replaces, 203 files moved, 2,456,441
+bytes of source. By bucket, files and bytes:
+
+| Bucket | Before | After |
+|---|---:|---:|
+| exact | 405 (1,267,651 B) | 473 (2,022,999 B) |
+| wider | 12 (50,607 B) | 68 (963,057 B) |
+| WRONG | 2 (9,727 B) | 27 (475,243 B) |
+| no-answer | 174 (2,368,112 B) | 25 (234,798 B) |
+
+| Movement | Files | Bytes |
+|---|---:|---:|
+| no-answer → exact | 102 | 994,146 |
+| no-answer → wider | 35 | 751,895 |
+| no-answer → WRONG | 17 | 409,431 |
+| exact → wider | 31 | 201,435 |
+| exact → WRONG | 4 | 39,200 |
+| wider → WRONG | 6 | 26,612 |
+| wider → no-answer | 5 | 22,158 |
+| WRONG → wider | 2 | 9,727 |
+| wider → exact | 1 | 1,837 |
+
+no-answer collapsed because internal/parse declines a construct with an
+Unknown that hedges every marker in its statement, where tree-sitter's error
+node made the whole file unanswerable. Most of that moved to `exact`; the
+hedges are the new `wider`. Both tree-sitter WRONG files, `comp/our.t` and
+`op/universal.t`, left WRONG.
+
+**WRONG is 27 files under internal/parse**, each a defect of this parser,
+pinned by path in `TestCorpusBaselineIsIntact` until 01a0a8cd removes them:
+
+- A prototype-driven `\` perl applied at a call the subject committed to as a
+  plain call, with no reference site:
+  `comp/proto.t` (`sreftest`, `sub_aref`, `a_subx`: the file's own `\`
+  prototypes), `io/scalar.t:364` (`has_trailing_nul $memfile`),
+  `io/scalar_ungetc.t:18`, `lib/universal.t:28`, `op/sort.t:910`,
+  `op/sselect.t:35` (`Internals::SvREADONLY`), `op/gv.t:1030`
+  (`Internals::SvREFCNT`), `op/hash-clear-placeholders.t:16,29`
+  (`lock_keys_plus(%hash)`, `Internals::hv_clear_placeholders`),
+  `op/each.t:71` (`Hash::Util::num_buckets(%h)`), `op/hash.t:141`
+  (`Hash::Util::bucket_ratio(%$h)`), `op/sub_lval.t:560,974`
+  (`bucket_ratio`, `SvREADONLY($])`), `op/lexsub.t:369` (`p(my @a)`, a
+  lexical sub with a `\` prototype).
+- A reference inside an interpolated `${\ ...}` the subject does not look
+  into: `comp/parser.t:468` (`qr/${\ <<END ...}/`), `op/coreamp.t:178,248`
+  (`qr/...${\op_desc($o)}.../`), `re/reg_eval_scope.t:99` (`/b${\do {...}}/`).
+- A reference inside an anonymous sub in a `use` import list:
+  `op/concat2.t:31` (`use overload '.' => sub { push @a, \$_[1]; ... }`) and
+  `op/coreamp.t:29` (`use overload '${}' => sub { \my $x }`).
+- `op/goto.t:734` — `\@{; quotemeta do { u: "." } }` in `sub { ... }->()`.
+- A hash read through `->{...}` that perl compiles as `rv2hv`, inside a block
+  dereference or as a computed key: `japh/abigail.t:191` (`@{$program -> {SKIP_OS}}`),
+  `op/gmagic.t:227` (`$#{ $self->{values} }`), `op/sprintf2.t:452`
+  (`@{$test->{args}}`), `porting/libperl.t:212` (`@{$symbols->{xref}{$sym}}`),
+  `op/ref.t:343` (`$ref->{shift()}`).
+- Postfix-dereference slices: `op/postfixderef.t:148,316` (`->@{...}`, `->%{...}`).
+- A site perl attributes to the statement's closing line, below the spans the
+  subject reports it at: `op/bop.t:706` (six anonymous hashes in `my @combos
+  = (...)`) and `porting/dual-life.t:60` (`{ no_chdir => 1, wanted => ... }`).
+- `lib/deprecate.t` — `#line 1001` renumbers the file; perl's sites at
+  1019 and 1039 are physical lines the subject reports elsewhere.
+- `op/switch.t:711,1101` — `when(\&contains_x)` and `when (@list)`,
+  given/when's smartmatch taking a reference.
+
+**Where the sweep runs: in CI, not `make test`.** Measured on this 24-core
+machine, the sweep took **531 s** at CI's `PARSEORACLE_TIMEOUT=8m`, of which
+~8 minutes is `re/pat_psycho.t` waiting out its timeout (its `watchdog`
+forks a monitor holding the oracle's pipe; it is baselined `error`). At the
+60 s default it took **123 s** but failed: under load average 28,
+`op/pack.t` timed out and moved `wider → error`. So the sweep is either nine
+minutes or flaky, and neither belongs in a gate run before every commit. It
+gates in `.github/workflows/parse-fidelity.yml`, which runs
+`TestRatchetCorpus` at the 8 m budget and checks its receipt;
+`-parseoracle.corpus` runs it locally.
+
+### The tree-sitter measurement this replaced
+
 *2026-09-13. Corpus `perl5` at `94e5086608`, interpreter 5.42.0 (the pin in
 `internal/parseoracle/testdata/corpus.pin`).*
 
