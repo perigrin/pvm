@@ -775,27 +775,29 @@ func (p *parser) noteBeginEffects(n *Node) {
 
 // beginImport reads `M->import`, `M->import()` and `M->import(LIST)` with M a
 // literal class name, returning M and the import list as `use M` would hold
-// it: nil for no list, an empty parenthesised List for `()`.
+// it: nil for no list, an empty parenthesised List for `()`. M is the class-
+// name string a bareword before `->` reads as; with a sub named M declared it
+// is a call, and the import goes to whatever class M() returns.
 func beginImport(n *Node) (module string, list *Node, ok bool) {
 	if n.Kind != Binary || n.Text != "->" || len(n.Children) != 2 {
 		return "", nil, false
 	}
 	class, method := n.Children[0], n.Children[1]
-	if class.Kind != Call || len(class.Children) != 0 || !isBarewordText(class.Text) ||
-		method.Text != "import" {
+	if class.Kind != Term || !isBarewordText(class.Text) || method.Text != "import" {
 		return "", nil, false
 	}
+	module = strings.TrimSuffix(class.Text, "::")
 	switch {
 	case method.Kind == Term:
-		return class.Text, nil, true
+		return module, nil, true
 	case method.Kind != Call:
 		return "", nil, false
 	case len(method.Children) == 0:
-		return class.Text, &Node{Kind: List, Paren: true, Start: method.End, End: method.End}, true
+		return module, &Node{Kind: List, Paren: true, Start: method.End, End: method.End}, true
 	case len(method.Children) == 1:
-		return class.Text, method.Children[0], true
+		return module, method.Children[0], true
 	}
-	return class.Text, &Node{Kind: List, Paren: true, Start: method.Start, End: method.End, Children: method.Children}, true
+	return module, &Node{Kind: List, Paren: true, Start: method.Start, End: method.End, Children: method.Children}, true
 }
 
 // parseSpecialSub: `DESTROY { ... }` and `AUTOLOAD { ... }`, which declare the
