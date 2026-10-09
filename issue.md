@@ -1,10 +1,19 @@
 ---
 title: Canon writes unary + as the word pos, a different program
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-10-09T06:03:13.36178496Z
-updated: 2026-10-09T06:03:13.36178496Z
+updated: 2026-10-09T06:13:54.910045816Z
+sessions:
+- start_sha: 0cbc6dfb48de6e5fb1f7641ecefb081702ab84f9
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-09T06:13:54.910045816Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-09T06:13:54.910045816Z
 ---
 
 ## Context
