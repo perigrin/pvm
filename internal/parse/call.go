@@ -156,6 +156,11 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		return &Node{Kind: Term, Text: spelled, Start: word.Start, End: word.End}
 	}
 
+	if p.classInvocant(word, text) {
+		p.advanceTo(word)
+		return &Node{Kind: Term, Text: spelled, Start: word.Start, End: word.End}
+	}
+
 	// A loop control in an expression, with its label: `... and last BIN`.
 	switch text {
 	case "last", "next", "redo":
@@ -640,13 +645,51 @@ func (p *parser) parseSortComparator(op string) *Node {
 	}
 }
 
+// classInvocant reports whether word, not yet consumed, is a class-name
+// string before a method call: `Foo::Bar->new` is `'Foo::Bar'->new`, measured
+// on 5.42.0 with -MO=Deparse. perl reads a bareword before `->` as a call only
+// when a sub of that name is declared at that point -- `sub Foo {1} Foo->new`
+// is `Foo()->new`, and the same with the sub declared AFTER the arrow is
+// `'Foo'->new` -- and a builtin stays a call: `shift->x` is
+// `shift(@ARGV)->x`, `__PACKAGE__->new` is the current package.
+//
+// Only an arrow before a method name, `->name` or `->$m`, makes a class:
+// `Foo->[0]` is `$Foo[0]` and `Foo->(1)` is `Foo(1)`.
+//
+// A word a `use` list names is held to be a sub: the module may export it
+// whether or not its source was read. See listed.
+func (p *parser) classInvocant(word lexer.Token, text string) bool {
+	spelled := p.text(word)
+	if p.isPerlKeyword(text) || p.keywordHere(text) || p.namedUnaryHere(spelled, text) ||
+		p.operatorHere(text) || modifiers[text] || p.listed[spelled] {
+		return false
+	}
+	if _, ok := p.keywordShape(spelled, text); ok {
+		return false
+	}
+	if _, ok := p.lookupSub(spelled); ok {
+		return false
+	}
+	arrow, ok := p.peekAfter(word)
+	if !ok || p.text(arrow) != "->" {
+		return false
+	}
+	method, ok := p.peekAfter(arrow)
+	if !ok {
+		return false
+	}
+	return method.Kind == lexer.Word ||
+		method.Kind == lexer.Variable && strings.HasPrefix(p.text(method), "$")
+}
+
 // isPerlKeyword reports whether perl's keyword() would claim a word, which is
 // what CHECK_KEYWORD tests: every builtin, the declarators, and the handful of
 // statement-forming words that are not builtins. A `CORE::` spelling names a
-// builtin by definition.
+// builtin by definition; `CORE::GLOBAL::` is an ordinary package, where an
+// override of one is installed. See keywordName.
 func (p *parser) isPerlKeyword(word string) bool {
 	if _, ok := p.plainKeywordShape(word); ok ||
-		declarators[word] || strings.HasPrefix(word, "CORE::") {
+		declarators[word] || keywordName(word) != word {
 		return true
 	}
 	switch word {
