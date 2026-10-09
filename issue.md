@@ -1,21 +1,37 @@
 ---
 title: A site spans to the end of its statement, where perl's nextstate puts it
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocks:
 - 01a0a8cd-8fcc-72a8-9ba1-c916eee9992d
 created: 2026-10-09T05:00:08.930045688Z
-updated: 2026-10-09T05:18:52.828583469Z
+updated: 2026-10-09T06:07:37.746479828Z
 sessions:
 - start_sha: 93c26e8152e5d8e6b6914956ecf5014d163c7342
-  end_sha: ""
-  commits: 0
+  end_sha: 563f5ab2119ee9c4fb919fc3dcd8e1c570d2c746
+  commits: 3
   started_at: 2026-10-09T05:18:52.828583469Z
+  ended_at: 2026-10-09T06:07:37.746479828Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-09T05:18:52.828583469Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-09T06:07:37.746479828Z
+observed_paths:
+- docs/specs/perl-parser/00-findings.md
+- internal/parse/perlgitt_test.go
+- internal/parse/ratchet_test.go
+- internal/parse/sites.go
+- internal/parse/sites_decided_test.go
+- internal/parseoracle/compare_facts.go
+- internal/parseoracle/cvwalk_test.go
+- internal/parseoracle/ratchet_test.go
+- internal/parseoracle/span_test.go
+- internal/parseoracle/testdata/parse_facts.pl
+- internal/parseoracle/testdata/ratchet/baseline.txt
 ---
 
 ## Context
