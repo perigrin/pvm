@@ -177,8 +177,8 @@ var RefusalSites = map[RefusalCode]RefusalSite{
 		Where: "arity.go, refuseArity",
 	},
 	UnclosedOpener: {
-		What:  "a bracket still open at end of file",
-		Where: "parse.go, refuseUnclosedOpener",
+		What:  "a bracket, or an attribute's `(` argument, still open at end of file",
+		Where: "parse.go, refuseUnclosedOpener; use.go, parseAttributes sets attrOpenAtEOF",
 	},
 	FormatNotTerminated: {
 		What:  "a format declaration with no `.` line before end of file",

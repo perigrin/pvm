@@ -931,6 +931,9 @@ func (p *parser) parseAttributes(n *Node) {
 					}
 				}
 			}
+			if depth > 0 {
+				p.attrOpenAtEOF = true
+			}
 			attr.End = p.prevEnd()
 			// Text, not just the span. Canon writes Text, so extending only
 			// End DROPPED the argument: measured, `class Point :isa(Shape)`
