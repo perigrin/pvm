@@ -1,19 +1,29 @@
 ---
 title: An empty {} after print, printf, system or exec is a hash to perl but a block to the lexer
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-10-09T09:09:07.186145077Z
-updated: 2026-10-09T09:34:57.436607204Z
+updated: 2026-10-09T10:05:11.500948204Z
 sessions:
 - start_sha: cfa7b6880d8cf587db4d4537ba1fa256261b1d64
-  end_sha: ""
-  commits: 0
+  end_sha: e5e507b50ee02fc177b72d1c8c9315e8a8727560
+  commits: 2
   started_at: 2026-10-09T09:34:57.436607204Z
+  ended_at: 2026-10-09T10:05:11.500948204Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-09T09:34:57.436607204Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-09T10:05:11.500948204Z
+observed_paths:
+- internal/lexer/intuit.go
+- internal/lexer/intuit_test.go
+- internal/lexer/keyword.go
+- internal/parse/brace_before_arrow_test.go
+- internal/parse/mapbrace_test.go
 ---
 
 ## Context
