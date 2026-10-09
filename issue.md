@@ -6,7 +6,7 @@ milestone: m1-parse-the-core
 blocked_by:
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-17T14:23:38.848509109Z
-updated: 2026-10-09T17:21:15.110930577Z
+updated: 2026-10-09T17:44:22.585187755Z
 sessions:
 - start_sha: f905b4e9ba967eb983700a3ef6feace66c1fc11c
   end_sha: 6968d55df55015b70b6730ae5781e9eff4b0c52b
@@ -82,10 +82,20 @@ inside `qx//` (that is the `Interp` work, which waits on the lexer emitting
 sub-tokens at all), and not `${^WORD}` or other punctuation-variable forms
 that already lex.
 
+### Criterion narrowed to what holds (2026-10-09)
+
+The range criterion claimed `(1..5)` "gives a Range whose endpoints are
+numbers, not a Str", and named TestLiteralRangeHasEndpoints, which was
+never written (the criteria sat under a heading verify does not read).
+Written now, it holds the parser half: internal/parse reads `(1..5)` as
+`..` over the two numbers. The "not a Str" half is false: type inference
+still runs on the tree-sitter wrapper, where `(1..5)` infers Str. That is
+01a121c3-b0bc-7e12-a196-1d1fd563ab80, not claimed here.
+
 ## Acceptance criteria
 
 - [x] `1..2` and `1...2` lex as three tokens, and `$a..$b` still works (`go test ./internal/lexer/ -run '^TestNumericRangeIsNotOneToken$' -count=1 -v | grep -q '^--- PASS: TestNumericRangeIsNotOneToken'`)
-- [x] `my @r = (1..5)` gives a `Range` whose endpoints are numbers, not a `Str` (`go test ./internal/parse/ -run '^TestLiteralRangeHasEndpoints$' -count=1 -v | grep -q '^--- PASS: TestLiteralRangeHasEndpoints'`)
+- [x] `my @r = (1..5)` parses as `..` over the numbers 1 and 5 (`go test ./internal/parse/ -run '^TestLiteralRangeHasEndpoints$' -count=1 -v | grep -q '^--- PASS: TestLiteralRangeHasEndpoints'`)
 - [x] `1.5`, `1_000`, `0x1f` and `1e10` still lex as one number each (`go test ./internal/lexer/ -run '^TestNumberFormsStillLex$' -count=1 -v | grep -q '^--- PASS: TestNumberFormsStillLex'`)
 - [x] `qx/ls/` and `qx{ls}` lex as one quote-like token (`go test ./internal/lexer/ -run '^TestQxLexes$' -count=1 -v | grep -q '^--- PASS: TestQxLexes'`)
 - [x] `<<>>` lexes as one readline, and `$a << $b` is still a shift (`go test ./internal/lexer/ -run '^TestDoubleDiamond$' -count=1 -v | grep -q '^--- PASS: TestDoubleDiamond'`)
