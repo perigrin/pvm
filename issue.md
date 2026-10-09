@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-19T18:15:49.825526237Z
-updated: 2026-10-09T17:21:19.182936984Z
+updated: 2026-10-09T17:24:07.186083866Z
 sessions:
 - start_sha: 09e38fa97c039422168735f3da9b607b14677d80
   end_sha: 34b103f60e9548502ff3afe1f4cbb943b3397863
@@ -60,11 +60,25 @@ that without reading the shebang and synthesising a loop. Out of scope here;
 worth its own decision about whether the subject should decline such a file
 rather than answer it.
 
+### Criteria re-pointed (2026-10-09)
+
+These criteria sat under a heading `git zhi verify` does not read, so they
+never ran; run now, some named tests that no longer exist or need a shim:
+TestGoParserWrongIsZero and TestGoParserExactFloor run only with
+PARSEORACLE_SHIM (the oracle measures internal/parse by default since
+01a0b835), TestUnknownScoresWider was deleted in 3b9422eb (TestUnknownHedgesEveryMarker
+asserts the rule directly), and the T1-easy tests went with easy_test.go
+in b4180102 (the T1 ratchet is the gate). Each now names the gate that
+holds the same claim today: TestCorpusBaselineIsIntact asserts zero WRONG;
+an exact floor is checked against the committed baseline's rows; the T1
+rate against the T1 ratchet's own header; TestSitesSpanMultilineStatement
+lives in internal/parseoracle.
+
 ## Acceptance criteria
 
 - [x] `readline $fh` reports a readline site (`go test ./internal/parse/ -run '^TestReadlineBuiltinIsASite$' -count=1 -v | grep -q '^--- PASS: TestReadlineBuiltinIsASite'`)
 - [x] The angle form still reports one, and `<*.c>` glob still does not (`go test ./internal/parse/ -run '^TestReadlineBuiltinIsASite$' -count=1 -v | grep -q '^--- PASS: TestReadlineBuiltinIsASite'`)
-- [x] WRONG readline sites fall, measured (`go test ./internal/parseoracle/ -run '^TestGoParserWrongIsZero$' -count=1 -v | grep -q '^--- PASS: TestGoParserWrongIsZero'`)
+- [x] WRONG readline sites fall, measured (`go test ./internal/parseoracle/ -run '^TestCorpusBaselineIsIntact$' -count=1 -v | grep -q '^--- PASS: TestCorpusBaselineIsIntact'`)
 
 Found by 01a0ba79's ranked table. Plan: M1. Spec: §7.1.2.
 
