@@ -3,8 +3,10 @@ title: "The plan's M1 section states the gates the code enforces: the corpus rat
 state: pending
 urgency: normal
 milestone: m1-parse-the-core
+blocked_by:
+- 01a0c13f-e0e2-7b4f-a9d2-06f7edad1e7f
 created: 2026-10-09T03:25:53.001634674Z
-updated: 2026-10-09T03:25:53.001634674Z
+updated: 2026-10-09T03:26:32.501374987Z
 ---
 
 ## Context
