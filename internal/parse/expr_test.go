@@ -398,3 +398,63 @@ func TestNotWithParensIsATerm(t *testing.T) {
 		assertShape(t, parseOneExpr(t, src), want)
 	}
 }
+
+// TestTrailingInfixAtEOFRefused: an infix operator with no right operand is
+// refused, on the line perl reports, and an operator that has one is not.
+// comp/final_line_num.t ends `print 1+` at end of file on purpose. Measured
+// on 5.42.0 with `perl -c`, every case below is a compile error:
+//
+//	print 1+       syntax error at m.pl line 1, at EOF
+//	print 1 &&     syntax error at m.pl line 1, at EOF
+//	1;\nprint 1+   syntax error at m.pl line 2, at EOF
+//	print 1+;      syntax error at m.pl line 1, near "+;"
+//	{ print 1+ }   syntax error at m.pl line 1, near "+ }"
+//	print(1+)      syntax error at m.pl line 1, near "+)"
+//	print 1+2      syntax OK
+//
+// At end of file the operand ran out, so the refusal is missing_operand on
+// the operator. Before a terminator or closer the parser asks for a term and
+// finds the `;`, `}` or `)`, so the refusal is not_a_term on that token --
+// perl's "near" names the same two bytes.
+func TestTrailingInfixAtEOFRefused(t *testing.T) {
+	cases := []struct {
+		src  string
+		line int
+		code parse.RefusalCode
+	}{
+		{"print 1+", 1, parse.MissingOperand},
+		{"print 1 &&", 1, parse.MissingOperand},
+		{"1;\nprint 1+", 2, parse.MissingOperand},
+		{"print 1+;", 1, parse.NotATerm},
+		{"{ print 1+ }", 1, parse.NotATerm},
+		{"print(1+)", 1, parse.NotATerm},
+	}
+	for _, c := range cases {
+		n := parse.Parse([]byte(c.src))
+		u := firstUnknown(n)
+		if u == nil {
+			t.Errorf("%q: accepted, perl refuses it", c.src)
+			continue
+		}
+		if got := firstUnknownLine(n, []byte(c.src)); got != c.line || u.Refusal != c.code {
+			t.Errorf("%q: refused %s on line %d, want %s on line %d",
+				c.src, u.Refusal, got, c.code, c.line)
+		}
+	}
+	if u := firstUnknown(parse.Parse([]byte("print 1+2"))); u != nil {
+		t.Errorf("%q: refused %s, perl accepts it", "print 1+2", u.Refusal)
+	}
+}
+
+// firstUnknown is the first Unknown in source order, or nil.
+func firstUnknown(n *parse.Node) *parse.Node {
+	if n.Kind == parse.Unknown {
+		return n
+	}
+	for _, c := range n.Children {
+		if u := firstUnknown(c); u != nil {
+			return u
+		}
+	}
+	return nil
+}
