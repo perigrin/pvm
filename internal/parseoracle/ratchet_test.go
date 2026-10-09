@@ -275,7 +275,7 @@ func TestCorpusBaselineIsIntact(t *testing.T) {
 	// WRONG is the one bucket that is a gate rather than a ratchet: a file
 	// our parser gets positively wrong is a defect, not a coverage gap.
 	//
-	// The target is zero and this pins twelve, by path. Every one is a
+	// The target is zero and this pins eleven, by path. Every one is a
 	// file internal/parse -- the parser this harness measures by default --
 	// commits to a statement perl reads differently. Findings §0.11 has the
 	// cause of each, one line apiece; they fall into a handful of classes:
@@ -309,7 +309,7 @@ func TestCorpusBaselineIsIntact(t *testing.T) {
 
 	knownWrong := []string{
 		"comp/parser.t", "japh/abigail.t", "lib/deprecate.t",
-		"op/coreamp.t", "op/gmagic.t", "op/goto.t",
+		"op/coreamp.t", "op/gmagic.t",
 		"op/postfixderef.t", "op/ref.t", "op/sub_lval.t", "op/switch.t",
 		"porting/libperl.t", "re/reg_eval_scope.t",
 	}

@@ -380,7 +380,7 @@ func decidedMarkers(stmt *Node) []decided {
 // to a later issue" (01a0ad52). So `${[{a=>214}]}` arrives as a single Term
 // whose Text holds an anonymous hash that no walk over nodes can reach.
 //
-// The test is for a nested opener AFTER the leading `${` or `@{`, because
+// The test is for a nested opener AFTER the leading `${`, `@{` or `$#{`, because
 // that is what distinguishes a block with contents from a plain dereference:
 //
 //	${$x}          nothing hidden -- the inner text is one variable
@@ -400,6 +400,20 @@ func decidedMarkers(stmt *Node) []decided {
 // and a future caller may not have an Index standing between it and the
 // source.
 func hidesStructure(text string) bool {
+	// `$#{ EXPR }` is the same block behind a two-byte sigil, and the lexer
+	// swallows it the same way. Measured on 5.42.0: `$#{ \@a }` is a
+	// srefgen, `$#{$r->{a}}` a rv2hv, while `$#{$r}` and `$#$r` report none
+	// of the five markers. op/goto.t:668 and op/gmagic.t:227 are this shape.
+	//
+	// The test is the other way round from the bracket scan below: a `\`
+	// carries no bracket, so anything but a plain variable or name hedges.
+	if strings.HasPrefix(text, "$#{") && strings.HasSuffix(text, "}") {
+		inner := strings.TrimSpace(text[3 : len(text)-1])
+		inner = strings.TrimLeft(inner, "$")
+		return inner == "" || strings.IndexFunc(inner, func(r rune) bool {
+			return r != ':' && !isWordByte(byte(r)) && r < utf8.RuneSelf
+		}) >= 0
+	}
 	if len(text) < 3 || text[1] != '{' {
 		return false
 	}

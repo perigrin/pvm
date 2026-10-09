@@ -456,6 +456,44 @@ oracle stops being a reason not to re-run.
 
 ## 0.11 Fidelity across the whole corpus, measured
 
+### `$#{ EXPR }` hedges the structure it hides
+
+*2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0.*
+
+The lexer emits `$#{ EXPR }` as one Term, so whatever the block holds is
+invisible to a walk over nodes. `hidesStructure` looked for a nested opener
+after `${`, `@{` or `%{` and never saw the two-byte `$#` sigil, so the
+subject committed to the statement with nothing in it. Measured with
+`-MO=Concise`:
+
+```
+my @a; my $n = $#{ \@a };          srefgen, rv2av, av2arylen
+my $r; my $n = $#{$r->{a}};        rv2hv, rv2av, av2arylen
+my $n = $#{ {a=>[1]}->{a} };       anonhash, anonlist, rv2hv, ...
+my $r; my $n = $#{$r};  $#$r;      rv2av, av2arylen  (no marker)
+```
+
+A `$#{...}` holding anything but a plain variable or name now hedges every
+marker; `$#$r`, `$#{$r}` and `$#{a}` stay quiet.
+
+| Bucket | Files | Share of measured |
+|---|---:|---:|
+| exact | 487 | 82.1% |
+| wider | 74 | 12.5% |
+| **WRONG** | **11** | **1.9%** |
+| no-answer | 21 | 3.5% |
+| *measured (denominator)* | *593* | |
+| excluded, environmental | 26 | — |
+| runner error | 1 | — |
+
+One file moved, to a better bucket. Re-baselined at CI's 8m per-file timeout.
+
+- WRONG → wider: `op/goto.t` (its `$#{ \@a }` at line 668 hedges).
+
+`op/gmagic.t` stays WRONG on another cause: its `$#{ ... }` finding at 227
+cleared, and what is left is a hash read through `->{...}` inside a block
+dereference, `push @{ $self->{values} }, $value;` at 233.
+
 ### A prototype slot reports the reference perl takes
 
 *2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0.*

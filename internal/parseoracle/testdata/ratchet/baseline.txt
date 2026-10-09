@@ -277,7 +277,7 @@ exact         4 -              op/getppid.t
 wider        16 -              op/glob.t
 WRONG         6 -              op/gmagic.t
 exact         6 -              op/goto-sub.t
-WRONG        12 -              op/goto.t
+wider        12 -              op/goto.t
 excluded      1 -              op/goto_xs.t
 exact         9 -              op/grent.t
 exact         9 -              op/grep.t
