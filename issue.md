@@ -1,19 +1,29 @@
 ---
 title: Hedge the sites inside interpolation internal/parse does not parse
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-10-09T11:07:58.648536842Z
-updated: 2026-10-09T11:08:55.681435574Z
+updated: 2026-10-09T12:07:43.44462266Z
 sessions:
 - start_sha: 5ae2b3eb8cf8e8b2b63e86042dfbc046cf18a62c
-  end_sha: ""
-  commits: 0
+  end_sha: 69be4705224fea73ea7477f65cf1c61c99c9f6ac
+  commits: 1
   started_at: 2026-10-09T11:08:55.681435574Z
+  ended_at: 2026-10-09T12:07:43.44462266Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-09T11:08:55.681435574Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-09T12:07:43.44462266Z
+observed_paths:
+- docs/specs/perl-parser/00-findings.md
+- internal/parse/interphedge_test.go
+- internal/parse/sites.go
+- internal/parseoracle/ratchet_test.go
+- internal/parseoracle/testdata/ratchet/baseline.txt
 ---
 
 ## Context
