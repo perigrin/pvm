@@ -1,21 +1,40 @@
 ---
 title: "A call that fills a \\ or * prototype slot reports perl's reference site, lexical subs included"
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocks:
 - 01a0a8cd-8fcc-72a8-9ba1-c916eee9992d
 created: 2026-10-09T05:00:08.759092832Z
-updated: 2026-10-09T06:08:05.228114687Z
+updated: 2026-10-09T07:04:44.709384876Z
 sessions:
 - start_sha: 563f5ab2119ee9c4fb919fc3dcd8e1c570d2c746
-  end_sha: ""
-  commits: 0
+  end_sha: 9509016a049ed19754c10f87dace84e5d72e58b5
+  commits: 3
   started_at: 2026-10-09T06:08:05.228114687Z
+  ended_at: 2026-10-09T07:04:44.709384876Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-09T06:08:05.228114687Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-09T07:04:44.709384876Z
+observed_paths:
+- docs/specs/perl-parser/00-findings.md
+- internal/parse/canon.go
+- internal/parse/fuzz_test.go
+- internal/parse/parse.go
+- internal/parse/protoslot_test.go
+- internal/parse/refscalar.go
+- internal/parse/sites.go
+- internal/parse/term.go
+- internal/parse/testdata/t1canon.ratchet
+- internal/parse/testdata/t1fidelity.ratchet
+- internal/parse/unaryplus_test.go
+- internal/parseoracle/compare_facts.go
+- internal/parseoracle/ratchet_test.go
+- internal/parseoracle/testdata/ratchet/baseline.txt
 ---
 
 ## Context
