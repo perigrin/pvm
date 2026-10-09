@@ -506,8 +506,30 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 		// keyword, kept as written -- `unless` is not rewritten into a
 		// negated `if`, because the CST records what was typed.
 		b.WriteString(n.Text)
-		cond := true
-		for _, c := range n.Children {
+		children := n.Children
+		if n.CStyle {
+			// `for (INIT; COND; STEP)`: the clauses lead the children in slot
+			// order, and an empty slot is written as nothing between its
+			// semicolons. The spelling is Deparse's on 5.42.0 -- `for ($a; ;
+			// $c)`, `for ($a; $b;)`, `for (; ; $c)` -- each `;` followed by a
+			// space except the last when its slot is empty.
+			b.WriteString(" (")
+			for i, filled := range n.ForSlots {
+				if i > 0 {
+					b.WriteByte(';')
+					if i < len(n.ForSlots)-1 || filled {
+						b.WriteByte(' ')
+					}
+				}
+				if filled && len(children) > 0 {
+					emit(b, children[0], src, 0)
+					children = children[1:]
+				}
+			}
+			b.WriteByte(')')
+		}
+		cond := !n.CStyle
+		for _, c := range children {
 			b.WriteByte(' ')
 			switch {
 			// A Block is the body. A nested Conditional is the `else` or
