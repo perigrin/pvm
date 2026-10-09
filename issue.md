@@ -1,12 +1,21 @@
 ---
 title: A site spans to the end of its statement, where perl's nextstate puts it
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 blocks:
 - 01a0a8cd-8fcc-72a8-9ba1-c916eee9992d
 created: 2026-10-09T05:00:08.930045688Z
-updated: 2026-10-09T05:00:33.10587684Z
+updated: 2026-10-09T05:18:52.828583469Z
+sessions:
+- start_sha: 93c26e8152e5d8e6b6914956ecf5014d163c7342
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-09T05:18:52.828583469Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-09T05:18:52.828583469Z
 ---
 
 ## Context
