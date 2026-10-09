@@ -1,6 +1,6 @@
 ---
 title: The parse oracle's default subject is internal/parse, and its corpus baseline is regenerated against it
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
@@ -10,12 +10,13 @@ blocks:
 - 01a0bae2-e4fe-74e9-82cb-562c3fa8adf6
 - 01a11eb2-21e9-75a7-ae19-ce6f6a358be2
 created: 2026-09-19T00:00:00Z
-updated: 2026-10-09T03:27:24.520043235Z
+updated: 2026-10-09T04:33:18.994724826Z
 sessions:
 - start_sha: 287e85b834f36ff072bd9398794ceec01d1eec61
-  end_sha: ""
-  commits: 0
+  end_sha: 98d028499fdad30e12a1e2e54cc03ddb455833f4
+  commits: 4
   started_at: 2026-10-09T03:27:24.520043235Z
+  ended_at: 2026-10-09T04:33:18.994724826Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
@@ -23,6 +24,28 @@ transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-09T03:27:24.520043235Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-09T04:33:18.994724826Z
+observed_paths:
+- docs/specs/perl-parser/00-findings.md
+- internal/parse/beginrequire_test.go
+- internal/parse/call.go
+- internal/parse/cmd/subject/main.go
+- internal/parse/cmd/subject/main_test.go
+- internal/parse/expr_test.go
+- internal/parse/nestedsubfacts_test.go
+- internal/parse/parse.go
+- internal/parse/pmt_test.go
+- internal/parse/required_test.go
+- internal/parse/requirequote_test.go
+- internal/parse/t2_test.go
+- internal/parse/use.go
+- internal/parseoracle/goparser_test.go
+- internal/parseoracle/ratchet_test.go
+- internal/parseoracle/run.go
+- internal/parseoracle/subject.go
+- internal/parseoracle/testdata/ratchet/baseline.txt
 ---
 
 ## Context
