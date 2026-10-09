@@ -3,8 +3,10 @@ title: An empty {} at statement position is an anon hash, as toke.c reads it
 state: pending
 urgency: normal
 milestone: m1-parse-the-core
+blocks:
+- 01a0a8cd-8fcc-72a8-9ba1-c916eee9992d
 created: 2026-10-09T05:00:09.531437085Z
-updated: 2026-10-09T05:00:09.531437085Z
+updated: 2026-10-09T05:00:40.101285136Z
 ---
 
 ## Context
