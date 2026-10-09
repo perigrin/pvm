@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-15T21:53:08.668833928Z
-updated: 2026-09-16T22:29:53.876838149Z
+updated: 2026-10-09T17:21:10.858993406Z
 sessions:
 - start_sha: 73a01a14099ca4de47ca4119f47356c542e24287
   end_sha: 63681bf7fbdc9c75a27f2f44d8025ebf4571556d
@@ -79,7 +79,7 @@ valid old code into a parse error. The feature state itself — threading
 `use feature` through the parse — is M2's; this issue needs only that an
 unenabled keyword is an identifier.
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] Named unaries bind tighter than comparison, looser than arithmetic, asserted on tree shape (`go test ./internal/parse/ -run '^TestNamedUnaryPrecedence$' -count=1 -v | grep -q '^--- PASS: TestNamedUnaryPrecedence'`)
 - [ ] `length ($x) + 1` and `length $x + 1` produce different trees, per UNI3 (`go test ./internal/parse/ -run '^TestNamedUnaryParenForm$' -count=1 -v | grep -q '^--- PASS: TestNamedUnaryParenForm'`)
