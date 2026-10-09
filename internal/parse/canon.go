@@ -172,7 +172,13 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 		// and writing `a()` would call it. The parser records the autoquote
 		// on the element rather than rewriting the node, because hover and
 		// go-to-definition still want to know a word was written there.
+		// Parenthesised, it is written as its source, `(A=>)`: the word
+		// alone re-reads as a call.
 		if n.Fat && len(n.Children) == 0 {
+			if n.Paren {
+				b.WriteString(n.SourceText(src))
+				return
+			}
 			b.WriteString(n.Text)
 			return
 		}

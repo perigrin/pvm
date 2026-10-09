@@ -679,8 +679,9 @@ func (p *parser) finishList(items []*Node, open lexer.Token) *Node {
 		c.Paren = true
 		// A leaf is written as its source text, which now holds any
 		// trailing comma inside the parens: `(0,)`. Kept as well, canon
-		// wrote it twice.
-		if len(c.Children) == 0 {
+		// wrote it twice. A fat comma's word is written the same way when
+		// parenthesised: see canon's Call case.
+		if len(c.Children) == 0 && (c.Kind == Term || c.Kind == Call && c.Fat) {
 			c.TrailingComma = ""
 		}
 		return &c

@@ -72,6 +72,12 @@ func TestTrailingCommaBeforeCloserIsNotATerm(t *testing.T) {
 		// `my(@a) = 0;`.
 		{"paren one leaf", "my @a = (0,);", "my @a = (0,);"},
 		{"paren one variable", "my @a = ($x,);", "my @a = ($x,);"},
+		// A fat comma's word is the same leaf, written as its word: in
+		// parens it is written as its source, `=>` and all, or canon wrote
+		// `A`, which the next pass read as a call. perl 5.42 Deparses
+		// `my @a = (A=>);` as `my(@a) = 'A';`. Found by the parser fuzzer
+		// from `(A=>)`.
+		{"paren one fat word", "my @a = (A=>);", "my @a = (A=>);"},
 	}
 
 	// Canon writes the trailing comma back where the source had it
