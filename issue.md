@@ -10,71 +10,40 @@ blocked_by:
 blocks:
 - 01a0c10b-7148-77e5-8923-16fbce93c64b
 created: 2026-09-20T23:56:17.751068121Z
-updated: 2026-09-20T23:57:02.374597738Z
+updated: 2026-10-09T03:25:47.837502606Z
 ---
-
-Four files carry 147 of T2's 649 Unknown nodes and nobody knows what is in
-them. This issue MEASURES first and files second. Do not guess a cause and do
-not write a fix inside this issue.
 
 ## Context
 
 - paths: `internal/parse/t2_test.go` (the shortfall map is the inventory)
-- commands: `go test ./internal/parse/ -run '^TestT2CoreParses$' -count=1 -v`
-- entrypoints: `internal/parse/t2_test.go`'s `shortfall` map; the corpus at
-  `$PERL5_CORPUS/t/` (default `~/dev/perl5/t/`)
+- commands: `make test` (green before every commit; never `--no-verify`); the ratchets `go test ./internal/parse/ -run '^(TestParseRatchet|TestPerlGitTRatchet|TestCanonRatchet|TestT2CoreParses)$' -count=1`, `go test ./internal/conformance/ -run '^TestCorpusRatchet$' -count=1`
+- perl 5.42: `/home/perigrin/.local/bin/perl`; perl.git t/ at `~/dev/perl5/t` (the checkout is not built, so `perl -c` on a file that requires `Config` fails for that reason alone)
 
-## What is unmeasured, at b6e7c351
+## Re-measured, 2026-10-09 at 287e85b8
 
-    comp/parser.t   65 Unknowns
-    comp/hints.t    36
-    comp/colon.t    25
-    comp/redef.t    21
-    -------------------
-                   147
+T2 core is **51 of 56 files clean (91.1%)** -- not the 30.4% this milestone's surveys were filed against. Ten Unknown nodes remain, in five files, from two causes:
 
-The survey (01a0c10b) bucketed 502 of T2's 649 nodes by construct. These 147
-it listed as "(unbucketed)". Two of them already have partial notes in the
-`shortfall` map's comments -- `comp/parser.t` is recorded as holding a
-symbol-table dereference `$::{"..."}` that `TestDerefBlockContentsAreDecided`
-names as still opaque -- but no file has a construct breakdown.
+    class/destruct.t:51,54          refcount_is $obj, 1, ...;
+    class/field.t:333               ... or skip "XS::APItest not available", 1;
+    class/gh23511.t:21              like $@, qr/.../, "...";
+    comp/filter_exception.t:8       plan tests => 4;
+    comp/filter_exception.t:28,30   like $@, qr/.../;
+    comp/filter_exception.t:29 (x2) is eval { require "t/Foo.pm" }, undef;
+    comp/final_line_num.t:13        +
 
-Note the overlap risk: the parenless-call fix and the leading-decimal fix may
-account for a share of these. Measure AFTER those land, or measure now and
-re-measure after, but say which.
+- **Nine nodes: a file a BEGIN block requires declares subs.** All four files open `BEGIN { require './test.pl'; ... }`, so perl knows `plan`, `is ($$@)`, `like ($$@)`, `refcount_is` and `skip` (test.pl:55, 395, 510, 536, 570) when it parses their parenless calls; pvm does not read a file a BEGIN-time `require` loads.
+- **One node: a file perl refuses.** comp/final_line_num.t ends `print 1+` at end of file on purpose: perl reports "syntax error at ... line 13, at EOF", which its own BEGIN `$SIG{__DIE__}` handler checks. Under perigrin's ruling (2026-10-09) such a file is clean only when internal/parse refuses it the same way.
 
-## Why measurement is the deliverable
+The four comp files c7d7 was filed to measure -- comp/parser.t (65), comp/hints.t (36), comp/colon.t (25), comp/redef.t (21) -- are clean: all 147 nodes are gone.
 
-The survey exists because filing 39 files of work as one issue is what
-produced a milestone with two targets missed. Filing a FIX for 147 unbucketed
-nodes would repeat that at smaller scale. The unit of work is a construct
-with a minimal reproduction, and this issue produces those units.
+This issue's job is now to put that attribution beside the counts, so the next reader does not re-measure: the shortfall map's comment names each remaining node's construct and file:line.
 
 ## Steps
 
-- [ ] For each of the four files, extract every Unknown node's source span
-      and group the spans by construct
-- [ ] Reduce each group to a minimal reproduction of two or three lines,
-      measured -- the form `f 13 % 4;  1 Unknown` the survey uses
-- [ ] Record the per-file breakdown in this issue: construct, node count,
-      minimal reproduction
-- [ ] For each construct that is M1's, file its own issue in
-      `m1-parse-the-core` with the measurement and a failing-test step
-- [ ] For each construct that is NOT M1's (prototypes are M4's; anything the
-      m2 refinement already blocked, such as block-form filehandles), record
-      the exclusion here with the milestone it belongs to
-- [ ] Commit the breakdown as a note where it can be found -- the shortfall
-      map's comments are where the other per-file findings live
+- [ ] Record the per-node attribution above in `t2_test.go`'s shortfall comment; change no parse behaviour; `make test`; commit
 
-## Acceptance Criteria
+## Acceptance criteria
 
-### Positive Scenarios
-
-- [ ] Every one of the 147 nodes is attributed to a named construct or
-      explicitly recorded as residual, with the arithmetic shown
-- [ ] Each M1-owned construct has its own issue in `m1-parse-the-core` (`git zhi issue list --milestone m1-parse-the-core | grep -c .`)
-- [ ] The findings are committed beside the counts they explain, so the next
-      reader does not re-measure (`grep -q 'comp/parser.t' internal/parse/t2_test.go`)
-- [ ] The T2 metric is still green -- this issue changes no parse behaviour (`go test ./internal/parse/ -run '^TestT2CoreParses$' -count=1 -v | grep -q '^--- PASS: TestT2CoreParses'`)
-
-Plan: M1. Survey: 01a0c10b, the "(unbucketed)" row.
+- [ ] the shortfall map names the BEGIN-time require as its cause (`grep -q "require './test.pl'" internal/parse/t2_test.go`)
+- [ ] the shortfall map names the file perl refuses (`grep -q 'final_line_num.t ends' internal/parse/t2_test.go`)
+- [ ] the T2 ratchet still holds -- no parse behaviour changed (`go test ./internal/parse/ -run '^TestT2CoreParses$' -count=1 -v | grep -q '^--- PASS: TestT2CoreParses'`)
