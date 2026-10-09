@@ -456,6 +456,62 @@ oracle stops being a reason not to re-run.
 
 ## 0.11 Fidelity across the whole corpus, measured
 
+### A prototype slot reports the reference perl takes
+
+*2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0.*
+
+perl compiles an argument as a reference when it fills a `\X` slot of the
+callee's prototype, a glob when it fills a `*` slot, and an array or hash
+when it fills a `+` slot. Each is a srefgen with no `\` in the source.
+Measured with `-MO=Concise`:
+
+```
+sub f(\@){1} my @a; f(@a);          1 srefgen   (also \%, \$, \&, \[$@%])
+sub f(*){1} f(*FOO);                1 srefgen   (also *$x, *{"FOO"})
+sub f(*){1} f(FOO); f($fh);         0
+sub f(+){1} my @a; f(@a);           1 srefgen   (also %h)
+sub f(+){1} my $x; f($x);           0
+my sub f(\@){1} my @a; f(@a);       1 srefgen   (state sub too)
+sub f(\@){1} my @a; &f(@a);         0           (& ignores the prototype)
+sub f(\@){1} my @a; main->f(@a);    0           (a method has none)
+my @a; f(@a); sub f(\@){1}          0           (declared below the call)
+```
+
+`parse.Sites` reported none of them. The parser now marks such an argument
+`RefSlot` where it reads the call, against the prototype it can see at that
+point -- its own subs, imported ones, lexical ones and the subs perl defines
+at startup (`interpreterSubs`, so `Internals::SvREADONLY(@a, 1)` counts, as
+perl's srefgen says it should) -- and Sites reports a decided reference for
+each.
+
+| Bucket | Files | Share of measured |
+|---|---:|---:|
+| exact | 487 | 82.1% |
+| wider | 73 | 12.3% |
+| **WRONG** | **12** | **2.0%** |
+| no-answer | 21 | 3.5% |
+| *measured (denominator)* | *593* | |
+| excluded, environmental | 26 | — |
+| runner error | 1 | — |
+
+Fifteen files moved, none to a worse bucket. Re-baselined at CI's 8m
+per-file timeout.
+
+- WRONG → exact: `comp/proto.t`, `io/scalar.t`, `io/scalar_ungetc.t`,
+  `lib/universal.t`, `op/hash.t`, `op/lexsub.t`, `op/sort.t`, `op/sselect.t`.
+- WRONG → wider: `op/each.t`, `op/gv.t`, `op/hash-clear-placeholders.t`.
+  The prototype sites are decided; what stays wider is the named-hash hedge
+  (`delete $hash{...}` in hash-clear-placeholders.t, for one).
+- no-answer → exact: `op/push.t`, `op/splice.t`, `op/unshift.t`,
+  `re/qr-72922.t`, each through an `Internals::` call whose srefgen is now
+  its only marker.
+
+`op/coreamp.t` and `op/sub_lval.t` stay WRONG on other causes: their
+prototype findings (coreamp.t:673, sub_lval.t:560) cleared, and what is left
+is a reference inside an interpolated `${\ ...}` or `@{[ ... ]}`
+(coreamp.t:178,248; sub_lval.t:861,863). No WRONG file left in the corpus
+is a prototype-driven reference.
+
 ### A site spans to the end of its statement
 
 *2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0.*

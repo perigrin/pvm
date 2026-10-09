@@ -180,6 +180,12 @@ func decidedMarkers(stmt *Node) []decided {
 
 	var walk func(*Node)
 	walk = func(n *Node) {
+		// perl: srefgen, for an argument its callee's prototype takes by
+		// reference (markReferenceSlots). The argument's own markers are
+		// still walked below: `f(%$r)` through `\%` is a srefgen and a rv2hv.
+		if n.RefSlot {
+			add(parseoracle.SiteKindReference, n)
+		}
 		switch n.Kind {
 		case Unknown:
 			// A nested Unknown speaks its own refusal, at its own span. The

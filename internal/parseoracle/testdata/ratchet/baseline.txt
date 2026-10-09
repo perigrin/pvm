@@ -66,7 +66,7 @@ wider         6 -              comp/package.t
 exact         1 -              comp/package_block.t
 WRONG         7 -              comp/parser.t
 exact         7 -              comp/parser_run.t
-WRONG       109 -              comp/proto.t
+exact       109 -              comp/proto.t
 exact         0 -              comp/redef.t
 wider        30 -              comp/require.t
 wider        14 -              comp/retainedlines.t
@@ -108,8 +108,8 @@ exact         0 -              io/print.t
 exact        14 -              io/pvbm.t
 exact         0 -              io/read.t
 exact         0 -              io/say.t
-WRONG        56 -              io/scalar.t
-WRONG         2 -              io/scalar_ungetc.t
+exact        56 -              io/scalar.t
+exact         2 -              io/scalar_ungetc.t
 exact         1 -              io/sem.t
 exact         0 -              io/semctl.t
 exact         1 -              io/shm.t
@@ -128,7 +128,7 @@ exact         1 -              lib/no_load.t
 exact         3 -              lib/overload_fallback.t
 exact         4 -              lib/overload_nomethod.t
 exact         2 -              lib/proxy_constant_subs.t
-WRONG        12 -              lib/universal.t
+exact        12 -              lib/universal.t
 wider        20 -              mro/basic.t
 exact         0 -              mro/basic_01_c3.t
 exact         0 -              mro/basic_01_c3_utf8.t
@@ -255,7 +255,7 @@ exact         1 -              op/die_unwind.t
 exact         2 -              op/do.t
 exact         0 -              op/dor.t
 exact         4 -              op/dump.t
-WRONG        24 -              op/each.t
+wider        24 -              op/each.t
 exact         1 -              op/each_array.t
 exact        12 -              op/eval.t
 exact         0 -              op/evalbytes.t
@@ -282,10 +282,10 @@ excluded      1 -              op/goto_xs.t
 exact         9 -              op/grent.t
 exact         9 -              op/grep.t
 exact        21 -              op/groups.t
-WRONG        86 -              op/gv.t
-WRONG         7 -              op/hash-clear-placeholders.t
+wider        86 -              op/gv.t
+wider         7 -              op/hash-clear-placeholders.t
 exact         3 -              op/hash-rt85026.t
-WRONG        36 -              op/hash.t
+exact        36 -              op/hash.t
 exact       158 -              op/hashassign.t
 exact         6 -              op/hashwarn.t
 exact        16 -              op/heredoc.t
@@ -309,7 +309,7 @@ wider         6 -              op/leaky-magic.t
 exact         0 -              op/length.t
 wider        29 -              op/lex.t
 wider        32 -              op/lex_assign.t
-WRONG        32 -              op/lexsub.t
+exact        32 -              op/lexsub.t
 exact         3 -              op/lfs.t
 exact         5 -              op/list.t
 wider        78 -              op/local.t
@@ -343,7 +343,7 @@ WRONG        50 -              op/postfixderef.t
 exact         0 -              op/pow.t
 exact         4 -              op/print.t
 exact         0 -              op/protowarn.t
-no-answer     2 -              op/push.t
+exact         2 -              op/push.t
 exact        11 -              op/pwent.t
 exact         9 -              op/qr.t
 exact         0 -              op/quotemeta.t
@@ -374,14 +374,14 @@ exact         1 -              op/sigsystem.t
 exact         0 -              op/sleep.t
 exact         0 -              op/smartkve.t
 no-answer    22 -              op/smartmatch.t
-WRONG        44 -              op/sort.t
-no-answer     2 -              op/splice.t
+exact        44 -              op/sort.t
+exact         2 -              op/splice.t
 exact        28 -              op/split.t
 exact         0 -              op/split_unicode.t
 exact        17 -              op/sprintf.t
 wider        41 -              op/sprintf2.t
 exact         8 -              op/srand.t
-WRONG         5 -              op/sselect.t
+exact         5 -              op/sselect.t
 wider        22 -              op/stash.t
 exact         1 -              op/stash_parse_gv.t
 exact        21 -              op/stat.t
@@ -415,7 +415,7 @@ exact         3 -              op/try.t
 exact         6 -              op/undef.t
 wider        16 -              op/universal.t
 exact         0 -              op/unlink.t
-no-answer     1 -              op/unshift.t
+exact         1 -              op/unshift.t
 exact         1 -              op/upgrade.t
 wider        19 -              op/utf8cache.t
 exact         7 -              op/utf8decode.t
@@ -506,7 +506,7 @@ exact         4 -              re/pat_special_cc.t
 exact         0 -              re/pat_special_cc_thr.t
 exact         0 -              re/pat_thr.t
 exact         6 -              re/pos.t
-no-answer     1 -              re/qr-72922.t
+exact         1 -              re/qr-72922.t
 exact        11 -              re/qr.t
 exact         1 -              re/qr_gc.t
 exact         0 -              re/qrstack.t

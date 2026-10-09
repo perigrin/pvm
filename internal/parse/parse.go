@@ -447,6 +447,17 @@ type Node struct {
 	// the tree's shape; canon writes it back so the emission says what the
 	// source says (perigrin, 2026-09-30).
 	TrailingComma string
+
+	// RefSlot is set on an argument that fills a `\X`, `*` or `+` slot of
+	// its callee's prototype in a way perl compiles as a reference to it:
+	// any argument in a `\X` slot, a glob in a `*` slot, an array or hash
+	// in a `+` slot. Measured on 5.42.0, `sub f(\@){1} my @a; f(@a);`
+	// compiles a srefgen with no `\` in the source.
+	//
+	// Only the parser can set it. Which prototype a call meets is decided
+	// where the call is read -- a sub declared below it, `&f(...)` and a
+	// method meet none -- and the finished tree no longer knows.
+	RefSlot bool
 }
 
 // SourceText reconstructs the bytes this node covers, walking the tree.
