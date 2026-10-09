@@ -23,7 +23,7 @@ import (
 func TestRequiredHelperNestedSub(t *testing.T) {
 	dir := writeModules(t, map[string]string{
 		"helper.pl": "{ # Closure\n  my $state;\n  sub watchdog ($;$) { 1 }\n  my sub lex { 1 }\n}\n1;\n",
-		"main.pl":   "require './helper.pl';\nwatchdog 3;\nwatchdog 0;\n",
+		"main.pl":   "BEGIN { require './helper.pl'; }\nwatchdog 3;\nwatchdog 0;\n",
 	})
 	root, err := parse.ParseFileFrom(filepath.Join(dir, "main.pl"), dir)
 	if err != nil {

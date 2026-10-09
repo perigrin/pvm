@@ -155,7 +155,9 @@ func (p *parser) parseUse(word lexer.Token) *Node {
 	// statement of its own -- so every `sub NAME` in it is a name the
 	// requiring file can call. There is no import list to consult because
 	// there is no import; the declarations themselves are the interface.
-	// See resolveRequiredFile for the boundary that keeps this safe.
+	// Only inside BEGIN, which runs it before the rest of the file compiles:
+	// a run-time require has declared nothing when perl compiles the calls
+	// after it. See resolveRequiredFile for the boundary that keeps this safe.
 	p.noteFeatures(n.Text, module, list)
 	if module != "" && !isVersionPrefix(module) && n.Text != "no" {
 		p.notePackage(module)
@@ -164,7 +166,7 @@ func (p *parser) parseUse(word lexer.Token) *Node {
 	switch {
 	case module != "" && !isVersionPrefix(module) && n.Text == "use":
 		p.resolveImports(module, list)
-	case module == "" && n.Text == "require":
+	case module == "" && n.Text == "require" && p.inBegin:
 		p.resolveRequiredFile(list)
 	}
 
@@ -578,6 +580,13 @@ func (p *parser) importBuiltins(list *Node) {
 // THE BOUNDARY IS THE SAFETY PROPERTY, and each rule is enforced at a named
 // place rather than assumed:
 //
+//  0. Inside BEGIN only, at the call site in parseUse (inBegin). perl runs a
+//     BEGIN block before compiling what follows it, so `BEGIN { require
+//     './test.pl' }` makes `is 1, 2` a call; a run-time require has not run
+//     when the call compiles, and perl 5.42 refuses `require './h.pl'; is 1,
+//     2` as a syntax error. Measured, gating on BEGIN moves no file in the
+//     T1, perl.git t/ or canon ratchets: perl's suite requires its helpers in
+//     BEGIN because nothing else works.
 //  1. A LITERAL string only, here. `require $file` and `require "./$n.pl"`
 //     name a file only at runtime, so they contribute nothing. Measured over
 //     perl.git's `t/`: 503 files hold a literal `require`, against 6 with a
@@ -676,7 +685,11 @@ func (p *parser) parsePhaser(word lexer.Token) *Node {
 	p.advanceTo(word)
 	n := &Node{Kind: Phaser, Text: p.text(word), Start: word.Start}
 
-	if blk := p.parseBlockOrDecline(); blk != nil {
+	outer := p.inBegin
+	p.inBegin = outer || n.Text == "BEGIN"
+	blk := p.parseBlockOrDecline()
+	p.inBegin = outer
+	if blk != nil {
 		n.Children = append(n.Children, blk)
 		if n.Text == "BEGIN" {
 			p.noteBeginEffects(blk)
