@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-19T00:47:32.887135684Z
-updated: 2026-09-19T07:11:16.029362672Z
+updated: 2026-10-09T14:08:00.251172577Z
 sessions:
 - start_sha: 0db016fd18cba84ae70dcfb32f3453a5771bd27d
   end_sha: 0db016fd18cba84ae70dcfb32f3453a5771bd27d
@@ -68,17 +68,6 @@ Only the NON-PAIRED forms. Verified by running each:
 So the paired multi-byte case is not a requirement -- perl itself rejects it.
 Scoping to what perl takes, rather than to every shape the form suggests.
 
-## Acceptance criteria
-
-- [x] `qq ϟ a ϟ` and `q ϟ a ϟ` each produce one Quote token spanning the
-      whole construct
-- [x] The three-part `s ϟ a ϟ b ϟ` does too
-- [x] No Quote token ever ends mid-sequence: every token boundary falls on a
-      UTF-8 character boundary
-- [x] `t/uni/parser.t` returns to 0 in the lexer ratchet
-- [x] The whole suite is green
-
-
 ## Done, 2026-09-19 (0db016fd)
 
     uni/gv.t       nodes 5 -> 0    bytes     5 -> 0
@@ -136,3 +125,18 @@ TestAsciiDelimiterStillWorks holds the single-byte path.
 One test row of mine was wrong and perl said so: `qq #a#` SPACED is a comment
 whose delimiter is on a later line, so it correctly yields no Quote. The row
 is the glued `qq#a#`, which is the form where `#` delimits.
+
+### Runnable commands added (2026-10-09)
+
+These criteria were prose with no command, so `git zhi verify` reported them
+unverifiable. Each now names the test that holds it. "The whole suite is green" is checked
+as the lexer package here; make test was green at 0db016fd and is the gate
+on every commit since.
+
+## Acceptance criteria
+
+- [x] `qq ϟ a ϟ` and `q ϟ a ϟ` each produce one Quote token spanning the whole construct (`go test ./internal/lexer/ -run '^TestMultiByteDelimiterClosesOnTheCharacter$' -count=1 -v | grep -q '^--- PASS: TestMultiByteDelimiterClosesOnTheCharacter'`)
+- [x] The three-part `s ϟ a ϟ b ϟ` does too (`go test ./internal/lexer/ -run '^TestMultiByteDelimiterClosesOnTheCharacter$' -count=1 -v | grep -q '^--- PASS: TestMultiByteDelimiterClosesOnTheCharacter'`)
+- [x] No Quote token ever ends mid-sequence: every token boundary falls on a UTF-8 character boundary (`go test ./internal/lexer/ -run '^TestNoTokenEndsMidSequence$' -count=1 -v | grep -q '^--- PASS: TestNoTokenEndsMidSequence'`)
+- [x] `t/uni/parser.t` returns to 0 in the lexer ratchet (`sh -c "grep -qE '^ +0 uni/parser[.]t' internal/lexer/testdata/corpus.ratchet && go test ./internal/lexer/ -run '^TestLexerRatchet$' -count=1 -v | grep -q '^--- PASS: TestLexerRatchet'"`)
+- [x] The lexer package is green (`go test ./internal/lexer/ -count=1 | grep -q '^ok'`)
