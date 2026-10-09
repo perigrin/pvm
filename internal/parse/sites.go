@@ -5,10 +5,12 @@ package parse
 
 import (
 	"bytes"
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
 
+	"tamarou.com/pvm/internal/lexer"
 	"tamarou.com/pvm/internal/parseoracle"
 )
 
@@ -650,4 +652,96 @@ func (ls lineStarts) at(off int) int {
 		line = i + 1
 	}
 	return line
+}
+
+// PerlLines numbers src's lines as perl does. For each physical line i
+// (1-based; index 0 is unused), line[i] is the line perl records for it and
+// own[i] is whether perl still attributes it to file, the path perl was
+// given.
+//
+// A `#line N "name"` directive renumbers what follows it, and a name other
+// than file moves what follows into another file -- which the oracle's
+// CvFILE filter then leaves out of this file's sites. perl's lexer looks for
+// one (toke.c S_incline) at the start of every line it reaches while
+// skipping whitespace and comments, and at every line of POD; it never
+// looks inside a string, a heredoc body or a regex. So a directive is a
+// Comment token starting its line, or a line inside a Pod token.
+//
+// The parse tree's own spans stay physical: this is the harness's
+// numbering, not the parser's.
+func PerlLines(src []byte, file string) (line []int, own []bool) {
+	starts := lineIndex(src)
+	directives := map[int]string{}
+	for _, tok := range lexer.TokenizeBarewords(src, coreBarewordOperators()) {
+		switch tok.Kind {
+		case lexer.Comment:
+			if tok.Start == 0 || src[tok.Start-1] == '\n' {
+				directives[starts.at(tok.Start)] = strings.TrimSuffix(string(src[tok.Start:tok.End]), "\n")
+			}
+		case lexer.Pod:
+			at := tok.Start
+			for _, text := range strings.SplitAfter(string(src[tok.Start:tok.End]), "\n") {
+				if strings.HasPrefix(text, "#") {
+					directives[starts.at(at)] = strings.TrimSuffix(text, "\n")
+				}
+				at += len(text)
+			}
+		}
+	}
+
+	line = make([]int, len(starts)+1)
+	own = make([]bool, len(starts)+1)
+	n, inFile := 0, true
+	for i := 1; i <= len(starts); i++ {
+		n++
+		line[i], own[i] = n, inFile
+		if num, name, ok := lineDirective(directives[i]); ok {
+			n = num - 1
+			if name != "" {
+				inFile = name == file
+			}
+		}
+	}
+	return line, own
+}
+
+// lineDirective reads one line as toke.c's S_incline does: `#`, optional
+// blanks, `line`, at least one blank, the number, then optionally a name --
+// quoted, which may hold blanks, or bare up to the next space -- and nothing
+// after it but blanks. Anything else is an ordinary comment. An unclosed
+// quote is part of a bare name, and `""` names no file.
+func lineDirective(text string) (num int, name string, ok bool) {
+	s, found := strings.CutPrefix(text, "#")
+	if !found {
+		return 0, "", false
+	}
+	s, found = strings.CutPrefix(strings.TrimLeft(s, " \t"), "line")
+	if !found || s == "" || (s[0] != ' ' && s[0] != '\t') {
+		return 0, "", false
+	}
+	s = strings.TrimLeft(s, " \t")
+	digits := len(s) - len(strings.TrimLeft(s, "0123456789"))
+	if digits == 0 {
+		return 0, "", false
+	}
+	num, err := strconv.Atoi(s[:digits])
+	s = s[digits:]
+	if err != nil || (s != "" && !strings.ContainsRune(" \t\r", rune(s[0]))) {
+		return 0, "", false
+	}
+	s = strings.TrimLeft(s, " \t")
+	rest := ""
+	if quoted, found := strings.CutPrefix(s, `"`); found && strings.Contains(quoted, `"`) {
+		name, rest, _ = strings.Cut(quoted, `"`)
+	} else {
+		end := strings.IndexAny(s, " \t\n\r\f\v")
+		if end < 0 {
+			end = len(s)
+		}
+		name, rest = s[:end], s[end:]
+	}
+	if strings.TrimLeft(rest, " \t\r\f") != "" {
+		return 0, "", false
+	}
+	return num, name, true
 }

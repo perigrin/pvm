@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -104,5 +105,71 @@ func TestSubjectAnswersAllFiveMarkers(t *testing.T) {
 			t.Errorf("Prototypes[%q] = %q (present %v), want %q; all: %v",
 				name, got, ok, want, facts.Prototypes)
 		}
+	}
+}
+
+// TestSubjectHonoursLineDirective holds the subject to perl's line numbers,
+// which a `#line N` directive renumbers. The oracle reports each site at the
+// line its nextstate recorded, so a subject reporting physical lines never
+// meets perl past a directive (lib/deprecate.t's `#line 1001`).
+//
+// Every expectation below is perl 5.42's own, measured with -MO=Concise and
+// with the oracle's parse_facts.pl over this exact file: srefgen at
+// 2,100,102,104,108,109,203,400. perl's lexer (toke.c S_incline) honours a
+// `#line` comment that starts its line, and every line of POD; it ignores
+// one indented, one with no number, one inside a string and one after code
+// on the same line. A directive naming another file moves the statements
+// after it out of this file, and the oracle's CvFILE filter drops them, so
+// the subject reports nothing there either.
+func TestSubjectHonoursLineDirective(t *testing.T) {
+	root := t.TempDir()
+	bin := filepath.Join(root, "subject")
+	if out, err := exec.Command("go", "build", "-o", bin, ".").CombinedOutput(); err != nil {
+		t.Fatalf("building the subject: %v\n%s", err, out)
+	}
+	src := "my @a;\n" +
+		"my $x = \\@a;\n" + // 2
+		"#line 100\n" +
+		"my $y = \\@a;\n" + // 100
+		"  #line 500\n" + // indented: not a directive
+		"my $z = \\@a;\n" + // 102
+		"#line\n" + // no number: not a directive
+		"my $w = \\@a;\n" + // 104
+		"my $s = \"\n" +
+		"#line 900\n" + // inside a string: not a directive
+		"\";\n" +
+		"my $m = \\@a; #line 700\n" + // 108; after code: not a directive
+		"my $v = \\@a;\n" + // 109
+		"\n=pod\n\n" +
+		"#line 200\n" + // inside POD: a directive
+		"\n=cut\n\n" +
+		"my $u = \\@a;\n" + // 203
+		"#line 300 \"elsewhere.pl\"\n" +
+		"my $t = \\@a;\n" + // another file's line 300
+		"#line 400 \"probe.t\"\n" +
+		"my $q = \\@a;\n" // 400, this file again
+	if err := os.WriteFile(filepath.Join(root, "probe.t"), []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	s := parseoracle.Subject{Command: []string{bin}, Dir: root}
+	facts, err := s.Parse(context.Background(), "probe.t")
+	if err != nil {
+		t.Fatalf("the subject failed: %v", err)
+	}
+
+	var got []int
+	for _, site := range facts.CallSites {
+		if site.Kind != parseoracle.SiteKindReference || site.Unresolved {
+			continue
+		}
+		if site.EndLine != 0 && site.EndLine != site.Line {
+			t.Errorf("a one-line statement spans %d-%d", site.Line, site.EndLine)
+		}
+		got = append(got, site.Line)
+	}
+	want := []int{2, 100, 102, 104, 108, 109, 203, 400}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("reference sites at %v, want perl's %v", got, want)
 	}
 }

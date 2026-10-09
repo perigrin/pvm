@@ -122,7 +122,7 @@ WRONG        16 -              japh/abigail.t
 exact         3 -              lib/commonsense.t
 exact         0 -              lib/croak.t
 no-answer     0 -              lib/cygwin.t
-WRONG         5 -              lib/deprecate.t
+wider         5 -              lib/deprecate.t
 exact         0 -              lib/mypragma.t
 exact         1 -              lib/no_load.t
 exact         3 -              lib/overload_fallback.t

@@ -456,6 +456,61 @@ oracle stops being a reason not to re-run.
 
 ## 0.11 Fidelity across the whole corpus, measured
 
+### The subject reports perl's line numbers across a `#line` directive
+
+*2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0.*
+
+A `#line N "name"` comment renumbers the lines after it, and a name moves
+them into another file. perl's lexer (`toke.c` `S_incline`) looks for one at
+the start of every line it reaches between tokens and at every line of POD.
+Measured with `-MO=Concise`, the line of the statement after each:
+
+```
+#line 100            100       # line 100 / #\tline\t100   100
+  #line 100          ignored   (indented)
+#line                ignored   (no number)
+$a=1; #line 100      ignored   (after code)
+"\n#line 100\n"      ignored   (inside a string, a heredoc, qw or /x)
+=pod / #line 200     200       (inside POD)
+#line 77x            ignored   (no blank after the number)
+#line 47 bang eth    ignored   (a bare name ends at a blank)
+#line 100 other.pl   other.pl:100   (bare or "quoted", blanks allowed in quotes)
+#line 43 "BBF        "BBF:43   (an unclosed quote is part of a bare name)
+#line 60 ""          60, same file
+```
+
+The oracle keeps only sites whose COP names the file it was given, so a
+statement a directive moved into another file is not this file's. The
+subject reported physical lines, and lib/deprecate.t's `#line 1001` put
+perl's sites at 1019 and 1039 against the subject's 66 and 86.
+`parse.PerlLines` now numbers the lines as perl does, from the lexer's
+Comment and Pod tokens, and the subject renumbers its sites by it and drops
+those in another file. The parse tree's spans stay physical.
+
+| Bucket | Files | Share of measured |
+|---|---:|---:|
+| exact | 487 | 82.1% |
+| wider | 74 | 12.5% |
+| **WRONG** | **11** | **1.9%** |
+| no-answer | 21 | 3.5% |
+| *measured (denominator)* | *593* | |
+| excluded, environmental | 26 | — |
+| runner error | 1 | — |
+
+One file moved, to a better bucket. Re-baselined at CI's 8m per-file
+timeout.
+
+- WRONG → wider: `lib/deprecate.t`. Its hash sites at 1019 and 1039 now
+  meet the subject's statements; they are wider rather than exact because
+  `$libdir{$lib}` and `$tests{$lib}` are named-hash reads, which the
+  subject hedges by design.
+
+No WRONG file left in the corpus is a `#line` renumbering. The interpolated
+code a directive can sit in -- comp/parser.t's `"${\n#line 53\n_}"` -- is not
+honoured by `PerlLines`, since the lexer reads that string as one token; the
+oracle drops everything in comp/parser.t after its `#line 23 KASHPRITZA`,
+which is above those cases.
+
 ### A prototype slot reports the reference perl takes
 
 *2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0.*
