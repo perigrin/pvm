@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a0b84d-ec59-777f-8a00-71e407c9f469
 created: 2026-09-19T06:15:01.031946657Z
-updated: 2026-09-19T06:44:14.94305138Z
+updated: 2026-10-09T17:21:16.636587807Z
 sessions:
 - start_sha: f066f2ab7533480d37f08cd938d35dc99f850cad
   end_sha: 7034e553e623c97cdd9406c3d6b9c8ef5c4b2a55
@@ -106,7 +106,7 @@ module's own `@EXPORT`.
 A local sub shadowing an import is visible in the file being parsed and wins.
 `require` plus manual import is not covered.
 
-## Acceptance
+## Acceptance criteria
 
 - [x] `our @EXPORT = qw(...)` is read from the module's own text (`go test ./internal/parse/ -run '^TestReadsLiteralExportList$' -count=1 -v | grep -q '^--- PASS: TestReadsLiteralExportList'`)
 - [x] `@EXPORT_OK` is read the same way, and a non-literal export list leaves the module unresolved rather than half-read (`go test ./internal/parse/ -run '^TestNonLiteralExportListDeclines$' -count=1 -v | grep -q '^--- PASS: TestNonLiteralExportListDeclines'`)
