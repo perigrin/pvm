@@ -1,19 +1,27 @@
 ---
 title: The identifier scanner eats the digits of x3, losing binary x against a bare number
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-26T09:56:37.076237627Z
-updated: 2026-10-09T04:48:36.970381097Z
+updated: 2026-10-09T05:12:54.42810467Z
 sessions:
 - start_sha: 98d028499fdad30e12a1e2e54cc03ddb455833f4
-  end_sha: ""
-  commits: 0
+  end_sha: 93c26e8152e5d8e6b6914956ecf5014d163c7342
+  commits: 2
   started_at: 2026-10-09T04:48:36.970381097Z
+  ended_at: 2026-10-09T05:12:54.42810467Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-09T04:48:36.970381097Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-09T05:12:54.42810467Z
+observed_paths:
+- internal/lexer/repetitionglued_test.go
+- internal/lexer/scanrows_test.go
+- internal/parse/t2_test.go
 ---
 
 The identifier scanner eats the digits of `x3`, so binary `x` against a bare
