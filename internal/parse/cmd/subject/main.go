@@ -59,7 +59,7 @@ func main() {
 		// decodes as absent -- which scores as "did not look".
 		Prototypes: prototypes(root),
 
-		CallSites: parse.Sites(root, src),
+		CallSites: perlNumbered(parse.Sites(root, src), src, path),
 	}
 
 	out, err := json.Marshal(facts)
@@ -71,6 +71,23 @@ func main() {
 		fmt.Fprintf(os.Stderr, "writing facts for %s: %v\n", path, err)
 		os.Exit(1)
 	}
+}
+
+// perlNumbered renumbers sites to the lines perl records, which a `#line`
+// directive moves away from the physical ones, and drops the sites a
+// directive moved into another file: the oracle reports only this file's.
+func perlNumbered(sites []parseoracle.SubjectCallSite, src []byte, path string) []parseoracle.SubjectCallSite {
+	line, own := parse.PerlLines(src, path)
+	kept := []parseoracle.SubjectCallSite{}
+	for _, site := range sites {
+		end := max(site.EndLine, site.Line)
+		if !own[site.Line] || !own[end] {
+			continue
+		}
+		site.Line, site.EndLine = line[site.Line], line[end]
+		kept = append(kept, site)
+	}
+	return kept
 }
 
 // prototypes is every prototype the tree carries: the subs this file

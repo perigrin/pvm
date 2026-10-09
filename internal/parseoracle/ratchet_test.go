@@ -275,14 +275,14 @@ func TestCorpusBaselineIsIntact(t *testing.T) {
 	// WRONG is the one bucket that is a gate rather than a ratchet: a file
 	// our parser gets positively wrong is a defect, not a coverage gap.
 	//
-	// The target is zero and this pins twelve, by path. Every one is a
+	// The target is zero and this pins eleven, by path. Every one is a
 	// file internal/parse -- the parser this harness measures by default --
 	// commits to a statement perl reads differently. Findings §0.11 has the
 	// cause of each, one line apiece; they fall into a handful of classes:
 	// a reference inside an interpolated `${\ ...}`, a hash read
 	// through `->{...}` inside a block dereference, postfix-dereference
 	// slices, a site perl attributes to a statement line the subject's span
-	// does not cover, `#line` renumbering, and given/when's smartmatch.
+	// does not cover, and given/when's smartmatch.
 	//
 	// WHY PINNED RATHER THAN ZERO. A permanently-red test is one nobody
 	// reads, and a red suite cannot show the NEXT regression: an absolute
@@ -308,10 +308,10 @@ func TestCorpusBaselineIsIntact(t *testing.T) {
 	sort.Strings(wrongPaths)
 
 	knownWrong := []string{
-		"comp/parser.t", "japh/abigail.t", "lib/deprecate.t",
-		"op/coreamp.t", "op/gmagic.t", "op/goto.t",
-		"op/postfixderef.t", "op/ref.t", "op/sub_lval.t", "op/switch.t",
-		"porting/libperl.t", "re/reg_eval_scope.t",
+		"comp/parser.t", "japh/abigail.t", "op/coreamp.t",
+		"op/gmagic.t", "op/goto.t", "op/postfixderef.t", "op/ref.t",
+		"op/sub_lval.t", "op/switch.t", "porting/libperl.t",
+		"re/reg_eval_scope.t",
 	}
 	if strings.Join(wrongPaths, " ") != strings.Join(knownWrong, " ") {
 		t.Errorf("baselined WRONG files are %v, want exactly %v\n"+
