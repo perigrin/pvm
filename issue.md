@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-19T11:53:47.469850114Z
-updated: 2026-09-19T12:44:24.41492651Z
+updated: 2026-10-09T17:21:17.438239046Z
 sessions:
 - start_sha: 5c9be6bd44b1282e2477531f28d641caad4eb9a0
   end_sha: 5c9be6bd44b1282e2477531f28d641caad4eb9a0
@@ -88,7 +88,7 @@ once there rather than per declarator. Both subscript forms:
 
 and the arrow form for completeness.
 
-## Acceptance
+## Acceptance criteria
 
 - [x] `local $SIG{__WARN__} = sub {}` is ONE statement holding one Index (`go test ./internal/parse/ -run '^TestDeclaredSubscriptIsOneStatement$' -count=1 -v | grep -q '^--- PASS: TestDeclaredSubscriptIsOneStatement'`)
 - [x] The same holds for `my`, `our` and `state`, and for `[` as well as `{` (`go test ./internal/parse/ -run '^TestDeclaredSubscriptIsOneStatement$' -count=1 -v | grep -q '^--- PASS: TestDeclaredSubscriptIsOneStatement'`)
