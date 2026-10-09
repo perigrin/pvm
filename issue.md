@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-19T16:22:28.75915195Z
-updated: 2026-09-19T17:06:55.626455084Z
+updated: 2026-10-09T17:21:18.830849356Z
 sessions:
 - start_sha: 461ea788c4b3a17b7c9771e80fc6e45de3bbbf18
   end_sha: afdd06c9562e8c8efaa4fb31bad3824739ffb0ba
@@ -93,7 +93,7 @@ say what it found there -- the statement's node kind, or Unknown's text. That
 is a subject-contract addition and may be worth its own issue once the
 line-level table shows whether it is needed.
 
-## Acceptance
+## Acceptance criteria
 
 - [x] A verdict carries its per-statement findings, not only prose (`go test ./internal/parseoracle/ -run '^TestVerdictCarriesFindings$' -count=1 -v | grep -q '^--- PASS: TestVerdictCarriesFindings'`)
 - [x] Findings agree with the Detail text they replace, on the same input (`go test ./internal/parseoracle/ -run '^TestFindingsAgreeWithDetail$' -count=1 -v | grep -q '^--- PASS: TestFindingsAgreeWithDetail'`)
