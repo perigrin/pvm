@@ -456,6 +456,40 @@ oracle stops being a reason not to re-run.
 
 ## 0.11 Fidelity across the whole corpus, measured
 
+### An empty brace at statement position is an anonymous hash
+
+*2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0.*
+
+perl reads `{` followed by `}`, with only whitespace or comments between, at
+statement position as an anonymous hash (toke.c:6706). Deparse writes it
+`{};` with no `+`, so it is `-MO=Concise` that shows it:
+
+```
+{}   { }   { # c\n }   {\n}   {} ;   L: {}     emptyavhv v/ANONHASH
+sub f { 1; {} }   if ($x) { {} }               emptyavhv
+{{{}}}                                         two enterloops, one emptyavhv
+{ 1 }   { ; }   {;}                            enterloop: a block
+```
+
+The parser read each as an empty block. `braceOpensAnonHash` now answers
+hash for an empty brace, and canon writes an empty bare block as `{;}`, the
+spelling that stays a block.
+
+| Bucket | Files | Share of measured |
+|---|---:|---:|
+| exact | 487 | 82.1% |
+| wider | 73 | 12.3% |
+| **WRONG** | **12** | **2.0%** |
+| no-answer | 21 | 3.5% |
+| *measured (denominator)* | *593* | |
+| excluded, environmental | 26 | — |
+| runner error | 1 | — |
+
+No file moved; the re-baseline at CI's 8m per-file timeout is unchanged.
+`comp/parser.t`'s anonhash finding at line 125, the innermost brace of the
+`{{{...}}}` nest at 120, cleared; the file stays WRONG on its other cause,
+a reference inside an interpolation at line 468.
+
 ### A prototype slot reports the reference perl takes
 
 *2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0.*

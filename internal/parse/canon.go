@@ -3,7 +3,10 @@
 
 package parse
 
-import "strings"
+import (
+	"slices"
+	"strings"
+)
 
 // Canon emits n as Perl, with the parenthesisation the TREE implies.
 //
@@ -48,6 +51,16 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 		for _, c := range n.Children {
 			if c.HeredocBody {
 				continue // after the terminator; see below
+			}
+			// A bare block with no statement in it is written `{;}`. Written
+			// `{}` it re-reads as an empty anonymous hash, which is what perl
+			// makes of an empty brace at statement position; measured on
+			// 5.42.0, `{;}` is an enterloop and `{}` an emptyavhv.
+			if c.Kind == Block && !slices.ContainsFunc(c.Children, func(s *Node) bool {
+				return s.Kind == Statement
+			}) {
+				stmt.WriteString("{;}")
+				continue
 			}
 			emit(&stmt, c, src, 0)
 		}
