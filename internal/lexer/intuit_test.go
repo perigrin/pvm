@@ -137,6 +137,76 @@ func TestIntuitCurlyEmptyBrace(t *testing.T) {
 	}
 }
 
+// TestEmptyBraceAfterFilehandleBuiltins: the empty brace in the handle or
+// program slot of print, printf, system and exec is an anonymous hash too, by
+// the same toke.c:6706 rule as map's. Measured on perl 5.42.0 with
+// -MO=Deparse and -MO=Concise:
+//
+//	print {}, "x"   print({}, "x")   system {}, "x"     emptyavhv
+//	print {} "x"    print { } "x"    print {# c\n} "x"  syntax error near "} "x""
+//	print({} "x")   printf {} "x"    system {} "x"      syntax error near "} "x""
+//	exec {} "x"     exec({} "x")     system({} "x")     syntax error near "} "x""
+//
+// CORE:: names the same builtin, and CORE::say is say with its feature on:
+//
+//	CORE::print {} "x"   CORE::say {} "x"   CORE::system {} "x"   syntax error
+//	CORE::map {}, @a     CORE::grep {}, @a  CORE::sort {}, @a     emptyavhv
+//	CORE::map {} @a                                               syntax error
+//
+// A brace with something in it is still the handle block:
+//
+//	print {$fh} "x"     print {$fh;} 'x'
+//	print {STDOUT} "x"  print {'STDOUT';} 'x'
+//
+// A bare `say` is a block: unfeatured, `say {} "x"` is the method call
+// `{ () }->say('x')` (entersub, method_named "say"), and the lexer does not
+// track the say feature, under which perl refuses it.
+func TestEmptyBraceAfterFilehandleBuiltins(t *testing.T) {
+	for _, tc := range []struct {
+		src   string
+		block bool
+	}{
+		{`print {} "x";`, false},
+		{`print { } "x";`, false},
+		{"print {# c\n} \"x\";", false},
+		{`print({} "x");`, false},
+		{`print ({} "x");`, false},
+		{`print {}, "x";`, false},
+		{`print({}, "x");`, false},
+		{`printf {} "x";`, false},
+		{`printf({} "x");`, false},
+		{`system {} "x";`, false},
+		{`system({} "x");`, false},
+		{`system {}, "x";`, false},
+		{`exec {} "x";`, false},
+		{`exec({} "x");`, false},
+		{`CORE::print {} "x";`, false},
+		{`CORE::print({} "x");`, false},
+		{`CORE::printf {} "x";`, false},
+		{`CORE::say {} "x";`, false},
+		{`CORE::system {} "x";`, false},
+		{`CORE::exec {} "x";`, false},
+		{`my @x = CORE::map {}, @a;`, false},
+		{`my @x = CORE::map {} @a;`, false},
+		{`my @x = CORE::grep {}, @a;`, false},
+		{`my @x = CORE::sort {}, @a;`, false},
+
+		{`print {$fh} "x";`, true},
+		{`print {STDOUT} "x";`, true},
+		{`CORE::print {$fh} "x";`, true},
+		{`say {} "x";`, true},
+	} {
+		opens, found := opensBlockAt(tc.src, 0)
+		if !found {
+			t.Errorf("%q: no `{` token", tc.src)
+			continue
+		}
+		if opens != tc.block {
+			t.Errorf("%q: OpensBlock is %v, want %v", tc.src, opens, tc.block)
+		}
+	}
+}
+
 // TestRightParenLookaheadIsParenOnly: the `{` of a subscript chain is a term
 // on both halves.
 //

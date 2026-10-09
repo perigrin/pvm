@@ -29,7 +29,8 @@ package lexer
 //
 // An EMPTY brace -- its `}` the first thing after the `{`, past whitespace
 // and comments -- is a hash when emptyIsHash is set, which is the caller
-// saying the word is `map`, `grep` or `sort`. toke.c answers HASHBRACK for
+// saying the word is `map`, `grep`, `sort`, or the handle or program slot of
+// `print`, `printf`, `system` or `exec` (emptyBraceIsHash). toke.c answers HASHBRACK for
 // it before the first-tokens heuristic runs (toke.c:6706), measured on 5.42.0:
 //
 //	map {}, @a                map({}, @a)              a HASHREF

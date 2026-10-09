@@ -136,10 +136,22 @@ var blockTaking = map[string]bool{
 // after the `{` (toke.c:6706). Measured on 5.42.0, `map {}, @a`, `grep {}, @a`
 // and `sort {}, @a` each compile emptyavhv, and the same brace with no comma
 // after it is a syntax error. print, printf, system and exec read it the same
-// way (`print {} "x"` is a syntax error near `} "x"`) but are outside this set;
-// `any`, `all` and an arbitrary word read a block.
+// way: `print {}, "x"` is emptyavhv and `print {} "x"` a syntax error near
+// `} "x"`. `any`, `all` and an arbitrary word read a block.
+//
+// CORE:: names the same builtin, and `CORE::say` is say with its feature on,
+// which reads the hash too. A bare `say` stays a block: unfeatured, `say {}
+// "x"` is the method call `{ () }->say('x')`, and the lexer does not track
+// the say feature.
 func emptyBraceIsHash(word string) bool {
-	return word == "map" || word == "grep" || word == "sort"
+	if word == "CORE::say" {
+		return true
+	}
+	switch strings.TrimPrefix(word, "CORE::") {
+	case "map", "grep", "sort", "print", "printf", "system", "exec":
+		return true
+	}
+	return false
 }
 
 // takesBlock reports whether a `{` after this word might open a block.
