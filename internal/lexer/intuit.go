@@ -27,17 +27,34 @@ package lexer
 // rule the parser's braceOpensAnonHash applies at statement start, and the
 // agreement is not a coincidence: perl runs this one function for both.
 //
+// An EMPTY brace -- its `}` the first thing after the `{`, past whitespace
+// and comments -- is a hash when emptyIsHash is set, which is the caller
+// saying the word is `map`, `grep` or `sort`. toke.c answers HASHBRACK for
+// it before the first-tokens heuristic runs (toke.c:6706), measured on 5.42.0:
+//
+//	map {}, @a                map({}, @a)              a HASHREF
+//	map {} @a                 syntax error near "} @a"   a hash, then no comma
+//
+// That is braceOpensAnonHash's empty rule too. After any other word the
+// empty brace stays a block: `zzz {} print "b"`, `any {} @a` and `eval {}`
+// each compile one, because perl reaches their brace by another path.
+//
 // Byte scanning rather than tokenizing, for peekIsOpenBrace's reason: the
 // lexer stays single-pass, and a lookahead that lexed would have to undo its
 // own state changes.
-func (l *lexer) intuitCurly() bool {
+func (l *lexer) intuitCurly(emptyIsHash bool) bool {
 	i := skipSpaceFrom(l.src, l.pos)
 	if i >= len(l.src) || l.src[i] != '{' {
 		return false
 	}
-	i = skipSpaceFrom(l.src, i+1)
+	// perl's skipspace, which skips comments: `map { # c\n a => 1 }, @a` is
+	// a hash, and `map { # c\n }, @a` an empty one.
+	i = skipSpaceAndCommentsFrom(l.src, i+1)
 	if i >= len(l.src) {
 		return true
+	}
+	if l.src[i] == '}' {
+		return !emptyIsHash
 	}
 
 	// The first thing in the brace. A quoted string is a key candidate, and
@@ -78,6 +95,17 @@ func skipSpaceFrom(src []byte, i int) int {
 		case ' ', '\t', '\n', '\r':
 		default:
 			return i
+		}
+	}
+	return i
+}
+
+// skipSpaceAndCommentsFrom is skipSpaceFrom that also skips `#` comments,
+// each to the end of its line.
+func skipSpaceAndCommentsFrom(src []byte, i int) int {
+	for i = skipSpaceFrom(src, i); i < len(src) && src[i] == '#'; i = skipSpaceFrom(src, i) {
+		for i < len(src) && src[i] != '\n' {
+			i++
 		}
 	}
 	return i

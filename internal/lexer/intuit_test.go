@@ -59,7 +59,7 @@ func TestIntuitCurlyLookahead(t *testing.T) {
 		{`my @b = map { "a", 1 }, @a;`, false, "string then `,` is a hash"},
 		{"my @b = grep { $_ } @a;", true, "grep takes a block too"},
 		{"my @b = sort { $a <=> $b } @a;", true, "so does sort"},
-		{"my @b = map { } @a;", true, "empty is a block, as at statement start"},
+		{"my @b = map { } @a;", false, "empty is a hash, as at statement start"},
 	} {
 		opens, found := opensBlockAt(tc.src, 0)
 		if !found {
@@ -69,6 +69,70 @@ func TestIntuitCurlyLookahead(t *testing.T) {
 		if opens != tc.block {
 			t.Errorf("%q: OpensBlock is %v, want %v -- %s",
 				tc.src, opens, tc.block, tc.why)
+		}
+	}
+}
+
+// TestIntuitCurlyEmptyBrace: an empty brace after `map`, `grep` or `sort` is
+// an anonymous hash. toke.c's yyl_leftcurly answers HASHBRACK for a `}` that
+// is the first thing after the `{`, skipping whitespace and comments, before
+// its first-tokens heuristic runs (toke.c:6706). Measured on perl 5.42.0 with
+// -MO=Concise:
+//
+//	map {}, @a   map { }, @a   map { # c\n }, @a      emptyavhv mapwhile
+//	grep {}, @a                                        emptyavhv grepwhile
+//	sort {}, @a                                        emptyavhv sort
+//	map({}, @a)  sort({}, @a)                          emptyavhv
+//	map {} @a    grep {} @a    sort {} @a              syntax error near "} @a"
+//	map({} @a)   sort({} @a)                           syntax error near "} @a"
+//
+// The refused forms are refused by the GRAMMAR, after the lexer read a hash:
+// a hash with no comma after it. So every one of them is a hash here too, and
+// the parser is what refuses it.
+//
+// The skip is perl's skipspace, comments included, which is why the comment
+// form is empty -- and why a comment before a key does not hide the key:
+//
+//	map { # c\n a => 1 }, @a      map({'a', 1}, @a)      a HASHREF
+//
+// Only these three words. After an arbitrary word, `any`, or a keyword whose
+// brace is always a block, an empty brace stays a block -- measured:
+//
+//	zzz {} print "b"     zzz { () } print('b');    a block
+//	any {} @a            any { () } @a;            a block
+//	eval {}; 1           eval { do { () } };       a block
+func TestIntuitCurlyEmptyBrace(t *testing.T) {
+	for _, tc := range []struct {
+		src   string
+		block bool
+	}{
+		{"my @x = map {}, @a;", false},
+		{"my @x = map { }, @a;", false},
+		{"my @x = map { # c\n }, @a;", false},
+		{"my @x = map {\n}, @a;", false},
+		{"my @x = map {} @a;", false},
+		{"my @x = grep {}, @a;", false},
+		{"my @x = grep {} @a;", false},
+		{"my @x = sort {}, @a;", false},
+		{"my @x = sort {} @a;", false},
+		{"my @x = map({}, @a);", false},
+		{"my @x = sort({} @a);", false},
+		{"my @x = map { # c\n a => 1 }, @a;", false},
+
+		{"zzz {} print 'b';", true},
+		{"any {} @a;", true},
+		{"eval {}; 1;", true},
+		{"do {}; 1;", true},
+		{"my $f = sub {};", true},
+		{"my @x = map { ; } @a;", true},
+	} {
+		opens, found := opensBlockAt(tc.src, 0)
+		if !found {
+			t.Errorf("%q: no `{` token", tc.src)
+			continue
+		}
+		if opens != tc.block {
+			t.Errorf("%q: OpensBlock is %v, want %v", tc.src, opens, tc.block)
 		}
 	}
 }

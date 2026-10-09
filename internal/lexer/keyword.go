@@ -131,6 +131,17 @@ var blockTaking = map[string]bool{
 	"any": true, "all": true,
 }
 
+// emptyBraceIsHash reports whether an empty `{}` after this word is an
+// anonymous hash rather than a block: perl's HASHBRACK for a `}` straight
+// after the `{` (toke.c:6706). Measured on 5.42.0, `map {}, @a`, `grep {}, @a`
+// and `sort {}, @a` each compile emptyavhv, and the same brace with no comma
+// after it is a syntax error. print, printf, system and exec read it the same
+// way (`print {} "x"` is a syntax error near `} "x"`) but are outside this set;
+// `any`, `all` and an arbitrary word read a block.
+func emptyBraceIsHash(word string) bool {
+	return word == "map" || word == "grep" || word == "sort"
+}
+
 // takesBlock reports whether a `{` after this word might open a block.
 func takesBlock(word string) bool {
 	return blockTaking[word]
