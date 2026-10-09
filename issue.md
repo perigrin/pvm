@@ -1,12 +1,21 @@
 ---
 title: A postfix hash slice ->@{...} / ->%{...} reports perl's rv2hv
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 blocks:
 - 01a0a8cd-8fcc-72a8-9ba1-c916eee9992d
 created: 2026-10-09T05:00:09.225476484Z
-updated: 2026-10-09T05:00:36.253902127Z
+updated: 2026-10-09T07:15:14.287294014Z
+sessions:
+- start_sha: d7c31487939158225e0589373b9e583fe7ed61fe
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-09T07:15:14.287294014Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-09T07:15:14.287294014Z
 ---
 
 ## Context
