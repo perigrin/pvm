@@ -348,6 +348,13 @@ func (p *parser) parseTerm() *Node {
 			// file that touches a filehandle.
 			return p.parseVarDeclNoSemi(tok)
 
+		case (keywordName(text) == "my" || keywordName(text) == "our") && !p.declaratorIsBareword(tok):
+			// `my` and `our` are always keywords, and with no target they
+			// are no term: measured on 5.42.0, `!my=0`, `f(my)` and `$x =
+			// our;` are each a syntax error. Read as a call, canon wrote
+			// `my()`, which re-read as a declaration.
+			return p.refuseNotATerm(tok)
+
 		case text == "sub":
 			// An anonymous sub: `sub { ... }` with no name. Distinguished
 			// from a declaration by what follows -- a `{` rather than a
@@ -383,9 +390,23 @@ func (p *parser) parseTerm() *Node {
 		}
 	}
 
-	// Not a term. Consumed so the loop advances; the bytes stay in the tree.
+	return p.refuseNotATerm(tok)
+}
+
+// refuseNotATerm declines a token that cannot begin a term. Consumed so the
+// loop advances; the bytes stay in the tree.
+func (p *parser) refuseNotATerm(tok lexer.Token) *Node {
 	p.advanceTo(tok)
 	return &Node{Kind: Unknown, Refusal: NotATerm, Start: tok.Start, End: tok.End}
+}
+
+// declaratorIsBareword reports whether a `my` or `our` with no variable
+// after it is still a word perl reads: a class name before the variable
+// (`my Foo $x`), a hash key (`$h{my}`), or the left of a fat comma (`my =>
+// 1`). Measured on 5.42.0, the last two compile.
+func (p *parser) declaratorIsBareword(word lexer.Token) bool {
+	next, ok := p.peekAfter(word)
+	return ok && (next.Kind == lexer.Word || p.text(next) == "=>" || p.text(next) == "}")
 }
 
 // declaratorTakesTarget reports whether a declarator word is introducing a
