@@ -1,6 +1,6 @@
 ---
 title: "A file a BEGIN block requires declares its subs: BEGIN { require './test.pl' } makes is, like, plan, skip and refcount_is known"
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
@@ -8,16 +8,31 @@ blocked_by:
 blocks:
 - 01a0c13f-e0e2-7b4f-a9d2-06f7edad1e7f
 created: 2026-10-09T03:25:52.865747111Z
-updated: 2026-10-09T03:44:13.138897255Z
+updated: 2026-10-09T04:25:22.687149605Z
 sessions:
 - start_sha: 8ec19ffcb8e44115e5b60423b138536be1add2ba
-  end_sha: ""
-  commits: 0
+  end_sha: 60af68c32a3958399cb3306cc9c90367a28a4860
+  commits: 2
   started_at: 2026-10-09T03:44:13.138897255Z
+  ended_at: 2026-10-09T04:25:22.687149605Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-09T03:44:13.138897255Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-09T04:25:22.687149605Z
+observed_paths:
+- internal/parse/beginrequire_test.go
+- internal/parse/call.go
+- internal/parse/expr_test.go
+- internal/parse/nestedsubfacts_test.go
+- internal/parse/parse.go
+- internal/parse/pmt_test.go
+- internal/parse/required_test.go
+- internal/parse/requirequote_test.go
+- internal/parse/t2_test.go
+- internal/parse/use.go
 ---
 
 ## Context
