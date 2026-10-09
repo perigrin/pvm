@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-17T20:22:39.30654244Z
-updated: 2026-09-19T07:19:59.828150319Z
+updated: 2026-10-09T17:21:15.866150644Z
 sessions:
 - start_sha: 0db016fd18cba84ae70dcfb32f3453a5771bd27d
   end_sha: c3e65b4f5f9e760b2dac649b6094639e1508428d
@@ -104,7 +104,7 @@ output; a CI step that greps for `--- SKIP` among the ratchet tests would
 catch the next time a corpus path silently stops resolving. Without that,
 this whole class of defect can recur without anyone noticing.
 
-## Acceptance
+## Acceptance criteria
 
 - [x] A pin file records the PerlOnJava revision the T1 baseline was measured against (`test -f internal/parse/testdata/t1corpus.pin`)
 - [x] CI fetches that corpus at the pinned revision and verifies HEAD matches before measuring (`grep -q 'rev-parse HEAD' .github/workflows/ci.yml`)
