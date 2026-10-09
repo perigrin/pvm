@@ -1,10 +1,19 @@
 ---
 title: "The lexer panics on a format with no name: format=\\n0\\n\\n indexes an empty slice in scanFormatBody"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-10-09T17:18:34.327458898Z
-updated: 2026-10-09T17:18:34.327458898Z
+updated: 2026-10-09T17:18:43.976218315Z
+sessions:
+- start_sha: 7cbf3fdcf4df28374896f0db93391750fa1f926d
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-09T17:18:43.976218315Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-09T17:18:43.976218315Z
 ---
 
 ## Context
