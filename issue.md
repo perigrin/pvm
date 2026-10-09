@@ -7,81 +7,39 @@ blocked_by:
 - 01a0c13f-c7d7-7d9c-9a85-60a59aa26bc0
 - 01a0c13f-e0e2-7b4f-a9d2-06f7edad1e7f
 created: 2026-09-20T22:59:07.720149993Z
-updated: 2026-09-20T23:57:07.946792894Z
+updated: 2026-10-09T03:25:44.510634269Z
 ---
 
-T2 core is M1's headline metric and it is not close. The plan's target is
-**100% of 56 files**; the measurement is **30.4%, 17 files**, 39 short.
+## Context
 
-Nothing on the chain owns that gap. This issue records what the gap IS, so
-the work can be decomposed from a measurement rather than from a guess.
+- paths: `internal/parse/t2_test.go` (`TestT2CoreParses`, its `shortfall` map)
+- commands: `make test` (green before every commit; never `--no-verify`); the ratchets `go test ./internal/parse/ -run '^(TestParseRatchet|TestPerlGitTRatchet|TestCanonRatchet|TestT2CoreParses)$' -count=1`, `go test ./internal/conformance/ -run '^TestCorpusRatchet$' -count=1`
+- perl 5.42: `/home/perigrin/.local/bin/perl`; perl.git t/ at `~/dev/perl5/t` (the checkout is not built, so `perl -c` on a file that requires `Config` fails for that reason alone)
 
-## The measurement, 2026-09-20 at b6e7c351
+Goal (perigrin, 2026-10-09): all 56 T2 files parse clean.
 
-649 Unknown nodes across 44 of the 56 files. Bucketed by construct, not by
-file:
+## Re-measured, 2026-10-09 at 287e85b8
 
-      179   opbasic/arith.t    `%` in a PARENLESS call's arguments
-      ~151  many              a parenless call whose argument is a bare number
-       65   comp/parser.t     (unbucketed)
-       48   base/num.t        leading-decimal literals, among others
-       41   comp/proto.t      M4 prototype work, not M1's
-       37   base/lex.t        heredocs, leading decimals
+T2 core is **51 of 56 files clean (91.1%)** -- not the 30.4% this milestone's surveys were filed against. Ten Unknown nodes remain, in five files, from two causes:
 
-## Four constructs isolated by minimal reproduction
+    class/destruct.t:51,54          refcount_is $obj, 1, ...;
+    class/field.t:333               ... or skip "XS::APItest not available", 1;
+    class/gh23511.t:21              like $@, qr/.../, "...";
+    comp/filter_exception.t:8       plan tests => 4;
+    comp/filter_exception.t:28,30   like $@, qr/.../;
+    comp/filter_exception.t:29 (x2) is eval { require "t/Foo.pm" }, undef;
+    comp/final_line_num.t:13        +
 
-Each measured against this parser; the first two are most of the corpus.
+- **Nine nodes: a file a BEGIN block requires declares subs.** All four files open `BEGIN { require './test.pl'; ... }`, so perl knows `plan`, `is ($$@)`, `like ($$@)`, `refcount_is` and `skip` (test.pl:55, 395, 510, 536, 570) when it parses their parenless calls; pvm does not read a file a BEGIN-time `require` loads.
+- **One node: a file perl refuses.** comp/final_line_num.t ends `print 1+` at end of file on purpose: perl reports "syntax error at ... line 13, at EOF", which its own BEGIN `$SIG{__DIE__}` handler checks. Under perigrin's ruling (2026-10-09) such a file is clean only when internal/parse refuses it the same way.
 
-**1. `%` as modulus in a parenless call.** 179 nodes, all of arith.t.
+The four comp files c7d7 was filed to measure -- comp/parser.t (65), comp/hints.t (36), comp/colon.t (25), comp/redef.t (21) -- are clean: all 147 nodes are gone.
 
-    tryeq $T++, 13 % 4, 1, 'x';     1 Unknown
-    f 13 % 4;                       1 Unknown
-    f($a, 13 % 4);                  0   <-- inside parens it works
-    my $x = 13 % 4;                 0
+## Steps
 
-So the lexer's expect state is wrong for an argument position after a
-parenless call name: it wants a term, reads `%` as a hash sigil, and the
-statement falls to Unknown. §3.2 says a leading `%` in TERM position is a
-sigil and nowhere else -- the bug is that this position is not a term.
+- [ ] Keep this survey true: each cause above has its own issue in this milestone (the BEGIN-time require; the file perl refuses), and the shortfall map's counts are regenerated as each lands
 
-**2. A parenless call with a bare number argument.**
+## Acceptance criteria
 
-    ok 8;                           1 Unknown
-    ok 8 - 1;                       1 Unknown
-
-`ok`, `print` and `is` account for ~151 rows between them, and this is the
-shape. Likely the same root cause as (1): the argument position is not being
-entered correctly.
-
-**3. A leading-decimal literal.**
-
-    my $x = .5;                     1 Unknown
-    my $x = int($f * 100 + .5);     2 Unknown
-    my $x = 0.5;                    0
-
-**4. Heredocs in statement position.**
-
-    print <<'EOF';\nbody\nEOF\n    1 Unknown
-
-## What this issue is
-
-A MEASUREMENT, filed so the T2 gap is visible on the chain. The fixes belong
-in their own issues, decomposed from the buckets above -- (1) and (2) may
-well be one issue and one root cause, which is worth establishing before
-either is scoped.
-
-comp/proto.t's 41 are M4's and should be excluded from any T2 target M1 is
-held to.
-
-## Acceptance
-
-- [ ] Each bucket above has an issue or is explicitly out of M1's scope, recorded here
-- [ ] The T2 shortfall map's per-file counts are regenerated after each lands (`go test ./internal/parse/ -run '^TestT2CoreParses$' -count=1 -v | grep -q '^--- PASS: TestT2CoreParses'`)
-
-## Why this is not itself the fix
-
-Filing 39 files' worth of work as one issue is the thing that produced a
-32/35 milestone with two targets missed. The buckets are the units; this is
-the survey that names them.
-
-Measured 2026-09-20. Plan: M1. Spec: §3.2, §7.3.
+- [ ] each remaining cause has an issue (`sh -c 'git zhi issue list --milestone m1-parse-the-core --format json | grep -q "BEGIN block requires" && git zhi issue list --milestone m1-parse-the-core --format json | grep -q "perl refuses at end of file"'`)
+- [ ] the T2 ratchet holds (`go test ./internal/parse/ -run '^TestT2CoreParses$' -count=1 -v | grep -q '^--- PASS: TestT2CoreParses'`)
