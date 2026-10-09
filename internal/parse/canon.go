@@ -258,6 +258,17 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 				b.WriteByte('}')
 				break
 			}
+			// `-` or `+` before an operand that begins with the same byte
+			// would write `--` or `++`, the decrement or increment: perl's
+			// Deparse writes `- -$x` as `-(-$x)`, and so does this.
+			if op == "-" || op == "+" {
+				var operand strings.Builder
+				emit(&operand, n.Children[0], src, prefix[op])
+				if text := operand.String(); strings.HasPrefix(text, op) {
+					b.WriteString("(" + text + ")")
+					break
+				}
+			}
 			emit(b, n.Children[0], src, prefix[op])
 		}
 
