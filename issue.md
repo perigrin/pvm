@@ -1,21 +1,40 @@
 ---
 title: "The subject honours #line N, reporting perl's line numbers"
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocks:
 - 01a0a8cd-8fcc-72a8-9ba1-c916eee9992d
 created: 2026-10-09T05:00:09.681039597Z
-updated: 2026-10-09T07:15:14.513771008Z
+updated: 2026-10-09T08:08:20.656291707Z
 sessions:
 - start_sha: d7c31487939158225e0589373b9e583fe7ed61fe
-  end_sha: ""
-  commits: 0
+  end_sha: 4f8842ca84c6c91bf81d9192c8c4eac456a3f55b
+  commits: 2
   started_at: 2026-10-09T07:15:14.513771008Z
+  ended_at: 2026-10-09T08:08:20.656291707Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-09T07:15:14.513771008Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-09T08:08:20.656291707Z
+observed_paths:
+- docs/specs/perl-parser/00-findings.md
+- internal/parse/canon.go
+- internal/parse/canon_test.go
+- internal/parse/cmd/subject/main.go
+- internal/parse/cmd/subject/main_test.go
+- internal/parse/parse.go
+- internal/parse/perllines_test.go
+- internal/parse/refusal.go
+- internal/parse/refusal_test.go
+- internal/parse/sites.go
+- internal/parse/term.go
+- internal/parse/unclosed_test.go
+- internal/parseoracle/ratchet_test.go
+- internal/parseoracle/testdata/ratchet/baseline.txt
 ---
 
 ## Context
