@@ -343,9 +343,9 @@ func groupByStatement(sites []SubjectCallSite) []*statement {
 		}
 
 		// Keyed on the START line alone. A statement reports one site per
-		// marker it decided, each ending at its OWN node -- sites.go:83-101
-		// explains why both ends are needed -- so a statement holding three
-		// references emits three sites sharing a start and differing in end:
+		// marker it decided, and a subject that ends each at its OWN node
+		// emits, for a statement holding three references, three sites
+		// sharing a start and differing in end:
 		//
 		//	for (                      # op/ref.t:214
 		//	    [ 'undef', \undef  ],  # 215

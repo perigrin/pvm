@@ -310,11 +310,11 @@ func TestCorpusBaselineIsIntact(t *testing.T) {
 
 	knownWrong := []string{
 		"comp/parser.t", "comp/proto.t", "io/scalar.t", "io/scalar_ungetc.t",
-		"japh/abigail.t", "lib/deprecate.t", "lib/universal.t", "op/bop.t",
+		"japh/abigail.t", "lib/deprecate.t", "lib/universal.t",
 		"op/concat2.t", "op/coreamp.t", "op/each.t", "op/gmagic.t", "op/goto.t",
 		"op/gv.t", "op/hash-clear-placeholders.t", "op/hash.t", "op/lexsub.t",
-		"op/postfixderef.t", "op/ref.t", "op/sort.t", "op/sprintf2.t",
-		"op/sselect.t", "op/sub_lval.t", "op/switch.t", "porting/dual-life.t",
+		"op/postfixderef.t", "op/ref.t", "op/sort.t",
+		"op/sselect.t", "op/sub_lval.t", "op/switch.t",
 		"porting/libperl.t", "re/reg_eval_scope.t",
 	}
 	if strings.Join(wrongPaths, " ") != strings.Join(knownWrong, " ") {

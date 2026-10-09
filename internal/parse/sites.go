@@ -74,19 +74,17 @@ func Sites(root *Node, src []byte) []parseoracle.SubjectCallSite {
 		// cannot be wrong -- nor right. WRONG=0 with exact=0 is the vacuous
 		// gate the M1 issue's "exact floor" row exists to prevent.
 		//
-		// Each site is reported at ITS OWN node's span, not the statement's.
-		// perl's probe walks the CVs, so a backslash in a sub body is
-		// reported at the body's line; CompareFacts spends a decided site
-		// only against the innermost subject statement covering that line
-		// (`compare_facts.go:349`). A site pooled under `sub foo {`'s whole
-		// span is never reached from inside the body, and a marker this
-		// parser read correctly scores WRONG.
+		// Each site is reported once per occurrence, spanning its
+		// statement. perl's probe walks the CVs, so a backslash in a sub
+		// body is reported at the body's line; CompareFacts spends a decided
+		// site only against the innermost subject statement covering that
+		// line (`compare_facts.go:349`), and a statement span covers it.
 		for _, d := range decidedMarkers(n) {
-			// The span runs from the STATEMENT's line to the NODE's, and
-			// needs both ends for opposite reasons.
+			// The span is the whole STATEMENT, because perl's nextstate
+			// line can be either end of it.
 			//
 			// perl attributes a site to its enclosing nextstate, which
-			// records the statement's FIRST line. Measured on 5.42.0:
+			// usually records the statement's FIRST line. Measured on 5.42.0:
 			//
 			//	my $r = f(       # line 1
 			//	    "a",
@@ -97,18 +95,28 @@ func Sites(root *Node, src []byte) []parseoracle.SubjectCallSite {
 			// A site reported as the point 3-3 is never found by `innermost`,
 			// which wants a range CONTAINING perl's line
 			// (`compare_facts.go:349-359`); starting at the statement fixes
-			// that. Ending at the NODE is what keeps a `\` inside a sub body
-			// from pooling under the whole sub, which perl's CV walk reports
-			// at the body's own line. t/comp/parser_run.t:17 is the first
-			// case, t/class/destruct.t:22 the second.
-			siteEnd := lines.at(d.node.End - 1)
-			if siteEnd < start {
-				siteEnd = start
-			}
+			// that. t/comp/parser_run.t:17 is the case.
+			//
+			// But perl's copline moves past an anonymous sub, a `when`
+			// block or a bareword subscript, and then the nextstate records
+			// the statement's LAST line:
+			//
+			//	my @r = (\@a, sub {  # line 2
+			//	 1;
+			//	});                  # line 4
+			//	-> nextstate(main 2 rep.pl:4), srefgen
+			//
+			// A site ending at its own node, line 2, never contains line 4.
+			// comp/proto.t:540, op/bop.t:706 and op/switch.t:209 are this
+			// shape.
+			//
+			// A site inside a sub body, which perl's CV walk reports at the
+			// body's own line (t/class/destruct.t:22), lies inside the
+			// statement either way.
 			sites = append(sites, parseoracle.SubjectCallSite{
 				Kind:       d.kind,
 				Line:       start,
-				EndLine:    siteEnd,
+				EndLine:    end,
 				Unresolved: d.unresolved,
 
 				// The srefgen marker is decided by this field, not by the
