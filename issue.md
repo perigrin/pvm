@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-19T12:19:07.059614571Z
-updated: 2026-09-19T12:44:18.074826134Z
+updated: 2026-10-09T17:21:17.880268583Z
 sessions:
 - start_sha: 4bb5af573f0937de0b63a88bc5e43954d31f75cd
   end_sha: 657d0caf0f47c00e90171f5eed8589e133a9d877
@@ -70,7 +70,7 @@ The `=>` case is already right: exports.go reads Fat correctly, and
 `{a => 1}` gives a Call with Fat set. That flag is how the fat comma's own
 autoquoting is recorded, and the same reasoning applies here.
 
-## Acceptance
+## Acceptance criteria
 
 - [x] A bareword subscript is a Term, not a Call (`go test ./internal/parse/ -run '^TestBarewordSubscriptIsAString$' -count=1 -v | grep -q '^--- PASS: TestBarewordSubscriptIsAString'`)
 - [x] An explicit `$h{k()}` stays a Call (`go test ./internal/parse/ -run '^TestBarewordSubscriptIsAString$' -count=1 -v | grep -q '^--- PASS: TestBarewordSubscriptIsAString'`)
