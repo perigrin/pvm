@@ -6,7 +6,7 @@ milestone: m1-parse-the-core
 blocks:
 - 01a0bae2-e4fe-74e9-82cb-562c3fa8adf6
 created: 2026-09-19T18:10:16.339474961Z
-updated: 2026-10-09T17:21:18.998278373Z
+updated: 2026-10-09T17:24:06.798975559Z
 sessions:
 - start_sha: afdd06c9562e8c8efaa4fb31bad3824739ffb0ba
   end_sha: 09e38fa97c039422168735f3da9b607b14677d80
@@ -74,11 +74,25 @@ These are NOT prototype cases. The lines carry no call to a
 prototyped sub -- `for (` and `push @tests,` are ordinary statements. M4
 owns prototypes; this is separate and lands in M1.
 
+### Criteria re-pointed (2026-10-09)
+
+These criteria sat under a heading `git zhi verify` does not read, so they
+never ran; run now, some named tests that no longer exist or need a shim:
+TestGoParserWrongIsZero and TestGoParserExactFloor run only with
+PARSEORACLE_SHIM (the oracle measures internal/parse by default since
+01a0b835), TestUnknownScoresWider was deleted in 3b9422eb (TestUnknownHedgesEveryMarker
+asserts the rule directly), and the T1-easy tests went with easy_test.go
+in b4180102 (the T1 ratchet is the gate). Each now names the gate that
+holds the same claim today: TestCorpusBaselineIsIntact asserts zero WRONG;
+an exact floor is checked against the committed baseline's rows; the T1
+rate against the T1 ratchet's own header; TestSitesSpanMultilineStatement
+lives in internal/parseoracle.
+
 ## Acceptance criteria
 
 - [x] The repeated-line sites resolve to one statement each, measured (`go test ./internal/parseoracle/ -run '^TestStatementSpanCoversItsOps$' -count=1 -v | grep -q '^--- PASS: TestStatementSpanCoversItsOps'`)
-- [x] The cause is recorded: span not covering, or duplicate sites (`go test ./internal/parse/ -run '^TestSitesSpanMultilineStatement$' -count=1 -v | grep -q '^--- PASS: TestSitesSpanMultilineStatement'`)
-- [x] WRONG srefgen sites fall, measured over the corpus (`go test ./internal/parseoracle/ -run '^TestGoParserWrongIsZero$' -count=1 -v | grep -q '^--- PASS: TestGoParserWrongIsZero'`)
+- [x] The cause is recorded: span not covering, or duplicate sites (`go test ./internal/parseoracle/ -run '^TestSitesSpanMultilineStatement$' -count=1 -v | grep -q '^--- PASS: TestSitesSpanMultilineStatement'`)
+- [x] WRONG srefgen sites fall, measured over the corpus (`go test ./internal/parseoracle/ -run '^TestCorpusBaselineIsIntact$' -count=1 -v | grep -q '^--- PASS: TestCorpusBaselineIsIntact'`)
 
 Found by 01a0ba79's ranked table. Plan: M1. Spec: §7.2.
 
