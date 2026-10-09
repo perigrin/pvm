@@ -1,12 +1,21 @@
 ---
 title: The oracle counts a cloned anon sub's ops once, not twice
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 blocks:
 - 01a0a8cd-8fcc-72a8-9ba1-c916eee9992d
 created: 2026-10-09T05:00:09.069779735Z
-updated: 2026-10-09T05:00:34.64545554Z
+updated: 2026-10-09T05:00:57.604149967Z
+sessions:
+- start_sha: a341ba06c04d14ad11bda95e66345ad83f611576
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-09T05:00:57.604149967Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-09T05:00:57.604149967Z
 ---
 
 ## Context
