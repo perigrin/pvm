@@ -6,7 +6,7 @@ milestone: m1-parse-the-core
 blocks:
 - 01a0bae2-e4fe-74e9-82cb-562c3fa8adf6
 created: 2026-09-19T18:10:16.339474961Z
-updated: 2026-09-19T20:38:21.082315925Z
+updated: 2026-10-09T17:21:18.998278373Z
 sessions:
 - start_sha: afdd06c9562e8c8efaa4fb31bad3824739ffb0ba
   end_sha: 09e38fa97c039422168735f3da9b607b14677d80
@@ -74,7 +74,7 @@ These are NOT prototype cases. The lines carry no call to a
 prototyped sub -- `for (` and `push @tests,` are ordinary statements. M4
 owns prototypes; this is separate and lands in M1.
 
-## Acceptance
+## Acceptance criteria
 
 - [x] The repeated-line sites resolve to one statement each, measured (`go test ./internal/parseoracle/ -run '^TestStatementSpanCoversItsOps$' -count=1 -v | grep -q '^--- PASS: TestStatementSpanCoversItsOps'`)
 - [x] The cause is recorded: span not covering, or duplicate sites (`go test ./internal/parse/ -run '^TestSitesSpanMultilineStatement$' -count=1 -v | grep -q '^--- PASS: TestSitesSpanMultilineStatement'`)
