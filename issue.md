@@ -1,19 +1,70 @@
 ---
 title: "The lexer panics on a format with no name: format=\\n0\\n\\n indexes an empty slice in scanFormatBody"
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-10-09T17:18:34.327458898Z
-updated: 2026-10-09T17:18:43.976218315Z
+updated: 2026-10-09T19:48:53.66484412Z
 sessions:
 - start_sha: 7cbf3fdcf4df28374896f0db93391750fa1f926d
-  end_sha: ""
-  commits: 0
+  end_sha: 79cb88417fc43ff03ba5154ef6eb2928fd3b3ea0
+  commits: 2
   started_at: 2026-10-09T17:18:43.976218315Z
+  ended_at: 2026-10-09T19:48:53.66484412Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-09T17:18:43.976218315Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-09T19:48:53.66484412Z
+observed_paths:
+- internal/lexer/brackets.go
+- internal/lexer/delim_test.go
+- internal/lexer/expect.go
+- internal/lexer/heredoc_test.go
+- internal/lexer/lastidx_test.go
+- internal/lexer/lexer.go
+- internal/lexer/pod.go
+- internal/lexer/pod_test.go
+- internal/lexer/quote.go
+- internal/lexer/quote_test.go
+- internal/lexer/scan.go
+- internal/lexer/sigilspace_test.go
+- internal/parse/ambiguoussigil_test.go
+- internal/parse/canon.go
+- internal/parse/control.go
+- internal/parse/control_test.go
+- internal/parse/decl.go
+- internal/parse/decl_test.go
+- internal/parse/derefcanon_test.go
+- internal/parse/expr.go
+- internal/parse/formateofcanon_test.go
+- internal/parse/keyquoteop_test.go
+- internal/parse/literalrange_test.go
+- internal/parse/methodgate_test.go
+- internal/parse/refusal.go
+- internal/parse/refusal_test.go
+- internal/parse/term.go
+- internal/parse/testdata/fuzz/FuzzParser/0a7bf5a6847330ca
+- internal/parse/testdata/fuzz/FuzzParser/1d8e878b245a4d18
+- internal/parse/testdata/fuzz/FuzzParser/265c688a3cda12ee
+- internal/parse/testdata/fuzz/FuzzParser/6e82dbe27cb52f90
+- internal/parse/testdata/fuzz/FuzzParser/6f4123251d19517b
+- internal/parse/testdata/fuzz/FuzzParser/8cdacffd12f615d6
+- internal/parse/testdata/fuzz/FuzzParser/97207773ca613314
+- internal/parse/testdata/fuzz/FuzzParser/ae85ae101f71eea1
+- internal/parse/testdata/fuzz/FuzzParser/aec6e6ec684aa209
+- internal/parse/testdata/fuzz/FuzzParser/bea487d46dc6ff51
+- internal/parse/testdata/fuzz/FuzzParser/dd9600c0bfa3547c
+- internal/parse/testdata/fuzz/FuzzParser/e7cce4b02f0018d1
+- internal/parse/testdata/fuzz/FuzzParser/ef55e35659d56262
+- internal/parse/testdata/fuzz/FuzzParser/f533dab875bee51d
+- internal/parse/testdata/fuzz/FuzzParser/fc94f4f5f7e5a508
+- internal/parse/trailingcomma_test.go
+- internal/parse/unaryplus_test.go
+- internal/parse/unclosed_test.go
+- internal/parse/wrongtree_test.go
 ---
 
 ## Context
