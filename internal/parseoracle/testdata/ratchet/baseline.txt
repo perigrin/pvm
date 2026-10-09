@@ -64,7 +64,7 @@ exact         2 -              comp/opsubs.t
 wider         8 -              comp/our.t
 wider         6 -              comp/package.t
 exact         1 -              comp/package_block.t
-WRONG         7 -              comp/parser.t
+wider         7 -              comp/parser.t
 exact         7 -              comp/parser_run.t
 exact       109 -              comp/proto.t
 exact         0 -              comp/redef.t
@@ -234,7 +234,7 @@ exact         2 -              op/concat2.t
 exact         0 -              op/cond.t
 exact        43 -              op/const-optree.t
 exact         1 -              op/context.t
-WRONG       102 -              op/coreamp.t
+wider       102 -              op/coreamp.t
 exact        11 -              op/coresubs.t
 exact         1 -              op/cproto.t
 exact         0 -              op/crypt.t
@@ -339,7 +339,7 @@ exact         2 -              op/override.t
 wider        45 -              op/pack.t
 exact         3 -              op/packagev.t
 exact        19 -              op/pos.t
-WRONG        50 -              op/postfixderef.t
+wider        50 -              op/postfixderef.t
 exact         0 -              op/pow.t
 exact         4 -              op/print.t
 exact         0 -              op/protowarn.t
@@ -390,7 +390,7 @@ exact         8 -              op/state.t
 exact        33 -              op/study.t
 exact         3 -              op/studytied.t
 exact        34 -              op/sub.t
-WRONG        58 -              op/sub_lval.t
+wider        58 -              op/sub_lval.t
 exact        17 -              op/substr.t
 exact         0 -              op/substr_left.t
 exact         0 -              op/substr_thr.t
@@ -515,7 +515,7 @@ exact         1 -              re/reg_60508.t
 exact         4 -              re/reg_email.t
 exact         0 -              re/reg_email_thr.t
 exact         8 -              re/reg_eval.t
-WRONG        51 -              re/reg_eval_scope.t
+wider        51 -              re/reg_eval_scope.t
 exact         1 -              re/reg_fold.t
 exact        13 -              re/reg_mesg.t
 wider         2 -              re/reg_namedcapture.t

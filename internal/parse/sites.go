@@ -81,7 +81,7 @@ func Sites(root *Node, src []byte) []parseoracle.SubjectCallSite {
 		// body is reported at the body's line; CompareFacts spends a decided
 		// site only against the innermost subject statement covering that
 		// line (`compare_facts.go:349`), and a statement span covers it.
-		for _, d := range decidedMarkers(n) {
+		for _, d := range decidedMarkers(n, src) {
 			// The span is the whole STATEMENT, because perl's nextstate
 			// line can be either end of it.
 			//
@@ -158,7 +158,7 @@ type decided struct {
 // pattern; `$a < $c` is a comparison, not a readline. The lexer settled all
 // three by position (§3.2) and the tree records the answer, so reading the
 // tree cannot reach a different one. Scanning source text could.
-func decidedMarkers(stmt *Node) []decided {
+func decidedMarkers(stmt *Node, src []byte) []decided {
 	var found []decided
 
 	// One entry per OCCURRENCE, not per kind. CompareFacts consumes a decided
@@ -374,6 +374,27 @@ func decidedMarkers(stmt *Node) []decided {
 				}
 				return
 			}
+			// Code inside an interpolating string, regex or heredoc --
+			// `${\ f()}`, `@{[ ... ]}`, a subscript, a postfix dereference --
+			// is compiled by perl into ordinary ops and never parsed here:
+			// the literal is one leaf. The plan's M1 rule reports what is
+			// not understood as unknown, so every marker hedges until the
+			// embedded code is parsed (01a12059-3011).
+			//
+			// No return: the leaf is still what it is, and a pattern's own
+			// match stays decided below. perl emits refgen AND match for
+			// `"ba" =~ /b${\do { qr|a| }}/` (re/reg_eval_scope.t:99).
+			//
+			// ponytail: a heredoc body is tested whatever its opener, so a
+			// `<<'EOF'` body holding `@{[` hedges too. perl reports nothing
+			// there, so the hedge is never spent; pairing each body with its
+			// opener is the upgrade if the precision ever matters.
+			if (n.HeredocBody && interpolatesCode(string(src[n.Start:n.End]))) ||
+				(isInterpolatingQuote(n.Text) && interpolatesCode(n.Text)) {
+				for _, kind := range markerKinds {
+					hedge(kind, n)
+				}
+			}
 			switch {
 			case isNamedHash(n.Text):
 				// perl: rv2hv for a PACKAGE hash, padhv for a lexical --
@@ -408,6 +429,11 @@ func decidedMarkers(stmt *Node) []decided {
 				continue
 			}
 			walk(c)
+		}
+		// A heredoc body inside its statement's span is held beside the
+		// children rather than among them, and it interpolates as any other.
+		for _, b := range n.InnerHeredocBodies {
+			walk(b)
 		}
 	}
 	walk(stmt)
@@ -467,6 +493,102 @@ func hidesStructure(text string) bool {
 	// Anything bracket-like inside the block is structure this parser did
 	// not build. A bare name or a lone variable has none.
 	return strings.ContainsAny(text[2:], "{[(")
+}
+
+// isInterpolatingQuote reports whether a leaf is a literal perl interpolates:
+// `"..."`, a backtick command, a bare `/.../`, or qq, qx, m, qr or s with any
+// delimiter but `'`, which turns interpolation off (perlop, "Gory details of
+// parsing quoted constructs").
+func isInterpolatingQuote(text string) bool {
+	if text == "" {
+		return false
+	}
+	switch text[0] {
+	case '"', '`', '/':
+		return true
+	}
+	for _, op := range []string{"qq", "qx", "qr", "m", "s"} {
+		if quoteOpIs(text, op) {
+			delim := strings.TrimLeft(text[len(op):], " \t\n")
+			return delim != "" && delim[0] != '\''
+		}
+	}
+	return false
+}
+
+// interpolatesCode reports whether an interpolating literal's bytes hold an
+// expression rather than a plain variable: a `${ ... }` or `@{ ... }` block
+// around anything but a name, or a variable followed by a subscript or a
+// dereferencing arrow. Measured on 5.42.0, perl reports no marker for `"$x"`,
+// `"@a"`, `"${x}"` or `"$x->method"` (the arrow is text there), and the five
+// markers turn up only once there is code.
+//
+// Deliberately conservative, as hidesStructure is: `"$a[0]"` hedges though
+// perl folds it to aelemfast, because a false positive costs a hedge and a
+// false negative is silence over bytes perl found something in.
+func interpolatesCode(s string) bool {
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '\\':
+			i++ // an escaped byte is literal
+		case '$', '@':
+			if codeAfterSigil(s[i+1:]) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// codeAfterSigil reads what follows an interpolating `$` or `@`.
+func codeAfterSigil(rest string) bool {
+	rest = strings.TrimLeft(rest, "$#") // `$$r`, `$#a`, `$#{...}`
+	if strings.HasPrefix(rest, "{") {
+		end := matchingBrace(rest)
+		if end < 0 {
+			return true // unclosed: whatever it holds, it is not a name
+		}
+		inner := strings.TrimLeft(strings.TrimSpace(rest[1:end]), "$^")
+		if inner == "" || strings.IndexFunc(inner, func(r rune) bool {
+			return r != ':' && (r >= utf8.RuneSelf || !isWordByte(byte(r)))
+		}) >= 0 {
+			return true
+		}
+		rest = rest[end+1:]
+	} else {
+		name := len(rest) - len(strings.TrimLeft(rest, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_:"))
+		if name == 0 {
+			return false // `$)`, `/x$/`, `mail@`: no variable here
+		}
+		rest = rest[name:]
+	}
+	if rest != "" && (rest[0] == '[' || rest[0] == '{') {
+		return true
+	}
+	if after, ok := strings.CutPrefix(rest, "->"); ok && after != "" &&
+		strings.ContainsRune("[{@$%", rune(after[0])) {
+		return true
+	}
+	return false
+}
+
+// matchingBrace returns the index of the `}` closing the `{` at s[0], or -1.
+func matchingBrace(s string) int {
+	depth := 0
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '\\':
+			i++
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return i
+			}
+		}
+	}
+	return -1
 }
 
 // isHashTerm reports whether a leaf's text is a hash read: `%h`, `%$r`.
