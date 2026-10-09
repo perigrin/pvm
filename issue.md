@@ -1,10 +1,19 @@
 ---
 title: FuzzParser has no fixpoint invariant, so a canon defect the fuzzer reaches breaks no assertion
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-26T13:59:01.639917324Z
-updated: 2026-10-09T03:24:02.482340199Z
+updated: 2026-10-09T05:31:57.443390482Z
+sessions:
+- start_sha: 0a4028652b10372f819872a4a07866fb7eb15151
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-09T05:31:57.443390482Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-09T05:31:57.443390482Z
 ---
 
 `checkParseInvariants` in `internal/parse/fuzz_test.go` asserts three things --
