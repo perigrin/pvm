@@ -369,3 +369,22 @@ func TestForHeadWithTwoExpressionsRefuses(t *testing.T) {
 		}
 	}
 }
+
+// TestCStyleForHeadNeedsThreeClauses is the parser fuzzer's `for(0;0)`. A
+// C-style head is three clauses and two `;`, any of them empty. Measured on
+// 5.42.0, `for(0;0){}` and `for(;0){}` are "syntax error ... near "0)"",
+// `for(0;){}` near ";)", `for(;;;){}` near ";;" and `for(0;0;0;0){}` near
+// "0;". Read as two parts, canon wrote a head that re-read with a third.
+func TestCStyleForHeadNeedsThreeClauses(t *testing.T) {
+	for _, src := range []string{"for(0;0)", "for(0;0){}", "for(;0){}", "for(0;){}", "for(;;;){}", "for(0;0;0;0){}"} {
+		found := collectUnknown(parse.Parse([]byte(src)))
+		if len(found) == 0 || found[0].Refusal != parse.TrailingTokens {
+			t.Errorf("%q: want a trailing_tokens refusal, got %v", src, refusalCodes(found))
+		}
+	}
+	for _, src := range []string{"for(0;0;){}", "for(;0;){}", "for(0;;){}", "for(;;){}", "for(my $i=0;$i<1;){}"} {
+		if found := collectUnknown(parse.Parse([]byte(src))); len(found) != 0 {
+			t.Errorf("%q: perl compiles this, but it refuses: %v", src, refusalCodes(found))
+		}
+	}
+}
