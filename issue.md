@@ -1,19 +1,28 @@
 ---
 title: Canon writes unary + as the word pos, a different program
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-10-09T06:03:13.36178496Z
-updated: 2026-10-09T06:13:54.910045816Z
+updated: 2026-10-09T06:38:18.136920878Z
 sessions:
 - start_sha: 0cbc6dfb48de6e5fb1f7641ecefb081702ab84f9
-  end_sha: ""
-  commits: 0
+  end_sha: 26ab62a38e4c933b22d86f60180d432001c9fde1
+  commits: 1
   started_at: 2026-10-09T06:13:54.910045816Z
+  ended_at: 2026-10-09T06:38:18.136920878Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-09T06:13:54.910045816Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-09T06:38:18.136920878Z
+observed_paths:
+- internal/parse/canon.go
+- internal/parse/testdata/t1canon.ratchet
+- internal/parse/testdata/t1fidelity.ratchet
+- internal/parse/unaryplus_test.go
 ---
 
 ## Context
