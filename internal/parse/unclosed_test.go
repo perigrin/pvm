@@ -15,7 +15,7 @@ import (
 // line of the last token perl read:
 //
 //	0(                  syntax error at m.pl line 1, near "0("
-//	for(0A0             syntax error at m.pl line 1, near "0A0"
+//	for(0               syntax error at m.pl line 1, at EOF
 //	{                   Missing right curly or square bracket at m.pl line 1
 //	sub f {             Missing right curly or square bracket at m.pl line 1
 //	my $x = (1          syntax error at m.pl line 1, at EOF
@@ -34,6 +34,10 @@ import (
 // deref's own site before end of file is reached, also on perl's line 1:
 // "Missing right curly or square bracket at m.pl line 1".
 //
+// `for(0A0` is not here: perl's error there is the missing operator, "Bareword
+// found where operator expected ... near "0A0"", and the parser refuses it as
+// trailing_tokens -- see TestForHeadWithTwoExpressionsRefuses.
+//
 // `0()`, the closed form of `0(`, is no negative: perl refuses it too, as
 // "syntax error ... near "0("", so it is not listed below.
 func TestUnclosedOpenerAtEOFRefused(t *testing.T) {
@@ -42,7 +46,7 @@ func TestUnclosedOpenerAtEOFRefused(t *testing.T) {
 		line int
 	}{
 		{"0(", 1},
-		{"for(0A0", 1},
+		{"for(0", 1},
 		{"(", 1},
 		{"[", 1},
 		{"{", 1},
