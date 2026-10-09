@@ -1,19 +1,29 @@
 ---
 title: The three parse ratchet headers are derived on write and skipped on read, so each can drift silently
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-26T13:50:43.493701239Z
-updated: 2026-10-09T04:48:37.141255104Z
+updated: 2026-10-09T05:24:36.043968952Z
 sessions:
 - start_sha: 98d028499fdad30e12a1e2e54cc03ddb455833f4
-  end_sha: ""
-  commits: 0
+  end_sha: 0a4028652b10372f819872a4a07866fb7eb15151
+  commits: 3
   started_at: 2026-10-09T04:48:37.141255104Z
+  ended_at: 2026-10-09T05:24:36.043968952Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-09T04:48:37.141255104Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-09T05:24:36.043968952Z
+observed_paths:
+- internal/lexer/repetitionglued_test.go
+- internal/lexer/scanrows_test.go
+- internal/parse/perlgitt_test.go
+- internal/parse/ratchet_test.go
+- internal/parse/t2_test.go
 ---
 
 The three parse-side ratchet headers are derived on write and skipped on read,
