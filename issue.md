@@ -1,10 +1,19 @@
 ---
 title: "Canon drops the closing parenthesis around a low-precedence word operator: (%h and 1) emits (%h and 1;"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-10-09T07:02:15.524283243Z
-updated: 2026-10-09T07:02:15.524283243Z
+updated: 2026-10-09T07:14:26.203229426Z
+sessions:
+- start_sha: d7c31487939158225e0589373b9e583fe7ed61fe
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-09T07:14:26.203229426Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-09T07:14:26.203229426Z
 ---
 
 ## Context
