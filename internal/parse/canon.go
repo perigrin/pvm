@@ -911,7 +911,11 @@ func blockForm(n *Node) bool {
 		// modifier statement, which is half of why they canon'd as something
 		// that is not Perl.
 		return !last.Modifier
-	case Phaser, Block, Use, Unknown:
+	case Phaser:
+		// A phaser name with no block is a forward declaration, `sub END;`
+		// to perl's Deparse, and takes its `;` like any other.
+		return len(last.Children) > 0
+	case Block, Use, Unknown:
 		return true
 	case LoopControl:
 		// NOT a block form. `last`, `next`, `redo`, `goto` and `return` all end

@@ -454,3 +454,24 @@ func TestParenthesisedNoOperandIsAFixpoint(t *testing.T) {
 		}
 	}
 }
+
+// TestBlocklessPhaserKeepsItsSemicolon is the parser fuzzer's `END;;`. A
+// phaser name with no block is a forward declaration: measured on 5.42.0,
+// Deparse writes `END;` as `sub END;`. Canon wrote it as a block form, with
+// no `;`, so the next statement's `;` re-read as its own.
+func TestBlocklessPhaserKeepsItsSemicolon(t *testing.T) {
+	for _, tc := range []struct{ src, want string }{
+		{"END;;", "END;;"},
+		{"END;", "END;"},
+		{"BEGIN; 1;", "BEGIN;1;"},
+		{"END { 1 }", "END {1;}"},
+	} {
+		got := strings.TrimSpace(parse.Canon(parse.Parse([]byte(tc.src)), []byte(tc.src)))
+		if got != tc.want {
+			t.Errorf("Canon(parse(%q)):\n  got  %q\n  want %q", tc.src, got, tc.want)
+		}
+		if ok, why := canonMatches([]byte(tc.src)); !ok {
+			t.Errorf("%q: canon is not a fixpoint: %s", tc.src, why)
+		}
+	}
+}
