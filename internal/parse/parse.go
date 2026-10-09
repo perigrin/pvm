@@ -441,6 +441,20 @@ type Node struct {
 	// what the loop is.
 	LoopVar bool
 
+	// CStyle is set on a Loop whose head is `for (INIT; COND; STEP)` rather
+	// than a list, and ForSlots says which of its three slots hold a clause.
+	// The clauses are the Loop's children ahead of its Block, in slot order.
+	//
+	// Not derivable from the children. `for (0;;)` and `for (;;0)` both have
+	// one child, and `for (;;)` has none -- the same shape as a `for` whose
+	// head is missing. Without the slots canon parenthesised the first clause
+	// as a condition and wrote the rest bare after it, `for (my $i = 0) $i < 3
+	// $i++ {}`, and dropped `for (;;)`'s head entirely. Measured on 5.42.0,
+	// Deparse writes the slots back, an empty one as nothing:
+	// `for ($a; ; $c) {`.
+	CStyle   bool
+	ForSlots [3]bool
+
 	// TrailingComma is the separator, `,` or `=>`, the source wrote after
 	// this node with no element after it -- `f(1, 2,)`. perl drops it
 	// (measured on 5.42.0, `f(1, 2,)` deparses as `f(1, 2)`), and so does

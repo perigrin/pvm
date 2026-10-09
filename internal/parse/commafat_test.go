@@ -49,12 +49,24 @@ func TestCommaBeforeFatComma(t *testing.T) {
 // holds "" and 0, `(-foo=>0)` holds "-foo" and 0, and `sub foo {7} (1+foo=>0)`
 // holds 1 and 0 -- foo is never called. Read as a call, canon wrote
 // `!y() => 0`, and `y()` re-read as a transliteration.
+//
+// A declaration's initialiser is such an operand too, the fuzzer's
+// `my$0=y=>0`: measured on 5.42.0, `sub foo {7} my @a = (my $x = foo=>0)`
+// leaves $x "foo" and @a ("foo", 0), and `((my $x = foo)=>0)` calls it.
+// So does a word written with its call's parens, which canon writes for the
+// grouping it drops: `(my $x = foo()=>0)` leaves $x 7, and
+// `(!foo()=>0, 1+foo()=>0)` holds "", 0, 8 and 0.
 func TestFatCommaQuotesAnOperandsWord(t *testing.T) {
 	for _, tc := range []struct{ src, want string }{
 		{"!y=>0", "!y => 0;"},
 		{"sub foo {1} my @a = (!foo=>0);", "sub foo {1;} my @a = (!foo => 0);"},
 		{"sub foo {7} my @a = (1+foo=>0);", "sub foo {7;} my @a = (1 + foo => 0);"},
 		{"sub foo {7} my @a = ((foo)=>0);", "sub foo {7;} my @a = ((foo) => 0);"},
+		{"my$x=y=>0", "my $x = y => 0;"},
+		{"sub foo {7} my @a = (my $x = foo=>0);", "sub foo {7;} my @a = (my $x = foo => 0);"},
+		{"sub foo {7} my @a = ((my $x = foo)=>0);", "sub foo {7;} my @a = (my $x = foo() => 0);"},
+		{"sub foo {7} my @a = (my $x = foo()=>0);", "sub foo {7;} my @a = (my $x = foo() => 0);"},
+		{"sub foo {7} my @a = (!foo()=>0, 1+foo()=>0);", "sub foo {7;} my @a = (!foo() => 0, 1 + foo() => 0);"},
 	} {
 		got := strings.TrimSpace(parse.Canon(parse.Parse([]byte(tc.src)), []byte(tc.src)))
 		if got != tc.want {

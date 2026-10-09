@@ -44,13 +44,16 @@ func (p *parser) parseExpr(minBP int) *Node {
 // it is an operator's operand rather than the whole left side: measured on
 // 5.42.0, `(!foo=>0)` holds "" and `(1+foo=>0)` holds 1, foo never called.
 // A parenthesis between the word and the `=>` ends the reach -- `(foo)=>0`
-// calls foo -- so only Unary, Binary and Ternary right edges are followed.
+// calls foo -- so only Unary, Binary and Ternary right edges are followed,
+// and a Declaration's, whose last child is its initialiser: measured on
+// 5.42.0, `(my $x = foo=>0)` leaves $x "foo". The word must be bare: its
+// call's own parens end the reach as well, and `(!foo()=>0)` calls foo.
 func markFatOperand(left *Node) {
 	n := left
-	for !n.Paren && len(n.Children) > 0 && (n.Kind == Unary || n.Kind == Binary || n.Kind == Ternary) {
+	for !n.Paren && len(n.Children) > 0 && (n.Kind == Unary || n.Kind == Binary || n.Kind == Ternary || n.Kind == Declaration) {
 		n = n.Children[len(n.Children)-1]
 	}
-	if n != left && !n.Paren && n.Kind == Call && len(n.Children) == 0 && n.End == left.End {
+	if n != left && !n.Paren && n.Kind == Call && len(n.Children) == 0 && n.End == left.End && n.End-n.Start == len(n.Text) {
 		n.Fat = true
 	}
 }
