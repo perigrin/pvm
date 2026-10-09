@@ -7,7 +7,7 @@ blocked_by:
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 - 01a0b835-1270-7b32-9f0a-18fe7c555bae
 created: 2026-09-16T06:00:39.116126082Z
-updated: 2026-09-29T01:01:39.963670927Z
+updated: 2026-10-09T03:24:00.940875225Z
 sessions:
 - start_sha: 528b9d835526d7a2c3acb41646c44cf6fd145437
   end_sha: 528b9d835526d7a2c3acb41646c44cf6fd145437
@@ -63,10 +63,11 @@ findings §0.11.
 If only ONE is fixed, replace the pin with the remaining path rather than
 loosening it to a count.
 
-## Acceptance
+
+Findings: §0.11. Introduced by a69d8f1c; pinned by the commit that closes this issue's parent.
+
+## Acceptance criteria
 
 - [ ] The WRONG pin is gone and the gate asserts zero (`go test ./internal/parseoracle/ -run '^TestCorpusBaselineIsIntact$' -count=1 -v | grep -q '^--- PASS: TestCorpusBaselineIsIntact'`)
 - [ ] The baseline holds no WRONG rows (`grep -c '^WRONG' internal/parseoracle/testdata/ratchet/baseline.txt | grep -q '^0$'`)
-- [ ] Findings §0.11 records the change with the measurement that produced it
-
-Findings: §0.11. Introduced by a69d8f1c; pinned by the commit that closes this issue's parent.
+- [ ] findings §0.11 records that the pin is gone (`grep -q 'WRONG pin removed' docs/specs/perl-parser/00-findings.md`)
