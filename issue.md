@@ -1,5 +1,5 @@
 ---
-title: "T2 core is 30.4% against a 100% target: what the 39 files actually need"
+title: "T2 core is 51 of 56 files: ten Unknowns from two causes"
 state: pending
 urgency: normal
 milestone: m1-parse-the-core
@@ -7,7 +7,7 @@ blocked_by:
 - 01a0c13f-c7d7-7d9c-9a85-60a59aa26bc0
 - 01a0c13f-e0e2-7b4f-a9d2-06f7edad1e7f
 created: 2026-09-20T22:59:07.720149993Z
-updated: 2026-10-09T03:25:44.510634269Z
+updated: 2026-10-09T03:25:44.610587507Z
 ---
 
 ## Context
