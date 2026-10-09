@@ -7,7 +7,7 @@ blocked_by:
 - 01a0badc-a093-7e09-bdfb-002f4a73759f
 - 01a0b835-1270-7b32-9f0a-18fe7c555bae
 created: 2026-09-19T18:17:07.068073736Z
-updated: 2026-10-09T03:26:34.37807385Z
+updated: 2026-10-09T09:12:17.979193617Z
 sessions:
 - start_sha: 25483d2b5bfff159cfc023dec9b050ce0c57c4b3
   end_sha: 25483d2b5bfff159cfc023dec9b050ce0c57c4b3
@@ -116,8 +116,20 @@ the "hedge versus detect" decision 01a0bae1-b76f raises -- `+{}` may be
 better answered by declining than by adding a special case for the unary
 plus.
 
+### Re-measured (2026-10-09, at d2f26fe3)
+
+The oracle now measures internal/parse (01a0b835), and this issue's cases have moved:
+
+- op/grep.t is `exact`: `grep {a=>$_}->{a}` already reads as perl does (one anonhash: measured with Concise on 5.42).
+- The `+{}` diagnosis was wrong. perl DOES emit an anonymous hash for `+{}` (`my $x = sub { +{} };` measures one anonhash/emptyavhv site), and the op/coreamp.t:23 site it cited was the oracle counting a cloned anon sub twice -- fixed by 01a11f08-6fee. The criterion that `+{}` reports no site contradicts perl and is replaced.
+- `TestGoParserWrongIsZero` only runs with `PARSEORACLE_SHIM` set, so as a criterion verify sees it skip; the corpus ratchet's pin (`TestCorpusBaselineIsIntact`) is the WRONG gate now, and 01a0a8cd removes it.
+
+What is left is to hold the two brace readings with a test, so they cannot regress.
+
+## Steps
+
+- [ ] Write `TestBraceBeforeArrowIsAHashref`: `grep {a=>$_}->{a}` reports one anonhash site and `+{}` reports one, each as perl 5.42 does (measure with Concise first); if it passes at once, show it is not vacuous by breaking the reading and reverting; `make test`; commit
+
 ## Acceptance criteria
 
-- [ ] `grep {a=>$_}->{a}` reports an anonhash site (`go test ./internal/parse/ -run '^TestBraceBeforeArrowIsAHashref$' -count=1 -v | grep -q '^--- PASS: TestBraceBeforeArrowIsAHashref'`)
-- [ ] `+{}` does NOT report one, matching perl (`go test ./internal/parse/ -run '^TestBraceBeforeArrowIsAHashref$' -count=1 -v | grep -q '^--- PASS: TestBraceBeforeArrowIsAHashref'`)
-- [ ] The remaining cases are measured and recorded, blocked on 01a0badc (`go test ./internal/parseoracle/ -run '^TestGoParserWrongIsZero$' -count=1 -v | grep -q '^--- PASS: TestGoParserWrongIsZero'`)
+- [ ] a brace before `->`, and `+{}`, each report the anonymous hash perl compiles (`go test ./internal/parse/ -run '^TestBraceBeforeArrowIsAHashref$' -count=1 -v | grep -q '^--- PASS: TestBraceBeforeArrowIsAHashref'`)
