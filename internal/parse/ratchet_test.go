@@ -363,3 +363,108 @@ func parseRatchetFile(path string) (map[string]int, error) {
 	}
 	return out, nil
 }
+
+// TestRatchetHeaderAgreesWithItsBody reads each T1 baseline's summary line
+// back. parseRatchetFile skips every "#" line, so without this the header is
+// derived on write and never checked on read: the figures every report of
+// these baselines quotes could say anything and the ratchets would pass.
+//
+// Counted from the body rather than re-measured from the corpus on purpose --
+// re-measuring is what the ratchets themselves do. What was unguarded is the
+// header AGREEING with the lines beside it.
+func TestRatchetHeaderAgreesWithItsBody(t *testing.T) {
+	for _, name := range []string{"t1.ratchet", "t1canon.ratchet", "t1fidelity.ratchet"} {
+		t.Run(name, func(t *testing.T) {
+			if err := ratchetHeaderAgrees(filepath.Join("testdata", name)); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+}
+
+// TestRatchetHeaderAgreesCatchesEachWrongField corrupts one field of a
+// rendered header at a time and requires the check to notice. A header check
+// that has never failed has not been tested, and the percentage gets its own
+// case: it is derived from two counts on the same line, so it can disagree
+// with them while every count is right.
+func TestRatchetHeaderAgreesCatchesEachWrongField(t *testing.T) {
+	good := renderRatchet("a fixture", map[string]int{"a.t": 0, "b.t": 2, "c.t": 0})
+	const header = "# 3 files, 2 clean (66.7%), 2 total.\n"
+	if !strings.Contains(good, header) {
+		t.Fatalf("fixture header is not %q:\n%s", header, good)
+	}
+
+	write := func(t *testing.T, content string) string {
+		t.Helper()
+		path := filepath.Join(t.TempDir(), "fixture.ratchet")
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+
+	if err := ratchetHeaderAgrees(write(t, good)); err != nil {
+		t.Fatalf("the header renderRatchet wrote is rejected: %v", err)
+	}
+
+	for _, tc := range []struct{ name, content string }{
+		{"file count", strings.Replace(good, "# 3 files,", "# 4 files,", 1)},
+		{"clean count", strings.Replace(good, " 2 clean ", " 1 clean ", 1)},
+		{"percentage", strings.Replace(good, "(66.7%)", "(66.6%)", 1)},
+		{"total", strings.Replace(good, " 2 total.", " 3 total.", 1)},
+		{"line missing", strings.Replace(good, header, "", 1)},
+		{"line duplicated", strings.Replace(good, header, header+header, 1)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := ratchetHeaderAgrees(write(t, tc.content)); err == nil {
+				t.Errorf("a header with its %s wrong passed:\n%s", tc.name, tc.content)
+			}
+		})
+	}
+}
+
+// ratchetHeaderAgrees reports whether a baseline's summary line agrees with
+// the body parseRatchetFile reads. The body is read by parseRatchetFile
+// itself, so the header is checked against what the ratchet compares, not
+// against a second reading that could differ from it.
+//
+// A second "# N files, " line is an error rather than ignored: checking only
+// the one found would let a stale summary sit beside a fresh one.
+func ratchetHeaderAgrees(path string) error {
+	counts, err := parseRatchetFile(path)
+	if err != nil {
+		return err
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+
+	var headers []string
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.HasPrefix(line, "# ") && strings.Contains(line, " files, ") {
+			headers = append(headers, strings.TrimPrefix(line, "# "))
+		}
+	}
+	if len(headers) != 1 {
+		return fmt.Errorf("%s has %d summary lines, want exactly the one renderRatchet writes: %q",
+			path, len(headers), headers)
+	}
+
+	clean, total := 0, 0
+	for _, n := range counts {
+		total += n
+		if n == 0 {
+			clean++
+		}
+	}
+	want := fmt.Sprintf("%d files, %d clean (%.1f%%), %d total.",
+		len(counts), clean, 100*float64(clean)/float64(len(counts)), total)
+	if headers[0] != want {
+		return fmt.Errorf("%s header disagrees with its body:\n  header: %s\n  body:   %s\n"+
+			"\tThe summary is derived on write and skipped on read, so it can\n"+
+			"\tdrift silently. Regenerate with -parse.update-ratchet.",
+			path, headers[0], want)
+	}
+	return nil
+}
