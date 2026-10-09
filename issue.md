@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-19T18:15:49.825526237Z
-updated: 2026-09-19T20:59:06.235065848Z
+updated: 2026-10-09T17:21:19.182936984Z
 sessions:
 - start_sha: 09e38fa97c039422168735f3da9b607b14677d80
   end_sha: 34b103f60e9548502ff3afe1f4cbb943b3397863
@@ -60,7 +60,7 @@ that without reading the shebang and synthesising a loop. Out of scope here;
 worth its own decision about whether the subject should decline such a file
 rather than answer it.
 
-## Acceptance
+## Acceptance criteria
 
 - [x] `readline $fh` reports a readline site (`go test ./internal/parse/ -run '^TestReadlineBuiltinIsASite$' -count=1 -v | grep -q '^--- PASS: TestReadlineBuiltinIsASite'`)
 - [x] The angle form still reports one, and `<*.c>` glob still does not (`go test ./internal/parse/ -run '^TestReadlineBuiltinIsASite$' -count=1 -v | grep -q '^--- PASS: TestReadlineBuiltinIsASite'`)
