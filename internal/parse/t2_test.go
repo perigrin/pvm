@@ -95,22 +95,20 @@ func TestT2CoreParses(t *testing.T) {
 	// keyword as a quote operator where perl reads it as a name: `$o->s`
 	// and `method y { ... }`. class/class.t left the map entirely.
 	//
-	// What the remaining ten Unknown nodes ARE, by file:line, so the next
-	// reader need not re-measure them. Two causes, and no third:
+	// What the remaining Unknown node IS, by file:line, so the next reader
+	// need not re-measure it:
 	//
-	//	class/destruct.t:51,54          refcount_is $obj, 1, ...;
-	//	class/field.t:333               ... or skip "XS::APItest not available", 1;
-	//	class/gh23511.t:21              like $@, qr/.../, "...";
-	//	comp/filter_exception.t:8       plan tests => 4;
-	//	comp/filter_exception.t:28,30   like $@, qr/.../;
-	//	comp/filter_exception.t:29 (x2) is eval { require "t/Foo.pm" }, undef;
 	//	comp/final_line_num.t:13        +
 	//
-	// Nine are parenless calls to subs a file a BEGIN block requires
-	// declares. All four files open `BEGIN { require './test.pl'; ... }`, so
-	// perl knows `plan`, `is ($$@)`, `like ($$@)`, `refcount_is` and `skip`
-	// (test.pl:55, 395, 510, 536, 570) when it parses those calls; pvm does
-	// not read a file a BEGIN-time require loads (issue 01a11eb2-2162).
+	// Nine more were parenless calls to subs a file a BEGIN block requires
+	// declares, and went when this test began parsing each file by its path
+	// from t/, as perl's harness runs it (issue 01a11eb2-2162). All four
+	// files open `BEGIN { require './test.pl'; ... }`, so perl knows `plan`,
+	// `is ($$@)`, `like ($$@)`, `refcount_is` and `skip` (test.pl:55, 395,
+	// 510, 536, 570) when it parses those calls; parse.Parse has no path to
+	// find test.pl from. class/destruct.t (2, lines 51 and 54),
+	// class/field.t (1, line 333), class/gh23511.t (1, line 21) and
+	// comp/filter_exception.t (5, lines 8 and 28-30) left the map.
 	//
 	// One is a file perl refuses. comp/final_line_num.t ends `print 1+` at
 	// end of file on purpose, and perl reports "syntax error at ... line 13,
@@ -285,12 +283,10 @@ func TestT2CoreParses(t *testing.T) {
 		// inside a `class` block, the shape perl's own suite uses to reach
 		// `test.pl`'s functions past a lexically-scoped package. field.t's
 		// three movers are the `::is(...)` calls at lines 64-66.
-		"class/destruct.t": 2, "class/field.t": 1,
 		// class/inherit.t 4 -> 2 and comp/form_scope.t 2 -> 0 when a block's
 		// opening brace began leaving a statement boundary (issue
 		// 01a0ea25-4fe7): a block as another block's first statement had been
 		// an anonymous hash.
-		"class/gh23511.t": 1,
 		// cmd/subval.t and comp/package_block.t left the map entirely with
 		// the `startsTerm` fix -- they parse cleanly now, which is what
 		// removal from this map means.
@@ -316,7 +312,6 @@ func TestT2CoreParses(t *testing.T) {
 		// when a declaration ending in its own block stopped taking the next
 		// line's `for` or `if` as a modifier (issue 01a0eac8). comp/utf.t's
 		// four nested loops sat after `sub test { ... }`.
-		"comp/filter_exception.t": 5,
 		// comp/form_scope.t 17 -> 7 when parseFormatDecl landed. The file
 		// holds nine format declarations, each of which had been swallowing
 		// the statement that followed it: an unimplemented keyword runs
@@ -463,11 +458,13 @@ func TestT2CoreParses(t *testing.T) {
 	var regressed, improved, nowClean, nowDirty []string
 	clean := 0
 	for _, rel := range files {
-		src, err := os.ReadFile(filepath.Join(tDir, rel))
+		// Parsed as perl's harness runs it: from t/, where a BEGIN block's
+		// `require './test.pl'` finds its helper.
+		root, err := parse.ParseFileFrom(filepath.Join(tDir, rel), tDir)
 		if err != nil {
 			continue
 		}
-		n := countUnknown(parse.Parse(src))
+		n := countUnknown(root)
 		if n == 0 {
 			clean++
 		}
