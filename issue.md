@@ -3,8 +3,10 @@ title: A postfix hash slice ->@{...} / ->%{...} reports perl's rv2hv
 state: pending
 urgency: normal
 milestone: m1-parse-the-core
+blocks:
+- 01a0a8cd-8fcc-72a8-9ba1-c916eee9992d
 created: 2026-10-09T05:00:09.225476484Z
-updated: 2026-10-09T05:00:09.225476484Z
+updated: 2026-10-09T05:00:36.253902127Z
 ---
 
 ## Context
