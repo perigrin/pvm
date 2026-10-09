@@ -48,3 +48,18 @@ func TestSpaceAfterSigil(t *testing.T) {
 		t.Errorf("%q: `%%` after a term is the modulus operator", src)
 	}
 }
+
+// TestSigilAtEOFIsAnError is the parser fuzzer's `$`: a sigil that ends the
+// file has no name, and perl 5.42 says so -- `$`, `@`, `print $` and
+// `$x = $` are each "syntax error at EOF" under `perl -c`. Lexed as a
+// Variable, canon wrote `$` back with a `;` after it, and `$;` is the
+// subscript-separator variable, a different program.
+func TestSigilAtEOFIsAnError(t *testing.T) {
+	for _, src := range []string{"$", "@", "%", "print $", "$x = $"} {
+		toks := significant(Tokenize([]byte(src)))
+		last := toks[len(toks)-1]
+		if last.Kind != Error || last.Start != len(src)-1 {
+			t.Errorf("%q: the closing sigil is %v %q, want an Error", src, last.Kind, src[last.Start:last.End])
+		}
+	}
+}

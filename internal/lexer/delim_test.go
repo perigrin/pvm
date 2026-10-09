@@ -175,3 +175,25 @@ func TestAsciiDelimiterStillWorks(t *testing.T) {
 		}
 	}
 }
+
+// TestByteDelimiterIsOneByte is the parser fuzzer's `y\xa5`: a delimiter
+// byte that is not UTF-8 is one byte, and only that byte closes it. Measured
+// on 5.42.0 with no `use utf8`: `y\xa5` alone is "Transliteration pattern
+// not terminated"; `$_="a"; y\xa5a\xa5b\xa5; print` prints `b`; and in
+// `y\xa5a\xa6b\xa5\xa5` the `\xa6` is pattern, not a closer. Read as
+// U+FFFD, the delimiter was three bytes wide -- a token past the end of a
+// two-byte file -- and any other stray byte closed it.
+func TestByteDelimiterIsOneByte(t *testing.T) {
+	for src, want := range map[string]lexer.Kind{
+		"y\xa5":                lexer.UnknownRest,
+		"y\xa5a\xa5b\xa5":      lexer.Quote,
+		"y\xa5a\xa6b\xa5\xa5":  lexer.Quote,
+		"q\xa5x\xa5":           lexer.Quote,
+		"s\xa5a\xa6\xa5b\xa5g": lexer.Quote,
+	} {
+		toks := lexer.Tokenize([]byte(src))
+		if len(toks) != 1 || toks[0].Kind != want || toks[0].End != len(src) {
+			t.Errorf("%q: tokens %v, want one %v spanning it all", src, toks, want)
+		}
+	}
+}

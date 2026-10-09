@@ -76,7 +76,7 @@ func TestEveryUnknownSiteHasACode(t *testing.T) {
 	}
 }
 
-// TestRefusalCodeInventory: the fourteen sites are enumerated where a reader
+// TestRefusalCodeInventory: the fifteen sites are enumerated where a reader
 // finds them, and the enumeration is what the code READS.
 //
 // A test that merely counted would be a second list free to disagree with
@@ -89,11 +89,11 @@ func TestEveryUnknownSiteHasACode(t *testing.T) {
 func TestRefusalCodeInventory(t *testing.T) {
 	// The site count is COUNTED FROM THE SOURCE, not written down here. A
 	// constant would be the second list this test exists to prevent: add
-	// a fifteenth `&Node{Kind: Unknown, ...}` and a hardcoded fourteen would go
+	// a sixteenth `&Node{Kind: Unknown, ...}` and a hardcoded fifteen would go
 	// on passing while the new site refused anonymously.
 	sites := countUnknownSites(t)
 
-	// Thirteen codes for fourteen sites, and the fourteenth is accounted for rather
+	// Fourteen codes for fifteen sites, and the fifteenth is accounted for rather
 	// than forgotten: parse.go's `expr.Kind == Unknown` widens an existing
 	// Unknown from the expression to the statement and carries the inner
 	// code outward. It is a change of span, not of cause, so it declares
@@ -174,7 +174,7 @@ func countUnknownSites(t *testing.T) int {
 // refusingSources are sources that reach the parser's refusal sites, one
 // per code the parser can currently produce.
 //
-// Ten codes, not thirteen. Three sites are declared and wired but NOT
+// Eleven codes, not fourteen. Three sites are declared and wired but NOT
 // REACHABLE from any source today, and saying so is better than a fixture
 // that pretends otherwise:
 //
@@ -212,6 +212,7 @@ func refusingSources() []string {
 		"sub sref (\\$); sref(1);\n", // ref_scalar_slot
 		"each();\n",                  // call_arity
 		"sub f {\n",                  // unclosed_opener
+		"format =\n",                 // format_not_terminated
 	}
 }
 

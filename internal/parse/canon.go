@@ -714,10 +714,16 @@ func isDerefSigil(op string) bool {
 // bareDerefOperand reports whether a dereference's operand may follow its
 // sigil without braces: a scalar variable, or a scalar dereference of one --
 // `@$r`, `$$$r`.
+//
+// The variable's name must be one the lexer reads after a second sigil -- a
+// word byte, `{`, `$` or `::`, toke.c's test -- or the bare form re-reads as
+// something else: `${$;}` written `$$;` is the pid and a terminator.
 func bareDerefOperand(c *Node) bool {
 	switch {
 	case c.Kind == Term && strings.HasPrefix(c.Text, "$") && !c.Paren:
-		return true
+		rest := c.Text[1:]
+		return rest != "" && (isWordByte(rest[0]) || rest[0] == '{' || rest[0] == '$' ||
+			strings.HasPrefix(rest, "::"))
 	case c.Kind == Unary && c.Text == "$" && len(c.Children) == 1:
 		return bareDerefOperand(c.Children[0])
 	}

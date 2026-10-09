@@ -227,7 +227,7 @@ func scanQuoteLike(l *lexer) bool {
 		return true
 	}
 	close := pairedCloser(open)
-	l.pos += utf8.RuneLen(open) // past the opening delimiter, whole
+	l.pos += delimLen(open) // past the opening delimiter, whole
 	replStart := 0
 
 	patStart := l.pos
@@ -235,9 +235,9 @@ func scanQuoteLike(l *lexer) bool {
 		l.emit(UnknownRest, start)
 		return true
 	}
-	patEnd := l.pos - utf8.RuneLen(open)
+	patEnd := l.pos - delimLen(open)
 	if close != 0 {
-		patEnd = l.pos - utf8.RuneLen(close)
+		patEnd = l.pos - delimLen(close)
 	}
 
 	if op.parts == 3 {
@@ -251,7 +251,7 @@ func scanQuoteLike(l *lexer) bool {
 				l.emit(UnknownRest, start)
 				return true
 			}
-			l.pos += utf8.RuneLen(open2)
+			l.pos += delimLen(open2)
 			replStart = l.pos
 			if !l.scanDelimitedBody(open2, pairedCloser(open2)) {
 				l.emit(UnknownRest, start)
@@ -439,11 +439,36 @@ func (l *lexer) skipToDelimiter() (rune, bool) {
 				l.pos++
 			}
 		default:
-			r, _ := utf8.DecodeRune(l.src[l.pos:])
+			r, _ := decodeDelim(l.src[l.pos:])
 			return r, true
 		}
 	}
 	return 0, false
+}
+
+// decodeDelim decodes the delimiter character at the start of b. A byte that
+// is not UTF-8 is a character of its own, one byte wide, as it is to perl
+// without `use utf8`: measured on 5.42.0, `y\xa5a\xa5b\xa5` transliterates
+// and a `\xa6` inside it is pattern, not a closer. Decoded as U+FFFD, every
+// stray byte was the same character and three bytes wide.
+//
+// ponytail: the byte is carried as the lone surrogate 0xDC00+b, Python's
+// surrogateescape, which utf8.DecodeRune never returns -- so it equals only
+// itself.
+func decodeDelim(b []byte) (rune, int) {
+	r, w := utf8.DecodeRune(b)
+	if r == utf8.RuneError && w == 1 {
+		return 0xDC00 + rune(b[0]), 1
+	}
+	return r, w
+}
+
+// delimLen is the width in bytes of a delimiter decodeDelim returned.
+func delimLen(r rune) int {
+	if r >= 0xDC80 && r <= 0xDCFF {
+		return 1
+	}
+	return utf8.RuneLen(r)
 }
 
 // scanDelimitedBody consumes a body and its closing delimiter, reporting
@@ -470,7 +495,7 @@ func (l *lexer) scanDelimitedBody(open, close rune) bool {
 	}
 	depth := 1
 	for l.pos < len(l.src) {
-		c, width := utf8.DecodeRune(l.src[l.pos:])
+		c, width := decodeDelim(l.src[l.pos:])
 		switch {
 		case c == closer:
 			depth--

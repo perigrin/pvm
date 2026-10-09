@@ -427,7 +427,10 @@ func scanOne(l *lexer) {
 		// unconditionally would break the "whitespace-only input is ONE
 		// trivia token" rule from the skeleton issue -- caught by that
 		// issue's own test, which is why it is there.
-		stopAtNewline := len(l.pending) > 0
+		//
+		// A format body starts after a newline the same way, and its first
+		// picture line may be blank or indented: perl keeps both as body.
+		stopAtNewline := len(l.pending) > 0 || l.pendingFormat
 		sawNewline := false
 		for l.pos < len(l.src) && isSpace(l.src[l.pos]) {
 			if l.src[l.pos] == '\n' && stopAtNewline {
