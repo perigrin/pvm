@@ -485,10 +485,9 @@ func TestWordShapedCompoundAssignment(t *testing.T) {
 		// Binary `x` stays TWO tokens. Without this the fix could not be
 		// told from one that eats any `x`.
 		//
-		// SPACED only. Unspaced `(1)x3` lexes as `Word(x3)` here, which is a
-		// SEPARATE gap -- the identifier scanner takes the digits, and that
-		// is true of `x3` with or without this row -- so it is not asserted
-		// against a fix for `x=`.
+		// SPACED only. Unspaced `(1)x3` is a different rule -- `x` touching
+		// a digit, split before the identifier scanner runs -- and
+		// TestRepetitionGluedToNumber holds it.
 		{`$t x 2`, []string{"Variable($t)", "Word(x)", "Number(2)"}},
 
 		// Greedy by exactly one `=`. Measured, `x==` is a syntax error and
