@@ -1,6 +1,6 @@
 ---
 title: T2 holds all 56 files clean, the file perl refuses refused alike
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
@@ -10,7 +10,16 @@ blocked_by:
 blocks:
 - 01a11eb2-21e9-75a7-ae19-ce6f6a358be2
 created: 2026-09-20T23:56:24.16253937Z
-updated: 2026-10-09T03:26:32.497353689Z
+updated: 2026-10-09T04:37:41.584085469Z
+sessions:
+- start_sha: 98d028499fdad30e12a1e2e54cc03ddb455833f4
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-09T04:37:41.584085469Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-09T04:37:41.584085469Z
 ---
 
 ## Context
