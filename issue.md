@@ -1,19 +1,35 @@
 ---
 title: A format at end of file with no trailing newline grows a space every canon
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-10-09T06:03:13.557942667Z
-updated: 2026-10-09T06:38:55.169650195Z
+updated: 2026-10-09T07:14:11.91109903Z
 sessions:
 - start_sha: 26ab62a38e4c933b22d86f60180d432001c9fde1
-  end_sha: ""
-  commits: 0
+  end_sha: d7c31487939158225e0589373b9e583fe7ed61fe
+  commits: 2
   started_at: 2026-10-09T06:38:55.169650195Z
+  ended_at: 2026-10-09T07:14:11.91109903Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-09T06:38:55.169650195Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-09T07:14:11.91109903Z
+observed_paths:
+- docs/specs/perl-parser/00-findings.md
+- internal/parse/canon.go
+- internal/parse/formateofcanon_test.go
+- internal/parse/parse.go
+- internal/parse/protoslot_test.go
+- internal/parse/refscalar.go
+- internal/parse/sites.go
+- internal/parse/term.go
+- internal/parseoracle/compare_facts.go
+- internal/parseoracle/ratchet_test.go
+- internal/parseoracle/testdata/ratchet/baseline.txt
 ---
 
 ## Context
