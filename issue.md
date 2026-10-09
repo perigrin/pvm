@@ -1,10 +1,19 @@
 ---
 title: A format at end of file with no trailing newline grows a space every canon
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-10-09T06:03:13.557942667Z
-updated: 2026-10-09T06:03:13.557942667Z
+updated: 2026-10-09T06:38:55.169650195Z
+sessions:
+- start_sha: 26ab62a38e4c933b22d86f60180d432001c9fde1
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-09T06:38:55.169650195Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-09T06:38:55.169650195Z
 ---
 
 ## Context
