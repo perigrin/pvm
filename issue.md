@@ -1,19 +1,42 @@
 ---
 title: An opener unclosed at end of file parses with no Unknown, though perl refuses it
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-10-09T06:03:13.464345631Z
-updated: 2026-10-09T06:33:25.015715771Z
+updated: 2026-10-09T07:49:22.76891418Z
 sessions:
 - start_sha: 0cbc6dfb48de6e5fb1f7641ecefb081702ab84f9
-  end_sha: ""
-  commits: 0
+  end_sha: 0f8697ba4cff25a3304a02f6478bb57511bfe8ef
+  commits: 4
   started_at: 2026-10-09T06:33:25.015715771Z
+  ended_at: 2026-10-09T07:49:22.76891418Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-09T06:33:25.015715771Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-09T07:49:22.76891418Z
+observed_paths:
+- docs/specs/perl-parser/00-findings.md
+- internal/parse/canon.go
+- internal/parse/canon_test.go
+- internal/parse/formateofcanon_test.go
+- internal/parse/parse.go
+- internal/parse/protoslot_test.go
+- internal/parse/refscalar.go
+- internal/parse/refusal.go
+- internal/parse/refusal_test.go
+- internal/parse/sites.go
+- internal/parse/term.go
+- internal/parse/testdata/t1canon.ratchet
+- internal/parse/testdata/t1fidelity.ratchet
+- internal/parse/unaryplus_test.go
+- internal/parse/unclosed_test.go
+- internal/parseoracle/compare_facts.go
+- internal/parseoracle/ratchet_test.go
+- internal/parseoracle/testdata/ratchet/baseline.txt
 ---
 
 ## Context
