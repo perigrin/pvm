@@ -1,5 +1,5 @@
 ---
-title: Measure the 147 unbucketed Unknowns in four comp files before fixing any of them
+title: Record what T2's ten remaining Unknowns are, beside the shortfall map
 state: pending
 urgency: normal
 milestone: m1-parse-the-core
@@ -10,7 +10,7 @@ blocked_by:
 blocks:
 - 01a0c10b-7148-77e5-8923-16fbce93c64b
 created: 2026-09-20T23:56:17.751068121Z
-updated: 2026-10-09T03:25:47.837502606Z
+updated: 2026-10-09T03:25:47.961933346Z
 ---
 
 ## Context
