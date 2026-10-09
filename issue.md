@@ -6,7 +6,7 @@ milestone: m1-parse-the-core
 blocked_by:
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-17T14:24:26.929009826Z
-updated: 2026-09-18T15:08:01.287309373Z
+updated: 2026-10-09T17:21:15.507494796Z
 sessions:
 - start_sha: e0d124d1932fa7a5443eb3f763146c1a6171decc
   end_sha: 5b41510164015a80506c02291228c7544ea1f3df
@@ -94,7 +94,7 @@ Not in scope: executing any of it, prototype resolution (M4), or
 `MethodCall.Indirect` — `new Foo(1)` is also `Unknown` but indirect-object
 syntax is a scope decision recorded as open in §4.14.6, not a defect.
 
-## Acceptance
+## Acceptance criteria
 
 - [x] `sub { 1 };` is one statement holding one anonymous sub (`go test ./internal/parse/ -run '^TestAnonSubInStatementPosition$' -count=1 -v | grep -q '^--- PASS: TestAnonSubInStatementPosition'`)
 - [x] `{a=>1};` parses as an anonymous hash, matching `B::Deparse` (`go test ./internal/parse/ -run '^TestStatementStartBrace$' -count=1 -v | grep -q '^--- PASS: TestStatementStartBrace'`)
