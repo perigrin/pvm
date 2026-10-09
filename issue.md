@@ -1,6 +1,6 @@
 ---
 title: "A trailing infix operator perl refuses at end of file is refused, not an Unknown: comp/final_line_num.t"
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocked_by:
@@ -8,16 +8,23 @@ blocked_by:
 blocks:
 - 01a0c13f-e0e2-7b4f-a9d2-06f7edad1e7f
 created: 2026-10-09T03:25:52.940372472Z
-updated: 2026-10-09T03:44:13.18585951Z
+updated: 2026-10-09T04:08:26.266337627Z
 sessions:
 - start_sha: 8ec19ffcb8e44115e5b60423b138536be1add2ba
-  end_sha: ""
-  commits: 0
+  end_sha: f98bc1fca361eb11b20372c22628a3c79fa9a33d
+  commits: 1
   started_at: 2026-10-09T03:44:13.18585951Z
+  ended_at: 2026-10-09T04:08:26.266337627Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-09T03:44:13.18585951Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-09T04:08:26.266337627Z
+observed_paths:
+- internal/parse/expr_test.go
+- internal/parse/t2_test.go
 ---
 
 ## Context
