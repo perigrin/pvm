@@ -1,21 +1,43 @@
 ---
 title: An empty {} at statement position is an anon hash, as toke.c reads it
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 blocks:
 - 01a0a8cd-8fcc-72a8-9ba1-c916eee9992d
 created: 2026-10-09T05:00:09.531437085Z
-updated: 2026-10-09T07:39:14.321870746Z
+updated: 2026-10-09T08:35:06.640931922Z
 sessions:
 - start_sha: d7c31487939158225e0589373b9e583fe7ed61fe
-  end_sha: ""
-  commits: 0
+  end_sha: dd8abfe77cbc8881e7d098ea6f530d2fd51e4ed7
+  commits: 3
   started_at: 2026-10-09T07:39:14.321870746Z
+  ended_at: 2026-10-09T08:35:06.640931922Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-09T07:39:14.321870746Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-09T08:35:06.640931922Z
+observed_paths:
+- docs/specs/perl-parser/00-findings.md
+- internal/parse/canon.go
+- internal/parse/canon_test.go
+- internal/parse/cmd/subject/main.go
+- internal/parse/cmd/subject/main_test.go
+- internal/parse/emptybraces_test.go
+- internal/parse/parse.go
+- internal/parse/perllines_test.go
+- internal/parse/refusal.go
+- internal/parse/refusal_test.go
+- internal/parse/sites.go
+- internal/parse/stmt_test.go
+- internal/parse/term.go
+- internal/parse/unclosed_test.go
+- internal/parse/wrongtree_test.go
+- internal/parseoracle/ratchet_test.go
+- internal/parseoracle/testdata/ratchet/baseline.txt
 ---
 
 ## Context
