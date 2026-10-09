@@ -61,3 +61,27 @@ func TestCanonNestedMinusIsNotDecrement(t *testing.T) {
 		}
 	}
 }
+
+// TestCanonNotOfComplementIsNotNegatedMatch is the parser fuzzer's `! ~&A`.
+// A `!` written against a `~` is `!~`, the negated binding operator:
+// measured on 5.42.0, `! ~$x` compiles as not-of-complement and `!~$x` is
+// "syntax error ... near "!~"". perl's own Deparse writes `!~$x` there,
+// which does not re-read, so canon parenthesises the operand instead, as it
+// does for `- -$x`.
+func TestCanonNotOfComplementIsNotNegatedMatch(t *testing.T) {
+	for _, tc := range []struct{ src, want string }{
+		{"! ~&A", "!(~&A);"},
+		{"my $x; ! ~$x;", "my $x;!(~$x);"},
+		{"my $x; ! ~~$x;", "my $x;!(~~$x);"},
+		{"my $x; !!$x;", "my $x;!!$x;"},
+	} {
+		got := strings.TrimSpace(parse.Canon(parse.Parse([]byte(tc.src)), []byte(tc.src)))
+		if got != tc.want {
+			t.Errorf("Canon(parse(%q)):\n  got  %q\n  want %q", tc.src, got, tc.want)
+		}
+		again := strings.TrimSpace(parse.Canon(parse.Parse([]byte(got)), []byte(got)))
+		if again != got {
+			t.Errorf("canon is not a fixpoint on %q:\n  once  %q\n  twice %q", tc.src, got, again)
+		}
+	}
+}

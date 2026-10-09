@@ -56,7 +56,14 @@ func (p *parser) parseTheRest(word lexer.Token) *Node {
 // comma-separated list of literals: `{ () }` is a term, and a narrower parser
 // would decline it.
 func (p *parser) parseUse(word lexer.Token) *Node {
+	// `use` and `no` take a module name or a version, never a parenthesis:
+	// measured on 5.42.0, `no(A)`, `use (A)` and `no ( strict )` are each
+	// "syntax error ... near "no("". `require(A)` is a call perl compiles.
 	p.advanceTo(word)
+	if next, ok := p.peekSignificant(); ok && p.text(next) == "(" && keywordName(p.text(word)) != "require" {
+		return p.refuseTrailingTokens(word.Start)
+	}
+
 	n := &Node{Kind: Use, Text: p.text(word), Start: word.Start}
 	var module string
 
@@ -923,6 +930,9 @@ func (p *parser) parseAttributes(n *Node) {
 						break
 					}
 				}
+			}
+			if depth > 0 {
+				p.attrOpenAtEOF = true
 			}
 			attr.End = p.prevEnd()
 			// Text, not just the span. Canon writes Text, so extending only

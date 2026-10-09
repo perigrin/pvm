@@ -620,7 +620,7 @@ func (p *parser) refuseUnclosedOpener(root *Node) {
 			}
 		}
 	}
-	if depth == 0 {
+	if depth == 0 && !p.attrOpenAtEOF {
 		return
 	}
 	u := &Node{Kind: Unknown, Refusal: UnclosedOpener, Start: last.Start, End: last.End}
@@ -659,6 +659,12 @@ type parser struct {
 	// inSignature is set while a sub's signature is read, where a
 	// placeholder's `=` may have nothing after it -- see emptyDefault.
 	inSignature bool
+
+	// attrOpenAtEOF is set when an attribute's `(` argument ran to end of
+	// file without its `)`: perl's "Unterminated attribute parameter". The
+	// bracket count in refuseUnclosedOpener cannot see it, because a `}`
+	// inside the argument is text to perl and a closer to that count.
+	attrOpenAtEOF bool
 
 	// typed is set while a `.pmt` declaration file is read: its signatures
 	// are typed Perl. signatures holds each one read, by sub name, and

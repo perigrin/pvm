@@ -65,6 +65,16 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 			emit(&stmt, c, src, 0)
 		}
 		text := stmt.String()
+		// An expression statement whose emission begins with `{` begins with
+		// an anonymous hash -- `({0})` or `({0}) . 1` with the parens gone --
+		// and a bare `{` at statement position re-reads as a block unless
+		// braceOpensAnonHash says otherwise (`{a => 1}`, `{}`). Where it
+		// would, perl's Deparse writes `+{0};`, and so does this. The text is
+		// re-parsed to ask, so the answer is the parser's own.
+		if strings.HasPrefix(text, "{") && n.Children[0].Kind != Block && n.Children[0].Kind != Unknown &&
+			rereadsAsBlock(text) {
+			text = "+" + text
+		}
 		// A NEWLINE ALREADY IN THE STATEMENT after its heredoc opener -- a
 		// quote that runs on, `... eq q(hello\n)` -- is where perl reads the
 		// bodies from: its scan_heredoc takes the lines after the opener's
@@ -266,14 +276,21 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 			}
 			// `-` or `+` before an operand that begins with the same byte
 			// would write `--` or `++`, the decrement or increment: perl's
-			// Deparse writes `- -$x` as `-(-$x)`, and so does this.
-			if op == "-" || op == "+" {
+			// Deparse writes `- -$x` as `-(-$x)`, and so does this. `!`
+			// before `~` would write `!~`, the negated match, which perl
+			// refuses there; Deparse writes that one bare and so does not
+			// re-read, so this parenthesises it the same way.
+			if joins, ok := map[string]string{"-": "-", "+": "+", "!": "~"}[op]; ok {
 				var operand strings.Builder
 				emit(&operand, n.Children[0], src, prefix[op])
-				if text := operand.String(); strings.HasPrefix(text, op) {
+				// The operand is emitted once and its text reused: emitting it
+				// again here doubles the work at every level of `!!!!$x`.
+				if text := operand.String(); strings.HasPrefix(text, joins) {
 					b.WriteString("(" + text + ")")
-					break
+				} else {
+					b.WriteString(text)
 				}
+				break
 			}
 			emit(b, n.Children[0], src, prefix[op])
 		}
@@ -871,6 +888,15 @@ func lastForm(n *Node) *Node {
 	return nil
 }
 
+// rereadsAsBlock reports whether a statement's text, written bare, begins
+// with a bare block. ponytail: a re-parse per statement that starts with an
+// anonymous hash, which is rare; a text-level braceOpensAnonHash if it shows.
+func rereadsAsBlock(text string) bool {
+	root := Parse([]byte(text))
+	return len(root.Children) > 0 && len(root.Children[0].Children) > 0 &&
+		root.Children[0].Children[0].Kind == Block
+}
+
 func blockForm(n *Node) bool {
 	last := lastForm(n)
 	if last == nil {
@@ -885,7 +911,11 @@ func blockForm(n *Node) bool {
 		// modifier statement, which is half of why they canon'd as something
 		// that is not Perl.
 		return !last.Modifier
-	case Phaser, Block, Use, Unknown:
+	case Phaser:
+		// A phaser name with no block is a forward declaration, `sub END;`
+		// to perl's Deparse, and takes its `;` like any other.
+		return len(last.Children) > 0
+	case Block, Use, Unknown:
 		return true
 	case LoopControl:
 		// NOT a block form. `last`, `next`, `redo`, `goto` and `return` all end

@@ -4,6 +4,7 @@
 package parse_test
 
 import (
+	"strings"
 	"testing"
 
 	"tamarou.com/pvm/internal/parse"
@@ -39,5 +40,29 @@ func TestCommaBeforeFatComma(t *testing.T) {
 	root := parse.Parse([]byte(`sub foo {7} my @x = (foo, => 1);`))
 	if call := findCall(root, "foo"); call == nil || call.Fat {
 		t.Errorf("`foo, => 1`: foo is a call, not a quoted word; got %s", shape(root))
+	}
+}
+
+// TestFatCommaQuotesAnOperandsWord is the parser fuzzer's `!y=>0`. A fat
+// comma quotes the word directly to its left even when that word is an
+// operator's operand: measured on 5.42.0, `sub foo {1} my @a = (!foo=>0)`
+// holds "" and 0, `(-foo=>0)` holds "-foo" and 0, and `sub foo {7} (1+foo=>0)`
+// holds 1 and 0 -- foo is never called. Read as a call, canon wrote
+// `!y() => 0`, and `y()` re-read as a transliteration.
+func TestFatCommaQuotesAnOperandsWord(t *testing.T) {
+	for _, tc := range []struct{ src, want string }{
+		{"!y=>0", "!y => 0;"},
+		{"sub foo {1} my @a = (!foo=>0);", "sub foo {1;} my @a = (!foo => 0);"},
+		{"sub foo {7} my @a = (1+foo=>0);", "sub foo {7;} my @a = (1 + foo => 0);"},
+		{"sub foo {7} my @a = ((foo)=>0);", "sub foo {7;} my @a = ((foo) => 0);"},
+	} {
+		got := strings.TrimSpace(parse.Canon(parse.Parse([]byte(tc.src)), []byte(tc.src)))
+		if got != tc.want {
+			t.Errorf("Canon(parse(%q)):\n  got  %q\n  want %q", tc.src, got, tc.want)
+		}
+		again := strings.TrimSpace(parse.Canon(parse.Parse([]byte(got)), []byte(got)))
+		if again != got {
+			t.Errorf("canon is not a fixpoint on %q:\n  once  %q\n  twice %q", tc.src, got, again)
+		}
 	}
 }

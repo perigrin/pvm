@@ -50,7 +50,8 @@ const (
 	EmptyDeref RefusalCode = "empty_deref"
 
 	// NotATerm: a token that cannot begin a term. The catch-all of
-	// parseTerm, consumed so the loop advances.
+	// parseTerm, consumed so the loop advances; also a `my` or `our` in
+	// term position with no variable after it.
 	NotATerm RefusalCode = "not_a_term"
 
 	// MissingOperand: an infix or prefix operator whose right operand ran
@@ -145,7 +146,7 @@ var RefusalSites = map[RefusalCode]RefusalSite{
 	},
 	NotATerm: {
 		What:  "a token that cannot begin a term",
-		Where: "term.go, parseTerm: fallthrough",
+		Where: "term.go, refuseNotATerm: parseTerm's fallthrough, and a `my` or `our` with no target",
 	},
 	MissingOperand: {
 		What:  "an operator whose right operand ran out",
@@ -176,8 +177,8 @@ var RefusalSites = map[RefusalCode]RefusalSite{
 		Where: "arity.go, refuseArity",
 	},
 	UnclosedOpener: {
-		What:  "a bracket still open at end of file",
-		Where: "parse.go, refuseUnclosedOpener",
+		What:  "a bracket, or an attribute's `(` argument, still open at end of file",
+		Where: "parse.go, refuseUnclosedOpener; use.go, parseAttributes sets attrOpenAtEOF",
 	},
 	FormatNotTerminated: {
 		What:  "a format declaration with no `.` line before end of file",

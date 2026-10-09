@@ -100,3 +100,24 @@ func TestUnclosedOpenerAtEOFRefused(t *testing.T) {
 		}
 	}
 }
+
+// TestUnterminatedAttributeParameterRefused is the parser fuzzer's
+// `my$0:A(}`. perl scans an attribute's argument as raw text to the `)`
+// that balances its `(`, so a `}` inside does not close it. Measured on
+// 5.42.0, `my $x :A(}` is "Unterminated attribute parameter in attribute
+// list", while `my $x :A(})` compiles. Counted as one bracket by the
+// end-of-file check, the `}` closed the `(`, and canon's `;` after it
+// re-read as part of the argument.
+func TestUnterminatedAttributeParameterRefused(t *testing.T) {
+	for _, src := range []string{"my$0:A(}", "my $x :A(}", "sub f :A(} {1}"} {
+		found := collectUnknown(parse.Parse([]byte(src)))
+		if len(found) == 0 || found[0].Refusal != parse.UnclosedOpener {
+			t.Errorf("%q: want an unclosed_opener refusal, got %v", src, refusalCodes(found))
+		}
+	}
+	for _, src := range []string{"my $x :A(});", "my $x :A(x);", "my $x :A((x));"} {
+		if found := collectUnknown(parse.Parse([]byte(src))); len(found) != 0 {
+			t.Errorf("%q: perl compiles this, but it refuses: %v", src, refusalCodes(found))
+		}
+	}
+}

@@ -681,8 +681,11 @@ func (p *parser) parseFor(word lexer.Token) *Node {
 // of the two forms may take a continue block.
 //
 // The third says the head was well formed: false when a clause is followed by
-// neither `;` nor `)`. Measured on 5.42.0, `for (1 2) {}` is "Number found
-// where operator expected"; read as two parts, the second became the body.
+// neither `;` nor `)`, or when a C-style head has other than two `;`.
+// Measured on 5.42.0, `for (1 2) {}` is "Number found where operator
+// expected"; read as two parts, the second became the body. `for(0;0){}` and
+// `for(;;;){}` are syntax errors: the three clauses may be empty, but all
+// three are there.
 func (p *parser) parseForHead() ([]*Node, bool, bool) {
 	open, ok := p.peekSignificant()
 	if !ok || p.text(open) != "(" {
@@ -692,6 +695,7 @@ func (p *parser) parseForHead() ([]*Node, bool, bool) {
 
 	var parts []*Node
 	cStyle := false
+	semis := 0
 	for {
 		tok, ok := p.peekSignificant()
 		if !ok {
@@ -700,10 +704,11 @@ func (p *parser) parseForHead() ([]*Node, bool, bool) {
 		switch {
 		case p.text(tok) == ")":
 			p.advanceTo(tok)
-			return parts, cStyle, true
+			return parts, cStyle, !cStyle || semis == 2
 		case tok.Kind == lexer.Semicolon:
 			// An empty slot: `for (;;)`.
 			cStyle = true
+			semis++
 			p.advanceTo(tok)
 			continue
 		}
@@ -725,6 +730,7 @@ func (p *parser) parseForHead() ([]*Node, bool, bool) {
 		switch {
 		case ok && sep.Kind == lexer.Semicolon:
 			cStyle = true
+			semis++
 			p.advanceTo(sep)
 		case ok && p.text(sep) != ")":
 			return parts, cStyle, false

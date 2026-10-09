@@ -40,6 +40,21 @@ func (p *parser) parseExpr(minBP int) *Node {
 //
 // The `and` took `(1, 2)` as its left operand. parseParenList assembles that
 // list itself, so it needs the loop without the leading parseTerm.
+// markFatOperand marks the word directly left of a `=>` as autoquoted when
+// it is an operator's operand rather than the whole left side: measured on
+// 5.42.0, `(!foo=>0)` holds "" and `(1+foo=>0)` holds 1, foo never called.
+// A parenthesis between the word and the `=>` ends the reach -- `(foo)=>0`
+// calls foo -- so only Unary, Binary and Ternary right edges are followed.
+func markFatOperand(left *Node) {
+	n := left
+	for !n.Paren && len(n.Children) > 0 && (n.Kind == Unary || n.Kind == Binary || n.Kind == Ternary) {
+		n = n.Children[len(n.Children)-1]
+	}
+	if n != left && !n.Paren && n.Kind == Call && len(n.Children) == 0 && n.End == left.End {
+		n.Fat = true
+	}
+}
+
 // elementlessAfterComma reports whether a comma followed by tok separates
 // nothing: tok cannot begin an element, so the comma is dropped. A closer, a
 // terminator, another comma, a statement modifier, and the three word
@@ -106,6 +121,10 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 		op, ok := p.infixOp(text)
 		if !ok || op.BP <= minBP {
 			return left
+		}
+
+		if text == "=>" {
+			markFatOperand(left)
 		}
 
 		// A TRAILING COMMA is a separator with no element after it, not an
