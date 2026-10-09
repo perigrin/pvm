@@ -275,7 +275,7 @@ func TestCorpusBaselineIsIntact(t *testing.T) {
 	// WRONG is the one bucket that is a gate rather than a ratchet: a file
 	// our parser gets positively wrong is a defect, not a coverage gap.
 	//
-	// The target is zero and this pins twenty-six, by path. Every one is a
+	// The target is zero and this pins twenty-three, by path. Every one is a
 	// file internal/parse -- the parser this harness measures by default --
 	// commits to a statement perl reads differently. Findings §0.11 has the
 	// cause of each, one line apiece; they fall into a handful of classes:
@@ -310,11 +310,11 @@ func TestCorpusBaselineIsIntact(t *testing.T) {
 
 	knownWrong := []string{
 		"comp/parser.t", "comp/proto.t", "io/scalar.t", "io/scalar_ungetc.t",
-		"japh/abigail.t", "lib/deprecate.t", "lib/universal.t", "op/bop.t",
-		"op/coreamp.t", "op/each.t", "op/gmagic.t", "op/goto.t", "op/gv.t",
-		"op/hash-clear-placeholders.t", "op/hash.t", "op/lexsub.t",
-		"op/postfixderef.t", "op/ref.t", "op/sort.t", "op/sprintf2.t",
-		"op/sselect.t", "op/sub_lval.t", "op/switch.t", "porting/dual-life.t",
+		"japh/abigail.t", "lib/deprecate.t", "lib/universal.t",
+		"op/coreamp.t", "op/each.t", "op/gmagic.t", "op/goto.t",
+		"op/gv.t", "op/hash-clear-placeholders.t", "op/hash.t", "op/lexsub.t",
+		"op/postfixderef.t", "op/ref.t", "op/sort.t",
+		"op/sselect.t", "op/sub_lval.t", "op/switch.t",
 		"porting/libperl.t", "re/reg_eval_scope.t",
 	}
 	if strings.Join(wrongPaths, " ") != strings.Join(knownWrong, " ") {

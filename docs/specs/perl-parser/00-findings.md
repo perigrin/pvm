@@ -456,6 +456,57 @@ oracle stops being a reason not to re-run.
 
 ## 0.11 Fidelity across the whole corpus, measured
 
+### A site spans to the end of its statement
+
+*2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0.*
+
+perl's nextstate for a multi-line statement can carry its LAST line: copline
+moves past an anonymous sub, a `when` block or a bareword subscript.
+Measured:
+
+```
+my @a;
+my @r = (\@a, sub {
+ 1;
+});
+-> nextstate(main 2 rep.pl:4), srefgen
+```
+
+The subject ended each site at its own node, line 2, so no span contained
+line 4. `parse.Sites` now spans every decided site over its whole statement.
+
+| Bucket | Files | Share of measured |
+|---|---:|---:|
+| exact | 475 | 80.1% |
+| wider | 70 | 11.8% |
+| **WRONG** | **23** | **3.9%** |
+| no-answer | 25 | 4.2% |
+| *measured (denominator)* | *593* | |
+| excluded, environmental | 26 | — |
+| runner error | 1 | — |
+
+The table is measured with the oracle's own cloned-sub fix beside this one
+(recorded under "The harness measures internal/parse"): `op/concat2.t` WRONG → exact is that fix's, not
+this one's. Re-baselined together on the merged tree, at CI's 8m per-file
+timeout.
+
+Three files moved here:
+
+- `porting/dual-life.t` WRONG → exact: the anonhash at line 60.
+- `op/bop.t` WRONG → wider: the six anonhashes at line 706 are now decided;
+  the file's `wider` is its rv2hv hedges at 115, 116, 119 and 122, unchanged.
+- `op/sprintf2.t` WRONG → wider is **not a fix**. The subject pools every
+  site under its top-level statement, and a hash hedge that ended at line 335
+  now spans that statement, 333 to 466, so it excuses perl's rv2hv at 452
+  (`@{$test->{args}}`), which the subject still does not decide. The pooling
+  is a separate question.
+
+Inside files that stay WRONG, the WRONG findings
+`comp/proto.t:540,544,589,589,594,594`, `op/switch.t` srefgen:711 and
+match:209, and `japh/abigail.t` anonhash:211 cleared. Sixteen findings
+cleared across these six files with none added, and no file in the corpus
+moved to a worse bucket.
+
 ### The harness measures internal/parse
 
 *2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0 (the pin in
