@@ -6,7 +6,7 @@ milestone: m1-parse-the-core
 blocked_by:
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-17T14:23:31.374573065Z
-updated: 2026-09-18T09:48:31.440518603Z
+updated: 2026-10-09T17:21:14.585051254Z
 sessions:
 - start_sha: 6393fdaa0bd1a57acd1acc0fbf10810c76893536
   end_sha: f905b4e9ba967eb983700a3ef6feace66c1fc11c
@@ -74,7 +74,7 @@ Table rows and whatever minimal parse path each needs. Not in scope: what
 `delete` returns, whether `goto &f` unwinds, or executing `do FILE`. This
 milestone is about producing a tree, not about semantics.
 
-## Acceptance
+## Acceptance criteria
 
 - [x] `delete $h{k}` and `delete $h->{k}` parse as calls with one argument (`go test ./internal/parse/ -run '^TestDeleteParses$' -count=1 -v | grep -q '^--- PASS: TestDeleteParses'`)
 - [x] `exists $h{k}` parses, and is a distinct name from `defined` (`go test ./internal/parse/ -run '^TestExistsParses$' -count=1 -v | grep -q '^--- PASS: TestExistsParses'`)
