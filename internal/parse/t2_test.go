@@ -94,6 +94,29 @@ func TestT2CoreParses(t *testing.T) {
 	// The t/class counts moved when the lexer stopped reading a quote-op
 	// keyword as a quote operator where perl reads it as a name: `$o->s`
 	// and `method y { ... }`. class/class.t left the map entirely.
+	//
+	// What the remaining ten Unknown nodes ARE, by file:line, so the next
+	// reader need not re-measure them. Two causes, and no third:
+	//
+	//	class/destruct.t:51,54          refcount_is $obj, 1, ...;
+	//	class/field.t:333               ... or skip "XS::APItest not available", 1;
+	//	class/gh23511.t:21              like $@, qr/.../, "...";
+	//	comp/filter_exception.t:8       plan tests => 4;
+	//	comp/filter_exception.t:28,30   like $@, qr/.../;
+	//	comp/filter_exception.t:29 (x2) is eval { require "t/Foo.pm" }, undef;
+	//	comp/final_line_num.t:13        +
+	//
+	// Nine are parenless calls to subs a file a BEGIN block requires
+	// declares. All four files open `BEGIN { require './test.pl'; ... }`, so
+	// perl knows `plan`, `is ($$@)`, `like ($$@)`, `refcount_is` and `skip`
+	// (test.pl:55, 395, 510, 536, 570) when it parses those calls; pvm does
+	// not read a file a BEGIN-time require loads (issue 01a11eb2-2162).
+	//
+	// One is a file perl refuses. comp/final_line_num.t ends `print 1+` at
+	// end of file on purpose, and perl reports "syntax error at ... line 13,
+	// at EOF", which the file's own BEGIN `$SIG{__DIE__}` handler checks.
+	// That file is clean only when internal/parse refuses it the same way
+	// (issue 01a11eb2-21ac).
 	shortfall := map[string]int{
 		// FIVE files moved on one entry, `undef` joining `namedUnary`
 		// (issue 01a0dd43): class/destruct.t 7 -> 5, comp/package.t 2 -> 1,
