@@ -456,6 +456,122 @@ oracle stops being a reason not to re-run.
 
 ## 0.11 Fidelity across the whole corpus, measured
 
+### Smartmatch against an array or hash reports the reference perl takes
+
+*2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0.*
+
+perl compiles each array or hash operand of `~~`, and the condition of
+`when`, through `ref_array_or_hash`, so `1 ~~ @l` is `1 ~~ \@l` (Deparse
+agrees). Measured with `-MO=Concise`:
+
+```
+my @l; 1 ~~ @l;   @l ~~ 1;          1 srefgen   (also %h, @_, @$r, %$r, @{$r})
+my @l; my @m; @l ~~ @m;             2 srefgen
+my $r; 1 ~~ $r->@*;  1 ~~ $r->%*;   1 srefgen
+when (@l) {...}  when (%h) {...}    1 srefgen   (also `print 1 when @l;`)
+my $x; 1 ~~ $x;                     0
+my @l; 1 ~~ @l[0,1];                0           (a slice: anonlist)
+when ([1]) / when (!@l) / when (@l > 1)  0
+```
+
+Sites now decides a reference for each aggregate operand of `~~` and for an
+aggregate `when` condition.
+
+| Bucket | Files | Share of measured |
+|---|---:|---:|
+| exact | 489 | 82.5% |
+| wider | 75 | 12.6% |
+| **WRONG** | **9** | **1.5%** |
+| no-answer | 20 | 3.4% |
+| *measured (denominator)* | *593* | |
+| excluded, environmental | 26 | — |
+| runner error | 1 | — |
+
+Two files moved, none to a worse bucket. Re-baselined at CI's 8m per-file
+timeout.
+
+- WRONG → exact: `op/switch.t` (`when (@list)` at 1101, `when (%list)` at
+  1120).
+- no-answer → exact: `op/smartmatch.t`, whose `/x/ ~~ @a` and `/x/ ~~ %h`
+  srefgens are now answered.
+
+The table is measured on the merged tree, with the `#line` and empty-brace
+fixes beside these three (re-baselined together at CI's 8m per-file
+timeout): lib/deprecate.t's WRONG -> wider is the `#line` fix's.
+
+### A postfix hash slice reports perl's rv2hv
+
+*2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0.*
+
+`$h->@{...}` is `@$h{...}` spelled postfix, and Sites decided the prefix
+form while it had no case for the postfix one. Measured with `-MO=Concise`:
+
+```
+my $h; my @x = $h->@{1,2};          hslice, rv2hv
+my $h; my @x = $h->%{1,3};          kvhslice, rv2hv
+my @x = {1..4}->%{1,3};             anonhash, kvhslice, rv2hv
+my $a; my @x = $a->@[1,2];          aslice, rv2av    (no rv2hv)
+my $a; my @x = $a->%[1,2];          kvaslice, rv2av  (no rv2hv)
+my $a; my @x = $a->@*;              rv2av            (no rv2hv)
+```
+
+A brace subscript whose base is a bare `@` or `%` -- the right operand of
+an arrow -- now decides a hash site.
+
+| Bucket | Files | Share of measured |
+|---|---:|---:|
+| exact | 487 | 82.1% |
+| wider | 74 | 12.5% |
+| **WRONG** | **11** | **1.9%** |
+| no-answer | 21 | 3.5% |
+| *measured (denominator)* | *593* | |
+| excluded, environmental | 26 | — |
+| runner error | 1 | — |
+
+No file moved. Re-baselined at CI's 8m per-file timeout.
+
+`op/postfixderef.t` stays WRONG on another cause: its findings at 148 and
+316 cleared, and what is left is a postfix slice inside an interpolated
+string, `"$_->@{foo}"` and `"@{[foo->@{foo}]}"` at 340, 344 and 347.
+
+### `$#{ EXPR }` hedges the structure it hides
+
+*2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0.*
+
+The lexer emits `$#{ EXPR }` as one Term, so whatever the block holds is
+invisible to a walk over nodes. `hidesStructure` looked for a nested opener
+after `${`, `@{` or `%{` and never saw the two-byte `$#` sigil, so the
+subject committed to the statement with nothing in it. Measured with
+`-MO=Concise`:
+
+```
+my @a; my $n = $#{ \@a };          srefgen, rv2av, av2arylen
+my $r; my $n = $#{$r->{a}};        rv2hv, rv2av, av2arylen
+my $n = $#{ {a=>[1]}->{a} };       anonhash, anonlist, rv2hv, ...
+my $r; my $n = $#{$r};  $#$r;      rv2av, av2arylen  (no marker)
+```
+
+A `$#{...}` holding anything but a plain variable or name now hedges every
+marker; `$#$r`, `$#{$r}` and `$#{a}` stay quiet.
+
+| Bucket | Files | Share of measured |
+|---|---:|---:|
+| exact | 487 | 82.1% |
+| wider | 74 | 12.5% |
+| **WRONG** | **11** | **1.9%** |
+| no-answer | 21 | 3.5% |
+| *measured (denominator)* | *593* | |
+| excluded, environmental | 26 | — |
+| runner error | 1 | — |
+
+One file moved, to a better bucket. Re-baselined at CI's 8m per-file timeout.
+
+- WRONG → wider: `op/goto.t` (its `$#{ \@a }` at line 668 hedges).
+
+`op/gmagic.t` stays WRONG on another cause: its `$#{ ... }` finding at 227
+cleared, and what is left is a hash read through `->{...}` inside a block
+dereference, `push @{ $self->{values} }, $value;` at 233.
+
 ### An empty brace at statement position is an anonymous hash
 
 *2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0.*

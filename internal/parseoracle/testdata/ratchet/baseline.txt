@@ -277,7 +277,7 @@ exact         4 -              op/getppid.t
 wider        16 -              op/glob.t
 WRONG         6 -              op/gmagic.t
 exact         6 -              op/goto-sub.t
-WRONG        12 -              op/goto.t
+wider        12 -              op/goto.t
 excluded      1 -              op/goto_xs.t
 exact         9 -              op/grent.t
 exact         9 -              op/grep.t
@@ -373,7 +373,7 @@ no-answer     0 -              op/signatures.t
 exact         1 -              op/sigsystem.t
 exact         0 -              op/sleep.t
 exact         0 -              op/smartkve.t
-no-answer    22 -              op/smartmatch.t
+exact        22 -              op/smartmatch.t
 exact        44 -              op/sort.t
 exact         2 -              op/splice.t
 exact        28 -              op/split.t
@@ -396,7 +396,7 @@ exact         0 -              op/substr_left.t
 exact         0 -              op/substr_thr.t
 exact         2 -              op/svflags.t
 no-answer     0 -              op/svleak.t
-WRONG        31 -              op/switch.t
+exact        31 -              op/switch.t
 exact         0 -              op/symbolcache.t
 exact         0 -              op/sysio.t
 wider        85 -              op/taint.t

@@ -243,6 +243,18 @@ func decidedMarkers(stmt *Node) []decided {
 				return
 			}
 
+			// The same slice spelled postfix, `$r->@{"a","b"}` or
+			// `$r->%{"a","b"}`, is the right operand of an arrow: this node
+			// with a bare `@` or `%` Term where the base would be. Measured,
+			// perl emits rv2hv for both and for `{1..4}->%{1,3}`; the BRACKET
+			// forms `->@[...]` and `->%[...]` are rv2av and never get here.
+			// op/postfixderef.t:148,316 are this shape.
+			if n.Text == "{" && len(n.Children) > 0 &&
+				n.Children[0].Kind == Term &&
+				(n.Children[0].Text == "@" || n.Children[0].Text == "%") {
+				add(parseoracle.SiteKindHash, n)
+			}
+
 			// Hedged for a NAMED base and left alone for a dereference,
 			// which is decided above.
 			if n.Text == "{" && len(n.Children) > 0 &&
@@ -322,6 +334,34 @@ func decidedMarkers(stmt *Node) []decided {
 					add(parseoracle.SiteKindMatch, n)
 				}
 			}
+			// perl: srefgen. Smartmatch takes each array or hash operand by
+			// reference (ref_array_or_hash), so `1 ~~ @l` compiles as
+			// `1 ~~ \@l`. Measured: one srefgen per aggregate operand, none
+			// for a scalar or a slice. op/switch.t's `when` is the same rule,
+			// in the Conditional case.
+			if n.Text == "~~" {
+				for _, c := range n.Children {
+					if isAggregate(c) {
+						add(parseoracle.SiteKindReference, c)
+					}
+				}
+			}
+
+		case Conditional:
+			// perl: srefgen. `when (@l)` smartmatches `$_` against `\@l`.
+			// The condition is the first child before a block and the last
+			// after a statement, `print 1 when @l;`. A condition that looks
+			// boolean, `!@l` or `@l > 1`, is not an aggregate node and takes
+			// nothing, as measured.
+			if n.Text == "when" && len(n.Children) > 1 {
+				cond := n.Children[0]
+				if n.Children[len(n.Children)-1].Kind != Block {
+					cond = n.Children[len(n.Children)-1]
+				}
+				if isAggregate(cond) {
+					add(parseoracle.SiteKindReference, cond)
+				}
+			}
 
 		case Term:
 			// A deref block the lexer swallowed hides whatever is inside it,
@@ -382,7 +422,7 @@ func decidedMarkers(stmt *Node) []decided {
 // to a later issue" (01a0ad52). So `${[{a=>214}]}` arrives as a single Term
 // whose Text holds an anonymous hash that no walk over nodes can reach.
 //
-// The test is for a nested opener AFTER the leading `${` or `@{`, because
+// The test is for a nested opener AFTER the leading `${`, `@{` or `$#{`, because
 // that is what distinguishes a block with contents from a plain dereference:
 //
 //	${$x}          nothing hidden -- the inner text is one variable
@@ -402,6 +442,20 @@ func decidedMarkers(stmt *Node) []decided {
 // and a future caller may not have an Index standing between it and the
 // source.
 func hidesStructure(text string) bool {
+	// `$#{ EXPR }` is the same block behind a two-byte sigil, and the lexer
+	// swallows it the same way. Measured on 5.42.0: `$#{ \@a }` is a
+	// srefgen, `$#{$r->{a}}` a rv2hv, while `$#{$r}` and `$#$r` report none
+	// of the five markers. op/goto.t:668 and op/gmagic.t:227 are this shape.
+	//
+	// The test is the other way round from the bracket scan below: a `\`
+	// carries no bracket, so anything but a plain variable or name hedges.
+	if strings.HasPrefix(text, "$#{") && strings.HasSuffix(text, "}") {
+		inner := strings.TrimSpace(text[3 : len(text)-1])
+		inner = strings.TrimLeft(inner, "$")
+		return inner == "" || strings.IndexFunc(inner, func(r rune) bool {
+			return r != ':' && !isWordByte(byte(r)) && r < utf8.RuneSelf
+		}) >= 0
+	}
 	if len(text) < 3 || text[1] != '{' {
 		return false
 	}
@@ -458,6 +512,25 @@ func isNamedHash(text string) bool {
 func isNamedVariable(text string) bool {
 	return len(text) > 1 && (text[0] == '$' || text[0] == '@') &&
 		text[1] != '$' && text[1] != '{'
+}
+
+// isAggregate reports whether a node is a whole array or hash -- what perl's
+// ref_array_or_hash takes a reference to: `@l`, `%h`, `@_`, `@$r`, `%{$r}`,
+// `$r->@*`, `$r->%*`. A slice is an Index and an element a scalar, so neither
+// reaches the reference, measured.
+func isAggregate(n *Node) bool {
+	switch n.Kind {
+	case Term:
+		return len(n.Text) > 1 && (n.Text[0] == '@' || n.Text[0] == '%')
+	case Unary:
+		return n.Text == "@" || n.Text == "%"
+	case Binary:
+		if n.Text == "->" && len(n.Children) == 2 && n.Children[1].Kind == Term {
+			t := n.Children[1].Text
+			return t == "@*" || t == "%*"
+		}
+	}
+	return false
 }
 
 // isReadlineTerm reports whether a leaf is `<FH>`, `<$fh>` or `<>`.
