@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-19T18:17:06.945277771Z
-updated: 2026-10-09T17:21:19.691811038Z
+updated: 2026-10-09T17:24:08.170363404Z
 sessions:
 - start_sha: 34b103f60e9548502ff3afe1f4cbb943b3397863
   end_sha: 25483d2b5bfff159cfc023dec9b050ce0c57c4b3
@@ -67,11 +67,25 @@ every regex literal would over-report.
 Same first-line-of-a-multi-line-statement shape as 01a0badc, and likely
 fixed by it.
 
+### Criteria re-pointed (2026-10-09)
+
+These criteria sat under a heading `git zhi verify` does not read, so they
+never ran; run now, some named tests that no longer exist or need a shim:
+TestGoParserWrongIsZero and TestGoParserExactFloor run only with
+PARSEORACLE_SHIM (the oracle measures internal/parse by default since
+01a0b835), TestUnknownScoresWider was deleted in 3b9422eb (TestUnknownHedgesEveryMarker
+asserts the rule directly), and the T1-easy tests went with easy_test.go
+in b4180102 (the T1 ratchet is the gate). Each now names the gate that
+holds the same claim today: TestCorpusBaselineIsIntact asserts zero WRONG;
+an exact floor is checked against the committed baseline's rows; the T1
+rate against the T1 ratchet's own header; TestSitesSpanMultilineStatement
+lives in internal/parseoracle.
+
 ## Acceptance criteria
 
 - [x] A bare `/.../` reports a match site (`go test ./internal/parse/ -run '^TestBarePatternIsAMatchSite$' -count=1 -v | grep -q '^--- PASS: TestBarePatternIsAMatchSite'`)
 - [x] s///, tr/// and split's pattern still do not (`go test ./internal/parse/ -run '^TestBarePatternIsAMatchSite$' -count=1 -v | grep -q '^--- PASS: TestBarePatternIsAMatchSite'`)
-- [x] WRONG match sites fall, measured (`go test ./internal/parseoracle/ -run '^TestGoParserWrongIsZero$' -count=1 -v | grep -q '^--- PASS: TestGoParserWrongIsZero'`)
+- [x] WRONG match sites fall, measured (`go test ./internal/parseoracle/ -run '^TestCorpusBaselineIsIntact$' -count=1 -v | grep -q '^--- PASS: TestCorpusBaselineIsIntact'`)
 
 Found by 01a0ba79's ranked table. Plan: M1. Spec: §7.1.2.
 
