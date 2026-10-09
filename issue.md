@@ -1,19 +1,31 @@
 ---
 title: Hedge rv2hv for a ->{...} hash read whose multideref folding pvm cannot predict
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-10-09T11:07:58.763658294Z
-updated: 2026-10-09T11:08:55.755849525Z
+updated: 2026-10-09T12:33:09.462513207Z
 sessions:
 - start_sha: 5ae2b3eb8cf8e8b2b63e86042dfbc046cf18a62c
-  end_sha: ""
-  commits: 0
+  end_sha: a45869f9f87be4c7c68e6f15a2026fba6f7a9fd7
+  commits: 2
   started_at: 2026-10-09T11:08:55.755849525Z
+  ended_at: 2026-10-09T12:33:09.462513207Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-09T11:08:55.755849525Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-09T12:33:09.462513207Z
+observed_paths:
+- docs/specs/perl-parser/00-findings.md
+- internal/parse/arrowhashread_test.go
+- internal/parse/interphedge_test.go
+- internal/parse/sites.go
+- internal/parse/sites_decided_test.go
+- internal/parseoracle/ratchet_test.go
+- internal/parseoracle/testdata/ratchet/baseline.txt
 ---
 
 ## Context
