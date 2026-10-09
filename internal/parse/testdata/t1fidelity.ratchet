@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 831 clean (84.3%), 155 total.
+# 986 files, 834 clean (84.6%), 152 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -321,7 +321,7 @@
 0 format_test.t
 0 format_variable_evaluation.t
 0 format_write_basic.t
-1 format_write_regression.t
+0 format_write_regression.t
 0 gethostbyname_context.t
 0 getopt_long_regression.t
 0 glob.t
@@ -542,7 +542,7 @@
 1 open_pragma.t
 0 open_pragma_lexical_io.t
 0 open_string_filehandle.t
-1 operations.t
+0 operations.t
 0 operator_overrides.t
 0 our_compile_time_glob.t
 0 our_compile_time_stash_slots.t
@@ -626,7 +626,7 @@
 0 regex_callback_package_frame.t
 0 regex_capture_numification.t
 0 regex_capture_sub_scope.t
-1 regex_capture_symbolic_deref.t
+0 regex_capture_symbolic_deref.t
 0 regex_capture_underscore_interpolation.t
 0 regex_code_block_embedded_side_effect.t
 0 regex_control_escape_parity.t

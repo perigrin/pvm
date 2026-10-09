@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 978 clean (99.2%), 8 total.
+# 986 files, 983 clean (99.7%), 3 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -344,13 +344,13 @@
 0 goto_named_redefinition.t
 0 goto_tailcall_args_cleanup.t
 0 goto_tailcall_cleanup.t
-1 goto_tailcall_core_destroy_order.t
+0 goto_tailcall_core_destroy_order.t
 0 harness_skip_all.t
 0 hash.t
 0 hash_autovivification.t
 0 hash_interpolation_warning.t
 0 hash_literal_anonymous_ref_cleanup.t
-1 hash_ref_disambiguation.t
+0 hash_ref_disambiguation.t
 0 hash_slice_postincrement.t
 0 hash_slot_aliasing.t
 0 hash_util_fieldhash_identity.t
@@ -454,7 +454,7 @@
 0 lvalue_list_sub.t
 0 lvalue_substr.t
 0 lvalue_ternary.t
-1 lvalue_unary_plus.t
+0 lvalue_unary_plus.t
 0 lvalue_vec.t
 0 mac_systemdirectory.t
 0 makemaker_autosplit_autoloader_only.t
@@ -542,7 +542,7 @@
 0 open_pragma.t
 0 open_pragma_lexical_io.t
 0 open_string_filehandle.t
-1 operations.t
+0 operations.t
 0 operator_overrides.t
 0 our_compile_time_glob.t
 0 our_compile_time_stash_slots.t
@@ -626,7 +626,7 @@
 0 regex_callback_package_frame.t
 0 regex_capture_numification.t
 0 regex_capture_sub_scope.t
-1 regex_capture_symbolic_deref.t
+0 regex_capture_symbolic_deref.t
 0 regex_capture_underscore_interpolation.t
 0 regex_code_block_embedded_side_effect.t
 0 regex_control_escape_parity.t

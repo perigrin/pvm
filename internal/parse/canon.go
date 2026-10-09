@@ -707,13 +707,15 @@ func isBarewordText(s string) bool {
 
 // unaryToken spells a Unary node's operation back as its source token.
 //
-// Node.Text records the OPERATION -- "neg", "ref" -- because `-$x` and a
+// Node.Text records the OPERATION -- "neg", "pos", "ref" -- because `-$x` and a
 // subtraction are not the same thing and the tree must not say they are. The
 // precedence table is keyed by the token, so emitting needs the mapping back.
 func unaryToken(op string) string {
 	switch op {
 	case "neg":
 		return "-"
+	case "pos":
+		return "+"
 	case "ref":
 		return "\\"
 	default:
