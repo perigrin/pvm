@@ -1,10 +1,19 @@
 ---
 title: An opener unclosed at end of file parses with no Unknown, though perl refuses it
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-10-09T06:03:13.464345631Z
-updated: 2026-10-09T06:03:13.464345631Z
+updated: 2026-10-09T06:33:25.015715771Z
+sessions:
+- start_sha: 0cbc6dfb48de6e5fb1f7641ecefb081702ab84f9
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-09T06:33:25.015715771Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-09T06:33:25.015715771Z
 ---
 
 ## Context
