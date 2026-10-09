@@ -563,7 +563,7 @@ The gates are tests, and `make test` runs them:
 | T1 parses without `Unknown` | the T1 ratchet, `TestParseRatchet` | 984 of 986, per file, failing in both directions |
 | perl.git `t/` parses without `Unknown` | `TestPerlGitTRatchet` | 619 of 619 |
 | Round-trip | `TestCanonRatchet` (canon is a fixpoint) and the fidelity ratchet `TestCanonFidelityRatchet` (perl Deparses canon as it Deparses the source) | 983 and 835 of 986, per file, failing in both directions |
-| Oracle WRONG | `TestCorpusBaselineIsIntact` | **0** is the gate; the WRONG files still baselined are pinned by path |
+| Oracle WRONG | `TestCorpusBaselineIsIntact` | **0**, asserted with no pin; a construct internal/parse does not yet understand is hedged (wider), not guessed |
 | Oracle exact | the exact-match ratchet: `TestRatchetCorpus` holds every file's bucket against `internal/parseoracle/testdata/ratchet/baseline.txt` in both directions, measured against internal/parse | started at 473 of 593 (79.8%), 489 of 593 (82.5%) at the finish |
 
 The oracle's ratchet runs over the 620-file corpus only with
