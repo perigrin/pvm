@@ -6,7 +6,7 @@ milestone: m1-parse-the-core
 blocks:
 - 01a0a70f-0f56-71e3-871e-50e1a1ed9b8a
 created: 2026-09-15T21:52:57.027412574Z
-updated: 2026-09-15T23:54:22.752128176Z
+updated: 2026-10-09T17:21:10.273399413Z
 sessions:
 - start_sha: e2f29afa8bd0af158a2bf44a84d7c9d8a7d34c72
   end_sha: 94812b693b2ab8ad26f49473ffc5cc060f959e4b
@@ -95,7 +95,7 @@ under edit.
 An Unknown node spans its source exactly, so M0's round-trip property
 survives into the tree: concatenating every leaf's text reproduces the input.
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] An empty input parses to an empty source_file node (`go test ./internal/parse/ -run '^TestParseEmpty$' -count=1 -v | grep -q '^--- PASS: TestParseEmpty'`)
 - [ ] An Unknown node spans exactly the bytes it could not parse (`go test ./internal/parse/ -run '^TestUnknownSpansItsSource$' -count=1 -v | grep -q '^--- PASS: TestUnknownSpansItsSource'`)
