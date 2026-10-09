@@ -14,6 +14,11 @@ const (
 	VoidCtx                   // Expression result is discarded (void context)
 )
 
+// BooleanCtx is scalar context. Measured on 5.42.0, `wantarray` reports
+// scalar inside `if (f())`, `!f()` and `f() and ...`, so no Perl-level sub
+// can tell them apart (RFC 0001, "Context selects by return type").
+const BooleanCtx = ScalarCtx
+
 // contextNames maps Context values to their human-readable string representations.
 var contextNames = map[Context]string{
 	UnknownCtx: "Unknown",
@@ -36,7 +41,8 @@ func (c Context) String() string {
 // Rules (matching Chalk's narrow_type):
 //   - ScalarCtx: Array or Hash bits become Int (element/bucket count). Other bits pass through.
 //     For union types the narrowing is applied per-bit: each Array or Hash bit in the mask
-//     is replaced by an Int bit, all other bits pass through unchanged.
+//     is replaced by an Int bit, all other bits pass through unchanged. A Void bit
+//     becomes Undef: the empty list in scalar context is undef.
 //   - ListCtx: Unchanged (pass through).
 //   - VoidCtx: Returns (Unknown, false) — type is discarded.
 //   - UnknownCtx: Unchanged (pass through).
@@ -53,6 +59,12 @@ func NarrowByContext(typ Type, ctx Context) (Type, bool) {
 		// the family the count belongs to rather than the count.
 		if typ == List {
 			return Int, true
+		}
+
+		// The empty list in scalar context is undef, the paper's
+		// `Void ⇓^Scalar undef`.
+		if typ&Void != 0 {
+			typ = typ&^Void | Undef
 		}
 
 		// For union types we apply scalar context per-bit: Array and Hash bits

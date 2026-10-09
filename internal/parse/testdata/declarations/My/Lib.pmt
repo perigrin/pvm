@@ -1,0 +1,40 @@
+# ABOUTME: A library declaration file stating every construct CORE.pmt states, for library_pmt_test.go.
+# ABOUTME: RFC 0001 "One language for every .pmt": a library's .pmt says what CORE.pmt can.
+package My::Lib;
+
+our @EXPORT = qw(join_all alias_all need pick when_ emit size fields);
+
+# A typed sub whose slurpy has a container type.
+sub join_all (Str $sep, List[Str] @parts) Str;
+
+# Aliased parameters, and perlref's list form last.
+sub alias_all (Scalar \$x, Array \@a, Code \&c, List[Str] \(@args)) Int;
+
+# A required parameter, its default `die`.
+sub need (Str $name = die) Str;
+
+# A multi pair.
+multi sub pick (Int $i) Str;
+multi sub pick (Str $s) Int;
+
+# A context multi: a scalar return and a list return.
+multi sub when_ () Str;
+multi sub when_ () List[Str];
+
+# The invocant colon.
+sub emit (FileHandle $fh: List[Str] @args) Boolean;
+
+# A named unary.
+sub size :unary (Scalar $x = $_) Int;
+
+# A list operator with typed positional parameters and no prototype.
+sub fields :listop (Str $sep = ' ', Str $line = $_) List;
+
+# An operator.
+sub plus :infix(ADD) (Num $x, Num $y) Num;
+
+# Declared syntax.
+sub await :keyword(TERMEXPR);
+
+# Declared, and not exported.
+sub hidden (Str $x) Str;

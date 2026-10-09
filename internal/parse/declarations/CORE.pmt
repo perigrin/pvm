@@ -9,223 +9,983 @@
 #       print "sub $k :prototype($p);\n" if defined $p }'
 #
 # A keyword missing here has no prototype perl can report: it is not a
-# function (`if`, `my`) or its parse is its own (`print`, `sort`).
+# function (`if`, `my`) or its parse is the parser's (`require`). The
+# builtins whose leading slot takes no comma, `print` among them, and those
+# that keep their own parse, `grep`, `map` and `sort`, are typed after the
+# prototyped ones.
+#
+# A typed line carries its prototype in its types and writes none (RFC 0001,
+# "A typed signature and a prototype say the same thing"): `bless`'s
+# `(Ref $ref, Str $class = __PACKAGE__)` derives `$;$`. One whose types
+# derive `@` writes `:prototype(@)`, since a derived `@` is no prototype.
+#
+# Each line also says how a call to its builtin parses (TestCoreDerivedShapes):
+# a named unary takes ONE argument without parens, so `KW $x, $y` is
+# `KW($x), $y`; a list operator swallows the whole comma list, `KW($x, $y)`;
+# a niladic takes nothing, so what follows it is an operator. A prototype
+# says which as it would for a sub; with none, `:unary` marks a named unary
+# and the rest are list operators. The shapes were measured, not
+# transcribed. Every one of perl's keywords was deparsed as
+#
+#   perl -MO=Deparse,-p -e 'my $x; my $y; KW $x, $y;'
+#
+# and classified by where the comma landed:
+#
+#   (length($x), $y)     the comma is OUTSIDE   -> named unary
+#   print($x, $y)        the comma is INSIDE    -> list operator
+#
+# `-p` matters: without it Deparse omits the parens that carry the answer.
+# A "Too many arguments" refusal is the comma INSIDE: perl took the second
+# argument and then refused it.
+#
+# The set those were drawn from was then differenced against perl's own:
+# all 266 names in regen/keywords.pl, each absent one put to perl in
+# expression position,
+#
+#   perl -MO=Deparse,-p -e 'our ($a,$b); my $z = KW $a, $b;'
+#
+# Most of them perl rejects there (`if`, `while`, `sub`, `else`, `__DATA__`,
+# the phasers) or reads as an infix operator (`eq`, `cmp`, `lt`, `xor`) or a
+# quote-like (`q`, `qw`, `m`, `s`, `tr`). Of the names perl ACCEPTS and
+# hands an argument to, these parse as their own forms and have no line
+# here: `my`, `our` and `local` are declarations (named unaries in perly.y,
+# §4.6, but parseDeclaration owns them), and `last`, `next`, `redo` and
+# `require` are statement forms. An absent builtin emits `NAME()` with its
+# arguments detached, at Unknown=0, so the canon is the only instrument that
+# sees one missing: TestParenlessBuiltinArity and
+# TestParenlessArityNoDetachedCall hold the audit.
+#
+# A builtin a feature gates -- `fc`, `evalbytes`, `any`, `all`, `isa`,
+# `__CLASS__`, `catch`, `break`, `__SUB__` -- takes its shape only with its
+# feature on or spelled `CORE::NAME`; unenabled perl does not read it as a
+# builtin at all:
+#
+#   perl -MO=Deparse,-p -e 'our $a; my $z = fc $a;'
+#   (my($z) = $a->fc);                     a METHOD call
+#   perl -MO=Deparse,-p -e 'use v5.42; our $a; my $z = fc $a, $b;'
+#   (fc($a), $b);                          the builtin, a named unary
+#
+# Shaping it unconditionally would disagree with perl on unfeatured source,
+# the larger half of the corpus. `say` is gated too, but is a list operator
+# whatever is enabled, with a filehandle slot exactly like `print`'s.
 package CORE;
 
-sub __CLASS__ :prototype();
-sub __FILE__ :prototype();
-sub __LINE__ :prototype();
-sub __PACKAGE__ :prototype();
-sub __SUB__ :prototype();
-sub abs :prototype(_);
-sub accept :prototype(**);
-sub alarm :prototype(_);
-sub all :prototype(\&@);
-sub any :prototype(\&@);
-sub atan2 :prototype($$);
-sub bind :prototype(*$);
-sub binmode :prototype(*;$);
-sub bless :prototype($;$);
-sub break :prototype();
-sub caller :prototype(;$);
+# __CLASS__ yields the class of the instance under construction or whose
+# method runs, a string: in `class F`'s method it is "F", POK (measured).
+sub __CLASS__ () Str;
+# __FILE__ and __PACKAGE__ yield the file name and the package being
+# compiled, strings (measured: "-e" and "main", POK).
+sub __FILE__ () Str;
+# __LINE__ yields the line number, a string of digits: under `perl -e`
+# on its second line it is "2", POK and not IOK (measured with
+# B::svref_2object). Its value is an integer.
+sub __LINE__ () Int;
+# Measured as __FILE__, above.
+sub __PACKAGE__ () Str;
+# __SUB__ yields a reference to the sub it is in, and undef outside one
+# (measured).
+sub __SUB__ () CodeRef|Undef;
+# Numeric transforms. abs follows its argument and int always truncates to
+# an integer; both are narrowed further by inference, which a signature
+# cannot express. With no argument each takes `$_`: `abs()` compiles
+# (measured).
+sub abs (Num $number = $_) Num;
+# accept takes a new handle and a listening socket, both required
+# (`accept(S)` is "Not enough arguments"), and yields the peer's packed
+# address, a string, or undef on failure (measured: accepting on a
+# closed handle is undef). A `*` slot is `Glob *`, here and in the socket
+# builtins below.
+sub accept (Glob *new, Glob *socket) Str|Undef;
+# alarm schedules a SIGALRM in whole seconds, `$_` with none (measured:
+# `$_ = 3; alarm` sets 3, alarm(2.9) sets 2), and yields the seconds left
+# of the one before, 0 if none: undef for a negative time, with a warning.
+sub alarm (Int $seconds = $_) Int|Undef;
+# all and any take a block and then a LIST, which may be empty: `all {1} ()`
+# is true, and `all()` is "Not enough arguments" (measured). The block is a
+# literal block; `all sub {1}, 1` is a syntax error. Each returns a boolean
+# in every context, one value even in list context (measured: builtin's
+# is_bool is true of both results).
+sub all (Code \&block, List @list) Boolean;
+# Measured as all, above.
+sub any (Code \&block, List @list) Boolean;
+# atan2 takes both its arguments, y then x: `atan2(1)` is "Not enough
+# arguments". Its result is a float, NOK even where it is whole: atan2(0, 1)
+# is 0 as an NV (measured with B::svref_2object). It is a list operator, the
+# comma inside:
+#
+#   perl -MO=Deparse,-p -e 'our ($a,$b); my $z = atan2 $a, $b;'
+#   (my($z) = atan2($a, $b));
+sub atan2 (Num $y, Num $x) Num;
+# bind, connect, listen, setsockopt, socket and socketpair yield true, a
+# boolean, or undef on failure (measured: binding a bound socket, connecting
+# to a closed port and any of them on a closed handle are undef). bind and
+# connect take a packed address.
+sub bind (Glob *socket, Str $name) Boolean|Undef;
+# binmode sets a handle's layers, :raw with none (measured: on a :crlf
+# handle `binmode $fh` and `binmode $fh, ":raw"` leave the same layers),
+# and yields true, or undef for a closed handle.
+sub binmode (Glob *fh, Str $layer = ":raw") Boolean|Undef;
+sub bless (Ref $ref, Str $class = __PACKAGE__) Object;
+# break, continue and dump never return: break leaves a given block and
+# continue a when block, each dying "Can't "break" outside a given block"
+# and "Can't "continue" outside a when block" elsewhere, and CORE::dump
+# aborts the process (measured: status 134, SIGABRT).
+sub break () None;
+# caller yields the frame's package, file and line in list context, and
+# its package in scalar context -- the list's first value, so List covers
+# both -- and undef, or the empty list, past the top of the stack
+# (measured). Given a level it yields eleven values, the sub, whether it
+# was called with arguments, its context and more after those three:
+# inside a sub `caller` gives three, `caller(0)` eleven. Both are List,
+# so one signature says it. No level states what an absent one does, so
+# the level is Optional, absent with no default.
+sub caller (Optional[Int] $level) List;
+# catch is a keyword, like try and sub, not a builtin to type (perigrin,
+# 2026-10-07): `CORE::catch()` is a syntax error and `&CORE::catch` an
+# undefined subroutine (measured on 5.42). The line holds CORE.pmt to
+# prototype("CORE::catch"), which answers `()`.
 sub catch :prototype();
-sub chdir :prototype(;$);
-sub chmod :prototype(@);
-sub chown :prototype(@);
-sub chr :prototype(_);
-sub chroot :prototype(_);
-sub close :prototype(;*);
-sub closedir :prototype(*);
-sub connect :prototype(*$);
-sub continue :prototype();
-sub cos :prototype(_);
-sub crypt :prototype($$);
-sub dbmclose :prototype(\%);
-sub dbmopen :prototype(\%$$);
-sub die :prototype(@);
-sub dump :prototype();
-sub each :prototype(\[%@]);
-sub endgrent :prototype();
-sub endhostent :prototype();
-sub endnetent :prototype();
-sub endprotoent :prototype();
-sub endpwent :prototype();
-sub endservent :prototype();
-sub eof :prototype(;*);
-sub evalbytes :prototype(_);
-sub exit :prototype(;$);
-sub exp :prototype(_);
-sub fc :prototype(_);
-sub fcntl :prototype(*$$);
-sub fileno :prototype(*);
-sub flock :prototype(*$);
-sub fork :prototype();
-sub formline :prototype($@);
-sub getc :prototype(;*);
-sub getgrent :prototype();
-sub getgrgid :prototype($);
-sub getgrnam :prototype($);
-sub gethostbyaddr :prototype($$);
-sub gethostbyname :prototype($);
-sub gethostent :prototype();
-sub getlogin :prototype();
-sub getnetbyaddr :prototype($$);
-sub getnetbyname :prototype($);
-sub getnetent :prototype();
-sub getpeername :prototype(*);
-sub getpgrp :prototype(;$);
-sub getppid :prototype();
-sub getpriority :prototype($$);
-sub getprotobyname :prototype($);
-sub getprotobynumber :prototype($;);
-sub getprotoent :prototype();
-sub getpwent :prototype();
-sub getpwnam :prototype($);
-sub getpwuid :prototype($);
-sub getservbyname :prototype($$);
-sub getservbyport :prototype($$);
-sub getservent :prototype();
-sub getsockname :prototype(*);
-sub getsockopt :prototype(*$$);
-sub glob :prototype(_;);
-sub gmtime :prototype(;$);
-sub hex :prototype(_);
-sub index :prototype($$;$);
-sub int :prototype(_);
-sub ioctl :prototype(*$$);
+# chdir changes to a directory named by a string or held by a handle
+# (measured: `chdir DH` and `chdir($dh)` change into an opened directory).
+# With none it takes $ENV{HOME} when that exists, even empty, and
+# $ENV{LOGDIR} otherwise; with neither it fails, as chdir(undef) does
+# (measured). It yields true or false. Its default calls exists with
+# parentheses: this file is read without the keyword shapes it derives,
+# since that read is what builds them, so a parenless `exists` here would be
+# an unknown word's call taking the rest of the expression, the `?:`
+# included. A library's `.pmt` is read with them and may write it bare.
+sub chdir (Str|FileHandle $dir = exists($ENV{HOME}) ? $ENV{HOME} : $ENV{LOGDIR}) Boolean;
+# chmod, chown and utime take a LIST that leads with the mode, the owner
+# and group, or the times, and then the files, which a `@` prototype does
+# not tell apart: `chmod()` compiles (measured). Each yields how many files
+# it changed: chmod(0644, "f", "nope") is 1 as an IV.
+sub chmod :prototype(@) (List @list) Int;
+# chomp and chop have no prototype and are named unaries: `chomp $a, $b`
+# is `chomp($a), $b` (B::Deparse -p). Each takes a LIST and writes through
+# every element of it, `$_` with none: `chomp(@l, $x)` chomps both, bare
+# `chomp` chomps `$_`. chomp returns how many characters it removed
+# (`chomp(@l, $x)` over three lines is 3), chop the last one it removed
+# (`$_ = "ab"; chop` is "b").
+sub chomp :unary (List[Str] \(@args = ($_))) Int;
+sub chop :unary (List[Str] \(@args = ($_))) Str;
+# Measured as chmod, above.
+sub chown :prototype(@) (List @list) Int;
+sub chr (Int $code = $_) Str;
+# chroot takes a directory, `$_` with none, and yields 1 or 0 as an IV
+# (measured: a missing directory is 0), as link, mkdir, rename, rmdir and
+# symlink do: a count of one, not one of perl's booleans.
+sub chroot (Str $dir = $_) Int;
+# close and write take the selected handle with none (measured: `select
+# $h; close` closes $h), and yield true or false: closing a closed handle
+# is false, not undef. write dies for a handle with no format.
+sub close (Glob *fh = select()) Boolean;
+# closedir, rewinddir and seekdir yield true, or undef for a closed
+# dirhandle (measured).
+sub closedir (Glob *dh) Boolean|Undef;
+# Measured as bind, above.
+sub connect (Glob *socket, Str $name) Boolean|Undef;
+# Measured as break, above.
+sub continue () None;
+# cos, exp, log, sin and sqrt each take a number, `$_` with none (measured:
+# `$_ = 0; cos()` is 1), and yield a float, NOK even where it is whole:
+# cos(0) is 1 as an NV. log of a number not above zero and sqrt of a
+# negative one die.
+sub cos (Num $number = $_) Num;
+# crypt takes the plaintext and the salt, both: `crypt("a")` is "Not enough
+# arguments". It yields the digest, or "*0" for a salt it cannot use
+# (measured: crypt("pw", "ab") is "abzlUXK5ed5rs", crypt("pw", "!") "*0").
+sub crypt (Str $plaintext, Str $salt) Str;
+# dbmclose unties the hash and yields true, even for one never opened
+# (measured).
+sub dbmclose (Hash \%hash) Boolean;
+# dbmopen ties the hash to a database and yields the tied object, an
+# AnyDBM_File, or undef when it cannot open one (measured: a missing
+# directory, or a mode of undef for a database that does not exist).
+sub dbmopen (Hash \%hash, Str $dbname, Int $mode) Object|Undef;
+# defined, delete and exists have no prototype and are named unaries:
+# `defined $a, $b` is `defined($a), $b`, `delete $h{a}, $b` is
+# `delete($h{a}), $b` (B::Deparse -p). defined takes `$_` with none
+# (`defined()` is false with `$_` undef); delete and exists need their
+# element, "Not enough arguments" without. Their operand is an element,
+# which neither reads: open question 10 asks how to say so. Measured:
+#
+#   (delete $h{'a'}, $y)   comma outside  -> named unary
+#   (exists $h{'a'}, $y)   comma outside  -> named unary
+sub defined :unary (Scalar $thing = $_) Boolean;
+# delete of a slice, a `@` operand, yields its values: `delete @h{qw(a b)}`
+# is (1, 2) and `delete %h{qw(a b)}` (a, 1, b, 2). In scalar context it is
+# the last of them, so context does not fork it (measured).
+multi sub delete :unary (List @slice = die) List;
+multi sub delete :unary (Scalar $element) Scalar;
+# die and warn take a LIST of strings, which may be empty: `die()` and
+# `warn()` compile (measured). die never returns; warn returns true.
+sub die :prototype(@) (List[Str] @message) None;
+# do, eval and goto have no prototype and are named unaries: `do $a, $b`
+# is `(do $a), $b` (B::Deparse -p). Their block forms, `do {}` and
+# `eval {}`, are the parser's. do runs a file, which it must be given
+# (`do;` is a syntax error), and yields its last value, or undef when it
+# cannot (`do "/nonexistent"` is undef). eval runs a string, `$_` with none
+# (`$_ = "1+2"; eval` is 3). goto never returns: with no label, or an
+# empty one, it dies "goto must have label" alike, at run time; given code,
+# `goto $cr`, it calls it as `goto &f` does. Measured:
+#
+#   ((goto $x), $y)        comma outside  -> named unary
+#   ((do $x), $y)          comma outside  -> named unary
+sub do :unary (Str $file) Any;
+# Measured as break, above.
+# Its operand, though perl reports `()`, is read at the assignment level as
+# goto's is: `CORE::dump $x = 1` is `CORE::dump ($x = 1)`, so the line
+# states `:equiv(=)`.
+sub dump :equiv(=) () None;
+# each takes a hash or an array whole, and its two candidates derive
+# perl's `\[%@]`. It yields the next key and value, the index for an array
+# (`each @a` over (5, 6) is (0, 5)), or in scalar context the key alone --
+# a hash's key ("a"), an array's index (0, an IV) -- and undef once the
+# iteration is done, which is none of the list's values, so each context
+# is its own candidate, as for keys. A scalar is no operand: "Experimental
+# each on scalar is now forbidden" (measured on 5.42).
+multi sub each (Hash \%h) Str|Undef;
+multi sub each (Array \@a) Int|Undef;
+multi sub each (Hash \%h) List;
+multi sub each (Array \@a) List;
+# endgrent, endpwent, setgrent and setpwent close or rewind the group and
+# password files and yield true, a boolean, in either context (measured:
+# builtin::is_bool of each).
+sub endgrent () Boolean;
+# endhostent, endnetent, endprotoent and endservent close the hosts,
+# networks, protocols and services databases, and sethostent, setnetent,
+# setprotoent and setservent rewind them, keeping them open across lookups
+# when given a true value; each yields true, a boolean, in either context
+# (measured: builtin::is_bool of each).
+sub endhostent () Boolean;
+# Measured as endhostent, above.
+sub endnetent () Boolean;
+# Measured as endhostent, above.
+sub endprotoent () Boolean;
+# Measured as endgrent, above.
+sub endpwent () Boolean;
+# Measured as endhostent, above.
+sub endservent () Boolean;
+# eof and tell take the last handle read with none, ${^LAST_FH} (measured:
+# after reading B, `eof` and `tell` answer for B, not for A read before
+# it). `eof()` with empty parentheses is another builtin, the end of the
+# ARGV files, which a signature cannot tell from `eof`. eof yields a
+# boolean; tell the position, -1 for a closed handle.
+sub eof (Glob *fh = ${^LAST_FH}) Boolean;
+sub eval :unary (Str $code = $_) Any;
+# evalbytes runs a string of bytes, `$_` with none (measured: `$_ =
+# "4*2"; evalbytes()` is 8), and yields what eval does, its last value:
+# evalbytes("(1,2)") is (1, 2), and the empty list on a syntax error.
+sub evalbytes (Str $code = $_) Any;
+sub exists :unary (Scalar $element) Boolean;
+# exit never returns. Its status is 0 with none, as with exit(0) or
+# exit(undef), and truncated to an integer: exit 3.7 exits 3 (measured).
+sub exit (Int $status = 0) None;
+# Measured as cos, above, except that exp overflows: exp(1000) is Inf
+# (measured), so its result is Num|Inf (TestCoreArithmeticReturnsWhatPerlReturns).
+sub exp (Num $number = $_) Num|Inf;
+# fc casefolds a string, `$_` with none (measured: `$_ = "XY"; CORE::fc()`
+# is "xy"). It is a builtin only under the fc feature or spelled CORE::fc;
+# the line types the builtin, whatever reads the word.
+sub fc (Str $string = $_) Str;
+# fcntl and ioctl yield the call's result, 0 being the string "0 but true",
+# and undef on error (measured: F_GETFD of a close-on-exec handle is 1 as
+# an IV, of another "0 but true" as a PV, of a closed handle undef). The
+# third argument is the call's integer or a buffer it writes into.
+sub fcntl (Glob *fh, Int $function, Scalar $argument) Str|Undef;
+# fileno yields the descriptor, -1 for an in-memory handle, and undef for
+# a closed one (measured).
+sub fileno (Glob *fh) Int|Undef;
+# flock yields 1 or 0 as an IV (measured: locking a closed handle is 0).
+sub flock (Glob *fh, Int $operation) Int;
+# fork yields the child's pid to the parent and 0 to the child, as an IV,
+# and undef when it cannot fork (measured under `prlimit --nproc=1`).
+sub fork () Int|Undef;
+# formline formats a LIST through a picture into $^A, and yields true
+# (measured). The list may be empty: `formline("@<<")` compiles, and
+# `formline()` is "Not enough arguments".
+sub formline (Str $picture, List @list) Boolean;
+# getc reads one character, from STDIN with none (measured: with a file
+# argument and "Z" piped in, `getc` is "Z"), and yields undef at end of
+# file or for a closed handle.
+sub getc (Glob *fh = *STDIN) Str|Undef;
+# getgrent, getgrgid and getgrnam yield a group's record, its name,
+# password, gid and members, in list context, and one of those fields in
+# scalar context: getgrent and getgrgid the name, getgrnam the gid
+# (measured: getgrnam's is the record's gid, an IV) -- one of the list's
+# values, so List covers both. A group that does not exist, or the end of
+# the file, is the empty list, and undef in scalar context.
+sub getgrent () List;
+# Measured as getgrent, above.
+sub getgrgid (Int $gid) List;
+# Measured as getgrent, above.
+sub getgrnam (Str $name) List;
+# gethostbyaddr, gethostbyname and gethostent yield a host's record, its
+# name, aliases, address type, address length and packed addresses, in list
+# context, and one of those fields in scalar context: gethostbyaddr and
+# gethostent the name, gethostbyname the first packed address (measured:
+# for "localhost" "\x7f\0\0\1", the record's fifth field, POK) -- one of the
+# list's values, so List covers both. A host that does not resolve is the
+# empty list, and undef in scalar context. gethostbyaddr takes the packed
+# address and its type, AF_INET's 2.
+sub gethostbyaddr (Str $addr, Int $addrtype) List;
+# Measured as gethostbyaddr, above.
+sub gethostbyname (Str $name) List;
+# Measured as gethostbyaddr, above.
+sub gethostent () List;
+# getlogin yields the login name of the controlling terminal from utmp,
+# a string, and undef when there is none (measured: undef with no
+# controlling terminal, and under `script`, whose terminal utmp does not
+# list).
+sub getlogin () Str|Undef;
+# getnetbyaddr, getnetbyname and getnetent yield a network's record, its
+# name, aliases, address type and number, in list context, and one of
+# those fields in scalar context: getnetbyaddr and getnetent the name,
+# getnetbyname the number (measured: for "link-local" 2851995648 as an
+# IV, the record's fourth field) -- one of the list's values, so List
+# covers both. A network not listed is the empty list, and undef in scalar
+# context.
+sub getnetbyaddr (Int $addr, Int $addrtype) List;
+# Measured as getnetbyaddr, above.
+sub getnetbyname (Str $name) List;
+# Measured as getnetbyaddr, above.
+sub getnetent () List;
+# getpeername and getsockname yield the packed address of a socket's peer
+# or its own, a string, and undef for a closed handle or, for getpeername,
+# a socket not connected (measured).
+sub getpeername (Glob *socket) Str|Undef;
+# getpgrp yields a process's group, the current process's with none, as
+# for 0 (measured: getpgrp() and getpgrp(0) agree), and -1 as an IV for a
+# process that does not exist.
+sub getpgrp (Int $pid = 0) Int;
+# getppid yields the parent's pid, an IV (measured).
+sub getppid () Int;
+# getpriority takes both its arguments, `getpriority(0)` being "Not enough
+# arguments", and yields the priority, -1 as an IV on error -- which is a
+# priority too (measured: getpriority(99, 0) is -1).
+sub getpriority (Int $which, Int $who) Int;
+# getprotobyname, getprotobynumber and getprotoent yield a protocol's
+# record, its name, aliases and number, in list context, and one of those
+# fields in scalar context: getprotobynumber and getprotoent the name,
+# getprotobyname the number (measured: getprotobyname("tcp") is 6 as an
+# IV) -- one of the list's values, so List covers both. A protocol not
+# listed is the empty list, and undef in scalar context.
+sub getprotobyname (Str $name) List;
+# Measured as getprotobyname, above. Its `$;` keeps its `;`, which no type
+# states, as not's does: `getprotobynumber()` is "Not enough arguments".
+sub getprotobynumber :prototype($;) (Int $number) List;
+# Measured as getprotobyname, above.
+sub getprotoent () List;
+# getpwent, getpwnam and getpwuid yield a user's record, nine fields from
+# the name to the shell, in list context, and one of those fields in scalar
+# context: getpwent and getpwuid the name, getpwnam the uid (measured:
+# getpwnam's is 1001 as an IV, the record's third field) -- one of the
+# list's values, so List covers both. A user that does not exist, or the
+# end of the file, is the empty list, and undef in scalar context.
+sub getpwent () List;
+# Measured as getpwent, above.
+sub getpwnam (Str $name) List;
+# Measured as getpwent, above.
+sub getpwuid (Int $uid) List;
+# getservbyname, getservbyport and getservent yield a service's record,
+# its name, aliases, port and protocol, in list context, and one of those
+# fields in scalar context: getservbyport and getservent the name,
+# getservbyname the port (measured: getservbyname("http", "tcp") is 80 as
+# an IV) -- one of the list's values, so List covers both. A service not
+# listed is the empty list, and undef in scalar context.
+sub getservbyname (Str $name, Str $proto) List;
+# Measured as getservbyname, above.
+sub getservbyport (Int $port, Str $proto) List;
+# Measured as getservbyname, above.
+sub getservent () List;
+# Measured as getpeername, above.
+sub getsockname (Glob *socket) Str|Undef;
+# getsockopt yields the option's packed value, a string (measured:
+# SO_REUSEADDR once set is "\1\0\0\0"), and undef on failure, an unknown
+# level or a closed handle.
+sub getsockopt (Glob *socket, Int $level, Int $optname) Str|Undef;
+# glob expands a pattern, `$_` with none: in list context every match, in
+# scalar context the next one, undef past the last -- one of the list's
+# values, so List covers both. `_;` keeps its `;`, which no type states,
+# and makes glob a list operator, as toke.c's LOP reads it: the comma and a
+# comparison are inside, and perl refuses a second argument.
+#
+#   perl -MO=Deparse,-p -e 'our ($a,$b); my $z = glob $a lt 5;'
+#   (my($z) = glob(($a lt 5)));
+#   perl -MO=Deparse,-p -e 'our ($a,$b); my $z = glob $a, $b;'
+#   Too many arguments for glob
+sub glob :prototype(_;) (Str $pattern = $_) List;
+# gmtime and localtime fork on context (RFC 0001, "Context selects by
+# return type"). In scalar context each yields a date string, `my $t =
+# localtime(0)` being "Thu Jan  1 00:00:00 1970" (POK), and undef for a
+# time out of range (`localtime(1e20)` is undef, with a warning). In list
+# context each yields nine integers, (0, 0, 0, 1, 0, 70, 4, 0, 0) for 0,
+# or none out of range: the string is none of them. The year is NV only,
+# 70 being whole, as hex's overflow is (measured with B::svref_2object).
+# The time is now with none (`gmtime()` is today's date), which undef is
+# not: gmtime(undef) is 1970.
+multi sub gmtime (Int $time = time) Str|Undef;
+multi sub gmtime (Int $time = time) List[Int];
+# Measured with do, above. Its operand is read at the assignment level,
+# `goto $x = 1` being `goto ($x = 1)`, as perlop puts it, so the line states
+# `:equiv(=)` where a named unary's shape would place it tighter than `<`
+# (RFC 0001, "Precedence is a relation between operators").
+sub goto :unary :equiv(=) (Str|Code $label = "") None;
+# hex and oct read a string of digits, `$_` with none, and yield its
+# integer: hex("ff") is 255 as an IV, hex("zz") 0, oct("755") 493. oct
+# reads a 0x, 0b or 0o prefix, hex only 0x. Past an IV the integer is
+# an NV, with an overflow warning: hex("ffffffffffffffffff") is
+# 4.72236648286965e+21 -- whole still, as int's is (measured). Past a
+# double it is Inf, with the same warning: hex("f" x 256) and oct("7" x 400)
+# are Inf (measured), so the result is Int|Inf.
+sub hex (Str $string = $_) Int|Inf;
+# index and rindex search a string for a substring and yield a position,
+# or -1 when absent -- an Int either way. The position defaults to the
+# start for index and the end for rindex (measured: `rindex($s, "b")` and
+# `rindex($s, "b", length($s))` agree).
+sub index (Str $string, Str $substring, Int $position = 0) Int;
+# Measured as abs, above.
+sub int (Num $number = $_) Int;
+# Measured as fcntl, above.
+sub ioctl (Glob *fh, Int $function, Scalar $argument) Str|Undef;
+# isa is the infix operator, typed by its `:infix(ISA)` declaration below
+# (perigrin, 2026-10-07); no call reaches it as a function (`CORE::isa()`
+# is a syntax error). The line holds CORE.pmt to prototype("CORE::isa").
 sub isa :prototype();
-sub join :prototype($@);
-sub keys :prototype(\[%@]);
-sub kill :prototype(@);
-sub lc :prototype(_);
-sub lcfirst :prototype(_);
-sub length :prototype(_);
-sub link :prototype($$);
-sub listen :prototype(*$);
-sub localtime :prototype(;$);
+# join takes a separator and then a LIST, not a series of strings: Str
+# there rejected `join ":", @foo`. Measured: join(":", @f) flattens the
+# array, and `join(":")` compiles, with an empty list. It is a list
+# operator, which the keyword sweep missed because perl constant-folds
+# `join ",", $x, $y`; verified by hand:
+#
+#   perl -MO=Deparse -e 'my @a=(1,2); print join ",", @a, "x";'
+#   print join(',', @a, 'x');
+sub join (Str $separator, List @list) Str;
+# keys takes one hash or array, never a scalar or a list: `keys $ref` is
+# "Experimental keys on scalar is now forbidden", and `keys;` "Not enough
+# arguments" (measured). Its scalar-context value is a count -- with two
+# keys, `my $n = keys %h` is 2, and with three elements, `my $m = keys @a`
+# is 3, each IOK only -- which is not one of the list-context values.
+multi sub keys (Hash \%h) Int;
+multi sub keys (Array \@a) Int;
+multi sub keys (Hash \%h) List;
+multi sub keys (Array \@a) List;
+# kill takes a LIST, the signal and then the processes, which may be
+# empty: `kill()` compiles (measured). It yields how many processes it
+# signalled, as an IV: kill(0, $$) is 1, kill(0, 999999) 0.
+sub kill :prototype(@) (List @list) Int;
+# Measured as uc, below.
+sub lc (Str $string = $_) Str;
+# Measured as uc, below.
+sub lcfirst (Str $string = $_) Str;
+sub length (Str $string = $_) Int;
+# Measured as chroot, above: link("nope", "h") is 0 as an IV.
+sub link (Str $old, Str $new) Int;
+# Measured as bind, above.
+sub listen (Glob *socket, Int $queuesize) Boolean|Undef;
+# Measured as gmtime, above.
+multi sub localtime (Int $time = time) Str|Undef;
+multi sub localtime (Int $time = time) List[Int];
 sub lock :prototype(\[$@%&*]);
-sub log :prototype(_);
-sub lstat :prototype(;*);
+# Measured as cos, above.
+sub log (Num $number = $_) Num;
+# lstat and stat take a file name, a handle or a dirhandle, `$_` with none
+# (measured: `stat` and `stat STDIN` each give 13 fields). In list context
+# the 13 fields, or none when the file is missing; in scalar context
+# whether it succeeded, a boolean -- not one of the fields, so two
+# candidates.
+multi sub lstat (Glob *file = $_) List;
+multi sub lstat (Glob *file = $_) Boolean;
+# method is a keyword, like sub, not a builtin to type (perigrin,
+# 2026-10-07): `CORE::method()` is "Cannot 'method' outside of a 'class'"
+# (measured on 5.42). The line holds CORE.pmt to prototype("CORE::method").
 sub method :prototype();
-sub mkdir :prototype(_;$);
-sub msgctl :prototype($$$);
-sub msgget :prototype($$);
-sub msgrcv :prototype($$$$$);
-sub msgsnd :prototype($$$);
-sub not :prototype($;);
-sub oct :prototype(_);
-sub open :prototype(*;$@);
-sub opendir :prototype(*$);
-sub ord :prototype(_);
-sub pack :prototype($@);
-sub pipe :prototype(**);
-sub pop :prototype(;\@);
+# mkdir takes a directory, `$_` with none, and a mode, 0777 with none
+# (measured under umask 0: a directory made without a mode is 0777).
+# Measured as chroot, above: mkdir of an existing directory is 0 as an IV.
+sub mkdir (Str $dir = $_, Int $mode = 0777) Int;
+# msgctl, semctl and shmctl yield the call's result, 0 being the string
+# "0 but true", and undef on error (measured: IPC_STAT and IPC_RMID are
+# "0 but true" as a PV, semctl's GETVAL of 3 is 3 as an IV, and a removed
+# id undef). The last argument is the call's integer or a buffer IPC_STAT
+# writes into.
+sub msgctl (Int $id, Int $cmd, Scalar $arg) Str|Undef;
+# msgget, semget and shmget yield the id, an IV, which may be 0 (measured:
+# the first IPC_PRIVATE queue was 0), and undef on error (measured: a key
+# with no queue and no IPC_CREAT).
+sub msgget (Int $key, Int $flags) Int|Undef;
+# msgrcv receives into the scalar it is given, though its prototype is `$`,
+# not `\$` (measured: "zz" becomes the packed type and "hi"),
+# and, as msgsnd, semop, shmread and shmwrite do, yields 1 or 0 as an IV:
+# an empty queue under IPC_NOWAIT, or a bad id, is 0.
+sub msgrcv (Int $id, Scalar $var, Int $size, Int $type, Int $flags) Int;
+# Measured as msgrcv, above.
+sub msgsnd (Int $id, Str $msg, Int $flags) Int;
+# not negates its operand in scalar context (measured: with two elements,
+# `not @a` is false) and yields a boolean. perl's `$;` is its own parse,
+# which takes nothing too: `not()` compiles and is true. `$;` keeps its
+# `;`, which no type states.
+sub not :prototype($;) (Scalar $x) Boolean;
+# Measured as hex, above.
+sub oct (Str $string = $_) Int|Inf;
+# open takes a handle and then a mode and a LIST: a mode with the file
+# name in it, or a mode followed by a file name, or by a command and its
+# arguments. With neither, the one-argument form, the file name is the
+# package scalar of the handle's name, ${*$fh} (measured: `our $OF = "f";
+# open(OF)` opens f). It yields 1, a piped open the child's pid, and undef
+# on failure (measured).
+sub open (Glob *fh, Str $mode = ${*$fh}, List @list) Int|Undef;
+# opendir yields true, or undef on failure (measured: opening a missing
+# directory is undef).
+sub opendir (Glob *dh, Str $dir) Boolean|Undef;
+sub ord (Str $string = $_) Int;
+# pack takes a template and then the LIST of values it packs into one
+# string: `pack()` is "Not enough arguments", `pack("A")` compiles.
+sub pack (Str $template, List @list) Str;
+# pipe opens a read and a write handle, both required (`pipe(R)` is "Not
+# enough arguments"), and yields true, or undef when it cannot (measured
+# under `prlimit --nofile=8`, "Too many open files").
+sub pipe (Glob *read, Glob *write) Boolean|Undef;
+# pop and shift take the array whole, defaulting to `@_` in a sub and to
+# `@ARGV` outside one (measured: `perl -e 'print pop' x y` prints y).
+sub pop (Array \@array = @_) Scalar;
 sub pos :prototype(;\[$*]);
-sub prototype :prototype(_);
-sub push :prototype(\@@);
-sub quotemeta :prototype(_);
-sub rand :prototype(;$);
-sub read :prototype(*\$$;$);
-sub readdir :prototype(*);
-sub readline :prototype(;*);
-sub readlink :prototype(_);
-sub readpipe :prototype(_);
-sub recv :prototype(*\$$$);
-sub ref :prototype(_);
-sub rename :prototype($$);
-sub reset :prototype(;$);
-sub reverse :prototype(@);
-sub rewinddir :prototype(*);
-sub rindex :prototype($$;$);
-sub rmdir :prototype(_);
-sub scalar :prototype($);
-sub seek :prototype(*$$);
-sub seekdir :prototype(*$);
-sub semctl :prototype($$$$);
-sub semget :prototype($$$);
-sub semop :prototype($$);
-sub send :prototype(*$$;$);
-sub setgrent :prototype();
-sub sethostent :prototype($);
-sub setnetent :prototype($);
-sub setpgrp :prototype(;$$);
-sub setpriority :prototype($$$);
-sub setprotoent :prototype($);
-sub setpwent :prototype();
-sub setservent :prototype($);
-sub setsockopt :prototype(*$$$);
-sub shift :prototype(;\@);
-sub shmctl :prototype($$$);
-sub shmget :prototype($$$);
-sub shmread :prototype($$$$);
-sub shmwrite :prototype($$$$);
-sub shutdown :prototype(*$);
-sub sin :prototype(_);
-sub sleep :prototype(;$);
-sub socket :prototype(*$$$);
-sub socketpair :prototype(**$$$);
-sub splice :prototype(\@;$$@);
-sub sprintf :prototype($@);
-sub sqrt :prototype(_);
-sub srand :prototype(;$);
-sub stat :prototype(;*);
-sub study :prototype(_);
-sub substr :prototype($$;$$);
-sub symlink :prototype($$);
-sub syscall :prototype($@);
-sub sysopen :prototype(*$$;$);
-sub sysread :prototype(*\$$;$);
-sub sysseek :prototype(*$$);
-sub syswrite :prototype(*$;$$);
-sub tell :prototype(;*);
-sub telldir :prototype(*);
+# prototype takes a sub's name or a reference to it, `$_` with none
+# (measured: `$_ = "CORE::push"; prototype` is "\@@", prototype(\&CORE::push)
+# the same), and yields the prototype, or undef for a sub with none or a
+# builtin whose parse is its own (prototype("CORE::print") is undef).
+sub prototype (Str|Code $function = $_) Str|Undef;
+# push, unshift and splice take a LIST, not Any. Everything flattens into
+# it -- measured, scalars, arrays, hashes and refs all append -- so List
+# accepts every value Any did, while still excluding Code and Glob. Any is
+# the annotation escape hatch and has no business standing in for an
+# unexamined slot. Each returns the array's new length. `push(@a)` and
+# `unshift(@a)` compile (measured), so the list may be empty; `push()` is
+# "Not enough arguments".
+sub push (Array \@array, List @list) Int;
+# quotemeta backslashes a string's non-word characters, `$_` with none
+# (measured: `$_ = "a+"; quotemeta` is "a\+").
+sub quotemeta (Str $string = $_) Str;
+# rand yields a float between 0 and its argument, which is 1 when it is 0
+# or absent: after srand(7), rand(), rand(1) and rand(0) are the same
+# number, and a negative argument gives a negative float (rand(-1) after
+# srand(1) is -0.0416, measured).
+sub rand (Num $max = 1) Num;
+# read and sysread fill the caller's buffer from a handle and yield how many
+# characters they read: 0 at end of file, undef on error (measured: reading
+# a closed handle is undef). Without an offset the buffer is replaced from
+# its start, as offset 0 does (measured: both leave "XYZWVU" as "ab").
+# A `*` slot is `Glob *`: a bareword handle or any scalar (RFC 0001, "A
+# typed signature and a prototype say the same thing"), here and below.
+sub read (Glob *fh, Scalar \$buffer, Int $length, Int $offset = 0) Int|Undef;
+# readdir yields every remaining entry in list context and the next one in
+# scalar context, undef past the last -- one of the list's values, so
+# List covers both. A closed dirhandle is undef (measured).
+sub readdir (Glob *dh) List;
+# readline reads from ARGV with none (measured: `readline` and
+# `readline(*ARGV)` read the same lines), and yields every remaining line
+# in list context and the next one in scalar context, undef at end of file
+# -- one of the list's values, so List covers both.
+sub readline (Glob *fh = *ARGV) List;
+# readlink yields a link's target, `$_` with none, or undef for a file
+# that is not a link (measured).
+sub readlink (Str $path = $_) Str|Undef;
+# readpipe runs a command, `$_` with none (measured: `$_ = "echo z";
+# readpipe` is "z\n"), and forks on context: in list context its output a
+# line to an element, in scalar context all of it as one string --
+# readpipe("echo a; echo b") is ("a\n", "b\n") or "a\nb\n", POK, which is
+# not one of the list's values. A command that cannot run is undef in
+# scalar context and empty in list context. It is a named unary:
+#
+#   perl -MO=Deparse,-p -e 'our ($a,$b); my $z = readpipe $a, $b;'
+#   ((my($z) = `$a`), $b);               comma OUTSIDE
+multi sub readpipe (Str $command = $_) Str|Undef;
+multi sub readpipe (Str $command = $_) List[Str];
+# recv fills the caller's buffer, as read does (measured: three bytes of
+# "hello" leave "zz" as "hel"), and yields the sender's packed address, the
+# empty string for a stream socket, and undef on failure (measured: a
+# datagram's sender is a 16-byte sockaddr_in, a closed handle undef).
+sub recv (Glob *socket, Scalar \$buffer, Int $length, Int $flags) Str|Undef;
+sub ref (Scalar $thing = $_) Str;
+# Measured as chroot, above: rename("nope", "x") is 0 as an IV.
+sub rename (Str $old, Str $new) Int;
+# reset clears the variables whose names start with the letters given and
+# yields true (measured: builtin::is_bool). With none it resets the `m?..?`
+# matches instead, which neither "" nor undef does (measured: after
+# reset("") and reset(undef) a `m?x?` that matched still fails, after
+# reset() it matches again), and yields true either way. No expression
+# states that, so the letters are Optional, absent with no default.
+sub reset (Optional[Str] $chars) Boolean;
+# return has no prototype and takes a LIST: `return $a, $b` returns both
+# (B::Deparse -p), `return()` compiles. It leaves the sub, so its own value
+# is never used. It is a list operator at perly.y's level 7, though the
+# parser reads it as a statement form.
+sub return (List[Any] @values) Any;
+# reverse is context-dependent: a reversed list in list context, a
+# reversed string in scalar context -- `my $s = reverse "ab", "cd"` is
+# "dcba" (POK), not one of the list values ("cd", "ab"), so each context
+# is its own candidate. `reverse()` compiles (measured). An empty list
+# reverses `$_` in scalar context: with `$_ = "xyz"`, bare `reverse`,
+# `reverse()`, `reverse(@empty)` and `reverse(())` are all "zyx"; in list
+# context each is the empty list, so only the scalar candidate defaults.
+multi sub reverse :prototype(@) (List @list = ($_)) Str;
+multi sub reverse :prototype(@) (List @list) List;
+# Measured as closedir, above.
+sub rewinddir (Glob *dh) Boolean|Undef;
+# Measured as index, above.
+sub rindex (Str $string, Str $substring, Int $position = length($string)) Int;
+# Measured as chroot, above: rmdir of a missing directory is 0 as an IV.
+sub rmdir (Str $dir = $_) Int;
+# scalar() imposes scalar context on anything: its argument is coerced to
+# a Scalar, as a `$` prototype's is (measured: with `@a = (5, 6, 7)`,
+# `scalar(@a)` is 3). The return type depends on the argument and is
+# inference's to compute -- a signature can only name one type, and this
+# builtin's answer is "whatever the argument becomes".
+sub scalar (Scalar $expr) Scalar;
+# seek yields true, or false for a closed handle (measured).
+sub seek (Glob *fh, Int $position, Int $whence) Boolean;
+# Measured as closedir, above.
+sub seekdir (Glob *dh, Int $position) Boolean|Undef;
+# select has no prototype and is a list operator: `select $a, $b` takes
+# both, and is "Not enough arguments for select system call". It forks on
+# arity. With no argument it yields the selected handle (`select()` is
+# "main::STDOUT"); with one it selects that handle and yields the one
+# selected before; with four it is the select system call, yielding how
+# many descriptors are ready and the time left, (nfound, timeleft):
+# `select(undef, undef, undef, 0)` is (0, 0). In scalar context it is
+# nfound, the first of them, so context does not fork it (measured).
+multi sub select () Str;
+multi sub select (FileHandle $fh) Str;
+multi sub select ($r, $w, $e, Num $timeout) List;
+# Measured as msgctl, above.
+sub semctl (Int $id, Int $semnum, Int $cmd, Scalar $arg) Str|Undef;
+# Measured as msgget, above.
+sub semget (Int $key, Int $nsems, Int $flags) Int|Undef;
+# Measured as msgrcv, above. The operations are a packed string.
+sub semop (Int $id, Str $opstring) Int;
+# send yields how many bytes it sent, an IV, and undef on failure. With an
+# address it sends there; with none it sends to the connected peer, which
+# no address states: on a connected datagram socket an undef or empty
+# address fails where none sends (measured). So the address is Optional,
+# absent with no default.
+sub send (Glob *socket, Str $msg, Int $flags, Optional[Str] $to) Maybe[Int];
+# Measured as endgrent, above.
+sub setgrent () Boolean;
+# Measured as endhostent, above. The flag is read for its truth, and may
+# be any scalar.
+sub sethostent (Scalar $stayopen) Boolean;
+# Measured as sethostent, above.
+sub setnetent (Scalar $stayopen) Boolean;
+# setpgrp sets a process's group, 0 and 0 with none: the current process
+# to its own (measured: after setpgrp(), getpgrp() is $$). It and
+# setpriority yield 1 or 0 as an IV (setpgrp(999999, 0) is 0), not one of
+# perl's booleans.
+sub setpgrp (Int $pid = 0, Int $pgrp = 0) Int;
+# Measured as setpgrp, above: setpriority(0, 999999, 0) is 0 as an IV.
+sub setpriority (Int $which, Int $who, Int $priority) Int;
+# Measured as sethostent, above.
+sub setprotoent (Scalar $stayopen) Boolean;
+# Measured as endgrent, above.
+sub setpwent () Boolean;
+# Measured as sethostent, above.
+sub setservent (Scalar $stayopen) Boolean;
+# Measured as bind, above. The value is an integer or a packed string.
+sub setsockopt (Glob *socket, Int $level, Int $optname, Scalar $optval) Boolean|Undef;
+# Measured as pop, above.
+sub shift (Array \@array = @_) Scalar;
+# Measured as msgctl, above.
+sub shmctl (Int $id, Int $cmd, Scalar $arg) Str|Undef;
+# Measured as msgget, above.
+sub shmget (Int $key, Int $size, Int $flags) Int|Undef;
+# Measured as msgrcv, above: shmread reads into the scalar it is given,
+# "q" becoming "hello".
+sub shmread (Int $id, Scalar $var, Int $pos, Int $size) Int;
+# Measured as msgrcv, above.
+sub shmwrite (Int $id, Str $string, Int $pos, Int $size) Int;
+# shutdown yields 1 as an IV, 0 for a socket not connected and undef for a
+# closed handle (measured).
+sub shutdown (Glob *socket, Int $how) Int|Undef;
+# Measured as cos, above.
+sub sin (Num $number = $_) Num;
+# sleep takes whole seconds, sleep(1.7) sleeping 1, and yields the seconds
+# it slept, an IV. With none it sleeps for ever, and reads no `$_`
+# (measured: with `$_ = 1`, `sleep` was still asleep after 3 seconds),
+# while sleep(undef) is sleep(0). Interrupted, sleep() yields the seconds
+# it slept as sleep(n) does (measured: 1 after `alarm 1`). No expression
+# states sleeping for ever, so the seconds are Optional, absent with no
+# default.
+sub sleep (Optional[Int] $seconds) Int;
+# Measured as bind, above: an unknown domain is undef.
+sub socket (Glob *socket, Int $domain, Int $type, Int $protocol) Boolean|Undef;
+# Measured as bind, above: an unknown domain is undef.
+sub socketpair (Glob *socket1, Glob *socket2, Int $domain, Int $type, Int $protocol) Boolean|Undef;
+# splice takes the array whole, then a LIST as push does. With no length
+# it removes to the end, as `scalar(@array)` does, a length past the end
+# being clipped (measured: `splice(@a, 1)` and `splice(@a, 1, scalar(@a))`
+# remove the same elements, from either end of the offset).
+sub splice (Array \@array, Int $offset = 0, Int $length = scalar(@array), List @list) List;
+# split has no prototype and is a list operator, yet its parameters are
+# typed and positional, so it is `:listop` (RFC 0001, "Builtins with no
+# prototype") and its types derive no prototype. The pattern is a compiled
+# Regex or a Str perl compiles into one (`split ":", $x` and `split qr/:/,
+# $x` alike); with none it is ' ', splitting `$_` on whitespace (`split;`
+# deparses as `split(' ', $_, 0)`). The string is taken in scalar context:
+# `split /,/, @a` over two elements splits "2". A fourth argument is "Too
+# many arguments for split". In list context it yields the fields, in
+# scalar context their count: `my $n = split /,/, "a,b,c"` is 3 (measured).
+#
+# `split` is a list operator, which the keyword sweep missed because perl
+# rewrites `split /$x/, $y` into a three-argument form, so it did not
+# deparse to the shape the classifier looked for. Verified by hand on 5.42.0:
+#
+#   perl -MO=Deparse,-p -e 'our ($a,$c); my @z = split /,/, $a < 5, 2;'
+#   (my @z = split(/,/, ($a < 5), 2));
+multi sub split :listop (Regex|Str $pattern = ' ', Str $string = $_, Int $limit = 0) Int;
+multi sub split :listop (Regex|Str $pattern = ' ', Str $string = $_, Int $limit = 0) List;
+# sprintf takes a format and then the LIST of values it interpolates.
+sub sprintf (Str $format, List @list) Str;
+# Measured as cos, above.
+sub sqrt (Num $number = $_) Num;
+# srand seeds rand and returns the seed, an integer (srand(5) is 5 as an
+# IV, srand(3.7) 3) -- but seed 0 comes back as the string "0 but true",
+# so the result is Str. With no argument perl calls its Perl_seed()
+# (util.c: getentropy, else /dev/urandom, else time, pid and stack hashed),
+# or takes PERL_RAND_SEED's. srand() returns the seed it set, so
+# srand(srand()) is srand() exactly (measured: reseeding with the returned
+# value repeats rand's sequence). No expression states the seed perl
+# computes, so it is Optional, absent with no default: srand() is the Void
+# case, while srand(@e) is srand(0), an empty array one scalar under `;$`.
+sub srand (Optional[Int] $seed) Str;
+# Measured as lstat, above.
+multi sub stat (Glob *file = $_) List;
+multi sub stat (Glob *file = $_) Boolean;
+# study is a no-op since 5.16 that still answers: true for a defined
+# string, `$_` with none, and false for undef (measured: study("x") is 1,
+# study(undef) "").
+sub study (Str $string = $_) Boolean;
+# substr's fourth argument is the string that replaces the part it
+# returns: measured, `substr($s, 0, 1, 5)` makes "abc" "5bc". Without it
+# nothing is replaced, as replacing the part with itself does -- except
+# past the end of the string, where the 3-argument form warns and returns
+# undef but the 4-argument form dies, "substr outside of string". So no
+# expression states an absent replacement, and it is Optional, absent with
+# no default. Without a length it returns the rest of the string.
+sub substr (Str $string, Num $offset, Num $length = length($string), Optional[Str] $replacement) Str;
+# Measured as chroot, above: symlink to a name that exists is 0 as an IV.
+sub symlink (Str $old, Str $new) Int;
+# syscall takes the call's number and then the LIST of its arguments, which
+# may be empty (`syscall(39)` compiles and is getpid), and yields the
+# call's result, -1 on error (measured: an unknown number is -1).
+sub syscall (Int $number, List @args) Int;
+# sysopen takes a handle, a path and the O_ flags, and permissions, 0666
+# with none (measured under umask 0: a file it creates is 0666). It yields
+# true, or undef on failure.
+sub sysopen (Glob *fh, Str $path, Int $mode, Int $perms = 0666) Boolean|Undef;
+# Measured as read, above.
+sub sysread (Glob *fh, Scalar \$buffer, Int $length, Int $offset = 0) Int|Undef;
+# sysseek yields the new position, a position of 0 being the string
+# "0 but true", and undef on error (measured: sysseek($fh, 3, 0) is 3 as
+# an IV, sysseek($fh, 0, 0) "0 but true" as a PV, a closed handle undef).
+sub sysseek (Glob *fh, Int $position, Int $whence) Str|Undef;
+# syswrite writes the whole string from its start when given no length,
+# as length($string) and offset 0 do (measured: both write 5 bytes of
+# "hello"), and yields how many it wrote, undef on error.
+sub syswrite (Glob *fh, Str $string, Int $length = length($string), Int $offset = 0) Int|Undef;
+# Measured as eof, above.
+sub tell (Glob *fh = ${^LAST_FH}) Int;
+# telldir yields the position, undef for a closed dirhandle (measured).
+sub telldir (Glob *dh) Int|Undef;
 sub tie :prototype(\[$@%*]$@);
 sub tied :prototype(\[$@%*]);
-sub time :prototype();
-sub times :prototype();
-sub truncate :prototype($$);
-sub uc :prototype(_);
-sub ucfirst :prototype(_);
-sub umask :prototype(;$);
+# time yields the seconds since the epoch, an IV (measured).
+sub time () Int;
+# times yields the user and system times of this process and of its
+# children, four floats, NOK (measured); in scalar context the user time,
+# the list's first, so List covers both.
+sub times () List[Num];
+# truncate takes a handle or a file name, so its `$` slot is either
+# (measured: `truncate F, 1` with F a bareword handle, and
+# truncate("a", 1), both cut the file), and yields true, or undef on
+# failure.
+sub truncate (Str|FileHandle $file, Int $length) Boolean|Undef;
+# String transforms. Each takes a string and yields one; return types
+# measured on 5.42 rather than transcribed. With no argument each takes
+# `$_`: `uc()` compiles (measured).
+sub uc (Str $string = $_) Str;
+# Measured as uc, above.
+sub ucfirst (Str $string = $_) Str;
+# umask sets the mask and yields the one before it. With no argument it
+# sets nothing, which umask(umask()) also does -- it yields the current
+# mask and sets it again (measured: after umask 027, umask() and
+# umask(umask()) are both 23) -- while umask(undef) sets 0. No expression
+# states setting nothing, so the mask is Optional, absent with no default.
+sub umask (Optional[Int] $mask) Int;
+# undef is two operators wearing one word. The niladic one is already a
+# complete term; with an argument it is a named unary, which the keyword
+# sweep missed and its own measurement found:
+#
+#   (undef($x), $y)        comma outside  -> named unary
+#
+# Declare a lexical first and perl optimises the unary away -- `my $x; undef
+# $x, $y` deparses to `($x = undef, $y)`, no `undef(...)` in sight -- but the
+# comma placement, which is what the classification reads, is the same
+# either way.
 sub undef :prototype(;\[$@%&*]);
-sub unlink :prototype(@);
-sub unpack :prototype($_);
-sub unshift :prototype(\@@);
+# unlink deletes the files of a LIST, `$_` with none (measured: `$_ =
+# "f2"; unlink` deletes f2), and yields how many it deleted.
+sub unlink :prototype(@) (List[Str] @files = ($_)) Int;
+# unpack takes a template and a string, defaulting to `$_`: `unpack("A1
+# A1")` unpacks `$_`, `unpack()` is "Not enough arguments", and a third
+# argument "Too many" (measured). In scalar context it returns the first
+# value the list would hold (`unpack("A1 A1", "ab")` is "a"), so List covers
+# both contexts, since Scalar <: List.
+sub unpack (Str $template, Str $string = $_) List;
+# Measured as push, above.
+sub unshift (Array \@array, List @list) Int;
 sub untie :prototype(\[$@%*]);
-sub utime :prototype(@);
-sub values :prototype(\[%@]);
-sub vec :prototype($$$);
-sub wait :prototype();
-sub waitpid :prototype($$);
-sub wantarray :prototype();
-sub warn :prototype(@);
-sub write :prototype(;*);
+# Measured as chmod, above: utime(undef, undef, "f", "nope") is 1.
+sub utime :prototype(@) (List @list) Int;
+# Measured as keys, above.
+multi sub values (Hash \%h) Int;
+multi sub values (Array \@a) Int;
+multi sub values (Hash \%h) List;
+multi sub values (Array \@a) List;
+# vec reads the unsigned integer of a width of bits at an offset in a
+# string, all three required (`vec("a", 0)` does not compile): vec("abc",
+# 0, 8) is 97 as an IV, and past the string's end 0 (measured).
+sub vec (Str $string, Int $offset, Int $bits) Int;
+# wait and waitpid yield the pid of the child reaped, and -1 as an IV for
+# none (measured: wait with no child, waitpid(999999, 0)). waitpid takes
+# both its arguments: `waitpid(1)` is "Not enough arguments".
+sub wait () Int;
+# Measured as wait, above.
+sub waitpid (Int $pid, Int $flags) Int;
+# wantarray yields true in list context, false in scalar context, both
+# booleans, and undef in void context (measured: builtin::is_bool).
+sub wantarray () Boolean|Undef;
+# Measured as die, above.
+sub warn :prototype(@) (List[Str] @message) Boolean;
+# Measured as close, above: write to a closed handle is false.
+sub write (Glob *fh = select()) Boolean;
+
+# Builtins with a leading slot taken with no comma after it (RFC 0001,
+# "Builtins that keep their own parse"), written with the invocant colon.
+# They derive no prototype: measured on 5.42.0, `prototype("CORE::$_")` is
+# undef for each.
+#
+# print, say and printf: the slot is a handle, `print STDERR LIST` or
+# `print {$fh} LIST`, and the default is the selected one, not STDOUT
+# (`select $h; print "x"` writes to $h). With no list each takes `$_`:
+# `$_ = "topic"; print` prints "topic", and `print STDOUT` alone does too.
+# printf's format is the list's first element, not a parameter of its own:
+# `@a = ("<%s-%s>", "a", "b"); printf @a` prints "<a-b>", where sprintf's
+# `$@` takes scalar(@a). Each returns 1, or undef when the write fails.
+# Each returns a boolean when the write succeeds and undef when it fails:
+# to a closed handle all three give undef (measured).
+sub print (FileHandle $fh = select(): List[Str] @args = ($_)) Boolean|Undef;
+sub printf (FileHandle $fh = select(): List @args = ($_)) Boolean|Undef;
+sub say (FileHandle $fh = select(): List[Str] @args = ($_)) Boolean|Undef;
+
+# exec and system: the slot is the program to run, `exec {'/bin/sh'} @args`
+# or `system $shell "-sh"`, and with it the list may not be empty: `exec
+# {"/bin/echo"};` is a syntax error. exec returns only on failure, false;
+# system returns the wait status, `system "true"` 0, `system "false"` 256
+# and a program that cannot run -1. The slot is optional (perigrin,
+# 2026-10-07): `exec "ls"` and `system "true"` compile, the program taken
+# from the list, so it defaults to the list's first element -- a default
+# naming a parameter declared after it.
+sub exec (Str $program = $args[0]: List[Str] @args) Boolean;
+sub system (Str $program = $args[0]: List[Str] @args) Int;
+
+# grep, map and sort keep their own parse (RFC 0001, "Builtins that keep
+# their own parse"), and each is a multi whose candidates derive no
+# prototype: measured on 5.42.0, `prototype("CORE::$_")` is undef for each.
+#
+# grep and map: perlsub reimplements grep as `sub mygrep (&@)`, the block
+# candidate; the expression form deparses as a `($@)` sub's would, `grep
+# /a/ || 1, @l` as `g((/a/ || 1), @l)`. The comma that ends the first
+# argument selects the expression candidate, its absence the block one.
+# After a block the list must be written, though it may be empty: `grep
+# {1} ()` compiles and yields nothing, while `grep {1};` and `map({1})` are
+# syntax errors, so the block candidate's list defaults to `die`. After an
+# expression it may be left out: `grep(1)` and `map(1)` compile. `grep()`
+# is "Not enough arguments for grep". In scalar context each yields a
+# count, `my $n = grep { 1 } 1, 2, 3` is 3.
+multi sub grep (Code &block, List @list = die) List;
+multi sub grep (Scalar $expr, List @list) List;
+multi sub map (Code &block, List @list = die) List;
+multi sub map (Scalar $expr, List @list) List;
+# sort: a block, `sort { $b cmp $a } @x`; a plain list; or a comparison
+# routine in the leading slot, named or held in a scalar, `sort byname @x`
+# and `sort $n @x` with `$n = "byname"`. With a comma the string is data:
+# `sort "byname", @x` sorts it among the rest. Each needs its list
+# written, though it may be empty: `sort()` and bare `sort` are "Not
+# enough arguments for sort" while `sort(())` and `my @e; sort @e`
+# compile; `sort { $a <=> $b };` is a syntax error while `sort { $a <=> $b
+# } ()` compiles; and with no list after it the routine is the list,
+# `sort byname` yielding "byname" while `sort byname ()` yields nothing.
+# Scalar sort is undefined: `my $n = sort 3, 1, 2` leaves $n undef, as do
+# `sort { $a <=> $b } @a`, `sort by @a` and `sort $n @a`, each warning
+# "Useless use of sort in scalar context", and `if (sort @a)` is false
+# (measured). So each form has a scalar candidate returning Undef.
+multi sub sort (Code &block, List @list = die) List;
+multi sub sort (List @list = die) List;
+multi sub sort (Code|Str $by: List @list = die) List;
+multi sub sort (Code &block, List @list = die) Undef;
+multi sub sort (List @list = die) Undef;
+multi sub sort (Code|Str $by: List @list = die) Undef;
 
 # Operators (RFC 0001, "Operator declarations"): each under its symbol, with
 # its fixity and, for an infix one, the class naming its precedence level in
-# the parser's table. The types are upper bounds: `Int + Int` is an Int within
-# `Num`, and narrowing it is inference's. `..`, `...` and `x` fork on context
-# or on a parenthesis and are not declared here.
+# XS::Parse::Infix's vocabulary. The types are upper bounds: `Int + Int` is an Int within
+# `Num`, and narrowing it is inference's. An operator that forks on context or
+# on a parenthesis is a multi, one candidate for each branch.
+#
+# Each level's precedence is a relation to another's (RFC 0001, "Precedence
+# is a relation between operators"): a class's anchor -- `+` for ADD, `*`
+# for MUL -- or a prefix operator states `:tighter` the next level perlop's
+# table puts below it among those declared here, and the level's
+# associativity, perlop's; the rest of a level are `:equiv` to it, a class
+# saying so for an infix one. TestCoreDerivedPrecedenceIsPerlops holds the
+# order those derive to perlop's table, and the parser binds by it
+# (TestParserPrecedenceFromCore). A level perlop lists that is not
+# declared here is passed over: `..` is `:tighter(=)` though `?:` lies
+# between them.
 
-# Arithmetic
-sub + :infix(ADD) (Num $x, Num $y) Num;
-sub - :infix(ADD) (Num $x, Num $y) Num;
-sub * :infix(MUL) (Num $x, Num $y) Num;
-sub / :infix(MUL) (Num $x, Num $y) Num;
+# Arithmetic. The operands are Num, which excludes Inf and NaN, and the
+# result is what perl returns for them (RFC 0001, "Operator declarations"),
+# measured on 5.42 with finite operands
+# (TestCoreArithmeticReturnsWhatPerlReturns). `+`, `-`, `*` and `/` overflow:
+# `1e308 + 1e308` is Inf, `-1e308 * 10` -Inf, `1e308 / 1e-308` Inf, and the
+# lattice's Inf is either sign; x/0 dies. `**` overflows and gives NaN too:
+# `10 ** 400` and `0 ** -1` are Inf, `(-1) ** 0.5` NaN. `%` stays finite,
+# `1e308 % 7` being 3, and a modulus of 0 dies.
+sub + :infix(ADD) :tighter(<<) :assoc(left) (Num $x, Num $y) Num|Inf;
+sub - :infix(ADD) (Num $x, Num $y) Num|Inf;
+sub * :infix(MUL) :tighter(+) :assoc(left) (Num $x, Num $y) Num|Inf;
+sub / :infix(MUL) (Num $x, Num $y) Num|Inf;
 sub % :infix(MUL) (Num $x, Num $y) Num;
-sub ** :infix(POW) (Num $x, Num $y) Num;
+# `**` is right associative and tighter than unary minus, measured:
+# `2**3**2` is 512, and `-2**2` is -4.
+sub ** :infix(POW) :tighter(!) :assoc(right) (Num $x, Num $y) Num|NaN|Inf;
 
-# String
+# String. Concatenation is an ADDOP: `"a" . 1 + 2` is 'a1' + 2.
 sub . :infix(ADD) (Str $x, Str $y) Str;
 
+# Repetition, a MULOP: a list when the left operand is parenthesised and the
+# call is in list context, `(1,2) x 2`; otherwise a string, `"ab" x 2`.
+multi sub x :infix(MUL) (List @l, Int $n) List;
+multi sub x :infix(MUL) (Str $s, Int $n) Str;
+
 # Numeric comparison
-sub == :infix(EQUALITY) (Num $x, Num $y) Boolean;
+sub == :infix(EQUALITY) :tighter(&) :assoc(chain_na) (Num $x, Num $y) Boolean;
 sub != :infix(EQUALITY) (Num $x, Num $y) Boolean;
-sub < :infix(RELATION) (Num $x, Num $y) Boolean;
+sub < :infix(RELATION) :tighter(==) :assoc(chained) (Num $x, Num $y) Boolean;
 sub > :infix(RELATION) (Num $x, Num $y) Boolean;
 sub <= :infix(RELATION) (Num $x, Num $y) Boolean;
 sub >= :infix(RELATION) (Num $x, Num $y) Boolean;
-sub <=> :infix(ORDERING) (Num $x, Num $y) Int;
+# undef when an operand is NaN: `("nan"+0) <=> 1`.
+sub <=> :infix(ORDERING) :equiv(==) (Num $x, Num $y) Int|Undef;
 
 # String comparison
 sub eq :infix(EQUALITY) (Str $x, Str $y) Boolean;
@@ -236,35 +996,135 @@ sub le :infix(RELATION) (Str $x, Str $y) Boolean;
 sub ge :infix(RELATION) (Str $x, Str $y) Boolean;
 sub cmp :infix(ORDERING) (Str $x, Str $y) Int;
 
+# Smartmatch, a non-chaining equality operator (cmpClasses), gives perl's
+# boolean, measured on 5.42: `1 ~~ 1` is true and warns nothing. `use v5.42`
+# turns the smartmatch feature off, and `1 ~~ 1` is then a syntax error.
+sub ~~ :infix(EQUALITY) (Any $x, Any $y) Boolean;
+
 # Logical
-sub && :infix(LOGICAL_AND) (Any $x, Any $y) Any;
-sub || :infix(LOGICAL_OR) (Any $x, Any $y) Any;
+sub && :infix(LOGICAL_AND) :tighter(||) :assoc(left) (Any $x, Any $y) Any;
+sub || :infix(LOGICAL_OR) :tighter(..) :assoc(left) (Any $x, Any $y) Any;
 sub // :infix(LOGICAL_OR) (Any $x, Any $y) Any;
-sub and :infix(LOGICAL_AND_LOW) (Any $x, Any $y) Any;
-sub or :infix(LOGICAL_OR_LOW) (Any $x, Any $y) Any;
+sub and :infix(LOGICAL_AND_LOW) :tighter(or) :assoc(left) (Any $x, Any $y) Any;
+sub or :infix(LOGICAL_OR_LOW) :assoc(left) (Any $x, Any $y) Any;
+# xor is not a level of its own: toke.c:9224 lexes it as or's OROP.
 sub xor :infix(LOGICAL_OR_LOW) (Any $x, Any $y) Boolean;
+# `^^` is 5.40's logical xor, in `||`'s level (toke.c:6441), and gives
+# perl's boolean, true or false, measured on 5.42.
+sub ^^ :infix(LOGICAL_OR) (Any $x, Any $y) Boolean;
 
 # Bitwise
-sub & :infix(BITAND) (Int $x, Int $y) Int;
-sub | :infix(BITOR) (Int $x, Int $y) Int;
-sub ^ :infix(BITOR) (Int $x, Int $y) Int;
-sub << :infix(SHIFT) (Int $x, Int $y) Int;
-sub >> :infix(SHIFT) (Int $x, Int $y) Int;
+sub & :infix :tighter(|) :assoc(left) (Int $x, Int $y) Int;
+sub | :infix :tighter(&&) :assoc(left) (Int $x, Int $y) Int;
+sub ^ :infix :equiv(|) (Int $x, Int $y) Int;
+sub << :infix :tighter(isa) :assoc(left) (Int $x, Int $y) Int;
+sub >> :infix :equiv(<<) (Int $x, Int $y) Int;
+# String bitwise, under `use feature 'bitwise'`, in the numeric forms'
+# levels: the operands are strings and so is the result, measured on 5.42,
+# `3 &. 5` being "1". Without the feature `&.` is a syntax error.
+sub &. :infix :equiv(&) (Str $x, Str $y) Str;
+sub |. :infix :equiv(|) (Str $x, Str $y) Str;
+sub ^. :infix :equiv(|) (Str $x, Str $y) Str;
 
 # Type test
-sub isa :infix(ISA) (Scalar $x, Str $y) Boolean;
+sub isa :infix(ISA) :tighter(<) :assoc(nonassoc) (Scalar $x, Str $y) Boolean;
 
-# Regex binding
-sub =~ :infix(MATCHRE) (Str $x, Regex $y) Boolean;
+# Regex binding: in list context a match's captures, or s///'s count; in
+# scalar context a match's boolean, s/// or tr///'s count, or s///r or
+# tr///r's new string.
+multi sub =~ :infix(MATCHRE) :tighter(*) :assoc(left) (Str $x, Regex $y) List;
+multi sub =~ :infix(MATCHRE) (Str $x, Regex $y) Boolean|Str;
 sub !~ :infix(MATCHRE) (Str $x, Regex $y) Boolean;
 
-# Assignment
-sub = :infix(ASSIGN) (Any $x, Any $y) Any;
+# Range: a range in list context, a flip-flop in scalar context, whose
+# result is a sequence number as a string ("", "1", "2", "3E0"). It does not
+# associate, measured: `my $x = 1 .. 2 .. 3;` is a syntax error near "2 ..".
+multi sub .. :infix :tighter(=) :assoc(nonassoc) (Str $x, Str $y) List;
+multi sub .. :infix (Any $x, Any $y) Str;
+multi sub ... :infix :equiv(..) (Str $x, Str $y) List;
+multi sub ... :infix (Any $x, Any $y) Str;
 
-# Unary
-sub - :prefix (Num $x) Num;
-sub + :prefix (Num $x) Num;
-sub ! :prefix (Any $x) Boolean;
-sub not :prefix (Any $x) Boolean;
-sub ~ :prefix (Int $x) Int;
-sub \ :prefix (Any $x) Ref;
+# Assignment
+sub = :infix(ASSIGN) :tighter(not) :assoc(right) (Any $x, Any $y) Any;
+# Compound assignment, `=` and an infix operator spelled together, in `=`'s
+# level: they and `=` are one token class, toke.c:250. The left operand is
+# an aliased scalar: perl refuses `1 += 2`, "Can't modify constant item in
+# addition (+)", and `@a x= 3`, "Can't modify private array in repeat (x)".
+# The result is that scalar, `\($x += 1)` aliasing $x, holding what the
+# operator gives, measured on 5.42. The logical ones take their right
+# operand in scalar context, `$x ||= (4, 5)` assigning 5, and `^^=` gives
+# perl's boolean.
+sub += :infix(ASSIGN) (Scalar \$x, Num $y) Num|Inf;
+sub -= :infix(ASSIGN) (Scalar \$x, Num $y) Num|Inf;
+sub *= :infix(ASSIGN) (Scalar \$x, Num $y) Num|Inf;
+sub /= :infix(ASSIGN) (Scalar \$x, Num $y) Num|Inf;
+sub **= :infix(ASSIGN) (Scalar \$x, Num $y) Num|NaN|Inf;
+sub %= :infix(ASSIGN) (Scalar \$x, Num $y) Num;
+sub .= :infix(ASSIGN) (Scalar \$x, Str $y) Str;
+sub x= :infix(ASSIGN) (Scalar \$x, Int $y) Str;
+sub &= :infix(ASSIGN) (Scalar \$x, Int $y) Int;
+sub |= :infix(ASSIGN) (Scalar \$x, Int $y) Int;
+sub ^= :infix(ASSIGN) (Scalar \$x, Int $y) Int;
+sub <<= :infix(ASSIGN) (Scalar \$x, Int $y) Int;
+sub >>= :infix(ASSIGN) (Scalar \$x, Int $y) Int;
+sub &.= :infix(ASSIGN) (Scalar \$x, Str $y) Str;
+sub |.= :infix(ASSIGN) (Scalar \$x, Str $y) Str;
+sub ^.= :infix(ASSIGN) (Scalar \$x, Str $y) Str;
+sub &&= :infix(ASSIGN) (Scalar \$x, Scalar $y) Scalar;
+sub ||= :infix(ASSIGN) (Scalar \$x, Scalar $y) Scalar;
+sub //= :infix(ASSIGN) (Scalar \$x, Scalar $y) Scalar;
+sub ^^= :infix(ASSIGN) (Scalar \$x, Scalar $y) Boolean;
+
+# The comma, between `=` and a rightward list operator, which swallows it.
+# It is the flattening, so it is an exception to the final-List rule
+# (perigrin, 2026-10-08): in list context it appends, `(@a, 3)` with
+# `@a = (1, 2)` being 3 elements and `(1, (2, 3))` 3; in scalar context it
+# evaluates its left and gives its right, `my $x = (4, 5)` being 5 with a
+# "Useless use of a constant" warning, measured on 5.42.
+multi sub , :infix :looser(=) :assoc(left) (List @l, List @r) List;
+multi sub , :infix (Scalar $l, Scalar $r) Scalar;
+# `=>` is the comma that reads the bareword to its left as a word: its
+# `:bareword` operand is a parser hint, the operand read as a word and not
+# an expression, and its type says what it becomes: a word becomes a Str,
+# which List admits, and any other left operand is a list, `(@a => 3)` with
+# `@a = (1, 2)` being 3 elements (perigrin, 2026-10-08). The lexer reads
+# which operators have one from here. Measured on 5.42 under strict,
+# with `sub foo { "CALLED" }`: `(foo => 1)` gives "foo" where `(foo, 1)`
+# gives "CALLED", `(time => 1)` gives "time" where `(time, 1)` gives the
+# time, and `(nosuch => 1)` gives "nosuch" where `(nosuch, 1)` is "Bareword
+# not allowed while strict subs".
+multi sub => :infix :equiv(,) (List @lhs :bareword, List @rhs) List;
+multi sub => :infix :equiv(,) (Scalar $lhs :bareword, Scalar $rhs) Scalar;
+
+# Unary. Minus and plus are perly.y's UMINUS.
+sub - :prefix :equiv(!) (Num $x) Num;
+# Unary plus is a no-op that exists to force term parsing.
+sub + :prefix :equiv(!) (Num $x) Num;
+sub ! :prefix :tighter(=~) :assoc(right) (Any $x) Boolean;
+# not takes a listexpr: it swallows commas.
+sub not :prefix :tighter(and) :assoc(right) (Any $x) Boolean;
+sub ~ :prefix :equiv(!) (Int $x) Int;
+# String complement, under `use feature 'bitwise'`: `~."ab"` is a string
+# of two characters, measured on 5.42.
+sub ~. :prefix :equiv(!) (Str $x) Str;
+# `\` is REFGEN, the srefgen the fidelity harness measures: a reference to
+# each element of a parenthesised list in list context,
+# `\(1,2,3)`; otherwise one reference.
+multi sub \ :prefix :equiv(!) (List @l) List;
+multi sub \ :prefix (Any $x) Ref;
+
+# Increment and decrement, each prefix and postfix in one level, which `**`
+# is looser than, on an aliased scalar: perl refuses `++1`, "Can't modify
+# constant item in preincrement (++)". The operand is any scalar -- undef, a
+# number, a string, a reference -- measured on 5.42. Prefix `++` gives the
+# new value, a number or a string's magic increment: "aa" becomes "ab", "Az"
+# "Ba", "zz" "aaa", "a9" "b0", while "abc1x" becomes 1 and "9" 10, so the
+# operand's type does not choose between them and Str covers both. Prefix
+# `--` has no string magic: "aa" becomes -1, "inf" Inf and "nan" NaN. The
+# prefix forms give the operand itself, `\(++$x)` aliasing $x. Postfix gives
+# the old value, except that postfix `++` gives 0 for undef where postfix
+# `--` gives undef.
+sub ++ :prefix :tighter(**) :assoc(nonassoc) (Scalar \$x) Str;
+sub -- :prefix :equiv(++) (Scalar \$x) Num|NaN|Inf;
+sub ++ :postfix :equiv(++) (Scalar \$x) Boolean|Str|DualVar|Ref;
+sub -- :postfix :equiv(++) (Scalar \$x) Scalar;

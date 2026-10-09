@@ -159,7 +159,7 @@ func scanFormatBody(l *lexer) bool {
 // tokens are the body's bytes and are not emitted; the block's end is all
 // the body needs.
 func (l *lexer) skipFormatArgumentBlock(open int) int {
-	sub := &lexer{src: l.src, pos: open, expect: XState, utf8Pragma: l.utf8Pragma}
+	sub := &lexer{src: l.src, pos: open, expect: XState, utf8Pragma: l.utf8Pragma, barewordOps: l.barewordOps}
 	for sub.pos < len(sub.src) {
 		scanOne(sub)
 		if n := len(sub.toks); n > 0 && sub.toks[n-1].Kind == CloseBracket && len(sub.brackets) == 0 {

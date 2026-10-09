@@ -248,6 +248,14 @@ type Node struct {
 	// span arithmetic above and never affects round-trip.
 	loaded []string
 
+	// declErrs are the errors in the declaration files the parse read. Root
+	// only, same reasoning as loaded. Read through DeclarationErrors.
+	declErrs []error
+
+	// declWarns are the declaration files' warnings, as declErrs are their
+	// errors. Read through DeclarationWarnings.
+	declWarns []error
+
 	// imports is what the file's `use` statements brought into scope, plus
 	// the subs it declares itself. Root only, same reasoning as loaded.
 	// Read through Imports.
@@ -497,13 +505,29 @@ func parseRoot(src []byte, res *resolver) *Node {
 // returning the parser too: a declaration file's typed signatures are left
 // on it. See readDeclaration.
 func parseSource(src []byte, res *resolver, typed bool) (*Node, *parser) {
-	root := &Node{Kind: SourceFile, Start: 0, End: len(src)}
-	tokenize := lexer.Tokenize
-	if typed {
-		tokenize = lexer.TokenizeTyped
-	}
+	return parseWith(newParser(src, res, typed))
+}
 
-	p := &parser{src: src, toks: tokenize(src), res: res, symbolsOpen: res == nil, typed: typed}
+// newParser is a parser over src, not yet run. See parseSource.
+func newParser(src []byte, res *resolver, typed bool) *parser {
+	// A program is lexed with the operators CORE.pmt reads a word before,
+	// and a `.pmt`, CORE.pmt's own among them, with the lexer's.
+	var toks []lexer.Token
+	if typed {
+		toks = lexer.TokenizeTyped(src)
+	} else {
+		toks = lexer.TokenizeBarewords(src, coreBarewordOperators())
+	}
+	return &parser{src: src, toks: toks, res: res, symbolsOpen: res == nil, typed: typed}
+}
+
+// parseWith runs p over its source, returning the tree and p.
+func parseWith(p *parser) (*Node, *parser) {
+	if !p.derivingPowers {
+		derivePowers()
+	}
+	root := &Node{Kind: SourceFile, Start: 0, End: len(p.src)}
+	res := p.res
 	for p.pos < len(p.toks) {
 		before := p.pos
 		if n := p.statement(); n != nil {
@@ -520,6 +544,8 @@ func parseSource(src []byte, res *resolver, typed bool) (*Node, *parser) {
 	}
 	if res != nil {
 		root.loaded = res.loaded
+		root.declErrs = res.declErrs
+		root.declWarns = res.declWarns
 		root.imports = p.imports
 
 		// A local sub shadows an import, and its OWN prototype is the one
@@ -564,8 +590,27 @@ type parser struct {
 	// typedErrs the ones that could not be. See parseTypedSignature.
 	typed      bool
 	signatures map[string][]types.Signature
-	typedErrs  []error
-	operators  []operatorDecl
+
+	// buildingCore is set while CORE.pmt is read to build the builtin
+	// tables, which then do not yet exist: the keyword shapes are derived
+	// from that read, so it cannot consult them. See coreShapes.
+	buildingCore bool
+	// derivingPowers is set only on derivePowers' own read of CORE.pmt,
+	// which runs before any binding power exists. Every other parse, a
+	// CORE.pmt read included, derives the powers first.
+	derivingPowers bool
+	typedErrs      []error
+	operators      []operatorDecl
+	// relations are the precedence relations stated on named operators'
+	// lines; see declareOperator.
+	relations []operatorDecl
+
+	// inError names the subs whose declaration is one of typedErrs.
+	inError map[string]bool
+
+	// declaredMulti and declaredPlain name the subs with a signature read
+	// from a `multi sub` and from a plain `sub`; a name may be in both.
+	declaredMulti, declaredPlain map[string]bool
 
 	// operatorSig is the signature of the operator declaration being read;
 	// see declareOperator.
@@ -590,6 +635,12 @@ type parser struct {
 	// file-wide from their import on as features are. See declaredSyntax.
 	syntax map[string]declaredSyntax
 
+	// libraryOps are the infix operators imported modules declare, and
+	// libraryInfix their binding powers among the parser's, file-wide from
+	// their import on as syntax is. See infixOp.
+	libraryOps   []operatorDecl
+	libraryInfix map[string]OpInfo
+
 	// noIndirect is set where indirect object notation is off: `no feature
 	// 'indirect'`, or a 5.36+ bundle, which drops it. File-level, like
 	// features.
@@ -606,6 +657,21 @@ type parser struct {
 	// naming one is a class even when the word before it is a known sub --
 	// toke.c's intuit_method tests `gv_stashpvn` for exactly that.
 	packages map[string]bool
+
+	// listed names every word a `use` list names, whether or not the
+	// module's source is read: an override of a builtin may be among them,
+	// `use Time::HiRes qw(sleep)`. See refuseArity.
+	listed map[string]bool
+
+	// lexical holds the lexical subs in scope, by bare name; see
+	// declareLexical.
+	lexical map[string]Import
+
+	// pkg is the package the parse stands in, "" for main: `package NAME;`
+	// sets it to the end of the enclosing block, and `package NAME BLOCK`
+	// for the block alone. Unqualified sub names are keyed in it; see
+	// subKey.
+	pkg string
 
 	// imports is what this file's `use` statements brought into scope,
 	// accumulated as they are parsed and lifted onto the root at the end.
@@ -1118,6 +1184,10 @@ func (p *parser) takeHeredocBodies() []*Node {
 func (p *parser) parseBlock(open lexer.Token) *Node {
 	p.advanceTo(open)
 	n := &Node{Kind: Block, Start: open.Start}
+	// A `package NAME;` inside the block lasts to its end, as perl scopes
+	// it: `package A; { package B; } s2(1)` calls A::s2.
+	pkg := p.pkg
+	defer func() { p.pkg = pkg }()
 
 	for p.pos < len(p.toks) {
 		tok := p.toks[p.pos]

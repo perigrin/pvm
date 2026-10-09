@@ -9,37 +9,6 @@ import (
 	"tamarou.com/pvm/internal/lexer"
 )
 
-// Binding powers for the two call shapes, spec §4.2.
-//
-// A named unary is level 19: tighter than comparison at 17, looser than
-// arithmetic at 22. That is why `length $x + 1` is `length($x + 1)` and
-// `length $x < 5` is `length($x) < 5` -- both measured on the optree.
-//
-// A list operator is level 7, below the comma at 8, which is exactly how it
-// swallows the whole list.
-const (
-	bpNamedUnary = 190
-	bpListOp     = 70
-
-	// A dereference binds tighter than every infix and postfix operator --
-	// `->` at level 29 and the subscripts at 32 included -- so its operand
-	// is the braced expression or the single variable and nothing more. At
-	// 320 the operand parse stops before a subscript, whose own power is
-	// 320: below that, `@$r[1,2]` read as a deref of `$r[1,2]`.
-	//
-	// `$$x[0]` is `${$x}[0]` -- the subscript applies to the DEREFERENCE,
-	// not to `$x` -- so the sigil must take its operand before any postfix
-	// gets a chance. Parsing at 300 leaves `[0]` to the caller's led loop,
-	// which then wraps the whole Unary in an Index. Measured on perl 5.42.0:
-	//
-	//	$ perl -MO=Deparse -e 'my $r = [7]; print $$r[0];'
-	//	print $r->[0];
-	//
-	// Deparse prints the arrow form, which is the same operation spelled the
-	// other way -- and is why §4.14 gives both one node with an `Arrow` flag.
-	bpDeref = 320
-)
-
 // parseWordTerm turns a bareword in term position into a call, a bareword
 // term, or a declaration-like keyword the caller handles.
 // keywordName is the keyword a word names: `CORE::X` is X, the builtin
@@ -68,15 +37,82 @@ func keywordName(word string) string {
 // reading is not modelled and stays as it was.
 var gatedUnary = map[string]bool{"fc": true, "evalbytes": true}
 
-// namedUnaryHere reports whether a word parses as a named unary at this
-// point in the file: always for namedUnary, and for a gatedUnary when its
-// feature is on or the word is spelled with `CORE::`, which names the builtin
-// whatever is enabled.
-func (p *parser) namedUnaryHere(spelled, text string) bool {
-	if namedUnary[text] {
-		return true
+// ownParse are the builtins whose CORE.pmt prototype, the one perl reports,
+// does not say how a call to them parses, so they take no keyword shape
+// from it. perl reports `()` for both, and neither takes nothing:
+//
+//   - dump takes a label, as goto does: measured on 5.42.0, `CORE::dump +
+//     1` deparses as `CORE::dump 1`, and plain `dump` is refused, "dump()
+//     must be written as CORE::dump() as of Perl 5.30".
+//   - method is a declarator under the class feature, and an ordinary word
+//     without it; an anonymous `method { ... }` is a code ref.
+var ownParse = map[string]bool{"dump": true, "method": true}
+
+// plainKeywordShapes is the keyword shape of each builtin in shapes as it is
+// spelled plainly in a file with no feature on: less the builtins a feature
+// gates, which are then a user's sub, and those whose parse is their own.
+func plainKeywordShapes(shapes map[string]Shape) map[string]Shape {
+	plain := map[string]Shape{}
+	for name, shape := range shapes {
+		if plainShaped(name) {
+			plain[name] = shape
+		}
 	}
-	return gatedUnary[text] && (spelled != text || p.features[text])
+	return plain
+}
+
+// plainShaped reports whether a builtin spelled plainly in a file with no
+// feature on takes its CORE.pmt shape.
+func plainShaped(name string) bool {
+	_, gated := gatedWords[name]
+	return !gated && !ownParse[name]
+}
+
+// plainKeywordShape is plainKeywordShapes' shape for name, and false for a
+// name that has none.
+func (p *parser) plainKeywordShape(name string) (Shape, bool) {
+	if !plainShaped(name) {
+		return 0, false
+	}
+	shape, ok := p.coreShapes()[name]
+	return shape, ok
+}
+
+// coreShapes is CORE.pmt's keyword shapes for this parse. The read of
+// CORE.pmt that builds them goes without: asking for them there would wait on
+// that read itself. Its declarations' heads, from which the shapes derive,
+// call no builtin, so only its default expressions read every word as an
+// unknown sub's.
+func (p *parser) coreShapes() map[string]Shape {
+	if p.buildingCore {
+		return nil
+	}
+	return coreShapes()
+}
+
+// keywordShape is the shape a word parses in as a builtin at this point in
+// the file, and false when it is not one here. A word a feature gates is
+// the builtin when its feature is on or it is spelled with `CORE::`, which
+// names the builtin whatever is enabled.
+func (p *parser) keywordShape(spelled, text string) (Shape, bool) {
+	if _, gated := gatedWords[text]; gated && !ownParse[text] && (spelled != text || !p.gatedOff(text)) {
+		shape, ok := p.coreShapes()[text]
+		return shape, ok
+	}
+	return p.plainKeywordShape(text)
+}
+
+// namedUnaryHere reports whether a word parses as a named unary at this
+// point in the file.
+func (p *parser) namedUnaryHere(spelled, text string) bool {
+	return p.keywordHas(spelled, text, ShapeUnary)
+}
+
+// keywordHas reports whether a word parses as a builtin of the given shape
+// at this point in the file.
+func (p *parser) keywordHas(spelled, text string, shape Shape) bool {
+	got, ok := p.keywordShape(spelled, text)
+	return ok && got == shape
 }
 
 func (p *parser) parseWordTerm(word lexer.Token) *Node {
@@ -100,7 +136,7 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 	// reads it; here the name is its one operand and the expression goes on.
 	if text == "require" {
 		if name, ok := p.peekAfter(word); ok && name.Kind == lexer.Word &&
-			!isPerlKeyword(keywordName(p.text(name))) {
+			!p.isPerlKeyword(keywordName(p.text(name))) {
 			if after, ok := p.peekAfter(name); !ok || p.text(after) != "=>" {
 				p.advanceTo(name)
 				p.notePackage(p.text(name))
@@ -127,7 +163,12 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 	}
 
 	// A niladic builtin takes nothing: `time`, `wantarray`.
-	if niladicParse[text] {
+	//
+	// The lexer keeps its own niladic table for the expect state. The
+	// lexer's question is "does an operator come next", the parser's is
+	// "does this take an operand", and they are the same set today only by
+	// coincidence.
+	if p.keywordHas(spelled, text, ShapeNiladic) {
 		p.advanceTo(word)
 		return &Node{
 			Kind: Call, Text: spelled, Resolved: true,
@@ -182,7 +223,7 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 			p.advanceTo(close)
 		}
 		n.End = p.prevEnd()
-		n.Resolved = p.namedUnaryHere(spelled, text) || listOperator[text] || niladicParse[text]
+		_, n.Resolved = p.keywordShape(spelled, text)
 		return n
 	}
 
@@ -197,13 +238,16 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 	// Measured: `shift;` and `die;` between them are the first failure in
 	// dozens of T1 files, and `... or die;` appears in almost every file
 	// that opens a filehandle.
-	if next, ok := p.peekSignificant(); !ok || endsArgumentList(next, p.src) {
+	// `isa` is infix under its feature: measured on 5.42.0, `undef isa
+	// "BaseClass"` is `(undef) isa 'BaseClass'`.
+	if next, ok := p.peekSignificant(); !ok || endsArgumentList(next, p.src) ||
+		next.Kind == lexer.Word && p.text(next) == "isa" && p.operatorHere("isa") {
 		n.End = p.prevEnd()
 		// An imported sub called with no arguments is as resolved as a
 		// builtin one: `done_testing;` and `maybe;` are calls whose callee
 		// this parser has seen declared.
-		n.Resolved = p.namedUnaryHere(spelled, text) || listOperator[text] ||
-			niladicParse[text] || p.knowsShape(text)
+		_, keyword := p.keywordShape(spelled, text)
+		n.Resolved = keyword || p.knowsShape(text)
 		return n
 	}
 
@@ -218,7 +262,7 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		}
 		n.Resolved = true
 
-	case listOperator[text]:
+	case p.keywordHas(spelled, text, ShapeList):
 		// A BLOCK slot comes before the list, and what makes it a slot
 		// rather than a first argument is the ABSENCE of a comma:
 		//
@@ -578,11 +622,15 @@ func (p *parser) parseSortComparator(op string) *Node {
 	}
 	switch {
 	case tok.Kind == lexer.Variable && p.src[tok.Start] == '$':
-	case tok.Kind == lexer.Word && !isPerlKeyword(p.text(tok)):
+	case tok.Kind == lexer.Word && !p.isPerlKeyword(p.text(tok)):
 	default:
 		return nil
 	}
-	if next, ok := p.peekAfter(tok); !ok || !startsTerm(next, p.src) {
+	// A `(` after a NAME opens the list, not the name's arguments: measured
+	// on 5.42.0 with -MO=Deparse,-p, `sort foo (3,1)` and `sort foo(3,1)`
+	// are both `sort foo 3, 1`.
+	next, ok := p.peekAfter(tok)
+	if !ok || !startsTerm(next, p.src) && !(tok.Kind == lexer.Word && p.text(next) == "(") {
 		return nil
 	}
 	p.advanceTo(tok)
@@ -596,8 +644,8 @@ func (p *parser) parseSortComparator(op string) *Node {
 // what CHECK_KEYWORD tests: every builtin, the declarators, and the handful of
 // statement-forming words that are not builtins. A `CORE::` spelling names a
 // builtin by definition.
-func isPerlKeyword(word string) bool {
-	if namedUnary[word] || listOperator[word] || niladicParse[word] ||
+func (p *parser) isPerlKeyword(word string) bool {
+	if _, ok := p.plainKeywordShape(word); ok ||
 		declarators[word] || strings.HasPrefix(word, "CORE::") {
 		return true
 	}
@@ -653,7 +701,16 @@ func (p *parser) parseFilehandleSlot(op string) *Node {
 		// right in both readings. A list of exempt names was tried first
 		// and was wrong on `__CLASS__` and missing `__SUB__` -- one fault
 		// each way, from encoding a judgement perl does not make.
-		if next, ok := p.peekAfter(tok); !ok || !startsTerm(next, p.src) {
+		next, ok := p.peekAfter(tok)
+		if !ok || !startsTerm(next, p.src) {
+			return nil
+		}
+		// A word before a PACKAGE name is an indirect method call, which
+		// parseIndirect reads. Measured on 5.42.0 with -MO=Deparse:
+		//
+		//	package Bar; sub x {} package main; print FOO Bar "x";
+		//	print 'Bar'->FOO('x');
+		if class := p.text(next); next.Kind == lexer.Word && (p.packages[class] || interpreterPackages[class]) {
 			return nil
 		}
 		p.advanceTo(tok)
@@ -694,7 +751,7 @@ func (p *parser) parseFilehandleSlot(op string) *Node {
 // THE SHAPE IS ONLY HALF THE TEST. What follows the word decides the
 // rest, and the caller applies it -- see parseFilehandleSlot.
 func (p *parser) isBarewordHandle(word string) bool {
-	if word == "" || isPerlKeyword(keywordName(word)) {
+	if word == "" || p.isPerlKeyword(keywordName(word)) {
 		return false
 	}
 	_, known := p.lookupSub(word)

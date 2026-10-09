@@ -85,6 +85,16 @@ func endsListAfterComma(tok lexer.Token, src []byte) bool {
 	return !strings.ContainsRune(`+-*/%<\~([{`, rune(text[0]))
 }
 
+// infixOp is the infix or postfix operator text spells: perl's, or one an
+// imported library declares.
+func (p *parser) infixOp(text string) (OpInfo, bool) {
+	if op, ok := p.libraryInfix[text]; ok {
+		return op, true
+	}
+	op, ok := infix[text]
+	return op, ok
+}
+
 func (p *parser) parseInfix(left *Node, minBP int) *Node {
 	for {
 		tok, ok := p.peekSignificant()
@@ -93,7 +103,7 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 		}
 		text := p.text(tok)
 
-		op, ok := infix[text]
+		op, ok := p.infixOp(text)
 		if !ok || op.BP <= minBP {
 			return left
 		}
@@ -191,11 +201,11 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 			left = p.parseTernary(left, op)
 		case "++", "--":
 			p.advanceTo(tok)
-			left = &Node{
+			left = p.refuseAliasedOperand(&Node{
 				Kind: Postfix, Text: text,
 				Start: left.Start, End: p.prevEnd(),
 				Children: []*Node{left},
-			}
+			}, text, "postfix")
 		case "(", "[", "{":
 			left = p.parseSubscript(left, text)
 		case "->":
@@ -319,11 +329,11 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 				continue
 			}
 			right := p.operand(op.rightBP(), tok)
-			left = &Node{
+			left = p.refuseAliasedOperand(&Node{
 				Kind: Binary, Text: text,
 				Start: left.Start, End: right.End,
 				Children: []*Node{left, right},
-			}
+			}, text, "infix")
 		}
 	}
 }
@@ -334,7 +344,7 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 // measured on 5.42.0, `sub c ($x=) {}` is "Optional parameter lacks default
 // expression". The Binary keeps its one child and canon writes its source.
 func (p *parser) emptyDefault(left *Node, op OpInfo) bool {
-	if !p.inSignature || op.Level != assignLevel || left.Kind != Term ||
+	if !p.inSignature || !isAssignment(op) || left.Kind != Term ||
 		len(p.src[left.Start:left.End]) != 1 {
 		return false
 	}
@@ -375,7 +385,7 @@ func (p *parser) parseNonassoc(left *Node, op OpInfo, tok lexer.Token) *Node {
 	if !ok {
 		return n
 	}
-	if nextOp, isOp := infix[p.text(next)]; isOp && nextOp.Level == op.Level {
+	if nextOp, isOp := p.infixOp(p.text(next)); isOp && nextOp.BP == op.BP {
 		start := n.Start
 		p.skipToStatementEnd()
 		return &Node{Kind: Unknown, Refusal: NonassocRepeated, Start: start, End: p.prevEnd()}

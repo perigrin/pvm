@@ -4,8 +4,9 @@
 package parse
 
 import (
-	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	"tamarou.com/pvm/internal/types"
@@ -13,41 +14,61 @@ import (
 
 // operatorDecl is one operator a `.pmt` declares: `sub + :infix(ADD) (Num $x,
 // Num $y) Num;` is "+", "infix", "ADD" and its signature. A prefix or postfix
-// operator has no class.
+// operator has no class, nor an infix one at a level XS::Parse::Infix does
+// not class, `sub & :infix`. multi is set for a `multi sub`, one of several
+// candidates for its symbol (RFC 0001, "Operators that fork").
+//
+// tighter, looser and equiv are the operators its `:tighter(OP)`,
+// `:looser(OP)` and `:equiv(OP)` name, and assoc its `:assoc(...)` (RFC 0001,
+// "Precedence is a relation between operators").
 type operatorDecl struct {
-	name, fixity, class string
-	sig                 types.Signature
+	name, fixity, class    string
+	sig                    types.Signature
+	multi                  bool
+	tighter, looser, equiv []string
+	assoc                  string
 }
 
-// operatorClasses are the classes `:infix(CLASS)` may name, each to the
-// perly.y level in precedence.go that it stands for. RFC 0001: XS::Parse::
-// Infix's classification (XSParseInfix.h, XPI_CLS_*) without the `XPI_CLS_`
-// prefix and `_MISC` suffix. LOW and HIGH are the plugin hooks either side of
-// the core operators, levels 3 and 28.
-//
-// BITOR, BITAND and SHIFT are not XS::Parse::Infix's: it classes no operator
-// at those levels, so it cannot register one there, and they exist only for
-// CORE.pmt to declare perl's own.
-var operatorClasses = map[string]int{
-	"LOW":             3,
-	"LOGICAL_OR_LOW":  4,
-	"LOGICAL_AND_LOW": 5,
-	"BITOR":           14,
-	"BITAND":          15,
-	"SHIFT":           21,
-	"ASSIGN":          9,
-	"LOGICAL_OR":      12,
-	"LOGICAL_AND":     13,
-	"EQUALITY":        16,
-	"ORDERING":        16,
-	"RELATION":        17,
-	"ISA":             17,
-	"ADD":             22,
-	"MUL":             23,
-	"MATCHRE":         24,
-	"POW":             26,
-	"HIGH":            28,
+// equivs is the operators whose level op is in: those its `:equiv(OP)`
+// names, and its class's anchor, `:infix(MUL)` being `:equiv(*)`.
+func (op operatorDecl) equivs() []string {
+	if anchor := classAnchors[op.class]; anchor != "" {
+		return append(slices.Clone(op.equiv), anchor)
+	}
+	return op.equiv
 }
+
+// classAnchors are the classes `:infix(CLASS)` may name, each to the
+// operator it stands for the level of, so `:infix(CLASS)` reads as `:equiv`
+// of it. RFC 0001: XS::Parse::Infix's classification (XSParseInfix.h,
+// XPI_CLS_*) without the `XPI_CLS_` prefix and `_MISC` suffix. LOW and HIGH
+// have no anchor: they are XS::Parse::Infix's plugin levels either side of
+// the core operators, where perl has no operator.
+//
+// XS::Parse::Infix classes no operator at the levels of `&`, of `|` and
+// `^`, of `<<` and `>>`, or of `..` and `...`, so no class names them:
+// those levels are named by their operators.
+var classAnchors = map[string]string{
+	"LOW":             "",
+	"HIGH":            "",
+	"LOGICAL_OR_LOW":  "or",
+	"LOGICAL_AND_LOW": "and",
+	"ASSIGN":          "=",
+	"LOGICAL_OR":      "||",
+	"LOGICAL_AND":     "&&",
+	"EQUALITY":        "==",
+	"ORDERING":        "<=>",
+	"RELATION":        "<",
+	"ISA":             "isa",
+	"ADD":             "+",
+	"MUL":             "*",
+	"MATCHRE":         "=~",
+	"POW":             "**",
+}
+
+// assocs are the associativities `:assoc(...)` may state, perlop's:
+// `chained` for `<` and its row, `chain_na` for `==` and its.
+var assocs = map[string]bool{"left": true, "right": true, "nonassoc": true, "chained": true, "chain_na": true}
 
 // operatorArity is how many operands each fixity takes.
 var operatorArity = map[string]int{"infix": 2, "prefix": 1, "postfix": 1}
@@ -74,10 +95,18 @@ func fixityAttrs(n *Node) []string {
 // cannot record is an error on p.typedErrs.
 func (p *parser) declareOperator(n *Node) {
 	attrs := fixityAttrs(n)
+	name, _ := declaredSub(n)
+	// A named operator's level is its shape's, derived as its prototype
+	// is; one perl places elsewhere, goto at `=`'s level, states it.
 	if len(attrs) == 0 {
+		rel := operatorDecl{name: name, fixity: "named"}
+		if err := readRelations(n, &rel); err != nil {
+			p.typedErrs = append(p.typedErrs, fmt.Errorf("sub %s: %w", name, err))
+		} else if rel.tighter != nil || rel.looser != nil || rel.equiv != nil || rel.assoc != "" {
+			p.relations = append(p.relations, rel)
+		}
 		return
 	}
-	name, _ := declaredSub(n)
 	sig := p.operatorSig
 	p.operatorSig = types.Signature{}
 	op, err := operatorOf(name, attrs, sig)
@@ -85,7 +114,46 @@ func (p *parser) declareOperator(n *Node) {
 		p.typedErrs = append(p.typedErrs, fmt.Errorf("sub %s: %w", name, err))
 		return
 	}
+	op.multi = p.multi
+	if err := readRelations(n, &op); err != nil {
+		p.typedErrs = append(p.typedErrs, fmt.Errorf("sub %s: %w", name, err))
+		return
+	}
 	p.operators = append(p.operators, op)
+}
+
+// readRelations reads n's `:tighter(OP)`, `:looser(OP)`, `:equiv(OP)` and
+// `:assoc(...)` into op.
+func readRelations(n *Node, op *operatorDecl) error {
+	for _, c := range n.Children {
+		if c.Kind != Attribute {
+			continue
+		}
+		name, arg, _ := strings.Cut(strings.TrimPrefix(c.Text, ":"), "(")
+		arg = strings.TrimSuffix(arg, ")")
+		var into *[]string
+		switch name {
+		case "tighter":
+			into = &op.tighter
+		case "looser":
+			into = &op.looser
+		case "equiv":
+			into = &op.equiv
+		case "assoc":
+			if !assocs[arg] {
+				return fmt.Errorf("unknown associativity %q", arg)
+			}
+			op.assoc = arg
+			continue
+		default:
+			continue
+		}
+		if arg == "" {
+			return fmt.Errorf(":%s names no operator", name)
+		}
+		*into = append(*into, arg)
+	}
+	return nil
 }
 
 // operatorOf reads one fixity attribute and checks the signature against it.
@@ -95,13 +163,10 @@ func operatorOf(name string, attrs []string, sig types.Signature) (operatorDecl,
 	}
 	fixity, class, hasClass := strings.Cut(strings.TrimPrefix(attrs[0], ":"), "(")
 	class = strings.TrimSuffix(class, ")")
-	switch {
-	case fixity == "infix" && !hasClass:
-		return operatorDecl{}, errors.New(":infix needs a class")
-	case fixity != "infix" && hasClass:
+	if fixity != "infix" && hasClass {
 		return operatorDecl{}, fmt.Errorf(":%s takes no class", fixity)
 	}
-	if _, ok := operatorClasses[class]; hasClass && !ok {
+	if _, ok := classAnchors[class]; hasClass && !ok {
 		return operatorDecl{}, fmt.Errorf("unknown operator class %q", class)
 	}
 	if want := operatorArity[fixity]; len(sig.Params) != want {
@@ -110,15 +175,363 @@ func operatorOf(name string, attrs []string, sig types.Signature) (operatorDecl,
 	return operatorDecl{name: name, fixity: fixity, class: class, sig: sig}, nil
 }
 
-// precedenceMismatch reports an infix operator whose class names a level
-// other than the one precedence.go gives it. The table is authoritative
-// (RFC 0001, "Operator declarations"); the class says the same thing again.
-func precedenceMismatch(op operatorDecl) error {
-	if op.fixity != "infix" {
+// inCycle is remaining, the levels a topological sort is left with, less
+// those looser than the cycle and on none: each step drops the levels no
+// remaining level is looser than, so the error names a cycle's operators
+// and not every level below it.
+func inCycle(remaining []int, looser map[int][]int) []int {
+	for {
+		kept := slices.DeleteFunc(slices.Clone(remaining), func(r int) bool {
+			return !slices.ContainsFunc(looser[r], func(l int) bool { return slices.Contains(remaining, l) })
+		})
+		if len(kept) == len(remaining) {
+			return kept
+		}
+		remaining = kept
+	}
+}
+
+// precLevel is one level of a derived precedence order: its operators, an
+// infix one and a named one stating its level by its name, and any other by
+// its fixity or shape and name, `prefix -` or `unary defined`, and its
+// associativity.
+type precLevel struct {
+	ops   []string
+	assoc string
+}
+
+// precedenceOrder derives the total order of ops's levels, tightest first,
+// from their relations (RFC 0001, "Precedence is a relation between
+// operators"): `:equiv` joins two operators' levels, and `:tighter` and
+// `:looser` order two levels, which are sorted topologically. A relation
+// names the infix operator of its spelling where there is one, so `:tighter(+)`
+// is binary `+`, and otherwise the prefix or postfix one. Relations that
+// form a cycle, leave a level related to nothing, or leave two levels
+// unordered derive no order and are an error naming the operators, as are
+// two associativities stated in one level.
+func precedenceOrder(ops []operatorDecl) ([]precLevel, error) {
+	type key = [2]string
+	var keys []key
+	index := map[key]int{}
+	for _, op := range ops {
+		k := key{op.name, op.fixity}
+		if _, seen := index[k]; !seen {
+			index[k] = len(keys)
+			keys = append(keys, k)
+		}
+	}
+	label := func(i int) string {
+		if keys[i][1] == "infix" || keys[i][1] == "named" {
+			return keys[i][0]
+		}
+		return keys[i][1] + " " + keys[i][0]
+	}
+	target := func(op operatorDecl, attr, name string) (int, error) {
+		for _, fixity := range []string{"infix", "prefix", "postfix", "named", "unary", "listop", "term"} {
+			if j, ok := index[key{name, fixity}]; ok {
+				return j, nil
+			}
+		}
+		return 0, fmt.Errorf("sub %s: :%s(%s) names no declared operator", op.name, attr, name)
+	}
+
+	// Each operator's level is the root of its :equiv joins.
+	parent := make([]int, len(keys))
+	for i := range parent {
+		parent[i] = i
+	}
+	find := func(i int) int {
+		for parent[i] != i {
+			i = parent[i]
+		}
+		return i
+	}
+	type edge struct{ tight, loose int }
+	var edges []edge
+	for _, op := range ops {
+		i := index[key{op.name, op.fixity}]
+		for _, name := range op.equivs() {
+			j, err := target(op, "equiv", name)
+			if err != nil {
+				return nil, err
+			}
+			parent[find(j)] = find(i)
+		}
+		for _, name := range op.tighter {
+			j, err := target(op, "tighter", name)
+			if err != nil {
+				return nil, err
+			}
+			edges = append(edges, edge{i, j})
+		}
+		for _, name := range op.looser {
+			j, err := target(op, "looser", name)
+			if err != nil {
+				return nil, err
+			}
+			edges = append(edges, edge{j, i})
+		}
+	}
+
+	// The levels, in the order their first operator is declared, each
+	// with the associativity its operators state.
+	var roots []int
+	levels := map[int]*precLevel{}
+	stated := map[int]string{}
+	for i := range keys {
+		r := find(i)
+		if levels[r] == nil {
+			levels[r] = &precLevel{}
+			roots = append(roots, r)
+		}
+		levels[r].ops = append(levels[r].ops, label(i))
+	}
+	for _, op := range ops {
+		if op.assoc == "" {
+			continue
+		}
+		i := index[key{op.name, op.fixity}]
+		l := levels[find(i)]
+		if l.assoc != "" && l.assoc != op.assoc {
+			return nil, fmt.Errorf("%s states :assoc(%s) and %s :assoc(%s), in one level", stated[find(i)], l.assoc, label(i), op.assoc)
+		}
+		l.assoc, stated[find(i)] = op.assoc, label(i)
+	}
+
+	// Sort the levels: each step takes the one level no remaining level
+	// is tighter than.
+	looser := map[int][]int{}
+	tighterCount := map[int]int{}
+	touched := map[int]bool{}
+	for _, e := range edges {
+		t, l := find(e.tight), find(e.loose)
+		looser[t] = append(looser[t], l)
+		tighterCount[l]++
+		touched[t], touched[l] = true, true
+	}
+	if len(roots) > 1 {
+		for _, r := range roots {
+			if !touched[r] {
+				return nil, fmt.Errorf("operator %s is related to no other operator", strings.Join(levels[r].ops, ", "))
+			}
+		}
+	}
+	names := func(rs []int) string {
+		var out []string
+		for _, r := range rs {
+			out = append(out, levels[r].ops...)
+		}
+		return strings.Join(out, ", ")
+	}
+	var order []precLevel
+	remaining := slices.Clone(roots)
+	for len(remaining) > 0 {
+		var ready []int
+		for _, r := range remaining {
+			if tighterCount[r] == 0 {
+				ready = append(ready, r)
+			}
+		}
+		switch {
+		case len(ready) == 0:
+			return nil, fmt.Errorf("precedence relations form a cycle among %s", names(inCycle(remaining, looser)))
+		case len(ready) > 1:
+			return nil, fmt.Errorf("precedence relations leave %s unordered", names(ready))
+		}
+		r := ready[0]
+		order = append(order, *levels[r])
+		remaining = slices.DeleteFunc(remaining, func(x int) bool { return x == r })
+		for _, l := range looser[r] {
+			tighterCount[l]--
+		}
+	}
+	return order, nil
+}
+
+// shapeRelations places each shape's level, perly.y's own rows for the
+// named operators: a named unary (UNIOP) between `<<` and `isa`, a list
+// operator (LSTOP) below `,` and above `not`, and a term tighter than `++`.
+var shapeRelations = map[Shape]operatorDecl{
+	ShapeUnary:   {fixity: "unary", tighter: []string{"isa"}, looser: []string{"<<"}, assoc: "nonassoc"},
+	ShapeList:    {fixity: "listop", tighter: []string{"not"}, looser: []string{","}, assoc: "nonassoc"},
+	ShapeBlock:   {fixity: "listop", tighter: []string{"not"}, looser: []string{","}, assoc: "nonassoc"},
+	ShapeNiladic: {fixity: "term", tighter: []string{"++"}, assoc: "left"},
+}
+
+// corePrecedenceDecls is what a CORE.pmt's precedence order is derived
+// from: its operators' relations, its named operators' stated ones, and a
+// level for each other builtin, its shape's (RFC 0001, "Precedence is a
+// relation between operators"). A builtin's level is derived from its
+// shape as the shape is from its prototype; a builtin that is also an
+// operator, `not`, has the operator's level.
+func corePrecedenceDecls(src []byte, shapes map[string]Shape) []operatorDecl {
+	p := newParser(src, nil, true)
+	p.buildingCore = true
+	return precedenceDeclsOf(readDeclarationWith(p), shapes)
+}
+
+// precedenceDeclsOf is corePrecedenceDecls of a CORE.pmt already read.
+func precedenceDeclsOf(facts moduleFacts, shapes map[string]Shape) []operatorDecl {
+	out := slices.Concat(facts.operators, facts.relations)
+	placed := map[string]bool{}
+	for _, op := range out {
+		placed[op.name] = true
+	}
+	first := map[string]string{}
+	for _, name := range slices.Sorted(maps.Keys(shapes)) {
+		if placed[name] {
+			continue
+		}
+		rel := shapeRelations[shapes[name]]
+		rel.name = name
+		if anchor, ok := first[rel.fixity]; ok {
+			rel = operatorDecl{name: name, fixity: rel.fixity, equiv: []string{anchor}}
+		} else {
+			first[rel.fixity] = name
+		}
+		out = append(out, rel)
+	}
+	return out
+}
+
+// undeclaredOperators places, by relations as their CORE.pmt lines will,
+// the operators the parser reads that CORE.pmt has no line for yet. Each
+// group names the issue that declares it, and leaves this list when it does.
+var undeclaredOperators = []operatorDecl{
+	// 01a11923-baeb, `?:` and `->`. The ternary is right associative,
+	// measured:
+	//   perl -MO=Deparse -e 'my $x = $a ? $b : $c ? $d : $e;'
+	//   my $x = $a ? $b : ($c ? $d : $e);
+	{name: "?", fixity: "infix", tighter: []string{"="}, looser: []string{".."}, assoc: "right"},
+	{name: "->", fixity: "infix", tighter: []string{"++"}, assoc: "left"},
+
+	// The postfix call and subscripts, perly.y's PERLY_PAREN_OPEN and its
+	// brackets, the tightest operators: the terms, which `time` names the
+	// level of, are tighter still. perlop's table has no row for them, and
+	// no issue gives them a CORE.pmt line.
+	{name: "(", fixity: "postfix", tighter: []string{"->"}, assoc: "left"},
+	{name: "[", fixity: "postfix", tighter: []string{"("}, looser: []string{"time"}, assoc: "left"},
+	{name: "{", fixity: "postfix", equiv: []string{"["}},
+}
+
+// bindingPowers are the powers the Pratt parser binds with: the infix and
+// postfix operators', the prefix operators', and those a named unary's and
+// a list operator's operands are parsed at.
+type bindingPowers struct {
+	infix           map[string]OpInfo
+	prefix          map[string]int
+	unaryOp, listOp int
+	// levels is the power of each operator's level, by its label in the
+	// order (precLevel).
+	levels map[string]int
+}
+
+// opAssoc is the parser's associativity for each `:assoc`. A chaining
+// level groups leftward; which of its operators chain is cmpClasses'.
+var opAssoc = map[string]Assoc{
+	"left": AssocLeft, "right": AssocRight, "nonassoc": AssocNone,
+	"chained": AssocLeft, "chain_na": AssocLeft,
+}
+
+// deriveBindingPowers derives the parser's binding powers from the
+// precedence order decls derive: each level binds ten above the next
+// looser one, the loosest at ten, so a right-associative operator's right
+// operand (OpInfo.rightBP) stops only at a looser level.
+func deriveBindingPowers(decls []operatorDecl) (bindingPowers, error) {
+	order, err := precedenceOrder(decls)
+	if err != nil {
+		return bindingPowers{}, err
+	}
+	infixNames := map[string]bool{}
+	for _, op := range decls {
+		if op.fixity == "infix" {
+			infixNames[op.name] = true
+		}
+	}
+	bp := bindingPowers{infix: map[string]OpInfo{}, prefix: map[string]int{}, levels: map[string]int{}}
+	for i, l := range order {
+		power := (len(order) - i) * 10
+		for _, op := range l.ops {
+			bp.levels[op] = power
+			fixity, name, spaced := strings.Cut(op, " ")
+			switch {
+			case !spaced && infixNames[op]:
+				bp.infix[op] = OpInfo{BP: power, Assoc: opAssoc[l.assoc]}
+			case fixity == "postfix":
+				bp.infix[name] = OpInfo{BP: power, Assoc: opAssoc[l.assoc]}
+			case fixity == "prefix":
+				bp.prefix[name] = power
+			case fixity == "unary":
+				bp.unaryOp = power
+			case fixity == "listop":
+				bp.listOp = power
+			}
+		}
+	}
+	return bp, nil
+}
+
+// libraryInfix derives the binding powers of ops, a library's infix
+// operators, from their relations to the parser's operators and to each
+// other (RFC 0001, "Precedence is a relation between operators"). They
+// join the parser's order, whose levels keep their powers: an operator
+// in one of its levels binds at that level's power, and a level of the
+// library's own binds between the powers of the levels either side, so
+// every comparison the Pratt loop makes is the one a derivation of the
+// whole order would give. Relations that derive no order are an error
+// naming the operators.
+func libraryInfix(ops []operatorDecl) (map[string]OpInfo, error) {
+	derivePowers()
+	order, err := precedenceOrder(slices.Concat(coreOrderDecls, ops))
+	if err != nil {
+		return nil, err
+	}
+	powerOf := func(l precLevel) (int, bool) {
+		for _, op := range l.ops {
+			if power, ok := levelPowers[op]; ok {
+				return power, true
+			}
+		}
+		return 0, false
+	}
+	// ponytail: the parser's levels are ten apart, so at most nine of a
+	// library's levels fit between two of them; space the powers wider if
+	// a library ever needs more.
+	// Above the tightest level there is room for every level.
+	powers := make([]int, len(order))
+	hi := len(order) * 10
+	var run []int
+	place := func(lo int) error {
+		if len(run) > 0 && len(run) >= hi-lo {
+			return fmt.Errorf("precedence relations place %d levels between two of perl's, which hold at most %d", len(run), hi-lo-1)
+		}
+		for j, i := range run {
+			powers[i] = hi - (hi-lo)*(j+1)/(len(run)+1)
+		}
+		run = run[:0]
 		return nil
 	}
-	if level, want := operatorClasses[op.class], infix[op.name].Level; level != want {
-		return fmt.Errorf("sub %s: class %s is level %d, and precedence.go puts %s at level %d", op.name, op.class, level, op.name, want)
+	for i, l := range order {
+		power, ok := powerOf(l)
+		if !ok {
+			run = append(run, i)
+			continue
+		}
+		if err := place(power); err != nil {
+			return nil, err
+		}
+		powers[i], hi = power, power
 	}
-	return nil
+	if err := place(0); err != nil {
+		return nil, err
+	}
+	out := map[string]OpInfo{}
+	for i, l := range order {
+		for _, op := range ops {
+			if op.fixity == "infix" && slices.Contains(l.ops, op.name) {
+				out[op.name] = OpInfo{BP: powers[i], Assoc: opAssoc[l.assoc]}
+			}
+		}
+	}
+	return out, nil
 }

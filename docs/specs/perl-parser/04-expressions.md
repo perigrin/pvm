@@ -1800,7 +1800,7 @@ status. "C" counts are uses in `internal/infer` of the old grammar name.
 | `Assign{ListAssign}` | `binary "="`, `"+="`, ...; `($a,$b) = (1,2)` has a `list` LHS; `@a = (1,2)` an aggregate `term` | C: `assignment_expression` (3) | LOWERING; `my (...) =` is under `Decl` |
 | `Ternary` | `ternary "?:"` | C: `conditional_expression` (1) | SHIPPED |
 | `CmpChain` | `cmp_chain "<"` with flat operands | C: none; no chained-comparison rule exists | SHIPPED; the typing rule is unwritten (§4.14.6) |
-| `Range{Exclusive}` | `$a..$b` → `binary ".."`, `$a...$b` → `binary "..."`; **`1..2` → one `term "1..2"`**: the lexer's number scan takes the range as one `Number` token, so literal endpoints have no `Lo`/`Hi` | C: measured defect — `my @r = (1..5)` infers `@r` as `Str`, because `findOperatorText` matches the anonymous `.` before ever seeing `..` while `signatures.go:182` has `"..": {Result: List}`; perl: `$r[0]+1` is 2 | LOWERING for variable endpoints; PARSER (lexer) for literal ones. Required, not optional |
+| `Range{Exclusive}` | `$a..$b` → `binary ".."`, `$a...$b` → `binary "..."`; **`1..2` → one `term "1..2"`**: the lexer's number scan takes the range as one `Number` token, so literal endpoints have no `Lo`/`Hi` | C: measured defect — `my @r = (1..5)` infers `@r` as `Str`, because `findOperatorText` matches the anonymous `.` before ever seeing `..` while `..`'s declaration in `CORE.pmt`, `multi sub .. :infix :tighter(=) :assoc(nonassoc) (Str $x, Str $y) List`, has `List`; perl: `$r[0]+1` is 2 | LOWERING for variable endpoints; PARSER (lexer) for literal ones. Required, not optional |
 | `List{Fat}` | `(a => 1, b => 2)` → `list` with four flat children, identical to `(a, 1, b, 2)`; `parseList` consumes `,` and `=>` alike (`term.go:275-276`). Inside call arguments the fat comma survives: `f(a => 1)` → `[call "f" [binary "=>" ...]]` | §4.5.4: `=>` quotes the word to its left | SHIPPED as `List`; **`Fat` PARSER** — inside a `List`, `AnonArray` or `AnonHash` the fact is destroyed |
 | `Paren` | rule 1 | rule 1 | PARSER |
 
@@ -1850,10 +1850,13 @@ Named builtins that B::SoN gives their own kind — `Delete`, `Exists`,
 `Chomp` (chomp/chop), `Count`, `Length` — are `Call{Name}` here, and the
 sibling's reasons for splitting them (perl has distinct `schomp`/`schop` ops;
 `exists` is membership, not definedness — measured, `exists $h{u}` is true
-for `u => undef`) are facts a `Call`'s name already carries. Two of them do
-not parse: `delete $h{k};` and `exists $h{k};` are each `Unknown`, because
-neither word is in `internal/parse/keyword.go`. `chomp $x;` parses. That
-is a keyword-table gap, PARSER, and independent of this list.
+for `u => undef`) are facts a `Call`'s name already carries. All of them
+parse: `delete $h{k};`, `exists $h{k};` and `chomp $x;` are each a
+resolved `call` whose one argument is the element or the variable,
+because `CORE.pmt` marks `delete`, `exists` and `chomp` `:unary`, which
+makes each a named unary (measured on 5.42.0 with `-MO=Deparse,-p`,
+`(delete $h{a}, $b)` is `(delete $h{'a'}, $b)`, the comma outside the
+call).
 
 ### 4.14.3 The flags
 

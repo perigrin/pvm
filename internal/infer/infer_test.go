@@ -175,7 +175,8 @@ func TestInferBinaryAddition(t *testing.T) {
 	// The binary_expression node covers "1 + 2"
 	typ, ok := findNodeType(annotations, src, "1 + 2")
 	require.True(t, ok, "binary_expression '1 + 2' should be annotated")
-	assert.Equal(t, types.Num, typ, "addition should have result type Num")
+	// Measured, `1e308 + 1e308` is Inf: a sum of Nums is Num|Inf.
+	assert.Equal(t, types.Num|types.Inf, typ, "addition should have result type Num|Inf")
 }
 
 func TestInferEqualityExpression(t *testing.T) {
@@ -2913,7 +2914,7 @@ func TestPopUnknownArrayIsScalar(t *testing.T) {
 //	sort @ints          Int    reorders, so the elements are unchanged
 //	sort @strs          Str
 //	grep { $_>1 } @ints Int    SELECTS, so the elements are unchanged
-//	map { $_*2 } @ints  Int    TRANSFORMS — the body decides
+//	map { $_*2 } @ints  Int    TRANSFORMS — the body decides: `*` is Num|Inf
 //	map { "x$_" } @ints Str    same input, different body, different type
 //
 // All of them returned List, so an element read off the result fell back to
@@ -2928,7 +2929,7 @@ func TestSortGrepPreserveElementType(t *testing.T) {
 		{"sort strs", "my @n = (\"b\", \"a\");\nmy @s = sort @n;\nmy $e = $s[0];\n", types.Str},
 		{"sort with comparator", "my @n = (3, 1);\nmy @s = sort { $a <=> $b } @n;\nmy $e = $s[0];\n", types.Int},
 		{"grep preserves", "my @n = (3, 1);\nmy @g = grep { $_ > 1 } @n;\nmy $e = $g[0];\n", types.Int},
-		{"map body decides", "my @n = (3, 1);\nmy @m = map { $_ * 2 } @n;\nmy $e = $m[0];\n", types.Num},
+		{"map body decides", "my @n = (3, 1);\nmy @m = map { $_ * 2 } @n;\nmy $e = $m[0];\n", types.Num | types.Inf},
 	}
 	for _, tc := range cases {
 		_, _, st := analyzeSourceFull(t, []byte(tc.src))

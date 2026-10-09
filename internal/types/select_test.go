@@ -2,7 +2,10 @@
 // ABOUTME: Candidates are built in Go, as a .pmt's `multi sub` lines would declare them.
 package types
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 // scalar is a required scalar parameter of type t, `Int $x`; Unknown is
 // a parameter that states no type, `$r`.
@@ -19,11 +22,11 @@ func sig(ret Type, params ...Param) Signature {
 //
 //	multi sub select () Str;
 //	multi sub select (FileHandle $fh) Str;
-//	multi sub select ($r, $w, $e, Num $timeout) Int;
+//	multi sub select ($r, $w, $e, Num $timeout) List;
 var selectCandidates = []Signature{
 	sig(Str),
 	sig(Str, scalar("fh", FileHandle)),
-	sig(Int, scalar("r", Unknown), scalar("w", Unknown), scalar("e", Unknown), scalar("timeout", Num)),
+	sig(List, scalar("r", Unknown), scalar("w", Unknown), scalar("e", Unknown), scalar("timeout", Num)),
 }
 
 // eachCandidates are RFC 0001's `each`, `(Hash \%h) List` and `(Array \@a)
@@ -35,21 +38,37 @@ var eachCandidates = []Signature{
 	sig(List, scalar("a", Array)),
 }
 
-// wantSelected checks that args select candidate want, returning ret.
+// wantSelected checks that args select candidate want, returning ret, in
+// scalar context.
 func wantSelected(t *testing.T, cands []Signature, args []Type, want int, ret Type) {
 	t.Helper()
-	got := Select(cands, args)
+	wantSelectedIn(t, cands, ScalarCtx, args, want, ret)
+}
+
+// wantSelectedIn checks that args in context ctx select candidate want,
+// returning ret.
+func wantSelectedIn(t *testing.T, cands []Signature, ctx Context, args []Type, want int, ret Type) {
+	t.Helper()
+	got := Select(cands, args, ctx)
 	if got.Outcome != Selected || got.Candidate != want || got.Returns != ret {
-		t.Errorf("%v: got %+v, want candidate %d selected, returning %v", args, got, want, ret)
+		t.Errorf("%v in %v: got %+v, want candidate %d selected, returning %v", args, ctx, got, want, ret)
 	}
 }
 
-// wantFailed checks that args select nothing and have no type.
+// wantFailed checks that args select nothing and have no type, in scalar
+// context.
 func wantFailed(t *testing.T, cands []Signature, args []Type) {
 	t.Helper()
-	got := Select(cands, args)
+	wantFailedIn(t, cands, ScalarCtx, args)
+}
+
+// wantFailedIn checks that args in context ctx select nothing and have no
+// type.
+func wantFailedIn(t *testing.T, cands []Signature, ctx Context, args []Type) {
+	t.Helper()
+	got := Select(cands, args, ctx)
 	if got.Outcome != Failed || got.Candidate != -1 || got.Returns != Unknown {
-		t.Errorf("%v: got %+v, want a failure with no candidate and no type", args, got)
+		t.Errorf("%v in %v: got %+v, want a failure with no candidate and no type", args, ctx, got)
 	}
 }
 
@@ -58,7 +77,7 @@ func wantFailed(t *testing.T, cands []Signature, args []Type) {
 func TestSelectByArity(t *testing.T) {
 	wantSelected(t, selectCandidates, nil, 0, Str)
 	wantSelected(t, selectCandidates, []Type{GlobRef}, 1, Str)
-	wantSelected(t, selectCandidates, []Type{Undef, Undef, Undef, Num}, 2, Int)
+	wantSelected(t, selectCandidates, []Type{Undef, Undef, Undef, Num}, 2, List)
 }
 
 // TestSelectByArgumentTypes: among candidates that take the call's number
@@ -105,11 +124,46 @@ func TestMultiAmbiguityEdgeCases(t *testing.T) {
 	}
 }
 
+// TestSignatureParamsPrintAlias: an ambiguity error prints each
+// candidate's parameters as the declaration writes them, so an aliased
+// parameter keeps its backslash (RFC 0001, "The scalar container"):
+// `\@a` printed as `@a` would be `Array @a`, which is not valid.
+func TestSignatureParamsPrintAlias(t *testing.T) {
+	s := Signature{Params: []Param{
+		{Name: "a", Sigil: '@', Type: Array, Alias: true},
+		{Name: "h", Sigil: '%', Type: Hash, Alias: true},
+		{Name: "x", Sigil: '$', Type: Scalar, Alias: true},
+		{Name: "c", Sigil: '&', Type: Code, Alias: true},
+		{Name: "args", Sigil: '@', Type: List, AliasEach: true},
+	}}
+	want := `(Array \@a, Hash \%h, Scalar \$x, Code \&c, List \(@args))`
+	if got := s.params(); got != want {
+		t.Errorf("got %s, want %s", got, want)
+	}
+}
+
 // TestSelectNoArityMatch: RFC 0001 "Multi declarations", a call whose
 // arity no candidate accepts fails (perigrin, 2026-10-02): `each` with two
 // arguments has no candidate and no type, never the join of the two.
 func TestSelectNoArityMatch(t *testing.T) {
 	wantFailed(t, eachCandidates, []Type{Hash, Hash})
+}
+
+// TestSelectCodeAndGlobAreNotSlurpy: a code or glob slot, `Code &block`
+// or `Glob *fh`, takes one argument as a scalar does; only `@` and `%`
+// take the rest of the call.
+func TestSelectCodeAndGlobAreNotSlurpy(t *testing.T) {
+	wantFailed(t, []Signature{sig(Str, Param{Name: "block", Sigil: '&', Type: Code, Required: true})}, []Type{Code, Code})
+	wantFailed(t, []Signature{sig(Str, Param{Name: "fh", Sigil: '*', Type: Glob, Required: true})}, []Type{Glob, Glob})
+}
+
+// TestSelectAliasedContainerIsNotSlurpy: RFC 0001 "The scalar container",
+// a backslashed `Array \@a` or `Hash \%h` is the one container the caller
+// writes, so it takes exactly one argument whatever its sigil; push's
+// `(Array \@a, List @list)` takes the rest only in its final parameter.
+func TestSelectAliasedContainerIsNotSlurpy(t *testing.T) {
+	wantFailed(t, []Signature{sig(Str, Param{Name: "a", Sigil: '@', Type: Array, Alias: true, Required: true})}, []Type{Array, Array})
+	wantFailed(t, []Signature{sig(Str, Param{Name: "h", Sigil: '%', Type: Hash, Alias: true, Required: true})}, []Type{Hash, Hash})
 }
 
 // TestSelectEmptyCandidates: selection over no candidates, or a call with
@@ -130,7 +184,7 @@ func TestSelectJoinsWhenUndecided(t *testing.T) {
 		sig(Str, scalar("h", Hash)),
 		sig(ArrayRef, scalar("a", Array)),
 	}
-	got := Select(cands, []Type{Unknown})
+	got := Select(cands, []Type{Unknown}, ScalarCtx)
 	if got.Outcome != Undecided || got.Candidate != -1 || got.Returns != Str|ArrayRef {
 		t.Errorf("got %+v, want undecided, returning %v", got, Str|ArrayRef)
 	}
@@ -141,7 +195,7 @@ func TestSelectJoinsWhenUndecided(t *testing.T) {
 		sig(Str, scalar("a", Int), scalar("b", Num)),
 		sig(ArrayRef, scalar("a", Num), scalar("b", Int)),
 	}
-	got = Select(crossed, []Type{Int, Int})
+	got = Select(crossed, []Type{Int, Int}, ScalarCtx)
 	if got.Outcome != Undecided || got.Candidate != -1 || got.Returns != Str|ArrayRef {
 		t.Errorf("crossed: got %+v, want undecided, returning %v", got, Str|ArrayRef)
 	}
@@ -163,4 +217,203 @@ func TestResultIsDeclaredReturnType(t *testing.T) {
 	wantSelected(t, sqrt, []Type{Int}, 0, Num)
 	abs := []Signature{sig(Num, scalar("x", Num))}
 	wantSelected(t, abs, []Type{Int}, 0, Num)
+}
+
+// timeParam is localtime's parameter, `Int $time = time`.
+var timeParam = Param{Name: "time", Sigil: '$', Type: Int, Default: "time"}
+
+// localtimeCandidates are RFC 0001's `localtime`, the same parameters
+// forked by context, which each return type answers:
+//
+//	multi sub localtime :prototype(;$) (Int $time = time) Str;
+//	multi sub localtime :prototype(;$) (Int $time = time) List[Int];
+var localtimeCandidates = []Signature{
+	sig(Str, timeParam),
+	sig(List, timeParam),
+}
+
+// TestMultiContextForkNotAmbiguous: RFC 0001 "Context selects by return
+// type", so candidates whose parameters are the same and whose return
+// types answer different contexts share no call. Candidates whose returns
+// both answer scalar context are still ambiguous there, and the error
+// names it.
+func TestMultiContextForkNotAmbiguous(t *testing.T) {
+	if err := Ambiguity(localtimeCandidates); err != nil {
+		t.Errorf("localtime: got %v, want no ambiguity", err)
+	}
+	both := []Signature{localtimeCandidates[0], sig(Int, timeParam)}
+	want := "candidates (Int $time) and (Int $time) are ambiguous for ()"
+	if err := Ambiguity(both); err == nil || err.Error() != want {
+		t.Errorf("two scalar returns: got %v, want %q", err, want)
+	}
+	if err := Ambiguity([]Signature{localtimeCandidates[0], localtimeCandidates[0]}); err == nil {
+		t.Errorf("duplicate scalar candidates: got no ambiguity")
+	}
+
+	// A third candidate decides a pair only in the context its return
+	// answers: `(Int $a, Int $b) List` leaves two Ints in scalar context
+	// ambiguous.
+	crossed := []Signature{
+		sig(Str, scalar("a", Int), scalar("b", Num)),
+		sig(Str, scalar("a", Num), scalar("b", Int)),
+		sig(List, scalar("a", Int), scalar("b", Int)),
+	}
+	if err := Ambiguity(crossed); err == nil {
+		t.Errorf("decided in list context only: got no ambiguity")
+	}
+}
+
+// TestSelectByContext: RFC 0001 "Context selects by return type", a call
+// selects the candidate whose return type answers its calling context. Measured on 5.42.0,
+// `my $t = localtime(0)` is "Thu Jan  1 00:00:00 1970" and `my @l =
+// localtime(0)` is nine integers. Boolean context is scalar: `wantarray`
+// reports scalar inside `if (f())`, `!f()` and `f() and ...`.
+func TestSelectByContext(t *testing.T) {
+	for _, args := range [][]Type{nil, {Int}} {
+		wantSelectedIn(t, localtimeCandidates, ScalarCtx, args, 0, Str)
+		wantSelectedIn(t, localtimeCandidates, ListCtx, args, 1, List)
+		wantSelectedIn(t, localtimeCandidates, BooleanCtx, args, 0, Str)
+	}
+}
+
+// sortCandidates is RFC 0001's `sort`: a list in list context, and in
+// scalar context undef, measured on 5.42 (`scalar(sort(1,2))` is undef).
+var sortCandidates = []Signature{
+	sig(List, Param{Name: "list", Sigil: '@', Type: List}),
+	sig(Undef, Param{Name: "list", Sigil: '@', Type: List}),
+}
+
+// grepCandidates is a `grep` whose only return is a list.
+var grepCandidates = []Signature{
+	sig(List, Param{Name: "list", Sigil: '@', Type: List}),
+}
+
+// TestSelectNoContextAnswerHasNoType: RFC 0001 "Context selects by return
+// type". Scalar sort is its Undef candidate's, not the list candidate's
+// List: a call selects the candidate whose return type answers its
+// context.
+func TestSelectNoContextAnswerHasNoType(t *testing.T) {
+	wantSelectedIn(t, sortCandidates, ScalarCtx, []Type{Int, Int}, 1, Undef)
+	wantSelectedIn(t, sortCandidates, ListCtx, []Type{Int, Int}, 0, List)
+}
+
+// TestSelectBooleanIsNotList: boolean context is scalar, so a boolean
+// sort is its Undef candidate's; it does not fall back to the list one.
+func TestSelectBooleanIsNotList(t *testing.T) {
+	wantSelectedIn(t, sortCandidates, BooleanCtx, []Type{Int, Int}, 1, Undef)
+}
+
+// TestSelectNoContextAnswerCoerces: a call in a context no candidate's
+// return type answers is taken by every candidate, and the context
+// coerces the result as it coerces any value: a scalar or boolean grep is
+// the List candidate's.
+func TestSelectNoContextAnswerCoerces(t *testing.T) {
+	for _, ctx := range []Context{ScalarCtx, BooleanCtx, ListCtx} {
+		wantSelectedIn(t, grepCandidates, ctx, []Type{Int, Int}, 0, List)
+	}
+}
+
+// TestSelectVoidContext: a candidate returning Void answers void context.
+// Void context is a form of scalar context (perlglossary, "void context"),
+// so with no Void candidate, a void call to localtime is its scalar
+// candidate's, and a multi stating only scalar returns answers it too.
+func TestSelectVoidContext(t *testing.T) {
+	wantSelectedIn(t, localtimeCandidates, VoidCtx, []Type{Int}, 0, Str)
+	withVoid := append(slices.Clone(localtimeCandidates), sig(Void, timeParam))
+	wantSelectedIn(t, withVoid, VoidCtx, []Type{Int}, 2, Void)
+	wantSelectedIn(t, withVoid, ScalarCtx, []Type{Int}, 0, Str)
+	wantSelectedIn(t, intOrNum, VoidCtx, []Type{Int}, 0, Str)
+}
+
+// repeatCandidates are RFC 0001's `x`:
+//
+//	multi sub x :infix(MUL) (List @l, Int $n) List;   # (LIST) x N
+//	multi sub x :infix(MUL) (Str $s, Int $n) Str;     # EXPR x N
+var repeatCandidates = []Signature{
+	sig(List, Param{Name: "l", Sigil: '@', Type: List}, scalar("n", Int)),
+	sig(Str, scalar("s", Str), scalar("n", Int)),
+}
+
+// wantShapedIn checks that operands of types args and shapes, in context
+// ctx, select candidate want, returning ret.
+func wantShapedIn(t *testing.T, cands []Signature, ctx Context, args []Type, shapes string, want int, ret Type) {
+	t.Helper()
+	got := SelectShaped(cands, args, shapes, ctx)
+	if got.Outcome != Selected || got.Candidate != want || got.Returns != ret {
+		t.Errorf("%v shaped %q in %v: got %+v, want candidate %d selected, returning %v", args, shapes, ctx, got, want, ret)
+	}
+}
+
+// TestSelectByOperandShape: RFC 0001 "Operators that fork". `x` repeats a
+// list only when its left operand is parenthesised, a parse fact the call
+// site states as the operand's shape: `@` for a parenthesised list, `$`
+// otherwise. Measured on 5.42.0, `my @l = (1,2) x 2` is `1 2 1 2` and
+// `my @l = "ab" x 2` is `abab`. A list of Ints is an Int to the lattice
+// (Scalar <: List), which fits both candidates, and Str <: List would make
+// the Str one the most specific; the shape rules it out first.
+func TestSelectByOperandShape(t *testing.T) {
+	wantShapedIn(t, repeatCandidates, ListCtx, []Type{Int, Int}, "@$", 0, List)
+	wantShapedIn(t, repeatCandidates, ListCtx, []Type{Str, Int}, "$$", 1, Str)
+	// A call stating no shapes, a sub's, is selected as Select selects it:
+	// by context, so in list context the List candidate's.
+	wantShapedIn(t, repeatCandidates, ListCtx, []Type{Int, Int}, "", 0, List)
+	wantShapedIn(t, repeatCandidates, ScalarCtx, []Type{Int, Int}, "", 1, Str)
+}
+
+// TestSelectRepeatScalarContextIsStr: a parenthesised left operand repeats
+// a list only in list context. Measured on 5.42.0, `my $x = (1,2) x 2` and
+// `my $x = (@a) x 2` (two elements) are both `22`: perl evaluates the
+// parenthesised list in scalar context, and the Str candidate takes it.
+func TestSelectRepeatScalarContextIsStr(t *testing.T) {
+	wantShapedIn(t, repeatCandidates, ScalarCtx, []Type{Int, Int}, "@$", 1, Str)
+	wantShapedIn(t, repeatCandidates, BooleanCtx, []Type{Int, Int}, "@$", 1, Str)
+}
+
+// TestSelectRepeatBareArrayIsStr: an unparenthesised array is no list to
+// `x`. Measured on 5.42.0, `my @l = @a x 2` with two elements is `22`, the
+// count repeated as a string. Even of unknown type, the operand's shape
+// rules the List candidate out, so the call is not undecided between them.
+func TestSelectRepeatBareArrayIsStr(t *testing.T) {
+	wantShapedIn(t, repeatCandidates, ListCtx, []Type{Int, Int}, "$$", 1, Str)
+	wantShapedIn(t, repeatCandidates, ListCtx, []Type{Unknown, Int}, "$$", 1, Str)
+}
+
+// rangeCandidates are CORE.pmt's `..`, a range in list context and a
+// flip-flop in scalar context:
+//
+//	multi sub .. :infix :tighter(=) :assoc(nonassoc) (Str $x, Str $y) List;
+//	multi sub .. :infix (Any $x, Any $y) Str;
+var rangeCandidates = []Signature{
+	sig(List, scalar("x", Str), scalar("y", Str)),
+	sig(Str, scalar("x", Any), scalar("y", Any)),
+}
+
+// TestSelectRangeBooleanIsFlipFlop: boolean context is scalar, so `if (/a/
+// .. /b/)` is the flip-flop. Measured on 5.42.0, `if (/x/ .. /y/)` over `a
+// x b c y d` is true for `x b c y`, the flip-flop's lines. Int operands,
+// which the range candidate also takes, are a flip-flop there too.
+func TestSelectRangeBooleanIsFlipFlop(t *testing.T) {
+	wantSelectedIn(t, rangeCandidates, BooleanCtx, []Type{Boolean, Boolean}, 1, Str)
+	wantSelectedIn(t, rangeCandidates, BooleanCtx, []Type{Int, Int}, 1, Str)
+	wantSelectedIn(t, rangeCandidates, ListCtx, []Type{Int, Int}, 0, List)
+}
+
+// TestAcceptsArity: Accepts is the arity half of selection, in any context.
+// select takes none, one or four arguments; each takes exactly one. A
+// candidate whose invocant is required, `(Str $program: List @args)`, takes
+// a call that writes the invocant as its first argument.
+func TestAcceptsArity(t *testing.T) {
+	for n, want := range map[int]bool{0: true, 1: true, 2: false, 3: false, 4: true, 5: false} {
+		if got := Accepts(selectCandidates, n); got != want {
+			t.Errorf("select with %d arguments: Accepts %v, want %v", n, got, want)
+		}
+	}
+	if Accepts(eachCandidates, 0) || !Accepts(eachCandidates, 1) || Accepts(eachCandidates, 2) {
+		t.Errorf("each takes exactly one argument")
+	}
+	program := scalar("program", Str)
+	system := []Signature{{Invocant: &program, Params: []Param{{Name: "args", Sigil: '@', Type: List}}, Returns: Int}}
+	if Accepts(system, 0) || !Accepts(system, 1) || !Accepts(system, 3) {
+		t.Errorf("system takes its program and any list after it")
+	}
 }
