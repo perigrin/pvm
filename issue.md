@@ -6,7 +6,7 @@ milestone: m1-parse-the-core
 blocked_by:
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-17T14:23:38.848509109Z
-updated: 2026-09-18T10:36:58.861539664Z
+updated: 2026-10-09T17:21:15.110930577Z
 sessions:
 - start_sha: f905b4e9ba967eb983700a3ef6feace66c1fc11c
   end_sha: 6968d55df55015b70b6730ae5781e9eff4b0c52b
@@ -82,7 +82,7 @@ inside `qx//` (that is the `Interp` work, which waits on the lexer emitting
 sub-tokens at all), and not `${^WORD}` or other punctuation-variable forms
 that already lex.
 
-## Acceptance
+## Acceptance criteria
 
 - [x] `1..2` and `1...2` lex as three tokens, and `$a..$b` still works (`go test ./internal/lexer/ -run '^TestNumericRangeIsNotOneToken$' -count=1 -v | grep -q '^--- PASS: TestNumericRangeIsNotOneToken'`)
 - [x] `my @r = (1..5)` gives a `Range` whose endpoints are numbers, not a `Str` (`go test ./internal/parse/ -run '^TestLiteralRangeHasEndpoints$' -count=1 -v | grep -q '^--- PASS: TestLiteralRangeHasEndpoints'`)
