@@ -6,7 +6,7 @@ milestone: m1-parse-the-core
 blocks:
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-18T01:45:50.160422555Z
-updated: 2026-09-18T09:31:42.792061377Z
+updated: 2026-10-09T17:21:16.198389659Z
 sessions:
 - start_sha: 6393fdaa0bd1a57acd1acc0fbf10810c76893536
   end_sha: 6393fdaa0bd1a57acd1acc0fbf10810c76893536
@@ -101,7 +101,7 @@ Find out why the 13 score WRONG and fix what the finding says to fix. The fix
 may be in the subject (as both previous ones were), in the parser, or in how
 statements are reported to the harness. Do not tune the gate around them.
 
-## Acceptance
+## Acceptance criteria
 
 - [ ] The cause of each of the 13 is named, in a comment or an issue (`go test ./internal/parseoracle -run TestGoParserWrongIsZero -count=1 -v -timeout 25m 2>&1 | grep -qE 'PASS|score WRONG'`)
 - [ ] `method m { 1 }` is one statement holding a declaration and a block (`go test ./internal/parse/ -run '^TestMethodBodyIsOneStatement$' -count=1 -v | grep -q '^--- PASS: TestMethodBodyIsOneStatement'`)
