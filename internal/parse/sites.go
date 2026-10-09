@@ -241,6 +241,18 @@ func decidedMarkers(stmt *Node) []decided {
 				return
 			}
 
+			// The same slice spelled postfix, `$r->@{"a","b"}` or
+			// `$r->%{"a","b"}`, is the right operand of an arrow: this node
+			// with a bare `@` or `%` Term where the base would be. Measured,
+			// perl emits rv2hv for both and for `{1..4}->%{1,3}`; the BRACKET
+			// forms `->@[...]` and `->%[...]` are rv2av and never get here.
+			// op/postfixderef.t:148,316 are this shape.
+			if n.Text == "{" && len(n.Children) > 0 &&
+				n.Children[0].Kind == Term &&
+				(n.Children[0].Text == "@" || n.Children[0].Text == "%") {
+				add(parseoracle.SiteKindHash, n)
+			}
+
 			// Hedged for a NAMED base and left alone for a dereference,
 			// which is decided above.
 			if n.Text == "{" && len(n.Children) > 0 &&

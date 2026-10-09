@@ -456,6 +456,41 @@ oracle stops being a reason not to re-run.
 
 ## 0.11 Fidelity across the whole corpus, measured
 
+### A postfix hash slice reports perl's rv2hv
+
+*2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0.*
+
+`$h->@{...}` is `@$h{...}` spelled postfix, and Sites decided the prefix
+form while it had no case for the postfix one. Measured with `-MO=Concise`:
+
+```
+my $h; my @x = $h->@{1,2};          hslice, rv2hv
+my $h; my @x = $h->%{1,3};          kvhslice, rv2hv
+my @x = {1..4}->%{1,3};             anonhash, kvhslice, rv2hv
+my $a; my @x = $a->@[1,2];          aslice, rv2av    (no rv2hv)
+my $a; my @x = $a->%[1,2];          kvaslice, rv2av  (no rv2hv)
+my $a; my @x = $a->@*;              rv2av            (no rv2hv)
+```
+
+A brace subscript whose base is a bare `@` or `%` -- the right operand of
+an arrow -- now decides a hash site.
+
+| Bucket | Files | Share of measured |
+|---|---:|---:|
+| exact | 487 | 82.1% |
+| wider | 74 | 12.5% |
+| **WRONG** | **11** | **1.9%** |
+| no-answer | 21 | 3.5% |
+| *measured (denominator)* | *593* | |
+| excluded, environmental | 26 | — |
+| runner error | 1 | — |
+
+No file moved. Re-baselined at CI's 8m per-file timeout.
+
+`op/postfixderef.t` stays WRONG on another cause: its findings at 148 and
+316 cleared, and what is left is a postfix slice inside an interpolated
+string, `"$_->@{foo}"` and `"@{[foo->@{foo}]}"` at 340, 344 and 347.
+
 ### `$#{ EXPR }` hedges the structure it hides
 
 *2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0.*
