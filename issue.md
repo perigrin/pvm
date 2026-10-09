@@ -6,7 +6,7 @@ milestone: m1-parse-the-core
 blocks:
 - 01a0c13f-6816-79d2-945a-b84a12d39e6c
 created: 2026-09-20T23:55:47.309990102Z
-updated: 2026-09-26T11:06:23.766682673Z
+updated: 2026-10-09T17:21:19.842162981Z
 sessions:
 - start_sha: 6ae2242dc5addd89075b7c29d0a0777e69d757ef
   end_sha: 3ef0ae208b19053e94b91fbac2d6ddf19b4f4af4
@@ -254,7 +254,7 @@ a `sub f;` above `sub f { f 1 }` for the inner parenless call, measured. The
 shape does not occur -- ZERO parenless calls to the enclosing sub's own name
 across all 1,042 T1 and T2 files -- and accepting one is `wider`, not WRONG.
 
-## Acceptance
+## Acceptance criteria
 
 - [x] The declared/undeclared boundary is a fixture perl and the parser are both scored on (`go test ./internal/parseoracle/ -run '^TestParenlessCallBoundary$' -count=1 -v | grep -q '^--- PASS: TestParenlessCallBoundary'`)
 - [x] `sub NAME` earlier in the same file makes a parenless call to it parse (`go test ./internal/parse/ -run '^TestInFileSubDeclarationIsKnown$' -count=1 -v | grep -q '^--- PASS: TestInFileSubDeclarationIsKnown'`)
