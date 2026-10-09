@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-26T13:59:01.639917324Z
-updated: 2026-09-26T13:59:01.639917324Z
+updated: 2026-10-09T03:24:02.482340199Z
 ---
 
 `checkParseInvariants` in `internal/parse/fuzz_test.go` asserts three things --
@@ -50,6 +50,6 @@ Two things to decide while doing it, neither settled here:
 
 ## Acceptance criteria
 
-- [ ] The fixpoint property is measured over the seed corpus before being made an invariant, and the count is recorded in the commit message
+- [ ] the canon fixpoint holds over the seed corpus, measured before it became an invariant (`go test ./internal/parse/ -run '^TestFuzzSeedsCanonFixpoint$' -count=1 -v | grep -q '^--- PASS: TestFuzzSeedsCanonFixpoint'`)
 - [ ] The seed corpus passes whatever form is chosen (`go test ./internal/parse/ -run '^TestFuzzSeeds$' -count=1 | grep -q '^ok'`)
 - [ ] REGRESSION GUARD, passes today: the parse suite holds (`go test ./internal/parse/ -count=1 | grep -q '^ok'`)
