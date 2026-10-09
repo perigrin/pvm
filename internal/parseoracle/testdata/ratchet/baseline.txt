@@ -230,11 +230,11 @@ wider         8 -              op/chop.t
 exact         0 -              op/chr.t
 exact        17 -              op/closure.t
 exact         1 -              op/cmpchain.t
-WRONG         3 -              op/concat2.t
+exact         2 -              op/concat2.t
 exact         0 -              op/cond.t
 exact        43 -              op/const-optree.t
 exact         1 -              op/context.t
-WRONG       104 -              op/coreamp.t
+WRONG       102 -              op/coreamp.t
 exact        11 -              op/coresubs.t
 exact         1 -              op/cproto.t
 exact         0 -              op/crypt.t

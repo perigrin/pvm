@@ -475,18 +475,19 @@ PARSEORACLE_SHIM=<shim> PERL5_CORPUS=~/dev/perl5 PARSEORACLE_TIMEOUT=8m \
 
 | Bucket | Files | Share of measured |
 |---|---:|---:|
-| exact | 473 | 79.8% |
+| exact | 474 | 79.9% |
 | wider | 68 | 11.5% |
-| **WRONG** | **27** | **4.6%** |
+| **WRONG** | **26** | **4.4%** |
 | no-answer | 25 | 4.2% |
 | *measured (denominator)* | *593* | |
 | excluded, environmental | 26 | — |
 | runner error | 1 | — |
 
-**The starting exact rate is 473 of 593 measured files, 79.8%.** Of those,
-269 have a marker in play and 204 have none. The per-file baseline fails in
-both directions, `exact` included, so it is now the exact-match ratchet
-against internal/parse.
+**The starting exact rate was 473 of 593 measured files, 79.8%.** Of those,
+269 had a marker in play and 204 had none. Counting a cloned anonymous sub's
+ops once (below) moved `op/concat2.t` WRONG → exact, making it 474, 79.9%.
+The per-file baseline fails in both directions, `exact` included, so it is
+now the exact-match ratchet against internal/parse.
 
 Against the tree-sitter baseline it replaces, 203 files moved, 2,456,441
 bytes of source. By bucket, files and bytes:
@@ -516,7 +517,7 @@ node made the whole file unanswerable. Most of that moved to `exact`; the
 hedges are the new `wider`. Both tree-sitter WRONG files, `comp/our.t` and
 `op/universal.t`, left WRONG.
 
-**WRONG is 27 files under internal/parse**, each a defect of this parser,
+**WRONG is 26 files under internal/parse**, each a defect of this parser,
 pinned by path in `TestCorpusBaselineIsIntact` until 01a0a8cd removes them:
 
 - A prototype-driven `\` perl applied at a call the subject committed to as a
@@ -534,9 +535,11 @@ pinned by path in `TestCorpusBaselineIsIntact` until 01a0a8cd removes them:
 - A reference inside an interpolated `${\ ...}` the subject does not look
   into: `comp/parser.t:468` (`qr/${\ <<END ...}/`), `op/coreamp.t:178,248`
   (`qr/...${\op_desc($o)}.../`), `re/reg_eval_scope.t:99` (`/b${\do {...}}/`).
-- A reference inside an anonymous sub in a `use` import list:
-  `op/concat2.t:31` (`use overload '.' => sub { push @a, \$_[1]; ... }`) and
-  `op/coreamp.t:29` (`use overload '${}' => sub { \my $x }`).
+- Not a defect of the subject: `op/concat2.t:31` and `op/coreamp.t:23,29`
+  were the oracle counting a `use overload` sub twice. A closure, or any anon
+  sub under `$^P`, is cloned, and overload installs the clone in the stash: a
+  second CV sharing the prototype's op tree. The walk now dedupes on the op
+  tree, and `TestOracleCountsClonedSubOnce` pins it.
 - `op/goto.t:734` — `\@{; quotemeta do { u: "." } }` in `sub { ... }->()`.
 - A hash read through `->{...}` that perl compiles as `rv2hv`, inside a block
   dereference or as a computed key: `japh/abigail.t:191` (`@{$program -> {SKIP_OS}}`),

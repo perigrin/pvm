@@ -176,12 +176,15 @@ my $protosrc = <<'PERL';
     };
     $walkcv = sub {
         my ($cv) = @_;
-        return unless ref $cv && $cv->isa('B::CV') && !$seen{$$cv}++;
+        return unless ref $cv && $cv->isa('B::CV');
+        # Keyed on the op tree, not the CV: a cloned closure (and any anon
+        # sub under $^P) is a separate CV sharing its prototype's ROOT, and
+        # `use overload` installs the clone in the stash.
         my $root = $cv->ROOT;
-        $walk->($root, undef, $cv, undef) if ref $root && $$root;
+        $walk->($root, undef, $cv, undef) if ref $root && $$root && !$seen{$$root}++;
     };
 
-    $seen{${B::main_cv()}}++;
+    $seen{${B::main_root()}}++;
     $walk->(B::main_root(), undef, B::main_cv(), undef);
 
     # BEGIN blocks are run and freed during compilation; the BEGIN at the top
