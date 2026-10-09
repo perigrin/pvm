@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a0ad52-f1e4-7e19-80c7-a99f859951eb
 created: 2026-09-16T22:24:52.875856958Z
-updated: 2026-09-18T22:53:43.139703518Z
+updated: 2026-10-09T17:21:13.397049634Z
 sessions:
 - start_sha: 5b41510164015a80506c02291228c7544ea1f3df
   end_sha: 79468414ccabbf46d8a4bd211c18fe9a200487ca
@@ -98,7 +98,7 @@ whole:
 Doing them together is the point. Each one alone moves the T1 number the
 wrong way, because they are one decision spread across the lexer.
 
-## Acceptance
+## Acceptance criteria
 
 - [x] `$a[0]{k}`, `$h{a}{b}`, `$x->[0]{k}` classify both brackets as terms (`go test ./internal/lexer/ -run '^TestRightParenLookaheadIsParenOnly$' -count=1 -v | grep -q '^--- PASS: TestRightParenLookaheadIsParenOnly'`)
 - [x] `if (...) {`, `while (...) {`, `for (;;) {` still open blocks (`go test ./internal/lexer/ -run '^TestRightParenStillOpensABlock$' -count=1 -v | grep -q '^--- PASS: TestRightParenStillOpensABlock'`)
