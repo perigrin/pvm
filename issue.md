@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-09-19T18:17:06.945277771Z
-updated: 2026-09-19T21:11:02.928119055Z
+updated: 2026-10-09T17:21:19.691811038Z
 sessions:
 - start_sha: 34b103f60e9548502ff3afe1f4cbb943b3397863
   end_sha: 25483d2b5bfff159cfc023dec9b050ce0c57c4b3
@@ -67,7 +67,7 @@ every regex literal would over-report.
 Same first-line-of-a-multi-line-statement shape as 01a0badc, and likely
 fixed by it.
 
-## Acceptance
+## Acceptance criteria
 
 - [x] A bare `/.../` reports a match site (`go test ./internal/parse/ -run '^TestBarePatternIsAMatchSite$' -count=1 -v | grep -q '^--- PASS: TestBarePatternIsAMatchSite'`)
 - [x] s///, tr/// and split's pattern still do not (`go test ./internal/parse/ -run '^TestBarePatternIsAMatchSite$' -count=1 -v | grep -q '^--- PASS: TestBarePatternIsAMatchSite'`)
