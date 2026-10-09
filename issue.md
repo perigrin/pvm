@@ -6,7 +6,7 @@ milestone: m1-parse-the-core
 blocks:
 - 01a0cf64-8436-7f82-bcb5-587f0eba266f
 created: 2026-09-23T12:57:39.474460281Z
-updated: 2026-09-26T09:34:15.420621379Z
+updated: 2026-10-09T17:13:17.572456712Z
 sessions:
 - start_sha: 2963c47d4099f32e5bcd3a131d0865f204ee28ea
   end_sha: be9e1e5287155ecf985eb920f1c403c3b4ba5c60
@@ -65,3 +65,15 @@ absorbing an identifier.
 
 `conformance/04_operators/24_compound_repeat.t` carries the refusal and
 bisects it against `.=` and the binary `x`, both of which parse.
+
+## Criteria added after the fact (2026-10-09)
+
+This issue was closed (merge be9e1e52) with no criteria section, so
+`git zhi verify` checked nothing for it. Each criterion names the test the
+fix landed. The conformance `.t` file named above was replaced by the
+mdtest corpus, which `TestCorpusRatchet` holds.
+
+## Acceptance criteria
+
+- [x] the lexer forms `x=` as one compound-assignment operator (`go test ./internal/lexer/ -run '^TestWordShapedCompoundAssignment$' -count=1 -v | grep -q '^--- PASS: TestWordShapedCompoundAssignment'`)
+- [x] `x=` in term position is not the operator (`go test ./internal/lexer/ -run '^TestWordShapedCompoundAssignmentTermPosition$' -count=1 -v | grep -q '^--- PASS: TestWordShapedCompoundAssignmentTermPosition'`)
