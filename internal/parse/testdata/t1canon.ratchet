@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 982 clean (99.6%), 4 total.
+# 986 files, 983 clean (99.7%), 3 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -727,7 +727,7 @@
 0 stash_recursive_alias.t
 0 stash_scalar_ref_assignment.t
 0 stash_undefined_code_lookup.t
-1 stash_var_keyword_op.t
+0 stash_var_keyword_op.t
 0 stat_filehandle_after_rename.t
 0 state.t
 0 statement.t

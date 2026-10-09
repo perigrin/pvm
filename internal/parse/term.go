@@ -639,8 +639,13 @@ func (p *parser) parseParenList(open lexer.Token) *Node {
 			//
 			// So the loop is resumed with the list in hand rather than
 			// restarted, and the closer is then taken by the code below.
-			if p.atOperatorBelowComma() {
-				items = []*Node{p.parseInfix(p.finishList(items, open), 0)}
+			//
+			// The left operand is the elements WITHOUT the paren: the paren
+			// wraps the whole expr, and is recorded once, on it. Wrapped by
+			// finishList here it was a second Paren node spanning `(%h` with
+			// no closer, and canon wrote `(%h and 1;`.
+			if left := p.commaList(items); left != nil && p.atOperatorBelowComma() {
+				items = []*Node{p.parseInfix(left, 0)}
 				if c, ok := p.peekSignificant(); ok && p.text(c) == ")" {
 					p.advanceTo(c)
 				}
