@@ -166,3 +166,23 @@ func TestHeredocWhitespaceAsymmetry(t *testing.T) {
 			"by perl, not a heredoc", bare, got)
 	}
 }
+
+// TestHeredocOpenerIsAValue is the parser fuzzer's `<<0*y`: a heredoc opener
+// is a term, so an OPERATOR comes after it. Measured on 5.42.0 in a file,
+// `print <<E / 2;` with body `4` prints 2 -- division, not a pattern -- and
+// `print <<E*y;` is "Transliteration replacement not terminated": the `*`
+// multiplies, so `y` is no glob's name.
+func TestHeredocOpenerIsAValue(t *testing.T) {
+	for src, want := range map[string][]Kind{
+		"print <<E / 2;\n4\nE\n": {Word, HeredocOpen, Operator, Number},
+		"print <<E*y;\n4\nE\n":   {Word, HeredocOpen, Operator, UnknownRest},
+	} {
+		toks := significant(Tokenize([]byte(src)))
+		for i, k := range want {
+			if i >= len(toks) || toks[i].Kind != k {
+				t.Errorf("%q: tokens %v, want kinds %v", src, toks, want)
+				break
+			}
+		}
+	}
+}

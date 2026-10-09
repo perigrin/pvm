@@ -196,7 +196,10 @@ func (e Expect) after(k Kind, t transition) Expect {
 			return XBlock
 		}
 		return XOperator
-	case Variable, Number, Quote, Readline, FuncSigil:
+	case Variable, Number, Quote, Readline, FuncSigil, HeredocOpen:
+		// A heredoc opener is a term as a string is: measured on 5.42.0,
+		// `print <<E*y;` is "Transliteration replacement not terminated",
+		// the `*` a multiplication.
 		// A package's version is the one Number a block may follow:
 		// `package Foo 1.0 { }`. See noteSubName.
 		if k == Number && t.afterDeclName {
