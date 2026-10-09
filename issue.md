@@ -6,7 +6,7 @@ milestone: m1-parse-the-core
 blocked_by:
 - 01a0a70f-3ccc-77bb-902d-9a0b9d8050a6
 created: 2026-09-17T14:22:29.542545808Z
-updated: 2026-09-18T10:58:16.16266301Z
+updated: 2026-10-09T17:21:14.101733494Z
 sessions:
 - start_sha: 6968d55df55015b70b6730ae5781e9eff4b0c52b
   end_sha: e0d124d1932fa7a5443eb3f763146c1a6171decc
@@ -119,7 +119,7 @@ is the alternative. Decide it in the issue rather than by default, and record
 which in the code — four bools on every node in a 272,455-node tree is 272KB
 of padding that a `uint8` would not spend. §6.10.4 owns the memory budget.
 
-## Acceptance
+## Acceptance criteria
 
 - [x] `$h{k}` and `$h->{k}` differ by exactly one field (`go test ./internal/parse/ -run '^TestArrowBitDistinguishesSubscripts$' -count=1 -v | grep -q '^--- PASS: TestArrowBitDistinguishesSubscripts'`)
 - [x] `($x)` is distinguishable from `$x` without re-deriving from spans (`go test ./internal/parse/ -run '^TestParenBitSurvives$' -count=1 -v | grep -q '^--- PASS: TestParenBitSurvives'`)
