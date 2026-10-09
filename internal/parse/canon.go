@@ -266,11 +266,14 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 			}
 			// `-` or `+` before an operand that begins with the same byte
 			// would write `--` or `++`, the decrement or increment: perl's
-			// Deparse writes `- -$x` as `-(-$x)`, and so does this.
-			if op == "-" || op == "+" {
+			// Deparse writes `- -$x` as `-(-$x)`, and so does this. `!`
+			// before `~` would write `!~`, the negated match, which perl
+			// refuses there; Deparse writes that one bare and so does not
+			// re-read, so this parenthesises it the same way.
+			if joins, ok := map[string]string{"-": "-", "+": "+", "!": "~"}[op]; ok {
 				var operand strings.Builder
 				emit(&operand, n.Children[0], src, prefix[op])
-				if text := operand.String(); strings.HasPrefix(text, op) {
+				if text := operand.String(); strings.HasPrefix(text, joins) {
 					b.WriteString("(" + text + ")")
 					break
 				}
