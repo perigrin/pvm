@@ -172,9 +172,10 @@ func scanQuoteLike(l *lexer) bool {
 	}
 
 	// A `}` never delimits a quote operator in a program perl will COMPILE,
-	// so a quote-op name that reaches one is the bareword. This holds in
-	// every context and not only in a subscript -- measured on 5.42.0, where
-	// each of these is a fatal error rather than an operator:
+	// so a quote-op name that reaches one IN A SUBSCRIPT is the bareword.
+	// Elsewhere perl takes the `}` as the delimiter and refuses -- measured
+	// on 5.42.0, where each of these is a fatal error rather than an
+	// operator:
 	//
 	//	$ perl -e 'sub f { m }'
 	//	Search pattern not terminated at -e line 1.
@@ -183,15 +184,13 @@ func scanQuoteLike(l *lexer) bool {
 	//	$ perl -e 'my @a = map { qw } 1;'
 	//	Can't find string terminator "}" anywhere before EOF at -e line 1.
 	//
-	// The third is the one that shows WHY this is safe to decide on the byte
-	// alone. perl does take the `}` there and then cannot find its closer; a
-	// bareword and a run-to-EOF quote are both refusals of source perl
-	// refuses, so declining costs nothing, while the SUBSCRIPT -- the only
-	// spelling that compiles -- becomes right.
-	//
-	// That is why this asks the BYTE and not the bracket stack. The
-	// construct it appears in is a subscript, where perl autoquotes the key
-	// exactly as it does before a fat comma:
+	// perl takes the `}` there and then cannot find its closer, so outside a
+	// subscript the name stays the operator and lexes as the UnknownRest
+	// perl's refusal is. Declined there too, `A{y}` and `{y}` parsed clean,
+	// and canon's re-lex of `A {y();}` read a transliteration -- found by the
+	// parser fuzzer. The bracket stack says which brace this is. In a
+	// subscript perl autoquotes the key exactly as it does before a fat
+	// comma:
 	//
 	//	$ perl -MO=Deparse -e 'my %h; my $a=$h{m}; my $b=$h{s}; my $c=$h{tr};'
 	//	  ->  $h{'m'}  $h{'s'}  $h{'tr'}
@@ -204,7 +203,7 @@ func scanQuoteLike(l *lexer) bool {
 	// It declines on the byte AFTER the name, so a brace-delimited operator
 	// in the same position is untouched -- perl reads `$h{ m{a} }` as the
 	// match `/a/`, and there the byte is `{`.
-	if closeBraceFollows(l.src, after) {
+	if closeBraceFollows(l.src, after) && l.inSubscript() {
 		return false
 	}
 

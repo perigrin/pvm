@@ -34,7 +34,7 @@ var quoteOpKeyNames = []string{"q", "qq", "qw", "qx", "m", "qr", "s", "tr", "y"}
 // could not see it. The canon is the check.
 //
 // A `}` never delimits one of these operators in a program perl will
-// COMPILE, in any context and not just a subscript -- measured on 5.42.0,
+// COMPILE, and outside a subscript perl refuses -- measured on 5.42.0,
 // where each of these is fatal:
 //
 //	$ perl -e 'sub f { m }'
@@ -42,10 +42,8 @@ var quoteOpKeyNames = []string{"q", "qq", "qw", "qx", "m", "qr", "s", "tr", "y"}
 //	$ perl -e 'my @a = map { qw } 1;'
 //	Can't find string terminator "}" anywhere before EOF at -e line 1.
 //
-// so the decline needs no bracket-stack knowledge. The subscript is the only
-// spelling that compiles at all, and the other spellings were already
-// refusals; declining changes which refusal they get, not whether they are
-// one.
+// so the decline is for a subscript's brace only, and the other spellings
+// lex as the unterminated operator perl refuses.
 func TestBarewordSubscriptKey(t *testing.T) {
 	for _, name := range quoteOpKeyNames {
 		for _, tc := range []struct{ src, want string }{

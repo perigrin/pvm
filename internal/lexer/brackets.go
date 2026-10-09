@@ -67,6 +67,11 @@ const (
 	// value has just been produced, so an OPERATOR is expected after its `}`.
 	braceTerm
 
+	// braceSubscript is a braceTerm opened in operator position: a
+	// subscript, `$h{a}`, `$r->{k}`, whose lone bareword key perl
+	// autoquotes. Its `}` behaves as braceTerm's.
+	braceSubscript
+
 	// paren and square are `(` and `[`. Both always produce a value, so
 	// their closers behave alike and the distinction is only for matching.
 	paren
@@ -109,6 +114,8 @@ func (l *lexer) trackBrackets(k Kind, start int) {
 		case l.expect == XState || l.expect == XBlock:
 			l.brackets = append(l.brackets, braceBlock)
 			l.openedBlock = true
+		case l.expect == XOperator || l.expect == XPostDeref:
+			l.brackets = append(l.brackets, braceSubscript)
 		default:
 			l.brackets = append(l.brackets, braceTerm)
 		}
@@ -124,4 +131,11 @@ func (l *lexer) trackBrackets(k Kind, start int) {
 		// unmatched case as a value is the same hedge as everywhere else:
 		// it keeps token boundaries recoverable.
 	}
+}
+
+// inSubscript reports whether the innermost open bracket is a subscript's
+// brace.
+func (l *lexer) inSubscript() bool {
+	n := len(l.brackets)
+	return n > 0 && l.brackets[n-1] == braceSubscript
 }
