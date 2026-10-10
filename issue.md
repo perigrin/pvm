@@ -1,10 +1,19 @@
 ---
 title: "A mixed comparison chain loses its operators: 1 < 2 <= 3 canonicalises as 1 < 2 < 3"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-10-10T01:40:31.955610785Z
-updated: 2026-10-10T01:40:31.955610785Z
+updated: 2026-10-10T01:47:04.169520676Z
+sessions:
+- start_sha: 528c1fa24cbd7732a2aa37ec1c0bbfee0828a011
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-10T01:47:04.169520676Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-10T01:47:04.169520676Z
 ---
 
 ## Context
