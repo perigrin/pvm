@@ -710,6 +710,11 @@ func (p *parser) parseForHead(loop *Node) ([]*Node, bool) {
 		switch {
 		case p.text(tok) == ")":
 			p.advanceTo(tok)
+			// A list head must hold a list: perl refuses `for () {}`
+			// ("near "() ""), though `for (())` is fine.
+			if !loop.CStyle && len(parts) == 0 {
+				return parts, false
+			}
 			return parts, !loop.CStyle || semis == 2
 		case tok.Kind == lexer.Semicolon:
 			// An empty slot: `for (;;)`.
