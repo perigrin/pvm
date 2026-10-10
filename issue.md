@@ -9,7 +9,7 @@ blocks:
 - 01a0c13f-c7d7-7d9c-9a85-60a59aa26bc0
 - 01a0c13f-e0e2-7b4f-a9d2-06f7edad1e7f
 created: 2026-09-20T23:55:53.237977507Z
-updated: 2026-10-10T07:36:53.822736483Z
+updated: 2026-10-10T07:38:25.770373116Z
 sessions:
 - start_sha: f178e76df654244563b62e3b3f68f49cdfef252b
   end_sha: f178e76df654244563b62e3b3f68f49cdfef252b
@@ -76,12 +76,23 @@ single largest item in the T2 gap.
 - [ ] Run the whole package: `go test ./internal/parse/ -count=1`
 - [ ] Commit
 
+### Criteria re-pointed (2026-10-10)
+
+The first three criteria wrapped onto a second line, so `git zhi verify`
+silently skipped them; joined, two named tests that were never written
+under those names. The route the decision chose (01a0c13f-50ee: a callee
+declared in the file resolves; an undeclared one stays Unknown, as perl
+refuses it) is held by TestInFileSubDeclarationIsKnown -- `sub ok {1}
+ok 8, 9;` consumes its arguments, across the three prototype shapes --
+and the bareword guard by TestAResolvingSubDoesNotSwallowItsNeighbours
+(f178e76d: a hash key, a fat comma LHS and a class name stay strings).
+
 ## Acceptance Criteria
 
 ### Positive Scenarios
 
-- [ ] A parenless call to an unknown-or-declared callee consumes its arguments and the statement is not Unknown (`go test ./internal/parse/ -run '^TestParenlessCallTakesArguments$' -count=1 -v | grep -q '^--- PASS: TestParenlessCallTakesArguments'`)
-- [ ] A bareword that is NOT a call -- hash key, class name, fat comma LHS -- still parses unchanged (`go test ./internal/parse/ -run '^TestBarewordIsNotAlwaysACall$' -count=1 -v | grep -q '^--- PASS: TestBarewordIsNotAlwaysACall'`)
+- [ ] A parenless call to an unknown-or-declared callee consumes its arguments and the statement is not Unknown (`go test ./internal/parse/ -run '^TestInFileSubDeclarationIsKnown$' -count=1 -v | grep -q '^--- PASS: TestInFileSubDeclarationIsKnown'`)
+- [ ] A bareword that is NOT a call -- hash key, class name, fat comma LHS -- still parses unchanged (`go test ./internal/parse/ -run '^TestAResolvingSubDoesNotSwallowItsNeighbours$' -count=1 -v | grep -q '^--- PASS: TestAResolvingSubDoesNotSwallowItsNeighbours'`)
 - [ ] The T2 shortfall map is regenerated in the same commit and the metric is green (`go test ./internal/parse/ -run '^TestT2CoreParses$' -count=1 -v | grep -q '^--- PASS: TestT2CoreParses'`)
 - [ ] The T1 ratchet is regenerated in the same commit and is green (`go test ./internal/parse/ -run '^TestParseRatchet$' -count=1 -v | grep -q '^--- PASS: TestParseRatchet'`)
 - [ ] The whole parse package is green (`go test ./internal/parse/ -count=1`)
