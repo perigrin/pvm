@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-10-09T17:18:34.327458898Z
-updated: 2026-10-09T19:48:53.66484412Z
+updated: 2026-10-10T05:34:12.431661668Z
 sessions:
 - start_sha: 7cbf3fdcf4df28374896f0db93391750fa1f926d
   end_sha: 79cb88417fc43ff03ba5154ef6eb2928fd3b3ea0
@@ -78,7 +78,16 @@ Found 2026-10-09 by `make fuzz-parser` (01a0a70f-0ec3's criterion) on feat/m1-fi
 
 - [ ] Measure what perl does with `format=\n0\n\n` (`perl -c`); failing test first (commit the seed as a FuzzParser corpus entry and a named unit test); fix scanFormatBody; `make fuzz-parser` clean; `make test`; commit
 
+### The fuzz criterion replays the seeds (2026-10-10)
+
+`make fuzz-parser` explores at random, so as a criterion it can fail on a
+new find unrelated to this issue -- and a failing run writes its seed into
+testdata, where every later `go test ./internal/parse/` replays it. This
+issue's claim is its own inputs, which are committed as fuzz seeds; the
+criterion replays them deterministically. The open-ended fuzz claim
+belongs to 01a0a70f-0ec3 and 01a0de03, where it stays.
+
 ## Acceptance criteria
 
 - [ ] the lexer does not panic on a format whose name is empty (`go test ./internal/lexer/ -run '^TestFormatWithNoNameDoesNotPanic$' -count=1 -v | grep -q '^--- PASS: TestFormatWithNoNameDoesNotPanic'`)
-- [ ] the parser fuzzer finds nothing (`make fuzz-parser`)
+- [ ] every committed fuzz seed replays clean (`go test ./internal/parse/ -run '^FuzzParser$' -count=1 -v | grep -q '^--- PASS: FuzzParser'`)
