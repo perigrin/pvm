@@ -56,9 +56,10 @@ func (p *parser) parseDeclaration(word lexer.Token) *Node {
 		// source, and it round-trips.
 		//
 		// perl makes the same test: a name after `sub` is a declaration, a
-		// `{` is an anonymous sub.
-		if next, ok := p.peekAfter(word); ok && (p.text(next) == "{" ||
-			next.Kind == lexer.Prototype || p.text(next) == "(") {
+		// `{` is an anonymous sub. So is a `sub` with nothing after it,
+		// `sub;`, which perl refuses as an anonymous sub with no body.
+		if next, ok := p.peekAfter(word); !ok || p.text(next) == "{" || p.text(next) == ";" ||
+			next.Kind == lexer.Prototype || p.text(next) == "(" {
 			return nil
 		}
 		return p.parseSubDecl(word)
