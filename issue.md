@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-10-09T21:15:56.35321275Z
-updated: 2026-10-10T03:36:22.408079274Z
+updated: 2026-10-10T05:34:15.395446423Z
 sessions:
 - start_sha: 79cb88417fc43ff03ba5154ef6eb2928fd3b3ea0
   end_sha: baf52e02b9bfe6cccdacae5aafb9bd5e8d725c68
@@ -76,7 +76,16 @@ Found 2026-10-09 by `make fuzz-parser` during the final m1 verify, at 79cb8841: 
 
 - [ ] Measure perl on `no(A(A0))`, `use(A(A0))` and related forms; failing test first; fix; commit the seed; `make fuzz-parser` clean; `make test`; commit
 
+### The fuzz criterion replays the seeds (2026-10-10)
+
+`make fuzz-parser` explores at random, so as a criterion it can fail on a
+new find unrelated to this issue -- and a failing run writes its seed into
+testdata, where every later `go test ./internal/parse/` replays it. This
+issue's claim is its own inputs, which are committed as fuzz seeds; the
+criterion replays them deterministically. The open-ended fuzz claim
+belongs to 01a0a70f-0ec3 and 01a0de03, where it stays.
+
 ## Acceptance criteria
 
 - [ ] canon is a fixpoint on a parenthesised `no`/`use` operand (`go test ./internal/parse/ -run '^TestParenthesisedNoOperandIsAFixpoint$' -count=1 -v | grep -q '^--- PASS: TestParenthesisedNoOperandIsAFixpoint'`)
-- [ ] the parser fuzzer finds nothing (`make fuzz-parser`)
+- [ ] every committed fuzz seed replays clean (`go test ./internal/parse/ -run '^FuzzParser$' -count=1 -v | grep -q '^--- PASS: FuzzParser'`)
