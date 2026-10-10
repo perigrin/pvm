@@ -556,7 +556,7 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 			l, r = info.BP+1, info.BP
 		case AssocNone:
 			// Neither side may repeat at equal power, so BOTH need a paren.
-			// `precedence.go:14-18` says a binding power alone cannot
+			// `AssocNone`'s comment in precedence.go says a binding power alone cannot
 			// express nonassoc -- it stops the recursion but still accepts
 			// the input -- and this is the second place that has to know.
 			// Dropping the paren emits a syntax error:
@@ -662,7 +662,7 @@ func bindingPower(n *Node) int {
 			}
 			last := kids[len(kids)-1:]
 			if len(kids) > 1 ||
-				len(last) == 1 && last[0].Kind == Binary && infix[last[0].Text].Level == assignLevel {
+				len(last) == 1 && last[0].Kind == Binary && isAssignment(infix[last[0].Text]) {
 				return infix["="].BP
 			}
 		}

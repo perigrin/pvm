@@ -150,11 +150,12 @@ func TestCheckCommandWithTypeMismatchNoHint(t *testing.T) {
 func TestCheckStrictReportsUnknown(t *testing.T) {
 	dir := t.TempDir()
 	file := filepath.Join(dir, "strict.pl")
-	// unlink has no entry in the builtin signature table, so its result is
-	// Unknown. Passing it straight into print's Str argument keeps it
-	// un-inferred at the point of the check — assigning it to a declared
-	// variable first would give that variable a type from context.
-	content := "print unlink 'nonexistent';\n"
+	// frobnicate is declared nowhere, neither in CORE.pmt nor in the file,
+	// so its result is Unknown. Passing it straight into print's Str
+	// argument keeps it un-inferred at the point of the check — assigning it
+	// to a declared variable first would give that variable a type from
+	// context.
+	content := "print frobnicate();\n"
 	require.NoError(t, os.WriteFile(file, []byte(content), 0644))
 
 	runCheck := func(args ...string) string {

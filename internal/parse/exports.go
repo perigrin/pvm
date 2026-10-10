@@ -42,6 +42,16 @@ type Import struct {
 	// Local marks a name the using file declares itself. A local sub shadows
 	// an import, and its own prototype is the one that applies.
 	Local bool
+
+	// Lvalue marks a local sub whose result a `\$` prototype slot accepts:
+	// one declared `:lvalue`, or a lexical sub, which perl does not check.
+	// See notScalarLvalue.
+	Lvalue bool
+
+	// Signatures are the typed signatures the module's declaration file
+	// states or derives for the sub, one per `multi sub` candidate. Empty
+	// for a sub no declaration file types.
+	Signatures []types.Signature
 }
 
 // Imports names everything a parsed file's `use` statements brought into
@@ -107,10 +117,17 @@ type moduleFacts struct {
 	// readDeclaration.
 	signatures map[string][]types.Signature
 	errs       []error
+	// warns are what a declaration file states that is read, but read
+	// otherwise than it says. A warning drops nothing, as an error does.
+	warns []error
 
 	// operators are a declaration file's operator declarations, in the
 	// order it states them. See operatorDecl.
 	operators []operatorDecl
+
+	// relations are the precedence relations its named operators state,
+	// each with fixity "named": goto's `:equiv(=)`.
+	relations []operatorDecl
 
 	// globs are the names a literal glob assignment defines, `*run_perl =
 	// \&runperl` in t/test.pl: subs as real as a `sub NAME`, with no
@@ -521,6 +538,7 @@ func importsFrom(facts moduleFacts, list []string, listGiven bool) []Import {
 			Name:           name,
 			Prototype:      proto,
 			PrototypeKnown: known,
+			Signatures:     facts.signatures[name],
 		})
 	}
 	return out

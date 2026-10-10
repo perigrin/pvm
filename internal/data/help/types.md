@@ -63,8 +63,8 @@ ships declarations for:
 - perl's own builtins, in `CORE.pmt`
 
 Declaration files are written in **typed Perl**, a superset of Perl
-whose declarations can carry types. The files PVM ships today use only
-the plain-Perl part:
+whose declarations can carry types. A module's file states what it
+exports and each sub's prototype:
 
 ```perl
 package Mojolicious::Lite;
@@ -76,6 +76,14 @@ our @EXPORT = qw(
 
 sub get;
 sub group :prototype(&);
+```
+
+`CORE.pmt` carries typed declarations: each parameter's type, and the
+type the builtin returns. The prototype comes from the types, so
+`bless` needs no `:prototype($;$)`:
+
+```perl
+sub bless (Ref $ref, Str $class = __PACKAGE__) Object;
 ```
 
 Typed Perl is valid only in `.pmt` files, and you cannot yet add your

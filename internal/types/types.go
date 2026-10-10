@@ -48,6 +48,12 @@ const (
 	// and so measures as an Object, as a Regex does (testdata/
 	// lattice_oracle.pl witnesses it on the Object <: Ref edge).
 	IO Type = 1 << 19
+
+	// Void is the type of a computation that returns and yields nothing,
+	// the paper's `Void := {()}`: arity 0, one inhabitant, the empty
+	// list. A bare `return` is Void. It is not None, which does not
+	// return at all. In scalar context it coerces to Undef.
+	Void Type = 1 << 20
 )
 
 // Sentinel types.
@@ -99,8 +105,9 @@ const (
 	// Scalar denotes {1} and List denotes {0,1,2,...}, so Scalar <: List by
 	// subset inclusion on arities. This states Perl's list-flattening rule as
 	// a subtype fact — a scalar satisfies a list position because one value is
-	// one of the arities a list admits.
-	List Type = Array | Hash | Scalar
+	// one of the arities a list admits. Void {0} is under List the same
+	// way, beside Scalar.
+	List Type = Array | Hash | Scalar | Void
 
 	// FileHandle is what a handle may be (RFC 0001, "Type names"): a
 	// bareword handle is a Glob, `open my $fh` gives a GlobRef, and the IO
@@ -137,6 +144,7 @@ var typeNames = map[Type]string{
 	Code:      "Code",
 	Glob:      "Glob",
 	IO:        "IO",
+	Void:      "Void",
 	None:      "None",
 	// Parent masks
 	Ref:    "Ref",
@@ -173,6 +181,7 @@ var allLeafBits = []struct {
 	{NaN, "NaN"},
 	{Inf, "Inf"},
 	{IO, "IO"},
+	{Void, "Void"},
 }
 
 // String returns the human-readable name for the type. Known masks return

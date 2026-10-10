@@ -6,6 +6,7 @@ package parse
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"tamarou.com/pvm/internal/lexer"
@@ -116,35 +117,70 @@ func (p *parser) parseSignature(n *Node) {
 // parens are read as parseSignature reads any signature.
 func (p *parser) parseTypedSignature(n *Node) bool {
 	save := p.pos
+	name, _ := declaredSub(n)
 	open, _ := p.peekSignificant()
 	p.advanceTo(open)
 	sig := &Node{Kind: List, Paren: true, Start: open.Start}
 	var s types.Signature
 	var ret *Node
 	err := func() error {
+		var err error
+		if err = refuseContext(n); err != nil {
+			return err
+		}
+		s.Unary = hasAttribute(n, ":unary")
+		s.ListOp = hasAttribute(n, ":listop")
+		if s.Unary && s.ListOp {
+			return errors.New(":unary and :listop are two parses; a builtin parses as one")
+		}
+		operator := len(fixityAttrs(n)) > 0
 		for {
 			tok, ok := p.peekSignificant()
 			if ok && p.text(tok) == ")" {
 				p.advanceTo(tok)
 				sig.End = p.prevEnd()
+				// A named unary takes at most one operand, and an
+				// invocant is one.
+				operands := len(s.Params)
+				if s.Invocant != nil {
+					operands++
+				}
+				if s.Unary && operands > 1 {
+					return fmt.Errorf(":unary takes at most one operand, the signature has %d", operands)
+				}
 				var err error
 				s.Returns, ret, err = p.returnType()
 				return err
 			}
+			if ok && p.text(tok) == ":" && len(s.Params) == 0 && s.Invocant == nil {
+				return errors.New("invocant colon with no parameter before it")
+			}
 			// A List parameter takes every remaining argument, so nothing
 			// can follow it (RFC 0001, "A typed signature and a prototype
-			// say the same thing").
-			if len(s.Params) > 0 && s.Params[len(s.Params)-1].Sigil != '$' {
-				last := s.Params[len(s.Params)-1]
+			// say the same thing"), except in the operators whose comma
+			// does the flattening, flatteningOperators.
+			if n := len(s.Params); n > 0 && s.Params[n-1].Slurpy() && !(operator && flatteningOperators[name]) {
+				last := s.Params[n-1]
 				container := "Array"
 				if last.Sigil == '%' {
 					container = "Hash"
 				}
-				return fmt.Errorf(`List parameter %c%s is not last; a single array followed by more parameters is %s \%c%s`, last.Sigil, last.Name, container, last.Sigil, last.Name)
+				return fmt.Errorf(`List parameter %s is not last; a single array followed by more parameters is %s \%c%s`, last.Variable(), container, last.Sigil, last.Name)
 			}
 			param, node, err := p.typedParam()
 			if err != nil {
 				return err
+			}
+			// Everything after a prototype's `;` is optional, so a required
+			// parameter after an optional one has no prototype; perl 5.42
+			// refuses it, "Mandatory parameter follows optional parameter".
+			// An operator has no prototype, and takes each operand.
+			if param.Required && !operator {
+				for _, before := range s.Params {
+					if !before.Required {
+						return fmt.Errorf("mandatory parameter %s follows optional parameter %s", param.Variable(), before.Variable())
+					}
+				}
 			}
 			s.Params = append(s.Params, param)
 			sig.Children = append(sig.Children, node)
@@ -154,12 +190,29 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 				return errors.New("signature not terminated")
 			case p.text(sep) == ",":
 				p.advanceTo(sep)
+			// A colon touching a word is a parameter attribute (`$x :lvalue`),
+			// which perl refuses, not the invocant colon (`$by: List @list`).
+			case p.text(sep) == ":" && touchesWord(p, sep):
+				return fmt.Errorf("parameter %s is not followed by `,` or `)`", param.Variable())
+			// RFC 0001 "Builtins that keep their own parse": the invocant
+			// colon marks the first parameter as the slot a call fills with
+			// no comma after it, held apart from the positional ones.
+			case p.text(sep) == ":" && len(s.Params) == 1 && s.Invocant == nil:
+				// The slot holds one item, so a List, by its sigil or its
+				// type, is no invocant. The type is List with or without
+				// Void: `Array|Hash|Scalar` is List less its arity 0.
+				if param.Sigil == '@' || param.Sigil == '%' || param.Type|types.Void == types.List {
+					return fmt.Errorf("invocant %s is a List; an invocant slot holds one item", param.Variable())
+				}
+				p.advanceTo(sep)
+				s.Invocant, s.Params = &s.Params[0], nil
+			case p.text(sep) == ":":
+				return fmt.Errorf("invocant colon after %s; only the first parameter is an invocant", param.Variable())
 			case p.text(sep) != ")":
-				return fmt.Errorf("parameter %c%s is not followed by `,` or `)`", param.Sigil, param.Name)
+				return fmt.Errorf("parameter %s is not followed by `,` or `)`", param.Variable())
 			}
 		}
 	}()
-	name, _ := declaredSub(n)
 	if err != nil {
 		p.typedErrs = append(p.typedErrs, fmt.Errorf("sub %s: %w", name, err))
 		p.pos = save
@@ -178,11 +231,44 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 	if p.signatures == nil {
 		p.signatures = map[string][]types.Signature{}
 	}
-	if !p.multi {
-		delete(p.signatures, name)
+	// Every candidate is kept until the whole file is read: whether a
+	// plain `sub` replaces the one before it depends on whether the name is
+	// also a `multi sub`, below it or above. See readDeclaration.
+	if p.declaredMulti == nil {
+		p.declaredMulti, p.declaredPlain = map[string]bool{}, map[string]bool{}
+	}
+	if p.multi {
+		p.declaredMulti[name] = true
+	} else {
+		p.declaredPlain[name] = true
 	}
 	p.signatures[name] = append(p.signatures[name], s)
 	return true
+}
+
+// flatteningOperators are the operators a non-final List parameter is
+// allowed in (perigrin, 2026-10-08): `,` and `=>`, its quoting form, whose
+// operands perl cannot tell from their flattening -- `(@a, @b)` and `(@a)`
+// are both just lists -- and `x`, whose left operand is a parenthesised
+// list its comma flattens.
+var flatteningOperators = map[string]bool{",": true, "=>": true, "x": true}
+
+// hasAttribute reports whether the declaration n states the attribute
+// spelled attr, `:unary` or `:listop`.
+func hasAttribute(n *Node, attr string) bool {
+	return slices.ContainsFunc(n.Children, func(c *Node) bool { return c.Kind == Attribute && c.Text == attr })
+}
+
+// refuseContext refuses a declaration's `:context(...)`: a candidate's
+// return type says which calling context selects it, RFC 0001 "Context
+// selects by return type", so the attribute would state it twice.
+func refuseContext(n *Node) error {
+	for _, c := range n.Children {
+		if c.Kind == Attribute && strings.HasPrefix(c.Text, ":context(") {
+			return errors.New(":context is no attribute; a candidate's return type says which context selects it")
+		}
+	}
+	return nil
 }
 
 // returnType reads the type a `.pmt` declaration states after its signature,
@@ -209,7 +295,8 @@ func (p *parser) returnType() (types.Type, *Node, error) {
 // typeExpr reads a type expression into its Type, its element type, and a
 // TypeName node covering it. RFC 0001 "Type names": a lattice type name, a
 // union `A|B` with spaces around `|` allowed, or a container type
-// `Name[Type]` such as `List[Str]`, whose element is returned beside it.
+// `Name[Type]` such as `List[Str]`, whose element is returned beside it,
+// or a wrapper type, `Maybe[Int]`, which is the union it names.
 //
 // ponytail: a union of containers ORs their elements and a nested
 // container's element is its outer container, until the paper says what
@@ -228,27 +315,35 @@ func (p *parser) typeExpr() (typ, elem types.Type, node *Node, err error) {
 		if start < 0 {
 			start = tok.Start
 		}
-		member, err := types.FromName(p.text(tok))
-		if err != nil {
-			return types.Unknown, types.Unknown, nil, fmt.Errorf("unknown type name %q", p.text(tok))
-		}
-		p.advanceTo(tok)
-		typ = types.Join(typ, member)
-		if open, ok := p.peekSignificant(); ok && p.text(open) == "[" {
-			p.advanceTo(open)
-			if end, ok := p.peekSignificant(); ok && p.text(end) == "]" {
-				return types.Unknown, types.Unknown, nil, fmt.Errorf("container type %s has no element type", p.src[tok.Start:end.End])
-			}
-			inner, _, _, err := p.typeExpr()
+		if wrapped, ok := types.Wrapper(p.text(tok)); ok {
+			member, inner, err := p.wrapperType(tok, wrapped)
 			if err != nil {
 				return types.Unknown, types.Unknown, nil, err
 			}
-			end, ok := p.peekSignificant()
-			if !ok || p.text(end) != "]" {
-				return types.Unknown, types.Unknown, nil, fmt.Errorf("container type %s is not closed by `]`", p.src[tok.Start:p.prevEnd()])
+			typ, elem = types.Join(typ, member), types.Join(elem, inner)
+		} else {
+			member, err := types.FromName(p.text(tok))
+			if err != nil {
+				return types.Unknown, types.Unknown, nil, fmt.Errorf("unknown type name %q", p.text(tok))
 			}
-			p.advanceTo(end)
-			elem = types.Join(elem, inner)
+			p.advanceTo(tok)
+			typ = types.Join(typ, member)
+			if open, ok := p.peekSignificant(); ok && p.text(open) == "[" {
+				p.advanceTo(open)
+				if end, ok := p.peekSignificant(); ok && p.text(end) == "]" {
+					return types.Unknown, types.Unknown, nil, fmt.Errorf("container type %s has no element type", p.src[tok.Start:end.End])
+				}
+				inner, _, _, err := p.typeExpr()
+				if err != nil {
+					return types.Unknown, types.Unknown, nil, err
+				}
+				end, ok := p.peekSignificant()
+				if !ok || p.text(end) != "]" {
+					return types.Unknown, types.Unknown, nil, fmt.Errorf("container type %s is not closed by `]`", p.src[tok.Start:p.prevEnd()])
+				}
+				p.advanceTo(end)
+				elem = types.Join(elem, inner)
+			}
 		}
 		bar, ok := p.peekSignificant()
 		if !ok || p.text(bar) != "|" {
@@ -258,6 +353,34 @@ func (p *parser) typeExpr() (typ, elem types.Type, node *Node, err error) {
 	}
 	text := string(p.src[start:p.prevEnd()])
 	return typ, elem, &Node{Kind: TypeName, Text: text, Start: start, End: p.prevEnd()}, nil
+}
+
+// wrapperType reads a wrapper type, `Maybe[Int]`, whose name tok is next:
+// the union of wrapped with its one type parameter, and that parameter's
+// element. A wrapper with no parameter, or more than one, is an error
+// naming it.
+func (p *parser) wrapperType(tok lexer.Token, wrapped types.Type) (typ, elem types.Type, err error) {
+	name := p.text(tok)
+	refused := fmt.Errorf("%s takes one type, as in %s[Int]", name, name)
+	p.advanceTo(tok)
+	open, ok := p.peekSignificant()
+	if !ok || p.text(open) != "[" {
+		return types.Unknown, types.Unknown, refused
+	}
+	p.advanceTo(open)
+	if end, ok := p.peekSignificant(); ok && p.text(end) == "]" {
+		return types.Unknown, types.Unknown, refused
+	}
+	inner, elem, _, err := p.typeExpr()
+	if err != nil {
+		return types.Unknown, types.Unknown, err
+	}
+	end, ok := p.peekSignificant()
+	if !ok || p.text(end) != "]" {
+		return types.Unknown, types.Unknown, refused
+	}
+	p.advanceTo(end)
+	return types.Join(wrapped, inner), elem, nil
 }
 
 // typedParam reads one parameter of a typed signature, `Str $class =
@@ -283,20 +406,79 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 		}
 	}
 	v, ok := p.peekSignificant()
-	if !ok || v.Kind != lexer.Variable || v.End-v.Start < 2 || !strings.ContainsRune("$@%", rune(p.src[v.Start])) {
+	// RFC 0001 "The scalar container": a backslash aliases what the caller
+	// writes, as perlref's refaliasing does. `\$x`, `\@a`, `\%h` and `\&c`
+	// alias one container; the list form `\(@args)` aliases each argument.
+	alias, each := false, false
+	if ok && p.text(v) == `\` {
+		p.advanceTo(v)
+		v, ok = p.peekSignificant()
+		each = ok && p.text(v) == "("
+		alias = !each
+		if each {
+			p.advanceTo(v)
+			v, ok = p.peekSignificant()
+			if !ok || v.Kind != lexer.Variable || p.src[v.Start] != '@' {
+				return types.Param{}, nil, fmt.Errorf(`list form \( holds %q; it holds an array, as in \(@args)`, p.text(v))
+			}
+		}
+	}
+	last := v
+	// A code or glob slot, `Code &block` or `Glob *fh`, lexes as its sigil
+	// and then a word; the two are one variable when they touch.
+	if ok && (p.text(v) == "&" || p.text(v) == "*") {
+		if w, ok := p.peekAfter(v); ok && w.Kind == lexer.Word && w.Start == v.End {
+			v.End, v.Kind, last = w.End, lexer.Variable, w
+		}
+	}
+	if !ok || v.Kind != lexer.Variable || v.End-v.Start < 2 || !strings.ContainsRune("$@%&*", rune(p.src[v.Start])) {
 		return types.Param{}, nil, fmt.Errorf("type %s names no variable", tn.Text)
 	}
-	p.advanceTo(v)
-	param := types.Param{Name: p.text(v)[1:], Sigil: p.src[v.Start], Type: typ, Element: elem, Required: p.src[v.Start] == '$'}
+	p.advanceTo(last)
+	param := types.Param{Name: p.text(v)[1:], Sigil: p.src[v.Start], Type: typ, Element: elem, Alias: alias, AliasEach: each}
+	slurpy := param.Slurpy()
+	// A parameter whose type includes Void may be absent, with no default
+	// (RFC 0001, "`Maybe[T]` is `Undef|T` and `Optional[T]` is `Void|T`"):
+	// `Optional[Int] $seed` is srand's, `srand()` the Void case. Any is the
+	// permissive top, as TypeScript's `any` beside its `void`, not a union
+	// that happens to hold Void, so an Any parameter is required.
+	absent := typ&types.Void != 0 && typ != types.Any
+	param.Required = !slurpy && !absent
+	// An aliased array or hash is the caller's container, and a glob slot
+	// has no spelling: perl cannot alias a glob (RFC 0001, "The scalar
+	// container").
+	switch {
+	case alias && param.Sigil == '*':
+		return types.Param{}, nil, fmt.Errorf(`aliased glob \%s has no spelling (RFC 0001, open question 11)`, p.text(v))
+	case alias && param.Sigil == '@' && typ != types.Array:
+		return types.Param{}, nil, fmt.Errorf(`aliased \%s has type %s; the caller's array is Array \%s`, p.text(v), tn.Text, p.text(v))
+	case alias && param.Sigil == '%' && typ != types.Hash:
+		return types.Param{}, nil, fmt.Errorf(`aliased \%s has type %s; the caller's hash is Hash \%s`, p.text(v), tn.Text, p.text(v))
+	}
+	// The rest of RFC 0001's table: a code slot holds Code, a `\$` slot a
+	// Scalar type, and a `$` slot one scalar, which no aggregate or Code
+	// is. A `*` slot holds a bareword handle or any scalar (measured on
+	// 5.42.0, `star(STDOUT)` arrives as a string, `star(*STDOUT)` as a
+	// GLOB reference, `star(@a)` as the count), so it refuses only what
+	// a `$` slot refuses.
+	slot := string(param.Sigil)
+	if alias {
+		slot = `\` + slot
+	}
+	if holds := slotHolds(param.Sigil, alias, typ); holds != "" {
+		return types.Param{}, nil, fmt.Errorf("%s has type %s; a %s slot holds %s", param.Variable(), tn.Text, slot, holds)
+	}
 	// RFC 0001 "The scalar container": a parameter that takes the caller's
-	// container is backslashed, so `Array @a` is not valid.
-	if param.Sigil != '$' && typ != types.Unknown && typ != types.List && typ&^(types.Array|types.Hash) == 0 {
-		return types.Param{}, nil, fmt.Errorf(`container type %s with flattening sigil %s; a parameter that takes the caller's container is %s \%s`, tn.Text, p.text(v), tn.Text, p.text(v))
+	// container is backslashed, so `Array @a` is not valid. A slurpy's type
+	// is List, with or without Void, or Void alone, the empty list.
+	list := typ|types.Void == types.List || typ == types.Void
+	if slurpy && typ != types.Unknown && !list && typ&^(types.Array|types.Hash) == 0 {
+		return types.Param{}, nil, fmt.Errorf(`container type %s with flattening sigil %s; a parameter that takes the caller's container is %s \%s`, tn.Text, param.Variable(), tn.Text, p.text(v))
 	}
 	// RFC 0001 "A slurpy takes no bare element type": `Str @args` leaves
 	// both the container and what `Str` applies to unsaid.
-	if param.Sigil != '$' && typ != types.Unknown && typ != types.List {
-		return types.Param{}, nil, fmt.Errorf("slurpy %s has a bare element type %s; write a container type, List[%s] %s", p.text(v), tn.Text, tn.Text, p.text(v))
+	if slurpy && typ != types.Unknown && !list {
+		return types.Param{}, nil, fmt.Errorf("slurpy %s has a bare element type %s; write a container type, List[%s] %s", param.Variable(), tn.Text, tn.Text, param.Variable())
 	}
 	node := &Node{Kind: Declaration, Text: tn.Text, Start: tok.Start, Children: []*Node{
 		{Kind: Term, Text: p.text(v), Start: v.Start, End: v.End},
@@ -304,23 +486,65 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 	if eq, ok := p.peekSignificant(); ok && p.text(eq) == "=" {
 		p.advanceTo(eq)
 		var def *Node
+		// The comma ends the default and begins the next parameter.
 		if next, ok := p.peekSignificant(); ok && p.text(next) != "," && p.text(next) != ")" {
-			def = p.parseExpr(bpBelowComma)
+			def = p.parseExpr(infix[","].BP)
 		}
 		if def == nil {
-			return types.Param{}, nil, fmt.Errorf("default for %s has no expression", p.text(v))
+			return types.Param{}, nil, fmt.Errorf("default for %s has no expression", param.Variable())
 		}
 		node.Children = append(node.Children, def)
 		// A `die` default runs only when the argument is omitted, so it
 		// makes the parameter required rather than optional (RFC 0001, "A
 		// required argument defaults to `die`").
 		param.Required = def.Kind == Call && keywordName(def.Text) == "die"
+		if param.Required && absent && !slurpy {
+			return types.Param{}, nil, fmt.Errorf("%s has type %s, which may be absent, and defaults to die, which requires it", param.Variable(), tn.Text)
+		}
+		// The default fills a `\$` slot as an argument would, so it is held
+		// to what perl accepts there: `Scalar \$x = 1` derives `;\$`, and
+		// `sref(1)` is "must be scalar (not constant item)".
+		if alias && param.Sigil == '$' && p.notScalarLvalue(def) {
+			return types.Param{}, nil, fmt.Errorf(`aliased \%s defaults to %s, which a \$ slot refuses; it takes a scalar lvalue`, p.text(v), p.src[def.Start:def.End])
+		}
 		if !param.Required {
 			param.Default = string(p.src[def.Start:def.End])
 		}
 	}
+	// `:bareword` is the one parameter attribute (RFC 0001, "Operator
+	// declarations"): a colon touching that word after the variable.
+	if colon, ok := p.peekSignificant(); ok && p.text(colon) == ":" && touchesWord(p, colon) {
+		if word, _ := p.peekAfter(colon); p.text(word) == "bareword" {
+			p.advanceTo(word)
+			param.Bareword = true
+		}
+	}
+	if each {
+		end, ok := p.peekSignificant()
+		if !ok || p.text(end) != ")" {
+			return types.Param{}, nil, fmt.Errorf(`list form \(%s is not closed by `+"`)`", p.text(v))
+		}
+		p.advanceTo(end)
+	}
 	node.End = p.prevEnd()
 	return param, node, nil
+}
+
+// slotHolds says what a slot holds when typ does not fit it, and "" when
+// it does or the parameter is untyped.
+func slotHolds(sigil byte, alias bool, typ types.Type) string {
+	switch {
+	case typ == types.Unknown:
+	case sigil == '&' && typ != types.Code:
+		return "Code"
+	case sigil == '*' && types.IsSubtype(typ, types.Array|types.Hash|types.Code):
+		return "a glob or a scalar"
+	case sigil == '$' && alias && !types.IsSubtype(typ, types.Scalar):
+		return "a Scalar type"
+	case sigil == '$' && !alias && types.IsSubtype(typ, types.Array|types.Hash|types.Code):
+		return "a scalar"
+	}
+	return ""
 }
 
 // hasHead reports whether a sub declaration already holds a prototype or a
@@ -367,6 +591,15 @@ func (p *parser) parseLexicalSub(word lexer.Token) *Node {
 	}
 	p.advanceTo(word)
 	inner := p.parseSubDecl(sub)
+	// A lexical sub is in scope whatever package follows: measured on
+	// 5.42.0, `my sub s2 (\$) {} package B; s2(1)` meets the `\$`. And perl
+	// does not hold its result to a `\$` slot: `sub sref (\$) {} my sub g {}
+	// sref(g())` compiles.
+	if name, _ := declaredSub(inner); name != "" {
+		imp := p.imports[p.subKey(name)]
+		imp.Lvalue = true
+		p.declareLexical(imp)
+	}
 	return &Node{
 		Kind: Declaration, Text: p.text(word),
 		Start: word.Start, End: inner.End, Children: []*Node{inner},
@@ -444,13 +677,32 @@ func (p *parser) parseFormatDecl(word lexer.Token) *Node {
 // ordinary assignment. That keeps the declaration from re-implementing
 // assignment, which is already at level 9.
 func (p *parser) parseVarDecl(word lexer.Token) *Node {
-	n := p.parseVarDeclNoSemi(word)
+	n := p.parseVarDeclHead(word)
 	// The terminating `;` belongs to the declaration, like any other
 	// statement's. Without it the statement ends before the semicolon and
 	// the leftover becomes an Unknown sitting beside a perfectly good tree.
 	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
 		p.advanceTo(tok)
 		n.End = p.prevEnd()
+	}
+	return n
+}
+
+// parseVarDeclHead reads a declaration that begins a whole expression -- a
+// statement, or a C-style for head's clause -- and the comma list it heads.
+// The initialiser stops at the comma, which belongs ABOVE the declaration,
+// as it does for a plain assignment. Measured on 5.42.0 with -MO=Deparse,-p:
+//
+//	my $x = 1, my $y = 2;     ((my($x) = 1), (my($y) = 2));
+//	for (my $i = 0, my $j = 1; ...)   for (((my($i) = 0), (my($j) = 1)); ...
+//
+// A declaration in term position -- `sysopen(my $fh, ...)`, `foo my $a = 1,
+// 2` -- leaves the comma to the expression it sits in, which already reads
+// it as the enclosing list's.
+func (p *parser) parseVarDeclHead(word lexer.Token) *Node {
+	n := p.parseVarDeclNoSemi(word)
+	if next, ok := p.peekSignificant(); ok && (p.text(next) == "," || p.text(next) == "=>") {
+		return p.parseInfix(n, 0)
 	}
 	return n
 }
@@ -522,10 +774,10 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 		// (toke.c:250), so the test is the level rather than a list of
 		// nineteen spellings.
 		hadInit := false
-		if eq, ok := p.peekSignificant(); ok && infix[p.text(eq)].Level == assignLevel {
+		if eq, ok := p.peekSignificant(); ok && isAssignment(infix[p.text(eq)]) {
 			hadInit = true
 			p.advanceTo(eq)
-			// Parsed above the three word operators rather than at 0, so
+			// Parsed at the assignment's own right power, so the comma and
 			// `and`, `or` and `xor` stop here and belong ABOVE the
 			// declaration instead of inside it. That gap is a different
 			// program, not a different grouping. Measured on perl 5.42.0:
@@ -537,11 +789,11 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 			// and $b)`, which is what the PARENTHESISED source means. The
 			// two forms had one tree between them.
 			//
-			// The floor is bpBelowComma and NOT the assignment's own right
-			// power, which would also have excluded the COMMA at 80 --
-			// measured, `my $x = 1, my $y = 2` is legal perl and deparses
-			// unchanged, so the comma must still be reached from here.
-			if init := p.parseExpr(bpBelowComma); init != nil {
+			// The comma belongs above the declaration too: measured,
+			// `my $x = 1, my $y = 2` is `((my($x) = 1), (my($y) = 2))`.
+			// parseVarDeclHead reads it there for a declaration that heads
+			// its expression; in term position the enclosing list does.
+			if init := p.parseExpr(infix[p.text(eq)].rightBP()); init != nil {
 				n.Children = append(n.Children, init)
 			}
 		}
@@ -558,7 +810,7 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 		if !hadInit {
 			if op, ok := p.peekSignificant(); ok {
 				text := p.text(op)
-				if info, isInfix := infix[text]; isInfix && info.Level != assignLevel &&
+				if info, isInfix := infix[text]; isInfix && !isAssignment(info) &&
 					text != "," && text != "=>" && info.BP > bpBelowComma {
 					left = p.parseInfix(n, bpBelowComma)
 				}
@@ -612,7 +864,7 @@ func (p *parser) listDeclWithAttributes(n *Node) *Node {
 	}
 	n.Children = append(n.Children, list)
 	p.parseAttributes(n)
-	if eq, ok := p.peekSignificant(); ok && infix[p.text(eq)].Level == assignLevel {
+	if eq, ok := p.peekSignificant(); ok && isAssignment(infix[p.text(eq)]) {
 		p.advanceTo(eq)
 		if init := p.parseExpr(bpBelowComma); init != nil {
 			n.Children = append(n.Children, init)
@@ -678,8 +930,11 @@ func (p *parser) parseSubDecl(word lexer.Token) *Node {
 
 	// Typed Perl is read with signatures on, so it keeps their order and
 	// refuses a signature before the attributes as perl does (RFC 0001,
-	// "Declaration order: Perl's"). The signature is not recorded.
-	if p.typed && sigFirst && len(n.Children) > attrsAt {
+	// "Declaration order: Perl's"). The signature is not recorded. A
+	// signature already refused is not refused again: what the fallback
+	// read of its parens leaves, `(%h: List @b)`'s `: List`, is no
+	// attribute the declaration states.
+	if p.typed && sigFirst && len(n.Children) > attrsAt && len(p.typedErrs) == errsBefore {
 		name, _ := declaredSub(n)
 		if sigs := p.signatures[name]; len(sigs) > 1 {
 			p.signatures[name] = sigs[:len(sigs)-1]
@@ -706,6 +961,39 @@ func (p *parser) parseSubDecl(word lexer.Token) *Node {
 	// without error.
 	if p.typed && len(p.typedErrs) == errsBefore {
 		p.declareOperator(n)
+	}
+
+	// `:unary` says how a no-prototype builtin's one operand parses, so it
+	// needs the signature that states the operand; without one the line
+	// would read as the list operator `:unary` denies.
+	if p.typed && len(p.typedErrs) == errsBefore && !hasHead(n) && hasAttribute(n, ":unary") {
+		name, _ := declaredSub(n)
+		p.typedErrs = append(p.typedErrs, fmt.Errorf("sub %s: :unary needs a typed signature stating its operand", name))
+	}
+	// `:listop` says a no-prototype builtin's parameters are typed, so
+	// without the signature that types them it says nothing.
+	if p.typed && len(p.typedErrs) == errsBefore && !hasHead(n) && hasAttribute(n, ":listop") {
+		name, _ := declaredSub(n)
+		p.typedErrs = append(p.typedErrs, fmt.Errorf("sub %s: :listop needs a typed signature stating its parameters", name))
+	}
+
+	// A `:context` with a signature after it is refused by
+	// parseTypedSignature. One with none, or never closed so that it
+	// swallows the signature, is refused here.
+	if p.typed && len(p.typedErrs) == errsBefore {
+		if err := refuseContext(n); err != nil {
+			name, _ := declaredSub(n)
+			p.typedErrs = append(p.typedErrs, fmt.Errorf("sub %s: %w", name, err))
+		}
+	}
+
+	// A declaration in error derives nothing; see readDeclaration.
+	if p.typed && len(p.typedErrs) > errsBefore {
+		if p.inError == nil {
+			p.inError = map[string]bool{}
+		}
+		name, _ := declaredSub(n)
+		p.inError[name] = true
 	}
 
 	// The declaration enters scope HERE, before its own body and before
@@ -761,17 +1049,29 @@ func (p *parser) declareSub(n *Node) {
 	if p.imports == nil {
 		p.imports = map[string]Import{}
 	}
-	p.imports[subKey(name)] = Import{
+	p.imports[p.subKey(name)] = Import{
 		Name:           name,
 		Prototype:      proto,
 		PrototypeKnown: true,
 		Local:          true,
+		Lvalue:         lvalueSub(n),
 	}
 	// `sub Pack::method` creates the package Pack as surely as `package
 	// Pack` does, so `method Pack (...)` can name it -- op/method.t:54.
 	if i := strings.LastIndex(name, "::"); i > 0 {
 		p.notePackage(name[:i])
 	}
+}
+
+// lvalueSub reports whether a sub declaration carries `:lvalue`, which perl
+// also accepts spaced and among other attributes: `sub g : method lvalue`.
+func lvalueSub(n *Node) bool {
+	for _, c := range n.Children {
+		if c.Kind == Attribute && slices.Contains(strings.Fields(strings.ReplaceAll(c.Text, ":", " ")), "lvalue") {
+			return true
+		}
+	}
+	return false
 }
 
 // parsePackageDecl: `package NAME;` and `package NAME { ... }`.
@@ -801,8 +1101,23 @@ func (p *parser) parsePackageDecl(word lexer.Token) *Node {
 		})
 	}
 
-	p.finishBodyOrSemicolon(n)
+	p.finishPackage(n)
 	return n
+}
+
+// finishPackage ends a `package` or `class` declaration and moves the parse
+// into its package: to the end of the enclosing block for `package NAME;`,
+// and for its own block alone for `package NAME BLOCK`. Measured on 5.42.0,
+// `package A { sub s2 (\$) {} } s2(1)` calls main::s2.
+func (p *parser) finishPackage(n *Node) {
+	prev := p.pkg
+	if len(n.Children) > 0 && n.Children[0].Kind == Term {
+		p.pkg = n.Children[0].Text
+	}
+	p.finishBodyOrSemicolon(n)
+	if last := n.Children[len(n.Children)-1]; last.Kind == Block {
+		p.pkg = prev
+	}
 }
 
 // finishBodyOrSemicolon consumes the `( Block | ";" )` that ends a sub or
@@ -817,4 +1132,11 @@ func (p *parser) finishBodyOrSemicolon(n *Node) {
 		}
 	}
 	n.End = p.prevEnd()
+}
+
+// touchesWord reports whether a word begins right where tok ends, with no
+// space between: the `:lvalue` of an attribute rather than a separator.
+func touchesWord(p *parser, tok lexer.Token) bool {
+	next, ok := p.peekAfter(tok)
+	return ok && next.Kind == lexer.Word && next.Start == tok.End
 }

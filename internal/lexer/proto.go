@@ -78,6 +78,7 @@ func scanPrototype(l *lexer) bool {
 // atPrototypeAttribute reports whether the `(` at l.pos is the argument of
 // a `:prototype` attribute: the word `prototype` touches it, after a `:`
 // (`sub f : prototype($;$)` is the same attribute, measured on 5.42.0).
+// In typed Perl `:context(...)` lexes as one too; see sigilAttribute.
 func (l *lexer) atPrototypeAttribute() bool {
 	n := len(l.toks)
 	c := l.significantBefore(n - 1)
@@ -85,8 +86,20 @@ func (l *lexer) atPrototypeAttribute() bool {
 		return false
 	}
 	word, colon := l.toks[n-1], l.toks[c]
-	return word.Kind == Word && word.End == l.pos && string(l.src[word.Start:word.End]) == "prototype" &&
+	return word.Kind == Word && word.End == l.pos && l.sigilAttribute(string(l.src[word.Start:word.End])) &&
 		colon.End-colon.Start == 1 && l.src[colon.Start] == ':'
+}
+
+// sigilAttribute reports whether an attribute named word takes prototype
+// sigils as its argument: `:prototype(...)`, and in typed Perl
+// `:context(...)`, whose `:context($)` would otherwise lex `$)` as a
+// variable. A `.pmt`'s return type says which context selects a candidate
+// (RFC 0001, "Context selects by return type"), so the declaration reader
+// refuses `:context` by name, which it can once the attribute lexes whole.
+// perl has no `:context`, so ordinary source scans it as any other
+// attribute.
+func (l *lexer) sigilAttribute(word string) bool {
+	return word == "prototype" || l.typed && word == "context"
 }
 
 // noteSubName tracks whether a prototype may start at the next `(`, and
@@ -99,6 +112,18 @@ func (l *lexer) atPrototypeAttribute() bool {
 // Only directly after the keyword -- otherwise `f ($x)` and `my ($a, $b)`
 // would scan their parens as prototypes.
 func (l *lexer) noteSubName(k Kind, start int) bool {
+	// An attribute's argument touches its name; until its `)` the head
+	// stays open.
+	open := k == Operator && l.pos-start == 1 && l.src[start] == '('
+	if k != Whitespace && k != Comment && (l.attrArgDepth > 0 || open && l.inSubAttrs && l.touchesAttributeName(start)) {
+		switch {
+		case open:
+			l.attrArgDepth++
+		case k == CloseBracket && l.src[start] == ')':
+			l.attrArgDepth--
+		}
+		return true
+	}
 	switch k {
 	case Whitespace, Comment:
 		// Trivia between `sub`, the name and the `(` does not reset the
@@ -135,7 +160,7 @@ func (l *lexer) noteSubName(k Kind, start int) bool {
 		// break that, because only they can hide a `)`.
 		if l.sawAttrColon {
 			l.sawAttrColon = false
-			l.expectPrototype = word == "prototype"
+			l.expectPrototype = l.sigilAttribute(word)
 			return true
 		}
 		switch {
@@ -217,6 +242,7 @@ func (l *lexer) closeDeclHead() {
 	l.expectPrototype = false
 	l.sawAttrColon = false
 	l.inSubAttrs = false
+	l.attrArgDepth = 0
 }
 
 // noteSignatureParens keeps sigDepth: the `(` a pending signature was waiting

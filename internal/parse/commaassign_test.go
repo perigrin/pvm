@@ -57,6 +57,11 @@ func TestTrailingCommaBeforeAssignment(t *testing.T) {
 // is how PerlOnJava unit/threads_postfix_create_and_invalid_entry.t chains
 // `create threads sub {...}=>->join`.
 //
+// A compound assignment assigns to f's result, so f is an lvalue sub for
+// one: with a plain `sub f {}`, `f 1, ||= 2` is "Can't modify non-lvalue
+// subroutine call of &main::f in logical or assignment (||=)", and with
+// `sub f :lvalue {}` perl accepts it.
+//
 // An operator whose first byte DOES begin a term there is read as that
 // term, and perl rejects the line: `f 1, += 2` is a syntax error, `f 1, **
 // 2` reads a glob and `f 1, // 2` a pattern. Those stay refused.
@@ -64,19 +69,19 @@ func TestTrailingCommaBeforeAssignment(t *testing.T) {
 // perl.git t/io/open.t:281, `ok open(...), '...',` then `|| _diag $!`.
 func TestTrailingCommaBeforeOperator(t *testing.T) {
 	for src, same := range map[string]string{
-		`sub f {} f 1, && 2;`:    `sub f {} f(1) && 2;`,
-		`sub f {} f 1, || 2;`:    `sub f {} f(1) || 2;`,
-		`sub f {} f 1, == 2;`:    `sub f {} f(1) == 2;`,
-		`sub f {} f 1, ? 1 : 2;`: `sub f {} f(1) ? 1 : 2;`,
-		`sub f {} f 1, =~ /x/;`:  `sub f {} f(1) =~ /x/;`,
-		`sub f {} f 1, .. 3;`:    `sub f {} f(1) .. 3;`,
-		`sub f {} f 1, . "x";`:   `sub f {} f(1) . "x";`,
-		`sub f {} f 1, != 2;`:    `sub f {} f(1) != 2;`,
-		`sub f {} f 1, ||= 2;`:   `sub f {} f(1) ||= 2;`,
-		`sub f {} f 1, >>= 2;`:   `sub f {} f(1) >>= 2;`,
-		`sub f {} f 1, ->m;`:     `sub f {} f(1)->m;`,
-		`sub f {} f 1 => ->m;`:   `sub f {} f(1)->m;`,
-		`sub f {} f 1, -> [0];`:  `sub f {} f(1)->[0];`,
+		`sub f {} f 1, && 2;`:          `sub f {} f(1) && 2;`,
+		`sub f {} f 1, || 2;`:          `sub f {} f(1) || 2;`,
+		`sub f {} f 1, == 2;`:          `sub f {} f(1) == 2;`,
+		`sub f {} f 1, ? 1 : 2;`:       `sub f {} f(1) ? 1 : 2;`,
+		`sub f {} f 1, =~ /x/;`:        `sub f {} f(1) =~ /x/;`,
+		`sub f {} f 1, .. 3;`:          `sub f {} f(1) .. 3;`,
+		`sub f {} f 1, . "x";`:         `sub f {} f(1) . "x";`,
+		`sub f {} f 1, != 2;`:          `sub f {} f(1) != 2;`,
+		`sub f :lvalue {} f 1, ||= 2;`: `sub f :lvalue {} f(1) ||= 2;`,
+		`sub f :lvalue {} f 1, >>= 2;`: `sub f :lvalue {} f(1) >>= 2;`,
+		`sub f {} f 1, ->m;`:           `sub f {} f(1)->m;`,
+		`sub f {} f 1 => ->m;`:         `sub f {} f(1)->m;`,
+		`sub f {} f 1, -> [0];`:        `sub f {} f(1)->[0];`,
 	} {
 		root := parse.Parse([]byte(src))
 		if containsKind(root, parse.Unknown) {

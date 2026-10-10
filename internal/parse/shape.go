@@ -129,12 +129,21 @@ func ShapeOf(proto string) Shape {
 	case slurpy:
 		// Anything slurpy takes the whole list, whatever precedes it.
 		return ShapeList
-	case slots == 0:
-		// `()` -- takes nothing, so what follows is an operator.
+	case inner == "":
+		// `()` -- takes nothing, so what follows is an operator. Only the
+		// empty prototype: `(;)` has no slot either, but perl reads it as a
+		// list operator (toke.c, FUNC0SUB only when protolen is 0).
 		return ShapeNiladic
-	case slots == 1:
+	case slots == 1 && !strings.HasSuffix(inner, ";"):
 		// Exactly one slot, mandatory or optional: unary at the call site.
 		// It takes at most one term and never swallows a following comma.
+		//
+		// The slot must END the prototype: toke.c strips the leading `;`s
+		// and asks for one slot then the end, so `($;)` and `(_;)` are list
+		// operators. Measured on 5.42.0, `sub f ($;) {} f $a < 5` is
+		// `f(($a < 5))` and `f $a, $b` is "Too many arguments for main::f";
+		// perl's own `glob` (`_;`) and `getprotobynumber` (`$;`) parse the
+		// same way.
 		return ShapeUnary
 	}
 	return ShapeList
@@ -157,13 +166,17 @@ func (p *parser) knowsShape(name string) bool {
 	return ok && imp.PrototypeKnown
 }
 
-// lookupSub finds a sub this parse knows the shape of: one the file declared
-// or imported, and failing that one perl itself defines at startup.
+// lookupSub finds a sub this parse knows the shape of: a lexical one, then
+// one the file declared or imported into the current package, and failing
+// that one perl itself defines at startup.
 func (p *parser) lookupSub(name string) (Import, bool) {
-	if imp, ok := p.imports[subKey(name)]; ok {
+	if imp, ok := p.lexical[name]; ok {
 		return imp, true
 	}
-	if imp, ok := p.moduleSubs[subKey(name)]; ok {
+	if imp, ok := p.imports[p.subKey(name)]; ok {
+		return imp, true
+	}
+	if imp, ok := p.moduleSubs[p.subKey(name)]; ok {
 		return imp, true
 	}
 	if proto, ok := interpreterSubs[name]; ok {
@@ -229,14 +242,41 @@ var interpreterPackages = map[string]bool{
 	"Tie::Hash::NamedCapture": true, "builtin": true,
 }
 
+// declareLexical records a lexical sub -- `my sub`, `our sub`, `state sub`,
+// or a `use builtin` import -- under its bare name, in scope from here
+// whatever package the parse moves to.
+//
+// ponytail: the scope runs to the end of the file, not the enclosing block;
+// end it at the block if a corpus file calls a lexical sub's name after its
+// block closes.
+func (p *parser) declareLexical(imp Import) {
+	if p.lexical == nil {
+		p.lexical = map[string]Import{}
+	}
+	p.lexical[imp.Name] = imp
+}
+
+// subKey is the sub table's key for a name as spelled where the parser
+// stands: an unqualified name is in the current package, as perl resolves
+// it. Measured on 5.42.0, `package A; sub s2 (\$) {} package B; s2(1)`
+// calls B::s2, which has no prototype, while `A::s2(1)` and `package A {
+// sub s2 (\$) {} s2(1) }` meet A's `\$`. A name main declares keeps its
+// bare spelling, so `ok`, `::ok` and `main::ok` stay one key.
+func (p *parser) subKey(name string) string {
+	if p.pkg == "" || p.pkg == "main" || strings.Contains(name, "::") {
+		return subKey(name)
+	}
+	return p.pkg + "::" + name
+}
+
 // subKey is the sub table's key for a name as spelled: a leading `::` and
 // then a leading `main::` come off, so `ok`, `::ok` and `main::ok` are one
 // sub, as they are to perl. Measured on 5.42.0, `sub main::ok {1} ::ok(1)`
 // calls it and Deparse spells both halves `ok`. A name qualified into any
 // OTHER package keeps its qualification: `Foo::bar` is not `bar`.
 //
-// Applied at every read and write of p.imports, because a key normalised on
-// one side only is the mismatch this exists to remove.
+// Applied, through p.subKey, at every read and write of p.imports, because
+// a key normalised on one side only is the mismatch this exists to remove.
 func subKey(name string) string {
 	name = strings.TrimPrefix(name, "::")
 	return strings.TrimPrefix(name, "main::")

@@ -154,7 +154,7 @@ func TestKeywordsAreStillIdentifiers(t *testing.T) {
 // TestUndefIsANamedUnary: `undef` is two operators wearing one word, and only
 // the niladic one parsed.
 //
-// Classified by the method `keyword.go` documents, on 5.42.0:
+// Classified by the method CORE.pmt's header documents, on 5.42.0:
 //
 //	undef $x, $y    (undef($x), $y)     the comma is OUTSIDE  -> named unary
 //	length $x, $y   (length($x), $y)    the known-unary control

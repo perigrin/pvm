@@ -104,13 +104,34 @@ calls no import and brings none. Perl scopes these lexically.
 for, one line each, and parsing it builds the default builtin table:
 
 ```perl
-sub bless :prototype($;$);
-sub push  :prototype(\@@);
+sub bless (Ref $ref, Str $class = __PACKAGE__) Object;
+sub push (Array \@array, List @list) Int;
+sub lock :prototype(\[$@%&*]);
 ```
 
-A test asks perl for every keyword's prototype and holds the file to
-the answer. `:prototype(...)` is read as a prototype wherever a sub is
-declared, which also fixed two perl.git files whose own subs use it.
+A typed line's prototype is the one its types derive (`$;$` and `\@@`
+here); a prototype-only line writes its own. A test asks perl for every
+keyword's prototype and holds the file to the answer, and another holds
+each line's derived prototype to it
+(`TestCoreDerivedPrototypesArePerls`). `:prototype(...)` is read as a
+prototype wherever a sub is declared, which also fixed two perl.git
+files whose own subs use it.
+
+Every line is typed but eight, which stay prototype-only. The six that
+hold a glob slot -- `lock`, `pos`, `tie`, `tied`, `undef`, `untie` --
+wait on its spelling (open question 11). `catch` and `method` are
+keywords, like `try` and `sub`, not builtins to type (perigrin,
+2026-10-07): no call reaches them, and their `()` lines are there only
+because `prototype("CORE::catch")` answers. `isa`, which perl also
+answers `()` for, is the infix operator, typed by its `:infix`
+declaration ("Operator declarations").
+
+The file also declares the builtins perl reports no prototype for --
+`print`, `defined`, `grep`, `sort` and the rest ("Builtins with no
+prototype", "Builtins that keep their own parse"). Their lines derive
+none, so they stay out of the prototype table, where a name's presence
+would read as a prototype it does not have; their typed signatures are
+read beside the table's.
 
 ### Declaration order: Perl's (*Implemented*, 098211c6)
 
@@ -123,7 +144,7 @@ v5.36` refuses as a syntax error. A `.pmt` reports any statement it
 cannot read as "not a declaration". An operator
 is therefore `sub + :infix (Num $x, Num $y) Num;`.
 
-### Typed Perl, in `.pmt` only (*Decided*)
+### Typed Perl, in `.pmt` only (*Implemented*, a3c0200c, 3247bd4a, 26f0f472, b695e2b4, 0cfefff4, acc10ef3, 5a22ba3b, d2094988)
 
 The syntax of `.pmt` files is **typed Perl** (perigrin): Perl whose
 declarations carry types. The full form of a declaration is
@@ -150,10 +171,13 @@ Type names come from the lattice in `internal/types` (`Int`, `Num`,
 so a union such as `Str|Undef` is proposed as the spelling for "a
 string or undef"; the paper may choose another.
 
-Once `CORE.pmt` carries types, `internal/types/signatures.go` (27 typed
-builtins) and `internal/parse/keyword.go` (parse shapes) fold into it,
-each after a test shows the file agrees with the table it replaces. The
-comments recording their measurements move with them.
+`CORE.pmt` is the builtin table. `internal/infer` reads each builtin's
+types from it, and the parser derives each builtin's parse shape from it
+-- named unary, list operator or niladic -- from its prototype, its
+`:unary` or its `:listop`; `TestCoreDerivedShapes` holds the derived
+shapes to the sets perl was measured to give. The comments recording
+those measurements are on `CORE.pmt`'s lines. No hand-kept table of
+builtins remains beside it, of types or of parse shapes.
 
 ### Type names (*Implemented*, 02df00ad, cd485cd0, b2c809fc, 54784319)
 
@@ -181,23 +205,54 @@ unknown name is an error. perigrin, 2026-10-02:
   combine.
 - **Names follow the paper.** The lattice's `Bool` is the paper's
   `Boolean`, and a `.pmt` writes `Boolean`.
-- **The paper's other types** (`VString`, `Format`, `Void`, `LValueRef`)
-  join the lattice when a declaration first needs one.
+- **`Void` joins the lattice** (perigrin, 2026-10-08), the paper's
+  `Void := {()}`: arity 0, one inhabitant, the empty list, what returns
+  and yields nothing. It sits under `List` beside `Scalar`, and is not
+  `None`, which does not return. Scalar context coerces it to `Undef`:
+  measured on 5.42, `f(())` under prototype `+` passes one undef. pvm's
+  `List` is `Array|Hash|Scalar|Void`, so `Void|Scalar` is under `List`
+  rather than equal to it as in the paper.
+- **`Maybe[T]` is `Undef|T` and `Optional[T]` is `Void|T`** (perigrin,
+  2026-10-08; the paper's "Absent and undefined"). They are names for
+  those unions, not types of their own, and take exactly one type.
+  Measured on 5.42, `srand(undef)` warns "Use of uninitialized value"
+  and seeds 18446744073709551615, an `Int` slot holding undef,
+  `Maybe[Int]`; `srand()` seeds itself, a slot holding nothing,
+  `Optional[Int]`.
+- **A parameter whose type includes `Void` may be absent, with no
+  default** (perigrin, 2026-10-08). `sub srand (Optional[Int] $seed)
+  Str;` says what perl does with no seed, which no expression states, and
+  derives `;$`: the table puts a `;` before it. A written argument is
+  never absent, so it is held to the type less `Void`: `srand("x")` is
+  told `Int`, and `srand(@e)` is `srand(0)`, the array one scalar under
+  `;$`. `Any` is the permissive top, as TypeScript's `any` is beside its
+  `void` (`f(x: number | void)` allows `f()`, `f(x: any)` does not), not
+  a union that happens to hold `Void`, so an `Any` parameter is required.
+  `List` is such a union, so `List $` derives `;+`. A slurpy takes zero
+  arguments already, and `Optional[Int] $x = die` is an error: `die`
+  requires what `Void` says may be absent.
+- **The paper's other types** (`VString`, `Format`, `LValueRef`) join
+  the lattice when a declaration first needs one.
 
-### One language for every `.pmt` (*Decided*)
+### One language for every `.pmt` (*Implemented*, 79191842, d1338cd2, b6bea9c6)
 
 perigrin, 2026-10-02: everything `CORE.pmt` can say, any library's
-`.pmt` can say too -- typed signatures, `multi`, `:context`, the
-invocant colon, declared syntax. `CORE.pmt` is the declaration file for
+`.pmt` can say too -- typed signatures, `multi` and its context forks,
+the invocant colon, declared syntax. `CORE.pmt` is the declaration file for
 the interpreter, not a dialect of its own. A construct no Perl-level sub
 can have (the invocant colon) is still declarable for a library,
 because a keyword plugin can build what a sub cannot.
+
+A library's `.pmt` is held to `CORE.pmt`'s rules, and its errors name
+the module. The one difference is the operator classes coined for
+`CORE.pmt` (see "Operator declarations"), which a library may not name.
+A sub a library exports is imported with its typed signatures.
 
 Typed Perl is meant to outlive pvm's parser: Chalk is to read the same
 `.pmt` files in time, so the syntax should stay something a second
 implementation can parse from this RFC alone.
 
-### Builtins with no prototype (*Decided*)
+### Builtins with no prototype (*Implemented*, 3d340622, d1338cd2, 0cfefff4, e00fc501, 79a16715)
 
 About 20 builtins have no prototype perl can report. `CORE.pmt`
 declares their types, and `:unary` marks the eight that are named
@@ -206,13 +261,40 @@ ordinary sub is. Most of their forms turn out to be declarable; see
 "Builtins that keep their own parse" for which, and how.
 
 ```perl
-sub print (FileHandle $fh = select(): List[Str] @args = ($_)) Boolean;
+sub print (FileHandle $fh = select(): List[Str] @args = ($_)) Boolean|Undef;
 ```
 
 The default handle is the selected one, not STDOUT, and `print` with no
-arguments prints `$_` (measured).
+arguments prints `$_`; to a closed handle it returns undef (measured).
 
-### Builtins that keep their own parse (*Decided*)
+**`:listop` types a list operator's positional parameters** (perigrin,
+2026-10-07: "go with :listop for now"). It is `:unary`'s sibling: a line
+stating it is a builtin with no prototype that parses as a list operator,
+and its types derive no prototype. `split` needs it. `prototype("CORE::split")`
+is `undef` and `split $a, $b` deparses as `split(/$a/, $b, 0)`, a list
+operator, yet its parameters are positional and typed: the string is
+taken in scalar context (`split /,/, @a` over two elements splits "2"),
+a fourth argument is "Too many arguments for split", and with no
+arguments it splits `$_` on whitespace. Without `:listop` its types would
+derive `;$_$`, a prototype perl does not report, and `(List @args)`, which
+derives `@`, says the string is flattened, which perl shows is false.
+
+```perl
+multi sub split :listop (Regex|Str $pattern = ' ', Str $string = $_, Int $limit = 0) Int;
+multi sub split :listop (Regex|Str $pattern = ' ', Str $string = $_, Int $limit = 0) List;
+```
+
+A `:listop` line is held as a `:unary` one is. A `:prototype(...)`
+beside it is an error, since it derives none; so is `:listop` with no
+typed signature, which would leave it nothing to say, and `:listop`
+beside `:unary`, two parses for one builtin. A multi's candidates derive
+none when any of them states it. The `CORE.pmt` check, which reads
+perl's `undef` as a derived `@`, has no derived prototype of a `:listop`
+line to hold to perl's. A library `.pmt` states `:listop` as `CORE.pmt`
+does, under the same rules ("One language for every `.pmt`"), for an
+XS sub with no prototype but typed positional parameters.
+
+### Builtins that keep their own parse (*Implemented*, eb839b7d, 2bccec6f, cb25b36c, 828544ec, c1107251, efed93fd, b8e22b93, db6c2483, 6556db7f)
 
 perigrin, 2026-10-02. Measured on 5.42 throughout.
 
@@ -233,13 +315,20 @@ evaluation, not parse (`grep $n++ >= 0, 1 .. 3` evaluates the
 expression 3 times). So:
 
 ```perl
-multi sub grep (Code &block, List @list) List;    # &@
-multi sub grep (Scalar $expr, List @list) List;   # $@
-multi sub map  (Code &block, List @list) List;
+multi sub grep (Code &block, List @list = die) List;    # &@
+multi sub grep (Scalar $expr, List @list) List;         # $@
+multi sub map  (Code &block, List @list = die) List;
 multi sub map  (Scalar $expr, List @list) List;
-multi sub sort (Code &block, List @list) List;
+multi sub sort (Code &block, List @list = die) List;
 multi sub sort (List @list = die) List;
 ```
+
+After a block the list must be written, though it may be empty:
+`grep {1} ()` and `sort { $a <=> $b } ()` compile, while `grep {1};`,
+`map({1})` and `sort { $a <=> $b };` are syntax errors, so the block
+candidates' lists default to `die` ("A required argument defaults to
+`die`"). After grep's or map's expression it may be left out:
+`grep(1)` compiles.
 
 **`map`'s and `grep`'s brace is variant selection.** Both guess whether
 `{` opens a block or a hash constructor from its first tokens; a `&@`
@@ -274,8 +363,8 @@ slot an indirect object, but it is not the `indirect` feature: under
 spells the slot with Raku's invocant colon:
 
 ```perl
-sub print (FileHandle $fh = select(): List[Str] @args = ($_)) Boolean;
-multi sub sort (Code|Str $by: List @list) List;
+sub print (FileHandle $fh = select(): List[Str] @args = ($_)) Boolean|Undef;
+multi sub sort (Code|Str $by: List @list = die) List;
 sub exec (Str $program: List[Str] @args) Boolean;
 ```
 
@@ -286,7 +375,9 @@ Perl's `method` takes `$self` implicitly and never lists an
 invocant, so the colon cannot collide with one. For `sort` the slot
 names a comparison routine, which may be a string (`sort $n @x` with
 `$n = "byname"`); with a comma the string is data instead
-(`sort "byname", @x`).
+(`sort "byname", @x`). Its list must be written too: with none after
+it the routine is the list, `sort byname` yielding "byname" while
+`sort byname ()` yields nothing (measured).
 
 Two cases are open questions (9 and 10 below), not decided: `defined
 &f`, whose operand perl does not call, and how to type a parameter
@@ -309,7 +400,7 @@ is provisional until the paper defines it. `print`, with its container
 explicit:
 
 ```perl
-sub print (FileHandle $fh = select(): List[Str] @args = ($_)) Boolean;
+sub print (FileHandle $fh = select(): List[Str] @args = ($_)) Boolean|Undef;
 ```
 
 See "What a parameter type means" for what `Str` asserts there.
@@ -333,7 +424,7 @@ perl prints `HASH(0x...)` and continues; `bless "x"` has no coercion to
 because it states the meaning `psc check` already applies; there is
 nothing to build.)
 
-### A typed signature and a prototype say the same thing (*Decided*)
+### A typed signature and a prototype say the same thing (*Implemented*, b85929e1, d7a0face, 5ab639a7, 74f46579, 37153b30, 7a0ea048, ffaddd08, 56a13978, 521fb37e)
 
 A prototype's characters are parameter types seen from the caller.
 `\@` means the caller writes an actual array, passed whole; `@` means
@@ -350,15 +441,15 @@ prototype character corresponds to a parameter:
 | prototype | the caller writes (measured) | parameter |
 |---|---|---|
 | `$` | any expression, in scalar context: with `@a = (5, 6, 7)`, `one(@a)` passes 3 | `Scalar $` |
-| `@`, `%` | the rest of the call, flattened | `List @` |
+| `@`, `%` | the rest of the call, flattened | `List @`, `List %` |
 | `\@`, `\%` | an actual array or hash, passed whole | `Array \@a`, `Hash \%h` |
 | `\$` | any scalar lvalue, passed as a reference: `sref(1)` dies, "must be scalar (not constant item)" | `Scalar \$x` |
 | `\[$@%]` | any one of those containers | their union |
-| `+` | one array or hash, passed whole, or one scalar: `plus(%h)` sees a HASH, `plus(1,2)` is too many arguments | `Array\|Hash\|Scalar` |
-| `&` (first) | a block or a code reference | `Code &` |
+| `+` | one array or hash, passed whole, or one scalar: `plus(%h)` sees a HASH, `plus(1,2)` is too many arguments | `Array\|Hash\|Scalar $`, exactly; `plus(())` passes one undef. That and `Void`, `List $`, may be absent, and is `;+`: under `(;+)` `g()` passes nothing. A wider type such as `Any $` is a `$` |
+| `&` | a block or a code reference when first; elsewhere `sub {...}` or `\&name` | `Code &` |
 | `*` | a bareword filehandle or any scalar: `star(STDOUT)`, `star($s)` | `Glob *` |
 | `_` | a scalar, defaulting to `$_` | `Scalar $ = $_` |
-| `;` | marks what follows as optional | parameters with defaults |
+| `;` | marks what follows as optional | parameters with defaults, or whose type includes `Void` |
 
 **Derivation goes both directions** (perigrin):
 
@@ -371,7 +462,14 @@ prototype character corresponds to a parameter:
 
 The directions are not symmetric. Types are finer than prototypes
 (`Str $` and `Int $` both give `$`), so prototype to types to prototype
-round-trips, and types to prototype to types loses precision. A test
+round-trips, and types to prototype to types loses precision. The one
+exception is a trailing `;`, which no type states: measured on 5.42,
+`f 1, 2` under `($;)` is "Too many arguments" -- a list operator --
+while under `($)` it reads `f(1), 2`, and `g 1` under `(;)` is "Too
+many arguments" where `()` is a syntax error. So `$;` and `;` come back
+from types as `$` and nothing; a declaration that needs them writes
+`:prototype($;)`, which agrees with `(Scalar $x)` and is the prototype
+kept (`not` and `getprotobynumber` in CORE.pmt). A test
 can hold the derived prototypes to `prototype("CORE::name")` for all
 188 builtins.
 
@@ -389,7 +487,27 @@ filled, since the `@` takes every argument. A declaration with
 anything after a `List` parameter is an error, which points to
 `Array \@a` for a single array followed by more parameters (`\@$`).
 
-### The scalar container (*Decided*)
+The rule is there for list flattening, so the operators whose comma
+does the flattening are its exceptions (perigrin, 2026-10-08): `,`,
+`=>` (its quoting form) and `x`. "There is absolutely no way to
+distinguish `(@a, @b)` from `(@a)` in Perl": the comma is the
+flattening, so the rule about flattened arguments does not bind it.
+Measured on 5.42, `(@a, 3)` with `@a = (1, 2)` is 3 elements, the left
+operand flattening too; `(1, (2, 3))` is 3 elements; and `my $x = (4,
+5)` is 5, with a "Useless use of a constant" warning. So `,` is
+
+```perl
+multi sub , :infix :looser(=) :assoc(left) (List @l, List @r) List;   # list context: append
+multi sub , :infix (Scalar $l, Scalar $r) Scalar;                     # scalar context: the right
+```
+
+`x` is one for the same reason: its list candidate's left operand is a
+parenthesised list its comma flattens (see "Operator declarations").
+The exceptions are named, not operators in general: any other operator,
+and every sub, with a non-final `List` parameter is a declaration error
+(TestCommaIsTheFinalListException).
+
+### The scalar container (*Implemented*, 1a6f3e93, 7a0ea048, 3c6a73bb, e6fba74e, 352d0eca)
 
 perigrin, 2026-10-02: a parameter that aliases the caller's container
 is written with a backslash, as Perl writes aliasing. perlref,
@@ -432,18 +550,37 @@ property is lvalue-ness, not "unevaluated": `$x = 7` is evaluated.
 
 What an aliased list is as a type stays the paper's question.
 
-### Operator declarations (*Decided*)
+### Operator declarations (*Implemented*, d76d94b1, b5b1f905, 94d4c5c2, 31cf13bc, edbd7955, 0a726b85, a6fcb6e8, 1776c37f)
 
 perigrin, 2026-10-02, **provisional**: these spellings stand for now and
 may change as operators are declared.
 
-**No result rule.** `sub + :infix(ADD) (Num $x, Num $y) Num;` is
-complete. `Int <: Num` in the lattice, so `Num` is an upper bound that
-`Int + Int = Int` satisfies; recovering `Int` for two `Int`s is
+**No result rule.** `sub + :infix(ADD) (Num $x, Num $y) Num|Inf;` is
+complete. `Int <: Num|Inf` in the lattice, so `Num|Inf` is an upper bound
+that `Int + Int = Int` satisfies; recovering `Int` for two `Int`s is
 inference narrowing within that bound, not something the declaration
 states. (Settled earlier with bson; see perl5-son's
 `docs/plans/2026-09-16-a-declaration-syntax-for-signatures.md`,
 "Problem 1 (WITHDRAWN)".)
+
+**A result is what perl returns.** perigrin, 2026-10-07. An operator's
+operands are the type it coerces them to, and its result is what perl
+returns for operands of those types, which may leave them. The paper's
+`[Plus]` rule says the same: its premises `v ⇓^Num n` type the operands
+through `Num`, and its conclusion is only the number `n₁ + n₂`, which
+`Num` need not hold, since `Num` excludes `Inf` and `NaN` (Theorem 3).
+Measured on 5.42 with finite operands, `1e308 + 1e308` is `Inf`,
+`-1e308 * 10` is `-Inf` (the lattice's `Inf` is either sign) and
+`(-1) ** 0.5` is `NaN`, so `+`, `-`, `*` and `/` are declared
+`(Num $x, Num $y) Num|Inf` and `**` `(Num $x, Num $y) Num|NaN|Inf`;
+`%` stays `Num`. The builtins follow the same rule: `exp` is `Num|Inf`,
+`hex` and `oct` `Int|Inf`. A case that dies, `1/0` or `sqrt(-1)`, is no
+value and widens nothing. `TestCoreArithmeticReturnsWhatPerlReturns`
+holds each declaration to its measurement.
+
+A result of `Num|Inf` passed where `Num` is wanted is a lossy coercion,
+and `psc check` reports it: `my $c = $a * $b; $c + 1` warns
+`left operand of "+": expected Num, got Int|Num|Inf`.
 
 **Fixity and precedence.** `:infix(CLASS)`, `:prefix` and `:postfix`.
 The class names perl's precedence levels in XS::Parse::Infix's
@@ -453,21 +590,31 @@ way (`XPI_CLS_ADD_MISC`, `MUL_MISC`, `POW_MISC`, `LOGICAL_AND_MISC`,
 `ASSIGN_MISC`, `LOW_MISC`, `HIGH_MISC`, and the predicate classes
 `RELATION`, `EQUALITY`, `ORDERING`, `MATCHRE`, `ISA`), written without
 the `XPI_CLS_` prefix and `_MISC` suffix: `and` is `LOGICAL_AND_LOW`,
-`or` and `xor` are `LOGICAL_OR_LOW`. The parser's precedence table stays
-authoritative, and a test holds each `CORE.pmt` operator's class to its
-level there. A library declaring an XS::Parse::Infix operator uses the
+`or` and `xor` are `LOGICAL_OR_LOW`. A class is a relation, `:equiv` of
+the operator it stands for the level of, and the parser's precedence is
+derived from the relations (see "Precedence is a relation between
+operators"). A library declaring an XS::Parse::Infix operator uses the
 same spelling.
 
 XS::Parse::Infix classes no operator at the levels of `&`, of `|` and
-`^`, or of `<<` and `>>` (perigrin, 2026-10-06), so `CORE.pmt` coins
-`BITAND`, `BITOR` and `SHIFT` for them. The three exist only for
-`CORE.pmt`: XS::Parse::Infix cannot register an operator at those
-levels, so no library declares one there.
+`^`, or of `<<` and `>>` (perigrin, 2026-10-06), nor at that of `..`
+and `...`. Those levels have no class: they are named by their
+operators, and their lines state their relations (see "Precedence is a
+relation between operators") -- `sub & :infix :tighter(|)
+:assoc(left)`, `sub ^ :infix :equiv(|)` -- so only XS::Parse::Infix's
+own class names are spellable in `:infix(CLASS)`, and a library naming
+another is in error. XS::Parse::Infix is an influence, not a limitation
+(perigrin, 2026-10-08): a library's infix operator may take any level
+its relations give, `:equiv` of any operator, those levels included
+(`sub ⊕ :infix :equiv(&)` binds as `&`), or a level of its own between
+two (`:tighter(+) :looser(*)`). A library's bare `:infix`, with no class
+and no relation, places its operator at no level and is a declaration
+error naming it.
 
 **Operators that fork** are multis:
 
 - `..` is a range in list context and a flip-flop in scalar context: a
-  `:context` multi.
+  multi whose return types fork on context.
 - `x` repeats a list only when its left operand is parenthesised and
   it is evaluated in list context: `my $x = (1,2) x 2` gives `22`.
   Measured on 5.42: `(1,2) x 2` and `(@a) x 2` give `1 2 1 2`, while
@@ -476,11 +623,149 @@ levels, so no library declares one there.
   a parse fact, as the comma does for `map`:
 
 ```perl
-multi sub x :infix(MUL) :context(@) (List @l, Int $n) List;   # (LIST) x N
+multi sub x :infix(MUL) (List @l, Int $n) List;   # (LIST) x N
 multi sub x :infix(MUL) (Str $s, Int $n) Str;     # EXPR x N
 ```
 
-### Multi declarations (*Decided*)
+  The call site states each operand's shape, `@` for a parenthesised
+  list and `$` otherwise. A `@` parameter takes only a `@` operand, and
+  a candidate taking each `@` operand as a list is selected before one
+  taking it as a scalar; without that, `Str <: List` would make the
+  `Str` candidate the most specific. Context comes first: in scalar
+  context the `Str` candidate's return answers it, so `my $x = (1,2) x
+  2` is the `Str` one's. The `@` parameter comes before another:
+  `x` is one of the operators the final-List rule names as exceptions
+  (see "A typed signature and a prototype say the same thing").
+- `=~` forks on context: in list context a match is its captures and
+  `s///g` its count; in scalar context a match is a boolean, `s///` and
+  `tr///` a count, and `s///r` and `tr///r` the new string.
+- `\` forks on a parenthesis as `x` does: `my @r = \(1,2,3)` is three
+  references, `my @r = \@a` one.
+
+Which operands are `@`-shaped is the operator's, for "Call sites" to
+apply. Measured on 5.42, `qw(a b) x 2` is `a b a b`, a `qw` list shaped
+as a parenthesised one; and to `\` a sub call is a list too, `my @r =
+\f()` being a reference to each value `f` returns, where `f() x 2`
+repeats a string.
+
+**`:bareword`** is a parameter attribute, and the only one a `.pmt`
+parameter takes (perigrin, 2026-10-08). It is a parser hint, not a type
+coercion: the operand is read as a word, not an expression, and the
+parameter's type says what the operand becomes. `=>` is the comma whose
+left operand is one:
+
+```perl
+multi sub => :infix :equiv(,) (List @lhs :bareword, List @rhs) List;
+multi sub => :infix :equiv(,) (Scalar $lhs :bareword, Scalar $rhs) Scalar;
+```
+
+The hint applies only when a word is there. Any other left operand is
+read as `,`'s is, so the type covers both (perigrin, 2026-10-08): a word
+becomes a Str, which List admits, and `(@a => 3)` with `@a = (1, 2)` is
+3 elements, measured on 5.42. A multi could not tell the two apart, since
+whether a word is there is a fact of the parse, not of a type.
+
+The type alone does not do it, because the quoting decides what the
+operand is before any type applies. Measured on 5.42 under `use
+strict`, with `sub foo { "CALLED" }`: `(foo => 1)` gives "foo" where
+`(foo, 1)` gives "CALLED"; `(time => 1)` gives "time" where `(time, 1)`
+gives the time; and `(nosuch => 1)` gives "nosuch" where `(nosuch, 1)`
+is "Bareword not allowed while strict subs". The lexer reads which
+operators have a `:bareword` left operand from `CORE.pmt`: a program
+is lexed with them, so `s => 1` is the word `s` and not a substitution
+and `-e => 1` the word `-e` and not a file test, and `CORE.pmt` itself
+is lexed with the lexer's own list, which a test holds to `CORE.pmt`'s
+(TestFatCommaAutoquotes, TestLexerBarewordOperatorsAreCores). Elsewhere
+the parser treats `=>` as the comma it is `:equiv` to.
+
+### Precedence is a relation between operators (*Implemented*, 04a6ca62, b2750dd0, 5f2311c7, 2119cf83, 02fcb424, b8aef969)
+
+The goal (perigrin, 2026-10-08): every builtin and operator is defined
+with a signature in `CORE.pmt` that lets it be parsed, and the parser
+is derived from `CORE.pmt` -- as its keyword shapes already are. An
+operator's precedence is part of that definition.
+
+pvm and Chalk each kept a precedence table by hand -- pvm's in
+`internal/parse/precedence.go` with a class map in
+`internal/parse/operators.go`, Chalk's
+`Chalk::Grammar::Perl::PrecedenceTable` feeding its Precedence
+semiring -- and the two disagreed: Chalk gives `isa` its own level
+tighter than the relational operators, as perlop does, while pvm put
+it beside them, as perly.y does (toke.c lexes `isa` as an NCRELOP).
+pvm's is now a reading of `CORE.pmt`: its binding powers are derived
+from the relations, with `isa` in perlop's row. Measured on 5.42, the
+two placements differ only in what perl refuses: `$x isa Foo < 1` and
+`$a < $b isa Foo` are both syntax errors, so an unparenthesised `isa`
+and a relational operator never stand together, and the parser refuses
+both orders. The relations are plain Perl any other implementation can
+read, and whether one does is that implementation's own work.
+
+**Precedence is a partial order, stated on each operator** (perigrin,
+2026-10-08), as Raku states it with `is tighter`, `is looser` and
+`is equiv`, rather than a numbered table: a library that declares an
+infix operator must be able to place it between two existing levels
+without renumbering anything. An operator line relates itself to an
+operator it can see:
+
+```perl
+sub * :infix :tighter(+) :assoc(left) (Num $x, Num $y) Num|Inf;
+sub + :infix :assoc(left) (Num $x, Num $y) Num|Inf;
+sub - :infix :equiv(+) (Num $x, Num $y) Num|Inf;
+sub . :infix :equiv(+) (Str $x, Str $y) Str;
+sub ⊕ :infix :tighter(+) :looser(*) :assoc(left) (Num $x, Num $y) Num;
+```
+
+- `:tighter(OP)` and `:looser(OP)` order the operator's level against
+  another operator's; `:equiv(OP)` puts it in that operator's level,
+  whose associativity it takes.
+- `:assoc(...)` is perlop's: `left`, `right`, `nonassoc`, `chained`
+  (`<` `<=` ...) or `chain_na` (`==` `!=` ...). A level states it once.
+- XS::Parse::Infix's classes remain a spelling of a level:
+  `:infix(ADD)` is `:infix :equiv(+)`, so a library writes the class it
+  registers with. Levels XS::Parse::Infix does not class (`&`, `|`
+  and `^`, `<<` and `>>`, `..` and `...`) need no name of their own:
+  they are named by their operators.
+- A `:prefix` operator relates the same way: `not` states that it is
+  tighter than `and`, and `!` that it is tighter than `=~`.
+- **A named operator's level is derived, not stated** (perigrin,
+  2026-10-08), from its shape, as the shape is from its prototype. This
+  is perl's own rule, measured on 5.42 with user subs: a `($)`, `(_)` or
+  `(;$)` prototype makes `u 1 < 2, 3` parse as `(u(1) < 2), 3`, a named
+  unary tighter than `<`; `(@)` makes it `u(1 < 2, 3)`, a list operator;
+  `()` makes `u 1` a syntax error, a term. The builtins agree: `defined
+  $x < 2`, `ref $x < 2`, `chdir $x < 2` and `sleep $x < 2` are each
+  `(op($x) < 2)`. So a builtin's line carries no relation: its `:unary`
+  or `:listop`, or failing those the prototype its signature derives,
+  puts it in perlop's row -- a named unary between `<<`/`>>` and `isa`,
+  a rightward list operator below `,`, a term above everything -- and
+  `:tighter`, `:looser` and `:equiv` are for the symbolic and
+  word-shaped operators, the `:infix` and `:prefix` lines. The control
+  words are the stated exception: `goto` and `dump` have no prototype
+  that places them, and perl parses their operand at the assignment
+  level (`goto $x = 1` is `goto ($x = 1)`, `goto $x, 1` is `(goto $x),
+  1`), so their lines state `:equiv(=)`. A builtin that is also an
+  operator, `not`, has the operator's level.
+
+**The parser derives a total order** by sorting the relations
+topologically. A `.pmt` whose relations form a cycle, or leave two
+levels unordered where a parse needs an answer, is a declaration error
+naming the operators. `CORE.pmt`'s relations reproduce perlop's table
+exactly, and a test holds the derived order and associativity to
+perlop's own table. Every operator perlop's table names that is an
+infix, prefix or postfix operator has a line, including `^^`, `&.`,
+`|.`, `^.`, `~.`, the compound assignments, `,` and `=>`, and
+`++`/`--`. One with no line yet is placed by the same relations, kept
+beside the parser (`undeclaredOperators` in
+`internal/parse/operators.go`) until its line is written. A library's own operator joins the same order, so
+`sub ⊕ :infix :tighter(+) :looser(*)` parses between `+` and `*`
+wherever the library is in scope: from its import to the end of the
+file, as its declared syntax is, and `use M ()` brings none. A library
+whose relations form a cycle with `CORE.pmt`'s, or two libraries in
+scope whose operators are left unordered, are a declaration error
+naming the operators. An operator may be spelled with a non-ASCII
+symbol, `⊕`, as an operator plugin may register one.
+
+### Multi declarations (*Implemented*, d7ff54be, e0927971, 597f89f2, 56fdf0e2, 2a00759b, 1f2f170c, 263ec15e, d44fb222, 7341cfec, 7e129204)
 
 Some builtins return different types depending on how they are called.
 A declaration may be `multi sub`, giving several signatures for one
@@ -492,10 +777,19 @@ multi sub each (Hash \%h)  List;                   # (Str, value)
 multi sub each (Array \@a) List;                   # (Int, value)
 multi sub select () Str;                           # the selected handle
 multi sub select (FileHandle $fh) Str;             # the previous handle
-multi sub select ($r, $w, $e, Num $timeout) Int;   # a count
+multi sub select ($r, $w, $e, Num $timeout) List;  # (nfound, timeleft)
 ```
 
 When the call site cannot decide, the consumer joins the candidates.
+
+**A name declared both as `sub` and as `multi sub` is a multi, with a
+warning** (perigrin, 2026-10-07). Every candidate is kept, in the order
+declared, whichever line comes first, and the declaration file carries
+the warning `sub f: declared both as sub and as multi sub; read as a
+multi`; it is no error, and drops nothing. A plain `sub f` still
+replaces an earlier plain `sub f` when the file declares no `multi sub
+f`. A declaration file's warnings reach the parse root beside its
+errors, each naming its module.
 
 **The most specific candidate wins** (perigrin, 2026-10-02). When more
 than one candidate accepts a call because their parameters are related
@@ -525,38 +819,59 @@ result `meet(join(arguments), declared)`, which would have made
 `B::svref_2object`, `sqrt(2)`, `sqrt(4)` and `atan2(1,1)` are floats
 (NOK only), and `chr(65)` is a string (POK only).
 
-### `:context(...)` (*Decided*)
+### Context selects by return type (*Implemented*, cd34146a)
 
 A function whose type depends on its calling context (one that
-effectively branches on `wantarray`) says so with `:context`, spelled
-in prototype sigils:
+effectively branches on `wantarray`) is a multi whose candidates return
+different types (perigrin, 2026-10-08). The paper calls this
+return-type dispatch: the call site's context is a demand on the
+result, and the candidate whose return type meets it is selected. Each
+return type answers one context:
 
-| attribute | answers for |
+| return type | answers |
 |---|---|
-| none | every context |
-| `:context($)` | scalar |
-| `:context(@)` | list |
-| `:context()` | void |
-| `:context($@)` | scalar or list |
+| `Void` | void |
+| a list: one holding `Array` or `Hash`, as `List`, `List[T]`, `Array` and `Hash` do | list |
+| any other | scalar |
 
-As with `:prototype`, absent and empty differ. A call in a context no
-declaration answers for has no type:
+"A list" is not a subtype test: `Scalar <: List`, so every scalar
+return type is under `List` too. Context is still decided at the call
+site, syntactically; what says which candidate answers it is the
+return type. Each of the 37 `CORE.pmt` candidates that stated a
+`:context` attribute returns a type answering the context it stated.
 
 ```perl
-multi sub localtime :prototype(;$) :context($) (Int $time = time) Str;
-multi sub localtime :prototype(;$) :context(@) (Int $time = time) List[Int];
-sub sort :context(@) (...) List;     # scalar sort is undefined
+multi sub localtime :prototype(;$) (Int $time = time) Str|Undef;
+multi sub localtime :prototype(;$) (Int $time = time) List[Int];
 ```
 
 Context selects a declaration; narrowing cannot stand in for it.
 `my $t = localtime(0)` is a date string, while the first element of the
 list result is `0`, an `Int`.
 
+Of the candidates that take a call, those whose return type answers its
+context are selected among, before the most specific is sought. When
+none does, every one is, and the context coerces the result as it
+coerces any value: `grep` returns only a list, so a scalar `grep` is its
+`List`, coerced. Where perl's scalar answer is no coercion of the list,
+a scalar candidate states it: measured on 5.42, every form of a scalar
+`sort` is undef, so each of sort's list candidates has a twin with the
+same parameters returning `Undef`. Void context is a form of scalar context
+(perlglossary, "void context"), so a call in void context with no `Void`
+candidate is the scalar candidate's. Two candidates with the same
+parameters whose return types answer the same context share every call,
+so they are ambiguous, a declaration error; a scalar return beside a list
+one is a fork.
+
 Boolean context counts as scalar. Measured on 5.42, `wantarray` reports
 scalar inside `if (f())`, `!f()` and `f() and ...`, so no Perl-level
 sub can tell them apart.
 
-### Refusing what perl refuses (*Decided*)
+A `:context(...)` attribute is a declaration error naming it: the
+return type already says which context a candidate answers, and an
+attribute beside it could only repeat it or contradict it.
+
+### Refusing what perl refuses (*Implemented*, 1f6ae965, 98a376b3, 48c2da55, 7ff4e757, 335cccdf, 1ef08a0a, 4488a1ae)
 
 perigrin, 2026-10-02. Where perl refuses a call at compile time, the
 parser refuses it too, for prototypes read from module source as well
@@ -569,6 +884,15 @@ as for `.pmt` declarations. Measured on 5.42:
 - A constant or a sub's result passed to a `\$` slot: `sref(1)` dies
   "Type of arg 1 to main::sref must be scalar (not constant item)",
   `sref(f())` "(not subroutine entry)".
+
+Some builtins parse more loosely than their declarations say, and the
+declaration cannot carry both: `not()` compiles and is true, though
+`sub not :prototype($;) (Scalar $x)` requires the argument, because
+perl's `$;` means one thing for a user sub and another for `not`.
+Measured by calling every CORE.pmt builtin with none to six arguments,
+such a builtin is refused only on the side perl refuses: `close($x, $x)`
+compiles and `closedir()` does not; `system()` compiles and `do($x, $x)`
+does not; and `fc($x, $x)` without its feature is a user's sub.
 
 Where perl would compile the call -- a candidate set with no prototype,
 or a library dispatching at run time -- the parse stays as perl reads it
@@ -583,16 +907,33 @@ argument and pass, which is perl's rule (measured: only `sort()` among
 `push(@a)`, `die()`, `reverse()`, `unlink()`, `return()` and the like
 fails to compile). A `List` parameter with no default accepts zero
 arguments, as perl's own slurpy does (`sub h (@l)`, `h()` is 0), so no
-other declaration needs anything. No special case for `sort` remains.
+other declaration needs anything beyond the block forms of grep, map
+and sort and sort's invocant form, whose list perl requires too
+("Builtins that keep their own parse"). No special case for `sort`
+remains.
 
 A default on a slurpy parameter is a typed-Perl extension: perl's
 signatures reject it ("A slurpy parameter may not have a default
 value"). `.pmt` declarations use it for `= die` here and for `print`'s
 `= ($_)`.
 
+**An argument perl computes when it is absent has no default**
+(perigrin, 2026-10-08). `srand` with none calls perl's own `Perl_seed()`
+(util.c), which reads entropy -- `getentropy`, else `/dev/urandom`, else
+a hash of the time, pid and stack -- `sleep` with none sleeps for ever,
+`caller` with none gives its three-field frame. No expression states
+those, so the parameter is `Optional[T]`, which may be absent with no
+default: `sub srand (Optional[Int] $seed) Str;`, likewise `umask`,
+`sleep`, `caller`, `reset`, `send`'s address and `substr`'s
+replacement. A default may also name a parameter declared after it:
+`exec`'s and `system`'s program slot is optional, the program taken from
+the list (`exec "ls"` compiles), so `sub exec (Str $program = $args[0]:
+List[Str] @args) Boolean;`.
+
 ### Call sites (*Decided*)
 
-perigrin, 2026-10-02. "Multi declarations" and "`:context(...)`" cover
+perigrin, 2026-10-02. "Multi declarations" and "Context selects by
+return type" cover
 declaring candidates and the rules that select among them, built and
 tested on their own. This section is the consumer: `infer` types a call
 to a declared builtin or library sub by applying those rules at the call
@@ -635,7 +976,8 @@ Separate from the paper:
 
 6. A search path for user-written `.pmt` files beside the embedded set.
 7. The remaining XS::Parse pieces, and sublikes other than `PREFIX`.
-8. Lexical rather than file-wide scope for declared syntax.
+8. Lexical rather than file-wide scope for declared syntax and a
+   library's operators.
 9. How to type a parameter evaluated once per element, as `grep EXPR`'s
    and `map EXPR`'s first argument is, where every other parameter is
    evaluated once per call.

@@ -14,7 +14,7 @@ const (
 	chRelop
 	// chEqop chains: == != eq ne
 	chEqop
-	// ncRelop does not: isa
+	// ncRelop does not: isa, which toke.c:8697 lexes as an NCRELOP
 	ncRelop
 	// ncEqop does not: <=> cmp ~~
 	ncEqop
@@ -94,14 +94,20 @@ func (p *parser) parseComparison(left *Node, op OpInfo, cls cmpClass, minBP int)
 	// comparison of the other level is an ordinary operand: `$a < $b == $c`
 	// is a termeqop over a termrelop.
 	if isComparison(left) && sameLevel(comparisonClass(left), cls) {
-		start := left.Start
-		p.skipToStatementEnd()
-		return &Node{Kind: Unknown, Refusal: ChainClassMismatch, Start: start, End: p.prevEnd()}
+		return p.refuseComparison(left)
 	}
 
 	// Start.
 	p.advanceTo(tok)
 	right := p.operand(op.BP, tok)
+
+	// Reject, the other way round: `isa` binds tighter than `<` (perlop,
+	// CORE.pmt), so `$a < $b isa Foo` reads `$b isa Foo` as the right
+	// operand. perly.y has them at one level, and refuses it as it refuses
+	// `$x isa Foo < 1`.
+	if isComparison(right) && sameLevel(comparisonClass(right), cls) {
+		return p.refuseComparison(left)
+	}
 	kind := Binary
 	if chainable {
 		kind = CmpChain
@@ -111,6 +117,14 @@ func (p *parser) parseComparison(left *Node, op OpInfo, cls cmpClass, minBP int)
 		Start: left.Start, End: right.End,
 		Children: []*Node{left, right},
 	}
+}
+
+// refuseComparison refuses the comparisons begun at left, through to the
+// statement's end.
+func (p *parser) refuseComparison(left *Node) *Node {
+	start := left.Start
+	p.skipToStatementEnd()
+	return &Node{Kind: Unknown, Refusal: ChainClassMismatch, Start: start, End: p.prevEnd()}
 }
 
 // comparisonClass reports the class of the operator a comparison node was

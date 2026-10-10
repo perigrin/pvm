@@ -79,6 +79,40 @@ func TestPrototypeAttributeUnderSignatures(t *testing.T) {
 	}
 }
 
+// TestPrototypeAttributeAfterAttributeArgument: an attribute's argument
+// does not end the attribute list, so a `:prototype(...)` after one is
+// still a prototype and the block after it still a block. Measured on
+// 5.42.0, with a MODIFY_CODE_ATTRIBUTES that accepts `:Foo`:
+//
+//	sub f :Foo(bar) :prototype($) { 1 } print prototype(\&f)    $
+//
+// In a `.pmt`, `:context(...)` after `:infix(CLASS)` is the same shape,
+// `multi sub x :infix(MUL) :context(@) (...)`, which the declaration
+// reader then refuses by name.
+func TestPrototypeAttributeAfterAttributeArgument(t *testing.T) {
+	for _, tc := range []struct {
+		src, proto string
+		tokenize   func([]byte) []Token
+	}{
+		{"sub f :Foo(bar) :prototype($) { 1 }", "($)", Tokenize},
+		{"sub f :Foo(a(b)) :prototype($) { 1 }", "($)", Tokenize},
+		{"sub f :Foo( a ) :prototype($) { 1 }", "($)", Tokenize},
+		{"sub x :infix(MUL) :context(@) (List @l, Int $n) List;", "(@)", TokenizeTyped},
+		{"sub + :infix(ADD) :context($) (Num $x, Num $y) Num;", "($)", TokenizeTyped},
+	} {
+		toks := tc.tokenize([]byte(tc.src))
+		if !hasToken(toks, []byte(tc.src), Prototype, tc.proto) {
+			t.Errorf("%q: no Prototype token %q: %s",
+				tc.src, tc.proto, renderKinds(toks, []byte(tc.src)))
+		}
+		for _, tok := range toks {
+			if tc.src[tok.Start] == '{' && !tok.OpensBlock {
+				t.Errorf("%q: the body's `{` does not open a block", tc.src)
+			}
+		}
+	}
+}
+
 // TestPrototypeOnlyAfterSubName keeps the scan from eating ordinary parens.
 //
 // `f ($x)` is a call, not a declaration, and `my ($a, $b)` is a list. Only a

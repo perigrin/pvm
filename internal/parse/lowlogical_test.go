@@ -77,53 +77,37 @@ func TestBareWordInfixStillRegroups(t *testing.T) {
 		assertShape(t, root, tc.want)
 	}
 
-	// The COMMA is not one of the three and must still be reached from an
-	// initialiser. Stopping the initialiser at the assignment's own right
-	// power excluded it too and made this refuse, which is legal perl:
-	//
-	//	$ perl -MO=Deparse -e 'my $x = 1, my $y = 2;'
-	//	my $x = 1, my $y = 2;
-	//
-	// So the floor is bpBelowComma, and this is the case that says why.
-	//
-	// KNOWN WRONG SHAPE, asserted deliberately so it cannot be mistaken for
-	// a correct one. perl puts the comma ABOVE both declarations -- measured:
+	// The COMMA is not one of the three, but it too belongs ABOVE the
+	// declaration, as it does above a plain assignment. Measured:
 	//
 	//	$ perl -MO=Concise -e 'my $x = 1, my $y = 2;'
 	//	-     <1> ex-list vK ->8
 	//	4        <1> padsv_store[$x:1,2] vKS/LVINTRO ->5
 	//	6        <1> padsv_store[$y:1,2] vKS/LVINTRO ->7
 	//
-	// Two SIBLING stores under one list, so the perl shape is
-	// `(, (my $x 1) (my $y 2))`. Ours nests the comma inside `$x`'s
-	// initialiser instead. The plain-assignment form is already right --
-	// `$x = 1, $y = 2` gives `(, (= $x 1) (= $y 2))` -- so the declarator is
-	// the outlier, not the comma.
+	// Two SIBLING stores under one list. In term position the comma is the
+	// enclosing list's -- `sysopen(my $fh, $link, ...)` and comp/proto.t's
+	// `sreftest my $a = 'quidgley', $i++`, which perl deparses as
+	// `&sreftest((\(my $a = 'q')), ($i++))` -- and a C-style for head's
+	// clause is a whole expression as a statement is:
 	//
-	// Not fixed here, and the cost is why. Making it right needs the
-	// declarator to resume the Pratt loop at the COMMA as well as at the
-	// three word operators, and a comma after a declarator is not always a
-	// statement-level comma:
-	//
-	//	ok(!sysopen(my $fh, $link, O_WRONLY|O_CREAT, 0600), ...)
-	//
-	// Measured with that resume in place, the declarator swallowed the rest
-	// of the ARGUMENT list and canon then emitted a paren the source does
-	// not contain -- 18 T1 files went unfaithful, `open my $fh, ...` and
-	// `sysopen(my $fh, ...)` among them, e.g. `fcntl_nofollow.t` token 38:
-	// "source has \"my\", canon has \"(\"". Telling the two commas apart
-	// needs context the declarator does not have, so the wrong shape is
-	// recorded rather than traded for a worse one.
-	root := parseOneExpr(t, "my $x = 1, my $y = 2;")
-	if containsKind(root, parse.Unknown) {
-		t.Errorf("my $x = 1, my $y = 2: refused, want a parse")
+	//	$ perl -MO=Deparse,-p -e 'for (my $i = 0, my $j = 1; $i < 3; $i++) {}'
+	//	for (((my($i) = 0), (my($j) = 1)); ($i < 3); (++$i)) {
+	for src, want := range map[string]string{
+		"my $x = 1, my $y = 2;":      "(, (my $x 1) (my $y 2))",
+		"local $_ = 1, 2;":           "(, (local $_ 1) 2)",
+		"print my $a = 1, 2;":        "(print (, (my $a 1) 2))",
+		"sysopen(my $fh, $l, 0, 1);": "(sysopen (, (, (, (my $fh) $l) 0) 1))",
+	} {
+		root := parseOneExpr(t, src)
+		if containsKind(root, parse.Unknown) {
+			t.Errorf("%s: refused, want a parse", src)
+			continue
+		}
+		assertShape(t, root, want)
 	}
-	const commaDeclKnownWrong = "(my $x (, 1 (my $y 2)))"
-	if got := shape(skipWrappers(root)); got != commaDeclKnownWrong {
-		t.Errorf("my $x = 1, my $y = 2: shape = %s, want the KNOWN-WRONG %s.\n"+
-			"If this now reads %s, perl's own shape, the nesting was fixed: "+
-			"assert that instead and delete this comment.",
-			got, commaDeclKnownWrong, "(, (my $x 1) (my $y 2))")
+	if root := parse.Parse([]byte("for (my $i = 0, my $j = 1; $i < 3; $i++) { 1 }\n")); containsKind(root, parse.Unknown) {
+		t.Errorf("a for head's declaration list: refused, want a parse")
 	}
 }
 
