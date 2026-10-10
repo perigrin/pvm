@@ -1,10 +1,19 @@
 ---
 title: "sub(f{}\\n,) parses as a declaration, though perl calls it an illegal anonymous subroutine"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-10-10T00:44:02.11049166Z
-updated: 2026-10-10T00:44:02.11049166Z
+updated: 2026-10-10T00:49:57.106172009Z
+sessions:
+- start_sha: 99a185a40e19329e5cc261aee3cac312f9c13c82
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-10T00:49:57.106172009Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-10T00:49:57.106172009Z
 ---
 
 ## Context
