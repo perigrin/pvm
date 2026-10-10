@@ -1,19 +1,47 @@
 ---
 title: "sub(f{}\\n,) parses as a declaration, though perl calls it an illegal anonymous subroutine"
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-10-10T00:44:02.11049166Z
-updated: 2026-10-10T00:49:57.106172009Z
+updated: 2026-10-10T03:36:07.464778547Z
 sessions:
 - start_sha: 99a185a40e19329e5cc261aee3cac312f9c13c82
-  end_sha: ""
-  commits: 0
+  end_sha: baf52e02b9bfe6cccdacae5aafb9bd5e8d725c68
+  commits: 4
   started_at: 2026-10-10T00:49:57.106172009Z
+  ended_at: 2026-10-10T03:36:07.464778547Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-10T00:49:57.106172009Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-10T03:36:07.464778547Z
+observed_paths:
+- internal/lexer/fhslot_test.go
+- internal/lexer/lexer.go
+- internal/parse/anonhead_test.go
+- internal/parse/call.go
+- internal/parse/canon.go
+- internal/parse/chain.go
+- internal/parse/chain_test.go
+- internal/parse/commafat_test.go
+- internal/parse/decl.go
+- internal/parse/expr.go
+- internal/parse/parse.go
+- internal/parse/refusal.go
+- internal/parse/scalarhandle_test.go
+- internal/parse/term.go
+- internal/parse/testdata/fuzz/FuzzParser/0c172203842b1f8c
+- internal/parse/testdata/fuzz/FuzzParser/7bd29f70ee42a374
+- internal/parse/testdata/fuzz/FuzzParser/b45427e536ce28a7
+- internal/parse/testdata/fuzz/FuzzParser/daec3eb606eaafb5
+- internal/parse/testdata/fuzz/FuzzParser/f0168060c2eb4a04
+- internal/parse/testdata/t1fidelity.ratchet
+- internal/parse/trailingcomma_test.go
+- internal/parse/unaryplus_test.go
+- internal/parseoracle/subject_test.go
 ---
 
 ## Context
