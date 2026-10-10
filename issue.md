@@ -1,19 +1,50 @@
 ---
 title: "A call paren after a plain term parses: $x() and my $x() are refused by perl"
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-10-09T23:49:35.11954988Z
-updated: 2026-10-09T23:54:43.301236642Z
+updated: 2026-10-10T03:36:15.291909611Z
 sessions:
 - start_sha: 419a99b64470f2c2a547bcd922fd613573eb6dbf
-  end_sha: ""
-  commits: 0
+  end_sha: baf52e02b9bfe6cccdacae5aafb9bd5e8d725c68
+  commits: 5
   started_at: 2026-10-09T23:54:43.301236642Z
+  ended_at: 2026-10-10T03:36:15.291909611Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-09T23:54:43.301236642Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-10T03:36:15.291909611Z
+observed_paths:
+- internal/lexer/fhslot_test.go
+- internal/lexer/lexer.go
+- internal/parse/anonhead_test.go
+- internal/parse/call.go
+- internal/parse/canon.go
+- internal/parse/chain.go
+- internal/parse/chain_test.go
+- internal/parse/commafat_test.go
+- internal/parse/decl.go
+- internal/parse/expr.go
+- internal/parse/parse.go
+- internal/parse/postfixcallparen_test.go
+- internal/parse/refusal.go
+- internal/parse/scalarhandle_test.go
+- internal/parse/term.go
+- internal/parse/testdata/fuzz/FuzzParser/0c172203842b1f8c
+- internal/parse/testdata/fuzz/FuzzParser/7bd29f70ee42a374
+- internal/parse/testdata/fuzz/FuzzParser/a447ccd41522a9fd
+- internal/parse/testdata/fuzz/FuzzParser/b45427e536ce28a7
+- internal/parse/testdata/fuzz/FuzzParser/daec3eb606eaafb5
+- internal/parse/testdata/fuzz/FuzzParser/f0168060c2eb4a04
+- internal/parse/testdata/t1fidelity.ratchet
+- internal/parse/trailingcomma_test.go
+- internal/parse/unaryplus_test.go
+- internal/parse/unclosed_test.go
+- internal/parseoracle/subject_test.go
 ---
 
 ## Context
