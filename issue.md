@@ -1,19 +1,23 @@
 ---
 title: "TestSubjectTimeoutKillsGrandchildren flakes under load: pidfile \"\" read before written"
-state: in-progress
+state: done
 urgency: normal
 milestone: v0.1
 created: 2026-10-06T00:14:57.380667974Z
-updated: 2026-10-10T03:25:34.805337015Z
+updated: 2026-10-10T03:25:34.864603221Z
 sessions:
 - start_sha: 815776227d2de8cef7782ab3be87f939d263ddd0
-  end_sha: ""
+  end_sha: 815776227d2de8cef7782ab3be87f939d263ddd0
   commits: 0
   started_at: 2026-10-10T03:25:34.805337015Z
+  ended_at: 2026-10-10T03:25:34.864603221Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-10T03:25:34.805337015Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-10T03:25:34.864603221Z
 ---
 
 ## Context
