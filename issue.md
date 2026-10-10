@@ -6,7 +6,7 @@ milestone: m1-parse-the-core
 blocks:
 - 01a0a70f-0f56-71e3-871e-50e1a1ed9b8a
 created: 2026-09-15T21:52:57.027412574Z
-updated: 2026-10-09T17:23:48.038311839Z
+updated: 2026-10-10T10:55:19.390253173Z
 sessions:
 - start_sha: e2f29afa8bd0af158a2bf44a84d7c9d8a7d34c72
   end_sha: 94812b693b2ab8ad26f49473ffc5cc060f959e4b
@@ -109,6 +109,17 @@ an exact floor is checked against the committed baseline's rows; the T1
 rate against the T1 ratchet's own header; TestSitesSpanMultilineStatement
 lives in internal/parseoracle.
 
+### The fuzz criterion replays the seeds; fuzzing runs in CI (2026-10-10)
+
+perigrin's ruling, 2026-10-10: "Replay seeds; fuzz in CI". `make fuzz-parser`
+explores at random -- each 1M-exec run found a new canon-fixpoint failure on
+input perl refuses, ~20 fixed during m1 with no sign of converging -- and a
+failing run writes its seed into testdata, where every later criterion in a
+verify replays it. So this criterion replays the committed seed corpus
+(every input the fuzzer has found, each fixed), which is deterministic, and
+`make fuzz-parser` runs nightly in .github/workflows/parser-fuzz.yml, which
+uploads any new seed. A new find is an issue to file, not a failed milestone.
+
 ## Acceptance criteria
 
 - [ ] An empty input parses to an empty source_file node (`go test ./internal/parse/ -run '^TestParseEmpty$' -count=1 -v | grep -q '^--- PASS: TestParseEmpty'`)
@@ -117,6 +128,6 @@ lives in internal/parseoracle.
 - [ ] A statement containing an Unknown yields Unresolved sites of every marker kind (`go test ./internal/parse/ -run '^TestUnknownHedgesEveryMarker$' -count=1 -v | grep -q '^--- PASS: TestUnknownHedgesEveryMarker'`)
 - [ ] Such a statement scores wider, not WRONG, against a perl site inside it (`go test ./internal/parse/ -run '^TestUnknownHedgesEveryMarker$' -count=1 -v | grep -q '^--- PASS: TestUnknownHedgesEveryMarker'`)
 - [ ] Every parse step consumes at least one token, asserted structurally (`go test ./internal/parse/ -run '^TestParserForwardProgress$' -count=1 -v | grep -q '^--- PASS: TestParserForwardProgress'`)
-- [ ] A fuzz target runs 1M execs with no panic and no lost bytes (`make fuzz-parser`)
+- [ ] Every input the parser fuzz target has found replays with no panic, no lost bytes and a canon fixpoint (`go test ./internal/parse/ -run '^FuzzParser$' -count=1 -v | grep -q '^--- PASS: FuzzParser'`)
 
 Plan: M1. Spec: ch4, ch5, §7.5.5. `compare_facts.go:222-229`.
