@@ -69,7 +69,11 @@ func runObserver(t *testing.T) []observation {
 	cmd := exec.Command(perl, "internal/infer/testdata/precision_corpus.pl")
 	cmd.Dir = repoRoot(t)
 	out, err := cmd.Output()
-	require.NoError(t, err, "precision corpus failed to run")
+	var stderr []byte
+	if exitErr, ok := err.(*exec.ExitError); ok {
+		stderr = exitErr.Stderr
+	}
+	require.NoError(t, err, "precision corpus failed to run (perl %s): %s", perl, stderr)
 
 	var line string
 	for _, l := range strings.Split(string(out), "\n") {
