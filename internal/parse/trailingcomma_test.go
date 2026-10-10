@@ -78,6 +78,14 @@ func TestTrailingCommaBeforeCloserIsNotATerm(t *testing.T) {
 		// `my @a = (A=>);` as `my(@a) = 'A';`. Found by the parser fuzzer
 		// from `(A=>)`.
 		{"paren one fat word", "my @a = (A=>);", "my @a = (A=>);"},
+		// Any other single element keeps its parens around the comma, or
+		// the comma lands bare after it: `(A,)/0` came back `A() , / 0`,
+		// which the next pass read as a comma before an unterminated
+		// pattern -- found by the parser fuzzer. perl 5.42 Deparses
+		// `(A,)/0` as `'A' / 0` and `my @x = (f(1),)` as `my(@x) = f(1)`.
+		{"paren one call", "(A,)/0;", "(A() ,) / 0;"},
+		{"paren one call assigned", "my @x = (f(1),);", "my @x = (f(1) ,);"},
+		{"paren one element", "($a[0],)[0];", "($a[0] ,)[0];"},
 	}
 
 	// Canon writes the trailing comma back where the source had it

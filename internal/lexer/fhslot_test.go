@@ -25,6 +25,8 @@ func TestFilehandleSlotLeavesTermPosition(t *testing.T) {
 		{"print $f <<'EOT';\nx\nEOT\n", "<<'EOT'"},
 		{"print $f /2/;", "/2/"},
 		{"printf $f <<EOT;\nx\nEOT\n", "<<EOT"},
+		// sort's comparator slot: measured, `sort $x /a/` is `sort $x /a/`.
+		{"sort $f /2/;", "/2/"},
 		// Parenthesised, which is canon's spelling: perl applies the same
 		// heuristic, measured `print($f <<"EOT")` is a heredoc.
 		{"print($f <<EOT);\nx\nEOT\n", "<<EOT"},

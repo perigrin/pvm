@@ -85,3 +85,25 @@ func TestCanonNotOfComplementIsNotNegatedMatch(t *testing.T) {
 		}
 	}
 }
+
+// TestCanonMinusBeforeAFiletestLetter is the parser fuzzer's `--- A`. A `-`
+// written against a one-letter name is a filetest: measured on 5.42.0 with
+// -MO=Deparse,-p, `print - A()` is `print((-(A())))` but `print -A()` is
+// `print((-A $_))`. Deparse writes the negation as `-(A())`, and so does
+// canon. A longer name joins nothing: `print -foo()` is `print((-foo()))`.
+func TestCanonMinusBeforeAFiletestLetter(t *testing.T) {
+	for _, tc := range []struct{ src, want string }{
+		{"- A();", "-(A());"},
+		{"- f(1);", "-(f(1));"},
+		{"- foo();", "-foo();"},
+	} {
+		got := strings.TrimSpace(parse.Canon(parse.Parse([]byte(tc.src)), []byte(tc.src)))
+		if got != tc.want {
+			t.Errorf("Canon(parse(%q)):\n  got  %q\n  want %q", tc.src, got, tc.want)
+		}
+		again := strings.TrimSpace(parse.Canon(parse.Parse([]byte(got)), []byte(got)))
+		if again != got {
+			t.Errorf("canon is not a fixpoint on %q:\n  once  %q\n  twice %q", tc.src, got, again)
+		}
+	}
+}

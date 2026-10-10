@@ -198,6 +198,14 @@ type Token struct {
 	// PL_expect at every token would start depending on states the lexer may
 	// refine later; one bit answering one question is a narrower contract.
 	OpensBlock bool
+
+	// TermFollows is set on a scalar in a handle-taking list operator's first
+	// slot when the lexer read what follows it in term position -- toke.c's
+	// yyl_dollar heuristic, see handleSlotTakesTerm. `print $fh -1` lexes
+	// the `-` in term position, and the token alone cannot say so: it is
+	// the same Operator `-` as subtraction's. The parser reads this bit to
+	// take the slot, so the handle is decided once.
+	TermFollows bool
 }
 
 // Tokenize splits src into tokens covering every byte exactly once.
@@ -597,6 +605,7 @@ func (l *lexer) emit(k Kind, start int) {
 	})
 	if k == Variable && l.handleSlotTakesTerm(start) {
 		l.expect = XTerm
+		l.toks[len(l.toks)-1].TermFollows = true
 	}
 	l.noteFormat(k, start)
 	l.noteConstSub(k, start)
@@ -609,8 +618,8 @@ func (l *lexer) emit(k Kind, start int) {
 }
 
 // handleTakers are the builtins whose first slot may hold a scalar
-// filehandle or program with no comma after it: `print $fh LIST`,
-// `system $prog LIST`.
+// filehandle, program or comparator with no comma after it: `print $fh LIST`,
+// `system $prog LIST`, `sort $by LIST`.
 //
 // perl applies the heuristic below after ANY list operator (toke.c tests
 // PL_last_lop), including a user's. The lexer cannot know a user's list
@@ -619,6 +628,7 @@ func (l *lexer) emit(k Kind, start int) {
 // parser's declared-shape table.
 var handleTakers = map[string]bool{
 	"print": true, "printf": true, "say": true, "exec": true, "system": true,
+	"sort": true,
 }
 
 // handleSlotTakesTerm reports whether the scalar just emitted at start fills a

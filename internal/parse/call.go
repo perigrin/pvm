@@ -636,7 +636,8 @@ func (p *parser) parseSortComparator(op string) *Node {
 	// on 5.42.0 with -MO=Deparse,-p, `sort foo (3,1)` and `sort foo(3,1)`
 	// are both `sort foo 3, 1`.
 	next, ok := p.peekAfter(tok)
-	if !ok || !startsTerm(next, p.src) && !(tok.Kind == lexer.Word && p.text(next) == "(") {
+	if !ok || !startsTerm(next, p.src) && !(tok.Kind == lexer.Word && p.text(next) == "(") &&
+		!(tok.Kind == lexer.Variable && termAfterScalar(tok, next, p.src)) {
 		return nil
 	}
 	p.advanceTo(tok)
@@ -771,7 +772,8 @@ func (p *parser) parseFilehandleSlot(op string) *Node {
 		// measured on 5.42.0 with -MO=Deparse, `print $x(1), 2` is `print
 		// $x 1, 2` and `system $x(sh), 1` is `system $x 'sh', 1`.
 		next, ok := p.peekAfter(tok)
-		if !ok || !startsTerm(next, p.src) && p.text(next) != "(" {
+		if !ok || !startsTerm(next, p.src) && p.text(next) != "(" &&
+			!termAfterScalar(tok, next, p.src) {
 			return nil
 		}
 		p.advanceTo(tok)
@@ -869,7 +871,8 @@ func startsTerm(tok lexer.Token, src []byte) bool {
 	switch tok.Kind {
 	// A DerefSigil is the `$` of `$$code` or the `@` of `@$lines`: a sigil
 	// applied to an expression, which begins a term as a variable does.
-	case lexer.Variable, lexer.Number, lexer.Quote, lexer.HeredocOpen, lexer.DerefSigil:
+	case lexer.Variable, lexer.Number, lexer.Quote, lexer.HeredocOpen, lexer.DerefSigil,
+		lexer.Readline:
 		return true
 	case lexer.Word:
 		// A word that is an INFIX OPERATOR continues the expression
@@ -895,6 +898,32 @@ func startsTerm(tok lexer.Token, src []byte) bool {
 		return !isOperator && !modifiers[word]
 	}
 	return false
+}
+
+// termAfterScalar reports whether next, after the scalar v in a list
+// operator's first slot, starts a term that leaves perl no reading but v as
+// the handle -- the operator-spelled starts startsTerm cannot answer alone.
+//
+// `-`, `+`, `--`, `++`, `*`, `&` and a filetest are infix operators too, and
+// only the lexer knows which reading it took: toke.c's yyl_dollar lexes them
+// as a term's start after whitespace, when the next byte is not a space or
+// `=` (or, for `*` and `&`, is an identifier's first), and v carries that as
+// TermFollows. Measured on 5.42.0 with -MO=Deparse, `print $x &y` is `print
+// $x &y` while `print $x & $y`, `print $x &$y` and `print $x-1` are infix.
+//
+// `!`, `~` and `\` are no infix operator at all, so the grammar reads them
+// as the handle's list with or without whitespace: `print $x!1` is `print $x
+// !1`. `?` is in yyl_dollar's set and is not here, because perl's ternary
+// survives it: `print $x ?1:2` is `print $x ? 1 : 2`.
+func termAfterScalar(v, next lexer.Token, src []byte) bool {
+	text := string(src[next.Start:next.End])
+	switch text {
+	case "!", "~", "\\":
+		return true
+	case "-", "+", "--", "++", "*", "&":
+		return v.TermFollows
+	}
+	return v.TermFollows && lexer.IsFileTest(text)
 }
 
 // parseCallArgs reads the inside of a parenthesised argument list.
