@@ -1,10 +1,19 @@
 ---
 title: "A $var before a term-start after print is the filehandle to perl: print $0 &y reads as an infix &"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-10-10T01:40:32.06078993Z
-updated: 2026-10-10T01:40:32.06078993Z
+updated: 2026-10-10T01:47:04.390792455Z
+sessions:
+- start_sha: 528c1fa24cbd7732a2aa37ec1c0bbfee0828a011
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-10T01:47:04.390792455Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-10T01:47:04.390792455Z
 ---
 
 ## Context
