@@ -6,7 +6,7 @@ milestone: m1-parse-the-core
 blocked_by:
 - 01a0b84d-caa8-71d2-b42b-0c8445bc6026
 created: 2026-09-19T06:15:09.657423509Z
-updated: 2026-10-09T17:21:17.132572332Z
+updated: 2026-10-10T12:48:43.923810966Z
 sessions:
 - start_sha: 7034e553e623c97cdd9406c3d6b9c8ef5c4b2a55
   end_sha: 9cf2ee6df76d20e3fe3e13c8324e0ca79d8137b9
@@ -123,6 +123,13 @@ If the paper syntax ever gets a parser, a prototype column beside
 `operands`/`result` is a plausible convergence. Not blocking on it; a
 prototype string is trivially liftable.
 
+### Command added (2026-10-10)
+
+The last criterion had no command, so `git zhi verify` skipped it. The
+measurement it asks for was taken and is recorded below (9cf2ee6d: 460 to
+532 clean, 3,322 to 2,531 Unknown); what keeps it true is the T1 ratchet,
+which holds every file's Unknown count in both directions.
+
 ## Acceptance criteria
 
 - [x] Parse shape is DERIVED from the prototype, never stored (`go test ./internal/parse/ -run '^TestShapeDerivedFromPrototype$' -count=1 -v | grep -q '^--- PASS: TestShapeDerivedFromPrototype'`)
@@ -130,7 +137,7 @@ prototype string is trivially liftable.
 - [x] A leading `&` licenses the block form; a non-initial `&` and `\&` do not. Asserted on the PARSE, never on perl's error text (`go test ./internal/parse/ -run '^TestBlockFormNeedsLeadingAmpersand$' -count=1 -v | grep -q '^--- PASS: TestBlockFormNeedsLeadingAmpersand'`)
 - [x] `use Test::More` makes `subtest 'x' => sub {}` parse (`go test ./internal/parse/ -run '^TestImportedListOperator$' -count=1 -v | grep -q '^--- PASS: TestImportedListOperator'`)
 - [x] A sub with no prototype swallows a list, and a `($)` one takes a single term (`go test ./internal/parse/ -run '^TestPrototypeArity$' -count=1 -v | grep -q '^--- PASS: TestPrototypeArity'`)
-- [x] The T1 rate is re-measured and the change recorded, in BYTES as well as node counts
+- [x] The T1 rate is re-measured and the change recorded, in BYTES as well as node counts; the T1 ratchet holds it per file (`go test ./internal/parse/ -run '^TestParseRatchet$' -count=1 -v | grep -q '^--- PASS: TestParseRatchet'`)
 
 Spec: ch4 §4.8.3. Blocked by 01a0b84d-caa8 (needs exports and prototypes).
 
