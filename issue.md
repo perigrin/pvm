@@ -1,19 +1,39 @@
 ---
 title: "A $var before a term-start after print is the filehandle to perl: print $0 &y reads as an infix &"
-state: in-progress
+state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-10-10T01:40:32.06078993Z
-updated: 2026-10-10T01:47:04.390792455Z
+updated: 2026-10-10T03:33:35.252356401Z
 sessions:
 - start_sha: 528c1fa24cbd7732a2aa37ec1c0bbfee0828a011
-  end_sha: ""
-  commits: 0
+  end_sha: baf52e02b9bfe6cccdacae5aafb9bd5e8d725c68
+  commits: 3
   started_at: 2026-10-10T01:47:04.390792455Z
+  ended_at: 2026-10-10T03:33:35.252356401Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-10T01:47:04.390792455Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-10T03:33:35.252356401Z
+observed_paths:
+- internal/lexer/fhslot_test.go
+- internal/lexer/lexer.go
+- internal/parse/call.go
+- internal/parse/canon.go
+- internal/parse/chain.go
+- internal/parse/chain_test.go
+- internal/parse/parse.go
+- internal/parse/scalarhandle_test.go
+- internal/parse/testdata/fuzz/FuzzParser/0c172203842b1f8c
+- internal/parse/testdata/fuzz/FuzzParser/7bd29f70ee42a374
+- internal/parse/testdata/fuzz/FuzzParser/b45427e536ce28a7
+- internal/parse/testdata/t1fidelity.ratchet
+- internal/parse/trailingcomma_test.go
+- internal/parse/unaryplus_test.go
+- internal/parseoracle/subject_test.go
 ---
 
 ## Context
