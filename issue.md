@@ -9,7 +9,7 @@ blocks:
 - 01a0c13f-c7d7-7d9c-9a85-60a59aa26bc0
 - 01a0c13f-e0e2-7b4f-a9d2-06f7edad1e7f
 created: 2026-09-20T23:55:53.237977507Z
-updated: 2026-09-26T11:11:03.406115611Z
+updated: 2026-10-10T07:36:53.822736483Z
 sessions:
 - start_sha: f178e76df654244563b62e3b3f68f49cdfef252b
   end_sha: f178e76df654244563b62e3b3f68f49cdfef252b
@@ -80,12 +80,9 @@ single largest item in the T2 gap.
 
 ### Positive Scenarios
 
-- [ ] A parenless call to an unknown-or-declared callee consumes its
-      arguments and the statement is not Unknown (`go test ./internal/parse/ -run '^TestParenlessCallTakesArguments$' -count=1 -v | grep -q '^--- PASS: TestParenlessCallTakesArguments'`)
-- [ ] A bareword that is NOT a call -- hash key, class name, fat comma LHS --
-      still parses unchanged (`go test ./internal/parse/ -run '^TestBarewordIsNotAlwaysACall$' -count=1 -v | grep -q '^--- PASS: TestBarewordIsNotAlwaysACall'`)
-- [ ] The T2 shortfall map is regenerated in the same commit and the metric is
-      green (`go test ./internal/parse/ -run '^TestT2CoreParses$' -count=1 -v | grep -q '^--- PASS: TestT2CoreParses'`)
+- [ ] A parenless call to an unknown-or-declared callee consumes its arguments and the statement is not Unknown (`go test ./internal/parse/ -run '^TestParenlessCallTakesArguments$' -count=1 -v | grep -q '^--- PASS: TestParenlessCallTakesArguments'`)
+- [ ] A bareword that is NOT a call -- hash key, class name, fat comma LHS -- still parses unchanged (`go test ./internal/parse/ -run '^TestBarewordIsNotAlwaysACall$' -count=1 -v | grep -q '^--- PASS: TestBarewordIsNotAlwaysACall'`)
+- [ ] The T2 shortfall map is regenerated in the same commit and the metric is green (`go test ./internal/parse/ -run '^TestT2CoreParses$' -count=1 -v | grep -q '^--- PASS: TestT2CoreParses'`)
 - [ ] The T1 ratchet is regenerated in the same commit and is green (`go test ./internal/parse/ -run '^TestParseRatchet$' -count=1 -v | grep -q '^--- PASS: TestParseRatchet'`)
 - [ ] The whole parse package is green (`go test ./internal/parse/ -count=1`)
 
