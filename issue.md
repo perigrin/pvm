@@ -6,7 +6,7 @@ milestone: m1-parse-the-core
 blocks:
 - 01a0c13f-c7d7-7d9c-9a85-60a59aa26bc0
 created: 2026-09-20T23:56:05.493446087Z
-updated: 2026-09-22T22:48:44.180564905Z
+updated: 2026-10-10T07:36:55.459289886Z
 sessions:
 - start_sha: a68ac5f97bfbbe6f79a501f9de8de89feeba7e4f
   end_sha: a68ac5f97bfbbe6f79a501f9de8de89feeba7e4f
@@ -71,8 +71,7 @@ is the lexer's expect state, the same mechanism §3.2 uses for a leading `%`.
 
 - [ ] A leading-decimal literal is one number and the statement is clean (`go test ./internal/lexer/ -run '^TestLeadingDecimalLiteral$' -count=1 -v | grep -q '^--- PASS: TestLeadingDecimalLiteral'`)
 - [ ] Concatenation still reads as concatenation (`go test ./internal/lexer/ -run '^TestDotIsStillConcatenation$' -count=1 -v | grep -q '^--- PASS: TestDotIsStillConcatenation'`)
-- [ ] The T2 metric is green with the shortfall map regenerated in the same
-      commit (`go test ./internal/parse/ -run '^TestT2CoreParses$' -count=1 -v | grep -q '^--- PASS: TestT2CoreParses'`)
+- [ ] The T2 metric is green with the shortfall map regenerated in the same commit (`go test ./internal/parse/ -run '^TestT2CoreParses$' -count=1 -v | grep -q '^--- PASS: TestT2CoreParses'`)
 - [ ] The T1 ratchet is green with its baseline regenerated in the same commit (`go test ./internal/parse/ -run '^TestParseRatchet$' -count=1 -v | grep -q '^--- PASS: TestParseRatchet'`)
 
 Spec: §3.2. Plan: M1. Survey: 01a0c10b bucket 3.
