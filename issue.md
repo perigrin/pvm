@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-10-09T23:49:35.11954988Z
-updated: 2026-10-10T03:36:15.291909611Z
+updated: 2026-10-10T05:34:18.310522652Z
 sessions:
 - start_sha: 419a99b64470f2c2a547bcd922fd613573eb6dbf
   end_sha: baf52e02b9bfe6cccdacae5aafb9bd5e8d725c68
@@ -63,7 +63,16 @@ Found 2026-10-09 by `make fuzz-parser` (after 01a0ed89): `my$0()` -- canon is no
 
 - [ ] Failing test from the measurements; refuse a call paren perl refuses (existing refusal site); keep every accepted form; commit the seed; `make fuzz-parser` until a full run passes; `make test`; commit
 
+### The fuzz criterion replays the seeds (2026-10-10)
+
+`make fuzz-parser` explores at random, so as a criterion it can fail on a
+new find unrelated to this issue -- and a failing run writes its seed into
+testdata, where every later `go test ./internal/parse/` replays it. This
+issue's claim is its own inputs, which are committed as fuzz seeds; the
+criterion replays them deterministically. The open-ended fuzz claim
+belongs to 01a0a70f-0ec3 and 01a0de03, where it stays.
+
 ## Acceptance criteria
 
 - [ ] a call paren after a plain term is refused, after a subscript or arrow accepted (`go test ./internal/parse/ -run '^TestPostfixCallParenFollowsPerl$' -count=1 -v | grep -q '^--- PASS: TestPostfixCallParenFollowsPerl'`)
-- [ ] the parser fuzzer finds nothing (`make fuzz-parser`)
+- [ ] every committed fuzz seed replays clean (`go test ./internal/parse/ -run '^FuzzParser$' -count=1 -v | grep -q '^--- PASS: FuzzParser'`)
