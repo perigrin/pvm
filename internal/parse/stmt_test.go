@@ -20,7 +20,7 @@ func TestSourceFileIsStatements(t *testing.T) {
 	for _, src := range []string{
 		"$x;\n$y;\n",
 		"# comment\n$x;\n",
-		"{ }\n$x;\n",
+		"{ ; }\n$x;\n",
 		"if ($c) { 1 }\n$x;\n",
 		"\n\n$x;\n\n",
 		"$x;",
@@ -121,8 +121,9 @@ func TestExpressionStatementAndBlock(t *testing.T) {
 		t.Errorf("the block's body must hold its statements: %v", kinds(blk))
 	}
 
-	// An empty block is still a block.
-	root = parse.Parse([]byte("{ }\n"))
+	// An empty block is still a block. It needs the `;`: an empty `{ }` at
+	// statement position is an anonymous hash (TestEmptyBracesAtStatementAreAnonHash).
+	root = parse.Parse([]byte("{ ; }\n"))
 	if firstOfKind(root, parse.Block) == nil {
 		t.Errorf("an empty block must parse as a Block: %v", kinds(root))
 	}

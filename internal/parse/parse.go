@@ -272,6 +272,19 @@ type Node struct {
 	// what the parser already knew.
 	Text string
 
+	// Ops is set on a CmpChain: each link's own operator, one per pair of
+	// adjacent operands, so len(Ops) == len(Children)-1. Text is Ops[0].
+	//
+	// A chain may mix operators of one class, and Text alone names one of
+	// them. Measured on perl 5.42.0, Deparse keeps each:
+	//
+	//	$ perl -MO=Deparse -e 'my $s = $a < $b > $c;'
+	//	my $s = $a < $b > $c;
+	//
+	// Every operator of a chain shares its class and precedence level, so a
+	// reader of Text for either still gets the chain's answer.
+	Ops []string
+
 	// Refusal names WHICH construction site produced this Unknown, and is
 	// set on Unknown alone. See refusal.go for the ten codes and what each
 	// one means.
@@ -294,7 +307,7 @@ type Node struct {
 	// Only meaningful for Call; false everywhere else and not read there.
 	Resolved bool
 
-	// The seven flags below follow Resolved's rule: each is meaningful on one
+	// The bool flags below follow Resolved's rule: each is meaningful on one
 	// kind of node, false everywhere else, and not read there. A flag that
 	// leaks onto nodes it does not describe is worse than no flag, because a
 	// consumer cannot tell a real answer from a stray one.
@@ -441,12 +454,37 @@ type Node struct {
 	// what the loop is.
 	LoopVar bool
 
+	// CStyle is set on a Loop whose head is `for (INIT; COND; STEP)` rather
+	// than a list, and ForSlots says which of its three slots hold a clause.
+	// The clauses are the Loop's children ahead of its Block, in slot order.
+	//
+	// Not derivable from the children. `for (0;;)` and `for (;;0)` both have
+	// one child, and `for (;;)` has none -- the same shape as a `for` whose
+	// head is missing. Without the slots canon parenthesised the first clause
+	// as a condition and wrote the rest bare after it, `for (my $i = 0) $i < 3
+	// $i++ {}`, and dropped `for (;;)`'s head entirely. Measured on 5.42.0,
+	// Deparse writes the slots back, an empty one as nothing:
+	// `for ($a; ; $c) {`.
+	CStyle   bool
+	ForSlots [3]bool
+
 	// TrailingComma is the separator, `,` or `=>`, the source wrote after
 	// this node with no element after it -- `f(1, 2,)`. perl drops it
 	// (measured on 5.42.0, `f(1, 2,)` deparses as `f(1, 2)`), and so does
 	// the tree's shape; canon writes it back so the emission says what the
 	// source says (perigrin, 2026-09-30).
 	TrailingComma string
+
+	// RefSlot is set on an argument that fills a `\X`, `*` or `+` slot of
+	// its callee's prototype in a way perl compiles as a reference to it:
+	// any argument in a `\X` slot, a glob in a `*` slot, an array or hash
+	// in a `+` slot. Measured on 5.42.0, `sub f(\@){1} my @a; f(@a);`
+	// compiles a srefgen with no `\` in the source.
+	//
+	// Only the parser can set it. Which prototype a call meets is decided
+	// where the call is read -- a sub declared below it, `&f(...)` and a
+	// method meet none -- and the finished tree no longer knows.
+	RefSlot bool
 }
 
 // SourceText reconstructs the bytes this node covers, walking the tree.
@@ -542,6 +580,7 @@ func parseWith(p *parser) (*Node, *parser) {
 			p.pos++
 		}
 	}
+	p.refuseUnclosedOpener(root)
 	if res != nil {
 		root.loaded = res.loaded
 		root.declErrs = res.declErrs
@@ -575,6 +614,69 @@ func parseWith(p *parser) (*Node, *parser) {
 	return root, p
 }
 
+// refuseUnclosedOpener refuses a file that ends with a `(`, `[` or `{` still
+// open. perl reads on to end of file looking for the closer and reports the
+// line of the last token it read -- `sub f {\n1;\n` is "Missing right curly
+// or square bracket at m.pl line 2" -- so the Unknown spans that token.
+//
+// The tree the statements built is kept: an LSP sees a half-typed buffer
+// constantly, and the block it is typing into is still the block. The
+// Unknown goes into the innermost node holding the last token, beside that
+// node's children; a leaf that IS the token is wrapped instead, since two
+// siblings may not share a byte.
+//
+// Openers are counted as the lexer's trackBrackets counts them: a
+// one-byte token, and a closer with nothing open closes nothing.
+func (p *parser) refuseUnclosedOpener(root *Node) {
+	depth := 0
+	var last lexer.Token
+	for _, tok := range p.toks {
+		if isTrivia(tok.Kind) {
+			continue
+		}
+		last = tok
+		if tok.End-tok.Start != 1 {
+			continue
+		}
+		switch p.src[tok.Start] {
+		case '(', '[', '{':
+			depth++
+		case ')', ']', '}':
+			if depth > 0 {
+				depth--
+			}
+		}
+	}
+	if depth == 0 && !p.attrOpenAtEOF {
+		return
+	}
+	u := &Node{Kind: Unknown, Refusal: UnclosedOpener, Start: last.Start, End: last.End}
+	n := root
+	for {
+		i := len(n.Children) - 1
+		for i >= 0 && n.Children[i].Start > last.Start {
+			i--
+		}
+		if i < 0 || n.Children[i].End <= last.Start {
+			// No child holds the token: it is n's own, and nothing of n's
+			// follows it, since it is the file's last.
+			n.Children = append(n.Children[:i+1], append([]*Node{u}, n.Children[i+1:]...)...)
+			return
+		}
+		c := n.Children[i]
+		if c.Kind == Unknown {
+			// Already refused, by a site that knew more.
+			return
+		}
+		if c.Start == last.Start && c.End == last.End {
+			u.Children = []*Node{c}
+			n.Children[i] = u
+			return
+		}
+		n = c
+	}
+}
+
 // parser is the cursor over the token stream.
 type parser struct {
 	// moduleSubs are the subs a loaded module declares, by qualified name --
@@ -584,6 +686,12 @@ type parser struct {
 	// inSignature is set while a sub's signature is read, where a
 	// placeholder's `=` may have nothing after it -- see emptyDefault.
 	inSignature bool
+
+	// attrOpenAtEOF is set when an attribute's `(` argument ran to end of
+	// file without its `)`: perl's "Unterminated attribute parameter". The
+	// bracket count in refuseUnclosedOpener cannot see it, because a `}`
+	// inside the argument is text to perl and a closer to that count.
+	attrOpenAtEOF bool
 
 	// typed is set while a `.pmt` declaration file is read: its signatures
 	// are typed Perl. signatures holds each one read, by sub name, and
@@ -652,6 +760,11 @@ type parser struct {
 	// it is clear, a word missing from the sub table is one perl has no CV
 	// for either, which is what `WORD $var` as a method call rests on.
 	symbolsOpen bool
+
+	// inBegin is set while a BEGIN block's body is read, where a statement
+	// runs before the code after the block compiles. A `require` of a `.pl`
+	// helper declares its subs only there; see resolveRequiredFile.
+	inBegin bool
 
 	// packages names every `package` and `class` read so far. A bareword
 	// naming one is a class even when the word before it is a known sub --
@@ -942,11 +1055,12 @@ func (p *parser) statementForm() *Node {
 		//	{"a", 1};    +{'a', 1}    a hash: STRING then `,`
 		//	{a, 1};      a block      a bareword and a comma is NOT enough
 		//	{$k=>1};     a block      a variable is not a key here
-		//	{};          a block      empty is a block, not an empty hash
+		//	{};          a hash       empty: `}` straight after the `{`
 		//
-		// So the first token must be a word or a string, and only those two
-		// separators qualify. Everything else stays a block, which is what
-		// keeps every bare block, `if` body and loop body working.
+		// So the brace must be empty, or its first token a word or a string
+		// with only those two separators after it. Everything else stays a
+		// block, which is what keeps every bare block, `if` body and loop
+		// body working.
 		if !p.braceOpensAnonHash(tok) {
 			blk := p.parseBlock(tok)
 			// A bare block is a loop that runs once, so it takes a `continue`
@@ -1301,7 +1415,10 @@ var statementKeywords = map[string]bool{
 //	{"a", 1};    +{'a', 1}    STRING then `,`
 //	{a, 1};      a block      a bareword and a comma is NOT enough
 //	{$k=>1};     a block      a variable is not a key here
-//	{};          a block      empty is a block, not an empty hash
+//	{};          a hash       empty: `}` straight after the `{`
+//
+// Deparse writes the empty one `{};`, with no `+`, so -MO=Concise is what
+// shows it is a hash: emptyavhv, not enterloop. `{;}` is a block.
 //
 // Narrow on purpose. The default for a statement-start brace is a block, and
 // it has to be: every bare block, `if` body and loop body in the corpus is
@@ -1310,6 +1427,13 @@ func (p *parser) braceOpensAnonHash(brace lexer.Token) bool {
 	first, ok := p.peekAfter(brace)
 	if !ok {
 		return false
+	}
+
+	// An empty brace -- nothing but whitespace or comments before its `}` --
+	// is an empty hash. toke.c's brace rule reads a `}` straight after the
+	// `{` as HASHBRACK (toke.c:6706), at statement start as after `map`.
+	if first.Kind == lexer.CloseBracket && p.text(first) == "}" {
+		return true
 	}
 
 	// The key must be a word or a string. A variable, a number or anything

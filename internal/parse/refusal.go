@@ -17,7 +17,7 @@ package parse
 // afterwards.
 type RefusalCode string
 
-// Twelve codes for thirteen `&Node{Kind: Unknown, ...}` sites. The thirteenth is
+// Fifteen codes for sixteen `&Node{Kind: Unknown, ...}` sites. The sixteenth is
 // parse.go's `expr.Kind == Unknown`, which propagates an existing code
 // outward rather than declaring one; see the note in RefusalSites.
 //
@@ -25,7 +25,7 @@ type RefusalCode string
 // adding a constant AND an inventory entry, which is one edit in one
 // file. RefusalSites below is what makes the pair inseparable.
 //
-// Two of the twelve -- EmptyDeref and NotAnExpression -- are wired but not
+// Two of the fifteen -- EmptyDeref and NotAnExpression -- are wired but not
 // reachable from any source today. They are not dead code: they are the
 // codes those sites will carry the day parseExpr can return nil there,
 // and an unreachable site that becomes reachable must arrive with a code
@@ -50,7 +50,9 @@ const (
 	EmptyDeref RefusalCode = "empty_deref"
 
 	// NotATerm: a token that cannot begin a term. The catch-all of
-	// parseTerm, consumed so the loop advances.
+	// parseTerm, consumed so the loop advances; also a `my` or `our` in
+	// term position with no variable after it, and an anonymous sub's
+	// head with no block after it.
 	NotATerm RefusalCode = "not_a_term"
 
 	// MissingOperand: an infix or prefix operator whose right operand ran
@@ -84,6 +86,21 @@ const (
 	// sub accepts -- `each()`, `select(1, 2)` -- which perl rejects as "Not
 	// enough arguments" or "Too many arguments".
 	CallArity RefusalCode = "call_arity"
+
+	// UnclosedOpener: a `(`, `[` or `{` still open at end of file, which
+	// perl reports as "Missing right curly or square bracket" or as a
+	// syntax error at EOF. The Unknown spans the last token perl read,
+	// whose line is the one perl reports.
+	UnclosedOpener RefusalCode = "unclosed_opener"
+
+	// FormatNotTerminated: a `format NAME =` the file ends inside, before
+	// a lone `.` line, which perl reports as "Format not terminated".
+	FormatNotTerminated RefusalCode = "format_not_terminated"
+
+	// AmbiguousSigil: a `&` or `*` the lexer read as a sigil and the parser
+	// as an operator, after an undeclared bareword, before a quote-op name
+	// -- `A &y`. perl reads the operator and the quote it begins.
+	AmbiguousSigil RefusalCode = "ambiguous_sigil"
 )
 
 // RefusalSite says what one code means and where the site lives.
@@ -115,7 +132,7 @@ var RefusalSites = map[RefusalCode]RefusalSite{
 		What:  "the statement is not a known form and parses as no expression",
 		Where: "parse.go, parseStatement: expr == nil",
 	},
-	// The thirteenth site, parse.go's `expr.Kind == Unknown`, has no code of
+	// The sixteenth site, parse.go's `expr.Kind == Unknown`, has no code of
 	// its own and is deliberately absent from this table. It widens an
 	// Unknown from the expression to the statement -- a change of SPAN,
 	// not of cause -- and carries the inner code outward unchanged. A code
@@ -130,7 +147,7 @@ var RefusalSites = map[RefusalCode]RefusalSite{
 	},
 	NotATerm: {
 		What:  "a token that cannot begin a term",
-		Where: "term.go, parseTerm: fallthrough",
+		Where: "term.go, refuseNotATerm: parseTerm's fallthrough, a `my` or `our` with no target, and parseAnonSub with no block",
 	},
 	MissingOperand: {
 		What:  "an operator whose right operand ran out",
@@ -159,5 +176,17 @@ var RefusalSites = map[RefusalCode]RefusalSite{
 	CallArity: {
 		What:  "a call with a number of arguments no declaration accepts",
 		Where: "arity.go, refuseArity",
+	},
+	UnclosedOpener: {
+		What:  "a bracket, or an attribute's `(` argument, still open at end of file",
+		Where: "parse.go, refuseUnclosedOpener; use.go, parseAttributes sets attrOpenAtEOF",
+	},
+	FormatNotTerminated: {
+		What:  "a format declaration with no `.` line before end of file",
+		Where: "decl.go, parseFormatDecl",
+	},
+	AmbiguousSigil: {
+		What:  "a `&` or `*` after an undeclared bareword, before a quote-op name",
+		Where: "expr.go, parseInfix: refuseAmbiguousSigil",
 	},
 }

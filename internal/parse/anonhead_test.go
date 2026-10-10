@@ -70,3 +70,53 @@ func firstAnonSub(n *parse.Node) *parse.Node {
 	}
 	return nil
 }
+
+// TestAnonSubWithoutBodyIsRefused: an anonymous sub is a head and a block,
+// and a head with no block after it is no sub at all. Measured on 5.42.0,
+// each of these is "Illegal declaration of anonymous subroutine" under
+// `perl -c`, in statement and expression position, across a newline, and
+// with signatures on ("syntax error" there), while the same heads with a
+// block -- `sub ($$)\n{1}` among them -- are syntax OK. Read as a sub with
+// no body, `sub(f{}\n,)` canon'd as `sub f {} ,`, a named declaration.
+func TestAnonSubWithoutBodyIsRefused(t *testing.T) {
+	for _, src := range []string{
+		"sub(f{}\n,)",
+		"sub(f{},)",
+		"sub ($$);",
+		"sub ($$)\n;",
+		"sub ()",
+		"sub ();",
+		"my $f = sub ($$);",
+		"my $f = sub ($$)\n;",
+		"my $f = sub ();",
+		"f(sub ($$));",
+		"f(sub ($$), 1);",
+		"my $f = sub :lvalue;",
+		"use feature 'signatures'; sub ($x);",
+		"use feature 'signatures'; my $f = sub ($x);",
+		"sub;",
+		"sub\n;",
+		"sub",
+		"my $f = sub;",
+		"my $f = sub",
+		"f(sub, 1);",
+		"print sub;",
+	} {
+		if found := collectUnknown(parse.Parse([]byte(src))); len(found) == 0 {
+			t.Errorf("%q: perl refuses an anonymous sub with no body; the parse does not", src)
+		}
+	}
+	for _, src := range []string{
+		"sub ($$) {1}",
+		"sub ($$)\n{1}",
+		"my $f = sub ($$)\n{1};",
+		"use feature 'signatures'; sub ($x)\n{1}",
+		"sub\n()\n{1}",
+		"my %h = (sub => 1); print $h{sub};",
+		"$x = sub\n=> 1;",
+	} {
+		if found := collectUnknown(parse.Parse([]byte(src))); len(found) != 0 {
+			t.Errorf("%q: perl accepts this; got %v", src, refusalCodes(found))
+		}
+	}
+}

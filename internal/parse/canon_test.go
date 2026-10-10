@@ -6,11 +6,13 @@ package parse_test
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
 
+	"tamarou.com/pvm/internal/conformance"
 	"tamarou.com/pvm/internal/lexer"
 	"tamarou.com/pvm/internal/parse"
 )
@@ -375,4 +377,64 @@ func TestCanonRatchet(t *testing.T) {
 
 	checkRatchet(t, filepath.Join("testdata", "t1canon.ratchet"),
 		"Files whose canon emission is NOT a fixpoint (1 = disagrees).\n"+t1CorpusNote, now)
+}
+
+// TestCanonKeepsParensAroundWordOperators: a parenthesised `and`, `or`, `xor`
+// or `not` keeps its parentheses wherever dropping them changes what perl
+// reads, and the emission is a fixpoint perl reads as the source.
+//
+// The word operators bind looser than `=` and `,`, so the parens are the
+// grouping: `my $x = (%h and 1)` assigns the conjunction, and measured on
+// 5.42.0 `my $x = %h and 1` deparses as `((my $x = %h) and '???')`. The
+// emission lost its `)` -- `my $x = (%h and 1;`, a syntax error near "1;" --
+// and was still a fixpoint, so the corpus counted it clean.
+//
+// Where nothing outside binds tighter, the parens are not the tree's and
+// canon drops them: a statement's `(%h and 1)` and a `&&` on the right of
+// `=` read the same bare.
+func TestCanonKeepsParensAroundWordOperators(t *testing.T) {
+	perl, perlErr := conformance.PerlPath()
+	deparse := func(src string) string {
+		out, err := exec.Command(perl, "-MO=Deparse,-p", "-e", src).CombinedOutput()
+		if err != nil {
+			t.Errorf("perl refuses %q: %v\n%s", src, err, out)
+		}
+		return string(out)
+	}
+	for _, tc := range []struct{ src, want string }{
+		{`my %h; my $x = (%h and 1);`, `my %h;my $x = (%h and 1);`},
+		{`my %h; my $x = (%h or 1);`, `my %h;my $x = (%h or 1);`},
+		{`my %h; my $x = (%h xor 1);`, `my %h;my $x = (%h xor 1);`},
+		{`my $h; my $x = ($h and 1);`, `my $h;my $x = ($h and 1);`},
+		{`my @h; my $x = (@h and 1);`, `my @h;my $x = (@h and 1);`},
+		{`my %h; my ($x) = (%h and 1);`, `my %h;my ($x) = (%h and 1);`},
+		{`my $a; $x = ($a and 1);`, `my $a;$x = ($a and 1);`},
+		{`my %h; my $x = (not %h) ? 0 : 1;`, `my %h;my $x = (not %h) ? 0 : 1;`},
+		{`my %h; my $x = (1 and %h and 2);`, `my %h;my $x = (1 and %h and 2);`},
+		{`my @x = (1, 2 and 3);`, `my @x = (1, 2 and 3);`},
+		{`my %h; f((%h and 1), 2);`, `my %h;f((%h and 1) , 2);`},
+
+		// Dropped: perl reads these the same without them.
+		{`my %h; (%h and 1);`, `my %h;%h and 1;`},
+		{`my ($a, $b); my $x = ($a && $b);`, `my ($a, $b);my $x = $a && $b;`},
+	} {
+		src := []byte(tc.src)
+		got := strings.TrimSpace(parse.Canon(parse.Parse(src), src))
+		if got != tc.want {
+			t.Errorf("Canon(parse(%q)):\n  got  %q\n  want %q", tc.src, got, tc.want)
+			continue
+		}
+		if ok, why := canonMatches(src); !ok {
+			t.Errorf("canon of %q is not a fixpoint: %s", tc.src, why)
+		}
+		if perlErr != nil {
+			continue
+		}
+		if a, b := deparse(tc.src), deparse(got); a != b {
+			t.Errorf("perl reads %q and its emission %q differently:\n%s\n%s", tc.src, got, a, b)
+		}
+	}
+	if perlErr != nil {
+		t.Logf("no perl 5.42 to compare readings with: %v", perlErr)
+	}
 }

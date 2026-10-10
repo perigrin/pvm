@@ -49,6 +49,58 @@ func (p *parser) refuseRefScalarSlot(n *Node) *Node {
 	return n
 }
 
+// markReferenceSlots returns n, a call, with RefSlot set on each argument
+// perl compiles as a reference because of the slot it fills in the
+// callee's prototype. Measured on 5.42.0, each a srefgen:
+//
+//	sub f(\@){1} f(@a)      sub f(*){1} f(*FOO)      sub f(+){1} f(@a)
+//	sub f(\%){1} f(%h)      sub f(*){1} f(*$x)       sub f(+){1} f(%h)
+//	sub f(\$){1} f($s)      sub f(\&){1} f(&g)       sub f(\[$@%]){1} f(@a)
+//
+// and none for `f(FOO)` or `f($fh)` in a `*` slot, or `f($x)` in a `+`
+// slot. A builtin is not a call to a sub -- `push @a, 1` takes no
+// reference -- and a call this parser reads before the sub is declared
+// meets no prototype, as perl's does not. `&f(...)` and a method name never
+// arrive here.
+func (p *parser) markReferenceSlots(n *Node) *Node {
+	if n == nil || n.Kind != Call || n.Indirect || p.isPerlKeyword(keywordName(n.Text)) {
+		return n
+	}
+	imp, ok := p.lookupSub(n.Text)
+	if !ok || !imp.PrototypeKnown {
+		return n
+	}
+	slots, _ := refScalarSlots(imp.Prototype)
+	var args []*Node
+	for _, c := range n.Children {
+		args = append(args, commaItems(c)...)
+	}
+	for i, slot := range slots[:min(len(slots), len(args))] {
+		a := args[i]
+		switch {
+		case slot.char == '\\',
+			slot.char == '*' && isGlobArg(a),
+			slot.char == '+' && isAggregateArg(a):
+			a.RefSlot = true
+		}
+	}
+	return n
+}
+
+// isGlobArg reports whether an argument is a glob: `*FOO`, or `*$x` and
+// `*{"FOO"}`, which are a Term `*` over what it dereferences. `*FOO{IO}` is
+// a subscript of one, an Index, and not.
+func isGlobArg(n *Node) bool {
+	return n.Kind == Term && strings.HasPrefix(n.Text, "*")
+}
+
+// isAggregateArg reports whether an argument is a whole array or hash:
+// `@a`, `%h`, `@$r`, `%{$r}`. A slice is an Index, and not.
+func isAggregateArg(n *Node) bool {
+	return n.Kind == Term && len(n.Text) > 1 && (n.Text[0] == '@' || n.Text[0] == '%') ||
+		n.Kind == Unary && (n.Text == "@" || n.Text == "%")
+}
+
 // refuseAliasedOperand returns n, the node of the operator op, or an
 // Unknown spanning it when CORE.pmt declares op's first operand an aliased
 // scalar, `\$`, and n's is certainly not a scalar lvalue: a `\$` operand
@@ -74,9 +126,13 @@ func refusedScalarLvalue(n *Node) *Node {
 	return &Node{Kind: Unknown, Refusal: RefScalarSlot, Start: n.Start, End: n.End}
 }
 
-// protoSlot is one argument slot of a prototype: whether it is `\$`, and
-// whether it follows the `;` that makes the rest optional.
-type protoSlot struct{ refScalar, optional bool }
+// protoSlot is one argument slot of a prototype: whether it is `\$`,
+// whether it follows the `;` that makes the rest optional, and its
+// character -- `\` for any backslashed slot, otherwise the slot's own.
+type protoSlot struct {
+	refScalar, optional bool
+	char                byte
+}
 
 // refScalarSlots reads a prototype, parens included, into its argument
 // slots, and reports whether a final `@` or `%` takes the rest of the
@@ -90,7 +146,7 @@ func refScalarSlots(proto string) (slots []protoSlot, slurpy bool) {
 			optional = true
 		case '\\':
 			i++
-			slots = append(slots, protoSlot{refScalar: i < len(inner) && inner[i] == '$', optional: optional})
+			slots = append(slots, protoSlot{refScalar: i < len(inner) && inner[i] == '$', optional: optional, char: '\\'})
 			if i < len(inner) && inner[i] == '[' {
 				for i < len(inner) && inner[i] != ']' {
 					i++
@@ -99,7 +155,7 @@ func refScalarSlots(proto string) (slots []protoSlot, slurpy bool) {
 		case '@', '%':
 			return slots, true
 		case '$', '&', '*', '+', '_':
-			slots = append(slots, protoSlot{optional: optional || c == '_'})
+			slots = append(slots, protoSlot{optional: optional || c == '_', char: c})
 		}
 	}
 	return slots, false

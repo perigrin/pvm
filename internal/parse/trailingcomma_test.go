@@ -63,6 +63,29 @@ func TestTrailingCommaBeforeCloserIsNotATerm(t *testing.T) {
 		// Guarding that keeps the fix from turning a real syntax error into a
 		// silent empty list.
 		{"only a comma", "f(,);", "f(,);"},
+
+		// A parenthesised list of ONE element is that element, its span
+		// widened over the parens, so a leaf's source text already holds
+		// the comma. Written again after it, `(0,)` came back `(0,) ,`, a
+		// comma expression the next pass read differently -- found by the
+		// parser fuzzer from `(0,)`. perl 5.42 Deparses `my @a = (0,);` as
+		// `my(@a) = 0;`.
+		{"paren one leaf", "my @a = (0,);", "my @a = (0,);"},
+		{"paren one variable", "my @a = ($x,);", "my @a = ($x,);"},
+		// A fat comma's word is the same leaf, written as its word: in
+		// parens it is written as its source, `=>` and all, or canon wrote
+		// `A`, which the next pass read as a call. perl 5.42 Deparses
+		// `my @a = (A=>);` as `my(@a) = 'A';`. Found by the parser fuzzer
+		// from `(A=>)`.
+		{"paren one fat word", "my @a = (A=>);", "my @a = (A=>);"},
+		// Any other single element keeps its parens around the comma, or
+		// the comma lands bare after it: `(A,)/0` came back `A() , / 0`,
+		// which the next pass read as a comma before an unterminated
+		// pattern -- found by the parser fuzzer. perl 5.42 Deparses
+		// `(A,)/0` as `'A' / 0` and `my @x = (f(1),)` as `my(@x) = f(1)`.
+		{"paren one call", "(A,)/0;", "(A() ,) / 0;"},
+		{"paren one call assigned", "my @x = (f(1),);", "my @x = (f(1) ,);"},
+		{"paren one element", "($a[0],)[0];", "($a[0] ,)[0];"},
 	}
 
 	// Canon writes the trailing comma back where the source had it

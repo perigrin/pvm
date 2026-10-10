@@ -12,10 +12,10 @@ import (
 // TestStatementSpanCoversItsOps: many references in one multi-line statement
 // all count.
 //
-// `Sites` reports each site from the STATEMENT's first line to its OWN
-// node's last line, and both ends are load-bearing -- sites.go:83-101 cites
-// the corpus cases for each. So a statement holding several references
-// emits several sites that share a start and differ in end:
+// A subject may report each site from the STATEMENT's first line to its
+// OWN node's last line, as `Sites` once did. Then a statement holding
+// several references emits several sites that share a start and differ in
+// end:
 //
 //	for (                      # line 214, op/ref.t
 //	    [ 'undef', \undef  ],  # 215
@@ -57,8 +57,8 @@ func TestStatementSpanCoversItsOps(t *testing.T) {
 //
 // A `\` inside a sub body is reported at the body's line, because perl's
 // probe walks the CVs and attributes it there. That site must stay separate
-// from the enclosing statement's -- pooling it under `sub foo {`'s whole
-// span is what sites.go:83-95 says must not happen.
+// from the enclosing statement's when the subject reports it with a start
+// line of its own.
 func TestNestedStatementStillOwnsItsLines(t *testing.T) {
 	outer := SubjectCallSite{Line: 100, EndLine: 112, TookReference: true}
 	inner := SubjectCallSite{Line: 105, EndLine: 105, Unresolved: true}

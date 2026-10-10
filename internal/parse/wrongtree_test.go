@@ -4,6 +4,7 @@
 package parse_test
 
 import (
+	"strings"
 	"testing"
 
 	"tamarou.com/pvm/internal/parse"
@@ -96,8 +97,9 @@ func TestStatementStartBrace(t *testing.T) {
 		"{a=>1, b=>2};",
 		`{"a", 1};`,
 		`{"a" => 1};`,
-		// `{};` is NOT here: perl deparses it as `{}`, a BLOCK, not an empty
-		// hash. Measured. An earlier draft of this test asserted otherwise.
+		// `{};` is in TestEmptyBracesAtStatementAreAnonHash: an empty brace
+		// is a hash too, by its own rule. Deparse writes it `{};` with no
+		// `+`, so read it with -MO=Concise, which shows emptyavhv.
 	} {
 		root := parse.Parse([]byte(src))
 		if containsKind(root, parse.Unknown) {
@@ -128,13 +130,12 @@ func TestBareBlockStillParses(t *testing.T) {
 	for _, src := range []string{
 		"{ my $x = 1; }",
 		"{ f(); g(); }",
-		"{ }",
+		"{ ; }",
 		"if ($x) { 1 }",
 		"while ($x) { f(); }",
-		// `{};` is NOT here either. perl deparses it as `{}`, a block, and
-		// the block parses -- but the trailing `;` becomes an Unknown, which
-		// is an empty-statement defect rather than a brace-classification
-		// one. Present before and after this change. Untracked.
+		// `{ }` and `{};` are NOT here: an empty brace at statement position
+		// is an anonymous hash -- measured with -MO=Concise, emptyavhv --
+		// and TestEmptyBracesAtStatementAreAnonHash owns them.
 		// `LOOP: { last LOOP; }` is NOT here. A labelled bare block is valid
 		// Perl -- `perl -MO=Deparse` gives it back unchanged -- and this
 		// parser declines it today, before and after this change. Its own
@@ -251,5 +252,144 @@ func TestPrototypeWithoutSignatures(t *testing.T) {
 			t.Errorf("%q: with no signature pragma this is a PROTOTYPE: %v",
 				src, kinds(root))
 		}
+	}
+}
+
+// structure renders a subtree as dumpTree does, without its trivia, so a
+// shape reads as the nodes a walker sees.
+func structure(n *parse.Node) string {
+	var b strings.Builder
+	var walk func(*parse.Node, int)
+	walk = func(n *parse.Node, d int) {
+		if n.Kind == parse.Trivia {
+			return
+		}
+		b.WriteString(strings.Repeat(" ", d) + n.Kind.String())
+		if n.Text != "" {
+			b.WriteString(" " + n.Text)
+		}
+		b.WriteString("\n")
+		for _, c := range n.Children {
+			walk(c, d+2)
+		}
+	}
+	walk(n, 0)
+	return b.String()
+}
+
+// TestSignatureParametersAreNodes: each parameter of a signature is its own
+// node under the Declaration, not one span the walker cannot see into.
+// perl compiles one argelem per parameter, and the default as its own op:
+//
+//	$ perl -MO=Concise,f -e 'use feature "signatures"; sub f ($x, $y = 1, @r) { }'
+//	4  <+> argelem(0)[$x:3,6] /SV ->5
+//	8  <+> argelem(1)[$y:4,6] KS/SV ->9
+//	6     <|> argdefelem(other->7)[1] sK/1 ->8
+//	7        <$> const[IV 1] s ->8
+//	a  <+> argelem(2)[@r:5,6] /AV ->b
+func TestSignatureParametersAreNodes(t *testing.T) {
+	src := "use feature 'signatures'; sub f ($x, $y = 1, @r) { }"
+	root := parse.Parse([]byte(src))
+	if containsKind(root, parse.Unknown) {
+		t.Fatalf("%q must parse:\n%s", src, dumpTree(root, 0))
+	}
+	var decl *parse.Node
+	for _, d := range findAll(root, parse.Declaration) {
+		if d.Text == "sub" {
+			decl = d
+		}
+	}
+	if decl == nil {
+		t.Fatalf("%q: no sub Declaration:\n%s", src, dumpTree(root, 0))
+	}
+	want := `declaration sub
+  term f
+  list
+    term $x
+    binary =
+      term $y
+      term 1
+    term @r
+  block
+`
+	if got := structure(decl); got != want {
+		t.Errorf("%q: want three parameter nodes, the default its own operand:\ngot:\n%swant:\n%s",
+			src, got, want)
+	}
+}
+
+// TestWrongTreesAreGone asserts the SHAPE of each of the four trees that
+// round-tripped while being wrong, because a round trip cannot tell them
+// apart from the right ones. Measured on perl 5.42.0 with -MO=Deparse:
+//
+//	sub { 1 };                    sub { 1; };         one anoncode
+//	{a=>1};                       +{'a', 1};          an anonhash
+//	*{"foo"};                     *{'foo';};          rv2gv over the string
+//	use v5.36; sub f ($x, $y) {1} sub f ($x, $y) { 1; }
+func TestWrongTreesAreGone(t *testing.T) {
+	stmt := func(src string, i int) *parse.Node {
+		root := parse.Parse([]byte(src))
+		if containsKind(root, parse.Unknown) {
+			t.Fatalf("%q must parse:\n%s", src, dumpTree(root, 0))
+		}
+		var stmts []*parse.Node
+		for _, c := range root.Children {
+			if c.Kind == parse.Statement {
+				stmts = append(stmts, c)
+			}
+		}
+		if len(stmts) <= i {
+			t.Fatalf("%q: want statement %d:\n%s", src, i, dumpTree(root, 0))
+		}
+		return stmts[i]
+	}
+	for _, tc := range []struct {
+		src  string
+		stmt int
+		want string
+	}{
+		// One statement, one anonymous sub owning its block.
+		{"sub { 1 };", 0, `statement
+  declaration sub
+    block
+      statement
+        term 1
+`},
+		// An anonymous hash, the same node `my $r = {a=>1}` builds.
+		{"{a=>1};", 0, `statement
+  anon_hash
+    call a
+    term 1
+`},
+		// The signature is the Declaration's list and the body its block.
+		{"use v5.36;\nsub f ($x, $y) { 1 }\n", 1, `statement
+  declaration sub
+    term f
+    list
+      term $x
+      term $y
+    block
+      statement
+        term 1
+`},
+	} {
+		if got := structure(stmt(tc.src, tc.stmt)); got != tc.want {
+			t.Errorf("%q:\ngot:\n%swant:\n%s", tc.src, got, tc.want)
+		}
+	}
+
+	// `*{"foo"}`: the glob sigil applied to the string, which is its one
+	// operand. The node's kind is left unasserted: `${"foo"}` is a Unary and
+	// this is a Term, and which one a glob deref should be is not this
+	// test's question.
+	src := `*{"foo"};`
+	s := stmt(src, 0)
+	if len(s.Children) != 1 {
+		t.Fatalf("%q: want one expression:\n%s", src, dumpTree(s, 0))
+	}
+	glob := s.Children[0]
+	if glob.Text != "*" || len(glob.Children) != 1 ||
+		glob.Children[0].Kind != parse.Term || glob.Children[0].Text != `"foo"` {
+		t.Errorf("%q: want `*` over the term \"foo\":\n%s", src, dumpTree(s, 0))
 	}
 }

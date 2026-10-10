@@ -59,7 +59,7 @@ func TestIntuitCurlyLookahead(t *testing.T) {
 		{`my @b = map { "a", 1 }, @a;`, false, "string then `,` is a hash"},
 		{"my @b = grep { $_ } @a;", true, "grep takes a block too"},
 		{"my @b = sort { $a <=> $b } @a;", true, "so does sort"},
-		{"my @b = map { } @a;", true, "empty is a block, as at statement start"},
+		{"my @b = map { } @a;", false, "empty is a hash, as at statement start"},
 	} {
 		opens, found := opensBlockAt(tc.src, 0)
 		if !found {
@@ -69,6 +69,140 @@ func TestIntuitCurlyLookahead(t *testing.T) {
 		if opens != tc.block {
 			t.Errorf("%q: OpensBlock is %v, want %v -- %s",
 				tc.src, opens, tc.block, tc.why)
+		}
+	}
+}
+
+// TestIntuitCurlyEmptyBrace: an empty brace after `map`, `grep` or `sort` is
+// an anonymous hash. toke.c's yyl_leftcurly answers HASHBRACK for a `}` that
+// is the first thing after the `{`, skipping whitespace and comments, before
+// its first-tokens heuristic runs (toke.c:6706). Measured on perl 5.42.0 with
+// -MO=Concise:
+//
+//	map {}, @a   map { }, @a   map { # c\n }, @a      emptyavhv mapwhile
+//	grep {}, @a                                        emptyavhv grepwhile
+//	sort {}, @a                                        emptyavhv sort
+//	map({}, @a)  sort({}, @a)                          emptyavhv
+//	map {} @a    grep {} @a    sort {} @a              syntax error near "} @a"
+//	map({} @a)   sort({} @a)                           syntax error near "} @a"
+//
+// The refused forms are refused by the GRAMMAR, after the lexer read a hash:
+// a hash with no comma after it. So every one of them is a hash here too, and
+// the parser is what refuses it.
+//
+// The skip is perl's skipspace, comments included, which is why the comment
+// form is empty -- and why a comment before a key does not hide the key:
+//
+//	map { # c\n a => 1 }, @a      map({'a', 1}, @a)      a HASHREF
+//
+// Only these three words. After an arbitrary word, `any`, or a keyword whose
+// brace is always a block, an empty brace stays a block -- measured:
+//
+//	zzz {} print "b"     zzz { () } print('b');    a block
+//	any {} @a            any { () } @a;            a block
+//	eval {}; 1           eval { do { () } };       a block
+func TestIntuitCurlyEmptyBrace(t *testing.T) {
+	for _, tc := range []struct {
+		src   string
+		block bool
+	}{
+		{"my @x = map {}, @a;", false},
+		{"my @x = map { }, @a;", false},
+		{"my @x = map { # c\n }, @a;", false},
+		{"my @x = map {\n}, @a;", false},
+		{"my @x = map {} @a;", false},
+		{"my @x = grep {}, @a;", false},
+		{"my @x = grep {} @a;", false},
+		{"my @x = sort {}, @a;", false},
+		{"my @x = sort {} @a;", false},
+		{"my @x = map({}, @a);", false},
+		{"my @x = sort({} @a);", false},
+		{"my @x = map { # c\n a => 1 }, @a;", false},
+
+		{"zzz {} print 'b';", true},
+		{"any {} @a;", true},
+		{"eval {}; 1;", true},
+		{"do {}; 1;", true},
+		{"my $f = sub {};", true},
+		{"my @x = map { ; } @a;", true},
+	} {
+		opens, found := opensBlockAt(tc.src, 0)
+		if !found {
+			t.Errorf("%q: no `{` token", tc.src)
+			continue
+		}
+		if opens != tc.block {
+			t.Errorf("%q: OpensBlock is %v, want %v", tc.src, opens, tc.block)
+		}
+	}
+}
+
+// TestEmptyBraceAfterFilehandleBuiltins: the empty brace in the handle or
+// program slot of print, printf, system and exec is an anonymous hash too, by
+// the same toke.c:6706 rule as map's. Measured on perl 5.42.0 with
+// -MO=Deparse and -MO=Concise:
+//
+//	print {}, "x"   print({}, "x")   system {}, "x"     emptyavhv
+//	print {} "x"    print { } "x"    print {# c\n} "x"  syntax error near "} "x""
+//	print({} "x")   printf {} "x"    system {} "x"      syntax error near "} "x""
+//	exec {} "x"     exec({} "x")     system({} "x")     syntax error near "} "x""
+//
+// CORE:: names the same builtin, and CORE::say is say with its feature on:
+//
+//	CORE::print {} "x"   CORE::say {} "x"   CORE::system {} "x"   syntax error
+//	CORE::map {}, @a     CORE::grep {}, @a  CORE::sort {}, @a     emptyavhv
+//	CORE::map {} @a                                               syntax error
+//
+// A brace with something in it is still the handle block:
+//
+//	print {$fh} "x"     print {$fh;} 'x'
+//	print {STDOUT} "x"  print {'STDOUT';} 'x'
+//
+// A bare `say` is a block: unfeatured, `say {} "x"` is the method call
+// `{ () }->say('x')` (entersub, method_named "say"), and the lexer does not
+// track the say feature, under which perl refuses it.
+func TestEmptyBraceAfterFilehandleBuiltins(t *testing.T) {
+	for _, tc := range []struct {
+		src   string
+		block bool
+	}{
+		{`print {} "x";`, false},
+		{`print { } "x";`, false},
+		{"print {# c\n} \"x\";", false},
+		{`print({} "x");`, false},
+		{`print ({} "x");`, false},
+		{`print {}, "x";`, false},
+		{`print({}, "x");`, false},
+		{`printf {} "x";`, false},
+		{`printf({} "x");`, false},
+		{`system {} "x";`, false},
+		{`system({} "x");`, false},
+		{`system {}, "x";`, false},
+		{`exec {} "x";`, false},
+		{`exec({} "x");`, false},
+		{`CORE::print {} "x";`, false},
+		{`CORE::print({} "x");`, false},
+		{`CORE::printf {} "x";`, false},
+		{`CORE::say {} "x";`, false},
+		{`CORE::system {} "x";`, false},
+		{`CORE::exec {} "x";`, false},
+		{`my @x = CORE::map {}, @a;`, false},
+		{`my @x = CORE::map {} @a;`, false},
+		{`my @x = CORE::grep {}, @a;`, false},
+		{`my @x = CORE::sort {}, @a;`, false},
+
+		{`print {$fh} "x";`, true},
+		{`print {STDOUT} "x";`, true},
+		{`CORE::print {$fh} "x";`, true},
+		{`say {} "x";`, true},
+	} {
+		opens, found := opensBlockAt(tc.src, 0)
+		if !found {
+			t.Errorf("%q: no `{` token", tc.src)
+			continue
+		}
+		if opens != tc.block {
+			t.Errorf("%q: OpensBlock is %v, want %v", tc.src, opens, tc.block)
 		}
 	}
 }
@@ -164,6 +298,19 @@ func TestRightParenRegressionIsNamed(t *testing.T) {
 	// body comes first.
 	for _, w := range []string{"BEGIN", "END", "CHECK", "INIT", "UNITCHECK"} {
 		src := w + " { my $x = 1; }\n{ use Foo; }\n"
+		// The phaser's own brace is decided on the token, by the lexer. A
+		// body that reads as a hash on its contents alone is the case only
+		// the phaser table decides: perl 5.42 Deparses
+		// `BEGIN { a => 1 } { use strict; }` as a sub body and a bare block.
+		hashy := w + " { a => 1 }\n{ use Foo; }\n"
+		if own, found := opensBlockAt(hashy, 0); !found || !own {
+			t.Errorf("%s: the phaser's own brace must open a block on the "+
+				"token (found=%v)", w, found)
+		}
+		if after, found := lastBraceOpensBlock(hashy); !found || !after {
+			t.Errorf("%s: the bare block after a hash-looking phaser body "+
+				"must open a block (found=%v)", w, found)
+		}
 		opens, found := lastBraceOpensBlock(src)
 		if !found {
 			t.Errorf("%s: no `{` token", w)

@@ -575,7 +575,7 @@ func TestPmtDeclarationErrorsSurface(t *testing.T) {
 	defer func() { declarations = saved }()
 	// Used directly, and from a required helper.
 	helper := func(name string) ([]byte, bool) { return []byte("use Bad;\n"), name == "./h.pl" }
-	for _, src := range []string{"use Bad;\n", "require './h.pl';\n"} {
+	for _, src := range []string{"use Bad;\n", "BEGIN { require './h.pl'; }\n"} {
 		root := ParseWithLoader([]byte(src), helper)
 		if errs := DeclarationErrors(root); len(errs) != 1 || errs[0].Error() != "Bad: sub f: type Str names no variable" {
 			t.Errorf("%q: got %v, want the declaration's error", src, errs)
@@ -599,7 +599,7 @@ func TestDeclarationWarningsReachTheRoot(t *testing.T) {
 	defer func() { declarations = saved }()
 	helper := func(name string) ([]byte, bool) { return []byte("use Mix;\n"), name == "./h.pl" }
 	want := "Mix: sub f: declared both as sub and as multi sub; read as a multi"
-	for _, src := range []string{"use Mix;\n", "require './h.pl';\n"} {
+	for _, src := range []string{"use Mix;\n", "BEGIN { require './h.pl'; }\n"} {
 		root := ParseWithLoader([]byte(src), helper)
 		if warns := DeclarationWarnings(root); len(warns) != 1 || warns[0].Error() != want {
 			t.Errorf("%q: got warnings %v, want %q", src, warns, want)

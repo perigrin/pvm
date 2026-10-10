@@ -200,3 +200,51 @@ func TestMapGrepBraceEdgeRefusals(t *testing.T) {
 func TestMapGrepUnterminatedBrace(t *testing.T) {
 	assertRefused(t, []string{"map { $_", "grep { $_", "map { 1 } @a, map { $_"})
 }
+
+// TestSortEmptyBraceIsHash: sort's empty brace is a hash, as map's and
+// grep's are. Measured on 5.42.0 with -MO=Concise:
+//
+//	sort {}, @a     sort({}, @a)     emptyavhv sort
+//	sort {} @a      sort({} @a)      syntax error near "} @a"
+func TestSortEmptyBraceIsHash(t *testing.T) {
+	for _, src := range []string{`sort {}, @a;`, `sort({}, @a);`} {
+		n := parse.Parse([]byte(src))
+		if got := countUnknown(n); got != 0 {
+			t.Errorf("Parse(%q) has %d Unknown, want 0", src, got)
+		}
+		if !containsKind(n, parse.AnonHash) || containsKind(n, parse.Block) {
+			t.Errorf("Parse(%q): want an anon hash and no block: %v", src, kinds(n))
+		}
+	}
+	assertRefused(t, []string{`sort {} @a;`, `sort({} @a);`})
+}
+
+// TestFilehandleSlotEmptyBraceIsHash: the empty brace after print, printf,
+// system and exec is a hash, as sort's is, so the handle-block reading is
+// gone. Measured on 5.42.0 with -MO=Deparse and -MO=Concise:
+//
+//	print {}, "x"   system {}, "x"   CORE::print {}, "x"   emptyavhv
+//	print {} "x"    print({} "x")    printf {} "x"          syntax error
+//	system {} "x"   exec {} "x"      CORE::say {} "x"       syntax error
+func TestFilehandleSlotEmptyBraceIsHash(t *testing.T) {
+	for _, src := range []string{
+		`print {}, "x";`, `print({}, "x");`, `printf {}, "x";`,
+		`system {}, "x";`, `exec {}, "x";`, `CORE::print {}, "x";`,
+	} {
+		n := parse.Parse([]byte(src))
+		if got := countUnknown(n); got != 0 {
+			t.Errorf("Parse(%q) has %d Unknown, want 0", src, got)
+		}
+		if !containsKind(n, parse.AnonHash) || containsKind(n, parse.Block) {
+			t.Errorf("Parse(%q): want an anon hash and no block: %v", src, kinds(n))
+		}
+	}
+	assertRefused(t, []string{
+		`print {} "x";`, `print { } "x";`, "print {# c\n} \"x\";",
+		`print({} "x");`, `print ({} "x");`, `printf {} "x";`,
+		`printf({} "x");`, `system {} "x";`, `system({} "x");`,
+		`exec {} "x";`, `exec({} "x");`, `CORE::print {} "x";`,
+		`CORE::print({} "x");`, `CORE::printf {} "x";`, `CORE::say {} "x";`,
+		`CORE::system {} "x";`, `CORE::exec {} "x";`, `CORE::map {} @a;`,
+	})
+}

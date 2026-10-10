@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"tamarou.com/pvm/internal/lexer"
+	"tamarou.com/pvm/internal/types"
 )
 
 // parseWordTerm turns a bareword in term position into a call, a bareword
@@ -156,6 +157,11 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		return &Node{Kind: Term, Text: spelled, Start: word.Start, End: word.End}
 	}
 
+	if p.classInvocant(word, text) {
+		p.advanceTo(word)
+		return &Node{Kind: Term, Text: spelled, Start: word.Start, End: word.End}
+	}
+
 	// A loop control in an expression, with its label: `... and last BIN`.
 	switch text {
 	case "last", "next", "redo":
@@ -224,6 +230,9 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		}
 		n.End = p.prevEnd()
 		_, n.Resolved = p.keywordShape(spelled, text)
+		if n.Resolved {
+			p.readHandleSlots(n, text)
+		}
 		return n
 	}
 
@@ -327,7 +336,7 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		//     parenless-call refusals had a callee declared this way and 0
 		//     had one reachable by import -- no T2 file uses Test::More, they
 		//     `require './test.pl'`.
-		//   - A `.pl` FILE this one `require`d by a literal path, read by
+		//   - A `.pl` FILE this one `require`d by a literal path in BEGIN, read by
 		//     use.go's resolveRequiredFile. That is what closes the T2
 		//     sentence above: `t/test.pl` declares 78 subs, `ok`, `is` and
 		//     `like` among them, and 394 of the 435 dirty files in perl.git's
@@ -412,6 +421,9 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 	}
 
 	n.End = p.prevEnd()
+	if _, ok := p.keywordShape(spelled, text); ok {
+		p.readHandleSlots(n, text)
+	}
 	return n
 }
 
@@ -541,17 +553,11 @@ func (p *parser) parseListOpBlock(op string) *Node {
 	if !ok || !tok.OpensBlock || p.text(tok) != "{" {
 		return nil
 	}
-	// An EMPTY brace after map or grep is a hash constructor: toke.c's
-	// yyl_leftcurly answers HASHBRACK for a `}` straight after the `{`
-	// (toke.c:6706) before its first-tokens heuristic runs. The lexer's
-	// intuitCurly cannot say so, because it runs after every word and an
-	// empty `else {}` is a block. Measured on 5.42.0, `map {}, @a` is
-	// `map {}, @a` and `map {} @a` a syntax error, which the anon hash
-	// parsed here refuses as trailing tokens.
+	// An EMPTY brace never reaches here: the lexer's intuitCurly reads it as
+	// a hash after map, grep and sort (toke.c:6706). Measured on 5.42.0,
+	// `map {}, @a` is `map {}, @a` and `map {} @a` a syntax error, which the
+	// anon hash the caller parses refuses as trailing tokens.
 	if op == "map" || op == "grep" {
-		if next, ok := p.peekAfter(tok); ok && p.text(next) == "}" {
-			return nil
-		}
 		// A brace that never closes is perl's "Missing right curly or
 		// square bracket", not a block that runs to the end of input.
 		// parseBlock accepts that silently, which an LSP wants of a
@@ -630,7 +636,8 @@ func (p *parser) parseSortComparator(op string) *Node {
 	// on 5.42.0 with -MO=Deparse,-p, `sort foo (3,1)` and `sort foo(3,1)`
 	// are both `sort foo 3, 1`.
 	next, ok := p.peekAfter(tok)
-	if !ok || !startsTerm(next, p.src) && !(tok.Kind == lexer.Word && p.text(next) == "(") {
+	if !ok || !startsTerm(next, p.src) && !(tok.Kind == lexer.Word && p.text(next) == "(") &&
+		!(tok.Kind == lexer.Variable && termAfterScalar(tok, next, p.src)) {
 		return nil
 	}
 	p.advanceTo(tok)
@@ -640,13 +647,51 @@ func (p *parser) parseSortComparator(op string) *Node {
 	}
 }
 
+// classInvocant reports whether word, not yet consumed, is a class-name
+// string before a method call: `Foo::Bar->new` is `'Foo::Bar'->new`, measured
+// on 5.42.0 with -MO=Deparse. perl reads a bareword before `->` as a call only
+// when a sub of that name is declared at that point -- `sub Foo {1} Foo->new`
+// is `Foo()->new`, and the same with the sub declared AFTER the arrow is
+// `'Foo'->new` -- and a builtin stays a call: `shift->x` is
+// `shift(@ARGV)->x`, `__PACKAGE__->new` is the current package.
+//
+// Only an arrow before a method name, `->name` or `->$m`, makes a class:
+// `Foo->[0]` is `$Foo[0]` and `Foo->(1)` is `Foo(1)`.
+//
+// A word a `use` list names is held to be a sub: the module may export it
+// whether or not its source was read. See listed.
+func (p *parser) classInvocant(word lexer.Token, text string) bool {
+	spelled := p.text(word)
+	if p.isPerlKeyword(text) || p.keywordHere(text) || p.namedUnaryHere(spelled, text) ||
+		p.operatorHere(text) || modifiers[text] || p.listed[spelled] {
+		return false
+	}
+	if _, ok := p.keywordShape(spelled, text); ok {
+		return false
+	}
+	if _, ok := p.lookupSub(spelled); ok {
+		return false
+	}
+	arrow, ok := p.peekAfter(word)
+	if !ok || p.text(arrow) != "->" {
+		return false
+	}
+	method, ok := p.peekAfter(arrow)
+	if !ok {
+		return false
+	}
+	return method.Kind == lexer.Word ||
+		method.Kind == lexer.Variable && strings.HasPrefix(p.text(method), "$")
+}
+
 // isPerlKeyword reports whether perl's keyword() would claim a word, which is
 // what CHECK_KEYWORD tests: every builtin, the declarators, and the handful of
 // statement-forming words that are not builtins. A `CORE::` spelling names a
-// builtin by definition.
+// builtin by definition; `CORE::GLOBAL::` is an ordinary package, where an
+// override of one is installed. See keywordName.
 func (p *parser) isPerlKeyword(word string) bool {
 	if _, ok := p.plainKeywordShape(word); ok ||
-		declarators[word] || strings.HasPrefix(word, "CORE::") {
+		declarators[word] || keywordName(word) != word {
 		return true
 	}
 	switch word {
@@ -722,8 +767,13 @@ func (p *parser) parseFilehandleSlot(op string) *Node {
 	case tok.Kind == lexer.Variable && p.src[tok.Start] == '$':
 		// `print $fh "a"`. Only when what FOLLOWS starts a new term with no
 		// comma -- otherwise `print $x, "a"` would lose its first argument.
+		//
+		// A `(` too, which never calls a plain scalar (see callsHere):
+		// measured on 5.42.0 with -MO=Deparse, `print $x(1), 2` is `print
+		// $x 1, 2` and `system $x(sh), 1` is `system $x 'sh', 1`.
 		next, ok := p.peekAfter(tok)
-		if !ok || !startsTerm(next, p.src) {
+		if !ok || !startsTerm(next, p.src) && p.text(next) != "(" &&
+			!termAfterScalar(tok, next, p.src) {
 			return nil
 		}
 		p.advanceTo(tok)
@@ -758,13 +808,71 @@ func (p *parser) isBarewordHandle(word string) bool {
 	return !known
 }
 
+// readHandleSlots reads a bareword in a builtin's filehandle slot as the
+// handle, where it was read as a call to a sub of that name. perl makes the
+// same turn after the fact: the bareword is a constant until the builtin's
+// check converts one in a handle slot to the glob. Measured on 5.42.0 with
+// -MO=Deparse:
+//
+//	open(FH, "<", $f); close FH        open FH, '<', $f; close FH;
+//	pipe(R, W); -s(FH)                 pipe R, W; -s FH;
+//	sub FH {1} open(FH, "<", $f)       open FH(), '<', $f;
+//	open(FH(), "<", $f)                open FH(), '<', $f;
+//
+// A declared sub, or parens written after the word, keep the call. The
+// slots are CORE.pmt's: a `Glob *` parameter, or one whose type holds a
+// FileHandle. A filetest's one operand is a handle slot too, though CORE.pmt
+// declares no filetest.
+func (p *parser) readHandleSlots(n *Node, name string) {
+	i := 0
+	for _, c := range n.Children {
+		for _, a := range commaItems(c) {
+			if p.handleSlot(name, i) && p.bareHandleCall(a) {
+				*a = Node{Kind: Term, Text: a.Text, Start: a.Start, End: a.End}
+			}
+			i++
+		}
+	}
+}
+
+// handleSlot reports whether argument i of the builtin name is a filehandle
+// slot in any of its candidates.
+//
+// ponytail: any candidate's slot counts, so the four-argument select's
+// first slot takes a bareword as a handle; perl reads one there as a string,
+// and both Deparse as the bare word. Pick the candidate by arity if that
+// ever matters.
+func (p *parser) handleSlot(name string, i int) bool {
+	if lexer.IsFileTest(name) {
+		return i == 0
+	}
+	if p.buildingCore {
+		return false
+	}
+	for _, sig := range CoreBuiltin(name) {
+		if i < len(sig.Params) && (sig.Params[i].Sigil == '*' ||
+			sig.Params[i].Type&types.FileHandle == types.FileHandle) {
+			return true
+		}
+	}
+	return false
+}
+
+// bareHandleCall reports whether a is a bareword read as a call to a sub
+// this parse does not know, written with no parens: `FH`, not `FH()`.
+func (p *parser) bareHandleCall(a *Node) bool {
+	return a.Kind == Call && len(a.Children) == 0 && !a.Resolved &&
+		a.End-a.Start == len(a.Text) && p.isBarewordHandle(a.Text)
+}
+
 // startsTerm reports whether a token begins a new term rather than continuing
 // an expression -- the test that separates `print $fh "a"` from `print $x, 1`.
 func startsTerm(tok lexer.Token, src []byte) bool {
 	switch tok.Kind {
 	// A DerefSigil is the `$` of `$$code` or the `@` of `@$lines`: a sigil
 	// applied to an expression, which begins a term as a variable does.
-	case lexer.Variable, lexer.Number, lexer.Quote, lexer.HeredocOpen, lexer.DerefSigil:
+	case lexer.Variable, lexer.Number, lexer.Quote, lexer.HeredocOpen, lexer.DerefSigil,
+		lexer.Readline:
 		return true
 	case lexer.Word:
 		// A word that is an INFIX OPERATOR continues the expression
@@ -790,6 +898,32 @@ func startsTerm(tok lexer.Token, src []byte) bool {
 		return !isOperator && !modifiers[word]
 	}
 	return false
+}
+
+// termAfterScalar reports whether next, after the scalar v in a list
+// operator's first slot, starts a term that leaves perl no reading but v as
+// the handle -- the operator-spelled starts startsTerm cannot answer alone.
+//
+// `-`, `+`, `--`, `++`, `*`, `&` and a filetest are infix operators too, and
+// only the lexer knows which reading it took: toke.c's yyl_dollar lexes them
+// as a term's start after whitespace, when the next byte is not a space or
+// `=` (or, for `*` and `&`, is an identifier's first), and v carries that as
+// TermFollows. Measured on 5.42.0 with -MO=Deparse, `print $x &y` is `print
+// $x &y` while `print $x & $y`, `print $x &$y` and `print $x-1` are infix.
+//
+// `!`, `~` and `\` are no infix operator at all, so the grammar reads them
+// as the handle's list with or without whitespace: `print $x!1` is `print $x
+// !1`. `?` is in yyl_dollar's set and is not here, because perl's ternary
+// survives it: `print $x ?1:2` is `print $x ? 1 : 2`.
+func termAfterScalar(v, next lexer.Token, src []byte) bool {
+	text := string(src[next.Start:next.End])
+	switch text {
+	case "!", "~", "\\":
+		return true
+	case "-", "+", "--", "++", "*", "&":
+		return v.TermFollows
+	}
+	return v.TermFollows && lexer.IsFileTest(text)
 }
 
 // parseCallArgs reads the inside of a parenthesised argument list.

@@ -238,3 +238,40 @@ func TestSubstitutionEvalSublex(t *testing.T) {
 			"the `<<EOF` is literal text, not code")
 	}
 }
+
+// TestFormatWithNoNameDoesNotPanic is the parser fuzzer's `format=\n0\n\n`.
+// A blank line in a format body is an empty picture line, and the lexer
+// must take it as one rather than index into it. perl 5.42 reads each case
+// below the same way: a body ending at a lone `.` is the format (Deparse
+// prints `format STDOUT =` with the body), and one that reaches EOF without
+// the `.` is "Format not terminated" -- the lexer's UnknownRest.
+func TestFormatWithNoNameDoesNotPanic(t *testing.T) {
+	for _, tc := range []struct {
+		src  string
+		body string // "" means perl says "Format not terminated"
+	}{
+		{"format=\n0\n\n", ""},
+		{"format =\nabc\n", ""},
+		{"format =\n.\n", ".\n"},
+		{"format=\n.\n", ".\n"},
+		{"format\n=\n.\n", ".\n"},
+		{"format =\n\n.\n", "\n.\n"},
+		{"format =\n@<<\n\n.\n", "@<<\n\n.\n"},
+		{"format =\n  @<<\n$x\n.\n", "  @<<\n$x\n.\n"},
+	} {
+		tok, ok := firstOfKind(tc.src, FormatBody)
+		switch {
+		case tc.body == "" && ok:
+			t.Errorf("%q: FormatBody %q, but perl says the format is not terminated",
+				tc.src, tc.src[tok.Start:tok.End])
+		case tc.body == "":
+			if _, ok := firstOfKind(tc.src, UnknownRest); !ok {
+				t.Errorf("%q: no UnknownRest for the unterminated body", tc.src)
+			}
+		case !ok:
+			t.Errorf("%q: no FormatBody token", tc.src)
+		case tc.src[tok.Start:tok.End] != tc.body:
+			t.Errorf("%q: format body is %q, want %q", tc.src, tc.src[tok.Start:tok.End], tc.body)
+		}
+	}
+}

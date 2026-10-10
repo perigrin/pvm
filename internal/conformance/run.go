@@ -216,7 +216,12 @@ func askPerl(t *testing.T, source string) (compiles bool, output string) {
 	if err := exec.Command(perl, "-c", path).Run(); err != nil {
 		return false, ""
 	}
-	out, err := exec.Command(perl, path).Output()
+	// Output is compared byte for byte with what perl printed on Linux.
+	// Windows perl's default layers are `:unix :crlf`, which write "\n" as
+	// "\r\n"; `:unix :perlio` is the stack every other platform already has.
+	run := exec.Command(perl, path)
+	run.Env = append(os.Environ(), "PERLIO=:unix:perlio")
+	out, err := run.Output()
 	if err != nil {
 		// Compiles but dies. Output is whatever reached stdout first.
 		return true, string(out)

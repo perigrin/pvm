@@ -228,25 +228,44 @@ func TestSubjectStderrIsReported(t *testing.T) {
 // children with it. A `#!/bin/sh` subject that does not exec its last command
 // is a parent, and killing only the parent leaves the real work running past
 // the sweep -- 620 files of that is a machine full of orphans.
+//
+// The subject is stopped only once it has recorded its child's pid. A fixed
+// timeout raced the script on a loaded machine: stopped before it had forked,
+// it left no pid to check. A timeout is a deadline on Parse's context, so
+// cancelling the caller's context takes the same path to cmd.Cancel and the
+// group kill. The pause before the record stands in for a slow machine.
 func TestSubjectTimeoutKillsGrandchildren(t *testing.T) {
 	pidfile := filepath.Join(t.TempDir(), "pid")
 	subject := writeSubjectScript(t,
-		"#!/bin/sh\nsleep 300 &\necho $! > "+pidfile+"\nwait\n")
+		"#!/bin/sh\nsleep 300 &\nsleep 0.3\necho $! > "+pidfile+"\nwait\n")
 
-	_, err := Subject{Command: []string{subject}, Timeout: 100 * time.Millisecond}.
-		Parse(context.Background(), "irrelevant.pl")
-	if err == nil {
-		t.Fatal("Parse: expected a timeout")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		_, err := Subject{Command: []string{subject}, Timeout: time.Minute}.
+			Parse(ctx, "irrelevant.pl")
+		done <- err
+	}()
+
+	var pid int
+	recorded := time.Now().Add(30 * time.Second)
+	for {
+		raw, _ := os.ReadFile(pidfile)
+		if p, err := strconv.Atoi(strings.TrimSpace(string(raw))); err == nil {
+			pid = p
+			break
+		}
+		if time.Now().After(recorded) {
+			t.Fatal("the subject never recorded its child's pid")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	cancel()
+	if err := <-done; err == nil {
+		t.Fatal("Parse: expected the stopped subject to fail")
 	}
 
-	raw, err := os.ReadFile(pidfile)
-	if err != nil {
-		t.Fatalf("the subject never recorded its child's pid: %v", err)
-	}
-	pid, err := strconv.Atoi(strings.TrimSpace(string(raw)))
-	if err != nil {
-		t.Fatalf("pidfile %q: %v", raw, err)
-	}
 	child, _ := os.FindProcess(pid)
 	deadline := time.Now().Add(3 * time.Second)
 	for child.Signal(syscall.Signal(0)) == nil {

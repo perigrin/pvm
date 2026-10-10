@@ -198,6 +198,14 @@ type Token struct {
 	// PL_expect at every token would start depending on states the lexer may
 	// refine later; one bit answering one question is a narrower contract.
 	OpensBlock bool
+
+	// TermFollows is set on a scalar in a handle-taking list operator's first
+	// slot when the lexer read what follows it in term position -- toke.c's
+	// yyl_dollar heuristic, see handleSlotTakesTerm. `print $fh -1` lexes
+	// the `-` in term position, and the token alone cannot say so: it is
+	// the same Operator `-` as subtraction's. The parser reads this bit to
+	// take the slot, so the handle is decided once.
+	TermFollows bool
 }
 
 // Tokenize splits src into tokens covering every byte exactly once.
@@ -278,6 +286,9 @@ type lexer struct {
 	// for the same reason: the lookahead that settles the brace is the WORD's
 	// to make, and a parenthesised call moves the brace out of its reach.
 	listOpParen bool
+	// listOpEmptyHash rides with listOpParen: the word was one whose empty
+	// brace is a hash (emptyBraceIsHash), which the `(` passes to intuitCurly.
+	listOpEmptyHash bool
 	// sawSubWord and expectPrototype track `sub NAME`, after which a `(`
 	// opens a prototype rather than a list.
 	sawSubWord      bool
@@ -424,7 +435,10 @@ func scanOne(l *lexer) {
 		// unconditionally would break the "whitespace-only input is ONE
 		// trivia token" rule from the skeleton issue -- caught by that
 		// issue's own test, which is why it is there.
-		stopAtNewline := len(l.pending) > 0
+		//
+		// A format body starts after a newline the same way, and its first
+		// picture line may be blank or indented: perl keeps both as body.
+		stopAtNewline := len(l.pending) > 0 || l.pendingFormat
 		sawNewline := false
 		for l.pos < len(l.src) && isSpace(l.src[l.pos]) {
 			if l.src[l.pos] == '\n' && stopAtNewline {
@@ -528,11 +542,14 @@ func (l *lexer) emit(k Kind, start int) {
 	// belongs to the same call either way; see listOpParen.
 	inListOpParen := l.listOpParen && k == Operator && l.pos-start == 1 &&
 		l.src[start] == '('
+	emptyIsHash := (k == Word && emptyBraceIsHash(string(l.src[start:l.pos]))) ||
+		(inListOpParen && l.listOpEmptyHash)
 	// Trivia does not clear the carry: `map ({...} @a)` has a space between
 	// the word and its paren, and the call is the same one.
 	if k != Whitespace && k != Comment {
 		l.listOpParen = k == Word && takesBlock(string(l.src[start:l.pos])) &&
 			l.peekIsOpenParen()
+		l.listOpEmptyHash = l.listOpParen && emptyIsHash
 	}
 
 	// A label's `:`, carried from the Word before it. Read BEFORE the carry
@@ -581,13 +598,14 @@ func (l *lexer) emit(k Kind, start int) {
 		// braceOpensAnonHash is what applies the lookahead there, for every
 		// statement-start brace at once. See the labelColon branch in
 		// expect.go.
-		nextBraceIsBlock: (k == Word || inListOpParen) && l.intuitCurly(),
+		nextBraceIsBlock: (k == Word || inListOpParen) && l.intuitCurly(emptyIsHash),
 		listOpParen:      inListOpParen,
 		labelColon:       labelColon,
 		openedBlock:      l.openedBlock,
 	})
 	if k == Variable && l.handleSlotTakesTerm(start) {
 		l.expect = XTerm
+		l.toks[len(l.toks)-1].TermFollows = true
 	}
 	l.noteFormat(k, start)
 	l.noteConstSub(k, start)
@@ -600,8 +618,8 @@ func (l *lexer) emit(k Kind, start int) {
 }
 
 // handleTakers are the builtins whose first slot may hold a scalar
-// filehandle or program with no comma after it: `print $fh LIST`,
-// `system $prog LIST`.
+// filehandle, program or comparator with no comma after it: `print $fh LIST`,
+// `system $prog LIST`, `sort $by LIST`.
 //
 // perl applies the heuristic below after ANY list operator (toke.c tests
 // PL_last_lop), including a user's. The lexer cannot know a user's list
@@ -610,6 +628,7 @@ func (l *lexer) emit(k Kind, start int) {
 // parser's declared-shape table.
 var handleTakers = map[string]bool{
 	"print": true, "printf": true, "say": true, "exec": true, "system": true,
+	"sort": true,
 }
 
 // handleSlotTakesTerm reports whether the scalar just emitted at start fills a

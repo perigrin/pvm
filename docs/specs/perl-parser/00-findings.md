@@ -456,6 +456,512 @@ oracle stops being a reason not to re-run.
 
 ## 0.11 Fidelity across the whole corpus, measured
 
+### WRONG pin removed: the corpus holds no WRONG file
+
+*2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0.*
+
+With the two hedges below merged, no file in the corpus is WRONG, and
+`TestCorpusBaselineIsIntact` asserts zero rather than pinning paths: the
+WRONG pin is gone (01a0a8cd). Both hedges follow the plan's M1 rule -- a
+construct internal/parse does not yet understand is reported as unknown,
+not guessed at -- and each files the real parse it defers to.
+
+| Bucket | Files | Share of measured |
+|---|---:|---:|
+| exact | 489 | 82.5% |
+| wider | 84 | 14.2% |
+| **WRONG** | **0** | **0.0%** |
+| no-answer | 20 | 3.4% |
+| *measured (denominator)* | *593* | |
+| excluded, environmental | 26 | — |
+| runner error | 1 | — |
+
+Re-baselined on the merged tree at CI's 8m per-file timeout. Nine files
+moved, all WRONG → wider; no exact file moved.
+
+### Code inside interpolation hedges every marker
+
+*2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0.*
+
+perl compiles the code inside an interpolating string, regex or heredoc
+into ordinary ops, and internal/parse keeps the literal as one leaf. The
+subject committed to those statements with nothing in them. Measured with
+`-MO=Concise`:
+
+```
+qr/x ${\f($o)} y/                   refgen          (op/coreamp.t:178,248)
+"@{[ g(\&g) ]}"                     srefgen         (op/sub_lval.t:861,863)
+"ba" =~ /b${\do { qr|a| }}/         refgen, match   (re/reg_eval_scope.t:99,101)
+qr/${\ <<END ... END }/             srefgen         (comp/parser.t:468)
+"$_->@{foo}" under postderef_qq     rv2hv           (op/postfixderef.t:340,344,347)
+"@{[ {a=>1} ]}"  "@{[ <STDIN> ]}"   anonhash, readline
+our %h; "@h{qw(a b)}"               rv2hv
+"$x"  "@a"  "${x}"  "$x->method"    no marker
+```
+
+The plan's M1 rule decides the answer: a construct not yet understood is
+reported as unknown. A `${ ... }` or `@{ ... }` around anything but a name,
+or a variable followed by a subscript or a dereferencing arrow, inside an
+interpolating literal or heredoc body now hedges every marker; a pattern's
+own match stays decided. Parsing the embedded code is 01a12059-3011.
+
+Five files moved WRONG → wider: `comp/parser.t`, `op/coreamp.t`,
+`op/postfixderef.t`, `op/sub_lval.t`, `re/reg_eval_scope.t`.
+
+### A `->{...}` read whose multideref folding is not in the text hedges its rv2hv
+
+*2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0.*
+
+perl's optimiser folds a hash element read through a reference into one
+multideref op, which emits no rv2hv, but only when it can. Sites said
+nothing for every `->{...}`, which is the claim that perl always folds.
+Measured with `-MO=Concise` (live ops only):
+
+```
+my $p; my @x = @{$p->{S}};          rv2av multideref
+my $p; push @{$p->{S}}, 1;          rv2av helem rv2hv
+my $s; push @{$s->{x}{$k}}, 1;      rv2av helem rv2hv helem rv2hv
+my $p; keys %{$p->{S}};             rv2hv helem rv2hv
+my $p; ${$p->{S}} = 1;              helem rv2hv
+my $p; my $x = $p->{a};             multideref     (also $k, $_, $1, -bar, 1.5)
+my $p; my $x = $p->{f()};           helem rv2hv
+sub f(){1} my $p; $p->{f()};        multideref
+my $p; my $x = $p->{a}{f()};        helem multideref
+```
+
+Two things keep the rv2hv, and neither is in the text. A dereferenced
+element keeps it, at every level of the chain, when the context around the
+dereference modifies or vivifies it (push, chomp, grep, map, foreach, a
+sub's arguments, keys, assignment) -- perl's op_lvalue, not the source. A
+key that is not a constant or a plain scalar keeps it unless it
+constant-folds, which turns on declarations, or the element below it
+folded. Sites now hedges rv2hv for a hash element that is the whole
+operand of `@{}`, `%{}`, `${}` or `->@*`/`->%*`/`->$*`/`->$#*`, and for a
+brace subscript through a reference whose key is anything but a constant
+or a plain scalar. Simple-key chains read in place stay decided as no
+rv2hv. The chained `@{$r->{x}{$k}}` and `@{$a[0]{$k}}` no longer decide
+the one hash site the bare `@{$::{$k}}` stash deref does: perl emits two
+or none there, by context. The exact rule is issue 01a12059-30a8.
+
+Four files moved, all to a better bucket; no exact file moved.
+- WRONG → wider: `japh/abigail.t` (`@{$program -> {SKIP_OS}}` at 191, 193,
+  199, 204, 205), `op/gmagic.t` (`push @{ $self->{values} }` at 233),
+  `op/ref.t` (`$ref->{shift()}` at 343), `porting/libperl.t`
+  (`push @{$symbols->{xref}{$sym}}` at 212, a `?:` key at 307).
+
+`japh/abigail.t:177`, `push @{$progs [-1] {$key}}`, was matched by the
+decided stash-deref site and is now a hedge; the file is wider either way.
+### Smartmatch against an array or hash reports the reference perl takes
+
+*2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0.*
+
+perl compiles each array or hash operand of `~~`, and the condition of
+`when`, through `ref_array_or_hash`, so `1 ~~ @l` is `1 ~~ \@l` (Deparse
+agrees). Measured with `-MO=Concise`:
+
+```
+my @l; 1 ~~ @l;   @l ~~ 1;          1 srefgen   (also %h, @_, @$r, %$r, @{$r})
+my @l; my @m; @l ~~ @m;             2 srefgen
+my $r; 1 ~~ $r->@*;  1 ~~ $r->%*;   1 srefgen
+when (@l) {...}  when (%h) {...}    1 srefgen   (also `print 1 when @l;`)
+my $x; 1 ~~ $x;                     0
+my @l; 1 ~~ @l[0,1];                0           (a slice: anonlist)
+when ([1]) / when (!@l) / when (@l > 1)  0
+```
+
+Sites now decides a reference for each aggregate operand of `~~` and for an
+aggregate `when` condition.
+
+| Bucket | Files | Share of measured |
+|---|---:|---:|
+| exact | 489 | 82.5% |
+| wider | 75 | 12.6% |
+| **WRONG** | **9** | **1.5%** |
+| no-answer | 20 | 3.4% |
+| *measured (denominator)* | *593* | |
+| excluded, environmental | 26 | — |
+| runner error | 1 | — |
+
+Two files moved, none to a worse bucket. Re-baselined at CI's 8m per-file
+timeout.
+
+- WRONG → exact: `op/switch.t` (`when (@list)` at 1101, `when (%list)` at
+  1120).
+- no-answer → exact: `op/smartmatch.t`, whose `/x/ ~~ @a` and `/x/ ~~ %h`
+  srefgens are now answered.
+
+The table is measured on the merged tree, with the `#line` and empty-brace
+fixes beside these three (re-baselined together at CI's 8m per-file
+timeout): lib/deprecate.t's WRONG -> wider is the `#line` fix's.
+
+### A postfix hash slice reports perl's rv2hv
+
+*2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0.*
+
+`$h->@{...}` is `@$h{...}` spelled postfix, and Sites decided the prefix
+form while it had no case for the postfix one. Measured with `-MO=Concise`:
+
+```
+my $h; my @x = $h->@{1,2};          hslice, rv2hv
+my $h; my @x = $h->%{1,3};          kvhslice, rv2hv
+my @x = {1..4}->%{1,3};             anonhash, kvhslice, rv2hv
+my $a; my @x = $a->@[1,2];          aslice, rv2av    (no rv2hv)
+my $a; my @x = $a->%[1,2];          kvaslice, rv2av  (no rv2hv)
+my $a; my @x = $a->@*;              rv2av            (no rv2hv)
+```
+
+A brace subscript whose base is a bare `@` or `%` -- the right operand of
+an arrow -- now decides a hash site.
+
+| Bucket | Files | Share of measured |
+|---|---:|---:|
+| exact | 487 | 82.1% |
+| wider | 74 | 12.5% |
+| **WRONG** | **11** | **1.9%** |
+| no-answer | 21 | 3.5% |
+| *measured (denominator)* | *593* | |
+| excluded, environmental | 26 | — |
+| runner error | 1 | — |
+
+No file moved. Re-baselined at CI's 8m per-file timeout.
+
+`op/postfixderef.t` stays WRONG on another cause: its findings at 148 and
+316 cleared, and what is left is a postfix slice inside an interpolated
+string, `"$_->@{foo}"` and `"@{[foo->@{foo}]}"` at 340, 344 and 347.
+
+### `$#{ EXPR }` hedges the structure it hides
+
+*2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0.*
+
+The lexer emits `$#{ EXPR }` as one Term, so whatever the block holds is
+invisible to a walk over nodes. `hidesStructure` looked for a nested opener
+after `${`, `@{` or `%{` and never saw the two-byte `$#` sigil, so the
+subject committed to the statement with nothing in it. Measured with
+`-MO=Concise`:
+
+```
+my @a; my $n = $#{ \@a };          srefgen, rv2av, av2arylen
+my $r; my $n = $#{$r->{a}};        rv2hv, rv2av, av2arylen
+my $n = $#{ {a=>[1]}->{a} };       anonhash, anonlist, rv2hv, ...
+my $r; my $n = $#{$r};  $#$r;      rv2av, av2arylen  (no marker)
+```
+
+A `$#{...}` holding anything but a plain variable or name now hedges every
+marker; `$#$r`, `$#{$r}` and `$#{a}` stay quiet.
+
+| Bucket | Files | Share of measured |
+|---|---:|---:|
+| exact | 487 | 82.1% |
+| wider | 74 | 12.5% |
+| **WRONG** | **11** | **1.9%** |
+| no-answer | 21 | 3.5% |
+| *measured (denominator)* | *593* | |
+| excluded, environmental | 26 | — |
+| runner error | 1 | — |
+
+One file moved, to a better bucket. Re-baselined at CI's 8m per-file timeout.
+
+- WRONG → wider: `op/goto.t` (its `$#{ \@a }` at line 668 hedges).
+
+`op/gmagic.t` stays WRONG on another cause: its `$#{ ... }` finding at 227
+cleared, and what is left is a hash read through `->{...}` inside a block
+dereference, `push @{ $self->{values} }, $value;` at 233.
+
+### An empty brace at statement position is an anonymous hash
+
+*2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0.*
+
+perl reads `{` followed by `}`, with only whitespace or comments between, at
+statement position as an anonymous hash (toke.c:6706). Deparse writes it
+`{};` with no `+`, so it is `-MO=Concise` that shows it:
+
+```
+{}   { }   { # c\n }   {\n}   {} ;   L: {}     emptyavhv v/ANONHASH
+sub f { 1; {} }   if ($x) { {} }               emptyavhv
+{{{}}}                                         two enterloops, one emptyavhv
+{ 1 }   { ; }   {;}                            enterloop: a block
+```
+
+The parser read each as an empty block. `braceOpensAnonHash` now answers
+hash for an empty brace, and canon writes an empty bare block as `{;}`, the
+spelling that stays a block. No file changed bucket: comp/parser.t's
+anonhash:125 finding cleared, and it stays WRONG on its interpolation at
+468. The table is the one below.
+
+### The subject reports perl's line numbers across a `#line` directive
+
+*2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0.*
+
+A `#line N "name"` comment renumbers the lines after it, and a name moves
+them into another file. perl's lexer (`toke.c` `S_incline`) looks for one at
+the start of every line it reaches between tokens and at every line of POD.
+Measured with `-MO=Concise`, the line of the statement after each:
+
+```
+#line 100            100       # line 100 / #\tline\t100   100
+  #line 100          ignored   (indented)
+#line                ignored   (no number)
+$a=1; #line 100      ignored   (after code)
+"\n#line 100\n"      ignored   (inside a string, a heredoc, qw or /x)
+=pod / #line 200     200       (inside POD)
+#line 77x            ignored   (no blank after the number)
+#line 47 bang eth    ignored   (a bare name ends at a blank)
+#line 100 other.pl   other.pl:100   (bare or "quoted", blanks allowed in quotes)
+#line 43 "BBF        "BBF:43   (an unclosed quote is part of a bare name)
+#line 60 ""          60, same file
+```
+
+The oracle keeps only sites whose COP names the file it was given, so a
+statement a directive moved into another file is not this file's. The
+subject reported physical lines, and lib/deprecate.t's `#line 1001` put
+perl's sites at 1019 and 1039 against the subject's 66 and 86.
+`parse.PerlLines` now numbers the lines as perl does, from the lexer's
+Comment and Pod tokens, and the subject renumbers its sites by it and drops
+those in another file. The parse tree's spans stay physical.
+
+| Bucket | Files | Share of measured |
+|---|---:|---:|
+| exact | 487 | 82.1% |
+| wider | 74 | 12.5% |
+| **WRONG** | **11** | **1.9%** |
+| no-answer | 21 | 3.5% |
+| *measured (denominator)* | *593* | |
+| excluded, environmental | 26 | — |
+| runner error | 1 | — |
+
+One file moved, to a better bucket. Re-baselined at CI's 8m per-file
+timeout.
+
+- WRONG → wider: `lib/deprecate.t`. Its hash sites at 1019 and 1039 now
+  meet the subject's statements; they are wider rather than exact because
+  `$libdir{$lib}` and `$tests{$lib}` are named-hash reads, which the
+  subject hedges by design.
+
+No WRONG file left in the corpus is a `#line` renumbering. The interpolated
+code a directive can sit in -- comp/parser.t's `"${\n#line 53\n_}"` -- is not
+honoured by `PerlLines`, since the lexer reads that string as one token; the
+oracle drops everything in comp/parser.t after its `#line 23 KASHPRITZA`,
+which is above those cases.
+
+### A prototype slot reports the reference perl takes
+
+*2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0.*
+
+perl compiles an argument as a reference when it fills a `\X` slot of the
+callee's prototype, a glob when it fills a `*` slot, and an array or hash
+when it fills a `+` slot. Each is a srefgen with no `\` in the source.
+Measured with `-MO=Concise`:
+
+```
+sub f(\@){1} my @a; f(@a);          1 srefgen   (also \%, \$, \&, \[$@%])
+sub f(*){1} f(*FOO);                1 srefgen   (also *$x, *{"FOO"})
+sub f(*){1} f(FOO); f($fh);         0
+sub f(+){1} my @a; f(@a);           1 srefgen   (also %h)
+sub f(+){1} my $x; f($x);           0
+my sub f(\@){1} my @a; f(@a);       1 srefgen   (state sub too)
+sub f(\@){1} my @a; &f(@a);         0           (& ignores the prototype)
+sub f(\@){1} my @a; main->f(@a);    0           (a method has none)
+my @a; f(@a); sub f(\@){1}          0           (declared below the call)
+```
+
+`parse.Sites` reported none of them. The parser now marks such an argument
+`RefSlot` where it reads the call, against the prototype it can see at that
+point -- its own subs, imported ones, lexical ones and the subs perl defines
+at startup (`interpreterSubs`, so `Internals::SvREADONLY(@a, 1)` counts, as
+perl's srefgen says it should) -- and Sites reports a decided reference for
+each.
+
+| Bucket | Files | Share of measured |
+|---|---:|---:|
+| exact | 487 | 82.1% |
+| wider | 73 | 12.3% |
+| **WRONG** | **12** | **2.0%** |
+| no-answer | 21 | 3.5% |
+| *measured (denominator)* | *593* | |
+| excluded, environmental | 26 | — |
+| runner error | 1 | — |
+
+Fifteen files moved, none to a worse bucket. Re-baselined at CI's 8m
+per-file timeout.
+
+- WRONG → exact: `comp/proto.t`, `io/scalar.t`, `io/scalar_ungetc.t`,
+  `lib/universal.t`, `op/hash.t`, `op/lexsub.t`, `op/sort.t`, `op/sselect.t`.
+- WRONG → wider: `op/each.t`, `op/gv.t`, `op/hash-clear-placeholders.t`.
+  The prototype sites are decided; what stays wider is the named-hash hedge
+  (`delete $hash{...}` in hash-clear-placeholders.t, for one).
+- no-answer → exact: `op/push.t`, `op/splice.t`, `op/unshift.t`,
+  `re/qr-72922.t`, each through an `Internals::` call whose srefgen is now
+  its only marker.
+
+`op/coreamp.t` and `op/sub_lval.t` stay WRONG on other causes: their
+prototype findings (coreamp.t:673, sub_lval.t:560) cleared, and what is left
+is a reference inside an interpolated `${\ ...}` or `@{[ ... ]}`
+(coreamp.t:178,248; sub_lval.t:861,863). No WRONG file left in the corpus
+is a prototype-driven reference.
+
+### A site spans to the end of its statement
+
+*2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0.*
+
+perl's nextstate for a multi-line statement can carry its LAST line: copline
+moves past an anonymous sub, a `when` block or a bareword subscript.
+Measured:
+
+```
+my @a;
+my @r = (\@a, sub {
+ 1;
+});
+-> nextstate(main 2 rep.pl:4), srefgen
+```
+
+The subject ended each site at its own node, line 2, so no span contained
+line 4. `parse.Sites` now spans every decided site over its whole statement.
+
+| Bucket | Files | Share of measured |
+|---|---:|---:|
+| exact | 475 | 80.1% |
+| wider | 70 | 11.8% |
+| **WRONG** | **23** | **3.9%** |
+| no-answer | 25 | 4.2% |
+| *measured (denominator)* | *593* | |
+| excluded, environmental | 26 | — |
+| runner error | 1 | — |
+
+The table is measured with the oracle's own cloned-sub fix beside this one
+(recorded under "The harness measures internal/parse"): `op/concat2.t` WRONG → exact is that fix's, not
+this one's. Re-baselined together on the merged tree, at CI's 8m per-file
+timeout.
+
+Three files moved here:
+
+- `porting/dual-life.t` WRONG → exact: the anonhash at line 60.
+- `op/bop.t` WRONG → wider: the six anonhashes at line 706 are now decided;
+  the file's `wider` is its rv2hv hedges at 115, 116, 119 and 122, unchanged.
+- `op/sprintf2.t` WRONG → wider is **not a fix**. The subject pools every
+  site under its top-level statement, and a hash hedge that ended at line 335
+  now spans that statement, 333 to 466, so it excuses perl's rv2hv at 452
+  (`@{$test->{args}}`), which the subject still does not decide. The pooling
+  is a separate question.
+
+Inside files that stay WRONG, the WRONG findings
+`comp/proto.t:540,544,589,589,594,594`, `op/switch.t` srefgen:711 and
+match:209, and `japh/abigail.t` anonhash:211 cleared. Sixteen findings
+cleared across these six files with none added, and no file in the corpus
+moved to a worse bucket.
+
+### The harness measures internal/parse
+
+*2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0 (the pin in
+`internal/parseoracle/testdata/corpus.pin`).*
+
+The oracle's default subject is the M1 parser: a run that names no subject
+measures internal/parse, through `internal/parse/cmd/subject` as a
+subprocess, so the oracle still parses no Perl itself. The subject parses
+with `parse.ParseFileFrom`, resolving `use` and `require` the way perl's
+suite does from `t/` (`.`, `..`, `../lib`), and reports the prototypes its
+tree carries. `baseline.txt` was regenerated against it:
+
+```
+PARSEORACLE_SHIM=<shim> PERL5_CORPUS=~/dev/perl5 PARSEORACLE_TIMEOUT=8m \
+  go test ./internal/parseoracle/ -run TestRatchetCorpus -parseoracle.corpus -parseoracle.update -v
+```
+
+| Bucket | Files | Share of measured |
+|---|---:|---:|
+| exact | 474 | 79.9% |
+| wider | 68 | 11.5% |
+| **WRONG** | **26** | **4.4%** |
+| no-answer | 25 | 4.2% |
+| *measured (denominator)* | *593* | |
+| excluded, environmental | 26 | — |
+| runner error | 1 | — |
+
+**The starting exact rate was 473 of 593 measured files, 79.8%.** Of those,
+269 had a marker in play and 204 had none. Counting a cloned anonymous sub's
+ops once (below) moved `op/concat2.t` WRONG → exact, making it 474, 79.9%.
+The per-file baseline fails in both directions, `exact` included, so it is
+now the exact-match ratchet against internal/parse.
+
+Against the tree-sitter baseline it replaces, 203 files moved, 2,456,441
+bytes of source. By bucket, files and bytes:
+
+| Bucket | Before | After |
+|---|---:|---:|
+| exact | 405 (1,267,651 B) | 473 (2,022,999 B) |
+| wider | 12 (50,607 B) | 68 (963,057 B) |
+| WRONG | 2 (9,727 B) | 27 (475,243 B) |
+| no-answer | 174 (2,368,112 B) | 25 (234,798 B) |
+
+| Movement | Files | Bytes |
+|---|---:|---:|
+| no-answer → exact | 102 | 994,146 |
+| no-answer → wider | 35 | 751,895 |
+| no-answer → WRONG | 17 | 409,431 |
+| exact → wider | 31 | 201,435 |
+| exact → WRONG | 4 | 39,200 |
+| wider → WRONG | 6 | 26,612 |
+| wider → no-answer | 5 | 22,158 |
+| WRONG → wider | 2 | 9,727 |
+| wider → exact | 1 | 1,837 |
+
+no-answer collapsed because internal/parse declines a construct with an
+Unknown that hedges every marker in its statement, where tree-sitter's error
+node made the whole file unanswerable. Most of that moved to `exact`; the
+hedges are the new `wider`. Both tree-sitter WRONG files, `comp/our.t` and
+`op/universal.t`, left WRONG.
+
+**WRONG is 26 files under internal/parse**, each a defect of this parser,
+pinned by path in `TestCorpusBaselineIsIntact` until 01a0a8cd removes them:
+
+- A prototype-driven `\` perl applied at a call the subject committed to as a
+  plain call, with no reference site:
+  `comp/proto.t` (`sreftest`, `sub_aref`, `a_subx`: the file's own `\`
+  prototypes), `io/scalar.t:364` (`has_trailing_nul $memfile`),
+  `io/scalar_ungetc.t:18`, `lib/universal.t:28`, `op/sort.t:910`,
+  `op/sselect.t:35` (`Internals::SvREADONLY`), `op/gv.t:1030`
+  (`Internals::SvREFCNT`), `op/hash-clear-placeholders.t:16,29`
+  (`lock_keys_plus(%hash)`, `Internals::hv_clear_placeholders`),
+  `op/each.t:71` (`Hash::Util::num_buckets(%h)`), `op/hash.t:141`
+  (`Hash::Util::bucket_ratio(%$h)`), `op/sub_lval.t:560,974`
+  (`bucket_ratio`, `SvREADONLY($])`), `op/lexsub.t:369` (`p(my @a)`, a
+  lexical sub with a `\` prototype).
+- A reference inside an interpolated `${\ ...}` the subject does not look
+  into: `comp/parser.t:468` (`qr/${\ <<END ...}/`), `op/coreamp.t:178,248`
+  (`qr/...${\op_desc($o)}.../`), `re/reg_eval_scope.t:99` (`/b${\do {...}}/`).
+- Not a defect of the subject: `op/concat2.t:31` and `op/coreamp.t:23,29`
+  were the oracle counting a `use overload` sub twice. A closure, or any anon
+  sub under `$^P`, is cloned, and overload installs the clone in the stash: a
+  second CV sharing the prototype's op tree. The walk now dedupes on the op
+  tree, and `TestOracleCountsClonedSubOnce` pins it.
+- `op/goto.t:734` — `\@{; quotemeta do { u: "." } }` in `sub { ... }->()`.
+- A hash read through `->{...}` that perl compiles as `rv2hv`, inside a block
+  dereference or as a computed key: `japh/abigail.t:191` (`@{$program -> {SKIP_OS}}`),
+  `op/gmagic.t:227` (`$#{ $self->{values} }`), `op/sprintf2.t:452`
+  (`@{$test->{args}}`), `porting/libperl.t:212` (`@{$symbols->{xref}{$sym}}`),
+  `op/ref.t:343` (`$ref->{shift()}`).
+- Postfix-dereference slices: `op/postfixderef.t:148,316` (`->@{...}`, `->%{...}`).
+- A site perl attributes to the statement's closing line, below the spans the
+  subject reports it at: `op/bop.t:706` (six anonymous hashes in `my @combos
+  = (...)`) and `porting/dual-life.t:60` (`{ no_chdir => 1, wanted => ... }`).
+- `lib/deprecate.t` — `#line 1001` renumbers the file; perl's sites at
+  1019 and 1039 are physical lines the subject reports elsewhere.
+- `op/switch.t:711,1101` — `when(\&contains_x)` and `when (@list)`,
+  given/when's smartmatch taking a reference.
+
+**Where the sweep runs: in CI, not `make test`.** Measured on this 24-core
+machine, the sweep took **531 s** at CI's `PARSEORACLE_TIMEOUT=8m`, of which
+~8 minutes is `re/pat_psycho.t` waiting out its timeout (its `watchdog`
+forks a monitor holding the oracle's pipe; it is baselined `error`). At the
+60 s default it took **123 s** but failed: under load average 28,
+`op/pack.t` timed out and moved `wider → error`. So the sweep is either nine
+minutes or flaky, and neither belongs in a gate run before every commit. It
+gates in `.github/workflows/parse-fidelity.yml`, which runs
+`TestRatchetCorpus` at the 8 m budget and checks its receipt;
+`-parseoracle.corpus` runs it locally.
+
+### The tree-sitter measurement this replaced
+
 *2026-09-13. Corpus `perl5` at `94e5086608`, interpreter 5.42.0 (the pin in
 `internal/parseoracle/testdata/corpus.pin`).*
 

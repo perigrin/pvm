@@ -167,10 +167,15 @@ func CompareFacts(oracle Facts, subject SubjectFacts) Verdict {
 // which is a change to the adapter and not to this rule.
 //
 // A hedge is deliberately consulted only where there is a deficit for it to
-// explain. Our grammar marks every unqualified `f(...)` call unresolved, so
-// hedges are near-universal and say nothing on their own; treating one as
-// disagreement would score `sub f{} f(@a)` -- where both sides say "no
-// reference" -- as wider, which is not a hedge about anything.
+// explain. A subject hedges wherever it could not settle a marker -- the
+// parser's (`internal/parse/sites.go`) hedges every marker over a statement
+// it refused and a hash it cannot tell lexical from package -- so a hedge
+// says nothing on its own where perl found nothing; treating one as
+// disagreement would score a refused `sub f{} f(@a)` -- where perl says "no
+// reference" -- as wider, which is not a hedge about anything. A call's
+// reference is decided, not hedged: the parser reports a `\` and each
+// argument that fills a `\`, `*` or `+` prototype slot perl compiles as a
+// reference, and says nothing for a call that meets no prototype.
 //
 // Lines are part of the contract. A site reported without one (line 0)
 // spans no line perl attributed an op to, so a decided site there accounts
@@ -343,9 +348,9 @@ func groupByStatement(sites []SubjectCallSite) []*statement {
 		}
 
 		// Keyed on the START line alone. A statement reports one site per
-		// marker it decided, each ending at its OWN node -- sites.go:83-101
-		// explains why both ends are needed -- so a statement holding three
-		// references emits three sites sharing a start and differing in end:
+		// marker it decided, and a subject that ends each at its OWN node
+		// emits, for a statement holding three references, three sites
+		// sharing a start and differing in end:
 		//
 		//	for (                      # op/ref.t:214
 		//	    [ 'undef', \undef  ],  # 215

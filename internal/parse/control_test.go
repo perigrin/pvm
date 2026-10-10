@@ -348,3 +348,43 @@ func countKind(n *parse.Node, k parse.Kind) int {
 	}
 	return total
 }
+
+// TestForHeadWithTwoExpressionsRefuses is the parser fuzzer's `for(0A0)`.
+// A for head's clauses are separated by `;`, and two expressions with
+// nothing between them are not a head: measured on 5.42.0, `for(0A0){}`
+// is "Bareword found where operator expected", `for (1 2) {}` "Number found
+// where operator expected", and `for (my $i=0; $i<3 $i++) {}` "Scalar found
+// where operator expected". Read as two parts, canon wrote the second after
+// the head as the loop's body.
+func TestForHeadWithTwoExpressionsRefuses(t *testing.T) {
+	for _, src := range []string{"for(0A0)", "for(0 A0){}", "for (1 2) {}", "for (my $i=0; $i<3 $i++) {}"} {
+		found := collectUnknown(parse.Parse([]byte(src)))
+		if len(found) == 0 || found[0].Refusal != parse.TrailingTokens {
+			t.Errorf("%q: want a trailing_tokens refusal, got %v", src, refusalCodes(found))
+		}
+	}
+	for _, src := range []string{"for (1, 2) {}", "for (my $i=0; $i<3; $i++) {}", "for (;;) {}", "for my $x (@a) {}"} {
+		if found := collectUnknown(parse.Parse([]byte(src))); len(found) != 0 {
+			t.Errorf("%q: perl compiles this, but it refuses: %v", src, refusalCodes(found))
+		}
+	}
+}
+
+// TestCStyleForHeadNeedsThreeClauses is the parser fuzzer's `for(0;0)`. A
+// C-style head is three clauses and two `;`, any of them empty. Measured on
+// 5.42.0, `for(0;0){}` and `for(;0){}` are "syntax error ... near "0)"",
+// `for(0;){}` near ";)", `for(;;;){}` near ";;" and `for(0;0;0;0){}` near
+// "0;". Read as two parts, canon wrote a head that re-read with a third.
+func TestCStyleForHeadNeedsThreeClauses(t *testing.T) {
+	for _, src := range []string{"for(0;0)", "for(0;0){}", "for(;0){}", "for(0;){}", "for(;;;){}", "for(0;0;0;0){}"} {
+		found := collectUnknown(parse.Parse([]byte(src)))
+		if len(found) == 0 || found[0].Refusal != parse.TrailingTokens {
+			t.Errorf("%q: want a trailing_tokens refusal, got %v", src, refusalCodes(found))
+		}
+	}
+	for _, src := range []string{"for(0;0;){}", "for(;0;){}", "for(0;;){}", "for(;;){}", "for(my $i=0;$i<1;){}"} {
+		if found := collectUnknown(parse.Parse([]byte(src))); len(found) != 0 {
+			t.Errorf("%q: perl compiles this, but it refuses: %v", src, refusalCodes(found))
+		}
+	}
+}

@@ -40,6 +40,24 @@ func (p *parser) parseExpr(minBP int) *Node {
 //
 // The `and` took `(1, 2)` as its left operand. parseParenList assembles that
 // list itself, so it needs the loop without the leading parseTerm.
+// markFatOperand marks the word directly left of a `=>` as autoquoted when
+// it is an operator's operand rather than the whole left side: measured on
+// 5.42.0, `(!foo=>0)` holds "" and `(1+foo=>0)` holds 1, foo never called.
+// A parenthesis between the word and the `=>` ends the reach -- `(foo)=>0`
+// calls foo -- so only Unary, Binary, CmpChain and Ternary right edges are
+// followed, and a Declaration's, whose last child is its initialiser: measured on
+// 5.42.0, `(my $x = foo=>0)` leaves $x "foo". The word must be bare: its
+// call's own parens end the reach as well, and `(!foo()=>0)` calls foo.
+func markFatOperand(left *Node) {
+	n := left
+	for !n.Paren && len(n.Children) > 0 && (n.Kind == Unary || n.Kind == Binary || n.Kind == CmpChain || n.Kind == Ternary || n.Kind == Declaration) {
+		n = n.Children[len(n.Children)-1]
+	}
+	if n != left && !n.Paren && n.Kind == Call && len(n.Children) == 0 && n.End == left.End && n.End-n.Start == len(n.Text) {
+		n.Fat = true
+	}
+}
+
 // elementlessAfterComma reports whether a comma followed by tok separates
 // nothing: tok cannot begin an element, so the comma is dropped. A closer, a
 // terminator, another comma, a statement modifier, and the three word
@@ -106,6 +124,10 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 		op, ok := p.infixOp(text)
 		if !ok || op.BP <= minBP {
 			return left
+		}
+
+		if text == "=>" {
+			markFatOperand(left)
 		}
 
 		// A TRAILING COMMA is a separator with no element after it, not an
@@ -176,6 +198,10 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 			}
 		}
 
+		if u := p.refuseAmbiguousSigil(left, tok, text); u != nil {
+			return u
+		}
+
 		// Comparisons take their own path: one may START a chain, EXTEND the
 		// chain it matches, or REJECT where a chain already stands.
 		if cls, _ := compareClass(text); cls != notComparison {
@@ -207,6 +233,11 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 				Children: []*Node{left},
 			}, text, "postfix")
 		case "(", "[", "{":
+			// A `(` perl does not read as a call ends the expression, and
+			// whatever owns it reports the bytes left over.
+			if text == "(" && !p.callsHere(left) {
+				return left
+			}
 			left = p.parseSubscript(left, text)
 		case "->":
 			// `->` before a subscript opener is the SAME operation as the
@@ -461,6 +492,75 @@ func (p *parser) peekSubscript() (open string, arrow bool, ok bool) {
 	return "", false, false
 }
 
+// callsHere reports whether a `(` after left is a call, which perly.y allows
+// only after a `subscripted`, after the name `&` or `->` introduces, or
+// after a bareword the parser left its parens to: `$x[0]()`, `$x->(1)(2)`,
+// `&$x()`, `$x->$m()`, `time ()`. After any other term perl refuses it --
+// measured on 5.42.0, `$x()`, `my $x()`, `f()()`, `(f)()`, `$x->m()()` and
+// `&$x()()` are each a syntax error.
+func (p *parser) callsHere(left *Node) bool {
+	if p.subscripted(left) || p.ampersandCallee(left) {
+		return true
+	}
+	// A bareword whose parens are its own argument list: `time ()`,
+	// `__PACKAGE__()`, `CORE::time()`.
+	if left.Kind == Call && len(left.Children) == 0 && p.src[left.End-1] != ')' {
+		return true
+	}
+	// The method name or the arrow call's own parens: `$x->$m` or the `(1)`
+	// of `$x->(1)`, not a postfix slice, `$x->@[0]`. Once called,
+	// `$x->$m()` is a term, and its `(1)` is read by subscripted.
+	return p.afterArrow(left) && (left.Paren || p.src[left.Start] == '$') &&
+		!(left.Kind == Index && left.Text == "(")
+}
+
+// subscripted is perly.y's `subscripted`: an element of a scalar's array or
+// hash, a list slice, an arrow call, or a call after any of these.
+func (p *parser) subscripted(n *Node) bool {
+	if n.Kind != Index || len(n.Children) == 0 {
+		return false
+	}
+	base := n.Children[0]
+	if n.Text == "(" {
+		return p.subscripted(base) || base.Paren && p.afterArrow(base)
+	}
+	if n.Arrow {
+		return true
+	}
+	// A slice -- `@x[0]`, `%$x{a}`, `$x->@[0]` -- or a block dereference
+	// read as a subscript on its sigil, `${$x}` and `&{$x}`.
+	if c := p.src[n.Start]; c == '@' || c == '%' {
+		return false
+	}
+	return !(base.Kind == Term && len(base.Text) == 1 && strings.ContainsAny(base.Text, "$&@%*"))
+}
+
+// ampersandCallee reports whether n is what `&` calls: `&f`, `&$x`,
+// `&{$x}` or `&{; $x}`.
+func (p *parser) ampersandCallee(n *Node) bool {
+	switch n.Kind {
+	case Term:
+		return len(n.Text) > 1 && n.Text[0] == '&'
+	case Unary:
+		return n.Text == "&"
+	case Index:
+		return n.Text == "{" && len(n.Children) > 0 && n.Children[0].Kind == Term && n.Children[0].Text == "&"
+	}
+	return false
+}
+
+// afterArrow reports whether n is the first term after a `->`.
+func (p *parser) afterArrow(n *Node) bool {
+	i := p.pos - 1
+	for i >= 0 && p.toks[i].Start >= n.Start {
+		i--
+	}
+	for i >= 0 && (isTrivia(p.toks[i].Kind) || p.toks[i].Kind == lexer.HeredocBody) {
+		i--
+	}
+	return i >= 0 && p.text(p.toks[i]) == "->"
+}
+
 // parseSubscript handles the postfix chain: a call, an index, a key.
 func (p *parser) parseSubscript(left *Node, open string) *Node {
 	tok, _ := p.peekSignificant()
@@ -519,4 +619,40 @@ func autoquote(key *Node) {
 	}
 	key.Kind = Term
 	key.Resolved = false
+}
+
+// refuseAmbiguousSigil refuses `A &y` and `A*y`: a `&` or `*` read here as an
+// operator, after a bareword, with a quote-op name glued after it. The lexer
+// has no symbol table, so it read a sigil and shielded the name as a sub's or
+// a glob's; reaching this loop, the parser reads the operator, which perl does
+// for a bareword it has not seen declared -- and then perl reads `y` as the
+// transliteration it begins. Measured on 5.42.0, `A &y;` and `A*y` are
+// refused, while `sub A {} A &y;` calls A with `&y`. Neither reading here is
+// perl's token stream, so the parser reports it rather than guess.
+//
+// The Unknown runs to the end of the statement: what follows the name was
+// lexed for the wrong reading too.
+func (p *parser) refuseAmbiguousSigil(left *Node, tok lexer.Token, text string) *Node {
+	if text != "&" && text != "*" {
+		return nil
+	}
+	if text == "&" && tok.Kind != lexer.FuncSigil {
+		return nil
+	}
+	prev := p.pos - 1
+	for prev >= 0 && (p.toks[prev].Kind == lexer.Whitespace || p.toks[prev].Kind == lexer.Comment) {
+		prev--
+	}
+	if prev < 0 || p.toks[prev].Kind != lexer.Word {
+		return nil
+	}
+	name, ok := p.peekAfter(tok)
+	if !ok || name.Kind != lexer.Word || name.Start != tok.End || !lexer.IsQuoteOpName(p.text(name)) {
+		return nil
+	}
+	if after, ok := p.peekAfter(name); ok && p.text(after) == "=>" {
+		return nil
+	}
+	p.skipToStatementEnd()
+	return &Node{Kind: Unknown, Refusal: AmbiguousSigil, Start: left.Start, End: p.prevEnd()}
 }

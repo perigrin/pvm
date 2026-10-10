@@ -193,10 +193,9 @@ func TestBindingStillExcludesSubstAndTrans(t *testing.T) {
 // (`compare_facts.go:349-359`), so a site reported as the point 3-3 is never
 // found and the marker scores WRONG.
 //
-// Reporting the node's own line alone was the fix for sub bodies -- a
-// backslash inside `sub foo {` must not pool under the sub's whole span --
-// and it broke this. Both hold if the span runs from the statement's line to
-// the node's: it contains perl's line either way.
+// The span runs over the whole statement, so it contains perl's line
+// wherever in the statement perl puts it -- TestSiteSpansToStatementEnd is
+// the case where that is the last line.
 //
 // t/comp/parser_run.t:17 is the surviving case, a four-line call whose hash
 // sits on line 19.
@@ -225,25 +224,38 @@ func TestSiteSpansReachTheirStatement(t *testing.T) {
 	}
 }
 
-// TestSiteSpansStayInsideTheirStatement is the other half, and the reason
-// the span cannot simply be the whole statement.
+// TestSiteSpansToStatementEnd is perl's nextstate rule for a statement that
+// runs past its last marker. perl's copline moves past an anonymous sub, so
+// the nextstate is stamped with the statement's LAST line. Measured on 5.42.0:
 //
-// A `\` inside a sub body must NOT pool under `sub foo {`'s span: perl walks
-// the CVs and reports it at the body's own line, and a site covering the
-// whole sub is never reached from there. The span must START at the
-// statement but END at the node.
-func TestSiteSpansStayInsideTheirStatement(t *testing.T) {
-	const src = "sub foo {\n    my $r = \\$x;\n}\n"
-
-	root := parse.Parse([]byte(src))
-	for _, s := range parse.Sites(root, []byte(src)) {
-		if s.Kind != parseoracle.SiteKindReference || s.Unresolved {
-			continue
+//	my @a;               # line 1
+//	my @r = (\@a, sub {  # line 2
+//	 1;
+//	});                  # line 4
+//	-> nextstate(main 2 rep.pl:4), srefgen
+//
+// A site ending at its own node, line 2, never contains line 4, and
+// `innermost` scores the reference WRONG. A one-line statement has nowhere
+// further to reach, so its span is the line itself.
+func TestSiteSpansToStatementEnd(t *testing.T) {
+	for _, c := range []struct {
+		src        string
+		start, end int
+	}{
+		{"my @a;\nmy @r = (\\@a, sub {\n 1;\n});\n", 2, 4},
+		{"my @a;\nmy $r = \\@a;\nmy $s;\n", 2, 2},
+	} {
+		var got []string
+		for _, s := range decidedSites(c.src) {
+			if s.Kind != parseoracle.SiteKindReference {
+				continue
+			}
+			got = append(got, fmt.Sprintf("%d-%d", s.Line, s.EndLine))
 		}
-		if s.EndLine != 2 {
-			t.Errorf("reference site is %d-%d; it must END at line 2, where "+
-				"the backslash is, not at the sub's closing brace",
-				s.Line, s.EndLine)
+		want := fmt.Sprintf("%d-%d", c.start, c.end)
+		if len(got) != 1 || got[0] != want {
+			t.Errorf("%q: reference site spans %v, want [%s]: perl's nextstate "+
+				"for the statement is line %d", c.src, got, want, c.end)
 		}
 	}
 }
@@ -375,12 +387,17 @@ func TestDerefBlockContentsAreDecided(t *testing.T) {
 	for _, c := range []struct {
 		src   string
 		count int
+		// hashHedge is the one hedge a deref of a hash element keeps:
+		// whether perl folds the element into multideref turns on the
+		// context around the deref (TestArrowHashReadHedgesRv2hv), and
+		// that is not something hidden in the block.
+		hashHedge bool
 	}{
 		// The anonymous hash inside the deref, which perl reports once.
-		{`my $x = ${[{a=>214}]}[0];`, 1},
+		{`my $x = ${[{a=>214}]}[0];`, 1, false},
 		// A deref of a plain variable holds no marker at all.
-		{`my $r = ${$h->{k}};`, 0},
-		{`my @a = @{[ 1, 2 ]};`, 0},
+		{`my $r = ${$h->{k}};`, 0, true},
+		{`my @a = @{[ 1, 2 ]};`, 0, false},
 	} {
 		var n int
 		for _, k := range decidedKinds(c.src) {
@@ -392,7 +409,11 @@ func TestDerefBlockContentsAreDecided(t *testing.T) {
 			t.Errorf("%q: %d decided anonhash site(s), want %d",
 				c.src, n, c.count)
 		}
-		if hedged := hedgedKinds(c.src); len(hedged) > 0 {
+		hedged := hedgedKinds(c.src)
+		if c.hashHedge && len(hedged) == 1 && hedged[0] == parseoracle.SiteKindHash {
+			hedged = nil
+		}
+		if len(hedged) > 0 {
 			t.Errorf("%q: nothing is hidden here any more, yet it hedges %v",
 				c.src, hedged)
 		}
@@ -592,10 +613,10 @@ func decidedSites(src string) []parseoracle.SubjectCallSite {
 // CompareFacts attributes each of perl's sites to the INNERMOST subject
 // statement covering its line (`compare_facts.go:349`) and spends a decided
 // site there. perl's probe walks the CVs, so a backslash in a sub body is
-// reported at the body's line, not at the `sub` keyword's. A subject that
-// pools every site under the enclosing top-level statement's whole span
-// offers nothing at the inner line for that site to be spent against, and
-// the verdict is WRONG -- for a marker the parser read correctly.
+// reported at the body's line, not at the `sub` keyword's. A site whose span
+// misses that line offers nothing there for perl's site to be spent
+// against, and the verdict is WRONG -- for a marker the parser read
+// correctly.
 //
 // So a site's span must CONTAIN the line perl reports, and which line that
 // is depends on where the site sits:
@@ -609,16 +630,15 @@ func decidedSites(src string) []parseoracle.SubjectCallSite {
 //
 // An earlier version of this test asserted the node's line exactly and put
 // the second case at line 2. perl says 1, so that expectation was wrong; a
-// span from the statement's line to the node's satisfies both, which is what
-// `Sites` now produces.
+// span over the whole statement satisfies both, which is what `Sites`
+// produces.
 func TestSitesReportTheirOwnLine(t *testing.T) {
 	for _, c := range []struct {
 		src  string
 		kind string
 		// mustContain is the line perl attributes the site to.
 		mustContain int
-		// mustReach is the node's own line, which the span must also cover
-		// so a site deeper in a body is not pooled under a whole sub.
+		// mustReach is the node's own line, which the span must also cover.
 		mustReach int
 	}{
 		// perl's CV walk reports the backslash at line 2; `sub foo {` is 1.

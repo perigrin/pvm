@@ -25,6 +25,7 @@ import (
 // be and taken exactly where capture_with_end is mid-flight when the timeout
 // lands.
 func TestScratchFileNeverLandsInTheCorpus(t *testing.T) {
+	requirePOSIXOracle(t)
 	dir := t.TempDir()
 	src := "BEGIN { sleep 10 unless $INC{'O.pm'} }\nmy $x = 1;\n"
 	if err := os.WriteFile(filepath.Join(dir, "hang.pl"), []byte(src), 0o644); err != nil {

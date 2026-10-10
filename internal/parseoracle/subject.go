@@ -8,8 +8,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -140,6 +144,71 @@ type Subject struct {
 	Command []string
 	Dir     string
 	Timeout time.Duration
+}
+
+// internalParsePackage is the subject a run measures when it names none: the
+// M1 parser, internal/parse, behind the same subprocess contract as any other
+// implementation. It cannot be called in-process even in principle --
+// internal/parse imports this package for SubjectCallSite -- and it should
+// not be: the oracle parses no Perl itself.
+const internalParsePackage = "tamarou.com/pvm/internal/parse/cmd/subject"
+
+// internalParse builds internalParsePackage once per process and hands every
+// run the same binary.
+var internalParse struct {
+	once    sync.Once
+	subject *Subject
+	err     error
+}
+
+// defaultSubject is internal/parse as a Subject, built on first use.
+//
+// Built with `go build` from this package's own source directory, so it needs
+// the Go toolchain and a source checkout -- which every caller of Run has,
+// since Run is a measurement harness driven from `go test`. The binary lands
+// in the user cache directory under a fixed name, written to a temporary name
+// and renamed into place: a fixed name means repeated test runs do not leave a
+// binary behind each, and the rename means two test processes building at
+// once never exec a half-written file.
+func defaultSubject() (*Subject, error) {
+	internalParse.once.Do(func() {
+		internalParse.subject, internalParse.err = buildInternalParse()
+	})
+	return internalParse.subject, internalParse.err
+}
+
+func buildInternalParse() (*Subject, error) {
+	cache, err := os.UserCacheDir()
+	if err != nil {
+		return nil, fmt.Errorf("locating a directory for the internal/parse subject: %w", err)
+	}
+	dir := filepath.Join(cache, "pvm", "parseoracle")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return nil, fmt.Errorf("creating %s: %w", dir, err)
+	}
+	tmp, err := os.CreateTemp(dir, "subject-*")
+	if err != nil {
+		return nil, fmt.Errorf("creating the internal/parse subject: %w", err)
+	}
+	tmp.Close()
+
+	build := exec.Command("go", "build", "-o", tmp.Name(), internalParsePackage)
+	// From this file's directory rather than the caller's: the package path
+	// resolves only inside this module, wherever the run was started from.
+	if _, self, _, ok := runtime.Caller(0); ok {
+		build.Dir = filepath.Dir(self)
+	}
+	if out, err := build.CombinedOutput(); err != nil {
+		os.Remove(tmp.Name())
+		return nil, fmt.Errorf("building the internal/parse subject (%s): %v\n%s",
+			internalParsePackage, err, out)
+	}
+	bin := filepath.Join(dir, "subject")
+	if err := os.Rename(tmp.Name(), bin); err != nil {
+		os.Remove(tmp.Name())
+		return nil, fmt.Errorf("installing the internal/parse subject: %w", err)
+	}
+	return &Subject{Command: []string{bin}}, nil
 }
 
 // defaultSubjectTimeout bounds one file. The corpus contains files that wedge

@@ -1,4 +1,4 @@
-// ABOUTME: The parser's fuzz target: never panic, never lose a byte, never build an empty node.
+// ABOUTME: The parser's fuzz target: never panic, never lose a byte, never build an empty node, canon a fixpoint.
 // ABOUTME: Forward progress is structural rather than fuzzed — go test -fuzz hangs on a loop instead of failing.
 
 package parse_test
@@ -10,15 +10,20 @@ import (
 	"tamarou.com/pvm/internal/parse"
 )
 
-// fuzzSeeds are real Perl plus the shapes that stall a statement loop. Real
-// Perl mutates into interesting near-Perl; random bytes mostly do not.
-var fuzzSeeds = []string{
+// fuzzPerlSeeds are the real Perl in the corpus: each parses with no Unknown,
+// so each is one the canon fixpoint is asserted on.
+var fuzzPerlSeeds = []string{
 	"my $x = 42;",
 	"sub f { 1 }\nf();",
 	"if ($x) { print 1 } else { print 2 }",
 	"my %h = (a => 1);",
 	"print <<'EOF';\nbody\nEOF\n",
 	"s{a}{b}ge;",
+}
+
+// fuzzSeeds are real Perl plus the shapes that stall a statement loop. Real
+// Perl mutates into interesting near-Perl; random bytes mostly do not.
+var fuzzSeeds = append(append([]string{}, fuzzPerlSeeds...),
 	// The shapes that stall a naive loop: a closer with nothing open, an
 	// opener that never closes, and a statement with no semicolon.
 	"}",
@@ -30,6 +35,18 @@ var fuzzSeeds = []string{
 	"=pod\ntext\n=cut\n",
 	"__END__\nnot perl ) ( $$$\n",
 	"format STDOUT =\n@<<<<<\n$a\n.\n",
+)
+
+// fuzzEdgeSeeds are the degenerate inputs the ordinary suite checks beside
+// the corpus: nothing, control bytes, and long runs of one delimiter.
+var fuzzEdgeSeeds = []string{
+	"",
+	"\x00\x01\x02",
+	strings.Repeat("{", 100),
+	strings.Repeat("}", 100),
+	strings.Repeat(";", 100),
+	"'",
+	"\\",
 }
 
 // FuzzParser is the target. Run it with
@@ -54,17 +71,52 @@ func TestFuzzSeeds(t *testing.T) {
 	for _, src := range fuzzSeeds {
 		checkParseInvariants(t, src)
 	}
-	for _, src := range []string{
-		"",
-		"\x00\x01\x02",
-		strings.Repeat("{", 100),
-		strings.Repeat("}", 100),
-		strings.Repeat(";", 100),
-		"'",
-		"\\",
-	} {
+	for _, src := range fuzzEdgeSeeds {
 		checkParseInvariants(t, src)
 	}
+}
+
+// TestFuzzSeedsCanonFixpoint: canon is a fixpoint on every seed that parses
+// with no Unknown, and the real-Perl seeds are among those it is asserted on.
+//
+// Of the 21 seeds, 19 are fixpoints and 2 are not, `}{` and `\`. Both parse
+// to an Unknown, and both settle one emission later. An Unknown is the
+// parser's refusal, which canon writes back verbatim inside structure the
+// parser guessed around it, so the second parse can read the refused bytes
+// beside punctuation the first did not have: `\` emits `\\;` because the
+// lone operator's Unknown operand spans the operator's own byte, and `}{`
+// emits `}{;`, whose `;` the second parse takes as another refused operand
+// of the unclosed subscript. The 15 seeds with no Unknown are all fixpoints,
+// and they are the ones the gate admits.
+//
+// The gate does not exempt the class the invariant is for. 01a0dde4's source,
+// `map { $_ + 1 } @a`, parsed with no Unknown, and its emission was not a
+// fixpoint.
+func TestFuzzSeedsCanonFixpoint(t *testing.T) {
+	admitted := map[string]bool{}
+	for _, src := range append(append([]string{}, fuzzSeeds...), fuzzEdgeSeeds...) {
+		admitted[src] = checkCanonFixpoint(t, src)
+	}
+	for _, src := range fuzzPerlSeeds {
+		if !admitted[src] {
+			t.Errorf("%q: parses to an Unknown, so the fixpoint is not asserted on it", src)
+		}
+	}
+}
+
+// checkCanonFixpoint asserts canonMatches on src when src parses with no
+// Unknown, and reports whether it did. Fixpoint only, not that the emission
+// parses: a refused emission can still be stable, and the targeted canon
+// tests carry the parse check.
+func checkCanonFixpoint(t *testing.T, src string) bool {
+	t.Helper()
+	if firstUnknown(parse.Parse([]byte(src))) != nil {
+		return false
+	}
+	if ok, why := canonMatches([]byte(src)); !ok {
+		t.Fatalf("%q: canon is not a fixpoint: %s", src, why)
+	}
+	return true
 }
 
 // checkParseInvariants is the tree-level form of the lexer's §7.6.2
@@ -111,4 +163,10 @@ func checkParseInvariants(t *testing.T, src string) {
 	if got := leafText(root, []byte(src)); got != src {
 		t.Fatalf("%q: round-trip lost bytes, got %q", src, got)
 	}
+
+	// INVARIANT 4: canon is a fixpoint on input that parses with no Unknown.
+	// Gated because an Unknown is written back verbatim inside guessed
+	// structure and need not re-read the same; TestFuzzSeedsCanonFixpoint
+	// names the seeds that are not fixpoints for that reason.
+	checkCanonFixpoint(t, src)
 }

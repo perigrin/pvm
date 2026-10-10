@@ -551,15 +551,24 @@ and it is a real gate — see spec §7.3.2.
 
 ### M1 — Parses the core without error
 
-**Corpus:** T2 core (56) + T1 graded, easy tier (~400 of PerlOnJava `unit/`).
+**Corpus:** T2 core (56), T1 graded (PerlOnJava's `unit/*.t` at top level,
+986 files), perl.git `t/` (619 files), and the conformance corpus.
 
-| Metric | Target |
-|---|---|
-| Parse without error | **100% of T2 (56 files)** |
-| Parse without error | **≥ 70% of T1-easy (~280 of 400)** |
-| Round-trip | 100% of everything that parses |
-| Oracle WRONG | **0** |
-| Oracle exact | ≥ 40% of markers attempted |
+The gates are tests, and `make test` runs them:
+
+| Gate | Enforced by | At M1's finish |
+|---|---|---|
+| T2 parses clean | `TestT2HoldsAll56` | **56 of 56** -- the one file perl refuses (`comp/final_line_num.t`) counts only because internal/parse refuses it on the same line |
+| The corpus ratchet | `TestCorpusRatchet` (internal/conformance) | every corpus case holds its verdict |
+| T1 parses without `Unknown` | the T1 ratchet, `TestParseRatchet` | 984 of 986, per file, failing in both directions |
+| perl.git `t/` parses without `Unknown` | `TestPerlGitTRatchet` | 619 of 619 |
+| Round-trip | `TestCanonRatchet` (canon is a fixpoint) and the fidelity ratchet `TestCanonFidelityRatchet` (perl Deparses canon as it Deparses the source) | 983 and 835 of 986, per file, failing in both directions |
+| Oracle WRONG | `TestCorpusBaselineIsIntact` | **0**, asserted with no pin; a construct internal/parse does not yet understand is hedged (wider), not guessed |
+| Oracle exact | the exact-match ratchet: `TestRatchetCorpus` holds every file's bucket against `internal/parseoracle/testdata/ratchet/baseline.txt` in both directions, measured against internal/parse | started at 473 of 593 (79.8%), 489 of 593 (82.5%) at the finish |
+
+The oracle's ratchet runs over the 620-file corpus only with
+`-parseoracle.corpus` (CI, at an 8-minute per-file timeout); `make test`
+runs its fixture and the baseline's integrity check.
 
 Note the shape: parse-rate is a *ratchet*, WRONG is a *gate*. Constructs not
 yet understood must be emitted as explicit `Unknown` nodes preserving their
@@ -711,7 +720,7 @@ does not have to re-derive it.
 | M | Theme | Headline gate | LSP value shipped |
 |---|---|---|---|
 | M0 | Lexer round-trip | 100% lossless on 56 core files; `t/base/lex.t` | Syntax highlighting |
-| M1 | Parse the core | 100% of T2, ≥ 70% T1-easy, WRONG = 0 | Symbols, folding |
+| M1 | Parse the core | T2 56 of 56, corpus and exact-match ratchets, WRONG = 0 | Symbols, folding |
 | M2 | Incremental | incremental == full, 10 M fuzz execs, < 10 ms p99 | Responsive LSP |
 | M3 | Oracle at scale | ≥ 90% parse on 584 files, ≥ 80% exact, WRONG = 0, re-emission 100% | Trustworthy navigation, PSC |
 | M4 | Prototypes | ≥ 95% prototype agreement, ≥ 90% exact | Signature help, context |

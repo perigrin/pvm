@@ -19,6 +19,7 @@ import (
 // count. Measured with perl 5.42.0, this source has FOUR prototype-driven
 // srefgen ops and the main-only oracle reported one.
 func TestOracleCountsReferencesInEveryCV(t *testing.T) {
+	requirePOSIXOracle(t)
 	src := "sub f(\\@){}\n" + // 1
 		"sub g { my @a; f(@a) }\n" + // 2  named sub
 		"my $c = sub { my @b; f(@b) };\n" + // 3  anonymous sub
@@ -48,6 +49,7 @@ func TestOracleCountsReferencesInEveryCV(t *testing.T) {
 // `require` it into main. Those subs are not the file under measurement, and
 // a count that included them would blame every corpus file for test.pl.
 func TestOracleAttributesReferencesToThisFileOnly(t *testing.T) {
+	requirePOSIXOracle(t)
 	dir := t.TempDir()
 	helper := "sub f(\\@){}\nsub g { my @a; f(@a) }\n1;\n"
 	if err := os.WriteFile(filepath.Join(dir, "helper.pl"), []byte(helper), 0o644); err != nil {
@@ -78,6 +80,7 @@ func TestOracleAttributesReferencesToThisFileOnly(t *testing.T) {
 // IS, so the two sides count the same thing. Each row was measured against
 // perl 5.42.0 with -MO=Concise before being written down.
 func TestOraclePopulationIsBackslashesAndPrototypes(t *testing.T) {
+	requirePOSIXOracle(t)
 	cases := []struct {
 		name string
 		src  string
@@ -120,6 +123,42 @@ func TestOraclePopulationIsBackslashesAndPrototypes(t *testing.T) {
 			}
 			if len(facts.Sites[parseoracle.MarkerSrefgen]) == 0 && len(c.want) == 0 {
 				return
+			}
+			if !reflect.DeepEqual(facts.Sites[parseoracle.MarkerSrefgen], c.want) {
+				t.Errorf("Sites[srefgen] = %v, want %v", facts.Sites[parseoracle.MarkerSrefgen], c.want)
+			}
+		})
+	}
+}
+
+// TestOracleCountsClonedSubOnce: a closure, or any anon sub compiled under
+// `$^P`, is cloned at runtime, and `use overload` installs the clone in the
+// stash. The clone is a different CV sharing the prototype's op tree, so a walk
+// keyed on the CV visits the same ops twice. Measured with perl 5.42.0, the
+// clone and the prototype have different CV addresses and the same ROOT; a sub
+// with its own body has its own ROOT and still counts.
+func TestOracleCountsClonedSubOnce(t *testing.T) {
+	requirePOSIXOracle(t)
+	cases := []struct {
+		name string
+		src  string
+		want []int
+	}{
+		{"overload closure", "package P {\n my @a;\n use overload q(.) => sub { push @a, \\$_[1]; $_[0] };\n}\n", []int{3}},
+		{"same body, separate sub", "package P {\n my @a;\n use overload q(.) => sub { push @a, \\$_[1]; $_[0] };\n sub sep { push @a, \\$_[1]; $_[0] }\n}\n", []int{3, 4}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			dir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(dir, "probe.pl"), []byte(c.src), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			facts, err := parseoracle.AskFile(context.Background(), "probe.pl", parseoracle.Options{Dir: dir})
+			if err != nil {
+				t.Fatalf("AskFile: %v", err)
+			}
+			if !facts.OK {
+				t.Fatalf("probe must compile, stderr: %s", facts.Stderr)
 			}
 			if !reflect.DeepEqual(facts.Sites[parseoracle.MarkerSrefgen], c.want) {
 				t.Errorf("Sites[srefgen] = %v, want %v", facts.Sites[parseoracle.MarkerSrefgen], c.want)

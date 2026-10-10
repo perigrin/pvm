@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -234,43 +233,11 @@ func firstUnknownLine(n *parse.Node, src []byte) int {
 // stale summary fails rather than misinforming whoever reads the file.
 func TestPerlGitTRatchetHeaderAgreesWithItsBody(t *testing.T) {
 	path := filepath.Join("testdata", "perlgitt.ratchet")
-	data, err := os.ReadFile(path)
-	if err != nil {
+	if _, err := os.Stat(path); err != nil {
 		t.Skipf("no baseline at %s yet: %v", path, err)
 	}
-
-	var files, clean, total int
-	var header string
-	for _, line := range strings.Split(string(data), "\n") {
-		switch {
-		case strings.HasPrefix(line, "# ") && strings.Contains(line, " files, "):
-			header = strings.TrimPrefix(line, "# ")
-		case line == "" || strings.HasPrefix(line, "#"):
-		default:
-			count, _, ok := strings.Cut(line, " ")
-			if !ok {
-				continue
-			}
-			n, convErr := strconv.Atoi(count)
-			if convErr != nil {
-				continue
-			}
-			files++
-			total += n
-			if n == 0 {
-				clean++
-			}
-		}
-	}
-	if header == "" {
-		t.Fatalf("%s has no summary line; renderRatchet writes one and it must be readable", path)
-	}
-
-	want := fmt.Sprintf("%d files, %d clean (%.1f%%), %d total.",
-		files, clean, 100*float64(clean)/float64(files), total)
-	if header != want {
-		t.Errorf("%s header disagrees with its body:\n  header: %s\n  body:   %s",
-			path, header, want)
+	if err := ratchetHeaderAgrees(path); err != nil {
+		t.Error(err)
 	}
 }
 

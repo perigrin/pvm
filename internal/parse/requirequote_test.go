@@ -11,15 +11,15 @@ import (
 )
 
 // TestRequireQuoteForm holds the q-quoted spelling of a literal require.
-// mro/package_aliases.t opens with `require q(./test.pl);`, and its first
+// mro/package_aliases.t opens with `BEGIN { ... require q(./test.pl); }`, and its first
 // PARENLESS call to a test.pl sub -- `fresh_perl_is q~...~, ...` -- refused
 // because nothing had declared it. Calls with parens parsed either way, which
 // is why the file looked mostly clean.
 func TestRequireQuoteForm(t *testing.T) {
 	for _, main := range []string{
-		"require q(./helper.pl);\nok 1, 'x';\n",
-		"require q{./helper.pl};\nok 1, 'x';\n",
-		"require qq(./helper.pl);\nok 1, 'x';\n",
+		"BEGIN { require q(./helper.pl); }\nok 1, 'x';\n",
+		"BEGIN { require q{./helper.pl}; }\nok 1, 'x';\n",
+		"BEGIN { require qq(./helper.pl); }\nok 1, 'x';\n",
 	} {
 		dir := t.TempDir()
 		if err := os.WriteFile(filepath.Join(dir, "helper.pl"),

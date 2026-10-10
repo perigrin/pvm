@@ -642,7 +642,15 @@ func (p *parser) parseFor(word lexer.Token) *Node {
 		}
 	}
 
-	head, cStyle := p.parseForHead()
+	head, ok := p.parseForHead(n)
+	if !ok {
+		return p.refuseTrailingTokens(word.Start)
+	}
+	if !n.CStyle {
+		// A list head's one part was counted into slot 0 before the head
+		// was known not to be C-style, and ForSlots describes C-style alone.
+		n.ForSlots = [3]bool{}
+	}
 	if head != nil {
 		n.Children = append(n.Children, head...)
 	}
@@ -659,7 +667,7 @@ func (p *parser) parseFor(word lexer.Token) *Node {
 	// refusing the PAIRING is the point. The `continue` then becomes its own
 	// statement -- measured, a Call with a Block, the general `WORD BLOCK`
 	// reading -- which claims nothing about a loop it does not belong to.
-	if !cStyle {
+	if !n.CStyle {
 		if cont := p.parseContinueOrDecline(); cont != nil {
 			n.Children = append(n.Children, cont)
 		}
@@ -672,31 +680,46 @@ func (p *parser) parseFor(word lexer.Token) *Node {
 // head, three for a C-style head. An empty slot in `for (;;)` contributes no
 // node, which is why the count is not load-bearing anywhere.
 //
-// The second return says the head was C-STYLE, decided by whether a semicolon
-// separated its clauses rather than by counting the parts -- `for (;;)`
-// contributes zero nodes and is still C-style. It is what tells parseFor which
-// of the two forms may take a continue block.
-func (p *parser) parseForHead() ([]*Node, bool) {
+// It sets loop.CStyle when the head was C-STYLE, decided by whether a
+// semicolon separated its clauses rather than by counting the parts --
+// `for (;;)` contributes zero nodes and is still C-style. It is what tells
+// parseFor which of the two forms may take a continue block. loop.ForSlots
+// records which slot each part filled, the count of `;` before it, so canon
+// can write the empty ones back.
+//
+// The second return says the head was well formed: false when a clause is followed by
+// neither `;` nor `)`, or when a C-style head has other than two `;`.
+// Measured on 5.42.0, `for (1 2) {}` is "Number found where operator
+// expected"; read as two parts, the second became the body. `for(0;0){}` and
+// `for(;;;){}` are syntax errors: the three clauses may be empty, but all
+// three are there.
+func (p *parser) parseForHead(loop *Node) ([]*Node, bool) {
 	open, ok := p.peekSignificant()
 	if !ok || p.text(open) != "(" {
-		return nil, false
+		return nil, true
 	}
 	p.advanceTo(open)
 
 	var parts []*Node
-	cStyle := false
+	semis := 0
 	for {
 		tok, ok := p.peekSignificant()
 		if !ok {
-			return parts, cStyle
+			return parts, true
 		}
 		switch {
 		case p.text(tok) == ")":
 			p.advanceTo(tok)
-			return parts, cStyle
+			// A list head must hold a list: perl refuses `for () {}`
+			// ("near "() ""), though `for (())` is fine.
+			if !loop.CStyle && len(parts) == 0 {
+				return parts, false
+			}
+			return parts, !loop.CStyle || semis == 2
 		case tok.Kind == lexer.Semicolon:
 			// An empty slot: `for (;;)`.
-			cStyle = true
+			loop.CStyle = true
+			semis++
 			p.advanceTo(tok)
 			continue
 		}
@@ -710,13 +733,21 @@ func (p *parser) parseForHead() ([]*Node, bool) {
 			part = p.parseExpr(0)
 		}
 		if part == nil {
-			return parts, cStyle
+			return parts, true
 		}
 		parts = append(parts, part)
+		if semis < len(loop.ForSlots) {
+			loop.ForSlots[semis] = true
+		}
 
-		if sep, ok := p.peekSignificant(); ok && sep.Kind == lexer.Semicolon {
-			cStyle = true
+		sep, ok := p.peekSignificant()
+		switch {
+		case ok && sep.Kind == lexer.Semicolon:
+			loop.CStyle = true
+			semis++
 			p.advanceTo(sep)
+		case ok && p.text(sep) != ")":
+			return parts, false
 		}
 	}
 }

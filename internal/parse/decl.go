@@ -56,9 +56,10 @@ func (p *parser) parseDeclaration(word lexer.Token) *Node {
 		// source, and it round-trips.
 		//
 		// perl makes the same test: a name after `sub` is a declaration, a
-		// `{` is an anonymous sub.
-		if next, ok := p.peekAfter(word); ok && (p.text(next) == "{" ||
-			next.Kind == lexer.Prototype || p.text(next) == "(") {
+		// `{` is an anonymous sub. So is a `sub` with nothing after it,
+		// `sub;`, which perl refuses as an anonymous sub with no body.
+		if next, ok := p.peekAfter(word); !ok || p.text(next) == "{" || p.text(next) == ";" ||
+			next.Kind == lexer.Prototype || p.text(next) == "(" {
 			return nil
 		}
 		return p.parseSubDecl(word)
@@ -659,12 +660,21 @@ func (p *parser) parseFormatDecl(word lexer.Token) *Node {
 	}
 
 	// The body, consumed whole and never descended into.
-	if body, ok := p.peekSignificant(); ok && body.Kind == lexer.FormatBody {
-		p.advanceTo(body)
-		n.Children = append(n.Children, &Node{
-			Kind: Term, Start: body.Start, End: body.End,
-		})
+	body, ok := p.peekSignificant()
+	if !ok || body.Kind != lexer.FormatBody {
+		// No `.` line before the end of the file: the lexer found no body,
+		// or an UnknownRest where one began. perl 5.42 says "Format not
+		// terminated" for `format =` and `format =\nabc\n` alike, so the
+		// refusal takes the unterminated body with it.
+		if ok && body.Kind == lexer.UnknownRest {
+			p.advanceTo(body)
+		}
+		return &Node{Kind: Unknown, Refusal: FormatNotTerminated, Start: word.Start, End: p.prevEnd()}
 	}
+	p.advanceTo(body)
+	n.Children = append(n.Children, &Node{
+		Kind: Term, Start: body.Start, End: body.End,
+	})
 
 	n.End = p.prevEnd()
 	return n
@@ -837,9 +847,15 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 
 	// A list target -- `my ($a, $b) = @_` -- or anything else, parsed as one
 	// expression so the assignment at level 9 is already inside it.
-	if target := p.parseExpr(0); target != nil {
-		n.Children = append(n.Children, target)
+	//
+	// Nothing at all after the declarator -- `my` at the end of the file --
+	// is perl's "syntax error at EOF", the declarator a prefix whose operand
+	// ran out, and operand's Unknown spanning the declarator replaces it.
+	target := p.operand(0, word)
+	if target.Kind == Unknown && target.Start == word.Start {
+		return target
 	}
+	n.Children = append(n.Children, target)
 	n.End = p.prevEnd()
 	return n
 }

@@ -123,6 +123,7 @@ func fixtureCorpus(t *testing.T) []string {
 // TestCorpusRun is the runner's fixture test, and the AC that bounds the
 // default run's cost. Six files, every bucket represented, under ten seconds.
 func TestCorpusRun(t *testing.T) {
+	requirePOSIXOracle(t)
 	files := fixtureCorpus(t)
 
 	report, err := parseoracle.Run(context.Background(), files, parseoracle.RunOptions{Subject: goSubject(t)})
@@ -176,6 +177,7 @@ func findResult(t *testing.T, report parseoracle.Report, base string) parseoracl
 // fails because a module is missing says nothing about how Perl parses, so it
 // leaves the denominator and is counted on its own.
 func TestRunExcludesEnvironmental(t *testing.T) {
+	requirePOSIXOracle(t)
 	files := fixtureCorpus(t)
 
 	report, err := parseoracle.Run(context.Background(), files, parseoracle.RunOptions{Subject: goSubject(t)})

@@ -33,6 +33,7 @@ func shimT(t *testing.T) string {
 // a call parses, and perl proves it with an srefgen op; if Ask cannot report
 // that, it is not reporting perl's parse.
 func TestAskDecodesPrototype(t *testing.T) {
+	requirePOSIXOracle(t)
 	facts, err := parseoracle.Ask(context.Background(),
 		[]byte("sub f(\\@){}\nmy @a;\nf(@a);\n"), parseoracle.Options{})
 	if err != nil {
@@ -81,6 +82,7 @@ func TestAskFileRequiresDir(t *testing.T) {
 // tell "your parser is wrong" from "this machine lacks Config.pm", so the
 // classifier downstream has no input without this.
 func TestFactsCarriesStderr(t *testing.T) {
+	requirePOSIXOracle(t)
 	facts, err := parseoracle.Ask(context.Background(),
 		[]byte("use No::Such::Module::Here;\n"), parseoracle.Options{})
 	if err != nil {
@@ -155,6 +157,7 @@ func TestShebangPassthrough(t *testing.T) {
 // `sleep` is never reached under perl -c, and a test using one would race the
 // oracle's own 60ms runtime rather than measure cancellation.
 func TestAskCancellation(t *testing.T) {
+	requirePOSIXOracle(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -187,6 +190,7 @@ func TestAskCancellation(t *testing.T) {
 // original resolved parse_facts.pl against the process working directory,
 // which works only for a test run from inside this package.
 func TestScriptPathIsPackageRelative(t *testing.T) {
+	requirePOSIXOracle(t)
 	t.Chdir(t.TempDir())
 
 	facts, err := parseoracle.Ask(context.Background(),

@@ -78,6 +78,7 @@ func (p *parser) parseTerm() *Node {
 				p.advanceTo(close)
 			}
 			n.End = p.prevEnd()
+			p.readHandleSlots(n, text)
 			return n
 		}
 		// No parens: one argument at level 19, so arithmetic binds into the
@@ -121,6 +122,7 @@ func (p *parser) parseTerm() *Node {
 			n.Children = append(n.Children, arg)
 			n.End = p.prevEnd()
 		}
+		p.readHandleSlots(n, text)
 		return n
 	}
 
@@ -346,6 +348,13 @@ func (p *parser) parseTerm() *Node {
 			// file that touches a filehandle.
 			return p.parseVarDeclNoSemi(tok)
 
+		case (keywordName(text) == "my" || keywordName(text) == "our") && !p.declaratorIsBareword(tok):
+			// `my` and `our` are always keywords, and with no target they
+			// are no term: measured on 5.42.0, `!my=0`, `f(my)` and `$x =
+			// our;` are each a syntax error. Read as a call, canon wrote
+			// `my()`, which re-read as a declaration.
+			return p.refuseNotATerm(tok)
+
 		case text == "sub":
 			// An anonymous sub: `sub { ... }` with no name. Distinguished
 			// from a declaration by what follows -- a `{` rather than a
@@ -358,9 +367,20 @@ func (p *parser) parseTerm() *Node {
 			//
 			// So may a prototype or signature: `sub (&) { ... }`, `sub ($x)
 			// { ... }`.
-			if next, ok := p.peekAfter(tok); ok && (p.text(next) == "{" || p.text(next) == ":" ||
+			next, ok := p.peekAfter(tok)
+			if ok && (p.text(next) == "{" || p.text(next) == ":" ||
 				next.Kind == lexer.Prototype || p.text(next) == "(") {
 				return p.parseAnonSub(tok)
+			}
+			// Nor a sub with no head and no block: measured on 5.42.0, `my
+			// $f = sub;`, `f(sub, 1)` and `print sub;` are each "Illegal
+			// declaration of anonymous subroutine". Before `=>` it is the
+			// string 'sub', before `}` a hash key, `$h{sub}`, and a name
+			// after it is parseWordTerm's.
+			// ponytail: `do {sub}` passes as a key would; a refusal there
+			// needs to know the brace is a subscript's.
+			if !ok || next.Kind != lexer.Word && p.text(next) != "=>" && p.text(next) != "}" {
+				return p.refuseNotATerm(tok)
 			}
 
 		case text == "eval" || text == "do":
@@ -370,7 +390,7 @@ func (p *parser) parseTerm() *Node {
 				return p.parseBlockOperator(tok)
 			}
 		}
-		return p.refuseArity(p.refuseRefScalarSlot(p.parseWordTerm(tok)))
+		return p.markReferenceSlots(p.refuseArity(p.refuseRefScalarSlot(p.parseWordTerm(tok))))
 
 	case lexer.Variable, lexer.Number, lexer.Quote,
 		lexer.Readline, lexer.HeredocOpen:
@@ -381,9 +401,24 @@ func (p *parser) parseTerm() *Node {
 		}
 	}
 
-	// Not a term. Consumed so the loop advances; the bytes stay in the tree.
+	return p.refuseNotATerm(tok)
+}
+
+// refuseNotATerm declines a term that begins at tok and cannot be one. Consumed
+// so the loop advances; the bytes stay in the tree, through whatever the
+// caller already read past tok -- an anonymous sub's head, for one.
+func (p *parser) refuseNotATerm(tok lexer.Token) *Node {
 	p.advanceTo(tok)
-	return &Node{Kind: Unknown, Refusal: NotATerm, Start: tok.Start, End: tok.End}
+	return &Node{Kind: Unknown, Refusal: NotATerm, Start: tok.Start, End: p.prevEnd()}
+}
+
+// declaratorIsBareword reports whether a `my` or `our` with no variable
+// after it is still a word perl reads: a class name before the variable
+// (`my Foo $x`), a hash key (`$h{my}`), or the left of a fat comma (`my =>
+// 1`). Measured on 5.42.0, the last two compile.
+func (p *parser) declaratorIsBareword(word lexer.Token) bool {
+	next, ok := p.peekAfter(word)
+	return ok && (next.Kind == lexer.Word || p.text(next) == "=>" || p.text(next) == "}")
 }
 
 // declaratorTakesTarget reports whether a declarator word is introducing a
@@ -464,9 +499,15 @@ func (p *parser) parseAnonSub(word lexer.Token) *Node {
 		}
 	}
 
-	if blk := p.parseBlockOrDecline(); blk != nil {
-		n.Children = append(n.Children, blk)
+	// The body. A head with no block after it is no sub: measured on 5.42.0,
+	// `sub ($$);` and `my $f = sub ();` are each "Illegal declaration of
+	// anonymous subroutine", and `my $f = sub :lvalue;` and a signature with
+	// no block are syntax errors, so the refusal takes the head with it.
+	blk := p.parseBlockOrDecline()
+	if blk == nil {
+		return p.refuseNotATerm(word)
 	}
+	n.Children = append(n.Children, blk)
 	n.End = p.prevEnd()
 	return n
 }
@@ -617,6 +658,7 @@ func (p *parser) parseParenList(open lexer.Token) *Node {
 			// lowering cannot tell the string "a" from a call to a().
 			if p.text(next) == "=>" && len(items) > 0 {
 				items[len(items)-1].Fat = true
+				markFatOperand(items[len(items)-1])
 			}
 			p.advanceTo(next)
 			seps = []string{p.text(next)}
@@ -639,8 +681,13 @@ func (p *parser) parseParenList(open lexer.Token) *Node {
 			//
 			// So the loop is resumed with the list in hand rather than
 			// restarted, and the closer is then taken by the code below.
-			if p.atOperatorBelowComma() {
-				items = []*Node{p.parseInfix(p.finishList(items, open), 0)}
+			//
+			// The left operand is the elements WITHOUT the paren: the paren
+			// wraps the whole expr, and is recorded once, on it. Wrapped by
+			// finishList here it was a second Paren node spanning `(%h` with
+			// no closer, and canon wrote `(%h and 1;`.
+			if left := p.commaList(items); left != nil && p.atOperatorBelowComma() {
+				items = []*Node{p.parseInfix(left, 0)}
 				if c, ok := p.peekSignificant(); ok && p.text(c) == ")" {
 					p.advanceTo(c)
 				}
@@ -670,6 +717,13 @@ func (p *parser) finishList(items []*Node, open lexer.Token) *Node {
 		c := *items[0]
 		c.Start, c.End = open.Start, p.prevEnd()
 		c.Paren = true
+		// A leaf is written as its source text, which now holds any
+		// trailing comma inside the parens: `(0,)`. Kept as well, canon
+		// wrote it twice. A fat comma's word is written the same way when
+		// parenthesised: see canon's Call case.
+		if len(c.Children) == 0 && (c.Kind == Term || c.Kind == Call && c.Fat) {
+			c.TrailingComma = ""
+		}
 		return &c
 	}
 	return &Node{
@@ -748,6 +802,7 @@ func (p *parser) parseBracketed(open lexer.Token, closer string, kind Kind) *Nod
 			// first and a call in the second.
 			if p.text(next) == "=>" && len(items) > 0 {
 				items[len(items)-1].Fat = true
+				markFatOperand(items[len(items)-1])
 			}
 			p.advanceTo(next)
 			seps = []string{p.text(next)}

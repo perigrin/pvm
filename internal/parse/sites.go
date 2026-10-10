@@ -5,10 +5,12 @@ package parse
 
 import (
 	"bytes"
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
 
+	"tamarou.com/pvm/internal/lexer"
 	"tamarou.com/pvm/internal/parseoracle"
 )
 
@@ -74,19 +76,17 @@ func Sites(root *Node, src []byte) []parseoracle.SubjectCallSite {
 		// cannot be wrong -- nor right. WRONG=0 with exact=0 is the vacuous
 		// gate the M1 issue's "exact floor" row exists to prevent.
 		//
-		// Each site is reported at ITS OWN node's span, not the statement's.
-		// perl's probe walks the CVs, so a backslash in a sub body is
-		// reported at the body's line; CompareFacts spends a decided site
-		// only against the innermost subject statement covering that line
-		// (`compare_facts.go:349`). A site pooled under `sub foo {`'s whole
-		// span is never reached from inside the body, and a marker this
-		// parser read correctly scores WRONG.
-		for _, d := range decidedMarkers(n) {
-			// The span runs from the STATEMENT's line to the NODE's, and
-			// needs both ends for opposite reasons.
+		// Each site is reported once per occurrence, spanning its
+		// statement. perl's probe walks the CVs, so a backslash in a sub
+		// body is reported at the body's line; CompareFacts spends a decided
+		// site only against the innermost subject statement covering that
+		// line (`compare_facts.go:349`), and a statement span covers it.
+		for _, d := range decidedMarkers(n, src) {
+			// The span is the whole STATEMENT, because perl's nextstate
+			// line can be either end of it.
 			//
 			// perl attributes a site to its enclosing nextstate, which
-			// records the statement's FIRST line. Measured on 5.42.0:
+			// usually records the statement's FIRST line. Measured on 5.42.0:
 			//
 			//	my $r = f(       # line 1
 			//	    "a",
@@ -97,18 +97,28 @@ func Sites(root *Node, src []byte) []parseoracle.SubjectCallSite {
 			// A site reported as the point 3-3 is never found by `innermost`,
 			// which wants a range CONTAINING perl's line
 			// (`compare_facts.go:349-359`); starting at the statement fixes
-			// that. Ending at the NODE is what keeps a `\` inside a sub body
-			// from pooling under the whole sub, which perl's CV walk reports
-			// at the body's own line. t/comp/parser_run.t:17 is the first
-			// case, t/class/destruct.t:22 the second.
-			siteEnd := lines.at(d.node.End - 1)
-			if siteEnd < start {
-				siteEnd = start
-			}
+			// that. t/comp/parser_run.t:17 is the case.
+			//
+			// But perl's copline moves past an anonymous sub, a `when`
+			// block or a bareword subscript, and then the nextstate records
+			// the statement's LAST line:
+			//
+			//	my @r = (\@a, sub {  # line 2
+			//	 1;
+			//	});                  # line 4
+			//	-> nextstate(main 2 rep.pl:4), srefgen
+			//
+			// A site ending at its own node, line 2, never contains line 4.
+			// comp/proto.t:540, op/bop.t:706 and op/switch.t:209 are this
+			// shape.
+			//
+			// A site inside a sub body, which perl's CV walk reports at the
+			// body's own line (t/class/destruct.t:22), lies inside the
+			// statement either way.
 			sites = append(sites, parseoracle.SubjectCallSite{
 				Kind:       d.kind,
 				Line:       start,
-				EndLine:    siteEnd,
+				EndLine:    end,
 				Unresolved: d.unresolved,
 
 				// The srefgen marker is decided by this field, not by the
@@ -148,7 +158,7 @@ type decided struct {
 // pattern; `$a < $c` is a comparison, not a readline. The lexer settled all
 // three by position (§3.2) and the tree records the answer, so reading the
 // tree cannot reach a different one. Scanning source text could.
-func decidedMarkers(stmt *Node) []decided {
+func decidedMarkers(stmt *Node, src []byte) []decided {
 	var found []decided
 
 	// One entry per OCCURRENCE, not per kind. CompareFacts consumes a decided
@@ -170,8 +180,38 @@ func decidedMarkers(stmt *Node) []decided {
 		found = append(found, decided{kind: kind, node: n, unresolved: true})
 	}
 
+	// hedgeDerefElement hedges a hash element read through a reference
+	// that is the whole operand of a dereference: `@{$r->{k}}`,
+	// `%{$r->{k}}`, `${$r->{k}}`, `$r->{k}->@*`. perl folds the element
+	// into multideref when the dereference only reads it, and keeps a
+	// rv2hv for every level of the chain when the context modifies or
+	// vivifies it -- push, chomp, grep, map, foreach, a sub's arguments,
+	// keys, an assignment to it. Measured on 5.42.0:
+	//
+	//	my $p; my @x = @{$p->{S}};          rv2av multideref
+	//	my $p; push @{$p->{S}}, 1;          rv2av helem rv2hv
+	//	my $s; push @{$s->{x}{$k}}, 1;      rv2av helem rv2hv helem rv2hv
+	//	my $p; my %h = %{$p->{S}};          rv2hv multideref
+	//	my $p; keys %{$p->{S}};             rv2hv helem rv2hv
+	//
+	// Which context is which is perl's op_lvalue, not anything in the
+	// text, so this hedges until 01a12059-30a8 decides it.
+	// japh/abigail.t:191, op/gmagic.t:233 and porting/libperl.t:212 are
+	// this shape. `&{$r->{k}}` and `*{$r->{k}}` fold either way.
+	hedgeDerefElement := func(n *Node) {
+		if n.Kind == Index && n.Text == "{" && throughReference(n) {
+			hedge(parseoracle.SiteKindHash, n)
+		}
+	}
+
 	var walk func(*Node)
 	walk = func(n *Node) {
+		// perl: srefgen, for an argument its callee's prototype takes by
+		// reference (markReferenceSlots). The argument's own markers are
+		// still walked below: `f(%$r)` through `\%` is a srefgen and a rv2hv.
+		if n.RefSlot {
+			add(parseoracle.SiteKindReference, n)
+		}
 		switch n.Kind {
 		case Unknown:
 			// A nested Unknown speaks its own refusal, at its own span. The
@@ -219,6 +259,7 @@ func decidedMarkers(stmt *Node) []decided {
 				n.Children[0].Kind == Unary && n.Children[0].Text == "@" {
 				add(parseoracle.SiteKindHash, n)
 				for _, c := range n.Children[0].Children {
+					hedgeDerefElement(c)
 					walk(c)
 				}
 				for _, c := range n.Children[1:] {
@@ -227,11 +268,36 @@ func decidedMarkers(stmt *Node) []decided {
 				return
 			}
 
+			// The same slice spelled postfix, `$r->@{"a","b"}` or
+			// `$r->%{"a","b"}`, is the right operand of an arrow: this node
+			// with a bare `@` or `%` Term where the base would be. Measured,
+			// perl emits rv2hv for both and for `{1..4}->%{1,3}`; the BRACKET
+			// forms `->@[...]` and `->%[...]` are rv2av and never get here.
+			// op/postfixderef.t:148,316 are this shape.
+			if n.Text == "{" && len(n.Children) > 0 &&
+				n.Children[0].Kind == Term &&
+				(n.Children[0].Text == "@" || n.Children[0].Text == "%") {
+				add(parseoracle.SiteKindHash, n)
+			}
+
 			// Hedged for a NAMED base and left alone for a dereference,
 			// which is decided above.
 			if n.Text == "{" && len(n.Children) > 0 &&
 				n.Children[0].Kind == Term && !n.Arrow &&
 				isNamedVariable(n.Children[0].Text) {
+				hedge(parseoracle.SiteKindHash, n)
+			}
+
+			// A brace subscript through a reference folds into multideref,
+			// no rv2hv, when its key is a constant or a plain scalar. Any
+			// other key keeps the rv2hv -- `$r->{shift()}` -- unless it
+			// constant-folds, which turns on declarations (`sub f(){1}`
+			// makes `$r->{f()}` fold), or the element below it folded
+			// (`$r->{a}{f()}` emits none). Hedged until 01a12059-30a8
+			// decides it. op/ref.t:343 and porting/libperl.t:307 are this
+			// shape.
+			if n.Text == "{" && len(n.Children) > 1 && throughReference(n) &&
+				!isSimpleKey(n.Children[1]) {
 				hedge(parseoracle.SiteKindHash, n)
 			}
 
@@ -264,15 +330,20 @@ func decidedMarkers(stmt *Node) []decided {
 			// subscript on the deref, decided in the Index case.
 			//
 			// NOT `@{$r->{x}}`, which is an ARRAY dereference of a hash
-			// element -- rv2av, a different op. Its Index carries Arrow.
+			// element -- rv2av, a different op. Its Index carries Arrow, and
+			// a chained `@{$r->{x}{$k}}` or `@{$$r{x}}` reads through a
+			// reference the same way; both are hedged below instead.
 			if n.Text == "@" && len(n.Children) == 1 &&
 				n.Children[0].Kind == Index && n.Children[0].Text == "{" &&
-				!n.Children[0].Arrow {
+				!throughReference(n.Children[0]) {
 				add(parseoracle.SiteKindHash, n)
 				for _, c := range n.Children[0].Children {
 					walk(c)
 				}
 				return
+			}
+			if (n.Text == "@" || n.Text == "%" || n.Text == "$") && len(n.Children) == 1 {
+				hedgeDerefElement(n.Children[0])
 			}
 
 		case Call:
@@ -298,12 +369,48 @@ func decidedMarkers(stmt *Node) []decided {
 			}
 
 		case Binary:
+			// The postfix spelling of a dereference, `$r->{k}->@*`, is the
+			// same question hedgeDerefElement answers for `@{$r->{k}}`.
+			if n.Text == "->" && len(n.Children) == 2 && n.Children[1].Kind == Term {
+				switch n.Children[1].Text {
+				case "@*", "%*", "$*", "$#*":
+					hedgeDerefElement(n.Children[0])
+				}
+			}
 			// perl: match. `=~` and `!~` bind a pattern; s/// and tr/// are
 			// substitution and transliteration, which perl reports with
 			// different ops, so they are excluded by their own spelling.
 			if n.Text == "=~" || n.Text == "!~" {
 				if len(n.Children) > 1 && isMatchOperand(n.Children[1]) {
 					add(parseoracle.SiteKindMatch, n)
+				}
+			}
+			// perl: srefgen. Smartmatch takes each array or hash operand by
+			// reference (ref_array_or_hash), so `1 ~~ @l` compiles as
+			// `1 ~~ \@l`. Measured: one srefgen per aggregate operand, none
+			// for a scalar or a slice. op/switch.t's `when` is the same rule,
+			// in the Conditional case.
+			if n.Text == "~~" {
+				for _, c := range n.Children {
+					if isAggregate(c) {
+						add(parseoracle.SiteKindReference, c)
+					}
+				}
+			}
+
+		case Conditional:
+			// perl: srefgen. `when (@l)` smartmatches `$_` against `\@l`.
+			// The condition is the first child before a block and the last
+			// after a statement, `print 1 when @l;`. A condition that looks
+			// boolean, `!@l` or `@l > 1`, is not an aggregate node and takes
+			// nothing, as measured.
+			if n.Text == "when" && len(n.Children) > 1 {
+				cond := n.Children[0]
+				if n.Children[len(n.Children)-1].Kind != Block {
+					cond = n.Children[len(n.Children)-1]
+				}
+				if isAggregate(cond) {
+					add(parseoracle.SiteKindReference, cond)
 				}
 			}
 
@@ -317,6 +424,27 @@ func decidedMarkers(stmt *Node) []decided {
 					found = append(found, decided{kind: kind, node: n, unresolved: true})
 				}
 				return
+			}
+			// Code inside an interpolating string, regex or heredoc --
+			// `${\ f()}`, `@{[ ... ]}`, a subscript, a postfix dereference --
+			// is compiled by perl into ordinary ops and never parsed here:
+			// the literal is one leaf. The plan's M1 rule reports what is
+			// not understood as unknown, so every marker hedges until the
+			// embedded code is parsed (01a12059-3011).
+			//
+			// No return: the leaf is still what it is, and a pattern's own
+			// match stays decided below. perl emits refgen AND match for
+			// `"ba" =~ /b${\do { qr|a| }}/` (re/reg_eval_scope.t:99).
+			//
+			// ponytail: a heredoc body is tested whatever its opener, so a
+			// `<<'EOF'` body holding `@{[` hedges too. perl reports nothing
+			// there, so the hedge is never spent; pairing each body with its
+			// opener is the upgrade if the precision ever matters.
+			if (n.HeredocBody && interpolatesCode(string(src[n.Start:n.End]))) ||
+				(isInterpolatingQuote(n.Text) && interpolatesCode(n.Text)) {
+				for _, kind := range markerKinds {
+					hedge(kind, n)
+				}
 			}
 			switch {
 			case isNamedHash(n.Text):
@@ -353,6 +481,11 @@ func decidedMarkers(stmt *Node) []decided {
 			}
 			walk(c)
 		}
+		// A heredoc body inside its statement's span is held beside the
+		// children rather than among them, and it interpolates as any other.
+		for _, b := range n.InnerHeredocBodies {
+			walk(b)
+		}
 	}
 	walk(stmt)
 	return found
@@ -366,7 +499,7 @@ func decidedMarkers(stmt *Node) []decided {
 // to a later issue" (01a0ad52). So `${[{a=>214}]}` arrives as a single Term
 // whose Text holds an anonymous hash that no walk over nodes can reach.
 //
-// The test is for a nested opener AFTER the leading `${` or `@{`, because
+// The test is for a nested opener AFTER the leading `${`, `@{` or `$#{`, because
 // that is what distinguishes a block with contents from a plain dereference:
 //
 //	${$x}          nothing hidden -- the inner text is one variable
@@ -386,6 +519,20 @@ func decidedMarkers(stmt *Node) []decided {
 // and a future caller may not have an Index standing between it and the
 // source.
 func hidesStructure(text string) bool {
+	// `$#{ EXPR }` is the same block behind a two-byte sigil, and the lexer
+	// swallows it the same way. Measured on 5.42.0: `$#{ \@a }` is a
+	// srefgen, `$#{$r->{a}}` a rv2hv, while `$#{$r}` and `$#$r` report none
+	// of the five markers. op/goto.t:668 and op/gmagic.t:227 are this shape.
+	//
+	// The test is the other way round from the bracket scan below: a `\`
+	// carries no bracket, so anything but a plain variable or name hedges.
+	if strings.HasPrefix(text, "$#{") && strings.HasSuffix(text, "}") {
+		inner := strings.TrimSpace(text[3 : len(text)-1])
+		inner = strings.TrimLeft(inner, "$")
+		return inner == "" || strings.IndexFunc(inner, func(r rune) bool {
+			return r != ':' && !isWordByte(byte(r)) && r < utf8.RuneSelf
+		}) >= 0
+	}
 	if len(text) < 3 || text[1] != '{' {
 		return false
 	}
@@ -397,6 +544,102 @@ func hidesStructure(text string) bool {
 	// Anything bracket-like inside the block is structure this parser did
 	// not build. A bare name or a lone variable has none.
 	return strings.ContainsAny(text[2:], "{[(")
+}
+
+// isInterpolatingQuote reports whether a leaf is a literal perl interpolates:
+// `"..."`, a backtick command, a bare `/.../`, or qq, qx, m, qr or s with any
+// delimiter but `'`, which turns interpolation off (perlop, "Gory details of
+// parsing quoted constructs").
+func isInterpolatingQuote(text string) bool {
+	if text == "" {
+		return false
+	}
+	switch text[0] {
+	case '"', '`', '/':
+		return true
+	}
+	for _, op := range []string{"qq", "qx", "qr", "m", "s"} {
+		if quoteOpIs(text, op) {
+			delim := strings.TrimLeft(text[len(op):], " \t\n")
+			return delim != "" && delim[0] != '\''
+		}
+	}
+	return false
+}
+
+// interpolatesCode reports whether an interpolating literal's bytes hold an
+// expression rather than a plain variable: a `${ ... }` or `@{ ... }` block
+// around anything but a name, or a variable followed by a subscript or a
+// dereferencing arrow. Measured on 5.42.0, perl reports no marker for `"$x"`,
+// `"@a"`, `"${x}"` or `"$x->method"` (the arrow is text there), and the five
+// markers turn up only once there is code.
+//
+// Deliberately conservative, as hidesStructure is: `"$a[0]"` hedges though
+// perl folds it to aelemfast, because a false positive costs a hedge and a
+// false negative is silence over bytes perl found something in.
+func interpolatesCode(s string) bool {
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '\\':
+			i++ // an escaped byte is literal
+		case '$', '@':
+			if codeAfterSigil(s[i+1:]) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// codeAfterSigil reads what follows an interpolating `$` or `@`.
+func codeAfterSigil(rest string) bool {
+	rest = strings.TrimLeft(rest, "$#") // `$$r`, `$#a`, `$#{...}`
+	if strings.HasPrefix(rest, "{") {
+		end := matchingBrace(rest)
+		if end < 0 {
+			return true // unclosed: whatever it holds, it is not a name
+		}
+		inner := strings.TrimLeft(strings.TrimSpace(rest[1:end]), "$^")
+		if inner == "" || strings.IndexFunc(inner, func(r rune) bool {
+			return r != ':' && (r >= utf8.RuneSelf || !isWordByte(byte(r)))
+		}) >= 0 {
+			return true
+		}
+		rest = rest[end+1:]
+	} else {
+		name := len(rest) - len(strings.TrimLeft(rest, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_:"))
+		if name == 0 {
+			return false // `$)`, `/x$/`, `mail@`: no variable here
+		}
+		rest = rest[name:]
+	}
+	if rest != "" && (rest[0] == '[' || rest[0] == '{') {
+		return true
+	}
+	if after, ok := strings.CutPrefix(rest, "->"); ok && after != "" &&
+		strings.ContainsRune("[{@$%", rune(after[0])) {
+		return true
+	}
+	return false
+}
+
+// matchingBrace returns the index of the `}` closing the `{` at s[0], or -1.
+func matchingBrace(s string) int {
+	depth := 0
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '\\':
+			i++
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return i
+			}
+		}
+	}
+	return -1
 }
 
 // isHashTerm reports whether a leaf's text is a hash read: `%h`, `%$r`.
@@ -442,6 +685,79 @@ func isNamedHash(text string) bool {
 func isNamedVariable(text string) bool {
 	return len(text) > 1 && (text[0] == '$' || text[0] == '@') &&
 		text[1] != '$' && text[1] != '{'
+}
+
+// throughReference reports whether a brace subscript reads its hash through
+// a reference: `$r->{k}`, `$$r{k}`, or any subscript of a subscript,
+// `$r->{a}{k}` and `$h{a}{k}`, whose implicit arrow the tree leaves off.
+// The postfix slice `$r->@{...}` is decided on its own and excluded.
+func throughReference(n *Node) bool {
+	if len(n.Children) == 0 {
+		return false
+	}
+	base := n.Children[0]
+	switch {
+	case base.Kind == Term && (base.Text == "@" || base.Text == "%"):
+		return false
+	case n.Arrow, base.Kind == Index:
+		return true
+	}
+	return base.Kind == Unary && base.Text == "$"
+}
+
+// isSimpleKey reports whether a hash subscript's key is one perl's
+// multideref takes as it stands: a number, a bareword, `-bareword`, a
+// string that interpolates nothing, or a plain scalar variable. Measured
+// on 5.42.0, `$p->{a}`, `$p->{-bar}`, `$p->{'a$b'}`, `$p->{1.5}`,
+// `$p->{$k}`, `$p->{$_}`, `$p->{$1}` and `$p->{$Foo::x}` all fold.
+//
+// Conservative the safe way: a key it does not recognise hedges, which
+// scores wider, never WRONG.
+func isSimpleKey(k *Node) bool {
+	if k.Kind == Unary && k.Text == "neg" && len(k.Children) == 1 {
+		k = k.Children[0]
+		if k.Kind == Call && len(k.Children) == 0 {
+			return true // `-bar`, a string to perl
+		}
+	}
+	if k.Kind != Term || k.Text == "" {
+		return false
+	}
+	t := k.Text
+	switch {
+	case t[0] == '$':
+		return len(t) > 1 && strings.IndexFunc(t[1:], func(r rune) bool {
+			return r != ':' && (r >= utf8.RuneSelf || !isWordByte(byte(r)))
+		}) < 0
+	case t[0] == '\'':
+		return true
+	case t[0] == '"' || strings.HasPrefix(t, "qq"):
+		return !strings.ContainsAny(t, "$@")
+	case strings.HasPrefix(t, "q") && len(t) > 1 && !isWordByte(t[1]):
+		return true
+	}
+	return strings.IndexFunc(t, func(r rune) bool {
+		return r != '.' && r != ':' && (r >= utf8.RuneSelf || !isWordByte(byte(r)))
+	}) < 0
+}
+
+// isAggregate reports whether a node is a whole array or hash -- what perl's
+// ref_array_or_hash takes a reference to: `@l`, `%h`, `@_`, `@$r`, `%{$r}`,
+// `$r->@*`, `$r->%*`. A slice is an Index and an element a scalar, so neither
+// reaches the reference, measured.
+func isAggregate(n *Node) bool {
+	switch n.Kind {
+	case Term:
+		return len(n.Text) > 1 && (n.Text[0] == '@' || n.Text[0] == '%')
+	case Unary:
+		return n.Text == "@" || n.Text == "%"
+	case Binary:
+		if n.Text == "->" && len(n.Children) == 2 && n.Children[1].Kind == Term {
+			t := n.Children[1].Text
+			return t == "@*" || t == "%*"
+		}
+	}
+	return false
 }
 
 // isReadlineTerm reports whether a leaf is `<FH>`, `<$fh>` or `<>`.
@@ -636,4 +952,96 @@ func (ls lineStarts) at(off int) int {
 		line = i + 1
 	}
 	return line
+}
+
+// PerlLines numbers src's lines as perl does. For each physical line i
+// (1-based; index 0 is unused), line[i] is the line perl records for it and
+// own[i] is whether perl still attributes it to file, the path perl was
+// given.
+//
+// A `#line N "name"` directive renumbers what follows it, and a name other
+// than file moves what follows into another file -- which the oracle's
+// CvFILE filter then leaves out of this file's sites. perl's lexer looks for
+// one (toke.c S_incline) at the start of every line it reaches while
+// skipping whitespace and comments, and at every line of POD; it never
+// looks inside a string, a heredoc body or a regex. So a directive is a
+// Comment token starting its line, or a line inside a Pod token.
+//
+// The parse tree's own spans stay physical: this is the harness's
+// numbering, not the parser's.
+func PerlLines(src []byte, file string) (line []int, own []bool) {
+	starts := lineIndex(src)
+	directives := map[int]string{}
+	for _, tok := range lexer.TokenizeBarewords(src, coreBarewordOperators()) {
+		switch tok.Kind {
+		case lexer.Comment:
+			if tok.Start == 0 || src[tok.Start-1] == '\n' {
+				directives[starts.at(tok.Start)] = strings.TrimSuffix(string(src[tok.Start:tok.End]), "\n")
+			}
+		case lexer.Pod:
+			at := tok.Start
+			for _, text := range strings.SplitAfter(string(src[tok.Start:tok.End]), "\n") {
+				if strings.HasPrefix(text, "#") {
+					directives[starts.at(at)] = strings.TrimSuffix(text, "\n")
+				}
+				at += len(text)
+			}
+		}
+	}
+
+	line = make([]int, len(starts)+1)
+	own = make([]bool, len(starts)+1)
+	n, inFile := 0, true
+	for i := 1; i <= len(starts); i++ {
+		n++
+		line[i], own[i] = n, inFile
+		if num, name, ok := lineDirective(directives[i]); ok {
+			n = num - 1
+			if name != "" {
+				inFile = name == file
+			}
+		}
+	}
+	return line, own
+}
+
+// lineDirective reads one line as toke.c's S_incline does: `#`, optional
+// blanks, `line`, at least one blank, the number, then optionally a name --
+// quoted, which may hold blanks, or bare up to the next space -- and nothing
+// after it but blanks. Anything else is an ordinary comment. An unclosed
+// quote is part of a bare name, and `""` names no file.
+func lineDirective(text string) (num int, name string, ok bool) {
+	s, found := strings.CutPrefix(text, "#")
+	if !found {
+		return 0, "", false
+	}
+	s, found = strings.CutPrefix(strings.TrimLeft(s, " \t"), "line")
+	if !found || s == "" || (s[0] != ' ' && s[0] != '\t') {
+		return 0, "", false
+	}
+	s = strings.TrimLeft(s, " \t")
+	digits := len(s) - len(strings.TrimLeft(s, "0123456789"))
+	if digits == 0 {
+		return 0, "", false
+	}
+	num, err := strconv.Atoi(s[:digits])
+	s = s[digits:]
+	if err != nil || (s != "" && !strings.ContainsRune(" \t\r", rune(s[0]))) {
+		return 0, "", false
+	}
+	s = strings.TrimLeft(s, " \t")
+	rest := ""
+	if quoted, found := strings.CutPrefix(s, `"`); found && strings.Contains(quoted, `"`) {
+		name, rest, _ = strings.Cut(quoted, `"`)
+	} else {
+		end := strings.IndexAny(s, " \t\n\r\f\v")
+		if end < 0 {
+			end = len(s)
+		}
+		name, rest = s[:end], s[end:]
+	}
+	if strings.TrimLeft(rest, " \t\r\f") != "" {
+		return 0, "", false
+	}
+	return num, name, true
 }

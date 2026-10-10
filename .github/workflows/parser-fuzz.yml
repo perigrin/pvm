@@ -1,0 +1,48 @@
+# ABOUTME: Nightly fuzzing of internal/parse (make fuzz-parser), uploading any new failing seed.
+# ABOUTME: A find is an issue to file, not a gate: committed seeds are replayed by every go test.
+
+name: Parser Fuzz
+
+# Not on push or pull request. Fuzzing explores at random, so a find on any
+# one run says nothing about the change under review; it is a defect to file.
+# Every seed already found is committed under internal/parse/testdata/fuzz/
+# and replayed by `go test ./internal/parse/`, which is what gates a change.
+on:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  fuzz-parser:
+    name: make fuzz-parser (1,000,000 execs)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
+
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version: '1.24.4'
+
+    - name: Fuzz the parser
+      run: make fuzz-parser
+
+    # A failing run writes its input into testdata as an untracked seed.
+    # Upload just those, so the find can be filed and committed with its fix.
+    - name: Collect new seeds
+      if: failure()
+      run: |
+        mkdir -p new-seeds
+        git ls-files --others --exclude-standard internal/parse/testdata/fuzz/ |
+          while read -r seed; do cp "$seed" new-seeds/; done
+        ls -la new-seeds
+
+    - name: Upload new seeds
+      if: failure()
+      uses: actions/upload-artifact@v6
+      with:
+        name: parser-fuzz-seeds
+        path: new-seeds/

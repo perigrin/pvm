@@ -56,7 +56,14 @@ func (p *parser) parseTheRest(word lexer.Token) *Node {
 // comma-separated list of literals: `{ () }` is a term, and a narrower parser
 // would decline it.
 func (p *parser) parseUse(word lexer.Token) *Node {
+	// `use` and `no` take a module name or a version, never a parenthesis:
+	// measured on 5.42.0, `no(A)`, `use (A)` and `no ( strict )` are each
+	// "syntax error ... near "no("". `require(A)` is a call perl compiles.
 	p.advanceTo(word)
+	if next, ok := p.peekSignificant(); ok && p.text(next) == "(" && keywordName(p.text(word)) != "require" {
+		return p.refuseTrailingTokens(word.Start)
+	}
+
 	n := &Node{Kind: Use, Text: p.text(word), Start: word.Start}
 	var module string
 
@@ -155,7 +162,9 @@ func (p *parser) parseUse(word lexer.Token) *Node {
 	// statement of its own -- so every `sub NAME` in it is a name the
 	// requiring file can call. There is no import list to consult because
 	// there is no import; the declarations themselves are the interface.
-	// See resolveRequiredFile for the boundary that keeps this safe.
+	// Only inside BEGIN, which runs it before the rest of the file compiles:
+	// a run-time require has declared nothing when perl compiles the calls
+	// after it. See resolveRequiredFile for the boundary that keeps this safe.
 	p.noteFeatures(n.Text, module, list)
 	if module != "" && !isVersionPrefix(module) && n.Text != "no" {
 		p.notePackage(module)
@@ -164,7 +173,7 @@ func (p *parser) parseUse(word lexer.Token) *Node {
 	switch {
 	case module != "" && !isVersionPrefix(module) && n.Text == "use":
 		p.resolveImports(module, list)
-	case module == "" && n.Text == "require":
+	case module == "" && n.Text == "require" && p.inBegin:
 		p.resolveRequiredFile(list)
 	}
 
@@ -578,6 +587,13 @@ func (p *parser) importBuiltins(list *Node) {
 // THE BOUNDARY IS THE SAFETY PROPERTY, and each rule is enforced at a named
 // place rather than assumed:
 //
+//  0. Inside BEGIN only, at the call site in parseUse (inBegin). perl runs a
+//     BEGIN block before compiling what follows it, so `BEGIN { require
+//     './test.pl' }` makes `is 1, 2` a call; a run-time require has not run
+//     when the call compiles, and perl 5.42 refuses `require './h.pl'; is 1,
+//     2` as a syntax error. Measured, gating on BEGIN moves no file in the
+//     T1, perl.git t/ or canon ratchets: perl's suite requires its helpers in
+//     BEGIN because nothing else works.
 //  1. A LITERAL string only, here. `require $file` and `require "./$n.pl"`
 //     name a file only at runtime, so they contribute nothing. Measured over
 //     perl.git's `t/`: 503 files hold a literal `require`, against 6 with a
@@ -676,7 +692,11 @@ func (p *parser) parsePhaser(word lexer.Token) *Node {
 	p.advanceTo(word)
 	n := &Node{Kind: Phaser, Text: p.text(word), Start: word.Start}
 
-	if blk := p.parseBlockOrDecline(); blk != nil {
+	outer := p.inBegin
+	p.inBegin = outer || n.Text == "BEGIN"
+	blk := p.parseBlockOrDecline()
+	p.inBegin = outer
+	if blk != nil {
 		n.Children = append(n.Children, blk)
 		if n.Text == "BEGIN" {
 			p.noteBeginEffects(blk)
@@ -762,27 +782,29 @@ func (p *parser) noteBeginEffects(n *Node) {
 
 // beginImport reads `M->import`, `M->import()` and `M->import(LIST)` with M a
 // literal class name, returning M and the import list as `use M` would hold
-// it: nil for no list, an empty parenthesised List for `()`.
+// it: nil for no list, an empty parenthesised List for `()`. M is the class-
+// name string a bareword before `->` reads as; with a sub named M declared it
+// is a call, and the import goes to whatever class M() returns.
 func beginImport(n *Node) (module string, list *Node, ok bool) {
 	if n.Kind != Binary || n.Text != "->" || len(n.Children) != 2 {
 		return "", nil, false
 	}
 	class, method := n.Children[0], n.Children[1]
-	if class.Kind != Call || len(class.Children) != 0 || !isBarewordText(class.Text) ||
-		method.Text != "import" {
+	if class.Kind != Term || !isBarewordText(class.Text) || method.Text != "import" {
 		return "", nil, false
 	}
+	module = strings.TrimSuffix(class.Text, "::")
 	switch {
 	case method.Kind == Term:
-		return class.Text, nil, true
+		return module, nil, true
 	case method.Kind != Call:
 		return "", nil, false
 	case len(method.Children) == 0:
-		return class.Text, &Node{Kind: List, Paren: true, Start: method.End, End: method.End}, true
+		return module, &Node{Kind: List, Paren: true, Start: method.End, End: method.End}, true
 	case len(method.Children) == 1:
-		return class.Text, method.Children[0], true
+		return module, method.Children[0], true
 	}
-	return class.Text, &Node{Kind: List, Paren: true, Start: method.Start, End: method.End, Children: method.Children}, true
+	return module, &Node{Kind: List, Paren: true, Start: method.Start, End: method.End, Children: method.Children}, true
 }
 
 // parseSpecialSub: `DESTROY { ... }` and `AUTOLOAD { ... }`, which declare the
@@ -908,6 +930,9 @@ func (p *parser) parseAttributes(n *Node) {
 						break
 					}
 				}
+			}
+			if depth > 0 {
+				p.attrOpenAtEOF = true
 			}
 			attr.End = p.prevEnd()
 			// Text, not just the span. Canon writes Text, so extending only

@@ -84,6 +84,7 @@ func (p *parser) parseComparison(left *Node, op OpInfo, cls cmpClass, minBP int)
 		p.advanceTo(tok)
 		right := p.operand(op.BP, tok)
 		left.Children = append(left.Children, right)
+		left.Ops = append(left.Ops, text)
 		left.End = right.End
 		return left
 	}
@@ -108,15 +109,16 @@ func (p *parser) parseComparison(left *Node, op OpInfo, cls cmpClass, minBP int)
 	if isComparison(right) && sameLevel(comparisonClass(right), cls) {
 		return p.refuseComparison(left)
 	}
-	kind := Binary
-	if chainable {
-		kind = CmpChain
-	}
-	return &Node{
-		Kind: kind, Text: text,
+	n := &Node{
+		Kind: Binary, Text: text,
 		Start: left.Start, End: right.End,
 		Children: []*Node{left, right},
 	}
+	if chainable {
+		n.Kind = CmpChain
+		n.Ops = []string{text}
+	}
+	return n
 }
 
 // refuseComparison refuses the comparisons begun at left, through to the

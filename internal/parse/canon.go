@@ -3,7 +3,12 @@
 
 package parse
 
-import "strings"
+import (
+	"slices"
+	"strings"
+
+	"tamarou.com/pvm/internal/lexer"
+)
 
 // Canon emits n as Perl, with the parenthesisation the TREE implies.
 //
@@ -26,7 +31,10 @@ func Canon(n *Node, src []byte) string {
 // emit writes n, wrapping it in parentheses when its own binding power is
 // looser than outer -- the power its parent will read it at.
 func emit(b *strings.Builder, n *Node, src []byte, outer int) {
-	if bindingPower(n) < outer {
+	// A parenthesised element with a trailing separator keeps its parens
+	// whatever its binding power, so the separator stays inside them:
+	// `(A,)/0` is written `(A() ,) / 0`, not `A() , / 0`.
+	if bindingPower(n) < outer || n.Paren && n.TrailingComma != "" {
 		b.WriteByte('(')
 		defer b.WriteByte(')')
 	}
@@ -49,9 +57,29 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 			if c.HeredocBody {
 				continue // after the terminator; see below
 			}
+			// A bare block with no statement in it is written `{;}`. Written
+			// `{}` it re-reads as an empty anonymous hash, which is what perl
+			// makes of an empty brace at statement position; measured on
+			// 5.42.0, `{;}` is an enterloop and `{}` an emptyavhv.
+			if c.Kind == Block && !slices.ContainsFunc(c.Children, func(s *Node) bool {
+				return s.Kind == Statement
+			}) {
+				stmt.WriteString("{;}")
+				continue
+			}
 			emit(&stmt, c, src, 0)
 		}
 		text := stmt.String()
+		// An expression statement whose emission begins with `{` begins with
+		// an anonymous hash -- `({0})` or `({0}) . 1` with the parens gone --
+		// and a bare `{` at statement position re-reads as a block unless
+		// braceOpensAnonHash says otherwise (`{a => 1}`, `{}`). Where it
+		// would, perl's Deparse writes `+{0};`, and so does this. The text is
+		// re-parsed to ask, so the answer is the parser's own.
+		if strings.HasPrefix(text, "{") && n.Children[0].Kind != Block && n.Children[0].Kind != Unknown &&
+			rereadsAsBlock(text) {
+			text = "+" + text
+		}
 		// A NEWLINE ALREADY IN THE STATEMENT after its heredoc opener -- a
 		// quote that runs on, `... eq q(hello\n)` -- is where perl reads the
 		// bodies from: its scan_heredoc takes the lines after the opener's
@@ -159,7 +187,13 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 		// and writing `a()` would call it. The parser records the autoquote
 		// on the element rather than rewriting the node, because hover and
 		// go-to-definition still want to know a word was written there.
+		// Parenthesised, it is written as its source, `(A=>)`: the word
+		// alone re-reads as a call.
 		if n.Fat && len(n.Children) == 0 {
+			if n.Paren {
+				b.WriteString(n.SourceText(src))
+				return
+			}
 			b.WriteString(n.Text)
 			return
 		}
@@ -245,6 +279,27 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 				b.WriteByte('}')
 				break
 			}
+			// `-` or `+` before an operand that begins with the same byte
+			// would write `--` or `++`, the decrement or increment: perl's
+			// Deparse writes `- -$x` as `-(-$x)`, and so does this. `!`
+			// before `~` would write `!~`, the negated match, which perl
+			// refuses there; Deparse writes that one bare and so does not
+			// re-read, so this parenthesises it the same way.
+			if joins, ok := map[string]string{"-": "-", "+": "+", "!": "~"}[op]; ok {
+				var operand strings.Builder
+				emit(&operand, n.Children[0], src, prefix[op])
+				// The operand is emitted once and its text reused: emitting it
+				// again here doubles the work at every level of `!!!!$x`.
+				// `-` before a one-letter name writes a filetest: `- A()` is
+				// a negated call and `-A()` is `-A $_`, measured on 5.42.0.
+				if text := operand.String(); strings.HasPrefix(text, joins) ||
+					op == "-" && joinsFiletest(text) {
+					b.WriteString("(" + text + ")")
+				} else {
+					b.WriteString(text)
+				}
+				break
+			}
 			emit(b, n.Children[0], src, prefix[op])
 		}
 
@@ -267,14 +322,14 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 		emit(b, n.Children[2], src, bp)
 
 	case CmpChain:
-		// N operands, one operator, evaluated once each -- so it is emitted
-		// as the chain it is rather than as nested binaries, which would say
-		// something the tree does not.
+		// N operands, each link with its own operator, evaluated once each
+		// -- so it is emitted as the chain it is rather than as nested
+		// binaries, which would say something the tree does not.
 		bp := infix[n.Text].BP
 		for i, c := range n.Children {
 			if i > 0 {
 				b.WriteByte(' ')
-				b.WriteString(n.Text)
+				b.WriteString(n.Ops[i-1])
 				b.WriteByte(' ')
 			}
 			emit(b, c, src, bp+1)
@@ -340,8 +395,19 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 		// No terminator either: the `.` line already ended the declaration,
 		// which is why blockForm counts this among the forms that write their
 		// own.
+		//
+		// The `.` line is closed with a newline when the source ended on it.
+		// perl ends a format at a `.` followed by blanks and then a newline OR
+		// the end of the file, so the source is right without one -- but the
+		// statement separator written after this form would land on that
+		// line, the re-lex would take it into the body, and every emission
+		// would grow by a space.
 		if n.Text == "format" {
-			b.WriteString(n.SourceText(src))
+			text := n.SourceText(src)
+			b.WriteString(text)
+			if !strings.HasSuffix(text, "\n") {
+				b.WriteByte('\n')
+			}
 			return
 		}
 
@@ -400,7 +466,12 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 					continue
 				}
 			default:
+				// The initialiser is the right side of an assignment and is
+				// read at its power: `my $x = (%h and 1)` written bare is
+				// `(my $x = %h) and 1`, measured on 5.42.0.
 				b.WriteString(" = ")
+				emit(b, c, src, infix["="].BP)
+				continue
 			}
 			emit(b, c, src, 0)
 		}
@@ -443,8 +514,30 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 		// keyword, kept as written -- `unless` is not rewritten into a
 		// negated `if`, because the CST records what was typed.
 		b.WriteString(n.Text)
-		cond := true
-		for _, c := range n.Children {
+		children := n.Children
+		if n.CStyle {
+			// `for (INIT; COND; STEP)`: the clauses lead the children in slot
+			// order, and an empty slot is written as nothing between its
+			// semicolons. The spelling is Deparse's on 5.42.0 -- `for ($a; ;
+			// $c)`, `for ($a; $b;)`, `for (; ; $c)` -- each `;` followed by a
+			// space except the last when its slot is empty.
+			b.WriteString(" (")
+			for i, filled := range n.ForSlots {
+				if i > 0 {
+					b.WriteByte(';')
+					if i < len(n.ForSlots)-1 || filled {
+						b.WriteByte(' ')
+					}
+				}
+				if filled && len(children) > 0 {
+					emit(b, children[0], src, 0)
+					children = children[1:]
+				}
+			}
+			b.WriteByte(')')
+		}
+		cond := !n.CStyle
+		for _, c := range children {
 			b.WriteByte(' ')
 			switch {
 			// A Block is the body. A nested Conditional is the `else` or
@@ -685,10 +778,16 @@ func isDerefSigil(op string) bool {
 // bareDerefOperand reports whether a dereference's operand may follow its
 // sigil without braces: a scalar variable, or a scalar dereference of one --
 // `@$r`, `$$$r`.
+//
+// The variable's name must be one the lexer reads after a second sigil -- a
+// word byte, `{`, `$` or `::`, toke.c's test -- or the bare form re-reads as
+// something else: `${$;}` written `$$;` is the pid and a terminator.
 func bareDerefOperand(c *Node) bool {
 	switch {
 	case c.Kind == Term && strings.HasPrefix(c.Text, "$") && !c.Paren:
-		return true
+		rest := c.Text[1:]
+		return rest != "" && (isWordByte(rest[0]) || rest[0] == '{' || rest[0] == '$' ||
+			strings.HasPrefix(rest, "::"))
 	case c.Kind == Unary && c.Text == "$" && len(c.Children) == 1:
 		return bareDerefOperand(c.Children[0])
 	}
@@ -707,13 +806,15 @@ func isBarewordText(s string) bool {
 
 // unaryToken spells a Unary node's operation back as its source token.
 //
-// Node.Text records the OPERATION -- "neg", "ref" -- because `-$x` and a
+// Node.Text records the OPERATION -- "neg", "pos", "ref" -- because `-$x` and a
 // subtraction are not the same thing and the tree must not say they are. The
 // precedence table is keyed by the token, so emitting needs the mapping back.
 func unaryToken(op string) string {
 	switch op {
 	case "neg":
 		return "-"
+	case "pos":
+		return "+"
 	case "ref":
 		return "\\"
 	default:
@@ -726,6 +827,14 @@ func unaryToken(op string) string {
 func isWordOp(op string) bool {
 	c := op[len(op)-1]
 	return c == '_' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+}
+
+// joinsFiletest reports whether a `-` written before text lexes as a
+// filetest: a filetest letter with no word byte after it, as the lexer's
+// scanFileTest reads it.
+func joinsFiletest(text string) bool {
+	return text != "" && lexer.IsFileTest("-"+text[:1]) &&
+		(len(text) == 1 || !isWordByte(text[1]))
 }
 
 // closer is the bracket that closes the one an Index opened.
@@ -817,6 +926,15 @@ func lastForm(n *Node) *Node {
 	return nil
 }
 
+// rereadsAsBlock reports whether a statement's text, written bare, begins
+// with a bare block. ponytail: a re-parse per statement that starts with an
+// anonymous hash, which is rare; a text-level braceOpensAnonHash if it shows.
+func rereadsAsBlock(text string) bool {
+	root := Parse([]byte(text))
+	return len(root.Children) > 0 && len(root.Children[0].Children) > 0 &&
+		root.Children[0].Children[0].Kind == Block
+}
+
 func blockForm(n *Node) bool {
 	last := lastForm(n)
 	if last == nil {
@@ -831,7 +949,11 @@ func blockForm(n *Node) bool {
 		// modifier statement, which is half of why they canon'd as something
 		// that is not Perl.
 		return !last.Modifier
-	case Phaser, Block, Use, Unknown:
+	case Phaser:
+		// A phaser name with no block is a forward declaration, `sub END;`
+		// to perl's Deparse, and takes its `;` like any other.
+		return len(last.Children) > 0
+	case Block, Use, Unknown:
 		return true
 	case LoopControl:
 		// NOT a block form. `last`, `next`, `redo`, `goto` and `return` all end
