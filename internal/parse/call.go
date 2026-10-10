@@ -766,8 +766,12 @@ func (p *parser) parseFilehandleSlot(op string) *Node {
 	case tok.Kind == lexer.Variable && p.src[tok.Start] == '$':
 		// `print $fh "a"`. Only when what FOLLOWS starts a new term with no
 		// comma -- otherwise `print $x, "a"` would lose its first argument.
+		//
+		// A `(` too, which never calls a plain scalar (see callsHere):
+		// measured on 5.42.0 with -MO=Deparse, `print $x(1), 2` is `print
+		// $x 1, 2` and `system $x(sh), 1` is `system $x 'sh', 1`.
 		next, ok := p.peekAfter(tok)
-		if !ok || !startsTerm(next, p.src) {
+		if !ok || !startsTerm(next, p.src) && p.text(next) != "(" {
 			return nil
 		}
 		p.advanceTo(tok)

@@ -233,6 +233,11 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 				Children: []*Node{left},
 			}, text, "postfix")
 		case "(", "[", "{":
+			// A `(` perl does not read as a call ends the expression, and
+			// whatever owns it reports the bytes left over.
+			if text == "(" && !p.callsHere(left) {
+				return left
+			}
 			left = p.parseSubscript(left, text)
 		case "->":
 			// `->` before a subscript opener is the SAME operation as the
@@ -485,6 +490,75 @@ func (p *parser) peekSubscript() (open string, arrow bool, ok bool) {
 		}
 	}
 	return "", false, false
+}
+
+// callsHere reports whether a `(` after left is a call, which perly.y allows
+// only after a `subscripted`, after the name `&` or `->` introduces, or
+// after a bareword the parser left its parens to: `$x[0]()`, `$x->(1)(2)`,
+// `&$x()`, `$x->$m()`, `time ()`. After any other term perl refuses it --
+// measured on 5.42.0, `$x()`, `my $x()`, `f()()`, `(f)()`, `$x->m()()` and
+// `&$x()()` are each a syntax error.
+func (p *parser) callsHere(left *Node) bool {
+	if p.subscripted(left) || p.ampersandCallee(left) {
+		return true
+	}
+	// A bareword whose parens are its own argument list: `time ()`,
+	// `__PACKAGE__()`, `CORE::time()`.
+	if left.Kind == Call && len(left.Children) == 0 && p.src[left.End-1] != ')' {
+		return true
+	}
+	// The method name or the arrow call's own parens: `$x->$m` or the `(1)`
+	// of `$x->(1)`, not a postfix slice, `$x->@[0]`. Once called,
+	// `$x->$m()` is a term, and its `(1)` is read by subscripted.
+	return p.afterArrow(left) && (left.Paren || p.src[left.Start] == '$') &&
+		!(left.Kind == Index && left.Text == "(")
+}
+
+// subscripted is perly.y's `subscripted`: an element of a scalar's array or
+// hash, a list slice, an arrow call, or a call after any of these.
+func (p *parser) subscripted(n *Node) bool {
+	if n.Kind != Index || len(n.Children) == 0 {
+		return false
+	}
+	base := n.Children[0]
+	if n.Text == "(" {
+		return p.subscripted(base) || base.Paren && p.afterArrow(base)
+	}
+	if n.Arrow {
+		return true
+	}
+	// A slice -- `@x[0]`, `%$x{a}`, `$x->@[0]` -- or a block dereference
+	// read as a subscript on its sigil, `${$x}` and `&{$x}`.
+	if c := p.src[n.Start]; c == '@' || c == '%' {
+		return false
+	}
+	return !(base.Kind == Term && len(base.Text) == 1 && strings.ContainsAny(base.Text, "$&@%*"))
+}
+
+// ampersandCallee reports whether n is what `&` calls: `&f`, `&$x`,
+// `&{$x}` or `&{; $x}`.
+func (p *parser) ampersandCallee(n *Node) bool {
+	switch n.Kind {
+	case Term:
+		return len(n.Text) > 1 && n.Text[0] == '&'
+	case Unary:
+		return n.Text == "&"
+	case Index:
+		return n.Text == "{" && len(n.Children) > 0 && n.Children[0].Kind == Term && n.Children[0].Text == "&"
+	}
+	return false
+}
+
+// afterArrow reports whether n is the first term after a `->`.
+func (p *parser) afterArrow(n *Node) bool {
+	i := p.pos - 1
+	for i >= 0 && p.toks[i].Start >= n.Start {
+		i--
+	}
+	for i >= 0 && (isTrivia(p.toks[i].Kind) || p.toks[i].Kind == lexer.HeredocBody) {
+		i--
+	}
+	return i >= 0 && p.text(p.toks[i]) == "->"
 }
 
 // parseSubscript handles the postfix chain: a call, an index, a key.
