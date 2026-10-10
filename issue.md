@@ -6,7 +6,7 @@ milestone: m1-parse-the-core
 blocks:
 - 01a0c13f-c7d7-7d9c-9a85-60a59aa26bc0
 created: 2026-09-20T23:56:10.360319979Z
-updated: 2026-09-26T09:52:49.84909574Z
+updated: 2026-10-10T07:36:56.488282007Z
 sessions:
 - start_sha: 2963c47d4099f32e5bcd3a131d0865f204ee28ea
   end_sha: 6ae2242dc5addd89075b7c29d0a0777e69d757ef
@@ -90,8 +90,7 @@ so answer it before changing anything.
 
 - [ ] A heredoc in statement position parses with no Unknown node (`go test ./internal/parse/ -run '^TestHeredocInStatementPosition$' -count=1 -v | grep -q '^--- PASS: TestHeredocInStatementPosition'`)
 - [ ] All four quoting forms parse and round-trip (`go test ./internal/parse/ -run '^TestHeredocQuotingForms$' -count=1 -v | grep -q '^--- PASS: TestHeredocQuotingForms'`)
-- [ ] The T2 metric is green with the shortfall map regenerated in the same
-      commit (`go test ./internal/parse/ -run '^TestT2CoreParses$' -count=1 -v | grep -q '^--- PASS: TestT2CoreParses'`)
+- [ ] The T2 metric is green with the shortfall map regenerated in the same commit (`go test ./internal/parse/ -run '^TestT2CoreParses$' -count=1 -v | grep -q '^--- PASS: TestT2CoreParses'`)
 - [ ] The T1 ratchet is green with its baseline regenerated in the same commit (`go test ./internal/parse/ -run '^TestParseRatchet$' -count=1 -v | grep -q '^--- PASS: TestParseRatchet'`)
 
 Plan: M1. Survey: 01a0c10b bucket 4.
