@@ -6,6 +6,8 @@ package parse
 import (
 	"slices"
 	"strings"
+
+	"tamarou.com/pvm/internal/lexer"
 )
 
 // Canon emits n as Perl, with the parenthesisation the TREE implies.
@@ -288,7 +290,10 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 				emit(&operand, n.Children[0], src, prefix[op])
 				// The operand is emitted once and its text reused: emitting it
 				// again here doubles the work at every level of `!!!!$x`.
-				if text := operand.String(); strings.HasPrefix(text, joins) {
+				// `-` before a one-letter name writes a filetest: `- A()` is
+				// a negated call and `-A()` is `-A $_`, measured on 5.42.0.
+				if text := operand.String(); strings.HasPrefix(text, joins) ||
+					op == "-" && joinsFiletest(text) {
 					b.WriteString("(" + text + ")")
 				} else {
 					b.WriteString(text)
@@ -822,6 +827,14 @@ func unaryToken(op string) string {
 func isWordOp(op string) bool {
 	c := op[len(op)-1]
 	return c == '_' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+}
+
+// joinsFiletest reports whether a `-` written before text lexes as a
+// filetest: a filetest letter with no word byte after it, as the lexer's
+// scanFileTest reads it.
+func joinsFiletest(text string) bool {
+	return text != "" && lexer.IsFileTest("-"+text[:1]) &&
+		(len(text) == 1 || !isWordByte(text[1]))
 }
 
 // closer is the bracket that closes the one an Index opened.
