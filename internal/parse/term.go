@@ -367,9 +367,20 @@ func (p *parser) parseTerm() *Node {
 			//
 			// So may a prototype or signature: `sub (&) { ... }`, `sub ($x)
 			// { ... }`.
-			if next, ok := p.peekAfter(tok); ok && (p.text(next) == "{" || p.text(next) == ":" ||
+			next, ok := p.peekAfter(tok)
+			if ok && (p.text(next) == "{" || p.text(next) == ":" ||
 				next.Kind == lexer.Prototype || p.text(next) == "(") {
 				return p.parseAnonSub(tok)
+			}
+			// Nor a sub with no head and no block: measured on 5.42.0, `my
+			// $f = sub;`, `f(sub, 1)` and `print sub;` are each "Illegal
+			// declaration of anonymous subroutine". Before `=>` it is the
+			// string 'sub', before `}` a hash key, `$h{sub}`, and a name
+			// after it is parseWordTerm's.
+			// ponytail: `do {sub}` passes as a key would; a refusal there
+			// needs to know the brace is a subscript's.
+			if !ok || next.Kind != lexer.Word && p.text(next) != "=>" && p.text(next) != "}" {
+				return p.refuseNotATerm(tok)
 			}
 
 		case text == "eval" || text == "do":
@@ -393,11 +404,12 @@ func (p *parser) parseTerm() *Node {
 	return p.refuseNotATerm(tok)
 }
 
-// refuseNotATerm declines a token that cannot begin a term. Consumed so the
-// loop advances; the bytes stay in the tree.
+// refuseNotATerm declines a term that begins at tok and cannot be one. Consumed
+// so the loop advances; the bytes stay in the tree, through whatever the
+// caller already read past tok -- an anonymous sub's head, for one.
 func (p *parser) refuseNotATerm(tok lexer.Token) *Node {
 	p.advanceTo(tok)
-	return &Node{Kind: Unknown, Refusal: NotATerm, Start: tok.Start, End: tok.End}
+	return &Node{Kind: Unknown, Refusal: NotATerm, Start: tok.Start, End: p.prevEnd()}
 }
 
 // declaratorIsBareword reports whether a `my` or `our` with no variable
@@ -487,9 +499,15 @@ func (p *parser) parseAnonSub(word lexer.Token) *Node {
 		}
 	}
 
-	if blk := p.parseBlockOrDecline(); blk != nil {
-		n.Children = append(n.Children, blk)
+	// The body. A head with no block after it is no sub: measured on 5.42.0,
+	// `sub ($$);` and `my $f = sub ();` are each "Illegal declaration of
+	// anonymous subroutine", and `my $f = sub :lvalue;` and a signature with
+	// no block are syntax errors, so the refusal takes the head with it.
+	blk := p.parseBlockOrDecline()
+	if blk == nil {
+		return p.refuseNotATerm(word)
 	}
+	n.Children = append(n.Children, blk)
 	n.End = p.prevEnd()
 	return n
 }

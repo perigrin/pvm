@@ -56,6 +56,10 @@ func TestCommaBeforeFatComma(t *testing.T) {
 // So does a word written with its call's parens, which canon writes for the
 // grouping it drops: `(my $x = foo()=>0)` leaves $x 7, and
 // `(!foo()=>0, 1+foo()=>0)` holds "", 0, 8 and 0.
+//
+// A comparison's right operand is one, the fuzzer's `y0>y=>0`: measured on
+// 5.42.0, Deparse writes `1 > x=>0` as `1 > 'x', '???'` and `1<2<x=>0` as
+// `1 < 2 < 'x', '???'`, a chain's last operand quoted as a binary's is.
 func TestFatCommaQuotesAnOperandsWord(t *testing.T) {
 	for _, tc := range []struct{ src, want string }{
 		{"!y=>0", "!y => 0;"},
@@ -67,6 +71,8 @@ func TestFatCommaQuotesAnOperandsWord(t *testing.T) {
 		{"sub foo {7} my @a = ((my $x = foo)=>0);", "sub foo {7;} my @a = (my $x = foo() => 0);"},
 		{"sub foo {7} my @a = (my $x = foo()=>0);", "sub foo {7;} my @a = (my $x = foo() => 0);"},
 		{"sub foo {7} my @a = (!foo()=>0, 1+foo()=>0);", "sub foo {7;} my @a = (!foo() => 0, 1 + foo() => 0);"},
+		{"y0>y=>0", "y0() > y => 0;"},
+		{"1<2<y=>0", "1 < 2 < y => 0;"},
 	} {
 		got := strings.TrimSpace(parse.Canon(parse.Parse([]byte(tc.src)), []byte(tc.src)))
 		if got != tc.want {

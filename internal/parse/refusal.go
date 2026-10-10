@@ -51,7 +51,8 @@ const (
 
 	// NotATerm: a token that cannot begin a term. The catch-all of
 	// parseTerm, consumed so the loop advances; also a `my` or `our` in
-	// term position with no variable after it.
+	// term position with no variable after it, and an anonymous sub's
+	// head with no block after it.
 	NotATerm RefusalCode = "not_a_term"
 
 	// MissingOperand: an infix or prefix operator whose right operand ran
@@ -146,7 +147,7 @@ var RefusalSites = map[RefusalCode]RefusalSite{
 	},
 	NotATerm: {
 		What:  "a token that cannot begin a term",
-		Where: "term.go, refuseNotATerm: parseTerm's fallthrough, and a `my` or `our` with no target",
+		Where: "term.go, refuseNotATerm: parseTerm's fallthrough, a `my` or `our` with no target, and parseAnonSub with no block",
 	},
 	MissingOperand: {
 		What:  "an operator whose right operand ran out",
