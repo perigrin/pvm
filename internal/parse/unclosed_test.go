@@ -14,7 +14,6 @@ import (
 // `perl -c`, every refused case below is a compile error, reported on the
 // line of the last token perl read:
 //
-//	0(                  syntax error at m.pl line 1, near "0("
 //	for(0               syntax error at m.pl line 1, at EOF
 //	{                   Missing right curly or square bracket at m.pl line 1
 //	sub f {             Missing right curly or square bracket at m.pl line 1
@@ -38,14 +37,15 @@ import (
 // found where operator expected ... near "0A0"", and the parser refuses it as
 // trailing_tokens -- see TestForHeadWithTwoExpressionsRefuses.
 //
-// `0()`, the closed form of `0(`, is no negative: perl refuses it too, as
-// "syntax error ... near "0("", so it is not listed below.
+// Nor is `0(`: perl's error there is the call paren no term before it takes,
+// "syntax error at m.pl line 1, near "0("", the same as for the closed `0()`,
+// and the parser refuses both as trailing_tokens -- see
+// TestPostfixCallParenFollowsPerl.
 func TestUnclosedOpenerAtEOFRefused(t *testing.T) {
 	cases := []struct {
 		src  string
 		line int
 	}{
-		{"0(", 1},
 		{"for(0", 1},
 		{"(", 1},
 		{"[", 1},

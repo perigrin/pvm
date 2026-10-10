@@ -294,7 +294,7 @@ type Node struct {
 	// Only meaningful for Call; false everywhere else and not read there.
 	Resolved bool
 
-	// The seven flags below follow Resolved's rule: each is meaningful on one
+	// The bool flags below follow Resolved's rule: each is meaningful on one
 	// kind of node, false everywhere else, and not read there. A flag that
 	// leaks onto nodes it does not describe is worse than no flag, because a
 	// consumer cannot tell a real answer from a stray one.
