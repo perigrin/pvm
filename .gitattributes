@@ -1,0 +1,5 @@
+# Every file is stored with LF line endings, and is checked out that way on
+# every platform. Test fixtures, ratchets and the conformance corpus are
+# compared byte for byte, and a CRLF checkout on Windows changed what they
+# say (`parses: yes` read as "yes\r"). A test that needs CRLF builds it.
+* text=auto eol=lf

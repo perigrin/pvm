@@ -19,6 +19,7 @@ import (
 // count. Measured with perl 5.42.0, this source has FOUR prototype-driven
 // srefgen ops and the main-only oracle reported one.
 func TestOracleCountsReferencesInEveryCV(t *testing.T) {
+	requirePOSIXOracle(t)
 	src := "sub f(\\@){}\n" + // 1
 		"sub g { my @a; f(@a) }\n" + // 2  named sub
 		"my $c = sub { my @b; f(@b) };\n" + // 3  anonymous sub
@@ -48,6 +49,7 @@ func TestOracleCountsReferencesInEveryCV(t *testing.T) {
 // `require` it into main. Those subs are not the file under measurement, and
 // a count that included them would blame every corpus file for test.pl.
 func TestOracleAttributesReferencesToThisFileOnly(t *testing.T) {
+	requirePOSIXOracle(t)
 	dir := t.TempDir()
 	helper := "sub f(\\@){}\nsub g { my @a; f(@a) }\n1;\n"
 	if err := os.WriteFile(filepath.Join(dir, "helper.pl"), []byte(helper), 0o644); err != nil {
@@ -78,6 +80,7 @@ func TestOracleAttributesReferencesToThisFileOnly(t *testing.T) {
 // IS, so the two sides count the same thing. Each row was measured against
 // perl 5.42.0 with -MO=Concise before being written down.
 func TestOraclePopulationIsBackslashesAndPrototypes(t *testing.T) {
+	requirePOSIXOracle(t)
 	cases := []struct {
 		name string
 		src  string
@@ -135,6 +138,7 @@ func TestOraclePopulationIsBackslashesAndPrototypes(t *testing.T) {
 // clone and the prototype have different CV addresses and the same ROOT; a sub
 // with its own body has its own ROOT and still counts.
 func TestOracleCountsClonedSubOnce(t *testing.T) {
+	requirePOSIXOracle(t)
 	cases := []struct {
 		name string
 		src  string

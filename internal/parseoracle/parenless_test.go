@@ -32,6 +32,7 @@ import (
 // exactly the question this test asks, so the assertion is on perl's own
 // compile result.
 func TestParenlessCallBoundary(t *testing.T) {
+	requirePOSIXOracle(t)
 	if _, err := exec.LookPath("perl"); err != nil {
 		t.Skipf("perl unavailable: %v", err)
 	}

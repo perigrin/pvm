@@ -22,6 +22,7 @@ const pinPath = "testdata/corpus.pin"
 // verdicts -- and survives the round trip through the file the workflow's
 // next step reads.
 func TestReceiptRecordsTheSweep(t *testing.T) {
+	requirePOSIXOracle(t)
 	report := fixtureReport(t)
 	base := loadFixtureBaseline(t)
 	if err := base.Check(report); err != nil {

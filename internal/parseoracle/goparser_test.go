@@ -50,6 +50,7 @@ func goSubject(t *testing.T) *parseoracle.Subject {
 // claim: naming internal/parse and naming nothing are the same measurement.
 // A default that errored, or measured something else, disagrees here.
 func TestDefaultSubjectIsInternalParse(t *testing.T) {
+	requirePOSIXOracle(t)
 	files := fixtureCorpus(t)
 
 	byDefault, err := parseoracle.Run(context.Background(), files, parseoracle.RunOptions{})

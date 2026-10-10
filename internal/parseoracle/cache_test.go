@@ -82,6 +82,7 @@ func TestCacheSecondSweepSpawnsNoPerl(t *testing.T) {
 // having at all: the cached answer must be the answer perl gave. A fast cache
 // that returns something else is worse than no cache.
 func TestCacheServesIdenticalFacts(t *testing.T) {
+	requirePOSIXOracle(t)
 	dir := t.TempDir()
 	cache, err := parseoracle.OpenCache(dir)
 	if err != nil {
@@ -123,6 +124,7 @@ func TestCacheServesIdenticalFacts(t *testing.T) {
 // file must change the answer, or the cache is a way to keep believing a fact
 // that stopped being true.
 func TestCacheMissesOnChangedSource(t *testing.T) {
+	requirePOSIXOracle(t)
 	cache, err := parseoracle.OpenCache(t.TempDir())
 	if err != nil {
 		t.Fatalf("OpenCache: %v", err)
@@ -159,6 +161,7 @@ func TestCacheMissesOnChangedSource(t *testing.T) {
 // in the key — otherwise a re-baseline onto a new perl silently reuses the old
 // perl's opinions.
 func TestCacheMissesOnChangedInterpreter(t *testing.T) {
+	requirePOSIXOracle(t)
 	dir := t.TempDir()
 	path := filepath.Join(t.TempDir(), "probe.pl")
 	if err := os.WriteFile(path, []byte("my $x = 1;\n"), 0o644); err != nil {
@@ -200,6 +203,7 @@ func TestCacheMissesOnChangedInterpreter(t *testing.T) {
 // invalidates every prior answer, and a key that omits it returns facts the
 // current script would never have produced.
 func TestCacheMissesOnChangedScript(t *testing.T) {
+	requirePOSIXOracle(t)
 	dir := t.TempDir()
 	path := filepath.Join(t.TempDir(), "probe.pl")
 	if err := os.WriteFile(path, []byte("my $x = 1;\n"), 0o644); err != nil {
@@ -239,6 +243,7 @@ func TestCacheMissesOnChangedScript(t *testing.T) {
 // working directory changes what @INC finds. Two files with identical bytes
 // asked under different options are different questions.
 func TestCacheKeyCoversInvocationOptions(t *testing.T) {
+	requirePOSIXOracle(t)
 	cache, err := parseoracle.OpenCache(t.TempDir())
 	if err != nil {
 		t.Fatalf("OpenCache: %v", err)
@@ -266,6 +271,7 @@ func TestCacheKeyCoversInvocationOptions(t *testing.T) {
 // committed so a reviewer can read a change to it as a change in what perl
 // said, which requires the stored form be diffable rather than a blob.
 func TestCacheEntriesAreReadableDiffs(t *testing.T) {
+	requirePOSIXOracle(t)
 	dir := t.TempDir()
 	cache, err := parseoracle.OpenCache(dir)
 	if err != nil {

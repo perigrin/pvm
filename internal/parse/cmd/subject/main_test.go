@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"tamarou.com/pvm/internal/parseoracle"
@@ -32,7 +33,7 @@ import (
 // looked and there are none" about a file declaring two.
 func TestSubjectAnswersAllFiveMarkers(t *testing.T) {
 	root := t.TempDir()
-	bin := filepath.Join(root, "subject")
+	bin := filepath.Join(root, "subject"+exeSuffix)
 	if out, err := exec.Command("go", "build", "-o", bin, ".").CombinedOutput(); err != nil {
 		t.Fatalf("building the subject: %v\n%s", err, out)
 	}
@@ -123,7 +124,7 @@ func TestSubjectAnswersAllFiveMarkers(t *testing.T) {
 // the subject reports nothing there either.
 func TestSubjectHonoursLineDirective(t *testing.T) {
 	root := t.TempDir()
-	bin := filepath.Join(root, "subject")
+	bin := filepath.Join(root, "subject"+exeSuffix)
 	if out, err := exec.Command("go", "build", "-o", bin, ".").CombinedOutput(); err != nil {
 		t.Fatalf("building the subject: %v\n%s", err, out)
 	}
@@ -173,3 +174,12 @@ func TestSubjectHonoursLineDirective(t *testing.T) {
 		t.Errorf("reference sites at %v, want perl's %v", got, want)
 	}
 }
+
+// exeSuffix is what `go build -o` must name a binary for exec to find it:
+// Windows runs only files with an executable extension.
+var exeSuffix = func() string {
+	if runtime.GOOS == "windows" {
+		return ".exe"
+	}
+	return ""
+}()

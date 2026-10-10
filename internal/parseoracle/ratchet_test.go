@@ -165,6 +165,7 @@ func loadFixtureBaseline(t *testing.T) parseoracle.Baseline {
 // baseline exactly. This is the invocation a developer runs, and the one that
 // tells them the baseline still describes reality.
 func TestRatchet(t *testing.T) {
+	requirePOSIXOracle(t)
 	report := fixtureReport(t)
 
 	if *updateBaseline {
@@ -448,6 +449,7 @@ func summarise(r parseoracle.Report) string {
 // cannot fail is decoration, so this proves ours bites: downgrade one file's
 // recorded verdict's counterpart in the report and the check must fail.
 func TestRatchetFailsOnRegression(t *testing.T) {
+	requirePOSIXOracle(t)
 	base := loadFixtureBaseline(t)
 	report := fixtureReport(t)
 
@@ -482,6 +484,7 @@ func TestRatchetFailsOnRegression(t *testing.T) {
 // reality in EITHER direction — a baseline that quietly lags improvements is
 // a baseline nobody trusts.
 func TestRatchetFailsOnImprovement(t *testing.T) {
+	requirePOSIXOracle(t)
 	base := loadFixtureBaseline(t)
 	report := fixtureReport(t)
 
@@ -713,6 +716,7 @@ func TestBaselineHeader(t *testing.T) {
 // baseline. Without the flag the ratchet reads and compares; a check that
 // silently rewrote what it was checking against could never fail.
 func TestBaselineUpdateOnly(t *testing.T) {
+	requirePOSIXOracle(t)
 	dir := t.TempDir()
 	path := filepath.Join(dir, "baseline.txt")
 
