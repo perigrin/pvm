@@ -29,7 +29,10 @@ func Canon(n *Node, src []byte) string {
 // emit writes n, wrapping it in parentheses when its own binding power is
 // looser than outer -- the power its parent will read it at.
 func emit(b *strings.Builder, n *Node, src []byte, outer int) {
-	if bindingPower(n) < outer {
+	// A parenthesised element with a trailing separator keeps its parens
+	// whatever its binding power, so the separator stays inside them:
+	// `(A,)/0` is written `(A() ,) / 0`, not `A() , / 0`.
+	if bindingPower(n) < outer || n.Paren && n.TrailingComma != "" {
 		b.WriteByte('(')
 		defer b.WriteByte(')')
 	}
