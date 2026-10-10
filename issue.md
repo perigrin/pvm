@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: m1-parse-the-core
 created: 2026-10-09T23:49:35.11954988Z
-updated: 2026-10-10T05:34:18.310522652Z
+updated: 2026-10-10T05:34:55.878573148Z
 sessions:
 - start_sha: 419a99b64470f2c2a547bcd922fd613573eb6dbf
   end_sha: baf52e02b9bfe6cccdacae5aafb9bd5e8d725c68
@@ -70,7 +70,7 @@ new find unrelated to this issue -- and a failing run writes its seed into
 testdata, where every later `go test ./internal/parse/` replays it. This
 issue's claim is its own inputs, which are committed as fuzz seeds; the
 criterion replays them deterministically. The open-ended fuzz claim
-belongs to 01a0a70f-0ec3 and 01a0de03, where it stays.
+belongs to 01a0a70f-0ec3, where it stays.
 
 ## Acceptance criteria
 
