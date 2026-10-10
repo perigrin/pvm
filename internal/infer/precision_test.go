@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
@@ -122,8 +123,10 @@ func repoRoot(t *testing.T) string {
 	t.Helper()
 	wd, err := os.Getwd()
 	require.NoError(t, err)
-	// tests run in internal/infer
-	return strings.TrimSuffix(wd, "/internal/infer")
+	// tests run in internal/infer, two directories below the root, and the
+	// separator is the platform's: a "/internal/infer" suffix never matches
+	// on Windows.
+	return filepath.Dir(filepath.Dir(wd))
 }
 
 // TestInferencePrecision reports how often PSC's inferred type agrees with the
