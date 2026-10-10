@@ -314,14 +314,14 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 		emit(b, n.Children[2], src, bp)
 
 	case CmpChain:
-		// N operands, one operator, evaluated once each -- so it is emitted
-		// as the chain it is rather than as nested binaries, which would say
-		// something the tree does not.
+		// N operands, each link with its own operator, evaluated once each
+		// -- so it is emitted as the chain it is rather than as nested
+		// binaries, which would say something the tree does not.
 		bp := infix[n.Text].BP
 		for i, c := range n.Children {
 			if i > 0 {
 				b.WriteByte(' ')
-				b.WriteString(n.Text)
+				b.WriteString(n.Ops[i-1])
 				b.WriteByte(' ')
 			}
 			emit(b, c, src, bp+1)

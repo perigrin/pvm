@@ -272,6 +272,19 @@ type Node struct {
 	// what the parser already knew.
 	Text string
 
+	// Ops is set on a CmpChain: each link's own operator, one per pair of
+	// adjacent operands, so len(Ops) == len(Children)-1. Text is Ops[0].
+	//
+	// A chain may mix operators of one class, and Text alone names one of
+	// them. Measured on perl 5.42.0, Deparse keeps each:
+	//
+	//	$ perl -MO=Deparse -e 'my $s = $a < $b > $c;'
+	//	my $s = $a < $b > $c;
+	//
+	// Every operator of a chain shares its class and precedence level, so a
+	// reader of Text for either still gets the chain's answer.
+	Ops []string
+
 	// Refusal names WHICH construction site produced this Unknown, and is
 	// set on Unknown alone. See refusal.go for the ten codes and what each
 	// one means.
