@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T00:32:51.563768272Z
-updated: 2026-09-29T00:44:47.790498519Z
+updated: 2026-10-11T15:17:46.237522164Z
 sessions:
 - start_sha: 0c70adb2c77f4e06e9adf757e2199a2580c48a09
   end_sha: 468aa62746c7cda08884e4f3e2c6c593febca14f
@@ -47,9 +47,17 @@ the T1 file lexical_sub_prototype_method_invocant.t, which calls `t->...`, went
 from 1 to 2 Unknowns: the declaration was right, and this bug was waiting
 behind it.
 
+### Whole-suite criteria removed (2026-10-11)
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Criteria that only re-ran a whole suite
+or package (`go test ./...`, `make test`, the whole conformance or parse
+package) restated "make test passed", which gates every commit, while CI
+gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
+They are removed; this issue's named tests and ratchet checks remain.
+
 ## Acceptance criteria
 
 - [ ] A builtin or declared sub before `->` takes no argument, and the arrow applies to its result (`go test ./internal/parse/ -run '^TestArrowEndsArguments$' -count=1 -v | grep -q '^--- PASS: TestArrowEndsArguments'`)
 - [ ] REGRESSION GUARD: a class name before `->` is still a class name (`go test ./internal/parse/ -run '^TestArrowEndsArguments$' -count=1 -v | grep -q '^--- PASS: TestArrowEndsArguments'`)
 - [ ] REGRESSION GUARD: the perl.git t/ ratchet holds (`go test ./internal/parse/ -run '^TestPerlGitTRatchet$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTRatchet'`)
-- [ ] REGRESSION GUARD: the whole suite holds (`go test ./... -count=1`)
