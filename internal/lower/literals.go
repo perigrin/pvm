@@ -10,8 +10,8 @@ import (
 	"tamarou.com/pvm/internal/parse"
 )
 
-// literal lowers a childless term that is a number, a string or a qw list,
-// and declines anything else.
+// literal lowers a childless term that is a number, a string, a qw list or a
+// bare word, and declines anything else.
 func (l *lowerer) literal(n *parse.Node) Node {
 	t := n.Text
 	if len(n.Children) != 0 || t == "" {
@@ -26,6 +26,11 @@ func (l *lowerer) literal(n *parse.Node) Node {
 		return &StrLit{Value: t[1 : len(t)-1], Interpolated: true}
 	case c == '`':
 		return &StrLit{Value: t[1 : len(t)-1], Interpolated: true, Backtick: true}
+	}
+	if word.MatchString(t) {
+		// A class name or the stat buffer `_`. A parent whose position
+		// quotes the word says so: see hashKey and fatWord.
+		return &Bareword{Name: t}
 	}
 	m := quoteOp.FindStringSubmatch(t)
 	if m == nil {
@@ -51,6 +56,9 @@ func (l *lowerer) literal(n *parse.Node) Node {
 // quoteOp matches the head of a q, qq, qw or qx term up to and including
 // its opening delimiter.
 var quoteOp = regexp.MustCompile(`^(q[qwx]?)\s*([^\w\s])`)
+
+// word matches a bare word, package-qualified or not: Foo, Foo::Bar, _.
+var word = regexp.MustCompile(`^[A-Za-z_]\w*(::\w+)*(::)?$`)
 
 // isInt reports whether a number's spelling is an integer: hex and binary
 // always are, and a decimal is unless it has a point or an exponent.
@@ -85,4 +93,23 @@ func unescape(body string, open, close byte) string {
 		b.WriteByte(body[i])
 	}
 	return b.String()
+}
+
+// hashKey lowers the subscript of an `index "{"`, where a bare word is a
+// quoted string: perl reads $h{k} as $h{"k"}.
+func (l *lowerer) hashKey(n *parse.Node) Node {
+	if n.Kind == parse.Term && len(n.Children) == 0 && word.MatchString(n.Text) {
+		return l.stamp(n, &Bareword{Name: n.Text, Quoted: true})
+	}
+	return l.expr(n)
+}
+
+// fatWord lowers a `call` with Fat set and no arguments: the left of a fat
+// comma, which perl reads as a string (`(a => 1)` is ("a", 1)). The Fat flag
+// is on the word itself, so no position is needed.
+func (l *lowerer) fatWord(n *parse.Node) Node {
+	if !n.Fat || len(n.Children) != 0 {
+		return nil
+	}
+	return &Bareword{Name: n.Text, Quoted: true}
 }

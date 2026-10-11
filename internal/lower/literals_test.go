@@ -130,3 +130,47 @@ func TestLowerUnknownToHole(t *testing.T) {
 		t.Errorf("Hole has %d children, want none", len(kids))
 	}
 }
+
+// An unresolved word means four things (§4.14.1 rule 3), told apart by
+// where it stands. perl 5.42: with %h = ("Foo::Bar" => 1, k => 2), $h{k} is
+// 2 and exists $h{Foo::Bar} is true; join ",", (a => 1) is "a,1".
+func TestLowerBarewordByPosition(t *testing.T) {
+	// child picks the word out of the fragment's expression.
+	child := func(i int) func(*parse.Node) *parse.Node {
+		return func(n *parse.Node) *parse.Node { return n.Children[i] }
+	}
+	cases := []struct {
+		src   string
+		word  func(*parse.Node) *parse.Node
+		lower func(root, n *parse.Node) lower.Node
+		want  lower.Node
+	}{
+		// The subscript of an `index "{"`: a hash key, quoted.
+		{"$h{k};", child(1), lower.LowerHashKey, &lower.Bareword{Name: "k", Quoted: true}},
+		{"$h{Foo::Bar};", child(1), lower.LowerHashKey, &lower.Bareword{Name: "Foo::Bar", Quoted: true}},
+		// A key that is not a bare word lowers as itself.
+		{"$h{'k'};", child(1), lower.LowerHashKey, &lower.StrLit{Value: "k"}},
+		// A `call` with Fat set: the left of a fat comma, quoted, in a
+		// list or an anonymous constructor alike.
+		{"(a => 1);", child(0), lower.LowerExpr, &lower.Bareword{Name: "a", Quoted: true}},
+		{"[a => 1];", child(0), lower.LowerExpr, &lower.Bareword{Name: "a", Quoted: true}},
+		// The left operand of `->`: a class name.
+		{"Foo->new;", child(0), lower.LowerExpr, &lower.Bareword{Name: "Foo"}},
+		{"Foo::Bar->new;", child(0), lower.LowerExpr, &lower.Bareword{Name: "Foo::Bar"}},
+		// The operand of a file test: the stat buffer.
+		{"-r _;", child(0), lower.LowerExpr, &lower.Bareword{Name: "_"}},
+	}
+	for _, c := range cases {
+		root := parse.Parse([]byte(c.src))
+		sameShape(t, c.src, c.lower(root, c.word(expression(t, root))), c.want)
+	}
+
+	// Without the fat comma the word is a call to `a`, which this slice
+	// does not quote.
+	root := parse.Parse([]byte("(a, 1);"))
+	got := lower.LowerExpr(root, expression(t, root).Children[0])
+	got.Meta().ID = lower.ID{}
+	if reflect.DeepEqual(got, &lower.Bareword{Name: "a", Quoted: true}) {
+		t.Errorf("(a, 1): the call lowered to a quoted Bareword")
+	}
+}

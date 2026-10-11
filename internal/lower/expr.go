@@ -29,11 +29,16 @@ func (l *lowerer) expr(n *parse.Node) Node {
 	case parse.Term:
 		out = first(n, l.literal)
 	case parse.Call:
-		out = first(n)
+		out = first(n, l.fatWord)
 	}
 	if out == nil {
 		out = &Hole{}
 	}
+	return l.stamp(n, out)
+}
+
+// stamp gives out the id and Paren bit of n, the parse node it lowers.
+func (l *lowerer) stamp(n *parse.Node, out Node) Node {
 	b := out.Meta()
 	b.ID, b.Paren = l.ids[n], n.Paren
 	return out

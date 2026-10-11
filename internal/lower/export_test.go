@@ -9,3 +9,8 @@ import "tamarou.com/pvm/internal/parse"
 func LowerExpr(root, n *parse.Node) Node {
 	return (&lowerer{ids: AssignIDs(root)}).expr(n)
 }
+
+// LowerHashKey lowers n as the subscript of an `index "{"`.
+func LowerHashKey(root, n *parse.Node) Node {
+	return (&lowerer{ids: AssignIDs(root)}).hashKey(n)
+}
