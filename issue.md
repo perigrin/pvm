@@ -1,5 +1,5 @@
 ---
-title: Retire the tree-sitter vocabulary from internal/infer
+title: "Retire tree-sitter: infer and psc off internal/parser, internal/parser and gotreesitter deleted, AnalyzeLowered renamed Analyze"
 state: pending
 urgency: normal
 milestone: m2-lower-the-tree
@@ -12,7 +12,7 @@ blocks:
 - 01a0fa47-2737-7fdb-bd69-63e254d5a770
 - 01a0fd9b-5700-7514-a143-2caed2d06d8b
 created: 2026-09-20T23:10:31.270515112Z
-updated: 2026-10-11T10:33:54.985853108Z
+updated: 2026-10-11T10:36:19.671177385Z
 ---
 
 ## Context
