@@ -1,12 +1,21 @@
 ---
 title: "Node identity: stable ids for internal/lower that survive an edit above them"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m2-lower-the-tree
 blocks:
 - 01a0c10f-37f8-7a43-b3ce-ea194f7defe0
 created: 2026-09-20T23:02:46.558435832Z
-updated: 2026-10-11T10:32:51.212268556Z
+updated: 2026-10-11T10:36:37.259457461Z
+sessions:
+- start_sha: 971b903102dc4a335660172f3b1b5ecad5cf3330
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-11T10:36:37.259457461Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-11T10:36:37.259457461Z
 ---
 
 ## Context
