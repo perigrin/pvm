@@ -166,3 +166,30 @@ func TestLowerDeref(t *testing.T) {
 		t.Errorf("$x->foo: lowered to a Deref")
 	}
 }
+
+// perl 5.42 rejects both fragments (`perl -c`: syntax error). The parser
+// keeps the subscript as an Unknown inside an intact index, so the lowering
+// keeps the Index or Key, its base and its Arrow, and holds a Hole where the
+// subscript would be.
+func TestLowerSubscriptOverBrokenInput(t *testing.T) {
+	cases := []struct {
+		src  string
+		want lower.Node
+	}{
+		{"$x->[;", &lower.Index{Base: &lower.Var{Sigil: "$", Name: "x"}, Idx: &lower.Hole{}, Arrow: true}},
+		{"$h{;", &lower.Key{Base: &lower.Var{Sigil: "$", Name: "h"}, Key: &lower.Hole{}}},
+	}
+	for _, c := range cases {
+		root := parse.Parse([]byte(c.src))
+		var n *parse.Node
+		for _, s := range root.Children {
+			if s.Kind == parse.Statement && len(s.Children) == 1 && s.Children[0].Kind == parse.Index {
+				n = s.Children[0]
+			}
+		}
+		if n == nil {
+			t.Fatalf("%q: no statement holds an index", c.src)
+		}
+		sameShape(t, c.src, zeroIDs(lower.LowerExpr(root, n)), c.want)
+	}
+}
