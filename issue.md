@@ -6,7 +6,7 @@ milestone: m2-lower-the-tree
 blocks:
 - 01a0c10f-37f8-7a43-b3ce-ea194f7defe0
 created: 2026-09-20T23:02:22.60535129Z
-updated: 2026-10-11T10:36:37.013354411Z
+updated: 2026-10-11T15:17:55.72852129Z
 sessions:
 - start_sha: 971b903102dc4a335660172f3b1b5ecad5cf3330
   end_sha: ""
@@ -116,11 +116,19 @@ word names. It includes switches on operator text and sigils.
 - [ ] Run the parse suite: `go test ./internal/parse/ -count=1`
 - [ ] Commit the spec update.
 
+### Whole-suite criteria removed (2026-10-11)
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Criteria that only re-ran a whole suite
+or package (`go test ./...`, `make test`, the whole conformance or parse
+package) restated "make test passed", which gates every commit, while CI
+gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
+They are removed; this issue's named tests and ratchet checks remain.
+
 ## Acceptance Criteria
 
 ### Positive Scenarios
 - [ ] The status table is pinned by a test that measures the real parser (`go test ./internal/parse/ -run '^TestStatusTableAtHead$' -count=1 -v | grep -q '^--- PASS: TestStatusTableAtHead'`)
-- [ ] The parse package is green with the new test in it (`go test ./internal/parse/ -count=1`)
 
 ### Negative Scenarios
 - [ ] No §4.14.2 table still claims the stale 3c997a6b baseline, and all six are re-measured at a named sha (`! grep -q 'CST at 3c997a6b' docs/specs/perl-parser/04-expressions.md && test "$(grep -c '^| Kind | CST at [0-9a-f]\{8\}' docs/specs/perl-parser/04-expressions.md)" -eq 6`)
