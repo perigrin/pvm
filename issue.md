@@ -3,12 +3,10 @@ title: Swap the annotation key from StartByte to node identity
 state: cancelled
 urgency: normal
 milestone: m2-lower-the-tree
-blocked_by:
-- 01a0c10e-c81e-7565-88fb-d973f18ed667
 blocks:
 - 01a0c115-a44b-7393-a828-ad29844b20b4
 created: 2026-09-20T23:10:09.105095184Z
-updated: 2026-10-11T10:19:36.38583883Z
+updated: 2026-10-11T10:32:51.184743814Z
 transitions:
 - state: cancelled
   actor: human:git-zhi
