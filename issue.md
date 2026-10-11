@@ -3,8 +3,10 @@ title: "AnalyzeLowered: the entry point, the golden ratchet, and the declaration
 state: pending
 urgency: normal
 milestone: m2-lower-the-tree
+blocked_by:
+- 01a0c113-dfd3-76a4-8b61-ae61b324bcb4
 created: 2026-10-11T10:32:14.155064204Z
-updated: 2026-10-11T10:32:14.155064204Z
+updated: 2026-10-11T10:33:12.6865188Z
 ---
 
 ## Context
