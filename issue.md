@@ -9,7 +9,7 @@ blocked_by:
 blocks:
 - 01a0c115-a44b-7393-a828-ad29844b20b4
 created: 2026-09-20T23:06:52.901032434Z
-updated: 2026-09-20T23:13:09.541238394Z
+updated: 2026-10-11T10:32:01.086674503Z
 ---
 
 ## Context
@@ -18,7 +18,8 @@ updated: 2026-09-20T23:13:09.541238394Z
 - commands: `go test ./internal/lower/ -run "^TestLowerDeclListForm$" -count=1 -v`
 - entrypoints: `docs/specs/perl-parser/04-expressions.md` §4.14.2 "Declarations"; §4.12.2 rule 2
 
-Status per §4.14.2:
+Status per §4.14.2 as the status-table issue re-measured it. Shapes below were
+measured at 24bfac4a; re-measure at execution time.
 
 - `Decl{Kind}` SHIPPED — `declaration` with `Text` the declarator. T1 census of
   `Declaration.Text`: my 4,905, sub 1,775, package 569, local 398, our 318,
@@ -30,7 +31,7 @@ Status per §4.14.2:
   which is unbuilt. Out of scope here.
 
 - `Decl{Vars,Init}` LOWERING, and this is the semantically load-bearing part.
-  The CST has TWO shapes, verified at HEAD:
+  The CST has TWO shapes, measured at 24bfac4a:
 
 	my $x = f()       -> [declaration "my" [term "$x"] [call "f"]]
 	                     two children, no "="
@@ -51,8 +52,8 @@ Status per §4.14.2:
   not hold over the corpus, file the parser normalisation rather than widening
   this issue.
 
-- `Decl{Attrs}` LOWERING — `my $x :shared` gives `term ":shared"` as a second
-  child.
+- `Decl{Attrs}` LOWERING — `my $x :shared` gives an `attribute ":shared"`
+  second child (the `Attribute` kind, no longer a `term`).
 - `Decl{RefAlias}` LOWERING — `my \$x = $y` gives
   `[declaration "my" [binary "=" [unary "ref" [term "$x"]] [term "$y"]]]`.
   No consumer in `internal/infer`; §4.14.2 marks the consumer SPECULATIVE. Lower
@@ -61,26 +62,32 @@ Status per §4.14.2:
 - sub declarations SHIPPED — `sub f { 1 }` is
   `[declaration "sub" [term "f"] [block ...]]`; `sub f;` likewise without a
   block. `internal/infer` uses the old `subroutine_declaration_statement` at 8
-  sites; all eight lower to this one shape. Attributes
-  (`sub f :prototype($) { 1 }`) are still PARSER — the declaration spans `sub f`
-  and the rest is `Unknown`, so emit a `Hole`.
-- signatures PARSER — without the feature, `sub f ($x, $y) { 1 }` gives
-  `[declaration "sub" [term "f"] [prototype "($x, $y)"] [block ...]]`, which is
-  what perl does too. With `use v5.36;` the same text mis-parses (the body is
-  read as a hash slice of the signature) because `internal/lexer/proto.go`
-  returns false when `l.signatures` is set and nothing downstream picks the
-  signature up. `internal/infer` reads `signature` (2) and
-  `mandatory_parameter` (2), both unwrapped to their `scalar`. Lower the
-  prototype form; emit a `Hole` for the 5.36 mis-parse rather than lowering a
-  wrong tree.
+  sites; all eight lower to this one shape. **Attributes now parse**:
+  `sub f :prototype($) { 1 }` gives
+  `[declaration "sub" [term "f"] [attribute ":prototype($)"] [block ...]]`.
+  Lower them into the sub's `Attrs`; no `Hole`.
+- signatures — without the feature, `sub f ($x, $y) { 1 }` gives
+  `[declaration "sub" [term "f"] [prototype "($x, $y)"] [block ...]]`, which
+  is what perl does too. **The 5.36 mis-parse is gone**: with `use v5.36;`
+  the same text gives `[declaration "sub" [term "f"] [list paren [term "$x"] [term "$y"]] [block ...]]`.
+  `internal/infer` reads `signature` (2) and `mandatory_parameter` (2), both
+  unwrapped to their `scalar`. Lower the `list paren` form into the sub's
+  parameters. Re-measure defaults (`$x = 1`), slurpies and `@_`-free bodies
+  before deciding what else the signature form carries; emit a `Hole` for
+  any part that does not parse rather than guessing.
 
-- `AnonSub` — **SHIPPED in expression position at HEAD, and the statement-position
+- `AnonSub` — **SHIPPED in expression position, and the statement-position
   defect is FIXED.** §4.14.2 records `sub { 1 };` producing two statements, a
-  wrong tree that round-trips. Verified at HEAD it is now one
-  `declaration "sub"` with a `block` child. Re-verify before implementing. In
+  wrong tree that round-trips. At 24bfac4a it is one `declaration "sub"` with
+  a `block` child. In
   expression position `my $f = sub { 1 }` gives
   `[declaration "my" [term "$f"] [declaration "sub" [block ...]]]`. `Sig` stays
   PARSER per the signatures row.
+
+**Hole tests use input perl rejects** (confirmed with `perl -c` on 5.42):
+`my $x = (;` gives `[declaration "my" [term "$x"] [unknown paren refusal=not_a_term]]`,
+and `sub {;` gives `[declaration "sub" [block [unknown refusal=unclosed_opener [statement]]]]`,
+an Unknown with a child.
 
 ## Steps
 
@@ -96,20 +103,27 @@ Status per §4.14.2:
       commit.
 - [ ] Write `TestLowerSubDeclaration`: `sub f { 1 }`, `sub f;`, `sub { 1 };` and
       `my $f = sub { 1 };` each lower to the shape §4.14 specifies, with
-      `sub f :prototype($) { 1 }` producing a `Hole` for the attribute region
-      rather than a wrong node. Run to verify failure, implement, run to green,
+      `sub f :prototype($) { 1 }` carrying its attribute, and
+      `use v5.36; sub f ($x, $y) { 1 }` carrying two parameters. Run to verify failure, implement, run to green,
       commit.
 - [ ] Write `TestLowerDeclAttrsAndRefAlias`: `my $x :shared` fills `Attrs`,
       `my \$x = $y` sets `RefAlias`. Run to verify failure, implement, run to
       green, commit.
+- [ ] Write `TestLowerDeclOverBrokenInput`: `my $x = (;` lowers to a `Decl`
+      with its `Var` intact and a `Hole` `Init`; `sub {;` lowers to an
+      `AnonSub` whose body holds one `Hole`. No panic. Run to verify
+      failure, implement, run to green, commit.
 - [ ] Run the package suite: `go test ./internal/lower/ -count=1`
 - [ ] Commit.
 
 ## Acceptance Criteria
 
 ### Positive Scenarios
-- [ ] The list-vs-scalar declaration form is derived from child count (`go test ./internal/lower/ -run "^TestLowerDeclListForm$" -count=1 -v | grep -q "^--- PASS: TestLowerDeclListForm"`)
-- [ ] Every declarator in the T1 census lowers to a Decl.Kind (`go test ./internal/lower/ -run "^TestLowerDeclKinds$" -count=1 -v | grep -q "^--- PASS: TestLowerDeclKinds"`)
-- [ ] Named, forward, anonymous and expression-position subs all lower (`go test ./internal/lower/ -run "^TestLowerSubDeclaration$" -count=1 -v | grep -q "^--- PASS: TestLowerSubDeclaration"`)
-- [ ] Attributes and ref-alias declarations lower (`go test ./internal/lower/ -run "^TestLowerDeclAttrsAndRefAlias$" -count=1 -v | grep -q "^--- PASS: TestLowerDeclAttrsAndRefAlias"`)
+- [ ] The list-vs-scalar declaration form is derived from child count (`go test ./internal/lower/ -run '^TestLowerDeclListForm$' -count=1 -v | grep -q '^--- PASS: TestLowerDeclListForm'`)
+- [ ] Every declarator in the T1 census lowers to a Decl.Kind (`go test ./internal/lower/ -run '^TestLowerDeclKinds$' -count=1 -v | grep -q '^--- PASS: TestLowerDeclKinds'`)
+- [ ] Named, forward, anonymous, expression-position and signature subs all lower, attributes included (`go test ./internal/lower/ -run '^TestLowerSubDeclaration$' -count=1 -v | grep -q '^--- PASS: TestLowerSubDeclaration'`)
+- [ ] Attributes and ref-alias declarations lower (`go test ./internal/lower/ -run '^TestLowerDeclAttrsAndRefAlias$' -count=1 -v | grep -q '^--- PASS: TestLowerDeclAttrsAndRefAlias'`)
 - [ ] The package is green (`go test ./internal/lower/ -count=1`)
+
+### Negative Scenarios
+- [ ] A declaration perl rejects lowers with its variable intact and a Hole where the parse failed, and nothing panics (`go test ./internal/lower/ -run '^TestLowerDeclOverBrokenInput$' -count=1 -v | grep -q '^--- PASS: TestLowerDeclOverBrokenInput'`)
