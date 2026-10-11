@@ -3,10 +3,12 @@ title: "Cutover part 1: flip psc check and ProjectIndex to the lowered tree"
 state: pending
 urgency: normal
 milestone: m2-lower-the-tree
+blocked_by:
+- 01a12a85-3417-75eb-bf44-d47cf6546e82
 blocks:
 - 01a0c115-c0db-7923-b276-984794affd39
 created: 2026-09-20T23:10:16.13915176Z
-updated: 2026-10-11T10:32:54.231808046Z
+updated: 2026-10-11T10:33:35.402484395Z
 ---
 
 ## Context
