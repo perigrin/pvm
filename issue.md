@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T16:29:00.320261836Z
-updated: 2026-09-26T16:37:01.594836403Z
+updated: 2026-10-11T17:07:49.082973116Z
 sessions:
 - start_sha: 2dc301fdeeec2303d2bfcdc1cae708b09b190c0b
   end_sha: 2dc301fdeeec2303d2bfcdc1cae708b09b190c0b
@@ -135,3 +135,16 @@ boundaries above.
 Whether a genuinely undeclared parenless call should build perl's indirect-object
 tree. That is `01a0ddc5`'s question and it is in v0.1. This issue is only about
 the callees that ARE declared, in a file we can read.
+
+### Criteria added (2026-10-11)
+
+This decision issue closed with no criteria section, so `git zhi verify`
+checked nothing for it. Its decision -- route A, within the five boundaries
+above -- was implemented by 01a0de92-e551-7ece-be3c-0f8afc1d1e6b, and the
+criteria name the test that holds those boundaries and the ratchet the
+decision was about.
+
+## Acceptance criteria
+
+- [x] Route A holds: a literal require of a .pl helper brings its sub NAME set into scope, a computed require stays unresolved, and a missing helper does not fail the parse (`go test ./internal/parse/ -run '^TestRequiredFileDeclarations$' -count=1 -v | grep -q '^--- PASS: TestRequiredFileDeclarations'`)
+- [x] The perl.git t/ ceiling the decision was about holds its ratchet (`go test ./internal/parse/ -run '^TestPerlGitTRatchet$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTRatchet'`)
