@@ -1,10 +1,19 @@
 ---
 title: "An arrow code-deref call loses its parens: `__SUB__->($v->{k})` re-emits as a subscript chain"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-27T00:30:17.267241755Z
-updated: 2026-09-27T00:30:17.267241755Z
+updated: 2026-10-11T00:57:40.914684122Z
+sessions:
+- start_sha: 24bfac4a5293052e7c38dd54a56a58aef818e639
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-11T00:57:40.914684122Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-11T00:57:40.914684122Z
 ---
 
 ## Measured finding
