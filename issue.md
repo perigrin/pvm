@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T22:12:56.600355997Z
-updated: 2026-09-26T22:12:56.600355997Z
+updated: 2026-10-11T02:47:56.581941105Z
 ---
 
 ## Measured finding
@@ -61,12 +61,26 @@ perl.git `t/`. Affected files whose FIRST failure is this shape:
 `perf/optree.t`, `re/pat_advanced.t`, `io/msg.t`, `op/array.t`,
 `op/tiehandle.t`, `re/pat_re_eval.t`.
 
+### Re-measured (2026-10-11)
+
+Measured at pu `24bfac4a`. `$s += $_ foreach 1..3;` canons as `$s += $_ foreach 1 .. 3;` at Unknown=0, the body first and the `;` kept, as perl Deparses it. Fixed by 34737c46.
+
+Three claims are reworded because measurement showed them wrong:
+
+- `print $_ foreach @a;` was "correct at Unknown=1" only because canon echoes an Unknown's bytes. It now parses at Unknown=0 and canons as `print($_) foreach @a;`.
+- `if`, `unless`, `while` and `until` did NOT already canon correctly. Measured at 652f4792, `$y = 1 if $x;` came back as `if ($y = 1) $x` at Unknown=0: one canon case produced all six, and 34737c46 fixed all six.
+- The block-form guard also names TestBlockFormLoopsKeepTheirParens, which pins `if (COND) BLOCK` and its siblings in the same canon case.
+
+The test is TestStatementModifierKeepsItsBody; TestStatementModifierForeachKeepsItsBody never existed. The old commands were bare backticks that verify does not run, and their perl fragments in parens would have run as shell.
+
+The conformance and whole-suite commands carry `-timeout=30m`: internal/conformance took 696s in a full run, past go test's 10-minute default, and timed out without it.
+
 ## Acceptance criteria
 
-- [ ] `$s += $_ foreach 1..3;` canon's as `$s += $_ foreach 1 .. 3;` — the expression is the BODY, the list is the LIST, and the `;` survives `go test ./internal/parse -run TestStatementModifierForeachKeepsItsBody -count=1`
-- [ ] the same holds for the `for` spelling, for a parenless call (`f() foreach @a`), for an assignment, for a postfix `++`, and for a list operator (`push @r, $_ foreach @a`) — the five shapes measured wrong above `go test ./internal/parse -run TestStatementModifierForeachKeepsItsBody -count=1`
-- [ ] `print $_ foreach @a;` scores 0 Unknown and KEEPS its correct canon — today it is correct at Unknown=1, so the fix must not trade a right tree for a clean count `go test ./internal/parse -run TestStatementModifierForeachKeepsItsBody -count=1`
-- [ ] REGRESSION GUARD, passes today: `if`, `unless`, `while` and `until` modifiers already canon correctly and must be untouched by a change to the loop-list modifiers `go test ./internal/parse -run TestModifier -count=1`
-- [ ] REGRESSION GUARD, passes today: the BLOCK forms `for (LIST) { ... }` and `foreach my $x (LIST) { ... }` are a different production and must not move `go test ./internal/parse -run TestForLoopForms -count=1`
-- [ ] the perl.git `t/` ratchet is regenerated in the same commit and every mover verified individually; expect the count to RISE on files where a swallowed `}` currently hides a whole block, and explain each riser `go test ./internal/parse -run TestPerlGitTRatchet -count=1`
-- [ ] the whole tree is green `go test ./... -count=1`
+- [ ] `$s += $_ foreach 1..3;` canons as `$s += $_ foreach 1 .. 3;`: the expression is the BODY, the list is the LIST, and the `;` survives (`go test ./internal/parse/ -run '^TestStatementModifierKeepsItsBody$' -count=1 -v | grep -q '^--- PASS: TestStatementModifierKeepsItsBody'`)
+- [ ] the same holds for the `for` spelling, a parenless call, an assignment, a postfix `++`, and a list operator, the five shapes measured wrong above (`go test ./internal/parse/ -run '^TestStatementModifierKeepsItsBody$' -count=1 -v | grep -q '^--- PASS: TestStatementModifierKeepsItsBody'`)
+- [ ] `print $_ foreach @a;` scores 0 Unknown and canons as `print($_) foreach @a;` (`go test ./internal/parse/ -run '^TestStatementModifierKeepsItsBody$' -count=1 -v | grep -q '^--- PASS: TestStatementModifierKeepsItsBody'`)
+- [ ] `if`, `unless`, `while` and `until` modifiers, which shared the defect, canon with the body first (`go test ./internal/parse/ -run '^TestStatementModifierKeepsItsBody$' -count=1 -v | grep -q '^--- PASS: TestStatementModifierKeepsItsBody'`)
+- [ ] REGRESSION GUARD: the BLOCK forms `for (LIST) { ... }`, `foreach my $x (LIST) { ... }` and `if (COND) { ... }` keep their shape (`go test ./internal/parse/ -run '^TestForLoopForms$' -count=1 -v | grep -q '^--- PASS: TestForLoopForms' && go test ./internal/parse/ -run '^TestBlockFormLoopsKeepTheirParens$' -count=1 -v | grep -q '^--- PASS: TestBlockFormLoopsKeepTheirParens'`)
+- [ ] the perl.git `t/` ratchet holds (`go test ./internal/parse/ -run '^TestPerlGitTRatchet$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTRatchet'`)
+- [ ] the whole tree is green (`go test ./... -count=1 -timeout=30m`)
