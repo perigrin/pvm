@@ -4,6 +4,7 @@
 package lower_test
 
 import (
+	"reflect"
 	"testing"
 
 	"tamarou.com/pvm/internal/lower"
@@ -120,5 +121,48 @@ func TestLowerDerefness(t *testing.T) {
 	// Anything not a subscript is not one.
 	if lower.IsDeref(lowerOne(t, "$x;")) {
 		t.Errorf("$x: IsDeref is true")
+	}
+}
+
+// Prefix, block and postfix spellings of one dereference lower to one Deref
+// (§4.4.6); Postfix records the ->@* spelling. perl 5.42, with $x =
+// [1,2,3]: $x->$#*, $#{$x} and $#$x are all 2.
+func TestLowerDeref(t *testing.T) {
+	x := &lower.Var{Sigil: "$", Name: "x"}
+	cases := []struct {
+		src  string
+		want lower.Node
+	}{
+		{"${$x};", &lower.Deref{Sigil: "$", Expr: x}},
+		{"$$x;", &lower.Deref{Sigil: "$", Expr: x}},
+		{"@$x;", &lower.Deref{Sigil: "@", Expr: x}},
+		{"@{$x};", &lower.Deref{Sigil: "@", Expr: x}},
+		{"%$x;", &lower.Deref{Sigil: "%", Expr: x}},
+		// The glob deref's one child is its Expr (§4.14.2). perl: with
+		// $g = \*foo and $foo = "g", ${*$g} and ${*{"foo"}} are both g.
+		{"*$x;", &lower.Deref{Sigil: "*", Expr: x}},
+		{`*{"foo"};`, &lower.Deref{Sigil: "*", Expr: &lower.StrLit{Value: "foo", Interpolated: true}}},
+
+		{"$x->@*;", &lower.Deref{Sigil: "@", Expr: x, Postfix: true}},
+		{"$x->%*;", &lower.Deref{Sigil: "%", Expr: x, Postfix: true}},
+		{"$x->$#*;", &lower.Deref{Sigil: "$#", Expr: x, Postfix: true}},
+		{"$x->$*;", &lower.Deref{Sigil: "$", Expr: x, Postfix: true}},
+		{"$x->&*;", &lower.Deref{Sigil: "&", Expr: x, Postfix: true}},
+		{"$x->**;", &lower.Deref{Sigil: "*", Expr: x, Postfix: true}},
+
+		// $#{$x}, $#$x and &$x are each one childless term: the inner
+		// expression was never parsed, so it is a Hole, not re-lexed.
+		{"$#{$x};", &lower.Deref{Sigil: "$#", Expr: &lower.Hole{}}},
+		{"$#$x;", &lower.Deref{Sigil: "$#", Expr: &lower.Hole{}}},
+		{"&$x;", &lower.Deref{Sigil: "&", Expr: &lower.Hole{}}},
+	}
+	for _, c := range cases {
+		got := lowerOne(t, c.src)
+		sameShape(t, c.src, zeroIDs(got), c.want)
+	}
+
+	// Any other -> is not a dereference this lowering claims.
+	if got := lowerOne(t, "$x->foo;"); reflect.TypeOf(got) == reflect.TypeOf(&lower.Deref{}) {
+		t.Errorf("$x->foo: lowered to a Deref")
 	}
 }

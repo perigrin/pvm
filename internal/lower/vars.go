@@ -10,21 +10,37 @@ import (
 	"tamarou.com/pvm/internal/parse"
 )
 
-// variable lowers a childless sigil-led term to a Var, and declines anything
-// else. The sigil is the leading bytes and the name is the rest, with the
-// braces of ${x} and $#{x} removed: perl -MO=Deparse prints both without
-// them.
+// variable lowers a sigil-led term to a Var, or to a Deref when the term is
+// one, and declines anything else. The sigil is the leading bytes and the
+// name is the rest, with the braces of ${x} and $#{x} removed: perl
+// -MO=Deparse prints both without them.
+//
+// Three dereferences are terms too. A glob deref, *$x or *{"foo"}, is a
+// `term "*"` whose one child is the Expr. $#{$x}, $#$x and &$x are each one
+// childless term whose inner expression the parser never built, so their
+// Expr is a Hole: the span is not re-lexed. &$x calls the code, as &foo
+// does, and lowers to Deref{&} as &foo lowers to Var{&}.
 func (l *lowerer) variable(n *parse.Node) Node {
 	sigil := sigilOf(n.Text)
-	if sigil == "" || len(n.Children) != 0 {
+	if sigil == "" {
 		return nil
 	}
 	name := n.Text[len(sigil):]
+	if len(n.Children) != 0 {
+		if sigil == "*" && name == "" && len(n.Children) == 1 {
+			return &Deref{Sigil: "*", Expr: l.expr(n.Children[0])}
+		}
+		return nil
+	}
 	if strings.HasPrefix(name, "{") && strings.HasSuffix(name, "}") {
 		name = strings.TrimSpace(name[1 : len(name)-1])
 		if !bracedName.MatchString(name) {
-			return nil
+			return &Deref{Sigil: sigil, Expr: &Hole{}}
 		}
+	}
+	if len(name) > 1 && name[0] == '$' {
+		// $#$x and &$x; a lone $ is the name of $$, the process id.
+		return &Deref{Sigil: sigil, Expr: &Hole{}}
 	}
 	if name == "" {
 		// A bare sigil: the base of &{$x} or of a postfix slice.
@@ -83,3 +99,20 @@ func (l *lowerer) prefixDeref(n *parse.Node) Node {
 	}
 	return &Deref{Sigil: n.Text, Expr: l.expr(n.Children[0])}
 }
+
+// postfixDeref lowers `binary "->"` whose right side is a postfix-deref
+// term -- $x->$*, ->@*, ->%*, ->&*, ->** or ->$#* -- to a Deref with
+// Postfix set, and declines every other arrow.
+func (l *lowerer) postfixDeref(n *parse.Node) Node {
+	if n.Text != "->" || len(n.Children) != 2 {
+		return nil
+	}
+	r := n.Children[1]
+	if r.Kind != parse.Term || len(r.Children) != 0 || !postfixSigil[r.Text] {
+		return nil
+	}
+	return &Deref{Sigil: strings.TrimSuffix(r.Text, "*"), Expr: l.expr(n.Children[0]), Postfix: true}
+}
+
+// postfixSigil is the set of postfix-deref spellings after an arrow (§4.4.6).
+var postfixSigil = map[string]bool{"$*": true, "@*": true, "%*": true, "&*": true, "**": true, "$#*": true}

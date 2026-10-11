@@ -32,6 +32,8 @@ func (l *lowerer) expr(n *parse.Node) Node {
 		out = first(n, l.fatWord)
 	case parse.Unary:
 		out = first(n, l.prefixDeref)
+	case parse.Binary:
+		out = first(n, l.postfixDeref)
 	case parse.Index:
 		out = first(n, l.subscript)
 	}
