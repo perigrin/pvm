@@ -1,10 +1,19 @@
 ---
 title: An ampersand before a sigil is not read as a call, so &$subref refuses
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T18:50:21.499634715Z
-updated: 2026-10-11T02:47:36.799803745Z
+updated: 2026-10-11T10:39:29.580400369Z
+sessions:
+- start_sha: 971b903102dc4a335660172f3b1b5ecad5cf3330
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-11T10:39:29.580400369Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-11T10:39:29.580400369Z
 ---
 
 `&$subref` refuses. `&` followed by a SIGIL is not read as a call, while `&`
