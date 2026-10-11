@@ -287,13 +287,12 @@ func (l *lexer) scanVarName() bool {
 		// position as at any other; measured, `$main::b = 5; print $'b`
 		// prints 5. So comp/package.t:17's `$'b` is `$main::b`.
 		//
-		// ponytail: ungated, as the interior separator in scanIdentRunes is.
-		// perl gates both on feature apostrophe_as_package_separator, off
-		// from the 5.41 bundle; there `$'b` is `$'` and a bareword, a syntax
-		// error in every spelling but `$'x3`-style repeats. Gate both when
-		// the lexer tracks feature bundles: 01a0ec10-0f98-7801-afbf-5c02bdc9c3c9.
+		// Only while feature apostrophe_as_package_separator is on, as for
+		// the interior separator in scanIdentRunes. From the 5.41 bundle
+		// `$'b` is `$'` and a bareword, a syntax error in every spelling but
+		// a repeat: `use v5.42; $'x3` deparses as `$' x 3`.
 		l.pos++
-		if l.pos < len(l.src) {
+		if l.pos < len(l.src) && !l.noApostropheSeparator {
 			r, _ := utf8.DecodeRune(l.src[l.pos:])
 			if identStart(r, l.utf8Pragma) {
 				l.scanIdentRunes()

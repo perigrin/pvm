@@ -361,6 +361,11 @@ type lexer struct {
 	// whether that `(` is a prototype or a signature. File-level, like
 	// utf8Pragma and for the same reason.
 	signatures bool
+	// noApostropheSeparator is set while feature
+	// apostrophe_as_package_separator is OFF, so the zero value is perl's
+	// default: `'` joins a package name. The 5.41 bundle and `no feature`
+	// turn it off; see noteSignatures. File-level, like signatures.
+	noApostropheSeparator bool
 	// typed is set for typed Perl, a `.pmt` declaration file, where a
 	// container type may stand before a hash parameter: `List[Str] %h`
 	// (see containerTypeSigil), and where `sub +` names an operator (see
