@@ -246,10 +246,14 @@ way.
 
 Second, the argument measured the wrong interface. §6.4.1 counted the ten
 *methods* PSC calls; it did not count the *values* `Kind()` returns.
-`internal/infer/*.go` switches on 34 distinct tree-sitter-perl grammar names
+`internal/infer/*.go` switches on 46 distinct tree-sitter-perl grammar names
 (`subroutine_declaration_statement`, `ambiguous_function_call_expression`,
 `array_element_expression`, `hash_deref_expression`,
-`func0op_call_expression`, `refgen_expression`, ...), and
+`func0op_call_expression`, `refgen_expression`, ...; measured at 971b9031
+as the distinct string literals in the `case` arms of a `switch` on
+`x.Kind()`, or on a variable assigned from one, across `infer.go`,
+`symbols.go`, `project.go` and `diagnostics.go`, the method chapter 4 §4.14
+states), and
 `internal/parse/parse.go:146-201` emits 23 coarse kinds with none of those
 names (`statement`, `term`, `binary`, `index`, `declaration`, `call`, ...).
 Porting the façade hands PSC a `Kind()` that returns `"binary"` where it
@@ -1003,8 +1007,9 @@ counts differ with scoping; the contract does not.
 **The migration surface is ten methods and one vocabulary, and the vocabulary
 is the larger of the two.** `internal/parser/parser.go` is a thin façade over
 `gotreesitter` (its ABOUTME says exactly that), and the ten methods port to
-any tree. But `Kind()` is one method returning 34 distinct tree-sitter-perl
-grammar names across `internal/infer/*.go`, and `internal/parse/parse.go:146-201`
+any tree. But `Kind()` is one method returning 46 distinct tree-sitter-perl
+grammar names across `internal/infer/*.go` (at 971b9031, by §6.1.4's
+method), and `internal/parse/parse.go:146-201`
 emits 23 kinds, none with those names (§6.1.4). An earlier draft of this
 section concluded from the method count that PSC would not change — "not one
 of its 4,265 lines" — and that was the wrong count. PSC's walkers are
@@ -2310,7 +2315,7 @@ repeat that.
 | What inference walks | The lowered tree, never the CST; CST ↔ AST side table in both directions, erased nodes mapped forward (§6.1.6) | A single tree; the "PSC is unchanged" claim of the earlier draft |
 | Fact keys | Stable node identity, for every side table | Byte-offset keys (rust-analyzer rejected them by name, §6.1.4) |
 | Flow analysis | Over the lowered tree; single-pass Sorbet-style first (§6.1.7) | Deciding graph-vs-fixpoint-visit before measuring |
-| Node API | The 10 methods PSC calls, on the CST, for the LSP's structural features | The tree-sitter-perl vocabulary — 34 grammar names PSC switches on are rewritten against §4.14 (§6.4.1) |
+| Node API | The 10 methods PSC calls, on the CST, for the LSP's structural features | The tree-sitter-perl vocabulary — 46 grammar names PSC switches on are rewritten against §4.14 (§6.4.1) |
 | Node allocation | Arena per tree, copy on splice | Zero-copy subtree sharing |
 | Positions | Bytes internally; convert at the wire | Nothing |
 | `positionEncoding` | Advertise `utf-16` until every provider is threaded | UTF-8 fast path, temporarily |

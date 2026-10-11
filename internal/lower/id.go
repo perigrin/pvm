@@ -1,0 +1,80 @@
+// ABOUTME: Node identity for internal/lower: ids that survive an edit above the node, never byte offsets.
+// ABOUTME: Ids are numbered per enclosing named sub, anchored by kind, name and disambiguator as in ast_id.rs.
+
+package lower
+
+import (
+	"strconv"
+
+	"tamarou.com/pvm/internal/parse"
+)
+
+// ID is a node's identity: the key every side table uses (§6.1.6 item 4).
+//
+// It is not a byte offset, because every key after an edit would shift, and
+// a parent and child that start at the same byte would collide. It is not a
+// whole-file preorder index either, because one statement inserted at the
+// top renumbers everything below it.
+//
+// Instead an ID is an Anchor plus a Local index, in the manner of
+// rust-analyzer's crates/span/src/ast_id.rs. The anchor is the innermost
+// enclosing named sub, spelled by kind, name and disambiguator --
+// "sub b#0", or "sub a#0/sub inner#0" when one sub is nested in another --
+// and "" for code outside any named sub. Local is a preorder index that
+// restarts inside every anchor. An edit therefore renumbers only the anchor
+// it lands in: the ids inside `sub b` do not see what happened above it.
+//
+// Identity is per SYNTAX SITE (§4.14.1 rule 6): one `sub { $i }` has one id
+// however many closures it creates at run time. A table keyed on a captured
+// value keys on (ID, capture instance); ID is comparable so that pair is a
+// valid map key too.
+type ID struct {
+	Anchor string
+	Local  int
+}
+
+// AssignIDs gives every node of a tree, trivia and Unknown included, an ID.
+//
+// The tree is routinely broken (§6.8), and an Unknown may have children
+// (`if ($x) {` gives an Unknown holding a block), so nothing here assumes a
+// well-formed shape: every child of every node is visited.
+func AssignIDs(root *parse.Node) map[*parse.Node]ID {
+	ids := map[*parse.Node]ID{}
+	next := map[string]int{} // anchor -> next Local
+	seen := map[string]int{} // anchor key without disambiguator -> uses so far
+
+	var walk func(n *parse.Node, anchor string)
+	walk = func(n *parse.Node, anchor string) {
+		if key, ok := anchorKey(n); ok {
+			// ponytail: the name is unqualified, so inserting a same-named
+			// sub in an earlier package shifts a later one's disambiguator.
+			// Qualify by package if that churn shows up in practice.
+			key = anchor + "/" + key
+			if anchor == "" {
+				key = key[1:]
+			}
+			anchor = key + "#" + strconv.Itoa(seen[key])
+			seen[key]++
+		}
+		ids[n] = ID{Anchor: anchor, Local: next[anchor]}
+		next[anchor]++
+		for _, c := range n.Children {
+			walk(c, anchor)
+		}
+	}
+	walk(root, "")
+	return ids
+}
+
+// anchorKey reports whether a node opens an anchor -- a named sub or method
+// -- and returns its kind and name. An anonymous sub has no name to anchor
+// on, so its body is numbered within the enclosing anchor.
+func anchorKey(n *parse.Node) (string, bool) {
+	if n.Kind != parse.Declaration || (n.Text != "sub" && n.Text != "method") {
+		return "", false
+	}
+	if len(n.Children) == 0 || n.Children[0].Kind != parse.Term || n.Children[0].Text == "" {
+		return "", false
+	}
+	return n.Text + " " + n.Children[0].Text, true
+}
