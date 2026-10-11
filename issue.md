@@ -1,10 +1,19 @@
 ---
 title: Canon writes perl op names for unary plus and drops return EXPR entirely
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T20:30:56.927867322Z
-updated: 2026-10-11T02:47:44.12031016Z
+updated: 2026-10-11T10:47:56.405661787Z
+sessions:
+- start_sha: 971b903102dc4a335660172f3b1b5ecad5cf3330
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-11T10:47:56.405661787Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-11T10:47:56.405661787Z
 ---
 
 Canon writes perl's OP NAME where the source had an operator, and
