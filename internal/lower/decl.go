@@ -48,12 +48,19 @@ func (l *lowerer) decl(n *parse.Node) Node {
 		d.Init = l.expr(kids[0].Children[1])
 		return d
 	}
-	for i, c := range kids {
-		if i == 0 {
+	// The head is the variable and its attributes; what follows is the
+	// initialiser. An attribute keeps the parser's Text, colon included.
+	for _, c := range kids {
+		switch {
+		case c.Kind == parse.Attribute:
+			d.Attrs = append(d.Attrs, c.Text)
+		case c.Kind == parse.TypeName:
+			// ponytail: `my Foo $f` drops its class; no Decl field holds it.
+		case d.Vars == nil:
 			d.Vars = []Node{l.expr(c)}
-			continue
+		default:
+			d.Init = l.expr(c)
 		}
-		d.Init = l.expr(c)
 	}
 	return d
 }

@@ -116,3 +116,32 @@ func TestLowerDeclKinds(t *testing.T) {
 		}
 	}
 }
+
+// An attribute is head, not initialiser: `my $x :shared` gives an
+// `attribute ":shared"` second child, kept whole as the parser spells it.
+// `my \$x = $y` is a ref alias: its variable is the `ref`'s operand.
+func TestLowerDeclAttrsAndRefAlias(t *testing.T) {
+	cases := []struct {
+		src      string
+		attrs    []string
+		init     bool
+		refAlias bool
+	}{
+		{"my $x :shared;", []string{":shared"}, false, false},
+		{"field $x :param :reader = 1;", []string{":param", ":reader"}, true, false},
+		{`my \$x = $y;`, nil, true, true},
+		{"my $x = 1;", nil, true, false},
+		// A typed lexical's class is head too, not the variable.
+		{"my Foo $f;", nil, false, false},
+	}
+	for _, c := range cases {
+		d := lowerDecl(t, c.src)
+		if !reflect.DeepEqual(d.Attrs, c.attrs) {
+			t.Errorf("%q: Attrs = %q, want %q", c.src, d.Attrs, c.attrs)
+		}
+		if len(d.Vars) != 1 || (d.Init != nil) != c.init || d.RefAlias != c.refAlias {
+			t.Errorf("%q: %d Vars, Init %v, RefAlias %v; want 1 Var, Init %v, RefAlias %v",
+				c.src, len(d.Vars), d.Init != nil, d.RefAlias, c.init, c.refAlias)
+		}
+	}
+}
