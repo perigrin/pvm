@@ -4,8 +4,17 @@ state: pending
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T20:04:20.203959537Z
-updated: 2026-09-26T20:04:20.203959537Z
+updated: 2026-10-11T00:56:51.151524032Z
 ---
+
+## Cancelled (2026-10-11), perigrin's ruling
+
+"Cancel: not a parser defect." This is a process defect in how workers were
+dispatched -- edits landing in the integrator's tree instead of a worktree --
+not a perl 5.42 parse defect, so it does not belong to perl-git-t-parses.
+Every agent brief now requires working only in its own worktree. The
+criteria below were also unsound (one inverted, two asserting nothing), per
+the chain review of 2026-10-11.
 
 Two dispatched workers were given NO worktree and edited the integrator's
 working tree directly. Nine source files modified and eight probe files dropped
