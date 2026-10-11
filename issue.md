@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T18:12:35.095313178Z
-updated: 2026-09-26T21:11:34.736582226Z
+updated: 2026-10-11T15:17:15.574163636Z
 sessions:
 - start_sha: 2257e08ee261e0a0303f9201d0210d81f034b326
   end_sha: 2257e08ee261e0a0303f9201d0210d81f034b326
@@ -96,10 +96,17 @@ and it is the one measuring the active goal.
   `01a0de11` (lintOps sees names, not flags), `01a0dde4` (t1canon recorded the
   symptom as its baseline)
 
+### Whole-suite criteria removed (2026-10-11)
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Criteria that only re-ran a whole suite
+or package (`go test ./...`, `make test`, the whole conformance or parse
+package) restated "make test passed", which gates every commit, while CI
+gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
+They are removed; this issue's named tests and ratchet checks remain.
+
 ## Acceptance criteria
 
 - [ ] A ratchet measures perl.git t/ through the loader-aware entry point (`go test ./internal/parse/ -run 'PerlGitT' -count=1 -v | grep -q '^--- PASS'`)
 - [ ] It skips rather than fails when the checkout is absent (`PERL5_CORPUS=/nonexistent go test ./internal/parse/ -run 'PerlGitT' -count=1 | grep -q '^ok'`)
 - [ ] Its header is checked against its body (`go test ./internal/parse/ -run 'PerlGitT' -count=1 | grep -q '^ok'`)
-- [ ] REGRESSION GUARD, passes today: the parse suite holds (`go test ./internal/parse/ -count=1 | grep -q '^ok'`)
-- [ ] REGRESSION GUARD, passes today: the corpus stays complete (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
