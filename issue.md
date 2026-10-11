@@ -3,10 +3,8 @@ title: "Lower calls: five sites to one Call, and the filehandle slot from the Ha
 state: pending
 urgency: normal
 milestone: m2-lower-the-tree
-blocks:
-- 01a0c115-a44b-7393-a828-ad29844b20b4
 created: 2026-09-20T23:07:00.666688859Z
-updated: 2026-10-11T10:32:49.868576236Z
+updated: 2026-10-11T10:32:53.754227319Z
 ---
 
 ## Context
