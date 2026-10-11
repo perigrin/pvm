@@ -3,8 +3,10 @@ title: psc parse prints the internal/parse CST or the lowered tree, chosen by a 
 state: pending
 urgency: normal
 milestone: m2-lower-the-tree
+blocked_by:
+- 01a12a85-2fa3-770b-97d3-8d13ad9ed95d
 created: 2026-10-11T10:32:15.461832212Z
-updated: 2026-10-11T10:32:15.461832212Z
+updated: 2026-10-11T10:33:49.514376098Z
 ---
 
 ## Context
