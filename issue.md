@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-28T23:52:22.724446205Z
-updated: 2026-09-29T00:24:19.068156618Z
+updated: 2026-10-11T15:17:45.971849896Z
 sessions:
 - start_sha: 0aaccdcbebea1a3bfae177cf641ba27c12f1b049
   end_sha: 0c70adb2c77f4e06e9adf757e2199a2580c48a09
@@ -42,9 +42,17 @@ resolveRequiredFile's `interpolates` check exists for `"..."`.
 Reach: 61 perl.git t/ files spell their require with `q`/`qq`; 13 are dirty,
 110 Unknowns between them (an upper bound -- not every Unknown there is this).
 
+### Whole-suite criteria removed (2026-10-11)
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Criteria that only re-ran a whole suite
+or package (`go test ./...`, `make test`, the whole conformance or parse
+package) restated "make test passed", which gates every commit, while CI
+gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
+They are removed; this issue's named tests and ratchet checks remain.
+
 ## Acceptance criteria
 
 - [ ] `q(...)` and `qq(...)` with any delimiter are literal names, and an interpolating `qq` is not (`go test ./internal/parse/ -run '^TestLiteralNameQuoteForms$' -count=1 -v | grep -q '^--- PASS: TestLiteralNameQuoteForms'`)
 - [ ] `require q(./test.pl)` contributes test.pl's sub declarations (`go test ./internal/parse/ -run '^TestRequireQuoteForm$' -count=1 -v | grep -q '^--- PASS: TestRequireQuoteForm'`)
 - [ ] REGRESSION GUARD: the perl.git t/ ratchet holds (`go test ./internal/parse/ -run '^TestPerlGitTRatchet$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTRatchet'`)
-- [ ] REGRESSION GUARD: the whole suite holds (`go test ./... -count=1`)
