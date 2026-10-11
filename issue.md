@@ -1,6 +1,6 @@
 ---
 title: The §4.14 vocabulary types and Hole in internal/lower/node.go
-state: in-progress
+state: done
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -13,16 +13,32 @@ blocks:
 - 01a0c112-8a65-7d5c-94ec-69859b2928d3
 - 01a0c113-c3b2-75d8-ae0e-4f146d610c49
 created: 2026-09-20T23:03:15.1924043Z
-updated: 2026-10-11T15:23:46.113681852Z
+updated: 2026-10-11T17:28:54.705987646Z
 sessions:
 - start_sha: 1a558ba8c76f9795fdb80f2f14ad28ecca94aee4
-  end_sha: ""
-  commits: 0
+  end_sha: 1ed79cb0fa2a2c4ac349a967c47693baadb5643d
+  commits: 2
   started_at: 2026-10-11T15:23:46.113681852Z
+  ended_at: 2026-10-11T17:28:54.705987646Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-11T15:23:46.113681852Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-11T17:28:54.705987646Z
+observed_paths:
+- docs/specs/perl-parser/04-expressions.md
+- docs/specs/perl-parser/06-incremental-lsp.md
+- internal/lower/export_test.go
+- internal/lower/expr.go
+- internal/lower/literals.go
+- internal/lower/literals_test.go
+- internal/lower/node.go
+- internal/lower/node_test.go
+- internal/parse/leadingsep_test.go
+- internal/parse/mainstash_test.go
+- internal/parse/subspelling_test.go
 ---
 
 ## Context
