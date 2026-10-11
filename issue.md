@@ -1,19 +1,39 @@
 ---
 title: A bare `&` with no name is accepted as a term
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T22:20:52.910326593Z
-updated: 2026-10-11T01:55:38.081715946Z
+updated: 2026-10-11T02:35:36.545103195Z
 sessions:
 - start_sha: 24bfac4a5293052e7c38dd54a56a58aef818e639
-  end_sha: ""
-  commits: 0
+  end_sha: e18b59c82f89ca3a59df5a4be37757a6ea0d15f5
+  commits: 2
   started_at: 2026-10-11T00:57:42.810624868Z
+  ended_at: 2026-10-11T02:35:36.545103195Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-11T00:57:42.810624868Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-11T02:35:36.545103195Z
+observed_paths:
+- internal/lexer/aposfeature_test.go
+- internal/lexer/ident.go
+- internal/lexer/lexer.go
+- internal/lexer/pod.go
+- internal/lexer/proto_test.go
+- internal/lexer/scan.go
+- internal/parse/arrowcodederef_test.go
+- internal/parse/bareampersand_test.go
+- internal/parse/builtinimport_test.go
+- internal/parse/canon.go
+- internal/parse/parse.go
+- internal/parse/term.go
+- internal/parse/testdata/t1canon.ratchet
+- internal/parse/testdata/t1fidelity.ratchet
+- internal/parse/use.go
 ---
 
 A lone `&` in term position with no name after it parses as a term. `f 1, &= 2` (perl: "Number found where operator expected") canons as `f(1 , & = 2)`: the FuncSigil branch of parseTerm returns `Term{Text: "&"}` when ampTakes says no. perl has no reading of a bare `&` followed by `=` as a term.
