@@ -3,10 +3,8 @@ title: "The position map: a side table keyed by id, with erased nodes mapping fo
 state: pending
 urgency: normal
 milestone: m2-lower-the-tree
-blocks:
-- 01a0c115-c0db-7923-b276-984794affd39
 created: 2026-09-20T23:08:20.306792879Z
-updated: 2026-10-11T10:32:50.693629996Z
+updated: 2026-10-11T10:32:54.606481037Z
 ---
 
 ## Context
