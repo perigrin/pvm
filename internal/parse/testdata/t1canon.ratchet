@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 983 clean (99.7%), 3 total.
+# 986 files, 985 clean (99.9%), 1 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -171,7 +171,7 @@
 0 crypt_openssl_random_export.t
 0 crypt_openssl_rsa_pkcs1_padding.t
 0 crypt_prng.t
-1 current_sub_map_block.t
+0 current_sub_map_block.t
 0 current_sub_sort_block.t
 0 custom_warning_async_suspend_state.t
 0 custom_warning_category_late_registration.t
@@ -236,7 +236,7 @@
 0 direct_builtin_data_handle.t
 0 directory.t
 0 do_block_freetmps_fresh_result.t
-1 do_modern_syntax_and_copy.t
+0 do_modern_syntax_and_copy.t
 0 do_quote_like_file_operand.t
 0 do_subref_parenthesized_syntax.t
 0 double_diamond_closed_stdin.t
