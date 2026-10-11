@@ -1,10 +1,19 @@
 ---
 title: The apostrophe package separator is not gated on feature apostrophe_as_package_separator
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T07:27:50.679702926Z
-updated: 2026-09-29T07:27:50.679702926Z
+updated: 2026-10-11T00:57:41.886264706Z
+sessions:
+- start_sha: 24bfac4a5293052e7c38dd54a56a58aef818e639
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-11T00:57:41.886264706Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-11T00:57:41.886264706Z
 ---
 
 The lexer reads `'` as a package separator in every file, both inside a name (`$main'a`, scanIdentRunes) and right after a sigil (`$'b`, scanVarName). perl gates both on feature `apostrophe_as_package_separator`, which the 5.41 bundle turns off, so `use v5.42;` or `no feature "apostrophe_as_package_separator"` makes `$'b` the postmatch and a bareword. Measured with perl 5.42:
