@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T22:01:56.90867962Z
-updated: 2026-09-29T02:48:04.008935112Z
+updated: 2026-10-11T16:24:34.25277531Z
 sessions:
 - start_sha: ae2fb4786754099203add719feedfd96fedd7208
   end_sha: ae2fb4786754099203add719feedfd96fedd7208
@@ -172,15 +172,22 @@ only_a_comma and foreach_list cases), TestQuoteOp*, and
 TestParenthesisedWordInfixParses. The follow-on for a comma before anything
 else that cannot start an element is 01a0eb0a-ce6a-7065-826f-1ac6d2adf2e9.
 
+### Criteria repaired (2026-10-11)
+
+The milestone verify of 2026-10-11 could not run some of these criteria and
+failed others on stale text. Commands written as bare backtick spans are now in
+`(...)`, test names are anchored with a `--- PASS` check, a whole-suite run is
+removed (perigrin: "Why are we doing 73 full test suite runs?!?"), and a grep of
+text that later work moved is pointed at where the fact now lives.
+
 ## Acceptance criteria
 
-- [ ] every trailing-comma spelling scores 0 Unknown and canon's the source without a spurious closer: call args, a named list operator, the loop list, a hash subscript, and the fat comma `go test ./internal/parse -run TestTrailingCommaBeforeCloserIsNotATerm -count=1`
-- [ ] `foreach my $x ($a,) { 1 }` canon's with `{1;}` as the loop BODY and not as a subscript, which is the wrong-tree half an Unknown count cannot see `go test ./internal/parse -run TestTrailingCommaBeforeCloserIsNotATerm/foreach_list -count=1`
-- [ ] the perl.git `t/` ratchet reads 406 clean and 2211 total, regenerated in the same commit, with each of the three risers explained in the commit message `go test ./internal/parse -run TestPerlGitTRatchet -count=1`
-- [ ] the T1 ratchet reads 679 clean and 1456 total, with `scalar_coderef_call_context.t` 2 to 4 explained as reach `go test ./internal/parse -run TestParseRatchet -count=1`
-- [ ] the canon ratchet reads 767 clean and 219 total, all nine movers 1 to 0 `go test ./internal/parse -run TestCanonRatchet -count=1`
-- [ ] the two HAND-MAINTAINED pins are edited in the same commit: `comp/parser_run.t` removed from `t2_test.go`'s shortfall map, `class/field.t` set to 1 there, and `use_test.go`'s `const want = 14` set to 13 `go test ./internal/parse -run 'TestT2CoreParses|TestClassCorpusRatchet' -count=1`
-- [ ] REGRESSION GUARD, passes today: `f(,)` — a comma with no element before it — still refuses, so the guard cannot turn a real syntax error into a silent empty list `go test ./internal/parse -run TestTrailingCommaBeforeCloserIsNotATerm/only_a_comma -count=1`
-- [ ] REGRESSION GUARD, passes today: a regex quantifier `{2,}` is one Quote token and is untouched by a guard keyed on the comma, so `$f =~ s/(\\-){2,}/-+/g` keeps scoring 0 `go test ./internal/parse -run TestQuoteOp -count=1`
-- [ ] REGRESSION GUARD, passes today: `and`/`or`/`xor` inside parens still bind above the comma, which is the other branch of the same loop `go test ./internal/parse -run TestParenthesisedWordInfixParses -count=1`
-- [ ] the whole tree is green `go test ./... -count=1`
+- [ ] every trailing-comma spelling scores 0 Unknown and canon's the source without a spurious closer: call args, a named list operator, the loop list, a hash subscript, and the fat comma (`go test ./internal/parse/ -run '^TestTrailingCommaBeforeCloserIsNotATerm' -count=1 -v | grep -q '^--- PASS: TestTrailingCommaBeforeCloserIsNotATerm'`)
+- [ ] `foreach my $x ($a,) { 1 }` canon's with `{1;}` as the loop BODY and not as a subscript, which is the wrong-tree half an Unknown count cannot see (`go test ./internal/parse -run TestTrailingCommaBeforeCloserIsNotATerm/foreach_list -count=1`)
+- [ ] the perl.git `t/` ratchet reads 406 clean and 2211 total, regenerated in the same commit, with each of the three risers explained in the commit message (`go test ./internal/parse/ -run '^TestPerlGitTRatchet' -count=1 -v | grep -q '^--- PASS: TestPerlGitTRatchet'`)
+- [ ] the T1 ratchet reads 679 clean and 1456 total, with `scalar_coderef_call_context.t` 2 to 4 explained as reach (`go test ./internal/parse/ -run '^TestParseRatchet' -count=1 -v | grep -q '^--- PASS: TestParseRatchet'`)
+- [ ] the canon ratchet reads 767 clean and 219 total, all nine movers 1 to 0 (`go test ./internal/parse/ -run '^TestCanonRatchet' -count=1 -v | grep -q '^--- PASS: TestCanonRatchet'`)
+- [ ] the two HAND-MAINTAINED pins are edited in the same commit: `comp/parser_run.t` removed from `t2_test.go`'s shortfall map, `class/field.t` set to 1 there, and `use_test.go`'s `const want = 14` set to 13 (`go test ./internal/parse -run 'TestT2CoreParses|TestClassCorpusRatchet' -count=1`)
+- [ ] REGRESSION GUARD, passes today: `f(,)` — a comma with no element before it — still refuses, so the guard cannot turn a real syntax error into a silent empty list (`go test ./internal/parse -run TestTrailingCommaBeforeCloserIsNotATerm/only_a_comma -count=1`)
+- [ ] REGRESSION GUARD, passes today: a regex quantifier `{2,}` is one Quote token and is untouched by a guard keyed on the comma, so `$f =~ s/(\\-){2,}/-+/g` keeps scoring 0 (`go test ./internal/parse/ -run '^TestQuoteOp' -count=1 -v | grep -q '^--- PASS: TestQuoteOp'`)
+- [ ] REGRESSION GUARD, passes today: `and`/`or`/`xor` inside parens still bind above the comma, which is the other branch of the same loop (`go test ./internal/parse/ -run '^TestParenthesisedWordInfixParses' -count=1 -v | grep -q '^--- PASS: TestParenthesisedWordInfixParses'`)
