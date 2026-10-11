@@ -1,10 +1,19 @@
 ---
 title: "A sub declared in a package is known in every package: the sub table ignores the current package"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T16:35:13.046766756Z
-updated: 2026-10-11T02:48:24.314868738Z
+updated: 2026-10-11T11:34:45.45711153Z
+sessions:
+- start_sha: 971b903102dc4a335660172f3b1b5ecad5cf3330
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-11T11:34:45.45711153Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-11T11:34:45.45711153Z
 ---
 
 A sub declared inside a package is recorded under its bare name, so it is "known" in every package. `package Pack; sub method {...} package main; method Pack ("a")` then declines the indirect reading, because `method` looks like a known sub in main, where perl finds none and makes the indirect call:
