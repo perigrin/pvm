@@ -3,8 +3,10 @@ title: psc analyze reads its dependencies from the lowered tree
 state: pending
 urgency: normal
 milestone: m2-lower-the-tree
+blocked_by:
+- 01a12a85-2fa3-770b-97d3-8d13ad9ed95d
 created: 2026-10-11T10:32:15.295165792Z
-updated: 2026-10-11T10:32:15.295165792Z
+updated: 2026-10-11T10:33:47.046839025Z
 ---
 
 ## Context
