@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a12a85-31a5-769d-88c4-e2add3f8fefc
 created: 2026-10-11T10:32:14.336031794Z
-updated: 2026-10-11T10:33:20.515377609Z
+updated: 2026-10-11T15:18:12.936846955Z
 ---
 
 ## Context
@@ -66,12 +66,20 @@ Rollback: this issue changes only `AnalyzeLowered` and test data. Nothing in `in
 - [ ] Run the infer suite: `go test ./internal/infer/ -count=1`
 - [ ] Commit.
 
+### Whole-suite criteria removed (2026-10-11)
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Criteria that only re-ran a whole suite
+or package (`go test ./...`, `make test`, the whole conformance or parse
+package) restated "make test passed", which gates every commit, while CI
+gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
+They are removed; this issue's named tests and ratchet checks remain.
+
 ## Acceptance Criteria
 
 ### Positive Scenarios
 - [ ] The lowered path holds the golden ratchet in both directions (`go test ./internal/infer/ -run '^TestLoweredGoldenRatchet$' -count=1 -v | grep -q '^--- PASS: TestLoweredGoldenRatchet'`)
 - [ ] Every flow fixture matches its legacy golden on the lowered path (`test -n "$(ls internal/infer/testdata/lowered/flow/*.pl)" && ! ls internal/infer/testdata/lowered/flow/*.pl | sed 's|.*/lowered/||' | grep -vxFf internal/infer/testdata/lowered/matching.txt`)
-- [ ] The infer package is green (`go test ./internal/infer/ -count=1`)
 
 ### Negative Scenarios
 - [ ] A conditional perl rejects analyses without a panic, says nothing about the Hole, and still types the intact block (`go test ./internal/infer/ -run '^TestLoweredFlowOverBrokenInput$' -count=1 -v | grep -q '^--- PASS: TestLoweredFlowOverBrokenInput'`)
