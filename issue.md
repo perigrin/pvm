@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T03:08:00.827847771Z
-updated: 2026-09-29T03:13:07.838176912Z
+updated: 2026-10-11T15:17:47.901007918Z
 sessions:
 - start_sha: 5018701de8e42bd5acfd54be73995bc173201a25
   end_sha: fd387408677a91fec6c649aae4910288fe43a8d6
@@ -51,8 +51,16 @@ The prefix must stay in the tree and in canon: `CORE::say` works without the
 Reach: 8 dirty perl.git t/ files first refuse at one -- CORE::state in op/sub.t
 and op/svleak.t, CORE::say in io/say.t, CORE::require in comp/require.t.
 
+### Whole-suite criteria removed (2026-10-11)
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Criteria that only re-ran a whole suite
+or package (`go test ./...`, `make test`, the whole conformance or parse
+package) restated "make test passed", which gates every commit, while CI
+gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
+They are removed; this issue's named tests and ratchet checks remain.
+
 ## Acceptance criteria
 
 - [ ] CORE::-prefixed keywords classify as their keywords and canon with the prefix kept (`go test ./internal/parse/ -run '^TestCorePrefixedKeyword$' -count=1 -v | grep -q '^--- PASS: TestCorePrefixedKeyword'`)
 - [ ] REGRESSION GUARD: the perl.git t/ ratchet holds (`go test ./internal/parse/ -run '^TestPerlGitTRatchet$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTRatchet'`)
-- [ ] REGRESSION GUARD: the whole suite holds (`go test ./... -count=1`)
