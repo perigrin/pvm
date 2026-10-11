@@ -1,6 +1,6 @@
 ---
 title: Swap the annotation key from StartByte to node identity
-state: pending
+state: cancelled
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -8,7 +8,11 @@ blocked_by:
 blocks:
 - 01a0c115-a44b-7393-a828-ad29844b20b4
 created: 2026-09-20T23:10:09.105095184Z
-updated: 2026-10-11T10:19:35.598938274Z
+updated: 2026-10-11T10:19:36.38583883Z
+transitions:
+- state: cancelled
+  actor: human:git-zhi
+  timestamp: 2026-10-11T10:19:36.38583883Z
 ---
 
 ## Cancelled (2026-10-11), perigrin's ruling
