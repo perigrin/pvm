@@ -1,10 +1,19 @@
 ---
 title: "return LIST drops every operand: `return 1, 2` canons as `return ,` at Unknown=0"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T23:36:39.800469866Z
-updated: 2026-10-11T02:47:58.860486982Z
+updated: 2026-10-11T11:09:37.710662966Z
+sessions:
+- start_sha: 971b903102dc4a335660172f3b1b5ecad5cf3330
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-11T11:09:37.710662966Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-11T11:09:37.710662966Z
 ---
 
 ## Measured finding
