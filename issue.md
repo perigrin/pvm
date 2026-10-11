@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T23:58:31.367571262Z
-updated: 2026-10-11T11:19:50.630206635Z
+updated: 2026-10-11T15:17:31.483781377Z
 sessions:
 - start_sha: 971b903102dc4a335660172f3b1b5ecad5cf3330
   end_sha: 971b903102dc4a335660172f3b1b5ecad5cf3330
@@ -110,10 +110,18 @@ Scope item 3 was false, as 1d06bb8d records: the interpolated spelling `"x $t->{
 
 The conformance and whole-suite commands carry `-timeout=30m`: internal/conformance took 696s in a full run, past go test's 10-minute default, and timed out without it.
 
+### Whole-suite criteria removed (2026-10-11)
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Criteria that only re-ran a whole suite
+or package (`go test ./...`, `make test`, the whole conformance or parse
+package) restated "make test passed", which gates every commit, while CI
+gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
+They are removed; this issue's named tests and ratchet checks remain.
+
 ## Acceptance criteria
 
 - [ ] `$h{m}` parses with the key as a string (`go test ./internal/parse/ -run '^TestBarewordSubscriptKey$' -count=1 -v | grep -q '^--- PASS: TestBarewordSubscriptKey'`)
 - [ ] Every quote-like name works as a bare key (`go test ./internal/parse/ -run '^TestBarewordSubscriptKey$' -count=1 -v | grep -q '^--- PASS: TestBarewordSubscriptKey'`)
 - [ ] A real match still lexes as a match (`go test ./internal/parse/ -run '^TestQuoteOpStillLexesWithBraceDelimiter$' -count=1 -v | grep -q '^--- PASS: TestQuoteOpStillLexesWithBraceDelimiter'`)
 - [ ] REGRESSION GUARD, passes today: the interpolated spelling stays correct (`go test ./internal/parse/ -run '^TestBarewordSubscriptKey$' -count=1 -v | grep -q '^--- PASS: TestBarewordSubscriptKey'`)
-- [ ] REGRESSION GUARD, passes today: the corpus stays complete (`go test ./internal/conformance/ -count=1 -timeout=30m`)
