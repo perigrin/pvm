@@ -1,10 +1,19 @@
 ---
 title: A statement modifier on a loop control is dropped, and the tree is wrong with zero Unknowns
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T18:09:45.133282332Z
-updated: 2026-10-11T02:47:30.520928914Z
+updated: 2026-10-11T10:39:03.973990642Z
+sessions:
+- start_sha: 971b903102dc4a335660172f3b1b5ecad5cf3330
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-11T10:39:03.973990642Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-11T10:39:03.973990642Z
 ---
 
 Every statement modifier on a loop control produces a WRONG tree with ZERO
