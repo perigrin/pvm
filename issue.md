@@ -1,19 +1,30 @@
 ---
 title: "builtin version bundles are not imported: `use builtin \":5.39\"` and `use v5.40` bring nothing into scope"
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T07:47:15.291952848Z
-updated: 2026-10-11T01:54:43.281832372Z
+updated: 2026-10-11T02:12:28.70016236Z
 sessions:
 - start_sha: 24bfac4a5293052e7c38dd54a56a58aef818e639
-  end_sha: ""
-  commits: 0
+  end_sha: ac216d4fe150366d48c0a2d7a53b85b585cdf17e
+  commits: 1
   started_at: 2026-10-11T00:57:42.520154202Z
+  ended_at: 2026-10-11T02:12:28.70016236Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-11T00:57:42.520154202Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-11T02:12:28.70016236Z
+observed_paths:
+- internal/parse/arrowcodederef_test.go
+- internal/parse/builtinimport_test.go
+- internal/parse/canon.go
+- internal/parse/testdata/t1canon.ratchet
+- internal/parse/testdata/t1fidelity.ratchet
+- internal/parse/use.go
 ---
 
 `use builtin LIST` imports literal names (see importBuiltins in use.go). Two other routes bring builtin functions into scope and are not read:
