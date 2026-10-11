@@ -44,3 +44,37 @@ func TestHoleStandsAnywhereANodeMay(t *testing.T) {
 		}
 	}
 }
+
+// Every lowered field is optional (§6.1.6 item 5): a lowering over broken
+// input leaves fields unset, so each kind at its zero value must walk
+// without panicking, report no children, and carry a usable Meta.
+func TestZeroValueNodeIsUsable(t *testing.T) {
+	zeros := []lower.Node{
+		&lower.Hole{},
+		&lower.NumLit{}, &lower.StrLit{}, &lower.Interp{}, &lower.QwList{}, &lower.Bareword{},
+		&lower.Var{}, &lower.Deref{}, &lower.Index{}, &lower.Key{}, &lower.Slice{},
+		&lower.Unary{}, &lower.Binary{}, &lower.Repeat{}, &lower.Assign{}, &lower.Ternary{},
+		&lower.CmpChain{}, &lower.Range{}, &lower.List{},
+		&lower.Decl{},
+		&lower.Call{}, &lower.MethodCall{},
+		&lower.MapGrepSort{}, &lower.DoBlock{}, &lower.DoFile{}, &lower.EvalBlock{}, &lower.EvalStr{},
+		&lower.AnonSub{}, &lower.ArrayLiteral{}, &lower.HashLiteral{}, &lower.Ref{},
+		&lower.FileTest{}, &lower.Readline{}, &lower.Glob{}, &lower.LoopEx{}, &lower.Wantarray{},
+		&lower.Match{},
+	}
+	for _, n := range zeros {
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Errorf("%T: walking the zero value panicked: %v", n, r)
+				}
+			}()
+			if kids := lower.Children(n); len(kids) != 0 {
+				t.Errorf("%T: zero value has %d children, want none", n, len(kids))
+			}
+			if m := n.Meta(); m == nil || m.ID != (lower.ID{}) || m.Paren {
+				t.Errorf("%T: zero value's Meta is not the zero identity", n)
+			}
+		}()
+	}
+}

@@ -362,7 +362,9 @@ type Match struct {
 }
 
 // Children returns a node's non-nil children in field order. A nil field or
-// a nil slice element is skipped, never returned.
+// a nil slice element is skipped, never returned. A kind with no case here
+// panics: that is a kind declared without its walk, a bug in this file, and
+// TestZeroValueNodeIsUsable lists every kind so it cannot ship.
 func Children(n Node) []Node {
 	var kids []Node
 	add := func(ns ...Node) {
@@ -373,15 +375,70 @@ func Children(n Node) []Node {
 		}
 	}
 	switch n := n.(type) {
-	case *Hole, *NumLit:
-	case *Var:
+	case *Hole, *NumLit, *StrLit, *QwList, *Bareword, *Var, *Wantarray:
+	case *Interp:
+		add(n.Parts...)
+	case *Deref:
+		add(n.Expr)
 	case *Index:
 		add(n.Base, n.Idx)
+	case *Key:
+		add(n.Base, n.Key)
+	case *Slice:
+		add(n.Base, n.Idx)
+	case *Unary:
+		add(n.Operand)
 	case *Binary:
 		add(n.L, n.R)
+	case *Repeat:
+		add(n.Left, n.Count)
+	case *Assign:
+		add(n.L, n.R)
+	case *Ternary:
+		add(n.Cond, n.Then, n.Else)
+	case *CmpChain:
+		add(n.Operands...)
+	case *Range:
+		add(n.Lo, n.Hi)
+	case *List:
+		add(n.Elems...)
 	case *Decl:
 		add(n.Vars...)
 		add(n.Init)
+	case *Call:
+		add(n.Fn, n.Handle)
+		add(n.Args...)
+	case *MethodCall:
+		add(n.Invocant, n.Dynamic)
+		add(n.Args...)
+	case *MapGrepSort:
+		add(n.Block, n.FirstExpr)
+		add(n.List...)
+	case *DoBlock:
+		add(n.Body)
+	case *DoFile:
+		add(n.Path)
+	case *EvalBlock:
+		add(n.Body)
+	case *EvalStr:
+		add(n.Code)
+	case *AnonSub:
+		add(n.Sig...)
+		add(n.Body)
+	case *ArrayLiteral:
+		add(n.Elems...)
+	case *HashLiteral:
+		add(n.Elems...)
+	case *Ref:
+		add(n.Operand)
+	case *FileTest:
+		add(n.Operand)
+	case *Readline:
+		add(n.Handle)
+	case *Glob:
+		add(n.Pattern)
+	case *LoopEx:
+		add(n.Label)
 	case *Match:
 		add(n.Pattern...)
 		add(n.Replace...)
