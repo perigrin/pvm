@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T20:39:01.402801113Z
-updated: 2026-10-11T10:56:05.486621395Z
+updated: 2026-10-11T15:17:27.677278856Z
 sessions:
 - start_sha: 971b903102dc4a335660172f3b1b5ecad5cf3330
   end_sha: 971b903102dc4a335660172f3b1b5ecad5cf3330
@@ -157,10 +157,18 @@ Criterion 3 grepped internal/parse/keyword.go, which d2094988 deleted: the parse
 
 The conformance and whole-suite commands carry `-timeout=30m`: internal/conformance took 696s in a full run, past go test's 10-minute default, and timed out without it.
 
+### Whole-suite criteria removed (2026-10-11)
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Criteria that only re-ran a whole suite
+or package (`go test ./...`, `make test`, the whole conformance or parse
+package) restated "make test passed", which gates every commit, while CI
+gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
+They are removed; this issue's named tests and ratchet checks remain.
+
 ## Acceptance criteria
 
 - [ ] `atan2 $a, $b` parenless keeps both arguments (`go test ./internal/parse/ -run '^TestParenlessBuiltinArity$' -count=1 -v | grep -q '^--- PASS: TestParenlessBuiltinArity'`)
 - [ ] The canon of a parenless `atan2` holds no empty call (`go test ./internal/parse/ -run '^TestParenlessArityNoDetachedCall$' -count=1 -v | grep -q '^--- PASS: TestParenlessArityNoDetachedCall'`)
 - [ ] The parse arity tables are audited against perl's keyword list, with the result recorded (`grep -q 'all 266 names in regen/keywords.pl' internal/parse/declarations/CORE.pmt`)
 - [ ] REGRESSION GUARD, passes today: `index`, `sprintf` and `crypt` parenless still take both arguments (`go test ./internal/parse/ -run '^TestParenlessBuiltinArity$' -count=1 -v | grep -q '^--- PASS: TestParenlessBuiltinArity'`)
-- [ ] REGRESSION GUARD, passes today: the corpus stays complete (`go test ./internal/conformance/ -count=1 -timeout=30m`)
