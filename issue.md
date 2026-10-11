@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T16:41:19.036325043Z
-updated: 2026-10-11T10:27:43.338785446Z
+updated: 2026-10-11T15:17:12.136344995Z
 sessions:
 - start_sha: 971b903102dc4a335660172f3b1b5ecad5cf3330
   end_sha: 971b903102dc4a335660172f3b1b5ecad5cf3330
@@ -68,11 +68,18 @@ The criteria ran bare `go test ./internal/parse/ -count=1`, which names no test.
 
 The conformance and whole-suite commands carry `-timeout=30m`: internal/conformance took 696s in a full run, past go test's 10-minute default, and timed out without it.
 
+### Whole-suite criteria removed (2026-10-11)
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Criteria that only re-ran a whole suite
+or package (`go test ./...`, `make test`, the whole conformance or parse
+package) restated "make test passed", which gates every commit, while CI
+gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
+They are removed; this issue's named tests and ratchet checks remain.
+
 ## Acceptance criteria
 
 - [ ] `my $x = -e;` parses with zero Unknown (`go test ./internal/parse/ -run '^TestOperandlessFiletest$' -count=1 -v | grep -q '^--- PASS: TestOperandlessFiletest'`)
 - [ ] `my @x = grep -e, @l;` parses with zero Unknown (`go test ./internal/parse/ -run '^TestOperandlessFiletest$' -count=1 -v | grep -q '^--- PASS: TestOperandlessFiletest'`)
 - [ ] `my @x = grep { -e } @l;` parses with zero Unknown (`go test ./internal/parse/ -run '^TestOperandlessFiletest$' -count=1 -v | grep -q '^--- PASS: TestOperandlessFiletest'`)
 - [ ] `-e $f` and `-t STDIN` still parse, no regression (`go test ./internal/parse/ -run '^TestOperandlessFiletest$' -count=1 -v | grep -q '^--- PASS: TestOperandlessFiletest'`)
-- [ ] REGRESSION GUARD: the corpus ratchet holds (`go test ./internal/conformance/ -count=1 -timeout=30m`)
-- [ ] REGRESSION GUARD: the whole suite holds (`go test ./... -count=1 -timeout=30m`)
