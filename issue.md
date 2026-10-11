@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a0c115-a44b-7393-a828-ad29844b20b4
 created: 2026-10-11T10:32:15.127376918Z
-updated: 2026-10-11T10:33:35.637544128Z
+updated: 2026-10-11T15:18:29.630309848Z
 ---
 
 ## Context
@@ -87,6 +87,15 @@ the floor criterion below fails rather than passing vacuously.
 - [ ] Run the infer suite: `go test ./internal/infer/ -count=1`
 - [ ] Commit.
 
+### Whole-suite criteria removed (2026-10-11)
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Criteria that only re-ran a whole suite
+or package (`go test ./...`, `make test`, the whole conformance or parse
+package) restated "make test passed", which gates every commit, while CI
+gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
+They are removed; this issue's named tests and ratchet checks remain.
+
 ## Acceptance Criteria
 
 ### Positive Scenarios
@@ -95,7 +104,6 @@ the floor criterion below fails rather than passing vacuously.
 - [ ] No infer or e2e test reaches the tree-sitter tree except the legacy capture tool (`! grep -l 'pvm/internal/parser"' internal/infer/*_test.go test/e2e/*_test.go | grep -v 'legacy_capture_test.go'`)
 - [ ] The e2e inference accuracy test runs on the lowered path (`go test ./test/e2e/ -run '^TestTypeInferenceAccuracy$' -count=1 -v | grep -q '^--- PASS: TestTypeInferenceAccuracy'`)
 - [ ] The suite was moved, not deleted: it still holds at least the 246 tests it had (`test "$(grep -h '^func Test' internal/infer/*_test.go | wc -l)" -ge 246`)
-- [ ] The infer package is green (`go test ./internal/infer/ -count=1`)
 
 ### Negative Scenarios
 - [ ] The floor is real: the check the precision test uses rejects an exact count of 61 (`go test ./internal/infer/ -run '^TestPrecisionFloorRejectsADrop$' -count=1 -v | grep -q '^--- PASS: TestPrecisionFloorRejectsADrop'`)
