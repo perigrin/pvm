@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T18:50:21.499634715Z
-updated: 2026-10-11T10:39:29.849811379Z
+updated: 2026-10-11T15:17:23.461181778Z
 sessions:
 - start_sha: 971b903102dc4a335660172f3b1b5ecad5cf3330
   end_sha: 971b903102dc4a335660172f3b1b5ecad5cf3330
@@ -107,10 +107,17 @@ The criteria that grepped `^ok` after `-run '^TestAmpersandScalarCall$'` were va
 
 The conformance and whole-suite commands carry `-timeout=30m`: internal/conformance took 696s in a full run, past go test's 10-minute default, and timed out without it.
 
+### Whole-suite criteria removed (2026-10-11)
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Criteria that only re-ran a whole suite
+or package (`go test ./...`, `make test`, the whole conformance or parse
+package) restated "make test passed", which gates every commit, while CI
+gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
+They are removed; this issue's named tests and ratchet checks remain.
+
 ## Acceptance criteria
 
 - [ ] `&$subref;` parses as a call (`go test ./internal/parse/ -run '^TestAmpersandScalarCall$' -count=1 -v | grep -q '^--- PASS: TestAmpersandScalarCall'`)
 - [ ] All four spellings parse: bare, `()`, `(args)`, and with the sub declared (`go test ./internal/parse/ -run '^TestAmpersandScalarCall$' -count=1 -v | grep -q '^--- PASS: TestAmpersandScalarCall'`)
 - [ ] `$a & $b` is still bitwise-and (`go test ./internal/lexer/ -run '^TestLeadingPackageSeparator$' -count=1 -v | grep -q '^--- PASS: TestLeadingPackageSeparator'`)
-- [ ] REGRESSION GUARD, passes today: the corpus stays complete (`go test ./internal/conformance/ -count=1 -timeout=30m`)
-- [ ] REGRESSION GUARD, passes today: the parse ratchets hold (`go test ./internal/parse/ -count=1`)
