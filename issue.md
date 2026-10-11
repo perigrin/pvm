@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T05:21:17.339485318Z
-updated: 2026-09-29T05:27:17.655446895Z
+updated: 2026-10-11T15:17:49.389260566Z
 sessions:
 - start_sha: 1160b99169804f5ed3dae905df9451608e6f9efe
   end_sha: ef36d1ef0486ea3dddfc702d261fdc29c7b92cb0
@@ -39,8 +39,16 @@ single punctuation byte, each touching the star.
 Reach: op/method.t (`local *1 = sub { 123 }`), re/pat.t (`*^R`), re/subst.t
 (`*1`), re/reg_namedcapture.t (`*X = *-`), op/tie_fetch_count.t.
 
+### Whole-suite criteria removed (2026-10-11)
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Criteria that only re-ran a whole suite
+or package (`go test ./...`, `make test`, the whole conformance or parse
+package) restated "make test passed", which gates every commit, while CI
+gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
+They are removed; this issue's named tests and ratchet checks remain.
+
 ## Acceptance criteria
 
 - [ ] `*1`, `*^R` and `*-` are globs and canon to a fixpoint (`go test ./internal/parse/ -run '^TestGlobWithNonIdentifierName$' -count=1 -v | grep -q '^--- PASS: TestGlobWithNonIdentifierName'`)
 - [ ] REGRESSION GUARD: the perl.git t/ ratchet holds (`go test ./internal/parse/ -run '^TestPerlGitTRatchet$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTRatchet'`)
-- [ ] REGRESSION GUARD: the whole suite holds (`go test ./... -count=1`)
