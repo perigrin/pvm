@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a12a85-3417-75eb-bf44-d47cf6546e82
 created: 2026-10-11T10:32:14.982514503Z
-updated: 2026-10-11T10:33:33.096902753Z
+updated: 2026-10-11T15:18:26.567450828Z
 ---
 
 ## Context
@@ -63,13 +63,21 @@ Rollback: this issue changes only `AnalyzeLowered` and test data. Nothing in `in
 - [ ] Run the infer suite: `go test ./internal/infer/ -count=1`
 - [ ] Commit.
 
+### Whole-suite criteria removed (2026-10-11)
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Criteria that only re-ran a whole suite
+or package (`go test ./...`, `make test`, the whole conformance or parse
+package) restated "make test passed", which gates every commit, while CI
+gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
+They are removed; this issue's named tests and ratchet checks remain.
+
 ## Acceptance Criteria
 
 ### Positive Scenarios
 - [ ] The lowered path holds the golden ratchet in both directions (`go test ./internal/infer/ -run '^TestLoweredGoldenRatchet$' -count=1 -v | grep -q '^--- PASS: TestLoweredGoldenRatchet'`)
 - [ ] Every special fixture matches its legacy golden on the lowered path (`test -n "$(ls internal/infer/testdata/lowered/special/*.pl)" && ! ls internal/infer/testdata/lowered/special/*.pl | sed 's|.*/lowered/||' | grep -vxFf internal/infer/testdata/lowered/matching.txt`)
 - [ ] Every fixture in the tree matches its golden on the lowered path (`test "$(ls internal/infer/testdata/lowered/*/*.pl | wc -l)" -gt 0 && test "$(ls internal/infer/testdata/lowered/*/*.pl | wc -l)" -eq "$(grep -c . internal/infer/testdata/lowered/matching.txt)"`)
-- [ ] The infer package is green (`go test ./internal/infer/ -count=1`)
 
 ### Negative Scenarios
 - [ ] A map or eval block perl rejects analyses without a panic and yields Any (`go test ./internal/infer/ -run '^TestLoweredSpecialFormsOverBrokenInput$' -count=1 -v | grep -q '^--- PASS: TestLoweredSpecialFormsOverBrokenInput'`)
