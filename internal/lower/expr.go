@@ -30,6 +30,8 @@ func (l *lowerer) expr(n *parse.Node) Node {
 		out = first(n, l.literal)
 	case parse.Call:
 		out = first(n, l.fatWord)
+	case parse.Declaration:
+		out = first(n, l.decl)
 	}
 	if out == nil {
 		out = &Hole{}
