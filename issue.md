@@ -1,6 +1,6 @@
 ---
 title: "Lower operators: Binary.Op from the field, Repeat and Assign from the Paren flag"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -9,7 +9,16 @@ blocks:
 - 01a0c112-a8bb-7d7f-b156-d4ad99474e87
 - 01a12a85-3233-7ec8-9428-747be4ccef1c
 created: 2026-09-20T23:05:47.837817466Z
-updated: 2026-10-11T10:33:41.184675732Z
+updated: 2026-10-11T15:51:32.545872199Z
+sessions:
+- start_sha: 9895b3086efb0ed7feb8aeb6b994c6b245ce47a5
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-11T15:51:32.545872199Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-11T15:51:32.545872199Z
 ---
 
 ## Context
