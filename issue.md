@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-28T22:03:29.384507988Z
-updated: 2026-09-28T22:11:49.155686388Z
+updated: 2026-10-11T15:17:42.817610777Z
 sessions:
 - start_sha: 9b7b13111f748942d278e8fa83872337288084f6
   end_sha: 01e775966608237f2380b27d2433f94283e5146b
@@ -43,10 +43,18 @@ which perl accepts in ANY parenthesised list after the first element:
     $ perl -e 'my @a = (1,,,2); print scalar(@a)'     -> 2
     $ perl -e 'my @a = (,1);'                         -> syntax error
 
+### Whole-suite criteria removed (2026-10-11)
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Criteria that only re-ran a whole suite
+or package (`go test ./...`, `make test`, the whole conformance or parse
+package) restated "make test passed", which gates every commit, while CI
+gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
+They are removed; this issue's named tests and ratchet checks remain.
+
 ## Acceptance criteria
 
 - [ ] The multi-variable foreach parses, canons and re-parses to its canon (`go test ./internal/parse/ -run '^TestForLoopManyVariables$' -count=1 -v | grep -q '^--- PASS: TestForLoopManyVariables'`)
 - [ ] An empty list slot is dropped after an element and a leading one still refuses (`go test ./internal/parse/ -run '^TestListEmptySlot$' -count=1 -v | grep -q '^--- PASS: TestListEmptySlot'`)
 - [ ] op/for-many.t is clean in the perl.git t/ ratchet (`grep -q '^0 op/for-many.t$' internal/parse/testdata/perlgitt.ratchet`)
 - [ ] REGRESSION GUARD: the perl.git t/ ratchet holds (`go test ./internal/parse/ -run '^TestPerlGitTRatchet$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTRatchet'`)
-- [ ] REGRESSION GUARD: the whole suite holds (`go test ./... -count=1`)
