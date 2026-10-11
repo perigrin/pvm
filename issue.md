@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T17:48:11.618449654Z
-updated: 2026-09-26T19:45:19.698155701Z
+updated: 2026-10-11T15:17:12.517370421Z
 sessions:
 - start_sha: 20c20c3c9f6b7772b719bd7affc1d50f419e1e75
   end_sha: b2084901525559c23fe0eef21f146e164b5c4cc9
@@ -107,11 +107,17 @@ count:
 - related: `01a0dec7` (the switch family needs new ops; this does not),
   `01a0d087` (ungated `defer`, the last `statementKeywords` entry removed)
 
+### Whole-suite criteria removed (2026-10-11)
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Criteria that only re-ran a whole suite
+or package (`go test ./...`, `make test`, the whole conformance or parse
+package) restated "make test passed", which gates every commit, while CI
+gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
+They are removed; this issue's named tests and ratchet checks remain.
+
 ## Acceptance criteria
 
 - [ ] `continue BLOCK` after a while loop parses (`go test ./internal/parse/ -run '^TestContinueBlock$' -count=1 -v | grep -q '^--- PASS: TestContinueBlock'`)
 - [ ] `continue` is gone from statementKeywords and the docstring says so (`grep -q '"continue"' internal/parse/parse.go; test $? -ne 0`)
 - [ ] Canon re-emits the block and holds its fixpoint (`go test ./internal/parse/ -run '^TestCanon' -count=1 | grep -q '^ok'`)
-- [ ] A corpus case asserts that continue runs on next and not on last (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
-- [ ] REGRESSION GUARD, passes today: the corpus stays complete (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
-- [ ] REGRESSION GUARD, passes today: the parse ratchets hold (`go test ./internal/parse/ -count=1 | grep -q '^ok'`)
