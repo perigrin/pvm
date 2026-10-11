@@ -9,7 +9,7 @@ blocked_by:
 blocks:
 - 01a0c115-a44b-7393-a828-ad29844b20b4
 created: 2026-09-20T23:05:47.837817466Z
-updated: 2026-09-20T23:13:03.866632505Z
+updated: 2026-10-11T10:32:00.810744281Z
 ---
 
 ## Context
@@ -19,17 +19,19 @@ updated: 2026-09-20T23:13:03.866632505Z
 - entrypoints: `docs/specs/perl-parser/04-expressions.md` §4.14.2 "Operators"; §4.14.1 rule 1
 
 This slice kills one of the three measured consumer defects the lowering exists
-for: **`findOperatorText` (`infer.go:645-659`) re-derives the operator by
+for: **`findOperatorText` (`infer.go:656`) re-derives the operator by
 scanning a node's unnamed children for text that matches an operator table.**
 `parse.Node.Text` already holds the operator, so the lowering SETS `Binary.Op`
 from a field read and that function has no successor.
 
-Status per §4.14.2, corrected at HEAD:
+Status per §4.14.2 as the status-table issue re-measured it. Shapes below were
+measured at 24bfac4a; re-measure at execution time. Line numbers in
+`internal/infer` drift, so citations also name the function.
 
 - `Unary{Op,Postfix}` SHIPPED — `unary "!"`, `"neg"`, `"~"`, `"++"`, `"ref"`
   (for backslash), `"pos"` (for unary plus); `postfix "++"`. `Postfix` is a KIND
   split in the CST (`Kind == Postfix` vs `Kind == Unary`), so the flag is a
-  rename. `extractNegatedGuard` (`infer.go:2285`) currently tests text `== "!"`;
+  rename. `extractNegatedGuard` (`infer.go:2469`) currently tests text `== "!"`;
   the lowered `Op` replaces that comparison.
 - `Binary{Op}` SHIPPED; **the lowering sets `Op` from `Text`.** The bridge to
   B::SoN's split family is a total table from `Op` and belongs in the consumer,
@@ -43,16 +45,15 @@ Status per §4.14.2, corrected at HEAD:
   (flat, as the CST has it) and leave the typing to the inference issue; do not
   invent a rule here.
 - `Range{Exclusive}` — `$a..$b` is `binary ".."`, `$a...$b` is `binary "..."`.
-  **The measured defect in §4.14.2 is GONE at HEAD**: `my @r = (1..5);` now
+  **The measured defect in §4.14.2 is gone**: at 24bfac4a `my @r = (1..5);`
   parses as `declaration "my"` over `term "@r"` and `binary ".." paren` with
-  `term "1"` and `term "5"` children. It no longer reads as `Str`, and the
-  lexer no longer takes `1..5` as one Number token. Re-verify this before
-  implementing — if it holds, `Range` is LOWERING for both variable and literal
-  endpoints, which §4.14.2 marked PARSER.
+  `term "1"` and `term "5"` children. The lexer no longer takes `1..5` as one
+  Number token, so `Range` is LOWERING for both variable and literal
+  endpoints.
 - `Repeat{ListRepeat}` LOWERING. **`parse.Node.Paren` ships**, so §4.14.1 rule
   1's fact is a field read rather than the unsound span heuristic the rule
-  describes at length. Verified at HEAD: `('a') x 3` gives
-  `binary "x"` over `term "'a'" paren` and `term "3"`. `qw(a b) x 2` is the
+  describes at length. Measured at 24bfac4a: `("a") x 3` gives
+  `binary "x"` over `term "\"a\"" paren` and `term "3"`. `qw(a b) x 2` is the
   other list-repeat spelling and keys on the `qw` prefix of the term's `Text`.
   perl: `('a') x 3` gives three elements, `'a' x 3` gives one.
   **Do not reimplement the span heuristic.** §4.14.1 rule 1 spends a paragraph
@@ -64,13 +65,28 @@ Status per §4.14.2, corrected at HEAD:
   parenthesised scalar sets `Paren`. `my (...) =` is under `Decl` and belongs to
   the declarations issue.
 - `List{Fat}` SHIPPED as `List`, and **`Fat` is no longer PARSER**:
-  `parse.Node.Fat` ships and is set. Verified at HEAD: `(a => 1, b => 2)` gives
-  a `list` whose two `call` children carry `Fat`. §4.5.4: the fat comma quotes
+  `parse.Node.Fat` ships and is set. At 24bfac4a `(a => 1, b => 2)` gives
+  a `list paren` whose two `call` children carry `Fat`. §4.5.4: the fat comma quotes
   the word to its left, so without this the lowering could not tell `(a, 1)`
   (a call) from `(a => 1)` (a string).
+- **Comma chains outside a `list` node.** Only a parenthesised list is a
+  `list` node. Call arguments, unparenthesised lists and slice subscripts are
+  left-nested `binary ","` trees, and inside them a fat comma is a
+  `binary "=>"`, not a `Fat` flag. Measured at 24bfac4a:
+  `f(1, 2, 3)` gives `[call "f" [binary "," [binary "," [term "1"] [term "2"]] [term "3"]]]`,
+  and `f(a => 1, b => 2)` gives
+  `[call "f" [binary "=>" [binary "," [binary "=>" [call "a"] [term "1"]] [call "b" fat]] [term "2"]]]`
+  (note `Fat` is set on `b` but not on `a`). Lower a `,`/`=>` chain to ONE
+  flat `List`, with `Fat[i]` set when element i was the left operand of a
+  `=>` or carries the `Fat` flag. The calls slice reads `Call.Args` from it.
 - `Paren` — §4.14.6 leaves node-vs-flag open; the vocabulary issue settles it.
   Whichever it chose, this issue is where the two rules that read it get
   written, which is what §4.14.6 says settles the question.
+
+**Hole tests use input perl rejects** (each confirmed with `perl -c` on
+5.42), so they cannot go stale when the parser improves: `$x = ;` gives
+`[binary "=" [term "$x"] [unknown refusal=not_a_term]]`, `$x = 1 +;` puts the
+Unknown under the `+`, and `1 x;` puts it in the count.
 
 ## Steps
 
@@ -89,20 +105,30 @@ Status per §4.14.2, corrected at HEAD:
       to a `Range` with both endpoints present and `Exclusive` set only for the
       three-dot form. Run to verify failure, implement, run to green, commit.
 - [ ] Write `TestLowerListFat`: `(a => 1, b => 2)` lowers to a `List` whose
-      `Fat` slice marks elements 0 and 2, and `(a, 1, b, 2)` marks none.
+      `Fat` slice marks elements 0 and 2, and `(a, 1, b, 2)` marks none. The
+      unparenthesised chains in `f(1, 2, 3)` and `f(a => 1, b => 2)` lower
+      to the same flat `List` shapes as their parenthesised forms.
       Run to verify failure, implement, run to green, commit.
 - [ ] Write `TestLowerAssignListness`: `($a,$b) = (1,2)` and `@a = (1,2)` set
       `ListAssign`, `$a = 1` does not. Run to verify failure, implement, run to
       green, commit.
+- [ ] Write `TestLowerOperatorsOverBrokenInput`: `$x = ;` lowers to an
+      `Assign` whose `R` is a `Hole`; `$x = 1 +;` to an `Assign` over a
+      `Binary "+"` whose `R` is a `Hole`; `1 x;` to a `Repeat` whose `Count`
+      is a `Hole`. No panic. Run to verify failure, implement, run to green,
+      commit.
 - [ ] Run the package suite: `go test ./internal/lower/ -count=1`
 - [ ] Commit.
 
 ## Acceptance Criteria
 
 ### Positive Scenarios
-- [ ] Binary.Op comes from the node's field, retiring findOperatorText (`go test ./internal/lower/ -run "^TestLowerBinaryOpFromField$" -count=1 -v | grep -q "^--- PASS: TestLowerBinaryOpFromField"`)
-- [ ] List repeat reads the Paren flag, not a span heuristic (`go test ./internal/lower/ -run "^TestLowerListRepeatFromParenFlag$" -count=1 -v | grep -q "^--- PASS: TestLowerListRepeatFromParenFlag"`)
-- [ ] Ranges keep both endpoints, literal ones included (`go test ./internal/lower/ -run "^TestLowerRangeEndpoints$" -count=1 -v | grep -q "^--- PASS: TestLowerRangeEndpoints"`)
-- [ ] Fat commas survive inside a list (`go test ./internal/lower/ -run "^TestLowerListFat$" -count=1 -v | grep -q "^--- PASS: TestLowerListFat"`)
-- [ ] List assignment is distinguished from scalar assignment (`go test ./internal/lower/ -run "^TestLowerAssignListness$" -count=1 -v | grep -q "^--- PASS: TestLowerAssignListness"`)
+- [ ] Binary.Op comes from the node's field, retiring findOperatorText (`go test ./internal/lower/ -run '^TestLowerBinaryOpFromField$' -count=1 -v | grep -q '^--- PASS: TestLowerBinaryOpFromField'`)
+- [ ] List repeat reads the Paren flag, not a span heuristic (`go test ./internal/lower/ -run '^TestLowerListRepeatFromParenFlag$' -count=1 -v | grep -q '^--- PASS: TestLowerListRepeatFromParenFlag'`)
+- [ ] Ranges keep both endpoints, literal ones included (`go test ./internal/lower/ -run '^TestLowerRangeEndpoints$' -count=1 -v | grep -q '^--- PASS: TestLowerRangeEndpoints'`)
+- [ ] Fat commas survive in a list, and a comma chain lowers to the same flat List as its parenthesised form (`go test ./internal/lower/ -run '^TestLowerListFat$' -count=1 -v | grep -q '^--- PASS: TestLowerListFat'`)
+- [ ] List assignment is distinguished from scalar assignment (`go test ./internal/lower/ -run '^TestLowerAssignListness$' -count=1 -v | grep -q '^--- PASS: TestLowerAssignListness'`)
 - [ ] The package is green (`go test ./internal/lower/ -count=1`)
+
+### Negative Scenarios
+- [ ] An operator with an operand perl rejects lowers with a Hole in that operand, and nothing panics (`go test ./internal/lower/ -run '^TestLowerOperatorsOverBrokenInput$' -count=1 -v | grep -q '^--- PASS: TestLowerOperatorsOverBrokenInput'`)
