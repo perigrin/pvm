@@ -27,9 +27,11 @@ func (l *lowerer) expr(n *parse.Node) Node {
 	var out Node
 	switch n.Kind {
 	case parse.Term:
-		out = first(n, l.literal)
+		out = first(n, l.variable, l.literal)
 	case parse.Call:
 		out = first(n, l.fatWord)
+	case parse.Index:
+		out = first(n, l.subscript)
 	}
 	if out == nil {
 		out = &Hole{}

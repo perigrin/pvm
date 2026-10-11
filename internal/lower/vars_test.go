@@ -1,0 +1,99 @@
+// ABOUTME: Tests for lowering variables and subscripts: Var, Deref, Index and Key, with Arrow and deref-ness.
+// ABOUTME: Each shape is the parse measured on the fragment, and each claim about what it reads is perl 5.42's.
+
+package lower_test
+
+import (
+	"testing"
+
+	"tamarou.com/pvm/internal/lower"
+	"tamarou.com/pvm/internal/parse"
+)
+
+// lowerOne parses a one-expression program and lowers its expression.
+func lowerOne(t *testing.T, src string) lower.Node {
+	t.Helper()
+	root := parse.Parse([]byte(src))
+	return lower.LowerExpr(root, expression(t, root))
+}
+
+// zeroIDs clears every id under n, so a nested tree compares by shape.
+func zeroIDs(n lower.Node) lower.Node {
+	n.Meta().ID = lower.ID{}
+	for _, c := range lower.Children(n) {
+		zeroIDs(c)
+	}
+	return n
+}
+
+func TestLowerVarAndSubscript(t *testing.T) {
+	v := func(sigil, name string) *lower.Var { return &lower.Var{Sigil: sigil, Name: name} }
+	cases := []struct {
+		src  string
+		want lower.Node
+	}{
+		// The sigil is the leading bytes, $# included, and the name is
+		// the rest (§4.14.1 rule 7).
+		{"$x;", v("$", "x")},
+		{"@a;", v("@", "a")},
+		{"%h;", v("%", "h")},
+		{"*foo;", v("*", "foo")},
+		{"$#a;", v("$#", "a")},
+		{"&foo;", v("&", "foo")},
+		// perl: with $main::x = "pkg" and $Foo::x = "foo", $::x is pkg
+		// and $Foo::x is foo. The name keeps its spelling.
+		{"$Foo::x;", v("$", "Foo::x")},
+		{"$::x;", v("$", "::x")},
+		// $_ and @_ differ in the sigil alone.
+		{"$_;", v("$", "_")},
+		{"@_;", v("@", "_")},
+		// perl -MO=Deparse prints ${x} and ${ x } as $x, and $#{x} as $#x.
+		{"${x};", v("$", "x")},
+		{"${ x };", v("$", "x")},
+		{"$#{x};", v("$#", "x")},
+		{"${^WARNING_BITS};", v("$", "^WARNING_BITS")},
+		{"$$;", v("$", "$")},
+
+		// perl: with %h = (k => "hash") and $h = {k => "ref"}, $h{k} is
+		// hash and $h->{k} is ref. The two Keys differ in Arrow alone.
+		{"$h{k};", &lower.Key{Base: v("$", "h"), Key: &lower.Bareword{Name: "k", Quoted: true}}},
+		{"$h->{k};", &lower.Key{Base: v("$", "h"), Key: &lower.Bareword{Name: "k", Quoted: true}, Arrow: true}},
+		{"$a[0];", &lower.Index{Base: v("$", "a"), Idx: &lower.NumLit{Text: "0", IsInt: true}}},
+		{"$x->[$i];", &lower.Index{Base: v("$", "x"), Idx: v("$", "i"), Arrow: true}},
+		// Chains nest, and only a link spelled with -> carries Arrow.
+		{"$h->{a}[0]{b};", &lower.Key{
+			Base: &lower.Index{
+				Base: &lower.Key{Base: v("$", "h"), Key: &lower.Bareword{Name: "a", Quoted: true}, Arrow: true},
+				Idx:  &lower.NumLit{Text: "0", IsInt: true},
+			},
+			Key: &lower.Bareword{Name: "b", Quoted: true},
+		}},
+	}
+	for _, c := range cases {
+		got := lowerOne(t, c.src)
+		sameShape(t, c.src, zeroIDs(got), c.want)
+	}
+
+	// The ids are AssignIDs', down the chain.
+	root := parse.Parse([]byte("$h->{a}[0];"))
+	n := expression(t, root)
+	ids := lower.AssignIDs(root)
+	got := lower.LowerExpr(root, n)
+	if len(lower.Children(got)) != 2 {
+		t.Fatalf("$h->{a}[0]: lowered to %#v, want an Index over a Key", got)
+	}
+	base := lower.Children(got)[0]
+	if got.Meta().ID != ids[n] || base.Meta().ID != ids[n.Children[0]] {
+		t.Errorf("ids %v, %v are not the index nodes' %v, %v", got.Meta().ID, base.Meta().ID, ids[n], ids[n.Children[0]])
+	}
+}
+
+// A slice is an index over an @ or % base, or over a list: its own kind,
+// not an Index or a Key, so this lowering leaves it a Hole. So are &{$x},
+// a code call, and *foo{CODE}, a glob slot.
+func TestLowerSubscriptDeclinesSlices(t *testing.T) {
+	for _, src := range []string{"@a[0];", "@h{a};", "%a[0];", "%h{a};", "(1,2)[0];", "($x)[0];", "@$x[0];", "@{$x}{a};", "&{$x};", "*foo{CODE};"} {
+		got := lowerOne(t, src)
+		sameShape(t, src, got, &lower.Hole{})
+	}
+}
