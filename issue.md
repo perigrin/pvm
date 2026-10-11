@@ -10,77 +10,121 @@ blocks:
 - 01a0fa47-2737-7fdb-bd69-63e254d5a770
 - 01a0fd9b-5700-7514-a143-2caed2d06d8b
 created: 2026-09-20T23:10:31.270515112Z
-updated: 2026-10-02T17:14:28.287408763Z
+updated: 2026-10-11T10:32:02.62240595Z
 ---
 
 ## Context
 
-- paths: `internal/infer/infer.go`, `internal/infer/lowered.go`, `internal/parser/`, `internal/infer/retired_test.go` (new)
+- paths: `internal/infer/infer.go`, `internal/infer/symbols.go`, `internal/infer/lowered.go`, `internal/infer/legacy_capture_test.go`, `internal/infer/retired_test.go` (new), `internal/parser/` (deleted), `go.mod`, `go.sum`
 - commands: `go test ./internal/infer/ -run "^TestNoTreeSitterVocabularyRemains$" -count=1 -v`
-- entrypoints: `internal/infer/infer.go`; `internal/parser/parser.go`
+- entrypoints: `internal/infer/infer.go:65` (`Analyze`), `:122` (`AnalyzeWithOptions`), `:156` (`walkNode`); `internal/infer/symbols.go:255` (`CollectDeclarations`)
 
-This is the last 10-20% of the migration, filed as its own issue because that is
-where the discipline usually fails: the old path stays live "just in case",
-`internal/parser` keeps a consumer, and the milestone gets called done at 85%.
+This is the last 10-20% of the migration, filed as its own issue because that
+is where the discipline usually fails: the old path stays live "just in
+case", `internal/parser` keeps a consumer, and the milestone gets called done
+at 85%.
 
-Both callers are flipped by the time this starts. What remains:
+**This is the point of no return.** Up to here, each cutover is a
+one-commit revert because the legacy path still works. After this issue
+deletes it, a regression can only be fixed forward. So the FIRST step,
+before any deletion, re-runs both gates against both paths one last time and
+records the result in this issue:
 
-- the old walkers in `internal/infer/infer.go` that switch on tree-sitter
-  grammar names, now with no caller
-- the three text-re-derivation sites the lowering replaced:
-  `findOperatorText` (`infer.go:645-659`), `callElementType`'s
-  `strings.HasPrefix(..., "grep")` (`infer.go:1313`), and the `@_`/`$_[0]`
-  re-derivations (`infer.go:3659`, `:3753`, `:4193`)
-- the `infer.go:1155-1165` filehandle workaround, whose comment documents the
-  false `Str` mismatch it exists to avoid — `Call.Handle` removes the cause
-- the five duplicated `GetBuiltin` sites (`infer.go:693`, `:881`, `:1009`,
-  `:4004`, `:4048`)
-- whether `internal/parser/` still has a non-test consumer at all
+1. Re-capture every golden from the legacy path
+   (`TestCaptureLegacyGolden -infer.capture`) into a scratch directory and
+   diff it against the committed goldens. The only differences allowed are
+   goldens that were edited with a `Diagnostics-changed:` trailer. Anything
+   else means a golden drifted from what legacy says, and it is triaged
+   before deletion.
+2. Run `TestInferencePrecision` and record exact / wider / WRONG / no
+   answer. Exact must be at least 62 and WRONG zero.
+3. Run `TestLoweredGoldenRatchet` and confirm every fixture is in
+   `matching.txt`.
 
-**The deletion IS the acceptance criterion**, and it is asserted by test rather
-than by inspection: a test that greps the non-test files of `internal/infer` for
-tree-sitter grammar names and fails if any remain. That is the executable form
-of "the vocabulary migrated", and it is the only one that cannot be satisfied by
-a comment.
+Record the three results as a comment on this issue. If any fails, stop.
 
-Use the number the status-table issue established by its stated method (grammar
-names in a `case` arm of a `Kind()` switch) as the starting inventory, so this
-test and that count measure the same thing.
+All four callers are flipped by the time this starts (`psc check`, the LSP,
+`psc analyze`, `psc parse`). What remains:
 
-**`internal/parser/` may still have legitimate consumers** — it is a thin façade
-over `gotreesitter` and the LSP's structural features were never its only
-possible user. Do not delete the package on the assumption that it is dead;
-measure. If it has no non-test consumer, propose removing it and let perigrin
-decide, since deleting a package is not a refactor.
+- the legacy walkers in `internal/infer/infer.go` and `symbols.go` that
+  switch on tree-sitter grammar names, and `Analyze` / `AnalyzeWithOptions`
+  / `CollectDeclarations` on `*parser.Tree`, now with no caller;
+- the text re-derivations the lowering replaced: `findOperatorText`
+  (`infer.go:656`), `callElementType`'s
+  `strings.HasPrefix(..., "grep")` (`:1315`), and the `@_`/`$_[0]`
+  re-derivations;
+- the `indirect_object` filehandle workaround (`infer.go:1144-1184`);
+- the five duplicated builtin lookup sites;
+- `legacy_capture_test.go`, the one test file that calls the legacy path.
+  The goldens it produced stay; they are the guard from here on;
+- whether `internal/parser/` has any consumer left at all.
 
-If anything cannot be deleted, **do not leave it silently**: file a follow-up
-issue naming what remains and why, and link it here. CLAUDE.md: "If you find
-yourself saying 'let''s defer this to a future project', write down where it is
-deferred to. Unlabeled deferrals become drift."
+**The deletion IS the acceptance criterion**, asserted by test: a test that
+reads the non-test files of `internal/infer` and fails if a tree-sitter
+grammar name remains in a `case` arm. Seed its forbidden list from the
+status-table issue's count (01a0c10e-6a8d), so the two measure the same
+thing.
+
+**Delete tree-sitter** (perigrin, 2026-10-11). After the infer and psc
+cutovers, `internal/parser/` has no consumer. At e18b59c8 it is imported
+outside its own directory by `internal/infer` (`infer.go`, `symbols.go`,
+`project.go` and three test files), `internal/psc` (`analyze_command.go`,
+`check_command.go`, `lsp.go`, `parse_command.go`) and
+`test/e2e/psc_check_test.go`; the earlier issues move every one of them,
+the e2e test in the test-suite move. Measure again with
+`grep -rl 'pvm/internal/parser"' --include='*.go' .` before deleting:
+anything left outside `internal/parser/` is a missed caller, fixed before
+the deletion. Then delete the whole `internal/parser/` directory, drop
+`github.com/odvcencio/gotreesitter` and its `replace` line from `go.mod`,
+and run `go mod tidy` so `go.sum` loses it too. Comments that cite
+gotreesitter as history (`internal/lexer/quote.go:481`, for one) may stay;
+the dependency may not.
+
+Then rename what is named for the transition. `AnalyzeLowered` becomes
+`Analyze`, and `lowered.go` folds into the package's normal layout, so no
+name records a migration that is over. The legacy `Analyze` is gone by
+then, so the name is free. No earlier issue's criterion names
+`AnalyzeLowered`, `lowered.go`, `legacy_capture_test.go` or
+`internal/parser` in a way the deletion turns red, so this breaks no
+earlier issue's verify.
+
+If anything cannot be deleted, **do not leave it silently**: file a
+follow-up issue naming what remains and why, and link it here.
 
 ## Steps
 
-- [ ] Write `TestNoTreeSitterVocabularyRemains`: read the non-test `.go` files of
-      `internal/infer` and assert none contains a tree-sitter grammar name in a
-      `case` arm. Seed the forbidden list from the status-table issue's count.
+- [ ] Run the three pre-deletion checks above. Record the results as a
+      comment on this issue. Stop if any fails.
+- [ ] Write `TestNoTreeSitterVocabularyRemains`: read the non-test `.go`
+      files of `internal/infer` and assert none has a tree-sitter grammar
+      name in a `case` arm. Seed the list from the status-table count.
 - [ ] Run to verify failure: `go test ./internal/infer/ -run "^TestNoTreeSitterVocabularyRemains$" -count=1 -v`
-- [ ] Delete the dead walkers. Run to green. Commit.
+- [ ] Delete the legacy walkers, the legacy entry points and
+      `legacy_capture_test.go`. Run to green. Commit.
 - [ ] Write `TestNoSourceTextRederivation`: assert `findOperatorText` and the
-      `strings.HasPrefix(..., "grep")` test are gone, and that no remaining
-      inference rule reaches for `source` to decide which operator or which
-      operation it has. Run to verify failure, delete, run to green, commit.
-- [ ] Measure whether `internal/parser/` has a non-test consumer. Record the
-      answer in the issue; if none, propose removal and ask rather than delete.
-- [ ] Fold `internal/infer/lowered.go` back into the package's normal layout if
-      the split was only a migration scaffold, so no file is named for a
-      transition that is over.
+      `HasPrefix(..., "grep")` test are gone, and that no inference rule
+      reaches for `source` to decide which operator or which operation it
+      has. Run to verify failure, delete, run to green, commit.
+- [ ] Rename `AnalyzeLowered` to `Analyze`, update every caller and test,
+      and fold `lowered.go` in. Run the suite. Commit.
+- [ ] Confirm nothing outside `internal/parser/` imports it. Delete
+      `internal/parser/`, remove gotreesitter from `go.mod`, run
+      `go mod tidy`, and run `go build ./...` and `make test`. Commit.
 - [ ] Run the full suite: `make test`
 - [ ] Commit.
 
 ## Acceptance Criteria
 
 ### Positive Scenarios
-- [ ] No tree-sitter grammar name survives in inference (`go test ./internal/infer/ -run "^TestNoTreeSitterVocabularyRemains$" -count=1 -v | grep -q "^--- PASS: TestNoTreeSitterVocabularyRemains"`)
-- [ ] No inference rule re-derives an operator or an operation from source text (`go test ./internal/infer/ -run "^TestNoSourceTextRederivation$" -count=1 -v | grep -q "^--- PASS: TestNoSourceTextRederivation"`)
+- [ ] No tree-sitter grammar name survives in inference (`go test ./internal/infer/ -run '^TestNoTreeSitterVocabularyRemains$' -count=1 -v | grep -q '^--- PASS: TestNoTreeSitterVocabularyRemains'`)
+- [ ] No inference rule re-derives an operator or an operation from source text (`go test ./internal/infer/ -run '^TestNoSourceTextRederivation$' -count=1 -v | grep -q '^--- PASS: TestNoSourceTextRederivation'`)
+- [ ] The goldens still hold with the legacy path gone (`go test ./internal/infer/ -run '^TestLoweredGoldenRatchet$' -count=1 -v | grep -q '^--- PASS: TestLoweredGoldenRatchet'`)
+- [ ] internal/infer reaches internal/parse only through internal/lower (`go list -f '{{join .Imports " "}}' ./internal/infer | grep -q 'pvm/internal/lower' && ! go list -deps ./internal/infer | grep -q 'pvm/internal/parser$'`)
+- [ ] The tree-sitter package is deleted (`test ! -d internal/parser`)
+- [ ] The gotreesitter dependency is gone and the module still builds (`! grep -q gotreesitter go.mod && ! grep -q gotreesitter go.sum && go build ./...`)
+- [ ] The lowered entry point is named Analyze and takes the lowered tree (`go doc ./internal/infer Analyze | grep -q '^func Analyze(.*lower\.' && ! go doc ./internal/infer AnalyzeLowered`)
 - [ ] The infer package is green (`go test ./internal/infer/ -count=1`)
 - [ ] The whole repository is green (`make test`)
+
+### Negative Scenarios
+- [ ] Nothing in internal/infer, tests included, still calls the legacy path (`! grep -rl 'pvm/internal/parser"' internal/infer`)
