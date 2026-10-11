@@ -4,7 +4,7 @@ state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T22:20:52.910326593Z
-updated: 2026-10-11T00:57:42.810624868Z
+updated: 2026-10-11T01:55:38.081715946Z
 sessions:
 - start_sha: 24bfac4a5293052e7c38dd54a56a58aef818e639
   end_sha: ""
@@ -20,6 +20,16 @@ A lone `&` in term position with no name after it parses as a term. `f 1, &= 2` 
 
 Found while measuring the trailing-comma rule in parseInfix.
 
+### Fixed (2026-10-11)
+
+perl has no bare `&`: its tokenizer takes the next single punctuation
+character as the sub's name (as `$;` and `$=` are names), so `&= 2` is a call
+to a sub named `=` followed by a term, "Number found where operator
+expected". Measured on 5.42: `&;`, `&=;` and `&$x` compile; `&= 2`, `f(&)`,
+`&` at EOF and `&&` are refused. Fixed in 74e5bb88 through the existing
+refusal sites; the criterion had no command and now names the test.
+
 ## Acceptance criteria
 
-- [ ] `sub f {} f 1, &= 2;` refuses (a parse test asserting an Unknown, named in the fix)
+- [ ] a bare `&` with no name is refused where perl refuses it, and every valid `&` form still parses (`go test ./internal/parse/ -run '^TestBareAmpersandIsRefused$' -count=1 -v | grep -q '^--- PASS: TestBareAmpersandIsRefused'`)
+- [ ] no refusal code or site was added unrecorded (`go test ./internal/parse/ -run '^TestRefusalCodeInventory$' -count=1 -v | grep -q '^--- PASS: TestRefusalCodeInventory'`)
