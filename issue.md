@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T16:40:48.477005613Z
-updated: 2026-09-26T21:21:17.240315627Z
+updated: 2026-10-11T15:40:02.905860883Z
 sessions:
 - start_sha: 35549df071251a93f9c8da38980b8285311d7531
   end_sha: 2257e08ee261e0a0303f9201d0210d81f034b326
@@ -78,10 +78,30 @@ other 1,543 are resync fallout. This construct is one of the 41-node cause
 surface. See the `not_a_term` section of
 `docs/plans/2026-09-26-perl-git-t-parses.md`.
 
+### Criteria named (2026-10-11)
+
+Measured at `971b9031`: `::ok(1);` and `my $r = ::f();` parse at Unknown=0 as one
+call named `::ok` and `::f`, and `main::ok(1);` is unchanged. The fix, 35549df0,
+tested only the token stream (internal/lexer TestLeadingPackageSeparatorInWord).
+TestLeadingPackageSeparatorCall is new in internal/parse/leadingsep_test.go and
+asserts the tree shape and canon of all three spellings; with the lexer guard
+disabled it fails on both refusing spellings.
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Every criterion below ran the whole parse
+package, the whole conformance package or `go test ./...`, which only restates
+"make test passed" -- and make test gates every commit. Each claim now names
+the test that holds it. Claims are reworded only to keep parentheses out of
+the claim text, since git-zhi runs the first paren span on the line.
+
+The two regression guards keep their claims and name gate tests instead:
+TestCorpusRatchet for the corpus ratchet, and TestParseRatchet and
+TestPerlGitTRatchet -- the T1 and perl.git t/ parse ratchets -- for the suite.
+
 ## Acceptance criteria
 
-- [ ] `::ok(1);` as a statement parses with zero Unknown (`go test ./internal/parse/ -count=1`)
-- [ ] `my $r = ::f();` as a term parses with zero Unknown (`go test ./internal/parse/ -count=1`)
-- [ ] `main::ok(1)` still parses, no regression (`go test ./internal/parse/ -count=1`)
-- [ ] REGRESSION GUARD: the corpus ratchet holds (`go test ./internal/conformance/ -count=1`)
-- [ ] REGRESSION GUARD: the whole suite holds (`go test ./... -count=1`)
+- [ ] The statement `::ok 1` written with parentheses parses with zero Unknown, as one call named `::ok` (`go test ./internal/parse/ -run '^TestLeadingPackageSeparatorCall$' -count=1 -v | grep -q '^--- PASS: TestLeadingPackageSeparatorCall'`)
+- [ ] `my $r = ::f` with an empty argument list parses as a term with zero Unknown (`go test ./internal/parse/ -run '^TestLeadingPackageSeparatorCall$' -count=1 -v | grep -q '^--- PASS: TestLeadingPackageSeparatorCall'`)
+- [ ] `main::ok 1` written with parentheses still parses, no regression (`go test ./internal/parse/ -run '^TestLeadingPackageSeparatorCall$' -count=1 -v | grep -q '^--- PASS: TestLeadingPackageSeparatorCall'`)
+- [ ] REGRESSION GUARD: the corpus ratchet holds (`go test ./internal/conformance/ -run '^TestCorpusRatchet$' -count=1 -v | grep -q '^--- PASS: TestCorpusRatchet'`)
+- [ ] REGRESSION GUARD: the whole suite holds, named as the T1 and perl.git t/ parse ratchets (`go test ./internal/parse/ -run '^TestParseRatchet$' -count=1 -v | grep -q '^--- PASS: TestParseRatchet' && go test ./internal/parse/ -run '^TestPerlGitTRatchet$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTRatchet'`)
