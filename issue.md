@@ -1,10 +1,19 @@
 ---
 title: atan2 and fc are in no arity table, so a parenless call drops its arguments at Unknown=0
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T20:39:01.402801113Z
-updated: 2026-10-11T02:47:49.33312937Z
+updated: 2026-10-11T10:56:05.288425847Z
+sessions:
+- start_sha: 971b903102dc4a335660172f3b1b5ecad5cf3330
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-11T10:56:05.288425847Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-11T10:56:05.288425847Z
 ---
 
 `atan2` and `fc` are in none of the three parse arity tables, so a parenless
