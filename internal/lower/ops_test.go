@@ -1,0 +1,117 @@
+// ABOUTME: Tests for lowering operators: Binary, Unary, Repeat, Assign, Range, Ternary, CmpChain and List.
+// ABOUTME: Each operator is read off parse.Node fields; each claim about perl's reading is measured on 5.42.
+
+package lower_test
+
+import (
+	"reflect"
+	"testing"
+
+	"tamarou.com/pvm/internal/lower"
+	"tamarou.com/pvm/internal/parse"
+)
+
+// lowerOne parses a one-statement program and lowers its expression.
+func lowerOne(t *testing.T, src string) lower.Node {
+	t.Helper()
+	root := parse.Parse([]byte(src))
+	return lower.LowerExpr(root, expression(t, root))
+}
+
+// clearIDs zeroes the id of n and of every node under it, so two lowerings
+// compare by shape alone.
+func clearIDs(n lower.Node) lower.Node {
+	if n == nil {
+		return nil
+	}
+	n.Meta().ID = lower.ID{}
+	for _, c := range lower.Children(n) {
+		clearIDs(c)
+	}
+	return n
+}
+
+// sameKind reports whether got is the same kind of node as want.
+func sameKind(got, want lower.Node) bool {
+	return reflect.TypeOf(got) == reflect.TypeOf(want)
+}
+
+// field reads the named field of a lowered node. Operands of variables are
+// another slice's lowering, so these tests read the field under test rather
+// than comparing whole trees that hold them.
+func field(n lower.Node, name string) any {
+	return reflect.ValueOf(n).Elem().FieldByName(name).Interface()
+}
+
+// opOf names the operator a lowered node was built from: the Op field where
+// the kind has one, and otherwise the operator the kind itself stands for.
+func opOf(n lower.Node) string {
+	switch {
+	case sameKind(n, &lower.Binary{}), sameKind(n, &lower.Assign{}):
+		return field(n, "Op").(string)
+	case sameKind(n, &lower.Repeat{}):
+		return "x"
+	case sameKind(n, &lower.Range{}):
+		if field(n, "Exclusive").(bool) {
+			return "..."
+		}
+		return ".."
+	}
+	return ""
+}
+
+// The operator is the node's Text, never a rescan of its bytes.
+// findOperatorText scanned a node's children for text matching an operator
+// table, so an operand spelled like an operator could answer for it.
+func TestLowerBinaryOpFromField(t *testing.T) {
+	cases := []struct {
+		src  string
+		want lower.Node
+		op   string
+	}{
+		{"$a + $b;", &lower.Binary{}, "+"},
+		{"$a - $b;", &lower.Binary{}, "-"},
+		{"$a . $b;", &lower.Binary{}, "."},
+		{"$a x 3;", &lower.Repeat{}, "x"},
+		// A lone comparison is a cmp_chain of one link in the CST and a
+		// plain binary op in perl: `$q = $a < $b` compiles to `lt`, where
+		// `$a < $b < $c` compiles to cmpchain_and.
+		{"$a == $b;", &lower.Binary{}, "=="},
+		{"$a eq $b;", &lower.Binary{}, "eq"},
+		{"$a < $b;", &lower.Binary{}, "<"},
+		{"$a lt $b;", &lower.Binary{}, "lt"},
+		{"$a // $b;", &lower.Binary{}, "//"},
+		{"$a .. $b;", &lower.Range{}, ".."},
+		{"$a ... $b;", &lower.Range{}, "..."},
+		{"$a =~ $b;", &lower.Binary{}, "=~"},
+		{"$a !~ $b;", &lower.Binary{}, "!~"},
+		{"$a = $b;", &lower.Assign{}, "="},
+		{"$a += 1;", &lower.Assign{}, "+="},
+		{"$a <=> $b;", &lower.Binary{}, "<=>"},
+		{"$a && $b;", &lower.Binary{}, "&&"},
+		{"$a and $b;", &lower.Binary{}, "and"},
+		// Operands spelled like operators.
+		{"'..' . '.';", &lower.Binary{}, "."},
+		{"'+' - '+';", &lower.Binary{}, "-"},
+		{"'x' x 2;", &lower.Repeat{}, "x"},
+		{"'eq' eq '==';", &lower.Binary{}, "eq"},
+	}
+	for _, c := range cases {
+		got := lowerOne(t, c.src)
+		if !sameKind(got, c.want) || opOf(got) != c.op {
+			t.Errorf("%q: lowered to %T op %q, want %T op %q", c.src, got, opOf(got), c.want, c.op)
+		}
+	}
+
+	// Both operands of a Binary are lowered.
+	sameShape(t, "'..' . '.';", clearIDs(lowerOne(t, "'..' . '.';")),
+		&lower.Binary{Op: ".", L: &lower.StrLit{Value: ".."}, R: &lower.StrLit{Value: "."}})
+
+	// No rescan: Op follows Text even where the bytes say otherwise.
+	root := parse.Parse([]byte("1 - 2;"))
+	n := expression(t, root)
+	n.Text = "+"
+	if got := opOf(lower.LowerExpr(root, n)); got != "+" {
+		t.Errorf("Op is %q after Text became \"+\"; the lowering read the source", got)
+	}
+}
