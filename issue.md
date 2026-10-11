@@ -1,5 +1,5 @@
 ---
-title: "Cutover part 1: AnalyzeLowered alongside Analyze, and flip the batch checker"
+title: "Cutover part 1: flip psc check and ProjectIndex to the lowered tree"
 state: pending
 urgency: normal
 milestone: m2-lower-the-tree
@@ -15,7 +15,7 @@ blocked_by:
 blocks:
 - 01a0c115-c0db-7923-b276-984794affd39
 created: 2026-09-20T23:10:16.13915176Z
-updated: 2026-10-11T10:32:01.839951715Z
+updated: 2026-10-11T10:32:02.062821146Z
 ---
 
 ## Context
