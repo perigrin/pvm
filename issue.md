@@ -10,7 +10,7 @@ blocks:
 - 01a0c111-72d3-70fa-88a8-a9a387f04261
 - 01a0c115-a44b-7393-a828-ad29844b20b4
 created: 2026-09-20T23:04:40.094536526Z
-updated: 2026-09-20T23:12:51.708767764Z
+updated: 2026-10-11T10:32:00.559974534Z
 ---
 
 ## Context
@@ -19,69 +19,73 @@ updated: 2026-09-20T23:12:51.708767764Z
 - commands: `go test ./internal/lower/ -run "^TestLowerVarAndSubscript$" -count=1 -v`
 - entrypoints: `docs/specs/perl-parser/04-expressions.md` §4.14.2 "Variables and dereference"; §4.14.1 rules 2 and 7
 
-Status per §4.14.2, corrected at HEAD:
+Status per §4.14.2 as the status-table issue re-measured it. The shapes below
+were measured at 24bfac4a; re-measure at execution time. Line numbers in
+`internal/infer` drift, so each citation also names the function.
 
-- `Var{Sigil,Name}` SHIPPED — `term "$x"`, `"@a"`, `"%h"`, `"*foo"`, `"$#a"`,
-  `"&foo"`, `"$Foo::x"`; the sigil is the leading bytes. `$::x` is still PARSER.
-  §4.14.1 rule 7: `(Sigil, Name)` is the identity pair and the sigil is
-  load-bearing — `$_`, `@_` and the file-test bareword `_` are three different
-  things. This matters concretely: **three paths in `internal/infer` re-derive
-  `@_` and `$_[0]` from source text** (`infer.go:3659`, `:3753`, `:4193`). The
-  lowering produces `Var{"@","_"}` and `Index{Var{"$","_"}, 0}` so those rules
-  compare fields instead.
+- `Var{Sigil,Name}` SHIPPED: `term "$x"`, `"@a"`, `"%h"`, `"*foo"`, `"$#a"`,
+  `"&foo"`, `"$Foo::x"`, and now `"$::x"` too. The sigil is the leading
+  bytes. §4.14.1 rule 7: `(Sigil, Name)` is the identity pair and the sigil
+  is load-bearing. `$_`, `@_` and the file-test bareword `_` are three
+  different things. Three paths in `internal/infer` re-derive `@_` and
+  `$_[0]` from source text. The lowering produces `Var{"@","_"}` and
+  `Index{Var{"$","_"}, 0}` so those rules compare fields instead.
 
-  The consumer evidence that the sigil is a field and not three kinds: at 8 of 9
-  switch sites in `internal/infer` the `scalar`/`array`/`hash` arms are identical
-  modulo the sigil string (`infer.go:1669-1673`, `:3560-3564`, `:3851-3855`,
-  `:4072-4077`, `:1942-1946`, `:3088-3090`, `:1402-1406`), and
-  `lookupNarrowedType` (`:1890-1896`) and `sigildName` (`symbols.go:403`) already
-  take the sigil as a parameter.
+  Evidence that the sigil is a field and not three kinds: at 8 of 9 switch
+  sites in `internal/infer` the `scalar`/`array`/`hash` arms are identical
+  apart from the sigil string, and `lookupNarrowedType` and `sigildName`
+  (`symbols.go:403`) already take the sigil as a parameter.
 
-- `Index`, `Key` SHIPPED. **`Arrow` is no longer PARSER**: `parse.Node.Arrow`
-  ships (`parse.go:270`) and is set in the arrow-before-subscript branch
-  (`expr.go:83-91`). Verified at HEAD: `$h{k}` gives `index "{"` with no flag and
-  `$h->{k}` gives `index "{" arrow`.
+- `Index`, `Key` SHIPPED. `Arrow` ships (`parse.go:330`): `$h{k}` gives
+  `index "{"` with no flag, and `$h->{k}` gives `index "{" arrow`. The key is
+  `term "k"`.
 
-  §4.14.1 rule 2 is why it matters, and it is a semantic difference rather than a
-  spelling: `$h{k}` reads `%h`, `$h->{k}` reads `$h`. Measured on perl 5.42.0,
-  `my %h = (k => "hash"); my $h = { k => "ref" }; print $h{k}, $h->{k};` prints
-  `hashref`.
+  §4.14.1 rule 2 is why it matters, and it is semantic: `$h{k}` reads `%h`,
+  `$h->{k}` reads `$h`. On perl 5.42.0,
+  `my %h = (k => "hash"); my $h = { k => "ref" }; print $h{k}, $h->{k};`
+  prints `hashref`.
 
-  What inference actually branches on is one step removed — "is the base a
-  reference being dereferenced". `inferElementType` (`infer.go:1270-1280`) reads
-  the old grammar's `container_variable`-vs-`scalar` split for exactly this, and
-  `$$x[0]` is a dereference with no arrow. **So the lowering derives deref-ness
-  as `Arrow || base is a Deref`, and keeps `Arrow` itself for the LSP.** Ship
-  both; they are not the same predicate.
+  What inference branches on is one step removed: "is the base a reference
+  being dereferenced". `inferElementType` (`infer.go:1262`) reads the old
+  grammar's `container_variable`-vs-`scalar` split for exactly this, and
+  `$$x[0]` is a dereference with no arrow. **So the lowering derives
+  deref-ness as `Arrow || base is a Deref`, and keeps `Arrow` itself for the
+  LSP.** Ship both; they are not the same predicate.
 
   `{` selects `Key`, `[` selects `Index`; chains nest (`$x->{a}[0]{b}`).
 
-- `Deref{Sigil,Expr}` PARSER — `${$x}`, `$$x`, `@{$x}`, `@$x`, `%$x`, `$#{$x}`,
-  `$#$x` are each one childless `term` (issue 01a0ad52). Emit the best node the
-  text supports and a `Hole` for the inner expression rather than guessing; do
-  not re-lex the span.
+- `Deref{Sigil,Expr}` is **LOWERING now, not PARSER**. At 24bfac4a `${$x}`
+  and `$$x` give `unary "$"` over `term "$x"`, `@$x` gives `unary "@"`, and
+  `%$x` gives `unary "%"`. Each has a child. Lower the unary to a `Deref`.
+  `$#{$x}` and `$#$x` are still one childless `term` each: emit a `Deref`
+  with sigil `$#` and a `Hole` for the inner expression. Do not re-lex the
+  span.
 
-- `Deref{Postfix}` LOWERING for `->@*` / `->%*`: `$x->@*` is
-  `[binary "->" [term "$x"] [term "@*"]]`, verified at HEAD. `->$#*` and postfix
-  slices stay PARSER.
+- `Deref{Postfix}` LOWERING for `->@*`, `->%*` and now `->$#*`: `$x->@*` is
+  `[binary "->" [term "$x"] [term "@*"]]`, and `$x->$#*` is the same with
+  `term "$#*"`. Postfix slices stay PARSER.
 
-Out of scope: `Slice{Kind}` is its own issue — it is a five-way switch and the
-largest free block in §4.14.2.
+Out of scope: `Slice{Kind}` is its own issue (01a0c111-72d3).
 
 ## Steps
 
-- [ ] Write `TestLowerVarAndSubscript`: `$x`, `@a`, `%h`, `*foo`, `$#a`, `&foo`,
-      `$Foo::x` lower to `Var` with the right `(Sigil, Name)` pair; `$_` and `@_`
-      are distinguishable; `$h{k}` and `$h->{k}` lower to `Key` differing in
-      exactly `Arrow`; `$h->{a}[0]{b}` nests.
+- [ ] Write `TestLowerVarAndSubscript`: `$x`, `@a`, `%h`, `*foo`, `$#a`,
+      `&foo`, `$Foo::x`, `$::x` lower to `Var` with the right
+      `(Sigil, Name)` pair; `$_` and `@_` are distinguishable; `$h{k}` and
+      `$h->{k}` lower to `Key` differing in exactly `Arrow`; `$h->{a}[0]{b}`
+      nests.
 - [ ] Run to verify failure: `go test ./internal/lower/ -run "^TestLowerVarAndSubscript$" -count=1 -v`
 - [ ] Implement, run to green, commit.
-- [ ] Write `TestLowerDerefness`: `$h->{k}`, `$$x[0]` and `${$x}[0]` all report
-      deref-ness true, and `$h{k}` reports false — the predicate
-      `Arrow || base is Deref`, which is what `inferElementType` needs.
-      Run to verify failure, implement, run to green, commit.
-- [ ] Write `TestLowerPostfixDeref`: `$x->@*` and `$x->%*` lower to
-      `Deref{Postfix:true}` with the right sigil. Run to verify failure,
+- [ ] Write `TestLowerDerefness`: `$h->{k}`, `$$x[0]` and `${$x}[0]` all
+      report deref-ness true, and `$h{k}` reports false. Run to verify
+      failure, implement, run to green, commit.
+- [ ] Write `TestLowerDeref`: `${$x}`, `$$x`, `@$x`, `%$x` lower to `Deref`
+      with the right sigil and `Expr`; `$x->@*`, `$x->%*`, `$x->$#*` lower
+      to `Deref{Postfix:true}`; `$#{$x}` lowers to a `Deref` whose `Expr` is
+      a `Hole`. Run to verify failure, implement, run to green, commit.
+- [ ] Write `TestLowerSubscriptOverBrokenInput`: `$x->[;` and `$h{;` (perl
+      rejects both) lower to an `Index` / `Key` whose subscript is a `Hole`,
+      with the base and `Arrow` intact. No panic. Run to verify failure,
       implement, run to green, commit.
 - [ ] Run the package suite: `go test ./internal/lower/ -count=1`
 - [ ] Commit.
@@ -89,7 +93,10 @@ largest free block in §4.14.2.
 ## Acceptance Criteria
 
 ### Positive Scenarios
-- [ ] Var carries (Sigil, Name) and the two subscript spellings differ in exactly Arrow (`go test ./internal/lower/ -run "^TestLowerVarAndSubscript$" -count=1 -v | grep -q "^--- PASS: TestLowerVarAndSubscript"`)
-- [ ] Deref-ness is Arrow-or-base-is-Deref, so `$$x[0]` counts and `$h{k}` does not (`go test ./internal/lower/ -run "^TestLowerDerefness$" -count=1 -v | grep -q "^--- PASS: TestLowerDerefness"`)
-- [ ] Postfix deref lowers for `->@*` and `->%*` (`go test ./internal/lower/ -run "^TestLowerPostfixDeref$" -count=1 -v | grep -q "^--- PASS: TestLowerPostfixDeref"`)
+- [ ] Var carries the sigil and name pair, and the two subscript spellings differ in exactly Arrow (`go test ./internal/lower/ -run '^TestLowerVarAndSubscript$' -count=1 -v | grep -q '^--- PASS: TestLowerVarAndSubscript'`)
+- [ ] Deref-ness is Arrow or a Deref base, so a block deref counts and a plain hash key does not (`go test ./internal/lower/ -run '^TestLowerDerefness$' -count=1 -v | grep -q '^--- PASS: TestLowerDerefness'`)
+- [ ] Prefix, block and postfix dereferences all lower to Deref (`go test ./internal/lower/ -run '^TestLowerDeref$' -count=1 -v | grep -q '^--- PASS: TestLowerDeref'`)
 - [ ] The package is green (`go test ./internal/lower/ -count=1`)
+
+### Negative Scenarios
+- [ ] A subscript perl rejects lowers to a Hole inside an intact Index or Key, without a panic (`go test ./internal/lower/ -run '^TestLowerSubscriptOverBrokenInput$' -count=1 -v | grep -q '^--- PASS: TestLowerSubscriptOverBrokenInput'`)
