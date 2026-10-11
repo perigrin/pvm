@@ -1,10 +1,19 @@
 ---
 title: A filetest with no operand defaults to $_, and -e alone refuses
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T16:41:19.036325043Z
-updated: 2026-10-11T02:47:29.218844968Z
+updated: 2026-10-11T10:27:43.144952348Z
+sessions:
+- start_sha: 971b903102dc4a335660172f3b1b5ecad5cf3330
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-11T10:27:43.144952348Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-11T10:27:43.144952348Z
 ---
 
 A filetest operator with no operand -- `-e`, `-t`, `grep -e, @list` -- refuses.
