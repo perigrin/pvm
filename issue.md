@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T16:41:11.595550955Z
-updated: 2026-09-26T21:16:29.932580807Z
+updated: 2026-10-11T15:40:03.344194746Z
 sessions:
 - start_sha: 2257e08ee261e0a0303f9201d0210d81f034b326
   end_sha: 2257e08ee261e0a0303f9201d0210d81f034b326
@@ -58,11 +58,29 @@ other 1,543 are resync fallout. This construct is one of the 41-node cause
 surface. See the `not_a_term` section of
 `docs/plans/2026-09-26-perl-git-t-parses.md`.
 
+### Criteria named (2026-10-11)
+
+Measured at `971b9031`: every spelling below parses at Unknown=0 and canons with
+the attribute inside the sub. TestSubAttribute, added by the fix 684229e0 in
+internal/parse/subattr_test.go, already asserts the canon of each claimed
+spelling, so no test was written.
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Every criterion below ran the whole parse
+package, the whole conformance package or `go test ./...`, which only restates
+"make test passed" -- and make test gates every commit. Each claim now names
+the test that holds it. Claims are reworded only to keep parentheses out of
+the claim text, since git-zhi runs the first paren span on the line.
+
+The two regression guards keep their claims and name gate tests instead:
+TestCorpusRatchet for the corpus ratchet, and TestParseRatchet and
+TestPerlGitTRatchet -- the T1 and perl.git t/ parse ratchets -- for the suite.
+
 ## Acceptance criteria
 
-- [ ] `my $s = sub :lvalue { 1 };` parses with zero Unknown (`go test ./internal/parse/ -count=1`)
-- [ ] `sub f :lvalue { 1 }` parses with zero Unknown (`go test ./internal/parse/ -count=1`)
-- [ ] An attribute taking an argument, `sub :prototype($) { 1 }`, parses with zero Unknown (`go test ./internal/parse/ -count=1`)
-- [ ] `sub x () { 8 }` and `sub { 1 }` still parse, no regression (`go test ./internal/parse/ -count=1`)
-- [ ] REGRESSION GUARD: the corpus ratchet holds (`go test ./internal/conformance/ -count=1`)
-- [ ] REGRESSION GUARD: the whole suite holds (`go test ./... -count=1`)
+- [ ] `my $s = sub :lvalue { 1 };` parses with zero Unknown (`go test ./internal/parse/ -run '^TestSubAttribute$' -count=1 -v | grep -q '^--- PASS: TestSubAttribute'`)
+- [ ] `sub f :lvalue { 1 }` parses with zero Unknown (`go test ./internal/parse/ -run '^TestSubAttribute$' -count=1 -v | grep -q '^--- PASS: TestSubAttribute'`)
+- [ ] An attribute taking an argument, `:prototype` with a `$` argument on an anonymous sub, parses with zero Unknown (`go test ./internal/parse/ -run '^TestSubAttribute$' -count=1 -v | grep -q '^--- PASS: TestSubAttribute'`)
+- [ ] `sub x` with an empty prototype, and `sub { 1 }`, still parse, no regression (`go test ./internal/parse/ -run '^TestSubAttribute$' -count=1 -v | grep -q '^--- PASS: TestSubAttribute'`)
+- [ ] REGRESSION GUARD: the corpus ratchet holds (`go test ./internal/conformance/ -run '^TestCorpusRatchet$' -count=1 -v | grep -q '^--- PASS: TestCorpusRatchet'`)
+- [ ] REGRESSION GUARD: the whole suite holds, named as the T1 and perl.git t/ parse ratchets (`go test ./internal/parse/ -run '^TestParseRatchet$' -count=1 -v | grep -q '^--- PASS: TestParseRatchet' && go test ./internal/parse/ -run '^TestPerlGitTRatchet$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTRatchet'`)
