@@ -1,10 +1,19 @@
 ---
 title: "A bareword hash key that names a quote-like operator lexes as that operator: $h{m} swallows to the next brace"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T23:58:31.367571262Z
-updated: 2026-10-11T02:48:03.758336875Z
+updated: 2026-10-11T11:19:50.542262194Z
+sessions:
+- start_sha: 971b903102dc4a335660172f3b1b5ecad5cf3330
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-11T11:19:50.542262194Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-11T11:19:50.542262194Z
 ---
 
 A hash subscript whose key is a quote-like operator NAME lexes as that operator
