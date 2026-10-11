@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-28T22:31:48.966698079Z
-updated: 2026-09-28T23:20:09.896388374Z
+updated: 2026-10-11T15:17:43.382720058Z
 sessions:
 - start_sha: c6fb51f36af20e7039f81cb35302be95b0e07005
   end_sha: d8029d82fa384bc5d781d771297fa742dfb4b01e
@@ -59,6 +59,15 @@ Reach: grep finds a block opening directly after another block's `{` in 31
 dirty perl.git t/ files carrying 488 Unknowns -- an upper bound, since not every
 Unknown in those files is this. re/pat_advanced.t (99) is the largest.
 
+### Whole-suite criteria removed (2026-10-11)
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Criteria that only re-ran a whole suite
+or package (`go test ./...`, `make test`, the whole conformance or parse
+package) restated "make test passed", which gates every commit, while CI
+gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
+They are removed; this issue's named tests and ratchet checks remain.
+
 ## Acceptance criteria
 
 - [ ] A block as a block's first statement is a block, in sub, if, bare and anonymous-sub bodies (`go test ./internal/parse/ -run '^TestNestedBareBlock$' -count=1 -v | grep -q '^--- PASS: TestNestedBareBlock'`)
@@ -66,4 +75,3 @@ Unknown in those files is this. re/pat_advanced.t (99) is the largest.
 - [ ] NEGATIVE: an anonymous hash as a block's first statement is still a hash, per intuit_curly (`go test ./internal/parse/ -run '^TestNestedBareBlock$' -count=1 -v | grep -q '^--- PASS: TestNestedBareBlock'`)
 - [ ] REGRESSION GUARD: a label as a block's first statement still labels (`go test ./internal/parse/ -run '^TestLabelledBareBlock$' -count=1 -v | grep -q '^--- PASS: TestLabelledBareBlock'`)
 - [ ] REGRESSION GUARD: the perl.git t/ ratchet holds (`go test ./internal/parse/ -run '^TestPerlGitTRatchet$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTRatchet'`)
-- [ ] REGRESSION GUARD: the whole suite holds (`go test ./... -count=1`)
