@@ -1,10 +1,19 @@
 ---
 title: "A block deref loses its braces: ${$pkg . '::'} re-emits as $$pkg . '::'"
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-27T00:31:06.168570065Z
-updated: 2026-10-11T02:48:10.05496153Z
+updated: 2026-10-11T11:25:22.632139659Z
+sessions:
+- start_sha: 971b903102dc4a335660172f3b1b5ecad5cf3330
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-11T11:25:22.632139659Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-11T11:25:22.632139659Z
 ---
 
 ## Measured finding
