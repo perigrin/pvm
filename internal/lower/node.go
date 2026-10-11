@@ -224,6 +224,10 @@ const (
 	DeclState
 	DeclLocal
 	DeclField
+	DeclSub
+	DeclPackage
+	DeclClass
+	DeclMethod
 )
 
 // --- Calls ---

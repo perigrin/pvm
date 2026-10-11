@@ -84,3 +84,35 @@ func TestLowerDeclListForm(t *testing.T) {
 		}
 	}
 }
+
+// Every declarator of the T1 census lowers to its own Decl.Kind: the
+// lowering carries which declarator was written, and typing it is
+// inference's job. Each case lowers the declaration of its last statement.
+func TestLowerDeclKinds(t *testing.T) {
+	cases := []struct {
+		src  string
+		kind lower.DeclKind
+	}{
+		{"my $x;", lower.DeclMy},
+		{"sub f;", lower.DeclSub},
+		{"package Foo;", lower.DeclPackage},
+		{"local $x;", lower.DeclLocal},
+		{"our $x;", lower.DeclOur},
+		{"use v5.36; state $x;", lower.DeclState},
+		{"use v5.38; class Foo; field $x;", lower.DeclField},
+		{"use v5.38; class Foo;", lower.DeclClass},
+		{"use v5.38; class Foo; method m { 1 }", lower.DeclMethod},
+	}
+	for _, c := range cases {
+		root := parse.Parse([]byte(c.src))
+		last := root.Children[len(root.Children)-1]
+		if last.Kind != parse.Statement || len(last.Children) != 1 || last.Children[0].Kind != parse.Declaration {
+			t.Fatalf("%q: last statement is not one declaration", c.src)
+		}
+		got := lower.LowerExpr(root, last.Children[0])
+		v := reflect.ValueOf(got).Elem()
+		if v.Type() != reflect.TypeOf(lower.Decl{}) || v.FieldByName("Kind").Interface() != any(c.kind) {
+			t.Errorf("%q: lowered to %#v, want a Decl of kind %v", c.src, got, c.kind)
+		}
+	}
+}

@@ -12,6 +12,11 @@ var declKinds = map[string]DeclKind{
 	"state": DeclState,
 	"local": DeclLocal,
 	"field": DeclField,
+
+	"sub":     DeclSub,
+	"package": DeclPackage,
+	"class":   DeclClass,
+	"method":  DeclMethod,
 }
 
 // decl lowers a declaration, and declines a declarator it has no kind for.
@@ -21,6 +26,11 @@ func (l *lowerer) decl(n *parse.Node) Node {
 		return nil
 	}
 	d := &Decl{Kind: kind}
+	if kind >= DeclSub {
+		// ponytail: a named declaration carries its kind only; where its
+		// name, signature and body go is the vocabulary's to say.
+		return d
+	}
 	kids := n.Children
 	// `my ($x) = f()` is one child, the `=`; `my $x = f()` is two, the
 	// variable then the initialiser (§4.14.2).
