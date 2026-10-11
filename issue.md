@@ -12,7 +12,7 @@ blocks:
 - 01a0fa47-2737-7fdb-bd69-63e254d5a770
 - 01a0fd9b-5700-7514-a143-2caed2d06d8b
 created: 2026-09-20T23:10:31.270515112Z
-updated: 2026-10-11T10:36:19.671177385Z
+updated: 2026-10-11T15:18:05.996314824Z
 ---
 
 ## Context
@@ -115,6 +115,15 @@ follow-up issue naming what remains and why, and link it here.
 - [ ] Run the full suite: `make test`
 - [ ] Commit.
 
+### Whole-suite criteria removed (2026-10-11)
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Criteria that only re-ran a whole suite
+or package (`go test ./...`, `make test`, the whole conformance or parse
+package) restated "make test passed", which gates every commit, while CI
+gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
+They are removed; this issue's named tests and ratchet checks remain.
+
 ## Acceptance Criteria
 
 ### Positive Scenarios
@@ -125,8 +134,6 @@ follow-up issue naming what remains and why, and link it here.
 - [ ] The tree-sitter package is deleted (`test ! -d internal/parser`)
 - [ ] The gotreesitter dependency is gone and the module still builds (`! grep -q gotreesitter go.mod && ! grep -q gotreesitter go.sum && go build ./...`)
 - [ ] The lowered entry point is named Analyze and takes the lowered tree (`go doc ./internal/infer Analyze | grep -q '^func Analyze(.*lower\.' && ! go doc ./internal/infer AnalyzeLowered`)
-- [ ] The infer package is green (`go test ./internal/infer/ -count=1`)
-- [ ] The whole repository is green (`make test`)
 
 ### Negative Scenarios
 - [ ] Nothing in internal/infer, tests included, still calls the legacy path (`! grep -rl 'pvm/internal/parser"' internal/infer`)
