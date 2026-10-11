@@ -1,10 +1,14 @@
 ---
 title: Two dispatched workers got no worktree and edited the integrator's tree directly
-state: pending
+state: cancelled
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T20:04:20.203959537Z
-updated: 2026-10-11T00:56:51.151524032Z
+updated: 2026-10-11T00:56:51.328957749Z
+transitions:
+- state: cancelled
+  actor: human:git-zhi
+  timestamp: 2026-10-11T00:56:51.328957749Z
 ---
 
 ## Cancelled (2026-10-11), perigrin's ruling
