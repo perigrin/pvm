@@ -6,7 +6,7 @@ milestone: perl-git-t-parses
 blocked_by:
 - 01a0de8a-7043-74ea-a42e-e2db217946ec
 created: 2026-09-26T16:27:39.730386781Z
-updated: 2026-09-26T19:49:00.659164896Z
+updated: 2026-10-11T15:17:00.42599807Z
 sessions:
 - start_sha: 9325864f86f42d125118a800b15eb0b62d95d6c3
   end_sha: b5d2b9830e89b49aec8a647efe18489a6cf55be3
@@ -121,10 +121,17 @@ that family, say so -- the fix may be shared.
 - related: `01a0dd71`, `01a0d087`, `01a0ddac` -- three spellings of a brace
   group after a word
 
+### Whole-suite criteria removed (2026-10-11)
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Criteria that only re-ran a whole suite
+or package (`go test ./...`, `make test`, the whole conformance or parse
+package) restated "make test passed", which gates every commit, while CI
+gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
+They are removed; this issue's named tests and ratchet checks remain.
+
 ## Acceptance criteria
 
 - [ ] A labelled bare block parses (`go test ./internal/parse/ -run '^TestLabelledBareBlock$' -count=1 -v | grep -q '^--- PASS: TestLabelledBareBlock'`)
 - [ ] `last LABEL` inside one resolves (`go test ./internal/parse/ -run '^TestLabelledBareBlock$' -count=1 | grep -q '^ok'`)
 - [ ] Canon re-emits the label and holds its fixpoint (`go test ./internal/parse/ -run '^TestCanon' -count=1 | grep -q '^ok'`)
-- [ ] REGRESSION GUARD, passes today: an unlabelled bare block still parses (`go test ./internal/parse/ -count=1 | grep -q '^ok'`)
-- [ ] REGRESSION GUARD, passes today: the corpus ratchet holds (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
