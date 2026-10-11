@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T16:41:19.036325043Z
-updated: 2026-09-26T16:41:19.036325043Z
+updated: 2026-10-11T02:47:29.218844968Z
 ---
 
 A filetest operator with no operand -- `-e`, `-t`, `grep -e, @list` -- refuses.
@@ -47,11 +47,19 @@ other 1,543 are resync fallout. This construct is one of the 41-node cause
 surface. See the `not_a_term` section of
 `docs/plans/2026-09-26-perl-git-t-parses.md`.
 
+### Re-measured (2026-10-11)
+
+Measured at pu `24bfac4a` against internal/parse and perl 5.42.0. Every spelling holds: `my $x = -e;`, `my $x = -t;`, `my @x = grep -e, @l;` and `my @x = grep { -e } @l;` all score Unknown=0, and canon writes the absent operand as `-e()`, which perl Deparses as `-e $_`. `-e $f` and `-t STDIN` still take their operand. Fixed by 40974eda.
+
+The criteria ran bare `go test ./internal/parse/ -count=1`, which names no test. They now name TestOperandlessFiletest, which asserts each spelling's exact canon and its zero Unknown count. Its `grep -e,` and `-t` cases and the `-t STDIN` guard were added in test/pgt-reconcile; they fail when the filetest's terminator or infix guard in term.go is removed.
+
+The conformance and whole-suite commands carry `-timeout=30m`: internal/conformance took 696s in a full run, past go test's 10-minute default, and timed out without it.
+
 ## Acceptance criteria
 
-- [ ] `my $x = -e;` parses with zero Unknown (`go test ./internal/parse/ -count=1`)
-- [ ] `my @x = grep -e, @l;` parses with zero Unknown (`go test ./internal/parse/ -count=1`)
-- [ ] `my @x = grep { -e } @l;` parses with zero Unknown (`go test ./internal/parse/ -count=1`)
-- [ ] `-e $f` and `-t STDIN` still parse, no regression (`go test ./internal/parse/ -count=1`)
-- [ ] REGRESSION GUARD: the corpus ratchet holds (`go test ./internal/conformance/ -count=1`)
-- [ ] REGRESSION GUARD: the whole suite holds (`go test ./... -count=1`)
+- [ ] `my $x = -e;` parses with zero Unknown (`go test ./internal/parse/ -run '^TestOperandlessFiletest$' -count=1 -v | grep -q '^--- PASS: TestOperandlessFiletest'`)
+- [ ] `my @x = grep -e, @l;` parses with zero Unknown (`go test ./internal/parse/ -run '^TestOperandlessFiletest$' -count=1 -v | grep -q '^--- PASS: TestOperandlessFiletest'`)
+- [ ] `my @x = grep { -e } @l;` parses with zero Unknown (`go test ./internal/parse/ -run '^TestOperandlessFiletest$' -count=1 -v | grep -q '^--- PASS: TestOperandlessFiletest'`)
+- [ ] `-e $f` and `-t STDIN` still parse, no regression (`go test ./internal/parse/ -run '^TestOperandlessFiletest$' -count=1 -v | grep -q '^--- PASS: TestOperandlessFiletest'`)
+- [ ] REGRESSION GUARD: the corpus ratchet holds (`go test ./internal/conformance/ -count=1 -timeout=30m`)
+- [ ] REGRESSION GUARD: the whole suite holds (`go test ./... -count=1 -timeout=30m`)
