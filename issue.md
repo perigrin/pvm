@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a0c115-df67-7d69-8883-73d40b0ae15d
 created: 2026-09-20T23:10:23.450787225Z
-updated: 2026-10-11T10:32:54.589002644Z
+updated: 2026-10-11T15:18:03.266001086Z
 ---
 
 ## Context
@@ -96,6 +96,15 @@ document. Keep the flip, including the deletion of `deepestNodeAt`,
 - [ ] Run the full suite: `make test`
 - [ ] Commit.
 
+### Whole-suite criteria removed (2026-10-11)
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Criteria that only re-ran a whole suite
+or package (`go test ./...`, `make test`, the whole conformance or parse
+package) restated "make test passed", which gates every commit, while CI
+gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
+They are removed; this issue's named tests and ratchet checks remain.
+
 ## Acceptance Criteria
 
 ### Positive Scenarios
@@ -104,7 +113,6 @@ document. Keep the flip, including the deletion of `deepestNodeAt`,
 - [ ] Go-to-definition still finds a declared variable (`go test ./internal/psc/ -run '^TestLSPDefinitionAtByte$' -count=1 -v | grep -q '^--- PASS: TestLSPDefinitionAtByte'`)
 - [ ] The LSP no longer walks the tree-sitter tree (`test -f internal/psc/lsp.go && ! grep -q 'pvm/internal/parser"' internal/psc/lsp.go && ! grep -qE 'func (deepestNodeAt|symbolNameFromNode|varname)' internal/psc/lsp.go`)
 - [ ] The psc package is green (`go test ./internal/psc/ -count=1`)
-- [ ] The whole repository is green (`make test`)
 
 ### Negative Scenarios
 - [ ] Hover inside a Hole reports no information rather than a wrong type (`go test ./internal/psc/ -run '^TestLSPHoverInsideHoleReportsNothing$' -count=1 -v | grep -q '^--- PASS: TestLSPHoverInsideHoleReportsNothing'`)
