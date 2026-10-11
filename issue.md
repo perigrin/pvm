@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T22:02:44.311964663Z
-updated: 2026-09-29T03:53:55.520869961Z
+updated: 2026-10-11T16:23:12.142666325Z
 sessions:
 - start_sha: 6f2cd1d339c41288f07145a861f08949e579b862
   end_sha: 12eb345487d543ca4032f88c401ae4e77d397464
@@ -93,10 +93,18 @@ reading. So the smallest honest fix is not a table entry: it is either
 `state` and `class` will each need, so it is worth doing once rather than four
 times.
 
+### Criteria repaired (2026-10-11)
+
+The milestone verify of 2026-10-11 could not run some of these criteria and
+failed others on stale text. Commands written as bare backtick spans are now in
+`(...)`, test names are anchored with a `--- PASS` check, a whole-suite run is
+removed (perigrin: "Why are we doing 73 full test suite runs?!?"), and a grep of
+text that later work moved is pointed at where the fact now lives.
+
 ## Acceptance criteria
 
-- [ ] `fc $x` no longer emits an empty call with the argument detached, under whichever reading is chosen (`go test ./internal/parse/ -run '^TestFeatureGatedFcArity$' -count=1 | grep -q '^ok'`)
-- [ ] The choice between the method-call reading and the builtin reading is recorded in `internal/parse/keyword.go` beside the entry, with the deparse that justifies it (`grep -qiE 'feature|gated' internal/parse/keyword.go`)
-- [ ] REGRESSION GUARD, passes today: the audit's own cases still hold -- `atan2`, `glob` and `readpipe` keep their arguments (`go test ./internal/parse/ -run '^TestParenless' -count=1 | grep -q '^ok'`)
-- [ ] REGRESSION GUARD, passes today: the perl.git t/ ratchet does not move, since `fc` reaches one file and that file's first failure is elsewhere (`go test ./internal/parse/ -run '^TestPerlGitTRatchet$' -count=1 | grep -q '^ok'`)
-- [ ] REGRESSION GUARD, passes today: the corpus stays complete (`go test ./internal/conformance/ -run '^TestCorpusRatchet$' -count=1 | grep -q '^ok'`)
+- [ ] `fc $x` no longer emits an empty call with the argument detached, under whichever reading is chosen (`go test ./internal/parse/ -run '^TestFeatureGatedFcArity$' -count=1 -v | grep -q '^--- PASS: TestFeatureGatedFcArity'`)
+- [ ] The choice between the method-call reading and the builtin reading is recorded in CORE.pmt beside the entry, with the deparse that justifies it (`grep -q 'builtin only under the fc feature' internal/parse/declarations/CORE.pmt`)
+- [ ] REGRESSION GUARD, passes today: the audit's own cases still hold -- `atan2`, `glob` and `readpipe` keep their arguments (`go test ./internal/parse/ -run '^TestParenless' -count=1 -v | grep -q '^--- PASS: TestParenless'`)
+- [ ] REGRESSION GUARD, passes today: the perl.git t/ ratchet does not move, since `fc` reaches one file and that file's first failure is elsewhere (`go test ./internal/parse/ -run '^TestPerlGitTRatchet$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTRatchet'`)
+- [ ] REGRESSION GUARD, passes today: the corpus stays complete (`go test ./internal/conformance/ -run '^TestCorpusRatchet$' -count=1 -v | grep -q '^--- PASS: TestCorpusRatchet'`)
