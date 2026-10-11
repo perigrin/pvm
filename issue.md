@@ -1,19 +1,23 @@
 ---
 title: EXPR foreach LIST swaps its body and its list at Unknown=0, and only the spelling that refuses is correct
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T22:12:56.600355997Z
-updated: 2026-10-11T11:02:16.089176105Z
+updated: 2026-10-11T11:02:16.318814063Z
 sessions:
 - start_sha: 971b903102dc4a335660172f3b1b5ecad5cf3330
-  end_sha: ""
+  end_sha: 971b903102dc4a335660172f3b1b5ecad5cf3330
   commits: 0
   started_at: 2026-10-11T11:02:16.089176105Z
+  ended_at: 2026-10-11T11:02:16.318814063Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-11T11:02:16.089176105Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-11T11:02:16.318814063Z
 ---
 
 ## Measured finding
