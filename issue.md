@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-28T22:31:49.085135865Z
-updated: 2026-09-29T01:24:56.91718619Z
+updated: 2026-10-11T15:17:43.956818343Z
 sessions:
 - start_sha: e17aed8838af225cdce8ff82160a3b8c35b1550b
   end_sha: dcff31ae6c112a7e482d7b723105a1bd8790a900
@@ -39,8 +39,16 @@ consult it.
 Found while bisecting re/pat_advanced.t for the nested-block issue, 01a0ea25-4fe7-76cc-b87a-f67a331a5ef7. An
 Unknown count cannot see it; only canon can.
 
+### Whole-suite criteria removed (2026-10-11)
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Criteria that only re-ran a whole suite
+or package (`go test ./...`, `make test`, the whole conformance or parse
+package) restated "make test passed", which gates every commit, while CI
+gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
+They are removed; this issue's named tests and ratchet checks remain.
+
 ## Acceptance criteria
 
 - [ ] A parenthesised declaration keeps its parens through canon, and the canon re-parses to itself (`go test ./internal/parse/ -run '^TestParenthesisedDeclarationCanon$' -count=1 -v | grep -q '^--- PASS: TestParenthesisedDeclarationCanon'`)
 - [ ] REGRESSION GUARD: the canon ratchet holds (`go test ./internal/parse/ -run '^TestCanonRatchet$' -count=1 -v | grep -q '^--- PASS: TestCanonRatchet'`)
-- [ ] REGRESSION GUARD: the whole suite holds (`go test ./... -count=1`)
