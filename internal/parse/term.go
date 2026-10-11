@@ -327,6 +327,23 @@ func (p *parser) parseTerm() *Node {
 				Start: tok.Start, End: name.End,
 			}
 		}
+		// perl has no bare `&`: toke.c's scan_ident takes one punctuation
+		// character after it as the name, the way `$;` and `$=` are names.
+		// Measured on 5.42.0, `&=;`, `&,;` and `&);` each compile as a call,
+		// while `&= 2;`, `f(1, &, 2);` and `f(&);` are each a syntax error
+		// -- the name leaves a term after a term, or a `(` unclosed.
+		name, ok := p.peekSignificant()
+		if !ok {
+			// `&` at end of file: "syntax error at EOF".
+			return p.refuseNotATerm(tok)
+		}
+		if p.ampTakesPunct(name) {
+			p.advanceTo(name)
+			return &Node{
+				Kind: Term, Text: text + p.text(name),
+				Start: tok.Start, End: name.End,
+			}
+		}
 		return &Node{Kind: Term, Text: text, Start: tok.Start, End: tok.End}
 
 	case lexer.Word:
@@ -887,6 +904,20 @@ func (p *parser) ampTakes(name lexer.Token) bool {
 		}
 	}
 	return true
+}
+
+// ampTakesPunct reports whether `&` takes this token as a punctuation name:
+// one character of an operator, a `;` or a closing bracket. A `{` is not one
+// -- `&{$c}` is a call through a block -- and a token of two or more
+// characters is not either, since perl would take only its first.
+func (p *parser) ampTakesPunct(name lexer.Token) bool {
+	switch name.Kind {
+	case lexer.Operator, lexer.Semicolon, lexer.CloseBracket:
+	default:
+		return false
+	}
+	text := p.text(name)
+	return len(text) == 1 && text != "{"
 }
 
 // keepSeps keeps, on the last item, the separators written after it when

@@ -151,7 +151,7 @@ func (l *lexer) scanIdentRunes() bool {
 				l.pos += 2
 				continue
 			}
-			if l.src[l.pos] == '\'' && l.pos+1 < len(l.src) {
+			if l.src[l.pos] == '\'' && l.pos+1 < len(l.src) && !l.noApostropheSeparator {
 				r, _ := utf8.DecodeRune(l.src[l.pos+1:])
 				if identStart(r, l.utf8Pragma) {
 					l.pos++
@@ -198,7 +198,7 @@ func (l *lexer) leadingNameStartFollows() bool {
 // `::` in the first position as in any other: `sub 'Hello'_he_said` declares
 // Hello::_he_said, measured on 5.42.0. Anywhere else it opens a string.
 func (l *lexer) declNameApostrophe() bool {
-	if l.src[l.pos] != '\'' || l.pos+1 >= len(l.src) {
+	if l.src[l.pos] != '\'' || l.pos+1 >= len(l.src) || l.noApostropheSeparator {
 		return false
 	}
 	afterFormat := false
@@ -347,6 +347,7 @@ func (l *lexer) noteSignatures(k Kind, start int) {
 		if v, ok := versionAtLeast(text, 5, 36); ok && v {
 			l.signatures = true
 		}
+		l.noteApostropheBundle(text)
 	case Quote:
 		// A v-string version: `use v5.36;` and `use v5.42.0;` are each ONE
 		// token, because the `v` makes a v-string and `scanVString` takes
@@ -369,6 +370,9 @@ func (l *lexer) noteSignatures(k Kind, start int) {
 		if v, ok := versionAtLeast(text, 5, 36); ok {
 			if v && useSpelling {
 				l.signatures = true
+			}
+			if useSpelling {
+				l.noteApostropheBundle(text)
 			}
 			return
 		}
@@ -400,12 +404,26 @@ func (l *lexer) noteSignatures(k Kind, start int) {
 		if useSpelling && containsWord(text, "class") {
 			l.classSyntax = true
 		}
+		if containsWord(text, "apostrophe_as_package_separator") {
+			l.noApostropheSeparator = !useSpelling
+		}
 	case Operator:
 		// The `.` between the halves; keep the pending major.
 		if text == "." {
 			return
 		}
 		l.pendingVersionMajor = 0
+	}
+}
+
+// noteApostropheBundle applies a `use VERSION` bundle to feature
+// apostrophe_as_package_separator. A bundle replaces the feature set, so the
+// version alone decides: :5.40 and earlier hold the feature, :5.41 onward do
+// not. Measured 5.42.0: `use v5.40; $'x3` deparses as `$main::x3`, and
+// `use v5.41; $'x3` as `$' x 3`.
+func (l *lexer) noteApostropheBundle(text string) {
+	if v, ok := versionAtLeast(text, 5, 41); ok {
+		l.noApostropheSeparator = v
 	}
 }
 
@@ -477,13 +495,14 @@ func versionAtLeast(text string, major, minor int) (bool, bool) {
 		if rest[i] < '0' || rest[i] > '9' {
 			return false, false
 		}
-		min = min*10 + int(rest[i]-'0')
+		if digits < 3 {
+			min = min*10 + int(rest[i]-'0')
+		}
 		digits++
 	}
 	// `5.036` writes the minor in three digits; `v5.36` in two. Both mean 36.
-	if digits >= 3 {
-		min /= 10
-	}
+	// Only the first three digits of a decimal fraction count, so `5.036001`
+	// is 5.36 too; measured, `use 5.042;` turns on the :5.42 bundle.
 	if maj != major {
 		return maj > major, true
 	}
