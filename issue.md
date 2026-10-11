@@ -3,8 +3,10 @@ title: "Lower statements and the file: blocks, conditionals, loops, use, phasers
 state: pending
 urgency: normal
 milestone: m2-lower-the-tree
+blocked_by:
+- 01a0c10f-9671-733f-8b98-30a78f634b0f
 created: 2026-10-11T10:32:13.987176039Z
-updated: 2026-10-11T10:32:13.987176039Z
+updated: 2026-10-11T10:33:02.765917544Z
 ---
 
 ## Context
