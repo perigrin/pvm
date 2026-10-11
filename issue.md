@@ -1,6 +1,6 @@
 ---
 title: The §4.14 vocabulary types and Hole in internal/lower/node.go
-state: pending
+state: in-progress
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -13,7 +13,16 @@ blocks:
 - 01a0c112-8a65-7d5c-94ec-69859b2928d3
 - 01a0c113-c3b2-75d8-ae0e-4f146d610c49
 created: 2026-09-20T23:03:15.1924043Z
-updated: 2026-10-11T10:32:57.205125635Z
+updated: 2026-10-11T15:23:46.113681852Z
+sessions:
+- start_sha: 1a558ba8c76f9795fdb80f2f14ad28ecca94aee4
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-11T15:23:46.113681852Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-11T15:23:46.113681852Z
 ---
 
 ## Context
