@@ -97,3 +97,44 @@ func TestBareBlockInClassBody(t *testing.T) {
 		}
 	}
 }
+
+// TestModifierInNestedBareBlock: a statement modifier inside a bare block
+// nested in a loop stays inside that block.
+//
+// Issue 01a0e071 measured `for my $t (1) { { 3 if 1; } }` canoning as
+// `for my $t (1) {{3} if 1;} }` -- the modifier moved outside the inner
+// block's brace, where it guarded the whole block, and the outer loop's `}`
+// was left over as an Unknown. perl keeps it inside, measured on 5.42.0:
+//
+//	$ perl -MO=Deparse -e 'for my $t (1) { { f() if $x; } }'
+//	foreach my $t (1) { { f() if $x; } }
+//
+// and the same for `while` and `until` loops, a bare block at file scope,
+// and `unless` and `foreach` as the modifier. The canon is the assertion:
+// the leftover `}` was the Unknown, not the defect.
+func TestModifierInNestedBareBlock(t *testing.T) {
+	for _, tc := range []struct{ src, want string }{
+		{"for my $t (1) { { 3 if 1; } }", "for my $t (1) {{3 if 1;} }"},
+		{"for my $t (1) { { f() if $x; } }", "for my $t (1) {{f() if $x;} }"},
+		{"for my $t (1) { { f() unless $x; } }", "for my $t (1) {{f() unless $x;} }"},
+		{"for my $t (1) { { f() foreach @a; } }", "for my $t (1) {{f() foreach @a;} }"},
+		{"while ($y) { { f() if $x; } }", "while ($y) {{f() if $x;} }"},
+		{"until ($y) { { f() if $x; } }", "until ($y) {{f() if $x;} }"},
+		{"{ { f() if $x; } }", "{{f() if $x;} }"},
+		{"for my $t (1) { { g(); f() if $x; } }", "for my $t (1) {{g();f() if $x;} }"},
+	} {
+		src := []byte(tc.src)
+		n := parse.Parse(src)
+		if got := countUnknown(n); got != 0 {
+			t.Errorf("Parse(%q) has %d Unknown, want 0", tc.src, got)
+		}
+		got := strings.TrimSpace(parse.Canon(n, src))
+		if got != tc.want {
+			t.Errorf("Canon(%q):\n  got  %s\n  want %s", tc.src, got, tc.want)
+		}
+		again := strings.TrimSpace(parse.Canon(parse.Parse([]byte(got)), []byte(got)))
+		if again != got {
+			t.Errorf("canon is not a fixpoint:\n  once  %s\n  twice %s", got, again)
+		}
+	}
+}
