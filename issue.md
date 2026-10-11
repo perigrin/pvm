@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T16:26:40.127300233Z
-updated: 2026-09-26T17:22:19.440131106Z
+updated: 2026-10-11T15:16:53.284189619Z
 sessions:
 - start_sha: 2dc301fdeeec2303d2bfcdc1cae708b09b190c0b
   end_sha: 9325864f86f42d125118a800b15eb0b62d95d6c3
@@ -96,10 +96,17 @@ perl is the authority on whether a candidate is valid:
 - commands: `go test ./internal/parse/ -run <your probe> -count=1 -v`
 - corpus: `/home/perigrin/dev/perl5/t`, 620 `.t` files walked recursively
 
+### Whole-suite criteria removed (2026-10-11)
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Criteria that only re-ran a whole suite
+or package (`go test ./...`, `make test`, the whole conformance or parse
+package) restated "make test passed", which gates every commit, while CI
+gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
+They are removed; this issue's named tests and ratchet checks remain.
+
 ## Acceptance criteria
 
 - [ ] The plan holds a `not_a_term` bucket table (`grep -q 'not_a_term.*bucket\|=== not_a_term' docs/plans/2026-09-26-perl-git-t-parses.md`)
 - [ ] The plan records at least one construct measured NOT to be a cause (`grep -qi 'not a cause\|parses clean in isolation' docs/plans/2026-09-26-perl-git-t-parses.md`)
 - [ ] No probe file is left behind (`test -z "$(ls internal/parse/zz*_test.go 2>/dev/null)"`)
-- [ ] REGRESSION GUARD, passes today: the parse suite holds (`go test ./internal/parse/ -count=1 | grep -q '^ok'`)
-- [ ] REGRESSION GUARD, passes today: the corpus ratchet holds (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
