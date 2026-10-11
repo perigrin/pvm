@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-27T01:18:44.077340739Z
-updated: 2026-09-29T01:43:18.491792328Z
+updated: 2026-10-11T15:17:35.540394746Z
 sessions:
 - start_sha: 92e674eb3b0bbe192651d845f0206f37ed6f80eb
   end_sha: 92e674eb3b0bbe192651d845f0206f37ed6f80eb
@@ -71,9 +71,16 @@ uses it wherever the loop variable must outlive the loop or be `local`ised.
 - related: `01a0dfc7` (the six-keyword modifier canon defect, same file),
   `01a0e04d` (a bare block inside a loop lets a modifier escape it)
 
+### Whole-suite criteria removed (2026-10-11)
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Criteria that only re-ran a whole suite
+or package (`go test ./...`, `make test`, the whole conformance or parse
+package) restated "make test passed", which gates every commit, while CI
+gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
+They are removed; this issue's named tests and ratchet checks remain.
+
 ## Acceptance criteria
 
 - [ ] `for $i (2) { 3; }` canons with the variable before the parens (`go test ./internal/parse/ -run '^TestForLoopBareVariable$' -count=1 -v | grep -q '^--- PASS: TestForLoopBareVariable'`)
 - [ ] The `my` spelling is unchanged (`go test ./internal/parse/ -run '^TestForLoopBareVariable$' -count=1 | grep -q '^ok'`)
-- [ ] REGRESSION GUARD, passes today: the C-style three-part `for` still parses (`go test ./internal/parse/ -count=1 | grep -q '^ok'`)
-- [ ] REGRESSION GUARD, passes today: the corpus stays complete (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
