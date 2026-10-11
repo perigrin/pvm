@@ -8,8 +8,16 @@ blocked_by:
 blocks:
 - 01a0c115-a44b-7393-a828-ad29844b20b4
 created: 2026-09-20T23:10:09.105095184Z
-updated: 2026-09-20T23:13:27.80418785Z
+updated: 2026-10-11T10:19:35.598938274Z
 ---
+
+## Cancelled (2026-10-11), perigrin's ruling
+
+"Cancel: keyed by id from the start." Superseded: the lowered path is keyed by
+node identity from its first issue, so no StartByte-keyed annotation is ever
+swapped; the legacy path is deleted by 01a0c115-df67. Found by the chain review
+of 2026-10-11: as filed this issue could not be done, since ids exist only on
+the lowered tree, which first appears in the cutover it was ordered before.
 
 ## Context
 
