@@ -29,7 +29,7 @@ func (l *lowerer) expr(n *parse.Node) Node {
 	case parse.Term:
 		out = first(n, l.literal)
 	case parse.Call:
-		out = first(n, l.fatWord)
+		out = first(n, l.fatWord, l.mapGrepSort)
 	}
 	if out == nil {
 		out = &Hole{}
