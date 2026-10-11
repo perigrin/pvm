@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-27T00:31:06.168570065Z
-updated: 2026-10-11T11:25:22.877130891Z
+updated: 2026-10-11T15:17:34.114301107Z
 sessions:
 - start_sha: 971b903102dc4a335660172f3b1b5ecad5cf3330
   end_sha: 971b903102dc4a335660172f3b1b5ecad5cf3330
@@ -69,10 +69,18 @@ TestBlockDerefKeepsItsBraces never existed. The test is TestDerefCanonKeepsBrace
 
 The conformance and whole-suite commands carry `-timeout=30m`: internal/conformance took 696s in a full run, past go test's 10-minute default, and timed out without it.
 
+### Whole-suite criteria removed (2026-10-11)
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Criteria that only re-ran a whole suite
+or package (`go test ./...`, `make test`, the whole conformance or parse
+package) restated "make test passed", which gates every commit, while CI
+gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
+They are removed; this issue's named tests and ratchet checks remain.
+
 ## Acceptance criteria
 
 - [ ] `my $x = ${$pkg . '::'};` canons with its braces and is a fixpoint (`go test ./internal/parse/ -run '^TestDerefCanonKeepsBraces$' -count=1 -v | grep -q '^--- PASS: TestDerefCanonKeepsBraces'`)
 - [ ] `$::{$pkg}` canons as itself rather than `$:;:{$pkg}` (`go test ./internal/parse/ -run '^TestDerefCanonKeepsBraces$' -count=1 -v | grep -q '^--- PASS: TestDerefCanonKeepsBraces' && go test ./internal/lexer/ -run '^TestMainStashSubscript$' -count=1 -v | grep -q '^--- PASS: TestMainStashSubscript'`)
 - [ ] `package_decl_stash.t` is 0 in `t1canon.ratchet` and held there by TestCanonTokenIdentity (`grep -q '^0 package_decl_stash.t$' internal/parse/testdata/t1canon.ratchet && go test ./internal/parse/ -run '^TestCanonTokenIdentity$' -count=1 -v | grep -q '^--- PASS: TestCanonTokenIdentity' && go test ./internal/parse/ -run '^TestCanonRatchet$' -count=1 -v | grep -q '^--- PASS: TestCanonRatchet'`)
 - [ ] REGRESSION GUARD: `$$r`, `@{$r}`, `%{$h}` and `${$h}{k}` keep their meaning (`go test ./internal/parse/ -run '^TestDerefCanonKeepsBraces$' -count=1 -v | grep -q '^--- PASS: TestDerefCanonKeepsBraces'`)
-- [ ] the whole tree is green (`go test ./... -count=1 -timeout=30m`)
