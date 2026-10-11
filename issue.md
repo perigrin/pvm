@@ -1,6 +1,6 @@
 ---
 title: "Lower literals, names and Hole: NumLit, StrLit, Interp, QwList, Bareword"
-state: in-progress
+state: done
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -12,16 +12,29 @@ blocks:
 - 01a0c112-8a65-7d5c-94ec-69859b2928d3
 - 01a0c113-c3b2-75d8-ae0e-4f146d610c49
 created: 2026-09-20T23:03:39.376749228Z
-updated: 2026-10-11T15:54:46.035970121Z
+updated: 2026-10-11T17:29:04.634040864Z
 sessions:
 - start_sha: 9895b3086efb0ed7feb8aeb6b994c6b245ce47a5
-  end_sha: ""
-  commits: 0
+  end_sha: 1ed79cb0fa2a2c4ac349a967c47693baadb5643d
+  commits: 1
   started_at: 2026-10-11T15:51:28.852904565Z
+  ended_at: 2026-10-11T17:29:04.634040864Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-11T15:51:28.852904565Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-11T17:29:04.634040864Z
+observed_paths:
+- docs/specs/perl-parser/04-expressions.md
+- docs/specs/perl-parser/06-incremental-lsp.md
+- internal/lower/export_test.go
+- internal/lower/expr.go
+- internal/lower/literals.go
+- internal/lower/literals_test.go
+- internal/lower/node.go
+- internal/lower/node_test.go
 ---
 
 ## Context
