@@ -3,7 +3,12 @@
 
 package lower
 
-import "tamarou.com/pvm/internal/parse"
+import (
+	"regexp"
+	"strings"
+
+	"tamarou.com/pvm/internal/parse"
+)
 
 // mapGrepSort lowers `map`, `grep` and `sort`, block form and expression
 // form alike. Op is the call's name, so map and grep are separated by a
@@ -80,4 +85,116 @@ func (l *lowerer) operand(n *parse.Node) Node {
 		return nil
 	}
 	return l.expr(n.Children[0])
+}
+
+// doForm lowers `do`: a block child is DoBlock, anything else DoFile.
+func (l *lowerer) doForm(n *parse.Node) Node {
+	if n.Text != "do" || len(n.Children) > 1 {
+		return nil
+	}
+	if body := l.blockChild(n); body != nil {
+		return &DoBlock{Body: body}
+	}
+	return &DoFile{Path: l.operand(n)}
+}
+
+// wantarray lowers the builtin `wantarray`, which takes no operand.
+func (l *lowerer) wantarray(n *parse.Node) Node {
+	if n.Text != "wantarray" || len(n.Children) != 0 {
+		return nil
+	}
+	return &Wantarray{}
+}
+
+// fileTest lowers a file test, `-e $f`: the parser gives it as a call named
+// by the operator. A nil Operand means $_.
+func (l *lowerer) fileTest(n *parse.Node) Node {
+	t := n.Text
+	if len(t) != 2 || t[0] != '-' || !strings.ContainsRune(fileTests, rune(t[1])) || len(n.Children) > 1 {
+		return nil
+	}
+	return &FileTest{Op: t[1], Operand: l.operand(n)}
+}
+
+// fileTests are the letters toke.c reads as a file test after `-` (§4.15.1).
+const fileTests = "rwxoRWXOezsfdlpSbcugktTBAMC"
+
+// globCall lowers `glob EXPR`. A nil Pattern means $_.
+func (l *lowerer) globCall(n *parse.Node) Node {
+	if n.Text != "glob" || len(n.Children) > 1 {
+		return nil
+	}
+	return &Glob{Pattern: l.operand(n)}
+}
+
+// angle lowers a `<...>` term. toke.c's rule (§4.15.2): an empty body, a
+// handle name or a simple scalar is a readline, anything else a glob. `<>`
+// and `<<>>` read ARGV, which Magic records.
+//
+// ponytail: Handle and Pattern stay nil. The handle name and the pattern
+// are bytes inside one term, with no parse node to take an id from; fill
+// them once a node without a CST node has a settled identity.
+func (l *lowerer) angle(n *parse.Node) Node {
+	t := n.Text
+	if len(n.Children) != 0 || len(t) < 2 || t[0] != '<' || t[len(t)-1] != '>' {
+		return nil
+	}
+	if t == "<<>>" {
+		return &Readline{Magic: true}
+	}
+	body := t[1 : len(t)-1]
+	switch {
+	case body == "":
+		return &Readline{Magic: true}
+	case handleName.MatchString(body):
+		return &Readline{}
+	}
+	return &Glob{}
+}
+
+// handleName matches a readline's body: a bare handle name or a simple
+// scalar, package-qualified or not.
+var handleName = regexp.MustCompile(`^\$?[A-Za-z_]\w*(::\w+)*$`)
+
+// ref lowers `\EXPR`, which the parser gives as `unary "ref"`.
+func (l *lowerer) ref(n *parse.Node) Node {
+	if n.Text != "ref" || len(n.Children) != 1 {
+		return nil
+	}
+	return &Ref{Operand: l.expr(n.Children[0])}
+}
+
+// arrayLiteral lowers `[...]`.
+func (l *lowerer) arrayLiteral(n *parse.Node) Node {
+	return &ArrayLiteral{Elems: l.elems(n)}
+}
+
+// hashLiteral lowers `{...}`, at statement start too: the parser has
+// already read that brace as perl does.
+func (l *lowerer) hashLiteral(n *parse.Node) Node {
+	return &HashLiteral{Elems: l.elems(n)}
+}
+
+// elems lowers each child of n as a list element.
+func (l *lowerer) elems(n *parse.Node) []Node {
+	var out []Node
+	for _, c := range n.Children {
+		out = append(out, l.expr(c))
+	}
+	return out
+}
+
+// loopEx lowers a loop_control: last, next, redo, goto, and return, whose
+// value stands in Label. A label is a Bareword with the label node's id.
+func (l *lowerer) loopEx(n *parse.Node) Node {
+	out := &LoopEx{Op: n.Text}
+	if len(n.Children) == 1 {
+		c := n.Children[0]
+		if c.Kind == parse.Label {
+			out.Label = l.stamp(c, &Bareword{Name: c.Text})
+		} else {
+			out.Label = l.expr(c)
+		}
+	}
+	return out
 }

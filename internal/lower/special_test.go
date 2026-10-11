@@ -110,3 +110,103 @@ func TestLowerEvalBoundary(t *testing.T) {
 		}},
 	})
 }
+
+// Each special form the parser gives as a call, a term, a unary or a
+// loop_control lowers to its own §4.14 kind. Read in perl 5.42:
+//   - -MO=Deparse gives `<>` as `readline ARGV`, `<STDIN>` as `readline
+//     STDIN` and `<*.c>` as `glob '*.c'`, so the brackets' body decides
+//     readline from glob (§4.15.2);
+//   - with @a three elements, \(@a) makes 3 references and \@a one, so Ref
+//     keeps the operand's Paren bit;
+//   - `{a=>1};` at statement start deparses as `+{'a', 1};`, a hash.
+func TestLowerSpecialRenames(t *testing.T) {
+	type L = []lower.Node
+	checkShapes(t, []shapeCase{
+		{"do { 1 };", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.DoBlock{Body: lx(e.Children[0])}
+		}},
+		{"do 'file.pl';", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.DoFile{Path: lx(e.Children[0])}
+		}},
+		{"wantarray;", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.Wantarray{}
+		}},
+		{"-e $f;", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.FileTest{Op: 'e', Operand: lx(e.Children[0])}
+		}},
+		// No operand means $_.
+		{"-e;", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.FileTest{Op: 'e'}
+		}},
+		// Stacked tests nest.
+		{"-e -f $x;", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.FileTest{Op: 'e', Operand: lx(e.Children[0])}
+		}},
+		{`\@a;`, func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.Ref{Operand: lx(e.Children[0])}
+		}},
+		{`\($a,$b);`, func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.Ref{Operand: lx(e.Children[0])}
+		}},
+		{"<STDIN>;", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.Readline{}
+		}},
+		{"<$fh>;", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.Readline{}
+		}},
+		{"<>;", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.Readline{Magic: true}
+		}},
+		{"<<>>;", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.Readline{Magic: true}
+		}},
+		{"<*.c>;", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.Glob{}
+		}},
+		{"<$x/*>;", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.Glob{}
+		}},
+		{`glob("*.c");`, func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.Glob{Pattern: lx(e.Children[0])}
+		}},
+		{"[1,2];", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.ArrayLiteral{Elems: L{lx(e.Children[0]), lx(e.Children[1])}}
+		}},
+		{"[];", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.ArrayLiteral{}
+		}},
+		// At statement start.
+		{"{a=>1};", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.HashLiteral{Elems: L{lx(e.Children[0]), lx(e.Children[1])}}
+		}},
+		{"next;", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.LoopEx{Op: "next"}
+		}},
+		{"goto &foo;", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.LoopEx{Op: "goto", Label: lx(e.Children[0])}
+		}},
+		// return is a loop_control too; its value stands in Label.
+		{"return (1,2);", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.LoopEx{Op: "return", Label: lx(e.Children[0])}
+		}},
+	})
+
+	// In expression position: the anon_hash under unary plus.
+	root := parse.Parse([]byte("+{a=>1};"))
+	h := expression(t, root).Children[0]
+	got := lower.LowerExpr(root, h)
+	if reflect.TypeOf(got) != reflect.TypeOf(&lower.HashLiteral{}) || got.Meta().ID != lower.AssignIDs(root)[h] {
+		t.Errorf("+{a=>1}: the anon_hash lowered to %#v, want a HashLiteral with its id", got)
+	}
+
+	// A label is a Bareword carrying the label node's id.
+	root = parse.Parse([]byte("last FOO;"))
+	e := expression(t, root)
+	label := &lower.Bareword{Name: "FOO"}
+	label.Meta().ID = lower.AssignIDs(root)[e.Children[0]]
+	want := &lower.LoopEx{Op: "last", Label: label}
+	want.Meta().ID = lower.AssignIDs(root)[e]
+	if got := lower.LowerExpr(root, e); !reflect.DeepEqual(got, want) {
+		t.Errorf("last FOO: lowered to %#v, want %#v", got, want)
+	}
+}
