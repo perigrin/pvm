@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T18:35:44.781455309Z
-updated: 2026-09-26T19:40:26.614724955Z
+updated: 2026-10-11T15:17:19.934232076Z
 sessions:
 - start_sha: 20c20c3c9f6b7772b719bd7affc1d50f419e1e75
   end_sha: b2084901525559c23fe0eef21f146e164b5c4cc9
@@ -113,10 +113,17 @@ left, because nothing tied them together.
   visibly), `01a0de11` (lintOps sees op names, not flags -- the same
   instrument-blindness in a different layer)
 
+### Whole-suite criteria removed (2026-10-11)
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Criteria that only re-ran a whole suite
+or package (`go test ./...`, `make test`, the whole conformance or parse
+package) restated "make test passed", which gates every commit, while CI
+gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
+They are removed; this issue's named tests and ratchet checks remain.
+
 ## Acceptance criteria
 
 - [ ] `$^O` lexes as ONE Variable token (`go test ./internal/lexer/ -run '^TestCaretControlVariable$' -count=1 -v | grep -q '^--- PASS: TestCaretControlVariable'`)
 - [ ] A bare `$^` with no letter after it is still one token (`go test ./internal/lexer/ -run '^TestCaretControlVariable$' -count=1 | grep -q '^ok'`)
 - [ ] `${^TAINT}` still lexes as it does today (`go test ./internal/lexer/ -count=1 | grep -q '^ok'`)
-- [ ] REGRESSION GUARD, passes today: the corpus stays complete (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
-- [ ] REGRESSION GUARD, passes today: the parse ratchets hold (`go test ./internal/parse/ -count=1 | grep -q '^ok'`)
