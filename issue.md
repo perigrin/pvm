@@ -3,8 +3,10 @@ title: "Port the special-form rules onto the lowered tree: MapGrepSort.Op, the e
 state: pending
 urgency: normal
 milestone: m2-lower-the-tree
+blocked_by:
+- 01a12a85-32cf-7d76-96f7-b814935374e1
 created: 2026-10-11T10:32:14.982514503Z
-updated: 2026-10-11T10:32:14.982514503Z
+updated: 2026-10-11T10:33:30.639002377Z
 ---
 
 ## Context
