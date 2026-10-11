@@ -1091,8 +1091,8 @@ expects a term: `map { "a" => 1 } + 1, @a` is a syntax error while `. "x"`,
 `|| 1` and `->{a}` in the same place are not.
 
 `looksLikeAnonHash` must be the same predicate used in §4.4.4 and in chapter
-5 §5.12; keep one implementation, specified by chapter 3 §3.3. Record the guess on the node — `MapGrep{BlockGuessed: true}` —
-so the LSP can offer the `+{` / `{;` disambiguation as a quick fix.
+5 §5.12; keep one implementation, specified by chapter 3 §3.3. The lexer records the decision on the `{` token (`OpensBlock`),
+which is where the LSP, reading the CST, can offer the `+{` / `{;` disambiguation as a quick fix.
 
 ### 4.9.3 Context inside the block
 
@@ -1586,11 +1586,10 @@ type MethodCall struct {
 // --- Special forms ---
 type MapGrepSort struct {
 	nodeBase
-	Op           string // "map" | "grep" | "sort"
-	Block        Node   // block form
-	FirstExpr    Node   // expression form (map/grep) or comparator (sort)
-	List         []Node
-	BlockGuessed bool // the '{' was disambiguated heuristically -- see 4.9.2
+	Op        string // "map" | "grep" | "sort"
+	Block     Node   // block form
+	FirstExpr Node   // expression form (map/grep) or comparator (sort)
+	List      []Node
 }
 type DoBlock  struct{ nodeBase; Body Node }              // do { ... }
 type DoFile   struct{ nodeBase; Path Node }              // do EXPR
@@ -1726,6 +1725,23 @@ type Match struct { // m// s/// tr/// qr// -- see 4.11
    resolved [block [statement [term "$_"]]] [term "@a"]]` — but nothing
    records which way the brace was guessed, so `BlockGuessed` is still
    PARSER.
+
+   Settled at 3fb2c715 by how the block child is produced: there is no
+   guess to record. The lexer runs perl's own intuit_curly
+   (`internal/lexer/intuit.go`, measured against 5.42.0) and marks the
+   token `OpensBlock`; `parseListOpBlock` reads that mark and never
+   re-derives it. The heuristic is perl's, so its answer is perl's
+   reading, not an uncertainty about it, and a flag on the lowered node
+   would always say the same thing. The lowered `MapGrepSort` therefore has
+   no `BlockGuessed` field, as `MethodCall` has no `Ambiguous` (§4.14.6).
+   The `+{` / `{;` quick fix §4.9.2 wants is an LSP feature, and the LSP
+   reads the CST, where the token's `OpensBlock` already says which way
+   the brace went. Both forms lower: `map { $_ } @a;` →
+   `MapGrepSort{Op:"map", Block, List}` and `map $_+1, @a` →
+   `MapGrepSort{Op:"map", FirstExpr, List}`, the comma tree flattened;
+   `sort byname @a`'s comparator is `FirstExpr`. A brace that never
+   closes (`map {;`) leaves `unknown refusal=unclosed_brace` in the block
+   slot, which lowers to a `Hole` `Block`.
 
 5. **Keep `Slice.Kind` explicit.** The four slice kinds produce four
    different result types (§4.4.7); collapsing them to "slice" loses the
@@ -1865,7 +1881,7 @@ status. "C" counts are uses in `internal/infer` of the old grammar name.
 
 | Kind | CST at 971b9031 | Consumer / perl / SoN | Status |
 |---|---|---|---|
-| `MapGrepSort` | `map { $_ } @a;` → `[call "map" resolved [block [statement [term "$_"]]] [term "@a"]]`, and `grep { $_ } @a;` and `sort { $a <=> $b } @a;` likewise; `sort byname @a;` → `[call "sort" resolved [term "byname" comparator] [term "@a"]]`; expression forms are `call "map"`/`"sort"` `resolved` over a `binary ","`. **Moved:** at 3c997a6b every block form was `Unknown` | C: `map_grep_expression`, `sort_expression` (2), `map`, `sort`; `callElementType` (`infer.go:1313`) tells map from grep by `strings.HasPrefix(... "grep")` on source text — two operations with opposite element-type rules, separated by string matching. `Op` fixes exactly that | LOWERING for both forms; `BlockGuessed` PARSER (rule 4) |
+| `MapGrepSort` | `map { $_ } @a;` → `[call "map" resolved [block [statement [term "$_"]]] [term "@a"]]`, and `grep { $_ } @a;` and `sort { $a <=> $b } @a;` likewise; `sort byname @a;` → `[call "sort" resolved [term "byname" comparator] [term "@a"]]`; expression forms are `call "map"`/`"sort"` `resolved` over a `binary ","`. **Moved:** at 3c997a6b every block form was `Unknown` | C: `map_grep_expression`, `sort_expression` (2), `map`, `sort`; `callElementType` (`infer.go:1313`) tells map from grep by `strings.HasPrefix(... "grep")` on source text — two operations with opposite element-type rules, separated by string matching. `Op` fixes exactly that | LOWERING for both forms; no `BlockGuessed` (rule 4) |
 | `DoBlock` | `do { 1 }` → `[call "do" [block ...]]` | C: `blockResultType` (`infer.go:1417`) already computes a block's value for `map` | LOWERING (rename) |
 | `DoFile` | `do 'file.pl';` → `[call "do" resolved [term "'file.pl'"]]`, told from `DoBlock` by its child not being a `block`. **Moved:** at 3c997a6b it was `Unknown` | C: none | LOWERING; SPECULATIVE consumer |
 | `EvalBlock`, `EvalStr` | `eval { 1 }` → `[call "eval" [block ...]]`; `eval "1"` and `eval $s` → `[call "eval" [term ...]]` | C: none. Needed anyway: `EvalStr` is the soundness boundary where the result is `Any` | LOWERING |
@@ -1924,7 +1940,7 @@ change.
 | `Index.Arrow`, `Key.Arrow` | `parse.Node.Arrow` | SHIPPED |
 | `List.Fat` | `parse.Node.Fat` on the element left of `=>` | SHIPPED |
 | `MapGrepSort` comparator | `parse.Node.Comparator` on `sort SUBNAME LIST`'s slot | SHIPPED |
-| `MapGrepSort.BlockGuessed` | the block forms parse, but nothing records which way the brace was guessed | PARSER |
+| `MapGrepSort.BlockGuessed` | nothing to carry: the lexer runs perl's own intuit_curly, so the brace's reading is perl's (rule 4) | DROPPED |
 | `MethodCall.Indirect` | `parse.Node.Indirect`, set when the class is a package the file has seen; an undeclared class is still `Unknown` | SHIPPED; kept (§4.14.6) |
 | `StrLit.Backtick` | `Text[0] == '`'`, or `Text` prefix `qx` | LOWERING |
 
@@ -2164,8 +2180,8 @@ Acceptance list; build order is chapter 6 §6.11.
 - [ ] Context is recorded per edge during a downward pass (§4.12), and
       `return` / last-statement / `wantarray` stay context-polymorphic.
 - [ ] Every guess is recorded on the node: `Resolved`, `Indirect`,
-      `BlockGuessed`. `Resolved` and `Indirect` ship; `BlockGuessed` has no
-      source yet, and `Ambiguous` was dropped (§4.14.3, §4.14.6).
+      `BlockGuessed`. `Resolved` and `Indirect` ship; `BlockGuessed` and
+      `Ambiguous` were dropped, each with nothing to carry (§4.14.3, §4.14.6).
 - [ ] Nothing that round-trips is a wrong tree. Measured wrong-but-round-
       tripping trees at 3c997a6b (§4.14.2): `sub { 1 };` in statement
       position, `{a=>1};` at statement start, `*{"foo"}`, and a signature

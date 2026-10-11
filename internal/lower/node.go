@@ -260,13 +260,15 @@ type MethodCall struct {
 
 // --- Special forms ---
 
+// MapGrepSort has no BlockGuessed: the lexer runs perl's own intuit_curly, so
+// the brace's reading is perl's and there is no guess to record (§4.14.1
+// rule 4).
 type MapGrepSort struct {
 	nodeBase
-	Op           string // "map" | "grep" | "sort"
-	Block        Node   // block form
-	FirstExpr    Node   // expression form (map/grep) or comparator (sort)
-	List         []Node
-	BlockGuessed bool // the '{' was disambiguated heuristically -- §4.9.2
+	Op        string // "map" | "grep" | "sort"
+	Block     Node   // block form
+	FirstExpr Node   // expression form (map/grep) or comparator (sort)
+	List      []Node
 }
 
 // DoBlock is do { ... }.
