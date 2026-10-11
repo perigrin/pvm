@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T20:30:56.927867322Z
-updated: 2026-09-26T20:30:56.927867322Z
+updated: 2026-10-11T02:47:44.12031016Z
 ---
 
 Canon writes perl's OP NAME where the source had an operator, and
@@ -57,10 +57,18 @@ two T1 files where 01a0de97 moved `t1canon.ratchet` from 0 to 1 -- the
 only rises in that change, and both of them are these two defects
 becoming visible rather than anything regressing.
 
+### Re-measured (2026-10-11)
+
+Measured at pu `24bfac4a`. `my $v; +$v;` canons as `my $v;+$v;`, a fixpoint, not `pos $v`. `my $v; return $v || $v;` canons as `my $v;return $v || $v;`, both operands present, as perl Deparses it. `next LABEL;` and `last LABEL;` canon as themselves. `lvalue_unary_plus.t` and `attribute_method_named_sub_deparse.t` are both 0 in `t1canon.ratchet`. Fixed by c80ab769, the return operand, and 26ab62a3, unary plus.
+
+The criteria ran `-run TestCanon` unanchored, which matches eleven tests, with no PASS grep. They now name TestCanonUnaryPlusIsPlus, TestReturnList and TestLoopControlWithoutModifier. TestReturnList's `my $v; return $v || $v;` case was added in test/pgt-reconcile; it fails as `my $v;return ||;` when canon's LoopControl arm writes a child's Text again. The ratchet criterion checks the two files' lines, and TestCanonTokenIdentity holds every file at 0 there.
+
+The conformance and whole-suite commands carry `-timeout=30m`: internal/conformance took 696s in a full run, past go test's 10-minute default, and timed out without it.
+
 ## Acceptance criteria
 
-- [ ] `my $v; +$v;` canons to a unary plus and not to `pos` (`go test ./internal/parse/ -run TestCanon -count=1`)
-- [ ] `my $v; return $v || $v;` canons with both operands present (`go test ./internal/parse/ -run TestCanon -count=1`)
-- [ ] `next LABEL` and `last LABEL` still emit the bareword target, no regression (`go test ./internal/parse/ -run TestCanon -count=1`)
-- [ ] REGRESSION GUARD: `lvalue_unary_plus.t` and `attribute_method_named_sub_deparse.t` return to 0 in `t1canon.ratchet` (`go test ./internal/parse/ -run TestCanonRatchet -count=1`)
-- [ ] REGRESSION GUARD: the whole suite holds (`go test ./... -count=1`)
+- [ ] `my $v; +$v;` canons to a unary plus and not to `pos` (`go test ./internal/parse/ -run '^TestCanonUnaryPlusIsPlus$' -count=1 -v | grep -q '^--- PASS: TestCanonUnaryPlusIsPlus'`)
+- [ ] `my $v; return $v || $v;` canons with both operands present (`go test ./internal/parse/ -run '^TestReturnList$' -count=1 -v | grep -q '^--- PASS: TestReturnList'`)
+- [ ] `next LABEL` and `last LABEL` still emit the bareword target, no regression (`go test ./internal/parse/ -run '^TestLoopControlWithoutModifier$' -count=1 -v | grep -q '^--- PASS: TestLoopControlWithoutModifier'`)
+- [ ] REGRESSION GUARD: `lvalue_unary_plus.t` and `attribute_method_named_sub_deparse.t` are 0 in `t1canon.ratchet` and stay identical (`grep -q '^0 lvalue_unary_plus.t$' internal/parse/testdata/t1canon.ratchet && grep -q '^0 attribute_method_named_sub_deparse.t$' internal/parse/testdata/t1canon.ratchet && go test ./internal/parse/ -run '^TestCanonTokenIdentity$' -count=1 -v | grep -q '^--- PASS: TestCanonTokenIdentity'`)
+- [ ] REGRESSION GUARD: the whole suite holds (`go test ./... -count=1 -timeout=30m`)
