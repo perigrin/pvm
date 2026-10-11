@@ -37,6 +37,20 @@ func TestDerefCanonKeepsBraces(t *testing.T) {
 		{"my $q = ${$ x};", "my $q = ${$ x};"},
 		{"my $n = ${$1};", "my $n = $$1;"},
 		{"my $m = ${$::x};", "my $m = $$::x;"},
+		// Issue 01a0e045's shapes, from T1's package_decl_stash.t. Dropping
+		// the braces made `$` take `$pkg` alone. Deparse writes
+		// `${$pkg . '::';}` and `!!${$pkg . '::';}{$1 . '::'}`.
+		{"my $x = ${$pkg . '::'};", "my $x = ${$pkg . '::'};"},
+		{"my $x = !!${$pkg . '::'}{$1 . '::'};", "my $x = !!${$pkg . '::'}{$1 . '::'};"},
+		{"f(${$pkg . '::'});", "f(${$pkg . '::'});"},
+		// The main stash subscript once canon'd as `$:;:{$pkg}`. Deparse
+		// writes `$main::{$pkg}`.
+		{"my $x = $::{$pkg};", "my $x = $::{$pkg};"},
+		{"my $x = $::{$pkg . '::'};", "my $x = $::{$pkg . '::'};"},
+		// A plain scalar operand needs no braces, as `@{$r}` above.
+		{"my $v = $$r;", "my $v = $$r;"},
+		{"my %v = %{$h};", "my %v = %$h;"},
+		{"my $w = ${$h}{k};", "my $w = $$h{k};"},
 	} {
 		root := parse.Parse([]byte(tc.src))
 		if containsKind(root, parse.Unknown) {

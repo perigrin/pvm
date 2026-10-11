@@ -62,11 +62,37 @@ func TestOperandlessFiletest(t *testing.T) {
 		}
 	}
 
+	// The operandless filetest emits as `-e()`, an empty argument list, which
+	// perl reads as the `$_` default -- measured on 5.42.0:
+	//
+	//	$ perl -MO=Deparse -e 'my $x = -e(); my @x = grep(-e() , @l);'
+	//	my $x = -e $_;
+	//	my(@x) = grep((-e $_), @l);
+	//
+	// The grep forms are issue 01a0de97's: the comma, and the block's `}`,
+	// each ended the filetest rather than being taken as its operand.
+	for _, tc := range []struct{ src, want string }{
+		{"my $x = -e;", "my $x = -e();"},
+		{"my $x = -t;", "my $x = -t();"},
+		{"my @x = grep -e, @l;", "my @x = grep(-e() , @l);"},
+		{"my @x = grep { -e } @l;", "my @x = grep({-e();}@l);"},
+	} {
+		b := []byte(tc.src)
+		n := parse.Parse(b)
+		if got := parse.Canon(n, b); got != tc.want {
+			t.Errorf("Canon(%q) = %q, want %q", tc.src, got, tc.want)
+		}
+		if got := countUnknown(n); got != 0 {
+			t.Errorf("Parse(%q): Unknown=%d, want 0", tc.src, got)
+		}
+	}
+
 	// REGRESSION GUARD, passes today: a filetest WITH an operand still takes
 	// it, and stacking still nests.
 	for _, tc := range []struct{ src, want string }{
 		{"print -e $f;", "print(-e($f));"},
 		{"my $x = -e $f;", "my $x = -e($f);"},
+		{"my $x = -t STDIN;", "my $x = -t(STDIN);"},
 		{"print -d -e $f;", "print(-d(-e($f)));"},
 	} {
 		b := []byte(tc.src)
