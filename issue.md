@@ -3,8 +3,10 @@ title: Port the variable, subscript and slice rules onto the lowered tree, with 
 state: pending
 urgency: normal
 milestone: m2-lower-the-tree
+blocked_by:
+- 01a12a85-3100-79ae-8265-aa8b4f39cd85
 created: 2026-10-11T10:32:14.500354268Z
-updated: 2026-10-11T10:32:14.500354268Z
+updated: 2026-10-11T10:33:20.506854764Z
 ---
 
 ## Context
