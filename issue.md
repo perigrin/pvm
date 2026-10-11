@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T20:39:01.402801113Z
-updated: 2026-09-26T20:39:01.402801113Z
+updated: 2026-10-11T02:47:49.33312937Z
 ---
 
 `atan2` and `fc` are in none of the three parse arity tables, so a parenless
@@ -136,10 +136,18 @@ upper bound.
 - related: `01a0de11` (lintOps sees op names, not flags -- the same
   instrument-blindness), `01a0deeb` (this goal is gated by no ratchet)
 
+### Re-measured (2026-10-11)
+
+Measured at pu `24bfac4a`. `my $d = atan2 $var, 1 ;` canons as `my $d = atan2($var , 1);` at Unknown=0, as perl Deparses it. `fc` follows perl's feature gate: with `use feature 'fc'`, `ord fc $char` is `ord(fc($char))`; unenabled it refuses (Unknown=1), where perl reads `$char->fc`, so no wrong tree is built. Fixed by c79edeed.
+
+Criterion 3 grepped internal/parse/keyword.go, which d2094988 deleted: the parser's arity tables are now CORE.pmt's shapes. The audit is recorded in internal/parse/declarations/CORE.pmt's header (all 266 names in regen/keywords.pl, each absent one put to perl), and parenlessarity_test.go:2 points to it. The `^ok` greps after `-run` were vacuous; the criteria now grep TestParenlessBuiltinArity's and TestParenlessArityNoDetachedCall's PASS lines.
+
+The conformance and whole-suite commands carry `-timeout=30m`: internal/conformance took 696s in a full run, past go test's 10-minute default, and timed out without it.
+
 ## Acceptance criteria
 
 - [ ] `atan2 $a, $b` parenless keeps both arguments (`go test ./internal/parse/ -run '^TestParenlessBuiltinArity$' -count=1 -v | grep -q '^--- PASS: TestParenlessBuiltinArity'`)
-- [ ] The canon of a parenless `atan2` holds no empty call (`go test ./internal/parse/ -run '^TestParenlessBuiltinArity$' -count=1 | grep -q '^ok'`)
-- [ ] The three parse arity tables are audited against perl's keyword list, with the result recorded (`grep -qiE 'regen/keywords|audited' internal/parse/keyword.go`)
-- [ ] REGRESSION GUARD, passes today: `index`, `sprintf` and `crypt` parenless still take both arguments (`go test ./internal/parse/ -count=1 | grep -q '^ok'`)
-- [ ] REGRESSION GUARD, passes today: the corpus stays complete (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
+- [ ] The canon of a parenless `atan2` holds no empty call (`go test ./internal/parse/ -run '^TestParenlessArityNoDetachedCall$' -count=1 -v | grep -q '^--- PASS: TestParenlessArityNoDetachedCall'`)
+- [ ] The parse arity tables are audited against perl's keyword list, with the result recorded (`grep -q 'all 266 names in regen/keywords.pl' internal/parse/declarations/CORE.pmt`)
+- [ ] REGRESSION GUARD, passes today: `index`, `sprintf` and `crypt` parenless still take both arguments (`go test ./internal/parse/ -run '^TestParenlessBuiltinArity$' -count=1 -v | grep -q '^--- PASS: TestParenlessBuiltinArity'`)
+- [ ] REGRESSION GUARD, passes today: the corpus stays complete (`go test ./internal/conformance/ -count=1 -timeout=30m`)
