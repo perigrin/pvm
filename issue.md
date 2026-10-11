@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-27T01:18:51.711058099Z
-updated: 2026-09-27T01:18:51.711058099Z
+updated: 2026-10-11T02:48:18.864231996Z
 ---
 
 A bare block nested inside a loop lets a statement modifier ESCAPE it: the
@@ -62,9 +62,17 @@ inner block stays, and nothing moves outside it.
   this may be a residue of it), `01a0e04d`-sibling `for $i (LIST)` swapping its
   variable and list, found in the same trace
 
+### Re-measured (2026-10-11)
+
+Measured at pu `24bfac4a`. `for my $t (1) { { 3 if 1; } }` scores Unknown=0 and canons as `for my $t (1) {{3 if 1;} }`, a fixpoint: the modifier stays inside the inner block, as perl keeps it. Scope item 2's combinations all hold too: `while` and `until` loops, a bare block at file scope, and `unless`, `foreach`, `for`, `while` and `until` as the modifier. Fixed by d8029d82, where a block's opening brace leaves a statement boundary in the lexer.
+
+TestNestedBareBlock, from d8029d82, has no modifier case, and TestModifierInNestedBareBlock existed only in an uncommitted worktree. It was written in test/pgt-reconcile and asserts each shape's canon, zero Unknowns and fixpoint. With d8029d82's `openedBlock` transition removed it fails with this issue's own symptom, the modifier outside the inner brace and an Unknown left over.
+
+The conformance and whole-suite commands carry `-timeout=30m`: internal/conformance took 696s in a full run, past go test's 10-minute default, and timed out without it.
+
 ## Acceptance criteria
 
 - [ ] A modifier inside a nested bare block stays inside it (`go test ./internal/parse/ -run '^TestModifierInNestedBareBlock$' -count=1 -v | grep -q '^--- PASS: TestModifierInNestedBareBlock'`)
-- [ ] The outer loop's closing brace is no longer an Unknown (`go test ./internal/parse/ -run '^TestModifierInNestedBareBlock$' -count=1 | grep -q '^ok'`)
-- [ ] REGRESSION GUARD, passes today: a modifier with no inner block is unchanged (`go test ./internal/parse/ -count=1 | grep -q '^ok'`)
-- [ ] REGRESSION GUARD, passes today: the corpus stays complete (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
+- [ ] The outer loop's closing brace is no longer an Unknown (`go test ./internal/parse/ -run '^TestModifierInNestedBareBlock$' -count=1 -v | grep -q '^--- PASS: TestModifierInNestedBareBlock'`)
+- [ ] REGRESSION GUARD, passes today: a modifier with no inner block is unchanged (`go test ./internal/parse/ -run '^TestStatementModifierKeepsItsBody$' -count=1 -v | grep -q '^--- PASS: TestStatementModifierKeepsItsBody'`)
+- [ ] REGRESSION GUARD, passes today: the corpus stays complete (`go test ./internal/conformance/ -count=1 -timeout=30m`)
