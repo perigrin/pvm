@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-27T00:31:06.168570065Z
-updated: 2026-09-27T00:31:06.168570065Z
+updated: 2026-10-11T02:48:10.05496153Z
 ---
 
 ## Measured finding
@@ -48,10 +48,18 @@ It sat in `t1canon.ratchet` at 0 only because BOTH emissions deleted the whole
 operand, which made a wrong tree look like a fixpoint. It is `0 -> 1` after
 01a0e013 and the ratchet records why.
 
+### Re-measured (2026-10-11)
+
+Measured at pu `24bfac4a`. `my $x = ${$pkg . '::'};` canons as itself and is a fixpoint, as are `!!${$pkg . '::'}{$1 . '::'}` and `f(${$pkg . '::'})`. `$::{$pkg}` and `$::{$pkg . '::'}` canon as themselves, not `$:;:{$pkg}`. `package_decl_stash.t` is 0 in `t1canon.ratchet`. Fixed by 06f95ce2, the braces, and 9b7b1311, the main stash's empty package name.
+
+TestBlockDerefKeepsItsBraces never existed. The test is TestDerefCanonKeepsBraces, from 06f95ce2; the issue's own shapes were added to it in test/pgt-reconcile, and they fail when canon's brace rule or the lexer's `$::` rule is removed. The guard's `%{$h}` and `${$h}{k}` canon as `%$h` and `$$h{k}`, the same programs, so the claim is reworded from "unchanged" to "keep their meaning". The commands were bare backticks without parens, which verify does not run.
+
+The conformance and whole-suite commands carry `-timeout=30m`: internal/conformance took 696s in a full run, past go test's 10-minute default, and timed out without it.
+
 ## Acceptance criteria
 
-- [ ] `my $x = ${$pkg . '::'};` canons with its braces and is a fixpoint `go test ./internal/parse -run TestBlockDerefKeepsItsBraces -count=1`
-- [ ] `$::{$pkg}` canons as itself rather than `$:;:{$pkg}` `go test ./internal/parse -run TestBlockDerefKeepsItsBraces -count=1`
-- [ ] `package_decl_stash.t` returns to 0 in `t1canon.ratchet` and rejoins `TestCanonTokenIdentity` `go test ./internal/parse -run 'TestCanonRatchet|TestCanonTokenIdentity' -count=1`
-- [ ] REGRESSION GUARD: `$$r`, `@{$r}`, `%{$h}` and `${$h}{k}` are unchanged `go test ./internal/parse -run TestDeref -count=1`
-- [ ] the whole tree is green `go test ./... -count=1`
+- [ ] `my $x = ${$pkg . '::'};` canons with its braces and is a fixpoint (`go test ./internal/parse/ -run '^TestDerefCanonKeepsBraces$' -count=1 -v | grep -q '^--- PASS: TestDerefCanonKeepsBraces'`)
+- [ ] `$::{$pkg}` canons as itself rather than `$:;:{$pkg}` (`go test ./internal/parse/ -run '^TestDerefCanonKeepsBraces$' -count=1 -v | grep -q '^--- PASS: TestDerefCanonKeepsBraces' && go test ./internal/lexer/ -run '^TestMainStashSubscript$' -count=1 -v | grep -q '^--- PASS: TestMainStashSubscript'`)
+- [ ] `package_decl_stash.t` is 0 in `t1canon.ratchet` and held there by TestCanonTokenIdentity (`grep -q '^0 package_decl_stash.t$' internal/parse/testdata/t1canon.ratchet && go test ./internal/parse/ -run '^TestCanonTokenIdentity$' -count=1 -v | grep -q '^--- PASS: TestCanonTokenIdentity' && go test ./internal/parse/ -run '^TestCanonRatchet$' -count=1 -v | grep -q '^--- PASS: TestCanonRatchet'`)
+- [ ] REGRESSION GUARD: `$$r`, `@{$r}`, `%{$h}` and `${$h}{k}` keep their meaning (`go test ./internal/parse/ -run '^TestDerefCanonKeepsBraces$' -count=1 -v | grep -q '^--- PASS: TestDerefCanonKeepsBraces'`)
+- [ ] the whole tree is green (`go test ./... -count=1 -timeout=30m`)
