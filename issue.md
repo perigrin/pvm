@@ -1,6 +1,6 @@
 ---
 title: "Lower literals, names and Hole: NumLit, StrLit, Interp, QwList, Bareword"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -8,7 +8,16 @@ blocked_by:
 blocks:
 - 01a12a85-2fa3-770b-97d3-8d13ad9ed95d
 created: 2026-09-20T23:03:39.376749228Z
-updated: 2026-10-11T10:33:02.775495963Z
+updated: 2026-10-11T15:51:28.852904565Z
+sessions:
+- start_sha: 9895b3086efb0ed7feb8aeb6b994c6b245ce47a5
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-11T15:51:28.852904565Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-11T15:51:28.852904565Z
 ---
 
 ## Context
