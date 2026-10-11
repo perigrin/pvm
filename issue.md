@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T18:50:21.499634715Z
-updated: 2026-09-26T18:50:21.499634715Z
+updated: 2026-10-11T02:47:36.799803745Z
 ---
 
 `&$subref` refuses. `&` followed by a SIGIL is not read as a call, while `&`
@@ -86,10 +86,18 @@ for `&$coderef` should avoid that trap and make the `@_` difference visible.
 - related: `01a0df00` (caret variables -- the other sigil-shaped lexer gap found
   in the same bucketing pass), `01a0deeb` (no ratchet gates this goal)
 
+### Re-measured (2026-10-11)
+
+Measured at pu `24bfac4a`. `&$subref;`, `&$s;`, `&$s();` and `&$s(1,2);` all score Unknown=0 and canon with the `&$` kept, as perl's Deparse does. Fixed by c241ef8a.
+
+The criteria that grepped `^ok` after `-run '^TestAmpersandScalarCall$'` were vacuous: `go test` prints `ok` when `-run` matches nothing. They now grep the test's own PASS line. The lexer guard names TestLeadingPackageSeparator, which asserts `$a & $b` lexes as `Operator(&)`. TestAmpersandScalarCall also asserts that `&$s[0]`, `&$s{k}` and `&@a` keep refusing, as perl 5.42.0 does (Scope items 2 and 3).
+
+The conformance and whole-suite commands carry `-timeout=30m`: internal/conformance took 696s in a full run, past go test's 10-minute default, and timed out without it.
+
 ## Acceptance criteria
 
 - [ ] `&$subref;` parses as a call (`go test ./internal/parse/ -run '^TestAmpersandScalarCall$' -count=1 -v | grep -q '^--- PASS: TestAmpersandScalarCall'`)
-- [ ] All four spellings parse: bare, `()`, `(args)`, and with the sub declared (`go test ./internal/parse/ -run '^TestAmpersandScalarCall$' -count=1 | grep -q '^ok'`)
-- [ ] `$a & $b` is still bitwise-and (`go test ./internal/lexer/ -count=1 | grep -q '^ok'`)
-- [ ] REGRESSION GUARD, passes today: the corpus stays complete (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
-- [ ] REGRESSION GUARD, passes today: the parse ratchets hold (`go test ./internal/parse/ -count=1 | grep -q '^ok'`)
+- [ ] All four spellings parse: bare, `()`, `(args)`, and with the sub declared (`go test ./internal/parse/ -run '^TestAmpersandScalarCall$' -count=1 -v | grep -q '^--- PASS: TestAmpersandScalarCall'`)
+- [ ] `$a & $b` is still bitwise-and (`go test ./internal/lexer/ -run '^TestLeadingPackageSeparator$' -count=1 -v | grep -q '^--- PASS: TestLeadingPackageSeparator'`)
+- [ ] REGRESSION GUARD, passes today: the corpus stays complete (`go test ./internal/conformance/ -count=1 -timeout=30m`)
+- [ ] REGRESSION GUARD, passes today: the parse ratchets hold (`go test ./internal/parse/ -count=1`)
