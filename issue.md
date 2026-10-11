@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T21:56:52.175899257Z
-updated: 2026-09-26T23:40:34.117333407Z
+updated: 2026-10-11T16:23:40.122120667Z
 sessions:
 - start_sha: f7df2cbd6938f54be1c0e5835425fa26aaa770e9
   end_sha: f7df2cbd6938f54be1c0e5835425fa26aaa770e9
@@ -100,11 +100,18 @@ $ perl -e 'sub f { return } eval { require Errno }; print "ok\n"'
 ok
 ```
 
+### Criteria repaired (2026-10-11)
+
+The milestone verify of 2026-10-11 could not run some of these criteria and
+failed others on stale text. Commands written as bare backtick spans are now in
+`(...)`, test names are anchored with a `--- PASS` check, a whole-suite run is
+removed (perigrin: "Why are we doing 73 full test suite runs?!?"), and a grep of
+text that later work moved is pointed at where the fact now lives.
+
 ## Acceptance criteria
 
-- [ ] `{ require Errno }` scores 0 Unknown and canon's `{require Errno; }` — no swallowed `}`, no spurious `};` — and the same holds for the `use` and `no` spellings `go test ./internal/parse -run TestUseLastInBlockWithoutSemicolon -count=1`
-- [ ] `sub f { return }` scores 0 Unknown and canon's `sub f {return; }` `go test ./internal/parse -run TestBareReturnLastInBlock -count=1`
-- [ ] REGRESSION GUARD, passes today: `last`, `next` and `redo` bare at the end of a block already score 0 and must keep doing so, so a fix for `return` that widens the shared terminator set cannot silently change them `go test ./internal/parse -run TestLoopLabels -count=1`
-- [ ] REGRESSION GUARD, passes today: `require "foo.pl"` and `require $x` take the literal/expression path and are unaffected by any change to the bareword-name branch `go test ./internal/parse -run 'TestUse' -count=1`
-- [ ] the perl.git `t/` ratchet is regenerated in the same commit and every mover is verified individually `go test ./internal/parse -run TestPerlGitTRatchet -count=1`
-- [ ] the whole tree is green `go test ./... -count=1`
+- [ ] `{ require Errno }` scores 0 Unknown and canon's `{require Errno; }` — no swallowed `}`, no spurious `};` — and the same holds for the `use` and `no` spellings (`go test ./internal/parse/ -run '^TestLastInBlockWithoutSemicolon$' -count=1 -v | grep -q '^--- PASS: TestLastInBlockWithoutSemicolon'`)
+- [ ] `sub f { return }` scores 0 Unknown and canon's `sub f {return; }` (`go test ./internal/parse/ -run '^TestLastInBlockWithoutSemicolon$' -count=1 -v | grep -q '^--- PASS: TestLastInBlockWithoutSemicolon'`)
+- [ ] REGRESSION GUARD, passes today: `last`, `next` and `redo` bare at the end of a block already score 0 and must keep doing so, so a fix for `return` that widens the shared terminator set cannot silently change them (`go test ./internal/parse/ -run '^TestBareLoopControlLastInBlock$' -count=1 -v | grep -q '^--- PASS: TestBareLoopControlLastInBlock'`)
+- [ ] REGRESSION GUARD, passes today: `require "foo.pl"` and `require $x` take the literal/expression path and are unaffected by any change to the bareword-name branch (`go test ./internal/parse/ -run '^TestRequireExpressionPathUnaffected$' -count=1 -v | grep -q '^--- PASS: TestRequireExpressionPathUnaffected'`)
+- [ ] the perl.git `t/` ratchet is regenerated in the same commit and every mover is verified individually (`go test ./internal/parse/ -run '^TestPerlGitTRatchet' -count=1 -v | grep -q '^--- PASS: TestPerlGitTRatchet'`)
