@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T03:56:54.872473231Z
-updated: 2026-09-29T04:03:33.662666845Z
+updated: 2026-10-11T15:17:48.779174684Z
 sessions:
 - start_sha: 12eb345487d543ca4032f88c401ae4e77d397464
   end_sha: 5d2714d168d308b5530a60aaa642e86854743afc
@@ -47,9 +47,17 @@ Measured on 5.42.0:
 
 Reach: comp/hints.t, op/ref.t and op/undef.t first refuse at one.
 
+### Whole-suite criteria removed (2026-10-11)
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Criteria that only re-ran a whole suite
+or package (`go test ./...`, `make test`, the whole conformance or parse
+package) restated "make test passed", which gates every commit, while CI
+gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
+They are removed; this issue's named tests and ratchet checks remain.
+
 ## Acceptance criteria
 
 - [ ] DESTROY and AUTOLOAD blocks at statement start are `sub NAME BLOCK` declarations and canon to a fixpoint (`go test ./internal/parse/ -run '^TestSpecialSubWithoutSub$' -count=1 -v | grep -q '^--- PASS: TestSpecialSubWithoutSub'`)
 - [ ] NEGATIVE: `$obj->DESTROY` is still a method name (`go test ./internal/parse/ -run '^TestSpecialSubWithoutSub$' -count=1 -v | grep -q '^--- PASS: TestSpecialSubWithoutSub'`)
 - [ ] REGRESSION GUARD: the perl.git t/ ratchet holds (`go test ./internal/parse/ -run '^TestPerlGitTRatchet$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTRatchet'`)
-- [ ] REGRESSION GUARD: the whole suite holds (`go test ./... -count=1`)
