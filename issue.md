@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T16:36:04.048888797Z
-updated: 2026-09-26T18:12:46.289866851Z
+updated: 2026-10-11T15:17:07.322329291Z
 sessions:
 - start_sha: 9325864f86f42d125118a800b15eb0b62d95d6c3
   end_sha: f046b67477dee13f34a2af9dd56935d8e6989d54
@@ -147,11 +147,18 @@ Canon is the live hazard: four workers this milestone broke
   worth zero on T2), `01a0ddc5` (`new Foo;` builds the wrong tree -- the same
   indirect-object question from the other side)
 
+### Whole-suite criteria removed (2026-10-11)
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Criteria that only re-ran a whole suite
+or package (`go test ./...`, `make test`, the whole conformance or parse
+package) restated "make test passed", which gates every commit, while CI
+gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
+They are removed; this issue's named tests and ratchet checks remain.
+
 ## Acceptance criteria
 
 - [ ] A literal `require './helper.pl'` brings its `sub NAME` set into scope (`go test ./internal/parse/ -run '^TestRequiredFileDeclarations$' -count=1 -v | grep -q '^--- PASS: TestRequiredFileDeclarations'`)
 - [ ] A COMPUTED require stays unresolved (`go test ./internal/parse/ -run '^TestRequiredFileDeclarations$' -count=1 | grep -q '^ok'`)
 - [ ] A missing helper does not fail the parse (`go test ./internal/parse/ -run '^TestRequiredFileDeclarations$' -count=1 | grep -q '^ok'`)
 - [ ] Canon holds its fixpoint (`go test ./internal/parse/ -run '^TestCanon' -count=1 | grep -q '^ok'`)
-- [ ] REGRESSION GUARD, passes today: the corpus stays 216 of 216 (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
-- [ ] REGRESSION GUARD, passes today: the parse ratchets hold (`go test ./internal/parse/ -count=1 | grep -q '^ok'`)
