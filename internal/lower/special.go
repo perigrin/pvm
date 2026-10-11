@@ -52,3 +52,32 @@ func (l *lowerer) commaList(n *parse.Node) []Node {
 	}
 	return out
 }
+
+// evalForm lowers `eval`: a block child is EvalBlock, code the analysis can
+// read; anything else is EvalStr, the soundness boundary whose result is
+// Any. No operand means $_ (perl's Deparse gives `eval;` as `eval $_`).
+func (l *lowerer) evalForm(n *parse.Node) Node {
+	if n.Text != "eval" || len(n.Children) > 1 {
+		return nil
+	}
+	if body := l.blockChild(n); body != nil {
+		return &EvalBlock{Body: body}
+	}
+	return &EvalStr{Code: l.operand(n)}
+}
+
+// blockChild lowers n's one child if it is a block, and returns nil otherwise.
+func (l *lowerer) blockChild(n *parse.Node) Node {
+	if len(n.Children) == 1 && n.Children[0].Kind == parse.Block {
+		return l.expr(n.Children[0])
+	}
+	return nil
+}
+
+// operand lowers n's first child, or returns nil when it has none.
+func (l *lowerer) operand(n *parse.Node) Node {
+	if len(n.Children) == 0 {
+		return nil
+	}
+	return l.expr(n.Children[0])
+}

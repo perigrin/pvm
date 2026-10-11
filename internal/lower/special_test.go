@@ -89,3 +89,24 @@ func TestLowerMapGrepSortOp(t *testing.T) {
 		t.Errorf("sort byname @a: the comparator is not a Bareword")
 	}
 }
+
+// eval BLOCK is code the analysis can read; eval EXPR is a string compiled
+// at run time, the soundness boundary whose result is Any. They are two
+// kinds, told apart by whether the child is a block. A missing operand
+// means $_: perl 5.42's -MO=Deparse gives `eval;` as `eval $_`.
+func TestLowerEvalBoundary(t *testing.T) {
+	checkShapes(t, []shapeCase{
+		{"eval { 1 };", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.EvalBlock{Body: lx(e.Children[0])}
+		}},
+		{`eval "1";`, func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.EvalStr{Code: lx(e.Children[0])}
+		}},
+		{"eval $s;", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.EvalStr{Code: lx(e.Children[0])}
+		}},
+		{"eval;", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.EvalStr{}
+		}},
+	})
+}
