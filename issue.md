@@ -1,21 +1,31 @@
 ---
 title: "Node identity: stable ids for internal/lower that survive an edit above them"
-state: in-progress
+state: done
 urgency: normal
 milestone: m2-lower-the-tree
 blocks:
 - 01a0c10f-37f8-7a43-b3ce-ea194f7defe0
 created: 2026-09-20T23:02:46.558435832Z
-updated: 2026-10-11T10:36:37.259457461Z
+updated: 2026-10-11T15:23:34.111402875Z
 sessions:
 - start_sha: 971b903102dc4a335660172f3b1b5ecad5cf3330
-  end_sha: ""
-  commits: 0
+  end_sha: 1a558ba8c76f9795fdb80f2f14ad28ecca94aee4
+  commits: 1
   started_at: 2026-10-11T10:36:37.259457461Z
+  ended_at: 2026-10-11T15:23:34.111402875Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-11T10:36:37.259457461Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-11T15:23:34.111402875Z
+observed_paths:
+- docs/specs/perl-parser/04-expressions.md
+- docs/specs/perl-parser/06-incremental-lsp.md
+- internal/lower/id.go
+- internal/lower/id_test.go
+- internal/parse/statustable_test.go
 ---
 
 ## Context
