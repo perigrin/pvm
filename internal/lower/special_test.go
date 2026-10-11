@@ -210,3 +210,36 @@ func TestLowerSpecialRenames(t *testing.T) {
 		t.Errorf("last FOO: lowered to %#v, want %#v", got, want)
 	}
 }
+
+// A match binds its target with =~ or !~; a bare match reads $_, which a nil
+// Target means. Op is the quote operator, `m` for a bare /.../. perl 5.42:
+// with $x = "ab", `$x =~ /a/` is true and `$x !~ /a/` false; with $_ = "a",
+// `/a/` is true.
+func TestLowerMatchTargetAndNegated(t *testing.T) {
+	checkShapes(t, []shapeCase{
+		{"$x =~ /a/;", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.Match{Op: "m", Target: lx(e.Children[0])}
+		}},
+		{"$x !~ /a/;", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.Match{Op: "m", Target: lx(e.Children[0]), Negated: true}
+		}},
+		{"$x =~ s/a/b/g;", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.Match{Op: "s", Target: lx(e.Children[0])}
+		}},
+		{"$x =~ tr/a/b/;", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.Match{Op: "tr", Target: lx(e.Children[0])}
+		}},
+		{"/a/;", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.Match{Op: "m"}
+		}},
+		{"m{x};", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.Match{Op: "m"}
+		}},
+		{"y/a/b/;", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.Match{Op: "y"}
+		}},
+		{"qr/x/;", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.Match{Op: "qr"}
+		}},
+	})
+}

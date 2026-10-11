@@ -198,3 +198,48 @@ func (l *lowerer) loopEx(n *parse.Node) Node {
 	}
 	return out
 }
+
+// match lowers a match, substitution, transliteration or qr term to a Match
+// with no Target, which means $_. Pattern, Replace and Flags stay inside the
+// one quote token (§4.14.2, PARSER).
+func (l *lowerer) match(n *parse.Node) Node {
+	if len(n.Children) != 0 {
+		return nil
+	}
+	if op := matchOp(n.Text); op != "" {
+		return &Match{Op: op}
+	}
+	return nil
+}
+
+// matchOp returns a match term's quote operator, `m` for a bare /.../, or ""
+// when the text is not a match.
+func matchOp(t string) string {
+	if strings.HasPrefix(t, "/") {
+		return "m"
+	}
+	if m := quoteMatch.FindStringSubmatch(t); m != nil {
+		return m[1]
+	}
+	return ""
+}
+
+// quoteMatch matches the head of an m, s, tr, y or qr term up to its opening
+// delimiter.
+var quoteMatch = regexp.MustCompile(`^(m|s|tr|y|qr)\s*[^\w\s]`)
+
+// bind lowers `=~` and `!~`. Over a match term it is that Match with its
+// Target set; over anything else -- a pattern in a variable, or an Unknown
+// -- it stays a Binary, because there is no quote token to carry.
+func (l *lowerer) bind(n *parse.Node) Node {
+	if n.Text != "=~" && n.Text != "!~" || len(n.Children) != 2 {
+		return nil
+	}
+	lhs, rhs := n.Children[0], n.Children[1]
+	if rhs.Kind == parse.Term && len(rhs.Children) == 0 {
+		if op := matchOp(rhs.Text); op != "" {
+			return &Match{Op: op, Target: l.expr(lhs), Negated: n.Text == "!~"}
+		}
+	}
+	return &Binary{Op: n.Text, L: l.expr(lhs), R: l.expr(rhs)}
+}
