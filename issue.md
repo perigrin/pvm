@@ -3,8 +3,10 @@ title: Move internal/infer's own tests onto the lowered path, and assert the pre
 state: pending
 urgency: normal
 milestone: m2-lower-the-tree
+blocked_by:
+- 01a12a85-3386-7e72-8d74-38bf69a9c7d7
 created: 2026-10-11T10:32:15.127376918Z
-updated: 2026-10-11T10:32:15.127376918Z
+updated: 2026-10-11T10:33:33.088969513Z
 ---
 
 ## Context
