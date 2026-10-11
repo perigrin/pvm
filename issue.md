@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T20:13:05.035618513Z
-updated: 2026-09-29T02:16:05.204210182Z
+updated: 2026-10-11T15:40:03.560711743Z
 sessions:
 - start_sha: 5ded07671843d54f646205a7c0ccd2efa7f728e1
   end_sha: b845d9b4e8940e6f86d5c0d3f74acc5510290083
@@ -86,12 +86,34 @@ and `t/opbasic/magic_phase.t` both declare their own `sub ok` and call it
 without parens throughout, and 57 of the 620 files use a leading `::` call.
 Scoping the count is part of the work.
 
+### Criteria named (2026-10-11)
+
+Measured at `971b9031`: the three cross-spelling pairs parse at Unknown=0 and
+canon as resolved calls, and `sub Foo::bar {1} bar 1;` still refuses, as perl
+5.42.0 does. The fix's test, TestSubNameSpellings, checks only Unknown counts
+and uses `1, 2` rather than the issue's spellings. TestSubNameSpellingsResolve
+is new in internal/parse/subspelling_test.go and asserts the tree shape and
+canon of the issue's six spellings and the refusal of the seventh; it fails
+with `subKey` returning the name unchanged, and fails on the negative when
+`subKey` strips every package.
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Every criterion below ran the whole parse
+package, the whole conformance package or `go test ./...`, which only restates
+"make test passed" -- and make test gates every commit. Each claim now names
+the test that holds it. Claims are reworded only to keep parentheses out of
+the claim text, since git-zhi runs the first paren span on the line.
+
+The two regression guards keep their claims and name gate tests instead:
+TestCorpusRatchet for the corpus ratchet, and TestParseRatchet and
+TestPerlGitTRatchet -- the T1 and perl.git t/ parse ratchets -- for the suite.
+
 ## Acceptance criteria
 
-- [ ] `sub ok {1} ::ok 1;` parses with zero Unknown (`go test ./internal/parse/ -count=1`)
-- [ ] `sub main::ok {1} ok 1;` parses with zero Unknown (`go test ./internal/parse/ -count=1`)
-- [ ] `sub ok {1} main::ok 1;` parses with zero Unknown (`go test ./internal/parse/ -count=1`)
-- [ ] A sub qualified into another package does NOT collapse: `sub Foo::bar {1} bar 1;` still refuses (`go test ./internal/parse/ -count=1`)
-- [ ] REGRESSION GUARD: the three byte-identical pairs still parse clean, `sub ok {1} ok 1;` among them -- this passes today (`go test ./internal/parse/ -count=1`)
-- [ ] REGRESSION GUARD: the corpus ratchet holds (`go test ./internal/conformance/ -count=1`)
-- [ ] REGRESSION GUARD: the whole suite holds (`go test ./... -count=1`)
+- [ ] `sub ok {1} ::ok 1;` parses with zero Unknown (`go test ./internal/parse/ -run '^TestSubNameSpellingsResolve$' -count=1 -v | grep -q '^--- PASS: TestSubNameSpellingsResolve'`)
+- [ ] `sub main::ok {1} ok 1;` parses with zero Unknown (`go test ./internal/parse/ -run '^TestSubNameSpellingsResolve$' -count=1 -v | grep -q '^--- PASS: TestSubNameSpellingsResolve'`)
+- [ ] `sub ok {1} main::ok 1;` parses with zero Unknown (`go test ./internal/parse/ -run '^TestSubNameSpellingsResolve$' -count=1 -v | grep -q '^--- PASS: TestSubNameSpellingsResolve'`)
+- [ ] A sub qualified into another package does NOT collapse: `sub Foo::bar {1} bar 1;` still refuses (`go test ./internal/parse/ -run '^TestSubNameSpellingsResolve$' -count=1 -v | grep -q '^--- PASS: TestSubNameSpellingsResolve'`)
+- [ ] REGRESSION GUARD: the three byte-identical pairs still parse clean, `sub ok {1} ok 1;` among them (`go test ./internal/parse/ -run '^TestSubNameSpellingsResolve$' -count=1 -v | grep -q '^--- PASS: TestSubNameSpellingsResolve'`)
+- [ ] REGRESSION GUARD: the corpus ratchet holds (`go test ./internal/conformance/ -run '^TestCorpusRatchet$' -count=1 -v | grep -q '^--- PASS: TestCorpusRatchet'`)
+- [ ] REGRESSION GUARD: the whole suite holds, named as the T1 and perl.git t/ parse ratchets (`go test ./internal/parse/ -run '^TestParseRatchet$' -count=1 -v | grep -q '^--- PASS: TestParseRatchet' && go test ./internal/parse/ -run '^TestPerlGitTRatchet$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTRatchet'`)
