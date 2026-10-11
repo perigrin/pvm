@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T18:09:45.133282332Z
-updated: 2026-09-26T18:09:45.133282332Z
+updated: 2026-10-11T02:47:30.520928914Z
 ---
 
 Every statement modifier on a loop control produces a WRONG tree with ZERO
@@ -76,3 +76,17 @@ construct produces none.
 5. Count the corpus delta. The construct produces no Unknowns today, so the
    node ratchets will not move and the canon ratchets are where the evidence
    will be.
+
+### Re-measured (2026-10-11)
+
+Measured at pu `24bfac4a`. `goto HERE if $x;`, `last if $x;`, `next LOOP if $x;` and `return 1 if $x;` each parse as ONE statement at Unknown=0 and canon back as themselves, a fixpoint; `last if $x` no longer takes `if` as its label. Fixed by c80ab769, merged in e87dee9c.
+
+This issue had no criteria heading, so `git zhi verify` ran nothing. The criteria below are drawn from its Scope. TestLoopControlStatementModifier asserts the canon of all four measured spellings, all six modifier words, a label with a modifier, and goto's expression forms; TestLoopControlWithoutModifier is the guard that a label after `last`/`next` is still a label. Scope item 5's corpus delta is recorded in c80ab769: op/method.t 47 -> 46 in perlgitt, and t1canon 158 -> 65.
+
+## Acceptance criteria
+
+- [ ] `goto HERE if $x;`, `last if $x;`, `next LOOP if $x;` and `return 1 if $x;` each canon as one statement (`go test ./internal/parse/ -run '^TestLoopControlStatementModifier$' -count=1 -v | grep -q '^--- PASS: TestLoopControlStatementModifier'`)
+- [ ] `last if $x` does not take `if` as its label (`go test ./internal/parse/ -run '^TestLoopControlStatementModifier$' -count=1 -v | grep -q '^--- PASS: TestLoopControlStatementModifier'`)
+- [ ] `unless`, `while`, `until`, `for` and `foreach` apply to a loop control as `if` does (`go test ./internal/parse/ -run '^TestLoopControlStatementModifier$' -count=1 -v | grep -q '^--- PASS: TestLoopControlStatementModifier'`)
+- [ ] REGRESSION GUARD: a loop control with no modifier, and a label after `last` or `next`, are unchanged (`go test ./internal/parse/ -run '^TestLoopControlWithoutModifier$' -count=1 -v | grep -q '^--- PASS: TestLoopControlWithoutModifier'`)
+- [ ] REGRESSION GUARD: the canon ratchet holds (`go test ./internal/parse/ -run '^TestCanonRatchet$' -count=1 -v | grep -q '^--- PASS: TestCanonRatchet'`)
