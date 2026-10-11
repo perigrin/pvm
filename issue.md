@@ -6,7 +6,7 @@ milestone: perl-git-t-parses
 blocks:
 - 01a0de8b-3352-70b3-a419-fd1043662366
 created: 2026-09-26T16:26:49.795028845Z
-updated: 2026-09-26T17:23:59.460451379Z
+updated: 2026-10-11T15:16:56.857700924Z
 sessions:
 - start_sha: 2dc301fdeeec2303d2bfcdc1cae708b09b190c0b
   end_sha: 9325864f86f42d125118a800b15eb0b62d95d6c3
@@ -116,10 +116,17 @@ for.
 - NOTE: `lexer` has a bracket stack already; read `internal/lexer/brackets.go`
   before writing a matcher of your own.
 
+### Whole-suite criteria removed (2026-10-11)
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Criteria that only re-ran a whole suite
+or package (`go test ./...`, `make test`, the whole conformance or parse
+package) restated "make test passed", which gates every commit, while CI
+gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
+They are removed; this issue's named tests and ratchet checks remain.
+
 ## Acceptance criteria
 
 - [ ] The plan holds a brace-context table built from MATCHED braces (`grep -qi 'matched brace\|matching open brace' docs/plans/2026-09-26-perl-git-t-parses.md`)
 - [ ] The share of the 1,118 owned by a labelled bare block is recorded as a number (`grep -qE 'labelled.*[0-9]+ of 1,?118|[0-9]+ of the 1,?118' docs/plans/2026-09-26-perl-git-t-parses.md`)
 - [ ] No probe file is left behind (`test -z "$(ls internal/parse/zz*_test.go 2>/dev/null)"`)
-- [ ] REGRESSION GUARD, passes today: the parse suite holds (`go test ./internal/parse/ -count=1 | grep -q '^ok'`)
-- [ ] REGRESSION GUARD, passes today: the corpus ratchet holds (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
