@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 019d1449-1880-729b-860b-ac29464f6cd7
 created: 2026-09-20T22:19:52.755941663Z
-updated: 2026-10-11T11:08:30.123355528Z
+updated: 2026-10-11T15:17:52.683492956Z
 ---
 
 `internal/infer` reads the tree-sitter tree through `internal/parser/`. That
@@ -112,6 +112,15 @@ or `internal/parseoracle`, so CI passing (goal 8) is its check.
 - [ ] Confirm CI is green on the final commit.
 - [ ] Run the criteria below. Mark this issue done.
 
+### Whole-suite criteria removed (2026-10-11)
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Criteria that only re-ran a whole suite
+or package (`go test ./...`, `make test`, the whole conformance or parse
+package) restated "make test passed", which gates every commit, while CI
+gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
+They are removed; this issue's named tests and ratchet checks remain.
+
 ## Acceptance Criteria
 
 ### Positive Scenarios
@@ -129,7 +138,6 @@ or `internal/parseoracle`, so CI passing (goal 8) is its check.
 - [ ] The corpus ratchet holds every verdict (`go test ./internal/conformance/ -run '^TestCorpusRatchet$' -count=1 -v | grep -q '^--- PASS: TestCorpusRatchet'`)
 - [ ] The oracle's WRONG stays zero against an intact baseline (`go test ./internal/parseoracle/ -run '^TestCorpusBaselineIsIntact$' -count=1 -v | grep -q '^--- PASS: TestCorpusBaselineIsIntact'`)
 - [ ] The oracle's fixture ratchet holds (`go test ./internal/parseoracle/ -run '^TestRatchet$' -count=1 -v | grep -q '^--- PASS: TestRatchet'`)
-- [ ] The whole repository is green (`make test`)
 
 ### Negative Scenarios
 - [ ] Neither internal/infer nor internal/psc reaches the tree-sitter path, directly or through a dependency (`! go list -deps ./internal/infer ./internal/psc | grep -q 'pvm/internal/parser$'`)
