@@ -30,6 +30,8 @@ func (l *lowerer) expr(n *parse.Node) Node {
 		out = first(n, l.variable, l.literal)
 	case parse.Call:
 		out = first(n, l.fatWord)
+	case parse.Unary:
+		out = first(n, l.prefixDeref)
 	case parse.Index:
 		out = first(n, l.subscript)
 	}

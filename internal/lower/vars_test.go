@@ -97,3 +97,28 @@ func TestLowerSubscriptDeclinesSlices(t *testing.T) {
 		sameShape(t, src, got, &lower.Hole{})
 	}
 }
+
+// Deref-ness is whether a subscript reads through a reference: Arrow, or a
+// base that is itself a dereference (§4.14.1 rule 2). perl 5.42, with
+// $x = [7], %h = (a => [7]) and $h = {k => 7}: $$x[0], ${$x}[0] and
+// $h->{k} are 7 through a reference, $h{k} reads %h, and $h{a}[0] is 7
+// because the arrow between two subscripts is implied.
+func TestLowerDerefness(t *testing.T) {
+	for src, want := range map[string]bool{
+		"$h->{k};":    true,
+		"$$x[0];":     true,
+		"${$x}[0];":   true,
+		"$h{a}[0];":   true,
+		"$x->[0][1];": true,
+		"$h{k};":      false,
+		"$a[0];":      false,
+	} {
+		if got := lower.IsDeref(lowerOne(t, src)); got != want {
+			t.Errorf("%q: IsDeref is %v, want %v", src, got, want)
+		}
+	}
+	// Anything not a subscript is not one.
+	if lower.IsDeref(lowerOne(t, "$x;")) {
+		t.Errorf("$x: IsDeref is true")
+	}
+}

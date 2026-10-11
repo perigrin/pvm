@@ -74,3 +74,12 @@ func elementBase(n *parse.Node) bool {
 	}
 	return true
 }
+
+// prefixDeref lowers a `unary` "$", "@" or "%" -- ${$x}, $$x, @$x, %{$x} --
+// to a Deref over its operand, and declines every other unary.
+func (l *lowerer) prefixDeref(n *parse.Node) Node {
+	if len(n.Children) != 1 || (n.Text != "$" && n.Text != "@" && n.Text != "%") {
+		return nil
+	}
+	return &Deref{Sigil: n.Text, Expr: l.expr(n.Children[0])}
+}
