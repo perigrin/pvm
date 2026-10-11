@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T16:41:03.74207397Z
-updated: 2026-09-28T22:18:05.479845413Z
+updated: 2026-10-11T15:40:03.102625209Z
 sessions:
 - start_sha: 9b7b13111f748942d278e8fa83872337288084f6
   end_sha: 01e775966608237f2380b27d2433f94283e5146b
@@ -62,10 +62,31 @@ file; the other 1,543 are resync fallout. This construct is one of the 41-node
 cause surface. See the `not_a_term` section of
 `docs/plans/2026-09-26-perl-git-t-parses.md`.
 
+### Criteria named (2026-10-11)
+
+Measured at `971b9031`: `my $r = $::{foo};`, `my @k = keys %::;` and `my %h = %::;`
+parse at Unknown=0 with `$::`/`%::` as one variable, and the five named-package
+spellings are unchanged. The fix, 9b7b1311, tested the token stream
+(internal/lexer/mainstash_test.go). TestMainStashEmptyName is new in
+internal/parse/mainstash_test.go and asserts the tree shape and canon of all
+eight spellings; with the word-byte requirement restored in
+`leadingPackageSeparator` it fails on the three empty-name spellings.
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Every criterion below ran the whole parse
+package, the whole conformance package or `go test ./...`, which only restates
+"make test passed" -- and make test gates every commit. Each claim now names
+the test that holds it. Claims are reworded only to keep parentheses out of
+the claim text, since git-zhi runs the first paren span on the line.
+
+The two regression guards keep their claims and name gate tests instead:
+TestCorpusRatchet for the corpus ratchet, and TestParseRatchet and
+TestPerlGitTRatchet -- the T1 and perl.git t/ parse ratchets -- for the suite.
+
 ## Acceptance criteria
 
-- [ ] `$::{name}` parses with zero Unknown (`go test ./internal/parse/ -count=1`)
-- [ ] `%::` and `keys %::` parse with zero Unknown (`go test ./internal/parse/ -count=1`)
-- [ ] A named package's stash still parses, no regression (`go test ./internal/parse/ -count=1`)
-- [ ] REGRESSION GUARD: the corpus ratchet holds (`go test ./internal/conformance/ -count=1`)
-- [ ] REGRESSION GUARD: the whole suite holds (`go test ./... -count=1`)
+- [ ] `$::{name}` parses with zero Unknown, as a subscript of the stash `$::` (`go test ./internal/parse/ -run '^TestMainStashEmptyName$' -count=1 -v | grep -q '^--- PASS: TestMainStashEmptyName'`)
+- [ ] `%::` and `keys %::` parse with zero Unknown (`go test ./internal/parse/ -run '^TestMainStashEmptyName$' -count=1 -v | grep -q '^--- PASS: TestMainStashEmptyName'`)
+- [ ] A named package's stash still parses, no regression (`go test ./internal/parse/ -run '^TestMainStashEmptyName$' -count=1 -v | grep -q '^--- PASS: TestMainStashEmptyName'`)
+- [ ] REGRESSION GUARD: the corpus ratchet holds (`go test ./internal/conformance/ -run '^TestCorpusRatchet$' -count=1 -v | grep -q '^--- PASS: TestCorpusRatchet'`)
+- [ ] REGRESSION GUARD: the whole suite holds, named as the T1 and perl.git t/ parse ratchets (`go test ./internal/parse/ -run '^TestParseRatchet$' -count=1 -v | grep -q '^--- PASS: TestParseRatchet' && go test ./internal/parse/ -run '^TestPerlGitTRatchet$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTRatchet'`)
