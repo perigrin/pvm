@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T20:30:56.927867322Z
-updated: 2026-10-11T10:47:56.637482471Z
+updated: 2026-10-11T15:17:27.377594262Z
 sessions:
 - start_sha: 971b903102dc4a335660172f3b1b5ecad5cf3330
   end_sha: 971b903102dc4a335660172f3b1b5ecad5cf3330
@@ -78,10 +78,18 @@ The criteria ran `-run TestCanon` unanchored, which matches eleven tests, with n
 
 The conformance and whole-suite commands carry `-timeout=30m`: internal/conformance took 696s in a full run, past go test's 10-minute default, and timed out without it.
 
+### Whole-suite criteria removed (2026-10-11)
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Criteria that only re-ran a whole suite
+or package (`go test ./...`, `make test`, the whole conformance or parse
+package) restated "make test passed", which gates every commit, while CI
+gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
+They are removed; this issue's named tests and ratchet checks remain.
+
 ## Acceptance criteria
 
 - [ ] `my $v; +$v;` canons to a unary plus and not to `pos` (`go test ./internal/parse/ -run '^TestCanonUnaryPlusIsPlus$' -count=1 -v | grep -q '^--- PASS: TestCanonUnaryPlusIsPlus'`)
 - [ ] `my $v; return $v || $v;` canons with both operands present (`go test ./internal/parse/ -run '^TestReturnList$' -count=1 -v | grep -q '^--- PASS: TestReturnList'`)
 - [ ] `next LABEL` and `last LABEL` still emit the bareword target, no regression (`go test ./internal/parse/ -run '^TestLoopControlWithoutModifier$' -count=1 -v | grep -q '^--- PASS: TestLoopControlWithoutModifier'`)
 - [ ] REGRESSION GUARD: `lvalue_unary_plus.t` and `attribute_method_named_sub_deparse.t` are 0 in `t1canon.ratchet` and stay identical (`grep -q '^0 lvalue_unary_plus.t$' internal/parse/testdata/t1canon.ratchet && grep -q '^0 attribute_method_named_sub_deparse.t$' internal/parse/testdata/t1canon.ratchet && go test ./internal/parse/ -run '^TestCanonTokenIdentity$' -count=1 -v | grep -q '^--- PASS: TestCanonTokenIdentity'`)
-- [ ] REGRESSION GUARD: the whole suite holds (`go test ./... -count=1 -timeout=30m`)
