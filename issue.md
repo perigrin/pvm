@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T23:58:31.367571262Z
-updated: 2026-09-26T23:58:31.367571262Z
+updated: 2026-10-11T02:48:03.758336875Z
 ---
 
 A hash subscript whose key is a quote-like operator NAME lexes as that operator
@@ -89,10 +89,18 @@ same reason: an attributed reach is a floor.
 - related: `01a0df00` (the caret variable -- braced spelling right, bare one
   wrong, the same divergence), `01a0dd25`-era trivia duplication
 
+### Re-measured (2026-10-11)
+
+Measured at pu `24bfac4a`. `my $s = $t->{m};` canons as itself at Unknown=0, as do the other quote-like names as bare keys; `$x =~ m{abc};` still lexes as a match. Fixed by 1d06bb8d and 03f5df35, merged in bac8d5bc.
+
+Scope item 3 was false, as 1d06bb8d records: the interpolated spelling `"x $t->{m} y"` was right because string interpolation is not split at all, so the string is one opaque Quote. TestBarewordSubscriptKey now asserts it as a regression guard, added in test/pgt-reconcile. The `^ok` greps after `-run` were vacuous; the criteria now grep TestBarewordSubscriptKey's and TestQuoteOpStillLexesWithBraceDelimiter's PASS lines.
+
+The conformance and whole-suite commands carry `-timeout=30m`: internal/conformance took 696s in a full run, past go test's 10-minute default, and timed out without it.
+
 ## Acceptance criteria
 
 - [ ] `$h{m}` parses with the key as a string (`go test ./internal/parse/ -run '^TestBarewordSubscriptKey$' -count=1 -v | grep -q '^--- PASS: TestBarewordSubscriptKey'`)
-- [ ] Every quote-like name works as a bare key (`go test ./internal/parse/ -run '^TestBarewordSubscriptKey$' -count=1 | grep -q '^ok'`)
-- [ ] A real match still lexes as a match (`go test ./internal/lexer/ -count=1 | grep -q '^ok'`)
-- [ ] REGRESSION GUARD, passes today: the interpolated spelling stays correct (`go test ./internal/parse/ -count=1 | grep -q '^ok'`)
-- [ ] REGRESSION GUARD, passes today: the corpus stays complete (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
+- [ ] Every quote-like name works as a bare key (`go test ./internal/parse/ -run '^TestBarewordSubscriptKey$' -count=1 -v | grep -q '^--- PASS: TestBarewordSubscriptKey'`)
+- [ ] A real match still lexes as a match (`go test ./internal/parse/ -run '^TestQuoteOpStillLexesWithBraceDelimiter$' -count=1 -v | grep -q '^--- PASS: TestQuoteOpStillLexesWithBraceDelimiter'`)
+- [ ] REGRESSION GUARD, passes today: the interpolated spelling stays correct (`go test ./internal/parse/ -run '^TestBarewordSubscriptKey$' -count=1 -v | grep -q '^--- PASS: TestBarewordSubscriptKey'`)
+- [ ] REGRESSION GUARD, passes today: the corpus stays complete (`go test ./internal/conformance/ -count=1 -timeout=30m`)
