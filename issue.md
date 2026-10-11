@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a0c115-c0db-7923-b276-984794affd39
 created: 2026-09-20T23:10:16.13915176Z
-updated: 2026-10-11T10:33:35.402484395Z
+updated: 2026-10-11T15:17:58.580417329Z
 ---
 
 ## Context
@@ -84,6 +84,15 @@ so that stays true.
 - [ ] Run the full suite: `make test`
 - [ ] Commit.
 
+### Whole-suite criteria removed (2026-10-11)
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Criteria that only re-ran a whole suite
+or package (`go test ./...`, `make test`, the whole conformance or parse
+package) restated "make test passed", which gates every commit, while CI
+gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
+They are removed; this issue's named tests and ratchet checks remain.
+
 ## Acceptance Criteria
 
 ### Positive Scenarios
@@ -91,7 +100,6 @@ so that stays true.
 - [ ] Neither the checker nor ProjectIndex imports the tree-sitter path (`test -f internal/psc/check_command.go && test -f internal/infer/project.go && ! grep -q 'pvm/internal/parser"' internal/psc/check_command.go internal/infer/project.go`)
 - [ ] ProjectIndex still resolves and caches modules on the lowered path (`go test ./internal/infer/ -run '^TestAnalyzeFileCached$' -count=1 -v | grep -q '^--- PASS: TestAnalyzeFileCached'`)
 - [ ] The psc package is green (`go test ./internal/psc/ -count=1`)
-- [ ] The whole repository is green (`make test`)
 
 ### Negative Scenarios
 - [ ] psc check on a file perl rejects does not panic and says nothing about the Hole (`go test ./internal/psc/ -run '^TestCheckCommandOnBrokenFile$' -count=1 -v | grep -q '^--- PASS: TestCheckCommandOnBrokenFile'`)
