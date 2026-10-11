@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T03:26:39.956195905Z
-updated: 2026-09-29T03:33:12.424318626Z
+updated: 2026-10-11T15:17:48.525386188Z
 sessions:
 - start_sha: fd387408677a91fec6c649aae4910288fe43a8d6
   end_sha: dc1cf141bf6b22beb8acb2b3d552f14ed5840878
@@ -48,8 +48,16 @@ Found when the lexer's filehandle-slot heuristic (for `print $fh <<"EOF"`)
 made T1's bare_block_return.t canon `print($fh <<'EOF')`, which then re-parsed
 with the heredoc body attached to the NEXT statement.
 
+### Whole-suite criteria removed (2026-10-11)
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Criteria that only re-ran a whole suite
+or package (`go test ./...`, `make test`, the whole conformance or parse
+package) restated "make test passed", which gates every commit, while CI
+gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
+They are removed; this issue's named tests and ratchet checks remain.
+
 ## Acceptance criteria
 
 - [ ] A scalar, bareword or block handle inside print's parens is a handle when no comma follows, and canons to a fixpoint (`go test ./internal/parse/ -run '^TestParenthesisedFilehandle$' -count=1 -v | grep -q '^--- PASS: TestParenthesisedFilehandle'`)
 - [ ] REGRESSION GUARD: the perl.git t/ ratchet holds (`go test ./internal/parse/ -run '^TestPerlGitTRatchet$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTRatchet'`)
-- [ ] REGRESSION GUARD: the whole suite holds (`go test ./... -count=1`)
