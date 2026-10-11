@@ -1,19 +1,39 @@
 ---
 title: The apostrophe package separator is not gated on feature apostrophe_as_package_separator
-state: in-progress
+state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T07:27:50.679702926Z
-updated: 2026-10-11T01:58:41.649935954Z
+updated: 2026-10-11T02:35:26.290956914Z
 sessions:
 - start_sha: 24bfac4a5293052e7c38dd54a56a58aef818e639
-  end_sha: ""
-  commits: 0
+  end_sha: e18b59c82f89ca3a59df5a4be37757a6ea0d15f5
+  commits: 2
   started_at: 2026-10-11T00:57:41.886264706Z
+  ended_at: 2026-10-11T02:35:26.290956914Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-11T00:57:41.886264706Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-11T02:35:26.290956914Z
+observed_paths:
+- internal/lexer/aposfeature_test.go
+- internal/lexer/ident.go
+- internal/lexer/lexer.go
+- internal/lexer/pod.go
+- internal/lexer/proto_test.go
+- internal/lexer/scan.go
+- internal/parse/arrowcodederef_test.go
+- internal/parse/bareampersand_test.go
+- internal/parse/builtinimport_test.go
+- internal/parse/canon.go
+- internal/parse/parse.go
+- internal/parse/term.go
+- internal/parse/testdata/t1canon.ratchet
+- internal/parse/testdata/t1fidelity.ratchet
+- internal/parse/use.go
 ---
 
 The lexer reads `'` as a package separator in every file, both inside a name (`$main'a`, scanIdentRunes) and right after a sigil (`$'b`, scanVarName). perl gates both on feature `apostrophe_as_package_separator`, which the 5.41 bundle turns off, so `use v5.42;` or `no feature "apostrophe_as_package_separator"` makes `$'b` the postmatch and a bareword. Measured with perl 5.42:
