@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 019d1449-1880-729b-860b-ac29464f6cd7
 created: 2026-09-20T22:19:52.755941663Z
-updated: 2026-10-11T10:31:59.25963993Z
+updated: 2026-10-11T11:08:30.123355528Z
 ---
 
 `internal/infer` reads the tree-sitter tree through `internal/parser/`. That
@@ -25,7 +25,7 @@ psc-type-alignment's 019d1449.
 
 §6.1.6 counted it, and the count is the argument:
 
-> `internal/infer/*.go` switches on 34 distinct tree-sitter-perl grammar
+> `internal/infer/*.go` switches on 46 distinct tree-sitter-perl grammar
 > names (`subroutine_declaration_statement`,
 > `ambiguous_function_call_expression`, `array_element_expression`,
 > `hash_deref_expression`, `func0op_call_expression`, `refgen_expression`,
