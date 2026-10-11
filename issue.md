@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T01:29:36.846496384Z
-updated: 2026-09-29T01:54:17.672270229Z
+updated: 2026-10-11T15:17:46.44158944Z
 sessions:
 - start_sha: 92e674eb3b0bbe192651d845f0206f37ed6f80eb
   end_sha: 56a58656f2b657ee6be44be7c94f3b4dc0dbca2a
@@ -49,9 +49,17 @@ block, so the tree is wrong at zero Unknowns and only canon sees it.
 Found bisecting comp/utf.t for 01a0eab6-fc60, whose fix moved the damage from
 one span to two; the cause was this, sitting after `sub test { ... }`.
 
+### Whole-suite criteria removed (2026-10-11)
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Criteria that only re-ran a whole suite
+or package (`go test ./...`, `make test`, the whole conformance or parse
+package) restated "make test passed", which gates every commit, while CI
+gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
+They are removed; this issue's named tests and ratchet checks remain.
+
 ## Acceptance criteria
 
 - [ ] A sub, package block or lexical sub followed by for/if/while/foreach is two statements (`go test ./internal/parse/ -run '^TestBlockDeclarationTakesNoModifier$' -count=1 -v | grep -q '^--- PASS: TestBlockDeclarationTakesNoModifier'`)
 - [ ] REGRESSION GUARD: `$x = sub { 1 } if $y` keeps its modifier (`go test ./internal/parse/ -run '^TestBlockDeclarationTakesNoModifier$' -count=1 -v | grep -q '^--- PASS: TestBlockDeclarationTakesNoModifier'`)
 - [ ] REGRESSION GUARD: the perl.git t/ ratchet holds (`go test ./internal/parse/ -run '^TestPerlGitTRatchet$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTRatchet'`)
-- [ ] REGRESSION GUARD: the whole suite holds (`go test ./... -count=1`)
