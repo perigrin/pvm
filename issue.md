@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T02:16:07.059364701Z
-updated: 2026-09-29T02:47:23.42073157Z
+updated: 2026-10-11T15:17:47.028567022Z
 sessions:
 - start_sha: f9c96510c1142c37237b7b0cf0013b9a12ac0bf1
   end_sha: ae2fb4786754099203add719feedfd96fedd7208
@@ -45,9 +45,17 @@ The prototypes come from the same table: NULL is no prototype, a list
 operator, and `Internals::SvREADONLY` is `\[$%@];$`. `mro::get_isarev` is NOT
 in it -- it is ext/mro's XS, loaded by `use mro` -- and stays out.
 
+### Whole-suite criteria removed (2026-10-11)
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Criteria that only re-ran a whole suite
+or package (`go test ./...`, `make test`, the whole conformance or parse
+package) restated "make test passed", which gates every commit, while CI
+gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
+They are removed; this issue's named tests and ratchet checks remain.
+
 ## Acceptance criteria
 
 - [ ] A parenless call to an interpreter-defined sub resolves with universal.c's prototype, and canons as a call (`go test ./internal/parse/ -run '^TestInterpreterDefinedSubs$' -count=1 -v | grep -q '^--- PASS: TestInterpreterDefinedSubs'`)
 - [ ] NEGATIVE: an arbitrary qualified name is still unknown (`go test ./internal/parse/ -run '^TestInterpreterDefinedSubs$' -count=1 -v | grep -q '^--- PASS: TestInterpreterDefinedSubs'`)
 - [ ] REGRESSION GUARD: the perl.git t/ ratchet holds (`go test ./internal/parse/ -run '^TestPerlGitTRatchet$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTRatchet'`)
-- [ ] REGRESSION GUARD: the whole suite holds (`go test ./... -count=1`)
