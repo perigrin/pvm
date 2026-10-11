@@ -1,10 +1,19 @@
 ---
 title: A bare block nested in a loop lets a statement modifier escape it
-state: pending
+state: in-progress
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-27T01:18:51.711058099Z
-updated: 2026-10-11T02:48:18.864231996Z
+updated: 2026-10-11T11:31:03.018042945Z
+sessions:
+- start_sha: 971b903102dc4a335660172f3b1b5ecad5cf3330
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-11T11:31:03.018042945Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-11T11:31:03.018042945Z
 ---
 
 A bare block nested inside a loop lets a statement modifier ESCAPE it: the
