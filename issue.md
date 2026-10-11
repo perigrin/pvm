@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-29T04:11:40.019954771Z
-updated: 2026-09-29T04:17:25.594151482Z
+updated: 2026-10-11T15:17:48.980893266Z
 sessions:
 - start_sha: 5d2714d168d308b5530a60aaa642e86854743afc
   end_sha: f2a1da6dc9413d6e9dc27b8333880632eda6b19d
@@ -44,8 +44,16 @@ Reach: io/print.t, op/while.t, op/svleak.t (`printf uNopened 42`), and
 op/eval.t and run/script.t, which `print try '...'` before `sub try` is
 declared.
 
+### Whole-suite criteria removed (2026-10-11)
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Criteria that only re-ran a whole suite
+or package (`go test ./...`, `make test`, the whole conformance or parse
+package) restated "make test passed", which gates every commit, while CI
+gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
+They are removed; this issue's named tests and ratchet checks remain.
+
 ## Acceptance criteria
 
 - [ ] A bareword in the handle slot is a handle unless it is a builtin or a known sub, in any case (`go test ./internal/parse/ -run '^TestBarewordFilehandleCase$' -count=1 -v | grep -q '^--- PASS: TestBarewordFilehandleCase'`)
 - [ ] REGRESSION GUARD: the perl.git t/ ratchet holds (`go test ./internal/parse/ -run '^TestPerlGitTRatchet$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTRatchet'`)
-- [ ] REGRESSION GUARD: the whole suite holds (`go test ./... -count=1`)
