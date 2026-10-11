@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-28T23:15:23.877389868Z
-updated: 2026-09-29T00:08:14.962842045Z
+updated: 2026-10-11T15:17:45.716823017Z
 sessions:
 - start_sha: f196c8a1cfd85c12aac31986c2dfd014375fbf79
   end_sha: 0aaccdcbebea1a3bfae177cf641ba27c12f1b049
@@ -48,9 +48,17 @@ record which words it excludes.
 Reach: grep finds `sort WORD|$VAR TERM` in 9 perl.git t/ files -- an upper
 bound, since it includes the builtin forms. op/sort.t carries 35 Unknowns.
 
+### Whole-suite criteria removed (2026-10-11)
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Criteria that only re-ran a whole suite
+or package (`go test ./...`, `make test`, the whole conformance or parse
+package) restated "make test passed", which gates every commit, while CI
+gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
+They are removed; this issue's named tests and ratchet checks remain.
+
 ## Acceptance criteria
 
 - [ ] sort with a comparator variable or sub name takes the list as its argument and canons to a fixpoint (`go test ./internal/parse/ -run '^TestSortComparator$' -count=1 -v | grep -q '^--- PASS: TestSortComparator'`)
 - [ ] NEGATIVE: `sort map ...`, `sort values ...` and `sort keys ...` are still a builtin applied to the list (`go test ./internal/parse/ -run '^TestSortComparator$' -count=1 -v | grep -q '^--- PASS: TestSortComparator'`)
 - [ ] REGRESSION GUARD: the perl.git t/ ratchet holds (`go test ./internal/parse/ -run '^TestPerlGitTRatchet$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTRatchet'`)
-- [ ] REGRESSION GUARD: the whole suite holds (`go test ./... -count=1`)
