@@ -3,8 +3,10 @@ title: "Port the statement and flow rules onto the lowered tree: conditionals, g
 state: pending
 urgency: normal
 milestone: m2-lower-the-tree
+blocked_by:
+- 01a12a85-304b-77f1-9bda-e6b73c317305
 created: 2026-10-11T10:32:14.336031794Z
-updated: 2026-10-11T10:32:14.336031794Z
+updated: 2026-10-11T10:33:17.720499988Z
 ---
 
 ## Context
