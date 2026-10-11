@@ -626,7 +626,9 @@ func parseWith(p *parser) (*Node, *parser) {
 // siblings may not share a byte.
 //
 // Openers are counted as the lexer's trackBrackets counts them: a
-// one-byte token, and a closer with nothing open closes nothing.
+// one-byte token, and a closer with nothing open closes nothing. A bracket
+// after a `&`, other than `{`, is neither: it is the name of the sub the `&`
+// calls (see ampTakesPunct), so `f(&);` is a `(` perl never sees closed.
 func (p *parser) refuseUnclosedOpener(root *Node) {
 	depth := 0
 	var last lexer.Token
@@ -634,8 +636,9 @@ func (p *parser) refuseUnclosedOpener(root *Node) {
 		if isTrivia(tok.Kind) {
 			continue
 		}
+		afterAmp := last.Kind == lexer.FuncSigil
 		last = tok
-		if tok.End-tok.Start != 1 {
+		if tok.End-tok.Start != 1 || afterAmp && p.src[tok.Start] != '{' {
 			continue
 		}
 		switch p.src[tok.Start] {
