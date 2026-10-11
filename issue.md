@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T23:36:39.800469866Z
-updated: 2026-10-11T11:09:37.908996213Z
+updated: 2026-10-11T15:17:31.179850963Z
 sessions:
 - start_sha: 971b903102dc4a335660172f3b1b5ecad5cf3330
   end_sha: 971b903102dc4a335660172f3b1b5ecad5cf3330
@@ -61,10 +61,18 @@ The commands were bare backticks without parens, which verify does not run. They
 
 The conformance and whole-suite commands carry `-timeout=30m`: internal/conformance took 696s in a full run, past go test's 10-minute default, and timed out without it.
 
+### Whole-suite criteria removed (2026-10-11)
+
+perigrin, on a milestone verify that would have run for 9+ hours: "Why are
+we doing 73 full test suite runs?!?" Criteria that only re-ran a whole suite
+or package (`go test ./...`, `make test`, the whole conformance or parse
+package) restated "make test passed", which gates every commit, while CI
+gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
+They are removed; this issue's named tests and ratchet checks remain.
+
 ## Acceptance criteria
 
 - [ ] `return 1, 2;` canons with both operands present rather than as `return ,;` (`go test ./internal/parse/ -run '^TestReturnList$' -count=1 -v | grep -q '^--- PASS: TestReturnList'`)
 - [ ] `sub f { return ($a, $b); }` keeps its operands (`go test ./internal/parse/ -run '^TestReturnList$' -count=1 -v | grep -q '^--- PASS: TestReturnList'`)
 - [ ] REGRESSION GUARD, passes today: a single-operand `return 1` and a bare `return` are unchanged (`go test ./internal/parse/ -run '^TestLastInBlockWithoutSemicolon$' -count=1 -v | grep -q '^--- PASS: TestLastInBlockWithoutSemicolon' && go test ./internal/parse/ -run '^TestBareLoopControlLastInBlock$' -count=1 -v | grep -q '^--- PASS: TestBareLoopControlLastInBlock'`)
 - [ ] the perl.git `t/` ratchet holds (`go test ./internal/parse/ -run '^TestPerlGitTRatchet$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTRatchet'`)
-- [ ] the whole tree is green (`go test ./... -count=1 -timeout=30m`)
