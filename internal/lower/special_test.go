@@ -243,3 +243,56 @@ func TestLowerMatchTargetAndNegated(t *testing.T) {
 		}},
 	})
 }
+
+// hasHole reports whether a walk from n reaches a Hole.
+func hasHole(n lower.Node) bool {
+	if reflect.TypeOf(n) == reflect.TypeOf(&lower.Hole{}) {
+		return true
+	}
+	for _, c := range lower.Children(n) {
+		if hasHole(c) {
+			return true
+		}
+	}
+	return false
+}
+
+// A special form perl rejects still lowers to its kind, with a Hole where
+// the parse failed. perl 5.42 rejects all three: `map {;` and `eval {;` with
+// "Missing right curly or square bracket", `$x =~ ;` with a syntax error.
+func TestLowerSpecialFormsOverBrokenInput(t *testing.T) {
+	hole := reflect.TypeOf(&lower.Hole{})
+
+	// The brace that never closes leaves an Unknown in the block slot.
+	checkShapes(t, []shapeCase{
+		{"map {;", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.MapGrepSort{Op: "map", Block: lx(e.Children[0])}
+		}},
+		// No pattern to carry, so not a Match.
+		{"$x =~ ;", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.Binary{Op: "=~", L: lx(e.Children[0]), R: lx(e.Children[1])}
+		}},
+	})
+	for _, c := range []struct {
+		src  string
+		slot func(*parse.Node) *parse.Node
+	}{
+		{"map {;", func(e *parse.Node) *parse.Node { return e.Children[0] }},
+		{"$x =~ ;", func(e *parse.Node) *parse.Node { return e.Children[1] }},
+	} {
+		root := parse.Parse([]byte(c.src))
+		if got := lower.LowerExpr(root, c.slot(expression(t, root))); reflect.TypeOf(got) != hole {
+			t.Errorf("%q: the failed slot lowered to %T, want *lower.Hole", c.src, got)
+		}
+	}
+
+	// The block parses and holds the Unknown; the body reaches a Hole.
+	root := parse.Parse([]byte("eval {;"))
+	got := lower.LowerExpr(root, expression(t, root))
+	if reflect.TypeOf(got) != reflect.TypeOf(&lower.EvalBlock{}) {
+		t.Fatalf("eval {;: lowered to %T, want *lower.EvalBlock", got)
+	}
+	if kids := lower.Children(got); len(kids) != 1 || !hasHole(kids[0]) {
+		t.Errorf("eval {;: the body does not hold a Hole")
+	}
+}
