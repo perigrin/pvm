@@ -92,6 +92,9 @@ psc parse lib/MyModule.pm
 # Show as S-expression
 psc parse --format sexpr lib/MyModule.pm
 
+# Show the lowered tree inference reads, instead of the parser's CST
+psc parse --tree lowered lib/MyModule.pm
+
 # Analyze dependencies
 psc analyze lib/
 ```

@@ -687,11 +687,11 @@ wrong. The obvious thing to emit is a syntax tree, and it does not work:
 
 ```
 $ psc parse --format sexpr proto.pl
-(source_file (subroutine_declaration_statement (bareword) (prototype) (block))
-             (expression_statement (ambiguous_function_call_expression ...
+(source_file (statement (declaration "sub" (term "f") (prototype "(\\@)") (block ...)))
+             (statement (call "f" ...
 ```
 
-That vocabulary is tree-sitter's. PerlOnJava and Chalk name the same constructs
+That vocabulary is internal/parse's. PerlOnJava and Chalk name the same constructs
 differently, so comparing trees across implementations means first agreeing a
 universal Perl AST — a research project, not a harness. Emitting a tree
 relocates the coupling rather than removing it.

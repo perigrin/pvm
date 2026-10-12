@@ -82,7 +82,7 @@ none of these.
 
 | Capability | uv | PVM | Notes |
 |---|---|---|---|
-| Parse source | — | `psc parse` | Tree-sitter CST |
+| Parse source | — | `psc parse` | internal/parse CST, or the lowered tree with `--tree lowered` |
 | Dependency analysis | — | `psc analyze` | AST-based `use`/`require` extraction |
 | Type checking | — | `psc check` | Bitset type inference, diagnostics |
 | Guard suggestions | — | `psc check` hint lines | Suggests `defined()`, `ref()`, etc. |
