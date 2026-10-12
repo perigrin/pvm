@@ -18,7 +18,8 @@ import (
 // Three dereferences are terms too. A glob deref, *$x or *{"foo"}, is a
 // `term "*"` whose one child is the Expr. $#{$x}, $#$x and &$x are each one
 // childless term whose inner expression the parser never built, so their
-// Expr is a Hole: the span is not re-lexed. &$x calls the code, as &foo
+// Expr is a Hole, with the term's id under RoleDerefOperand: the span is
+// not re-lexed. &$x calls the code, as &foo
 // does, and lowers to Deref{&} as &foo lowers to Var{&}.
 func (l *lowerer) variable(n *parse.Node) Node {
 	sigil := sigilOf(n.Text)
@@ -35,12 +36,12 @@ func (l *lowerer) variable(n *parse.Node) Node {
 	if strings.HasPrefix(name, "{") && strings.HasSuffix(name, "}") {
 		name = strings.TrimSpace(name[1 : len(name)-1])
 		if !bracedName.MatchString(name) {
-			return &Deref{Sigil: sigil, Expr: &Hole{}}
+			return &Deref{Sigil: sigil, Expr: l.derive(n, RoleDerefOperand, &Hole{})}
 		}
 	}
 	if len(name) > 1 && name[0] == '$' {
 		// $#$x and &$x; a lone $ is the name of $$, the process id.
-		return &Deref{Sigil: sigil, Expr: &Hole{}}
+		return &Deref{Sigil: sigil, Expr: l.derive(n, RoleDerefOperand, &Hole{})}
 	}
 	if name == "" {
 		// A bare sigil: the base of &{$x} or of a postfix slice.

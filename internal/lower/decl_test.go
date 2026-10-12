@@ -179,11 +179,14 @@ func field(n lower.Node, name string) reflect.Value {
 // attributes in Attrs. A sub without a name is an AnonSub in either
 // position.
 //
-// Every body is a Hole: a block is a statement, and the statements slice
-// (01a12a85-2fa3) replaces this Hole with its block lowering.
+// Every body, and a package or class block, is the Block its statements
+// lower to: `{ 1 }` is one ExprStmt, `{ }` none.
 func TestLowerSubDeclaration(t *testing.T) {
+	one := func() *lower.Block {
+		return &lower.Block{Stmts: []lower.Node{&lower.ExprStmt{X: &lower.NumLit{Text: "1", IsInt: true}}}}
+	}
 	body := func(attrs ...string) *lower.AnonSub {
-		return &lower.AnonSub{Body: &lower.Hole{}, Attrs: attrs}
+		return &lower.AnonSub{Body: one(), Attrs: attrs}
 	}
 	amp := func(name string) []lower.Node { return []lower.Node{&lower.Var{Sigil: "&", Name: name}} }
 	word := func(name string) []lower.Node { return []lower.Node{&lower.Bareword{Name: name}} }
@@ -199,8 +202,8 @@ func TestLowerSubDeclaration(t *testing.T) {
 		{"use v5.38; class Foo; method m { 1 }", &lower.Decl{Kind: lower.DeclMethod, Vars: amp("m"), Init: body()}},
 		{"package Foo;", &lower.Decl{Kind: lower.DeclPackage, Vars: word("Foo")}},
 		{"package Foo 1.2;", &lower.Decl{Kind: lower.DeclPackage, Vars: word("Foo"), Init: &lower.NumLit{Text: "1.2"}}},
-		{"package Foo { 1 }", &lower.Decl{Kind: lower.DeclPackage, Vars: word("Foo"), Init: &lower.Hole{}}},
-		{"use v5.38; class Foo :isa(Bar) { }", &lower.Decl{Kind: lower.DeclClass, Vars: word("Foo"), Attrs: []string{":isa(Bar)"}, Init: &lower.Hole{}}},
+		{"package Foo { 1 }", &lower.Decl{Kind: lower.DeclPackage, Vars: word("Foo"), Init: one()}},
+		{"use v5.38; class Foo :isa(Bar) { }", &lower.Decl{Kind: lower.DeclClass, Vars: word("Foo"), Attrs: []string{":isa(Bar)"}, Init: &lower.Block{}}},
 	}
 	for _, c := range cases {
 		got := lowerLast(t, c.src)
@@ -232,8 +235,8 @@ func TestLowerSubDeclaration(t *testing.T) {
 		if got := field(sub, "Sig").Len(); got != c.n {
 			t.Errorf("%q: %d signature parameters, want %d", c.src, got, c.n)
 		}
-		if b := field(sub, "Body"); b.IsNil() || reflect.TypeOf(b.Interface()) != reflect.TypeOf(&lower.Hole{}) {
-			t.Errorf("%q: Body is %v, want a Hole", c.src, b)
+		if b := field(sub, "Body"); b.IsNil() || reflect.TypeOf(b.Interface()) != reflect.TypeOf(&lower.Block{}) {
+			t.Errorf("%q: Body is %v, want a Block", c.src, b)
 		}
 	}
 
@@ -247,12 +250,11 @@ func TestLowerSubDeclaration(t *testing.T) {
 
 // Input perl rejects (perl -c on 5.42) still lowers: what parsed keeps its
 // shape and the Unknown becomes a Hole. `my $x = (;` keeps its variable and
-// has a Hole Init. `sub {;` is an AnonSub whose block holds an Unknown;
-// its Body is a Hole, which the statements slice (01a12a85-2fa3) replaces
-// with a block holding the one Hole. `sub f {` keeps its name.
+// has a Hole Init. `sub {;` is an AnonSub whose block, which the parser
+// closes, holds an Unknown: its Body is a Block holding the one Hole.
+// `sub f {` keeps its name, and its unclosed body is an Unknown, so a Hole.
 func TestLowerDeclOverBrokenInput(t *testing.T) {
 	hole := reflect.TypeOf(&lower.Hole{})
-	isHole := func(v reflect.Value) bool { return !v.IsNil() && reflect.TypeOf(v.Interface()) == hole }
 
 	d := lowerDecl(t, "my $x = (;")
 	if d.Kind != lower.DeclMy || len(d.Vars) != 1 || d.Vars[0] == nil || reflect.TypeOf(d.Init) != hole {
@@ -260,8 +262,10 @@ func TestLowerDeclOverBrokenInput(t *testing.T) {
 	}
 
 	s := lowerLast(t, "sub {;")
-	if reflect.TypeOf(s) != reflect.TypeOf(&lower.AnonSub{}) || !isHole(field(s, "Body")) {
-		t.Errorf("sub {;: lowered to %#v, want an AnonSub with a Hole Body", s)
+	clearIDs(s)
+	wantSub := &lower.AnonSub{Body: &lower.Block{Stmts: []lower.Node{&lower.Hole{}}}}
+	if !reflect.DeepEqual(s, lower.Node(wantSub)) {
+		t.Errorf("sub {;: lowered to %#v, want %#v", s, wantSub)
 	}
 
 	f := lowerLast(t, "sub f {")

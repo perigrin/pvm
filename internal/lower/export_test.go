@@ -10,6 +10,11 @@ func LowerExpr(root, n *parse.Node) Node {
 	return (&lowerer{ids: AssignIDs(root)}).expr(n)
 }
 
+// LowerStmt lowers n, a node of the tree rooted at root, as a statement.
+func LowerStmt(root, n *parse.Node) Node {
+	return (&lowerer{ids: AssignIDs(root)}).stmt(n)
+}
+
 // LowerHashKey lowers n as the subscript of an `index "{"`.
 func LowerHashKey(root, n *parse.Node) Node {
 	return (&lowerer{ids: AssignIDs(root)}).hashKey(n)

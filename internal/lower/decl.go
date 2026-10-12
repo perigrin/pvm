@@ -74,9 +74,9 @@ func (l *lowerer) sub(n *parse.Node, kind DeclKind) Node {
 	}
 	d := &Decl{Kind: kind, Vars: []Node{l.stamp(kids[0], &Var{Sigil: "&", Name: kids[0].Text})}}
 	if last := kids[len(kids)-1]; last.Kind == parse.Block || last.Kind == parse.Unknown {
-		// The AnonSub is the same syntax site as its Decl, so it shares
-		// the declaration's id (§4.14.1 rule 6).
-		d.Init = l.stamp(n, l.anonSub(kids[1:]))
+		// The AnonSub is the same syntax site as its Decl (§4.14.1 rule
+		// 6), so its id is the declaration's under RoleSubValue.
+		d.Init = l.derive(n, RoleSubValue, l.anonSub(kids[1:]))
 	}
 	return d
 }
@@ -97,8 +97,7 @@ func (l *lowerer) anonSub(kids []*parse.Node) *AnonSub {
 		case c.Kind == parse.Term && c.Paren:
 			s.Sig = []Node{l.expr(c)}
 		default:
-			// A block is a statement, which lowers to a Hole until the
-			// statements slice (01a12a85-2fa3) lowers blocks.
+			// The body is a Block; an Unknown in its place is a Hole.
 			s.Body = l.expr(c)
 		}
 	}

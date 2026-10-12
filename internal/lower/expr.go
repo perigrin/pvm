@@ -52,6 +52,8 @@ func (l *lowerer) expr(n *parse.Node) Node {
 		out = first(n, l.ternary)
 	case parse.CmpChain:
 		out = first(n, l.comparison, l.cmpChain)
+	case parse.Block:
+		out = first(n, l.block)
 	}
 	if out == nil {
 		out = &Hole{}
@@ -63,6 +65,15 @@ func (l *lowerer) expr(n *parse.Node) Node {
 func (l *lowerer) stamp(n *parse.Node, out Node) Node {
 	b := out.Meta()
 	b.ID, b.Paren = l.ids[n], n.Paren
+	return out
+}
+
+// derive gives out the id of n's parse node under role r, for a lowered
+// node with no parse node of its own.
+func (l *lowerer) derive(n *parse.Node, r Role, out Node) Node {
+	id := l.ids[n]
+	id.Role = r
+	out.Meta().ID = id
 	return out
 }
 

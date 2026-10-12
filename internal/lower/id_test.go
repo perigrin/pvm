@@ -177,3 +177,28 @@ func TestAnonSubWithSignatureOpensNoAnchor(t *testing.T) {
 		t.Errorf("sub f's signature is anchored %q, want %q", got, "sub f#0")
 	}
 }
+
+// TestDerivedIDs: a lowered node with no parse node of its own takes its
+// parent's Anchor and Local under a nonzero Role. A named sub's Decl and
+// its AnonSub come from one parse node and differ only in Role; the Hole a
+// childless deref holds as its Expr is not the root's zero id.
+func TestDerivedIDs(t *testing.T) {
+	decl := lowerLast(t, "sub f { 1 }")
+	kids := lower.Children(decl) // the Var &f, then the AnonSub
+	sub := kids[len(kids)-1]
+	d, s := decl.Meta().ID, sub.Meta().ID
+	if d == s || d.Role != 0 || s != (lower.ID{Anchor: d.Anchor, Local: d.Local, Role: lower.RoleSubValue}) {
+		t.Errorf("sub f: Decl id %v, AnonSub id %v; want the same node under RoleSubValue", d, s)
+	}
+
+	for _, src := range []string{"$#{$x};", "$#$x;", "&$x;"} {
+		root := parse.Parse([]byte(src))
+		deref := lowerLast(t, src)
+		hole := lower.Children(deref)[0]
+		want := deref.Meta().ID
+		want.Role = lower.RoleDerefOperand
+		if got := hole.Meta().ID; got != want || got == lower.AssignIDs(root)[root] {
+			t.Errorf("%q: the deref's Hole has id %v, want %v", src, got, want)
+		}
+	}
+}

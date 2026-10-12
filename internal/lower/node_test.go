@@ -61,6 +61,9 @@ func TestZeroValueNodeIsUsable(t *testing.T) {
 		&lower.AnonSub{}, &lower.ArrayLiteral{}, &lower.HashLiteral{}, &lower.Ref{},
 		&lower.FileTest{}, &lower.Readline{}, &lower.Glob{}, &lower.LoopEx{}, &lower.Wantarray{},
 		&lower.Match{},
+		&lower.Block{}, &lower.ExprStmt{}, &lower.IfStmt{},
+		&lower.BlockStmt{}, &lower.WhileStmt{}, &lower.CForStmt{}, &lower.ForeachStmt{},
+		&lower.UseStmt{}, &lower.PhaserStmt{}, &lower.File{},
 	}
 	for _, n := range zeros {
 		func() {

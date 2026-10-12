@@ -28,10 +28,27 @@ import (
 // however many closures it creates at run time. A table keyed on a captured
 // value keys on (ID, capture instance); ID is comparable so that pair is a
 // valid map key too.
+//
+// Role tells apart the lowered nodes built from one parse node. Role 0 is
+// the parse node itself; a lowered node with no parse node of its own takes
+// its parent's Anchor and Local and a nonzero Role.
 type ID struct {
 	Anchor string
 	Local  int
+	Role   Role
 }
+
+// Role names a lowered node synthesized beside its parent's parse node.
+type Role int
+
+const (
+	// RoleSubValue is a named sub's AnonSub: `sub f {...}` is one parse
+	// node, lowered to a Decl and, as its Init, the sub value itself.
+	RoleSubValue Role = iota + 1
+	// RoleDerefOperand is the Hole in a Deref whose operand the parser
+	// never built: `$#{$x}`, `$#$x` and `&$x` are each one childless term.
+	RoleDerefOperand
+)
 
 // AssignIDs gives every node of a tree, trivia and Unknown included, an ID.
 //

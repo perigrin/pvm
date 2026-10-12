@@ -371,6 +371,94 @@ type Match struct {
 	Negated bool // !~
 }
 
+// --- Statements (§5.17's kinds, without spans; lowered in stmt.go) ---
+
+// Block is `{ ... }` holding statements. It is reached from an expression
+// too -- the body of do, eval and map -- so expr lowers it.
+type Block struct {
+	nodeBase
+	Stmts []Node
+}
+
+// ExprStmt is an expression evaluated as a statement.
+type ExprStmt struct {
+	nodeBase
+	X Node
+}
+
+// IfStmt is every conditional: the block form, the modifier form, `unless`
+// and `elsif`. `unless` swaps the branches rather than negating Cond
+// (§4.14.5), and an `elsif` is an IfStmt in the Else slot. Then and Else
+// are a Block, an expression (the modifier form's body) or an IfStmt.
+type IfStmt struct {
+	nodeBase
+	Cond, Then, Else Node
+}
+
+// BlockStmt is a bare block, a loop that runs once: last and next work in
+// it. Labels are Barewords carrying the label nodes' ids, as LoopEx's target
+// is; they stack, `A: B: { }` giving two.
+type BlockStmt struct {
+	nodeBase
+	Labels         []Node
+	Body, Continue Node
+}
+
+// WhileStmt is `while` and `until`, block form and modifier form. A plain
+// `until` is Negated: one loop spelled two ways. PostCond marks the
+// `do BLOCK while`/`until` form, which tests after its body and so runs it
+// at least once (perl: `$m++ until 1` leaves 0, `do { $n++ } until 1`
+// leaves 1). A nil Cond is an infinite loop.
+type WhileStmt struct {
+	nodeBase
+	Labels               []Node
+	Cond, Body, Continue Node
+	Negated, PostCond    bool
+}
+
+// CForStmt is `for (INIT; COND; STEP)`; an empty slot is nil.
+type CForStmt struct {
+	nodeBase
+	Labels                 []Node
+	Init, Cond, Post, Body Node
+}
+
+// ForeachStmt is `for`/`foreach` over a list, and the modifier form. Var is
+// the loop variable as written -- `my $i` a declaration, `$i` a Var, `\my
+// $x` a Ref -- and nil means $_.
+type ForeachStmt struct {
+	nodeBase
+	Labels                    []Node
+	Var, List, Body, Continue Node
+}
+
+// UseStmt is `use`, `no` and `require` (§5.9.4). Module is the module's
+// name, "" for `use VERSION` and for `require EXPR`; Version is the version
+// to check, "" if none; Expr is require's operand when it is not a module
+// name -- `require "foo.pl"`, `require $f`; Args is the import list, nil if
+// none, and `use Foo ()`'s empty list is kept because it suppresses import.
+type UseStmt struct {
+	nodeBase
+	Op      string // "use" | "no" | "require"
+	Module  string
+	Version string
+	Expr    Node
+	Args    Node
+}
+
+// PhaserStmt is BEGIN, END, CHECK, INIT or UNITCHECK and its block.
+type PhaserStmt struct {
+	nodeBase
+	Kind string
+	Body Node
+}
+
+// File is a whole program, lowered: its statements in source order.
+type File struct {
+	nodeBase
+	Stmts []Node
+}
+
 // Children returns a node's non-nil children in field order. A nil field or
 // a nil slice element is skipped, never returned. A kind with no case here
 // panics: that is a kind declared without its walk, a bug in this file, and
@@ -453,6 +541,30 @@ func Children(n Node) []Node {
 		add(n.Pattern...)
 		add(n.Replace...)
 		add(n.Target)
+	case *Block:
+		add(n.Stmts...)
+	case *ExprStmt:
+		add(n.X)
+	case *IfStmt:
+		add(n.Cond, n.Then, n.Else)
+	case *BlockStmt:
+		add(n.Labels...)
+		add(n.Body, n.Continue)
+	case *WhileStmt:
+		add(n.Labels...)
+		add(n.Cond, n.Body, n.Continue)
+	case *CForStmt:
+		add(n.Labels...)
+		add(n.Init, n.Cond, n.Post, n.Body)
+	case *ForeachStmt:
+		add(n.Labels...)
+		add(n.Var, n.List, n.Body, n.Continue)
+	case *UseStmt:
+		add(n.Expr, n.Args)
+	case *PhaserStmt:
+		add(n.Body)
+	case *File:
+		add(n.Stmts...)
 	default:
 		panic(fmt.Sprintf("lower.Children: no case for %T", n))
 	}
