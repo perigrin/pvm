@@ -60,3 +60,73 @@ func TestLowerCallHandleFromFlag(t *testing.T) {
 		t.Errorf(`print {$fh} "x": lowered to %#v, want a Call whose Handle is the Var $fh`, got)
 	}
 }
+
+// Parenthesized is read off the call's span (§4.8.1): `f(1,2)` has its
+// arguments in parentheses and `join ",", @a` does not. `map $_+1, @a`,
+// the spec's own unparenthesised example, lowers to MapGrepSort, which has
+// no such field.
+//
+// §4.8.3: `&foo` bypasses prototypes, and with no parentheses passes the
+// caller's @_. perl 5.42: with `sub foo { scalar @_ }`, `sub g { &foo }`
+// and `sub h { &foo() }`, g(1,2,3) is 3 and h(1,2,3) is 0.
+func TestLowerCallFlags(t *testing.T) {
+	type L = []lower.Node
+	checkShapes(t, []shapeCase{
+		{"f(1,2);", func(e *parse.Node, lx lowered) lower.Node {
+			comma := e.Children[0]
+			return &lower.Call{Name: "f", Args: L{lx(comma.Children[0]), lx(comma.Children[1])}, Parenthesized: true}
+		}},
+		{"f (1);", func(e *parse.Node, lx lowered) lower.Node {
+			return &lower.Call{Name: "f", Args: L{lx(e.Children[0])}, Parenthesized: true}
+		}},
+		{"f();", func(e *parse.Node, lx lowered) lower.Node {
+			return &lower.Call{Name: "f", Parenthesized: true}
+		}},
+		{"f;", func(e *parse.Node, lx lowered) lower.Node {
+			return &lower.Call{Name: "f"}
+		}},
+		{`join ",", @a;`, func(e *parse.Node, lx lowered) lower.Node {
+			comma := e.Children[0]
+			return &lower.Call{Name: "join", Args: L{lx(comma.Children[0]), lx(comma.Children[1])}, Resolved: true}
+		}},
+		{"&foo;", func(e *parse.Node, lx lowered) lower.Node {
+			return &lower.Call{Name: "foo", Ampersand: true, BareAmpersand: true}
+		}},
+		{"&foo();", func(e *parse.Node, lx lowered) lower.Node {
+			return &lower.Call{Name: "foo", Parenthesized: true, Ampersand: true}
+		}},
+		{"&foo(1, 2);", func(e *parse.Node, lx lowered) lower.Node {
+			comma := e.Children[1]
+			return &lower.Call{Name: "foo", Args: L{lx(comma.Children[0]), lx(comma.Children[1])}, Parenthesized: true, Ampersand: true}
+		}},
+	})
+
+	if got := lowerOne(t, "map $_+1, @a;"); !sameKind(got, &lower.MapGrepSort{}) {
+		t.Errorf("map $_+1, @a: lowered to %#v, want a MapGrepSort", got)
+	}
+}
+
+// `&foo` names the sub without calling it where it is the operand of `\`,
+// defined, exists, undef or goto: perl 5.42's -MO=Concise compiles each of
+// `\&foo`, `\(&foo)`, `defined &foo`, `exists &foo`, `undef &foo` and
+// `goto &foo` with no entersub, where `&foo;` and `&foo + 1` have one.
+// There it lowers to the Var &foo, as a named sub's own Var is.
+func TestLowerCodeNameIsNotACall(t *testing.T) {
+	foo := &lower.Var{Sigil: "&", Name: "foo"}
+	cases := []struct {
+		src  string
+		want lower.Node
+	}{
+		{`\&foo;`, &lower.Ref{Operand: foo}},
+		{`\(&foo);`, &lower.Ref{Operand: withParen(&lower.Var{Sigil: "&", Name: "foo"})}},
+		{"defined &foo;", &lower.Call{Name: "defined", Args: []lower.Node{foo}, Resolved: true}},
+		{"defined(&foo);", &lower.Call{Name: "defined", Args: []lower.Node{foo}, Parenthesized: true, Resolved: true}},
+		{"exists &foo;", &lower.Call{Name: "exists", Args: []lower.Node{foo}, Resolved: true}},
+		{"undef &foo;", &lower.Call{Name: "undef", Args: []lower.Node{foo}, Resolved: true}},
+		{"goto &foo;", &lower.LoopEx{Op: "goto", Label: foo}},
+		{"&foo + 1;", &lower.Binary{Op: "+", L: &lower.Call{Name: "foo", Ampersand: true, BareAmpersand: true}, R: &lower.NumLit{Text: "1", IsInt: true}}},
+	}
+	for _, c := range cases {
+		sameShape(t, c.src, zeroIDs(lowerOne(t, c.src)), c.want)
+	}
+}

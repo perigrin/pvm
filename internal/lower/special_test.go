@@ -182,8 +182,12 @@ func TestLowerSpecialRenames(t *testing.T) {
 		{"next;", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
 			return &lower.LoopEx{Op: "next"}
 		}},
+		// goto's `&foo` names the sub it transfers to: the Var &foo, with
+		// the term's id.
 		{"goto &foo;", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
-			return &lower.LoopEx{Op: "goto", Label: lx(e.Children[0])}
+			foo := &lower.Var{Sigil: "&", Name: "foo"}
+			foo.Meta().ID = lx(e.Children[0]).Meta().ID
+			return &lower.LoopEx{Op: "goto", Label: foo}
 		}},
 		// return is a loop_control too; its value stands in Label.
 		{"return (1,2);", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {

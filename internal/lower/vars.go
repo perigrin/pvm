@@ -19,7 +19,8 @@ import (
 // `term "*"` whose one child is the Expr. $#{$x}, $#$x and &$x are each one
 // childless term whose inner expression the parser never built, so their
 // Expr is a Hole: the span is not re-lexed. &$x calls the code, as &foo
-// does, and lowers to Deref{&} as &foo lowers to Var{&}.
+// does, and lowers to Deref{&} as &foo, where it names the sub rather than
+// calling it, lowers to Var{&}.
 func (l *lowerer) variable(n *parse.Node) Node {
 	sigil := sigilOf(n.Text)
 	if sigil == "" {

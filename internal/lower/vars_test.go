@@ -40,7 +40,6 @@ func TestLowerVarAndSubscript(t *testing.T) {
 		{"%h;", v("%", "h")},
 		{"*foo;", v("*", "foo")},
 		{"$#a;", v("$#", "a")},
-		{"&foo;", v("&", "foo")},
 		// perl: with $main::x = "pkg" and $Foo::x = "foo", $::x is pkg
 		// and $Foo::x is foo. The name keeps its spelling.
 		{"$Foo::x;", v("$", "Foo::x")},
