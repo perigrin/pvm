@@ -1,6 +1,6 @@
 ---
 title: psc analyze reads its dependencies from the lowered tree
-state: in-progress
+state: done
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -8,16 +8,37 @@ blocked_by:
 blocks:
 - 01a0c115-df67-7d69-8883-73d40b0ae15d
 created: 2026-10-11T10:32:15.295165792Z
-updated: 2026-10-12T22:10:44.022773092Z
+updated: 2026-10-12T23:34:37.473837661Z
 sessions:
 - start_sha: 797bed26b3602121b0e30cc887a4cd02148f76e7
-  end_sha: ""
-  commits: 0
+  end_sha: 1e82edada7811a5263a258d7cd45b79af8ad3b5f
+  commits: 2
   started_at: 2026-10-12T22:10:44.022773092Z
+  ended_at: 2026-10-12T23:34:37.473837661Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-12T22:10:44.022773092Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-12T23:34:37.473837661Z
+observed_paths:
+- README.md
+- docs/feature-parity-with-uv.md
+- docs/specs/perl-parser/07-conformance.md
+- internal/lower/export_test.go
+- internal/lower/node.go
+- internal/lower/node_test.go
+- internal/lower/print.go
+- internal/lower/print_test.go
+- internal/psc/analyze_command.go
+- internal/psc/analyze_command_test.go
+- internal/psc/parse_command.go
+- internal/psc/parse_command_test.go
+- internal/psc/testdata/analyze.golden
+- internal/psc/testdata/analyze/README.txt
+- internal/psc/testdata/analyze/lib/My/Child.pm
+- internal/psc/testdata/analyze/main.pl
 ---
 
 ## Context
