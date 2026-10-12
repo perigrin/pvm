@@ -217,3 +217,20 @@ func TestLowerMethodCall(t *testing.T) {
 		t.Errorf("%q: lowered to %#v, want %#v", src, got, want)
 	}
 }
+
+// perl 5.42 rejects both fragments (`perl -c`: syntax error near "(;"), so
+// the parser cannot grow to accept them. The argument it refuses is an
+// Unknown, and the call or method call around it lowers with its name and
+// invocant intact and a Hole for that argument.
+func TestLowerCallOverBrokenInput(t *testing.T) {
+	cases := []struct {
+		src  string
+		want lower.Node
+	}{
+		{"foo(;", &lower.Call{Name: "foo", Args: []lower.Node{&lower.Hole{}}}},
+		{"Foo->new(;", &lower.MethodCall{Invocant: &lower.Bareword{Name: "Foo"}, Name: "new", Args: []lower.Node{&lower.Hole{}}}},
+	}
+	for _, c := range cases {
+		sameShape(t, c.src, zeroIDs(lowerOne(t, c.src)), c.want)
+	}
+}
