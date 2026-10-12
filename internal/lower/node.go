@@ -445,6 +445,12 @@ type PhaserStmt struct {
 	Body Node
 }
 
+// File is a whole program, lowered: its statements in source order.
+type File struct {
+	nodeBase
+	Stmts []Node
+}
+
 // Children returns a node's non-nil children in field order. A nil field or
 // a nil slice element is skipped, never returned. A kind with no case here
 // panics: that is a kind declared without its walk, a bug in this file, and
@@ -549,6 +555,8 @@ func Children(n Node) []Node {
 		add(n.Expr, n.Args)
 	case *PhaserStmt:
 		add(n.Body)
+	case *File:
+		add(n.Stmts...)
 	default:
 		panic(fmt.Sprintf("lower.Children: no case for %T", n))
 	}

@@ -279,3 +279,64 @@ func TestLowerUseAndPhaser(t *testing.T) {
 		t.Errorf("use Foo (): lowered to %#v, want the empty list kept", got)
 	}
 }
+
+// lower.Lower takes the parse root and returns the file: its statements in
+// source order, trivia lowered to nothing, and every lowered node carrying
+// the id of the CST node it came from. The root's id is the zero ID, so a
+// node never stamped would share it and fail the uniqueness check. A do
+// block's body, reached through an expression, is a Block.
+func TestLowerFileEntry(t *testing.T) {
+	src := "# a comment\nuse strict;\nmy $x = 1;\n\n" +
+		"if ($x) { print 'a' } else { print 'b' }\n" +
+		"sub f { return 1 }\nwhile ($x) { last }\nBEGIN { 1 }\ndo { 1 };\n"
+	root := parse.Parse([]byte(src))
+	file := lower.Lower(root)
+
+	want := []reflect.Type{
+		reflect.TypeOf(&lower.UseStmt{}), reflect.TypeOf(&lower.ExprStmt{}), reflect.TypeOf(&lower.IfStmt{}),
+		reflect.TypeOf(&lower.ExprStmt{}), reflect.TypeOf(&lower.WhileStmt{}), reflect.TypeOf(&lower.PhaserStmt{}),
+		reflect.TypeOf(&lower.ExprStmt{}),
+	}
+	if len(file.Stmts) != len(want) {
+		t.Fatalf("lowered %d statements, want %d: %#v", len(file.Stmts), len(want), file.Stmts)
+	}
+	for i, s := range file.Stmts {
+		if reflect.TypeOf(s) != want[i] {
+			t.Errorf("statement %d lowered to %T, want %v", i, s, want[i])
+		}
+	}
+
+	valid := map[lower.ID]bool{}
+	for _, id := range lower.AssignIDs(root) {
+		valid[id] = true
+	}
+	seen := map[lower.ID]lower.Node{}
+	var walk func(n lower.Node)
+	walk = func(n lower.Node) {
+		id := n.Meta().ID
+		if !valid[id] {
+			t.Errorf("%T has id %v, which no CST node has", n, id)
+		}
+		if prev, dup := seen[id]; dup {
+			t.Errorf("%T and %T share id %v", prev, n, id)
+		}
+		seen[id] = n
+		for _, c := range lower.Children(n) {
+			walk(c)
+		}
+	}
+	walk(file)
+	if file.Meta().ID != lower.AssignIDs(root)[root] {
+		t.Errorf("the file's id is %v, want the root's", file.Meta().ID)
+	}
+
+	do := lower.Children(file.Stmts[6])[0]
+	if body := lower.Children(do); len(body) != 1 || reflect.TypeOf(body[0]) != reflect.TypeOf(&lower.Block{}) {
+		t.Errorf("do { 1 }: the body lowered to %#v, want a Block", body)
+	}
+
+	// An empty program is a file with no statements, never nil.
+	if empty := lower.Lower(parse.Parse(nil)); empty == nil || len(empty.Stmts) != 0 {
+		t.Errorf("an empty program lowered to %#v", empty)
+	}
+}
