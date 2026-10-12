@@ -256,3 +256,25 @@ func TestLowerAssignListness(t *testing.T) {
 		}
 	}
 }
+
+// Each input is one perl 5.42 rejects with `perl -c`, so the parser cannot
+// grow to accept it: the operand it refuses is an Unknown, and the operator
+// around it lowers intact with a Hole in that operand.
+func TestLowerOperatorsOverBrokenInput(t *testing.T) {
+	assign := lowerOne(t, "$x = ;")
+	if !sameKind(assign, &lower.Assign{}) || !sameKind(field(assign, "R").(lower.Node), &lower.Hole{}) {
+		t.Errorf("$x = ;: lowered to %#v, want an Assign whose R is a Hole", assign)
+	}
+
+	assign = lowerOne(t, "$x = 1 +;")
+	plus, _ := field(assign, "R").(lower.Node)
+	if !sameKind(assign, &lower.Assign{}) || !sameKind(plus, &lower.Binary{}) ||
+		field(plus, "Op") != "+" || !sameKind(field(plus, "R").(lower.Node), &lower.Hole{}) {
+		t.Errorf("$x = 1 +;: lowered to %#v, want an Assign over a Binary \"+\" whose R is a Hole", assign)
+	}
+
+	repeat := lowerOne(t, "1 x;")
+	if !sameKind(repeat, &lower.Repeat{}) || !sameKind(field(repeat, "Count").(lower.Node), &lower.Hole{}) {
+		t.Errorf("1 x;: lowered to %#v, want a Repeat whose Count is a Hole", repeat)
+	}
+}
