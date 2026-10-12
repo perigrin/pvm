@@ -10,7 +10,7 @@ blocked_by:
 blocks:
 - 01a12a85-304b-77f1-9bda-e6b73c317305
 created: 2026-09-20T23:08:20.306792879Z
-updated: 2026-10-11T10:33:12.698260684Z
+updated: 2026-10-12T17:11:42.83804746Z
 ---
 
 ## Context
@@ -89,6 +89,26 @@ project.
       implement, run to green, commit.
 - [ ] Run the package suite: `go test ./internal/lower/ -count=1`
 - [ ] Commit.
+
+### Identity for a lowered node with no parse node of its own (2026-10-11)
+
+Three lowering slices met this and left it here, where ids are used. Decide
+one rule, apply it, and test it:
+
+- **01a0c112-8a65 (declarations):** a named sub lowers to `Decl` over an
+  `AnonSub` built from the same parse node, and the AnonSub reuses the Decl's
+  id. Two lowered nodes then share one key.
+- **01a0c110-839f (variables):** `$#{$x}`, `$#$x` and `&$x` are childless
+  terms, so their `Deref.Expr` is a Hole with no parse node, and its id is
+  the zero value.
+- **01a0c113-c3b2 (special forms):** `Readline.Handle` and `Glob.Pattern`
+  from `<...>` are bytes inside one token, so they are left nil. `<STDIN>` and
+  `<$fh>` therefore lower alike, as do `<>` and `<<>>`.
+
+Options the slices named: share the parent's id (collides in id-keyed
+tables), the zero id (collides with the root), nil (loses the fact), or a
+derived id such as the parent's id plus a role. A derived id keeps every key
+distinct and still maps to the parent's span.
 
 ## Acceptance Criteria
 
