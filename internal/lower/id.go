@@ -48,6 +48,10 @@ const (
 	// RoleDerefOperand is the Hole in a Deref whose operand the parser
 	// never built: `$#{$x}`, `$#$x` and `&$x` are each one childless term.
 	RoleDerefOperand
+	// RoleAngleBody is the body of a `<...>` term, one token: Readline's
+	// Handle in `<STDIN>` and `<$fh>`, Glob's Pattern in `<*.c>`. A term
+	// lowers to one or the other, so one role keeps every id distinct.
+	RoleAngleBody
 )
 
 // AssignIDs gives every node of a tree, trivia and Unknown included, an ID.

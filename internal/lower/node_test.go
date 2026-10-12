@@ -50,23 +50,7 @@ func TestHoleStandsAnywhereANodeMay(t *testing.T) {
 // input leaves fields unset, so each kind at its zero value must walk
 // without panicking, report no children, and carry a usable Meta.
 func TestZeroValueNodeIsUsable(t *testing.T) {
-	zeros := []lower.Node{
-		&lower.Hole{},
-		&lower.NumLit{}, &lower.StrLit{}, &lower.Interp{}, &lower.QwList{}, &lower.Bareword{},
-		&lower.Var{}, &lower.Deref{}, &lower.Index{}, &lower.Key{}, &lower.Slice{},
-		&lower.Unary{}, &lower.Binary{}, &lower.Repeat{}, &lower.Assign{}, &lower.Ternary{},
-		&lower.CmpChain{}, &lower.Range{}, &lower.List{},
-		&lower.Decl{},
-		&lower.Call{}, &lower.MethodCall{},
-		&lower.MapGrepSort{}, &lower.DoBlock{}, &lower.DoFile{}, &lower.EvalBlock{}, &lower.EvalStr{},
-		&lower.AnonSub{}, &lower.ArrayLiteral{}, &lower.HashLiteral{}, &lower.Ref{},
-		&lower.FileTest{}, &lower.Readline{}, &lower.Glob{}, &lower.LoopEx{}, &lower.Wantarray{},
-		&lower.Match{},
-		&lower.Block{}, &lower.ExprStmt{}, &lower.IfStmt{},
-		&lower.BlockStmt{}, &lower.WhileStmt{}, &lower.CForStmt{}, &lower.ForeachStmt{},
-		&lower.UseStmt{}, &lower.PhaserStmt{}, &lower.File{},
-	}
-	for _, n := range zeros {
+	for _, n := range allKinds() {
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
@@ -103,5 +87,25 @@ func TestUseStmtsInSourceOrder(t *testing.T) {
 	}
 	if got := lower.UseStmts(nil); got != nil {
 		t.Errorf("UseStmts(nil) = %v, want nil", got)
+	}
+}
+
+// allKinds returns every lowered kind at its zero value.
+func allKinds() []lower.Node {
+	return []lower.Node{
+		&lower.Hole{},
+		&lower.NumLit{}, &lower.StrLit{}, &lower.Interp{}, &lower.QwList{}, &lower.Bareword{},
+		&lower.Var{}, &lower.Deref{}, &lower.Index{}, &lower.Key{}, &lower.Slice{},
+		&lower.Unary{}, &lower.Binary{}, &lower.Repeat{}, &lower.Assign{}, &lower.Ternary{},
+		&lower.CmpChain{}, &lower.Range{}, &lower.List{},
+		&lower.Decl{},
+		&lower.Call{}, &lower.MethodCall{},
+		&lower.MapGrepSort{}, &lower.DoBlock{}, &lower.DoFile{}, &lower.EvalBlock{}, &lower.EvalStr{},
+		&lower.AnonSub{}, &lower.ArrayLiteral{}, &lower.HashLiteral{}, &lower.Ref{},
+		&lower.FileTest{}, &lower.Readline{}, &lower.Glob{}, &lower.LoopEx{}, &lower.Wantarray{},
+		&lower.Match{},
+		&lower.Block{}, &lower.ExprStmt{}, &lower.IfStmt{},
+		&lower.BlockStmt{}, &lower.WhileStmt{}, &lower.CForStmt{}, &lower.ForeachStmt{},
+		&lower.UseStmt{}, &lower.PhaserStmt{}, &lower.File{},
 	}
 }

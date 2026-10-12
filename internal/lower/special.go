@@ -115,11 +115,12 @@ func (l *lowerer) globCall(n *parse.Node) Node {
 
 // angle lowers a `<...>` term. toke.c's rule (§4.15.2): an empty body, a
 // handle name or a simple scalar is a readline, anything else a glob. `<>`
-// and `<<>>` read ARGV, which Magic records.
+// and `<<>>` read ARGV, which Magic records, and have no Handle.
 //
-// ponytail: Handle and Pattern stay nil. The handle name and the pattern
-// are bytes inside one term, with no parse node to take an id from; fill
-// them once a node without a CST node has a settled identity.
+// The handle and the pattern are bytes inside the one term, with no parse
+// node of their own, so each takes the term's id under RoleAngleBody. A
+// handle is a Bareword or, for `<$fh>`, a Var; a pattern is an
+// interpolating StrLit, since perl reads `<$x/*>` as `glob $x . '/*'`.
 func (l *lowerer) angle(n *parse.Node) Node {
 	t := n.Text
 	if len(n.Children) != 0 || len(t) < 2 || t[0] != '<' || t[len(t)-1] != '>' {
@@ -133,9 +134,13 @@ func (l *lowerer) angle(n *parse.Node) Node {
 	case body == "":
 		return &Readline{Magic: true}
 	case handleName.MatchString(body):
-		return &Readline{}
+		var h Node = &Bareword{Name: body}
+		if body[0] == '$' {
+			h = &Var{Sigil: "$", Name: body[1:]}
+		}
+		return &Readline{Handle: l.derive(n, RoleAngleBody, h)}
 	}
-	return &Glob{}
+	return &Glob{Pattern: l.derive(n, RoleAngleBody, &StrLit{Value: body, Interpolated: true})}
 }
 
 // handleName matches a readline's body: a bare handle name or a simple
