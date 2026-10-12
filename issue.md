@@ -1,6 +1,6 @@
 ---
 title: psc parse prints the internal/parse CST or the lowered tree, chosen by a flag
-state: in-progress
+state: done
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -8,16 +8,29 @@ blocked_by:
 blocks:
 - 01a0c115-df67-7d69-8883-73d40b0ae15d
 created: 2026-10-11T10:32:15.461832212Z
-updated: 2026-10-12T22:10:46.302235363Z
+updated: 2026-10-12T23:20:57.273373066Z
 sessions:
 - start_sha: 797bed26b3602121b0e30cc887a4cd02148f76e7
-  end_sha: ""
-  commits: 0
+  end_sha: 3b8b01a0f8926ace67c12534763736b4664af2f8
+  commits: 1
   started_at: 2026-10-12T22:10:46.302235363Z
+  ended_at: 2026-10-12T23:20:57.273373066Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-12T22:10:46.302235363Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-12T23:20:57.273373066Z
+observed_paths:
+- README.md
+- docs/feature-parity-with-uv.md
+- docs/specs/perl-parser/07-conformance.md
+- internal/lower/export_test.go
+- internal/lower/print.go
+- internal/lower/print_test.go
+- internal/psc/parse_command.go
+- internal/psc/parse_command_test.go
 ---
 
 ## Context
