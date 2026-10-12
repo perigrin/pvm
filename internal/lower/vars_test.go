@@ -90,10 +90,15 @@ func TestLowerVarAndSubscript(t *testing.T) {
 }
 
 // A slice is an index over an @ or % base, or over a list: its own kind,
-// not an Index or a Key, so this lowering leaves it a Hole. So are &{$x},
-// a code call, and *foo{CODE}, a glob slot.
+// a Slice, not an Index or a Key. &{$x}, a code call, and *foo{CODE}, a
+// glob slot, are neither, and this lowering leaves them Holes.
 func TestLowerSubscriptDeclinesSlices(t *testing.T) {
-	for _, src := range []string{"@a[0];", "@h{a};", "%a[0];", "%h{a};", "(1,2)[0];", "($x)[0];", "@$x[0];", "@{$x}{a};", "&{$x};", "*foo{CODE};"} {
+	for _, src := range []string{"@a[0];", "@h{a};", "%a[0];", "%h{a};", "(1,2)[0];", "($x)[0];", "@$x[0];", "@{$x}{a};"} {
+		if got := lowerOne(t, src); reflect.TypeOf(got) != reflect.TypeOf(&lower.Slice{}) {
+			t.Errorf("%q: lowered to %#v, want a Slice", src, got)
+		}
+	}
+	for _, src := range []string{"&{$x};", "*foo{CODE};"} {
 		got := lowerOne(t, src)
 		sameShape(t, src, got, &lower.Hole{})
 	}
