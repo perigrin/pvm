@@ -1,10 +1,19 @@
 ---
 title: An anonymous sub with a signature opens a node-identity anchor named after its parameter
-state: pending
+state: in-progress
 urgency: normal
 milestone: m2-lower-the-tree
 created: 2026-10-12T17:13:20.907907353Z
-updated: 2026-10-12T17:13:43.278772904Z
+updated: 2026-10-12T17:14:12.368426573Z
+sessions:
+- start_sha: 34b03d318ec7428fe87316e7752b9ef1f1f6164e
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-12T17:14:12.368426573Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-12T17:14:12.368426573Z
 ---
 
 ## Context
