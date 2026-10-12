@@ -37,24 +37,9 @@ func (l *lowerer) mapGrepSort(n *parse.Node) Node {
 			out.FirstExpr, rest = l.expr(c), rest[1:]
 		}
 	}
-	for _, c := range rest {
-		out.List = append(out.List, l.commaList(c)...)
-	}
+	out.List = l.elements(rest)
 	if out.Block == nil && out.FirstExpr == nil && n.Text != "sort" && len(out.List) > 0 {
 		out.FirstExpr, out.List = out.List[0], out.List[1:]
-	}
-	return out
-}
-
-// commaList lowers a comma tree to its operands in source order. A comma
-// the source parenthesised is one operand, a list of its own.
-func (l *lowerer) commaList(n *parse.Node) []Node {
-	if n.Kind != parse.Binary || n.Text != "," && n.Text != "=>" || n.Paren {
-		return []Node{l.expr(n)}
-	}
-	var out []Node
-	for _, c := range n.Children {
-		out = append(out, l.commaList(c)...)
 	}
 	return out
 }
@@ -157,12 +142,13 @@ func (l *lowerer) angle(n *parse.Node) Node {
 // scalar, package-qualified or not.
 var handleName = regexp.MustCompile(`^\$?[A-Za-z_]\w*(::\w+)*$`)
 
-// ref lowers `\EXPR`, which the parser gives as `unary "ref"`.
+// ref lowers `\EXPR`, which the parser gives as `unary "ref"`. Its `&foo`
+// operand names the sub: `\&foo` is a code reference, not a call.
 func (l *lowerer) ref(n *parse.Node) Node {
 	if n.Text != "ref" || len(n.Children) != 1 {
 		return nil
 	}
-	return &Ref{Operand: l.expr(n.Children[0])}
+	return &Ref{Operand: l.codeName(n.Children[0])}
 }
 
 // arrayLiteral lowers `[...]`.
@@ -186,14 +172,18 @@ func (l *lowerer) elems(n *parse.Node) []Node {
 }
 
 // loopEx lowers a loop_control: last, next, redo, goto, and return, whose
-// value stands in Label. A label is a Bareword with the label node's id.
+// value stands in Label. A label is a Bareword with the label node's id,
+// and goto's `&foo` names the sub it transfers to.
 func (l *lowerer) loopEx(n *parse.Node) Node {
 	out := &LoopEx{Op: n.Text}
 	if len(n.Children) == 1 {
 		c := n.Children[0]
-		if c.Kind == parse.Label {
+		switch {
+		case c.Kind == parse.Label:
 			out.Label = l.stamp(c, &Bareword{Name: c.Text})
-		} else {
+		case n.Text == "goto":
+			out.Label = l.codeName(c)
+		default:
 			out.Label = l.expr(c)
 		}
 	}

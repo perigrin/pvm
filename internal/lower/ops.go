@@ -105,11 +105,24 @@ func (l *lowerer) operands(n *parse.Node) (left, right Node) {
 // list lowers a `list` node: each child is an element, and Fat marks the
 // ones carrying the Fat flag.
 func (l *lowerer) list(n *parse.Node) Node {
+	return l.elementList(n.Children)
+}
+
+// elementList lowers ns, in source order, to one flat List: a comma chain
+// among them contributes each of its operands. A comma the source
+// parenthesised is one element, a list of its own.
+func (l *lowerer) elementList(ns []*parse.Node) *List {
 	out := &List{}
-	for _, c := range n.Children {
+	for _, c := range ns {
 		l.flatten(c, false, out)
 	}
 	return out
+}
+
+// elements is elementList's elements alone: the arguments of a call, and
+// the list of a map, grep or sort.
+func (l *lowerer) elements(ns []*parse.Node) []Node {
+	return l.elementList(ns).Elems
 }
 
 // commaChain lowers a `binary ","` or `"=>"` chain, which is how a list is
