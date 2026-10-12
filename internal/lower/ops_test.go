@@ -182,3 +182,46 @@ func TestLowerRangeEndpoints(t *testing.T) {
 		Hi: &lower.NumLit{Text: "5", IsInt: true},
 	})
 }
+
+// lowerArgs lowers the argument chain of a one-call program: the call's
+// only child, a `binary ","` tree rather than a `list`.
+func lowerArgs(t *testing.T, src string) lower.Node {
+	t.Helper()
+	root := parse.Parse([]byte(src))
+	call := expression(t, root)
+	if call.Kind != parse.Call || len(call.Children) != 1 {
+		t.Fatalf("%q: want a call with one argument chain", src)
+	}
+	return lower.LowerExpr(root, call.Children[0])
+}
+
+// §4.5.4: => quotes the word to its left. perl 5.42: (a => 1, b => 2) is
+// ("a", 1, "b", 2). Outside a `list` node the commas are a left-nested
+// binary chain, and there => is an operator rather than a Fat flag.
+func TestLowerListFat(t *testing.T) {
+	word := func(s string) lower.Node { return &lower.Bareword{Name: s, Quoted: true} }
+	num := func(s string) lower.Node { return &lower.NumLit{Text: s, IsInt: true} }
+	sameShape(t, "(a => 1, b => 2);", clearIDs(lowerOne(t, "(a => 1, b => 2);")), withParen(&lower.List{
+		Elems: []lower.Node{word("a"), num("1"), word("b"), num("2")},
+		Fat:   []bool{true, false, true, false},
+	}))
+
+	got := lowerOne(t, "(a, 1, b, 2);")
+	if !sameKind(got, &lower.List{}) || !reflect.DeepEqual(field(got, "Fat"), []bool{false, false, false, false}) {
+		t.Errorf("(a, 1, b, 2): lowered to %#v, want a List of four with no Fat", got)
+	}
+
+	// The chain lowers to the List its parenthesised form does, but for
+	// the parens themselves.
+	for _, c := range []struct{ chain, paren string }{
+		{"f(1, 2, 3);", "(1, 2, 3);"},
+		{"f(a => 1, b => 2);", "(a => 1, b => 2);"},
+	} {
+		got := clearIDs(lowerArgs(t, c.chain))
+		want := clearIDs(lowerOne(t, c.paren))
+		want.Meta().Paren = false
+		if !sameKind(got, &lower.List{}) || !reflect.DeepEqual(got, want) {
+			t.Errorf("%q: lowered to %#v, want %#v as %q does", c.chain, got, want, c.paren)
+		}
+	}
+}

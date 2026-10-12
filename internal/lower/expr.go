@@ -31,7 +31,9 @@ func (l *lowerer) expr(n *parse.Node) Node {
 	case parse.Call:
 		out = first(n, l.fatWord)
 	case parse.Binary:
-		out = first(n, l.repeat, l.rangeOp, l.assign, l.binary)
+		out = first(n, l.commaList, l.repeat, l.rangeOp, l.assign, l.binary)
+	case parse.List:
+		out = first(n, l.list)
 	case parse.CmpChain:
 		out = first(n, l.comparison)
 	}

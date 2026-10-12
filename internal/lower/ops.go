@@ -85,3 +85,52 @@ func (l *lowerer) operands(n *parse.Node) (left, right Node) {
 	}
 	return left, right
 }
+
+// list lowers a `list` node: each child is an element, and Fat marks the
+// ones carrying the Fat flag.
+func (l *lowerer) list(n *parse.Node) Node {
+	out := &List{}
+	for _, c := range n.Children {
+		l.flatten(c, false, out)
+	}
+	return out
+}
+
+// commaList lowers a `binary ","` or `"=>"` chain, which is how a list is
+// spelled outside parentheses, to the same flat List.
+func (l *lowerer) commaList(n *parse.Node) Node {
+	if !isComma(n) {
+		return nil
+	}
+	out := &List{}
+	l.flatten(n, false, out)
+	return out
+}
+
+// isComma reports whether n is one link of a comma chain.
+func isComma(n *parse.Node) bool {
+	return n.Kind == parse.Binary && !n.Paren && len(n.Children) == 2 && (n.Text == "," || n.Text == "=>")
+}
+
+// flatten appends n's elements to out. fat says n stands left of a `=>`,
+// which falls to the last element of a chain: the chain is left-nested,
+// so `a => 1, b => 2` holds `b` as the right operand of a `,`.
+func (l *lowerer) flatten(n *parse.Node, fat bool, out *List) {
+	if isComma(n) {
+		l.flatten(n.Children[0], n.Text == "=>", out)
+		l.flatten(n.Children[1], fat, out)
+		return
+	}
+	fat = fat || n.Fat
+	out.Elems = append(out.Elems, l.elem(n, fat))
+	out.Fat = append(out.Fat, fat)
+}
+
+// elem lowers one list element. §4.5.4: the word left of `=>` is a string,
+// whether the Fat flag or a `binary "=>"` says it stands there.
+func (l *lowerer) elem(n *parse.Node, fat bool) Node {
+	if fat && n.Kind == parse.Call && len(n.Children) == 0 {
+		return l.stamp(n, &Bareword{Name: n.Text, Quoted: true})
+	}
+	return l.expr(n)
+}
