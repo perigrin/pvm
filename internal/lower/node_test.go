@@ -4,6 +4,7 @@
 package lower_test
 
 import (
+	"reflect"
 	"testing"
 
 	"tamarou.com/pvm/internal/lower"
@@ -79,5 +80,28 @@ func TestZeroValueNodeIsUsable(t *testing.T) {
 				t.Errorf("%T: zero value's Meta is not the zero identity", n)
 			}
 		}()
+	}
+}
+
+// UseStmts finds every use, no and require in source order, nested ones
+// included: a require inside a sub or a BEGIN block loads its module too.
+func TestUseStmtsInSourceOrder(t *testing.T) {
+	strict := &lower.UseStmt{Op: "use", Module: "strict"}
+	inSub := &lower.UseStmt{Op: "require", Module: "Inner"}
+	inBegin := &lower.UseStmt{Op: "require", Module: "Phase"}
+	byPath := &lower.UseStmt{Op: "require", Expr: &lower.StrLit{Value: "foo.pl"}}
+	file := &lower.File{Stmts: []lower.Node{
+		strict,
+		&lower.Decl{Kind: lower.DeclSub, Init: &lower.Block{Stmts: []lower.Node{inSub}}},
+		&lower.PhaserStmt{Kind: "BEGIN", Body: &lower.Block{Stmts: []lower.Node{inBegin}}},
+		&lower.ExprStmt{X: &lower.Hole{}},
+		byPath,
+	}}
+	want := []*lower.UseStmt{strict, inSub, inBegin, byPath}
+	if got := lower.UseStmts(file); !reflect.DeepEqual(got, want) {
+		t.Errorf("UseStmts = %v, want %v", got, want)
+	}
+	if got := lower.UseStmts(nil); got != nil {
+		t.Errorf("UseStmts(nil) = %v, want nil", got)
 	}
 }

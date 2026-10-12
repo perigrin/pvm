@@ -597,3 +597,20 @@ func IsDeref(n Node) bool {
 	}
 	return false
 }
+
+// UseStmts returns every UseStmt under n, n included, in source order. A
+// require inside a sub or a phaser block is found as well as one at file
+// level. It lives beside Children because it asserts a kind declared here.
+func UseStmts(n Node) []*UseStmt {
+	if n == nil {
+		return nil
+	}
+	var out []*UseStmt
+	if u, ok := n.(*UseStmt); ok {
+		out = append(out, u)
+	}
+	for _, c := range Children(n) {
+		out = append(out, UseStmts(c)...)
+	}
+	return out
+}
