@@ -1,6 +1,6 @@
 ---
 title: "Lower operators: Binary.Op from the field, Repeat and Assign from the Paren flag"
-state: in-progress
+state: done
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -10,7 +10,7 @@ blocks:
 - 01a0c112-a8bb-7d7f-b156-d4ad99474e87
 - 01a12a85-3233-7ec8-9428-747be4ccef1c
 created: 2026-09-20T23:05:47.837817466Z
-updated: 2026-10-11T16:34:01.758261289Z
+updated: 2026-10-12T19:03:21.807538222Z
 sessions:
 - start_sha: 9895b3086efb0ed7feb8aeb6b994c6b245ce47a5
   end_sha: 9895b3086efb0ed7feb8aeb6b994c6b245ce47a5
@@ -18,9 +18,10 @@ sessions:
   started_at: 2026-10-11T15:51:32.545872199Z
   ended_at: 2026-10-11T15:54:48.397191597Z
 - start_sha: 9895b3086efb0ed7feb8aeb6b994c6b245ce47a5
-  end_sha: ""
-  commits: 0
+  end_sha: 93874fbfe9d9e6c38b8b145da0b41e96452b674a
+  commits: 7
   started_at: 2026-10-11T16:34:01.758261289Z
+  ended_at: 2026-10-12T19:03:21.807538222Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
@@ -31,6 +32,30 @@ transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-11T16:34:01.758261289Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-12T19:03:21.807538222Z
+observed_paths:
+- docs/specs/perl-parser/04-expressions.md
+- docs/specs/perl-parser/06-incremental-lsp.md
+- internal/lower/decl.go
+- internal/lower/decl_test.go
+- internal/lower/export_test.go
+- internal/lower/expr.go
+- internal/lower/id.go
+- internal/lower/id_test.go
+- internal/lower/literals.go
+- internal/lower/literals_test.go
+- internal/lower/node.go
+- internal/lower/node_test.go
+- internal/lower/ops.go
+- internal/lower/ops_test.go
+- internal/lower/slice.go
+- internal/lower/slice_test.go
+- internal/lower/special.go
+- internal/lower/special_test.go
+- internal/lower/vars.go
+- internal/lower/vars_test.go
 ---
 
 ## Context
