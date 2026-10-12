@@ -31,9 +31,9 @@ func (l *lowerer) expr(n *parse.Node) Node {
 	case parse.Call:
 		out = first(n, l.fatWord, l.mapGrepSort, l.evalForm, l.doForm, l.wantarray, l.fileTest, l.globCall)
 	case parse.Unary:
-		out = first(n, l.prefixDeref, l.ref)
+		out = first(n, l.prefixDeref, l.ref, l.unary)
 	case parse.Binary:
-		out = first(n, l.postfixDeref, l.postfixSlice, l.bind)
+		out = first(n, l.postfixDeref, l.postfixSlice, l.bind, l.commaChain, l.repeat, l.rangeOp, l.assign, l.binary)
 	case parse.Index:
 		out = first(n, l.slice, l.subscript)
 	case parse.AnonArray:
@@ -44,6 +44,14 @@ func (l *lowerer) expr(n *parse.Node) Node {
 		out = first(n, l.loopEx)
 	case parse.Declaration:
 		out = first(n, l.decl)
+	case parse.Postfix:
+		out = first(n, l.postfix)
+	case parse.List:
+		out = first(n, l.list)
+	case parse.Ternary:
+		out = first(n, l.ternary)
+	case parse.CmpChain:
+		out = first(n, l.comparison, l.cmpChain)
 	}
 	if out == nil {
 		out = &Hole{}
