@@ -133,3 +133,84 @@ func TestLowerConditionals(t *testing.T) {
 		}
 	}
 }
+
+// Every loop form lowers to WhileStmt, CForStmt or ForeachStmt, and a bare
+// block to BlockStmt. A plain `until` is a WhileStmt with Negated: two
+// spellings of one loop. `do {} until` is not: perl 5.42 leaves 0 after
+// `$m++ until 1` and 1 after `do { $n++ } until 1`, because the do-form tests
+// after its body, and PostCond records it. `for` and `foreach` are one loop
+// (toke.c routes both to yyl_foreach). A loop variable is lowered as written,
+// `my $i` a declaration and `$i` a Var; none means $_. A label is a Bareword
+// with the label node's id, as LoopEx's target is, and labels stack.
+func TestLowerLoops(t *testing.T) {
+	type L = []lower.Node
+	checkStmts(t, []stmtCase{
+		{"while ($x) { 1 }", func(s *parse.Node, k kit) lower.Node {
+			c := s.Children[0]
+			return k.at(c, &lower.WhileStmt{Cond: k.x(c.Children[0]), Body: k.block(c.Children[1])})
+		}},
+		{"until ($x) { 1 }", func(s *parse.Node, k kit) lower.Node {
+			c := s.Children[0]
+			return k.at(c, &lower.WhileStmt{Cond: k.x(c.Children[0]), Body: k.block(c.Children[1]), Negated: true})
+		}},
+		{"while ($x) { 1 } continue { 2 }", func(s *parse.Node, k kit) lower.Node {
+			c := s.Children[0]
+			return k.at(c, &lower.WhileStmt{Cond: k.x(c.Children[0]), Body: k.block(c.Children[1]), Continue: k.block(c.Children[2].Children[0])})
+		}},
+		{"$m++ until $x;", func(s *parse.Node, k kit) lower.Node {
+			c := s.Children[0]
+			return k.at(c, &lower.WhileStmt{Cond: k.x(c.Children[1]), Body: k.x(c.Children[0]), Negated: true})
+		}},
+		{"do { 1 } until $x;", func(s *parse.Node, k kit) lower.Node {
+			c := s.Children[0]
+			return k.at(c, &lower.WhileStmt{Cond: k.x(c.Children[1]), Body: k.x(c.Children[0]), Negated: true, PostCond: true})
+		}},
+		{"do { 1 } while $x;", func(s *parse.Node, k kit) lower.Node {
+			c := s.Children[0]
+			return k.at(c, &lower.WhileStmt{Cond: k.x(c.Children[1]), Body: k.x(c.Children[0]), PostCond: true})
+		}},
+		{"foreach my $i (@a) { 1 }", func(s *parse.Node, k kit) lower.Node {
+			c := s.Children[0]
+			return k.at(c, &lower.ForeachStmt{Var: k.x(c.Children[0]), List: k.x(c.Children[1]), Body: k.block(c.Children[2])})
+		}},
+		{"for $i (@a) { 1 }", func(s *parse.Node, k kit) lower.Node {
+			c := s.Children[0]
+			return k.at(c, &lower.ForeachStmt{Var: k.x(c.Children[0]), List: k.x(c.Children[1]), Body: k.block(c.Children[2])})
+		}},
+		{"for (@a) { 1 } continue { 2 }", func(s *parse.Node, k kit) lower.Node {
+			c := s.Children[0]
+			return k.at(c, &lower.ForeachStmt{List: k.x(c.Children[0]), Body: k.block(c.Children[1]), Continue: k.block(c.Children[2].Children[0])})
+		}},
+		{"print 1 for @a;", func(s *parse.Node, k kit) lower.Node {
+			c := s.Children[0]
+			return k.at(c, &lower.ForeachStmt{List: k.x(c.Children[1]), Body: k.x(c.Children[0])})
+		}},
+		{"for (my $i = 0; $i < 3; $i++) { 1 }", func(s *parse.Node, k kit) lower.Node {
+			c := s.Children[0]
+			return k.at(c, &lower.CForStmt{Init: k.x(c.Children[0]), Cond: k.x(c.Children[1]), Post: k.x(c.Children[2]), Body: k.block(c.Children[3])})
+		}},
+		// An empty slot is nil: ForSlots says which slots the clauses fill.
+		{"for (; $i < 3;) { 1 }", func(s *parse.Node, k kit) lower.Node {
+			c := s.Children[0]
+			return k.at(c, &lower.CForStmt{Cond: k.x(c.Children[0]), Body: k.block(c.Children[1])})
+		}},
+		{"LABEL: for (;;) { last LABEL }", func(s *parse.Node, k kit) lower.Node {
+			c := s.Children[1]
+			return k.at(c, &lower.CForStmt{Labels: L{k.label(s.Children[0])}, Body: k.block(c.Children[0])})
+		}},
+		{"A: B: while ($x) { 1 }", func(s *parse.Node, k kit) lower.Node {
+			c := s.Children[2]
+			return k.at(c, &lower.WhileStmt{Labels: L{k.label(s.Children[0]), k.label(s.Children[1])}, Cond: k.x(c.Children[0]), Body: k.block(c.Children[1])})
+		}},
+		// A bare block is a loop that runs once (last works in it).
+		{"L: { 1 }", func(s *parse.Node, k kit) lower.Node {
+			return k.at(s, &lower.BlockStmt{Labels: L{k.label(s.Children[0])}, Body: k.block(s.Children[1])})
+		}},
+		// The parser nests a bare block with a continue in a statement of
+		// its own; the label stays on the outer one.
+		{"L: { 1 } continue { 2 }", func(s *parse.Node, k kit) lower.Node {
+			in := s.Children[1]
+			return k.at(in, &lower.BlockStmt{Labels: L{k.label(s.Children[0])}, Body: k.block(in.Children[0]), Continue: k.block(in.Children[1].Children[0])})
+		}},
+	})
+}
