@@ -363,6 +363,30 @@ type Match struct {
 	Negated bool // !~
 }
 
+// --- Statements (§5.17's kinds, without spans; lowered in stmt.go) ---
+
+// Block is `{ ... }` holding statements. It is reached from an expression
+// too -- the body of do, eval and map -- so expr lowers it.
+type Block struct {
+	nodeBase
+	Stmts []Node
+}
+
+// ExprStmt is an expression evaluated as a statement.
+type ExprStmt struct {
+	nodeBase
+	X Node
+}
+
+// IfStmt is every conditional: the block form, the modifier form, `unless`
+// and `elsif`. `unless` swaps the branches rather than negating Cond
+// (§4.14.5), and an `elsif` is an IfStmt in the Else slot. Then and Else
+// are a Block, an expression (the modifier form's body) or an IfStmt.
+type IfStmt struct {
+	nodeBase
+	Cond, Then, Else Node
+}
+
 // Children returns a node's non-nil children in field order. A nil field or
 // a nil slice element is skipped, never returned. A kind with no case here
 // panics: that is a kind declared without its walk, a bug in this file, and
@@ -445,6 +469,12 @@ func Children(n Node) []Node {
 		add(n.Pattern...)
 		add(n.Replace...)
 		add(n.Target)
+	case *Block:
+		add(n.Stmts...)
+	case *ExprStmt:
+		add(n.X)
+	case *IfStmt:
+		add(n.Cond, n.Then, n.Else)
 	default:
 		panic(fmt.Sprintf("lower.Children: no case for %T", n))
 	}

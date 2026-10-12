@@ -20,8 +20,9 @@ import (
 // follows is the list, one comma tree, flattened. In map's and grep's
 // expression form the first comma operand is the expression.
 //
-// A block lowers through expr like any other child: a Hole until blocks have
-// an arm of their own, carrying the block's id so the slot is never empty.
+// A block lowers through expr like any other child, to a Block; the Unknown
+// of an unclosed brace lowers to a Hole carrying its id, so the slot is
+// never empty.
 func (l *lowerer) mapGrepSort(n *parse.Node) Node {
 	if n.Text != "map" && n.Text != "grep" && n.Text != "sort" {
 		return nil
