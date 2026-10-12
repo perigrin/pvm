@@ -57,3 +57,23 @@ func TestPositionMapPreservesSourceOrder(t *testing.T) {
 		}
 	}
 }
+
+// An Unknown lowers to an opaque Hole (§4.14.2, Hole row), and every byte
+// it covers resolves to that Hole, the bytes of its own children included,
+// so the LSP answers "no information" there rather than a type. Perl
+// rejects both programs.
+func TestPositionMapInsideHole(t *testing.T) {
+	src := "$x = ;"
+	_, f, p := positions(src)
+	hole := lower.Children(lower.Children(f.Stmts[0])[0])[1] // the Assign's R
+	if got := p.At(5); got != hole || reflect.TypeOf(got) != reflect.TypeOf(&lower.Hole{}) {
+		t.Errorf("%q: offset 5 resolves to %#v, want the Hole %#v", src, got, hole)
+	}
+
+	src = "if ($x) {"
+	_, f, p = positions(src)
+	hole = lower.Children(f.Stmts[0])[1] // the IfStmt's Then: the Unknown holding a block
+	if got := p.At(8); got != hole || reflect.TypeOf(got) != reflect.TypeOf(&lower.Hole{}) {
+		t.Errorf("%q: offset 8, in the Unknown's block, resolves to %#v, want the Hole %#v", src, got, hole)
+	}
+}
