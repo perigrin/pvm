@@ -1,6 +1,6 @@
 ---
 title: "Lower special forms: MapGrepSort.Op, the eval boundary, and the renames"
-state: in-progress
+state: done
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -9,16 +9,33 @@ blocked_by:
 blocks:
 - 01a0c113-dfd3-76a4-8b61-ae61b324bcb4
 created: 2026-09-20T23:08:13.106524969Z
-updated: 2026-10-11T16:34:02.567653802Z
+updated: 2026-10-12T17:09:29.810854417Z
 sessions:
 - start_sha: 9895b3086efb0ed7feb8aeb6b994c6b245ce47a5
-  end_sha: ""
-  commits: 0
+  end_sha: 34b03d318ec7428fe87316e7752b9ef1f1f6164e
+  commits: 3
   started_at: 2026-10-11T16:34:02.567653802Z
+  ended_at: 2026-10-12T17:09:29.810854417Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-11T16:34:02.567653802Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-12T17:09:29.810854417Z
+observed_paths:
+- docs/specs/perl-parser/04-expressions.md
+- docs/specs/perl-parser/06-incremental-lsp.md
+- internal/lower/export_test.go
+- internal/lower/expr.go
+- internal/lower/literals.go
+- internal/lower/literals_test.go
+- internal/lower/node.go
+- internal/lower/node_test.go
+- internal/lower/special.go
+- internal/lower/special_test.go
+- internal/lower/vars.go
+- internal/lower/vars_test.go
 ---
 
 ## Context
