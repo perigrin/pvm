@@ -278,3 +278,61 @@ func TestLowerOperatorsOverBrokenInput(t *testing.T) {
 		t.Errorf("1 x;: lowered to %#v, want a Repeat whose Count is a Hole", repeat)
 	}
 }
+
+// §4.14.2: Unary's Op is the node's Text and Postfix is the CST's Postfix
+// kind; a Ternary keeps its three operands; a chain of two or more links is
+// one CmpChain with flat operands, as perl 5.42 compiles `$a < $b < $c` to
+// one cmpchain_and.
+func TestLowerUnaryTernaryAndChain(t *testing.T) {
+	num := func(s string) lower.Node { return &lower.NumLit{Text: s, IsInt: true} }
+	cases := []struct {
+		src  string
+		want lower.Node
+	}{
+		{"!1;", &lower.Unary{Op: "!", Operand: num("1")}},
+		{"not 1;", &lower.Unary{Op: "not", Operand: num("1")}},
+		{"-1;", &lower.Unary{Op: "neg", Operand: num("1")}},
+		{"+1;", &lower.Unary{Op: "pos", Operand: num("1")}},
+		{"~1;", &lower.Unary{Op: "~", Operand: num("1")}},
+		{"1 ? 2 : 3;", &lower.Ternary{Cond: num("1"), Then: num("2"), Else: num("3")}},
+		{"1 < 2 <= 3;", &lower.CmpChain{
+			Operands: []lower.Node{num("1"), num("2"), num("3")},
+			Ops:      []string{"<", "<="},
+			Class:    lower.ChRelOp,
+		}},
+		{"1 == 2 != 3;", &lower.CmpChain{
+			Operands: []lower.Node{num("1"), num("2"), num("3")},
+			Ops:      []string{"==", "!="},
+			Class:    lower.ChEqOp,
+		}},
+	}
+	for _, c := range cases {
+		sameShape(t, c.src, clearIDs(lowerOne(t, c.src)), c.want)
+	}
+
+	// ++ and -- need a variable, which another slice lowers: read the
+	// fields under test.
+	for _, c := range []struct {
+		src     string
+		op      string
+		postfix bool
+	}{
+		{"++$a;", "++", false},
+		{"--$a;", "--", false},
+		{"$a++;", "++", true},
+		{"$a--;", "--", true},
+	} {
+		got := lowerOne(t, c.src)
+		if !sameKind(got, &lower.Unary{}) || field(got, "Op") != c.op || field(got, "Postfix") != c.postfix {
+			t.Errorf("%q: lowered to %#v, want a Unary %q with Postfix %v", c.src, got, c.op, c.postfix)
+		}
+	}
+}
+
+// An arrow is a method call or a dereference, never an operator with an
+// Op: until an arm claims it, it is a Hole rather than a Binary "->".
+func TestLowerArrowIsNotABinary(t *testing.T) {
+	if got := lowerOne(t, "Foo->new;"); sameKind(got, &lower.Binary{}) {
+		t.Errorf("Foo->new: lowered to %#v, want anything but a Binary", got)
+	}
+}

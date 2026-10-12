@@ -6,7 +6,11 @@ package lower
 import "tamarou.com/pvm/internal/parse"
 
 // binary lowers any `binary` a narrower arm left: Op is the node's Text.
+// An arrow is a call or a dereference, never an operator, so it declines.
 func (l *lowerer) binary(n *parse.Node) Node {
+	if n.Text == "->" {
+		return nil
+	}
 	b := &Binary{Op: n.Text}
 	b.L, b.R = l.operands(n)
 	return b
@@ -154,4 +158,54 @@ func (l *lowerer) elem(n *parse.Node, fat bool) Node {
 		return l.stamp(n, &Bareword{Name: n.Text, Quoted: true})
 	}
 	return l.expr(n)
+}
+
+// prefixOps are CORE's `:prefix` operators by their node Text, but for `\`,
+// whose `unary "ref"` lowers to Ref.
+var prefixOps = map[string]bool{
+	"!": true, "not": true, "neg": true, "pos": true, "~": true, "~.": true,
+	"++": true, "--": true,
+}
+
+// unary lowers a prefix operator's `unary`: Op is the node's Text. A sigil's
+// `unary` is a dereference, and declines.
+func (l *lowerer) unary(n *parse.Node) Node {
+	if !prefixOps[n.Text] || len(n.Children) != 1 {
+		return nil
+	}
+	return &Unary{Op: n.Text, Operand: l.expr(n.Children[0])}
+}
+
+// postfix lowers `postfix "++"` and `"--"`: Postfix is the CST's kind.
+func (l *lowerer) postfix(n *parse.Node) Node {
+	if len(n.Children) != 1 {
+		return nil
+	}
+	return &Unary{Op: n.Text, Operand: l.expr(n.Children[0]), Postfix: true}
+}
+
+// ternary lowers `ternary "?:"`, any of whose operands may be missing.
+func (l *lowerer) ternary(n *parse.Node) Node {
+	t := &Ternary{}
+	t.Cond, t.Then = l.operands(n)
+	if len(n.Children) > 2 {
+		t.Else = l.expr(n.Children[2])
+	}
+	return t
+}
+
+// eqOps are the CHEQOP operators; every other chain link is CHRELOP.
+var eqOps = map[string]bool{"==": true, "!=": true, "eq": true, "ne": true}
+
+// cmpChain lowers a `cmp_chain` of two or more links, flat as the CST has
+// it. Every link shares one class, so the first operator names it.
+func (l *lowerer) cmpChain(n *parse.Node) Node {
+	c := &CmpChain{Ops: append([]string(nil), n.Ops...)}
+	for _, o := range n.Children {
+		c.Operands = append(c.Operands, l.expr(o))
+	}
+	if eqOps[n.Text] {
+		c.Class = ChEqOp
+	}
+	return c
 }
