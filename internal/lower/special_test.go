@@ -296,3 +296,20 @@ func TestLowerSpecialFormsOverBrokenInput(t *testing.T) {
 		t.Errorf("eval {;: the body does not hold a Hole")
 	}
 }
+
+// §4.5.4: => quotes the word to its left in a map, grep or sort list as it
+// does in any other list. perl 5.42's -MO=Deparse gives `map { $_ } a => 1`
+// as `map {$_;} 'a', 1`.
+func TestLowerMapGrepSortListQuotesFatWord(t *testing.T) {
+	word := &lower.Bareword{Name: "a", Quoted: true}
+	for _, src := range []string{"map { $_ } a => 1;", "grep { $_ } a => 1;", "sort a => 1;"} {
+		got := lowerOne(t, src)
+		if !sameKind(got, &lower.MapGrepSort{}) || field(got, "List").Len() != 2 {
+			t.Errorf("%q: lowered to %#v, want a MapGrepSort listing two elements", src, got)
+			continue
+		}
+		if first := field(zeroIDs(got), "List").Index(0).Interface(); !reflect.DeepEqual(first, word) {
+			t.Errorf("%q: the list's first element is %#v, want %#v", src, first, word)
+		}
+	}
+}
