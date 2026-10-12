@@ -150,3 +150,30 @@ func TestIDOverBrokenTree(t *testing.T) {
 	}
 	sameIDs(t, "sub b", namedSubs(broken)["b"], brokenIDs, namedSubs(clean)["b"], cleanIDs)
 }
+
+// TestAnonSubWithSignatureOpensNoAnchor: an anonymous sub opens no anchor,
+// signature or not. `sub ($x) { 1 }` parses with its one parameter as a
+// parenthesised term in the slot a named sub's name takes, and that term is
+// not a name: were it read as one, two anonymous subs with the same
+// one-parameter signature would anchor as "sub $x#0" and "sub $x#1", and
+// inserting one above the other would renumber it.
+func TestAnonSubWithSignatureOpensNoAnchor(t *testing.T) {
+	src := "use v5.36; my $f = sub ($x) { 1 }; my $g = sub ($x) { 2 };"
+	root := parse.Parse([]byte(src))
+	ids := lower.AssignIDs(root)
+	for _, n := range everyNode(root) {
+		if id := ids[n]; id.Anchor != "" {
+			t.Errorf("%s %q at %d is anchored %q; an anonymous sub opens no anchor", n.Kind, n.Text, n.Start, id.Anchor)
+		}
+	}
+
+	named := parse.Parse([]byte("use v5.36; sub f ($x) { 1 }"))
+	namedIDs := lower.AssignIDs(named)
+	f, ok := namedSubs(named)["f"]
+	if !ok {
+		t.Fatal("no sub f in the parse")
+	}
+	if got := namedIDs[f.Children[1]].Anchor; got != "sub f#0" {
+		t.Errorf("sub f's signature is anchored %q, want %q", got, "sub f#0")
+	}
+}
