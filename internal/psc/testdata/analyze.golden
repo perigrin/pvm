@@ -1,0 +1,9 @@
+testdata/analyze/lib/My/Child.pm:
+  strict
+  warnings
+  parent
+testdata/analyze/main.pl:
+  strict
+  warnings
+  Foo::Bar
+  Foo

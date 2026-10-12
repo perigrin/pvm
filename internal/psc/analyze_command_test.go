@@ -105,3 +105,21 @@ func TestAnalyzeCommandNoArgs(t *testing.T) {
 	err := cmd.Execute()
 	assert.Error(t, err, "analyze with no argument should return an error")
 }
+
+// TestAnalyzeCommandMatchesGolden holds psc analyze's output over the fixture
+// tree to testdata/analyze.golden: a version is not a dependency, and neither
+// is a file required by path.
+func TestAnalyzeCommandMatchesGolden(t *testing.T) {
+	want, err := os.ReadFile(filepath.Join("testdata", "analyze.golden"))
+	require.NoError(t, err)
+
+	cmd := psc.NewCommand()
+	cmd.SetArgs([]string{"analyze", filepath.Join("testdata", "analyze")})
+
+	var out strings.Builder
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+
+	require.NoError(t, cmd.Execute())
+	assert.Equal(t, string(want), filepath.ToSlash(out.String()))
+}
