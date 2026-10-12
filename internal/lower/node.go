@@ -424,6 +424,27 @@ type ForeachStmt struct {
 	Var, List, Body, Continue Node
 }
 
+// UseStmt is `use`, `no` and `require` (§5.9.4). Module is the module's
+// name, "" for `use VERSION` and for `require EXPR`; Version is the version
+// to check, "" if none; Expr is require's operand when it is not a module
+// name -- `require "foo.pl"`, `require $f`; Args is the import list, nil if
+// none, and `use Foo ()`'s empty list is kept because it suppresses import.
+type UseStmt struct {
+	nodeBase
+	Op      string // "use" | "no" | "require"
+	Module  string
+	Version string
+	Expr    Node
+	Args    Node
+}
+
+// PhaserStmt is BEGIN, END, CHECK, INIT or UNITCHECK and its block.
+type PhaserStmt struct {
+	nodeBase
+	Kind string
+	Body Node
+}
+
 // Children returns a node's non-nil children in field order. A nil field or
 // a nil slice element is skipped, never returned. A kind with no case here
 // panics: that is a kind declared without its walk, a bug in this file, and
@@ -524,6 +545,10 @@ func Children(n Node) []Node {
 	case *ForeachStmt:
 		add(n.Labels...)
 		add(n.Var, n.List, n.Body, n.Continue)
+	case *UseStmt:
+		add(n.Expr, n.Args)
+	case *PhaserStmt:
+		add(n.Body)
 	default:
 		panic(fmt.Sprintf("lower.Children: no case for %T", n))
 	}

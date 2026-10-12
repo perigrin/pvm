@@ -214,3 +214,68 @@ func TestLowerLoops(t *testing.T) {
 		}},
 	})
 }
+
+// use, no and require lower to one UseStmt, with the module, the version
+// and the import list as fields, so a reader of dependencies never looks at
+// the CST (§5.9.4). perl reads a number after the module as a version to
+// check, not an import: `use strict 1.0;` passes and `use strict 99;` dies
+// "strict version 99 required". `require "foo.pl"` names a file, not a
+// module, so its operand stays an expression. `use Foo ()` imports nothing
+// and differs from `use Foo`, which calls import, so an empty list is kept.
+func TestLowerUseAndPhaser(t *testing.T) {
+	checkStmts(t, []stmtCase{
+		{"use Foo::Bar qw(a b);", func(s *parse.Node, k kit) lower.Node {
+			c := s.Children[0]
+			return k.at(c, &lower.UseStmt{Op: "use", Module: "Foo::Bar", Args: k.x(c.Children[1])})
+		}},
+		{"use strict;", func(s *parse.Node, k kit) lower.Node {
+			return k.at(s.Children[0], &lower.UseStmt{Op: "use", Module: "strict"})
+		}},
+		{`no strict "refs";`, func(s *parse.Node, k kit) lower.Node {
+			c := s.Children[0]
+			return k.at(c, &lower.UseStmt{Op: "no", Module: "strict", Args: k.x(c.Children[1])})
+		}},
+		{"use Foo ();", func(s *parse.Node, k kit) lower.Node {
+			c := s.Children[0]
+			return k.at(c, &lower.UseStmt{Op: "use", Module: "Foo", Args: k.x(c.Children[1])})
+		}},
+		{"use Foo 1.2;", func(s *parse.Node, k kit) lower.Node {
+			return k.at(s.Children[0], &lower.UseStmt{Op: "use", Module: "Foo", Version: "1.2"})
+		}},
+		{"use 5.010;", func(s *parse.Node, k kit) lower.Node {
+			return k.at(s.Children[0], &lower.UseStmt{Op: "use", Version: "5.010"})
+		}},
+		// v5 is a word in shape, and a version first.
+		{"use v5;", func(s *parse.Node, k kit) lower.Node {
+			return k.at(s.Children[0], &lower.UseStmt{Op: "use", Version: "v5"})
+		}},
+		{"use v5.36;", func(s *parse.Node, k kit) lower.Node {
+			return k.at(s.Children[0], &lower.UseStmt{Op: "use", Version: "v5.36"})
+		}},
+		{"require Foo;", func(s *parse.Node, k kit) lower.Node {
+			return k.at(s.Children[0], &lower.UseStmt{Op: "require", Module: "Foo"})
+		}},
+		{`require "foo.pl";`, func(s *parse.Node, k kit) lower.Node {
+			c := s.Children[0]
+			return k.at(c, &lower.UseStmt{Op: "require", Expr: k.x(c.Children[0])})
+		}},
+		{"require $f;", func(s *parse.Node, k kit) lower.Node {
+			c := s.Children[0]
+			return k.at(c, &lower.UseStmt{Op: "require", Expr: k.x(c.Children[0])})
+		}},
+		{"BEGIN { 1 }", func(s *parse.Node, k kit) lower.Node {
+			c := s.Children[0]
+			return k.at(c, &lower.PhaserStmt{Kind: "BEGIN", Body: k.block(c.Children[0])})
+		}},
+		{"END { 1 }", func(s *parse.Node, k kit) lower.Node {
+			c := s.Children[0]
+			return k.at(c, &lower.PhaserStmt{Kind: "END", Body: k.block(c.Children[0])})
+		}},
+	})
+
+	// The empty import list is a node, not an absence.
+	root := parse.Parse([]byte("use Foo ();"))
+	if got := lower.LowerStmt(root, root.Children[0]); len(lower.Children(got)) != 1 {
+		t.Errorf("use Foo (): lowered to %#v, want the empty list kept", got)
+	}
+}

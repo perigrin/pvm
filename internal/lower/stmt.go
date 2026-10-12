@@ -3,7 +3,11 @@
 
 package lower
 
-import "tamarou.com/pvm/internal/parse"
+import (
+	"regexp"
+
+	"tamarou.com/pvm/internal/parse"
+)
 
 // stmt lowers one child of a file or a block. Trivia lowers to nothing.
 func (l *lowerer) stmt(n *parse.Node) Node {
@@ -49,6 +53,10 @@ func (l *lowerer) statement(n *parse.Node, labels []Node) Node {
 		return l.conditional(c)
 	case parse.Loop:
 		return l.loop(c, labels)
+	case parse.Use:
+		return l.use(c)
+	case parse.Phaser:
+		return l.stamp(c, &PhaserStmt{Kind: c.Text, Body: l.nth(c.Children, 0)})
 	}
 	return l.stamp(n, &ExprStmt{X: l.expr(body[0])})
 }
@@ -95,6 +103,33 @@ func (l *lowerer) loop(n *parse.Node, labels []Node) Node {
 		out = &Hole{}
 	}
 	return l.stamp(n, out)
+}
+
+// use lowers `use`, `no` and `require`. A bare word first is the module
+// and a version-shaped term the version, `v5` included: perl reads `use Foo 1.2` as a
+// version check, never an import. Whatever follows is the import list.
+func (l *lowerer) use(n *parse.Node) Node {
+	out := &UseStmt{Op: n.Text}
+	kids := n.Children
+	if len(kids) > 0 && bareTerm(kids[0], word) && !bareTerm(kids[0], version) {
+		out.Module, kids = kids[0].Text, kids[1:]
+	}
+	if len(kids) > 0 && bareTerm(kids[0], version) {
+		out.Version, kids = kids[0].Text, kids[1:]
+	}
+	if out.Module == "" && out.Version == "" && len(kids) > 0 {
+		out.Expr, kids = l.expr(kids[0]), kids[1:]
+	}
+	out.Args = l.nth(kids, 0)
+	return l.stamp(n, out)
+}
+
+// version matches a version number: 5.010, 1.2, v5.36.
+var version = regexp.MustCompile(`^v?[0-9][0-9._]*$`)
+
+// bareTerm reports whether n is a childless term whose text re matches.
+func bareTerm(n *parse.Node, re *regexp.Regexp) bool {
+	return n.Kind == parse.Term && len(n.Children) == 0 && re.MatchString(n.Text)
 }
 
 // isDoBlock reports whether n is `do BLOCK`, the body of a loop that tests
