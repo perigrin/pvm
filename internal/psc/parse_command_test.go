@@ -1,5 +1,5 @@
 // ABOUTME: Tests for the psc parse command.
-// ABOUTME: Covers file parsing, tree output, sexpr output, and error cases.
+// ABOUTME: Covers file parsing, the CST and lowered trees, tree and sexpr output, and error cases.
 
 package psc_test
 
@@ -59,8 +59,10 @@ func TestParseCommandSExpr(t *testing.T) {
 	err := cmd.Execute()
 	require.NoError(t, err)
 
+	// internal/parse's root and statement, not tree-sitter's
+	// (source_file (variable_declaration_expression ...)).
 	output := out.String()
-	assert.Contains(t, output, "source_file", "sexpr output should contain source_file")
+	assert.True(t, strings.HasPrefix(output, `(source_file (statement (declaration "my"`), "sexpr output: %s", output)
 }
 
 func TestParseCommandMissingFile(t *testing.T) {
@@ -85,4 +87,62 @@ func TestParseCommandNoArgs(t *testing.T) {
 
 	err := cmd.Execute()
 	assert.Error(t, err, "parse with no file argument should return an error")
+}
+
+// runParse runs `psc parse` with args over a file holding src.
+func runParse(t *testing.T, src string, args ...string) (string, error) {
+	t.Helper()
+	file := filepath.Join(t.TempDir(), "test.pl")
+	require.NoError(t, os.WriteFile(file, []byte(src), 0644))
+
+	cmd := psc.NewCommand()
+	cmd.SetArgs(append(append([]string{"parse"}, args...), file))
+	var out strings.Builder
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	err := cmd.Execute()
+	return out.String(), err
+}
+
+// TestParseCommandLayers: --tree picks internal/parse's CST or the lowered
+// tree, in either format, and neither speaks tree-sitter's vocabulary.
+func TestParseCommandLayers(t *testing.T) {
+	src := "my ($x) = f(); $h->{k}; print $fh \"x\";\n"
+	layers := map[string][]string{
+		"cst":     {"declaration", "index", "call", "paren", "arrow", "handle"},
+		"lowered": {"Decl", "Key", "Call", "ListAssign", "Arrow", "Handle"},
+	}
+	for tree, want := range layers {
+		for _, format := range []string{"tree", "sexpr"} {
+			out, err := runParse(t, src, "--tree", tree, "--format", format)
+			require.NoError(t, err)
+			for _, w := range want {
+				assert.Contains(t, out, w, "--tree %s --format %s", tree, format)
+			}
+			assert.NotContains(t, out, "variable_declaration", "--tree %s --format %s", tree, format)
+		}
+	}
+}
+
+// TestParseCommandRejectsUnknownTree: a --tree outside the two is an error
+// naming both.
+func TestParseCommandRejectsUnknownTree(t *testing.T) {
+	_, err := runParse(t, "1;\n", "--tree", "hir")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "hir")
+	assert.Contains(t, err.Error(), "cst")
+	assert.Contains(t, err.Error(), "lowered")
+}
+
+// TestParseCommandOnBrokenFile: on a file perl rejects, the CST shows the
+// Unknown with its refusal code, the lowered tree a Hole, and both exit 0.
+func TestParseCommandOnBrokenFile(t *testing.T) {
+	src := "my $x = ;\n"
+	cst, err := runParse(t, src, "--tree", "cst")
+	require.NoError(t, err)
+	assert.Contains(t, cst, "unknown refusal=not_a_term")
+
+	lowered, err := runParse(t, src, "--tree", "lowered")
+	require.NoError(t, err)
+	assert.Contains(t, lowered, "Hole")
 }

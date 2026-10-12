@@ -19,3 +19,9 @@ func LowerStmt(root, n *parse.Node) Node {
 func LowerHashKey(root, n *parse.Node) Node {
 	return (&lowerer{ids: AssignIDs(root)}).hashKey(n)
 }
+
+// PrintedChild is one child as the printers name it.
+type PrintedChild = role
+
+// PrintedChildren is n's children as the printers walk them.
+func PrintedChildren(n Node) []PrintedChild { return roles(n) }
