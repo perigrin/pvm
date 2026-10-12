@@ -151,3 +151,34 @@ func TestLowerListRepeatFromParenFlag(t *testing.T) {
 		ListRepeat: true,
 	})
 }
+
+// §4.14.2, Range row: `1..5` is `binary ".."` over two terms, so a literal
+// endpoint is an operand like any other. perl: `my @r = (1..5); $r[0]+1` is
+// 2, and `...` differs from `..` only as a flip-flop.
+func TestLowerRangeEndpoints(t *testing.T) {
+	cases := []struct {
+		src       string
+		exclusive bool
+	}{
+		{"$a..$b;", false},
+		{"1..5;", false},
+		{"$a...$b;", true},
+	}
+	for _, c := range cases {
+		got := lowerOne(t, c.src)
+		if !sameKind(got, &lower.Range{}) {
+			t.Errorf("%q: lowered to %T, want a Range", c.src, got)
+			continue
+		}
+		if field(got, "Lo") == nil || field(got, "Hi") == nil {
+			t.Errorf("%q: lowered to %#v, want both endpoints", c.src, got)
+		}
+		if field(got, "Exclusive") != c.exclusive {
+			t.Errorf("%q: Exclusive is %v, want %v", c.src, field(got, "Exclusive"), c.exclusive)
+		}
+	}
+	sameShape(t, "1..5;", clearIDs(lowerOne(t, "1..5;")), &lower.Range{
+		Lo: &lower.NumLit{Text: "1", IsInt: true},
+		Hi: &lower.NumLit{Text: "5", IsInt: true},
+	})
+}
