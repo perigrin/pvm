@@ -1,6 +1,6 @@
 ---
 title: psc analyze reads its dependencies from the lowered tree
-state: pending
+state: in-progress
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -8,7 +8,16 @@ blocked_by:
 blocks:
 - 01a0c115-df67-7d69-8883-73d40b0ae15d
 created: 2026-10-11T10:32:15.295165792Z
-updated: 2026-10-11T10:33:51.802610546Z
+updated: 2026-10-12T22:10:44.022773092Z
+sessions:
+- start_sha: 797bed26b3602121b0e30cc887a4cd02148f76e7
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-12T22:10:44.022773092Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-12T22:10:44.022773092Z
 ---
 
 ## Context
