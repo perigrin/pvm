@@ -31,6 +31,12 @@ func clearIDs(n lower.Node) lower.Node {
 	return n
 }
 
+// withParen sets n's Paren bit, as source parentheses around it would.
+func withParen(n lower.Node) lower.Node {
+	n.Meta().Paren = true
+	return n
+}
+
 // sameKind reports whether got is the same kind of node as want.
 func sameKind(got, want lower.Node) bool {
 	return reflect.TypeOf(got) == reflect.TypeOf(want)
@@ -114,4 +120,34 @@ func TestLowerBinaryOpFromField(t *testing.T) {
 	if got := opOf(lower.LowerExpr(root, n)); got != "+" {
 		t.Errorf("Op is %q after Text became \"+\"; the lowering read the source", got)
 	}
+}
+
+// §4.10: a parenthesised left operand, or a qw list, repeats a list; any
+// other repeats a string. perl 5.42: ("a") x 3, qw(a b) x 2 and (1,2) x 2
+// give 3, 4 and 4 elements; "a" x 3 gives 1, and so does (1,2)[0] x 2,
+// whose parens close before the subscript.
+func TestLowerListRepeatFromParenFlag(t *testing.T) {
+	cases := []struct {
+		src  string
+		want bool
+	}{
+		{`("a") x 3;`, true},
+		{`"a" x 3;`, false},
+		{`'a' x 3;`, false},
+		{"qw(a b) x 2;", true},
+		{"(qw(a b)) x 2;", true},
+		{"(1,2) x 2;", true},
+		{"(1,2)[0] x 2;", false},
+	}
+	for _, c := range cases {
+		got := lowerOne(t, c.src)
+		if !sameKind(got, &lower.Repeat{}) || field(got, "ListRepeat") != c.want {
+			t.Errorf("%q: lowered to %#v, want a Repeat with ListRepeat %v", c.src, got, c.want)
+		}
+	}
+	sameShape(t, `("a") x 3;`, clearIDs(lowerOne(t, `("a") x 3;`)), &lower.Repeat{
+		Left:       withParen(&lower.StrLit{Value: "a", Interpolated: true}),
+		Count:      &lower.NumLit{Text: "3", IsInt: true},
+		ListRepeat: true,
+	})
 }

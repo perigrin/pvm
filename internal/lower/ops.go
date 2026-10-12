@@ -12,14 +12,28 @@ func (l *lowerer) binary(n *parse.Node) Node {
 	return b
 }
 
-// repeat lowers `binary "x"`.
+// repeat lowers `binary "x"`. A left operand in parentheses or a qw list
+// repeats a list (§4.10): the Paren flag says which, so no span is read.
 func (l *lowerer) repeat(n *parse.Node) Node {
 	if n.Text != "x" {
 		return nil
 	}
 	r := &Repeat{}
 	r.Left, r.Count = l.operands(n)
+	if len(n.Children) > 0 {
+		left := n.Children[0]
+		r.ListRepeat = left.Paren || isQw(left)
+	}
 	return r
+}
+
+// isQw reports whether n is a qw list's term.
+func isQw(n *parse.Node) bool {
+	if n.Kind != parse.Term || len(n.Children) != 0 {
+		return false
+	}
+	m := quoteOp.FindStringSubmatch(n.Text)
+	return m != nil && m[1] == "qw"
 }
 
 // rangeOp lowers `binary ".."` and `binary "..."`.
