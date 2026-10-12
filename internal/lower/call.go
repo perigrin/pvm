@@ -10,10 +10,13 @@ import (
 )
 
 // call lowers a `call` no special form claimed: a builtin or a sub by name,
-// wherever the name stood in the old grammar. A first child carrying the
+// wherever the name stood in the old grammar, or an indirect method call. A first child carrying the
 // Handle flag is the filehandle slot of print, printf or say, which is not
 // an argument. The arguments are the children's comma chains, flattened.
 func (l *lowerer) call(n *parse.Node) Node {
+	if n.Indirect {
+		return l.indirect(n)
+	}
 	c := &Call{Name: n.Text, Resolved: n.Resolved, Parenthesized: parenthesized(n)}
 	args := n.Children
 	if len(args) > 0 && args[0].Handle {
@@ -98,7 +101,10 @@ func (l *lowerer) indexCall(n *parse.Node) Node {
 
 // arrowCall lowers a `binary "->"` that names no dereference. Over a
 // parenthesised right side it is a call through a code reference,
-// `$code->(1)`, whose Fn is the left side.
+// `$code->(1)`, whose Fn is the left side. Otherwise it is a method call:
+// the method is a `call` when it has parentheses (`$obj->method(1)`), a
+// word when it has none (`Foo->new`), and a scalar when it is dynamic
+// (`$obj->$name`, under an `index "("` when it has arguments).
 func (l *lowerer) arrowCall(n *parse.Node) Node {
 	if n.Text != "->" || len(n.Children) != 2 {
 		return nil
@@ -107,7 +113,33 @@ func (l *lowerer) arrowCall(n *parse.Node) Node {
 	if r.Paren {
 		return &Call{Fn: l.expr(inv), Args: l.parenArgs(r), Parenthesized: true}
 	}
-	return nil
+	m := &MethodCall{}
+	switch {
+	case r.Kind == parse.Call:
+		m.Name, m.Args, m.HasParens = r.Text, l.elements(r.Children), parenthesized(r)
+	case r.Kind == parse.Index && r.Text == "(" && len(r.Children) > 0:
+		m.Dynamic, m.Args, m.HasParens = l.expr(r.Children[0]), l.elements(r.Children[1:]), true
+	case r.Kind == parse.Term && len(r.Children) == 0 && sigilOf(r.Text) == "$":
+		m.Dynamic = l.expr(r)
+	case r.Kind == parse.Term && len(r.Children) == 0 && word.MatchString(r.Text):
+		m.Name = r.Text
+	default:
+		return nil
+	}
+	m.Invocant = l.expr(inv)
+	return m
+}
+
+// indirect lowers indirect object syntax, `new Foo(1)`: the parser's
+// Indirect flag says the first child is the invocant and the rest are the
+// arguments.
+func (l *lowerer) indirect(n *parse.Node) Node {
+	m := &MethodCall{Name: n.Text, Indirect: true, HasParens: parenthesized(n)}
+	if len(n.Children) > 0 {
+		m.Invocant = l.expr(n.Children[0])
+		m.Args = l.elements(n.Children[1:])
+	}
+	return m
 }
 
 // parenArgs lowers the parenthesised arguments of `$code->(...)`: a `list`

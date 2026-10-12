@@ -160,3 +160,60 @@ func TestLowerCallThroughReference(t *testing.T) {
 		}},
 	})
 }
+
+// Four method-call shapes lower to one MethodCall. The method is a `call`
+// when it has parentheses and a word when it has none, so HasParens is the
+// right side's kind and span; a dynamic method, `$obj->$name`, is Dynamic
+// in place of Name. Indirect object syntax keeps the parser's Indirect flag:
+// with `package Foo` seen, perl 5.42's -MO=Deparse gives `new Foo(1)` as
+// `'Foo'->new(1)`.
+func TestLowerMethodCall(t *testing.T) {
+	type L = []lower.Node
+	checkShapes(t, []shapeCase{
+		{"$obj->method(1);", func(e *parse.Node, lx lowered) lower.Node {
+			m := e.Children[1]
+			return &lower.MethodCall{Invocant: lx(e.Children[0]), Name: "method", Args: L{lx(m.Children[0])}, HasParens: true}
+		}},
+		{"$obj->method(1, 2);", func(e *parse.Node, lx lowered) lower.Node {
+			comma := e.Children[1].Children[0]
+			return &lower.MethodCall{Invocant: lx(e.Children[0]), Name: "method", Args: L{lx(comma.Children[0]), lx(comma.Children[1])}, HasParens: true}
+		}},
+		{"$obj->method;", func(e *parse.Node, lx lowered) lower.Node {
+			return &lower.MethodCall{Invocant: lx(e.Children[0]), Name: "method"}
+		}},
+		{"Foo->new;", func(e *parse.Node, lx lowered) lower.Node {
+			return &lower.MethodCall{Invocant: lx(e.Children[0]), Name: "new"}
+		}},
+		{"Foo->new();", func(e *parse.Node, lx lowered) lower.Node {
+			return &lower.MethodCall{Invocant: lx(e.Children[0]), Name: "new", HasParens: true}
+		}},
+		// The arguments flatten as a list does, the word left of => quoted.
+		{"Foo->new(a => 1);", func(e *parse.Node, lx lowered) lower.Node {
+			fat := e.Children[1].Children[0]
+			a := &lower.Bareword{Name: "a", Quoted: true}
+			a.Meta().ID = lx(fat.Children[0]).Meta().ID
+			return &lower.MethodCall{Invocant: lx(e.Children[0]), Name: "new", Args: L{a, lx(fat.Children[1])}, HasParens: true}
+		}},
+		{"$obj->$name(1);", func(e *parse.Node, lx lowered) lower.Node {
+			idx := e.Children[1]
+			return &lower.MethodCall{Invocant: lx(e.Children[0]), Dynamic: lx(idx.Children[0]), Args: L{lx(idx.Children[1])}, HasParens: true}
+		}},
+		{"$obj->$name;", func(e *parse.Node, lx lowered) lower.Node {
+			return &lower.MethodCall{Invocant: lx(e.Children[0]), Dynamic: lx(e.Children[1])}
+		}},
+	})
+
+	src := "package Foo; sub new {1} package main; new Foo(1);"
+	root := parse.Parse([]byte(src))
+	last := root.Children[len(root.Children)-1]
+	if last.Kind != parse.Statement || len(last.Children) != 1 || !last.Children[0].Indirect {
+		t.Fatalf("%q: the last statement is not one indirect call", src)
+	}
+	e := last.Children[0]
+	lx := func(n *parse.Node) lower.Node { return lower.LowerExpr(root, n) }
+	want := &lower.MethodCall{Invocant: lx(e.Children[0]), Name: "new", Args: []lower.Node{lx(e.Children[1])}, HasParens: true, Indirect: true}
+	want.Meta().ID = lower.AssignIDs(root)[e]
+	if got := lx(e); !reflect.DeepEqual(got, want) {
+		t.Errorf("%q: lowered to %#v, want %#v", src, got, want)
+	}
+}
