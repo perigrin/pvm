@@ -1,6 +1,6 @@
 ---
 title: "Lower Slice{Kind}: the five-way switch §4.14.1 rule 5 specifies"
-state: in-progress
+state: done
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -8,16 +8,31 @@ blocked_by:
 blocks:
 - 01a12a85-31a5-769d-88c4-e2add3f8fefc
 created: 2026-09-20T23:05:41.330720998Z
-updated: 2026-10-12T17:10:07.74618055Z
+updated: 2026-10-12T18:27:52.851017143Z
 sessions:
 - start_sha: 34b03d318ec7428fe87316e7752b9ef1f1f6164e
-  end_sha: ""
-  commits: 0
+  end_sha: 55ee0ff03a881b4415d9e0444d6111d11d76ccc6
+  commits: 3
   started_at: 2026-10-12T17:10:07.74618055Z
+  ended_at: 2026-10-12T18:27:52.851017143Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-12T17:10:07.74618055Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-12T18:27:52.851017143Z
+observed_paths:
+- docs/specs/perl-parser/04-expressions.md
+- internal/lower/decl.go
+- internal/lower/decl_test.go
+- internal/lower/expr.go
+- internal/lower/id.go
+- internal/lower/id_test.go
+- internal/lower/node.go
+- internal/lower/slice.go
+- internal/lower/slice_test.go
+- internal/lower/vars_test.go
 ---
 
 ## Context
