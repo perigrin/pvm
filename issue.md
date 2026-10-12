@@ -1,6 +1,6 @@
 ---
 title: "The position map: a side table keyed by id, with erased nodes mapping forward"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -10,7 +10,16 @@ blocked_by:
 blocks:
 - 01a12a85-304b-77f1-9bda-e6b73c317305
 created: 2026-09-20T23:08:20.306792879Z
-updated: 2026-10-12T21:50:23.06213704Z
+updated: 2026-10-12T22:10:42.988475732Z
+sessions:
+- start_sha: 797bed26b3602121b0e30cc887a4cd02148f76e7
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-12T22:10:42.988475732Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-12T22:10:42.988475732Z
 ---
 
 ## Context
