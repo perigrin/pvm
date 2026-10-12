@@ -49,7 +49,26 @@ func TestHoleStandsAnywhereANodeMay(t *testing.T) {
 // input leaves fields unset, so each kind at its zero value must walk
 // without panicking, report no children, and carry a usable Meta.
 func TestZeroValueNodeIsUsable(t *testing.T) {
-	zeros := []lower.Node{
+	for _, n := range allKinds() {
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Errorf("%T: walking the zero value panicked: %v", n, r)
+				}
+			}()
+			if kids := lower.Children(n); len(kids) != 0 {
+				t.Errorf("%T: zero value has %d children, want none", n, len(kids))
+			}
+			if m := n.Meta(); m == nil || m.ID != (lower.ID{}) || m.Paren {
+				t.Errorf("%T: zero value's Meta is not the zero identity", n)
+			}
+		}()
+	}
+}
+
+// allKinds returns every lowered kind at its zero value.
+func allKinds() []lower.Node {
+	return []lower.Node{
 		&lower.Hole{},
 		&lower.NumLit{}, &lower.StrLit{}, &lower.Interp{}, &lower.QwList{}, &lower.Bareword{},
 		&lower.Var{}, &lower.Deref{}, &lower.Index{}, &lower.Key{}, &lower.Slice{},
@@ -64,20 +83,5 @@ func TestZeroValueNodeIsUsable(t *testing.T) {
 		&lower.Block{}, &lower.ExprStmt{}, &lower.IfStmt{},
 		&lower.BlockStmt{}, &lower.WhileStmt{}, &lower.CForStmt{}, &lower.ForeachStmt{},
 		&lower.UseStmt{}, &lower.PhaserStmt{}, &lower.File{},
-	}
-	for _, n := range zeros {
-		func() {
-			defer func() {
-				if r := recover(); r != nil {
-					t.Errorf("%T: walking the zero value panicked: %v", n, r)
-				}
-			}()
-			if kids := lower.Children(n); len(kids) != 0 {
-				t.Errorf("%T: zero value has %d children, want none", n, len(kids))
-			}
-			if m := n.Meta(); m == nil || m.ID != (lower.ID{}) || m.Paren {
-				t.Errorf("%T: zero value's Meta is not the zero identity", n)
-			}
-		}()
 	}
 }

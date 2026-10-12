@@ -77,3 +77,47 @@ func TestPositionMapInsideHole(t *testing.T) {
 		t.Errorf("%q: offset 8, in the Unknown's block, resolves to %#v, want the Hole %#v", src, got, hole)
 	}
 }
+
+// parseNode is the syntax pointer no lowered type may hold.
+var parseNode = reflect.TypeOf((*parse.Node)(nil))
+
+// holdsSyntax reports whether a value of type t can hold a *parse.Node in a
+// field, an element or a key. A Node-typed field is an interface over the
+// lowered kinds, each of which is checked in its own right.
+func holdsSyntax(t reflect.Type, seen map[reflect.Type]bool) bool {
+	if t == parseNode {
+		return true
+	}
+	if seen[t] {
+		return false
+	}
+	seen[t] = true
+	switch t.Kind() {
+	case reflect.Map:
+		return holdsSyntax(t.Key(), seen) || holdsSyntax(t.Elem(), seen)
+	case reflect.Pointer, reflect.Slice, reflect.Array:
+		return holdsSyntax(t.Elem(), seen)
+	case reflect.Struct:
+		for i := range t.NumField() {
+			if holdsSyntax(t.Field(i).Type, seen) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// The lowered tree carries no syntax pointers (§6.1.6 item 3): the position
+// map is the one connection back to the CST, so the tree is a value of its
+// own. Every kind TestZeroValueNodeIsUsable lists is checked, and a control
+// shows the check finds a pointer behind a slice.
+func TestLoweredTreeHasNoSyntaxPointers(t *testing.T) {
+	if !holdsSyntax(reflect.TypeOf(struct{ N []*parse.Node }{}), map[reflect.Type]bool{}) {
+		t.Fatal("the check misses a []*parse.Node field")
+	}
+	for _, n := range allKinds() {
+		if holdsSyntax(reflect.TypeOf(n), map[reflect.Type]bool{}) {
+			t.Errorf("%T can hold a *parse.Node", n)
+		}
+	}
+}
