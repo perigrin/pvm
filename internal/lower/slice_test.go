@@ -72,3 +72,48 @@ func TestLowerSliceOverBrokenInput(t *testing.T) {
 		sameShape(t, c.src, zeroIDs(lower.LowerExpr(root, root.Children[0].Children[0])), c.want)
 	}
 }
+
+// A slice's base and subscript lower as the same spelling's element would.
+// perl -MO=Deparse 5.42 prints @h{a} as @h{'a'}, so a lone word in braces
+// is quoted; qw(a b c)[1] as ('a', 'b', 'c')[1], a list slice; and
+// $x->@[0], $x->%{a} as @$x[0], %$x{'a'}, so a postfix slice's base is the
+// postfix Deref of what the arrow follows. With $x = {a=>1}, $x->@{a} is 1
+// and $x->%{a} is a,1.
+func TestLowerSliceShape(t *testing.T) {
+	zero := &lower.NumLit{Text: "0", IsInt: true}
+	paren := func(n lower.Node) lower.Node { n.Meta().Paren = true; return n }
+	a := &lower.Bareword{Name: "a", Quoted: true}
+	deref := func(sigil string, postfix bool) *lower.Deref {
+		return &lower.Deref{Sigil: sigil, Expr: &lower.Var{Sigil: "$", Name: "x"}, Postfix: postfix}
+	}
+	cases := []struct {
+		src  string
+		want lower.Node
+	}{
+		{"@h{a};", &lower.Slice{Base: &lower.Var{Sigil: "@", Name: "h"}, Idx: a, Kind: lower.SliceHash}},
+		{"%h{a};", &lower.Slice{Base: &lower.Var{Sigil: "%", Name: "h"}, Idx: a, Kind: lower.SliceKVHash}},
+		{"@$x[0];", &lower.Slice{Base: deref("@", false), Idx: zero, Kind: lower.SliceArray}},
+		{"%$x{a};", &lower.Slice{Base: deref("%", false), Idx: a, Kind: lower.SliceKVHash}},
+		{"($x)[0];", &lower.Slice{Base: paren(&lower.Var{Sigil: "$", Name: "x"}), Idx: zero, Kind: lower.SliceList}},
+		{"qw(a b c)[1];", &lower.Slice{Base: &lower.QwList{Words: []string{"a", "b", "c"}}, Idx: &lower.NumLit{Text: "1", IsInt: true}, Kind: lower.SliceList}},
+		{"$x->@[0];", &lower.Slice{Base: deref("@", true), Idx: zero, Kind: lower.SliceArray}},
+		{"$x->@{a};", &lower.Slice{Base: deref("@", true), Idx: a, Kind: lower.SliceHash}},
+		{"$x->%[0];", &lower.Slice{Base: deref("%", true), Idx: zero, Kind: lower.SliceKVArray}},
+		{"$x->%{a};", &lower.Slice{Base: deref("%", true), Idx: a, Kind: lower.SliceKVHash}},
+		{"$x->@[;", &lower.Slice{Base: deref("@", true), Idx: &lower.Hole{}, Kind: lower.SliceArray}},
+	}
+	for _, c := range cases {
+		root := parse.Parse([]byte(c.src))
+		sameShape(t, c.src, zeroIDs(lower.LowerExpr(root, root.Children[0].Children[0])), c.want)
+	}
+
+	// A postfix slice is the arrow's id, and its Deref the bare sigil's.
+	root := parse.Parse([]byte("$x->@[0];"))
+	n := root.Children[0].Children[0]
+	ids := lower.AssignIDs(root)
+	got := lower.LowerExpr(root, n)
+	base := lower.Children(got)[0]
+	if got.Meta().ID != ids[n] || base.Meta().ID != ids[n.Children[1].Children[0]] {
+		t.Errorf("ids %v, %v are not the arrow's and the sigil's %v, %v", got.Meta().ID, base.Meta().ID, ids[n], ids[n.Children[1].Children[0]])
+	}
+}
