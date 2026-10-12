@@ -448,3 +448,30 @@ func Children(n Node) []Node {
 	}
 	return kids
 }
+
+// IsDeref reports whether n is a subscript that reads through a reference:
+// it is spelled with -> or its base is itself a dereference -- a Deref, as
+// in $$x[0], or another subscript, as in $h{a}[0], where perl implies the
+// arrow. Arrow alone is not this: $$x[0] has no arrow (§4.14.1 rule 2).
+//
+// It lives beside Children because it switches on the kinds declared here.
+func IsDeref(n Node) bool {
+	var base Node
+	switch n := n.(type) {
+	case *Index:
+		if n.Arrow {
+			return true
+		}
+		base = n.Base
+	case *Key:
+		if n.Arrow {
+			return true
+		}
+		base = n.Base
+	}
+	switch base.(type) {
+	case *Deref, *Index, *Key:
+		return true
+	}
+	return false
+}
