@@ -61,7 +61,28 @@ func (l *lowerer) assign(n *parse.Node) Node {
 	}
 	a := &Assign{Op: n.Text}
 	a.L, a.R = l.operands(n)
+	if len(n.Children) > 0 {
+		left := n.Children[0]
+		a.ListAssign = left.Kind == parse.List || left.Paren || aggregate(left)
+	}
 	return a
+}
+
+// aggregate reports whether n names an array or a hash: a term with an
+// aggregate sigil, an aggregate deref, a slice, or a postfix deref or slice.
+// perl assigns a list to each, and a scalar to `$#a` and `$h{k}`.
+func aggregate(n *parse.Node) bool {
+	switch n.Kind {
+	case parse.Term:
+		return n.Text != "" && (n.Text[0] == '@' || n.Text[0] == '%')
+	case parse.Unary:
+		return n.Text == "@" || n.Text == "%"
+	case parse.Index:
+		return len(n.Children) > 0 && aggregate(n.Children[0])
+	case parse.Binary:
+		return n.Text == "->" && len(n.Children) == 2 && aggregate(n.Children[1])
+	}
+	return false
 }
 
 // comparison lowers a `cmp_chain` of one link, which is a plain binary

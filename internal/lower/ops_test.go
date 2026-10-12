@@ -225,3 +225,34 @@ func TestLowerListFat(t *testing.T) {
 		}
 	}
 }
+
+// §4.14.2, Assign row: list assignment is the LHS's syntactic shape. perl
+// 5.42 compiles each true case to aassign and each false one to sassign;
+// `($a) = 1` is a list assignment for its parens alone, and `$#a` is a
+// scalar for all its `#`.
+func TestLowerAssignListness(t *testing.T) {
+	cases := []struct {
+		src  string
+		want bool
+	}{
+		{"($a,$b) = (1,2);", true},
+		{"@a = (1,2);", true},
+		{"%h = (1,2);", true},
+		{"($a) = 1;", true},
+		{"@$r = (1,2);", true},
+		{"@h{1,2} = (1,2);", true},
+		{"$r->@* = (1,2);", true},
+		{"$r->@[0,1] = (1,2);", true},
+		{"$a = 1;", false},
+		{"$a = (1,2);", false},
+		{"$#a = 1;", false},
+		{"$h{a} = (1,2);", false},
+		{"$r->[0] = 1;", false},
+	}
+	for _, c := range cases {
+		got := lowerOne(t, c.src)
+		if !sameKind(got, &lower.Assign{}) || field(got, "ListAssign") != c.want {
+			t.Errorf("%q: lowered to %#v, want an Assign with ListAssign %v", c.src, got, c.want)
+		}
+	}
+}
