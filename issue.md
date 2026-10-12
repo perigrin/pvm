@@ -1,6 +1,6 @@
 ---
 title: "The position map: a side table keyed by id, with erased nodes mapping forward"
-state: in-progress
+state: done
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -10,16 +10,43 @@ blocked_by:
 blocks:
 - 01a12a85-304b-77f1-9bda-e6b73c317305
 created: 2026-09-20T23:08:20.306792879Z
-updated: 2026-10-12T23:37:39.143379324Z
+updated: 2026-10-12T23:53:26.775376301Z
 sessions:
 - start_sha: 797bed26b3602121b0e30cc887a4cd02148f76e7
-  end_sha: ""
-  commits: 0
+  end_sha: 2f38962960ad8ceb79c510b01a862647f0fbacaa
+  commits: 3
   started_at: 2026-10-12T22:10:42.988475732Z
+  ended_at: 2026-10-12T23:53:26.775376301Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-12T22:10:42.988475732Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-12T23:53:26.775376301Z
+observed_paths:
+- README.md
+- docs/feature-parity-with-uv.md
+- docs/specs/perl-parser/04-expressions.md
+- docs/specs/perl-parser/07-conformance.md
+- internal/lower/export_test.go
+- internal/lower/id.go
+- internal/lower/node.go
+- internal/lower/node_test.go
+- internal/lower/positions.go
+- internal/lower/positions_test.go
+- internal/lower/print.go
+- internal/lower/print_test.go
+- internal/lower/special.go
+- internal/lower/special_test.go
+- internal/psc/analyze_command.go
+- internal/psc/analyze_command_test.go
+- internal/psc/parse_command.go
+- internal/psc/parse_command_test.go
+- internal/psc/testdata/analyze.golden
+- internal/psc/testdata/analyze/README.txt
+- internal/psc/testdata/analyze/lib/My/Child.pm
+- internal/psc/testdata/analyze/main.pl
 ---
 
 ## Context
