@@ -1,6 +1,6 @@
 ---
 title: psc parse prints the internal/parse CST or the lowered tree, chosen by a flag
-state: pending
+state: in-progress
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -8,7 +8,16 @@ blocked_by:
 blocks:
 - 01a0c115-df67-7d69-8883-73d40b0ae15d
 created: 2026-10-11T10:32:15.461832212Z
-updated: 2026-10-11T10:33:55.146301455Z
+updated: 2026-10-12T22:10:46.302235363Z
+sessions:
+- start_sha: 797bed26b3602121b0e30cc887a4cd02148f76e7
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-12T22:10:46.302235363Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-12T22:10:46.302235363Z
 ---
 
 ## Context
