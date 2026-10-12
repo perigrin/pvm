@@ -244,3 +244,31 @@ func TestLowerSubDeclaration(t *testing.T) {
 		t.Errorf("my $f = sub { 1 }: Init is %#v, want %#v", init, body())
 	}
 }
+
+// Input perl rejects (perl -c on 5.42) still lowers: what parsed keeps its
+// shape and the Unknown becomes a Hole. `my $x = (;` keeps its variable and
+// has a Hole Init. `sub {;` is an AnonSub whose block holds an Unknown;
+// its Body is a Hole, which the statements slice (01a12a85-2fa3) replaces
+// with a block holding the one Hole. `sub f {` keeps its name.
+func TestLowerDeclOverBrokenInput(t *testing.T) {
+	hole := reflect.TypeOf(&lower.Hole{})
+	isHole := func(v reflect.Value) bool { return !v.IsNil() && reflect.TypeOf(v.Interface()) == hole }
+
+	d := lowerDecl(t, "my $x = (;")
+	if d.Kind != lower.DeclMy || len(d.Vars) != 1 || d.Vars[0] == nil || reflect.TypeOf(d.Init) != hole {
+		t.Errorf("my $x = (;: lowered to %#v, want a my Decl with one Var and a Hole Init", d)
+	}
+
+	s := lowerLast(t, "sub {;")
+	if reflect.TypeOf(s) != reflect.TypeOf(&lower.AnonSub{}) || !isHole(field(s, "Body")) {
+		t.Errorf("sub {;: lowered to %#v, want an AnonSub with a Hole Body", s)
+	}
+
+	f := lowerLast(t, "sub f {")
+	clearIDs(f)
+	want := &lower.Decl{Kind: lower.DeclSub, Vars: []lower.Node{&lower.Var{Sigil: "&", Name: "f"}},
+		Init: &lower.AnonSub{Body: &lower.Hole{}}}
+	if !reflect.DeepEqual(f, lower.Node(want)) {
+		t.Errorf("sub f {: lowered to %#v, want %#v", f, want)
+	}
+}
