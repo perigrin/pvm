@@ -1,6 +1,6 @@
 ---
 title: "Lower statements and the file: blocks, conditionals, loops, use, phasers, and lower.Lower"
-state: in-progress
+state: done
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -10,16 +10,40 @@ blocks:
 - 01a12a85-34bf-7ca4-ac7f-1a9218918da1
 - 01a12a85-3566-7ec5-9dcc-e864270f3415
 created: 2026-10-11T10:32:13.987176039Z
-updated: 2026-10-12T17:10:10.881656312Z
+updated: 2026-10-12T22:00:44.089570958Z
 sessions:
 - start_sha: 34b03d318ec7428fe87316e7752b9ef1f1f6164e
-  end_sha: ""
-  commits: 0
+  end_sha: 1f1ba8482f96293cc81b90102002e4c610824d4d
+  commits: 5
   started_at: 2026-10-12T17:10:10.881656312Z
+  ended_at: 2026-10-12T22:00:44.089570958Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-12T17:10:10.881656312Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-12T22:00:44.089570958Z
+observed_paths:
+- docs/specs/perl-parser/04-expressions.md
+- internal/lower/decl.go
+- internal/lower/decl_test.go
+- internal/lower/export_test.go
+- internal/lower/expr.go
+- internal/lower/id.go
+- internal/lower/id_test.go
+- internal/lower/lower.go
+- internal/lower/node.go
+- internal/lower/node_test.go
+- internal/lower/ops.go
+- internal/lower/ops_test.go
+- internal/lower/slice.go
+- internal/lower/slice_test.go
+- internal/lower/special.go
+- internal/lower/stmt.go
+- internal/lower/stmt_test.go
+- internal/lower/vars.go
+- internal/lower/vars_test.go
 ---
 
 ## Context
