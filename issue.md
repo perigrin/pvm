@@ -1,6 +1,6 @@
 ---
 title: "Lower Slice{Kind}: the five-way switch §4.14.1 rule 5 specifies"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -8,7 +8,16 @@ blocked_by:
 blocks:
 - 01a12a85-31a5-769d-88c4-e2add3f8fefc
 created: 2026-09-20T23:05:41.330720998Z
-updated: 2026-10-11T10:33:38.125114192Z
+updated: 2026-10-12T17:10:07.74618055Z
+sessions:
+- start_sha: 34b03d318ec7428fe87316e7752b9ef1f1f6164e
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-12T17:10:07.74618055Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-12T17:10:07.74618055Z
 ---
 
 ## Context
