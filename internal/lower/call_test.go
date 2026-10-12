@@ -130,3 +130,33 @@ func TestLowerCodeNameIsNotACall(t *testing.T) {
 		sameShape(t, c.src, zeroIDs(lowerOne(t, c.src)), c.want)
 	}
 }
+
+// A call through a code reference has Fn, the reference, and no Name
+// (§4.8.3). `$code->(...)` is a `binary "->"` over the parenthesised
+// arguments; `&{$code}(...)` and `&$code(...)` are an `index "("` over the
+// ampersand, which bypasses prototypes as `&foo(...)` does. `&$code` is one
+// term whose inner expression the parser never built, so its Fn is a Hole
+// carrying the term's id.
+func TestLowerCallThroughReference(t *testing.T) {
+	type L = []lower.Node
+	checkShapes(t, []shapeCase{
+		{"$code->(1);", func(e *parse.Node, lx lowered) lower.Node {
+			return &lower.Call{Fn: lx(e.Children[0]), Args: L{lx(e.Children[1])}, Parenthesized: true}
+		}},
+		{"$code->(1, 2);", func(e *parse.Node, lx lowered) lower.Node {
+			list := e.Children[1]
+			return &lower.Call{Fn: lx(e.Children[0]), Args: L{lx(list.Children[0]), lx(list.Children[1])}, Parenthesized: true}
+		}},
+		{"$code->();", func(e *parse.Node, lx lowered) lower.Node {
+			return &lower.Call{Fn: lx(e.Children[0]), Parenthesized: true}
+		}},
+		{"&{$code}(1);", func(e *parse.Node, lx lowered) lower.Node {
+			return &lower.Call{Fn: lx(e.Children[0].Children[1]), Args: L{lx(e.Children[1])}, Parenthesized: true, Ampersand: true}
+		}},
+		{"&$code(1);", func(e *parse.Node, lx lowered) lower.Node {
+			fn := &lower.Hole{}
+			fn.Meta().ID = lx(e.Children[0]).Meta().ID
+			return &lower.Call{Fn: fn, Args: L{lx(e.Children[1])}, Parenthesized: true, Ampersand: true}
+		}},
+	})
+}

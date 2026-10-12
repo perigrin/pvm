@@ -3,7 +3,11 @@
 
 package lower
 
-import "tamarou.com/pvm/internal/parse"
+import (
+	"strings"
+
+	"tamarou.com/pvm/internal/parse"
+)
 
 // call lowers a `call` no special form claimed: a builtin or a sub by name,
 // wherever the name stood in the old grammar. A first child carrying the
@@ -67,13 +71,52 @@ func isCodeName(n *parse.Node) bool {
 	return n.Kind == parse.Term && len(n.Children) == 0 && len(n.Text) > 1 && n.Text[0] == '&' && word.MatchString(n.Text[1:])
 }
 
-// indexCall lowers an `index "("` over `&foo`: a call by name that bypasses
-// prototypes, its arguments in the parentheses. Every other base declines.
+// indexCall lowers an `index "("` over an ampersand, a call that bypasses
+// prototypes with its arguments in the parentheses: `&foo(1)` by name, and
+// `&$code(1)` and `&{$code}(1)` through a reference. `&$code` is one term
+// whose inner expression the parser never built, so its Fn is a Hole with
+// the term's id. Every other base declines.
 func (l *lowerer) indexCall(n *parse.Node) Node {
-	if n.Text != "(" || len(n.Children) == 0 || !isCodeName(n.Children[0]) {
+	if n.Text != "(" || len(n.Children) == 0 {
 		return nil
 	}
-	return &Call{Name: n.Children[0].Text[1:], Args: l.elements(n.Children[1:]), Parenthesized: true, Ampersand: true}
+	base := n.Children[0]
+	c := &Call{Parenthesized: true, Ampersand: true}
+	switch {
+	case isCodeName(base):
+		c.Name = base.Text[1:]
+	case base.Kind == parse.Term && len(base.Children) == 0 && strings.HasPrefix(base.Text, "&$"):
+		c.Fn = l.stamp(base, &Hole{})
+	case base.Kind == parse.Index && base.Text == "{" && len(base.Children) == 2 && base.Children[0].Text == "&":
+		c.Fn = l.expr(base.Children[1])
+	default:
+		return nil
+	}
+	c.Args = l.elements(n.Children[1:])
+	return c
+}
+
+// arrowCall lowers a `binary "->"` that names no dereference. Over a
+// parenthesised right side it is a call through a code reference,
+// `$code->(1)`, whose Fn is the left side.
+func (l *lowerer) arrowCall(n *parse.Node) Node {
+	if n.Text != "->" || len(n.Children) != 2 {
+		return nil
+	}
+	inv, r := n.Children[0], n.Children[1]
+	if r.Paren {
+		return &Call{Fn: l.expr(inv), Args: l.parenArgs(r), Parenthesized: true}
+	}
+	return nil
+}
+
+// parenArgs lowers the parenthesised arguments of `$code->(...)`: a `list`
+// when there are none or several, and otherwise the one argument itself.
+func (l *lowerer) parenArgs(r *parse.Node) []Node {
+	if r.Kind == parse.List {
+		return l.elements(r.Children)
+	}
+	return []Node{l.expr(r)}
 }
 
 // handle lowers a filehandle slot. A block slot, `print {$fh} "x"`, of one
