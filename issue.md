@@ -1,6 +1,6 @@
 ---
 title: "Lower calls: five sites to one Call, and the filehandle slot from the Handle flag"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -8,7 +8,16 @@ blocked_by:
 blocks:
 - 01a12a85-32cf-7d76-96f7-b814935374e1
 created: 2026-09-20T23:07:00.666688859Z
-updated: 2026-10-11T10:33:44.111747121Z
+updated: 2026-10-12T19:03:34.878590183Z
+sessions:
+- start_sha: 93874fbfe9d9e6c38b8b145da0b41e96452b674a
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-12T19:03:34.878590183Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-12T19:03:34.878590183Z
 ---
 
 ## Context
