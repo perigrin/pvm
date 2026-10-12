@@ -1,19 +1,31 @@
 ---
 title: An anonymous sub with a signature opens a node-identity anchor named after its parameter
-state: in-progress
+state: done
 urgency: normal
 milestone: m2-lower-the-tree
 created: 2026-10-12T17:13:20.907907353Z
-updated: 2026-10-12T17:14:12.368426573Z
+updated: 2026-10-12T17:58:35.44984818Z
 sessions:
 - start_sha: 34b03d318ec7428fe87316e7752b9ef1f1f6164e
-  end_sha: ""
-  commits: 0
+  end_sha: 74ef5d96a45bfa0f13ccbde7572cce6b943e1329
+  commits: 2
   started_at: 2026-10-12T17:14:12.368426573Z
+  ended_at: 2026-10-12T17:58:35.44984818Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-12T17:14:12.368426573Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-12T17:58:35.44984818Z
+observed_paths:
+- docs/specs/perl-parser/04-expressions.md
+- internal/lower/decl.go
+- internal/lower/decl_test.go
+- internal/lower/expr.go
+- internal/lower/id.go
+- internal/lower/id_test.go
+- internal/lower/node.go
 ---
 
 ## Context
