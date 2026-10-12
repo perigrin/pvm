@@ -145,3 +145,102 @@ func TestLowerDeclAttrsAndRefAlias(t *testing.T) {
 		}
 	}
 }
+
+// lowerLast lowers the one expression of src's last statement.
+func lowerLast(t *testing.T, src string) lower.Node {
+	t.Helper()
+	root := parse.Parse([]byte(src))
+	last := root.Children[len(root.Children)-1]
+	if last.Kind != parse.Statement || len(last.Children) != 1 {
+		t.Fatalf("%q: last statement does not hold one expression", src)
+	}
+	return lower.LowerExpr(root, last.Children[0])
+}
+
+// clearIDs zeroes the id of n and of everything a walk from it reaches, so a
+// shape compares without its ids.
+func clearIDs(n lower.Node) {
+	n.Meta().ID = lower.ID{}
+	for _, c := range lower.Children(n) {
+		clearIDs(c)
+	}
+}
+
+// field reads one named field of a lowered node through reflect, since a
+// type assertion in a test trips go-critic run without type information.
+func field(n lower.Node, name string) reflect.Value {
+	return reflect.ValueOf(n).Elem().FieldByName(name)
+}
+
+// A named sub is perl's compile-time `*f = sub {...}`: a Decl of kind sub
+// whose one Var is &f and whose Init is the AnonSub; `sub f;` declares
+// without defining, so its Init is nil. method follows sub. package and
+// class name a Bareword, with a version or block as Init and class
+// attributes in Attrs. A sub without a name is an AnonSub in either
+// position.
+//
+// Every body is a Hole: a block is a statement, and the statements slice
+// (01a12a85-2fa3) replaces this Hole with its block lowering.
+func TestLowerSubDeclaration(t *testing.T) {
+	body := func(attrs ...string) *lower.AnonSub {
+		return &lower.AnonSub{Body: &lower.Hole{}, Attrs: attrs}
+	}
+	amp := func(name string) []lower.Node { return []lower.Node{&lower.Var{Sigil: "&", Name: name}} }
+	word := func(name string) []lower.Node { return []lower.Node{&lower.Bareword{Name: name}} }
+	cases := []struct {
+		src  string
+		want lower.Node
+	}{
+		{"sub f { 1 }", &lower.Decl{Kind: lower.DeclSub, Vars: amp("f"), Init: body()}},
+		{"sub f;", &lower.Decl{Kind: lower.DeclSub, Vars: amp("f")}},
+		{"sub f($);", &lower.Decl{Kind: lower.DeclSub, Vars: amp("f")}},
+		{"sub { 1 };", body()},
+		{"sub f :prototype($) { 1 }", &lower.Decl{Kind: lower.DeclSub, Vars: amp("f"), Init: body(":prototype($)")}},
+		{"use v5.38; class Foo; method m { 1 }", &lower.Decl{Kind: lower.DeclMethod, Vars: amp("m"), Init: body()}},
+		{"package Foo;", &lower.Decl{Kind: lower.DeclPackage, Vars: word("Foo")}},
+		{"package Foo 1.2;", &lower.Decl{Kind: lower.DeclPackage, Vars: word("Foo"), Init: &lower.NumLit{Text: "1.2"}}},
+		{"package Foo { 1 }", &lower.Decl{Kind: lower.DeclPackage, Vars: word("Foo"), Init: &lower.Hole{}}},
+		{"use v5.38; class Foo :isa(Bar) { }", &lower.Decl{Kind: lower.DeclClass, Vars: word("Foo"), Attrs: []string{":isa(Bar)"}, Init: &lower.Hole{}}},
+	}
+	for _, c := range cases {
+		got := lowerLast(t, c.src)
+		clearIDs(got)
+		if !reflect.DeepEqual(got, c.want) {
+			t.Errorf("%q: lowered to %#v, want %#v", c.src, got, c.want)
+		}
+	}
+
+	// A signature's parameters are the sub's Sig: a `list paren` gives one
+	// each, a lone `term paren` gives one. Without the signatures feature
+	// the parens are a prototype, which is not a signature. The parameters'
+	// own shapes are the variables slice's, so only their count is checked.
+	sigs := []struct {
+		src string
+		n   int
+	}{
+		{"use v5.36; sub f ($x, $y) { 1 }", 2},
+		{"use v5.36; sub f ($x, $y = 5, @r) { 1 }", 3},
+		{"sub f ($x, $y) { 1 }", 0},
+		{"use v5.36; sub ($x) { 1 };", 1},
+		{"use v5.36; my $f = sub ($x) { 1 };", 1},
+	}
+	for _, c := range sigs {
+		sub := lowerLast(t, c.src)
+		if field(sub, "Kind").IsValid() {
+			sub = field(sub, "Init").Interface().(lower.Node)
+		}
+		if got := field(sub, "Sig").Len(); got != c.n {
+			t.Errorf("%q: %d signature parameters, want %d", c.src, got, c.n)
+		}
+		if b := field(sub, "Body"); b.IsNil() || reflect.TypeOf(b.Interface()) != reflect.TypeOf(&lower.Hole{}) {
+			t.Errorf("%q: Body is %v, want a Hole", c.src, b)
+		}
+	}
+
+	// In expression position the sub is the declaration's Init.
+	init := field(lowerLast(t, "my $f = sub { 1 };"), "Init").Interface().(lower.Node)
+	clearIDs(init)
+	if !reflect.DeepEqual(init, lower.Node(body())) {
+		t.Errorf("my $f = sub { 1 }: Init is %#v, want %#v", init, body())
+	}
+}

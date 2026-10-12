@@ -26,10 +26,8 @@ func (l *lowerer) decl(n *parse.Node) Node {
 		return nil
 	}
 	d := &Decl{Kind: kind}
-	if kind >= DeclSub {
-		// ponytail: a named declaration carries its kind only; where its
-		// name, signature and body go is the vocabulary's to say.
-		return d
+	if kind == DeclSub || kind == DeclMethod {
+		return l.sub(n, kind)
 	}
 	kids := n.Children
 	// `my ($x) = f()` is one child, the `=`; `my $x = f()` is two, the
@@ -63,4 +61,46 @@ func (l *lowerer) decl(n *parse.Node) Node {
 		}
 	}
 	return d
+}
+
+// sub lowers a sub or method declaration. A named one is perl's
+// compile-time `*f = sub {...}`: a Decl whose one Var is &f and whose Init
+// is the AnonSub, nil for `sub f;`, which declares without defining. One
+// without a name is the AnonSub itself.
+func (l *lowerer) sub(n *parse.Node, kind DeclKind) Node {
+	kids := n.Children
+	if len(kids) == 0 || kids[0].Kind != parse.Term || kids[0].Paren || !word.MatchString(kids[0].Text) {
+		return l.anonSub(kids)
+	}
+	d := &Decl{Kind: kind, Vars: []Node{l.stamp(kids[0], &Var{Sigil: "&", Name: kids[0].Text})}}
+	if last := kids[len(kids)-1]; last.Kind == parse.Block || last.Kind == parse.Unknown {
+		// The AnonSub is the same syntax site as its Decl, so it shares
+		// the declaration's id (§4.14.1 rule 6).
+		d.Init = l.stamp(n, l.anonSub(kids[1:]))
+	}
+	return d
+}
+
+// anonSub lowers what follows a sub's name: attributes, a signature, and
+// the body. A `prototype` child is not a signature and has no field.
+func (l *lowerer) anonSub(kids []*parse.Node) *AnonSub {
+	s := &AnonSub{}
+	for _, c := range kids {
+		switch {
+		case c.Kind == parse.Attribute:
+			s.Attrs = append(s.Attrs, c.Text)
+		case c.Kind == parse.PrototypeNode:
+		case c.Kind == parse.List && c.Paren:
+			for _, p := range c.Children {
+				s.Sig = append(s.Sig, l.expr(p))
+			}
+		case c.Kind == parse.Term && c.Paren:
+			s.Sig = []Node{l.expr(c)}
+		default:
+			// A block is a statement, which lowers to a Hole until the
+			// statements slice (01a12a85-2fa3) lowers blocks.
+			s.Body = l.expr(c)
+		}
+	}
+	return s
 }
