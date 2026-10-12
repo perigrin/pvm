@@ -121,3 +121,52 @@ func TestLoweredTreeHasNoSyntaxPointers(t *testing.T) {
 		}
 	}
 }
+
+// An offset no statement covers resolves to no node, and never panics: past
+// the end, before the start, in whitespace after the last statement, and
+// anywhere in an empty file. The File's bytes run from its first
+// statement's start to its last one's end, so trivia between statements is
+// the File's and trivia outside them is nobody's.
+func TestPositionMapOutOfRange(t *testing.T) {
+	for _, c := range []struct {
+		src string
+		off int
+	}{{"1;", 2}, {"1;", 100}, {"1;", -1}, {"1;\n\n", 3}, {"", 0}} {
+		_, _, p := positions(c.src)
+		if got := p.At(c.off); got != nil {
+			t.Errorf("%q: offset %d resolves to %#v, want no node", c.src, c.off, got)
+		}
+	}
+	_, _, p := positions("")
+	if got := p.LastBefore(1, func(lower.Node) bool { return true }); got != nil {
+		t.Errorf("an empty file has %#v before offset 1, want no node", got)
+	}
+}
+
+// Span is the map's other direction: a lowered node's id to its bytes. A
+// node with no parse node of its own, a named sub's AnonSub, has its
+// parent's span; the File's span is its statements', without the trivia
+// around them; an id the tree never gave has none.
+func TestPositionMapSpan(t *testing.T) {
+	src := "# a\nsub f { 1 }\n# b\n2;\n\n"
+	_, f, p := positions(src)
+	decl := lower.Children(f.Stmts[0])[0]
+	kids := lower.Children(decl)
+	sub := kids[len(kids)-1]
+	for _, c := range []struct {
+		name       string
+		id         lower.ID
+		start, end int
+	}{
+		{"the Decl", decl.Meta().ID, 4, 15},
+		{"its AnonSub", sub.Meta().ID, 4, 15},
+		{"the File", f.Meta().ID, 4, 22},
+	} {
+		if s, e, ok := p.Span(c.id); !ok || s != c.start || e != c.end {
+			t.Errorf("%q: %s spans [%d,%d) ok=%v, want [%d,%d)", src, c.name, s, e, ok, c.start, c.end)
+		}
+	}
+	if _, _, ok := p.Span(lower.ID{Anchor: "sub g#0"}); ok {
+		t.Errorf("%q: an id the tree never gave has a span", src)
+	}
+}

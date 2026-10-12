@@ -35,36 +35,69 @@ func NewPositions(root *parse.Node, f *File) *Positions {
 	for n, id := range p.ids {
 		p.spans[id] = span{n.Start, n.End}
 	}
+	p.spans[p.ids[root]] = statements(root)
 	var walk func(n Node)
 	walk = func(n Node) {
 		p.nodes[n.Meta().ID] = n
-		p.order = append(p.order, n)
+		if s := p.span(n.Meta().ID); s.start < s.end {
+			p.order = append(p.order, n)
+		}
 		for _, c := range Children(n) {
 			walk(c)
 		}
 	}
 	walk(f)
 	// Stable, so a parent stays before a child that starts where it does.
-	sort.SliceStable(p.order, func(i, j int) bool { return p.start(p.order[i]) < p.start(p.order[j]) })
+	sort.SliceStable(p.order, func(i, j int) bool {
+		return p.span(p.order[i].Meta().ID).start < p.span(p.order[j].Meta().ID).start
+	})
 	return p
 }
 
-// start is where n's bytes begin. A node with no parse node of its own
-// starts where its parent's parse node does.
-func (p *Positions) start(n Node) int {
-	id := n.Meta().ID
+// statements is the File's span: from its first statement's start to its
+// last one's end. Trivia between statements is the File's; trivia before
+// the first or after the last is nobody's, and an empty file has no bytes.
+func statements(root *parse.Node) span {
+	var s span
+	first := true
+	for _, c := range root.Children {
+		if c.Kind == parse.Trivia {
+			continue
+		}
+		if first {
+			s.start, first = c.Start, false
+		}
+		s.end = c.End
+	}
+	return s
+}
+
+// span is the bytes of the CST node id names. A lowered node with no parse
+// node of its own has its parent's.
+func (p *Positions) span(id ID) span {
 	id.Role = 0
-	return p.spans[id].start
+	return p.spans[id]
+}
+
+// Span returns the bytes [start, end) of the lowered node id names, and
+// false if the lowered tree has no node with that id.
+func (p *Positions) Span(id ID) (start, end int, ok bool) {
+	if _, ok := p.nodes[id]; !ok {
+		return 0, 0, false
+	}
+	s := p.span(id)
+	return s.start, s.end, true
 }
 
 // LastBefore returns the lowered node keep accepts that starts last before
 // byte off, in source order, or nil if none does: the question $1 asks of
-// the matches before it (nearestPatternBefore, infer.go:1726).
+// the matches before it (nearestPatternBefore, infer.go:1726). A node with
+// no bytes, an empty file's File, is never before anything.
 //
 // ponytail: a linear scan; binary-search order on off if a caller asks often.
 func (p *Positions) LastBefore(off int, keep func(Node) bool) Node {
 	for i := len(p.order) - 1; i >= 0; i-- {
-		if n := p.order[i]; p.start(n) < off && keep(n) {
+		if n := p.order[i]; p.span(n.Meta().ID).start < off && keep(n) {
 			return n
 		}
 	}
@@ -76,7 +109,7 @@ func (p *Positions) LastBefore(off int, keep func(Node) bool) Node {
 func (p *Positions) At(off int) Node {
 	var out Node
 	for n := p.root; n != nil; {
-		if off < n.Start || off >= n.End {
+		if s := p.spans[p.ids[n]]; off < s.start || off >= s.end {
 			break
 		}
 		if ln, ok := p.nodes[p.ids[n]]; ok {
