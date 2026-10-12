@@ -10,7 +10,7 @@ blocked_by:
 blocks:
 - 01a12a85-304b-77f1-9bda-e6b73c317305
 created: 2026-09-20T23:08:20.306792879Z
-updated: 2026-10-12T17:11:42.83804746Z
+updated: 2026-10-12T21:50:23.06213704Z
 ---
 
 ## Context
@@ -109,6 +109,8 @@ Options the slices named: share the parent's id (collides in id-keyed
 tables), the zero id (collides with the root), nil (loses the fact), or a
 derived id such as the parent's id plus a role. A derived id keeps every key
 distinct and still maps to the parent's span.
+
+2026-10-12: perigrin ruled "parent ID plus a role": `lower.ID` has a `Role`, 0 for the parse node itself, and a synthesized node takes its parent's Anchor and Local under a nonzero Role. It is applied to the named sub's AnonSub (`RoleSubValue`) and the childless deref's Hole (`RoleDerefOperand`); `Readline.Handle` and `Glob.Pattern` stay nil, and this issue applies the rule to them.
 
 ## Acceptance Criteria
 
