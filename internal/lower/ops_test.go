@@ -11,26 +11,6 @@ import (
 	"tamarou.com/pvm/internal/parse"
 )
 
-// lowerOne parses a one-statement program and lowers its expression.
-func lowerOne(t *testing.T, src string) lower.Node {
-	t.Helper()
-	root := parse.Parse([]byte(src))
-	return lower.LowerExpr(root, expression(t, root))
-}
-
-// clearIDs zeroes the id of n and of every node under it, so two lowerings
-// compare by shape alone.
-func clearIDs(n lower.Node) lower.Node {
-	if n == nil {
-		return nil
-	}
-	n.Meta().ID = lower.ID{}
-	for _, c := range lower.Children(n) {
-		clearIDs(c)
-	}
-	return n
-}
-
 // withParen sets n's Paren bit, as source parentheses around it would.
 func withParen(n lower.Node) lower.Node {
 	n.Meta().Paren = true
@@ -42,10 +22,10 @@ func sameKind(got, want lower.Node) bool {
 	return reflect.TypeOf(got) == reflect.TypeOf(want)
 }
 
-// field reads the named field of a lowered node. Operands of variables are
+// fieldOf reads the named field of a lowered node. Operands of variables are
 // another slice's lowering, so these tests read the field under test rather
 // than comparing whole trees that hold them.
-func field(n lower.Node, name string) any {
+func fieldOf(n lower.Node, name string) any {
 	return reflect.ValueOf(n).Elem().FieldByName(name).Interface()
 }
 
@@ -54,11 +34,11 @@ func field(n lower.Node, name string) any {
 func opOf(n lower.Node) string {
 	switch {
 	case sameKind(n, &lower.Binary{}), sameKind(n, &lower.Assign{}):
-		return field(n, "Op").(string)
+		return fieldOf(n, "Op").(string)
 	case sameKind(n, &lower.Repeat{}):
 		return "x"
 	case sameKind(n, &lower.Range{}):
-		if field(n, "Exclusive").(bool) {
+		if fieldOf(n, "Exclusive").(bool) {
 			return "..."
 		}
 		return ".."
@@ -110,7 +90,7 @@ func TestLowerBinaryOpFromField(t *testing.T) {
 	}
 
 	// Both operands of a Binary are lowered.
-	sameShape(t, "'..' . '.';", clearIDs(lowerOne(t, "'..' . '.';")),
+	sameShape(t, "'..' . '.';", zeroIDs(lowerOne(t, "'..' . '.';")),
 		&lower.Binary{Op: ".", L: &lower.StrLit{Value: ".."}, R: &lower.StrLit{Value: "."}})
 
 	// No rescan: Op follows Text even where the bytes say otherwise.
@@ -141,11 +121,11 @@ func TestLowerListRepeatFromParenFlag(t *testing.T) {
 	}
 	for _, c := range cases {
 		got := lowerOne(t, c.src)
-		if !sameKind(got, &lower.Repeat{}) || field(got, "ListRepeat") != c.want {
+		if !sameKind(got, &lower.Repeat{}) || fieldOf(got, "ListRepeat") != c.want {
 			t.Errorf("%q: lowered to %#v, want a Repeat with ListRepeat %v", c.src, got, c.want)
 		}
 	}
-	sameShape(t, `("a") x 3;`, clearIDs(lowerOne(t, `("a") x 3;`)), &lower.Repeat{
+	sameShape(t, `("a") x 3;`, zeroIDs(lowerOne(t, `("a") x 3;`)), &lower.Repeat{
 		Left:       withParen(&lower.StrLit{Value: "a", Interpolated: true}),
 		Count:      &lower.NumLit{Text: "3", IsInt: true},
 		ListRepeat: true,
@@ -170,14 +150,14 @@ func TestLowerRangeEndpoints(t *testing.T) {
 			t.Errorf("%q: lowered to %T, want a Range", c.src, got)
 			continue
 		}
-		if field(got, "Lo") == nil || field(got, "Hi") == nil {
+		if fieldOf(got, "Lo") == nil || fieldOf(got, "Hi") == nil {
 			t.Errorf("%q: lowered to %#v, want both endpoints", c.src, got)
 		}
-		if field(got, "Exclusive") != c.exclusive {
-			t.Errorf("%q: Exclusive is %v, want %v", c.src, field(got, "Exclusive"), c.exclusive)
+		if fieldOf(got, "Exclusive") != c.exclusive {
+			t.Errorf("%q: Exclusive is %v, want %v", c.src, fieldOf(got, "Exclusive"), c.exclusive)
 		}
 	}
-	sameShape(t, "1..5;", clearIDs(lowerOne(t, "1..5;")), &lower.Range{
+	sameShape(t, "1..5;", zeroIDs(lowerOne(t, "1..5;")), &lower.Range{
 		Lo: &lower.NumLit{Text: "1", IsInt: true},
 		Hi: &lower.NumLit{Text: "5", IsInt: true},
 	})
@@ -201,13 +181,13 @@ func lowerArgs(t *testing.T, src string) lower.Node {
 func TestLowerListFat(t *testing.T) {
 	word := func(s string) lower.Node { return &lower.Bareword{Name: s, Quoted: true} }
 	num := func(s string) lower.Node { return &lower.NumLit{Text: s, IsInt: true} }
-	sameShape(t, "(a => 1, b => 2);", clearIDs(lowerOne(t, "(a => 1, b => 2);")), withParen(&lower.List{
+	sameShape(t, "(a => 1, b => 2);", zeroIDs(lowerOne(t, "(a => 1, b => 2);")), withParen(&lower.List{
 		Elems: []lower.Node{word("a"), num("1"), word("b"), num("2")},
 		Fat:   []bool{true, false, true, false},
 	}))
 
 	got := lowerOne(t, "(a, 1, b, 2);")
-	if !sameKind(got, &lower.List{}) || !reflect.DeepEqual(field(got, "Fat"), []bool{false, false, false, false}) {
+	if !sameKind(got, &lower.List{}) || !reflect.DeepEqual(fieldOf(got, "Fat"), []bool{false, false, false, false}) {
 		t.Errorf("(a, 1, b, 2): lowered to %#v, want a List of four with no Fat", got)
 	}
 
@@ -217,8 +197,8 @@ func TestLowerListFat(t *testing.T) {
 		{"f(1, 2, 3);", "(1, 2, 3);"},
 		{"f(a => 1, b => 2);", "(a => 1, b => 2);"},
 	} {
-		got := clearIDs(lowerArgs(t, c.chain))
-		want := clearIDs(lowerOne(t, c.paren))
+		got := zeroIDs(lowerArgs(t, c.chain))
+		want := zeroIDs(lowerOne(t, c.paren))
 		want.Meta().Paren = false
 		if !sameKind(got, &lower.List{}) || !reflect.DeepEqual(got, want) {
 			t.Errorf("%q: lowered to %#v, want %#v as %q does", c.chain, got, want, c.paren)
@@ -251,7 +231,7 @@ func TestLowerAssignListness(t *testing.T) {
 	}
 	for _, c := range cases {
 		got := lowerOne(t, c.src)
-		if !sameKind(got, &lower.Assign{}) || field(got, "ListAssign") != c.want {
+		if !sameKind(got, &lower.Assign{}) || fieldOf(got, "ListAssign") != c.want {
 			t.Errorf("%q: lowered to %#v, want an Assign with ListAssign %v", c.src, got, c.want)
 		}
 	}
@@ -262,19 +242,19 @@ func TestLowerAssignListness(t *testing.T) {
 // around it lowers intact with a Hole in that operand.
 func TestLowerOperatorsOverBrokenInput(t *testing.T) {
 	assign := lowerOne(t, "$x = ;")
-	if !sameKind(assign, &lower.Assign{}) || !sameKind(field(assign, "R").(lower.Node), &lower.Hole{}) {
+	if !sameKind(assign, &lower.Assign{}) || !sameKind(fieldOf(assign, "R").(lower.Node), &lower.Hole{}) {
 		t.Errorf("$x = ;: lowered to %#v, want an Assign whose R is a Hole", assign)
 	}
 
 	assign = lowerOne(t, "$x = 1 +;")
-	plus, _ := field(assign, "R").(lower.Node)
+	plus, _ := fieldOf(assign, "R").(lower.Node)
 	if !sameKind(assign, &lower.Assign{}) || !sameKind(plus, &lower.Binary{}) ||
-		field(plus, "Op") != "+" || !sameKind(field(plus, "R").(lower.Node), &lower.Hole{}) {
+		fieldOf(plus, "Op") != "+" || !sameKind(fieldOf(plus, "R").(lower.Node), &lower.Hole{}) {
 		t.Errorf("$x = 1 +;: lowered to %#v, want an Assign over a Binary \"+\" whose R is a Hole", assign)
 	}
 
 	repeat := lowerOne(t, "1 x;")
-	if !sameKind(repeat, &lower.Repeat{}) || !sameKind(field(repeat, "Count").(lower.Node), &lower.Hole{}) {
+	if !sameKind(repeat, &lower.Repeat{}) || !sameKind(fieldOf(repeat, "Count").(lower.Node), &lower.Hole{}) {
 		t.Errorf("1 x;: lowered to %#v, want a Repeat whose Count is a Hole", repeat)
 	}
 }
@@ -307,7 +287,7 @@ func TestLowerUnaryTernaryAndChain(t *testing.T) {
 		}},
 	}
 	for _, c := range cases {
-		sameShape(t, c.src, clearIDs(lowerOne(t, c.src)), c.want)
+		sameShape(t, c.src, zeroIDs(lowerOne(t, c.src)), c.want)
 	}
 
 	// ++ and -- need a variable, which another slice lowers: read the
@@ -323,7 +303,7 @@ func TestLowerUnaryTernaryAndChain(t *testing.T) {
 		{"$a--;", "--", true},
 	} {
 		got := lowerOne(t, c.src)
-		if !sameKind(got, &lower.Unary{}) || field(got, "Op") != c.op || field(got, "Postfix") != c.postfix {
+		if !sameKind(got, &lower.Unary{}) || fieldOf(got, "Op") != c.op || fieldOf(got, "Postfix") != c.postfix {
 			t.Errorf("%q: lowered to %#v, want a Unary %q with Postfix %v", c.src, got, c.op, c.postfix)
 		}
 	}

@@ -3,6 +3,7 @@
 package parse_test
 
 import (
+	"strings"
 	"testing"
 
 	"tamarou.com/pvm/internal/parse"
@@ -39,5 +40,47 @@ func TestSubNameSpellings(t *testing.T) {
 	src := "sub Foo::bar {1} bar 1, 2;"
 	if got := countUnknown(parse.Parse([]byte(src))); got == 0 {
 		t.Errorf("Parse(%q) has no Unknown: Foo::bar must not collapse to bar", src)
+	}
+}
+
+// TestSubNameSpellingsResolve holds issue 01a0df59's table in the issue's own
+// spellings, a single argument, by the tree each one builds. A resolved
+// parenless call is a call node with its argument as a child, and canon
+// writes it with parentheses; an unresolved one refuses and canon writes it
+// back bare. Measured on perl 5.42.0, Deparse spells every cross-spelling
+// pair `sub ok {1;} ok 1;`.
+func TestSubNameSpellingsResolve(t *testing.T) {
+	for _, tc := range []struct{ src, shape, canon string }{
+		// The three cross-spelling pairs the issue requires.
+		{"sub ok {1} ::ok 1;", "( ( (sub ok ( ( 1))))  ( (::ok 1)))", "sub ok {1;} ::ok(1);"},
+		{"sub main::ok {1} ok 1;", "( ( (sub main::ok ( ( 1))))  ( (ok 1)))", "sub main::ok {1;} ok(1);"},
+		{"sub ok {1} main::ok 1;", "( ( (sub ok ( ( 1))))  ( (main::ok 1)))", "sub ok {1;} main::ok(1);"},
+
+		// REGRESSION GUARD: the three byte-identical pairs, which always
+		// resolved.
+		{"sub ok {1} ok 1;", "( ( (sub ok ( ( 1))))  ( (ok 1)))", "sub ok {1;} ok(1);"},
+		{"sub main::ok {1} main::ok 1;", "( ( (sub main::ok ( ( 1))))  ( (main::ok 1)))", "sub main::ok {1;} main::ok(1);"},
+		{"sub Foo::bar {1} Foo::bar 1;", "( ( (sub Foo::bar ( ( 1))))  ( (Foo::bar 1)))", "sub Foo::bar {1;} Foo::bar(1);"},
+	} {
+		n := parse.Parse([]byte(tc.src))
+		if got := countUnknown(n); got != 0 {
+			t.Errorf("Parse(%q): Unknown=%d, want 0", tc.src, got)
+		}
+		if got := shape(n); got != tc.shape {
+			t.Errorf("Parse(%q): shape %s, want %s", tc.src, got, tc.shape)
+		}
+		if got := strings.TrimSpace(parse.Canon(n, []byte(tc.src))); got != tc.canon {
+			t.Errorf("Canon(parse(%q)) = %q, want %q", tc.src, got, tc.canon)
+		}
+	}
+
+	// NEGATIVE: `sub Foo::bar {1} bar 1;` calls an undeclared main::bar. perl
+	// 5.42.0 refuses it, "Number found where operator expected", so the
+	// parenless call must stay unresolved: Foo::bar does not collapse to bar.
+	src := "sub Foo::bar {1} bar 1;"
+	n := parse.Parse([]byte(src))
+	if got := countUnknown(n); got == 0 {
+		t.Errorf("Parse(%q) has no Unknown: Foo::bar must not collapse to bar; canon %q",
+			src, parse.Canon(n, []byte(src)))
 	}
 }

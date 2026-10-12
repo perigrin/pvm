@@ -31,15 +31,6 @@ func (l *lowerer) repeat(n *parse.Node) Node {
 	return r
 }
 
-// isQw reports whether n is a qw list's term.
-func isQw(n *parse.Node) bool {
-	if n.Kind != parse.Term || len(n.Children) != 0 {
-		return false
-	}
-	m := quoteOp.FindStringSubmatch(n.Text)
-	return m != nil && m[1] == "qw"
-}
-
 // rangeOp lowers `binary ".."` and `binary "..."`.
 func (l *lowerer) rangeOp(n *parse.Node) Node {
 	if n.Text != ".." && n.Text != "..." {
@@ -121,9 +112,9 @@ func (l *lowerer) list(n *parse.Node) Node {
 	return out
 }
 
-// commaList lowers a `binary ","` or `"=>"` chain, which is how a list is
+// commaChain lowers a `binary ","` or `"=>"` chain, which is how a list is
 // spelled outside parentheses, to the same flat List.
-func (l *lowerer) commaList(n *parse.Node) Node {
+func (l *lowerer) commaChain(n *parse.Node) Node {
 	if !isComma(n) {
 		return nil
 	}

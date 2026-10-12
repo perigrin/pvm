@@ -73,7 +73,9 @@ func anchorKey(n *parse.Node) (string, bool) {
 	if n.Kind != parse.Declaration || (n.Text != "sub" && n.Text != "method") {
 		return "", false
 	}
-	if len(n.Children) == 0 || n.Children[0].Kind != parse.Term || n.Children[0].Text == "" {
+	// A parenthesised first child is an anonymous sub's one-parameter
+	// signature, `sub ($x) {...}`, sitting where a named sub's name would.
+	if len(n.Children) == 0 || n.Children[0].Kind != parse.Term || n.Children[0].Text == "" || n.Children[0].Paren {
 		return "", false
 	}
 	return n.Text + " " + n.Children[0].Text, true

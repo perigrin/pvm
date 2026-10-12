@@ -204,6 +204,10 @@ type List struct {
 
 // --- Declarations ---
 
+// Decl is a my/our/state/local/field declaration, and a named sub, method,
+// package or class. A named sub is perl's compile-time `*f = sub {...}`:
+// its one Var is &f and its Init the AnonSub, nil for `sub f;`. A package
+// or class names a Bareword, with its version or block as Init (§4.14.6).
 type Decl struct {
 	nodeBase
 	Kind  DeclKind
@@ -224,6 +228,10 @@ const (
 	DeclState
 	DeclLocal
 	DeclField
+	DeclSub
+	DeclPackage
+	DeclClass
+	DeclMethod
 )
 
 // --- Calls ---
@@ -260,13 +268,15 @@ type MethodCall struct {
 
 // --- Special forms ---
 
+// MapGrepSort has no BlockGuessed: the lexer runs perl's own intuit_curly, so
+// the brace's reading is perl's and there is no guess to record (§4.14.1
+// rule 4).
 type MapGrepSort struct {
 	nodeBase
-	Op           string // "map" | "grep" | "sort"
-	Block        Node   // block form
-	FirstExpr    Node   // expression form (map/grep) or comparator (sort)
-	List         []Node
-	BlockGuessed bool // the '{' was disambiguated heuristically -- §4.9.2
+	Op        string // "map" | "grep" | "sort"
+	Block     Node   // block form
+	FirstExpr Node   // expression form (map/grep) or comparator (sort)
+	List      []Node
 }
 
 // DoBlock is do { ... }.
@@ -447,4 +457,31 @@ func Children(n Node) []Node {
 		panic(fmt.Sprintf("lower.Children: no case for %T", n))
 	}
 	return kids
+}
+
+// IsDeref reports whether n is a subscript that reads through a reference:
+// it is spelled with -> or its base is itself a dereference -- a Deref, as
+// in $$x[0], or another subscript, as in $h{a}[0], where perl implies the
+// arrow. Arrow alone is not this: $$x[0] has no arrow (§4.14.1 rule 2).
+//
+// It lives beside Children because it switches on the kinds declared here.
+func IsDeref(n Node) bool {
+	var base Node
+	switch n := n.(type) {
+	case *Index:
+		if n.Arrow {
+			return true
+		}
+		base = n.Base
+	case *Key:
+		if n.Arrow {
+			return true
+		}
+		base = n.Base
+	}
+	switch base.(type) {
+	case *Deref, *Index, *Key:
+		return true
+	}
+	return false
 }

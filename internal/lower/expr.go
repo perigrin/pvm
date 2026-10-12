@@ -27,15 +27,25 @@ func (l *lowerer) expr(n *parse.Node) Node {
 	var out Node
 	switch n.Kind {
 	case parse.Term:
-		out = first(n, l.literal)
+		out = first(n, l.variable, l.literal, l.angle, l.match)
 	case parse.Call:
-		out = first(n, l.fatWord)
+		out = first(n, l.fatWord, l.mapGrepSort, l.evalForm, l.doForm, l.wantarray, l.fileTest, l.globCall)
 	case parse.Unary:
-		out = first(n, l.unary)
+		out = first(n, l.prefixDeref, l.ref, l.unary)
+	case parse.Binary:
+		out = first(n, l.postfixDeref, l.postfixSlice, l.bind, l.commaChain, l.repeat, l.rangeOp, l.assign, l.binary)
+	case parse.Index:
+		out = first(n, l.slice, l.subscript)
+	case parse.AnonArray:
+		out = first(n, l.arrayLiteral)
+	case parse.AnonHash:
+		out = first(n, l.hashLiteral)
+	case parse.LoopControl:
+		out = first(n, l.loopEx)
+	case parse.Declaration:
+		out = first(n, l.decl)
 	case parse.Postfix:
 		out = first(n, l.postfix)
-	case parse.Binary:
-		out = first(n, l.commaList, l.repeat, l.rangeOp, l.assign, l.binary)
 	case parse.List:
 		out = first(n, l.list)
 	case parse.Ternary:
