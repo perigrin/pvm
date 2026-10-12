@@ -1551,10 +1551,11 @@ type List    struct{ nodeBase; Elems []Node; Fat []bool }    // Fat[i]: elem i
 // --- Declarations ---
 type Decl struct {
 	nodeBase
-	Kind  DeclKind // My, Our, State, Local, Field
-	Vars  []Node   // Var, or List of Var for the parenthesised form
+	Kind  DeclKind // My, Our, State, Local, Field, Sub, Method, Package, Class
+	Vars  []Node   // Var, or List of Var for the parenthesised form;
+	               // &f for a sub or method, a Bareword for a package or class
 	Attrs []string
-	Init  Node     // nil if none
+	Init  Node     // nil if none; a named sub's AnonSub, a package's version or block
 	ListAssign bool // my (...) = -- list context on Init (4.12.2 rule 2)
 	RefAlias bool  // my \$x = ...
 }
@@ -2046,6 +2047,16 @@ Settled in `internal/lower/node.go`, each recorded at its declaration:
 - **`ArrayLiteral`/`HashLiteral`** (perigrin, 2026-10-11): the lowered
   kinds take B::SoN's names; the parser's `AnonArray`/`AnonHash` keep
   theirs.
+- **A named sub is a `Decl`** (perigrin, 2026-10-12). `sub f {...}` is
+  perl's compile-time `*f = sub {...}`, so it lowers to
+  `Decl{Kind: Sub, Vars: [Var{"&", "f"}], Init: AnonSub{Sig, Body, Attrs}}`,
+  sharing the declaration's id with its `AnonSub`; `sub f;` declares
+  without defining and has a nil `Init`. `method` lowers the same way.
+  `package` and `class` take a `Bareword` as their one `Vars` entry, the
+  version or block as `Init`, and class attributes in `Attrs`. A sub with
+  no name is an `AnonSub` in either position, never a `Decl`. Its `Sig` is
+  read from a `list paren` or `term paren` child; a `prototype` child is
+  not a signature. No `Name`, `Sig` or `Body` field is added to `Decl`.
 - **The `Hole` invariants.** Every `Node` field tolerates a `Hole`:
   `TestHoleStandsAnywhereANodeMay` puts one in `Decl.Init`, `Index.Base`,
   `Match.Target` and both `Binary` operands.

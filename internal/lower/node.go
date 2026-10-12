@@ -204,6 +204,10 @@ type List struct {
 
 // --- Declarations ---
 
+// Decl is a my/our/state/local/field declaration, and a named sub, method,
+// package or class. A named sub is perl's compile-time `*f = sub {...}`:
+// its one Var is &f and its Init the AnonSub, nil for `sub f;`. A package
+// or class names a Bareword, with its version or block as Init (§4.14.6).
 type Decl struct {
 	nodeBase
 	Kind  DeclKind
@@ -224,6 +228,10 @@ const (
 	DeclState
 	DeclLocal
 	DeclField
+	DeclSub
+	DeclPackage
+	DeclClass
+	DeclMethod
 )
 
 // --- Calls ---

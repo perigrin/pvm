@@ -42,6 +42,8 @@ func (l *lowerer) expr(n *parse.Node) Node {
 		out = first(n, l.hashLiteral)
 	case parse.LoopControl:
 		out = first(n, l.loopEx)
+	case parse.Declaration:
+		out = first(n, l.decl)
 	}
 	if out == nil {
 		out = &Hole{}
