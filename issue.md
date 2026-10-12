@@ -10,7 +10,7 @@ blocked_by:
 blocks:
 - 01a12a85-304b-77f1-9bda-e6b73c317305
 created: 2026-09-20T23:08:20.306792879Z
-updated: 2026-10-12T22:10:42.988475732Z
+updated: 2026-10-12T23:37:39.143379324Z
 sessions:
 - start_sha: 797bed26b3602121b0e30cc887a4cd02148f76e7
   end_sha: ""
@@ -120,6 +120,8 @@ derived id such as the parent's id plus a role. A derived id keeps every key
 distinct and still maps to the parent's span.
 
 2026-10-12: perigrin ruled "parent ID plus a role": `lower.ID` has a `Role`, 0 for the parse node itself, and a synthesized node takes its parent's Anchor and Local under a nonzero Role. It is applied to the named sub's AnonSub (`RoleSubValue`) and the childless deref's Hole (`RoleDerefOperand`); `Readline.Handle` and `Glob.Pattern` stay nil, and this issue applies the rule to them.
+
+Applied here: `Readline.Handle` and `Glob.Pattern` become derived-ID nodes under one new role, `RoleAngleBody` (one `<...>` term gives a Readline or a Glob, never both, so one role keeps every key distinct). `<STDIN>` gives a `Bareword` handle and `<$fh>` a `Var`, as `perl -MO=Deparse` gives `readline STDIN` and `readline $fh`; `<*.c>` gives an interpolated `StrLit` pattern, as Deparse gives `glob '*.c'` and `glob $x . '/*'` for `<$x/*>`. In the position map each maps to its `<...>` term's span. `<>` and `<<>>` have no handle bytes, so their Handle stays nil with Magic set, and they still lower alike; that is a semantic question (`<<>>` opens with three-argument open), not an identity one. Recorded in §4.14.6.
 
 ## Acceptance Criteria
 
