@@ -1,6 +1,6 @@
 ---
 title: "Lower calls: five sites to one Call, and the filehandle slot from the Handle flag"
-state: in-progress
+state: done
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -8,16 +8,40 @@ blocked_by:
 blocks:
 - 01a12a85-32cf-7d76-96f7-b814935374e1
 created: 2026-09-20T23:07:00.666688859Z
-updated: 2026-10-12T19:03:34.878590183Z
+updated: 2026-10-12T22:09:49.089182649Z
 sessions:
 - start_sha: 93874fbfe9d9e6c38b8b145da0b41e96452b674a
-  end_sha: ""
-  commits: 0
+  end_sha: 797bed26b3602121b0e30cc887a4cd02148f76e7
+  commits: 2
   started_at: 2026-10-12T19:03:34.878590183Z
+  ended_at: 2026-10-12T22:09:49.089182649Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-12T19:03:34.878590183Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-12T22:09:49.089182649Z
+observed_paths:
+- docs/specs/perl-parser/04-expressions.md
+- internal/lower/call.go
+- internal/lower/call_test.go
+- internal/lower/decl.go
+- internal/lower/decl_test.go
+- internal/lower/export_test.go
+- internal/lower/expr.go
+- internal/lower/id.go
+- internal/lower/id_test.go
+- internal/lower/lower.go
+- internal/lower/node.go
+- internal/lower/node_test.go
+- internal/lower/ops.go
+- internal/lower/special.go
+- internal/lower/special_test.go
+- internal/lower/stmt.go
+- internal/lower/stmt_test.go
+- internal/lower/vars.go
+- internal/lower/vars_test.go
 ---
 
 ## Context
