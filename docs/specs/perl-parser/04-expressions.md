@@ -2050,13 +2050,27 @@ Settled in `internal/lower/node.go`, each recorded at its declaration:
 - **A named sub is a `Decl`** (perigrin, 2026-10-12). `sub f {...}` is
   perl's compile-time `*f = sub {...}`, so it lowers to
   `Decl{Kind: Sub, Vars: [Var{"&", "f"}], Init: AnonSub{Sig, Body, Attrs}}`,
-  sharing the declaration's id with its `AnonSub`; `sub f;` declares
+  its `AnonSub` taking the declaration's id under `RoleSubValue`; `sub f;` declares
   without defining and has a nil `Init`. `method` lowers the same way.
   `package` and `class` take a `Bareword` as their one `Vars` entry, the
   version or block as `Init`, and class attributes in `Attrs`. A sub with
   no name is an `AnonSub` in either position, never a `Decl`. Its `Sig` is
   read from a `list paren` or `term paren` child; a `prototype` child is
   not a signature. No `Name`, `Sig` or `Body` field is added to `Decl`.
+- **A lowered node with no parse node of its own takes its parent's id
+  plus a role** (perigrin, 2026-10-12). `lower.ID` has a `Role`, 0 for the
+  parse node itself; a synthesized node takes its parent's `Anchor` and
+  `Local` under a nonzero `Role`, and the position map gives it its
+  parent's span. Sharing the parent's id collides in id-keyed tables, the
+  zero id collides with the root's, and nil loses the fact. Three roles:
+  a named sub's `AnonSub` (`RoleSubValue`); the `Hole` a childless deref
+  holds as its `Expr`, `$#{$x}`, `$#$x` and `&$x` (`RoleDerefOperand`);
+  and the body of a `<...>` term (`RoleAngleBody`), which is
+  `Readline.Handle` — a `Bareword` for `<STDIN>`, a `Var` for `<$fh>` —
+  or `Glob.Pattern`, an interpolating `StrLit` for `<*.c>`. Deparse gives
+  `readline STDIN`, `readline $fh`, `glob '*.c'`, and `glob $x . '/*'` for
+  `<$x/*>`. `<>` and `<<>>` have no handle bytes: `Handle` is nil and
+  `Magic` set.
 - **The `Hole` invariants.** Every `Node` field tolerates a `Hole`:
   `TestHoleStandsAnywhereANodeMay` puts one in `Decl.Init`, `Index.Base`,
   `Match.Target` and both `Binary` operands.

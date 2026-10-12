@@ -111,11 +111,22 @@ func TestLowerEvalBoundary(t *testing.T) {
 	})
 }
 
+// angleBody gives out the id of the `<...>` term e under RoleAngleBody: a
+// Readline's handle and a Glob's pattern are bytes inside that one term.
+func angleBody(e *parse.Node, lx func(*parse.Node) lower.Node, out lower.Node) lower.Node {
+	id := lx(e).Meta().ID
+	id.Role = lower.RoleAngleBody
+	out.Meta().ID = id
+	return out
+}
+
 // Each special form the parser gives as a call, a term, a unary or a
 // loop_control lowers to its own §4.14 kind. Read in perl 5.42:
 //   - -MO=Deparse gives `<>` as `readline ARGV`, `<STDIN>` as `readline
-//     STDIN` and `<*.c>` as `glob '*.c'`, so the brackets' body decides
-//     readline from glob (§4.15.2);
+//     STDIN`, `<$fh>` as `readline $fh` and `<*.c>` as `glob '*.c'`, so the
+//     brackets' body decides readline from glob (§4.15.2) and is the handle
+//     or the pattern; `<$x/*>` is `glob $x . '/*'`, so a pattern
+//     interpolates;
 //   - with @a three elements, \(@a) makes 3 references and \@a one, so Ref
 //     keeps the operand's Paren bit;
 //   - `{a=>1};` at statement start deparses as `+{'a', 1};`, a hash.
@@ -149,10 +160,10 @@ func TestLowerSpecialRenames(t *testing.T) {
 			return &lower.Ref{Operand: lx(e.Children[0])}
 		}},
 		{"<STDIN>;", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
-			return &lower.Readline{}
+			return &lower.Readline{Handle: angleBody(e, lx, &lower.Bareword{Name: "STDIN"})}
 		}},
 		{"<$fh>;", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
-			return &lower.Readline{}
+			return &lower.Readline{Handle: angleBody(e, lx, &lower.Var{Sigil: "$", Name: "fh"})}
 		}},
 		{"<>;", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
 			return &lower.Readline{Magic: true}
@@ -161,10 +172,10 @@ func TestLowerSpecialRenames(t *testing.T) {
 			return &lower.Readline{Magic: true}
 		}},
 		{"<*.c>;", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
-			return &lower.Glob{}
+			return &lower.Glob{Pattern: angleBody(e, lx, &lower.StrLit{Value: "*.c", Interpolated: true})}
 		}},
 		{"<$x/*>;", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
-			return &lower.Glob{}
+			return &lower.Glob{Pattern: angleBody(e, lx, &lower.StrLit{Value: "$x/*", Interpolated: true})}
 		}},
 		{`glob("*.c");`, func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
 			return &lower.Glob{Pattern: lx(e.Children[0])}

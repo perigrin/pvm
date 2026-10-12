@@ -144,8 +144,8 @@ func TestPositionMapOutOfRange(t *testing.T) {
 }
 
 // Span is the map's other direction: a lowered node's id to its bytes. A
-// node with no parse node of its own, a named sub's AnonSub, has its
-// parent's span; the File's span is its statements', without the trivia
+// node with no parse node of its own, a named sub's AnonSub or the handle of
+// `<STDIN>`, has its parent's span; the File's span is its statements', without the trivia
 // around them; an id the tree never gave has none.
 func TestPositionMapSpan(t *testing.T) {
 	src := "# a\nsub f { 1 }\n# b\n2;\n\n"
@@ -165,6 +165,12 @@ func TestPositionMapSpan(t *testing.T) {
 		if s, e, ok := p.Span(c.id); !ok || s != c.start || e != c.end {
 			t.Errorf("%q: %s spans [%d,%d) ok=%v, want [%d,%d)", src, c.name, s, e, ok, c.start, c.end)
 		}
+	}
+	src2 := "<STDIN>;"
+	_, f2, p2 := positions(src2)
+	handle := lower.Children(lower.Children(f2.Stmts[0])[0])[0]
+	if s, e, ok := p2.Span(handle.Meta().ID); !ok || s != 0 || e != 7 {
+		t.Errorf("%q: the Readline's handle spans [%d,%d) ok=%v, want the term's [0,7)", src2, s, e, ok)
 	}
 	if _, _, ok := p.Span(lower.ID{Anchor: "sub g#0"}); ok {
 		t.Errorf("%q: an id the tree never gave has a span", src)
