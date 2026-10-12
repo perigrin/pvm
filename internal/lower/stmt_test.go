@@ -340,3 +340,45 @@ func TestLowerFileEntry(t *testing.T) {
 		t.Errorf("an empty program lowered to %#v", empty)
 	}
 }
+
+// A statement perl rejects lowers to its kind, with a Hole where the parse
+// failed and the rest intact. perl 5.42 rejects each: `if (;) { 1 }` with a
+// syntax error, `if ($x) {` and `unless ($x) {` with "Missing right curly or
+// square bracket".
+func TestLowerStatementsOverBrokenInput(t *testing.T) {
+	hole := func(n *parse.Node, k kit) lower.Node { return k.at(n, &lower.Hole{}) }
+	checkStmts(t, []stmtCase{
+		// [conditional "if" [unknown refusal=not_a_term] [block ...]]
+		{"if (;) { 1 }", func(s *parse.Node, k kit) lower.Node {
+			c := s.Children[0]
+			return k.at(c, &lower.IfStmt{Cond: hole(c.Children[0], k), Then: k.block(c.Children[1])})
+		}},
+		// [conditional "if" [term "$x"] [unknown refusal=unclosed_opener [block]]]
+		{"if ($x) {", func(s *parse.Node, k kit) lower.Node {
+			c := s.Children[0]
+			return k.at(c, &lower.IfStmt{Cond: k.x(c.Children[0]), Then: hole(c.Children[1], k)})
+		}},
+		{"unless ($x) {", func(s *parse.Node, k kit) lower.Node {
+			c := s.Children[0]
+			return k.at(c, &lower.IfStmt{Cond: k.x(c.Children[0]), Else: hole(c.Children[1], k)})
+		}},
+	})
+
+	// Truncated and garbled statements of every kind lower without a panic.
+	for _, src := range []string{
+		"if", "if (", "if ($x) { 1 } else", "if ($x) { 1 } elsif", "unless ($x) { 1 } elsif ($y) {",
+		"while", "while (", "while ($x) { 1", "until ($x) { 1 } continue", "do {",
+		"for", "for my", "for my $i", "for my $i (@a", "for (;", "for (;;", "for (;;) {",
+		"L:", "L: {", "{", "{ 1 } continue", "use", "use Foo", "use Foo qw(", "require", "no",
+		"BEGIN", "BEGIN {", "$x = 1 if", "1 for", "given (", "try {",
+	} {
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Errorf("%q: lowering panicked: %v", src, r)
+				}
+			}()
+			lower.Lower(parse.Parse([]byte(src)))
+		}()
+	}
+}
