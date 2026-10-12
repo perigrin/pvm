@@ -27,15 +27,21 @@ func (l *lowerer) expr(n *parse.Node) Node {
 	var out Node
 	switch n.Kind {
 	case parse.Term:
-		out = first(n, l.variable, l.literal)
+		out = first(n, l.variable, l.literal, l.angle, l.match)
 	case parse.Call:
-		out = first(n, l.fatWord)
+		out = first(n, l.fatWord, l.mapGrepSort, l.evalForm, l.doForm, l.wantarray, l.fileTest, l.globCall)
 	case parse.Unary:
-		out = first(n, l.prefixDeref)
+		out = first(n, l.prefixDeref, l.ref)
 	case parse.Binary:
-		out = first(n, l.postfixDeref)
+		out = first(n, l.postfixDeref, l.bind)
 	case parse.Index:
 		out = first(n, l.subscript)
+	case parse.AnonArray:
+		out = first(n, l.arrayLiteral)
+	case parse.AnonHash:
+		out = first(n, l.hashLiteral)
+	case parse.LoopControl:
+		out = first(n, l.loopEx)
 	}
 	if out == nil {
 		out = &Hole{}
