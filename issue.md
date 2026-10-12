@@ -1,6 +1,6 @@
 ---
 title: "Lower declarations: Decl kinds, the list form by child count, sub declarations"
-state: in-progress
+state: done
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -9,16 +9,35 @@ blocked_by:
 blocks:
 - 01a12a85-304b-77f1-9bda-e6b73c317305
 created: 2026-09-20T23:06:52.901032434Z
-updated: 2026-10-11T16:34:02.348401953Z
+updated: 2026-10-12T17:38:57.52371282Z
 sessions:
 - start_sha: 9895b3086efb0ed7feb8aeb6b994c6b245ce47a5
-  end_sha: ""
-  commits: 0
+  end_sha: 0633986dbaf314741a7e588c665ff89622a80903
+  commits: 4
   started_at: 2026-10-11T16:34:02.348401953Z
+  ended_at: 2026-10-12T17:38:57.52371282Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-11T16:34:02.348401953Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-12T17:38:57.52371282Z
+observed_paths:
+- docs/specs/perl-parser/04-expressions.md
+- docs/specs/perl-parser/06-incremental-lsp.md
+- internal/lower/decl.go
+- internal/lower/decl_test.go
+- internal/lower/export_test.go
+- internal/lower/expr.go
+- internal/lower/literals.go
+- internal/lower/literals_test.go
+- internal/lower/node.go
+- internal/lower/node_test.go
+- internal/lower/special.go
+- internal/lower/special_test.go
+- internal/lower/vars.go
+- internal/lower/vars_test.go
 ---
 
 ## Context
