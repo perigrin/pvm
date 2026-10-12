@@ -24,6 +24,9 @@ func newParseCommand() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			filename := args[0]
+			if tree != "cst" && tree != "lowered" {
+				return fmt.Errorf("--tree %q: want cst or lowered", tree)
+			}
 
 			source, err := os.ReadFile(filename)
 			if err != nil {

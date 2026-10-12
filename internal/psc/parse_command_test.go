@@ -123,3 +123,13 @@ func TestParseCommandLayers(t *testing.T) {
 		}
 	}
 }
+
+// TestParseCommandRejectsUnknownTree: a --tree outside the two is an error
+// naming both.
+func TestParseCommandRejectsUnknownTree(t *testing.T) {
+	_, err := runParse(t, "1;\n", "--tree", "hir")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "hir")
+	assert.Contains(t, err.Error(), "cst")
+	assert.Contains(t, err.Error(), "lowered")
+}
