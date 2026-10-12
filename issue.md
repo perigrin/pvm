@@ -1,6 +1,6 @@
 ---
 title: "Lower statements and the file: blocks, conditionals, loops, use, phasers, and lower.Lower"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -10,7 +10,16 @@ blocks:
 - 01a12a85-34bf-7ca4-ac7f-1a9218918da1
 - 01a12a85-3566-7ec5-9dcc-e864270f3415
 created: 2026-10-11T10:32:13.987176039Z
-updated: 2026-10-11T10:33:49.534900944Z
+updated: 2026-10-12T17:10:10.881656312Z
+sessions:
+- start_sha: 34b03d318ec7428fe87316e7752b9ef1f1f6164e
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-12T17:10:10.881656312Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-12T17:10:10.881656312Z
 ---
 
 ## Context
