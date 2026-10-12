@@ -1,6 +1,6 @@
 ---
 title: "AnalyzeLowered: the entry point, the golden ratchet, and the declaration and literal rules"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -9,7 +9,16 @@ blocked_by:
 blocks:
 - 01a12a85-3100-79ae-8265-aa8b4f39cd85
 created: 2026-10-11T10:32:14.155064204Z
-updated: 2026-10-11T15:18:09.103483139Z
+updated: 2026-10-12T23:53:36.807153314Z
+sessions:
+- start_sha: 2f38962960ad8ceb79c510b01a862647f0fbacaa
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-12T23:53:36.807153314Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-12T23:53:36.807153314Z
 ---
 
 ## Context
