@@ -20,6 +20,7 @@ calls/nested.pl
 calls/param_usage.pl
 calls/pop_shift.pl
 calls/print_handle.pl
+calls/print_ref_arg.pl
 calls/push_bare.pl
 calls/push_paren.pl
 calls/scalar.pl
