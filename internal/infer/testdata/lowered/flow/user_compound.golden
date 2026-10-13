@@ -1,0 +1,4 @@
+sym $v Scalar
+sym $x Ref
+sym $x Scalar
+sym is_defref Code
