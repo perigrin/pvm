@@ -1,0 +1,3 @@
+sym $r ArrayRef
+sym $v Int
+sym %h Hash

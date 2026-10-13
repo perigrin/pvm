@@ -1,0 +1,4 @@
+sym $c Int
+sym $p Int
+sym $q Scalar
+sym @arr Array

@@ -175,3 +175,51 @@ func TestLoweredFlowOverBrokenInput(t *testing.T) {
 		}
 	}
 }
+
+// A subscript perl rejects is analysed without a panic, and its Hole draws
+// no index diagnostic, while the variable it subscripts is still typed: the
+// base of `$a[` is @a, and the base of `$h{` is %h.
+func TestLoweredSubscriptOverBrokenInput(t *testing.T) {
+	for _, c := range []struct {
+		src, agg string
+		like     lower.Node
+	}{
+		{`my @a = (1); my $e = $a[;`, "@a", &lower.Index{}},
+		{`my %h; my $v = $h{;`, "%h", &lower.Key{}},
+	} {
+		root := parse.Parse([]byte(c.src))
+		f := lower.Lower(root)
+		pos := lower.NewPositions(root, f)
+		if len(holes(f)) == 0 {
+			t.Fatalf("%q lowered with no Hole:\n%s", c.src, lower.Tree(f))
+		}
+
+		ann, diags, st := infer.AnalyzeLowered(f, pos, nil)
+
+		for _, d := range diags {
+			t.Errorf("%q: diagnostic %q, want none", c.src, d.Message)
+		}
+		sub := firstOfKind(f, c.like)
+		if sub == nil {
+			t.Fatalf("%q: no %T in:\n%s", c.src, c.like, lower.Tree(f))
+		}
+		base := lower.Children(sub)[0]
+		sym, _ := st.Lookup(c.agg)
+		if got, ok := ann[base.Meta().ID]; !ok || got != sym.Type {
+			t.Errorf("%q: the subscript's base annotated %v (present %v), want %s's type %v", c.src, got, ok, c.agg, sym.Type)
+		}
+	}
+}
+
+// An interpolated string is a Str, whatever it interpolates.
+func TestLoweredInterpIsStr(t *testing.T) {
+	s := &lower.Interp{Parts: []lower.Node{&lower.StrLit{Value: "n="}, &lower.Var{Sigil: "$", Name: "n"}}}
+	s.ID = lower.ID{Local: 1}
+	s.Parts[0].Meta().ID = lower.ID{Local: 2}
+	s.Parts[1].Meta().ID = lower.ID{Local: 3}
+	f := &lower.File{Stmts: []lower.Node{s}}
+	ann, _, _ := infer.AnalyzeLowered(f, nil, nil)
+	if got := ann[s.ID]; got != types.Str {
+		t.Errorf("Interp annotated %v, want Str", got)
+	}
+}

@@ -1,0 +1,5 @@
+sym $h HashRef
+sym $n Int
+sym $r ArrayRef
+sym %c Hash
+sym @c Array
