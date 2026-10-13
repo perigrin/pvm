@@ -43,7 +43,7 @@ func TestHoleIsTypedAnyAndNeverInspected(t *testing.T) {
 			t.Fatalf("%q lowered with no Hole:\n%s", src, lower.Tree(f))
 		}
 
-		ann, diags, _ := infer.AnalyzeLowered(f, pos, nil)
+		ann, diags, _ := infer.AnalyzeLowered(f, pos, nil, infer.Options{})
 
 		for _, h := range hs {
 			id := h.Meta().ID
@@ -74,7 +74,7 @@ sub none { }
 `)
 	root := parse.Parse(src)
 	f := lower.Lower(root)
-	_, _, st := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil)
+	_, _, st := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
 
 	for name, want := range map[string]types.Type{
 		"one":  types.Int,
@@ -114,7 +114,7 @@ func TestLoweredUseAnalysesTheModule(t *testing.T) {
 	src := []byte("use Foo;\n")
 	root := parse.Parse(src)
 	f := lower.Lower(root)
-	infer.AnalyzeLowered(f, lower.NewPositions(root, f), idx)
+	infer.AnalyzeLowered(f, lower.NewPositions(root, f), idx, infer.Options{})
 
 	if err := os.WriteFile(pm, []byte("package Foo;\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -158,7 +158,7 @@ func TestLoweredFlowOverBrokenInput(t *testing.T) {
 			t.Fatalf("%q lowered with no Hole:\n%s", src, lower.Tree(f))
 		}
 
-		ann, diags, _ := infer.AnalyzeLowered(f, pos, nil)
+		ann, diags, _ := infer.AnalyzeLowered(f, pos, nil, infer.Options{})
 
 		for _, h := range hs {
 			start, end, _ := pos.Span(h.Meta().ID)
@@ -194,7 +194,7 @@ func TestLoweredSubscriptOverBrokenInput(t *testing.T) {
 			t.Fatalf("%q lowered with no Hole:\n%s", c.src, lower.Tree(f))
 		}
 
-		ann, diags, st := infer.AnalyzeLowered(f, pos, nil)
+		ann, diags, st := infer.AnalyzeLowered(f, pos, nil, infer.Options{})
 
 		for _, d := range diags {
 			t.Errorf("%q: diagnostic %q, want none", c.src, d.Message)
@@ -218,8 +218,28 @@ func TestLoweredInterpIsStr(t *testing.T) {
 	s.Parts[0].Meta().ID = lower.ID{Local: 2}
 	s.Parts[1].Meta().ID = lower.ID{Local: 3}
 	f := &lower.File{Stmts: []lower.Node{s}}
-	ann, _, _ := infer.AnalyzeLowered(f, nil, nil)
+	ann, _, _ := infer.AnalyzeLowered(f, nil, nil, infer.Options{})
 	if got := ann[s.ID]; got != types.Str {
 		t.Errorf("Interp annotated %v, want Str", got)
+	}
+}
+
+// An operand of no known type is passed over by default and reported under
+// Strict, as on the legacy path: a command's output is not typed, so
+// adding 1 to it is unchecked until Strict asks for a narrowing.
+func TestLoweredStrictSeesUnknownOperand(t *testing.T) {
+	src := []byte("my $n = `true` + 1;\n")
+	root := parse.Parse(src)
+	f := lower.Lower(root)
+	pos := lower.NewPositions(root, f)
+
+	_, permissive, _ := infer.AnalyzeLowered(f, pos, nil, infer.Options{})
+	_, strict, _ := infer.AnalyzeLowered(f, pos, nil, infer.Options{Strict: true})
+
+	if len(permissive) != 0 {
+		t.Errorf("the default reported %v, want nothing", permissive)
+	}
+	if len(strict) != 1 || strict[0].Code != infer.CodeCoercionMismatch {
+		t.Errorf("Strict reported %v, want one coercion mismatch", strict)
 	}
 }

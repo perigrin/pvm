@@ -12,7 +12,8 @@ import (
 // returns each node's type keyed by its id, the diagnostics, and the symbol
 // table. pos is f's position map: diagnostics and symbols carry byte spans,
 // and the lowered tree has none of its own. idx is the project index for
-// cross-file analysis, nil in single-file mode.
+// cross-file analysis, nil in single-file mode. opts is how an operand of no
+// known type is checked, as AnalyzeWithOptions takes it.
 //
 // It is the legacy Analyze's two passes, rewritten against the lowered
 // kinds: collectLoweredDeclarations fills the symbol table, then walk types
@@ -20,13 +21,15 @@ import (
 // TestLoweredGoldenRatchet against what the legacy path reported. A kind no
 // port handles yet is typed Any, raises no diagnostic, and has its children
 // walked.
-func AnalyzeLowered(f *lower.File, pos *lower.Positions, idx *ProjectIndex) (map[lower.ID]types.Type, []Diagnostic, *SymbolTable) {
+func AnalyzeLowered(f *lower.File, pos *lower.Positions, idx *ProjectIndex, opts Options) (map[lower.ID]types.Type, []Diagnostic, *SymbolTable) {
 	a := &loweredAnalysis{
 		pos:         pos,
 		idx:         idx,
+		opts:        opts,
 		st:          collectLoweredDeclarations(f, pos),
 		annotations: map[lower.ID]types.Type{},
 		subs:        fileSubs(f),
+		rhsCtx:      map[lower.ID]types.Context{},
 	}
 	a.walk(f)
 	return a.annotations, a.diags, a.st
@@ -37,12 +40,17 @@ func AnalyzeLowered(f *lower.File, pos *lower.Positions, idx *ProjectIndex) (map
 type loweredAnalysis struct {
 	pos         *lower.Positions
 	idx         *ProjectIndex
+	opts        Options
 	st          *SymbolTable
 	annotations map[lower.ID]types.Type
 	diags       []Diagnostic
 	// subs is each file-level named sub's body, which a user-defined
 	// guard reads.
 	subs map[string]*lower.AnonSub
+	// rhsCtx is the context an assignment evaluates its right side in,
+	// keyed by that side's id: what the legacy assignedContext read from
+	// the parent.
+	rhsCtx map[lower.ID]types.Context
 }
 
 // walk types n, children first, and records the type under n's id. Unknown
@@ -99,6 +107,12 @@ func (a *loweredAnalysis) walk(n lower.Node) types.Type {
 		// A CodeRef, not a Code: Code is the compiled CV itself, which
 		// no perl scalar ever holds.
 		t = types.CodeRef
+	case *lower.Binary:
+		t = a.binary(n)
+	case *lower.Unary:
+		t = a.unary(n)
+	case *lower.Ternary:
+		t = a.ternary(n)
 	case *lower.Decl:
 		t = a.decl(n)
 	case *lower.IfStmt:
@@ -154,6 +168,7 @@ func (a *loweredAnalysis) decl(d *lower.Decl) types.Type {
 		if d.Init == nil {
 			return types.Unknown
 		}
+		a.rhsCtx[d.Init.Meta().ID] = declContext(d)
 		t := a.walk(d.Init)
 		// local neither declares nor narrows: the legacy path reads no
 		// name through it.
@@ -207,6 +222,32 @@ func (a *loweredAnalysis) decl(d *lower.Decl) types.Type {
 	// path does with them yet.
 	a.walkChildren(d)
 	return types.Any
+}
+
+// declContext is the context a declaration evaluates its initialiser in:
+// list context for the parenthesised form or an array or hash, scalar
+// context for a scalar.
+func declContext(d *lower.Decl) types.Context {
+	if d.ListAssign {
+		return types.ListCtx
+	}
+	if len(d.Vars) == 1 {
+		if v, ok := d.Vars[0].(*lower.Var); ok {
+			return sigilContext(v.Sigil)
+		}
+	}
+	return types.UnknownCtx
+}
+
+// sigilContext is the context assigning to a variable of sigil imposes.
+func sigilContext(sigil string) types.Context {
+	switch sigil {
+	case "$":
+		return types.ScalarCtx
+	case "@", "%":
+		return types.ListCtx
+	}
+	return types.UnknownCtx
 }
 
 // declaredVars returns the variables a my, our, state or local declares, in

@@ -35,7 +35,7 @@ func TestAnnotationsKeyedByIdentity(t *testing.T) {
 	root := parse.Parse(src)
 	f := lower.Lower(root)
 	pos := lower.NewPositions(root, f)
-	ann, _, st := infer.AnalyzeLowered(f, pos, nil)
+	ann, _, st := infer.AnalyzeLowered(f, pos, nil, infer.Options{})
 
 	idx, ok := firstOfKind(f, &lower.Index{}).(*lower.Index)
 	if !ok {
@@ -64,7 +64,7 @@ func TestAnnotationsSurviveEditAbove(t *testing.T) {
 	inSubs := func(src string) map[lower.ID]types.Type {
 		root := parse.Parse([]byte(src))
 		f := lower.Lower(root)
-		ann, _, _ := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil)
+		ann, _, _ := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
 		out := map[lower.ID]types.Type{}
 		for id, typ := range ann {
 			if id.Anchor != "" {
