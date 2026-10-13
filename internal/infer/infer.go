@@ -2841,23 +2841,7 @@ func walkConditionalStatement(
 	if ifBodyExits && guard != nil && guard.VarName != "" && elseNode == nil && hasNoElsif {
 		// The continuation gets the else-branch guard: flattenGuards(guard, !ifBodyNegate).
 		// For a simple guard, this is one leaf with Negated = guard.Negated XOR !ifBodyNegate.
-		elseGuards := flattenGuards(guard, !ifBodyNegate)
-		for _, eg := range elseGuards {
-			sym, found := st.Lookup(eg.VarName)
-			if !found {
-				continue
-			}
-			var elseType types.Type
-			var narrowed bool
-			if eg.Negated {
-				elseType, narrowed = types.NegateGuard(sym.Type, eg.Guard)
-			} else {
-				elseType, narrowed = types.NarrowByGuard(sym.Type, eg.Guard)
-			}
-			if narrowed {
-				st.UpdateType(eg.VarName, elseType)
-			}
-		}
+		narrowContinuation(flattenGuards(guard, !ifBodyNegate), st)
 		// Early-exit handles post-if narrowing directly; skip branch merging.
 		return types.Unknown
 	}
@@ -2891,9 +2875,31 @@ func walkConditionalStatement(
 	//   - if-branch end type (if not early-exit)
 	//   - elsif chain join types (if any)
 	//   - else-branch end type (if present), or pre-if type (implicit else)
-	applyBranchJoin(guard, preIfTypes, ifBranchTypes, elsifJoinTypes, elseBranchTypes, elseNode, st)
+	applyBranchJoin(guard, preIfTypes, ifBranchTypes, elsifJoinTypes, elseBranchTypes, elseNode != nil, st)
 
 	return types.Unknown
+}
+
+// narrowContinuation narrows each guarded variable in place, for the code
+// after a conditional whose body always exits: there the guard is known to
+// have failed, so the guards given are the else branch's.
+func narrowContinuation(guards []*guardResult, st *SymbolTable) {
+	for _, eg := range guards {
+		sym, found := st.Lookup(eg.VarName)
+		if !found {
+			continue
+		}
+		var elseType types.Type
+		var narrowed bool
+		if eg.Negated {
+			elseType, narrowed = types.NegateGuard(sym.Type, eg.Guard)
+		} else {
+			elseType, narrowed = types.NarrowByGuard(sym.Type, eg.Guard)
+		}
+		if narrowed {
+			st.UpdateType(eg.VarName, elseType)
+		}
+	}
 }
 
 // collectPreIfTypes returns the current types of all variables referenced by
@@ -2961,7 +2967,7 @@ func applyBranchJoin(
 	ifBranchTypes map[string]types.Type,
 	elsifJoinTypes map[string]types.Type,
 	elseBranchTypes map[string]types.Type,
-	elseNode *parser.Node,
+	hasElse bool,
 	st *SymbolTable,
 ) {
 	if preIfTypes == nil {
@@ -2989,7 +2995,7 @@ func applyBranchJoin(
 		}
 
 		// Add else contribution or implicit-else pre-if type.
-		if elseNode != nil {
+		if hasElse {
 			if elseBranchTypes != nil {
 				if t, ok := elseBranchTypes[name]; ok {
 					joinType |= t
@@ -3626,42 +3632,16 @@ func flattenGuards(guard *guardResult, negate bool) []*guardResult {
 	return nil
 }
 
-// walkBlockWithGuard walks a block node with an optional list of leaf guards
-// for flow-narrowing. If guards is non-nil and non-empty, it enters a single
-// "guard" scope, shadows each guarded variable with its narrowed type, walks
-// the block children, then exits the scope.
-//
-// Each guard's Negated flag is already fully resolved by flattenGuards: when
-// Negated is true, NegateGuard is applied; otherwise NarrowByGuard is applied.
+// guardShadows applies guards to the symbol table's types and returns what
+// each guarded variable narrows to, and the class an isa guard names. Only
+// a variable at least one guard narrowed is in shadows.
 //
 // Guards that share the same variable are applied sequentially (the output
 // type of one guard becomes the input type for the next), so that compound
 // conditions on the same variable (e.g. defined($x) && ref($x)) correctly
-// intersect their effects.
-//
-// If a variable referenced by a guard was never declared, that guard is
-// silently skipped (no phantom shadow entries in the scope).
-//
-// If branchTypes is non-nil, the type of each guarded variable is captured
-// into branchTypes just before the guard scope exits. Callers use this to
-// compute the join type at the if/elsif/else merge point.
-//
-// Note: inner "my" declarations inside the block were processed by pass 1
-// (CollectDeclarations) in block scopes that no longer exist by pass 2.
-// UpdateType calls for those inner variables will be no-ops. This is a known
-// limitation — guard narrowing applies to the guarded variable, not to new
-// declarations inside the block.
-func walkBlockWithGuard(
-	block *parser.Node,
-	source []byte,
-	st *SymbolTable,
-	annotations map[uint32]types.Type,
-	diags *[]Diagnostic,
-	guards []*guardResult,
-	branchTypes map[string]types.Type,
-	idx *ProjectIndex,
-	classTypes map[uint32]string,
-) {
+// intersect their effects. A variable never declared is skipped, so no
+// phantom shadow is made for it.
+func guardShadows(guards []*guardResult, st *SymbolTable) (map[string]types.Type, map[string]string) {
 	// Build accumulated narrowed types by applying guards sequentially.
 	// working tracks the current type for each variable as guards are applied,
 	// whether or not each individual guard produced a change.
@@ -3707,6 +3687,46 @@ func walkBlockWithGuard(
 			guardClassNames[guard.VarName] = guard.ClassName
 		}
 	}
+	return shadows, guardClassNames
+}
+
+// walkBlockWithGuard walks a block node with an optional list of leaf guards
+// for flow-narrowing. If guards is non-nil and non-empty, it enters a single
+// "guard" scope, shadows each guarded variable with its narrowed type, walks
+// the block children, then exits the scope.
+//
+// Each guard's Negated flag is already fully resolved by flattenGuards: when
+// Negated is true, NegateGuard is applied; otherwise NarrowByGuard is applied.
+//
+// Guards that share the same variable are applied sequentially (the output
+// type of one guard becomes the input type for the next), so that compound
+// conditions on the same variable (e.g. defined($x) && ref($x)) correctly
+// intersect their effects.
+//
+// If a variable referenced by a guard was never declared, that guard is
+// silently skipped (no phantom shadow entries in the scope).
+//
+// If branchTypes is non-nil, the type of each guarded variable is captured
+// into branchTypes just before the guard scope exits. Callers use this to
+// compute the join type at the if/elsif/else merge point.
+//
+// Note: inner "my" declarations inside the block were processed by pass 1
+// (CollectDeclarations) in block scopes that no longer exist by pass 2.
+// UpdateType calls for those inner variables will be no-ops. This is a known
+// limitation — guard narrowing applies to the guarded variable, not to new
+// declarations inside the block.
+func walkBlockWithGuard(
+	block *parser.Node,
+	source []byte,
+	st *SymbolTable,
+	annotations map[uint32]types.Type,
+	diags *[]Diagnostic,
+	guards []*guardResult,
+	branchTypes map[string]types.Type,
+	idx *ProjectIndex,
+	classTypes map[uint32]string,
+) {
+	shadows, guardClassNames := guardShadows(guards, st)
 
 	scopeEntered := false
 	if len(shadows) > 0 {

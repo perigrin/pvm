@@ -24,6 +24,7 @@ func AnalyzeLowered(f *lower.File, pos *lower.Positions) (map[lower.ID]types.Typ
 		pos:         pos,
 		st:          collectLoweredDeclarations(f, pos),
 		annotations: map[lower.ID]types.Type{},
+		subs:        fileSubs(f),
 	}
 	a.walk(f)
 	return a.annotations, a.diags, a.st
@@ -36,6 +37,9 @@ type loweredAnalysis struct {
 	st          *SymbolTable
 	annotations map[lower.ID]types.Type
 	diags       []Diagnostic
+	// subs is each file-level named sub's body, which a user-defined
+	// guard reads.
+	subs map[string]*lower.AnonSub
 }
 
 // walk types n, children first, and records the type under n's id. Unknown
@@ -73,6 +77,9 @@ func (a *loweredAnalysis) walk(n lower.Node) types.Type {
 		t = types.CodeRef
 	case *lower.Decl:
 		t = a.decl(n)
+	case *lower.IfStmt:
+		a.ifStmt(n)
+		t = types.Unknown
 	default:
 		a.walkChildren(n)
 		t = types.Any
