@@ -1,6 +1,6 @@
 ---
 title: Port the variable, subscript and slice rules onto the lowered tree, with identity-keyed annotations
-state: pending
+state: in-progress
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -9,7 +9,16 @@ blocked_by:
 blocks:
 - 01a12a85-3233-7ec8-9428-747be4ccef1c
 created: 2026-10-11T10:32:14.500354268Z
-updated: 2026-10-11T15:18:16.084540218Z
+updated: 2026-10-13T01:56:52.092817024Z
+sessions:
+- start_sha: de501a52304e0902ef40141ecc5d555442b0866b
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-13T01:56:52.092817024Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-13T01:56:52.092817024Z
 ---
 
 ## Context
