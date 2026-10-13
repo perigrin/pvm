@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: v0.1
 created: 2026-10-13T00:31:01.879793799Z
-updated: 2026-10-13T00:31:01.879793799Z
+updated: 2026-10-13T01:51:20.353228757Z
 ---
 
 ## Context
@@ -17,7 +17,8 @@ Found 2026-10-13 by the AnalyzeLowered issue (01a12a85-304b), which copied legac
 - pass 2 walks a named sub's body in a fresh scope, so `sub f { my $x = 1 }` leaves `$x` Scalar where its initialiser makes it Int;
 - a bare block's body is not a scope in pass 1, though perl gives `{ my $x }` its own lexical scope.
 
-Both make PSC report less than perl knows. Fix them on the lowered path only after the m2 cutover (01a0c115-df67), so the ratchet is no longer holding the lowered path to legacy; each golden it changes gets a `Diagnostics-changed:` trailer.
+- `for my $i ($n)` scopes `$_` rather than `$i` (found by the flow port, 01a12a85-3100, which copied it so `flow/` goldens match).
+These make PSC report less than perl knows. Fix them on the lowered path only after the m2 cutover (01a0c115-df67), so the ratchet is no longer holding the lowered path to legacy; each golden it changes gets a `Diagnostics-changed:` trailer.
 
 ## Steps
 
@@ -27,3 +28,4 @@ Both make PSC report less than perl knows. Fix them on the lowered path only aft
 
 - [ ] a `my` in a named sub narrows to its initialiser (`go test ./internal/infer/ -run '^TestSubBodyDeclNarrows$' -count=1 -v | grep -q '^--- PASS: TestSubBodyDeclNarrows'`)
 - [ ] a bare block scopes its lexicals (`go test ./internal/infer/ -run '^TestBareBlockIsAScope$' -count=1 -v | grep -q '^--- PASS: TestBareBlockIsAScope'`)
+- [ ] a `for my $i` loop scopes `$i` (`go test ./internal/infer/ -run '^TestForMyScopesItsVariable$' -count=1 -v | grep -q '^--- PASS: TestForMyScopesItsVariable'`)
