@@ -67,6 +67,7 @@ flow/unless_defined.pl
 flow/unless_early_return.pl
 flow/unless_elsif.pl
 flow/unless_ref_else.pl
+flow/until_defined.pl
 flow/use.pl
 flow/user_arg0.pl
 flow/user_complex_arg.pl
