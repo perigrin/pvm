@@ -1,6 +1,6 @@
 ---
 title: "AnalyzeLowered: the entry point, the golden ratchet, and the declaration and literal rules"
-state: in-progress
+state: done
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -9,16 +9,54 @@ blocked_by:
 blocks:
 - 01a12a85-3100-79ae-8265-aa8b4f39cd85
 created: 2026-10-11T10:32:14.155064204Z
-updated: 2026-10-12T23:53:36.807153314Z
+updated: 2026-10-13T00:36:47.600087204Z
 sessions:
 - start_sha: 2f38962960ad8ceb79c510b01a862647f0fbacaa
-  end_sha: ""
-  commits: 0
+  end_sha: 0908d613150f31c001ca72445c97207e13a34b47
+  commits: 1
   started_at: 2026-10-12T23:53:36.807153314Z
+  ended_at: 2026-10-13T00:36:47.600087204Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-12T23:53:36.807153314Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-13T00:36:47.600087204Z
+observed_paths:
+- internal/infer/golden_test.go
+- internal/infer/legacy_capture_test.go
+- internal/infer/lowered.go
+- internal/infer/lowered_test.go
+- internal/infer/testdata/lowered/decl/block.golden
+- internal/infer/testdata/lowered/decl/block.pl
+- internal/infer/testdata/lowered/decl/list.golden
+- internal/infer/testdata/lowered/decl/list.pl
+- internal/infer/testdata/lowered/decl/local.golden
+- internal/infer/testdata/lowered/decl/local.pl
+- internal/infer/testdata/lowered/decl/my.golden
+- internal/infer/testdata/lowered/decl/my.pl
+- internal/infer/testdata/lowered/decl/our.golden
+- internal/infer/testdata/lowered/decl/our.pl
+- internal/infer/testdata/lowered/decl/package.golden
+- internal/infer/testdata/lowered/decl/package.pl
+- internal/infer/testdata/lowered/decl/state.golden
+- internal/infer/testdata/lowered/decl/state.pl
+- internal/infer/testdata/lowered/decl/sub_anon.golden
+- internal/infer/testdata/lowered/decl/sub_anon.pl
+- internal/infer/testdata/lowered/decl/sub_named.golden
+- internal/infer/testdata/lowered/decl/sub_named.pl
+- internal/infer/testdata/lowered/literals/backtick.golden
+- internal/infer/testdata/lowered/literals/backtick.pl
+- internal/infer/testdata/lowered/literals/fatcomma.golden
+- internal/infer/testdata/lowered/literals/fatcomma.pl
+- internal/infer/testdata/lowered/literals/numbers.golden
+- internal/infer/testdata/lowered/literals/numbers.pl
+- internal/infer/testdata/lowered/literals/qw.golden
+- internal/infer/testdata/lowered/literals/qw.pl
+- internal/infer/testdata/lowered/literals/strings.golden
+- internal/infer/testdata/lowered/literals/strings.pl
+- internal/infer/testdata/lowered/matching.txt
 ---
 
 ## Context
