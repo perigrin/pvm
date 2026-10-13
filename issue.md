@@ -1,6 +1,6 @@
 ---
 title: "Port the call rules onto the lowered tree: one Call arm for five builtin sites, Handle apart from Args"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -9,7 +9,16 @@ blocked_by:
 blocks:
 - 01a12a85-3386-7e72-8d74-38bf69a9c7d7
 created: 2026-10-11T10:32:14.798479017Z
-updated: 2026-10-11T15:18:22.918985389Z
+updated: 2026-10-13T16:07:37.064563388Z
+sessions:
+- start_sha: e61467531761799cbc9c52bf845a9f73a7ba2854
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-13T16:07:37.064563388Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-13T16:07:37.064563388Z
 ---
 
 ## Context
