@@ -1,6 +1,6 @@
 ---
 title: "Port the special-form rules onto the lowered tree: MapGrepSort.Op, the eval boundary, and match captures"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -8,7 +8,16 @@ blocked_by:
 blocks:
 - 01a12a85-3417-75eb-bf44-d47cf6546e82
 created: 2026-10-11T10:32:14.982514503Z
-updated: 2026-10-11T15:18:26.567450828Z
+updated: 2026-10-13T21:46:52.057347158Z
+sessions:
+- start_sha: a45799887c9831e70d88981c993e14c2f1de3741
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-13T21:46:52.057347158Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-13T21:46:52.057347158Z
 ---
 
 ## Context
