@@ -344,3 +344,28 @@ func TestRepeatCountAcceptsNum(t *testing.T) {
 		t.Errorf(`"ab" x {}: diagnostics %v, want one coercion mismatch`, diags)
 	}
 }
+
+// A call with an argument perl rejects is analysed without a panic, and
+// draws no arity or argument diagnostic, by default or under Strict: the
+// Hole that stands for the argument counts as one, and is typed Any.
+func TestLoweredCallsOverBrokenInput(t *testing.T) {
+	for _, src := range []string{
+		`length(;`,
+		`Foo->new(;`,
+		`bless(;`,
+	} {
+		root := parse.Parse([]byte(src))
+		f := lower.Lower(root)
+		if len(holes(f)) == 0 {
+			t.Fatalf("%q lowered with no Hole:\n%s", src, lower.Tree(f))
+		}
+		for _, opts := range []infer.Options{{}, {Strict: true}} {
+			_, diags, _ := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, opts)
+			for _, d := range diags {
+				if d.Code == infer.CodeArityMismatch || d.Code == infer.CodeTypeMismatch {
+					t.Errorf("%q (Strict %v): diagnostic %q, want none", src, opts.Strict, d.Message)
+				}
+			}
+		}
+	}
+}

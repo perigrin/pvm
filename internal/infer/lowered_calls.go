@@ -18,8 +18,8 @@ import (
 // project index's. A call through a reference is not typed.
 //
 // The filehandle of `print $fh LIST` is Handle, not an argument, so it is
-// neither counted nor checked. An argument that is a Hole is input perl
-// rejects: the call draws no arity or argument diagnostic.
+// neither counted nor checked. An argument perl rejects is a Hole, which is
+// counted as one argument and typed Any, so it satisfies every slot.
 func (a *loweredAnalysis) call(n *lower.Call) types.Type {
 	if n.Handle != nil {
 		a.walk(n.Handle)
@@ -40,21 +40,19 @@ func (a *loweredAnalysis) call(n *lower.Call) types.Type {
 	}
 	a.args(n.Args, sigs)
 
-	if !hasHole(n.Args) {
-		if least := builtinMinArity(sigs); len(n.Args) < least {
-			start, end, _ := a.pos.Span(n.ID)
-			a.diags = append(a.diags, Diagnostic{
-				StartByte: uint32(start),
-				EndByte:   uint32(end),
-				Severity:  Error,
-				Code:      CodeArityMismatch,
-				Message:   arityMessage(n.Name, least, len(n.Args)),
-			})
-			return a.callReturns(n, sigs)
-		}
-		for i, arg := range n.Args {
-			a.checkArg(n.Name, i, arg, builtinArgType(sigs, i))
-		}
+	if least := builtinMinArity(sigs); len(n.Args) < least {
+		start, end, _ := a.pos.Span(n.ID)
+		a.diags = append(a.diags, Diagnostic{
+			StartByte: uint32(start),
+			EndByte:   uint32(end),
+			Severity:  Error,
+			Code:      CodeArityMismatch,
+			Message:   arityMessage(n.Name, least, len(n.Args)),
+		})
+		return a.callReturns(n, sigs)
+	}
+	for i, arg := range n.Args {
+		a.checkArg(n.Name, i, arg, builtinArgType(sigs, i))
 	}
 
 	if t, ok := a.contextualReturn(n); ok {
@@ -98,16 +96,6 @@ func slotContext(sigs []types.Signature, i int) types.Context {
 		ctx = types.ListCtx
 	}
 	return ctx
-}
-
-// hasHole reports whether any of args is a Hole.
-func hasHole(args []lower.Node) bool {
-	for _, arg := range args {
-		if _, ok := arg.(*lower.Hole); ok {
-			return true
-		}
-	}
-	return false
 }
 
 // userCall types a call to a sub that is not a builtin: a fully-qualified
