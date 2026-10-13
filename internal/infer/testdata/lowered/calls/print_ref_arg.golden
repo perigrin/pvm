@@ -1,0 +1,2 @@
+diag 35 37 type-mismatch call to print: argument 1 expects Str, got HashRef
+sym $h HashRef

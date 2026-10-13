@@ -1,0 +1,3 @@
+sym $ok Boolean
+sym $v Str
+sym setit Code

@@ -1,0 +1,6 @@
+sym $e Str
+sym $f Int
+sym $n Int
+sym %h Hash
+sym @k List
+sym @v List

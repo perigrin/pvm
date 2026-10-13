@@ -1,0 +1,4 @@
+diag 25 27 coercion-mismatch left operand of "eq": expected Str, got Undef
+sym $ok Boolean
+sym $x Undef
+sym $y Int

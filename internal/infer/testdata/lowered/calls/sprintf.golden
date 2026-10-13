@@ -1,0 +1,10 @@
+sym $d Int
+sym $e Num
+sym $f Num
+sym $m Str
+sym $o Str
+sym $p Int
+sym $s Str
+sym $t Str
+sym $x Str
+sym $z Int

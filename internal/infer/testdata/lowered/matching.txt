@@ -1,5 +1,12 @@
 # Fixtures under testdata/lowered whose lowered analysis matches its golden.
 # Rewritten by -infer.ratchet.update; TestLoweredGoldenRatchet holds it in both directions.
+calls/bare_decl_call.pl
+calls/die_msg.pl
+calls/lvalue_substr.pl
+calls/param_usage.pl
+calls/print_handle.pl
+calls/push_bare.pl
+calls/swallowed_compare.pl
 decl/block.pl
 decl/list.pl
 decl/local.pl

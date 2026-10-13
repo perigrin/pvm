@@ -1,0 +1,4 @@
+sym $o Int
+sym $s Str
+sym @a Array
+sym @todo Array
