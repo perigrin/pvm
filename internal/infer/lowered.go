@@ -30,6 +30,7 @@ func AnalyzeLowered(f *lower.File, pos *lower.Positions, idx *ProjectIndex, opts
 		annotations: map[lower.ID]types.Type{},
 		subs:        fileSubs(f),
 		evalCtx:     map[lower.ID]types.Context{},
+		classTypes:  map[lower.ID]string{},
 	}
 	a.walk(f)
 	return a.annotations, a.diags, a.st
@@ -52,6 +53,9 @@ type loweredAnalysis struct {
 	// assignment's right side, an operator's operands, a ternary's arms.
 	// An absent node's is UnknownCtx.
 	evalCtx map[lower.ID]types.Context
+	// classTypes is the class of the object a constructor call makes,
+	// keyed by the call's id, for the assignment that takes it.
+	classTypes map[lower.ID]string
 }
 
 // walk types n, children first, and records the type under n's id. Unknown
@@ -120,6 +124,10 @@ func (a *loweredAnalysis) walk(n lower.Node) types.Type {
 		t = a.rangeOp(n)
 	case *lower.Assign:
 		t = a.assign(n)
+	case *lower.Call:
+		t = a.call(n)
+	case *lower.MethodCall:
+		t = a.methodCall(n)
 	case *lower.Decl:
 		t = a.decl(n)
 	case *lower.IfStmt:
