@@ -1,6 +1,6 @@
 ---
 title: "Port the operator rules onto the lowered tree: Binary.Op, Repeat, Assign and Range from fields"
-state: in-progress
+state: done
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -9,16 +9,111 @@ blocked_by:
 blocks:
 - 01a12a85-32cf-7d76-96f7-b814935374e1
 created: 2026-10-11T10:32:14.642799615Z
-updated: 2026-10-13T02:38:06.307745476Z
+updated: 2026-10-13T16:07:02.012667962Z
 sessions:
 - start_sha: 25ec742454544ea6db09a7d8ace24e430966243f
-  end_sha: ""
-  commits: 0
+  end_sha: e61467531761799cbc9c52bf845a9f73a7ba2854
+  commits: 1
   started_at: 2026-10-13T02:38:06.307745476Z
+  ended_at: 2026-10-13T16:07:02.012667962Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-13T02:38:06.307745476Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-13T16:07:02.012667962Z
+observed_paths:
+- internal/infer/annotations_test.go
+- internal/infer/golden_test.go
+- internal/infer/infer.go
+- internal/infer/lowered.go
+- internal/infer/lowered_ops.go
+- internal/infer/lowered_test.go
+- internal/infer/lowered_vars.go
+- internal/infer/testdata/lowered/matching.txt
+- internal/infer/testdata/lowered/ops/add.golden
+- internal/infer/testdata/lowered/ops/add.pl
+- internal/infer/testdata/lowered/ops/aggregate_compare.golden
+- internal/infer/testdata/lowered/ops/aggregate_compare.pl
+- internal/infer/testdata/lowered/ops/arith_int.golden
+- internal/infer/testdata/lowered/ops/arith_int.pl
+- internal/infer/testdata/lowered/ops/arrayref_concat.golden
+- internal/infer/testdata/lowered/ops/arrayref_concat.pl
+- internal/infer/testdata/lowered/ops/assign_array.golden
+- internal/infer/testdata/lowered/ops/assign_array.pl
+- internal/infer/testdata/lowered/ops/assign_arrayref.golden
+- internal/infer/testdata/lowered/ops/assign_arrayref.pl
+- internal/infer/testdata/lowered/ops/assign_count.golden
+- internal/infer/testdata/lowered/ops/assign_count.pl
+- internal/infer/testdata/lowered/ops/assign_undeclared.golden
+- internal/infer/testdata/lowered/ops/assign_undeclared.pl
+- internal/infer/testdata/lowered/ops/bare_arith.golden
+- internal/infer/testdata/lowered/ops/bare_arith.pl
+- internal/infer/testdata/lowered/ops/bitwise.golden
+- internal/infer/testdata/lowered/ops/bitwise.pl
+- internal/infer/testdata/lowered/ops/compare.golden
+- internal/infer/testdata/lowered/ops/compare.pl
+- internal/infer/testdata/lowered/ops/compound_assign.golden
+- internal/infer/testdata/lowered/ops/compound_assign.pl
+- internal/infer/testdata/lowered/ops/concat.golden
+- internal/infer/testdata/lowered/ops/concat.pl
+- internal/infer/testdata/lowered/ops/concat_array.golden
+- internal/infer/testdata/lowered/ops/concat_array.pl
+- internal/infer/testdata/lowered/ops/count_of.golden
+- internal/infer/testdata/lowered/ops/count_of.pl
+- internal/infer/testdata/lowered/ops/defined_or.golden
+- internal/infer/testdata/lowered/ops/defined_or.pl
+- internal/infer/testdata/lowered/ops/foreach_alias.golden
+- internal/infer/testdata/lowered/ops/foreach_alias.pl
+- internal/infer/testdata/lowered/ops/foreach_named_alias.golden
+- internal/infer/testdata/lowered/ops/foreach_named_alias.pl
+- internal/infer/testdata/lowered/ops/hashref_arith.golden
+- internal/infer/testdata/lowered/ops/hashref_arith.pl
+- internal/infer/testdata/lowered/ops/incr.golden
+- internal/infer/testdata/lowered/ops/incr.pl
+- internal/infer/testdata/lowered/ops/isa.golden
+- internal/infer/testdata/lowered/ops/isa.pl
+- internal/infer/testdata/lowered/ops/list_assign.golden
+- internal/infer/testdata/lowered/ops/list_assign.pl
+- internal/infer/testdata/lowered/ops/logical.golden
+- internal/infer/testdata/lowered/ops/logical.pl
+- internal/infer/testdata/lowered/ops/neg.golden
+- internal/infer/testdata/lowered/ops/neg.pl
+- internal/infer/testdata/lowered/ops/not.golden
+- internal/infer/testdata/lowered/ops/not.pl
+- internal/infer/testdata/lowered/ops/paren_operand.golden
+- internal/infer/testdata/lowered/ops/paren_operand.pl
+- internal/infer/testdata/lowered/ops/range.golden
+- internal/infer/testdata/lowered/ops/range.pl
+- internal/infer/testdata/lowered/ops/range_num.golden
+- internal/infer/testdata/lowered/ops/range_num.pl
+- internal/infer/testdata/lowered/ops/reassign.golden
+- internal/infer/testdata/lowered/ops/reassign.pl
+- internal/infer/testdata/lowered/ops/repeat.golden
+- internal/infer/testdata/lowered/ops/repeat.pl
+- internal/infer/testdata/lowered/ops/repeat_div.golden
+- internal/infer/testdata/lowered/ops/repeat_div.pl
+- internal/infer/testdata/lowered/ops/repeat_num.golden
+- internal/infer/testdata/lowered/ops/repeat_num.pl
+- internal/infer/testdata/lowered/ops/repeat_paren_one.golden
+- internal/infer/testdata/lowered/ops/repeat_paren_one.pl
+- internal/infer/testdata/lowered/ops/repeat_qw.golden
+- internal/infer/testdata/lowered/ops/repeat_qw.pl
+- internal/infer/testdata/lowered/ops/str_arith.golden
+- internal/infer/testdata/lowered/ops/str_arith.pl
+- internal/infer/testdata/lowered/ops/str_compare_num.golden
+- internal/infer/testdata/lowered/ops/str_compare_num.pl
+- internal/infer/testdata/lowered/ops/str_eq.golden
+- internal/infer/testdata/lowered/ops/str_eq.pl
+- internal/infer/testdata/lowered/ops/ternary.golden
+- internal/infer/testdata/lowered/ops/ternary.pl
+- internal/infer/testdata/lowered/ops/ternary_mixed.golden
+- internal/infer/testdata/lowered/ops/ternary_mixed.pl
+- internal/infer/testdata/lowered/ops/ternary_str.golden
+- internal/infer/testdata/lowered/ops/ternary_str.pl
+- internal/infer/testdata/lowered/ops/xor.golden
+- internal/infer/testdata/lowered/ops/xor.pl
 ---
 
 ## Context
