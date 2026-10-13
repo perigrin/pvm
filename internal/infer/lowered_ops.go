@@ -136,8 +136,8 @@ func assignContext(l lower.Node) types.Context {
 // is 3. An array, a hash, or a scalar holding an anonymous one records its
 // element type.
 //
-// A constructor's result records its class on v. A list-context match
-// binding its captures is read from Match, which this rule does not type.
+// A constructor's result records its class on v. A declaration binding a
+// match's captures is bindsCaptures', and does not reach here.
 func (a *loweredAnalysis) narrow(v *lower.Var, init lower.Node, t types.Type) types.Type {
 	name := v.Sigil + v.Name
 	if v.Sigil == "$" && (t == types.Array || t == types.Hash || t == types.List) {

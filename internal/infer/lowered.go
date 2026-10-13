@@ -5,6 +5,7 @@ package infer
 
 import (
 	"tamarou.com/pvm/internal/lower"
+	"tamarou.com/pvm/internal/parse"
 	"tamarou.com/pvm/internal/types"
 )
 
@@ -130,6 +131,23 @@ func (a *loweredAnalysis) walk(n lower.Node) types.Type {
 		t = a.methodCall(n)
 	case *lower.MapGrepSort:
 		t = a.mapGrepSort(n)
+	case *lower.Ref:
+		t = a.ref(n)
+	case *lower.Match:
+		t = a.match(n)
+	case *lower.Glob:
+		t = a.glob(n)
+	case *lower.Wantarray:
+		t = builtinReturns(parse.CoreBuiltin("wantarray"), a.evalCtx[n.ID])
+	case *lower.EvalStr:
+		// eval STRING is the soundness boundary (§4.14.2): its code is
+		// not read, so its value may be anything.
+		a.walkChildren(n)
+		t = types.Any
+	case *lower.EvalBlock, *lower.DoBlock, *lower.DoFile, *lower.Readline, *lower.FileTest:
+		// None of these is typed on the legacy path.
+		a.walkChildren(n)
+		t = types.Unknown
 	case *lower.Decl:
 		t = a.decl(n)
 	case *lower.IfStmt:
@@ -187,6 +205,9 @@ func (a *loweredAnalysis) decl(d *lower.Decl) types.Type {
 		vars := declaredVars(d)
 		if len(vars) == 0 || d.Kind == lower.DeclLocal {
 			return t
+		}
+		if a.bindsCaptures(d) {
+			return types.List
 		}
 		return a.narrow(vars[0], d.Init, t)
 	case lower.DeclPackage:
