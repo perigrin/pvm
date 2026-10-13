@@ -211,6 +211,7 @@ func (a *loweredAnalysis) decl(d *lower.Decl) types.Type {
 			if name := subName(d); name != "" && ret != types.Unknown {
 				a.st.UpdateReturnType(name, ret)
 			}
+			a.recordParamTypes(d)
 		}
 		return types.Code
 	}

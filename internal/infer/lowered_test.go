@@ -423,3 +423,40 @@ func TestLoweredCallsResolveThroughTheIndex(t *testing.T) {
 		}
 	}
 }
+
+// A named sub's parameters are typed by what the operators and builtins
+// its body passes them to expect, whether a signature, `my (...) = @_` or
+// a run of `my $v = shift` names them, and whether a builtin's arguments
+// stand in parentheses or not: perl compiles `length($x)` and `length $x`
+// alike. A sub none of whose parameters is constrained records none. The golden format shows no parameter types,
+// so this test holds them.
+func TestLoweredParamTypes(t *testing.T) {
+	src := []byte(`use v5.36;
+sub calc { my $x = shift; my $result = $x + 1; }
+sub passthrough { my $x = shift; return $x; }
+sub two { my $self = shift; my $s = shift; return $s . "!"; }
+sub unpack { my ($p, $q) = @_; return $p * $q; }
+sub sig ($a, $b) { return lc $a; }
+sub paren { my $x = shift; return length($x); }
+`)
+	root := parse.Parse(src)
+	f := lower.Lower(root)
+	_, _, st := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
+
+	for name, want := range map[string][]types.Type{
+		"calc":        {types.Num},
+		"passthrough": nil,
+		"two":         {types.Unknown, types.Str},
+		"unpack":      {types.Num, types.Num},
+		"sig":         {types.Str, types.Unknown},
+		"paren":       {types.Str},
+	} {
+		sym, ok := st.LookupAll(name)
+		if !ok {
+			t.Fatalf("%s: no symbol", name)
+		}
+		if !reflect.DeepEqual(sym.ParamTypes, want) {
+			t.Errorf("%s: parameter types %v, want %v", name, sym.ParamTypes, want)
+		}
+	}
+}

@@ -262,3 +262,169 @@ func (a *loweredAnalysis) methodCall(n *lower.MethodCall) types.Type {
 	}
 	return types.Unknown
 }
+
+// subParams is the legacy ResolveSubParams: a signature's mandatory
+// scalars, else the scalars `my (...) = @_` unpacks as the body's first
+// statement, else the variables of the `my $v = shift` statements the body
+// opens with. nil when the sub has none of them.
+func subParams(s *lower.AnonSub) []string {
+	if len(s.Sig) > 0 {
+		var params []string
+		for _, p := range s.Sig {
+			if v, ok := p.(*lower.Var); ok && v.Sigil == "$" {
+				params = append(params, "$"+v.Name)
+			}
+		}
+		return params
+	}
+	body, ok := s.Body.(*lower.Block)
+	if !ok || len(body.Stmts) == 0 {
+		return nil
+	}
+	if params := unpacksArgs(body.Stmts[0]); len(params) > 0 {
+		return params
+	}
+	var params []string
+	for _, stmt := range body.Stmts {
+		name := shiftParam(stmt)
+		if name == "" {
+			break
+		}
+		params = append(params, name)
+	}
+	return params
+}
+
+// unpacksArgs is the scalars stmt assigns from @_, `my ($x, $y) = @_` or
+// `($x, $y) = @_`, in order; nil when stmt is no such assignment.
+func unpacksArgs(stmt lower.Node) []string {
+	es, ok := stmt.(*lower.ExprStmt)
+	if !ok {
+		return nil
+	}
+	var lhs []lower.Node
+	var rhs lower.Node
+	switch x := es.X.(type) {
+	case *lower.Decl:
+		lhs, rhs = x.Vars, x.Init
+	case *lower.Assign:
+		lhs, rhs = []lower.Node{x.L}, x.R
+	default:
+		return nil
+	}
+	if v, ok := rhs.(*lower.Var); !ok || v.Sigil != "@" || v.Name != "_" {
+		return nil
+	}
+	var params []string
+	var collect func(n lower.Node)
+	collect = func(n lower.Node) {
+		if v, ok := n.(*lower.Var); ok {
+			if v.Sigil == "$" {
+				params = append(params, "$"+v.Name)
+			}
+			return
+		}
+		for _, c := range lower.Children(n) {
+			collect(c)
+		}
+	}
+	for _, n := range lhs {
+		collect(n)
+	}
+	return params
+}
+
+// shiftParam is the scalar stmt declares from a shift, `my $v = shift` or
+// `my $v = shift @_`, "" when stmt is not one.
+func shiftParam(stmt lower.Node) string {
+	es, ok := stmt.(*lower.ExprStmt)
+	if !ok {
+		return ""
+	}
+	d, ok := es.X.(*lower.Decl)
+	if !ok || d.Kind != lower.DeclMy {
+		return ""
+	}
+	c, ok := d.Init.(*lower.Call)
+	if !ok || c.Name != "shift" {
+		return ""
+	}
+	vars := declaredVars(d)
+	if len(vars) == 0 || vars[len(vars)-1].Sigil != "$" {
+		return ""
+	}
+	return "$" + vars[len(vars)-1].Name
+}
+
+// paramTypes is the legacy inferParamTypesFromUsage: each parameter's type
+// is what the operators and builtins it is passed to expect of it, every
+// constraint intersected. A parameter nothing constrains is Unknown.
+func (a *loweredAnalysis) paramTypes(body lower.Node, params []string) []types.Type {
+	slot := make(map[string]int, len(params))
+	constraints := make([]types.Type, len(params))
+	for i, p := range params {
+		slot[p] = i
+		constraints[i] = types.Any
+	}
+	constrain := func(n lower.Node, expected types.Type) {
+		v, ok := n.(*lower.Var)
+		if !ok || expected == types.Any {
+			return
+		}
+		if i, ok := slot[v.Sigil+v.Name]; ok {
+			constraints[i] &= expected
+		}
+	}
+	var walk func(n lower.Node)
+	walk = func(n lower.Node) {
+		if n == nil {
+			return
+		}
+		switch n := n.(type) {
+		case *lower.Binary:
+			sigs := shapedOperatorCandidates(n.Op, "infix", operandShape(n.L)+operandShape(n.R), a.evalCtx[n.ID])
+			if len(sigs) > 0 {
+				constrain(n.L, builtinArgType(sigs, 0))
+				constrain(n.R, builtinArgType(sigs, 1))
+			}
+		case *lower.Call:
+			if sigs := parse.CoreBuiltin(n.Name); n.Fn == nil && len(sigs) > 0 {
+				for i, arg := range n.Args {
+					constrain(arg, builtinArgType(sigs, i))
+				}
+			}
+		}
+		for _, c := range lower.Children(n) {
+			walk(c)
+		}
+	}
+	walk(body)
+	for i := range constraints {
+		if constraints[i] == types.Any {
+			constraints[i] = types.Unknown
+		}
+	}
+	return constraints
+}
+
+// recordParamTypes is the parameter half of the legacy
+// walkSubroutineDeclaration: a named sub's parameters are typed by how its
+// body uses them, and recorded only when one of them is known.
+func (a *loweredAnalysis) recordParamTypes(d *lower.Decl) {
+	name := subName(d)
+	body, ok := d.Init.(*lower.AnonSub)
+	if name == "" || !ok {
+		return
+	}
+	params := subParams(body)
+	if len(params) == 0 {
+		return
+	}
+	pts := a.paramTypes(body.Body, params)
+	for _, pt := range pts {
+		if pt != types.Unknown {
+			a.st.UpdateParamTypes(name, params, pts)
+			return
+		}
+	}
+}
