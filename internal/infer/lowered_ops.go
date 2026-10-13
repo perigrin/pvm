@@ -45,7 +45,7 @@ func (a *loweredAnalysis) infix(n lower.Node, op, shapes string, l, r lower.Node
 		return types.Unknown
 	}
 	a.checkOperand(l, builtinArgType(sigs, 0), op, "left")
-	a.checkOperand(r, builtinArgType(sigs, 1), op, "right")
+	a.checkOperand(r, countType(op, builtinArgType(sigs, 1)), op, "right")
 	result := builtinReturns(sigs, types.UnknownCtx)
 	if result == types.Any && logicalOps[op] {
 		return types.Join(a.valueOf(l), a.valueOf(r))
@@ -63,6 +63,18 @@ func (a *loweredAnalysis) repeat(n *lower.Repeat) types.Type {
 		left = "@"
 	}
 	return a.infix(n, "x", left+operandShape(n.Count), n.Left, n.Count)
+}
+
+// countType is what a repeat's count takes. CORE.pmt declares it Int, and
+// perl truncates any finite number to one silently: perl 5.42 -w, `"ab" x
+// 2.9` is "abab". So the count takes a Num, while a reference or an undef
+// count is still reported, as perl warns or repeats by an address.
+// Elsewhere expected is returned as it is.
+func countType(op string, expected types.Type) types.Type {
+	if op == "x" && expected == types.Int {
+		return types.Num
+	}
+	return expected
 }
 
 // rangeOp types `..` and `...` by CORE.pmt's candidates, as a binary

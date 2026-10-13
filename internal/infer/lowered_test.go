@@ -319,3 +319,28 @@ func TestTernaryArmTakesNumericContext(t *testing.T) {
 		}
 	}
 }
+
+// perl truncates a repeat count toward zero, so a finite Num count is no
+// mismatch: perl 5.42 -w is silent on `"ab" x 2.5` and `"ab" x 2.9`, each
+// "abab", and on `(1,2) x 1.5`, (1, 2). A count that is not a number at
+// all is still one: a reference repeats by its address.
+func TestRepeatCountAcceptsNum(t *testing.T) {
+	for _, src := range []string{
+		"my $s = \"ab\" x 2.5;\n",
+		"my $n = 2.9;\nmy $s = \"ab\" x $n;\n",
+		"my @l = (1, 2) x 1.5;\n",
+	} {
+		root := parse.Parse([]byte(src))
+		f := lower.Lower(root)
+		_, diags, _ := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
+		for _, d := range diags {
+			t.Errorf("%q: diagnostic %q, want none", src, d.Message)
+		}
+	}
+	root := parse.Parse([]byte("my $s = \"ab\" x {};\n"))
+	f := lower.Lower(root)
+	_, diags, _ := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
+	if len(diags) != 1 || diags[0].Code != infer.CodeCoercionMismatch {
+		t.Errorf(`"ab" x {}: diagnostics %v, want one coercion mismatch`, diags)
+	}
+}
