@@ -86,6 +86,11 @@ func (a *loweredAnalysis) walk(n lower.Node) types.Type {
 	case *lower.ForeachStmt:
 		a.foreachStmt(n)
 		t = types.Unknown
+	case *lower.LoopEx:
+		// return, last, next, redo and goto are not values the legacy
+		// path typed; a return's value is read where the sub is.
+		a.walkChildren(n)
+		t = types.Unknown
 	default:
 		a.walkChildren(n)
 		t = types.Any
@@ -143,7 +148,15 @@ func (a *loweredAnalysis) decl(d *lower.Decl) types.Type {
 		if d.Init != nil {
 			a.st.EnterScope(subName(d))
 			a.walk(d.Init)
+			ret := types.Unknown
+			if body, ok := d.Init.(*lower.AnonSub); ok && body.Body != nil {
+				b, _ := body.Body.(*lower.Block)
+				ret = a.explicitReturns(body.Body) | a.implicitReturn(b)
+			}
 			a.st.ExitScope()
+			if name := subName(d); name != "" && ret != types.Unknown {
+				a.st.UpdateReturnType(name, ret)
+			}
 		}
 		return types.Code
 	}

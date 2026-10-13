@@ -539,3 +539,42 @@ func negateGuard(g *guardResult) *guardResult {
 	l.Negated, r.Negated = !l.Negated, !r.Negated
 	return &guardResult{Compound: &compoundGuard{Op: op, Left: &l, Right: &r}}
 }
+
+// explicitReturns is the legacy collectExplicitReturns: the join of every
+// return's value under n, a bare return giving Undef.
+func (a *loweredAnalysis) explicitReturns(n lower.Node) types.Type {
+	if r, ok := n.(*lower.LoopEx); ok && r.Op == "return" {
+		if r.Label == nil {
+			return types.Undef
+		}
+		return a.annotations[r.Label.Meta().ID]
+	}
+	var t types.Type
+	for _, c := range lower.Children(n) {
+		t |= a.explicitReturns(c)
+	}
+	return t
+}
+
+// implicitReturn is the legacy collectImplicitReturn: the type of a
+// block's last statement when it is an expression, or the join of both
+// bodies of a closing conditional.
+func (a *loweredAnalysis) implicitReturn(b *lower.Block) types.Type {
+	if b == nil || len(b.Stmts) == 0 {
+		return types.Unknown
+	}
+	switch s := b.Stmts[len(b.Stmts)-1].(type) {
+	case *lower.ExprStmt:
+		if s.X != nil {
+			return a.annotations[s.X.Meta().ID]
+		}
+	case *lower.IfStmt:
+		if !isBranch(s.Then) || !isBranch(s.Else) {
+			return types.Unknown
+		}
+		then, _ := s.Then.(*lower.Block)
+		els, _ := s.Else.(*lower.Block)
+		return a.implicitReturn(then) | a.implicitReturn(els)
+	}
+	return types.Unknown
+}

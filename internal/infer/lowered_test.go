@@ -57,3 +57,38 @@ func TestHoleIsTypedAnyAndNeverInspected(t *testing.T) {
 		}
 	}
 }
+
+// A named sub's return type is the join of its explicit returns, a bare
+// one giving Undef, and the value its last statement leaves, through both
+// bodies of a closing conditional. The golden format shows no return
+// types, so this test holds them.
+func TestLoweredSubReturnTypes(t *testing.T) {
+	src := []byte(`sub one { return 1; }
+sub str { "s" }
+sub bare { return; }
+sub both { return 1 if 0; "s" }
+sub cond { if (1) { 1 } else { "s" } }
+sub none { }
+`)
+	root := parse.Parse(src)
+	f := lower.Lower(root)
+	_, _, st := infer.AnalyzeLowered(f, lower.NewPositions(root, f))
+
+	for name, want := range map[string]types.Type{
+		"one":  types.Int,
+		"str":  types.Str,
+		"bare": types.Undef,
+		"both": types.Int | types.Str,
+		"cond": types.Int | types.Str,
+		"none": types.Unknown,
+	} {
+		sym, ok := st.LookupAll(name)
+		if !ok {
+			t.Errorf("%s: no symbol", name)
+			continue
+		}
+		if sym.ReturnType != want {
+			t.Errorf("%s: return type %v, want %v", name, sym.ReturnType, want)
+		}
+	}
+}
