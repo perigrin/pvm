@@ -1,6 +1,6 @@
 ---
 title: "Port the operator rules onto the lowered tree: Binary.Op, Repeat, Assign and Range from fields"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -9,7 +9,16 @@ blocked_by:
 blocks:
 - 01a12a85-32cf-7d76-96f7-b814935374e1
 created: 2026-10-11T10:32:14.642799615Z
-updated: 2026-10-11T15:18:19.525230018Z
+updated: 2026-10-13T02:38:06.307745476Z
+sessions:
+- start_sha: 25ec742454544ea6db09a7d8ace24e430966243f
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-13T02:38:06.307745476Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-13T02:38:06.307745476Z
 ---
 
 ## Context
