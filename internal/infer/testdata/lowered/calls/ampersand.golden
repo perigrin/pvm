@@ -1,2 +1,2 @@
-sym $r Scalar
+sym $r Int
 sym foo Code
