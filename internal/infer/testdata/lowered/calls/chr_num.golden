@@ -1,0 +1,3 @@
+diag 26 28 type-mismatch call to chr: argument 1 expects Int, got Num
+sym $c Str
+sym $n Num

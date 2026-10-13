@@ -188,6 +188,8 @@ func (a *loweredAnalysis) elemType(n lower.Node) types.Type {
 		return a.typeOf(n.Left)
 	case *lower.Range:
 		return a.rangeElemType(n)
+	case *lower.Call:
+		return a.callElemType(n)
 	}
 	return a.annotations[n.Meta().ID]
 }

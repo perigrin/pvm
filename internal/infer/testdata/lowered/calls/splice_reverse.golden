@@ -1,0 +1,6 @@
+sym $e Int
+sym $f Int
+sym $r Str
+sym @a Array
+sym @r List
+sym @s List

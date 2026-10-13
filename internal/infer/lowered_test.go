@@ -344,3 +344,119 @@ func TestRepeatCountAcceptsNum(t *testing.T) {
 		t.Errorf(`"ab" x {}: diagnostics %v, want one coercion mismatch`, diags)
 	}
 }
+
+// A call with an argument perl rejects is analysed without a panic, and
+// draws no arity or argument diagnostic, by default or under Strict: the
+// Hole that stands for the argument counts as one, and is typed Any.
+func TestLoweredCallsOverBrokenInput(t *testing.T) {
+	for _, src := range []string{
+		`length(;`,
+		`Foo->new(;`,
+		`bless(;`,
+	} {
+		root := parse.Parse([]byte(src))
+		f := lower.Lower(root)
+		if len(holes(f)) == 0 {
+			t.Fatalf("%q lowered with no Hole:\n%s", src, lower.Tree(f))
+		}
+		for _, opts := range []infer.Options{{}, {Strict: true}} {
+			_, diags, _ := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, opts)
+			for _, d := range diags {
+				if d.Code == infer.CodeArityMismatch || d.Code == infer.CodeTypeMismatch {
+					t.Errorf("%q (Strict %v): diagnostic %q, want none", src, opts.Strict, d.Message)
+				}
+			}
+		}
+	}
+}
+
+// A constructor's result records its class on the variable that takes it,
+// declared or assigned. The golden format shows no class, so this test
+// holds it.
+func TestLoweredConstructorRecordsClass(t *testing.T) {
+	src := []byte("my $obj = Foo->new();\nmy $o;\n$o = Bar->new;\nmy $n = Baz->make;\n")
+	root := parse.Parse(src)
+	f := lower.Lower(root)
+	_, _, st := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
+	for name, want := range map[string]string{"$obj": "Foo", "$o": "Bar", "$n": ""} {
+		sym, ok := st.Lookup(name)
+		if !ok {
+			t.Fatalf("no %s in the symbol table", name)
+		}
+		if sym.ClassType != want {
+			t.Errorf("%s: class %q, want %q", name, sym.ClassType, want)
+		}
+	}
+}
+
+// A call the project index resolves takes the return type of the sub it
+// names: a fully-qualified sub, and a method on an object whose class a
+// constructor recorded.
+func TestLoweredCallsResolveThroughTheIndex(t *testing.T) {
+	dir := t.TempDir()
+	for path, body := range map[string]string{
+		"lib/Foo/Bar.pm": "package Foo::Bar;\nsub baz { return 42; }\n",
+		"lib/Counter.pm": "package Counter;\nsub count { return 4.5; }\n",
+	} {
+		full := filepath.Join(dir, filepath.FromSlash(path))
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	idx := infer.NewProjectIndex(dir)
+
+	src := []byte("use Foo::Bar;\nuse Counter;\nmy $x = Foo::Bar::baz();\nmy $c = Counter->new();\nmy $n = $c->count();\n")
+	root := parse.Parse(src)
+	f := lower.Lower(root)
+	_, _, st := infer.AnalyzeLowered(f, lower.NewPositions(root, f), idx, infer.Options{})
+
+	for name, want := range map[string]types.Type{"$x": types.Int, "$n": types.Num} {
+		sym, ok := st.Lookup(name)
+		if !ok {
+			t.Fatalf("no %s in the symbol table", name)
+		}
+		if sym.Type != want {
+			t.Errorf("%s: %v, want %v", name, sym.Type, want)
+		}
+	}
+}
+
+// A named sub's parameters are typed by what the operators and builtins
+// its body passes them to expect, whether a signature, `my (...) = @_` or
+// a run of `my $v = shift` names them, and whether a builtin's arguments
+// stand in parentheses or not: perl compiles `length($x)` and `length $x`
+// alike. A sub none of whose parameters is constrained records none. The golden format shows no parameter types,
+// so this test holds them.
+func TestLoweredParamTypes(t *testing.T) {
+	src := []byte(`use v5.36;
+sub calc { my $x = shift; my $result = $x + 1; }
+sub passthrough { my $x = shift; return $x; }
+sub two { my $self = shift; my $s = shift; return $s . "!"; }
+sub unpack { my ($p, $q) = @_; return $p * $q; }
+sub sig ($a, $b) { return lc $a; }
+sub paren { my $x = shift; return length($x); }
+`)
+	root := parse.Parse(src)
+	f := lower.Lower(root)
+	_, _, st := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
+
+	for name, want := range map[string][]types.Type{
+		"calc":        {types.Num},
+		"passthrough": nil,
+		"two":         {types.Unknown, types.Str},
+		"unpack":      {types.Num, types.Num},
+		"sig":         {types.Str, types.Unknown},
+		"paren":       {types.Str},
+	} {
+		sym, ok := st.LookupAll(name)
+		if !ok {
+			t.Fatalf("%s: no symbol", name)
+		}
+		if !reflect.DeepEqual(sym.ParamTypes, want) {
+			t.Errorf("%s: parameter types %v, want %v", name, sym.ParamTypes, want)
+		}
+	}
+}

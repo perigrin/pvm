@@ -1,0 +1,6 @@
+sym $k Str
+sym $m Int
+sym $n Int
+sym $s Str
+sym %h Hash
+sym @a Array

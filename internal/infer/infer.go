@@ -953,26 +953,6 @@ func contextualReturnType(name string, args []*parser.Node, source []byte, st *S
 		return sprintfResultType(args[0], source, annotations)
 	}
 
-	// int() truncates toward zero, so the result is an Int whatever went in —
-	// measured, int(3.9) and int(-3.9) are both Int. This one does not depend
-	// on the argument and could be a signature, except that Int is currently
-	// spelled Num there.
-	if name == "int" {
-		return types.Int, true
-	}
-
-	// abs() follows its ARGUMENT: abs(-5) is Int and abs(-5.5) is Num.
-	if name == "abs" && len(args) == 1 {
-		argType := operandType(args[0], annotations)
-		if argType == types.Unknown {
-			return types.Unknown, false
-		}
-		if types.IsSubtype(argType, types.Num) {
-			return argType, true
-		}
-		return types.Num, true
-	}
-
 	// pop and shift yield ONE ELEMENT of the array, so they follow its
 	// element type — measured, popping an Int array gives Int and a Str array
 	// gives Str. An array PSC never saw filled falls back to the signature's
@@ -984,10 +964,39 @@ func contextualReturnType(name string, args []*parser.Node, source []byte, st *S
 		return types.Unknown, false
 	}
 
-	if name != "scalar" || len(args) != 1 {
+	argType := types.Unknown
+	if len(args) == 1 {
+		argType = operandType(args[0], annotations)
+	}
+	return argDirectedReturn(name, len(args), argType)
+}
+
+// argDirectedReturn is the type of a call to int, abs or scalar with nargs
+// arguments, the first of type argType, which follows the argument rather
+// than the signature; false for any other call.
+func argDirectedReturn(name string, nargs int, argType types.Type) (types.Type, bool) {
+	// int() truncates toward zero, so the result is an Int whatever went in —
+	// measured, int(3.9) and int(-3.9) are both Int. This one does not depend
+	// on the argument and could be a signature, except that Int is currently
+	// spelled Num there.
+	if name == "int" {
+		return types.Int, true
+	}
+
+	// abs() follows its ARGUMENT: abs(-5) is Int and abs(-5.5) is Num.
+	if name == "abs" && nargs == 1 {
+		if argType == types.Unknown {
+			return types.Unknown, false
+		}
+		if types.IsSubtype(argType, types.Num) {
+			return argType, true
+		}
+		return types.Num, true
+	}
+
+	if name != "scalar" || nargs != 1 {
 		return types.Unknown, false
 	}
-	argType := operandType(args[0], annotations)
 	if argType == types.Unknown {
 		return types.Unknown, false
 	}
@@ -2042,11 +2051,17 @@ func callReturns(sigs []types.Signature, args []*parser.Node, ctx types.Context)
 			shapes += "$"
 		}
 	}
+	return shapedCallReturns(sigs, shapes, ctx)
+}
+
+// shapedCallReturns is callReturns for arguments already read as shapes,
+// one "$" or "@" each.
+func shapedCallReturns(sigs []types.Signature, shapes string, ctx types.Context) types.Type {
 	ctxs := []types.Context{ctx}
 	if ctx == types.UnknownCtx {
 		ctxs = []types.Context{types.ScalarCtx, types.ListCtx, types.VoidCtx}
 	}
-	unknown := make([]types.Type, len(args))
+	unknown := make([]types.Type, len(shapes))
 	for _, sh := range []string{shapes, ""} {
 		t, taken := types.Unknown, false
 		for _, x := range ctxs {

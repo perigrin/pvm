@@ -1,0 +1,10 @@
+my $d = sprintf("%d", 42);
+my $z = sprintf("%05d", 42);
+my $p = sprintf("%+d", 42);
+my $f = sprintf("%.2f", 3.14);
+my $e = sprintf("%e", 3.14);
+my $s = sprintf("%s", "x");
+my $x = sprintf("%x", 255);
+my $o = sprintf("%o", 8);
+my $m = sprintf("%s=%d", "a", 1);
+my $t = sprintf("n=%d", 1);

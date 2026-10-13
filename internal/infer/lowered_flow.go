@@ -419,14 +419,8 @@ func subParam(s *lower.AnonSub) string {
 		return ""
 	}
 	if len(body.Stmts) > 0 {
-		if es, ok := body.Stmts[0].(*lower.ExprStmt); ok {
-			if d, ok := es.X.(*lower.Decl); ok && d.Kind == lower.DeclMy {
-				if c, ok := d.Init.(*lower.Call); ok && c.Name == "shift" {
-					if vars := declaredVars(d); len(vars) > 0 && vars[0].Sigil == "$" {
-						return "$" + vars[len(vars)-1].Name
-					}
-				}
-			}
+		if name := shiftParam(body.Stmts[0]); name != "" {
+			return name
 		}
 	}
 	if readsArg0(body) {
