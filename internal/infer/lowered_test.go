@@ -460,3 +460,40 @@ sub paren { my $x = shift; return length($x); }
 		}
 	}
 }
+
+// A map or eval block perl rejects lowers to a Hole, which is typed Any and
+// never inspected: the analysis does not panic, the Hole is annotated Any,
+// and the array map fills records Any as its element type rather than a
+// type guessed from the broken body.
+func TestLoweredSpecialFormsOverBrokenInput(t *testing.T) {
+	for _, tc := range []struct {
+		src, name string
+		elem      types.Type
+	}{
+		{`my @b = map {;`, "@b", types.Any},
+		{`my $r = eval {;`, "$r", types.Unknown},
+	} {
+		root := parse.Parse([]byte(tc.src))
+		f := lower.Lower(root)
+		hs := holes(f)
+		if len(hs) == 0 {
+			t.Fatalf("%q lowered with no Hole:\n%s", tc.src, lower.Tree(f))
+		}
+		ann, diags, st := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
+		for _, h := range hs {
+			if got := ann[h.Meta().ID]; got != types.Any {
+				t.Errorf("%q: Hole annotated %v, want Any", tc.src, got)
+			}
+		}
+		for _, d := range diags {
+			t.Errorf("%q: diagnostic %q, want none", tc.src, d.Message)
+		}
+		sym, ok := st.Lookup(tc.name)
+		if !ok {
+			t.Fatalf("%q: %s is not in the symbol table", tc.src, tc.name)
+		}
+		if sym.ElemType != tc.elem {
+			t.Errorf("%q: %s element type %v, want %v", tc.src, tc.name, sym.ElemType, tc.elem)
+		}
+	}
+}

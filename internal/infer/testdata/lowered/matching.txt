@@ -158,6 +158,17 @@ ops/ternary.pl
 ops/ternary_mixed.pl
 ops/ternary_str.pl
 ops/xor.pl
+special/grep_block.pl
+special/grep_expr.pl
+special/grep_scalar.pl
+special/map_block.pl
+special/map_expr.pl
+special/map_last_stmt.pl
+special/map_scalar.pl
+special/map_str.pl
+special/sort_block.pl
+special/sort_list.pl
+special/sort_plain.pl
 special/wantarray.pl
 vars/array_copy.pl
 vars/array_count.pl

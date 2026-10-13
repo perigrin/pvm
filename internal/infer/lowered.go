@@ -128,6 +128,8 @@ func (a *loweredAnalysis) walk(n lower.Node) types.Type {
 		t = a.call(n)
 	case *lower.MethodCall:
 		t = a.methodCall(n)
+	case *lower.MapGrepSort:
+		t = a.mapGrepSort(n)
 	case *lower.Decl:
 		t = a.decl(n)
 	case *lower.IfStmt:

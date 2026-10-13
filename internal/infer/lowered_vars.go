@@ -190,6 +190,8 @@ func (a *loweredAnalysis) elemType(n lower.Node) types.Type {
 		return a.rangeElemType(n)
 	case *lower.Call:
 		return a.callElemType(n)
+	case *lower.MapGrepSort:
+		return a.mapGrepSortElemType(n)
 	}
 	return a.annotations[n.Meta().ID]
 }
