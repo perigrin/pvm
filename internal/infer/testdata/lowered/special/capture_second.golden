@@ -1,0 +1,3 @@
+sym $c Int
+sym $d Str
+sym $s Str

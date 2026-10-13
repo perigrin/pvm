@@ -1,0 +1,4 @@
+sym $e Str
+sym $t Scalar
+sym @m Array
+sym @n Array

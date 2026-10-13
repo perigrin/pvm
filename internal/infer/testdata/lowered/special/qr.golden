@@ -1,0 +1,3 @@
+sym $ok Boolean|Int|Num|Str|NaN|Inf
+sym $re Regex
+sym $s Str

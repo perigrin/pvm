@@ -1,0 +1,2 @@
+sym $n Boolean|Int|Num|Str|NaN|Inf
+sym $s Str

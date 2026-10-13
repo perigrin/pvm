@@ -158,6 +158,7 @@ ops/ternary.pl
 ops/ternary_mixed.pl
 ops/ternary_str.pl
 ops/xor.pl
+special/wantarray.pl
 vars/array_copy.pl
 vars/array_count.pl
 vars/arraylen.pl

@@ -1,0 +1,3 @@
+diag 50 52 coercion-mismatch left operand of "+": expected Num, got Str
+sym $n Scalar
+sym $s Str
