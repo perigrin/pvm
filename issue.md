@@ -1,6 +1,6 @@
 ---
 title: Port the variable, subscript and slice rules onto the lowered tree, with identity-keyed annotations
-state: in-progress
+state: done
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -9,16 +9,82 @@ blocked_by:
 blocks:
 - 01a12a85-3233-7ec8-9428-747be4ccef1c
 created: 2026-10-11T10:32:14.500354268Z
-updated: 2026-10-13T01:56:52.092817024Z
+updated: 2026-10-13T02:37:42.519224106Z
 sessions:
 - start_sha: de501a52304e0902ef40141ecc5d555442b0866b
-  end_sha: ""
-  commits: 0
+  end_sha: 25ec742454544ea6db09a7d8ace24e430966243f
+  commits: 1
   started_at: 2026-10-13T01:56:52.092817024Z
+  ended_at: 2026-10-13T02:37:42.519224106Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-13T01:56:52.092817024Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-13T02:37:42.519224106Z
+observed_paths:
+- internal/infer/annotations_test.go
+- internal/infer/lowered.go
+- internal/infer/lowered_test.go
+- internal/infer/lowered_vars.go
+- internal/infer/testdata/lowered/matching.txt
+- internal/infer/testdata/lowered/vars/array_copy.golden
+- internal/infer/testdata/lowered/vars/array_copy.pl
+- internal/infer/testdata/lowered/vars/array_count.golden
+- internal/infer/testdata/lowered/vars/array_count.pl
+- internal/infer/testdata/lowered/vars/arraylen.golden
+- internal/infer/testdata/lowered/vars/arraylen.pl
+- internal/infer/testdata/lowered/vars/arrow_array.golden
+- internal/infer/testdata/lowered/vars/arrow_array.pl
+- internal/infer/testdata/lowered/vars/arrow_hash.golden
+- internal/infer/testdata/lowered/vars/arrow_hash.pl
+- internal/infer/testdata/lowered/vars/deref_scalar.golden
+- internal/infer/testdata/lowered/vars/deref_scalar.pl
+- internal/infer/testdata/lowered/vars/elem_from_var.golden
+- internal/infer/testdata/lowered/vars/elem_from_var.pl
+- internal/infer/testdata/lowered/vars/element.golden
+- internal/infer/testdata/lowered/vars/element.pl
+- internal/infer/testdata/lowered/vars/glob.golden
+- internal/infer/testdata/lowered/vars/glob.pl
+- internal/infer/testdata/lowered/vars/hash_element.golden
+- internal/infer/testdata/lowered/vars/hash_element.pl
+- internal/infer/testdata/lowered/vars/hash_scalar.golden
+- internal/infer/testdata/lowered/vars/hash_scalar.pl
+- internal/infer/testdata/lowered/vars/hash_slice.golden
+- internal/infer/testdata/lowered/vars/hash_slice.pl
+- internal/infer/testdata/lowered/vars/index_int.golden
+- internal/infer/testdata/lowered/vars/index_int.pl
+- internal/infer/testdata/lowered/vars/index_ref.golden
+- internal/infer/testdata/lowered/vars/index_ref.pl
+- internal/infer/testdata/lowered/vars/interp.golden
+- internal/infer/testdata/lowered/vars/interp.pl
+- internal/infer/testdata/lowered/vars/key_ref.golden
+- internal/infer/testdata/lowered/vars/key_ref.pl
+- internal/infer/testdata/lowered/vars/kv_slice.golden
+- internal/infer/testdata/lowered/vars/kv_slice.pl
+- internal/infer/testdata/lowered/vars/list_decl_aggregate.golden
+- internal/infer/testdata/lowered/vars/list_decl_aggregate.pl
+- internal/infer/testdata/lowered/vars/list_slice.golden
+- internal/infer/testdata/lowered/vars/list_slice.pl
+- internal/infer/testdata/lowered/vars/mixed_element.golden
+- internal/infer/testdata/lowered/vars/mixed_element.pl
+- internal/infer/testdata/lowered/vars/nested_element.golden
+- internal/infer/testdata/lowered/vars/nested_element.pl
+- internal/infer/testdata/lowered/vars/our_element.golden
+- internal/infer/testdata/lowered/vars/our_element.pl
+- internal/infer/testdata/lowered/vars/postfix_deref.golden
+- internal/infer/testdata/lowered/vars/postfix_deref.pl
+- internal/infer/testdata/lowered/vars/prefix_deref.golden
+- internal/infer/testdata/lowered/vars/prefix_deref.pl
+- internal/infer/testdata/lowered/vars/scalar.golden
+- internal/infer/testdata/lowered/vars/scalar.pl
+- internal/infer/testdata/lowered/vars/slice.golden
+- internal/infer/testdata/lowered/vars/slice.pl
+- internal/infer/testdata/lowered/vars/underscore.golden
+- internal/infer/testdata/lowered/vars/underscore.pl
+- internal/infer/testdata/lowered/vars/unknown_container.golden
+- internal/infer/testdata/lowered/vars/unknown_container.pl
 ---
 
 ## Context
