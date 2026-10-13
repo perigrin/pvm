@@ -1,0 +1,2 @@
+sym $count Int
+sym @seen Array
