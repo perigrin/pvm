@@ -66,6 +66,27 @@ func (a *loweredAnalysis) walk(n lower.Node) types.Type {
 		if n.Backtick {
 			t = types.Unknown
 		}
+	case *lower.Interp:
+		a.walkChildren(n)
+		t = types.Str
+	case *lower.Var:
+		t = a.variable(n)
+	case *lower.Deref:
+		a.walkChildren(n)
+		t = derefTypes[n.Sigil]
+	case *lower.Index:
+		t = a.index(n)
+	case *lower.Key:
+		t = a.key(n)
+	case *lower.Slice:
+		a.slice(n)
+		t = types.Unknown
+	case *lower.ArrayLiteral:
+		a.walkChildren(n)
+		t = types.ArrayRef
+	case *lower.HashLiteral:
+		a.walkChildren(n)
+		t = types.HashRef
 	case *lower.QwList, *lower.Bareword:
 		// Neither is typed on the legacy path: qw's value depends on
 		// context, and a bareword is a name, not a value.
@@ -119,10 +140,11 @@ func (a *loweredAnalysis) walkChildren(n lower.Node) {
 //
 // This is the declaration half of the legacy inferAssignmentNarrowing: the
 // first declared variable takes the initialiser's type, unless that is
-// Unknown. The rest of that rule -- an aggregate in scalar context is its
-// count, the `() =` count-of idiom, a list-context match binding captures,
-// element and class types -- reads the kinds the operator, variable and call
-// ports type, and moves with them.
+// Unknown, with an aggregate in scalar context taken as its count, and an
+// array, a hash or a scalar holding an anonymous one records its element
+// type. The rest of that rule -- the `() =` count-of idiom, a list-context
+// match binding captures, class types -- reads the kinds the operator and
+// call ports type, and moves with them.
 func (a *loweredAnalysis) decl(d *lower.Decl) types.Type {
 	switch d.Kind {
 	case lower.DeclMy, lower.DeclOur, lower.DeclState, lower.DeclLocal:
@@ -135,8 +157,23 @@ func (a *loweredAnalysis) decl(d *lower.Decl) types.Type {
 		t := a.walk(d.Init)
 		// local neither declares nor narrows: the legacy path reads no
 		// name through it.
-		if vars := declaredVars(d); len(vars) > 0 && t != types.Unknown && d.Kind != lower.DeclLocal {
-			a.st.UpdateType(vars[0].Sigil+vars[0].Name, t)
+		vars := declaredVars(d)
+		if len(vars) == 0 || d.Kind == lower.DeclLocal {
+			return t
+		}
+		v := vars[0]
+		// A scalar imposes scalar context, and an aggregate there is its
+		// count: `my $count = @arr` is 3, not the array. Only a genuine
+		// aggregate is narrowed, so a broad type is not stripped to one
+		// that satisfies nothing.
+		if v.Sigil == "$" && (t == types.Array || t == types.Hash || t == types.List) {
+			if narrowed, ok := types.NarrowByContext(t, types.ScalarCtx); ok {
+				t = narrowed
+			}
+		}
+		a.recordElemType(v, d.Init)
+		if t != types.Unknown {
+			a.st.UpdateType(v.Sigil+v.Name, t)
 		}
 		return t
 	case lower.DeclPackage:
