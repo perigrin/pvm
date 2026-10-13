@@ -4,6 +4,8 @@
 package infer_test
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -41,7 +43,7 @@ func TestHoleIsTypedAnyAndNeverInspected(t *testing.T) {
 			t.Fatalf("%q lowered with no Hole:\n%s", src, lower.Tree(f))
 		}
 
-		ann, diags, _ := infer.AnalyzeLowered(f, pos)
+		ann, diags, _ := infer.AnalyzeLowered(f, pos, nil)
 
 		for _, h := range hs {
 			id := h.Meta().ID
@@ -72,7 +74,7 @@ sub none { }
 `)
 	root := parse.Parse(src)
 	f := lower.Lower(root)
-	_, _, st := infer.AnalyzeLowered(f, lower.NewPositions(root, f))
+	_, _, st := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil)
 
 	for name, want := range map[string]types.Type{
 		"one":  types.Int,
@@ -90,5 +92,34 @@ sub none { }
 		if sym.ReturnType != want {
 			t.Errorf("%s: return type %v, want %v", name, sym.ReturnType, want)
 		}
+	}
+}
+
+// A use of a module the project index resolves analyses that module while
+// the using file is analysed, so its symbols are there for a cross-file
+// lookup. The module's file is rewritten afterwards without its sub: a
+// lookup that finds the sub found what the use cached, not what a later
+// read would.
+func TestLoweredUseAnalysesTheModule(t *testing.T) {
+	dir := t.TempDir()
+	pm := filepath.Join(dir, "lib", "Foo.pm")
+	if err := os.MkdirAll(filepath.Dir(pm), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(pm, []byte("package Foo;\nsub bar { return 42; }\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	idx := infer.NewProjectIndex(dir)
+
+	src := []byte("use Foo;\n")
+	root := parse.Parse(src)
+	f := lower.Lower(root)
+	infer.AnalyzeLowered(f, lower.NewPositions(root, f), idx)
+
+	if err := os.WriteFile(pm, []byte("package Foo;\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := idx.LookupSymbol("Foo", "bar"); !ok {
+		t.Error("use Foo did not analyse lib/Foo.pm")
 	}
 }

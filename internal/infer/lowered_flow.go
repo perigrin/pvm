@@ -229,6 +229,20 @@ func foreachVar(n lower.Node) *lower.Var {
 	return nil
 }
 
+// useStmt is the legacy walkUseStatement: a module the project index can
+// resolve is analysed, so its symbols are there for a cross-file lookup.
+// Without an index, or for a module outside the project, it does nothing.
+// `no Foo` and `require Foo` name a module as `use Foo` does, and perl
+// loads it for each.
+func (a *loweredAnalysis) useStmt(n *lower.UseStmt) {
+	if a.idx != nil && n.Module != "" {
+		if path, err := a.idx.ResolveModule(n.Module); err == nil {
+			_, _ = a.idx.AnalyzeFile(path)
+		}
+	}
+	a.walkChildren(n)
+}
+
 // blockWithGuard is the legacy walkBlockWithGuard: the guarded variables
 // are shadowed, in one "guard" scope, by what the guards narrow them to,
 // and the block's statements are walked under it. When branchTypes is not

@@ -11,7 +11,8 @@ import (
 // AnalyzeLowered runs inference over f, which lower.Lower returned, and
 // returns each node's type keyed by its id, the diagnostics, and the symbol
 // table. pos is f's position map: diagnostics and symbols carry byte spans,
-// and the lowered tree has none of its own.
+// and the lowered tree has none of its own. idx is the project index for
+// cross-file analysis, nil in single-file mode.
 //
 // It is the legacy Analyze's two passes, rewritten against the lowered
 // kinds: collectLoweredDeclarations fills the symbol table, then walk types
@@ -19,9 +20,10 @@ import (
 // TestLoweredGoldenRatchet against what the legacy path reported. A kind no
 // port handles yet is typed Any, raises no diagnostic, and has its children
 // walked.
-func AnalyzeLowered(f *lower.File, pos *lower.Positions) (map[lower.ID]types.Type, []Diagnostic, *SymbolTable) {
+func AnalyzeLowered(f *lower.File, pos *lower.Positions, idx *ProjectIndex) (map[lower.ID]types.Type, []Diagnostic, *SymbolTable) {
 	a := &loweredAnalysis{
 		pos:         pos,
+		idx:         idx,
 		st:          collectLoweredDeclarations(f, pos),
 		annotations: map[lower.ID]types.Type{},
 		subs:        fileSubs(f),
@@ -34,6 +36,7 @@ func AnalyzeLowered(f *lower.File, pos *lower.Positions) (map[lower.ID]types.Typ
 // every call as arguments.
 type loweredAnalysis struct {
 	pos         *lower.Positions
+	idx         *ProjectIndex
 	st          *SymbolTable
 	annotations map[lower.ID]types.Type
 	diags       []Diagnostic
@@ -85,6 +88,9 @@ func (a *loweredAnalysis) walk(n lower.Node) types.Type {
 		t = types.Unknown
 	case *lower.ForeachStmt:
 		a.foreachStmt(n)
+		t = types.Unknown
+	case *lower.UseStmt:
+		a.useStmt(n)
 		t = types.Unknown
 	case *lower.LoopEx:
 		// return, last, next, redo and goto are not values the legacy
