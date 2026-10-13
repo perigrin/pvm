@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a12a85-3417-75eb-bf44-d47cf6546e82
 created: 2026-10-11T10:32:14.982514503Z
-updated: 2026-10-13T21:46:52.057347158Z
+updated: 2026-10-13T23:23:08.895782427Z
 sessions:
 - start_sha: a45799887c9831e70d88981c993e14c2f1de3741
   end_sha: ""
@@ -71,6 +71,7 @@ Rollback: this issue changes only `AnalyzeLowered` and test data. Nothing in `in
       failure, implement, run to green, commit.
 - [ ] Run the infer suite: `go test ./internal/infer/ -count=1`
 - [ ] Commit.
+- [ ] `Ref` (`\@a`, `\%h`, `\&f`, `\$x`): type it from what the reference is taken TO, as legacy `inferRefgenType` (infer.go) does; `special/` fixtures for each (added 2026-10-13: the calls port found no port claimed Ref)
 
 ### Whole-suite criteria removed (2026-10-11)
 
