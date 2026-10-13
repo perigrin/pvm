@@ -123,3 +123,55 @@ func TestLoweredUseAnalysesTheModule(t *testing.T) {
 		t.Error("use Foo did not analyse lib/Foo.pm")
 	}
 }
+
+// declOf returns the declaration under n that declares the variable
+// sigil+name, or nil.
+func declOf(n lower.Node, sigil, name string) *lower.Decl {
+	if d, ok := n.(*lower.Decl); ok {
+		for _, v := range d.Vars {
+			if v, ok := v.(*lower.Var); ok && v.Sigil == sigil && v.Name == name {
+				return d
+			}
+		}
+	}
+	for _, c := range lower.Children(n) {
+		if d := declOf(c, sigil, name); d != nil {
+			return d
+		}
+	}
+	return nil
+}
+
+// A conditional perl rejects is analysed without a panic, and nothing is
+// said about its Holes, while what is intact is still typed: the block of
+// `if (;)` declares $y, and its initialiser makes it an Int.
+func TestLoweredFlowOverBrokenInput(t *testing.T) {
+	for _, src := range []string{
+		`if (;) { my $y = 1; }`,
+		`my $x; if ($x) {`,
+	} {
+		root := parse.Parse([]byte(src))
+		f := lower.Lower(root)
+		pos := lower.NewPositions(root, f)
+		hs := holes(f)
+		if len(hs) == 0 {
+			t.Fatalf("%q lowered with no Hole:\n%s", src, lower.Tree(f))
+		}
+
+		ann, diags, _ := infer.AnalyzeLowered(f, pos, nil)
+
+		for _, h := range hs {
+			start, end, _ := pos.Span(h.Meta().ID)
+			for _, d := range diags {
+				if int(d.StartByte) >= start && int(d.StartByte) < end {
+					t.Errorf("%q: diagnostic %q points inside the Hole at [%d,%d)", src, d.Message, start, end)
+				}
+			}
+		}
+		if d := declOf(f, "$", "y"); d != nil {
+			if got := ann[d.ID]; got != types.Int {
+				t.Errorf("%q: my $y = 1 annotated %v, want Int", src, got)
+			}
+		}
+	}
+}
