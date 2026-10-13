@@ -1,0 +1,5 @@
+sym $n Num
+sym $s Scalar
+sym $x Int
+sym %hash Hash
+sym @arr Array

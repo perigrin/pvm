@@ -1,0 +1,5 @@
+sym $a Scalar
+sym $b Scalar
+sym $first Int
+sym $p Scalar
+sym @rest Array
