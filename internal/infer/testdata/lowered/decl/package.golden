@@ -1,3 +1,4 @@
 sym $x Int
 sym $y Scalar
-sym package Unknown
+sym Bar Unknown
+sym Foo Unknown

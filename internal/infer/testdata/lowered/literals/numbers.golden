@@ -3,5 +3,5 @@ sym $e Num
 sym $f Num
 sym $h Int
 sym $i Int
-sym $o Scalar
+sym $o Int
 sym $u Int
