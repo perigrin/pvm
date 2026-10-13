@@ -85,6 +85,8 @@ literals/fatcomma.pl
 literals/numbers.pl
 literals/qw.pl
 literals/strings.pl
+ops/assign_undeclared.pl
+ops/list_assign.pl
 vars/array_copy.pl
 vars/array_count.pl
 vars/arraylen.pl

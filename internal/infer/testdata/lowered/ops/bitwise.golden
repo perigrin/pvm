@@ -1,0 +1,3 @@
+sym $m Int
+sym $p Int|Num|NaN|Inf
+sym $s Int

@@ -1,0 +1,3 @@
+sym $s Str
+sym $x Str
+sym @y List

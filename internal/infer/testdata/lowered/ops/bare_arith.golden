@@ -1,0 +1,2 @@
+sym $x Scalar
+sym $y Int|Num|Inf

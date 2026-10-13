@@ -1,0 +1,4 @@
+diag 46 48 coercion-mismatch left operand of "+": expected Num, got Str
+sym $_ Str
+sym $n Str
+sym $r Int|Num|Inf

@@ -1,0 +1,4 @@
+sym $e Boolean
+sym $l Boolean
+sym $o Undef|Int
+sym $s Int
