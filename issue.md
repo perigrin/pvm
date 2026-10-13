@@ -1,6 +1,6 @@
 ---
 title: "Port the statement and flow rules onto the lowered tree: conditionals, guards, loops, returns, use"
-state: in-progress
+state: done
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -8,16 +8,169 @@ blocked_by:
 blocks:
 - 01a12a85-31a5-769d-88c4-e2add3f8fefc
 created: 2026-10-11T10:32:14.336031794Z
-updated: 2026-10-13T00:37:12.207504849Z
+updated: 2026-10-13T01:56:39.308388094Z
 sessions:
 - start_sha: 0908d613150f31c001ca72445c97207e13a34b47
-  end_sha: ""
-  commits: 0
+  end_sha: de501a52304e0902ef40141ecc5d555442b0866b
+  commits: 1
   started_at: 2026-10-13T00:37:12.207504849Z
+  ended_at: 2026-10-13T01:56:39.308388094Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-13T00:37:12.207504849Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-13T01:56:39.308388094Z
+observed_paths:
+- internal/infer/golden_test.go
+- internal/infer/infer.go
+- internal/infer/lowered.go
+- internal/infer/lowered_flow.go
+- internal/infer/lowered_test.go
+- internal/infer/testdata/lowered/flow/and.golden
+- internal/infer/testdata/lowered/flow/and.pl
+- internal/infer/testdata/lowered/flow/and_early_return.golden
+- internal/infer/testdata/lowered/flow/and_early_return.pl
+- internal/infer/testdata/lowered/flow/and_keyword.golden
+- internal/infer/testdata/lowered/flow/and_keyword.pl
+- internal/infer/testdata/lowered/flow/and_partial.golden
+- internal/infer/testdata/lowered/flow/and_partial.pl
+- internal/infer/testdata/lowered/flow/and_two_vars.golden
+- internal/infer/testdata/lowered/flow/and_two_vars.pl
+- internal/infer/testdata/lowered/flow/blessed.golden
+- internal/infer/testdata/lowered/flow/blessed.pl
+- internal/infer/testdata/lowered/flow/blessed_and_defined.golden
+- internal/infer/testdata/lowered/flow/blessed_and_defined.pl
+- internal/infer/testdata/lowered/flow/blessed_bare.golden
+- internal/infer/testdata/lowered/flow/blessed_bare.pl
+- internal/infer/testdata/lowered/flow/blessed_negated.golden
+- internal/infer/testdata/lowered/flow/blessed_negated.pl
+- internal/infer/testdata/lowered/flow/block_decl_in_branch.golden
+- internal/infer/testdata/lowered/flow/block_decl_in_branch.pl
+- internal/infer/testdata/lowered/flow/cfor.golden
+- internal/infer/testdata/lowered/flow/cfor.pl
+- internal/infer/testdata/lowered/flow/early_die.golden
+- internal/infer/testdata/lowered/flow/early_die.pl
+- internal/infer/testdata/lowered/flow/early_die_msg.golden
+- internal/infer/testdata/lowered/flow/early_die_msg.pl
+- internal/infer/testdata/lowered/flow/early_die_paren.golden
+- internal/infer/testdata/lowered/flow/early_die_paren.pl
+- internal/infer/testdata/lowered/flow/early_exit.golden
+- internal/infer/testdata/lowered/flow/early_exit.pl
+- internal/infer/testdata/lowered/flow/early_exit_code.golden
+- internal/infer/testdata/lowered/flow/early_exit_code.pl
+- internal/infer/testdata/lowered/flow/early_exit_with_else.golden
+- internal/infer/testdata/lowered/flow/early_exit_with_else.pl
+- internal/infer/testdata/lowered/flow/early_last.golden
+- internal/infer/testdata/lowered/flow/early_last.pl
+- internal/infer/testdata/lowered/flow/early_return.golden
+- internal/infer/testdata/lowered/flow/early_return.pl
+- internal/infer/testdata/lowered/flow/early_return_value.golden
+- internal/infer/testdata/lowered/flow/early_return_value.pl
+- internal/infer/testdata/lowered/flow/element_guard.golden
+- internal/infer/testdata/lowered/flow/element_guard.pl
+- internal/infer/testdata/lowered/flow/elsif.golden
+- internal/infer/testdata/lowered/flow/elsif.pl
+- internal/infer/testdata/lowered/flow/elsif_else.golden
+- internal/infer/testdata/lowered/flow/elsif_else.pl
+- internal/infer/testdata/lowered/flow/elsif_exit.golden
+- internal/infer/testdata/lowered/flow/elsif_exit.pl
+- internal/infer/testdata/lowered/flow/elsif_exit_no_else.golden
+- internal/infer/testdata/lowered/flow/elsif_exit_no_else.pl
+- internal/infer/testdata/lowered/flow/elsif_negated.golden
+- internal/infer/testdata/lowered/flow/elsif_negated.pl
+- internal/infer/testdata/lowered/flow/elsif_three.golden
+- internal/infer/testdata/lowered/flow/elsif_three.pl
+- internal/infer/testdata/lowered/flow/for_alias_redeclare.golden
+- internal/infer/testdata/lowered/flow/for_alias_redeclare.pl
+- internal/infer/testdata/lowered/flow/for_default.golden
+- internal/infer/testdata/lowered/flow/for_default.pl
+- internal/infer/testdata/lowered/flow/for_list.golden
+- internal/infer/testdata/lowered/flow/for_list.pl
+- internal/infer/testdata/lowered/flow/for_my.golden
+- internal/infer/testdata/lowered/flow/for_my.pl
+- internal/infer/testdata/lowered/flow/for_my_scalar.golden
+- internal/infer/testdata/lowered/flow/for_my_scalar.pl
+- internal/infer/testdata/lowered/flow/for_nested_guard.golden
+- internal/infer/testdata/lowered/flow/for_nested_guard.pl
+- internal/infer/testdata/lowered/flow/for_no_my.golden
+- internal/infer/testdata/lowered/flow/for_no_my.pl
+- internal/infer/testdata/lowered/flow/foreach_scalar.golden
+- internal/infer/testdata/lowered/flow/foreach_scalar.pl
+- internal/infer/testdata/lowered/flow/if_defined_else.golden
+- internal/infer/testdata/lowered/flow/if_defined_else.pl
+- internal/infer/testdata/lowered/flow/if_not_defined.golden
+- internal/infer/testdata/lowered/flow/if_not_defined.pl
+- internal/infer/testdata/lowered/flow/if_not_ref_else.golden
+- internal/infer/testdata/lowered/flow/if_not_ref_else.pl
+- internal/infer/testdata/lowered/flow/if_ref.golden
+- internal/infer/testdata/lowered/flow/if_ref.pl
+- internal/infer/testdata/lowered/flow/is_bool.golden
+- internal/infer/testdata/lowered/flow/is_bool.pl
+- internal/infer/testdata/lowered/flow/isa.golden
+- internal/infer/testdata/lowered/flow/isa.pl
+- internal/infer/testdata/lowered/flow/isa_else.golden
+- internal/infer/testdata/lowered/flow/isa_else.pl
+- internal/infer/testdata/lowered/flow/modifiers.golden
+- internal/infer/testdata/lowered/flow/modifiers.pl
+- internal/infer/testdata/lowered/flow/nested_if.golden
+- internal/infer/testdata/lowered/flow/nested_if.pl
+- internal/infer/testdata/lowered/flow/no_early_exit.golden
+- internal/infer/testdata/lowered/flow/no_early_exit.pl
+- internal/infer/testdata/lowered/flow/no_guard.golden
+- internal/infer/testdata/lowered/flow/no_guard.pl
+- internal/infer/testdata/lowered/flow/not_and.golden
+- internal/infer/testdata/lowered/flow/not_and.pl
+- internal/infer/testdata/lowered/flow/or.golden
+- internal/infer/testdata/lowered/flow/or.pl
+- internal/infer/testdata/lowered/flow/or_else.golden
+- internal/infer/testdata/lowered/flow/or_else.pl
+- internal/infer/testdata/lowered/flow/positive_early_return.golden
+- internal/infer/testdata/lowered/flow/positive_early_return.pl
+- internal/infer/testdata/lowered/flow/reftype.golden
+- internal/infer/testdata/lowered/flow/reftype.pl
+- internal/infer/testdata/lowered/flow/sub_guard_body.golden
+- internal/infer/testdata/lowered/flow/sub_guard_body.pl
+- internal/infer/testdata/lowered/flow/sub_returns.golden
+- internal/infer/testdata/lowered/flow/sub_returns.pl
+- internal/infer/testdata/lowered/flow/undeclared.golden
+- internal/infer/testdata/lowered/flow/undeclared.pl
+- internal/infer/testdata/lowered/flow/unless_defined.golden
+- internal/infer/testdata/lowered/flow/unless_defined.pl
+- internal/infer/testdata/lowered/flow/unless_early_return.golden
+- internal/infer/testdata/lowered/flow/unless_early_return.pl
+- internal/infer/testdata/lowered/flow/unless_elsif.golden
+- internal/infer/testdata/lowered/flow/unless_elsif.pl
+- internal/infer/testdata/lowered/flow/unless_ref_else.golden
+- internal/infer/testdata/lowered/flow/unless_ref_else.pl
+- internal/infer/testdata/lowered/flow/until_defined.golden
+- internal/infer/testdata/lowered/flow/until_defined.pl
+- internal/infer/testdata/lowered/flow/use.golden
+- internal/infer/testdata/lowered/flow/use.pl
+- internal/infer/testdata/lowered/flow/user_arg0.golden
+- internal/infer/testdata/lowered/flow/user_arg0.pl
+- internal/infer/testdata/lowered/flow/user_complex_arg.golden
+- internal/infer/testdata/lowered/flow/user_complex_arg.pl
+- internal/infer/testdata/lowered/flow/user_compound.golden
+- internal/infer/testdata/lowered/flow/user_compound.pl
+- internal/infer/testdata/lowered/flow/user_isa.golden
+- internal/infer/testdata/lowered/flow/user_isa.pl
+- internal/infer/testdata/lowered/flow/user_later.golden
+- internal/infer/testdata/lowered/flow/user_later.pl
+- internal/infer/testdata/lowered/flow/user_negated.golden
+- internal/infer/testdata/lowered/flow/user_negated.pl
+- internal/infer/testdata/lowered/flow/user_nonguard.golden
+- internal/infer/testdata/lowered/flow/user_nonguard.pl
+- internal/infer/testdata/lowered/flow/user_shift.golden
+- internal/infer/testdata/lowered/flow/user_shift.pl
+- internal/infer/testdata/lowered/flow/user_signature.golden
+- internal/infer/testdata/lowered/flow/user_signature.pl
+- internal/infer/testdata/lowered/flow/user_two_returns.golden
+- internal/infer/testdata/lowered/flow/user_two_returns.pl
+- internal/infer/testdata/lowered/flow/while_defined.golden
+- internal/infer/testdata/lowered/flow/while_defined.pl
+- internal/infer/testdata/lowered/matching.txt
 ---
 
 ## Context
