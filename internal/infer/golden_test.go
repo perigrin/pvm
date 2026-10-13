@@ -99,7 +99,7 @@ func goldenReport(diags []infer.Diagnostic, st *infer.SymbolTable) string {
 func analyzeLoweredReport(src []byte) string {
 	root := parse.Parse(src)
 	f := lower.Lower(root)
-	_, diags, st := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil)
+	_, diags, st := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
 	return goldenReport(diags, st)
 }
 

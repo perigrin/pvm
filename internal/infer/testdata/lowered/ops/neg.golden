@@ -1,0 +1,5 @@
+sym $b Int
+sym $f Num
+sym $p Int
+sym $x Int
+sym $y Int

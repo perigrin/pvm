@@ -1,0 +1,4 @@
+sym $none Boolean
+sym $ok Boolean
+sym %h Hash
+sym @fields Array

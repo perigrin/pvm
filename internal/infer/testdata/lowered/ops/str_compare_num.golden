@@ -1,0 +1,3 @@
+diag 23 25 coercion-mismatch left operand of "==": expected Num, got Str
+sym $b Boolean
+sym $s Str

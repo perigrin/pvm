@@ -43,7 +43,7 @@ func TestHoleIsTypedAnyAndNeverInspected(t *testing.T) {
 			t.Fatalf("%q lowered with no Hole:\n%s", src, lower.Tree(f))
 		}
 
-		ann, diags, _ := infer.AnalyzeLowered(f, pos, nil)
+		ann, diags, _ := infer.AnalyzeLowered(f, pos, nil, infer.Options{})
 
 		for _, h := range hs {
 			id := h.Meta().ID
@@ -74,7 +74,7 @@ sub none { }
 `)
 	root := parse.Parse(src)
 	f := lower.Lower(root)
-	_, _, st := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil)
+	_, _, st := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
 
 	for name, want := range map[string]types.Type{
 		"one":  types.Int,
@@ -114,7 +114,7 @@ func TestLoweredUseAnalysesTheModule(t *testing.T) {
 	src := []byte("use Foo;\n")
 	root := parse.Parse(src)
 	f := lower.Lower(root)
-	infer.AnalyzeLowered(f, lower.NewPositions(root, f), idx)
+	infer.AnalyzeLowered(f, lower.NewPositions(root, f), idx, infer.Options{})
 
 	if err := os.WriteFile(pm, []byte("package Foo;\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -158,7 +158,7 @@ func TestLoweredFlowOverBrokenInput(t *testing.T) {
 			t.Fatalf("%q lowered with no Hole:\n%s", src, lower.Tree(f))
 		}
 
-		ann, diags, _ := infer.AnalyzeLowered(f, pos, nil)
+		ann, diags, _ := infer.AnalyzeLowered(f, pos, nil, infer.Options{})
 
 		for _, h := range hs {
 			start, end, _ := pos.Span(h.Meta().ID)
@@ -194,7 +194,7 @@ func TestLoweredSubscriptOverBrokenInput(t *testing.T) {
 			t.Fatalf("%q lowered with no Hole:\n%s", c.src, lower.Tree(f))
 		}
 
-		ann, diags, st := infer.AnalyzeLowered(f, pos, nil)
+		ann, diags, st := infer.AnalyzeLowered(f, pos, nil, infer.Options{})
 
 		for _, d := range diags {
 			t.Errorf("%q: diagnostic %q, want none", c.src, d.Message)
@@ -218,8 +218,129 @@ func TestLoweredInterpIsStr(t *testing.T) {
 	s.Parts[0].Meta().ID = lower.ID{Local: 2}
 	s.Parts[1].Meta().ID = lower.ID{Local: 3}
 	f := &lower.File{Stmts: []lower.Node{s}}
-	ann, _, _ := infer.AnalyzeLowered(f, nil, nil)
+	ann, _, _ := infer.AnalyzeLowered(f, nil, nil, infer.Options{})
 	if got := ann[s.ID]; got != types.Str {
 		t.Errorf("Interp annotated %v, want Str", got)
+	}
+}
+
+// An operand of no known type is passed over by default and reported under
+// Strict, as on the legacy path: a command's output is not typed, so
+// adding 1 to it is unchecked until Strict asks for a narrowing.
+func TestLoweredStrictSeesUnknownOperand(t *testing.T) {
+	src := []byte("my $n = `true` + 1;\n")
+	root := parse.Parse(src)
+	f := lower.Lower(root)
+	pos := lower.NewPositions(root, f)
+
+	_, permissive, _ := infer.AnalyzeLowered(f, pos, nil, infer.Options{})
+	_, strict, _ := infer.AnalyzeLowered(f, pos, nil, infer.Options{Strict: true})
+
+	if len(permissive) != 0 {
+		t.Errorf("the default reported %v, want nothing", permissive)
+	}
+	if len(strict) != 1 || strict[0].Code != infer.CodeCoercionMismatch {
+		t.Errorf("Strict reported %v, want one coercion mismatch", strict)
+	}
+}
+
+// An operator with an operand perl rejects is analysed without a panic, and
+// nothing is said about the Hole that stands for the operand, by default or
+// under Strict, while the operator is still typed from what is intact.
+func TestLoweredOperatorsOverBrokenInput(t *testing.T) {
+	for _, c := range []struct {
+		src  string
+		like lower.Node
+		want types.Type
+	}{
+		{`my $x = 1 +;`, &lower.Binary{}, types.Num | types.Inf},
+		{`my $s = "a" x;`, &lower.Repeat{}, types.Str},
+	} {
+		root := parse.Parse([]byte(c.src))
+		f := lower.Lower(root)
+		pos := lower.NewPositions(root, f)
+		if len(holes(f)) == 0 {
+			t.Fatalf("%q lowered with no Hole:\n%s", c.src, lower.Tree(f))
+		}
+		op := firstOfKind(f, c.like)
+		if op == nil {
+			t.Fatalf("%q: no %T in:\n%s", c.src, c.like, lower.Tree(f))
+		}
+
+		for _, opts := range []infer.Options{{}, {Strict: true}} {
+			ann, diags, _ := infer.AnalyzeLowered(f, pos, nil, opts)
+			for _, d := range diags {
+				t.Errorf("%q (Strict %v): diagnostic %q, want none", c.src, opts.Strict, d.Message)
+			}
+			if got := ann[op.Meta().ID]; got != c.want {
+				t.Errorf("%q (Strict %v): %T annotated %v, want %v", c.src, opts.Strict, c.like, got, c.want)
+			}
+		}
+	}
+}
+
+// loweredSymbolType analyses src on the lowered path and returns name's
+// type and the diagnostics.
+func loweredSymbolType(t *testing.T, src, name string) (types.Type, []infer.Diagnostic) {
+	t.Helper()
+	root := parse.Parse([]byte(src))
+	f := lower.Lower(root)
+	_, diags, st := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
+	sym, ok := st.Lookup(name)
+	if !ok {
+		t.Fatalf("%q: no %s in the symbol table", src, name)
+	}
+	return sym.Type, diags
+}
+
+// An expression in scalar context evaluates each arm of a ternary, and the
+// left operand of a logical operator, in that context, and an array there is
+// its count. perl 5.42, -w silent: with @a = (7,8,9), `(1 ? @a : 42) + 1`
+// is 4, `my $n = 1 ? @a : 42` is 3, a nested arm is counted too, and
+// `(@a || 0) + 1` is 4. In list context the array stays a list:
+// `my @t = 1 ? @a : 42` is (7, 8, 9).
+func TestTernaryArmTakesNumericContext(t *testing.T) {
+	for _, c := range []struct {
+		src, name string
+		want      types.Type
+	}{
+		{"my @a = (7, 8, 9);\nmy $x = (1 ? @a : 42) + 1;\n", "$x", types.Num | types.Inf},
+		{"my @a = (7, 8, 9);\nmy $n = 1 ? @a : 42;\n", "$n", types.Int},
+		{"my @a = (7, 8, 9);\nmy $m = (1 ? (0 ? 1 : @a) : 42) + 1;\n", "$m", types.Num | types.Inf},
+		{"my @a = (7, 8, 9);\nmy $o = (@a || 0) + 1;\n", "$o", types.Num | types.Inf},
+		{"my @a = (7, 8, 9);\nmy @t = 1 ? @a : 42;\n", "@t", types.Join(types.Array, types.Int)},
+	} {
+		got, diags := loweredSymbolType(t, c.src, c.name)
+		for _, d := range diags {
+			t.Errorf("%q: diagnostic %q, want none", c.src, d.Message)
+		}
+		if got != c.want {
+			t.Errorf("%q: %s is %v, want %v", c.src, c.name, got, c.want)
+		}
+	}
+}
+
+// perl truncates a repeat count toward zero, so a finite Num count is no
+// mismatch: perl 5.42 -w is silent on `"ab" x 2.5` and `"ab" x 2.9`, each
+// "abab", and on `(1,2) x 1.5`, (1, 2). A count that is not a number at
+// all is still one: a reference repeats by its address.
+func TestRepeatCountAcceptsNum(t *testing.T) {
+	for _, src := range []string{
+		"my $s = \"ab\" x 2.5;\n",
+		"my $n = 2.9;\nmy $s = \"ab\" x $n;\n",
+		"my @l = (1, 2) x 1.5;\n",
+	} {
+		root := parse.Parse([]byte(src))
+		f := lower.Lower(root)
+		_, diags, _ := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
+		for _, d := range diags {
+			t.Errorf("%q: diagnostic %q, want none", src, d.Message)
+		}
+	}
+	root := parse.Parse([]byte("my $s = \"ab\" x {};\n"))
+	f := lower.Lower(root)
+	_, diags, _ := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
+	if len(diags) != 1 || diags[0].Code != infer.CodeCoercionMismatch {
+		t.Errorf(`"ab" x {}: diagnostics %v, want one coercion mismatch`, diags)
 	}
 }

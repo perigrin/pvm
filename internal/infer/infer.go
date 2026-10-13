@@ -514,6 +514,24 @@ func checkBinaryOperand(
 	if !ok {
 		actual = types.Unknown
 	}
+	severity, message, mismatch := operandMismatch(activeOptions, actual, expected, op, side)
+	if !mismatch {
+		return
+	}
+	*diags = append(*diags, Diagnostic{
+		StartByte: operand.StartByte(),
+		EndByte:   operand.EndByte(),
+		Severity:  severity,
+		Code:      CodeCoercionMismatch,
+		Message:   message,
+	})
+}
+
+// operandMismatch is the judgement checkBinaryOperand makes of one operand
+// of op, whose type is actual where the operator expects expected: the
+// severity and message of the coercion mismatch to report, and whether
+// there is one. side is "left" or "right".
+func operandMismatch(opts Options, actual, expected types.Type, op, side string) (Severity, string, bool) {
 	// A scalar-context operator imposes that context on its operand, and an
 	// aggregate in scalar context is its element count: `@fields == 3` and
 	// `while (@_ > 1)` are the ordinary idiom, not type errors. Apply the
@@ -537,17 +555,17 @@ func checkBinaryOperand(
 		}
 	}
 
-	if activeOptions.skipUnknownOperand(actual) {
-		return
+	if opts.skipUnknownOperand(actual) {
+		return 0, "", false
 	}
 
 	// Skip logical and assignment operators — they accept any type.
 	if expected == types.Any {
-		return
+		return 0, "", false
 	}
 
-	if activeOptions.satisfies(actual, expected) {
-		return
+	if opts.satisfies(actual, expected) {
+		return 0, "", false
 	}
 
 	// Severity follows the COERCION, not the operator.
@@ -596,13 +614,7 @@ func checkBinaryOperand(
 		severity = Warning
 	}
 
-	*diags = append(*diags, Diagnostic{
-		StartByte: operand.StartByte(),
-		EndByte:   operand.EndByte(),
-		Severity:  severity,
-		Code:      CodeCoercionMismatch,
-		Message:   fmt.Sprintf("%s operand of %q: expected %s, got %s", side, op, expected, actual),
-	})
+	return severity, fmt.Sprintf("%s operand of %q: expected %s, got %s", side, op, expected, actual), true
 }
 
 // inferUnaryExprType finds the operator among the direct children of a
@@ -1930,6 +1942,12 @@ func operatorCandidates(op, fixity string, ctx types.Context, operands ...*parse
 			shapes += "$"
 		}
 	}
+	return shapedOperatorCandidates(op, fixity, shapes, ctx)
+}
+
+// shapedOperatorCandidates is operatorCandidates for operands already read
+// as shapes, one "$" or "@" each.
+func shapedOperatorCandidates(op, fixity, shapes string, ctx types.Context) []types.Signature {
 	ctxs := []types.Context{ctx}
 	if ctx == types.UnknownCtx {
 		ctxs = []types.Context{types.ScalarCtx, types.ListCtx, types.VoidCtx}
