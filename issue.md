@@ -1,6 +1,6 @@
 ---
 title: "Port the call rules onto the lowered tree: one Call arm for five builtin sites, Handle apart from Args"
-state: in-progress
+state: done
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -9,16 +9,93 @@ blocked_by:
 blocks:
 - 01a12a85-3386-7e72-8d74-38bf69a9c7d7
 created: 2026-10-11T10:32:14.798479017Z
-updated: 2026-10-13T16:07:37.064563388Z
+updated: 2026-10-13T21:46:33.442804362Z
 sessions:
 - start_sha: e61467531761799cbc9c52bf845a9f73a7ba2854
-  end_sha: ""
-  commits: 0
+  end_sha: a45799887c9831e70d88981c993e14c2f1de3741
+  commits: 1
   started_at: 2026-10-13T16:07:37.064563388Z
+  ended_at: 2026-10-13T21:46:33.442804362Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-13T16:07:37.064563388Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-13T21:46:33.442804362Z
+observed_paths:
+- internal/infer/infer.go
+- internal/infer/lowered.go
+- internal/infer/lowered_calls.go
+- internal/infer/lowered_flow.go
+- internal/infer/lowered_ops.go
+- internal/infer/lowered_test.go
+- internal/infer/lowered_vars.go
+- internal/infer/testdata/lowered/calls/abs_int.golden
+- internal/infer/testdata/lowered/calls/abs_int.pl
+- internal/infer/testdata/lowered/calls/ampersand.golden
+- internal/infer/testdata/lowered/calls/ampersand.pl
+- internal/infer/testdata/lowered/calls/bare_decl_call.golden
+- internal/infer/testdata/lowered/calls/bare_decl_call.pl
+- internal/infer/testdata/lowered/calls/chr_num.golden
+- internal/infer/testdata/lowered/calls/chr_num.pl
+- internal/infer/testdata/lowered/calls/coderef.golden
+- internal/infer/testdata/lowered/calls/coderef.pl
+- internal/infer/testdata/lowered/calls/delete.golden
+- internal/infer/testdata/lowered/calls/delete.pl
+- internal/infer/testdata/lowered/calls/die_msg.golden
+- internal/infer/testdata/lowered/calls/die_msg.pl
+- internal/infer/testdata/lowered/calls/fq_call.golden
+- internal/infer/testdata/lowered/calls/fq_call.pl
+- internal/infer/testdata/lowered/calls/keys_values.golden
+- internal/infer/testdata/lowered/calls/keys_values.pl
+- internal/infer/testdata/lowered/calls/length_array.golden
+- internal/infer/testdata/lowered/calls/length_array.pl
+- internal/infer/testdata/lowered/calls/length_defined.golden
+- internal/infer/testdata/lowered/calls/length_defined.pl
+- internal/infer/testdata/lowered/calls/list_op_args.golden
+- internal/infer/testdata/lowered/calls/list_op_args.pl
+- internal/infer/testdata/lowered/calls/lvalue_substr.golden
+- internal/infer/testdata/lowered/calls/lvalue_substr.pl
+- internal/infer/testdata/lowered/calls/method_instance.golden
+- internal/infer/testdata/lowered/calls/method_instance.pl
+- internal/infer/testdata/lowered/calls/method_new.golden
+- internal/infer/testdata/lowered/calls/method_new.pl
+- internal/infer/testdata/lowered/calls/method_unresolved.golden
+- internal/infer/testdata/lowered/calls/method_unresolved.pl
+- internal/infer/testdata/lowered/calls/nested.golden
+- internal/infer/testdata/lowered/calls/nested.pl
+- internal/infer/testdata/lowered/calls/param_usage.golden
+- internal/infer/testdata/lowered/calls/param_usage.pl
+- internal/infer/testdata/lowered/calls/pop_shift.golden
+- internal/infer/testdata/lowered/calls/pop_shift.pl
+- internal/infer/testdata/lowered/calls/print_handle.golden
+- internal/infer/testdata/lowered/calls/print_handle.pl
+- internal/infer/testdata/lowered/calls/print_ref_arg.golden
+- internal/infer/testdata/lowered/calls/print_ref_arg.pl
+- internal/infer/testdata/lowered/calls/push_bare.golden
+- internal/infer/testdata/lowered/calls/push_bare.pl
+- internal/infer/testdata/lowered/calls/push_paren.golden
+- internal/infer/testdata/lowered/calls/push_paren.pl
+- internal/infer/testdata/lowered/calls/scalar.golden
+- internal/infer/testdata/lowered/calls/scalar.pl
+- internal/infer/testdata/lowered/calls/splice_reverse.golden
+- internal/infer/testdata/lowered/calls/splice_reverse.pl
+- internal/infer/testdata/lowered/calls/sprintf.golden
+- internal/infer/testdata/lowered/calls/sprintf.pl
+- internal/infer/testdata/lowered/calls/swallowed_compare.golden
+- internal/infer/testdata/lowered/calls/swallowed_compare.pl
+- internal/infer/testdata/lowered/calls/ternary_arg.golden
+- internal/infer/testdata/lowered/calls/ternary_arg.pl
+- internal/infer/testdata/lowered/calls/time.golden
+- internal/infer/testdata/lowered/calls/time.pl
+- internal/infer/testdata/lowered/calls/undef.golden
+- internal/infer/testdata/lowered/calls/undef.pl
+- internal/infer/testdata/lowered/calls/user_forward.golden
+- internal/infer/testdata/lowered/calls/user_forward.pl
+- internal/infer/testdata/lowered/calls/user_return.golden
+- internal/infer/testdata/lowered/calls/user_return.pl
+- internal/infer/testdata/lowered/matching.txt
 ---
 
 ## Context
