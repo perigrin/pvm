@@ -369,3 +369,57 @@ func TestLoweredCallsOverBrokenInput(t *testing.T) {
 		}
 	}
 }
+
+// A constructor's result records its class on the variable that takes it,
+// declared or assigned. The golden format shows no class, so this test
+// holds it.
+func TestLoweredConstructorRecordsClass(t *testing.T) {
+	src := []byte("my $obj = Foo->new();\nmy $o;\n$o = Bar->new;\nmy $n = Baz->make;\n")
+	root := parse.Parse(src)
+	f := lower.Lower(root)
+	_, _, st := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
+	for name, want := range map[string]string{"$obj": "Foo", "$o": "Bar", "$n": ""} {
+		sym, ok := st.Lookup(name)
+		if !ok {
+			t.Fatalf("no %s in the symbol table", name)
+		}
+		if sym.ClassType != want {
+			t.Errorf("%s: class %q, want %q", name, sym.ClassType, want)
+		}
+	}
+}
+
+// A call the project index resolves takes the return type of the sub it
+// names: a fully-qualified sub, and a method on an object whose class a
+// constructor recorded.
+func TestLoweredCallsResolveThroughTheIndex(t *testing.T) {
+	dir := t.TempDir()
+	for path, body := range map[string]string{
+		"lib/Foo/Bar.pm": "package Foo::Bar;\nsub baz { return 42; }\n",
+		"lib/Counter.pm": "package Counter;\nsub count { return 4.5; }\n",
+	} {
+		full := filepath.Join(dir, filepath.FromSlash(path))
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	idx := infer.NewProjectIndex(dir)
+
+	src := []byte("use Foo::Bar;\nuse Counter;\nmy $x = Foo::Bar::baz();\nmy $c = Counter->new();\nmy $n = $c->count();\n")
+	root := parse.Parse(src)
+	f := lower.Lower(root)
+	_, _, st := infer.AnalyzeLowered(f, lower.NewPositions(root, f), idx, infer.Options{})
+
+	for name, want := range map[string]types.Type{"$x": types.Int, "$n": types.Num} {
+		sym, ok := st.Lookup(name)
+		if !ok {
+			t.Fatalf("no %s in the symbol table", name)
+		}
+		if sym.Type != want {
+			t.Errorf("%s: %v, want %v", name, sym.Type, want)
+		}
+	}
+}
