@@ -1,4 +1,4 @@
-// ABOUTME: The operator rules of AnalyzeLowered: Binary, Unary, Ternary, Repeat and Range typing, and the operand checks.
+// ABOUTME: The operator rules of AnalyzeLowered: Binary, Unary, Ternary, Repeat, Range and Assign, the operand checks, and assignment narrowing.
 // ABOUTME: Each is the legacy rule rewritten against the lowered kinds: the operator is a field, never re-read from source text.
 
 package infer
@@ -56,6 +56,86 @@ func (a *loweredAnalysis) rangeOp(n *lower.Range) types.Type {
 		op = "..."
 	}
 	return a.infix(n, op, operandShape(n.Lo)+operandShape(n.Hi), n.Lo, n.Hi)
+}
+
+// assign is the plain-assignment half of the legacy
+// inferAssignmentNarrowing: the right side is evaluated in the context the
+// left side imposes, and a variable on the left is narrowed by it, as
+// narrow says. Every assignment operator narrows so, `+=` included. An
+// element, a slice or a list on the left is not narrowed.
+//
+// The assignment's own type is its right side's, an aggregate counted when
+// a scalar takes it.
+func (a *loweredAnalysis) assign(n *lower.Assign) types.Type {
+	if n.R != nil {
+		a.rhsCtx[n.R.Meta().ID] = assignContext(n.L)
+	}
+	a.operand(n.L)
+	t := a.operand(n.R)
+	v, ok := n.L.(*lower.Var)
+	if !ok || n.R == nil {
+		return t
+	}
+	if _, named := sigilTypes[v.Sigil]; !named {
+		return t
+	}
+	return a.narrow(v, n.R, t)
+}
+
+// assignContext is the legacy assignedContext: assigning to a scalar or an
+// element evaluates the right side in scalar context, and assigning to an
+// array, a hash or a list in list context.
+func assignContext(l lower.Node) types.Context {
+	switch l := l.(type) {
+	case *lower.Var:
+		return sigilContext(l.Sigil)
+	case *lower.Index, *lower.Key:
+		return types.ScalarCtx
+	case *lower.List:
+		return types.ListCtx
+	}
+	return types.UnknownCtx
+}
+
+// narrow is the legacy inferAssignmentNarrowing for v assigned init, whose
+// type is t, and returns the type v takes: t, unless that is Unknown.
+//
+// A scalar imposes scalar context, and an aggregate there is its count:
+// `my $count = @arr` is 3, not the array. Only a genuine aggregate is
+// narrowed, so a broad type is not stripped to one that satisfies nothing.
+// `my $n = () = EXPR` is the count-of idiom: perl, `my $n = () = (1, 2, 3)`
+// is 3. An array, a hash, or a scalar holding an anonymous one records its
+// element type.
+//
+// A list-context match binding its captures and a constructor's class are
+// read from Match and MethodCall, which this rule does not type.
+func (a *loweredAnalysis) narrow(v *lower.Var, init lower.Node, t types.Type) types.Type {
+	name := v.Sigil + v.Name
+	if v.Sigil == "$" && (t == types.Array || t == types.Hash || t == types.List) {
+		if narrowed, ok := types.NarrowByContext(t, types.ScalarCtx); ok {
+			t = narrowed
+		}
+	}
+	if v.Sigil == "$" && isCountOf(init) {
+		a.st.UpdateType(name, types.Int)
+		return types.Int
+	}
+	a.recordElemType(v, init)
+	if t != types.Unknown {
+		a.st.UpdateType(name, t)
+	}
+	return t
+}
+
+// isCountOf reports whether n is the inner `() = EXPR` of the count-of
+// idiom: an assignment to the empty list.
+func isCountOf(n lower.Node) bool {
+	as, ok := n.(*lower.Assign)
+	if !ok {
+		return false
+	}
+	l, ok := as.L.(*lower.List)
+	return ok && len(l.Elems) == 0
 }
 
 // operandShape is an operand's shape as CORE.pmt's candidates take it: "@"

@@ -117,6 +117,8 @@ func (a *loweredAnalysis) walk(n lower.Node) types.Type {
 		t = a.repeat(n)
 	case *lower.Range:
 		t = a.rangeOp(n)
+	case *lower.Assign:
+		t = a.assign(n)
 	case *lower.Decl:
 		t = a.decl(n)
 	case *lower.IfStmt:
@@ -157,12 +159,7 @@ func (a *loweredAnalysis) walkChildren(n lower.Node) {
 // initialiser's type.
 //
 // This is the declaration half of the legacy inferAssignmentNarrowing: the
-// first declared variable takes the initialiser's type, unless that is
-// Unknown, with an aggregate in scalar context taken as its count, and an
-// array, a hash or a scalar holding an anonymous one records its element
-// type. The rest of that rule -- the `() =` count-of idiom, a list-context
-// match binding captures, class types -- reads the kinds the operator and
-// call ports type, and moves with them.
+// first declared variable is narrowed by its initialiser, as narrow says.
 func (a *loweredAnalysis) decl(d *lower.Decl) types.Type {
 	switch d.Kind {
 	case lower.DeclMy, lower.DeclOur, lower.DeclState, lower.DeclLocal:
@@ -180,21 +177,7 @@ func (a *loweredAnalysis) decl(d *lower.Decl) types.Type {
 		if len(vars) == 0 || d.Kind == lower.DeclLocal {
 			return t
 		}
-		v := vars[0]
-		// A scalar imposes scalar context, and an aggregate there is its
-		// count: `my $count = @arr` is 3, not the array. Only a genuine
-		// aggregate is narrowed, so a broad type is not stripped to one
-		// that satisfies nothing.
-		if v.Sigil == "$" && (t == types.Array || t == types.Hash || t == types.List) {
-			if narrowed, ok := types.NarrowByContext(t, types.ScalarCtx); ok {
-				t = narrowed
-			}
-		}
-		a.recordElemType(v, d.Init)
-		if t != types.Unknown {
-			a.st.UpdateType(v.Sigil+v.Name, t)
-		}
-		return t
+		return a.narrow(vars[0], d.Init, t)
 	case lower.DeclPackage:
 		a.walkChildren(d)
 		return types.Unknown
