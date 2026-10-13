@@ -113,6 +113,10 @@ func (a *loweredAnalysis) walk(n lower.Node) types.Type {
 		t = a.unary(n)
 	case *lower.Ternary:
 		t = a.ternary(n)
+	case *lower.Repeat:
+		t = a.repeat(n)
+	case *lower.Range:
+		t = a.rangeOp(n)
 	case *lower.Decl:
 		t = a.decl(n)
 	case *lower.IfStmt:

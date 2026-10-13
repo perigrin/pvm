@@ -1,4 +1,4 @@
-// ABOUTME: The operator rules of AnalyzeLowered: Binary, Unary and Ternary typing, and the operand checks.
+// ABOUTME: The operator rules of AnalyzeLowered: Binary, Unary, Ternary, Repeat and Range typing, and the operand checks.
 // ABOUTME: Each is the legacy rule rewritten against the lowered kinds: the operator is a field, never re-read from source text.
 
 package infer
@@ -34,6 +34,28 @@ func (a *loweredAnalysis) infix(n lower.Node, op, shapes string, l, r lower.Node
 		return types.Join(a.typeOf(l), a.typeOf(r))
 	}
 	return result
+}
+
+// repeat is the legacy rule for `x` on Repeat. A list repeat is
+// `@`-shaped, so CORE.pmt's list candidate takes it: perl, `my @z = (0) x 3`
+// is (0, 0, 0) and `my @w = qw(a b) x 2` is (a, b, a, b). ListRepeat says
+// which, from the parens or the qw list on the left.
+func (a *loweredAnalysis) repeat(n *lower.Repeat) types.Type {
+	left := "$"
+	if n.ListRepeat {
+		left = "@"
+	}
+	return a.infix(n, "x", left+operandShape(n.Count), n.Left, n.Count)
+}
+
+// rangeOp types `..` and `...` by CORE.pmt's candidates, as a binary
+// operator: a list in list context and the flip-flop's Str in scalar.
+func (a *loweredAnalysis) rangeOp(n *lower.Range) types.Type {
+	op := ".."
+	if n.Exclusive {
+		op = "..."
+	}
+	return a.infix(n, op, operandShape(n.Lo)+operandShape(n.Hi), n.Lo, n.Hi)
 }
 
 // operandShape is an operand's shape as CORE.pmt's candidates take it: "@"

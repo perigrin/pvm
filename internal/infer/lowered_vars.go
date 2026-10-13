@@ -179,8 +179,29 @@ func (a *loweredAnalysis) elemType(n lower.Node) types.Type {
 		return a.joinTypes(n.Elems)
 	case *lower.Slice:
 		return a.sliceElemType(n)
+	case *lower.Repeat:
+		// The elements are copies of the left operand, not values of
+		// the operator's own Str: `(0) x $n` holds Ints.
+		if n.ListRepeat {
+			return a.elemType(n.Left)
+		}
+		return a.typeOf(n.Left)
+	case *lower.Range:
+		return a.rangeElemType(n)
 	}
 	return a.annotations[n.Meta().ID]
+}
+
+// rangeElemType is the element type of a range: perl counts between two
+// numbers in integers, and steps between strings by magic increment.
+//
+// perl: `1..3` is (1, 2, 3), `0..2.7` is (0, 1, 2), and `"a".."c"` is
+// ("a", "b", "c").
+func (a *loweredAnalysis) rangeElemType(r *lower.Range) types.Type {
+	if types.IsSubtype(a.typeOf(r.Lo), types.Num) && types.IsSubtype(a.typeOf(r.Hi), types.Num) {
+		return types.Int
+	}
+	return types.Str
 }
 
 // sliceElemType is the element type of what a slice returns.
