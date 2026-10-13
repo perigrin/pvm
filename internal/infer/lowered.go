@@ -11,7 +11,8 @@ import (
 // AnalyzeLowered runs inference over f, which lower.Lower returned, and
 // returns each node's type keyed by its id, the diagnostics, and the symbol
 // table. pos is f's position map: diagnostics and symbols carry byte spans,
-// and the lowered tree has none of its own.
+// and the lowered tree has none of its own. idx is the project index for
+// cross-file analysis, nil in single-file mode.
 //
 // It is the legacy Analyze's two passes, rewritten against the lowered
 // kinds: collectLoweredDeclarations fills the symbol table, then walk types
@@ -19,11 +20,13 @@ import (
 // TestLoweredGoldenRatchet against what the legacy path reported. A kind no
 // port handles yet is typed Any, raises no diagnostic, and has its children
 // walked.
-func AnalyzeLowered(f *lower.File, pos *lower.Positions) (map[lower.ID]types.Type, []Diagnostic, *SymbolTable) {
+func AnalyzeLowered(f *lower.File, pos *lower.Positions, idx *ProjectIndex) (map[lower.ID]types.Type, []Diagnostic, *SymbolTable) {
 	a := &loweredAnalysis{
 		pos:         pos,
+		idx:         idx,
 		st:          collectLoweredDeclarations(f, pos),
 		annotations: map[lower.ID]types.Type{},
+		subs:        fileSubs(f),
 	}
 	a.walk(f)
 	return a.annotations, a.diags, a.st
@@ -33,9 +36,13 @@ func AnalyzeLowered(f *lower.File, pos *lower.Positions) (map[lower.ID]types.Typ
 // every call as arguments.
 type loweredAnalysis struct {
 	pos         *lower.Positions
+	idx         *ProjectIndex
 	st          *SymbolTable
 	annotations map[lower.ID]types.Type
 	diags       []Diagnostic
+	// subs is each file-level named sub's body, which a user-defined
+	// guard reads.
+	subs map[string]*lower.AnonSub
 }
 
 // walk types n, children first, and records the type under n's id. Unknown
@@ -73,6 +80,23 @@ func (a *loweredAnalysis) walk(n lower.Node) types.Type {
 		t = types.CodeRef
 	case *lower.Decl:
 		t = a.decl(n)
+	case *lower.IfStmt:
+		a.ifStmt(n)
+		t = types.Unknown
+	case *lower.WhileStmt:
+		a.whileStmt(n)
+		t = types.Unknown
+	case *lower.ForeachStmt:
+		a.foreachStmt(n)
+		t = types.Unknown
+	case *lower.UseStmt:
+		a.useStmt(n)
+		t = types.Unknown
+	case *lower.LoopEx:
+		// return, last, next, redo and goto are not values the legacy
+		// path typed; a return's value is read where the sub is.
+		a.walkChildren(n)
+		t = types.Unknown
 	default:
 		a.walkChildren(n)
 		t = types.Any
@@ -130,7 +154,15 @@ func (a *loweredAnalysis) decl(d *lower.Decl) types.Type {
 		if d.Init != nil {
 			a.st.EnterScope(subName(d))
 			a.walk(d.Init)
+			ret := types.Unknown
+			if body, ok := d.Init.(*lower.AnonSub); ok && body.Body != nil {
+				b, _ := body.Body.(*lower.Block)
+				ret = a.explicitReturns(body.Body) | a.implicitReturn(b)
+			}
 			a.st.ExitScope()
+			if name := subName(d); name != "" && ret != types.Unknown {
+				a.st.UpdateReturnType(name, ret)
+			}
 		}
 		return types.Code
 	}
@@ -198,6 +230,15 @@ func collectLoweredDeclarations(f *lower.File, pos *lower.Positions) *SymbolTabl
 				if c == n.Body {
 					walkStmts(c)
 				} else {
+					walk(c)
+				}
+			}
+			return
+		case *lower.ForeachStmt:
+			// The loop variable is not declared here: pass 2 defines it
+			// in the loop's own scope, as the legacy path does.
+			for _, c := range lower.Children(n) {
+				if c != n.Var {
 					walk(c)
 				}
 			}
