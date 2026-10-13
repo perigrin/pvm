@@ -1,3 +1,3 @@
-diag 21 23 coercion-mismatch left operand of "+": expected Num, got HashRef
+diag 20 24 coercion-mismatch left operand of "+": expected Num, got HashRef
 sym $h HashRef
 sym $x Int|Num|Inf

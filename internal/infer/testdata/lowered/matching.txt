@@ -110,10 +110,12 @@ ops/list_assign.pl
 ops/logical.pl
 ops/neg.pl
 ops/not.pl
+ops/paren_operand.pl
 ops/range.pl
 ops/range_num.pl
 ops/reassign.pl
 ops/repeat.pl
+ops/repeat_div.pl
 ops/repeat_num.pl
 ops/repeat_paren_one.pl
 ops/repeat_qw.pl
@@ -121,6 +123,7 @@ ops/str_arith.pl
 ops/str_compare_num.pl
 ops/str_eq.pl
 ops/ternary.pl
+ops/ternary_mixed.pl
 ops/ternary_str.pl
 ops/xor.pl
 vars/array_copy.pl
