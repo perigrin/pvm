@@ -29,7 +29,7 @@ func AnalyzeLowered(f *lower.File, pos *lower.Positions, idx *ProjectIndex, opts
 		st:          collectLoweredDeclarations(f, pos),
 		annotations: map[lower.ID]types.Type{},
 		subs:        fileSubs(f),
-		rhsCtx:      map[lower.ID]types.Context{},
+		evalCtx:     map[lower.ID]types.Context{},
 	}
 	a.walk(f)
 	return a.annotations, a.diags, a.st
@@ -47,10 +47,11 @@ type loweredAnalysis struct {
 	// subs is each file-level named sub's body, which a user-defined
 	// guard reads.
 	subs map[string]*lower.AnonSub
-	// rhsCtx is the context an assignment evaluates its right side in,
-	// keyed by that side's id: what the legacy assignedContext read from
-	// the parent.
-	rhsCtx map[lower.ID]types.Context
+	// evalCtx is the context the expression around a node evaluates it
+	// in, keyed by the node's id and set before the node is walked: an
+	// assignment's right side, an operator's operands, a ternary's arms.
+	// An absent node's is UnknownCtx.
+	evalCtx map[lower.ID]types.Context
 }
 
 // walk types n, children first, and records the type under n's id. Unknown
@@ -169,7 +170,7 @@ func (a *loweredAnalysis) decl(d *lower.Decl) types.Type {
 		if d.Init == nil {
 			return types.Unknown
 		}
-		a.rhsCtx[d.Init.Meta().ID] = declContext(d)
+		a.evalCtx[d.Init.Meta().ID] = declContext(d)
 		t := a.walk(d.Init)
 		// local neither declares nor narrows: the legacy path reads no
 		// name through it.

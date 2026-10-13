@@ -20,10 +20,27 @@ func (a *loweredAnalysis) binary(n *lower.Binary) types.Type {
 
 // infix types an infix operator op over l and r, whose shapes are one "$"
 // or "@" each, and checks both operands against what op expects.
+//
+// An operand is evaluated in scalar context unless the operator takes a
+// list there. A logical operator tests its left operand, in scalar context,
+// and yields its right in the context the operator is in: perl 5.42, with
+// @a = (7,8,9), `(@a || 0) + 1` is 4 and `my @l = 0 || @a` is (7, 8, 9).
 func (a *loweredAnalysis) infix(n lower.Node, op, shapes string, l, r lower.Node) types.Type {
+	ctx := a.evalCtx[n.Meta().ID]
+	sigs := shapedOperatorCandidates(op, "infix", shapes, ctx)
+	for i, o := range []lower.Node{l, r} {
+		if o == nil || len(sigs) == 0 {
+			continue
+		}
+		switch {
+		case logicalOps[op] && i == 1:
+			a.evalCtx[o.Meta().ID] = ctx
+		case logicalOps[op] || builtinArgType(sigs, i) != types.List:
+			a.evalCtx[o.Meta().ID] = types.ScalarCtx
+		}
+	}
 	a.operand(l)
 	a.operand(r)
-	sigs := shapedOperatorCandidates(op, "infix", shapes, a.rhsCtx[n.Meta().ID])
 	if len(sigs) == 0 {
 		return types.Unknown
 	}
@@ -31,7 +48,7 @@ func (a *loweredAnalysis) infix(n lower.Node, op, shapes string, l, r lower.Node
 	a.checkOperand(r, builtinArgType(sigs, 1), op, "right")
 	result := builtinReturns(sigs, types.UnknownCtx)
 	if result == types.Any && logicalOps[op] {
-		return types.Join(a.typeOf(l), a.typeOf(r))
+		return types.Join(a.valueOf(l), a.valueOf(r))
 	}
 	return result
 }
@@ -68,7 +85,7 @@ func (a *loweredAnalysis) rangeOp(n *lower.Range) types.Type {
 // a scalar takes it.
 func (a *loweredAnalysis) assign(n *lower.Assign) types.Type {
 	if n.R != nil {
-		a.rhsCtx[n.R.Meta().ID] = assignContext(n.L)
+		a.evalCtx[n.R.Meta().ID] = assignContext(n.L)
 	}
 	a.operand(n.L)
 	t := a.operand(n.R)
@@ -201,13 +218,41 @@ func (a *loweredAnalysis) unary(n *lower.Unary) types.Type {
 // ternary is the legacy inferConditionalType: the value comes from one arm
 // or the other, so it is their join. The condition says nothing about it.
 // A ternary missing an arm is not typed.
+//
+// Each arm is evaluated in the ternary's own context, so in scalar context
+// an array arm is its count: perl 5.42, with @a = (7,8,9),
+// `(1 ? @a : 42) + 1` is 4 and `my $n = 1 ? @a : 42` is 3, while
+// `my @t = 1 ? @a : 42` is (7, 8, 9).
 func (a *loweredAnalysis) ternary(n *lower.Ternary) types.Type {
+	ctx := a.evalCtx[n.ID]
+	for _, arm := range []lower.Node{n.Then, n.Else} {
+		if arm != nil {
+			a.evalCtx[arm.Meta().ID] = ctx
+		}
+	}
 	a.operand(n.Cond)
-	then, els := a.operand(n.Then), a.operand(n.Else)
+	a.operand(n.Then)
+	a.operand(n.Else)
 	if n.Then == nil || n.Else == nil {
 		return types.Unknown
 	}
-	return types.Join(then, els)
+	return types.Join(a.valueOf(n.Then), a.valueOf(n.Else))
+}
+
+// valueOf is n's type as the value its context takes: an array, a hash or a
+// list evaluated in scalar context is its count. Only a genuine aggregate is
+// counted, so a broad type is not stripped to one that satisfies nothing.
+func (a *loweredAnalysis) valueOf(n lower.Node) types.Type {
+	t := a.typeOf(n)
+	if n == nil || a.evalCtx[n.Meta().ID] != types.ScalarCtx {
+		return t
+	}
+	if t == types.Array || t == types.Hash || t == types.List {
+		if narrowed, ok := types.NarrowByContext(t, types.ScalarCtx); ok {
+			return narrowed
+		}
+	}
+	return t
 }
 
 // operand walks n, which may be missing, and returns its type.

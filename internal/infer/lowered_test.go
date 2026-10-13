@@ -278,3 +278,44 @@ func TestLoweredOperatorsOverBrokenInput(t *testing.T) {
 		}
 	}
 }
+
+// loweredSymbolType analyses src on the lowered path and returns name's
+// type and the diagnostics.
+func loweredSymbolType(t *testing.T, src, name string) (types.Type, []infer.Diagnostic) {
+	t.Helper()
+	root := parse.Parse([]byte(src))
+	f := lower.Lower(root)
+	_, diags, st := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
+	sym, ok := st.Lookup(name)
+	if !ok {
+		t.Fatalf("%q: no %s in the symbol table", src, name)
+	}
+	return sym.Type, diags
+}
+
+// An expression in scalar context evaluates each arm of a ternary, and the
+// left operand of a logical operator, in that context, and an array there is
+// its count. perl 5.42, -w silent: with @a = (7,8,9), `(1 ? @a : 42) + 1`
+// is 4, `my $n = 1 ? @a : 42` is 3, a nested arm is counted too, and
+// `(@a || 0) + 1` is 4. In list context the array stays a list:
+// `my @t = 1 ? @a : 42` is (7, 8, 9).
+func TestTernaryArmTakesNumericContext(t *testing.T) {
+	for _, c := range []struct {
+		src, name string
+		want      types.Type
+	}{
+		{"my @a = (7, 8, 9);\nmy $x = (1 ? @a : 42) + 1;\n", "$x", types.Num | types.Inf},
+		{"my @a = (7, 8, 9);\nmy $n = 1 ? @a : 42;\n", "$n", types.Int},
+		{"my @a = (7, 8, 9);\nmy $m = (1 ? (0 ? 1 : @a) : 42) + 1;\n", "$m", types.Num | types.Inf},
+		{"my @a = (7, 8, 9);\nmy $o = (@a || 0) + 1;\n", "$o", types.Num | types.Inf},
+		{"my @a = (7, 8, 9);\nmy @t = 1 ? @a : 42;\n", "@t", types.Join(types.Array, types.Int)},
+	} {
+		got, diags := loweredSymbolType(t, c.src, c.name)
+		for _, d := range diags {
+			t.Errorf("%q: diagnostic %q, want none", c.src, d.Message)
+		}
+		if got != c.want {
+			t.Errorf("%q: %s is %v, want %v", c.src, c.name, got, c.want)
+		}
+	}
+}
