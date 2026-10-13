@@ -1,6 +1,6 @@
 ---
 title: "Port the statement and flow rules onto the lowered tree: conditionals, guards, loops, returns, use"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -8,7 +8,16 @@ blocked_by:
 blocks:
 - 01a12a85-31a5-769d-88c4-e2add3f8fefc
 created: 2026-10-11T10:32:14.336031794Z
-updated: 2026-10-11T15:18:12.936846955Z
+updated: 2026-10-13T00:37:12.207504849Z
+sessions:
+- start_sha: 0908d613150f31c001ca72445c97207e13a34b47
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-13T00:37:12.207504849Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-13T00:37:12.207504849Z
 ---
 
 ## Context
