@@ -1,0 +1,3 @@
+sym $n Int
+sym %g Hash
+sym %h Hash

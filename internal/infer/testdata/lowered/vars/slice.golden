@@ -1,0 +1,3 @@
+sym $e Scalar
+sym @a Array
+sym @s Array

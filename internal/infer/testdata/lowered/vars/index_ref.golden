@@ -1,0 +1,4 @@
+diag 39 41 type-mismatch array index expects Num, got ArrayRef
+sym $x ArrayRef
+sym $y Int
+sym @a Array

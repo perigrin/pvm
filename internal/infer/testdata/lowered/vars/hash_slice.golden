@@ -1,0 +1,3 @@
+sym $e Scalar
+sym %h Hash
+sym @v Array

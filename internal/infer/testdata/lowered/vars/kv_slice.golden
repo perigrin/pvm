@@ -1,0 +1,6 @@
+sym $e Scalar
+sym $f Scalar
+sym %h Hash
+sym @a Array
+sym @ia Array
+sym @kv Array
