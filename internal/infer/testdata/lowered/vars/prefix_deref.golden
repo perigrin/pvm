@@ -1,5 +1,5 @@
-sym $e Scalar
-sym $f Scalar
+sym $e Int
+sym $f Int
 sym $n Int
 sym $r ArrayRef
 sym %g Hash

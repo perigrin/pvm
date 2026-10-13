@@ -1,2 +1,2 @@
-sym $e Scalar
+sym $e Int
 sym @l Array

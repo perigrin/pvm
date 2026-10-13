@@ -1,5 +1,5 @@
-sym $e Scalar
-sym $f Scalar
+sym $e Str
+sym $f Int
 sym %h Hash
 sym @a Array
 sym @ia Array
