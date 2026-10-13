@@ -36,10 +36,14 @@ flow/elsif_exit.pl
 flow/elsif_exit_no_else.pl
 flow/elsif_negated.pl
 flow/elsif_three.pl
+flow/for_alias_redeclare.pl
 flow/for_default.pl
 flow/for_list.pl
 flow/for_my.pl
+flow/for_my_scalar.pl
 flow/for_nested_guard.pl
+flow/for_no_my.pl
+flow/foreach_scalar.pl
 flow/if_defined_else.pl
 flow/if_not_defined.pl
 flow/if_not_ref_else.pl
@@ -74,6 +78,7 @@ flow/user_nonguard.pl
 flow/user_shift.pl
 flow/user_signature.pl
 flow/user_two_returns.pl
+flow/while_defined.pl
 literals/backtick.pl
 literals/fatcomma.pl
 literals/numbers.pl

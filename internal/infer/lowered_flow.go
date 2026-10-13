@@ -126,6 +126,109 @@ func (a *loweredAnalysis) elsif(n *lower.IfStmt) map[string]types.Type {
 	return joinTypes
 }
 
+// whileStmt is the legacy walkLoopStatement: the body runs with the guard
+// held. An `until` is a Negated while, so its body runs with the guard
+// failed. A modifier form, `do BLOCK while` included, is not narrowed: the
+// legacy path never saw it as a loop statement.
+func (a *loweredAnalysis) whileStmt(n *lower.WhileStmt) {
+	body, ok := n.Body.(*lower.Block)
+	if !ok || n.PostCond {
+		a.walkChildren(n)
+		return
+	}
+	for _, l := range n.Labels {
+		a.walk(l)
+	}
+	if n.Cond != nil {
+		a.walk(n.Cond)
+	}
+	a.blockWithGuard(body, flattenGuards(a.guard(n.Cond, true), n.Negated), nil)
+	if n.Continue != nil {
+		a.walk(n.Continue)
+	}
+}
+
+// foreachStmt is the legacy walkForStatement: the loop variable is a Scalar
+// defined in a scope of its own, and what the body wrote to it is written
+// back through the alias to what the loop iterates.
+//
+// `for my $i (LIST)` and `for $i (LIST)` define $i. `foreach ($n)` has no
+// loop variable: $n is the aliased slot, so $_ is defined instead and $n
+// keeps its outer binding. Any other shape -- `for (@a)` -- has no scalar
+// to scope, and is walked as it stands.
+func (a *loweredAnalysis) foreachStmt(n *lower.ForeachStmt) {
+	body, isBlock := n.Body.(*lower.Block)
+	loopVar := foreachVar(n.Var)
+	iter := n.List
+	if loopVar == nil {
+		if v, ok := n.List.(*lower.Var); ok && v.Sigil == "$" && n.Var == nil {
+			loopVar, iter = v, nil
+		}
+	} else if v, ok := n.List.(*lower.Var); ok && v.Sigil == "$" {
+		// The legacy path took the first scalar as the loop variable and
+		// skipped every later one, so `for my $i ($n)` iterated nothing
+		// and scoped $_ as `foreach ($n)` does.
+		iter = nil
+	}
+	if loopVar == nil || !isBlock {
+		a.walkChildren(n)
+		return
+	}
+
+	if iter != nil {
+		a.walk(iter)
+	}
+	name := loopVar.Sigil + loopVar.Name
+	a.st.EnterScope("for")
+	defer a.st.ExitScope()
+	if iter != nil {
+		a.st.Define(Symbol{Name: name, Type: types.Scalar, Kind: SymVariable})
+	} else {
+		a.st.Define(Symbol{Name: "$_", Type: types.Scalar, Kind: SymVariable})
+	}
+	a.annotations[loopVar.ID] = types.Scalar
+	for _, s := range body.Stmts {
+		a.walk(s)
+	}
+
+	written := types.Unknown
+	if final, ok := a.st.Lookup(name); ok && final.Type != types.Scalar {
+		written = final.Type
+	}
+	if underscore, ok := a.st.Lookup("$_"); ok && underscore.Type != types.Scalar {
+		written = types.Join(written, underscore.Type)
+	}
+	if written == types.Unknown {
+		return
+	}
+	// The legacy aliasWriteBack: `foreach ($n)` aliases the scalar itself,
+	// `for my $x (@a)` the aggregate's elements.
+	if iter == nil {
+		if sym, ok := a.st.Lookup(name); ok {
+			a.st.UpdateType(name, types.Join(sym.Type, written))
+		}
+		return
+	}
+	if v, ok := iter.(*lower.Var); ok && (v.Sigil == "@" || v.Sigil == "%") {
+		a.st.UpdateElemType(v.Sigil+v.Name, written)
+	}
+}
+
+// foreachVar is the scalar a foreach's Var slot names: `my $i` or `$i`.
+func foreachVar(n lower.Node) *lower.Var {
+	switch n := n.(type) {
+	case *lower.Var:
+		if n.Sigil == "$" {
+			return n
+		}
+	case *lower.Decl:
+		if vars := declaredVars(n); len(vars) == 1 && len(n.Vars) == 1 && vars[0].Sigil == "$" {
+			return vars[0]
+		}
+	}
+	return nil
+}
+
 // blockWithGuard is the legacy walkBlockWithGuard: the guarded variables
 // are shadowed, in one "guard" scope, by what the guards narrow them to,
 // and the block's statements are walked under it. When branchTypes is not

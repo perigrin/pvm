@@ -80,6 +80,12 @@ func (a *loweredAnalysis) walk(n lower.Node) types.Type {
 	case *lower.IfStmt:
 		a.ifStmt(n)
 		t = types.Unknown
+	case *lower.WhileStmt:
+		a.whileStmt(n)
+		t = types.Unknown
+	case *lower.ForeachStmt:
+		a.foreachStmt(n)
+		t = types.Unknown
 	default:
 		a.walkChildren(n)
 		t = types.Any
@@ -205,6 +211,15 @@ func collectLoweredDeclarations(f *lower.File, pos *lower.Positions) *SymbolTabl
 				if c == n.Body {
 					walkStmts(c)
 				} else {
+					walk(c)
+				}
+			}
+			return
+		case *lower.ForeachStmt:
+			// The loop variable is not declared here: pass 2 defines it
+			// in the loop's own scope, as the legacy path does.
+			for _, c := range lower.Children(n) {
+				if c != n.Var {
 					walk(c)
 				}
 			}
