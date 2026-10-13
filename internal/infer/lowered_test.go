@@ -243,3 +243,38 @@ func TestLoweredStrictSeesUnknownOperand(t *testing.T) {
 		t.Errorf("Strict reported %v, want one coercion mismatch", strict)
 	}
 }
+
+// An operator with an operand perl rejects is analysed without a panic, and
+// nothing is said about the Hole that stands for the operand, by default or
+// under Strict, while the operator is still typed from what is intact.
+func TestLoweredOperatorsOverBrokenInput(t *testing.T) {
+	for _, c := range []struct {
+		src  string
+		like lower.Node
+		want types.Type
+	}{
+		{`my $x = 1 +;`, &lower.Binary{}, types.Num | types.Inf},
+		{`my $s = "a" x;`, &lower.Repeat{}, types.Str},
+	} {
+		root := parse.Parse([]byte(c.src))
+		f := lower.Lower(root)
+		pos := lower.NewPositions(root, f)
+		if len(holes(f)) == 0 {
+			t.Fatalf("%q lowered with no Hole:\n%s", c.src, lower.Tree(f))
+		}
+		op := firstOfKind(f, c.like)
+		if op == nil {
+			t.Fatalf("%q: no %T in:\n%s", c.src, c.like, lower.Tree(f))
+		}
+
+		for _, opts := range []infer.Options{{}, {Strict: true}} {
+			ann, diags, _ := infer.AnalyzeLowered(f, pos, nil, opts)
+			for _, d := range diags {
+				t.Errorf("%q (Strict %v): diagnostic %q, want none", c.src, opts.Strict, d.Message)
+			}
+			if got := ann[op.Meta().ID]; got != c.want {
+				t.Errorf("%q (Strict %v): %T annotated %v, want %v", c.src, opts.Strict, c.like, got, c.want)
+			}
+		}
+	}
+}

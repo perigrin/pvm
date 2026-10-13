@@ -149,12 +149,10 @@ func operandShape(n lower.Node) string {
 
 // checkOperand is the legacy checkBinaryOperand: an operand whose type does
 // not satisfy what the operator expects is a coercion mismatch. A missing
-// operand and a Hole are not inspected.
+// operand is not checked, and a Hole is Any, which satisfies every
+// operator, Strict or not.
 func (a *loweredAnalysis) checkOperand(n lower.Node, expected types.Type, op, side string) {
 	if n == nil {
-		return
-	}
-	if _, ok := n.(*lower.Hole); ok {
 		return
 	}
 	severity, message, ok := operandMismatch(a.opts, a.typeOf(n), expected, op, side)
