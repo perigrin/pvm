@@ -120,10 +120,12 @@ func (a *loweredAnalysis) userCall(n *lower.Call) types.Type {
 
 // checkArg is the legacy argument check: an argument whose type does not
 // satisfy what the builtin's slot expects is a type mismatch. scalar's
-// argument is counted first, as builtinArgActual says.
+// argument is counted first, as builtinArgActual says. One that does not
+// satisfy the slot as it is may still as finite and numified judge it.
 func (a *loweredAnalysis) checkArg(name string, i int, arg lower.Node, expected types.Type) {
 	actual := builtinArgActual(name, a.typeOf(arg))
-	if a.opts.skipUnknownOperand(actual) || a.opts.satisfies(actual, expected) || a.opts.handleSatisfies(actual, expected) {
+	if a.opts.skipUnknownOperand(actual) || a.opts.satisfies(actual, expected) || a.opts.handleSatisfies(actual, expected) ||
+		a.opts.satisfies(numified(finite(actual), expected), expected) {
 		return
 	}
 	start, end, _ := a.pos.Span(arg.Meta().ID)

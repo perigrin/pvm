@@ -12,4 +12,5 @@ var (
 	SubParams                  = subParams
 	SubReturnExpr              = subReturnExpr
 	ArgVarName                 = argVarName
+	Finite                     = finite
 )
