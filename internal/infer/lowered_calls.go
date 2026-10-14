@@ -123,7 +123,7 @@ func (a *loweredAnalysis) userCall(n *lower.Call) types.Type {
 // argument is counted first, as builtinArgActual says.
 func (a *loweredAnalysis) checkArg(name string, i int, arg lower.Node, expected types.Type) {
 	actual := builtinArgActual(name, a.typeOf(arg))
-	if a.opts.skipUnknownOperand(actual) || a.opts.satisfies(actual, expected) {
+	if a.opts.skipUnknownOperand(actual) || a.opts.satisfies(actual, expected) || a.opts.handleSatisfies(actual, expected) {
 		return
 	}
 	start, end, _ := a.pos.Span(arg.Meta().ID)
@@ -135,6 +135,20 @@ func (a *loweredAnalysis) checkArg(name string, i int, arg lower.Node, expected 
 		Message:    typeMismatchMessage(name, i, expected, actual),
 		Suggestion: SuggestGuard(argVarName(arg), actual, expected),
 	})
+}
+
+// handleSatisfies reports whether actual may be the handle a filehandle
+// slot -- one whose expected type holds Glob -- takes. A handle is a Glob,
+// a GlobRef (`open my $fh` gives one), or an IO handle object such as an
+// IO::File, and a Scalar may hold either of the last two. perl 5.42 -w is
+// silent on a lexical handle and an IO::File in seek, read, stat and
+// close. A value that cannot be a handle, a HashRef or an Int, is not one.
+func (o Options) handleSatisfies(actual, expected types.Type) bool {
+	if expected&types.Glob == 0 {
+		return false
+	}
+	handle := expected | types.FileHandle | types.Object
+	return o.satisfies(actual, handle) || o.satisfies(actual, handle&types.Scalar)
 }
 
 // argVarName is the sigil and name of an argument that is a scalar, array
