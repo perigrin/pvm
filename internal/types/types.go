@@ -359,7 +359,11 @@ func typeSatisfies(actual, required Type, strict bool) bool {
 	//
 	// Polymorphic: actual is a general container that could hold any of its
 	// subtypes at runtime, so a required subtype might be what it holds.
-	if polymorphicMasks[actual] && IsSubtype(required, actual) {
+	// A required union with members outside actual, such as a filehandle
+	// slot's Glob and IO beside its Str, still takes it when some member is
+	// one actual may hold: perl 5.42 -w is silent on `chdir $dir` for
+	// `my $dir = shift // "."`.
+	if polymorphicMasks[actual] && required&actual != 0 {
 		return true
 	}
 
