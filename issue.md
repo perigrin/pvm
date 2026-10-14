@@ -1,12 +1,21 @@
 ---
 title: "`&name` is checked as the CORE builtin of that name"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m2-lower-the-tree
 blocks:
 - 01a0c115-a44b-7393-a828-ad29844b20b4
 created: 2026-10-14T17:00:46.150855484Z
-updated: 2026-10-14T17:00:46.150855484Z
+updated: 2026-10-14T17:13:38.763065734Z
+sessions:
+- start_sha: 36ecbc1380ea6afd9166cd772cff0dbe4ccf36de
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-14T17:13:38.763065734Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-14T17:13:38.763065734Z
 ---
 
 ## Context
