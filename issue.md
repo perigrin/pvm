@@ -1,6 +1,6 @@
 ---
 title: Move internal/infer's own tests onto the lowered path, and assert the precision floor there
-state: pending
+state: in-progress
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -8,7 +8,16 @@ blocked_by:
 blocks:
 - 01a0c115-a44b-7393-a828-ad29844b20b4
 created: 2026-10-11T10:32:15.127376918Z
-updated: 2026-10-11T15:18:29.630309848Z
+updated: 2026-10-14T02:46:41.07481046Z
+sessions:
+- start_sha: 26f0e9e5343e8d6b9487deedf0564dfef67acab5
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-14T02:46:41.07481046Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-14T02:46:41.07481046Z
 ---
 
 ## Context
