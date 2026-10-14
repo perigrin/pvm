@@ -36,7 +36,14 @@ type Symbol struct {
 	// does not evaluate indices: `my @m = (1, "s")` holds an Int and a Str,
 	// and a read is whichever the index picks. Zero means no element type is
 	// known, and a read then falls back to Scalar rather than guessing.
-	ElemType  types.Type
+	ElemType types.Type
+
+	// KeyTypes is, for a hash filled from key/value literals, the type of
+	// the value under each constant key: `{count => 1, values => [2]}`
+	// holds an Int under count. A read under one of these keys yields its
+	// type rather than ElemType, the join of every value. Nil when no
+	// literal filled the hash.
+	KeyTypes  map[string]types.Type
 	Kind      SymbolKind
 	StartByte uint32
 	EndByte   uint32
@@ -183,6 +190,28 @@ func (st *SymbolTable) UpdateElemType(name string, typ types.Type) bool {
 	for s := st.current; s != nil; s = s.parent {
 		if sym, ok := s.symbols[name]; ok {
 			sym.ElemType = types.Join(sym.ElemType, typ)
+			s.symbols[name] = sym
+			return true
+		}
+	}
+	return false
+}
+
+// UpdateKeyTypes joins keys, a key/value literal's value type under each
+// constant key, into the KeyTypes of the first scope's name, as
+// UpdateElemType joins an element type. A key only one literal gave keeps
+// that literal's type.
+func (st *SymbolTable) UpdateKeyTypes(name string, keys map[string]types.Type) bool {
+	for s := st.current; s != nil; s = s.parent {
+		if sym, ok := s.symbols[name]; ok {
+			joined := make(map[string]types.Type, len(sym.KeyTypes)+len(keys))
+			for k, t := range sym.KeyTypes {
+				joined[k] = t
+			}
+			for k, t := range keys {
+				joined[k] = types.Join(joined[k], t)
+			}
+			sym.KeyTypes = joined
 			s.symbols[name] = sym
 			return true
 		}

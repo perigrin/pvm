@@ -67,6 +67,11 @@ func (a *loweredAnalysis) args(args []lower.Node, sigs []types.Signature) {
 	for i, arg := range args {
 		if ctx := slotContext(sigs, i); ctx != types.UnknownCtx {
 			a.evalCtx[arg.Meta().ID] = ctx
+		} else if _, ok := arg.(*lower.Match); ok && sigs != nil {
+			// A `$` slot takes a match in scalar context, where it is a
+			// Boolean: perl 5.42 -w is silent on `chr $u =~ /re/`, which
+			// is chr($u =~ /re/).
+			a.evalCtx[arg.Meta().ID] = types.ScalarCtx
 		}
 		a.walk(arg)
 	}
