@@ -237,11 +237,19 @@ func (a *loweredAnalysis) argSatisfies(actual, expected types.Type) bool {
 // result. It is a second chance, never a rewrite: a Scalar or a Hole's
 // Any satisfies a slot as it is.
 //
+// A call to a sub of this file whose every returned value is a builtin's
+// result is judged so too: perl 5.42 -w is silent on `sub xfileno {
+// return fileno $_[0] } xfileno(\*STDOUT) == 1`.
+//
 // Only a call's own result is judged so; a variable that holds one,
 // `my $fd = fileno(STDOUT); $fd . ">"`, is still judged with its Undef.
 func (a *loweredAnalysis) succeeded(n lower.Node, actual types.Type) types.Type {
 	c, ok := n.(*lower.Call)
-	if !ok || c.Fn != nil || c.Ampersand || len(parse.CoreBuiltin(c.Name)) == 0 {
+	if !ok || c.Fn != nil {
+		return actual
+	}
+	user := c.Ampersand || len(parse.CoreBuiltin(c.Name)) == 0
+	if user && !returnsBuiltinResult(a.subs[c.Name]) {
 		return actual
 	}
 	if c.Name == "scalar" && len(c.Args) == 1 {
@@ -251,6 +259,51 @@ func (a *loweredAnalysis) succeeded(n lower.Node, actual types.Type) types.Type 
 		return actual
 	}
 	return actual &^ types.Undef
+}
+
+// returnsBuiltinResult reports whether every value sub returns, by an
+// explicit return or as its body's last statement, is a call to a
+// builtin. A bare return gives the sub's own Undef, and so does a body
+// whose last statement is not such a call, so neither is one. A sub
+// nested in sub returns from itself, not from sub.
+func returnsBuiltinResult(sub *lower.AnonSub) bool {
+	if sub == nil {
+		return false
+	}
+	body, ok := sub.Body.(*lower.Block)
+	if !ok || len(body.Stmts) == 0 {
+		return false
+	}
+	builtin := func(n lower.Node) bool {
+		if l, ok := n.(*lower.List); ok && len(l.Elems) > 0 {
+			n = l.Elems[len(l.Elems)-1]
+		}
+		c, ok := n.(*lower.Call)
+		return ok && c.Fn == nil && !c.Ampersand && len(parse.CoreBuiltin(c.Name)) > 0
+	}
+	all := true
+	var returns func(n lower.Node)
+	returns = func(n lower.Node) {
+		if _, ok := n.(*lower.AnonSub); ok {
+			return
+		}
+		if r, ok := n.(*lower.LoopEx); ok && r.Op == "return" {
+			all = all && r.Label != nil && builtin(r.Label)
+			return
+		}
+		for _, c := range lower.Children(n) {
+			returns(c)
+		}
+	}
+	returns(body)
+	last, ok := body.Stmts[len(body.Stmts)-1].(*lower.ExprStmt)
+	if !ok || last.X == nil {
+		return false
+	}
+	if r, ok := last.X.(*lower.LoopEx); ok && r.Op == "return" {
+		return all
+	}
+	return all && builtin(last.X)
 }
 
 // scalarValue is actual, the type of arg, as a `$` slot judges it when arg

@@ -32,3 +32,28 @@ func TestMaybeInfInIntSlotIsSilent(t *testing.T) {
 	wantReported(t, "my $x = 1 << undef;\n", infer.CodeCoercionMismatch)
 	wantReported(t, "my $x = 1 << \"abc\";\n", infer.CodeCoercionMismatch)
 }
+
+// A user sub whose every returned value is a builtin's result hands its
+// caller that result, and a slot judges it as it judges the builtin's own:
+// without the Undef the builtin gives only when it fails. perl 5.42 -w is
+// silent on each case below, explicit return or implicit, and on a broad
+// Scalar or a Hole's Any returned the same way.
+func TestUserSubReturningBuiltinResult(t *testing.T) {
+	for _, src := range []string{
+		"sub xfileno { return fileno $_[0] }\nprint \"same\\n\" if xfileno(\\*STDOUT) == fileno \\*STDOUT;\n",
+		"sub xfileno { fileno $_[0] }\nprint \"same\\n\" if xfileno(\\*STDOUT) == 1;\n",
+		"sub xs { my $v = shift; return $v }\nprint \"x\\n\" if xs(1) == 1;\n",
+		"sub xa { return eval '1' }\nprint \"x\\n\" if xa() == 1;\n",
+	} {
+		wantSilent(t, src)
+	}
+
+	// perl 5.42 -w warns "Use of uninitialized value in numeric eq (==)"
+	// on each: the sub's Undef is its own, not a failing builtin's.
+	for _, src := range []string{
+		"sub xf { return undef }\nprint \"x\\n\" if xf() == 1;\n",
+		"sub xf { return fileno($_[0]) if @_; return }\nprint \"x\\n\" if xf() == 1;\n",
+	} {
+		wantReported(t, src, infer.CodeCoercionMismatch)
+	}
+}
