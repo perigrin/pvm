@@ -161,6 +161,7 @@ ops/xor.pl
 special/do_block.pl
 special/do_file.pl
 special/eval_block.pl
+special/eval_string.pl
 special/filetest.pl
 special/glob_angle.pl
 special/grep_block.pl
