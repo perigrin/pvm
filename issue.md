@@ -1,12 +1,21 @@
 ---
 title: "my ($x) followed by a comma swallows the list: read $fh, my ($buf), 3 loses its count"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m2-lower-the-tree
 blocks:
 - 01a0c115-a44b-7393-a828-ad29844b20b4
 created: 2026-10-14T13:01:23.329883557Z
-updated: 2026-10-14T13:01:23.329883557Z
+updated: 2026-10-14T13:01:37.809308499Z
+sessions:
+- start_sha: 1feeef97410aa0897fde9a5c646b36484162cc2b
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-14T13:01:37.809308499Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-14T13:01:37.809308499Z
 ---
 
 ## Context
