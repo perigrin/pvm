@@ -95,6 +95,18 @@ sub none { }
 	}
 }
 
+// A file with nothing to report gets an empty diagnostics slice, not nil, as
+// the legacy Analyze returns: a caller that serialises it writes [], not null.
+func TestLoweredDiagnosticsAreNeverNil(t *testing.T) {
+	src := []byte("42;")
+	root := parse.Parse(src)
+	f := lower.Lower(root)
+	_, diags, _ := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
+	if diags == nil {
+		t.Error("diagnostics are nil, want an empty slice")
+	}
+}
+
 // A sub that returns a list leaves its last element in scalar context: the
 // comma operator. A sub's return type is its scalar-context value, so a
 // returned List gives its last element's type, whichever of the three forms
