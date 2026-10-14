@@ -42,3 +42,25 @@ func TestUntypedScalarSatisfiesUnionParameter(t *testing.T) {
 		t.Errorf("%q: diagnostics %v, want one", src, diags)
 	}
 }
+
+// perl compiles a string on the right of `=~` or `!~` as a pattern: perl
+// 5.42 -w is silent on `$a[0] =~ PKG_PATTERN` for a constant sub returning
+// q#\A[a-zA-Z_]\w*\z#, and on `$x !~ $p` for a Str $p. An undef there is
+// still reported: perl warns "Use of uninitialized value in regexp
+// compilation" on `$x =~ undef`.
+func TestStringPatternRightOfBindIsSilent(t *testing.T) {
+	for _, src := range []string{
+		"sub PKG_PATTERN () { q#\\A[a-zA-Z_]\\w*\\z# }\nmy @a = (\"Foo\");\nprint \"m\\n\" if defined $a[0] and $a[0] =~ PKG_PATTERN;\n",
+		"my $x = \"a\";\nmy $p = \"a\";\nprint \"m\\n\" if $x !~ $p;\n",
+		"my $x = \"a\";\nmy $p = \"a\";\nmy $m = $x =~ $p;\n",
+	} {
+		for _, d := range loweredDiags(src) {
+			t.Errorf("%q: diagnostic %q, want none", src, d.Message)
+		}
+	}
+
+	src := "my $x = \"a\";\nmy $m = $x =~ undef;\n"
+	if diags := loweredDiags(src); len(diags) != 1 {
+		t.Errorf("%q: diagnostics %v, want one", src, diags)
+	}
+}

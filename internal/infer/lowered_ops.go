@@ -45,7 +45,7 @@ func (a *loweredAnalysis) infix(n lower.Node, op, shapes string, l, r lower.Node
 		return types.Unknown
 	}
 	a.checkOperand(l, builtinArgType(sigs, 0), op, "left")
-	a.checkOperand(r, countType(op, builtinArgType(sigs, 1)), op, "right")
+	a.checkOperand(r, patternType(op, countType(op, builtinArgType(sigs, 1))), op, "right")
 	result := builtinReturns(sigs, types.UnknownCtx)
 	if result == types.Any && logicalOps[op] {
 		return types.Join(a.valueOf(l), a.valueOf(r))
@@ -73,6 +73,18 @@ func (a *loweredAnalysis) repeat(n *lower.Repeat) types.Type {
 func countType(op string, expected types.Type) types.Type {
 	if op == "x" && expected == types.Int {
 		return types.Num
+	}
+	return expected
+}
+
+// patternType is what the right of a bind takes. CORE.pmt declares it
+// Regex, and perl compiles a string there as a pattern: perl 5.42 -w,
+// `"Foo" =~ q#\A\w+\z#` matches silently. So it takes a Str too, while an
+// undef is still reported, as perl warns "Use of uninitialized value in
+// regexp compilation". Elsewhere expected is returned as it is.
+func patternType(op string, expected types.Type) types.Type {
+	if (op == "=~" || op == "!~") && expected == types.Regex {
+		return types.Regex | types.Str
 	}
 	return expected
 }
