@@ -493,9 +493,10 @@ sub log (Num $number = $_) Num;
 # (measured: `stat` and `stat STDIN` each give 13 fields). In list context
 # the 13 fields, or none when the file is missing; in scalar context
 # whether it succeeded, a boolean -- not one of the fields, so two
-# candidates.
-multi sub lstat (Glob *file = $_) List;
-multi sub lstat (Glob *file = $_) Boolean;
+# candidates. The file name is a Str (measured: stat("f.txt") gives its
+# 13 fields, -w silent).
+multi sub lstat (Str|Glob *file = $_) List;
+multi sub lstat (Str|Glob *file = $_) Boolean;
 # method is a keyword, like sub, not a builtin to type (perigrin,
 # 2026-10-07): `CORE::method()` is "Cannot 'method' outside of a 'class'"
 # (measured on 5.42). The line holds CORE.pmt to prototype("CORE::method").
@@ -757,8 +758,8 @@ sub sqrt (Num $number = $_) Num;
 # case, while srand(@e) is srand(0), an empty array one scalar under `;$`.
 sub srand (Optional[Int] $seed) Str;
 # Measured as lstat, above.
-multi sub stat (Glob *file = $_) List;
-multi sub stat (Glob *file = $_) Boolean;
+multi sub stat (Str|Glob *file = $_) List;
+multi sub stat (Str|Glob *file = $_) Boolean;
 # study is a no-op since 5.16 that still answers: true for a defined
 # string, `$_` with none, and false for undef (measured: study("x") is 1,
 # study(undef) "").

@@ -583,3 +583,46 @@ func TestLoweredCaptureReadsEveryQuoteForm(t *testing.T) {
 		}
 	}
 }
+
+// loweredDiags analyses src on the lowered path and returns its diagnostics.
+func loweredDiags(src string) []infer.Diagnostic {
+	root := parse.Parse([]byte(src))
+	f := lower.Lower(root)
+	_, diags, _ := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
+	return diags
+}
+
+// A filehandle slot takes a Glob, a GlobRef, an IO handle object, or a
+// Scalar that may hold one. perl 5.42 -w is silent on each: a lexical
+// handle from open, and an IO::File, in seek, read, stat, -s and close; a
+// GlobRef; and stat and -e given a filename.
+func TestLexicalFilehandleSatisfiesHandleSlot(t *testing.T) {
+	for _, src := range []string{
+		"open(my $fh, '<', 'f.txt') or die;\nseek($fh, 0, 0);\nread($fh, my $b, 3);\nmy @s = stat($fh);\nmy $n = -s $fh;\nclose($fh);\n",
+		"use IO::File;\nmy $fh = IO::File->new('f.txt', '<');\nseek($fh, 0, 0);\nread($fh, my $b, 3);\nmy @s = stat($fh);\nclose($fh);\n",
+		"my $g = \\*STDOUT;\nmy $t = tell($g);\n",
+		"my $f = 'f.txt';\nmy @s = stat($f);\nmy @t = stat('f.txt');\nmy $e = -e $f;\n",
+	} {
+		for _, d := range loweredDiags(src) {
+			t.Errorf("%q: diagnostic %q, want none", src, d.Message)
+		}
+	}
+}
+
+// A value that cannot be a handle is still reported in a filehandle slot:
+// perl 5.42 dies "Not a GLOB reference" on close({}) and seek([], 0, 0),
+// and -w warns "on unopened filehandle" for close(42) and seek("FH", 0, 0).
+// A HashRef is not a filename either.
+func TestNonHandleIsReportedInHandleSlot(t *testing.T) {
+	for _, src := range []string{
+		"close({});\n",
+		"seek([], 0, 0);\n",
+		"close(42);\n",
+		"seek(\"FH\", 0, 0);\n",
+		"my @s = stat({});\n",
+	} {
+		if diags := loweredDiags(src); len(diags) != 1 || diags[0].Code != infer.CodeTypeMismatch {
+			t.Errorf("%q: diagnostics %v, want one type mismatch", src, diags)
+		}
+	}
+}

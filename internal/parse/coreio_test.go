@@ -80,19 +80,20 @@ func slotFaults(src []byte, names []string, perl map[string]string, fault func(s
 	return bad
 }
 
-// starFault reports a `*` slot's parameter that is not `Glob *`: RFC 0001's
-// table gives that slot, a bareword handle or any scalar (measured on 5.42,
-// `binmode STDOUT` and `binmode $fh` both compile), and it derives `*`,
-// never `\*` or `$`.
+// starFault reports a `*` slot's parameter that is not a `*` taking a Glob:
+// RFC 0001's table gives that slot, a bareword handle or any scalar
+// (measured on 5.42, `binmode STDOUT` and `binmode $fh` both compile), and
+// it derives `*`, never `\*` or `$`. A slot may take more than the Glob,
+// as stat's `Str|Glob *file` takes a file name too.
 func starFault(slot string, _ bool, p types.Param) string {
-	if slot == "*" && (p.Sigil != '*' || p.Alias || p.Type != types.Glob) {
+	if slot == "*" && (p.Sigil != '*' || p.Alias || p.Type&types.Glob == 0) {
 		return fmt.Sprintf("is %v %c%s", p.Type, p.Sigil, p.Name)
 	}
 	return ""
 }
 
-// TestCoreStarSlotDerivesStar: every `*` slot of the batch is typed
-// `Glob *`, so its derived prototype keeps the `*`.
+// TestCoreStarSlotDerivesStar: every `*` slot of the batch is a `*` taking
+// a Glob, so its derived prototype keeps the `*`.
 func TestCoreStarSlotDerivesStar(t *testing.T) {
 	src, err := os.ReadFile("declarations/CORE.pmt")
 	if err != nil {
