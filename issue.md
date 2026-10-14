@@ -1,12 +1,21 @@
 ---
 title: "Filehandle builtins reject a lexical filehandle: expects Glob, got Scalar"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m2-lower-the-tree
 blocks:
 - 01a0c115-a44b-7393-a828-ad29844b20b4
 created: 2026-10-14T05:30:01.903192468Z
-updated: 2026-10-14T13:01:03.553414193Z
+updated: 2026-10-14T13:04:19.269187106Z
+sessions:
+- start_sha: 1feeef97410aa0897fde9a5c646b36484162cc2b
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-14T13:04:19.269187106Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-14T13:04:19.269187106Z
 ---
 
 ## Context
