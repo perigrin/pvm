@@ -237,12 +237,21 @@ func (a *loweredAnalysis) checkOperand(n lower.Node, expected types.Type, op, si
 // numified is actual as a slot expecting expected judges it. perl numifies
 // a Boolean to 1 or 0 without a warning: perl 5.42 -w, `"-" x (3 > 2)` is
 // "-" and `(3 > 2) / 1` is 1. So where an Int or a Num is expected, a
-// Boolean is the Int it becomes. Elsewhere actual is returned as it is.
+// Boolean is the Int it becomes. It stringifies to "1" or "" as silently:
+// `"" . (1 == 2)` is "", so where a Str is expected it is a Str. A type
+// that satisfies expected as it is, such as Scalar or Any, is kept whole.
+// Elsewhere actual is returned as it is.
 func numified(actual, expected types.Type) types.Type {
-	if actual&types.Boolean == 0 || expected == types.Unknown || !types.IsSubtype(expected, types.Num) {
+	if actual&types.Boolean == 0 || expected == types.Unknown || types.TypeSatisfies(actual, expected) {
 		return actual
 	}
-	return actual&^types.Boolean | types.Int
+	switch {
+	case types.IsSubtype(expected, types.Num):
+		return actual&^types.Boolean | types.Int
+	case types.IsSubtype(expected, types.Str):
+		return actual&^types.Boolean | types.Str
+	}
+	return actual
 }
 
 // finite is actual checked as a finite value. Arithmetic is typed Num|Inf,

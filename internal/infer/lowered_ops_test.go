@@ -123,3 +123,35 @@ func TestSpaceshipInArithmeticIsSilent(t *testing.T) {
 		}
 	}
 }
+
+// A Boolean in a Str slot stringifies to "1" or "" and perl 5.42 -w says
+// nothing: `"" . $s =~ /^threads=/` is "1", `"[" . (1 == 2) . "]"` is
+// "[]", and `length(1 == 1)` is 1. An undef there is still reported, as
+// perl warns "Use of uninitialized value in concatenation (.) or string"
+// on `"" . undef`, and so is a Boolean that may be undef.
+func TestBooleanInStrSlotIsSilent(t *testing.T) {
+	for _, src := range []string{
+		"my $s = \"threads=1\";\nprint \"\" . $s =~ /^threads=/, \"\\n\";\n",
+		"my $b = \"[\" . (1 == 2) . \"]\";\n",
+		"my $n = length(1 == 1);\n",
+	} {
+		for _, d := range loweredDiags(src) {
+			t.Errorf("%q: diagnostic %q, want none", src, d.Message)
+		}
+	}
+
+	src := "my $s = \"\" . undef;\n"
+	if diags := loweredDiags(src); len(diags) != 1 {
+		t.Errorf("%q: diagnostics %v, want one", src, diags)
+	}
+	for _, c := range []struct{ actual, want types.Type }{
+		{types.Boolean, types.Str},
+		{types.Boolean | types.Undef, types.Str | types.Undef},
+		{types.Scalar, types.Scalar},
+		{types.Any, types.Any},
+	} {
+		if got := infer.Numified(c.actual, types.Str); got != c.want {
+			t.Errorf("Numified(%v, Str) = %v, want %v", c.actual, got, c.want)
+		}
+	}
+}
