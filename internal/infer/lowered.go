@@ -29,6 +29,7 @@ func AnalyzeLowered(f *lower.File, pos *lower.Positions, idx *ProjectIndex, opts
 		opts:        opts,
 		st:          collectLoweredDeclarations(f, pos),
 		annotations: map[lower.ID]types.Type{},
+		diags:       []Diagnostic{},
 		subs:        fileSubs(f),
 		evalCtx:     map[lower.ID]types.Context{},
 		classTypes:  map[lower.ID]string{},
