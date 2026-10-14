@@ -2,9 +2,11 @@
 title: "A reference in a Str slot is a valid coercion: drop the warning, add an opt-in lossy-coercion warning"
 state: pending
 urgency: normal
-milestone: v0.1
+milestone: m2-lower-the-tree
+blocks:
+- 01a0c115-a44b-7393-a828-ad29844b20b4
 created: 2026-10-13T23:22:39.523151838Z
-updated: 2026-10-13T23:22:39.523151838Z
+updated: 2026-10-14T17:01:53.697143031Z
 ---
 
 ## Context
@@ -18,6 +20,9 @@ Related: `$h + 1` (golden `ops/paren_operand`) reports `left operand of "+": exp
 
 Do after the cutover (01a0c115-df67), on the one remaining path.
 
+
+**Widened and rescheduled 2026-10-14.** perigrin ruled the Str-to-Num coercion warning (`$1 + 0`, `"$]" < 5.016`, `substr($s,0,1) % 2`; golden `ops/str_arith`; bucket STRNUM-FP in `scratchpad/cmp-a44b/buckets.md`) "the same lossy coercion warning": a Str in a numeric slot whose content is not known is silent by default and reported under the opt-in. A Str KNOWN to be non-numeric (a non-numeric literal) stays reported by default, because perl 5.42 -w warns there too: `"abc" + 1` gives "Argument \"abc\" isn't numeric". He also ruled every false positive cutover 1 adds is fixed BEFORE cutover 1 (01a0c115-a44b) merges, so this issue now lands on the lowered path before the cutover, not after it.
+
 ## Steps
 
 - [ ] Failing tests first: a ref in a Str slot is no diagnostic by default; under the new option it is a `lossy-coercion` warning naming the ref type
@@ -28,3 +33,4 @@ Do after the cutover (01a0c115-df67), on the one remaining path.
 
 - [ ] a ref in a Str slot is silent by default (`go test ./internal/infer/ -run '^TestRefInStrSlotIsSilent$' -count=1 -v | grep -q '^--- PASS: TestRefInStrSlotIsSilent'`)
 - [ ] the opt-in warns on a lossy ref-to-string coercion (`go test ./internal/infer/ -run '^TestLossyCoercionWarningIsOptIn$' -count=1 -v | grep -q '^--- PASS: TestLossyCoercionWarningIsOptIn'`)
+- [ ] a Str of unknown content in a numeric slot is silent by default, and a known non-numeric literal is still reported (`go test ./internal/infer/ -run '^TestStrInNumericSlotIsOptIn$' -count=1 -v | grep -q '^--- PASS: TestStrInNumericSlotIsOptIn'`)
