@@ -1,21 +1,35 @@
 ---
 title: A Boolean in a numeric slot draws a coercion warning, though perl numifies it silently
-state: in-progress
+state: done
 urgency: normal
 milestone: m2-lower-the-tree
 blocks:
 - 01a0c115-a44b-7393-a828-ad29844b20b4
 created: 2026-10-14T05:30:01.696995046Z
-updated: 2026-10-14T13:04:19.104499635Z
+updated: 2026-10-14T17:12:58.9967594Z
 sessions:
 - start_sha: 1feeef97410aa0897fde9a5c646b36484162cc2b
-  end_sha: ""
-  commits: 0
+  end_sha: 36ecbc1380ea6afd9166cd772cff0dbe4ccf36de
+  commits: 3
   started_at: 2026-10-14T13:04:19.104499635Z
+  ended_at: 2026-10-14T17:12:58.9967594Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-14T13:04:19.104499635Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-14T17:12:58.9967594Z
+observed_paths:
+- internal/infer/export_test.go
+- internal/infer/lowered_calls.go
+- internal/infer/lowered_ops.go
+- internal/infer/lowered_test.go
+- internal/infer/testdata/lowered/ops/repeat_div.golden
+- internal/parse/coreio_test.go
+- internal/parse/decl.go
+- internal/parse/declarations/CORE.pmt
+- internal/parse/parendeclcomma_test.go
 ---
 
 ## Context
