@@ -284,9 +284,12 @@ func (a *loweredAnalysis) recordElemType(v *lower.Var, init lower.Node) {
 		}
 	}
 	if elems, ok := hashFill(v, init); ok {
-		if _, keys := a.pairs(elems); keys != nil {
+		values, keys := a.pairs(elems)
+		if values != types.Unknown {
+			a.st.UpdateElemType(v.Sigil+v.Name, values)
 			a.st.UpdateKeyTypes(v.Sigil+v.Name, keys)
 		}
+		return
 	}
 	if elem := a.elemType(init); elem != types.Unknown {
 		a.st.UpdateElemType(v.Sigil+v.Name, elem)
@@ -309,7 +312,9 @@ func hashFill(v *lower.Var, init lower.Node) ([]lower.Node, bool) {
 
 // pairs reads a key/value list two at a time: the join of its values, and
 // the value type under each constant key, the last one given winning as in
-// perl. When an element may flatten to other than one value, as `%a` in
+// perl. A hash element is a value, never a key: perl 5.42 -w is silent on
+// `$h{$k} == $h{$l}` over `%h = ('multiply' => 19, 'i_multiply' => 19)`.
+// When an element may flatten to other than one value, as `%a` in
 // `(%a, b => 1)` does, which element is a key is not known, and nothing is.
 func (a *loweredAnalysis) pairs(elems []lower.Node) (types.Type, map[string]types.Type) {
 	values, keys := types.Unknown, map[string]types.Type{}

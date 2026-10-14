@@ -80,3 +80,32 @@ func TestHashElementTypeIsPerKey(t *testing.T) {
 		}
 	}
 }
+
+// A hash filled from a key/value list holds its values as elements, not
+// its keys: perl 5.42 -w says nothing of the numbers on
+// `$left{$op} == $left{$l}` over `%left = ('multiply' => 19, 'i_multiply'
+// => 19)`, warning only that $op is undefined. When an element of the list
+// may flatten, which are keys is not known, and no element type is guessed.
+// A string value is still reported where perl warns: `$h{$k} + 1` over
+// `%h = ("a" => "abc")` draws "Argument "abc" isn't numeric".
+func TestKeyValueHashElementsKeepValueTypes(t *testing.T) {
+	for _, src := range []string{
+		"my (%left, $op, $l) = ((), \"multiply\", \"multiply\");\n%left = ('multiply' => 19, 'i_multiply' => 19);\nprint \"same\\n\" if $left{$op} && $left{$l} and $left{$op} == $left{$l};\n",
+		"my %left = ('multiply' => 19, 'i_multiply' => 19);\nmy $k = 'multiply';\nmy $y = $left{$k} + 1;\n",
+		"my %a = ('x' => 'y');\nmy %h = (%a, 'b' => 1);\nmy $k = 'b';\nmy $y = $h{$k} + 1;\n",
+		"my %h = ('a' => (;",
+	} {
+		_, diags := analyzeSource(t, []byte(src))
+		for _, d := range diags {
+			t.Errorf("%q: diagnostic %q, want none", src, d.Message)
+		}
+	}
+
+	for _, src := range []string{
+		"my %h;\n%h = (\"a\" => \"abc\", \"b\" => \"x\");\nmy $k = \"a\";\nmy $x = $h{$k} + 1;\n",
+	} {
+		if _, diags := analyzeSource(t, []byte(src)); len(diags) != 1 || diags[0].Code != infer.CodeCoercionMismatch {
+			t.Errorf("%q: diagnostics %v, want one coercion mismatch", src, diags)
+		}
+	}
+}
