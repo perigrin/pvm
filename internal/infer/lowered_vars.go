@@ -63,7 +63,27 @@ func (a *loweredAnalysis) key(n *lower.Key) types.Type {
 	if n.Key != nil {
 		a.walk(n.Key)
 	}
-	return a.element(containerName(n.Base, n.Arrow, "%"))
+	name := containerName(n.Base, n.Arrow, "%")
+	if k, ok := constKey(n.Key); ok && name != "" {
+		if sym, ok := a.st.Lookup(name); ok {
+			if t, ok := sym.KeyTypes[k]; ok {
+				return oneElement(t)
+			}
+		}
+	}
+	return a.element(name)
+}
+
+// constKey is the string a constant hash key spells: count for `{count}`,
+// `count =>` and `{"count"}`. ok is false for a key computed at run time.
+func constKey(n lower.Node) (string, bool) {
+	switch n := n.(type) {
+	case *lower.Bareword:
+		return n.Name, true
+	case *lower.StrLit:
+		return n.Value, !n.Backtick
+	}
+	return "", false
 }
 
 // slice walks a slice. The slice itself is not typed, as on the legacy
@@ -129,7 +149,11 @@ func containerName(base lower.Node, arrow bool, aggSigil string) string {
 // name, which is its recorded element type in scalar context. An element of
 // a container nothing was recorded for is a Scalar, not a guess.
 func (a *loweredAnalysis) element(name string) types.Type {
-	elem := a.elemOf(name)
+	return oneElement(a.elemOf(name))
+}
+
+// oneElement is one element of a container whose elements are elem.
+func oneElement(elem types.Type) types.Type {
 	if elem == types.Unknown {
 		return types.Scalar
 	}
@@ -259,7 +283,68 @@ func (a *loweredAnalysis) recordElemType(v *lower.Var, init lower.Node) {
 			return
 		}
 	}
+	if elems, ok := hashFill(v, init); ok {
+		if _, keys := a.pairs(elems); keys != nil {
+			a.st.UpdateKeyTypes(v.Sigil+v.Name, keys)
+		}
+	}
 	if elem := a.elemType(init); elem != types.Unknown {
 		a.st.UpdateElemType(v.Sigil+v.Name, elem)
 	}
+}
+
+// hashFill is the key/value list init fills a hash with: a hash literal's,
+// or the list a %hash is assigned.
+func hashFill(v *lower.Var, init lower.Node) ([]lower.Node, bool) {
+	switch n := init.(type) {
+	case *lower.HashLiteral:
+		return n.Elems, true
+	case *lower.List:
+		if v.Sigil == "%" {
+			return n.Elems, true
+		}
+	}
+	return nil, false
+}
+
+// pairs reads a key/value list two at a time: the join of its values, and
+// the value type under each constant key, the last one given winning as in
+// perl. When an element may flatten to other than one value, as `%a` in
+// `(%a, b => 1)` does, which element is a key is not known, and nothing is.
+func (a *loweredAnalysis) pairs(elems []lower.Node) (types.Type, map[string]types.Type) {
+	values, keys := types.Unknown, map[string]types.Type{}
+	for i, e := range elems {
+		if !isOneValue(e) {
+			return types.Unknown, nil
+		}
+		if i%2 == 0 {
+			continue
+		}
+		t := a.annotations[e.Meta().ID]
+		values = types.Join(values, t)
+		if k, ok := constKey(elems[i-1]); ok {
+			keys[k] = t
+		}
+	}
+	return values, keys
+}
+
+// isOneValue reports whether n is sure to be one value in list context: a
+// literal, a scalar, an element, a constructor, a reference to a variable,
+// or an operator that yields a value of its own.
+func isOneValue(n lower.Node) bool {
+	switch n := n.(type) {
+	case *lower.NumLit, *lower.StrLit, *lower.Interp, *lower.Bareword,
+		*lower.Index, *lower.Key, *lower.ArrayLiteral, *lower.HashLiteral,
+		*lower.AnonSub, *lower.Unary:
+		return true
+	case *lower.Var:
+		return n.Sigil == "$" || n.Sigil == "$#"
+	case *lower.Ref:
+		// `\(@a)` is a reference to each element.
+		return n.Operand != nil && !n.Operand.Meta().Paren
+	case *lower.Binary:
+		return !logicalOps[n.Op]
+	}
+	return false
 }

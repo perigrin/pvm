@@ -6,6 +6,7 @@ package infer_test
 import (
 	"testing"
 
+	"tamarou.com/pvm/internal/infer"
 	"tamarou.com/pvm/internal/types"
 )
 
@@ -40,6 +41,42 @@ func TestChrOfBoundMatchIsScalar(t *testing.T) {
 	} {
 		if _, diags := analyzeSource(t, []byte(src)); len(diags) == 0 {
 			t.Errorf("%q: no diagnostic, want the argument reported", src)
+		}
+	}
+}
+
+// A hash literal's element under a constant key is the value given that
+// key, not the union of every value: perl 5.42 -w is silent on
+// `{count => 1, values => [2]}->{count} == 1`, and on `$h{count} + 1` and
+// `$h{"count"} + 1` over `%h = (count => 1, values => [2])`. A key holding a
+// broad value, a Scalar, is checked as that. A string value under its own
+// key is still reported where perl warns: `{name => "abc"}->{name} + 1`
+// draws "Argument "abc" isn't numeric".
+func TestHashElementTypeIsPerKey(t *testing.T) {
+	for _, src := range []string{
+		"my $source = { count => 1, values => [2] };\nprint \"ok\\n\" if $source->{count} == 1;\n",
+		"my %h = (count => 1, values => [2]);\nmy $y = $h{count} + 1;\nmy $z = $h{\"count\"} + 1;\n",
+		"my $m;\nmy $h = { a => $m, b => [1] };\nmy $y = $h->{a} + 1;\n",
+		"my $h = { a => (;",
+	} {
+		_, diags := analyzeSource(t, []byte(src))
+		for _, d := range diags {
+			t.Errorf("%q: diagnostic %q, want none", src, d.Message)
+		}
+	}
+
+	src := []byte("my $source = { count => 1, values => [2] };\nmy $c = $source->{count};\n")
+	ty, _ := analyzeSource(t, src)
+	if got, ok := findNodeType(ty, src, `$source->{count}`); !ok || got != types.Int {
+		t.Errorf("%q: $source->{count} is %v (found %v), want Int", src, got, ok)
+	}
+
+	for _, src := range []string{
+		"my $h = { name => \"abc\", n => [1] };\nmy $x = $h->{name} + 1;\n",
+		"my %h = (name => \"abc\", n => [1]);\nmy $x = $h{name} + 1;\n",
+	} {
+		if _, diags := analyzeSource(t, []byte(src)); len(diags) != 1 || diags[0].Code != infer.CodeCoercionMismatch {
+			t.Errorf("%q: diagnostics %v, want one coercion mismatch", src, diags)
 		}
 	}
 }
