@@ -40,7 +40,7 @@ func (a *loweredAnalysis) infix(n lower.Node, op, shapes string, l, r lower.Node
 		}
 	}
 	a.operand(l)
-	a.operand(r)
+	a.logicalRight(op, l, r)
 	if len(sigs) == 0 {
 		return types.Unknown
 	}
@@ -105,8 +105,14 @@ func (a *loweredAnalysis) assign(n *lower.Assign) types.Type {
 	if !ok || n.R == nil {
 		return t
 	}
-	if _, named := sigilTypes[v.Sigil]; !named {
+	sigilType, named := sigilTypes[v.Sigil]
+	if !named {
 		return t
+	}
+	// An untyped value still replaces what the variable held: perl 5.42
+	// -w is silent on `my $v = undef; $v = <STDIN>; $v =~ /x/`.
+	if t == types.Unknown && n.Op == "=" {
+		a.st.UpdateType(v.Sigil+v.Name, sigilType)
 	}
 	return a.narrow(v, n.R, t)
 }
