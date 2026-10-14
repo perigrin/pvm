@@ -13,56 +13,88 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"tamarou.com/pvm/internal/infer"
-	"tamarou.com/pvm/internal/parser"
+	"tamarou.com/pvm/internal/lower"
+	"tamarou.com/pvm/internal/parse"
 	"tamarou.com/pvm/internal/types"
 )
 
+// typed is one lowered analysis's node types, which the tests find by
+// source position: the lowered tree carries no spans, so its position map
+// answers which node sits where.
+type typed struct {
+	f   *lower.File
+	pos *lower.Positions
+	ann map[lower.ID]types.Type
+}
+
+// at returns the type of the innermost node that starts at byte off, and
+// false when no node starts there or the node has no type.
+func (ty typed) at(off uint32) (types.Type, bool) {
+	n := ty.pos.At(int(off))
+	if n == nil {
+		return types.Unknown, false
+	}
+	if start, _, _ := ty.pos.Span(n.Meta().ID); start != int(off) {
+		return types.Unknown, false
+	}
+	t, ok := ty.ann[n.Meta().ID]
+	return t, ok
+}
+
+// analyzeLowered parses, lowers and analyses source on the lowered path.
+func analyzeLowered(source []byte, idx *infer.ProjectIndex, opts infer.Options) (typed, []infer.Diagnostic, *infer.SymbolTable) {
+	root := parse.Parse(source)
+	f := lower.Lower(root)
+	pos := lower.NewPositions(root, f)
+	ann, diags, st := infer.AnalyzeLowered(f, pos, idx, opts)
+	return typed{f: f, pos: pos, ann: ann}, diags, st
+}
+
 // analyzeSource parses the given Perl source and runs both inference passes,
-// returning the annotation map and diagnostics.
-func analyzeSource(t *testing.T, source []byte) (map[uint32]types.Type, []infer.Diagnostic) {
+// returning the node types and diagnostics.
+func analyzeSource(t *testing.T, source []byte) (typed, []infer.Diagnostic) {
 	t.Helper()
-	p := parser.New()
-	tree, err := p.Parse(source)
-	require.NoError(t, err, "parse must succeed")
-	annotations, diags, _ := infer.Analyze(tree, source, nil)
-	return annotations, diags
+	ty, diags, _ := analyzeLowered(source, nil, infer.Options{})
+	return ty, diags
 }
 
 // analyzeSourceWithOptions is analyzeSource with explicit inference options,
 // for tests that compare permissive and strict behaviour.
-func analyzeSourceWithOptions(t *testing.T, source []byte, opts infer.Options) (map[uint32]types.Type, []infer.Diagnostic, *infer.SymbolTable) {
+func analyzeSourceWithOptions(t *testing.T, source []byte, opts infer.Options) (typed, []infer.Diagnostic, *infer.SymbolTable) {
 	t.Helper()
-	p := parser.New()
-	tree, err := p.Parse(source)
-	require.NoError(t, err, "parse must succeed")
-	return infer.AnalyzeWithOptions(tree, source, nil, opts)
+	return analyzeLowered(source, nil, opts)
 }
 
 // analyzeSourceFull is like analyzeSource but also returns the SymbolTable,
 // which is needed for tests that verify assignment-based type narrowing.
-func analyzeSourceFull(t *testing.T, source []byte) (map[uint32]types.Type, []infer.Diagnostic, *infer.SymbolTable) {
+func analyzeSourceFull(t *testing.T, source []byte) (typed, []infer.Diagnostic, *infer.SymbolTable) {
 	t.Helper()
-	p := parser.New()
-	tree, err := p.Parse(source)
-	require.NoError(t, err, "parse must succeed")
-	return infer.Analyze(tree, source, nil)
+	return analyzeLowered(source, nil, infer.Options{})
 }
 
-// findNodeType searches the annotation map for the first node whose source
-// text matches want, returning its type. It iterates all byte offsets for
-// which source[offset:] starts with want.
-func findNodeType(annotations map[uint32]types.Type, source []byte, want string) (types.Type, bool) {
-	wantBytes := []byte(want)
-	wl := uint32(len(wantBytes))
-	for offset, typ := range annotations {
-		if offset+wl > uint32(len(source)) {
-			continue
+// findNodeType returns the type of the first node, in pre-order and so
+// outermost first, whose source text is exactly want.
+func findNodeType(ty typed, source []byte, want string) (types.Type, bool) {
+	var found lower.Node
+	var walk func(n lower.Node)
+	walk = func(n lower.Node) {
+		if found != nil || n == nil {
+			return
 		}
-		if string(source[offset:offset+wl]) == want {
-			return typ, true
+		if start, end, ok := ty.pos.Span(n.Meta().ID); ok && end <= len(source) && string(source[start:end]) == want {
+			found = n
+			return
+		}
+		for _, c := range lower.Children(n) {
+			walk(c)
 		}
 	}
-	return types.Unknown, false
+	walk(ty.f)
+	if found == nil {
+		return types.Unknown, false
+	}
+	t, ok := ty.ann[found.Meta().ID]
+	return t, ok
 }
 
 // --- Basic result shape ---
@@ -119,11 +151,11 @@ func TestInferScalarVariable(t *testing.T) {
 	declOffset := uint32(3) // "my " is 3 bytes
 	refOffset := uint32(11) // "my $x = 1; " is 11 bytes
 
-	declType, declOk := annotations[declOffset]
+	declType, declOk := annotations.at(declOffset)
 	require.True(t, declOk, "declaration $x at offset %d should be annotated", declOffset)
 	assert.Equal(t, types.Scalar, declType, "declaration $x should have sigil type Scalar")
 
-	refType, refOk := annotations[refOffset]
+	refType, refOk := annotations.at(refOffset)
 	require.True(t, refOk, "reference $x at offset %d should be annotated", refOffset)
 	assert.Equal(t, types.Int, refType, "reference $x should have narrowed type Int")
 }
@@ -132,30 +164,18 @@ func TestInferArrayVariable(t *testing.T) {
 	src := []byte("my @arr; @arr;")
 	annotations, _ := analyzeSource(t, src)
 
-	found := false
-	for offset, typ := range annotations {
-		if int(offset) < len(src) && offset+4 <= uint32(len(src)) && string(src[offset:offset+4]) == "@arr" {
-			assert.Equal(t, types.Array, typ, "array variable should have type Array")
-			found = true
-			break
-		}
-	}
+	typ, found := findNodeType(annotations, src, "@arr")
 	assert.True(t, found, "should find annotation for @arr")
+	assert.Equal(t, types.Array, typ, "array variable should have type Array")
 }
 
 func TestInferHashVariable(t *testing.T) {
 	src := []byte("my %h; %h;")
 	annotations, _ := analyzeSource(t, src)
 
-	found := false
-	for offset, typ := range annotations {
-		if int(offset) < len(src) && offset+2 <= uint32(len(src)) && string(src[offset:offset+2]) == "%h" {
-			assert.Equal(t, types.Hash, typ, "hash variable should have type Hash")
-			found = true
-			break
-		}
-	}
+	typ, found := findNodeType(annotations, src, "%h")
 	assert.True(t, found, "should find annotation for %h")
+	assert.Equal(t, types.Hash, typ, "hash variable should have type Hash")
 }
 
 func TestInferArraylen(t *testing.T) {
@@ -270,20 +290,18 @@ func TestInferAmbiguousFunctionCallReturnType(t *testing.T) {
 
 // --- Diagnostic tests ---
 
+// TestDiagnosticArityMismatch: perl refuses `push()` at compile time, "Not
+// enough arguments for push", so the parser refuses it too and it lowers to
+// a Hole. A Hole is never inspected (§4.14.2), so inference reports nothing
+// about it: the refusal is the parser's to report, not an arity mismatch.
 func TestDiagnosticArityMismatch(t *testing.T) {
 	src := []byte("push();")
-	_, diags := analyzeSource(t, src)
-	require.NotEmpty(t, diags, "should emit at least one diagnostic for push() with no args")
+	f := lower.Lower(parse.Parse(src))
+	require.Len(t, f.Stmts, 1)
+	assert.IsType(t, &lower.Hole{}, f.Stmts[0], "push() is refused, as perl refuses it")
 
-	var found bool
-	for _, d := range diags {
-		if d.Code == infer.CodeArityMismatch {
-			found = true
-			assert.Equal(t, infer.Error, d.Severity, "arity mismatch should be an Error")
-			break
-		}
-	}
-	assert.True(t, found, "should find an arity-mismatch diagnostic for push()")
+	_, diags := analyzeSource(t, src)
+	assert.Empty(t, diags, "a refused push() draws no diagnostic from inference")
 }
 
 func TestDiagnosticTypeMismatch(t *testing.T) {
@@ -313,10 +331,10 @@ func TestDiagnosticTypeMismatch(t *testing.T) {
 func TestMethodCallNotAny(t *testing.T) {
 	src := []byte("my $obj; $obj->method();")
 	annotations, _ := analyzeSource(t, src)
-	typ, ok := findNodeType(annotations, src, "$obj->method()")
-	require.True(t, ok, "method_call_expression should be annotated")
+	typ, _ := findNodeType(annotations, src, "$obj->method()")
 	assert.NotEqual(t, types.Any, typ,
 		"an unresolved method call must not be Any")
+	assert.Equal(t, types.Unknown, typ, "an unresolved method call is Unknown")
 }
 
 // TestConditionalExpressionJoinsItsArms verifies a ternary is typed as the
@@ -372,7 +390,7 @@ func TestNarrowedVariableAnnotation(t *testing.T) {
 
 	// The second $x reference starts at byte offset 12 ("my $x = 42; " is 12 bytes)
 	refOffset := uint32(12)
-	typ, ok := annotations[refOffset]
+	typ, ok := annotations.at(refOffset)
 	require.True(t, ok, "the $x reference node at offset %d should be annotated", refOffset)
 	assert.Equal(t, types.Int, typ, "$x reference should be annotated as Int after narrowing")
 }
@@ -463,12 +481,12 @@ func TestFlowNarrowingDefinedGuard(t *testing.T) {
 	// offsets[0]=declaration, [1]=condition defined($x), [2]=if-body, [3]=else-body
 	require.True(t, len(offsets) >= 4, "should find at least 4 occurrences of $x, got %d", len(offsets))
 
-	ifBodyTyp, ifOk := annotations[offsets[2]]
+	ifBodyTyp, ifOk := annotations.at(offsets[2])
 	assert.True(t, ifOk, "if-body $x should be annotated")
 	assert.Equal(t, types.None, ifBodyTyp,
 		"if-body $x is None — $x is definitely undef, so the defined() branch is unreachable")
 
-	elseBodyTyp, elseOk := annotations[offsets[3]]
+	elseBodyTyp, elseOk := annotations.at(offsets[3])
 	assert.True(t, elseOk, "else-body $x should be annotated")
 	assert.Equal(t, types.Undef, elseBodyTyp, "else-body $x should be Undef (negated defined guard)")
 }
@@ -483,7 +501,7 @@ func TestFlowNarrowingRefGuard(t *testing.T) {
 	annotations, _ := analyzeSource(t, src)
 
 	ifBodyXOffset := findLastVarOffset(src, "$x")
-	typ, ok := annotations[ifBodyXOffset]
+	typ, ok := annotations.at(ifBodyXOffset)
 	assert.True(t, ok, "if-body $x at offset %d should be annotated", ifBodyXOffset)
 	assert.Equal(t, types.Ref, typ, "if-body $x should be Ref after ref() guard")
 }
@@ -494,7 +512,7 @@ func TestFlowNarrowingUnlessDefinedGuard(t *testing.T) {
 	annotations, _ := analyzeSource(t, src)
 
 	ifBodyXOffset := findLastVarOffset(src, "$x")
-	typ, ok := annotations[ifBodyXOffset]
+	typ, ok := annotations.at(ifBodyXOffset)
 	assert.True(t, ok, "unless-body $x should be annotated")
 	assert.Equal(t, types.Undef, typ, "unless-body $x should be Undef (negated defined guard)")
 }
@@ -505,7 +523,7 @@ func TestFlowNarrowingWhileDefinedGuard(t *testing.T) {
 	annotations, _ := analyzeSource(t, src)
 
 	whileBodyXOffset := findLastVarOffset(src, "$x")
-	typ, ok := annotations[whileBodyXOffset]
+	typ, ok := annotations.at(whileBodyXOffset)
 	assert.True(t, ok, "while-body $x should be annotated")
 	assert.Equal(t, types.Scalar&^types.Undef, typ, "while-body $x should be Scalar &^ Undef (defined guard removes Undef bit)")
 }
@@ -520,11 +538,11 @@ func TestFlowNarrowingIfElseRefGuard(t *testing.T) {
 	// offsets[2] = if-body $x, offsets[3] = else-body $x
 	require.True(t, len(offsets) >= 4, "should find at least 4 occurrences of $x, got %d", len(offsets))
 
-	ifBodyTyp, ifOk := annotations[offsets[2]]
+	ifBodyTyp, ifOk := annotations.at(offsets[2])
 	assert.True(t, ifOk, "if-body $x should be annotated")
 	assert.Equal(t, types.Ref, ifBodyTyp, "if-body $x should be Ref after ref() guard")
 
-	elseBodyTyp, elseOk := annotations[offsets[3]]
+	elseBodyTyp, elseOk := annotations.at(offsets[3])
 	assert.True(t, elseOk, "else-body $x should be annotated")
 	assert.Equal(t, types.Scalar&^types.Ref, elseBodyTyp, "else-body $x should be Scalar &^ Ref (negated ref guard removes Ref bits)")
 }
@@ -540,7 +558,7 @@ func TestFlowNarrowingScopeRestoration(t *testing.T) {
 	// offsets: [0]=decl, [1]=condition ref($x), [2]=if-body, [3]=after-if
 	require.True(t, len(offsets) >= 4, "should find at least 4 occurrences of $x")
 
-	afterIfTyp, ok := annotations[offsets[3]]
+	afterIfTyp, ok := annotations.at(offsets[3])
 	assert.True(t, ok, "post-if $x should be annotated")
 	assert.Equal(t, types.Scalar, afterIfTyp, "post-if $x should revert to Scalar (pre-narrowed sigil type)")
 }
@@ -589,7 +607,7 @@ func TestFlowNarrowingUndeclaredVariableNoPhantomNarrowing(t *testing.T) {
 	// it would be Ref (from NarrowByGuard on undeclared Scalar). If no
 	// phantom, lookupNarrowedType returns the sigil fallback Scalar.
 	refOffset := findLastVarOffset(src, "$x")
-	typ, ok := annotations[refOffset]
+	typ, ok := annotations.at(refOffset)
 	assert.True(t, ok, "if-body $x should be annotated")
 	assert.Equal(t, types.Scalar, typ, "undeclared $x inside ref() guard should be Scalar (sigil type), not Ref (phantom narrowing)")
 }
@@ -603,7 +621,7 @@ func TestFlowNarrowingNonGuardCondition(t *testing.T) {
 	// offsets: [0]=decl, [1]=condition, [2]=if-body
 	require.True(t, len(offsets) >= 3, "should find at least 3 occurrences of $x")
 
-	ifBodyTyp, ok := annotations[offsets[2]]
+	ifBodyTyp, ok := annotations.at(offsets[2])
 	assert.True(t, ok, "if-body $x should be annotated")
 	assert.Equal(t, types.Int, ifBodyTyp, "if-body $x should keep Int (no guard narrowing)")
 }
@@ -618,11 +636,11 @@ func TestFlowNarrowingUnlessRefWithElse(t *testing.T) {
 	// offsets[0]=decl, [1]=condition, [2]=unless-body, [3]=else-body
 	require.True(t, len(offsets) >= 4, "should find at least 4 occurrences of $x, got %d", len(offsets))
 
-	unlessBodyTyp, ok := annotations[offsets[2]]
+	unlessBodyTyp, ok := annotations.at(offsets[2])
 	assert.True(t, ok, "unless-body $x should be annotated")
 	assert.Equal(t, types.Scalar&^types.Ref, unlessBodyTyp, "unless-body $x should be Scalar &^ Ref (negated ref guard removes Ref bits)")
 
-	elseBodyTyp, elseOk := annotations[offsets[3]]
+	elseBodyTyp, elseOk := annotations.at(offsets[3])
 	assert.True(t, elseOk, "else-body $x should be annotated")
 	assert.Equal(t, types.Ref, elseBodyTyp, "else-body $x should be Ref (positive ref guard)")
 }
@@ -637,7 +655,7 @@ func TestFlowNarrowingElsifBranchGetsAnnotations(t *testing.T) {
 	// offsets[0]=decl, [1]=if-condition, [2]=if-body, [3]=elsif-condition, [4]=elsif-body
 	require.True(t, len(offsets) >= 5, "should find at least 5 occurrences of $x, got %d", len(offsets))
 
-	elsifBodyTyp, ok := annotations[offsets[4]]
+	elsifBodyTyp, ok := annotations.at(offsets[4])
 	assert.True(t, ok, "elsif-body $x should be annotated (not skipped)")
 	assert.Equal(t, types.Ref, elsifBodyTyp, "elsif-body $x should be Ref (ref guard narrowing in elsif)")
 }
@@ -651,7 +669,7 @@ func TestFlowNarrowingIsaGuard(t *testing.T) {
 	// offsets[0]=decl, [1]=condition, [2]=if-body
 	require.True(t, len(offsets) >= 3, "should find at least 3 occurrences of $x, got %d", len(offsets))
 
-	ifBodyTyp, ok := annotations[offsets[2]]
+	ifBodyTyp, ok := annotations.at(offsets[2])
 	assert.True(t, ok, "if-body $x should be annotated")
 	assert.Equal(t, types.Object, ifBodyTyp, "if-body $x should be Object after isa guard")
 }
@@ -665,11 +683,11 @@ func TestFlowNarrowingIsaGuardWithElse(t *testing.T) {
 	// offsets[0]=decl, [1]=condition, [2]=if-body, [3]=else-body
 	require.True(t, len(offsets) >= 4, "should find at least 4 occurrences of $x, got %d", len(offsets))
 
-	ifBodyTyp, ifOk := annotations[offsets[2]]
+	ifBodyTyp, ifOk := annotations.at(offsets[2])
 	assert.True(t, ifOk, "if-body $x should be annotated")
 	assert.Equal(t, types.Object, ifBodyTyp, "if-body $x should be Object after isa guard")
 
-	elseBodyTyp, elseOk := annotations[offsets[3]]
+	elseBodyTyp, elseOk := annotations.at(offsets[3])
 	assert.True(t, elseOk, "else-body $x should be annotated")
 	assert.Equal(t, types.Scalar, elseBodyTyp, "else-body $x should be Scalar (isa negation is not useful)")
 }
@@ -685,11 +703,11 @@ func TestFlowNarrowingElsifNegatedGuard(t *testing.T) {
 	// [0]=decl, [1]=if-cond, [2]=if-body, [3]=elsif-cond, [4]=elsif-body, [5]=else-body
 	require.True(t, len(offsets) >= 6, "should find at least 6 occurrences of $x, got %d", len(offsets))
 
-	elsifBodyTyp, ok := annotations[offsets[4]]
+	elsifBodyTyp, ok := annotations.at(offsets[4])
 	assert.True(t, ok, "elsif-body $x should be annotated")
 	assert.Equal(t, types.Undef, elsifBodyTyp, "elsif-body $x should be Undef (negated defined guard in elsif)")
 
-	elseBodyTyp, ok2 := annotations[offsets[5]]
+	elseBodyTyp, ok2 := annotations.at(offsets[5])
 	assert.True(t, ok2, "else-body $x should be annotated")
 	assert.Equal(t, types.Scalar&^types.Undef, elseBodyTyp, "else-body $x should be Scalar &^ Undef (positive defined guard removes Undef bit)")
 }
@@ -703,11 +721,11 @@ func TestFlowNarrowingElsifChainThreeBranches(t *testing.T) {
 	// [0]=decl, [1]=if-cond, [2]=if-body, [3]=elsif1-cond, [4]=elsif1-body, [5]=elsif2-cond, [6]=elsif2-body
 	require.True(t, len(offsets) >= 7, "should find at least 7 occurrences of $x, got %d", len(offsets))
 
-	elsif1BodyTyp, ok := annotations[offsets[4]]
+	elsif1BodyTyp, ok := annotations.at(offsets[4])
 	assert.True(t, ok, "first elsif-body $x should be annotated")
 	assert.Equal(t, types.Ref, elsif1BodyTyp, "first elsif-body $x should be Ref")
 
-	elsif2BodyTyp, ok2 := annotations[offsets[6]]
+	elsif2BodyTyp, ok2 := annotations.at(offsets[6])
 	assert.True(t, ok2, "second elsif-body $x should be annotated")
 	assert.Equal(t, types.Object, elsif2BodyTyp, "second elsif-body $x should be Object (isa guard)")
 }
@@ -721,11 +739,11 @@ func TestFlowNarrowingElsifWithElse(t *testing.T) {
 	// [0]=decl, [1]=if-cond, [2]=if-body, [3]=elsif-cond, [4]=elsif-body, [5]=else-body
 	require.True(t, len(offsets) >= 6, "should find at least 6 occurrences of $x, got %d", len(offsets))
 
-	elsifBodyTyp, ok := annotations[offsets[4]]
+	elsifBodyTyp, ok := annotations.at(offsets[4])
 	assert.True(t, ok, "elsif-body $x should be annotated")
 	assert.Equal(t, types.Ref, elsifBodyTyp, "elsif-body $x should be Ref (ref guard)")
 
-	elseBodyTyp, ok2 := annotations[offsets[5]]
+	elseBodyTyp, ok2 := annotations.at(offsets[5])
 	assert.True(t, ok2, "else-body $x should be annotated")
 	assert.Equal(t, types.Scalar&^types.Ref, elseBodyTyp, "else-body $x should be Scalar &^ Ref (negated ref guard removes Ref bits)")
 }
@@ -740,11 +758,11 @@ func TestExtractGuardPatternNegatedDefined(t *testing.T) {
 	// [0]=decl, [1]=condition, [2]=if-body, [3]=else-body
 	require.True(t, len(offsets) >= 4, "should find at least 4 occurrences of $x, got %d", len(offsets))
 
-	ifBodyTyp, ok := annotations[offsets[2]]
+	ifBodyTyp, ok := annotations.at(offsets[2])
 	assert.True(t, ok, "if-body $x should be annotated")
 	assert.Equal(t, types.Undef, ifBodyTyp, "if-body $x should be Undef (negated defined guard)")
 
-	elseBodyTyp, ok2 := annotations[offsets[3]]
+	elseBodyTyp, ok2 := annotations.at(offsets[3])
 	assert.True(t, ok2, "else-body $x should be annotated")
 	assert.Equal(t, types.Scalar&^types.Undef, elseBodyTyp, "else-body $x should be Scalar &^ Undef (positive defined guard removes Undef bit)")
 }
@@ -758,11 +776,11 @@ func TestExtractGuardPatternNotKeyword(t *testing.T) {
 	offsets := findAllVarOffsets(src, "$x")
 	require.True(t, len(offsets) >= 4, "should find at least 4 occurrences of $x, got %d", len(offsets))
 
-	ifBodyTyp, ok := annotations[offsets[2]]
+	ifBodyTyp, ok := annotations.at(offsets[2])
 	assert.True(t, ok, "if-body $x should be annotated")
 	assert.Equal(t, types.Scalar&^types.Ref, ifBodyTyp, "if-body $x should be Scalar &^ Ref (negated ref guard removes Ref bits)")
 
-	elseBodyTyp, ok2 := annotations[offsets[3]]
+	elseBodyTyp, ok2 := annotations.at(offsets[3])
 	assert.True(t, ok2, "else-body $x should be annotated")
 	assert.Equal(t, types.Ref, elseBodyTyp, "else-body $x should be Ref (positive ref guard)")
 }
@@ -777,7 +795,7 @@ func TestFlowNarrowingEarlyReturnNarrowsDefined(t *testing.T) {
 	// [0]=decl, [1]=condition, [2]=post-if reference
 	require.True(t, len(offsets) >= 3, "should find at least 3 occurrences of $x, got %d", len(offsets))
 
-	postIfTyp, ok := annotations[offsets[2]]
+	postIfTyp, ok := annotations.at(offsets[2])
 	assert.True(t, ok, "post-if $x should be annotated")
 	assert.Equal(t, types.Scalar&^types.Undef, postIfTyp, "post-if $x should be Scalar &^ Undef (defined guard after early return removes Undef bit)")
 }
@@ -791,7 +809,7 @@ func TestFlowNarrowingNoEarlyExitNoNarrowing(t *testing.T) {
 	// [0]=decl, [1]=condition, [2]=if-body assignment LHS, [3]=post-if ref
 	require.True(t, len(offsets) >= 4, "should find at least 4 occurrences of $x, got %d", len(offsets))
 
-	postIfTyp, ok := annotations[offsets[3]]
+	postIfTyp, ok := annotations.at(offsets[3])
 	assert.True(t, ok, "post-if $x should be annotated")
 	assert.Equal(t, types.Scalar, postIfTyp, "post-if $x should remain Scalar (no early exit, no narrowing)")
 }
@@ -804,7 +822,7 @@ func TestFlowNarrowingEarlyDieNarrowsRef(t *testing.T) {
 	offsets := findAllVarOffsets(src, "$x")
 	require.True(t, len(offsets) >= 3, "should find at least 3 occurrences of $x, got %d", len(offsets))
 
-	postIfTyp, ok := annotations[offsets[2]]
+	postIfTyp, ok := annotations.at(offsets[2])
 	assert.True(t, ok, "post-if $x should be annotated")
 	assert.Equal(t, types.Ref, postIfTyp, "post-if $x should be Ref (ref guard after early die)")
 }
@@ -817,7 +835,7 @@ func TestFlowNarrowingEarlyDieWithArgNarrowsRef(t *testing.T) {
 	offsets := findAllVarOffsets(src, "$x")
 	require.True(t, len(offsets) >= 3, "should find at least 3 occurrences of $x, got %d", len(offsets))
 
-	postIfTyp, ok := annotations[offsets[2]]
+	postIfTyp, ok := annotations.at(offsets[2])
 	assert.True(t, ok, "post-if $x should be annotated")
 	assert.Equal(t, types.Ref, postIfTyp, "post-if $x should be Ref (ref guard after die $msg)")
 }
@@ -831,7 +849,7 @@ func TestFlowNarrowingEarlyExitNarrowsDefined(t *testing.T) {
 	offsets := findAllVarOffsets(src, "$x")
 	require.True(t, len(offsets) >= 3, "should find at least 3 occurrences of $x, got %d", len(offsets))
 
-	postIfTyp, ok := annotations[offsets[2]]
+	postIfTyp, ok := annotations.at(offsets[2])
 	assert.True(t, ok, "post-if $x should be annotated")
 	assert.Equal(t, types.Scalar&^types.Undef, postIfTyp, "post-if $x should be Scalar &^ Undef (defined guard after early exit removes Undef bit)")
 }
@@ -845,7 +863,7 @@ func TestFlowNarrowingUnlessEarlyReturn(t *testing.T) {
 	offsets := findAllVarOffsets(src, "$x")
 	require.True(t, len(offsets) >= 3, "should find at least 3 occurrences of $x, got %d", len(offsets))
 
-	postIfTyp, ok := annotations[offsets[2]]
+	postIfTyp, ok := annotations.at(offsets[2])
 	assert.True(t, ok, "post-unless $x should be annotated")
 	assert.Equal(t, types.Scalar&^types.Undef, postIfTyp, "post-unless $x should be Scalar &^ Undef (defined guard after early return removes Undef bit)")
 }
@@ -859,7 +877,7 @@ func TestFlowNarrowingNonNegatedEarlyReturn(t *testing.T) {
 	offsets := findAllVarOffsets(src, "$x")
 	require.True(t, len(offsets) >= 3, "should find at least 3 occurrences of $x, got %d", len(offsets))
 
-	postIfTyp, ok := annotations[offsets[2]]
+	postIfTyp, ok := annotations.at(offsets[2])
 	assert.True(t, ok, "post-if $x should be annotated")
 	assert.Equal(t, types.Undef, postIfTyp, "post-if $x should be Undef (negated defined guard after early return)")
 }
@@ -870,7 +888,7 @@ func TestFlowNarrowingForLoopVariable(t *testing.T) {
 	annotations, _ := analyzeSource(t, src)
 
 	itemOffset := findLastVarOffset(src, "$item")
-	typ, ok := annotations[itemOffset]
+	typ, ok := annotations.at(itemOffset)
 	assert.True(t, ok, "for-body $item should be annotated")
 	assert.Equal(t, types.Scalar, typ, "for-body $item should be Scalar")
 }
@@ -890,7 +908,7 @@ func TestFlowNarrowingForLoopOverList(t *testing.T) {
 	annotations, _ := analyzeSource(t, src)
 
 	nOffset := findLastVarOffset(src, "$n")
-	typ, ok := annotations[nOffset]
+	typ, ok := annotations.at(nOffset)
 	assert.True(t, ok, "for-body $n should be annotated")
 	assert.Equal(t, types.Scalar, typ, "for-body $n should be Scalar")
 }
@@ -901,7 +919,7 @@ func TestFlowNarrowingForLoopWithoutMy(t *testing.T) {
 	annotations, _ := analyzeSource(t, src)
 
 	itemOffset := findLastVarOffset(src, "$item")
-	typ, ok := annotations[itemOffset]
+	typ, ok := annotations.at(itemOffset)
 	assert.True(t, ok, "for-body $item should be annotated")
 	assert.Equal(t, types.Scalar, typ, "for-body $item should be Scalar")
 }
@@ -914,7 +932,7 @@ func TestFlowNarrowingCStyleForInitializer(t *testing.T) {
 	offsets := findAllVarOffsets(src, "$i")
 	// Find the $i inside the block body (last occurrence).
 	bodyOffset := offsets[len(offsets)-1]
-	typ, ok := annotations[bodyOffset]
+	typ, ok := annotations.at(bodyOffset)
 	assert.True(t, ok, "for-body $i should be annotated")
 	assert.Equal(t, types.Int, typ, "for-body $i should be Int (narrowed by assignment)")
 }
@@ -937,7 +955,7 @@ func TestCompoundGuardAmpAmpNarrowsBoth(t *testing.T) {
 	// offsets[0]=decl, [1]=defined($x) condition, [2]=ref($x) condition, [3]=if-body
 	require.True(t, len(offsets) >= 4, "should find at least 4 occurrences of $x, got %d", len(offsets))
 
-	ifBodyTyp, ok := annotations[offsets[3]]
+	ifBodyTyp, ok := annotations.at(offsets[3])
 	assert.True(t, ok, "if-body $x should be annotated with compound && guard")
 	assert.Equal(t, types.Ref, ifBodyTyp, "if-body $x should be Ref: defined removes Undef, ref keeps only Ref bits")
 }
@@ -951,7 +969,7 @@ func TestCompoundGuardAndKeywordNarrowsBoth(t *testing.T) {
 	offsets := findAllVarOffsets(src, "$x")
 	require.True(t, len(offsets) >= 4, "should find at least 4 occurrences of $x, got %d", len(offsets))
 
-	ifBodyTyp, ok := annotations[offsets[3]]
+	ifBodyTyp, ok := annotations.at(offsets[3])
 	assert.True(t, ok, "if-body $x should be annotated with compound 'and' guard")
 	assert.Equal(t, types.Ref, ifBodyTyp, "if-body $x should be Ref: 'and' behaves like && — both guards apply")
 }
@@ -965,7 +983,7 @@ func TestCompoundGuardOrNoNarrowingInBody(t *testing.T) {
 	offsets := findAllVarOffsets(src, "$x")
 	require.True(t, len(offsets) >= 4, "should find at least 4 occurrences of $x, got %d", len(offsets))
 
-	ifBodyTyp, ok := annotations[offsets[3]]
+	ifBodyTyp, ok := annotations.at(offsets[3])
 	assert.True(t, ok, "if-body $x should be annotated with compound || guard")
 	assert.Equal(t, types.Scalar, ifBodyTyp, "if-body $x stays Scalar: || means either could be true, no narrowing")
 }
@@ -980,7 +998,7 @@ func TestCompoundGuardOrNarrowsElse(t *testing.T) {
 	// offsets[0]=decl, [1]=defined cond, [2]=ref cond, [3]=if-body, [4]=else-body
 	require.True(t, len(offsets) >= 5, "should find at least 5 occurrences of $x, got %d", len(offsets))
 
-	elseBodyTyp, ok := annotations[offsets[4]]
+	elseBodyTyp, ok := annotations.at(offsets[4])
 	assert.True(t, ok, "else-body $x should be annotated with compound || guard")
 	assert.Equal(t, types.Undef, elseBodyTyp, "else-body $x should be Undef: || else means !defined && !ref")
 }
@@ -996,13 +1014,13 @@ func TestCompoundGuardAndDifferentVars(t *testing.T) {
 
 	// $x: offsets[0]=decl, [1]=defined cond, [2]=if-body
 	require.True(t, len(xOffsets) >= 3, "should find at least 3 occurrences of $x, got %d", len(xOffsets))
-	xBody, xOk := annotations[xOffsets[2]]
+	xBody, xOk := annotations.at(xOffsets[2])
 	assert.True(t, xOk, "if-body $x should be annotated")
 	assert.True(t, xBody&types.Undef == 0, "if-body $x should have Undef removed (defined guard)")
 
 	// $y: offsets[0]=decl, [1]=ref cond, [2]=if-body
 	require.True(t, len(yOffsets) >= 3, "should find at least 3 occurrences of $y, got %d", len(yOffsets))
-	yBody, yOk := annotations[yOffsets[2]]
+	yBody, yOk := annotations.at(yOffsets[2])
 	assert.True(t, yOk, "if-body $y should be annotated")
 	assert.Equal(t, types.Ref, yBody, "if-body $y should be Ref (ref guard)")
 }
@@ -1020,7 +1038,7 @@ func TestCompoundGuardPartialOneNonGuardSide(t *testing.T) {
 	require.True(t, len(offsets) >= 3, "should find at least 3 occurrences of $x, got %d", len(offsets))
 
 	// The defined guard was extracted as the surviving single guard.
-	ifBodyTyp, ok := annotations[offsets[2]]
+	ifBodyTyp, ok := annotations.at(offsets[2])
 	assert.True(t, ok, "if-body $x should be annotated")
 	assert.Equal(t, types.Scalar&^types.Undef, ifBodyTyp, "if-body $x should be Scalar &^ Undef from partial compound defined guard")
 }
@@ -1035,7 +1053,7 @@ func TestCompoundGuardNegatedAmpAmpDeMorganNarrows(t *testing.T) {
 	offsets := findAllVarOffsets(src, "$x")
 	require.True(t, len(offsets) >= 4, "should find at least 4 occurrences of $x, got %d", len(offsets))
 
-	ifBodyTyp, ok := annotations[offsets[3]]
+	ifBodyTyp, ok := annotations.at(offsets[3])
 	assert.True(t, ok, "if-body $x should be annotated with negated compound && guard")
 	assert.Equal(t, types.Scalar, ifBodyTyp, "if-body $x stays Scalar: !(A && B) becomes (||) which applies no narrowing in the body")
 }
@@ -1051,7 +1069,7 @@ func TestCompoundGuardArithmeticBinaryNotExtracted(t *testing.T) {
 	// offsets[0]=decl, [1]=if-body
 	require.True(t, len(offsets) >= 2, "should find at least 2 occurrences of $x, got %d", len(offsets))
 
-	ifBodyTyp, ok := annotations[offsets[1]]
+	ifBodyTyp, ok := annotations.at(offsets[1])
 	assert.True(t, ok, "if-body $x should be annotated")
 	assert.Equal(t, types.Int, ifBodyTyp, "if-body $x should be Int (arithmetic binary_expression is not a guard)")
 }
@@ -1072,7 +1090,7 @@ func TestBranchMergingIfElseJoinType(t *testing.T) {
 	// offsets: [0]=decl, [1]=condition, [2]=if-body, [3]=else-body, [4]=post-if
 	require.True(t, len(offsets) >= 5, "should find at least 5 occurrences of $x, got %d", len(offsets))
 
-	postTyp, ok := annotations[offsets[len(offsets)-1]]
+	postTyp, ok := annotations.at(offsets[len(offsets)-1])
 	assert.True(t, ok, "post-if $x should be annotated")
 	// Ref | (Scalar &^ Ref) = Scalar
 	assert.Equal(t, types.Scalar, postTyp, "post-if/else $x should be Scalar (union of Ref and non-Ref branches)")
@@ -1088,7 +1106,7 @@ func TestBranchMergingIfNoElse(t *testing.T) {
 	// offsets: [0]=decl, [1]=condition, [2]=if-body, [3]=post-if
 	require.True(t, len(offsets) >= 4, "should find at least 4 occurrences of $x, got %d", len(offsets))
 
-	postTyp, ok := annotations[offsets[len(offsets)-1]]
+	postTyp, ok := annotations.at(offsets[len(offsets)-1])
 	assert.True(t, ok, "post-if $x should be annotated")
 	// Ref | Scalar (pre-if) = Scalar
 	assert.Equal(t, types.Scalar, postTyp, "post-if (no else) $x should be Scalar (union of Ref branch and implicit else Scalar)")
@@ -1104,7 +1122,7 @@ func TestBranchMergingEarlyExitExcluded(t *testing.T) {
 	// offsets: [0]=decl, [1]=condition, [2]=post-if
 	require.True(t, len(offsets) >= 3, "should find at least 3 occurrences of $x, got %d", len(offsets))
 
-	postTyp, ok := annotations[offsets[2]]
+	postTyp, ok := annotations.at(offsets[2])
 	assert.True(t, ok, "post-early-exit $x should be annotated")
 	assert.True(t, postTyp&types.Undef == 0, "post-early-exit $x should not include Undef (early-exit narrowing removes Undef)")
 }
@@ -1120,7 +1138,7 @@ func TestBranchMergingElsifChain(t *testing.T) {
 	// Last occurrence is the post-chain $x.
 	require.True(t, len(xOffsets) >= 6, "should find at least 6 occurrences of $x, got %d", len(xOffsets))
 
-	postTyp, ok := annotations[xOffsets[len(xOffsets)-1]]
+	postTyp, ok := annotations.at(xOffsets[len(xOffsets)-1])
 	assert.True(t, ok, "post-chain $x should be annotated")
 	// All branches together cover Scalar territory; union should be Scalar.
 	assert.Equal(t, types.Scalar, postTyp, "post-chain $x should be Scalar (union of all branch types)")
@@ -1138,7 +1156,7 @@ func TestBranchMergingAssignmentInsideBranch(t *testing.T) {
 	// offsets: [0]=decl, [1]=cond, [2]=if-body assign LHS, [3]=else-body assign LHS, [4]=post-if ref
 	require.True(t, len(xOffsets) >= 5, "should find at least 5 occurrences of $x, got %d", len(xOffsets))
 
-	postTyp, ok := annotations[xOffsets[len(xOffsets)-1]]
+	postTyp, ok := annotations.at(xOffsets[len(xOffsets)-1])
 	assert.True(t, ok, "post-if/else $x should be annotated")
 	// Int | Num = Num (Num = numLeaf | Int, which already includes Int).
 	assert.Equal(t, types.Num, postTyp, "post-if/else $x should be Num (union of Int from if-body and Num from else-body)")
@@ -1152,7 +1170,7 @@ func TestGuardLibraryBlessedNarrows(t *testing.T) {
 	annotations, _ := analyzeSource(t, src)
 	offsets := findAllVarOffsets(src, "$x")
 	require.True(t, len(offsets) >= 3)
-	ifBodyTyp, ok := annotations[offsets[2]]
+	ifBodyTyp, ok := annotations.at(offsets[2])
 	assert.True(t, ok, "if-body $x should be annotated")
 	assert.Equal(t, types.Object, ifBodyTyp, "blessed guard narrows to Object")
 }
@@ -1163,7 +1181,7 @@ func TestGuardLibraryBlessedBareNarrows(t *testing.T) {
 	annotations, _ := analyzeSource(t, src)
 	offsets := findAllVarOffsets(src, "$x")
 	require.True(t, len(offsets) >= 3)
-	ifBodyTyp, ok := annotations[offsets[2]]
+	ifBodyTyp, ok := annotations.at(offsets[2])
 	assert.True(t, ok, "if-body $x should be annotated")
 	assert.Equal(t, types.Object, ifBodyTyp, "bare blessed guard narrows to Object")
 }
@@ -1174,7 +1192,7 @@ func TestGuardLibraryReftypeNarrows(t *testing.T) {
 	annotations, _ := analyzeSource(t, src)
 	offsets := findAllVarOffsets(src, "$x")
 	require.True(t, len(offsets) >= 3)
-	ifBodyTyp, ok := annotations[offsets[2]]
+	ifBodyTyp, ok := annotations.at(offsets[2])
 	assert.True(t, ok, "if-body $x should be annotated")
 	assert.Equal(t, types.Ref, ifBodyTyp, "reftype guard narrows to Ref")
 }
@@ -1185,7 +1203,7 @@ func TestGuardLibraryIsBoolNarrows(t *testing.T) {
 	annotations, _ := analyzeSource(t, src)
 	offsets := findAllVarOffsets(src, "$x")
 	require.True(t, len(offsets) >= 3)
-	ifBodyTyp, ok := annotations[offsets[2]]
+	ifBodyTyp, ok := annotations.at(offsets[2])
 	assert.True(t, ok, "if-body $x should be annotated")
 	assert.Equal(t, types.Boolean, ifBodyTyp, "is_bool guard narrows to Bool")
 }
@@ -1196,7 +1214,7 @@ func TestGuardLibraryNegatedBlessed(t *testing.T) {
 	annotations, _ := analyzeSource(t, src)
 	offsets := findAllVarOffsets(src, "$x")
 	require.True(t, len(offsets) >= 4)
-	elseBodyTyp, ok := annotations[offsets[3]]
+	elseBodyTyp, ok := annotations.at(offsets[3])
 	assert.True(t, ok, "else-body $x should be annotated")
 	assert.Equal(t, types.Object, elseBodyTyp, "negated blessed: else → Object")
 }
@@ -1208,7 +1226,7 @@ func TestGuardLibraryCompoundWithBuiltin(t *testing.T) {
 	annotations, _ := analyzeSource(t, src)
 	offsets := findAllVarOffsets(src, "$x")
 	require.True(t, len(offsets) >= 4, "should find at least 4 $x, got %d", len(offsets))
-	ifBodyTyp, ok := annotations[offsets[3]]
+	ifBodyTyp, ok := annotations.at(offsets[3])
 	assert.True(t, ok, "if-body $x should be annotated")
 	assert.Equal(t, types.Object, ifBodyTyp, "defined && blessed → Object")
 }
@@ -1282,7 +1300,7 @@ func TestCallSiteUsesReturnType(t *testing.T) {
 	src := []byte("sub foo { return 42; }\nmy $x = foo();\n$x;\n")
 	annotations, _ := analyzeSource(t, src)
 	xOffsets := findAllVarOffsets(src, "$x")
-	refTyp, ok := annotations[xOffsets[len(xOffsets)-1]]
+	refTyp, ok := annotations.at(xOffsets[len(xOffsets)-1])
 	assert.True(t, ok, "$x reference should be annotated")
 	assert.Equal(t, types.Int, refTyp, "$x should be Int from foo()'s return type")
 }
@@ -1292,7 +1310,7 @@ func TestCallSiteImplicitReturn(t *testing.T) {
 	src := []byte("sub bar { 3.14; }\nmy $y = bar();\n$y;\n")
 	annotations, _ := analyzeSource(t, src)
 	yOffsets := findAllVarOffsets(src, "$y")
-	refTyp, ok := annotations[yOffsets[len(yOffsets)-1]]
+	refTyp, ok := annotations.at(yOffsets[len(yOffsets)-1])
 	assert.True(t, ok)
 	assert.Equal(t, types.Num, refTyp, "$y should be Num from bar()'s implicit return")
 }
@@ -1302,7 +1320,7 @@ func TestCallSiteForwardRefUnknown(t *testing.T) {
 	src := []byte("my $x = foo();\nsub foo { return 42; }\n$x;\n")
 	annotations, _ := analyzeSource(t, src)
 	xOffsets := findAllVarOffsets(src, "$x")
-	refTyp, ok := annotations[xOffsets[len(xOffsets)-1]]
+	refTyp, ok := annotations.at(xOffsets[len(xOffsets)-1])
 	assert.True(t, ok)
 	assert.Equal(t, types.Scalar, refTyp, "$x should be Scalar (forward ref, no return type yet)")
 }
@@ -1334,10 +1352,7 @@ func TestUseStatementTriggersAnalysis(t *testing.T) {
 
 	idx := infer.NewProjectIndex(dir)
 	src := []byte("use Foo;\n")
-	p := parser.New()
-	tree, err := p.Parse(src)
-	require.NoError(t, err)
-	infer.Analyze(tree, src, idx)
+	analyzeLowered(src, idx, infer.Options{})
 
 	sym, ok := idx.LookupSymbol("Foo", "bar")
 	assert.True(t, ok, "use Foo should trigger analysis of Foo.pm")
@@ -1360,13 +1375,10 @@ func TestFQCallResolution(t *testing.T) {
 
 	idx := infer.NewProjectIndex(dir)
 	src := []byte("use Foo::Bar;\nmy $x = Foo::Bar::baz();\n$x;\n")
-	p := parser.New()
-	tree, err := p.Parse(src)
-	require.NoError(t, err)
-	annotations, _, _ := infer.Analyze(tree, src, idx)
+	annotations, _, _ := analyzeLowered(src, idx, infer.Options{})
 
 	xOffsets := findAllVarOffsets(src, "$x")
-	refTyp, ok := annotations[xOffsets[len(xOffsets)-1]]
+	refTyp, ok := annotations.at(xOffsets[len(xOffsets)-1])
 	assert.True(t, ok, "$x reference should be annotated")
 	assert.Equal(t, types.Int, refTyp, "$x should be Int from Foo::Bar::baz()")
 }
@@ -1393,12 +1405,9 @@ func TestMethodResolutionViaProjectIndex(t *testing.T) {
 	require.NoError(t, err)
 	idx := infer.NewProjectIndex(dir)
 	src := []byte("use Counter;\nmy $c = Counter->new();\nmy $n = $c->count();\n$n;\n")
-	p := parser.New()
-	tree, err := p.Parse(src)
-	require.NoError(t, err)
-	annotations, _, _ := infer.Analyze(tree, src, idx)
+	annotations, _, _ := analyzeLowered(src, idx, infer.Options{})
 	nOffsets := findAllVarOffsets(src, "$n")
-	refTyp, ok := annotations[nOffsets[len(nOffsets)-1]]
+	refTyp, ok := annotations.at(nOffsets[len(nOffsets)-1])
 	assert.True(t, ok)
 	assert.Equal(t, types.Int, refTyp, "$n should be Int from Counter::count()")
 }
@@ -1429,10 +1438,7 @@ func TestIsaGuardEnablesMethodResolution(t *testing.T) {
 	// We find the $x inside the block (after "isa Dog) {") by using the last
 	// occurrence of $x before "->speak".
 	src := []byte("use Dog;\nmy $x = get();\nif ($x isa Dog) {\n    my $v = $x->speak();\n}\n")
-	p := parser.New()
-	tree, err := p.Parse(src)
-	require.NoError(t, err)
-	annotations, _, _ := infer.Analyze(tree, src, idx)
+	annotations, _, _ := analyzeLowered(src, idx, infer.Options{})
 	// The method_call_expression node starts at the invocant ($x in $x->speak()).
 	// findNodeType searches for annotations whose offset matches the start of "$x->speak()".
 	callTyp, ok := findNodeType(annotations, src, "$x->speak()")
@@ -1441,159 +1447,72 @@ func TestIsaGuardEnablesMethodResolution(t *testing.T) {
 }
 
 func TestFindSubDeclNode(t *testing.T) {
-	src := []byte("my $x = 1;\nsub is_ref { ref($_[0]) }\nmy $y = 2;\n")
-	p := parser.New()
-	tree, err := p.Parse(src)
-	require.NoError(t, err)
-	root := tree.RootNode()
-
-	// Find the sub node using its byte range.
-	var subStart, subEnd uint32
-	for i := 0; i < root.ChildCount(); i++ {
-		child := root.Child(i)
-		if child != nil && child.Kind() == "subroutine_declaration_statement" {
-			subStart = child.StartByte()
-			subEnd = child.EndByte()
-		}
-	}
-	require.NotZero(t, subEnd, "should find a sub in the source")
-
-	subNode := infer.FindSubDeclNode(root, subStart, subEnd)
-	require.NotNil(t, subNode, "should find the sub declaration node")
-	assert.Equal(t, "subroutine_declaration_statement", subNode.Kind())
-	assert.Contains(t, subNode.Text(src), "is_ref")
+	subs := fileSubsOf("my $x = 1;\nsub is_ref { ref($_[0]) }\nmy $y = 2;\n")
+	require.Len(t, subs, 1, "should find the one sub in the source")
+	assert.NotNil(t, subs["is_ref"], "should find the sub declaration by its name")
 }
 
 func TestFindSubDeclNodeNotFound(t *testing.T) {
-	src := []byte("my $x = 1;\n")
-	p := parser.New()
-	tree, err := p.Parse(src)
-	require.NoError(t, err)
-	root := tree.RootNode()
-
-	subNode := infer.FindSubDeclNode(root, 99, 199)
-	assert.Nil(t, subNode, "should return nil when no matching sub found")
+	subs := fileSubsOf("my $x = 1;\n")
+	assert.Empty(t, subs, "should find no sub when none is declared")
 }
 
 // --- ResolveSubParam ---
 
 func TestResolveSubParamSignature(t *testing.T) {
-	src := []byte("sub is_defined ($val) { defined($val) }\n")
-	p := parser.New()
-	tree, err := p.Parse(src)
-	require.NoError(t, err)
-	root := tree.RootNode()
-	subNode := root.Child(0)
-	require.Equal(t, "subroutine_declaration_statement", subNode.Kind())
-
-	paramName, ok := infer.ResolveSubParam(subNode, src)
-	assert.True(t, ok, "should resolve signature parameter")
-	assert.Equal(t, "$val", paramName)
+	sub := fileSubsOf("use v5.36;\nsub is_defined ($val) { defined($val) }\n")["is_defined"]
+	require.NotNil(t, sub)
+	assert.Equal(t, "$val", infer.SubParam(sub), "should resolve signature parameter")
 }
 
 func TestResolveSubParamMultiArgRejected(t *testing.T) {
-	src := []byte("sub check ($x, $y) { defined($x) }\n")
-	p := parser.New()
-	tree, err := p.Parse(src)
-	require.NoError(t, err)
-	root := tree.RootNode()
-	subNode := root.Child(0)
-
-	_, ok := infer.ResolveSubParam(subNode, src)
-	assert.False(t, ok, "multi-arg sub should not be recognized as guard")
+	sub := fileSubsOf("use v5.36;\nsub check ($x, $y) { defined($x) }\n")["check"]
+	require.NotNil(t, sub)
+	assert.Equal(t, "", infer.SubParam(sub), "multi-arg sub should not be recognized as guard")
 }
 
 func TestResolveSubParamArrayElement(t *testing.T) {
-	src := []byte("sub is_ref { ref($_[0]) }\n")
-	p := parser.New()
-	tree, err := p.Parse(src)
-	require.NoError(t, err)
-	root := tree.RootNode()
-	subNode := root.Child(0)
-	require.Equal(t, "subroutine_declaration_statement", subNode.Kind())
-
-	paramName, ok := infer.ResolveSubParam(subNode, src)
-	assert.True(t, ok, "should resolve parameter")
-	assert.Equal(t, "$_[0]", paramName)
+	sub := fileSubsOf("sub is_ref { ref($_[0]) }\n")["is_ref"]
+	require.NotNil(t, sub)
+	assert.Equal(t, "$_[0]", infer.SubParam(sub), "should resolve parameter")
 }
 
 func TestResolveSubParamShift(t *testing.T) {
-	src := []byte("sub is_ref { my $val = shift; ref($val) }\n")
-	p := parser.New()
-	tree, err := p.Parse(src)
-	require.NoError(t, err)
-	root := tree.RootNode()
-	subNode := root.Child(0)
-	require.Equal(t, "subroutine_declaration_statement", subNode.Kind())
-
-	paramName, ok := infer.ResolveSubParam(subNode, src)
-	assert.True(t, ok, "should resolve shift parameter")
-	assert.Equal(t, "$val", paramName)
+	sub := fileSubsOf("sub is_ref { my $val = shift; ref($val) }\n")["is_ref"]
+	require.NotNil(t, sub)
+	assert.Equal(t, "$val", infer.SubParam(sub), "should resolve shift parameter")
 }
 
 func TestExtractSubReturnExprExplicit(t *testing.T) {
-	src := []byte("sub is_ref { return ref($_[0]) }\n")
-	p := parser.New()
-	tree, err := p.Parse(src)
-	require.NoError(t, err)
-	root := tree.RootNode()
-	subNode := root.Child(0)
+	sub := fileSubsOf("sub is_ref { return ref($_[0]) }\n")["is_ref"]
+	require.NotNil(t, sub)
 
-	var block *parser.Node
-	for i := 0; i < subNode.ChildCount(); i++ {
-		child := subNode.Child(i)
-		if child != nil && child.Kind() == "block" {
-			block = child
-		}
-	}
-	require.NotNil(t, block)
-
-	expr := infer.ExtractSubReturnExpr(block, src)
-	require.NotNil(t, expr, "should find return expression")
-	assert.Contains(t, expr.Text(src), "ref")
+	var expr lower.Node = infer.SubReturnExpr(sub.Body)
+	call, ok := expr.(*lower.Call)
+	require.True(t, ok, "should find return expression")
+	assert.Equal(t, "ref", call.Name)
 }
 
 func TestExtractSubReturnExprImplicit(t *testing.T) {
-	src := []byte("sub is_ref { ref($_[0]) }\n")
-	p := parser.New()
-	tree, err := p.Parse(src)
-	require.NoError(t, err)
-	root := tree.RootNode()
-	subNode := root.Child(0)
+	sub := fileSubsOf("sub is_ref { ref($_[0]) }\n")["is_ref"]
+	require.NotNil(t, sub)
 
-	var block *parser.Node
-	for i := 0; i < subNode.ChildCount(); i++ {
-		child := subNode.Child(i)
-		if child != nil && child.Kind() == "block" {
-			block = child
-		}
-	}
-	require.NotNil(t, block)
-
-	expr := infer.ExtractSubReturnExpr(block, src)
-	require.NotNil(t, expr, "should find implicit return expression")
-	assert.Contains(t, expr.Text(src), "ref")
+	var expr lower.Node = infer.SubReturnExpr(sub.Body)
+	call, ok := expr.(*lower.Call)
+	require.True(t, ok, "should find implicit return expression")
+	assert.Equal(t, "ref", call.Name)
 }
 
 func TestExtractSubReturnExprMultipleReturns(t *testing.T) {
-	src := []byte("sub check { if ($x) { return 1 } return 0 }\n")
-	p := parser.New()
-	tree, err := p.Parse(src)
-	require.NoError(t, err)
-	root := tree.RootNode()
-	subNode := root.Child(0)
+	sub := fileSubsOf("sub check { if ($x) { return 1 } return 0 }\n")["check"]
+	require.NotNil(t, sub)
 
-	var block *parser.Node
-	for i := 0; i < subNode.ChildCount(); i++ {
-		child := subNode.Child(i)
-		if child != nil && child.Kind() == "block" {
-			block = child
-		}
-	}
-	require.NotNil(t, block)
+	assert.Nil(t, infer.SubReturnExpr(sub.Body), "multiple returns should be rejected")
+}
 
-	expr := infer.ExtractSubReturnExpr(block, src)
-	assert.Nil(t, expr, "multiple returns should be rejected")
+// fileSubsOf lowers src and returns its file-level named subs by name.
+func fileSubsOf(src string) map[string]*lower.AnonSub {
+	return infer.FileSubs(lower.Lower(parse.Parse([]byte(src))))
 }
 
 func TestUserDefinedGuardFuncDefined(t *testing.T) {
@@ -1603,11 +1522,11 @@ func TestUserDefinedGuardFuncDefined(t *testing.T) {
 	offsets := findAllVarOffsets(src, "$x")
 	require.True(t, len(offsets) >= 4, "need at least 4 $x occurrences, got %d", len(offsets))
 
-	ifBodyTyp, ifOk := annotations[offsets[2]]
+	ifBodyTyp, ifOk := annotations.at(offsets[2])
 	assert.True(t, ifOk, "if-body $x should be annotated")
 	assert.Equal(t, types.Scalar&^types.Undef, ifBodyTyp, "if-body $x should have Undef removed")
 
-	elseBodyTyp, elseOk := annotations[offsets[3]]
+	elseBodyTyp, elseOk := annotations.at(offsets[3])
 	assert.True(t, elseOk, "else-body $x should be annotated")
 	assert.Equal(t, types.Undef, elseBodyTyp, "else-body $x should be Undef")
 }
@@ -1617,17 +1536,17 @@ func TestUserDefinedGuardFuncRefArrayAccess(t *testing.T) {
 	annotations, _ := analyzeSource(t, src)
 
 	ifBodyXOffset := findLastVarOffset(src, "$x")
-	typ, ok := annotations[ifBodyXOffset]
+	typ, ok := annotations.at(ifBodyXOffset)
 	assert.True(t, ok, "if-body $x should be annotated")
 	assert.Equal(t, types.Ref, typ, "if-body $x should be Ref after user-defined ref guard")
 }
 
 func TestUserDefinedGuardFuncSignature(t *testing.T) {
-	src := []byte("sub is_defined ($val) { defined($val) }\nmy $x = get();\nif (is_defined($x)) {\n    my $y = $x;\n}\n")
+	src := []byte("use v5.36;\nsub is_defined ($val) { defined($val) }\nmy $x = get();\nif (is_defined($x)) {\n    my $y = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
 	ifBodyXOffset := findLastVarOffset(src, "$x")
-	typ, ok := annotations[ifBodyXOffset]
+	typ, ok := annotations.at(ifBodyXOffset)
 	assert.True(t, ok, "if-body $x should be annotated")
 	assert.Equal(t, types.Scalar&^types.Undef, typ, "if-body $x should have Undef removed after signature-style guard")
 }
@@ -1637,7 +1556,7 @@ func TestUserDefinedGuardFuncShift(t *testing.T) {
 	annotations, _ := analyzeSource(t, src)
 
 	ifBodyXOffset := findLastVarOffset(src, "$x")
-	typ, ok := annotations[ifBodyXOffset]
+	typ, ok := annotations.at(ifBodyXOffset)
 	assert.True(t, ok, "if-body $x should be annotated")
 	assert.Equal(t, types.Ref, typ, "if-body $x should be Ref after shift-style guard")
 }
@@ -1647,7 +1566,7 @@ func TestUserDefinedGuardFuncIsa(t *testing.T) {
 	annotations, _ := analyzeSource(t, src)
 
 	ifBodyXOffset := findLastVarOffset(src, "$x")
-	typ, ok := annotations[ifBodyXOffset]
+	typ, ok := annotations.at(ifBodyXOffset)
 	assert.True(t, ok, "if-body $x should be annotated")
 	assert.Equal(t, types.Object, typ, "if-body $x should be Object after isa guard")
 }
@@ -1658,7 +1577,7 @@ func TestUserDefinedGuardFuncNegatedDefined(t *testing.T) {
 
 	// unless(is_defined($x)) means body gets negated guard -> Undef.
 	unlessBodyXOffset := findLastVarOffset(src, "$x")
-	typ, ok := annotations[unlessBodyXOffset]
+	typ, ok := annotations.at(unlessBodyXOffset)
 	assert.True(t, ok, "unless-body $x should be annotated")
 	assert.Equal(t, types.Undef, typ, "unless-body $x should be Undef (negated defined guard)")
 }
@@ -1668,7 +1587,7 @@ func TestUserDefinedGuardFuncCompound(t *testing.T) {
 	annotations, _ := analyzeSource(t, src)
 
 	ifBodyXOffset := findLastVarOffset(src, "$x")
-	typ, ok := annotations[ifBodyXOffset]
+	typ, ok := annotations.at(ifBodyXOffset)
 	assert.True(t, ok, "if-body $x should be annotated")
 	assert.Equal(t, types.Ref, typ, "if-body $x should be Ref after compound guard (defined+ref)")
 }
@@ -1678,7 +1597,7 @@ func TestUserDefinedGuardFuncNonGuardIgnored(t *testing.T) {
 	annotations, _ := analyzeSource(t, src)
 
 	ifBodyXOffset := findLastVarOffset(src, "$x")
-	typ, ok := annotations[ifBodyXOffset]
+	typ, ok := annotations.at(ifBodyXOffset)
 	if ok {
 		assert.Equal(t, types.Scalar, typ, "if-body $x should stay Scalar (non-guard sub)")
 	}
@@ -1691,91 +1610,33 @@ func TestUserDefinedGuardFuncComplexArgNoCrash(t *testing.T) {
 }
 
 func TestExtractArgVarNameScalar(t *testing.T) {
-	src := []byte("push($x, 1);\n")
-	p := parser.New()
-	tree, err := p.Parse(src)
-	require.NoError(t, err)
-
-	// Navigate CST: source_file > expression_statement > <call> > list_expression > scalar.
-	// The grammar labels the call either function_call_expression or
-	// ambiguous_function_call_expression depending on whether it can tell a
-	// call from a bareword-plus-parens; which one push() gets has moved
-	// between grammar versions, and this test is about extractArgVarName
-	// rather than about the label.
-	root := tree.RootNode()
-	exprStmt := root.Child(0) // expression_statement
-	require.NotNil(t, exprStmt)
-	callExpr := exprStmt.Child(0)
-	require.NotNil(t, callExpr)
-	require.Contains(t,
-		[]string{"function_call_expression", "ambiguous_function_call_expression"},
-		callExpr.Kind())
-
-	// Find the list_expression child
-	var listExpr *parser.Node
-	for i := 0; i < callExpr.ChildCount(); i++ {
-		child := callExpr.Child(i)
-		if child != nil && child.Kind() == "list_expression" {
-			listExpr = child
-			break
-		}
-	}
-	require.NotNil(t, listExpr, "should find list_expression")
-
-	// First child of list_expression is the scalar arg
-	scalarArg := listExpr.Child(0)
-	require.NotNil(t, scalarArg)
-	require.Equal(t, "scalar", scalarArg.Kind())
-
-	name := infer.ExtractArgVarName(scalarArg, src)
-	assert.Equal(t, "$x", name)
-
-	// The second real arg is "1" (a number) — should return empty
-	// Find the number node
-	var numArg *parser.Node
-	for i := 0; i < listExpr.ChildCount(); i++ {
-		child := listExpr.Child(i)
-		if child != nil && child.Kind() == "number" {
-			numArg = child
-			break
-		}
-	}
-	require.NotNil(t, numArg)
-	noName := infer.ExtractArgVarName(numArg, src)
-	assert.Equal(t, "", noName)
+	call := firstCall(t, "push($x, 1);\n")
+	require.Len(t, call.Args, 2)
+	assert.Equal(t, "$x", infer.ArgVarName(call.Args[0]))
+	// The second arg is "1", a number: it names no variable.
+	assert.Equal(t, "", infer.ArgVarName(call.Args[1]))
 }
 
 func TestExtractArgVarNameHash(t *testing.T) {
-	src := []byte("keys(%h);\n")
-	p := parser.New()
-	tree, err := p.Parse(src)
-	require.NoError(t, err)
-
-	// Navigate CST: source_file > expression_statement > func1op_call_expression > hash
-	root := tree.RootNode()
-	exprStmt := root.Child(0)
-	require.NotNil(t, exprStmt)
-	callExpr := exprStmt.Child(0)
-	require.NotNil(t, callExpr)
-	require.Equal(t, "func1op_call_expression", callExpr.Kind())
-
-	// Find the hash child
-	var hashArg *parser.Node
-	for i := 0; i < callExpr.ChildCount(); i++ {
-		child := callExpr.Child(i)
-		if child != nil && child.Kind() == "hash" {
-			hashArg = child
-			break
-		}
-	}
-	require.NotNil(t, hashArg, "should find hash node")
-
-	name := infer.ExtractArgVarName(hashArg, src)
-	assert.Equal(t, "%h", name)
+	call := firstCall(t, "keys(%h);\n")
+	require.Len(t, call.Args, 1)
+	assert.Equal(t, "%h", infer.ArgVarName(call.Args[0]))
 }
 
 func TestExtractArgVarNameNil(t *testing.T) {
-	assert.Equal(t, "", infer.ExtractArgVarName(nil, nil))
+	assert.Equal(t, "", infer.ArgVarName(nil))
+}
+
+// firstCall lowers src and returns the call its first statement is.
+func firstCall(t *testing.T, src string) *lower.Call {
+	t.Helper()
+	f := lower.Lower(parse.Parse([]byte(src)))
+	require.NotEmpty(t, f.Stmts)
+	es, ok := f.Stmts[0].(*lower.ExprStmt)
+	require.True(t, ok, "first statement should be an expression")
+	call, ok := es.X.(*lower.Call)
+	require.True(t, ok, "first statement should be a call:\n%s", lower.Tree(f))
+	return call
 }
 
 func TestTypeMismatchDiagnosticSuggestionWired(t *testing.T) {
@@ -1912,73 +1773,30 @@ func TestInitializedSymbolTableType(t *testing.T) {
 
 // TestResolveSubParamsSignature verifies that multi-param signatures are identified.
 func TestResolveSubParamsSignature(t *testing.T) {
-	src := []byte("sub add($x, $y) { $x + $y }\n")
-	p := parser.New()
-	tree, err := p.Parse(src)
-	require.NoError(t, err)
-	root := tree.RootNode()
+	sub := fileSubsOf("use v5.36;\nsub add($x, $y) { $x + $y }\n")["add"]
+	require.NotNil(t, sub, "should find the sub add")
 
-	// Find the subroutine_declaration_statement
-	var subNode *parser.Node
-	for i := 0; i < root.ChildCount(); i++ {
-		child := root.Child(i)
-		if child != nil && child.Kind() == "subroutine_declaration_statement" {
-			subNode = child
-			break
-		}
-	}
-	require.NotNil(t, subNode, "should find a subroutine_declaration_statement")
-
-	params := infer.ResolveSubParams(subNode, src)
-	assert.Equal(t, []string{"$x", "$y"}, params,
+	assert.Equal(t, []string{"$x", "$y"}, infer.SubParams(sub),
 		"should identify both params from signature sub add($x, $y)")
 }
 
 // TestResolveSubParamsShiftChain verifies that sequential shift assignments
 // are identified as parameters.
 func TestResolveSubParamsShiftChain(t *testing.T) {
-	src := []byte("sub method { my $self = shift; my $name = shift; $self + $name }\n")
-	p := parser.New()
-	tree, err := p.Parse(src)
-	require.NoError(t, err)
-	root := tree.RootNode()
+	sub := fileSubsOf("sub method { my $self = shift; my $name = shift; $self + $name }\n")["method"]
+	require.NotNil(t, sub, "should find the sub method")
 
-	var subNode *parser.Node
-	for i := 0; i < root.ChildCount(); i++ {
-		child := root.Child(i)
-		if child != nil && child.Kind() == "subroutine_declaration_statement" {
-			subNode = child
-			break
-		}
-	}
-	require.NotNil(t, subNode, "should find a subroutine_declaration_statement")
-
-	params := infer.ResolveSubParams(subNode, src)
-	assert.Equal(t, []string{"$self", "$name"}, params,
+	assert.Equal(t, []string{"$self", "$name"}, infer.SubParams(sub),
 		"should identify both params from shift chain")
 }
 
 // TestResolveSubParamsAtUnderscoreUnpacking verifies that my ($x, $y) = @_;
 // is recognized as parameter identification.
 func TestResolveSubParamsAtUnderscoreUnpacking(t *testing.T) {
-	src := []byte("sub foo { my ($x, $y) = @_; $x + $y }\n")
-	p := parser.New()
-	tree, err := p.Parse(src)
-	require.NoError(t, err)
-	root := tree.RootNode()
+	sub := fileSubsOf("sub foo { my ($x, $y) = @_; $x + $y }\n")["foo"]
+	require.NotNil(t, sub, "should find the sub foo")
 
-	var subNode *parser.Node
-	for i := 0; i < root.ChildCount(); i++ {
-		child := root.Child(i)
-		if child != nil && child.Kind() == "subroutine_declaration_statement" {
-			subNode = child
-			break
-		}
-	}
-	require.NotNil(t, subNode, "should find a subroutine_declaration_statement")
-
-	params := infer.ResolveSubParams(subNode, src)
-	assert.Equal(t, []string{"$x", "$y"}, params,
+	assert.Equal(t, []string{"$x", "$y"}, infer.SubParams(sub),
 		"should identify both params from @_ unpacking")
 }
 
@@ -2058,12 +1876,14 @@ func TestConditionalExpressionJoinsArms(t *testing.T) {
 	_, diags := analyzeSource(t, src)
 	assert.Empty(t, diags, "a ternary over two Ints is a Num and needs no diagnostic")
 
-	// Arms of unrelated types: the merge satisfies neither, so a numeric use
-	// is reported.
+	// An array arm in numeric context is its count, an Int: the ternary
+	// takes the context around it, so a numeric use needs no diagnostic.
+	// perl 5.42 -w is silent on (1 ? @a : 42) + 1 and gives 4 for
+	// @a = (7, 8, 9).
 	mixed := []byte("my @a;\nmy $x = (1 ? @a : 42) + 1;\n")
 	_, mixedDiags := analyzeSource(t, mixed)
-	assert.NotEmpty(t, mixedDiags,
-		"a ternary that might yield an Array does not satisfy Num")
+	assert.Empty(t, mixedDiags,
+		"an array arm in numeric context is its count, which satisfies Num")
 }
 
 // --- Reference-producing expressions ---
@@ -2633,7 +2453,7 @@ func TestPostfixDerefYieldsAggregate(t *testing.T) {
 	for _, tc := range cases {
 		annotations, _ := analyzeSource(t, []byte(tc.src))
 		var found bool
-		for _, ty := range annotations {
+		for _, ty := range annotations.ann {
 			if ty == tc.want {
 				found = true
 				break
