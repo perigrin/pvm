@@ -86,3 +86,15 @@ func TestFileScopeUndefReadInSubIsNotUndef(t *testing.T) {
 	// perl -w warns "Use of uninitialized value $proto in string eq".
 	wantReported(t, "my $proto = undef;\nsub log_it { if ($proto eq 'native') { print \"n\\n\" } }\nlog_it();\n", infer.CodeCoercionMismatch)
 }
+
+// A value PSC does not type, a line read from a handle, still replaces
+// what the variable held, so it no longer holds the Undef it was narrowed
+// to. perl 5.42 -w is silent on each case below, given "42" on STDIN:
+// Unicode::UCD reads its $UNICODEVERSION so. Assigning a typed undef is
+// still reported, as perl warns "Use of uninitialized value $V in pattern
+// match".
+func TestUntypedAssignmentForgetsUndef(t *testing.T) {
+	wantSilent(t, "my $V = undef;\n$V = <STDIN>;\nprint \"y\\n\" if $V =~ /^\\d/;\n")
+	wantSilent(t, "my $V;\nsub v { unless (defined $V) { chomp($V = <STDIN>); die \"bad\" unless $V =~ /^\\d/; } return $V }\nprint v(), \"\\n\";\n")
+	wantReported(t, "my $V = 1;\n$V = undef;\nprint \"y\\n\" if $V =~ /^\\d/;\n", infer.CodeCoercionMismatch)
+}
