@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a12a85-3417-75eb-bf44-d47cf6546e82
 created: 2026-10-11T10:32:14.982514503Z
-updated: 2026-10-13T23:23:08.895782427Z
+updated: 2026-10-14T02:07:33.51420769Z
 sessions:
 - start_sha: a45799887c9831e70d88981c993e14c2f1de3741
   end_sha: ""
@@ -87,7 +87,7 @@ They are removed; this issue's named tests and ratchet checks remain.
 ### Positive Scenarios
 - [ ] The lowered path holds the golden ratchet in both directions (`go test ./internal/infer/ -run '^TestLoweredGoldenRatchet$' -count=1 -v | grep -q '^--- PASS: TestLoweredGoldenRatchet'`)
 - [ ] Every special fixture matches its legacy golden on the lowered path (`test -n "$(ls internal/infer/testdata/lowered/special/*.pl)" && ! ls internal/infer/testdata/lowered/special/*.pl | sed 's|.*/lowered/||' | grep -vxFf internal/infer/testdata/lowered/matching.txt`)
-- [ ] Every fixture in the tree matches its golden on the lowered path (`test "$(ls internal/infer/testdata/lowered/*/*.pl | wc -l)" -gt 0 && test "$(ls internal/infer/testdata/lowered/*/*.pl | wc -l)" -eq "$(grep -c . internal/infer/testdata/lowered/matching.txt)"`)
+- [ ] Every fixture in the tree matches its golden on the lowered path (`test "$(ls internal/infer/testdata/lowered/*/*.pl | wc -l)" -gt 0 && test "$(ls internal/infer/testdata/lowered/*/*.pl | wc -l)" -eq "$(grep -c '^[^#]' internal/infer/testdata/lowered/matching.txt)"`)
 
 ### Negative Scenarios
 - [ ] A map or eval block perl rejects analyses without a panic and yields Any (`go test ./internal/infer/ -run '^TestLoweredSpecialFormsOverBrokenInput$' -count=1 -v | grep -q '^--- PASS: TestLoweredSpecialFormsOverBrokenInput'`)
