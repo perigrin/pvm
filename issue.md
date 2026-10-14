@@ -1,6 +1,6 @@
 ---
 title: "Cutover part 1: flip psc check and ProjectIndex to the lowered tree"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -8,7 +8,16 @@ blocked_by:
 blocks:
 - 01a0c115-c0db-7923-b276-984794affd39
 created: 2026-09-20T23:10:16.13915176Z
-updated: 2026-10-11T15:17:58.580417329Z
+updated: 2026-10-14T04:07:25.06627144Z
+sessions:
+- start_sha: 1feeef97410aa0897fde9a5c646b36484162cc2b
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-14T04:07:25.06627144Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-14T04:07:25.06627144Z
 ---
 
 ## Context
