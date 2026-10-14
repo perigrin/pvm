@@ -260,10 +260,10 @@ func (a *loweredAnalysis) decl(d *lower.Decl) types.Type {
 }
 
 // widenWritten shadows, in the sub scope just entered, each variable body
-// reads from outside it that an assignment anywhere in the file writes,
-// with the variable's sigil type, and returns those it shadowed. A sub
-// reads such a variable at the value it has when the sub is called, which
-// that assignment may have set: perl 5.42 -w is silent on `my $p = undef;
+// reads from outside it that assignedNames holds, with the variable's
+// sigil type, and returns those it shadowed. A sub reads such a variable
+// at the value it has when the sub is called, which any assignment to it
+// may have set: perl 5.42 -w is silent on `my $p = undef;
 // sub r { $p eq 'n' } sub w { $p = 'n' } w(); r();`. A variable nothing
 // assigns but its declaration keeps its type, so `my $p = undef; sub r {
 // $p eq 'n' } r();` is still reported, as perl warns.
@@ -300,11 +300,19 @@ func (a *loweredAnalysis) widenWritten(body lower.Node) map[string]types.Type {
 // assignedNames is the name of every variable an assignment writes, by
 // name and not by the scope it resolves to: `$x = ...`, `$x .= ...`, and
 // each variable of `($x, $y) = ...`. A declaration's initialiser is not
-// an assignment.
+// an assignment. Every variable `our` declares is in it too: a package
+// variable may be assigned by any code, through its full name or a
+// symbolic reference, as Math::BigInt's downgrade() sets
+// ${"${class}::downgrade"}.
 func assignedNames(f *lower.File) map[string]bool {
 	names := map[string]bool{}
 	var find func(n lower.Node)
 	find = func(n lower.Node) {
+		if d, ok := n.(*lower.Decl); ok && d.Kind == lower.DeclOur {
+			for _, v := range declaredVars(d) {
+				names[v.Sigil+v.Name] = true
+			}
+		}
 		if as, ok := n.(*lower.Assign); ok {
 			targets := []lower.Node{as.L}
 			if l, ok := as.L.(*lower.List); ok {

@@ -98,3 +98,21 @@ func TestUntypedAssignmentForgetsUndef(t *testing.T) {
 	wantSilent(t, "my $V;\nsub v { unless (defined $V) { chomp($V = <STDIN>); die \"bad\" unless $V =~ /^\\d/; } return $V }\nprint v(), \"\\n\";\n")
 	wantReported(t, "my $V = 1;\n$V = undef;\nprint \"y\\n\" if $V =~ /^\\d/;\n", infer.CodeCoercionMismatch)
 }
+
+// A package variable may be assigned by any code, through its full name
+// or a symbolic reference, as Math::BigInt's downgrade() sets
+// ${"${class}::downgrade"}, so a sub reads it at its sigil type. perl 5.42
+// -w is silent on each case below.
+func TestBlessClassFromAssignedPackageVar(t *testing.T) {
+	for _, src := range []string{
+		"our $downgrade = undef;\nsub f { my $self = bless {}, \"main\"; bless $self, $downgrade if defined $downgrade; $self }\nf();\n",
+		"package Foo;\nour $downgrade = undef;\nsub f { my $self = bless {}, \"Foo\"; bless $self, $downgrade; $self }\npackage main;\n$Foo::downgrade = \"Bar\";\nprint ref(Foo::f()), \"\\n\";\n",
+		"package Foo;\nour $downgrade = undef;\nsub downgrade { no strict 'refs'; my $c = shift; ${\"${c}::downgrade\"} = shift if @_; ${\"${c}::downgrade\"} }\nsub _dng { my $self = shift; my $class = ref($self); my $downgrade = $class->downgrade(); return $self unless $downgrade; bless $self, $downgrade; return $self }\npackage main;\nFoo->downgrade(\"Bar\");\nprint ref(Foo::_dng(bless {}, \"Foo\")), \"\\n\";\n",
+	} {
+		wantSilent(t, src)
+	}
+
+	// A lexical nothing else assigns is undef in the sub: perl -w warns
+	// "Use of uninitialized value $d in bless".
+	wantReported(t, "my $d = undef;\nsub f { my $self = bless {}, \"main\"; bless $self, $d; $self }\nf();\n", infer.CodeTypeMismatch)
+}
