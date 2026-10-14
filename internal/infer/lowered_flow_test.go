@@ -67,3 +67,22 @@ func TestLogicalRightAssignmentJoinsSkippedPath(t *testing.T) {
 	wantSilent(t, "my $c = 0;\nmy $x = $c ? 'a' : undef;\ndefined $x or $x = 'b';\nprint \"y\\n\" if $x eq 'b';\n")
 	wantReported(t, "my $x = undef;\ndefined $x and $x = 'b';\nprint \"y\\n\" if $x eq 'a';\n", infer.CodeCoercionMismatch)
 }
+
+// A sub reads a file-scope variable's value when it is called, which any
+// assignment to it may have set: in another sub, or at file scope after
+// the sub. perl 5.42 -w is silent on each case below (Sys::Syslog's
+// $current_proto is the first), and prints "n".
+func TestFileScopeUndefReadInSubIsNotUndef(t *testing.T) {
+	for _, src := range []string{
+		"my $proto = undef;\nsub log_it { if ($proto eq 'native') { print \"n\\n\" } }\nsub connect_log { $proto = 'native' }\nconnect_log(); log_it();\n",
+		"my $proto = undef;\nsub log_it { if ($proto eq 'native') { print \"n\\n\" } }\n$proto = 'native';\nlog_it();\n",
+		"my $proto = undef;\nsub connect_log { $proto = 'native' }\nsub log_it { if ($proto eq 'native') { print \"n\\n\" } } connect_log(); log_it();\n",
+		"my $proto = undef;\nsub connect_log { $proto = 'native' }\nsub log_it { connect_log(); print \"n\\n\" if $proto eq 'native' } log_it();\n",
+	} {
+		wantSilent(t, src)
+	}
+
+	// Nothing assigns $proto but its declaration, so the sub reads undef:
+	// perl -w warns "Use of uninitialized value $proto in string eq".
+	wantReported(t, "my $proto = undef;\nsub log_it { if ($proto eq 'native') { print \"n\\n\" } }\nlog_it();\n", infer.CodeCoercionMismatch)
+}
