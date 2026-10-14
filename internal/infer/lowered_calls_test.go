@@ -63,3 +63,28 @@ func TestDieTakesAnObject(t *testing.T) {
 
 	wantCode(t, "eval { die undef };\n", infer.CodeTypeMismatch)
 }
+
+// An array or a hash given to a list operator's slurpy slot flattens into
+// its elements, and each element is what the slot checks: perl 5.42 -w
+// runs `my @parts = ("a", "b"); print @parts; print "x", @parts; warn
+// @parts` and `system(@cmd)`, `exec @cmd` and `chomp(@$arr)` silently. An
+// array whose elements are undef still is reported: `my @a = (undef,
+// undef); print @a` warns "Use of uninitialized value $a[0] in print". A
+// `$` slot does not flatten: `length(@a)` warns "length() used on @a".
+func TestArrayArgumentToListOpFlattens(t *testing.T) {
+	for _, src := range []string{
+		"my @parts = (\"a\", \"b\");\nprint @parts; print \"x\", @parts, \"\\n\";\nwarn @parts;\n",
+		"sub run { my @cmd = @_; system(@cmd) == 0 or die \"failed\"; exec @cmd if 0 }\nrun(\"true\");\n",
+		"my $arr = [\"a\\n\"];\nchomp(@$arr);\n",
+		"my %h = (a => 1);\nprint %h, \"\\n\";\n",
+		"my @a;\nprint STDERR @a;\n",
+		"sub f { print @{$_[0]} }\n",
+		"print(;",
+		"warn(;",
+	} {
+		wantSilent(t, src)
+	}
+
+	wantCode(t, "my @a = (undef, undef);\nprint @a, \"\\n\";\n", infer.CodeTypeMismatch)
+	wantCode(t, "my @a = (1, 2);\nprint length(@a), \"\\n\";\n", infer.CodeTypeMismatch)
+}

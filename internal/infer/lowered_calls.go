@@ -53,7 +53,7 @@ func (a *loweredAnalysis) call(n *lower.Call) types.Type {
 		return a.callReturns(n, sigs)
 	}
 	for i, arg := range n.Args {
-		a.checkArg(n.Name, i, arg, builtinArgType(sigs, i))
+		a.checkArg(n.Name, i, arg, builtinArgType(sigs, i), slotContext(sigs, i) == types.ListCtx)
 	}
 
 	if t, ok := a.contextualReturn(n); ok {
@@ -122,12 +122,20 @@ func (a *loweredAnalysis) userCall(n *lower.Call) types.Type {
 // checkArg is the legacy argument check: an argument whose type does not
 // satisfy what the builtin's slot expects is a type mismatch. scalar's
 // argument is counted first, as builtinArgActual says. One that does not
-// satisfy the slot as it is may still as finite and numified judge it.
-func (a *loweredAnalysis) checkArg(name string, i int, arg lower.Node, expected types.Type) {
+// satisfy the slot as it is may still as finite and numified judge it,
+// and one in a slurpy slot as flattened says. Flattening is a second
+// chance, so a Hole's Any, which satisfies the slot as it is, is never
+// rewritten; one that fails both is reported as flattened.
+func (a *loweredAnalysis) checkArg(name string, i int, arg lower.Node, expected types.Type, slurpy bool) {
 	actual := builtinArgActual(name, a.typeOf(arg))
-	if a.opts.skipUnknownOperand(actual) || a.opts.satisfies(actual, expected) || a.opts.handleSatisfies(actual, expected) ||
-		a.opts.satisfies(numified(finite(actual), expected), expected) {
+	if a.argSatisfies(actual, expected) {
 		return
+	}
+	if slurpy {
+		actual = a.flattened(arg, actual)
+		if a.argSatisfies(actual, expected) {
+			return
+		}
 	}
 	start, end, _ := a.pos.Span(arg.Meta().ID)
 	a.diags = append(a.diags, Diagnostic{
@@ -138,6 +146,33 @@ func (a *loweredAnalysis) checkArg(name string, i int, arg lower.Node, expected 
 		Message:    typeMismatchMessage(name, i, expected, actual),
 		Suggestion: SuggestGuard(argVarName(arg), actual, expected),
 	})
+}
+
+// argSatisfies reports whether a builtin argument of type actual may fill
+// a slot expecting expected: as it is, as a handle, or as finite and
+// numified judge it. An Unknown one is not checked unless Strict.
+func (a *loweredAnalysis) argSatisfies(actual, expected types.Type) bool {
+	return a.opts.skipUnknownOperand(actual) || a.opts.satisfies(actual, expected) || a.opts.handleSatisfies(actual, expected) ||
+		a.opts.satisfies(numified(finite(actual), expected), expected)
+}
+
+// flattened is what an argument of type actual hands a slurpy slot: an
+// array or a hash flattens into its elements, so the slot checks those --
+// the recorded element type, else any Scalar -- and a hash's keys, which
+// are strings. `print @parts` prints each element.
+func (a *loweredAnalysis) flattened(arg lower.Node, actual types.Type) types.Type {
+	agg := actual & (types.Array | types.Hash)
+	if agg == 0 {
+		return actual
+	}
+	elem := a.aggElemType(arg)
+	if elem == types.Unknown {
+		elem = types.Scalar
+	}
+	if agg&types.Hash != 0 {
+		elem |= types.Str
+	}
+	return actual&^(types.Array|types.Hash) | elem
 }
 
 // handleSatisfies reports whether actual may be the handle a filehandle
