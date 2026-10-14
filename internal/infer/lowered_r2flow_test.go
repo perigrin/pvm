@@ -22,3 +22,23 @@ func TestDefinedGuardLeavesANamedType(t *testing.T) {
 	}
 	wantReported(t, "my $ch = undef;\nif (!defined $ch) { print $ch eq 'e' }\n", "coercion-mismatch")
 }
+
+// Where `ref $x` is false $x is any scalar but a reference: perl 5.42 -w
+// runs the else branch for "Foo", undef, 3, 1.5, *STDOUT and !!0 alike.
+// So an untyped scalar narrowed there is still one of unknown content, as
+// it is before the guard, and passes a Str slot. perl is silent on every
+// case below, the first B::Concise's and B::Showlex's. The control is an
+// undef that reaches the else branch, which perl warns on.
+func TestNegatedRefGuardNarrowsToNonRef(t *testing.T) {
+	for _, src := range []string{
+		"my @args = (\"Foo\", \"x::y\");\nfor my $objname (@args) {\n    if (ref $objname) { } else { $objname = \"main::\" . $objname unless $objname =~ /::/; }\n}\n",
+		"my @args = (\"Foo\", \\\"x\");\nfor my $objname (@args) {\n    if (ref $objname) { $objname = \"main::\" . $objname unless $objname =~ /::/; }\n}\n",
+		"for my $x (\"a\") { if (!ref $x) { print \"main::\" . $x } }\n",
+		"for my $x (\"a\") { unless (ref $x) { print \"main::\" . $x } }\n",
+		"for my $x (\"a\") { if (defined $x and !ref $x) { print \"main::\" . $x } }\n",
+		"sub f { my ($x) = @_; if (ref $x) { } else { print \"main::\" . $x } }\nf('a');\n",
+	} {
+		wantSilent(t, src)
+	}
+	wantReported(t, "my $x = undef;\nif (ref $x) { } else { print \"main::\" . $x }\n", "coercion-mismatch")
+}
