@@ -1,12 +1,21 @@
 ---
 title: "`defined $our_var` after a branch join is typed a union including Void"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m2-lower-the-tree
 blocks:
 - 01a0c115-a44b-7393-a828-ad29844b20b4
 created: 2026-10-14T17:01:26.46310058Z
-updated: 2026-10-14T17:01:26.46310058Z
+updated: 2026-10-14T17:13:41.891002019Z
+sessions:
+- start_sha: 36ecbc1380ea6afd9166cd772cff0dbe4ccf36de
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-14T17:13:41.891002019Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-14T17:13:41.891002019Z
 ---
 
 ## Context
