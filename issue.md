@@ -1,0 +1,44 @@
+---
+title: A Boolean in a Str slot
+state: pending
+urgency: normal
+milestone: m2-lower-the-tree
+blocks:
+- 01a0c115-a44b-7393-a828-ad29844b20b4
+created: 2026-10-14T17:01:22.37496426Z
+updated: 2026-10-14T17:01:22.37496426Z
+---
+
+## Context
+
+- found by: cutover 1 (01a0c115-a44b) bucket `N20-BOOL-STR`, from `scratchpad/cmp-a44b/buckets.md` (2026-10-14)
+- commands: `go test ./internal/infer/`; perl 5.42 `/home/perigrin/.local/bin/perl -w`
+
+perigrin ruled 2026-10-14 that every false positive cutover 1 adds to psc check is fixed BEFORE cutover 1 merges, on the lowered path (`internal/infer/lowered_*.go`; legacy is deleted by 01a0c115-df67). The bucket as measured:
+
+**Class:** FALSE-POSITIVE  
+**Lines in the cutover diff:** 1 (1 added)  
+**Likely fix site:** internal/infer/lowered_ops.go `checkOperand` (Boolean stringifies silently; extends 01a138e3-9661-7a5d-b04a-7377e8881950 to Str slots)
+
+threads_basic_unadvertised.t `"" . threads->self =~ /^threads=/`. Legacy is silent.
+
+**Repro `n20_bool_str.pl`:**
+```perl
+my $s = "threads=1";
+print "" . $s =~ /^threads=/, "\n";
+```
+perl -w (rc=0): 1
+old: 
+new: 2:12: warning: right operand of ".": expected Str, got Boolean [coercion-mismatch];
+
+Examples from the diff:
+
+- `T1:unit/threads_basic_unadvertised.t:44` (added) `check("" . threads->self =~ /^threads=/, 'default thread stringification is stable');` -- right operand of ".": expected Str, got Boolean
+
+## Steps
+
+- [ ] Failing test first from the repro above; fix at the named site so perl 5.42 -w's verdict holds; any golden edit in its own commit with a `Diagnostics-changed:` trailer; precision must stay >= 62/76 with WRONG 0; `make test`; commit
+
+## Acceptance criteria
+
+- [ ] the bucket's repro is silent as perl is (`go test ./internal/infer/ -run '^TestBooleanInStrSlotIsSilent$' -count=1 -v | grep -q '^--- PASS: TestBooleanInStrSlotIsSilent'`)
