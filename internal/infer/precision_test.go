@@ -17,7 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"tamarou.com/pvm/internal/infer"
-	"tamarou.com/pvm/internal/parser"
+	"tamarou.com/pvm/internal/lower"
+	"tamarou.com/pvm/internal/parse"
 	"tamarou.com/pvm/internal/types"
 )
 
@@ -138,11 +139,9 @@ func TestInferencePrecision(t *testing.T) {
 	src, err := os.ReadFile(corpus)
 	require.NoError(t, err)
 
-	p := parser.New()
-	tree, err := p.Parse(src)
-	require.NoError(t, err)
-	ann, _, st := infer.Analyze(tree, src, nil)
-	_ = ann
+	root := parse.Parse(src)
+	f := lower.Lower(root)
+	_, _, st := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
 
 	var exact, compatible, wrong, unknown, nearMiss int
 	var disagreements []string
@@ -218,9 +217,25 @@ func TestInferencePrecision(t *testing.T) {
 	assert.Zero(t, wrong,
 		"PSC inferred a type the value does not have; see the disagreements above")
 
-	// PSC must not get worse: 62 of the 76 observed values were exact when
-	// the floor was set, and a change that loses one is a regression even
-	// if nothing it says is wrong.
-	assert.GreaterOrEqual(t, exact, 62,
-		"PSC is exactly right about fewer observed values than the floor")
+	assert.NoError(t, checkPrecisionFloor(exact))
+}
+
+// precisionFloor is how many observed values PSC must type exactly: 62 of
+// the 76 were exact when the floor was set, and a change that loses one is
+// a regression even if nothing it says is wrong.
+const precisionFloor = 62
+
+// checkPrecisionFloor returns an error when exact is below precisionFloor.
+func checkPrecisionFloor(exact int) error {
+	if exact < precisionFloor {
+		return fmt.Errorf("PSC is exactly right about %d observed values, fewer than the floor of %d", exact, precisionFloor)
+	}
+	return nil
+}
+
+// TestPrecisionFloorRejectsADrop holds the floor's check to its number: one
+// exact answer fewer than the floor fails it, and the floor itself passes.
+func TestPrecisionFloorRejectsADrop(t *testing.T) {
+	assert.Error(t, checkPrecisionFloor(61), "an exact count of 61 is below the floor")
+	assert.NoError(t, checkPrecisionFloor(62), "an exact count of 62 is the floor")
 }
