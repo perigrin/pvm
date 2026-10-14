@@ -1,12 +1,21 @@
 ---
 title: A value that might be Inf draws a coercion warning wherever it is used
-state: pending
+state: in-progress
 urgency: normal
 milestone: m2-lower-the-tree
 blocks:
 - 01a0c115-a44b-7393-a828-ad29844b20b4
 created: 2026-10-13T15:58:43.197699471Z
-updated: 2026-10-14T13:04:15.65113248Z
+updated: 2026-10-14T13:04:18.734313404Z
+sessions:
+- start_sha: 1feeef97410aa0897fde9a5c646b36484162cc2b
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-14T13:04:18.734313404Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-14T13:04:18.734313404Z
 ---
 
 ## Context
