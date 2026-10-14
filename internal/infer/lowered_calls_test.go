@@ -166,3 +166,20 @@ func TestUseSubsOverridesBuiltinCheck(t *testing.T) {
 	wantCode(t, "sub rename { \"fake\" }\nprint rename(), \"\\n\";\n", infer.CodeArityMismatch)
 	wantCode(t, "use subs \"defined\";\nsub defined { 1 }\nmy @a;\nprint defined(@a);\n", infer.CodeTypeMismatch)
 }
+
+// getsockopt and prototype return undef only when they fail, so a Str
+// slot judges what they return on success: perl 5.42 -w runs `unpack 'i',
+// getsockopt($s, SOL_SOCKET, SO_SNDBUF)` (prints "ok" for a positive
+// buffer) and `defined prototype($b) && prototype($b) =~ /^;?\*/`
+// silently. A known undef in a Str slot, `(undef) . "x"`, warns "Use of
+// uninitialized value in concatenation".
+func TestUndefUnionBuiltinResultInStrSlot(t *testing.T) {
+	for _, src := range []string{
+		"use Socket;\nsocket(my $s, PF_INET, SOCK_STREAM, 0) or die;\nmy $sndbuf = unpack 'i', getsockopt($s, SOL_SOCKET, SO_SNDBUF);\nprint $sndbuf > 0 ? \"ok\\n\" : \"no\\n\";\n",
+		"my $builtinname = \"CORE::push\";\nprint \"p\\n\" if defined prototype($builtinname) && prototype($builtinname) =~ /^;?\\*/;\n",
+	} {
+		wantSilent(t, src)
+	}
+
+	wantCode(t, "my $y = (undef) . \"x\";\n", infer.CodeCoercionMismatch)
+}
