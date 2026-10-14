@@ -64,3 +64,30 @@ func TestStringPatternRightOfBindIsSilent(t *testing.T) {
 		t.Errorf("%q: diagnostics %v, want one", src, diags)
 	}
 }
+
+// Unary plus is the identity, so `+@d` is @d as its slot takes it: perl
+// 5.42 -w is silent on `splice @t, 0, +@d`, which removes one element per
+// element of @d, and `my $n = +@e` is the count. It does not hide what
+// perl warns about without it: `splice @t, 0, +undef` warns "Use of
+// uninitialized value in splice". `length(@a)`, which warns "length()
+// used on @a", is still reported; `length(+@a)`, on which perl warns the
+// same, is counted, and is not.
+func TestUnaryPlusArrayIsItsCount(t *testing.T) {
+	for _, src := range []string{
+		"sub f { my @d = @{$_[0]}; my @t = @{$_[1]}; return join('/', @d) eq join('/', splice @t, 0, +@d) }\nprint f([1], [1, 2]) ? \"same\\n\" : \"differ\\n\";\n",
+		"my @e = (1, 2, 3);\nmy $n = +@e;\nmy $m = $n + 1;\n",
+	} {
+		for _, d := range loweredDiags(src) {
+			t.Errorf("%q: diagnostic %q, want none", src, d.Message)
+		}
+	}
+
+	for _, src := range []string{
+		"my @a = (1, 2);\nmy $l = length(@a);\n",
+		"my @t = (1, 2, 3);\nsplice @t, 0, +undef;\n",
+	} {
+		if diags := loweredDiags(src); len(diags) != 1 {
+			t.Errorf("%q: diagnostics %v, want one", src, diags)
+		}
+	}
+}

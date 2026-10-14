@@ -250,9 +250,23 @@ var prefixNames = map[string]string{"neg": "-", "pos": "+"}
 // return type, except that minus and plus keep a numeric operand's own
 // type -- -5 is an Int and -5.5 a Num.
 //
+// Plus is the identity: `+X` is X's value, an aggregate counted outside
+// list context. perl 5.42 -w is silent on `splice @t, 0, +@d`, and warns
+// "Use of uninitialized value in splice" on `splice @t, 0, +undef`, as it
+// does without the plus.
+//
 // Increment and decrement are not typed: the legacy path had no rule for
 // them.
 func (a *loweredAnalysis) unary(n *lower.Unary) types.Type {
+	if n.Op == "pos" && n.Operand != nil {
+		ctx := a.evalCtx[n.ID]
+		if ctx != types.ListCtx {
+			ctx = types.ScalarCtx
+		}
+		a.evalCtx[n.Operand.Meta().ID] = ctx
+		a.operand(n.Operand)
+		return a.valueOf(n.Operand)
+	}
 	operand := a.operand(n.Operand)
 	if n.Op == "++" || n.Op == "--" {
 		return types.Unknown
