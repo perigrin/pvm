@@ -1,6 +1,6 @@
 ---
 title: "Port the special-form rules onto the lowered tree: MapGrepSort.Op, the eval boundary, and match captures"
-state: in-progress
+state: done
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -8,16 +8,109 @@ blocked_by:
 blocks:
 - 01a12a85-3417-75eb-bf44-d47cf6546e82
 created: 2026-10-11T10:32:14.982514503Z
-updated: 2026-10-14T02:07:33.51420769Z
+updated: 2026-10-14T02:46:26.76369764Z
 sessions:
 - start_sha: a45799887c9831e70d88981c993e14c2f1de3741
-  end_sha: ""
-  commits: 0
+  end_sha: 26f0e9e5343e8d6b9487deedf0564dfef67acab5
+  commits: 1
   started_at: 2026-10-13T21:46:52.057347158Z
+  ended_at: 2026-10-14T02:46:26.76369764Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-13T21:46:52.057347158Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-14T02:46:26.76369764Z
+observed_paths:
+- internal/infer/lowered.go
+- internal/infer/lowered_ops.go
+- internal/infer/lowered_special.go
+- internal/infer/lowered_test.go
+- internal/infer/lowered_vars.go
+- internal/infer/testdata/lowered/matching.txt
+- internal/infer/testdata/lowered/special/capture_arith.golden
+- internal/infer/testdata/lowered/special/capture_arith.pl
+- internal/infer/testdata/lowered/special/capture_digits.golden
+- internal/infer/testdata/lowered/special/capture_digits.pl
+- internal/infer/testdata/lowered/special/capture_letters.golden
+- internal/infer/testdata/lowered/special/capture_letters.pl
+- internal/infer/testdata/lowered/special/capture_nearest.golden
+- internal/infer/testdata/lowered/special/capture_nearest.pl
+- internal/infer/testdata/lowered/special/capture_none.golden
+- internal/infer/testdata/lowered/special/capture_none.pl
+- internal/infer/testdata/lowered/special/capture_second.golden
+- internal/infer/testdata/lowered/special/capture_second.pl
+- internal/infer/testdata/lowered/special/do_block.golden
+- internal/infer/testdata/lowered/special/do_block.pl
+- internal/infer/testdata/lowered/special/do_file.golden
+- internal/infer/testdata/lowered/special/do_file.pl
+- internal/infer/testdata/lowered/special/eval_block.golden
+- internal/infer/testdata/lowered/special/eval_block.pl
+- internal/infer/testdata/lowered/special/eval_string.golden
+- internal/infer/testdata/lowered/special/eval_string.pl
+- internal/infer/testdata/lowered/special/filetest.golden
+- internal/infer/testdata/lowered/special/filetest.pl
+- internal/infer/testdata/lowered/special/glob_angle.golden
+- internal/infer/testdata/lowered/special/glob_angle.pl
+- internal/infer/testdata/lowered/special/grep_block.golden
+- internal/infer/testdata/lowered/special/grep_block.pl
+- internal/infer/testdata/lowered/special/grep_expr.golden
+- internal/infer/testdata/lowered/special/grep_expr.pl
+- internal/infer/testdata/lowered/special/grep_scalar.golden
+- internal/infer/testdata/lowered/special/grep_scalar.pl
+- internal/infer/testdata/lowered/special/map_block.golden
+- internal/infer/testdata/lowered/special/map_block.pl
+- internal/infer/testdata/lowered/special/map_expr.golden
+- internal/infer/testdata/lowered/special/map_expr.pl
+- internal/infer/testdata/lowered/special/map_last_stmt.golden
+- internal/infer/testdata/lowered/special/map_last_stmt.pl
+- internal/infer/testdata/lowered/special/map_scalar.golden
+- internal/infer/testdata/lowered/special/map_scalar.pl
+- internal/infer/testdata/lowered/special/map_str.golden
+- internal/infer/testdata/lowered/special/map_str.pl
+- internal/infer/testdata/lowered/special/match_bare.golden
+- internal/infer/testdata/lowered/special/match_bare.pl
+- internal/infer/testdata/lowered/special/match_list.golden
+- internal/infer/testdata/lowered/special/match_list.pl
+- internal/infer/testdata/lowered/special/match_scalar.golden
+- internal/infer/testdata/lowered/special/match_scalar.pl
+- internal/infer/testdata/lowered/special/qr.golden
+- internal/infer/testdata/lowered/special/qr.pl
+- internal/infer/testdata/lowered/special/readline.golden
+- internal/infer/testdata/lowered/special/readline.pl
+- internal/infer/testdata/lowered/special/ref_arith.golden
+- internal/infer/testdata/lowered/special/ref_arith.pl
+- internal/infer/testdata/lowered/special/ref_array.golden
+- internal/infer/testdata/lowered/special/ref_array.pl
+- internal/infer/testdata/lowered/special/ref_code.golden
+- internal/infer/testdata/lowered/special/ref_code.pl
+- internal/infer/testdata/lowered/special/ref_glob.golden
+- internal/infer/testdata/lowered/special/ref_glob.pl
+- internal/infer/testdata/lowered/special/ref_hash.golden
+- internal/infer/testdata/lowered/special/ref_hash.pl
+- internal/infer/testdata/lowered/special/ref_other.golden
+- internal/infer/testdata/lowered/special/ref_other.pl
+- internal/infer/testdata/lowered/special/ref_paren.golden
+- internal/infer/testdata/lowered/special/ref_paren.pl
+- internal/infer/testdata/lowered/special/ref_scalar.golden
+- internal/infer/testdata/lowered/special/ref_scalar.pl
+- internal/infer/testdata/lowered/special/sort_block.golden
+- internal/infer/testdata/lowered/special/sort_block.pl
+- internal/infer/testdata/lowered/special/sort_list.golden
+- internal/infer/testdata/lowered/special/sort_list.pl
+- internal/infer/testdata/lowered/special/sort_plain.golden
+- internal/infer/testdata/lowered/special/sort_plain.pl
+- internal/infer/testdata/lowered/special/subst.golden
+- internal/infer/testdata/lowered/special/subst.pl
+- internal/infer/testdata/lowered/special/tr.golden
+- internal/infer/testdata/lowered/special/tr.pl
+- internal/infer/testdata/lowered/special/wantarray.golden
+- internal/infer/testdata/lowered/special/wantarray.pl
+- internal/infer/testdata/lowered/special/wantarray_top.golden
+- internal/infer/testdata/lowered/special/wantarray_top.pl
+- internal/lower/positions.go
+- internal/lower/positions_test.go
 ---
 
 ## Context
