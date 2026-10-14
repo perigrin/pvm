@@ -6,6 +6,7 @@ package infer_test
 import (
 	"testing"
 
+	"tamarou.com/pvm/internal/infer"
 	"tamarou.com/pvm/internal/types"
 )
 
@@ -88,6 +89,37 @@ func TestUnaryPlusArrayIsItsCount(t *testing.T) {
 	} {
 		if diags := loweredDiags(src); len(diags) != 1 {
 			t.Errorf("%q: diagnostics %v, want one", src, diags)
+		}
+	}
+}
+
+// `<=>` is undef only when an operand is NaN, so a comparison of operands
+// not known to be NaN is an Int: perl 5.42 -w is silent on
+// `$sgn * ($re1 <=> $re2)` for (1, 2, 3), which is -1. An operand known to
+// be NaN keeps the Undef: perl warns "Use of uninitialized value in
+// multiplication (*)" on `1 * ($nan <=> 1)`. No expression is typed exactly
+// NaN yet, so the test holds that half at SpaceshipResult itself.
+func TestSpaceshipInArithmeticIsSilent(t *testing.T) {
+	for _, src := range []string{
+		"my ($sgn, $re1, $re2) = (1, 2, 3);\nmy $c = $sgn * ($re1 <=> $re2);\n",
+		"my $x = 2.5;\nmy $c = 1 * ($x <=> 3);\n",
+		"my $x = 2 ** 0.5;\nmy $c = 1 * ($x <=> 3);\n",
+	} {
+		for _, d := range loweredDiags(src) {
+			t.Errorf("%q: diagnostic %q, want none", src, d.Message)
+		}
+	}
+
+	ordered := types.Int | types.Undef
+	for _, c := range []struct{ l, r, want types.Type }{
+		{types.Int, types.Num, types.Int},
+		{types.Unknown, types.Any, types.Int},
+		{types.Num | types.NaN, types.Int, types.Int},
+		{types.NaN, types.Int, ordered},
+		{types.Int, types.NaN | types.Inf, ordered},
+	} {
+		if got := infer.SpaceshipResult(c.l, c.r, ordered); got != c.want {
+			t.Errorf("SpaceshipResult(%v, %v) = %v, want %v", c.l, c.r, got, c.want)
 		}
 	}
 }

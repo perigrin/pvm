@@ -103,7 +103,8 @@ func TestInferCoreCoercionMismatchStillReported(t *testing.T) {
 
 // TestInferTypesOperatorsFromCore: an operator's result is its CORE.pmt
 // declaration's. `sub <=> :infix(ORDERING) (Num $x, Num $y) Int|Undef;`:
-// measured, `1 <=> "nan"` is undef. `x` forks on its left operand's
+// measured, `1 <=> "nan"` is undef, but the Undef is kept only for an
+// operand known to be NaN, so `1 <=> 2`, measured -1, is an Int. `x` forks on its left operand's
 // parenthesis and its context: measured, `my @y = (1,2) x 2` is (1,2,1,2)
 // and `my $s = "ab" x 2` is "abab".
 func TestInferTypesOperatorsFromCore(t *testing.T) {
@@ -111,7 +112,7 @@ func TestInferTypesOperatorsFromCore(t *testing.T) {
 		src, name string
 		want      types.Type
 	}{
-		{"my $c = 1 <=> 2;", "$c", types.Int | types.Undef},
+		{"my $c = 1 <=> 2;", "$c", types.Int},
 		{"my @y = (1,2) x 2;", "@y", types.List},
 		{`my $s = "ab" x 2;`, "$s", types.Str},
 	}

@@ -13,4 +13,5 @@ var (
 	SubReturnExpr              = subReturnExpr
 	ArgVarName                 = argVarName
 	Finite                     = finite
+	SpaceshipResult            = spaceshipResult
 )

@@ -47,6 +47,9 @@ func (a *loweredAnalysis) infix(n lower.Node, op, shapes string, l, r lower.Node
 	a.checkOperand(l, builtinArgType(sigs, 0), op, "left")
 	a.checkOperand(r, patternType(op, countType(op, builtinArgType(sigs, 1))), op, "right")
 	result := builtinReturns(sigs, types.UnknownCtx)
+	if op == "<=>" {
+		return spaceshipResult(a.typeOf(l), a.typeOf(r), result)
+	}
 	if result == types.Any && logicalOps[op] {
 		return types.Join(a.valueOf(l), a.valueOf(r))
 	}
@@ -75,6 +78,20 @@ func countType(op string, expected types.Type) types.Type {
 		return types.Num
 	}
 	return expected
+}
+
+// spaceshipResult is `<=>`'s type, result, over operands typed l and r.
+// CORE.pmt declares it Int|Undef, as perl gives undef when an operand is
+// NaN, but a value that only might be NaN is compared as finite says:
+// perl 5.42 -w is silent on `$sgn * ($re1 <=> $re2)`. Only an operand
+// known to be NaN, or Inf|NaN, with no other numeric bit, keeps the Undef.
+func spaceshipResult(l, r, result types.Type) types.Type {
+	for _, t := range []types.Type{l, r} {
+		if t&types.Num == 0 && t&types.NaN != 0 {
+			return result
+		}
+	}
+	return result &^ types.Undef
 }
 
 // patternType is what the right of a bind takes. CORE.pmt declares it
