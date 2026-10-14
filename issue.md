@@ -1,21 +1,30 @@
 ---
 title: "`chr $u =~ /re/` argument typed List"
-state: in-progress
+state: done
 urgency: normal
 milestone: m2-lower-the-tree
 blocks:
 - 01a0c115-a44b-7393-a828-ad29844b20b4
 created: 2026-10-14T17:01:01.328516143Z
-updated: 2026-10-14T17:13:41.94000229Z
+updated: 2026-10-14T18:11:17.795344763Z
 sessions:
 - start_sha: 36ecbc1380ea6afd9166cd772cff0dbe4ccf36de
-  end_sha: ""
-  commits: 0
+  end_sha: 59e0286c1d041eecad8c562e05ee857c760334ac
+  commits: 1
   started_at: 2026-10-14T17:13:41.94000229Z
+  ended_at: 2026-10-14T18:11:17.795344763Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-14T17:13:41.94000229Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-14T18:11:17.795344763Z
+observed_paths:
+- internal/infer/lowered_calls.go
+- internal/infer/lowered_vars.go
+- internal/infer/lowered_vars_test.go
+- internal/infer/symbols.go
 ---
 
 ## Context
