@@ -583,3 +583,34 @@ func TestLoweredCaptureReadsEveryQuoteForm(t *testing.T) {
 		}
 	}
 }
+
+// A Boolean in a numeric slot numifies to 1 or 0, and perl 5.42 -w says
+// nothing: `my $s = "-" x ($n > 2); my $q = ($n > 2) / 1` prints `[-] 1`,
+// and B/Deparse.pm writes `'()' x (7 < $cx)` and `(@kids != 1)/2`. So a
+// Boolean operand of an arithmetic operator, a repeat count, or an Int or
+// Num argument of a builtin is no mismatch. A reference there still is.
+func TestBooleanInNumericSlotIsSilent(t *testing.T) {
+	for _, src := range []string{
+		"my $n = 3;\nmy $s = \"-\" x ($n > 2);\n",
+		"my $n = 3;\nmy $q = ($n > 2) / 1;\n",
+		"my $cx = 9;\nmy $p = '()' x (7 < $cx);\n",
+		"my @kids = (1);\nmy $h = (@kids != 1)/2;\n",
+		"my $f = 7 < 3;\nmy $y = $f + 1;\n",
+		"my $f = 7 < 3;\nmy $c = chr($f);\n",
+		"my $v = abs(1 < 2);\n",
+	} {
+		_, diags := analyzeSource(t, []byte(src))
+		for _, d := range diags {
+			t.Errorf("%q: diagnostic %q, want none", src, d.Message)
+		}
+	}
+
+	for _, src := range []string{
+		"my $r = {};\nmy $y = $r + 1;\n",
+		"my $r = {};\nmy $c = chr($r);\n",
+	} {
+		if _, diags := analyzeSource(t, []byte(src)); len(diags) == 0 {
+			t.Errorf("%q: no diagnostic, want a reference in a numeric slot reported", src)
+		}
+	}
+}

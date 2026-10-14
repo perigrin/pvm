@@ -182,9 +182,12 @@ func operandShape(n lower.Node) string {
 // checkOperand is the legacy checkBinaryOperand: an operand whose type does
 // not satisfy what the operator expects is a coercion mismatch. A missing
 // operand is not checked, and a Hole is Any, which satisfies every
-// operator, Strict or not.
+// operator, Strict or not. A Boolean is judged as numified says.
 func (a *loweredAnalysis) checkOperand(n lower.Node, expected types.Type, op, side string) {
 	if n == nil {
+		return
+	}
+	if a.opts.satisfies(numified(a.typeOf(n), expected), expected) {
 		return
 	}
 	severity, message, ok := operandMismatch(a.opts, a.typeOf(n), expected, op, side)
@@ -199,6 +202,17 @@ func (a *loweredAnalysis) checkOperand(n lower.Node, expected types.Type, op, si
 		Code:      CodeCoercionMismatch,
 		Message:   message,
 	})
+}
+
+// numified is actual as a slot expecting expected judges it. perl numifies
+// a Boolean to 1 or 0 without a warning: perl 5.42 -w, `"-" x (3 > 2)` is
+// "-" and `(3 > 2) / 1` is 1. So where an Int or a Num is expected, a
+// Boolean is the Int it becomes. Elsewhere actual is returned as it is.
+func numified(actual, expected types.Type) types.Type {
+	if actual&types.Boolean == 0 || expected == types.Unknown || !types.IsSubtype(expected, types.Num) {
+		return actual
+	}
+	return actual&^types.Boolean | types.Int
 }
 
 // prefixNames maps a Unary's Op to the name CORE.pmt declares its prefix
