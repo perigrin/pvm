@@ -44,3 +44,22 @@ func TestAmpersandCallIsTheUserSub(t *testing.T) {
 
 	wantCode(t, "sub getgrgid { \"u\" }\nprint getgrgid(), \"\\n\";\n", infer.CodeArityMismatch)
 }
+
+// die throws any defined scalar: perl 5.42 -w runs `eval { die E->new };
+// print ref($@)` and prints "E", and `die {code => 1}` leaves a HASH in $@.
+// An undefined one is what perl warns about, "Use of uninitialized value
+// $x in die", so it is still reported.
+func TestDieTakesAnObject(t *testing.T) {
+	for _, src := range []string{
+		"package E; sub new { bless {}, shift }\npackage main;\neval { die E->new }; print ref($@), \"\\n\";\n",
+		"eval { die { code => 1 } };\n",
+		"eval { die \"a\", \"b\" };\n",
+		"eval { die 1 < 2 };\n",
+		"sub f { die $_[0] }\n",
+		"die(;",
+	} {
+		wantSilent(t, src)
+	}
+
+	wantCode(t, "eval { die undef };\n", infer.CodeTypeMismatch)
+}

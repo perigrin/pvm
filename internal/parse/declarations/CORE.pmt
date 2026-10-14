@@ -219,7 +219,10 @@ multi sub delete :unary (List @slice = die) List;
 multi sub delete :unary (Scalar $element) Scalar;
 # die and warn take a LIST of strings, which may be empty: `die()` and
 # `warn()` compile (measured). die never returns; warn returns true.
-sub die :prototype(@) (List[Str] @message) None;
+# die throws any defined scalar: `eval { die E->new }` leaves the object in
+# $@, `die {}` a HASH, and `die 1 < 2` "1"; only `die undef` warns, "Use of
+# uninitialized value in die" (measured).
+sub die :prototype(@) (List[Str|Boolean|DualVar|Ref] @message) None;
 # do, eval and goto have no prototype and are named unaries: `do $a, $b`
 # is `(do $a), $b` (B::Deparse -p). Their block forms, `do {}` and
 # `eval {}`, are the parser's. do runs a file, which it must be given
