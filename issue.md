@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: v0.1
 created: 2026-10-13T01:51:16.083606254Z
-updated: 2026-10-13T01:51:16.083606254Z
+updated: 2026-10-14T22:25:17.367249455Z
 ---
 
 ## Context
@@ -13,6 +13,8 @@ updated: 2026-10-13T01:51:16.083606254Z
 - commands: `go test ./internal/infer/ -run '^TestLoweredGoldenRatchet$'`
 
 Found 2026-10-13 by the flow port (01a12a85-3100), which copied it from legacy so the goldens match: when an else branch narrows nothing it contributes nothing to the join, so after `if ($x isa Foo) {} else {}` PSC says `$x` is `Object` (fixtures `flow/isa_else`, `or_else`, `not_and` leave `Ref`). The else branch is exactly where the guard failed, so the join must include the un-narrowed type. perl 5.42: `my $x; if ($x isa Foo) {1} else {2}` leaves `$x` undef. Fix after the cutover (01a0c115-df67), with 01a132ab; each golden edit gets a `Diagnostics-changed:` trailer.
+
+Also (2026-10-14, round-2 narrowing fixes): in `if (!defined $x) {...} else {...}` on a defined `$x`, the then-branch is unreachable (None) and the else adds nothing to the join, so `$x` is None after the statement -- hiding any diagnostic on it. The fix here must make the else contribute its own type.
 
 ## Steps
 
