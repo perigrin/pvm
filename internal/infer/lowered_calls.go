@@ -128,7 +128,7 @@ func (a *loweredAnalysis) userCall(n *lower.Call) types.Type {
 // rewritten; one that fails both is reported as flattened.
 func (a *loweredAnalysis) checkArg(name string, i int, arg lower.Node, expected types.Type, slurpy bool) {
 	actual := builtinArgActual(name, a.typeOf(arg))
-	if a.argSatisfies(actual, expected) {
+	if a.argSatisfies(actual, expected) || a.argSatisfies(a.succeeded(arg, actual), expected) {
 		return
 	}
 	if slurpy {
@@ -154,6 +154,31 @@ func (a *loweredAnalysis) checkArg(name string, i int, arg lower.Node, expected 
 func (a *loweredAnalysis) argSatisfies(actual, expected types.Type) bool {
 	return a.opts.skipUnknownOperand(actual) || a.opts.satisfies(actual, expected) || a.opts.handleSatisfies(actual, expected) ||
 		a.opts.satisfies(numified(finite(actual), expected), expected)
+}
+
+// succeeded is actual, the type of n, as a slot judges it when n is a call
+// to a builtin: without the Undef the builtin returns only when it fails.
+// fileno is Int|Undef, undef for a closed handle, and perl 5.42 -w is
+// silent on `fileno(STDOUT) . ">"`; read, getsockopt and prototype are the
+// same. `scalar` hands on its argument's result. A type that is only
+// Undef, `undef()`'s, is kept, and so is anything that is no builtin's
+// result. It is a second chance, never a rewrite: a Scalar or a Hole's
+// Any satisfies a slot as it is.
+//
+// Only a call's own result is judged so; a variable that holds one,
+// `my $fd = fileno(STDOUT); $fd . ">"`, is still judged with its Undef.
+func (a *loweredAnalysis) succeeded(n lower.Node, actual types.Type) types.Type {
+	c, ok := n.(*lower.Call)
+	if !ok || c.Fn != nil || c.Ampersand || len(parse.CoreBuiltin(c.Name)) == 0 {
+		return actual
+	}
+	if c.Name == "scalar" && len(c.Args) == 1 {
+		return a.succeeded(c.Args[0], actual)
+	}
+	if actual&^types.Undef == 0 {
+		return actual
+	}
+	return actual &^ types.Undef
 }
 
 // flattened is what an argument of type actual hands a slurpy slot: an

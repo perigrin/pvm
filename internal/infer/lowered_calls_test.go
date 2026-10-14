@@ -88,3 +88,24 @@ func TestArrayArgumentToListOpFlattens(t *testing.T) {
 	wantCode(t, "my @a = (undef, undef);\nprint @a, \"\\n\";\n", infer.CodeTypeMismatch)
 	wantCode(t, "my @a = (1, 2);\nprint length(@a), \"\\n\";\n", infer.CodeTypeMismatch)
 }
+
+// A builtin that returns undef only when it fails is judged by the value
+// it returns when it succeeds: perl 5.42 -w runs `fileno(STDOUT) . ">"`
+// (prints "1>"), `vec($rin, fileno(STDIN), 1) = 1`, `fileno STDERR !=
+// fileno STDOUT` and `1 while read($fh, $buf, 4096) > 0` silently. A value
+// that is known to be undef still is reported: `undef() + 1` warns "Use of
+// uninitialized value in addition (+)". So is a user sub's maybe-undef
+// result: `sub f { return if $_[0]; "s" } f(1) . "x"` warns in
+// concatenation.
+func TestFilenoAndReadResultsInStrAndNumSlots(t *testing.T) {
+	for _, src := range []string{
+		"my $fd = fileno(STDOUT) . \">\";\nmy $rin = \"\"; vec($rin, fileno(STDIN), 1) = 1;\nprint \"$fd\\n\";\n",
+		"print \"differ\\n\" if defined fileno STDERR && fileno STDERR != fileno STDOUT;\n",
+		"open my $fh, \"<\", $0 or die; my $buf;\n1 while read($fh, $buf, 4096) > 0;\n",
+	} {
+		wantSilent(t, src)
+	}
+
+	wantCode(t, "my $x = undef() + 1;\n", infer.CodeCoercionMismatch)
+	wantCode(t, "sub f { return if $_[0]; \"s\" }\nmy $x = f(1) . \"x\";\n", infer.CodeCoercionMismatch)
+}
