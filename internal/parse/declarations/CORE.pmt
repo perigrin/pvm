@@ -660,7 +660,10 @@ sub seekdir (Glob *dh, Int $position) Boolean|Undef;
 # nfound, the first of them, so context does not fork it (measured).
 multi sub select () Str;
 multi sub select (FileHandle $fh) Str;
-multi sub select ($r, $w, $e, Num $timeout) List;
+# The timeout may be undef, which blocks until a descriptor is ready:
+# `select($rout = $rin, undef, undef, undef)` (Net::FTP) is silent under
+# -w, while a timeout of "abc" warns it isn't numeric (measured).
+multi sub select ($r, $w, $e, Num|Undef $timeout) List;
 # Measured as msgctl, above.
 sub semctl (Int $id, Int $semnum, Int $cmd, Scalar $arg) Str|Undef;
 # Measured as msgget, above.

@@ -128,3 +128,20 @@ func TestDefinedOfAssignmentIsScalar(t *testing.T) {
 	wantCode(t, "my @a = (1);\nprint defined(@a);\n", infer.CodeTypeMismatch)
 	wantCode(t, "my %h;\nprint defined(%h);\n", infer.CodeTypeMismatch)
 }
+
+// 4-arg select's timeout may be undef, which blocks until a handle is
+// ready: perl 5.42 -w compiles and runs `select($rout = $rin, undef, undef,
+// undef) if 0` silently. A string timeout is still reported: `select(undef,
+// undef, undef, "abc")` warns 'Argument "abc" isn't numeric in select
+// system call'.
+func TestSelectAcceptsUndefTimeout(t *testing.T) {
+	for _, src := range []string{
+		"my ($rin, $rout) = (\"\", \"\");\nselect($rout = $rin, undef, undef, undef) if 0;\n",
+		"select(undef, undef, undef, 0.25);\n",
+		"my $t;\nselect(undef, undef, undef, $t);\n",
+	} {
+		wantSilent(t, src)
+	}
+
+	wantCode(t, "select(undef, undef, undef, \"abc\");\n", infer.CodeTypeMismatch)
+}
