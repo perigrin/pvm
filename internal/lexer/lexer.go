@@ -485,6 +485,9 @@ func scanOne(l *lexer) {
 	for _, scan := range []func(*lexer) bool{
 		scanPod,
 		scanDataSection,
+		// Before every scanner that reads punctuation: `*#`, `*"` and `*;`
+		// are globs, not a comment, a string and a statement's end.
+		scanGlobName,
 		scanComment,
 		// Before every scanner that reads punctuation as something else:
 		// `sub <<`, `sub /` and `sub %` name operators, not a heredoc, a
@@ -585,7 +588,7 @@ func (l *lexer) emit(k Kind, start int) {
 	}
 
 	l.globStar = k == Operator && l.pos-start == 1 && l.src[start] == '*' &&
-		l.expect != XOperator && l.expect != XPostDeref
+		l.expect != XOperator && l.expect != XPostDeref && l.attrArgDepth == 0
 	l.expect = l.expect.after(k, transition{
 		text:            l.src[start:l.pos],
 		closedBlock:     l.closedBlock,
