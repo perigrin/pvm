@@ -627,3 +627,46 @@ func TestBooleanInNumericSlotIsSilent(t *testing.T) {
 		}
 	}
 }
+
+// Arithmetic is typed Num|Inf because it can overflow, and `**` Num|NaN|Inf,
+// but a value that only MIGHT be Inf or NaN is checked as finite: perl 5.42
+// -w is silent on `my $q = 20 / 8; $q + 1` (3.5), on `"\t" x (20 / 8)` (two
+// tabs) and on `2 ** 0.5 + 1` (2.414...). perigrin ruled 2026-10-14 that only
+// a value KNOWN to be Inf or NaN is reported.
+func TestMaybeInfIsCheckedAsFinite(t *testing.T) {
+	for _, src := range []string{
+		"my $lvl = 20;\nmy $q = $lvl / 8;\nmy $r = $q + 1;\n",
+		"my $lvl = 20;\nmy $t = \"\\t\" x ($lvl / 8);\n",
+		"my $x = 2;\nmy $y = $x ** 0.5 + 1;\n",
+		"my $lvl = 20;\nmy $v = abs($lvl / 8);\n",
+	} {
+		_, diags := analyzeSource(t, []byte(src))
+		for _, d := range diags {
+			t.Errorf("%q: diagnostic %q, want none", src, d.Message)
+		}
+	}
+
+	for _, c := range []struct{ actual, want types.Type }{
+		{types.Num | types.Inf, types.Num},
+		{types.Int | types.Num | types.Inf, types.Int | types.Num},
+		{types.Num | types.NaN | types.Inf, types.Num},
+		{types.Int | types.NaN, types.Int},
+	} {
+		if got := infer.Finite(c.actual); got != c.want {
+			t.Errorf("Finite(%v) = %v, want %v", c.actual, got, c.want)
+		}
+	}
+
+	// No expression is typed exactly Inf or NaN yet; a value known to be
+	// one is still no Num, as perl warns "Non-finite repeat count does
+	// nothing" on `"ab" x 9**9**9`.
+	for _, known := range []types.Type{types.Inf, types.NaN, types.Inf | types.NaN} {
+		got := infer.Finite(known)
+		if got != known {
+			t.Errorf("Finite(%v) = %v, want it unchanged", known, got)
+		}
+		if types.TypeSatisfies(got, types.Num) {
+			t.Errorf("Finite(%v) = %v satisfies Num, want it reported", known, got)
+		}
+	}
+}

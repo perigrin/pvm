@@ -147,7 +147,6 @@ ops/range.pl
 ops/range_num.pl
 ops/reassign.pl
 ops/repeat.pl
-ops/repeat_div.pl
 ops/repeat_num.pl
 ops/repeat_paren_one.pl
 ops/repeat_qw.pl

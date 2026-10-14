@@ -182,12 +182,13 @@ func operandShape(n lower.Node) string {
 // checkOperand is the legacy checkBinaryOperand: an operand whose type does
 // not satisfy what the operator expects is a coercion mismatch. A missing
 // operand is not checked, and a Hole is Any, which satisfies every
-// operator, Strict or not. A Boolean is judged as numified says.
+// operator, Strict or not. The operand is judged as finite and numified
+// say.
 func (a *loweredAnalysis) checkOperand(n lower.Node, expected types.Type, op, side string) {
 	if n == nil {
 		return
 	}
-	if a.opts.satisfies(numified(a.typeOf(n), expected), expected) {
+	if a.opts.satisfies(numified(finite(a.typeOf(n)), expected), expected) {
 		return
 	}
 	severity, message, ok := operandMismatch(a.opts, a.typeOf(n), expected, op, side)
@@ -213,6 +214,20 @@ func numified(actual, expected types.Type) types.Type {
 		return actual
 	}
 	return actual&^types.Boolean | types.Int
+}
+
+// finite is actual checked as a finite value. Arithmetic is typed Num|Inf,
+// and `**` Num|NaN|Inf, because it can overflow, but a value that only
+// might be Inf or NaN is checked as the number it almost always is: perl
+// 5.42 -w is silent on `my $q = 20 / 8; $q + 1`, on `"\t" x (20 / 8)` and
+// on `2 ** 0.5 + 1`. Only a value known to be Inf or NaN, with no other
+// numeric bit, is kept as it is, and so is still reported where a number
+// is expected.
+func finite(actual types.Type) types.Type {
+	if actual&types.Num == 0 {
+		return actual
+	}
+	return actual &^ (types.Inf | types.NaN)
 }
 
 // prefixNames maps a Unary's Op to the name CORE.pmt declares its prefix
