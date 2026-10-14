@@ -31,6 +31,8 @@ func AnalyzeLowered(f *lower.File, pos *lower.Positions, idx *ProjectIndex, opts
 		annotations: map[lower.ID]types.Type{},
 		diags:       []Diagnostic{},
 		subs:        fileSubs(f),
+		assigned:    assignedNames(f),
+		overrides:   overrides(f),
 		evalCtx:     map[lower.ID]types.Context{},
 		classTypes:  map[lower.ID]string{},
 	}
@@ -50,6 +52,12 @@ type loweredAnalysis struct {
 	// subs is each file-level named sub's body, which a user-defined
 	// guard reads.
 	subs map[string]*lower.AnonSub
+	// assigned is the name of every variable an assignment writes, which
+	// a sub body reads at its runtime value.
+	assigned map[string]bool
+	// overrides is each builtin a `use` list overrides, which a call
+	// to is a user sub's.
+	overrides map[string]bool
 	// evalCtx is the context the expression around a node evaluates it
 	// in, keyed by the node's id and set before the node is walked: an
 	// assignment's right side, an operator's operands, a ternary's arms.
@@ -225,13 +233,23 @@ func (a *loweredAnalysis) decl(d *lower.Decl) types.Type {
 		}
 		if d.Init != nil {
 			a.st.EnterScope(subName(d))
+			widened := a.widenWritten(d.Init)
 			a.walk(d.Init)
 			ret := types.Unknown
 			if body, ok := d.Init.(*lower.AnonSub); ok && body.Body != nil {
 				b, _ := body.Body.(*lower.Block)
 				ret = a.explicitReturns(body.Body) | a.implicitReturn(b)
 			}
+			written := map[string]types.Type{}
+			for name, typ := range widened {
+				if sym, ok := a.st.Lookup(name); ok && sym.Type != typ {
+					written[name] = sym.Type
+				}
+			}
 			a.st.ExitScope()
+			for name, typ := range written {
+				a.st.UpdateType(name, typ)
+			}
 			if name := subName(d); name != "" && ret != types.Unknown {
 				a.st.UpdateReturnType(name, ret)
 			}
@@ -243,6 +261,79 @@ func (a *loweredAnalysis) decl(d *lower.Decl) types.Type {
 	// path does with them yet.
 	a.walkChildren(d)
 	return types.Any
+}
+
+// widenWritten shadows, in the sub scope just entered, each variable body
+// reads from outside it that assignedNames holds, with the variable's
+// sigil type, and returns those it shadowed. A sub reads such a variable
+// at the value it has when the sub is called, which any assignment to it
+// may have set: perl 5.42 -w is silent on `my $p = undef;
+// sub r { $p eq 'n' } sub w { $p = 'n' } w(); r();`. A variable nothing
+// assigns but its declaration keeps its type, so `my $p = undef; sub r {
+// $p eq 'n' } r();` is still reported, as perl warns.
+//
+// What the sub assigns to a shadowed variable reaches the code after it
+// as an assignment in its body always has, by the caller's UpdateType.
+//
+// ponytail: assignments are matched by name, not by the variable they
+// resolve to, so a same-named variable elsewhere widens this one too;
+// that only ever silences.
+func (a *loweredAnalysis) widenWritten(body lower.Node) map[string]types.Type {
+	widened := map[string]types.Type{}
+	var find func(n lower.Node)
+	find = func(n lower.Node) {
+		if v, ok := n.(*lower.Var); ok {
+			name := v.Sigil + v.Name
+			typ, named := sigilTypes[v.Sigil]
+			if _, done := widened[name]; named && !done && a.assigned[name] {
+				if sym, ok := a.st.Lookup(name); ok && sym.Type != typ {
+					sym.Type = typ
+					a.st.Define(sym)
+					widened[name] = typ
+				}
+			}
+		}
+		for _, c := range lower.Children(n) {
+			find(c)
+		}
+	}
+	find(body)
+	return widened
+}
+
+// assignedNames is the name of every variable an assignment writes, by
+// name and not by the scope it resolves to: `$x = ...`, `$x .= ...`, and
+// each variable of `($x, $y) = ...`. A declaration's initialiser is not
+// an assignment. Every variable `our` declares is in it too: a package
+// variable may be assigned by any code, through its full name or a
+// symbolic reference, as Math::BigInt's downgrade() sets
+// ${"${class}::downgrade"}.
+func assignedNames(f *lower.File) map[string]bool {
+	names := map[string]bool{}
+	var find func(n lower.Node)
+	find = func(n lower.Node) {
+		if d, ok := n.(*lower.Decl); ok && d.Kind == lower.DeclOur {
+			for _, v := range declaredVars(d) {
+				names[v.Sigil+v.Name] = true
+			}
+		}
+		if as, ok := n.(*lower.Assign); ok {
+			targets := []lower.Node{as.L}
+			if l, ok := as.L.(*lower.List); ok {
+				targets = l.Elems
+			}
+			for _, t := range targets {
+				if v, ok := t.(*lower.Var); ok {
+					names[v.Sigil+v.Name] = true
+				}
+			}
+		}
+		for _, c := range lower.Children(n) {
+			find(c)
+		}
+	}
+	find(f)
+	return names
 }
 
 // declContext is the context a declaration evaluates its initialiser in:

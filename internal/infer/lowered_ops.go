@@ -44,7 +44,7 @@ func (a *loweredAnalysis) infix(n lower.Node, op, shapes string, l, r lower.Node
 		}
 	}
 	a.operand(l)
-	a.operand(r)
+	a.logicalRight(op, l, r)
 	if len(sigs) == 0 {
 		return types.Unknown
 	}
@@ -138,8 +138,14 @@ func (a *loweredAnalysis) assign(n *lower.Assign) types.Type {
 	if !ok || n.R == nil {
 		return t
 	}
-	if _, named := sigilTypes[v.Sigil]; !named {
+	sigilType, named := sigilTypes[v.Sigil]
+	if !named {
 		return t
+	}
+	// An untyped value still replaces what the variable held: perl 5.42
+	// -w is silent on `my $v = undef; $v = <STDIN>; $v =~ /x/`.
+	if t == types.Unknown && n.Op == "=" {
+		a.st.UpdateType(v.Sigil+v.Name, sigilType)
 	}
 	return a.narrow(v, n.R, t)
 }
@@ -216,12 +222,14 @@ func operandShape(n lower.Node) string {
 // not satisfy what the operator expects is a coercion mismatch. A missing
 // operand is not checked, and a Hole is Any, which satisfies every
 // operator, Strict or not. The operand is judged as finite and numified
-// say.
+// say, and a builtin's result also as succeeded says.
 func (a *loweredAnalysis) checkOperand(n lower.Node, expected types.Type, op, side string) {
 	if n == nil {
 		return
 	}
-	if a.opts.satisfies(numified(finite(a.typeOf(n)), expected), expected) || a.lossyCoercion(n, a.typeOf(n), expected) {
+	if a.opts.satisfies(numified(finite(a.typeOf(n)), expected), expected) ||
+		a.opts.satisfies(numified(finite(a.succeeded(n, a.typeOf(n))), expected), expected) ||
+		a.lossyCoercion(n, a.typeOf(n), expected) {
 		return
 	}
 	severity, message, ok := operandMismatch(a.opts, a.typeOf(n), expected, op, side)

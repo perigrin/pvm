@@ -5,6 +5,7 @@ package infer
 
 import (
 	"strings"
+	"unicode"
 
 	"tamarou.com/pvm/internal/lower"
 	"tamarou.com/pvm/internal/parse"
@@ -15,7 +16,9 @@ import (
 // inferFunc0opCallType in one: a builtin's CORE.pmt candidates check the
 // arity and each argument's type and give the call's type; a sub of this
 // file gives its inferred return type, and a fully-qualified one the
-// project index's. A call through a reference is not typed.
+// project index's. A call through a reference is not typed. `&name` never
+// calls CORE, so it is a user sub's call whatever its name, and so is a
+// builtin a `use` list overrides.
 //
 // The filehandle of `print $fh LIST` is Handle, not an argument, so it is
 // neither counted nor checked. An argument perl rejects is a Hole, which is
@@ -34,7 +37,7 @@ func (a *loweredAnalysis) call(n *lower.Call) types.Type {
 		return types.Undef
 	}
 	sigs := parse.CoreBuiltin(n.Name)
-	if n.Fn != nil || len(sigs) == 0 {
+	if n.Fn != nil || n.Ampersand || a.overrides[n.Name] || len(sigs) == 0 {
 		a.args(n.Args, nil)
 		return a.userCall(n)
 	}
@@ -52,7 +55,7 @@ func (a *loweredAnalysis) call(n *lower.Call) types.Type {
 		return a.callReturns(n, sigs)
 	}
 	for i, arg := range n.Args {
-		a.checkArg(n.Name, i, arg, builtinArgType(sigs, i))
+		a.checkArg(n.Name, i, arg, builtinArgType(sigs, i), slotContext(sigs, i) == types.ListCtx)
 	}
 
 	if t, ok := a.contextualReturn(n); ok {
@@ -61,12 +64,76 @@ func (a *loweredAnalysis) call(n *lower.Call) types.Type {
 	return a.callReturns(n, sigs)
 }
 
+// strongKeywords are the builtins no sub overrides: measured on 5.42.0 by
+// compiling `use subs 'NAME'; sub NAME { 1 } sub t { NAME(...) }` for every
+// CORE.pmt builtin, and finding no entersub in t. say is one under the
+// say feature, and a plain word without it.
+var strongKeywords = map[string]bool{
+	"defined": true, "delete": true, "eval": true, "exists": true,
+	"goto": true, "grep": true, "map": true, "pos": true, "print": true,
+	"printf": true, "prototype": true, "return": true, "say": true,
+	"scalar": true, "shift": true, "sort": true, "split": true,
+	"study": true, "undef": true,
+}
+
+// overrides is each builtin f's `use` lists override: the names `use subs`
+// predeclares, and those a module's import list names, which it exports
+// as subs. perl 5.42 -w, `use subs "rename"; sub rename { "fake" } print
+// rename()` prints "fake", and `use POSIX qw(localtime); localtime(1, 2)`
+// compiles. A pragma's list is its arguments, `use feature "say"`, and
+// names no sub; a strong keyword is never overridden.
+//
+// The file is read as one scope: a `use` anywhere overrides the name in
+// every package and before the `use`, where perl would not.
+func overrides(f *lower.File) map[string]bool {
+	names := map[string]bool{}
+	var add func(n lower.Node)
+	add = func(n lower.Node) {
+		switch n := n.(type) {
+		case *lower.StrLit:
+			if !n.Backtick {
+				names[n.Value] = true
+			}
+		case *lower.QwList:
+			for _, w := range n.Words {
+				names[w] = true
+			}
+		case *lower.List:
+			for _, e := range n.Elems {
+				add(e)
+			}
+		}
+	}
+	var walk func(n lower.Node)
+	walk = func(n lower.Node) {
+		if u, ok := n.(*lower.UseStmt); ok && u.Op == "use" && u.Args != nil &&
+			(u.Module == "subs" || u.Module != "" && unicode.IsUpper(rune(u.Module[0]))) {
+			add(u.Args)
+		}
+		for _, c := range lower.Children(n) {
+			walk(c)
+		}
+	}
+	walk(f)
+	for name := range names {
+		if strongKeywords[name] || len(parse.CoreBuiltin(name)) == 0 {
+			delete(names, name)
+		}
+	}
+	return names
+}
+
 // args walks a call's arguments, each in the context its parameter slot in
 // sigs imposes. A user sub's arguments, sigs nil, are walked as they are.
 func (a *loweredAnalysis) args(args []lower.Node, sigs []types.Signature) {
 	for i, arg := range args {
 		if ctx := slotContext(sigs, i); ctx != types.UnknownCtx {
 			a.evalCtx[arg.Meta().ID] = ctx
+		} else if _, ok := arg.(*lower.Match); ok && sigs != nil {
+			// A `$` slot takes a match in scalar context, where it is a
+			// Boolean: perl 5.42 -w is silent on `chr $u =~ /re/`, which
+			// is chr($u =~ /re/).
+			a.evalCtx[arg.Meta().ID] = types.ScalarCtx
 		}
 		a.walk(arg)
 	}
@@ -121,11 +188,25 @@ func (a *loweredAnalysis) userCall(n *lower.Call) types.Type {
 // checkArg is the legacy argument check: an argument whose type does not
 // satisfy what the builtin's slot expects is a type mismatch. scalar's
 // argument is counted first, as builtinArgActual says. One that does not
-// satisfy the slot as it is may still as finite and numified judge it.
-func (a *loweredAnalysis) checkArg(name string, i int, arg lower.Node, expected types.Type) {
+// satisfy the slot as it is may still as finite and numified judge it,
+// one in a slurpy slot as flattened says, and one in a `$` slot as
+// scalarValue says, and last as lossyCoercion says. Flattening is a second
+// chance, so a Hole's Any, which satisfies the slot as it is, is never
+// rewritten; one that fails both is reported as flattened.
+func (a *loweredAnalysis) checkArg(name string, i int, arg lower.Node, expected types.Type, slurpy bool) {
 	actual := builtinArgActual(name, a.typeOf(arg))
-	if a.opts.skipUnknownOperand(actual) || a.opts.satisfies(actual, expected) || a.opts.handleSatisfies(actual, expected) ||
-		a.opts.satisfies(numified(finite(actual), expected), expected) || a.lossyCoercion(arg, actual, expected) {
+	if a.argSatisfies(actual, expected) || a.argSatisfies(a.succeeded(arg, actual), expected) {
+		return
+	}
+	if slurpy {
+		actual = a.flattened(arg, actual)
+		if a.argSatisfies(actual, expected) {
+			return
+		}
+	} else if a.argSatisfies(scalarValue(arg, actual), expected) {
+		return
+	}
+	if a.lossyCoercion(arg, actual, expected) {
 		return
 	}
 	start, end, _ := a.pos.Span(arg.Meta().ID)
@@ -137,6 +218,74 @@ func (a *loweredAnalysis) checkArg(name string, i int, arg lower.Node, expected 
 		Message:    typeMismatchMessage(name, i, expected, actual),
 		Suggestion: SuggestGuard(argVarName(arg), actual, expected),
 	})
+}
+
+// argSatisfies reports whether a builtin argument of type actual may fill
+// a slot expecting expected: as it is, as a handle, or as finite and
+// numified judge it. An Unknown one is not checked unless Strict.
+func (a *loweredAnalysis) argSatisfies(actual, expected types.Type) bool {
+	return a.opts.skipUnknownOperand(actual) || a.opts.satisfies(actual, expected) || a.opts.handleSatisfies(actual, expected) ||
+		a.opts.satisfies(numified(finite(actual), expected), expected)
+}
+
+// succeeded is actual, the type of n, as a slot judges it when n is a call
+// to a builtin: without the Undef the builtin returns only when it fails.
+// fileno is Int|Undef, undef for a closed handle, and perl 5.42 -w is
+// silent on `fileno(STDOUT) . ">"`; read, getsockopt and prototype are the
+// same. `scalar` hands on its argument's result. A type that is only
+// Undef, `undef()`'s, is kept, and so is anything that is no builtin's
+// result. It is a second chance, never a rewrite: a Scalar or a Hole's
+// Any satisfies a slot as it is.
+//
+// Only a call's own result is judged so; a variable that holds one,
+// `my $fd = fileno(STDOUT); $fd . ">"`, is still judged with its Undef.
+func (a *loweredAnalysis) succeeded(n lower.Node, actual types.Type) types.Type {
+	c, ok := n.(*lower.Call)
+	if !ok || c.Fn != nil || c.Ampersand || len(parse.CoreBuiltin(c.Name)) == 0 {
+		return actual
+	}
+	if c.Name == "scalar" && len(c.Args) == 1 {
+		return a.succeeded(c.Args[0], actual)
+	}
+	if actual&^types.Undef == 0 {
+		return actual
+	}
+	return actual &^ types.Undef
+}
+
+// scalarValue is actual, the type of arg, as a `$` slot judges it when arg
+// is a call or an assignment: perl evaluates either in scalar context, and
+// it yields one scalar. So a List there -- caller's and readline's, whose
+// one candidate covers both contexts, or a scalar assignment's -- is a
+// Scalar. An array or a hash is neither and keeps its type:
+// `defined(@a)` is perl's compile error, and `length(@a)` warns.
+func scalarValue(arg lower.Node, actual types.Type) types.Type {
+	switch arg.(type) {
+	case *lower.Call, *lower.Assign:
+		if actual&(types.Array|types.Hash) != 0 {
+			return actual&^(types.Array|types.Hash|types.Void) | types.Scalar
+		}
+	}
+	return actual
+}
+
+// flattened is what an argument of type actual hands a slurpy slot: an
+// array or a hash flattens into its elements, so the slot checks those --
+// the recorded element type, else any Scalar -- and a hash's keys, which
+// are strings. `print @parts` prints each element.
+func (a *loweredAnalysis) flattened(arg lower.Node, actual types.Type) types.Type {
+	agg := actual & (types.Array | types.Hash)
+	if agg == 0 {
+		return actual
+	}
+	elem := a.aggElemType(arg)
+	if elem == types.Unknown {
+		elem = types.Scalar
+	}
+	if agg&types.Hash != 0 {
+		elem |= types.Str
+	}
+	return actual&^(types.Array|types.Hash) | elem
 }
 
 // handleSatisfies reports whether actual may be the handle a filehandle

@@ -1,1 +1,2 @@
 sym $x Scalar
+sym $x Undef
