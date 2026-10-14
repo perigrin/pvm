@@ -605,6 +605,19 @@ func TestBooleanInNumericSlotIsSilent(t *testing.T) {
 		}
 	}
 
+	// A broad type that may hold a number still satisfies the slot as it
+	// is: neither a Scalar nor a Hole's Any is reported there.
+	for _, src := range []string{
+		"my $m;\nmy $v = abs($m);\n",
+		"my $m;\nmy $c = chr($m);\n",
+		"abs(;",
+	} {
+		_, diags := analyzeSource(t, []byte(src))
+		for _, d := range diags {
+			t.Errorf("%q: diagnostic %q, want none", src, d.Message)
+		}
+	}
+
 	for _, src := range []string{
 		"my $r = {};\nmy $y = $r + 1;\n",
 		"my $r = {};\nmy $c = chr($r);\n",
