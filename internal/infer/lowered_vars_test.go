@@ -15,7 +15,8 @@ import (
 // "ascii" for $u = 65. A `$` slot takes the match in scalar context, where
 // it is a Boolean, not a List. A match in list context is still a List, and
 // an aggregate in a `$` slot is still the mistake perl warns about:
-// `length(1 ? @a : "x")` draws "length() used on @a".
+// `length(1 ? @a : "x")` draws "length() used on @a". A reference there is
+// a lossy coercion, reported under WarnLossyCoercion.
 func TestChrOfBoundMatchIsScalar(t *testing.T) {
 	for _, src := range []string{
 		"my $u = 65;\nprint \"ascii\\n\" if chr $u =~ /[[:^ascii:]]/;\n",
@@ -39,7 +40,7 @@ func TestChrOfBoundMatchIsScalar(t *testing.T) {
 		"my @a = (1, 2);\nmy $n = length(1 ? @a : \"x\");\n",
 		"my $r = {};\nmy $c = chr($r);\n",
 	} {
-		if _, diags := analyzeSource(t, []byte(src)); len(diags) == 0 {
+		if _, diags, _ := analyzeSourceWithOptions(t, []byte(src), infer.Options{WarnLossyCoercion: true}); len(diags) == 0 {
 			t.Errorf("%q: no diagnostic, want the argument reported", src)
 		}
 	}

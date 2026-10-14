@@ -248,12 +248,15 @@ func (a *loweredAnalysis) checkOperand(n lower.Node, expected types.Type, op, si
 
 // lossyCoercion reports whether n, typed actual, is a coercion perl makes
 // silently but that loses its value, and so takes no ordinary mismatch: a
-// reference where a Str is expected, and a Str of unknown content where a
-// number is. perl 5.42 -w is silent on `print $hashref`, which prints
-// HASH(0x...), and on `"$]" < 5.016`. Under WarnLossyCoercion it reports
-// one as a lossy-coercion warning.
+// reference or an object where a Str or a number is expected, and a Str
+// of unknown content where a number is. perl 5.42 -w is silent on `print
+// $hashref`, which prints HASH(0x...), on `$h + 1`, which adds the
+// address, on `version->new("1.2") <= version->new("1.3")`, which
+// overloading compares, and on `"$]" < 5.016`. PSC cannot see most
+// overloads -- version's come from XS -- so an object is judged as any
+// reference is. Under WarnLossyCoercion it reports one as a
+// lossy-coercion warning.
 //
-// A ref in a numeric slot, `$h + 1`, is not one: it is reported as it is.
 // A string literal's content is known: one that looks like a number is
 // no coercion at all, as perl 5.42 -w is silent on `"3" + 1`, and one that
 // does not is reported as it is, as perl warns `Argument "abc" isn't
@@ -263,11 +266,11 @@ func (a *loweredAnalysis) lossyCoercion(n lower.Node, actual, expected types.Typ
 	if actual == types.Unknown || expected == types.Unknown {
 		return false
 	}
-	refToStr := types.IsSubtype(expected, types.Str) && !types.IsSubtype(expected, types.Num) &&
+	refToValue := types.IsSubtype(expected, types.Str) &&
 		actual&types.Ref != 0 && types.IsSubtype(actual, types.Str|types.Ref)
 	strToNum := types.IsSubtype(expected, types.Num) && types.IsSubtype(actual, types.Str) &&
 		actual&^(types.Num|types.NaN|types.Inf) != 0
-	if !refToStr && !strToNum {
+	if !refToValue && !strToNum {
 		return false
 	}
 	if content, known := literalContent(n); known && strToNum {
