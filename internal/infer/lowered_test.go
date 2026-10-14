@@ -388,7 +388,8 @@ func TestTernaryArmTakesNumericContext(t *testing.T) {
 // perl truncates a repeat count toward zero, so a finite Num count is no
 // mismatch: perl 5.42 -w is silent on `"ab" x 2.5` and `"ab" x 2.9`, each
 // "abab", and on `(1,2) x 1.5`, (1, 2). A count that is not a number at
-// all is still one: a reference repeats by its address.
+// all is still one: a reference repeats by its address, a lossy coercion
+// reported under WarnLossyCoercion.
 func TestRepeatCountAcceptsNum(t *testing.T) {
 	for _, src := range []string{
 		"my $s = \"ab\" x 2.5;\n",
@@ -404,9 +405,9 @@ func TestRepeatCountAcceptsNum(t *testing.T) {
 	}
 	root := parse.Parse([]byte("my $s = \"ab\" x {};\n"))
 	f := lower.Lower(root)
-	_, diags, _ := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
-	if len(diags) != 1 || diags[0].Code != infer.CodeCoercionMismatch {
-		t.Errorf(`"ab" x {}: diagnostics %v, want one coercion mismatch`, diags)
+	_, diags, _ := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{WarnLossyCoercion: true})
+	if len(diags) != 1 || diags[0].Code != infer.CodeLossyCoercion {
+		t.Errorf(`"ab" x {}: diagnostics %v, want one lossy coercion`, diags)
 	}
 }
 
@@ -580,6 +581,137 @@ func TestLoweredCaptureReadsEveryQuoteForm(t *testing.T) {
 		_, _, st := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
 		if sym, ok := st.Lookup("$c"); !ok || sym.Type != want {
 			t.Errorf("%q: $c is %v (found %v), want %v", src, sym.Type, ok, want)
+		}
+	}
+}
+
+// loweredDiags analyses src on the lowered path and returns its diagnostics.
+func loweredDiags(src string) []infer.Diagnostic {
+	root := parse.Parse([]byte(src))
+	f := lower.Lower(root)
+	_, diags, _ := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
+	return diags
+}
+
+// A filehandle slot takes a Glob, a GlobRef, an IO handle object, or a
+// Scalar that may hold one. perl 5.42 -w is silent on each: a lexical
+// handle from open, and an IO::File, in seek, read, stat, -s and close; a
+// GlobRef; and stat and -e given a filename.
+func TestLexicalFilehandleSatisfiesHandleSlot(t *testing.T) {
+	for _, src := range []string{
+		"open(my $fh, '<', 'f.txt') or die;\nseek($fh, 0, 0);\nread($fh, my $b, 3);\nmy @s = stat($fh);\nmy $n = -s $fh;\nclose($fh);\n",
+		"use IO::File;\nmy $fh = IO::File->new('f.txt', '<');\nseek($fh, 0, 0);\nread($fh, my $b, 3);\nmy @s = stat($fh);\nclose($fh);\n",
+		"my $g = \\*STDOUT;\nmy $t = tell($g);\n",
+		"my $f = 'f.txt';\nmy @s = stat($f);\nmy @t = stat('f.txt');\nmy $e = -e $f;\n",
+	} {
+		for _, d := range loweredDiags(src) {
+			t.Errorf("%q: diagnostic %q, want none", src, d.Message)
+		}
+	}
+}
+
+// A value that cannot be a handle is still reported in a filehandle slot:
+// perl 5.42 dies "Not a GLOB reference" on close({}) and seek([], 0, 0),
+// and -w warns "on unopened filehandle" for close(42) and seek("FH", 0, 0).
+// A HashRef is not a filename either.
+func TestNonHandleIsReportedInHandleSlot(t *testing.T) {
+	for _, src := range []string{
+		"close({});\n",
+		"seek([], 0, 0);\n",
+		"close(42);\n",
+		"seek(\"FH\", 0, 0);\n",
+		"my @s = stat({});\n",
+	} {
+		if diags := loweredDiags(src); len(diags) != 1 || diags[0].Code != infer.CodeTypeMismatch {
+			t.Errorf("%q: diagnostics %v, want one type mismatch", src, diags)
+		}
+	}
+}
+
+// A Boolean in a numeric slot numifies to 1 or 0, and perl 5.42 -w says
+// nothing: `my $s = "-" x ($n > 2); my $q = ($n > 2) / 1` prints `[-] 1`,
+// and B/Deparse.pm writes `'()' x (7 < $cx)` and `(@kids != 1)/2`. So a
+// Boolean operand of an arithmetic operator, a repeat count, or an Int or
+// Num argument of a builtin is no mismatch. A reference there still is,
+// under WarnLossyCoercion.
+func TestBooleanInNumericSlotIsSilent(t *testing.T) {
+	for _, src := range []string{
+		"my $n = 3;\nmy $s = \"-\" x ($n > 2);\n",
+		"my $n = 3;\nmy $q = ($n > 2) / 1;\n",
+		"my $cx = 9;\nmy $p = '()' x (7 < $cx);\n",
+		"my @kids = (1);\nmy $h = (@kids != 1)/2;\n",
+		"my $f = 7 < 3;\nmy $y = $f + 1;\n",
+		"my $f = 7 < 3;\nmy $c = chr($f);\n",
+		"my $v = abs(1 < 2);\n",
+	} {
+		_, diags := analyzeSource(t, []byte(src))
+		for _, d := range diags {
+			t.Errorf("%q: diagnostic %q, want none", src, d.Message)
+		}
+	}
+
+	// A broad type that may hold a number still satisfies the slot as it
+	// is: neither a Scalar nor a Hole's Any is reported there.
+	for _, src := range []string{
+		"my $m;\nmy $v = abs($m);\n",
+		"my $m;\nmy $c = chr($m);\n",
+		"abs(;",
+	} {
+		_, diags := analyzeSource(t, []byte(src))
+		for _, d := range diags {
+			t.Errorf("%q: diagnostic %q, want none", src, d.Message)
+		}
+	}
+
+	for _, src := range []string{
+		"my $r = {};\nmy $y = $r + 1;\n",
+		"my $r = {};\nmy $c = chr($r);\n",
+	} {
+		if _, diags, _ := analyzeSourceWithOptions(t, []byte(src), infer.Options{WarnLossyCoercion: true}); len(diags) == 0 {
+			t.Errorf("%q: no diagnostic, want a reference in a numeric slot reported", src)
+		}
+	}
+}
+
+// Arithmetic is typed Num|Inf because it can overflow, and `**` Num|NaN|Inf,
+// but a value that only MIGHT be Inf or NaN is checked as finite: perl 5.42
+// -w is silent on `my $q = 20 / 8; $q + 1` (3.5), on `"\t" x (20 / 8)` (two
+// tabs) and on `2 ** 0.5 + 1` (2.414...). perigrin ruled 2026-10-14 that only
+// a value KNOWN to be Inf or NaN is reported.
+func TestMaybeInfIsCheckedAsFinite(t *testing.T) {
+	for _, src := range []string{
+		"my $lvl = 20;\nmy $q = $lvl / 8;\nmy $r = $q + 1;\n",
+		"my $lvl = 20;\nmy $t = \"\\t\" x ($lvl / 8);\n",
+		"my $x = 2;\nmy $y = $x ** 0.5 + 1;\n",
+		"my $lvl = 20;\nmy $v = abs($lvl / 8);\n",
+	} {
+		_, diags := analyzeSource(t, []byte(src))
+		for _, d := range diags {
+			t.Errorf("%q: diagnostic %q, want none", src, d.Message)
+		}
+	}
+
+	for _, c := range []struct{ actual, want types.Type }{
+		{types.Num | types.Inf, types.Num},
+		{types.Int | types.Num | types.Inf, types.Int | types.Num},
+		{types.Num | types.NaN | types.Inf, types.Num},
+		{types.Int | types.NaN, types.Int},
+	} {
+		if got := infer.Finite(c.actual); got != c.want {
+			t.Errorf("Finite(%v) = %v, want %v", c.actual, got, c.want)
+		}
+	}
+
+	// No expression is typed exactly Inf or NaN yet; a value known to be
+	// one is still no Num, as perl warns "Non-finite repeat count does
+	// nothing" on `"ab" x 9**9**9`.
+	for _, known := range []types.Type{types.Inf, types.NaN, types.Inf | types.NaN} {
+		got := infer.Finite(known)
+		if got != known {
+			t.Errorf("Finite(%v) = %v, want it unchanged", known, got)
+		}
+		if types.TypeSatisfies(got, types.Num) {
+			t.Errorf("Finite(%v) = %v satisfies Num, want it reported", known, got)
 		}
 	}
 }

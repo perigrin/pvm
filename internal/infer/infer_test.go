@@ -1850,14 +1850,14 @@ func TestNoCoercionIntWithEq(t *testing.T) {
 // parenthesized operand puts "(" in that position, so the lookup failed and
 // the whole expression bailed out as Unknown before any operand was examined.
 func TestParenthesizedOperandIsChecked(t *testing.T) {
-	// A hashref in a numeric position is a real coercion mismatch — unlike an
-	// array, which yields its count. Wrapping the operand in parentheses must
-	// not hide it.
+	// A hashref in a numeric position is a lossy coercion, reported under
+	// WarnLossyCoercion — unlike an array, which yields its count. Wrapping
+	// the operand in parentheses must not hide it.
 	bare := []byte("my $h = {};\nmy $x = $h + 1;\n")
 	parens := []byte("my $h = {};\nmy $x = ($h) + 1;\n")
 
-	_, bareDiags := analyzeSource(t, bare)
-	_, parenDiags := analyzeSource(t, parens)
+	_, bareDiags, _ := analyzeSourceWithOptions(t, bare, infer.Options{WarnLossyCoercion: true})
+	_, parenDiags, _ := analyzeSourceWithOptions(t, parens, infer.Options{WarnLossyCoercion: true})
 
 	assert.NotEmpty(t, bareDiags, "precondition: @a + 1 is a diagnostic")
 	assert.Equal(t, len(bareDiags), len(parenDiags),
@@ -1937,11 +1937,11 @@ func TestInferRefgen(t *testing.T) {
 }
 
 // TestAnonymousRefInArithmeticIsReported is the payoff: with these typed, a
-// reference used as a number is reportable. It was silent before, because the
-// value had no type to disagree with.
+// reference used as a number is reportable, under WarnLossyCoercion. It was
+// silent before, because the value had no type to disagree with.
 func TestAnonymousRefInArithmeticIsReported(t *testing.T) {
 	src := []byte("my $h = {};\nmy $n = $h + 1;\n")
-	_, diags := analyzeSource(t, src)
+	_, diags, _ := analyzeSourceWithOptions(t, src, infer.Options{WarnLossyCoercion: true})
 	assert.NotEmpty(t, diags, "a hashref in arithmetic should be reported")
 }
 
@@ -2000,11 +2000,12 @@ func TestArrayInNumericContextIsCount(t *testing.T) {
 	}
 }
 
-// The counterpart: scalar context does NOT excuse a genuinely wrong operand.
-// A hashref is one value in any context and still cannot be a number.
+// The counterpart: scalar context does NOT excuse a reference. A hashref is
+// one value in any context, and its number is its address, a lossy
+// coercion reported under WarnLossyCoercion.
 func TestScalarContextDoesNotExcuseRefs(t *testing.T) {
 	src := []byte("my $h = {};\nmy $n = $h + 1;\n")
-	_, diags := analyzeSource(t, src)
+	_, diags, _ := analyzeSourceWithOptions(t, src, infer.Options{WarnLossyCoercion: true})
 	assert.NotEmpty(t, diags, "a hashref in arithmetic is still reported")
 }
 
@@ -2069,10 +2070,12 @@ func TestIndirectObjectIsFilehandleNotArgument(t *testing.T) {
 }
 
 // The real arguments are still checked: a reference in a print argument
-// position still reports, whether or not a filehandle precedes it.
+// position still reports, whether or not a filehandle precedes it. perl
+// prints it as HASH(0x...) silently, a lossy coercion, so it is reported
+// under WarnLossyCoercion.
 func TestIndirectObjectStillChecksRealArgs(t *testing.T) {
 	src := []byte("my $OUT = \\*STDERR;\nmy $h = {};\nprint $OUT $h;\n")
-	_, diags := analyzeSource(t, src)
+	_, diags, _ := analyzeSourceWithOptions(t, src, infer.Options{WarnLossyCoercion: true})
 	assert.NotEmpty(t, diags,
 		"a hashref passed as print's argument is still reported")
 }
@@ -2108,15 +2111,16 @@ func TestNumInIntPositionIsWarningNotError(t *testing.T) {
 	}
 }
 
-// The counterpart: an operand that cannot coerce at all is still an Error.
-// A hashref in arithmetic yields its address, which is never a computation
-// anyone intended.
+// The counterpart: an operand perl warns about is still an Error. An undef
+// in arithmetic draws "Use of uninitialized value in addition (+)". A
+// hashref there yields its address silently, which perigrin ruled on
+// 2026-10-14 is a lossy coercion, reported only under WarnLossyCoercion.
 func TestUncoercibleOperandStaysError(t *testing.T) {
-	src := []byte("my $h = {};\nmy $n = $h + 1;\n")
+	src := []byte("my $n = undef() + 1;\n")
 	_, diags := analyzeSource(t, src)
-	require.NotEmpty(t, diags, "a hashref in arithmetic is reported")
+	require.NotEmpty(t, diags, "an undef in arithmetic is reported")
 	assert.Equal(t, infer.Error, diags[0].Severity,
-		"a reference in a numeric position is an error, not a truncation")
+		"an undef in a numeric position is an error, not a truncation")
 }
 
 // TestObjectInNumericPositionIsWarning verifies that an object where a number
@@ -2126,7 +2130,7 @@ func TestUncoercibleOperandStaysError(t *testing.T) {
 // '0+'` has a user-defined conversion, so `$obj + 1` is a defined operation —
 // measured, 6 for a Money-like class. The object is still NOT a Num (the
 // conversion runs out of the type and nothing converts back), so this remains
-// worth reporting.
+// worth reporting under WarnLossyCoercion.
 //
 // PSC cannot tell an overloaded class from a plain one without resolving the
 // class across files, and the two differ: a plain object numifies to its
@@ -2136,7 +2140,7 @@ func TestUncoercibleOperandStaysError(t *testing.T) {
 // "0+ overload with bit shift right".
 func TestObjectInNumericPositionIsWarning(t *testing.T) {
 	src := []byte("my $o = Foo->new;\nmy $n = $o + 1;\n")
-	_, diags := analyzeSource(t, src)
+	_, diags, _ := analyzeSourceWithOptions(t, src, infer.Options{WarnLossyCoercion: true})
 	require.NotEmpty(t, diags, "an object in arithmetic is still reported")
 	for _, d := range diags {
 		assert.Equal(t, infer.Warning, d.Severity,
@@ -2144,23 +2148,18 @@ func TestObjectInNumericPositionIsWarning(t *testing.T) {
 	}
 }
 
-// A plain reference is different and stays an Error: there is no overload
-// table on a raw hashref, so numifying it can only produce an address.
-//
-// Regex is the borderline case and it lands on the warning side, because the
-// paper makes a compiled pattern an Object — blessed into Regexp — and PSC
-// cannot see whether a class declares a conversion. Measured, Regexp does NOT
-// declare 0+, so `qr/a/ + 1` really is an address and Error would be the more
-// accurate call. Reaching that needs the class, which is cross-file analysis
-// PSC does not do; being wrong toward "may convert" costs a severity level,
-// while being wrong the other way asserts something false about code that
-// works.
+// A plain reference numifies to its address: there is no overload table on
+// a raw hashref. perl 5.42 -w is silent on it, and perigrin ruled on
+// 2026-10-14 that it is the same lossy coercion as an object, reported only
+// under WarnLossyCoercion, and then as a warning.
 func TestPlainRefInNumericPositionStaysError(t *testing.T) {
 	src := []byte("my $h = {};\nmy $n = $h + 1;\n")
 	_, diags := analyzeSource(t, src)
-	require.NotEmpty(t, diags, "a hashref in arithmetic is reported")
-	assert.Equal(t, infer.Error, diags[0].Severity,
-		"a raw reference has no conversion table — it can only yield an address")
+	assert.Empty(t, diags, "a hashref in arithmetic is silent by default")
+	_, diags, _ = analyzeSourceWithOptions(t, src, infer.Options{WarnLossyCoercion: true})
+	require.NotEmpty(t, diags, "a hashref in arithmetic is reported under the opt-in")
+	assert.Equal(t, infer.CodeLossyCoercion, diags[0].Code,
+		"a raw reference can only yield an address: a lossy coercion")
 }
 
 // TestCallSwallowedComparisonStillCountsArgs verifies that a call whose
@@ -2513,9 +2512,12 @@ func TestScalarBuiltinNarrowsItsArgument(t *testing.T) {
 // loop body was never connected back to it. bson found the same aliasing in
 // its IR from the other direction, where a list read after an alias write
 // returned the original elements.
+//
+// $n is then a Str whose content PSC does not know, which perigrin ruled
+// on 2026-10-14 is reported only under WarnLossyCoercion.
 func TestForeachAliasWriteWidensTheSource(t *testing.T) {
 	src := []byte("my $n = 42;\nforeach ($n) { $_ = \"x\" }\nmy $r = $n + 1;\n")
-	_, diags := analyzeSource(t, src)
+	_, diags, _ := analyzeSourceWithOptions(t, src, infer.Options{WarnLossyCoercion: true})
 	assert.NotEmpty(t, diags,
 		"a write through a foreach alias changes the source type; perl warns here")
 }

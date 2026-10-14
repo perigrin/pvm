@@ -1,4 +1,4 @@
 sym $e Boolean
 sym $l Boolean
-sym $o Undef|Int
+sym $o Int
 sym $s Int

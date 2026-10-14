@@ -219,7 +219,10 @@ multi sub delete :unary (List @slice = die) List;
 multi sub delete :unary (Scalar $element) Scalar;
 # die and warn take a LIST of strings, which may be empty: `die()` and
 # `warn()` compile (measured). die never returns; warn returns true.
-sub die :prototype(@) (List[Str] @message) None;
+# die throws any defined scalar: `eval { die E->new }` leaves the object in
+# $@, `die {}` a HASH, and `die 1 < 2` "1"; only `die undef` warns, "Use of
+# uninitialized value in die" (measured).
+sub die :prototype(@) (List[Str|Boolean|DualVar|Ref] @message) None;
 # do, eval and goto have no prototype and are named unaries: `do $a, $b`
 # is `(do $a), $b` (B::Deparse -p). Their block forms, `do {}` and
 # `eval {}`, are the parser's. do runs a file, which it must be given
@@ -493,9 +496,10 @@ sub log (Num $number = $_) Num;
 # (measured: `stat` and `stat STDIN` each give 13 fields). In list context
 # the 13 fields, or none when the file is missing; in scalar context
 # whether it succeeded, a boolean -- not one of the fields, so two
-# candidates.
-multi sub lstat (Glob *file = $_) List;
-multi sub lstat (Glob *file = $_) Boolean;
+# candidates. The file name is a Str (measured: stat("f.txt") gives its
+# 13 fields, -w silent).
+multi sub lstat (Str|Glob *file = $_) List;
+multi sub lstat (Str|Glob *file = $_) Boolean;
 # method is a keyword, like sub, not a builtin to type (perigrin,
 # 2026-10-07): `CORE::method()` is "Cannot 'method' outside of a 'class'"
 # (measured on 5.42). The line holds CORE.pmt to prototype("CORE::method").
@@ -656,7 +660,10 @@ sub seekdir (Glob *dh, Int $position) Boolean|Undef;
 # nfound, the first of them, so context does not fork it (measured).
 multi sub select () Str;
 multi sub select (FileHandle $fh) Str;
-multi sub select ($r, $w, $e, Num $timeout) List;
+# The timeout may be undef, which blocks until a descriptor is ready:
+# `select($rout = $rin, undef, undef, undef)` (Net::FTP) is silent under
+# -w, while a timeout of "abc" warns it isn't numeric (measured).
+multi sub select ($r, $w, $e, Num|Undef $timeout) List;
 # Measured as msgctl, above.
 sub semctl (Int $id, Int $semnum, Int $cmd, Scalar $arg) Str|Undef;
 # Measured as msgget, above.
@@ -757,8 +764,8 @@ sub sqrt (Num $number = $_) Num;
 # case, while srand(@e) is srand(0), an empty array one scalar under `;$`.
 sub srand (Optional[Int] $seed) Str;
 # Measured as lstat, above.
-multi sub stat (Glob *file = $_) List;
-multi sub stat (Glob *file = $_) Boolean;
+multi sub stat (Str|Glob *file = $_) List;
+multi sub stat (Str|Glob *file = $_) Boolean;
 # study is a no-op since 5.16 that still answers: true for a defined
 # string, `$_` with none, and false for undef (measured: study("x") is 1,
 # study(undef) "").

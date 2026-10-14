@@ -52,6 +52,7 @@ const (
 	CodeTypeMismatch     = "type-mismatch"
 	CodeCoercionMismatch = "coercion-mismatch"
 	CodeUnknownBuiltin   = "unknown-builtin"
+	CodeLossyCoercion    = "lossy-coercion"
 )
 
 // FormatDiagnostic converts byte offsets to 1-based line:col positions using

@@ -154,9 +154,11 @@ func TestCoreTypesMatchMeasuredSignatures(t *testing.T) {
 		// with `@a = (5, 6, 7)`, `scalar(@a)` is 3. A `$` parameter typed
 		// List would derive `+`, which perl's `$` is not.
 		"scalar": {1, []types.Type{types.Scalar}, types.Scalar},
-		"die":    {0, []types.Type{types.Str}, types.None},
-		"warn":   {0, []types.Type{types.Str}, types.Boolean},
-		"bless":  {1, []types.Type{types.Ref, types.Str}, types.Object},
+		// die throws any defined scalar, an object or a hash reference
+		// included: `eval { die E->new }; print ref($@)` prints "E".
+		"die":   {0, []types.Type{types.Str | types.Boolean | types.DualVar | types.Ref}, types.None},
+		"warn":  {0, []types.Type{types.Str}, types.Boolean},
+		"bless": {1, []types.Type{types.Ref, types.Str}, types.Object},
 		// MinArity was 1 for abs, int, uc, lc, ucfirst, lcfirst and
 		// reverse: each compiles with no argument, `abs()` and `uc()`
 		// taking `$_`, and `reverse()` an empty list in list context but

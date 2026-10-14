@@ -257,13 +257,18 @@ func IsSubtype(child, parent Type) bool {
 // should get a diagnostic when passed a generic Ref. This matches the
 // pre-bitset behavior.
 //
+// A defined guard keeps Scalar polymorphic: Scalar less Undef is a
+// container for any defined value of its subtypes, and perl 5.42 -w is
+// silent on `if (defined $ch) { $ch eq '}' }` with $ch never assigned.
+//
 // List is handled separately by listSatisfiesAggregate rather than listed
 // here: it stands above Scalar in the arity ordering rather than beside it,
 // so a blanket polymorphic check would let every scalar requirement be
 // satisfied by a list-returning expression.
 var polymorphicMasks = map[Type]bool{
-	Any:    true,
-	Scalar: true,
+	Any:             true,
+	Scalar:          true,
+	Scalar &^ Undef: true,
 }
 
 // listSatisfiesAggregate reports whether a List actual can satisfy required.
@@ -359,7 +364,11 @@ func typeSatisfies(actual, required Type, strict bool) bool {
 	//
 	// Polymorphic: actual is a general container that could hold any of its
 	// subtypes at runtime, so a required subtype might be what it holds.
-	if polymorphicMasks[actual] && IsSubtype(required, actual) {
+	// A required union with members outside actual, such as a filehandle
+	// slot's Glob and IO beside its Str, still takes it when some member is
+	// one actual may hold: perl 5.42 -w is silent on `chdir $dir` for
+	// `my $dir = shift // "."`.
+	if polymorphicMasks[actual] && required&actual != 0 {
 		return true
 	}
 

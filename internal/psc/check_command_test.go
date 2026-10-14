@@ -175,3 +175,20 @@ func TestCheckStrictReportsUnknown(t *testing.T) {
 	assert.Contains(t, runCheck("--strict"), "Unknown",
 		"--strict should report the un-inferred operand")
 }
+
+// TestCheckWarnLossyCoercionFlag verifies that psc check takes
+// --warn-lossy-coercion, which sets infer.Options.WarnLossyCoercion: the
+// opt-in for a coercion perl makes silently but that loses the value, such
+// as `print $hashref`. A clean file stays clean under it.
+func TestCheckWarnLossyCoercionFlag(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "clean.pl")
+	require.NoError(t, os.WriteFile(file, []byte("my $x = 1;\nprint $x;\n"), 0644))
+
+	cmd := psc.NewCommand()
+	cmd.SetArgs([]string{"check", file, "--warn-lossy-coercion"})
+	var stderr strings.Builder
+	cmd.SetOut(&strings.Builder{})
+	cmd.SetErr(&stderr)
+	require.NoError(t, cmd.Execute(), "stderr: %s", stderr.String())
+}
