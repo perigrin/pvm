@@ -1,5 +1,5 @@
 // ABOUTME: End-to-end integration tests for the PSC type inference pipeline.
-// ABOUTME: Tests the psc check command and infer.Analyze API against real Perl source files.
+// ABOUTME: Tests the psc check command and infer.AnalyzeLowered API against real Perl source files.
 
 package e2e
 
@@ -14,7 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"tamarou.com/pvm/internal/infer"
-	"tamarou.com/pvm/internal/parser"
+	"tamarou.com/pvm/internal/lower"
+	"tamarou.com/pvm/internal/parse"
 	"tamarou.com/pvm/internal/psc"
 	"tamarou.com/pvm/internal/types"
 )
@@ -105,11 +106,9 @@ func TestPSCCheckDiagnostics(t *testing.T) {
 		"stderr should contain type-mismatch diagnostic codes")
 }
 
-// TestTypeInferenceAccuracy exercises infer.Analyze directly to verify that
-// specific Perl constructs are inferred with the expected types.
+// TestTypeInferenceAccuracy exercises infer.AnalyzeLowered directly to verify
+// that specific Perl constructs are inferred with the expected types.
 func TestTypeInferenceAccuracy(t *testing.T) {
-	p := parser.New()
-
 	cases := []struct {
 		name      string
 		source    string
@@ -168,32 +167,33 @@ func TestTypeInferenceAccuracy(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			src := []byte(tc.source)
-			tree, err := p.Parse(src)
-			require.NoError(t, err, "parse must succeed for %q", tc.source)
+			root := parse.Parse(src)
+			f := lower.Lower(root)
+			pos := lower.NewPositions(root, f)
+			annotations, _, _ := infer.AnalyzeLowered(f, pos, nil, infer.Options{})
 
-			annotations, _, _ := infer.Analyze(tree, src, nil)
-
-			// Search the annotation map for a node whose source text starts with
-			// the expected fragment, optionally skipping offsets below minOffset
-			// to distinguish references from declarations.
-			fragBytes := []byte(tc.fragment)
-			fragLen := uint32(len(fragBytes))
-			var found bool
-			for offset, typ := range annotations {
-				if offset < uint32(tc.minOffset) {
-					continue
+			// Search the lowered tree, outermost first, for the node whose
+			// source text is the fragment, skipping nodes that start below
+			// minOffset to distinguish references from declarations.
+			var found lower.Node
+			var walk func(n lower.Node)
+			walk = func(n lower.Node) {
+				if found != nil {
+					return
 				}
-				if offset+fragLen > uint32(len(src)) {
-					continue
+				start, end, ok := pos.Span(n.Meta().ID)
+				if ok && start >= tc.minOffset && string(src[start:end]) == tc.fragment {
+					found = n
+					return
 				}
-				if string(src[offset:offset+fragLen]) == tc.fragment {
-					assert.Equal(t, tc.want, typ,
-						"node %q should have type %s", tc.fragment, tc.want)
-					found = true
-					break
+				for _, c := range lower.Children(n) {
+					walk(c)
 				}
 			}
-			assert.True(t, found, "annotation for %q not found in source %q", tc.fragment, tc.source)
+			walk(f)
+			require.NotNil(t, found, "node for %q not found in source %q", tc.fragment, tc.source)
+			assert.Equal(t, tc.want, annotations[found.Meta().ID],
+				"node %q should have type %s", tc.fragment, tc.want)
 		})
 	}
 }
