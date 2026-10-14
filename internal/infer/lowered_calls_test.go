@@ -109,3 +109,22 @@ func TestFilenoAndReadResultsInStrAndNumSlots(t *testing.T) {
 	wantCode(t, "my $x = undef() + 1;\n", infer.CodeCoercionMismatch)
 	wantCode(t, "sub f { return if $_[0]; \"s\" }\nmy $x = f(1) . \"x\";\n", infer.CodeCoercionMismatch)
 }
+
+// defined's operand is in scalar context: perl 5.42 -w runs
+// `defined($self{lastline} = readline($fh))`, `defined(my $x =
+// readline($fh))` and `1 while defined caller ++$lvl` silently, each
+// a line or a package name, or undef. An aggregate there is perl's
+// compile error, "Can't use 'defined(@array)'", and is still reported.
+func TestDefinedOfAssignmentIsScalar(t *testing.T) {
+	for _, src := range []string{
+		"open my $fh, \"<\", $0 or die;\nmy %self;\nprint \"l\\n\" if defined($self{lastline} = readline($fh));\n",
+		"my $lvl = 0;\nsub depth { 1 while defined caller ++$lvl; $lvl }\nopen my $fh, \"<\", $0; print \"l\\n\" if defined(my $x = readline($fh)); print depth(), \"\\n\";\n",
+		"my $p = defined caller;\n",
+		"defined(;",
+	} {
+		wantSilent(t, src)
+	}
+
+	wantCode(t, "my @a = (1);\nprint defined(@a);\n", infer.CodeTypeMismatch)
+	wantCode(t, "my %h;\nprint defined(%h);\n", infer.CodeTypeMismatch)
+}

@@ -123,7 +123,8 @@ func (a *loweredAnalysis) userCall(n *lower.Call) types.Type {
 // satisfy what the builtin's slot expects is a type mismatch. scalar's
 // argument is counted first, as builtinArgActual says. One that does not
 // satisfy the slot as it is may still as finite and numified judge it,
-// and one in a slurpy slot as flattened says. Flattening is a second
+// one in a slurpy slot as flattened says, and one in a `$` slot as
+// scalarValue says. Flattening is a second
 // chance, so a Hole's Any, which satisfies the slot as it is, is never
 // rewritten; one that fails both is reported as flattened.
 func (a *loweredAnalysis) checkArg(name string, i int, arg lower.Node, expected types.Type, slurpy bool) {
@@ -136,6 +137,8 @@ func (a *loweredAnalysis) checkArg(name string, i int, arg lower.Node, expected 
 		if a.argSatisfies(actual, expected) {
 			return
 		}
+	} else if a.argSatisfies(scalarValue(arg, actual), expected) {
+		return
 	}
 	start, end, _ := a.pos.Span(arg.Meta().ID)
 	a.diags = append(a.diags, Diagnostic{
@@ -179,6 +182,22 @@ func (a *loweredAnalysis) succeeded(n lower.Node, actual types.Type) types.Type 
 		return actual
 	}
 	return actual &^ types.Undef
+}
+
+// scalarValue is actual, the type of arg, as a `$` slot judges it when arg
+// is a call or an assignment: perl evaluates either in scalar context, and
+// it yields one scalar. So a List there -- caller's and readline's, whose
+// one candidate covers both contexts, or a scalar assignment's -- is a
+// Scalar. An array or a hash is neither and keeps its type:
+// `defined(@a)` is perl's compile error, and `length(@a)` warns.
+func scalarValue(arg lower.Node, actual types.Type) types.Type {
+	switch arg.(type) {
+	case *lower.Call, *lower.Assign:
+		if actual&(types.Array|types.Hash) != 0 {
+			return actual&^(types.Array|types.Hash|types.Void) | types.Scalar
+		}
+	}
+	return actual
 }
 
 // flattened is what an argument of type actual hands a slurpy slot: an
