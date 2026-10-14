@@ -1,12 +1,21 @@
 ---
 title: "A reference in a Str slot is a valid coercion: drop the warning, add an opt-in lossy-coercion warning"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m2-lower-the-tree
 blocks:
 - 01a0c115-a44b-7393-a828-ad29844b20b4
 created: 2026-10-13T23:22:39.523151838Z
-updated: 2026-10-14T17:01:53.697143031Z
+updated: 2026-10-14T17:13:41.298228279Z
+sessions:
+- start_sha: 36ecbc1380ea6afd9166cd772cff0dbe4ccf36de
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-14T17:13:41.298228279Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-14T17:13:41.298228279Z
 ---
 
 ## Context
