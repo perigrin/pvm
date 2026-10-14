@@ -1,12 +1,21 @@
 ---
 title: A string pattern on the right of `=~` expects Regex
-state: pending
+state: in-progress
 urgency: normal
 milestone: m2-lower-the-tree
 blocks:
 - 01a0c115-a44b-7393-a828-ad29844b20b4
 created: 2026-10-14T17:00:59.04925911Z
-updated: 2026-10-14T17:00:59.04925911Z
+updated: 2026-10-14T17:13:40.5896481Z
+sessions:
+- start_sha: 36ecbc1380ea6afd9166cd772cff0dbe4ccf36de
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-14T17:13:40.5896481Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-14T17:13:40.5896481Z
 ---
 
 ## Context
