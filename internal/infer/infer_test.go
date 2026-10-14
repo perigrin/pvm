@@ -396,11 +396,12 @@ func TestNarrowedVariableAnnotation(t *testing.T) {
 }
 
 func TestNarrowedVariableInBuiltinCall(t *testing.T) {
-	// chr() expects Int. After "my $n = 3.14;", $n is narrowed to Num.
-	// TypeSatisfies(Num, Int) is false, so a type-mismatch diagnostic
-	// should be produced. Without narrowing, $n would be Scalar (polymorphic)
-	// and no diagnostic would fire.
-	src := []byte("my $n = 3.14; chr($n);")
+	// chr() expects Int. After "my $n = undef;", $n is narrowed to Undef,
+	// which perl 5.42 -w warns about ("Use of uninitialized value $n in
+	// chr"), so a type-mismatch diagnostic should be produced. Without
+	// narrowing, $n would be Scalar (polymorphic) and no diagnostic would
+	// fire. A Num would not do: perl truncates it to an Int silently.
+	src := []byte("my $n = undef; chr($n);")
 	_, diags := analyzeSource(t, src)
 
 	var found bool
@@ -410,7 +411,7 @@ func TestNarrowedVariableInBuiltinCall(t *testing.T) {
 			break
 		}
 	}
-	assert.True(t, found, "chr(Num) should produce a type-mismatch diagnostic because chr expects Int")
+	assert.True(t, found, "chr(Undef) should produce a type-mismatch diagnostic because chr expects Int")
 }
 
 // --- String literal tests ---
