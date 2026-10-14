@@ -1,0 +1,48 @@
+---
+title: fileno of a reference to a scalar that holds a glob is rejected
+state: pending
+urgency: normal
+milestone: m2-lower-the-tree
+blocks:
+- 01a0c115-a44b-7393-a828-ad29844b20b4
+created: 2026-10-14T21:56:11.297071782Z
+updated: 2026-10-14T21:56:11.297071782Z
+---
+
+## Context
+
+- found by: cutover 1 (01a0c115-a44b), round-2 re-measure, bucket `R2-FILENO-GLOB-IN-SCALAR` (2026-10-14); evidence in `scratchpad/cmp-a44b/ev-r2.md`, `ev-r2b.md`, repros in `cmp-a44b/repro/`
+- commands: `go test ./internal/infer/`; perl 5.42 `/home/perigrin/.local/bin/perl -w`
+
+perigrin ruled 2026-10-14 that every false positive cutover 1 adds to psc check is fixed before it merges, on the lowered path. 2 added lines (Dumpvalue, dumpvar.pl). `fileno(\$v)` where `$v` holds a glob: `expects Glob, got ScalarRef`; perl is silent. 01a138e3-972f's handle set does not include a ScalarRef, which perl dereferences to the glob it holds.
+
+#### r2_fileno_scalarref
+
+```perl
+my $v = \*STDOUT; my $fileno;
+if (ref $v eq 'HASH') { 1 } elsif (defined ($fileno = fileno(\$v))) { print "fd\n" }
+```
+
+```perl
+my $v = "x"; my $fileno;
+print "fd\n" if defined($fileno = eval { fileno(\$v) });
+```
+perl -w (rc=0): 
+old: 2:49: error: call to fileno: argument 1 expects Glob, got ScalarRef [type-mismatch];
+new: 2:49: error: call to fileno: argument 1 expects Glob, got ScalarRef [type-mismatch];
+
+```perl
+my $v = \*STDOUT; my $fileno;
+if (ref $v eq 'HASH') { 1 } elsif (defined ($fileno = fileno(\$v))) { print "fd\n" }
+```
+perl -w (rc=255): Not a GLOB reference at r2_fileno_scalarref.pl line 2.
+old: 2:62: error: call to fileno: argument 1 expects Glob, got ScalarRef [type-mismatch];
+new: 2:62: error: call to fileno: argument 1 expects Glob, got ScalarRef [type-mismatch];
+
+## Steps
+
+- [ ] Failing test first from the repro; fix so perl 5.42 -w's verdict holds, keeping a control perl warns on; goldens under `Diagnostics-changed:` trailers; precision must stay >= 62/76 with WRONG 0; `make test`; commit
+
+## Acceptance criteria
+
+- [ ] the bucket's repro is silent as perl is (`go test ./internal/infer/ -run '^TestFilenoOfScalarRefToGlob$' -count=1 -v | grep -q '^--- PASS: TestFilenoOfScalarRefToGlob'`)
