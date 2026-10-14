@@ -57,3 +57,25 @@ func TestUserSubReturningBuiltinResult(t *testing.T) {
 		wantReported(t, src, infer.CodeCoercionMismatch)
 	}
 }
+
+// readline in print's list hands print the lines it reads, each a Str,
+// and none at all at end of file: the empty list is no argument, so it is
+// never Void there. perl 5.42 -w is silent on each case below, and on a
+// broad Scalar or a Hole's Any printed the same way.
+func TestPrintOfReadlineIsNotVoid(t *testing.T) {
+	for _, src := range []string{
+		"my $laststash = \"main\";\nprint readline(*{$laststash.\"::DATA\"});\n__DATA__\nline\n",
+		"print readline(*DATA);\n__DATA__\nline\n",
+		"my $s = shift;\nprint $s, readline(*DATA);\n__DATA__\nline\n",
+		"print eval 'x', readline(*DATA);\n__DATA__\nline\n",
+	} {
+		wantSilent(t, src)
+	}
+
+	// perl 5.42 -w dies "Not a GLOB reference" on a hash reference as
+	// readline's handle.
+	wantCode(t, "print readline({});\n", infer.CodeTypeMismatch)
+	// perl 5.42 -w warns "Use of uninitialized value in print" on an
+	// array of undef flattened into print's list.
+	wantCode(t, "my @a = (undef);\nprint @a;\n", infer.CodeTypeMismatch)
+}

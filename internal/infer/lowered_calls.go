@@ -325,7 +325,9 @@ func scalarValue(arg lower.Node, actual types.Type) types.Type {
 // flattened is what an argument of type actual hands a slurpy slot: an
 // array or a hash flattens into its elements, so the slot checks those --
 // the recorded element type, else any Scalar -- and a hash's keys, which
-// are strings. `print @parts` prints each element.
+// are strings. `print @parts` prints each element. A List's Void is the
+// empty list, which hands the slot no element at all: perl 5.42 -w is
+// silent on `print readline(*DATA)` at end of file.
 func (a *loweredAnalysis) flattened(arg lower.Node, actual types.Type) types.Type {
 	agg := actual & (types.Array | types.Hash)
 	if agg == 0 {
@@ -338,7 +340,7 @@ func (a *loweredAnalysis) flattened(arg lower.Node, actual types.Type) types.Typ
 	if agg&types.Hash != 0 {
 		elem |= types.Str
 	}
-	return actual&^(types.Array|types.Hash) | elem
+	return actual&^(types.Array|types.Hash|types.Void) | elem
 }
 
 // handleSatisfies reports whether actual may be the handle a filehandle
