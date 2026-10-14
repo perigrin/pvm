@@ -183,3 +183,18 @@ func TestUndefUnionBuiltinResultInStrSlot(t *testing.T) {
 
 	wantCode(t, "my $y = (undef) . \"x\";\n", infer.CodeCoercionMismatch)
 }
+
+// `scalar localtime()` is the date string: perl 5.42 -w runs `"on: " .
+// scalar localtime() . "\n"` and `"g: " . scalar gmtime(0)` silently,
+// printing "on: Wed Oct 14 ..." and "g: Thu Jan  1 00:00:00 1970".
+// Without `scalar`, in list context, localtime is nine numbers.
+func TestScalarLocaltimeIsStr(t *testing.T) {
+	for _, src := range []string{
+		"my $stamp = \"on: \" . scalar localtime() . \"\\n\";\nprint $stamp;\n",
+		"my $g = \"g: \" . scalar gmtime(0);\n",
+	} {
+		wantSilent(t, src)
+	}
+
+	wantCode(t, "my $y = (undef) . \"x\";\n", infer.CodeCoercionMismatch)
+}
