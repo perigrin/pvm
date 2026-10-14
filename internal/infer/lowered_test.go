@@ -388,7 +388,8 @@ func TestTernaryArmTakesNumericContext(t *testing.T) {
 // perl truncates a repeat count toward zero, so a finite Num count is no
 // mismatch: perl 5.42 -w is silent on `"ab" x 2.5` and `"ab" x 2.9`, each
 // "abab", and on `(1,2) x 1.5`, (1, 2). A count that is not a number at
-// all is still one: a reference repeats by its address.
+// all is still one: a reference repeats by its address, a lossy coercion
+// reported under WarnLossyCoercion.
 func TestRepeatCountAcceptsNum(t *testing.T) {
 	for _, src := range []string{
 		"my $s = \"ab\" x 2.5;\n",
@@ -404,9 +405,9 @@ func TestRepeatCountAcceptsNum(t *testing.T) {
 	}
 	root := parse.Parse([]byte("my $s = \"ab\" x {};\n"))
 	f := lower.Lower(root)
-	_, diags, _ := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
-	if len(diags) != 1 || diags[0].Code != infer.CodeCoercionMismatch {
-		t.Errorf(`"ab" x {}: diagnostics %v, want one coercion mismatch`, diags)
+	_, diags, _ := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{WarnLossyCoercion: true})
+	if len(diags) != 1 || diags[0].Code != infer.CodeLossyCoercion {
+		t.Errorf(`"ab" x {}: diagnostics %v, want one lossy coercion`, diags)
 	}
 }
 
@@ -631,7 +632,8 @@ func TestNonHandleIsReportedInHandleSlot(t *testing.T) {
 // nothing: `my $s = "-" x ($n > 2); my $q = ($n > 2) / 1` prints `[-] 1`,
 // and B/Deparse.pm writes `'()' x (7 < $cx)` and `(@kids != 1)/2`. So a
 // Boolean operand of an arithmetic operator, a repeat count, or an Int or
-// Num argument of a builtin is no mismatch. A reference there still is.
+// Num argument of a builtin is no mismatch. A reference there still is,
+// under WarnLossyCoercion.
 func TestBooleanInNumericSlotIsSilent(t *testing.T) {
 	for _, src := range []string{
 		"my $n = 3;\nmy $s = \"-\" x ($n > 2);\n",
@@ -665,7 +667,7 @@ func TestBooleanInNumericSlotIsSilent(t *testing.T) {
 		"my $r = {};\nmy $y = $r + 1;\n",
 		"my $r = {};\nmy $c = chr($r);\n",
 	} {
-		if _, diags := analyzeSource(t, []byte(src)); len(diags) == 0 {
+		if _, diags, _ := analyzeSourceWithOptions(t, []byte(src), infer.Options{WarnLossyCoercion: true}); len(diags) == 0 {
 			t.Errorf("%q: no diagnostic, want a reference in a numeric slot reported", src)
 		}
 	}

@@ -15,7 +15,8 @@ import (
 // "ascii" for $u = 65. A `$` slot takes the match in scalar context, where
 // it is a Boolean, not a List. A match in list context is still a List, and
 // an aggregate in a `$` slot is still the mistake perl warns about:
-// `length(1 ? @a : "x")` draws "length() used on @a".
+// `length(1 ? @a : "x")` draws "length() used on @a". A reference there is
+// a lossy coercion, reported under WarnLossyCoercion.
 func TestChrOfBoundMatchIsScalar(t *testing.T) {
 	for _, src := range []string{
 		"my $u = 65;\nprint \"ascii\\n\" if chr $u =~ /[[:^ascii:]]/;\n",
@@ -39,7 +40,7 @@ func TestChrOfBoundMatchIsScalar(t *testing.T) {
 		"my @a = (1, 2);\nmy $n = length(1 ? @a : \"x\");\n",
 		"my $r = {};\nmy $c = chr($r);\n",
 	} {
-		if _, diags := analyzeSource(t, []byte(src)); len(diags) == 0 {
+		if _, diags, _ := analyzeSourceWithOptions(t, []byte(src), infer.Options{WarnLossyCoercion: true}); len(diags) == 0 {
 			t.Errorf("%q: no diagnostic, want the argument reported", src)
 		}
 	}
@@ -71,12 +72,14 @@ func TestHashElementTypeIsPerKey(t *testing.T) {
 		t.Errorf("%q: $source->{count} is %v (found %v), want Int", src, got, ok)
 	}
 
+	// A Str element's content is not tracked, so it is a lossy coercion,
+	// reported under WarnLossyCoercion as perigrin ruled on 2026-10-14.
 	for _, src := range []string{
 		"my $h = { name => \"abc\", n => [1] };\nmy $x = $h->{name} + 1;\n",
 		"my %h = (name => \"abc\", n => [1]);\nmy $x = $h{name} + 1;\n",
 	} {
-		if _, diags := analyzeSource(t, []byte(src)); len(diags) != 1 || diags[0].Code != infer.CodeCoercionMismatch {
-			t.Errorf("%q: diagnostics %v, want one coercion mismatch", src, diags)
+		if diags := lossyDiags(t, src); len(diags) != 1 || diags[0].Code != infer.CodeLossyCoercion {
+			t.Errorf("%q: diagnostics %v, want one lossy coercion", src, diags)
 		}
 	}
 }
@@ -86,8 +89,9 @@ func TestHashElementTypeIsPerKey(t *testing.T) {
 // `$left{$op} == $left{$l}` over `%left = ('multiply' => 19, 'i_multiply'
 // => 19)`, warning only that $op is undefined. When an element of the list
 // may flatten, which are keys is not known, and no element type is guessed.
-// A string value is still reported where perl warns: `$h{$k} + 1` over
-// `%h = ("a" => "abc")` draws "Argument "abc" isn't numeric".
+// A string value is still reported where perl warns, under
+// WarnLossyCoercion: `$h{$k} + 1` over `%h = ("a" => "abc")` draws
+// "Argument "abc" isn't numeric".
 func TestKeyValueHashElementsKeepValueTypes(t *testing.T) {
 	for _, src := range []string{
 		"my (%left, $op, $l) = ((), \"multiply\", \"multiply\");\n%left = ('multiply' => 19, 'i_multiply' => 19);\nprint \"same\\n\" if $left{$op} && $left{$l} and $left{$op} == $left{$l};\n",
@@ -101,11 +105,13 @@ func TestKeyValueHashElementsKeepValueTypes(t *testing.T) {
 		}
 	}
 
+	// A Str element's content is not tracked, so it is a lossy coercion,
+	// reported under WarnLossyCoercion as perigrin ruled on 2026-10-14.
 	for _, src := range []string{
 		"my %h;\n%h = (\"a\" => \"abc\", \"b\" => \"x\");\nmy $k = \"a\";\nmy $x = $h{$k} + 1;\n",
 	} {
-		if _, diags := analyzeSource(t, []byte(src)); len(diags) != 1 || diags[0].Code != infer.CodeCoercionMismatch {
-			t.Errorf("%q: diagnostics %v, want one coercion mismatch", src, diags)
+		if diags := lossyDiags(t, src); len(diags) != 1 || diags[0].Code != infer.CodeLossyCoercion {
+			t.Errorf("%q: diagnostics %v, want one lossy coercion", src, diags)
 		}
 	}
 }

@@ -190,7 +190,7 @@ func (a *loweredAnalysis) userCall(n *lower.Call) types.Type {
 // argument is counted first, as builtinArgActual says. One that does not
 // satisfy the slot as it is may still as finite and numified judge it,
 // one in a slurpy slot as flattened says, and one in a `$` slot as
-// scalarValue says. Flattening is a second
+// scalarValue says, and last as lossyCoercion says. Flattening is a second
 // chance, so a Hole's Any, which satisfies the slot as it is, is never
 // rewritten; one that fails both is reported as flattened.
 func (a *loweredAnalysis) checkArg(name string, i int, arg lower.Node, expected types.Type, slurpy bool) {
@@ -204,6 +204,9 @@ func (a *loweredAnalysis) checkArg(name string, i int, arg lower.Node, expected 
 			return
 		}
 	} else if a.argSatisfies(scalarValue(arg, actual), expected) {
+		return
+	}
+	if a.lossyCoercion(arg, actual, expected) {
 		return
 	}
 	start, end, _ := a.pos.Span(arg.Meta().ID)

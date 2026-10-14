@@ -117,7 +117,7 @@ func TestDefinedOfAssignmentIsScalar(t *testing.T) {
 		wantSilent(t, src)
 	}
 
-	wantCode(t, "my @a = (1);\nprint defined(@a);\n", infer.CodeTypeMismatch)
+	wantCode(t, "my @a = (1, 2);\nprint defined(@a);\n", infer.CodeTypeMismatch)
 	wantCode(t, "my %h;\nprint defined(%h);\n", infer.CodeTypeMismatch)
 }
 

@@ -4,6 +4,10 @@
 package infer
 
 import (
+	"fmt"
+	"regexp"
+	"strings"
+
 	"tamarou.com/pvm/internal/lower"
 	"tamarou.com/pvm/internal/parse"
 	"tamarou.com/pvm/internal/types"
@@ -45,8 +49,11 @@ func (a *loweredAnalysis) infix(n lower.Node, op, shapes string, l, r lower.Node
 		return types.Unknown
 	}
 	a.checkOperand(l, builtinArgType(sigs, 0), op, "left")
-	a.checkOperand(r, countType(op, builtinArgType(sigs, 1)), op, "right")
+	a.checkOperand(r, patternType(op, countType(op, builtinArgType(sigs, 1))), op, "right")
 	result := builtinReturns(sigs, types.UnknownCtx)
+	if op == "<=>" {
+		return spaceshipResult(a.typeOf(l), a.typeOf(r), result)
+	}
 	if result == types.Any && logicalOps[op] {
 		return types.Join(a.valueOf(l), a.valueOf(r))
 	}
@@ -73,6 +80,32 @@ func (a *loweredAnalysis) repeat(n *lower.Repeat) types.Type {
 func countType(op string, expected types.Type) types.Type {
 	if op == "x" && expected == types.Int {
 		return types.Num
+	}
+	return expected
+}
+
+// spaceshipResult is `<=>`'s type, result, over operands typed l and r.
+// CORE.pmt declares it Int|Undef, as perl gives undef when an operand is
+// NaN, but a value that only might be NaN is compared as finite says:
+// perl 5.42 -w is silent on `$sgn * ($re1 <=> $re2)`. Only an operand
+// known to be NaN, or Inf|NaN, with no other numeric bit, keeps the Undef.
+func spaceshipResult(l, r, result types.Type) types.Type {
+	for _, t := range []types.Type{l, r} {
+		if t&types.Num == 0 && t&types.NaN != 0 {
+			return result
+		}
+	}
+	return result &^ types.Undef
+}
+
+// patternType is what the right of a bind takes. CORE.pmt declares it
+// Regex, and perl compiles a string there as a pattern: perl 5.42 -w,
+// `"Foo" =~ q#\A\w+\z#` matches silently. So it takes a Str too, while an
+// undef is still reported, as perl warns "Use of uninitialized value in
+// regexp compilation". Elsewhere expected is returned as it is.
+func patternType(op string, expected types.Type) types.Type {
+	if (op == "=~" || op == "!~") && expected == types.Regex {
+		return types.Regex | types.Str
 	}
 	return expected
 }
@@ -195,7 +228,8 @@ func (a *loweredAnalysis) checkOperand(n lower.Node, expected types.Type, op, si
 		return
 	}
 	if a.opts.satisfies(numified(finite(a.typeOf(n)), expected), expected) ||
-		a.opts.satisfies(numified(finite(a.succeeded(n, a.typeOf(n))), expected), expected) {
+		a.opts.satisfies(numified(finite(a.succeeded(n, a.typeOf(n))), expected), expected) ||
+		a.lossyCoercion(n, a.typeOf(n), expected) {
 		return
 	}
 	severity, message, ok := operandMismatch(a.opts, a.typeOf(n), expected, op, side)
@@ -212,15 +246,83 @@ func (a *loweredAnalysis) checkOperand(n lower.Node, expected types.Type, op, si
 	})
 }
 
+// lossyCoercion reports whether n, typed actual, is a coercion perl makes
+// silently but that loses its value, and so takes no ordinary mismatch: a
+// reference or an object where a Str or a number is expected, and a Str
+// of unknown content where a number is. perl 5.42 -w is silent on `print
+// $hashref`, which prints HASH(0x...), on `$h + 1`, which adds the
+// address, on `version->new("1.2") <= version->new("1.3")`, which
+// overloading compares, and on `"$]" < 5.016`. PSC cannot see most
+// overloads -- version's come from XS -- so an object is judged as any
+// reference is. Under WarnLossyCoercion it reports one as a
+// lossy-coercion warning.
+//
+// A string literal's content is known: one that looks like a number is
+// no coercion at all, as perl 5.42 -w is silent on `"3" + 1`, and one that
+// does not is reported as it is, as perl warns `Argument "abc" isn't
+// numeric` on `"abc" + 1`.
+func (a *loweredAnalysis) lossyCoercion(n lower.Node, actual, expected types.Type) bool {
+	actual = numified(finite(actual), expected)
+	if actual == types.Unknown || expected == types.Unknown {
+		return false
+	}
+	refToValue := types.IsSubtype(expected, types.Str) &&
+		actual&types.Ref != 0 && types.IsSubtype(actual, types.Str|types.Ref)
+	strToNum := types.IsSubtype(expected, types.Num) && types.IsSubtype(actual, types.Str) &&
+		actual&^(types.Num|types.NaN|types.Inf) != 0
+	if !refToValue && !strToNum {
+		return false
+	}
+	if content, known := literalContent(n); known && strToNum {
+		return numericString.MatchString(content)
+	}
+	if a.opts.WarnLossyCoercion {
+		start, end, _ := a.pos.Span(n.Meta().ID)
+		a.diags = append(a.diags, Diagnostic{
+			StartByte: uint32(start),
+			EndByte:   uint32(end),
+			Severity:  Warning,
+			Code:      CodeLossyCoercion,
+			Message:   fmt.Sprintf("lossy coercion of %s to %s", actual, expected),
+		})
+	}
+	return true
+}
+
+// numericString is perl's looks_like_number for a string literal, as
+// perl 5.42 -w measures it: silent on "3", " 3.5e2 ", "1.", "+.5", "inf",
+// "-nan" and "0 but true", and warning on "abc", "", " ", "1e", "1abc",
+// "0x10", "0b1" and "1_000".
+var numericString = regexp.MustCompile(`^\s*(?:[+-]?(?:(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?|(?i:inf(?:inity)?|nan))|0 but true)\s*$`)
+
+// literalContent is the content of n when it is a string literal that
+// interpolates nothing: 'abc' and "abc", but not "$]" or a command.
+func literalContent(n lower.Node) (string, bool) {
+	lit, ok := n.(*lower.StrLit)
+	if !ok || lit.Backtick || lit.Interpolated && strings.ContainsAny(lit.Value, "$@") {
+		return "", false
+	}
+	return lit.Value, true
+}
+
 // numified is actual as a slot expecting expected judges it. perl numifies
 // a Boolean to 1 or 0 without a warning: perl 5.42 -w, `"-" x (3 > 2)` is
 // "-" and `(3 > 2) / 1` is 1. So where an Int or a Num is expected, a
-// Boolean is the Int it becomes. Elsewhere actual is returned as it is.
+// Boolean is the Int it becomes. It stringifies to "1" or "" as silently:
+// `"" . (1 == 2)` is "", so where a Str is expected it is a Str. A type
+// that satisfies expected as it is, such as Scalar or Any, is kept whole.
+// Elsewhere actual is returned as it is.
 func numified(actual, expected types.Type) types.Type {
-	if actual&types.Boolean == 0 || expected == types.Unknown || !types.IsSubtype(expected, types.Num) {
+	if actual&types.Boolean == 0 || expected == types.Unknown || types.TypeSatisfies(actual, expected) {
 		return actual
 	}
-	return actual&^types.Boolean | types.Int
+	switch {
+	case types.IsSubtype(expected, types.Num):
+		return actual&^types.Boolean | types.Int
+	case types.IsSubtype(expected, types.Str):
+		return actual&^types.Boolean | types.Str
+	}
+	return actual
 }
 
 // finite is actual checked as a finite value. Arithmetic is typed Num|Inf,
@@ -245,9 +347,23 @@ var prefixNames = map[string]string{"neg": "-", "pos": "+"}
 // return type, except that minus and plus keep a numeric operand's own
 // type -- -5 is an Int and -5.5 a Num.
 //
+// Plus is the identity: `+X` is X's value, an aggregate counted outside
+// list context. perl 5.42 -w is silent on `splice @t, 0, +@d`, and warns
+// "Use of uninitialized value in splice" on `splice @t, 0, +undef`, as it
+// does without the plus.
+//
 // Increment and decrement are not typed: the legacy path had no rule for
 // them.
 func (a *loweredAnalysis) unary(n *lower.Unary) types.Type {
+	if n.Op == "pos" && n.Operand != nil {
+		ctx := a.evalCtx[n.ID]
+		if ctx != types.ListCtx {
+			ctx = types.ScalarCtx
+		}
+		a.evalCtx[n.Operand.Meta().ID] = ctx
+		a.operand(n.Operand)
+		return a.valueOf(n.Operand)
+	}
 	operand := a.operand(n.Operand)
 	if n.Op == "++" || n.Op == "--" {
 		return types.Unknown
