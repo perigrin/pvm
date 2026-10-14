@@ -1,21 +1,25 @@
 ---
 title: After a defined guard, a substr result keeps an unnamed type bit and fails a Str slot
-state: in-progress
+state: done
 urgency: normal
 milestone: m2-lower-the-tree
 blocks:
 - 01a0c115-a44b-7393-a828-ad29844b20b4
 created: 2026-10-14T21:56:08.046532878Z
-updated: 2026-10-14T22:36:29.391078565Z
+updated: 2026-10-14T22:36:30.52612953Z
 sessions:
 - start_sha: 85bda4f9b766ba76e39cccddbd73509b57462ebd
-  end_sha: ""
+  end_sha: 85bda4f9b766ba76e39cccddbd73509b57462ebd
   commits: 0
   started_at: 2026-10-14T22:36:29.391078565Z
+  ended_at: 2026-10-14T22:36:30.52612953Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-14T22:36:29.391078565Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-14T22:36:30.52612953Z
 ---
 
 ## Context
