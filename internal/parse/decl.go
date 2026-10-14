@@ -714,6 +714,12 @@ func (p *parser) parseVarDeclHead(word lexer.Token) *Node {
 	if next, ok := p.peekSignificant(); ok && (p.text(next) == "," || p.text(next) == "=>") {
 		return p.parseInfix(n, 0)
 	}
+	// A list target stops below the comma too, so `and`, `or` and `xor`
+	// take the whole declaration as their left operand: measured,
+	// `my ($x) = @a or die` is `((my($x) = @a) or die)`.
+	if p.atOperatorBelowComma() {
+		return p.parseInfix(n, 0)
+	}
 	return n
 }
 
@@ -848,10 +854,17 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 	// A list target -- `my ($a, $b) = @_` -- or anything else, parsed as one
 	// expression so the assignment at level 9 is already inside it.
 	//
+	// The expression stops at the comma: the declarator takes only its
+	// parenthesised list, and a comma after the `)` belongs to the list the
+	// declaration sits in. Measured on 5.42.0 with -MO=Deparse:
+	//
+	//	read $fh, my ($buf), 3;    read $fh, my $buf, 3;
+	//	my ($b, $c), $d;           my($b, $c), $d;
+	//
 	// Nothing at all after the declarator -- `my` at the end of the file --
 	// is perl's "syntax error at EOF", the declarator a prefix whose operand
 	// ran out, and operand's Unknown spanning the declarator replaces it.
-	target := p.operand(0, word)
+	target := p.operand(infix[","].BP, word)
 	if target.Kind == Unknown && target.Start == word.Start {
 		return target
 	}
