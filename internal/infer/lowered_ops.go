@@ -49,7 +49,7 @@ func (a *loweredAnalysis) infix(n lower.Node, op, shapes string, l, r lower.Node
 		return types.Unknown
 	}
 	a.checkOperand(l, builtinArgType(sigs, 0), op, "left")
-	a.checkOperand(r, patternType(op, countType(op, builtinArgType(sigs, 1))), op, "right")
+	a.checkOperand(r, patternType(op, builtinArgType(sigs, 1)), op, "right")
 	result := builtinReturns(sigs, types.UnknownCtx)
 	if op == "<=>" {
 		return spaceshipResult(a.typeOf(l), a.typeOf(r), result)
@@ -70,18 +70,6 @@ func (a *loweredAnalysis) repeat(n *lower.Repeat) types.Type {
 		left = "@"
 	}
 	return a.infix(n, "x", left+operandShape(n.Count), n.Left, n.Count)
-}
-
-// countType is what a repeat's count takes. CORE.pmt declares it Int, and
-// perl truncates any finite number to one silently: perl 5.42 -w, `"ab" x
-// 2.9` is "abab". So the count takes a Num, while a reference or an undef
-// count is still reported, as perl warns or repeats by an address.
-// Elsewhere expected is returned as it is.
-func countType(op string, expected types.Type) types.Type {
-	if op == "x" && expected == types.Int {
-		return types.Num
-	}
-	return expected
 }
 
 // spaceshipResult is `<=>`'s type, result, over operands typed l and r.
@@ -309,18 +297,26 @@ func literalContent(n lower.Node) (string, bool) {
 // a Boolean to 1 or 0 without a warning: perl 5.42 -w, `"-" x (3 > 2)` is
 // "-" and `(3 > 2) / 1` is 1. So where an Int or a Num is expected, a
 // Boolean is the Int it becomes. It stringifies to "1" or "" as silently:
-// `"" . (1 == 2)` is "", so where a Str is expected it is a Str. A type
-// that satisfies expected as it is, such as Scalar or Any, is kept whole.
-// Elsewhere actual is returned as it is.
+// `"" . (1 == 2)` is "", so where a Str is expected it is a Str. Where an
+// Int is expected, perl truncates any number to one silently: perl 5.42
+// -w is silent on `"ab" x 2.9`, `splice @h, 0, 2.5` and `1 << (20 / 8)`,
+// so a Num there is the Int it becomes. A type that satisfies expected as
+// it is, such as Scalar or Any, is kept whole. Elsewhere actual is
+// returned as it is.
 func numified(actual, expected types.Type) types.Type {
-	if actual&types.Boolean == 0 || expected == types.Unknown || types.TypeSatisfies(actual, expected) {
+	if expected == types.Unknown || types.TypeSatisfies(actual, expected) {
 		return actual
 	}
-	switch {
-	case types.IsSubtype(expected, types.Num):
-		return actual&^types.Boolean | types.Int
-	case types.IsSubtype(expected, types.Str):
-		return actual&^types.Boolean | types.Str
+	if actual&types.Boolean != 0 {
+		switch {
+		case types.IsSubtype(expected, types.Num):
+			actual = actual&^types.Boolean | types.Int
+		case types.IsSubtype(expected, types.Str):
+			actual = actual&^types.Boolean | types.Str
+		}
+	}
+	if expected&types.Num == types.Int && actual&types.Num != 0 {
+		actual = actual&^types.Num | types.Int
 	}
 	return actual
 }

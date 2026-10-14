@@ -3687,7 +3687,9 @@ func flattenGuards(guard *guardResult, negate bool) []*guardResult {
 // type of one guard becomes the input type for the next), so that compound
 // conditions on the same variable (e.g. defined($x) && ref($x)) correctly
 // intersect their effects. A variable never declared is skipped, so no
-// phantom shadow is made for it.
+// phantom shadow is made for it, except under a referent guard: what
+// `ref \$v eq 'GLOB'` narrows $v to does not depend on how $v was typed,
+// and a variable a sub body declares is not found from the lowered walk.
 func guardShadows(guards []*guardResult, st *SymbolTable) (map[string]types.Type, map[string]string) {
 	// Build accumulated narrowed types by applying guards sequentially.
 	// working tracks the current type for each variable as guards are applied,
@@ -3704,7 +3706,7 @@ func guardShadows(guards []*guardResult, st *SymbolTable) (map[string]types.Type
 		currentType, seen := working[guard.VarName]
 		if !seen {
 			sym, found := st.Lookup(guard.VarName)
-			if !found {
+			if !found && guard.Guard.Kind != types.GuardReferent {
 				// Variable was never declared — skip to avoid phantom shadows.
 				continue
 			}
