@@ -219,7 +219,10 @@ multi sub delete :unary (List @slice = die) List;
 multi sub delete :unary (Scalar $element) Scalar;
 # die and warn take a LIST of strings, which may be empty: `die()` and
 # `warn()` compile (measured). die never returns; warn returns true.
-sub die :prototype(@) (List[Str] @message) None;
+# die throws any defined scalar: `eval { die E->new }` leaves the object in
+# $@, `die {}` a HASH, and `die 1 < 2` "1"; only `die undef` warns, "Use of
+# uninitialized value in die" (measured).
+sub die :prototype(@) (List[Str|Boolean|DualVar|Ref] @message) None;
 # do, eval and goto have no prototype and are named unaries: `do $a, $b`
 # is `(do $a), $b` (B::Deparse -p). Their block forms, `do {}` and
 # `eval {}`, are the parser's. do runs a file, which it must be given
@@ -657,7 +660,10 @@ sub seekdir (Glob *dh, Int $position) Boolean|Undef;
 # nfound, the first of them, so context does not fork it (measured).
 multi sub select () Str;
 multi sub select (FileHandle $fh) Str;
-multi sub select ($r, $w, $e, Num $timeout) List;
+# The timeout may be undef, which blocks until a descriptor is ready:
+# `select($rout = $rin, undef, undef, undef)` (Net::FTP) is silent under
+# -w, while a timeout of "abc" warns it isn't numeric (measured).
+multi sub select ($r, $w, $e, Num|Undef $timeout) List;
 # Measured as msgctl, above.
 sub semctl (Int $id, Int $semnum, Int $cmd, Scalar $arg) Str|Undef;
 # Measured as msgget, above.

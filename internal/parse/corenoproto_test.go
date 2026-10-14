@@ -151,7 +151,8 @@ func TestCoreSelectAndEachAreMultis(t *testing.T) {
 		"select": {
 			{0, nil, types.Str},
 			{1, []types.Type{types.FileHandle}, types.Str},
-			{4, []types.Type{types.Unknown, types.Unknown, types.Unknown, types.Num}, types.List},
+			// An undef timeout blocks: `select($r, undef, undef, undef)`.
+			{4, []types.Type{types.Unknown, types.Unknown, types.Unknown, types.Num | types.Undef}, types.List},
 		},
 		// Scalar context first: the key alone, or undef when done.
 		"each": {

@@ -189,12 +189,13 @@ func operandShape(n lower.Node) string {
 // not satisfy what the operator expects is a coercion mismatch. A missing
 // operand is not checked, and a Hole is Any, which satisfies every
 // operator, Strict or not. The operand is judged as finite and numified
-// say.
+// say, and a builtin's result also as succeeded says.
 func (a *loweredAnalysis) checkOperand(n lower.Node, expected types.Type, op, side string) {
 	if n == nil {
 		return
 	}
-	if a.opts.satisfies(numified(finite(a.typeOf(n)), expected), expected) {
+	if a.opts.satisfies(numified(finite(a.typeOf(n)), expected), expected) ||
+		a.opts.satisfies(numified(finite(a.succeeded(n, a.typeOf(n))), expected), expected) {
 		return
 	}
 	severity, message, ok := operandMismatch(a.opts, a.typeOf(n), expected, op, side)
