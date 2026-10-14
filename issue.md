@@ -1,12 +1,21 @@
 ---
 title: "`use subs` overriding a builtin is still checked as the builtin"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m2-lower-the-tree
 blocks:
 - 01a0c115-a44b-7393-a828-ad29844b20b4
 created: 2026-10-14T17:01:12.578551649Z
-updated: 2026-10-14T17:01:12.578551649Z
+updated: 2026-10-14T17:13:39.705051721Z
+sessions:
+- start_sha: 36ecbc1380ea6afd9166cd772cff0dbe4ccf36de
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-14T17:13:39.705051721Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-14T17:13:39.705051721Z
 ---
 
 ## Context
