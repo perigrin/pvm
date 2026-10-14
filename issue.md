@@ -1,21 +1,33 @@
 ---
 title: "`*|` (the glob of the punctuation variable $|) parses as bitwise or"
-state: in-progress
+state: done
 urgency: normal
 milestone: m2-lower-the-tree
 blocks:
 - 01a0c115-a44b-7393-a828-ad29844b20b4
 created: 2026-10-14T21:56:15.169407428Z
-updated: 2026-10-14T22:36:30.22735741Z
+updated: 2026-10-14T23:01:31.608371719Z
 sessions:
 - start_sha: 85bda4f9b766ba76e39cccddbd73509b57462ebd
-  end_sha: ""
-  commits: 0
+  end_sha: 3d6ed48fd3ca446333a6c4b012f22e9ca9518666
+  commits: 1
   started_at: 2026-10-14T22:36:30.22735741Z
+  ended_at: 2026-10-14T23:01:31.608371719Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-14T22:36:30.22735741Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-14T23:01:31.608371719Z
+observed_paths:
+- internal/lexer/brackets.go
+- internal/lexer/expect.go
+- internal/lexer/lexer.go
+- internal/lexer/scan.go
+- internal/parse/globpunct_test.go
+- internal/parse/parse.go
+- internal/parse/term.go
 ---
 
 ## Context
