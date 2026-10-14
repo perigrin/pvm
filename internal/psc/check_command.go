@@ -16,7 +16,7 @@ import (
 )
 
 func newCheckCommand() *cobra.Command {
-	var strict bool
+	var strict, warnLossy bool
 
 	cmd := &cobra.Command{
 		Use:   "check <file|directory>",
@@ -32,7 +32,7 @@ func newCheckCommand() *cobra.Command {
 			}
 
 			p := parser.New()
-			opts := infer.Options{Strict: strict}
+			opts := infer.Options{Strict: strict, WarnLossyCoercion: warnLossy}
 			var foundDiags bool
 
 			if info.IsDir() {
@@ -74,6 +74,8 @@ func newCheckCommand() *cobra.Command {
 
 	cmd.Flags().BoolVar(&strict, "strict", false,
 		"report values whose type could not be inferred instead of accepting them")
+	cmd.Flags().BoolVar(&warnLossy, "warn-lossy-coercion", false,
+		"report coercions perl makes silently that lose the value, such as a reference printed as a string")
 
 	return cmd
 }

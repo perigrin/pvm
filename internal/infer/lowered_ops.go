@@ -4,6 +4,10 @@
 package infer
 
 import (
+	"fmt"
+	"regexp"
+	"strings"
+
 	"tamarou.com/pvm/internal/lower"
 	"tamarou.com/pvm/internal/parse"
 	"tamarou.com/pvm/internal/types"
@@ -217,7 +221,7 @@ func (a *loweredAnalysis) checkOperand(n lower.Node, expected types.Type, op, si
 	if n == nil {
 		return
 	}
-	if a.opts.satisfies(numified(finite(a.typeOf(n)), expected), expected) {
+	if a.opts.satisfies(numified(finite(a.typeOf(n)), expected), expected) || a.lossyCoercion(n, a.typeOf(n), expected) {
 		return
 	}
 	severity, message, ok := operandMismatch(a.opts, a.typeOf(n), expected, op, side)
@@ -232,6 +236,62 @@ func (a *loweredAnalysis) checkOperand(n lower.Node, expected types.Type, op, si
 		Code:      CodeCoercionMismatch,
 		Message:   message,
 	})
+}
+
+// lossyCoercion reports whether n, typed actual, is a coercion perl makes
+// silently but that loses its value, and so takes no ordinary mismatch: a
+// reference where a Str is expected, and a Str of unknown content where a
+// number is. perl 5.42 -w is silent on `print $hashref`, which prints
+// HASH(0x...), and on `"$]" < 5.016`. Under WarnLossyCoercion it reports
+// one as a lossy-coercion warning.
+//
+// A ref in a numeric slot, `$h + 1`, is not one: it is reported as it is.
+// A string literal's content is known: one that looks like a number is
+// no coercion at all, as perl 5.42 -w is silent on `"3" + 1`, and one that
+// does not is reported as it is, as perl warns `Argument "abc" isn't
+// numeric` on `"abc" + 1`.
+func (a *loweredAnalysis) lossyCoercion(n lower.Node, actual, expected types.Type) bool {
+	actual = numified(finite(actual), expected)
+	if actual == types.Unknown || expected == types.Unknown {
+		return false
+	}
+	refToStr := types.IsSubtype(expected, types.Str) && !types.IsSubtype(expected, types.Num) &&
+		actual&types.Ref != 0 && types.IsSubtype(actual, types.Str|types.Ref)
+	strToNum := types.IsSubtype(expected, types.Num) && types.IsSubtype(actual, types.Str) &&
+		actual&^(types.Num|types.NaN|types.Inf) != 0
+	if !refToStr && !strToNum {
+		return false
+	}
+	if content, known := literalContent(n); known && strToNum {
+		return numericString.MatchString(content)
+	}
+	if a.opts.WarnLossyCoercion {
+		start, end, _ := a.pos.Span(n.Meta().ID)
+		a.diags = append(a.diags, Diagnostic{
+			StartByte: uint32(start),
+			EndByte:   uint32(end),
+			Severity:  Warning,
+			Code:      CodeLossyCoercion,
+			Message:   fmt.Sprintf("lossy coercion of %s to %s", actual, expected),
+		})
+	}
+	return true
+}
+
+// numericString is perl's looks_like_number for a string literal, as
+// perl 5.42 -w measures it: silent on "3", " 3.5e2 ", "1.", "+.5", "inf",
+// "-nan" and "0 but true", and warning on "abc", "", " ", "1e", "1abc",
+// "0x10", "0b1" and "1_000".
+var numericString = regexp.MustCompile(`^\s*(?:[+-]?(?:(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?|(?i:inf(?:inity)?|nan))|0 but true)\s*$`)
+
+// literalContent is the content of n when it is a string literal that
+// interpolates nothing: 'abc' and "abc", but not "$]" or a command.
+func literalContent(n lower.Node) (string, bool) {
+	lit, ok := n.(*lower.StrLit)
+	if !ok || lit.Backtick || lit.Interpolated && strings.ContainsAny(lit.Value, "$@") {
+		return "", false
+	}
+	return lit.Value, true
 }
 
 // numified is actual as a slot expecting expected judges it. perl numifies

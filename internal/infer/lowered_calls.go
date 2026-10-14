@@ -125,7 +125,7 @@ func (a *loweredAnalysis) userCall(n *lower.Call) types.Type {
 func (a *loweredAnalysis) checkArg(name string, i int, arg lower.Node, expected types.Type) {
 	actual := builtinArgActual(name, a.typeOf(arg))
 	if a.opts.skipUnknownOperand(actual) || a.opts.satisfies(actual, expected) || a.opts.handleSatisfies(actual, expected) ||
-		a.opts.satisfies(numified(finite(actual), expected), expected) {
+		a.opts.satisfies(numified(finite(actual), expected), expected) || a.lossyCoercion(arg, actual, expected) {
 		return
 	}
 	start, end, _ := a.pos.Span(arg.Meta().ID)

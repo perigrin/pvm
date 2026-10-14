@@ -97,6 +97,15 @@ type Options struct {
 	// it separates a PSC to-do list from an irreducible property of Perl —
 	// and it is not what this flag does.
 	Strict bool
+
+	// WarnLossyCoercion reports a coercion perl makes silently but that
+	// loses the value: a reference where a Str is expected, whose string
+	// HASH(0x...) does not give the referent back, and a Str of unknown
+	// content where a number is expected. By default both are accepted, as
+	// perl 5.42 -w accepts `print $hashref` and `"$]" < 5.016`. A string
+	// literal known not to be numeric is reported either way, as perl warns
+	// on `"abc" + 1`. Only the lowered path reads it.
+	WarnLossyCoercion bool
 }
 
 // satisfies reports whether actual satisfies required under opts.

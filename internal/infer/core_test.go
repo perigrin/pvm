@@ -79,10 +79,12 @@ func TestInferUndeclaredNameHasNoCoreType(t *testing.T) {
 	assert.Empty(t, diags)
 }
 
-// TestInferCoreCoercionMismatchStillReported: a lossy coercion is reported
-// through CORE.pmt's types. `bless "x"` passes a Str where `sub bless (Ref
-// $ref, ...)` takes a Ref, which no Str coerces to; a Str where a Num is
-// declared, abs's argument or +'s operand, is reported as the coercion it is.
+// TestInferCoreCoercionMismatchStillReported: a coercion mismatch is
+// reported through CORE.pmt's types. `bless "x"` passes a Str where `sub
+// bless (Ref $ref, ...)` takes a Ref, which no Str coerces to; a literal
+// known not to be numeric where a Num is declared, abs's argument or +'s
+// operand, is reported as the coercion it is, as perl 5.42 -w warns
+// `Argument "abc" isn't numeric` on both.
 func TestInferCoreCoercionMismatchStillReported(t *testing.T) {
 	cases := []struct {
 		src      string
@@ -90,8 +92,8 @@ func TestInferCoreCoercionMismatchStillReported(t *testing.T) {
 		severity infer.Severity
 	}{
 		{`my $o = bless "x";`, infer.CodeTypeMismatch, infer.Error},
-		{`my $s = "abc"; my $n = abs($s);`, infer.CodeTypeMismatch, infer.Warning},
-		{`my $s = "abc"; my $n = $s + 1;`, infer.CodeCoercionMismatch, infer.Warning},
+		{`my $n = abs("abc");`, infer.CodeTypeMismatch, infer.Warning},
+		{`my $n = "abc" + 1;`, infer.CodeCoercionMismatch, infer.Warning},
 	}
 	for _, c := range cases {
 		_, diags := analyzeSource(t, []byte(c.src))

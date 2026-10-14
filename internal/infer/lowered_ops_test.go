@@ -4,6 +4,7 @@
 package infer_test
 
 import (
+	"strings"
 	"testing"
 
 	"tamarou.com/pvm/internal/infer"
@@ -152,6 +153,115 @@ func TestBooleanInStrSlotIsSilent(t *testing.T) {
 	} {
 		if got := infer.Numified(c.actual, types.Str); got != c.want {
 			t.Errorf("Numified(%v, Str) = %v, want %v", c.actual, got, c.want)
+		}
+	}
+}
+
+// lossyDiags analyses src on the lowered path with the lossy-coercion
+// warning on and returns its diagnostics.
+func lossyDiags(t *testing.T, src string) []infer.Diagnostic {
+	t.Helper()
+	_, diags, _ := analyzeSourceWithOptions(t, []byte(src), infer.Options{WarnLossyCoercion: true})
+	return diags
+}
+
+// A reference in a Str slot is a valid coercion: perl 5.42 -w is silent on
+// `print $h` and `print STDOUT $h` for a hashref, which print HASH(0x...),
+// on `$r . "x"` for an arrayref, and on `"" . A->new`. perigrin ruled
+// 2026-10-13 that it is no diagnostic by default. A ref in a numeric slot,
+// `$h + 1`, is kept: he ruled that on the same day. So is a ref where no
+// Str is taken: perl dies "Not a GLOB reference" on `close({})`.
+func TestRefInStrSlotIsSilent(t *testing.T) {
+	for _, src := range []string{
+		"my $h = {};\nprint STDOUT $h;\nprint $h;\n",
+		"my $r = [];\nmy $s = $r . \"x\";\n",
+		"package A; sub new { bless {}, shift }\npackage main;\nmy $s = \"\" . A->new;\n",
+		"my $c = sub { 1 };\nmy $n = length($c);\n",
+	} {
+		for _, d := range loweredDiags(src) {
+			t.Errorf("%q: diagnostic %q, want none", src, d.Message)
+		}
+	}
+
+	for _, src := range []string{
+		"my $h = {};\nmy $x = ($h) + 1;\n",
+		"close({});\n",
+	} {
+		if diags := loweredDiags(src); len(diags) != 1 || diags[0].Code == infer.CodeLossyCoercion {
+			t.Errorf("%q: diagnostics %v, want one that is no lossy coercion", src, diags)
+		}
+	}
+}
+
+// Under WarnLossyCoercion a ref in a Str slot is a lossy-coercion warning
+// naming the ref type: the string, HASH(0x...), does not give the referent
+// back. A ref in a numeric slot is reported as it is by default.
+func TestLossyCoercionWarningIsOptIn(t *testing.T) {
+	for src, ref := range map[string]string{
+		"my $h = {};\nprint $h;\n":           "HashRef",
+		"my $r = [];\nmy $s = $r . \"x\";\n": "ArrayRef",
+	} {
+		diags := lossyDiags(t, src)
+		if len(diags) != 1 {
+			t.Errorf("%q: diagnostics %v, want one", src, diags)
+			continue
+		}
+		d := diags[0]
+		if d.Code != infer.CodeLossyCoercion || d.Severity != infer.Warning || !strings.Contains(d.Message, ref) {
+			t.Errorf("%q: %s %v %q, want a lossy-coercion warning naming %s", src, d.Code, d.Severity, d.Message, ref)
+		}
+	}
+
+	src := "my $h = {};\nmy $x = ($h) + 1;\n"
+	if diags := lossyDiags(t, src); len(diags) != 1 || diags[0].Code != infer.CodeCoercionMismatch {
+		t.Errorf("%q: diagnostics %v, want one coercion mismatch", src, diags)
+	}
+}
+
+// A Str in a numeric slot whose content PSC does not know is silent by
+// default, and a lossy coercion under WarnLossyCoercion: perigrin ruled so
+// on 2026-10-14 for `$1 + 0`, `"$]" < 5.016` and `substr($s, 0, 1) % 2`.
+// A literal known to be non-numeric is still reported by default, as perl
+// 5.42 -w warns `Argument "abc" isn't numeric in addition (+)` on
+// `"abc" + 1`, and on `abs("abc")`, `"" + 1` and `"1abc" + 1`. A literal
+// that looks like a number is silent, as perl is on `"3" + 1`,
+// `" 3.5e2 " * 1`, `"inf" + 0` and `"0 but true" + 1`.
+func TestStrInNumericSlotIsOptIn(t *testing.T) {
+	unknown := []string{
+		"my $s = \"11\";\nif ($s =~ /(.+)/) { my $n = $1 + 0; }\n",
+		"my $old = \"$]\" < 5.016;\n",
+		"my $s = \"13\";\nmy $odd = substr($s, 0, 1) % 2;\n",
+		"my $s = \"abc\";\nmy $n = $s * 2;\n",
+	}
+	for _, src := range unknown {
+		for _, d := range loweredDiags(src) {
+			t.Errorf("%q: diagnostic %q, want none", src, d.Message)
+		}
+	}
+	for _, src := range []string{
+		"my $n = \"3\" + 1;\n",
+		"my $m = \" 3.5e2 \" * 1;\n",
+		"my $i = \"inf\" + 0;\n",
+		"my $t = \"0 but true\" + 1;\n",
+	} {
+		for _, d := range lossyDiags(t, src) {
+			t.Errorf("%q: diagnostic %q, want none", src, d.Message)
+		}
+	}
+
+	src := "my $s = \"abc\";\nmy $n = $s * 2;\n"
+	if diags := lossyDiags(t, src); len(diags) != 1 || diags[0].Code != infer.CodeLossyCoercion {
+		t.Errorf("%q: diagnostics %v under the opt-in, want one lossy coercion", src, diags)
+	}
+
+	for _, src := range []string{
+		"my $n = \"abc\" + 1;\n",
+		"my $n = abs(\"abc\");\n",
+		"my $n = \"\" + 1;\n",
+		"my $n = \"1abc\" + 1;\n",
+	} {
+		if diags := loweredDiags(src); len(diags) != 1 || diags[0].Code == infer.CodeLossyCoercion {
+			t.Errorf("%q: diagnostics %v, want one that is no lossy coercion", src, diags)
 		}
 	}
 }

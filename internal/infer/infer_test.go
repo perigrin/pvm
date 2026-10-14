@@ -2069,10 +2069,12 @@ func TestIndirectObjectIsFilehandleNotArgument(t *testing.T) {
 }
 
 // The real arguments are still checked: a reference in a print argument
-// position still reports, whether or not a filehandle precedes it.
+// position still reports, whether or not a filehandle precedes it. perl
+// prints it as HASH(0x...) silently, a lossy coercion, so it is reported
+// under WarnLossyCoercion.
 func TestIndirectObjectStillChecksRealArgs(t *testing.T) {
 	src := []byte("my $OUT = \\*STDERR;\nmy $h = {};\nprint $OUT $h;\n")
-	_, diags := analyzeSource(t, src)
+	_, diags, _ := analyzeSourceWithOptions(t, src, infer.Options{WarnLossyCoercion: true})
 	assert.NotEmpty(t, diags,
 		"a hashref passed as print's argument is still reported")
 }
@@ -2513,9 +2515,12 @@ func TestScalarBuiltinNarrowsItsArgument(t *testing.T) {
 // loop body was never connected back to it. bson found the same aliasing in
 // its IR from the other direction, where a list read after an alias write
 // returned the original elements.
+//
+// $n is then a Str whose content PSC does not know, which perigrin ruled
+// on 2026-10-14 is reported only under WarnLossyCoercion.
 func TestForeachAliasWriteWidensTheSource(t *testing.T) {
 	src := []byte("my $n = 42;\nforeach ($n) { $_ = \"x\" }\nmy $r = $n + 1;\n")
-	_, diags := analyzeSource(t, src)
+	_, diags, _ := analyzeSourceWithOptions(t, src, infer.Options{WarnLossyCoercion: true})
 	assert.NotEmpty(t, diags,
 		"a write through a foreach alias changes the source type; perl warns here")
 }
