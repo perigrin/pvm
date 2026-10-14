@@ -6,7 +6,7 @@ milestone: m2-lower-the-tree
 blocks:
 - 01a0c115-a44b-7393-a828-ad29844b20b4
 created: 2026-10-13T15:58:43.197699471Z
-updated: 2026-10-14T13:00:56.111776481Z
+updated: 2026-10-14T13:04:15.65113248Z
 ---
 
 ## Context
@@ -19,6 +19,8 @@ Found 2026-10-13 by the operator port (01a12a85-3233); perigrin ruled to file it
 Proposed rule (the operator agent's option A): an operand that may be Inf from arithmetic is checked as finite; only a value KNOWN to be Inf or NaN is reported. This changes operand checking in general, so it lands after the cutover (01a0c115-df67), on the one remaining path.
 
 **Rescheduled 2026-10-14:** perigrin ruled that every false positive cutover 1 adds to psc check is fixed BEFORE cutover 1 (01a0c115-a44b) merges, so psc check output only improves at the cutover. Fix it on the lowered path (`internal/infer/lowered_*.go`); the legacy path is deleted by 01a0c115-df67. Cutover 1 measured 388 added lines.
+
+**Ruled 2026-10-14:** perigrin chose the proposed rule: a type that only MIGHT be Inf (from arithmetic) is checked as finite; only a value KNOWN to be Inf or NaN is reported. Arithmetic results stay typed `Num|Inf`.
 
 ## Steps
 
