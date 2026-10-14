@@ -47,7 +47,7 @@ func (a *loweredAnalysis) ifStmt(n *lower.IfStmt) {
 		if !primaryExits {
 			ifBranchTypes = map[string]types.Type{}
 		}
-		a.blockWithGuard(b, flattenGuards(guard, negate), ifBranchTypes)
+		a.blockWithGuard(b, a.flatten(guard, negate), ifBranchTypes)
 	} else if primary != nil {
 		a.walk(primary)
 	}
@@ -55,7 +55,7 @@ func (a *loweredAnalysis) ifStmt(n *lower.IfStmt) {
 	// The body exits and nothing else follows it: what runs after the
 	// statement knows the guard failed.
 	if primaryExits && guard != nil && guard.VarName != "" && secondary == nil {
-		narrowContinuation(flattenGuards(guard, !negate), a.st)
+		narrowContinuation(a.flatten(guard, !negate), a.st)
 		return
 	}
 
@@ -67,7 +67,7 @@ func (a *loweredAnalysis) ifStmt(n *lower.IfStmt) {
 	var elseBranchTypes map[string]types.Type
 	if hasElse {
 		elseBranchTypes = map[string]types.Type{}
-		a.blockWithGuard(elseBlock, flattenGuards(guard, !negate), elseBranchTypes)
+		a.blockWithGuard(elseBlock, a.flatten(guard, !negate), elseBranchTypes)
 	} else if secondary != nil && elsif == nil {
 		a.walk(secondary)
 	}
@@ -107,7 +107,7 @@ func (a *loweredAnalysis) elsif(n *lower.IfStmt) map[string]types.Type {
 		if !blockExits(b) {
 			joinTypes = map[string]types.Type{}
 		}
-		a.blockWithGuard(b, flattenGuards(guard, false), joinTypes)
+		a.blockWithGuard(b, a.flatten(guard, false), joinTypes)
 	} else if n.Then != nil {
 		a.walk(n.Then)
 	}
@@ -115,7 +115,7 @@ func (a *loweredAnalysis) elsif(n *lower.IfStmt) map[string]types.Type {
 	switch e := n.Else.(type) {
 	case *lower.Block:
 		elseTypes := map[string]types.Type{}
-		a.blockWithGuard(e, flattenGuards(guard, true), elseTypes)
+		a.blockWithGuard(e, a.flatten(guard, true), elseTypes)
 		joinTypes = mergeBranchTypes(joinTypes, elseTypes)
 	case *lower.IfStmt:
 		joinTypes = mergeBranchTypes(joinTypes, a.elsif(e))
@@ -142,7 +142,7 @@ func (a *loweredAnalysis) whileStmt(n *lower.WhileStmt) {
 	if n.Cond != nil {
 		a.walk(n.Cond)
 	}
-	a.blockWithGuard(body, flattenGuards(a.guard(n.Cond, true), n.Negated), nil)
+	a.blockWithGuard(body, a.flatten(a.guard(n.Cond, true), n.Negated), nil)
 	if n.Continue != nil {
 		a.walk(n.Continue)
 	}
@@ -290,12 +290,12 @@ func (a *loweredAnalysis) logicalRight(op string, l, r lower.Node) {
 	case "||", "or":
 		guard = a.guard(l, true)
 	}
-	shadows, classNames := guardShadows(flattenGuards(guard, !runsWhen), a.st)
+	shadows, classNames := guardShadows(a.flatten(guard, !runsWhen), a.st)
 	if len(shadows) == 0 {
 		a.operand(r)
 		return
 	}
-	skipped, _ := guardShadows(flattenGuards(guard, runsWhen), a.st)
+	skipped, _ := guardShadows(a.flatten(guard, runsWhen), a.st)
 	a.st.EnterScope("guard")
 	for name, typ := range shadows {
 		a.st.Define(Symbol{Name: name, Type: typ, ClassType: classNames[name], Kind: SymVariable})
@@ -316,6 +316,26 @@ func (a *loweredAnalysis) logicalRight(op string, l, r lower.Node) {
 		}
 		a.st.UpdateType(name, types.Join(other, typ))
 	}
+}
+
+// flatten is flattenGuards less each defined guard on a variable typed
+// Any. Any is the permissive top, which a defined test leaves as it is, as
+// TypeScript's `any` stays `any` past `x !== undefined`: narrowed, it is
+// a union of every defined type, Void and Array among them, that fails a
+// Scalar slot. perl 5.42 -w is silent on Math::Complex's
+// `my $i = eval "9**9**9"; if (defined $i && $i > 1e308) { $Inf = $i }
+// $Inf = 1.79e308 unless defined $Inf`.
+func (a *loweredAnalysis) flatten(guard *guardResult, negate bool) []*guardResult {
+	var kept []*guardResult
+	for _, g := range flattenGuards(guard, negate) {
+		if g.Guard.Kind == types.GuardDefined && !g.Negated {
+			if sym, ok := a.st.Lookup(g.VarName); ok && sym.Type == types.Any {
+				continue
+			}
+		}
+		kept = append(kept, g)
+	}
+	return kept
 }
 
 // blockExits is the legacy blockAlwaysExits: a statement directly in the

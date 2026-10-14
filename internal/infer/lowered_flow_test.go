@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"tamarou.com/pvm/internal/infer"
+	"tamarou.com/pvm/internal/types"
 )
 
 // wantSilent fails for each diagnostic src draws on the lowered path.
@@ -115,4 +116,26 @@ func TestBlessClassFromAssignedPackageVar(t *testing.T) {
 	// A lexical nothing else assigns is undef in the sub: perl -w warns
 	// "Use of uninitialized value $d in bless".
 	wantReported(t, "my $d = undef;\nsub f { my $self = bless {}, \"main\"; bless $self, $d; $self }\nf();\n", infer.CodeTypeMismatch)
+}
+
+// What a scalar variable holds after a branch join is a scalar value: a
+// Hole's Any, or eval STRING's, narrowed by a guard and assigned to it,
+// is never Void, an array or a hash there. perl 5.42 -w is silent on each
+// case below (Math::Complex sets its $Inf so), and prints Inf.
+func TestBranchJoinNeverHoldsVoid(t *testing.T) {
+	for _, src := range []string{
+		"our ($Inf);\nmy $i = eval \"9**9**9\";\nif (defined $i && $i > 1e308) { $Inf = $i }\n$Inf = 1.79e308 unless defined $Inf;\n",
+		"my $Inf;\nmy $i = eval \"9**9**9\";\nif (defined $i && $i > 1e308) { $Inf = $i }\n$Inf = 1.79e308 unless defined $Inf;\n",
+	} {
+		wantSilent(t, src)
+	}
+	// Where Any failed a defined test it is undef: perl -w warns "Use of
+	// uninitialized value $i in string eq".
+	wantReported(t, "my $i = eval \"undef\";\nif (!defined $i) { print \"y\\n\" if $i eq 'x' }\n", infer.CodeCoercionMismatch)
+
+	src := "my $Inf;\nmy $i = eval \"9**9**9\";\nif (defined $i) { $Inf = $i }\nprint \"$Inf\\n\";\n"
+	got, _ := loweredSymbolType(t, src, "$Inf")
+	if got != types.Any && got&types.Void != 0 {
+		t.Errorf("%q: $Inf is %v, want Any or a union without Void", src, got)
+	}
 }
