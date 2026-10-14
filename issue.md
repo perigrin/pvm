@@ -1,21 +1,48 @@
 ---
 title: An array argument to a list operator is checked as one Str
-state: in-progress
+state: done
 urgency: normal
 milestone: m2-lower-the-tree
 blocks:
 - 01a0c115-a44b-7393-a828-ad29844b20b4
 created: 2026-10-14T17:00:50.508117584Z
-updated: 2026-10-14T17:13:39.059625871Z
+updated: 2026-10-14T20:55:57.373406181Z
 sessions:
 - start_sha: 36ecbc1380ea6afd9166cd772cff0dbe4ccf36de
-  end_sha: ""
-  commits: 0
+  end_sha: 3d565dc4b5aab40dd9abbfef2f37b4dc67957d68
+  commits: 3
   started_at: 2026-10-14T17:13:39.059625871Z
+  ended_at: 2026-10-14T20:55:57.373406181Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-14T17:13:39.059625871Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-14T20:55:57.373406181Z
+observed_paths:
+- internal/infer/lowered.go
+- internal/infer/lowered_calls.go
+- internal/infer/lowered_calls_test.go
+- internal/infer/lowered_flow.go
+- internal/infer/lowered_flow_test.go
+- internal/infer/lowered_ops.go
+- internal/infer/lowered_vars.go
+- internal/infer/lowered_vars_test.go
+- internal/infer/symbols.go
+- internal/infer/testdata/lowered/flow/and.golden
+- internal/infer/testdata/lowered/flow/and_early_return.golden
+- internal/infer/testdata/lowered/flow/and_keyword.golden
+- internal/infer/testdata/lowered/flow/and_partial.golden
+- internal/infer/testdata/lowered/flow/and_two_vars.golden
+- internal/infer/testdata/lowered/flow/blessed_and_defined.golden
+- internal/infer/testdata/lowered/flow/not_and.golden
+- internal/infer/testdata/lowered/flow/or.golden
+- internal/infer/testdata/lowered/flow/or_else.golden
+- internal/parse/corenoproto_test.go
+- internal/parse/coretypes_test.go
+- internal/parse/declarations/CORE.pmt
+- internal/types/types.go
 ---
 
 ## Context
