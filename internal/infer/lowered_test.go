@@ -95,6 +95,59 @@ sub none { }
 	}
 }
 
+// A sub that returns a list leaves its last element in scalar context: the
+// comma operator. A sub's return type is its scalar-context value, so a
+// returned List gives its last element's type, whichever of the three forms
+// returns it. In list context the call is the whole list, so an array it
+// fills does not record the last element's type as its element type.
+//
+// perl 5.42: with `sub r { return ("a", 2) }`, `my $v = r()` is 2 and
+// `my @l = r()` is ("a", 2); `sub s2 { ("x", 2.5) }` gives 2.5 and
+// `sub t { return 1, "b" }` gives "b".
+func TestLoweredListReturnIsItsLastElement(t *testing.T) {
+	src := []byte(`sub r { return ("a", 2) }
+sub s2 { ("x", 2.5) }
+sub t { return 1, "b" }
+my $v = r();
+my $w = s2();
+my $u = t();
+my @l = r();
+`)
+	root := parse.Parse(src)
+	f := lower.Lower(root)
+	_, _, st := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
+
+	for name, want := range map[string]types.Type{
+		"r":  types.Int,
+		"s2": types.Num,
+		"t":  types.Str,
+		"$v": types.Int,
+		"$w": types.Num,
+		"$u": types.Str,
+	} {
+		sym, ok := st.LookupAll(name)
+		if !ok {
+			t.Errorf("%s: no symbol", name)
+			continue
+		}
+		got := sym.Type
+		if sym.Kind == infer.SymSubroutine {
+			got = sym.ReturnType
+		}
+		if got != want {
+			t.Errorf("%s: %v, want %v", name, got, want)
+		}
+	}
+
+	sym, ok := st.Lookup("@l")
+	if !ok {
+		t.Fatal("@l: no symbol")
+	}
+	if sym.ElemType == types.Int {
+		t.Errorf("@l element type %v: the last element's type, but @l holds (\"a\", 2)", sym.ElemType)
+	}
+}
+
 // A use of a module the project index resolves analyses that module while
 // the using file is analysed, so its symbols are there for a cross-file
 // lookup. The module's file is rewritten afterwards without its sub: a

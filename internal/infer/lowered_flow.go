@@ -555,13 +555,26 @@ func (a *loweredAnalysis) explicitReturns(n lower.Node) types.Type {
 		if r.Label == nil {
 			return types.Undef
 		}
-		return a.annotations[r.Label.Meta().ID]
+		return a.returnedValue(r.Label)
 	}
 	var t types.Type
 	for _, c := range lower.Children(n) {
 		t |= a.explicitReturns(c)
 	}
 	return t
+}
+
+// returnedValue is the type of what a sub hands back in scalar context. A
+// List is its last element there, by the comma operator; anything else is
+// its own type.
+//
+// perl: `sub r { return ("a", 2) }` makes `my $v = r()` 2, and
+// `sub t { return 1, "b" }` makes `my $u = t()` "b".
+func (a *loweredAnalysis) returnedValue(n lower.Node) types.Type {
+	if l, ok := n.(*lower.List); ok && len(l.Elems) > 0 && l.Elems[len(l.Elems)-1] != nil {
+		n = l.Elems[len(l.Elems)-1]
+	}
+	return a.annotations[n.Meta().ID]
 }
 
 // implicitReturn is the legacy collectImplicitReturn: the type of a
@@ -574,7 +587,7 @@ func (a *loweredAnalysis) implicitReturn(b *lower.Block) types.Type {
 	switch s := b.Stmts[len(b.Stmts)-1].(type) {
 	case *lower.ExprStmt:
 		if s.X != nil {
-			return a.annotations[s.X.Meta().ID]
+			return a.returnedValue(s.X)
 		}
 	case *lower.IfStmt:
 		if !isBranch(s.Then) || !isBranch(s.Else) {
