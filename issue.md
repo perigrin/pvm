@@ -6,7 +6,7 @@ milestone: m2-lower-the-tree
 blocks:
 - 01a0c115-a44b-7393-a828-ad29844b20b4
 created: 2026-10-14T21:56:11.297071782Z
-updated: 2026-10-14T22:36:29.912439882Z
+updated: 2026-10-14T22:52:40.810846469Z
 sessions:
 - start_sha: 85bda4f9b766ba76e39cccddbd73509b57462ebd
   end_sha: ""
@@ -47,6 +47,9 @@ if (ref $v eq 'HASH') { 1 } elsif (defined ($fileno = fileno(\$v))) { print "fd\
 perl -w (rc=255): Not a GLOB reference at r2_fileno_scalarref.pl line 2.
 old: 2:62: error: call to fileno: argument 1 expects Glob, got ScalarRef [type-mismatch];
 new: 2:62: error: call to fileno: argument 1 expects Glob, got ScalarRef [type-mismatch];
+
+
+**Corrected 2026-10-14.** The repro above is wrong: with `$v = \*STDOUT`, `fileno(\$v)` makes perl die "Not a GLOB reference". perl succeeds only when `$v` holds a glob VALUE (`my $v = *STDOUT`), and both real sites (Dumpvalue.pm:294, dumpvar.pl:315) are inside `elsif (ref \$v eq 'GLOB')`. So the fix is flow narrowing, not a wider handle slot: under a `ref \$v eq 'GLOB'` guard, `$v` is a Glob and `\$v` a GlobRef, which the handle slot already accepts. Outside such a guard a ScalarRef stays reported, because perl dies there. perl 5.42: `my $v = *STDOUT; if (ref \$v eq "GLOB") { print fileno(\$v) }` prints 1.
 
 ## Steps
 
