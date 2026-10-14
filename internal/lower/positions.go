@@ -1,4 +1,4 @@
-// ABOUTME: The position map (§6.1.6 item 3): a side table from lowered node ids to CST spans, and from offsets back.
+// ABOUTME: The position map (§6.1.6 item 3): a side table from lowered node ids to CST spans and quote tokens, and from offsets back.
 // ABOUTME: Bytes the lowering erased -- parens, trivia, an Unknown's children -- resolve to the lowered node enclosing them.
 
 package lower
@@ -22,8 +22,9 @@ type Positions struct {
 	root  *parse.Node
 	ids   map[*parse.Node]ID
 	nodes map[ID]Node
-	spans map[ID]span // every CST node's span, by its id
-	order []Node      // every lowered node, by start offset
+	spans map[ID]span        // every CST node's span, by its id
+	cst   map[ID]*parse.Node // every CST node, by its id
+	order []Node             // every lowered node, by start offset
 }
 
 // span is a CST node's bytes, [start, end).
@@ -31,9 +32,10 @@ type span struct{ start, end int }
 
 // NewPositions builds the map for f, which Lower(root) returned.
 func NewPositions(root *parse.Node, f *File) *Positions {
-	p := &Positions{root: root, ids: AssignIDs(root), nodes: map[ID]Node{}, spans: map[ID]span{}}
+	p := &Positions{root: root, ids: AssignIDs(root), nodes: map[ID]Node{}, spans: map[ID]span{}, cst: map[ID]*parse.Node{}}
 	for n, id := range p.ids {
 		p.spans[id] = span{n.Start, n.End}
+		p.cst[id] = n
 	}
 	p.spans[p.ids[root]] = statements(root)
 	var walk func(n Node)
@@ -102,6 +104,28 @@ func (p *Positions) LastBefore(off int, keep func(Node) bool) Node {
 		}
 	}
 	return nil
+}
+
+// Quote returns the quote token of the Match id names -- `/(\d+)/` for
+// `/(\d+)/` and `$s =~ /(\d+)/` alike -- or "" if id names no Match.
+//
+// A Match's pattern stays inside its one quote token (§4.14.2, PARSER), so
+// the lowered tree carries no text; this is where $1 reads the groups of the
+// match before it (perigrin, 2026-10-14: the position map hands back the
+// token, the lowered tree stays free of text). A bound Match takes the bind's
+// id, and its token is the bind's right operand.
+func (p *Positions) Quote(id ID) string {
+	n := p.cst[id]
+	if n == nil || id.Role != 0 {
+		return ""
+	}
+	if (n.Text == "=~" || n.Text == "!~") && len(n.Children) == 2 {
+		n = n.Children[1]
+	}
+	if len(n.Children) != 0 || matchOp(n.Text) == "" {
+		return ""
+	}
+	return n.Text
 }
 
 // At returns the innermost lowered node whose CST node covers byte off, or

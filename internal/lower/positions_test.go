@@ -176,3 +176,19 @@ func TestPositionMapSpan(t *testing.T) {
 		t.Errorf("%q: an id the tree never gave has a span", src)
 	}
 }
+
+// A Match keeps its pattern inside its one quote token (§4.14.2, PARSER),
+// and the map hands that token back by the Match's id, bound or not, so $1
+// can read the groups of the match before it. Anything but a Match has no
+// quote token.
+func TestPositionMapQuote(t *testing.T) {
+	src := `$s =~ /(\d+)/; s{a}{b}g; ($t !~ m!x!); qr/y/; tr/a/b/; $x; $u =~ $re;`
+	_, f, p := positions(src)
+	want := []string{`/(\d+)/`, `s{a}{b}g`, `m!x!`, `qr/y/`, `tr/a/b/`, ``, ``}
+	for i, stmt := range f.Stmts {
+		n := lower.Children(stmt)[0]
+		if got := p.Quote(n.Meta().ID); got != want[i] {
+			t.Errorf("%q statement %d: Quote is %q, want %q", src, i, got, want[i])
+		}
+	}
+}
