@@ -629,6 +629,7 @@ func parseWith(p *parser) (*Node, *parser) {
 // one-byte token, and a closer with nothing open closes nothing. A bracket
 // after a `&`, other than `{`, is neither: it is the name of the sub the `&`
 // calls (see ampTakesPunct), so `f(&);` is a `(` perl never sees closed.
+// Nor is a Word: the lexer makes a glob's punctuation name one, `*(`.
 func (p *parser) refuseUnclosedOpener(root *Node) {
 	depth := 0
 	var last lexer.Token
@@ -638,7 +639,7 @@ func (p *parser) refuseUnclosedOpener(root *Node) {
 		}
 		afterAmp := last.Kind == lexer.FuncSigil
 		last = tok
-		if tok.End-tok.Start != 1 || afterAmp && p.src[tok.Start] != '{' {
+		if tok.End-tok.Start != 1 || tok.Kind == lexer.Word || afterAmp && p.src[tok.Start] != '{' {
 			continue
 		}
 		switch p.src[tok.Start] {

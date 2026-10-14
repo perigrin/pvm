@@ -334,6 +334,12 @@ func (e Expect) after(k Kind, t transition) Expect {
 		if string(t.text) == "->" {
 			return XPostDeref
 		}
+		// A `++` or `--` after a term is the postfix one and ends that term:
+		// toke.c's yyl_plus and yyl_hyphen make it TERM(POSTINC) in
+		// XOPERATOR, so `$x++ ** 2` raises $x's old value to a power.
+		if e == XOperator && (string(t.text) == "++" || string(t.text) == "--") {
+			return XOperator
+		}
 		// The `(` of a parenthesised `map`, `grep` or `sort`. `map({...} @a)`
 		// is the same call as `map {...} @a` -- perl's own Deparse emits the
 		// parenthesised spelling for BOTH -- but the `(` puts the brace out

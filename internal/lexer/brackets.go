@@ -88,7 +88,9 @@ func (l *lexer) trackBrackets(k Kind, start int) {
 	l.closedBlock = false
 	l.openedBlock = false
 
-	if l.pos-start != 1 {
+	// A glob's punctuation name, `*(` or `*}`, is a Word and not a bracket;
+	// see scanGlobName.
+	if l.pos-start != 1 || k == Word {
 		return
 	}
 	switch l.src[start] {

@@ -155,8 +155,9 @@ func (p *parser) parseTerm() *Node {
 		// any variable name here -- measured on 5.42.0, `local *a = *1;`,
 		// `*^R = *foo;` and `*X = *-;` each deparse as written -- and the
 		// lexer emits the star and the name apart, so the glob is assembled
-		// here. Only TOUCHING the star: a digit, `^` and a letter, or a
-		// single punctuation byte.
+		// here. Only TOUCHING the star: a digit, or `^` and a letter. A
+		// punctuation name, `*-` or `*|`, arrives as the Word the lexer's
+		// scanGlobName makes it, and is read below as `*foo` is.
 		if glob := p.globWithSpecialName(tok); glob != nil {
 			return glob
 		}
@@ -563,7 +564,7 @@ func (p *parser) prefixAllowed(text string) bool {
 	return false
 }
 
-// globWithSpecialName reads `*1`, `*^R` or `*-` at the star tok, or returns
+// globWithSpecialName reads `*1` or `*^R` at the star tok, or returns
 // nil. See the glob branch of parseTerm.
 func (p *parser) globWithSpecialName(star lexer.Token) *Node {
 	name, ok := p.peekAfter(star)
@@ -582,8 +583,6 @@ func (p *parser) globWithSpecialName(star lexer.Token) *Node {
 			return nil
 		}
 		last = letter
-	case name.Kind == lexer.Operator && len(text) == 1 && strings.IndexByte("-+/!&@]", text[0]) >= 0:
-		last = name
 	default:
 		return nil
 	}
