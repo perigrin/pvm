@@ -261,14 +261,22 @@ func IsSubtype(child, parent Type) bool {
 // container for any defined value of its subtypes, and perl 5.42 -w is
 // silent on `if (defined $ch) { $ch eq '}' }` with $ch never assigned.
 //
+// A negated ref guard keeps it polymorphic too, with or without a defined
+// guard beside it: where `ref $x` is false, $x is any scalar but a
+// reference -- perl 5.42 runs that branch for a string, a number, undef, a
+// glob and a boolean alike -- and perl 5.42 -w is silent on B::Concise's
+// `if (ref $objname) { } else { "main::" . $objname }`.
+//
 // List is handled separately by listSatisfiesAggregate rather than listed
 // here: it stands above Scalar in the arity ordering rather than beside it,
 // so a blanket polymorphic check would let every scalar requirement be
 // satisfied by a list-returning expression.
 var polymorphicMasks = map[Type]bool{
-	Any:             true,
-	Scalar:          true,
-	Scalar &^ Undef: true,
+	Any:                     true,
+	Scalar:                  true,
+	Scalar &^ Undef:         true,
+	Scalar &^ Ref:           true,
+	Scalar &^ (Undef | Ref): true,
 }
 
 // listSatisfiesAggregate reports whether a List actual can satisfy required.
