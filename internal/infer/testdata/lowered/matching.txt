@@ -3,6 +3,7 @@
 calls/abs_int.pl
 calls/ampersand.pl
 calls/bare_decl_call.pl
+calls/chr_num.pl
 calls/coderef.pl
 calls/delete.pl
 calls/die_msg.pl
