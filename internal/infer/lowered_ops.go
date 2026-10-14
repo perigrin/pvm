@@ -40,7 +40,7 @@ func (a *loweredAnalysis) infix(n lower.Node, op, shapes string, l, r lower.Node
 		}
 	}
 	a.operand(l)
-	a.operand(r)
+	a.logicalRight(op, l, r)
 	if len(sigs) == 0 {
 		return types.Unknown
 	}

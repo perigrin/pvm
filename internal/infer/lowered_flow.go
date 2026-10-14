@@ -270,6 +270,54 @@ func (a *loweredAnalysis) blockWithGuard(b *lower.Block, guards []*guardResult, 
 	}
 }
 
+// logicalRight walks a logical operator's right operand under what its left
+// operand guards: perl runs the right operand of `&&` and `and` only where
+// the left is true, and of `||` and `or` only where it is false. perl 5.42
+// -w is silent on `defined $ch and $ch eq '}'` and `!defined $ch or $ch ne
+// ')'` with $ch undef. Any other operator's right operand is walked as it
+// stands.
+//
+// What the right operand assigns to a guarded variable joins the type the
+// variable has where the right operand is skipped, on which the left
+// operand's test went the other way: `defined $x or $x = 'b'` leaves $x
+// defined either way.
+func (a *loweredAnalysis) logicalRight(op string, l, r lower.Node) {
+	var guard *guardResult
+	runsWhen := false
+	switch op {
+	case "&&", "and":
+		guard, runsWhen = a.guard(l, true), true
+	case "||", "or":
+		guard = a.guard(l, true)
+	}
+	shadows, classNames := guardShadows(flattenGuards(guard, !runsWhen), a.st)
+	if len(shadows) == 0 {
+		a.operand(r)
+		return
+	}
+	skipped, _ := guardShadows(flattenGuards(guard, runsWhen), a.st)
+	a.st.EnterScope("guard")
+	for name, typ := range shadows {
+		a.st.Define(Symbol{Name: name, Type: typ, ClassType: classNames[name], Kind: SymVariable})
+	}
+	a.operand(r)
+	written := map[string]types.Type{}
+	for name, typ := range shadows {
+		if sym, ok := a.st.Lookup(name); ok && sym.Type != typ {
+			written[name] = sym.Type
+		}
+	}
+	a.st.ExitScope()
+	for name, typ := range written {
+		other, ok := skipped[name]
+		if !ok {
+			sym, _ := a.st.Lookup(name)
+			other = sym.Type
+		}
+		a.st.UpdateType(name, types.Join(other, typ))
+	}
+}
+
 // blockExits is the legacy blockAlwaysExits: a statement directly in the
 // block is a return, a die or an exit. Exits nested deeper are not
 // looked for, and last, next and redo are not exits here.

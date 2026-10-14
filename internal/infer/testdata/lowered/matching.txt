@@ -41,13 +41,7 @@ decl/package.pl
 decl/state.pl
 decl/sub_anon.pl
 decl/sub_named.pl
-flow/and.pl
-flow/and_early_return.pl
-flow/and_keyword.pl
-flow/and_partial.pl
-flow/and_two_vars.pl
 flow/blessed.pl
-flow/blessed_and_defined.pl
 flow/blessed_bare.pl
 flow/blessed_negated.pl
 flow/block_decl_in_branch.pl
@@ -87,9 +81,6 @@ flow/modifiers.pl
 flow/nested_if.pl
 flow/no_early_exit.pl
 flow/no_guard.pl
-flow/not_and.pl
-flow/or.pl
-flow/or_else.pl
 flow/positive_early_return.pl
 flow/reftype.pl
 flow/sub_guard_body.pl
