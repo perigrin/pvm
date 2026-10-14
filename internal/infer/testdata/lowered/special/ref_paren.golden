@@ -1,4 +1,3 @@
-diag 52 57 coercion-mismatch left operand of "+": expected Num, got ArrayRef
 sym $r ArrayRef
 sym $s Int|Num|Inf
 sym @a Array

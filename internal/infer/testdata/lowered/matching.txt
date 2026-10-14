@@ -14,6 +14,7 @@ calls/length_defined.pl
 calls/list_op_args.pl
 calls/lvalue_substr.pl
 calls/method_instance.pl
+calls/method_new.pl
 calls/method_unresolved.pl
 calls/nested.pl
 calls/param_usage.pl
@@ -134,12 +135,14 @@ ops/count_of.pl
 ops/defined_or.pl
 ops/foreach_alias.pl
 ops/foreach_named_alias.pl
+ops/hashref_arith.pl
 ops/incr.pl
 ops/isa.pl
 ops/list_assign.pl
 ops/logical.pl
 ops/neg.pl
 ops/not.pl
+ops/paren_operand.pl
 ops/range.pl
 ops/range_num.pl
 ops/reassign.pl
@@ -180,11 +183,13 @@ special/match_list.pl
 special/match_scalar.pl
 special/qr.pl
 special/readline.pl
+special/ref_arith.pl
 special/ref_array.pl
 special/ref_code.pl
 special/ref_glob.pl
 special/ref_hash.pl
 special/ref_other.pl
+special/ref_paren.pl
 special/ref_scalar.pl
 special/sort_block.pl
 special/sort_list.pl
