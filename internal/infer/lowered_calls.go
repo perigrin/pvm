@@ -15,7 +15,8 @@ import (
 // inferFunc0opCallType in one: a builtin's CORE.pmt candidates check the
 // arity and each argument's type and give the call's type; a sub of this
 // file gives its inferred return type, and a fully-qualified one the
-// project index's. A call through a reference is not typed.
+// project index's. A call through a reference is not typed. `&name` never
+// calls CORE, so it is a user sub's call whatever its name.
 //
 // The filehandle of `print $fh LIST` is Handle, not an argument, so it is
 // neither counted nor checked. An argument perl rejects is a Hole, which is
@@ -34,7 +35,7 @@ func (a *loweredAnalysis) call(n *lower.Call) types.Type {
 		return types.Undef
 	}
 	sigs := parse.CoreBuiltin(n.Name)
-	if n.Fn != nil || len(sigs) == 0 {
+	if n.Fn != nil || n.Ampersand || len(sigs) == 0 {
 		a.args(n.Args, nil)
 		return a.userCall(n)
 	}
