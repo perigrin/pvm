@@ -5,6 +5,7 @@ package infer
 
 import (
 	"fmt"
+	"strconv"
 
 	"tamarou.com/pvm/internal/lower"
 	"tamarou.com/pvm/internal/types"
@@ -14,11 +15,14 @@ import (
 // the symbol table narrowed it to, else its sigil's type, and $#a is an
 // Int. A glob and a &name are not typed.
 //
-// A capture variable such as $1 is read as any other scalar here: its type
-// comes from the match before it, which this rule does not read.
+// A capture variable such as $1 is typed from the match before it, as
+// capture says.
 func (a *loweredAnalysis) variable(v *lower.Var) types.Type {
 	if v.Sigil == "$#" {
 		return types.Int
+	}
+	if n, err := strconv.Atoi(v.Name); v.Sigil == "$" && err == nil && n >= 1 {
+		return a.capture(v, n)
 	}
 	return a.lookupVar(v.Sigil, v.Name)
 }

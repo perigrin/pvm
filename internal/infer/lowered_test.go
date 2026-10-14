@@ -497,3 +497,24 @@ func TestLoweredSpecialFormsOverBrokenInput(t *testing.T) {
 		}
 	}
 }
+
+// $1 reads its group from the quote token of the match before it, whatever
+// its delimiters: perl 5.42 -w is silent on `$1 + 1` after each of these,
+// all digit groups. A group of letters is a Str.
+func TestLoweredCaptureReadsEveryQuoteForm(t *testing.T) {
+	for src, want := range map[string]types.Type{
+		`my $s = "a1"; $s =~ m{(\d+)}; my $c = $1;`:             types.Int,
+		`my $s = "a1"; $s =~ s/(\d+)/x/; my $c = $1;`:           types.Int,
+		`my $s = "a/1"; $s =~ m/a\/(\d)/; my $c = $1;`:          types.Int,
+		`my $s = "a1"; $s =~ m{(?:[a-z]{1})(\d+)}; my $c = $1;`: types.Int,
+		`my $r = qr/(\d+)/; my $c = $1;`:                        types.Int,
+		`my $s = "ab"; $s =~ m{([a-z]+)}; my $c = $1;`:          types.Str,
+	} {
+		root := parse.Parse([]byte(src))
+		f := lower.Lower(root)
+		_, _, st := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
+		if sym, ok := st.Lookup("$c"); !ok || sym.Type != want {
+			t.Errorf("%q: $c is %v (found %v), want %v", src, sym.Type, ok, want)
+		}
+	}
+}

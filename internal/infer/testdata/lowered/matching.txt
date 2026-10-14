@@ -158,6 +158,12 @@ ops/ternary.pl
 ops/ternary_mixed.pl
 ops/ternary_str.pl
 ops/xor.pl
+special/capture_arith.pl
+special/capture_digits.pl
+special/capture_letters.pl
+special/capture_nearest.pl
+special/capture_none.pl
+special/capture_second.pl
 special/do_block.pl
 special/do_file.pl
 special/eval_block.pl

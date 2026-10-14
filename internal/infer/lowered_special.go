@@ -4,6 +4,8 @@
 package infer
 
 import (
+	"strings"
+
 	"tamarou.com/pvm/internal/lower"
 	"tamarou.com/pvm/internal/types"
 )
@@ -139,4 +141,56 @@ func (a *loweredAnalysis) bindsCaptures(d *lower.Decl) bool {
 		a.st.UpdateType(v.Sigil+v.Name, types.Str)
 	}
 	return true
+}
+
+// capture is the legacy captureType for $n, the n-th group of the last
+// match, substitution or qr before it in source order. A capture is a
+// substring, so a Str, and an Int when its group can match nothing but
+// digits: perl 5.42 -w, after "abc123" =~ /(\d+)/, `$1 + 1` is 124 and
+// silent, and after "abcxyz" =~ /([a-z]+)/ it warns "isn't numeric". No
+// match before it, or no such group, leaves Str.
+func (a *loweredAnalysis) capture(v *lower.Var, n int) types.Type {
+	start, _, _ := a.pos.Span(v.ID)
+	m := a.pos.LastBefore(start, func(x lower.Node) bool {
+		mt, ok := x.(*lower.Match)
+		return ok && (mt.Op == "m" || mt.Op == "s" || mt.Op == "qr")
+	})
+	if m == nil {
+		return types.Str
+	}
+	groups := captureGroups(quotePattern(a.pos.Quote(m.Meta().ID)))
+	if n <= len(groups) && isNumericOnlyGroup(groups[n-1]) {
+		return types.Int
+	}
+	return types.Str
+}
+
+// quotePattern is the pattern inside a match, substitution or qr quote
+// token: `(\d+)` from `/(\d+)/`, `m{(\d+)}x` and `s/(\d+)/x/g` alike. A
+// bracketing delimiter nests, and a backslash escapes the character after
+// it. "" when tok is not such a token.
+func quotePattern(tok string) string {
+	body := []rune(strings.TrimLeft(strings.TrimLeft(tok, "mqrs"), " \t\n"))
+	if len(body) == 0 {
+		return ""
+	}
+	open := body[0]
+	closer := map[rune]rune{'(': ')', '[': ']', '{': '}', '<': '>'}[open]
+	if closer == 0 {
+		closer = open
+	}
+	depth := 0
+	for i := 1; i < len(body); i++ {
+		switch r := body[i]; {
+		case r == '\\':
+			i++
+		case r == open && closer != open:
+			depth++
+		case r == closer && depth > 0:
+			depth--
+		case r == closer:
+			return string(body[1:i])
+		}
+	}
+	return ""
 }
