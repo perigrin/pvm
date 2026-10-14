@@ -6,7 +6,7 @@ milestone: m2-lower-the-tree
 blocks:
 - 01a0c115-a44b-7393-a828-ad29844b20b4
 created: 2026-10-14T17:00:47.844513167Z
-updated: 2026-10-14T17:13:40.168902325Z
+updated: 2026-10-14T20:41:47.635867076Z
 sessions:
 - start_sha: 36ecbc1380ea6afd9166cd772cff0dbe4ccf36de
   end_sha: ""
@@ -75,6 +75,9 @@ Examples from the diff:
 - `privlib/CPAN.pm:880` (added) `truncate $fh, 0;` -- call to truncate: argument 1 expects Int|Num|Str|GlobRef|Glob|NaN|Inf|IO, got Object
 - `privlib/ExtUtils/MakeMaker.pm:627` (added) `: version->new($required_version) > version->new($pr_version)` -- left operand of ">": expected Num, got Object
 - `privlib/ExtUtils/MakeMaker.pm:627` (added) `: version->new($required_version) > version->new($pr_version)` -- right operand of ">": expected Num, got Object
+
+
+**Ruled 2026-10-14:** perigrin chose the lossy opt-in. An object or reference in a numeric slot (`$h + 1`, `Math::BigInt->new(5) % 2`, `$version <= 3`) is the same lossy-coercion class as a reference in a Str slot (01a13793-4023): silent by default, a `lossy-coercion` warning under `--warn-lossy-coercion`. perl -w is silent on all of them, overloaded or not, and PSC cannot see most overloads (version's come from XS; the index does not read perl's lib). Goldens `ops/paren_operand` and `calls/method_new` move under trailers citing this ruling.
 
 ## Steps
 
