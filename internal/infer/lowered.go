@@ -31,6 +31,7 @@ func AnalyzeLowered(f *lower.File, pos *lower.Positions, idx *ProjectIndex, opts
 		annotations: map[lower.ID]types.Type{},
 		diags:       []Diagnostic{},
 		subs:        fileSubs(f),
+		overrides:   overrides(f),
 		evalCtx:     map[lower.ID]types.Context{},
 		classTypes:  map[lower.ID]string{},
 	}
@@ -50,6 +51,9 @@ type loweredAnalysis struct {
 	// subs is each file-level named sub's body, which a user-defined
 	// guard reads.
 	subs map[string]*lower.AnonSub
+	// overrides is each builtin a `use` list overrides, which a call
+	// to is a user sub's.
+	overrides map[string]bool
 	// evalCtx is the context the expression around a node evaluates it
 	// in, keyed by the node's id and set before the node is walked: an
 	// assignment's right side, an operator's operands, a ternary's arms.

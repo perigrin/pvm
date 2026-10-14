@@ -145,3 +145,24 @@ func TestSelectAcceptsUndefTimeout(t *testing.T) {
 
 	wantCode(t, "select(undef, undef, undef, \"abc\");\n", infer.CodeTypeMismatch)
 }
+
+// A builtin a `use` list names is overridden by the sub it imports or
+// predeclares: perl 5.42 -w runs `use subs "rename"; sub rename { "fake" }
+// print rename()` and prints "fake", and compiles `use POSIX
+// qw(localtime); localtime(1, 2)`. A sub of the same name without the
+// `use` does not override: `sub rename { "fake" } rename()` is "Not enough
+// arguments for rename". Nor can a strong keyword be overridden: under
+// `use subs "defined"`, `defined(@a)` is still "Can't use
+// 'defined(@array)'".
+func TestUseSubsOverridesBuiltinCheck(t *testing.T) {
+	for _, src := range []string{
+		"use subs \"rename\";\nsub rename { \"fake\" }\nprint rename(), \"\\n\";\n",
+		"use subs qw(rename);\nmy $r = rename();\n",
+		"use POSIX qw(localtime);\nmy @t = localtime(1, 2);\n",
+	} {
+		wantSilent(t, src)
+	}
+
+	wantCode(t, "sub rename { \"fake\" }\nprint rename(), \"\\n\";\n", infer.CodeArityMismatch)
+	wantCode(t, "use subs \"defined\";\nsub defined { 1 }\nmy @a;\nprint defined(@a);\n", infer.CodeTypeMismatch)
+}

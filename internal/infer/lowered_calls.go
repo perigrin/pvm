@@ -5,6 +5,7 @@ package infer
 
 import (
 	"strings"
+	"unicode"
 
 	"tamarou.com/pvm/internal/lower"
 	"tamarou.com/pvm/internal/parse"
@@ -16,7 +17,8 @@ import (
 // arity and each argument's type and give the call's type; a sub of this
 // file gives its inferred return type, and a fully-qualified one the
 // project index's. A call through a reference is not typed. `&name` never
-// calls CORE, so it is a user sub's call whatever its name.
+// calls CORE, so it is a user sub's call whatever its name, and so is a
+// builtin a `use` list overrides.
 //
 // The filehandle of `print $fh LIST` is Handle, not an argument, so it is
 // neither counted nor checked. An argument perl rejects is a Hole, which is
@@ -35,7 +37,7 @@ func (a *loweredAnalysis) call(n *lower.Call) types.Type {
 		return types.Undef
 	}
 	sigs := parse.CoreBuiltin(n.Name)
-	if n.Fn != nil || n.Ampersand || len(sigs) == 0 {
+	if n.Fn != nil || n.Ampersand || a.overrides[n.Name] || len(sigs) == 0 {
 		a.args(n.Args, nil)
 		return a.userCall(n)
 	}
@@ -60,6 +62,65 @@ func (a *loweredAnalysis) call(n *lower.Call) types.Type {
 		return t
 	}
 	return a.callReturns(n, sigs)
+}
+
+// strongKeywords are the builtins no sub overrides: measured on 5.42.0 by
+// compiling `use subs 'NAME'; sub NAME { 1 } sub t { NAME(...) }` for every
+// CORE.pmt builtin, and finding no entersub in t. say is one under the
+// say feature, and a plain word without it.
+var strongKeywords = map[string]bool{
+	"defined": true, "delete": true, "eval": true, "exists": true,
+	"goto": true, "grep": true, "map": true, "pos": true, "print": true,
+	"printf": true, "prototype": true, "return": true, "say": true,
+	"scalar": true, "shift": true, "sort": true, "split": true,
+	"study": true, "undef": true,
+}
+
+// overrides is each builtin f's `use` lists override: the names `use subs`
+// predeclares, and those a module's import list names, which it exports
+// as subs. perl 5.42 -w, `use subs "rename"; sub rename { "fake" } print
+// rename()` prints "fake", and `use POSIX qw(localtime); localtime(1, 2)`
+// compiles. A pragma's list is its arguments, `use feature "say"`, and
+// names no sub; a strong keyword is never overridden.
+//
+// The file is read as one scope: a `use` anywhere overrides the name in
+// every package and before the `use`, where perl would not.
+func overrides(f *lower.File) map[string]bool {
+	names := map[string]bool{}
+	var add func(n lower.Node)
+	add = func(n lower.Node) {
+		switch n := n.(type) {
+		case *lower.StrLit:
+			if !n.Backtick {
+				names[n.Value] = true
+			}
+		case *lower.QwList:
+			for _, w := range n.Words {
+				names[w] = true
+			}
+		case *lower.List:
+			for _, e := range n.Elems {
+				add(e)
+			}
+		}
+	}
+	var walk func(n lower.Node)
+	walk = func(n lower.Node) {
+		if u, ok := n.(*lower.UseStmt); ok && u.Op == "use" && u.Args != nil &&
+			(u.Module == "subs" || u.Module != "" && unicode.IsUpper(rune(u.Module[0]))) {
+			add(u.Args)
+		}
+		for _, c := range lower.Children(n) {
+			walk(c)
+		}
+	}
+	walk(f)
+	for name := range names {
+		if strongKeywords[name] || len(parse.CoreBuiltin(name)) == 0 {
+			delete(names, name)
+		}
+	}
+	return names
 }
 
 // args walks a call's arguments, each in the context its parameter slot in
