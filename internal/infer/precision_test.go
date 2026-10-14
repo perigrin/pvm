@@ -217,4 +217,10 @@ func TestInferencePrecision(t *testing.T) {
 	// nothing, because a consumer acts on it.
 	assert.Zero(t, wrong,
 		"PSC inferred a type the value does not have; see the disagreements above")
+
+	// PSC must not get worse: 62 of the 76 observed values were exact when
+	// the floor was set, and a change that loses one is a regression even
+	// if nothing it says is wrong.
+	assert.GreaterOrEqual(t, exact, 62,
+		"PSC is exactly right about fewer observed values than the floor")
 }
