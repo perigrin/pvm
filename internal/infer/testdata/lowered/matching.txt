@@ -20,6 +20,7 @@ calls/nested.pl
 calls/param_usage.pl
 calls/pop_shift.pl
 calls/print_handle.pl
+calls/print_ref_arg.pl
 calls/push_bare.pl
 calls/push_paren.pl
 calls/scalar.pl
@@ -119,6 +120,7 @@ literals/strings.pl
 ops/add.pl
 ops/aggregate_compare.pl
 ops/arith_int.pl
+ops/arrayref_concat.pl
 ops/assign_array.pl
 ops/assign_arrayref.pl
 ops/assign_count.pl
@@ -131,6 +133,7 @@ ops/concat.pl
 ops/concat_array.pl
 ops/count_of.pl
 ops/defined_or.pl
+ops/foreach_alias.pl
 ops/foreach_named_alias.pl
 ops/hashref_arith.pl
 ops/incr.pl
@@ -148,11 +151,14 @@ ops/repeat_div.pl
 ops/repeat_num.pl
 ops/repeat_paren_one.pl
 ops/repeat_qw.pl
+ops/str_arith.pl
+ops/str_compare_num.pl
 ops/str_eq.pl
 ops/ternary.pl
 ops/ternary_mixed.pl
 ops/ternary_str.pl
 ops/xor.pl
+special/capture_arith.pl
 special/capture_digits.pl
 special/capture_letters.pl
 special/capture_nearest.pl
