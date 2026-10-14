@@ -72,12 +72,18 @@ var refTypes = map[string]types.Type{
 // element, a literal, a dereference -- is not typed: it is no evidence of
 // which reference results.
 //
+// A scalar variable typed Glob holds a glob, so a reference to it is a
+// GlobRef: perl 5.42, `my $v = *STDOUT; ref \$v` is GLOB.
+//
 // A parenthesised array is typed as the array, as on the legacy path,
 // although perl takes a reference to each element: perl 5.42, with
 // @a = (1, 2), `ref(my $r = \(@a))` is SCALAR.
 func (a *loweredAnalysis) ref(n *lower.Ref) types.Type {
 	a.operand(n.Operand)
 	if v, ok := n.Operand.(*lower.Var); ok {
+		if v.Sigil == "$" && a.typeOf(v) == types.Glob {
+			return types.GlobRef
+		}
 		if t, ok := refTypes[v.Sigil]; ok {
 			return t
 		}

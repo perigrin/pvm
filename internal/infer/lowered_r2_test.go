@@ -79,3 +79,29 @@ func TestPrintOfReadlineIsNotVoid(t *testing.T) {
 	// array of undef flattened into print's list.
 	wantCode(t, "my @a = (undef);\nprint @a;\n", infer.CodeTypeMismatch)
 }
+
+// `ref \$v eq 'GLOB'` holds only where $v holds a glob, so under it $v is
+// a Glob and `\$v` a GlobRef, which fileno's handle slot takes. perl 5.42
+// -w runs each case below silently, rc 0: Dumpvalue's and dumpvar.pl's
+// shapes, the latter with eval around fileno, and the guard spelled with
+// parens or reversed.
+func TestFilenoOfScalarRefToGlob(t *testing.T) {
+	for _, src := range []string{
+		"sub unwrap { my $self = shift; my $v = shift; my $fileno;\n  if (ref $v eq 'HASH') { 1 }\n  elsif (ref \\$v eq 'GLOB') {\n    if ($self->{globPrint}) { 1 }\n    elsif (defined ($fileno = fileno(\\$v))) { print \"FileHandle({$v}) => fileno($fileno)\\n\" }\n  }\n}\nunwrap({}, *STDOUT);\n",
+		"sub dumpit { my $v = shift; my $fileno;\n  if (ref $v eq 'HASH') { 1 }\n  elsif (ref \\$v eq 'GLOB') {\n    if (0) { 1 }\n    elsif (defined ($fileno = eval {fileno(\\$v)})) { print \"FileHandle({$v}) => fileno($fileno)\\n\" }\n  }\n}\ndumpit(*STDOUT);\n",
+		"my $v = *STDOUT;\nif (ref(\\$v) eq \"GLOB\") { print fileno(\\$v), \"\\n\" }\n",
+		"my $v = *STDOUT;\nif ('GLOB' eq ref \\$v) { print fileno(\\$v), \"\\n\" }\n",
+	} {
+		wantSilent(t, src)
+	}
+
+	// perl 5.42 -w dies "Not a GLOB reference" on each: $v holds no glob,
+	// unguarded or where the guard failed.
+	for _, src := range []string{
+		"my $v = \"x\";\nmy $f = fileno(\\$v);\n",
+		"my $v = \\*STDOUT;\nmy $f = fileno(\\$v);\n",
+		"my $v = \"x\";\nif (ref \\$v eq 'GLOB') { 1 } else { my $f = fileno(\\$v) }\n",
+	} {
+		wantReported(t, src, infer.CodeTypeMismatch)
+	}
+}

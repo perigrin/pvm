@@ -90,10 +90,11 @@ func NarrowByContext(typ Type, ctx Context) (Type, bool) {
 type GuardKind int
 
 const (
-	GuardDefined GuardKind = iota // defined($x) — tests that value is not undef
-	GuardRef                      // ref($x) — tests that value is a reference
-	GuardIsa                      // $x isa Foo — tests that value is an instance of a class
-	GuardBool                     // builtin::is_bool($x) — tests that value is a boolean
+	GuardDefined  GuardKind = iota // defined($x) — tests that value is not undef
+	GuardRef                       // ref($x) — tests that value is a reference
+	GuardIsa                       // $x isa Foo — tests that value is an instance of a class
+	GuardBool                      // builtin::is_bool($x) — tests that value is a boolean
+	GuardReferent                  // ref(\$x) eq 'TYPE' — tests what $x itself holds
 )
 
 // GuardPattern describes a guard expression used to narrow a type at a branch point.
@@ -189,6 +190,17 @@ func NarrowByGuard(typ Type, guard GuardPattern) (Type, bool) {
 		}
 		result := effective & Boolean
 		return narrowResult(result, effective)
+
+	case GuardReferent:
+		// ref(\$x) is "GLOB" only where $x holds a glob: perl 5.42,
+		// `my $v = *STDOUT; ref \$v` is GLOB, and `my $v = "x"; ref \$v`
+		// SCALAR. A scalar variable that holds a glob is typed Scalar, which
+		// has no Glob bit, so $x becomes a Glob whatever it was typed.
+		// Any other TYPE is not narrowed.
+		if guard.RefType != "GLOB" {
+			return typ, false
+		}
+		return narrowResult(Glob, typ)
 
 	default:
 		return typ, false
