@@ -1,12 +1,21 @@
 ---
 title: "`scalar localtime()` typed as the list form's union"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m2-lower-the-tree
 blocks:
 - 01a0c115-a44b-7393-a828-ad29844b20b4
 created: 2026-10-14T17:01:24.49105699Z
-updated: 2026-10-14T17:01:24.49105699Z
+updated: 2026-10-14T17:13:40.044722492Z
+sessions:
+- start_sha: 36ecbc1380ea6afd9166cd772cff0dbe4ccf36de
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-14T17:13:40.044722492Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-14T17:13:40.044722492Z
 ---
 
 ## Context
