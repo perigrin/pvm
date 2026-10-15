@@ -1,6 +1,6 @@
 ---
 title: "Cutover part 2: flip the LSP, routing position queries through the position map"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -8,7 +8,16 @@ blocked_by:
 blocks:
 - 01a0c115-df67-7d69-8883-73d40b0ae15d
 created: 2026-09-20T23:10:23.450787225Z
-updated: 2026-10-11T15:18:03.266001086Z
+updated: 2026-10-15T06:09:44.004319907Z
+sessions:
+- start_sha: 165beaaf607cdf54bb12a37c0fa0baa7a26bc070
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-15T06:09:44.004319907Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-15T06:09:44.004319907Z
 ---
 
 ## Context
