@@ -141,7 +141,7 @@ func TestInferencePrecision(t *testing.T) {
 
 	root := parse.Parse(src)
 	f := lower.Lower(root)
-	_, _, st := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
+	_, _, st := infer.Analyze(f, lower.NewPositions(root, f), nil, infer.Options{})
 
 	var exact, compatible, wrong, unknown, nearMiss int
 	var disagreements []string

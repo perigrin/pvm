@@ -1,5 +1,5 @@
-// ABOUTME: The variable, subscript and slice rules of AnalyzeLowered: Var, Deref, Index, Key and Slice, and the element types a declaration records.
-// ABOUTME: Each is the legacy rule rewritten against the lowered kinds: the sigil, the arrow and the slice kind are fields, never re-read from text.
+// ABOUTME: The variable, subscript and slice rules of Analyze: Var, Deref, Index, Key and Slice, and the element types a declaration records.
+// ABOUTME: Each reads the lowered kinds: the sigil, the arrow and the slice kind are fields, never re-read from text.
 
 package infer
 
@@ -11,13 +11,13 @@ import (
 	"tamarou.com/pvm/internal/types"
 )
 
-// variable is the legacy sigil arms: a scalar, array or hash is the type
+// variable types a variable: a scalar, array or hash is the type
 // the symbol table narrowed it to, else its sigil's type, and $#a is an
 // Int. A glob and a &name are not typed.
 //
 // A capture variable such as $1 is typed from the match before it, as
 // capture says.
-func (a *loweredAnalysis) variable(v *lower.Var) types.Type {
+func (a *analysis) variable(v *lower.Var) types.Type {
 	if v.Sigil == "$#" {
 		return types.Int
 	}
@@ -27,10 +27,10 @@ func (a *loweredAnalysis) variable(v *lower.Var) types.Type {
 	return a.lookupVar(v.Sigil, v.Name)
 }
 
-// lookupVar is the legacy lookupNarrowedType: sigil+name's narrowed type,
+// lookupVar is sigil+name's narrowed type,
 // or the sigil's type when nothing narrowed it. Unknown for a sigil that
 // names no scalar, array or hash.
-func (a *loweredAnalysis) lookupVar(sigil, name string) types.Type {
+func (a *analysis) lookupVar(sigil, name string) types.Type {
 	fallback, ok := sigilTypes[sigil]
 	if !ok {
 		return types.Unknown
@@ -46,9 +46,9 @@ func (a *loweredAnalysis) lookupVar(sigil, name string) types.Type {
 // last index, an Int. Any other dereference, `$$r` included, is not typed.
 var derefTypes = map[string]types.Type{"@": types.Array, "%": types.Hash, "$#": types.Int}
 
-// index is the legacy array_element_expression arm: an element read, and
+// index types an element read, and
 // the check on its index.
-func (a *loweredAnalysis) index(n *lower.Index) types.Type {
+func (a *analysis) index(n *lower.Index) types.Type {
 	a.walkBase(n.Base, n.Arrow, "@")
 	if n.Idx != nil {
 		a.checkIndex(n.Idx, a.walk(n.Idx))
@@ -56,9 +56,9 @@ func (a *loweredAnalysis) index(n *lower.Index) types.Type {
 	return a.element(containerName(n.Base, n.Arrow, "@"))
 }
 
-// key is the legacy hash_element_expression arm. A key is stringified, not
+// key types a hash element read. A key is stringified, not
 // numified, so it is not checked.
-func (a *loweredAnalysis) key(n *lower.Key) types.Type {
+func (a *analysis) key(n *lower.Key) types.Type {
 	a.walkBase(n.Base, n.Arrow, "%")
 	if n.Key != nil {
 		a.walk(n.Key)
@@ -86,9 +86,9 @@ func constKey(n lower.Node) (string, bool) {
 	return "", false
 }
 
-// slice walks a slice. The slice itself is not typed, as on the legacy
-// path; what it holds is recorded by elemType when a declaration takes it.
-func (a *loweredAnalysis) slice(n *lower.Slice) {
+// slice walks a slice. The slice itself is not typed; what it holds is
+// recorded by elemType when a declaration takes it.
+func (a *analysis) slice(n *lower.Slice) {
 	if n.Kind == lower.SliceList {
 		a.walkChildren(n)
 		return
@@ -111,7 +111,7 @@ func sliceSigil(k lower.SliceKind) string {
 // walkBase walks a subscript's base. A variable read without an arrow
 // names the aggregate, not the scalar its sigil spells -- $a[0] reads @a
 // -- so it is typed as that aggregate.
-func (a *loweredAnalysis) walkBase(base lower.Node, arrow bool, aggSigil string) {
+func (a *analysis) walkBase(base lower.Node, arrow bool, aggSigil string) {
 	if v, ok := base.(*lower.Var); ok && !arrow {
 		if t := a.lookupVar(aggSigil, v.Name); t != types.Unknown {
 			a.annotations[v.ID] = t
@@ -145,10 +145,10 @@ func containerName(base lower.Node, arrow bool, aggSigil string) string {
 	return ""
 }
 
-// element is the legacy inferElementType: one element of the container
+// element is one element of the container
 // name, which is its recorded element type in scalar context. An element of
 // a container nothing was recorded for is a Scalar, not a guess.
-func (a *loweredAnalysis) element(name string) types.Type {
+func (a *analysis) element(name string) types.Type {
 	return oneElement(a.elemOf(name))
 }
 
@@ -165,7 +165,7 @@ func oneElement(elem types.Type) types.Type {
 }
 
 // elemOf is the element type recorded for name, Unknown if none.
-func (a *loweredAnalysis) elemOf(name string) types.Type {
+func (a *analysis) elemOf(name string) types.Type {
 	if name == "" {
 		return types.Unknown
 	}
@@ -175,11 +175,11 @@ func (a *loweredAnalysis) elemOf(name string) types.Type {
 	return types.Unknown
 }
 
-// checkIndex is the legacy checkElementIndex: an array index known to be a
+// checkIndex is the index check: an array index known to be a
 // reference is reported, since a reference numifies to its address and
 // perl warns "Use of reference ... as array index". An index of no known
 // type is passed over.
-func (a *loweredAnalysis) checkIndex(idx lower.Node, actual types.Type) {
+func (a *analysis) checkIndex(idx lower.Node, actual types.Type) {
 	if actual == types.Unknown || !types.IsSubtype(actual, types.Ref) {
 		return
 	}
@@ -193,11 +193,11 @@ func (a *loweredAnalysis) checkIndex(idx lower.Node, actual types.Type) {
 	})
 }
 
-// elemType is the legacy listElementType: the element type of what a
+// elemType is the element type of what a
 // declaration fills an aggregate with. A list or constructor holds the join
 // of its elements; a slice holds the elements of what it slices, and a
 // key/value slice the keys too; anything else is one element, its own type.
-func (a *loweredAnalysis) elemType(n lower.Node) types.Type {
+func (a *analysis) elemType(n lower.Node) types.Type {
 	switch n := n.(type) {
 	case *lower.List:
 		return a.joinTypes(n.Elems)
@@ -229,7 +229,7 @@ func (a *loweredAnalysis) elemType(n lower.Node) types.Type {
 //
 // perl: `1..3` is (1, 2, 3), `0..2.7` is (0, 1, 2), and `"a".."c"` is
 // ("a", "b", "c").
-func (a *loweredAnalysis) rangeElemType(r *lower.Range) types.Type {
+func (a *analysis) rangeElemType(r *lower.Range) types.Type {
 	if types.IsSubtype(a.typeOf(r.Lo), types.Num) && types.IsSubtype(a.typeOf(r.Hi), types.Num) {
 		return types.Int
 	}
@@ -241,7 +241,7 @@ func (a *loweredAnalysis) rangeElemType(r *lower.Range) types.Type {
 // perl: with @a = (1, 2) and %h = (a => 1), @a[0,1] is (1, 2), %a[0] is
 // (0, 1) and %h{a} is ("a", 1): a key/value slice returns each index or key
 // before its value.
-func (a *loweredAnalysis) sliceElemType(s *lower.Slice) types.Type {
+func (a *analysis) sliceElemType(s *lower.Slice) types.Type {
 	if s.Kind == lower.SliceList {
 		if s.Base == nil {
 			return types.Unknown
@@ -262,7 +262,7 @@ func (a *loweredAnalysis) sliceElemType(s *lower.Slice) types.Type {
 }
 
 // joinTypes joins the annotations of ns.
-func (a *loweredAnalysis) joinTypes(ns []lower.Node) types.Type {
+func (a *analysis) joinTypes(ns []lower.Node) types.Type {
 	t := types.Unknown
 	for _, n := range ns {
 		if n != nil {
@@ -272,10 +272,10 @@ func (a *loweredAnalysis) joinTypes(ns []lower.Node) types.Type {
 	return t
 }
 
-// recordElemType is the element half of the legacy
-// inferAssignmentNarrowing: an array or hash records the element type of
-// what fills it, and so does a scalar holding an anonymous array or hash.
-func (a *loweredAnalysis) recordElemType(v *lower.Var, init lower.Node) {
+// recordElemType is the element half of assignment narrowing: an array or
+// hash records the element type of what fills it, and so does a scalar
+// holding an anonymous array or hash.
+func (a *analysis) recordElemType(v *lower.Var, init lower.Node) {
 	switch init.(type) {
 	case *lower.ArrayLiteral, *lower.HashLiteral:
 	default:
@@ -316,7 +316,7 @@ func hashFill(v *lower.Var, init lower.Node) ([]lower.Node, bool) {
 // `$h{$k} == $h{$l}` over `%h = ('multiply' => 19, 'i_multiply' => 19)`.
 // When an element may flatten to other than one value, as `%a` in
 // `(%a, b => 1)` does, which element is a key is not known, and nothing is.
-func (a *loweredAnalysis) pairs(elems []lower.Node) (types.Type, map[string]types.Type) {
+func (a *analysis) pairs(elems []lower.Node) (types.Type, map[string]types.Type) {
 	values, keys := types.Unknown, map[string]types.Type{}
 	for i, e := range elems {
 		if !isOneValue(e) {

@@ -1,4 +1,4 @@
-// ABOUTME: Tests for AnalyzeLowered's guard narrowing on the round-2 cutover false positives: defined and ref guards.
+// ABOUTME: Tests for Analyze's guard narrowing on the round-2 cutover false positives: defined and ref guards.
 // ABOUTME: Each silent case is one perl 5.42 -w is silent on, and each control one perl warns about.
 
 package infer_test

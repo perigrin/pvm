@@ -1,4 +1,4 @@
-// ABOUTME: Tests for AnalyzeLowered's operand and argument rules where perl 5.42 -w is silent and PSC was not.
+// ABOUTME: Tests for Analyze's operand and argument rules where perl 5.42 -w is silent and PSC was not.
 // ABOUTME: Each pairs the silent cases with a control perl warns about or rejects, which must still be reported.
 
 package infer_test

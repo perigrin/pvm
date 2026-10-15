@@ -1,4 +1,4 @@
-// ABOUTME: Tests for the call rules of AnalyzeLowered: which calls are checked as a CORE builtin, and how.
+// ABOUTME: Tests for the call rules of Analyze: which calls are checked as a CORE builtin, and how.
 // ABOUTME: Each case is a program perl 5.42 -w runs silently, paired with a control perl rejects or warns about.
 
 package infer_test

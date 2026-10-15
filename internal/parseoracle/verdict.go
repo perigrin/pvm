@@ -101,7 +101,7 @@ const (
 
 // Markers is every marker the harness decides, in the order a verdict
 // names them when more than one is in play. It is the table spec §7.5.4
-// sketches, with the tree-sitter predicates living in adapter.go.
+// sketches.
 var Markers = []Marker{MarkerSrefgen, MarkerRv2hv, MarkerMatch, MarkerReadline, MarkerAnonhash}
 
 // Verdict is one comparison result.
