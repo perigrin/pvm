@@ -9,6 +9,24 @@ import (
 	"tamarou.com/pvm/internal/types"
 )
 
+// AnalyzeParsed lowers root, which the parser returned, and runs
+// AnalyzeLowered over the lowered tree: the one pipeline every caller of the
+// lowered path runs, whichever way it parsed. idx and opts are as
+// AnalyzeLowered takes them.
+func AnalyzeParsed(root *parse.Node, idx *ProjectIndex, opts Options) *FileAnalysis {
+	f := lower.Lower(root)
+	pos := lower.NewPositions(root, f)
+	ann, diags, st := AnalyzeLowered(f, pos, idx, opts)
+	return &FileAnalysis{
+		File:        f,
+		Positions:   pos,
+		Annotations: ann,
+		Diagnostics: diags,
+		Symbols:     st,
+		Package:     st.CurrentPackage(),
+	}
+}
+
 // AnalyzeLowered runs inference over f, which lower.Lower returned, and
 // returns each node's type keyed by its id, the diagnostics, and the symbol
 // table. pos is f's position map: diagnostics and symbols carry byte spans,

@@ -58,6 +58,7 @@ func TestAnalyzeFile(t *testing.T) {
 	sym, ok := result.Symbols.Lookup("baz")
 	assert.True(t, ok, "baz should be in symbol table")
 	assert.Equal(t, types.Int, sym.ReturnType, "baz returns Int")
+	assert.Equal(t, "Foo::Bar", result.Package, "the package statement names the file's package")
 }
 
 func TestAnalyzeFileCached(t *testing.T) {

@@ -43,11 +43,8 @@ func (ty typed) at(off uint32) (types.Type, bool) {
 
 // analyzeLowered parses, lowers and analyses source on the lowered path.
 func analyzeLowered(source []byte, idx *infer.ProjectIndex, opts infer.Options) (typed, []infer.Diagnostic, *infer.SymbolTable) {
-	root := parse.Parse(source)
-	f := lower.Lower(root)
-	pos := lower.NewPositions(root, f)
-	ann, diags, st := infer.AnalyzeLowered(f, pos, idx, opts)
-	return typed{f: f, pos: pos, ann: ann}, diags, st
+	r := infer.AnalyzeParsed(parse.Parse(source), idx, opts)
+	return typed{f: r.File, pos: r.Positions, ann: r.Annotations}, r.Diagnostics, r.Symbols
 }
 
 // analyzeSource parses the given Perl source and runs both inference passes,
