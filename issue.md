@@ -1,12 +1,21 @@
 ---
 title: A capture returned after its own successful match keeps Undef through a user sub
-state: pending
+state: in-progress
 urgency: normal
 milestone: m2-lower-the-tree
 blocks:
 - 01a0c115-a44b-7393-a828-ad29844b20b4
 created: 2026-10-15T00:27:10.793370616Z
-updated: 2026-10-15T00:27:10.793370616Z
+updated: 2026-10-15T00:27:29.933762885Z
+sessions:
+- start_sha: 6fed0273b415fdabaec853b07adab5c4df6f5598
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-15T00:27:29.933762885Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-15T00:27:29.933762885Z
 ---
 
 ## Context
