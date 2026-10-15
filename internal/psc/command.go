@@ -10,7 +10,7 @@ func NewCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "psc",
 		Short: "Perl Structural Checker",
-		Long:  "psc analyses and inspects Perl source code using a pure-Go tree-sitter parser.",
+		Long:  "psc analyses and inspects Perl source code using a pure-Go Perl parser.",
 	}
 
 	cmd.AddCommand(newParseCommand())

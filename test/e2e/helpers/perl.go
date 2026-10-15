@@ -54,19 +54,6 @@ func EnsureBinaryPerl(t *testing.T, version string) string {
 	return "/usr/bin/perl" // Placeholder - PVM will use correct version automatically
 }
 
-// HasTreeSitter checks if the tree-sitter library is available.
-// gotreesitter is compiled into the binary, so tree-sitter is always available.
-func HasTreeSitter() bool {
-	return true
-}
-
-// SkipIfNoTreeSitter skips the test if tree-sitter is not available
-func SkipIfNoTreeSitter(t *testing.T) {
-	if !HasTreeSitter() {
-		t.Skip("Tree-sitter not available, skipping test")
-	}
-}
-
 // GetPerlCommand returns the appropriate perl command for the platform
 func GetPerlCommand() string {
 	if runtime.GOOS == "windows" {

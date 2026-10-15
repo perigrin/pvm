@@ -18,7 +18,7 @@ func isPSCAvailable() bool {
 }
 
 // SkipIfNoPSC skips the test if PSC dependencies are not available
-// This follows the established pattern from SkipIfNoTreeSitter and SkipIfNoSystemPerl
+// This follows the established pattern from SkipIfNoSystemPerl
 func SkipIfNoPSC(t *testing.T) {
 	t.Helper()
 

@@ -1,5 +1,5 @@
 // ABOUTME: The parse tree: nodes over byte spans, and the Unknown that declines rather than guesses.
-// ABOUTME: Package parse, not ast — internal/parser is the tree-sitter wrapper and will be for a while.
+// ABOUTME: Package parse is the Perl parser PSC runs; internal/lower turns its tree into the one inference reads.
 
 package parse
 
