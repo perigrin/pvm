@@ -63,7 +63,7 @@ dependency lockfiles.
 | Ephemeral tool run | `uvx ruff` | `pvx` | Same model |
 
 **Status: PVM is ahead.** PVM has isolation levels (global, local, clean),
-auto-dependency detection from source code (both regex and tree-sitter AST),
+auto-dependency detection from source code (both regex and the parsed tree),
 and POD-based inline metadata that is invisible to the Perl parser. uv has
 none of these.
 

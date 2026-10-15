@@ -95,7 +95,7 @@ version did across the file.
 
 ## Measuring another implementation
 
-The runner measures our own tree-sitter parser by default. Any other
+The runner measures our own parser, `internal/parse`, by default. Any other
 implementation is measured by supplying a `Subject`: a command the runner
 invokes once per file, from the corpus directory, with the file's relative
 path appended, within the run's per-file timeout.

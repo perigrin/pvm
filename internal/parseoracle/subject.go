@@ -26,9 +26,9 @@ import (
 // Perl, perl itself is C — so the boundary has to be a subprocess, and the
 // payload has to be something every one of them can produce.
 //
-// Emitting a tree would not do. Measured, our own `psc parse --format sexpr`
-// answers in tree-sitter's vocabulary (`ambiguous_function_call_expression`,
-// `subroutine_declaration_statement`). Another implementation names the same
+// Emitting a tree would not do. Our own `psc parse` answers in
+// internal/parse's vocabulary (`binary`, `call`, `declaration`). Another
+// implementation names the same
 // constructs differently, so comparing trees across implementations first
 // requires agreeing a universal Perl AST — a research project, not a harness.
 // These questions, by contrast, are ones any parser can answer about itself.

@@ -1,5 +1,5 @@
 // ABOUTME: Comparison between perl's facts and a subject's facts, with no syntax tree involved.
-// ABOUTME: This is the portable core; compare.go adapts our tree-sitter parser onto it.
+// ABOUTME: This is the portable core; each subject, internal/parse included, answers it as a subprocess.
 
 package parseoracle
 

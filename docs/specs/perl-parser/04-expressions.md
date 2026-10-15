@@ -1447,8 +1447,10 @@ below names which of them it rests on:
   a throwaway test, since deleted; each is one line to reproduce, and every
   row whose status moved off the 3c997a6b baseline is pinned by
   `TestStatusTableAtHead` (`internal/parse/statustable_test.go`).
-- **C** — what `internal/infer` consumes today, which is still the
-  tree-sitter tree via `internal/parser/`: 46 grammar names at 971b9031,
+- **C** — what `internal/infer` consumed before the lowering, the
+  tree-sitter tree via `internal/parser/` (both since deleted, with
+  `TestNoTreeSitterVocabularyRemains` asserting none of these names
+  returns): 46 grammar names at 971b9031,
   counted as the distinct string literals in the `case` arms of a `switch`
   whose tag is `x.Kind()` or a variable assigned from one, across the four
   non-test files of `internal/infer` (`infer.go`, `symbols.go`,
