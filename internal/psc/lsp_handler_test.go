@@ -146,13 +146,13 @@ func TestHandlerDidOpenPublishesDiagnostics(t *testing.T) {
 	h, out := newTestHandler(t)
 	h.initialized = true
 
-	// "push();\n" is known to produce an arity-mismatch diagnostic.
+	// push($x, 1) with a scalar $x produces a type-mismatch diagnostic.
 	params := lspDidOpenParams{
 		TextDocument: lspTextDocumentItem{
 			URI:        "file:///test.pl",
 			LanguageID: "perl",
 			Version:    1,
-			Text:       "push();\n",
+			Text:       "my $x;\npush($x, 1);\n",
 		},
 	}
 	rawParams, err := json.Marshal(params)
@@ -173,7 +173,7 @@ func TestHandlerDidOpenPublishesDiagnostics(t *testing.T) {
 	var diagParams lspPublishDiagnosticsParams
 	require.NoError(t, json.Unmarshal(notification.Params, &diagParams))
 	assert.Equal(t, "file:///test.pl", diagParams.URI)
-	assert.NotEmpty(t, diagParams.Diagnostics, "push() with no args should produce diagnostics")
+	assert.NotEmpty(t, diagParams.Diagnostics, "push($x, 1) should produce diagnostics")
 }
 
 func TestHandlerDidChange(t *testing.T) {
@@ -209,7 +209,7 @@ func TestHandlerDidChange(t *testing.T) {
 			Version: 2,
 		},
 		ContentChanges: []lspTextDocumentContentChangeEvent{
-			{Text: "push();\n"},
+			{Text: "my $x;\npush($x, 1);\n"},
 		},
 	}
 	rawChange, err := json.Marshal(changeParams)
