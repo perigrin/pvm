@@ -1,21 +1,32 @@
 ---
 title: A Glob in a Str slot is rejected, though perl stringifies a glob silently
-state: in-progress
+state: done
 urgency: normal
 milestone: m2-lower-the-tree
 blocks:
 - 01a0c115-a44b-7393-a828-ad29844b20b4
 created: 2026-10-15T00:27:13.433187146Z
-updated: 2026-10-15T00:27:30.24616296Z
+updated: 2026-10-15T05:29:42.125718029Z
 sessions:
 - start_sha: 6fed0273b415fdabaec853b07adab5c4df6f5598
-  end_sha: ""
-  commits: 0
+  end_sha: d94013fc04a63d1b56810c2087281548866272f7
+  commits: 1
   started_at: 2026-10-15T00:27:30.24616296Z
+  ended_at: 2026-10-15T05:29:42.125718029Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-15T00:27:30.24616296Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-15T05:29:42.125718029Z
+observed_paths:
+- internal/infer/lowered.go
+- internal/infer/lowered_calls.go
+- internal/infer/lowered_flow.go
+- internal/infer/lowered_ops.go
+- internal/infer/lowered_r3_test.go
+- internal/infer/lowered_special.go
 ---
 
 ## Context
