@@ -1,4 +1,4 @@
-// ABOUTME: Tests for the PSC type inference engine's Analyze function (pass 2).
+// ABOUTME: Tests for the PSC type inference engine's Analyze function.
 // ABOUTME: Covers literal types, variable types, operator types, builtin calls, and diagnostics.
 
 package infer_test
@@ -439,7 +439,7 @@ func TestNarrowingArrayDeclaration(t *testing.T) {
 }
 
 func TestNarrowingUndeclaredVariable(t *testing.T) {
-	// $x assigned without my — CollectDeclarations won't define it,
+	// $x assigned without my — pass 1 won't define it,
 	// so UpdateType should be a no-op (no crash, no new symbol).
 	source := []byte("$x = 42;\n$x;\n")
 	_, diags, st := analyzeSourceFull(t, source)
@@ -450,11 +450,9 @@ func TestNarrowingUndeclaredVariable(t *testing.T) {
 }
 
 func TestStringLiteralNodeKindHandled(t *testing.T) {
-	// Verify that inferNodeType handles string_literal and
-	// interpolated_string_literal by checking the annotation map after
-	// parsing a concat expression. The concat operator (.) returns Str,
-	// which validates that the engine can produce Str types even though
-	// string literals themselves currently parse as ERROR nodes.
+	// Verify that the walk types string literals by checking the
+	// annotation map after parsing a concat expression. The concat
+	// operator (.) returns Str.
 	src := []byte("1 . 2;")
 	annotations, _ := analyzeSource(t, src)
 	typ, ok := findNodeType(annotations, src, "1 . 2")
@@ -587,10 +585,10 @@ func findAllVarOffsets(source []byte, varName string) []uint32 {
 
 func TestFlowNarrowingUndeclaredVariableNoPhantomNarrowing(t *testing.T) {
 	// An undeclared variable (no my) inside a defined() guard should NOT get
-	// a phantom Scalar annotation from a guard scope shadow. Without the fix,
-	// walkBlockWithGuard defaults currentType to Scalar for undeclared vars,
-	// NarrowByGuard(Scalar, GuardDefined) returns (Scalar, true), and a
-	// phantom shadow is created. The reference to $x inside the block would
+	// a phantom Scalar annotation from a guard scope shadow. Were
+	// guardShadows to default an undeclared variable to Scalar,
+	// NarrowByGuard(Scalar, GuardDefined) would return (Scalar, true), and a
+	// phantom shadow would be created. The reference to $x inside the block would
 	// then be annotated as Scalar instead of the normal sigil type Scalar.
 	//
 	// The observable difference: with the phantom shadow, the guard scope
@@ -603,7 +601,7 @@ func TestFlowNarrowingUndeclaredVariableNoPhantomNarrowing(t *testing.T) {
 
 	// The $x reference inside the block: if a phantom shadow was created,
 	// it would be Ref (from NarrowByGuard on undeclared Scalar). If no
-	// phantom, lookupNarrowedType returns the sigil fallback Scalar.
+	// phantom, the variable lookup returns the sigil fallback Scalar.
 	refOffset := findLastVarOffset(src, "$x")
 	typ, ok := annotations.at(refOffset)
 	assert.True(t, ok, "if-body $x should be annotated")
@@ -940,7 +938,7 @@ func TestFlowNarrowingCStyleForInitializer(t *testing.T) {
 // correctly. Partial compound guards (where only one operand is a recognized
 // guard) fall back to that single guard's narrowing behavior. Full compound
 // guards (both operands recognized) apply all leaf guards simultaneously via
-// flattenGuards + walkBlockWithGuard.
+// flattenGuards + guardShadows.
 
 func TestCompoundGuardAmpAmpNarrowsBoth(t *testing.T) {
 	// if (defined($x) && ref($x)) — full compound: both sides are guards.
@@ -1025,8 +1023,8 @@ func TestCompoundGuardAndDifferentVars(t *testing.T) {
 
 func TestCompoundGuardPartialOneNonGuardSide(t *testing.T) {
 	// if (defined($x) && $y > 0) — partial compound: the right side ($y > 0)
-	// is not a recognized guard. extractCompoundGuard returns the defined($x)
-	// guard directly (the non-guard side is dropped). walkBlockWithGuard applies
+	// is not a recognized guard. The guard extracted is defined($x) alone
+	// (the non-guard side is dropped), and the block is walked under
 	// the defined guard, narrowing $x to Scalar &^ Undef.
 	src := []byte("my $x = get();\nmy $y = 1;\nif (defined($x) && $y > 0) {\n    my $z = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
@@ -1058,7 +1056,7 @@ func TestCompoundGuardNegatedAmpAmpDeMorganNarrows(t *testing.T) {
 
 func TestCompoundGuardArithmeticBinaryNotExtracted(t *testing.T) {
 	// if (1 + 2) — binary_expression with non-boolean operator.
-	// extractCompoundGuard returns nil (op is "+" not "&&"/"||").
+	// No guard is extracted (op is "+" not "&&"/"||").
 	// No guard narrowing is attempted; $x retains its declared type.
 	src := []byte("my $x = 42;\nif (1 + 2) {\n    my $y = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
@@ -1411,11 +1409,11 @@ func TestMethodResolutionViaProjectIndex(t *testing.T) {
 }
 
 func TestFlowNarrowingDefinedGuardArrayElement(t *testing.T) {
-	// defined($_[0]) inside a sub body uses array_element_expression.
-	// Verify that extractFunc1opGuard handles this node type.
+	// defined($arr[0]) guards an element read rather than a variable.
+	// Verify that the guard extraction handles it.
 	src := []byte("my @arr;\nif (defined($arr[0])) {\n    my $y = $arr[0];\n}\n")
-	// This tests that array_element_expression is recognized by
-	// extractFunc1opGuard. If it works, the guard extracts correctly.
+	// This tests that an element read is accepted by the guard
+	// extraction. If it works, the guard extracts correctly.
 	annotations, _ := analyzeSource(t, src)
 	_ = annotations // Mainly verifying no crash; array element guard is new behavior.
 }
@@ -1455,7 +1453,7 @@ func TestFindSubDeclNodeNotFound(t *testing.T) {
 	assert.Empty(t, subs, "should find no sub when none is declared")
 }
 
-// --- ResolveSubParam ---
+// --- SubParam ---
 
 func TestResolveSubParamSignature(t *testing.T) {
 	sub := fileSubsOf("use v5.36;\nsub is_defined ($val) { defined($val) }\n")["is_defined"]
@@ -2281,7 +2279,7 @@ func TestUnresolvedMethodCallIsUnknownNotAny(t *testing.T) {
 	src := []byte("my $r = Foo->compute;\n")
 	annotations, _ := analyzeSource(t, src)
 
-	// walkNode records only non-Unknown types, so Unknown shows as the absence
+	// The walk records only non-Unknown types, so Unknown shows as the absence
 	// of an annotation. What matters is that it is NOT Any: Any would be
 	// recorded, and would satisfy every later requirement by construction.
 	typ, ok := findNodeType(annotations, src, "Foo->compute")

@@ -1,5 +1,5 @@
 // ABOUTME: Tests that AnalyzeLowered's annotations are keyed by node identity: no two nodes share a key, and an edit above a sub keeps the keys inside it.
-// ABOUTME: These are what byte-offset keys on the legacy path could not promise: a parent and child starting at one byte, and offsets shifting after an edit.
+// ABOUTME: These are what byte-offset keys could not promise: a parent and child starting at one byte, and offsets shifting after an edit.
 
 package infer_test
 

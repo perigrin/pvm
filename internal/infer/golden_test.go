@@ -1,4 +1,4 @@
-// ABOUTME: The golden-diagnostics ratchet: AnalyzeLowered over testdata/lowered fixtures, against goldens the legacy path wrote.
+// ABOUTME: The golden-diagnostics ratchet: AnalyzeLowered over testdata/lowered fixtures, against their committed goldens.
 // ABOUTME: matching.txt lists the fixtures that match, and the test fails in both directions, as the parse ratchets do.
 
 package infer_test
@@ -20,30 +20,25 @@ import (
 var updateLoweredRatchet = flag.Bool("infer.ratchet.update", false,
 	"rewrite testdata/lowered/matching.txt with the fixtures the lowered path matches")
 
-// The golden ratchet is how each port of internal/infer onto the lowered
-// tree proves it reports what the legacy tree-sitter path reported.
+// The golden ratchet holds what PSC reports for each fixture.
 //
-// A fixture is testdata/lowered/<slice>/<name>.pl, one directory per port.
-// Beside it, <name>.golden holds what the legacy path reported for it, in
-// goldenReport's format. TestCaptureLegacyGolden writes a golden only where
-// none exists, so a golden is captured once and never silently rewritten.
+// A fixture is testdata/lowered/<slice>/<name>.pl, one directory per rule
+// slice. Beside it, <name>.golden holds what PSC must report for it, in
+// goldenReport's format. Nothing regenerates a golden: each is committed,
+// and is edited only by hand.
 //
-// A port adds its fixtures under its own slice directory, captures them
-// with
-//
-//	go test ./internal/infer/ -run '^TestCaptureLegacyGolden$' -infer.capture -count=1
-//
-// ports its rules, records what now matches with
+// A new fixture's golden is written by hand, from what perl does with the
+// fixture. Record what now matches with
 //
 //	go test ./internal/infer/ -run '^TestLoweredGoldenRatchet$' -infer.ratchet.update -count=1
 //
-// and runs the ratchet without the flag to green.
+// and run the ratchet without the flag to green.
 //
 // A golden is never edited to make a fixture match. One that is wrong is a
-// legacy defect, and its edit changes what PSC reports: the commit that
+// PSC defect, and its edit changes what PSC reports: the commit that
 // modifies it carries one trailer per changed golden, naming the cause,
 //
-//	Diagnostics-changed: decl/our.golden: <why the legacy answer was wrong>
+//	Diagnostics-changed: decl/our.golden: <why the old answer was wrong>
 //
 // Adding a new golden needs no trailer; changing one always does.
 
@@ -76,12 +71,11 @@ func goldenPath(fixture string) string {
 	return filepath.Join(loweredDir, filepath.FromSlash(strings.TrimSuffix(fixture, ".pl")+".golden"))
 }
 
-// goldenReport renders what an analysis reports, in the one format both
-// paths are compared in: a line per diagnostic, its span, code and message,
-// and a line per symbol, its name and type, sorted. Annotations are not in
-// it: the legacy path keys them by byte offset and the lowered path by node
-// id, so they have no common form, and what PSC reports is the diagnostics
-// and the symbol table.
+// goldenReport renders what an analysis reports, in the format the goldens
+// hold: a line per diagnostic, its span, code and message, and a line per
+// symbol, its name and type, sorted. Annotations are not in it: they are
+// keyed by node id, which a golden cannot spell, and what PSC reports is the
+// diagnostics and the symbol table.
 func goldenReport(diags []infer.Diagnostic, st *infer.SymbolTable) string {
 	var lines []string
 	for _, d := range diags {
@@ -142,7 +136,7 @@ func TestLoweredGoldenRatchet(t *testing.T) {
 		}
 		want, err := os.ReadFile(goldenPath(fx))
 		if err != nil {
-			t.Errorf("%s: no golden; capture it with -run '^TestCaptureLegacyGolden$' -infer.capture: %v", fx, err)
+			t.Errorf("%s: no golden; write one beside the fixture: %v", fx, err)
 			continue
 		}
 		got := analyzeLoweredReport(src)

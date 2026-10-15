@@ -95,8 +95,8 @@ sub none { }
 	}
 }
 
-// A file with nothing to report gets an empty diagnostics slice, not nil, as
-// the legacy Analyze returns: a caller that serialises it writes [], not null.
+// A file with nothing to report gets an empty diagnostics slice, not nil: a
+// caller that serialises it writes [], not null.
 func TestLoweredDiagnosticsAreNeverNil(t *testing.T) {
 	src := []byte("42;")
 	root := parse.Parse(src)
@@ -290,7 +290,7 @@ func TestLoweredInterpIsStr(t *testing.T) {
 }
 
 // An operand of no known type is passed over by default and reported under
-// Strict, as on the legacy path: a command's output is not typed, so
+// Strict: a command's output is not typed, so
 // adding 1 to it is unchecked until Strict asks for a narrowing.
 func TestLoweredStrictSeesUnknownOperand(t *testing.T) {
 	src := []byte("my $n = `true` + 1;\n")

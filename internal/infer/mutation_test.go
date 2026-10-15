@@ -21,7 +21,7 @@ import (
 // notice an error that is actually there. The dual mutation in that paper,
 // type ERASURE, does not apply to PSC: it strips declared annotations, and
 // Perl has no annotation syntax, so every program is already fully erased.
-// PSC reads no declared types at all (see inferParamTypesFromUsage), which
+// PSC reads no declared types at all (see paramTypes), which
 // makes erasure vacuous here rather than easy.
 //
 // WHAT MAKES THIS WORTH RUNNING is that it needs no annotated corpus. The
@@ -173,7 +173,7 @@ var mutationCases = []mutationCase{
 		src:      `my @a = (1); my $x = []; my $y = $a[$x];`,
 		perlDies: false,
 		// perl warns "Use of reference as array index". Closed by
-		// checkElementIndex, which this case found.
+		// checkIndex, which this case found.
 		want: true,
 	},
 	{
