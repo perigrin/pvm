@@ -1,6 +1,6 @@
 ---
 title: "Retire tree-sitter: infer and psc off internal/parser, internal/parser and gotreesitter deleted, AnalyzeLowered renamed Analyze"
-state: pending
+state: in-progress
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -12,7 +12,16 @@ blocks:
 - 01a0fa47-2737-7fdb-bd69-63e254d5a770
 - 01a0fd9b-5700-7514-a143-2caed2d06d8b
 created: 2026-09-20T23:10:31.270515112Z
-updated: 2026-10-11T15:18:05.996314824Z
+updated: 2026-10-15T06:46:46.076200488Z
+sessions:
+- start_sha: 1cf680fa57c3bae16c472d7d63cd7c9f940b741e
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-15T06:46:46.076200488Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-15T06:46:46.076200488Z
 ---
 
 ## Context
