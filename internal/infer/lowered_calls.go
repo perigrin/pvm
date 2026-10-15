@@ -4,6 +4,7 @@
 package infer
 
 import (
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -249,7 +250,7 @@ func (a *loweredAnalysis) succeeded(n lower.Node, actual types.Type) types.Type 
 		return actual
 	}
 	user := c.Ampersand || len(parse.CoreBuiltin(c.Name)) == 0
-	if user && !returnsBuiltinResult(a.subs[c.Name]) {
+	if user && !a.returnsBuiltinResult(a.subs[c.Name]) {
 		return actual
 	}
 	if c.Name == "scalar" && len(c.Args) == 1 {
@@ -263,10 +264,11 @@ func (a *loweredAnalysis) succeeded(n lower.Node, actual types.Type) types.Type 
 
 // returnsBuiltinResult reports whether every value sub returns, by an
 // explicit return or as its body's last statement, is a call to a
-// builtin. A bare return gives the sub's own Undef, and so does a body
+// builtin, or a capture its own successful match guards, as ownCapture
+// says. A bare return gives the sub's own Undef, and so does a body
 // whose last statement is not such a call, so neither is one. A sub
 // nested in sub returns from itself, not from sub.
-func returnsBuiltinResult(sub *lower.AnonSub) bool {
+func (a *loweredAnalysis) returnsBuiltinResult(sub *lower.AnonSub) bool {
 	if sub == nil {
 		return false
 	}
@@ -282,20 +284,33 @@ func returnsBuiltinResult(sub *lower.AnonSub) bool {
 		return ok && c.Fn == nil && !c.Ampersand && len(parse.CoreBuiltin(c.Name)) > 0
 	}
 	all := true
-	var returns func(n lower.Node)
-	returns = func(n lower.Node) {
-		if _, ok := n.(*lower.AnonSub); ok {
+	var returns func(n lower.Node, guard *lower.IfStmt)
+	returns = func(n lower.Node, guard *lower.IfStmt) {
+		switch n := n.(type) {
+		case nil, *lower.AnonSub:
 			return
-		}
-		if r, ok := n.(*lower.LoopEx); ok && r.Op == "return" {
-			all = all && r.Label != nil && builtin(r.Label)
-			return
+		case *lower.LoopEx:
+			if n.Op == "return" {
+				all = all && n.Label != nil && (builtin(n.Label) || a.ownCapture(n.Label, guard))
+				return
+			}
+		case *lower.IfStmt:
+			if m, success := successMatch(n); m != nil {
+				for _, c := range lower.Children(n) {
+					if c == success {
+						returns(c, n)
+					} else {
+						returns(c, nil)
+					}
+				}
+				return
+			}
 		}
 		for _, c := range lower.Children(n) {
-			returns(c)
+			returns(c, guard)
 		}
 	}
-	returns(body)
+	returns(body, nil)
 	last, ok := body.Stmts[len(body.Stmts)-1].(*lower.ExprStmt)
 	if !ok || last.X == nil {
 		return false
@@ -304,6 +319,26 @@ func returnsBuiltinResult(sub *lower.AnonSub) bool {
 		return all
 	}
 	return all && builtin(last.X)
+}
+
+// ownCapture reports whether n is a capture, $1 or the like, that the
+// match guarding stmt defines: n is in stmt's successful branch, the
+// match has its group, and it is the match n reads, as ownMatch says.
+// perl 5.42 -w is silent on `return $1 if $_[0] =~ /(\d+)/` handed to
+// `==`, and warns on `$2` there, or under `!~`.
+func (a *loweredAnalysis) ownCapture(n lower.Node, stmt *lower.IfStmt) bool {
+	if l, ok := n.(*lower.List); ok && len(l.Elems) > 0 {
+		n = l.Elems[len(l.Elems)-1]
+	}
+	v, ok := n.(*lower.Var)
+	if !ok || v.Sigil != "$" {
+		return false
+	}
+	group, err := strconv.Atoi(v.Name)
+	start, _, _ := a.pos.Span(v.ID)
+	g := a.ownMatch(start, stmt)
+	return err == nil && group >= 1 && g != nil &&
+		group <= len(captureGroups(quotePattern(a.pos.Quote(g.Meta().ID))))
 }
 
 // scalarValue is actual, the type of arg, as a `$` slot judges it when arg
