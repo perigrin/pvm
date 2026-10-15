@@ -4,29 +4,28 @@
 package psc
 
 import (
-	"fmt"
+	"net/url"
+	"path/filepath"
 	"sync"
 
 	"tamarou.com/pvm/internal/infer"
-	"tamarou.com/pvm/internal/parser"
+	"tamarou.com/pvm/internal/lower"
+	"tamarou.com/pvm/internal/parse"
 	"tamarou.com/pvm/internal/types"
 )
 
-// document holds the parsed state of an open Perl source file, including
-// inference results from the two-pass type analysis pipeline.
+// document holds an open Perl source file and its analysis: the lowered
+// tree, its position map, and what inference reported over it.
 type document struct {
-	uri         string
-	source      []byte
-	tree        *parser.Tree
-	annotations map[uint32]types.Type
-	diagnostics []infer.Diagnostic
-	symbols     *infer.SymbolTable
+	uri      string
+	source   []byte
+	analysis *infer.FileAnalysis
 }
 
 // LSPServer maintains parsed state for open Perl documents.
 // It is safe for concurrent use.
 type LSPServer struct {
-	parser    *parser.Parser
+	session   *parse.Session
 	documents map[string]*document
 	mu        sync.RWMutex
 }
@@ -34,46 +33,50 @@ type LSPServer struct {
 // NewLSPServer creates a new LSPServer ready to manage Perl documents.
 func NewLSPServer() *LSPServer {
 	return &LSPServer{
-		parser:    parser.New(),
+		session:   parse.NewSession(),
 		documents: make(map[string]*document),
 	}
 }
 
 // OpenDocument parses the given source, runs type inference, and stores the
 // result under uri. If the uri is already open, the document is replaced.
+//
+// The source is the editor's buffer, not the file on disk. A file: uri is
+// parsed as psc check parses the file at its path: its `use` resolves
+// against the path's directory and then @INC, read as text and never by
+// running perl (incRoots). Any other uri has no directory, and its `use`
+// resolves nothing. Analysis re-runs over the whole tree on every open.
 func (s *LSPServer) OpenDocument(uri string, source []byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	tree, err := s.parser.Parse(source)
-	if err != nil {
-		return fmt.Errorf("parse %s: %w", uri, err)
+	var root *parse.Node
+	if u, err := url.Parse(uri); err == nil && u.Scheme == "file" && u.Path != "" {
+		path := filepath.FromSlash(u.Path)
+		// ponytail: @INC is resolved on every open; cache it per directory
+		// if resolution shows up in a profile.
+		root = s.session.ParseSourceFrom(path, source, incRoots(path)...)
+	} else {
+		root = parse.Parse(source)
 	}
 
-	annotations, diagnostics, symbols := infer.Analyze(tree, source, nil)
-
 	s.documents[uri] = &document{
-		uri:         uri,
-		source:      source,
-		tree:        tree,
-		annotations: annotations,
-		diagnostics: diagnostics,
-		symbols:     symbols,
+		uri:      uri,
+		source:   source,
+		analysis: infer.AnalyzeParsed(root, nil, infer.Options{}),
 	}
 	return nil
 }
 
 // CloseDocument removes the document for the given uri from the server,
-// releasing its parsed tree, inference annotations, diagnostics, and symbols.
-// Closing a document that is not open is a no-op.
+// releasing its lowered tree, inference annotations, diagnostics, and
+// symbols. Closing a document that is not open is a no-op.
 func (s *LSPServer) CloseDocument(uri string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if doc, ok := s.documents[uri]; ok {
-		doc.annotations = nil
-		doc.diagnostics = nil
-		doc.symbols = nil
+		doc.analysis = nil
 	}
 	delete(s.documents, uri)
 }
@@ -91,9 +94,9 @@ func (s *LSPServer) Source(uri string) []byte {
 	return doc.source
 }
 
-// Annotations returns the type annotation map for the document at uri,
-// or nil if the uri is not currently open.
-func (s *LSPServer) Annotations(uri string) map[uint32]types.Type {
+// Annotations returns the type of each lowered node of the document at uri,
+// keyed by its id, or nil if the uri is not currently open.
+func (s *LSPServer) Annotations(uri string) map[lower.ID]types.Type {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -101,7 +104,7 @@ func (s *LSPServer) Annotations(uri string) map[uint32]types.Type {
 	if !ok {
 		return nil
 	}
-	return doc.annotations
+	return doc.analysis.Annotations
 }
 
 // Diagnostics returns the slice of inference diagnostics for the document at
@@ -114,7 +117,7 @@ func (s *LSPServer) Diagnostics(uri string) []infer.Diagnostic {
 	if !ok {
 		return nil
 	}
-	return doc.diagnostics
+	return doc.analysis.Diagnostics
 }
 
 // SymbolTable returns the symbol table for the document at uri, or nil if the
@@ -127,145 +130,73 @@ func (s *LSPServer) SymbolTable(uri string) *infer.SymbolTable {
 	if !ok {
 		return nil
 	}
-	return doc.symbols
+	return doc.analysis.Symbols
 }
 
-// TypeAtByte finds the type annotation at the given byte offset in the
-// document at uri. It walks the CST to find the deepest node that contains
-// the offset, then walks up the ancestor chain until it finds a node whose
-// start byte has an entry in the annotation map.
-// Returns (Unknown, false) if uri is not open or no annotation is found.
+// nodeAt returns the innermost lowered node of the document at uri whose
+// bytes cover offset, through the position map: bytes the lowering erased,
+// such as a paren, resolve to the node they belonged to. It returns nil if
+// uri is not open or no node covers offset.
+func (s *LSPServer) nodeAt(uri string, offset uint32) (*document, lower.Node) {
+	doc, ok := s.documents[uri]
+	if !ok {
+		return nil, nil
+	}
+	return doc, doc.analysis.Positions.At(int(offset))
+}
+
+// TypeAtByte returns the inferred type of the innermost lowered node at the
+// given byte offset in the document at uri. A Hole, source perl rejects, is
+// typed Any and never inspected (§4.14.2), so it reports nothing.
+// Returns (Unknown, false) if uri is not open or no node has a type there.
 func (s *LSPServer) TypeAtByte(uri string, offset uint32) (types.Type, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	doc, ok := s.documents[uri]
-	if !ok {
+	doc, n := s.nodeAt(uri, offset)
+	if n == nil {
 		return types.Unknown, false
 	}
-
-	root := doc.tree.RootNode()
-	if root == nil {
+	if _, hole := n.(*lower.Hole); hole {
 		return types.Unknown, false
 	}
-
-	// Find the deepest node containing the offset.
-	node := deepestNodeAt(root, offset)
-	if node == nil {
+	t, found := doc.analysis.Annotations[n.Meta().ID]
+	if !found {
 		return types.Unknown, false
 	}
-
-	// Walk up from the deepest node looking for a match in annotations.
-	for n := node; n != nil; n = n.Parent() {
-		if t, found := doc.annotations[n.StartByte()]; found {
-			return t, true
-		}
-	}
-
-	return types.Unknown, false
+	return t, true
 }
 
-// deepestNodeAt returns the deepest node in the subtree rooted at node that
-// spans the given byte offset (StartByte <= offset < EndByte). It returns nil
-// if no such node exists in the subtree.
-func deepestNodeAt(node *parser.Node, offset uint32) *parser.Node {
-	if node == nil {
-		return nil
-	}
-	if node.StartByte() > offset || node.EndByte() <= offset {
-		return nil
-	}
-
-	// Try each child first (post-order deepening).
-	for i := 0; i < node.ChildCount(); i++ {
-		child := node.Child(i)
-		if result := deepestNodeAt(child, offset); result != nil {
-			return result
-		}
-	}
-
-	// No child spans the offset — this node is the deepest match.
-	return node
-}
-
-// DefinitionAtByte finds the symbol whose declaration spans the given byte
-// offset in the document at uri. It uses the CST to identify the variable or
-// function at the offset and then looks it up in the symbol table.
+// DefinitionAtByte finds the declaration of the variable or sub named at the
+// given byte offset in the document at uri: the lowered node there is a Var,
+// named by its sigil and name, or a Call, named by its sub's name, and the
+// name is looked up in the symbol table.
 // Returns (nil, false) if uri is not open, if no symbol table exists, or if
 // no symbol covers the given offset.
 func (s *LSPServer) DefinitionAtByte(uri string, offset uint32) (*infer.Symbol, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	doc, ok := s.documents[uri]
-	if !ok {
-		return nil, false
-	}
-	if doc.symbols == nil {
+	doc, n := s.nodeAt(uri, offset)
+	if n == nil || doc.analysis.Symbols == nil {
 		return nil, false
 	}
 
-	root := doc.tree.RootNode()
-	if root == nil {
-		return nil, false
+	var name string
+	switch n := n.(type) {
+	case *lower.Var:
+		name = n.Sigil + n.Name
+	case *lower.Call:
+		name = n.Name
 	}
-
-	// Walk to the deepest node that contains the offset.
-	node := deepestNodeAt(root, offset)
-	if node == nil {
-		return nil, false
-	}
-
-	// Build a sigil-qualified name from the node kind and text.
-	name := symbolNameFromNode(node, doc.source)
 	if name == "" {
 		return nil, false
 	}
 
-	sym, found := doc.symbols.LookupAll(name)
+	sym, found := doc.analysis.Symbols.LookupAll(name)
 	if !found {
 		return nil, false
 	}
 	result := sym
 	return &result, true
-}
-
-// symbolNameFromNode derives a sigil-qualified symbol name from a CST node.
-// For scalar/array/hash nodes the appropriate sigil is prepended. For
-// bareword nodes (subroutine names) the text is returned as-is. For varname
-// and anonymous sigil nodes ($, @, %) the parent node is consulted.
-func symbolNameFromNode(node *parser.Node, source []byte) string {
-	if node == nil {
-		return ""
-	}
-	switch node.Kind() {
-	case "scalar":
-		return "$" + varname(node, source)
-	case "array":
-		return "@" + varname(node, source)
-	case "hash":
-		return "%" + varname(node, source)
-	case "varname", "$", "@", "%":
-		// Walk up to the variable node to get the full sigil-qualified name.
-		parent := node.Parent()
-		if parent == nil {
-			return node.Text(source)
-		}
-		return symbolNameFromNode(parent, source)
-	case "bareword":
-		return node.Text(source)
-	}
-	return ""
-}
-
-// varname extracts the bare identifier text from a scalar/array/hash node by
-// looking for a "varname" child. If none is found, the full node text is used.
-func varname(node *parser.Node, source []byte) string {
-	for i := 0; i < node.ChildCount(); i++ {
-		child := node.Child(i)
-		if child != nil && child.Kind() == "varname" {
-			return child.Text(source)
-		}
-	}
-	return node.Text(source)
 }

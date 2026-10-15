@@ -197,15 +197,28 @@ func (s *Session) ParseFileFrom(path string, roots ...string) (*Node, error) {
 	return parseFile(path, false, roots, s)
 }
 
-// parseFile reads and parses path, searching its own directory and then
-// roots. With a Session, the resolver's module facts and visited set are the
-// ones every parse searching the same directories shares; its loaded list is
-// this parse's own.
+// ParseSourceFrom parses src as the file at path would parse: its `use`
+// resolves against path's directory and then roots, as ParseFileFrom's does,
+// but the bytes are src, not what is on disk. An editor's unsaved buffer is
+// such a source, and path need not exist.
+func (s *Session) ParseSourceFrom(path string, src []byte, roots ...string) *Node {
+	return parseAt(path, src, false, roots, s)
+}
+
+// parseFile reads path and parses it as parseAt does.
 func parseFile(path string, passes bool, roots []string, s *Session) (*Node, error) {
 	src, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
+	return parseAt(path, src, passes, roots, s), nil
+}
+
+// parseAt parses src, searching path's directory and then roots. With a
+// Session, the resolver's module facts and visited set are the ones every
+// parse searching the same directories shares; its loaded list is this
+// parse's own.
+func parseAt(path string, src []byte, passes bool, roots []string, s *Session) *Node {
 	dirs := []string{filepath.Dir(path)}
 	for _, root := range roots {
 		if root != "" {
@@ -222,7 +235,7 @@ func parseFile(path string, passes bool, roots []string, s *Session) (*Node, err
 			s.shared[key] = r
 		}
 	}
-	return parseRoot(src, r), nil
+	return parseRoot(src, r)
 }
 
 // ParseWithLoader parses src, resolving `use` through the given loader.
