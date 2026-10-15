@@ -66,6 +66,9 @@ type loweredAnalysis struct {
 	// classTypes is the class of the object a constructor call makes,
 	// keyed by the call's id, for the assignment that takes it.
 	classTypes map[lower.ID]string
+	// modifier is the `if` modifier whose match guards the body being
+	// walked, which a capture in that body reads, or nil.
+	modifier *lower.IfStmt
 }
 
 // walk types n, children first, and records the type under n's id. Unknown
