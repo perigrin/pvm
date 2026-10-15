@@ -155,12 +155,17 @@ func (a *loweredAnalysis) bindsCaptures(d *lower.Decl) bool {
 // digits: perl 5.42 -w, after "abc123" =~ /(\d+)/, `$1 + 1` is 124 and
 // silent, and after "abcxyz" =~ /([a-z]+)/ it warns "isn't numeric". No
 // match before it, or no such group, leaves Str.
+//
+// In the body of an `if` modifier whose condition is a match, that match
+// runs first, though it follows the body in the source, so it is the one
+// read, as ownMatch says. perl 5.42 -w is silent on
+// `print $1 + 1 if "a7" =~ /(\d+)/`.
 func (a *loweredAnalysis) capture(v *lower.Var, n int) types.Type {
 	start, _, _ := a.pos.Span(v.ID)
-	m := a.pos.LastBefore(start, func(x lower.Node) bool {
-		mt, ok := x.(*lower.Match)
-		return ok && (mt.Op == "m" || mt.Op == "s" || mt.Op == "qr")
-	})
+	var m lower.Node = lastMatch(a.pos, start)
+	if g := a.ownMatch(start, a.modifier); g != nil {
+		m = g
+	}
 	if m == nil {
 		return types.Str
 	}
@@ -169,6 +174,48 @@ func (a *loweredAnalysis) capture(v *lower.Var, n int) types.Type {
 		return types.Int
 	}
 	return types.Str
+}
+
+// lastMatch is the last match, substitution or qr that starts before off
+// in source order, or nil.
+func lastMatch(pos *lower.Positions, off int) lower.Node {
+	return pos.LastBefore(off, func(x lower.Node) bool {
+		mt, ok := x.(*lower.Match)
+		return ok && (mt.Op == "m" || mt.Op == "s" || mt.Op == "qr")
+	})
+}
+
+// successMatch is the match n's condition is, and the branch that runs
+// when it succeeds: Then, or Else under `!~`. nil when the condition is
+// no match or substitution.
+func successMatch(n *lower.IfStmt) (*lower.Match, lower.Node) {
+	m, ok := n.Cond.(*lower.Match)
+	if !ok || (m.Op != "m" && m.Op != "s") {
+		return nil, nil
+	}
+	if m.Negated {
+		return m, n.Else
+	}
+	return m, n.Then
+}
+
+// ownMatch is the match guarding stmt, when it is the last to run before
+// a capture at off in stmt's successful branch: the block form puts the
+// match before the capture in the source, and the `if` modifier puts it
+// after, with no other match in the body before the capture. nil when
+// stmt is nil, guards with no match, or another match intervenes.
+func (a *loweredAnalysis) ownMatch(off int, stmt *lower.IfStmt) *lower.Match {
+	if stmt == nil {
+		return nil
+	}
+	g, _ := successMatch(stmt)
+	if g == nil {
+		return nil
+	}
+	if last := lastMatch(a.pos, off); last != nil && last != lower.Node(g) && !a.before(last, stmt) {
+		return nil
+	}
+	return g
 }
 
 // quotePattern is the pattern inside a match, substitution or qr quote

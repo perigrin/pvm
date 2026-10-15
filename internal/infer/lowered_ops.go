@@ -300,9 +300,11 @@ func literalContent(n lower.Node) (string, bool) {
 // `"" . (1 == 2)` is "", so where a Str is expected it is a Str. Where an
 // Int is expected, perl truncates any number to one silently: perl 5.42
 // -w is silent on `"ab" x 2.9`, `splice @h, 0, 2.5` and `1 << (20 / 8)`,
-// so a Num there is the Int it becomes. A type that satisfies expected as
-// it is, such as Scalar or Any, is kept whole. Elsewhere actual is
-// returned as it is.
+// so a Num there is the Int it becomes. A glob stringifies to its name
+// as silently: perl 5.42 -w, `"" . *STDIN` is "*main::STDIN", so where a
+// Str is expected a Glob is a Str. It is no number: `*STDIN + 0` warns,
+// so where a Num is expected, which is a Str too, it is kept. A type that satisfies expected as it is, such as Scalar or Any,
+// is kept whole. Elsewhere actual is returned as it is.
 func numified(actual, expected types.Type) types.Type {
 	if expected == types.Unknown || types.TypeSatisfies(actual, expected) {
 		return actual
@@ -314,6 +316,9 @@ func numified(actual, expected types.Type) types.Type {
 		case types.IsSubtype(expected, types.Str):
 			actual = actual&^types.Boolean | types.Str
 		}
+	}
+	if actual&types.Glob != 0 && types.IsSubtype(expected, types.Str) && !types.IsSubtype(expected, types.Num) {
+		actual = actual&^types.Glob | types.Str
 	}
 	if expected&types.Num == types.Int && actual&types.Num != 0 {
 		actual = actual&^types.Num | types.Int

@@ -20,10 +20,20 @@ import (
 // slot holds the else body or the elsif chain.
 //
 // A modifier form (`X if C`) is not narrowed: the legacy path never saw it
-// as a conditional statement.
+// as a conditional statement. Its body, when C is a match it runs only
+// after, reads that match's captures, as capture says.
 func (a *loweredAnalysis) ifStmt(n *lower.IfStmt) {
 	if !isBranch(n.Then) || !isBranch(n.Else) {
-		a.walkChildren(n)
+		m, success := successMatch(n)
+		if m == nil || success == nil {
+			a.walkChildren(n)
+			return
+		}
+		a.walk(m)
+		outer := a.modifier
+		a.modifier = n
+		a.walk(success)
+		a.modifier = outer
 		return
 	}
 	if n.Cond != nil {
