@@ -1,6 +1,6 @@
 ---
 title: "The lowering pass: internal/infer must read internal/parse, not tree-sitter"
-state: in-progress
+state: done
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -8,16 +8,22 @@ blocked_by:
 blocks:
 - 019d1449-1880-729b-860b-ac29464f6cd7
 created: 2026-09-20T22:19:52.755941663Z
-updated: 2026-10-15T15:18:14.377243048Z
+updated: 2026-10-15T15:18:31.518783322Z
 sessions:
 - start_sha: 8d07b21bc858f3646cad58b8e4a7538e38eaedc3
-  end_sha: ""
-  commits: 0
+  end_sha: 8a0c85c60a2bae5d04dbbb2b27eb4310312d362f
+  commits: 1
   started_at: 2026-10-15T15:07:56.788229224Z
+  ended_at: 2026-10-15T15:18:31.518783322Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-15T15:07:56.788229224Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-15T15:18:31.518783322Z
+observed_paths:
+- CLAUDE.md
 ---
 
 `internal/infer` reads the tree-sitter tree through `internal/parser/`. That
