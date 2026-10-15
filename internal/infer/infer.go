@@ -2980,8 +2980,10 @@ func collectLeafVarTypes(guard *guardResult, st *SymbolTable, out map[string]typ
 	}
 }
 
-// mergeBranchTypes ORs the types from src into dst, creating dst if nil.
-// Variables present only in one map are taken as-is.
+// mergeBranchTypes joins the types from src into dst, creating dst if nil.
+// Variables present only in one map are taken as-is. An unreachable
+// branch's None is the join identity, so its sentinel bit never reaches a
+// variable's type.
 func mergeBranchTypes(dst, src map[string]types.Type) map[string]types.Type {
 	if src == nil {
 		return dst
@@ -2991,7 +2993,7 @@ func mergeBranchTypes(dst, src map[string]types.Type) map[string]types.Type {
 	}
 	for name, typ := range src {
 		if existing, ok := dst[name]; ok {
-			dst[name] = existing | typ
+			dst[name] = types.Join(existing, typ)
 		} else {
 			dst[name] = typ
 		}
@@ -3002,8 +3004,10 @@ func mergeBranchTypes(dst, src map[string]types.Type) map[string]types.Type {
 // applyBranchJoin computes the post-if join type for each guarded variable and
 // applies it to the outer scope via UpdateType.
 //
-// The join is the OR of all non-early-exit branch-end types. When there is no
-// else branch, the implicit else contributes the pre-if type.
+// The join is types.Join of all non-early-exit branch-end types. When there
+// is no else branch, the implicit else contributes the pre-if type. A branch
+// a guard proves unreachable ends with its variable None, the join identity:
+// it adds nothing, and its sentinel bit is not a type a value can have.
 func applyBranchJoin(
 	guard *guardResult,
 	preIfTypes map[string]types.Type,
@@ -3019,12 +3023,12 @@ func applyBranchJoin(
 
 	for name, preTyp := range preIfTypes {
 		// Start with the if-branch contribution.
-		var joinType types.Type
+		joinType := types.None
 		hasContribution := false
 
 		if ifBranchTypes != nil {
 			if t, ok := ifBranchTypes[name]; ok {
-				joinType |= t
+				joinType = types.Join(joinType, t)
 				hasContribution = true
 			}
 		}
@@ -3032,7 +3036,7 @@ func applyBranchJoin(
 		// Add elsif contributions.
 		if elsifJoinTypes != nil {
 			if t, ok := elsifJoinTypes[name]; ok {
-				joinType |= t
+				joinType = types.Join(joinType, t)
 				hasContribution = true
 			}
 		}
@@ -3041,13 +3045,13 @@ func applyBranchJoin(
 		if hasElse {
 			if elseBranchTypes != nil {
 				if t, ok := elseBranchTypes[name]; ok {
-					joinType |= t
+					joinType = types.Join(joinType, t)
 					hasContribution = true
 				}
 			}
 		} else {
 			// No else: implicit else contributes pre-if type.
-			joinType |= preTyp
+			joinType = types.Join(joinType, preTyp)
 			hasContribution = true
 		}
 
@@ -3683,7 +3687,9 @@ func flattenGuards(guard *guardResult, negate bool) []*guardResult {
 // type of one guard becomes the input type for the next), so that compound
 // conditions on the same variable (e.g. defined($x) && ref($x)) correctly
 // intersect their effects. A variable never declared is skipped, so no
-// phantom shadow is made for it.
+// phantom shadow is made for it, except under a referent guard: what
+// `ref \$v eq 'GLOB'` narrows $v to does not depend on how $v was typed,
+// and a variable a sub body declares is not found from the lowered walk.
 func guardShadows(guards []*guardResult, st *SymbolTable) (map[string]types.Type, map[string]string) {
 	// Build accumulated narrowed types by applying guards sequentially.
 	// working tracks the current type for each variable as guards are applied,
@@ -3700,7 +3706,7 @@ func guardShadows(guards []*guardResult, st *SymbolTable) (map[string]types.Type
 		currentType, seen := working[guard.VarName]
 		if !seen {
 			sym, found := st.Lookup(guard.VarName)
-			if !found {
+			if !found && guard.Guard.Kind != types.GuardReferent {
 				// Variable was never declared — skip to avoid phantom shadows.
 				continue
 			}

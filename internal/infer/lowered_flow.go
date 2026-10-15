@@ -377,6 +377,11 @@ func (a *loweredAnalysis) guard(n lower.Node, user bool) *guardResult {
 				return nil
 			}
 			return &guardResult{VarName: name, Guard: types.GuardPattern{Kind: types.GuardIsa}, ClassName: className(n.R)}
+		case "eq":
+			if g := referentGuard(n.L, n.R); g != nil {
+				return g
+			}
+			return referentGuard(n.R, n.L)
 		case "&&", "and":
 			return compound("&&", a.guard(n.L, user), a.guard(n.R, user))
 		case "||", "or":
@@ -388,6 +393,26 @@ func (a *loweredAnalysis) guard(n lower.Node, user bool) *guardResult {
 		}
 	}
 	return nil
+}
+
+// referentGuard is the guard `ref \$v eq 'TYPE'` states on $v, with
+// call the `ref \$v` and lit the literal TYPE, or nil when they are not
+// that. It tests what $v itself holds, not what $v refers to.
+func referentGuard(call, lit lower.Node) *guardResult {
+	c, ok := call.(*lower.Call)
+	if !ok || c.Name != "ref" || c.Fn != nil || len(c.Args) != 1 {
+		return nil
+	}
+	r, ok := c.Args[0].(*lower.Ref)
+	if !ok {
+		return nil
+	}
+	v, ok := r.Operand.(*lower.Var)
+	content, known := literalContent(lit)
+	if !ok || v.Sigil != "$" || !known {
+		return nil
+	}
+	return &guardResult{VarName: "$" + v.Name, Guard: types.GuardPattern{Kind: types.GuardReferent, RefType: content}}
 }
 
 // callGuard is the guard a call states: defined or ref on a scalar or an
