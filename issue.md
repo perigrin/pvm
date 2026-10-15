@@ -1,6 +1,6 @@
 ---
 title: "Cutover part 1: flip psc check and ProjectIndex to the lowered tree"
-state: in-progress
+state: done
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -44,16 +44,88 @@ blocked_by:
 blocks:
 - 01a0c115-c0db-7923-b276-984794affd39
 created: 2026-09-20T23:10:16.13915176Z
-updated: 2026-10-14T17:01:53.51309404Z
+updated: 2026-10-15T06:09:00.252840604Z
 sessions:
 - start_sha: 1feeef97410aa0897fde9a5c646b36484162cc2b
-  end_sha: ""
-  commits: 0
+  end_sha: 165beaaf607cdf54bb12a37c0fa0baa7a26bc070
+  commits: 12
   started_at: 2026-10-14T04:07:25.06627144Z
+  ended_at: 2026-10-15T06:09:00.252840604Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-14T04:07:25.06627144Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-15T06:09:00.252840604Z
+observed_paths:
+- internal/infer/core_test.go
+- internal/infer/diagnostics.go
+- internal/infer/export_test.go
+- internal/infer/infer.go
+- internal/infer/infer_test.go
+- internal/infer/lowered.go
+- internal/infer/lowered_calls.go
+- internal/infer/lowered_calls_test.go
+- internal/infer/lowered_flow.go
+- internal/infer/lowered_flow_test.go
+- internal/infer/lowered_ops.go
+- internal/infer/lowered_ops_test.go
+- internal/infer/lowered_r2_test.go
+- internal/infer/lowered_r2flow_test.go
+- internal/infer/lowered_r3_test.go
+- internal/infer/lowered_special.go
+- internal/infer/lowered_test.go
+- internal/infer/lowered_vars.go
+- internal/infer/lowered_vars_test.go
+- internal/infer/mutation_test.go
+- internal/infer/project.go
+- internal/infer/project_test.go
+- internal/infer/symbols.go
+- internal/infer/testdata/lowered/calls/chr_num.golden
+- internal/infer/testdata/lowered/calls/method_new.golden
+- internal/infer/testdata/lowered/calls/print_ref_arg.golden
+- internal/infer/testdata/lowered/flow/and.golden
+- internal/infer/testdata/lowered/flow/and_early_return.golden
+- internal/infer/testdata/lowered/flow/and_keyword.golden
+- internal/infer/testdata/lowered/flow/and_partial.golden
+- internal/infer/testdata/lowered/flow/and_two_vars.golden
+- internal/infer/testdata/lowered/flow/blessed_and_defined.golden
+- internal/infer/testdata/lowered/flow/not_and.golden
+- internal/infer/testdata/lowered/flow/or.golden
+- internal/infer/testdata/lowered/flow/or_else.golden
+- internal/infer/testdata/lowered/ops/arrayref_concat.golden
+- internal/infer/testdata/lowered/ops/compare.golden
+- internal/infer/testdata/lowered/ops/foreach_alias.golden
+- internal/infer/testdata/lowered/ops/hashref_arith.golden
+- internal/infer/testdata/lowered/ops/paren_operand.golden
+- internal/infer/testdata/lowered/ops/repeat_div.golden
+- internal/infer/testdata/lowered/ops/str_arith.golden
+- internal/infer/testdata/lowered/ops/str_compare_num.golden
+- internal/infer/testdata/lowered/special/capture_arith.golden
+- internal/infer/testdata/lowered/special/ref_arith.golden
+- internal/infer/testdata/lowered/special/ref_paren.golden
+- internal/lexer/brackets.go
+- internal/lexer/expect.go
+- internal/lexer/lexer.go
+- internal/lexer/scan.go
+- internal/parse/coreio_test.go
+- internal/parse/corenoproto_test.go
+- internal/parse/coretypes_test.go
+- internal/parse/decl.go
+- internal/parse/declarations/CORE.pmt
+- internal/parse/globpunct_test.go
+- internal/parse/parendeclcomma_test.go
+- internal/parse/parse.go
+- internal/parse/term.go
+- internal/perl/inc.go
+- internal/perl/inc_test.go
+- internal/psc/check_command.go
+- internal/psc/check_command_test.go
+- internal/types/narrowing.go
+- internal/types/referent_test.go
+- internal/types/types.go
+- test/e2e/psc_check_test.go
 ---
 
 ## Context
