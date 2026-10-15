@@ -1,5 +1,5 @@
-// ABOUTME: The special-form rules of AnalyzeLowered: MapGrepSort, eval and do, Ref, Match, and the forms the legacy path left untyped.
-// ABOUTME: Each is the legacy rule rewritten against the lowered kinds: map, grep and sort are told apart by Op, never by source text.
+// ABOUTME: The special-form rules of Analyze: MapGrepSort, eval and do, Ref, Match, and the forms left untyped.
+// ABOUTME: Each reads the lowered kinds: map, grep and sort are told apart by Op, never by source text.
 
 package infer
 
@@ -10,20 +10,20 @@ import (
 	"tamarou.com/pvm/internal/types"
 )
 
-// mapGrepSort walks a map, grep or sort. Its own value is not typed, as on
-// the legacy path; what it hands back is recorded by elemType when a
+// mapGrepSort walks a map, grep or sort. Its own value is not typed;
+// what it hands back is recorded by elemType when a
 // declaration takes it.
-func (a *loweredAnalysis) mapGrepSort(n *lower.MapGrepSort) types.Type {
+func (a *analysis) mapGrepSort(n *lower.MapGrepSort) types.Type {
 	a.walkChildren(n)
 	return types.Unknown
 }
 
-// mapGrepSortElemType is the legacy callElementType for map, grep and sort.
+// mapGrepSortElemType is the element type of a map, grep or sort.
 // sort reorders and grep selects, so their elements are the source's; map
 // transforms, so its elements are what its block yields. perl 5.42: with
 // @n = (3, 1), `map { $_ * 2 } @n` is (6, 2) and `map { "x$_" } @n` is
 // ("x3", "x1"). map's expression form is not typed.
-func (a *loweredAnalysis) mapGrepSortElemType(n *lower.MapGrepSort) types.Type {
+func (a *analysis) mapGrepSortElemType(n *lower.MapGrepSort) types.Type {
 	if n.Op == "map" {
 		if n.Block == nil {
 			return types.Unknown
@@ -39,10 +39,10 @@ func (a *loweredAnalysis) mapGrepSortElemType(n *lower.MapGrepSort) types.Type {
 	return a.joinTypes(n.List)
 }
 
-// blockValue is the legacy blockResultType: a block's value is its last
+// blockValue is a block's value, its last
 // expression statement's. A block perl rejected is a Hole, whose value is
 // Any, never a guess.
-func (a *loweredAnalysis) blockValue(n lower.Node) types.Type {
+func (a *analysis) blockValue(n lower.Node) types.Type {
 	b, ok := n.(*lower.Block)
 	if !ok {
 		return a.typeOf(n)
@@ -67,7 +67,7 @@ var refTypes = map[string]types.Type{
 	"*": types.GlobRef,
 }
 
-// ref is the legacy inferRefgenType: `\EXPR` is typed from what the
+// ref types a reference: `\EXPR` is typed from what the
 // reference is taken TO. A reference to anything but a named variable -- an
 // element, a literal, a dereference -- is not typed: it is no evidence of
 // which reference results.
@@ -75,10 +75,10 @@ var refTypes = map[string]types.Type{
 // A scalar variable typed Glob holds a glob, so a reference to it is a
 // GlobRef: perl 5.42, `my $v = *STDOUT; ref \$v` is GLOB.
 //
-// A parenthesised array is typed as the array, as on the legacy path,
-// although perl takes a reference to each element: perl 5.42, with
-// @a = (1, 2), `ref(my $r = \(@a))` is SCALAR.
-func (a *loweredAnalysis) ref(n *lower.Ref) types.Type {
+// A parenthesised array is typed as the array, although perl takes a
+// reference to each element: perl 5.42, with @a = (1, 2), `ref(my $r =
+// \(@a))` is SCALAR.
+func (a *analysis) ref(n *lower.Ref) types.Type {
 	a.operand(n.Operand)
 	if v, ok := n.Operand.(*lower.Var); ok {
 		if v.Sigil == "$" && a.typeOf(v) == types.Glob {
@@ -92,8 +92,8 @@ func (a *loweredAnalysis) ref(n *lower.Ref) types.Type {
 }
 
 // glob types `glob EXPR` as the builtin call it is. `<*.c>`, whose pattern
-// is the angle term's own bytes, is not typed, as on the legacy path.
-func (a *loweredAnalysis) glob(n *lower.Glob) types.Type {
+// is the angle term's own bytes, is not typed.
+func (a *analysis) glob(n *lower.Glob) types.Type {
 	if n.Pattern != nil && n.Pattern.Meta().ID.Role == lower.RoleAngleBody {
 		a.walk(n.Pattern)
 		return types.Unknown
@@ -106,13 +106,13 @@ func (a *loweredAnalysis) glob(n *lower.Glob) types.Type {
 	return a.call(c)
 }
 
-// match is the legacy rule for `=~` and `!~` over a match, a substitution
+// match is the rule for `=~` and `!~` over a match, a substitution
 // or a transliteration: CORE.pmt's candidates, chosen by the context
 // around it, check the target and give its type. A match in scalar context
 // is a Boolean, and a substitution a Str: perl 5.42, `"abc" =~ /b/` is 1,
 // `"aaa" =~ s/a/b/g` is 3 and `"xxx" =~ s/a/b/g` is "". qr// is a Regex.
 // A match against $_, with no target, is not typed.
-func (a *loweredAnalysis) match(n *lower.Match) types.Type {
+func (a *analysis) match(n *lower.Match) types.Type {
 	if n.Op == "qr" {
 		return types.Regex
 	}
@@ -133,11 +133,11 @@ func (a *loweredAnalysis) match(n *lower.Match) types.Type {
 	return t
 }
 
-// bindsCaptures is the list half of the legacy inferAssignmentNarrowing for
-// a match: declaring several names from a match binds each a capture, and
-// a capture is a Str. perl 5.42, `my ($a, $b) = ("x42" =~ /([a-z])(\d+)/)`
-// is ("x", "42").
-func (a *loweredAnalysis) bindsCaptures(d *lower.Decl) bool {
+// bindsCaptures is the list half of assignment narrowing for a match:
+// declaring several names from a match binds each a capture, and a capture
+// is a Str. perl 5.42, `my ($a, $b) = ("x42" =~ /([a-z])(\d+)/)` is ("x",
+// "42").
+func (a *analysis) bindsCaptures(d *lower.Decl) bool {
 	m, ok := d.Init.(*lower.Match)
 	vars := declaredVars(d)
 	if !ok || m.Op != "m" || m.Target == nil || len(vars) < 2 {
@@ -149,7 +149,7 @@ func (a *loweredAnalysis) bindsCaptures(d *lower.Decl) bool {
 	return true
 }
 
-// capture is the legacy captureType for $n, the n-th group of the last
+// capture types $n, the n-th group of the last
 // match, substitution or qr before it in source order. A capture is a
 // substring, so a Str, and an Int when its group can match nothing but
 // digits: perl 5.42 -w, after "abc123" =~ /(\d+)/, `$1 + 1` is 124 and
@@ -160,7 +160,7 @@ func (a *loweredAnalysis) bindsCaptures(d *lower.Decl) bool {
 // runs first, though it follows the body in the source, so it is the one
 // read, as ownMatch says. perl 5.42 -w is silent on
 // `print $1 + 1 if "a7" =~ /(\d+)/`.
-func (a *loweredAnalysis) capture(v *lower.Var, n int) types.Type {
+func (a *analysis) capture(v *lower.Var, n int) types.Type {
 	start, _, _ := a.pos.Span(v.ID)
 	var m lower.Node = lastMatch(a.pos, start)
 	if g := a.ownMatch(start, a.modifier); g != nil {
@@ -204,7 +204,7 @@ func successMatch(n *lower.IfStmt) (*lower.Match, lower.Node) {
 // match before the capture in the source, and the `if` modifier puts it
 // after, with no other match in the body before the capture. nil when
 // stmt is nil, guards with no match, or another match intervenes.
-func (a *loweredAnalysis) ownMatch(off int, stmt *lower.IfStmt) *lower.Match {
+func (a *analysis) ownMatch(off int, stmt *lower.IfStmt) *lower.Match {
 	if stmt == nil {
 		return nil
 	}

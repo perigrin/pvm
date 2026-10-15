@@ -1,4 +1,4 @@
-// ABOUTME: The golden-diagnostics ratchet: AnalyzeLowered over testdata/lowered fixtures, against their committed goldens.
+// ABOUTME: The golden-diagnostics ratchet: Analyze over testdata/lowered fixtures, against their committed goldens.
 // ABOUTME: matching.txt lists the fixtures that match, and the test fails in both directions, as the parse ratchets do.
 
 package infer_test
@@ -93,7 +93,7 @@ func goldenReport(diags []infer.Diagnostic, st *infer.SymbolTable) string {
 func analyzeLoweredReport(src []byte) string {
 	root := parse.Parse(src)
 	f := lower.Lower(root)
-	_, diags, st := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
+	_, diags, st := infer.Analyze(f, lower.NewPositions(root, f), nil, infer.Options{})
 	return goldenReport(diags, st)
 }
 

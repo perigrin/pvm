@@ -1,5 +1,5 @@
-// ABOUTME: The call rules of AnalyzeLowered: one Call arm for every builtin and user sub, MethodCall and the class it records, and parameter types.
-// ABOUTME: Each is the legacy rule rewritten against the lowered kinds: the filehandle is Call.Handle, never one of the Args.
+// ABOUTME: The call rules of Analyze: one Call arm for every builtin and user sub, MethodCall and the class it records, and parameter types.
+// ABOUTME: Each reads the lowered kinds: the filehandle is Call.Handle, never one of the Args.
 
 package infer
 
@@ -13,18 +13,17 @@ import (
 	"tamarou.com/pvm/internal/types"
 )
 
-// call is the legacy inferFunctionCallType, inferFunc1opCallType and
-// inferFunc0opCallType in one: a builtin's CORE.pmt candidates check the
-// arity and each argument's type and give the call's type; a sub of this
-// file gives its inferred return type, and a fully-qualified one the
-// project index's. A call through a reference is not typed. `&name` never
-// calls CORE, so it is a user sub's call whatever its name, and so is a
-// builtin a `use` list overrides.
+// call types a call to a builtin or a user sub: a builtin's CORE.pmt
+// candidates check the arity and each argument's type and give the call's
+// type; a sub of this file gives its inferred return type, and a
+// fully-qualified one the project index's. A call through a reference is
+// not typed. `&name` never calls CORE, so it is a user sub's call whatever
+// its name, and so is a builtin a `use` list overrides.
 //
 // The filehandle of `print $fh LIST` is Handle, not an argument, so it is
 // neither counted nor checked. An argument perl rejects is a Hole, which is
 // counted as one argument and typed Any, so it satisfies every slot.
-func (a *loweredAnalysis) call(n *lower.Call) types.Type {
+func (a *analysis) call(n *lower.Call) types.Type {
 	if n.Handle != nil {
 		a.walk(n.Handle)
 	}
@@ -33,7 +32,7 @@ func (a *loweredAnalysis) call(n *lower.Call) types.Type {
 	}
 	if n.Name == "undef" {
 		// undef denotes the undefined value whatever it is given: CORE.pmt
-		// declares no return type for it, and the legacy path typed it so.
+		// declares no return type for it, so it is typed here.
 		a.args(n.Args, nil)
 		return types.Undef
 	}
@@ -126,7 +125,7 @@ func overrides(f *lower.File) map[string]bool {
 
 // args walks a call's arguments, each in the context its parameter slot in
 // sigs imposes. A user sub's arguments, sigs nil, are walked as they are.
-func (a *loweredAnalysis) args(args []lower.Node, sigs []types.Signature) {
+func (a *analysis) args(args []lower.Node, sigs []types.Signature) {
 	for i, arg := range args {
 		if ctx := slotContext(sigs, i); ctx != types.UnknownCtx {
 			a.evalCtx[arg.Meta().ID] = ctx
@@ -169,7 +168,7 @@ func slotContext(sigs []types.Signature, i int) types.Context {
 // userCall types a call to a sub that is not a builtin: a fully-qualified
 // name the project index resolves, else a sub of this file whose return
 // type is already inferred. A sub declared after the call has none yet.
-func (a *loweredAnalysis) userCall(n *lower.Call) types.Type {
+func (a *analysis) userCall(n *lower.Call) types.Type {
 	if n.Fn != nil || n.Name == "" {
 		return types.Unknown
 	}
@@ -186,7 +185,7 @@ func (a *loweredAnalysis) userCall(n *lower.Call) types.Type {
 	return types.Unknown
 }
 
-// checkArg is the legacy argument check: an argument whose type does not
+// checkArg is the argument check: an argument whose type does not
 // satisfy what the builtin's slot expects is a type mismatch. scalar's
 // argument is counted first, as builtinArgActual says. One that does not
 // satisfy the slot as it is may still as finite and numified judge it,
@@ -194,7 +193,7 @@ func (a *loweredAnalysis) userCall(n *lower.Call) types.Type {
 // scalarValue says, and last as lossyCoercion says. Flattening is a second
 // chance, so a Hole's Any, which satisfies the slot as it is, is never
 // rewritten; one that fails both is reported as flattened.
-func (a *loweredAnalysis) checkArg(name string, i int, arg lower.Node, expected types.Type, slurpy bool) {
+func (a *analysis) checkArg(name string, i int, arg lower.Node, expected types.Type, slurpy bool) {
 	actual := builtinArgActual(name, a.typeOf(arg))
 	if a.argSatisfies(actual, expected) || a.argSatisfies(a.succeeded(arg, actual), expected) {
 		return
@@ -224,7 +223,7 @@ func (a *loweredAnalysis) checkArg(name string, i int, arg lower.Node, expected 
 // argSatisfies reports whether a builtin argument of type actual may fill
 // a slot expecting expected: as it is, as a handle, or as finite and
 // numified judge it. An Unknown one is not checked unless Strict.
-func (a *loweredAnalysis) argSatisfies(actual, expected types.Type) bool {
+func (a *analysis) argSatisfies(actual, expected types.Type) bool {
 	return a.opts.skipUnknownOperand(actual) || a.opts.satisfies(actual, expected) || a.opts.handleSatisfies(actual, expected) ||
 		a.opts.satisfies(numified(finite(actual), expected), expected)
 }
@@ -244,7 +243,7 @@ func (a *loweredAnalysis) argSatisfies(actual, expected types.Type) bool {
 //
 // Only a call's own result is judged so; a variable that holds one,
 // `my $fd = fileno(STDOUT); $fd . ">"`, is still judged with its Undef.
-func (a *loweredAnalysis) succeeded(n lower.Node, actual types.Type) types.Type {
+func (a *analysis) succeeded(n lower.Node, actual types.Type) types.Type {
 	c, ok := n.(*lower.Call)
 	if !ok || c.Fn != nil {
 		return actual
@@ -268,7 +267,7 @@ func (a *loweredAnalysis) succeeded(n lower.Node, actual types.Type) types.Type 
 // says. A bare return gives the sub's own Undef, and so does a body
 // whose last statement is not such a call, so neither is one. A sub
 // nested in sub returns from itself, not from sub.
-func (a *loweredAnalysis) returnsBuiltinResult(sub *lower.AnonSub) bool {
+func (a *analysis) returnsBuiltinResult(sub *lower.AnonSub) bool {
 	if sub == nil {
 		return false
 	}
@@ -326,7 +325,7 @@ func (a *loweredAnalysis) returnsBuiltinResult(sub *lower.AnonSub) bool {
 // match has its group, and it is the match n reads, as ownMatch says.
 // perl 5.42 -w is silent on `return $1 if $_[0] =~ /(\d+)/` handed to
 // `==`, and warns on `$2` there, or under `!~`.
-func (a *loweredAnalysis) ownCapture(n lower.Node, stmt *lower.IfStmt) bool {
+func (a *analysis) ownCapture(n lower.Node, stmt *lower.IfStmt) bool {
 	if l, ok := n.(*lower.List); ok && len(l.Elems) > 0 {
 		n = l.Elems[len(l.Elems)-1]
 	}
@@ -363,7 +362,7 @@ func scalarValue(arg lower.Node, actual types.Type) types.Type {
 // are strings. `print @parts` prints each element. A List's Void is the
 // empty list, which hands the slot no element at all: perl 5.42 -w is
 // silent on `print readline(*DATA)` at end of file.
-func (a *loweredAnalysis) flattened(arg lower.Node, actual types.Type) types.Type {
+func (a *analysis) flattened(arg lower.Node, actual types.Type) types.Type {
 	agg := actual & (types.Array | types.Hash)
 	if agg == 0 {
 		return actual
@@ -406,7 +405,7 @@ func argVarName(n lower.Node) string {
 // callReturns is a builtin call's type in the context around it, from the
 // candidates its arguments' shapes take: a slice is `@`-shaped, anything
 // else `$`-shaped.
-func (a *loweredAnalysis) callReturns(n *lower.Call, sigs []types.Signature) types.Type {
+func (a *analysis) callReturns(n *lower.Call, sigs []types.Signature) types.Type {
 	shapes := ""
 	for _, arg := range n.Args {
 		if _, ok := arg.(*lower.Slice); ok {
@@ -418,11 +417,11 @@ func (a *loweredAnalysis) callReturns(n *lower.Call, sigs []types.Signature) typ
 	return shapedCallReturns(sigs, shapes, a.evalCtx[n.ID])
 }
 
-// contextualReturn is the legacy contextualReturnType: the builtins whose
+// contextualReturn types the builtins whose
 // type follows what they are given. sprintf's follows its format, pop's
 // and shift's the array's elements, and int's, abs's and scalar's their
 // argument, as argDirectedReturn says.
-func (a *loweredAnalysis) contextualReturn(n *lower.Call) (types.Type, bool) {
+func (a *analysis) contextualReturn(n *lower.Call) (types.Type, bool) {
 	switch n.Name {
 	case "sprintf":
 		if len(n.Args) >= 1 {
@@ -448,11 +447,11 @@ func (a *loweredAnalysis) contextualReturn(n *lower.Call) (types.Type, bool) {
 	return argDirectedReturn(n.Name, len(n.Args), arg0)
 }
 
-// callElemType is the legacy callElementType for a Call: the element type
+// callElemType is, for a Call, the element type
 // of the list a builtin returns. A hash's keys are strings; values, splice
 // and reverse hand back elements of the aggregate they read. Any other
 // call's elements are not known.
-func (a *loweredAnalysis) callElemType(n *lower.Call) types.Type {
+func (a *analysis) callElemType(n *lower.Call) types.Type {
 	switch n.Name {
 	case "keys":
 		return types.Str
@@ -466,9 +465,9 @@ func (a *loweredAnalysis) callElemType(n *lower.Call) types.Type {
 	return types.Unknown
 }
 
-// aggElemType is the legacy aggregateElemType: the recorded element type
+// aggElemType is the recorded element type
 // of an array or hash, or the join of a list's elements.
-func (a *loweredAnalysis) aggElemType(n lower.Node) types.Type {
+func (a *analysis) aggElemType(n lower.Node) types.Type {
 	switch n := n.(type) {
 	case *lower.Var:
 		if n.Sigil == "@" || n.Sigil == "%" {
@@ -480,7 +479,7 @@ func (a *loweredAnalysis) aggElemType(n lower.Node) types.Type {
 	return types.Unknown
 }
 
-// methodCall is the legacy inferMethodCallType. `Class->new` is an Object
+// methodCall types a method call. `Class->new` is an Object
 // of Class, recorded under the call's id for the assignment that takes it.
 // Another class method, and a method on a variable whose class is
 // recorded, is resolved through the project index. Anything else -- a
@@ -488,7 +487,7 @@ func (a *loweredAnalysis) aggElemType(n lower.Node) types.Type {
 //
 // `new Foo(...)`, the indirect form, has Foo as its Invocant, so it is the
 // same constructor.
-func (a *loweredAnalysis) methodCall(n *lower.MethodCall) types.Type {
+func (a *analysis) methodCall(n *lower.MethodCall) types.Type {
 	a.walkChildren(n)
 	if n.Dynamic != nil || n.Name == "" {
 		return types.Unknown
@@ -518,7 +517,7 @@ func (a *loweredAnalysis) methodCall(n *lower.MethodCall) types.Type {
 	return types.Unknown
 }
 
-// subParams is the legacy ResolveSubParams: a signature's mandatory
+// subParams is a sub's parameters: a signature's mandatory
 // scalars, else the scalars `my (...) = @_` unpacks as the body's first
 // statement, else the variables of the `my $v = shift` statements the body
 // opens with. nil when the sub has none of them.
@@ -611,10 +610,10 @@ func shiftParam(stmt lower.Node) string {
 	return "$" + vars[len(vars)-1].Name
 }
 
-// paramTypes is the legacy inferParamTypesFromUsage: each parameter's type
+// paramTypes infers parameter types from usage: each parameter's type
 // is what the operators and builtins it is passed to expect of it, every
 // constraint intersected. A parameter nothing constrains is Unknown.
-func (a *loweredAnalysis) paramTypes(body lower.Node, params []string) []types.Type {
+func (a *analysis) paramTypes(body lower.Node, params []string) []types.Type {
 	slot := make(map[string]int, len(params))
 	constraints := make([]types.Type, len(params))
 	for i, p := range params {
@@ -662,10 +661,10 @@ func (a *loweredAnalysis) paramTypes(body lower.Node, params []string) []types.T
 	return constraints
 }
 
-// recordParamTypes is the parameter half of the legacy
-// walkSubroutineDeclaration: a named sub's parameters are typed by how its
+// recordParamTypes is the parameter half of a sub declaration's walk: a
+// named sub's parameters are typed by how its
 // body uses them, and recorded only when one of them is known.
-func (a *loweredAnalysis) recordParamTypes(d *lower.Decl) {
+func (a *analysis) recordParamTypes(d *lower.Decl) {
 	name := subName(d)
 	body, ok := d.Init.(*lower.AnonSub)
 	if name == "" || !ok {

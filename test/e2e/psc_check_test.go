@@ -1,5 +1,5 @@
 // ABOUTME: End-to-end integration tests for the PSC type inference pipeline.
-// ABOUTME: Tests the psc check command and infer.AnalyzeLowered API against real Perl source files.
+// ABOUTME: Tests the psc check command and infer.Analyze API against real Perl source files.
 
 package e2e
 
@@ -108,7 +108,7 @@ func TestPSCCheckDiagnostics(t *testing.T) {
 		"stderr should contain type-mismatch diagnostic codes")
 }
 
-// TestTypeInferenceAccuracy exercises infer.AnalyzeLowered directly to verify
+// TestTypeInferenceAccuracy exercises infer.Analyze directly to verify
 // that specific Perl constructs are inferred with the expected types.
 func TestTypeInferenceAccuracy(t *testing.T) {
 	cases := []struct {
@@ -172,7 +172,7 @@ func TestTypeInferenceAccuracy(t *testing.T) {
 			root := parse.Parse(src)
 			f := lower.Lower(root)
 			pos := lower.NewPositions(root, f)
-			annotations, _, _ := infer.AnalyzeLowered(f, pos, nil, infer.Options{})
+			annotations, _, _ := infer.Analyze(f, pos, nil, infer.Options{})
 
 			// Search the lowered tree, outermost first, for the node whose
 			// source text is the fragment, skipping nodes that start below

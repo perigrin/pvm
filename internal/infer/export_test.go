@@ -6,13 +6,13 @@ package infer
 // The lowered pass 1 and the helpers the guard and parameter rules read
 // a sub with, under the names the tests call them by.
 var (
-	CollectLoweredDeclarations = collectLoweredDeclarations
-	FileSubs                   = fileSubs
-	SubParam                   = subParam
-	SubParams                  = subParams
-	SubReturnExpr              = subReturnExpr
-	ArgVarName                 = argVarName
-	Finite                     = finite
-	SpaceshipResult            = spaceshipResult
-	Numified                   = numified
+	CollectDeclarations = collectDeclarations
+	FileSubs            = fileSubs
+	SubParam            = subParam
+	SubParams           = subParams
+	SubReturnExpr       = subReturnExpr
+	ArgVarName          = argVarName
+	Finite              = finite
+	SpaceshipResult     = spaceshipResult
+	Numified            = numified
 )

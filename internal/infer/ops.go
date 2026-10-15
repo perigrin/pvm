@@ -1,5 +1,5 @@
-// ABOUTME: The operator rules of AnalyzeLowered: Binary, Unary, Ternary, Repeat, Range and Assign, the operand checks, and assignment narrowing.
-// ABOUTME: Each is the legacy rule rewritten against the lowered kinds: the operator is a field, never re-read from source text.
+// ABOUTME: The operator rules of Analyze: Binary, Unary, Ternary, Repeat, Range and Assign, the operand checks, and assignment narrowing.
+// ABOUTME: Each reads the lowered kinds: the operator is a field, never re-read from source text.
 
 package infer
 
@@ -13,12 +13,12 @@ import (
 	"tamarou.com/pvm/internal/types"
 )
 
-// binary is the legacy inferBinaryExprType: the operator's CORE.pmt
+// binary types a binary operator: the operator's CORE.pmt
 // candidates, chosen by the operands' shapes and the context an assignment
 // puts the expression in, check both operands and give its type. A logical
 // operator yields one of its operands, so it is their join. An operator
 // CORE.pmt does not declare is not typed.
-func (a *loweredAnalysis) binary(n *lower.Binary) types.Type {
+func (a *analysis) binary(n *lower.Binary) types.Type {
 	return a.infix(n, n.Op, operandShape(n.L)+operandShape(n.R), n.L, n.R)
 }
 
@@ -29,7 +29,7 @@ func (a *loweredAnalysis) binary(n *lower.Binary) types.Type {
 // list there. A logical operator tests its left operand, in scalar context,
 // and yields its right in the context the operator is in: perl 5.42, with
 // @a = (7,8,9), `(@a || 0) + 1` is 4 and `my @l = 0 || @a` is (7, 8, 9).
-func (a *loweredAnalysis) infix(n lower.Node, op, shapes string, l, r lower.Node) types.Type {
+func (a *analysis) infix(n lower.Node, op, shapes string, l, r lower.Node) types.Type {
 	ctx := a.evalCtx[n.Meta().ID]
 	sigs := shapedOperatorCandidates(op, "infix", shapes, ctx)
 	for i, o := range []lower.Node{l, r} {
@@ -60,11 +60,11 @@ func (a *loweredAnalysis) infix(n lower.Node, op, shapes string, l, r lower.Node
 	return result
 }
 
-// repeat is the legacy rule for `x` on Repeat. A list repeat is
+// repeat is the rule for `x` on Repeat. A list repeat is
 // `@`-shaped, so CORE.pmt's list candidate takes it: perl, `my @z = (0) x 3`
 // is (0, 0, 0) and `my @w = qw(a b) x 2` is (a, b, a, b). ListRepeat says
 // which, from the parens or the qw list on the left.
-func (a *loweredAnalysis) repeat(n *lower.Repeat) types.Type {
+func (a *analysis) repeat(n *lower.Repeat) types.Type {
 	left := "$"
 	if n.ListRepeat {
 		left = "@"
@@ -100,7 +100,7 @@ func patternType(op string, expected types.Type) types.Type {
 
 // rangeOp types `..` and `...` by CORE.pmt's candidates, as a binary
 // operator: a list in list context and the flip-flop's Str in scalar.
-func (a *loweredAnalysis) rangeOp(n *lower.Range) types.Type {
+func (a *analysis) rangeOp(n *lower.Range) types.Type {
 	op := ".."
 	if n.Exclusive {
 		op = "..."
@@ -108,15 +108,15 @@ func (a *loweredAnalysis) rangeOp(n *lower.Range) types.Type {
 	return a.infix(n, op, operandShape(n.Lo)+operandShape(n.Hi), n.Lo, n.Hi)
 }
 
-// assign is the plain-assignment half of the legacy
-// inferAssignmentNarrowing: the right side is evaluated in the context the
+// assign is the plain-assignment half of assignment narrowing: the right
+// side is evaluated in the context the
 // left side imposes, and a variable on the left is narrowed by it, as
 // narrow says. Every assignment operator narrows so, `+=` included. An
 // element, a slice or a list on the left is not narrowed.
 //
 // The assignment's own type is its right side's, an aggregate counted when
 // a scalar takes it.
-func (a *loweredAnalysis) assign(n *lower.Assign) types.Type {
+func (a *analysis) assign(n *lower.Assign) types.Type {
 	if n.R != nil {
 		a.evalCtx[n.R.Meta().ID] = assignContext(n.L)
 	}
@@ -138,7 +138,7 @@ func (a *loweredAnalysis) assign(n *lower.Assign) types.Type {
 	return a.narrow(v, n.R, t)
 }
 
-// assignContext is the legacy assignedContext: assigning to a scalar or an
+// assignContext is an assignment's context: assigning to a scalar or an
 // element evaluates the right side in scalar context, and assigning to an
 // array, a hash or a list in list context.
 func assignContext(l lower.Node) types.Context {
@@ -153,7 +153,7 @@ func assignContext(l lower.Node) types.Context {
 	return types.UnknownCtx
 }
 
-// narrow is the legacy inferAssignmentNarrowing for v assigned init, whose
+// narrow is assignment narrowing for v assigned init, whose
 // type is t, and returns the type v takes: t, unless that is Unknown.
 //
 // A scalar imposes scalar context, and an aggregate there is its count:
@@ -165,7 +165,7 @@ func assignContext(l lower.Node) types.Context {
 //
 // A constructor's result records its class on v. A declaration binding a
 // match's captures is bindsCaptures', and does not reach here.
-func (a *loweredAnalysis) narrow(v *lower.Var, init lower.Node, t types.Type) types.Type {
+func (a *analysis) narrow(v *lower.Var, init lower.Node, t types.Type) types.Type {
 	name := v.Sigil + v.Name
 	if v.Sigil == "$" && (t == types.Array || t == types.Hash || t == types.List) {
 		if narrowed, ok := types.NarrowByContext(t, types.ScalarCtx); ok {
@@ -206,12 +206,12 @@ func operandShape(n lower.Node) string {
 	return "$"
 }
 
-// checkOperand is the legacy checkBinaryOperand: an operand whose type does
+// checkOperand is the operand check: an operand whose type does
 // not satisfy what the operator expects is a coercion mismatch. A missing
 // operand is not checked, and a Hole is Any, which satisfies every
 // operator, Strict or not. The operand is judged as finite and numified
 // say, and a builtin's result also as succeeded says.
-func (a *loweredAnalysis) checkOperand(n lower.Node, expected types.Type, op, side string) {
+func (a *analysis) checkOperand(n lower.Node, expected types.Type, op, side string) {
 	if n == nil {
 		return
 	}
@@ -249,7 +249,7 @@ func (a *loweredAnalysis) checkOperand(n lower.Node, expected types.Type, op, si
 // no coercion at all, as perl 5.42 -w is silent on `"3" + 1`, and one that
 // does not is reported as it is, as perl warns `Argument "abc" isn't
 // numeric` on `"abc" + 1`.
-func (a *loweredAnalysis) lossyCoercion(n lower.Node, actual, expected types.Type) bool {
+func (a *analysis) lossyCoercion(n lower.Node, actual, expected types.Type) bool {
 	actual = numified(finite(actual), expected)
 	if actual == types.Unknown || expected == types.Unknown {
 		return false
@@ -344,7 +344,7 @@ func finite(actual types.Type) types.Type {
 // operator under: the parser spells unary minus and plus neg and pos.
 var prefixNames = map[string]string{"neg": "-", "pos": "+"}
 
-// unary is the legacy inferUnaryExprType: a prefix operator's CORE.pmt
+// unary types a prefix operator: its CORE.pmt
 // return type, except that minus and plus keep a numeric operand's own
 // type -- -5 is an Int and -5.5 a Num.
 //
@@ -353,9 +353,8 @@ var prefixNames = map[string]string{"neg": "-", "pos": "+"}
 // "Use of uninitialized value in splice" on `splice @t, 0, +undef`, as it
 // does without the plus.
 //
-// Increment and decrement are not typed: the legacy path had no rule for
-// them.
-func (a *loweredAnalysis) unary(n *lower.Unary) types.Type {
+// Increment and decrement are not typed.
+func (a *analysis) unary(n *lower.Unary) types.Type {
 	if n.Op == "pos" && n.Operand != nil {
 		ctx := a.evalCtx[n.ID]
 		if ctx != types.ListCtx {
@@ -383,7 +382,7 @@ func (a *loweredAnalysis) unary(n *lower.Unary) types.Type {
 	return builtinReturns(sigs, types.UnknownCtx)
 }
 
-// ternary is the legacy inferConditionalType: the value comes from one arm
+// ternary types a ternary: the value comes from one arm
 // or the other, so it is their join. The condition says nothing about it.
 // A ternary missing an arm is not typed.
 //
@@ -391,7 +390,7 @@ func (a *loweredAnalysis) unary(n *lower.Unary) types.Type {
 // an array arm is its count: perl 5.42, with @a = (7,8,9),
 // `(1 ? @a : 42) + 1` is 4 and `my $n = 1 ? @a : 42` is 3, while
 // `my @t = 1 ? @a : 42` is (7, 8, 9).
-func (a *loweredAnalysis) ternary(n *lower.Ternary) types.Type {
+func (a *analysis) ternary(n *lower.Ternary) types.Type {
 	ctx := a.evalCtx[n.ID]
 	for _, arm := range []lower.Node{n.Then, n.Else} {
 		if arm != nil {
@@ -410,7 +409,7 @@ func (a *loweredAnalysis) ternary(n *lower.Ternary) types.Type {
 // valueOf is n's type as the value its context takes: an array, a hash or a
 // list evaluated in scalar context is its count. Only a genuine aggregate is
 // counted, so a broad type is not stripped to one that satisfies nothing.
-func (a *loweredAnalysis) valueOf(n lower.Node) types.Type {
+func (a *analysis) valueOf(n lower.Node) types.Type {
 	t := a.typeOf(n)
 	if n == nil || a.evalCtx[n.Meta().ID] != types.ScalarCtx {
 		return t
@@ -424,7 +423,7 @@ func (a *loweredAnalysis) valueOf(n lower.Node) types.Type {
 }
 
 // operand walks n, which may be missing, and returns its type.
-func (a *loweredAnalysis) operand(n lower.Node) types.Type {
+func (a *analysis) operand(n lower.Node) types.Type {
 	if n == nil {
 		return types.Unknown
 	}
@@ -433,7 +432,7 @@ func (a *loweredAnalysis) operand(n lower.Node) types.Type {
 
 // typeOf is the type already recorded for n: Unknown when n is missing or
 // was not typed.
-func (a *loweredAnalysis) typeOf(n lower.Node) types.Type {
+func (a *analysis) typeOf(n lower.Node) types.Type {
 	if n == nil {
 		return types.Unknown
 	}

@@ -1,4 +1,4 @@
-// ABOUTME: Tests for AnalyzeLowered's flow rules: guard narrowing inside logical operators, and what a join or a sub reads.
+// ABOUTME: Tests for Analyze's flow rules: guard narrowing inside logical operators, and what a join or a sub reads.
 // ABOUTME: Each silent case is one perl 5.42 -w is silent on, and each control one perl warns about or that is truly wrong.
 
 package infer_test

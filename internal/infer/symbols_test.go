@@ -182,7 +182,7 @@ func TestSymbolTableUpdateTypeInnerScope(t *testing.T) {
 func collectDeclarations(src []byte) *infer.SymbolTable {
 	root := parse.Parse(src)
 	f := lower.Lower(root)
-	return infer.CollectLoweredDeclarations(f, lower.NewPositions(root, f))
+	return infer.CollectDeclarations(f, lower.NewPositions(root, f))
 }
 
 func TestCollectVariableDeclarations(t *testing.T) {

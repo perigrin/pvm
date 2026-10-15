@@ -1,4 +1,4 @@
-// ABOUTME: Tests for AnalyzeLowered that a golden cannot express: what it does with the Holes of input perl rejects.
+// ABOUTME: Tests for Analyze that a golden cannot express: what it does with the Holes of input perl rejects.
 // ABOUTME: Holes are found by walking the lowered tree; kinds are compared with reflect, not type assertions.
 
 package infer_test
@@ -43,7 +43,7 @@ func TestHoleIsTypedAnyAndNeverInspected(t *testing.T) {
 			t.Fatalf("%q lowered with no Hole:\n%s", src, lower.Tree(f))
 		}
 
-		ann, diags, _ := infer.AnalyzeLowered(f, pos, nil, infer.Options{})
+		ann, diags, _ := infer.Analyze(f, pos, nil, infer.Options{})
 
 		for _, h := range hs {
 			id := h.Meta().ID
@@ -74,7 +74,7 @@ sub none { }
 `)
 	root := parse.Parse(src)
 	f := lower.Lower(root)
-	_, _, st := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
+	_, _, st := infer.Analyze(f, lower.NewPositions(root, f), nil, infer.Options{})
 
 	for name, want := range map[string]types.Type{
 		"one":  types.Int,
@@ -101,7 +101,7 @@ func TestLoweredDiagnosticsAreNeverNil(t *testing.T) {
 	src := []byte("42;")
 	root := parse.Parse(src)
 	f := lower.Lower(root)
-	_, diags, _ := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
+	_, diags, _ := infer.Analyze(f, lower.NewPositions(root, f), nil, infer.Options{})
 	if diags == nil {
 		t.Error("diagnostics are nil, want an empty slice")
 	}
@@ -127,7 +127,7 @@ my @l = r();
 `)
 	root := parse.Parse(src)
 	f := lower.Lower(root)
-	_, _, st := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
+	_, _, st := infer.Analyze(f, lower.NewPositions(root, f), nil, infer.Options{})
 
 	for name, want := range map[string]types.Type{
 		"r":  types.Int,
@@ -179,7 +179,7 @@ func TestLoweredUseAnalysesTheModule(t *testing.T) {
 	src := []byte("use Foo;\n")
 	root := parse.Parse(src)
 	f := lower.Lower(root)
-	infer.AnalyzeLowered(f, lower.NewPositions(root, f), idx, infer.Options{})
+	infer.Analyze(f, lower.NewPositions(root, f), idx, infer.Options{})
 
 	if err := os.WriteFile(pm, []byte("package Foo;\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -223,7 +223,7 @@ func TestLoweredFlowOverBrokenInput(t *testing.T) {
 			t.Fatalf("%q lowered with no Hole:\n%s", src, lower.Tree(f))
 		}
 
-		ann, diags, _ := infer.AnalyzeLowered(f, pos, nil, infer.Options{})
+		ann, diags, _ := infer.Analyze(f, pos, nil, infer.Options{})
 
 		for _, h := range hs {
 			start, end, _ := pos.Span(h.Meta().ID)
@@ -259,7 +259,7 @@ func TestLoweredSubscriptOverBrokenInput(t *testing.T) {
 			t.Fatalf("%q lowered with no Hole:\n%s", c.src, lower.Tree(f))
 		}
 
-		ann, diags, st := infer.AnalyzeLowered(f, pos, nil, infer.Options{})
+		ann, diags, st := infer.Analyze(f, pos, nil, infer.Options{})
 
 		for _, d := range diags {
 			t.Errorf("%q: diagnostic %q, want none", c.src, d.Message)
@@ -283,7 +283,7 @@ func TestLoweredInterpIsStr(t *testing.T) {
 	s.Parts[0].Meta().ID = lower.ID{Local: 2}
 	s.Parts[1].Meta().ID = lower.ID{Local: 3}
 	f := &lower.File{Stmts: []lower.Node{s}}
-	ann, _, _ := infer.AnalyzeLowered(f, nil, nil, infer.Options{})
+	ann, _, _ := infer.Analyze(f, nil, nil, infer.Options{})
 	if got := ann[s.ID]; got != types.Str {
 		t.Errorf("Interp annotated %v, want Str", got)
 	}
@@ -298,8 +298,8 @@ func TestLoweredStrictSeesUnknownOperand(t *testing.T) {
 	f := lower.Lower(root)
 	pos := lower.NewPositions(root, f)
 
-	_, permissive, _ := infer.AnalyzeLowered(f, pos, nil, infer.Options{})
-	_, strict, _ := infer.AnalyzeLowered(f, pos, nil, infer.Options{Strict: true})
+	_, permissive, _ := infer.Analyze(f, pos, nil, infer.Options{})
+	_, strict, _ := infer.Analyze(f, pos, nil, infer.Options{Strict: true})
 
 	if len(permissive) != 0 {
 		t.Errorf("the default reported %v, want nothing", permissive)
@@ -333,7 +333,7 @@ func TestLoweredOperatorsOverBrokenInput(t *testing.T) {
 		}
 
 		for _, opts := range []infer.Options{{}, {Strict: true}} {
-			ann, diags, _ := infer.AnalyzeLowered(f, pos, nil, opts)
+			ann, diags, _ := infer.Analyze(f, pos, nil, opts)
 			for _, d := range diags {
 				t.Errorf("%q (Strict %v): diagnostic %q, want none", c.src, opts.Strict, d.Message)
 			}
@@ -350,7 +350,7 @@ func loweredSymbolType(t *testing.T, src, name string) (types.Type, []infer.Diag
 	t.Helper()
 	root := parse.Parse([]byte(src))
 	f := lower.Lower(root)
-	_, diags, st := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
+	_, diags, st := infer.Analyze(f, lower.NewPositions(root, f), nil, infer.Options{})
 	sym, ok := st.Lookup(name)
 	if !ok {
 		t.Fatalf("%q: no %s in the symbol table", src, name)
@@ -398,14 +398,14 @@ func TestRepeatCountAcceptsNum(t *testing.T) {
 	} {
 		root := parse.Parse([]byte(src))
 		f := lower.Lower(root)
-		_, diags, _ := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
+		_, diags, _ := infer.Analyze(f, lower.NewPositions(root, f), nil, infer.Options{})
 		for _, d := range diags {
 			t.Errorf("%q: diagnostic %q, want none", src, d.Message)
 		}
 	}
 	root := parse.Parse([]byte("my $s = \"ab\" x {};\n"))
 	f := lower.Lower(root)
-	_, diags, _ := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{WarnLossyCoercion: true})
+	_, diags, _ := infer.Analyze(f, lower.NewPositions(root, f), nil, infer.Options{WarnLossyCoercion: true})
 	if len(diags) != 1 || diags[0].Code != infer.CodeLossyCoercion {
 		t.Errorf(`"ab" x {}: diagnostics %v, want one lossy coercion`, diags)
 	}
@@ -426,7 +426,7 @@ func TestLoweredCallsOverBrokenInput(t *testing.T) {
 			t.Fatalf("%q lowered with no Hole:\n%s", src, lower.Tree(f))
 		}
 		for _, opts := range []infer.Options{{}, {Strict: true}} {
-			_, diags, _ := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, opts)
+			_, diags, _ := infer.Analyze(f, lower.NewPositions(root, f), nil, opts)
 			for _, d := range diags {
 				if d.Code == infer.CodeArityMismatch || d.Code == infer.CodeTypeMismatch {
 					t.Errorf("%q (Strict %v): diagnostic %q, want none", src, opts.Strict, d.Message)
@@ -443,7 +443,7 @@ func TestLoweredConstructorRecordsClass(t *testing.T) {
 	src := []byte("my $obj = Foo->new();\nmy $o;\n$o = Bar->new;\nmy $n = Baz->make;\n")
 	root := parse.Parse(src)
 	f := lower.Lower(root)
-	_, _, st := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
+	_, _, st := infer.Analyze(f, lower.NewPositions(root, f), nil, infer.Options{})
 	for name, want := range map[string]string{"$obj": "Foo", "$o": "Bar", "$n": ""} {
 		sym, ok := st.Lookup(name)
 		if !ok {
@@ -477,7 +477,7 @@ func TestLoweredCallsResolveThroughTheIndex(t *testing.T) {
 	src := []byte("use Foo::Bar;\nuse Counter;\nmy $x = Foo::Bar::baz();\nmy $c = Counter->new();\nmy $n = $c->count();\n")
 	root := parse.Parse(src)
 	f := lower.Lower(root)
-	_, _, st := infer.AnalyzeLowered(f, lower.NewPositions(root, f), idx, infer.Options{})
+	_, _, st := infer.Analyze(f, lower.NewPositions(root, f), idx, infer.Options{})
 
 	for name, want := range map[string]types.Type{"$x": types.Int, "$n": types.Num} {
 		sym, ok := st.Lookup(name)
@@ -507,7 +507,7 @@ sub paren { my $x = shift; return length($x); }
 `)
 	root := parse.Parse(src)
 	f := lower.Lower(root)
-	_, _, st := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
+	_, _, st := infer.Analyze(f, lower.NewPositions(root, f), nil, infer.Options{})
 
 	for name, want := range map[string][]types.Type{
 		"calc":        {types.Num},
@@ -545,7 +545,7 @@ func TestLoweredSpecialFormsOverBrokenInput(t *testing.T) {
 		if len(hs) == 0 {
 			t.Fatalf("%q lowered with no Hole:\n%s", tc.src, lower.Tree(f))
 		}
-		ann, diags, st := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
+		ann, diags, st := infer.Analyze(f, lower.NewPositions(root, f), nil, infer.Options{})
 		for _, h := range hs {
 			if got := ann[h.Meta().ID]; got != types.Any {
 				t.Errorf("%q: Hole annotated %v, want Any", tc.src, got)
@@ -578,7 +578,7 @@ func TestLoweredCaptureReadsEveryQuoteForm(t *testing.T) {
 	} {
 		root := parse.Parse([]byte(src))
 		f := lower.Lower(root)
-		_, _, st := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
+		_, _, st := infer.Analyze(f, lower.NewPositions(root, f), nil, infer.Options{})
 		if sym, ok := st.Lookup("$c"); !ok || sym.Type != want {
 			t.Errorf("%q: $c is %v (found %v), want %v", src, sym.Type, ok, want)
 		}
@@ -589,7 +589,7 @@ func TestLoweredCaptureReadsEveryQuoteForm(t *testing.T) {
 func loweredDiags(src string) []infer.Diagnostic {
 	root := parse.Parse([]byte(src))
 	f := lower.Lower(root)
-	_, diags, _ := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
+	_, diags, _ := infer.Analyze(f, lower.NewPositions(root, f), nil, infer.Options{})
 	return diags
 }
 

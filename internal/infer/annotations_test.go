@@ -1,4 +1,4 @@
-// ABOUTME: Tests that AnalyzeLowered's annotations are keyed by node identity: no two nodes share a key, and an edit above a sub keeps the keys inside it.
+// ABOUTME: Tests that Analyze's annotations are keyed by node identity: no two nodes share a key, and an edit above a sub keeps the keys inside it.
 // ABOUTME: These are what byte-offset keys could not promise: a parent and child starting at one byte, and offsets shifting after an edit.
 
 package infer_test
@@ -35,7 +35,7 @@ func TestAnnotationsKeyedByIdentity(t *testing.T) {
 	root := parse.Parse(src)
 	f := lower.Lower(root)
 	pos := lower.NewPositions(root, f)
-	ann, _, st := infer.AnalyzeLowered(f, pos, nil, infer.Options{})
+	ann, _, st := infer.Analyze(f, pos, nil, infer.Options{})
 
 	idx, ok := firstOfKind(f, &lower.Index{}).(*lower.Index)
 	if !ok {
@@ -64,7 +64,7 @@ func TestAnnotationsSurviveEditAbove(t *testing.T) {
 	inSubs := func(src string) map[lower.ID]types.Type {
 		root := parse.Parse([]byte(src))
 		f := lower.Lower(root)
-		ann, _, _ := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, infer.Options{})
+		ann, _, _ := infer.Analyze(f, lower.NewPositions(root, f), nil, infer.Options{})
 		out := map[lower.ID]types.Type{}
 		for id, typ := range ann {
 			if id.Anchor != "" {

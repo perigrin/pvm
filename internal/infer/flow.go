@@ -1,5 +1,5 @@
-// ABOUTME: The statement and flow rules of AnalyzeLowered: guard narrowing in conditionals and loops, branch joins, returns and use.
-// ABOUTME: Each is the legacy rule of the same name rewritten against the lowered kinds, keeping the legacy approximation.
+// ABOUTME: The statement and flow rules of Analyze: guard narrowing in conditionals and loops, branch joins, returns and use.
+// ABOUTME: Each reads the lowered kinds, and keeps the approximation its goldens hold.
 
 package infer
 
@@ -10,19 +10,19 @@ import (
 	"tamarou.com/pvm/internal/types"
 )
 
-// ifStmt is the legacy walkConditionalStatement on the lowered IfStmt.
+// ifStmt narrows the branches of an IfStmt by its guard.
 //
 // `unless` swaps the branches rather than negating Cond (§4.14.5), so the
 // branch the guard holds in is Then and the branch it fails in is Else,
-// whichever keyword spelled them. The legacy path still distinguishes the
-// first body in the source -- only it ends the statement early or is left
+// whichever keyword spelled them. The first body in the source is still
+// distinguished -- only it ends the statement early or is left
 // out of the join when it exits -- so primary is that body, and the other
 // slot holds the else body or the elsif chain.
 //
-// A modifier form (`X if C`) is not narrowed: the legacy path never saw it
-// as a conditional statement. Its body, when C is a match it runs only
+// A modifier form (`X if C`) is not narrowed as a conditional statement
+// is. Its body, when C is a match it runs only
 // after, reads that match's captures, as capture says.
-func (a *loweredAnalysis) ifStmt(n *lower.IfStmt) {
+func (a *analysis) ifStmt(n *lower.IfStmt) {
 	if !isBranch(n.Then) || !isBranch(n.Else) {
 		m, success := successMatch(n)
 		if m == nil || success == nil {
@@ -96,17 +96,17 @@ func isBranch(n lower.Node) bool {
 }
 
 // before reports whether x starts before y in the source.
-func (a *loweredAnalysis) before(x, y lower.Node) bool {
+func (a *analysis) before(x, y lower.Node) bool {
 	xs, _, xok := a.pos.Span(x.Meta().ID)
 	ys, _, yok := a.pos.Span(y.Meta().ID)
 	return xok && yok && xs < ys
 }
 
-// elsif is the legacy walkElsifNode: an elsif narrows its own body by its
+// elsif walks an elsif, which narrows its own body by its
 // own guard and its else by the negation, and returns the union of the
 // branch-end types of the variables it guarded, its trailing chain's
 // included. The conditions before it do not narrow it.
-func (a *loweredAnalysis) elsif(n *lower.IfStmt) map[string]types.Type {
+func (a *analysis) elsif(n *lower.IfStmt) map[string]types.Type {
 	if n.Cond != nil {
 		a.walk(n.Cond)
 	}
@@ -136,11 +136,11 @@ func (a *loweredAnalysis) elsif(n *lower.IfStmt) map[string]types.Type {
 	return joinTypes
 }
 
-// whileStmt is the legacy walkLoopStatement: the body runs with the guard
+// whileStmt walks a while loop, whose body runs with the guard
 // held. An `until` is a Negated while, so its body runs with the guard
-// failed. A modifier form, `do BLOCK while` included, is not narrowed: the
-// legacy path never saw it as a loop statement.
-func (a *loweredAnalysis) whileStmt(n *lower.WhileStmt) {
+// failed. A modifier form, `do BLOCK while` included, is not narrowed as a
+// loop statement is.
+func (a *analysis) whileStmt(n *lower.WhileStmt) {
 	body, ok := n.Body.(*lower.Block)
 	if !ok || n.PostCond {
 		a.walkChildren(n)
@@ -158,7 +158,7 @@ func (a *loweredAnalysis) whileStmt(n *lower.WhileStmt) {
 	}
 }
 
-// foreachStmt is the legacy walkForStatement: the loop variable is a Scalar
+// foreachStmt walks a foreach loop, whose loop variable is a Scalar
 // defined in a scope of its own, and what the body wrote to it is written
 // back through the alias to what the loop iterates.
 //
@@ -166,7 +166,7 @@ func (a *loweredAnalysis) whileStmt(n *lower.WhileStmt) {
 // loop variable: $n is the aliased slot, so $_ is defined instead and $n
 // keeps its outer binding. Any other shape -- `for (@a)` -- has no scalar
 // to scope, and is walked as it stands.
-func (a *loweredAnalysis) foreachStmt(n *lower.ForeachStmt) {
+func (a *analysis) foreachStmt(n *lower.ForeachStmt) {
 	body, isBlock := n.Body.(*lower.Block)
 	loopVar := foreachVar(n.Var)
 	iter := n.List
@@ -175,9 +175,9 @@ func (a *loweredAnalysis) foreachStmt(n *lower.ForeachStmt) {
 			loopVar, iter = v, nil
 		}
 	} else if v, ok := n.List.(*lower.Var); ok && v.Sigil == "$" {
-		// The legacy path took the first scalar as the loop variable and
-		// skipped every later one, so `for my $i ($n)` iterated nothing
-		// and scoped $_ as `foreach ($n)` does.
+		// The first scalar is taken as the loop variable and every later
+		// one skipped, so `for my $i ($n)` iterates nothing and scopes $_
+		// as `foreach ($n)` does.
 		iter = nil
 	}
 	if loopVar == nil || !isBlock {
@@ -211,7 +211,7 @@ func (a *loweredAnalysis) foreachStmt(n *lower.ForeachStmt) {
 	if written == types.Unknown {
 		return
 	}
-	// The legacy aliasWriteBack: `foreach ($n)` aliases the scalar itself,
+	// The alias write-back: `foreach ($n)` aliases the scalar itself,
 	// `for my $x (@a)` the aggregate's elements.
 	if iter == nil {
 		if sym, ok := a.st.Lookup(name); ok {
@@ -239,12 +239,12 @@ func foreachVar(n lower.Node) *lower.Var {
 	return nil
 }
 
-// useStmt is the legacy walkUseStatement: a module the project index can
+// useStmt walks a use statement: a module the project index can
 // resolve is analysed, so its symbols are there for a cross-file lookup.
 // Without an index, or for a module outside the project, it does nothing.
 // `no Foo` and `require Foo` name a module as `use Foo` does, and perl
 // loads it for each.
-func (a *loweredAnalysis) useStmt(n *lower.UseStmt) {
+func (a *analysis) useStmt(n *lower.UseStmt) {
 	if a.idx != nil && n.Module != "" {
 		if path, err := a.idx.ResolveModule(n.Module); err == nil {
 			_, _ = a.idx.AnalyzeFile(path)
@@ -253,11 +253,11 @@ func (a *loweredAnalysis) useStmt(n *lower.UseStmt) {
 	a.walkChildren(n)
 }
 
-// blockWithGuard is the legacy walkBlockWithGuard: the guarded variables
+// blockWithGuard walks a block under guards: the guarded variables
 // are shadowed, in one "guard" scope, by what the guards narrow them to,
 // and the block's statements are walked under it. When branchTypes is not
 // nil it receives each shadowed variable's type at the end of the block.
-func (a *loweredAnalysis) blockWithGuard(b *lower.Block, guards []*guardResult, branchTypes map[string]types.Type) {
+func (a *analysis) blockWithGuard(b *lower.Block, guards []*guardResult, branchTypes map[string]types.Type) {
 	shadows, classNames := guardShadows(guards, a.st)
 	if len(shadows) > 0 {
 		a.st.EnterScope("guard")
@@ -291,7 +291,7 @@ func (a *loweredAnalysis) blockWithGuard(b *lower.Block, guards []*guardResult, 
 // variable has where the right operand is skipped, on which the left
 // operand's test went the other way: `defined $x or $x = 'b'` leaves $x
 // defined either way.
-func (a *loweredAnalysis) logicalRight(op string, l, r lower.Node) {
+func (a *analysis) logicalRight(op string, l, r lower.Node) {
 	var guard *guardResult
 	runsWhen := false
 	switch op {
@@ -335,7 +335,7 @@ func (a *loweredAnalysis) logicalRight(op string, l, r lower.Node) {
 // Scalar slot. perl 5.42 -w is silent on Math::Complex's
 // `my $i = eval "9**9**9"; if (defined $i && $i > 1e308) { $Inf = $i }
 // $Inf = 1.79e308 unless defined $Inf`.
-func (a *loweredAnalysis) flatten(guard *guardResult, negate bool) []*guardResult {
+func (a *analysis) flatten(guard *guardResult, negate bool) []*guardResult {
 	var kept []*guardResult
 	for _, g := range flattenGuards(guard, negate) {
 		if g.Guard.Kind == types.GuardDefined && !g.Negated {
@@ -348,7 +348,7 @@ func (a *loweredAnalysis) flatten(guard *guardResult, negate bool) []*guardResul
 	return kept
 }
 
-// blockExits is the legacy blockAlwaysExits: a statement directly in the
+// blockExits reports whether a block always exits: a statement directly in the
 // block is a return, a die or an exit. Exits nested deeper are not
 // looked for, and last, next and redo are not exits here.
 func blockExits(b *lower.Block) bool {
@@ -371,11 +371,10 @@ func blockExits(b *lower.Block) bool {
 	return false
 }
 
-// guard is the legacy extractGuardPattern on the lowered tree: the guard a
+// guard is the guard a
 // condition states, or nil. user allows a call to a sub of this file whose
-// result is itself a guard on its argument; the legacy path looks one level
-// deep, and so does this.
-func (a *loweredAnalysis) guard(n lower.Node, user bool) *guardResult {
+// result is itself a guard on its argument, one level deep.
+func (a *analysis) guard(n lower.Node, user bool) *guardResult {
 	switch n := n.(type) {
 	case *lower.Call:
 		return a.callGuard(n, user)
@@ -428,7 +427,7 @@ func referentGuard(call, lit lower.Node) *guardResult {
 // callGuard is the guard a call states: defined or ref on a scalar or an
 // element, a guard function of the builtin table on a scalar, or a user
 // guard.
-func (a *loweredAnalysis) callGuard(c *lower.Call, user bool) *guardResult {
+func (a *analysis) callGuard(c *lower.Call, user bool) *guardResult {
 	if len(c.Args) != 1 {
 		return nil
 	}
@@ -461,10 +460,10 @@ func (a *loweredAnalysis) callGuard(c *lower.Call, user bool) *guardResult {
 	return a.userGuard(c.Name, "$"+arg.Name)
 }
 
-// userGuard is the legacy extractUserDefinedGuard: a sub of this file,
+// userGuard is a user-defined guard: a sub of this file,
 // declared at file level and taking one parameter, whose returned
 // expression is a guard on that parameter, is a guard on its argument.
-func (a *loweredAnalysis) userGuard(name, arg string) *guardResult {
+func (a *analysis) userGuard(name, arg string) *guardResult {
 	if sym, ok := a.st.Lookup(name); !ok || sym.Kind != SymSubroutine {
 		return nil
 	}
@@ -501,7 +500,7 @@ func fileSubs(f *lower.File) map[string]*lower.AnonSub {
 	return subs
 }
 
-// subParam is the legacy ResolveSubParam: a signature's one mandatory
+// subParam is a sub's one parameter: a signature's one mandatory
 // scalar, else `my $v = shift` as the body's first statement, else $_[0]
 // read anywhere in the body. "" if the sub has none of them.
 func subParam(s *lower.AnonSub) string {
@@ -547,7 +546,7 @@ func readsArg0(n lower.Node) bool {
 	return false
 }
 
-// subReturnExpr is the legacy ExtractSubReturnExpr: the value of the
+// subReturnExpr is a sub's returned expression: the value of the
 // body's one return, or the last expression statement when it has none.
 // More than one return is too much to read, and so is a bare one.
 func subReturnExpr(body lower.Node) lower.Node {
@@ -619,7 +618,7 @@ func className(n lower.Node) string {
 	return ""
 }
 
-// compound is the legacy extractCompoundGuard's result: both sides when
+// compound is a compound guard: both sides when
 // both are guards, the one that is when only one is.
 func compound(op string, l, r *guardResult) *guardResult {
 	switch {
@@ -631,7 +630,7 @@ func compound(op string, l, r *guardResult) *guardResult {
 	return r
 }
 
-// negateGuard is the legacy extractNegatedGuard's result: a simple guard
+// negateGuard is a guard's negation: a simple guard
 // flips, and a compound one goes through De Morgan.
 func negateGuard(g *guardResult) *guardResult {
 	if g == nil {
@@ -651,9 +650,9 @@ func negateGuard(g *guardResult) *guardResult {
 	return &guardResult{Compound: &compoundGuard{Op: op, Left: &l, Right: &r}}
 }
 
-// explicitReturns is the legacy collectExplicitReturns: the join of every
+// explicitReturns is the join of every
 // return's value under n, a bare return giving Undef.
-func (a *loweredAnalysis) explicitReturns(n lower.Node) types.Type {
+func (a *analysis) explicitReturns(n lower.Node) types.Type {
 	if r, ok := n.(*lower.LoopEx); ok && r.Op == "return" {
 		if r.Label == nil {
 			return types.Undef
@@ -673,17 +672,17 @@ func (a *loweredAnalysis) explicitReturns(n lower.Node) types.Type {
 //
 // perl: `sub r { return ("a", 2) }` makes `my $v = r()` 2, and
 // `sub t { return 1, "b" }` makes `my $u = t()` "b".
-func (a *loweredAnalysis) returnedValue(n lower.Node) types.Type {
+func (a *analysis) returnedValue(n lower.Node) types.Type {
 	if l, ok := n.(*lower.List); ok && len(l.Elems) > 0 && l.Elems[len(l.Elems)-1] != nil {
 		n = l.Elems[len(l.Elems)-1]
 	}
 	return a.annotations[n.Meta().ID]
 }
 
-// implicitReturn is the legacy collectImplicitReturn: the type of a
+// implicitReturn is the type of a
 // block's last statement when it is an expression, or the join of both
 // bodies of a closing conditional.
-func (a *loweredAnalysis) implicitReturn(b *lower.Block) types.Type {
+func (a *analysis) implicitReturn(b *lower.Block) types.Type {
 	if b == nil || len(b.Stmts) == 0 {
 		return types.Unknown
 	}
