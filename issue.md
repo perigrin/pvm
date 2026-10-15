@@ -1,6 +1,6 @@
 ---
 title: "Retire tree-sitter: infer and psc off internal/parser, internal/parser and gotreesitter deleted, AnalyzeLowered renamed Analyze"
-state: in-progress
+state: done
 urgency: normal
 milestone: m2-lower-the-tree
 blocked_by:
@@ -12,16 +12,64 @@ blocks:
 - 01a0fa47-2737-7fdb-bd69-63e254d5a770
 - 01a0fd9b-5700-7514-a143-2caed2d06d8b
 created: 2026-09-20T23:10:31.270515112Z
-updated: 2026-10-15T06:46:46.076200488Z
+updated: 2026-10-15T07:59:13.605456655Z
 sessions:
 - start_sha: 1cf680fa57c3bae16c472d7d63cd7c9f940b741e
-  end_sha: ""
-  commits: 0
+  end_sha: 8d07b21bc858f3646cad58b8e4a7538e38eaedc3
+  commits: 1
   started_at: 2026-10-15T06:46:46.076200488Z
+  ended_at: 2026-10-15T07:59:13.605456655Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-15T06:46:46.076200488Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-15T07:59:13.605456655Z
+observed_paths:
+- docs/feature-parity-with-uv.md
+- docs/specs/perl-parser/04-expressions.md
+- go.mod
+- go.sum
+- internal/infer/annotations_test.go
+- internal/infer/diagnostics.go
+- internal/infer/export_test.go
+- internal/infer/golden_test.go
+- internal/infer/infer.go
+- internal/infer/infer_test.go
+- internal/infer/legacy_capture_test.go
+- internal/infer/lowered.go
+- internal/infer/calls.go
+- internal/infer/calls_test.go
+- internal/infer/flow.go
+- internal/infer/flow_test.go
+- internal/infer/ops.go
+- internal/infer/ops_test.go
+- internal/infer/lowered_r2flow_test.go
+- internal/infer/special.go
+- internal/infer/lowered_test.go
+- internal/infer/vars.go
+- internal/infer/vars_test.go
+- internal/infer/mutation_test.go
+- internal/infer/precision_test.go
+- internal/infer/retired_test.go
+- internal/infer/symbols.go
+- internal/infer/symbols_test.go
+- internal/parse/parse.go
+- internal/parseoracle/README.md
+- internal/parseoracle/compare_facts.go
+- internal/parseoracle/subject.go
+- internal/parseoracle/verdict.go
+- internal/parser/degenerate.go
+- internal/parser/degenerate_test.go
+- internal/parser/deref_test.go
+- internal/parser/incremental_test.go
+- internal/parser/parser.go
+- internal/parser/parser_test.go
+- internal/psc/command.go
+- test/e2e/helpers/perl.go
+- test/e2e/helpers/psc.go
+- test/e2e/psc_check_test.go
 ---
 
 ## Context
