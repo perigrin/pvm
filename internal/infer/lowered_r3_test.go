@@ -47,3 +47,24 @@ func TestCaptureReturnedAfterMatchIsDefined(t *testing.T) {
 		wantReported(t, src, infer.CodeCoercionMismatch)
 	}
 }
+
+// perl stringifies a glob to its name without a warning, so a Glob
+// satisfies a Str slot. perl 5.42 -w is silent on each case below,
+// `"" . $source` under a GLOB guard printing *main::STDIN, and on a broad
+// Scalar or a Hole's Any in the same slot.
+func TestGlobInStrSlotIsSilent(t *testing.T) {
+	for _, src := range []string{
+		"my $source = *STDIN;\nif (ref(\\$source) eq 'GLOB') { my $name = '' . ($source); print \"$name\\n\" }\n",
+		"my $g = *STDIN;\nprint length($g), \"\\n\";\n",
+		"my $s = shift;\nmy $name = '' . $s;\n",
+		"my $name = '' . eval 'x';\n",
+	} {
+		wantSilent(t, src)
+	}
+
+	// perl 5.42 -w warns "Use of uninitialized value in concatenation (.)
+	// or string" on undef there, and "Argument "*main::STDIN" isn't
+	// numeric in addition (+)" on a glob in a numeric slot.
+	wantReported(t, "my $name = '' . undef;\n", infer.CodeCoercionMismatch)
+	wantCode(t, "my $source = *STDIN;\nif (ref(\\$source) eq 'GLOB') { my $n = $source + 0; }\n", infer.CodeCoercionMismatch)
+}
