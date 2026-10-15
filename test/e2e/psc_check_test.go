@@ -45,11 +45,11 @@ func testdataDir(t *testing.T) string {
 
 // runPSCCheck invokes the psc check command against target (file or directory)
 // via the Go API and returns (stdout, stderr, error).
-func runPSCCheck(t *testing.T, target string) (string, string, error) {
+func runPSCCheck(t *testing.T, target string, flags ...string) (string, string, error) {
 	t.Helper()
 
 	cmd := psc.NewCommand()
-	cmd.SetArgs([]string{"check", target})
+	cmd.SetArgs(append([]string{"check", target}, flags...))
 
 	var stdout, stderr strings.Builder
 	cmd.SetOut(&stdout)
@@ -72,7 +72,9 @@ func TestPSCCheckCleanFile(t *testing.T) {
 }
 
 // TestPSCCheckDiagnostics verifies that psc check returns an error and emits
-// arity-mismatch diagnostics when run against a file containing type errors.
+// type-mismatch diagnostics when run against a file containing type errors.
+// Its `push();` is one perl refuses ("Not enough arguments for push"): the
+// parser leaves a Hole there, and nothing is reported on that line.
 func TestPSCCheckDiagnostics(t *testing.T) {
 	diagFile := filepath.Join(testdataDir(t), "diagnostics.pl")
 	_, statErr := os.Stat(diagFile)
@@ -81,9 +83,9 @@ func TestPSCCheckDiagnostics(t *testing.T) {
 	_, stderr, err := runPSCCheck(t, diagFile)
 	assert.Error(t, err, "psc check on a file with errors should return a non-zero exit")
 
-	// Arity mismatch: push() with no arguments
-	assert.Contains(t, stderr, "arity-mismatch",
-		"stderr should contain an arity-mismatch diagnostic for push() with no arguments")
+	// push() with no arguments is a Hole: nothing is reported on line 1.
+	assert.NotContains(t, stderr, "diagnostics.pl:1:",
+		"push() with no arguments is a Hole, and says nothing")
 
 	// Container-level type mismatches: wrong sigil for the builtin
 	expectedDiagnostics := []struct {
@@ -237,8 +239,8 @@ func TestPSCCheckDirectoryScan(t *testing.T) {
 
 	_, stderr, err := runPSCCheck(t, dir)
 	assert.Error(t, err, "psc check on the testdata directory should return an error (diagnostics.pl contains errors)")
-	assert.Contains(t, stderr, "arity-mismatch",
-		"stderr should contain arity-mismatch from diagnostics.pl when scanning the directory")
+	assert.Contains(t, stderr, "diagnostics.pl:4:",
+		"stderr should contain push($x, 1)'s type-mismatch from diagnostics.pl when scanning the directory")
 }
 
 // TestPSCCheckUndefPropagation verifies that psc check detects uninitialized
@@ -255,16 +257,20 @@ func TestPSCCheckUndefPropagation(t *testing.T) {
 		"stderr should contain coercion-mismatch for undef in arithmetic")
 }
 
-// TestPSCCheckCoercionDiagnostics verifies that psc check detects value-level
-// type coercion issues: string in arithmetic, == on strings, ref in concat.
+// TestPSCCheckCoercionDiagnostics verifies that a reference in a numeric
+// slot is a lossy coercion: perl takes it silently, so psc check says
+// nothing by default and reports it under --warn-lossy-coercion.
 func TestPSCCheckCoercionDiagnostics(t *testing.T) {
 	coercionFile := filepath.Join(testdataDir(t), "coercion.pl")
 	_, statErr := os.Stat(coercionFile)
 	require.NoError(t, statErr, "testdata/check/coercion.pl must exist")
 
 	_, stderr, err := runPSCCheck(t, coercionFile)
-	assert.Error(t, err, "psc check on coercion.pl should return a non-zero exit")
+	assert.NoError(t, err, "a lossy coercion is silent by default")
+	assert.Empty(t, stderr, "a lossy coercion is silent by default")
 
-	assert.Contains(t, stderr, "coercion-mismatch",
-		"stderr should contain coercion-mismatch diagnostic codes")
+	_, stderr, err = runPSCCheck(t, coercionFile, "--warn-lossy-coercion")
+	assert.Error(t, err, "--warn-lossy-coercion reports the references in numeric slots")
+	assert.Contains(t, stderr, "lossy-coercion",
+		"stderr should contain lossy-coercion diagnostic codes under the opt-in")
 }

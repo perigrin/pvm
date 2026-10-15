@@ -12,7 +12,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"tamarou.com/pvm/internal/infer"
-	"tamarou.com/pvm/internal/parser"
+	"tamarou.com/pvm/internal/parse"
+	"tamarou.com/pvm/internal/perl"
 )
 
 func newCheckCommand() *cobra.Command {
@@ -31,8 +32,9 @@ func newCheckCommand() *cobra.Command {
 				return fmt.Errorf("stat %s: %w", target, err)
 			}
 
-			p := parser.New()
 			opts := infer.Options{Strict: strict, WarnLossyCoercion: warnLossy}
+			sess := parse.NewSession()
+			roots := incRoots(target)
 			var foundDiags bool
 
 			if info.IsDir() {
@@ -44,7 +46,7 @@ func newCheckCommand() *cobra.Command {
 						return nil
 					}
 					if isPerlFile(path) {
-						had, checkErr := checkFile(errW, p, path, opts)
+						had, checkErr := checkFile(errW, sess, roots, path, opts)
 						if checkErr != nil {
 							return checkErr
 						}
@@ -58,7 +60,7 @@ func newCheckCommand() *cobra.Command {
 					return walkErr
 				}
 			} else {
-				had, checkErr := checkFile(errW, p, target, opts)
+				had, checkErr := checkFile(errW, sess, roots, target, opts)
 				if checkErr != nil {
 					return checkErr
 				}
@@ -80,20 +82,50 @@ func newCheckCommand() *cobra.Command {
 	return cmd
 }
 
-// checkFile parses and type-checks a single Perl file, printing any diagnostics
-// to w. It returns true if any diagnostics were found.
-func checkFile(w interface{ Write([]byte) (int, error) }, p *parser.Parser, path string, opts infer.Options) (bool, error) {
+// incRoots is the @INC psc check parses each file against, so its use
+// statements resolve as perl compiles them: PERL5LIB, then the library
+// directories of the perl pvm resolves for target's project. It is built
+// once per run, and never by running perl: psc check reads untrusted code,
+// and running perl runs whatever PERL5OPT or sitecustomize.pl says. With
+// no resolved perl and no PERL5LIB it is empty, and each file is parsed
+// against its own directory alone.
+func incRoots(target string) []string {
+	projectDir := target
+	if info, err := os.Stat(target); err == nil && !info.IsDir() {
+		projectDir = filepath.Dir(target)
+	}
+	// System perl, MetaCPAN and the resolution callback are skipped:
+	// resolving a system perl runs it to ask its version.
+	resolved, err := perl.ResolveVersion(&perl.ResolutionOptions{
+		ProjectDir:          projectDir,
+		SkipSystemPerl:      true,
+		SkipNetworkFetch:    true,
+		SkipVersionResolved: true,
+		SkipScriptAnalysis:  true,
+	})
+	perlPath := ""
+	if err == nil {
+		perlPath = resolved.Path
+	}
+	return perl.INC(perlPath, os.Getenv("PERL5LIB"))
+}
+
+// checkFile parses path against its own directory and roots, lowers and
+// type-checks it, printing any diagnostics to w. sess shares what each
+// module says about itself across the run's files. It returns true if any
+// diagnostics were found.
+func checkFile(w interface{ Write([]byte) (int, error) }, sess *parse.Session, roots []string, path string, opts infer.Options) (bool, error) {
 	source, err := os.ReadFile(path)
 	if err != nil {
 		return false, fmt.Errorf("read %s: %w", path, err)
 	}
 
-	tree, err := p.Parse(source)
+	root, err := sess.ParseFileFrom(path, roots...)
 	if err != nil {
 		return false, fmt.Errorf("parse %s: %w", path, err)
 	}
 
-	_, diags, _ := infer.AnalyzeWithOptions(tree, source, nil, opts)
+	diags := infer.AnalyzeParsed(root, nil, opts).Diagnostics
 
 	for _, d := range diags {
 		fmt.Fprintln(w, infer.FormatDiagnostic(path, source, d))

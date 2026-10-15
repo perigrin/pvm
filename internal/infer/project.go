@@ -11,7 +11,8 @@ import (
 	"strings"
 	"sync"
 
-	"tamarou.com/pvm/internal/parser"
+	"tamarou.com/pvm/internal/lower"
+	"tamarou.com/pvm/internal/parse"
 	"tamarou.com/pvm/internal/types"
 )
 
@@ -25,9 +26,13 @@ type ProjectIndex struct {
 	mu      sync.RWMutex
 }
 
-// FileAnalysis holds the results of analysing a single .pm file.
+// FileAnalysis holds the results of analysing a single Perl file: its
+// lowered tree and position map, each node's type keyed by node id, the
+// diagnostics, the symbol table, and the package the file declares.
 type FileAnalysis struct {
-	Annotations map[uint32]types.Type
+	File        *lower.File
+	Positions   *lower.Positions
+	Annotations map[lower.ID]types.Type
 	Diagnostics []Diagnostic
 	Symbols     *SymbolTable
 	Package     string
@@ -69,26 +74,13 @@ func (idx *ProjectIndex) AnalyzeFile(path string) (*FileAnalysis, error) {
 	}
 	idx.mu.RUnlock()
 
-	// Read and parse the file.
-	source, err := os.ReadFile(path)
+	// Parse the file, resolving its use statements against its directory.
+	root, err := parse.ParseFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("AnalyzeFile: read %q: %w", path, err)
 	}
 
-	p := parser.New()
-	tree, err := p.Parse(source)
-	if err != nil {
-		return nil, fmt.Errorf("AnalyzeFile: parse %q: %w", path, err)
-	}
-
-	annotations, diags, st := Analyze(tree, source, nil)
-
-	result := &FileAnalysis{
-		Annotations: annotations,
-		Diagnostics: diags,
-		Symbols:     st,
-		Package:     st.CurrentPackage(),
-	}
+	result := AnalyzeParsed(root, nil, Options{})
 
 	// Store in cache under a write lock.
 	idx.mu.Lock()
