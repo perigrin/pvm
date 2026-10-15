@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 019d1449-1880-729b-860b-ac29464f6cd7
 created: 2026-09-20T22:19:52.755941663Z
-updated: 2026-10-15T15:07:56.788229224Z
+updated: 2026-10-15T15:18:14.377243048Z
 sessions:
 - start_sha: 8d07b21bc858f3646cad58b8e4a7538e38eaedc3
   end_sha: ""
@@ -130,6 +130,8 @@ package) restated "make test passed", which gates every commit, while CI
 gates every PR -- and `git zhi verify` re-ran each copy for every done issue.
 They are removed; this issue's named tests and ratchet checks remain.
 
+**Criterion narrowed 2026-10-15:** the golden-trailer check counted any commit touching the testdata directories, including `matching.txt` (the ratchet's own list, which every port updates). It now counts commits that modify a `.golden`, which is what its title claims; all 16 such commits carry the trailer.
+
 ## Acceptance Criteria
 
 ### Positive Scenarios
@@ -150,4 +152,4 @@ They are removed; this issue's named tests and ratchet checks remain.
 
 ### Negative Scenarios
 - [ ] Neither internal/infer nor internal/psc reaches the tree-sitter path, directly or through a dependency (`! go list -deps ./internal/infer ./internal/psc | grep -q 'pvm/internal/parser$'`)
-- [ ] No golden was changed without an explanation: every commit that modifies one carries a Diagnostics-changed trailer (`test -n "$(git log --format=%H --diff-filter=A -- internal/infer/testdata/lowered)" && for c in $(git log --format=%H --diff-filter=M -- internal/infer/testdata/lowered internal/psc/testdata/analyze); do git log -1 --format=%B "$c" | grep -q '^Diagnostics-changed:' || exit 1; done`)
+- [ ] No golden was changed without an explanation: every commit that modifies one carries a Diagnostics-changed trailer (`test -n "$(git log --format=%H --diff-filter=A -- internal/infer/testdata/lowered)" && for c in $(git log --format=%H --diff-filter=M -- 'internal/infer/testdata/lowered/*/*.golden' 'internal/psc/testdata/*.golden'); do git log -1 --format=%B "$c" | grep -q '^Diagnostics-changed:' || exit 1; done`)
