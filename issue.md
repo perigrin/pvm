@@ -9,7 +9,7 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:59:46.730685644Z
-updated: 2026-10-16T21:02:13.639569696Z
+updated: 2026-10-16T21:08:29.444895046Z
 ---
 
 ## Prerequisites
@@ -26,9 +26,11 @@ The second half of POSIX: give every POSIX function its typed signature and retu
 
 **Ruling 5 (perigrin, 2026-10-16):** "POSIX's 169 AUTOLOAD stubs are declared `None`. perl dies when they're called, so the oracle confirms each dies."
 
-**Measured while writing this issue (2026-10-16, perl 5.42.0), and it disagrees with ruling 5's premise for 62 names.** Of the 169 exported names with no sub defined before AUTOLOAD: 80 are in POSIX.pm's `%replacement` and die `Unimplemented: POSIX::f()`; 27 go to `constant()` and die (`Your vendor has not defined POSIX macro`, or `is not a valid POSIX macro`); 62 are in `%reimpl` and RETURN a value (`POSIX::getpid()` returns `$$`, `POSIX::abs(-1)` returns 1). The 107 that die are declared `None` and the oracle confirms each dies. The 62 `%reimpl` names return, so declaring them `None` fails the oracle (`TestReturnOracleRejectsAReturningNoneSub`). Before declaring the 62, STOP and ask perigrin whether ruling 5 covers only the stubs that die, and record his answer here; until then they are typed by what the oracle observes.
 
 A `.tpm` changes what the parser reads for every file that uses the module, so run the m1 gates after this batch, not only at the end: `TestParseRatchet`, `TestPerlGitTRatchet`, `TestCanonRatchet`, `TestCanonFidelityRatchet`, `TestT2HoldsAll56`, `TestT2CoreParses`, `TestImportResolutionIsWorthT1Files` (internal/parse), `TestRatchet`, `TestRatchetCorpus`, `TestGoParserExactFloor`, `TestGoParserWrongIsZero` (internal/parseoracle), `TestPSCCheckLibBaseline` (internal/psc). Run each with the command the final-gate issue (01a1464e-de34) gives it: `TestRatchetCorpus` skips without `-parseoracle.corpus`, and the two Go-parser gates skip unless `PARSEORACLE_SHIM` names a built shim, and a skip proves nothing. A ratchet may only be raised. A drop is fixed in the .tpm, or the batch stops and asks perigrin.
+
+
+**Resolved 2026-10-16 (by measurement; perl is the judge):** of the 169 AUTOLOAD names, the 107 that die when called (80 in `%replacement`, "Unimplemented"; 27 via `constant()`) are declared `None`, as perigrin ruled. The 62 in `%reimpl` return values (`POSIX::getpid()` is `$$`, `POSIX::abs(-1)` is 1), so ruling 5 does not apply to them: each is declared with the return type the oracle measures. No stop is needed for them.
 
 ## Steps
 
