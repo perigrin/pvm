@@ -284,10 +284,11 @@ func (a *analysis) lossyCoercion(n lower.Node, actual, expected types.Type) bool
 var numericString = regexp.MustCompile(`^\s*(?:[+-]?(?:(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?|(?i:inf(?:inity)?|nan))|0 but true)\s*$`)
 
 // literalContent is the content of n when it is a string literal that
-// interpolates nothing: 'abc' and "abc", but not "$]" or a command.
+// interpolates nothing: 'abc' and "abc", but not "$]", a command, or a
+// heredoc, whose body the lowering does not carry.
 func literalContent(n lower.Node) (string, bool) {
 	lit, ok := n.(*lower.StrLit)
-	if !ok || lit.Backtick || lit.Interpolated && strings.ContainsAny(lit.Value, "$@") {
+	if !ok || lit.Backtick || lit.Heredoc || lit.Interpolated && strings.ContainsAny(lit.Value, "$@") {
 		return "", false
 	}
 	return lit.Value, true

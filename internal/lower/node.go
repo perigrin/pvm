@@ -64,6 +64,10 @@ type StrLit struct {
 	Value        string
 	Interpolated bool
 	Backtick     bool // `cmd` / qx// -- the value is a command
+	// Heredoc marks a `<<TERM` string. Its body is a separate parse node
+	// after the statement, so Value is not carried: it is "", not the
+	// string's content.
+	Heredoc bool
 }
 
 // Interp is an interpolating string in pieces: "a$b c" -> [StrLit, Var, StrLit].

@@ -174,3 +174,53 @@ func TestLowerBarewordByPosition(t *testing.T) {
 		t.Errorf("(a, 1): the call lowered to a quoted Bareword")
 	}
 }
+
+// A heredoc is a string at its opener's position, and its quote decides
+// interpolation as a string's delimiter does. perl 5.42, with $x = "X":
+// <<"A", <<B, <<~E and << "F" interpolate ("a X"), <<'C' and <<\D do not
+// ("c $x"), and <<`G` runs its body as a command. The body is a separate
+// node after the statement, so Value is not carried and Heredoc says so.
+// The controls: `<<>>` is a readline and `1 << 3` a shift.
+func TestHeredocLowers(t *testing.T) {
+	cases := []struct {
+		src  string
+		want lower.Node
+	}{
+		{"<<\"A\";\na $x\nA\n", &lower.StrLit{Interpolated: true, Heredoc: true}},
+		{"<<B;\nb $x\nB\n", &lower.StrLit{Interpolated: true, Heredoc: true}},
+		{"<<'C';\nc $x\nC\n", &lower.StrLit{Heredoc: true}},
+		{"<<\\D;\nd $x\nD\n", &lower.StrLit{Heredoc: true}},
+		{"<<~E;\n  e $x\n  E\n", &lower.StrLit{Interpolated: true, Heredoc: true}},
+		{"<< \"F\";\nf $x\nF\n", &lower.StrLit{Interpolated: true, Heredoc: true}},
+		{"<<`G`;\necho g\nG\n", &lower.StrLit{Interpolated: true, Backtick: true, Heredoc: true}},
+		{"<<~'H';\n  h\n  H\n", &lower.StrLit{Heredoc: true}},
+	}
+	for _, c := range cases {
+		root := parse.Parse([]byte(c.src))
+		stmt := root.Children[0]
+		if stmt.Kind != parse.Statement || len(stmt.Children) != 2 || !stmt.Children[1].HeredocBody {
+			t.Fatalf("%q: want one statement holding the opener and its body", c.src)
+		}
+		n := stmt.Children[0]
+		got := lower.LowerExpr(root, n)
+		if got.Meta().ID != lower.AssignIDs(root)[n] {
+			t.Errorf("%q: id %v is not the opener's id", c.src, got.Meta().ID)
+		}
+		sameShape(t, c.src, got, c.want)
+	}
+
+	// Each opener of `f(<<A, <<B)` is its own string.
+	src := "f(<<A, <<'B');\na\nA\nb\nB\n"
+	want := &lower.Call{Name: "f", Parenthesized: true, Args: []lower.Node{
+		&lower.StrLit{Interpolated: true, Heredoc: true}, &lower.StrLit{Heredoc: true},
+	}}
+	root := parse.Parse([]byte(src))
+	sameShape(t, src, zeroIDs(lower.LowerExpr(root, root.Children[0].Children[0])), want)
+
+	for src, want := range map[string]lower.Node{
+		"<<>>;":   &lower.Readline{Magic: true},
+		"1 << 3;": &lower.Binary{Op: "<<", L: &lower.NumLit{Text: "1", IsInt: true}, R: &lower.NumLit{Text: "3", IsInt: true}},
+	} {
+		sameShape(t, src, zeroIDs(lowerOne(t, src)), want)
+	}
+}

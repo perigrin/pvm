@@ -27,6 +27,9 @@ func (l *lowerer) literal(n *parse.Node) Node {
 	case c == '`':
 		return &StrLit{Value: t[1 : len(t)-1], Interpolated: true, Backtick: true}
 	}
+	if strings.HasPrefix(t, "<<") && t != "<<>>" {
+		return heredoc(t)
+	}
 	if word.MatchString(t) {
 		// A class name or the stat buffer `_`. A parent whose position
 		// quotes the word says so: see hashKey and fatWord.
@@ -51,6 +54,24 @@ func (l *lowerer) literal(n *parse.Node) Node {
 	// ponytail: qw's \\ and \<delim> escapes are not resolved; resolve
 	// them with unescape if a word ever needs a literal delimiter.
 	return &QwList{Words: strings.Fields(body)}
+}
+
+// heredoc lowers a heredoc's opener, `<<"EOT"`, to the string it stands
+// for. The quote after `<<`, and after `~` and spaces, decides as a
+// string's delimiter does: `'` and `\` do not interpolate, a backtick
+// runs a command, and `"` or a bare terminator interpolates.
+func heredoc(t string) Node {
+	q := strings.TrimLeft(t[2:], "~ \t")
+	s := &StrLit{Interpolated: true, Heredoc: true}
+	if q != "" {
+		switch q[0] {
+		case '\'', '\\':
+			s.Interpolated = false
+		case '`':
+			s.Backtick = true
+		}
+	}
+	return s
 }
 
 // quoteOp matches the head of a q, qq, qw or qx term up to and including
