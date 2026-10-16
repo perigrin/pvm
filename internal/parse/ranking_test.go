@@ -127,6 +127,7 @@ func TestCoreModuleRankingRule(t *testing.T) {
 		"Alpha.pm":          "package Alpha;\n",
 		"Beta.pm":           "package Beta;\n",
 		"Foo.pm":            "package Foo;\n",
+		"strict.pm":         "package strict;\n",
 		"Foo/Bar.pm":        "package Foo::Bar;\nuse strict;\nuse Foo;\nuse Carp;\n  use POSIX qw(floor);\n",
 		"script.pl":         "require Carp;\nuse POSIX ();\n",
 		"arch/POSIX.pm":     "package POSIX;\nuse Carp;\nuse POSIX::Sub;\n",
@@ -152,6 +153,9 @@ func TestCoreModuleRankingIgnoresNonCoreImports(t *testing.T) {
 }
 
 func TestCoreModuleRankingIgnoresVersionAndDynamicRequire(t *testing.T) {
+	for _, line := range []string{"use 5.010;", "use v5.36;", "require $file;"} {
+		assert.Nil(t, importLine.FindStringSubmatch(line), "%q is not an import", line)
+	}
 	root := writeTree(t, map[string]string{
 		"Carp.pm": "package Carp;\n",
 		"Foo.pm":  "package Foo;\nuse 5.010;\nuse v5.36;\nrequire $file;\n",
