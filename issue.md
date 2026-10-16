@@ -4,7 +4,6 @@ state: pending
 urgency: normal
 milestone: core-module-types
 blocks:
-- 01a1464e-d980-7382-970e-067a5ea3db84
 - 01a1464e-da0a-7ea5-9232-1cd68885d4e0
 - 01a0fd9b-5700-7514-a143-2caed2d06d8b
 - 01a1464e-da9d-7f9e-b2cf-b3d8607907a2
@@ -23,7 +22,7 @@ blocks:
 - 01a1464e-ddb0-720a-93f6-450c767e6e2e
 - 01a1464e-dde3-73fe-ab1f-ced7f18c4f9d
 created: 2026-10-16T20:02:14.930089601Z
-updated: 2026-10-16T21:00:15.691584669Z
+updated: 2026-10-16T21:01:46.074163173Z
 ---
 
 ## Prerequisites
