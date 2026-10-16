@@ -1,10 +1,19 @@
 ---
 title: "Inference reads (1..5) as Str: the literal-range defect 01a0afc0 claimed fixed is still in the tree-sitter path"
-state: pending
+state: in-progress
 urgency: normal
 milestone: v0.1
 created: 2026-10-09T17:43:55.324336034Z
-updated: 2026-10-09T17:43:55.324336034Z
+updated: 2026-10-16T03:49:43.511986033Z
+sessions:
+- start_sha: 133837eb651f8dcffb4203d072b3701753486869
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-16T03:49:43.511986033Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-16T03:49:43.511986033Z
 ---
 
 ## Context
