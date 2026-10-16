@@ -1,10 +1,19 @@
 ---
 title: "[R2] psc check ignores no warnings scopes, reporting what perl has been told not to warn about"
-state: pending
+state: in-progress
 urgency: normal
 milestone: pr486-review
 created: 2026-10-16T15:49:27.346112746Z
-updated: 2026-10-16T15:49:27.346112746Z
+updated: 2026-10-16T15:49:28.307037927Z
+sessions:
+- start_sha: 77107dfbeb77e7b3f1d94437583eae6d28eb41c3
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-16T15:49:28.307037927Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-16T15:49:28.307037927Z
 ---
 
 ## Context
