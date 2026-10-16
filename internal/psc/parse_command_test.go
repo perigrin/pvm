@@ -134,6 +134,22 @@ func TestParseCommandRejectsUnknownTree(t *testing.T) {
 	assert.Contains(t, err.Error(), "lowered")
 }
 
+// TestParseCommandRejectsUnknownFormat: a --format outside the two is an
+// error naming both, as --tree's is; each of the two is accepted, the
+// control.
+func TestParseCommandRejectsUnknownFormat(t *testing.T) {
+	_, err := runParse(t, "1;\n", "--format", "json")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "json")
+	assert.Contains(t, err.Error(), "tree")
+	assert.Contains(t, err.Error(), "sexpr")
+
+	for _, format := range []string{"tree", "sexpr"} {
+		_, err := runParse(t, "1;\n", "--format", format)
+		assert.NoError(t, err, format)
+	}
+}
+
 // TestParseCommandOnBrokenFile: on a file perl rejects, the CST shows the
 // Unknown with its refusal code, the lowered tree a Hole, and both exit 0.
 func TestParseCommandOnBrokenFile(t *testing.T) {

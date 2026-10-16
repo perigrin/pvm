@@ -26,6 +26,10 @@ func newParseCommand() *cobra.Command {
 			if tree != "cst" && tree != "lowered" {
 				return fmt.Errorf("--tree %q: want cst or lowered", tree)
 			}
+			sexpr := strings.ToLower(format) == "sexpr"
+			if !sexpr && strings.ToLower(format) != "tree" {
+				return fmt.Errorf("--format %q: want tree or sexpr", format)
+			}
 
 			// Parsed as psc check parses it, so this is the tree check
 			// analysed.
@@ -33,7 +37,6 @@ func newParseCommand() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("read %s: %w", filename, err)
 			}
-			sexpr := strings.ToLower(format) == "sexpr"
 			w := cmd.OutOrStdout()
 
 			switch tree {
