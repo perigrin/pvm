@@ -205,3 +205,35 @@ func TestNegatedRefGuardOnAny(t *testing.T) {
 	// or string": a failed defined still narrows Any to Undef.
 	wantReported(t, "my $v = eval \"undef\";\nunless (defined $v) { print \"a\" . $v, \"\\n\" }\n", infer.CodeCoercionMismatch)
 }
+
+// A call is an exit when the signature it resolves to returns None, as
+// CORE.pmt declares die and exit, and `CORE::name` resolves to the
+// builtin name, as a guard and as a checked call. perl 5.42 -w, given no
+// argument, is silent on the first two and prints 4.
+func TestExitsAndGuardsByCoreAndCarp(t *testing.T) {
+	for _, src := range []string{
+		"my $y = @ARGV ? undef : 3;\nunless (CORE::defined $y) { die \"y\" }\nprint $y + 1, \"\\n\";\n",
+		"my $y = @ARGV ? undef : 3;\nunless (defined $y) { CORE::die \"y\" }\nprint $y + 1, \"\\n\";\n",
+	} {
+		wantSilent(t, src)
+	}
+	// perl -w, given an argument, warns "Use of uninitialized value $y in
+	// concatenation (.) or string" on both.
+	for _, src := range []string{
+		"my $y = @ARGV ? undef : 3;\nunless (CORE::defined $y) { print \"a\" . $y, \"\\n\" }\n",
+		"my $y = @ARGV ? undef : 3;\nif (CORE::defined $y) { CORE::exit 0 }\nprint \"a\" . $y, \"\\n\";\n",
+	} {
+		wantReported(t, src, infer.CodeCoercionMismatch)
+	}
+	// perl refuses it at compile time: "Type of arg 1 to push must be
+	// array (not private hash)".
+	wantReported(t, "my %h;\nCORE::push %h, 1;\n", infer.CodeTypeMismatch)
+
+	t.Run("croak", func(t *testing.T) {
+		// croak and confess exit once a Carp.pmt declares them returning
+		// None and infer types an imported call from its .pmt, which is
+		// issue 01a0fd9b-5700.
+		t.Skip("needs infer to type imported calls from their .pmt (01a0fd9b-5700)")
+		wantSilent(t, "use Carp;\nmy $x = @ARGV ? undef : 3;\nunless (defined $x) { croak \"x\" }\nprint $x + 1, \"\\n\";\n")
+	})
+}

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"tamarou.com/pvm/internal/lower"
+	"tamarou.com/pvm/internal/parse"
 	"tamarou.com/pvm/internal/types"
 )
 
@@ -53,7 +54,7 @@ func (a *analysis) ifStmt(n *lower.IfStmt) {
 	var ifBranchTypes map[string]types.Type
 	primaryExits := false
 	if b, ok := primary.(*lower.Block); ok {
-		primaryExits = blockExits(b)
+		primaryExits = a.blockExits(b)
 		if !primaryExits {
 			ifBranchTypes = map[string]types.Type{}
 		}
@@ -114,7 +115,7 @@ func (a *analysis) elsif(n *lower.IfStmt) map[string]types.Type {
 
 	var joinTypes map[string]types.Type
 	if b, ok := n.Then.(*lower.Block); ok {
-		if !blockExits(b) {
+		if !a.blockExits(b) {
 			joinTypes = map[string]types.Type{}
 		}
 		a.blockWithGuard(b, a.flatten(guard, false), joinTypes)
@@ -349,24 +350,34 @@ func (a *analysis) flatten(guard *guardResult, negate bool) []*guardResult {
 }
 
 // blockExits reports whether a block always exits: a statement directly in the
-// block is a return, a die or an exit. Exits nested deeper are not
-// looked for, and last, next and redo are not exits here.
-func blockExits(b *lower.Block) bool {
+// block is an exit, as exits says. Exits nested deeper are not looked for.
+func (a *analysis) blockExits(b *lower.Block) bool {
 	for _, s := range b.Stmts {
-		es, ok := s.(*lower.ExprStmt)
-		if !ok {
-			continue
+		if es, ok := s.(*lower.ExprStmt); ok && a.exits(es.X) {
+			return true
 		}
-		switch x := es.X.(type) {
-		case *lower.LoopEx:
-			if x.Op == "return" {
-				return true
-			}
-		case *lower.Call:
-			if x.Name == "die" || x.Name == "exit" {
-				return true
+	}
+	return false
+}
+
+// exits reports whether n never returns: a return, or a call to a builtin
+// whose signature returns None, as CORE.pmt declares die and exit. last,
+// next and redo are not exits here.
+func (a *analysis) exits(n lower.Node) bool {
+	switch x := n.(type) {
+	case *lower.LoopEx:
+		return x.Op == "return"
+	case *lower.Call:
+		if x.Fn != nil || x.Ampersand || a.overrides[x.Name] {
+			return false
+		}
+		sigs := parse.CoreBuiltin(coreName(x.Name))
+		for _, s := range sigs {
+			if s.Returns != types.None {
+				return false
 			}
 		}
+		return len(sigs) > 0
 	}
 	return false
 }
@@ -431,7 +442,7 @@ func (a *analysis) callGuard(c *lower.Call, user bool) *guardResult {
 	if len(c.Args) != 1 {
 		return nil
 	}
-	switch c.Name {
+	switch coreName(c.Name) {
 	case "defined":
 		if name := guardVarName(c.Args[0]); name != "" {
 			return &guardResult{VarName: name, Guard: types.GuardPattern{Kind: types.GuardDefined}}
