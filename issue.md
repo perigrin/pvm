@@ -3,8 +3,10 @@ title: "Guide: writing and testing a core-module declaration"
 state: pending
 urgency: normal
 milestone: core-module-types
+blocked_by:
+- 01a1464e-d980-7382-970e-067a5ea3db84
 created: 2026-10-16T20:11:35.85395462Z
-updated: 2026-10-16T20:11:35.85395462Z
+updated: 2026-10-16T20:11:49.468411347Z
 ---
 
 ## Prerequisites
