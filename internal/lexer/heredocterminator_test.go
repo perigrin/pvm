@@ -1,4 +1,4 @@
-// ABOUTME: A heredoc terminator line ended by CRLF still ends the body, as perl reads CRLF as LF.
+// ABOUTME: A heredoc terminator line ended by CRLF, or by end of file with no newline, still ends the body.
 // ABOUTME: Each case is perl 5.42's `perl -c` verdict on a file, and the near misses perl refuses stay unterminated.
 
 package lexer
@@ -41,5 +41,22 @@ func TestCRLFHeredocTerminator(t *testing.T) {
 		if terminated(src) {
 			t.Errorf("%q: perl finds no terminator, the lexer did", src)
 		}
+	}
+}
+
+// TestHeredocTerminatorAtEOF: the terminator may be the file's last line
+// with no newline after it. Measured on 5.42.0 with `perl -c`, the first
+// two are "syntax OK", and `EOTX` is "Can't find string terminator".
+func TestHeredocTerminatorAtEOF(t *testing.T) {
+	for _, src := range []string{
+		"my $s = <<EOT;\nabc\nEOT",
+		"my $s = <<~EOT;\n  abc\n  EOT",
+	} {
+		if !terminated(src) {
+			t.Errorf("%q: perl ends the body at EOT, the lexer ran it to EOF", src)
+		}
+	}
+	if src := "my $s = <<EOT;\nabc\nEOTX"; terminated(src) {
+		t.Errorf("%q: perl finds no terminator, the lexer did", src)
 	}
 }
