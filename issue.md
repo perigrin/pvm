@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T20:39:01.402801113Z
-updated: 2026-10-11T15:17:27.677278856Z
+updated: 2026-10-16T18:48:29.872161389Z
 sessions:
 - start_sha: 971b903102dc4a335660172f3b1b5ecad5cf3330
   end_sha: 971b903102dc4a335660172f3b1b5ecad5cf3330
@@ -170,5 +170,5 @@ They are removed; this issue's named tests and ratchet checks remain.
 
 - [ ] `atan2 $a, $b` parenless keeps both arguments (`go test ./internal/parse/ -run '^TestParenlessBuiltinArity$' -count=1 -v | grep -q '^--- PASS: TestParenlessBuiltinArity'`)
 - [ ] The canon of a parenless `atan2` holds no empty call (`go test ./internal/parse/ -run '^TestParenlessArityNoDetachedCall$' -count=1 -v | grep -q '^--- PASS: TestParenlessArityNoDetachedCall'`)
-- [ ] The parse arity tables are audited against perl's keyword list, with the result recorded (`grep -q 'all 266 names in regen/keywords.pl' internal/parse/declarations/CORE.pmt`)
+- [ ] The parse arity tables are audited against perl's keyword list, with the result recorded (`grep -q 'all 266 names in regen/keywords.pl' internal/parse/declarations/CORE.tpm`)
 - [ ] REGRESSION GUARD, passes today: `index`, `sprintf` and `crypt` parenless still take both arguments (`go test ./internal/parse/ -run '^TestParenlessBuiltinArity$' -count=1 -v | grep -q '^--- PASS: TestParenlessBuiltinArity'`)
