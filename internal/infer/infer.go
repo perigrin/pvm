@@ -180,6 +180,9 @@ func (a *analysis) walk(n lower.Node) types.Type {
 		t = types.Unknown
 	case *lower.Decl:
 		t = a.decl(n)
+	case *lower.Block:
+		a.block(n)
+		t = types.Any
 	case *lower.IfStmt:
 		a.ifStmt(n)
 		t = types.Unknown
@@ -205,6 +208,19 @@ func (a *analysis) walk(n lower.Node) types.Type {
 		a.annotations[n.Meta().ID] = t
 	}
 	return t
+}
+
+// block walks b's statements in the scope pass 1 made for it, re-entered
+// under the scope current now, or in a scope of its own when pass 1 made
+// none.
+func (a *analysis) block(b *lower.Block) {
+	if s := a.st.blockScopes[b.ID]; s != nil {
+		a.st.Reenter(s)
+	} else {
+		a.st.EnterScope("block")
+	}
+	a.walkChildren(b)
+	a.st.ExitScope()
 }
 
 // walkChildren walks each of n's children.
@@ -244,11 +260,8 @@ func (a *analysis) decl(d *lower.Decl) types.Type {
 		a.walkChildren(d)
 		return types.Unknown
 	case lower.DeclSub:
-		// The body is walked in a fresh scope, not the one
-		// collectDeclarations filled: a name declared in a sub body is not
-		// found from here, and keeps its sigil type.
-		// ponytail: that loses `my $x = 1` inside every sub; re-entering
-		// pass 1's scope fixes it, and changes what PSC reports.
+		// The body is walked in the scope collectDeclarations filled for
+		// it, under a scope of the sub's name that widenWritten fills.
 		for _, v := range d.Vars {
 			a.walk(v)
 		}
@@ -418,8 +431,9 @@ var sigilTypes = map[string]types.Type{"$": types.Scalar, "@": types.Array, "%":
 // collectDeclarations is pass 1: every my, our and state variable, named
 // sub and package, defined in its scope.
 //
-// A Block is a scope, a named sub's body a scope of the sub's name, and a
-// bare block's body is not one.
+// A Block is a scope, a bare block's and an anonymous sub's body among
+// them, and a named sub's body is a scope of the sub's name. Each is
+// recorded under its block's id, for pass 2 to re-enter.
 func collectDeclarations(f *lower.File, pos *lower.Positions) *SymbolTable {
 	st := NewSymbolTable()
 	var walk func(n lower.Node)
@@ -432,17 +446,9 @@ func collectDeclarations(f *lower.File, pos *lower.Positions) *SymbolTable {
 		switch n := n.(type) {
 		case *lower.Block:
 			st.EnterScope("block")
+			st.blockScopes[n.ID] = st.current
 			walkStmts(n)
 			st.ExitScope()
-			return
-		case *lower.BlockStmt:
-			for _, c := range lower.Children(n) {
-				if c == n.Body {
-					walkStmts(c)
-				} else {
-					walk(c)
-				}
-			}
 			return
 		case *lower.ForeachStmt:
 			// The loop variable is not declared here: pass 2 defines it
@@ -498,6 +504,7 @@ func collectDecl(st *SymbolTable, pos *lower.Positions, d *lower.Decl, walkStmts
 		st.Define(span(Symbol{Name: name, Type: types.Code, Kind: SymSubroutine}))
 		st.EnterScope(name)
 		if body.Body != nil {
+			st.blockScopes[body.Body.Meta().ID] = st.current
 			walkStmts(body.Body)
 		}
 		st.ExitScope()

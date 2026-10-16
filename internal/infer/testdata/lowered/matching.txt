@@ -17,7 +17,6 @@ calls/method_instance.pl
 calls/method_new.pl
 calls/method_unresolved.pl
 calls/nested.pl
-calls/param_usage.pl
 calls/pop_shift.pl
 calls/print_handle.pl
 calls/print_ref_arg.pl
@@ -37,10 +36,7 @@ decl/list.pl
 decl/local.pl
 decl/my.pl
 decl/our.pl
-decl/package.pl
 decl/state.pl
-decl/sub_anon.pl
-decl/sub_named.pl
 flow/and.pl
 flow/and_early_return.pl
 flow/and_keyword.pl
@@ -50,7 +46,6 @@ flow/blessed.pl
 flow/blessed_and_defined.pl
 flow/blessed_bare.pl
 flow/blessed_negated.pl
-flow/block_decl_in_branch.pl
 flow/cfor.pl
 flow/early_die.pl
 flow/early_die_msg.pl
@@ -92,7 +87,6 @@ flow/or.pl
 flow/or_else.pl
 flow/positive_early_return.pl
 flow/reftype.pl
-flow/sub_guard_body.pl
 flow/sub_returns.pl
 flow/undeclared.pl
 flow/unless_defined.pl
@@ -103,7 +97,6 @@ flow/until_defined.pl
 flow/use.pl
 flow/user_arg0.pl
 flow/user_complex_arg.pl
-flow/user_compound.pl
 flow/user_isa.pl
 flow/user_later.pl
 flow/user_negated.pl
@@ -158,13 +151,11 @@ ops/ternary.pl
 ops/ternary_mixed.pl
 ops/ternary_str.pl
 ops/xor.pl
-special/capture_arith.pl
 special/capture_digits.pl
 special/capture_letters.pl
 special/capture_nearest.pl
 special/capture_none.pl
 special/capture_second.pl
-special/do_block.pl
 special/do_file.pl
 special/eval_block.pl
 special/eval_string.pl
@@ -196,7 +187,6 @@ special/sort_list.pl
 special/sort_plain.pl
 special/subst.pl
 special/tr.pl
-special/wantarray.pl
 special/wantarray_top.pl
 vars/array_copy.pl
 vars/array_count.pl

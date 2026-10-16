@@ -220,6 +220,12 @@ func (a *analysis) elemType(n lower.Node) types.Type {
 		return a.callElemType(n)
 	case *lower.MapGrepSort:
 		return a.mapGrepSortElemType(n)
+	case *lower.Var:
+		// An aggregate copied whole hands on its elements, not itself:
+		// `my @cmd = @_` holds what @_ holds.
+		if n.Sigil == "@" || n.Sigil == "%" {
+			return a.aggElemType(n)
+		}
 	}
 	return a.annotations[n.Meta().ID]
 }

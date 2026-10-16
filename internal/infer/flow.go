@@ -197,9 +197,7 @@ func (a *analysis) foreachStmt(n *lower.ForeachStmt) {
 		a.st.Define(Symbol{Name: "$_", Type: types.Scalar, Kind: SymVariable})
 	}
 	a.annotations[loopVar.ID] = types.Scalar
-	for _, s := range body.Stmts {
-		a.walk(s)
-	}
+	a.block(body)
 
 	written := types.Unknown
 	if final, ok := a.st.Lookup(name); ok && final.Type != types.Scalar {
@@ -265,9 +263,7 @@ func (a *analysis) blockWithGuard(b *lower.Block, guards []*guardResult, branchT
 			a.st.Define(Symbol{Name: name, Type: typ, ClassType: classNames[name], Kind: SymVariable})
 		}
 	}
-	for _, s := range b.Stmts {
-		a.walk(s)
-	}
+	a.block(b)
 	if len(shadows) > 0 {
 		if branchTypes != nil {
 			for name := range shadows {
