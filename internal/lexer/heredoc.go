@@ -163,7 +163,9 @@ func heredocBodyEnd(src []byte, pos int, h pendingHeredoc) (int, bool) {
 			// The last line has no newline. Consume it and stop.
 			return len(src), false
 		}
-		line := src[pos : pos+lineEnd]
+		// perl reads a CRLF line as an LF one, so `EOT\r\n` ends the body;
+		// measured on 5.42.0, such a file is "syntax OK".
+		line := bytes.TrimSuffix(src[pos:pos+lineEnd], []byte("\r"))
 		pos += lineEnd + 1
 
 		candidate := line
