@@ -45,3 +45,23 @@ func TestBareBlockIsAScope(t *testing.T) {
 	wantSilent(t, "my $x = 5;\n{ my $x = undef; }\nprint $x + 1, \"\\n\";\n")
 	wantReported(t, "{ my $x = undef; print $x + 1, \"\\n\"; }\n", infer.CodeCoercionMismatch)
 }
+
+// `for my $i ($n)` runs its body once with $i aliased to $n: $i is the
+// loop's own variable, and what the body writes to it is written to $n.
+// perl 5.42 -w prints 4 silently for the first, and warns "Use of
+// uninitialized value $n in addition" on the control, whose body set $n
+// undef through $j.
+func TestForMyDefinesItsVariable(t *testing.T) {
+	wantSilent(t, "my $n = 3;\nmy $i = undef;\nfor my $i ($n) { print $i + 1, \"\\n\"; }\n")
+	wantReported(t, "my $n = 3;\nforeach my $j ($n) { $j = undef; }\nprint $n + 1, \"\\n\";\n", infer.CodeCoercionMismatch)
+}
+
+// A `for my $i` loop scopes $i: the outer $i is not the loop's, and the
+// body's writes to $i do not reach it. perl 5.42 -w prints 6 silently for
+// the first two, and warns "Use of uninitialized value $i in addition" on
+// the control, which reads the loop's own $i after setting it undef.
+func TestForMyScopesItsVariable(t *testing.T) {
+	wantSilent(t, "my $i = 5;\nmy $n = 3;\nfor my $i ($n) { $i = undef; }\nprint $i + 1, \"\\n\";\n")
+	wantSilent(t, "my $i = 5;\nmy @l = (1, 2);\nfor my $i (@l) { $i = undef; }\nprint $i + 1, \"\\n\";\n")
+	wantReported(t, "my $n = 3;\nfor my $i ($n) { $i = undef; print $i + 1, \"\\n\"; }\n", infer.CodeCoercionMismatch)
+}

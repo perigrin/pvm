@@ -162,63 +162,47 @@ func (a *analysis) whileStmt(n *lower.WhileStmt) {
 // defined in a scope of its own, and what the body wrote to it is written
 // back through the alias to what the loop iterates.
 //
-// `for my $i (LIST)` and `for $i (LIST)` define $i. `foreach ($n)` has no
-// loop variable: $n is the aliased slot, so $_ is defined instead and $n
-// keeps its outer binding. Any other shape -- `for (@a)` -- has no scalar
-// to scope, and is walked as it stands.
+// `for my $i (LIST)` and `for $i (LIST)` define $i, and `foreach ($n)`,
+// which has no loop variable, defines $_. A loop over one scalar,
+// `for my $i ($n)` or `foreach ($n)`, runs once with its variable aliased
+// to $n. Any other shape -- `for (@a)` -- has no scalar to scope, and is
+// walked as it stands.
 func (a *analysis) foreachStmt(n *lower.ForeachStmt) {
 	body, isBlock := n.Body.(*lower.Block)
 	loopVar := foreachVar(n.Var)
-	iter := n.List
-	if loopVar == nil {
-		if v, ok := n.List.(*lower.Var); ok && v.Sigil == "$" && n.Var == nil {
-			loopVar, iter = v, nil
-		}
-	} else if v, ok := n.List.(*lower.Var); ok && v.Sigil == "$" {
-		// The first scalar is taken as the loop variable and every later
-		// one skipped, so `for my $i ($n)` iterates nothing and scopes $_
-		// as `foreach ($n)` does.
-		iter = nil
-	}
-	if loopVar == nil || !isBlock {
+	iter, _ := n.List.(*lower.Var)
+	overScalar := iter != nil && iter.Sigil == "$"
+	if !isBlock || (loopVar == nil && (n.Var != nil || !overScalar)) {
 		a.walkChildren(n)
 		return
 	}
 
-	if iter != nil {
-		a.walk(iter)
+	if n.List != nil {
+		a.walk(n.List)
 	}
-	name := loopVar.Sigil + loopVar.Name
+	name := "$_"
+	if loopVar != nil {
+		name = loopVar.Sigil + loopVar.Name
+		a.annotations[loopVar.ID] = types.Scalar
+	}
 	a.st.EnterScope("for")
-	defer a.st.ExitScope()
-	if iter != nil {
-		a.st.Define(Symbol{Name: name, Type: types.Scalar, Kind: SymVariable})
-	} else {
-		a.st.Define(Symbol{Name: "$_", Type: types.Scalar, Kind: SymVariable})
-	}
-	a.annotations[loopVar.ID] = types.Scalar
+	a.st.Define(Symbol{Name: name, Type: types.Scalar, Kind: SymVariable})
 	a.block(body)
+	final, _ := a.st.Lookup(name)
+	a.st.ExitScope()
 
-	written := types.Unknown
-	if final, ok := a.st.Lookup(name); ok && final.Type != types.Scalar {
-		written = final.Type
-	}
-	if underscore, ok := a.st.Lookup("$_"); ok && underscore.Type != types.Scalar {
-		written = types.Join(written, underscore.Type)
-	}
-	if written == types.Unknown {
+	if final.Type == types.Scalar || final.Type == types.Unknown || iter == nil {
 		return
 	}
-	// The alias write-back: `foreach ($n)` aliases the scalar itself,
-	// `for my $x (@a)` the aggregate's elements.
-	if iter == nil {
-		if sym, ok := a.st.Lookup(name); ok {
-			a.st.UpdateType(name, types.Join(sym.Type, written))
+	// The alias write-back: a loop over one scalar aliases the scalar
+	// itself, `for my $x (@a)` the aggregate's elements.
+	switch iter.Sigil {
+	case "$":
+		if sym, ok := a.st.Lookup("$" + iter.Name); ok {
+			a.st.UpdateType("$"+iter.Name, types.Join(sym.Type, final.Type))
 		}
-		return
-	}
-	if v, ok := iter.(*lower.Var); ok && (v.Sigil == "@" || v.Sigil == "%") {
-		a.st.UpdateElemType(v.Sigil+v.Name, written)
+	case "@", "%":
+		a.st.UpdateElemType(iter.Sigil+iter.Name, final.Type)
 	}
 }
 
