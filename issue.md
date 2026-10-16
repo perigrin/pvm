@@ -1,5 +1,5 @@
 ---
-title: Declare POSIX
+title: Declare POSIX's constants, exports and prototypes
 state: pending
 urgency: normal
 milestone: core-module-types
@@ -10,7 +10,7 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.687306804Z
-updated: 2026-10-16T21:00:37.382029527Z
+updated: 2026-10-16T21:01:32.433530555Z
 ---
 
 ## Prerequisites
