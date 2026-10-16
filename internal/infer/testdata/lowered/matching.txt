@@ -72,6 +72,7 @@ flow/for_alias_redeclare.pl
 flow/for_default.pl
 flow/for_list.pl
 flow/for_my.pl
+flow/for_my_scalar.pl
 flow/for_nested_guard.pl
 flow/for_no_my.pl
 flow/foreach_scalar.pl
