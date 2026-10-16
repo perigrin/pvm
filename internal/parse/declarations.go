@@ -313,18 +313,35 @@ var declarationSubAttrs = map[string]bool{
 // attributes are refused by declareVariable.
 func refuseInDeclaration(root *Node, src []byte) []error {
 	var errs []error
-	for _, stmt := range root.Children {
-		for _, n := range stmt.Children {
-			if (n.Kind == Declaration || n.Kind == Binary && n.Text == "=") && len(n.Children) > 0 {
-				switch v := n.Children[0].Text; v {
-				case "@EXPORT", "@EXPORT_OK", "%EXPORT_TAGS":
-					if n.Kind == Declaration {
-						v = n.Text + " " + v
+	// An export list is refused wherever the file names one: declared,
+	// assigned, pushed onto, package-qualified, inside a block, by `use
+	// vars`, or by an element of it.
+	listed := func(n *Node, v string) {
+		errs = append(errs, fmt.Errorf("line %d: %s: a .tpm marks each export :export or :export_ok, not in a list", lineIndex(src).at(n.Start), v))
+	}
+	var walk func(n *Node, prefix string)
+	walk = func(n *Node, prefix string) {
+		if n.Kind == Declaration {
+			prefix = n.Text + " "
+		}
+		for _, c := range n.Children {
+			switch {
+			case c.Kind != Term:
+			case exportListVar(c.Text) && (c.Text[0] != '$' || n.Kind == Index):
+				listed(c, prefix+c.Text)
+			case n.Kind == Use && n.Children[0].Text == "vars" && strings.HasPrefix(c.Text, "qw") && len(c.Text) > 3:
+				for _, w := range strings.Fields(c.Text[3 : len(c.Text)-1]) {
+					if exportListVar(w) && w[0] != '$' {
+						listed(c, "use vars "+w)
 					}
-					errs = append(errs, fmt.Errorf("line %d: %s: a .tpm marks each export :export or :export_ok, not in a list", lineIndex(src).at(n.Start), v))
-					continue
 				}
 			}
+			walk(c, prefix)
+		}
+	}
+	walk(root, "")
+	for _, stmt := range root.Children {
+		for _, n := range stmt.Children {
 			if n.Kind == Declaration && n.Text == "multi" && len(n.Children) == 1 {
 				n = n.Children[0]
 			}
@@ -348,6 +365,19 @@ func refuseInDeclaration(root *Node, src []byte) []error {
 		}
 	}
 	return errs
+}
+
+// exportListVar reports whether v names an export list, @EXPORT,
+// @EXPORT_OK or %EXPORT_TAGS, in any package and under any sigil.
+func exportListVar(v string) bool {
+	if v == "" || !strings.ContainsRune("$@%", rune(v[0])) {
+		return false
+	}
+	base := v[1:]
+	if i := strings.LastIndex(base, "::"); i >= 0 {
+		base = base[i+2:]
+	}
+	return base == "EXPORT" || base == "EXPORT_OK" || base == "EXPORT_TAGS"
 }
 
 // exportMark reads a declaration's `:export` or `:export_ok`; see
