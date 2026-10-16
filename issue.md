@@ -9,7 +9,7 @@ blocks:
 - 01a0fd9b-5700-7514-a143-2caed2d06d8b
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.178619007Z
-updated: 2026-10-16T20:03:21.162940473Z
+updated: 2026-10-16T20:12:57.301410647Z
 ---
 
 ## Prerequisites
@@ -39,3 +39,10 @@ Two rulings issue 01a0fd9b-5700 records as open, settled in `types` before call 
 ### Positive Scenarios
 - [ ] a single fitting-arity candidate is selected despite a mismatched argument type (`go test ./internal/types/ -run '^TestSelectSingleCandidateTakesMismatchedArgs$' -count=1 -v | grep -q '^--- PASS: TestSelectSingleCandidateTakesMismatchedArgs'`)
 - [ ] an unknown context joins instead of failing (`go test ./internal/types/ -run '^TestSelectUnknownContextIsUndecided$' -count=1 -v | grep -q '^--- PASS: TestSelectUnknownContextIsUndecided'`)
+
+### Negative Scenarios
+- [ ] a single candidate whose arity does not fit is still Failed; mismatched argument types never rescue a wrong arity (`go test ./internal/types/ -run '^TestSelectSingleCandidateWrongArityFails$' -count=1 -v | grep -q '^--- PASS: TestSelectSingleCandidateWrongArityFails'`)
+- [ ] two same-arity candidates given an argument of Unknown type are Undecided with the join of their returns, not Failed and not the first candidate (`go test ./internal/types/ -run '^TestSelectUnknownArgBetweenCandidatesJoins$' -count=1 -v | grep -q '^--- PASS: TestSelectUnknownArgBetweenCandidatesJoins'`)
+- [ ] a single candidate under `UnknownCtx` is selected, not Failed (`go test ./internal/types/ -run '^TestSelectUnknownContextSingleCandidate$' -count=1 -v | grep -q '^--- PASS: TestSelectUnknownContextSingleCandidate'`)
+- [ ] `SelectShaped` under `UnknownCtx` is Undecided, as `Select` is (`go test ./internal/types/ -run '^TestSelectShapedUnknownContextIsUndecided$' -count=1 -v | grep -q '^--- PASS: TestSelectShapedUnknownContextIsUndecided'`)
+- [ ] an empty candidate list is Failed with type Unknown and does not panic (`go test ./internal/types/ -run '^TestSelectEmptyCandidatesFails$' -count=1 -v | grep -q '^--- PASS: TestSelectEmptyCandidatesFails'`)
