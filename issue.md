@@ -9,7 +9,7 @@ blocks:
 - 01a0fd9b-5700-7514-a143-2caed2d06d8b
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.178619007Z
-updated: 2026-10-16T22:33:36.599392996Z
+updated: 2026-10-16T22:39:38.282088763Z
 sessions:
 - start_sha: ec99871d43d51af75b3cdcb95b6ddca2a6802abd
   end_sha: 7c74da24f7255401887ced54292a2dbee9bf6434
@@ -68,6 +68,12 @@ Two rulings issue 01a0fd9b-5700 records as open, settled in `types` before call 
 - [ ] Run to verify failure: `go test ./internal/types/ -run '^TestSelectUnknownContextIsUndecided$' -count=1 -v`
 - [ ] Implement; run to verify pass; fix any existing select test whose expectation encoded the old behaviour, and say so in the commit
 - [ ] `make test`; commit
+
+### Review Findings
+
+Tier-2 gate, 2026-10-16, on 7c74da24 (fresh reviewer subagent; six overlay mutations each caught; perl 5.42 measurements reconfirmed). VERDICT: REOPEN.
+
+1. (in scope, confidence 80) `internal/types/select.go:80` the fallback filters in the wrong order: `Taking(cands, unknown, ...)` applies `answering(ctx)` before `fitsContainers` removes Alias-mismatched candidates, so a mismatched Alias candidate can win the context filter, crowd out a value candidate that would coerce, and then be deleted, leaving Failed. Probe: candidates `sig(List, Hash \%h)` and `sig(Str, Num $x)`, argument `Str`: ListCtx gives Failed, though perl would run the value candidate with a coercion warning. The strict path removes non-fitting candidates before `answering`; the fallback must match. Fix: drop Alias-mismatched candidates (fitsContainers on the real args) before `Taking(..., unknown, ...)`; add the probe as a ListCtx test that fails first.
 
 ## Acceptance Criteria
 
