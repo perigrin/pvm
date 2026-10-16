@@ -3,8 +3,10 @@ title: Select a single fitting-arity candidate despite argument types, and join 
 state: pending
 urgency: normal
 milestone: core-module-types
+blocked_by:
+- 01a1464e-d912-7419-8b20-a8e24029b3ec
 created: 2026-10-16T20:02:15.178619007Z
-updated: 2026-10-16T20:02:15.178619007Z
+updated: 2026-10-16T20:02:56.116439276Z
 ---
 
 ## Prerequisites
