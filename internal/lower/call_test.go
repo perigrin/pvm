@@ -331,3 +331,39 @@ func TestCodeRefCallThroughSubscript(t *testing.T) {
 		t.Errorf("time(1): lowered to an element access, %#v", got)
 	}
 }
+
+// Parenthesized says the arguments stand in parentheses (§4.8.1), and
+// grouping parens around the whole call are not those. perl 5.42
+// -MO=Deparse keeps `(localtime)[0]` and `(localtime())[0]` apart, where a
+// grouping paren would be dropped. Space inside the grouping parens, `(
+// join $x, 1 )`, changes nothing. The controls: unwrapped, `localtime()`
+// and `f(1)` are Parenthesized and `localtime` is not.
+func TestCallParenthesizedOnlyForArgList(t *testing.T) {
+	for src, want := range map[string]bool{
+		"(localtime);":     false,
+		"( localtime );":   false,
+		"((localtime));":   false,
+		"(localtime());":   true,
+		"(join $x, 1);":    false,
+		"( join $x, 1 );":  false,
+		"(join($x, 1) );":  true,
+		"((join($x, 1)));": true,
+		"localtime;":       false,
+		"localtime();":     true,
+		"f(1);":            true,
+	} {
+		got := lowerOne(t, src)
+		if !sameKind(got, &lower.Call{}) {
+			t.Errorf("%q: lowered to %#v, not a Call", src, got)
+			continue
+		}
+		if p := field(got, "Parenthesized").Bool(); p != want {
+			t.Errorf("%q: Parenthesized is %v, want %v", src, p, want)
+		}
+	}
+	root := parse.Parse([]byte("(localtime)[0];"))
+	slice := expression(t, root)
+	if base := lower.LowerExpr(root, slice.Children[0]); field(base, "Parenthesized").Bool() {
+		t.Errorf("(localtime)[0]: the call is Parenthesized")
+	}
+}

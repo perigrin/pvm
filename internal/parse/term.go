@@ -731,6 +731,9 @@ func (p *parser) finishList(items []*Node, open lexer.Token) *Node {
 		// Arrow on `($h->{k})`, which is the bug this function once had for
 		// Paren, and an Indirect on `(method $obj ())` in t/op/method.t:79.
 		c := *items[0]
+		if !c.Paren {
+			c.InnerStart, c.InnerEnd = c.Start, c.End
+		}
 		c.Start, c.End = open.Start, p.prevEnd()
 		c.Paren = true
 		// A leaf is written as its source text, which now holds any

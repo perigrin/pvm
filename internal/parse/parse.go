@@ -340,6 +340,13 @@ type Node struct {
 	// marking it would make every call look like a list assignment target.
 	Paren bool
 
+	// InnerStart and InnerEnd are, on a node with Paren, its span before
+	// the grouping parens widened it: `(localtime)` starts and ends at the
+	// parens, and its inner span is `localtime`'s. A fact read off the
+	// span, such as whether a call's arguments stand in parentheses, is
+	// read off this one, since the space inside the parens is unknown.
+	InnerStart, InnerEnd int
+
 	// Fat is set on a list element that was followed by `=>`.
 	//
 	// §4.5.4: a fat comma quotes the word to its left, so `(a => 1)` is the

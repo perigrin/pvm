@@ -38,13 +38,19 @@ var namesCode = map[string]bool{"defined": true, "exists": true, "undef": true}
 // parenthesized reports whether a call's arguments stand in parentheses.
 // A node's span covers its children exactly, so the span running past the
 // last child -- or, with no child, past the name -- is the closing paren:
-// `f(1,2)` does, `join ",", @a` does not.
+// `f(1,2)` does, `join ",", @a` does not. Grouping parens around the call,
+// `(localtime)`, widen its span, so a call with Paren is read off its
+// inner span.
 func parenthesized(n *parse.Node) bool {
-	end := n.Start + len(n.Text)
+	start, stop := n.Start, n.End
+	if n.Paren {
+		start, stop = n.InnerStart, n.InnerEnd
+	}
+	end := start + len(n.Text)
 	if k := len(n.Children); k > 0 {
 		end = n.Children[k-1].End
 	}
-	return n.End > end
+	return stop > end
 }
 
 // ampCall lowers `&foo` standing alone: a call that bypasses prototypes and
