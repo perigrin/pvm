@@ -11,7 +11,7 @@ blocks:
 - 01a14683-8375-7810-8a75-b772680603c6
 - 01a1464e-dc07-754e-9ef4-637df15d51a9
 created: 2026-10-16T20:02:15.387011621Z
-updated: 2026-10-16T21:52:27.385557942Z
+updated: 2026-10-16T22:01:42.733151583Z
 sessions:
 - start_sha: 2fb0e62ffdc068b717c1b1a211c77e72d09ba51a
   end_sha: a9ce48f0047db49c938b19bdad67387cc27a0bd5
@@ -75,6 +75,13 @@ RFC 0001 "Core-module libraries", "Every exported name" and "Typed variables" (p
 - [ ] Write failing test `TestTypedOurOnlyInDeclarations`: the same statement in a module's own source is refused as a parse error, as perl refuses it at compile time (measured above)
 - [ ] Implement; run to verify pass; commit
 - [ ] Run the m1 gates named in the final-gate issue, with the commands it gives them; a ratchet may only be raised. A drop is fixed in the .tpm, or the batch stops and asks perigrin. `make test`; commit
+
+### Review Findings
+
+Tier-2 gate, 2026-10-16, on a9ce48f0 (fresh reviewer subagent; lenses applied inline). VERDICT: REOPEN.
+
+1. (F1, in scope, confidence 80) A list-form `our` in a .tpm silently drops its type and its export: `our Str ($ta, $tb) :export;` and `our ($pa, $pb) :export;` record no type, export nothing and raise no error (`declarations.go:247-249` looks only for a Term child; `decl.go:773` reaches declareVariable only for one variable). This breaks the rule at declarations.go:69-71 that an unread statement is an error, not a gap. Fix: when an `our` in a .tpm carries a type or an :export/:export_ok mark and declares a list, append the error "declare one variable per statement"; add a negative test. (perl itself dies "No such class Str" on `our Str ($a,$b);`.)
+2. (F3, folded in because it is the same reader, confidence 65) A typed `our` in error still exports its name (`our Nope $x :export;`, `our Str %h :export;`), contradicting the comment at typedour_test.go:59-60 "a declaration in error records nothing". Fix: readExportMarks skips a name whose declaration is in error; extend the test to check exports.
 
 ## Acceptance Criteria
 
