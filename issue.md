@@ -1,10 +1,19 @@
 ---
 title: A statement-modifier early exit does not narrow what follows it
-state: pending
+state: in-progress
 urgency: normal
 milestone: v0.1
 created: 2026-10-14T18:41:03.482257838Z
-updated: 2026-10-14T18:41:03.482257838Z
+updated: 2026-10-16T03:03:43.528359379Z
+sessions:
+- start_sha: 9b435686d672051efee1ba667b9380fd8f320817
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-16T03:03:43.528359379Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-16T03:03:43.528359379Z
 ---
 
 ## Context
