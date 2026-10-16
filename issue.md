@@ -1,10 +1,19 @@
 ---
 title: "[I16] An array in a builtin's $ slot is checked as Array, not as its count"
-state: pending
+state: in-progress
 urgency: normal
 milestone: pr486-review
 created: 2026-10-16T01:16:07.721727634Z
-updated: 2026-10-16T01:16:07.721727634Z
+updated: 2026-10-16T01:17:18.462996239Z
+sessions:
+- start_sha: 8a0c85c60a2bae5d04dbbb2b27eb4310312d362f
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-16T01:17:18.462996239Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-16T01:17:18.462996239Z
 ---
 
 ## Context
