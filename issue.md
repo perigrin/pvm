@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: type-libraries
 created: 2026-10-08T13:39:50.125333168Z
-updated: 2026-10-08T13:39:50.125333168Z
+updated: 2026-10-16T18:48:35.051829779Z
 ---
 
 ## Context
@@ -14,7 +14,7 @@ updated: 2026-10-08T13:39:50.125333168Z
 
 Found reviewing 01a11923-bb28 (2026-10-08), which wired a library's infix operators into the parser at the level their relations give (`libraryInfix`, `p.infixOp` in internal/parse).
 
-A library level gets a binding power strictly between its CORE.pmt neighbours', which are 10 apart, so a tenth level between the same two neighbours is an error. Either re-derive powers for the whole order including libraries, or widen the spacing.
+A library level gets a binding power strictly between its CORE.tpm neighbours', which are 10 apart, so a tenth level between the same two neighbours is an error. Either re-derive powers for the whole order including libraries, or widen the spacing.
 
 ## Steps
 
