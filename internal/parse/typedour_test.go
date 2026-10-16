@@ -57,7 +57,7 @@ func TestTypedOurOnlyInDeclarations(t *testing.T) {
 }
 
 // wantDeclarationError wants src, read as a declaration file, to be in
-// error with a message holding want, and to record no variable.
+// error with a message holding want, and to record and export no variable.
 func wantDeclarationError(t *testing.T, src, want string) {
 	t.Helper()
 	facts := readDeclaration([]byte(src), nil)
@@ -66,6 +66,9 @@ func wantDeclarationError(t *testing.T, src, want string) {
 	}
 	if len(facts.variables) > 0 {
 		t.Errorf("%q records %v; a declaration in error records nothing", src, facts.variables)
+	}
+	if len(facts.exports) > 0 {
+		t.Errorf("%q exports %v; a declaration in error exports nothing", src, facts.exports)
 	}
 }
 
@@ -89,4 +92,15 @@ func TestTypedOurUnknownTypeRejected(t *testing.T) {
 func TestTypedOurAggregateWithBareTypeRejected(t *testing.T) {
 	wantDeclarationError(t, "our Str %h :export;\n", "Hash[Str] %h")
 	wantDeclarationError(t, "our Str @a :export;\n", "Array[Str] @a")
+}
+
+// TestTypedOurListRejected: a typed or exported `our` declares one
+// variable, so a list of them is an error rather than a statement read as
+// nothing. Measured on 5.42.0, perl dies on `our Str ($a, $b);` with "No
+// such class Str".
+func TestTypedOurListRejected(t *testing.T) {
+	wantDeclarationError(t, "our Str ($ta, $tb) :export;\n", "declare one variable per statement")
+	wantDeclarationError(t, "our Str ($ta, $tb);\n", "declare one variable per statement")
+	wantDeclarationError(t, "our ($pa, $pb) :export;\n", "declare one variable per statement")
+	wantDeclarationError(t, "our ($pa, $pb) :export_ok(t);\n", "declare one variable per statement")
 }

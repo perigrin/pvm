@@ -243,7 +243,16 @@ func readExportMarks(root *Node, facts *moduleFacts) {
 			case n.Kind == Declaration && n.Text == "sub":
 				name, _ = declaredSub(n)
 			case n.Kind == Declaration && n.Text == "our":
-				if i := slices.IndexFunc(n.Children, func(c *Node) bool { return c.Kind == Term }); i >= 0 {
+				// A typed or marked `our` declares one variable, and one
+				// whose type is in error (declareVariable) exports nothing.
+				typed := slices.ContainsFunc(n.Children, func(c *Node) bool { return c.Kind == TypeName })
+				_, _, marked := exportMark(n)
+				i := slices.IndexFunc(n.Children, func(c *Node) bool { return c.Kind == Term })
+				if i < 0 {
+					if typed || marked {
+						facts.errs = append(facts.errs, fmt.Errorf("our: declare one variable per statement"))
+					}
+				} else if _, recorded := facts.variables[n.Children[i].Text]; recorded || !typed {
 					name = n.Children[i].Text
 				}
 			}
