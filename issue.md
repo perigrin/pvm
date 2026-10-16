@@ -4,7 +4,7 @@ state: in-progress
 urgency: normal
 milestone: pr486-review
 created: 2026-10-16T01:16:08.848421938Z
-updated: 2026-10-16T01:17:16.941951308Z
+updated: 2026-10-16T11:28:13.7031001Z
 sessions:
 - start_sha: 8a0c85c60a2bae5d04dbbb2b27eb4310312d362f
   end_sha: ""
@@ -28,6 +28,9 @@ perigrin ruled 2026-10-16 that every verified finding is fixed on PR #486 before
 `package Foo 1.2 { ... }` and `class Foo 1.0 {}` drop the version. The later child overwrites `Init`.
   - Where: `lower/decl.go:221-232` (60-61).
   - High. NEW. Found by: contract-A #7, plan deviation 7.
+
+
+**Ruled 2026-10-16 (perigrin): add `Decl.Version`.** A new optional field: a package or class version always goes in `Decl.Version`, and `Init` holds only the block (`package Foo 1.2;` gets Init nil). This amends the 2026-10-12 ruling that fixed Decl's fields; update the §4.14 Decl row.
 
 ## Steps
 
