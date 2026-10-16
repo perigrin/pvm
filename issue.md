@@ -1,6 +1,6 @@
 ---
 title: Read typed variables with :export and :export_ok in declaration files
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 blocks:
@@ -11,16 +11,37 @@ blocks:
 - 01a14683-8375-7810-8a75-b772680603c6
 - 01a1464e-dc07-754e-9ef4-637df15d51a9
 created: 2026-10-16T20:02:15.387011621Z
-updated: 2026-10-16T21:09:48.22713089Z
+updated: 2026-10-16T21:52:27.385557942Z
 sessions:
 - start_sha: 2fb0e62ffdc068b717c1b1a211c77e72d09ba51a
-  end_sha: ""
-  commits: 0
+  end_sha: a9ce48f0047db49c938b19bdad67387cc27a0bd5
+  commits: 2
   started_at: 2026-10-16T21:09:48.22713089Z
+  ended_at: 2026-10-16T21:52:27.385557942Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-16T21:09:48.22713089Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-16T21:52:27.385557942Z
+observed_paths:
+- internal/infer/precision_test.go
+- internal/lexer/proto.go
+- internal/parse/decl.go
+- internal/parse/declarations.go
+- internal/parse/exportattr_test.go
+- internal/parse/exports.go
+- internal/parse/parse.go
+- internal/parse/testdata/declarations/My/Exports.tpm
+- internal/parse/testdata/declarations/My/Vars.tpm
+- internal/parse/typedour_test.go
+- internal/parseoracle/goparser_test.go
+- internal/perltest/perl542_test.go
+- internal/perltest/perltest.go
+- internal/psc/lib_baseline_test.go
+- internal/psc/testdata/lib_baseline.txt
+- internal/psc/testdata/lib_true_positives.txt
 ---
 
 ## Prerequisites
