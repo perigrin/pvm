@@ -78,12 +78,19 @@ func isCodeName(n *parse.Node) bool {
 // prototypes with its arguments in the parentheses: `&foo(1)` by name, and
 // `&$code(1)` and `&{$code}(1)` through a reference. `&$code` is one term
 // whose inner expression the parser never built, so its Fn is a Hole with
-// the term's id. Every other base declines.
+// the term's id.
+//
+// An `index "("` with no arguments over a childless call is that call with
+// empty parentheses, `time()` or `wantarray()`: the parser builds a builtin
+// that takes no operand this way. Every other base declines.
 func (l *lowerer) indexCall(n *parse.Node) Node {
 	if n.Text != "(" || len(n.Children) == 0 {
 		return nil
 	}
 	base := n.Children[0]
+	if len(n.Children) == 1 && base.Kind == parse.Call && len(base.Children) == 0 && !base.Paren {
+		return parenthesize(l.expr(base))
+	}
 	c := &Call{Parenthesized: true, Ampersand: true}
 	switch {
 	case isCodeName(base):

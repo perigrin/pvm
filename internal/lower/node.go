@@ -614,3 +614,12 @@ func UseStmts(n Node) []*UseStmt {
 	}
 	return out
 }
+
+// parenthesize sets Parenthesized on n when n is a Call, and returns n. It
+// lives beside Children because it asserts a kind declared here.
+func parenthesize(n Node) Node {
+	if c, ok := n.(*Call); ok {
+		c.Parenthesized = true
+	}
+	return n
+}

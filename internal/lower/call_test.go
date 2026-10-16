@@ -234,3 +234,27 @@ func TestLowerCallOverBrokenInput(t *testing.T) {
 		sameShape(t, c.src, zeroIDs(lowerOne(t, c.src)), c.want)
 	}
 }
+
+// A builtin that takes no operand, called with empty parentheses, is the
+// same call as without them: perl 5.42 -MO=Concise compiles `time()` to
+// time and `wantarray()` to wantarray, and `return wantarray() ? "l" : "s"`
+// gives "l" in list context. The parser gives each an `index "("` over the
+// childless call. The control: `time(1)`, which perl refuses ("syntax
+// error near "(1""), is not that call.
+func TestNiladicBuiltinWithParens(t *testing.T) {
+	cases := []struct {
+		src  string
+		want lower.Node
+	}{
+		{"time();", &lower.Call{Name: "time", Resolved: true, Parenthesized: true}},
+		{"wantarray();", &lower.Wantarray{}},
+		{"wantarray ();", &lower.Wantarray{}},
+		{"time;", &lower.Call{Name: "time", Resolved: true}},
+	}
+	for _, c := range cases {
+		sameShape(t, c.src, zeroIDs(lowerOne(t, c.src)), c.want)
+	}
+	if got := zeroIDs(lowerOne(t, "time(1);")); reflect.DeepEqual(got, &lower.Call{Name: "time", Resolved: true, Parenthesized: true}) {
+		t.Errorf("time(1): lowered to the niladic call time(), which perl refuses")
+	}
+}
