@@ -1,19 +1,23 @@
 ---
 title: The LSP's parse Session never re-reads a module edited on disk
-state: in-progress
+state: done
 urgency: normal
 milestone: v0.1
 created: 2026-10-15T06:38:40.037697818Z
-updated: 2026-10-16T12:06:33.89746069Z
+updated: 2026-10-16T12:06:34.07590098Z
 sessions:
 - start_sha: 77107dfbeb77e7b3f1d94437583eae6d28eb41c3
-  end_sha: ""
+  end_sha: 77107dfbeb77e7b3f1d94437583eae6d28eb41c3
   commits: 0
   started_at: 2026-10-16T12:06:33.89746069Z
+  ended_at: 2026-10-16T12:06:34.07590098Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-16T12:06:33.89746069Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-16T12:06:34.07590098Z
 ---
 
 ## Context
