@@ -23,7 +23,7 @@ blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 - 01a0fd9b-5700-7514-a143-2caed2d06d8b
 created: 2026-10-16T20:59:46.420731313Z
-updated: 2026-10-16T21:54:12.485228145Z
+updated: 2026-10-16T22:01:47.055739597Z
 sessions:
 - start_sha: a9ce48f0047db49c938b19bdad67387cc27a0bd5
   end_sha: ""
@@ -64,6 +64,11 @@ A `.tpm` changes what the parser reads for every file that uses the module, so r
 - [ ] Implement the refusal; run to verify pass; commit
 - [ ] Update the RFC's "Declaration files" example and the `types.md` example; `go test ./internal/cli/ -run '^TestShowTypesHelp$' -count=1`; commit
 - [ ] Run the m1 gates above; `make test`; commit
+
+### Review Findings from dadb's gate (folded into this issue)
+
+1. (F2, confidence 85) A .tpm export list containing `&name` no longer imports it: the import gate at `exports.go:534` compares the `&`-stripped request against `facts.exports`, which still holds `&amp`; perl 5.42 imports `amp` for both `qw(amp)` and `qw(&amp)` with `@EXPORT_OK = qw(&amp)`. Moot once lists are refused, but until then strip a leading `&` when reading list names; the `&name` rule for marks belongs to db1c.
+2. (F4, confidence 70) A misspelled mark on a sub or an untyped `our` is silently ignored: `sub bad :exported () Int;` and `our $x :exported;` export nothing with no error (`declarations.go:280-296`; the unknown-attribute check exists only on typed `our`). This conversion rewrites every sub to marks, so in a .tpm reject any attribute other than :export / :export_ok on a sub or `our`, with a negative test.
 
 ## Acceptance Criteria
 
