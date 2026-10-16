@@ -3,8 +3,10 @@ title: "Hold Carp.tpm to perl: prototypes, export lists and a return-type oracle
 state: pending
 urgency: normal
 milestone: core-module-types
+blocked_by:
+- 01a1464e-d912-7419-8b20-a8e24029b3ec
 created: 2026-10-16T20:02:15.452693569Z
-updated: 2026-10-16T20:02:15.452693569Z
+updated: 2026-10-16T20:03:04.896878714Z
 ---
 
 ## Prerequisites
