@@ -366,3 +366,35 @@ func TestCompoundAssignNarrowsToOperatorResult(t *testing.T) {
 		t.Errorf("%q: diagnostics %v, want one", src, diags)
 	}
 }
+
+// A parenthesised declaration takes its initialiser in list context, so
+// its first scalar is the list's first element, not the array's count:
+// perl 5.42 -w is silent on `my ($fh) = @ARGV; open $fh, "<", $0; flock
+// $fh, 1`, and `my @a = (1, 2); my ($x) = @a` makes $x 1. A hash's first
+// element is a key, a Str. The element keeps what perl warns on: `my @u =
+// (undef, undef); my ($v) = @u; $v + 1` warns "Use of uninitialized value
+// $v in addition (+)".
+func TestListAssignFromArrayIsElement(t *testing.T) {
+	src := "my ($fh) = @ARGV;\nopen $fh, \"<\", $0 or die;\nflock $fh, 1;\n"
+	for _, d := range loweredDiags(src) {
+		t.Errorf("%q: diagnostic %q, want none", src, d.Message)
+	}
+
+	for _, c := range []struct {
+		src, name string
+		want      types.Type
+	}{
+		{"my @a = (1, 2);\nmy ($x) = @a;\n", "$x", types.Int},
+		{"my %g = (k => 1);\nmy ($k) = %g;\n", "$k", types.Str},
+		{"my ($y) = @ARGV;\n", "$y", types.Scalar},
+	} {
+		if got, _ := loweredSymbolType(t, c.src, c.name); got != c.want {
+			t.Errorf("%q: %s is %v, want %v", c.src, c.name, got, c.want)
+		}
+	}
+
+	src = "my @u = (undef, undef);\nmy ($v) = @u;\nprint $v + 1;\n"
+	if diags := loweredDiags(src); len(diags) != 1 {
+		t.Errorf("%q: diagnostics %v, want one", src, diags)
+	}
+}

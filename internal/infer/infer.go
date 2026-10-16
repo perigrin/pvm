@@ -239,6 +239,9 @@ func (a *analysis) decl(d *lower.Decl) types.Type {
 		if a.bindsCaptures(d) {
 			return types.List
 		}
+		if d.ListAssign && vars[0].Sigil == "$" {
+			t = a.firstElement(d.Init, t)
+		}
 		return a.narrow(vars[0], d.Init, t)
 	case lower.DeclPackage:
 		a.walkChildren(d)

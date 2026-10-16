@@ -230,6 +230,28 @@ func (a *analysis) narrow(v *lower.Var, init lower.Node, t types.Type) types.Typ
 	return t
 }
 
+// firstElement is the type of the first element of init, a list
+// initialiser typed t, which a parenthesised declaration's first scalar
+// takes: perl 5.42, `my @a = (1, 2); my ($x) = @a` makes $x 1, not the
+// count. A hash's first element is a key, a Str. An initialiser that is
+// no aggregate is t as it is.
+func (a *analysis) firstElement(init lower.Node, t types.Type) types.Type {
+	if t != types.Array && t != types.Hash && t != types.List {
+		return t
+	}
+	if v, ok := init.(*lower.Var); ok {
+		if v.Sigil == "%" {
+			return types.Str
+		}
+		return a.element(v.Sigil + v.Name)
+	}
+	elem := a.elemType(init)
+	if elem&(types.Array|types.Hash|types.List) != 0 {
+		return types.Scalar
+	}
+	return oneElement(elem)
+}
+
 // isCountOf reports whether n is the inner `() = EXPR` of the count-of
 // idiom: an assignment to the empty list.
 func isCountOf(n lower.Node) bool {
