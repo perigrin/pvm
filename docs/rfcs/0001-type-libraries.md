@@ -944,6 +944,56 @@ rule the call out, it fails as "Multi declarations" says. It waits on
 `infer` running on `internal/parse` (milestone m2-lower-the-tree), which
 is why it is a section of its own.
 
+### Core-module libraries (*Decided*)
+
+perigrin, 2026-10-16. The modules that ship with perl get declaration
+files, starting with the 50 that perl 5.42's own library imports most.
+`CORE.tpm` types the builtins; these types the names a `use` brings in,
+so a call to `croak` or `Scalar::Util::blessed` is typed as `print` is.
+
+**Which 50.** The ranking is measured, not chosen: each core module's
+imports over perl 5.42's library, counting only imports from outside
+the module's own namespace, so Test2 importing Test2 does not inflate
+it. A committed test recomputes the ranking from an installed perl and
+checks it against the list the declarations cover. Measured on
+2026-10-16: 128 modules are imported from outside their namespace,
+1,427 times; the top 50 account for 93%.
+
+**Every exported name.** A declaration file is read in place of the
+module's source, so a name it does not declare is a name the import
+loses. Each file declares every name in the module's `@EXPORT`,
+`@EXPORT_OK` and `%EXPORT_TAGS`, and its export lists equal the
+module's own.
+
+**Typed variables.** Some modules export variables: Config's `%Config`,
+Errno's `%!`. A declaration states one with its type before the
+variable and the export as an attribute, as Chalk and Bson spell it:
+
+    our Hash[Str] %Config :export;
+
+`:export` places the variable in `@EXPORT`, so a bare `use` brings it
+in; `:export_ok` places it in `@EXPORT_OK`, so it must be asked for.
+The names mirror Exporter's own lists (perigrin, 2026-10-16). A typed
+`our` is typed Perl, so it is legal only in a declaration file, as a
+typed signature is.
+
+**Held to perl.** Every declaration is tested against an installed
+perl: declared prototypes equal `prototype()`; export lists equal the
+module's own; return types agree with what an oracle observes when perl
+calls the sub, and an observed value the declared type excludes fails.
+The oracle runs in a scratch directory with no network, and calls only
+subs that are safe there; a sub it cannot call is held to its prototype
+and its export membership. Tests run perl; psc never does.
+
+**Infrastructure modules.** Exporter, XSLoader and DynaLoader are
+inherited from or called by many other modules, so a declaration that
+replaces their source could change how those modules' imports resolve.
+Each is written, then measured: it must keep every module that uses it
+resolving as before and hold the m1 gates, or it is not shipped.
+
+**Exits.** A sub that never returns is declared `None`, as `die` and
+`exit` are in `CORE.tpm`; a call to one ends its path, as a `die` does.
+
 ### Corpus runs share module reads (*Implemented*, 5374dda4)
 
 Resolving imports by reading module source made the T1 ratchet re-read
@@ -992,6 +1042,8 @@ Separate from the paper:
     Perl's refaliasing has no glob form, so the backslash rule does not
     carry over; `lock`, `undef`, `tie`, `tied`, `untie` and `pos` stay
     untyped until this is settled.
+12. *(Resolved: see "Core-module libraries". A typed variable's
+    `:export` places it in `@EXPORT`, `:export_ok` in `@EXPORT_OK`.)*
 
 ## Rejected alternatives
 
