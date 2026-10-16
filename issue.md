@@ -1,5 +1,5 @@
 ---
-title: Type calls to imported library subs from their .pmt declarations and select multis at call sites
+title: Type calls to imported library subs from their .tpm declarations and select multis at call sites
 state: pending
 urgency: normal
 milestone: core-module-types
@@ -9,7 +9,7 @@ blocked_by:
 - 01a0c115-df67-7d69-8883-73d40b0ae15d
 - 01a10177-547c-73a9-a302-f25f579a4cb3
 created: 2026-10-02T17:13:31.136589197Z
-updated: 2026-10-16T20:01:57.837783462Z
+updated: 2026-10-16T20:01:57.964770592Z
 ---
 
 ## Prerequisites
