@@ -11,7 +11,7 @@ blocks:
 - 01a14683-8375-7810-8a75-b772680603c6
 - 01a1464e-dc07-754e-9ef4-637df15d51a9
 created: 2026-10-16T20:02:15.387011621Z
-updated: 2026-10-16T22:40:00.944256018Z
+updated: 2026-10-16T22:47:01.498270793Z
 sessions:
 - start_sha: 2fb0e62ffdc068b717c1b1a211c77e72d09ba51a
   end_sha: a9ce48f0047db49c938b19bdad67387cc27a0bd5
@@ -102,6 +102,12 @@ Tier-2 gate, 2026-10-16, on a9ce48f0 (fresh reviewer subagent; lenses applied in
 
 1. (F1, in scope, confidence 80) A list-form `our` in a .tpm silently drops its type and its export: `our Str ($ta, $tb) :export;` and `our ($pa, $pb) :export;` record no type, export nothing and raise no error (`declarations.go:247-249` looks only for a Term child; `decl.go:773` reaches declareVariable only for one variable). This breaks the rule at declarations.go:69-71 that an unread statement is an error, not a gap. Fix: when an `our` in a .tpm carries a type or an :export/:export_ok mark and declares a list, append the error "declare one variable per statement"; add a negative test. (perl itself dies "No such class Str" on `our Str ($a,$b);`.)
 2. (F3, folded in because it is the same reader, confidence 65) A typed `our` in error still exports its name (`our Nope $x :export;`, `our Str %h :export;`), contradicting the comment at typedour_test.go:59-60 "a declaration in error records nothing". Fix: readExportMarks skips a name whose declaration is in error; extend the test to check exports.
+
+### Review Findings (pass 2)
+
+Tier-2 gate pass 2, 2026-10-16, on bb69c06b (fresh reviewer subagent; overlay mutations). F1 and F3 fixed, each with a test that fails without its fix. VERDICT: REOPEN, minor.
+
+A. (in scope, minor, confidence 65) `internal/parse/declarations.go:255` the `|| !typed` half of the export guard, which keeps an untyped `our $x :export;` exported, is untested: removing it fails no test, and no fixture uses an untyped marked `our`. The conversion issue relies on it. Fix: add TestOurUntypedExport: in a declaration, `our $x :export;` is imported by a bare `use`; `our @y :export_ok(t);` only by `qw(@y)` or `':t'`; neither records a type. Show it fails with the guard reduced to `recorded`.
 
 ## Acceptance Criteria
 
