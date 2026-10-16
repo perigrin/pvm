@@ -507,3 +507,30 @@ func TestSelectAliasedMismatchFails(t *testing.T) {
 	// A value parameter beside it still coerces its own argument.
 	wantSelected(t, []Signature{sig(Int, a, scalar("n", Int))}, []Type{Array, Str}, 0, Int)
 }
+
+// TestSelectUnknownContextIsUndecided: RFC 0001 "Multi declarations", the
+// consumer joins when the call site cannot decide, and Failed means ruled
+// out. A context the call site has not determined rules nothing out, so
+// localtime there is the join of its scalar and list candidates.
+func TestSelectUnknownContextIsUndecided(t *testing.T) {
+	for _, args := range [][]Type{nil, {Int}} {
+		wantUndecidedIn(t, localtimeCandidates, UnknownCtx, args, Str|List)
+	}
+}
+
+// TestSelectUnknownContextSingleCandidate: with one candidate there is
+// nothing for a context to decide, so an undetermined one selects it.
+func TestSelectUnknownContextSingleCandidate(t *testing.T) {
+	wantSelectedIn(t, grepCandidates, UnknownCtx, []Type{Int, Int}, 0, List)
+	wantSelectedIn(t, []Signature{sig(Num, scalar("x", Num))}, UnknownCtx, []Type{Int}, 0, Num)
+}
+
+// TestSelectShapedUnknownContextIsUndecided: SelectShaped joins under an
+// undetermined context as Select does. `(1,2) x 2` is a list in list
+// context and `22` in scalar context, so with neither known it is both.
+func TestSelectShapedUnknownContextIsUndecided(t *testing.T) {
+	got := SelectShaped(repeatCandidates, []Type{Int, Int}, "@$", UnknownCtx)
+	if got.Outcome != Undecided || got.Candidate != -1 || got.Returns != List|Str {
+		t.Errorf("got %+v, want undecided, returning %v", got, List|Str)
+	}
+}

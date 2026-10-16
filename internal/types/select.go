@@ -47,8 +47,10 @@ type Selection struct {
 // fails, and is never joined.
 //
 // ctx is the context the call is in: ScalarCtx (BooleanCtx is the same),
-// ListCtx or VoidCtx. What a call whose context is undetermined passes is
-// RFC 0001 "Call sites"'s; no candidate takes UnknownCtx.
+// ListCtx or VoidCtx, or UnknownCtx when the call site has not determined
+// it. An undetermined context rules nothing out: the call is what each
+// determined context would select, and when they differ, the call site
+// cannot decide, so it is the join of theirs.
 func Select(cands []Signature, args []Type, ctx Context) Selection {
 	return SelectShaped(cands, args, "", ctx)
 }
@@ -63,6 +65,9 @@ func Select(cands []Signature, args []Type, ctx Context) Selection {
 // one as a scalar, before the most specific is sought. With no shapes
 // stated, as for a call to a sub, none is ruled out by shape.
 func SelectShaped(cands []Signature, args []Type, shapes string, ctx Context) Selection {
+	if ctx == UnknownCtx {
+		return selectAnyContext(cands, args, shapes)
+	}
 	fit := Taking(cands, args, shapes, ctx)
 	if len(fit) == 0 {
 		// A parameter type is its argument's coercion target (RFC 0001,
@@ -86,6 +91,29 @@ func SelectShaped(cands []Signature, args []Type, shapes string, ctx Context) Se
 	joined := Unknown
 	for _, i := range fit {
 		joined = Join(joined, cands[i].Returns)
+	}
+	return Selection{Outcome: Undecided, Candidate: -1, Returns: joined}
+}
+
+// selectAnyContext is SelectShaped in a context the call site has not
+// determined: the candidate every determined context selects, if they
+// agree, and otherwise the join of what each takes.
+func selectAnyContext(cands []Signature, args []Type, shapes string) Selection {
+	var taken []Selection
+	for _, ctx := range []Context{ScalarCtx, ListCtx, VoidCtx} {
+		if sel := SelectShaped(cands, args, shapes, ctx); sel.Outcome != Failed {
+			taken = append(taken, sel)
+		}
+	}
+	if len(taken) == 0 {
+		return Selection{Outcome: Failed, Candidate: -1}
+	}
+	if !slices.ContainsFunc(taken, func(sel Selection) bool { return sel != taken[0] }) && taken[0].Outcome == Selected {
+		return taken[0]
+	}
+	joined := Unknown
+	for _, sel := range taken {
+		joined = Join(joined, sel.Returns)
 	}
 	return Selection{Outcome: Undecided, Candidate: -1, Returns: joined}
 }
