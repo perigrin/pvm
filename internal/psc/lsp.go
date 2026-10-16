@@ -61,9 +61,10 @@ func (s *LSPServer) OpenDocument(uri string, source []byte) error {
 	if path, ok := uriPath(uri); ok {
 		// ponytail: @INC is resolved on every open; cache it per directory
 		// if resolution shows up in a profile.
+		roots, _ := incRoots(path)
 		// ponytail: every open re-reads the modules it uses; cache them by
 		// mtime, invalidating facts and seen together, if opens get slow.
-		root = parse.NewSession().ParseSourceFrom(path, source, incRoots(path)...)
+		root = parse.NewSession().ParseSourceFrom(path, source, roots...)
 	} else {
 		root = parse.Parse(source)
 	}

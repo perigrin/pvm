@@ -33,7 +33,8 @@ func newParseCommand() *cobra.Command {
 
 			// Parsed as psc check parses it, so this is the tree check
 			// analysed.
-			root, err := parse.NewSession().ParseFileFrom(filename, incRoots(filename)...)
+			roots, _ := incRoots(filename)
+			root, err := parse.NewSession().ParseFileFrom(filename, roots...)
 			if err != nil {
 				return fmt.Errorf("read %s: %w", filename, err)
 			}

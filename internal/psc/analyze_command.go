@@ -32,7 +32,7 @@ func newAnalyzeCommand() *cobra.Command {
 
 			// Each file is parsed as psc check parses it.
 			sess := parse.NewSession()
-			roots := incRoots(target)
+			roots, _ := incRoots(target)
 
 			if info.IsDir() {
 				return filepath.WalkDir(target, func(path string, d fs.DirEntry, err error) error {
