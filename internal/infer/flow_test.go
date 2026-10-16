@@ -177,3 +177,14 @@ func TestOrWithNonGuardSideDoesNotNarrowThen(t *testing.T) {
 	// $ch in concatenation (.) or string".
 	wantReported(t, "my $ch = $ARGV[0];\nif (!defined $ch) { print \"a\" . $ch, \"\\n\" }\n", infer.CodeCoercionMismatch)
 }
+
+// A negated compound negates every level of it, by De Morgan:
+// `!((A && B) || C)` is `(!A || !B) && !C`, which narrows nothing from A
+// or B. perl 5.42 -w, given 1 and 3, is silent on the first and prints 4.
+func TestNegateGuardIsDeep(t *testing.T) {
+	wantSilent(t, "my $a1 = $ARGV[0];\nmy $b1 = $ARGV[1];\nmy $c1 = undef;\nif (!((!defined $a1 && !defined $b1) || defined $c1)) { print $b1 + 1, \"\\n\" }\n")
+	// `!((B || A) || C)` is `!B && !A && !C`, so $b1 is undef in the
+	// branch: perl -w, given no argument, warns "Use of uninitialized
+	// value $b1 in concatenation (.) or string".
+	wantReported(t, "my $a1 = undef;\nmy $b1 = $ARGV[0];\nmy $c1 = undef;\nif (!((defined $b1 || defined $a1) || defined $c1)) { print \"a\" . $b1, \"\\n\" }\n", infer.CodeCoercionMismatch)
+}

@@ -629,7 +629,7 @@ func compound(op string, l, r *guardResult) *guardResult {
 }
 
 // negateGuard is a guard's negation: a simple guard
-// flips, and a compound one goes through De Morgan.
+// flips, and a compound one goes through De Morgan at every level.
 func negateGuard(g *guardResult) *guardResult {
 	if g == nil {
 		return nil
@@ -643,17 +643,7 @@ func negateGuard(g *guardResult) *guardResult {
 	if g.Compound.Op == "||" {
 		op = "&&"
 	}
-	return &guardResult{Compound: &compoundGuard{Op: op, Left: flipped(g.Compound.Left), Right: flipped(g.Compound.Right)}}
-}
-
-// flipped is g with its Negated flag flipped, or nil for a nil side.
-func flipped(g *guardResult) *guardResult {
-	if g == nil {
-		return nil
-	}
-	n := *g
-	n.Negated = !n.Negated
-	return &n
+	return &guardResult{Compound: &compoundGuard{Op: op, Left: negateGuard(g.Compound.Left), Right: negateGuard(g.Compound.Right)}}
 }
 
 // explicitReturns is the join of every
