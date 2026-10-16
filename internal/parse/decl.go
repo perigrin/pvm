@@ -736,9 +736,25 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 	// branch takes a package name after `my`, `our` or `state` as the
 	// variable's class (find_in_my_stash) -- `local` takes none. Read as a
 	// call, the class split the statement: `my Foo();$f;`.
+	//
+	// A `.tpm`'s `our` takes a type expression there instead, `our
+	// Hash[Str|Undef] %Config :export;` (RFC 0001, "Typed variables"). A
+	// program never reads one: perl refuses it at compile time.
+	var typeName *Node
+	var typ, elem types.Type
 	switch keywordName(p.text(word)) {
 	case "my", "our", "state":
 		if class, ok := p.peekSignificant(); ok && class.Kind == lexer.Word {
+			if p.typed && keywordName(p.text(word)) == "our" {
+				save := p.pos
+				var err error
+				if typ, elem, typeName, err = p.typeExpr(); err == nil {
+					n.Children = append(n.Children, typeName)
+					break
+				}
+				p.typedErrs = append(p.typedErrs, fmt.Errorf("our: %w", err))
+				p.pos, typeName = save, nil
+			}
 			if next, ok := p.peekAfter(class); ok &&
 				(next.Kind == lexer.Variable || p.text(next) == "(") {
 				p.advanceTo(class)
@@ -781,6 +797,9 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 		}
 		n.Children = append(n.Children, target)
 		p.parseAttributes(n)
+		if typeName != nil {
+			p.declareVariable(n, target.Text, typeName.Text, typ, elem)
+		}
 
 		// The initialiser, if there is one. ANY assignment operator, not just
 		// `=`: `local $ENV{PATH} .= $x` is valid perl, and accepting only `=`
@@ -872,6 +891,40 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 	n.Children = append(n.Children, target)
 	n.End = p.prevEnd()
 	return n
+}
+
+// declareVariable records a `.tpm`'s typed `our`, the variable spelled name
+// with the type typ of element elem written as text, on p.variables, or its
+// fault on p.typedErrs. A hash or array is typed by its container, as a
+// slurpy is (RFC 0001, "A slurpy takes no bare element type"), a scalar by
+// what one holds, and its attributes are the export marks.
+func (p *parser) declareVariable(n *Node, name, text string, typ, elem types.Type) {
+	v := types.Param{Name: name[1:], Sigil: name[0], Type: typ, Element: elem}
+	holds := slotHolds('$', false, typ)
+	err := func() error {
+		switch {
+		case v.Sigil == '%' && typ != types.Hash:
+			return fmt.Errorf("%s has type %s; a hash is typed by its container, Hash[%s] %s", name, text, text, name)
+		case v.Sigil == '@' && typ != types.Array:
+			return fmt.Errorf("%s has type %s; an array is typed by its container, Array[%s] %s", name, text, text, name)
+		case v.Sigil == '$' && holds != "":
+			return fmt.Errorf("%s has type %s; a scalar holds %s", name, text, holds)
+		}
+		for _, c := range n.Children {
+			if _, _, ok := exportAttr(c); c.Kind == Attribute && !ok {
+				return fmt.Errorf("%s: unknown attribute %s; a typed our takes :export or :export_ok", name, c.Text)
+			}
+		}
+		return nil
+	}()
+	if err != nil {
+		p.typedErrs = append(p.typedErrs, fmt.Errorf("our %w", err))
+		return
+	}
+	if p.variables == nil {
+		p.variables = map[string]types.Param{}
+	}
+	p.variables[name] = v
 }
 
 // compoundOp is a Declaration's AssignOp for the assignment operator op:

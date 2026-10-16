@@ -309,12 +309,14 @@ func (l *lexer) bareSignatureSigil(start int) bool {
 
 // containerTypeSigil reports whether a `%` in operator position is a hash
 // parameter's sigil after a container type, `List[Str] %h` in a typed
-// signature (RFC 0001, "A slurpy takes no bare element type"). The `]`
-// before it closes a `[` that follows a type name, a Word; an element's `]`
-// in a default, `$a[0] % 2`, closes one that follows a variable, and its
-// `%` stays modulo. Typed Perl only: ordinary source never reads it.
+// signature (RFC 0001, "A slurpy takes no bare element type"), or a typed
+// `our`'s, `our Hash[Str|Undef] %Config` (RFC 0001, "Typed variables").
+// The `]` before it closes a `[` that follows a type name, a Word; an
+// element's `]` in a default, `$a[0] % 2`, closes one that follows a
+// variable, and its `%` stays modulo. Typed Perl only: ordinary source
+// never reads it.
 func (l *lexer) containerTypeSigil() bool {
-	if !l.typed || l.sigDepth != 1 {
+	if !l.typed || l.sigDepth > 1 {
 		return false
 	}
 	i := l.significantBefore(len(l.toks))
