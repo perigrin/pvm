@@ -10,7 +10,7 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.975216591Z
-updated: 2026-10-16T20:04:28.42213386Z
+updated: 2026-10-16T20:13:10.508061359Z
 ---
 
 ## Prerequisites
@@ -47,3 +47,9 @@ A `.tpm` changes what the parser reads for every file that uses the module, so r
 - [ ] declared prototypes equal perl's prototype() (`go test ./internal/parse/ -run '^TestOOModulesPrototypes$' -count=1 -v | grep -q '^--- PASS: TestOOModulesPrototypes'`)
 - [ ] declared export lists equal the modules' own (`go test ./internal/parse/ -run '^TestOOModulesExports$' -count=1 -v | grep -q '^--- PASS: TestOOModulesExports'`)
 - [ ] declared return types hold for every value perl returns (`go test ./internal/infer/ -run '^TestOOModulesReturnTypes$' -count=1 -v | grep -q '^--- PASS: TestOOModulesReturnTypes'`)
+
+### Negative Scenarios
+- [ ] a bare `use File::Spec;` imports nothing, so a bare `catfile(...)` does not resolve to File::Spec's method (`go test ./internal/parse/ -run '^TestFileSpecBareUseImportsNothing$' -count=1 -v | grep -q '^--- PASS: TestFileSpecBareUseImportsNothing'`)
+- [ ] HTTP::Tiny and IO::Socket::IP subs that touch the network are in the exemption map with a reason and are never called (`go test ./internal/infer/ -run '^TestOOModulesNetworkSubsExempt$' -count=1 -v | grep -q '^--- PASS: TestOOModulesNetworkSubsExempt'`)
+- [ ] Term::ReadLine `readline` is exempt with a reason and never called, since it blocks on a terminal (`go test ./internal/infer/ -run '^TestTermReadLineNeverCalled$' -count=1 -v | grep -q '^--- PASS: TestTermReadLineNeverCalled'`)
+- [ ] `use Locale::Maketext::Simple ();` installs neither `loc` nor `loc_lang` (`go test ./internal/parse/ -run '^TestLocaleMaketextSimpleEmptyImportInstallsNothing$' -count=1 -v | grep -q '^--- PASS: TestLocaleMaketextSimpleEmptyImportInstallsNothing'`)
