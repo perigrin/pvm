@@ -52,16 +52,13 @@ func (a *analysis) ifStmt(n *lower.IfStmt) {
 	elseBlock, hasElse := secondary.(*lower.Block)
 	elsif, _ := secondary.(*lower.IfStmt)
 
-	preIfTypes := collectPreIfTypes(guard, a.st)
+	pre := a.preBranchTypes(n)
 
-	var ifBranchTypes map[string]types.Type
+	var ends []map[string]types.Type
 	primaryExits := false
 	if b, ok := primary.(*lower.Block); ok {
 		primaryExits = a.blockExits(b)
-		if !primaryExits {
-			ifBranchTypes = map[string]types.Type{}
-		}
-		a.blockWithGuard(b, a.flatten(guard, negate), ifBranchTypes)
+		ends = append(ends, a.branch(b, a.flatten(guard, negate), pre))
 	} else if primary != nil {
 		a.walk(primary)
 	}
@@ -69,24 +66,94 @@ func (a *analysis) ifStmt(n *lower.IfStmt) {
 	// The body exits and nothing else follows it: what runs after the
 	// statement knows the guard failed.
 	if primaryExits && guard != nil && guard.VarName != "" && secondary == nil {
+		a.restore(pre)
 		narrowContinuation(a.flatten(guard, !negate), a.st)
 		return
 	}
 
-	var elsifJoinTypes map[string]types.Type
+	exhaustive := hasElse
 	if elsif != nil {
-		elsifJoinTypes = a.elsif(elsif)
+		var more []map[string]types.Type
+		more, exhaustive = a.elsif(elsif, pre)
+		ends = append(ends, more...)
 	}
 
-	var elseBranchTypes map[string]types.Type
 	if hasElse {
-		elseBranchTypes = map[string]types.Type{}
-		a.blockWithGuard(elseBlock, a.flatten(guard, !negate), elseBranchTypes)
+		ends = append(ends, a.branch(elseBlock, a.flatten(guard, !negate), pre))
 	} else if secondary != nil && elsif == nil {
 		a.walk(secondary)
 	}
 
-	applyBranchJoin(guard, preIfTypes, ifBranchTypes, elsifJoinTypes, elseBranchTypes, hasElse, a.st)
+	a.joinBranches(pre, ends, exhaustive)
+}
+
+// preBranchTypes is the type each variable named in n has before n's
+// bodies run: each body starts from it, as perl runs at most one of them,
+// and the join after n takes it for the path on which none ran.
+func (a *analysis) preBranchTypes(n lower.Node) map[string]types.Type {
+	pre := map[string]types.Type{}
+	var find func(n lower.Node)
+	find = func(n lower.Node) {
+		if v, ok := n.(*lower.Var); ok {
+			if _, named := sigilTypes[v.Sigil]; named {
+				if sym, ok := a.st.Lookup(v.Sigil + v.Name); ok {
+					pre[v.Sigil+v.Name] = sym.Type
+				}
+			}
+		}
+		for _, c := range lower.Children(n) {
+			find(c)
+		}
+	}
+	find(n)
+	return pre
+}
+
+// restore sets each of pre's variables back to the type pre holds.
+func (a *analysis) restore(pre map[string]types.Type) {
+	for name, typ := range pre {
+		a.st.UpdateType(name, typ)
+	}
+}
+
+// branch walks b, one body of a conditional, under guards and from the
+// types pre holds, and returns the type each of pre's variables has at its
+// end: nil when b always exits, as its end never reaches the join.
+func (a *analysis) branch(b *lower.Block, guards []*guardResult, pre map[string]types.Type) map[string]types.Type {
+	a.restore(pre)
+	if a.blockExits(b) {
+		a.blockWithGuard(b, guards, nil)
+		return nil
+	}
+	end := make(map[string]types.Type, len(pre))
+	for name := range pre {
+		end[name] = types.None
+	}
+	a.blockWithGuard(b, guards, end)
+	return end
+}
+
+// joinBranches sets each of pre's variables to the join of the types the
+// bodies of a conditional left it, ends, and of its type before the
+// conditional when no body need have run, as when there is no else. A
+// body a guard proves unreachable leaves its variable None, the join
+// identity, so it adds nothing.
+func (a *analysis) joinBranches(pre map[string]types.Type, ends []map[string]types.Type, exhaustive bool) {
+	for name, before := range pre {
+		joined, reached := types.None, false
+		if !exhaustive {
+			joined, reached = before, true
+		}
+		for _, end := range ends {
+			if end != nil {
+				joined, reached = types.Join(joined, end[name]), true
+			}
+		}
+		if !reached {
+			joined = before
+		}
+		a.st.UpdateType(name, joined)
+	}
 }
 
 // modifierExit narrows what follows a modifier form whose body exits:
@@ -136,38 +203,36 @@ func (a *analysis) before(x, y lower.Node) bool {
 	return xok && yok && xs < ys
 }
 
-// elsif walks an elsif, which narrows its own body by its
-// own guard and its else by the negation, and returns the union of the
-// branch-end types of the variables it guarded, its trailing chain's
-// included. The conditions before it do not narrow it.
-func (a *analysis) elsif(n *lower.IfStmt) map[string]types.Type {
+// elsif walks an elsif, which narrows its own body by its own guard and
+// its else by the negation, each body from the types pre holds, as branch
+// says. It returns each body's end types, its trailing chain's included,
+// and whether the chain ends in an else. The conditions before it do not
+// narrow it.
+func (a *analysis) elsif(n *lower.IfStmt, pre map[string]types.Type) ([]map[string]types.Type, bool) {
+	a.restore(pre)
 	if n.Cond != nil {
 		a.walk(n.Cond)
 	}
 	guard := a.guard(n.Cond, true)
 
-	var joinTypes map[string]types.Type
+	var ends []map[string]types.Type
 	if b, ok := n.Then.(*lower.Block); ok {
-		if !a.blockExits(b) {
-			joinTypes = map[string]types.Type{}
-		}
-		a.blockWithGuard(b, a.flatten(guard, false), joinTypes)
+		ends = append(ends, a.branch(b, a.flatten(guard, false), pre))
 	} else if n.Then != nil {
 		a.walk(n.Then)
 	}
 
 	switch e := n.Else.(type) {
 	case *lower.Block:
-		elseTypes := map[string]types.Type{}
-		a.blockWithGuard(e, a.flatten(guard, true), elseTypes)
-		joinTypes = mergeBranchTypes(joinTypes, elseTypes)
+		return append(ends, a.branch(e, a.flatten(guard, true), pre)), true
 	case *lower.IfStmt:
-		joinTypes = mergeBranchTypes(joinTypes, a.elsif(e))
+		more, exhaustive := a.elsif(e, pre)
+		return append(ends, more...), exhaustive
 	case nil:
 	default:
 		a.walk(e)
 	}
-	return joinTypes
+	return ends, false
 }
 
 // whileStmt walks a while loop, whose body runs with the guard
@@ -196,65 +261,47 @@ func (a *analysis) whileStmt(n *lower.WhileStmt) {
 // defined in a scope of its own, and what the body wrote to it is written
 // back through the alias to what the loop iterates.
 //
-// `for my $i (LIST)` and `for $i (LIST)` define $i. `foreach ($n)` has no
-// loop variable: $n is the aliased slot, so $_ is defined instead and $n
-// keeps its outer binding. Any other shape -- `for (@a)` -- has no scalar
-// to scope, and is walked as it stands.
+// `for my $i (LIST)` and `for $i (LIST)` define $i, and `foreach ($n)`,
+// which has no loop variable, defines $_. A loop over one scalar,
+// `for my $i ($n)` or `foreach ($n)`, runs once with its variable aliased
+// to $n. Any other shape -- `for (@a)` -- has no scalar to scope, and is
+// walked as it stands.
 func (a *analysis) foreachStmt(n *lower.ForeachStmt) {
 	body, isBlock := n.Body.(*lower.Block)
 	loopVar := foreachVar(n.Var)
-	iter := n.List
-	if loopVar == nil {
-		if v, ok := n.List.(*lower.Var); ok && v.Sigil == "$" && n.Var == nil {
-			loopVar, iter = v, nil
-		}
-	} else if v, ok := n.List.(*lower.Var); ok && v.Sigil == "$" {
-		// The first scalar is taken as the loop variable and every later
-		// one skipped, so `for my $i ($n)` iterates nothing and scopes $_
-		// as `foreach ($n)` does.
-		iter = nil
-	}
-	if loopVar == nil || !isBlock {
+	iter, _ := n.List.(*lower.Var)
+	overScalar := iter != nil && iter.Sigil == "$"
+	if !isBlock || (loopVar == nil && (n.Var != nil || !overScalar)) {
 		a.walkChildren(n)
 		return
 	}
 
-	if iter != nil {
-		a.walk(iter)
+	if n.List != nil {
+		a.walk(n.List)
 	}
-	name := loopVar.Sigil + loopVar.Name
+	name := "$_"
+	if loopVar != nil {
+		name = loopVar.Sigil + loopVar.Name
+		a.annotations[loopVar.ID] = types.Scalar
+	}
 	a.st.EnterScope("for")
-	defer a.st.ExitScope()
-	if iter != nil {
-		a.st.Define(Symbol{Name: name, Type: types.Scalar, Kind: SymVariable})
-	} else {
-		a.st.Define(Symbol{Name: "$_", Type: types.Scalar, Kind: SymVariable})
-	}
-	a.annotations[loopVar.ID] = types.Scalar
-	for _, s := range body.Stmts {
-		a.walk(s)
-	}
+	a.st.Define(Symbol{Name: name, Type: types.Scalar, Kind: SymVariable})
+	a.block(body)
+	final, _ := a.st.Lookup(name)
+	a.st.ExitScope()
 
-	written := types.Unknown
-	if final, ok := a.st.Lookup(name); ok && final.Type != types.Scalar {
-		written = final.Type
-	}
-	if underscore, ok := a.st.Lookup("$_"); ok && underscore.Type != types.Scalar {
-		written = types.Join(written, underscore.Type)
-	}
-	if written == types.Unknown {
+	if final.Type == types.Scalar || final.Type == types.Unknown || iter == nil {
 		return
 	}
-	// The alias write-back: `foreach ($n)` aliases the scalar itself,
-	// `for my $x (@a)` the aggregate's elements.
-	if iter == nil {
-		if sym, ok := a.st.Lookup(name); ok {
-			a.st.UpdateType(name, types.Join(sym.Type, written))
+	// The alias write-back: a loop over one scalar aliases the scalar
+	// itself, `for my $x (@a)` the aggregate's elements.
+	switch iter.Sigil {
+	case "$":
+		if sym, ok := a.st.Lookup("$" + iter.Name); ok {
+			a.st.UpdateType("$"+iter.Name, types.Join(sym.Type, final.Type))
 		}
-		return
-	}
-	if v, ok := iter.(*lower.Var); ok && (v.Sigil == "@" || v.Sigil == "%") {
-		a.st.UpdateElemType(v.Sigil+v.Name, written)
+	case "@", "%":
+		a.st.UpdateElemType(iter.Sigil+iter.Name, final.Type)
 	}
 }
 
@@ -290,7 +337,8 @@ func (a *analysis) useStmt(n *lower.UseStmt) {
 // blockWithGuard walks a block under guards: the guarded variables
 // are shadowed, in one "guard" scope, by what the guards narrow them to,
 // and the block's statements are walked under it. When branchTypes is not
-// nil it receives each shadowed variable's type at the end of the block.
+// nil it receives the type at the end of the block of each variable it
+// holds a key for, a shadowed one's being its shadow's.
 func (a *analysis) blockWithGuard(b *lower.Block, guards []*guardResult, branchTypes map[string]types.Type) {
 	shadows, classNames := guardShadows(guards, a.st)
 	if len(shadows) > 0 {
@@ -299,17 +347,13 @@ func (a *analysis) blockWithGuard(b *lower.Block, guards []*guardResult, branchT
 			a.st.Define(Symbol{Name: name, Type: typ, ClassType: classNames[name], Kind: SymVariable})
 		}
 	}
-	for _, s := range b.Stmts {
-		a.walk(s)
+	a.block(b)
+	for name := range branchTypes {
+		if sym, ok := a.st.Lookup(name); ok {
+			branchTypes[name] = sym.Type
+		}
 	}
 	if len(shadows) > 0 {
-		if branchTypes != nil {
-			for name := range shadows {
-				if sym, ok := a.st.Lookup(name); ok {
-					branchTypes[name] = sym.Type
-				}
-			}
-		}
 		a.st.ExitScope()
 	}
 }
@@ -528,7 +572,13 @@ func (a *analysis) userGuard(name, arg string) *guardResult {
 	if ret == nil {
 		return nil
 	}
-	return remapGuardVar(a.guard(ret, false), param, arg)
+	// A guard on any other variable, one the body declares, says
+	// nothing of the caller's.
+	g := a.guard(ret, false)
+	if !guardsOnly(g, param) {
+		return nil
+	}
+	return remapGuardVar(g, param, arg)
 }
 
 // fileSubs maps the name of each named sub declared at file level to its
@@ -549,33 +599,11 @@ func fileSubs(f *lower.File) map[string]*lower.AnonSub {
 	return subs
 }
 
-// subParam is a sub's one parameter: a signature's one mandatory
-// scalar, else `my $v = shift` as the body's first statement, else $_[0]
-// read anywhere in the body. "" if the sub has none of them.
+// subParam is a sub's one parameter, as subParams finds them: "" when
+// it has none, or more than one.
 func subParam(s *lower.AnonSub) string {
-	if len(s.Sig) > 0 {
-		var params []string
-		for _, p := range s.Sig {
-			if v, ok := p.(*lower.Var); ok && v.Sigil == "$" {
-				params = append(params, "$"+v.Name)
-			}
-		}
-		if len(params) == 1 {
-			return params[0]
-		}
-		return ""
-	}
-	body, ok := s.Body.(*lower.Block)
-	if !ok {
-		return ""
-	}
-	if len(body.Stmts) > 0 {
-		if name := shiftParam(body.Stmts[0]); name != "" {
-			return name
-		}
-	}
-	if readsArg0(body) {
-		return "$_[0]"
+	if params := subParams(s); len(params) == 1 {
+		return params[0]
 	}
 	return ""
 }
@@ -595,46 +623,44 @@ func readsArg0(n lower.Node) bool {
 	return false
 }
 
-// subReturnExpr is a sub's returned expression: the value of the
-// body's one return, or the last expression statement when it has none.
-// More than one return is too much to read, and so is a bare one.
+// subReturnExpr is a sub's returned expression: the value of its one
+// return when that return is the body's last statement, or the body's
+// last statement when that is an expression and the sub has no return. A
+// return a modifier makes conditional, or that is not last, is one of two
+// values the sub may hand back, and more than one return is too much to
+// read, and so is a bare one.
 func subReturnExpr(body lower.Node) lower.Node {
-	var rets []*lower.LoopEx
-	var find func(n lower.Node)
-	find = func(n lower.Node) {
-		if r, ok := n.(*lower.LoopEx); ok && r.Op == "return" {
-			rets = append(rets, r)
-			return
-		}
-		for _, c := range lower.Children(n) {
-			if d, ok := c.(*lower.Decl); ok && d.Kind == lower.DeclSub {
-				continue
-			}
-			find(c)
-		}
-	}
-	if body == nil {
-		return nil
-	}
-	find(body)
-	switch len(rets) {
-	case 0:
-	case 1:
-		return rets[0].Label
-	default:
-		return nil
-	}
 	b, ok := body.(*lower.Block)
+	if !ok || len(b.Stmts) == 0 {
+		return nil
+	}
+	var rets []*lower.LoopEx
+	returnsOf(b, func(r *lower.LoopEx, _ *lower.IfStmt) {
+		rets = append(rets, r)
+	})
+	last, ok := b.Stmts[len(b.Stmts)-1].(*lower.ExprStmt)
 	if !ok {
 		return nil
 	}
-	var last lower.Node
-	for _, s := range b.Stmts {
-		if es, ok := s.(*lower.ExprStmt); ok {
-			last = es.X
-		}
+	switch {
+	case len(rets) == 0:
+		return last.X
+	case len(rets) == 1 && last.X == lower.Node(rets[0]):
+		return rets[0].Label
 	}
-	return last
+	return nil
+}
+
+// guardsOnly reports whether every leaf of g guards name. A side of a
+// compound guard that is no guard says nothing of any variable.
+func guardsOnly(g *guardResult, name string) bool {
+	if g == nil {
+		return true
+	}
+	if g.Compound != nil {
+		return guardsOnly(g.Compound.Left, name) && guardsOnly(g.Compound.Right, name)
+	}
+	return g.VarName == name
 }
 
 // guardVarName is the name a guard narrows: $x for a scalar, and the text
@@ -695,20 +721,60 @@ func negateGuard(g *guardResult) *guardResult {
 	return &guardResult{Compound: &compoundGuard{Op: op, Left: negateGuard(g.Compound.Left), Right: negateGuard(g.Compound.Right)}}
 }
 
-// explicitReturns is the join of every
-// return's value under n, a bare return giving Undef.
-func (a *analysis) explicitReturns(n lower.Node) types.Type {
-	if r, ok := n.(*lower.LoopEx); ok && r.Op == "return" {
-		if r.Label == nil {
-			return types.Undef
-		}
-		return a.returnedValue(r.Label)
-	}
+// explicitReturns is the join of the value of every return of the sub
+// whose body is n, a bare return giving Undef, and whether each of them
+// is of a known type.
+func (a *analysis) explicitReturns(n lower.Node) (types.Type, bool) {
 	var t types.Type
-	for _, c := range lower.Children(n) {
-		t |= a.explicitReturns(c)
+	known := true
+	returnsOf(n, func(r *lower.LoopEx, _ *lower.IfStmt) {
+		if r.Label == nil {
+			t |= types.Undef
+			return
+		}
+		v := a.returnedValue(r.Label)
+		t |= v
+		known = known && v != types.Unknown
+	})
+	return t, known
+}
+
+// returnsOf calls visit with each return of the sub whose body is n, in
+// source order, and the `if` statement whose successful match guards it,
+// or nil. A return in a sub nested in n, named or anonymous, returns from
+// that sub, and is not visited.
+func returnsOf(n lower.Node, visit func(r *lower.LoopEx, match *lower.IfStmt)) {
+	var walk func(n lower.Node, match *lower.IfStmt)
+	walk = func(n lower.Node, match *lower.IfStmt) {
+		switch n := n.(type) {
+		case nil, *lower.AnonSub:
+			return
+		case *lower.Decl:
+			if n.Kind == lower.DeclSub {
+				return
+			}
+		case *lower.LoopEx:
+			if n.Op == "return" {
+				visit(n, match)
+				return
+			}
+		case *lower.IfStmt:
+			if m, success := successMatch(n); m != nil {
+				for _, c := range lower.Children(n) {
+					if c == success {
+						walk(c, n)
+					} else {
+						walk(c, nil)
+					}
+				}
+				return
+			}
+		}
+		for _, c := range lower.Children(n) {
+			walk(c, match)
+		}
 	}
-	return t
+	walk(n, nil)
 }
 
 // returnedValue is the type of what a sub hands back in scalar context. A
@@ -724,25 +790,34 @@ func (a *analysis) returnedValue(n lower.Node) types.Type {
 	return a.annotations[n.Meta().ID]
 }
 
-// implicitReturn is the type of a
-// block's last statement when it is an expression, or the join of both
-// bodies of a closing conditional.
-func (a *analysis) implicitReturn(b *lower.Block) types.Type {
+// implicitReturn is the type of the value a block hands back when
+// control falls off its end, and whether it is known: its last
+// statement's when that is an expression, or the join of both bodies of a
+// closing conditional. A block that always returns, dies or exits falls
+// off nothing, and adds no type that is not known. Any other last
+// statement's value, and an empty block's, is not known.
+func (a *analysis) implicitReturn(b *lower.Block) (types.Type, bool) {
 	if b == nil || len(b.Stmts) == 0 {
-		return types.Unknown
+		return types.Unknown, false
+	}
+	if a.blockExits(b) {
+		return types.Unknown, true
 	}
 	switch s := b.Stmts[len(b.Stmts)-1].(type) {
 	case *lower.ExprStmt:
 		if s.X != nil {
-			return a.returnedValue(s.X)
+			t := a.returnedValue(s.X)
+			return t, t != types.Unknown
 		}
 	case *lower.IfStmt:
 		if !isBranch(s.Then) || !isBranch(s.Else) {
-			return types.Unknown
+			return types.Unknown, false
 		}
 		then, _ := s.Then.(*lower.Block)
 		els, _ := s.Else.(*lower.Block)
-		return a.implicitReturn(then) | a.implicitReturn(els)
+		tt, tk := a.implicitReturn(then)
+		et, ek := a.implicitReturn(els)
+		return tt | et, tk && ek
 	}
-	return types.Unknown
+	return types.Unknown, false
 }

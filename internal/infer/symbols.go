@@ -4,6 +4,7 @@
 package infer
 
 import (
+	"tamarou.com/pvm/internal/lower"
 	"tamarou.com/pvm/internal/types"
 )
 
@@ -63,6 +64,9 @@ type Scope struct {
 type SymbolTable struct {
 	root    *Scope
 	current *Scope
+	// blockScopes is the scope pass 1 made for each block, keyed by the
+	// block's id, which pass 2 re-enters as it walks the block.
+	blockScopes map[lower.ID]*Scope
 }
 
 // NewSymbolTable creates a fresh symbol table rooted at the implicit "main"
@@ -73,7 +77,7 @@ func NewSymbolTable() *SymbolTable {
 		parent:  nil,
 		symbols: make(map[string]Symbol),
 	}
-	return &SymbolTable{root: root, current: root}
+	return &SymbolTable{root: root, current: root, blockScopes: map[lower.ID]*Scope{}}
 }
 
 // Define adds sym to the current (innermost) scope, overwriting any
@@ -104,6 +108,15 @@ func (st *SymbolTable) EnterScope(name string) {
 	}
 	st.current.children = append(st.current.children, child)
 	st.current = child
+}
+
+// Reenter makes s, a scope pass 1 made, current again, as a child of the
+// scope current now: a lookup in s then reaches what pass 2 defined
+// around it, a guard's shadows or a loop variable, before the scopes that
+// enclose it. ExitScope leaves it.
+func (st *SymbolTable) Reenter(s *Scope) {
+	s.parent = st.current
+	st.current = s
 }
 
 // ExitScope pops the current scope back to its parent.  Calling ExitScope on

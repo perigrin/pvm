@@ -1,3 +1,3 @@
 sym $f CodeRef
 sym $g CodeRef
-sym $inner Scalar
+sym $inner Int

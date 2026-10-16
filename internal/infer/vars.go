@@ -219,13 +219,15 @@ func (a *analysis) elemType(n lower.Node) types.Type {
 		return a.rangeElemType(n)
 	case *lower.Call:
 		return a.callElemType(n)
-	case *lower.Var:
-		// A copied array holds the array's elements, not the array.
-		if n.Sigil == "@" {
-			return a.elemOf("@" + n.Name)
-		}
 	case *lower.MapGrepSort:
 		return a.mapGrepSortElemType(n)
+	case *lower.Var:
+		// An aggregate copied whole hands on its elements, not itself: a
+		// copied array holds the array's elements, not the array, so
+		// `my @cmd = @_` holds what @_ holds.
+		if n.Sigil == "@" || n.Sigil == "%" {
+			return a.aggElemType(n)
+		}
 	}
 	return a.annotations[n.Meta().ID]
 }

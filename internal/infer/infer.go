@@ -176,6 +176,9 @@ func (a *analysis) walk(n lower.Node) types.Type {
 		t = types.Unknown
 	case *lower.Decl:
 		t = a.decl(n)
+	case *lower.Block:
+		a.block(n)
+		t = types.Any
 	case *lower.ExprStmt:
 		a.exprStmt(n)
 		t = types.Any
@@ -204,6 +207,19 @@ func (a *analysis) walk(n lower.Node) types.Type {
 		a.annotations[n.Meta().ID] = t
 	}
 	return t
+}
+
+// block walks b's statements in the scope pass 1 made for it, re-entered
+// under the scope current now, or in a scope of its own when pass 1 made
+// none.
+func (a *analysis) block(b *lower.Block) {
+	if s := a.st.blockScopes[b.ID]; s != nil {
+		a.st.Reenter(s)
+	} else {
+		a.st.EnterScope("block")
+	}
+	a.walkChildren(b)
+	a.st.ExitScope()
 }
 
 // walkChildren walks each of n's children.
@@ -246,11 +262,8 @@ func (a *analysis) decl(d *lower.Decl) types.Type {
 		a.walkChildren(d)
 		return types.Unknown
 	case lower.DeclSub:
-		// The body is walked in a fresh scope, not the one
-		// collectDeclarations filled: a name declared in a sub body is not
-		// found from here, and keeps its sigil type.
-		// ponytail: that loses `my $x = 1` inside every sub; re-entering
-		// pass 1's scope fixes it, and changes what PSC reports.
+		// The body is walked in the scope collectDeclarations filled for
+		// it, under a scope of the sub's name that widenWritten fills.
 		for _, v := range d.Vars {
 			a.walk(v)
 		}
@@ -261,17 +274,30 @@ func (a *analysis) decl(d *lower.Decl) types.Type {
 			ret := types.Unknown
 			if body, ok := d.Init.(*lower.AnonSub); ok && body.Body != nil {
 				b, _ := body.Body.(*lower.Block)
-				ret = a.explicitReturns(body.Body) | a.implicitReturn(b)
-			}
-			written := map[string]types.Type{}
-			for name, typ := range widened {
-				if sym, ok := a.st.Lookup(name); ok && sym.Type != typ {
-					written[name] = sym.Type
+				// A return of no known type says nothing of what the
+				// others leave out: the sub's type is known only when
+				// every one of them is.
+				explicit, eok := a.explicitReturns(body.Body)
+				implicit, iok := a.implicitReturn(b)
+				if eok && iok {
+					ret = explicit | implicit
 				}
 			}
+			writes := assignedNames(d.Init)
 			a.st.ExitScope()
-			for name, typ := range written {
-				a.st.UpdateType(name, typ)
+			// After the declaration a variable the sub writes holds what
+			// it held before, or what the sub wrote, as the sub has run
+			// or not. PSC does not see which, so the variable is widened
+			// to its sigil type, as widenWritten widens it for the sub's
+			// readers. perl 5.42 -w prints 6 for `my $p = 5; sub r { $p
+			// = undef } print $p + 1`, and for `my $p = undef; sub w {
+			// $p = 5 } w(); print $p + 1`.
+			// ponytail: flow-insensitive; reading the writes of the
+			// subs a call reaches would keep the narrowed type.
+			for name, typ := range widened {
+				if writes[name] {
+					a.st.UpdateType(name, typ)
+				}
 			}
 			if name := subName(d); name != "" && ret != types.Unknown {
 				a.st.UpdateReturnType(name, ret)
@@ -295,8 +321,8 @@ func (a *analysis) decl(d *lower.Decl) types.Type {
 // assigns but its declaration keeps its type, so `my $p = undef; sub r {
 // $p eq 'n' } r();` is still reported, as perl warns.
 //
-// What the sub assigns to a shadowed variable reaches the code after it
-// as an assignment in its body always has, by the caller's UpdateType.
+// A shadowed variable the sub assigns is widened in the code after the
+// sub too, as decl says.
 //
 // ponytail: assignments are matched by name, not by the variable they
 // resolve to, so a same-named variable elsewhere widens this one too;
@@ -331,7 +357,7 @@ func (a *analysis) widenWritten(body lower.Node) map[string]types.Type {
 // variable may be assigned by any code, through its full name or a
 // symbolic reference, as Math::BigInt's downgrade() sets
 // ${"${class}::downgrade"}.
-func assignedNames(f *lower.File) map[string]bool {
+func assignedNames(f lower.Node) map[string]bool {
 	names := map[string]bool{}
 	var find func(n lower.Node)
 	find = func(n lower.Node) {
@@ -425,8 +451,9 @@ var sigilTypes = map[string]types.Type{"$": types.Scalar, "@": types.Array, "%":
 // collectDeclarations is pass 1: every my, our and state variable, named
 // sub and package, defined in its scope.
 //
-// A Block is a scope, a named sub's body a scope of the sub's name, and a
-// bare block's body is not one.
+// A Block is a scope, a bare block's and an anonymous sub's body among
+// them, and a named sub's body is a scope of the sub's name. Each is
+// recorded under its block's id, for pass 2 to re-enter.
 func collectDeclarations(f *lower.File, pos *lower.Positions) *SymbolTable {
 	st := NewSymbolTable()
 	var walk func(n lower.Node)
@@ -439,17 +466,9 @@ func collectDeclarations(f *lower.File, pos *lower.Positions) *SymbolTable {
 		switch n := n.(type) {
 		case *lower.Block:
 			st.EnterScope("block")
+			st.blockScopes[n.ID] = st.current
 			walkStmts(n)
 			st.ExitScope()
-			return
-		case *lower.BlockStmt:
-			for _, c := range lower.Children(n) {
-				if c == n.Body {
-					walkStmts(c)
-				} else {
-					walk(c)
-				}
-			}
 			return
 		case *lower.ForeachStmt:
 			// The loop variable is not declared here: pass 2 defines it
@@ -505,6 +524,7 @@ func collectDecl(st *SymbolTable, pos *lower.Positions, d *lower.Decl, walkStmts
 		st.Define(span(Symbol{Name: name, Type: types.Code, Kind: SymSubroutine}))
 		st.EnterScope(name)
 		if body.Body != nil {
+			st.blockScopes[body.Body.Meta().ID] = st.current
 			walkStmts(body.Body)
 		}
 		st.ExitScope()
@@ -1062,122 +1082,6 @@ func guardedType(t types.Type) types.Type {
 		return types.Scalar
 	}
 	return t
-}
-
-// collectPreIfTypes returns the current types of all variables referenced by
-// the guard (leaf guards only). This records the pre-if types for the implicit
-// else and for the join computation.
-func collectPreIfTypes(guard *guardResult, st *SymbolTable) map[string]types.Type {
-	if guard == nil {
-		return nil
-	}
-	result := make(map[string]types.Type)
-	collectLeafVarTypes(guard, st, result)
-	if len(result) == 0 {
-		return nil
-	}
-	return result
-}
-
-// collectLeafVarTypes recursively walks a guardResult tree and collects the
-// current symbol-table type for each leaf variable referenced.
-func collectLeafVarTypes(guard *guardResult, st *SymbolTable, out map[string]types.Type) {
-	if guard == nil {
-		return
-	}
-	if guard.Compound != nil {
-		collectLeafVarTypes(guard.Compound.Left, st, out)
-		collectLeafVarTypes(guard.Compound.Right, st, out)
-		return
-	}
-	if guard.VarName != "" {
-		if _, already := out[guard.VarName]; !already {
-			if sym, found := st.Lookup(guard.VarName); found {
-				out[guard.VarName] = sym.Type
-			}
-		}
-	}
-}
-
-// mergeBranchTypes joins the types from src into dst, creating dst if nil.
-// Variables present only in one map are taken as-is. An unreachable
-// branch's None is the join identity, so its sentinel bit never reaches a
-// variable's type.
-func mergeBranchTypes(dst, src map[string]types.Type) map[string]types.Type {
-	if src == nil {
-		return dst
-	}
-	if dst == nil {
-		dst = make(map[string]types.Type)
-	}
-	for name, typ := range src {
-		if existing, ok := dst[name]; ok {
-			dst[name] = types.Join(existing, typ)
-		} else {
-			dst[name] = typ
-		}
-	}
-	return dst
-}
-
-// applyBranchJoin computes the post-if join type for each guarded variable and
-// applies it to the outer scope via UpdateType.
-//
-// The join is types.Join of all non-early-exit branch-end types. When there
-// is no else branch, the implicit else contributes the pre-if type. A branch
-// a guard proves unreachable ends with its variable None, the join identity:
-// it adds nothing, and its sentinel bit is not a type a value can have.
-func applyBranchJoin(
-	guard *guardResult,
-	preIfTypes map[string]types.Type,
-	ifBranchTypes map[string]types.Type,
-	elsifJoinTypes map[string]types.Type,
-	elseBranchTypes map[string]types.Type,
-	hasElse bool,
-	st *SymbolTable,
-) {
-	if preIfTypes == nil {
-		return
-	}
-
-	for name, preTyp := range preIfTypes {
-		// Start with the if-branch contribution.
-		joinType := types.None
-		hasContribution := false
-
-		if ifBranchTypes != nil {
-			if t, ok := ifBranchTypes[name]; ok {
-				joinType = types.Join(joinType, t)
-				hasContribution = true
-			}
-		}
-
-		// Add elsif contributions.
-		if elsifJoinTypes != nil {
-			if t, ok := elsifJoinTypes[name]; ok {
-				joinType = types.Join(joinType, t)
-				hasContribution = true
-			}
-		}
-
-		// Add else contribution or implicit-else pre-if type.
-		if hasElse {
-			if elseBranchTypes != nil {
-				if t, ok := elseBranchTypes[name]; ok {
-					joinType = types.Join(joinType, t)
-					hasContribution = true
-				}
-			}
-		} else {
-			// No else: implicit else contributes pre-if type.
-			joinType = types.Join(joinType, preTyp)
-			hasContribution = true
-		}
-
-		if hasContribution && joinType != preTyp {
-			st.UpdateType(name, joinType)
-		}
-	}
 }
 
 // remapGuardVar replaces occurrences of paramName in the guard result's

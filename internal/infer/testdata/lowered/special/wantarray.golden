@@ -1,2 +1,2 @@
-sym $w Scalar
+sym $w Undef|Boolean
 sym f Code

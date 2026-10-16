@@ -1,2 +1,2 @@
-sym $n Scalar
+sym $n Int|Num|Inf
 sym $s Str
