@@ -3,8 +3,10 @@ title: Declare Exporter, measure it against every module that uses it, and ship 
 state: pending
 urgency: normal
 milestone: core-module-types
+blocked_by:
+- 01a1464e-d912-7419-8b20-a8e24029b3ec
 created: 2026-10-16T20:02:16.04458884Z
-updated: 2026-10-16T20:02:16.04458884Z
+updated: 2026-10-16T20:04:29.250612555Z
 ---
 
 ## Prerequisites
