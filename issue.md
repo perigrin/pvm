@@ -24,7 +24,7 @@ blocked_by:
 - 01a1464e-dde3-73fe-ab1f-ced7f18c4f9d
 - 01a14657-682e-7432-8ea9-828f56cd2f69
 created: 2026-10-16T20:02:16.243834962Z
-updated: 2026-10-16T20:13:15.038309605Z
+updated: 2026-10-16T21:00:52.681137769Z
 ---
 
 ## Prerequisites
@@ -33,11 +33,17 @@ updated: 2026-10-16T20:13:15.038309605Z
 
 ## Context
 
-- paths: `internal/parse/coverage_test.go` (new), `internal/parse/testdata/core_module_not_shipped.txt` (new; empty unless an infrastructure issue was cancelled), `docs/rfcs/0001-type-libraries.md`, `internal/data/help/types.md`
+- paths: `internal/parse/coverage_test.go` (new), `internal/parse/testdata/core_module_not_shipped.txt` (new; only `#` comments unless perigrin ruled an infrastructure module out), `docs/rfcs/0001-type-libraries.md`, `internal/data/help/types.md`
 - commands: each criterion below, one at a time; `git zhi verify --timeout 900 core-module-types`
 - entrypoints: the milestone's resolution command, `internal/parse/testdata/core_module_ranking.txt`
 
-The milestone's closing gate. `TestCoreModuleDeclarationsCoverTheTop50` (the milestone's resolution test) reads the 50 modules from `core_module_ranking.txt` and requires each to have `declarations/<Module/Path>.tpm`, or to be listed in `core_module_not_shipped.txt` with the cancelled issue's id and measured reason; it runs everywhere (no perl). Then hold every gate the milestone touches, by name, and re-mark the RFC section "Core-module libraries" `(*Implemented*, <shas>)` ("Call sites" is re-marked by 01a0fd9b-5700). Update the "Declaration Files" section of `internal/data/help/types.md` to say which core modules ship declarations.
+The milestone's closing gate. `TestCoreModuleDeclarationsCoverTheTop50` (the milestone's resolution test) reads the 50 modules from `core_module_ranking.txt` and requires each to have `declarations/<Module/Path>.tpm`, or to be listed in `core_module_not_shipped.txt`; it runs everywhere (no perl). That file's format is pinned: one `Module<TAB>full-uuid<TAB>reason` line per module, `#` comment lines allowed, and the reader accepts only Exporter, XSLoader and DynaLoader (ruling 4); the uuid is the cancelled issue's full id and the reason is perigrin's.
+
+**Ruling 4 (perigrin, 2026-10-16): not shipped is allowed only for Exporter, XSLoader and DynaLoader** (the RFC's "may not ship"). Before cancelling, STOP and ask perigrin, with the measurement, so the cancel reason is his.
+
+**Running the parse-oracle gates.** `TestRatchetCorpus` skips unless given `-parseoracle.corpus`, and `TestGoParserExactFloor` / `TestGoParserWrongIsZero` skip unless `PARSEORACLE_SHIM` names a built shim; a skip prints `--- SKIP`, so a criterion grepping for `--- PASS` fails rather than passing vacuously. The criteria below spell what `.github/workflows/parse-fidelity.yml` ("Run the fidelity ratchet") does: `PERL5_CORPUS` at the perl5 checkout pinned in `internal/parseoracle/testdata/corpus.pin` (`~/dev/perl5` here), `PARSEORACLE_TIMEOUT=8m`, `PARSEORACLE_REQUIRE_CORPUS=1`, and `PARSEORACLE_SHIM` at a fixed directory (`$HOME/.cache/pvm/oracleshim`). The sweep builds the shim there when it holds no `t/test.pl`, as CI's cache miss does, so the Go-parser criteria first run the sweep if the shim is missing. Measured 2026-10-16 at 8d508426: the sweep took 510s and passed; with the shim built, `TestGoParserExactFloor` passed (47 of 56 exact) and `TestGoParserWrongIsZero` FAILED, because the pinned WRONG `comp/proto.t` no longer scores WRONG (the test says: delete the pin). The baseline issue (01a1464e-d912) fixes that first. A shim built for another perl or corpus revision is stale: delete the directory after a re-pin.
+
+**CI.** Open the PR for `feat/core-module-types` against `pu` and require its checks green: `gh pr checks <branch>` exits 0 when every check passed, 1 when one failed or no PR exists, and 8 while one is pending (measured 2026-10-16 on PRs 484 and 487, and `gh help` for 8). Then hold every gate the milestone touches, by name, and re-mark the RFC section "Core-module libraries" `(*Implemented*, <shas>)` ("Call sites" is re-marked by 01a0fd9b-5700). Update the "Declaration Files" section of `internal/data/help/types.md` to say which core modules ship declarations.
 
 ## Steps
 
@@ -45,12 +51,13 @@ The milestone's closing gate. `TestCoreModuleDeclarationsCoverTheTop50` (the mil
 - [ ] Run each criterion below; fix anything red at its root, in the issue that owns it, reopening that issue
 - [ ] Re-mark "Core-module libraries" `(*Implemented*, <shas>)`; update types.md; `go test ./internal/cli/ -run '^TestShowTypesHelp$' -count=1`
 - [ ] `make test`; commit
+- [ ] Push `feat/core-module-types` and open the PR against `pu` (`gh pr create --head feat/core-module-types --base pu`); wait for its checks to finish and fix any red at its root
 
 ## Acceptance Criteria
 
 ### Positive Scenarios
 - [ ] every top-50 module has a declaration or a recorded reason (`go test ./internal/parse/ -run '^TestCoreModuleDeclarationsCoverTheTop50$' -count=1 -v | grep -q '^--- PASS: TestCoreModuleDeclarationsCoverTheTop50'`)
-- [ ] inference precision holds at least 65/76 with WRONG 0 (`go test ./internal/infer/ -run '^TestInferencePrecision$' -count=1 -v | grep -q '^--- PASS: TestInferencePrecision'`)
+- [ ] inference precision holds at least 65/76 with WRONG 0 (`const precisionFloor = 65`, raised by 01a1464e-d912) (`go test ./internal/infer/ -run '^TestInferencePrecision$' -count=1 -v | grep -q '^--- PASS: TestInferencePrecision'`)
 - [ ] psc check over perl 5.42's lib adds nothing to the baseline (`go test ./internal/psc/ -run '^TestPSCCheckLibBaseline$' -count=1 -v | grep -q '^--- PASS: TestPSCCheckLibBaseline'`)
 - [ ] bare croak and confess are exits (`go test ./internal/infer/ -run '^TestExitsAndGuardsByCoreAndCarp$' -count=1 -v | grep -q '^--- PASS: TestExitsAndGuardsByCoreAndCarp'`)
 - [ ] qualified croak and confess are exits (`go test ./internal/infer/ -run '^TestQualifiedCroakConfessAreExits$' -count=1 -v | grep -q '^--- PASS: TestQualifiedCroakConfessAreExits'`)
@@ -62,14 +69,17 @@ The milestone's closing gate. `TestCoreModuleDeclarationsCoverTheTop50` (the mil
 - [ ] m1 gate: T2 core parses (`go test ./internal/parse/ -run '^TestT2CoreParses$' -count=1 -v | grep -q '^--- PASS: TestT2CoreParses'`)
 - [ ] m1 gate: import resolution is worth T1 files (`go test ./internal/parse/ -run '^TestImportResolutionIsWorthT1Files$' -count=1 -v | grep -q '^--- PASS: TestImportResolutionIsWorthT1Files'`)
 - [ ] m1 gate: parse oracle ratchet (`go test ./internal/parseoracle/ -run '^TestRatchet$' -count=1 -v | grep -q '^--- PASS: TestRatchet'`)
-- [ ] m1 gate: parse oracle corpus ratchet (`go test ./internal/parseoracle/ -run '^TestRatchetCorpus$' -count=1 -v | grep -q '^--- PASS: TestRatchetCorpus'`)
-- [ ] m1 gate: Go parser exact floor (`go test ./internal/parseoracle/ -run '^TestGoParserExactFloor$' -count=1 -v | grep -q '^--- PASS: TestGoParserExactFloor'`)
+- [ ] m1 gate: parse oracle corpus ratchet (`PARSEORACLE_SHIM=$HOME/.cache/pvm/oracleshim PERL5_CORPUS=$HOME/dev/perl5 PARSEORACLE_TIMEOUT=8m PARSEORACLE_REQUIRE_CORPUS=1 go test ./internal/parseoracle/ -run '^TestRatchetCorpus$' -parseoracle.corpus -count=1 -timeout 40m -v | grep -q '^--- PASS: TestRatchetCorpus'`)
+- [ ] m1 gate: Go parser exact floor (`O=$HOME/.cache/pvm/oracleshim; test -f $O/t/test.pl || PARSEORACLE_SHIM=$O PERL5_CORPUS=$HOME/dev/perl5 PARSEORACLE_TIMEOUT=8m go test ./internal/parseoracle/ -run '^TestRatchetCorpus$' -parseoracle.corpus -count=1 -timeout 40m >/dev/null; PARSEORACLE_SHIM=$O PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parseoracle/ -run '^TestGoParserExactFloor$' -count=1 -timeout 40m -v | grep -q '^--- PASS: TestGoParserExactFloor'`)
+- [ ] m1 gate: the Go parser scores no file WRONG (`O=$HOME/.cache/pvm/oracleshim; test -f $O/t/test.pl || PARSEORACLE_SHIM=$O PERL5_CORPUS=$HOME/dev/perl5 PARSEORACLE_TIMEOUT=8m go test ./internal/parseoracle/ -run '^TestRatchetCorpus$' -parseoracle.corpus -count=1 -timeout 40m >/dev/null; PARSEORACLE_SHIM=$O PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parseoracle/ -run '^TestGoParserWrongIsZero$' -count=1 -timeout 40m -v | grep -q '^--- PASS: TestGoParserWrongIsZero'`)
 - [ ] the RFC section on call sites is implemented (`grep -q '^### Call sites (\*Implemented\*' docs/rfcs/0001-type-libraries.md`)
 - [ ] the RFC section on core-module libraries is implemented (`grep -q '^### Core-module libraries (\*Implemented\*' docs/rfcs/0001-type-libraries.md`)
+- [ ] the milestone's PR has every CI check green (`gh pr checks feat/core-module-types`)
 
 ### Negative Scenarios
 - [ ] the coverage check fails a top-50 module with neither a `.tpm` nor a not-shipped entry (`go test ./internal/parse/ -run '^TestCoverageRejectsAnUndeclaredModule$' -count=1 -v | grep -q '^--- PASS: TestCoverageRejectsAnUndeclaredModule'`)
-- [ ] the coverage check fails a not-shipped entry missing its issue id or measured reason (`go test ./internal/parse/ -run '^TestCoverageRejectsANotShippedEntryWithoutReason$' -count=1 -v | grep -q '^--- PASS: TestCoverageRejectsANotShippedEntryWithoutReason'`)
+- [ ] the coverage check fails a not-shipped entry that is not `Module<TAB>full-uuid<TAB>reason`: a missing or empty reason, or an id that is a prefix rather than a full uuid (`go test ./internal/parse/ -run '^TestCoverageRejectsANotShippedEntryWithoutReason$' -count=1 -v | grep -q '^--- PASS: TestCoverageRejectsANotShippedEntryWithoutReason'`)
+- [ ] `#` comment lines in the not-shipped file are not entries (`go test ./internal/parse/ -run '^TestCoverageNotShippedSkipsComments$' -count=1 -v | grep -q '^--- PASS: TestCoverageNotShippedSkipsComments'`)
 - [ ] the coverage check fails a module that both ships a `.tpm` and is listed not shipped (`go test ./internal/parse/ -run '^TestCoverageRejectsShippedAndNotShipped$' -count=1 -v | grep -q '^--- PASS: TestCoverageRejectsShippedAndNotShipped'`)
-- [ ] the coverage check fails a not-shipped entry naming a module outside the ranking (`go test ./internal/parse/ -run '^TestCoverageRejectsAnUnrankedNotShippedEntry$' -count=1 -v | grep -q '^--- PASS: TestCoverageRejectsAnUnrankedNotShippedEntry'`)
+- [ ] the coverage check fails a not-shipped entry for any module but Exporter, XSLoader and DynaLoader, ranked (POSIX) or not (ruling 4) (`go test ./internal/parse/ -run '^TestCoverageNotShippedOnlyInfrastructure$' -count=1 -v | grep -q '^--- PASS: TestCoverageNotShippedOnlyInfrastructure'`)
 - [ ] module names map to paths with forward slashes and keep underscores: `File::Spec::Functions` to `File/Spec/Functions.tpm`, `SDBM_File` to `SDBM_File.tpm` (`go test ./internal/parse/ -run '^TestCoverageMapsModuleNamesToPaths$' -count=1 -v | grep -q '^--- PASS: TestCoverageMapsModuleNamesToPaths'`)
