@@ -1,0 +1,2 @@
+sym $x Int|Num|Inf
+sym @a Array

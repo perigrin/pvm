@@ -6,12 +6,14 @@ package psc_test
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"tamarou.com/pvm/internal/infer"
 	"tamarou.com/pvm/internal/psc"
 )
 
@@ -47,8 +49,11 @@ func TestCheckCommandCleanFile(t *testing.T) {
 func TestCheckCommandWithDiagnostics(t *testing.T) {
 	dir := t.TempDir()
 	file := filepath.Join(dir, "bad.pl")
-	// push() with no arguments triggers an arity-mismatch diagnostic.
-	content := "push();\n"
+	// An undef operand of + triggers a coercion-mismatch diagnostic; perl -w
+	// warns "Use of uninitialized value". push() with no arguments is not
+	// used: perl refuses it, so the parser leaves a Hole there and inference
+	// says nothing about it.
+	content := "my $u = undef;\nmy $x = $u + 1;\n"
 	require.NoError(t, os.WriteFile(file, []byte(content), 0644))
 
 	cmd := psc.NewCommand()
@@ -61,7 +66,7 @@ func TestCheckCommandWithDiagnostics(t *testing.T) {
 
 	err := cmd.Execute()
 	assert.Error(t, err, "check of file with diagnostics should return an error")
-	assert.Contains(t, stderr.String(), "arity", "stderr should mention arity for push() with no args")
+	assert.Contains(t, stderr.String(), "coercion-mismatch", "stderr should name the undef operand's mismatch")
 }
 
 func TestCheckCommandDirectory(t *testing.T) {
@@ -174,4 +179,309 @@ func TestCheckStrictReportsUnknown(t *testing.T) {
 		"default mode should not report un-inferred values")
 	assert.Contains(t, runCheck("--strict"), "Unknown",
 		"--strict should report the un-inferred operand")
+}
+
+// TestCheckWarnLossyCoercionFlag verifies that psc check takes
+// --warn-lossy-coercion, which sets infer.Options.WarnLossyCoercion: the
+// opt-in for a coercion perl makes silently but that loses the value, such
+// as `print $hashref`. A clean file stays clean under it.
+func TestCheckWarnLossyCoercionFlag(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "clean.pl")
+	require.NoError(t, os.WriteFile(file, []byte("my $x = 1;\nprint $x;\n"), 0644))
+
+	cmd := psc.NewCommand()
+	cmd.SetArgs([]string{"check", file, "--warn-lossy-coercion"})
+	var stderr strings.Builder
+	cmd.SetOut(&strings.Builder{})
+	cmd.SetErr(&stderr)
+	require.NoError(t, cmd.Execute(), "stderr: %s", stderr.String())
+}
+
+// TestCheckCommandOnLoweredTree runs psc check over every golden fixture
+// internal/infer holds and asserts it prints exactly the fixture's golden
+// diagnostics, each formatted by infer.FormatDiagnostic. A golden line is
+// "diag <start> <end> <code> <message>" and records no severity, so a
+// printed line matches a golden diagnostic at either severity;
+// TestCheckGoldensUseResolvedParse holds check's severities to the LSP's.
+// It runs isolated from the host's perl, as the goldens are made.
+func TestCheckCommandOnLoweredTree(t *testing.T) {
+	isolatePerl(t)
+	fixtures, err := filepath.Glob(filepath.Join("..", "infer", "testdata", "lowered", "*", "*.pl"))
+	require.NoError(t, err)
+	require.NotEmpty(t, fixtures)
+
+	for _, fx := range fixtures {
+		source, err := os.ReadFile(fx)
+		require.NoError(t, err)
+		golden, err := os.ReadFile(strings.TrimSuffix(fx, ".pl") + ".golden")
+		require.NoError(t, err)
+
+		cmd := psc.NewCommand()
+		cmd.SetArgs([]string{"check", fx})
+		var stdout, stderr strings.Builder
+		cmd.SetOut(&stdout)
+		cmd.SetErr(&stderr)
+		// Diagnostics make Execute return an error, which cobra prints
+		// after them; the diagnostics are the subject.
+		_ = cmd.Execute()
+		printed := strings.TrimSuffix(stderr.String(), "Error: diagnostics found\n")
+		// The repository names a perl a machine may not have installed,
+		// which psc check notes before any diagnostic.
+		if note, rest, ok := strings.Cut(printed, "\n"); ok && strings.HasPrefix(note, "psc: note: ") {
+			printed = rest
+		}
+
+		var got []string
+		if printed != "" {
+			got = strings.Split(strings.TrimSuffix(printed, "\n"), "\n")
+		}
+		var missing []string
+		for _, line := range strings.Split(string(golden), "\n") {
+			fields := strings.SplitN(line, " ", 5)
+			if fields[0] != "diag" {
+				continue
+			}
+			require.Len(t, fields, 5, "%s: golden line %q", fx, line)
+			start, err := strconv.ParseUint(fields[1], 10, 32)
+			require.NoError(t, err)
+			end, err := strconv.ParseUint(fields[2], 10, 32)
+			require.NoError(t, err)
+			d := infer.Diagnostic{StartByte: uint32(start), EndByte: uint32(end), Code: fields[3], Message: fields[4]}
+			found := false
+			for _, sev := range []infer.Severity{infer.Error, infer.Warning} {
+				d.Severity = sev
+				if i := indexOf(got, infer.FormatDiagnostic(fx, source, d)); i >= 0 {
+					got = append(got[:i], got[i+1:]...)
+					found = true
+					break
+				}
+			}
+			if !found {
+				missing = append(missing, line)
+			}
+		}
+		assert.Empty(t, missing, "%s: golden diagnostics psc check did not print", fx)
+		assert.Empty(t, got, "%s: lines psc check printed that are no golden diagnostic", fx)
+	}
+}
+
+// indexOf is the index of the first element of lines equal to s, or -1.
+func indexOf(lines []string, s string) int {
+	for i, l := range lines {
+		if l == s {
+			return i
+		}
+	}
+	return -1
+}
+
+// importSource holds one mismatch at file level and one inside a parenless
+// call to My::Block's block, which parses only when My::Block is found. Both
+// are ones perl -w warns about: an undef operand and length(@ARGV).
+const importSource = "use My::Block;\nmy $u = undef;\nmy $x = $u + 1;\nblock 'inner' => sub { my $y = length(@ARGV); };\n"
+
+// blockModule exports block, whose prototype lets a call to it go without
+// parentheses.
+const blockModule = "package My::Block;\nour @EXPORT = qw(block);\nsub block($&) { 1 }\n1;\n"
+
+// isolatePerl leaves psc check no perl to resolve and no PERL5LIB, unless
+// the test sets one: its HOME and XDG directories are empty, and pvm's
+// version variables are unset.
+func isolatePerl(t *testing.T) {
+	t.Helper()
+	home := t.TempDir()
+	for _, v := range []string{"HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"} {
+		t.Setenv(v, home)
+	}
+	for _, v := range []string{"PERL5LIB", "PVM_PERL_VERSION", "PLENV_VERSION", "PERLBREW_PERL"} {
+		t.Setenv(v, "")
+	}
+}
+
+// runCheckOn writes source to a file in its own directory and returns what
+// psc check prints.
+func runCheckOn(t *testing.T, source string) string {
+	t.Helper()
+	file := filepath.Join(t.TempDir(), "t.pl")
+	require.NoError(t, os.WriteFile(file, []byte(source), 0644))
+	cmd := psc.NewCommand()
+	cmd.SetArgs([]string{"check", file})
+	var stdout, stderr strings.Builder
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	// Diagnostics make Execute return an error; the output is the subject.
+	_ = cmd.Execute()
+	return stderr.String()
+}
+
+// TestCheckCommandResolvesImportsThroughINC verifies psc check parses a file
+// as perl compiles it, resolving its use statements through @INC, here a
+// PERL5LIB entry: the parenless block call parses, and the mismatch in its
+// body is reported.
+func TestCheckCommandResolvesImportsThroughINC(t *testing.T) {
+	isolatePerl(t)
+	lib := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(lib, "My"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(lib, "My", "Block.pm"), []byte(blockModule), 0644))
+	t.Setenv("PERL5LIB", lib)
+
+	out := runCheckOn(t, importSource)
+	assert.Contains(t, out, "t.pl:3:", "the file-level mismatch is reported")
+	assert.Contains(t, out, "t.pl:4:", "the mismatch inside block's body is reported")
+}
+
+// TestCheckCommandWithoutPerl verifies that with no resolved perl and no
+// PERL5LIB, psc check parses against the file's own directory instead of
+// failing: the file-level mismatch is still reported, and the unresolved
+// block call is a Hole it says nothing about. Its refusal,
+// trailing_tokens, is one the parser also makes on code perl compiles, so
+// it is not reported (perlRefuses).
+func TestCheckCommandWithoutPerl(t *testing.T) {
+	isolatePerl(t)
+	out := runCheckOn(t, importSource)
+	assert.Contains(t, out, "t.pl:3:", "the file-level mismatch is reported")
+	assert.NotContains(t, out, "t.pl:4:", "the unresolved block call is a Hole")
+	assert.NotContains(t, out, "panic")
+}
+
+// TestCheckCommandOnBrokenFile verifies psc check on a file perl rejects
+// (`my $x = ;` is a syntax error) neither panics nor reports a type
+// diagnostic inside the Hole the parser leaves for the missing term. Its
+// refusal, not_a_term, is one the parser also makes on code perl
+// compiles, so it is not reported either (perlRefuses).
+func TestCheckCommandOnBrokenFile(t *testing.T) {
+	isolatePerl(t)
+	var out string
+	require.NotPanics(t, func() { out = runCheckOn(t, "my $x = ;\nmy $u = undef;\nmy $y = $u + 1;\n") })
+	assert.NotContains(t, out, "t.pl:1:", "nothing is reported inside the Hole")
+	assert.Contains(t, out, "t.pl:3:", "the rest of the file is still checked")
+}
+
+// TestRefusalIsReported: code perl refuses to compile, with a refusal code
+// perl always shares (perlRefuses), is reported by psc check and the LSP,
+// each refusal as its code over its span, and psc check exits non-zero. perl 5.42 says "Not enough arguments for push" for the
+// first source and "Missing right curly or square bracket" for the second.
+// The control compiles, and nothing is reported for it.
+func TestRefusalIsReported(t *testing.T) {
+	isolatePerl(t)
+	for _, c := range []struct{ source, code, at string }{
+		{"push(); my $x = length();\n", "call_arity", "push()"},
+		{"my $x;\nif ($x) { print \"a\";\n", "unclosed_opener", ";"},
+	} {
+		file := filepath.Join(t.TempDir(), "t.pl")
+		require.NoError(t, os.WriteFile(file, []byte(c.source), 0644))
+		cmd := psc.NewCommand()
+		cmd.SetArgs([]string{"check", file})
+		var stderr strings.Builder
+		cmd.SetOut(&strings.Builder{})
+		cmd.SetErr(&stderr)
+		assert.Error(t, cmd.Execute(), "%q: psc check exits non-zero", c.source)
+		assert.Contains(t, stderr.String(), "["+c.code+"]", c.source)
+
+		s := psc.NewLSPServer()
+		uri := psc.FileURI(file)
+		require.NoError(t, s.OpenDocument(uri, []byte(c.source)))
+		var refusals []infer.Diagnostic
+		for _, d := range s.Diagnostics(uri) {
+			if d.Code == c.code {
+				refusals = append(refusals, d)
+			}
+		}
+		if assert.Len(t, refusals, 1, "%q: the LSP reports the refusal once", c.source) {
+			at := uint32(strings.LastIndex(c.source, c.at))
+			assert.LessOrEqual(t, refusals[0].StartByte, at, c.source)
+			assert.Greater(t, refusals[0].EndByte, at, "%q: the refusal spans %q", c.source, c.at)
+		}
+	}
+
+	out := runCheckOn(t, "my @a;\npush(@a, 1);\n")
+	assert.Empty(t, out, "control: perl compiles push(@a, 1), and nothing is reported")
+}
+
+// TestCheckGoldensUseResolvedParse holds the goldens psc check and the LSP
+// are compared with to the parse they run, isolated from the host's perl.
+// calls/imported_block.pl calls block, exported by My::Block beside it, so
+// only a parse that resolves its use reaches the length(@ARGV) in block's
+// body, which perl 5.42 -w warns about: internal/infer's golden ratchet
+// matches it, check prints it, and for every fixture check prints exactly
+// what the LSP reports, severity and all, which a golden does not record.
+func TestCheckGoldensUseResolvedParse(t *testing.T) {
+	isolatePerl(t)
+	lowered := filepath.Join("..", "infer", "testdata", "lowered")
+	matching, err := os.ReadFile(filepath.Join(lowered, "matching.txt"))
+	require.NoError(t, err)
+	assert.Contains(t, strings.Split(string(matching), "\n"), "calls/imported_block.pl",
+		"the golden ratchet matches a fixture only a resolved parse reads")
+
+	fixtures, err := filepath.Glob(filepath.Join(lowered, "*", "*.pl"))
+	require.NoError(t, err)
+	s := psc.NewLSPServer()
+	for _, fx := range fixtures {
+		source, err := os.ReadFile(fx)
+		require.NoError(t, err)
+		cmd := psc.NewCommand()
+		cmd.SetArgs([]string{"check", fx})
+		var stderr strings.Builder
+		cmd.SetOut(&strings.Builder{})
+		cmd.SetErr(&stderr)
+		// Diagnostics make Execute return an error; the output is the subject.
+		_ = cmd.Execute()
+		printed := withoutNote(strings.TrimSuffix(stderr.String(), "Error: diagnostics found\n"))
+
+		abs, err := filepath.Abs(fx)
+		require.NoError(t, err)
+		uri := psc.FileURI(abs)
+		require.NoError(t, s.OpenDocument(uri, source))
+		var reported strings.Builder
+		for _, d := range s.Diagnostics(uri) {
+			reported.WriteString(infer.FormatDiagnostic(fx, source, d) + "\n")
+		}
+		assert.Equal(t, reported.String(), printed, "%s: psc check and the LSP report alike", fx)
+		if filepath.Base(fx) == "imported_block.pl" {
+			assert.Contains(t, printed, "imported_block.pl:2:", "the mismatch in block's body is printed")
+		}
+	}
+}
+
+// withoutNote is what psc check printed less its note on @INC: isolated,
+// it finds the repository's .perl-version, naming a perl the empty HOME
+// does not have, and says so before any diagnostic.
+func withoutNote(printed string) string {
+	var kept strings.Builder
+	for _, line := range strings.SplitAfter(printed, "\n") {
+		if !strings.HasPrefix(line, "psc: note: ") {
+			kept.WriteString(line)
+		}
+	}
+	return kept.String()
+}
+
+// TestParserGapRefusalIsSilent: a refusal perl does not share is a gap in
+// the parser, not an error in the code, and is reported by neither psc
+// check nor the LSP; check exits 0. perl 5.42 -c compiles both sources
+// ("syntax OK"): `while ()` loops forever, and `A &q(x)` is a bareword
+// and-ed with a string. The parser refuses them as not_a_term and
+// ambiguous_sigil, which TestRefusalIsReported's codes are not.
+func TestParserGapRefusalIsSilent(t *testing.T) {
+	isolatePerl(t)
+	for _, source := range []string{
+		"my $n = 0;\nwhile () { last if ++$n > 2 }\n",
+		"A &q(x);\n",
+	} {
+		file := filepath.Join(t.TempDir(), "t.pl")
+		require.NoError(t, os.WriteFile(file, []byte(source), 0644))
+		cmd := psc.NewCommand()
+		cmd.SetArgs([]string{"check", file})
+		var stderr strings.Builder
+		cmd.SetOut(&strings.Builder{})
+		cmd.SetErr(&stderr)
+		assert.NoError(t, cmd.Execute(), "%q: psc check exits 0", source)
+		assert.Empty(t, withoutNote(stderr.String()), source)
+
+		s := psc.NewLSPServer()
+		uri := psc.FileURI(file)
+		require.NoError(t, s.OpenDocument(uri, []byte(source)))
+		assert.Empty(t, s.Diagnostics(uri), "%q: the LSP reports nothing", source)
+	}
 }

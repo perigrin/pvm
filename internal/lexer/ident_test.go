@@ -239,3 +239,20 @@ func TestLeadingApostropheSeparator(t *testing.T) {
 		}
 	}
 }
+
+// IsName answers for a whole string what scanIdentRunes reads at the
+// cursor, under use utf8's class: a name the lexer would take as one word.
+// perl 5.42 declares and calls ::foo, foo'bar and (under use utf8) café, and
+// reads Foo:: as the string Foo; `::` alone is the bareword string '::'.
+func TestIsName(t *testing.T) {
+	for _, s := range []string{"f", "_", "Foo::Bar", "::foo", "foo'bar", "café", "Foo::"} {
+		if !IsName(s) {
+			t.Errorf("IsName(%q) is false, want true", s)
+		}
+	}
+	for _, s := range []string{"", "::", "1a", "$x", "a b", "=", "a'", "'a"} {
+		if IsName(s) {
+			t.Errorf("IsName(%q) is true, want false", s)
+		}
+	}
+}

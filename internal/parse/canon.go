@@ -34,7 +34,7 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 	// A parenthesised element with a trailing separator keeps its parens
 	// whatever its binding power, so the separator stays inside them:
 	// `(A,)/0` is written `(A() ,) / 0`, not `A() , / 0`.
-	if bindingPower(n) < outer || n.Paren && n.TrailingComma != "" {
+	if emitWraps(n, outer) {
 		b.WriteByte('(')
 		defer b.WriteByte(')')
 	}
@@ -469,8 +469,12 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 				// The initialiser is the right side of an assignment and is
 				// read at its power: `my $x = (%h and 1)` written bare is
 				// `(my $x = %h) and 1`, measured on 5.42.0.
-				b.WriteString(" = ")
-				emit(b, c, src, infix["="].BP)
+				op := "="
+				if n.AssignOp != "" {
+					op = n.AssignOp
+				}
+				b.WriteString(" " + op + " ")
+				emit(b, c, src, infix[op].BP)
 				continue
 			}
 			emit(b, c, src, 0)
@@ -677,11 +681,33 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 		b.WriteByte(' ')
 		b.WriteString(n.Text)
 		b.WriteByte(' ')
+		// The parens of `->(` are the call's argument list, not grouping,
+		// so they are written even where the argument alone would not need
+		// them. Measured on 5.42.0, `$r->($v->[0])` is `&$r($v->[0])` and
+		// `$r -> $v->[0]` is `$r->$v->[0]`, a method call through $v.
+		if c := n.Children[1]; n.Text == "->" && c.Paren && src[c.Start] == '(' && !writesParens(c, r) {
+			b.WriteByte('(')
+			emit(b, c, src, 0)
+			b.WriteByte(')')
+			return
+		}
 		emit(b, n.Children[1], src, r)
 
 	default:
 		b.WriteString(n.SourceText(src))
 	}
+}
+
+// emitWraps reports whether emit parenthesises n when read at outer.
+func emitWraps(n *Node, outer int) bool {
+	return bindingPower(n) < outer || n.Paren && n.TrailingComma != ""
+}
+
+// writesParens reports whether emit writes a parenthesised node's parens
+// itself at outer: by wrapping it, as a parenthesised List, or as a Term,
+// which is written as its source and whose span covers them.
+func writesParens(n *Node, outer int) bool {
+	return emitWraps(n, outer) || n.Kind == List || n.Kind == Term
 }
 
 // emitCommaSeparated writes n's children with ", " between them.

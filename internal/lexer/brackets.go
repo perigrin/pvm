@@ -72,6 +72,11 @@ const (
 	// autoquotes. Its `}` behaves as braceTerm's.
 	braceSubscript
 
+	// braceTermBlock is the block of a term, `do {...}` and `eval {...}`:
+	// statements inside, a value after. perl's XTERMBLOCK puts XOPERATOR
+	// on its bracket stack for the `}`, so `do {1} ** 2` raises to a power.
+	braceTermBlock
+
 	// paren and square are `(` and `[`. Both always produce a value, so
 	// their closers behave alike and the distinction is only for matching.
 	paren
@@ -86,9 +91,12 @@ const (
 // `if (..) { .. }` end with the same character and leave opposite states.
 func (l *lexer) trackBrackets(k Kind, start int) {
 	l.closedBlock = false
+	l.closedTermBlock = false
 	l.openedBlock = false
 
-	if l.pos-start != 1 {
+	// A glob's punctuation name, `*(` or `*}`, is a Word and not a bracket;
+	// see scanGlobName.
+	if l.pos-start != 1 || k == Word {
 		return
 	}
 	switch l.src[start] {
@@ -111,6 +119,9 @@ func (l *lexer) trackBrackets(k Kind, start int) {
 		// only which state the CLOSER leaves behind, and the opener's
 		// position answers it.
 		switch {
+		case l.expect == XTermBlock:
+			l.brackets = append(l.brackets, braceTermBlock)
+			l.openedBlock = true
 		case l.expect == XState || l.expect == XBlock:
 			l.brackets = append(l.brackets, braceBlock)
 			l.openedBlock = true
@@ -124,7 +135,8 @@ func (l *lexer) trackBrackets(k Kind, start int) {
 			top := l.brackets[n-1]
 			l.brackets = l.brackets[:n-1]
 			l.closeLexSubScope()
-			l.closedBlock = top == braceBlock
+			l.closedBlock = top == braceBlock || top == braceTermBlock
+			l.closedTermBlock = top == braceTermBlock
 		}
 		// A closer with nothing open leaves closedBlock false. An LSP sees
 		// half-typed buffers where that happens constantly, and treating the

@@ -1,10 +1,10 @@
 // ABOUTME: Symbol table for the PSC type inference engine.
-// ABOUTME: Defines Symbol, Scope, SymbolTable, and the CollectDeclarations tree walk (pass 1).
+// ABOUTME: Defines Symbol, Scope and SymbolTable, which pass 1 fills and pass 2 narrows.
 
 package infer
 
 import (
-	"tamarou.com/pvm/internal/parser"
+	"tamarou.com/pvm/internal/lower"
 	"tamarou.com/pvm/internal/types"
 )
 
@@ -36,7 +36,14 @@ type Symbol struct {
 	// does not evaluate indices: `my @m = (1, "s")` holds an Int and a Str,
 	// and a read is whichever the index picks. Zero means no element type is
 	// known, and a read then falls back to Scalar rather than guessing.
-	ElemType  types.Type
+	ElemType types.Type
+
+	// KeyTypes is, for a hash filled from key/value literals, the type of
+	// the value under each constant key: `{count => 1, values => [2]}`
+	// holds an Int under count. A read under one of these keys yields its
+	// type rather than ElemType, the join of every value. Nil when no
+	// literal filled the hash.
+	KeyTypes  map[string]types.Type
 	Kind      SymbolKind
 	StartByte uint32
 	EndByte   uint32
@@ -52,16 +59,14 @@ type Scope struct {
 	symbols  map[string]Symbol
 }
 
-// Parent returns the enclosing scope, or nil for the root scope.
-func (s *Scope) Parent() *Scope {
-	return s.parent
-}
-
 // SymbolTable tracks the full lexical scope chain.  The current scope is the
-// innermost active scope; its ancestors are accessible via the Parent chain.
+// innermost active scope; its ancestors are reached through each scope's parent.
 type SymbolTable struct {
 	root    *Scope
 	current *Scope
+	// blockScopes is the scope pass 1 made for each block, keyed by the
+	// block's id, which pass 2 re-enters as it walks the block.
+	blockScopes map[lower.ID]*Scope
 }
 
 // NewSymbolTable creates a fresh symbol table rooted at the implicit "main"
@@ -72,7 +77,7 @@ func NewSymbolTable() *SymbolTable {
 		parent:  nil,
 		symbols: make(map[string]Symbol),
 	}
-	return &SymbolTable{root: root, current: root}
+	return &SymbolTable{root: root, current: root, blockScopes: map[lower.ID]*Scope{}}
 }
 
 // Define adds sym to the current (innermost) scope, overwriting any
@@ -103,6 +108,37 @@ func (st *SymbolTable) EnterScope(name string) {
 	}
 	st.current.children = append(st.current.children, child)
 	st.current = child
+}
+
+// Reenter makes s, a scope pass 1 made, current again, as a child of the
+// scope current now: a lookup in s then reaches what pass 2 defined
+// around it, a guard's shadows or a loop variable, before the scopes that
+// enclose it. ExitScope leaves it.
+func (st *SymbolTable) Reenter(s *Scope) {
+	s.parent = st.current
+	st.current = s
+}
+
+// scopeOf is the innermost scope on the current chain that holds name,
+// or nil.
+func (st *SymbolTable) scopeOf(name string) *Scope {
+	for s := st.current; s != nil; s = s.parent {
+		if _, ok := s.symbols[name]; ok {
+			return s
+		}
+	}
+	return nil
+}
+
+// inScope reports whether s is on the current chain: the current scope or
+// one that encloses it.
+func (st *SymbolTable) inScope(s *Scope) bool {
+	for c := st.current; c != nil; c = c.parent {
+		if c == s {
+			return true
+		}
+	}
+	return false
 }
 
 // ExitScope pops the current scope back to its parent.  Calling ExitScope on
@@ -190,6 +226,28 @@ func (st *SymbolTable) UpdateElemType(name string, typ types.Type) bool {
 	return false
 }
 
+// UpdateKeyTypes joins keys, a key/value literal's value type under each
+// constant key, into the KeyTypes of the first scope's name, as
+// UpdateElemType joins an element type. A key only one literal gave keeps
+// that literal's type.
+func (st *SymbolTable) UpdateKeyTypes(name string, keys map[string]types.Type) bool {
+	for s := st.current; s != nil; s = s.parent {
+		if sym, ok := s.symbols[name]; ok {
+			joined := make(map[string]types.Type, len(sym.KeyTypes)+len(keys))
+			for k, t := range sym.KeyTypes {
+				joined[k] = t
+			}
+			for k, t := range keys {
+				joined[k] = types.Join(joined[k], t)
+			}
+			sym.KeyTypes = joined
+			s.symbols[name] = sym
+			return true
+		}
+	}
+	return false
+}
+
 // UpdateReturnType walks the scope chain from the current scope to root,
 // looking for the first scope that contains name. If found, it updates the
 // symbol's ReturnType to typ and returns true. Used to store inferred
@@ -246,206 +304,4 @@ func (st *SymbolTable) CurrentPackage() string {
 		}
 	}
 	return "main"
-}
-
-// CollectDeclarations performs a top-down walk of the tree-sitter CST and
-// populates a SymbolTable with every variable and subroutine declaration it
-// finds.  This is pass 1 of the type inference pipeline; type information is
-// derived solely from sigils and syntax, not from flow analysis.
-func CollectDeclarations(tree *parser.Tree, source []byte) *SymbolTable {
-	st := NewSymbolTable()
-	if tree == nil {
-		return st
-	}
-	root := tree.RootNode()
-	if root == nil {
-		return st
-	}
-	walkDeclarations(root, source, st)
-	return st
-}
-
-// walkDeclarations recursively visits every node in the CST, dispatching on
-// node kind to handle declarations and scope boundaries.
-func walkDeclarations(node *parser.Node, source []byte, st *SymbolTable) {
-	if node == nil {
-		return
-	}
-
-	kind := node.Kind()
-
-	switch kind {
-	case "package_statement":
-		// package Foo;  — the package name is in the child with kind "package"
-		collectPackageStatement(node, source, st)
-
-	case "variable_declaration":
-		// my $x / my @arr / my %hash — the typed child is scalar/array/hash
-		collectVariableDeclaration(node, source, st)
-
-	case "subroutine_declaration_statement":
-		// sub foo { ... }
-		collectSubroutineDeclaration(node, source, st)
-		// subroutine body is walked inside collectSubroutineDeclaration
-		return
-
-	case "block":
-		// Generic block scope (e.g. if-block, anonymous block)
-		st.EnterScope("block")
-		for i := 0; i < node.ChildCount(); i++ {
-			walkDeclarations(node.Child(i), source, st)
-		}
-		st.ExitScope()
-		return
-	}
-
-	// Default: recurse into all children
-	for i := 0; i < node.ChildCount(); i++ {
-		walkDeclarations(node.Child(i), source, st)
-	}
-}
-
-// collectPackageStatement extracts the package name and updates the root
-// scope name so that CurrentPackage() returns the right value.  A new scope
-// named after the package is entered.
-func collectPackageStatement(node *parser.Node, source []byte, st *SymbolTable) {
-	for i := 0; i < node.ChildCount(); i++ {
-		child := node.Child(i)
-		if child == nil {
-			continue
-		}
-		if child.Kind() == "package" {
-			pkgName := child.Text(source)
-			// Update the root scope name so CurrentPackage works correctly
-			st.root.Name = pkgName
-			st.Define(Symbol{
-				Name:      pkgName,
-				Type:      types.Unknown,
-				Kind:      SymPackage,
-				StartByte: node.StartByte(),
-				EndByte:   node.EndByte(),
-			})
-			return
-		}
-	}
-}
-
-// collectVariableDeclaration extracts the variable name and derives its type
-// from the sigil: $ → Scalar, @ → Array, % → Hash.
-func collectVariableDeclaration(node *parser.Node, source []byte, st *SymbolTable) {
-	// Check whether this declaration is part of an assignment (my $x = ...).
-	// A declaration without an initializer holds undef AT THAT POINT, which is
-	// not the same as holding undef for the rest of its scope. Perl's ordinary
-	// lazy-init idiom assigns it somewhere else entirely:
-	//
-	//	my $v_unicode_version;                              # line 162
-	//	UnicodeVersion() unless defined $v_unicode_version; # line 1029
-	//	if ($v_unicode_version ge v2.0.0) { ... }           # line 1030
-	//	...
-	//	$v_unicode_version = pack "C*", ...;                # line 4743
-	//
-	// Typing the declaration Undef reported line 1030 as a mismatch, on the
-	// strength of a claim the file itself contradicts 3700 lines later.
-	//
-	// An earlier attempt kept Undef when nothing in the file appeared to assign
-	// the variable, using a textual scan for `$name =`. That is not sound
-	// enough to make a definite claim on: `my ($key, $val) = each %h` assigns
-	// $val and matches no such pattern, so the scan said "never assigned" and
-	// PSC reported every later use of $val as undef. Perl binds names in more
-	// ways than a regex can enumerate — list assignment, foreach aliasing,
-	// local, sub signatures, typeglobs.
-	//
-	// Undef is a DEFINITE claim, and PSC cannot establish it from a
-	// declaration alone. Scalar is the honest type: the variable holds one
-	// value and inference does not yet know which. An explicit `my $x = undef`
-	// still narrows to Undef through assignment narrowing, because there the
-	// source says so.
-	for i := 0; i < node.ChildCount(); i++ {
-		child := node.Child(i)
-		if child == nil {
-			continue
-		}
-		switch child.Kind() {
-		case "scalar":
-			name := sigildName("$", child, source)
-			scalarType := types.Scalar
-			st.Define(Symbol{
-				Name:      name,
-				Type:      scalarType,
-				Kind:      SymVariable,
-				StartByte: node.StartByte(),
-				EndByte:   node.EndByte(),
-			})
-		case "array":
-			name := sigildName("@", child, source)
-			st.Define(Symbol{
-				Name:      name,
-				Type:      types.Array,
-				Kind:      SymVariable,
-				StartByte: node.StartByte(),
-				EndByte:   node.EndByte(),
-			})
-		case "hash":
-			name := sigildName("%", child, source)
-			st.Define(Symbol{
-				Name:      name,
-				Type:      types.Hash,
-				Kind:      SymVariable,
-				StartByte: node.StartByte(),
-				EndByte:   node.EndByte(),
-			})
-		}
-	}
-}
-
-// sigildName finds the varname child inside a scalar/array/hash node and
-// returns the sigil-prefixed name (e.g. "$x", "@arr", "%hash").
-func sigildName(sigil string, node *parser.Node, source []byte) string {
-	for i := 0; i < node.ChildCount(); i++ {
-		child := node.Child(i)
-		if child != nil && child.Kind() == "varname" {
-			return sigil + child.Text(source)
-		}
-	}
-	// Fallback: use the full text of the node
-	return sigil + node.Text(source)
-}
-
-// collectSubroutineDeclaration extracts the sub name, defines it in the
-// current scope, then walks the sub body in a new child scope.
-func collectSubroutineDeclaration(node *parser.Node, source []byte, st *SymbolTable) {
-	var subName string
-	var bodyNode *parser.Node
-
-	for i := 0; i < node.ChildCount(); i++ {
-		child := node.Child(i)
-		if child == nil {
-			continue
-		}
-		switch child.Kind() {
-		case "bareword":
-			subName = child.Text(source)
-		case "block":
-			bodyNode = child
-		}
-	}
-
-	if subName != "" {
-		st.Define(Symbol{
-			Name:      subName,
-			Type:      types.Code,
-			Kind:      SymSubroutine,
-			StartByte: node.StartByte(),
-			EndByte:   node.EndByte(),
-		})
-	}
-
-	// Walk the subroutine body in a dedicated scope
-	if bodyNode != nil {
-		st.EnterScope(subName)
-		for i := 0; i < bodyNode.ChildCount(); i++ {
-			walkDeclarations(bodyNode.Child(i), source, st)
-		}
-		st.ExitScope()
-	}
 }

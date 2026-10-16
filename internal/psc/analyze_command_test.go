@@ -105,3 +105,38 @@ func TestAnalyzeCommandNoArgs(t *testing.T) {
 	err := cmd.Execute()
 	assert.Error(t, err, "analyze with no argument should return an error")
 }
+
+// TestAnalyzeCommandMatchesGolden holds psc analyze's output over the fixture
+// tree to testdata/analyze.golden: a version is not a dependency, and neither
+// is a file required by path.
+func TestAnalyzeCommandMatchesGolden(t *testing.T) {
+	want, err := os.ReadFile(filepath.Join("testdata", "analyze.golden"))
+	require.NoError(t, err)
+
+	cmd := psc.NewCommand()
+	cmd.SetArgs([]string{"analyze", filepath.Join("testdata", "analyze")})
+
+	var out strings.Builder
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+
+	require.NoError(t, cmd.Execute())
+	assert.Equal(t, string(want), filepath.ToSlash(out.String()))
+}
+
+// TestAnalyzeCommandOnBrokenFile: a statement perl rejects does not hide the
+// dependencies the file declares, and analyze neither panics nor fails.
+func TestAnalyzeCommandOnBrokenFile(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "broken.pl")
+	require.NoError(t, os.WriteFile(file, []byte("use Foo;\nmy $x = ;\n"), 0644))
+
+	cmd := psc.NewCommand()
+	cmd.SetArgs([]string{"analyze", file})
+
+	var out strings.Builder
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+
+	require.NoError(t, cmd.Execute())
+	assert.Equal(t, file+":\n  Foo\n", out.String())
+}

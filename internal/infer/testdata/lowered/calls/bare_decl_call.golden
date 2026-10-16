@@ -1,0 +1,4 @@
+sym $ok Boolean
+sym $v Scalar
+sym $v Undef
+sym setit Code

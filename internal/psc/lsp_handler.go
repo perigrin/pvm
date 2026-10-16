@@ -20,6 +20,9 @@ type handler struct {
 	initialized bool
 	isShutdown  bool
 	exitFn      func(int) // injectable for testing; defaults to os.Exit
+
+	// noted holds each directory whose incRoots note has been logged.
+	noted map[string]bool
 }
 
 // newHandler creates a handler wired to the given server and transport.
@@ -29,6 +32,7 @@ func newHandler(server *LSPServer, tr *transport) *handler {
 		server:    server,
 		transport: tr,
 		exitFn:    func(int) {}, // replaced by os.Exit in production
+		noted:     map[string]bool{},
 	}
 }
 
@@ -143,7 +147,23 @@ func (h *handler) updateDocument(uri string, source []byte) {
 		})
 		return
 	}
+	h.logINCNote(uri)
 	h.publishDiagnostics(uri, source)
+}
+
+// logINCNote sends incRoots' note on the directory of the document at uri,
+// the one psc check prints, as a window/logMessage, once per directory. It
+// is about the directory's project, not the file, so it is no diagnostic.
+func (h *handler) logINCNote(uri string) {
+	dir, why := h.server.incNote(uri)
+	if why == "" || h.noted[dir] {
+		return
+	}
+	h.noted[dir] = true
+	h.transport.sendNotification("window/logMessage", lspLogMessageParams{
+		Type:    lspSeverityInformation,
+		Message: "psc: note: " + printable(why) + "; @INC is PERL5LIB alone",
+	})
 }
 
 // handleDidOpen handles textDocument/didOpen notifications. It runs inference

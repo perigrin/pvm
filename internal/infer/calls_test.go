@@ -1,0 +1,324 @@
+// ABOUTME: Tests for the call rules of Analyze: which calls are checked as a CORE builtin, and how.
+// ABOUTME: Each case is a program perl 5.42 -w runs silently, paired with a control perl rejects or warns about.
+
+package infer_test
+
+import (
+	"slices"
+	"testing"
+
+	"tamarou.com/pvm/internal/infer"
+	"tamarou.com/pvm/internal/lower"
+	"tamarou.com/pvm/internal/parse"
+)
+
+// wantCode fails t unless the lowered path gives src a diagnostic of code.
+func wantCode(t *testing.T, src, code string) {
+	t.Helper()
+	diags := loweredDiags(src)
+	for _, d := range diags {
+		if d.Code == code {
+			return
+		}
+	}
+	t.Errorf("%q: diagnostics %v, want a %s", src, diags, code)
+}
+
+// `&name` never calls CORE: perl 5.42 -w runs `sub getgrgid { "user:@_" }
+// sub lookup { &getgrgid } print lookup(7)` and prints "user:7", the sub
+// handed the caller's @_. Without the ampersand perl takes the builtin and
+// dies at compile time, "Not enough arguments for getgrgid".
+func TestAmpersandCallIsTheUserSub(t *testing.T) {
+	for _, src := range []string{
+		"sub getgrgid { \"user:@_\" }\nsub lookup { &getgrgid }\nprint lookup(7), \"\\n\";\n",
+		"sub getgrnam { \"g:@_\" } sub getgrgid { \"i:@_\" }\nsub getgr :prototype($) { ($_[0] =~ /^\\d+/) ? &getgrgid : &getgrnam }\nprint getgr(\"root\"), \"\\n\";\n",
+		"sub gethostbyaddr { \"h\" }\nmy $h = &gethostbyaddr(\"a\");\n",
+	} {
+		wantSilent(t, src)
+	}
+
+	wantCode(t, "sub getgrgid { \"u\" }\nprint getgrgid(), \"\\n\";\n", infer.CodeArityMismatch)
+}
+
+// die throws any defined scalar: perl 5.42 -w runs `eval { die E->new };
+// print ref($@)` and prints "E", and `die {code => 1}` leaves a HASH in $@.
+// An undefined one is what perl warns about, "Use of uninitialized value
+// $x in die", so it is still reported.
+func TestDieTakesAnObject(t *testing.T) {
+	for _, src := range []string{
+		"package E; sub new { bless {}, shift }\npackage main;\neval { die E->new }; print ref($@), \"\\n\";\n",
+		"eval { die { code => 1 } };\n",
+		"eval { die \"a\", \"b\" };\n",
+		"eval { die 1 < 2 };\n",
+		"sub f { die $_[0] }\n",
+		"die(;",
+	} {
+		wantSilent(t, src)
+	}
+
+	wantCode(t, "eval { die undef };\n", infer.CodeTypeMismatch)
+}
+
+// An array or a hash given to a list operator's slurpy slot flattens into
+// its elements, and each element is what the slot checks: perl 5.42 -w
+// runs `my @parts = ("a", "b"); print @parts; print "x", @parts; warn
+// @parts` and `system(@cmd)`, `exec @cmd` and `chomp(@$arr)` silently. An
+// array whose elements are undef still is reported: `my @a = (undef,
+// undef); print @a` warns "Use of uninitialized value $a[0] in print". A
+// `$` slot does not flatten: `length(@a)` warns "length() used on @a".
+func TestArrayArgumentToListOpFlattens(t *testing.T) {
+	for _, src := range []string{
+		"my @parts = (\"a\", \"b\");\nprint @parts; print \"x\", @parts, \"\\n\";\nwarn @parts;\n",
+		"sub run { my @cmd = @_; system(@cmd) == 0 or die \"failed\"; exec @cmd if 0 }\nrun(\"true\");\n",
+		"my $arr = [\"a\\n\"];\nchomp(@$arr);\n",
+		"my %h = (a => 1);\nprint %h, \"\\n\";\n",
+		"my @a;\nprint STDERR @a;\n",
+		"sub f { print @{$_[0]} }\n",
+		"print(;",
+		"warn(;",
+	} {
+		wantSilent(t, src)
+	}
+
+	wantCode(t, "my @a = (undef, undef);\nprint @a, \"\\n\";\n", infer.CodeTypeMismatch)
+	wantCode(t, "my @a = (1, 2);\nprint length(@a), \"\\n\";\n", infer.CodeTypeMismatch)
+}
+
+// A builtin that returns undef only when it fails is judged by the value
+// it returns when it succeeds: perl 5.42 -w runs `fileno(STDOUT) . ">"`
+// (prints "1>"), `vec($rin, fileno(STDIN), 1) = 1`, `fileno STDERR !=
+// fileno STDOUT` and `1 while read($fh, $buf, 4096) > 0` silently. A value
+// that is known to be undef still is reported: `undef() + 1` warns "Use of
+// uninitialized value in addition (+)". So is a user sub's maybe-undef
+// result: `sub f { return if $_[0]; "s" } f(1) . "x"` warns in
+// concatenation.
+func TestFilenoAndReadResultsInStrAndNumSlots(t *testing.T) {
+	for _, src := range []string{
+		"my $fd = fileno(STDOUT) . \">\";\nmy $rin = \"\"; vec($rin, fileno(STDIN), 1) = 1;\nprint \"$fd\\n\";\n",
+		"print \"differ\\n\" if defined fileno STDERR && fileno STDERR != fileno STDOUT;\n",
+		"open my $fh, \"<\", $0 or die; my $buf;\n1 while read($fh, $buf, 4096) > 0;\n",
+	} {
+		wantSilent(t, src)
+	}
+
+	wantCode(t, "my $x = undef() + 1;\n", infer.CodeCoercionMismatch)
+	wantCode(t, "sub f { return if $_[0]; \"s\" }\nmy $x = f(1) . \"x\";\n", infer.CodeCoercionMismatch)
+}
+
+// defined's operand is in scalar context: perl 5.42 -w runs
+// `defined($self{lastline} = readline($fh))`, `defined(my $x =
+// readline($fh))` and `1 while defined caller ++$lvl` silently, each
+// a line or a package name, or undef. An aggregate there is perl's
+// compile error, "Can't use 'defined(@array)'", and is still reported.
+func TestDefinedOfAssignmentIsScalar(t *testing.T) {
+	for _, src := range []string{
+		"open my $fh, \"<\", $0 or die;\nmy %self;\nprint \"l\\n\" if defined($self{lastline} = readline($fh));\n",
+		"my $lvl = 0;\nsub depth { 1 while defined caller ++$lvl; $lvl }\nopen my $fh, \"<\", $0; print \"l\\n\" if defined(my $x = readline($fh)); print depth(), \"\\n\";\n",
+		"my $p = defined caller;\n",
+		"defined(;",
+	} {
+		wantSilent(t, src)
+	}
+
+	wantCode(t, "my @a = (1, 2);\nprint defined(@a);\n", infer.CodeTypeMismatch)
+	wantCode(t, "my %h;\nprint defined(%h);\n", infer.CodeTypeMismatch)
+}
+
+// 4-arg select's timeout may be undef, which blocks until a handle is
+// ready: perl 5.42 -w compiles and runs `select($rout = $rin, undef, undef,
+// undef) if 0` silently. A string timeout is still reported: `select(undef,
+// undef, undef, "abc")` warns 'Argument "abc" isn't numeric in select
+// system call'.
+func TestSelectAcceptsUndefTimeout(t *testing.T) {
+	for _, src := range []string{
+		"my ($rin, $rout) = (\"\", \"\");\nselect($rout = $rin, undef, undef, undef) if 0;\n",
+		"select(undef, undef, undef, 0.25);\n",
+		"my $t;\nselect(undef, undef, undef, $t);\n",
+	} {
+		wantSilent(t, src)
+	}
+
+	wantCode(t, "select(undef, undef, undef, \"abc\");\n", infer.CodeTypeMismatch)
+}
+
+// A builtin a `use` list names is overridden by the sub it imports or
+// predeclares: perl 5.42 -w runs `use subs "rename"; sub rename { "fake" }
+// print rename()` and prints "fake", and compiles `use POSIX
+// qw(localtime); localtime(1, 2)`. A sub of the same name without the
+// `use` does not override: `sub rename { "fake" } rename()` is "Not enough
+// arguments for rename". Nor can a strong keyword be overridden: under
+// `use subs "defined"`, `defined(@a)` is still "Can't use
+// 'defined(@array)'".
+func TestUseSubsOverridesBuiltinCheck(t *testing.T) {
+	for _, src := range []string{
+		"use subs \"rename\";\nsub rename { \"fake\" }\nprint rename(), \"\\n\";\n",
+		"use subs qw(rename);\nmy $r = rename();\n",
+		"use POSIX qw(localtime);\nmy @t = localtime(1, 2);\n",
+	} {
+		wantSilent(t, src)
+	}
+
+	wantCode(t, "sub rename { \"fake\" }\nprint rename(), \"\\n\";\n", infer.CodeArityMismatch)
+	wantCode(t, "use subs \"defined\";\nsub defined { 1 }\nmy @a;\nprint defined(@a);\n", infer.CodeTypeMismatch)
+}
+
+// getsockopt and prototype return undef only when they fail, so a Str
+// slot judges what they return on success: perl 5.42 -w runs `unpack 'i',
+// getsockopt($s, SOL_SOCKET, SO_SNDBUF)` (prints "ok" for a positive
+// buffer) and `defined prototype($b) && prototype($b) =~ /^;?\*/`
+// silently. A known undef in a Str slot, `(undef) . "x"`, warns "Use of
+// uninitialized value in concatenation".
+func TestUndefUnionBuiltinResultInStrSlot(t *testing.T) {
+	for _, src := range []string{
+		"use Socket;\nsocket(my $s, PF_INET, SOCK_STREAM, 0) or die;\nmy $sndbuf = unpack 'i', getsockopt($s, SOL_SOCKET, SO_SNDBUF);\nprint $sndbuf > 0 ? \"ok\\n\" : \"no\\n\";\n",
+		"my $builtinname = \"CORE::push\";\nprint \"p\\n\" if defined prototype($builtinname) && prototype($builtinname) =~ /^;?\\*/;\n",
+	} {
+		wantSilent(t, src)
+	}
+
+	wantCode(t, "my $y = (undef) . \"x\";\n", infer.CodeCoercionMismatch)
+}
+
+// `scalar localtime()` is the date string: perl 5.42 -w runs `"on: " .
+// scalar localtime() . "\n"` and `"g: " . scalar gmtime(0)` silently,
+// printing "on: Wed Oct 14 ..." and "g: Thu Jan  1 00:00:00 1970".
+// Without `scalar`, in list context, localtime is nine numbers.
+func TestScalarLocaltimeIsStr(t *testing.T) {
+	for _, src := range []string{
+		"my $stamp = \"on: \" . scalar localtime() . \"\\n\";\nprint $stamp;\n",
+		"my $g = \"g: \" . scalar gmtime(0);\n",
+	} {
+		wantSilent(t, src)
+	}
+
+	wantCode(t, "my $y = (undef) . \"x\";\n", infer.CodeCoercionMismatch)
+}
+
+// An array in a builtin's non-slurpy `$` slot is in scalar context, so it
+// arrives as its count: perl 5.42 -w is silent on `int(rand(@m))`, a
+// random index of @m, and on `lc(@a)`, which is "2" for two elements.
+// The builtins perl refuses or warns on an aggregate in are still
+// reported: `length(@a)` warns "length() used on @a (did you mean
+// "scalar(@a)"?)", `defined(@a)` dies "Can't use 'defined(@array)'", and
+// `exists(@a)` dies "exists argument is not a HASH or ARRAY element or a
+// subroutine".
+func TestArrayInScalarSlotIsCount(t *testing.T) {
+	for _, src := range []string{
+		"my @m = (1, 2, 3);\nmy $i = int(rand(@m));\n",
+		"my @a = (1, 2);\nmy $c = lc(@a);\n",
+	} {
+		wantSilent(t, src)
+	}
+	for _, src := range []string{
+		"my @a = (1, 2);\nmy $l = length(@a);\n",
+		"my @a = (1, 2);\nmy $d = defined(@a);\n",
+		"my @a = (1, 2);\nmy $e = exists(@a);\n",
+	} {
+		wantCode(t, src, infer.CodeTypeMismatch)
+	}
+}
+
+// srand and sleep take their `$` argument in scalar context, so an array
+// or a hash there is its count: perl 5.42 -w, `my @e; srand(@e)` is "0
+// but true", `srand(@a)` with two elements 2, and `my %h; srand(%h)` "0
+// but true", each silently, and `sleep(@e)` sleeps 0 seconds. A hash in
+// length's Str slot is still reported: perl warns "length() used on %h
+// (did you mean "scalar(keys %h)"?)".
+func TestArrayInScalarSlotIsItsCount(t *testing.T) {
+	for _, src := range []string{
+		"my @e;\nsrand(@e);\n",
+		"my @a = (1, 2);\nsrand(@a);\n",
+		"my %h;\nsrand(%h);\n",
+		"my @e;\nsleep(@e);\n",
+	} {
+		wantSilent(t, src)
+	}
+	wantCode(t, "my %h = (a => 1);\nmy $l = length(%h);\n", infer.CodeTypeMismatch)
+}
+
+// succeeded judges a builtin's result without the Undef it returns only
+// when it fails: perl 5.42 -w is silent on `fileno(STDOUT) . ">"`. A
+// builtin that returns undef in normal use keeps it: with STDIN at end of
+// file and %h empty, perl warns "Use of uninitialized value in
+// concatenation (.) or string" on `getc(STDIN) . "x"` and `each(%h) .
+// "y"`, and so on a sub returning getc's result. A builtin `use subs`
+// overrides is a user sub, and its result is its own: perl warns the
+// same on `use subs "fileno"; sub fileno { $_[0] ? "a" : undef }
+// fileno(0) . ">"`.
+func TestSucceededKeepsNormalUndef(t *testing.T) {
+	wantSilent(t, "print fileno(STDOUT) . \">\";\n")
+	for _, src := range []string{
+		"print getc(STDIN) . \"x\";\n",
+		"my %h;\nprint each(%h) . \"y\";\n",
+		"sub g { return getc(STDIN) }\nprint g() . \"x\";\n",
+		"use subs \"fileno\";\nsub fileno { $_[0] ? \"a\" : undef }\nprint fileno(0) . \">\";\n",
+	} {
+		wantCode(t, src, infer.CodeCoercionMismatch)
+	}
+}
+
+// A builtin a module's default @EXPORT overrides is the module's sub, not
+// the builtin, as the parser resolves it: perl 5.42 -w, with Foo2.pm
+// exporting `sleep` by default, `use Foo2; sleep("abc")` prints "slept
+// abc" silently. Without the import the builtin is called: `use Foo2 ();
+// sleep("abc")` warns "Argument "abc" isn't numeric in sleep", and so does
+// `sleep("abc")` when Foo2 cannot be found. A lexical sub overrides the
+// builtin, `my sub sleep { "s" } sleep("abc")` being "s", and a package
+// sub the file declares does not: `sub sleep { "s" } sleep("abc")` warns
+// "Ambiguous call resolved as CORE::sleep()" and "isn't numeric".
+func TestDefaultExportOverridesBuiltin(t *testing.T) {
+	foo2 := "package Foo2;\nuse Exporter 'import';\nour @EXPORT = ('sleep');\nsub sleep { return \"slept $_[0]\" }\n1;\n"
+	load := func(name string) ([]byte, bool) {
+		if name == "Foo2" {
+			return []byte(foo2), true
+		}
+		return nil, false
+	}
+	diags := func(src string, load parse.Loader) []infer.Diagnostic {
+		root := parse.ParseWithLoader([]byte(src), load)
+		f := lower.Lower(root)
+		_, d, _ := infer.Analyze(f, lower.NewPositions(root, f), nil, infer.Options{})
+		return d
+	}
+
+	src := "use Foo2;\nmy $x = sleep(\"abc\");\n"
+	for _, s := range []string{src, "my sub sleep { \"s\" }\nmy $x = sleep(\"abc\");\n"} {
+		for _, d := range diags(s, load) {
+			t.Errorf("%q: diagnostic %q, want none", s, d.Message)
+		}
+	}
+	for _, c := range []struct {
+		src  string
+		load parse.Loader
+	}{
+		{"use Foo2 ();\nmy $x = sleep(\"abc\");\n", load},
+		{src, nil},
+		{"sub sleep { \"s\" }\nmy $x = sleep(\"abc\");\n", nil},
+	} {
+		if d := diags(c.src, c.load); len(d) != 1 || d[0].Code != infer.CodeTypeMismatch {
+			t.Errorf("%q: diagnostics %v, want one type mismatch", c.src, d)
+		}
+	}
+}
+
+// TestArityCheckReachable names the input that reaches the arity check: a
+// sub of a builtin's name that perl does not let override it. perl 5.42
+// resolves `getgrgid()` to CORE::getgrgid and refuses it, "Not enough
+// arguments for getgrgid"; the parser reads the call as the user sub's and
+// does not refuse it, so the arity check is what reports it. A refused
+// call such as `push()` never reaches it: psc reports the refusal.
+func TestArityCheckReachable(t *testing.T) {
+	for _, src := range []string{
+		"sub getgrgid { \"u\" }\nprint getgrgid(), \"\\n\";\n",
+		"sub rename { \"fake\" }\nprint rename(), \"\\n\";\n",
+	} {
+		var refused func(n *parse.Node) bool
+		refused = func(n *parse.Node) bool {
+			return n.Kind == parse.Unknown || slices.ContainsFunc(n.Children, refused)
+		}
+		if refused(parse.Parse([]byte(src))) {
+			t.Errorf("%q: the parser refuses it", src)
+		}
+		wantCode(t, src, infer.CodeArityMismatch)
+	}
+}

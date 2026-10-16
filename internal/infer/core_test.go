@@ -79,10 +79,12 @@ func TestInferUndeclaredNameHasNoCoreType(t *testing.T) {
 	assert.Empty(t, diags)
 }
 
-// TestInferCoreCoercionMismatchStillReported: a lossy coercion is reported
-// through CORE.pmt's types. `bless "x"` passes a Str where `sub bless (Ref
-// $ref, ...)` takes a Ref, which no Str coerces to; a Str where a Num is
-// declared, abs's argument or +'s operand, is reported as the coercion it is.
+// TestInferCoreCoercionMismatchStillReported: a coercion mismatch is
+// reported through CORE.pmt's types. `bless "x"` passes a Str where `sub
+// bless (Ref $ref, ...)` takes a Ref, which no Str coerces to; a literal
+// known not to be numeric where a Num is declared, abs's argument or +'s
+// operand, is reported as the coercion it is, as perl 5.42 -w warns
+// `Argument "abc" isn't numeric` on both.
 func TestInferCoreCoercionMismatchStillReported(t *testing.T) {
 	cases := []struct {
 		src      string
@@ -90,8 +92,8 @@ func TestInferCoreCoercionMismatchStillReported(t *testing.T) {
 		severity infer.Severity
 	}{
 		{`my $o = bless "x";`, infer.CodeTypeMismatch, infer.Error},
-		{`my $s = "abc"; my $n = abs($s);`, infer.CodeTypeMismatch, infer.Warning},
-		{`my $s = "abc"; my $n = $s + 1;`, infer.CodeCoercionMismatch, infer.Warning},
+		{`my $n = abs("abc");`, infer.CodeTypeMismatch, infer.Warning},
+		{`my $n = "abc" + 1;`, infer.CodeCoercionMismatch, infer.Warning},
 	}
 	for _, c := range cases {
 		_, diags := analyzeSource(t, []byte(c.src))
@@ -103,7 +105,8 @@ func TestInferCoreCoercionMismatchStillReported(t *testing.T) {
 
 // TestInferTypesOperatorsFromCore: an operator's result is its CORE.pmt
 // declaration's. `sub <=> :infix(ORDERING) (Num $x, Num $y) Int|Undef;`:
-// measured, `1 <=> "nan"` is undef. `x` forks on its left operand's
+// measured, `1 <=> "nan"` is undef, but the Undef is kept only for an
+// operand known to be NaN, so `1 <=> 2`, measured -1, is an Int. `x` forks on its left operand's
 // parenthesis and its context: measured, `my @y = (1,2) x 2` is (1,2,1,2)
 // and `my $s = "ab" x 2` is "abab".
 func TestInferTypesOperatorsFromCore(t *testing.T) {
@@ -111,7 +114,7 @@ func TestInferTypesOperatorsFromCore(t *testing.T) {
 		src, name string
 		want      types.Type
 	}{
-		{"my $c = 1 <=> 2;", "$c", types.Int | types.Undef},
+		{"my $c = 1 <=> 2;", "$c", types.Int},
 		{"my @y = (1,2) x 2;", "@y", types.List},
 		{`my $s = "ab" x 2;`, "$s", types.Str},
 	}

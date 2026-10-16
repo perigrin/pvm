@@ -1,0 +1,3 @@
+sym $_ Str
+sym $n Str
+sym $r Int|Num|Inf

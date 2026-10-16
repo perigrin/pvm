@@ -57,3 +57,17 @@ func TestSessionSharesModules(t *testing.T) {
 		t.Errorf("%s: shared a/Foo.pm's facts; b/Foo.pm's import may define s2", other)
 	}
 }
+
+// TestSessionParsesSourceAtPath: an editor's buffer is not the file on disk,
+// and may not be on disk at all, yet its `use` resolves as the file at its
+// path would: against the path's directory, then the roots.
+func TestSessionParsesSourceAtPath(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "Foo.pm"), []byte("package Foo;\nour @EXPORT = qw(two);\nsub two ($$) { }\n1;\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	n := parse.NewSession().ParseSourceFrom(filepath.Join(root, "unsaved.t"), []byte("use Foo; two 1, 2;"))
+	if findCall(n, "two") == nil || len(collectUnknownNodes(n)) > 0 {
+		t.Errorf("want two(1, 2); got %s", shape(n))
+	}
+}

@@ -1,0 +1,2 @@
+sym $h HashRef
+sym $x Int|Num|Inf

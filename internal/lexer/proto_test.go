@@ -147,20 +147,26 @@ func TestPrototypeOnlyAfterSubName(t *testing.T) {
 //	$ perl -e 'use v5.36; sub g ($a, $b) {1} print prototype(\&g) // "undef"'
 //	undef
 //
-// So `($a, $b)` under v5.36 is a signature with real variables in it.
+// So `($a, $b)` under v5.36 is a signature with real variables in it. The
+// decimal spelling is the same bundle: `perl -MO=Deparse -e 'use 5.036; ...'`
+// prints `use feature ':5.36'`.
 func TestSignatureIsNotAPrototype(t *testing.T) {
-	src := "use v5.36;\nsub g ($a, $b) { 1 }\n"
-	toks := Tokenize([]byte(src))
+	for _, src := range []string{
+		"use v5.36;\nsub g ($a, $b) { 1 }\n",
+		"use 5.036;\nsub g ($a, $b) { 1 }\n",
+	} {
+		toks := Tokenize([]byte(src))
 
-	for _, tok := range toks {
-		if tok.Kind == Prototype {
-			t.Errorf("%q: %q lexed as a Prototype, but signatures are enabled",
-				src, src[tok.Start:tok.End])
+		for _, tok := range toks {
+			if tok.Kind == Prototype {
+				t.Errorf("%q: %q lexed as a Prototype, but signatures are enabled",
+					src, src[tok.Start:tok.End])
+			}
 		}
-	}
-	if !hasToken(toks, []byte(src), Variable, "$a") {
-		t.Errorf("a signature's parameters are variables: %s",
-			renderKinds(toks, []byte(src)))
+		if !hasToken(toks, []byte(src), Variable, "$a") {
+			t.Errorf("a signature's parameters are variables: %s",
+				renderKinds(toks, []byte(src)))
+		}
 	}
 }
 

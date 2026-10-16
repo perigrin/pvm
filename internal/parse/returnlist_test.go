@@ -75,6 +75,10 @@ func TestReturnList(t *testing.T) {
 		// A binary that is not a comma. `return $a + $b;` canon'd as
 		// `return +;`.
 		{"return $a + $b;", "return $a + $b;"},
+
+		// Issue 01a0df69's spelling: `return ||;` was its canon, both
+		// operands gone. perl Deparses it as `return $v || $v;`.
+		{"my $v; return $v || $v;", "my $v;return $v || $v;"},
 	} {
 		src := []byte(tc.src)
 		got := strings.TrimSpace(parse.Canon(parse.Parse(src), src))

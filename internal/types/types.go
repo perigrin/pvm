@@ -257,13 +257,33 @@ func IsSubtype(child, parent Type) bool {
 // should get a diagnostic when passed a generic Ref. This matches the
 // pre-bitset behavior.
 //
+// A defined guard keeps Scalar polymorphic: Scalar less Undef is a
+// container for any defined value of its subtypes, and perl 5.42 -w is
+// silent on `if (defined $ch) { $ch eq '}' }` with $ch never assigned.
+//
+// A negated ref guard keeps it polymorphic too, with or without a defined
+// guard beside it: where `ref $x` is false, $x is any scalar but a
+// reference -- perl 5.42 runs that branch for a string, a number, undef, a
+// glob and a boolean alike -- and perl 5.42 -w is silent on B::Concise's
+// `if (ref $objname) { } else { "main::" . $objname }`.
+//
+// A scalar that may hold a glob is polymorphic too: Scalar has no Glob
+// bit, so where `ref \$v eq 'GLOB'` narrowed $v to a Glob in one branch,
+// the join after it is Scalar|Glob, which is still any value a scalar
+// holds. perl 5.42 -w is silent on Dumpvalue's `ref $v` and `fileno($v)`
+// past such a branch.
+//
 // List is handled separately by listSatisfiesAggregate rather than listed
 // here: it stands above Scalar in the arity ordering rather than beside it,
 // so a blanket polymorphic check would let every scalar requirement be
 // satisfied by a list-returning expression.
 var polymorphicMasks = map[Type]bool{
-	Any:    true,
-	Scalar: true,
+	Any:                     true,
+	Scalar:                  true,
+	Scalar &^ Undef:         true,
+	Scalar &^ Ref:           true,
+	Scalar &^ (Undef | Ref): true,
+	Scalar | Glob:           true,
 }
 
 // listSatisfiesAggregate reports whether a List actual can satisfy required.
@@ -359,7 +379,11 @@ func typeSatisfies(actual, required Type, strict bool) bool {
 	//
 	// Polymorphic: actual is a general container that could hold any of its
 	// subtypes at runtime, so a required subtype might be what it holds.
-	if polymorphicMasks[actual] && IsSubtype(required, actual) {
+	// A required union with members outside actual, such as a filehandle
+	// slot's Glob and IO beside its Str, still takes it when some member is
+	// one actual may hold: perl 5.42 -w is silent on `chdir $dir` for
+	// `my $dir = shift // "."`.
+	if polymorphicMasks[actual] && required&actual != 0 {
 		return true
 	}
 

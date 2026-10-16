@@ -126,6 +126,33 @@ func (p *parser) overridden(name string) bool {
 	return sub || global || p.listed[name]
 }
 
+// markResolution records on n, a call by name, what this parse resolves
+// it to. Override is set when it calls a builtin, spelled without
+// `CORE::`, that a sub overrides: as overridden says, save a package sub
+// the file declares itself, which never overrides a builtin. Measured on
+// 5.42.0, `sub rename { "fake" } rename()` is "Not enough arguments for
+// rename", while a lexical sub does override: `my sub lc { "x" }
+// lc("A")` is "x". Signatures is the typed signatures a declaration file
+// gives the sub it calls, when that is a sub and not the builtin. A `.pmt`
+// is not marked: CORE.pmt is one, and reading it builds the candidates
+// this consults.
+func (p *parser) markResolution(n *Node) *Node {
+	if n == nil || n.Kind != Call || p.typed || n.Text != keywordName(n.Text) {
+		return n
+	}
+	_, lexical := p.lexical[n.Text]
+	imp, sub := p.lookupSub(n.Text)
+	builtin := len(coreSignatures()[n.Text]) > 0
+	if builtin {
+		_, global := p.lookupSub("CORE::GLOBAL::" + n.Text)
+		n.Override = lexical || sub && !imp.Local || global || p.listed[n.Text]
+	}
+	if sub && (!builtin || n.Override) {
+		n.Signatures = imp.Signatures
+	}
+	return n
+}
+
 // argCount is how many arguments a call writes: each child, a block or a
 // filehandle among them, split at its commas. It is not exact when one is
 // a parenthesised list, which a builtin may count as one argument or as

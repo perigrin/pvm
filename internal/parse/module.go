@@ -5,6 +5,7 @@ package parse
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -38,7 +39,11 @@ type Loader func(name string) ([]byte, bool)
 // A MODULE uses perl's own spelling: `My::Mod` lives at `My/Mod.pm`. A
 // required FILE is already a relative path and is joined as written --
 // `./test.pl` and `./t/test.pl` are the same file reached from `t/` and from
-// the tree root, which is why more than one directory is searched.
+// the tree root, which is why more than one directory is searched. A
+// required path that would leave the directory it is joined to, as
+// `../x.pl` does, is not found: perl reads it relative to the working
+// directory, never through @INC, and psc reads nothing outside the
+// directories it searches.
 //
 // The first directory is normally the using file's own, which is what makes a
 // local module -- never installed anywhere -- resolvable at all.
@@ -51,6 +56,12 @@ type Loader func(name string) ([]byte, bool)
 func DirLoader(dirs ...string) Loader {
 	return func(name string) ([]byte, bool) {
 		rels := []string{name}
+		if isRequiredPath(name) && !filepath.IsLocal(name) {
+			// A path that climbs out of the directory it is joined to, or
+			// is absolute, names a file outside every directory searched,
+			// which psc does not read.
+			return nil, false
+		}
 		if !isRequiredPath(name) {
 			ext := ".pm"
 			if module, ok := strings.CutSuffix(name, ".xs"); ok {
@@ -64,7 +75,7 @@ func DirLoader(dirs ...string) Loader {
 		}
 		for _, dir := range dirs {
 			for _, rel := range rels {
-				src, err := os.ReadFile(filepath.Join(dir, rel))
+				src, err := ReadSource(filepath.Join(dir, rel))
 				if err != nil {
 					// Unreadable is not found. Distinguishing them would buy
 					// a caller nothing: neither can resolve the import.
@@ -75,6 +86,45 @@ func DirLoader(dirs ...string) Loader {
 		}
 		return nil, false
 	}
+}
+
+// MaxSourceBytes is the largest file ReadSource reads: ten times perl
+// 5.42's largest library file, Module/CoreList.pm at 1.2 MB.
+const MaxSourceBytes = 16 << 20
+
+// ReadSource reads the Perl source at path, which must be a regular file
+// of at most MaxSourceBytes. A cloned repository is untrusted: a FIFO
+// named as a module would block the read forever, and a link to
+// /dev/zero would never end it.
+//
+// ponytail: the file is stat'ed by name and then opened, so a FIFO
+// swapped in between still blocks the open; O_NONBLOCK closes that
+// window where the platform has it, if a repository being rewritten
+// while psc reads it matters.
+func ReadSource(path string) ([]byte, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("%s is not a regular file", path)
+	}
+	if info.Size() > MaxSourceBytes {
+		return nil, fmt.Errorf("%s is larger than %d bytes", path, MaxSourceBytes)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	src, err := io.ReadAll(io.LimitReader(f, MaxSourceBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(src) > MaxSourceBytes {
+		return nil, fmt.Errorf("%s is larger than %d bytes", path, MaxSourceBytes)
+	}
+	return src, nil
 }
 
 // isRequiredPath reports whether a `require`'s literal argument names a FILE
@@ -197,15 +247,28 @@ func (s *Session) ParseFileFrom(path string, roots ...string) (*Node, error) {
 	return parseFile(path, false, roots, s)
 }
 
-// parseFile reads and parses path, searching its own directory and then
-// roots. With a Session, the resolver's module facts and visited set are the
-// ones every parse searching the same directories shares; its loaded list is
-// this parse's own.
+// ParseSourceFrom parses src as the file at path would parse: its `use`
+// resolves against path's directory and then roots, as ParseFileFrom's does,
+// but the bytes are src, not what is on disk. An editor's unsaved buffer is
+// such a source, and path need not exist.
+func (s *Session) ParseSourceFrom(path string, src []byte, roots ...string) *Node {
+	return parseAt(path, src, false, roots, s)
+}
+
+// parseFile reads path and parses it as parseAt does.
 func parseFile(path string, passes bool, roots []string, s *Session) (*Node, error) {
-	src, err := os.ReadFile(path)
+	src, err := ReadSource(path)
 	if err != nil {
 		return nil, err
 	}
+	return parseAt(path, src, passes, roots, s), nil
+}
+
+// parseAt parses src, searching path's directory and then roots. With a
+// Session, the resolver's module facts and visited set are the ones every
+// parse searching the same directories shares; its loaded list is this
+// parse's own.
+func parseAt(path string, src []byte, passes bool, roots []string, s *Session) *Node {
 	dirs := []string{filepath.Dir(path)}
 	for _, root := range roots {
 		if root != "" {
@@ -222,7 +285,7 @@ func parseFile(path string, passes bool, roots []string, s *Session) (*Node, err
 			s.shared[key] = r
 		}
 	}
-	return parseRoot(src, r), nil
+	return parseRoot(src, r)
 }
 
 // ParseWithLoader parses src, resolving `use` through the given loader.

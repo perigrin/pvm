@@ -1,0 +1,3 @@
+diag 31 43 type-mismatch call to length: argument 1 expects Str, got Int|Num|Str|Array|NaN|Inf
+sym $l Int
+sym @a Array

@@ -1,0 +1,6 @@
+sym $m Int
+sym $n Int
+sym $t Str
+sym $u Scalar
+sym @a Array
+sym @s Array

@@ -1,0 +1,4 @@
+sym $x Int
+sym $y Str
+sym Bar Unknown
+sym Foo Unknown

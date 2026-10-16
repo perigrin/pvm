@@ -1,0 +1,3 @@
+sym $s Undef|Int|Num|Str|NaN|Inf
+sym $t Int
+sym @l List

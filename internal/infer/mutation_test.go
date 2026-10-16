@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"tamarou.com/pvm/internal/infer"
 )
 
 // TYPE-OVERWRITING MUTATION, after Chaliasos et al. (PLDI'22), which found
@@ -19,7 +21,7 @@ import (
 // notice an error that is actually there. The dual mutation in that paper,
 // type ERASURE, does not apply to PSC: it strips declared annotations, and
 // Perl has no annotation syntax, so every program is already fully erased.
-// PSC reads no declared types at all (see inferParamTypesFromUsage), which
+// PSC reads no declared types at all (see paramTypes), which
 // makes erasure vacuous here rather than easy.
 //
 // WHAT MAKES THIS WORTH RUNNING is that it needs no annotated corpus. The
@@ -171,7 +173,7 @@ var mutationCases = []mutationCase{
 		src:      `my @a = (1); my $x = []; my $y = $a[$x];`,
 		perlDies: false,
 		// perl warns "Use of reference as array index". Closed by
-		// checkElementIndex, which this case found.
+		// checkIndex, which this case found.
 		want: true,
 	},
 	{
@@ -212,6 +214,17 @@ var mutationCases = []mutationCase{
 	},
 }
 
+// mutationDiags analyses a mutation case with the lossy-coercion warning
+// on. A misuse perl runs, a reference where a Str is expected, is a
+// coercion perl makes silently, and perigrin ruled on 2026-10-13 that PSC
+// reports it only under that opt-in; the mutations measure what PSC can
+// catch, so they run with it.
+func mutationDiags(t *testing.T, src string) []infer.Diagnostic {
+	t.Helper()
+	_, diags, _ := analyzeSourceWithOptions(t, []byte(src+"\n"), infer.Options{WarnLossyCoercion: true})
+	return diags
+}
+
 // TestTypeOverwritingMutations reports which injected misuses PSC catches.
 //
 // A case with want=false is a KNOWN GAP, not an accepted outcome: flipping one
@@ -221,7 +234,7 @@ var mutationCases = []mutationCase{
 // is what this guards against.
 func TestTypeOverwritingMutations(t *testing.T) {
 	for _, c := range mutationCases {
-		_, diags := analyzeSource(t, []byte(c.src+"\n"))
+		diags := mutationDiags(t, c.src)
 		got := len(diags) > 0
 		assert.Equal(t, c.want, got,
 			"%s: expected diagnosed=%v, got %v (src: %s)", c.name, c.want, got, c.src)
@@ -239,7 +252,7 @@ func TestMutationDetectionRate(t *testing.T) {
 			continue // not the class this measures
 		}
 		total++
-		_, diags := analyzeSource(t, []byte(c.src+"\n"))
+		diags := mutationDiags(t, c.src)
 		if len(diags) > 0 {
 			caught++
 		} else {

@@ -14,7 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"tamarou.com/pvm/internal/infer"
-	"tamarou.com/pvm/internal/parser"
+	"tamarou.com/pvm/internal/lower"
+	"tamarou.com/pvm/internal/parse"
 	"tamarou.com/pvm/internal/psc"
 	"tamarou.com/pvm/internal/types"
 )
@@ -42,13 +43,24 @@ func testdataDir(t *testing.T) string {
 	return filepath.Join(dir, "test", "e2e", "testdata", "check")
 }
 
-// runPSCCheck invokes the psc check command against target (file or directory)
-// via the Go API and returns (stdout, stderr, error).
-func runPSCCheck(t *testing.T, target string) (string, string, error) {
+// runPSCCheck invokes the psc check command via the Go API against target
+// (file or directory) and returns (stdout, stderr, error). It checks a copy
+// of target's directory in a fresh one, with PERL5LIB empty: the copy names
+// no perl, so what psc check prints depends neither on the .perl-version
+// above the testdata nor on which perls the host has installed.
+func runPSCCheck(t *testing.T, target string, flags ...string) (string, string, error) {
 	t.Helper()
 
+	src, name := target, ""
+	if info, err := os.Stat(target); err == nil && !info.IsDir() {
+		src, name = filepath.Dir(target), filepath.Base(target)
+	}
+	copied := filepath.Join(t.TempDir(), filepath.Base(src))
+	require.NoError(t, os.CopyFS(copied, os.DirFS(src)))
+	t.Setenv("PERL5LIB", "")
+
 	cmd := psc.NewCommand()
-	cmd.SetArgs([]string{"check", target})
+	cmd.SetArgs(append([]string{"check", filepath.Join(copied, name)}, flags...))
 
 	var stdout, stderr strings.Builder
 	cmd.SetOut(&stdout)
@@ -71,7 +83,9 @@ func TestPSCCheckCleanFile(t *testing.T) {
 }
 
 // TestPSCCheckDiagnostics verifies that psc check returns an error and emits
-// arity-mismatch diagnostics when run against a file containing type errors.
+// type-mismatch diagnostics when run against a file containing type errors.
+// Its `push();` is one perl refuses ("Not enough arguments for push"): the
+// parser refuses it too, and the refusal is reported on that line.
 func TestPSCCheckDiagnostics(t *testing.T) {
 	diagFile := filepath.Join(testdataDir(t), "diagnostics.pl")
 	_, statErr := os.Stat(diagFile)
@@ -80,9 +94,10 @@ func TestPSCCheckDiagnostics(t *testing.T) {
 	_, stderr, err := runPSCCheck(t, diagFile)
 	assert.Error(t, err, "psc check on a file with errors should return a non-zero exit")
 
-	// Arity mismatch: push() with no arguments
-	assert.Contains(t, stderr, "arity-mismatch",
-		"stderr should contain an arity-mismatch diagnostic for push() with no arguments")
+	// push() with no arguments is refused: line 1 reports the refusal.
+	assert.Contains(t, stderr, "diagnostics.pl:1:1: error: perl refuses this",
+		"push() with no arguments is refused")
+	assert.Contains(t, stderr, "[call_arity]", "the refusal carries its code")
 
 	// Container-level type mismatches: wrong sigil for the builtin
 	expectedDiagnostics := []struct {
@@ -105,11 +120,9 @@ func TestPSCCheckDiagnostics(t *testing.T) {
 		"stderr should contain type-mismatch diagnostic codes")
 }
 
-// TestTypeInferenceAccuracy exercises infer.Analyze directly to verify that
-// specific Perl constructs are inferred with the expected types.
+// TestTypeInferenceAccuracy exercises infer.Analyze directly to verify
+// that specific Perl constructs are inferred with the expected types.
 func TestTypeInferenceAccuracy(t *testing.T) {
-	p := parser.New()
-
 	cases := []struct {
 		name      string
 		source    string
@@ -168,32 +181,33 @@ func TestTypeInferenceAccuracy(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			src := []byte(tc.source)
-			tree, err := p.Parse(src)
-			require.NoError(t, err, "parse must succeed for %q", tc.source)
+			root := parse.Parse(src)
+			f := lower.Lower(root)
+			pos := lower.NewPositions(root, f)
+			annotations, _, _ := infer.Analyze(f, pos, nil, infer.Options{})
 
-			annotations, _, _ := infer.Analyze(tree, src, nil)
-
-			// Search the annotation map for a node whose source text starts with
-			// the expected fragment, optionally skipping offsets below minOffset
-			// to distinguish references from declarations.
-			fragBytes := []byte(tc.fragment)
-			fragLen := uint32(len(fragBytes))
-			var found bool
-			for offset, typ := range annotations {
-				if offset < uint32(tc.minOffset) {
-					continue
+			// Search the lowered tree, outermost first, for the node whose
+			// source text is the fragment, skipping nodes that start below
+			// minOffset to distinguish references from declarations.
+			var found lower.Node
+			var walk func(n lower.Node)
+			walk = func(n lower.Node) {
+				if found != nil {
+					return
 				}
-				if offset+fragLen > uint32(len(src)) {
-					continue
+				start, end, ok := pos.Span(n.Meta().ID)
+				if ok && start >= tc.minOffset && string(src[start:end]) == tc.fragment {
+					found = n
+					return
 				}
-				if string(src[offset:offset+fragLen]) == tc.fragment {
-					assert.Equal(t, tc.want, typ,
-						"node %q should have type %s", tc.fragment, tc.want)
-					found = true
-					break
+				for _, c := range lower.Children(n) {
+					walk(c)
 				}
 			}
-			assert.True(t, found, "annotation for %q not found in source %q", tc.fragment, tc.source)
+			walk(f)
+			require.NotNil(t, found, "node for %q not found in source %q", tc.fragment, tc.source)
+			assert.Equal(t, tc.want, annotations[found.Meta().ID],
+				"node %q should have type %s", tc.fragment, tc.want)
 		})
 	}
 }
@@ -237,8 +251,8 @@ func TestPSCCheckDirectoryScan(t *testing.T) {
 
 	_, stderr, err := runPSCCheck(t, dir)
 	assert.Error(t, err, "psc check on the testdata directory should return an error (diagnostics.pl contains errors)")
-	assert.Contains(t, stderr, "arity-mismatch",
-		"stderr should contain arity-mismatch from diagnostics.pl when scanning the directory")
+	assert.Contains(t, stderr, "diagnostics.pl:4:",
+		"stderr should contain push($x, 1)'s type-mismatch from diagnostics.pl when scanning the directory")
 }
 
 // TestPSCCheckUndefPropagation verifies that psc check detects uninitialized
@@ -255,16 +269,20 @@ func TestPSCCheckUndefPropagation(t *testing.T) {
 		"stderr should contain coercion-mismatch for undef in arithmetic")
 }
 
-// TestPSCCheckCoercionDiagnostics verifies that psc check detects value-level
-// type coercion issues: string in arithmetic, == on strings, ref in concat.
+// TestPSCCheckCoercionDiagnostics verifies that a reference in a numeric
+// slot is a lossy coercion: perl takes it silently, so psc check says
+// nothing by default and reports it under --warn-lossy-coercion.
 func TestPSCCheckCoercionDiagnostics(t *testing.T) {
 	coercionFile := filepath.Join(testdataDir(t), "coercion.pl")
 	_, statErr := os.Stat(coercionFile)
 	require.NoError(t, statErr, "testdata/check/coercion.pl must exist")
 
 	_, stderr, err := runPSCCheck(t, coercionFile)
-	assert.Error(t, err, "psc check on coercion.pl should return a non-zero exit")
+	assert.NoError(t, err, "a lossy coercion is silent by default")
+	assert.Empty(t, stderr, "a lossy coercion is silent by default")
 
-	assert.Contains(t, stderr, "coercion-mismatch",
-		"stderr should contain coercion-mismatch diagnostic codes")
+	_, stderr, err = runPSCCheck(t, coercionFile, "--warn-lossy-coercion")
+	assert.Error(t, err, "--warn-lossy-coercion reports the references in numeric slots")
+	assert.Contains(t, stderr, "lossy-coercion",
+		"stderr should contain lossy-coercion diagnostic codes under the opt-in")
 }

@@ -1,0 +1,5 @@
+sym $result Int|Num|Inf
+sym $x Scalar
+sym $x Scalar
+sym calc Code
+sym passthrough Code

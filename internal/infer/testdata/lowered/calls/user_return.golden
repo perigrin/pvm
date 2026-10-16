@@ -1,0 +1,4 @@
+sym $x Int
+sym $y Num
+sym bar Code
+sym foo Code

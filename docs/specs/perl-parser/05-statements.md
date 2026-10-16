@@ -2997,6 +2997,14 @@ type ErrorStmt   struct{ /* see §5.13.2 */ }
 Every node carries a `Span`. Declarations additionally carry a `NameSpan`, so
 that rename and go-to-definition have a precise target without re-scanning.
 
+These are the statement shapes as designed. The lowered tree ships its own
+statement kinds, listed with the rest of its vocabulary in chapter 4
+§4.14: no `Span` on any node (spans live in a side table keyed by node
+id), modifier forms folded into `IfStmt`, `WhileStmt` and `ForeachStmt`,
+declarations as one `Decl`, and `GivenStmt`, `WhenStmt`, `TryStmt`,
+`DeferStmt` and `FormatStmt` each lowered to one `Hole` for now
+(01a14248-51aa-7b36-899e-9e7f33588ac7).
+
 ---
 
 ## 5.18 The five things most likely to break your parser

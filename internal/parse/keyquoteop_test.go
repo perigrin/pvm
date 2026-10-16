@@ -84,6 +84,17 @@ func TestBarewordSubscriptKey(t *testing.T) {
 	if got := strings.TrimSpace(parse.Canon(parse.Parse(b), b)); !strings.Contains(got, "{m") {
 		t.Errorf("`$h{ m }`: canon got %q", got)
 	}
+
+	// The INTERPOLATED spelling was already right when the bare one was not.
+	// perl deparses `"x $t->{m} y"` to `"x $t->{'m'} y"`.
+	b = []byte(`my $s = "x $t->{m} y";`)
+	root := parse.Parse(b)
+	if got := strings.TrimSpace(parse.Canon(root, b)); got != `my $s = "x $t->{m} y";` {
+		t.Errorf("an interpolated subscript: canon got %q", got)
+	}
+	if n := countUnknown(root); n != 0 {
+		t.Errorf("an interpolated subscript: %d Unknown nodes, want 0", n)
+	}
 }
 
 // TestQuoteOpStillLexesWithBraceDelimiter is the mutation guard: a REAL

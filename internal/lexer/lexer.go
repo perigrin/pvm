@@ -277,6 +277,9 @@ type lexer struct {
 	// rather than a parameter threaded through every scanner, because emit
 	// is the single point both go through.
 	closedBlock bool
+	// closedTermBlock is set with closedBlock when the block closed was a
+	// term's, `do {...}` or `eval {...}`, after which an operator comes.
+	closedTermBlock bool
 	// openedBlock is the same for a `{` that opened one. Both are copied
 	// onto the token as OpensBlock, so the parser does not re-derive them.
 	openedBlock bool
@@ -361,6 +364,11 @@ type lexer struct {
 	// whether that `(` is a prototype or a signature. File-level, like
 	// utf8Pragma and for the same reason.
 	signatures bool
+	// noApostropheSeparator is set while feature
+	// apostrophe_as_package_separator is OFF, so the zero value is perl's
+	// default: `'` joins a package name. The 5.41 bundle and `no feature`
+	// turn it off; see noteSignatures. File-level, like signatures.
+	noApostropheSeparator bool
 	// typed is set for typed Perl, a `.pmt` declaration file, where a
 	// container type may stand before a hash parameter: `List[Str] %h`
 	// (see containerTypeSigil), and where `sub +` names an operator (see
@@ -480,6 +488,9 @@ func scanOne(l *lexer) {
 	for _, scan := range []func(*lexer) bool{
 		scanPod,
 		scanDataSection,
+		// Before every scanner that reads punctuation: `*#`, `*"` and `*;`
+		// are globs, not a comment, a string and a statement's end.
+		scanGlobName,
 		scanComment,
 		// Before every scanner that reads punctuation as something else:
 		// `sub <<`, `sub /` and `sub %` name operators, not a heredoc, a
@@ -580,10 +591,11 @@ func (l *lexer) emit(k Kind, start int) {
 	}
 
 	l.globStar = k == Operator && l.pos-start == 1 && l.src[start] == '*' &&
-		l.expect != XOperator && l.expect != XPostDeref
+		l.expect != XOperator && l.expect != XPostDeref && l.attrArgDepth == 0
 	l.expect = l.expect.after(k, transition{
 		text:            l.src[start:l.pos],
 		closedBlock:     l.closedBlock,
+		closedTermBlock: l.closedTermBlock,
 		nextIsOpenBrace: l.peekIsOpenBrace(),
 		afterDeclName:   afterDeclName,
 		declaredNiladic: k == Word && l.constSubs[string(l.src[start:l.pos])],

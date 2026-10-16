@@ -1,0 +1,3 @@
+sym $f CodeRef
+sym $g CodeRef
+sym $inner Int

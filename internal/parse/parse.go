@@ -1,9 +1,11 @@
 // ABOUTME: The parse tree: nodes over byte spans, and the Unknown that declines rather than guesses.
-// ABOUTME: Package parse, not ast — internal/parser is the tree-sitter wrapper and will be for a while.
+// ABOUTME: Package parse is the Perl parser PSC runs; internal/lower turns its tree into the one inference reads.
 
 package parse
 
 import (
+	"sort"
+
 	"tamarou.com/pvm/internal/lexer"
 	"tamarou.com/pvm/internal/types"
 )
@@ -285,6 +287,12 @@ type Node struct {
 	// reader of Text for either still gets the chain's answer.
 	Ops []string
 
+	// AssignOp is set on a Declaration whose initialiser follows a compound
+	// assignment operator, `-=` in `my $x -= 1`, and is empty for `=`.
+	// Measured on 5.42.0, Deparse keeps `(my $x -= 1)`, which leaves $x
+	// at -1 where `my $x = 1` leaves 1.
+	AssignOp string
+
 	// Refusal names WHICH construction site produced this Unknown, and is
 	// set on Unknown alone. See refusal.go for the ten codes and what each
 	// one means.
@@ -340,6 +348,13 @@ type Node struct {
 	// marking it would make every call look like a list assignment target.
 	Paren bool
 
+	// InnerStart and InnerEnd are, on a node with Paren, its span before
+	// the grouping parens widened it: `(localtime)` starts and ends at the
+	// parens, and its inner span is `localtime`'s. A fact read off the
+	// span, such as whether a call's arguments stand in parentheses, is
+	// read off this one, since the space inside the parens is unknown.
+	InnerStart, InnerEnd int
+
 	// Fat is set on a list element that was followed by `=>`.
 	//
 	// §4.5.4: a fat comma quotes the word to its left, so `(a => 1)` is the
@@ -364,6 +379,22 @@ type Node struct {
 	// comma, the way parseFilehandleSlot decides a handle, and canon writes
 	// no comma after it for the same reason.
 	Comparator bool
+
+	// Override is set on a Call to a builtin, spelled without `CORE::`, that
+	// overridden says this parse resolves to a sub instead: one a module
+	// exports, by its default @EXPORT or a `use` list, one `use subs`
+	// predeclares, or a CORE::GLOBAL:: one. Measured on 5.42.0, with Foo2
+	// exporting `sleep` by default, `use Foo2; sleep("abc")` calls
+	// Foo2::sleep. A consumer typing the call reads the flag rather than
+	// guess the override again from the `use` statements.
+	Override bool
+
+	// Signatures is set on a Call to a sub a declaration file types: the
+	// signatures the `.pmt` of the module it is imported from declares
+	// for it, one per `multi sub` candidate. Carp.pmt declares croak
+	// returning None, so a consumer knows the call never returns. Empty
+	// for a builtin, and for a sub no declaration file types.
+	Signatures []types.Signature
 
 	// Indirect is set on a Call written in indirect object notation --
 	// `new Foo ARGS`, `doit $obj ARGS` -- whose FIRST child is the invocant
@@ -556,7 +587,13 @@ func newParser(src []byte, res *resolver, typed bool) *parser {
 	} else {
 		toks = lexer.TokenizeBarewords(src, coreBarewordOperators())
 	}
-	return &parser{src: src, toks: toks, res: res, symbolsOpen: res == nil, typed: typed}
+	var bodies []int
+	for i, tok := range toks {
+		if tok.Kind == lexer.HeredocBody {
+			bodies = append(bodies, i)
+		}
+	}
+	return &parser{src: src, toks: toks, bodies: bodies, res: res, symbolsOpen: res == nil, typed: typed}
 }
 
 // parseWith runs p over its source, returning the tree and p.
@@ -626,7 +663,10 @@ func parseWith(p *parser) (*Node, *parser) {
 // siblings may not share a byte.
 //
 // Openers are counted as the lexer's trackBrackets counts them: a
-// one-byte token, and a closer with nothing open closes nothing.
+// one-byte token, and a closer with nothing open closes nothing. A bracket
+// after a `&`, other than `{`, is neither: it is the name of the sub the `&`
+// calls (see ampTakesPunct), so `f(&);` is a `(` perl never sees closed.
+// Nor is a Word: the lexer makes a glob's punctuation name one, `*(`.
 func (p *parser) refuseUnclosedOpener(root *Node) {
 	depth := 0
 	var last lexer.Token
@@ -634,8 +674,9 @@ func (p *parser) refuseUnclosedOpener(root *Node) {
 		if isTrivia(tok.Kind) {
 			continue
 		}
+		afterAmp := last.Kind == lexer.FuncSigil
 		last = tok
-		if tok.End-tok.Start != 1 {
+		if tok.End-tok.Start != 1 || tok.Kind == lexer.Word || afterAmp && p.src[tok.Start] != '{' {
 			continue
 		}
 		switch p.src[tok.Start] {
@@ -686,6 +727,14 @@ type parser struct {
 	// inSignature is set while a sub's signature is read, where a
 	// placeholder's `=` may have nothing after it -- see emptyDefault.
 	inSignature bool
+
+	// bodies are the indexes in toks of the HeredocBody tokens, in order;
+	// see innerHeredocBodies.
+	bodies []int
+
+	// depth is how many parseTerm, parseInfix and parseBlock frames are
+	// active, which refuseTooDeep holds to maxDepth.
+	depth int
 
 	// attrOpenAtEOF is set when an attribute's `(` argument ran to end of
 	// file without its `)`: perl's "Unterminated attribute parameter". The
@@ -835,6 +884,46 @@ func (p *parser) prevEnd() int {
 	return p.toks[p.pos-1].End
 }
 
+// maxDepth caps how deeply the parser recurses. perl takes any depth --
+// measured on 5.42.0, 400000 nested parens are "syntax OK" -- but a Go stack
+// overflow is a fatal error no recover catches, and one such file in a
+// workspace would kill the LSP on every restart. Real code nests a few dozen
+// levels; the cap is far above that and far below the stack's limit.
+const maxDepth = 1000
+
+// refuseTooDeep declines input nested past maxDepth: it consumes up to the
+// closer of the construct it is in, or to a `;` at its own level when
+// atSemicolon is set, so the frames already open close normally and nothing
+// it consumed recurses. Nil when nothing is there to consume.
+func (p *parser) refuseTooDeep(atSemicolon bool) *Node {
+	first, ok := p.peekSignificant()
+	if !ok {
+		return nil
+	}
+	open, end := 0, p.pos
+scan:
+	for i := p.pos; i < len(p.toks); i++ {
+		tok := p.toks[i]
+		closes := tok.Kind == lexer.CloseBracket
+		switch {
+		case closes && open == 0, tok.Kind == lexer.Semicolon && open == 0 && atSemicolon:
+			break scan
+		case closes:
+			open--
+		case tok.Kind == lexer.Operator && tok.End-tok.Start == 1 && (p.src[tok.Start] == '(' || p.src[tok.Start] == '[' || p.src[tok.Start] == '{'):
+			open++
+		}
+		if !isTrivia(tok.Kind) {
+			end = i + 1
+		}
+	}
+	if end <= p.pos {
+		return nil
+	}
+	p.pos = end
+	return &Node{Kind: Unknown, Refusal: NestingTooDeep, Start: first.Start, End: p.prevEnd()}
+}
+
 // skipToStatementEnd consumes to the next `;` or unmatched `}`, which is
 // where recovery resumes.
 //
@@ -905,11 +994,19 @@ func (p *parser) statement() *Node {
 // A body some statement NESTED in this one already owns is left to it: `f(sub
 // { g(<<EOF, 1) }, 2)` puts the body in the range of both, and it is the inner
 // statement's.
+//
+// The bodies are found through p.bodies, the token indexes of every body in
+// the file, rather than by scanning the range: every enclosing statement
+// spans its nested ones, so a scan made each nesting level pay for all the
+// tokens inside it.
 func (p *parser) innerHeredocBodies(from int, n *Node) []*Node {
 	var inner []*Node
-	for i := from; i < p.pos; i++ {
+	for _, i := range p.bodies[sort.SearchInts(p.bodies, from):] {
+		if i >= p.pos {
+			break
+		}
 		tok := p.toks[i]
-		if tok.Kind != lexer.HeredocBody || ownsBody(n, tok.Start) {
+		if ownsBody(n, tok.Start) {
 			continue
 		}
 		inner = append(inner, &Node{
@@ -1298,6 +1395,14 @@ func (p *parser) takeHeredocBodies() []*Node {
 func (p *parser) parseBlock(open lexer.Token) *Node {
 	p.advanceTo(open)
 	n := &Node{Kind: Block, Start: open.Start}
+	p.depth++
+	defer func() { p.depth-- }()
+	if p.depth > maxDepth {
+		// The whole body, `;` and all, so no statement in it recurses again.
+		if u := p.refuseTooDeep(false); u != nil {
+			n.Children = append(n.Children, u)
+		}
+	}
 	// A `package NAME;` inside the block lasts to its end, as perl scopes
 	// it: `package A; { package B; } s2(1)` calls A::s2.
 	pkg := p.pkg

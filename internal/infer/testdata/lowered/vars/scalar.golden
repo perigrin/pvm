@@ -1,0 +1,4 @@
+sym $u Scalar
+sym $v Scalar
+sym $x Int
+sym $y Int

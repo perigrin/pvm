@@ -1,21 +1,21 @@
-// ABOUTME: The "psc parse" command parses a Perl file and displays the AST.
-// ABOUTME: Supports tree (default) and sexpr output formats via --format flag.
+// ABOUTME: The "psc parse" command parses a Perl file and displays internal/parse's CST or the lowered tree.
+// ABOUTME: --tree picks cst (default) or lowered; --format picks tree (default) or sexpr for either.
 
 package psc
 
 import (
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
 
-	"tamarou.com/pvm/internal/parser"
+	"tamarou.com/pvm/internal/lower"
+	"tamarou.com/pvm/internal/parse"
 )
 
 func newParseCommand() *cobra.Command {
-	var format string
+	var format, tree string
 
 	cmd := &cobra.Command{
 		Use:   "parse <file>",
@@ -23,30 +23,37 @@ func newParseCommand() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			filename := args[0]
+			if tree != "cst" && tree != "lowered" {
+				return fmt.Errorf("--tree %q: want cst or lowered", tree)
+			}
+			sexpr := strings.ToLower(format) == "sexpr"
+			if !sexpr && strings.ToLower(format) != "tree" {
+				return fmt.Errorf("--format %q: want tree or sexpr", format)
+			}
 
-			source, err := os.ReadFile(filename)
+			// Parsed as psc check parses it, so this is the tree check
+			// analysed.
+			roots, _ := incRoots(filename)
+			root, err := parse.NewSession().ParseFileFrom(filename, roots...)
 			if err != nil {
 				return fmt.Errorf("read %s: %w", filename, err)
 			}
-
-			p := parser.New()
-			tree, err := p.Parse(source)
-			if err != nil {
-				return fmt.Errorf("parse %s: %w", filename, err)
-			}
-
-			root := tree.RootNode()
-			if root == nil {
-				return fmt.Errorf("parse %s: empty tree", filename)
-			}
-
 			w := cmd.OutOrStdout()
 
-			switch strings.ToLower(format) {
-			case "sexpr":
-				fmt.Fprintln(w, root.SExpr())
-			default:
-				printTree(w, root, source, "", true)
+			switch tree {
+			case "cst":
+				if sexpr {
+					fmt.Fprintln(w, cstSexpr(root))
+				} else {
+					printCST(w, root, 0)
+				}
+			case "lowered":
+				file := lower.Lower(root)
+				if sexpr {
+					fmt.Fprintln(w, lower.Sexpr(file))
+				} else {
+					fmt.Fprint(w, lower.Tree(file))
+				}
 			}
 
 			return nil
@@ -54,51 +61,53 @@ func newParseCommand() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&format, "format", "tree", "output format: tree or sexpr")
+	cmd.Flags().StringVar(&tree, "tree", "cst", "which tree: cst (internal/parse) or lowered")
 
 	return cmd
 }
 
-// printTree prints an indented tree representation of the syntax tree node.
-func printTree(w io.Writer, n *parser.Node, source []byte, indent string, isLast bool) {
-	if n == nil {
-		return
+// printCST prints n and its subtree as an outline, two spaces a level.
+func printCST(w io.Writer, n *parse.Node, depth int) {
+	fmt.Fprintf(w, "%s%s\n", strings.Repeat("  ", depth), cstLabel(n))
+	for _, c := range n.Children {
+		printCST(w, c, depth+1)
 	}
+}
 
-	branch := "├── "
-	childIndent := indent + "│   "
-	if isLast {
-		branch = "└── "
-		childIndent = indent + "    "
+// cstSexpr renders n and its subtree on one line, as printCST does.
+func cstSexpr(n *parse.Node) string {
+	var b strings.Builder
+	b.WriteString("(" + cstLabel(n))
+	for _, c := range n.Children {
+		b.WriteString(" " + cstSexpr(c))
 	}
+	b.WriteString(")")
+	return b.String()
+}
 
-	kind := n.Kind()
-	named := ""
-	if !n.IsNamed() {
-		named = " (anonymous)"
+// cstLabel is a node's kind, its Text, the flags set on it, and an
+// Unknown's refusal code.
+func cstLabel(n *parse.Node) string {
+	parts := []string{n.Kind.String()}
+	if n.Text != "" {
+		parts = append(parts, fmt.Sprintf("%q", n.Text))
 	}
-
-	nodeText := ""
-	if n.ChildCount() == 0 {
-		text := n.Text(source)
-		// Truncate long leaf text for display
-		if len(text) > 40 {
-			text = text[:37] + "..."
+	for _, f := range []struct {
+		name string
+		set  bool
+	}{
+		{"resolved", n.Resolved}, {"arrow", n.Arrow}, {"paren", n.Paren},
+		{"fat", n.Fat}, {"handle", n.Handle}, {"comparator", n.Comparator},
+		{"indirect", n.Indirect}, {"modifier", n.Modifier},
+		{"heredoc_body", n.HeredocBody}, {"loop_var", n.LoopVar},
+		{"cstyle", n.CStyle}, {"ref_slot", n.RefSlot},
+	} {
+		if f.set {
+			parts = append(parts, f.name)
 		}
-		nodeText = " " + fmt.Sprintf("%q", text)
 	}
-
-	errorMark := ""
-	if n.IsError() {
-		errorMark = " [ERROR]"
-	} else if n.HasError() {
-		errorMark = " [has error]"
+	if n.Refusal != "" {
+		parts = append(parts, "refusal="+string(n.Refusal))
 	}
-
-	fmt.Fprintf(w, "%s%s%s%s%s%s\n", indent, branch, kind, named, nodeText, errorMark)
-
-	count := n.ChildCount()
-	for i := 0; i < count; i++ {
-		child := n.Child(i)
-		printTree(w, child, source, childIndent, i == count-1)
-	}
+	return strings.Join(parts, " ")
 }

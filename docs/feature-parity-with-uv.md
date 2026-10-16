@@ -63,7 +63,7 @@ dependency lockfiles.
 | Ephemeral tool run | `uvx ruff` | `pvx` | Same model |
 
 **Status: PVM is ahead.** PVM has isolation levels (global, local, clean),
-auto-dependency detection from source code (both regex and tree-sitter AST),
+auto-dependency detection from source code (both regex and the parsed tree),
 and POD-based inline metadata that is invisible to the Perl parser. uv has
 none of these.
 
@@ -82,7 +82,7 @@ none of these.
 
 | Capability | uv | PVM | Notes |
 |---|---|---|---|
-| Parse source | — | `psc parse` | Tree-sitter CST |
+| Parse source | — | `psc parse` | internal/parse CST, or the lowered tree with `--tree lowered` |
 | Dependency analysis | — | `psc analyze` | AST-based `use`/`require` extraction |
 | Type checking | — | `psc check` | Bitset type inference, diagnostics |
 | Guard suggestions | — | `psc check` hint lines | Suggests `defined()`, `ref()`, etc. |

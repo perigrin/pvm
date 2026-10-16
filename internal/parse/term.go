@@ -16,6 +16,11 @@ import (
 // plan's rule applies inside expressions as much as at statement level: a
 // guessed operand produces a tree that is not a parse of its source.
 func (p *parser) parseTerm() *Node {
+	p.depth++
+	defer func() { p.depth-- }()
+	if p.depth > maxDepth {
+		return p.refuseTooDeep(true)
+	}
 	tok, ok := p.peekSignificant()
 	if !ok {
 		// Nothing left to read. Returning an Unknown here would span no
@@ -155,8 +160,9 @@ func (p *parser) parseTerm() *Node {
 		// any variable name here -- measured on 5.42.0, `local *a = *1;`,
 		// `*^R = *foo;` and `*X = *-;` each deparse as written -- and the
 		// lexer emits the star and the name apart, so the glob is assembled
-		// here. Only TOUCHING the star: a digit, `^` and a letter, or a
-		// single punctuation byte.
+		// here. Only TOUCHING the star: a digit, or `^` and a letter. A
+		// punctuation name, `*-` or `*|`, arrives as the Word the lexer's
+		// scanGlobName makes it, and is read below as `*foo` is.
 		if glob := p.globWithSpecialName(tok); glob != nil {
 			return glob
 		}
@@ -327,6 +333,23 @@ func (p *parser) parseTerm() *Node {
 				Start: tok.Start, End: name.End,
 			}
 		}
+		// perl has no bare `&`: toke.c's scan_ident takes one punctuation
+		// character after it as the name, the way `$;` and `$=` are names.
+		// Measured on 5.42.0, `&=;`, `&,;` and `&);` each compile as a call,
+		// while `&= 2;`, `f(1, &, 2);` and `f(&);` are each a syntax error
+		// -- the name leaves a term after a term, or a `(` unclosed.
+		name, ok := p.peekSignificant()
+		if !ok {
+			// `&` at end of file: "syntax error at EOF".
+			return p.refuseNotATerm(tok)
+		}
+		if p.ampTakesPunct(name) {
+			p.advanceTo(name)
+			return &Node{
+				Kind: Term, Text: text + p.text(name),
+				Start: tok.Start, End: name.End,
+			}
+		}
 		return &Node{Kind: Term, Text: text, Start: tok.Start, End: tok.End}
 
 	case lexer.Word:
@@ -390,7 +413,7 @@ func (p *parser) parseTerm() *Node {
 				return p.parseBlockOperator(tok)
 			}
 		}
-		return p.markReferenceSlots(p.refuseArity(p.refuseRefScalarSlot(p.parseWordTerm(tok))))
+		return p.markReferenceSlots(p.refuseArity(p.refuseRefScalarSlot(p.markResolution(p.parseWordTerm(tok)))))
 
 	case lexer.Variable, lexer.Number, lexer.Quote,
 		lexer.Readline, lexer.HeredocOpen:
@@ -546,7 +569,7 @@ func (p *parser) prefixAllowed(text string) bool {
 	return false
 }
 
-// globWithSpecialName reads `*1`, `*^R` or `*-` at the star tok, or returns
+// globWithSpecialName reads `*1` or `*^R` at the star tok, or returns
 // nil. See the glob branch of parseTerm.
 func (p *parser) globWithSpecialName(star lexer.Token) *Node {
 	name, ok := p.peekAfter(star)
@@ -565,8 +588,6 @@ func (p *parser) globWithSpecialName(star lexer.Token) *Node {
 			return nil
 		}
 		last = letter
-	case name.Kind == lexer.Operator && len(text) == 1 && strings.IndexByte("-+/!&@]", text[0]) >= 0:
-		last = name
 	default:
 		return nil
 	}
@@ -715,6 +736,9 @@ func (p *parser) finishList(items []*Node, open lexer.Token) *Node {
 		// Arrow on `($h->{k})`, which is the bug this function once had for
 		// Paren, and an Indirect on `(method $obj ())` in t/op/method.t:79.
 		c := *items[0]
+		if !c.Paren {
+			c.InnerStart, c.InnerEnd = c.Start, c.End
+		}
 		c.Start, c.End = open.Start, p.prevEnd()
 		c.Paren = true
 		// A leaf is written as its source text, which now holds any
@@ -887,6 +911,20 @@ func (p *parser) ampTakes(name lexer.Token) bool {
 		}
 	}
 	return true
+}
+
+// ampTakesPunct reports whether `&` takes this token as a punctuation name:
+// one character of an operator, a `;` or a closing bracket. A `{` is not one
+// -- `&{$c}` is a call through a block -- and a token of two or more
+// characters is not either, since perl would take only its first.
+func (p *parser) ampTakesPunct(name lexer.Token) bool {
+	switch name.Kind {
+	case lexer.Operator, lexer.Semicolon, lexer.CloseBracket:
+	default:
+		return false
+	}
+	text := p.text(name)
+	return len(text) == 1 && text != "{"
 }
 
 // keepSeps keeps, on the last item, the separators written after it when

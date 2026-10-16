@@ -1,0 +1,2 @@
+sym $s Str
+sym $x Int|Num|Inf

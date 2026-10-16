@@ -1,5 +1,5 @@
 // ABOUTME: Tests for the symbol table used by the PSC type inference engine.
-// ABOUTME: Covers Symbol, Scope, SymbolTable, and CollectDeclarations.
+// ABOUTME: Covers Symbol, Scope, SymbolTable, and the lowered declaration pass.
 
 package infer_test
 
@@ -10,7 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"tamarou.com/pvm/internal/infer"
-	"tamarou.com/pvm/internal/parser"
+	"tamarou.com/pvm/internal/lower"
+	"tamarou.com/pvm/internal/parse"
 	"tamarou.com/pvm/internal/types"
 )
 
@@ -174,15 +175,19 @@ func TestSymbolTableUpdateTypeInnerScope(t *testing.T) {
 	assert.Equal(t, types.Num, found.Type, "$x should still be Num in the outer scope")
 }
 
-// --- Integration tests: CollectDeclarations (uses parser) ---
+// --- Integration tests: the lowered declaration pass (parses and lowers) ---
+
+// collectDeclarations parses and lowers src and runs the declaration pass
+// over it alone, before any narrowing.
+func collectDeclarations(src []byte) *infer.SymbolTable {
+	root := parse.Parse(src)
+	f := lower.Lower(root)
+	return infer.CollectDeclarations(f, lower.NewPositions(root, f))
+}
 
 func TestCollectVariableDeclarations(t *testing.T) {
-	p := parser.New()
 	src := []byte("my $x = 1; my @arr; my %hash;")
-	tree, err := p.Parse(src)
-	require.NoError(t, err)
-
-	st := infer.CollectDeclarations(tree, src)
+	st := collectDeclarations(src)
 	require.NotNil(t, st)
 
 	scalar, ok := st.Lookup("$x")
@@ -202,12 +207,8 @@ func TestCollectVariableDeclarations(t *testing.T) {
 }
 
 func TestCollectSubroutineDeclarations(t *testing.T) {
-	p := parser.New()
 	src := []byte("sub greet { my $x = 1; return $x; }")
-	tree, err := p.Parse(src)
-	require.NoError(t, err)
-
-	st := infer.CollectDeclarations(tree, src)
+	st := collectDeclarations(src)
 	require.NotNil(t, st)
 
 	sub, ok := st.Lookup("greet")
@@ -217,13 +218,9 @@ func TestCollectSubroutineDeclarations(t *testing.T) {
 }
 
 func TestCollectBlockScoping(t *testing.T) {
-	p := parser.New()
 	// $outer is in the top-level scope; $inner is only in the if-block scope.
 	src := []byte("my $outer = 1; if ($outer) { my $inner = 2; }")
-	tree, err := p.Parse(src)
-	require.NoError(t, err)
-
-	st := infer.CollectDeclarations(tree, src)
+	st := collectDeclarations(src)
 	require.NotNil(t, st)
 
 	// $outer should be visible at the top-level scope after collection

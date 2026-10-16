@@ -1,0 +1,4 @@
+sym $m Int
+sym $n Int
+sym $r Scalar
+sym $s Scalar

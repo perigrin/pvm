@@ -22,7 +22,8 @@ unrelated to the current work.
 **Always use `make test` for comprehensive test status.**
 
 Individual package testing:
-- `go test ./internal/parser` - Parser functionality
+- `go test ./internal/parse` - Parser functionality
+- `go test ./internal/lower` - Lowering the parse tree for inference
 - `go test ./internal/psc` - PSC command functionality
 - `go test ./test/e2e` - End-to-end integration tests
 
@@ -35,8 +36,8 @@ Supported platforms:
 
 ### Pure-Go Build
 
-This branch uses gotreesitter (pure Go) for Perl parsing. No CGO, no C
-compiler, no tree-sitter CLI, no Node.js required. Cross-compilation works
+Perl is parsed by internal/parse, a hand-written pure-Go parser. No CGO, no C
+compiler, no tree-sitter, no Node.js required. Cross-compilation works
 with standard `GOOS`/`GOARCH` environment variables.
 
 ## Problem-Solving Philosophy

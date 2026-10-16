@@ -7,6 +7,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -146,13 +149,13 @@ func TestHandlerDidOpenPublishesDiagnostics(t *testing.T) {
 	h, out := newTestHandler(t)
 	h.initialized = true
 
-	// "push();\n" is known to produce an arity-mismatch diagnostic.
+	// push($x, 1) with a scalar $x produces a type-mismatch diagnostic.
 	params := lspDidOpenParams{
 		TextDocument: lspTextDocumentItem{
 			URI:        "file:///test.pl",
 			LanguageID: "perl",
 			Version:    1,
-			Text:       "push();\n",
+			Text:       "my $x;\npush($x, 1);\n",
 		},
 	}
 	rawParams, err := json.Marshal(params)
@@ -173,7 +176,7 @@ func TestHandlerDidOpenPublishesDiagnostics(t *testing.T) {
 	var diagParams lspPublishDiagnosticsParams
 	require.NoError(t, json.Unmarshal(notification.Params, &diagParams))
 	assert.Equal(t, "file:///test.pl", diagParams.URI)
-	assert.NotEmpty(t, diagParams.Diagnostics, "push() with no args should produce diagnostics")
+	assert.NotEmpty(t, diagParams.Diagnostics, "push($x, 1) should produce diagnostics")
 }
 
 func TestHandlerDidChange(t *testing.T) {
@@ -209,7 +212,7 @@ func TestHandlerDidChange(t *testing.T) {
 			Version: 2,
 		},
 		ContentChanges: []lspTextDocumentContentChangeEvent{
-			{Text: "push();\n"},
+			{Text: "my $x;\npush($x, 1);\n"},
 		},
 	}
 	rawChange, err := json.Marshal(changeParams)
@@ -533,4 +536,46 @@ func TestPositionConversion(t *testing.T) {
 	pos2 := offsetToPosition(source, 12)
 	assert.Equal(t, 1, pos2.Line)
 	assert.Equal(t, 0, pos2.Character)
+}
+
+// TestLSPWindowsFileURI: a file: uri names a path, and a Windows drive
+// letter is its first element: file:///C:/x.pl is C:\x.pl on Windows, not
+// \C:\x.pl, whose `use` would resolve nothing. A Unix path keeps its
+// leading slash, the control, and a uri of another scheme names no path.
+func TestLSPWindowsFileURI(t *testing.T) {
+	for uri, want := range map[string]string{
+		"file:///C:/x.pl":       "C:/x.pl",
+		"file:///c%3A/lib/x.pl": "c:/lib/x.pl",
+		"file:///home/u/x.pl":   "/home/u/x.pl",
+	} {
+		got, ok := uriPath(uri)
+		assert.True(t, ok, uri)
+		assert.Equal(t, filepath.FromSlash(want), got, uri)
+	}
+	for _, uri := range []string{"untitled:Untitled-1", "file://"} {
+		_, ok := uriPath(uri)
+		assert.False(t, ok, uri)
+	}
+}
+
+// FileURI is the file: uri an editor sends for the absolute path: a
+// Windows drive follows the root slash, file:///C:/x.pl, where a url.URL
+// given the path alone writes file://C:/x.pl, whose host is the drive.
+// The tests of package psc_test reach it as psc.FileURI.
+func FileURI(path string) string {
+	p := filepath.ToSlash(path)
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+	return (&url.URL{Scheme: "file", Path: p}).String()
+}
+
+// TestFileURINamesItsPath checks that FileURI's uri names the path it was
+// given, a Windows one among them, as uriPath reads it.
+func TestFileURINamesItsPath(t *testing.T) {
+	for _, path := range []string{"C:/Users/u/x.pl", "/home/u/x.pl"} {
+		got, ok := uriPath(FileURI(path))
+		assert.True(t, ok, path)
+		assert.Equal(t, filepath.FromSlash(path), got, path)
+	}
 }

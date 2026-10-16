@@ -1,0 +1,3 @@
+sym $d Scalar
+sym %h Hash
+sym @d List

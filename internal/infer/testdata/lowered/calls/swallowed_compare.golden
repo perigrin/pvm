@@ -1,0 +1,4 @@
+sym $b Boolean
+sym $c Boolean
+sym $d Boolean
+sym $s Str

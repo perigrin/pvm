@@ -90,10 +90,12 @@ func NarrowByContext(typ Type, ctx Context) (Type, bool) {
 type GuardKind int
 
 const (
-	GuardDefined GuardKind = iota // defined($x) — tests that value is not undef
-	GuardRef                      // ref($x) — tests that value is a reference
-	GuardIsa                      // $x isa Foo — tests that value is an instance of a class
-	GuardBool                     // builtin::is_bool($x) — tests that value is a boolean
+	GuardDefined  GuardKind = iota // defined($x) — tests that value is not undef
+	GuardRef                       // ref($x) — tests that value is a reference
+	GuardIsa                       // $x isa Foo — tests that value is an instance of a class
+	GuardBool                      // builtin::is_bool($x) — tests that value is a boolean
+	GuardReferent                  // ref(\$x) eq 'TYPE' — tests what $x itself holds
+	GuardTruthy                    // $x as a condition — tests that value is true
 )
 
 // GuardPattern describes a guard expression used to narrow a type at a branch point.
@@ -113,6 +115,7 @@ var refTypeMap = map[string]Type{
 	"CODE":   CodeRef,
 	"GLOB":   GlobRef,
 	"REF":    Ref,
+	"Regexp": Regex,
 }
 
 // narrowResult encodes the three possible outcomes of a bitset narrowing operation.
@@ -137,6 +140,7 @@ func narrowResult(result, typ Type) (Type, bool) {
 //
 // Rules (bitset operations):
 //   - GuardDefined: result = typ &^ Undef (remove the Undef bit).
+//     GuardTruthy narrows the same way: a true value is defined.
 //     Empty result → (None, true) — unreachable branch.
 //     Result == typ → (typ, false) — type already has no Undef bit.
 //   - GuardRef plain: treat Unknown as Any; result = typ & Ref (intersection with Ref mask).
@@ -146,7 +150,8 @@ func narrowResult(result, typ Type) (Type, bool) {
 //   - GuardIsa: result = typ & Object.
 func NarrowByGuard(typ Type, guard GuardPattern) (Type, bool) {
 	switch guard.Kind {
-	case GuardDefined:
+	case GuardDefined, GuardTruthy:
+		// A true value is a defined one: undef is false.
 		effective := typ
 		if effective == Unknown {
 			// Unknown means no type information — treat as Any (top type).
@@ -190,6 +195,17 @@ func NarrowByGuard(typ Type, guard GuardPattern) (Type, bool) {
 		result := effective & Boolean
 		return narrowResult(result, effective)
 
+	case GuardReferent:
+		// ref(\$x) is "GLOB" only where $x holds a glob: perl 5.42,
+		// `my $v = *STDOUT; ref \$v` is GLOB, and `my $v = "x"; ref \$v`
+		// SCALAR. A scalar variable that holds a glob is typed Scalar, which
+		// has no Glob bit, so $x becomes a Glob whatever it was typed.
+		// Any other TYPE is not narrowed.
+		if guard.RefType != "GLOB" {
+			return typ, false
+		}
+		return narrowResult(Glob, typ)
+
 	default:
 		return typ, false
 	}
@@ -201,6 +217,7 @@ func NarrowByGuard(typ Type, guard GuardPattern) (Type, bool) {
 //
 // Rules (bitset operations):
 //   - GuardDefined: result = typ & Undef (keep only the Undef bit).
+//   - GuardTruthy: return (typ, false) — a false value need not be undef.
 //     Empty result → (None, true) — type has no Undef bit, negated branch unreachable.
 //     Result == typ → (typ, false) — type is already pure Undef, no change.
 //   - GuardRef plain: result = typ &^ Ref (remove all Ref bits).
@@ -233,6 +250,10 @@ func NegateGuard(typ Type, guard GuardPattern) (Type, bool) {
 	case GuardBool:
 		result := effective &^ Boolean
 		return narrowResult(result, effective)
+
+	case GuardTruthy:
+		// A false value may be undef, 0, "" or "0": not narrowed.
+		return effective, false
 
 	default:
 		return effective, false

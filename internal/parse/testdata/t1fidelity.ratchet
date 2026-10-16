@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 840 clean (85.2%), 146 total.
+# 986 files, 846 clean (85.8%), 140 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -108,7 +108,7 @@
 0 compress_raw_zlib_gzip_wrapper.t
 0 compress_zlib_gzerror_eof.t
 0 concat_assign_undef_warning.t
-1 concat_assignment_env_taint.t
+0 concat_assignment_env_taint.t
 0 concat_assignment_explicit_mutator.t
 0 concat_assignment_overload.t
 1 concat_assignment_tied_fetch.t
@@ -171,7 +171,7 @@
 0 crypt_openssl_random_export.t
 0 crypt_openssl_rsa_pkcs1_padding.t
 0 crypt_prng.t
-1 current_sub_map_block.t
+0 current_sub_map_block.t
 0 current_sub_sort_block.t
 0 custom_warning_async_suspend_state.t
 0 custom_warning_category_late_registration.t
@@ -326,7 +326,7 @@
 0 getopt_long_regression.t
 0 glob.t
 0 glob_absolute_directory.t
-1 glob_export_identity.t
+0 glob_export_identity.t
 1 glob_hash_argument_slot.t
 0 glob_numeric_warning.t
 0 glob_pseudo_constant_export.t
@@ -384,7 +384,7 @@
 0 interpreter_coderef_does_not_load_module.t
 0 interpreter_compound_assign_list_rhs.t
 0 interpreter_dbic_regressions.t
-1 interpreter_eval_exception_capture.t
+0 interpreter_eval_exception_capture.t
 0 interpreter_eval_modified_args_closure.t
 0 interpreter_eval_named_sub_lexical_mutation.t
 0 interpreter_eval_string_argument_capture.t
@@ -417,7 +417,7 @@
 0 io_socket_ssl_default_exports.t
 0 ipc_cmd_perlonjava_runtime_detection.t
 1 ipc_open3.t
-1 isa_operator_package_bareword.t
+0 isa_operator_package_bareword.t
 0 join_upgraded_latin1_provenance.t
 0 json_parse_compat.t
 0 json_xs_compat.t
@@ -784,7 +784,7 @@
 1 template_generated_line_directive.t
 0 term_readkey_regressions.t
 1 term_size_perlio_shims.t
-1 test2_refcount_probe.t
+0 test2_refcount_probe.t
 0 test_builder_global_warning_suppression.t
 0 test_builder_level.t
 0 test_deep_memory_regression.t

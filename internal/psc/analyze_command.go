@@ -1,5 +1,5 @@
 // ABOUTME: The "psc analyze" command walks Perl files and extracts dependencies.
-// ABOUTME: Lists use/require statements found in each .pl/.pm/.t file.
+// ABOUTME: Lists the modules each .pl/.pm/.t file loads, read from its lowered use, no and require statements.
 
 package psc
 
@@ -12,7 +12,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"tamarou.com/pvm/internal/parser"
+	"tamarou.com/pvm/internal/lower"
+	"tamarou.com/pvm/internal/parse"
 )
 
 func newAnalyzeCommand() *cobra.Command {
@@ -29,7 +30,9 @@ func newAnalyzeCommand() *cobra.Command {
 				return fmt.Errorf("stat %s: %w", target, err)
 			}
 
-			p := parser.New()
+			// Each file is parsed as psc check parses it.
+			sess := parse.NewSession()
+			roots, _ := incRoots(target)
 
 			if info.IsDir() {
 				return filepath.WalkDir(target, func(path string, d fs.DirEntry, err error) error {
@@ -40,13 +43,13 @@ func newAnalyzeCommand() *cobra.Command {
 						return nil
 					}
 					if isPerlFile(path) {
-						return analyzeFile(w, p, path)
+						return analyzeFile(w, sess, roots, path)
 					}
 					return nil
 				})
 			}
 
-			return analyzeFile(w, p, target)
+			return analyzeFile(w, sess, roots, target)
 		},
 	}
 
@@ -59,24 +62,16 @@ func isPerlFile(path string) bool {
 	return ext == ".pl" || ext == ".pm" || ext == ".t"
 }
 
-// analyzeFile parses a single Perl file and prints its use/require dependencies.
-func analyzeFile(w interface{ Write([]byte) (int, error) }, p *parser.Parser, path string) error {
-	source, err := os.ReadFile(path)
+// analyzeFile parses path against its own directory and roots, lowers it,
+// and prints the modules its use, no and require statements name. sess
+// shares what each module says about itself across the run's files.
+func analyzeFile(w interface{ Write([]byte) (int, error) }, sess *parse.Session, roots []string, path string) error {
+	root, err := sess.ParseFileFrom(path, roots...)
 	if err != nil {
 		return fmt.Errorf("read %s: %w", path, err)
 	}
 
-	tree, err := p.Parse(source)
-	if err != nil {
-		return fmt.Errorf("parse %s: %w", path, err)
-	}
-
-	root := tree.RootNode()
-	if root == nil {
-		return nil
-	}
-
-	deps := collectDependencies(root, source)
+	deps := collectDependencies(lower.Lower(root))
 
 	if len(deps) > 0 {
 		fmt.Fprintf(w, "%s:\n", path)
@@ -88,39 +83,15 @@ func analyzeFile(w interface{ Write([]byte) (int, error) }, p *parser.Parser, pa
 	return nil
 }
 
-// collectDependencies walks the AST and collects use/require dependency names.
-func collectDependencies(n *parser.Node, source []byte) []string {
-	if n == nil {
-		return nil
-	}
-
+// collectDependencies lists the module each use, no and require names, in
+// source order. `use VERSION`, `require VERSION` and `require EXPR` name no
+// module and list nothing.
+func collectDependencies(file *lower.File) []string {
 	var deps []string
-
-	kind := n.Kind()
-	switch kind {
-	case "use_statement", "require_expression":
-		// Try to extract the module name from child nodes
-		for i := 0; i < n.ChildCount(); i++ {
-			child := n.Child(i)
-			if child == nil {
-				continue
-			}
-			childKind := child.Kind()
-			if childKind == "package" || childKind == "bareword" {
-				text := strings.TrimSpace(child.Text(source))
-				if text != "" && text != "use" && text != "require" {
-					deps = append(deps, text)
-				}
-			}
+	for _, u := range lower.UseStmts(file) {
+		if u.Module != "" {
+			deps = append(deps, u.Module)
 		}
 	}
-
-	// Recurse into children
-	for i := 0; i < n.ChildCount(); i++ {
-		child := n.Child(i)
-		childDeps := collectDependencies(child, source)
-		deps = append(deps, childDeps...)
-	}
-
 	return deps
 }

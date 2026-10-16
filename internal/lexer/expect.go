@@ -107,6 +107,9 @@ type transition struct {
 	// closedBlock is set when this token is a `}` that closed a block rather
 	// than a subscript. See trackBrackets.
 	closedBlock bool
+	// closedTermBlock is set when that block was a term's: see
+	// braceTermBlock.
+	closedTermBlock bool
 	// nextIsOpenBrace is whether a `{` follows, ignoring whitespace. perl
 	// looks ahead exactly this far at a `)`; see yyl_rightparen.
 	nextIsOpenBrace bool
@@ -152,6 +155,9 @@ func (e Expect) after(k Kind, t transition) Expect {
 		//
 		// Measured before the fix: the second case lexed as Operator "%" and
 		// Word "h", reading a hash as modulus.
+		if t.closedTermBlock {
+			return XOperator
+		}
 		if t.closedBlock {
 			return XState
 		}
@@ -256,6 +262,12 @@ func (e Expect) after(k Kind, t transition) Expect {
 		if isPhaser(string(t.text)) {
 			return XBlock
 		}
+		// `do {...}` and `eval {...}` are terms whose brace is always a
+		// block: toke.c lexes both with PRETERMBLOCK, so the `}` leaves an
+		// operator expected. See braceTermBlock.
+		if t.nextIsOpenBrace && (string(t.text) == "do" || string(t.text) == "eval") {
+			return XTermBlock
+		}
 		// A brace after ANY word. This is the one brace the preceding token
 		// cannot settle, because both readings are grammatical after a word,
 		// so intuitCurly peeks past it at the first thing INSIDE.
@@ -333,6 +345,12 @@ func (e Expect) after(k Kind, t transition) Expect {
 		// why this is its own state rather than one of the other two.
 		if string(t.text) == "->" {
 			return XPostDeref
+		}
+		// A `++` or `--` after a term is the postfix one and ends that term:
+		// toke.c's yyl_plus and yyl_hyphen make it TERM(POSTINC) in
+		// XOPERATOR, so `$x++ ** 2` raises $x's old value to a power.
+		if e == XOperator && (string(t.text) == "++" || string(t.text) == "--") {
+			return XOperator
 		}
 		// The `(` of a parenthesised `map`, `grep` or `sort`. `map({...} @a)`
 		// is the same call as `map {...} @a` -- perl's own Deparse emits the

@@ -158,13 +158,19 @@ func (l *lexer) takePendingHeredocs() {
 // to EOF.
 func heredocBodyEnd(src []byte, pos int, h pendingHeredoc) (int, bool) {
 	for pos < len(src) {
-		lineEnd := bytes.IndexByte(src[pos:], '\n')
-		if lineEnd < 0 {
-			// The last line has no newline. Consume it and stop.
-			return len(src), false
+		// The last line may have no newline, and still be the terminator:
+		// measured on 5.42.0, `<<EOT;\nabc\nEOT` at end of file is
+		// "syntax OK".
+		line := src[pos:]
+		next := len(src)
+		if lineEnd := bytes.IndexByte(line, '\n'); lineEnd >= 0 {
+			// perl reads a CRLF line as an LF one, so `EOT\r\n` ends the
+			// body. A `\r` that ends no line is the line's own: `EOT\r` at
+			// end of file is "Can't find string terminator".
+			line = bytes.TrimSuffix(line[:lineEnd], []byte("\r"))
+			next = pos + lineEnd + 1
 		}
-		line := src[pos : pos+lineEnd]
-		pos += lineEnd + 1
+		pos = next
 
 		candidate := line
 		if h.indent {

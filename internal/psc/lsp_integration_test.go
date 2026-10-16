@@ -22,7 +22,7 @@ func TestLSPIntegration(t *testing.T) {
 	h := newHandler(server, tr)
 
 	const uri = "file:///integration.pl"
-	const source = "my $x = 42;\npush();\n"
+	const source = "my $x = 42;\npush($x, 1);\n"
 
 	// -------------------------------------------------------------------------
 	// Step 1: Initialize — verify capability advertisement.
@@ -60,7 +60,7 @@ func TestLSPIntegration(t *testing.T) {
 	assert.Equal(t, 0, out.Len(), "initialized notification must not produce any output")
 
 	// -------------------------------------------------------------------------
-	// Step 3: didOpen — verify publishDiagnostics notification with arity error.
+	// Step 3: didOpen — verify publishDiagnostics notification with a type-mismatch.
 	// -------------------------------------------------------------------------
 	didOpenParams := lspDidOpenParams{
 		TextDocument: lspTextDocumentItem{
@@ -87,7 +87,7 @@ func TestLSPIntegration(t *testing.T) {
 	var diagParams lspPublishDiagnosticsParams
 	require.NoError(t, json.Unmarshal(diagNotification.Params, &diagParams))
 	assert.Equal(t, uri, diagParams.URI)
-	assert.NotEmpty(t, diagParams.Diagnostics, "push() with no args should produce at least one diagnostic")
+	assert.NotEmpty(t, diagParams.Diagnostics, "push($x, 1) should produce at least one diagnostic")
 	out.Reset()
 
 	// -------------------------------------------------------------------------

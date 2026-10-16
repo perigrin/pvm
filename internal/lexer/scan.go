@@ -42,15 +42,6 @@ func scanVariable(l *lexer) bool {
 		return false
 	}
 
-	// `*@` is the glob named `@` -- see globStar. Emitted as the one-byte
-	// name, the way `*-` and `*+` arrive, rather than as a sigil that would
-	// take the `;` after it as an array's name.
-	if c == '@' && l.globStar && l.toks[len(l.toks)-1].End == start {
-		l.pos++
-		l.emit(Operator, start)
-		return true
-	}
-
 	l.pos++
 	// A sigil that ends the file has no name: perl 5.42 says "syntax error
 	// at EOF" for `$`, `@` and `%`. Lexed as a Variable it reads back as one
@@ -287,13 +278,12 @@ func (l *lexer) scanVarName() bool {
 		// position as at any other; measured, `$main::b = 5; print $'b`
 		// prints 5. So comp/package.t:17's `$'b` is `$main::b`.
 		//
-		// ponytail: ungated, as the interior separator in scanIdentRunes is.
-		// perl gates both on feature apostrophe_as_package_separator, off
-		// from the 5.41 bundle; there `$'b` is `$'` and a bareword, a syntax
-		// error in every spelling but `$'x3`-style repeats. Gate both when
-		// the lexer tracks feature bundles: 01a0ec10-0f98-7801-afbf-5c02bdc9c3c9.
+		// Only while feature apostrophe_as_package_separator is on, as for
+		// the interior separator in scanIdentRunes. From the 5.41 bundle
+		// `$'b` is `$'` and a bareword, a syntax error in every spelling but
+		// a repeat: `use v5.42; $'x3` deparses as `$' x 3`.
 		l.pos++
-		if l.pos < len(l.src) {
+		if l.pos < len(l.src) && !l.noApostropheSeparator {
 			r, _ := utf8.DecodeRune(l.src[l.pos:])
 			if identStart(r, l.utf8Pragma) {
 				l.scanIdentRunes()
@@ -1112,6 +1102,18 @@ func (l *lexer) symbolRune() int {
 
 // scanOperator lexes punctuation.
 func scanOperator(l *lexer) bool {
+	// A `*` where a term is expected is a glob's sigil, alone: toke.c's
+	// yyl_star reads `**` and `*=` only where an operator is expected, so
+	// `**` and `*=` there are the globs named `*` and `=`. An attribute's
+	// argument is not code: `:tighter(**)` names the operator.
+	//
+	// A word no keyword table settles is the exception: see afterUserWord.
+	if l.src[l.pos] == '*' && l.expect != XOperator && l.expect != XPostDeref && l.attrArgDepth == 0 && !l.afterUserWord() {
+		start := l.pos
+		l.pos++
+		l.emit(Operator, start)
+		return true
+	}
 	// The string-bitwise operators exist only under the `bitwise` feature,
 	// and without it the `.` belongs to what follows: measured on 5.42.0,
 	// `$a |.5` is `$a | 0.5` unfeatured and `$a |. 5` featured. The lexer
@@ -1161,10 +1163,7 @@ func scanOperator(l *lexer) bool {
 			// every other operator opens a term. Without the distinction,
 			// `$x[0] <FH>` reads its angle brackets as a readline.
 			kind := Operator
-			// Except `*]`, the glob named `]` (see globStar): a name, and
-			// taken as a closer it would pop whatever bracket is open.
-			globName := op == "]" && l.globStar && l.toks[len(l.toks)-1].End == start
-			if (op == ")" || op == "]" || op == "}") && !globName {
+			if op == ")" || op == "]" || op == "}" {
 				kind = CloseBracket
 			}
 			l.emit(kind, start)
@@ -1230,6 +1229,71 @@ func scanBarePattern(l *lexer) bool {
 	return true
 }
 
+// scanGlobName lexes the one punctuation byte after a glob's `*` (see
+// globStar) as the glob's name: `*|` is the glob of `$|` as `$|` is its
+// scalar. Measured on 5.42.0, every ASCII punctuation byte but `{` deparses
+// as written after a term-position star -- `my $x = *|;`, `*;`, `*#`, `*"`
+// -- while `$a *| $b` and `$a *, $b` are syntax errors, because there the
+// star multiplies and is no globStar.
+//
+// Three bytes begin a longer name instead, and are left to the scanners
+// that read it: `$` before a name, a `$` or a `{` (`*$x`, `*$ᕘ`, `*$$x`, `*${x}`),
+// `:` before `:` (`*::`), and `^` before a word byte (`*^W`). `{` opens
+// `*{EXPR}`, except `*{^GLOBAL_PHASE}`, the glob of `${^GLOBAL_PHASE}`,
+// whose braced caret name is the glob's name as well.
+//
+// The name is emitted as the Word a glob's identifier name is, so nothing
+// reads `*(` or `*}` as a bracket, and it ends the term: an operator is
+// expected after it, and `*,{IO}` subscripts the glob.
+func scanGlobName(l *lexer) bool {
+	start := l.pos
+	if !l.globStar || l.toks[len(l.toks)-1].End != start {
+		return false
+	}
+	c := l.src[start]
+	if c > '~' || c == '_' || !unicode.IsPunct(rune(c)) && !unicode.IsSymbol(rune(c)) {
+		return false
+	}
+	var next byte
+	if start+1 < len(l.src) {
+		next = l.src[start+1]
+	}
+	end := start + 1
+	switch {
+	case c == '{':
+		end = caretBraceNameEnd(l.src, start)
+		if end < 0 {
+			return false
+		}
+	case c == '$' && (isWordByte(next) || next >= utf8.RuneSelf || next == '$' || next == '{' || next == ':'),
+		c == ':' && next == ':',
+		c == '^' && isWordByte(next):
+		return false
+	}
+	l.pos = end
+	l.emit(Word, start)
+	l.globStar = false
+	l.expect = XOperator
+	return true
+}
+
+// caretBraceNameEnd returns the end of the `{^NAME}` at src[start], or -1
+// where there is none.
+func caretBraceNameEnd(src []byte, start int) int {
+	i := start + 1
+	if i >= len(src) || src[i] != '^' {
+		return -1
+	}
+	i++
+	for i < len(src) && isWordByte(src[i]) {
+		i++
+	}
+	if i == start+2 || i >= len(src) || src[i] != '}' {
+		return -1
+	}
+	return i + 1
+}
+
 // scanPostDerefStar lexes `&*` and `**` after `->` as the whole postfix
 // dereference they are, one Variable each, as `->@*` is: `$r->&*` is `&$r`
 // and `$r->**` is `*$r`, measured on 5.42.0. Elsewhere `&` is the function
@@ -1245,4 +1309,24 @@ func scanPostDerefStar(l *lexer) bool {
 	l.pos += 2
 	l.emit(Variable, start)
 	return true
+}
+
+// afterUserWord reports whether the last significant token is a word that is
+// not a perl keyword: a bareword, a constant or a user sub, whose expect
+// state the lexer leaves at XTerm only as a hedge (see expect.go). perl
+// decides with the symbol table, and an undeclared word is a value, so its
+// `**` and `*=` are operators: measured on 5.42.0 with -MO=Deparse,
+// `pi ** 2` is `'pi' ** 2` and `pi *= 2` is `'pi' *= 2`. A declared sub
+// takes a glob there instead -- `sub foo; foo **2` is "Number found where
+// operator expected" -- and the parser, which knows declarations, refuses
+// it. A keyword keeps the split: `print **2` is the same error.
+func (l *lexer) afterUserWord() bool {
+	for i := len(l.toks) - 1; i >= 0; i-- {
+		t := l.toks[i]
+		if t.Kind == Whitespace || t.Kind == Comment {
+			continue
+		}
+		return t.Kind == Word && !perlKeywords[string(l.src[t.Start:t.End])]
+	}
+	return false
 }

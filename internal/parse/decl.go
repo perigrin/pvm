@@ -714,6 +714,12 @@ func (p *parser) parseVarDeclHead(word lexer.Token) *Node {
 	if next, ok := p.peekSignificant(); ok && (p.text(next) == "," || p.text(next) == "=>") {
 		return p.parseInfix(n, 0)
 	}
+	// A list target stops below the comma too, so `and`, `or` and `xor`
+	// take the whole declaration as their left operand: measured,
+	// `my ($x) = @a or die` is `((my($x) = @a) or die)`.
+	if p.atOperatorBelowComma() {
+		return p.parseInfix(n, 0)
+	}
 	return n
 }
 
@@ -787,6 +793,7 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 		if eq, ok := p.peekSignificant(); ok && isAssignment(infix[p.text(eq)]) {
 			hadInit = true
 			p.advanceTo(eq)
+			n.AssignOp = compoundOp(p.text(eq))
 			// Parsed at the assignment's own right power, so the comma and
 			// `and`, `or` and `xor` stop here and belong ABOVE the
 			// declaration instead of inside it. That gap is a different
@@ -848,16 +855,32 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 	// A list target -- `my ($a, $b) = @_` -- or anything else, parsed as one
 	// expression so the assignment at level 9 is already inside it.
 	//
+	// The expression stops at the comma: the declarator takes only its
+	// parenthesised list, and a comma after the `)` belongs to the list the
+	// declaration sits in. Measured on 5.42.0 with -MO=Deparse:
+	//
+	//	read $fh, my ($buf), 3;    read $fh, my $buf, 3;
+	//	my ($b, $c), $d;           my($b, $c), $d;
+	//
 	// Nothing at all after the declarator -- `my` at the end of the file --
 	// is perl's "syntax error at EOF", the declarator a prefix whose operand
 	// ran out, and operand's Unknown spanning the declarator replaces it.
-	target := p.operand(0, word)
+	target := p.operand(infix[","].BP, word)
 	if target.Kind == Unknown && target.Start == word.Start {
 		return target
 	}
 	n.Children = append(n.Children, target)
 	n.End = p.prevEnd()
 	return n
+}
+
+// compoundOp is a Declaration's AssignOp for the assignment operator op:
+// op itself, or empty for a plain `=`.
+func compoundOp(op string) string {
+	if op == "=" {
+		return ""
+	}
+	return op
 }
 
 // listDeclWithAttributes reads `(LIST) :ATTR... [= INIT]` into n, or returns
@@ -882,6 +905,7 @@ func (p *parser) listDeclWithAttributes(n *Node) *Node {
 	p.parseAttributes(n)
 	if eq, ok := p.peekSignificant(); ok && isAssignment(infix[p.text(eq)]) {
 		p.advanceTo(eq)
+		n.AssignOp = compoundOp(p.text(eq))
 		if init := p.parseExpr(bpBelowComma); init != nil {
 			n.Children = append(n.Children, init)
 		}
@@ -1096,6 +1120,9 @@ func lvalueSub(n *Node) bool {
 // braces -- which is a later concern. Here they differ only in which
 // alternative finishes them.
 func (p *parser) parsePackageDecl(word lexer.Token) *Node {
+	if nameless(p, word) {
+		return p.refuseNotATerm(word)
+	}
 	p.advanceTo(word)
 	n := &Node{Kind: Declaration, Text: p.text(word), Start: word.Start}
 
@@ -1131,9 +1158,18 @@ func (p *parser) finishPackage(n *Node) {
 		p.pkg = n.Children[0].Text
 	}
 	p.finishBodyOrSemicolon(n)
-	if last := n.Children[len(n.Children)-1]; last.Kind == Block {
+	if k := len(n.Children); k > 0 && n.Children[k-1].Kind == Block {
 		p.pkg = prev
 	}
+}
+
+// nameless reports whether the `package` or `class` at word has no name
+// after it, which perl refuses: measured on 5.42.0, `package;`, `package`
+// at end of file and `package {}` are each a syntax error, and so is
+// `class;` under the class feature.
+func nameless(p *parser, word lexer.Token) bool {
+	name, ok := p.peekAfter(word)
+	return !ok || name.Kind != lexer.Word
 }
 
 // finishBodyOrSemicolon consumes the `( Block | ";" )` that ends a sub or

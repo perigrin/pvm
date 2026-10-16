@@ -224,6 +224,11 @@ func (p *parser) noteFeatures(verb, module string, list *Node) {
 			// And takes `isa` in: feature.pm's :5.36 bundle names it.
 			p.features["isa"] = true
 		}
+		// From 5.39 it imports the builtin bundle too -- measured, `use
+		// v5.40; my $r = blessed $x, 1` deparses as builtin::blessed($x).
+		if ok && (major > 5 || major == 5 && minor >= 39) {
+			p.importBuiltinBundle()
+		}
 	}
 }
 
@@ -555,9 +560,8 @@ func (p *parser) noteImportKnowledge(module string, list *Node, unseen bool) {
 
 // importBuiltins is `use builtin LIST`. There is no module text to read: the
 // functions are the interpreter's own, in interpreterSubs, and the list names
-// which of them come into scope. A name builtin.c does not define -- a
-// version bundle such as ':5.39' among them -- imports nothing here; the
-// bundles are 01a0ec21-d4dc-7883-9f5b-457350a011e0.
+// which of them come into scope. A version bundle such as ':5.39' imports
+// builtinBundle; a name builtin.c does not define imports nothing.
 func (p *parser) importBuiltins(list *Node) {
 	if list == nil {
 		return
@@ -567,15 +571,47 @@ func (p *parser) importBuiltins(list *Node) {
 		return
 	}
 	for _, name := range names {
-		proto, ok := interpreterSubs["builtin::"+name]
-		if !ok {
+		if isBuiltinBundle(name) {
+			p.importBuiltinBundle()
 			continue
 		}
-		// Lexical, as `my sub` is: in scope whatever package follows.
-		// Measured on 5.42.0, `use builtin "refaddr"; package P; my $a =
-		// refaddr $x, 1` compiles.
-		p.declareLexical(Import{Name: name, Prototype: proto, PrototypeKnown: true})
+		p.importBuiltin(name)
 	}
+}
+
+// builtinBundle is what a version bundle imports: every builtin builtin.c
+// does not mark NO_BUNDLE, the :5.40 table in builtin.pm. Measured on 5.42.0,
+// ':5.39' through ':5.42' and `use v5.39` and later import the same 13; inf,
+// nan, is_bool, stringify, created_as_*, load_module and export_lexically
+// come in only by name.
+var builtinBundle = []string{"true", "false", "weaken", "unweaken", "is_weak",
+	"blessed", "refaddr", "reftype", "ceil", "floor", "is_tainted", "trim", "indexed"}
+
+func (p *parser) importBuiltinBundle() {
+	for _, name := range builtinBundle {
+		p.importBuiltin(name)
+	}
+}
+
+// isBuiltinBundle is a `use builtin` bundle argument: ':5.N' with N from 39.
+// Measured on 5.42.0, ':5.38' is "not supported" and ':5.40.1' and ':5.039'
+// are "Invalid version bundle"; all three die and import nothing.
+func isBuiltinBundle(name string) bool {
+	minor, ok := strings.CutPrefix(name, ":5.")
+	n, err := strconv.Atoi(minor)
+	return ok && err == nil && n >= 39 && strconv.Itoa(n) == minor
+}
+
+// importBuiltin brings one builtin:: function into lexical scope.
+func (p *parser) importBuiltin(name string) {
+	proto, ok := interpreterSubs["builtin::"+name]
+	if !ok {
+		return
+	}
+	// Lexical, as `my sub` is: in scope whatever package follows.
+	// Measured on 5.42.0, `use builtin "refaddr"; package P; my $a =
+	// refaddr $x, 1` compiles.
+	p.declareLexical(Import{Name: name, Prototype: proto, PrototypeKnown: true})
 }
 
 // resolveRequiredFile reads a `require './helper.pl'` and records every
@@ -841,6 +877,9 @@ func (p *parser) parseSpecialSub(word lexer.Token) *Node {
 // finishPackage. `field` and `method` inside the body are handled by
 // parseDeclaration, which already knows `method` as a sub spelling.
 func (p *parser) parseClass(word lexer.Token) *Node {
+	if nameless(p, word) {
+		return p.refuseNotATerm(word)
+	}
 	p.advanceTo(word)
 	// A class declaration means class syntax is in effect -- by the feature
 	// or by Object::Pad, which provides the same keywords -- so `method`

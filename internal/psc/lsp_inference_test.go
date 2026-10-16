@@ -4,6 +4,11 @@
 package psc_test
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -35,9 +40,10 @@ func TestLSPDocumentChangeDiagnostics(t *testing.T) {
 	cleanDiags := s.Diagnostics("file:///test.pl")
 	assert.Empty(t, cleanDiags, "clean source should have no diagnostics")
 
-	// Re-open with source that passes a wrong type to a builtin.
-	// push(@arr, $scalar) is fine; but push() with zero args triggers arity error.
-	badSource := []byte("push();\n")
+	// Re-open with source that passes a wrong type to a builtin:
+	// push(@arr, $scalar) is fine, but push($x, 1) with a scalar $x is a
+	// type-mismatch.
+	badSource := []byte("my $x;\npush($x, 1);\n")
 	err = s.OpenDocument("file:///test.pl", badSource)
 	require.NoError(t, err)
 
@@ -154,4 +160,120 @@ func TestLSPDiagnosticSuggestionField(t *testing.T) {
 		}
 	}
 	assert.True(t, found, "should find type-mismatch diagnostic via LSP")
+}
+
+// TestLSPHoverThroughPositionMap: the parens of `($x)` are erased by the
+// lowering, a bit on the Var they wrap, so hover on either paren resolves
+// the type of $x through the position map (§6.1.6 item 3).
+func TestLSPHoverThroughPositionMap(t *testing.T) {
+	s := psc.NewLSPServer()
+	source := "my $x = 42;\nmy $y = ($x);\n"
+	require.NoError(t, s.OpenDocument("file:///test.pl", []byte(source)))
+
+	open := uint32(strings.Index(source, "("))
+	shut := uint32(strings.Index(source, ")"))
+	for _, off := range []uint32{open, open + 1, shut} {
+		typ, ok := s.TypeAtByte("file:///test.pl", off)
+		require.True(t, ok, "offset %d: no type", off)
+		assert.Equal(t, types.Int, typ, "offset %d", off)
+	}
+}
+
+// TestLSPHoverInsideHoleReportsNothing: `(;` is a Hole perl rejects, typed
+// Any and never inspected (§4.14.2, Hole row), so hover on it answers
+// nothing rather than the Hole's Any or the enclosing declaration's type.
+func TestLSPHoverInsideHoleReportsNothing(t *testing.T) {
+	s := psc.NewLSPServer()
+	source := "my $x = (;\n"
+	require.NoError(t, s.OpenDocument("file:///test.pl", []byte(source)))
+
+	typ, ok := s.TypeAtByte("file:///test.pl", uint32(strings.Index(source, "(")))
+	assert.False(t, ok, "hover inside a Hole reported %s", typ)
+}
+
+// TestLSPEditToBrokenSourceKeepsServing: replacing a clean document with
+// source perl rejects still opens, and hover, definition and diagnostics
+// answer at every offset without a panic.
+func TestLSPEditToBrokenSourceKeepsServing(t *testing.T) {
+	s := psc.NewLSPServer()
+	require.NoError(t, s.OpenDocument("file:///test.pl", []byte("my $x = 42;\n")))
+
+	broken := "if ($x) {"
+	require.NoError(t, s.OpenDocument("file:///test.pl", []byte(broken)))
+	for off := uint32(0); off <= uint32(len(broken)); off++ {
+		s.TypeAtByte("file:///test.pl", off)
+		s.DefinitionAtByte("file:///test.pl", off)
+	}
+	s.Diagnostics("file:///test.pl")
+	assert.Equal(t, []byte(broken), s.Source("file:///test.pl"))
+}
+
+// TestLSPDiagnosticsMatchGolden opens every golden fixture internal/infer
+// holds, at its own path, and asserts the LSP reports exactly the golden's
+// diagnostics: the ones psc check prints for it (TestCheckCommandOnLoweredTree).
+// It runs isolated from the host's perl, as the goldens are made.
+func TestLSPDiagnosticsMatchGolden(t *testing.T) {
+	isolatePerl(t)
+	fixtures, err := filepath.Glob(filepath.Join("..", "infer", "testdata", "lowered", "*", "*.pl"))
+	require.NoError(t, err)
+	require.NotEmpty(t, fixtures)
+
+	s := psc.NewLSPServer()
+	for _, fx := range fixtures {
+		source, err := os.ReadFile(fx)
+		require.NoError(t, err)
+		golden, err := os.ReadFile(strings.TrimSuffix(fx, ".pl") + ".golden")
+		require.NoError(t, err)
+		abs, err := filepath.Abs(fx)
+		require.NoError(t, err)
+		uri := psc.FileURI(abs)
+
+		require.NoError(t, s.OpenDocument(uri, source), fx)
+		got := []string{}
+		for _, d := range s.Diagnostics(uri) {
+			got = append(got, fmt.Sprintf("diag %d %d %s %s", d.StartByte, d.EndByte, d.Code, d.Message))
+		}
+		sort.Strings(got)
+		want := []string{}
+		for _, line := range strings.Split(string(golden), "\n") {
+			if strings.HasPrefix(line, "diag ") {
+				want = append(want, line)
+			}
+		}
+		assert.Equal(t, want, got, fx)
+	}
+}
+
+// TestLSPDefinitionOfCalledSub: a call names its sub, and definition at the
+// call finds the sub's declaration.
+func TestLSPDefinitionOfCalledSub(t *testing.T) {
+	s := psc.NewLSPServer()
+	source := "sub greet { return 1; }\ngreet();\n"
+	require.NoError(t, s.OpenDocument("file:///test.pl", []byte(source)))
+
+	sym, ok := s.DefinitionAtByte("file:///test.pl", uint32(strings.LastIndex(source, "greet")))
+	require.True(t, ok, "DefinitionAtByte should find greet at its call")
+	assert.Equal(t, "greet", sym.Name)
+}
+
+// TestLSPDefinitionOfElement: $x[0] reads @x and $h{a} reads %h, as do the
+// slices @x[0,1] and @h{a}, so definition on their base finds the aggregate
+// even when a scalar of the same name is declared. $r->[0] reads $r, the
+// control: an arrow subscript's base is the scalar holding the reference.
+func TestLSPDefinitionOfElement(t *testing.T) {
+	s := psc.NewLSPServer()
+	source := "my $x = 'a'; my @x = (1); my $h = 'b'; my %h = (a => 1); my $r = [];\n" +
+		"print $x[0]; print $h{a}; print @x[0,1]; print @h{a}; print $r->[0];\n"
+	require.NoError(t, s.OpenDocument("file:///test.pl", []byte(source)))
+
+	body := strings.Index(source, "\n")
+	for _, c := range []struct{ at, want string }{
+		{"$x[0]", "@x"}, {"$h{a}", "%h"}, {"@x[0,1]", "@x"}, {"@h{a}", "%h"}, {"$r->[0]", "$r"},
+	} {
+		off := uint32(body + strings.Index(source[body:], c.at))
+		sym, ok := s.DefinitionAtByte("file:///test.pl", off)
+		if assert.True(t, ok, "%s: no definition", c.at) {
+			assert.Equal(t, c.want, sym.Name, c.at)
+		}
+	}
 }
