@@ -1,19 +1,35 @@
 ---
 title: "[I13] A negated ref guard on an Any-typed variable yields a union that fails every slot"
-state: in-progress
+state: done
 urgency: normal
 milestone: pr486-review
 created: 2026-10-16T01:16:07.607868947Z
-updated: 2026-10-16T01:17:17.947741843Z
+updated: 2026-10-16T03:03:11.5623186Z
 sessions:
 - start_sha: 8a0c85c60a2bae5d04dbbb2b27eb4310312d362f
-  end_sha: ""
-  commits: 0
+  end_sha: 9b435686d672051efee1ba667b9380fd8f320817
+  commits: 2
   started_at: 2026-10-16T01:17:17.947741843Z
+  ended_at: 2026-10-16T03:03:11.5623186Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-16T01:17:17.947741843Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-16T03:03:11.5623186Z
+observed_paths:
+- docs/plans/2026-09-05-parser-conformance-plan.md
+- docs/plans/2026-09-21-graded-conformance-corpus.md
+- docs/specs/perl-parser/04-expressions.md
+- docs/specs/perl-parser/05-statements.md
+- docs/specs/perl-parser/06-incremental-lsp.md
+- internal/infer/calls.go
+- internal/infer/flow.go
+- internal/infer/flow_test.go
+- internal/infer/infer.go
+- internal/lower/node.go
+- internal/lower/positions.go
 ---
 
 ## Context
