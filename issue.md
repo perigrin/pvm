@@ -13,7 +13,7 @@ blocks:
 - 01a0fa47-146b-7047-84b6-20ac55c1b0f6
 - 01a0fafc-0dd7-7cd6-bfc3-262c0b8019eb
 created: 2026-10-02T01:42:09.873559281Z
-updated: 2026-10-02T17:18:12.42397858Z
+updated: 2026-10-16T18:48:30.284832388Z
 transitions:
 - state: cancelled
   actor: human:git-zhi
@@ -25,6 +25,6 @@ RFC 0001, "Typed Perl, in `.pmt` only": `sub NAME :attributes (Type $var, ...) T
 ## Acceptance criteria
 
 - [ ] Typed declarations parse in a .pmt (`go test ./internal/parse/ -run '^TestTypedDeclarations$' -count=1 -v | grep -q '^--- PASS: TestTypedDeclarations'`)
-- [ ] Ordinary source still reads (Ref $x) as a prototype (`go test ./internal/parse/ -run '^TestTypedSyntaxOnlyInPmt$' -count=1 -v | grep -q '^--- PASS: TestTypedSyntaxOnlyInPmt'`)
+- [ ] Ordinary source still reads (Ref $x) as a prototype (`go test ./internal/parse/ -run '^TestTypedSyntaxOnlyInTpm$' -count=1 -v | grep -q '^--- PASS: TestTypedSyntaxOnlyInTpm'`)
 - [ ] The RFC section is implemented (`grep -q '^### Typed Perl, in .*(\*Implemented\*' docs/rfcs/0001-type-libraries.md`)
 - [ ] The RFC's declaration-order and type-names sections are implemented (`sh -c "grep -qF '### Declaration order: Perl's (*Implemented*' docs/rfcs/0001-type-libraries.md && grep -qF '### Type names (*Implemented*' docs/rfcs/0001-type-libraries.md"`)
