@@ -523,7 +523,13 @@ func (a *analysis) userGuard(name, arg string) *guardResult {
 	if ret == nil {
 		return nil
 	}
-	return remapGuardVar(a.guard(ret, false), param, arg)
+	// A guard on any other variable, one the body declares, says
+	// nothing of the caller's.
+	g := a.guard(ret, false)
+	if !guardsOnly(g, param) {
+		return nil
+	}
+	return remapGuardVar(g, param, arg)
 }
 
 // fileSubs maps the name of each named sub declared at file level to its
@@ -590,35 +596,44 @@ func readsArg0(n lower.Node) bool {
 	return false
 }
 
-// subReturnExpr is a sub's returned expression: the value of the
-// body's one return, or the last expression statement when it has none.
-// More than one return is too much to read, and so is a bare one.
+// subReturnExpr is a sub's returned expression: the value of its one
+// return when that return is the body's last statement, or the body's
+// last statement when that is an expression and the sub has no return. A
+// return a modifier makes conditional, or that is not last, is one of two
+// values the sub may hand back, and more than one return is too much to
+// read, and so is a bare one.
 func subReturnExpr(body lower.Node) lower.Node {
-	var rets []*lower.LoopEx
-	if body == nil {
+	b, ok := body.(*lower.Block)
+	if !ok || len(b.Stmts) == 0 {
 		return nil
 	}
-	returnsOf(body, func(r *lower.LoopEx, _ *lower.IfStmt) {
+	var rets []*lower.LoopEx
+	returnsOf(b, func(r *lower.LoopEx, _ *lower.IfStmt) {
 		rets = append(rets, r)
 	})
-	switch len(rets) {
-	case 0:
-	case 1:
-		return rets[0].Label
-	default:
-		return nil
-	}
-	b, ok := body.(*lower.Block)
+	last, ok := b.Stmts[len(b.Stmts)-1].(*lower.ExprStmt)
 	if !ok {
 		return nil
 	}
-	var last lower.Node
-	for _, s := range b.Stmts {
-		if es, ok := s.(*lower.ExprStmt); ok {
-			last = es.X
-		}
+	switch {
+	case len(rets) == 0:
+		return last.X
+	case len(rets) == 1 && last.X == lower.Node(rets[0]):
+		return rets[0].Label
 	}
-	return last
+	return nil
+}
+
+// guardsOnly reports whether every leaf of g guards name. A side of a
+// compound guard that is no guard says nothing of any variable.
+func guardsOnly(g *guardResult, name string) bool {
+	if g == nil {
+		return true
+	}
+	if g.Compound != nil {
+		return guardsOnly(g.Compound.Left, name) && guardsOnly(g.Compound.Right, name)
+	}
+	return g.VarName == name
 }
 
 // guardVarName is the name a guard narrows: $x for a scalar, and the text
