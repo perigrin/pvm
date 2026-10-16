@@ -365,6 +365,22 @@ type Node struct {
 	// no comma after it for the same reason.
 	Comparator bool
 
+	// Override is set on a Call to a builtin, spelled without `CORE::`, that
+	// overridden says this parse resolves to a sub instead: one a module
+	// exports, by its default @EXPORT or a `use` list, one `use subs`
+	// predeclares, or a CORE::GLOBAL:: one. Measured on 5.42.0, with Foo2
+	// exporting `sleep` by default, `use Foo2; sleep("abc")` calls
+	// Foo2::sleep. A consumer typing the call reads the flag rather than
+	// guess the override again from the `use` statements.
+	Override bool
+
+	// Signatures is set on a Call to a sub a declaration file types: the
+	// signatures the `.pmt` of the module it is imported from declares
+	// for it, one per `multi sub` candidate. Carp.pmt declares croak
+	// returning None, so a consumer knows the call never returns. Empty
+	// for a builtin, and for a sub no declaration file types.
+	Signatures []types.Signature
+
 	// Indirect is set on a Call written in indirect object notation --
 	// `new Foo ARGS`, `doit $obj ARGS` -- whose FIRST child is the invocant
 	// and the rest the arguments. The children stay in source order, which

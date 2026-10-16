@@ -115,3 +115,120 @@ func TestKeyValueHashElementsKeepValueTypes(t *testing.T) {
 		}
 	}
 }
+
+// A literal range in list context is a list, not the flip-flop's Str, and
+// an array it fills holds its values: perl 5.42, `my @r = (1..5)` is five
+// Ints, `$r[0] + 1` is 2, and `my @s = ("a".."c")` is ("a", "b", "c"),
+// each a Str. Written without spaces, `1..5` is still a range.
+func TestLiteralRangeInfersAList(t *testing.T) {
+	for _, c := range []struct {
+		src, rng string
+		elem     types.Type
+	}{
+		{"my @r = (1..5);\nmy $n = $r[0] + 1;\n", "(1..5)", types.Int},
+		{"my @r = (\"a\"..\"c\");\nmy $n = $r[0] . \"!\";\n", "(\"a\"..\"c\")", types.Str},
+	} {
+		ty, diags, st := analyzeLowered([]byte(c.src), nil, infer.Options{})
+		if got, _ := findNodeType(ty, []byte(c.src), c.rng); got != types.List {
+			t.Errorf("%q: %s typed %v, want List", c.src, c.rng, got)
+		}
+		if sym, ok := st.Lookup("@r"); !ok || sym.ElemType != c.elem {
+			t.Errorf("%q: @r's elements are %v, want %v", c.src, sym.ElemType, c.elem)
+		}
+		for _, d := range diags {
+			t.Errorf("%q: diagnostic %q, want none", c.src, d.Message)
+		}
+	}
+}
+
+// An aggregate takes its initialiser in list context, so `my @a = (1)` is
+// an array of one Int, not an Int: perl 5.42, `my @a = (1); print
+// scalar(@a), ref(\@a)` prints "1ARRAY", and -w is silent on `my @a =
+// ("x"); push @a, 3` and `my @n = (1); my $s = shift @n; $s + 1`. The
+// element type is still recorded, so what perl warns on is still
+// reported: `my $x = undef; my @u = ($x); $u[0] + 1` warns "Use of
+// uninitialized value in addition (+)".
+func TestParenInitialiserIsListContext(t *testing.T) {
+	for _, c := range []struct {
+		src, name string
+		want      types.Type
+	}{
+		{"my @a = (1);\n", "@a", types.Array},
+		{"my $x = \"s\";\nmy @a = ($x);\n", "@a", types.Array},
+		{"our @o = (1);\n", "@o", types.Array},
+	} {
+		if got, _ := loweredSymbolType(t, c.src, c.name); got != c.want {
+			t.Errorf("%q: %s is %v, want %v", c.src, c.name, got, c.want)
+		}
+	}
+	for _, src := range []string{
+		"my @a = (\"x\");\npush @a, 3;\n",
+		"my @n = (1);\nmy $s = shift @n;\nprint $s + 1;\n",
+	} {
+		for _, d := range loweredDiags(src) {
+			t.Errorf("%q: diagnostic %q, want none", src, d.Message)
+		}
+	}
+
+	src := "my $x = undef;\nmy @u = ($x);\nprint $u[0] + 1;\n"
+	if diags := loweredDiags(src); len(diags) != 1 {
+		t.Errorf("%q: diagnostics %v, want one", src, diags)
+	}
+}
+
+// Copying an array copies its elements, so the copy records their type,
+// not the Array: perl 5.42, `my @b = (1, 2); my @c = @b; $c[0] + 1` is 2,
+// and `my @d = ("p"); my @e = @d; $e[0] . "!"` is "p!". An undefined
+// element is copied too: `my @u = (undef, undef); my @w = @u; $w[0] + 1`
+// warns
+// "Use of uninitialized value in addition (+)".
+func TestArrayCopyKeepsElementType(t *testing.T) {
+	for _, c := range []struct {
+		src  string
+		want types.Type
+	}{
+		{"my @b = (1, 2);\nmy @c = @b;\n", types.Int},
+		{"my @d = (\"p\");\nmy @c = @d;\n", types.Str},
+	} {
+		_, _, st := analyzeLowered([]byte(c.src), nil, infer.Options{})
+		if sym, ok := st.Lookup("@c"); !ok || sym.ElemType != c.want {
+			t.Errorf("%q: @c's elements are %v, want %v", c.src, sym.ElemType, c.want)
+		}
+	}
+
+	src := "my @u = (undef, undef);\nmy @w = @u;\nprint $w[0] + 1;\n"
+	if diags := loweredDiags(src); len(diags) != 1 {
+		t.Errorf("%q: diagnostics %v, want one", src, diags)
+	}
+}
+
+// A reference-aliasing declaration without parens takes its initialiser
+// in scalar context, as it binds the one reference it is given: perl
+// 5.42, under `use feature qw(refaliasing declared_refs)`, `my \@a = f()`
+// calls f with wantarray false, and `my (\@b) = f()` with it true. So
+// `localtime()` there is typed as `my $s = localtime()` types it, while
+// in the parenthesised form, and for an array declared without the
+// alias, it is a List.
+func TestRefAliasDeclContext(t *testing.T) {
+	localtime := func(src string) types.Type {
+		ty, _, _ := analyzeLowered([]byte(src), nil, infer.Options{})
+		got, _ := findNodeType(ty, []byte(src), "localtime()")
+		return got
+	}
+	scalar := localtime("my $s = localtime();\n")
+	if scalar == types.List {
+		t.Fatalf("my $s = localtime(): localtime() typed List")
+	}
+	for _, c := range []struct {
+		src  string
+		want types.Type
+	}{
+		{"my \\@a = localtime();\n", scalar},
+		{"my (\\@b) = localtime();\n", types.List},
+		{"my @c = localtime();\n", types.List},
+	} {
+		if got := localtime(c.src); got != c.want {
+			t.Errorf("%q: localtime() typed %v, want %v", c.src, got, c.want)
+		}
+	}
+}

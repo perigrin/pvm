@@ -6,7 +6,6 @@ package infer
 import (
 	"strconv"
 	"strings"
-	"unicode"
 
 	"tamarou.com/pvm/internal/lower"
 	"tamarou.com/pvm/internal/parse"
@@ -18,7 +17,8 @@ import (
 // type; a sub of this file gives its inferred return type, and a
 // fully-qualified one the project index's. A call through a reference is
 // not typed. `&name` never calls CORE, so it is a user sub's call whatever
-// its name, and so is a builtin a `use` list overrides.
+// its name, and so is a builtin the parse resolved to a sub, as overridden
+// says.
 //
 // The filehandle of `print $fh LIST` is Handle, not an argument, so it is
 // neither counted nor checked. An argument perl rejects is a Hole, which is
@@ -38,7 +38,7 @@ func (a *analysis) call(n *lower.Call) types.Type {
 		return types.Undef
 	}
 	sigs := parse.CoreBuiltin(name)
-	if n.Fn != nil || n.Ampersand || a.overrides[n.Name] || len(sigs) == 0 {
+	if n.Fn != nil || n.Ampersand || overridden(n) || len(sigs) == 0 {
 		a.args(n.Args, nil)
 		return a.userCall(n)
 	}
@@ -87,51 +87,10 @@ var strongKeywords = map[string]bool{
 	"study": true, "undef": true,
 }
 
-// overrides is each builtin f's `use` lists override: the names `use subs`
-// predeclares, and those a module's import list names, which it exports
-// as subs. perl 5.42 -w, `use subs "rename"; sub rename { "fake" } print
-// rename()` prints "fake", and `use POSIX qw(localtime); localtime(1, 2)`
-// compiles. A pragma's list is its arguments, `use feature "say"`, and
-// names no sub; a strong keyword is never overridden.
-//
-// The file is read as one scope: a `use` anywhere overrides the name in
-// every package and before the `use`, where perl would not.
-func overrides(f *lower.File) map[string]bool {
-	names := map[string]bool{}
-	var add func(n lower.Node)
-	add = func(n lower.Node) {
-		switch n := n.(type) {
-		case *lower.StrLit:
-			if !n.Backtick {
-				names[n.Value] = true
-			}
-		case *lower.QwList:
-			for _, w := range n.Words {
-				names[w] = true
-			}
-		case *lower.List:
-			for _, e := range n.Elems {
-				add(e)
-			}
-		}
-	}
-	var walk func(n lower.Node)
-	walk = func(n lower.Node) {
-		if u, ok := n.(*lower.UseStmt); ok && u.Op == "use" && u.Args != nil &&
-			(u.Module == "subs" || u.Module != "" && unicode.IsUpper(rune(u.Module[0]))) {
-			add(u.Args)
-		}
-		for _, c := range lower.Children(n) {
-			walk(c)
-		}
-	}
-	walk(f)
-	for name := range names {
-		if strongKeywords[name] || len(parse.CoreBuiltin(name)) == 0 {
-			delete(names, name)
-		}
-	}
-	return names
+// overridden reports whether c calls a builtin the parse resolved to a
+// sub, as parse.Node.Override says; a strong keyword is never overridden.
+func overridden(c *lower.Call) bool {
+	return c.Override && !strongKeywords[c.Name]
 }
 
 // args walks a call's arguments, each in the context its parameter slot in
@@ -155,9 +114,10 @@ func (a *analysis) args(args []lower.Node, sigs []types.Signature) {
 // takes it into a slurpy, UnknownCtx otherwise.
 //
 // A `$` slot is left UnknownCtx, not scalar context, so an aggregate in
-// one stays the mistake checkArg reports, a ternary's arm included: perl
-// 5.42 -w, `length(1 ? @a : "x")` warns "length() used on @a (did you
-// mean "scalar(@a)"?)".
+// one reaches checkArg as it is, which counts it as counted says or
+// reports it where perl does, a ternary's arm included: perl 5.42 -w,
+// `length(1 ? @a : "x")` warns "length() used on @a (did you mean
+// "scalar(@a)"?)".
 func slotContext(sigs []types.Signature, i int) types.Context {
 	ctx := types.UnknownCtx
 	for _, s := range sigs {
@@ -201,7 +161,7 @@ func (a *analysis) userCall(n *lower.Call) types.Type {
 // argument is counted first, as builtinArgActual says. One that does not
 // satisfy the slot as it is may still as finite and numified judge it,
 // one in a slurpy slot as flattened says, and one in a `$` slot as
-// scalarValue says, and last as lossyCoercion says. Flattening is a second
+// scalarValue or counted says, and last as lossyCoercion says. Flattening is a second
 // chance, so a Hole's Any, which satisfies the slot as it is, is never
 // rewritten; one that fails both is reported as flattened.
 func (a *analysis) checkArg(name string, i int, arg lower.Node, expected types.Type, slurpy bool) {
@@ -214,7 +174,7 @@ func (a *analysis) checkArg(name string, i int, arg lower.Node, expected types.T
 		if a.argSatisfies(actual, expected) {
 			return
 		}
-	} else if a.argSatisfies(scalarValue(arg, actual), expected) {
+	} else if a.argSatisfies(scalarValue(arg, actual), expected) || a.argSatisfies(counted(name, actual), expected) {
 		return
 	}
 	if a.lossyCoercion(arg, actual, expected) {
@@ -240,12 +200,13 @@ func (a *analysis) argSatisfies(actual, expected types.Type) bool {
 }
 
 // succeeded is actual, the type of n, as a slot judges it when n is a call
-// to a builtin: without the Undef the builtin returns only when it fails.
-// fileno is Int|Undef, undef for a closed handle, and perl 5.42 -w is
-// silent on `fileno(STDOUT) . ">"`; read, getsockopt and prototype are the
-// same. `scalar` hands on its argument's result. A type that is only
-// Undef, `undef()`'s, is kept, and so is anything that is no builtin's
-// result. It is a second chance, never a rewrite: a Scalar or a Hole's
+// to a builtin: without the Undef the builtin returns only when it fails,
+// as failureUndef says. fileno is Int|Undef, undef for a closed handle,
+// and perl 5.42 -w is silent on `fileno(STDOUT) . ">"`; read, getsockopt
+// and prototype are the same. A builtin the parse resolved to a sub is a
+// user sub, as overridden says. `scalar` hands on its argument's result.
+// A type that is only Undef, `undef()`'s, is kept, and so is anything
+// that is no builtin's result. It is a second chance, never a rewrite: a Scalar or a Hole's
 // Any satisfies a slot as it is.
 //
 // A call to a sub of this file whose every returned value is a builtin's
@@ -259,12 +220,15 @@ func (a *analysis) succeeded(n lower.Node, actual types.Type) types.Type {
 	if !ok || c.Fn != nil {
 		return actual
 	}
-	user := c.Ampersand || len(parse.CoreBuiltin(c.Name)) == 0
+	user := c.Ampersand || overridden(c) || len(parse.CoreBuiltin(c.Name)) == 0
 	if user && !a.returnsBuiltinResult(a.subs[c.Name]) {
 		return actual
 	}
 	if c.Name == "scalar" && len(c.Args) == 1 {
 		return a.succeeded(c.Args[0], actual)
+	}
+	if !user && !failureUndef[c.Name] {
+		return actual
 	}
 	if actual&^types.Undef == 0 {
 		return actual
@@ -272,10 +236,29 @@ func (a *analysis) succeeded(n lower.Node, actual types.Type) types.Type {
 	return actual &^ types.Undef
 }
 
+// failureUndef are the builtins CORE.pmt types with an Undef they return
+// only when they fail: a closed handle's fileno, a failed read or open.
+// Those that return undef in normal use are not among them: perl 5.42 -w
+// warns "Use of uninitialized value in concatenation" on `getc(STDIN) .
+// "x"` at end of file and on `each(%h) . "y"` for an empty %h, and
+// getlogin, wantarray and sort give undef without any failure.
+var failureUndef = map[string]bool{
+	"accept": true, "alarm": true, "bind": true, "binmode": true, "closedir": true,
+	"connect": true, "dbmopen": true, "fcntl": true, "fileno": true, "fork": true,
+	"getpeername": true, "getsockname": true, "getsockopt": true, "gmtime": true,
+	"ioctl": true, "listen": true, "localtime": true, "msgctl": true, "msgget": true,
+	"open": true, "opendir": true, "pipe": true, "print": true, "printf": true,
+	"prototype": true, "read": true, "readlink": true, "readpipe": true, "recv": true,
+	"rewinddir": true, "say": true, "seekdir": true, "semctl": true, "semget": true,
+	"setsockopt": true, "shmctl": true, "shmget": true, "shutdown": true,
+	"socket": true, "socketpair": true, "sysopen": true, "sysread": true,
+	"sysseek": true, "syswrite": true, "telldir": true, "truncate": true,
+}
+
 // returnsBuiltinResult reports whether every value sub returns, by an
 // explicit return or as its body's last statement, is a call to a
-// builtin, or a capture its own successful match guards, as ownCapture
-// says. A bare return gives the sub's own Undef, and so does a body
+// builtin failureUndef names, or a capture its own successful match
+// guards, as ownCapture says. A bare return gives the sub's own Undef, and so does a body
 // whose last statement is not such a call, so neither is one. A sub
 // nested in sub returns from itself, not from sub.
 func (a *analysis) returnsBuiltinResult(sub *lower.AnonSub) bool {
@@ -291,7 +274,7 @@ func (a *analysis) returnsBuiltinResult(sub *lower.AnonSub) bool {
 			n = l.Elems[len(l.Elems)-1]
 		}
 		c, ok := n.(*lower.Call)
-		return ok && c.Fn == nil && !c.Ampersand && len(parse.CoreBuiltin(c.Name)) > 0
+		return ok && c.Fn == nil && !c.Ampersand && failureUndef[c.Name]
 	}
 	all := true
 	var returns func(n lower.Node, guard *lower.IfStmt)
@@ -362,6 +345,28 @@ func scalarValue(arg lower.Node, actual types.Type) types.Type {
 	case *lower.Call, *lower.Assign:
 		if actual&(types.Array|types.Hash) != 0 {
 			return actual&^(types.Array|types.Hash|types.Void) | types.Scalar
+		}
+	}
+	return actual
+}
+
+// aggregateRefused are the builtins perl refuses or warns on an array or
+// a hash in their `$` slot, measured on 5.42.0 with -c over every builtin
+// CORE.pmt gives a `$` slot: `defined(@a)` is "Can't use
+// 'defined(@array)'", `exists(@a)` and `delete(@a)` are "not a HASH or
+// ARRAY element", and `length(@a)` warns "length() used on @a".
+var aggregateRefused = map[string]bool{"defined": true, "exists": true, "delete": true, "length": true}
+
+// counted is actual, the type of an argument in a `$` slot of the builtin
+// name, as perl evaluates it there: in scalar context, where an array or a
+// hash is its count. perl 5.42 -w is silent on `int(rand(@m))` and `my
+// @e; srand(@e)`, "0 but true". An aggregate perl refuses there, as
+// aggregateRefused says, keeps its type. Elsewhere actual is returned as
+// it is.
+func counted(name string, actual types.Type) types.Type {
+	if (actual == types.Array || actual == types.Hash) && !aggregateRefused[name] {
+		if narrowed, ok := types.NarrowByContext(actual, types.ScalarCtx); ok {
+			return narrowed
 		}
 	}
 	return actual
@@ -459,13 +464,16 @@ func (a *analysis) contextualReturn(n *lower.Call) (types.Type, bool) {
 }
 
 // callElemType is, for a Call, the element type
-// of the list a builtin returns. A hash's keys are strings; values, splice
-// and reverse hand back elements of the aggregate they read. Any other
+// of the list a builtin returns. A hash's keys are strings; undef is one
+// undefined value; values, splice and reverse hand back elements of the
+// aggregate they read. Any other
 // call's elements are not known.
 func (a *analysis) callElemType(n *lower.Call) types.Type {
 	switch n.Name {
 	case "keys":
 		return types.Str
+	case "undef":
+		return types.Undef
 	case "values", "splice", "reverse":
 		for i := len(n.Args) - 1; i >= 0; i-- {
 			if t := a.aggElemType(n.Args[i]); t != types.Unknown {

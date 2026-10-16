@@ -1,2 +1,2 @@
 sym $w Undef|Boolean
-sym @l Undef|Boolean
+sym @l Array

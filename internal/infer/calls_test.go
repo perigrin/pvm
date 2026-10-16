@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"tamarou.com/pvm/internal/infer"
+	"tamarou.com/pvm/internal/lower"
+	"tamarou.com/pvm/internal/parse"
 )
 
 // wantCode fails t unless the lowered path gives src a diagnostic of code.
@@ -189,4 +191,111 @@ func TestScalarLocaltimeIsStr(t *testing.T) {
 	}
 
 	wantCode(t, "my $y = (undef) . \"x\";\n", infer.CodeCoercionMismatch)
+}
+
+// An array in a builtin's non-slurpy `$` slot is in scalar context, so it
+// arrives as its count: perl 5.42 -w is silent on `int(rand(@m))`, a
+// random index of @m, and on `lc(@a)`, which is "2" for two elements.
+// The builtins perl refuses or warns on an aggregate in are still
+// reported: `length(@a)` warns "length() used on @a (did you mean
+// "scalar(@a)"?)", `defined(@a)` dies "Can't use 'defined(@array)'", and
+// `exists(@a)` dies "exists argument is not a HASH or ARRAY element or a
+// subroutine".
+func TestArrayInScalarSlotIsCount(t *testing.T) {
+	for _, src := range []string{
+		"my @m = (1, 2, 3);\nmy $i = int(rand(@m));\n",
+		"my @a = (1, 2);\nmy $c = lc(@a);\n",
+	} {
+		wantSilent(t, src)
+	}
+	for _, src := range []string{
+		"my @a = (1, 2);\nmy $l = length(@a);\n",
+		"my @a = (1, 2);\nmy $d = defined(@a);\n",
+		"my @a = (1, 2);\nmy $e = exists(@a);\n",
+	} {
+		wantCode(t, src, infer.CodeTypeMismatch)
+	}
+}
+
+// srand and sleep take their `$` argument in scalar context, so an array
+// or a hash there is its count: perl 5.42 -w, `my @e; srand(@e)` is "0
+// but true", `srand(@a)` with two elements 2, and `my %h; srand(%h)` "0
+// but true", each silently, and `sleep(@e)` sleeps 0 seconds. A hash in
+// length's Str slot is still reported: perl warns "length() used on %h
+// (did you mean "scalar(keys %h)"?)".
+func TestArrayInScalarSlotIsItsCount(t *testing.T) {
+	for _, src := range []string{
+		"my @e;\nsrand(@e);\n",
+		"my @a = (1, 2);\nsrand(@a);\n",
+		"my %h;\nsrand(%h);\n",
+		"my @e;\nsleep(@e);\n",
+	} {
+		wantSilent(t, src)
+	}
+	wantCode(t, "my %h = (a => 1);\nmy $l = length(%h);\n", infer.CodeTypeMismatch)
+}
+
+// succeeded judges a builtin's result without the Undef it returns only
+// when it fails: perl 5.42 -w is silent on `fileno(STDOUT) . ">"`. A
+// builtin that returns undef in normal use keeps it: with STDIN at end of
+// file and %h empty, perl warns "Use of uninitialized value in
+// concatenation (.) or string" on `getc(STDIN) . "x"` and `each(%h) .
+// "y"`, and so on a sub returning getc's result. A builtin `use subs`
+// overrides is a user sub, and its result is its own: perl warns the
+// same on `use subs "fileno"; sub fileno { $_[0] ? "a" : undef }
+// fileno(0) . ">"`.
+func TestSucceededKeepsNormalUndef(t *testing.T) {
+	wantSilent(t, "print fileno(STDOUT) . \">\";\n")
+	for _, src := range []string{
+		"print getc(STDIN) . \"x\";\n",
+		"my %h;\nprint each(%h) . \"y\";\n",
+		"sub g { return getc(STDIN) }\nprint g() . \"x\";\n",
+		"use subs \"fileno\";\nsub fileno { $_[0] ? \"a\" : undef }\nprint fileno(0) . \">\";\n",
+	} {
+		wantCode(t, src, infer.CodeCoercionMismatch)
+	}
+}
+
+// A builtin a module's default @EXPORT overrides is the module's sub, not
+// the builtin, as the parser resolves it: perl 5.42 -w, with Foo2.pm
+// exporting `sleep` by default, `use Foo2; sleep("abc")` prints "slept
+// abc" silently. Without the import the builtin is called: `use Foo2 ();
+// sleep("abc")` warns "Argument "abc" isn't numeric in sleep", and so does
+// `sleep("abc")` when Foo2 cannot be found. A lexical sub overrides the
+// builtin, `my sub sleep { "s" } sleep("abc")` being "s", and a package
+// sub the file declares does not: `sub sleep { "s" } sleep("abc")` warns
+// "Ambiguous call resolved as CORE::sleep()" and "isn't numeric".
+func TestDefaultExportOverridesBuiltin(t *testing.T) {
+	foo2 := "package Foo2;\nuse Exporter 'import';\nour @EXPORT = ('sleep');\nsub sleep { return \"slept $_[0]\" }\n1;\n"
+	load := func(name string) ([]byte, bool) {
+		if name == "Foo2" {
+			return []byte(foo2), true
+		}
+		return nil, false
+	}
+	diags := func(src string, load parse.Loader) []infer.Diagnostic {
+		root := parse.ParseWithLoader([]byte(src), load)
+		f := lower.Lower(root)
+		_, d, _ := infer.Analyze(f, lower.NewPositions(root, f), nil, infer.Options{})
+		return d
+	}
+
+	src := "use Foo2;\nmy $x = sleep(\"abc\");\n"
+	for _, s := range []string{src, "my sub sleep { \"s\" }\nmy $x = sleep(\"abc\");\n"} {
+		for _, d := range diags(s, load) {
+			t.Errorf("%q: diagnostic %q, want none", s, d.Message)
+		}
+	}
+	for _, c := range []struct {
+		src  string
+		load parse.Loader
+	}{
+		{"use Foo2 ();\nmy $x = sleep(\"abc\");\n", load},
+		{src, nil},
+		{"sub sleep { \"s\" }\nmy $x = sleep(\"abc\");\n", nil},
+	} {
+		if d := diags(c.src, c.load); len(d) != 1 || d[0].Code != infer.CodeTypeMismatch {
+			t.Errorf("%q: diagnostics %v, want one type mismatch", c.src, d)
+		}
+	}
 }
