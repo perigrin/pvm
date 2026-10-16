@@ -9,7 +9,7 @@ blocks:
 - 01a0fd9b-46c4-7a8c-b8d6-498c5182a47f
 - 01a10177-49d9-7915-975e-2a8e3da943bf
 created: 2026-10-02T17:13:25.560580634Z
-updated: 2026-10-05T23:10:52.705303477Z
+updated: 2026-10-16T18:48:30.886945934Z
 sessions:
 - start_sha: 337657c599353a2fbf768616a29f3eebc377d0a3
   end_sha: 337657c599353a2fbf768616a29f3eebc377d0a3
@@ -62,10 +62,10 @@ The first half of RFC 0001 "Typed Perl, in `.pmt` only": a `.pmt` declaration is
 
 ## Acceptance criteria
 
-- [ ] a .pmt declaration carries typed parameters and defaults (`go test ./internal/parse/ -run '^TestPmtTypedParameters$' -count=1 -v | grep -q '^--- PASS: TestPmtTypedParameters'`)
-- [ ] defaults on slurpy parameters parse, and a die default is recorded as required (`go test ./internal/parse/ -run '^TestPmtSlurpyDefaultsParse$' -count=1 -v | grep -q '^--- PASS: TestPmtSlurpyDefaultsParse'`)
-- [ ] ordinary source still reads (Ref $x) as a prototype (`go test ./internal/parse/ -run '^TestTypedSyntaxOnlyInPmt$' -count=1 -v | grep -q '^--- PASS: TestTypedSyntaxOnlyInPmt'`)
-- [ ] malformed or truncated .pmt parameters are errors, not panics (`go test ./internal/parse/ -run '^TestPmtMalformedTypedDeclarationIsError$' -count=1 -v | grep -q '^--- PASS: TestPmtMalformedTypedDeclarationIsError'`)
+- [ ] a .pmt declaration carries typed parameters and defaults (`go test ./internal/parse/ -run '^TestTpmTypedParameters$' -count=1 -v | grep -q '^--- PASS: TestTpmTypedParameters'`)
+- [ ] defaults on slurpy parameters parse, and a die default is recorded as required (`go test ./internal/parse/ -run '^TestTpmSlurpyDefaultsParse$' -count=1 -v | grep -q '^--- PASS: TestTpmSlurpyDefaultsParse'`)
+- [ ] ordinary source still reads (Ref $x) as a prototype (`go test ./internal/parse/ -run '^TestTypedSyntaxOnlyInTpm$' -count=1 -v | grep -q '^--- PASS: TestTypedSyntaxOnlyInTpm'`)
+- [ ] malformed or truncated .pmt parameters are errors, not panics (`go test ./internal/parse/ -run '^TestTpmMalformedTypedDeclarationIsError$' -count=1 -v | grep -q '^--- PASS: TestTpmMalformedTypedDeclarationIsError'`)
 - [ ] the signatures feature does not enable typed Perl in ordinary source (`go test ./internal/parse/ -run '^TestTypedSyntaxNotEnabledBySignaturesFeature$' -count=1 -v | grep -q '^--- PASS: TestTypedSyntaxNotEnabledBySignaturesFeature'`)
 - [ ] the shipped declarations carry no bare prototype (`sh -c '! grep -rqF -e "sub blessed (\$);" -e "sub group (&);" internal/parse/declarations'`)
 - [ ] the help page and the RFC show the shipped prototype spelling (`sh -c '! grep -qF "sub group (&)" internal/data/help/types.md docs/rfcs/0001-type-libraries.md'`)
