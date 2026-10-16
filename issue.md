@@ -1,10 +1,19 @@
 ---
 title: A branch join drops an else that narrows nothing, as legacy did
-state: pending
+state: in-progress
 urgency: normal
 milestone: v0.1
 created: 2026-10-13T01:51:16.083606254Z
-updated: 2026-10-14T22:25:17.367249455Z
+updated: 2026-10-16T11:47:48.243469873Z
+sessions:
+- start_sha: 9ff9be88b6f25ac747648420c2ff2433c1b55456
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-16T11:47:48.243469873Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-16T11:47:48.243469873Z
 ---
 
 ## Context
