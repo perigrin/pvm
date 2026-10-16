@@ -10,7 +10,7 @@ blocks:
 - 01a0fd9b-4850-704d-8c14-c15add6194f2
 - 01a0fd9b-49b2-7ea9-bfa1-ba398baadc3f
 created: 2026-10-02T17:13:26.980057702Z
-updated: 2026-10-06T06:50:48.989766758Z
+updated: 2026-10-16T18:48:31.181990965Z
 sessions:
 - start_sha: 9a6ceb6ed82ede814492d9f25a870f300fc55670
   end_sha: 9a6ceb6ed82ede814492d9f25a870f300fc55670
@@ -77,4 +77,4 @@ The RFC's table maps each prototype character to a parameter, measured on 5.42. 
 - [ ] optionality and Code/Scalar disagreements are errors (`go test ./internal/parse/ -run '^TestPrototypeTypeDisagreementKinds$' -count=1 -v | grep -q '^--- PASS: TestPrototypeTypeDisagreementKinds'`)
 - [ ] a mandatory parameter after an optional one is an error (`go test ./internal/parse/ -run '^TestDeriveMandatoryAfterOptionalIsError$' -count=1 -v | grep -q '^--- PASS: TestDeriveMandatoryAfterOptionalIsError'`)
 - [ ] a prototype with anything after @ derives the final-List error (`go test ./internal/parse/ -run '^TestDerivePrototypeAfterAtIsError$' -count=1 -v | grep -q '^--- PASS: TestDerivePrototypeAfterAtIsError'`)
-- [ ] a malformed .pmt declaration's error is reported, not dropped (`go test ./internal/parse/ -run '^TestPmtDeclarationErrorsSurface$' -count=1 -v | grep -q '^--- PASS: TestPmtDeclarationErrorsSurface'`)
+- [ ] a malformed .pmt declaration's error is reported, not dropped (`go test ./internal/parse/ -run '^TestTpmDeclarationErrorsSurface$' -count=1 -v | grep -q '^--- PASS: TestTpmDeclarationErrorsSurface'`)
