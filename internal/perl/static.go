@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"tamarou.com/pvm/internal/config"
+	"tamarou.com/pvm/internal/platform"
 	"tamarou.com/pvm/internal/xdg"
 )
 
@@ -57,7 +58,7 @@ func StaticPerl(dir string) (path, why string) {
 		if info == nil {
 			return "", fmt.Sprintf("%s names %q, which is not installed", source, name)
 		}
-		perlPath := filepath.Join(info.InstallPath, "bin", "perl")
+		perlPath := filepath.Join(info.InstallPath, "bin", platform.ExecutableName("perl"))
 		if _, err := os.Stat(perlPath); err != nil {
 			return "", fmt.Sprintf("%s names %q, whose perl is not at %s", source, name, perlPath)
 		}
