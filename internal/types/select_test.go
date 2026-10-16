@@ -508,6 +508,16 @@ func TestSelectAliasedMismatchFails(t *testing.T) {
 	wantSelected(t, []Signature{sig(Int, a, scalar("n", Int))}, []Type{Array, Str}, 0, Int)
 }
 
+// TestSelectAliasedMismatchLeavesValueCandidate: a candidate ruled out by a
+// backslashed container is gone before context chooses, so it cannot crowd
+// out a value candidate that coerces. In list context the List candidate
+// would answer, but `Hash \%h` refuses a Str; perl runs the Num one, warning.
+func TestSelectAliasedMismatchLeavesValueCandidate(t *testing.T) {
+	h := Param{Name: "h", Sigil: '%', Type: Hash, Alias: true, Required: true}
+	cands := []Signature{sig(List, h), sig(Str, scalar("x", Num))}
+	wantSelectedIn(t, cands, ListCtx, []Type{Str}, 1, Str)
+}
+
 // TestSelectUnknownContextIsUndecided: RFC 0001 "Multi declarations", the
 // consumer joins when the call site cannot decide, and Failed means ruled
 // out. A context the call site has not determined rules nothing out, so

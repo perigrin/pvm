@@ -75,10 +75,19 @@ func SelectShaped(cands []Signature, args []Type, shapes string, ctx Context) Se
 		// between candidates and never rule a call out: when none fits,
 		// the call is taken as one whose argument types are unknown, and
 		// the call site reports the coercion. A backslashed container
-		// coerces nothing, so a mismatch there still rules a candidate out.
-		unknown := make([]Type, len(args))
-		fit = slices.DeleteFunc(Taking(cands, unknown, shapes, ctx), func(i int) bool { return !cands[i].fitsContainers(args) })
-		args = unknown
+		// coerces nothing, so a mismatch there still rules a candidate out,
+		// before context chooses among those left.
+		var kept []int
+		var coercing []Signature
+		for i, c := range cands {
+			if c.fitsContainers(args) {
+				kept, coercing = append(kept, i), append(coercing, c)
+			}
+		}
+		args = make([]Type, len(args))
+		for _, j := range Taking(coercing, args, shapes, ctx) {
+			fit = append(fit, kept[j])
+		}
 	}
 	if len(fit) == 0 {
 		return Selection{Outcome: Failed, Candidate: -1}
