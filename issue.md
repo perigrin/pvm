@@ -3,15 +3,13 @@ title: Read typed variables with :export and :export_ok in declaration files
 state: pending
 urgency: normal
 milestone: core-module-types
-blocked_by:
-- 01a1464e-d912-7419-8b20-a8e24029b3ec
 blocks:
 - 01a1464e-dc48-720b-9ab9-fcc7fe47f483
 - 01a1464e-dca3-7284-85c3-a06107c16646
 - 01a1464e-de34-7403-95d2-25f4855404b2
 - 01a14657-682e-7432-8ea9-828f56cd2f69
 created: 2026-10-16T20:02:15.387011621Z
-updated: 2026-10-16T21:00:22.358659698Z
+updated: 2026-10-16T21:01:46.414811331Z
 ---
 
 ## Prerequisites
