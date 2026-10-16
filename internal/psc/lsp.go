@@ -25,7 +25,6 @@ type document struct {
 // LSPServer maintains parsed state for open Perl documents.
 // It is safe for concurrent use.
 type LSPServer struct {
-	session   *parse.Session
 	documents map[string]*document
 	mu        sync.RWMutex
 }
@@ -33,7 +32,6 @@ type LSPServer struct {
 // NewLSPServer creates a new LSPServer ready to manage Perl documents.
 func NewLSPServer() *LSPServer {
 	return &LSPServer{
-		session:   parse.NewSession(),
 		documents: make(map[string]*document),
 	}
 }
@@ -46,6 +44,10 @@ func NewLSPServer() *LSPServer {
 // against the path's directory and then @INC, read as text and never by
 // running perl (incRoots). Any other uri has no directory, and its `use`
 // resolves nothing. Analysis re-runs over the whole tree on every open.
+//
+// Each open parses in a Session of its own, so every module it uses is read
+// from disk as it is now: one edited since the last open is re-read, and one
+// missing then is found once it exists.
 func (s *LSPServer) OpenDocument(uri string, source []byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -55,7 +57,9 @@ func (s *LSPServer) OpenDocument(uri string, source []byte) error {
 		path := filepath.FromSlash(u.Path)
 		// ponytail: @INC is resolved on every open; cache it per directory
 		// if resolution shows up in a profile.
-		root = s.session.ParseSourceFrom(path, source, incRoots(path)...)
+		// ponytail: every open re-reads the modules it uses; cache them by
+		// mtime, invalidating facts and seen together, if opens get slow.
+		root = parse.NewSession().ParseSourceFrom(path, source, incRoots(path)...)
 	} else {
 		root = parse.Parse(source)
 	}
