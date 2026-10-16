@@ -1,0 +1,43 @@
+---
+title: Commit psc check's diagnostics over perl 5.42's lib as a baseline, and fail on any new one
+state: pending
+urgency: normal
+milestone: core-module-types
+created: 2026-10-16T20:02:14.930089601Z
+updated: 2026-10-16T20:02:14.930089601Z
+---
+
+## Prerequisites
+
+- none: this issue is first. Every declaration and call-site issue in core-module-types is blocked by it.
+
+## Context
+
+- paths: `internal/perltest/perltest.go` (new), `internal/psc/lib_baseline_test.go` (new), `internal/psc/testdata/lib_baseline.txt` (new), `internal/psc/testdata/lib_true_positives.txt` (new)
+- commands: `go test ./internal/psc/ -run '^TestPSCCheckLibBaseline$' -count=1 -v`
+- entrypoints: `internal/psc/check_command.go`, `internal/psc/review_regressions_test.go` (`diagLine`, `isolatePerl`), `internal/psc/inc_roots_test.go` (`runCheck`)
+
+Goal 5 needs psc check's output over perl 5.42's lib measured BEFORE any declaration or call-site change, because once one lands "pre-milestone" can no longer be measured. Capture `PVM_PERL_VERSION=5.42.0 psc check /home/perigrin/.local/share/pvm/versions/5.42.0/lib/perl5/5.42.0` at 8d508426 (the milestone base; its only change from pu is the RFC text), commit it, and add a test that fails on any diagnostic over lib that is not in the baseline, unless the diagnostic is listed in `lib_true_positives.txt` with perl evidence (the `perl -w` line, or a one-liner and its output, showing perl agrees). A diagnostic disappearing is not a failure.
+
+Locating perl: add `internal/perltest`, a small test-helper package with one function that returns perl 5.42.0's path, privlib and archlib (asked of that perl via `$Config{privlibexp}`/`$Config{archlibexp}`), and calls `t.Skip` where perl 5.42.0 or privlib is absent. The ranking, held-to-perl and oracle tests reuse it. No POSIX path assumptions: use `filepath`, and store baseline paths relative to privlib with forward slashes (`filepath.ToSlash`). CI runs Windows and macOS, where this test skips.
+
+Measure the test's runtime and record it in the test's comment; if it exceeds go test's default 10m, say so in the issue before committing rather than raising the timeout silently.
+
+## Steps
+
+- [ ] Write `internal/perltest` with the skip-when-absent helper
+- [ ] Write failing unit test `TestLibBaselineRejectsANewDiagnostic`: the comparison reports a diagnostic absent from a two-line baseline
+- [ ] Write failing unit test `TestLibBaselineAdmitsAListedTruePositive`: the same diagnostic passes when listed with perl evidence, and fails when listed with an empty evidence field
+- [ ] Run to verify failure: `go test ./internal/psc/ -run '^TestLibBaseline' -count=1 -v`
+- [ ] Implement the comparison; run to verify pass; commit
+- [ ] Capture the baseline at 8d508426 into `internal/psc/testdata/lib_baseline.txt`, first line `# captured at 8d508426 with perl 5.42.0`; commit
+- [ ] Write `TestPSCCheckLibBaseline`: runs psc check over privlib with `PVM_PERL_VERSION=5.42.0` and compares; run to verify pass: `go test ./internal/psc/ -run '^TestPSCCheckLibBaseline$' -count=1 -v`
+- [ ] `make test`; commit
+
+## Acceptance Criteria
+
+### Positive Scenarios
+- [ ] a diagnostic over lib not in the baseline fails the comparison (`go test ./internal/psc/ -run '^TestLibBaselineRejectsANewDiagnostic$' -count=1 -v | grep -q '^--- PASS: TestLibBaselineRejectsANewDiagnostic'`)
+- [ ] a listed true positive with perl evidence is admitted (`go test ./internal/psc/ -run '^TestLibBaselineAdmitsAListedTruePositive$' -count=1 -v | grep -q '^--- PASS: TestLibBaselineAdmitsAListedTruePositive'`)
+- [ ] psc check over perl 5.42's lib adds nothing to the baseline (`go test ./internal/psc/ -run '^TestPSCCheckLibBaseline$' -count=1 -v | grep -q '^--- PASS: TestPSCCheckLibBaseline'`)
+- [ ] the baseline records the commit it was captured at (`grep -q '^# captured at 8d508426' internal/psc/testdata/lib_baseline.txt`)
