@@ -117,6 +117,10 @@ type moduleFacts struct {
 	// readDeclaration.
 	signatures map[string][]types.Signature
 	errs       []error
+	// variables are a declaration file's typed `our` variables, by name
+	// with its sigil, `%Config`: each one's sigil, type and element type
+	// (RFC 0001, "Typed variables"). Empty for a module's own source.
+	variables map[string]types.Param
 	// warns are what a declaration file states that is read, but read
 	// otherwise than it says. A warning drops nothing, as an error does.
 	warns []error

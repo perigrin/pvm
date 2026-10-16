@@ -747,6 +747,8 @@ type parser struct {
 	// typedErrs the ones that could not be. See parseTypedSignature.
 	typed      bool
 	signatures map[string][]types.Signature
+	// variables holds a `.tpm`'s typed `our` variables; see declareVariable.
+	variables map[string]types.Param
 
 	// buildingCore is set while CORE.tpm is read to build the builtin
 	// tables, which then do not yet exist: the keyword shapes are derived

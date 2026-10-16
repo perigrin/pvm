@@ -24,7 +24,9 @@ import (
 //
 // A declaration is written in the module syntax the resolver already reads:
 // `our @EXPORT` for what a bare `use` imports, `sub NAME :prototype(PROTO);` for each
-// sub and its prototype. So it is read by the same parse as a module.
+// sub and its prototype. So it is read by the same parse as a module. A
+// name may instead carry `:export` or `:export_ok` (readExportMarks), and
+// a typed `our` states a variable's type (declareVariable).
 //
 //go:embed declarations
 var embedded embed.FS
@@ -52,7 +54,7 @@ func readDeclarationWith(p *parser) moduleFacts {
 	src := p.src
 	facts := readModule(root)
 	facts.signatures, facts.errs, facts.operators, facts.relations = p.signatures, p.typedErrs, p.operators, p.relations
-	facts.declared = true
+	facts.declared, facts.variables = true, p.variables
 	readExportMarks(root, &facts)
 	// A plain `sub` replaces the one declared before it, unless the name is
 	// also a `multi sub`: then it is a multi, keeping every candidate in the
@@ -236,10 +238,15 @@ func readExportMarks(root *Node, facts *moduleFacts) {
 			if n.Kind == Declaration && n.Text == "multi" && len(n.Children) == 1 {
 				n = n.Children[0]
 			}
-			if n.Kind != Declaration || n.Text != "sub" {
-				continue
+			var name string
+			switch {
+			case n.Kind == Declaration && n.Text == "sub":
+				name, _ = declaredSub(n)
+			case n.Kind == Declaration && n.Text == "our":
+				if i := slices.IndexFunc(n.Children, func(c *Node) bool { return c.Kind == Term }); i >= 0 {
+					name = n.Children[i].Text
+				}
 			}
-			name, _ := declaredSub(n)
 			bare, tags, ok := exportMark(n)
 			if name == "" || !ok {
 				continue
@@ -258,26 +265,34 @@ func readExportMarks(root *Node, facts *moduleFacts) {
 	}
 }
 
-// exportMark reads a declaration's `:export` or `:export_ok`: whether a
-// bare `use` imports the name, and the tags its argument names. ok is
-// false for a declaration carrying neither.
+// exportMark reads a declaration's `:export` or `:export_ok`; see
+// exportAttr. ok is false for a declaration carrying neither.
 func exportMark(n *Node) (bare bool, tags []string, ok bool) {
 	for _, c := range n.Children {
-		if c.Kind != Attribute {
-			continue
+		if bare, tags, ok = exportAttr(c); ok {
+			return bare, tags, true
 		}
-		attr, args, _ := strings.Cut(strings.TrimPrefix(c.Text, ":"), "(")
-		if attr != "export" && attr != "export_ok" {
-			continue
-		}
-		for _, tag := range strings.Split(strings.TrimSuffix(args, ")"), ",") {
-			if tag = strings.TrimSpace(tag); tag != "" {
-				tags = append(tags, tag)
-			}
-		}
-		return attr == "export", tags, true
 	}
 	return false, nil, false
+}
+
+// exportAttr reads the attribute c if it is `:export` or `:export_ok`:
+// whether a bare `use` imports the name it marks, and the tags its
+// argument names.
+func exportAttr(c *Node) (bare bool, tags []string, ok bool) {
+	if c.Kind != Attribute {
+		return false, nil, false
+	}
+	attr, args, _ := strings.Cut(strings.TrimPrefix(c.Text, ":"), "(")
+	if attr != "export" && attr != "export_ok" {
+		return false, nil, false
+	}
+	for _, tag := range strings.Split(strings.TrimSuffix(args, ")"), ",") {
+		if tag = strings.TrimSpace(tag); tag != "" {
+			tags = append(tags, tag)
+		}
+	}
+	return attr == "export", tags, true
 }
 
 // readLibraryDeclaration reads a library's declaration file, in CORE.tpm's
