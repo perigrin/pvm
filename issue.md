@@ -1,6 +1,6 @@
 ---
 title: Pin the core-module ranking in a test and record the rule in the RFC
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 blocks:
@@ -18,7 +18,7 @@ blocks:
 - 01a1464e-dde3-73fe-ab1f-ced7f18c4f9d
 - 01a14657-682e-7432-8ea9-828f56cd2f69
 created: 2026-10-16T20:02:15.040084527Z
-updated: 2026-10-16T22:23:21.342608058Z
+updated: 2026-10-16T22:53:30.943776807Z
 sessions:
 - start_sha: ec99871d43d51af75b3cdcb95b6ddca2a6802abd
   end_sha: 56d7b35020b325def5868693d7c94dc305759fc7
@@ -26,9 +26,10 @@ sessions:
   started_at: 2026-10-16T21:45:59.929896321Z
   ended_at: 2026-10-16T22:16:01.440006752Z
 - start_sha: 56d7b35020b325def5868693d7c94dc305759fc7
-  end_sha: ""
-  commits: 0
+  end_sha: 8db40639dc6a312e6e146709251c89354f1e3e18
+  commits: 5
   started_at: 2026-10-16T22:23:21.342608058Z
+  ended_at: 2026-10-16T22:53:30.943776807Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
@@ -42,6 +43,9 @@ transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-16T22:23:21.342608058Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-16T22:53:30.943776807Z
 observed_paths:
 - docs/rfcs/0001-type-libraries.md
 - internal/lexer/proto.go
@@ -55,6 +59,11 @@ observed_paths:
 - internal/parse/testdata/declarations/My/Exports.tpm
 - internal/parse/testdata/declarations/My/Vars.tpm
 - internal/parse/typedour_test.go
+- internal/perltest/perl542_test.go
+- internal/psc/inc_roots_test.go
+- internal/psc/lib_baseline_test.go
+- internal/types/select.go
+- internal/types/select_test.go
 ---
 
 ## Prerequisites
