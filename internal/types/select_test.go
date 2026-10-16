@@ -417,3 +417,93 @@ func TestAcceptsArity(t *testing.T) {
 		t.Errorf("system takes its program and any list after it")
 	}
 }
+
+// wantUndecidedIn checks that args in context ctx decide no candidate, and
+// that the call's type is ret, the join of the candidates'.
+func wantUndecidedIn(t *testing.T, cands []Signature, ctx Context, args []Type, ret Type) {
+	t.Helper()
+	got := Select(cands, args, ctx)
+	if got.Outcome != Undecided || got.Candidate != -1 || got.Returns != ret {
+		t.Errorf("%v in %v: got %+v, want undecided, returning %v", args, ctx, got, ret)
+	}
+}
+
+// TestSelectSingleCandidateTakesMismatchedArgs: RFC 0001 "What a parameter
+// type means", a parameter type is its coercion target, so a single
+// candidate whose arity fits takes an argument whose type does not fit it:
+// `sqrt(Str)` is sqrt's call, and the call site reports coercion-mismatch.
+// Measured on 5.42.0, `sqrt("abc")` warns "isn't numeric" and is 0. Among
+// candidates of the same arity, argument types still decide.
+func TestSelectSingleCandidateTakesMismatchedArgs(t *testing.T) {
+	sqrt := []Signature{sig(Num, scalar("x", Num))}
+	wantSelected(t, sqrt, []Type{Str}, 0, Num)
+	wantSelected(t, eachCandidates, []Type{Hash}, 0, List)
+	wantSelected(t, eachCandidates, []Type{Array}, 1, List)
+}
+
+// TestSelectSingleCandidateWrongArityFails: RFC 0001 "Multi declarations",
+// only arity rules a call out, and a mismatched argument type never rescues
+// a wrong arity.
+func TestSelectSingleCandidateWrongArityFails(t *testing.T) {
+	sqrt := []Signature{sig(Num, scalar("x", Num))}
+	wantFailed(t, sqrt, []Type{Str, Str})
+	wantFailed(t, sqrt, []Type{Num, Num})
+	wantFailed(t, sqrt, nil)
+}
+
+// TestSelectArgFittingNoSameArityCandidateJoins: a type mismatch never
+// rules a call out, so an argument that fits none of several candidates of
+// its arity leaves the call undecided between them, the join of their
+// returns. Measured on 5.42.0, `"a" x *STDOUT` warns "isn't numeric" and
+// runs: perl coerces the argument, it refuses no call by its type.
+func TestSelectArgFittingNoSameArityCandidateJoins(t *testing.T) {
+	cands := []Signature{
+		sig(Int, scalar("x", Int)),
+		sig(Str, scalar("c", Code)),
+	}
+	wantUndecidedIn(t, cands, ScalarCtx, []Type{FileHandle}, Int|Str)
+	// Int|Str is Str, so returns the lattice keeps apart show the join.
+	cands[1].Returns = ArrayRef
+	wantUndecidedIn(t, cands, ScalarCtx, []Type{FileHandle}, Int|ArrayRef)
+}
+
+// TestSelectUnknownArgBetweenCandidatesJoins: RFC 0001 "Multi
+// declarations", an argument of unknown type fits both of `each`'s
+// candidates, so the call site cannot decide, and the call is the join of
+// their returns rather than the first candidate's.
+func TestSelectUnknownArgBetweenCandidatesJoins(t *testing.T) {
+	cands := []Signature{
+		sig(Int, scalar("x", Int)),
+		sig(Str, scalar("c", Code)),
+	}
+	wantUndecidedIn(t, cands, ScalarCtx, []Type{Unknown}, Int|Str)
+	// Nor is it the most specific candidate's: an unknown argument may be
+	// a Num, which the Int candidate does not take.
+	wantUndecidedIn(t, intOrNum, ScalarCtx, []Type{Unknown}, Str|Int)
+}
+
+// TestSelectEmptyCandidatesFails: a name with no candidates takes no call,
+// with or without arguments, in any context, and does not panic.
+func TestSelectEmptyCandidatesFails(t *testing.T) {
+	for _, ctx := range []Context{ScalarCtx, ListCtx, VoidCtx, UnknownCtx} {
+		wantFailedIn(t, nil, ctx, nil)
+		wantFailedIn(t, nil, ctx, []Type{Int})
+		wantFailedIn(t, []Signature{}, ctx, []Type{Unknown})
+	}
+}
+
+// TestSelectAliasedMismatchFails: a backslashed container parameter, `Hash
+// \%h`, takes the container the caller writes, so it coerces nothing, and
+// an argument whose type it does not take rules the candidate out.
+// Measured on 5.42.0, `each $x` and `keys $x` die "Experimental each on
+// scalar is now forbidden", and `push $x, 1` "Experimental push on scalar
+// is now forbidden".
+func TestSelectAliasedMismatchFails(t *testing.T) {
+	h := Param{Name: "h", Sigil: '%', Type: Hash, Alias: true, Required: true}
+	a := Param{Name: "a", Sigil: '@', Type: Array, Alias: true, Required: true}
+	wantFailed(t, []Signature{sig(List, h), sig(List, a)}, []Type{Scalar})
+	push := []Signature{sig(Int, a, Param{Name: "list", Sigil: '@', Type: List})}
+	wantFailed(t, push, []Type{Scalar, Int})
+	// A value parameter beside it still coerces its own argument.
+	wantSelected(t, []Signature{sig(Int, a, scalar("n", Int))}, []Type{Array, Str}, 0, Int)
+}

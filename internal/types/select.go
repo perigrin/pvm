@@ -40,8 +40,11 @@ type Selection struct {
 // 2026-10-02): the one whose parameters are all subtypes of every other's,
 // as multi dispatch does in Raku, CLOS and Julia. When the call site cannot decide
 // -- an argument of unknown type fits more than one candidate, or none is
-// most specific -- the call's type is the join of theirs. A call no
-// candidate takes fails, and is never joined.
+// most specific -- the call's type is the join of theirs. Argument types
+// only decide between candidates: a single candidate whose arity fits is
+// selected whatever its arguments' types, and an argument fitting none of
+// several leaves the call undecided. A call whose arity no candidate takes
+// fails, and is never joined.
 //
 // ctx is the context the call is in: ScalarCtx (BooleanCtx is the same),
 // ListCtx or VoidCtx. What a call whose context is undetermined passes is
@@ -61,6 +64,17 @@ func Select(cands []Signature, args []Type, ctx Context) Selection {
 // stated, as for a call to a sub, none is ruled out by shape.
 func SelectShaped(cands []Signature, args []Type, shapes string, ctx Context) Selection {
 	fit := Taking(cands, args, shapes, ctx)
+	if len(fit) == 0 {
+		// A parameter type is its argument's coercion target (RFC 0001,
+		// "What a parameter type means"), so argument types decide only
+		// between candidates and never rule a call out: when none fits,
+		// the call is taken as one whose argument types are unknown, and
+		// the call site reports the coercion. A backslashed container
+		// coerces nothing, so a mismatch there still rules a candidate out.
+		unknown := make([]Type, len(args))
+		fit = slices.DeleteFunc(Taking(cands, unknown, shapes, ctx), func(i int) bool { return !cands[i].fitsContainers(args) })
+		args = unknown
+	}
 	if len(fit) == 0 {
 		return Selection{Outcome: Failed, Candidate: -1}
 	}
@@ -213,6 +227,18 @@ func Accepts(cands []Signature, n int) bool {
 func (s Signature) fits(args []Type) bool {
 	for i, a := range args {
 		if a != Unknown && !IsSubtype(a, s.paramType(i)) {
+			return false
+		}
+	}
+	return true
+}
+
+// fitsContainers is fits over s's backslashed container parameters only,
+// `Hash \%h`: perl takes the container the caller writes and coerces
+// nothing, refusing `each $x` at compile time.
+func (s Signature) fitsContainers(args []Type) bool {
+	for i, a := range args {
+		if s.Params[min(i, len(s.Params)-1)].Alias && a != Unknown && !IsSubtype(a, s.paramType(i)) {
 			return false
 		}
 	}
