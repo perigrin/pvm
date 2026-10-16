@@ -20,12 +20,13 @@ blocks:
 - 01a1464e-dde3-73fe-ab1f-ced7f18c4f9d
 - 01a14657-682e-7432-8ea9-828f56cd2f69
 created: 2026-10-16T20:02:15.452693569Z
-updated: 2026-10-16T20:13:00.99775502Z
+updated: 2026-10-16T21:00:24.293162413Z
 ---
 
 ## Prerequisites
 
 - [ ] Commit psc check's diagnostics over perl 5.42's lib as a baseline, and fail on any new one
+- [ ] Convert every .tpm to :export and :export_ok, then refuse export lists in a .tpm (01a14683-8375-7810-8a75-b772680603c6)
 
 ## Context
 
@@ -36,35 +37,43 @@ updated: 2026-10-16T20:13:00.99775502Z
 Build the three perl-held checks every declaration batch uses, with Carp.tpm (already shipped) as their first subject. Each batch issue then adds three named tests, `Test<Batch>Prototypes`, `Test<Batch>Exports`, `Test<Batch>ReturnTypes`, that call these helpers with its module list.
 
 1. **Prototypes.** For every sub the `.tpm` declares, perl's `prototype(\&M::f)` equals the declared prototype, or both are undef.
-2. **Export lists.** The module's `@EXPORT`, `@EXPORT_OK` and `%EXPORT_TAGS` equal the declaration's, read AFTER `require M; M->import` in a throwaway package: POSIX builds its lists in `import` (measured 2026-10-16 on 5.42.0: 0/0 after `require`, 587 `@EXPORT` / 179 `@EXPORT_OK` / 35 tags after `import`).
+2. **Exports, measured as installs (ruling 1).** The test compares the declaration's `:export`/`:export_ok` marks against what perl's `use` actually installs in a caller, never against the module's raw `@EXPORT` lists. In a fresh package per case, perl runs a bare `use M`, then `use M qw(name)` for each `:export_ok` name, then `use M ':tag'` for each tag a declaration names; a sub counts as installed when `exists &Caller::name` (not `defined`: POSIX's AUTOLOAD subs are not defined until called; measured 2026-10-16, a bare `use POSIX` installs 586 subs that `exists` sees), and a variable when the caller's glob slot is the module's (`\%Caller::Config == \%Config::Config`). The bare install must equal the `:export` names; each `:export_ok` name must be installed when asked for and not by a bare `use`; each tag must install exactly the names declared with it. A module whose own `import` installs names its lists lack (Locale::Maketext::Simple installs `loc` and `loc_lang` with empty lists, measured) is held the same way. Measured 2026-10-16: `use Carp qw(verbose)` installs nothing (`verbose` is an `@EXPORT_FAIL` flag), so Carp.tpm marks no `verbose`.
+   - **`&name` entries.** An export list may spell a sub with a leading `&` (Getopt::Long has `&GetOptions` and five more, measured 2026-10-16). It is the sub `name`: perl installs `name`, the `.tpm` declares `sub name :export ...`, and no declared name carries `&`.
+   - **Locating modules.** The helper finds a module through perl itself (`require M; $INC{'M.pm'}`), never by joining privlib with a path: measured 2026-10-16, 23 of the top 50 load from archlib, not privlib.
 3. **Return types.** An oracle has perl call each callable sub with the argument cases in `testdata/oracle/<Module>.pl`, maps each returned value to a lattice type with `observe_types.pl`'s membership tests (reuse it; do not write a second oracle), and fails when an observed value is not a member of the declared return type (WRONG = 0). The declared return type is read from the parsed `.tpm`'s signatures, so this needs no change to infer. It runs perl with its working directory, `HOME` and `TMPDIR` in `t.TempDir()`. A sub unsafe there -- network, fork/exec, signals, `_exit`, file mutation outside scratch, blocking on a terminal -- is not called; it is held to checks 1 and 2 only, and is listed by name, with the reason, in a map literal in `returntypes_test.go` so the exemption is visible in review. A never-returning sub (`None`) is called inside `eval` and must die.
 
 All three skip where perl 5.42.0 is absent and assume no POSIX paths.
+
+**Ruling 1 (perigrin, 2026-10-16): no export lists in a `.tpm`.** "We don't need the @EXPORT in the .tpm since we have :export and :export_ok." On names a module's own `import` installs: "we should figure out as best we can what is exported (loc, loc_lang, etc.) and mark them as :export or :export_ok accordingly."
 
 ## Steps
 
 - [ ] Write failing test `TestReturnOracleRejectsAnExcludedValue`: a test-declarations `.tpm` declaring a sub `Int` whose perl implementation returns a string fails the oracle helper
 - [ ] Run to verify failure: `go test ./internal/infer/ -run '^TestReturnOracleRejectsAnExcludedValue$' -count=1 -v`
 - [ ] Implement the oracle helper; run to verify pass; commit
+- [ ] Write the export helper's negative tests below (missing name, extra name, `&name`, install-not-lists, `exists` not `defined`); run to verify failure; implement; run to verify pass; commit
 - [ ] Write `TestCarpPrototypes` and `TestCarpExports`; run; fix Carp.tpm where perl disagrees, recording the measurement in its comments; commit
 - [ ] Write `TestCarpReturnTypes` with call cases for carp, cluck, longmess, shortmess, croak, confess; run; fix Carp.tpm where perl disagrees; commit
-- [ ] Run the m1 gates named in the final-gate issue; `make test`; commit
+- [ ] Run the m1 gates named in the final-gate issue, with the commands it gives them; a ratchet may only be raised. A drop is fixed in the .tpm, or the batch stops and asks perigrin. `make test`; commit
 
 ## Acceptance Criteria
 
 ### Positive Scenarios
 - [ ] the oracle fails on a value the declared return type excludes (`go test ./internal/infer/ -run '^TestReturnOracleRejectsAnExcludedValue$' -count=1 -v | grep -q '^--- PASS: TestReturnOracleRejectsAnExcludedValue'`)
 - [ ] Carp's declared prototypes equal perl's (`go test ./internal/parse/ -run '^TestCarpPrototypes$' -count=1 -v | grep -q '^--- PASS: TestCarpPrototypes'`)
-- [ ] Carp's declared export lists equal perl's (`go test ./internal/parse/ -run '^TestCarpExports$' -count=1 -v | grep -q '^--- PASS: TestCarpExports'`)
+- [ ] Carp's `:export`/`:export_ok` marks equal what `use Carp` installs in a caller, bare and by name (`go test ./internal/parse/ -run '^TestCarpExports$' -count=1 -v | grep -q '^--- PASS: TestCarpExports'`)
 - [ ] Carp's declared return types hold for every value perl returns (`go test ./internal/infer/ -run '^TestCarpReturnTypes$' -count=1 -v | grep -q '^--- PASS: TestCarpReturnTypes'`)
 
 ### Negative Scenarios
 - [ ] the prototype helper fails a declaration whose prototype disagrees with perl's `prototype()` (`go test ./internal/parse/ -run '^TestPrototypeHelperRejectsADisagreement$' -count=1 -v | grep -q '^--- PASS: TestPrototypeHelperRejectsADisagreement'`)
 - [ ] the prototype helper distinguishes an undef prototype from an empty `()` one (`go test ./internal/parse/ -run '^TestPrototypeHelperDistinguishesUndefFromEmpty$' -count=1 -v | grep -q '^--- PASS: TestPrototypeHelperDistinguishesUndefFromEmpty'`)
-- [ ] the export helper fails a `.tpm` missing a name in the module's `@EXPORT_OK` (`go test ./internal/parse/ -run '^TestExportHelperRejectsAMissingName$' -count=1 -v | grep -q '^--- PASS: TestExportHelperRejectsAMissingName'`)
-- [ ] the export helper fails a `.tpm` exporting a name the module does not (`go test ./internal/parse/ -run '^TestExportHelperRejectsAnExtraName$' -count=1 -v | grep -q '^--- PASS: TestExportHelperRejectsAnExtraName'`)
-- [ ] the export helper reads lists a fixture module builds in `import`, not the empty lists `require` leaves (`go test ./internal/parse/ -run '^TestExportHelperReadsListsAfterImport$' -count=1 -v | grep -q '^--- PASS: TestExportHelperReadsListsAfterImport'`)
-- [ ] a declared module absent from privlib fails by name rather than passing vacuously (`go test ./internal/parse/ -run '^TestHeldToPerlFailsOnAModuleAbsentFromPrivlib$' -count=1 -v | grep -q '^--- PASS: TestHeldToPerlFailsOnAModuleAbsentFromPrivlib'`)
+- [ ] the export helper fails a `.tpm` that does not mark a name `use M qw(name)` installs (`go test ./internal/parse/ -run '^TestExportHelperRejectsAMissingName$' -count=1 -v | grep -q '^--- PASS: TestExportHelperRejectsAMissingName'`)
+- [ ] the export helper fails a `.tpm` marking `:export` a name a bare `use` does not install (`go test ./internal/parse/ -run '^TestExportHelperRejectsAnExtraName$' -count=1 -v | grep -q '^--- PASS: TestExportHelperRejectsAnExtraName'`)
+- [ ] the export helper measures installs, not lists: a fixture module whose own `import` installs a name absent from its (empty) lists fails a `.tpm` that does not mark it `:export` (`go test ./internal/parse/ -run '^TestExportHelperMeasuresInstallsNotLists$' -count=1 -v | grep -q '^--- PASS: TestExportHelperMeasuresInstallsNotLists'`)
+- [ ] the export helper counts an installed AUTOLOAD sub (exists, not defined) as installed (`go test ./internal/parse/ -run '^TestExportHelperCountsAutoloadedSubs$' -count=1 -v | grep -q '^--- PASS: TestExportHelperCountsAutoloadedSubs'`)
+- [ ] an `&name` entry in a fixture module's export list is matched by `sub name :export` and is not reported as a second, missing name (`go test ./internal/parse/ -run '^TestExportHelperTreatsAmpersandAsSubName$' -count=1 -v | grep -q '^--- PASS: TestExportHelperTreatsAmpersandAsSubName'`)
+- [ ] a declared module perl cannot `require` fails by name rather than passing vacuously (`go test ./internal/parse/ -run '^TestHeldToPerlFailsOnAModulePerlCannotLoad$' -count=1 -v | grep -q '^--- PASS: TestHeldToPerlFailsOnAModulePerlCannotLoad'`)
+- [ ] a module that loads from archlib, not privlib (e.g. POSIX), is found through `%INC` (`go test ./internal/parse/ -run '^TestHeldToPerlFindsArchlibModules$' -count=1 -v | grep -q '^--- PASS: TestHeldToPerlFindsArchlibModules'`)
 - [ ] the oracle never calls a sub in the exemption map: a fixture exempt sub that would write a marker file leaves none (`go test ./internal/infer/ -run '^TestReturnOracleNeverCallsAnExemptSub$' -count=1 -v | grep -q '^--- PASS: TestReturnOracleNeverCallsAnExemptSub'`)
 - [ ] every exemption-map entry names a non-empty reason (`go test ./internal/infer/ -run '^TestReturnOracleExemptionsNameAReason$' -count=1 -v | grep -q '^--- PASS: TestReturnOracleExemptionsNameAReason'`)
 - [ ] a sub declared `None` that returns under the oracle fails it (`go test ./internal/infer/ -run '^TestReturnOracleRejectsAReturningNoneSub$' -count=1 -v | grep -q '^--- PASS: TestReturnOracleRejectsAReturningNoneSub'`)
