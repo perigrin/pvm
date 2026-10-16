@@ -1,6 +1,6 @@
 ---
 title: Convert every .tpm to :export and :export_ok, then refuse export lists in a .tpm
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -23,7 +23,16 @@ blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 - 01a0fd9b-5700-7514-a143-2caed2d06d8b
 created: 2026-10-16T20:59:46.420731313Z
-updated: 2026-10-16T21:02:05.969003187Z
+updated: 2026-10-16T21:54:12.485228145Z
+sessions:
+- start_sha: a9ce48f0047db49c938b19bdad67387cc27a0bd5
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-16T21:54:12.485228145Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-16T21:54:12.485228145Z
 ---
 
 ## Prerequisites
