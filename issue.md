@@ -9,7 +9,7 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.325366834Z
-updated: 2026-10-16T20:09:57.982020753Z
+updated: 2026-10-16T20:12:58.897522069Z
 ---
 
 ## Prerequisites
@@ -32,7 +32,6 @@ A qualified call (`Carp::confess(...)`, `Scalar::Util::blessed($x)`) resolves th
 - [ ] Write failing test `TestQualifiedCroakConfessAreExits` in `internal/infer/flow_test.go`: a path ending in `Carp::croak(...)` or `Carp::confess(...)` ends as `die` does, with `use Carp;` and with `use Carp ();`
 - [ ] Write failing test `TestInferTypesQualifiedCall` in `internal/infer/declared_test.go`: `my $s = Carp::shortmess("x");` is typed Str from Carp.tpm
 - [ ] Run to verify failure, implement anything missing, run to verify pass; commit
-- [ ] Doc: in the "Declaration Files" section of `internal/data/help/types.md`, say that a fully qualified call (`Carp::confess(...)`) is typed from its module's declaration as an imported call is, with or without an import list, and that a call to a sub declared `None` (`croak`, `confess`) ends its path as `die` does; `go test ./internal/cli/ -run '^TestShowTypesHelp$' -count=1`; commit
 - [ ] Run the m1 gates named in the final-gate issue; `make test`; commit
 
 ## Acceptance Criteria
@@ -41,3 +40,9 @@ A qualified call (`Carp::confess(...)`, `Scalar::Util::blessed($x)`) resolves th
 - [ ] a qualified call carries its declaration's signatures (`go test ./internal/parse/ -run '^TestQualifiedCallCarriesSignatures$' -count=1 -v | grep -q '^--- PASS: TestQualifiedCallCarriesSignatures'`)
 - [ ] qualified croak and confess end their path (`go test ./internal/infer/ -run '^TestQualifiedCroakConfessAreExits$' -count=1 -v | grep -q '^--- PASS: TestQualifiedCroakConfessAreExits'`)
 - [ ] a qualified call is typed from its declaration (`go test ./internal/infer/ -run '^TestInferTypesQualifiedCall$' -count=1 -v | grep -q '^--- PASS: TestInferTypesQualifiedCall'`)
+
+### Negative Scenarios
+- [ ] a qualified call to a name the module's `.tpm` does not declare, such as `Carp::nosuch(1)`, carries no signatures (`go test ./internal/parse/ -run '^TestQualifiedCallUndeclaredNameHasNoSignatures$' -count=1 -v | grep -q '^--- PASS: TestQualifiedCallUndeclaredNameHasNoSignatures'`)
+- [ ] a qualified call into a module with no `.tpm` carries no signatures (`go test ./internal/parse/ -run '^TestQualifiedCallUndeclaredModuleHasNoSignatures$' -count=1 -v | grep -q '^--- PASS: TestQualifiedCallUndeclaredModuleHasNoSignatures'`)
+- [ ] `Foo::confess(...)`, where package Foo defines its own `confess`, does not end its path (`go test ./internal/infer/ -run '^TestQualifiedCallOtherPackageConfessNotExit$' -count=1 -v | grep -q '^--- PASS: TestQualifiedCallOtherPackageConfessNotExit'`)
+- [ ] a code reference `\&Carp::confess` is not a call and does not end its path (`go test ./internal/infer/ -run '^TestQualifiedCodeRefIsNotExit$' -count=1 -v | grep -q '^--- PASS: TestQualifiedCodeRefIsNotExit'`)
