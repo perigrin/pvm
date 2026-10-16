@@ -21,7 +21,7 @@ blocks:
 - 01a1464e-ddb0-720a-93f6-450c767e6e2e
 - 01a1464e-dde3-73fe-ab1f-ced7f18c4f9d
 created: 2026-10-16T20:02:14.930089601Z
-updated: 2026-10-16T21:55:32.561438668Z
+updated: 2026-10-16T21:55:52.66004049Z
 sessions:
 - start_sha: 2fb0e62ffdc068b717c1b1a211c77e72d09ba51a
   end_sha: ec99871d43d51af75b3cdcb95b6ddca2a6802abd
@@ -85,6 +85,14 @@ Measure the test's runtime and record it in the test's comment; if it exceeds go
 - [ ] Capture the baseline at 8d508426 into `internal/psc/testdata/lib_baseline.txt`, first line `# captured at 8d508426 with perl 5.42.0`; commit
 - [ ] Write `TestPSCCheckLibBaseline`: runs psc check over privlib with `PVM_PERL_VERSION=5.42.0` and compares; run to verify pass: `go test ./internal/psc/ -run '^TestPSCCheckLibBaseline$' -count=1 -v`
 - [ ] `make test`; commit
+
+### Review Findings
+
+Tier-2 gate, 2026-10-16, on ec99871d (fresh reviewer subagent; lenses applied inline). VERDICT: REOPEN.
+
+1. `internal/psc/lib_baseline_test.go:23` libDiagShape drops refusal diagnostics (underscore codes such as `[call_arity]`, `[unclosed_opener]`) and `info` severity; newLibDiagnostics skips non-matching lines, so a parser regression that makes psc refuse a lib file never fails the gate. Fix: accept `[a-z_-]+` and `info`, and fail on any unindented privlib-prefixed line that does not parse; add a unit test with a `[call_arity]` line. (confidence 95)
+2. `TestPSCCheckLibBaseline` passes when psc check did not finish: runCheck discards the error from Execute, and a WalkDir abort or stat failure yields few or no lines. Fix: require the error to be nil or exactly "diagnostics found", or require at least one baseline entry still reported. (confidence 70)
+3. The not-installed-in-pvm branch of Perl542 (GetVersionInfo error, then skip) has no direct test. Fix: stub perl.GetVersionInfo to return an error and assert Perl542 skips. (confidence 65)
 
 ## Acceptance Criteria
 
