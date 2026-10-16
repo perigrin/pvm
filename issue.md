@@ -1,19 +1,67 @@
 ---
 title: "[S3] overrides misses a module's default @EXPORT."
-state: in-progress
+state: done
 urgency: normal
 milestone: pr486-review
 created: 2026-10-16T01:16:08.573592952Z
-updated: 2026-10-16T01:17:18.601506393Z
+updated: 2026-10-16T03:49:32.164155516Z
 sessions:
 - start_sha: 8a0c85c60a2bae5d04dbbb2b27eb4310312d362f
-  end_sha: ""
-  commits: 0
+  end_sha: 133837eb651f8dcffb4203d072b3701753486869
+  commits: 4
   started_at: 2026-10-16T01:17:18.601506393Z
+  ended_at: 2026-10-16T03:49:32.164155516Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-16T01:17:18.601506393Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-16T03:49:32.164155516Z
+observed_paths:
+- docs/plans/2026-09-05-parser-conformance-plan.md
+- docs/plans/2026-09-21-graded-conformance-corpus.md
+- docs/specs/perl-parser/04-expressions.md
+- docs/specs/perl-parser/05-statements.md
+- docs/specs/perl-parser/06-incremental-lsp.md
+- internal/infer/calls.go
+- internal/infer/calls_test.go
+- internal/infer/flow.go
+- internal/infer/flow_test.go
+- internal/infer/infer.go
+- internal/infer/lowered_test.go
+- internal/infer/ops.go
+- internal/infer/ops_test.go
+- internal/infer/testdata/lowered/ops/compound_assign.golden
+- internal/infer/testdata/lowered/ops/defined_or.golden
+- internal/infer/testdata/lowered/special/ref_arith.golden
+- internal/infer/testdata/lowered/special/ref_paren.golden
+- internal/infer/testdata/lowered/special/wantarray_top.golden
+- internal/infer/testdata/lowered/vars/arraylen.golden
+- internal/infer/testdata/lowered/vars/elem_from_var.golden
+- internal/infer/testdata/lowered/vars/our_element.golden
+- internal/infer/vars.go
+- internal/infer/vars_test.go
+- internal/lower/call.go
+- internal/lower/node.go
+- internal/lower/positions.go
+- internal/parse/arity.go
+- internal/parse/declarations/Carp.pmt
+- internal/parse/loader_regular_test.go
+- internal/parse/module.go
+- internal/parse/parse.go
+- internal/parse/staysinroots_test.go
+- internal/parse/term.go
+- internal/perl/inc.go
+- internal/perl/inc_test.go
+- internal/perl/static.go
+- internal/perl/static_test.go
+- internal/psc/check_command.go
+- internal/psc/check_command_test.go
+- internal/psc/check_escape_test.go
+- internal/psc/inc_roots_test.go
+- internal/psc/lsp.go
+- internal/psc/resolve_guard_test.go
 ---
 
 ## Context
