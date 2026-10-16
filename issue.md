@@ -4,12 +4,12 @@ state: pending
 urgency: normal
 milestone: v0.1
 created: 2026-10-06T05:27:24.45974331Z
-updated: 2026-10-06T05:27:24.45974331Z
+updated: 2026-10-16T18:48:32.87781086Z
 ---
 
 ## Context
 
-- paths: `internal/parse/decl.go` (`:context` reading in `parseSubDecl`/`parseTypedSignature`), `internal/parse/pmt_test.go`
+- paths: `internal/parse/decl.go` (`:context` reading in `parseSubDecl`/`parseTypedSignature`), `internal/parse/tpm_test.go`
 - commands: `make test`; perl 5.42 `/home/perigrin/.local/bin/perl`
 
 Found by the alignment gate on 01a0fd9b-4ca3-7d55-82ac-ba125816ee71; none blocks RFC 0001 ":context(...)" being Implemented, but each is a silent or misleading edge:
@@ -24,4 +24,4 @@ Found by the alignment gate on 01a0fd9b-4ca3-7d55-82ac-ba125816ee71; none blocks
 
 ## Acceptance criteria
 
-- [ ] the three :context edge cases report clearly (`go test ./internal/parse/ -run '^TestPmtContextAttributeEdges$' -count=1 -v | grep -q '^--- PASS: TestPmtContextAttributeEdges'`)
+- [ ] the three :context edge cases report clearly (`go test ./internal/parse/ -run '^TestTpmContextAttributeEdges$' -count=1 -v | grep -q '^--- PASS: TestTpmContextAttributeEdges'`)
