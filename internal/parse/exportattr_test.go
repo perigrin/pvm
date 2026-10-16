@@ -218,3 +218,29 @@ func TestDeclarationUnknownAttributeRefused(t *testing.T) {
 		}
 	}
 }
+
+// TestMultiCandidatesMarkedDifferentlyRefused: perl exports a name, not a
+// candidate, so a multi's candidates marking it differently contradict
+// each other: :export against :export_ok, different tags, or a mark on
+// only some candidates.
+func TestMultiCandidatesMarkedDifferentlyRefused(t *testing.T) {
+	saved := declarations
+	t.Cleanup(func() { declarations = saved })
+	const differ = "My::Multi: multi sub f: candidates mark f differently"
+	for src, want := range map[string]string{
+		"multi sub f :export (Int $i) Str;\nmulti sub f :export_ok (Str $s) Int;\n":               differ,
+		"multi sub f :export_ok(a) (Int $i) Str;\nmulti sub f :export_ok(b) (Str $s) Int;\n":      differ,
+		"multi sub f :export (Int $i) Str;\nmulti sub f (Str $s) Int;\n":                          differ,
+		"multi sub f (Int $i) Str;\nmulti sub f :export (Str $s) Int;\n":                          differ,
+		"multi sub f :export_ok(a,b) (Int $i) Str;\nmulti sub f :export_ok(b, a) (Str $s) Int;\n": "",
+	} {
+		declarations = layeredFS{top: fstest.MapFS{"declarations/My/Multi.tpm": {Data: []byte("package My::Multi;\n" + src)}}, base: saved}
+		var got []string
+		for _, err := range DeclarationErrors(ParseWithLoader([]byte("use My::Multi;\n"), noModules)) {
+			got = append(got, err.Error())
+		}
+		if want == "" && len(got) > 0 || want != "" && !slices.Equal(got, []string{want}) {
+			t.Errorf("%q: errors %q, want %q", src, got, want)
+		}
+	}
+}

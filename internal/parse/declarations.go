@@ -237,9 +237,17 @@ func readDeclarationWith(p *parser) moduleFacts {
 // is what a bare `use` imports, `:export_ok` what must be asked for, and
 // either's argument names the tags that hold the name.
 func readExportMarks(root *Node, facts *moduleFacts) {
+	// A multi's first candidate's mark, which every later one must repeat:
+	// perl exports a name, not a candidate.
+	type mark struct {
+		ok, bare, differs bool
+		tags              []string
+	}
+	firstMark := map[string]*mark{}
 	for _, stmt := range root.Children {
 		for _, n := range stmt.Children {
-			if n.Kind == Declaration && n.Text == "multi" && len(n.Children) == 1 {
+			multi := n.Kind == Declaration && n.Text == "multi" && len(n.Children) == 1
+			if multi {
 				n = n.Children[0]
 			}
 			var name string
@@ -261,7 +269,15 @@ func readExportMarks(root *Node, facts *moduleFacts) {
 				}
 			}
 			bare, tags, ok := exportMark(n)
-			// A multi's candidates each carry the mark; its first is read.
+			if multi && name != "" {
+				m := &mark{ok: ok, bare: bare, tags: slices.Sorted(slices.Values(tags))}
+				if first := firstMark[name]; first == nil {
+					firstMark[name] = m
+				} else if !first.differs && (first.ok != m.ok || first.bare != m.bare || !slices.Equal(first.tags, m.tags)) {
+					first.differs = true
+					facts.errs = append(facts.errs, fmt.Errorf("multi sub %s: candidates mark %s differently", name, name))
+				}
+			}
 			if name == "" || !ok || slices.Contains(facts.exports, name) {
 				continue
 			}
