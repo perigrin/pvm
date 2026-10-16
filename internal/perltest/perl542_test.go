@@ -4,6 +4,7 @@
 package perltest
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -11,22 +12,39 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"tamarou.com/pvm/internal/perl"
 )
 
-// skipped runs locate on path in a subtest and reports whether it skipped.
-func skipped(t *testing.T, path string) bool {
+// skipped runs find in a subtest and reports whether it skipped.
+func skipped(t *testing.T, find func(testing.TB)) bool {
 	t.Helper()
 	var sub *testing.T
-	t.Run("locate", func(st *testing.T) {
+	t.Run("find", func(st *testing.T) {
 		sub = st
-		locate(st, path)
+		find(st)
 	})
 	return sub.Skipped()
 }
 
+// at is a find that locates the perl at path.
+func at(path string) func(testing.TB) {
+	return func(t testing.TB) { locate(t, path) }
+}
+
 func TestPerl542SkipsWhenAbsent(t *testing.T) {
-	assert.True(t, skipped(t, filepath.Join(t.TempDir(), "perl")),
+	assert.True(t, skipped(t, at(filepath.Join(t.TempDir(), "perl"))),
 		"a missing perl skips the test")
+}
+
+func TestPerl542SkipsWhenNotInstalledInPvm(t *testing.T) {
+	saved := perl.GetVersionInfo
+	t.Cleanup(func() { perl.GetVersionInfo = saved })
+	perl.GetVersionInfo = func(string) (*perl.VersionInfo, error) {
+		return nil, errors.New("version 5.42.0 is not installed")
+	}
+	assert.True(t, skipped(t, func(st testing.TB) { Perl542(st) }),
+		"perl 5.42.0 missing from pvm skips the test")
 }
 
 func TestPerl542SkipsWhenPrivlibMissing(t *testing.T) {
@@ -37,7 +55,7 @@ func TestPerl542SkipsWhenPrivlibMissing(t *testing.T) {
 	fake := filepath.Join(t.TempDir(), "perl")
 	require.NoError(t, os.WriteFile(fake,
 		[]byte("#!/bin/sh\nprintf '%s\\n%s\\n' '"+missing+"' '"+missing+"/arch'\n"), 0o755))
-	assert.True(t, skipped(t, fake), "a perl whose privlib is missing skips the test")
+	assert.True(t, skipped(t, at(fake)), "a perl whose privlib is missing skips the test")
 }
 
 func TestPerl542ReportsAnExistingPrivlib(t *testing.T) {

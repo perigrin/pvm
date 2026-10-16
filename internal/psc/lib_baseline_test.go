@@ -4,6 +4,7 @@
 package psc
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -20,7 +21,7 @@ import (
 // libDiagShape is one diagnostic psc check prints, split into its path and
 // the rest: line, column, severity, message and code. The path is matched
 // lazily, so a Windows drive letter's colon stays in it.
-var libDiagShape = regexp.MustCompile(`^(.+?):(\d+:\d+: (?:error|warning): .+ \[[a-z-]+\])$`)
+var libDiagShape = regexp.MustCompile(`^(.+?):(\d+:\d+: (?:error|warning|info): .+ \[[a-z_-]+\])$`)
 
 // perlWShape is the tail perl -w puts on a warning or a death.
 var perlWShape = regexp.MustCompile(` at \S+ line \d+\.`)
@@ -80,15 +81,22 @@ func parseLibTruePositives(text string) (map[string]bool, error) {
 
 // newLibDiagnostics returns the diagnostics in psc check's output that are
 // neither in the baseline nor admitted true positives, each made relative
-// to privlib with forward slashes. Hints and notes are not diagnostics.
+// to privlib with forward slashes. A line under privlib that is not a
+// diagnostic is returned too, so a format psc check has not printed before
+// fails rather than passing unread. Indented hints and psc's own notes are
+// not under privlib and are not diagnostics.
 func newLibDiagnostics(output, privlib string, baseline, admitted map[string]bool) []string {
 	// ponytail: backslashes become slashes on every OS, so a Windows path
 	// normalizes in tests run anywhere; no file in perl's lib has one.
 	root := strings.TrimSuffix(strings.ReplaceAll(privlib, `\`, "/"), "/") + "/"
 	var fresh []string
 	for _, line := range strings.Split(output, "\n") {
-		m := libDiagShape.FindStringSubmatch(strings.TrimRight(line, "\r"))
+		line = strings.TrimRight(line, "\r")
+		m := libDiagShape.FindStringSubmatch(line)
 		if m == nil {
+			if rel := strings.ReplaceAll(line, `\`, "/"); strings.HasPrefix(rel, root) {
+				fresh = append(fresh, strings.TrimPrefix(rel, root))
+			}
 			continue
 		}
 		diag := strings.TrimPrefix(strings.ReplaceAll(m[1], `\`, "/"), root) + ":" + m[2]
@@ -97,6 +105,17 @@ func newLibDiagnostics(output, privlib string, baseline, admitted map[string]boo
 		}
 	}
 	return fresh
+}
+
+// libCheckFinished is nil when psc check's run over lib ended as a finished
+// run does: with no error, or with the one it returns for having printed
+// diagnostics. Any other error means the walk stopped early, so the
+// output holds only part of lib and cannot be compared.
+func libCheckFinished(err error) error {
+	if err == nil || err.Error() == "diagnostics found" {
+		return nil
+	}
+	return fmt.Errorf("psc check did not finish: %w", err)
 }
 
 const (
@@ -161,6 +180,27 @@ func TestLibTruePositiveMatchesExactDiagnostic(t *testing.T) {
 	assert.Equal(t, []string{otherFile, otherLine}, newLibDiagnostics(out, "/lib", map[string]bool{}, admitted))
 }
 
+func TestLibBaselineRejectsANewRefusal(t *testing.T) {
+	refusal := "Foo.pm:3:1: error: perl refuses this: a call with too many arguments [call_arity]"
+	note := "Foo.pm:4:1: info: a note [unknown-builtin]"
+	out := "/lib/" + refusal + "\n/lib/" + note + "\n"
+	assert.Equal(t, []string{refusal, note}, newLibDiagnostics(out, "/lib", twoLineBaseline(t), nil))
+}
+
+func TestLibBaselineRejectsAnUnparsedLibLine(t *testing.T) {
+	odd := "Foo.pm:3:1: fatal: something psc check never printed before"
+	out := "/lib/" + odd + "\n  hint: an indented hint is not a diagnostic\npsc: note: not under lib\n"
+	assert.Equal(t, []string{odd}, newLibDiagnostics(out, "/lib", twoLineBaseline(t), nil))
+}
+
+func TestPSCCheckLibBaselineRequiresAFinishedRun(t *testing.T) {
+	assert.NoError(t, libCheckFinished(nil))
+	assert.NoError(t, libCheckFinished(errors.New("diagnostics found")))
+
+	_, err := runCheckErr(t, filepath.Join(t.TempDir(), "missing"))
+	assert.ErrorContains(t, libCheckFinished(err), "did not finish")
+}
+
 // TestPSCCheckLibBaseline runs psc check over perl 5.42.0's privlib, as
 // `PVM_PERL_VERSION=5.42.0 psc check <privlib>` does, and fails on any
 // diagnostic not in testdata/lib_baseline.txt or admitted by
@@ -181,7 +221,8 @@ func TestPSCCheckLibBaseline(t *testing.T) {
 	admitted, err := parseLibTruePositives(read("lib_true_positives.txt"))
 	require.NoError(t, err)
 
-	out := runCheck(t, p.Privlib)
+	out, err := runCheckErr(t, p.Privlib)
+	require.NoError(t, libCheckFinished(err))
 	if fresh := newLibDiagnostics(out, p.Privlib, baseline, admitted); len(fresh) > 0 {
 		t.Errorf("psc check over %s reports %d diagnostic(s) not in the baseline:\n  %s\n"+
 			"Fix each, or list it in testdata/lib_true_positives.txt with the line perl -w prints for it.",
