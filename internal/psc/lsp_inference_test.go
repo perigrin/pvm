@@ -212,7 +212,9 @@ func TestLSPEditToBrokenSourceKeepsServing(t *testing.T) {
 // TestLSPDiagnosticsMatchGolden opens every golden fixture internal/infer
 // holds, at its own path, and asserts the LSP reports exactly the golden's
 // diagnostics: the ones psc check prints for it (TestCheckCommandOnLoweredTree).
+// It runs isolated from the host's perl, as the goldens are made.
 func TestLSPDiagnosticsMatchGolden(t *testing.T) {
+	isolatePerl(t)
 	fixtures, err := filepath.Glob(filepath.Join("..", "infer", "testdata", "lowered", "*", "*.pl"))
 	require.NoError(t, err)
 	require.NotEmpty(t, fixtures)

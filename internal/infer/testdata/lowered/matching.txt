@@ -8,6 +8,7 @@ calls/coderef.pl
 calls/delete.pl
 calls/die_msg.pl
 calls/fq_call.pl
+calls/imported_block.pl
 calls/keys_values.pl
 calls/length_array.pl
 calls/length_defined.pl

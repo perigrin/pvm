@@ -1,0 +1,2 @@
+diag 53 58 type-mismatch call to length: argument 1 expects Str, got Array
+sym $y Scalar

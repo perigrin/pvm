@@ -203,8 +203,11 @@ func TestCheckWarnLossyCoercionFlag(t *testing.T) {
 // internal/infer holds and asserts it prints exactly the fixture's golden
 // diagnostics, each formatted by infer.FormatDiagnostic. A golden line is
 // "diag <start> <end> <code> <message>" and records no severity, so a
-// printed line matches a golden diagnostic at either severity.
+// printed line matches a golden diagnostic at either severity;
+// TestCheckGoldensUseResolvedParse holds check's severities to the LSP's.
+// It runs isolated from the host's perl, as the goldens are made.
 func TestCheckCommandOnLoweredTree(t *testing.T) {
+	isolatePerl(t)
 	fixtures, err := filepath.Glob(filepath.Join("..", "infer", "testdata", "lowered", "*", "*.pl"))
 	require.NoError(t, err)
 	require.NotEmpty(t, fixtures)
@@ -403,4 +406,62 @@ func TestRefusalIsReported(t *testing.T) {
 
 	out := runCheckOn(t, "my @a;\npush(@a, 1);\n")
 	assert.Empty(t, out, "control: perl compiles push(@a, 1), and nothing is reported")
+}
+
+// TestCheckGoldensUseResolvedParse holds the goldens psc check and the LSP
+// are compared with to the parse they run, isolated from the host's perl.
+// calls/imported_block.pl calls block, exported by My::Block beside it, so
+// only a parse that resolves its use reaches the length(@ARGV) in block's
+// body, which perl 5.42 -w warns about: internal/infer's golden ratchet
+// matches it, check prints it, and for every fixture check prints exactly
+// what the LSP reports, severity and all, which a golden does not record.
+func TestCheckGoldensUseResolvedParse(t *testing.T) {
+	isolatePerl(t)
+	lowered := filepath.Join("..", "infer", "testdata", "lowered")
+	matching, err := os.ReadFile(filepath.Join(lowered, "matching.txt"))
+	require.NoError(t, err)
+	assert.Contains(t, strings.Split(string(matching), "\n"), "calls/imported_block.pl",
+		"the golden ratchet matches a fixture only a resolved parse reads")
+
+	fixtures, err := filepath.Glob(filepath.Join(lowered, "*", "*.pl"))
+	require.NoError(t, err)
+	s := psc.NewLSPServer()
+	for _, fx := range fixtures {
+		source, err := os.ReadFile(fx)
+		require.NoError(t, err)
+		cmd := psc.NewCommand()
+		cmd.SetArgs([]string{"check", fx})
+		var stderr strings.Builder
+		cmd.SetOut(&strings.Builder{})
+		cmd.SetErr(&stderr)
+		// Diagnostics make Execute return an error; the output is the subject.
+		_ = cmd.Execute()
+		printed := withoutNote(strings.TrimSuffix(stderr.String(), "Error: diagnostics found\n"))
+
+		abs, err := filepath.Abs(fx)
+		require.NoError(t, err)
+		uri := (&url.URL{Scheme: "file", Path: filepath.ToSlash(abs)}).String()
+		require.NoError(t, s.OpenDocument(uri, source))
+		var reported strings.Builder
+		for _, d := range s.Diagnostics(uri) {
+			reported.WriteString(infer.FormatDiagnostic(fx, source, d) + "\n")
+		}
+		assert.Equal(t, reported.String(), printed, "%s: psc check and the LSP report alike", fx)
+		if filepath.Base(fx) == "imported_block.pl" {
+			assert.Contains(t, printed, "imported_block.pl:2:", "the mismatch in block's body is printed")
+		}
+	}
+}
+
+// withoutNote is what psc check printed less its note on @INC: isolated,
+// it finds the repository's .perl-version, naming a perl the empty HOME
+// does not have, and says so before any diagnostic.
+func withoutNote(printed string) string {
+	var kept strings.Builder
+	for _, line := range strings.SplitAfter(printed, "\n") {
+		if !strings.HasPrefix(line, "psc: note: ") {
+			kept.WriteString(line)
+		}
+	}
+	return kept.String()
 }
