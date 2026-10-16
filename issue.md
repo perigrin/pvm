@@ -3,8 +3,10 @@ title: "Declare the IO and file-handling exporters: FileHandle, IO::Handle, IO::
 state: pending
 urgency: normal
 milestone: core-module-types
+blocked_by:
+- 01a1464e-d912-7419-8b20-a8e24029b3ec
 created: 2026-10-16T20:02:15.542610643Z
-updated: 2026-10-16T20:02:15.542610643Z
+updated: 2026-10-16T20:03:44.846602317Z
 ---
 
 ## Prerequisites
