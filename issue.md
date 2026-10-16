@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: v0.1
 created: 2026-10-06T18:04:16.836570874Z
-updated: 2026-10-06T18:04:16.836570874Z
+updated: 2026-10-16T18:48:33.876978767Z
 ---
 
 ## Context
@@ -17,7 +17,7 @@ From the alignment gate on 01a10177-547c-73a9-a302-f25f579a4cb3. The call-arity 
 ## Steps
 
 - [ ] Measure the prototypes of the commonly imported XS subs (Scalar::Util, List::Util, POSIX) with `prototype(\&...)`
-- [ ] Read them where the XS source or a .pmt states them; failing tests first; ratchets must not regress; `make test`; commit
+- [ ] Read them where the XS source or a .tpm states them; failing tests first; ratchets must not regress; `make test`; commit
 
 ## Acceptance criteria
 
