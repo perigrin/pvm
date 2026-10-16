@@ -64,3 +64,7 @@ New:
 **Exits.** croak/confess are already `None` in Carp.tpm; the remaining work is the qualified form and any other never-returning sub in the 50 (e.g. `POSIX::_exit`, `Carp::croak` via `Carp::`), each declared `None`.
 
 **Parallelism.** After the ranking test and typed `our`, declaration batches are independent of each other and of chain A. Chain A's sub-steps (Select rulings, Call.Signatures typing, qualified signatures) are sequential.
+
+## Gates
+
+- [x] chain-review: satisfied 2026-10-16, by the session agent with perigrin's rulings, not backfilled. Alignment (12 findings) and pushback (blocking 3, plus sizing, dependency, harness and perl-behaviour findings) ran in parallel, with a mechanical extraction of every criterion's command. perigrin ruled on: not-shipped for the three infrastructure modules only, stopping to ask; %Config is Hash[Str|Undef]; exports are marked with :export / :export_ok(tags) and no export lists, measured against what `use` installs; existing .tpm files are migrated and then export lists are refused; POSIX's dying AUTOLOAD stubs are None (the 62 %reimpl names that return were resolved by measurement). Applied in RFC 2fb0e62f and the issue edits, and re-checked: 23 issues, 210 criteria, no cycles, no placeholder or whole-suite commands.
