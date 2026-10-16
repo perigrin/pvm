@@ -1,10 +1,19 @@
 ---
 title: "[I17] Exits and guards are matched by exact name: croak, CORE::die and CORE::defined are missed, and CORE::push g..."
-state: pending
+state: in-progress
 urgency: normal
 milestone: pr486-review
 created: 2026-10-16T01:16:07.760410032Z
-updated: 2026-10-16T01:16:07.760410032Z
+updated: 2026-10-16T01:17:18.033021959Z
+sessions:
+- start_sha: 8a0c85c60a2bae5d04dbbb2b27eb4310312d362f
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-16T01:17:18.033021959Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-16T01:17:18.033021959Z
 ---
 
 ## Context
