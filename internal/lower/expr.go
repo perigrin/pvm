@@ -35,7 +35,7 @@ func (l *lowerer) expr(n *parse.Node) Node {
 	case parse.Binary:
 		out = first(n, l.postfixDeref, l.postfixSlice, l.bind, l.commaChain, l.repeat, l.rangeOp, l.assign, l.binary, l.arrowCall)
 	case parse.Index:
-		out = first(n, l.indexCall, l.slice, l.subscript)
+		out = first(n, l.indexCall, l.slice, l.subscript, l.ampBlockDeref)
 	case parse.AnonArray:
 		out = first(n, l.arrayLiteral)
 	case parse.AnonHash:
