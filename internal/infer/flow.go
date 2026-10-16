@@ -694,20 +694,24 @@ func negateGuard(g *guardResult) *guardResult {
 	return &guardResult{Compound: &compoundGuard{Op: op, Left: &l, Right: &r}}
 }
 
-// explicitReturns is the join of every
-// return's value under n, a bare return giving Undef.
-func (a *analysis) explicitReturns(n lower.Node) types.Type {
+// explicitReturns is the join of every return's value under n, a bare
+// return giving Undef, and whether each of them is of a known type.
+func (a *analysis) explicitReturns(n lower.Node) (types.Type, bool) {
 	if r, ok := n.(*lower.LoopEx); ok && r.Op == "return" {
 		if r.Label == nil {
-			return types.Undef
+			return types.Undef, true
 		}
-		return a.returnedValue(r.Label)
+		t := a.returnedValue(r.Label)
+		return t, t != types.Unknown
 	}
 	var t types.Type
+	known := true
 	for _, c := range lower.Children(n) {
-		t |= a.explicitReturns(c)
+		ct, ck := a.explicitReturns(c)
+		t |= ct
+		known = known && ck
 	}
-	return t
+	return t, known
 }
 
 // returnedValue is the type of what a sub hands back in scalar context. A
@@ -723,25 +727,34 @@ func (a *analysis) returnedValue(n lower.Node) types.Type {
 	return a.annotations[n.Meta().ID]
 }
 
-// implicitReturn is the type of a
-// block's last statement when it is an expression, or the join of both
-// bodies of a closing conditional.
-func (a *analysis) implicitReturn(b *lower.Block) types.Type {
+// implicitReturn is the type of the value a block hands back when
+// control falls off its end, and whether it is known: its last
+// statement's when that is an expression, or the join of both bodies of a
+// closing conditional. A block that always returns, dies or exits falls
+// off nothing, and adds no type that is not known. Any other last
+// statement's value, and an empty block's, is not known.
+func (a *analysis) implicitReturn(b *lower.Block) (types.Type, bool) {
 	if b == nil || len(b.Stmts) == 0 {
-		return types.Unknown
+		return types.Unknown, false
+	}
+	if blockExits(b) {
+		return types.Unknown, true
 	}
 	switch s := b.Stmts[len(b.Stmts)-1].(type) {
 	case *lower.ExprStmt:
 		if s.X != nil {
-			return a.returnedValue(s.X)
+			t := a.returnedValue(s.X)
+			return t, t != types.Unknown
 		}
 	case *lower.IfStmt:
 		if !isBranch(s.Then) || !isBranch(s.Else) {
-			return types.Unknown
+			return types.Unknown, false
 		}
 		then, _ := s.Then.(*lower.Block)
 		els, _ := s.Else.(*lower.Block)
-		return a.implicitReturn(then) | a.implicitReturn(els)
+		tt, tk := a.implicitReturn(then)
+		et, ek := a.implicitReturn(els)
+		return tt | et, tk && ek
 	}
-	return types.Unknown
+	return types.Unknown, false
 }

@@ -272,7 +272,14 @@ func (a *analysis) decl(d *lower.Decl) types.Type {
 			ret := types.Unknown
 			if body, ok := d.Init.(*lower.AnonSub); ok && body.Body != nil {
 				b, _ := body.Body.(*lower.Block)
-				ret = a.explicitReturns(body.Body) | a.implicitReturn(b)
+				// A return of no known type says nothing of what the
+				// others leave out: the sub's type is known only when
+				// every one of them is.
+				explicit, eok := a.explicitReturns(body.Body)
+				implicit, iok := a.implicitReturn(b)
+				if eok && iok {
+					ret = explicit | implicit
+				}
 			}
 			written := map[string]types.Type{}
 			for name, typ := range widened {
