@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a0fa46-be8b-7823-9c6c-5be1406b57b8
 created: 2026-10-02T01:42:13.264416913Z
-updated: 2026-10-02T17:18:12.471857469Z
+updated: 2026-10-16T18:48:30.501210147Z
 transitions:
 - state: cancelled
   actor: human:git-zhi
@@ -19,5 +19,5 @@ RFC 0001, "A slurpy takes no bare element type": `Str @args` is rejected (ambigu
 
 ## Acceptance criteria
 
-- [ ] Bare typed slurpies are rejected and caller-view sigils parse (`go test ./internal/parse/ -run '^TestPmtSlurpyRule$' -count=1 -v | grep -q '^--- PASS: TestPmtSlurpyRule'`)
+- [ ] Bare typed slurpies are rejected and caller-view sigils parse (`go test ./internal/parse/ -run '^TestTpmSlurpyRule$' -count=1 -v | grep -q '^--- PASS: TestTpmSlurpyRule'`)
 - [ ] The RFC section is implemented (`grep -qF '### A slurpy takes no bare element type (*Implemented*' docs/rfcs/0001-type-libraries.md`)
