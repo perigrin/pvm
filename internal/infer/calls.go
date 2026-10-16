@@ -55,14 +55,37 @@ func (a *analysis) call(n *lower.Call) types.Type {
 		})
 		return a.callReturns(n, sigs)
 	}
+	opened := openedVar(name, n.Args)
 	for i, arg := range n.Args {
+		if i == 0 && opened != nil && types.IsSubtype(a.typeOf(arg), types.Str) {
+			continue
+		}
 		a.checkArg(name, i, arg, builtinArgType(sigs, i), slotContext(sigs, i) == types.ListCtx)
+	}
+	if opened != nil {
+		a.st.UpdateType("$"+opened.Name, types.Scalar)
 	}
 
 	if t, ok := a.contextualReturn(n); ok {
 		return t
 	}
 	return a.callReturns(n, sigs)
+}
+
+// openedVar is the scalar variable an open opens a handle in, its first
+// argument, or nil. open puts the handle in it, `open(my $fh, ...)`, or
+// opens the handle a string in it names, which perl takes without strict
+// refs: perl 5.42 -w is silent on Devel::SelfStubber's `$fh =
+// "${module}::DATA"; open($fh, '<', $f); fileno($fh); close($fh)`. So
+// its string is not checked as a handle, and it holds a Scalar after.
+func openedVar(name string, args []lower.Node) *lower.Var {
+	if name != "open" || len(args) == 0 {
+		return nil
+	}
+	if v, ok := args[0].(*lower.Var); ok && v.Sigil == "$" {
+		return v
+	}
+	return nil
 }
 
 // coreName is the builtin a call names: `CORE::push` names push, as
@@ -177,7 +200,7 @@ func (a *analysis) checkArg(name string, i int, arg lower.Node, expected types.T
 	} else if a.argSatisfies(scalarValue(arg, actual), expected) || a.argSatisfies(counted(name, actual), expected) {
 		return
 	}
-	if a.lossyCoercion(arg, actual, expected) {
+	if a.lossyCoercion(arg, actual, expected) || a.silenced(actual, expected) {
 		return
 	}
 	start, end, _ := a.pos.Span(arg.Meta().ID)

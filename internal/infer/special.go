@@ -22,13 +22,19 @@ func (a *analysis) mapGrepSort(n *lower.MapGrepSort) types.Type {
 // sort reorders and grep selects, so their elements are the source's; map
 // transforms, so its elements are what its block yields. perl 5.42: with
 // @n = (3, 1), `map { $_ * 2 } @n` is (6, 2) and `map { "x$_" } @n` is
-// ("x3", "x1"). map's expression form is not typed.
+// ("x3", "x1"). map's expression form is not typed, and neither is a
+// block that yields a list, whose elements each become one: perl 5.42,
+// `map { glob "$_" } @a` is the names each glob found. A Hole's Any is
+// kept.
 func (a *analysis) mapGrepSortElemType(n *lower.MapGrepSort) types.Type {
 	if n.Op == "map" {
 		if n.Block == nil {
 			return types.Unknown
 		}
-		return a.blockValue(n.Block)
+		if t := a.blockValue(n.Block); t == types.Any || t&(types.Array|types.Hash) == 0 {
+			return t
+		}
+		return types.Unknown
 	}
 	switch len(n.List) {
 	case 0:

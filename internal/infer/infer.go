@@ -84,6 +84,13 @@ type analysis struct {
 	// modifier is the `if` modifier whose match guards the body being
 	// walked, which a capture in that body reads, or nil.
 	modifier *lower.IfStmt
+	// loopExits holds, for each loop being walked, innermost last, the
+	// type each variable a loop exit narrowed had where the exit leaves,
+	// keyed by the scope that declares it, as leaveLoop says.
+	loopExits []map[scopedName]types.Type
+	// warningsOff is the warning categories a `no warnings` has turned
+	// off where the walk is, as useStmt and block keep it.
+	warningsOff warningsOff
 }
 
 // walk types n, children first, and records the type under n's id. Unknown
@@ -135,7 +142,7 @@ func (a *analysis) walk(n lower.Node) types.Type {
 		a.walkChildren(n)
 		t = types.Unknown
 	case *lower.AnonSub:
-		a.walkChildren(n)
+		a.anonSub(n)
 		// A CodeRef, not a Code: Code is the compiled CV itself, which
 		// no perl scalar ever holds.
 		t = types.CodeRef
@@ -186,11 +193,14 @@ func (a *analysis) walk(n lower.Node) types.Type {
 		a.ifStmt(n)
 		t = types.Unknown
 	case *lower.WhileStmt:
-		a.whileStmt(n)
+		a.loop(func() { a.whileStmt(n) })
 		t = types.Unknown
 	case *lower.ForeachStmt:
-		a.foreachStmt(n)
+		a.loop(func() { a.foreachStmt(n) })
 		t = types.Unknown
+	case *lower.CForStmt, *lower.BlockStmt:
+		a.loop(func() { a.walkChildren(n) })
+		t = types.Any
 	case *lower.UseStmt:
 		a.useStmt(n)
 		t = types.Unknown
@@ -212,13 +222,18 @@ func (a *analysis) walk(n lower.Node) types.Type {
 // block walks b's statements in the scope pass 1 made for it, re-entered
 // under the scope current now, or in a scope of its own when pass 1 made
 // none.
+//
+// A `no warnings` in b lasts to the end of b, as perl's lexical warnings
+// do.
 func (a *analysis) block(b *lower.Block) {
 	if s := a.st.blockScopes[b.ID]; s != nil {
 		a.st.Reenter(s)
 	} else {
 		a.st.EnterScope("block")
 	}
+	off := a.warningsOff
 	a.walkChildren(b)
+	a.warningsOff = off
 	a.st.ExitScope()
 }
 
@@ -310,6 +325,30 @@ func (a *analysis) decl(d *lower.Decl) types.Type {
 	// holds what they should report.
 	a.walkChildren(d)
 	return types.Any
+}
+
+// anonSub walks an anonymous sub's body, which runs when the sub is
+// called, not where it is written. What the body narrows or assigns a
+// variable of the code around it is that code's again after the sub: the
+// variable keeps the type it had before, or its sigil type when the body
+// assigns it, as a named sub's writes are widened in decl. The body reads
+// such a variable at its runtime value, as widenWritten says. perl 5.42 -w
+// is silent on `my $k = 'a'; my $f = sub { $k = undef }; lc($k)` and on
+// base.pm's `my $lvl; sub { return if defined $lvl; ... ++$lvl }; sub {
+// caller $lvl }`.
+func (a *analysis) anonSub(n *lower.AnonSub) {
+	pre := a.preBranchTypes(n)
+	a.st.EnterScope("anon")
+	widened := a.widenWritten(n)
+	a.walkChildren(n)
+	a.st.ExitScope()
+	a.restore(pre)
+	writes := assignedNames(n)
+	for name, typ := range widened {
+		if writes[name] {
+			a.st.UpdateType(name, typ)
+		}
+	}
 }
 
 // widenWritten shadows, in the sub scope just entered, each variable body

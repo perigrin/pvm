@@ -130,12 +130,23 @@ func (a *analysis) rangeOp(n *lower.Range) types.Type {
 //
 // The assignment's own type is its right side's, an aggregate counted when
 // a scalar takes it.
+//
+// A list assignment, `($x) = EXPR`, evaluates EXPR in list context, and
+// its first scalar takes the first element, as firstElement says: perl
+// 5.42, `($p) = "/a" =~ /(.*)/s` makes $p "/a", not the match's truth.
 func (a *analysis) assign(n *lower.Assign) types.Type {
 	if n.R != nil {
-		a.evalCtx[n.R.Meta().ID] = assignContext(n.L)
+		ctx := assignContext(n.L)
+		if n.ListAssign {
+			ctx = types.ListCtx
+		}
+		a.evalCtx[n.R.Meta().ID] = ctx
 	}
 	a.operand(n.L)
 	t := a.operand(n.R)
+	if l, ok := n.L.(*lower.List); ok && n.R != nil {
+		a.listTargets(l)
+	}
 	v, ok := n.L.(*lower.Var)
 	if !ok || n.R == nil {
 		return t
@@ -151,8 +162,24 @@ func (a *analysis) assign(n *lower.Assign) types.Type {
 	}
 	if n.Op != "=" {
 		t = compoundResult(n.Op, a.typeOf(n.L), t)
+	} else if n.ListAssign && v.Sigil == "$" {
+		t = a.firstElement(n.R, t)
 	}
 	return a.narrow(v, n.R, t)
+}
+
+// listTargets types each variable a list assignment, `($a, $b) = EXPR`,
+// writes as its sigil type: which element each takes is not read, and
+// what it held before is gone. perl 5.42 -w is silent on `my $e; return
+// $e if defined $e; ($l, $e) = ($1, $2); lc($e)` after a match.
+func (a *analysis) listTargets(l *lower.List) {
+	for _, e := range l.Elems {
+		if v, ok := e.(*lower.Var); ok {
+			if typ, named := sigilTypes[v.Sigil]; named {
+				a.st.UpdateType(v.Sigil+v.Name, typ)
+			}
+		}
+	}
 }
 
 // compoundResult is what a compound assignment `op=` leaves in a target
@@ -223,8 +250,9 @@ func (a *analysis) narrow(v *lower.Var, init lower.Node, t types.Type) types.Typ
 		return types.Int
 	}
 	a.recordElemType(v, init)
-	if agg, ok := sigilTypes[v.Sigil]; ok && v.Sigil != "$" && t != types.Unknown &&
-		t != types.Array && t != types.Hash && t != types.List {
+	// An array is never a hash, nor a hash an array, whatever fills them:
+	// perl 5.42, `my @x = %h` is an array of keys and values.
+	if agg, ok := sigilTypes[v.Sigil]; ok && v.Sigil != "$" && t != types.Unknown && t != types.List {
 		t = agg
 	}
 	if t != types.Unknown {
@@ -239,10 +267,25 @@ func (a *analysis) narrow(v *lower.Var, init lower.Node, t types.Type) types.Typ
 // firstElement is the type of the first element of init, a list
 // initialiser typed t, which a parenthesised declaration's first scalar
 // takes: perl 5.42, `my @a = (1, 2); my ($x) = @a` makes $x 1, not the
-// count. A hash's first element is a key, a Str. An initialiser that is
-// no aggregate is t as it is.
+// count. A hash's first element is a key, a Str. A ternary's is the
+// first element of either arm, and is not known when one arm's is not:
+// perl 5.42, `my ($z) = @_ ? @_ : $_` makes $z $_[0] or $_. A type that
+// may be an aggregate or a scalar, as a sub returning either gives, has a
+// first element of no type known but Scalar. An initialiser that is no
+// aggregate is t as it is.
 func (a *analysis) firstElement(init lower.Node, t types.Type) types.Type {
+	if tern, ok := init.(*lower.Ternary); ok && tern.Then != nil && tern.Else != nil {
+		then := a.firstElement(tern.Then, a.typeOf(tern.Then))
+		els := a.firstElement(tern.Else, a.typeOf(tern.Else))
+		if then == types.Unknown || els == types.Unknown {
+			return types.Unknown
+		}
+		return types.Join(then, els)
+	}
 	if t != types.Array && t != types.Hash && t != types.List {
+		if t&(types.Array|types.Hash) != 0 {
+			return types.Scalar
+		}
 		return t
 	}
 	if v, ok := init.(*lower.Var); ok {
@@ -293,7 +336,7 @@ func (a *analysis) checkOperand(n lower.Node, expected types.Type, op, side stri
 		return
 	}
 	severity, message, ok := operandMismatch(a.opts, a.typeOf(n), expected, op, side)
-	if !ok {
+	if !ok || a.silenced(a.typeOf(n), expected) {
 		return
 	}
 	start, end, _ := a.pos.Span(n.Meta().ID)
@@ -356,11 +399,13 @@ func (a *analysis) lossyCoercion(n lower.Node, actual, expected types.Type) bool
 var numericString = regexp.MustCompile(`^\s*(?:[+-]?(?:(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?|(?i:inf(?:inity)?|nan))|0 but true)\s*$`)
 
 // literalContent is the content of n when it is a string literal that
-// interpolates nothing: 'abc' and "abc", but not "$]", a command, or a
-// heredoc, whose body the lowering does not carry.
+// interpolates nothing: 'abc' and "abc", but not "$]", a command, a
+// heredoc, whose body the lowering does not carry, or a v-string, which
+// perl compares as a version against a version object: perl 5.42 -w is
+// silent on `$^V < v5.13.5`.
 func literalContent(n lower.Node) (string, bool) {
 	lit, ok := n.(*lower.StrLit)
-	if !ok || lit.Backtick || lit.Heredoc || lit.Interpolated && strings.ContainsAny(lit.Value, "$@") {
+	if !ok || lit.Backtick || lit.Heredoc || lit.VString || lit.Interpolated && strings.ContainsAny(lit.Value, "$@") {
 		return "", false
 	}
 	return lit.Value, true
@@ -456,8 +501,11 @@ func (a *analysis) unary(n *lower.Unary) types.Type {
 }
 
 // ternary types a ternary: the value comes from one arm
-// or the other, so it is their join. The condition says nothing about it.
-// A ternary missing an arm is not typed.
+// or the other, so it is their join. A ternary missing an arm is not
+// typed. The first arm runs where the condition is true and the second
+// where it is false, so each is walked under what the condition guards
+// there, as logicalRight walks `&&`'s and `||`'s right operand: perl 5.42
+// -w is silent on `$v ? 0 + $v : undef` with $v undef.
 //
 // Each arm is evaluated in the ternary's own context, so in scalar context
 // an array arm is its count: perl 5.42, with @a = (7,8,9),
@@ -471,8 +519,8 @@ func (a *analysis) ternary(n *lower.Ternary) types.Type {
 		}
 	}
 	a.operand(n.Cond)
-	a.operand(n.Then)
-	a.operand(n.Else)
+	a.logicalRight("&&", n.Cond, n.Then)
+	a.logicalRight("||", n.Cond, n.Else)
 	if n.Then == nil || n.Else == nil {
 		return types.Unknown
 	}

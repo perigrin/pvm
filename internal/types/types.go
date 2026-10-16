@@ -267,6 +267,12 @@ func IsSubtype(child, parent Type) bool {
 // glob and a boolean alike -- and perl 5.42 -w is silent on B::Concise's
 // `if (ref $objname) { } else { "main::" . $objname }`.
 //
+// A scalar that may hold a glob is polymorphic too: Scalar has no Glob
+// bit, so where `ref \$v eq 'GLOB'` narrowed $v to a Glob in one branch,
+// the join after it is Scalar|Glob, which is still any value a scalar
+// holds. perl 5.42 -w is silent on Dumpvalue's `ref $v` and `fileno($v)`
+// past such a branch.
+//
 // List is handled separately by listSatisfiesAggregate rather than listed
 // here: it stands above Scalar in the arity ordering rather than beside it,
 // so a blanket polymorphic check would let every scalar requirement be
@@ -277,6 +283,7 @@ var polymorphicMasks = map[Type]bool{
 	Scalar &^ Undef:         true,
 	Scalar &^ Ref:           true,
 	Scalar &^ (Undef | Ref): true,
+	Scalar | Glob:           true,
 }
 
 // listSatisfiesAggregate reports whether a List actual can satisfy required.

@@ -21,7 +21,7 @@ func (l *lowerer) literal(n *parse.Node) Node {
 	}
 	switch c := t[0]; {
 	case vstring.MatchString(t):
-		return &StrLit{Value: vstringValue(t)}
+		return &StrLit{Value: vstringValue(t), VString: true}
 	case c >= '0' && c <= '9', c == '.' && len(t) > 1 && t[1] >= '0' && t[1] <= '9':
 		// perl: .5 + 1 is 1.5.
 		return &NumLit{Text: t, IsInt: isInt(t)}
@@ -104,7 +104,7 @@ func (l *lowerer) vstringCall(n *parse.Node) Node {
 	if n.Resolved || n.Indirect || len(n.Children) != 0 || parenthesized(n) || !vstring.MatchString(n.Text) {
 		return nil
 	}
-	return &StrLit{Value: vstringValue(n.Text)}
+	return &StrLit{Value: vstringValue(n.Text), VString: true}
 }
 
 // quoteOp matches the head of a q, qq, qw or qx term up to and including

@@ -20,16 +20,15 @@ import (
 // out of the join when it exits -- so primary is that body, and the other
 // slot holds the else body or the elsif chain.
 //
-// A modifier form (`X if C`) is not narrowed as a conditional statement
-// is. Its body, when C is a match it runs only
-// after, reads that match's captures, as capture says. When its body
-// exits, what follows knows the guard went the other way, as modifierExit
-// says.
+// A modifier form (`X if C`) is walked as modifierStmt says. Its body, when C
+// is a match it runs only after, reads that match's captures, as capture
+// says. When its body exits, what follows knows the guard went the other
+// way, as modifierExit says.
 func (a *analysis) ifStmt(n *lower.IfStmt) {
 	if !isBranch(n.Then) || !isBranch(n.Else) {
 		m, success := successMatch(n)
 		if m == nil || success == nil {
-			a.walkChildren(n)
+			a.modifierStmt(n)
 		} else {
 			a.walk(m)
 			outer := a.modifier
@@ -85,6 +84,12 @@ func (a *analysis) ifStmt(n *lower.IfStmt) {
 	}
 
 	a.joinBranches(pre, ends, exhaustive)
+
+	// The body leaves the loop, or starts its next pass, and nothing else
+	// follows it: the rest of the loop body knows the guard failed.
+	if b, ok := primary.(*lower.Block); ok && secondary == nil && a.blockLeavesLoop(b) {
+		a.leaveLoop(a.flatten(guard, !negate))
+	}
 }
 
 // preBranchTypes is the type each variable named in n has before n's
@@ -156,6 +161,39 @@ func (a *analysis) joinBranches(pre map[string]types.Type, ends []map[string]typ
 	}
 }
 
+// modifierStmt walks a modifier form, `X if C` or `X unless C`, as `C && X`
+// and `C || X`: X runs only where C held, or failed, and is walked under
+// what C guards there, as logicalRight says. What X assigns a variable C
+// does not guard joins what it held before, as X may not have run: perl
+// 5.42 -w is silent on `$a = int($a) if defined $a`, and warns "Use of
+// uninitialized value" on `my $a = undef; $a = 5 if @ARGV; $a + 1` with
+// no arguments.
+func (a *analysis) modifierStmt(n *lower.IfStmt) {
+	if n.Cond != nil {
+		a.walk(n.Cond)
+	}
+	body, op := n.Then, "&&"
+	if body == nil {
+		body, op = n.Else, "||"
+	}
+	if body == nil {
+		return
+	}
+	pre := a.preBranchTypes(body)
+	for _, g := range flattenGuards(a.guard(n.Cond, true), false) {
+		delete(pre, g.VarName)
+	}
+	for _, g := range flattenGuards(a.guard(n.Cond, true), true) {
+		delete(pre, g.VarName)
+	}
+	a.logicalRight(op, n.Cond, body)
+	for name, before := range pre {
+		if sym, ok := a.st.Lookup(name); ok && sym.Type != before {
+			a.st.UpdateType(name, types.Join(before, sym.Type))
+		}
+	}
+}
+
 // modifierExit narrows what follows a modifier form whose body exits:
 // past `die unless defined $x` the guard held, and past `exit if defined
 // $x` it failed. `unless` puts the body in Else.
@@ -166,6 +204,8 @@ func (a *analysis) modifierExit(n *lower.IfStmt) {
 	}
 	if a.exits(body) {
 		narrowContinuation(a.flatten(a.guard(n.Cond, true), negate), a.st)
+	} else if leavesLoop(body) {
+		a.leaveLoop(a.flatten(a.guard(n.Cond, true), negate))
 	}
 }
 
@@ -175,15 +215,84 @@ func (a *analysis) modifierExit(n *lower.IfStmt) {
 func (a *analysis) exprStmt(n *lower.ExprStmt) {
 	a.walkChildren(n)
 	b, ok := n.X.(*lower.Binary)
-	if !ok || !a.exits(b.R) {
+	if !ok || (!a.exits(b.R) && !leavesLoop(b.R)) {
 		return
+	}
+	narrow := func(guards []*guardResult) { narrowContinuation(guards, a.st) }
+	if !a.exits(b.R) {
+		narrow = a.leaveLoop
 	}
 	switch b.Op {
 	case "||", "or":
-		narrowContinuation(a.flatten(a.guard(b.L, true), false), a.st)
+		narrow(a.flatten(a.guard(b.L, true), false))
 	case "&&", "and":
-		narrowContinuation(a.flatten(a.guard(b.L, true), true), a.st)
+		narrow(a.flatten(a.guard(b.L, true), true))
 	}
+}
+
+// scopedName is a variable as the scope that declares it holds it.
+type scopedName struct {
+	scope *Scope
+	name  string
+}
+
+// loop walks a loop by walk, and after it joins each variable a loop
+// exit in it narrowed with the type the variable had where that exit
+// left, as leaveLoop recorded: the code after the loop runs on that path
+// too. A variable declared in the loop is gone by then, and is skipped.
+// A bare block is a loop that runs once.
+func (a *analysis) loop(walk func()) {
+	a.loopExits = append(a.loopExits, map[scopedName]types.Type{})
+	walk()
+	exits := a.loopExits[len(a.loopExits)-1]
+	a.loopExits = a.loopExits[:len(a.loopExits)-1]
+	for v, typ := range exits {
+		if a.st.inScope(v.scope) {
+			if sym, ok := v.scope.symbols[v.name]; ok {
+				sym.Type = types.Join(sym.Type, typ)
+				v.scope.symbols[v.name] = sym
+			}
+		}
+	}
+}
+
+// leaveLoop narrows, as narrowContinuation does, what follows a last,
+// next or redo that runs only when guards fail, which the rest of the
+// loop body runs past: perl 5.42 -w is silent on `my $len =
+// sysread(...); last unless defined $len; $len == 0`. Where the exit
+// leaves, each variable still holds its type before the narrowing, which
+// the loop joins in after it, as loop says. Outside a loop nothing is
+// narrowed.
+func (a *analysis) leaveLoop(guards []*guardResult) {
+	if len(a.loopExits) == 0 {
+		return
+	}
+	exits := a.loopExits[len(a.loopExits)-1]
+	for _, g := range guards {
+		if s := a.st.scopeOf(g.VarName); s != nil {
+			v := scopedName{s, g.VarName}
+			exits[v] = types.Join(exits[v], s.symbols[g.VarName].Type)
+		}
+	}
+	narrowContinuation(guards, a.st)
+}
+
+// blockLeavesLoop reports whether a statement directly in b is a last,
+// next or redo, as leavesLoop says.
+func (a *analysis) blockLeavesLoop(b *lower.Block) bool {
+	for _, s := range b.Stmts {
+		if es, ok := s.(*lower.ExprStmt); ok && leavesLoop(es.X) {
+			return true
+		}
+	}
+	return false
+}
+
+// leavesLoop reports whether n is a last, next or redo: the rest of its
+// loop's body does not run past it.
+func leavesLoop(n lower.Node) bool {
+	x, ok := n.(*lower.LoopEx)
+	return ok && (x.Op == "last" || x.Op == "next" || x.Op == "redo")
 }
 
 // isBranch reports whether n can be a block-form conditional's branch: a
@@ -326,12 +435,85 @@ func foreachVar(n lower.Node) *lower.Var {
 // `no Foo` and `require Foo` name a module as `use Foo` does, and perl
 // loads it for each.
 func (a *analysis) useStmt(n *lower.UseStmt) {
+	if n.Module == "warnings" && n.Op != "require" {
+		a.warningsOff.set(n.Op == "no", n.Args)
+	}
 	if a.idx != nil && n.Module != "" {
 		if path, err := a.idx.ResolveModule(n.Module); err == nil {
 			_, _ = a.idx.AnalyzeFile(path)
 		}
 	}
 	a.walkChildren(n)
+}
+
+// warningsOff is the warning categories PSC maps a diagnostic to that a
+// `no warnings` has turned off. perl 5.42 -w, measured: `no warnings
+// "uninitialized"` silences "Use of uninitialized value" in `"x" . $u`,
+// `$u + 1`, `lc($u)` and `waitpid($u, 0)`, and `no warnings "numeric"`
+// silences "Argument isn't numeric" for `"abc" + 1`, `"abc" < 5` and
+// `*STDOUT + 1`. Neither silences "Not a GLOB reference" for close({}),
+// which perl dies with.
+type warningsOff struct {
+	uninitialized, numeric bool
+}
+
+// set turns the categories args names off, for `no warnings`, or back on,
+// for `use warnings`. No list, or "all", names both. A category PSC maps
+// no diagnostic to changes nothing.
+func (w *warningsOff) set(off bool, args lower.Node) {
+	words := pragmaWords(args)
+	if len(words) == 0 {
+		words = []string{"all"}
+	}
+	for _, c := range words {
+		switch c {
+		case "all":
+			w.uninitialized, w.numeric = off, off
+		case "uninitialized":
+			w.uninitialized = off
+		case "numeric":
+			w.numeric = off
+		}
+	}
+}
+
+// pragmaWords is the words an import list spells: qw/a b/, "a", or a
+// list of them.
+func pragmaWords(n lower.Node) []string {
+	switch n := n.(type) {
+	case *lower.QwList:
+		return n.Words
+	case *lower.StrLit:
+		return []string{n.Value}
+	case *lower.List:
+		var words []string
+		for _, e := range n.Elems {
+			words = append(words, pragmaWords(e)...)
+		}
+		return words
+	}
+	return nil
+}
+
+// silenced reports whether a `no warnings` in force turns off the warning
+// perl gives for a value of type actual where expected is wanted: once
+// the parts of actual its categories cover are taken away, Undef for
+// uninitialized and a string or a glob in a numeric slot for numeric,
+// what is left satisfies expected. A mismatch with any other part is
+// still reported.
+func (a *analysis) silenced(actual, expected types.Type) bool {
+	off := a.warningsOff
+	if !off.uninitialized && !off.numeric {
+		return false
+	}
+	rest := numified(finite(actual), expected)
+	if off.uninitialized {
+		rest &^= types.Undef
+	}
+	if off.numeric && types.IsSubtype(expected, types.Num) {
+		rest &^= types.Str&^types.Num | types.Glob
+	}
+	return rest == types.Unknown || a.opts.satisfies(rest, expected) || a.opts.handleSatisfies(rest, expected)
 }
 
 // blockWithGuard walks a block under guards: the guarded variables
@@ -416,7 +598,7 @@ func (a *analysis) logicalRight(op string, l, r lower.Node) {
 func (a *analysis) flatten(guard *guardResult, negate bool) []*guardResult {
 	var kept []*guardResult
 	for _, g := range flattenGuards(guard, negate) {
-		if g.Guard.Kind == types.GuardDefined && !g.Negated {
+		if (g.Guard.Kind == types.GuardDefined || g.Guard.Kind == types.GuardTruthy) && !g.Negated {
 			if sym, ok := a.st.Lookup(g.VarName); ok && sym.Type == types.Any {
 				continue
 			}
@@ -467,8 +649,17 @@ func (a *analysis) exits(n lower.Node) bool {
 // guard is the guard a
 // condition states, or nil. user allows a call to a sub of this file whose
 // result is itself a guard on its argument, one level deep.
+//
+// A scalar is a guard on its own truth, which a true value passes only
+// when defined: perl 5.42 -w is silent on `if ($pid) { waitpid($pid, 0) }`
+// with $pid from fork. A condition that assigns a scalar tests the value
+// it assigns, as assignedVar says.
 func (a *analysis) guard(n lower.Node, user bool) *guardResult {
-	switch n := n.(type) {
+	switch n := assignedVar(n).(type) {
+	case *lower.Var:
+		if name := guardVarName(n); name != "" {
+			return &guardResult{VarName: name, Guard: types.GuardPattern{Kind: types.GuardTruthy}}
+		}
 	case *lower.Call:
 		return a.callGuard(n, user)
 	case *lower.Binary:
@@ -480,10 +671,12 @@ func (a *analysis) guard(n lower.Node, user bool) *guardResult {
 			}
 			return &guardResult{VarName: name, Guard: types.GuardPattern{Kind: types.GuardIsa}, ClassName: className(n.R)}
 		case "eq":
-			if g := referentGuard(n.L, n.R); g != nil {
-				return g
+			for _, g := range []*guardResult{referentGuard(n.L, n.R), referentGuard(n.R, n.L), refEqGuard(n.L, n.R), refEqGuard(n.R, n.L)} {
+				if g != nil {
+					return g
+				}
 			}
-			return referentGuard(n.R, n.L)
+			return nil
 		case "&&", "and":
 			return compound("&&", a.guard(n.L, user), a.guard(n.R, user))
 		case "||", "or":
@@ -495,6 +688,30 @@ func (a *analysis) guard(n lower.Node, user bool) *guardResult {
 		}
 	}
 	return nil
+}
+
+// assignedVar is the scalar variable n assigns when n is a scalar
+// assignment, `$x = EXPR`, or a declaration of one scalar with an
+// initialiser, `my $x = EXPR`: their value is what the variable holds
+// after, so a guard on them is a guard on it. perl 5.42 -w is silent on
+// `while (defined($r = read($fh, $buf, 4)) && $r > 0)` and on `if (my
+// $pid = fork) { waitpid($pid, 0) }`. A list assignment's value is a
+// count, and is not one. Anything else is n itself.
+func assignedVar(n lower.Node) lower.Node {
+	switch x := n.(type) {
+	case *lower.Assign:
+		if v, ok := x.L.(*lower.Var); ok && x.Op == "=" && !x.ListAssign && v.Sigil == "$" {
+			return v
+		}
+	case *lower.Decl:
+		if x.Kind == lower.DeclLocal || x.ListAssign || x.Init == nil {
+			return n
+		}
+		if vars := declaredVars(x); len(vars) == 1 && len(x.Vars) == 1 && vars[0].Sigil == "$" {
+			return vars[0]
+		}
+	}
+	return n
 }
 
 // referentGuard is the guard `ref \$v eq 'TYPE'` states on $v, with
@@ -517,6 +734,23 @@ func referentGuard(call, lit lower.Node) *guardResult {
 	return &guardResult{VarName: "$" + v.Name, Guard: types.GuardPattern{Kind: types.GuardReferent, RefType: content}}
 }
 
+// refEqGuard is the guard `ref($v) eq 'TYPE'` states on $v, with call
+// the `ref($v)` and lit the literal TYPE, or nil when they are not that:
+// $v is a reference of that type. perl 5.42 -w is silent on Encode::Alias's
+// `ref($alias) eq 'Regexp' && $k =~ $alias`.
+func refEqGuard(call, lit lower.Node) *guardResult {
+	c, ok := call.(*lower.Call)
+	if !ok || c.Name != "ref" || c.Fn != nil || len(c.Args) != 1 {
+		return nil
+	}
+	name := guardVarName(c.Args[0])
+	content, known := literalContent(lit)
+	if name == "" || !known || content == "" {
+		return nil
+	}
+	return &guardResult{VarName: name, Guard: types.GuardPattern{Kind: types.GuardRef, RefType: content}}
+}
+
 // callGuard is the guard a call states: defined or ref on a scalar or an
 // element, a guard function of the builtin table on a scalar, or a user
 // guard.
@@ -526,12 +760,12 @@ func (a *analysis) callGuard(c *lower.Call, user bool) *guardResult {
 	}
 	switch coreName(c.Name) {
 	case "defined":
-		if name := guardVarName(c.Args[0]); name != "" {
+		if name := guardVarName(assignedVar(c.Args[0])); name != "" {
 			return &guardResult{VarName: name, Guard: types.GuardPattern{Kind: types.GuardDefined}}
 		}
 		return nil
 	case "ref":
-		if name := guardVarName(c.Args[0]); name != "" {
+		if name := guardVarName(assignedVar(c.Args[0])); name != "" {
 			return &guardResult{VarName: name, Guard: types.GuardPattern{Kind: types.GuardRef}}
 		}
 		return nil

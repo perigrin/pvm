@@ -119,6 +119,28 @@ func (st *SymbolTable) Reenter(s *Scope) {
 	st.current = s
 }
 
+// scopeOf is the innermost scope on the current chain that holds name,
+// or nil.
+func (st *SymbolTable) scopeOf(name string) *Scope {
+	for s := st.current; s != nil; s = s.parent {
+		if _, ok := s.symbols[name]; ok {
+			return s
+		}
+	}
+	return nil
+}
+
+// inScope reports whether s is on the current chain: the current scope or
+// one that encloses it.
+func (st *SymbolTable) inScope(s *Scope) bool {
+	for c := st.current; c != nil; c = c.parent {
+		if c == s {
+			return true
+		}
+	}
+	return false
+}
+
 // ExitScope pops the current scope back to its parent.  Calling ExitScope on
 // the root scope is a no-op to avoid panics from unbalanced enter/exit pairs.
 func (st *SymbolTable) ExitScope() {
