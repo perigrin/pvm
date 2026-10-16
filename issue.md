@@ -11,7 +11,7 @@ blocked_by:
 blocks:
 - 01a0fd9b-5700-7514-a143-2caed2d06d8b
 created: 2026-10-02T17:13:31.032351231Z
-updated: 2026-10-06T15:14:47.293013336Z
+updated: 2026-10-16T18:48:31.927062661Z
 sessions:
 - start_sha: 946db66bea66035c8d0fb8d36476efd4d05008f8
   end_sha: 946db66bea66035c8d0fb8d36476efd4d05008f8
@@ -71,11 +71,11 @@ From the alignment gate on 01a0fd9b-5017-78d0-ae38-331cbe6a9866: `:unary` is not
 
 ## Acceptance criteria
 
-- [ ] a library .pmt reads every construct CORE.pmt uses (`go test ./internal/parse/ -run '^TestLibraryPmtSpeaksCoreLanguage$' -count=1 -v | grep -q '^--- PASS: TestLibraryPmtSpeaksCoreLanguage'`)
-- [ ] imports from a library .pmt carry their signatures (`go test ./internal/parse/ -run '^TestLibraryPmtImportsCarryTypes$' -count=1 -v | grep -q '^--- PASS: TestLibraryPmtImportsCarryTypes'`)
+- [ ] a library .pmt reads every construct CORE.pmt uses (`go test ./internal/parse/ -run '^TestLibraryTpmSpeaksCoreLanguage$' -count=1 -v | grep -q '^--- PASS: TestLibraryTpmSpeaksCoreLanguage'`)
+- [ ] imports from a library .pmt carry their signatures (`go test ./internal/parse/ -run '^TestLibraryTpmImportsCarryTypes$' -count=1 -v | grep -q '^--- PASS: TestLibraryTpmImportsCarryTypes'`)
 - [ ] the RFC section on one language is implemented (`grep -q '^### One language.*(\*Implemented\*' docs/rfcs/0001-type-libraries.md`)
-- [ ] a library .pmt reports the same declaration errors as CORE.pmt (`go test ./internal/parse/ -run '^TestLibraryPmtDeclarationErrors$' -count=1 -v | grep -q '^--- PASS: TestLibraryPmtDeclarationErrors'`)
-- [ ] use with an empty list imports no subs and no syntax (`go test ./internal/parse/ -run '^TestLibraryPmtEmptyImportBringsNothing$' -count=1 -v | grep -q '^--- PASS: TestLibraryPmtEmptyImportBringsNothing'`)
-- [ ] an unexported library sub is not imported (`go test ./internal/parse/ -run '^TestLibraryPmtUnexportedSubNotImported$' -count=1 -v | grep -q '^--- PASS: TestLibraryPmtUnexportedSubNotImported'`)
-- [ ] a library .pmt declares operators and :unary subs as CORE.pmt does (`go test ./internal/parse/ -run '^TestLibraryPmtOperatorsAndUnary$' -count=1 -v | grep -q '^--- PASS: TestLibraryPmtOperatorsAndUnary'`)
-- [ ] a library .pmt declares aliased parameters with Code \&c and the \(@list) form, a die default and container types (`go test ./internal/parse/ -run '^TestLibraryPmtAliasedAndContainerParams$' -count=1 -v | grep -q '^--- PASS: TestLibraryPmtAliasedAndContainerParams'`)
+- [ ] a library .pmt reports the same declaration errors as CORE.pmt (`go test ./internal/parse/ -run '^TestLibraryTpmDeclarationErrors$' -count=1 -v | grep -q '^--- PASS: TestLibraryTpmDeclarationErrors'`)
+- [ ] use with an empty list imports no subs and no syntax (`go test ./internal/parse/ -run '^TestLibraryTpmEmptyImportBringsNothing$' -count=1 -v | grep -q '^--- PASS: TestLibraryTpmEmptyImportBringsNothing'`)
+- [ ] an unexported library sub is not imported (`go test ./internal/parse/ -run '^TestLibraryTpmUnexportedSubNotImported$' -count=1 -v | grep -q '^--- PASS: TestLibraryTpmUnexportedSubNotImported'`)
+- [ ] a library .pmt declares operators and :unary subs as CORE.pmt does (`go test ./internal/parse/ -run '^TestLibraryTpmOperatorsAndUnary$' -count=1 -v | grep -q '^--- PASS: TestLibraryTpmOperatorsAndUnary'`)
+- [ ] a library .pmt declares aliased parameters with Code \&c and the \(@list) form, a die default and container types (`go test ./internal/parse/ -run '^TestLibraryTpmAliasedAndContainerParams$' -count=1 -v | grep -q '^--- PASS: TestLibraryTpmAliasedAndContainerParams'`)
