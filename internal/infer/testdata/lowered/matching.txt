@@ -82,14 +82,11 @@ flow/if_not_ref_else.pl
 flow/if_ref.pl
 flow/is_bool.pl
 flow/isa.pl
-flow/isa_else.pl
 flow/modifiers.pl
 flow/nested_if.pl
 flow/no_early_exit.pl
 flow/no_guard.pl
-flow/not_and.pl
 flow/or.pl
-flow/or_else.pl
 flow/positive_early_return.pl
 flow/reftype.pl
 flow/sub_guard_body.pl

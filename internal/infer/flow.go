@@ -48,16 +48,13 @@ func (a *analysis) ifStmt(n *lower.IfStmt) {
 	elseBlock, hasElse := secondary.(*lower.Block)
 	elsif, _ := secondary.(*lower.IfStmt)
 
-	preIfTypes := collectPreIfTypes(guard, a.st)
+	pre := a.preBranchTypes(n)
 
-	var ifBranchTypes map[string]types.Type
+	var ends []map[string]types.Type
 	primaryExits := false
 	if b, ok := primary.(*lower.Block); ok {
 		primaryExits = blockExits(b)
-		if !primaryExits {
-			ifBranchTypes = map[string]types.Type{}
-		}
-		a.blockWithGuard(b, a.flatten(guard, negate), ifBranchTypes)
+		ends = append(ends, a.branch(b, a.flatten(guard, negate), pre))
 	} else if primary != nil {
 		a.walk(primary)
 	}
@@ -65,24 +62,94 @@ func (a *analysis) ifStmt(n *lower.IfStmt) {
 	// The body exits and nothing else follows it: what runs after the
 	// statement knows the guard failed.
 	if primaryExits && guard != nil && guard.VarName != "" && secondary == nil {
+		a.restore(pre)
 		narrowContinuation(a.flatten(guard, !negate), a.st)
 		return
 	}
 
-	var elsifJoinTypes map[string]types.Type
+	exhaustive := hasElse
 	if elsif != nil {
-		elsifJoinTypes = a.elsif(elsif)
+		var more []map[string]types.Type
+		more, exhaustive = a.elsif(elsif, pre)
+		ends = append(ends, more...)
 	}
 
-	var elseBranchTypes map[string]types.Type
 	if hasElse {
-		elseBranchTypes = map[string]types.Type{}
-		a.blockWithGuard(elseBlock, a.flatten(guard, !negate), elseBranchTypes)
+		ends = append(ends, a.branch(elseBlock, a.flatten(guard, !negate), pre))
 	} else if secondary != nil && elsif == nil {
 		a.walk(secondary)
 	}
 
-	applyBranchJoin(guard, preIfTypes, ifBranchTypes, elsifJoinTypes, elseBranchTypes, hasElse, a.st)
+	a.joinBranches(pre, ends, exhaustive)
+}
+
+// preBranchTypes is the type each variable named in n has before n's
+// bodies run: each body starts from it, as perl runs at most one of them,
+// and the join after n takes it for the path on which none ran.
+func (a *analysis) preBranchTypes(n lower.Node) map[string]types.Type {
+	pre := map[string]types.Type{}
+	var find func(n lower.Node)
+	find = func(n lower.Node) {
+		if v, ok := n.(*lower.Var); ok {
+			if _, named := sigilTypes[v.Sigil]; named {
+				if sym, ok := a.st.Lookup(v.Sigil + v.Name); ok {
+					pre[v.Sigil+v.Name] = sym.Type
+				}
+			}
+		}
+		for _, c := range lower.Children(n) {
+			find(c)
+		}
+	}
+	find(n)
+	return pre
+}
+
+// restore sets each of pre's variables back to the type pre holds.
+func (a *analysis) restore(pre map[string]types.Type) {
+	for name, typ := range pre {
+		a.st.UpdateType(name, typ)
+	}
+}
+
+// branch walks b, one body of a conditional, under guards and from the
+// types pre holds, and returns the type each of pre's variables has at its
+// end: nil when b always exits, as its end never reaches the join.
+func (a *analysis) branch(b *lower.Block, guards []*guardResult, pre map[string]types.Type) map[string]types.Type {
+	a.restore(pre)
+	if blockExits(b) {
+		a.blockWithGuard(b, guards, nil)
+		return nil
+	}
+	end := make(map[string]types.Type, len(pre))
+	for name := range pre {
+		end[name] = types.None
+	}
+	a.blockWithGuard(b, guards, end)
+	return end
+}
+
+// joinBranches sets each of pre's variables to the join of the types the
+// bodies of a conditional left it, ends, and of its type before the
+// conditional when no body need have run, as when there is no else. A
+// body a guard proves unreachable leaves its variable None, the join
+// identity, so it adds nothing.
+func (a *analysis) joinBranches(pre map[string]types.Type, ends []map[string]types.Type, exhaustive bool) {
+	for name, before := range pre {
+		joined, reached := types.None, false
+		if !exhaustive {
+			joined, reached = before, true
+		}
+		for _, end := range ends {
+			if end != nil {
+				joined, reached = types.Join(joined, end[name]), true
+			}
+		}
+		if !reached {
+			joined = before
+		}
+		a.st.UpdateType(name, joined)
+	}
 }
 
 // isBranch reports whether n can be a block-form conditional's branch: a
@@ -102,38 +169,36 @@ func (a *analysis) before(x, y lower.Node) bool {
 	return xok && yok && xs < ys
 }
 
-// elsif walks an elsif, which narrows its own body by its
-// own guard and its else by the negation, and returns the union of the
-// branch-end types of the variables it guarded, its trailing chain's
-// included. The conditions before it do not narrow it.
-func (a *analysis) elsif(n *lower.IfStmt) map[string]types.Type {
+// elsif walks an elsif, which narrows its own body by its own guard and
+// its else by the negation, each body from the types pre holds, as branch
+// says. It returns each body's end types, its trailing chain's included,
+// and whether the chain ends in an else. The conditions before it do not
+// narrow it.
+func (a *analysis) elsif(n *lower.IfStmt, pre map[string]types.Type) ([]map[string]types.Type, bool) {
+	a.restore(pre)
 	if n.Cond != nil {
 		a.walk(n.Cond)
 	}
 	guard := a.guard(n.Cond, true)
 
-	var joinTypes map[string]types.Type
+	var ends []map[string]types.Type
 	if b, ok := n.Then.(*lower.Block); ok {
-		if !blockExits(b) {
-			joinTypes = map[string]types.Type{}
-		}
-		a.blockWithGuard(b, a.flatten(guard, false), joinTypes)
+		ends = append(ends, a.branch(b, a.flatten(guard, false), pre))
 	} else if n.Then != nil {
 		a.walk(n.Then)
 	}
 
 	switch e := n.Else.(type) {
 	case *lower.Block:
-		elseTypes := map[string]types.Type{}
-		a.blockWithGuard(e, a.flatten(guard, true), elseTypes)
-		joinTypes = mergeBranchTypes(joinTypes, elseTypes)
+		return append(ends, a.branch(e, a.flatten(guard, true), pre)), true
 	case *lower.IfStmt:
-		joinTypes = mergeBranchTypes(joinTypes, a.elsif(e))
+		more, exhaustive := a.elsif(e, pre)
+		return append(ends, more...), exhaustive
 	case nil:
 	default:
 		a.walk(e)
 	}
-	return joinTypes
+	return ends, false
 }
 
 // whileStmt walks a while loop, whose body runs with the guard
@@ -238,7 +303,8 @@ func (a *analysis) useStmt(n *lower.UseStmt) {
 // blockWithGuard walks a block under guards: the guarded variables
 // are shadowed, in one "guard" scope, by what the guards narrow them to,
 // and the block's statements are walked under it. When branchTypes is not
-// nil it receives each shadowed variable's type at the end of the block.
+// nil it receives the type at the end of the block of each variable it
+// holds a key for, a shadowed one's being its shadow's.
 func (a *analysis) blockWithGuard(b *lower.Block, guards []*guardResult, branchTypes map[string]types.Type) {
 	shadows, classNames := guardShadows(guards, a.st)
 	if len(shadows) > 0 {
@@ -248,14 +314,12 @@ func (a *analysis) blockWithGuard(b *lower.Block, guards []*guardResult, branchT
 		}
 	}
 	a.block(b)
-	if len(shadows) > 0 {
-		if branchTypes != nil {
-			for name := range shadows {
-				if sym, ok := a.st.Lookup(name); ok {
-					branchTypes[name] = sym.Type
-				}
-			}
+	for name := range branchTypes {
+		if sym, ok := a.st.Lookup(name); ok {
+			branchTypes[name] = sym.Type
 		}
+	}
+	if len(shadows) > 0 {
 		a.st.ExitScope()
 	}
 }
