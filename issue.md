@@ -1,6 +1,6 @@
 ---
 title: Read typed variables with :export and :export_ok in declaration files
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 blocks:
@@ -11,7 +11,16 @@ blocks:
 - 01a14683-8375-7810-8a75-b772680603c6
 - 01a1464e-dc07-754e-9ef4-637df15d51a9
 created: 2026-10-16T20:02:15.387011621Z
-updated: 2026-10-16T21:02:10.917659256Z
+updated: 2026-10-16T21:09:48.22713089Z
+sessions:
+- start_sha: 2fb0e62ffdc068b717c1b1a211c77e72d09ba51a
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-16T21:09:48.22713089Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-16T21:09:48.22713089Z
 ---
 
 ## Prerequisites
