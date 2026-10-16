@@ -11,7 +11,7 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.975216591Z
-updated: 2026-10-16T21:01:59.912540584Z
+updated: 2026-10-16T22:01:53.005334366Z
 ---
 
 ## Prerequisites
@@ -44,6 +44,10 @@ A `.tpm` changes what the parser reads for every file that uses the module, so r
 - [ ] Run to verify failure: `go test ./internal/infer/ -run '^TestOOModulesReturnTypes$' -count=1 -v`
 - [ ] Fix declared return types where perl disagrees; run to verify pass; commit
 - [ ] Run the m1 gates above; `make test`; commit
+
+### Review Findings from dadb's gate (forward risk)
+
+(confidence 65) A .tpm has no way to say "this import list is arguments, not names": .tpm facts never set `facts.builder`, so `use Test::More tests => 5;` imports nothing (wanted = `tests`, `5`, both filtered), and likewise `use Locale::Maketext::Simple (Style => 'gettext')` imports neither `loc` nor `loc_lang`. Not a regression (neither worked before dadb), but this issue must decide, by measuring what perl's `use` installs, how a declaration states that its module's import takes arguments, and test the bare and argument forms.
 
 ## Acceptance Criteria
 
