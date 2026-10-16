@@ -1,10 +1,19 @@
 ---
 title: "[S10] package Foo 1.2 { ... } and class Foo 1.0 {} drop the version."
-state: pending
+state: in-progress
 urgency: normal
 milestone: pr486-review
 created: 2026-10-16T01:16:08.848421938Z
-updated: 2026-10-16T01:16:08.848421938Z
+updated: 2026-10-16T01:17:16.941951308Z
+sessions:
+- start_sha: 8a0c85c60a2bae5d04dbbb2b27eb4310312d362f
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-16T01:17:16.941951308Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-16T01:17:16.941951308Z
 ---
 
 ## Context
