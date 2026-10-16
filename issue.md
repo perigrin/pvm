@@ -1,6 +1,6 @@
 ---
 title: Commit psc check's diagnostics over perl 5.42's lib as a baseline, and fail on any new one
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 blocks:
@@ -21,7 +21,16 @@ blocks:
 - 01a1464e-ddb0-720a-93f6-450c767e6e2e
 - 01a1464e-dde3-73fe-ab1f-ced7f18c4f9d
 created: 2026-10-16T20:02:14.930089601Z
-updated: 2026-10-16T21:01:46.433515959Z
+updated: 2026-10-16T21:09:47.558182701Z
+sessions:
+- start_sha: 2fb0e62ffdc068b717c1b1a211c77e72d09ba51a
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-16T21:09:47.558182701Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-16T21:09:47.558182701Z
 ---
 
 ## Prerequisites
