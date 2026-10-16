@@ -9,7 +9,7 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.325366834Z
-updated: 2026-10-16T20:03:22.835283806Z
+updated: 2026-10-16T20:09:57.982020753Z
 ---
 
 ## Prerequisites
@@ -32,6 +32,7 @@ A qualified call (`Carp::confess(...)`, `Scalar::Util::blessed($x)`) resolves th
 - [ ] Write failing test `TestQualifiedCroakConfessAreExits` in `internal/infer/flow_test.go`: a path ending in `Carp::croak(...)` or `Carp::confess(...)` ends as `die` does, with `use Carp;` and with `use Carp ();`
 - [ ] Write failing test `TestInferTypesQualifiedCall` in `internal/infer/declared_test.go`: `my $s = Carp::shortmess("x");` is typed Str from Carp.tpm
 - [ ] Run to verify failure, implement anything missing, run to verify pass; commit
+- [ ] Doc: in the "Declaration Files" section of `internal/data/help/types.md`, say that a fully qualified call (`Carp::confess(...)`) is typed from its module's declaration as an imported call is, with or without an import list, and that a call to a sub declared `None` (`croak`, `confess`) ends its path as `die` does; `go test ./internal/cli/ -run '^TestShowTypesHelp$' -count=1`; commit
 - [ ] Run the m1 gates named in the final-gate issue; `make test`; commit
 
 ## Acceptance Criteria
