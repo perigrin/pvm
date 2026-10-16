@@ -188,3 +188,20 @@ func TestNegateGuardIsDeep(t *testing.T) {
 	// value $b1 in concatenation (.) or string".
 	wantReported(t, "my $a1 = undef;\nmy $b1 = $ARGV[0];\nmy $c1 = undef;\nif (!((defined $b1 || defined $a1) || defined $c1)) { print \"a\" . $b1, \"\\n\" }\n", infer.CodeCoercionMismatch)
 }
+
+// A guard tests a scalar, so a variable typed Any or Unknown narrows from
+// Scalar: what `!ref $v` leaves of it is a Scalar less its references,
+// which a Num or Str slot takes, not a union of Array, Hash, IO and Void.
+// perl 5.42 -w is silent on each and prints 2, a1 and a1.
+func TestNegatedRefGuardOnAny(t *testing.T) {
+	for _, src := range []string{
+		"my $v = eval \"1\";\nunless (ref $v) { print $v + 1, \"\\n\" }\n",
+		"my $v = eval \"1\";\nif (defined $v && !ref $v) { print \"a\" . $v, \"\\n\" }\n",
+		"my $v = eval \"1\";\nif (ref $v) { } else { print \"a\" . $v, \"\\n\" }\n",
+	} {
+		wantSilent(t, src)
+	}
+	// perl -w warns "Use of uninitialized value $v in concatenation (.)
+	// or string": a failed defined still narrows Any to Undef.
+	wantReported(t, "my $v = eval \"undef\";\nunless (defined $v) { print \"a\" . $v, \"\\n\" }\n", infer.CodeCoercionMismatch)
+}

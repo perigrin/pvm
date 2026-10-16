@@ -1034,14 +1034,27 @@ func narrowContinuation(guards []*guardResult, st *SymbolTable) {
 		var elseType types.Type
 		var narrowed bool
 		if eg.Negated {
-			elseType, narrowed = types.NegateGuard(sym.Type, eg.Guard)
+			elseType, narrowed = types.NegateGuard(guardedType(sym.Type), eg.Guard)
 		} else {
-			elseType, narrowed = types.NarrowByGuard(sym.Type, eg.Guard)
+			elseType, narrowed = types.NarrowByGuard(guardedType(sym.Type), eg.Guard)
 		}
 		if narrowed {
 			st.UpdateType(eg.VarName, elseType)
 		}
 	}
+}
+
+// guardedType is the type a guard narrows a variable from. Every name a
+// guard narrows is a scalar, so one typed Any or Unknown narrows from
+// Scalar: `!ref $v` on Any leaves Scalar less Ref, which a Num or Str slot
+// takes, and not Any less Ref, whose Array, Hash, IO and Void fail every
+// slot. perl 5.42 -w is silent on `my $v = eval "1"; unless (ref $v) {
+// print $v + 1 }`.
+func guardedType(t types.Type) types.Type {
+	if t == types.Any || t == types.Unknown {
+		return types.Scalar
+	}
+	return t
 }
 
 // collectPreIfTypes returns the current types of all variables referenced by
@@ -1277,7 +1290,7 @@ func guardShadows(guards []*guardResult, st *SymbolTable) (map[string]types.Type
 				// Variable was never declared — skip to avoid phantom shadows.
 				continue
 			}
-			currentType = sym.Type
+			currentType = guardedType(sym.Type)
 		}
 
 		var narrowedType types.Type
