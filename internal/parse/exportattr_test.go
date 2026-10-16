@@ -131,7 +131,8 @@ func TestModuleSourceExportListStillRead(t *testing.T) {
 }
 
 // refusedList wants a .tpm stating list to be in error, naming the module
-// and line 3, and to import nothing from the list.
+// and line 3, and to import nothing from the list: neither a name it holds
+// nor a tag it states.
 func refusedList(t *testing.T, list, want string) {
 	t.Helper()
 	saved := declarations
@@ -147,6 +148,9 @@ func refusedList(t *testing.T, list, want string) {
 	}
 	if _, ok := Imports(root)["f"]; !ok {
 		t.Errorf("f, marked :export, not imported: %v", Imports(root))
+	}
+	if imports := Imports(ParseWithLoader([]byte("use My::Listed ':all';\n"), noModules)); len(imports) > 0 {
+		t.Errorf("use My::Listed ':all' imported from a refused list: %v", imports)
 	}
 }
 
@@ -164,9 +168,10 @@ func TestDeclarationExportOkListRefused(t *testing.T) {
 }
 
 // TestDeclarationExportTagsRefused: nor a %EXPORT_TAGS; a tag is the
-// attribute's argument, :export_ok(tag).
+// attribute's argument, :export_ok(tag). Its tag holds the exported f, so
+// only the refusal keeps `:all` from importing it.
 func TestDeclarationExportTagsRefused(t *testing.T) {
-	refusedList(t, "our %EXPORT_TAGS = (all => [qw(g)]);",
+	refusedList(t, "our %EXPORT_TAGS = (all => [qw(f)]);",
 		"My::Listed: line 3: our %EXPORT_TAGS: a .tpm marks each export :export or :export_ok, not in a list")
 }
 
