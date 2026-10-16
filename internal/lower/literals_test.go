@@ -224,3 +224,39 @@ func TestHeredocLowers(t *testing.T) {
 		sameShape(t, src, zeroIDs(lowerOne(t, src)), want)
 	}
 }
+
+// A number may start with its point, and a v-string is a string. perl 5.42:
+// `.5 + 1` is 1.5 and `.5e1` is 5; `v5.36.0`, `5.36.0` and `v1.2` are
+// strings of the characters numbered by their parts (`5.36.0 eq v5.36.0`,
+// `length(1.2.3)` is 3, `ref \v5.36.0` is VSTRING); and `my $v = v65` is
+// "A" when no sub v65 is declared before it. The controls: with `sub v65`
+// declared first, `v65` calls it (perl prints "sub"), `v65 => 1` quotes
+// the word v65, and 1.5 stays a number.
+func TestLowerLeadingDotAndVStrings(t *testing.T) {
+	cases := []struct {
+		src  string
+		want lower.Node
+	}{
+		{".5;", &lower.NumLit{Text: ".5"}},
+		{".5e1;", &lower.NumLit{Text: ".5e1"}},
+		{"v5.36.0;", &lower.StrLit{Value: "\x05\x24\x00"}},
+		{"v1.2;", &lower.StrLit{Value: "\x01\x02"}},
+		{"5.36.0;", &lower.StrLit{Value: "\x05\x24\x00"}},
+		{"v65;", &lower.StrLit{Value: "A"}},
+		{"1.5;", &lower.NumLit{Text: "1.5"}},
+	}
+	for _, c := range cases {
+		sameShape(t, c.src, zeroIDs(lowerOne(t, c.src)), c.want)
+	}
+
+	src := "sub v65 {\"sub\"} v65;"
+	if got := zeroIDs(lowerLast(t, src)); !reflect.DeepEqual(got, &lower.Call{Name: "v65", Resolved: true}) {
+		t.Errorf("%q: the call lowered to %#v, want the Call v65", src, got)
+	}
+	src = "my %h = (v65 => 1);"
+	root := parse.Parse([]byte(src))
+	list := expression(t, root).Children[1]
+	if got := zeroIDs(lower.LowerExpr(root, list.Children[0])); !reflect.DeepEqual(got, &lower.Bareword{Name: "v65", Quoted: true}) {
+		t.Errorf("%q: the key lowered to %#v, want the quoted word v65", src, got)
+	}
+}

@@ -29,7 +29,7 @@ func (l *lowerer) expr(n *parse.Node) Node {
 	case parse.Term:
 		out = first(n, l.ampCall, l.variable, l.literal, l.angle, l.match)
 	case parse.Call:
-		out = first(n, l.fatWord, l.mapGrepSort, l.evalForm, l.doForm, l.wantarray, l.fileTest, l.globCall, l.call)
+		out = first(n, l.fatWord, l.mapGrepSort, l.evalForm, l.doForm, l.wantarray, l.fileTest, l.globCall, l.vstringCall, l.call)
 	case parse.Unary:
 		out = first(n, l.prefixDeref, l.ref, l.unary)
 	case parse.Binary:

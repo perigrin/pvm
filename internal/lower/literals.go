@@ -5,6 +5,7 @@ package lower
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 
 	"tamarou.com/pvm/internal/parse"
@@ -18,7 +19,10 @@ func (l *lowerer) literal(n *parse.Node) Node {
 		return nil
 	}
 	switch c := t[0]; {
-	case c >= '0' && c <= '9':
+	case vstring.MatchString(t):
+		return &StrLit{Value: vstringValue(t)}
+	case c >= '0' && c <= '9', c == '.' && len(t) > 1 && t[1] >= '0' && t[1] <= '9':
+		// perl: .5 + 1 is 1.5.
 		return &NumLit{Text: t, IsInt: isInt(t)}
 	case c == '\'':
 		return &StrLit{Value: unescape(t[1:len(t)-1], '\'', '\'')}
@@ -72,6 +76,32 @@ func heredoc(t string) Node {
 		}
 	}
 	return s
+}
+
+// vstring matches a v-string: v5.36.0, v1.2 and v65, or a number with two
+// or more points, 5.36.0. perl 5.42: `5.36.0 eq v5.36.0`, and
+// `ref \v5.36.0` is VSTRING.
+var vstring = regexp.MustCompile(`^(v\d[\d_]*(\.\d[\d_]*)*|\d[\d_]*(\.\d[\d_]*){2,})$`)
+
+// vstringValue is the string a v-string spells: one character per part,
+// numbered by it. perl: v65 is "A".
+func vstringValue(t string) string {
+	var b strings.Builder
+	for _, part := range strings.Split(strings.TrimPrefix(t, "v"), ".") {
+		n, _ := strconv.Atoi(strings.ReplaceAll(part, "_", ""))
+		b.WriteRune(rune(n))
+	}
+	return b.String()
+}
+
+// vstringCall lowers a `call` that is a dotless v-string, `v65`: a word the
+// parser could not resolve, standing alone. perl 5.42 reads `my $v = v65`
+// as "A", and calls the sub when `sub v65` is declared before it.
+func (l *lowerer) vstringCall(n *parse.Node) Node {
+	if n.Resolved || n.Indirect || len(n.Children) != 0 || parenthesized(n) || !vstring.MatchString(n.Text) {
+		return nil
+	}
+	return &StrLit{Value: vstringValue(n.Text)}
 }
 
 // quoteOp matches the head of a q, qq, qw or qx term up to and including
