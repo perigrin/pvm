@@ -147,7 +147,7 @@ var RefusalSites = map[RefusalCode]RefusalSite{
 	},
 	NotATerm: {
 		What:  "a token that cannot begin a term",
-		Where: "term.go, refuseNotATerm: parseTerm's fallthrough, a `my` or `our` with no target, and parseAnonSub with no block",
+		Where: "term.go, refuseNotATerm: parseTerm's fallthrough, a `my` or `our` with no target, parseAnonSub with no block, and a `package` or `class` with no name",
 	},
 	MissingOperand: {
 		What:  "an operator whose right operand ran out",

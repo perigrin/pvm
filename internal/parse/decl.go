@@ -1109,6 +1109,9 @@ func lvalueSub(n *Node) bool {
 // braces -- which is a later concern. Here they differ only in which
 // alternative finishes them.
 func (p *parser) parsePackageDecl(word lexer.Token) *Node {
+	if nameless(p, word) {
+		return p.refuseNotATerm(word)
+	}
 	p.advanceTo(word)
 	n := &Node{Kind: Declaration, Text: p.text(word), Start: word.Start}
 
@@ -1144,9 +1147,18 @@ func (p *parser) finishPackage(n *Node) {
 		p.pkg = n.Children[0].Text
 	}
 	p.finishBodyOrSemicolon(n)
-	if last := n.Children[len(n.Children)-1]; last.Kind == Block {
+	if k := len(n.Children); k > 0 && n.Children[k-1].Kind == Block {
 		p.pkg = prev
 	}
+}
+
+// nameless reports whether the `package` or `class` at word has no name
+// after it, which perl refuses: measured on 5.42.0, `package;`, `package`
+// at end of file and `package {}` are each a syntax error, and so is
+// `class;` under the class feature.
+func nameless(p *parser, word lexer.Token) bool {
+	name, ok := p.peekAfter(word)
+	return !ok || name.Kind != lexer.Word
 }
 
 // finishBodyOrSemicolon consumes the `( Block | ";" )` that ends a sub or
