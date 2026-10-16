@@ -1,6 +1,6 @@
 ---
 title: Type calls to imported library subs from their .tpm declarations and select multis at call sites
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -16,7 +16,16 @@ blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 - 01a14683-8405-743e-9c90-7bb5ff9cec88
 created: 2026-10-02T17:13:31.136589197Z
-updated: 2026-10-16T22:39:41.845265477Z
+updated: 2026-10-16T23:12:50.914054892Z
+sessions:
+- start_sha: cc1416816b43a75d9d4de73e9269452b26f61f27
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-16T23:12:50.914054892Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-16T23:12:50.914054892Z
 ---
 
 ## Prerequisites
