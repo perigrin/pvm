@@ -18,7 +18,7 @@ blocks:
 - 01a1464e-dde3-73fe-ab1f-ced7f18c4f9d
 - 01a14657-682e-7432-8ea9-828f56cd2f69
 created: 2026-10-16T20:02:15.040084527Z
-updated: 2026-10-16T22:16:01.440006752Z
+updated: 2026-10-16T22:23:20.894544028Z
 sessions:
 - start_sha: ec99871d43d51af75b3cdcb95b6ddca2a6802abd
   end_sha: 56d7b35020b325def5868693d7c94dc305759fc7
@@ -78,6 +78,12 @@ The test walks privlib in Go (`filepath.WalkDir`, `filepath.ToSlash` on relative
 - [ ] Write `testdata/core_module_ranking.txt` (the 50 above, one `Name count` per line) and `TestCoreModuleRanking` over privlib; run to verify pass: `go test ./internal/parse/ -run '^TestCoreModuleRanking$' -count=1 -v`
 - [ ] In the RFC's "Which 50." paragraph, state the rule, record the top-50 figure (1,326) and that ties are broken by module name, ascending
 - [ ] `make test`; commit
+
+### Review Findings
+
+Tier-2 gate, 2026-10-16, on 56d7b350 (fresh reviewer subagent; lenses applied inline; ranking recomputed independently in perl and byte-identical). VERDICT: REOPEN.
+
+1. (in scope, confidence 90) `internal/parse/ranking_test.go:154-163` TestCoreModuleRankingIgnoresVersionAndDynamicRequire and the "pragma ignored" claim at `:124-140` pass with the regex broken (capture group `([^\s;]+)` or lowercase-accepting): the core-module filter rejects `use 5.010`, `use v5.36`, `require $file` and `use strict` because the synthetic tree has no such .pm. Only TestCoreModuleRanking catches it, and that skips on CI without perl 5.42. Fix: add `strict.pm` to the synthetic tree in the Rule test (a lowercase leak then ranks `strict`), and in the version/dynamic-require test assert the import regex itself returns no match for `use 5.010;`, `use v5.36;` and `require $file;`. Show each new assertion fails under the broken regex.
 
 ## Acceptance Criteria
 
