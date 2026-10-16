@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: v0.1
 created: 2026-10-16T01:16:38.13979476Z
-updated: 2026-10-16T01:16:38.13979476Z
+updated: 2026-10-16T18:48:35.925290487Z
 ---
 
 ## Context
@@ -64,7 +64,7 @@ differently.
   copy of `argumentSeverity` (infer.go:704). Call the function instead. Saves
   5 lines. Confidence 95.
 - **infer.go:665-671**: the `int` special case in `argDirectedReturn` should
-  go. Its comment is now false: CORE.pmt:451 declares `sub int (Num $number =
+  go. Its comment is now false: CORE.tpm:451 declares `sub int (Num $number =
   $_) Int`, so `callReturns` already gives Int. Saves 8 lines. Confidence 90.
 
 The verified diff for this group is 38 lines added and 102 deleted, a net
