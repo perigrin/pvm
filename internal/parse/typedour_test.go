@@ -104,3 +104,17 @@ func TestTypedOurListRejected(t *testing.T) {
 	wantDeclarationError(t, "our ($pa, $pb) :export;\n", "declare one variable per statement")
 	wantDeclarationError(t, "our ($pa, $pb) :export_ok(t);\n", "declare one variable per statement")
 }
+
+// TestOurUntypedExport: an untyped `our` exports by its mark alone, and
+// records no type.
+func TestOurUntypedExport(t *testing.T) {
+	wantImports(t, map[string][]string{
+		"use My::UntypedVars;\n":        {"$x"},
+		"use My::UntypedVars qw(@y);\n": {"@y"},
+		"use My::UntypedVars ':t';\n":   {"@y"},
+		"use My::UntypedVars qw($x);\n": {"$x"},
+	})
+	if got := resolveLibrary(t, "My::UntypedVars").variables; len(got) > 0 {
+		t.Errorf("My::UntypedVars records %v; an untyped our records no type", got)
+	}
+}
