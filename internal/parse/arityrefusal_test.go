@@ -204,7 +204,7 @@ func TestPrototypeArityFromModuleSource(t *testing.T) {
 			return []byte("package M;\nour @EXPORT = qw(two);\nsub two ($$) { }\n1;\n"), name == "M"
 		}},
 		{".tpm", fstest.MapFS{"declarations/M.tpm": {Data: []byte(
-			"package M;\nour @EXPORT = qw(two);\nsub two (Int $x, Int $y) Int;\n")}}, none},
+			"package M;\nsub two :export (Int $x, Int $y) Int;\n")}}, none},
 	} {
 		declarations = layeredFS{top: tc.decl, base: saved}
 		if got := refusalsIn(ParseWithLoader([]byte("use M; two(1);\n"), tc.load)); len(got) != 1 || got[0] != CallArity {

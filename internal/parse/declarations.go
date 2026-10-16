@@ -23,10 +23,11 @@ import (
 // loop -- so that no reading of its source can recover it.
 //
 // A declaration is written in the module syntax the resolver already reads:
-// `our @EXPORT` for what a bare `use` imports, `sub NAME :prototype(PROTO);` for each
-// sub and its prototype. So it is read by the same parse as a module. A
-// name may instead carry `:export` or `:export_ok` (readExportMarks), and
-// a typed `our` states a variable's type (declareVariable).
+// `sub NAME :prototype(PROTO);` for each sub and its prototype. So it is
+// read by the same parse as a module. What a `use` imports is marked on
+// each name with `:export` or `:export_ok` (readExportMarks), never in an
+// export list (refuseInDeclaration), and a typed `our` states a
+// variable's type (declareVariable).
 //
 //go:embed declarations
 var embedded embed.FS
@@ -55,6 +56,9 @@ func readDeclarationWith(p *parser) moduleFacts {
 	facts := readModule(root)
 	facts.signatures, facts.errs, facts.operators, facts.relations = p.signatures, p.typedErrs, p.operators, p.relations
 	facts.declared, facts.variables = true, p.variables
+	// A .tpm's exports are its marks alone; an export list is refused.
+	facts.exports, facts.defaults, facts.tags, facts.opaque = nil, nil, nil, false
+	facts.errs = append(facts.errs, refuseInDeclaration(root, src)...)
 	readExportMarks(root, &facts)
 	// A plain `sub` replaces the one declared before it, unless the name is
 	// also a `multi sub`: then it is a multi, keeping every candidate in the
@@ -264,6 +268,61 @@ func readExportMarks(root *Node, facts *moduleFacts) {
 			}
 		}
 	}
+}
+
+// declarationSubAttrs are the attributes a .tpm's sub may carry: perl's
+// own -- measured on 5.42.0, these are the CODE attributes a named sub
+// takes -- and the declaration language's.
+var declarationSubAttrs = map[string]bool{
+	"lvalue": true, "method": true, "prototype": true,
+	"export": true, "export_ok": true, "unary": true, "listop": true, "context": true,
+	"infix": true, "prefix": true, "postfix": true,
+	"tighter": true, "looser": true, "equiv": true, "assoc": true,
+	"keyword": true, "statement": true, "sublike": true,
+}
+
+// refuseInDeclaration is what a .tpm states that its language does not
+// (RFC 0001, "Every exported name"): an export list, which :export and
+// :export_ok replace, and an attribute no sub or our takes, as a
+// misspelled mark would export nothing without a word. A typed our's
+// attributes are refused by declareVariable.
+func refuseInDeclaration(root *Node, src []byte) []error {
+	var errs []error
+	for _, stmt := range root.Children {
+		for _, n := range stmt.Children {
+			if (n.Kind == Declaration || n.Kind == Binary && n.Text == "=") && len(n.Children) > 0 {
+				switch v := n.Children[0].Text; v {
+				case "@EXPORT", "@EXPORT_OK", "%EXPORT_TAGS":
+					if n.Kind == Declaration {
+						v = n.Text + " " + v
+					}
+					errs = append(errs, fmt.Errorf("line %d: %s: a .tpm marks each export :export or :export_ok, not in a list", lineIndex(src).at(n.Start), v))
+					continue
+				}
+			}
+			if n.Kind == Declaration && n.Text == "multi" && len(n.Children) == 1 {
+				n = n.Children[0]
+			}
+			if n.Kind != Declaration {
+				continue
+			}
+			typed := slices.ContainsFunc(n.Children, func(c *Node) bool { return c.Kind == TypeName })
+			for _, c := range n.Children {
+				if c.Kind != Attribute {
+					continue
+				}
+				attr, _, _ := strings.Cut(strings.TrimPrefix(c.Text, ":"), "(")
+				switch {
+				case n.Text == "sub" && !declarationSubAttrs[attr]:
+					name, _ := declaredSub(n)
+					errs = append(errs, fmt.Errorf("sub %s: unknown attribute %s", name, c.Text))
+				case n.Text == "our" && !typed && attr != "export" && attr != "export_ok":
+					errs = append(errs, fmt.Errorf("our %s: unknown attribute %s; an our takes :export or :export_ok", n.Children[0].Text, c.Text))
+				}
+			}
+		}
+	}
+	return errs
 }
 
 // exportMark reads a declaration's `:export` or `:export_ok`; see

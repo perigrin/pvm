@@ -69,14 +69,12 @@ exports and each sub's prototype:
 ```perl
 package Mojolicious::Lite;
 
-our @EXPORT = qw(
-    any get options patch post put query websocket
-    new app del group helper hook plugin under
-);
-
-sub get;
-sub group :prototype(&);
+sub get :export;
+sub group :export :prototype(&);
 ```
+
+`:export` marks a sub a bare `use` imports, and `:export_ok` one that
+must be asked for by name. A declaration file has no `@EXPORT` list.
 
 `CORE.tpm` carries typed declarations: each parameter's type, and the
 type the builtin returns. The prototype comes from the types, so

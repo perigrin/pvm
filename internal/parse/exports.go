@@ -300,6 +300,7 @@ func readExportAssignment(n *Node, facts *moduleFacts) {
 		facts.opaque = true
 		return
 	}
+	names = subNames(names)
 	facts.exports = append(facts.exports, names...)
 	if array == "@EXPORT" {
 		facts.defaults = append(facts.defaults, names...)
@@ -329,9 +330,18 @@ func readExportTags(n *Node, facts *moduleFacts) {
 			if facts.tags == nil {
 				facts.tags = map[string][]string{}
 			}
-			facts.tags[key] = names
+			facts.tags[key] = subNames(names)
 		}
 	}
+}
+
+// subNames is an export list's names with a sub's leading `&` dropped:
+// measured on 5.42.0, Exporter imports `f` for an @EXPORT of `&f`.
+func subNames(names []string) []string {
+	for i, name := range names {
+		names[i] = strings.TrimPrefix(name, "&")
+	}
+	return names
 }
 
 // tagBuiltList reads an export list whose elements are literal names or
