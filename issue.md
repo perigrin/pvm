@@ -1,6 +1,6 @@
 ---
 title: Select a single fitting-arity candidate despite argument types, and join an unknown context
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -9,16 +9,38 @@ blocks:
 - 01a0fd9b-5700-7514-a143-2caed2d06d8b
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.178619007Z
-updated: 2026-10-16T21:58:24.731526341Z
+updated: 2026-10-16T22:33:36.599392996Z
 sessions:
 - start_sha: ec99871d43d51af75b3cdcb95b6ddca2a6802abd
-  end_sha: ""
-  commits: 0
+  end_sha: 7c74da24f7255401887ced54292a2dbee9bf6434
+  commits: 4
   started_at: 2026-10-16T21:46:05.515582804Z
+  ended_at: 2026-10-16T22:33:36.599392996Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-16T21:46:05.515582804Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-16T22:33:36.599392996Z
+observed_paths:
+- docs/rfcs/0001-type-libraries.md
+- internal/lexer/proto.go
+- internal/parse/decl.go
+- internal/parse/declarations.go
+- internal/parse/exportattr_test.go
+- internal/parse/exports.go
+- internal/parse/parse.go
+- internal/parse/ranking_test.go
+- internal/parse/testdata/core_module_ranking.txt
+- internal/parse/testdata/declarations/My/Exports.tpm
+- internal/parse/testdata/declarations/My/Vars.tpm
+- internal/parse/typedour_test.go
+- internal/perltest/perl542_test.go
+- internal/psc/inc_roots_test.go
+- internal/psc/lib_baseline_test.go
+- internal/types/select.go
+- internal/types/select_test.go
 ---
 
 ## Prerequisites
