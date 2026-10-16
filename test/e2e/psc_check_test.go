@@ -286,3 +286,49 @@ func TestPSCCheckCoercionDiagnostics(t *testing.T) {
 	assert.Contains(t, stderr, "lossy-coercion",
 		"stderr should contain lossy-coercion diagnostic codes under the opt-in")
 }
+
+// TestPSCCheckUsesDeclarations: Carp.tpm declares `sub carp :export
+// (List[Str] @message) Boolean`, so psc check reports the undef carp is
+// handed. Measured, perl 5.42 -w on declared_mismatch.pl warns "Use of
+// uninitialized value $error[1] in join or string at .../Carp.pm line
+// 588."
+func TestPSCCheckUsesDeclarations(t *testing.T) {
+	_, stderr, err := runPSCCheck(t, filepath.Join(testdataDir(t), "declared_mismatch.pl"))
+	assert.Error(t, err)
+	assert.Contains(t, stderr, "declared_mismatch.pl:7:")
+	assert.Contains(t, stderr, "call to carp")
+	assert.Contains(t, stderr, "coercion-mismatch")
+}
+
+// TestPSCCheckDeclarationsNoFalsePositive: calls whose arguments fit
+// Carp's declarations report nothing; perl 5.42 -w runs declared_fit.pl
+// with no warning of its own.
+func TestPSCCheckDeclarationsNoFalsePositive(t *testing.T) {
+	_, stderr, err := runPSCCheck(t, filepath.Join(testdataDir(t), "declared_fit.pl"))
+	assert.NoError(t, err)
+	assert.Empty(t, stderr)
+}
+
+// TestPSCCheckUndecidedCallReportsNothing: `return localtime($_[0])` is in
+// a context its call site cannot decide, so the call joins localtime's
+// candidates and nothing is reported. perl 5.42 -w runs undecided_call.pl
+// silently, in list and in scalar context.
+func TestPSCCheckUndecidedCallReportsNothing(t *testing.T) {
+	_, stderr, err := runPSCCheck(t, filepath.Join(testdataDir(t), "undecided_call.pl"))
+	assert.NoError(t, err)
+	assert.Empty(t, stderr)
+}
+
+// TestPSCCheckSingleCandidateMismatchIsCoercion: cluck has one declared
+// candidate, whose arity `cluck(undef)` fits, so the candidate is selected
+// and the undef is coerced to its Str: a coercion mismatch, not a call no
+// candidate accepts. perl 5.42 -w warns "Use of uninitialized value
+// $error[0] in join or string at .../Carp.pm line 588."
+func TestPSCCheckSingleCandidateMismatchIsCoercion(t *testing.T) {
+	_, stderr, err := runPSCCheck(t, filepath.Join(testdataDir(t), "declared_single.pl"))
+	assert.Error(t, err)
+	assert.Contains(t, stderr, "declared_single.pl:7:")
+	assert.Contains(t, stderr, "coercion-mismatch")
+	assert.NotContains(t, stderr, "arity-mismatch")
+	assert.NotContains(t, stderr, "no declared candidate")
+}

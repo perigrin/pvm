@@ -57,6 +57,7 @@ extension (`Moose/Role.tpm` for Moose::Role), and PVM reads it in place
 of the module's source, whether or not the module is installed. PVM
 ships declarations for:
 
+- Carp
 - Moose and Moose::Role
 - Mojolicious::Lite
 - Future::AsyncAwait
@@ -83,6 +84,24 @@ type the builtin returns. The prototype comes from the types, so
 ```perl
 sub bless (Ref $ref, Str $class = __PACKAGE__) Object;
 ```
+
+A library's declaration file is typed the same way, and `psc check`
+types a call to a sub it declares from that declaration: the call's
+arity, its arguments' types and its context choose the candidate, and
+the call has that candidate's return type. Carp's declares:
+
+```perl
+sub carp :export (List[Str] @message) Boolean;
+```
+
+so an argument `carp` would join as a string is checked as one:
+
+```
+declared_mismatch.pl:7:19: error: call to carp: argument 2 expects Str, got Undef [coercion-mismatch]
+```
+
+for `carp("no name: ", undef);`, where perl warns "Use of uninitialized
+value in join or string".
 
 Typed Perl is valid only in `.tpm` files, and you cannot yet add your
 own. The design, including the typed declarations still to come, is in

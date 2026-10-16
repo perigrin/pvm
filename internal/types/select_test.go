@@ -544,3 +544,13 @@ func TestSelectShapedUnknownContextIsUndecided(t *testing.T) {
 		t.Errorf("got %+v, want undecided, returning %v", got, List|Str)
 	}
 }
+
+// TestSelectParameterlessCandidateBesideArgs: a candidate with no
+// parameters, `select ()`, is weighed for a call with arguments when no
+// candidate fits their types, and is ruled out by its arity, not by a
+// container it does not have. CORE.tpm's select with four arguments, the
+// last a Str, selects the four-parameter candidate.
+func TestSelectParameterlessCandidateBesideArgs(t *testing.T) {
+	cands := []Signature{sig(Str), sig(List, scalar("a", Any), scalar("b", Any), scalar("c", Any), scalar("t", Num))}
+	wantSelected(t, cands, []Type{Undef, Undef, Undef, Str}, 1, List)
+}
