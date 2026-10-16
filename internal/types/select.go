@@ -40,12 +40,17 @@ type Selection struct {
 // 2026-10-02): the one whose parameters are all subtypes of every other's,
 // as multi dispatch does in Raku, CLOS and Julia. When the call site cannot decide
 // -- an argument of unknown type fits more than one candidate, or none is
-// most specific -- the call's type is the join of theirs. A call no
-// candidate takes fails, and is never joined.
+// most specific -- the call's type is the join of theirs. Argument types
+// only decide between candidates: a single candidate whose arity fits is
+// selected whatever its arguments' types, and an argument fitting none of
+// several leaves the call undecided. A call whose arity no candidate takes
+// fails, and is never joined.
 //
 // ctx is the context the call is in: ScalarCtx (BooleanCtx is the same),
-// ListCtx or VoidCtx. What a call whose context is undetermined passes is
-// RFC 0001 "Call sites"'s; no candidate takes UnknownCtx.
+// ListCtx or VoidCtx, or UnknownCtx when the call site has not determined
+// it. An undetermined context rules nothing out: the call is what each
+// determined context would select, and when they differ, the call site
+// cannot decide, so it is the join of theirs.
 func Select(cands []Signature, args []Type, ctx Context) Selection {
 	return SelectShaped(cands, args, "", ctx)
 }
@@ -60,7 +65,21 @@ func Select(cands []Signature, args []Type, ctx Context) Selection {
 // one as a scalar, before the most specific is sought. With no shapes
 // stated, as for a call to a sub, none is ruled out by shape.
 func SelectShaped(cands []Signature, args []Type, shapes string, ctx Context) Selection {
+	if ctx == UnknownCtx {
+		return selectAnyContext(cands, args, shapes)
+	}
 	fit := Taking(cands, args, shapes, ctx)
+	if len(fit) == 0 {
+		// A parameter type is its argument's coercion target (RFC 0001,
+		// "What a parameter type means"), so argument types decide only
+		// between candidates and never rule a call out: when none fits,
+		// the call is taken as one whose argument types are unknown, and
+		// the call site reports the coercion. A backslashed container
+		// coerces nothing, so a mismatch there still rules a candidate out.
+		unknown := make([]Type, len(args))
+		fit = slices.DeleteFunc(Taking(cands, unknown, shapes, ctx), func(i int) bool { return !cands[i].fitsContainers(args) })
+		args = unknown
+	}
 	if len(fit) == 0 {
 		return Selection{Outcome: Failed, Candidate: -1}
 	}
@@ -72,6 +91,29 @@ func SelectShaped(cands []Signature, args []Type, shapes string, ctx Context) Se
 	joined := Unknown
 	for _, i := range fit {
 		joined = Join(joined, cands[i].Returns)
+	}
+	return Selection{Outcome: Undecided, Candidate: -1, Returns: joined}
+}
+
+// selectAnyContext is SelectShaped in a context the call site has not
+// determined: the candidate every determined context selects, if they
+// agree, and otherwise the join of what each takes.
+func selectAnyContext(cands []Signature, args []Type, shapes string) Selection {
+	var taken []Selection
+	for _, ctx := range []Context{ScalarCtx, ListCtx, VoidCtx} {
+		if sel := SelectShaped(cands, args, shapes, ctx); sel.Outcome != Failed {
+			taken = append(taken, sel)
+		}
+	}
+	if len(taken) == 0 {
+		return Selection{Outcome: Failed, Candidate: -1}
+	}
+	if !slices.ContainsFunc(taken, func(sel Selection) bool { return sel != taken[0] }) && taken[0].Outcome == Selected {
+		return taken[0]
+	}
+	joined := Unknown
+	for _, sel := range taken {
+		joined = Join(joined, sel.Returns)
 	}
 	return Selection{Outcome: Undecided, Candidate: -1, Returns: joined}
 }
@@ -213,6 +255,18 @@ func Accepts(cands []Signature, n int) bool {
 func (s Signature) fits(args []Type) bool {
 	for i, a := range args {
 		if a != Unknown && !IsSubtype(a, s.paramType(i)) {
+			return false
+		}
+	}
+	return true
+}
+
+// fitsContainers is fits over s's backslashed container parameters only,
+// `Hash \%h`: perl takes the container the caller writes and coerces
+// nothing, refusing `each $x` at compile time.
+func (s Signature) fitsContainers(args []Type) bool {
+	for i, a := range args {
+		if s.Params[min(i, len(s.Params)-1)].Alias && a != Unknown && !IsSubtype(a, s.paramType(i)) {
 			return false
 		}
 	}
