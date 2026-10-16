@@ -23,7 +23,7 @@ blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 - 01a0fd9b-5700-7514-a143-2caed2d06d8b
 created: 2026-10-16T20:59:46.420731313Z
-updated: 2026-10-16T23:03:36.663553356Z
+updated: 2026-10-16T23:16:07.750338901Z
 sessions:
 - start_sha: a9ce48f0047db49c938b19bdad67387cc27a0bd5
   end_sha: dcc066cc0fb89509812adfaa862f2096d7e4c67f
@@ -94,6 +94,14 @@ A `.tpm` changes what the parser reads for every file that uses the module, so r
 
 1. (F2, confidence 85) A .tpm export list containing `&name` no longer imports it: the import gate at `exports.go:534` compares the `&`-stripped request against `facts.exports`, which still holds `&amp`; perl 5.42 imports `amp` for both `qw(amp)` and `qw(&amp)` with `@EXPORT_OK = qw(&amp)`. Moot once lists are refused, but until then strip a leading `&` when reading list names; the `&name` rule for marks belongs to db1c.
 2. (F4, confidence 70) A misspelled mark on a sub or an untyped `our` is silently ignored: `sub bad :exported () Int;` and `our $x :exported;` export nothing with no error (`declarations.go:280-296`; the unknown-attribute check exists only on typed `our`). This conversion rewrites every sub to marks, so in a .tpm reject any attribute other than :export / :export_ok on a sub or `our`, with a negative test.
+
+### Review Findings
+
+Tier-2 gate, 2026-10-16, on dcc066cc (fresh reviewer subagent; lenses applied inline; overlay mutations; perl 5.42 measurements). Allowlist, Carp `verbose` and `&name` stripping confirmed against perl. VERDICT: REOPEN.
+
+1. (in scope, confidence 75) `internal/parse/declarations.go:264-265`: a multi's candidates with different marks are silently merged, first wins. `multi sub f :export (Int $i) Str; multi sub f :export_ok (Str $s) Int;` gives no error; `:export_ok(a)` on one candidate and `:export_ok(b)` on another puts f only in tag `a`; a mark on only one candidate gives no error. Perl exports a name, not a candidate, so disagreement is a contradiction in the file. Resolution (orchestrator, by the silent-failure rule F4 applied): an error, "multi sub f: candidates mark f differently", whenever later candidates' (bare, tags) differ from the first, including a mark on only some candidates. Negative tests for each of the three shapes.
+2. (in scope, confidence 70) `internal/parse/declarations.go:301-311` refuseInDeclaration matches only `n.Children[0].Text`, so `our (@EXPORT) = qw(f);` and `our (@EXPORT, @EXPORT_OK) = (...)` are not refused and export nothing. Also silent: `push @EXPORT, 'f'`, `@My::Odd::EXPORT = ...`, `BEGIN { our @EXPORT = ... }`, `use vars qw(@EXPORT)`. Fix: refuse a declaration or assignment whose list holds an @EXPORT, @EXPORT_OK or %EXPORT_TAGS term, and the non-`our` forms; a test case for each.
+3. (in scope, confidence 75) `internal/parse/exportattr_test.go` refusedList / TestDeclarationExportTagsRefused cannot see whether the tag list is dropped: removing the reset of facts.exports/defaults/tags leaves it passing. Fix: in the tags case also assert `use My::Listed ':all'` imports nothing; show it fails without the reset.
 
 ## Acceptance Criteria
 
