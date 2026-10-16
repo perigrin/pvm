@@ -1,6 +1,6 @@
 ---
 title: Select a single fitting-arity candidate despite argument types, and join an unknown context
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -9,7 +9,7 @@ blocks:
 - 01a0fd9b-5700-7514-a143-2caed2d06d8b
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.178619007Z
-updated: 2026-10-16T22:39:38.687338782Z
+updated: 2026-10-16T23:08:14.175744704Z
 sessions:
 - start_sha: ec99871d43d51af75b3cdcb95b6ddca2a6802abd
   end_sha: 7c74da24f7255401887ced54292a2dbee9bf6434
@@ -17,9 +17,10 @@ sessions:
   started_at: 2026-10-16T21:46:05.515582804Z
   ended_at: 2026-10-16T22:33:36.599392996Z
 - start_sha: 7c74da24f7255401887ced54292a2dbee9bf6434
-  end_sha: ""
-  commits: 0
+  end_sha: cc1416816b43a75d9d4de73e9269452b26f61f27
+  commits: 5
   started_at: 2026-10-16T22:39:38.687338782Z
+  ended_at: 2026-10-16T23:08:14.175744704Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
@@ -33,17 +34,28 @@ transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-16T22:39:38.687338782Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-16T23:08:14.175744704Z
 observed_paths:
 - docs/rfcs/0001-type-libraries.md
+- internal/data/help/types.md
 - internal/lexer/proto.go
+- internal/parse/arityrefusal_test.go
 - internal/parse/decl.go
 - internal/parse/declarations.go
+- internal/parse/declarations/Carp.tpm
+- internal/parse/declarations/Mojolicious/Lite.tpm
+- internal/parse/declarations/Moose.tpm
+- internal/parse/declarations/Moose/Role.tpm
 - internal/parse/exportattr_test.go
 - internal/parse/exports.go
 - internal/parse/parse.go
 - internal/parse/ranking_test.go
+- internal/parse/refscalar_test.go
 - internal/parse/testdata/core_module_ranking.txt
 - internal/parse/testdata/declarations/My/Exports.tpm
+- internal/parse/testdata/declarations/My/Lib.tpm
 - internal/parse/testdata/declarations/My/Vars.tpm
 - internal/parse/typedour_test.go
 - internal/perltest/perl542_test.go
