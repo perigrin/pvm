@@ -496,7 +496,8 @@ func (a *analysis) methodCall(n *lower.MethodCall) types.Type {
 // subParams is a sub's parameters: a signature's mandatory
 // scalars, else the scalars `my (...) = @_` unpacks as the body's first
 // statement, else the variables of the `my $v = shift` statements the body
-// opens with. nil when the sub has none of them.
+// opens with, else $_[0] when the body reads it. nil when the sub has none
+// of them.
 func subParams(s *lower.AnonSub) []string {
 	if len(s.Sig) > 0 {
 		var params []string
@@ -521,6 +522,9 @@ func subParams(s *lower.AnonSub) []string {
 			break
 		}
 		params = append(params, name)
+	}
+	if len(params) == 0 && readsArg0(body) {
+		return []string{"$_[0]"}
 	}
 	return params
 }

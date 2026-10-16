@@ -550,33 +550,11 @@ func fileSubs(f *lower.File) map[string]*lower.AnonSub {
 	return subs
 }
 
-// subParam is a sub's one parameter: a signature's one mandatory
-// scalar, else `my $v = shift` as the body's first statement, else $_[0]
-// read anywhere in the body. "" if the sub has none of them.
+// subParam is a sub's one parameter, as subParams finds them: "" when
+// it has none, or more than one.
 func subParam(s *lower.AnonSub) string {
-	if len(s.Sig) > 0 {
-		var params []string
-		for _, p := range s.Sig {
-			if v, ok := p.(*lower.Var); ok && v.Sigil == "$" {
-				params = append(params, "$"+v.Name)
-			}
-		}
-		if len(params) == 1 {
-			return params[0]
-		}
-		return ""
-	}
-	body, ok := s.Body.(*lower.Block)
-	if !ok {
-		return ""
-	}
-	if len(body.Stmts) > 0 {
-		if name := shiftParam(body.Stmts[0]); name != "" {
-			return name
-		}
-	}
-	if readsArg0(body) {
-		return "$_[0]"
+	if params := subParams(s); len(params) == 1 {
+		return params[0]
 	}
 	return ""
 }

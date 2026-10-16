@@ -45,3 +45,26 @@ func TestUserGuardOnlyNarrowsParameters(t *testing.T) {
 	wantReportedWith(t, "our $strict = 0;\nsub isnull { my $v = shift; return !defined $v if $strict; 1 }\nmy $y = @ARGV ? undef : 5;\nif (isnull($y)) { my $q = $y + 1; print \"$q\\n\" }\n", infer.CodeCoercionMismatch, "Undef|Int")
 	wantReportedWith(t, "sub chk { my $v = shift; return !defined $v }\nmy $w = @ARGV ? 5 : undef;\nif (chk($w)) { my $q = $w + 1; print \"$q\\n\" }\n", infer.CodeCoercionMismatch, "got Undef")
 }
+
+// A user guard's parameter is found however the sub takes it: a
+// signature, `my $v = shift`, `my ($v) = @_`, or $_[0]. So `!is_ref($y)`
+// leaves an Int|HashRef $y Int, which no lossy coercion reaches; perl
+// 5.42 -w prints 2 silently for each. And a positive guard narrows away
+// the Undef: perl prints 2 silently for the first is_def case, and warns
+// "Use of uninitialized value $y in addition" on the control with @ARGV
+// empty.
+func TestUserGuardListAssignParam(t *testing.T) {
+	use := "my $y = 0 ? {} : 1;\nif (!is_ref($y)) { my $m = $y + 1; print \"$m\\n\" }\n"
+	for _, sub := range []string{
+		"sub is_ref { my ($v) = @_; return ref $v }\n",
+		"sub is_ref { my $v = shift; return ref $v }\n",
+		"sub is_ref { return ref $_[0] }\n",
+		"use v5.36;\nsub is_ref ($v) { return ref $v }\n",
+	} {
+		for _, d := range lossyDiags(t, sub+use) {
+			t.Errorf("%q: diagnostic %q, want none", sub+use, d.Message)
+		}
+	}
+	wantSilent(t, "sub is_def { my ($v) = @_; return defined $v }\nmy $y = @ARGV ? 1 : undef;\nif (is_def($y)) { my $m = $y + 1; print \"$m\\n\" }\n")
+	wantReported(t, "sub is_def { my ($v) = @_; return defined $v }\nmy $y = @ARGV ? 1 : undef;\nif (!is_def($y)) { my $m = $y + 1; print \"$m\\n\" }\n", infer.CodeCoercionMismatch)
+}
