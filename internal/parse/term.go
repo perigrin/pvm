@@ -16,6 +16,11 @@ import (
 // plan's rule applies inside expressions as much as at statement level: a
 // guessed operand produces a tree that is not a parse of its source.
 func (p *parser) parseTerm() *Node {
+	p.depth++
+	defer func() { p.depth-- }()
+	if p.depth > maxDepth {
+		return p.refuseTooDeep(true)
+	}
 	tok, ok := p.peekSignificant()
 	if !ok {
 		// Nothing left to read. Returning an Unknown here would span no

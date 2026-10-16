@@ -877,6 +877,9 @@ func (p *parser) parseSpecialSub(word lexer.Token) *Node {
 // finishPackage. `field` and `method` inside the body are handled by
 // parseDeclaration, which already knows `method` as a sub spelling.
 func (p *parser) parseClass(word lexer.Token) *Node {
+	if nameless(p, word) {
+		return p.refuseNotATerm(word)
+	}
 	p.advanceTo(word)
 	// A class declaration means class syntax is in effect -- by the feature
 	// or by Object::Pad, which provides the same keywords -- so `method`

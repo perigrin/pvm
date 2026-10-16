@@ -114,6 +114,10 @@ func (p *parser) infixOp(text string) (OpInfo, bool) {
 }
 
 func (p *parser) parseInfix(left *Node, minBP int) *Node {
+	// Counted, not checked: a right-associative chain recurses here and not
+	// through nested parseTerms, and the next operand's parseTerm refuses.
+	p.depth++
+	defer func() { p.depth-- }()
 	for {
 		tok, ok := p.peekSignificant()
 		if !ok {
