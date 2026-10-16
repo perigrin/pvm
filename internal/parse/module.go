@@ -39,7 +39,11 @@ type Loader func(name string) ([]byte, bool)
 // A MODULE uses perl's own spelling: `My::Mod` lives at `My/Mod.pm`. A
 // required FILE is already a relative path and is joined as written --
 // `./test.pl` and `./t/test.pl` are the same file reached from `t/` and from
-// the tree root, which is why more than one directory is searched.
+// the tree root, which is why more than one directory is searched. A
+// required path that would leave the directory it is joined to, as
+// `../x.pl` does, is not found: perl reads it relative to the working
+// directory, never through @INC, and psc reads nothing outside the
+// directories it searches.
 //
 // The first directory is normally the using file's own, which is what makes a
 // local module -- never installed anywhere -- resolvable at all.
@@ -52,6 +56,12 @@ type Loader func(name string) ([]byte, bool)
 func DirLoader(dirs ...string) Loader {
 	return func(name string) ([]byte, bool) {
 		rels := []string{name}
+		if isRequiredPath(name) && !filepath.IsLocal(name) {
+			// A path that climbs out of the directory it is joined to, or
+			// is absolute, names a file outside every directory searched,
+			// which psc does not read.
+			return nil, false
+		}
 		if !isRequiredPath(name) {
 			ext := ".pm"
 			if module, ok := strings.CutSuffix(name, ".xs"); ok {
