@@ -1,4 +1,4 @@
-// ABOUTME: Tests for operator declarations in .pmt files: `sub + :infix(ADD) (Num $x, Num $y) Num;`.
+// ABOUTME: Tests for operator declarations in .tpm files: `sub + :infix(ADD) (Num $x, Num $y) Num;`.
 // ABOUTME: Each declares its symbol, fixity, precedence class and typed signature.
 package parse
 
@@ -14,11 +14,11 @@ import (
 	"tamarou.com/pvm/internal/types"
 )
 
-// TestPmtOperatorDeclarationParses: RFC 0001 "Operator declarations". An
+// TestTpmOperatorDeclarationParses: RFC 0001 "Operator declarations". An
 // operator is declared under its symbol with `:infix(CLASS)`, `:prefix` or
 // `:postfix`, and its typed signature. A word operator is declared the same
 // way. An unknown class is an error that names it.
-func TestPmtOperatorDeclarationParses(t *testing.T) {
+func TestTpmOperatorDeclarationParses(t *testing.T) {
 	src := "sub + :infix(ADD) (Num $x, Num $y) Num;\n" +
 		"sub ! :prefix (Scalar $x) Boolean;\n" +
 		"sub eq :infix(EQUALITY) (Str $x, Str $y) Boolean;\n"
@@ -59,7 +59,7 @@ func TestPmtOperatorDeclarationParses(t *testing.T) {
 	})
 }
 
-// operatorRefuses reads each source as a `.pmt` and wants exactly the one
+// operatorRefuses reads each source as a `.tpm` and wants exactly the one
 // error given for it, no operator recorded, and every byte still in the tree.
 func operatorRefuses(t *testing.T, cases map[string]string) {
 	t.Helper()
@@ -77,19 +77,19 @@ func operatorRefuses(t *testing.T, cases map[string]string) {
 	}
 }
 
-// TestPmtOperatorFixityErrors: fixity is spelled one way. An infix operator
+// TestTpmOperatorFixityErrors: fixity is spelled one way. An infix operator
 // may name its class, a prefix one names none, and a declaration has one
 // fixity.
-func TestPmtOperatorFixityErrors(t *testing.T) {
+func TestTpmOperatorFixityErrors(t *testing.T) {
 	operatorRefuses(t, map[string]string{
 		"sub ! :prefix(ADD) (Scalar $x) Boolean;\n":         "sub !: :prefix takes no class",
 		"sub + :infix(ADD) :prefix (Num $x, Num $y) Num;\n": "sub +: two fixities, :infix(ADD) and :prefix",
 	})
 }
 
-// TestPmtOperatorArityMatchesFixity: an infix operator takes two operands
+// TestTpmOperatorArityMatchesFixity: an infix operator takes two operands
 // and a prefix one takes one, so its signature has that many parameters.
-func TestPmtOperatorArityMatchesFixity(t *testing.T) {
+func TestTpmOperatorArityMatchesFixity(t *testing.T) {
 	operatorRefuses(t, map[string]string{
 		"sub + :infix(ADD) (Num $x) Num;\n":       "sub +: :infix takes two operands, the signature has 1",
 		"sub - :prefix (Num $x, Num $y) Num;\n":   "sub -: :prefix takes one operand, the signature has 2",
@@ -97,19 +97,19 @@ func TestPmtOperatorArityMatchesFixity(t *testing.T) {
 	})
 }
 
-// TestPmtOperatorAttributeAfterSignatureRefused: declaration order holds for
+// TestTpmOperatorAttributeAfterSignatureRefused: declaration order holds for
 // operators as for subs (RFC 0001, "Declaration order: Perl's"): the
 // attributes come before the signature.
-func TestPmtOperatorAttributeAfterSignatureRefused(t *testing.T) {
+func TestTpmOperatorAttributeAfterSignatureRefused(t *testing.T) {
 	operatorRefuses(t, map[string]string{
 		"sub + (Num $x, Num $y) :infix(ADD) Num;\n": "sub +: subroutine attributes must come before the signature",
 	})
 }
 
-// TestOperatorSymbolOnlyInPmt: a symbol names an operator only in a `.pmt`.
+// TestOperatorSymbolOnlyInTpm: a symbol names an operator only in a `.tpm`.
 // In perl, measured on 5.42.0, `sub + { 1 }` is "Illegal declaration of
 // anonymous subroutine", and ordinary source declares nothing by it.
-func TestOperatorSymbolOnlyInPmt(t *testing.T) {
+func TestOperatorSymbolOnlyInTpm(t *testing.T) {
 	for _, src := range []string{"sub + { 1 }\n", "sub + :infix(ADD) (Num $x, Num $y) Num;\n"} {
 		facts := readModule(Parse([]byte(src)))
 		if len(facts.protos) > 0 || len(facts.operators) > 0 {
@@ -140,7 +140,7 @@ var xpiClasses = []string{"LOW", "LOGICAL_OR_LOW", "LOGICAL_AND_LOW", "ASSIGN", 
 	"EQUALITY", "ORDERING", "RELATION", "ISA", "ADD", "MUL", "MATCHRE", "POW", "HIGH"}
 
 // TestCoreClassesAreXPIs: `:infix(CLASS)` names only XS::Parse::Infix's
-// classes (RFC 0001, "Fixity and precedence"), so every class CORE.pmt
+// classes (RFC 0001, "Fixity and precedence"), so every class CORE.tpm
 // names is one, and the levels it classes no operator at are named by
 // their operators, not by a class of pvm's own.
 func TestCoreClassesAreXPIs(t *testing.T) {
@@ -154,22 +154,22 @@ func TestCoreClassesAreXPIs(t *testing.T) {
 	}
 }
 
-// coreOperators reads CORE.pmt's operator declarations, failing the test on
+// coreOperators reads CORE.tpm's operator declarations, failing the test on
 // any error in the file.
 func coreOperators(t *testing.T) []operatorDecl {
 	t.Helper()
 	src, ok := declaration("CORE")
 	if !ok {
-		t.Fatal("declarations/CORE.pmt is not embedded")
+		t.Fatal("declarations/CORE.tpm is not embedded")
 	}
 	facts := readDeclaration(src, nil)
 	if len(facts.errs) > 0 {
-		t.Fatalf("CORE.pmt: %v", facts.errs)
+		t.Fatalf("CORE.tpm: %v", facts.errs)
 	}
 	return facts.operators
 }
 
-// TestCoreOperatorTypesMatchMeasured: CORE.pmt types perl's operators with
+// TestCoreOperatorTypesMatchMeasured: CORE.tpm types perl's operators with
 // the operand and result types below, measured on 5.42.0. `cmp` gives -1, 0
 // or 1, and so does `<=>`, or undef when an operand is NaN; the predicates
 // give perl's booleans; `&&`, `||`, `//`, `and`, `or` and `=` give an
@@ -267,16 +267,16 @@ func TestCoreOperatorTypesMatchMeasured(t *testing.T) {
 	for key, w := range want {
 		g, ok := got[key]
 		if !ok {
-			t.Errorf("%s: not declared in CORE.pmt", key)
+			t.Errorf("%s: not declared in CORE.tpm", key)
 			continue
 		}
 		if !reflect.DeepEqual(g, w) {
-			t.Errorf("%s: CORE.pmt declares %v -> %v, measured %v -> %v", key, g.operands, g.result, w.operands, w.result)
+			t.Errorf("%s: CORE.tpm declares %v -> %v, measured %v -> %v", key, g.operands, g.result, w.operands, w.result)
 		}
 	}
 	for key := range got {
 		if _, ok := want[key]; !ok {
-			t.Errorf("%s: declared in CORE.pmt with no measured row", key)
+			t.Errorf("%s: declared in CORE.tpm with no measured row", key)
 		}
 	}
 }
@@ -313,12 +313,12 @@ func TestCoreArithmeticReturnsWhatPerlReturns(t *testing.T) {
 	for op, want := range operators {
 		sigs := CoreOperator(op, "infix")
 		if len(sigs) != 1 || sigs[0].Returns != want {
-			t.Errorf("infix %s: CORE.pmt declares results %v, measured %v", op, returns(sigs), want)
+			t.Errorf("infix %s: CORE.tpm declares results %v, measured %v", op, returns(sigs), want)
 		}
 	}
 	for _, op := range []string{"-", "+"} {
 		if sigs := CoreOperator(op, "prefix"); len(sigs) != 1 || sigs[0].Returns != N {
-			t.Errorf("prefix %s: CORE.pmt declares results %v, measured Num", op, returns(sigs))
+			t.Errorf("prefix %s: CORE.tpm declares results %v, measured Num", op, returns(sigs))
 		}
 	}
 	builtins := map[string]types.Type{
@@ -328,12 +328,12 @@ func TestCoreArithmeticReturnsWhatPerlReturns(t *testing.T) {
 	for name, want := range builtins {
 		sigs := CoreBuiltin(name)
 		if len(sigs) != 1 || sigs[0].Returns != want {
-			t.Errorf("%s: CORE.pmt declares results %v, measured %v", name, returns(sigs), want)
+			t.Errorf("%s: CORE.tpm declares results %v, measured %v", name, returns(sigs), want)
 		}
 	}
 }
 
-// TestCoreOperatorClassesMatchPrecedence: each infix operator CORE.pmt
+// TestCoreOperatorClassesMatchPrecedence: each infix operator CORE.tpm
 // declares with a class binds, in the parser, as the operator its class
 // stands for: `/`, declared MUL, as `*`.
 func TestCoreOperatorClassesMatchPrecedence(t *testing.T) {
@@ -350,11 +350,11 @@ func TestCoreOperatorClassesMatchPrecedence(t *testing.T) {
 		}
 	}
 	if n == 0 {
-		t.Error("CORE.pmt declares no classed infix operator")
+		t.Error("CORE.tpm declares no classed infix operator")
 	}
 }
 
-// coreCandidates are CORE.pmt's declarations of the operator sym with the
+// coreCandidates are CORE.tpm's declarations of the operator sym with the
 // given fixity, in the order the file states them.
 func coreCandidates(t *testing.T, fixity, sym string) []operatorDecl {
 	t.Helper()
@@ -368,7 +368,7 @@ func coreCandidates(t *testing.T, fixity, sym string) []operatorDecl {
 }
 
 // TestCoreRangeIsContextMulti: RFC 0001 "Operators that fork". `..` is a
-// range in list context and a flip-flop in scalar context, so CORE.pmt
+// range in list context and a flip-flop in scalar context, so CORE.tpm
 // declares it as a multi whose return types fork on context, and `...`
 // likewise. Measured on
 // 5.42.0: `my @l = ("a".."c")` is `a b c` and `(1.7..3.2)` is `1 2 3`; in
@@ -401,7 +401,7 @@ func TestCoreRangeIsContextMulti(t *testing.T) {
 
 // TestCoreRepeatIsShapeMulti: RFC 0001 "Operators that fork". `x` repeats
 // a list only when its left operand is parenthesised and the call is in
-// list context, so CORE.pmt declares two MUL candidates, `(LIST) x N` for
+// list context, so CORE.tpm declares two MUL candidates, `(LIST) x N` for
 // list context and `EXPR x N` for any. Measured on 5.42.0: `my @l = (1,2)
 // x 2` is `1 2 1 2`; `my $x = (1,2) x 2`, `my @l = @a x 2` and `"ab" x 2`
 // are strings, `22`, `22` and `abab`. The List operand is one operand, a
@@ -624,13 +624,13 @@ func TestCoreDeclaresComma(t *testing.T) {
 }
 
 // TestFatCommaAutoquotes: `=>` reads the bareword to its left as a word,
-// because CORE.pmt's `=>` takes `List @lhs :bareword` -- a parser hint that
+// because CORE.tpm's `=>` takes `List @lhs :bareword` -- a parser hint that
 // the operand is a word and not an expression, its type saying what the
 // word becomes. Measured on 5.42.0 under strict, with `sub foo { "CALLED"
 // }`: `(foo => 1)` gives "foo" where `(foo, 1)` gives "CALLED", `(time =>
 // 1)` "time", `(s => 1)` "s", and `(nosuch => 1)` "nosuch" where `(nosuch,
 // 1)` is "Bareword not allowed while strict subs". The lexer quotes
-// through the operators it is given, and a parse gives it CORE.pmt's.
+// through the operators it is given, and a parse gives it CORE.tpm's.
 func TestFatCommaAutoquotes(t *testing.T) {
 	for _, sym := range []string{"=>", ","} {
 		for _, op := range coreCandidates(t, "infix", sym) {
@@ -640,7 +640,7 @@ func TestFatCommaAutoquotes(t *testing.T) {
 		}
 	}
 	if got := coreBarewordOperators(); !slices.Equal(got, []string{"=>"}) {
-		t.Errorf("CORE.pmt's :bareword operators are %v, want [=>]", got)
+		t.Errorf("CORE.tpm's :bareword operators are %v, want [=>]", got)
 	}
 
 	// The lexer reads `s` as a word before an operator it is told reads
@@ -670,7 +670,7 @@ func TestFatCommaAutoquotes(t *testing.T) {
 		}
 	}
 
-	// A parse reads with CORE.pmt's: the word before `=>` is quoted, a
+	// A parse reads with CORE.tpm's: the word before `=>` is quoted, a
 	// declared sub's name and a builtin's alike, and the one before `,` is
 	// a call.
 	root := Parse([]byte("sub foo { 'CALLED' } my @a = (foo => 1, time => 2, s => 3, nosuch => 4, foo, 5);"))
@@ -691,10 +691,10 @@ func TestFatCommaAutoquotes(t *testing.T) {
 }
 
 // TestLexerBarewordOperatorsAreCores: the operators the lexer reads a word
-// before when no CORE.pmt has been read -- CORE.pmt's own read, and a
-// caller of lexer.Tokenize -- are CORE.pmt's `:bareword` ones.
+// before when no CORE.tpm has been read -- CORE.tpm's own read, and a
+// caller of lexer.Tokenize -- are CORE.tpm's `:bareword` ones.
 func TestLexerBarewordOperatorsAreCores(t *testing.T) {
 	if !slices.Equal(lexer.BarewordOperators, coreBarewordOperators()) {
-		t.Errorf("lexer.BarewordOperators is %v, CORE.pmt's %v", lexer.BarewordOperators, coreBarewordOperators())
+		t.Errorf("lexer.BarewordOperators is %v, CORE.tpm's %v", lexer.BarewordOperators, coreBarewordOperators())
 	}
 }

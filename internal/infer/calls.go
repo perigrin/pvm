@@ -12,7 +12,7 @@ import (
 	"tamarou.com/pvm/internal/types"
 )
 
-// call types a call to a builtin or a user sub: a builtin's CORE.pmt
+// call types a call to a builtin or a user sub: a builtin's CORE.tpm
 // candidates check the arity and each argument's type and give the call's
 // type; a sub of this file gives its inferred return type, and a
 // fully-qualified one the project index's. A call through a reference is
@@ -32,7 +32,7 @@ func (a *analysis) call(n *lower.Call) types.Type {
 	}
 	name := coreName(n.Name)
 	if name == "undef" {
-		// undef denotes the undefined value whatever it is given: CORE.pmt
+		// undef denotes the undefined value whatever it is given: CORE.tpm
 		// declares no return type for it, so it is typed here.
 		a.args(n.Args, nil)
 		return types.Undef
@@ -100,7 +100,7 @@ func coreName(name string) string {
 
 // strongKeywords are the builtins no sub overrides: measured on 5.42.0 by
 // compiling `use subs 'NAME'; sub NAME { 1 } sub t { NAME(...) }` for every
-// CORE.pmt builtin, and finding no entersub in t. say is one under the
+// CORE.tpm builtin, and finding no entersub in t. say is one under the
 // say feature, and a plain word without it.
 var strongKeywords = map[string]bool{
 	"defined": true, "delete": true, "eval": true, "exists": true,
@@ -132,7 +132,7 @@ func (a *analysis) args(args []lower.Node, sigs []types.Signature) {
 	}
 }
 
-// slotContext is the context the i-th argument of a builtin whose CORE.pmt
+// slotContext is the context the i-th argument of a builtin whose CORE.tpm
 // candidates are sigs is evaluated in: list context when every candidate
 // takes it into a slurpy, UnknownCtx otherwise.
 //
@@ -259,7 +259,7 @@ func (a *analysis) succeeded(n lower.Node, actual types.Type) types.Type {
 	return actual &^ types.Undef
 }
 
-// failureUndef are the builtins CORE.pmt types with an Undef they return
+// failureUndef are the builtins CORE.tpm types with an Undef they return
 // only when they fail: a closed handle's fileno, a failed read or open.
 // Those that return undef in normal use are not among them: perl 5.42 -w
 // warns "Use of uninitialized value in concatenation" on `getc(STDIN) .
@@ -351,7 +351,7 @@ func scalarValue(arg lower.Node, actual types.Type) types.Type {
 
 // aggregateRefused are the builtins perl refuses or warns on an array or
 // a hash in their `$` slot, measured on 5.42.0 with -c over every builtin
-// CORE.pmt gives a `$` slot: `defined(@a)` is "Can't use
+// CORE.tpm gives a `$` slot: `defined(@a)` is "Can't use
 // 'defined(@array)'", `exists(@a)` and `delete(@a)` are "not a HASH or
 // ARRAY element", and `length(@a)` warns "length() used on @a".
 var aggregateRefused = map[string]bool{"defined": true, "exists": true, "delete": true, "length": true}

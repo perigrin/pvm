@@ -219,10 +219,10 @@ func Tokenize(src []byte) []Token {
 }
 
 // BarewordOperators are the operators whose left operand Tokenize and
-// TokenizeTyped read as a word: CORE.pmt's `:bareword` ones, which a
-// caller that has read CORE.pmt passes to TokenizeBarewords. These are
-// what CORE.pmt's own read is lexed with, and parse's
-// TestLexerBarewordOperatorsAreCores holds them to CORE.pmt's.
+// TokenizeTyped read as a word: CORE.tpm's `:bareword` ones, which a
+// caller that has read CORE.tpm passes to TokenizeBarewords. These are
+// what CORE.tpm's own read is lexed with, and parse's
+// TestLexerBarewordOperatorsAreCores holds them to CORE.tpm's.
 var BarewordOperators = []string{"=>"}
 
 // TokenizeBarewords is Tokenize with the operators whose left operand is
@@ -231,8 +231,8 @@ func TokenizeBarewords(src []byte, barewordOps []string) []Token {
 	return tokenize(&lexer{src: src, expect: XState, barewordOps: barewordOps})
 }
 
-// TokenizeTyped is Tokenize for typed Perl, the language of a `.pmt`
-// declaration file (RFC 0001, "Typed Perl, in `.pmt` only"). The signatures
+// TokenizeTyped is Tokenize for typed Perl, the language of a `.tpm`
+// declaration file (RFC 0001, "Typed Perl, in `.tpm` only"). The signatures
 // feature is on from the first byte, so the `(` after `sub NAME` opens a
 // signature and never a prototype: a declaration file spells its prototypes
 // `:prototype(...)`, as perl requires once signatures are on.
@@ -369,7 +369,7 @@ type lexer struct {
 	// default: `'` joins a package name. The 5.41 bundle and `no feature`
 	// turn it off; see noteSignatures. File-level, like signatures.
 	noApostropheSeparator bool
-	// typed is set for typed Perl, a `.pmt` declaration file, where a
+	// typed is set for typed Perl, a `.tpm` declaration file, where a
 	// container type may stand before a hash parameter: `List[Str] %h`
 	// (see containerTypeSigil), and where `sub +` names an operator (see
 	// scanOperatorName).

@@ -209,7 +209,7 @@ func TestNegatedRefGuardOnAny(t *testing.T) {
 }
 
 // A call is an exit when the signature it resolves to returns None, as
-// CORE.pmt declares die and exit, and `CORE::name` resolves to the
+// CORE.tpm declares die and exit, and `CORE::name` resolves to the
 // builtin name, as a guard and as a checked call. perl 5.42 -w, given no
 // argument, is silent on the first two and prints 4.
 func TestExitsAndGuardsByCoreAndCarp(t *testing.T) {
@@ -232,12 +232,12 @@ func TestExitsAndGuardsByCoreAndCarp(t *testing.T) {
 	wantReported(t, "my %h;\nCORE::push %h, 1;\n", infer.CodeTypeMismatch)
 
 	t.Run("croak", func(t *testing.T) {
-		// croak and confess exit as Carp.pmt declares them, returning
+		// croak and confess exit as Carp.tpm declares them, returning
 		// None, and the parser hands each call the signature it resolved:
 		// perl 5.42 -w, given no argument, is silent on both and prints
 		// 4. carp returns, so perl, given an argument, warns "Use of
 		// uninitialized value $x in addition (+)". A parse that resolves
-		// modules reads Carp.pmt; one that finds nothing else on disk is
+		// modules reads Carp.tpm; one that finds nothing else on disk is
 		// enough.
 		diags := func(src string) []infer.Diagnostic {
 			root := parse.ParseWithLoader([]byte(src), func(string) ([]byte, bool) { return nil, false })

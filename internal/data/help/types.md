@@ -52,15 +52,15 @@ Some modules define subs that their source never shows. Moose builds
 Future::AsyncAwait's `async sub` and `await`.
 
 For these, PVM ships **declaration files**, which state what a module
-defines. A declaration file is named for its module with a `.pmt`
-extension (`Moose/Role.pmt` for Moose::Role), and PVM reads it in place
+defines. A declaration file is named for its module with a `.tpm`
+extension (`Moose/Role.tpm` for Moose::Role), and PVM reads it in place
 of the module's source, whether or not the module is installed. PVM
 ships declarations for:
 
 - Moose and Moose::Role
 - Mojolicious::Lite
 - Future::AsyncAwait
-- perl's own builtins, in `CORE.pmt`
+- perl's own builtins, in `CORE.tpm`
 
 Declaration files are written in **typed Perl**, a superset of Perl
 whose declarations can carry types. A module's file states what it
@@ -78,7 +78,7 @@ sub get;
 sub group :prototype(&);
 ```
 
-`CORE.pmt` carries typed declarations: each parameter's type, and the
+`CORE.tpm` carries typed declarations: each parameter's type, and the
 type the builtin returns. The prototype comes from the types, so
 `bless` needs no `:prototype($;$)`:
 
@@ -86,6 +86,6 @@ type the builtin returns. The prototype comes from the types, so
 sub bless (Ref $ref, Str $class = __PACKAGE__) Object;
 ```
 
-Typed Perl is valid only in `.pmt` files, and you cannot yet add your
+Typed Perl is valid only in `.tpm` files, and you cannot yet add your
 own. The design, including the typed declarations still to come, is in
 `docs/rfcs/0001-type-libraries.md`.

@@ -142,7 +142,7 @@ sub break () None;
 sub caller (Optional[Int] $level) List;
 # catch is a keyword, like try and sub, not a builtin to type (perigrin,
 # 2026-10-07): `CORE::catch()` is a syntax error and `&CORE::catch` an
-# undefined subroutine (measured on 5.42). The line holds CORE.pmt to
+# undefined subroutine (measured on 5.42). The line holds CORE.tpm to
 # prototype("CORE::catch"), which answers `()`.
 sub catch :prototype();
 # chdir changes to a directory named by a string or held by a handle
@@ -153,7 +153,7 @@ sub catch :prototype();
 # parentheses: this file is read without the keyword shapes it derives,
 # since that read is what builds them, so a parenless `exists` here would be
 # an unknown word's call taking the rest of the expression, the `?:`
-# included. A library's `.pmt` is read with them and may write it bare.
+# included. A library's `.tpm` is read with them and may write it bare.
 sub chdir (Str|FileHandle $dir = exists($ENV{HOME}) ? $ENV{HOME} : $ENV{LOGDIR}) Boolean;
 # chmod, chown and utime take a LIST that leads with the mode, the owner
 # and group, or the times, and then the files, which a `@` prototype does
@@ -453,7 +453,7 @@ sub int (Num $number = $_) Int;
 sub ioctl (Glob *fh, Int $function, Scalar $argument) Str|Undef;
 # isa is the infix operator, typed by its `:infix(ISA)` declaration below
 # (perigrin, 2026-10-07); no call reaches it as a function (`CORE::isa()`
-# is a syntax error). The line holds CORE.pmt to prototype("CORE::isa").
+# is a syntax error). The line holds CORE.tpm to prototype("CORE::isa").
 sub isa :prototype();
 # join takes a separator and then a LIST, not a series of strings: Str
 # there rejected `join ":", @foo`. Measured: join(":", @f) flattens the
@@ -502,7 +502,7 @@ multi sub lstat (Str|Glob *file = $_) List;
 multi sub lstat (Str|Glob *file = $_) Boolean;
 # method is a keyword, like sub, not a builtin to type (perigrin,
 # 2026-10-07): `CORE::method()` is "Cannot 'method' outside of a 'class'"
-# (measured on 5.42). The line holds CORE.pmt to prototype("CORE::method").
+# (measured on 5.42). The line holds CORE.tpm to prototype("CORE::method").
 sub method :prototype();
 # mkdir takes a directory, `$_` with none, and a mode, 0777 with none
 # (measured under umask 0: a directory made without a mode is 0777).

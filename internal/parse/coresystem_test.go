@@ -1,4 +1,4 @@
-// ABOUTME: Tests that CORE.pmt types its user, network, socket, IPC and control-flow builtins.
+// ABOUTME: Tests that CORE.tpm types its user, network, socket, IPC and control-flow builtins.
 // ABOUTME: Each type is measured on perl 5.42, and every prototyped line is typed but the prototype-only ones.
 package parse_test
 
@@ -17,7 +17,7 @@ import (
 // systemFlowBuiltins is perlfunc's "Fetching user and group info",
 // "Fetching network info", "Low-level socket functions", "System V
 // interprocess communication functions" and "Keywords related to the
-// control flow of your Perl program" among CORE.pmt's prototyped lines,
+// control flow of your Perl program" among CORE.tpm's prototyped lines,
 // without the names the earlier batches hold.
 func systemFlowBuiltins(t *testing.T) []string {
 	t.Helper()
@@ -33,14 +33,14 @@ func systemFlowBuiltins(t *testing.T) []string {
 }
 
 // TestCoreSystemFlowBuiltinsTyped: every user, network, socket, IPC and
-// control-flow builtin has a typed CORE.pmt line.
+// control-flow builtin has a typed CORE.tpm line.
 func TestCoreSystemFlowBuiltinsTyped(t *testing.T) {
-	src, err := os.ReadFile("declarations/CORE.pmt")
+	src, err := os.ReadFile("declarations/CORE.tpm")
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, name := range untypedLines(src, systemFlowBuiltins(t)) {
-		t.Errorf("%s: CORE.pmt declares it untyped", name)
+		t.Errorf("%s: CORE.tpm declares it untyped", name)
 	}
 }
 
@@ -58,7 +58,7 @@ func TestCoreNiladicFlowKeywordsTypedEmpty(t *testing.T) {
 		}
 		sigs := core[name]
 		if len(sigs) != 1 || len(sigs[0].Params) != 0 || sigs[0].Returns == types.Unknown {
-			t.Errorf("%s: CORE.pmt has %+v; want one typed line with no parameters", name, sigs)
+			t.Errorf("%s: CORE.tpm has %+v; want one typed line with no parameters", name, sigs)
 		}
 		if proto, ok := table[name]; !ok || proto != "" {
 			t.Errorf("%s: the prototype table has (%s), present %v; want ()", name, proto, ok)
@@ -66,7 +66,7 @@ func TestCoreNiladicFlowKeywordsTypedEmpty(t *testing.T) {
 	}
 }
 
-// prototypeOnlyLines are the prototyped CORE.pmt lines that carry no
+// prototypeOnlyLines are the prototyped CORE.tpm lines that carry no
 // types, each with what holds it so. lock, pos, tie, tied, undef and
 // untie hold a glob slot, which has no spelling yet (RFC 0001, open
 // question 11, perigrin 2026-10-03; "The scalar container" keeps them
@@ -87,7 +87,7 @@ var prototypeOnlyLines = map[string]string{
 // reaches them -- `CORE::catch()` is a syntax error, `CORE::method()` is
 // "Cannot 'method' outside of a 'class'", and `&CORE::catch`,
 // `&CORE::method` are undefined subroutines (measured on 5.42). Each keeps
-// the `()` line that holds CORE.pmt to prototype("CORE::name").
+// the `()` line that holds CORE.tpm to prototype("CORE::name").
 var keywordLines = map[string]string{
 	"catch":  "a keyword like try and sub, not a builtin (perigrin, 2026-10-07)",
 	"method": "a keyword like try and sub, not a builtin (perigrin, 2026-10-07)",
@@ -101,7 +101,7 @@ func typedByOperator(name string) bool {
 }
 
 // untypedPrototypedLines reports each builtin perl prototypes whose
-// CORE.pmt line is untyped, and each of prototypeOnlyLines that is typed
+// CORE.tpm line is untyped, and each of prototypeOnlyLines that is typed
 // all the same. A file in error reads as nothing, so its error is the
 // report.
 func untypedPrototypedLines(src []byte, perl map[string]string) []string {
@@ -117,21 +117,21 @@ func untypedPrototypedLines(src []byte, perl map[string]string) []string {
 		case exempt && !isUntyped:
 			bad = append(bad, fmt.Sprintf("%s: typed, though it stays prototype-only (%s)", name, why))
 		case !exempt && isUntyped:
-			bad = append(bad, name+": CORE.pmt declares it untyped")
+			bad = append(bad, name+": CORE.tpm declares it untyped")
 		}
 	}
 	return bad
 }
 
 // TestCoreEveryPrototypedLineIsTyped: every one of the 188 builtins perl
-// prototypes has a typed CORE.pmt line, but for prototypeOnlyLines, which
+// prototypes has a typed CORE.tpm line, but for prototypeOnlyLines, which
 // carry none, and the file reads with no declaration errors.
 func TestCoreEveryPrototypedLineIsTyped(t *testing.T) {
 	perl := perlPrototypes(t)
 	if len(perl) != 188 {
 		t.Fatalf("perl prototypes %d builtins; measured 188", len(perl))
 	}
-	src, err := os.ReadFile("declarations/CORE.pmt")
+	src, err := os.ReadFile("declarations/CORE.tpm")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,23 +141,23 @@ func TestCoreEveryPrototypedLineIsTyped(t *testing.T) {
 }
 
 // TestCoreEveryLineCheckExemptsOnlyPrototypeOnlyLines: the exemptions are exact,
-// not a loophole. Over a copy of CORE.pmt whose socket line is
+// not a loophole. Over a copy of CORE.tpm whose socket line is
 // prototype-only again the check reports socket, and over copies with pos
 // or catch typed it reports that line.
 func TestCoreEveryLineCheckExemptsOnlyPrototypeOnlyLines(t *testing.T) {
 	perl := perlPrototypes(t)
-	src, err := os.ReadFile("declarations/CORE.pmt")
+	src, err := os.ReadFile("declarations/CORE.tpm")
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, c := range []struct{ name, line, want string }{
-		{"socket", `sub socket :prototype(*$$$);`, "socket: CORE.pmt declares it untyped"},
+		{"socket", `sub socket :prototype(*$$$);`, "socket: CORE.tpm declares it untyped"},
 		{"pos", `sub pos (Scalar $x = $_) Int|Undef;`, "pos: typed, though it stays prototype-only (a glob slot, RFC 0001 open question 11)"},
 		{"catch", `sub catch () None;`, "catch: typed, though it stays prototype-only (a keyword like try and sub, not a builtin (perigrin, 2026-10-07))"},
 	} {
 		re := regexp.MustCompile(`(?m)^sub ` + c.name + ` .*;$`)
 		if len(re.FindAll(src, -1)) != 1 {
-			t.Fatalf("CORE.pmt has no one %s line to rewrite", c.name)
+			t.Fatalf("CORE.tpm has no one %s line to rewrite", c.name)
 		}
 		got := untypedPrototypedLines(re.ReplaceAllLiteral(src, []byte(c.line)), perl)
 		if !slices.Equal(got, []string{c.want}) {

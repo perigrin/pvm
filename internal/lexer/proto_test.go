@@ -60,7 +60,7 @@ func TestPrototypeIsOpaque(t *testing.T) {
 // Only the `(` after `sub NAME` changes meaning with the feature. Lexed as
 // code, `$;` and `$)` are punctuation variables and the second takes the
 // closing paren, and the rest of the file, with it. The same holds in a
-// `.pmt`, whose signatures are on from the first byte.
+// `.tpm`, whose signatures are on from the first byte.
 func TestPrototypeAttributeUnderSignatures(t *testing.T) {
 	for _, tc := range []struct {
 		src, proto string
@@ -86,7 +86,7 @@ func TestPrototypeAttributeUnderSignatures(t *testing.T) {
 //
 //	sub f :Foo(bar) :prototype($) { 1 } print prototype(\&f)    $
 //
-// In a `.pmt`, `:context(...)` after `:infix(CLASS)` is the same shape,
+// In a `.tpm`, `:context(...)` after `:infix(CLASS)` is the same shape,
 // `multi sub x :infix(MUL) :context(@) (...)`, which the declaration
 // reader then refuses by name.
 func TestPrototypeAttributeAfterAttributeArgument(t *testing.T) {

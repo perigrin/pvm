@@ -8,7 +8,7 @@ import "tamarou.com/pvm/internal/types"
 // perl through conformance, which imports this package.
 var CoreTable = coreTable
 
-// DerivedPrototypes reads a CORE.pmt as coreProtos does, for
+// DerivedPrototypes reads a CORE.tpm as coreProtos does, for
 // TestCoreDerivedPrototypesArePerls (coretypes_test.go), and gives each
 // builtin the prototype its line gives, without parentheses: the one its
 // types derive, or as written where the line is untyped or writes a
@@ -35,7 +35,7 @@ func DerivedPrototypes(src []byte) (map[string]string, error) {
 // (coretypes_test.go).
 var CoreSignatures = coreSignatures
 
-// CoreSignaturesOf reads a CORE.pmt as coreProtos does and gives its typed
+// CoreSignaturesOf reads a CORE.tpm as coreProtos does and gives its typed
 // signatures by builtin, for the batch checks in coretypes_test.go, which
 // run over copies of the file as well as the file itself.
 func CoreSignaturesOf(src []byte) (map[string][]types.Signature, error) {

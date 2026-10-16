@@ -339,7 +339,7 @@ func TestDefinedOrDropsLeftUndef(t *testing.T) {
 }
 
 // A compound assignment `op=` leaves its target holding what op gives,
-// CORE.pmt's return type for it, not its right side's type: perl 5.42,
+// CORE.tpm's return type for it, not its right side's type: perl 5.42,
 // `my $s = "a"; $s .= 1` is "a1", a Str, and `my $t = "ab"; $t x= 3` is
 // "ababab". `//=` assigns only an undefined target, so a defined one keeps
 // its type, and `||=` replaces only a false one: perl 5.42 -w is silent on

@@ -340,7 +340,7 @@ func (s Signature) takesExactly(ts []Type) bool {
 	return true
 }
 
-// params renders s's parameter list as a .pmt states it, `(Int $a, Num $b)`
+// params renders s's parameter list as a .tpm states it, `(Int $a, Num $b)`
 // or, with an invocant, `(Code $c: List @l)`.
 func (s Signature) params() string {
 	ps := make([]string, len(s.Params))
@@ -353,7 +353,7 @@ func (s Signature) params() string {
 	return "(" + strings.Join(ps, ", ") + ")"
 }
 
-// decl renders p as a .pmt states it, without its default: `Int $a`, or
+// decl renders p as a .tpm states it, without its default: `Int $a`, or
 // `Array \@a` for an aliased parameter.
 func (p Param) decl() string {
 	if p.Type == Unknown {

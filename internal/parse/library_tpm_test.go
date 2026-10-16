@@ -1,5 +1,5 @@
-// ABOUTME: Tests that a library's .pmt is read in CORE.pmt's language, RFC 0001 "One language for every .pmt".
-// ABOUTME: The fixture testdata/declarations/My/Lib.pmt is read through the resolver, as an embedded declaration is.
+// ABOUTME: Tests that a library's .tpm is read in CORE.tpm's language, RFC 0001 "One language for every .tpm".
+// ABOUTME: The fixture testdata/declarations/My/Lib.tpm is read through the resolver, as an embedded declaration is.
 package parse
 
 import (
@@ -24,7 +24,7 @@ func useLibraryFixture(t *testing.T) {
 }
 
 // layeredFS reads a file from top and falls back to base: the fixture's
-// declarations sit beside the shipped ones, so CORE.pmt -- which parsing
+// declarations sit beside the shipped ones, so CORE.tpm -- which parsing
 // reads for every builtin call -- is still there when a test swaps the
 // fixture in first.
 type layeredFS struct{ top, base fs.FS }
@@ -48,11 +48,11 @@ func resolveLibrary(t *testing.T, module string) moduleFacts {
 	return facts
 }
 
-// TestLibraryPmtSpeaksCoreLanguage: RFC 0001 "One language for every
-// `.pmt`". The fixture states every construct CORE.pmt states, and reading
-// it through the resolver yields each one, as reading it the way CORE.pmt
+// TestLibraryTpmSpeaksCoreLanguage: RFC 0001 "One language for every
+// `.tpm`". The fixture states every construct CORE.tpm states, and reading
+// it through the resolver yields each one, as reading it the way CORE.tpm
 // is read does.
-func TestLibraryPmtSpeaksCoreLanguage(t *testing.T) {
+func TestLibraryTpmSpeaksCoreLanguage(t *testing.T) {
 	useLibraryFixture(t)
 	facts := resolveLibrary(t, "My::Lib")
 	if len(facts.errs) > 0 {
@@ -81,31 +81,31 @@ func TestLibraryPmtSpeaksCoreLanguage(t *testing.T) {
 		t.Errorf("@EXPORT: got %v, want %v", facts.defaults, want)
 	}
 
-	// The same file read as CORE.pmt is read says the same.
-	src, err := os.ReadFile("testdata/declarations/My/Lib.pmt")
+	// The same file read as CORE.tpm is read says the same.
+	src, err := os.ReadFile("testdata/declarations/My/Lib.tpm")
 	if err != nil {
 		t.Fatal(err)
 	}
 	protos, sigs, err := coreProtos(src)
 	if err != nil {
-		t.Fatalf("read as CORE.pmt: %v", err)
+		t.Fatalf("read as CORE.tpm: %v", err)
 	}
 	if !reflect.DeepEqual(sigs, facts.signatures) {
-		t.Errorf("signatures differ from CORE.pmt's reading:\n got %+v\nwant %+v", facts.signatures, sigs)
+		t.Errorf("signatures differ from CORE.tpm's reading:\n got %+v\nwant %+v", facts.signatures, sigs)
 	}
 	for name, proto := range protos {
 		if got := facts.protos[name]; got != "("+proto+")" {
-			t.Errorf("%s: prototype %q, CORE.pmt's reading gives (%s)", name, got, proto)
+			t.Errorf("%s: prototype %q, CORE.tpm's reading gives (%s)", name, got, proto)
 		}
 	}
 }
 
-// TestLibraryPmtOperatorsAndUnary: RFC 0001 "One language for every
-// `.pmt`" and "Operator declarations": a library declares an operator in
-// CORE.pmt's spelling, `:infix(CLASS)` with XS::Parse::Infix's class, and
+// TestLibraryTpmOperatorsAndUnary: RFC 0001 "One language for every
+// `.tpm`" and "Operator declarations": a library declares an operator in
+// CORE.tpm's spelling, `:infix(CLASS)` with XS::Parse::Infix's class, and
 // it is read with its fixity, class and signature; its `:unary` sub is
-// read with its signature, and derives no prototype, as CORE.pmt's do.
-func TestLibraryPmtOperatorsAndUnary(t *testing.T) {
+// read with its signature, and derives no prototype, as CORE.tpm's do.
+func TestLibraryTpmOperatorsAndUnary(t *testing.T) {
 	useLibraryFixture(t)
 	facts := resolveLibrary(t, "My::Lib")
 	num := func(n string) types.Param { return types.Param{Name: n, Sigil: '$', Type: types.Num, Required: true} }
@@ -126,11 +126,11 @@ func TestLibraryPmtOperatorsAndUnary(t *testing.T) {
 	}
 }
 
-// TestLibraryPmtListop: RFC 0001 "One language for every `.pmt`" and
+// TestLibraryTpmListop: RFC 0001 "One language for every `.tpm`" and
 // "Builtins with no prototype": a library's `:listop` sub is read with its
-// typed signature and derives no prototype, as CORE.pmt's split does. Its
+// typed signature and derives no prototype, as CORE.tpm's split does. Its
 // `(Str $sep = ' ', Str $line = $_)` would otherwise derive `;$_`.
-func TestLibraryPmtListop(t *testing.T) {
+func TestLibraryTpmListop(t *testing.T) {
 	useLibraryFixture(t)
 	facts := resolveLibrary(t, "My::Lib")
 	if got := facts.signatures["fields"]; len(got) != 1 || len(got[0].Params) != 2 || !got[0].ListOp {
@@ -143,7 +143,7 @@ func TestLibraryPmtListop(t *testing.T) {
 
 // TestLibraryUnknownClassRefused: RFC 0001 "Fixity and precedence". Only
 // XS::Parse::Infix's classes are spellable in `:infix(CLASS)`; the levels
-// it classes no operator at are named by their operators. A library .pmt
+// it classes no operator at are named by their operators. A library .tpm
 // naming a class XS::Parse::Infix does not have is in error, naming its
 // module, and records no operator.
 func TestLibraryUnknownClassRefused(t *testing.T) {
@@ -151,7 +151,7 @@ func TestLibraryUnknownClassRefused(t *testing.T) {
 	t.Cleanup(func() { declarations = saved })
 	for _, class := range []string{"NOSUCH", "ADDITION"} {
 		src := "package Coined;\nsub op :infix(" + class + ") (Int $x, Int $y) Int;\n"
-		declarations = layeredFS{top: fstest.MapFS{"declarations/Coined.pmt": {Data: []byte(src)}}, base: saved}
+		declarations = layeredFS{top: fstest.MapFS{"declarations/Coined.tpm": {Data: []byte(src)}}, base: saved}
 		root := ParseWithLoader([]byte("use Coined;\n"), func(string) ([]byte, bool) { return nil, false })
 		want := "Coined: sub op: unknown operator class \"" + class + "\""
 		if errs := DeclarationErrors(root); len(errs) != 1 || errs[0].Error() != want {
@@ -172,7 +172,7 @@ func TestLibraryOperatorMayUseAnyLevel(t *testing.T) {
 	t.Cleanup(func() { declarations = saved })
 	for _, level := range []string{"&", "|", "^", "<<", ">>", "..", "...", "+"} {
 		src := "package Anywhere;\nsub ⊕ :infix :equiv(" + level + ") (Int $x, Int $y) Int;\n"
-		declarations = layeredFS{top: fstest.MapFS{"declarations/Anywhere.pmt": {Data: []byte(src)}}, base: saved}
+		declarations = layeredFS{top: fstest.MapFS{"declarations/Anywhere.tpm": {Data: []byte(src)}}, base: saved}
 		if errs := DeclarationErrors(ParseWithLoader([]byte("use Anywhere;\n"), noModules)); len(errs) > 0 {
 			t.Errorf("%s: %v", level, errs)
 			continue
@@ -227,7 +227,7 @@ func TestLibraryOperatorParses(t *testing.T) {
 	useLibraryFixture(t)
 	saved := declarations
 	src := "package Between;\nsub ⊕ :infix :tighter(+) :looser(*) :assoc(left) (Num $x, Num $y) Num;\n"
-	declarations = layeredFS{top: fstest.MapFS{"declarations/Between.pmt": {Data: []byte(src)}}, base: saved}
+	declarations = layeredFS{top: fstest.MapFS{"declarations/Between.tpm": {Data: []byte(src)}}, base: saved}
 	for src, want := range map[string]string{
 		"use Between;\n1 + 2 ⊕ 3 * 4;":          "(1 + (2 ⊕ (3 * 4)))",
 		"use Between;\n1 * 2 ⊕ 3 + 4;":          "(((1 * 2) ⊕ 3) + 4)",
@@ -252,7 +252,7 @@ func hasBinary(n *Node, op string) bool {
 
 // TestLibraryOperatorErrors: a library's operator is an operator only
 // where the library is in scope, from its import on, and `use M ()`
-// imports none. A library whose relations form a cycle with CORE.pmt's,
+// imports none. A library whose relations form a cycle with CORE.tpm's,
 // or whose bare `:infix` places its operator nowhere, is in error naming
 // the operators, and its operator is none; so is a library whose
 // operators derive no order with those of a library already in scope.
@@ -260,7 +260,7 @@ func TestLibraryOperatorErrors(t *testing.T) {
 	saved := declarations
 	t.Cleanup(func() { declarations = saved })
 	library := func(line string) {
-		declarations = layeredFS{top: fstest.MapFS{"declarations/Lib.pmt": {Data: []byte("package Lib;\n" + line + "\n")}}, base: saved}
+		declarations = layeredFS{top: fstest.MapFS{"declarations/Lib.tpm": {Data: []byte("package Lib;\n" + line + "\n")}}, base: saved}
 	}
 	library("sub ⊕ :infix :tighter(+) :looser(*) :assoc(left) (Num $x, Num $y) Num;")
 	for _, src := range []string{"1 ⊕ 2;", "use Lib ();\n1 ⊕ 2;", "1 ⊕ 2;\nuse Lib;"} {
@@ -305,8 +305,8 @@ func TestLibraryOperatorErrors(t *testing.T) {
 	// one's import is the error, and brings no operator.
 	line := " :infix :tighter(+) :looser(*) (Num $x, Num $y) Num;\n"
 	declarations = layeredFS{top: fstest.MapFS{
-		"declarations/A.pmt": {Data: []byte("package A;\nsub ⊕" + line)},
-		"declarations/B.pmt": {Data: []byte("package B;\nsub ⊗" + line)},
+		"declarations/A.tpm": {Data: []byte("package A;\nsub ⊕" + line)},
+		"declarations/B.tpm": {Data: []byte("package B;\nsub ⊗" + line)},
 	}, base: saved}
 	root = ParseWithLoader([]byte("use A;\nuse B;\n1 ⊕ 2;\n1 ⊗ 3;"), noModules)
 	want = "B: precedence relations leave ⊕, ⊗ unordered"
@@ -318,12 +318,12 @@ func TestLibraryOperatorErrors(t *testing.T) {
 	}
 }
 
-// TestPmtUnaryTakesOneOperand: `:unary` marks a named unary (RFC 0001,
+// TestTpmUnaryTakesOneOperand: `:unary` marks a named unary (RFC 0001,
 // "Builtins with no prototype"), which takes at most one operand, so a
 // signature stating two is an error and records nothing; an invocant is
 // an operand too. One operand, or a list form as chomp's, is a unary's.
-func TestPmtUnaryTakesOneOperand(t *testing.T) {
-	pmtRefuses(t, map[string]string{
+func TestTpmUnaryTakesOneOperand(t *testing.T) {
+	tpmRefuses(t, map[string]string{
 		"sub f :unary (Scalar $x, Scalar $y) Int;\n":   "sub f: :unary takes at most one operand, the signature has 2",
 		"sub f :unary (FileHandle $fh: Str $x) Int;\n": "sub f: :unary takes at most one operand, the signature has 2",
 	})
@@ -335,12 +335,12 @@ func TestPmtUnaryTakesOneOperand(t *testing.T) {
 	}
 }
 
-// TestPmtAmbiguousOperatorCandidatesIsError: RFC 0001 "Multi
+// TestTpmAmbiguousOperatorCandidatesIsError: RFC 0001 "Multi
 // declarations" holds for an operator's candidates as for a sub's (RFC
 // 0001, "Operators that fork" makes them multis): candidates with no
 // single most specific one are ambiguous, the declaration is an error
 // naming the operator, and none of its candidates is recorded.
-func TestPmtAmbiguousOperatorCandidatesIsError(t *testing.T) {
+func TestTpmAmbiguousOperatorCandidatesIsError(t *testing.T) {
 	src := "multi sub plus :infix(ADD) (Int $a, Num $b) Num;\nmulti sub plus :infix(ADD) (Num $a, Int $b) Num;\n"
 	facts := readDeclaration([]byte(src), nil)
 	want := "sub plus: candidates (Int $a, Num $b) and (Num $a, Int $b) are ambiguous for (Int, Int)"
@@ -357,13 +357,13 @@ func TestPmtAmbiguousOperatorCandidatesIsError(t *testing.T) {
 	}
 }
 
-// TestLibraryPmtAliasedAndContainerParams: RFC 0001 "The scalar
+// TestLibraryTpmAliasedAndContainerParams: RFC 0001 "The scalar
 // container" and "A typed signature and a prototype say the same thing",
-// in a library's .pmt. Its aliased parameters derive `\$`, `\@` and `\&`
+// in a library's .tpm. Its aliased parameters derive `\$`, `\@` and `\&`
 // and its `\(@args)` list form is an aliased list; its `= die` parameter
 // is required and derives no `;` before it; and its `List[Str] @parts`
 // keeps its container type.
-func TestLibraryPmtAliasedAndContainerParams(t *testing.T) {
+func TestLibraryTpmAliasedAndContainerParams(t *testing.T) {
 	useLibraryFixture(t)
 	facts := resolveLibrary(t, "My::Lib")
 	for name, want := range map[string]string{
@@ -401,11 +401,11 @@ func TestLibraryPmtAliasedAndContainerParams(t *testing.T) {
 // from its declaration alone.
 func noModules(string) ([]byte, bool) { return nil, false }
 
-// TestLibraryPmtImportsCarryTypes: a file that `use`s a library sees each
+// TestLibraryTpmImportsCarryTypes: a file that `use`s a library sees each
 // sub its @EXPORT names with the prototype and the typed signatures its
-// .pmt states or derives, and a call site parses by that prototype:
+// .tpm states or derives, and a call site parses by that prototype:
 // `need`'s derived `$` makes `need $a, $b` need($a), $b.
-func TestLibraryPmtImportsCarryTypes(t *testing.T) {
+func TestLibraryTpmImportsCarryTypes(t *testing.T) {
 	useLibraryFixture(t)
 	facts := resolveLibrary(t, "My::Lib")
 	src := []byte("use My::Lib; my ($a, $b); my @r = (need $a, $b);\n")
@@ -429,11 +429,11 @@ func TestLibraryPmtImportsCarryTypes(t *testing.T) {
 	}
 }
 
-// TestLibraryPmtEmptyImportBringsNothing: RFC 0001 "Declared syntax":
+// TestLibraryTpmEmptyImportBringsNothing: RFC 0001 "Declared syntax":
 // `use M ()` calls no import and brings none, so `use My::Lib ()` imports
 // no sub and no keyword. With a bare `use`, `await $f + 1, 2` is the
 // declared term expression, await($f + 1), 2.
-func TestLibraryPmtEmptyImportBringsNothing(t *testing.T) {
+func TestLibraryTpmEmptyImportBringsNothing(t *testing.T) {
 	useLibraryFixture(t)
 	body := " my ($f, $r); $r = (await $f + 1, 2);\n"
 	src := []byte("use My::Lib ();" + body)
@@ -453,10 +453,10 @@ func TestLibraryPmtEmptyImportBringsNothing(t *testing.T) {
 	}
 }
 
-// TestLibraryPmtUnexportedSubNotImported: a sub the fixture declares but
+// TestLibraryTpmUnexportedSubNotImported: a sub the fixture declares but
 // its @EXPORT does not name is not visible after a bare `use`, as an
 // @EXPORT_OK name is not; it is known by its qualified name.
-func TestLibraryPmtUnexportedSubNotImported(t *testing.T) {
+func TestLibraryTpmUnexportedSubNotImported(t *testing.T) {
 	useLibraryFixture(t)
 	root := ParseWithLoader([]byte("use My::Lib;\n"), noModules)
 	if imp, ok := Imports(root)["hidden"]; ok {
@@ -467,12 +467,12 @@ func TestLibraryPmtUnexportedSubNotImported(t *testing.T) {
 	}
 }
 
-// TestLibraryPmtDeclarationErrors: a library .pmt obeys CORE.pmt's rules,
+// TestLibraryTpmDeclarationErrors: a library .tpm obeys CORE.tpm's rules,
 // and each fault is an error naming the module: an unknown type name, a
 // bare-typed slurpy, a parameter after a List, a container type with a
 // flattening sigil, and ambiguous multi candidates. The fixture's own
 // declarations are not in error.
-func TestLibraryPmtDeclarationErrors(t *testing.T) {
+func TestLibraryTpmDeclarationErrors(t *testing.T) {
 	useLibraryFixture(t)
 	if errs := DeclarationErrors(ParseWithLoader([]byte("use My::Lib;\n"), noModules)); len(errs) > 0 {
 		t.Errorf("My::Lib: %v", errs)
@@ -485,7 +485,7 @@ func TestLibraryPmtDeclarationErrors(t *testing.T) {
 		"sub f (Array @a);":        `sub f: container type Array with flattening sigil @a; a parameter that takes the caller's container is Array \@a`,
 		"multi sub f (Int $a, Num $b);\nmulti sub f (Num $a, Int $b);": "sub f: candidates (Int $a, Num $b) and (Num $a, Int $b) are ambiguous for (Int, Int)",
 	} {
-		declarations = layeredFS{top: fstest.MapFS{"declarations/My/Bad.pmt": {Data: []byte("package My::Bad;\n" + line + "\n")}}, base: saved}
+		declarations = layeredFS{top: fstest.MapFS{"declarations/My/Bad.tpm": {Data: []byte("package My::Bad;\n" + line + "\n")}}, base: saved}
 		errs := DeclarationErrors(ParseWithLoader([]byte("use My::Bad;\n"), noModules))
 		if want = "My::Bad: " + want; len(errs) != 1 || errs[0].Error() != want {
 			t.Errorf("%q: got %v, want %q", line, errs, want)
@@ -494,11 +494,11 @@ func TestLibraryPmtDeclarationErrors(t *testing.T) {
 	declarations = saved
 }
 
-// TestLibraryPmtDefaultsCallBuiltinsParenless: a library `.pmt`'s defaults
-// read builtins in the shapes CORE.pmt derives, as perl reads them: `lc $x,
+// TestLibraryTpmDefaultsCallBuiltinsParenless: a library `.tpm`'s defaults
+// read builtins in the shapes CORE.tpm derives, as perl reads them: `lc $x,
 // ...` is `lc($x), ...` and `exists $ENV{HOME} ? ...` puts the `?` outside
-// exists. Only CORE.pmt's own read goes without the shapes it builds.
-func TestLibraryPmtDefaultsCallBuiltinsParenless(t *testing.T) {
+// exists. Only CORE.tpm's own read goes without the shapes it builds.
+func TestLibraryTpmDefaultsCallBuiltinsParenless(t *testing.T) {
 	for src, want := range map[string][]string{
 		"sub f (Str $s = lc $x, Int $n = 1) Str;\n":                             {"lc $x", "1"},
 		"sub f (Int $l = length $x, Int $n = 1) Int;\n":                         {"length $x", "1"},
@@ -522,12 +522,12 @@ func TestLibraryPmtDefaultsCallBuiltinsParenless(t *testing.T) {
 	}
 }
 
-// TestLibraryPmtAliasedDefaultCallsBuiltin: a builtin's name is the builtin
-// inside a library `.pmt` too, even where the file declares a sub of that
+// TestLibraryTpmAliasedDefaultCallsBuiltin: a builtin's name is the builtin
+// inside a library `.tpm` too, even where the file declares a sub of that
 // name, so a `\$` default calling it is not refused as a declared sub's
-// result. Outside a `.pmt` the same holds: "A builtin of the same name is
+// result. Outside a `.tpm` the same holds: "A builtin of the same name is
 // the builtin, not the sub" (refuseRefScalarSlot).
-func TestLibraryPmtAliasedDefaultCallsBuiltin(t *testing.T) {
+func TestLibraryTpmAliasedDefaultCallsBuiltin(t *testing.T) {
 	src := "sub lc (Str $s) Str;\nsub f (Scalar \\$x = lc($y)) Int;\n"
 	if facts := readLibraryDeclaration([]byte(src), nil); len(facts.errs) > 0 {
 		t.Errorf("%s: %v", src, facts.errs)

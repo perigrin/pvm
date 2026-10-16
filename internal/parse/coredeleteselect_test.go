@@ -1,4 +1,4 @@
-// ABOUTME: Tests CORE.pmt's delete and four-argument select rows against what perl 5.42 returns.
+// ABOUTME: Tests CORE.tpm's delete and four-argument select rows against what perl 5.42 returns.
 // ABOUTME: A slice's delete and the select system call yield lists; an element's delete one scalar.
 package parse_test
 

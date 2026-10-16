@@ -390,8 +390,8 @@ type Node struct {
 	Override bool
 
 	// Signatures is set on a Call to a sub a declaration file types: the
-	// signatures the `.pmt` of the module it is imported from declares
-	// for it, one per `multi sub` candidate. Carp.pmt declares croak
+	// signatures the `.tpm` of the module it is imported from declares
+	// for it, one per `multi sub` candidate. Carp.tpm declares croak
 	// returning None, so a consumer knows the call never returns. Empty
 	// for a builtin, and for a sub no declaration file types.
 	Signatures []types.Signature
@@ -579,8 +579,8 @@ func parseSource(src []byte, res *resolver, typed bool) (*Node, *parser) {
 
 // newParser is a parser over src, not yet run. See parseSource.
 func newParser(src []byte, res *resolver, typed bool) *parser {
-	// A program is lexed with the operators CORE.pmt reads a word before,
-	// and a `.pmt`, CORE.pmt's own among them, with the lexer's.
+	// A program is lexed with the operators CORE.tpm reads a word before,
+	// and a `.tpm`, CORE.tpm's own among them, with the lexer's.
 	var toks []lexer.Token
 	if typed {
 		toks = lexer.TokenizeTyped(src)
@@ -742,19 +742,19 @@ type parser struct {
 	// inside the argument is text to perl and a closer to that count.
 	attrOpenAtEOF bool
 
-	// typed is set while a `.pmt` declaration file is read: its signatures
+	// typed is set while a `.tpm` declaration file is read: its signatures
 	// are typed Perl. signatures holds each one read, by sub name, and
 	// typedErrs the ones that could not be. See parseTypedSignature.
 	typed      bool
 	signatures map[string][]types.Signature
 
-	// buildingCore is set while CORE.pmt is read to build the builtin
+	// buildingCore is set while CORE.tpm is read to build the builtin
 	// tables, which then do not yet exist: the keyword shapes are derived
 	// from that read, so it cannot consult them. See coreShapes.
 	buildingCore bool
-	// derivingPowers is set only on derivePowers' own read of CORE.pmt,
+	// derivingPowers is set only on derivePowers' own read of CORE.tpm,
 	// which runs before any binding power exists. Every other parse, a
-	// CORE.pmt read included, derives the powers first.
+	// CORE.tpm read included, derives the powers first.
 	derivingPowers bool
 	typedErrs      []error
 	operators      []operatorDecl
@@ -773,7 +773,7 @@ type parser struct {
 	// see declareOperator.
 	operatorSig types.Signature
 
-	// multi is set while a `.pmt`'s `multi sub` is read: its signature is
+	// multi is set while a `.tpm`'s `multi sub` is read: its signature is
 	// one more candidate for its name rather than the name's only one.
 	multi bool
 

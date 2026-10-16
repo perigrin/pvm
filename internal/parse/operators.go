@@ -1,4 +1,4 @@
-// ABOUTME: Operator declarations in .pmt files, RFC 0001 "Operator declarations".
+// ABOUTME: Operator declarations in .tpm files, RFC 0001 "Operator declarations".
 // ABOUTME: `sub + :infix(ADD) (Num $x, Num $y) Num;` declares a symbol's fixity, class and types.
 
 package parse
@@ -12,7 +12,7 @@ import (
 	"tamarou.com/pvm/internal/types"
 )
 
-// operatorDecl is one operator a `.pmt` declares: `sub + :infix(ADD) (Num $x,
+// operatorDecl is one operator a `.tpm` declares: `sub + :infix(ADD) (Num $x,
 // Num $y) Num;` is "+", "infix", "ADD" and its signature. A prefix or postfix
 // operator has no class, nor an infix one at a level XS::Parse::Infix does
 // not class, `sub & :infix`. multi is set for a `multi sub`, one of several
@@ -358,7 +358,7 @@ var shapeRelations = map[Shape]operatorDecl{
 	ShapeNiladic: {fixity: "term", tighter: []string{"++"}, assoc: "left"},
 }
 
-// corePrecedenceDecls is what a CORE.pmt's precedence order is derived
+// corePrecedenceDecls is what a CORE.tpm's precedence order is derived
 // from: its operators' relations, its named operators' stated ones, and a
 // level for each other builtin, its shape's (RFC 0001, "Precedence is a
 // relation between operators"). A builtin's level is derived from its
@@ -370,7 +370,7 @@ func corePrecedenceDecls(src []byte, shapes map[string]Shape) []operatorDecl {
 	return precedenceDeclsOf(readDeclarationWith(p), shapes)
 }
 
-// precedenceDeclsOf is corePrecedenceDecls of a CORE.pmt already read.
+// precedenceDeclsOf is corePrecedenceDecls of a CORE.tpm already read.
 func precedenceDeclsOf(facts moduleFacts, shapes map[string]Shape) []operatorDecl {
 	out := slices.Concat(facts.operators, facts.relations)
 	placed := map[string]bool{}
@@ -394,8 +394,8 @@ func precedenceDeclsOf(facts moduleFacts, shapes map[string]Shape) []operatorDec
 	return out
 }
 
-// undeclaredOperators places, by relations as their CORE.pmt lines will,
-// the operators the parser reads that CORE.pmt has no line for yet. Each
+// undeclaredOperators places, by relations as their CORE.tpm lines will,
+// the operators the parser reads that CORE.tpm has no line for yet. Each
 // group names the issue that declares it, and leaves this list when it does.
 var undeclaredOperators = []operatorDecl{
 	// 01a11923-baeb, `?:` and `->`. The ternary is right associative,
@@ -408,7 +408,7 @@ var undeclaredOperators = []operatorDecl{
 	// The postfix call and subscripts, perly.y's PERLY_PAREN_OPEN and its
 	// brackets, the tightest operators: the terms, which `time` names the
 	// level of, are tighter still. perlop's table has no row for them, and
-	// no issue gives them a CORE.pmt line.
+	// no issue gives them a CORE.tpm line.
 	{name: "(", fixity: "postfix", tighter: []string{"->"}, assoc: "left"},
 	{name: "[", fixity: "postfix", tighter: []string{"("}, looser: []string{"time"}, assoc: "left"},
 	{name: "{", fixity: "postfix", equiv: []string{"["}},

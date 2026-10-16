@@ -1,4 +1,4 @@
-// ABOUTME: Tests that no CORE.pmt parameter defaults to a call of its own sub.
+// ABOUTME: Tests that no CORE.tpm parameter defaults to a call of its own sub.
 // ABOUTME: An argument perl computes when it is absent is Optional[T], and still derives perl's prototype.
 package parse_test
 
@@ -26,7 +26,7 @@ func TestCoreHasNoSelfReferentialDefault(t *testing.T) {
 			}
 		}
 	}
-	src, err := os.ReadFile("declarations/CORE.pmt")
+	src, err := os.ReadFile("declarations/CORE.tpm")
 	if err != nil {
 		t.Fatal(err)
 	}

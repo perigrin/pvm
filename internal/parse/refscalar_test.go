@@ -112,7 +112,7 @@ func TestRefScalarSlotFromModuleSource(t *testing.T) {
 		{".pm", fstest.MapFS{}, func(name string) ([]byte, bool) {
 			return []byte("package M;\nour @EXPORT = qw(sref);\nsub sref (\\$) { }\n1;\n"), name == "M"
 		}},
-		{".pmt", fstest.MapFS{"declarations/M.pmt": {Data: []byte("package M;\nour @EXPORT = qw(sref);\nsub sref (Scalar \\$x);\n")}}, none},
+		{".tpm", fstest.MapFS{"declarations/M.tpm": {Data: []byte("package M;\nour @EXPORT = qw(sref);\nsub sref (Scalar \\$x);\n")}}, none},
 	} {
 		declarations = layeredFS{top: tc.decl, base: saved}
 		if got := refusalsIn(ParseWithLoader([]byte("use M; sref(1);\n"), tc.load)); len(got) != 1 || got[0] != RefScalarSlot {
@@ -166,12 +166,12 @@ func TestRefScalarSlotRefusalCodeDistinct(t *testing.T) {
 	}
 }
 
-// TestPmtAliasedScalarConstantDefaultRefused: `Scalar \$x = 1` derives
+// TestTpmAliasedScalarConstantDefaultRefused: `Scalar \$x = 1` derives
 // `;\$` with a default perl would refuse in that slot -- `sref(1)` is "must
 // be scalar (not constant item)" -- so the declaration is in error. A
 // scalar lvalue default, `Scalar \$x = $_`, is not.
-func TestPmtAliasedScalarConstantDefaultRefused(t *testing.T) {
-	pmtRefuses(t, map[string]string{
+func TestTpmAliasedScalarConstantDefaultRefused(t *testing.T) {
+	tpmRefuses(t, map[string]string{
 		"sub f (Scalar \\$x = 1);\n":     `sub f: aliased \$x defaults to 1, which a \$ slot refuses; it takes a scalar lvalue`,
 		"sub f (Scalar \\$x = 'a');\n":   `sub f: aliased \$x defaults to 'a', which a \$ slot refuses; it takes a scalar lvalue`,
 		"sub f (Scalar \\$x = @ARGV);\n": `sub f: aliased \$x defaults to @ARGV, which a \$ slot refuses; it takes a scalar lvalue`,

@@ -113,7 +113,7 @@ func (a *analysis) glob(n *lower.Glob) types.Type {
 }
 
 // match is the rule for `=~` and `!~` over a match, a substitution
-// or a transliteration: CORE.pmt's candidates, chosen by the context
+// or a transliteration: CORE.tpm's candidates, chosen by the context
 // around it, check the target and give its type. A match in scalar context
 // is a Boolean, and a substitution a Str: perl 5.42, `"abc" =~ /b/` is 1,
 // `"aaa" =~ s/a/b/g` is 3 and `"xxx" =~ s/a/b/g` is "". qr// is a Regex.

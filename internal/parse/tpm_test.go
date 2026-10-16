@@ -1,4 +1,4 @@
-// ABOUTME: Tests for typed Perl in .pmt declaration files: typed parameters and their defaults.
+// ABOUTME: Tests for typed Perl in .tpm declaration files: typed parameters and their defaults.
 // ABOUTME: Typed Perl is read only from a declaration file; ordinary source keeps perl's reading.
 package parse
 
@@ -14,12 +14,12 @@ import (
 	"tamarou.com/pvm/internal/types"
 )
 
-// TestPmtTypedParameters: RFC 0001 "Typed Perl, in `.pmt` only". A .pmt
+// TestTpmTypedParameters: RFC 0001 "Typed Perl, in `.tpm` only". A .tpm
 // declaration is `sub NAME :attrs (Type $v = default, ...)`, its prototype
 // in `:prototype(...)` as perl requires once a signature is present. Each
 // parameter carries the lattice type its name resolves to and the default
 // as written; a scalar with no default is required.
-func TestPmtTypedParameters(t *testing.T) {
+func TestTpmTypedParameters(t *testing.T) {
 	facts := readDeclaration([]byte("sub bless :prototype($;$) (Ref $ref, Str $class = __PACKAGE__);\n"), nil)
 	if len(facts.errs) > 0 {
 		t.Fatalf("errors: %v", facts.errs)
@@ -36,14 +36,14 @@ func TestPmtTypedParameters(t *testing.T) {
 	}
 }
 
-// TestPmtSlurpyDefaultsParse: a default on a slurpy is a typed-Perl
+// TestTpmSlurpyDefaultsParse: a default on a slurpy is a typed-Perl
 // extension (perl's signatures reject it, "A slurpy parameter may not have a
 // default value"), used for `print`'s `= ($_)` and `sort`'s `= die`. RFC 0001
 // "A required argument defaults to `die`": a `die` default runs only when
 // its argument is omitted, so it makes the parameter required, and is not
 // recorded as a default. A slurpy with no default accepts zero arguments, as
 // perl's own does.
-func TestPmtSlurpyDefaultsParse(t *testing.T) {
+func TestTpmSlurpyDefaultsParse(t *testing.T) {
 	facts := readDeclaration([]byte("sub f (List @l = ($_));\nsub g (List @list = die);\nsub h (List @list);\n"), nil)
 	if len(facts.errs) > 0 {
 		t.Fatalf("errors: %v", facts.errs)
@@ -60,11 +60,11 @@ func TestPmtSlurpyDefaultsParse(t *testing.T) {
 	}
 }
 
-// TestTypedSyntaxOnlyInPmt: typed Perl is read only from a declaration file.
+// TestTypedSyntaxOnlyInTpm: typed Perl is read only from a declaration file.
 // In ordinary source, without the signatures feature, the parens after `sub
 // NAME` are a prototype whatever they hold. Measured on 5.42.0, `sub f (Ref
 // $x) { 1 } print prototype(\&f)` prints `Ref $x`.
-func TestTypedSyntaxOnlyInPmt(t *testing.T) {
+func TestTypedSyntaxOnlyInTpm(t *testing.T) {
 	src := []byte("sub f (Ref $x) { 1 }\n")
 	facts := readModule(Parse(src))
 	if got := facts.protos["f"]; got != "(Ref $x)" {
@@ -74,12 +74,12 @@ func TestTypedSyntaxOnlyInPmt(t *testing.T) {
 		t.Errorf("ordinary source recorded types: %v, errors %v", facts.signatures, facts.errs)
 	}
 	if typed := readDeclaration(src, nil); len(typed.signatures["f"]) != 1 || len(typed.signatures["f"][0].Params) != 1 {
-		t.Errorf("the same text in a .pmt: got %+v, want one typed param", typed.signatures)
+		t.Errorf("the same text in a .tpm: got %+v, want one typed param", typed.signatures)
 	}
 }
 
 // TestTypedSyntaxNotEnabledBySignaturesFeature: the signatures feature puts
-// the lexer in the signature mode a .pmt uses, but not the parser in typed
+// the lexer in the signature mode a .tpm uses, but not the parser in typed
 // Perl. In a .pm under `use v5.36`, `sub f (Ref $x) { 1 }` is a signature
 // perl refuses -- measured on 5.42.0, "A signature parameter must start with
 // '$', '@' or '%'" -- and it records no types.
@@ -99,10 +99,10 @@ func TestTypedSyntaxNotEnabledBySignaturesFeature(t *testing.T) {
 	}
 }
 
-// TestPmtMalformedTypedDeclarationIsError: a typed signature that cannot be
+// TestTpmMalformedTypedDeclarationIsError: a typed signature that cannot be
 // read is an error that says what is wrong, not a panic and not a partial
 // record. The tree still covers every byte.
-func TestPmtMalformedTypedDeclarationIsError(t *testing.T) {
+func TestTpmMalformedTypedDeclarationIsError(t *testing.T) {
 	for src, want := range map[string]string{
 		"sub f (Str $x":        "sub f: signature not terminated",
 		"sub f (Str);\n":       "sub f: type Str names no variable",
@@ -121,10 +121,10 @@ func TestPmtMalformedTypedDeclarationIsError(t *testing.T) {
 	}
 }
 
-// TestPmtReturnType: RFC 0001 "Typed Perl, in `.pmt` only". After the
+// TestTpmReturnType: RFC 0001 "Typed Perl, in `.tpm` only". After the
 // signature's closing paren a declaration states its return type, where a
 // definition would have its body: `sub NAME :attrs (Type $v, ...) Type;`.
-func TestPmtReturnType(t *testing.T) {
+func TestTpmReturnType(t *testing.T) {
 	facts := readDeclaration([]byte("sub bless :prototype($;$) (Ref $ref, Str $class = __PACKAGE__) Object;\n"), nil)
 	if len(facts.errs) > 0 {
 		t.Fatalf("errors: %v", facts.errs)
@@ -145,11 +145,11 @@ func TestPmtReturnType(t *testing.T) {
 	}
 }
 
-// TestPmtUnionAndContainerTypes: RFC 0001 "Type names" spells a union `A|B`,
+// TestTpmUnionAndContainerTypes: RFC 0001 "Type names" spells a union `A|B`,
 // spaces around `|` allowed, and "A slurpy takes no bare element type" gives a
 // slurpy a container type, `List[Str] @args`. The container is the param's
 // type and its element is recorded beside it.
-func TestPmtUnionAndContainerTypes(t *testing.T) {
+func TestTpmUnionAndContainerTypes(t *testing.T) {
 	facts := readDeclaration([]byte("sub f (Str|Undef $x, Str | Undef $y) Str | Undef;\nsub g (List[Str] @args);\nsub h (Str $x) None;\n"), nil)
 	if len(facts.errs) > 0 {
 		t.Fatalf("errors: %v", facts.errs)
@@ -168,11 +168,11 @@ func TestPmtUnionAndContainerTypes(t *testing.T) {
 	}
 }
 
-// TestPmtUnknownTypeNameIsError: RFC 0001 "Type names", a `.pmt` names types
+// TestTpmUnknownTypeNameIsError: RFC 0001 "Type names", a `.tpm` names types
 // from the lattice and an unknown name is an error naming it, alone or as a
 // member of a union. Names are the paper's, so `Bool` is unknown too: the
 // lattice's spelling is `Boolean`. Nothing is recorded for the sub.
-func TestPmtUnknownTypeNameIsError(t *testing.T) {
+func TestTpmUnknownTypeNameIsError(t *testing.T) {
 	for src, want := range map[string]string{
 		"sub f (Strng $x);\n":     `sub f: unknown type name "Strng"`,
 		"sub f (Str|Strng $x);\n": `sub f: unknown type name "Strng"`,
@@ -188,13 +188,13 @@ func TestPmtUnknownTypeNameIsError(t *testing.T) {
 	}
 }
 
-// TestPmtSignatureBeforeAttributesRefused: RFC 0001 "Declaration order:
+// TestTpmSignatureBeforeAttributesRefused: RFC 0001 "Declaration order:
 // Perl's", name, then attributes, then signature. Measured on 5.42.0 under
 // `use v5.36`, `sub f :lvalue ($x) {}` compiles and both `sub f ($x) :lvalue
 // {}` and `sub f ($x) :lvalue;` die "Subroutine attributes must come before
-// the signature". A `.pmt` refuses the same order with perl's words, and
+// the signature". A `.tpm` refuses the same order with perl's words, and
 // records no signature for it.
-func TestPmtSignatureBeforeAttributesRefused(t *testing.T) {
+func TestTpmSignatureBeforeAttributesRefused(t *testing.T) {
 	src := "sub f (Str $x) :lvalue;\n"
 	facts := readDeclaration([]byte(src), nil)
 	want := "sub f: subroutine attributes must come before the signature"
@@ -212,9 +212,9 @@ func TestPmtSignatureBeforeAttributesRefused(t *testing.T) {
 	}
 }
 
-// pmtRefuses reads each source as a `.pmt` and wants exactly the one error
+// tpmRefuses reads each source as a `.tpm` and wants exactly the one error
 // given for it, no signature recorded for f, and every byte still in the tree.
-func pmtRefuses(t *testing.T, cases map[string]string) {
+func tpmRefuses(t *testing.T, cases map[string]string) {
 	t.Helper()
 	for src, want := range cases {
 		facts := readDeclaration([]byte(src), nil)
@@ -230,30 +230,30 @@ func pmtRefuses(t *testing.T, cases map[string]string) {
 	}
 }
 
-// TestPmtUnknownReturnTypeIsError: an unknown name as the return type is the
+// TestTpmUnknownReturnTypeIsError: an unknown name as the return type is the
 // error an unknown parameter type is (RFC 0001, "Type names").
-func TestPmtUnknownReturnTypeIsError(t *testing.T) {
-	pmtRefuses(t, map[string]string{
+func TestTpmUnknownReturnTypeIsError(t *testing.T) {
+	tpmRefuses(t, map[string]string{
 		"sub f (Str $x) Strng;\n":     `sub f: unknown type name "Strng"`,
 		"sub f (Str $x) Str|Strng;\n": `sub f: unknown type name "Strng"`,
 	})
 }
 
-// TestPmtMalformedReturnTypeIsError: a return type that cannot be read is an
+// TestTpmMalformedReturnTypeIsError: a return type that cannot be read is an
 // error that says what is wrong, not a panic.
-func TestPmtMalformedReturnTypeIsError(t *testing.T) {
-	pmtRefuses(t, map[string]string{
+func TestTpmMalformedReturnTypeIsError(t *testing.T) {
+	tpmRefuses(t, map[string]string{
 		"sub f (Str $x) Str":         "sub f: return type Str not terminated",
 		"sub f (Str $x) Str|;\n":     "sub f: union Str| has no type after `|`",
 		"sub f (Str $x) Str { 1 }\n": "sub f: return type Str is not followed by `;`",
 	})
 }
 
-// TestPmtMalformedContainerTypeRefused: a container type that cannot be read
+// TestTpmMalformedContainerTypeRefused: a container type that cannot be read
 // is an error naming the bad part, not a panic (RFC 0001, "A slurpy takes no
 // bare element type").
-func TestPmtMalformedContainerTypeRefused(t *testing.T) {
-	pmtRefuses(t, map[string]string{
+func TestTpmMalformedContainerTypeRefused(t *testing.T) {
+	tpmRefuses(t, map[string]string{
 		"sub f (List[Str @args);\n":    "sub f: container type List[Str is not closed by `]`",
 		"sub f (List[] @args);\n":      "sub f: container type List[] has no element type",
 		"sub f (List[Strng] @args);\n": `sub f: unknown type name "Strng"`,
@@ -261,11 +261,11 @@ func TestPmtMalformedContainerTypeRefused(t *testing.T) {
 	})
 }
 
-// TestContainerTypeOnlyInPmt: container types are typed Perl, read only from
+// TestContainerTypeOnlyInTpm: container types are typed Perl, read only from
 // a declaration file. In ordinary source, without the signatures feature,
 // the parens are a prototype whatever they hold. Measured on 5.42.0, `sub f
 // (List[Str] @args) { 1 } print prototype(\&f)` prints `List[Str] @args`.
-func TestContainerTypeOnlyInPmt(t *testing.T) {
+func TestContainerTypeOnlyInTpm(t *testing.T) {
 	src := []byte("sub f (List[Str] @args) { 1 }\n")
 	facts := readModule(Parse(src))
 	if got := facts.protos["f"]; got != "(List[Str] @args)" {
@@ -276,10 +276,10 @@ func TestContainerTypeOnlyInPmt(t *testing.T) {
 	}
 }
 
-// TestPmtUnionWithNone: None is the bottom type, so a union with it is the
+// TestTpmUnionWithNone: None is the bottom type, so a union with it is the
 // other member -- its sentinel bit must not leak into the recorded type, as
 // types.Join holds for inferred types. Likewise through FromName.
-func TestPmtUnionWithNone(t *testing.T) {
+func TestTpmUnionWithNone(t *testing.T) {
 	facts := readDeclaration([]byte("sub f (Str|None $x) None|Str;\n"), nil)
 	if len(facts.errs) > 0 {
 		t.Fatalf("errors: %v", facts.errs)
@@ -293,24 +293,24 @@ func TestPmtUnionWithNone(t *testing.T) {
 	}
 }
 
-// TestPmtAttributesBeforeNameRefused: RFC 0001 "Declaration order", the name
+// TestTpmAttributesBeforeNameRefused: RFC 0001 "Declaration order", the name
 // comes first. Measured on 5.42, `sub :lvalue f;` is no declaration at all
 // -- perl reads the label `sub:` and the indirect call `'f'->lvalue` -- and
-// under `use v5.36`, the bundle a .pmt is read with, it is a syntax error.
-// Any statement a .pmt cannot read is reported, never silently skipped;
+// under `use v5.36`, the bundle a .tpm is read with, it is a syntax error.
+// Any statement a .tpm cannot read is reported, never silently skipped;
 // here, as in perl, `sub:` reads as a label and the rest is unread.
-func TestPmtAttributesBeforeNameRefused(t *testing.T) {
-	pmtRefuses(t, map[string]string{
+func TestTpmAttributesBeforeNameRefused(t *testing.T) {
+	tpmRefuses(t, map[string]string{
 		"sub :lvalue f;\n": `not a declaration: "lvalue f;"`,
 	})
 }
 
-// TestPmtBareSlurpyTypeRefused: RFC 0001 "A slurpy takes no bare element
+// TestTpmBareSlurpyTypeRefused: RFC 0001 "A slurpy takes no bare element
 // type". `Str @args` is ambiguous twice over, in its container and in what
 // `Str` applies to, so it is refused. A slurpy is untyped or carries an
 // explicit container type.
-func TestPmtBareSlurpyTypeRefused(t *testing.T) {
-	pmtRefuses(t, map[string]string{
+func TestTpmBareSlurpyTypeRefused(t *testing.T) {
+	tpmRefuses(t, map[string]string{
 		"sub f (Str @args);\n": "sub f: slurpy @args has a bare element type Str; write a container type, List[Str] @args",
 		"sub f (Int %h);\n":    "sub f: slurpy %h has a bare element type Int; write a container type, List[Int] %h",
 	})
@@ -330,28 +330,28 @@ func TestPmtBareSlurpyTypeRefused(t *testing.T) {
 	}
 }
 
-// TestPmtBareUnionSlurpyRefused: a union is still a bare element type, so
+// TestTpmBareUnionSlurpyRefused: a union is still a bare element type, so
 // `Str|Undef @args` is refused as `Str @args` is (RFC 0001, "A slurpy takes
 // no bare element type").
-func TestPmtBareUnionSlurpyRefused(t *testing.T) {
-	pmtRefuses(t, map[string]string{
+func TestTpmBareUnionSlurpyRefused(t *testing.T) {
+	tpmRefuses(t, map[string]string{
 		"sub f (Str|Undef @args);\n": "sub f: slurpy @args has a bare element type Str|Undef; write a container type, List[Str|Undef] @args",
 	})
 }
 
-// TestPmtContainerWithFlatteningSigilRefused: RFC 0001 "The scalar
+// TestTpmContainerWithFlatteningSigilRefused: RFC 0001 "The scalar
 // container", `Array @a` (a container type with a flattening sigil) is not
 // valid. A parameter that takes the caller's container is backslashed,
 // `Array \@a`, and the error names that spelling. `Array @a` is not quietly
 // read as the aliased array: it records no parameter and derives no
 // prototype.
-func TestPmtContainerWithFlatteningSigilRefused(t *testing.T) {
+func TestTpmContainerWithFlatteningSigilRefused(t *testing.T) {
 	cases := map[string]string{
 		"sub f (Array @a);\n":     `sub f: container type Array with flattening sigil @a; a parameter that takes the caller's container is Array \@a`,
 		"sub f (Hash %h);\n":      `sub f: container type Hash with flattening sigil %h; a parameter that takes the caller's container is Hash \%h`,
 		"sub f (Hash[Str] %h);\n": `sub f: container type Hash[Str] with flattening sigil %h; a parameter that takes the caller's container is Hash[Str] \%h`,
 	}
-	pmtRefuses(t, cases)
+	tpmRefuses(t, cases)
 	for src := range cases {
 		if proto := readDeclaration([]byte(src), nil).protos["f"]; proto != "" {
 			t.Errorf("%q: derived prototype %q", src, proto)
@@ -359,26 +359,26 @@ func TestPmtContainerWithFlatteningSigilRefused(t *testing.T) {
 	}
 }
 
-// TestPmtNonFinalListParam: RFC 0001 "A typed signature and a prototype say
+// TestTpmNonFinalListParam: RFC 0001 "A typed signature and a prototype say
 // the same thing", a List parameter must be last. Measured on 5.42.0, the
 // signature `(@a, $x)` dies "Slurpy parameter not last", `(@a, @b)` dies
 // "Multiple slurpy parameters not allowed", and the prototype `(@$)` warns
 // "Prototype after '@'": the `@` takes every argument. The prototype `\@$`
 // passes the array whole and fills its `$`, so the error points to
 // `Array \@a`. An untyped slurpy is a List parameter too.
-func TestPmtNonFinalListParam(t *testing.T) {
+func TestTpmNonFinalListParam(t *testing.T) {
 	want := `sub f: List parameter @a is not last; a single array followed by more parameters is Array \@a`
-	pmtRefuses(t, map[string]string{
+	tpmRefuses(t, map[string]string{
 		"sub f (List @a, Str $x);\n":  want,
 		"sub f (List @a, List @b);\n": want,
 		"sub f (@a, $x);\n":           want,
 	})
 }
 
-// TestPmtModuloAfterIndexInDefault: a `%` after a container type's `]` is
+// TestTpmModuloAfterIndexInDefault: a `%` after a container type's `]` is
 // a hash sigil, `List[Str] %h`, but a `%` after an element's `]` in a
 // default is still modulo.
-func TestPmtModuloAfterIndexInDefault(t *testing.T) {
+func TestTpmModuloAfterIndexInDefault(t *testing.T) {
 	facts := readDeclaration([]byte("sub f (Int $x = $a[0] % 2);\n"), nil)
 	if len(facts.errs) > 0 {
 		t.Fatalf("errors: %v", facts.errs)
@@ -389,10 +389,10 @@ func TestPmtModuloAfterIndexInDefault(t *testing.T) {
 	}
 }
 
-// TestPmtDefaultBeforeAnotherParameter: a default ends at the comma, so a
+// TestTpmDefaultBeforeAnotherParameter: a default ends at the comma, so a
 // parameter can follow it. Measured on 5.42.0, `sub f ($x = 1, $y = $_)`
 // gives "1 u" for `f()` with `$_ = "u"`.
-func TestPmtDefaultBeforeAnotherParameter(t *testing.T) {
+func TestTpmDefaultBeforeAnotherParameter(t *testing.T) {
 	facts := readDeclaration([]byte("sub f (Scalar $x = 1, Scalar $y = $_);\n"), nil)
 	if len(facts.errs) > 0 {
 		t.Fatalf("errors: %v", facts.errs)
@@ -406,12 +406,12 @@ func TestPmtDefaultBeforeAnotherParameter(t *testing.T) {
 	}
 }
 
-// TestPmtCodeAndGlobParameters: RFC 0001's table gives a leading `&` as
+// TestTpmCodeAndGlobParameters: RFC 0001's table gives a leading `&` as
 // `Code &` and `*` as `Glob *`, the slots a prototype names by those
 // characters, as `multi sub grep (Code &block, List @list) List;` writes
 // one. Each is required, as a `$` is; neither flattens, so a parameter may
 // follow it.
-func TestPmtCodeAndGlobParameters(t *testing.T) {
+func TestTpmCodeAndGlobParameters(t *testing.T) {
 	src := "sub f (Code &block, Glob *fh, List @list);\n"
 	facts := readDeclaration([]byte(src), nil)
 	if len(facts.errs) > 0 {
@@ -430,10 +430,10 @@ func TestPmtCodeAndGlobParameters(t *testing.T) {
 	}
 }
 
-// TestPmtMultiSubKeepsEveryCandidate: RFC 0001 "Multi declarations". A
+// TestTpmMultiSubKeepsEveryCandidate: RFC 0001 "Multi declarations". A
 // `multi sub` gives one of several signatures for its name, and every one is
 // kept, in the order declared.
-func TestPmtMultiSubKeepsEveryCandidate(t *testing.T) {
+func TestTpmMultiSubKeepsEveryCandidate(t *testing.T) {
 	facts := readDeclaration([]byte("multi sub select (FileHandle $fh) Str;\nmulti sub select ($r, $w, $e, Num $timeout) Int;\n"), nil)
 	if len(facts.errs) > 0 {
 		t.Fatalf("errors: %v", facts.errs)
@@ -452,14 +452,14 @@ func TestPmtMultiSubKeepsEveryCandidate(t *testing.T) {
 	}
 }
 
-// TestPmtPlainAndMultiSubMixIsAMultiWithAWarning: RFC 0001 "Multi
+// TestTpmPlainAndMultiSubMixIsAMultiWithAWarning: RFC 0001 "Multi
 // declarations". A name declared both as `sub` and as `multi sub` is a
 // multi: every candidate is kept, in the order declared, whichever comes
 // first, and the file carries one warning naming the sub and no error. Two
 // plain `sub f` lines with no `multi sub f` keep only the last, silently.
 // Once mixed, the multi rules apply: candidates whose return types answer
 // different contexts fork on context.
-func TestPmtPlainAndMultiSubMixIsAMultiWithAWarning(t *testing.T) {
+func TestTpmPlainAndMultiSubMixIsAMultiWithAWarning(t *testing.T) {
 	intSig := types.Signature{Params: []types.Param{{Name: "x", Sigil: '$', Type: types.Int, Required: true}}, Returns: types.Str}
 	strSig := types.Signature{Params: []types.Param{{Name: "x", Sigil: '$', Type: types.Str, Required: true}}, Returns: types.Int}
 	numSig := types.Signature{Params: []types.Param{{Name: "x", Sigil: '$', Type: types.Num, Required: true}}, Returns: types.Str}
@@ -501,10 +501,10 @@ func TestPmtPlainAndMultiSubMixIsAMultiWithAWarning(t *testing.T) {
 	}
 }
 
-// TestPmtMultiCandidateRefusedAlone: a `multi sub` candidate refused for its
+// TestTpmMultiCandidateRefusedAlone: a `multi sub` candidate refused for its
 // declaration order (RFC 0001, "Declaration order: Perl's") is not recorded,
 // and the candidates read before it are kept.
-func TestPmtMultiCandidateRefusedAlone(t *testing.T) {
+func TestTpmMultiCandidateRefusedAlone(t *testing.T) {
 	facts := readDeclaration([]byte("multi sub f (Int $x) Str;\nmulti sub f (Str $x) :lvalue;\n"), nil)
 	want := "sub f: subroutine attributes must come before the signature"
 	if len(facts.errs) != 1 || facts.errs[0].Error() != want {
@@ -515,11 +515,11 @@ func TestPmtMultiCandidateRefusedAlone(t *testing.T) {
 	}
 }
 
-// TestMultiOnlyInPmt: `multi` declares only in a declaration file. In
+// TestMultiOnlyInTpm: `multi` declares only in a declaration file. In
 // ordinary source it is the name it has always been: `sub multi { 1 }
 // multi(1);` declares and calls a sub named multi, as perl 5.42.0 runs it,
 // and records no candidates.
-func TestMultiOnlyInPmt(t *testing.T) {
+func TestMultiOnlyInTpm(t *testing.T) {
 	src := []byte("sub multi { 1 } multi(1);\n")
 	root := Parse(src)
 	if got, want := Canon(root, src), "sub multi {1;} multi(1);"; got != want {
@@ -550,7 +550,7 @@ func TestMultiOnlyInPmt(t *testing.T) {
 // both, decides the call and makes the declaration valid.
 func TestMultiAmbiguousCandidatesIsError(t *testing.T) {
 	pair := "multi sub f (Int $a, Num $b) Str;\nmulti sub f (Num $a, Int $b) Str;\n"
-	pmtRefuses(t, map[string]string{
+	tpmRefuses(t, map[string]string{
 		pair: "sub f: candidates (Int $a, Num $b) and (Num $a, Int $b) are ambiguous for (Int, Int)",
 	})
 	facts := readDeclaration([]byte(pair+"multi sub f (Int $a, Int $b) Str;\n"), nil)
@@ -559,19 +559,19 @@ func TestMultiAmbiguousCandidatesIsError(t *testing.T) {
 	}
 }
 
-// TestPmtDeclarationErrorsSurface: a declaration file in error is reported,
+// TestTpmDeclarationErrorsSurface: a declaration file in error is reported,
 // not dropped. `sub f (Str);` names a type and no variable, so the file is
-// in error whether CORE.pmt is read for the builtin table or a module's
+// in error whether CORE.tpm is read for the builtin table or a module's
 // declaration is read in place of its source; and every shipped declaration
 // reads clean, with no error and no warning.
-func TestPmtDeclarationErrorsSurface(t *testing.T) {
+func TestTpmDeclarationErrorsSurface(t *testing.T) {
 	bad := []byte("sub f (Str);\n")
 	if _, _, err := coreProtos(bad); err == nil || err.Error() != "sub f: type Str names no variable" {
 		t.Errorf("core table: got %v, want the declaration's error", err)
 	}
 
 	saved := declarations
-	declarations = layeredFS{top: fstest.MapFS{"declarations/Bad.pmt": {Data: bad}}, base: saved}
+	declarations = layeredFS{top: fstest.MapFS{"declarations/Bad.tpm": {Data: bad}}, base: saved}
 	defer func() { declarations = saved }()
 	// Used directly, and from a required helper.
 	helper := func(name string) ([]byte, bool) { return []byte("use Bad;\n"), name == "./h.pl" }
@@ -595,7 +595,7 @@ func TestPmtDeclarationErrorsSurface(t *testing.T) {
 func TestDeclarationWarningsReachTheRoot(t *testing.T) {
 	mix := []byte("package Mix;\nsub f (Int $x) Str;\nmulti sub f (Str $x) Int;\n")
 	saved := declarations
-	declarations = layeredFS{top: fstest.MapFS{"declarations/Mix.pmt": {Data: mix}}, base: saved}
+	declarations = layeredFS{top: fstest.MapFS{"declarations/Mix.tpm": {Data: mix}}, base: saved}
 	defer func() { declarations = saved }()
 	helper := func(name string) ([]byte, bool) { return []byte("use Mix;\n"), name == "./h.pl" }
 	want := "Mix: sub f: declared both as sub and as multi sub; read as a multi"
@@ -611,7 +611,7 @@ func TestDeclarationWarningsReachTheRoot(t *testing.T) {
 }
 
 // shippedDeclarationErrors reads every declaration file in fsys as the
-// resolver would -- CORE.pmt in CORE's language, every other file as a
+// resolver would -- CORE.tpm in CORE's language, every other file as a
 // library's -- and returns each error and warning with its file's name.
 func shippedDeclarationErrors(t *testing.T, fsys fs.FS) []string {
 	t.Helper()
@@ -625,7 +625,7 @@ func shippedDeclarationErrors(t *testing.T, fsys fs.FS) []string {
 			return err
 		}
 		read := readLibraryDeclaration
-		if name == "declarations/CORE.pmt" {
+		if name == "declarations/CORE.tpm" {
 			read = readDeclaration
 		}
 		facts := read(src, nil)
@@ -643,14 +643,14 @@ func shippedDeclarationErrors(t *testing.T, fsys fs.FS) []string {
 	return out
 }
 
-// TestPmtAliasedParamsParse: RFC 0001 "The scalar container". A parameter
+// TestTpmAliasedParamsParse: RFC 0001 "The scalar container". A parameter
 // that aliases the caller's container is backslashed, as perlref's
 // refaliasing writes it: `Scalar \$x`, `Array \@a`, `Hash \%h`, and a
 // container type before one, `Array[Str] \@a`. Each takes exactly one
 // argument, so each is required. `\(@args)` is perlref's list form, a
 // reference to each element: `List[Str] \(@args = ($_))` aliases every
 // argument and, like any List parameter, takes the rest of the call.
-func TestPmtAliasedParamsParse(t *testing.T) {
+func TestTpmAliasedParamsParse(t *testing.T) {
 	for src, want := range map[string]types.Param{
 		"sub f (Scalar \\$x);\n":                {Name: "x", Sigil: '$', Type: types.Scalar, Alias: true, Required: true},
 		"sub f (Array \\@a);\n":                 {Name: "a", Sigil: '@', Type: types.Array, Alias: true, Required: true},
@@ -673,13 +673,13 @@ func TestPmtAliasedParamsParse(t *testing.T) {
 	}
 }
 
-// TestPmtMalformedAliasedParamRefused: a backslash RFC 0001 "The scalar
+// TestTpmMalformedAliasedParamRefused: a backslash RFC 0001 "The scalar
 // container" does not define is an error, not a guess. An aliased array
 // or hash is the caller's container, so its type is Array or Hash; the
 // list form must be closed and hold an array; and a glob slot, `\*`, has
 // no spelling (open question 11): perl cannot alias a glob, measured on
 // 5.42.0 `\*G = \*STDOUT` is "Can't modify reference to ref-to-glob cast".
-func TestPmtMalformedAliasedParamRefused(t *testing.T) {
+func TestTpmMalformedAliasedParamRefused(t *testing.T) {
 	cases := map[string]string{
 		"sub f (Str \\@a);\n":                    `sub f: aliased \@a has type Str; the caller's array is Array \@a`,
 		"sub f (Array \\%h);\n":                  `sub f: aliased \%h has type Array; the caller's hash is Hash \%h`,
@@ -687,7 +687,7 @@ func TestPmtMalformedAliasedParamRefused(t *testing.T) {
 		"sub f (List[Str] \\(Str $x));\n":        `sub f: list form \( holds "Str"; it holds an array, as in \(@args)`,
 		"sub f (Glob \\*g);\n":                   `sub f: aliased glob \*g has no spelling (RFC 0001, open question 11)`,
 	}
-	pmtRefuses(t, cases)
+	tpmRefuses(t, cases)
 	for src := range cases {
 		if proto := readDeclaration([]byte(src), nil).protos["f"]; proto != "" {
 			t.Errorf("%q: derived prototype %q", src, proto)
@@ -695,7 +695,7 @@ func TestPmtMalformedAliasedParamRefused(t *testing.T) {
 	}
 }
 
-// TestPmtSlotTypeMismatchRefused: a parameter's type is what its slot
+// TestTpmSlotTypeMismatchRefused: a parameter's type is what its slot
 // holds, by RFC 0001's table ("A typed signature and a prototype say the
 // same thing"): a `&` or `\&` slot holds Code, a `\$` slot a Scalar type,
 // and a `$` slot one scalar, so a type with no scalar member (Array, Hash,
@@ -705,7 +705,7 @@ func TestPmtMalformedAliasedParamRefused(t *testing.T) {
 // strings, `star(@a)` as the count and `star(sub {1})` as a CODE
 // reference, so a glob or any scalar type fits it and an aggregate or
 // Code does not. A mismatch derives nothing.
-func TestPmtSlotTypeMismatchRefused(t *testing.T) {
+func TestTpmSlotTypeMismatchRefused(t *testing.T) {
 	cases := map[string]string{
 		"sub f (Str \\&c);\n":                   `sub f: \&c has type Str; a \& slot holds Code`,
 		"sub f (Str &c);\n":                     `sub f: &c has type Str; a & slot holds Code`,
@@ -717,9 +717,9 @@ func TestPmtSlotTypeMismatchRefused(t *testing.T) {
 		"sub f (Array $x);\n":                   `sub f: $x has type Array; a $ slot holds a scalar`,
 		"sub f (Array|Hash $x);\n":              `sub f: $x has type Array|Hash; a $ slot holds a scalar`,
 	}
-	pmtRefuses(t, cases)
+	tpmRefuses(t, cases)
 	// Each type the table gives its slot fits it, as do the shapes
-	// CORE.pmt states.
+	// CORE.tpm states.
 	for _, src := range []string{
 		"sub f (Code &c);\n", "sub f (Code \\&c);\n", "sub f (Glob *g);\n",
 		"sub f (FileHandle *g);\n", "sub f (GlobRef *g);\n", "sub f (Str *g);\n",
@@ -731,13 +731,13 @@ func TestPmtSlotTypeMismatchRefused(t *testing.T) {
 	}
 }
 
-// TestPmtMessagesPrintAlias: an error names an aliased parameter as the
+// TestTpmMessagesPrintAlias: an error names an aliased parameter as the
 // declaration writes it, with its backslash, so a suggestion never
 // spells `Array @a`, which is not valid (RFC 0001, "The scalar
 // container"), and `Str \(@a)` is told `List[Str] \(@a)`, keeping the
 // alias.
-func TestPmtMessagesPrintAlias(t *testing.T) {
-	pmtRefuses(t, map[string]string{
+func TestTpmMessagesPrintAlias(t *testing.T) {
+	tpmRefuses(t, map[string]string{
 		"sub f (Str \\(@a));\n":                    `sub f: slurpy \(@a) has a bare element type Str; write a container type, List[Str] \(@a)`,
 		"sub f (Array \\(@a));\n":                  `sub f: container type Array with flattening sigil \(@a); a parameter that takes the caller's container is Array \@a`,
 		"sub f (List[Str] \\(@a), Str $x);\n":      `sub f: List parameter \(@a) is not last; a single array followed by more parameters is Array \@a`,
@@ -763,7 +763,7 @@ func TestParamAttributeRefused(t *testing.T) {
 		"sub f (Scalar $x :lvalue);\n": "sub f: parameter $x is not followed by `,` or `)`",
 		"sub f (Scalar $x :bogus);\n":  "sub f: parameter $x is not followed by `,` or `)`",
 	}
-	pmtRefuses(t, cases)
+	tpmRefuses(t, cases)
 	for src := range cases {
 		if proto := readDeclaration([]byte(src), nil).protos["f"]; proto != "" {
 			t.Errorf("%q: derived prototype %q", src, proto)
@@ -771,11 +771,11 @@ func TestParamAttributeRefused(t *testing.T) {
 	}
 }
 
-// TestAliasedParamOnlyInPmt: the backslashed parameter is typed Perl, read
+// TestAliasedParamOnlyInTpm: the backslashed parameter is typed Perl, read
 // only from a declaration file. In ordinary source without signatures the
 // parens after `sub NAME` are a prototype whatever they hold: measured on
 // 5.42.0, `sub f (\$x) { 1 } print prototype(\&f)` prints `\$x`.
-func TestAliasedParamOnlyInPmt(t *testing.T) {
+func TestAliasedParamOnlyInTpm(t *testing.T) {
 	for src, want := range map[string]string{
 		"sub f (\\$x) { 1 }\n":        `(\$x)`,
 		"sub f (Scalar \\$x) { 1 }\n": `(Scalar \$x)`,
@@ -790,11 +790,11 @@ func TestAliasedParamOnlyInPmt(t *testing.T) {
 	}
 }
 
-// TestPmtUnaryWithoutSignatureIsError: `:unary` says how a no-prototype
+// TestTpmUnaryWithoutSignatureIsError: `:unary` says how a no-prototype
 // builtin's one operand parses, so it needs the signature that states the
 // operand. Without one the attribute would be dropped and the line read as
 // a list operator, the parse `:unary` exists to deny.
-func TestPmtUnaryWithoutSignatureIsError(t *testing.T) {
+func TestTpmUnaryWithoutSignatureIsError(t *testing.T) {
 	facts := readDeclaration([]byte("sub foo :unary;\n"), nil)
 	want := "sub foo: :unary needs a typed signature stating its operand"
 	if len(facts.errs) != 1 || facts.errs[0].Error() != want {
@@ -802,11 +802,11 @@ func TestPmtUnaryWithoutSignatureIsError(t *testing.T) {
 	}
 }
 
-// TestPmtListopWithoutSignatureIsError: `:listop` says a builtin with no
+// TestTpmListopWithoutSignatureIsError: `:listop` says a builtin with no
 // prototype has typed positional parameters (RFC 0001, "Builtins with no
 // prototype"), so a line stating no signature has nothing for it to say:
 // it is an error, as `:unary` without one is.
-func TestPmtListopWithoutSignatureIsError(t *testing.T) {
+func TestTpmListopWithoutSignatureIsError(t *testing.T) {
 	facts := readDeclaration([]byte("sub foo :listop;\n"), nil)
 	want := "sub foo: :listop needs a typed signature stating its parameters"
 	if len(facts.errs) != 1 || facts.errs[0].Error() != want {
@@ -814,20 +814,20 @@ func TestPmtListopWithoutSignatureIsError(t *testing.T) {
 	}
 }
 
-// TestPmtListopAndUnaryIsError: `:unary` and `:listop` are two parses, a
+// TestTpmListopAndUnaryIsError: `:unary` and `:listop` are two parses, a
 // named unary and a list operator, and a builtin parses as one. A line
 // stating both is an error and records nothing.
-func TestPmtListopAndUnaryIsError(t *testing.T) {
-	pmtRefuses(t, map[string]string{
+func TestTpmListopAndUnaryIsError(t *testing.T) {
+	tpmRefuses(t, map[string]string{
 		"sub f :unary :listop (Scalar $x) Int;\n": "sub f: :unary and :listop are two parses; a builtin parses as one",
 	})
 }
 
-// TestPmtUnaryAndListopAcrossCandidatesRefused: RFC 0001 "Builtins with no
+// TestTpmUnaryAndListopAcrossCandidatesRefused: RFC 0001 "Builtins with no
 // prototype" -- `:listop` beside `:unary` is two parses for one builtin,
 // an error whether one line states both or a multi's candidates split
 // them, in either order; otherwise the shape would follow line order.
-func TestPmtUnaryAndListopAcrossCandidatesRefused(t *testing.T) {
+func TestTpmUnaryAndListopAcrossCandidatesRefused(t *testing.T) {
 	unary := "multi sub f :unary (Scalar $x) Int;\n"
 	listop := "multi sub f :listop (Scalar $x) List;\n"
 	want := "sub f: :unary and :listop are two parses; a builtin parses as one"
@@ -856,7 +856,7 @@ func wantReturns(t *testing.T, what string, cands []types.Signature, args []type
 // with the same parameters, list context selects the one whose return type
 // is a list and scalar context the one whose return type is a scalar.
 // reverse is the pure case: measured on 5.42, `my $s = reverse "ab", "cd"`
-// is "dcba" and `my @r = reverse "ab", "cd"` is ("cd", "ab"). CORE.pmt's
+// is "dcba" and `my @r = reverse "ab", "cd"` is ("cd", "ab"). CORE.tpm's
 // split, each, keys and localtime fork the same way.
 func TestContextSelectsByReturnType(t *testing.T) {
 	facts := readDeclaration([]byte("multi sub rev (List @list) Str;\nmulti sub rev (List @list) List;\n"), nil)
@@ -910,7 +910,7 @@ func TestVoidContextSelectsVoidReturn(t *testing.T) {
 // two scalars or two Voids. A list beside a scalar is a context fork.
 func TestReturnTypeContextAmbiguity(t *testing.T) {
 	ambiguous := "sub f: candidates (Int $x) and (Int $x) are ambiguous for (Int)"
-	pmtRefuses(t, map[string]string{
+	tpmRefuses(t, map[string]string{
 		"multi sub f (Int $x) List;\nmulti sub f (Int $x) List[Str];\n": ambiguous,
 		"multi sub f (Int $x) Str;\nmulti sub f (Int $x) Int;\n":        ambiguous,
 		"multi sub f (Int $x) Void;\nmulti sub f (Int $x) Void;\n":      ambiguous,
@@ -922,11 +922,11 @@ func TestReturnTypeContextAmbiguity(t *testing.T) {
 }
 
 // TestContextAttributeRefused: a candidate's return type says which
-// context selects it, so a `.pmt` line stating `:context(...)` is a
+// context selects it, so a `.tpm` line stating `:context(...)` is a
 // declaration error naming the attribute.
 func TestContextAttributeRefused(t *testing.T) {
 	refused := "sub f: :context is no attribute; a candidate's return type says which context selects it"
-	pmtRefuses(t, map[string]string{
+	tpmRefuses(t, map[string]string{
 		"sub f :context($) (Str $x) Str;\n":        refused,
 		"multi sub f :context(@) (Str $x) List;\n": refused,
 		"sub f :context() (Str $x) Void;\n":        refused,

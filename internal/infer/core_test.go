@@ -1,4 +1,4 @@
-// ABOUTME: Tests that inference reads builtin and operator types from CORE.pmt's declarations.
+// ABOUTME: Tests that inference reads builtin and operator types from CORE.tpm's declarations.
 // ABOUTME: Each expectation is perl 5.42's measured behaviour, not a transcription of the table.
 
 package infer_test
@@ -23,7 +23,7 @@ func lookupType(t *testing.T, src, name string) types.Type {
 	return sym.Type
 }
 
-// TestInferTypesBuiltinsFromCore: a builtin is typed by its CORE.pmt line,
+// TestInferTypesBuiltinsFromCore: a builtin is typed by its CORE.tpm line,
 // `sub hex (Str $string = $_) Int|Inf;`. Measured, `hex("ff")` is 255, created
 // as a number, and `hex("f" x 256)` is Inf.
 func TestInferTypesBuiltinsFromCore(t *testing.T) {
@@ -55,7 +55,7 @@ func TestInferCoreArityAcceptsPerlsCalls(t *testing.T) {
 	}
 }
 
-// TestInferScalarSlotTakesAnAggregateAsItsCount: CORE.pmt's `sub scalar
+// TestInferScalarSlotTakesAnAggregateAsItsCount: CORE.tpm's `sub scalar
 // (Scalar $expr) Scalar;` takes an aggregate in scalar context, as perl's `$`
 // prototype does. Measured, `scalar(@a)` on (1,2,3) is 3 and `scalar(%h)` on
 // one pair is 1 -- the idiom, not a type error.
@@ -69,7 +69,7 @@ func TestInferScalarSlotTakesAnAggregateAsItsCount(t *testing.T) {
 	}
 }
 
-// TestInferUndeclaredNameHasNoCoreType: a call to a name CORE.pmt does not
+// TestInferUndeclaredNameHasNoCoreType: a call to a name CORE.tpm does not
 // declare gets no builtin type, and no builtin's arity or argument checks.
 func TestInferUndeclaredNameHasNoCoreType(t *testing.T) {
 	src := []byte("my $n = frobnicate(1);")
@@ -80,7 +80,7 @@ func TestInferUndeclaredNameHasNoCoreType(t *testing.T) {
 }
 
 // TestInferCoreCoercionMismatchStillReported: a coercion mismatch is
-// reported through CORE.pmt's types. `bless "x"` passes a Str where `sub
+// reported through CORE.tpm's types. `bless "x"` passes a Str where `sub
 // bless (Ref $ref, ...)` takes a Ref, which no Str coerces to; a literal
 // known not to be numeric where a Num is declared, abs's argument or +'s
 // operand, is reported as the coercion it is, as perl 5.42 -w warns
@@ -103,7 +103,7 @@ func TestInferCoreCoercionMismatchStillReported(t *testing.T) {
 	}
 }
 
-// TestInferTypesOperatorsFromCore: an operator's result is its CORE.pmt
+// TestInferTypesOperatorsFromCore: an operator's result is its CORE.tpm
 // declaration's. `sub <=> :infix(ORDERING) (Num $x, Num $y) Int|Undef;`:
 // measured, `1 <=> "nan"` is undef, but the Undef is kept only for an
 // operand known to be NaN, so `1 <=> 2`, measured -1, is an Int. `x` forks on its left operand's
@@ -195,7 +195,7 @@ func TestInferReverseFollowsContext(t *testing.T) {
 	assert.Equal(t, types.List, got)
 }
 
-// TestInferContextBuiltinsFollowContext: the other builtins CORE.pmt
+// TestInferContextBuiltinsFollowContext: the other builtins CORE.tpm
 // declares as candidates whose return types fork on context take the
 // candidate their assignment's context selects. Measured on 5.42: `my $n = keys %h` is the count, `my $t
 // = localtime 0` is "Thu Jan  1 00:00:00 1970" where the list form has nine

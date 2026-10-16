@@ -71,10 +71,10 @@ func (p *parser) parseDeclaration(word lexer.Token) *Node {
 	return nil
 }
 
-// parseMultiSubDecl: a `.pmt`'s `multi sub NAME ...`, RFC 0001 "Multi
+// parseMultiSubDecl: a `.tpm`'s `multi sub NAME ...`, RFC 0001 "Multi
 // declarations", one of several signatures for its name. It wraps the sub as
 // a prefix does (parsePrefixedSubDecl), or returns nil when no named sub
-// follows. Only a `.pmt` reads it: in ordinary source `multi` is the name it
+// follows. Only a `.tpm` reads it: in ordinary source `multi` is the name it
 // has always been.
 func (p *parser) parseMultiSubDecl(word lexer.Token) *Node {
 	sub, ok := p.peekAfter(word)
@@ -105,8 +105,8 @@ func (p *parser) parseSignature(n *Node) {
 	}
 }
 
-// parseTypedSignature reads a `.pmt` declaration's typed signature, RFC 0001
-// "Typed Perl, in `.pmt` only": `(Ref $ref, Str $class = __PACKAGE__)`, each
+// parseTypedSignature reads a `.tpm` declaration's typed signature, RFC 0001
+// "Typed Perl, in `.tpm` only": `(Ref $ref, Str $class = __PACKAGE__)`, each
 // parameter a lattice type name, a variable and an optional default, then
 // the return type, if one is stated. It is recorded on p.signatures under the
 // sub's name: as its only signature, or for a `multi sub` after the
@@ -272,7 +272,7 @@ func refuseContext(n *Node) error {
 	return nil
 }
 
-// returnType reads the type a `.pmt` declaration states after its signature,
+// returnType reads the type a `.tpm` declaration states after its signature,
 // `) Object;`, where a definition would have its body. A declaration with no
 // type name there states none. The `;` is left for finishBodyOrSemicolon.
 func (p *parser) returnType() (types.Type, *Node, error) {

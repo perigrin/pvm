@@ -1,4 +1,4 @@
-// ABOUTME: Tests that a .pmt parameter whose type includes Void may be absent, and derives a prototype `;` before it.
+// ABOUTME: Tests that a .tpm parameter whose type includes Void may be absent, and derives a prototype `;` before it.
 // ABOUTME: Any is the permissive top, not a union with Void, so an Any parameter stays required.
 package parse
 
@@ -31,7 +31,7 @@ func TestVoidParamIsOptional(t *testing.T) {
 	}
 	// A required parameter after one that may be absent has no prototype,
 	// and a Void parameter cannot also be required by `= die`.
-	pmtRefuses(t, map[string]string{
+	tpmRefuses(t, map[string]string{
 		"sub f (Optional[Int] $x, Int $y);\n": "sub f: mandatory parameter $y follows optional parameter $x",
 		"sub f (Void|Int $x, Str $y);\n":      "sub f: mandatory parameter $y follows optional parameter $x",
 		"sub f (Optional[Int] $x = die);\n":   "sub f: $x has type Optional[Int], which may be absent, and defaults to die, which requires it",

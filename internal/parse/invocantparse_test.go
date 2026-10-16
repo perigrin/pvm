@@ -1,5 +1,5 @@
 // ABOUTME: The parser's own parse of print, exec and their kin, held to golden trees.
-// ABOUTME: Declaring them in CORE.pmt with an invocant colon must leave how they parse unchanged.
+// ABOUTME: Declaring them in CORE.tpm with an invocant colon must leave how they parse unchanged.
 package parse_test
 
 import (
@@ -9,7 +9,7 @@ import (
 )
 
 // TestInvocantBuiltinParseUnchanged: RFC 0001 "Builtins that keep their
-// own parse". CORE.pmt types print, printf, say, exec and system, and the
+// own parse". CORE.tpm types print, printf, say, exec and system, and the
 // parser still reads their leading slot as it always has: a handle or a
 // block with no comma after it, or nothing at all. The trees are golden
 // values held here, as the parser gave them before the declarations.

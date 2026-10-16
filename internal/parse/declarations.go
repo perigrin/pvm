@@ -17,7 +17,7 @@ import (
 )
 
 // declarations holds one file per declared module, `Moose::Role` at
-// `declarations/Moose/Role.pmt`. TypeScript's `@types/Foo` is the model: an
+// `declarations/Moose/Role.tpm`. TypeScript's `@types/Foo` is the model: an
 // interface ASSERTED over code this parser never reads, for a module whose
 // own `import` builds what it defines -- Moose::Exporter, a monkey_patch
 // loop -- so that no reading of its source can recover it.
@@ -35,12 +35,12 @@ var declarations fs.FS = embedded
 
 // declaration returns the declaration file for module, if there is one.
 func declaration(module string) ([]byte, bool) {
-	src, err := fs.ReadFile(declarations, path.Join("declarations", strings.ReplaceAll(module, "::", "/")+".pmt"))
+	src, err := fs.ReadFile(declarations, path.Join("declarations", strings.ReplaceAll(module, "::", "/")+".tpm"))
 	return src, err == nil
 }
 
 // readDeclaration reads a declaration file. Its language is typed Perl (RFC
-// 0001, "Typed Perl, in `.pmt` only"): a module's own source is never read
+// 0001, "Typed Perl, in `.tpm` only"): a module's own source is never read
 // this way, so `sub f (Ref $x) { }` there stays perl's prototype.
 func readDeclaration(src []byte, res *resolver) moduleFacts {
 	return readDeclarationWith(newParser(src, res, true))
@@ -224,8 +224,8 @@ func readDeclarationWith(p *parser) moduleFacts {
 	return facts
 }
 
-// readLibraryDeclaration reads a library's declaration file, in CORE.pmt's
-// language (RFC 0001, "One language for every `.pmt`"). Its infix
+// readLibraryDeclaration reads a library's declaration file, in CORE.tpm's
+// language (RFC 0001, "One language for every `.tpm`"). Its infix
 // operators must take a level among the parser's (libraryInfix): a bare
 // `:infix` places its operator at none, and relations that derive no order
 // place none of them. Either is an error, and the operators it is about
@@ -255,12 +255,12 @@ func readLibraryDeclaration(src []byte, res *resolver) moduleFacts {
 }
 
 // coreTable is perl's builtins by name, each to its prototype without
-// parentheses: `bless` to `$;$`. It is built by parsing declarations/CORE.pmt,
+// parentheses: `bless` to `$;$`. It is built by parsing declarations/CORE.tpm,
 // the declaration file for the language itself -- TypeScript's lib.d.ts to a
 // module declaration's @types/Foo.
 //
 // Built on first use rather than at package init: the parse that builds it is
-// the parser that consults it. CORE.pmt aliases nothing, so building it never
+// the parser that consults it. CORE.tpm aliases nothing, so building it never
 // asks for it.
 func coreTable() map[string]string {
 	readCore()
@@ -268,21 +268,21 @@ func coreTable() map[string]string {
 }
 
 // coreSignatures is perl's builtins by name, each to the typed signatures
-// CORE.pmt states or derives for it -- print's too, which has no prototype
+// CORE.tpm states or derives for it -- print's too, which has no prototype
 // and so no place in coreTable.
 func coreSignatures() map[string][]types.Signature {
 	readCore()
 	return coreSigs
 }
 
-// CoreBuiltin is the typed signatures CORE.pmt states or derives for the
+// CoreBuiltin is the typed signatures CORE.tpm states or derives for the
 // builtin name, one per candidate, and nil for a name it does not declare.
 // internal/infer types builtin calls from it.
 func CoreBuiltin(name string) []types.Signature {
 	return coreSignatures()[name]
 }
 
-// CoreOperator is the typed signatures CORE.pmt declares for the operator
+// CoreOperator is the typed signatures CORE.tpm declares for the operator
 // spelled op of fixity "infix", "prefix" or "postfix", one per candidate, and nil for
 // one it does not declare. internal/infer types operators from it.
 func CoreOperator(op, fixity string) []types.Signature {
@@ -290,7 +290,7 @@ func CoreOperator(op, fixity string) []types.Signature {
 	return coreOps[[2]string{op, fixity}]
 }
 
-// coreBarewordOperators is the infix operators CORE.pmt declares whose
+// coreBarewordOperators is the infix operators CORE.tpm declares whose
 // left operand is `:bareword`, read as a word: `=>`.
 func coreBarewordOperators() []string {
 	readCore()
@@ -304,7 +304,7 @@ func coreShapes() map[string]Shape {
 	return coreShp
 }
 
-// deriveShapes is the parse shape of each builtin CORE.pmt declares. A
+// deriveShapes is the parse shape of each builtin CORE.tpm declares. A
 // builtin with a prototype parses as a sub with that prototype would
 // (ShapeOf); one with none is a named unary when `:unary` says so (RFC 0001,
 // "Builtins with no prototype"), and otherwise a list operator, as a sub
@@ -325,7 +325,7 @@ func deriveShapes(protos map[string]string, sigs map[string][]types.Signature) m
 	return shapes
 }
 
-// readCore reads CORE.pmt, once, into coreTable's, coreSignatures's,
+// readCore reads CORE.tpm, once, into coreTable's, coreSignatures's,
 // CoreOperator's and coreShapes's tables.
 func readCore() {
 	coreOnce.Do(func() {
@@ -333,11 +333,11 @@ func readCore() {
 		derivePowers()
 		src, ok := declaration("CORE")
 		if !ok {
-			panic("parse: declarations/CORE.pmt is not embedded")
+			panic("parse: declarations/CORE.tpm is not embedded")
 		}
 		var err error
 		if coreMap, coreSigs, coreOps, err = coreDeclarations(src); err != nil {
-			panic("parse: declarations/CORE.pmt: " + err.Error())
+			panic("parse: declarations/CORE.tpm: " + err.Error())
 		}
 		coreShp = deriveShapes(coreMap, coreSigs)
 		for key, sigs := range coreOps {
@@ -349,7 +349,7 @@ func readCore() {
 	})
 }
 
-// coreProtos reads a CORE.pmt into the tables coreTable and coreSignatures
+// coreProtos reads a CORE.tpm into the tables coreTable and coreSignatures
 // hold. A file in error builds neither: a builtin it misdeclares would parse
 // wrong.
 func coreProtos(src []byte) (map[string]string, map[string][]types.Signature, error) {
@@ -374,7 +374,7 @@ func coreDeclarations(src []byte) (map[string]string, map[string][]types.Signatu
 	return protoTable(facts), facts.signatures, ops, nil
 }
 
-// protoTable is a CORE.pmt's builtins by name, each to its prototype
+// protoTable is a CORE.tpm's builtins by name, each to its prototype
 // without the parentheses.
 func protoTable(facts moduleFacts) map[string]string {
 	protos := map[string]string{}
@@ -395,7 +395,7 @@ var (
 	coreSigs map[string][]types.Signature
 	coreOps  map[[2]string][]types.Signature
 	coreShp  map[string]Shape
-	// coreBareword is the infix operators whose left operand CORE.pmt
+	// coreBareword is the infix operators whose left operand CORE.tpm
 	// declares `:bareword`.
 	coreBareword []string
 )

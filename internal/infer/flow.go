@@ -620,9 +620,9 @@ func (a *analysis) blockExits(b *lower.Block) bool {
 }
 
 // exits reports whether n never returns: a return, or a call whose
-// signature returns None, as CORE.pmt declares die and exit and Carp.pmt
+// signature returns None, as CORE.tpm declares die and exit and Carp.tpm
 // croak and confess. A call to a sub has the signatures the parser
-// resolved it to; a call to a builtin, CORE.pmt's. last, next and redo
+// resolved it to; a call to a builtin, CORE.tpm's. last, next and redo
 // are not exits here.
 func (a *analysis) exits(n lower.Node) bool {
 	switch x := n.(type) {

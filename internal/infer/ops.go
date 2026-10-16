@@ -13,12 +13,12 @@ import (
 	"tamarou.com/pvm/internal/types"
 )
 
-// binary types a binary operator: the operator's CORE.pmt
+// binary types a binary operator: the operator's CORE.tpm
 // candidates, chosen by the operands' shapes and the context an assignment
 // puts the expression in, check both operands and give its type. A logical
 // operator yields one of its operands, so it is their join, as leftValue
 // says of the left. An operator
-// CORE.pmt does not declare is not typed.
+// CORE.tpm does not declare is not typed.
 func (a *analysis) binary(n *lower.Binary) types.Type {
 	return a.infix(n, n.Op, operandShape(n.L)+operandShape(n.R), n.L, n.R)
 }
@@ -74,7 +74,7 @@ func (a *analysis) leftValue(op string, l lower.Node) types.Type {
 }
 
 // repeat is the rule for `x` on Repeat. A list repeat is
-// `@`-shaped, so CORE.pmt's list candidate takes it: perl, `my @z = (0) x 3`
+// `@`-shaped, so CORE.tpm's list candidate takes it: perl, `my @z = (0) x 3`
 // is (0, 0, 0) and `my @w = qw(a b) x 2` is (a, b, a, b). ListRepeat says
 // which, from the parens or the qw list on the left.
 func (a *analysis) repeat(n *lower.Repeat) types.Type {
@@ -86,7 +86,7 @@ func (a *analysis) repeat(n *lower.Repeat) types.Type {
 }
 
 // spaceshipResult is `<=>`'s type, result, over operands typed l and r.
-// CORE.pmt declares it Int|Undef, as perl gives undef when an operand is
+// CORE.tpm declares it Int|Undef, as perl gives undef when an operand is
 // NaN, but a value that only might be NaN is compared as finite says:
 // perl 5.42 -w is silent on `$sgn * ($re1 <=> $re2)`. Only an operand
 // known to be NaN, or Inf|NaN, with no other numeric bit, keeps the Undef.
@@ -99,7 +99,7 @@ func spaceshipResult(l, r, result types.Type) types.Type {
 	return result &^ types.Undef
 }
 
-// patternType is what the right of a bind takes. CORE.pmt declares it
+// patternType is what the right of a bind takes. CORE.tpm declares it
 // Regex, and perl compiles a string there as a pattern: perl 5.42 -w,
 // `"Foo" =~ q#\A\w+\z#` matches silently. So it takes a Str too, while an
 // undef is still reported, as perl warns "Use of uninitialized value in
@@ -111,7 +111,7 @@ func patternType(op string, expected types.Type) types.Type {
 	return expected
 }
 
-// rangeOp types `..` and `...` by CORE.pmt's candidates, as a binary
+// rangeOp types `..` and `...` by CORE.tpm's candidates, as a binary
 // operator: a list in list context and the flip-flop's Str in scalar.
 func (a *analysis) rangeOp(n *lower.Range) types.Type {
 	op := ".."
@@ -183,7 +183,7 @@ func (a *analysis) listTargets(l *lower.List) {
 }
 
 // compoundResult is what a compound assignment `op=` leaves in a target
-// that held old, given a right side typed r: what CORE.pmt says op gives,
+// that held old, given a right side typed r: what CORE.tpm says op gives,
 // not r. perl 5.42, `my $s = "a"; $s .= 1` is "a1", a Str. The logical
 // ones assign r only sometimes: `//=` only to an undefined target, so a
 // defined one keeps its type, and `||=` only to a false one, so an
@@ -312,7 +312,7 @@ func isCountOf(n lower.Node) bool {
 	return ok && len(l.Elems) == 0
 }
 
-// operandShape is an operand's shape as CORE.pmt's candidates take it: "@"
+// operandShape is an operand's shape as CORE.tpm's candidates take it: "@"
 // for a parenthesised list, "$" for anything else.
 func operandShape(n lower.Node) string {
 	if _, ok := n.(*lower.List); ok {
@@ -458,11 +458,11 @@ func finite(actual types.Type) types.Type {
 	return actual &^ (types.Inf | types.NaN)
 }
 
-// prefixNames maps a Unary's Op to the name CORE.pmt declares its prefix
+// prefixNames maps a Unary's Op to the name CORE.tpm declares its prefix
 // operator under: the parser spells unary minus and plus neg and pos.
 var prefixNames = map[string]string{"neg": "-", "pos": "+"}
 
-// unary types a prefix operator: its CORE.pmt
+// unary types a prefix operator: its CORE.tpm
 // return type, except that minus and plus keep a numeric operand's own
 // type -- -5 is an Int and -5.5 a Num.
 //

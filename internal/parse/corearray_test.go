@@ -1,4 +1,4 @@
-// ABOUTME: Tests CORE.pmt's typing of perl's array, list and hash builtins.
+// ABOUTME: Tests CORE.tpm's typing of perl's array, list and hash builtins.
 // ABOUTME: Each type is the one measured on perl 5.42, and keys and values fork on context.
 package parse_test
 
@@ -24,7 +24,7 @@ var arrayListHashBuiltins = []string{
 }
 
 // TestCoreArrayListHashBuiltinsTyped: every builtin of the batch has a
-// typed CORE.pmt line -- one that states a return type, which a signature
+// typed CORE.tpm line -- one that states a return type, which a signature
 // derived from a prototype never has. all and any take `Code \&block`;
 // keys and values are four candidates, two for scalar context and two for
 // list context.
@@ -33,11 +33,11 @@ func TestCoreArrayListHashBuiltinsTyped(t *testing.T) {
 	for _, name := range arrayListHashBuiltins {
 		sigs := core[name]
 		if len(sigs) == 0 {
-			t.Errorf("%s: CORE.pmt declares no signature", name)
+			t.Errorf("%s: CORE.tpm declares no signature", name)
 		}
 		for _, s := range sigs {
 			if s.Returns == types.Unknown {
-				t.Errorf("%s: CORE.pmt has an untyped line", name)
+				t.Errorf("%s: CORE.tpm has an untyped line", name)
 			}
 		}
 	}
@@ -45,7 +45,7 @@ func TestCoreArrayListHashBuiltinsTyped(t *testing.T) {
 		sigs := core[name]
 		if len(sigs) != 1 || len(sigs[0].Params) == 0 || !sigs[0].Params[0].Alias ||
 			sigs[0].Params[0].Sigil != '&' || sigs[0].Params[0].Type != types.Code {
-			t.Errorf("%s: CORE.pmt has %+v; want one line taking Code \\&block first", name, sigs)
+			t.Errorf("%s: CORE.tpm has %+v; want one line taking Code \\&block first", name, sigs)
 		}
 	}
 	for _, name := range []string{"keys", "values"} {
@@ -54,7 +54,7 @@ func TestCoreArrayListHashBuiltinsTyped(t *testing.T) {
 			counts[s.Answers()]++
 		}
 		if len(core[name]) != 4 || counts[types.ScalarCtx] != 2 || counts[types.ListCtx] != 2 {
-			t.Errorf("%s: CORE.pmt has %d candidates by context %v; want two scalar returns and two list returns", name, len(core[name]), counts)
+			t.Errorf("%s: CORE.tpm has %d candidates by context %v; want two scalar returns and two list returns", name, len(core[name]), counts)
 		}
 	}
 }
@@ -69,7 +69,7 @@ func TestCoreKeysValuesMatchMeasuredSignatures(t *testing.T) {
 		"keys":   {1, []types.Type{types.Hash | types.Array}, types.List},
 		"values": {1, []types.Type{types.Hash | types.Array}, types.List},
 	}
-	src, err := os.ReadFile("declarations/CORE.pmt")
+	src, err := os.ReadFile("declarations/CORE.tpm")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func TestCoreKeysValuesMatchMeasuredSignatures(t *testing.T) {
 			}
 		}
 		if listRow == nil || fmt.Sprint(*listRow) != fmt.Sprint(golden[name]) {
-			t.Errorf("%s: CORE.pmt's list-context candidates have %v; measured %v", name, listRow, golden[name])
+			t.Errorf("%s: CORE.tpm's list-context candidates have %v; measured %v", name, listRow, golden[name])
 		}
 		if derived[name] != `\[%@]` {
 			t.Errorf("%s: candidates derive (%s); perl says (\\[%%@])", name, derived[name])
@@ -133,7 +133,7 @@ func TestCoreKeysScalarContextIsCount(t *testing.T) {
 // @list) Boolean` (perigrin, 2026-10-05; RFC 0001 "The scalar container"),
 // whose types derive perl's `\&@`.
 func TestCoreAllAnyDeriveRefAmpAt(t *testing.T) {
-	src, err := os.ReadFile("declarations/CORE.pmt")
+	src, err := os.ReadFile("declarations/CORE.tpm")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +149,7 @@ func TestCoreAllAnyDeriveRefAmpAt(t *testing.T) {
 	for _, name := range []string{"all", "any"} {
 		sigs := core[name]
 		if len(sigs) != 1 || !slices.Equal(sigs[0].Params, want) || sigs[0].Returns != types.Boolean {
-			t.Errorf("%s: CORE.pmt has %+v; want (Code \\&block, List @list) Boolean", name, sigs)
+			t.Errorf("%s: CORE.tpm has %+v; want (Code \\&block, List @list) Boolean", name, sigs)
 		}
 		if derived[name] != `\&@` {
 			t.Errorf("%s: types derive (%s); perl says (\\&@)", name, derived[name])
@@ -172,17 +172,17 @@ func TestCoreKeysValuesRefuseScalar(t *testing.T) {
 }
 
 // TestCoreEachDeclaredOnce: this batch leaves each to the no-prototype
-// builtins issue, so CORE.pmt declares it once -- one plain line, or a set
+// builtins issue, so CORE.tpm declares it once -- one plain line, or a set
 // of multi candidates, never both and never two plain lines.
 func TestCoreEachDeclaredOnce(t *testing.T) {
-	src, err := os.ReadFile("declarations/CORE.pmt")
+	src, err := os.ReadFile("declarations/CORE.tpm")
 	if err != nil {
 		t.Fatal(err)
 	}
 	plain := regexp.MustCompile(`(?m)^sub each\b`).FindAll(src, -1)
 	multi := regexp.MustCompile(`(?m)^multi sub each\b`).FindAll(src, -1)
 	if len(plain) > 1 || (len(plain) == 1) == (len(multi) > 0) {
-		t.Errorf("CORE.pmt declares each in %d plain lines and %d multi candidates; want one declaration set", len(plain), len(multi))
+		t.Errorf("CORE.tpm declares each in %d plain lines and %d multi candidates; want one declaration set", len(plain), len(multi))
 	}
 }
 
@@ -215,7 +215,7 @@ func TestCoreReverseScalarDefaultsToTopic(t *testing.T) {
 	}
 	core := parse.CoreSignatures()
 	if len(core["reverse"]) != len(want) {
-		t.Fatalf("reverse: CORE.pmt has %+v; want a scalar and a list candidate", core["reverse"])
+		t.Fatalf("reverse: CORE.tpm has %+v; want a scalar and a list candidate", core["reverse"])
 	}
 	for _, s := range core["reverse"] {
 		w, ok := want[s.Answers()]
@@ -223,7 +223,7 @@ func TestCoreReverseScalarDefaultsToTopic(t *testing.T) {
 			t.Errorf("reverse in %v context takes %+v; want %+v", s.Answers(), s.Params, w)
 		}
 	}
-	src, err := os.ReadFile("declarations/CORE.pmt")
+	src, err := os.ReadFile("declarations/CORE.tpm")
 	if err != nil {
 		t.Fatal(err)
 	}

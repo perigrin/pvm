@@ -1,4 +1,4 @@
-// ABOUTME: Tests CORE.pmt's grep, map and sort: the multis RFC 0001 declares for the builtins that keep their own parse.
+// ABOUTME: Tests CORE.tpm's grep, map and sort: the multis RFC 0001 declares for the builtins that keep their own parse.
 // ABOUTME: Their candidates, measured rows and selection are held here, each measured on perl 5.42.
 package parse_test
 
@@ -65,18 +65,18 @@ func TestCoreGrepMapSortAreMultis(t *testing.T) {
 			got = append(got, candidateOf(s))
 		}
 		if fmt.Sprint(got) != fmt.Sprint(want) {
-			t.Errorf("%s: CORE.pmt has %v; want %v", name, got, want)
+			t.Errorf("%s: CORE.tpm has %v; want %v", name, got, want)
 		}
 	}
 }
 
 // TestCoreGrepMapSortOutOfCoreTable: perl reports no prototype for grep,
-// map or sort, so CORE.pmt declares them and none enters the prototype
+// map or sort, so CORE.tpm declares them and none enters the prototype
 // table: their candidates derive none, grep's and map's `&@` and `$@`
 // being inexpressible as one, and sort's invocant deriving none.
 func TestCoreGrepMapSortOutOfCoreTable(t *testing.T) {
 	perl := perlPrototypes(t)
-	src, err := os.ReadFile("declarations/CORE.pmt")
+	src, err := os.ReadFile("declarations/CORE.tpm")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ func TestCoreGrepMapSortOutOfCoreTable(t *testing.T) {
 			t.Errorf("%s: perl reports (%s); measured none", name, proto)
 		}
 		if len(core[name]) < 2 {
-			t.Errorf("%s: CORE.pmt declares %d candidates; want a multi", name, len(core[name]))
+			t.Errorf("%s: CORE.tpm declares %d candidates; want a multi", name, len(core[name]))
 		}
 		if proto, ok := derived[name]; ok {
 			t.Errorf("%s: derives (%s); want none", name, proto)
@@ -111,7 +111,7 @@ func TestCoreGrepMapSortOutOfCoreTable(t *testing.T) {
 func TestCoreSortScalarIsUndef(t *testing.T) {
 	sort := parse.CoreSignatures()["sort"]
 	if len(sort) != 6 {
-		t.Fatalf("sort: CORE.pmt declares %d candidates; want 6", len(sort))
+		t.Fatalf("sort: CORE.tpm declares %d candidates; want 6", len(sort))
 	}
 	for i, list := range sort[:3] {
 		twin := sort[i+3]
@@ -130,7 +130,7 @@ func TestCoreSortScalarIsUndef(t *testing.T) {
 	}
 }
 
-// TestCoreGrepMapSortMatchMeasuredSignatures: CORE.pmt carries the
+// TestCoreGrepMapSortMatchMeasuredSignatures: CORE.tpm carries the
 // measured types internal/types/signatures.go gives grep, map and sort,
 // each row copied here so the check outlives that file, and compared with
 // the block candidate for grep and map and the plain one for sort. The
@@ -149,9 +149,9 @@ func TestCoreGrepMapSortMatchMeasuredSignatures(t *testing.T) {
 	for _, name := range grepMapSort {
 		want := golden[name]
 		if sigs := core[name]; len(sigs) <= want.candidate {
-			t.Errorf("%s: CORE.pmt has %d candidates; want candidate %d", name, len(sigs), want.candidate)
+			t.Errorf("%s: CORE.tpm has %d candidates; want candidate %d", name, len(sigs), want.candidate)
 		} else if got := rowOf(sigs[want.candidate]); fmt.Sprint(got) != fmt.Sprint(want.row) {
-			t.Errorf("%s: CORE.pmt has %v; measured %v", name, got, want.row)
+			t.Errorf("%s: CORE.tpm has %v; measured %v", name, got, want.row)
 		}
 	}
 }
@@ -165,7 +165,7 @@ func TestCoreGrepMapSortMatchMeasuredSignatures(t *testing.T) {
 func TestCoreSortRequiresAWrittenArgument(t *testing.T) {
 	sort := parse.CoreSignatures()["sort"]
 	if len(sort) != 6 {
-		t.Fatalf("sort: CORE.pmt declares %d candidates; want 6", len(sort))
+		t.Fatalf("sort: CORE.tpm declares %d candidates; want 6", len(sort))
 	}
 	want := []types.Param{{Name: "list", Sigil: '@', Type: types.List, Required: true}}
 	if got := sort[1].Params; fmt.Sprint(got) != fmt.Sprint(want) || sort[1].Invocant != nil {

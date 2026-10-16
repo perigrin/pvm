@@ -5,7 +5,7 @@
   sections wait on the types paper. A section is *Implemented* when its
   rule is built and tested; the example declarations a section shows
   (`chomp`, `select`, `localtime`, ...) are illustrations, written into
-  `CORE.pmt` and tested against perl by the issues that type the
+  `CORE.tpm` and tested against perl by the issues that type the
   builtins (perigrin, 2026-10-05). A section that states a directive
   about specific lines, not an example, is built when those lines are.
 - **Date:** 2026-10-01
@@ -18,7 +18,7 @@ A module can define names and syntax that no reading of its source
 recovers. A **type library** states them in a declaration file, the way
 TypeScript's `@types/Foo` describes JavaScript the compiler never reads.
 The parser reads the declaration in place of the module's source. One
-file, `CORE.pmt`, does the same for perl's builtins, as TypeScript's
+file, `CORE.tpm`, does the same for perl's builtins, as TypeScript's
 `lib.d.ts` does for the language itself.
 
 ## Motivation
@@ -45,8 +45,8 @@ declaration can describe them, and they stay refusals (perigrin).
 
 ### Declaration files (*Implemented*, a70a294e, a3095b73)
 
-A declaration file is named for its module with the `.pmt` extension:
-`Moose::Role` lives at `Moose/Role.pmt`. The files are embedded in the
+A declaration file is named for its module with the `.tpm` extension:
+`Moose::Role` lives at `Moose/Role.tpm`. The files are embedded in the
 binary under `internal/parse/declarations/`. When a module has a
 declaration, the resolver reads it **instead of** the module's source,
 whether or not the module is installed.
@@ -98,9 +98,9 @@ Importing the module brings its syntax into scope from that point to
 the end of the file, as features are scoped in this parser; `use M ()`
 calls no import and brings none. Perl scopes these lexically.
 
-### CORE.pmt: the builtin table (*Implemented*, 36df6a2c)
+### CORE.tpm: the builtin table (*Implemented*, 36df6a2c)
 
-`CORE.pmt` declares the 188 keywords perl 5.42.0 reports a prototype
+`CORE.tpm` declares the 188 keywords perl 5.42.0 reports a prototype
 for, one line each, and parsing it builds the default builtin table:
 
 ```perl
@@ -140,13 +140,13 @@ signature. Measured on 5.42, `sub f :lvalue ($x) {}` compiles,
 `sub f ($x) :lvalue {}` dies ("Subroutine attributes must come before
 the signature"), and `sub :lvalue f {}` is no declaration: perl reads
 the label `sub:` and the indirect call `'f'->lvalue({})`, which `use
-v5.36` refuses as a syntax error. A `.pmt` reports any statement it
+v5.36` refuses as a syntax error. A `.tpm` reports any statement it
 cannot read as "not a declaration". An operator
 is therefore `sub + :infix (Num $x, Num $y) Num;`.
 
-### Typed Perl, in `.pmt` only (*Implemented*, a3c0200c, 3247bd4a, 26f0f472, b695e2b4, 0cfefff4, acc10ef3, 5a22ba3b, d2094988)
+### Typed Perl, in `.tpm` only (*Implemented*, a3c0200c, 3247bd4a, 26f0f472, b695e2b4, 0cfefff4, acc10ef3, 5a22ba3b, d2094988)
 
-The syntax of `.pmt` files is **typed Perl** (perigrin): Perl whose
+The syntax of `.tpm` files is **typed Perl** (perigrin): Perl whose
 declarations carry types. The full form of a declaration is
 
 ```perl
@@ -154,7 +154,7 @@ sub NAME :attributes (Type $var, ...) Type;
 ```
 
 with `;` where a definition would have its body. Typed Perl is accepted
-**only in `.pmt` files** (perigrin); ordinary `.pm` and `.pl` source is
+**only in `.tpm` files** (perigrin); ordinary `.pm` and `.pl` source is
 parsed as plain Perl. Accepting it elsewhere would also misread valid
 programs, as measured: without the signatures feature,
 `sub f (Ref $x) {...}` is valid Perl whose parentheses are a prototype.
@@ -171,17 +171,17 @@ Type names come from the lattice in `internal/types` (`Int`, `Num`,
 so a union such as `Str|Undef` is proposed as the spelling for "a
 string or undef"; the paper may choose another.
 
-`CORE.pmt` is the builtin table. `internal/infer` reads each builtin's
+`CORE.tpm` is the builtin table. `internal/infer` reads each builtin's
 types from it, and the parser derives each builtin's parse shape from it
 -- named unary, list operator or niladic -- from its prototype, its
 `:unary` or its `:listop`; `TestCoreDerivedShapes` holds the derived
 shapes to the sets perl was measured to give. The comments recording
-those measurements are on `CORE.pmt`'s lines. No hand-kept table of
+those measurements are on `CORE.tpm`'s lines. No hand-kept table of
 builtins remains beside it, of types or of parse shapes.
 
 ### Type names (*Implemented*, 02df00ad, cd485cd0, b2c809fc, 54784319)
 
-A `.pmt` names types from the lattice in `internal/types`, and an
+A `.tpm` names types from the lattice in `internal/types`, and an
 unknown name is an error. perigrin, 2026-10-02:
 
 - **Unions are spelled `A|B`**, as `Str|Undef`. The lattice is a bitmask,
@@ -191,7 +191,7 @@ unknown name is an error. perigrin, 2026-10-02:
   of a sub that never returns, such as `exit`.
 - **`IO` joins the lattice** (the paper has it), and **`FileHandle` is a
   named union, `Glob|GlobRef|IO`**, defined in the lattice as `Ref` and
-  `Scalar` are, so a `.pmt` needs no alias syntax. Measured on 5.42: a
+  `Scalar` are, so a `.tpm` needs no alias syntax. Measured on 5.42: a
   bareword handle is a `Glob`, `open my $fh` gives a `GLOB` reference,
   and `IO` names what a glob's IO slot holds -- the slot type, at the
   top of the lattice beside `Code`, never a value. The value
@@ -204,7 +204,7 @@ unknown name is an error. perigrin, 2026-10-02:
   not a `FileHandle` until the paper says how blessing and reftype
   combine.
 - **Names follow the paper.** The lattice's `Bool` is the paper's
-  `Boolean`, and a `.pmt` writes `Boolean`.
+  `Boolean`, and a `.tpm` writes `Boolean`.
 - **`Void` joins the lattice** (perigrin, 2026-10-08), the paper's
   `Void := {()}`: arity 0, one inhabitant, the empty list, what returns
   and yields nothing. It sits under `List` beside `Scalar`, and is not
@@ -234,27 +234,27 @@ unknown name is an error. perigrin, 2026-10-02:
 - **The paper's other types** (`VString`, `Format`, `LValueRef`) join
   the lattice when a declaration first needs one.
 
-### One language for every `.pmt` (*Implemented*, 79191842, d1338cd2, b6bea9c6)
+### One language for every `.tpm` (*Implemented*, 79191842, d1338cd2, b6bea9c6)
 
-perigrin, 2026-10-02: everything `CORE.pmt` can say, any library's
-`.pmt` can say too -- typed signatures, `multi` and its context forks,
-the invocant colon, declared syntax. `CORE.pmt` is the declaration file for
+perigrin, 2026-10-02: everything `CORE.tpm` can say, any library's
+`.tpm` can say too -- typed signatures, `multi` and its context forks,
+the invocant colon, declared syntax. `CORE.tpm` is the declaration file for
 the interpreter, not a dialect of its own. A construct no Perl-level sub
 can have (the invocant colon) is still declarable for a library,
 because a keyword plugin can build what a sub cannot.
 
-A library's `.pmt` is held to `CORE.pmt`'s rules, and its errors name
+A library's `.tpm` is held to `CORE.tpm`'s rules, and its errors name
 the module. The one difference is the operator classes coined for
-`CORE.pmt` (see "Operator declarations"), which a library may not name.
+`CORE.tpm` (see "Operator declarations"), which a library may not name.
 A sub a library exports is imported with its typed signatures.
 
 Typed Perl is meant to outlive pvm's parser: Chalk is to read the same
-`.pmt` files in time, so the syntax should stay something a second
+`.tpm` files in time, so the syntax should stay something a second
 implementation can parse from this RFC alone.
 
 ### Builtins with no prototype (*Implemented*, 3d340622, d1338cd2, 0cfefff4, e00fc501, 79a16715)
 
-About 20 builtins have no prototype perl can report. `CORE.pmt`
+About 20 builtins have no prototype perl can report. `CORE.tpm`
 declares their types, and `:unary` marks the eight that are named
 unaries; a builtin with no prototype is otherwise a list operator, as an
 ordinary sub is. Most of their forms turn out to be declarable; see
@@ -288,10 +288,10 @@ A `:listop` line is held as a `:unary` one is. A `:prototype(...)`
 beside it is an error, since it derives none; so is `:listop` with no
 typed signature, which would leave it nothing to say, and `:listop`
 beside `:unary`, two parses for one builtin. A multi's candidates derive
-none when any of them states it. The `CORE.pmt` check, which reads
+none when any of them states it. The `CORE.tpm` check, which reads
 perl's `undef` as a derived `@`, has no derived prototype of a `:listop`
-line to hold to perl's. A library `.pmt` states `:listop` as `CORE.pmt`
-does, under the same rules ("One language for every `.pmt`"), for an
+line to hold to perl's. A library `.tpm` states `:listop` as `CORE.tpm`
+does, under the same rules ("One language for every `.tpm`"), for an
 XS sub with no prototype but typed positional parameters.
 
 ### Builtins that keep their own parse (*Implemented*, eb839b7d, 2bccec6f, cb25b36c, 828544ec, c1107251, efed93fd, b8e22b93, db6c2483, 6556db7f)
@@ -305,7 +305,7 @@ one with `(@)` parse identically in every form tried (`f $a, $b`,
 that derives `@` is a sub with no prototype, and a one-argument CPAN sub
 with none is declared from the caller's side, `(List @args)`, not
 `(Str $x)`: the latter claims a `$` prototype the sub lacks. The
-`CORE.pmt` check treats perl's `undef` as a derived `@`.
+`CORE.tpm` check treats perl's `undef` as a derived `@`.
 
 **Most "special forms" are multis.** perlsub reimplements `grep` as
 `sub mygrep (&@)`, and that covers the block form exactly. The
@@ -370,7 +370,7 @@ sub exec (Str $program: List[Str] @args) Boolean;
 
 A signature with an invocant colon derives no prototype, matching perl.
 No Perl-level sub can have the slot, but a keyword plugin can build it,
-so any `.pmt` may declare one (see "One language for every `.pmt`").
+so any `.tpm` may declare one (see "One language for every `.tpm`").
 Perl's `method` takes `$self` implicitly and never lists an
 invocant, so the colon cannot collide with one. For `sort` the slot
 names a comparison routine, which may be a string (`sort $n @x` with
@@ -394,7 +394,7 @@ evaluated per element, as `grep EXPR`'s is.
 
 A slurpy (`@` or `%`) is therefore either untyped or typed with an
 explicit container type. Container types such as `List[Str]` parse now,
-and like all typed Perl only in `.pmt` files (perigrin, 2026-10-02);
+and like all typed Perl only in `.tpm` files (perigrin, 2026-10-02);
 what they mean -- variance, flattening, `Array[T]` against `List[T]` --
 is provisional until the paper defines it. `print`, with its container
 explicit:
@@ -469,11 +469,11 @@ while under `($)` it reads `f(1), 2`, and `g 1` under `(;)` is "Too
 many arguments" where `()` is a syntax error. So `$;` and `;` come back
 from types as `$` and nothing; a declaration that needs them writes
 `:prototype($;)`, which agrees with `(Scalar $x)` and is the prototype
-kept (`not` and `getprotobynumber` in CORE.pmt). A test
+kept (`not` and `getprotobynumber` in CORE.tpm). A test
 can hold the derived prototypes to `prototype("CORE::name")` for all
 188 builtins.
 
-In a `.pmt`, a parameter's sigil is the caller's view, as a prototype's
+In a `.tpm`, a parameter's sigil is the caller's view, as a prototype's
 characters are. A backslashed parameter aliases the caller's container
 (see "The scalar container"); an unbackslashed `List @` is the rest of
 the call, flattened. So in `(Array \@a, List @list)` only the final
@@ -537,7 +537,7 @@ slot (`\*`, inside `\[$@%*]` for `tie`, `tied`, `untie`, `lock`,
 cannot alias a glob this way -- `\*G = \*STDOUT` is a compile error,
 "Can't modify reference to ref-to-glob cast" -- so `Glob \*g` would be
 an extension rather than Perl's syntax. Until it is decided those six
-builtins keep prototype-only lines in `CORE.pmt`, untyped. This replaces
+builtins keep prototype-only lines in `CORE.tpm`, untyped. This replaces
 an earlier `:lvalue` parameter attribute for the same job.
 
 Measured on 5.42, `\$` accepts any scalar lvalue, not only a variable:
@@ -648,7 +648,7 @@ as a parenthesised one; and to `\` a sub call is a list too, `my @r =
 \f()` being a reference to each value `f` returns, where `f() x 2`
 repeats a string.
 
-**`:bareword`** is a parameter attribute, and the only one a `.pmt`
+**`:bareword`** is a parameter attribute, and the only one a `.tpm`
 parameter takes (perigrin, 2026-10-08). It is a parser hint, not a type
 coercion: the operand is read as a word, not an expression, and the
 parameter's type says what the operand becomes. `=>` is the comma whose
@@ -671,18 +671,18 @@ strict`, with `sub foo { "CALLED" }`: `(foo => 1)` gives "foo" where
 `(foo, 1)` gives "CALLED"; `(time => 1)` gives "time" where `(time, 1)`
 gives the time; and `(nosuch => 1)` gives "nosuch" where `(nosuch, 1)`
 is "Bareword not allowed while strict subs". The lexer reads which
-operators have a `:bareword` left operand from `CORE.pmt`: a program
+operators have a `:bareword` left operand from `CORE.tpm`: a program
 is lexed with them, so `s => 1` is the word `s` and not a substitution
-and `-e => 1` the word `-e` and not a file test, and `CORE.pmt` itself
-is lexed with the lexer's own list, which a test holds to `CORE.pmt`'s
+and `-e => 1` the word `-e` and not a file test, and `CORE.tpm` itself
+is lexed with the lexer's own list, which a test holds to `CORE.tpm`'s
 (TestFatCommaAutoquotes, TestLexerBarewordOperatorsAreCores). Elsewhere
 the parser treats `=>` as the comma it is `:equiv` to.
 
 ### Precedence is a relation between operators (*Implemented*, 04a6ca62, b2750dd0, 5f2311c7, 2119cf83, 02fcb424, b8aef969)
 
 The goal (perigrin, 2026-10-08): every builtin and operator is defined
-with a signature in `CORE.pmt` that lets it be parsed, and the parser
-is derived from `CORE.pmt` -- as its keyword shapes already are. An
+with a signature in `CORE.tpm` that lets it be parsed, and the parser
+is derived from `CORE.tpm` -- as its keyword shapes already are. An
 operator's precedence is part of that definition.
 
 pvm and Chalk each kept a precedence table by hand -- pvm's in
@@ -692,7 +692,7 @@ pvm and Chalk each kept a precedence table by hand -- pvm's in
 semiring -- and the two disagreed: Chalk gives `isa` its own level
 tighter than the relational operators, as perlop does, while pvm put
 it beside them, as perly.y does (toke.c lexes `isa` as an NCRELOP).
-pvm's is now a reading of `CORE.pmt`: its binding powers are derived
+pvm's is now a reading of `CORE.tpm`: its binding powers are derived
 from the relations, with `isa` in perlop's row. Measured on 5.42, the
 two placements differ only in what perl refuses: `$x isa Foo < 1` and
 `$a < $b isa Foo` are both syntax errors, so an unparenthesised `isa`
@@ -747,9 +747,9 @@ sub ⊕ :infix :tighter(+) :looser(*) :assoc(left) (Num $x, Num $y) Num;
   operator, `not`, has the operator's level.
 
 **The parser derives a total order** by sorting the relations
-topologically. A `.pmt` whose relations form a cycle, or leave two
+topologically. A `.tpm` whose relations form a cycle, or leave two
 levels unordered where a parse needs an answer, is a declaration error
-naming the operators. `CORE.pmt`'s relations reproduce perlop's table
+naming the operators. `CORE.tpm`'s relations reproduce perlop's table
 exactly, and a test holds the derived order and associativity to
 perlop's own table. Every operator perlop's table names that is an
 infix, prefix or postfix operator has a line, including `^^`, `&.`,
@@ -760,7 +760,7 @@ beside the parser (`undeclaredOperators` in
 `sub ⊕ :infix :tighter(+) :looser(*)` parses between `+` and `*`
 wherever the library is in scope: from its import to the end of the
 file, as its declared syntax is, and `use M ()` brings none. A library
-whose relations form a cycle with `CORE.pmt`'s, or two libraries in
+whose relations form a cycle with `CORE.tpm`'s, or two libraries in
 scope whose operators are left unordered, are a declaration error
 naming the operators. An operator may be spelled with a non-ASCII
 symbol, `⊕`, as an operator plugin may register one.
@@ -837,7 +837,7 @@ return type answers one context:
 "A list" is not a subtype test: `Scalar <: List`, so every scalar
 return type is under `List` too. Context is still decided at the call
 site, syntactically; what says which candidate answers it is the
-return type. Each of the 37 `CORE.pmt` candidates that stated a
+return type. Each of the 37 `CORE.tpm` candidates that stated a
 `:context` attribute returns a type answering the context it stated.
 
 ```perl
@@ -875,7 +875,7 @@ attribute beside it could only repeat it or contradict it.
 
 perigrin, 2026-10-02. Where perl refuses a call at compile time, the
 parser refuses it too, for prototypes read from module source as well
-as for `.pmt` declarations. Measured on 5.42:
+as for `.tpm` declarations. Measured on 5.42:
 
 - A call whose arity no declaration accepts: `select(1, 2)` dies "Not
   enough arguments for select system call", `localtime(1, 2)` "Too many
@@ -889,7 +889,7 @@ Some builtins parse more loosely than their declarations say, and the
 declaration cannot carry both: `not()` compiles and is true, though
 `sub not :prototype($;) (Scalar $x)` requires the argument, because
 perl's `$;` means one thing for a user sub and another for `not`.
-Measured by calling every CORE.pmt builtin with none to six arguments,
+Measured by calling every CORE.tpm builtin with none to six arguments,
 such a builtin is refused only on the side perl refuses: `close($x, $x)`
 compiles and `closedir()` does not; `system()` compiles and `do($x, $x)`
 does not; and `fc($x, $x)` without its feature is a user's sub.
@@ -914,7 +914,7 @@ remains.
 
 A default on a slurpy parameter is a typed-Perl extension: perl's
 signatures reject it ("A slurpy parameter may not have a default
-value"). `.pmt` declarations use it for `= die` here and for `print`'s
+value"). `.tpm` declarations use it for `= die` here and for `print`'s
 `= ($_)`.
 
 **An argument perl computes when it is absent has no default**
@@ -959,7 +959,7 @@ perl5-son extend one lattice:
 1. **Parametric containers.** The lattice is flat. `List[T]` (values in
    flight, covariant) and `Array[T]` (a container, invariant) differ;
    `Hash[T]` flattens to `List[Str|T]`; `ArrayRef[T]` should follow from
-   `Array[T]`. Container types such as `List[Str]` already parse in `.pmt` files
+   `Array[T]`. Container types such as `List[Str]` already parse in `.tpm` files
    (see "A slurpy takes no bare element type"); what they mean waits on
    the paper.
 2. *(Resolved: see "What a parameter type means".)*
@@ -974,7 +974,7 @@ perl5-son extend one lattice:
 
 Separate from the paper:
 
-6. A search path for user-written `.pmt` files beside the embedded set.
+6. A search path for user-written `.tpm` files beside the embedded set.
 7. The remaining XS::Parse pieces, and sublikes other than `PREFIX`.
 8. Lexical rather than file-wide scope for declared syntax and a
    library's operators.
@@ -998,11 +998,11 @@ Separate from the paper:
 - **Generating declarations by running perl.** Reading a module's
   symbol table means perl has already parsed it; a Perl parser that
   must run Perl is circular. It also fails for uninstalled dependencies
-  and pins data to one machine's module versions. `CORE.pmt` is the
+  and pins data to one machine's module versions. `CORE.tpm` is the
   exception: the builtins have no source to read, and its generation
   is checked against perl by a test.
 - **Attribute before the name** (`sub :infix + (...)`). Perl rejects it.
-- **Typed Perl in ordinary source.** It is accepted only in `.pmt`
+- **Typed Perl in ordinary source.** It is accepted only in `.tpm`
   files; elsewhere it would misread valid Perl (see above).
 - **Narrowing a union return instead of context declarations.** The
   scalar-context value is not one of the list-context values.

@@ -93,7 +93,7 @@ func (l *lexer) atPrototypeAttribute() bool {
 // sigilAttribute reports whether an attribute named word takes prototype
 // sigils as its argument: `:prototype(...)`, and in typed Perl
 // `:context(...)`, whose `:context($)` would otherwise lex `$)` as a
-// variable. A `.pmt`'s return type says which context selects a candidate
+// variable. A `.tpm`'s return type says which context selects a candidate
 // (RFC 0001, "Context selects by return type"), so the declaration reader
 // refuses `:context` by name, which it can once the attribute lexes whole.
 // perl has no `:context`, so ordinary source scans it as any other

@@ -10,7 +10,7 @@ import (
 
 // refuseArity returns n, or an Unknown spanning it when n calls a sub with
 // a number of arguments its prototype refuses, or a builtin with a number
-// none of CORE.pmt's candidates for it accepts. Measured on 5.42.0,
+// none of CORE.tpm's candidates for it accepts. Measured on 5.42.0,
 // `each()` is "Not enough arguments for each" and `localtime(1, 2)` "Too
 // many arguments for localtime".
 //
@@ -25,7 +25,7 @@ import (
 // without them. Treat an unread module's default import as overriding if
 // one turns up that accepts what its builtin refuses.
 //
-// A `.pmt` is not checked: CORE.pmt is one, and reading it builds the
+// A `.tpm` is not checked: CORE.tpm is one, and reading it builds the
 // candidates this consults.
 func (p *parser) refuseArity(n *Node) *Node {
 	if n == nil || n.Kind != Call || p.typed || p.mayBeAutoquoted(n) || p.mayBeIndirect(n) {
@@ -133,8 +133,8 @@ func (p *parser) overridden(name string) bool {
 // 5.42.0, `sub rename { "fake" } rename()` is "Not enough arguments for
 // rename", while a lexical sub does override: `my sub lc { "x" }
 // lc("A")` is "x". Signatures is the typed signatures a declaration file
-// gives the sub it calls, when that is a sub and not the builtin. A `.pmt`
-// is not marked: CORE.pmt is one, and reading it builds the candidates
+// gives the sub it calls, when that is a sub and not the builtin. A `.tpm`
+// is not marked: CORE.tpm is one, and reading it builds the candidates
 // this consults.
 func (p *parser) markResolution(n *Node) *Node {
 	if n == nil || n.Kind != Call || p.typed || n.Text != keywordName(n.Text) {
@@ -202,9 +202,9 @@ const (
 	looseAny
 )
 
-// looseArity are the builtins whose own parse accepts calls their CORE.pmt
+// looseArity are the builtins whose own parse accepts calls their CORE.tpm
 // candidates refuse, so the candidates cannot say what perl refuses there.
-// Measured on 5.42.0 by calling every CORE.pmt builtin with none to six
+// Measured on 5.42.0 by calling every CORE.tpm builtin with none to six
 // arguments, plain and as `CORE::NAME`, and running `perl -c` over each
 // call refused here; each name below compiled at least once, and every
 // refused call on the other side of its looseness died. A word gated on a

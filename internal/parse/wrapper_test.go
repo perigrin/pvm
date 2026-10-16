@@ -1,4 +1,4 @@
-// ABOUTME: Tests for the wrapper type names Maybe[T] and Optional[T] in a .pmt declaration.
+// ABOUTME: Tests for the wrapper type names Maybe[T] and Optional[T] in a .tpm declaration.
 // ABOUTME: Each names a union, Undef|T and Void|T; neither is a type of its own.
 package parse
 
@@ -34,7 +34,7 @@ func TestWrapperTypesAreJoins(t *testing.T) {
 		t.Errorf("Optional[Str] = %v, want Void|Str", got)
 	}
 
-	pmtRefuses(t, map[string]string{
+	tpmRefuses(t, map[string]string{
 		"sub f (Maybe $x);\n":           "sub f: Maybe takes one type, as in Maybe[Int]",
 		"sub f (Optional[] $x);\n":      "sub f: Optional takes one type, as in Optional[Int]",
 		"sub f (Maybe[Int, Str] $x);\n": "sub f: Maybe takes one type, as in Maybe[Int]",

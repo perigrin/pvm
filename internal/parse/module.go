@@ -368,7 +368,7 @@ func (r *resolver) resolve(module string) (moduleFacts, bool) {
 	switch {
 	case !declared:
 		facts = readModule(parseRoot(src, r))
-	// CORE.pmt is the interpreter's declaration file, not a library's.
+	// CORE.tpm is the interpreter's declaration file, not a library's.
 	case module == "CORE":
 		facts = readDeclaration(src, r)
 	default:
