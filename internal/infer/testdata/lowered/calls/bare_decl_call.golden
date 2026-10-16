@@ -1,3 +1,4 @@
 sym $ok Boolean
-sym $v Str
+sym $v Scalar
+sym $v Undef
 sym setit Code
