@@ -120,13 +120,20 @@ func TestIncRootsReportsUnresolvedPerl(t *testing.T) {
 // runCheck runs psc check on target and returns what it prints.
 func runCheck(t *testing.T, target string) string {
 	t.Helper()
+	out, _ := runCheckErr(t, target)
+	return out
+}
+
+// runCheckErr is runCheck that also returns the error psc check ended with.
+func runCheckErr(t *testing.T, target string) (string, error) {
+	t.Helper()
 	cmd := NewCommand()
 	cmd.SetArgs([]string{"check", target})
 	var out strings.Builder
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
-	_ = cmd.Execute()
-	return out.String()
+	err := cmd.Execute()
+	return out.String(), err
 }
 
 // TestLSPLogsUnresolvedPerl checks that the LSP reports a perl the
