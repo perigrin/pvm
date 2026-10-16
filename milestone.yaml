@@ -1,6 +1,7 @@
 name: core-module-types
 resolution: "sh -c 'grep -q \"^### Call sites (\\*Implemented\\*\" docs/rfcs/0001-type-libraries.md && grep -q \"^### Core-module libraries (\\*Implemented\\*\" docs/rfcs/0001-type-libraries.md && go test ./internal/parse/ -run \"^TestCoreModuleDeclarationsCoverTheTop50$\" -count=1 -v | grep -q \"^--- PASS: TestCoreModuleDeclarationsCoverTheTop50\"'"
 created: 2026-10-16T19:51:00.819852986Z
+state: open
 ---
 
 Build RFC 0001's "Core-module libraries" and "Call sites" (docs/rfcs/0001-type-libraries.md, both *Decided*): declaration files for the 50 core modules perl 5.42's own library imports most, each held to perl by tests, and `infer` typing a call to any declared sub -- imported or qualified -- from the signatures the parser resolved, selecting among multi candidates at the call site.
@@ -56,7 +57,7 @@ New:
 
 **Pragmas and infrastructure modules are the risk.** If lowercase pragmas (strict, warnings, constant, vars, overload, parent) rank, a `.tpm` replacing their source could change how the parser handles them; Exporter, XSLoader and DynaLoader the RFC already flags: each is written, then measured against every module that uses it and the m1 gates, and is not shipped (cancelled with the measurement as reason) if it changes resolution. Give each its own issue.
 
-**Batching declarations.** One issue per module is 50 issues of near-identical shape; one issue for all 50 is unverifiable. Batch by shared machinery: pure-Perl exporters with literal lists; XS modules whose prototypes come from `.xs` (List::Util, Scalar::Util, POSIX, Fcntl, Socket -- POSIX alone exports hundreds of names); variable exporters (Config, Errno -- need typed `our`); OO-only modules with empty export lists (IO::Handle, File::Spec, Class::Struct) whose `.tpm` declares methods but exports nothing. Each batch runs the perl-held tests and the m1 ratchets.
+**Batching declarations.** One issue per module is 50 issues of near-identical shape; one issue for all 50 is unverifiable. Batch by shared machinery: pure-Perl exporters with literal lists; XS modules whose prototypes come from `.xs` (List::Util, Scalar::Util, POSIX, Fcntl, Socket -- POSIX alone exports hundreds of names); variable exporters (Config, Getopt::Long, Test::More, Text::Wrap, ExtUtils::MakeMaker, File::stat -- need typed `our`; Errno exports only constants, measured on 5.42.0); OO-only modules with empty export lists (IO::Handle, File::Spec, Class::Struct) whose `.tpm` declares methods but exports nothing. Each batch runs the perl-held tests and the m1 ratchets.
 
 **Held to perl, never run by psc.** Three test kinds per declaration: `prototype(\&M::f)` equals the declared prototype (or both undef); the module's `@EXPORT`/`@EXPORT_OK`/`%EXPORT_TAGS` equal the declaration's; the oracle calls each safe sub in a scratch dir with no network and every observed value must be a member of the declared return type (WRONG = 0). A sub unsafe to call (fork, exec, sockets, file mutation outside scratch, `POSIX::_exit`) is held to prototype and export membership only, and the test lists it explicitly so the exemption is visible.
 
