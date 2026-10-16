@@ -19,7 +19,7 @@ blocks:
 - 01a1464e-ddb0-720a-93f6-450c767e6e2e
 - 01a1464e-dde3-73fe-ab1f-ced7f18c4f9d
 created: 2026-10-16T20:02:15.040084527Z
-updated: 2026-10-16T20:10:07.02038644Z
+updated: 2026-10-16T20:10:25.92001939Z
 ---
 
 ## Prerequisites
@@ -52,7 +52,7 @@ The test walks privlib in Go (`filepath.WalkDir`, `filepath.ToSlash` on relative
 - [ ] Implement the ranking in the test file; run to verify pass; commit
 - [ ] Write `testdata/core_module_ranking.txt` (the 50 above, one `Name count` per line) and `TestCoreModuleRanking` over privlib; run to verify pass: `go test ./internal/parse/ -run '^TestCoreModuleRanking$' -count=1 -v`
 - [ ] In the RFC's "Which 50." paragraph, state the rule, record the top-50 figure (1,326) and that ties are broken by module name, ascending
-- [ ] In the RFC's "Typed variables." paragraph, replace the example "Errno's `%!`": Errno exports no variable. Measured on perl 5.42.0 (`perl -MErrno -e '...'` over `@EXPORT`, `@EXPORT_OK` and `%EXPORT_TAGS`): 134 names, all constants, and `%!` is not among them (perl ties `%!` to Errno on first use; it is not imported). Name instead the variable exporters perl reports among the top 50 -- Config's `%Config`, and Socket's `$CR $LF $CRLF` (`@EXPORT_OK`) -- and cite the measurement inline
+- [ ] In the RFC's "Typed variables." paragraph, replace the example "Errno's `%!`": Errno exports no variable. Measured on perl 5.42.0 with `perl -MErrno -e 'my %s; $s{$_}++ for @Errno::EXPORT, @Errno::EXPORT_OK, map @$_, values %Errno::EXPORT_TAGS; print scalar(keys %s), " ", scalar(grep /^\W/, keys %s), "\n"'` -> `134 0`: 134 names, all constants, `%!` not among them (perl ties `%!` to Errno on first use; no import brings it). The top-50 modules that export variables are Config, Getopt::Long, Test::More, Text::Wrap, ExtUtils::MakeMaker and File::stat, and Socket exports `$CR $LF $CRLF` in `@EXPORT_OK` (measured: `perl -MSocket -e 'print "@{[grep /^\W/, @Socket::EXPORT_OK]}\n"'`). Use Config's `%Config` and Socket's `$CRLF` as the examples, and record the measurement and date inline
 - [ ] `make test`; commit
 
 ## Acceptance Criteria
