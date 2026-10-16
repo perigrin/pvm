@@ -1,0 +1,65 @@
+name: core-module-types
+resolution: "sh -c 'grep -q \"^### Call sites (\\*Implemented\\*\" docs/rfcs/0001-type-libraries.md && grep -q \"^### Core-module libraries (\\*Implemented\\*\" docs/rfcs/0001-type-libraries.md && go test ./internal/parse/ -run \"^TestCoreModuleDeclarationsCoverTheTop50$\" -count=1 -v | grep -q \"^--- PASS: TestCoreModuleDeclarationsCoverTheTop50\"'"
+created: 2026-10-16T19:51:00.819852986Z
+---
+
+Build RFC 0001's "Core-module libraries" and "Call sites" (docs/rfcs/0001-type-libraries.md, both *Decided*): declaration files for the 50 core modules perl 5.42's own library imports most, each held to perl by tests, and `infer` typing a call to any declared sub -- imported or qualified -- from the signatures the parser resolved, selecting among multi candidates at the call site.
+
+Done when issue 01a0fd9b-5700 is done, both RFC sections are re-marked *Implemented*, the committed ranking test passes, and every issue here is done or cancelled with a recorded reason. The resolution command checks the first three; `git zhi verify --timeout 900 core-module-types` checks the last.
+
+## Context
+
+**Declaration files.** `internal/parse/declarations/` is embedded (`//go:embed declarations` in `internal/parse/declarations.go`). `declaration(module)` maps `Foo::Bar` to `declarations/Foo/Bar.tpm`; when one exists the parser reads it *in place of* the module's source (`readDeclaration` -> `readModule` + the typed reader), so a name the file does not declare is a name the import loses. Shipped today: `CORE.tpm` (1,137 lines, the builtins), `Carp.tpm`, `Moose.tpm`, `Moose/Role.tpm`, `Mojolicious/Lite.tpm`, `Future/AsyncAwait.tpm`. A `.tpm` speaks typed Perl: `our @EXPORT`/`@EXPORT_OK` literal lists, `%EXPORT_TAGS` (read by `readExportTags`, exports.go), `sub NAME :prototype(P) (Type $x, ...) Ret;`, `multi sub`, and `None` for a sub that never returns (Carp.tpm's croak/confess). A prototype-only declaration derives its typed signature (RFC "A typed signature and a prototype say the same thing").
+
+**What does not exist yet.** (1) Typed variables: nothing reads `our Hash[Str] %Config :export;` -- no typed `our`, no `:export`/`:export_ok` attribute placing a variable in `@EXPORT`/`@EXPORT_OK`. The rule (perigrin, 2026-10-16): `:export` -> `@EXPORT`, `:export_ok` -> `@EXPORT_OK`, mirroring Exporter's lists; legal only in a `.tpm`, as a typed signature is. (2) A qualified call carries no signatures: `use.go:~318` records the module's own subs in `p.moduleSubs` as `Import{Name, Prototype, PrototypeKnown}` -- no `Signatures` -- so `Carp::confess(...)` resolves via `lookupSub` (shape.go:172) with an empty signature set. (3) `infer` ignores library signatures for typing: `internal/infer/calls.go:26` `call()` takes `parse.CoreBuiltin(name)` only, and an overridden builtin or any user/library sub goes to `userCall`, which never reads `lower.Call.Signatures`. The one consumer today is `exits` (flow.go:~624), which treats a call whose every signature returns `None` as ending its path -- so unqualified `croak`/`confess` are already exits; qualified ones are not. (4) No ranking test, no prototype()/export-list/oracle tests for library `.tpm`s.
+
+**The call-resolution pipeline (perigrin, 2026-10-16: inference takes call resolution from the parser).** `parse.(*parser).markResolution` (arity.go:~139) sets `Node.Override` (a builtin name a sub overrides) and `Node.Signatures` (the declaration's signatures for the sub called, when it is a sub and not the builtin). `internal/lower/call.go:21` copies both onto `lower.Call` (node.go:253-269). `infer` must read `Call.Signatures`/`Override`, never re-resolve names itself.
+
+**Selection.** `internal/types/select.go`: `Select`/`SelectShaped` return `Failed` (no candidate takes the call; no type), a single selection, or `Undecided` (join). `Taking`, `Answering`, `mostSpecific`, `Ambiguity` implement RFC "Multi declarations" and "Context selects by return type". `infer` today uses them only for builtins (`shapedCallReturns`, `builtinReturns`, infer.go:~1000-1045) with unknown argument types. Issue 01a0fd9b-5700 records five known traps a call site must handle (single fitting-arity candidate with mismatched arg types must still select and report `coercion-mismatch`; `UnknownCtx` must join, not fail; void-context `Failed` is untyped, never an error -- `$s =~ s/a/b/g;`; `delete` slice vs element by operand shape; sort's invocant candidate) plus conditions getting scalar context.
+
+**perl is the judge; psc never runs it.** perl 5.42.0 is `/home/perigrin/.local/bin/perl`; privlib (archlib inside it) is `/home/perigrin/.local/share/pvm/versions/5.42.0/lib/perl5/5.42.0`. Tests may run perl; production psc never does (RFC "Rejected alternatives": generating declarations by running perl). The existing runtime oracle is `internal/infer/testdata/observe_types.pl` (maps a live value to its lattice type by membership tests), driven by `TestInferencePrecision` (internal/infer/precision_test.go:135, floor >= 65/76, WRONG = 0). Reuse it for return types rather than writing a second oracle.
+
+**Gates that must hold (m1 + inference).** `TestT2HoldsAll56` / `TestT2CoreParses` (internal/parse/t2_test.go), `TestParseRatchet` (T1), `TestPerlGitTRatchet` (internal/parse/perlgitt_test.go), `TestCanonRatchet`, `TestCanonFidelityRatchet`, `TestRatchet`/`TestRatchetCorpus` (internal/parseoracle), `TestGoParserExactFloor` (exact match), `TestImportResolutionIsWorthT1Files`, `TestInferencePrecision`. A `.tpm` changes what the parser reads for every file that uses the module, so each new declaration can move T1/perl.git/canon -- run those after each batch, not only at the end.
+
+**psc check false positives over lib.** There is no committed baseline today: PR #486's review measured psc check over perl 5.42's lib ad hoc and committed per-root-cause repros (`internal/psc/review_regressions_test.go`, `testdata/review_regressions`). Goal 5 needs a pre-milestone baseline captured *before* the first declaration or call-site change lands, committed, and a test that fails on any diagnostic over lib not in it.
+
+**Conventions.** Every file starts with two `ABOUTME:` lines; `.tpm` comments record what was measured and on which perl/module version (see Carp.tpm). Strict TDD; `make test` green before every commit; never `--no-verify`. CI must pass on Linux, Windows and macOS: a test that needs perl 5.42 or privlib must skip (not fail) where it is absent, and the ranking test must not assume POSIX paths.
+
+## File Structure
+
+Existing, modified:
+- `internal/parse/declarations/Carp.tpm` -- already declared; held to the new perl tests like the rest.
+- `internal/parse/declarations.go`, `internal/parse/exports.go` -- typed `our` with `:export`/`:export_ok` feeding `moduleFacts.exports`/`defaults` and a variable type table.
+- `internal/parse/use.go` (~line 300-320) -- give `moduleSubs` entries the declaration's `Signatures`, so a qualified call carries them.
+- `internal/parse/arity.go` (`markResolution`) -- signatures for qualified calls.
+- `internal/infer/calls.go` (`call`, `userCall`, `args`, `checkArg`), `internal/infer/infer.go` (`shapedCallReturns`, `builtinReturns`) -- select among `Call.Signatures` at the call site by argument types, arity, shape and context; join when undecided; `Failed` arity is an error only where perl compiles the call.
+- `internal/infer/flow.go` (`exits`) -- unchanged logic; qualified `Carp::confess` becomes an exit once (2) lands.
+- `internal/types/select.go` -- the single-candidate coercion and `UnknownCtx` rulings from 01a0fd9b-5700.
+- `docs/rfcs/0001-type-libraries.md` -- re-mark "Call sites" and "Core-module libraries" `(*Implemented*, <shas>)`. NOTE: in this worktree the "Core-module libraries" section is staged, not yet committed.
+- `internal/data/help/types.md` -- the "Declaration Files" section.
+
+New:
+- `internal/parse/declarations/<Module/Path>.tpm` -- one per top-50 module (e.g. `Scalar/Util.tpm`, `File/Spec.tpm`, `Config.tpm`, `List/Util.tpm`, `POSIX.tpm`, `Errno.tpm`, ...).
+- A committed ranking test in `internal/parse/` (`TestCoreModuleDeclarationsCoverTheTop50`) and a checked-in expected list, e.g. `internal/parse/testdata/core_module_ranking.txt`.
+- Per-declaration perl-held tests in `internal/parse/` (prototype(), export lists) and `internal/infer/` (return-type oracle), with a perl helper script under the package's `testdata/`.
+- `internal/infer/declared_test.go` -- call-site tests named in 01a0fd9b-5700.
+- `test/e2e/psc_check_test.go` + `test/e2e/testdata/` -- `TestPSCCheckUsesDeclarations` and its no-false-positive twin.
+- A committed psc-check-over-lib baseline and its test (location the decomposer's choice; `internal/psc/testdata/` fits).
+
+## Design Rationale
+
+**Two chains that meet at the end.** Chain A is call sites: 01a0fd9b-5700 (moved into this milestone, or kept in type-libraries and depended on -- the decomposer decides, but goal 1 requires it done here; its title still says `.pmt` and needs fixing). Chain B is the libraries. They are independent until the end: B's `.tpm` files are parser input and are held to perl by parser-level tests, so they can be written before infer reads them. They meet in the return-type oracle tests and the psc-check-over-lib gate, which need both.
+
+**Critical chain.** baseline capture -> ranking test (fixes the 50) -> typed-variable support -> declarations in batches -> infer reads Call.Signatures (incl. qualified) -> oracle + lib false-positive gate -> RFC re-mark. The baseline must be first: once any declaration lands, "pre-milestone" can no longer be measured.
+
+**The ranking definition must be pinned before any `.tpm` is written.** The RFC reports 128 modules / 1,427 imports. A quick architect scan counting only literal `use Capitalized::Name` lines (excluding the module's own top-level namespace) found 107 modules / 897 imports, with Carp 255, Exporter 79, Scalar::Util 66, File::Spec 54, Config 50, File::Basename 29, Cwd 26, Encode 23, XSLoader 18, Symbol 17 at the head -- so the RFC's count also includes `require`, lowercase pragmas, or something else. The ranking test must state its rule (what counts as an import: `use`, `require`, `use M ()`, `use parent`/`base`; lowercase pragmas in or out; what "own namespace" means for `File::Spec::Unix` vs `File::Spec`) and reproduce the RFC's figure or the RFC must be corrected. In that scan ranks ~41-53 all tie at 2 imports: the 50th place falls inside a tie, so the test needs a deterministic tie-break, recorded in the RFC. Ask perigrin if the RFC's measurement method cannot be recovered.
+
+**Pragmas and infrastructure modules are the risk.** If lowercase pragmas (strict, warnings, constant, vars, overload, parent) rank, a `.tpm` replacing their source could change how the parser handles them; Exporter, XSLoader and DynaLoader the RFC already flags: each is written, then measured against every module that uses it and the m1 gates, and is not shipped (cancelled with the measurement as reason) if it changes resolution. Give each its own issue.
+
+**Batching declarations.** One issue per module is 50 issues of near-identical shape; one issue for all 50 is unverifiable. Batch by shared machinery: pure-Perl exporters with literal lists; XS modules whose prototypes come from `.xs` (List::Util, Scalar::Util, POSIX, Fcntl, Socket -- POSIX alone exports hundreds of names); variable exporters (Config, Errno -- need typed `our`); OO-only modules with empty export lists (IO::Handle, File::Spec, Class::Struct) whose `.tpm` declares methods but exports nothing. Each batch runs the perl-held tests and the m1 ratchets.
+
+**Held to perl, never run by psc.** Three test kinds per declaration: `prototype(\&M::f)` equals the declared prototype (or both undef); the module's `@EXPORT`/`@EXPORT_OK`/`%EXPORT_TAGS` equal the declaration's; the oracle calls each safe sub in a scratch dir with no network and every observed value must be a member of the declared return type (WRONG = 0). A sub unsafe to call (fork, exec, sockets, file mutation outside scratch, `POSIX::_exit`) is held to prototype and export membership only, and the test lists it explicitly so the exemption is visible.
+
+**Exits.** croak/confess are already `None` in Carp.tpm; the remaining work is the qualified form and any other never-returning sub in the 50 (e.g. `POSIX::_exit`, `Carp::croak` via `Carp::`), each declared `None`.
+
+**Parallelism.** After the ranking test and typed `our`, declaration batches are independent of each other and of chain A. Chain A's sub-steps (Select rulings, Call.Signatures typing, qualified signatures) are sequential.
