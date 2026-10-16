@@ -1,10 +1,19 @@
 ---
 title: "[R1] The review fixes add 75 lines to psc check over perl's lib"
-state: pending
+state: in-progress
 urgency: normal
 milestone: pr486-review
 created: 2026-10-16T12:09:13.711338306Z
-updated: 2026-10-16T12:09:13.711338306Z
+updated: 2026-10-16T12:09:17.185041672Z
+sessions:
+- start_sha: 77107dfbeb77e7b3f1d94437583eae6d28eb41c3
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-16T12:09:17.185041672Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-16T12:09:17.185041672Z
 ---
 
 ## Context
