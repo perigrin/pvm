@@ -129,6 +129,12 @@ type moduleFacts struct {
 	// each with fixity "named": goto's `:equiv(=)`.
 	relations []operatorDecl
 
+	// declared marks facts read from a declaration file, which states
+	// every name its module exports: a name it does not export is not
+	// imported, as Exporter refuses one -- measured on 5.42.0, `use M
+	// qw(h)` for an unexported h dies `"h" is not exported by the M module`.
+	declared bool
+
 	// globs are the names a literal glob assignment defines, `*run_perl =
 	// \&runperl` in t/test.pl: subs as real as a `sub NAME`, with no
 	// prototype this parser can read.
@@ -521,6 +527,9 @@ func importsFrom(facts moduleFacts, list []string, listGiven bool) []Import {
 
 	out := make([]Import, 0, len(wanted))
 	for _, name := range wanted {
+		if facts.declared && !slices.Contains(facts.exports, name) {
+			continue
+		}
 		proto, known := facts.protos[name]
 		// Exported but never declared: the module builds it out of sight,
 		// as File::Spec::Functions assigns `*{$meth}` in a loop. A sub

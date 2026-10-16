@@ -52,6 +52,8 @@ func readDeclarationWith(p *parser) moduleFacts {
 	src := p.src
 	facts := readModule(root)
 	facts.signatures, facts.errs, facts.operators, facts.relations = p.signatures, p.typedErrs, p.operators, p.relations
+	facts.declared = true
+	readExportMarks(root, &facts)
 	// A plain `sub` replaces the one declared before it, unless the name is
 	// also a `multi sub`: then it is a multi, keeping every candidate in the
 	// order declared, with a warning (RFC 0001, "Multi declarations").
@@ -222,6 +224,60 @@ func readDeclarationWith(p *parser) moduleFacts {
 		}
 	}
 	return facts
+}
+
+// readExportMarks reads what a declaration's `:export` and `:export_ok`
+// state into its export lists (RFC 0001, "Every exported name"): `:export`
+// is what a bare `use` imports, `:export_ok` what must be asked for, and
+// either's argument names the tags that hold the name.
+func readExportMarks(root *Node, facts *moduleFacts) {
+	for _, stmt := range root.Children {
+		for _, n := range stmt.Children {
+			if n.Kind == Declaration && n.Text == "multi" && len(n.Children) == 1 {
+				n = n.Children[0]
+			}
+			if n.Kind != Declaration || n.Text != "sub" {
+				continue
+			}
+			name, _ := declaredSub(n)
+			bare, tags, ok := exportMark(n)
+			if name == "" || !ok {
+				continue
+			}
+			facts.exports = append(facts.exports, name)
+			if bare {
+				facts.defaults = append(facts.defaults, name)
+			}
+			for _, tag := range tags {
+				if facts.tags == nil {
+					facts.tags = map[string][]string{}
+				}
+				facts.tags[tag] = append(facts.tags[tag], name)
+			}
+		}
+	}
+}
+
+// exportMark reads a declaration's `:export` or `:export_ok`: whether a
+// bare `use` imports the name, and the tags its argument names. ok is
+// false for a declaration carrying neither.
+func exportMark(n *Node) (bare bool, tags []string, ok bool) {
+	for _, c := range n.Children {
+		if c.Kind != Attribute {
+			continue
+		}
+		attr, args, _ := strings.Cut(strings.TrimPrefix(c.Text, ":"), "(")
+		if attr != "export" && attr != "export_ok" {
+			continue
+		}
+		for _, tag := range strings.Split(strings.TrimSuffix(args, ")"), ",") {
+			if tag = strings.TrimSpace(tag); tag != "" {
+				tags = append(tags, tag)
+			}
+		}
+		return attr == "export", tags, true
+	}
+	return false, nil, false
 }
 
 // readLibraryDeclaration reads a library's declaration file, in CORE.tpm's
