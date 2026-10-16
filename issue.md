@@ -5,8 +5,10 @@ urgency: normal
 milestone: core-module-types
 blocked_by:
 - 01a1464e-dadb-7796-a704-4007150a1bf7
+blocks:
+- 01a1464e-db1c-73eb-a3a9-e897d7a56b92
 created: 2026-10-16T20:59:46.420731313Z
-updated: 2026-10-16T21:01:47.431503867Z
+updated: 2026-10-16T21:01:48.920369802Z
 ---
 
 ## Prerequisites
