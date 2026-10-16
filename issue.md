@@ -1,19 +1,48 @@
 ---
 title: "[C2] psc check and the LSP fetch from MetaCPAN when a version file says dev, latest-stable or @…, even with PVM_..."
-state: in-progress
+state: done
 urgency: normal
 milestone: pr486-review
 created: 2026-10-16T01:16:06.994042355Z
-updated: 2026-10-16T01:17:15.278282659Z
+updated: 2026-10-16T03:25:08.12789884Z
 sessions:
 - start_sha: 8a0c85c60a2bae5d04dbbb2b27eb4310312d362f
-  end_sha: ""
-  commits: 0
+  end_sha: 29abad9cb87176fb5e3e8aa8e113ffd4e0fad78b
+  commits: 3
   started_at: 2026-10-16T01:17:15.278282659Z
+  ended_at: 2026-10-16T03:25:08.12789884Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-16T01:17:15.278282659Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-16T03:25:08.12789884Z
+observed_paths:
+- docs/plans/2026-09-05-parser-conformance-plan.md
+- docs/plans/2026-09-21-graded-conformance-corpus.md
+- docs/specs/perl-parser/04-expressions.md
+- docs/specs/perl-parser/05-statements.md
+- docs/specs/perl-parser/06-incremental-lsp.md
+- internal/infer/calls.go
+- internal/infer/flow.go
+- internal/infer/flow_test.go
+- internal/infer/infer.go
+- internal/lower/node.go
+- internal/lower/positions.go
+- internal/parse/loader_regular_test.go
+- internal/parse/module.go
+- internal/parse/staysinroots_test.go
+- internal/perl/inc.go
+- internal/perl/inc_test.go
+- internal/perl/static.go
+- internal/perl/static_test.go
+- internal/psc/check_command.go
+- internal/psc/check_command_test.go
+- internal/psc/check_escape_test.go
+- internal/psc/inc_roots_test.go
+- internal/psc/lsp.go
+- internal/psc/resolve_guard_test.go
 ---
 
 ## Context
