@@ -1,10 +1,19 @@
 ---
 title: my @a = (1) types the array as Int, as legacy did
-state: pending
+state: in-progress
 urgency: normal
 milestone: v0.1
 created: 2026-10-13T02:30:22.789635766Z
-updated: 2026-10-13T02:30:22.789635766Z
+updated: 2026-10-16T03:49:47.202700894Z
+sessions:
+- start_sha: 133837eb651f8dcffb4203d072b3701753486869
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-16T03:49:47.202700894Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-16T03:49:47.202700894Z
 ---
 
 ## Context
