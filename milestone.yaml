@@ -1,0 +1,5 @@
+name: pr486-review
+created: 2026-10-16T16:11:18.950187016Z
+---
+
+Fixes for the verified findings of the agentic review of PR #486 (paad/code-reviews/feat-pgt-m2-2026-10-16-01-10-33-8a0c85c6.md). perigrin ruled 2026-10-16 that every finding is fixed before the PR merges.
