@@ -14,7 +14,7 @@ blocks:
 - 01a1464e-da9d-7f9e-b2cf-b3d8607907a2
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-02T17:13:31.136589197Z
-updated: 2026-10-16T20:03:21.99371243Z
+updated: 2026-10-16T20:10:45.507697879Z
 ---
 
 ## Prerequisites
@@ -63,7 +63,7 @@ From the alignment gate on 01a0fd9b-5670-78d0-84be-9b9618e9b081: infer takes cal
 - [ ] Write failing test `TestInferNoCandidateArityIsError` in `internal/infer/declared_test.go`: a call to a library multi with no prototype whose arity no candidate accepts is reported as an error, and gets no joined type
 - [ ] Implement; run test to verify pass; `make test`; commit
 - [ ] Re-mark the RFC heading "Call sites" `(*Implemented*, <sha>)`; commit
-- [ ] Doc: in the "Declaration Files" section of `internal/data/help/types.md`, say that `psc check` types a call to a declared sub from its declaration, using the e2e fixture's diagnostic as the example; keep "Typed Perl is valid only in `.tpm` files, and you cannot yet add your own" (a user search path is RFC open question 6); `go test ./internal/cli/ -run '^TestShowTypesHelp$' -count=1`; commit
+- [ ] Doc: in the "Declaration Files" section of `internal/data/help/types.md`, say that `psc check` types a call to a declared sub from its declaration, using the e2e fixture's diagnostic as the example, and that where a sub has several candidates the call's arity, argument types and context pick one (`localtime(0)` is Str in scalar context, a list in list context) and an undecided call gets the join; keep "Typed Perl is valid only in `.tpm` files, and you cannot yet add your own" (a user search path is RFC open question 6); `go test ./internal/cli/ -run '^TestShowTypesHelp$' -count=1`; commit
 
 ### Negative Scenarios
 
