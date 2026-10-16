@@ -3,8 +3,10 @@ title: "Close core-module-types: top-50 coverage, precision, lib baseline, exits
 state: pending
 urgency: normal
 milestone: core-module-types
+blocked_by:
+- 01a1464e-d912-7419-8b20-a8e24029b3ec
 created: 2026-10-16T20:02:16.243834962Z
-updated: 2026-10-16T20:02:16.243834962Z
+updated: 2026-10-16T20:03:19.417369601Z
 ---
 
 ## Prerequisites
