@@ -10,7 +10,7 @@ blocks:
 - 01a0fd9b-49b2-7ea9-bfa1-ba398baadc3f
 - 01a0fd9b-46c4-7a8c-b8d6-498c5182a47f
 created: 2026-10-02T17:13:26.249797267Z
-updated: 2026-10-06T01:28:28.223800193Z
+updated: 2026-10-16T18:48:31.051349656Z
 sessions:
 - start_sha: 836d0d5516dd6cb86c7549e943180666e0e70813
   end_sha: 836d0d5516dd6cb86c7549e943180666e0e70813
@@ -60,8 +60,8 @@ RFC 0001 "A slurpy takes no bare element type", and the final-`List` rule from "
 
 ## Acceptance criteria
 
-- [ ] a slurpy with a bare element type is refused (`go test ./internal/parse/ -run '^TestPmtBareSlurpyTypeRefused$' -count=1 -v | grep -q '^--- PASS: TestPmtBareSlurpyTypeRefused'`)
-- [ ] a container type with a flattening sigil is refused (`go test ./internal/parse/ -run '^TestPmtContainerWithFlatteningSigilRefused$' -count=1 -v | grep -q '^--- PASS: TestPmtContainerWithFlatteningSigilRefused'`)
-- [ ] anything after a List parameter is an error pointing to Array \@a (`go test ./internal/parse/ -run '^TestPmtNonFinalListParam$' -count=1 -v | grep -q '^--- PASS: TestPmtNonFinalListParam'`)
+- [ ] a slurpy with a bare element type is refused (`go test ./internal/parse/ -run '^TestTpmBareSlurpyTypeRefused$' -count=1 -v | grep -q '^--- PASS: TestTpmBareSlurpyTypeRefused'`)
+- [ ] a container type with a flattening sigil is refused (`go test ./internal/parse/ -run '^TestTpmContainerWithFlatteningSigilRefused$' -count=1 -v | grep -q '^--- PASS: TestTpmContainerWithFlatteningSigilRefused'`)
+- [ ] anything after a List parameter is an error pointing to Array \@a (`go test ./internal/parse/ -run '^TestTpmNonFinalListParam$' -count=1 -v | grep -q '^--- PASS: TestTpmNonFinalListParam'`)
 - [ ] the RFC section on slurpies is implemented (`grep -q '^### A slurpy takes no bare.*(\*Implemented\*' docs/rfcs/0001-type-libraries.md`)
-- [ ] a slurpy typed with a bare union is refused (`go test ./internal/parse/ -run '^TestPmtBareUnionSlurpyRefused$' -count=1 -v | grep -q '^--- PASS: TestPmtBareUnionSlurpyRefused'`)
+- [ ] a slurpy typed with a bare union is refused (`go test ./internal/parse/ -run '^TestTpmBareUnionSlurpyRefused$' -count=1 -v | grep -q '^--- PASS: TestTpmBareUnionSlurpyRefused'`)
