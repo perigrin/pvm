@@ -180,56 +180,14 @@ func TestGoParserWrongIsZero(t *testing.T) {
 	}
 	sort.Strings(names)
 
-	// comp/proto.t is M4's work measured against an M1 parser, and no amount
-	// of M1 effort reaches it. A prototype makes the caller pass a reference
-	// the source never wrote, so the srefgen is not in the syntax at all.
-	// Measured on perl 5.42.0, identical call sites byte for byte:
-	//
-	//	sub sreftest (\$$) {1} ... sreftest($h{$i}, $i)   1 srefgen
-	//	sub sreftest       {1} ... sreftest($h{$i}, $i)   0 srefgen
-	//
-	// t/comp/proto.t:613 declares `sub sreftest (\$$)` and calls it at :620.
-	// Deciding those 47 sites needs the DECLARATION's prototype applied to
-	// each call -- prototype resolution, which the plan assigns to M4 ("≥ 95%
-	// prototype agreement"). M1 owns recognition only, and does it: the
-	// parser already captures `(\$$)` as a PrototypeNode
-	// (`internal/parse/decl.go:119`), whose doc says it exists "so M4 has
-	// something to resolve against" (`parse.go:81`).
-	//
-	// Pinned BY PATH rather than allowed as a count, following
-	// `ratchet_test.go:300-335`: an allowance is where the next defect hides.
-	// A different WRONG file still fails, and so does proto.t disappearing.
-	//
-	// HOW TO REMOVE THIS PIN: when prototype resolution lands, these sites
-	// decide. The subject already reports the prototypes its tree carries
-	// (`prototypes` in `internal/parse/cmd/subject/main.go`), but CompareFacts
-	// scores the call sites, not that map, so the sites have to change.
-	// Delete the pin and restore the bare `len(names) != 0` check in the same
-	// commit. Note that `sreftest` is declared in the SAME FILE seven lines
-	// above its call, so a within-file prototype table would close this
-	// before general resolution does -- smaller than M4, if anyone wants the
-	// row sooner.
-	todoM4 := []string{"comp/proto.t"}
-
-	if strings.Join(names, " ") == strings.Join(todoM4, " ") {
-		t.Logf("TODO(M4): %s scores WRONG on prototype-driven references, "+
-			"which M1 cannot decide. Every other file is clean.",
-			strings.Join(todoM4, " "))
-		return
-	}
 	if len(names) == 0 {
-		t.Errorf("no file scores WRONG, including the pinned %v.\n"+
-			"That is a win: delete the pin and restore the bare zero check "+
-			"in the commit that earned it.", todoM4)
 		return
 	}
 	// The ranked table, not just the names: a list of files is a list of
 	// failures, and what a reader needs is which construct to fix first.
-	t.Errorf("%d file(s) score WRONG, and WRONG is a gate:\n  %s\n\n%s\n"+
-		"Exactly %v is the pinned TODO(M4). A file here that is not in that "+
-		"list is a defect to fix, not to add to the pin.",
+	t.Errorf("%d file(s) score WRONG, and WRONG is a gate:\n  %s\n\n%s",
 		len(names), strings.Join(names, "\n  "),
-		report.WhereWrongComesFrom(), todoM4)
+		report.WhereWrongComesFrom())
 }
 
 // TestGoParserExactFloor is what stops WRONG=0 from being vacuous.
