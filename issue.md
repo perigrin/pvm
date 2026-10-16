@@ -20,7 +20,7 @@ blocks:
 - 01a1464e-dde3-73fe-ab1f-ced7f18c4f9d
 - 01a14657-682e-7432-8ea9-828f56cd2f69
 created: 2026-10-16T20:02:15.040084527Z
-updated: 2026-10-16T20:11:49.473895612Z
+updated: 2026-10-16T20:12:55.394968244Z
 ---
 
 ## Prerequisites
@@ -53,7 +53,6 @@ The test walks privlib in Go (`filepath.WalkDir`, `filepath.ToSlash` on relative
 - [ ] Implement the ranking in the test file; run to verify pass; commit
 - [ ] Write `testdata/core_module_ranking.txt` (the 50 above, one `Name count` per line) and `TestCoreModuleRanking` over privlib; run to verify pass: `go test ./internal/parse/ -run '^TestCoreModuleRanking$' -count=1 -v`
 - [ ] In the RFC's "Which 50." paragraph, state the rule, record the top-50 figure (1,326) and that ties are broken by module name, ascending
-- [ ] In the RFC's "Typed variables." paragraph, replace the example "Errno's `%!`": Errno exports no variable. Measured on perl 5.42.0 with `perl -MErrno -e 'my %s; $s{$_}++ for @Errno::EXPORT, @Errno::EXPORT_OK, map @$_, values %Errno::EXPORT_TAGS; print scalar(keys %s), " ", scalar(grep /^\W/, keys %s), "\n"'` -> `134 0`: 134 names, all constants, `%!` not among them (perl ties `%!` to Errno on first use; no import brings it). The top-50 modules that export variables are Config, Getopt::Long, Test::More, Text::Wrap, ExtUtils::MakeMaker and File::stat, and Socket exports `$CR $LF $CRLF` in `@EXPORT_OK` (measured: `perl -MSocket -e 'print "@{[grep /^\W/, @Socket::EXPORT_OK]}\n"'`). Use Config's `%Config` and Socket's `$CRLF` as the examples, and record the measurement and date inline
 - [ ] `make test`; commit
 
 ## Acceptance Criteria
@@ -64,3 +63,11 @@ The test walks privlib in Go (`filepath.WalkDir`, `filepath.ToSlash` on relative
 - [ ] the committed list has 50 modules (`test "$(grep -c . internal/parse/testdata/core_module_ranking.txt)" -eq 50`)
 - [ ] the RFC records the tie-break (`grep -q 'Ties are broken by module name, ascending' docs/rfcs/0001-type-libraries.md`)
 - [ ] the RFC records the top-50 figure (`grep -q '1,326' docs/rfcs/0001-type-libraries.md`)
+
+### Negative Scenarios
+- [ ] the tie at rank 50 is broken by name: Net::Ping is 50th with 3 imports (`grep -q '^Net::Ping 3$' internal/parse/testdata/core_module_ranking.txt`)
+- [ ] Params::Check, tied with Net::Ping at 3 but later by name, is not in the top 50 (`! grep -q '^Params::Check ' internal/parse/testdata/core_module_ranking.txt`)
+- [ ] an import of a module with no `.pm` under privlib (not a core module) is not counted (`go test ./internal/parse/ -run '^TestCoreModuleRankingIgnoresNonCoreImports$' -count=1 -v | grep -q '^--- PASS: TestCoreModuleRankingIgnoresNonCoreImports'`)
+- [ ] `use 5.010;`, `use v5.36;` and `require $file` are not counted as imports (`go test ./internal/parse/ -run '^TestCoreModuleRankingIgnoresVersionAndDynamicRequire$' -count=1 -v | grep -q '^--- PASS: TestCoreModuleRankingIgnoresVersionAndDynamicRequire'`)
+- [ ] own-namespace exclusion compares whole first components: `IO/Handle.pm` importing IO::File is excluded, `IPC/Open3.pm` importing IO::Handle and `Test2/API.pm` importing Test::More are counted (`go test ./internal/parse/ -run '^TestCoreModuleRankingNamespaceIsWholeComponent$' -count=1 -v | grep -q '^--- PASS: TestCoreModuleRankingNamespaceIsWholeComponent'`)
+- [ ] an empty tree ranks no modules, with zero totals and no panic (`go test ./internal/parse/ -run '^TestCoreModuleRankingEmptyTree$' -count=1 -v | grep -q '^--- PASS: TestCoreModuleRankingEmptyTree'`)
