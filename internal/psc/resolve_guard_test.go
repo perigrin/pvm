@@ -1,7 +1,7 @@
 //go:build !windows
 
 // ABOUTME: Tests that psc check and the LSP find a project's perl without running a process or opening a socket.
-// ABOUTME: Each case runs in a child test process whose children and proxied connections the parent counts.
+// ABOUTME: Guard cases run in a child test process whose children and proxied connections the parent counts; a FIFO is refused.
 
 package psc_test
 
@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -146,5 +147,27 @@ func TestPscNeverFetchesTheNetwork(t *testing.T) {
 				})
 			}
 		}
+	}
+}
+
+// TestCheckRefusesAFifo checks that psc check on a directory holding a
+// FIFO named like a Perl file reports it unreadable rather than blocking.
+func TestCheckRefusesAFifo(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, syscall.Mkfifo(filepath.Join(dir, "a.pl"), 0o644))
+	done := make(chan error, 1)
+	go func() {
+		cmd := psc.NewCommand()
+		cmd.SetArgs([]string{"check", dir})
+		var out strings.Builder
+		cmd.SetOut(&out)
+		cmd.SetErr(&out)
+		done <- cmd.Execute()
+	}()
+	select {
+	case err := <-done:
+		require.ErrorContains(t, err, "not a regular file")
+	case <-time.After(5 * time.Second):
+		t.Fatal("psc check hung")
 	}
 }

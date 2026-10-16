@@ -109,7 +109,7 @@ func incRoots(target string) (roots []string, why string) {
 // module says about itself across the run's files. It returns true if any
 // diagnostics were found.
 func checkFile(w interface{ Write([]byte) (int, error) }, sess *parse.Session, roots []string, path string, opts infer.Options) (bool, error) {
-	source, err := os.ReadFile(path)
+	source, err := parse.ReadSource(path)
 	if err != nil {
 		return false, fmt.Errorf("read %s: %w", path, err)
 	}

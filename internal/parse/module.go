@@ -5,6 +5,7 @@ package parse
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -64,7 +65,7 @@ func DirLoader(dirs ...string) Loader {
 		}
 		for _, dir := range dirs {
 			for _, rel := range rels {
-				src, err := os.ReadFile(filepath.Join(dir, rel))
+				src, err := ReadSource(filepath.Join(dir, rel))
 				if err != nil {
 					// Unreadable is not found. Distinguishing them would buy
 					// a caller nothing: neither can resolve the import.
@@ -75,6 +76,45 @@ func DirLoader(dirs ...string) Loader {
 		}
 		return nil, false
 	}
+}
+
+// MaxSourceBytes is the largest file ReadSource reads: ten times perl
+// 5.42's largest library file, Module/CoreList.pm at 1.2 MB.
+const MaxSourceBytes = 16 << 20
+
+// ReadSource reads the Perl source at path, which must be a regular file
+// of at most MaxSourceBytes. A cloned repository is untrusted: a FIFO
+// named as a module would block the read forever, and a link to
+// /dev/zero would never end it.
+//
+// ponytail: the file is stat'ed by name and then opened, so a FIFO
+// swapped in between still blocks the open; O_NONBLOCK closes that
+// window where the platform has it, if a repository being rewritten
+// while psc reads it matters.
+func ReadSource(path string) ([]byte, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("%s is not a regular file", path)
+	}
+	if info.Size() > MaxSourceBytes {
+		return nil, fmt.Errorf("%s is larger than %d bytes", path, MaxSourceBytes)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	src, err := io.ReadAll(io.LimitReader(f, MaxSourceBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(src) > MaxSourceBytes {
+		return nil, fmt.Errorf("%s is larger than %d bytes", path, MaxSourceBytes)
+	}
+	return src, nil
 }
 
 // isRequiredPath reports whether a `require`'s literal argument names a FILE
@@ -207,7 +247,7 @@ func (s *Session) ParseSourceFrom(path string, src []byte, roots ...string) *Nod
 
 // parseFile reads path and parses it as parseAt does.
 func parseFile(path string, passes bool, roots []string, s *Session) (*Node, error) {
-	src, err := os.ReadFile(path)
+	src, err := ReadSource(path)
 	if err != nil {
 		return nil, err
 	}
