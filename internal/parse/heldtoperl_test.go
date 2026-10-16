@@ -73,7 +73,10 @@ func heldToPerl(t *testing.T, p perltest.Perl, inc, mode, module string, args ..
 		return nil, fmt.Errorf("%s: %v: %s", module, err, strings.TrimSpace(stderr.String()))
 	}
 	var lines [][]string
-	for _, line := range strings.Split(strings.TrimRight(string(out), "\n"), "\n") {
+	for _, line := range strings.Split(string(out), "\n") {
+		if line == "" {
+			continue
+		}
 		lines = append(lines, strings.Split(strings.TrimRight(line, "\r"), "\t"))
 	}
 	return lines, nil
@@ -235,6 +238,17 @@ func TestPrototypeHelperDistinguishesUndefFromEmpty(t *testing.T) {
 	assert.Len(t, prototypeDisagreements(t, p, lib, "My::Empty", []byte("package My::Empty;\nsub none () Int;\nsub empty (List @x) Int;\n")), 2,
 		"none declared (), empty declared with no prototype")
 	assert.Empty(t, prototypeDisagreements(t, p, lib, "My::Empty", []byte("package My::Empty;\nsub none (List @x) Int;\nsub empty () Int;\n")))
+}
+
+// TestPrototypeHelperHoldsADeclarationWithNoSubs: a .tpm declaring only
+// a variable, as Config's does, has no prototype to disagree with.
+func TestPrototypeHelperHoldsADeclarationWithNoSubs(t *testing.T) {
+	p := perltest.Perl542(t)
+	lib := perlFixture(t, "My::Vars", "package My::Vars;\nuse Exporter 'import';\nour @EXPORT = qw(%V);\nour %V;\n1;\n")
+	tpm := []byte("package My::Vars;\nour Hash[Str] %V :export;\n")
+
+	assert.Empty(t, prototypeDisagreements(t, p, lib, "My::Vars", tpm))
+	assert.Empty(t, exportDisagreements(t, p, lib, "My::Vars", tpm))
 }
 
 // exporter is a fixture module exporting by Exporter's lists.
