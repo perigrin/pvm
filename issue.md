@@ -9,7 +9,7 @@ blocked_by:
 blocks:
 - 01a118fe-8e5f-717a-b046-6020db95c724
 created: 2026-10-08T01:28:26.650675969Z
-updated: 2026-10-08T10:57:12.191161454Z
+updated: 2026-10-16T18:48:34.066148815Z
 sessions:
 - start_sha: 04a6ca62d20d1d53be57651b769964909706bf69
   end_sha: 04a6ca62d20d1d53be57651b769964909706bf69
@@ -94,4 +94,4 @@ Context is still decided syntactically at the call site; only the attribute goes
 - [ ] context selects by return type (`go test ./internal/types/ ./internal/parse/ -run '^TestContextSelectsByReturnType$' -count=1 -v | grep -q '^--- PASS: TestContextSelectsByReturnType'`)
 - [ ] a :context attribute is refused (`go test ./internal/parse/ -run '^TestContextAttributeRefused$' -count=1 -v | grep -q '^--- PASS: TestContextAttributeRefused'`)
 - [ ] same-shaped returns are ambiguous (`go test ./internal/types/ ./internal/parse/ -run '^TestReturnTypeContextAmbiguity$' -count=1 -v | grep -q '^--- PASS: TestReturnTypeContextAmbiguity'`)
-- [ ] no :context remains in CORE.pmt (`sh -c '! grep -q ":context(" internal/parse/declarations/CORE.pmt'`)
+- [ ] no :context remains in CORE.pmt (`sh -c '! grep -q ":context(" internal/parse/declarations/CORE.tpm'`)
