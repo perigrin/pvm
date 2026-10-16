@@ -1,19 +1,23 @@
 ---
 title: An array written in a $ slot is checked as Array, not as its count
-state: in-progress
+state: done
 urgency: normal
 milestone: type-libraries
 created: 2026-10-08T04:57:28.837383755Z
-updated: 2026-10-16T03:49:41.230062072Z
+updated: 2026-10-16T03:49:41.354029882Z
 sessions:
 - start_sha: 133837eb651f8dcffb4203d072b3701753486869
-  end_sha: ""
+  end_sha: 133837eb651f8dcffb4203d072b3701753486869
   commits: 0
   started_at: 2026-10-16T03:49:41.230062072Z
+  ended_at: 2026-10-16T03:49:41.354029882Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-16T03:49:41.230062072Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-16T03:49:41.354029882Z
 ---
 
 ## Context
