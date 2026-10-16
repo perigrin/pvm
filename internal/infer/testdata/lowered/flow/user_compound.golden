@@ -1,3 +1,4 @@
+sym $v Boolean|Int|Num|Str|DualVar|Regex|ScalarRef|ArrayRef|HashRef|CodeRef|GlobRef|Object|NaN|Inf
 sym $v Scalar
 sym $x Ref
 sym $x Scalar

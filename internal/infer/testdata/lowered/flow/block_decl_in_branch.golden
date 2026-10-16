@@ -1,5 +1,5 @@
 sym $x Boolean|Int|Num|Str|DualVar|Regex|ScalarRef|ArrayRef|HashRef|CodeRef|GlobRef|Object|NaN|Inf
 sym $x Scalar
 sym $x Undef
-sym $y Scalar
-sym $z Scalar
+sym $y Int
+sym $z Str

@@ -1,4 +1,4 @@
 sym $x Int
-sym $y Scalar
+sym $y Str
 sym Bar Unknown
 sym Foo Unknown
