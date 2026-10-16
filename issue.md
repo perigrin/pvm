@@ -4,12 +4,12 @@ state: pending
 urgency: normal
 milestone: v0.1
 created: 2026-10-09T18:54:31.029217304Z
-updated: 2026-10-09T18:54:31.029217304Z
+updated: 2026-10-16T18:48:35.621216918Z
 ---
 
 ## Context
 
-- paths: `internal/lexer/expect.go` (after an unknown bareword the lexer assumes a term), `internal/parse/parse.go` (`newParser`, `TokenizeBarewords` -- passes only CORE.pmt's `:bareword` operators), `internal/parse/exports.go` (resolved imports)
+- paths: `internal/lexer/expect.go` (after an unknown bareword the lexer assumes a term), `internal/parse/parse.go` (`newParser`, `TokenizeBarewords` -- passes only CORE.tpm's `:bareword` operators), `internal/parse/exports.go` (resolved imports)
 - commands: `make test`; `make fuzz-parser`; perl 5.42 `/home/perigrin/.local/bin/perl`
 
 Found 2026-10-09 by the fuzz work on 01a121ac. Whether `&` or `*` after a bareword is an operator depends on whether the bareword is a declared sub, imports included. Measured on 5.42:
