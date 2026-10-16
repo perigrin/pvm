@@ -10,7 +10,7 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:16.04458884Z
-updated: 2026-10-16T20:04:31.704483093Z
+updated: 2026-10-16T20:13:11.55668612Z
 ---
 
 ## Prerequisites
@@ -46,3 +46,8 @@ m1 gates to run with the `.tpm` in place: `TestParseRatchet`, `TestPerlGitTRatch
 - [ ] declared export lists equal Exporter's own (`go test ./internal/parse/ -run '^TestExporterExports$' -count=1 -v | grep -q '^--- PASS: TestExporterExports'`)
 - [ ] every privlib module using Exporter resolves as it did without the declaration (`go test ./internal/parse/ -run '^TestExporterKeepsResolution$' -count=1 -v | grep -q '^--- PASS: TestExporterKeepsResolution'`)
 - [ ] declared return types hold for every value perl returns (`go test ./internal/infer/ -run '^TestExporterReturnTypes$' -count=1 -v | grep -q '^--- PASS: TestExporterReturnTypes'`)
+
+### Negative Scenarios
+- [ ] a bare `use Exporter;` does not install `import` in the caller; `use Exporter 'import';` does (measured) (`go test ./internal/parse/ -run '^TestExporterBareUseDoesNotImportImport$' -count=1 -v | grep -q '^--- PASS: TestExporterBareUseDoesNotImportImport'`)
+- [ ] the resolution comparison is not vacuous: it compares modules reaching Exporter by `use base`, `use parent`, `@ISA` and `require` alike, and fails if it compares none where privlib is present (`go test ./internal/parse/ -run '^TestExporterKeepsResolutionIsNotVacuous$' -count=1 -v | grep -q '^--- PASS: TestExporterKeepsResolutionIsNotVacuous'`)
+- [ ] Exporter is not both shipped and listed as not shipped (`! { test -e internal/parse/declarations/Exporter.tpm && grep -q '^Exporter[[:space:]]' internal/parse/testdata/core_module_not_shipped.txt; }`)
