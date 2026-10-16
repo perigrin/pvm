@@ -11,7 +11,7 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.752726002Z
-updated: 2026-10-16T20:04:21.794536728Z
+updated: 2026-10-16T20:13:08.214490089Z
 ---
 
 ## Prerequisites
@@ -49,3 +49,8 @@ A `.tpm` changes what the parser reads for every file that uses the module, so r
 - [ ] declared prototypes equal perl's prototype() (`go test ./internal/parse/ -run '^TestConstantExportersPrototypes$' -count=1 -v | grep -q '^--- PASS: TestConstantExportersPrototypes'`)
 - [ ] declared export lists equal the modules' own (`go test ./internal/parse/ -run '^TestConstantExportersExports$' -count=1 -v | grep -q '^--- PASS: TestConstantExportersExports'`)
 - [ ] declared return types hold for every value perl returns (`go test ./internal/infer/ -run '^TestConstantExportersReturnTypes$' -count=1 -v | grep -q '^--- PASS: TestConstantExportersReturnTypes'`)
+
+### Negative Scenarios
+- [ ] a bare `use Socket;` does not import `$CRLF`, which is in `@EXPORT_OK` only (measured) (`go test ./internal/parse/ -run '^TestSocketBareUseOmitsCRLFVariable$' -count=1 -v | grep -q '^--- PASS: TestSocketBareUseOmitsCRLFVariable'`)
+- [ ] a bare `use Fcntl;` does not import `LOCK_EX`, which is in `@EXPORT_OK` only (measured) (`go test ./internal/parse/ -run '^TestFcntlBareUseOmitsFlockConstants$' -count=1 -v | grep -q '^--- PASS: TestFcntlBareUseOmitsFlockConstants'`)
+- [ ] the oracle never resolves a host name: Socket's `inet_aton`, `getaddrinfo` and `getnameinfo` get numeric addresses only, or are exempt with a reason (`go test ./internal/infer/ -run '^TestSocketOracleNeverResolvesAName$' -count=1 -v | grep -q '^--- PASS: TestSocketOracleNeverResolvesAName'`)
