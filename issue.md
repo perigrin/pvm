@@ -3,8 +3,10 @@ title: Declare POSIX's functions and hold them to the return-type oracle
 state: pending
 urgency: normal
 milestone: core-module-types
+blocked_by:
+- 01a14683-8375-7810-8a75-b772680603c6
 created: 2026-10-16T20:59:46.730685644Z
-updated: 2026-10-16T20:59:46.730685644Z
+updated: 2026-10-16T21:01:56.287155938Z
 ---
 
 ## Prerequisites
