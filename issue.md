@@ -1,19 +1,23 @@
 ---
 title: A compound assignment narrows to its right side's type, as legacy did
-state: in-progress
+state: done
 urgency: normal
 milestone: v0.1
 created: 2026-10-13T03:45:34.152292807Z
-updated: 2026-10-16T03:49:54.611252362Z
+updated: 2026-10-16T03:49:55.033382103Z
 sessions:
 - start_sha: 133837eb651f8dcffb4203d072b3701753486869
-  end_sha: ""
+  end_sha: 133837eb651f8dcffb4203d072b3701753486869
   commits: 0
   started_at: 2026-10-16T03:49:54.611252362Z
+  ended_at: 2026-10-16T03:49:55.033382103Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-16T03:49:54.611252362Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-16T03:49:55.033382103Z
 ---
 
 ## Context
