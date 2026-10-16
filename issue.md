@@ -21,7 +21,7 @@ blocks:
 - 01a1464e-ddb0-720a-93f6-450c767e6e2e
 - 01a1464e-dde3-73fe-ab1f-ced7f18c4f9d
 created: 2026-10-16T20:02:14.930089601Z
-updated: 2026-10-16T22:23:58.098893991Z
+updated: 2026-10-16T22:32:25.258162798Z
 sessions:
 - start_sha: 2fb0e62ffdc068b717c1b1a211c77e72d09ba51a
   end_sha: ec99871d43d51af75b3cdcb95b6ddca2a6802abd
@@ -110,6 +110,12 @@ Tier-2 gate, 2026-10-16, on ec99871d (fresh reviewer subagent; lenses applied in
 1. `internal/psc/lib_baseline_test.go:23` libDiagShape drops refusal diagnostics (underscore codes such as `[call_arity]`, `[unclosed_opener]`) and `info` severity; newLibDiagnostics skips non-matching lines, so a parser regression that makes psc refuse a lib file never fails the gate. Fix: accept `[a-z_-]+` and `info`, and fail on any unindented privlib-prefixed line that does not parse; add a unit test with a `[call_arity]` line. (confidence 95)
 2. `TestPSCCheckLibBaseline` passes when psc check did not finish: runCheck discards the error from Execute, and a WalkDir abort or stat failure yields few or no lines. Fix: require the error to be nil or exactly "diagnostics found", or require at least one baseline entry still reported. (confidence 70)
 3. The not-installed-in-pvm branch of Perl542 (GetVersionInfo error, then skip) has no direct test. Fix: stub perl.GetVersionInfo to return an error and assert Perl542 skips. (confidence 65)
+
+### Review Findings (pass 2)
+
+Tier-2 gate pass 2, 2026-10-16, on 921f002a (fresh reviewer subagent; mutation-tested with go test -overlay). Pass-1 findings 1-3 all fixed and proven. VERDICT: PASS with one in-scope finding, so reopened per the gate rule.
+
+A. (in scope, confidence 70) `internal/psc/lib_baseline_test.go:24` libDiagShape's widening (info, `[a-z_-]+`) is untested: restoring the old pattern fails no test, because the unparsed-line fallback reports a fresh `[call_arity]` line identically. What the wider pattern adds is that a refusal or info line can be matched against the baseline or admitted from lib_true_positives.txt. Fix: in TestLibBaselineRejectsANewRefusal (:183) also assert the same `[call_arity]` and `info` lines yield nothing when listed in the baseline and when admitted; show it fails under the old pattern.
 
 ## Acceptance Criteria
 
