@@ -146,3 +146,42 @@ func TestParseCommandOnBrokenFile(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, lowered, "Hole")
 }
+
+// runPSC runs psc with args and returns what it prints to stdout.
+func runPSC(t *testing.T, args ...string) string {
+	t.Helper()
+	cmd := psc.NewCommand()
+	cmd.SetArgs(args)
+	var out strings.Builder
+	cmd.SetOut(&out)
+	cmd.SetErr(&strings.Builder{})
+	require.NoError(t, cmd.Execute())
+	return out.String()
+}
+
+// TestParseCommandResolvesImports: psc parse and psc analyze parse a file
+// as psc check does, resolving its use statements, so they show the tree
+// check analysed. My::Block beside t.pl exports block with a ($&)
+// prototype, so `block 'inner' => sub {...}` is a call perl compiles, and
+// the `require` in its body is one t.pl loads. Without My::Block perl
+// refuses the call, and the control shows the Hole the parser leaves.
+func TestParseCommandResolvesImports(t *testing.T) {
+	isolatePerl(t)
+	source := "use My::Block;\nblock 'inner' => sub { require Data::Dumper; };\n"
+	for _, c := range []struct {
+		module string
+		hole   bool
+	}{{exportingBlock, false}, {"", true}} {
+		dir := t.TempDir()
+		file := filepath.Join(dir, "t.pl")
+		require.NoError(t, os.WriteFile(file, []byte(source), 0644))
+		if c.module != "" {
+			writeBlockModule(t, dir, c.module)
+		}
+
+		lowered := runPSC(t, "parse", "--tree", "lowered", file)
+		assert.Equal(t, c.hole, strings.Contains(lowered, "Hole"), "module %q:\n%s", c.module, lowered)
+		deps := runPSC(t, "analyze", file)
+		assert.Equal(t, !c.hole, strings.Contains(deps, "Data::Dumper"), "module %q:\n%s", c.module, deps)
+	}
+}

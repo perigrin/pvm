@@ -30,6 +30,10 @@ func newAnalyzeCommand() *cobra.Command {
 				return fmt.Errorf("stat %s: %w", target, err)
 			}
 
+			// Each file is parsed as psc check parses it.
+			sess := parse.NewSession()
+			roots := incRoots(target)
+
 			if info.IsDir() {
 				return filepath.WalkDir(target, func(path string, d fs.DirEntry, err error) error {
 					if err != nil {
@@ -39,13 +43,13 @@ func newAnalyzeCommand() *cobra.Command {
 						return nil
 					}
 					if isPerlFile(path) {
-						return analyzeFile(w, path)
+						return analyzeFile(w, sess, roots, path)
 					}
 					return nil
 				})
 			}
 
-			return analyzeFile(w, target)
+			return analyzeFile(w, sess, roots, target)
 		},
 	}
 
@@ -58,15 +62,16 @@ func isPerlFile(path string) bool {
 	return ext == ".pl" || ext == ".pm" || ext == ".t"
 }
 
-// analyzeFile parses and lowers a single Perl file and prints the modules
-// its use, no and require statements name.
-func analyzeFile(w interface{ Write([]byte) (int, error) }, path string) error {
-	source, err := os.ReadFile(path)
+// analyzeFile parses path against its own directory and roots, lowers it,
+// and prints the modules its use, no and require statements name. sess
+// shares what each module says about itself across the run's files.
+func analyzeFile(w interface{ Write([]byte) (int, error) }, sess *parse.Session, roots []string, path string) error {
+	root, err := sess.ParseFileFrom(path, roots...)
 	if err != nil {
 		return fmt.Errorf("read %s: %w", path, err)
 	}
 
-	deps := collectDependencies(lower.Lower(parse.Parse(source)))
+	deps := collectDependencies(lower.Lower(root))
 
 	if len(deps) > 0 {
 		fmt.Fprintf(w, "%s:\n", path)
