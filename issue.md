@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: perl-git-t-parses
 created: 2026-09-26T22:02:44.311964663Z
-updated: 2026-10-11T16:23:12.142666325Z
+updated: 2026-10-16T18:48:30.006079376Z
 sessions:
 - start_sha: 6f2cd1d339c41288f07145a861f08949e579b862
   end_sha: 12eb345487d543ca4032f88c401ae4e77d397464
@@ -104,7 +104,7 @@ text that later work moved is pointed at where the fact now lives.
 ## Acceptance criteria
 
 - [ ] `fc $x` no longer emits an empty call with the argument detached, under whichever reading is chosen (`go test ./internal/parse/ -run '^TestFeatureGatedFcArity$' -count=1 -v | grep -q '^--- PASS: TestFeatureGatedFcArity'`)
-- [ ] The choice between the method-call reading and the builtin reading is recorded in CORE.pmt beside the entry, with the deparse that justifies it (`grep -q 'builtin only under the fc feature' internal/parse/declarations/CORE.pmt`)
+- [ ] The choice between the method-call reading and the builtin reading is recorded in CORE.pmt beside the entry, with the deparse that justifies it (`grep -q 'builtin only under the fc feature' internal/parse/declarations/CORE.tpm`)
 - [ ] REGRESSION GUARD, passes today: the audit's own cases still hold -- `atan2`, `glob` and `readpipe` keep their arguments (`go test ./internal/parse/ -run '^TestParenless' -count=1 -v | grep -q '^--- PASS: TestParenless'`)
 - [ ] REGRESSION GUARD, passes today: the perl.git t/ ratchet does not move, since `fc` reaches one file and that file's first failure is elsewhere (`go test ./internal/parse/ -run '^TestPerlGitTRatchet$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTRatchet'`)
 - [ ] REGRESSION GUARD, passes today: the corpus stays complete (`go test ./internal/conformance/ -run '^TestCorpusRatchet$' -count=1 -v | grep -q '^--- PASS: TestCorpusRatchet'`)
