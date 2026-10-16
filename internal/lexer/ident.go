@@ -4,6 +4,7 @@
 package lexer
 
 import (
+	"strings"
 	"unicode/utf8"
 
 	"unicode"
@@ -344,6 +345,7 @@ func (l *lexer) noteSignatures(k Kind, start int) {
 			l.pendingVersionMajor = 0
 			return
 		}
+		text = padDecimalVersion(text)
 		if v, ok := versionAtLeast(text, 5, 36); ok && v {
 			l.signatures = true
 		}
@@ -425,6 +427,22 @@ func (l *lexer) noteApostropheBundle(text string) {
 	if v, ok := versionAtLeast(text, 5, 41); ok {
 		l.noApostropheSeparator = v
 	}
+}
+
+// padDecimalVersion pads a decimal version's fraction to three digits, as
+// perl reads it: `5.04` is 5.040, and `5.4` is 5.400. Measured on 5.42.0,
+// `use 5.04` enables `:5.40`, and `use 5.4` dies "Perl v5.400.0 required".
+// A bundle name is not a decimal version -- `:5.10` is 5.10 -- so only the
+// Number arm of noteSignatures pads.
+func padDecimalVersion(text string) string {
+	dot := strings.IndexByte(text, '.')
+	if dot < 0 || strings.Count(text, ".") != 1 {
+		return text
+	}
+	for len(text)-dot-1 < 3 {
+		text += "0"
+	}
+	return text
 }
 
 // versionPrefix reads the `v5` of a split `v5.36`.
