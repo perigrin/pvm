@@ -1,10 +1,19 @@
 ---
 title: "[I23] $h{cb}(1) and $r->[0](2) lower to an array element Index, not a call; $c->(1)(2) lowers to a dynamic Method..."
-state: pending
+state: in-progress
 urgency: normal
 milestone: pr486-review
 created: 2026-10-16T01:16:08.043376609Z
-updated: 2026-10-16T01:16:08.043376609Z
+updated: 2026-10-16T01:17:16.515251901Z
+sessions:
+- start_sha: 8a0c85c60a2bae5d04dbbb2b27eb4310312d362f
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-16T01:17:16.515251901Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-16T01:17:16.515251901Z
 ---
 
 ## Context
