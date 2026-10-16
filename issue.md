@@ -9,7 +9,7 @@ blocks:
 - 01a0fd9b-5700-7514-a143-2caed2d06d8b
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.178619007Z
-updated: 2026-10-16T21:46:05.515582804Z
+updated: 2026-10-16T21:58:24.731526341Z
 sessions:
 - start_sha: ec99871d43d51af75b3cdcb95b6ddca2a6802abd
   end_sha: ""
@@ -32,6 +32,8 @@ transitions:
 - entrypoints: `types.Select`, `types.SelectShaped` (`internal/types/select.go`, the `UnknownCtx` check near line 122)
 
 Two rulings issue 01a0fd9b-5700 records as open, settled in `types` before call sites consume `Select`. (1) A parameter type is its coercion target (RFC 0001 "What a parameter type means"), so argument types decide only BETWEEN candidates: a single candidate whose arity fits is selected even when an argument's type does not fit it (`sqrt(Str)`), and the call site reports `coercion-mismatch`; today `Select` returns `Failed` with type Unknown. (2) RFC "Multi declarations": the consumer joins when the call site cannot decide, and `Failed` means ruled out, which psc check would report. A call whose context is `UnknownCtx` is Undecided (join of the candidates), not `Failed`. (3) Following (1): with two or more candidates whose arity fits and a concrete argument type that fits none of them, no candidate is ruled out, since a type mismatch never rules a call out -- only arity does. `Select` returns Undecided with the join of those candidates' returns, never `Failed`, and the call site reports `coercion-mismatch` for the argument, as it does for one candidate. (This extends ruling (1) to several candidates; it is the planner's reading, not a separate ruling.) Where perl decides a question, run perl rather than escalating it.
+
+**Resolved 2026-10-16 by measurement (perl 5.42.0 is the judge):** the coercion reading applies to plain value parameters only. `sqrt("abc")` and `"a" x *STDOUT` warn and run, so a type mismatch there never rules a candidate out. A backslashed (Alias) container parameter is not a coercion target: `each $x`, `keys $x` and `push $x, 1` are refused at compile time ("Type of arg 1 to each must be hash or array"), so a mismatch in an Alias parameter still rules the candidate out, and TestCoreKeysValuesRefuseScalar and TestCoreEachRefusesScalar stand unchanged.
 
 ## Steps
 
