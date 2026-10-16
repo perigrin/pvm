@@ -34,7 +34,10 @@ func newCheckCommand() *cobra.Command {
 
 			opts := infer.Options{Strict: strict, WarnLossyCoercion: warnLossy}
 			sess := parse.NewSession()
-			roots := incRoots(target)
+			roots, why := incRoots(target)
+			if why != "" {
+				fmt.Fprintf(errW, "psc: note: %s; @INC is PERL5LIB alone\n", why)
+			}
 			var foundDiags bool
 
 			if info.IsDir() {
@@ -88,15 +91,17 @@ func newCheckCommand() *cobra.Command {
 // built once per run, and never by running perl or asking the network:
 // psc check reads untrusted code, running perl runs whatever PERL5OPT or
 // sitecustomize.pl says, and a version file must not make the checker
-// phone home. With no resolved perl and no PERL5LIB it is empty, and each
-// file is parsed against its own directory alone.
-func incRoots(target string) []string {
+// phone home. With no resolved perl it is PERL5LIB alone, and with no
+// PERL5LIB either it is empty, and each file is parsed against its own
+// directory alone. why says why a perl the project names was not
+// resolved, and is "" when one was or the project names none.
+func incRoots(target string) (roots []string, why string) {
 	projectDir := target
 	if info, err := os.Stat(target); err == nil && !info.IsDir() {
 		projectDir = filepath.Dir(target)
 	}
-	perlPath, _ := perl.StaticPerl(projectDir)
-	return perl.INC(perlPath, os.Getenv("PERL5LIB"))
+	perlPath, why := perl.StaticPerl(projectDir)
+	return perl.INC(perlPath, os.Getenv("PERL5LIB")), why
 }
 
 // checkFile parses path against its own directory and roots, lowers and
