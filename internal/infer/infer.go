@@ -358,10 +358,15 @@ func assignedNames(f *lower.File) map[string]bool {
 
 // declContext is the context a declaration evaluates its initialiser in:
 // list context for the parenthesised form or an array or hash, scalar
-// context for a scalar.
+// context for a scalar or a reference alias, which binds the one
+// reference it is given: perl 5.42, `my \@a = f()` calls f with
+// wantarray false.
 func declContext(d *lower.Decl) types.Context {
 	if d.ListAssign {
 		return types.ListCtx
+	}
+	if d.RefAlias {
+		return types.ScalarCtx
 	}
 	if len(d.Vars) == 1 {
 		if v, ok := d.Vars[0].(*lower.Var); ok {

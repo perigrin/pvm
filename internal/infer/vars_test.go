@@ -201,3 +201,34 @@ func TestArrayCopyKeepsElementType(t *testing.T) {
 		t.Errorf("%q: diagnostics %v, want one", src, diags)
 	}
 }
+
+// A reference-aliasing declaration without parens takes its initialiser
+// in scalar context, as it binds the one reference it is given: perl
+// 5.42, under `use feature qw(refaliasing declared_refs)`, `my \@a = f()`
+// calls f with wantarray false, and `my (\@b) = f()` with it true. So
+// `localtime()` there is typed as `my $s = localtime()` types it, while
+// in the parenthesised form, and for an array declared without the
+// alias, it is a List.
+func TestRefAliasDeclContext(t *testing.T) {
+	localtime := func(src string) types.Type {
+		ty, _, _ := analyzeLowered([]byte(src), nil, infer.Options{})
+		got, _ := findNodeType(ty, []byte(src), "localtime()")
+		return got
+	}
+	scalar := localtime("my $s = localtime();\n")
+	if scalar == types.List {
+		t.Fatalf("my $s = localtime(): localtime() typed List")
+	}
+	for _, c := range []struct {
+		src  string
+		want types.Type
+	}{
+		{"my \\@a = localtime();\n", scalar},
+		{"my (\\@b) = localtime();\n", types.List},
+		{"my @c = localtime();\n", types.List},
+	} {
+		if got := localtime(c.src); got != c.want {
+			t.Errorf("%q: localtime() typed %v, want %v", c.src, got, c.want)
+		}
+	}
+}
