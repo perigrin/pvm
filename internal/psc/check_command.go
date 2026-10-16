@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -117,12 +118,11 @@ func checkFile(w interface{ Write([]byte) (int, error) }, sess *parse.Session, r
 		return false, fmt.Errorf("read %s: %w", path, err)
 	}
 
-	root, err := sess.ParseFileFrom(path, roots...)
-	if err != nil {
-		return false, fmt.Errorf("parse %s: %w", path, err)
-	}
+	// Parsed from the bytes read above, so each diagnostic's line and
+	// column are found in the text its span was taken from.
+	root := sess.ParseSourceFrom(path, source, roots...)
 
-	diags := infer.AnalyzeParsed(root, nil, opts).Diagnostics
+	diags := analyze(root, opts).Diagnostics
 
 	for _, d := range diags {
 		fmt.Fprintln(w, infer.FormatDiagnostic(printable(path), source, d))
@@ -149,4 +149,69 @@ func printable(s string) string {
 		i += size
 	}
 	return b.String()
+}
+
+// analyze lowers and type-checks root, and reports every refusal in it
+// beside what inference reports, in source order. psc check and the LSP
+// both analyse through it, so they report the same.
+func analyze(root *parse.Node, opts infer.Options) *infer.FileAnalysis {
+	fa := infer.AnalyzeParsed(root, nil, opts)
+	fa.Diagnostics = append(refusals(root), fa.Diagnostics...)
+	slices.SortStableFunc(fa.Diagnostics, func(a, b infer.Diagnostic) int {
+		return int(a.StartByte) - int(b.StartByte)
+	})
+	return fa
+}
+
+// perlRefuses holds the refusal codes that always mean perl refuses to
+// compile the source too. Measured: every string literal in
+// internal/parse's tests that parses to an Unknown was run through perl
+// 5.42 -c, and a code is here only if perl refused every one carrying it:
+//
+//	call_arity 138/138, unclosed_opener 44/44, ref_scalar_slot 24/24,
+//	chain_class_mismatch 10/10, format_not_terminated 5/5,
+//	nonassoc_repeated 3/3, unclosed_brace 3/3, empty_deref 2/2,
+//	ternary_no_colon 2/2
+//
+// Left out, because perl compiled some of theirs: trailing_tokens (299 of
+// 2130 compiled), missing_operand (6 of 85: `state`, `field`, `infix
+// isa`), not_a_term (3 of 170). ambiguous_sigil's 6 were all refused, but
+// `A &q(x);` compiles and the parser refuses it. unimplemented_statement
+// and not_an_expression have no source that reaches them to measure.
+var perlRefuses = map[parse.RefusalCode]bool{
+	parse.CallArity:           true,
+	parse.UnclosedOpener:      true,
+	parse.RefScalarSlot:       true,
+	parse.ChainClassMismatch:  true,
+	parse.FormatNotTerminated: true,
+	parse.NonassocRepeated:    true,
+	parse.UnclosedBrace:       true,
+	parse.EmptyDeref:          true,
+	parse.TernaryNoColon:      true,
+}
+
+// refusals reports each Unknown in n's tree whose code perl shares
+// (perlRefuses) as that code over its span. An Unknown inside another is
+// part of the outer refusal and is not reported again. Any other refusal
+// is a gap in the parser, not an error in the source, and is reported by
+// nothing: inference types the Hole an Unknown lowers to as Any and says
+// nothing about it.
+func refusals(n *parse.Node) []infer.Diagnostic {
+	if n.Kind == parse.Unknown {
+		if !perlRefuses[n.Refusal] {
+			return nil
+		}
+		return []infer.Diagnostic{{
+			StartByte: uint32(n.Start),
+			EndByte:   uint32(n.End),
+			Severity:  infer.Error,
+			Code:      string(n.Refusal),
+			Message:   "perl refuses this: " + parse.RefusalSites[n.Refusal].What,
+		}}
+	}
+	var out []infer.Diagnostic
+	for _, c := range n.Children {
+		out = append(out, refusals(c)...)
+	}
+	return out
 }

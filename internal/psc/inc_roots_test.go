@@ -5,6 +5,8 @@ package psc
 
 import (
 	"encoding/json"
+	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -123,4 +125,61 @@ func runCheck(t *testing.T, target string) string {
 	cmd.SetErr(&out)
 	_ = cmd.Execute()
 	return out.String()
+}
+
+// TestLSPLogsUnresolvedPerl checks that the LSP reports a perl the
+// project names but psc cannot resolve as psc check does, as a note, sent
+// as a window/logMessage once per directory rather than as a diagnostic:
+// a diagnostic would put it in every file and differ between machines
+// that do and do not have that perl. A project naming no perl, the
+// control, logs nothing.
+func TestLSPLogsUnresolvedPerl(t *testing.T) {
+	rootsRegistry(t, map[string]string{})
+	h, out := newTestHandler(t)
+	h.initialized = true
+
+	// logs opens path and returns the messages of the logMessages the open
+	// sent; its diagnostics are published, and none of them is the note.
+	logs := func(path string) []string {
+		t.Helper()
+		uri := (&url.URL{Scheme: "file", Path: filepath.ToSlash(path)}).String()
+		params, err := json.Marshal(lspDidOpenParams{TextDocument: lspTextDocumentItem{URI: uri, LanguageID: "perl", Version: 1, Text: "1;\n"}})
+		require.NoError(t, err)
+		require.NoError(t, h.handle(&jsonRPCMessage{JSONRPC: "2.0", Method: "textDocument/didOpen", Params: params}))
+		var logged []string
+		published := false
+		// One transport reads them all: it buffers ahead of the message it
+		// returns.
+		tr := newTransport(out, io.Discard)
+		for {
+			msg, err := tr.readMessage()
+			if err != nil {
+				break
+			}
+			switch msg.Method {
+			case "window/logMessage":
+				var p lspLogMessageParams
+				require.NoError(t, json.Unmarshal(msg.Params, &p))
+				logged = append(logged, p.Message)
+			case "textDocument/publishDiagnostics":
+				published = true
+				assert.NotContains(t, string(msg.Params), "psc: note", "the note is not a diagnostic")
+			}
+		}
+		assert.True(t, published, "%s: diagnostics are published", path)
+		return logged
+	}
+
+	dev := filepath.Dir(rootsProject(t, "dev"))
+	first := logs(filepath.Join(dev, "a.pl"))
+	if assert.Len(t, first, 1, "the first open in a directory logs the note") {
+		assert.Contains(t, first[0], `psc: note: `)
+		assert.Contains(t, first[0], `names "dev", which only MetaCPAN can resolve; @INC is PERL5LIB alone`)
+	}
+	assert.Empty(t, logs(filepath.Join(dev, "b.pl")), "a second file in the directory logs nothing")
+	assert.Empty(t, logs(filepath.Join(dev, "a.pl")), "a reopen logs nothing")
+	assert.Len(t, logs(filepath.Join(filepath.Dir(rootsProject(t, "dev")), "a.pl")), 1, "another directory logs its own note")
+
+	plain := t.TempDir()
+	assert.Empty(t, logs(filepath.Join(plain, "a.pl")), "control: a project naming no perl logs nothing")
 }

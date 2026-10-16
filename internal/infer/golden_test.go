@@ -88,13 +88,19 @@ func goldenReport(diags []infer.Diagnostic, st *infer.SymbolTable) string {
 	return strings.Join(lines, "\n") + "\n"
 }
 
-// analyzeLoweredReport parses, lowers and analyses src on the lowered path
-// and renders the result as goldenReport does.
-func analyzeLoweredReport(src []byte) string {
-	root := parse.Parse(src)
+// analyzeLoweredReport parses, lowers and analyses the fixture at path on
+// the lowered path and renders the result as goldenReport does. It is
+// parsed as psc check parses it with no perl to resolve and no PERL5LIB:
+// its use statements resolve against its own directory, so a fixture's
+// module lies beside it.
+func analyzeLoweredReport(path string) (string, error) {
+	root, err := parse.ParseFileFrom(path)
+	if err != nil {
+		return "", err
+	}
 	f := lower.Lower(root)
 	_, diags, st := infer.Analyze(f, lower.NewPositions(root, f), nil, infer.Options{})
-	return goldenReport(diags, st)
+	return goldenReport(diags, st), nil
 }
 
 // readMatching reads matching.txt: one fixture per line, blank lines and
@@ -130,16 +136,15 @@ func TestLoweredGoldenRatchet(t *testing.T) {
 	matching := map[string]bool{}
 	diffs := map[string]string{}
 	for _, fx := range fixtures {
-		src, err := os.ReadFile(filepath.Join(loweredDir, filepath.FromSlash(fx)))
-		if err != nil {
-			t.Fatalf("%s: %v", fx, err)
-		}
 		want, err := os.ReadFile(goldenPath(fx))
 		if err != nil {
 			t.Errorf("%s: no golden; write one beside the fixture: %v", fx, err)
 			continue
 		}
-		got := analyzeLoweredReport(src)
+		got, err := analyzeLoweredReport(filepath.Join(loweredDir, filepath.FromSlash(fx)))
+		if err != nil {
+			t.Fatalf("%s: %v", fx, err)
+		}
 		if got == string(want) {
 			matching[fx] = true
 		} else {

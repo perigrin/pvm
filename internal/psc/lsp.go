@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"sync"
+	"unicode"
 
 	"tamarou.com/pvm/internal/infer"
 	"tamarou.com/pvm/internal/lower"
@@ -20,12 +21,19 @@ type document struct {
 	uri      string
 	source   []byte
 	analysis *infer.FileAnalysis
+
+	// dir is the directory of a file: uri's path, and why is incRoots'
+	// note on it: why a perl its project names was not resolved.
+	dir, why string
 }
 
 // LSPServer maintains parsed state for open Perl documents.
 // It is safe for concurrent use.
 type LSPServer struct {
-	session   *parse.Session
+	// Options is how each open is checked, as psc check's flags set it.
+	// Set it before the first OpenDocument.
+	Options infer.Options
+
 	documents map[string]*document
 	mu        sync.RWMutex
 }
@@ -33,7 +41,6 @@ type LSPServer struct {
 // NewLSPServer creates a new LSPServer ready to manage Perl documents.
 func NewLSPServer() *LSPServer {
 	return &LSPServer{
-		session:   parse.NewSession(),
 		documents: make(map[string]*document),
 	}
 }
@@ -46,17 +53,25 @@ func NewLSPServer() *LSPServer {
 // against the path's directory and then @INC, read as text and never by
 // running perl (incRoots). Any other uri has no directory, and its `use`
 // resolves nothing. Analysis re-runs over the whole tree on every open.
+//
+// Each open parses in a Session of its own, so every module it uses is read
+// from disk as it is now: one edited since the last open is re-read, and one
+// missing then is found once it exists.
 func (s *LSPServer) OpenDocument(uri string, source []byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	var root *parse.Node
-	if u, err := url.Parse(uri); err == nil && u.Scheme == "file" && u.Path != "" {
-		path := filepath.FromSlash(u.Path)
+	var dir, why string
+	if path, ok := uriPath(uri); ok {
 		// ponytail: @INC is resolved on every open; cache it per directory
 		// if resolution shows up in a profile.
-		roots, _ := incRoots(path)
-		root = s.session.ParseSourceFrom(path, source, roots...)
+		var roots []string
+		roots, why = incRoots(path)
+		dir = filepath.Dir(path)
+		// ponytail: every open re-reads the modules it uses; cache them by
+		// mtime, invalidating facts and seen together, if opens get slow.
+		root = parse.NewSession().ParseSourceFrom(path, source, roots...)
 	} else {
 		root = parse.Parse(source)
 	}
@@ -64,9 +79,41 @@ func (s *LSPServer) OpenDocument(uri string, source []byte) error {
 	s.documents[uri] = &document{
 		uri:      uri,
 		source:   source,
-		analysis: infer.AnalyzeParsed(root, nil, infer.Options{}),
+		analysis: analyze(root, s.Options),
+		dir:      dir,
+		why:      why,
 	}
 	return nil
+}
+
+// uriPath is the path a file: uri names, and false for a uri of any other
+// scheme or with no path. A Windows uri spells its drive after the root
+// slash, file:///C:/x.pl, and names C:\x.pl.
+func uriPath(uri string) (string, bool) {
+	u, err := url.Parse(uri)
+	if err != nil || u.Scheme != "file" || u.Path == "" {
+		return "", false
+	}
+	p := u.Path
+	// ponytail: read as a drive on every OS, so a Unix directory named
+	// like one, /C:/x.pl, is misread; check runtime.GOOS if one appears.
+	if len(p) >= 3 && p[0] == '/' && p[2] == ':' && unicode.IsLetter(rune(p[1])) {
+		p = p[1:]
+	}
+	return filepath.FromSlash(p), true
+}
+
+// incNote returns the directory of the document at uri and incRoots' note
+// on it, why a perl its project names was not resolved: "" when one was,
+// when the project names none, or when uri is not an open file: uri.
+func (s *LSPServer) incNote(uri string) (dir, why string) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if doc, ok := s.documents[uri]; ok {
+		return doc.dir, doc.why
+	}
+	return "", ""
 }
 
 // CloseDocument removes the document for the given uri from the server,
@@ -170,7 +217,7 @@ func (s *LSPServer) TypeAtByte(uri string, offset uint32) (types.Type, bool) {
 
 // DefinitionAtByte finds the declaration of the variable or sub named at the
 // given byte offset in the document at uri: the lowered node there is a Var,
-// named by its sigil and name, or a Call, named by its sub's name, and the
+// named by the sigil of the variable it reads (aggregateSigil) and its name, or a Call, named by its sub's name, and the
 // name is looked up in the symbol table.
 // Returns (nil, false) if uri is not open, if no symbol table exists, or if
 // no symbol covers the given offset.
@@ -186,7 +233,7 @@ func (s *LSPServer) DefinitionAtByte(uri string, offset uint32) (*infer.Symbol, 
 	var name string
 	switch n := n.(type) {
 	case *lower.Var:
-		name = n.Sigil + n.Name
+		name = aggregateSigil(doc.analysis.Positions, n) + n.Name
 	case *lower.Call:
 		name = n.Name
 	}
@@ -200,4 +247,36 @@ func (s *LSPServer) DefinitionAtByte(uri string, offset uint32) (*infer.Symbol, 
 	}
 	result := sym
 	return &result, true
+}
+
+// aggregateSigil is the sigil of the variable v reads. The base of a
+// subscript without an arrow reads the aggregate, not the variable its
+// sigil spells: $x[0] and @x[0,1] read @x, $h{k} and @h{k} read %h. Any
+// other Var, $r->[0]'s base among them, reads the variable it spells.
+func aggregateSigil(positions *lower.Positions, v *lower.Var) string {
+	start, _, _ := positions.Span(v.ID)
+	// A subscript starts where its base does.
+	sub := positions.LastBefore(start+1, func(n lower.Node) bool {
+		switch n := n.(type) {
+		case *lower.Index:
+			return n.Base == lower.Node(v) && !n.Arrow
+		case *lower.Key:
+			return n.Base == lower.Node(v) && !n.Arrow
+		case *lower.Slice:
+			return n.Base == lower.Node(v)
+		}
+		return false
+	})
+	switch n := sub.(type) {
+	case *lower.Index:
+		return "@"
+	case *lower.Key:
+		return "%"
+	case *lower.Slice:
+		if n.Kind == lower.SliceHash || n.Kind == lower.SliceKVHash {
+			return "%"
+		}
+		return "@"
+	}
+	return v.Sigil
 }

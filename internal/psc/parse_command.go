@@ -6,7 +6,6 @@ package psc
 import (
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -27,14 +26,18 @@ func newParseCommand() *cobra.Command {
 			if tree != "cst" && tree != "lowered" {
 				return fmt.Errorf("--tree %q: want cst or lowered", tree)
 			}
+			sexpr := strings.ToLower(format) == "sexpr"
+			if !sexpr && strings.ToLower(format) != "tree" {
+				return fmt.Errorf("--format %q: want tree or sexpr", format)
+			}
 
-			source, err := os.ReadFile(filename)
+			// Parsed as psc check parses it, so this is the tree check
+			// analysed.
+			roots, _ := incRoots(filename)
+			root, err := parse.NewSession().ParseFileFrom(filename, roots...)
 			if err != nil {
 				return fmt.Errorf("read %s: %w", filename, err)
 			}
-
-			root := parse.Parse(source)
-			sexpr := strings.ToLower(format) == "sexpr"
 			w := cmd.OutOrStdout()
 
 			switch tree {

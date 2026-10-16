@@ -74,7 +74,7 @@ func TestPSCCheckCleanFile(t *testing.T) {
 // TestPSCCheckDiagnostics verifies that psc check returns an error and emits
 // type-mismatch diagnostics when run against a file containing type errors.
 // Its `push();` is one perl refuses ("Not enough arguments for push"): the
-// parser leaves a Hole there, and nothing is reported on that line.
+// parser refuses it too, and the refusal is reported on that line.
 func TestPSCCheckDiagnostics(t *testing.T) {
 	diagFile := filepath.Join(testdataDir(t), "diagnostics.pl")
 	_, statErr := os.Stat(diagFile)
@@ -83,9 +83,10 @@ func TestPSCCheckDiagnostics(t *testing.T) {
 	_, stderr, err := runPSCCheck(t, diagFile)
 	assert.Error(t, err, "psc check on a file with errors should return a non-zero exit")
 
-	// push() with no arguments is a Hole: nothing is reported on line 1.
-	assert.NotContains(t, stderr, "diagnostics.pl:1:",
-		"push() with no arguments is a Hole, and says nothing")
+	// push() with no arguments is refused: line 1 reports the refusal.
+	assert.Contains(t, stderr, "diagnostics.pl:1:1: error: perl refuses this",
+		"push() with no arguments is refused")
+	assert.Contains(t, stderr, "[call_arity]", "the refusal carries its code")
 
 	// Container-level type mismatches: wrong sigil for the builtin
 	expectedDiagnostics := []struct {

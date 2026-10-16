@@ -22,6 +22,7 @@ import (
 type ProjectIndex struct {
 	root    string
 	libDirs []string
+	inc     []string
 	cache   map[string]*FileAnalysis
 	mu      sync.RWMutex
 }
@@ -39,11 +40,14 @@ type FileAnalysis struct {
 }
 
 // NewProjectIndex creates a ProjectIndex rooted at root with the default
-// library search path of ["lib"].
-func NewProjectIndex(root string) *ProjectIndex {
+// library search path of ["lib"]. Each file it analyses is parsed as psc
+// check parses it: its use statements resolve against its own directory
+// and then inc, the @INC check parses against.
+func NewProjectIndex(root string, inc ...string) *ProjectIndex {
 	return &ProjectIndex{
 		root:    root,
 		libDirs: []string{"lib"},
+		inc:     inc,
 		cache:   make(map[string]*FileAnalysis),
 	}
 }
@@ -74,8 +78,10 @@ func (idx *ProjectIndex) AnalyzeFile(path string) (*FileAnalysis, error) {
 	}
 	idx.mu.RUnlock()
 
-	// Parse the file, resolving its use statements against its directory.
-	root, err := parse.ParseFile(path)
+	// Parse the file, resolving its use statements against its directory
+	// and then inc. A Session would share module facts across files, but
+	// is not for concurrent use, and AnalyzeFile parses outside the lock.
+	root, err := parse.ParseFileFrom(path, idx.inc...)
 	if err != nil {
 		return nil, fmt.Errorf("AnalyzeFile: read %q: %w", path, err)
 	}

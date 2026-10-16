@@ -134,6 +134,22 @@ func TestParseCommandRejectsUnknownTree(t *testing.T) {
 	assert.Contains(t, err.Error(), "lowered")
 }
 
+// TestParseCommandRejectsUnknownFormat: a --format outside the two is an
+// error naming both, as --tree's is; each of the two is accepted, the
+// control.
+func TestParseCommandRejectsUnknownFormat(t *testing.T) {
+	_, err := runParse(t, "1;\n", "--format", "json")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "json")
+	assert.Contains(t, err.Error(), "tree")
+	assert.Contains(t, err.Error(), "sexpr")
+
+	for _, format := range []string{"tree", "sexpr"} {
+		_, err := runParse(t, "1;\n", "--format", format)
+		assert.NoError(t, err, format)
+	}
+}
+
 // TestParseCommandOnBrokenFile: on a file perl rejects, the CST shows the
 // Unknown with its refusal code, the lowered tree a Hole, and both exit 0.
 func TestParseCommandOnBrokenFile(t *testing.T) {
@@ -145,4 +161,43 @@ func TestParseCommandOnBrokenFile(t *testing.T) {
 	lowered, err := runParse(t, src, "--tree", "lowered")
 	require.NoError(t, err)
 	assert.Contains(t, lowered, "Hole")
+}
+
+// runPSC runs psc with args and returns what it prints to stdout.
+func runPSC(t *testing.T, args ...string) string {
+	t.Helper()
+	cmd := psc.NewCommand()
+	cmd.SetArgs(args)
+	var out strings.Builder
+	cmd.SetOut(&out)
+	cmd.SetErr(&strings.Builder{})
+	require.NoError(t, cmd.Execute())
+	return out.String()
+}
+
+// TestParseCommandResolvesImports: psc parse and psc analyze parse a file
+// as psc check does, resolving its use statements, so they show the tree
+// check analysed. My::Block beside t.pl exports block with a ($&)
+// prototype, so `block 'inner' => sub {...}` is a call perl compiles, and
+// the `require` in its body is one t.pl loads. Without My::Block perl
+// refuses the call, and the control shows the Hole the parser leaves.
+func TestParseCommandResolvesImports(t *testing.T) {
+	isolatePerl(t)
+	source := "use My::Block;\nblock 'inner' => sub { require Data::Dumper; };\n"
+	for _, c := range []struct {
+		module string
+		hole   bool
+	}{{exportingBlock, false}, {"", true}} {
+		dir := t.TempDir()
+		file := filepath.Join(dir, "t.pl")
+		require.NoError(t, os.WriteFile(file, []byte(source), 0644))
+		if c.module != "" {
+			writeBlockModule(t, dir, c.module)
+		}
+
+		lowered := runPSC(t, "parse", "--tree", "lowered", file)
+		assert.Equal(t, c.hole, strings.Contains(lowered, "Hole"), "module %q:\n%s", c.module, lowered)
+		deps := runPSC(t, "analyze", file)
+		assert.Equal(t, !c.hole, strings.Contains(deps, "Data::Dumper"), "module %q:\n%s", c.module, deps)
+	}
 }
