@@ -17,7 +17,7 @@ package parse
 // afterwards.
 type RefusalCode string
 
-// Fifteen codes for sixteen `&Node{Kind: Unknown, ...}` sites. The sixteenth is
+// Sixteen codes for seventeen `&Node{Kind: Unknown, ...}` sites. The seventeenth is
 // parse.go's `expr.Kind == Unknown`, which propagates an existing code
 // outward rather than declaring one; see the note in RefusalSites.
 //
@@ -25,7 +25,7 @@ type RefusalCode string
 // adding a constant AND an inventory entry, which is one edit in one
 // file. RefusalSites below is what makes the pair inseparable.
 //
-// Two of the fifteen -- EmptyDeref and NotAnExpression -- are wired but not
+// Two of the sixteen -- EmptyDeref and NotAnExpression -- are wired but not
 // reachable from any source today. They are not dead code: they are the
 // codes those sites will carry the day parseExpr can return nil there,
 // and an unreachable site that becomes reachable must arrive with a code
@@ -101,6 +101,11 @@ const (
 	// as an operator, after an undeclared bareword, before a quote-op name
 	// -- `A &y`. perl reads the operator and the quote it begins.
 	AmbiguousSigil RefusalCode = "ambiguous_sigil"
+
+	// NestingTooDeep: brackets, blocks or operands nested past maxDepth.
+	// perl takes any depth; a recursive parser would overflow its stack,
+	// which is fatal to the LSP, so the deeper input is declined instead.
+	NestingTooDeep RefusalCode = "nesting_too_deep"
 )
 
 // RefusalSite says what one code means and where the site lives.
@@ -132,7 +137,7 @@ var RefusalSites = map[RefusalCode]RefusalSite{
 		What:  "the statement is not a known form and parses as no expression",
 		Where: "parse.go, parseStatement: expr == nil",
 	},
-	// The sixteenth site, parse.go's `expr.Kind == Unknown`, has no code of
+	// The seventeenth site, parse.go's `expr.Kind == Unknown`, has no code of
 	// its own and is deliberately absent from this table. It widens an
 	// Unknown from the expression to the statement -- a change of SPAN,
 	// not of cause -- and carries the inner code outward unchanged. A code
@@ -188,5 +193,9 @@ var RefusalSites = map[RefusalCode]RefusalSite{
 	AmbiguousSigil: {
 		What:  "a `&` or `*` after an undeclared bareword, before a quote-op name",
 		Where: "expr.go, parseInfix: refuseAmbiguousSigil",
+	},
+	NestingTooDeep: {
+		What:  "brackets, blocks or operands nested deeper than the parser's cap",
+		Where: "parse.go, refuseTooDeep: parseTerm, parseInfix and parseBlock past maxDepth",
 	},
 }

@@ -691,6 +691,10 @@ type parser struct {
 	// placeholder's `=` may have nothing after it -- see emptyDefault.
 	inSignature bool
 
+	// depth is how many parseTerm, parseInfix and parseBlock frames are
+	// active, which refuseTooDeep holds to maxDepth.
+	depth int
+
 	// attrOpenAtEOF is set when an attribute's `(` argument ran to end of
 	// file without its `)`: perl's "Unterminated attribute parameter". The
 	// bracket count in refuseUnclosedOpener cannot see it, because a `}`
@@ -837,6 +841,46 @@ func (p *parser) prevEnd() int {
 		return 0
 	}
 	return p.toks[p.pos-1].End
+}
+
+// maxDepth caps how deeply the parser recurses. perl takes any depth --
+// measured on 5.42.0, 400000 nested parens are "syntax OK" -- but a Go stack
+// overflow is a fatal error no recover catches, and one such file in a
+// workspace would kill the LSP on every restart. Real code nests a few dozen
+// levels; the cap is far above that and far below the stack's limit.
+const maxDepth = 1000
+
+// refuseTooDeep declines input nested past maxDepth: it consumes up to the
+// closer of the construct it is in, or to a `;` at its own level when
+// atSemicolon is set, so the frames already open close normally and nothing
+// it consumed recurses. Nil when nothing is there to consume.
+func (p *parser) refuseTooDeep(atSemicolon bool) *Node {
+	first, ok := p.peekSignificant()
+	if !ok {
+		return nil
+	}
+	open, end := 0, p.pos
+scan:
+	for i := p.pos; i < len(p.toks); i++ {
+		tok := p.toks[i]
+		closes := tok.Kind == lexer.CloseBracket
+		switch {
+		case closes && open == 0, tok.Kind == lexer.Semicolon && open == 0 && atSemicolon:
+			break scan
+		case closes:
+			open--
+		case tok.Kind == lexer.Operator && tok.End-tok.Start == 1 && (p.src[tok.Start] == '(' || p.src[tok.Start] == '[' || p.src[tok.Start] == '{'):
+			open++
+		}
+		if !isTrivia(tok.Kind) {
+			end = i + 1
+		}
+	}
+	if end <= p.pos {
+		return nil
+	}
+	p.pos = end
+	return &Node{Kind: Unknown, Refusal: NestingTooDeep, Start: first.Start, End: p.prevEnd()}
 }
 
 // skipToStatementEnd consumes to the next `;` or unmatched `}`, which is
@@ -1302,6 +1346,14 @@ func (p *parser) takeHeredocBodies() []*Node {
 func (p *parser) parseBlock(open lexer.Token) *Node {
 	p.advanceTo(open)
 	n := &Node{Kind: Block, Start: open.Start}
+	p.depth++
+	defer func() { p.depth-- }()
+	if p.depth > maxDepth {
+		// The whole body, `;` and all, so no statement in it recurses again.
+		if u := p.refuseTooDeep(false); u != nil {
+			n.Children = append(n.Children, u)
+		}
+	}
 	// A `package NAME;` inside the block lasts to its end, as perl scopes
 	// it: `package A; { package B; } s2(1)` calls A::s2.
 	pkg := p.pkg
