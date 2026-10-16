@@ -177,6 +177,16 @@ func (l *lexer) scanIdentRunes() bool {
 	return l.pos > started
 }
 
+// IsName reports whether s is one name as scanIdentRunes reads one, under
+// `use utf8`'s wider class: `f`, `Foo::Bar`, `::foo`, `foo'bar`, `café`,
+// and `Foo::` with its trailing separator. A consumer asks it of text the
+// lexer has already taken as a word, so the wider class only admits what
+// the pragma let through.
+func IsName(s string) bool {
+	l := &lexer{src: []byte(s), utf8Pragma: true}
+	return l.scanIdentRunes() && l.pos == len(s)
+}
+
 // leadingNameStartFollows reports whether the `::` at the cursor introduces a
 // name -- both colons, then a byte that can START one.
 //

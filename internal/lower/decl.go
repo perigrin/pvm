@@ -69,7 +69,7 @@ func (l *lowerer) decl(n *parse.Node) Node {
 // without a name is the AnonSub itself.
 func (l *lowerer) sub(n *parse.Node, kind DeclKind) Node {
 	kids := n.Children
-	if len(kids) == 0 || kids[0].Kind != parse.Term || kids[0].Paren || !word.MatchString(kids[0].Text) {
+	if subName(n) == nil {
 		return l.anonSub(kids)
 	}
 	d := &Decl{Kind: kind, Vars: []Node{l.stamp(kids[0], &Var{Sigil: "&", Name: kids[0].Text})}}

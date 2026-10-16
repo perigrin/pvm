@@ -276,3 +276,52 @@ func TestLowerDeclOverBrokenInput(t *testing.T) {
 		t.Errorf("sub f {: lowered to %#v, want %#v", f, want)
 	}
 }
+
+// A name is what the lexer scans as one: a leading `::`, an apostrophe
+// separator, and, under `use utf8`, any XID letter. perl 5.42 runs
+// `sub ::foo { 1 } sub foo'bar { 2 } sub café { 3 }` and prints 123 from
+// main::foo(), foo::bar() and café(); `$h{café}` is the key café, and
+// `::Foo->new` and `Foo->new->café` call into package Foo. So each named
+// sub lowers to its Decl, and the id layer opens an anchor for exactly
+// the subs the lowering names. The control: `sub { 1 }` and `sub ($x)
+// { 1 }` stay anonymous and open none.
+func TestLowerUnicodeAndPackageNames(t *testing.T) {
+	for src, name := range map[string]string{
+		"sub ::foo { 1 }":          "::foo",
+		"sub foo'bar { 2 }":        "foo'bar",
+		"use utf8; sub café { 3 }": "café",
+		"sub f { 1 }":              "f",
+	} {
+		root := parse.Parse([]byte(src))
+		last := root.Children[len(root.Children)-1].Children[0]
+		decl, ok := lowerLast(t, src).(*lower.Decl)
+		if !ok || len(decl.Vars) != 1 || !reflect.DeepEqual(zeroIDs(decl.Vars[0]), &lower.Var{Sigil: "&", Name: name}) {
+			t.Errorf("%q: lowered to %#v, want the Decl of &%s", src, decl, name)
+		}
+		if got := lower.AssignIDs(root)[last.Children[1]].Anchor; got != "sub "+name+"#0" {
+			t.Errorf("%q: the body is anchored %q, want %q", src, got, "sub "+name+"#0")
+		}
+	}
+	for _, src := range []string{"sub { 1 };", "use v5.36; sub ($x) { 1 };"} {
+		if _, ok := lowerLast(t, src).(*lower.AnonSub); !ok {
+			t.Errorf("%q: not an AnonSub", src)
+		}
+		root := parse.Parse([]byte(src))
+		for _, n := range everyNode(root) {
+			if id := lower.AssignIDs(root)[n]; id.Anchor != "" {
+				t.Errorf("%q: %s %q is anchored %q", src, n.Kind, n.Text, id.Anchor)
+			}
+		}
+	}
+
+	for src, want := range map[string]lower.Node{
+		"use utf8; $h{café};": &lower.Key{Base: &lower.Var{Sigil: "$", Name: "h"}, Key: &lower.Bareword{Name: "café", Quoted: true}},
+		"::Foo->new;":         &lower.MethodCall{Invocant: &lower.Bareword{Name: "::Foo"}, Name: "new"},
+		"use utf8; $o->café;": &lower.MethodCall{Invocant: &lower.Var{Sigil: "$", Name: "o"}, Name: "café"},
+		"&::foo;":             &lower.Call{Name: "::foo", Ampersand: true, BareAmpersand: true},
+	} {
+		if got := zeroIDs(lowerLast(t, src)); !reflect.DeepEqual(got, want) {
+			t.Errorf("%q: lowered to %#v, want %#v", src, got, want)
+		}
+	}
+}

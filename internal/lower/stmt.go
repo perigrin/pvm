@@ -111,10 +111,10 @@ func (l *lowerer) loop(n *parse.Node, labels []Node) Node {
 func (l *lowerer) use(n *parse.Node) Node {
 	out := &UseStmt{Op: n.Text}
 	kids := n.Children
-	if len(kids) > 0 && bareTerm(kids[0], word) && !bareTerm(kids[0], version) {
+	if len(kids) > 0 && bareTerm(kids[0], word) && !bareTerm(kids[0], version.MatchString) {
 		out.Module, kids = kids[0].Text, kids[1:]
 	}
-	if len(kids) > 0 && bareTerm(kids[0], version) {
+	if len(kids) > 0 && bareTerm(kids[0], version.MatchString) {
 		out.Version, kids = kids[0].Text, kids[1:]
 	}
 	if out.Module == "" && out.Version == "" && len(kids) > 0 {
@@ -127,9 +127,9 @@ func (l *lowerer) use(n *parse.Node) Node {
 // version matches a version number: 5.010, 1.2, v5.36.
 var version = regexp.MustCompile(`^v?[0-9][0-9._]*$`)
 
-// bareTerm reports whether n is a childless term whose text re matches.
-func bareTerm(n *parse.Node, re *regexp.Regexp) bool {
-	return n.Kind == parse.Term && len(n.Children) == 0 && re.MatchString(n.Text)
+// bareTerm reports whether n is a childless term whose text is accepts.
+func bareTerm(n *parse.Node, is func(string) bool) bool {
+	return n.Kind == parse.Term && len(n.Children) == 0 && is(n.Text)
 }
 
 // isDoBlock reports whether n is `do BLOCK`, the body of a loop that tests

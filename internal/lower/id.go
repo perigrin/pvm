@@ -94,10 +94,25 @@ func anchorKey(n *parse.Node) (string, bool) {
 	if n.Kind != parse.Declaration || (n.Text != "sub" && n.Text != "method") {
 		return "", false
 	}
-	// A parenthesised first child is an anonymous sub's one-parameter
-	// signature, `sub ($x) {...}`, sitting where a named sub's name would.
-	if len(n.Children) == 0 || n.Children[0].Kind != parse.Term || n.Children[0].Text == "" || n.Children[0].Paren {
+	name := subName(n)
+	if name == nil {
 		return "", false
 	}
-	return n.Text + " " + n.Children[0].Text, true
+	return n.Text + " " + name.Text, true
+}
+
+// subName returns the name term of a sub or method declaration, or nil when
+// the sub is anonymous. It is the one test of a named sub: the id layer
+// anchors on it and the lowering gives the sub its Decl, so the two agree.
+// A parenthesised first child is an anonymous sub's one-parameter
+// signature, `sub ($x) {...}`, sitting where a named sub's name would.
+func subName(n *parse.Node) *parse.Node {
+	if len(n.Children) == 0 {
+		return nil
+	}
+	c := n.Children[0]
+	if c.Kind != parse.Term || c.Paren || !word(c.Text) {
+		return nil
+	}
+	return c
 }

@@ -71,7 +71,7 @@ func (l *lowerer) codeName(n *parse.Node) Node {
 // isCodeName reports whether n is `&foo`: one term, an ampersand and a
 // sub's name.
 func isCodeName(n *parse.Node) bool {
-	return n.Kind == parse.Term && len(n.Children) == 0 && len(n.Text) > 1 && n.Text[0] == '&' && word.MatchString(n.Text[1:])
+	return n.Kind == parse.Term && len(n.Children) == 0 && len(n.Text) > 1 && n.Text[0] == '&' && word(n.Text[1:])
 }
 
 // indexCall lowers an `index "("` over an ampersand, a call that bypasses
@@ -138,7 +138,7 @@ func (l *lowerer) arrowCall(n *parse.Node) Node {
 		m.Dynamic, m.Args, m.HasParens = l.expr(r.Children[0]), l.elements(r.Children[1:]), true
 	case r.Kind == parse.Term && len(r.Children) == 0 && sigilOf(r.Text) == "$":
 		m.Dynamic = l.expr(r)
-	case r.Kind == parse.Term && len(r.Children) == 0 && word.MatchString(r.Text):
+	case r.Kind == parse.Term && len(r.Children) == 0 && word(r.Text):
 		m.Name = r.Text
 	default:
 		return nil

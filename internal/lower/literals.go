@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"tamarou.com/pvm/internal/lexer"
 	"tamarou.com/pvm/internal/parse"
 )
 
@@ -34,7 +35,7 @@ func (l *lowerer) literal(n *parse.Node) Node {
 	if strings.HasPrefix(t, "<<") && t != "<<>>" {
 		return heredoc(t)
 	}
-	if word.MatchString(t) {
+	if word(t) {
 		// A class name or the stat buffer `_`. A parent whose position
 		// quotes the word says so: see hashKey and fatWord.
 		return &Bareword{Name: t}
@@ -108,8 +109,10 @@ func (l *lowerer) vstringCall(n *parse.Node) Node {
 // its opening delimiter.
 var quoteOp = regexp.MustCompile(`^(q[qwx]?)\s*([^\w\s])`)
 
-// word matches a bare word, package-qualified or not: Foo, Foo::Bar, _.
-var word = regexp.MustCompile(`^[A-Za-z_]\w*(::\w+)*(::)?$`)
+// word reports whether t is a bare word, package-qualified or not: Foo,
+// Foo::Bar, ::Foo, foo'bar, _, and under use utf8 café. It is the lexer's
+// own rule for a name, so a word the parser took is a word here too.
+func word(t string) bool { return lexer.IsName(t) }
 
 // isInt reports whether a number's spelling is an integer: hex and binary
 // always are, and a decimal is unless it has a point or an exponent.
@@ -149,7 +152,7 @@ func unescape(body string, open, close byte) string {
 // hashKey lowers the subscript of an `index "{"`, where a bare word is a
 // quoted string: perl reads $h{k} as $h{"k"}.
 func (l *lowerer) hashKey(n *parse.Node) Node {
-	if n.Kind == parse.Term && len(n.Children) == 0 && word.MatchString(n.Text) {
+	if n.Kind == parse.Term && len(n.Children) == 0 && word(n.Text) {
 		return l.stamp(n, &Bareword{Name: n.Text, Quoted: true})
 	}
 	return l.expr(n)
