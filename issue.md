@@ -1,10 +1,19 @@
 ---
 title: "[I2] A sub's assignment to an outer variable replaces that variable's type where the sub is declared"
-state: pending
+state: in-progress
 urgency: normal
 milestone: pr486-review
 created: 2026-10-16T01:16:07.174295834Z
-updated: 2026-10-16T01:16:07.174295834Z
+updated: 2026-10-16T01:17:17.233388527Z
+sessions:
+- start_sha: 8a0c85c60a2bae5d04dbbb2b27eb4310312d362f
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-16T01:17:17.233388527Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-16T01:17:17.233388527Z
 ---
 
 ## Context
