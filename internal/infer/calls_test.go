@@ -190,3 +190,45 @@ func TestScalarLocaltimeIsStr(t *testing.T) {
 
 	wantCode(t, "my $y = (undef) . \"x\";\n", infer.CodeCoercionMismatch)
 }
+
+// An array in a builtin's non-slurpy `$` slot is in scalar context, so it
+// arrives as its count: perl 5.42 -w is silent on `int(rand(@m))`, a
+// random index of @m, and on `lc(@a)`, which is "2" for two elements.
+// The builtins perl refuses or warns on an aggregate in are still
+// reported: `length(@a)` warns "length() used on @a (did you mean
+// "scalar(@a)"?)", `defined(@a)` dies "Can't use 'defined(@array)'", and
+// `exists(@a)` dies "exists argument is not a HASH or ARRAY element or a
+// subroutine".
+func TestArrayInScalarSlotIsCount(t *testing.T) {
+	for _, src := range []string{
+		"my @m = (1, 2, 3);\nmy $i = int(rand(@m));\n",
+		"my @a = (1, 2);\nmy $c = lc(@a);\n",
+	} {
+		wantSilent(t, src)
+	}
+	for _, src := range []string{
+		"my @a = (1, 2);\nmy $l = length(@a);\n",
+		"my @a = (1, 2);\nmy $d = defined(@a);\n",
+		"my @a = (1, 2);\nmy $e = exists(@a);\n",
+	} {
+		wantCode(t, src, infer.CodeTypeMismatch)
+	}
+}
+
+// srand and sleep take their `$` argument in scalar context, so an array
+// or a hash there is its count: perl 5.42 -w, `my @e; srand(@e)` is "0
+// but true", `srand(@a)` with two elements 2, and `my %h; srand(%h)` "0
+// but true", each silently, and `sleep(@e)` sleeps 0 seconds. A hash in
+// length's Str slot is still reported: perl warns "length() used on %h
+// (did you mean "scalar(keys %h)"?)".
+func TestArrayInScalarSlotIsItsCount(t *testing.T) {
+	for _, src := range []string{
+		"my @e;\nsrand(@e);\n",
+		"my @a = (1, 2);\nsrand(@a);\n",
+		"my %h;\nsrand(%h);\n",
+		"my @e;\nsleep(@e);\n",
+	} {
+		wantSilent(t, src)
+	}
+	wantCode(t, "my %h = (a => 1);\nmy $l = length(%h);\n", infer.CodeTypeMismatch)
+}

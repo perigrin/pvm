@@ -144,9 +144,10 @@ func (a *analysis) args(args []lower.Node, sigs []types.Signature) {
 // takes it into a slurpy, UnknownCtx otherwise.
 //
 // A `$` slot is left UnknownCtx, not scalar context, so an aggregate in
-// one stays the mistake checkArg reports, a ternary's arm included: perl
-// 5.42 -w, `length(1 ? @a : "x")` warns "length() used on @a (did you
-// mean "scalar(@a)"?)".
+// one reaches checkArg as it is, which counts it as counted says or
+// reports it where perl does, a ternary's arm included: perl 5.42 -w,
+// `length(1 ? @a : "x")` warns "length() used on @a (did you mean
+// "scalar(@a)"?)".
 func slotContext(sigs []types.Signature, i int) types.Context {
 	ctx := types.UnknownCtx
 	for _, s := range sigs {
@@ -190,7 +191,7 @@ func (a *analysis) userCall(n *lower.Call) types.Type {
 // argument is counted first, as builtinArgActual says. One that does not
 // satisfy the slot as it is may still as finite and numified judge it,
 // one in a slurpy slot as flattened says, and one in a `$` slot as
-// scalarValue says, and last as lossyCoercion says. Flattening is a second
+// scalarValue or counted says, and last as lossyCoercion says. Flattening is a second
 // chance, so a Hole's Any, which satisfies the slot as it is, is never
 // rewritten; one that fails both is reported as flattened.
 func (a *analysis) checkArg(name string, i int, arg lower.Node, expected types.Type, slurpy bool) {
@@ -203,7 +204,7 @@ func (a *analysis) checkArg(name string, i int, arg lower.Node, expected types.T
 		if a.argSatisfies(actual, expected) {
 			return
 		}
-	} else if a.argSatisfies(scalarValue(arg, actual), expected) {
+	} else if a.argSatisfies(scalarValue(arg, actual), expected) || a.argSatisfies(counted(name, actual), expected) {
 		return
 	}
 	if a.lossyCoercion(arg, actual, expected) {
@@ -351,6 +352,28 @@ func scalarValue(arg lower.Node, actual types.Type) types.Type {
 	case *lower.Call, *lower.Assign:
 		if actual&(types.Array|types.Hash) != 0 {
 			return actual&^(types.Array|types.Hash|types.Void) | types.Scalar
+		}
+	}
+	return actual
+}
+
+// aggregateRefused are the builtins perl refuses or warns on an array or
+// a hash in their `$` slot, measured on 5.42.0 with -c over every builtin
+// CORE.pmt gives a `$` slot: `defined(@a)` is "Can't use
+// 'defined(@array)'", `exists(@a)` and `delete(@a)` are "not a HASH or
+// ARRAY element", and `length(@a)` warns "length() used on @a".
+var aggregateRefused = map[string]bool{"defined": true, "exists": true, "delete": true, "length": true}
+
+// counted is actual, the type of an argument in a `$` slot of the builtin
+// name, as perl evaluates it there: in scalar context, where an array or a
+// hash is its count. perl 5.42 -w is silent on `int(rand(@m))` and `my
+// @e; srand(@e)`, "0 but true". An aggregate perl refuses there, as
+// aggregateRefused says, keeps its type. Elsewhere actual is returned as
+// it is.
+func counted(name string, actual types.Type) types.Type {
+	if (actual == types.Array || actual == types.Hash) && !aggregateRefused[name] {
+		if narrowed, ok := types.NarrowByContext(actual, types.ScalarCtx); ok {
+			return narrowed
 		}
 	}
 	return actual
