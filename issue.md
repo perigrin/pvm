@@ -10,7 +10,7 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.687306804Z
-updated: 2026-10-16T20:04:17.842033088Z
+updated: 2026-10-16T20:13:07.021837028Z
 ---
 
 ## Prerequisites
@@ -47,3 +47,10 @@ A `.tpm` changes what the parser reads for every file that uses the module, so r
 - [ ] declared prototypes equal perl's prototype() (`go test ./internal/parse/ -run '^TestPOSIXPrototypes$' -count=1 -v | grep -q '^--- PASS: TestPOSIXPrototypes'`)
 - [ ] declared export lists equal the modules' own (`go test ./internal/parse/ -run '^TestPOSIXExports$' -count=1 -v | grep -q '^--- PASS: TestPOSIXExports'`)
 - [ ] declared return types hold for every value perl returns (`go test ./internal/infer/ -run '^TestPOSIXReturnTypes$' -count=1 -v | grep -q '^--- PASS: TestPOSIXReturnTypes'`)
+
+### Negative Scenarios
+- [ ] POSIX `_exit`, `abort` and `pause` are in the exemption map with a reason and are never called (`go test ./internal/infer/ -run '^TestPOSIXOracleNeverCallsExit$' -count=1 -v | grep -q '^--- PASS: TestPOSIXOracleNeverCallsExit'`)
+- [ ] the POSIX export comparison is not vacuous: it reads 587 `@EXPORT`, 179 `@EXPORT_OK` and 35 tags after `import`, not 0/0 after `require` (`go test ./internal/parse/ -run '^TestPOSIXExportsAreReadAfterImport$' -count=1 -v | grep -q '^--- PASS: TestPOSIXExportsAreReadAfterImport'`)
+- [ ] `use POSIX ();` imports nothing, so a bare `floor(1.5)` does not resolve to the declaration (`go test ./internal/parse/ -run '^TestPOSIXEmptyImportListImportsNothing$' -count=1 -v | grep -q '^--- PASS: TestPOSIXEmptyImportListImportsNothing'`)
+- [ ] `printf STDOUT "x"` after `use POSIX;` keeps perl's filehandle parse (CORE printf has no prototype and keeps its own parse) (`go test ./internal/parse/ -run '^TestPOSIXImportKeepsPrintfFilehandleParse$' -count=1 -v | grep -q '^--- PASS: TestPOSIXImportKeepsPrintfFilehandleParse'`)
+- [ ] `POSIX::strtol` returns two values in list context and one in scalar (measured), and both fit the declaration (`go test ./internal/infer/ -run '^TestPOSIXStrtolContextReturnIsDeclared$' -count=1 -v | grep -q '^--- PASS: TestPOSIXStrtolContextReturnIsDeclared'`)
