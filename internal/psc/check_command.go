@@ -118,10 +118,9 @@ func checkFile(w interface{ Write([]byte) (int, error) }, sess *parse.Session, r
 		return false, fmt.Errorf("read %s: %w", path, err)
 	}
 
-	root, err := sess.ParseFileFrom(path, roots...)
-	if err != nil {
-		return false, fmt.Errorf("parse %s: %w", path, err)
-	}
+	// Parsed from the bytes read above, so each diagnostic's line and
+	// column are found in the text its span was taken from.
+	root := sess.ParseSourceFrom(path, source, roots...)
 
 	diags := analyze(root, opts).Diagnostics
 
