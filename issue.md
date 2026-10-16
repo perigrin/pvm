@@ -11,7 +11,7 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.843622709Z
-updated: 2026-10-16T20:04:25.115706696Z
+updated: 2026-10-16T20:13:09.381092021Z
 ---
 
 ## Prerequisites
@@ -49,3 +49,12 @@ A `.tpm` changes what the parser reads for every file that uses the module, so r
 - [ ] declared prototypes equal perl's prototype() (`go test ./internal/parse/ -run '^TestVariableExportersPrototypes$' -count=1 -v | grep -q '^--- PASS: TestVariableExportersPrototypes'`)
 - [ ] declared export lists equal the modules' own (`go test ./internal/parse/ -run '^TestVariableExportersExports$' -count=1 -v | grep -q '^--- PASS: TestVariableExportersExports'`)
 - [ ] declared return types hold for every value perl returns (`go test ./internal/infer/ -run '^TestVariableExportersReturnTypes$' -count=1 -v | grep -q '^--- PASS: TestVariableExportersReturnTypes'`)
+
+### Negative Scenarios
+- [ ] every `%Config` value is a member of the declared element type; 172 values are undef on 5.42.0 (measured), so `Hash[Str]` fails (`go test ./internal/infer/ -run '^TestConfigValuesFitDeclaredType$' -count=1 -v | grep -q '^--- PASS: TestConfigValuesFitDeclaredType'`)
+- [ ] a bare `use Config;` imports `%Config` and none of Config's `@EXPORT_OK` subs (`go test ./internal/parse/ -run '^TestConfigBareUseImportsOnlyConfigHash$' -count=1 -v | grep -q '^--- PASS: TestConfigBareUseImportsOnlyConfigHash'`)
+- [ ] a bare `use Getopt::Long;` does not import `Configure`, which is in `@EXPORT_OK` only (measured) (`go test ./internal/parse/ -run '^TestGetoptLongBareUseOmitsConfigure$' -count=1 -v | grep -q '^--- PASS: TestGetoptLongBareUseOmitsConfigure'`)
+- [ ] Test::More `BAIL_OUT` is declared `None` and is exempt from the oracle, since it exits rather than dies (`go test ./internal/infer/ -run '^TestTestMoreBailOutNeverCalled$' -count=1 -v | grep -q '^--- PASS: TestTestMoreBailOutNeverCalled'`)
+- [ ] ExtUtils::MakeMaker `prompt` and `WriteMakefile` are exempt with a reason and never called (`go test ./internal/infer/ -run '^TestMakeMakerInteractiveSubsExempt$' -count=1 -v | grep -q '^--- PASS: TestMakeMakerInteractiveSubsExempt'`)
+- [ ] `use File::stat ();` leaves `stat($f)` as CORE's stat, not File::stat's (`go test ./internal/parse/ -run '^TestFileStatEmptyImportKeepsCoreStat$' -count=1 -v | grep -q '^--- PASS: TestFileStatEmptyImportKeepsCoreStat'`)
+- [ ] File::stat `stat` on a missing file returns the empty list (measured), which its declared return type admits (`go test ./internal/infer/ -run '^TestFileStatMissingFileReturnIsDeclared$' -count=1 -v | grep -q '^--- PASS: TestFileStatMissingFileReturnIsDeclared'`)
