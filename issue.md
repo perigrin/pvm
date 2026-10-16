@@ -10,12 +10,13 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:16.163764265Z
-updated: 2026-10-16T20:13:13.942174192Z
+updated: 2026-10-16T21:00:51.129124048Z
 ---
 
 ## Prerequisites
 
 - [ ] Commit psc check's diagnostics over perl 5.42's lib as a baseline, and fail on any new one
+- [ ] Convert every .tpm to :export and :export_ok, then refuse export lists in a .tpm (01a14683-8375-7810-8a75-b772680603c6)
 - [ ] Pin the core-module ranking in a test and record the rule in the RFC
 - [ ] Hold Carp.tpm to perl: prototypes, export lists and a return-type oracle
 
@@ -25,11 +26,15 @@ updated: 2026-10-16T20:13:13.942174192Z
 - commands: `go test ./internal/parse/ -run '^TestDynaLoaderPrototypes$|^TestDynaLoaderExports$|^TestDynaLoaderKeepsResolution$' -count=1 -v`, `go test ./internal/infer/ -run '^TestDynaLoaderReturnTypes$' -count=1 -v`
 - entrypoints: `declaration`/`readDeclaration` (`internal/parse/declarations.go`), the `declarations` fs.FS var a test can swap, RFC 0001 "Core-module libraries", "Infrastructure modules."
 
-DynaLoader is inherited from or called by older XS modules (9 imports, rank 22), so a declaration that replaces its source could change how those modules' imports resolve. RFC "Infrastructure modules": it is written, then measured; it must keep every module that uses it resolving as before and hold the m1 gates, or it is not shipped. `TestDynaLoaderKeepsResolution` parses every privlib module that uses DynaLoader twice, with and without the `.tpm` (swap the `declarations` fs.FS), and requires identical resolved imports, prototypes and signatures; it skips where perl 5.42.0's privlib is absent.
+DynaLoader is inherited from or called by older XS modules (9 imports, rank 22), so a declaration that replaces its source could change how those modules' imports resolve. RFC "Infrastructure modules": it is written, then measured; it must keep every module that uses it resolving as before and hold the m1 gates, or it may not ship. `TestDynaLoaderKeepsResolution` parses every privlib module that uses DynaLoader twice, with and without the `.tpm` (swap the `declarations` fs.FS), and requires identical resolved imports, prototypes and signatures; it skips where perl 5.42.0's privlib is absent.
 
-**If the measurement shows a change** that cannot be fixed in the declaration itself: do not ship the `.tpm`. Cancel this issue with `git zhi issue edit <id> --state cancel`, recording the measurement (which modules, which names, before and after) as the reason, and record DynaLoader as not shipped, with that reason, in the list the final gate's `TestCoreModuleDeclarationsCoverTheTop50` reads.
+**If the measurement shows a change** that cannot be fixed in the declaration itself: STOP and ask perigrin, giving him the measurement (which modules, which names, before and after). Do not cancel this issue yourself. Only once perigrin rules that DynaLoader does not ship: cancel this issue with `git zhi issue edit 01a1464e-dde3-73fe-ab1f-ced7f18c4f9d --state cancel`, his ruling as the reason, and add the line `DynaLoader<TAB>01a1464e-dde3-73fe-ab1f-ced7f18c4f9d<TAB><his reason>` to `internal/parse/testdata/core_module_not_shipped.txt`, which the final gate's `TestCoreModuleDeclarationsCoverTheTop50` reads.
 
-m1 gates to run with the `.tpm` in place: `TestParseRatchet`, `TestPerlGitTRatchet`, `TestCanonRatchet`, `TestCanonFidelityRatchet`, `TestT2HoldsAll56`, `TestT2CoreParses`, `TestImportResolutionIsWorthT1Files` (internal/parse), `TestRatchet`, `TestRatchetCorpus`, `TestGoParserExactFloor` (internal/parseoracle), `TestPSCCheckLibBaseline` (internal/psc).
+**Ruling 4 (perigrin, 2026-10-16): not shipped is allowed only for Exporter, XSLoader and DynaLoader** (the RFC's "may not ship"). Before cancelling, STOP and ask perigrin, with the measurement, so the cancel reason is his.
+
+m1 gates to run with the `.tpm` in place: `TestParseRatchet`, `TestPerlGitTRatchet`, `TestCanonRatchet`, `TestCanonFidelityRatchet`, `TestT2HoldsAll56`, `TestT2CoreParses`, `TestImportResolutionIsWorthT1Files` (internal/parse), `TestRatchet`, `TestRatchetCorpus`, `TestGoParserExactFloor`, `TestGoParserWrongIsZero` (internal/parseoracle), `TestPSCCheckLibBaseline` (internal/psc). Run each with the command the final-gate issue (01a1464e-de34) gives it: `TestRatchetCorpus` skips without `-parseoracle.corpus`, and the two Go-parser gates skip unless `PARSEORACLE_SHIM` names a built shim, and a skip proves nothing. A ratchet may only be raised. A drop is fixed in the .tpm, or the batch stops and asks perigrin. A drop the `.tpm` cannot fix is the measurement above: stop and ask.
+
+**Ruling 1 (perigrin, 2026-10-16): no export lists in a `.tpm`.** "We don't need the @EXPORT in the .tpm since we have :export and :export_ok." On names a module's own `import` installs: "we should figure out as best we can what is exported (loc, loc_lang, etc.) and mark them as :export or :export_ok accordingly."
 
 ## Steps
 
@@ -37,17 +42,16 @@ m1 gates to run with the `.tpm` in place: `TestParseRatchet`, `TestPerlGitTRatch
 - [ ] Write `declarations/DynaLoader.tpm` (two `ABOUTME:` lines, measured facts in comments); run to verify pass
 - [ ] Write `TestDynaLoaderKeepsResolution`; run it: `go test ./internal/parse/ -run '^TestDynaLoaderKeepsResolution$' -count=1 -v`
 - [ ] Write `TestDynaLoaderReturnTypes` (uncallable subs listed by name with their reason); run to verify pass
-- [ ] Run the m1 gates above; if anything moves because of the `.tpm`, follow the cancel rule; otherwise `make test`; commit
+- [ ] Run the m1 gates above; if anything drops because of the `.tpm` and the `.tpm` cannot fix it, STOP and ask perigrin (above); otherwise `make test`; commit
 
 ## Acceptance Criteria
 
 ### Positive Scenarios
 - [ ] declared prototypes equal perl's prototype() (`go test ./internal/parse/ -run '^TestDynaLoaderPrototypes$' -count=1 -v | grep -q '^--- PASS: TestDynaLoaderPrototypes'`)
-- [ ] declared export lists equal DynaLoader's own (`go test ./internal/parse/ -run '^TestDynaLoaderExports$' -count=1 -v | grep -q '^--- PASS: TestDynaLoaderExports'`)
+- [ ] declared `:export`/`:export_ok` marks equal what perl's `use DynaLoader` installs in a caller, bare and by name (`go test ./internal/parse/ -run '^TestDynaLoaderExports$' -count=1 -v | grep -q '^--- PASS: TestDynaLoaderExports'`)
 - [ ] every privlib module using DynaLoader resolves as it did without the declaration (`go test ./internal/parse/ -run '^TestDynaLoaderKeepsResolution$' -count=1 -v | grep -q '^--- PASS: TestDynaLoaderKeepsResolution'`)
 - [ ] declared return types hold for every value perl returns (`go test ./internal/infer/ -run '^TestDynaLoaderReturnTypes$' -count=1 -v | grep -q '^--- PASS: TestDynaLoaderReturnTypes'`)
 
 ### Negative Scenarios
 - [ ] DynaLoader's low-level subs `dl_load_file`, `dl_find_symbol`, `dl_install_xsub` and `dl_unload_file` are exempt with a reason and never called (`go test ./internal/infer/ -run '^TestDynaLoaderLowLevelSubsExempt$' -count=1 -v | grep -q '^--- PASS: TestDynaLoaderLowLevelSubsExempt'`)
 - [ ] the resolution comparison is not vacuous: it compares modules reaching DynaLoader by `@ISA` and by `require` alike, and fails if it compares none where privlib is present (`go test ./internal/parse/ -run '^TestDynaLoaderKeepsResolutionIsNotVacuous$' -count=1 -v | grep -q '^--- PASS: TestDynaLoaderKeepsResolutionIsNotVacuous'`)
-- [ ] DynaLoader is not both shipped and listed as not shipped (`! { test -e internal/parse/declarations/DynaLoader.tpm && grep -q '^DynaLoader[[:space:]]' internal/parse/testdata/core_module_not_shipped.txt; }`)
