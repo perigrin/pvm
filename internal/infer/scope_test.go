@@ -65,3 +65,15 @@ func TestForMyScopesItsVariable(t *testing.T) {
 	wantSilent(t, "my $i = 5;\nmy @l = (1, 2);\nfor my $i (@l) { $i = undef; }\nprint $i + 1, \"\\n\";\n")
 	wantReported(t, "my $n = 3;\nfor my $i ($n) { $i = undef; print $i + 1, \"\\n\"; }\n", infer.CodeCoercionMismatch)
 }
+
+// A variable a named sub writes is widened to its sigil type where the sub
+// is declared: whether the code after reads the sub's write depends on
+// whether the sub ran, which PSC does not see. perl 5.42 -w prints 6 for
+// the first, where reset_p never runs, and 6 for the second, where set_p
+// does. A variable no sub writes keeps its narrowed type: perl warns "Use
+// of uninitialized value $q in addition" on the control.
+func TestSubAssignmentWidensOuterType(t *testing.T) {
+	wantSilent(t, "my $p = 5;\nsub reset_p { $p = undef }\nprint $p + 1, \"\\n\";\n")
+	wantSilent(t, "my $p = undef;\nsub set_p { $p = 5 }\nset_p();\nprint $p + 1, \"\\n\";\n")
+	wantReported(t, "my $q = undef;\nsub r { 1 }\nprint $q + 1, \"\\n\";\n", infer.CodeCoercionMismatch)
+}

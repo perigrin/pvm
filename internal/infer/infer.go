@@ -284,15 +284,21 @@ func (a *analysis) decl(d *lower.Decl) types.Type {
 					ret = explicit | implicit
 				}
 			}
-			written := map[string]types.Type{}
-			for name, typ := range widened {
-				if sym, ok := a.st.Lookup(name); ok && sym.Type != typ {
-					written[name] = sym.Type
-				}
-			}
+			writes := assignedNames(d.Init)
 			a.st.ExitScope()
-			for name, typ := range written {
-				a.st.UpdateType(name, typ)
+			// After the declaration a variable the sub writes holds what
+			// it held before, or what the sub wrote, as the sub has run
+			// or not. PSC does not see which, so the variable is widened
+			// to its sigil type, as widenWritten widens it for the sub's
+			// readers. perl 5.42 -w prints 6 for `my $p = 5; sub r { $p
+			// = undef } print $p + 1`, and for `my $p = undef; sub w {
+			// $p = 5 } w(); print $p + 1`.
+			// ponytail: flow-insensitive; reading the writes of the
+			// subs a call reaches would keep the narrowed type.
+			for name, typ := range widened {
+				if writes[name] {
+					a.st.UpdateType(name, typ)
+				}
 			}
 			if name := subName(d); name != "" && ret != types.Unknown {
 				a.st.UpdateReturnType(name, ret)
@@ -316,8 +322,8 @@ func (a *analysis) decl(d *lower.Decl) types.Type {
 // assigns but its declaration keeps its type, so `my $p = undef; sub r {
 // $p eq 'n' } r();` is still reported, as perl warns.
 //
-// What the sub assigns to a shadowed variable reaches the code after it
-// as an assignment in its body always has, by the caller's UpdateType.
+// A shadowed variable the sub assigns is widened in the code after the
+// sub too, as decl says.
 //
 // ponytail: assignments are matched by name, not by the variable they
 // resolve to, so a same-named variable elsewhere widens this one too;
@@ -352,7 +358,7 @@ func (a *analysis) widenWritten(body lower.Node) map[string]types.Type {
 // variable may be assigned by any code, through its full name or a
 // symbolic reference, as Math::BigInt's downgrade() sets
 // ${"${class}::downgrade"}.
-func assignedNames(f *lower.File) map[string]bool {
+func assignedNames(f lower.Node) map[string]bool {
 	names := map[string]bool{}
 	var find func(n lower.Node)
 	find = func(n lower.Node) {
