@@ -11,15 +11,17 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"tamarou.com/pvm/internal/platform"
 )
 
-// fakeInstall lays out a pvm-style install under a temp prefix: bin/perl,
-// which is not a program, and lib/perl5/5.42.0/<arch>/Config.pm holding
+// fakeInstall lays out a pvm-style install under a temp prefix: bin/perl
+// (bin/perl.exe on Windows, as pvm installs it there), which is not a program, and lib/perl5/5.42.0/<arch>/Config.pm holding
 // configLines, beside the Config_heavy.pl that marks the arch directory.
 func fakeInstall(t *testing.T, configLines ...string) (prefix, perlPath string) {
 	t.Helper()
 	prefix = t.TempDir()
-	perlPath = filepath.Join(prefix, "bin", "perl")
+	perlPath = filepath.Join(prefix, "bin", platform.ExecutableName("perl"))
 	require.NoError(t, os.MkdirAll(filepath.Dir(perlPath), 0o755))
 	require.NoError(t, os.WriteFile(perlPath, []byte("not a program\n"), 0o644))
 	arch := filepath.Join(prefix, "lib", "perl5", "5.42.0", "x86_64-linux")

@@ -7,7 +7,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -553,5 +555,27 @@ func TestLSPWindowsFileURI(t *testing.T) {
 	for _, uri := range []string{"untitled:Untitled-1", "file://"} {
 		_, ok := uriPath(uri)
 		assert.False(t, ok, uri)
+	}
+}
+
+// FileURI is the file: uri an editor sends for the absolute path: a
+// Windows drive follows the root slash, file:///C:/x.pl, where a url.URL
+// given the path alone writes file://C:/x.pl, whose host is the drive.
+// The tests of package psc_test reach it as psc.FileURI.
+func FileURI(path string) string {
+	p := filepath.ToSlash(path)
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+	return (&url.URL{Scheme: "file", Path: p}).String()
+}
+
+// TestFileURINamesItsPath checks that FileURI's uri names the path it was
+// given, a Windows one among them, as uriPath reads it.
+func TestFileURINamesItsPath(t *testing.T) {
+	for _, path := range []string{"C:/Users/u/x.pl", "/home/u/x.pl"} {
+		got, ok := uriPath(FileURI(path))
+		assert.True(t, ok, path)
+		assert.Equal(t, filepath.FromSlash(path), got, path)
 	}
 }

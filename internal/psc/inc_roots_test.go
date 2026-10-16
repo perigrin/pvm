@@ -6,7 +6,6 @@ package psc
 import (
 	"encoding/json"
 	"io"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,15 +13,18 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"tamarou.com/pvm/internal/platform"
 )
 
 // rootsInstall lays out a pvm-style install whose Config.pm names privlib
-// as its one library directory, and returns its prefix.
+// as its one library directory, and returns its prefix. Its perl is
+// bin/perl.exe on Windows, as pvm installs it there.
 func rootsInstall(t *testing.T, privlib string) string {
 	t.Helper()
 	prefix := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(prefix, "bin"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(prefix, "bin", "perl"), []byte("not a program\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(prefix, "bin", platform.ExecutableName("perl")), []byte("not a program\n"), 0o644))
 	arch := filepath.Join(prefix, "lib", "perl5", "5.42.0", "x86_64-linux")
 	require.NoError(t, os.MkdirAll(arch, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(arch, "Config.pm"),
@@ -142,7 +144,7 @@ func TestLSPLogsUnresolvedPerl(t *testing.T) {
 	// sent; its diagnostics are published, and none of them is the note.
 	logs := func(path string) []string {
 		t.Helper()
-		uri := (&url.URL{Scheme: "file", Path: filepath.ToSlash(path)}).String()
+		uri := FileURI(path)
 		params, err := json.Marshal(lspDidOpenParams{TextDocument: lspTextDocumentItem{URI: uri, LanguageID: "perl", Version: 1, Text: "1;\n"}})
 		require.NoError(t, err)
 		require.NoError(t, h.handle(&jsonRPCMessage{JSONRPC: "2.0", Method: "textDocument/didOpen", Params: params}))

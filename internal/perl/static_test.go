@@ -41,9 +41,11 @@ func staticProject(t *testing.T, files map[string]string) string {
 func TestStaticPerl(t *testing.T) {
 	installed, installedPerl := fakeInstall(t)
 	system, systemPerl := fakeInstall(t)
+	fork, forkPerl := fakeInstall(t)
 	staticRegistry(t,
 		VersionInfo{Version: "5.42.0", InstallPath: installed, Source: "pvm"},
 		VersionInfo{Version: "5.30.0", InstallPath: system, Source: "system"},
+		VersionInfo{Version: "5.40.0", InstallPath: fork, Source: "pvm", Remote: "acme", BaseVersion: "5.40.0"},
 	)
 
 	cases := []struct {
@@ -55,6 +57,7 @@ func TestStaticPerl(t *testing.T) {
 		{"nothing named", map[string]string{}, "", ""},
 		{"installed version", map[string]string{".perl-version": "5.42.0\n"}, installedPerl, ""},
 		{"system is the imported system perl", map[string]string{".perl-version": "system\n"}, systemPerl, ""},
+		{"fork by display name", map[string]string{".perl-version": "acme/5.40.0\n"}, forkPerl, ""},
 		{"not installed", map[string]string{".perl-version": "5.8.9\n"}, "", `names "5.8.9", which is not installed`},
 		{"dev needs MetaCPAN", map[string]string{".perl-version": "dev\n"}, "", `names "dev", which only MetaCPAN can resolve`},
 		{"@latest needs MetaCPAN", map[string]string{".perl-version": "@latest\n"}, "", `names "@latest", which only MetaCPAN can resolve`},
