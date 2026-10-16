@@ -10,7 +10,7 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.542610643Z
-updated: 2026-10-16T20:03:50.9547837Z
+updated: 2026-10-16T20:13:03.433994232Z
 ---
 
 ## Prerequisites
@@ -47,3 +47,9 @@ A `.tpm` changes what the parser reads for every file that uses the module, so r
 - [ ] declared prototypes equal perl's prototype() (`go test ./internal/parse/ -run '^TestIOExportersPrototypes$' -count=1 -v | grep -q '^--- PASS: TestIOExportersPrototypes'`)
 - [ ] declared export lists equal the modules' own (`go test ./internal/parse/ -run '^TestIOExportersExports$' -count=1 -v | grep -q '^--- PASS: TestIOExportersExports'`)
 - [ ] declared return types hold for every value perl returns (`go test ./internal/infer/ -run '^TestIOExportersReturnTypes$' -count=1 -v | grep -q '^--- PASS: TestIOExportersReturnTypes'`)
+
+### Negative Scenarios
+- [ ] every Net::Ping and IO::Socket sub that touches the network is in the exemption map with a reason and is never called (`go test ./internal/infer/ -run '^TestIOExportersNetworkSubsExempt$' -count=1 -v | grep -q '^--- PASS: TestIOExportersNetworkSubsExempt'`)
+- [ ] File::Temp and Archive::Tar oracle cases create files only under the test's temp dir (`go test ./internal/infer/ -run '^TestIOExportersOracleStaysInScratch$' -count=1 -v | grep -q '^--- PASS: TestIOExportersOracleStaysInScratch'`)
+- [ ] methods declared beside the exports (e.g. IO::Handle `autoflush`) are in none of the declared export lists (`go test ./internal/parse/ -run '^TestIOExportersMethodsAreNotExported$' -count=1 -v | grep -q '^--- PASS: TestIOExportersMethodsAreNotExported'`)
+- [ ] `IO::File->new` on a missing file returns a value its declared return type admits (`go test ./internal/infer/ -run '^TestIOFileNewMissingFileReturnIsDeclared$' -count=1 -v | grep -q '^--- PASS: TestIOFileNewMissingFileReturnIsDeclared'`)
