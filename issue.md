@@ -1,10 +1,19 @@
 ---
 title: "[S14] The lexer and parser read use 5.04 differently, so the signature disappears."
-state: pending
+state: in-progress
 urgency: normal
 milestone: pr486-review
 created: 2026-10-16T01:16:08.998618527Z
-updated: 2026-10-16T01:16:08.998618527Z
+updated: 2026-10-16T01:17:16.265531073Z
+sessions:
+- start_sha: 8a0c85c60a2bae5d04dbbb2b27eb4310312d362f
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-16T01:17:16.265531073Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-16T01:17:16.265531073Z
 ---
 
 ## Context
