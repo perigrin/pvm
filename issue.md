@@ -3,8 +3,10 @@ title: Pin the core-module ranking in a test and record the rule in the RFC
 state: pending
 urgency: normal
 milestone: core-module-types
+blocked_by:
+- 01a1464e-d912-7419-8b20-a8e24029b3ec
 created: 2026-10-16T20:02:15.040084527Z
-updated: 2026-10-16T20:02:15.040084527Z
+updated: 2026-10-16T20:02:53.783003613Z
 ---
 
 ## Prerequisites
