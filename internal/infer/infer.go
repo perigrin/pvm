@@ -180,6 +180,9 @@ func (a *analysis) walk(n lower.Node) types.Type {
 		t = types.Unknown
 	case *lower.Decl:
 		t = a.decl(n)
+	case *lower.ExprStmt:
+		a.exprStmt(n)
+		t = types.Any
 	case *lower.IfStmt:
 		a.ifStmt(n)
 		t = types.Unknown

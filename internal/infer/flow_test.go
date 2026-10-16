@@ -237,3 +237,27 @@ func TestExitsAndGuardsByCoreAndCarp(t *testing.T) {
 		wantSilent(t, "use Carp;\nmy $x = @ARGV ? undef : 3;\nunless (defined $x) { croak \"x\" }\nprint $x + 1, \"\\n\";\n")
 	})
 }
+
+// A statement-modifier exit, and an `or die`, narrow what follows them as
+// the block form does: past `die unless defined $x`, $x is defined. perl
+// 5.42 -w, given an argument, is silent on each and prints 4.
+func TestModifierGuardNarrowsContinuation(t *testing.T) {
+	for _, src := range []string{
+		"my $x = @ARGV ? 3 : undef;\ndie \"x\" unless defined $x;\nprint $x + 1, \"\\n\";\n",
+		"my $x = @ARGV ? 3 : undef;\ndefined $x or die \"x\";\nprint $x + 1, \"\\n\";\n",
+		"my $x = @ARGV ? 3 : undef;\n!defined $x and die \"x\";\nprint $x + 1, \"\\n\";\n",
+		"sub f { my $x = $_[0] ? 3 : undef; return 0 unless defined $x; return $x + 1 }\nprint f(1), \"\\n\";\n",
+	} {
+		wantSilent(t, src)
+	}
+	// perl -w, given no argument, warns "Use of uninitialized value $x"
+	// on each: past an exit the guard failed, and a body that does not
+	// exit narrows nothing after it.
+	for _, src := range []string{
+		"my $x = @ARGV ? 3 : undef;\nCORE::exit 0 if defined $x;\nprint \"a\" . $x, \"\\n\";\n",
+		"my $x = @ARGV ? 3 : undef;\ndefined $x and die \"x\";\nprint \"a\" . $x, \"\\n\";\n",
+		"my $x = @ARGV ? 3 : undef;\nprint \"n\\n\" unless defined $x;\nprint $x + 1, \"\\n\";\n",
+	} {
+		wantReported(t, src, infer.CodeCoercionMismatch)
+	}
+}

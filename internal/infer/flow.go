@@ -22,19 +22,22 @@ import (
 //
 // A modifier form (`X if C`) is not narrowed as a conditional statement
 // is. Its body, when C is a match it runs only
-// after, reads that match's captures, as capture says.
+// after, reads that match's captures, as capture says. When its body
+// exits, what follows knows the guard went the other way, as modifierExit
+// says.
 func (a *analysis) ifStmt(n *lower.IfStmt) {
 	if !isBranch(n.Then) || !isBranch(n.Else) {
 		m, success := successMatch(n)
 		if m == nil || success == nil {
 			a.walkChildren(n)
-			return
+		} else {
+			a.walk(m)
+			outer := a.modifier
+			a.modifier = n
+			a.walk(success)
+			a.modifier = outer
 		}
-		a.walk(m)
-		outer := a.modifier
-		a.modifier = n
-		a.walk(success)
-		a.modifier = outer
+		a.modifierExit(n)
 		return
 	}
 	if n.Cond != nil {
@@ -84,6 +87,36 @@ func (a *analysis) ifStmt(n *lower.IfStmt) {
 	}
 
 	applyBranchJoin(guard, preIfTypes, ifBranchTypes, elsifJoinTypes, elseBranchTypes, hasElse, a.st)
+}
+
+// modifierExit narrows what follows a modifier form whose body exits:
+// past `die unless defined $x` the guard held, and past `exit if defined
+// $x` it failed. `unless` puts the body in Else.
+func (a *analysis) modifierExit(n *lower.IfStmt) {
+	body, negate := n.Then, true
+	if body == nil {
+		body, negate = n.Else, false
+	}
+	if a.exits(body) {
+		narrowContinuation(a.flatten(a.guard(n.Cond, true), negate), a.st)
+	}
+}
+
+// exprStmt walks an expression statement. A logical operator whose right
+// operand exits narrows what follows it: past `defined $x or die` the left
+// operand held, and past `!defined $x and die` it failed.
+func (a *analysis) exprStmt(n *lower.ExprStmt) {
+	a.walkChildren(n)
+	b, ok := n.X.(*lower.Binary)
+	if !ok || !a.exits(b.R) {
+		return
+	}
+	switch b.Op {
+	case "||", "or":
+		narrowContinuation(a.flatten(a.guard(b.L, true), false), a.st)
+	case "&&", "and":
+		narrowContinuation(a.flatten(a.guard(b.L, true), true), a.st)
+	}
 }
 
 // isBranch reports whether n can be a block-form conditional's branch: a
