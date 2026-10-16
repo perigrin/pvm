@@ -5,7 +5,9 @@ package lower_test
 
 import (
 	"reflect"
+	"strings"
 	"testing"
+	"time"
 
 	"tamarou.com/pvm/internal/lower"
 	"tamarou.com/pvm/internal/parse"
@@ -190,5 +192,37 @@ func TestPositionMapQuote(t *testing.T) {
 		if got := p.Quote(n.Meta().ID); got != want[i] {
 			t.Errorf("%q statement %d: Quote is %q, want %q", src, i, got, want[i])
 		}
+	}
+}
+
+// $1 asks LastBefore for the match before it, once per capture, so a
+// linear scan over the file per question is quadratic: 4,000 lines of
+// `if ($s =~ /(a)/) { print $1 }` took 6.7 s through psc check. Each
+// question here costs a search and the few nodes back to its match, so
+// 4,000 of them visit a bounded number of nodes and finish well within a
+// second. The control: each answer is the match on its own line.
+func TestCaptureResolutionIsNotQuadratic(t *testing.T) {
+	const lines = 4000
+	line := "if ($s =~ /(a)/) { print $1 }\n"
+	src := strings.Repeat(line, lines)
+	_, _, pos := positions(src)
+	visits := 0
+	keep := func(n lower.Node) bool { visits++; return isMatch(n) }
+	start := time.Now()
+	for i := 0; i < lines; i++ {
+		off := i*len(line) + strings.Index(line, "$1")
+		m := pos.LastBefore(off, keep)
+		if m == nil {
+			t.Fatalf("line %d: no match before $1", i)
+		}
+		if s, _, _ := pos.Span(m.Meta().ID); s/len(line) != i {
+			t.Fatalf("line %d: the match before $1 is on line %d", i, s/len(line))
+		}
+	}
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Errorf("%d captures resolved in %v, want under 1s", lines, elapsed)
+	}
+	if visits > 20*lines {
+		t.Errorf("%d captures visited %d nodes, want at most %d", lines, visits, 20*lines)
 	}
 }

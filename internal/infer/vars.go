@@ -75,13 +75,14 @@ func (a *analysis) key(n *lower.Key) types.Type {
 }
 
 // constKey is the string a constant hash key spells: count for `{count}`,
-// `count =>` and `{"count"}`. ok is false for a key computed at run time.
+// `count =>` and `{"count"}`. ok is false for a key computed at run time,
+// and for a heredoc, whose body the lowering does not carry.
 func constKey(n lower.Node) (string, bool) {
 	switch n := n.(type) {
 	case *lower.Bareword:
 		return n.Name, true
 	case *lower.StrLit:
-		return n.Value, !n.Backtick
+		return n.Value, !n.Backtick && !n.Heredoc
 	}
 	return "", false
 }

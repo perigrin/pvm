@@ -212,6 +212,17 @@ func TestLossyCoercionWarningIsOptIn(t *testing.T) {
 	}
 }
 
+// A heredoc's body is not carried by the lowering, so its content is
+// unknown, never the empty string. perl 5.42 -w is silent on
+// `my $n = <<E + 1;` over a body of "3" and prints 4; an empty string
+// would be reported as non-numeric by default.
+func TestHeredocContentIsUnknown(t *testing.T) {
+	src := "my $n = <<E + 1;\n3\nE\n"
+	for _, d := range loweredDiags(src) {
+		t.Errorf("%q: diagnostic %q, want none", src, d.Message)
+	}
+}
+
 // A Str in a numeric slot whose content PSC does not know is silent by
 // default, and a lossy coercion under WarnLossyCoercion: perigrin ruled so
 // on 2026-10-14 for `$1 + 0`, `"$]" < 5.016` and `substr($s, 0, 1) % 2`.

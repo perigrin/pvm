@@ -68,6 +68,10 @@ type StrLit struct {
 	Value        string
 	Interpolated bool
 	Backtick     bool // `cmd` / qx// -- the value is a command
+	// Heredoc marks a `<<TERM` string. Its body is a separate parse node
+	// after the statement, so Value is not carried: it is "", not the
+	// string's content.
+	Heredoc bool
 }
 
 // Interp is an interpolating string in pieces: "a$b c" -> [StrLit, Var, StrLit].
@@ -211,13 +215,15 @@ type List struct {
 // Decl is a my/our/state/local/field declaration, and a named sub, method,
 // package or class. A named sub is perl's compile-time `*f = sub {...}`:
 // its one Var is &f and its Init the AnonSub, nil for `sub f;`. A package
-// or class names a Bareword, with its version or block as Init (§4.14.6).
+// or class names a Bareword, with its version as Version and its block as
+// Init (§4.14.6).
 type Decl struct {
 	nodeBase
-	Kind  DeclKind
-	Vars  []Node // Var, or a List of Var for the parenthesised form
-	Attrs []string
-	Init  Node // nil if none
+	Kind    DeclKind
+	Vars    []Node // Var, or a List of Var for the parenthesised form
+	Attrs   []string
+	Version Node // a package's or class's version; nil if none
+	Init    Node // nil if none
 	// ListAssign marks `my (...) =`, which puts its Init in list context
 	// where `my $x =` puts it in scalar (§4.12.2 rule 2).
 	ListAssign bool
@@ -510,7 +516,7 @@ func Children(n Node) []Node {
 		add(n.Elems...)
 	case *Decl:
 		add(n.Vars...)
-		add(n.Init)
+		add(n.Version, n.Init)
 	case *Call:
 		add(n.Fn, n.Handle)
 		add(n.Args...)
@@ -621,4 +627,13 @@ func UseStmts(n Node) []*UseStmt {
 		out = append(out, UseStmts(c)...)
 	}
 	return out
+}
+
+// parenthesize sets Parenthesized on n when n is a Call, and returns n. It
+// lives beside Children because it asserts a kind declared here.
+func parenthesize(n Node) Node {
+	if c, ok := n.(*Call); ok {
+		c.Parenthesized = true
+	}
+	return n
 }

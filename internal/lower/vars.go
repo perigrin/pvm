@@ -68,9 +68,10 @@ var bracedName = regexp.MustCompile(`^\^?\w+(::\w+)*$`)
 // subscript lowers an `index` to an Index ("[") or a Key ("{"), the Arrow
 // bit copied from the node. It declines an index that is not one element of
 // one container: a slice, whose base is @-, %- or list-shaped, and the
-// &{$x} and *foo{CODE} forms, whose bases are a code or glob sigil.
+// &{$x} and *foo{CODE} forms, whose bases are a code or glob sigil, and an
+// `index "("`, which is a call (indexCall) and never an element.
 func (l *lowerer) subscript(n *parse.Node) Node {
-	if len(n.Children) != 2 || !elementBase(n) {
+	if len(n.Children) != 2 || n.Text == "(" || !elementBase(n) {
 		return nil
 	}
 	base, sub := n.Children[0], n.Children[1]
@@ -90,6 +91,17 @@ func elementBase(n *parse.Node) bool {
 		return strings.IndexByte("@%&*", base.Text[0]) < 0
 	}
 	return true
+}
+
+// ampBlockDeref lowers `&{$c}` standing alone, an `index "{"` over a bare
+// `&` term, to Deref{&} over the braced expression: the same call through a
+// code reference, passing the caller's @_, as `&$c`. With parentheses,
+// `&{$c}(1)`, it is under an `index "("`, which indexCall lowers.
+func (l *lowerer) ampBlockDeref(n *parse.Node) Node {
+	if n.Text != "{" || len(n.Children) != 2 || n.Children[0].Kind != parse.Term || n.Children[0].Text != "&" {
+		return nil
+	}
+	return &Deref{Sigil: "&", Expr: l.expr(n.Children[1])}
 }
 
 // prefixDeref lowers a `unary` "$", "@" or "%" -- ${$x}, $$x, @$x, %{$x} --

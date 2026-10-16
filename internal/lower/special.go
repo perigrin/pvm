@@ -225,7 +225,8 @@ func matchOp(t string) string {
 var quoteMatch = regexp.MustCompile(`^(m|s|tr|y|qr)\s*[^\w\s]`)
 
 // bind lowers `=~` and `!~`. Over a match term it is that Match with its
-// Target set; over anything else -- a pattern in a variable, or an Unknown
+// Target set. A bound qr term is a match, Op `m`: perl 5.42 compiles
+// `$x =~ qr/b/` to match(), not to a qr constructor. Over anything else -- a pattern in a variable, or an Unknown
 // -- it stays a Binary, because there is no quote token to carry.
 func (l *lowerer) bind(n *parse.Node) Node {
 	if n.Text != "=~" && n.Text != "!~" || len(n.Children) != 2 {
@@ -234,6 +235,9 @@ func (l *lowerer) bind(n *parse.Node) Node {
 	lhs, rhs := n.Children[0], n.Children[1]
 	if rhs.Kind == parse.Term && len(rhs.Children) == 0 {
 		if op := matchOp(rhs.Text); op != "" {
+			if op == "qr" {
+				op = "m"
+			}
 			return &Match{Op: op, Target: l.expr(lhs), Negated: n.Text == "!~"}
 		}
 	}

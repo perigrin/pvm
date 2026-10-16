@@ -201,7 +201,7 @@ func TestLowerSubDeclaration(t *testing.T) {
 		{"sub f :prototype($) { 1 }", &lower.Decl{Kind: lower.DeclSub, Vars: amp("f"), Init: body(":prototype($)")}},
 		{"use v5.38; class Foo; method m { 1 }", &lower.Decl{Kind: lower.DeclMethod, Vars: amp("m"), Init: body()}},
 		{"package Foo;", &lower.Decl{Kind: lower.DeclPackage, Vars: word("Foo")}},
-		{"package Foo 1.2;", &lower.Decl{Kind: lower.DeclPackage, Vars: word("Foo"), Init: &lower.NumLit{Text: "1.2"}}},
+		{"package Foo 1.2;", &lower.Decl{Kind: lower.DeclPackage, Vars: word("Foo"), Version: &lower.NumLit{Text: "1.2"}}},
 		{"package Foo { 1 }", &lower.Decl{Kind: lower.DeclPackage, Vars: word("Foo"), Init: one()}},
 		{"use v5.38; class Foo :isa(Bar) { }", &lower.Decl{Kind: lower.DeclClass, Vars: word("Foo"), Attrs: []string{":isa(Bar)"}, Init: &lower.Block{}}},
 	}
@@ -277,6 +277,55 @@ func TestLowerDeclOverBrokenInput(t *testing.T) {
 	}
 }
 
+// A name is what the lexer scans as one: a leading `::`, an apostrophe
+// separator, and, under `use utf8`, any XID letter. perl 5.42 runs
+// `sub ::foo { 1 } sub foo'bar { 2 } sub café { 3 }` and prints 123 from
+// main::foo(), foo::bar() and café(); `$h{café}` is the key café, and
+// `::Foo->new` and `Foo->new->café` call into package Foo. So each named
+// sub lowers to its Decl, and the id layer opens an anchor for exactly
+// the subs the lowering names. The control: `sub { 1 }` and `sub ($x)
+// { 1 }` stay anonymous and open none.
+func TestLowerUnicodeAndPackageNames(t *testing.T) {
+	for src, name := range map[string]string{
+		"sub ::foo { 1 }":          "::foo",
+		"sub foo'bar { 2 }":        "foo'bar",
+		"use utf8; sub café { 3 }": "café",
+		"sub f { 1 }":              "f",
+	} {
+		root := parse.Parse([]byte(src))
+		last := root.Children[len(root.Children)-1].Children[0]
+		decl, ok := lowerLast(t, src).(*lower.Decl)
+		if !ok || len(decl.Vars) != 1 || !reflect.DeepEqual(zeroIDs(decl.Vars[0]), &lower.Var{Sigil: "&", Name: name}) {
+			t.Errorf("%q: lowered to %#v, want the Decl of &%s", src, decl, name)
+		}
+		if got := lower.AssignIDs(root)[last.Children[1]].Anchor; got != "sub "+name+"#0" {
+			t.Errorf("%q: the body is anchored %q, want %q", src, got, "sub "+name+"#0")
+		}
+	}
+	for _, src := range []string{"sub { 1 };", "use v5.36; sub ($x) { 1 };"} {
+		if _, ok := lowerLast(t, src).(*lower.AnonSub); !ok {
+			t.Errorf("%q: not an AnonSub", src)
+		}
+		root := parse.Parse([]byte(src))
+		for _, n := range everyNode(root) {
+			if id := lower.AssignIDs(root)[n]; id.Anchor != "" {
+				t.Errorf("%q: %s %q is anchored %q", src, n.Kind, n.Text, id.Anchor)
+			}
+		}
+	}
+
+	for src, want := range map[string]lower.Node{
+		"use utf8; $h{café};": &lower.Key{Base: &lower.Var{Sigil: "$", Name: "h"}, Key: &lower.Bareword{Name: "café", Quoted: true}},
+		"::Foo->new;":         &lower.MethodCall{Invocant: &lower.Bareword{Name: "::Foo"}, Name: "new"},
+		"use utf8; $o->café;": &lower.MethodCall{Invocant: &lower.Var{Sigil: "$", Name: "o"}, Name: "café"},
+		"&::foo;":             &lower.Call{Name: "::foo", Ampersand: true, BareAmpersand: true},
+	} {
+		if got := zeroIDs(lowerLast(t, src)); !reflect.DeepEqual(got, want) {
+			t.Errorf("%q: lowered to %#v, want %#v", src, got, want)
+		}
+	}
+}
+
 // A compound operator after a declaration assigns to the declared variable,
 // so it lowers as that Assign with the Decl as its target, the shape
 // `(my $x) -= 1` already lowers to. Measured on 5.42.0 with -MO=Deparse,-p:
@@ -295,6 +344,29 @@ func TestLowerDeclCompoundOperator(t *testing.T) {
 		"my $x = 1;":                 `(Decl Vars:(Var Sigil="$" Name="x") Init:(NumLit Text="1" IsInt))`,
 		"my ($x, $y) :shared = f();": `(Decl Attrs=[:shared] ListAssign Vars:(List Paren Fat=[false false] Elems:(Var Sigil="$" Name="x") Elems:(Var Sigil="$" Name="y")) Init:(Call Name="f" Parenthesized))`,
 		"my ($x) :shared = f();":     `(Decl Attrs=[:shared] Vars:(Var Paren Sigil="$" Name="x") Init:(Call Name="f" Parenthesized))`,
+	} {
+		got := lowerLast(t, src)
+		clearIDs(got)
+		if s := lower.Sexpr(got); s != want {
+			t.Errorf("%q:\n got %s\nwant %s", src, s, want)
+		}
+	}
+}
+
+// A package or class version and its block are two facts, so each has a
+// field: perl 5.42 gives `Foo->VERSION` as 1.2 after `package Foo 1.2 {
+// sub f {1} }`, and as 1.0 after `class Bar 1.0 {}`. Version always holds
+// the version and Init only the block, so `package Foo 1.2;` has no Init.
+// The controls: `package Foo;` has no version, and `package Foo { }` keeps
+// its block.
+func TestPackageVersionBlockKeepsVersion(t *testing.T) {
+	for src, want := range map[string]string{
+		"package Foo 1.2 { 1 }":    `(Decl Kind=6 Vars:(Bareword Name="Foo") Version:(NumLit Text="1.2") Init:(Block Stmts:(ExprStmt X:(NumLit Text="1" IsInt))))`,
+		"class Foo 1.0 {}":         `(Decl Kind=7 Vars:(Bareword Name="Foo") Version:(NumLit Text="1.0") Init:(Block))`,
+		"class Foo 1.0 :isa(B) {}": `(Decl Kind=7 Attrs=[:isa(B)] Vars:(Bareword Name="Foo") Version:(NumLit Text="1.0") Init:(Block))`,
+		"package Foo 1.2;":         `(Decl Kind=6 Vars:(Bareword Name="Foo") Version:(NumLit Text="1.2"))`,
+		"package Foo;":             `(Decl Kind=6 Vars:(Bareword Name="Foo"))`,
+		"package Foo { 1 }":        `(Decl Kind=6 Vars:(Bareword Name="Foo") Init:(Block Stmts:(ExprStmt X:(NumLit Text="1" IsInt))))`,
 	} {
 		got := lowerLast(t, src)
 		clearIDs(got)

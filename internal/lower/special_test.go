@@ -259,6 +259,24 @@ func TestLowerMatchTargetAndNegated(t *testing.T) {
 	})
 }
 
+// A qr term bound with =~ or !~ is a match, not a qr constructor. perl 5.42
+// -MO=Concise compiles `$x =~ qr/b/` as match(), and with $x = "abc",
+// `my $r = $x =~ qr/b/; $r + 1` is 2 and `($x =~ qr/z/) . "y"` is "y". The
+// control: a qr term standing alone stays Op qr, a Regexp object.
+func TestBindQrIsAMatch(t *testing.T) {
+	checkShapes(t, []shapeCase{
+		{"$x =~ qr/b/;", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.Match{Op: "m", Target: lx(e.Children[0])}
+		}},
+		{"$x !~ qr{b}i;", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.Match{Op: "m", Target: lx(e.Children[0]), Negated: true}
+		}},
+		{"qr/b/;", func(e *parse.Node, lx func(*parse.Node) lower.Node) lower.Node {
+			return &lower.Match{Op: "qr"}
+		}},
+	})
+}
+
 // hasHole reports whether a walk from n reaches a Hole.
 func hasHole(n lower.Node) bool {
 	if reflect.TypeOf(n) == reflect.TypeOf(&lower.Hole{}) {

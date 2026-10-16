@@ -234,3 +234,136 @@ func TestLowerCallOverBrokenInput(t *testing.T) {
 		sameShape(t, c.src, zeroIDs(lowerOne(t, c.src)), c.want)
 	}
 }
+
+// A builtin that takes no operand, called with empty parentheses, is the
+// same call as without them: perl 5.42 -MO=Concise compiles `time()` to
+// time and `wantarray()` to wantarray, and `return wantarray() ? "l" : "s"`
+// gives "l" in list context. The parser gives each an `index "("` over the
+// childless call. The control: `time(1)`, which perl refuses ("syntax
+// error near "(1""), is not that call.
+func TestNiladicBuiltinWithParens(t *testing.T) {
+	cases := []struct {
+		src  string
+		want lower.Node
+	}{
+		{"time();", &lower.Call{Name: "time", Resolved: true, Parenthesized: true}},
+		{"wantarray();", &lower.Wantarray{}},
+		{"wantarray ();", &lower.Wantarray{}},
+		{"time;", &lower.Call{Name: "time", Resolved: true}},
+	}
+	for _, c := range cases {
+		sameShape(t, c.src, zeroIDs(lowerOne(t, c.src)), c.want)
+	}
+	if got := zeroIDs(lowerOne(t, "time(1);")); reflect.DeepEqual(got, &lower.Call{Name: "time", Resolved: true, Parenthesized: true}) {
+		t.Errorf("time(1): lowered to the niladic call time(), which perl refuses")
+	}
+}
+
+// A call through a code reference held in an element, `$h{cb}(1)` or
+// `$r->[0](2)`, elides the arrow between the subscript and the
+// parentheses, and a call of what a call returns, `$c->(1)(2)`, elides
+// the second one. perl 5.42 runs each: with `$h{cb}` and `$r->[0]` code
+// refs, and `$c = sub { sub { print "@_" } }`, `$c->(1)(2)` prints 2. The
+// controls: `$obj->$name(1)` stays a dynamic method call, and `time(1)`,
+// which perl refuses, is no element access.
+func TestCodeRefCallThroughSubscript(t *testing.T) {
+	type L = []lower.Node
+	checkShapes(t, []shapeCase{
+		{"$h{cb}(1);", func(e *parse.Node, lx lowered) lower.Node {
+			return &lower.Call{Fn: lx(e.Children[0]), Args: L{lx(e.Children[1])}, Parenthesized: true}
+		}},
+		{"$r->[0](2);", func(e *parse.Node, lx lowered) lower.Node {
+			return &lower.Call{Fn: lx(e.Children[0]), Args: L{lx(e.Children[1])}, Parenthesized: true}
+		}},
+		{"$h{cb}();", func(e *parse.Node, lx lowered) lower.Node {
+			return &lower.Call{Fn: lx(e.Children[0]), Parenthesized: true}
+		}},
+		{"$x->{a}{b}(1, 2);", func(e *parse.Node, lx lowered) lower.Node {
+			comma := e.Children[1]
+			return &lower.Call{Fn: lx(e.Children[0]), Args: L{lx(comma.Children[0]), lx(comma.Children[1])}, Parenthesized: true}
+		}},
+		{"$h{cb}(1)(2);", func(e *parse.Node, lx lowered) lower.Node {
+			return &lower.Call{Fn: lx(e.Children[0]), Args: L{lx(e.Children[1])}, Parenthesized: true}
+		}},
+		{"$obj->$name(1);", func(e *parse.Node, lx lowered) lower.Node {
+			idx := e.Children[1]
+			return &lower.MethodCall{Invocant: lx(e.Children[0]), Dynamic: lx(idx.Children[0]), Args: L{lx(idx.Children[1])}, HasParens: true}
+		}},
+	})
+
+	num := func(text string, paren bool) *lower.NumLit {
+		n := &lower.NumLit{Text: text, IsInt: true}
+		n.Paren = paren
+		return n
+	}
+	c := &lower.Var{Sigil: "$", Name: "c"}
+	cases := []struct {
+		src  string
+		want lower.Node
+	}{
+		{"$c->(1)(2);", &lower.Call{Fn: &lower.Call{Fn: c, Args: L{num("1", true)}, Parenthesized: true}, Args: L{num("2", false)}, Parenthesized: true}},
+		{"$c->()(2);", &lower.Call{Fn: &lower.Call{Fn: c, Parenthesized: true}, Args: L{num("2", false)}, Parenthesized: true}},
+		{"$c->(1)(2)(3);", &lower.Call{
+			Fn:            &lower.Call{Fn: &lower.Call{Fn: c, Args: L{num("1", true)}, Parenthesized: true}, Args: L{num("2", false)}, Parenthesized: true},
+			Args:          L{num("3", false)},
+			Parenthesized: true,
+		}},
+	}
+	for _, tc := range cases {
+		root := parse.Parse([]byte(tc.src))
+		got := lower.LowerExpr(root, expression(t, root))
+		seen := map[lower.ID]bool{}
+		var walk func(n lower.Node)
+		walk = func(n lower.Node) {
+			if seen[n.Meta().ID] {
+				t.Errorf("%q: two lowered nodes share the id %v", tc.src, n.Meta().ID)
+			}
+			seen[n.Meta().ID] = true
+			for _, k := range lower.Children(n) {
+				walk(k)
+			}
+		}
+		walk(got)
+		sameShape(t, tc.src, zeroIDs(got), tc.want)
+	}
+
+	if got := lowerOne(t, "time(1);"); sameKind(got, &lower.Index{}) {
+		t.Errorf("time(1): lowered to an element access, %#v", got)
+	}
+}
+
+// Parenthesized says the arguments stand in parentheses (§4.8.1), and
+// grouping parens around the whole call are not those. perl 5.42
+// -MO=Deparse keeps `(localtime)[0]` and `(localtime())[0]` apart, where a
+// grouping paren would be dropped. Space inside the grouping parens, `(
+// join $x, 1 )`, changes nothing. The controls: unwrapped, `localtime()`
+// and `f(1)` are Parenthesized and `localtime` is not.
+func TestCallParenthesizedOnlyForArgList(t *testing.T) {
+	for src, want := range map[string]bool{
+		"(localtime);":     false,
+		"( localtime );":   false,
+		"((localtime));":   false,
+		"(localtime());":   true,
+		"(join $x, 1);":    false,
+		"( join $x, 1 );":  false,
+		"(join($x, 1) );":  true,
+		"((join($x, 1)));": true,
+		"localtime;":       false,
+		"localtime();":     true,
+		"f(1);":            true,
+	} {
+		got := lowerOne(t, src)
+		if !sameKind(got, &lower.Call{}) {
+			t.Errorf("%q: lowered to %#v, not a Call", src, got)
+			continue
+		}
+		if p := field(got, "Parenthesized").Bool(); p != want {
+			t.Errorf("%q: Parenthesized is %v, want %v", src, p, want)
+		}
+	}
+	root := parse.Parse([]byte("(localtime)[0];"))
+	slice := expression(t, root)
+	if base := lower.LowerExpr(root, slice.Children[0]); field(base, "Parenthesized").Bool() {
+		t.Errorf("(localtime)[0]: the call is Parenthesized")
+	}
+}

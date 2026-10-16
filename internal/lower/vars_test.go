@@ -89,15 +89,16 @@ func TestLowerVarAndSubscript(t *testing.T) {
 }
 
 // A slice is an index over an @ or % base, or over a list: its own kind,
-// a Slice, not an Index or a Key. &{$x}, a code call, and *foo{CODE}, a
-// glob slot, are neither, and this lowering leaves them Holes.
+// a Slice, not an Index or a Key. &{$x}, a code call, is a Deref
+// (TestLowerAmpBlockDeref), and *foo{CODE}, a glob slot, is neither, and
+// this lowering leaves it a Hole.
 func TestLowerSubscriptDeclinesSlices(t *testing.T) {
 	for _, src := range []string{"@a[0];", "@h{a};", "%a[0];", "%h{a};", "(1,2)[0];", "($x)[0];", "@$x[0];", "@{$x}{a};"} {
 		if got := lowerOne(t, src); reflect.TypeOf(got) != reflect.TypeOf(&lower.Slice{}) {
 			t.Errorf("%q: lowered to %#v, want a Slice", src, got)
 		}
 	}
-	for _, src := range []string{"&{$x};", "*foo{CODE};"} {
+	for _, src := range []string{"*foo{CODE};"} {
 		got := lowerOne(t, src)
 		sameShape(t, src, got, &lower.Hole{})
 	}
@@ -195,5 +196,50 @@ func TestLowerSubscriptOverBrokenInput(t *testing.T) {
 			t.Fatalf("%q: no statement holds an index", c.src)
 		}
 		sameShape(t, c.src, zeroIDs(lower.LowerExpr(root, n)), c.want)
+	}
+}
+
+// `&{$c}` and `&$c` are one operation, a call through the code reference
+// that passes the caller's @_: perl 5.42, with `sub f { print scalar @_ }`
+// and `sub g { my $c = \&f; &{$c}; &$c; &{$c}() }`, g(1,2) prints 2, 2, 0,
+// and -MO=Concise compiles both bare forms to entersub. So both lower to
+// Deref{&}, the braced one with its operand built. The control:
+// `&{$c}(1)` stays a Call with its arguments.
+func TestLowerAmpBlockDeref(t *testing.T) {
+	type L = []lower.Node
+	checkShapes(t, []shapeCase{
+		{"&{$c};", func(e *parse.Node, lx lowered) lower.Node {
+			return &lower.Deref{Sigil: "&", Expr: lx(e.Children[1])}
+		}},
+		{"&{$c}(1);", func(e *parse.Node, lx lowered) lower.Node {
+			return &lower.Call{Fn: lx(e.Children[0].Children[1]), Args: L{lx(e.Children[1])}, Parenthesized: true, Ampersand: true}
+		}},
+	})
+	got := zeroIDs(lowerOne(t, "&$c;"))
+	if d, ok := got.(*lower.Deref); !ok || d.Sigil != "&" {
+		t.Errorf("&$c: lowered to %#v, want a Deref{&}", got)
+	}
+}
+
+// Two small shapes. A `&` followed by one punctuation character calls the
+// sub of that name: perl 5.42 -MO=Concise compiles `my $x = &=;` to an
+// entersub of *=, and with subs named +, * and % installed, `&+, &*, &%`
+// calls all three. A trailing `::` ends a class name and is not part of
+// it: -MO=Deparse gives `Foo::->new` as `'Foo'->new` and `my $s = Foo::`
+// as `my $s = 'Foo'`. The controls: `&$c` stays a Deref, and `::Foo`
+// keeps its leading separator, as Deparse's `'::Foo'->new` does.
+func TestLowerMinorShapes(t *testing.T) {
+	for src, want := range map[string]lower.Node{
+		"&=;":         &lower.Call{Name: "=", Ampersand: true, BareAmpersand: true},
+		"&+;":         &lower.Call{Name: "+", Ampersand: true, BareAmpersand: true},
+		"&%;":         &lower.Call{Name: "%", Ampersand: true, BareAmpersand: true},
+		"Foo::->new;": &lower.MethodCall{Invocant: &lower.Bareword{Name: "Foo"}, Name: "new"},
+		"Foo::Bar::;": &lower.Bareword{Name: "Foo::Bar"},
+		"::Foo->new;": &lower.MethodCall{Invocant: &lower.Bareword{Name: "::Foo"}, Name: "new"},
+		"&$c;":        &lower.Deref{Sigil: "&", Expr: &lower.Hole{}},
+	} {
+		if got := zeroIDs(lowerOne(t, src)); !reflect.DeepEqual(got, want) {
+			t.Errorf("%q: lowered to %#v, want %#v", src, got, want)
+		}
 	}
 }

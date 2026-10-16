@@ -5,6 +5,7 @@ package lower
 
 import (
 	"strings"
+	"unicode"
 
 	"tamarou.com/pvm/internal/parse"
 )
@@ -38,13 +39,19 @@ var namesCode = map[string]bool{"defined": true, "exists": true, "undef": true}
 // parenthesized reports whether a call's arguments stand in parentheses.
 // A node's span covers its children exactly, so the span running past the
 // last child -- or, with no child, past the name -- is the closing paren:
-// `f(1,2)` does, `join ",", @a` does not.
+// `f(1,2)` does, `join ",", @a` does not. Grouping parens around the call,
+// `(localtime)`, widen its span, so a call with Paren is read off its
+// inner span.
 func parenthesized(n *parse.Node) bool {
-	end := n.Start + len(n.Text)
+	start, stop := n.Start, n.End
+	if n.Paren {
+		start, stop = n.InnerStart, n.InnerEnd
+	}
+	end := start + len(n.Text)
 	if k := len(n.Children); k > 0 {
 		end = n.Children[k-1].End
 	}
-	return n.End > end
+	return stop > end
 }
 
 // ampCall lowers `&foo` standing alone: a call that bypasses prototypes and
@@ -69,21 +76,38 @@ func (l *lowerer) codeName(n *parse.Node) Node {
 }
 
 // isCodeName reports whether n is `&foo`: one term, an ampersand and a
-// sub's name.
+// sub's name. The name may be one punctuation character, as perl reads
+// `&=` as a call of the sub named =; `&$` opens a deref instead.
 func isCodeName(n *parse.Node) bool {
-	return n.Kind == parse.Term && len(n.Children) == 0 && len(n.Text) > 1 && n.Text[0] == '&' && word.MatchString(n.Text[1:])
+	if n.Kind != parse.Term || len(n.Children) != 0 || len(n.Text) < 2 || n.Text[0] != '&' {
+		return false
+	}
+	name := n.Text[1:]
+	return word(name) || len(name) == 1 && name != "$" && name != "{" && (unicode.IsPunct(rune(name[0])) || unicode.IsSymbol(rune(name[0])))
 }
 
 // indexCall lowers an `index "("` over an ampersand, a call that bypasses
 // prototypes with its arguments in the parentheses: `&foo(1)` by name, and
 // `&$code(1)` and `&{$code}(1)` through a reference. `&$code` is one term
 // whose inner expression the parser never built, so its Fn is a Hole with
-// the term's id. Every other base declines.
+// the term's id.
+//
+// An `index "("` with no arguments over a childless call is that call with
+// empty parentheses, `time()` or `wantarray()`: the parser builds a builtin
+// that takes no operand this way.
+//
+// Over a subscript, `$h{cb}(1)` and `$r->[0](2)`, or over such a call,
+// `$h{cb}(1)(2)`, it is a call through the code reference the base holds:
+// perl elides the arrow between subscripts and parentheses. Every other
+// base declines.
 func (l *lowerer) indexCall(n *parse.Node) Node {
 	if n.Text != "(" || len(n.Children) == 0 {
 		return nil
 	}
 	base := n.Children[0]
+	if len(n.Children) == 1 && base.Kind == parse.Call && len(base.Children) == 0 && !base.Paren {
+		return parenthesize(l.expr(base))
+	}
 	c := &Call{Parenthesized: true, Ampersand: true}
 	switch {
 	case isCodeName(base):
@@ -92,6 +116,8 @@ func (l *lowerer) indexCall(n *parse.Node) Node {
 		c.Fn = l.stamp(base, &Hole{})
 	case base.Kind == parse.Index && base.Text == "{" && len(base.Children) == 2 && base.Children[0].Text == "&":
 		c.Fn = l.expr(base.Children[1])
+	case base.Kind == parse.Index:
+		c.Fn, c.Ampersand = l.expr(base), false
 	default:
 		return nil
 	}
@@ -113,6 +139,9 @@ func (l *lowerer) arrowCall(n *parse.Node) Node {
 	if r.Paren {
 		return &Call{Fn: l.expr(inv), Args: l.parenArgs(r), Parenthesized: true}
 	}
+	if out := l.chainedCall(inv, r); out != nil {
+		return out
+	}
 	m := &MethodCall{}
 	switch {
 	case r.Kind == parse.Call:
@@ -121,13 +150,37 @@ func (l *lowerer) arrowCall(n *parse.Node) Node {
 		m.Dynamic, m.Args, m.HasParens = l.expr(r.Children[0]), l.elements(r.Children[1:]), true
 	case r.Kind == parse.Term && len(r.Children) == 0 && sigilOf(r.Text) == "$":
 		m.Dynamic = l.expr(r)
-	case r.Kind == parse.Term && len(r.Children) == 0 && word.MatchString(r.Text):
+	case r.Kind == parse.Term && len(r.Children) == 0 && word(r.Text):
 		m.Name = r.Text
 	default:
 		return nil
 	}
 	m.Invocant = l.expr(inv)
 	return m
+}
+
+// chainedCall lowers the right side of `$code->(1)(2)`, a call of what a
+// call through a code reference returns. The parser gives it as an
+// `index "("` chain whose innermost base is the first call's parenthesised
+// arguments; a base without parens is a dynamic method's name, and
+// chainedCall declines it. Each call but the outermost has no parse node of
+// its own, so it takes the id of the `index "("` that holds the next call's
+// arguments; the outermost takes the arrow's.
+func (l *lowerer) chainedCall(inv, r *parse.Node) Node {
+	var chain []*parse.Node
+	x := r
+	for x.Kind == parse.Index && x.Text == "(" && len(x.Children) > 0 {
+		chain = append(chain, x)
+		x = x.Children[0]
+	}
+	if len(chain) == 0 || !x.Paren {
+		return nil
+	}
+	var fn Node = &Call{Fn: l.expr(inv), Args: l.parenArgs(x), Parenthesized: true}
+	for i := len(chain) - 1; i >= 0; i-- {
+		fn = &Call{Fn: l.stamp(chain[i], fn), Args: l.elements(chain[i].Children[1:]), Parenthesized: true}
+	}
+	return fn
 }
 
 // indirect lowers indirect object syntax, `new Foo(1)`: the parser's
