@@ -1,19 +1,35 @@
 ---
 title: "[I18] A statement-modifier or or die guard does not narrow what follows it"
-state: in-progress
+state: done
 urgency: normal
 milestone: pr486-review
 created: 2026-10-16T01:16:07.800689132Z
-updated: 2026-10-16T01:17:18.10460196Z
+updated: 2026-10-16T03:03:25.325058378Z
 sessions:
 - start_sha: 8a0c85c60a2bae5d04dbbb2b27eb4310312d362f
-  end_sha: ""
-  commits: 0
+  end_sha: 9b435686d672051efee1ba667b9380fd8f320817
+  commits: 2
   started_at: 2026-10-16T01:17:18.10460196Z
+  ended_at: 2026-10-16T03:03:25.325058378Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-16T01:17:18.10460196Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-16T03:03:25.325058378Z
+observed_paths:
+- docs/plans/2026-09-05-parser-conformance-plan.md
+- docs/plans/2026-09-21-graded-conformance-corpus.md
+- docs/specs/perl-parser/04-expressions.md
+- docs/specs/perl-parser/05-statements.md
+- docs/specs/perl-parser/06-incremental-lsp.md
+- internal/infer/calls.go
+- internal/infer/flow.go
+- internal/infer/flow_test.go
+- internal/infer/infer.go
+- internal/lower/node.go
+- internal/lower/positions.go
 ---
 
 ## Context
