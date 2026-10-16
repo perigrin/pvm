@@ -5,6 +5,7 @@ package lower
 
 import (
 	"strings"
+	"unicode"
 
 	"tamarou.com/pvm/internal/parse"
 )
@@ -75,9 +76,14 @@ func (l *lowerer) codeName(n *parse.Node) Node {
 }
 
 // isCodeName reports whether n is `&foo`: one term, an ampersand and a
-// sub's name.
+// sub's name. The name may be one punctuation character, as perl reads
+// `&=` as a call of the sub named =; `&$` opens a deref instead.
 func isCodeName(n *parse.Node) bool {
-	return n.Kind == parse.Term && len(n.Children) == 0 && len(n.Text) > 1 && n.Text[0] == '&' && word(n.Text[1:])
+	if n.Kind != parse.Term || len(n.Children) != 0 || len(n.Text) < 2 || n.Text[0] != '&' {
+		return false
+	}
+	name := n.Text[1:]
+	return word(name) || len(name) == 1 && name != "$" && name != "{" && (unicode.IsPunct(rune(name[0])) || unicode.IsSymbol(rune(name[0])))
 }
 
 // indexCall lowers an `index "("` over an ampersand, a call that bypasses

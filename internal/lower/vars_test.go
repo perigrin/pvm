@@ -220,3 +220,26 @@ func TestLowerAmpBlockDeref(t *testing.T) {
 		t.Errorf("&$c: lowered to %#v, want a Deref{&}", got)
 	}
 }
+
+// Two small shapes. A `&` followed by one punctuation character calls the
+// sub of that name: perl 5.42 -MO=Concise compiles `my $x = &=;` to an
+// entersub of *=, and with subs named +, * and % installed, `&+, &*, &%`
+// calls all three. A trailing `::` ends a class name and is not part of
+// it: -MO=Deparse gives `Foo::->new` as `'Foo'->new` and `my $s = Foo::`
+// as `my $s = 'Foo'`. The controls: `&$c` stays a Deref, and `::Foo`
+// keeps its leading separator, as Deparse's `'::Foo'->new` does.
+func TestLowerMinorShapes(t *testing.T) {
+	for src, want := range map[string]lower.Node{
+		"&=;":         &lower.Call{Name: "=", Ampersand: true, BareAmpersand: true},
+		"&+;":         &lower.Call{Name: "+", Ampersand: true, BareAmpersand: true},
+		"&%;":         &lower.Call{Name: "%", Ampersand: true, BareAmpersand: true},
+		"Foo::->new;": &lower.MethodCall{Invocant: &lower.Bareword{Name: "Foo"}, Name: "new"},
+		"Foo::Bar::;": &lower.Bareword{Name: "Foo::Bar"},
+		"::Foo->new;": &lower.MethodCall{Invocant: &lower.Bareword{Name: "::Foo"}, Name: "new"},
+		"&$c;":        &lower.Deref{Sigil: "&", Expr: &lower.Hole{}},
+	} {
+		if got := zeroIDs(lowerOne(t, src)); !reflect.DeepEqual(got, want) {
+			t.Errorf("%q: lowered to %#v, want %#v", src, got, want)
+		}
+	}
+}

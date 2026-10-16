@@ -37,8 +37,10 @@ func (l *lowerer) literal(n *parse.Node) Node {
 	}
 	if word(t) {
 		// A class name or the stat buffer `_`. A parent whose position
-		// quotes the word says so: see hashKey and fatWord.
-		return &Bareword{Name: t}
+		// quotes the word says so: see hashKey and fatWord. A trailing
+		// `::` is not part of the name: perl -MO=Deparse gives `Foo::` as
+		// 'Foo'.
+		return &Bareword{Name: strings.TrimSuffix(t, "::")}
 	}
 	m := quoteOp.FindStringSubmatch(t)
 	if m == nil {
