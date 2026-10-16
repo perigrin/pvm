@@ -3,8 +3,10 @@ title: Commit psc check's diagnostics over perl 5.42's lib as a baseline, and fa
 state: pending
 urgency: normal
 milestone: core-module-types
+blocks:
+- 01a1464e-d980-7382-970e-067a5ea3db84
 created: 2026-10-16T20:02:14.930089601Z
-updated: 2026-10-16T20:02:14.930089601Z
+updated: 2026-10-16T20:02:53.787441413Z
 ---
 
 ## Prerequisites
