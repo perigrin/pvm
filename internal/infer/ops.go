@@ -124,8 +124,9 @@ func (a *analysis) rangeOp(n *lower.Range) types.Type {
 // assign is the plain-assignment half of assignment narrowing: the right
 // side is evaluated in the context the
 // left side imposes, and a variable on the left is narrowed by it, as
-// narrow says. Every assignment operator narrows so, `+=` included. An
-// element, a slice or a list on the left is not narrowed.
+// narrow says. A compound assignment narrows it to what its operator
+// gives, as compoundResult says. An element, a slice or a list on the
+// left is not narrowed.
 //
 // The assignment's own type is its right side's, an aggregate counted when
 // a scalar takes it.
@@ -148,7 +149,37 @@ func (a *analysis) assign(n *lower.Assign) types.Type {
 	if t == types.Unknown && n.Op == "=" {
 		a.st.UpdateType(v.Sigil+v.Name, sigilType)
 	}
+	if n.Op != "=" {
+		t = compoundResult(n.Op, a.typeOf(n.L), t)
+	}
 	return a.narrow(v, n.R, t)
+}
+
+// compoundResult is what a compound assignment `op=` leaves in a target
+// that held old, given a right side typed r: what CORE.pmt says op gives,
+// not r. perl 5.42, `my $s = "a"; $s .= 1` is "a1", a Str. The logical
+// ones assign r only sometimes: `//=` only to an undefined target, so a
+// defined one keeps its type, and `||=` only to a false one, so an
+// undefined target never survives either; `&&=` only to a true one, so
+// an undefined target stays undef. perl 5.42 -w is silent on `my $k = 4;
+// $k //= undef; $k + 1`, and warns "Use of uninitialized value" on `my
+// $u; $u &&= 5; $u + 1`.
+func compoundResult(op string, old, r types.Type) types.Type {
+	switch op {
+	case "//=":
+		if old != types.Unknown && old&types.Undef == 0 {
+			return old
+		}
+		return types.Join(old&^types.Undef, r)
+	case "||=":
+		return types.Join(old&^types.Undef, r)
+	case "&&=":
+		return types.Join(old, r)
+	}
+	if sigs := parse.CoreOperator(op, "infix"); len(sigs) > 0 {
+		return builtinReturns(sigs, types.UnknownCtx)
+	}
+	return r
 }
 
 // assignContext is an assignment's context: assigning to a scalar or an

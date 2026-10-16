@@ -128,7 +128,6 @@ ops/assign_undeclared.pl
 ops/bare_arith.pl
 ops/bitwise.pl
 ops/compare.pl
-ops/compound_assign.pl
 ops/concat.pl
 ops/concat_array.pl
 ops/count_of.pl

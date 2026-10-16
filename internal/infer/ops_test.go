@@ -326,3 +326,43 @@ func TestDefinedOrDropsLeftUndef(t *testing.T) {
 		t.Errorf("%q: diagnostics %v, want one", src, diags)
 	}
 }
+
+// A compound assignment `op=` leaves its target holding what op gives,
+// CORE.pmt's return type for it, not its right side's type: perl 5.42,
+// `my $s = "a"; $s .= 1` is "a1", a Str, and `my $t = "ab"; $t x= 3` is
+// "ababab". `//=` assigns only an undefined target, so a defined one keeps
+// its type, and `||=` replaces only a false one: perl 5.42 -w is silent on
+// `my $k = 4; $k //= undef; $k + 1`, and on `my $s; $s .= <STDIN>; $s .
+// "x"`. `&&=` assigns only a true target, so an undefined one stays undef:
+// perl warns "Use of uninitialized value $u in addition (+)" on `my $u =
+// undef; $u &&= 5; $u + 1`.
+func TestCompoundAssignNarrowsToOperatorResult(t *testing.T) {
+	for _, c := range []struct {
+		src, name string
+		want      types.Type
+	}{
+		{"my $s = \"a\";\n$s .= 1;\n", "$s", types.Str},
+		{"my $t = \"ab\";\n$t x= 3;\n", "$t", types.Str},
+		{"my $k = 4;\n$k //= undef;\n", "$k", types.Int},
+		{"my $n = 2;\n$n ||= \"x\";\n", "$n", types.Int | types.Str},
+		{"my $u = undef;\n$u &&= 5;\n", "$u", types.Undef | types.Int},
+	} {
+		if got, _ := loweredSymbolType(t, c.src, c.name); got != c.want {
+			t.Errorf("%q: %s is %v, want %v", c.src, c.name, got, c.want)
+		}
+	}
+
+	for _, src := range []string{
+		"my $k = 4;\n$k //= undef;\nprint $k + 1;\n",
+		"my $s;\n$s .= <STDIN>;\nprint $s . \"x\";\n",
+	} {
+		for _, d := range loweredDiags(src) {
+			t.Errorf("%q: diagnostic %q, want none", src, d.Message)
+		}
+	}
+
+	src := "my $u = undef;\n$u &&= 5;\nprint $u + 1;\n"
+	if diags := loweredDiags(src); len(diags) != 1 {
+		t.Errorf("%q: diagnostics %v, want one", src, diags)
+	}
+}
