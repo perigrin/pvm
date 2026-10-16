@@ -8,6 +8,9 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/spf13/cobra"
 
@@ -36,7 +39,7 @@ func newCheckCommand() *cobra.Command {
 			sess := parse.NewSession()
 			roots, why := incRoots(target)
 			if why != "" {
-				fmt.Fprintf(errW, "psc: note: %s; @INC is PERL5LIB alone\n", why)
+				fmt.Fprintf(errW, "psc: note: %s; @INC is PERL5LIB alone\n", printable(why))
 			}
 			var foundDiags bool
 
@@ -122,8 +125,28 @@ func checkFile(w interface{ Write([]byte) (int, error) }, sess *parse.Session, r
 	diags := infer.AnalyzeParsed(root, nil, opts).Diagnostics
 
 	for _, d := range diags {
-		fmt.Fprintln(w, infer.FormatDiagnostic(path, source, d))
+		fmt.Fprintln(w, infer.FormatDiagnostic(printable(path), source, d))
 	}
 
 	return len(diags) > 0, nil
+}
+
+// printable is s with each control character, and each byte that is not
+// UTF-8, written as a \xNN escape: a file name in a cloned repository is
+// untrusted, and an escape sequence in one must not reach the terminal.
+func printable(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); {
+		r, size := utf8.DecodeRuneInString(s[i:])
+		switch {
+		case r == utf8.RuneError && size == 1:
+			fmt.Fprintf(&b, "\\x%02x", s[i])
+		case unicode.IsControl(r):
+			fmt.Fprintf(&b, "\\x%02x", r)
+		default:
+			b.WriteString(s[i : i+size])
+		}
+		i += size
+	}
+	return b.String()
 }
