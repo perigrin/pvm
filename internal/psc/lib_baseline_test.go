@@ -185,6 +185,14 @@ func TestLibBaselineRejectsANewRefusal(t *testing.T) {
 	note := "Foo.pm:4:1: info: a note [unknown-builtin]"
 	out := "/lib/" + refusal + "\n/lib/" + note + "\n"
 	assert.Equal(t, []string{refusal, note}, newLibDiagnostics(out, "/lib", twoLineBaseline(t), nil))
+
+	baseline, err := parseLibBaseline(refusal + "\n" + note + "\n")
+	require.NoError(t, err)
+	assert.Empty(t, newLibDiagnostics(out, "/lib", baseline, nil), "a listed refusal and info line match the baseline")
+
+	admitted, err := parseLibTruePositives(refusal + "\t" + perlWLine + "\n" + note + "\t" + perlWLine + "\n")
+	require.NoError(t, err)
+	assert.Empty(t, newLibDiagnostics(out, "/lib", map[string]bool{}, admitted), "an admitted refusal and info line pass")
 }
 
 func TestLibBaselineRejectsAnUnparsedLibLine(t *testing.T) {
