@@ -448,13 +448,16 @@ func (a *analysis) contextualReturn(n *lower.Call) (types.Type, bool) {
 }
 
 // callElemType is, for a Call, the element type
-// of the list a builtin returns. A hash's keys are strings; values, splice
-// and reverse hand back elements of the aggregate they read. Any other
+// of the list a builtin returns. A hash's keys are strings; undef is one
+// undefined value; values, splice and reverse hand back elements of the
+// aggregate they read. Any other
 // call's elements are not known.
 func (a *analysis) callElemType(n *lower.Call) types.Type {
 	switch n.Name {
 	case "keys":
 		return types.Str
+	case "undef":
+		return types.Undef
 	case "values", "splice", "reverse":
 		for i := len(n.Args) - 1; i >= 0; i-- {
 			if t := a.aggElemType(n.Args[i]); t != types.Unknown {

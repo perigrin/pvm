@@ -140,3 +140,64 @@ func TestLiteralRangeInfersAList(t *testing.T) {
 		}
 	}
 }
+
+// An aggregate takes its initialiser in list context, so `my @a = (1)` is
+// an array of one Int, not an Int: perl 5.42, `my @a = (1); print
+// scalar(@a), ref(\@a)` prints "1ARRAY", and -w is silent on `my @a =
+// ("x"); push @a, 3` and `my @n = (1); my $s = shift @n; $s + 1`. The
+// element type is still recorded, so what perl warns on is still
+// reported: `my $x = undef; my @u = ($x); $u[0] + 1` warns "Use of
+// uninitialized value in addition (+)".
+func TestParenInitialiserIsListContext(t *testing.T) {
+	for _, c := range []struct {
+		src, name string
+		want      types.Type
+	}{
+		{"my @a = (1);\n", "@a", types.Array},
+		{"my $x = \"s\";\nmy @a = ($x);\n", "@a", types.Array},
+		{"our @o = (1);\n", "@o", types.Array},
+	} {
+		if got, _ := loweredSymbolType(t, c.src, c.name); got != c.want {
+			t.Errorf("%q: %s is %v, want %v", c.src, c.name, got, c.want)
+		}
+	}
+	for _, src := range []string{
+		"my @a = (\"x\");\npush @a, 3;\n",
+		"my @n = (1);\nmy $s = shift @n;\nprint $s + 1;\n",
+	} {
+		for _, d := range loweredDiags(src) {
+			t.Errorf("%q: diagnostic %q, want none", src, d.Message)
+		}
+	}
+
+	src := "my $x = undef;\nmy @u = ($x);\nprint $u[0] + 1;\n"
+	if diags := loweredDiags(src); len(diags) != 1 {
+		t.Errorf("%q: diagnostics %v, want one", src, diags)
+	}
+}
+
+// Copying an array copies its elements, so the copy records their type,
+// not the Array: perl 5.42, `my @b = (1, 2); my @c = @b; $c[0] + 1` is 2,
+// and `my @d = ("p"); my @e = @d; $e[0] . "!"` is "p!". An undefined
+// element is copied too: `my @u = (undef, undef); my @w = @u; $w[0] + 1`
+// warns
+// "Use of uninitialized value in addition (+)".
+func TestArrayCopyKeepsElementType(t *testing.T) {
+	for _, c := range []struct {
+		src  string
+		want types.Type
+	}{
+		{"my @b = (1, 2);\nmy @c = @b;\n", types.Int},
+		{"my @d = (\"p\");\nmy @c = @d;\n", types.Str},
+	} {
+		_, _, st := analyzeLowered([]byte(c.src), nil, infer.Options{})
+		if sym, ok := st.Lookup("@c"); !ok || sym.ElemType != c.want {
+			t.Errorf("%q: @c's elements are %v, want %v", c.src, sym.ElemType, c.want)
+		}
+	}
+
+	src := "my @u = (undef, undef);\nmy @w = @u;\nprint $w[0] + 1;\n"
+	if diags := loweredDiags(src); len(diags) != 1 {
+		t.Errorf("%q: diagnostics %v, want one", src, diags)
+	}
+}

@@ -205,7 +205,9 @@ func assignContext(l lower.Node) types.Context {
 // narrowed, so a broad type is not stripped to one that satisfies nothing.
 // `my $n = () = EXPR` is the count-of idiom: perl, `my $n = () = (1, 2, 3)`
 // is 3. An array, a hash, or a scalar holding an anonymous one records its
-// element type.
+// element type, and an array or a hash filled with a value that is no
+// aggregate is still one: perl 5.42, `my @a = (1)` is an array of one
+// Int.
 //
 // A constructor's result records its class on v. A declaration binding a
 // match's captures is bindsCaptures', and does not reach here.
@@ -221,6 +223,10 @@ func (a *analysis) narrow(v *lower.Var, init lower.Node, t types.Type) types.Typ
 		return types.Int
 	}
 	a.recordElemType(v, init)
+	if agg, ok := sigilTypes[v.Sigil]; ok && v.Sigil != "$" && t != types.Unknown &&
+		t != types.Array && t != types.Hash && t != types.List {
+		t = agg
+	}
 	if t != types.Unknown {
 		a.st.UpdateType(name, t)
 	}
