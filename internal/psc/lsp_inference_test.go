@@ -254,3 +254,25 @@ func TestLSPDefinitionOfCalledSub(t *testing.T) {
 	require.True(t, ok, "DefinitionAtByte should find greet at its call")
 	assert.Equal(t, "greet", sym.Name)
 }
+
+// TestLSPDefinitionOfElement: $x[0] reads @x and $h{a} reads %h, as do the
+// slices @x[0,1] and @h{a}, so definition on their base finds the aggregate
+// even when a scalar of the same name is declared. $r->[0] reads $r, the
+// control: an arrow subscript's base is the scalar holding the reference.
+func TestLSPDefinitionOfElement(t *testing.T) {
+	s := psc.NewLSPServer()
+	source := "my $x = 'a'; my @x = (1); my $h = 'b'; my %h = (a => 1); my $r = [];\n" +
+		"print $x[0]; print $h{a}; print @x[0,1]; print @h{a}; print $r->[0];\n"
+	require.NoError(t, s.OpenDocument("file:///test.pl", []byte(source)))
+
+	body := strings.Index(source, "\n")
+	for _, c := range []struct{ at, want string }{
+		{"$x[0]", "@x"}, {"$h{a}", "%h"}, {"@x[0,1]", "@x"}, {"@h{a}", "%h"}, {"$r->[0]", "$r"},
+	} {
+		off := uint32(body + strings.Index(source[body:], c.at))
+		sym, ok := s.DefinitionAtByte("file:///test.pl", off)
+		if assert.True(t, ok, "%s: no definition", c.at) {
+			assert.Equal(t, c.want, sym.Name, c.at)
+		}
+	}
+}

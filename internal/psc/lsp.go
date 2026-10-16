@@ -173,7 +173,7 @@ func (s *LSPServer) TypeAtByte(uri string, offset uint32) (types.Type, bool) {
 
 // DefinitionAtByte finds the declaration of the variable or sub named at the
 // given byte offset in the document at uri: the lowered node there is a Var,
-// named by its sigil and name, or a Call, named by its sub's name, and the
+// named by the sigil of the variable it reads (aggregateSigil) and its name, or a Call, named by its sub's name, and the
 // name is looked up in the symbol table.
 // Returns (nil, false) if uri is not open, if no symbol table exists, or if
 // no symbol covers the given offset.
@@ -189,7 +189,7 @@ func (s *LSPServer) DefinitionAtByte(uri string, offset uint32) (*infer.Symbol, 
 	var name string
 	switch n := n.(type) {
 	case *lower.Var:
-		name = n.Sigil + n.Name
+		name = aggregateSigil(doc.analysis.Positions, n) + n.Name
 	case *lower.Call:
 		name = n.Name
 	}
@@ -203,4 +203,36 @@ func (s *LSPServer) DefinitionAtByte(uri string, offset uint32) (*infer.Symbol, 
 	}
 	result := sym
 	return &result, true
+}
+
+// aggregateSigil is the sigil of the variable v reads. The base of a
+// subscript without an arrow reads the aggregate, not the variable its
+// sigil spells: $x[0] and @x[0,1] read @x, $h{k} and @h{k} read %h. Any
+// other Var, $r->[0]'s base among them, reads the variable it spells.
+func aggregateSigil(positions *lower.Positions, v *lower.Var) string {
+	start, _, _ := positions.Span(v.ID)
+	// A subscript starts where its base does.
+	sub := positions.LastBefore(start+1, func(n lower.Node) bool {
+		switch n := n.(type) {
+		case *lower.Index:
+			return n.Base == lower.Node(v) && !n.Arrow
+		case *lower.Key:
+			return n.Base == lower.Node(v) && !n.Arrow
+		case *lower.Slice:
+			return n.Base == lower.Node(v)
+		}
+		return false
+	})
+	switch n := sub.(type) {
+	case *lower.Index:
+		return "@"
+	case *lower.Key:
+		return "%"
+	case *lower.Slice:
+		if n.Kind == lower.SliceHash || n.Kind == lower.SliceKVHash {
+			return "%"
+		}
+		return "@"
+	}
+	return v.Sigil
 }
