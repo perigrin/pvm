@@ -23,7 +23,7 @@ blocked_by:
 - 01a1464e-ddb0-720a-93f6-450c767e6e2e
 - 01a1464e-dde3-73fe-ab1f-ced7f18c4f9d
 created: 2026-10-16T20:02:16.243834962Z
-updated: 2026-10-16T20:04:40.7041792Z
+updated: 2026-10-16T20:10:51.586691645Z
 ---
 
 ## Prerequisites
@@ -42,7 +42,8 @@ The milestone's closing gate. `TestCoreModuleDeclarationsCoverTheTop50` (the mil
 
 - [ ] Write `TestCoreModuleDeclarationsCoverTheTop50`; run to verify pass: `go test ./internal/parse/ -run '^TestCoreModuleDeclarationsCoverTheTop50$' -count=1 -v`
 - [ ] Run each criterion below; fix anything red at its root, in the issue that owns it, reopening that issue
-- [ ] Re-mark "Core-module libraries" `(*Implemented*, <shas>)`; update types.md; `go test ./internal/cli/ -run '^TestShowTypesHelp$' -count=1`
+- [ ] Re-mark the RFC heading "Core-module libraries" `(*Implemented*, <shas>)`, the shas being the commits that implemented its paragraphs (Which 50, Every exported name, Typed variables, Held to perl, Infrastructure modules, Exits), as the other `*Implemented*` headings list theirs; confirm "Call sites" was re-marked by 01a0fd9b-5700 and that "Typed variables." no longer names Errno's `%!`; if an infrastructure module was not shipped, say so in "Infrastructure modules." with the measured reason; commit
+- [ ] Update the "Declaration Files" section of `internal/data/help/types.md`: replace the shipped-declarations list's single CORE.tpm line with the core modules that now ship declarations (name the count and point at `internal/parse/testdata/core_module_ranking.txt` rather than listing all 50); keep "you cannot yet add your own"; `go test ./internal/cli/ -run '^TestShowTypesHelp$' -count=1`
 - [ ] `make test`; commit
 
 ## Acceptance Criteria
