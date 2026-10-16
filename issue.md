@@ -3,8 +3,10 @@ title: Declare the XS constant exporters Fcntl and Socket
 state: pending
 urgency: normal
 milestone: core-module-types
+blocked_by:
+- 01a1464e-dadb-7796-a704-4007150a1bf7
 created: 2026-10-16T20:02:15.752726002Z
-updated: 2026-10-16T20:02:15.752726002Z
+updated: 2026-10-16T20:03:17.114411304Z
 ---
 
 ## Prerequisites
