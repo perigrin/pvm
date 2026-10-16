@@ -9,7 +9,7 @@ blocks:
 - 01a0fd9b-4ca3-7d55-82ac-ba125816ee71
 - 01a10177-547c-73a9-a302-f25f579a4cb3
 created: 2026-10-02T17:13:27.899092724Z
-updated: 2026-10-06T03:22:03.863228625Z
+updated: 2026-10-16T18:48:31.622914933Z
 sessions:
 - start_sha: 263ec15edfff866e44c37f80e9802f77515ec73f
   end_sha: 263ec15edfff866e44c37f80e9802f77515ec73f
@@ -69,7 +69,7 @@ RFC 0001 "Multi declarations": `multi sub NAME ...` gives several signatures for
 
 ## Acceptance criteria
 
-- [ ] a multi sub keeps every candidate for its name (`go test ./internal/parse/ -run '^TestPmtMultiSubKeepsEveryCandidate$' -count=1 -v | grep -q '^--- PASS: TestPmtMultiSubKeepsEveryCandidate'`)
+- [ ] a multi sub keeps every candidate for its name (`go test ./internal/parse/ -run '^TestTpmMultiSubKeepsEveryCandidate$' -count=1 -v | grep -q '^--- PASS: TestTpmMultiSubKeepsEveryCandidate'`)
 - [ ] a call selects a multi candidate by arity (`go test ./internal/types/ -run '^TestSelectByArity$' -count=1 -v | grep -q '^--- PASS: TestSelectByArity'`)
 - [ ] a call selects a multi candidate by argument types (`go test ./internal/types/ -run '^TestSelectByArgumentTypes$' -count=1 -v | grep -q '^--- PASS: TestSelectByArgumentTypes'`)
 - [ ] the most specific of subtype-related candidates is selected (`go test ./internal/types/ -run '^TestSelectMostSpecificCandidate$' -count=1 -v | grep -q '^--- PASS: TestSelectMostSpecificCandidate'`)
@@ -77,7 +77,7 @@ RFC 0001 "Multi declarations": `multi sub NAME ...` gives several signatures for
 - [ ] a call whose arity no candidate accepts fails, with no join (`go test ./internal/types/ -run '^TestSelectNoArityMatch$' -count=1 -v | grep -q '^--- PASS: TestSelectNoArityMatch'`)
 - [ ] an undecided call joins the candidates (`go test ./internal/types/ -run '^TestSelectJoinsWhenUndecided$' -count=1 -v | grep -q '^--- PASS: TestSelectJoinsWhenUndecided'`)
 - [ ] a call's result is the selected candidate's declared return type (`go test ./internal/types/ -run '^TestResultIsDeclaredReturnType$' -count=1 -v | grep -q '^--- PASS: TestResultIsDeclaredReturnType'`)
-- [ ] multi is not a declarator in ordinary source (`go test ./internal/parse/ -run '^TestMultiOnlyInPmt$' -count=1 -v | grep -q '^--- PASS: TestMultiOnlyInPmt'`)
+- [ ] multi is not a declarator in ordinary source (`go test ./internal/parse/ -run '^TestMultiOnlyInTpm$' -count=1 -v | grep -q '^--- PASS: TestMultiOnlyInTpm'`)
 - [ ] selection with no candidates returns no type (`go test ./internal/types/ -run '^TestSelectEmptyCandidates$' -count=1 -v | grep -q '^--- PASS: TestSelectEmptyCandidates'`)
 - [ ] an arity failure is not joined even for unknown argument types (`go test ./internal/types/ -run '^TestSelectArityFailureIsNotJoined$' -count=1 -v | grep -q '^--- PASS: TestSelectArityFailureIsNotJoined'`)
 - [ ] disjoint candidates are not ambiguous and duplicates are (`go test ./internal/types/ -run '^TestMultiAmbiguityEdgeCases$' -count=1 -v | grep -q '^--- PASS: TestMultiAmbiguityEdgeCases'`)
