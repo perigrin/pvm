@@ -4,6 +4,7 @@
 package psc_test
 
 import (
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -326,22 +327,75 @@ func TestCheckCommandResolvesImportsThroughINC(t *testing.T) {
 // TestCheckCommandWithoutPerl verifies that with no resolved perl and no
 // PERL5LIB, psc check parses against the file's own directory instead of
 // failing: the file-level mismatch is still reported, and the unresolved
-// block call is a Hole it says nothing about.
+// block call is a Hole whose refusal is reported and whose body is not
+// checked. perl, finding no My::Block, refuses it too: "syntax error at
+// t.pl line 4, near "block 'inner'"".
 func TestCheckCommandWithoutPerl(t *testing.T) {
 	isolatePerl(t)
 	out := runCheckOn(t, importSource)
 	assert.Contains(t, out, "t.pl:3:", "the file-level mismatch is reported")
-	assert.NotContains(t, out, "t.pl:4:", "the unresolved block call is a Hole")
+	assert.Contains(t, out, "t.pl:4:1: error: perl refuses this", "the unresolved block call is refused")
+	assert.NotContains(t, out, "[type-mismatch]", "nothing is checked inside the Hole")
 	assert.NotContains(t, out, "panic")
 }
 
 // TestCheckCommandOnBrokenFile verifies psc check on a file perl rejects
 // (`my $x = ;` is a syntax error) neither panics nor reports a type
-// diagnostic inside the Hole the parser leaves for the missing term.
+// diagnostic inside the Hole the parser leaves for the missing term: it
+// reports the refusal, and checks the rest of the file.
 func TestCheckCommandOnBrokenFile(t *testing.T) {
 	isolatePerl(t)
 	var out string
 	require.NotPanics(t, func() { out = runCheckOn(t, "my $x = ;\nmy $u = undef;\nmy $y = $u + 1;\n") })
-	assert.NotContains(t, out, "t.pl:1:", "nothing is reported inside the Hole")
+	line1 := []string{}
+	for _, l := range strings.Split(out, "\n") {
+		if strings.Contains(l, "t.pl:1:") {
+			line1 = append(line1, l)
+		}
+	}
+	if assert.Len(t, line1, 1, "only the refusal is reported on line 1") {
+		assert.Contains(t, line1[0], "[not_a_term]")
+	}
 	assert.Contains(t, out, "t.pl:3:", "the rest of the file is still checked")
+}
+
+// TestRefusalIsReported: code perl refuses to compile is reported by psc
+// check and the LSP, each refusal as its code over its span, and psc check
+// exits non-zero. perl 5.42 says "Not enough arguments for push" for the
+// first source and "Missing right curly or square bracket" for the second.
+// The control compiles, and nothing is reported for it.
+func TestRefusalIsReported(t *testing.T) {
+	isolatePerl(t)
+	for _, c := range []struct{ source, code, at string }{
+		{"push(); my $x = length();\n", "call_arity", "push()"},
+		{"my $x;\nif ($x) { print \"a\";\n", "unclosed_opener", ";"},
+	} {
+		file := filepath.Join(t.TempDir(), "t.pl")
+		require.NoError(t, os.WriteFile(file, []byte(c.source), 0644))
+		cmd := psc.NewCommand()
+		cmd.SetArgs([]string{"check", file})
+		var stderr strings.Builder
+		cmd.SetOut(&strings.Builder{})
+		cmd.SetErr(&stderr)
+		assert.Error(t, cmd.Execute(), "%q: psc check exits non-zero", c.source)
+		assert.Contains(t, stderr.String(), "["+c.code+"]", c.source)
+
+		s := psc.NewLSPServer()
+		uri := (&url.URL{Scheme: "file", Path: filepath.ToSlash(file)}).String()
+		require.NoError(t, s.OpenDocument(uri, []byte(c.source)))
+		var refusals []infer.Diagnostic
+		for _, d := range s.Diagnostics(uri) {
+			if d.Code == c.code {
+				refusals = append(refusals, d)
+			}
+		}
+		if assert.Len(t, refusals, 1, "%q: the LSP reports the refusal once", c.source) {
+			at := uint32(strings.LastIndex(c.source, c.at))
+			assert.LessOrEqual(t, refusals[0].StartByte, at, c.source)
+			assert.Greater(t, refusals[0].EndByte, at, "%q: the refusal spans %q", c.source, c.at)
+		}
+	}
+
+	out := runCheckOn(t, "my @a;\npush(@a, 1);\n")
+	assert.Empty(t, out, "control: perl compiles push(@a, 1), and nothing is reported")
 }

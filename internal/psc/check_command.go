@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/spf13/cobra"
 
@@ -125,11 +126,45 @@ func checkFile(w interface{ Write([]byte) (int, error) }, sess *parse.Session, r
 		return false, fmt.Errorf("parse %s: %w", path, err)
 	}
 
-	diags := infer.AnalyzeParsed(root, nil, opts).Diagnostics
+	diags := analyze(root, opts).Diagnostics
 
 	for _, d := range diags {
 		fmt.Fprintln(w, infer.FormatDiagnostic(path, source, d))
 	}
 
 	return len(diags) > 0, nil
+}
+
+// analyze lowers and type-checks root, and reports every refusal in it
+// beside what inference reports, in source order. psc check and the LSP
+// both analyse through it, so they report the same.
+func analyze(root *parse.Node, opts infer.Options) *infer.FileAnalysis {
+	fa := infer.AnalyzeParsed(root, nil, opts)
+	fa.Diagnostics = append(refusals(root), fa.Diagnostics...)
+	slices.SortStableFunc(fa.Diagnostics, func(a, b infer.Diagnostic) int {
+		return int(a.StartByte) - int(b.StartByte)
+	})
+	return fa
+}
+
+// refusals reports each Unknown in n's tree: source the parser declines
+// because perl refuses to compile it, as its refusal code over its span. An
+// Unknown inside another is part of the outer refusal and is not reported
+// again. Inference types the Hole an Unknown lowers to as Any and says
+// nothing about it, so this is the only report it gets.
+func refusals(n *parse.Node) []infer.Diagnostic {
+	if n.Kind == parse.Unknown {
+		return []infer.Diagnostic{{
+			StartByte: uint32(n.Start),
+			EndByte:   uint32(n.End),
+			Severity:  infer.Error,
+			Code:      string(n.Refusal),
+			Message:   "perl refuses this: " + parse.RefusalSites[n.Refusal].What,
+		}}
+	}
+	var out []infer.Diagnostic
+	for _, c := range n.Children {
+		out = append(out, refusals(c)...)
+	}
+	return out
 }

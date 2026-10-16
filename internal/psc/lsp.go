@@ -67,7 +67,7 @@ func (s *LSPServer) OpenDocument(uri string, source []byte) error {
 	s.documents[uri] = &document{
 		uri:      uri,
 		source:   source,
-		analysis: infer.AnalyzeParsed(root, nil, infer.Options{}),
+		analysis: analyze(root, infer.Options{}),
 	}
 	return nil
 }

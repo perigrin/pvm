@@ -4,9 +4,11 @@
 package infer_test
 
 import (
+	"slices"
 	"testing"
 
 	"tamarou.com/pvm/internal/infer"
+	"tamarou.com/pvm/internal/parse"
 )
 
 // wantCode fails t unless the lowered path gives src a diagnostic of code.
@@ -189,4 +191,26 @@ func TestScalarLocaltimeIsStr(t *testing.T) {
 	}
 
 	wantCode(t, "my $y = (undef) . \"x\";\n", infer.CodeCoercionMismatch)
+}
+
+// TestArityCheckReachable names the input that reaches the arity check: a
+// sub of a builtin's name that perl does not let override it. perl 5.42
+// resolves `getgrgid()` to CORE::getgrgid and refuses it, "Not enough
+// arguments for getgrgid"; the parser reads the call as the user sub's and
+// does not refuse it, so the arity check is what reports it. A refused
+// call such as `push()` never reaches it: psc reports the refusal.
+func TestArityCheckReachable(t *testing.T) {
+	for _, src := range []string{
+		"sub getgrgid { \"u\" }\nprint getgrgid(), \"\\n\";\n",
+		"sub rename { \"fake\" }\nprint rename(), \"\\n\";\n",
+	} {
+		var refused func(n *parse.Node) bool
+		refused = func(n *parse.Node) bool {
+			return n.Kind == parse.Unknown || slices.ContainsFunc(n.Children, refused)
+		}
+		if refused(parse.Parse([]byte(src))) {
+			t.Errorf("%q: the parser refuses it", src)
+		}
+		wantCode(t, src, infer.CodeArityMismatch)
+	}
 }
