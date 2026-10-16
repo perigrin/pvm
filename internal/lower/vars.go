@@ -68,9 +68,10 @@ var bracedName = regexp.MustCompile(`^\^?\w+(::\w+)*$`)
 // subscript lowers an `index` to an Index ("[") or a Key ("{"), the Arrow
 // bit copied from the node. It declines an index that is not one element of
 // one container: a slice, whose base is @-, %- or list-shaped, and the
-// &{$x} and *foo{CODE} forms, whose bases are a code or glob sigil.
+// &{$x} and *foo{CODE} forms, whose bases are a code or glob sigil, and an
+// `index "("`, which is a call (indexCall) and never an element.
 func (l *lowerer) subscript(n *parse.Node) Node {
-	if len(n.Children) != 2 || !elementBase(n) {
+	if len(n.Children) != 2 || n.Text == "(" || !elementBase(n) {
 		return nil
 	}
 	base, sub := n.Children[0], n.Children[1]

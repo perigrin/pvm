@@ -82,7 +82,12 @@ func isCodeName(n *parse.Node) bool {
 //
 // An `index "("` with no arguments over a childless call is that call with
 // empty parentheses, `time()` or `wantarray()`: the parser builds a builtin
-// that takes no operand this way. Every other base declines.
+// that takes no operand this way.
+//
+// Over a subscript, `$h{cb}(1)` and `$r->[0](2)`, or over such a call,
+// `$h{cb}(1)(2)`, it is a call through the code reference the base holds:
+// perl elides the arrow between subscripts and parentheses. Every other
+// base declines.
 func (l *lowerer) indexCall(n *parse.Node) Node {
 	if n.Text != "(" || len(n.Children) == 0 {
 		return nil
@@ -99,6 +104,8 @@ func (l *lowerer) indexCall(n *parse.Node) Node {
 		c.Fn = l.stamp(base, &Hole{})
 	case base.Kind == parse.Index && base.Text == "{" && len(base.Children) == 2 && base.Children[0].Text == "&":
 		c.Fn = l.expr(base.Children[1])
+	case base.Kind == parse.Index:
+		c.Fn, c.Ampersand = l.expr(base), false
 	default:
 		return nil
 	}
@@ -120,6 +127,9 @@ func (l *lowerer) arrowCall(n *parse.Node) Node {
 	if r.Paren {
 		return &Call{Fn: l.expr(inv), Args: l.parenArgs(r), Parenthesized: true}
 	}
+	if out := l.chainedCall(inv, r); out != nil {
+		return out
+	}
 	m := &MethodCall{}
 	switch {
 	case r.Kind == parse.Call:
@@ -135,6 +145,30 @@ func (l *lowerer) arrowCall(n *parse.Node) Node {
 	}
 	m.Invocant = l.expr(inv)
 	return m
+}
+
+// chainedCall lowers the right side of `$code->(1)(2)`, a call of what a
+// call through a code reference returns. The parser gives it as an
+// `index "("` chain whose innermost base is the first call's parenthesised
+// arguments; a base without parens is a dynamic method's name, and
+// chainedCall declines it. Each call but the outermost has no parse node of
+// its own, so it takes the id of the `index "("` that holds the next call's
+// arguments; the outermost takes the arrow's.
+func (l *lowerer) chainedCall(inv, r *parse.Node) Node {
+	var chain []*parse.Node
+	x := r
+	for x.Kind == parse.Index && x.Text == "(" && len(x.Children) > 0 {
+		chain = append(chain, x)
+		x = x.Children[0]
+	}
+	if len(chain) == 0 || !x.Paren {
+		return nil
+	}
+	var fn Node = &Call{Fn: l.expr(inv), Args: l.parenArgs(x), Parenthesized: true}
+	for i := len(chain) - 1; i >= 0; i-- {
+		fn = &Call{Fn: l.stamp(chain[i], fn), Args: l.elements(chain[i].Children[1:]), Parenthesized: true}
+	}
+	return fn
 }
 
 // indirect lowers indirect object syntax, `new Foo(1)`: the parser's
