@@ -9,7 +9,7 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.325366834Z
-updated: 2026-10-16T20:12:58.897522069Z
+updated: 2026-10-16T21:00:21.014794589Z
 ---
 
 ## Prerequisites
@@ -32,7 +32,7 @@ A qualified call (`Carp::confess(...)`, `Scalar::Util::blessed($x)`) resolves th
 - [ ] Write failing test `TestQualifiedCroakConfessAreExits` in `internal/infer/flow_test.go`: a path ending in `Carp::croak(...)` or `Carp::confess(...)` ends as `die` does, with `use Carp;` and with `use Carp ();`
 - [ ] Write failing test `TestInferTypesQualifiedCall` in `internal/infer/declared_test.go`: `my $s = Carp::shortmess("x");` is typed Str from Carp.tpm
 - [ ] Run to verify failure, implement anything missing, run to verify pass; commit
-- [ ] Run the m1 gates named in the final-gate issue; `make test`; commit
+- [ ] Run the m1 gates named in the final-gate issue, with the commands it gives them; a ratchet may only be raised. A drop is fixed in the .tpm, or the batch stops and asks perigrin. `make test`; commit
 
 ## Acceptance Criteria
 
