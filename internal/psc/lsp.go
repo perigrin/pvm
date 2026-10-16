@@ -25,6 +25,10 @@ type document struct {
 // LSPServer maintains parsed state for open Perl documents.
 // It is safe for concurrent use.
 type LSPServer struct {
+	// Options is how each open is checked, as psc check's flags set it.
+	// Set it before the first OpenDocument.
+	Options infer.Options
+
 	documents map[string]*document
 	mu        sync.RWMutex
 }
@@ -67,7 +71,7 @@ func (s *LSPServer) OpenDocument(uri string, source []byte) error {
 	s.documents[uri] = &document{
 		uri:      uri,
 		source:   source,
-		analysis: analyze(root, infer.Options{}),
+		analysis: analyze(root, s.Options),
 	}
 	return nil
 }

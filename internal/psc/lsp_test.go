@@ -4,6 +4,8 @@
 package psc_test
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -126,4 +128,50 @@ func TestLSPSessionRereadsModules(t *testing.T) {
 
 	writeBlockModule(t, dir, hiddenBlock)
 	assert.False(t, blockDiagnosed(t, s, dir), "a module edited to drop its export is re-read")
+}
+
+// lspSession runs psc lsp with flags over an initialize and a didOpen of
+// source, and returns everything the server wrote: the didOpen's
+// publishDiagnostics among it.
+func lspSession(t *testing.T, source string, flags ...string) string {
+	t.Helper()
+	open, err := json.Marshal(map[string]any{
+		"jsonrpc": "2.0", "method": "textDocument/didOpen",
+		"params": map[string]any{"textDocument": map[string]any{
+			"uri": "file:///t.pl", "languageId": "perl", "version": 1, "text": source,
+		}},
+	})
+	require.NoError(t, err)
+	var in strings.Builder
+	for _, msg := range []string{`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`, string(open)} {
+		fmt.Fprintf(&in, "Content-Length: %d\r\n\r\n%s", len(msg), msg)
+	}
+	cmd := psc.NewCommand()
+	cmd.SetArgs(append([]string{"lsp"}, flags...))
+	cmd.SilenceUsage = true
+	cmd.SetIn(strings.NewReader(in.String()))
+	var out strings.Builder
+	cmd.SetOut(&out)
+	cmd.SetErr(&strings.Builder{})
+	// The session ends when its input does, which Execute returns as an
+	// error; what the server wrote is the subject.
+	_ = cmd.Execute()
+	return out.String()
+}
+
+// TestLSPHonoursOptions: psc lsp takes --strict and --warn-lossy-coercion,
+// as psc check does, so the editor reports what check reports under them.
+// Printing a hash reference is a coercion perl makes silently (it prints
+// HASH(0x...)) and reports only under --warn-lossy-coercion; frobnicate's
+// result is un-inferred, and reported only under --strict.
+func TestLSPHonoursOptions(t *testing.T) {
+	lossy := "my $h = {};\nprint $h;\n"
+	plain := lspSession(t, lossy)
+	require.Contains(t, plain, "textDocument/publishDiagnostics", "the server analysed the open")
+	assert.NotContains(t, plain, "lossy-coercion", "control: off by default")
+	assert.Contains(t, lspSession(t, lossy, "--warn-lossy-coercion"), "lossy-coercion")
+
+	unknown := "print frobnicate();\n"
+	assert.NotContains(t, lspSession(t, unknown), "Unknown", "control: off by default")
+	assert.Contains(t, lspSession(t, unknown, "--strict"), "Unknown")
 }
