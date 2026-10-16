@@ -84,29 +84,18 @@ func newCheckCommand() *cobra.Command {
 
 // incRoots is the @INC psc check parses each file against, so its use
 // statements resolve as perl compiles them: PERL5LIB, then the library
-// directories of the perl pvm resolves for target's project. It is built
-// once per run, and never by running perl: psc check reads untrusted code,
-// and running perl runs whatever PERL5OPT or sitecustomize.pl says. With
-// no resolved perl and no PERL5LIB it is empty, and each file is parsed
-// against its own directory alone.
+// directories of the perl target's project names (perl.StaticPerl). It is
+// built once per run, and never by running perl or asking the network:
+// psc check reads untrusted code, running perl runs whatever PERL5OPT or
+// sitecustomize.pl says, and a version file must not make the checker
+// phone home. With no resolved perl and no PERL5LIB it is empty, and each
+// file is parsed against its own directory alone.
 func incRoots(target string) []string {
 	projectDir := target
 	if info, err := os.Stat(target); err == nil && !info.IsDir() {
 		projectDir = filepath.Dir(target)
 	}
-	// System perl, MetaCPAN and the resolution callback are skipped:
-	// resolving a system perl runs it to ask its version.
-	resolved, err := perl.ResolveVersion(&perl.ResolutionOptions{
-		ProjectDir:          projectDir,
-		SkipSystemPerl:      true,
-		SkipNetworkFetch:    true,
-		SkipVersionResolved: true,
-		SkipScriptAnalysis:  true,
-	})
-	perlPath := ""
-	if err == nil {
-		perlPath = resolved.Path
-	}
+	perlPath, _ := perl.StaticPerl(projectDir)
 	return perl.INC(perlPath, os.Getenv("PERL5LIB"))
 }
 
