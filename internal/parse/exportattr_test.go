@@ -76,3 +76,55 @@ func TestSubWithoutExportNotImported(t *testing.T) {
 		t.Errorf("a bare use imports %v; h carries no export mark", got)
 	}
 }
+
+// TestShippedDeclarationsKeepTheirImports: marking exports with :export
+// and :export_ok imports what each shipped .tpm's export lists did, but
+// for Carp's verbose -- see TestCarpVerboseImportsNothing.
+func TestShippedDeclarationsKeepTheirImports(t *testing.T) {
+	wantImports(t, map[string][]string{
+		"use Carp;\n":                        {"carp", "confess", "croak"},
+		"use Carp qw(croak);\n":              {"croak"},
+		"use Carp qw(cluck);\n":              {"cluck"},
+		"use Carp qw(longmess shortmess);\n": {"longmess", "shortmess"},
+		// Measured on perl 5.42.0: `use Carp qw(verbose)` installs nothing
+		// in the caller; Carp's @EXPORT_FAIL takes verbose as a flag. The
+		// export list put it in @EXPORT_OK, which imported "verbose".
+		"use Carp qw(verbose);\n": nil,
+		"use Moose;\n": {"after", "around", "augment", "before", "blessed", "confess",
+			"extends", "has", "inner", "meta", "override", "super", "with"},
+		"use Moose qw(meta);\n": {"meta"},
+		"use Moose::Role;\n": {"after", "around", "augment", "before", "blessed", "confess",
+			"excludes", "extends", "has", "inner", "meta", "override", "requires", "super", "with"},
+		"use Mojolicious::Lite;\n": {"any", "app", "del", "get", "group", "helper", "hook", "new",
+			"options", "patch", "plugin", "post", "put", "query", "under", "websocket"},
+		"use Mojolicious::Lite qw(get);\n": {"get"},
+		"use Future::AsyncAwait;\n":        nil,
+		"use My::Lib;\n":                   {"alias_all", "emit", "fields", "join_all", "need", "pick", "size", "when_"},
+		"use My::Lib qw(join_all);\n":      {"join_all"},
+		"use My::Lib qw(hidden);\n":        nil,
+		"use My::Lib qw(plus);\n":          nil,
+	})
+}
+
+// TestCarpVerboseImportsNothing: measured on perl 5.42.0, `use Carp
+// qw(verbose)` defines no verbose in the caller, so Carp.tpm marks none.
+func TestCarpVerboseImportsNothing(t *testing.T) {
+	wantImports(t, map[string][]string{"use Carp qw(verbose);\n": nil})
+}
+
+// TestModuleSourceExportListStillRead: the refusal of export lists is for
+// a .tpm alone; a module's own source is read for them as ever.
+func TestModuleSourceExportListStillRead(t *testing.T) {
+	src := "package Plain;\nuse Exporter 'import';\nour @EXPORT = qw(f);\nour @EXPORT_OK = qw(g);\nsub f { }\nsub g { }\n"
+	root := ParseWithLoader([]byte("use Plain;\nuse Plain qw(g);\n"), func(m string) ([]byte, bool) {
+		return []byte(src), m == "Plain"
+	})
+	if errs := DeclarationErrors(root); len(errs) > 0 {
+		t.Fatalf("declaration errors: %v", errs)
+	}
+	for _, name := range []string{"f", "g"} {
+		if _, ok := Imports(root)[name]; !ok {
+			t.Errorf("%s not imported from a module's own export list: %v", name, Imports(root))
+		}
+	}
+}

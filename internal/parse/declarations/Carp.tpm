@@ -2,19 +2,18 @@
 # ABOUTME: Measured on perl 5.42.0 with Carp 1.54: no sub carries a prototype.
 package Carp;
 
-our @EXPORT = qw(confess croak carp);
-# verbose is no sub: Carp's @EXPORT_FAIL takes it as a flag that sets
-# $Carp::Verbose, measured on 5.42.0 with `use Carp qw(verbose)`.
-our @EXPORT_OK = qw(cluck verbose longmess shortmess);
+# verbose is no sub and is marked nowhere: Carp's @EXPORT_FAIL takes it as
+# a flag that sets $Carp::Verbose, and measured on 5.42.0, `use Carp
+# qw(verbose)` defines nothing in the caller.
 
 # croak and confess die with their message, as die does: measured on
 # 5.42.0, `eval { croak "x" }` leaves "x at -e line 1." in $@.
-sub croak (List[Str|Boolean|DualVar|Ref] @message) None;
-sub confess (List[Str|Boolean|DualVar|Ref] @message) None;
+sub croak :export (List[Str|Boolean|DualVar|Ref] @message) None;
+sub confess :export (List[Str|Boolean|DualVar|Ref] @message) None;
 # carp and cluck warn and return true, as warn does: measured on 5.42.0,
 # `my $r = carp("w")` leaves $r 1.
-sub carp (List[Str] @message) Boolean;
-sub cluck (List[Str] @message) Boolean;
+sub carp :export (List[Str] @message) Boolean;
+sub cluck :export_ok (List[Str] @message) Boolean;
 # longmess and shortmess return the message as croak would die with it.
-sub longmess (List[Str] @message) Str;
-sub shortmess (List[Str] @message) Str;
+sub longmess :export_ok (List[Str] @message) Str;
+sub shortmess :export_ok (List[Str] @message) Str;

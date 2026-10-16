@@ -248,7 +248,8 @@ func readExportMarks(root *Node, facts *moduleFacts) {
 				}
 			}
 			bare, tags, ok := exportMark(n)
-			if name == "" || !ok {
+			// A multi's candidates each carry the mark; its first is read.
+			if name == "" || !ok || slices.Contains(facts.exports, name) {
 				continue
 			}
 			facts.exports = append(facts.exports, name)
