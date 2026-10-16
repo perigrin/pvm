@@ -1,10 +1,19 @@
 ---
 title: "[I3] for my $i ($n) never defines $i in the loop, writes back to the wrong variable, and carries a false comment"
-state: pending
+state: in-progress
 urgency: normal
 milestone: pr486-review
 created: 2026-10-16T01:16:07.220835857Z
-updated: 2026-10-16T01:16:07.220835857Z
+updated: 2026-10-16T01:17:17.290568193Z
+sessions:
+- start_sha: 8a0c85c60a2bae5d04dbbb2b27eb4310312d362f
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-16T01:17:17.290568193Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-16T01:17:17.290568193Z
 ---
 
 ## Context
