@@ -10,7 +10,7 @@ blocks:
 - 01a0fd9b-4a5b-7e94-ad87-756dfcfe1f4c
 - 01a0fd9b-53a9-703f-82ab-eeb38765f7f1
 created: 2026-10-03T11:12:37.336939532Z
-updated: 2026-10-06T00:12:24.61962481Z
+updated: 2026-10-16T18:48:32.250542464Z
 sessions:
 - start_sha: a59be849cf4cbf3cec10b4655a01884d284fb625
   end_sha: a59be849cf4cbf3cec10b4655a01884d284fb625
@@ -63,13 +63,13 @@ The second half of the parse: RFC 0001 "Declaration order: Perl's", "Type names"
 
 ## Acceptance criteria
 
-- [ ] a .pmt declaration carries its return type (`go test ./internal/parse/ -run '^TestPmtReturnType$' -count=1 -v | grep -q '^--- PASS: TestPmtReturnType'`)
-- [ ] unions and container types such as List[Str] parse in a .pmt (`go test ./internal/parse/ -run '^TestPmtUnionAndContainerTypes$' -count=1 -v | grep -q '^--- PASS: TestPmtUnionAndContainerTypes'`)
-- [ ] an unknown type name in a .pmt is an error (`go test ./internal/parse/ -run '^TestPmtUnknownTypeNameIsError$' -count=1 -v | grep -q '^--- PASS: TestPmtUnknownTypeNameIsError'`)
-- [ ] a signature before the attributes is refused, as perl refuses it (`go test ./internal/parse/ -run '^TestPmtSignatureBeforeAttributesRefused$' -count=1 -v | grep -q '^--- PASS: TestPmtSignatureBeforeAttributesRefused'`)
+- [ ] a .pmt declaration carries its return type (`go test ./internal/parse/ -run '^TestTpmReturnType$' -count=1 -v | grep -q '^--- PASS: TestTpmReturnType'`)
+- [ ] unions and container types such as List[Str] parse in a .pmt (`go test ./internal/parse/ -run '^TestTpmUnionAndContainerTypes$' -count=1 -v | grep -q '^--- PASS: TestTpmUnionAndContainerTypes'`)
+- [ ] an unknown type name in a .pmt is an error (`go test ./internal/parse/ -run '^TestTpmUnknownTypeNameIsError$' -count=1 -v | grep -q '^--- PASS: TestTpmUnknownTypeNameIsError'`)
+- [ ] a signature before the attributes is refused, as perl refuses it (`go test ./internal/parse/ -run '^TestTpmSignatureBeforeAttributesRefused$' -count=1 -v | grep -q '^--- PASS: TestTpmSignatureBeforeAttributesRefused'`)
 - [ ] the RFC section on declaration order is implemented (`grep -q '^### Declaration order.*(\*Implemented\*' docs/rfcs/0001-type-libraries.md`)
 - [ ] the RFC section on type names is implemented (`grep -q '^### Type names.*(\*Implemented\*' docs/rfcs/0001-type-libraries.md`)
-- [ ] an unknown return type in a .pmt is an error (`go test ./internal/parse/ -run '^TestPmtUnknownReturnTypeIsError$' -count=1 -v | grep -q '^--- PASS: TestPmtUnknownReturnTypeIsError'`)
-- [ ] a malformed return type is an error, not a panic (`go test ./internal/parse/ -run '^TestPmtMalformedReturnTypeIsError$' -count=1 -v | grep -q '^--- PASS: TestPmtMalformedReturnTypeIsError'`)
-- [ ] malformed container types are errors (`go test ./internal/parse/ -run '^TestPmtMalformedContainerTypeRefused$' -count=1 -v | grep -q '^--- PASS: TestPmtMalformedContainerTypeRefused'`)
-- [ ] container types are not read in ordinary source (`go test ./internal/parse/ -run '^TestContainerTypeOnlyInPmt$' -count=1 -v | grep -q '^--- PASS: TestContainerTypeOnlyInPmt'`)
+- [ ] an unknown return type in a .pmt is an error (`go test ./internal/parse/ -run '^TestTpmUnknownReturnTypeIsError$' -count=1 -v | grep -q '^--- PASS: TestTpmUnknownReturnTypeIsError'`)
+- [ ] a malformed return type is an error, not a panic (`go test ./internal/parse/ -run '^TestTpmMalformedReturnTypeIsError$' -count=1 -v | grep -q '^--- PASS: TestTpmMalformedReturnTypeIsError'`)
+- [ ] malformed container types are errors (`go test ./internal/parse/ -run '^TestTpmMalformedContainerTypeRefused$' -count=1 -v | grep -q '^--- PASS: TestTpmMalformedContainerTypeRefused'`)
+- [ ] container types are not read in ordinary source (`go test ./internal/parse/ -run '^TestContainerTypeOnlyInTpm$' -count=1 -v | grep -q '^--- PASS: TestContainerTypeOnlyInTpm'`)
