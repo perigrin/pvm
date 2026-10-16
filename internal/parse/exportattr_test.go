@@ -5,6 +5,7 @@ package parse
 import (
 	"slices"
 	"testing"
+	"testing/fstest"
 )
 
 // importedFrom parses src with the fixture declarations in place and
@@ -74,5 +75,141 @@ func TestSubWithoutExportNotImported(t *testing.T) {
 	wantImports(t, map[string][]string{"use My::Exports qw(h);\n": nil})
 	if got := importedFrom(t, "use My::Exports;\n"); slices.Contains(got, "h") {
 		t.Errorf("a bare use imports %v; h carries no export mark", got)
+	}
+}
+
+// TestShippedDeclarationsKeepTheirImports: marking exports with :export
+// and :export_ok imports what each shipped .tpm's export lists did, but
+// for Carp's verbose -- see TestCarpVerboseImportsNothing.
+func TestShippedDeclarationsKeepTheirImports(t *testing.T) {
+	wantImports(t, map[string][]string{
+		"use Carp;\n":                        {"carp", "confess", "croak"},
+		"use Carp qw(croak);\n":              {"croak"},
+		"use Carp qw(cluck);\n":              {"cluck"},
+		"use Carp qw(longmess shortmess);\n": {"longmess", "shortmess"},
+		// Measured on perl 5.42.0: `use Carp qw(verbose)` installs nothing
+		// in the caller; Carp's @EXPORT_FAIL takes verbose as a flag. The
+		// export list put it in @EXPORT_OK, which imported "verbose".
+		"use Carp qw(verbose);\n": nil,
+		"use Moose;\n": {"after", "around", "augment", "before", "blessed", "confess",
+			"extends", "has", "inner", "meta", "override", "super", "with"},
+		"use Moose qw(meta);\n": {"meta"},
+		"use Moose::Role;\n": {"after", "around", "augment", "before", "blessed", "confess",
+			"excludes", "extends", "has", "inner", "meta", "override", "requires", "super", "with"},
+		"use Mojolicious::Lite;\n": {"any", "app", "del", "get", "group", "helper", "hook", "new",
+			"options", "patch", "plugin", "post", "put", "query", "under", "websocket"},
+		"use Mojolicious::Lite qw(get);\n": {"get"},
+		"use Future::AsyncAwait;\n":        nil,
+		"use My::Lib;\n":                   {"alias_all", "emit", "fields", "join_all", "need", "pick", "size", "when_"},
+		"use My::Lib qw(join_all);\n":      {"join_all"},
+		"use My::Lib qw(hidden);\n":        nil,
+		"use My::Lib qw(plus);\n":          nil,
+	})
+}
+
+// TestCarpVerboseImportsNothing: measured on perl 5.42.0, `use Carp
+// qw(verbose)` defines no verbose in the caller, so Carp.tpm marks none.
+func TestCarpVerboseImportsNothing(t *testing.T) {
+	wantImports(t, map[string][]string{"use Carp qw(verbose);\n": nil})
+}
+
+// TestModuleSourceExportListStillRead: the refusal of export lists is for
+// a .tpm alone; a module's own source is read for them as ever.
+func TestModuleSourceExportListStillRead(t *testing.T) {
+	src := "package Plain;\nuse Exporter 'import';\nour @EXPORT = qw(f);\nour @EXPORT_OK = qw(g);\nsub f { }\nsub g { }\n"
+	root := ParseWithLoader([]byte("use Plain;\nuse Plain qw(g);\n"), func(m string) ([]byte, bool) {
+		return []byte(src), m == "Plain"
+	})
+	if errs := DeclarationErrors(root); len(errs) > 0 {
+		t.Fatalf("declaration errors: %v", errs)
+	}
+	for _, name := range []string{"f", "g"} {
+		if _, ok := Imports(root)[name]; !ok {
+			t.Errorf("%s not imported from a module's own export list: %v", name, Imports(root))
+		}
+	}
+}
+
+// refusedList wants a .tpm stating list to be in error, naming the module
+// and line 3, and to import nothing from the list.
+func refusedList(t *testing.T, list, want string) {
+	t.Helper()
+	saved := declarations
+	t.Cleanup(func() { declarations = saved })
+	src := "package My::Listed;\nsub f :export () Int;\n" + list + "\nsub g () Int;\n"
+	declarations = layeredFS{top: fstest.MapFS{"declarations/My/Listed.tpm": {Data: []byte(src)}}, base: saved}
+	root := ParseWithLoader([]byte("use My::Listed;\nuse My::Listed qw(g);\n"), noModules)
+	if errs := DeclarationErrors(root); len(errs) != 1 || errs[0].Error() != want {
+		t.Errorf("errors %v, want %q", errs, want)
+	}
+	if _, ok := Imports(root)["g"]; ok {
+		t.Errorf("g imported from a refused list: %v", Imports(root))
+	}
+	if _, ok := Imports(root)["f"]; !ok {
+		t.Errorf("f, marked :export, not imported: %v", Imports(root))
+	}
+}
+
+// TestDeclarationExportListRefused: ruling 2 (2026-10-16): a .tpm marks
+// its exports with :export and :export_ok, and states no @EXPORT.
+func TestDeclarationExportListRefused(t *testing.T) {
+	refusedList(t, "our @EXPORT = qw(g);",
+		"My::Listed: line 3: our @EXPORT: a .tpm marks each export :export or :export_ok, not in a list")
+}
+
+// TestDeclarationExportOkListRefused: nor an @EXPORT_OK.
+func TestDeclarationExportOkListRefused(t *testing.T) {
+	refusedList(t, "our @EXPORT_OK = qw(g);",
+		"My::Listed: line 3: our @EXPORT_OK: a .tpm marks each export :export or :export_ok, not in a list")
+}
+
+// TestDeclarationExportTagsRefused: nor a %EXPORT_TAGS; a tag is the
+// attribute's argument, :export_ok(tag).
+func TestDeclarationExportTagsRefused(t *testing.T) {
+	refusedList(t, "our %EXPORT_TAGS = (all => [qw(g)]);",
+		"My::Listed: line 3: our %EXPORT_TAGS: a .tpm marks each export :export or :export_ok, not in a list")
+}
+
+// TestModuleSourceExportListAmpersand: a module's own list may spell a
+// sub `&f`. Measured on perl 5.42.0 with `@EXPORT = qw(&f)`, `@EXPORT_OK
+// = qw(&g &h)` and `%EXPORT_TAGS = (t => [qw(&h)])`: a bare use defines
+// f, `qw(g)` and `qw(&g)` define g, and `':t'` defines h.
+func TestModuleSourceExportListAmpersand(t *testing.T) {
+	src := "package Amp;\nuse Exporter 'import';\nour @EXPORT = qw(&f);\nour @EXPORT_OK = qw(&g &h);\nour %EXPORT_TAGS = (t => [qw(&h)]);\nsub f { 1 }\nsub g { 2 }\nsub h { 3 }\n"
+	loader := func(m string) ([]byte, bool) { return []byte(src), m == "Amp" }
+	for use, want := range map[string]string{
+		"use Amp;\n": "f", "use Amp qw(g);\n": "g", "use Amp qw(&g);\n": "g", "use Amp ':t';\n": "h",
+	} {
+		var got []string
+		for name := range Imports(ParseWithLoader([]byte(use), loader)) {
+			got = append(got, name)
+		}
+		if !slices.Equal(got, []string{want}) {
+			t.Errorf("%q imports %v, want [%s]", use, got, want)
+		}
+	}
+}
+
+// TestDeclarationUnknownAttributeRefused: a .tpm marks its exports, so a
+// misspelled mark is an error, not a name silently left unexported. A sub
+// takes perl's own lvalue, method and prototype and the declaration
+// language's; an our, :export and :export_ok.
+func TestDeclarationUnknownAttributeRefused(t *testing.T) {
+	saved := declarations
+	t.Cleanup(func() { declarations = saved })
+	for src, want := range map[string]string{
+		"sub bad :exported () Int;\n":                "My::Odd: sub bad: unknown attribute :exported",
+		"multi sub bad :export_okay () Int;\n":       "My::Odd: sub bad: unknown attribute :export_okay",
+		"our $x :exported;\n":                        "My::Odd: our $x: unknown attribute :exported; an our takes :export or :export_ok",
+		"sub fine :lvalue :method :export () Int;\n": "",
+	} {
+		declarations = layeredFS{top: fstest.MapFS{"declarations/My/Odd.tpm": {Data: []byte("package My::Odd;\n" + src)}}, base: saved}
+		var got []string
+		for _, err := range DeclarationErrors(ParseWithLoader([]byte("use My::Odd;\n"), noModules)) {
+			got = append(got, err.Error())
+		}
+		if want == "" && len(got) > 0 || want != "" && !slices.Equal(got, []string{want}) {
+			t.Errorf("%q: errors %q, want %q", src, got, want)
+		}
 	}
 }

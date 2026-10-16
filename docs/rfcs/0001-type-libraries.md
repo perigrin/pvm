@@ -57,22 +57,17 @@ reads:
 ```perl
 package Mojolicious::Lite;
 
-our @EXPORT = qw(any get post put ... group helper hook plugin under);
-
-sub get;
-sub group :prototype(&);
+sub get :export;
+sub group :export :prototype(&);
 ```
 
-`our @EXPORT` lists what a bare `use` imports. Each `sub` line declares
-one sub and its prototype. Every value is measured on perl 5.42.0 with
-the module installed, and the file's header names the module version.
-
-This section describes the files as they ship today. Under
-"Core-module libraries" (perigrin, 2026-10-16) a `.tpm` carries no
-export lists: each exported sub or variable carries `:export` or
-`:export_ok`, every shipped `.tpm` is converted to that form, and the
-parser then refuses `our @EXPORT`, `@EXPORT_OK` and `%EXPORT_TAGS` in
-a `.tpm` as an error. The example above changes with that conversion.
+Each `sub` line declares one sub and its prototype, and `:export` marks
+a sub a bare `use` imports (`:export_ok`, one that must be asked for;
+see "Every exported name" under "Core-module libraries"). A `.tpm`
+carries no export lists: the parser refuses `our @EXPORT`, `@EXPORT_OK`
+and `%EXPORT_TAGS` in one as an error naming its line (perigrin,
+2026-10-16). Every value is measured on perl 5.42.0 with the module
+installed, and the file's header names the module version.
 
 Moose, Moose::Role and Mojolicious::Lite ship today.
 

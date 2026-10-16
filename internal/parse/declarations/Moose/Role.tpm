@@ -2,23 +2,18 @@
 # ABOUTME: Measured on perl 5.42.0 with Moose 2.4000: only blessed carries a prototype.
 package Moose::Role;
 
-our @EXPORT = qw(
-    with requires excludes has before after around override
-    extends super inner augment confess blessed meta
-);
-
-sub with;
-sub requires;
-sub excludes;
-sub has;
-sub before;
-sub after;
-sub around;
-sub override;
-sub extends;
-sub super;
-sub inner;
-sub augment;
-sub confess;
-sub blessed :prototype($);
-sub meta;
+sub with :export;
+sub requires :export;
+sub excludes :export;
+sub has :export;
+sub before :export;
+sub after :export;
+sub around :export;
+sub override :export;
+sub extends :export;
+sub super :export;
+sub inner :export;
+sub augment :export;
+sub confess :export;
+sub blessed :export :prototype($);
+sub meta :export;
