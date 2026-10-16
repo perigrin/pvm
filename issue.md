@@ -11,7 +11,7 @@ blocks:
 - 01a0fd9b-519d-7b42-886e-2222a3076986
 - 01a0fd9b-5698-70cf-b6e4-8899a83b0fe0
 created: 2026-10-02T17:13:27.729943188Z
-updated: 2026-10-06T09:14:12.804356666Z
+updated: 2026-10-16T18:48:31.449268939Z
 sessions:
 - start_sha: f1adc965eb2a39250bb3225b5cc5834c23ebb915
   end_sha: f1adc965eb2a39250bb3225b5cc5834c23ebb915
@@ -65,10 +65,10 @@ From the alignment gate on 01a0fd9b-4a5b-7e94-ad87-756dfcfe1f4c: without the inv
 
 ## Acceptance criteria
 
-- [ ] the invocant colon parses in a .pmt signature (`go test ./internal/parse/ -run '^TestPmtInvocantColonParses$' -count=1 -v | grep -q '^--- PASS: TestPmtInvocantColonParses'`)
+- [ ] the invocant colon parses in a .pmt signature (`go test ./internal/parse/ -run '^TestTpmInvocantColonParses$' -count=1 -v | grep -q '^--- PASS: TestTpmInvocantColonParses'`)
 - [ ] a signature with an invocant colon derives no prototype (`go test ./internal/parse/ -run '^TestInvocantColonDerivesNoPrototype$' -count=1 -v | grep -q '^--- PASS: TestInvocantColonDerivesNoPrototype'`)
 - [ ] CORE.pmt declares print, printf, say, exec and system with an invocant (`go test ./internal/parse/ -run '^TestCoreDeclaresInvocantBuiltins$' -count=1 -v | grep -q '^--- PASS: TestCoreDeclaresInvocantBuiltins'`)
-- [ ] an invocant colon anywhere but after the first parameter is refused (`go test ./internal/parse/ -run '^TestPmtInvocantColonMisplacedRefused$' -count=1 -v | grep -q '^--- PASS: TestPmtInvocantColonMisplacedRefused'`)
+- [ ] an invocant colon anywhere but after the first parameter is refused (`go test ./internal/parse/ -run '^TestTpmInvocantColonMisplacedRefused$' -count=1 -v | grep -q '^--- PASS: TestTpmInvocantColonMisplacedRefused'`)
 - [ ] an invocant colon with an explicit prototype is an error (`go test ./internal/parse/ -run '^TestInvocantColonWithPrototypeIsError$' -count=1 -v | grep -q '^--- PASS: TestInvocantColonWithPrototypeIsError'`)
 - [ ] declaring the invocant builtins leaves their parse unchanged (`go test ./internal/parse/ -run '^TestInvocantBuiltinParseUnchanged$' -count=1 -v | grep -q '^--- PASS: TestInvocantBuiltinParseUnchanged'`)
 - [ ] CORE.pmt's print and say carry the measured signatures (`go test ./internal/parse/ -run '^TestCoreInvocantBuiltinsMatchMeasuredSignatures$' -count=1 -v | grep -q '^--- PASS: TestCoreInvocantBuiltinsMatchMeasuredSignatures'`)
