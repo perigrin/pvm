@@ -1,10 +1,19 @@
 ---
 title: "[I10] my $x OP= EXPR loses OP in the parser; list and attribute declarations with compound ops lose their shape i..."
-state: pending
+state: in-progress
 urgency: normal
 milestone: pr486-review
 created: 2026-10-16T01:16:07.491801427Z
-updated: 2026-10-16T01:16:07.491801427Z
+updated: 2026-10-16T01:17:16.004571748Z
+sessions:
+- start_sha: 8a0c85c60a2bae5d04dbbb2b27eb4310312d362f
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-16T01:17:16.004571748Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-16T01:17:16.004571748Z
 ---
 
 ## Context
