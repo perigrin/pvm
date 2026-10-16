@@ -10,7 +10,7 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.500338342Z
-updated: 2026-10-16T20:03:43.385047917Z
+updated: 2026-10-16T20:13:02.240911217Z
 ---
 
 ## Prerequisites
@@ -47,3 +47,10 @@ A `.tpm` changes what the parser reads for every file that uses the module, so r
 - [ ] declared prototypes equal perl's prototype() (`go test ./internal/parse/ -run '^TestPurePerlExportersPrototypes$' -count=1 -v | grep -q '^--- PASS: TestPurePerlExportersPrototypes'`)
 - [ ] declared export lists equal the modules' own (`go test ./internal/parse/ -run '^TestPurePerlExportersExports$' -count=1 -v | grep -q '^--- PASS: TestPurePerlExportersExports'`)
 - [ ] declared return types hold for every value perl returns (`go test ./internal/infer/ -run '^TestPurePerlExportersReturnTypes$' -count=1 -v | grep -q '^--- PASS: TestPurePerlExportersReturnTypes'`)
+
+### Negative Scenarios
+- [ ] Errno.tpm declares no exported variable: `%!` is in none of Errno's export lists (measured) (`go test ./internal/parse/ -run '^TestErrnoDeclaresNoExportedVariable$' -count=1 -v | grep -q '^--- PASS: TestErrnoDeclaresNoExportedVariable'`)
+- [ ] Getopt::Std `getopts` given an unknown option returns a value its declared return type admits (`go test ./internal/infer/ -run '^TestGetoptStdUnknownOptionReturnIsDeclared$' -count=1 -v | grep -q '^--- PASS: TestGetoptStdUnknownOptionReturnIsDeclared'`)
+- [ ] Text::ParseWords `shellwords` given an unbalanced quote returns a value its declared return type admits (`go test ./internal/infer/ -run '^TestTextParseWordsUnbalancedQuoteReturnIsDeclared$' -count=1 -v | grep -q '^--- PASS: TestTextParseWordsUnbalancedQuoteReturnIsDeclared'`)
+- [ ] File::Basename `fileparse`, `basename` and `dirname` given a Windows path such as `C:\dir\f.txt` return values their declared types admit (`go test ./internal/infer/ -run '^TestFileBasenameWindowsPathReturnIsDeclared$' -count=1 -v | grep -q '^--- PASS: TestFileBasenameWindowsPathReturnIsDeclared'`)
+- [ ] File::Path, File::Copy and File::Find oracle cases touch nothing outside the test's temp dir (`go test ./internal/infer/ -run '^TestPurePerlExportersOracleStaysInScratch$' -count=1 -v | grep -q '^--- PASS: TestPurePerlExportersOracleStaysInScratch'`)
