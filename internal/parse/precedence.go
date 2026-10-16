@@ -1,4 +1,4 @@
-// ABOUTME: The Pratt binding powers, derived from CORE.pmt's precedence relations.
+// ABOUTME: The Pratt binding powers, derived from CORE.tpm's precedence relations.
 // ABOUTME: Also the census of perly.y's 32 levels, which the conformance tiers measure against.
 
 package parse
@@ -39,7 +39,7 @@ func (o OpInfo) rightBP() int {
 }
 
 // The parser's binding powers, spec §4.2, derived from the precedence
-// relations CORE.pmt states (RFC 0001, "Precedence is a relation between
+// relations CORE.tpm states (RFC 0001, "Precedence is a relation between
 // operators") by derivePowers: infix holds the infix and postfix operators,
 // prefix the power a prefix operator passes down for its operand,
 // bpNamedUnary and bpListOp the powers a named unary's and a list
@@ -100,23 +100,23 @@ var (
 	powersOnce sync.Once
 )
 
-// derivePowers derives the binding powers, once, from CORE.pmt's relations
+// derivePowers derives the binding powers, once, from CORE.tpm's relations
 // and the operators it has no line for (undeclaredOperators). Every
-// parse but the read of CORE.pmt below derives them first, through
-// parseWith, so a test that reads CORE.pmt alone gets them too.
+// parse but the read of CORE.tpm below derives them first, through
+// parseWith, so a test that reads CORE.tpm alone gets them too.
 //
-// CORE.pmt is read for them before any power exists, so a default
+// CORE.tpm is read for them before any power exists, so a default
 // expression a power is needed to read, chdir's `$dir = $_`, is misread and
 // its declaration is in error. What the powers are derived from is the
 // operator lines and the levels the builtins' shapes are in, which that
 // read does not miss: TestParserPrecedenceFromCore holds the powers to the
 // ones a read with them derives, and readCore, reading with them, refuses
-// a CORE.pmt in error.
+// a CORE.tpm in error.
 func derivePowers() {
 	powersOnce.Do(func() {
 		src, ok := declaration("CORE")
 		if !ok {
-			panic("parse: declarations/CORE.pmt is not embedded")
+			panic("parse: declarations/CORE.tpm is not embedded")
 		}
 		p := newParser(src, nil, true)
 		p.buildingCore, p.derivingPowers = true, true
@@ -125,7 +125,7 @@ func derivePowers() {
 		coreOrderDecls = slices.Concat(decls, undeclaredOperators)
 		bp, err := deriveBindingPowers(coreOrderDecls)
 		if err != nil {
-			panic("parse: declarations/CORE.pmt: " + err.Error())
+			panic("parse: declarations/CORE.tpm: " + err.Error())
 		}
 		levelPowers = bp.levels
 		for _, op := range coreQualifiedOps {
@@ -217,7 +217,7 @@ func (p *parser) atOperatorBelowComma() bool {
 //
 // perly.y has no row of its own for `isa`: toke.c:8697 lexes it as an
 // NCRELOP, at level 17 with the relational operators. perlop's table, and
-// CORE.pmt's relations, give it its own row, tighter than theirs; perl
+// CORE.tpm's relations, give it its own row, tighter than theirs; perl
 // refuses the two unparenthesised together either way (chain.go).
 //
 // Five levels carry no lexable operator: 1 PREC_LOW is a pseudo-token used

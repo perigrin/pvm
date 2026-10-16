@@ -1,5 +1,5 @@
-# ABOUTME: A library declaration file stating every construct CORE.pmt states, for library_pmt_test.go.
-# ABOUTME: RFC 0001 "One language for every .pmt": a library's .pmt says what CORE.pmt can.
+# ABOUTME: A library declaration file stating every construct CORE.tpm states, for library_tpm_test.go.
+# ABOUTME: RFC 0001 "One language for every .tpm": a library's .tpm says what CORE.tpm can.
 package My::Lib;
 
 our @EXPORT = qw(join_all alias_all need pick when_ emit size fields);

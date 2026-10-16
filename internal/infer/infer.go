@@ -903,7 +903,7 @@ var logicalOps = map[string]bool{
 }
 
 // builtinArgType returns the expected type for the i-th argument of a builtin
-// whose CORE.pmt candidates are sigs: the join of what each candidate taking
+// whose CORE.tpm candidates are sigs: the join of what each candidate taking
 // an i-th argument takes there. Choosing one candidate is RFC 0001 "Call
 // sites"', so an argument some candidate takes is not a mismatch. A slurpy
 // takes every trailing argument, and one stating an element type, `List[Str]
@@ -956,7 +956,7 @@ func builtinArgActual(name string, actual types.Type) types.Type {
 	return actual
 }
 
-// shapedOperatorCandidates is the CORE.pmt candidates of op with the given
+// shapedOperatorCandidates is the CORE.tpm candidates of op with the given
 // fixity that take operands of the given shapes, one "$" or "@" each, in
 // context ctx, or in any context when ctx is UnknownCtx.
 func shapedOperatorCandidates(op, fixity, shapes string, ctx types.Context) []types.Signature {

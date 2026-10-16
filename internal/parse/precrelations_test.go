@@ -1,5 +1,5 @@
 // ABOUTME: Tests for precedence stated as relations between operators, RFC 0001 "Precedence is a relation between operators".
-// ABOUTME: `:tighter`, `:looser`, `:equiv` and `:assoc` are read from a .pmt, and a total order is derived from them.
+// ABOUTME: `:tighter`, `:looser`, `:equiv` and `:assoc` are read from a .tpm, and a total order is derived from them.
 package parse
 
 import (
@@ -55,7 +55,7 @@ func TestCorePrecedenceRelationsAreParsed(t *testing.T) {
 	})
 }
 
-// precedenceRefuses reads each source as a CORE.pmt and wants the one error
+// precedenceRefuses reads each source as a CORE.tpm and wants the one error
 // given for it, the declaration error deriving its precedence order raises.
 func precedenceRefuses(t *testing.T, cases map[string]string) {
 	t.Helper()
@@ -138,14 +138,14 @@ var perlopTable = []precLevel{
 // a named unary in its own, and a list operator without them below `,`.
 var perlopShapeRows = map[string]int{"term": 0, "unary": 9, "listop": 21}
 
-// TestCoreDerivedPrecedenceIsPerlops: the order and associativity CORE.pmt
+// TestCoreDerivedPrecedenceIsPerlops: the order and associativity CORE.tpm
 // derives, from its operators' relations and its builtins' shapes, are
 // perlop's table, row for row: each derived level's operators are all in
 // one row, with that row's associativity, and the levels run down the
 // table, each in a lower row than the last. The comparison is over what
-// CORE.pmt declares. perlop names operators CORE.pmt does not yet declare
+// CORE.tpm declares. perlop names operators CORE.tpm does not yet declare
 // -- `->` and `?:`, and last, next and redo, which are statement forms
-// here -- and those have no place in the comparison until it does. Every operator CORE.pmt declares must be in perlop's table.
+// here -- and those have no place in the comparison until it does. Every operator CORE.tpm declares must be in perlop's table.
 func TestCoreDerivedPrecedenceIsPerlops(t *testing.T) {
 	rowOf := map[string]int{}
 	for i, row := range perlopTable {
@@ -168,7 +168,7 @@ func TestCoreDerivedPrecedenceIsPerlops(t *testing.T) {
 			i, ok := row(op)
 			switch {
 			case !ok:
-				t.Errorf("CORE.pmt declares %s, which perlop's table does not list", op)
+				t.Errorf("CORE.tpm declares %s, which perlop's table does not list", op)
 			case want < 0:
 				want = i
 			case i != want:
@@ -188,13 +188,13 @@ func TestCoreDerivedPrecedenceIsPerlops(t *testing.T) {
 	}
 }
 
-// coreOrder is the precedence order CORE.pmt derives, failing the test
+// coreOrder is the precedence order CORE.tpm derives, failing the test
 // when it derives none.
 func coreOrder(t *testing.T) []precLevel {
 	t.Helper()
 	src, ok := declaration("CORE")
 	if !ok {
-		t.Fatal("declarations/CORE.pmt is not embedded")
+		t.Fatal("declarations/CORE.tpm is not embedded")
 	}
 	order, err := precedenceOrder(corePrecedenceDecls(src, coreShapes()))
 	if err != nil {
@@ -221,7 +221,7 @@ func levelOf(order []precLevel, op string) int {
 // 3` is `print(STDOUT ($x < 2), 3)`, a list operator, which perlop puts
 // between `,` and `not`; `time ** 2` is `(time ** 2)`, a
 // term. `not $x < 2` is `not(($x < 2))`: `not` is a prefix operator
-// between `..` and `and`, though CORE.pmt also has it as a builtin. `goto
+// between `..` and `and`, though CORE.tpm also has it as a builtin. `goto
 // $x = 1` is `goto ($x = 1)` and `CORE::dump $x = 1` `CORE::dump ($x =
 // 1)`: the control words have no prototype that says so, and their lines
 // state `:equiv(=)`.
@@ -274,7 +274,7 @@ var parserAssoc = map[string]Assoc{
 }
 
 // TestParserPrecedenceFromCore: the binding power and associativity the
-// parser uses for each operator are the order CORE.pmt's relations derive
+// parser uses for each operator are the order CORE.tpm's relations derive
 // (RFC 0001, "Precedence is a relation between operators"). Each level's
 // operators bind with one power, each level's tighter than the next, with
 // its associativity: an infix or postfix operator by the infix table, a
@@ -326,7 +326,7 @@ func TestParserPrecedenceFromCore(t *testing.T) {
 				t.Errorf("%s binds at %d, and its level %v at %d", op, p.bp, l.ops, bp)
 			}
 			if p.infix && p.assoc != parserAssoc[l.assoc] {
-				t.Errorf("%s: the parser's associativity is %v, CORE.pmt's level :assoc(%s)", op, p.assoc, l.assoc)
+				t.Errorf("%s: the parser's associativity is %v, CORE.tpm's level :assoc(%s)", op, p.assoc, l.assoc)
 			}
 			if cls := cmpClasses[op]; l.assoc == "chained" && cls != chRelop || l.assoc == "chain_na" && cls != chEqop && cls != ncEqop {
 				t.Errorf("%s: comparison class %d in a level of :assoc(%s)", op, cls, l.assoc)
@@ -346,13 +346,13 @@ func TestParserPrecedenceFromCore(t *testing.T) {
 }
 
 // parserOrder is the precedence order the parser's powers are held to:
-// CORE.pmt's, with the operators it has no line for, read as any parse
+// CORE.tpm's, with the operators it has no line for, read as any parse
 // reads, with the powers derived.
 func parserOrder(t *testing.T) []precLevel {
 	t.Helper()
 	src, ok := declaration("CORE")
 	if !ok {
-		t.Fatal("declarations/CORE.pmt is not embedded")
+		t.Fatal("declarations/CORE.tpm is not embedded")
 	}
 	order, err := precedenceOrder(slices.Concat(corePrecedenceDecls(src, coreShapes()), undeclaredOperators))
 	if err != nil {
@@ -362,10 +362,10 @@ func parserOrder(t *testing.T) []precLevel {
 }
 
 // TestUndeclaredOperatorsAreOnlyTernaryArrowAndSubscripts: every operator
-// perlop's table names but `?:` and `->` has a CORE.pmt line, so the
+// perlop's table names but `?:` and `->` has a CORE.tpm line, so the
 // parser places by relations kept in Go only those two, which
 // 01a11923-baeb declares, and the postfix call and subscripts, which
-// perlop's table has no row for. The compound assignments are CORE.pmt
+// perlop's table has no row for. The compound assignments are CORE.tpm
 // lines, and no Go function lists them.
 func TestUndeclaredOperatorsAreOnlyTernaryArrowAndSubscripts(t *testing.T) {
 	var got []string
@@ -390,7 +390,7 @@ func TestUndeclaredOperatorsAreOnlyTernaryArrowAndSubscripts(t *testing.T) {
 var perlopNamed = map[string]bool{"goto": true, "last": true, "next": true, "redo": true, "dump": true}
 
 // TestCoreDeclaresEveryPerlopInfixOperator: each infix operator perlop's
-// table lists, and prefix `~.`, has a CORE.pmt line, but `?:` and `->`,
+// table lists, and prefix `~.`, has a CORE.tpm line, but `?:` and `->`,
 // which 01a11923-baeb declares (undeclaredOperators places them until
 // then).
 func TestCoreDeclaresEveryPerlopInfixOperator(t *testing.T) {
@@ -404,12 +404,12 @@ func TestCoreDeclaresEveryPerlopInfixOperator(t *testing.T) {
 				continue
 			}
 			if !declared["infix "+op] {
-				t.Errorf("perlop's infix %s has no CORE.pmt line", op)
+				t.Errorf("perlop's infix %s has no CORE.tpm line", op)
 			}
 		}
 	}
 	if !declared["prefix ~."] {
-		t.Errorf("perlop's prefix ~. has no CORE.pmt line")
+		t.Errorf("perlop's prefix ~. has no CORE.tpm line")
 	}
 }
 
@@ -436,12 +436,12 @@ func operatorsPerlopLacks(ops []operatorDecl) []string {
 	return out
 }
 
-// TestCoreDeclaresNoUnknownOperator: CORE.pmt declares perl's operators,
-// so each it declares is in perlop's table. A CORE.pmt declaring one perl
+// TestCoreDeclaresNoUnknownOperator: CORE.tpm declares perl's operators,
+// so each it declares is in perlop's table. A CORE.tpm declaring one perl
 // does not have, an infix `!`, is caught.
 func TestCoreDeclaresNoUnknownOperator(t *testing.T) {
 	if got := operatorsPerlopLacks(coreOperators(t)); len(got) > 0 {
-		t.Errorf("CORE.pmt declares %v, which perlop's table does not list", got)
+		t.Errorf("CORE.tpm declares %v, which perlop's table does not list", got)
 	}
 	fixture := readDeclaration([]byte("sub ! :infix (Any $x, Any $y) Any;\nsub + :infix(ADD) (Num $x, Num $y) Num;\n"), nil)
 	if len(fixture.errs) > 0 {

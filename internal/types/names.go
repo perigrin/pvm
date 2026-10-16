@@ -1,5 +1,5 @@
 // ABOUTME: Resolves a type's printed name, or an A|B union of names, back to a Type.
-// ABOUTME: A .pmt declaration names its types by string; this is the table it resolves against.
+// ABOUTME: A .tpm declaration names its types by string; this is the table it resolves against.
 
 package types
 

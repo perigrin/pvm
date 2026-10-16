@@ -38,7 +38,7 @@ func keywordName(word string) string {
 // reading is not modelled and stays as it was.
 var gatedUnary = map[string]bool{"fc": true, "evalbytes": true}
 
-// ownParse are the builtins whose CORE.pmt prototype, the one perl reports,
+// ownParse are the builtins whose CORE.tpm prototype, the one perl reports,
 // does not say how a call to them parses, so they take no keyword shape
 // from it. perl reports `()` for both, and neither takes nothing:
 //
@@ -63,7 +63,7 @@ func plainKeywordShapes(shapes map[string]Shape) map[string]Shape {
 }
 
 // plainShaped reports whether a builtin spelled plainly in a file with no
-// feature on takes its CORE.pmt shape.
+// feature on takes its CORE.tpm shape.
 func plainShaped(name string) bool {
 	_, gated := gatedWords[name]
 	return !gated && !ownParse[name]
@@ -79,8 +79,8 @@ func (p *parser) plainKeywordShape(name string) (Shape, bool) {
 	return shape, ok
 }
 
-// coreShapes is CORE.pmt's keyword shapes for this parse. The read of
-// CORE.pmt that builds them goes without: asking for them there would wait on
+// coreShapes is CORE.tpm's keyword shapes for this parse. The read of
+// CORE.tpm that builds them goes without: asking for them there would wait on
 // that read itself. Its declarations' heads, from which the shapes derive,
 // call no builtin, so only its default expressions read every word as an
 // unknown sub's.
@@ -820,8 +820,8 @@ func (p *parser) isBarewordHandle(word string) bool {
 //	open(FH(), "<", $f)                open FH(), '<', $f;
 //
 // A declared sub, or parens written after the word, keep the call. The
-// slots are CORE.pmt's: a `Glob *` parameter, or one whose type holds a
-// FileHandle. A filetest's one operand is a handle slot too, though CORE.pmt
+// slots are CORE.tpm's: a `Glob *` parameter, or one whose type holds a
+// FileHandle. A filetest's one operand is a handle slot too, though CORE.tpm
 // declares no filetest.
 func (p *parser) readHandleSlots(n *Node, name string) {
 	i := 0

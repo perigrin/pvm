@@ -1,4 +1,4 @@
-// ABOUTME: Tests that CORE.pmt types its process, time, object, scoping and miscellaneous builtins.
+// ABOUTME: Tests that CORE.tpm types its process, time, object, scoping and miscellaneous builtins.
 // ABOUTME: localtime and gmtime fork on context; each type is the one measured on perl 5.42.
 package parse_test
 
@@ -21,7 +21,7 @@ import (
 // one `List[Int]`; their one `Int $time = time` parameter derives perl's
 // `;$`.
 func TestCoreLocaltimeGmtimeAreContextMultis(t *testing.T) {
-	src, err := os.ReadFile("declarations/CORE.pmt")
+	src, err := os.ReadFile("declarations/CORE.tpm")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,13 +41,13 @@ func TestCoreLocaltimeGmtimeAreContextMultis(t *testing.T) {
 		}
 		if len(core[name]) != 2 || len(returns) != 2 ||
 			returns[types.ScalarCtx] != types.Str|types.Undef || returns[types.ListCtx] != types.List {
-			t.Errorf("%s: CORE.pmt has %+v; want a Str|Undef and a List[Int] candidate", name, core[name])
+			t.Errorf("%s: CORE.tpm has %+v; want a Str|Undef and a List[Int] candidate", name, core[name])
 		}
 		// The lattice keeps a return type's container, not its element, so
 		// List[Int] is asked of the line itself.
 		list := regexp.MustCompile(`(?m)^multi sub ` + name + ` \(Int \$time = time\) List\[Int\];$`)
 		if len(list.FindAll(src, -1)) != 1 {
-			t.Errorf("%s: CORE.pmt has no one line returning List[Int]", name)
+			t.Errorf("%s: CORE.tpm has no one line returning List[Int]", name)
 		}
 		if derived[name] != ";$" {
 			t.Errorf("%s: candidates derive (%s); perl says (;$)", name, derived[name])
@@ -89,7 +89,7 @@ func TestCoreNiladicBuiltinsTypedEmpty(t *testing.T) {
 		}
 		sigs := core[name]
 		if len(sigs) != 1 || len(sigs[0].Params) != 0 || sigs[0].Returns == types.Unknown {
-			t.Errorf("%s: CORE.pmt has %+v; want one typed line with no parameters", name, sigs)
+			t.Errorf("%s: CORE.tpm has %+v; want one typed line with no parameters", name, sigs)
 		}
 		if proto, ok := table[name]; !ok || proto != "" {
 			t.Errorf("%s: the prototype table has (%s), present %v; want ()", name, proto, ok)
@@ -106,7 +106,7 @@ var globSlotBuiltins = []string{"lock", "tie", "tied", "undef", "untie"}
 // process groups", "Time-related functions", "Keywords related to Perl
 // modules", "Keywords related to classes and object-orientation",
 // "Keywords related to scoping" and "Miscellaneous functions" among
-// CORE.pmt's prototyped lines, with catch, isa and not, the prototyped
+// CORE.tpm's prototyped lines, with catch, isa and not, the prototyped
 // keywords Pod::Functions files under no kind, and without the names the
 // earlier batches hold (dbmopen and dbmclose are files) or the glob-slot
 // lines.
@@ -128,11 +128,11 @@ func processTimeMiscBuiltins(t *testing.T) []string {
 }
 
 // TestCoreProcessTimeMiscBuiltinsTyped: every process, time, module,
-// object, scoping and miscellaneous builtin has a typed CORE.pmt line, but
+// object, scoping and miscellaneous builtin has a typed CORE.tpm line, but
 // for the keywordLines, which are no builtins; isa is typed by its infix
 // declaration.
 func TestCoreProcessTimeMiscBuiltinsTyped(t *testing.T) {
-	src, err := os.ReadFile("declarations/CORE.pmt")
+	src, err := os.ReadFile("declarations/CORE.tpm")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +140,7 @@ func TestCoreProcessTimeMiscBuiltinsTyped(t *testing.T) {
 		func(name string) bool { return keywordLines[name] != "" })
 	for _, name := range untypedLines(src, names) {
 		if !typedByOperator(name) {
-			t.Errorf("%s: CORE.pmt declares it untyped", name)
+			t.Errorf("%s: CORE.tpm declares it untyped", name)
 		}
 	}
 }
@@ -149,12 +149,12 @@ func TestCoreProcessTimeMiscBuiltinsTyped(t *testing.T) {
 // not typed by a guess. Each keeps its prototype-only line, with no
 // return type, and the prototype table still has perl's.
 func TestCoreGlobSlotLinesStayUntyped(t *testing.T) {
-	src, err := os.ReadFile("declarations/CORE.pmt")
+	src, err := os.ReadFile("declarations/CORE.tpm")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if bad := untypedLines(src, globSlotBuiltins); !slices.Equal(bad, globSlotBuiltins) {
-		t.Errorf("of %v, CORE.pmt leaves %v untyped; want all of them", globSlotBuiltins, bad)
+		t.Errorf("of %v, CORE.tpm leaves %v untyped; want all of them", globSlotBuiltins, bad)
 	}
 	perl, table := perlPrototypes(t), parse.CoreTable()
 	for _, name := range globSlotBuiltins {
@@ -181,7 +181,7 @@ func TestCoreUncallableKeywordsSettled(t *testing.T) {
 	if ops := parse.CoreOperator("isa", "infix"); len(ops) == 0 || ops[0].Returns != types.Boolean {
 		t.Errorf("isa: infix declaration %+v; want one returning Boolean", ops)
 	}
-	src, err := os.ReadFile("declarations/CORE.pmt")
+	src, err := os.ReadFile("declarations/CORE.tpm")
 	if err != nil {
 		t.Fatal(err)
 	}

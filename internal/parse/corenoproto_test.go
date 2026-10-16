@@ -1,4 +1,4 @@
-// ABOUTME: Tests CORE.pmt's builtins with no prototype: their declarations, :unary, and each's and select's multis.
+// ABOUTME: Tests CORE.tpm's builtins with no prototype: their declarations, :unary, and each's and select's multis.
 // ABOUTME: Names and measured rows are held here, each measured on perl 5.42.
 package parse_test
 
@@ -14,7 +14,7 @@ import (
 	"tamarou.com/pvm/internal/types"
 )
 
-// TestCoreDerivedPrototypeCheckReadsUndefAsAt: the CORE.pmt check treats
+// TestCoreDerivedPrototypeCheckReadsUndefAsAt: the CORE.tpm check treats
 // perl's undef prototype as a derived `@` (RFC 0001, "Builtins that keep
 // their own parse": a sub with no prototype and one with `(@)` parse
 // alike). A line for a builtin perl gives no prototype passes when its
@@ -26,7 +26,7 @@ func TestCoreDerivedPrototypeCheckReadsUndefAsAt(t *testing.T) {
 	}
 	for line, want := range map[string][]string{
 		`sub return (List[Any] @values) Any;`: nil,
-		`sub return (Scalar $value) Any;`:     {`return: CORE.pmt gives ($); perl reports no prototype`},
+		`sub return (Scalar $value) Any;`:     {`return: CORE.tpm gives ($); perl reports no prototype`},
 	} {
 		if _, bad := corePrototypeDisagreements([]byte("package CORE;\n"+line+"\n"), perl); !slices.Equal(bad, want) {
 			t.Errorf("%s: reported %q; want %q", line, bad, want)
@@ -35,7 +35,7 @@ func TestCoreDerivedPrototypeCheckReadsUndefAsAt(t *testing.T) {
 }
 
 // noPrototypeBuiltins are the builtins perl 5.42 gives no prototype that
-// CORE.pmt declares: the keywords whose `prototype("CORE::k")` is undef
+// CORE.tpm declares: the keywords whose `prototype("CORE::k")` is undef
 // and which Pod::Functions files as functions, less the declarators
 // (`my`, `sub`, `package`, `use` and kin) and the statement forms the
 // parser owns, `last`, `next`, `redo` and `require` (call.go). grep,
@@ -54,7 +54,7 @@ var noPrototypeBuiltins = []string{
 // enough arguments for select system call", both taken.
 var namedUnaryBuiltins = []string{"chomp", "chop", "defined", "delete", "do", "eval", "exists", "goto"}
 
-// TestCoreUnaryBuiltins: CORE.pmt declares each builtin with no
+// TestCoreUnaryBuiltins: CORE.tpm declares each builtin with no
 // prototype, and `:unary` marks exactly the named unaries among
 // everything it declares (RFC 0001, "Builtins with no prototype").
 func TestCoreUnaryBuiltins(t *testing.T) {
@@ -65,7 +65,7 @@ func TestCoreUnaryBuiltins(t *testing.T) {
 			t.Errorf("%s: perl reports (%s); measured none", name, proto)
 		}
 		if len(core[name]) == 0 {
-			t.Errorf("%s: CORE.pmt does not declare it", name)
+			t.Errorf("%s: CORE.tpm does not declare it", name)
 		}
 	}
 	var unary []string
@@ -102,7 +102,7 @@ func TestCoreUnaryDerivesNoPrototype(t *testing.T) {
 // TestCoreListopDerivesNoPrototype: a `:listop` line's types derive no
 // prototype, as perl reports none for split: its `(Regex|Str $pattern =
 // ' ', Str $string = $_, Int $limit = 0)` would otherwise give `;$_$`. So it
-// stays out of the prototype table, the CORE.pmt check finds nothing of
+// stays out of the prototype table, the CORE.tpm check finds nothing of
 // it to hold to perl's, and a `:prototype` stated beside it is an error.
 // A multi's candidates are held to it as a single line is.
 func TestCoreListopDerivesNoPrototype(t *testing.T) {
@@ -119,7 +119,7 @@ func TestCoreListopDerivesNoPrototype(t *testing.T) {
 			t.Errorf("%s: split derives (%s); want none", src, proto)
 		}
 		if checked, bad := corePrototypeDisagreements([]byte(src), perlPrototypes(t)); checked != 0 || bad != nil {
-			t.Errorf("%s: the CORE.pmt check held %d lines to perl, reporting %q; want none", src, checked, bad)
+			t.Errorf("%s: the CORE.tpm check held %d lines to perl, reporting %q; want none", src, checked, bad)
 		}
 	}
 	_, err := parse.DerivedPrototypes([]byte("package CORE;\nsub split :prototype(@) :listop (Regex|Str $pattern = ' ', Str $string = $_, Int $limit = 0) List;\n"))
@@ -163,10 +163,10 @@ func TestCoreSelectAndEachAreMultis(t *testing.T) {
 		},
 	} {
 		if got := rowsOf(core[name]); fmt.Sprint(got) != fmt.Sprint(want) {
-			t.Errorf("%s: CORE.pmt has %v; want %v", name, got, want)
+			t.Errorf("%s: CORE.tpm has %v; want %v", name, got, want)
 		}
 	}
-	src, err := os.ReadFile("declarations/CORE.pmt")
+	src, err := os.ReadFile("declarations/CORE.tpm")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -235,7 +235,7 @@ func TestCoreUnaryAndListOperatorParseDiffer(t *testing.T) {
 	}
 }
 
-// TestCoreNoPrototypeBuiltinsMatchMeasuredSignatures: CORE.pmt carries the
+// TestCoreNoPrototypeBuiltinsMatchMeasuredSignatures: CORE.tpm carries the
 // measured types internal/types/signatures.go gives the builtins with no
 // prototype, and each, each row copied here so the check outlives that
 // file. each's and split's rows are the union of their candidates',
@@ -262,7 +262,7 @@ func TestCoreNoPrototypeBuiltinsMatchMeasuredSignatures(t *testing.T) {
 	for _, name := range slices.Sorted(maps.Keys(golden)) {
 		sigs := core[name]
 		if len(sigs) == 0 {
-			t.Errorf("%s: CORE.pmt does not declare it", name)
+			t.Errorf("%s: CORE.tpm does not declare it", name)
 			continue
 		}
 		got := rowOf(sigs[0])
@@ -277,14 +277,14 @@ func TestCoreNoPrototypeBuiltinsMatchMeasuredSignatures(t *testing.T) {
 			got.Returns |= row.Returns
 		}
 		if want := golden[name]; fmt.Sprint(got) != fmt.Sprint(want) {
-			t.Errorf("%s: CORE.pmt has %v; measured %v", name, got, want)
+			t.Errorf("%s: CORE.tpm has %v; measured %v", name, got, want)
 		}
 	}
 }
 
 // TestCoreSplitDeclared: split has no prototype and is a list operator,
 // `split $a, $b` being `split(/$a/, $b, 0)` (B::Deparse -p), yet its
-// parameters are typed and positional, so CORE.pmt declares it `:listop`
+// parameters are typed and positional, so CORE.tpm declares it `:listop`
 // (RFC 0001, "Builtins with no prototype") and its types derive no
 // prototype. Measured on 5.42: the pattern is a compiled Regex or a Str
 // perl compiles, and with none it is ' ', splitting `$_` on whitespace
@@ -298,7 +298,7 @@ func TestCoreSplitDeclared(t *testing.T) {
 	want := []measuredRow{{0, params, types.Int}, {0, params, types.List}}
 	sigs := parse.CoreSignatures()["split"]
 	if got := rowsOf(sigs); fmt.Sprint(got) != fmt.Sprint(want) {
-		t.Errorf("split: CORE.pmt has %v; measured %v", got, want)
+		t.Errorf("split: CORE.tpm has %v; measured %v", got, want)
 	}
 	for i, s := range sigs {
 		if !s.ListOp {

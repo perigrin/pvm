@@ -37,9 +37,9 @@ func TestBuiltinArityPerlRefusesIsRefused(t *testing.T) {
 // refused. Measured on 5.42.0 with `perl -c`, each of these compiles: the
 // issue's `chomp()`, `localtime()`, `select()`, `push(@a)`, `grep { 1 }
 // ()`, `sort(())` and `my @e; sort @e`; `not()` and `CORE::not()`, whose
-// own parse takes no operand though CORE.pmt's `(Scalar $x)` requires one;
+// own parse takes no operand though CORE.tpm's `(Scalar $x)` requires one;
 // and one call to each builtin whose own parse is looser than its
-// declaration, found by calling every CORE.pmt builtin with none to six
+// declaration, found by calling every CORE.tpm builtin with none to six
 // arguments, plain and as `CORE::NAME`, and keeping what perl compiles.
 // `CORE::dump($x)` compiles, its operand a label. Without its feature, `fc`,
 // `evalbytes`, `any`, `all`, `catch`, `method`, `isa`, `break`,
@@ -136,7 +136,7 @@ func TestArityRefusalDieDefaultIsRequired(t *testing.T) {
 
 // TestArityRefusalLeavesUnprototypedCallsAlone: a library sub with no
 // prototype is a list operator to perl whatever a declaration says of it,
-// so a call its `.pmt` candidates do not accept keeps its parse, and `psc
+// so a call its `.tpm` candidates do not accept keeps its parse, and `psc
 // check` reports it ("Call sites"). Measured on 5.42.0 with a module M
 // exporting `sub f { }`, `use M; f(1, 2, 3)` compiles.
 func TestArityRefusalLeavesUnprototypedCallsAlone(t *testing.T) {
@@ -151,7 +151,7 @@ func TestArityRefusalLeavesUnprototypedCallsAlone(t *testing.T) {
 		{".pm", fstest.MapFS{}, func(name string) ([]byte, bool) {
 			return []byte("package M;\nour @EXPORT = qw(f);\nsub f { }\n1;\n"), name == "M"
 		}},
-		{".pmt", fstest.MapFS{"declarations/M.pmt": {Data: []byte(
+		{".tpm", fstest.MapFS{"declarations/M.tpm": {Data: []byte(
 			"package M;\nour @EXPORT = qw(f);\nmulti sub f (Int $x) Int;\nmulti sub f (Int $x, Int $y) Int;\n")}}, none},
 	} {
 		declarations = layeredFS{top: tc.decl, base: saved}
@@ -188,7 +188,7 @@ func TestPrototypeArityPerlRefusesIsRefused(t *testing.T) {
 }
 
 // TestPrototypeArityFromModuleSource: a prototype read from a module's
-// source, or derived from a `.pmt` signature, refuses as one written in
+// source, or derived from a `.tpm` signature, refuses as one written in
 // the file does. Measured on 5.42.0 with a module M exporting `sub two
 // ($$) { }`, `use M; two(1)` dies "Not enough arguments for M::two".
 func TestPrototypeArityFromModuleSource(t *testing.T) {
@@ -203,7 +203,7 @@ func TestPrototypeArityFromModuleSource(t *testing.T) {
 		{".pm", fstest.MapFS{}, func(name string) ([]byte, bool) {
 			return []byte("package M;\nour @EXPORT = qw(two);\nsub two ($$) { }\n1;\n"), name == "M"
 		}},
-		{".pmt", fstest.MapFS{"declarations/M.pmt": {Data: []byte(
+		{".tpm", fstest.MapFS{"declarations/M.tpm": {Data: []byte(
 			"package M;\nour @EXPORT = qw(two);\nsub two (Int $x, Int $y) Int;\n")}}, none},
 	} {
 		declarations = layeredFS{top: tc.decl, base: saved}

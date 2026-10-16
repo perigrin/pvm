@@ -1,5 +1,5 @@
 // ABOUTME: Tests for multi-candidate selection: arity, argument types, the most specific candidate.
-// ABOUTME: Candidates are built in Go, as a .pmt's `multi sub` lines would declare them.
+// ABOUTME: Candidates are built in Go, as a .tpm's `multi sub` lines would declare them.
 package types
 
 import (
@@ -30,7 +30,7 @@ var selectCandidates = []Signature{
 }
 
 // eachCandidates are RFC 0001's `each`, `(Hash \%h) List` and `(Array \@a)
-// List`. How a `.pmt` records a backslashed parameter is the backslash
+// List`. How a `.tpm` records a backslashed parameter is the backslash
 // parse's; each takes exactly one argument, so here it is a scalar
 // parameter of the container's type.
 var eachCandidates = []Signature{
@@ -190,7 +190,7 @@ func TestSelectJoinsWhenUndecided(t *testing.T) {
 	}
 
 	// Nor can it decide between candidates with no most specific one,
-	// which a .pmt refuses (Ambiguity) and Go may still build.
+	// which a .tpm refuses (Ambiguity) and Go may still build.
 	crossed := []Signature{
 		sig(Str, scalar("a", Int), scalar("b", Num)),
 		sig(ArrayRef, scalar("a", Num), scalar("b", Int)),
@@ -378,7 +378,7 @@ func TestSelectRepeatBareArrayIsStr(t *testing.T) {
 	wantShapedIn(t, repeatCandidates, ListCtx, []Type{Unknown, Int}, "$$", 1, Str)
 }
 
-// rangeCandidates are CORE.pmt's `..`, a range in list context and a
+// rangeCandidates are CORE.tpm's `..`, a range in list context and a
 // flip-flop in scalar context:
 //
 //	multi sub .. :infix :tighter(=) :assoc(nonassoc) (Str $x, Str $y) List;

@@ -1,4 +1,4 @@
-// ABOUTME: Tests for the invocant colon in .pmt signatures, `sub exec (Str $program: List[Str] @args) Boolean;`.
+// ABOUTME: Tests for the invocant colon in .tpm signatures, `sub exec (Str $program: List[Str] @args) Boolean;`.
 // ABOUTME: The leading slot perl takes with no comma after it: print's filehandle, exec's program.
 package parse
 
@@ -9,11 +9,11 @@ import (
 	"tamarou.com/pvm/internal/types"
 )
 
-// TestPmtInvocantColonParses: RFC 0001 "Builtins that keep their own
+// TestTpmInvocantColonParses: RFC 0001 "Builtins that keep their own
 // parse". A leading slot taken with no comma after it is written with
 // Raku's invocant colon, and is recorded as the signature's invocant,
 // apart from its positional parameters. The slot may have a default.
-func TestPmtInvocantColonParses(t *testing.T) {
+func TestTpmInvocantColonParses(t *testing.T) {
 	facts := readDeclaration([]byte("sub exec (Str $program: List[Str] @args) Boolean;\n"+
 		"sub print (FileHandle $fh = select(): List[Str] @args = ($_)) Boolean;\n"), nil)
 	if len(facts.errs) > 0 {
@@ -58,14 +58,14 @@ func TestInvocantColonDerivesNoPrototype(t *testing.T) {
 	}
 }
 
-// TestPmtInvocantColonMisplacedRefused: the colon marks only a leading
+// TestTpmInvocantColonMisplacedRefused: the colon marks only a leading
 // slot, so it follows the first parameter and nothing else -- not a later
 // one, not a second time, and not an empty slot. The slot holds one item,
 // so a List before the colon, by its sigil or its type, is refused too.
 // List less Void, `Array|Hash|Scalar`, is the type a `+` slot takes, and
 // is refused as List is.
-func TestPmtInvocantColonMisplacedRefused(t *testing.T) {
-	pmtRefuses(t, map[string]string{
+func TestTpmInvocantColonMisplacedRefused(t *testing.T) {
+	tpmRefuses(t, map[string]string{
 		"sub f (Str $a, Str $b: List @l);\n":       "sub f: invocant colon after $b; only the first parameter is an invocant",
 		"sub f (Str $a: Str $b: List @l);\n":       "sub f: invocant colon after $b; only the first parameter is an invocant",
 		"sub f (: List @l);\n":                     "sub f: invocant colon with no parameter before it",
@@ -79,12 +79,12 @@ func TestPmtInvocantColonMisplacedRefused(t *testing.T) {
 // TestInvocantColonWithPrototypeIsError: an invocant colon derives no
 // prototype, so any `:prototype(...)` beside one disagrees with its types.
 func TestInvocantColonWithPrototypeIsError(t *testing.T) {
-	pmtRefuses(t, map[string]string{
+	tpmRefuses(t, map[string]string{
 		"sub f :prototype($@) (Str $p: List @a);\n": "sub f: :prototype($@) disagrees with its types: an invocant colon derives no prototype",
 	})
 }
 
-// TestCoreDeclaresInvocantBuiltins: CORE.pmt types the builtins whose
+// TestCoreDeclaresInvocantBuiltins: CORE.tpm types the builtins whose
 // leading slot takes no comma, each with an invocant. None of them has a
 // prototype, so none is in coreTable, which holds only builtins that do:
 // aliasTarget reads presence there as a known prototype.
@@ -96,7 +96,7 @@ func TestCoreDeclaresInvocantBuiltins(t *testing.T) {
 	sigs := coreSignatures()
 	for _, name := range []string{"print", "printf", "say", "exec", "system"} {
 		if got := sigs[name]; len(got) != 1 || got[0].Invocant == nil {
-			t.Errorf("%s: CORE.pmt declares %+v, want one signature with an invocant", name, got)
+			t.Errorf("%s: CORE.tpm declares %+v, want one signature with an invocant", name, got)
 		}
 		if proto, ok := coreTable()[name]; ok {
 			t.Errorf("%s: in coreTable with prototype (%s)", name, proto)
@@ -109,8 +109,8 @@ func TestCoreDeclaresInvocantBuiltins(t *testing.T) {
 	}
 }
 
-// TestCoreInvocantBuiltinsMatchMeasuredSignatures: CORE.pmt's print and say
-// carry the signatures measured for them before CORE.pmt typed them: no
+// TestCoreInvocantBuiltinsMatchMeasuredSignatures: CORE.tpm's print and say
+// carry the signatures measured for them before CORE.tpm typed them: no
 // argument required, each taken as a Str, and a Boolean returned. The rows
 // are golden values, copied here, so the declarations answer to them alone.
 // The handle is the invocant, not an argument.
@@ -126,7 +126,7 @@ func TestCoreInvocantBuiltinsMatchMeasuredSignatures(t *testing.T) {
 	for _, name := range []string{"print", "say"} {
 		sigs := coreSignatures()[name]
 		if len(sigs) != 1 {
-			t.Errorf("%s: CORE.pmt declares %+v, want one signature", name, sigs)
+			t.Errorf("%s: CORE.tpm declares %+v, want one signature", name, sigs)
 			continue
 		}
 		got := row{returns: sigs[0].Returns}
@@ -141,7 +141,7 @@ func TestCoreInvocantBuiltinsMatchMeasuredSignatures(t *testing.T) {
 			got.args = append(got.args, arg)
 		}
 		if !reflect.DeepEqual(got, measured) {
-			t.Errorf("%s: CORE.pmt declares %d required, %v -> %v; measured %d required, %v -> %v",
+			t.Errorf("%s: CORE.tpm declares %d required, %v -> %v; measured %d required, %v -> %v",
 				name, got.minArity, got.args, got.returns, measured.minArity, measured.args, measured.returns)
 		}
 	}
@@ -154,7 +154,7 @@ func TestCorePrintFamilyReturnsUndefOnFailure(t *testing.T) {
 	for _, name := range []string{"print", "printf", "say"} {
 		sigs := coreSignatures()[name]
 		if len(sigs) != 1 || sigs[0].Returns != types.Boolean|types.Undef {
-			t.Errorf("%s: CORE.pmt declares %+v; want one signature returning Boolean|Undef", name, sigs)
+			t.Errorf("%s: CORE.tpm declares %+v; want one signature returning Boolean|Undef", name, sigs)
 		}
 	}
 }
@@ -162,13 +162,13 @@ func TestCorePrintFamilyReturnsUndefOnFailure(t *testing.T) {
 // TestCoreExecSlotIsOptional: perigrin, 2026-10-07 -- exec's and system's
 // program slot is optional, defaulting to the list's first element:
 // measured on 5.42, `exec "ls"` and `system "true"` compile with the
-// program taken from the list. CORE.pmt writes that default as `$args[0]`,
+// program taken from the list. CORE.tpm writes that default as `$args[0]`,
 // a default naming a parameter declared after it.
 func TestCoreExecSlotIsOptional(t *testing.T) {
 	for _, name := range []string{"exec", "system"} {
 		sigs := coreSignatures()[name]
 		if len(sigs) != 1 || sigs[0].Invocant == nil {
-			t.Errorf("%s: CORE.pmt declares %+v; want one signature with an invocant", name, sigs)
+			t.Errorf("%s: CORE.tpm declares %+v; want one signature with an invocant", name, sigs)
 			continue
 		}
 		if inv := sigs[0].Invocant; inv.Required || inv.Default != "$args[0]" {

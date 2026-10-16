@@ -1,5 +1,5 @@
-// ABOUTME: Runs CORE.pmt tests each alone, in a fresh process, as git zhi verify does.
-// ABOUTME: A CORE.pmt read must derive the parser's binding powers itself, not inherit them.
+// ABOUTME: Runs CORE.tpm tests each alone, in a fresh process, as git zhi verify does.
+// ABOUTME: A CORE.tpm read must derive the parser's binding powers itself, not inherit them.
 package parse_test
 
 import (
@@ -8,10 +8,10 @@ import (
 	"testing"
 )
 
-// TestCoreReadsAloneDeriveTheirPowers: a test that reads CORE.pmt must pass
+// TestCoreReadsAloneDeriveTheirPowers: a test that reads CORE.tpm must pass
 // when it is the only test the process runs. The binding powers are derived
-// from CORE.pmt once per process (RFC 0001, "Precedence is a relation
-// between operators"), and a CORE.pmt read that left the deriving to some
+// from CORE.tpm once per process (RFC 0001, "Precedence is a relation
+// between operators"), and a CORE.tpm read that left the deriving to some
 // earlier parse misreads defaults such as chdir's `$dir = $_` when nothing
 // parsed before it.
 func TestCoreReadsAloneDeriveTheirPowers(t *testing.T) {

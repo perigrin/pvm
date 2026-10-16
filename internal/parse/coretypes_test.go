@@ -1,4 +1,4 @@
-// ABOUTME: Tests that CORE.pmt's typed lines derive perl's own prototypes.
+// ABOUTME: Tests that CORE.tpm's typed lines derive perl's own prototypes.
 // ABOUTME: Each line's prototype, derived from its types where it has them, is asked of perl 5.42.
 package parse_test
 
@@ -17,7 +17,7 @@ import (
 	"tamarou.com/pvm/internal/types"
 )
 
-// corePrototypeDisagreements holds the prototype each line of a CORE.pmt
+// corePrototypeDisagreements holds the prototype each line of a CORE.tpm
 // gives -- derived from its types where the line is typed, as written where
 // it is not -- to perl's, and reports each line that disagrees, naming its
 // builtin. A file in error derives nothing, so its errors are the report.
@@ -35,21 +35,21 @@ func corePrototypeDisagreements(src []byte, perl map[string]string) (checked int
 		switch {
 		case !ok && derived[name] == "@":
 		case !ok:
-			bad = append(bad, fmt.Sprintf("%s: CORE.pmt gives (%s); perl reports no prototype", name, derived[name]))
+			bad = append(bad, fmt.Sprintf("%s: CORE.tpm gives (%s); perl reports no prototype", name, derived[name]))
 		case derived[name] != want:
-			bad = append(bad, fmt.Sprintf("%s: CORE.pmt gives (%s); perl says (%s)", name, derived[name], want))
+			bad = append(bad, fmt.Sprintf("%s: CORE.tpm gives (%s); perl says (%s)", name, derived[name], want))
 		}
 	}
 	return checked, bad
 }
 
-// TestCoreDerivedPrototypesArePerls: every CORE.pmt line's prototype,
+// TestCoreDerivedPrototypesArePerls: every CORE.tpm line's prototype,
 // derived from its types where the line is typed, is the one
 // `prototype("CORE::name")` reports on perl 5.42.0 (RFC 0001, "A typed
 // signature and a prototype say the same thing").
 func TestCoreDerivedPrototypesArePerls(t *testing.T) {
 	perl := perlPrototypes(t)
-	src, err := os.ReadFile("declarations/CORE.pmt")
+	src, err := os.ReadFile("declarations/CORE.tpm")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +62,7 @@ func TestCoreDerivedPrototypesArePerls(t *testing.T) {
 	// derive none, by `:unary`, `:listop`, an invocant colon or a multi's
 	// candidates.
 	if checked != 189 {
-		t.Errorf("checked %d CORE.pmt lines; perl prototypes 188 builtins, and return derives @", checked)
+		t.Errorf("checked %d CORE.tpm lines; perl prototypes 188 builtins, and return derives @", checked)
 	}
 }
 
@@ -75,7 +75,7 @@ func TestCoreDerivedPrototypeCheckCatchesMismatch(t *testing.T) {
 	perl := perlPrototypes(t)
 	for line, want := range map[string]string{
 		`sub push (List @a, List @l) Int;`:         "sub push: List parameter @a is not last; a single array followed by more parameters is Array \\@a",
-		`sub push (Array \@array, Scalar $x) Int;`: `push: CORE.pmt gives (\@$); perl says (\@@)`,
+		`sub push (Array \@array, Scalar $x) Int;`: `push: CORE.tpm gives (\@$); perl says (\@@)`,
 	} {
 		_, bad := corePrototypeDisagreements([]byte("package CORE;\n"+line+"\n"), perl)
 		if len(bad) != 1 || bad[0] != want {
@@ -84,7 +84,7 @@ func TestCoreDerivedPrototypeCheckCatchesMismatch(t *testing.T) {
 	}
 }
 
-// TestCoreTypedLineDisagreeingWithItsPrototype: a typed CORE.pmt line whose
+// TestCoreTypedLineDisagreeingWithItsPrototype: a typed CORE.tpm line whose
 // types derive another prototype than the `:prototype(...)` it carries is a
 // declaration error. Neither side wins: the file builds no table at all.
 func TestCoreTypedLineDisagreeingWithItsPrototype(t *testing.T) {
@@ -126,7 +126,7 @@ func rowOf(sig types.Signature) measuredRow {
 	return row
 }
 
-// TestCoreTypesMatchMeasuredSignatures: CORE.pmt carries the measured
+// TestCoreTypesMatchMeasuredSignatures: CORE.tpm carries the measured
 // types of the 25 prototyped builtins internal/types/signatures.go types,
 // each row copied here so the check outlives that file. Where a row
 // disagreed with perl 5.42 it is perl's here, and says what was measured.
@@ -190,18 +190,18 @@ func TestCoreTypesMatchMeasuredSignatures(t *testing.T) {
 			}
 			sig = sigs[sel.Candidate]
 		default:
-			t.Errorf("%s: CORE.pmt declares no signature", name)
+			t.Errorf("%s: CORE.tpm declares no signature", name)
 			continue
 		}
 		if got, want := rowOf(sig), golden[name]; fmt.Sprint(got) != fmt.Sprint(want) {
-			t.Errorf("%s: CORE.pmt has %v; measured %v", name, got, want)
+			t.Errorf("%s: CORE.tpm has %v; measured %v", name, got, want)
 		}
 	}
 }
 
 // perlFunctionKinds asks perl 5.42's Pod::Functions for the builtins
 // perlfunc files under each kind ("Perl Functions by Category" in perlfunc),
-// keeping those perl prototypes: a batch of CORE.pmt's prototyped lines.
+// keeping those perl prototypes: a batch of CORE.tpm's prototyped lines.
 func perlFunctionKinds(t *testing.T, kinds ...string) []string {
 	t.Helper()
 	protos := perlPrototypes(t)
@@ -224,7 +224,7 @@ func perlFunctionKinds(t *testing.T, kinds ...string) []string {
 	return names
 }
 
-// untypedLines reports each of names that a CORE.pmt declares with no
+// untypedLines reports each of names that a CORE.tpm declares with no
 // types, a prototype-only line. Such a line has the signature its prototype
 // gives, but no prototype states a return type, which a typed line does.
 func untypedLines(src []byte, names []string) []string {
@@ -243,7 +243,7 @@ func untypedLines(src []byte, names []string) []string {
 
 // stringNumericRegexBuiltins is perlfunc's "Functions for SCALARs or
 // strings", "Regular expressions and pattern matching" and "Numeric
-// functions" among CORE.pmt's prototyped lines, without pos: its glob slot
+// functions" among CORE.tpm's prototyped lines, without pos: its glob slot
 // has no spelling yet (RFC 0001, open question 11), so its line stays
 // prototype-only.
 func stringNumericRegexBuiltins(t *testing.T) []string {
@@ -258,28 +258,28 @@ func stringNumericRegexBuiltins(t *testing.T) []string {
 }
 
 // TestCoreStringNumericRegexBuiltinsTyped: every string, regex and numeric
-// builtin has a typed CORE.pmt line.
+// builtin has a typed CORE.tpm line.
 func TestCoreStringNumericRegexBuiltinsTyped(t *testing.T) {
-	src, err := os.ReadFile("declarations/CORE.pmt")
+	src, err := os.ReadFile("declarations/CORE.tpm")
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, name := range untypedLines(src, stringNumericRegexBuiltins(t)) {
-		t.Errorf("%s: CORE.pmt declares it untyped", name)
+		t.Errorf("%s: CORE.tpm declares it untyped", name)
 	}
 }
 
 // TestCoreBatchCheckCatchesUntypedLine: the batch check is not
-// tautological. Over a copy of CORE.pmt whose crypt line is prototype-only
+// tautological. Over a copy of CORE.tpm whose crypt line is prototype-only
 // again, it reports crypt, and nothing else.
 func TestCoreBatchCheckCatchesUntypedLine(t *testing.T) {
-	src, err := os.ReadFile("declarations/CORE.pmt")
+	src, err := os.ReadFile("declarations/CORE.tpm")
 	if err != nil {
 		t.Fatal(err)
 	}
 	crypt := regexp.MustCompile(`(?m)^sub crypt .*;$`)
 	if len(crypt.FindAll(src, -1)) != 1 {
-		t.Fatal("CORE.pmt has no one crypt line to untype")
+		t.Fatal("CORE.tpm has no one crypt line to untype")
 	}
 	untyped := crypt.ReplaceAll(src, []byte(`sub crypt :prototype($$);`))
 	if bad := untypedLines(untyped, stringNumericRegexBuiltins(t)); !slices.Equal(bad, []string{"crypt"}) {
@@ -292,12 +292,12 @@ func TestCoreBatchCheckCatchesUntypedLine(t *testing.T) {
 // parse is what it was before: without the feature perl reads `fc $a` as the
 // method call `$a->fc`, which this parser leaves as it was (featuregated_test.go).
 func TestCoreFeatureGatedBuiltinTypedParseUnchanged(t *testing.T) {
-	src, err := os.ReadFile("declarations/CORE.pmt")
+	src, err := os.ReadFile("declarations/CORE.tpm")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if bad := untypedLines(src, []string{"fc"}); len(bad) != 0 {
-		t.Errorf("CORE.pmt declares fc untyped")
+		t.Errorf("CORE.tpm declares fc untyped")
 	}
 	for src, canon := range map[string]string{
 		`my $z = fc $a, $b;`:                   `my $z = fc $a, $b;`,

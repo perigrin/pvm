@@ -1,4 +1,4 @@
-// ABOUTME: Derives a .pmt declaration's typed signature from its prototype, and its prototype from its types.
+// ABOUTME: Derives a .tpm declaration's typed signature from its prototype, and its prototype from its types.
 // ABOUTME: RFC 0001's table, "A typed signature and a prototype say the same thing", read both ways.
 package parse
 

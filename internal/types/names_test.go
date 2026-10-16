@@ -1,5 +1,5 @@
 // ABOUTME: Tests for the lattice's IO and FileHandle types and the lookup from a type name.
-// ABOUTME: A .pmt declaration names types by string; this is the table it resolves against.
+// ABOUTME: A .tpm declaration names types by string; this is the table it resolves against.
 package types
 
 import (
@@ -31,7 +31,7 @@ func TestIOLeafAndFileHandleUnion(t *testing.T) {
 }
 
 // TestBooleanIsThePapersName: RFC 0001 "Type names" -- names follow the
-// paper, which says Boolean, so a .pmt writes Boolean and the lattice
+// paper, which says Boolean, so a .tpm writes Boolean and the lattice
 // prints it.
 func TestBooleanIsThePapersName(t *testing.T) {
 	if got := Boolean.String(); got != "Boolean" {
@@ -39,7 +39,7 @@ func TestBooleanIsThePapersName(t *testing.T) {
 	}
 }
 
-// TestTypeFromName: a .pmt names types by string (RFC 0001 "Type names"),
+// TestTypeFromName: a .tpm names types by string (RFC 0001 "Type names"),
 // so every named type resolves, and a union is spelled A|B.
 func TestTypeFromName(t *testing.T) {
 	for typ, name := range typeNames {
@@ -113,7 +113,7 @@ func TestFileHandleExcludesStrAndObject(t *testing.T) {
 }
 
 // TestTypeFromNameSpacedUnionAndNone: RFC 0001 "Type names" allows spaces
-// around `|`, and lets a .pmt write None, the bottom type.
+// around `|`, and lets a .tpm write None, the bottom type.
 func TestTypeFromNameSpacedUnionAndNone(t *testing.T) {
 	for name, want := range map[string]Type{"Str | Undef": Str | Undef, "None": None} {
 		if got, err := FromName(name); err != nil || got != want {

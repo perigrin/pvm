@@ -155,7 +155,7 @@ func TestCheckCommandWithTypeMismatchNoHint(t *testing.T) {
 func TestCheckStrictReportsUnknown(t *testing.T) {
 	dir := t.TempDir()
 	file := filepath.Join(dir, "strict.pl")
-	// frobnicate is declared nowhere, neither in CORE.pmt nor in the file,
+	// frobnicate is declared nowhere, neither in CORE.tpm nor in the file,
 	// so its result is Unknown. Passing it straight into print's Str
 	// argument keeps it un-inferred at the point of the check — assigning it
 	// to a declared variable first would give that variable a type from

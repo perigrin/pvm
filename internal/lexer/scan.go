@@ -1052,7 +1052,7 @@ var positionalOps = []string{"~~", "x="}
 
 // scanOperatorName lexes the symbol a typed-Perl operator declaration is
 // named by, `sub + :infix(ADD) (Num $x, Num $y) Num;` (RFC 0001, "Operator
-// declarations"), as the Word a sub's name is. Only in a `.pmt`: in perl,
+// declarations"), as the Word a sub's name is. Only in a `.tpm`: in perl,
 // measured on 5.42.0, `sub + { 1 }` is "Illegal declaration of anonymous
 // subroutine". A bracket after `sub` still opens a signature or a body,
 // and a colon an attribute. A comma is the comma operator's name: perl has
@@ -1090,7 +1090,7 @@ func scanOperatorName(l *lexer) bool {
 // symbolRune is the length of the non-ASCII symbol or punctuation
 // character at the cursor, and 0 where there is none. perl has no such
 // operator, but an operator plugin (XS::Parse::Infix) may register one, as
-// Syntax::Operator::Elem registers `∈`, so a library's `.pmt` may declare
+// Syntax::Operator::Elem registers `∈`, so a library's `.tpm` may declare
 // one and a file that uses the library may spell it.
 func (l *lexer) symbolRune() int {
 	r, size := utf8.DecodeRune(l.src[l.pos:])

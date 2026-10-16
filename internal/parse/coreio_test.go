@@ -1,4 +1,4 @@
-// ABOUTME: Tests that CORE.pmt types its I/O, fixed-length data, file and directory builtins.
+// ABOUTME: Tests that CORE.tpm types its I/O, fixed-length data, file and directory builtins.
 // ABOUTME: The batch is asked of perl 5.42's Pod::Functions, never kept by hand.
 package parse_test
 
@@ -15,7 +15,7 @@ import (
 
 // ioFileBuiltins is perlfunc's "Input and output functions", "Functions for
 // fixed-length data or records" and "Functions for filehandles, files, or
-// directories" among CORE.pmt's prototyped lines, without the names the
+// directories" among CORE.tpm's prototyped lines, without the names the
 // string, numeric, regex, array, list and hash batches hold: pack is a
 // string builtin and unpack a list one.
 func ioFileBuiltins(t *testing.T) []string {
@@ -31,18 +31,18 @@ func ioFileBuiltins(t *testing.T) []string {
 }
 
 // TestCoreIOFileBuiltinsTyped: every I/O, fixed-length data, file and
-// directory builtin has a typed CORE.pmt line.
+// directory builtin has a typed CORE.tpm line.
 func TestCoreIOFileBuiltinsTyped(t *testing.T) {
-	src, err := os.ReadFile("declarations/CORE.pmt")
+	src, err := os.ReadFile("declarations/CORE.tpm")
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, name := range untypedLines(src, ioFileBuiltins(t)) {
-		t.Errorf("%s: CORE.pmt declares it untyped", name)
+		t.Errorf("%s: CORE.tpm declares it untyped", name)
 	}
 }
 
-// slotFaults holds each of names' typed CORE.pmt candidates to perl's
+// slotFaults holds each of names' typed CORE.tpm candidates to perl's
 // prototype, slot by slot, and reports what fault says of each slot. A
 // prototype-only line is reported too, since it has the coarse signature
 // its prototype gives rather than types of its own.
@@ -95,7 +95,7 @@ func starFault(slot string, _ bool, p types.Param) string {
 // TestCoreStarSlotDerivesStar: every `*` slot of the batch is a `*` taking
 // a Glob, so its derived prototype keeps the `*`.
 func TestCoreStarSlotDerivesStar(t *testing.T) {
-	src, err := os.ReadFile("declarations/CORE.pmt")
+	src, err := os.ReadFile("declarations/CORE.tpm")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +117,7 @@ func optionalFault(_ string, optional bool, p types.Param) string {
 // TestCoreOptionalHandleKeepsSemicolon: every parameter the batch's
 // prototypes make optional is typed optional, so its `;` is derived.
 func TestCoreOptionalHandleKeepsSemicolon(t *testing.T) {
-	src, err := os.ReadFile("declarations/CORE.pmt")
+	src, err := os.ReadFile("declarations/CORE.tpm")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +131,7 @@ func TestCoreOptionalHandleKeepsSemicolon(t *testing.T) {
 // reported as a star slot that is not one; a getc whose handle defaults to
 // `die` is required, deriving `*`, and is reported as losing its `;`.
 func TestCoreSlotChecksCatchMistypedLines(t *testing.T) {
-	src, err := os.ReadFile("declarations/CORE.pmt")
+	src, err := os.ReadFile("declarations/CORE.tpm")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,7 +146,7 @@ func TestCoreSlotChecksCatchMistypedLines(t *testing.T) {
 	} {
 		line := regexp.MustCompile(`(?m)^sub ` + c.name + ` .*;$`)
 		if len(line.FindAll(src, -1)) != 1 {
-			t.Fatalf("CORE.pmt has no one %s line to mistype", c.name)
+			t.Fatalf("CORE.tpm has no one %s line to mistype", c.name)
 		}
 		mistyped := line.ReplaceAllLiteral(src, []byte(c.line))
 		if bad := slotFaults(mistyped, []string{c.name}, perl, c.fault); !slices.Equal(bad, []string{c.want}) {

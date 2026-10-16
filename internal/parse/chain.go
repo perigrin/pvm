@@ -103,7 +103,7 @@ func (p *parser) parseComparison(left *Node, op OpInfo, cls cmpClass, minBP int)
 	right := p.operand(op.BP, tok)
 
 	// Reject, the other way round: `isa` binds tighter than `<` (perlop,
-	// CORE.pmt), so `$a < $b isa Foo` reads `$b isa Foo` as the right
+	// CORE.tpm), so `$a < $b isa Foo` reads `$b isa Foo` as the right
 	// operand. perly.y has them at one level, and refuses it as it refuses
 	// `$x isa Foo < 1`.
 	if isComparison(right) && sameLevel(comparisonClass(right), cls) {

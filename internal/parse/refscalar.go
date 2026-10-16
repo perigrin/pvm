@@ -102,11 +102,11 @@ func isAggregateArg(n *Node) bool {
 }
 
 // refuseAliasedOperand returns n, the node of the operator op, or an
-// Unknown spanning it when CORE.pmt declares op's first operand an aliased
+// Unknown spanning it when CORE.tpm declares op's first operand an aliased
 // scalar, `\$`, and n's is certainly not a scalar lvalue: a `\$` operand
 // refuses what a `\$` slot does. Measured on 5.42.0, `++1` is "Can't
 // modify constant item in preincrement (++)" and `1 += 2` "Can't modify
-// constant item in addition (+)" as `sref(1)` is refused. CORE.pmt's own
+// constant item in addition (+)" as `sref(1)` is refused. CORE.tpm's own
 // read, which CoreOperator's table comes from, is not checked.
 func (p *parser) refuseAliasedOperand(n *Node, op, fixity string) *Node {
 	if p.buildingCore || len(n.Children) == 0 || !p.notScalarLvalue(n.Children[0]) {

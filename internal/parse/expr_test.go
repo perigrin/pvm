@@ -149,7 +149,7 @@ func TestComparisonAcrossLevels(t *testing.T) {
 
 // TestIsaPrecedenceMatchesPerl: perlop gives `isa` its own nonassoc row,
 // tighter than the relational operators and looser than the named unaries,
-// and CORE.pmt's relations say so. What perl's grammar does with that,
+// and CORE.tpm's relations say so. What perl's grammar does with that,
 // measured on 5.42.0 with `use v5.36; -MO=Deparse,-p`:
 //
 //	$x isa Foo == 1          ((${'x'} isa 'Foo') == 1)

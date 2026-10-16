@@ -130,7 +130,7 @@ func TestDeclaredKeywords(t *testing.T) {
 }
 
 // TestPrototypeAttribute: `:prototype(...)` is the prototype when a sub has a
-// signature, and the form CORE.pmt declares builtins in. A module declaring
+// signature, and the form CORE.tpm declares builtins in. A module declaring
 // `sub one :prototype($) ($x) { $x }` exports a named unary: measured on
 // 5.42.0, `my @r = (one $a, $b);` deparses as `(one($a), $b)`.
 func TestPrototypeAttribute(t *testing.T) {

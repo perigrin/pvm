@@ -1884,7 +1884,7 @@ status. "C" counts are uses in `internal/infer` of the old grammar name.
 | `Assign{ListAssign}` | `binary "="`, `"+="`, ...; `($a,$b) = (1,2)` has a `list` LHS; `@a = (1,2)` an aggregate `term`. ListAssign is set when the LHS is a `list`, carries `Paren`, or names an aggregate: an `@` or `%` `term`, an `@` or `%` deref `unary` (`@$r=`), a slice (`@h{1,2}=`), or a postfix deref or slice (`$r->@*=`, `$r->@[0,1]=`). perl 5.42 compiles each of those to `aassign`, while `$#a=`, `$h{a}=(1,2)` and `$a=(1,2)` stay `sassign` | C: `assignment_expression` (3) | LOWERING; `my (...) =` is under `Decl` |
 | `Ternary` | `ternary "?:"` | C: `conditional_expression` (1) | SHIPPED |
 | `CmpChain` | `cmp_chain "<"` with flat operands | C: none; no chained-comparison rule exists | SHIPPED; the typing rule is unwritten (§4.14.6) |
-| `Range{Exclusive}` | `$a..$b` → `binary ".."`, `$a...$b` → `binary "..."`; `1..2;` → `[binary ".." [term "1"] [term "2"]]`, and `my @r = (1..5)` → `[declaration "my" [term "@r"] [binary ".." paren [term "1"] [term "5"]]]`. **Moved:** at 3c997a6b the lexer's number scan took `1..2` as one `Number` token, so literal endpoints had no `Lo`/`Hi` | C: measured defect — `my @r = (1..5)` infers `@r` as `Str`, because `findOperatorText` matches the anonymous `.` before ever seeing `..` while `..`'s declaration in `CORE.pmt`, `multi sub .. :infix :tighter(=) :assoc(nonassoc) (Str $x, Str $y) List`, has `List`; perl: `$r[0]+1` is 2 | LOWERING for both endpoint kinds. Required, not optional |
+| `Range{Exclusive}` | `$a..$b` → `binary ".."`, `$a...$b` → `binary "..."`; `1..2;` → `[binary ".." [term "1"] [term "2"]]`, and `my @r = (1..5)` → `[declaration "my" [term "@r"] [binary ".." paren [term "1"] [term "5"]]]`. **Moved:** at 3c997a6b the lexer's number scan took `1..2` as one `Number` token, so literal endpoints had no `Lo`/`Hi` | C: measured defect — `my @r = (1..5)` infers `@r` as `Str`, because `findOperatorText` matches the anonymous `.` before ever seeing `..` while `..`'s declaration in `CORE.tpm`, `multi sub .. :infix :tighter(=) :assoc(nonassoc) (Str $x, Str $y) List`, has `List`; perl: `$r[0]+1` is 2 | LOWERING for both endpoint kinds. Required, not optional |
 | `List{Fat}` | `(a => 1, b => 2);` → `[list paren [call "a" fat] [term "1"] [call "b" fat] [term "2"]]`; `[a => 1]` and `{a=>1}` mark their elements the same way. Inside call arguments the fat comma is an operator: `f(a => 1)` → `[call "f" [binary "=>" [call "a"] [term "1"]]]`. **Moved:** at 3c997a6b the list was identical to `(a, 1, b, 2)` | §4.5.4: `=>` quotes the word to its left | SHIPPED, `Fat` included |
 | `Paren` (a bit on every node, §4.14.6) | `($x);` → `[term "$x" paren]`; `my ($x) = f()` → `term "$x" paren` as the `=`'s LHS; `((1,2)[0]) x 3` → `index "[" paren` over a `list paren`. **Moved:** at 3c997a6b `finishList` erased the parens | rule 1 | SHIPPED |
 
@@ -1938,7 +1938,7 @@ sibling's reasons for splitting them (perl has distinct `schomp`/`schop` ops;
 for `u => undef`) are facts a `Call`'s name already carries. All of them
 parse: `delete $h{k};`, `exists $h{k};` and `chomp $x;` are each a
 resolved `call` whose one argument is the element or the variable,
-because `CORE.pmt` marks `delete`, `exists` and `chomp` `:unary`, which
+because `CORE.tpm` marks `delete`, `exists` and `chomp` `:unary`, which
 makes each a named unary (measured on 5.42.0 with `-MO=Deparse,-p`,
 `(delete $h{a}, $b)` is `(delete $h{'a'}, $b)`, the comma outside the
 call).

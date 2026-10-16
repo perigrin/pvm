@@ -1,4 +1,4 @@
-// ABOUTME: Tests that the builtin table parsed from declarations/CORE.pmt is perl's own.
+// ABOUTME: Tests that the builtin table parsed from declarations/CORE.tpm is perl's own.
 // ABOUTME: Every keyword's prototype is asked of perl 5.42, and the file must agree.
 package parse_test
 
@@ -12,7 +12,7 @@ import (
 	"tamarou.com/pvm/internal/parse"
 )
 
-// TestCoreDeclarationsArePerls: CORE.pmt declares each builtin that has a
+// TestCoreDeclarationsArePerls: CORE.tpm declares each builtin that has a
 // prototype, `sub bless :prototype($;$);`, and parsing it builds the default
 // table. For every keyword, the table must hold exactly what
 // `prototype("CORE::name")` reports on perl 5.42.0 -- an entry when perl
@@ -22,12 +22,12 @@ func TestCoreDeclarationsArePerls(t *testing.T) {
 	got := parse.CoreTable()
 	for name, proto := range want {
 		if g, ok := got[name]; !ok || g != proto {
-			t.Errorf("%s: perl says (%s); CORE.pmt has (%s), declared=%v", name, proto, g, ok)
+			t.Errorf("%s: perl says (%s); CORE.tpm has (%s), declared=%v", name, proto, g, ok)
 		}
 	}
 	for name := range got {
 		if _, ok := want[name]; !ok {
-			t.Errorf("%s: declared in CORE.pmt; perl reports no prototype", name)
+			t.Errorf("%s: declared in CORE.tpm; perl reports no prototype", name)
 		}
 	}
 	if len(want) != 188 {

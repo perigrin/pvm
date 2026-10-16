@@ -1,10 +1,10 @@
-// ABOUTME: A sub's typed signature as a .pmt declaration states it: each parameter's type and default.
+// ABOUTME: A sub's typed signature as a .tpm declaration states it: each parameter's type and default.
 // ABOUTME: Read by internal/parse; held here so its consumers need not import the parser.
 
 package types
 
-// Signature is the typed parameter list of a .pmt declaration, RFC 0001
-// "Typed Perl, in `.pmt` only": `sub bless :prototype($;$) (Ref $ref, Str
+// Signature is the typed parameter list of a .tpm declaration, RFC 0001
+// "Typed Perl, in `.tpm` only": `sub bless :prototype($;$) (Ref $ref, Str
 // $class = __PACKAGE__) Object;`.
 type Signature struct {
 	// Invocant is the leading slot a call fills with no comma after it,

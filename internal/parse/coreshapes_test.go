@@ -1,4 +1,4 @@
-// ABOUTME: The parser's keyword shapes, derived from CORE.pmt, held to the sets perl was measured to give.
+// ABOUTME: The parser's keyword shapes, derived from CORE.tpm, held to the sets perl was measured to give.
 // ABOUTME: Named unary, list operator and niladic: a disagreement names the builtin it is about.
 
 package parse
@@ -22,8 +22,8 @@ import (
 //
 // and a niladic builtin by taking nothing at all, so that what follows it is
 // an operator. `-p` matters: without it Deparse omits the parens that carry
-// the answer. These were the parser's hand-kept tables, and CORE.pmt
-// replaces them only because it agrees with them. Where CORE.pmt first
+// the answer. These were the parser's hand-kept tables, and CORE.tpm
+// replaces them only because it agrees with them. Where CORE.tpm first
 // disagreed, perl 5.42.0 was asked again, and the sets say what it answered.
 //
 // A builtin a feature gates (fc, any, isa and the rest of gatedWords) is
@@ -115,23 +115,23 @@ func goldenShapes() map[string]Shape {
 }
 
 // TestCoreDerivedShapes: the named unaries, list operators and niladic
-// builtins CORE.pmt derives are the ones perl was measured to give.
+// builtins CORE.tpm derives are the ones perl was measured to give.
 func TestCoreDerivedShapes(t *testing.T) {
 	for _, d := range shapeDisagreements(plainKeywordShapes(coreShapes()), goldenShapes()) {
 		t.Error(d)
 	}
 }
 
-// TestCoreShapesUnknownNameHasNoShape: a name CORE.pmt does not declare is no
+// TestCoreShapesUnknownNameHasNoShape: a name CORE.tpm does not declare is no
 // keyword, so it parses as an ordinary sub call, never a named unary or a
 // niladic.
 func TestCoreShapesUnknownNameHasNoShape(t *testing.T) {
 	p := &parser{}
 	if s, ok := p.plainKeywordShape("frobnicate"); ok {
-		t.Errorf("frobnicate derives the shape %v; CORE.pmt does not declare it", s)
+		t.Errorf("frobnicate derives the shape %v; CORE.tpm does not declare it", s)
 	}
 	if p.isPerlKeyword("frobnicate") {
-		t.Error("frobnicate is a keyword; CORE.pmt does not declare it")
+		t.Error("frobnicate is a keyword; CORE.tpm does not declare it")
 	}
 	// A sub declared with no prototype takes the whole list, where a named
 	// unary would leave the comma outside and a niladic take nothing:
@@ -153,7 +153,7 @@ func TestCoreShapesUnknownNameHasNoShape(t *testing.T) {
 }
 
 // TestCoreDerivedShapesCatchesMismatch: the comparison is not tautological.
-// A golden set short a name, and a CORE.pmt line with a wrong `:unary`, are
+// A golden set short a name, and a CORE.tpm line with a wrong `:unary`, are
 // each reported as a disagreement naming the builtin.
 func TestCoreDerivedShapesCatchesMismatch(t *testing.T) {
 	derived := plainKeywordShapes(coreShapes())
@@ -169,11 +169,11 @@ func TestCoreDerivedShapesCatchesMismatch(t *testing.T) {
 	// without it, it derives a list operator.
 	wrong := bytes.ReplaceAll(src, []byte("multi sub delete :unary"), []byte("multi sub delete"))
 	if bytes.Equal(wrong, src) {
-		t.Fatal("CORE.pmt has no `multi sub delete :unary` line to unmark")
+		t.Fatal("CORE.tpm has no `multi sub delete :unary` line to unmark")
 	}
 	protos, sigs, err := coreProtos(wrong)
 	if err != nil {
-		t.Fatalf("CORE.pmt with delete unmarked: %v", err)
+		t.Fatalf("CORE.tpm with delete unmarked: %v", err)
 	}
 	got := shapeDisagreements(plainKeywordShapes(deriveShapes(protos, sigs)), goldenShapes())
 	if len(got) != 1 || !strings.Contains(got[0], "delete") {
@@ -192,17 +192,17 @@ func shapeDisagreements(derived, golden map[string]Shape) []string {
 		g, gok := golden[name]
 		switch {
 		case !gok:
-			out = append(out, name+": CORE.pmt derives "+d.String()+", the measured sets give it none")
+			out = append(out, name+": CORE.tpm derives "+d.String()+", the measured sets give it none")
 		case !dok:
-			out = append(out, name+": CORE.pmt derives no keyword shape, perl was measured to give "+g.String())
+			out = append(out, name+": CORE.tpm derives no keyword shape, perl was measured to give "+g.String())
 		case d != g:
-			out = append(out, name+": CORE.pmt derives "+d.String()+", perl was measured to give "+g.String())
+			out = append(out, name+": CORE.tpm derives "+d.String()+", perl was measured to give "+g.String())
 		}
 	}
 	return out
 }
 
-// TestCoreShapesReachTheParser: a call parses in the shape CORE.pmt
+// TestCoreShapesReachTheParser: a call parses in the shape CORE.tpm
 // derives, where the hand-kept tables said otherwise. glob and
 // getprotobynumber are list operators, so a comparison after the argument
 // is inside the call. Measured on perl 5.42.0 with -MO=Deparse,-p:
@@ -221,7 +221,7 @@ func TestCoreShapesReachTheParser(t *testing.T) {
 }
 
 // TestGatedBuiltinsTakeTheirShapeUnderTheirFeature: a builtin a feature
-// gates takes its CORE.pmt shape with the feature on, and is an unknown
+// gates takes its CORE.tpm shape with the feature on, and is an unknown
 // word's call with it off. Measured on perl 5.42.0 with -MO=Deparse,-p:
 //
 //	use feature "keyword_any"; my $r = any { $_ } @a;   CORE::any({$_;} @a)

@@ -1,4 +1,4 @@
-// ABOUTME: Tests for deriving a .pmt declaration's prototype from its types and its types from its prototype.
+// ABOUTME: Tests for deriving a .tpm declaration's prototype from its types and its types from its prototype.
 // ABOUTME: Expected values are RFC 0001's table under "A typed signature and a prototype say the same thing".
 package parse
 
@@ -154,7 +154,7 @@ func TestDeriveEmptyPrototypeIsNotAbsent(t *testing.T) {
 // in error. `(Scalar $x)` gives `$`, which is not `$$`; `(Str $x)` gives
 // `$`, which is `:prototype($)`, since types are finer than prototypes.
 func TestPrototypeTypeDisagreementIsError(t *testing.T) {
-	pmtRefuses(t, map[string]string{
+	tpmRefuses(t, map[string]string{
 		"sub f :prototype($$) (Scalar $x);\n": "sub f: :prototype($$) disagrees with its types, which give ($)",
 	})
 	facts := readDeclaration([]byte("sub f :prototype($) (Str $x);\n"), nil)
@@ -168,7 +168,7 @@ func TestPrototypeTypeDisagreementIsError(t *testing.T) {
 // parameter with no default, and the slot, a Code `&` where the types
 // state a Scalar `$`.
 func TestPrototypeTypeDisagreementKinds(t *testing.T) {
-	pmtRefuses(t, map[string]string{
+	tpmRefuses(t, map[string]string{
 		"sub f :prototype($;$) (Scalar $x, Scalar $y);\n": "sub f: :prototype($;$) disagrees with its types, which give ($$)",
 		"sub f :prototype(&@) (Scalar $f, List @l);\n":    "sub f: :prototype(&@) disagrees with its types, which give ($@)",
 	})
@@ -179,7 +179,7 @@ func TestPrototypeTypeDisagreementKinds(t *testing.T) {
 // signature. perl 5.42.0 only warns, "Illegal character in prototype for
 // main::f : Q", and for `\x` the same.
 func TestDeriveRejectsUnknownPrototypeCharacter(t *testing.T) {
-	pmtRefuses(t, map[string]string{
+	tpmRefuses(t, map[string]string{
 		"sub f :prototype(Q);\n":    `sub f: prototype (Q) has "Q", which is not a prototype character`,
 		"sub f :prototype($\\x);\n": `sub f: prototype ($\x) has "\\x", which is not a prototype character`,
 	})
@@ -190,7 +190,7 @@ func TestDeriveRejectsUnknownPrototypeCharacter(t *testing.T) {
 // optional, and is an error as perl 5.42.0 makes it one: `sub f ($x = 1,
 // $y) {}` dies "Mandatory parameter follows optional parameter".
 func TestDeriveMandatoryAfterOptionalIsError(t *testing.T) {
-	pmtRefuses(t, map[string]string{
+	tpmRefuses(t, map[string]string{
 		"sub f (Str $x = 1, Str $y);\n":      "sub f: mandatory parameter $y follows optional parameter $x",
 		"sub f (Scalar $x = $_, Code &c);\n": "sub f: mandatory parameter &c follows optional parameter $x",
 	})
@@ -201,7 +201,7 @@ func TestDeriveMandatoryAfterOptionalIsError(t *testing.T) {
 // follows can never be filled (perl 5.42.0 warns "Prototype after '@'").
 // It is the final-List error, pointing to `\@` for a single array.
 func TestDerivePrototypeAfterAtIsError(t *testing.T) {
-	pmtRefuses(t, map[string]string{
+	tpmRefuses(t, map[string]string{
 		"sub f :prototype(@$);\n":   `sub f: prototype (@$): List parameter @ is not last; a single array followed by more parameters is Array \@, as in (\@$)`,
 		"sub f :prototype($%;$);\n": `sub f: prototype ($%;$): List parameter % is not last; a single hash followed by more parameters is Hash \%, as in ($\%;$)`,
 	})
@@ -289,7 +289,7 @@ func TestAliasedParamsDerivePrototypes(t *testing.T) {
 }
 
 // TestPushRoundTripsRefArrayAt: RFC 0001's `sub push (Array \@a, List
-// @list) Int;`. In a `.pmt` a sigil is the caller's view, so only the
+// @list) Int;`. In a `.tpm` a sigil is the caller's view, so only the
 // final parameter is slurpy and the array before it is one argument: the
 // declaration derives perl's `\@@` (measured on 5.42.0,
 // `prototype("CORE::push")`), and `:prototype(\@@)` derives the two
@@ -352,7 +352,7 @@ func TestCodeAliasDerivesRefAmp(t *testing.T) {
 // a prototype say the same thing"), so a declaration whose prototype says
 // one and whose types say the other is in error.
 func TestAliasedPrototypeDisagreementIsError(t *testing.T) {
-	pmtRefuses(t, map[string]string{
+	tpmRefuses(t, map[string]string{
 		"sub f :prototype(\\@) (List @l);\n":  `sub f: :prototype(\@) disagrees with its types, which give (@)`,
 		"sub f :prototype(@) (Array \\@a);\n": `sub f: :prototype(@) disagrees with its types, which give (\@)`,
 	})
@@ -409,7 +409,7 @@ func TestDeriveMultiCandidatesRefusesInexpressible(t *testing.T) {
 	unaliased := "multi sub f :prototype(%s) (Code &block, List @list) List;\nmulti sub f :prototype(%s) (Scalar $expr, List @list) List;\n"
 	invocant := "multi sub f :prototype(%s) (FileHandle $fh: List @l) Int;\nmulti sub f :prototype(%s) (FileHandle $fh: List @l) List;\n"
 	declared := func(src, proto string) string { return fmt.Sprintf(src, proto, proto) }
-	pmtRefuses(t, map[string]string{
+	tpmRefuses(t, map[string]string{
 		declared(twoPositions, `\[%@]\[%@]`): `sub f: :prototype(\[%@]\[%@]) disagrees with its types: its candidates give (\%\%), (\@\@), which no one prototype states`,
 		declared(arity, `\[%@]`):             `sub f: :prototype(\[%@]) disagrees with its types: its candidates give (\%), (\@$), which no one prototype states`,
 		declared(unaliased, `&@`):            `sub f: :prototype(&@) disagrees with its types: its candidates give (&@), ($@), which no one prototype states`,
@@ -464,7 +464,7 @@ func TestDeriveSingleMultiCandidateIsPlain(t *testing.T) {
 // `;` is not a type, so `:prototype(\[%@];)` agrees with each's
 // candidates as `:prototype($;)` agrees with `(Scalar $x)`.
 func TestStatedUnionPrototypeAgrees(t *testing.T) {
-	pmtRefuses(t, map[string]string{
+	tpmRefuses(t, map[string]string{
 		"multi sub f :prototype(\\[@$]) (Hash \\%h) Int;\nmulti sub f :prototype(\\[@$]) (Hash \\%h) List;\n": `sub f: :prototype(\[@$]) disagrees with its types, which give (\%)`,
 		"multi sub f :prototype(\\[@$]) (Hash \\%h) List;\n":                                                  `sub f: :prototype(\[@$]) disagrees with its types, which give (\%)`,
 		"sub f :prototype(\\[@$]) (Hash \\%h) List;\n":                                                        `sub f: :prototype(\[@$]) disagrees with its types, which give (\%)`,

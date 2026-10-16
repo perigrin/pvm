@@ -366,7 +366,7 @@ func TestShowTypesHelp(t *testing.T) {
 	expectedContent := []string{
 		"psc check",
 		"Int <: Num <: Str <: Scalar <: List",
-		".pmt",
+		".tpm",
 		"docs/rfcs/0001-type-libraries.md",
 	}
 
