@@ -1,6 +1,6 @@
 ---
 title: Convert every .tpm to :export and :export_ok, then refuse export lists in a .tpm
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -23,16 +23,41 @@ blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 - 01a0fd9b-5700-7514-a143-2caed2d06d8b
 created: 2026-10-16T20:59:46.420731313Z
-updated: 2026-10-16T22:01:47.055739597Z
+updated: 2026-10-16T23:03:36.663553356Z
 sessions:
 - start_sha: a9ce48f0047db49c938b19bdad67387cc27a0bd5
-  end_sha: ""
-  commits: 0
+  end_sha: dcc066cc0fb89509812adfaa862f2096d7e4c67f
+  commits: 7
   started_at: 2026-10-16T21:54:12.485228145Z
+  ended_at: 2026-10-16T23:03:36.663553356Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-16T21:54:12.485228145Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-16T23:03:36.663553356Z
+observed_paths:
+- docs/rfcs/0001-type-libraries.md
+- internal/data/help/types.md
+- internal/parse/arityrefusal_test.go
+- internal/parse/declarations.go
+- internal/parse/declarations/Carp.tpm
+- internal/parse/declarations/Mojolicious/Lite.tpm
+- internal/parse/declarations/Moose.tpm
+- internal/parse/declarations/Moose/Role.tpm
+- internal/parse/exportattr_test.go
+- internal/parse/exports.go
+- internal/parse/ranking_test.go
+- internal/parse/refscalar_test.go
+- internal/parse/testdata/core_module_ranking.txt
+- internal/parse/testdata/declarations/My/Lib.tpm
+- internal/parse/typedour_test.go
+- internal/perltest/perl542_test.go
+- internal/psc/inc_roots_test.go
+- internal/psc/lib_baseline_test.go
+- internal/types/select.go
+- internal/types/select_test.go
 ---
 
 ## Prerequisites
