@@ -1,5 +1,5 @@
 // ABOUTME: Lowering of declarations (§4.14.2): the declarator to Decl.Kind, its variables, initialiser and attributes.
-// ABOUTME: The list form is read off the CST's shape -- one `binary "="` child -- and the Paren bit, never re-parsed.
+// ABOUTME: The list form is read off the CST's shape -- one assignment child -- and the Paren bit, never re-parsed.
 
 package lower
 
@@ -46,8 +46,15 @@ func (l *lowerer) decl(n *parse.Node) Node {
 		d.Init = l.expr(kids[0].Children[1])
 		return d
 	}
+	// `my ($x) ||= 1` is a compound assignment to the declaration, and
+	// perl reads it as `(my $x ||= 1)`: scalar, whatever the parens say.
+	if len(kids) == 1 && kids[0].Kind == parse.Binary && assignOps[kids[0].Text] && len(kids[0].Children) == 2 {
+		d.Vars = []Node{l.expr(kids[0].Children[0])}
+		return &Assign{Op: kids[0].Text, L: l.derive(n, RoleDeclTarget, d), R: l.expr(kids[0].Children[1])}
+	}
 	// The head is the variable and its attributes; what follows is the
 	// initialiser. An attribute keeps the parser's Text, colon included.
+	listTarget := false
 	for _, c := range kids {
 		switch {
 		case c.Kind == parse.Attribute:
@@ -56,9 +63,23 @@ func (l *lowerer) decl(n *parse.Node) Node {
 			// ponytail: `my Foo $f` drops its class; no Decl field holds it.
 		case d.Vars == nil:
 			d.Vars = []Node{l.expr(c)}
+			listTarget = c.Kind == parse.List
 		default:
 			d.Init = l.expr(c)
 		}
+	}
+	if n.AssignOp != "" && d.Init != nil {
+		// `my $x -= 1` is `(my $x -= 1)`, as `my ($x) ||= 1` is above.
+		a := &Assign{Op: n.AssignOp, R: d.Init}
+		d.Init = nil
+		a.L = l.derive(n, RoleDeclTarget, d)
+		return a
+	}
+	// `my ($x, $y) :shared = f()` assigns a list. One parenthesised scalar
+	// with attributes does not: perl reads `my ($x) :shared` as `my $x
+	// :shared`, which is a Var here, not a List.
+	if d.Init != nil {
+		d.ListAssign = listTarget
 	}
 	return d
 }

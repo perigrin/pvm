@@ -277,6 +277,9 @@ type lexer struct {
 	// rather than a parameter threaded through every scanner, because emit
 	// is the single point both go through.
 	closedBlock bool
+	// closedTermBlock is set with closedBlock when the block closed was a
+	// term's, `do {...}` or `eval {...}`, after which an operator comes.
+	closedTermBlock bool
 	// openedBlock is the same for a `{` that opened one. Both are copied
 	// onto the token as OpensBlock, so the parser does not re-derive them.
 	openedBlock bool
@@ -592,6 +595,7 @@ func (l *lexer) emit(k Kind, start int) {
 	l.expect = l.expect.after(k, transition{
 		text:            l.src[start:l.pos],
 		closedBlock:     l.closedBlock,
+		closedTermBlock: l.closedTermBlock,
 		nextIsOpenBrace: l.peekIsOpenBrace(),
 		afterDeclName:   afterDeclName,
 		declaredNiladic: k == Word && l.constSubs[string(l.src[start:l.pos])],

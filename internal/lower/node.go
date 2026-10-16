@@ -3,7 +3,11 @@
 
 package lower
 
-import "fmt"
+import (
+	"fmt"
+
+	"tamarou.com/pvm/internal/types"
+)
 
 // Node is one lowered node. Every field of type Node or []Node on every kind
 // is optional (§6.1.6 item 5): the CST this tree comes from is routinely
@@ -252,6 +256,10 @@ type Call struct {
 	Ampersand     bool // &foo -- prototypes bypassed
 	BareAmpersand bool // &foo with no parens -- inherits caller's @_
 	Resolved      bool // false if the parser could not tell call from bareword
+	Override      bool // a builtin's name the parse resolves to a sub: parse.Node.Override
+	// Signatures is what a declaration file types the called sub as:
+	// parse.Node.Signatures.
+	Signatures []types.Signature
 }
 
 // MethodCall is $obj->name(...) and indirect object syntax.
@@ -375,7 +383,7 @@ type Match struct {
 	Negated bool // !~
 }
 
-// --- Statements (§5.17's kinds, without spans; lowered in stmt.go) ---
+// --- Statements (§4.14's statement kinds; lowered in stmt.go) ---
 
 // Block is `{ ... }` holding statements. It is reached from an expression
 // too -- the body of do, eval and map -- so expr lowers it.

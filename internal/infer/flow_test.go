@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"tamarou.com/pvm/internal/infer"
+	"tamarou.com/pvm/internal/lower"
+	"tamarou.com/pvm/internal/parse"
 	"tamarou.com/pvm/internal/types"
 )
 
@@ -137,5 +139,145 @@ func TestBranchJoinNeverHoldsVoid(t *testing.T) {
 	got, _ := loweredSymbolType(t, src, "$Inf")
 	if got != types.Any && got&types.Void != 0 {
 		t.Errorf("%q: $Inf is %v, want Any or a union without Void", src, got)
+	}
+}
+
+// A compound guard with one side that is not a guard keeps its operator:
+// `defined $x && $y` failing says nothing about $x, since $y may be what
+// failed, and `!defined $x || $y` holding says nothing about $x either.
+// perl 5.42 -w, run with the argument 5, is silent on each and prints 6.
+func TestPartialCompoundGuardKeepsOperator(t *testing.T) {
+	for _, src := range []string{
+		"my $x = $ARGV[0];\nmy $y = 0;\nif (defined $x && $y) { exit 0 }\nprint $x + 1, \"\\n\";\n",
+		"my $x = $ARGV[0];\nmy $y = 0;\n(defined $x && $y) || print $x + 1, \"\\n\";\n",
+		"my $x = $ARGV[0];\nmy $y = 1;\nif (!defined $x || $y) { print $x + 1, \"\\n\" }\n",
+		"my $x = $ARGV[0];\nmy $y = 0;\nif (!defined $x || $y) { exit 0 }\nprint $x + 1, \"\\n\";\n",
+	} {
+		wantSilent(t, src)
+	}
+
+	// The known side still narrows where the operator lets it: perl -w,
+	// run with no argument, warns "Use of uninitialized value $x in
+	// addition (+)" on each.
+	for _, src := range []string{
+		"my $x = $ARGV[0];\nmy $y = 1;\nif (!defined $x && $y) { print $x + 1, \"\\n\" }\n",
+		"my $x = $ARGV[0];\nmy $y = 0;\nif (defined $x || $y) { } else { print $x + 1, \"\\n\" }\n",
+	} {
+		wantReported(t, src, infer.CodeCoercionMismatch)
+	}
+}
+
+// An `or` whose other side is not a guard narrows nothing in its
+// then-branch, which runs whenever the other side is true; its
+// else-branch runs only where both sides are false, so the guard's
+// negation holds there. perl 5.42 -w is silent on the first two, run
+// with the argument "a" and then 5.
+func TestOrWithNonGuardSideDoesNotNarrowThen(t *testing.T) {
+	wantSilent(t, "my $ch = $ARGV[0];\nif (!defined $ch or $ch !~ /\\d/) { print \"a\" . $ch, \"\\n\" }\n")
+	wantSilent(t, "my $ch = $ARGV[0];\nif (!defined $ch or $ch !~ /\\d/) { } else { print $ch + 1, \"\\n\" }\n")
+	// perl -w, run with no argument, warns "Use of uninitialized value
+	// $ch in concatenation (.) or string".
+	wantReported(t, "my $ch = $ARGV[0];\nif (!defined $ch) { print \"a\" . $ch, \"\\n\" }\n", infer.CodeCoercionMismatch)
+}
+
+// A negated compound negates every level of it, by De Morgan:
+// `!((A && B) || C)` is `(!A || !B) && !C`, which narrows nothing from A
+// or B. perl 5.42 -w, given 1 and 3, is silent on the first and prints 4.
+func TestNegateGuardIsDeep(t *testing.T) {
+	wantSilent(t, "my $a1 = $ARGV[0];\nmy $b1 = $ARGV[1];\nmy $c1 = undef;\nif (!((!defined $a1 && !defined $b1) || defined $c1)) { print $b1 + 1, \"\\n\" }\n")
+	// `!((B || A) || C)` is `!B && !A && !C`, so $b1 is undef in the
+	// branch: perl -w, given no argument, warns "Use of uninitialized
+	// value $b1 in concatenation (.) or string".
+	wantReported(t, "my $a1 = undef;\nmy $b1 = $ARGV[0];\nmy $c1 = undef;\nif (!((defined $b1 || defined $a1) || defined $c1)) { print \"a\" . $b1, \"\\n\" }\n", infer.CodeCoercionMismatch)
+}
+
+// A guard tests a scalar, so a variable typed Any or Unknown narrows from
+// Scalar: what `!ref $v` leaves of it is a Scalar less its references,
+// which a Num or Str slot takes, not a union of Array, Hash, IO and Void.
+// perl 5.42 -w is silent on each and prints 2, a1 and a1.
+func TestNegatedRefGuardOnAny(t *testing.T) {
+	for _, src := range []string{
+		"my $v = eval \"1\";\nunless (ref $v) { print $v + 1, \"\\n\" }\n",
+		"my $v = eval \"1\";\nif (defined $v && !ref $v) { print \"a\" . $v, \"\\n\" }\n",
+		"my $v = eval \"1\";\nif (ref $v) { } else { print \"a\" . $v, \"\\n\" }\n",
+	} {
+		wantSilent(t, src)
+	}
+	// perl -w warns "Use of uninitialized value $v in concatenation (.)
+	// or string": a failed defined still narrows Any to Undef.
+	wantReported(t, "my $v = eval \"undef\";\nunless (defined $v) { print \"a\" . $v, \"\\n\" }\n", infer.CodeCoercionMismatch)
+}
+
+// A call is an exit when the signature it resolves to returns None, as
+// CORE.pmt declares die and exit, and `CORE::name` resolves to the
+// builtin name, as a guard and as a checked call. perl 5.42 -w, given no
+// argument, is silent on the first two and prints 4.
+func TestExitsAndGuardsByCoreAndCarp(t *testing.T) {
+	for _, src := range []string{
+		"my $y = @ARGV ? undef : 3;\nunless (CORE::defined $y) { die \"y\" }\nprint $y + 1, \"\\n\";\n",
+		"my $y = @ARGV ? undef : 3;\nunless (defined $y) { CORE::die \"y\" }\nprint $y + 1, \"\\n\";\n",
+	} {
+		wantSilent(t, src)
+	}
+	// perl -w, given an argument, warns "Use of uninitialized value $y in
+	// concatenation (.) or string" on both.
+	for _, src := range []string{
+		"my $y = @ARGV ? undef : 3;\nunless (CORE::defined $y) { print \"a\" . $y, \"\\n\" }\n",
+		"my $y = @ARGV ? undef : 3;\nif (CORE::defined $y) { CORE::exit 0 }\nprint \"a\" . $y, \"\\n\";\n",
+	} {
+		wantReported(t, src, infer.CodeCoercionMismatch)
+	}
+	// perl refuses it at compile time: "Type of arg 1 to push must be
+	// array (not private hash)".
+	wantReported(t, "my %h;\nCORE::push %h, 1;\n", infer.CodeTypeMismatch)
+
+	t.Run("croak", func(t *testing.T) {
+		// croak and confess exit as Carp.pmt declares them, returning
+		// None, and the parser hands each call the signature it resolved:
+		// perl 5.42 -w, given no argument, is silent on both and prints
+		// 4. carp returns, so perl, given an argument, warns "Use of
+		// uninitialized value $x in addition (+)". A parse that resolves
+		// modules reads Carp.pmt; one that finds nothing else on disk is
+		// enough.
+		diags := func(src string) []infer.Diagnostic {
+			root := parse.ParseWithLoader([]byte(src), func(string) ([]byte, bool) { return nil, false })
+			f := lower.Lower(root)
+			_, d, _ := infer.Analyze(f, lower.NewPositions(root, f), nil, infer.Options{})
+			return d
+		}
+		for _, exit := range []string{"croak", "confess"} {
+			src := "use Carp;\nmy $x = @ARGV ? undef : 3;\nunless (defined $x) { " + exit + " \"x\" }\nprint $x + 1, \"\\n\";\n"
+			for _, d := range diags(src) {
+				t.Errorf("%q: diagnostic %q, want none", src, d.Message)
+			}
+		}
+		src := "use Carp;\nmy $x = @ARGV ? undef : 3;\nunless (defined $x) { carp \"x\" }\nprint $x + 1, \"\\n\";\n"
+		if d := diags(src); len(d) != 1 || d[0].Code != infer.CodeCoercionMismatch {
+			t.Errorf("%q: diagnostics %v, want one %s", src, d, infer.CodeCoercionMismatch)
+		}
+	})
+}
+
+// A statement-modifier exit, and an `or die`, narrow what follows them as
+// the block form does: past `die unless defined $x`, $x is defined. perl
+// 5.42 -w, given an argument, is silent on each and prints 4.
+func TestModifierGuardNarrowsContinuation(t *testing.T) {
+	for _, src := range []string{
+		"my $x = @ARGV ? 3 : undef;\ndie \"x\" unless defined $x;\nprint $x + 1, \"\\n\";\n",
+		"my $x = @ARGV ? 3 : undef;\ndefined $x or die \"x\";\nprint $x + 1, \"\\n\";\n",
+		"my $x = @ARGV ? 3 : undef;\n!defined $x and die \"x\";\nprint $x + 1, \"\\n\";\n",
+		"sub f { my $x = $_[0] ? 3 : undef; return 0 unless defined $x; return $x + 1 }\nprint f(1), \"\\n\";\n",
+	} {
+		wantSilent(t, src)
+	}
+	// perl -w, given no argument, warns "Use of uninitialized value $x"
+	// on each: past an exit the guard failed, and a body that does not
+	// exit narrows nothing after it.
+	for _, src := range []string{
+		"my $x = @ARGV ? 3 : undef;\nCORE::exit 0 if defined $x;\nprint \"a\" . $x, \"\\n\";\n",
+		"my $x = @ARGV ? 3 : undef;\ndefined $x and die \"x\";\nprint \"a\" . $x, \"\\n\";\n",
+		"my $x = @ARGV ? 3 : undef;\nprint \"n\\n\" unless defined $x;\nprint $x + 1, \"\\n\";\n",
+	} {
+		wantReported(t, src, infer.CodeCoercionMismatch)
 	}
 }

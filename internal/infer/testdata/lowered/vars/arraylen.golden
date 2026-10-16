@@ -1,2 +1,2 @@
 sym $n Int
-sym @a Int
+sym @a Array

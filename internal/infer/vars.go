@@ -197,7 +197,8 @@ func (a *analysis) checkIndex(idx lower.Node, actual types.Type) {
 // elemType is the element type of what a
 // declaration fills an aggregate with. A list or constructor holds the join
 // of its elements; a slice holds the elements of what it slices, and a
-// key/value slice the keys too; anything else is one element, its own type.
+// key/value slice the keys too; an array the elements recorded for it;
+// anything else is one element, its own type.
 func (a *analysis) elemType(n lower.Node) types.Type {
 	switch n := n.(type) {
 	case *lower.List:
@@ -219,6 +220,11 @@ func (a *analysis) elemType(n lower.Node) types.Type {
 		return a.rangeElemType(n)
 	case *lower.Call:
 		return a.callElemType(n)
+	case *lower.Var:
+		// A copied array holds the array's elements, not the array.
+		if n.Sigil == "@" {
+			return a.elemOf("@" + n.Name)
+		}
 	case *lower.MapGrepSort:
 		return a.mapGrepSortElemType(n)
 	}

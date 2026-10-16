@@ -325,3 +325,30 @@ func TestLowerUnicodeAndPackageNames(t *testing.T) {
 		}
 	}
 }
+
+// A compound operator after a declaration assigns to the declared variable,
+// so it lowers as that Assign with the Decl as its target, the shape
+// `(my $x) -= 1` already lowers to. Measured on 5.42.0 with -MO=Deparse,-p:
+// `my $x -= 1` is `(my $x -= 1)` and leaves -1; `my ($x) ||= f()` is
+// `(my $x ||= f())`, f called in scalar context.
+//
+// A list with attributes is a list assignment when the list has more than
+// one element: `my ($x, $y) :shared = f()` calls f in list context. One
+// parenthesised scalar is not -- `my ($x) :shared = f()` deparses as
+// `(my $x :shared = f())` and calls f in scalar context -- and its Var's
+// sigil already says so.
+func TestLowerDeclCompoundOperator(t *testing.T) {
+	for src, want := range map[string]string{
+		"my $x -= 1;":                `(Assign Op="-=" L:(Decl Vars:(Var Sigil="$" Name="x")) R:(NumLit Text="1" IsInt))`,
+		"my ($x) ||= 1;":             `(Assign Op="||=" L:(Decl Vars:(Var Paren Sigil="$" Name="x")) R:(NumLit Text="1" IsInt))`,
+		"my $x = 1;":                 `(Decl Vars:(Var Sigil="$" Name="x") Init:(NumLit Text="1" IsInt))`,
+		"my ($x, $y) :shared = f();": `(Decl Attrs=[:shared] ListAssign Vars:(List Paren Fat=[false false] Elems:(Var Sigil="$" Name="x") Elems:(Var Sigil="$" Name="y")) Init:(Call Name="f" Parenthesized))`,
+		"my ($x) :shared = f();":     `(Decl Attrs=[:shared] Vars:(Var Paren Sigil="$" Name="x") Init:(Call Name="f" Parenthesized))`,
+	} {
+		got := lowerLast(t, src)
+		clearIDs(got)
+		if s := lower.Sexpr(got); s != want {
+			t.Errorf("%q:\n got %s\nwant %s", src, s, want)
+		}
+	}
+}

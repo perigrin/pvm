@@ -52,7 +52,6 @@ func Analyze(f *lower.File, pos *lower.Positions, idx *ProjectIndex, opts Option
 		diags:       []Diagnostic{},
 		subs:        fileSubs(f),
 		assigned:    assignedNames(f),
-		overrides:   overrides(f),
 		evalCtx:     map[lower.ID]types.Context{},
 		classTypes:  map[lower.ID]string{},
 	}
@@ -74,9 +73,6 @@ type analysis struct {
 	// assigned is the name of every variable an assignment writes, which
 	// a sub body reads at its runtime value.
 	assigned map[string]bool
-	// overrides is each builtin a `use` list overrides, which a call
-	// to is a user sub's.
-	overrides map[string]bool
 	// evalCtx is the context the expression around a node evaluates it
 	// in, keyed by the node's id and set before the node is walked: an
 	// assignment's right side, an operator's operands, a ternary's arms.
@@ -180,6 +176,9 @@ func (a *analysis) walk(n lower.Node) types.Type {
 		t = types.Unknown
 	case *lower.Decl:
 		t = a.decl(n)
+	case *lower.ExprStmt:
+		a.exprStmt(n)
+		t = types.Any
 	case *lower.IfStmt:
 		a.ifStmt(n)
 		t = types.Unknown
@@ -238,6 +237,9 @@ func (a *analysis) decl(d *lower.Decl) types.Type {
 		}
 		if a.bindsCaptures(d) {
 			return types.List
+		}
+		if d.ListAssign && vars[0].Sigil == "$" {
+			t = a.firstElement(d.Init, t)
 		}
 		return a.narrow(vars[0], d.Init, t)
 	case lower.DeclPackage:
@@ -359,10 +361,15 @@ func assignedNames(f *lower.File) map[string]bool {
 
 // declContext is the context a declaration evaluates its initialiser in:
 // list context for the parenthesised form or an array or hash, scalar
-// context for a scalar.
+// context for a scalar or a reference alias, which binds the one
+// reference it is given: perl 5.42, `my \@a = f()` calls f with
+// wantarray false.
 func declContext(d *lower.Decl) types.Context {
 	if d.ListAssign {
 		return types.ListCtx
+	}
+	if d.RefAlias {
+		return types.ScalarCtx
 	}
 	if len(d.Vars) == 1 {
 		if v, ok := d.Vars[0].(*lower.Var); ok {
@@ -994,7 +1001,8 @@ func typeMismatchMessage(name string, argIdx int, expected, actual types.Type) s
 
 // compoundGuard holds the structure of a compound boolean guard expression.
 // Op is "&&" for AND conditions and "||" for OR conditions.
-// Left and Right are the sub-guards, each of which may itself be compound.
+// Left and Right are the sub-guards, each of which may itself be compound,
+// and either of which is nil when that side of the operator is not a guard.
 type compoundGuard struct {
 	Op    string // "&&" or "||"
 	Left  *guardResult
@@ -1033,14 +1041,27 @@ func narrowContinuation(guards []*guardResult, st *SymbolTable) {
 		var elseType types.Type
 		var narrowed bool
 		if eg.Negated {
-			elseType, narrowed = types.NegateGuard(sym.Type, eg.Guard)
+			elseType, narrowed = types.NegateGuard(guardedType(sym.Type), eg.Guard)
 		} else {
-			elseType, narrowed = types.NarrowByGuard(sym.Type, eg.Guard)
+			elseType, narrowed = types.NarrowByGuard(guardedType(sym.Type), eg.Guard)
 		}
 		if narrowed {
 			st.UpdateType(eg.VarName, elseType)
 		}
 	}
+}
+
+// guardedType is the type a guard narrows a variable from. Every name a
+// guard narrows is a scalar, so one typed Any or Unknown narrows from
+// Scalar: `!ref $v` on Any leaves Scalar less Ref, which a Num or Str slot
+// takes, and not Any less Ref, whose Array, Hash, IO and Void fail every
+// slot. perl 5.42 -w is silent on `my $v = eval "1"; unless (ref $v) {
+// print $v + 1 }`.
+func guardedType(t types.Type) types.Type {
+	if t == types.Any || t == types.Unknown {
+		return types.Scalar
+	}
+	return t
 }
 
 // collectPreIfTypes returns the current types of all variables referenced by
@@ -1196,7 +1217,8 @@ func remapGuardVar(guard *guardResult, paramName, argName string) *guardResult {
 //   - For || (negate=true, De Morgan → &&): both negated sub-guards apply → recurse.
 //
 // For simple (non-compound) guards: return a one-element slice with Negated
-// set to guard.Negated XOR negate.
+// set to guard.Negated XOR negate. A nil side of a compound, one that is not
+// a guard, flattens to nothing.
 func flattenGuards(guard *guardResult, negate bool) []*guardResult {
 	if guard == nil {
 		return nil
@@ -1275,7 +1297,7 @@ func guardShadows(guards []*guardResult, st *SymbolTable) (map[string]types.Type
 				// Variable was never declared — skip to avoid phantom shadows.
 				continue
 			}
-			currentType = sym.Type
+			currentType = guardedType(sym.Type)
 		}
 
 		var narrowedType types.Type

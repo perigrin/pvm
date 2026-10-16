@@ -18,7 +18,12 @@ var incConfigKeys = []string{
 
 // configEntry matches one `key => 'value',` line of Config.pm's literal
 // hash, the value optionally wrapped in a relocatable perl's relocate_inc().
-var configEntry = regexp.MustCompile(`^\s+(\w+) => (?:relocate_inc\()?'([^']*)'`)
+// configpm writes each \ in a value as \\ and each ' as \'.
+var configEntry = regexp.MustCompile(`^\s+(\w+) => (?:relocate_inc\()?'((?:[^'\\]|\\.)*)'`)
+
+// configUnescape reads a single-quoted Perl string's body as perl does:
+// \\ is \ and \' is ', and any other backslash stands for itself.
+var configUnescape = strings.NewReplacer(`\\`, `\`, `\'`, `'`)
 
 // INC is the @INC the perl at perlPath builds under the given PERL5LIB,
 // without running it: each PERL5LIB entry, preceded by its version/arch,
@@ -84,7 +89,7 @@ func readConfig(perlPath string) map[string]string {
 		if m == nil {
 			continue
 		}
-		value := m[2]
+		value := configUnescape.Replace(m[2])
 		if rest, ok := strings.CutPrefix(value, ".../"); ok {
 			value = filepath.Join(binDir, rest)
 		}

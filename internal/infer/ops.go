@@ -16,7 +16,8 @@ import (
 // binary types a binary operator: the operator's CORE.pmt
 // candidates, chosen by the operands' shapes and the context an assignment
 // puts the expression in, check both operands and give its type. A logical
-// operator yields one of its operands, so it is their join. An operator
+// operator yields one of its operands, so it is their join, as leftValue
+// says of the left. An operator
 // CORE.pmt does not declare is not typed.
 func (a *analysis) binary(n *lower.Binary) types.Type {
 	return a.infix(n, n.Op, operandShape(n.L)+operandShape(n.R), n.L, n.R)
@@ -55,9 +56,21 @@ func (a *analysis) infix(n lower.Node, op, shapes string, l, r lower.Node) types
 		return spaceshipResult(a.typeOf(l), a.typeOf(r), result)
 	}
 	if result == types.Any && logicalOps[op] {
-		return types.Join(a.valueOf(l), a.valueOf(r))
+		return types.Join(a.leftValue(op, l), a.valueOf(r))
 	}
 	return result
+}
+
+// leftValue is the value a logical operator op yields from its left
+// operand l. `//`, `||` and `or` yield the right operand in place of an
+// undefined left, so the left gives no Undef: perl 5.42 -w is silent on
+// `my $v = $x // 0; $v + 1` with $x undef. `&&` and `and` yield a false
+// left as it is, Undef included.
+func (a *analysis) leftValue(op string, l lower.Node) types.Type {
+	if op == "//" || op == "||" || op == "or" {
+		return a.valueOf(l) &^ types.Undef
+	}
+	return a.valueOf(l)
 }
 
 // repeat is the rule for `x` on Repeat. A list repeat is
@@ -111,8 +124,9 @@ func (a *analysis) rangeOp(n *lower.Range) types.Type {
 // assign is the plain-assignment half of assignment narrowing: the right
 // side is evaluated in the context the
 // left side imposes, and a variable on the left is narrowed by it, as
-// narrow says. Every assignment operator narrows so, `+=` included. An
-// element, a slice or a list on the left is not narrowed.
+// narrow says. A compound assignment narrows it to what its operator
+// gives, as compoundResult says. An element, a slice or a list on the
+// left is not narrowed.
 //
 // The assignment's own type is its right side's, an aggregate counted when
 // a scalar takes it.
@@ -135,7 +149,37 @@ func (a *analysis) assign(n *lower.Assign) types.Type {
 	if t == types.Unknown && n.Op == "=" {
 		a.st.UpdateType(v.Sigil+v.Name, sigilType)
 	}
+	if n.Op != "=" {
+		t = compoundResult(n.Op, a.typeOf(n.L), t)
+	}
 	return a.narrow(v, n.R, t)
+}
+
+// compoundResult is what a compound assignment `op=` leaves in a target
+// that held old, given a right side typed r: what CORE.pmt says op gives,
+// not r. perl 5.42, `my $s = "a"; $s .= 1` is "a1", a Str. The logical
+// ones assign r only sometimes: `//=` only to an undefined target, so a
+// defined one keeps its type, and `||=` only to a false one, so an
+// undefined target never survives either; `&&=` only to a true one, so
+// an undefined target stays undef. perl 5.42 -w is silent on `my $k = 4;
+// $k //= undef; $k + 1`, and warns "Use of uninitialized value" on `my
+// $u; $u &&= 5; $u + 1`.
+func compoundResult(op string, old, r types.Type) types.Type {
+	switch op {
+	case "//=":
+		if old != types.Unknown && old&types.Undef == 0 {
+			return old
+		}
+		return types.Join(old&^types.Undef, r)
+	case "||=":
+		return types.Join(old&^types.Undef, r)
+	case "&&=":
+		return types.Join(old, r)
+	}
+	if sigs := parse.CoreOperator(op, "infix"); len(sigs) > 0 {
+		return builtinReturns(sigs, types.UnknownCtx)
+	}
+	return r
 }
 
 // assignContext is an assignment's context: assigning to a scalar or an
@@ -161,7 +205,9 @@ func assignContext(l lower.Node) types.Context {
 // narrowed, so a broad type is not stripped to one that satisfies nothing.
 // `my $n = () = EXPR` is the count-of idiom: perl, `my $n = () = (1, 2, 3)`
 // is 3. An array, a hash, or a scalar holding an anonymous one records its
-// element type.
+// element type, and an array or a hash filled with a value that is no
+// aggregate is still one: perl 5.42, `my @a = (1)` is an array of one
+// Int.
 //
 // A constructor's result records its class on v. A declaration binding a
 // match's captures is bindsCaptures', and does not reach here.
@@ -177,6 +223,10 @@ func (a *analysis) narrow(v *lower.Var, init lower.Node, t types.Type) types.Typ
 		return types.Int
 	}
 	a.recordElemType(v, init)
+	if agg, ok := sigilTypes[v.Sigil]; ok && v.Sigil != "$" && t != types.Unknown &&
+		t != types.Array && t != types.Hash && t != types.List {
+		t = agg
+	}
 	if t != types.Unknown {
 		a.st.UpdateType(name, t)
 	}
@@ -184,6 +234,28 @@ func (a *analysis) narrow(v *lower.Var, init lower.Node, t types.Type) types.Typ
 		a.st.UpdateClassType(name, class)
 	}
 	return t
+}
+
+// firstElement is the type of the first element of init, a list
+// initialiser typed t, which a parenthesised declaration's first scalar
+// takes: perl 5.42, `my @a = (1, 2); my ($x) = @a` makes $x 1, not the
+// count. A hash's first element is a key, a Str. An initialiser that is
+// no aggregate is t as it is.
+func (a *analysis) firstElement(init lower.Node, t types.Type) types.Type {
+	if t != types.Array && t != types.Hash && t != types.List {
+		return t
+	}
+	if v, ok := init.(*lower.Var); ok {
+		if v.Sigil == "%" {
+			return types.Str
+		}
+		return a.element(v.Sigil + v.Name)
+	}
+	elem := a.elemType(init)
+	if elem&(types.Array|types.Hash|types.List) != 0 {
+		return types.Scalar
+	}
+	return oneElement(elem)
 }
 
 // isCountOf reports whether n is the inner `() = EXPR` of the count-of

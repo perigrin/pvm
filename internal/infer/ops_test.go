@@ -314,3 +314,98 @@ func TestOverloadedObjectOperandIsSilent(t *testing.T) {
 		}
 	}
 }
+
+// `//` and `||` replace an undefined left operand with the right, so their
+// value never carries the left's Undef: perl 5.42 -w is silent on `my $v =
+// $x // 0; $v + 1` and `my $l = $o || 0; length($l)` with $x and $o undef,
+// and prints 1. `&&` yields a false left operand as it is, so it keeps the
+// left's Undef: perl warns "Use of uninitialized value $c in addition (+)"
+// on `my $c = $x && 0; $c + 1`.
+func TestDefinedOrDropsLeftUndef(t *testing.T) {
+	for _, src := range []string{
+		"my $x = undef;\nmy $v = $x // 0;\nprint $v + 1;\n",
+		"my $x = undef;\nmy $w = $x || 0;\nprint $w + 1;\n",
+		"my $o = undef;\nmy $l = $o || 0;\nprint length($l);\n",
+	} {
+		for _, d := range loweredDiags(src) {
+			t.Errorf("%q: diagnostic %q, want none", src, d.Message)
+		}
+	}
+
+	src := "my $x = undef;\nmy $c = $x && 0;\nprint $c + 1;\n"
+	if diags := loweredDiags(src); len(diags) != 1 {
+		t.Errorf("%q: diagnostics %v, want one", src, diags)
+	}
+}
+
+// A compound assignment `op=` leaves its target holding what op gives,
+// CORE.pmt's return type for it, not its right side's type: perl 5.42,
+// `my $s = "a"; $s .= 1` is "a1", a Str, and `my $t = "ab"; $t x= 3` is
+// "ababab". `//=` assigns only an undefined target, so a defined one keeps
+// its type, and `||=` replaces only a false one: perl 5.42 -w is silent on
+// `my $k = 4; $k //= undef; $k + 1`, and on `my $s; $s .= <STDIN>; $s .
+// "x"`. `&&=` assigns only a true target, so an undefined one stays undef:
+// perl warns "Use of uninitialized value $u in addition (+)" on `my $u =
+// undef; $u &&= 5; $u + 1`.
+func TestCompoundAssignNarrowsToOperatorResult(t *testing.T) {
+	for _, c := range []struct {
+		src, name string
+		want      types.Type
+	}{
+		{"my $s = \"a\";\n$s .= 1;\n", "$s", types.Str},
+		{"my $t = \"ab\";\n$t x= 3;\n", "$t", types.Str},
+		{"my $k = 4;\n$k //= undef;\n", "$k", types.Int},
+		{"my $n = 2;\n$n ||= \"x\";\n", "$n", types.Int | types.Str},
+		{"my $u = undef;\n$u &&= 5;\n", "$u", types.Undef | types.Int},
+	} {
+		if got, _ := loweredSymbolType(t, c.src, c.name); got != c.want {
+			t.Errorf("%q: %s is %v, want %v", c.src, c.name, got, c.want)
+		}
+	}
+
+	for _, src := range []string{
+		"my $k = 4;\n$k //= undef;\nprint $k + 1;\n",
+		"my $s;\n$s .= <STDIN>;\nprint $s . \"x\";\n",
+	} {
+		for _, d := range loweredDiags(src) {
+			t.Errorf("%q: diagnostic %q, want none", src, d.Message)
+		}
+	}
+
+	src := "my $u = undef;\n$u &&= 5;\nprint $u + 1;\n"
+	if diags := loweredDiags(src); len(diags) != 1 {
+		t.Errorf("%q: diagnostics %v, want one", src, diags)
+	}
+}
+
+// A parenthesised declaration takes its initialiser in list context, so
+// its first scalar is the list's first element, not the array's count:
+// perl 5.42 -w is silent on `my ($fh) = @ARGV; open $fh, "<", $0; flock
+// $fh, 1`, and `my @a = (1, 2); my ($x) = @a` makes $x 1. A hash's first
+// element is a key, a Str. The element keeps what perl warns on: `my @u =
+// (undef, undef); my ($v) = @u; $v + 1` warns "Use of uninitialized value
+// $v in addition (+)".
+func TestListAssignFromArrayIsElement(t *testing.T) {
+	src := "my ($fh) = @ARGV;\nopen $fh, \"<\", $0 or die;\nflock $fh, 1;\n"
+	for _, d := range loweredDiags(src) {
+		t.Errorf("%q: diagnostic %q, want none", src, d.Message)
+	}
+
+	for _, c := range []struct {
+		src, name string
+		want      types.Type
+	}{
+		{"my @a = (1, 2);\nmy ($x) = @a;\n", "$x", types.Int},
+		{"my %g = (k => 1);\nmy ($k) = %g;\n", "$k", types.Str},
+		{"my ($y) = @ARGV;\n", "$y", types.Scalar},
+	} {
+		if got, _ := loweredSymbolType(t, c.src, c.name); got != c.want {
+			t.Errorf("%q: %s is %v, want %v", c.src, c.name, got, c.want)
+		}
+	}
+
+	src = "my @u = (undef, undef);\nmy ($v) = @u;\nprint $v + 1;\n"
+	if diags := loweredDiags(src); len(diags) != 1 {
+		t.Errorf("%q: diagnostics %v, want one", src, diags)
+	}
+}

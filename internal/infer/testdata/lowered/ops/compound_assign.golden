@@ -1,2 +1,2 @@
 sym $s Str
-sym $x Num
+sym $x Int|Num|Inf

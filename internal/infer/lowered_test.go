@@ -373,7 +373,7 @@ func TestTernaryArmTakesNumericContext(t *testing.T) {
 		{"my @a = (7, 8, 9);\nmy $n = 1 ? @a : 42;\n", "$n", types.Int},
 		{"my @a = (7, 8, 9);\nmy $m = (1 ? (0 ? 1 : @a) : 42) + 1;\n", "$m", types.Num | types.Inf},
 		{"my @a = (7, 8, 9);\nmy $o = (@a || 0) + 1;\n", "$o", types.Num | types.Inf},
-		{"my @a = (7, 8, 9);\nmy @t = 1 ? @a : 42;\n", "@t", types.Join(types.Array, types.Int)},
+		{"my @a = (7, 8, 9);\nmy @t = 1 ? @a : 42;\n", "@t", types.Array},
 	} {
 		got, diags := loweredSymbolType(t, c.src, c.name)
 		for _, d := range diags {
@@ -382,6 +382,12 @@ func TestTernaryArmTakesNumericContext(t *testing.T) {
 		if got != c.want {
 			t.Errorf("%q: %s is %v, want %v", c.src, c.name, got, c.want)
 		}
+	}
+
+	src := "my @a = (7, 8, 9);\nmy @t = 1 ? @a : 42;\n"
+	ty, _, _ := analyzeLowered([]byte(src), nil, infer.Options{})
+	if got, _ := findNodeType(ty, []byte(src), "1 ? @a : 42"); got != types.Join(types.Array, types.Int) {
+		t.Errorf("%q: the ternary is %v, want %v", src, got, types.Join(types.Array, types.Int))
 	}
 }
 

@@ -93,7 +93,7 @@ func (p *Positions) Span(id ID) (start, end int, ok bool) {
 
 // LastBefore returns the lowered node keep accepts that starts last before
 // byte off, in source order, or nil if none does: the question $1 asks of
-// the matches before it (nearestPatternBefore, infer.go:1726). A node with
+// the matches before it (lastMatch, internal/infer/special.go). A node with
 // no bytes, an empty file's File, is never before anything.
 //
 // order is sorted by start, so a binary search finds the last node that
