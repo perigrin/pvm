@@ -1,10 +1,19 @@
 ---
 title: "[I11] A sub's return type drops arms of Unknown type, so it claims a concrete type"
-state: pending
+state: in-progress
 urgency: normal
 milestone: pr486-review
 created: 2026-10-16T01:16:07.533106671Z
-updated: 2026-10-16T01:16:07.533106671Z
+updated: 2026-10-16T01:17:17.480825701Z
+sessions:
+- start_sha: 8a0c85c60a2bae5d04dbbb2b27eb4310312d362f
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-16T01:17:17.480825701Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-16T01:17:17.480825701Z
 ---
 
 ## Context
