@@ -132,7 +132,6 @@ ops/compound_assign.pl
 ops/concat.pl
 ops/concat_array.pl
 ops/count_of.pl
-ops/defined_or.pl
 ops/foreach_alias.pl
 ops/foreach_named_alias.pl
 ops/hashref_arith.pl

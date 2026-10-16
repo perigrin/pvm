@@ -16,7 +16,8 @@ import (
 // binary types a binary operator: the operator's CORE.pmt
 // candidates, chosen by the operands' shapes and the context an assignment
 // puts the expression in, check both operands and give its type. A logical
-// operator yields one of its operands, so it is their join. An operator
+// operator yields one of its operands, so it is their join, as leftValue
+// says of the left. An operator
 // CORE.pmt does not declare is not typed.
 func (a *analysis) binary(n *lower.Binary) types.Type {
 	return a.infix(n, n.Op, operandShape(n.L)+operandShape(n.R), n.L, n.R)
@@ -55,9 +56,21 @@ func (a *analysis) infix(n lower.Node, op, shapes string, l, r lower.Node) types
 		return spaceshipResult(a.typeOf(l), a.typeOf(r), result)
 	}
 	if result == types.Any && logicalOps[op] {
-		return types.Join(a.valueOf(l), a.valueOf(r))
+		return types.Join(a.leftValue(op, l), a.valueOf(r))
 	}
 	return result
+}
+
+// leftValue is the value a logical operator op yields from its left
+// operand l. `//`, `||` and `or` yield the right operand in place of an
+// undefined left, so the left gives no Undef: perl 5.42 -w is silent on
+// `my $v = $x // 0; $v + 1` with $x undef. `&&` and `and` yield a false
+// left as it is, Undef included.
+func (a *analysis) leftValue(op string, l lower.Node) types.Type {
+	if op == "//" || op == "||" || op == "or" {
+		return a.valueOf(l) &^ types.Undef
+	}
+	return a.valueOf(l)
 }
 
 // repeat is the rule for `x` on Repeat. A list repeat is

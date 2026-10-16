@@ -303,3 +303,26 @@ func TestOverloadedObjectOperandIsSilent(t *testing.T) {
 		}
 	}
 }
+
+// `//` and `||` replace an undefined left operand with the right, so their
+// value never carries the left's Undef: perl 5.42 -w is silent on `my $v =
+// $x // 0; $v + 1` and `my $l = $o || 0; length($l)` with $x and $o undef,
+// and prints 1. `&&` yields a false left operand as it is, so it keeps the
+// left's Undef: perl warns "Use of uninitialized value $c in addition (+)"
+// on `my $c = $x && 0; $c + 1`.
+func TestDefinedOrDropsLeftUndef(t *testing.T) {
+	for _, src := range []string{
+		"my $x = undef;\nmy $v = $x // 0;\nprint $v + 1;\n",
+		"my $x = undef;\nmy $w = $x || 0;\nprint $w + 1;\n",
+		"my $o = undef;\nmy $l = $o || 0;\nprint length($l);\n",
+	} {
+		for _, d := range loweredDiags(src) {
+			t.Errorf("%q: diagnostic %q, want none", src, d.Message)
+		}
+	}
+
+	src := "my $x = undef;\nmy $c = $x && 0;\nprint $c + 1;\n"
+	if diags := loweredDiags(src); len(diags) != 1 {
+		t.Errorf("%q: diagnostics %v, want one", src, diags)
+	}
+}
