@@ -1,0 +1,13 @@
+# captured at 8d508426 with perl 5.42.0
+# PVM_PERL_VERSION=5.42.0 psc check <privlib>, built at 8d508426; paths relative to privlib
+File/Find.pm:96:9: error: left operand of "=~": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]
+IO/Zlib.pm:623:17: warning: left operand of "==": expected Num, got Undef|Int [coercion-mismatch]
+JSON/PP.pm:875:43: error: left operand of "!~": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]
+Net/Cmd.pm:336:13: error: call to vec: argument 2 expects Int, got Undef|Int [type-mismatch]
+TAP/Parser/Iterator/Process.pm:249:30: warning: left operand of "==": expected Num, got Undef|Int [coercion-mismatch]
+Term/ANSIColor.pm:533:46: error: left operand of ".": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]
+Term/ANSIColor.pm:538:16: error: left operand of ".": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]
+Term/Complete.pm:118:16: error: left operand of "ne": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]
+Text/Tabs.pm:51:47: error: call to split: argument 2 expects Str, got Undef|Boolean|Int|Num|Str|DualVar|Regex|ScalarRef|ArrayRef|HashRef|CodeRef|GlobRef|Object|Array|NaN|Inf [type-mismatch]
+perl5db.pl:2518:21: error: right operand of ".": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]
+x86_64-linux-thread-multi/Sys/Syslog.pm:507:25: error: right operand of "-": expected Num, got Undef [coercion-mismatch]

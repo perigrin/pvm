@@ -5,12 +5,16 @@ package psc
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"tamarou.com/pvm/internal/perltest"
 )
 
 // libDiagShape is one diagnostic psc check prints, split into its path and
@@ -155,4 +159,32 @@ func TestLibTruePositiveMatchesExactDiagnostic(t *testing.T) {
 	otherLine := strings.Replace(ansiDiag, ":533:", ":534:", 1)
 	out := "/lib/" + otherFile + "\n/lib/" + otherLine + "\n"
 	assert.Equal(t, []string{otherFile, otherLine}, newLibDiagnostics(out, "/lib", map[string]bool{}, admitted))
+}
+
+// TestPSCCheckLibBaseline runs psc check over perl 5.42.0's privlib, as
+// `PVM_PERL_VERSION=5.42.0 psc check <privlib>` does, and fails on any
+// diagnostic not in testdata/lib_baseline.txt or admitted by
+// testdata/lib_true_positives.txt. It takes about 20s (18-20s measured
+// on 2026-10-16), well inside go test's default 10m.
+func TestPSCCheckLibBaseline(t *testing.T) {
+	p := perltest.Perl542(t)
+	t.Setenv("PVM_PERL_VERSION", "5.42.0")
+	t.Setenv("PERL5LIB", "")
+
+	read := func(name string) string {
+		data, err := os.ReadFile(filepath.Join("testdata", name))
+		require.NoError(t, err)
+		return string(data)
+	}
+	baseline, err := parseLibBaseline(read("lib_baseline.txt"))
+	require.NoError(t, err)
+	admitted, err := parseLibTruePositives(read("lib_true_positives.txt"))
+	require.NoError(t, err)
+
+	out := runCheck(t, p.Privlib)
+	if fresh := newLibDiagnostics(out, p.Privlib, baseline, admitted); len(fresh) > 0 {
+		t.Errorf("psc check over %s reports %d diagnostic(s) not in the baseline:\n  %s\n"+
+			"Fix each, or list it in testdata/lib_true_positives.txt with the line perl -w prints for it.",
+			p.Privlib, len(fresh), strings.Join(fresh, "\n  "))
+	}
 }
