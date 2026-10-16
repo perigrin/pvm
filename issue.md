@@ -19,7 +19,7 @@ blocks:
 - 01a1464e-ddb0-720a-93f6-450c767e6e2e
 - 01a1464e-dde3-73fe-ab1f-ced7f18c4f9d
 created: 2026-10-16T20:02:15.040084527Z
-updated: 2026-10-16T20:04:38.175858305Z
+updated: 2026-10-16T20:10:07.02038644Z
 ---
 
 ## Prerequisites
@@ -52,6 +52,7 @@ The test walks privlib in Go (`filepath.WalkDir`, `filepath.ToSlash` on relative
 - [ ] Implement the ranking in the test file; run to verify pass; commit
 - [ ] Write `testdata/core_module_ranking.txt` (the 50 above, one `Name count` per line) and `TestCoreModuleRanking` over privlib; run to verify pass: `go test ./internal/parse/ -run '^TestCoreModuleRanking$' -count=1 -v`
 - [ ] In the RFC's "Which 50." paragraph, state the rule, record the top-50 figure (1,326) and that ties are broken by module name, ascending
+- [ ] In the RFC's "Typed variables." paragraph, replace the example "Errno's `%!`": Errno exports no variable. Measured on perl 5.42.0 (`perl -MErrno -e '...'` over `@EXPORT`, `@EXPORT_OK` and `%EXPORT_TAGS`): 134 names, all constants, and `%!` is not among them (perl ties `%!` to Errno on first use; it is not imported). Name instead the variable exporters perl reports among the top 50 -- Config's `%Config`, and Socket's `$CR $LF $CRLF` (`@EXPORT_OK`) -- and cite the measurement inline
 - [ ] `make test`; commit
 
 ## Acceptance Criteria
