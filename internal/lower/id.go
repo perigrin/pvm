@@ -52,6 +52,10 @@ const (
 	// Handle in `<STDIN>` and `<$fh>`, Glob's Pattern in `<*.c>`. A term
 	// lowers to one or the other, so one role keeps every id distinct.
 	RoleAngleBody
+	// RoleDeclTarget is the Decl a compound-assigned declaration lowers to
+	// beneath its Assign: `my $x -= 1` is one parse node, lowered to the
+	// Assign and, as its target, the Decl.
+	RoleDeclTarget
 )
 
 // AssignIDs gives every node of a tree, trivia and Unknown included, an ID.

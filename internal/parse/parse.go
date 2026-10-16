@@ -285,6 +285,12 @@ type Node struct {
 	// reader of Text for either still gets the chain's answer.
 	Ops []string
 
+	// AssignOp is set on a Declaration whose initialiser follows a compound
+	// assignment operator, `-=` in `my $x -= 1`, and is empty for `=`.
+	// Measured on 5.42.0, Deparse keeps `(my $x -= 1)`, which leaves $x
+	// at -1 where `my $x = 1` leaves 1.
+	AssignOp string
+
 	// Refusal names WHICH construction site produced this Unknown, and is
 	// set on Unknown alone. See refusal.go for the ten codes and what each
 	// one means.

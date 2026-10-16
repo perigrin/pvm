@@ -469,8 +469,12 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 				// The initialiser is the right side of an assignment and is
 				// read at its power: `my $x = (%h and 1)` written bare is
 				// `(my $x = %h) and 1`, measured on 5.42.0.
-				b.WriteString(" = ")
-				emit(b, c, src, infix["="].BP)
+				op := "="
+				if n.AssignOp != "" {
+					op = n.AssignOp
+				}
+				b.WriteString(" " + op + " ")
+				emit(b, c, src, infix[op].BP)
 				continue
 			}
 			emit(b, c, src, 0)
