@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"sync"
+	"unicode"
 
 	"tamarou.com/pvm/internal/infer"
 	"tamarou.com/pvm/internal/lower"
@@ -57,8 +58,7 @@ func (s *LSPServer) OpenDocument(uri string, source []byte) error {
 	defer s.mu.Unlock()
 
 	var root *parse.Node
-	if u, err := url.Parse(uri); err == nil && u.Scheme == "file" && u.Path != "" {
-		path := filepath.FromSlash(u.Path)
+	if path, ok := uriPath(uri); ok {
 		// ponytail: @INC is resolved on every open; cache it per directory
 		// if resolution shows up in a profile.
 		// ponytail: every open re-reads the modules it uses; cache them by
@@ -74,6 +74,23 @@ func (s *LSPServer) OpenDocument(uri string, source []byte) error {
 		analysis: analyze(root, s.Options),
 	}
 	return nil
+}
+
+// uriPath is the path a file: uri names, and false for a uri of any other
+// scheme or with no path. A Windows uri spells its drive after the root
+// slash, file:///C:/x.pl, and names C:\x.pl.
+func uriPath(uri string) (string, bool) {
+	u, err := url.Parse(uri)
+	if err != nil || u.Scheme != "file" || u.Path == "" {
+		return "", false
+	}
+	p := u.Path
+	// ponytail: read as a drive on every OS, so a Unix directory named
+	// like one, /C:/x.pl, is misread; check runtime.GOOS if one appears.
+	if len(p) >= 3 && p[0] == '/' && p[2] == ':' && unicode.IsLetter(rune(p[1])) {
+		p = p[1:]
+	}
+	return filepath.FromSlash(p), true
 }
 
 // CloseDocument removes the document for the given uri from the server,

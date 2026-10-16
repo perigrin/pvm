@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -533,4 +534,24 @@ func TestPositionConversion(t *testing.T) {
 	pos2 := offsetToPosition(source, 12)
 	assert.Equal(t, 1, pos2.Line)
 	assert.Equal(t, 0, pos2.Character)
+}
+
+// TestLSPWindowsFileURI: a file: uri names a path, and a Windows drive
+// letter is its first element: file:///C:/x.pl is C:\x.pl on Windows, not
+// \C:\x.pl, whose `use` would resolve nothing. A Unix path keeps its
+// leading slash, the control, and a uri of another scheme names no path.
+func TestLSPWindowsFileURI(t *testing.T) {
+	for uri, want := range map[string]string{
+		"file:///C:/x.pl":       "C:/x.pl",
+		"file:///c%3A/lib/x.pl": "c:/lib/x.pl",
+		"file:///home/u/x.pl":   "/home/u/x.pl",
+	} {
+		got, ok := uriPath(uri)
+		assert.True(t, ok, uri)
+		assert.Equal(t, filepath.FromSlash(want), got, uri)
+	}
+	for _, uri := range []string{"untitled:Untitled-1", "file://"} {
+		_, ok := uriPath(uri)
+		assert.False(t, ok, uri)
+	}
 }
