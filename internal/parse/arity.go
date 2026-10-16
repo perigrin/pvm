@@ -126,6 +126,26 @@ func (p *parser) overridden(name string) bool {
 	return sub || global || p.listed[name]
 }
 
+// markOverride sets Override on n when it calls a builtin, spelled
+// without `CORE::`, that this parse resolves to a sub: as overridden says,
+// save a package sub the file declares itself, which never overrides a
+// builtin. Measured on 5.42.0, `sub rename { "fake" } rename()` is "Not
+// enough arguments for rename", while a lexical sub does override: `my
+// sub lc { "x" } lc("A")` is "x". A `.pmt` is not marked: CORE.pmt is one, and
+// reading it builds the candidates this consults.
+func (p *parser) markOverride(n *Node) *Node {
+	if n == nil || n.Kind != Call || p.typed || n.Text != keywordName(n.Text) {
+		return n
+	}
+	_, lexical := p.lexical[n.Text]
+	imp, sub := p.lookupSub(n.Text)
+	_, global := p.lookupSub("CORE::GLOBAL::" + n.Text)
+	if (lexical || sub && !imp.Local || global || p.listed[n.Text]) && len(coreSignatures()[n.Text]) > 0 {
+		n.Override = true
+	}
+	return n
+}
+
 // argCount is how many arguments a call writes: each child, a block or a
 // filehandle among them, split at its commas. It is not exact when one is
 // a parenthesised list, which a builtin may count as one argument or as

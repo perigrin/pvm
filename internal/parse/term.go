@@ -408,7 +408,7 @@ func (p *parser) parseTerm() *Node {
 				return p.parseBlockOperator(tok)
 			}
 		}
-		return p.markReferenceSlots(p.refuseArity(p.refuseRefScalarSlot(p.parseWordTerm(tok))))
+		return p.markReferenceSlots(p.refuseArity(p.refuseRefScalarSlot(p.markOverride(p.parseWordTerm(tok)))))
 
 	case lexer.Variable, lexer.Number, lexer.Quote,
 		lexer.Readline, lexer.HeredocOpen:

@@ -6,7 +6,6 @@ package infer
 import (
 	"strconv"
 	"strings"
-	"unicode"
 
 	"tamarou.com/pvm/internal/lower"
 	"tamarou.com/pvm/internal/parse"
@@ -18,7 +17,8 @@ import (
 // type; a sub of this file gives its inferred return type, and a
 // fully-qualified one the project index's. A call through a reference is
 // not typed. `&name` never calls CORE, so it is a user sub's call whatever
-// its name, and so is a builtin a `use` list overrides.
+// its name, and so is a builtin the parse resolved to a sub, as overridden
+// says.
 //
 // The filehandle of `print $fh LIST` is Handle, not an argument, so it is
 // neither counted nor checked. An argument perl rejects is a Hole, which is
@@ -37,7 +37,7 @@ func (a *analysis) call(n *lower.Call) types.Type {
 		return types.Undef
 	}
 	sigs := parse.CoreBuiltin(n.Name)
-	if n.Fn != nil || n.Ampersand || a.overrides[n.Name] || len(sigs) == 0 {
+	if n.Fn != nil || n.Ampersand || overridden(n) || len(sigs) == 0 {
 		a.args(n.Args, nil)
 		return a.userCall(n)
 	}
@@ -76,51 +76,10 @@ var strongKeywords = map[string]bool{
 	"study": true, "undef": true,
 }
 
-// overrides is each builtin f's `use` lists override: the names `use subs`
-// predeclares, and those a module's import list names, which it exports
-// as subs. perl 5.42 -w, `use subs "rename"; sub rename { "fake" } print
-// rename()` prints "fake", and `use POSIX qw(localtime); localtime(1, 2)`
-// compiles. A pragma's list is its arguments, `use feature "say"`, and
-// names no sub; a strong keyword is never overridden.
-//
-// The file is read as one scope: a `use` anywhere overrides the name in
-// every package and before the `use`, where perl would not.
-func overrides(f *lower.File) map[string]bool {
-	names := map[string]bool{}
-	var add func(n lower.Node)
-	add = func(n lower.Node) {
-		switch n := n.(type) {
-		case *lower.StrLit:
-			if !n.Backtick {
-				names[n.Value] = true
-			}
-		case *lower.QwList:
-			for _, w := range n.Words {
-				names[w] = true
-			}
-		case *lower.List:
-			for _, e := range n.Elems {
-				add(e)
-			}
-		}
-	}
-	var walk func(n lower.Node)
-	walk = func(n lower.Node) {
-		if u, ok := n.(*lower.UseStmt); ok && u.Op == "use" && u.Args != nil &&
-			(u.Module == "subs" || u.Module != "" && unicode.IsUpper(rune(u.Module[0]))) {
-			add(u.Args)
-		}
-		for _, c := range lower.Children(n) {
-			walk(c)
-		}
-	}
-	walk(f)
-	for name := range names {
-		if strongKeywords[name] || len(parse.CoreBuiltin(name)) == 0 {
-			delete(names, name)
-		}
-	}
-	return names
+// overridden reports whether c calls a builtin the parse resolved to a
+// sub, as parse.Node.Override says; a strong keyword is never overridden.
+func overridden(c *lower.Call) bool {
+	return c.Override && !strongKeywords[c.Name]
 }
 
 // args walks a call's arguments, each in the context its parameter slot in
@@ -233,10 +192,10 @@ func (a *analysis) argSatisfies(actual, expected types.Type) bool {
 // to a builtin: without the Undef the builtin returns only when it fails,
 // as failureUndef says. fileno is Int|Undef, undef for a closed handle,
 // and perl 5.42 -w is silent on `fileno(STDOUT) . ">"`; read, getsockopt
-// and prototype are the same. A builtin a `use` list overrides is a user
-// sub. `scalar` hands on its argument's result. A type that is only
-// Undef, `undef()`'s, is kept, and so is anything that is no builtin's
-// result. It is a second chance, never a rewrite: a Scalar or a Hole's
+// and prototype are the same. A builtin the parse resolved to a sub is a
+// user sub, as overridden says. `scalar` hands on its argument's result.
+// A type that is only Undef, `undef()`'s, is kept, and so is anything
+// that is no builtin's result. It is a second chance, never a rewrite: a Scalar or a Hole's
 // Any satisfies a slot as it is.
 //
 // A call to a sub of this file whose every returned value is a builtin's
@@ -250,7 +209,7 @@ func (a *analysis) succeeded(n lower.Node, actual types.Type) types.Type {
 	if !ok || c.Fn != nil {
 		return actual
 	}
-	user := c.Ampersand || a.overrides[c.Name] || len(parse.CoreBuiltin(c.Name)) == 0
+	user := c.Ampersand || overridden(c) || len(parse.CoreBuiltin(c.Name)) == 0
 	if user && !a.returnsBuiltinResult(a.subs[c.Name]) {
 		return actual
 	}

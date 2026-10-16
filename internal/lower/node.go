@@ -248,6 +248,7 @@ type Call struct {
 	Ampersand     bool // &foo -- prototypes bypassed
 	BareAmpersand bool // &foo with no parens -- inherits caller's @_
 	Resolved      bool // false if the parser could not tell call from bareword
+	Override      bool // a builtin's name the parse resolves to a sub: parse.Node.Override
 }
 
 // MethodCall is $obj->name(...) and indirect object syntax.

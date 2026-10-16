@@ -52,7 +52,6 @@ func Analyze(f *lower.File, pos *lower.Positions, idx *ProjectIndex, opts Option
 		diags:       []Diagnostic{},
 		subs:        fileSubs(f),
 		assigned:    assignedNames(f),
-		overrides:   overrides(f),
 		evalCtx:     map[lower.ID]types.Context{},
 		classTypes:  map[lower.ID]string{},
 	}
@@ -74,9 +73,6 @@ type analysis struct {
 	// assigned is the name of every variable an assignment writes, which
 	// a sub body reads at its runtime value.
 	assigned map[string]bool
-	// overrides is each builtin a `use` list overrides, which a call
-	// to is a user sub's.
-	overrides map[string]bool
 	// evalCtx is the context the expression around a node evaluates it
 	// in, keyed by the node's id and set before the node is walked: an
 	// assignment's right side, an operator's operands, a ternary's arms.

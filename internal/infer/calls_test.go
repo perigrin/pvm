@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"tamarou.com/pvm/internal/infer"
+	"tamarou.com/pvm/internal/lower"
+	"tamarou.com/pvm/internal/parse"
 )
 
 // wantCode fails t unless the lowered path gives src a diagnostic of code.
@@ -251,5 +253,49 @@ func TestSucceededKeepsNormalUndef(t *testing.T) {
 		"use subs \"fileno\";\nsub fileno { $_[0] ? \"a\" : undef }\nprint fileno(0) . \">\";\n",
 	} {
 		wantCode(t, src, infer.CodeCoercionMismatch)
+	}
+}
+
+// A builtin a module's default @EXPORT overrides is the module's sub, not
+// the builtin, as the parser resolves it: perl 5.42 -w, with Foo2.pm
+// exporting `sleep` by default, `use Foo2; sleep("abc")` prints "slept
+// abc" silently. Without the import the builtin is called: `use Foo2 ();
+// sleep("abc")` warns "Argument "abc" isn't numeric in sleep", and so does
+// `sleep("abc")` when Foo2 cannot be found. A lexical sub overrides the
+// builtin, `my sub sleep { "s" } sleep("abc")` being "s", and a package
+// sub the file declares does not: `sub sleep { "s" } sleep("abc")` warns
+// "Ambiguous call resolved as CORE::sleep()" and "isn't numeric".
+func TestDefaultExportOverridesBuiltin(t *testing.T) {
+	foo2 := "package Foo2;\nuse Exporter 'import';\nour @EXPORT = ('sleep');\nsub sleep { return \"slept $_[0]\" }\n1;\n"
+	load := func(name string) ([]byte, bool) {
+		if name == "Foo2" {
+			return []byte(foo2), true
+		}
+		return nil, false
+	}
+	diags := func(src string, load parse.Loader) []infer.Diagnostic {
+		root := parse.ParseWithLoader([]byte(src), load)
+		f := lower.Lower(root)
+		_, d, _ := infer.Analyze(f, lower.NewPositions(root, f), nil, infer.Options{})
+		return d
+	}
+
+	src := "use Foo2;\nmy $x = sleep(\"abc\");\n"
+	for _, s := range []string{src, "my sub sleep { \"s\" }\nmy $x = sleep(\"abc\");\n"} {
+		for _, d := range diags(s, load) {
+			t.Errorf("%q: diagnostic %q, want none", s, d.Message)
+		}
+	}
+	for _, c := range []struct {
+		src  string
+		load parse.Loader
+	}{
+		{"use Foo2 ();\nmy $x = sleep(\"abc\");\n", load},
+		{src, nil},
+		{"sub sleep { \"s\" }\nmy $x = sleep(\"abc\");\n", nil},
+	} {
+		if d := diags(c.src, c.load); len(d) != 1 || d[0].Code != infer.CodeTypeMismatch {
+			t.Errorf("%q: diagnostics %v, want one type mismatch", c.src, d)
+		}
 	}
 }
