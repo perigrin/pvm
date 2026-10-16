@@ -21,6 +21,10 @@ type document struct {
 	uri      string
 	source   []byte
 	analysis *infer.FileAnalysis
+
+	// dir is the directory of a file: uri's path, and why is incRoots'
+	// note on it: why a perl its project names was not resolved.
+	dir, why string
 }
 
 // LSPServer maintains parsed state for open Perl documents.
@@ -58,10 +62,13 @@ func (s *LSPServer) OpenDocument(uri string, source []byte) error {
 	defer s.mu.Unlock()
 
 	var root *parse.Node
+	var dir, why string
 	if path, ok := uriPath(uri); ok {
 		// ponytail: @INC is resolved on every open; cache it per directory
 		// if resolution shows up in a profile.
-		roots, _ := incRoots(path)
+		var roots []string
+		roots, why = incRoots(path)
+		dir = filepath.Dir(path)
 		// ponytail: every open re-reads the modules it uses; cache them by
 		// mtime, invalidating facts and seen together, if opens get slow.
 		root = parse.NewSession().ParseSourceFrom(path, source, roots...)
@@ -73,6 +80,8 @@ func (s *LSPServer) OpenDocument(uri string, source []byte) error {
 		uri:      uri,
 		source:   source,
 		analysis: analyze(root, s.Options),
+		dir:      dir,
+		why:      why,
 	}
 	return nil
 }
@@ -92,6 +101,19 @@ func uriPath(uri string) (string, bool) {
 		p = p[1:]
 	}
 	return filepath.FromSlash(p), true
+}
+
+// incNote returns the directory of the document at uri and incRoots' note
+// on it, why a perl its project names was not resolved: "" when one was,
+// when the project names none, or when uri is not an open file: uri.
+func (s *LSPServer) incNote(uri string) (dir, why string) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if doc, ok := s.documents[uri]; ok {
+		return doc.dir, doc.why
+	}
+	return "", ""
 }
 
 // CloseDocument removes the document for the given uri from the server,

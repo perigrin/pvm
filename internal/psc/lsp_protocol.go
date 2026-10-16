@@ -107,6 +107,13 @@ type lspDiagnostic struct {
 	Code     string   `json:"code,omitempty"`
 }
 
+// lspLogMessageParams is the params of a window/logMessage notification.
+// Type is the LSP MessageType: 1 error, 2 warning, 3 info, 4 log.
+type lspLogMessageParams struct {
+	Type    int    `json:"type"`
+	Message string `json:"message"`
+}
+
 // lspPublishDiagnosticsParams is the params payload for textDocument/publishDiagnostics notifications.
 type lspPublishDiagnosticsParams struct {
 	URI         string          `json:"uri"`
