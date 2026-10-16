@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: type-libraries
 created: 2026-10-06T03:27:30.293600081Z
-updated: 2026-10-07T21:47:23.627263146Z
+updated: 2026-10-16T18:48:32.481420679Z
 sessions:
 - start_sha: 07cc780f72630b0802c7e086b4174f04ac531b3f
   end_sha: 07cc780f72630b0802c7e086b4174f04ac531b3f
@@ -40,6 +40,6 @@ Declarations have an error channel (`typedErrs` -> `moduleFacts.errs` -> resolve
 
 ## Acceptance criteria
 
-- [ ] mixing sub and multi sub for one name makes a multi with a warning, in either order (`go test ./internal/parse/ -run '^TestPmtPlainAndMultiSubMixIsAMultiWithAWarning$' -count=1 -v | grep -q '^--- PASS: TestPmtPlainAndMultiSubMixIsAMultiWithAWarning'`)
+- [ ] mixing sub and multi sub for one name makes a multi with a warning, in either order (`go test ./internal/parse/ -run '^TestTpmPlainAndMultiSubMixIsAMultiWithAWarning$' -count=1 -v | grep -q '^--- PASS: TestTpmPlainAndMultiSubMixIsAMultiWithAWarning'`)
 - [ ] a declaration file's warnings reach the parse root beside its errors (`go test ./internal/parse/ -run '^TestDeclarationWarningsReachTheRoot$' -count=1 -v | grep -q '^--- PASS: TestDeclarationWarningsReachTheRoot'`)
 - [ ] the RFC records the ruling (`grep -q 'multi sub.*warning\|warning.*multi sub' docs/rfcs/0001-type-libraries.md`)
