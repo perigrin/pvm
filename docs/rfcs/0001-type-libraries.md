@@ -67,6 +67,13 @@ sub group :prototype(&);
 one sub and its prototype. Every value is measured on perl 5.42.0 with
 the module installed, and the file's header names the module version.
 
+This section describes the files as they ship today. Under
+"Core-module libraries" (perigrin, 2026-10-16) a `.tpm` carries no
+export lists: each exported sub or variable carries `:export` or
+`:export_ok`, every shipped `.tpm` is converted to that form, and the
+parser then refuses `our @EXPORT`, `@EXPORT_OK` and `%EXPORT_TAGS` in
+a `.tpm` as an error. The example above changes with that conversion.
+
 Moose, Moose::Role and Mojolicious::Lite ship today.
 
 ### `M->import` in BEGIN is `use` (*Implemented*, a70a294e)
@@ -961,25 +968,47 @@ checks it against the list the declarations cover. Measured on
 
 **Every exported name.** A declaration file is read in place of the
 module's source, so a name it does not declare is a name the import
-loses. Each file declares every name in the module's `@EXPORT`,
-`@EXPORT_OK` and `%EXPORT_TAGS`, and its export lists equal the
-module's own.
+loses. A declaration has no export lists. perigrin, 2026-10-16: "We
+don't need the @EXPORT in the .tpm since we have :export and
+:export_ok." Every exported name, sub or variable, carries an
+attribute: `:export` means a bare `use` brings it in, and `:export_ok`
+means it must be asked for. A tag is an attribute argument:
+`:export_ok(flock)` puts the name in the `:flock` tag, and
+`:export(tag, ...)` names several.
 
-**Typed variables.** Some modules export variables: Config's `%Config`,
-Errno's `%!`. A declaration states one with its type before the
-variable and the export as an attribute, as Chalk and Bson spell it:
+    sub croak :export (List[Str|Boolean|DualVar|Ref] @message) None;
+    sub LOCK_EX :export_ok(flock) () Int;
 
-    our Hash[Str] %Config :export;
+What is marked is what perl's `use` installs in a caller, measured with
+perl, not what the module's own lists say. A module whose own `import`
+installs names its lists do not hold is declared the same way.
+perigrin, 2026-10-16: "we should figure out as best we can what is
+exported (loc, loc_lang, etc.) and mark them as :export or :export_ok
+accordingly." Locale::Maketext::Simple's lists are empty, yet a bare
+`use` of it installs `loc` and `loc_lang`, so both are `:export`.
 
-`:export` places the variable in `@EXPORT`, so a bare `use` brings it
-in; `:export_ok` places it in `@EXPORT_OK`, so it must be asked for.
-The names mirror Exporter's own lists (perigrin, 2026-10-16). A typed
-`our` is typed Perl, so it is legal only in a declaration file, as a
-typed signature is.
+The shipped declarations are converted to this form first, and the
+parser then refuses `our @EXPORT`, `@EXPORT_OK` and `%EXPORT_TAGS` in
+a `.tpm` as an error (perigrin, 2026-10-16: migrate, then remove).
+
+**Typed variables.** Some modules export variables: Config's `%Config`
+on a bare `use`, Socket's `$CRLF` only when asked for. A declaration
+states one with its type before the variable and the export as an
+attribute, as Chalk and Bson spell it:
+
+    our Hash[Str|Undef] %Config :export;
+    our Str $CRLF :export_ok(crlf, all);
+
+`%Config` is `Hash[Str|Undef]` because 172 of its values are undef on
+perl 5.42.0 (perigrin, 2026-10-16). A typed `our` is typed Perl, so it
+is legal only in a declaration file, as a typed signature is; outside
+one, perl refuses `our Hash[Str] %Config` at compile time, and so does
+the parser.
 
 **Held to perl.** Every declaration is tested against an installed
-perl: declared prototypes equal `prototype()`; export lists equal the
-module's own; return types agree with what an oracle observes when perl
+perl: declared prototypes equal `prototype()`; the `:export` and
+`:export_ok` marks equal what `use` installs in a caller, bare, by name
+and by tag; return types agree with what an oracle observes when perl
 calls the sub, and an observed value the declared type excludes fails.
 The oracle runs in a scratch directory with no network, and calls only
 subs that are safe there; a sub it cannot call is held to its prototype
@@ -989,7 +1018,10 @@ and its export membership. Tests run perl; psc never does.
 inherited from or called by many other modules, so a declaration that
 replaces their source could change how those modules' imports resolve.
 Each is written, then measured: it must keep every module that uses it
-resolving as before and hold the m1 gates, or it is not shipped.
+resolving as before and hold the m1 gates, or it may not ship. These
+three are the only modules of the 50 that may not ship (perigrin,
+2026-10-16), and only perigrin cancels one: the measurement that would
+keep it out is put to him first, and the reason recorded is his.
 
 **Exits.** A sub that never returns is declared `None`, as `die` and
 `exit` are in `CORE.tpm`; a call to one ends its path, as a `die` does.
@@ -1042,8 +1074,9 @@ Separate from the paper:
     Perl's refaliasing has no glob form, so the backslash rule does not
     carry over; `lock`, `undef`, `tie`, `tied`, `untie` and `pos` stay
     untyped until this is settled.
-12. *(Resolved: see "Core-module libraries". A typed variable's
-    `:export` places it in `@EXPORT`, `:export_ok` in `@EXPORT_OK`.)*
+12. *(Resolved: see "Core-module libraries". `:export` means a bare
+    `use` brings the name in, `:export_ok` that it must be asked for,
+    and a tag is an attribute argument; a `.tpm` has no export lists.)*
 
 ## Rejected alternatives
 
