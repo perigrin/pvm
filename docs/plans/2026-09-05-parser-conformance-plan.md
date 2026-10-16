@@ -579,6 +579,10 @@ coverage is still low, and it is the discipline the whole ladder rests on.
 
 ### M2 — Incremental, and correct under edit
 
+This M2 is the conformance ladder's gate and is still open; the milestone
+`m2-lower-the-tree`, which lowered the parse tree for inference, is a
+separate step that shares the number and not this gate.
+
 **Corpus:** M1's, plus fuzz-generated edit sequences.
 
 Spec chapter 6 §6.11 ships the full-reparse server first (step 3) and adds

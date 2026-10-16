@@ -1489,14 +1489,15 @@ operation, so a rule matches one shape.
 // its parent imposes (§4.12) is not stored on the node: §4.12.2 rule 1 makes
 // it a property of the edge.
 //
-// Identity is a stable id, never a byte offset. internal/infer/infer.go:184
-// keys its annotation map on StartByte, and a parent written after its
-// children overwrites the child at the same offset: measured on
-// `my $x = 5; my @y = ($x); my $z = $y[0];`, byte 0 carries four nodes and
-// the `number` inside `(1..5)` reads back as its parent's type. Spans live
-// in the side table of §6.1.6 item 3, keyed by this id; the table must also
-// preserve total source ORDER, because nearestPatternBefore
-// (infer.go:1724-1751) resolves $1 by "the last match before this point".
+// Identity is a stable id, never a byte offset: lower.ID (§6.1.6 item 4),
+// and internal/infer keys its annotations on it. History, measured at
+// 3c997a6b on the tree-sitter path: a byte-offset key let a parent written
+// after its children overwrite the child at the same offset -- on
+// `my $x = 5; my @y = ($x); my $z = $y[0];` byte 0 carried four nodes, and
+// the `number` inside `(1..5)` read back as its parent's type. Spans live
+// in the side table of §6.1.6 item 3 (lower.Positions), keyed by this id;
+// the table also preserves total source ORDER, because $1 resolves to "the
+// last match before this point" (Positions.LastBefore).
 type Node interface{ Meta() *nodeBase } // not Base(): Index.Base would hide it
 type nodeBase struct{ ID ID; Paren bool } // Paren: parse.Node.Paren, rule 1
 
@@ -1534,7 +1535,8 @@ const (
 )
 
 // --- Operators ---
-type Unary   struct{ nodeBase; Op string; Operand Node; Postfix bool } // ! ~ - \ ++ --
+type Unary   struct{ nodeBase; Op string; Operand Node; Postfix bool }
+                                    // Op: ! not neg pos ~ ~. ++ -- (`\` is Ref)
 type Binary  struct{ nodeBase; Op string; L, R Node }
 type Repeat  struct{ nodeBase; Left, Count Node; ListRepeat bool }   // x -- see 4.10
 type Assign  struct{ nodeBase; Op string; L, R Node; ListAssign bool }
@@ -1605,7 +1607,8 @@ type Ref      struct{ nodeBase; Operand Node }           // \EXPR
 type FileTest struct{ nodeBase; Op byte; Operand Node }  // -e -d -f ...; nil = $_
 type Readline struct{ nodeBase; Handle Node; Magic bool } // <FH> <> <<>>
 type Glob     struct{ nodeBase; Pattern Node }           // <*.c> / glob EXPR
-type LoopEx   struct{ nodeBase; Op string; Label Node }  // last/next/redo/goto
+type LoopEx   struct{ nodeBase; Op string; Label Node }  // last/next/redo/goto/return;
+                                                         // return's value stands in Label
 type Wantarray struct{ nodeBase }                        // same name in SoN
 
 type Match struct { // m// s/// tr/// qr// -- see 4.11
@@ -1617,6 +1620,29 @@ type Match struct { // m// s/// tr/// qr// -- see 4.11
 	Target  Node // nil means $_
 	Negated bool // !~
 }
+
+// --- Statements (lowered in stmt.go; no spans, which live in the side table) ---
+type Block       struct{ nodeBase; Stmts []Node }       // also do/eval/map bodies
+type ExprStmt    struct{ nodeBase; X Node }
+type IfStmt      struct{ nodeBase; Cond, Then, Else Node }
+                 // if, unless (branches swapped, §4.14.5), elsif (an IfStmt
+                 // in Else), and the modifier form (Then is an expression)
+type BlockStmt   struct{ nodeBase; Labels []Node; Body, Continue Node } // bare block
+type WhileStmt   struct{ nodeBase; Labels []Node; Cond, Body, Continue Node
+                         Negated, PostCond bool }
+                 // while/until, block and modifier form; Negated: until;
+                 // PostCond: do BLOCK while/until; nil Cond: infinite
+type CForStmt    struct{ nodeBase; Labels []Node; Init, Cond, Post, Body Node }
+type ForeachStmt struct{ nodeBase; Labels []Node; Var, List, Body, Continue Node }
+                 // Var as written (`my $i`, `$i`, `\my $x`); nil means $_
+type UseStmt     struct{ nodeBase; Op, Module, Version string; Expr, Args Node }
+                 // use/no/require (§5.9.4); Args nil if none, kept if `()`
+type PhaserStmt  struct{ nodeBase; Kind string; Body Node } // BEGIN END CHECK INIT UNITCHECK
+type File        struct{ nodeBase; Stmts []Node }
+// A label is a Bareword carrying the label node's id. sub, method, package,
+// class and field are Decl. An empty statement lowers to nothing, and
+// given/when/default, try/catch/finally, defer and format to one Hole for
+// the whole statement (01a14248-51aa-7b36-899e-9e7f33588ac7).
 ```
 
 ### 4.14.1 Node-kind rules that are not obvious
@@ -1896,7 +1922,7 @@ status. "C" counts are uses in `internal/infer` of the old grammar name.
 | `Glob` | `<*.c>;` → `[term "<*.c>"]`, told from a readline by a body that is not a handle name or a scalar; `glob("*.c")` → `call "glob" resolved`. **Moved:** at 3c997a6b `<*.c>` was `Unknown` | C: none | LOWERING; SPECULATIVE consumer |
 | `LoopEx` | `last FOO` → `[loop_control "last" [label "FOO"]]`; `next;` likewise; `return` is also `loop_control` (`return (1,2)` → `[loop_control "return" [list paren ...]]`); `goto &foo;` → `[loop_control "goto" [term "&foo"]]`. **Moved:** at 3c997a6b `goto &foo;` was `Unknown` | C: `return_expression` (3); `blockAlwaysExits` (`infer.go:3312-3342`) detects `return`/`die`/`exit` by text and will need `last`/`next` for correct branch joins | SHIPPED |
 | `Wantarray` | `wantarray;` → `call "wantarray" resolved=true` | C: `NarrowByContext` (`infer.go:1291`) exists and has no context source. SoN: `Wantarray`, the one exact-name agreement, and language by SoN's own test (`Wantarray.pm`: perl made it a runtime function because an interpreter cannot see a sub's callers) | LOWERING (rename) |
-| `Match{Op}` | `s/a/b/g`, `m/x/`, `qr/x/`, `/a/`, `tr/a/b/`, `y/a/b/` → one `term` each with the raw operator as `Text` | C: `match_regexp`, `quoted_regexp`, `regexp_content` (1 each); `nearestPatternBefore` (`infer.go:1724-1751`) needs source order (§4.14 preamble) | SHIPPED as an opaque leaf |
+| `Match{Op}` | `s/a/b/g`, `m/x/`, `qr/x/`, `/a/`, `tr/a/b/`, `y/a/b/` → one `term` each with the raw operator as `Text` | C: `match_regexp`, `quoted_regexp`, `regexp_content` (1 each); `$1` resolution needs source order (§4.14 preamble; `Positions.LastBefore`) | SHIPPED as an opaque leaf |
 | `Match{Pattern,Replace,Flags}` | inside the one `Quote` token, by design (`quote.go`) | SoN: `Transliterate.pm` records that reading `tr`'s operands as a regex compiles something the source never wrote — hence the field note in the listing | PARSER |
 | `Match{Target,Negated}` | `$x =~ /a/` → `binary "=~"`, `$x !~ /a/` → `binary "!~"` | — | LOWERING |
 | `Hole` | `Unknown`. T1 at 971b9031, through `parse.ParseFileFrom` with perl 5.42's `@INC`: 2, both childless `trailing_tokens` leaves, parents `block` 1 and `source_file` 1, spans 57 and 123 bytes (180 of 2,175,885 corpus bytes). Through bare `parse.Parse`: 1,255, parents `source_file` 997, `block` 256, `index` 2. **Unknowns with children over T1: 0** under either path. An `Unknown` CAN have children, though: `if ($x) {` → `[conditional "if" [term "$x"] [unknown refusal=unclosed_opener [block]]]`. At 3c997a6b T1 held 4,944, every one a childless leaf, parents `source_file` 3,851, `block` 690, `binary` 281, `index` 74, `loop` 36, `loop_control` 6, `cmp_chain` 2, `call` 2, `unary` 1, `declaration` 1 | §6.1.6 item 7 asks every descending rule to check for `Unknown`. The rule is instead: a `Hole` may stand anywhere a `Node` may (the census shows it as a `binary` operand and an `index` base or subscript), inference types it `Any` and never inspects it or its children, and a position query inside its span returns the `Hole` so the LSP reports "no information" rather than a type | LOWERING; new in this list |
@@ -2017,7 +2043,7 @@ breaks if a STRUCTURE item is erased anyway.
 | `$$x[0]` / `${$x}[0]` / `$x->[0]` to one `Index` | VARIATION for the spelling, STRUCTURE for deref-ness | Same runtime op; the lowering keeps "base is a `Deref`" and the LSP keeps `Arrow` |
 | `($x)` to `$x` | STRUCTURE | Rule 1: `('a') x 3` vs `'a' x 3`; `my ($x) = f()` vs `my $x = f()`. Erased today at `finishList` |
 | `unless (c) {A} else {B}` to `if` | VARIATION, as a branch swap | `perl -MO=Deparse` gives `if ($c) {B} else {A}` — a swap, not `if (!c)`. Specify the swap; a synthesised `Not` is a node flow narrowing would have to see through |
-| `until` to `while` | VARIATION for the modifier and block forms; **STRUCTURE for `do {} until`** | perl: `$m++ until 1` leaves 0; `do { $n++ } until 1` leaves 1. Both are `loop` nodes; the do-form is `loop "while"`/`"until"` whose child 0 is `call "do"` over a `block`. The lowering needs a `PostCond` bit or a distinct kind — this list has neither and chapter 5 owns the statement kinds |
+| `until` to `while` | VARIATION for the modifier and block forms; **STRUCTURE for `do {} until`** | perl: `$m++ until 1` leaves 0; `do { $n++ } until 1` leaves 1. Both are `loop` nodes; the do-form is `loop "while"`/`"until"` whose child 0 is `call "do"` over a `block`. The lowering keeps the do-form as `WhileStmt.PostCond` |
 | Statement-modifier `if`/`unless` to block form | VARIATION | `$x = 1 if $c` → `conditional "if"` with children `[body, cond]`, the reverse of the block form's `[cond, block]`; the lowering dispatches on child order, not kind |
 | `qw(a b)` to `List` of `StrLit` | VARIATION | perl: identical to `("a","b")` under `x` and in scalar context. `QwList` may still be kept for the LSP |
 | `a => 1` to `"a", 1` | STRUCTURE for the left word | §4.5.4; without `Fat` the lowering cannot tell `(a, 1)` (a call) from `(a => 1)` (a string). Destroyed today inside `list`/`anon_array`/`anon_hash` |
@@ -2028,6 +2054,10 @@ breaks if a STRUCTURE item is erased anyway.
 | Five call spellings to one `Call` | VARIATION | The consumer's five identical `GetBuiltin` sites are the proof |
 | The `print $fh` handle to argument 1 | STRUCTURE | `infer.go:1155-1165`: measured false `Str` mismatch on every typed-handle print |
 | `Unknown` to `Hole` | VARIATION | A leaf to a leaf; the span and the "never inspect" rule are what matter |
+| A one-link `cmp_chain` to `Binary` | VARIATION | perl: `B::Deparse` gives `$a < $b` back as a plain comparison; only two or more links lower to `CmpChain` |
+| `my Foo $f` to `my $f` | STRUCTURE, erased today | perl: under `use fields`, `my Foo $f; $f->{b}` dies "No such class field "b" in variable $f of type Foo". No `Decl` field holds the class (`decl.go`, a `ponytail:` comment); nothing in `internal/infer` reads it yet |
+| A label on a statement that is not a loop or bare block | STRUCTURE, erased today | perl: `goto L; ... L: print` lands on it. Labels survive on `BlockStmt`, `WhileStmt`, `CForStmt` and `ForeachStmt`, where `last`/`next` read them; elsewhere they are dropped until a consumer resolves `goto` (`stmt.go`, a `ponytail:` comment) |
+| `package Foo 1.2 { ... }`'s version | STRUCTURE, erased today | perl: `Foo->VERSION` is 1.2. `Decl.Init` holds the version or the block, and the block wins when both are written; `class Foo 1.0 {}` likewise. Tracked as review S10 (01a14247-df10-7e8a-9c75-257355dee88d) |
 
 ### 4.14.6 Open after the reconciliation
 
@@ -2079,27 +2109,36 @@ Settled in `internal/lower/node.go`, each recorded at its declaration:
 
 Still open, each naming what would settle it:
 
-- **`CmpChain`'s typing rule.** The parser ships the kind, so the lowering
-  must accept it, and `internal/infer` has no chained-comparison logic.
-  Settled by writing the rule and seeing whether it wants a flat operand
-  list or nested `Binary`s.
-- **`Interp.Parts` and `Match.Pattern`.** The consumer reads
-  `string_content` and `regexp_content` once each. Whether it wants the
-  pieces or only the text is settled by reading those two sites
-  (`infer.go:1569`, `:1741`); one use each is weak evidence either way.
-- **`local`/`state`/`our`/`field` as `Decl.Kind` values for inference.**
-  The consumer handles none of the four. `local` restores on scope exit,
-  which is a flow fact; whether flow analysis must model dynamic scoping is
-  a §6.1.7 question and §6.1.7 is unbuilt.
-- **Whether `Arrow` is a regression.** d2ebe02a unified the shapes and
-  dropped the bit. Before it, `$h->{k}` was `[binary "->" ...]` and the
-  operator's `Text` held the arrow. UNVERIFIED that the pre-fix shape was
-  otherwise usable; settled by `git checkout 3b9422eb -- internal/parse`
-  and one dump. Either way the fix is the bit, not a revert — and at
-  971b9031 the bit ships (§4.14.3).
-- **Whether the three measured consumer defects are tracked.** Range as
-  `Str`, slice element-type loss, and the `StartByte` collision: no issue
-  search was made. If any is open, this section should reference it.
+- **`CmpChain`'s typing rule.** The lowering ships the kind for two or
+  more links (a one-link chain is a `Binary`, §4.14.5), and
+  `internal/infer` has no chained-comparison rule: a chain draws a false
+  operand warning (01a1335d-9738-7503-9e70-8afaa177d443). Settled by
+  writing the rule and seeing whether it wants a flat operand list or
+  nested `Binary`s.
+- **`Interp.Parts` and `Match.Pattern`.** `internal/parse` does not yet
+  parse the code inside an interpolated string or a pattern, so the parts
+  are not there to lower (01a12059-3011-7a53-8249-e3f154026f6f); the sites
+  inside interpolation are hedged meanwhile (01a12059-3138, done).
+- **`field` as a `Decl.Kind` for inference.** `our`, `state` and `local`
+  are read by `internal/infer`; `field` lowers to `Decl{Kind: Field}` and
+  inference does not use it (01a14248-520e-723c-bc80-8d6f3f8306f6).
+  Whether flow analysis must model `local`'s restore on scope exit is a
+  §6.1.7 question.
+- **The statements that lower to one `Hole`.** given/when/default,
+  try/catch/finally, defer and format: inference never reads their bodies
+  (01a14248-51aa-7b36-899e-9e7f33588ac7).
+
+Closed since the reconciliation, kept as history:
+
+- **Whether `Arrow` is a regression.** Moot: `Index.Arrow` and `Key.Arrow`
+  ship (§4.14.3), whatever the pre-d2ebe02a shape was.
+- **The three consumer defects measured at 3c997a6b** — `(1..5)` as `Str`,
+  slice element-type loss, and the byte-offset key collision — are gone on
+  the lowered path: `my @r = (1..5);` gives `@r` element type `Int`,
+  `my @s = @a[0,1];` gives `Int` where `@a` holds `Int`, and
+  `TestAnnotationsKeyedByIdentity` pins the id key. Issue
+  01a121c3-b0bc-7e12-a196-1d1fd563ab80, filed against the tree-sitter path,
+  is still pending and can be closed against this.
 
 ---
 

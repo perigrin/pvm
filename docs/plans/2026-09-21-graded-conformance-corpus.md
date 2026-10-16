@@ -1299,8 +1299,10 @@ The remaining two are real lexer gaps: `5e-1` lexes as
   constructs the corpus still lacks AFTER this.
 - The `shortfall` ratchet stays. Two instruments measuring different
   things is correct; one of them pretending to measure the other is not.
-- M2-M6's gates are untouched by this section. M2 lowers the tree this
-  parser builds, so it inherits whatever M1's coverage becomes; nothing
+- M2-M6's gates are untouched by this section. Here "M2" is the milestone
+  `m2-lower-the-tree`, the lowering step; the conformance ladder's M2 gate
+  (incremental and correct under edit) is separate and still open. M2
+  lowers the tree this parser builds, so it inherits whatever M1's coverage becomes; nothing
   in M2's sixteen issues reads the corpus and nothing needs to.
 
 ### Outcome, measured 2026-09-26 end of session
