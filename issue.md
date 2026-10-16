@@ -1,6 +1,6 @@
 ---
 title: Pin the core-module ranking in a test and record the rule in the RFC
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 blocks:
@@ -18,7 +18,16 @@ blocks:
 - 01a1464e-dde3-73fe-ab1f-ced7f18c4f9d
 - 01a14657-682e-7432-8ea9-828f56cd2f69
 created: 2026-10-16T20:02:15.040084527Z
-updated: 2026-10-16T21:01:46.068720006Z
+updated: 2026-10-16T21:45:59.929896321Z
+sessions:
+- start_sha: ec99871d43d51af75b3cdcb95b6ddca2a6802abd
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-16T21:45:59.929896321Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-16T21:45:59.929896321Z
 ---
 
 ## Prerequisites
