@@ -18,17 +18,17 @@ import (
 )
 
 // TestCheckEscapesControlCharacters checks that a diagnostic in a file
-// named with an OSC title sequence, or with a byte that is not UTF-8, prints the name with \xNN escapes, and
+// named with an OSC title sequence prints the name with \xNN escapes, and
 // that the note naming an unresolvable .perl-version is escaped the same
-// way. The control is a plain name, printed as it is.
+// way. The control is a plain name, printed as it is. A name holding a
+// byte that is not UTF-8 is TestPrintableEscapes' case: APFS refuses to
+// create one.
 func TestCheckEscapesControlCharacters(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "p\x1bq")
 	require.NoError(t, os.Mkdir(dir, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, ".perl-version"), []byte("dev\n"), 0o644))
 	bad := "my $u = undef;\nmy $x = $u + 1;\n"
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "x\x1b]0;PWNED\a.pl"), []byte(bad), 0o644))
-	// A lone 0x9b is CSI to a terminal reading 8-bit controls.
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "y\x9b.pl"), []byte(bad), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "plain.pl"), []byte(bad), 0o644))
 
 	cmd := psc.NewCommand()
@@ -41,8 +41,6 @@ func TestCheckEscapesControlCharacters(t *testing.T) {
 	got := out.String()
 	assert.NotContains(t, got, "\x1b")
 	assert.NotContains(t, got, "\a")
-	assert.NotContains(t, got, "\x9b")
-	assert.Contains(t, got, `p\x1bq/y\x9b.pl:2:`)
 	assert.Contains(t, got, `p\x1bq/x\x1b]0;PWNED\x07.pl:2:`)
 	assert.Contains(t, got, `p\x1bq/.perl-version names "dev"`)
 	assert.Contains(t, got, `p\x1bq/plain.pl:2:`)
