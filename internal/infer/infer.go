@@ -994,7 +994,8 @@ func typeMismatchMessage(name string, argIdx int, expected, actual types.Type) s
 
 // compoundGuard holds the structure of a compound boolean guard expression.
 // Op is "&&" for AND conditions and "||" for OR conditions.
-// Left and Right are the sub-guards, each of which may itself be compound.
+// Left and Right are the sub-guards, each of which may itself be compound,
+// and either of which is nil when that side of the operator is not a guard.
 type compoundGuard struct {
 	Op    string // "&&" or "||"
 	Left  *guardResult
@@ -1196,7 +1197,8 @@ func remapGuardVar(guard *guardResult, paramName, argName string) *guardResult {
 //   - For || (negate=true, De Morgan → &&): both negated sub-guards apply → recurse.
 //
 // For simple (non-compound) guards: return a one-element slice with Negated
-// set to guard.Negated XOR negate.
+// set to guard.Negated XOR negate. A nil side of a compound, one that is not
+// a guard, flattens to nothing.
 func flattenGuards(guard *guardResult, negate bool) []*guardResult {
 	if guard == nil {
 		return nil

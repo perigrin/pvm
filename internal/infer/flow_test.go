@@ -139,3 +139,41 @@ func TestBranchJoinNeverHoldsVoid(t *testing.T) {
 		t.Errorf("%q: $Inf is %v, want Any or a union without Void", src, got)
 	}
 }
+
+// A compound guard with one side that is not a guard keeps its operator:
+// `defined $x && $y` failing says nothing about $x, since $y may be what
+// failed, and `!defined $x || $y` holding says nothing about $x either.
+// perl 5.42 -w, run with the argument 5, is silent on each and prints 6.
+func TestPartialCompoundGuardKeepsOperator(t *testing.T) {
+	for _, src := range []string{
+		"my $x = $ARGV[0];\nmy $y = 0;\nif (defined $x && $y) { exit 0 }\nprint $x + 1, \"\\n\";\n",
+		"my $x = $ARGV[0];\nmy $y = 0;\n(defined $x && $y) || print $x + 1, \"\\n\";\n",
+		"my $x = $ARGV[0];\nmy $y = 1;\nif (!defined $x || $y) { print $x + 1, \"\\n\" }\n",
+		"my $x = $ARGV[0];\nmy $y = 0;\nif (!defined $x || $y) { exit 0 }\nprint $x + 1, \"\\n\";\n",
+	} {
+		wantSilent(t, src)
+	}
+
+	// The known side still narrows where the operator lets it: perl -w,
+	// run with no argument, warns "Use of uninitialized value $x in
+	// addition (+)" on each.
+	for _, src := range []string{
+		"my $x = $ARGV[0];\nmy $y = 1;\nif (!defined $x && $y) { print $x + 1, \"\\n\" }\n",
+		"my $x = $ARGV[0];\nmy $y = 0;\nif (defined $x || $y) { } else { print $x + 1, \"\\n\" }\n",
+	} {
+		wantReported(t, src, infer.CodeCoercionMismatch)
+	}
+}
+
+// An `or` whose other side is not a guard narrows nothing in its
+// then-branch, which runs whenever the other side is true; its
+// else-branch runs only where both sides are false, so the guard's
+// negation holds there. perl 5.42 -w is silent on the first two, run
+// with the argument "a" and then 5.
+func TestOrWithNonGuardSideDoesNotNarrowThen(t *testing.T) {
+	wantSilent(t, "my $ch = $ARGV[0];\nif (!defined $ch or $ch !~ /\\d/) { print \"a\" . $ch, \"\\n\" }\n")
+	wantSilent(t, "my $ch = $ARGV[0];\nif (!defined $ch or $ch !~ /\\d/) { } else { print $ch + 1, \"\\n\" }\n")
+	// perl -w, run with no argument, warns "Use of uninitialized value
+	// $ch in concatenation (.) or string".
+	wantReported(t, "my $ch = $ARGV[0];\nif (!defined $ch) { print \"a\" . $ch, \"\\n\" }\n", infer.CodeCoercionMismatch)
+}

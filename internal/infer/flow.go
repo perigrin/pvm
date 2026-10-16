@@ -618,16 +618,14 @@ func className(n lower.Node) string {
 	return ""
 }
 
-// compound is a compound guard: both sides when
-// both are guards, the one that is when only one is.
+// compound is a compound guard, or nil when neither side is a guard. A
+// side that is not a guard is a nil side, which says nothing, and the
+// operator is kept: `defined $x && $y` failing may be $y failing.
 func compound(op string, l, r *guardResult) *guardResult {
-	switch {
-	case l != nil && r != nil:
-		return &guardResult{Compound: &compoundGuard{Op: op, Left: l, Right: r}}
-	case l != nil:
-		return l
+	if l == nil && r == nil {
+		return nil
 	}
-	return r
+	return &guardResult{Compound: &compoundGuard{Op: op, Left: l, Right: r}}
 }
 
 // negateGuard is a guard's negation: a simple guard
@@ -645,9 +643,17 @@ func negateGuard(g *guardResult) *guardResult {
 	if g.Compound.Op == "||" {
 		op = "&&"
 	}
-	l, r := *g.Compound.Left, *g.Compound.Right
-	l.Negated, r.Negated = !l.Negated, !r.Negated
-	return &guardResult{Compound: &compoundGuard{Op: op, Left: &l, Right: &r}}
+	return &guardResult{Compound: &compoundGuard{Op: op, Left: flipped(g.Compound.Left), Right: flipped(g.Compound.Right)}}
+}
+
+// flipped is g with its Negated flag flipped, or nil for a nil side.
+func flipped(g *guardResult) *guardResult {
+	if g == nil {
+		return nil
+	}
+	n := *g
+	n.Negated = !n.Negated
+	return &n
 }
 
 // explicitReturns is the join of every
