@@ -372,7 +372,7 @@ type Match struct {
 	Negated bool // !~
 }
 
-// --- Statements (§5.17's kinds, without spans; lowered in stmt.go) ---
+// --- Statements (§4.14's statement kinds; lowered in stmt.go) ---
 
 // Block is `{ ... }` holding statements. It is reached from an expression
 // too -- the body of do, eval and map -- so expr lowers it.

@@ -176,6 +176,9 @@ func (a *analysis) walk(n lower.Node) types.Type {
 		t = types.Unknown
 	case *lower.Decl:
 		t = a.decl(n)
+	case *lower.ExprStmt:
+		a.exprStmt(n)
+		t = types.Any
 	case *lower.IfStmt:
 		a.ifStmt(n)
 		t = types.Unknown
@@ -998,7 +1001,8 @@ func typeMismatchMessage(name string, argIdx int, expected, actual types.Type) s
 
 // compoundGuard holds the structure of a compound boolean guard expression.
 // Op is "&&" for AND conditions and "||" for OR conditions.
-// Left and Right are the sub-guards, each of which may itself be compound.
+// Left and Right are the sub-guards, each of which may itself be compound,
+// and either of which is nil when that side of the operator is not a guard.
 type compoundGuard struct {
 	Op    string // "&&" or "||"
 	Left  *guardResult
@@ -1037,14 +1041,27 @@ func narrowContinuation(guards []*guardResult, st *SymbolTable) {
 		var elseType types.Type
 		var narrowed bool
 		if eg.Negated {
-			elseType, narrowed = types.NegateGuard(sym.Type, eg.Guard)
+			elseType, narrowed = types.NegateGuard(guardedType(sym.Type), eg.Guard)
 		} else {
-			elseType, narrowed = types.NarrowByGuard(sym.Type, eg.Guard)
+			elseType, narrowed = types.NarrowByGuard(guardedType(sym.Type), eg.Guard)
 		}
 		if narrowed {
 			st.UpdateType(eg.VarName, elseType)
 		}
 	}
+}
+
+// guardedType is the type a guard narrows a variable from. Every name a
+// guard narrows is a scalar, so one typed Any or Unknown narrows from
+// Scalar: `!ref $v` on Any leaves Scalar less Ref, which a Num or Str slot
+// takes, and not Any less Ref, whose Array, Hash, IO and Void fail every
+// slot. perl 5.42 -w is silent on `my $v = eval "1"; unless (ref $v) {
+// print $v + 1 }`.
+func guardedType(t types.Type) types.Type {
+	if t == types.Any || t == types.Unknown {
+		return types.Scalar
+	}
+	return t
 }
 
 // collectPreIfTypes returns the current types of all variables referenced by
@@ -1200,7 +1217,8 @@ func remapGuardVar(guard *guardResult, paramName, argName string) *guardResult {
 //   - For || (negate=true, De Morgan → &&): both negated sub-guards apply → recurse.
 //
 // For simple (non-compound) guards: return a one-element slice with Negated
-// set to guard.Negated XOR negate.
+// set to guard.Negated XOR negate. A nil side of a compound, one that is not
+// a guard, flattens to nothing.
 func flattenGuards(guard *guardResult, negate bool) []*guardResult {
 	if guard == nil {
 		return nil
@@ -1279,7 +1297,7 @@ func guardShadows(guards []*guardResult, st *SymbolTable) (map[string]types.Type
 				// Variable was never declared — skip to avoid phantom shadows.
 				continue
 			}
-			currentType = sym.Type
+			currentType = guardedType(sym.Type)
 		}
 
 		var narrowedType types.Type
