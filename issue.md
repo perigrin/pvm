@@ -1,6 +1,6 @@
 ---
 title: Pin the core-module ranking in a test and record the rule in the RFC
-state: done
+state: reopened
 urgency: normal
 milestone: core-module-types
 blocks:
@@ -18,7 +18,7 @@ blocks:
 - 01a1464e-dde3-73fe-ab1f-ced7f18c4f9d
 - 01a14657-682e-7432-8ea9-828f56cd2f69
 created: 2026-10-16T20:02:15.040084527Z
-updated: 2026-10-16T22:23:20.894544028Z
+updated: 2026-10-16T22:23:21.030782061Z
 sessions:
 - start_sha: ec99871d43d51af75b3cdcb95b6ddca2a6802abd
   end_sha: 56d7b35020b325def5868693d7c94dc305759fc7
@@ -32,6 +32,9 @@ transitions:
 - state: done
   actor: human:git-zhi
   timestamp: 2026-10-16T22:16:01.440006752Z
+- state: reopened
+  actor: human:git-zhi
+  timestamp: 2026-10-16T22:23:21.030782061Z
 observed_paths:
 - docs/rfcs/0001-type-libraries.md
 - internal/lexer/proto.go
