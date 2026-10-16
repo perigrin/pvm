@@ -115,3 +115,28 @@ func TestKeyValueHashElementsKeepValueTypes(t *testing.T) {
 		}
 	}
 }
+
+// A literal range in list context is a list, not the flip-flop's Str, and
+// an array it fills holds its values: perl 5.42, `my @r = (1..5)` is five
+// Ints, `$r[0] + 1` is 2, and `my @s = ("a".."c")` is ("a", "b", "c"),
+// each a Str. Written without spaces, `1..5` is still a range.
+func TestLiteralRangeInfersAList(t *testing.T) {
+	for _, c := range []struct {
+		src, rng string
+		elem     types.Type
+	}{
+		{"my @r = (1..5);\nmy $n = $r[0] + 1;\n", "(1..5)", types.Int},
+		{"my @r = (\"a\"..\"c\");\nmy $n = $r[0] . \"!\";\n", "(\"a\"..\"c\")", types.Str},
+	} {
+		ty, diags, st := analyzeLowered([]byte(c.src), nil, infer.Options{})
+		if got, _ := findNodeType(ty, []byte(c.src), c.rng); got != types.List {
+			t.Errorf("%q: %s typed %v, want List", c.src, c.rng, got)
+		}
+		if sym, ok := st.Lookup("@r"); !ok || sym.ElemType != c.elem {
+			t.Errorf("%q: @r's elements are %v, want %v", c.src, sym.ElemType, c.elem)
+		}
+		for _, d := range diags {
+			t.Errorf("%q: diagnostic %q, want none", c.src, d.Message)
+		}
+	}
+}
