@@ -9,7 +9,7 @@ blocked_by:
 - 01a0c115-df67-7d69-8883-73d40b0ae15d
 - 01a10177-547c-73a9-a302-f25f579a4cb3
 created: 2026-10-02T17:13:31.136589197Z
-updated: 2026-10-16T20:01:57.596536219Z
+updated: 2026-10-16T20:01:57.837783462Z
 ---
 
 ## Prerequisites
@@ -18,6 +18,8 @@ updated: 2026-10-16T20:01:57.596536219Z
 - [ ] Let a library .tpm use every construct CORE.tpm uses
 - [ ] Refuse at parse time the call arities perl refuses at compile time
 - [ ] Retire the tree-sitter vocabulary from internal/infer (m2-lower-the-tree, 01a0c115-df67-7d69-8883-73d40b0ae15d)
+- [ ] Commit psc check's diagnostics over perl 5.42's lib as a baseline, and fail on any new one (core-module-types)
+- [ ] Select a single fitting-arity candidate despite argument types, and join an unknown context (core-module-types)
 
 ## Context
 
@@ -40,6 +42,8 @@ From 01a11146-c4da-79e4-8232-6ad2e731f3e7: `delete` is now two candidates, `(Lis
 From 01a0fd9b-519d-7b42-886e-2222a3076986: sort's invocant candidate `(Code|Str $by: List @list = die)` is never selected, because `types.Select` only handles calls that write no invocant (it ignores candidates whose invocant is required). A call site that writes one -- `sort byname @x`, `sort $by @x`, `sort { ... } @x` -- must pass the invocant to selection. Add a test that `sort byname @x` selects that candidate.
 
 From the alignment gate on 01a0fd9b-5670-78d0-84be-9b9618e9b081: infer takes calling context only from assignments (`assignedContext`), so `=~` in a condition (`if ($s =~ /b/)`, a ternary's condition, `!`'s operand) is typed List where it was Boolean -- sound, but wider hints. RFC 0001 ":context(...)" says boolean context is scalar: give conditions scalar context when call sites are built, with a test that `if ($s =~ /b/)`'s match is Boolean.
+
+**Ruling (perigrin, 2026-10-16): inference takes call resolution from the parser.** `parse.(*parser).markResolution` (`internal/parse/arity.go:~139`) sets `Node.Override` and `Node.Signatures`, and `internal/lower/call.go:21` copies both onto `lower.Call`. infer reads `Call.Signatures` and selects among them at the call site; it never re-resolves a name itself (so `parse.Imports` above is not the route). Today `internal/infer/calls.go:26` `call()` reads only `parse.CoreBuiltin(name)` and `userCall` never reads `Call.Signatures`: that is this issue's core. The two `types.Select` rulings above (single-candidate coercion, `UnknownCtx` joins) are settled by their own issue in core-module-types before this one; a qualified call (`Carp::confess(...)`) gets its signatures from the parser in a follow-on issue there.
 
 ## Steps
 
