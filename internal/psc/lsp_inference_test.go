@@ -5,7 +5,6 @@ package psc_test
 
 import (
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -227,7 +226,7 @@ func TestLSPDiagnosticsMatchGolden(t *testing.T) {
 		require.NoError(t, err)
 		abs, err := filepath.Abs(fx)
 		require.NoError(t, err)
-		uri := (&url.URL{Scheme: "file", Path: filepath.ToSlash(abs)}).String()
+		uri := psc.FileURI(abs)
 
 		require.NoError(t, s.OpenDocument(uri, source), fx)
 		got := []string{}

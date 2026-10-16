@@ -6,7 +6,6 @@ package psc_test
 import (
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -83,7 +82,7 @@ const (
 // My::Block, beside t.pl, exports block.
 func blockDiagnosed(t *testing.T, s *psc.LSPServer, dir string) bool {
 	t.Helper()
-	uri := (&url.URL{Scheme: "file", Path: filepath.ToSlash(filepath.Join(dir, "t.pl"))}).String()
+	uri := psc.FileURI(filepath.Join(dir, "t.pl"))
 	require.NoError(t, s.OpenDocument(uri, []byte(importSource)))
 	body := uint32(strings.Index(importSource, "block 'inner'"))
 	for _, d := range s.Diagnostics(uri) {

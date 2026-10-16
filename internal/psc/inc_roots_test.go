@@ -6,7 +6,6 @@ package psc
 import (
 	"encoding/json"
 	"io"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -145,7 +144,7 @@ func TestLSPLogsUnresolvedPerl(t *testing.T) {
 	// sent; its diagnostics are published, and none of them is the note.
 	logs := func(path string) []string {
 		t.Helper()
-		uri := (&url.URL{Scheme: "file", Path: filepath.ToSlash(path)}).String()
+		uri := FileURI(path)
 		params, err := json.Marshal(lspDidOpenParams{TextDocument: lspTextDocumentItem{URI: uri, LanguageID: "perl", Version: 1, Text: "1;\n"}})
 		require.NoError(t, err)
 		require.NoError(t, h.handle(&jsonRPCMessage{JSONRPC: "2.0", Method: "textDocument/didOpen", Params: params}))

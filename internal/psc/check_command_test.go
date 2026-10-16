@@ -4,7 +4,6 @@
 package psc_test
 
 import (
-	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -381,7 +380,7 @@ func TestRefusalIsReported(t *testing.T) {
 		assert.Contains(t, stderr.String(), "["+c.code+"]", c.source)
 
 		s := psc.NewLSPServer()
-		uri := (&url.URL{Scheme: "file", Path: filepath.ToSlash(file)}).String()
+		uri := psc.FileURI(file)
 		require.NoError(t, s.OpenDocument(uri, []byte(c.source)))
 		var refusals []infer.Diagnostic
 		for _, d := range s.Diagnostics(uri) {
@@ -432,7 +431,7 @@ func TestCheckGoldensUseResolvedParse(t *testing.T) {
 
 		abs, err := filepath.Abs(fx)
 		require.NoError(t, err)
-		uri := (&url.URL{Scheme: "file", Path: filepath.ToSlash(abs)}).String()
+		uri := psc.FileURI(abs)
 		require.NoError(t, s.OpenDocument(uri, source))
 		var reported strings.Builder
 		for _, d := range s.Diagnostics(uri) {
@@ -481,7 +480,7 @@ func TestParserGapRefusalIsSilent(t *testing.T) {
 		assert.Empty(t, withoutNote(stderr.String()), source)
 
 		s := psc.NewLSPServer()
-		uri := (&url.URL{Scheme: "file", Path: filepath.ToSlash(file)}).String()
+		uri := psc.FileURI(file)
 		require.NoError(t, s.OpenDocument(uri, []byte(source)))
 		assert.Empty(t, s.Diagnostics(uri), "%q: the LSP reports nothing", source)
 	}
