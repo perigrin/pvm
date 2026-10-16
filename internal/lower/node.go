@@ -72,6 +72,10 @@ type StrLit struct {
 	// after the statement, so Value is not carried: it is "", not the
 	// string's content.
 	Heredoc bool
+	// VString marks a v-string, v5.36.0 or 5.36.0: Value is the string it
+	// spells, and perl compares it against a version object, $^V, as a
+	// version.
+	VString bool
 }
 
 // Interp is an interpolating string in pieces: "a$b c" -> [StrLit, Var, StrLit].

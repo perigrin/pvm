@@ -239,10 +239,10 @@ func TestLowerLeadingDotAndVStrings(t *testing.T) {
 	}{
 		{".5;", &lower.NumLit{Text: ".5"}},
 		{".5e1;", &lower.NumLit{Text: ".5e1"}},
-		{"v5.36.0;", &lower.StrLit{Value: "\x05\x24\x00"}},
-		{"v1.2;", &lower.StrLit{Value: "\x01\x02"}},
-		{"5.36.0;", &lower.StrLit{Value: "\x05\x24\x00"}},
-		{"v65;", &lower.StrLit{Value: "A"}},
+		{"v5.36.0;", &lower.StrLit{Value: "\x05\x24\x00", VString: true}},
+		{"v1.2;", &lower.StrLit{Value: "\x01\x02", VString: true}},
+		{"5.36.0;", &lower.StrLit{Value: "\x05\x24\x00", VString: true}},
+		{"v65;", &lower.StrLit{Value: "A", VString: true}},
 		{"1.5;", &lower.NumLit{Text: "1.5"}},
 	}
 	for _, c := range cases {

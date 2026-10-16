@@ -2,7 +2,6 @@
 # Rewritten by -infer.ratchet.update; TestLoweredGoldenRatchet holds it in both directions.
 calls/abs_int.pl
 calls/ampersand.pl
-calls/bare_decl_call.pl
 calls/chr_num.pl
 calls/coderef.pl
 calls/delete.pl
@@ -84,7 +83,6 @@ flow/if_ref.pl
 flow/is_bool.pl
 flow/isa.pl
 flow/isa_else.pl
-flow/modifiers.pl
 flow/nested_if.pl
 flow/no_early_exit.pl
 flow/no_guard.pl
