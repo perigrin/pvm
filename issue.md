@@ -20,18 +20,18 @@ blocks:
 - 01a1464e-dde3-73fe-ab1f-ced7f18c4f9d
 - 01a14657-682e-7432-8ea9-828f56cd2f69
 created: 2026-10-16T20:02:15.040084527Z
-updated: 2026-10-16T20:12:55.394968244Z
+updated: 2026-10-16T21:00:17.292310407Z
 ---
 
 ## Prerequisites
 
-- [ ] Commit psc check's diagnostics over perl 5.42's lib as a baseline, and fail on any new one
+- none. The baseline issue (01a1464e-d912) is not a prerequisite: the ranking changes no parse and no diagnostic.
 
 ## Context
 
 - paths: `internal/parse/ranking_test.go` (new), `internal/parse/testdata/core_module_ranking.txt` (new), `docs/rfcs/0001-type-libraries.md`
 - commands: `go test ./internal/parse/ -run '^TestCoreModuleRanking' -count=1 -v`
-- entrypoints: `internal/perltest` (from the baseline issue), RFC 0001 "Core-module libraries", "Which 50."
+- entrypoints: `internal/perltest` (whichever of this issue and the baseline issue 01a1464e-d912 lands first writes it; the other reuses it), RFC 0001 "Core-module libraries", "Which 50."
 
 The ranking fixes which 50 modules get declarations, so every batch issue depends on it. The rule (perigrin, 2026-10-16), stated verbatim in the test's comment:
 
