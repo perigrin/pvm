@@ -12,7 +12,7 @@ blocks:
 - 01a10dc1-3499-7e2b-9e6f-d935084437fa
 - 01a10dc1-3530-762f-9a03-177445629c6b
 created: 2026-10-02T17:13:27.376660947Z
-updated: 2026-10-06T08:56:18.282478383Z
+updated: 2026-10-16T18:48:31.291118101Z
 sessions:
 - start_sha: 3c0c517fbcb6634d7c96c94b50430cebf214de5d
   end_sha: 3c0c517fbcb6634d7c96c94b50430cebf214de5d
@@ -70,12 +70,12 @@ From the alignment gate on 01a0fd9b-4a5b-7e94-ad87-756dfcfe1f4c: `types.Select`'
 
 ## Acceptance criteria
 
-- [ ] \$x, \@a, \%h and \(@list) parse as aliased parameters (`go test ./internal/parse/ -run '^TestPmtAliasedParamsParse$' -count=1 -v | grep -q '^--- PASS: TestPmtAliasedParamsParse'`)
+- [ ] \$x, \@a, \%h and \(@list) parse as aliased parameters (`go test ./internal/parse/ -run '^TestTpmAliasedParamsParse$' -count=1 -v | grep -q '^--- PASS: TestTpmAliasedParamsParse'`)
 - [ ] aliased parameters derive \$, \@ and \% and back (`go test ./internal/parse/ -run '^TestAliasedParamsDerivePrototypes$' -count=1 -v | grep -q '^--- PASS: TestAliasedParamsDerivePrototypes'`)
 - [ ] Code \&c derives \& and any round-trips \&@ (`go test ./internal/parse/ -run '^TestCodeAliasDerivesRefAmp$' -count=1 -v | grep -q '^--- PASS: TestCodeAliasDerivesRefAmp'`)
 - [ ] push round-trips \@@ (`go test ./internal/parse/ -run '^TestPushRoundTripsRefArrayAt$' -count=1 -v | grep -q '^--- PASS: TestPushRoundTripsRefArrayAt'`)
 - [ ] the RFC section on the scalar container is implemented (`grep -q '^### The scalar container.*(\*Implemented\*' docs/rfcs/0001-type-libraries.md`)
 - [ ] a parameter attribute such as :lvalue is refused (`go test ./internal/parse/ -run '^TestParamAttributeRefused$' -count=1 -v | grep -q '^--- PASS: TestParamAttributeRefused'`)
-- [ ] a malformed aliased parameter is an error (`go test ./internal/parse/ -run '^TestPmtMalformedAliasedParamRefused$' -count=1 -v | grep -q '^--- PASS: TestPmtMalformedAliasedParamRefused'`)
+- [ ] a malformed aliased parameter is an error (`go test ./internal/parse/ -run '^TestTpmMalformedAliasedParamRefused$' -count=1 -v | grep -q '^--- PASS: TestTpmMalformedAliasedParamRefused'`)
 - [ ] an Array/List disagreement between prototype and types is an error (`go test ./internal/parse/ -run '^TestAliasedPrototypeDisagreementIsError$' -count=1 -v | grep -q '^--- PASS: TestAliasedPrototypeDisagreementIsError'`)
-- [ ] aliased parameters are not read in ordinary source (`go test ./internal/parse/ -run '^TestAliasedParamOnlyInPmt$' -count=1 -v | grep -q '^--- PASS: TestAliasedParamOnlyInPmt'`)
+- [ ] aliased parameters are not read in ordinary source (`go test ./internal/parse/ -run '^TestAliasedParamOnlyInTpm$' -count=1 -v | grep -q '^--- PASS: TestAliasedParamOnlyInTpm'`)
