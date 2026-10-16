@@ -223,6 +223,11 @@ func TestCheckCommandOnLoweredTree(t *testing.T) {
 		// after them; the diagnostics are the subject.
 		_ = cmd.Execute()
 		printed := strings.TrimSuffix(stderr.String(), "Error: diagnostics found\n")
+		// The repository names a perl a machine may not have installed,
+		// which psc check notes before any diagnostic.
+		if note, rest, ok := strings.Cut(printed, "\n"); ok && strings.HasPrefix(note, "psc: note: ") {
+			printed = rest
+		}
 
 		var got []string
 		if printed != "" {

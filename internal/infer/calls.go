@@ -30,13 +30,14 @@ func (a *analysis) call(n *lower.Call) types.Type {
 	if n.Fn != nil {
 		a.walk(n.Fn)
 	}
-	if n.Name == "undef" {
+	name := coreName(n.Name)
+	if name == "undef" {
 		// undef denotes the undefined value whatever it is given: CORE.pmt
 		// declares no return type for it, so it is typed here.
 		a.args(n.Args, nil)
 		return types.Undef
 	}
-	sigs := parse.CoreBuiltin(n.Name)
+	sigs := parse.CoreBuiltin(name)
 	if n.Fn != nil || n.Ampersand || a.overrides[n.Name] || len(sigs) == 0 {
 		a.args(n.Args, nil)
 		return a.userCall(n)
@@ -50,18 +51,28 @@ func (a *analysis) call(n *lower.Call) types.Type {
 			EndByte:   uint32(end),
 			Severity:  Error,
 			Code:      CodeArityMismatch,
-			Message:   arityMessage(n.Name, least, len(n.Args)),
+			Message:   arityMessage(name, least, len(n.Args)),
 		})
 		return a.callReturns(n, sigs)
 	}
 	for i, arg := range n.Args {
-		a.checkArg(n.Name, i, arg, builtinArgType(sigs, i), slotContext(sigs, i) == types.ListCtx)
+		a.checkArg(name, i, arg, builtinArgType(sigs, i), slotContext(sigs, i) == types.ListCtx)
 	}
 
 	if t, ok := a.contextualReturn(n); ok {
 		return t
 	}
 	return a.callReturns(n, sigs)
+}
+
+// coreName is the builtin a call names: `CORE::push` names push, as
+// perl reads it whatever a `use` list overrides. `CORE::GLOBAL::die` is
+// a sub of its own, and keeps its name.
+func coreName(name string) string {
+	if rest, ok := strings.CutPrefix(name, "CORE::"); ok && !strings.HasPrefix(rest, "GLOBAL::") {
+		return rest
+	}
+	return name
 }
 
 // strongKeywords are the builtins no sub overrides: measured on 5.42.0 by

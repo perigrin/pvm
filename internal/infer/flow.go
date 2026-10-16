@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"tamarou.com/pvm/internal/lower"
+	"tamarou.com/pvm/internal/parse"
 	"tamarou.com/pvm/internal/types"
 )
 
@@ -21,19 +22,22 @@ import (
 //
 // A modifier form (`X if C`) is not narrowed as a conditional statement
 // is. Its body, when C is a match it runs only
-// after, reads that match's captures, as capture says.
+// after, reads that match's captures, as capture says. When its body
+// exits, what follows knows the guard went the other way, as modifierExit
+// says.
 func (a *analysis) ifStmt(n *lower.IfStmt) {
 	if !isBranch(n.Then) || !isBranch(n.Else) {
 		m, success := successMatch(n)
 		if m == nil || success == nil {
 			a.walkChildren(n)
-			return
+		} else {
+			a.walk(m)
+			outer := a.modifier
+			a.modifier = n
+			a.walk(success)
+			a.modifier = outer
 		}
-		a.walk(m)
-		outer := a.modifier
-		a.modifier = n
-		a.walk(success)
-		a.modifier = outer
+		a.modifierExit(n)
 		return
 	}
 	if n.Cond != nil {
@@ -53,7 +57,7 @@ func (a *analysis) ifStmt(n *lower.IfStmt) {
 	var ends []map[string]types.Type
 	primaryExits := false
 	if b, ok := primary.(*lower.Block); ok {
-		primaryExits = blockExits(b)
+		primaryExits = a.blockExits(b)
 		ends = append(ends, a.branch(b, a.flatten(guard, negate), pre))
 	} else if primary != nil {
 		a.walk(primary)
@@ -117,7 +121,7 @@ func (a *analysis) restore(pre map[string]types.Type) {
 // end: nil when b always exits, as its end never reaches the join.
 func (a *analysis) branch(b *lower.Block, guards []*guardResult, pre map[string]types.Type) map[string]types.Type {
 	a.restore(pre)
-	if blockExits(b) {
+	if a.blockExits(b) {
 		a.blockWithGuard(b, guards, nil)
 		return nil
 	}
@@ -149,6 +153,36 @@ func (a *analysis) joinBranches(pre map[string]types.Type, ends []map[string]typ
 			joined = before
 		}
 		a.st.UpdateType(name, joined)
+	}
+}
+
+// modifierExit narrows what follows a modifier form whose body exits:
+// past `die unless defined $x` the guard held, and past `exit if defined
+// $x` it failed. `unless` puts the body in Else.
+func (a *analysis) modifierExit(n *lower.IfStmt) {
+	body, negate := n.Then, true
+	if body == nil {
+		body, negate = n.Else, false
+	}
+	if a.exits(body) {
+		narrowContinuation(a.flatten(a.guard(n.Cond, true), negate), a.st)
+	}
+}
+
+// exprStmt walks an expression statement. A logical operator whose right
+// operand exits narrows what follows it: past `defined $x or die` the left
+// operand held, and past `!defined $x and die` it failed.
+func (a *analysis) exprStmt(n *lower.ExprStmt) {
+	a.walkChildren(n)
+	b, ok := n.X.(*lower.Binary)
+	if !ok || !a.exits(b.R) {
+		return
+	}
+	switch b.Op {
+	case "||", "or":
+		narrowContinuation(a.flatten(a.guard(b.L, true), false), a.st)
+	case "&&", "and":
+		narrowContinuation(a.flatten(a.guard(b.L, true), true), a.st)
 	}
 }
 
@@ -393,24 +427,34 @@ func (a *analysis) flatten(guard *guardResult, negate bool) []*guardResult {
 }
 
 // blockExits reports whether a block always exits: a statement directly in the
-// block is a return, a die or an exit. Exits nested deeper are not
-// looked for, and last, next and redo are not exits here.
-func blockExits(b *lower.Block) bool {
+// block is an exit, as exits says. Exits nested deeper are not looked for.
+func (a *analysis) blockExits(b *lower.Block) bool {
 	for _, s := range b.Stmts {
-		es, ok := s.(*lower.ExprStmt)
-		if !ok {
-			continue
+		if es, ok := s.(*lower.ExprStmt); ok && a.exits(es.X) {
+			return true
 		}
-		switch x := es.X.(type) {
-		case *lower.LoopEx:
-			if x.Op == "return" {
-				return true
-			}
-		case *lower.Call:
-			if x.Name == "die" || x.Name == "exit" {
-				return true
+	}
+	return false
+}
+
+// exits reports whether n never returns: a return, or a call to a builtin
+// whose signature returns None, as CORE.pmt declares die and exit. last,
+// next and redo are not exits here.
+func (a *analysis) exits(n lower.Node) bool {
+	switch x := n.(type) {
+	case *lower.LoopEx:
+		return x.Op == "return"
+	case *lower.Call:
+		if x.Fn != nil || x.Ampersand || a.overrides[x.Name] {
+			return false
+		}
+		sigs := parse.CoreBuiltin(coreName(x.Name))
+		for _, s := range sigs {
+			if s.Returns != types.None {
+				return false
 			}
 		}
+		return len(sigs) > 0
 	}
 	return false
 }
@@ -475,7 +519,7 @@ func (a *analysis) callGuard(c *lower.Call, user bool) *guardResult {
 	if len(c.Args) != 1 {
 		return nil
 	}
-	switch c.Name {
+	switch coreName(c.Name) {
 	case "defined":
 		if name := guardVarName(c.Args[0]); name != "" {
 			return &guardResult{VarName: name, Guard: types.GuardPattern{Kind: types.GuardDefined}}
@@ -644,20 +688,18 @@ func className(n lower.Node) string {
 	return ""
 }
 
-// compound is a compound guard: both sides when
-// both are guards, the one that is when only one is.
+// compound is a compound guard, or nil when neither side is a guard. A
+// side that is not a guard is a nil side, which says nothing, and the
+// operator is kept: `defined $x && $y` failing may be $y failing.
 func compound(op string, l, r *guardResult) *guardResult {
-	switch {
-	case l != nil && r != nil:
-		return &guardResult{Compound: &compoundGuard{Op: op, Left: l, Right: r}}
-	case l != nil:
-		return l
+	if l == nil && r == nil {
+		return nil
 	}
-	return r
+	return &guardResult{Compound: &compoundGuard{Op: op, Left: l, Right: r}}
 }
 
 // negateGuard is a guard's negation: a simple guard
-// flips, and a compound one goes through De Morgan.
+// flips, and a compound one goes through De Morgan at every level.
 func negateGuard(g *guardResult) *guardResult {
 	if g == nil {
 		return nil
@@ -671,9 +713,7 @@ func negateGuard(g *guardResult) *guardResult {
 	if g.Compound.Op == "||" {
 		op = "&&"
 	}
-	l, r := *g.Compound.Left, *g.Compound.Right
-	l.Negated, r.Negated = !l.Negated, !r.Negated
-	return &guardResult{Compound: &compoundGuard{Op: op, Left: &l, Right: &r}}
+	return &guardResult{Compound: &compoundGuard{Op: op, Left: negateGuard(g.Compound.Left), Right: negateGuard(g.Compound.Right)}}
 }
 
 // explicitReturns is the join of the value of every return of the sub
@@ -755,7 +795,7 @@ func (a *analysis) implicitReturn(b *lower.Block) (types.Type, bool) {
 	if b == nil || len(b.Stmts) == 0 {
 		return types.Unknown, false
 	}
-	if blockExits(b) {
+	if a.blockExits(b) {
 		return types.Unknown, true
 	}
 	switch s := b.Stmts[len(b.Stmts)-1].(type) {

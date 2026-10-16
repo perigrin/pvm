@@ -8,6 +8,9 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/spf13/cobra"
 
@@ -34,7 +37,10 @@ func newCheckCommand() *cobra.Command {
 
 			opts := infer.Options{Strict: strict, WarnLossyCoercion: warnLossy}
 			sess := parse.NewSession()
-			roots := incRoots(target)
+			roots, why := incRoots(target)
+			if why != "" {
+				fmt.Fprintf(errW, "psc: note: %s; @INC is PERL5LIB alone\n", printable(why))
+			}
 			var foundDiags bool
 
 			if info.IsDir() {
@@ -84,30 +90,21 @@ func newCheckCommand() *cobra.Command {
 
 // incRoots is the @INC psc check parses each file against, so its use
 // statements resolve as perl compiles them: PERL5LIB, then the library
-// directories of the perl pvm resolves for target's project. It is built
-// once per run, and never by running perl: psc check reads untrusted code,
-// and running perl runs whatever PERL5OPT or sitecustomize.pl says. With
-// no resolved perl and no PERL5LIB it is empty, and each file is parsed
-// against its own directory alone.
-func incRoots(target string) []string {
+// directories of the perl target's project names (perl.StaticPerl). It is
+// built once per run, and never by running perl or asking the network:
+// psc check reads untrusted code, running perl runs whatever PERL5OPT or
+// sitecustomize.pl says, and a version file must not make the checker
+// phone home. With no resolved perl it is PERL5LIB alone, and with no
+// PERL5LIB either it is empty, and each file is parsed against its own
+// directory alone. why says why a perl the project names was not
+// resolved, and is "" when one was or the project names none.
+func incRoots(target string) (roots []string, why string) {
 	projectDir := target
 	if info, err := os.Stat(target); err == nil && !info.IsDir() {
 		projectDir = filepath.Dir(target)
 	}
-	// System perl, MetaCPAN and the resolution callback are skipped:
-	// resolving a system perl runs it to ask its version.
-	resolved, err := perl.ResolveVersion(&perl.ResolutionOptions{
-		ProjectDir:          projectDir,
-		SkipSystemPerl:      true,
-		SkipNetworkFetch:    true,
-		SkipVersionResolved: true,
-		SkipScriptAnalysis:  true,
-	})
-	perlPath := ""
-	if err == nil {
-		perlPath = resolved.Path
-	}
-	return perl.INC(perlPath, os.Getenv("PERL5LIB"))
+	perlPath, why := perl.StaticPerl(projectDir)
+	return perl.INC(perlPath, os.Getenv("PERL5LIB")), why
 }
 
 // checkFile parses path against its own directory and roots, lowers and
@@ -115,7 +112,7 @@ func incRoots(target string) []string {
 // module says about itself across the run's files. It returns true if any
 // diagnostics were found.
 func checkFile(w interface{ Write([]byte) (int, error) }, sess *parse.Session, roots []string, path string, opts infer.Options) (bool, error) {
-	source, err := os.ReadFile(path)
+	source, err := parse.ReadSource(path)
 	if err != nil {
 		return false, fmt.Errorf("read %s: %w", path, err)
 	}
@@ -128,8 +125,28 @@ func checkFile(w interface{ Write([]byte) (int, error) }, sess *parse.Session, r
 	diags := infer.AnalyzeParsed(root, nil, opts).Diagnostics
 
 	for _, d := range diags {
-		fmt.Fprintln(w, infer.FormatDiagnostic(path, source, d))
+		fmt.Fprintln(w, infer.FormatDiagnostic(printable(path), source, d))
 	}
 
 	return len(diags) > 0, nil
+}
+
+// printable is s with each control character, and each byte that is not
+// UTF-8, written as a \xNN escape: a file name in a cloned repository is
+// untrusted, and an escape sequence in one must not reach the terminal.
+func printable(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); {
+		r, size := utf8.DecodeRuneInString(s[i:])
+		switch {
+		case r == utf8.RuneError && size == 1:
+			fmt.Fprintf(&b, "\\x%02x", s[i])
+		case unicode.IsControl(r):
+			fmt.Fprintf(&b, "\\x%02x", r)
+		default:
+			b.WriteString(s[i : i+size])
+		}
+		i += size
+	}
+	return b.String()
 }
