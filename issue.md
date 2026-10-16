@@ -4,7 +4,7 @@ state: in-progress
 urgency: normal
 milestone: pr486-review
 created: 2026-10-16T01:16:07.760410032Z
-updated: 2026-10-16T01:17:18.033021959Z
+updated: 2026-10-16T02:49:00.983108235Z
 sessions:
 - start_sha: 8a0c85c60a2bae5d04dbbb2b27eb4310312d362f
   end_sha: ""
@@ -36,6 +36,9 @@ perigrin ruled 2026-10-16 that every verified finding is fixed on PR #486 before
   - `v/eb6b.pl`: `CORE::push %h, 1` is silent in psc, but perl refuses it at compile time.
 - **Fix:** strip `CORE::` (and `CORE::GLOBAL::`) before matching builtins. Treat Carp's croak and confess as exits, or declare no-return in .pmt.
 - **Confidence:** High. **NEW.** **Issue:** none. **Found by:** errors-B #6.
+
+
+**Ruled 2026-10-16 (perigrin): "inference should be getting the parsed tree from the parser."** The parser already resolves each call -- imports, `use subs` and default-`@EXPORT` overrides, and library `.pmt` signatures (`parse.Imports`). Inference takes that resolution from the parse result through lowering (e.g. the lowered Call carries the parser's resolved signature) instead of re-deriving it by name in infer. croak is then an exit because Carp.pmt declares it returning None. Carp.pmt must declare all of Carp's exports (`@EXPORT` carp croak confess; `@EXPORT_OK` cluck verbose longmess shortmess), since a .pmt replaces the module's source; the m1 gates must hold. The same mechanism fixes S3 (01a14247-ddfd, overrides re-guessed). The CORE half (exits by CORE.pmt None, CORE:: names) landed in 7c2063f2.
 
 ## Steps
 
