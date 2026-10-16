@@ -1,19 +1,31 @@
 ---
 title: "[D1] Specs and comments still describe the tree-sitter path and pre-lowering state as current"
-state: in-progress
+state: done
 urgency: normal
 milestone: pr486-review
 created: 2026-10-16T01:16:38.047206225Z
-updated: 2026-10-16T01:17:19.411338936Z
+updated: 2026-10-16T01:54:36.42302496Z
 sessions:
 - start_sha: 8a0c85c60a2bae5d04dbbb2b27eb4310312d362f
-  end_sha: ""
-  commits: 0
+  end_sha: 74a57d8ad35e0b7a0e9a3e731014f6bee8169c83
+  commits: 1
   started_at: 2026-10-16T01:17:19.411338936Z
+  ended_at: 2026-10-16T01:54:36.42302496Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-16T01:17:19.411338936Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-16T01:54:36.42302496Z
+observed_paths:
+- docs/plans/2026-09-05-parser-conformance-plan.md
+- docs/plans/2026-09-21-graded-conformance-corpus.md
+- docs/specs/perl-parser/04-expressions.md
+- docs/specs/perl-parser/05-statements.md
+- docs/specs/perl-parser/06-incremental-lsp.md
+- internal/lower/node.go
+- internal/lower/positions.go
 ---
 
 ## Context
