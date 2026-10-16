@@ -96,10 +96,19 @@ func (p *Positions) Span(id ID) (start, end int, ok bool) {
 // the matches before it (nearestPatternBefore, infer.go:1726). A node with
 // no bytes, an empty file's File, is never before anything.
 //
-// ponytail: a linear scan; binary-search order on off if a caller asks often.
+// order is sorted by start, so a binary search finds the last node that
+// starts before off, and the scan back from there stops at the first node
+// keep accepts. $1 asks once per capture, and its match is near.
+//
+// ponytail: the scan back is linear in the nodes between off and the
+// answer, so many captures far below one match are still quadratic; keep a
+// per-predicate index if a caller ever asks that way.
 func (p *Positions) LastBefore(off int, keep func(Node) bool) Node {
-	for i := len(p.order) - 1; i >= 0; i-- {
-		if n := p.order[i]; p.span(n.Meta().ID).start < off && keep(n) {
+	i := sort.Search(len(p.order), func(i int) bool {
+		return p.span(p.order[i].Meta().ID).start >= off
+	})
+	for i--; i >= 0; i-- {
+		if n := p.order[i]; keep(n) {
 			return n
 		}
 	}
