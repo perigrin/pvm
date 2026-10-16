@@ -1,19 +1,23 @@
 ---
 title: Sub bodies and bare blocks are scoped as legacy did, not as perl does
-state: in-progress
+state: done
 urgency: normal
 milestone: v0.1
 created: 2026-10-13T00:31:01.879793799Z
-updated: 2026-10-16T11:47:40.484085319Z
+updated: 2026-10-16T11:47:40.538148775Z
 sessions:
 - start_sha: 9ff9be88b6f25ac747648420c2ff2433c1b55456
-  end_sha: ""
+  end_sha: 9ff9be88b6f25ac747648420c2ff2433c1b55456
   commits: 0
   started_at: 2026-10-16T11:47:40.484085319Z
+  ended_at: 2026-10-16T11:47:40.538148775Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-16T11:47:40.484085319Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-16T11:47:40.538148775Z
 ---
 
 ## Context
