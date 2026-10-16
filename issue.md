@@ -23,7 +23,7 @@ blocks:
 - 01a1464e-ddb0-720a-93f6-450c767e6e2e
 - 01a1464e-dde3-73fe-ab1f-ced7f18c4f9d
 created: 2026-10-16T20:02:14.930089601Z
-updated: 2026-10-16T20:04:37.377657928Z
+updated: 2026-10-16T20:12:53.703020182Z
 ---
 
 ## Prerequisites
@@ -60,3 +60,11 @@ Measure the test's runtime and record it in the test's comment; if it exceeds go
 - [ ] a listed true positive with perl evidence is admitted (`go test ./internal/psc/ -run '^TestLibBaselineAdmitsAListedTruePositive$' -count=1 -v | grep -q '^--- PASS: TestLibBaselineAdmitsAListedTruePositive'`)
 - [ ] psc check over perl 5.42's lib adds nothing to the baseline (`go test ./internal/psc/ -run '^TestPSCCheckLibBaseline$' -count=1 -v | grep -q '^--- PASS: TestPSCCheckLibBaseline'`)
 - [ ] the baseline records the commit it was captured at (`grep -q '^# captured at 8d508426' internal/psc/testdata/lib_baseline.txt`)
+
+### Negative Scenarios
+- [ ] the perl locator skips, not fails, where perl 5.42.0 is not installed (`go test ./internal/perltest/ -run '^TestPerl542SkipsWhenAbsent$' -count=1 -v | grep -q '^--- PASS: TestPerl542SkipsWhenAbsent'`)
+- [ ] the perl locator skips, not fails, where perl 5.42.0 is present but its privlib directory is missing (`go test ./internal/perltest/ -run '^TestPerl542SkipsWhenPrivlibMissing$' -count=1 -v | grep -q '^--- PASS: TestPerl542SkipsWhenPrivlibMissing'`)
+- [ ] a diagnostic whose path uses Windows backslash separators matches its forward-slash, privlib-relative baseline entry (`go test ./internal/psc/ -run '^TestLibBaselineNormalizesWindowsSeparators$' -count=1 -v | grep -q '^--- PASS: TestLibBaselineNormalizesWindowsSeparators'`)
+- [ ] a baseline diagnostic that no longer appears is not a failure (`go test ./internal/psc/ -run '^TestLibBaselineAllowsADisappearedDiagnostic$' -count=1 -v | grep -q '^--- PASS: TestLibBaselineAllowsADisappearedDiagnostic'`)
+- [ ] a malformed baseline line is an error naming the line, not silently skipped or matched; `#` comment lines are not diagnostics (`go test ./internal/psc/ -run '^TestLibBaselineRejectsAMalformedLine$' -count=1 -v | grep -q '^--- PASS: TestLibBaselineRejectsAMalformedLine'`)
+- [ ] a true-positive entry admits only the exact diagnostic it lists, not the same message at another file or line (`go test ./internal/psc/ -run '^TestLibTruePositiveMatchesExactDiagnostic$' -count=1 -v | grep -q '^--- PASS: TestLibTruePositiveMatchesExactDiagnostic'`)
