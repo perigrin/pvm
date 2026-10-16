@@ -104,3 +104,17 @@ func TestINCWithoutPerl(t *testing.T) {
 	assert.Empty(t, INC("", ""))
 	assert.Equal(t, []string{lib}, INC(filepath.Join(t.TempDir(), "bin", "perl"), lib))
 }
+
+// TestIncConfigEscapes checks Config.pm values as configpm writes them:
+// it escapes each \ as \\ and each ' as \' inside the single quotes
+// (configpm, `$value =~ s!\\!\\\\!g; $value =~ s!'!\\'!g;`), and perl
+// 5.42 reads `'/p/it\'s/a\\b'` back as /p/it's/a\b. A plain value is the
+// control.
+func TestIncConfigEscapes(t *testing.T) {
+	_, perlPath := fakeInstall(t,
+		`    privlibexp => '/p/it\'s/a\\b',`,
+		`    sitelibexp => relocate_inc('/p/o\'brien'),`,
+		`    vendorlibexp => '/p/plain',`,
+	)
+	assert.Equal(t, []string{`/p/o'brien`, "/p/plain", `/p/it's/a\b`}, INC(perlPath, ""))
+}
