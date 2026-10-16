@@ -11,7 +11,7 @@ blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 - 01a14657-682e-7432-8ea9-828f56cd2f69
 created: 2026-10-16T20:02:15.387011621Z
-updated: 2026-10-16T20:11:51.646044798Z
+updated: 2026-10-16T20:12:59.90990277Z
 ---
 
 ## Prerequisites
@@ -35,8 +35,6 @@ RFC 0001 "Core-module libraries", "Typed variables" (perigrin, 2026-10-16): a de
 - [ ] Implement; run to verify pass; commit
 - [ ] Write failing test `TestTypedOurOnlyInDeclarations`: the same statement in a module's own source is not read as typed Perl (it stays what perl reads it as), as `sub f (Ref $x) { }` does
 - [ ] Implement; run to verify pass; commit
-- [ ] Doc: in RFC 0001 "Typed Perl, in `.tpm` only", beside the full form of a sub declaration, give the full form of a variable declaration, `our Type SIGIL NAME :export;` (or `:export_ok`), with `our Hash[Str] %Config :export;` as the example and a pointer to "Core-module libraries", "Typed variables" for the export rule; commit
-- [ ] Doc: in the "Declaration Files" section of `internal/data/help/types.md`, after the `bless` example, show a typed variable (`our Hash[Str] %Config :export;`) and say in one sentence that `:export` exports it by default and `:export_ok` only on request; `go test ./internal/cli/ -run '^TestShowTypesHelp$' -count=1`; commit
 - [ ] Run the m1 gates named in the final-gate issue; `make test`; commit
 
 ## Acceptance Criteria
@@ -45,3 +43,10 @@ RFC 0001 "Core-module libraries", "Typed variables" (perigrin, 2026-10-16): a de
 - [ ] `:export` puts a typed variable in @EXPORT with its type (`go test ./internal/parse/ -run '^TestTypedOurExport$' -count=1 -v | grep -q '^--- PASS: TestTypedOurExport'`)
 - [ ] `:export_ok` puts a typed variable in @EXPORT_OK (`go test ./internal/parse/ -run '^TestTypedOurExportOk$' -count=1 -v | grep -q '^--- PASS: TestTypedOurExportOk'`)
 - [ ] a typed `our` is typed Perl only in a .tpm (`go test ./internal/parse/ -run '^TestTypedOurOnlyInDeclarations$' -count=1 -v | grep -q '^--- PASS: TestTypedOurOnlyInDeclarations'`)
+
+### Negative Scenarios
+- [ ] a typed `our` with no export attribute records its type but is imported by neither a bare `use M;` nor `use M qw(...)` naming it (`go test ./internal/parse/ -run '^TestTypedOurWithoutExportNotImported$' -count=1 -v | grep -q '^--- PASS: TestTypedOurWithoutExportNotImported'`)
+- [ ] `use M ();` imports no `:export` variable (`go test ./internal/parse/ -run '^TestTypedOurEmptyImportListImportsNothing$' -count=1 -v | grep -q '^--- PASS: TestTypedOurEmptyImportListImportsNothing'`)
+- [ ] an unknown attribute on a typed `our` in a `.tpm` (e.g. `:exported`) is an error, not ignored (`go test ./internal/parse/ -run '^TestTypedOurUnknownAttributeRejected$' -count=1 -v | grep -q '^--- PASS: TestTypedOurUnknownAttributeRejected'`)
+- [ ] an unknown type name on a typed `our` in a `.tpm` is an error, as it is in a signature (`go test ./internal/parse/ -run '^TestTypedOurUnknownTypeRejected$' -count=1 -v | grep -q '^--- PASS: TestTypedOurUnknownTypeRejected'`)
+- [ ] a hash or array `our` with a bare element type, such as `our Str %h :export;`, is refused, as a slurpy with a bare element type is (`go test ./internal/parse/ -run '^TestTypedOurAggregateWithBareTypeRejected$' -count=1 -v | grep -q '^--- PASS: TestTypedOurAggregateWithBareTypeRejected'`)
