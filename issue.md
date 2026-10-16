@@ -1,10 +1,19 @@
 ---
 title: "[S11] Call.Parenthesized is true for a call inside grouping parens."
-state: pending
+state: in-progress
 urgency: normal
 milestone: pr486-review
 created: 2026-10-16T01:16:08.883552568Z
-updated: 2026-10-16T01:16:08.883552568Z
+updated: 2026-10-16T01:17:16.999241706Z
+sessions:
+- start_sha: 8a0c85c60a2bae5d04dbbb2b27eb4310312d362f
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-16T01:17:16.999241706Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-16T01:17:16.999241706Z
 ---
 
 ## Context
