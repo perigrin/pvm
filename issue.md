@@ -10,7 +10,7 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.635645821Z
-updated: 2026-10-16T20:04:09.840484521Z
+updated: 2026-10-16T20:13:05.848817769Z
 ---
 
 ## Prerequisites
@@ -47,3 +47,8 @@ A `.tpm` changes what the parser reads for every file that uses the module, so r
 - [ ] declared prototypes equal perl's prototype() (`go test ./internal/parse/ -run '^TestXSLibrariesPrototypes$' -count=1 -v | grep -q '^--- PASS: TestXSLibrariesPrototypes'`)
 - [ ] declared export lists equal the modules' own (`go test ./internal/parse/ -run '^TestXSLibrariesExports$' -count=1 -v | grep -q '^--- PASS: TestXSLibrariesExports'`)
 - [ ] declared return types hold for every value perl returns (`go test ./internal/infer/ -run '^TestXSLibrariesReturnTypes$' -count=1 -v | grep -q '^--- PASS: TestXSLibrariesReturnTypes'`)
+
+### Negative Scenarios
+- [ ] a bare `use Time::HiRes;` imports nothing (its `@EXPORT` is empty, measured), so `time()` stays CORE's (`go test ./internal/parse/ -run '^TestTimeHiResBareUseKeepsCoreTime$' -count=1 -v | grep -q '^--- PASS: TestTimeHiResBareUseKeepsCoreTime'`)
+- [ ] Encode `encode_utf8(undef)` returns a value its declared return type admits (`go test ./internal/infer/ -run '^TestEncodeUndefInputReturnIsDeclared$' -count=1 -v | grep -q '^--- PASS: TestEncodeUndefInputReturnIsDeclared'`)
+- [ ] the oracle ties SDBM_File only under the test's temp dir (`go test ./internal/infer/ -run '^TestSDBMFileOracleStaysInScratch$' -count=1 -v | grep -q '^--- PASS: TestSDBMFileOracleStaysInScratch'`)
