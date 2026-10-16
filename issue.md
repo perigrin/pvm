@@ -10,7 +10,7 @@ blocks:
 - 01a1464e-dca3-7284-85c3-a06107c16646
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.387011621Z
-updated: 2026-10-16T20:03:23.776892312Z
+updated: 2026-10-16T20:09:46.498536778Z
 ---
 
 ## Prerequisites
@@ -34,6 +34,8 @@ RFC 0001 "Core-module libraries", "Typed variables" (perigrin, 2026-10-16): a de
 - [ ] Implement; run to verify pass; commit
 - [ ] Write failing test `TestTypedOurOnlyInDeclarations`: the same statement in a module's own source is not read as typed Perl (it stays what perl reads it as), as `sub f (Ref $x) { }` does
 - [ ] Implement; run to verify pass; commit
+- [ ] Doc: in RFC 0001 "Typed Perl, in `.tpm` only", beside the full form of a sub declaration, give the full form of a variable declaration, `our Type SIGIL NAME :export;` (or `:export_ok`), with `our Hash[Str] %Config :export;` as the example and a pointer to "Core-module libraries", "Typed variables" for the export rule; commit
+- [ ] Doc: in the "Declaration Files" section of `internal/data/help/types.md`, after the `bless` example, show a typed variable (`our Hash[Str] %Config :export;`) and say in one sentence that `:export` exports it by default and `:export_ok` only on request; `go test ./internal/cli/ -run '^TestShowTypesHelp$' -count=1`; commit
 - [ ] Run the m1 gates named in the final-gate issue; `make test`; commit
 
 ## Acceptance Criteria
