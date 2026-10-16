@@ -1,0 +1,4 @@
+# A diagnostic over perl 5.42's lib that perl itself warns or dies on, and so
+# is admitted beyond lib_baseline.txt: the privlib-relative diagnostic, a tab,
+# and the line perl -w prints for that file, or for a minimal file with the
+# same construct, copied verbatim.
