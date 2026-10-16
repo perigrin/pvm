@@ -14,7 +14,7 @@ blocks:
 - 01a1464e-da9d-7f9e-b2cf-b3d8607907a2
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-02T17:13:31.136589197Z
-updated: 2026-10-16T20:10:45.507697879Z
+updated: 2026-10-16T20:12:52.051417728Z
 ---
 
 ## Prerequisites
@@ -63,7 +63,7 @@ From the alignment gate on 01a0fd9b-5670-78d0-84be-9b9618e9b081: infer takes cal
 - [ ] Write failing test `TestInferNoCandidateArityIsError` in `internal/infer/declared_test.go`: a call to a library multi with no prototype whose arity no candidate accepts is reported as an error, and gets no joined type
 - [ ] Implement; run test to verify pass; `make test`; commit
 - [ ] Re-mark the RFC heading "Call sites" `(*Implemented*, <sha>)`; commit
-- [ ] Doc: in the "Declaration Files" section of `internal/data/help/types.md`, say that `psc check` types a call to a declared sub from its declaration, using the e2e fixture's diagnostic as the example, and that where a sub has several candidates the call's arity, argument types and context pick one (`localtime(0)` is Str in scalar context, a list in list context) and an undecided call gets the join; keep "Typed Perl is valid only in `.tpm` files, and you cannot yet add your own" (a user search path is RFC open question 6); `go test ./internal/cli/ -run '^TestShowTypesHelp$' -count=1`; commit
+- [ ] Doc: in the "Declaration Files" section of `internal/data/help/types.md`, say that `psc check` types a call to a declared sub from its declaration, using the e2e fixture's diagnostic as the example; keep "Typed Perl is valid only in `.tpm` files, and you cannot yet add your own" (a user search path is RFC open question 6); `go test ./internal/cli/ -run '^TestShowTypesHelp$' -count=1`; commit
 
 ### Negative Scenarios
 
@@ -83,3 +83,13 @@ From the alignment gate on 01a0fd9b-5670-78d0-84be-9b9618e9b081: infer takes cal
 - [ ] psc check reports no mismatch where arguments fit a declaration (`go test ./test/e2e/ -run '^TestPSCCheckDeclarationsNoFalsePositive$' -count=1 -v | grep -q '^--- PASS: TestPSCCheckDeclarationsNoFalsePositive'`)
 - [ ] a call whose arity no candidate accepts is an error at the call site (`go test ./internal/infer/ -run '^TestInferNoCandidateArityIsError$' -count=1 -v | grep -q '^--- PASS: TestInferNoCandidateArityIsError'`)
 - [ ] the RFC section on call sites is implemented (`grep -q '^### Call sites (\*Implemented\*' docs/rfcs/0001-type-libraries.md`)
+
+### Negative Scenarios
+- [ ] a void-context `$s =~ s/a/b/g;` is untyped and never reported as an error, though no `=~` candidate answers VOID (`go test ./internal/infer/ -run '^TestInferVoidMatchIsUntypedNotError$' -count=1 -v | grep -q '^--- PASS: TestInferVoidMatchIsUntypedNotError'`)
+- [ ] an Undecided multi call (e.g. `return localtime($t)` in a sub whose calling context is unknown) joins its candidates and psc check reports nothing for it (`go test ./test/e2e/ -run '^TestPSCCheckUndecidedCallReportsNothing$' -count=1 -v | grep -q '^--- PASS: TestPSCCheckUndecidedCallReportsNothing'`)
+- [ ] a name in a declaration's `@EXPORT_OK` that the `use` line did not ask for gets no declared type at a call (bare `use Scalar::Util; blessed($x)`) (`go test ./internal/infer/ -run '^TestInferUnimportedExportOkUntyped$' -count=1 -v | grep -q '^--- PASS: TestInferUnimportedExportOkUntyped'`)
+- [ ] a sub the file defines itself, with the same name as an imported declared sub, is typed as perl calls it (the file's own definition), not from the declaration (`go test ./internal/infer/ -run '^TestInferLocalSubShadowsDeclaration$' -count=1 -v | grep -q '^--- PASS: TestInferLocalSubShadowsDeclaration'`)
+- [ ] a slice delete `delete @h{qw(a b)}` is not typed as the element candidate (Scalar) (`go test ./internal/infer/ -run '^TestInferDeleteSliceNotElement$' -count=1 -v | grep -q '^--- PASS: TestInferDeleteSliceNotElement'`)
+- [ ] `sort byname @x` does not select the plain candidate (byname is the invocant, not data) (`go test ./internal/infer/ -run '^TestInferSortInvocantNotPlain$' -count=1 -v | grep -q '^--- PASS: TestInferSortInvocantNotPlain'`)
+- [ ] a match in a condition, `if ($s =~ /b/)`, is not typed List (`go test ./internal/infer/ -run '^TestInferConditionMatchNotList$' -count=1 -v | grep -q '^--- PASS: TestInferConditionMatchNotList'`)
+- [ ] a single fitting-arity candidate given a mismatched argument is reported as coercion-mismatch, not as a call no candidate accepts (`go test ./test/e2e/ -run '^TestPSCCheckSingleCandidateMismatchIsCoercion$' -count=1 -v | grep -q '^--- PASS: TestPSCCheckSingleCandidateMismatchIsCoercion'`)
