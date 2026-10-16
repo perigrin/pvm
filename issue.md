@@ -24,7 +24,7 @@ blocked_by:
 - 01a1464e-dde3-73fe-ab1f-ced7f18c4f9d
 - 01a14657-682e-7432-8ea9-828f56cd2f69
 created: 2026-10-16T20:02:16.243834962Z
-updated: 2026-10-16T20:11:56.357932169Z
+updated: 2026-10-16T20:13:15.038309605Z
 ---
 
 ## Prerequisites
@@ -43,8 +43,7 @@ The milestone's closing gate. `TestCoreModuleDeclarationsCoverTheTop50` (the mil
 
 - [ ] Write `TestCoreModuleDeclarationsCoverTheTop50`; run to verify pass: `go test ./internal/parse/ -run '^TestCoreModuleDeclarationsCoverTheTop50$' -count=1 -v`
 - [ ] Run each criterion below; fix anything red at its root, in the issue that owns it, reopening that issue
-- [ ] Re-mark the RFC heading "Core-module libraries" `(*Implemented*, <shas>)`, the shas being the commits that implemented its paragraphs (Which 50, Every exported name, Typed variables, Held to perl, Infrastructure modules, Exits), as the other `*Implemented*` headings list theirs; confirm "Call sites" was re-marked by 01a0fd9b-5700 and that "Typed variables." no longer names Errno's `%!`; if an infrastructure module was not shipped, say so in "Infrastructure modules." with the measured reason; commit
-- [ ] Update the "Declaration Files" section of `internal/data/help/types.md`: add to the shipped-declarations list, beside the `CORE.tpm` line, the core modules that now ship declarations (the 50 perl's own library imports most, less any recorded in `core_module_not_shipped.txt`; name a few, e.g. Carp, Scalar::Util, POSIX, and give the count rather than all 50); keep "you cannot yet add your own"; `go test ./internal/cli/ -run '^TestShowTypesHelp$' -count=1`
+- [ ] Re-mark "Core-module libraries" `(*Implemented*, <shas>)`; update types.md; `go test ./internal/cli/ -run '^TestShowTypesHelp$' -count=1`
 - [ ] `make test`; commit
 
 ## Acceptance Criteria
@@ -67,3 +66,10 @@ The milestone's closing gate. `TestCoreModuleDeclarationsCoverTheTop50` (the mil
 - [ ] m1 gate: Go parser exact floor (`go test ./internal/parseoracle/ -run '^TestGoParserExactFloor$' -count=1 -v | grep -q '^--- PASS: TestGoParserExactFloor'`)
 - [ ] the RFC section on call sites is implemented (`grep -q '^### Call sites (\*Implemented\*' docs/rfcs/0001-type-libraries.md`)
 - [ ] the RFC section on core-module libraries is implemented (`grep -q '^### Core-module libraries (\*Implemented\*' docs/rfcs/0001-type-libraries.md`)
+
+### Negative Scenarios
+- [ ] the coverage check fails a top-50 module with neither a `.tpm` nor a not-shipped entry (`go test ./internal/parse/ -run '^TestCoverageRejectsAnUndeclaredModule$' -count=1 -v | grep -q '^--- PASS: TestCoverageRejectsAnUndeclaredModule'`)
+- [ ] the coverage check fails a not-shipped entry missing its issue id or measured reason (`go test ./internal/parse/ -run '^TestCoverageRejectsANotShippedEntryWithoutReason$' -count=1 -v | grep -q '^--- PASS: TestCoverageRejectsANotShippedEntryWithoutReason'`)
+- [ ] the coverage check fails a module that both ships a `.tpm` and is listed not shipped (`go test ./internal/parse/ -run '^TestCoverageRejectsShippedAndNotShipped$' -count=1 -v | grep -q '^--- PASS: TestCoverageRejectsShippedAndNotShipped'`)
+- [ ] the coverage check fails a not-shipped entry naming a module outside the ranking (`go test ./internal/parse/ -run '^TestCoverageRejectsAnUnrankedNotShippedEntry$' -count=1 -v | grep -q '^--- PASS: TestCoverageRejectsAnUnrankedNotShippedEntry'`)
+- [ ] module names map to paths with forward slashes and keep underscores: `File::Spec::Functions` to `File/Spec/Functions.tpm`, `SDBM_File` to `SDBM_File.tpm` (`go test ./internal/parse/ -run '^TestCoverageMapsModuleNamesToPaths$' -count=1 -v | grep -q '^--- PASS: TestCoverageMapsModuleNamesToPaths'`)
