@@ -1,10 +1,19 @@
 ---
 title: "[S2] Two parameter recognisers disagree."
-state: pending
+state: in-progress
 urgency: normal
 milestone: pr486-review
 created: 2026-10-16T01:16:08.519998036Z
-updated: 2026-10-16T01:16:08.519998036Z
+updated: 2026-10-16T01:17:17.703126832Z
+sessions:
+- start_sha: 8a0c85c60a2bae5d04dbbb2b27eb4310312d362f
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-16T01:17:17.703126832Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-16T01:17:17.703126832Z
 ---
 
 ## Context
