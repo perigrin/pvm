@@ -6,8 +6,10 @@ milestone: core-module-types
 blocked_by:
 - 01a1464e-d912-7419-8b20-a8e24029b3ec
 - 01a0fd9b-5700-7514-a143-2caed2d06d8b
+blocks:
+- 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.325366834Z
-updated: 2026-10-16T20:03:11.627640721Z
+updated: 2026-10-16T20:03:22.835283806Z
 ---
 
 ## Prerequisites
