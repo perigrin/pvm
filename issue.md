@@ -10,7 +10,7 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.593259461Z
-updated: 2026-10-16T20:03:58.973615345Z
+updated: 2026-10-16T20:13:04.62738796Z
 ---
 
 ## Prerequisites
@@ -47,3 +47,10 @@ A `.tpm` changes what the parser reads for every file that uses the module, so r
 - [ ] declared prototypes equal perl's prototype() (`go test ./internal/parse/ -run '^TestXSUtilitiesPrototypes$' -count=1 -v | grep -q '^--- PASS: TestXSUtilitiesPrototypes'`)
 - [ ] declared export lists equal the modules' own (`go test ./internal/parse/ -run '^TestXSUtilitiesExports$' -count=1 -v | grep -q '^--- PASS: TestXSUtilitiesExports'`)
 - [ ] declared return types hold for every value perl returns (`go test ./internal/infer/ -run '^TestXSUtilitiesReturnTypes$' -count=1 -v | grep -q '^--- PASS: TestXSUtilitiesReturnTypes'`)
+
+### Negative Scenarios
+- [ ] a bare `use Scalar::Util;` imports nothing (its `@EXPORT` is empty, measured), so `blessed($x)` does not resolve to the declaration (`go test ./internal/parse/ -run '^TestScalarUtilBareUseImportsNothing$' -count=1 -v | grep -q '^--- PASS: TestScalarUtilBareUseImportsNothing'`)
+- [ ] `blessed` on an unblessed reference returns undef, which its declared return type admits (`go test ./internal/infer/ -run '^TestScalarUtilBlessedUnblessedReturnIsDeclared$' -count=1 -v | grep -q '^--- PASS: TestScalarUtilBlessedUnblessedReturnIsDeclared'`)
+- [ ] `first { $_ } @x` after `use List::Util qw(first);` parses the braces as a block, not a hash constructor (`go test ./internal/parse/ -run '^TestListUtilFirstParsesBlockArgument$' -count=1 -v | grep -q '^--- PASS: TestListUtilFirstParsesBlockArgument'`)
+- [ ] MIME::Base64 `decode_base64` given invalid base64 returns a value its declared return type admits (`go test ./internal/infer/ -run '^TestMIMEBase64InvalidInputReturnIsDeclared$' -count=1 -v | grep -q '^--- PASS: TestMIMEBase64InvalidInputReturnIsDeclared'`)
+- [ ] Storable oracle cases write files only under the test's temp dir (`go test ./internal/infer/ -run '^TestXSUtilitiesOracleStaysInScratch$' -count=1 -v | grep -q '^--- PASS: TestXSUtilitiesOracleStaysInScratch'`)
