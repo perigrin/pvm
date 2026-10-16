@@ -1,6 +1,6 @@
 ---
 title: Commit psc check's diagnostics over perl 5.42's lib as a baseline, and fail on any new one
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 blocks:
@@ -21,7 +21,7 @@ blocks:
 - 01a1464e-ddb0-720a-93f6-450c767e6e2e
 - 01a1464e-dde3-73fe-ab1f-ced7f18c4f9d
 created: 2026-10-16T20:02:14.930089601Z
-updated: 2026-10-16T21:55:52.66004049Z
+updated: 2026-10-16T22:23:58.098893991Z
 sessions:
 - start_sha: 2fb0e62ffdc068b717c1b1a211c77e72d09ba51a
   end_sha: ec99871d43d51af75b3cdcb95b6ddca2a6802abd
@@ -29,9 +29,10 @@ sessions:
   started_at: 2026-10-16T21:09:47.558182701Z
   ended_at: 2026-10-16T21:44:13.200226818Z
 - start_sha: a9ce48f0047db49c938b19bdad67387cc27a0bd5
-  end_sha: ""
-  commits: 0
+  end_sha: 921f002adc2aa3022e33d7016ef26672b6310406
+  commits: 2
   started_at: 2026-10-16T21:55:32.561438668Z
+  ended_at: 2026-10-16T22:23:58.098893991Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
@@ -45,11 +46,27 @@ transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-16T21:55:32.561438668Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-16T22:23:58.098893991Z
 observed_paths:
+- docs/rfcs/0001-type-libraries.md
 - internal/infer/precision_test.go
+- internal/lexer/proto.go
+- internal/parse/decl.go
+- internal/parse/declarations.go
+- internal/parse/exportattr_test.go
+- internal/parse/exports.go
+- internal/parse/parse.go
+- internal/parse/ranking_test.go
+- internal/parse/testdata/core_module_ranking.txt
+- internal/parse/testdata/declarations/My/Exports.tpm
+- internal/parse/testdata/declarations/My/Vars.tpm
+- internal/parse/typedour_test.go
 - internal/parseoracle/goparser_test.go
 - internal/perltest/perl542_test.go
 - internal/perltest/perltest.go
+- internal/psc/inc_roots_test.go
 - internal/psc/lib_baseline_test.go
 - internal/psc/testdata/lib_baseline.txt
 - internal/psc/testdata/lib_true_positives.txt
