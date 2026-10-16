@@ -10,7 +10,7 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:16.112056153Z
-updated: 2026-10-16T20:04:36.276590547Z
+updated: 2026-10-16T20:13:12.660154256Z
 ---
 
 ## Prerequisites
@@ -46,3 +46,8 @@ m1 gates to run with the `.tpm` in place: `TestParseRatchet`, `TestPerlGitTRatch
 - [ ] declared export lists equal XSLoader's own (`go test ./internal/parse/ -run '^TestXSLoaderExports$' -count=1 -v | grep -q '^--- PASS: TestXSLoaderExports'`)
 - [ ] every privlib module using XSLoader resolves as it did without the declaration (`go test ./internal/parse/ -run '^TestXSLoaderKeepsResolution$' -count=1 -v | grep -q '^--- PASS: TestXSLoaderKeepsResolution'`)
 - [ ] declared return types hold for every value perl returns (`go test ./internal/infer/ -run '^TestXSLoaderReturnTypes$' -count=1 -v | grep -q '^--- PASS: TestXSLoaderReturnTypes'`)
+
+### Negative Scenarios
+- [ ] a bare `use XSLoader;` imports nothing (empty export lists, measured), so a bare `load()` does not resolve to `XSLoader::load` (`go test ./internal/parse/ -run '^TestXSLoaderBareUseImportsNothing$' -count=1 -v | grep -q '^--- PASS: TestXSLoaderBareUseImportsNothing'`)
+- [ ] the resolution comparison is not vacuous: it fails if it compares no module where privlib is present (`go test ./internal/parse/ -run '^TestXSLoaderKeepsResolutionIsNotVacuous$' -count=1 -v | grep -q '^--- PASS: TestXSLoaderKeepsResolutionIsNotVacuous'`)
+- [ ] XSLoader is not both shipped and listed as not shipped (`! { test -e internal/parse/declarations/XSLoader.tpm && grep -q '^XSLoader[[:space:]]' internal/parse/testdata/core_module_not_shipped.txt; }`)
