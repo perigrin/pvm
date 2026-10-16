@@ -595,23 +595,12 @@ func readsArg0(n lower.Node) bool {
 // More than one return is too much to read, and so is a bare one.
 func subReturnExpr(body lower.Node) lower.Node {
 	var rets []*lower.LoopEx
-	var find func(n lower.Node)
-	find = func(n lower.Node) {
-		if r, ok := n.(*lower.LoopEx); ok && r.Op == "return" {
-			rets = append(rets, r)
-			return
-		}
-		for _, c := range lower.Children(n) {
-			if d, ok := c.(*lower.Decl); ok && d.Kind == lower.DeclSub {
-				continue
-			}
-			find(c)
-		}
-	}
 	if body == nil {
 		return nil
 	}
-	find(body)
+	returnsOf(body, func(r *lower.LoopEx, _ *lower.IfStmt) {
+		rets = append(rets, r)
+	})
 	switch len(rets) {
 	case 0:
 	case 1:
@@ -694,24 +683,60 @@ func negateGuard(g *guardResult) *guardResult {
 	return &guardResult{Compound: &compoundGuard{Op: op, Left: &l, Right: &r}}
 }
 
-// explicitReturns is the join of every return's value under n, a bare
-// return giving Undef, and whether each of them is of a known type.
+// explicitReturns is the join of the value of every return of the sub
+// whose body is n, a bare return giving Undef, and whether each of them
+// is of a known type.
 func (a *analysis) explicitReturns(n lower.Node) (types.Type, bool) {
-	if r, ok := n.(*lower.LoopEx); ok && r.Op == "return" {
-		if r.Label == nil {
-			return types.Undef, true
-		}
-		t := a.returnedValue(r.Label)
-		return t, t != types.Unknown
-	}
 	var t types.Type
 	known := true
-	for _, c := range lower.Children(n) {
-		ct, ck := a.explicitReturns(c)
-		t |= ct
-		known = known && ck
-	}
+	returnsOf(n, func(r *lower.LoopEx, _ *lower.IfStmt) {
+		if r.Label == nil {
+			t |= types.Undef
+			return
+		}
+		v := a.returnedValue(r.Label)
+		t |= v
+		known = known && v != types.Unknown
+	})
 	return t, known
+}
+
+// returnsOf calls visit with each return of the sub whose body is n, in
+// source order, and the `if` statement whose successful match guards it,
+// or nil. A return in a sub nested in n, named or anonymous, returns from
+// that sub, and is not visited.
+func returnsOf(n lower.Node, visit func(r *lower.LoopEx, match *lower.IfStmt)) {
+	var walk func(n lower.Node, match *lower.IfStmt)
+	walk = func(n lower.Node, match *lower.IfStmt) {
+		switch n := n.(type) {
+		case nil, *lower.AnonSub:
+			return
+		case *lower.Decl:
+			if n.Kind == lower.DeclSub {
+				return
+			}
+		case *lower.LoopEx:
+			if n.Op == "return" {
+				visit(n, match)
+				return
+			}
+		case *lower.IfStmt:
+			if m, success := successMatch(n); m != nil {
+				for _, c := range lower.Children(n) {
+					if c == success {
+						walk(c, n)
+					} else {
+						walk(c, nil)
+					}
+				}
+				return
+			}
+		}
+		for _, c := range lower.Children(n) {
+			walk(c, match)
+		}
+	}
+	walk(n, nil)
 }
 
 // returnedValue is the type of what a sub hands back in scalar context. A

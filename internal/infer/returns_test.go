@@ -18,3 +18,15 @@ func TestReturnTypeKeepsUnknownArms(t *testing.T) {
 	wantSilent(t, "sub k { my $x = shift; return undef unless $x; eval { 4 } }\nmy $u = k(3);\nprint $u + 1, \"\\n\";\n")
 	wantReported(t, "sub k { my $x = shift; return undef }\nmy $u = k(3);\nprint $u + 1, \"\\n\";\n", infer.CodeCoercionMismatch)
 }
+
+// A return in a sub nested in another, anonymous or named, returns from
+// the nested sub, so it is no arm of the outer sub's return type, nor of
+// what a guard or a builtin-result judgement reads of it. perl 5.42 -w
+// prints 2 silently for the first two, and warns "Use of uninitialized
+// value in addition" on the control, whose own return is undef.
+func TestNestedSubReturnDoesNotLeak(t *testing.T) {
+	wantSilent(t, "sub outer { my $cb = sub { return undef }; return 1 }\nmy $r = outer() + 1;\nprint \"$r\\n\";\n")
+	wantSilent(t, "sub outer { sub inner { return undef } return 1 }\nmy $r = outer() + 1;\nprint \"$r\\n\";\n")
+	wantSilent(t, "sub fd { sub one { return 1 } return fileno $_[0] }\nprint fd(\\*STDOUT) . \">\\n\";\n")
+	wantReported(t, "sub outer { my $cb = sub { return 1 }; return undef }\nmy $r = outer() + 1;\nprint \"$r\\n\";\n", infer.CodeCoercionMismatch)
+}

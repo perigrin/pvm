@@ -283,33 +283,9 @@ func (a *analysis) returnsBuiltinResult(sub *lower.AnonSub) bool {
 		return ok && c.Fn == nil && !c.Ampersand && len(parse.CoreBuiltin(c.Name)) > 0
 	}
 	all := true
-	var returns func(n lower.Node, guard *lower.IfStmt)
-	returns = func(n lower.Node, guard *lower.IfStmt) {
-		switch n := n.(type) {
-		case nil, *lower.AnonSub:
-			return
-		case *lower.LoopEx:
-			if n.Op == "return" {
-				all = all && n.Label != nil && (builtin(n.Label) || a.ownCapture(n.Label, guard))
-				return
-			}
-		case *lower.IfStmt:
-			if m, success := successMatch(n); m != nil {
-				for _, c := range lower.Children(n) {
-					if c == success {
-						returns(c, n)
-					} else {
-						returns(c, nil)
-					}
-				}
-				return
-			}
-		}
-		for _, c := range lower.Children(n) {
-			returns(c, guard)
-		}
-	}
-	returns(body, nil)
+	returnsOf(body, func(r *lower.LoopEx, guard *lower.IfStmt) {
+		all = all && r.Label != nil && (builtin(r.Label) || a.ownCapture(r.Label, guard))
+	})
 	last, ok := body.Stmts[len(body.Stmts)-1].(*lower.ExprStmt)
 	if !ok || last.X == nil {
 		return false
