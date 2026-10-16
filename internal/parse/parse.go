@@ -4,6 +4,8 @@
 package parse
 
 import (
+	"sort"
+
 	"tamarou.com/pvm/internal/lexer"
 	"tamarou.com/pvm/internal/types"
 )
@@ -562,7 +564,13 @@ func newParser(src []byte, res *resolver, typed bool) *parser {
 	} else {
 		toks = lexer.TokenizeBarewords(src, coreBarewordOperators())
 	}
-	return &parser{src: src, toks: toks, res: res, symbolsOpen: res == nil, typed: typed}
+	var bodies []int
+	for i, tok := range toks {
+		if tok.Kind == lexer.HeredocBody {
+			bodies = append(bodies, i)
+		}
+	}
+	return &parser{src: src, toks: toks, bodies: bodies, res: res, symbolsOpen: res == nil, typed: typed}
 }
 
 // parseWith runs p over its source, returning the tree and p.
@@ -696,6 +704,10 @@ type parser struct {
 	// inSignature is set while a sub's signature is read, where a
 	// placeholder's `=` may have nothing after it -- see emptyDefault.
 	inSignature bool
+
+	// bodies are the indexes in toks of the HeredocBody tokens, in order;
+	// see innerHeredocBodies.
+	bodies []int
 
 	// depth is how many parseTerm, parseInfix and parseBlock frames are
 	// active, which refuseTooDeep holds to maxDepth.
@@ -959,11 +971,19 @@ func (p *parser) statement() *Node {
 // A body some statement NESTED in this one already owns is left to it: `f(sub
 // { g(<<EOF, 1) }, 2)` puts the body in the range of both, and it is the inner
 // statement's.
+//
+// The bodies are found through p.bodies, the token indexes of every body in
+// the file, rather than by scanning the range: every enclosing statement
+// spans its nested ones, so a scan made each nesting level pay for all the
+// tokens inside it.
 func (p *parser) innerHeredocBodies(from int, n *Node) []*Node {
 	var inner []*Node
-	for i := from; i < p.pos; i++ {
+	for _, i := range p.bodies[sort.SearchInts(p.bodies, from):] {
+		if i >= p.pos {
+			break
+		}
 		tok := p.toks[i]
-		if tok.Kind != lexer.HeredocBody || ownsBody(n, tok.Start) {
+		if ownsBody(n, tok.Start) {
 			continue
 		}
 		inner = append(inner, &Node{
