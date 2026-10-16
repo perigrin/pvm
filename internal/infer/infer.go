@@ -88,6 +88,9 @@ type analysis struct {
 	// type each variable a loop exit narrowed had where the exit leaves,
 	// keyed by the scope that declares it, as leaveLoop says.
 	loopExits []map[scopedName]types.Type
+	// warningsOff is the warning categories a `no warnings` has turned
+	// off where the walk is, as useStmt and block keep it.
+	warningsOff warningsOff
 }
 
 // walk types n, children first, and records the type under n's id. Unknown
@@ -219,13 +222,18 @@ func (a *analysis) walk(n lower.Node) types.Type {
 // block walks b's statements in the scope pass 1 made for it, re-entered
 // under the scope current now, or in a scope of its own when pass 1 made
 // none.
+//
+// A `no warnings` in b lasts to the end of b, as perl's lexical warnings
+// do.
 func (a *analysis) block(b *lower.Block) {
 	if s := a.st.blockScopes[b.ID]; s != nil {
 		a.st.Reenter(s)
 	} else {
 		a.st.EnterScope("block")
 	}
+	off := a.warningsOff
 	a.walkChildren(b)
+	a.warningsOff = off
 	a.st.ExitScope()
 }
 

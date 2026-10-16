@@ -200,7 +200,7 @@ func (a *analysis) checkArg(name string, i int, arg lower.Node, expected types.T
 	} else if a.argSatisfies(scalarValue(arg, actual), expected) || a.argSatisfies(counted(name, actual), expected) {
 		return
 	}
-	if a.lossyCoercion(arg, actual, expected) {
+	if a.lossyCoercion(arg, actual, expected) || a.silenced(actual, expected) {
 		return
 	}
 	start, end, _ := a.pos.Span(arg.Meta().ID)

@@ -435,12 +435,85 @@ func foreachVar(n lower.Node) *lower.Var {
 // `no Foo` and `require Foo` name a module as `use Foo` does, and perl
 // loads it for each.
 func (a *analysis) useStmt(n *lower.UseStmt) {
+	if n.Module == "warnings" && n.Op != "require" {
+		a.warningsOff.set(n.Op == "no", n.Args)
+	}
 	if a.idx != nil && n.Module != "" {
 		if path, err := a.idx.ResolveModule(n.Module); err == nil {
 			_, _ = a.idx.AnalyzeFile(path)
 		}
 	}
 	a.walkChildren(n)
+}
+
+// warningsOff is the warning categories PSC maps a diagnostic to that a
+// `no warnings` has turned off. perl 5.42 -w, measured: `no warnings
+// "uninitialized"` silences "Use of uninitialized value" in `"x" . $u`,
+// `$u + 1`, `lc($u)` and `waitpid($u, 0)`, and `no warnings "numeric"`
+// silences "Argument isn't numeric" for `"abc" + 1`, `"abc" < 5` and
+// `*STDOUT + 1`. Neither silences "Not a GLOB reference" for close({}),
+// which perl dies with.
+type warningsOff struct {
+	uninitialized, numeric bool
+}
+
+// set turns the categories args names off, for `no warnings`, or back on,
+// for `use warnings`. No list, or "all", names both. A category PSC maps
+// no diagnostic to changes nothing.
+func (w *warningsOff) set(off bool, args lower.Node) {
+	words := pragmaWords(args)
+	if len(words) == 0 {
+		words = []string{"all"}
+	}
+	for _, c := range words {
+		switch c {
+		case "all":
+			w.uninitialized, w.numeric = off, off
+		case "uninitialized":
+			w.uninitialized = off
+		case "numeric":
+			w.numeric = off
+		}
+	}
+}
+
+// pragmaWords is the words an import list spells: qw/a b/, "a", or a
+// list of them.
+func pragmaWords(n lower.Node) []string {
+	switch n := n.(type) {
+	case *lower.QwList:
+		return n.Words
+	case *lower.StrLit:
+		return []string{n.Value}
+	case *lower.List:
+		var words []string
+		for _, e := range n.Elems {
+			words = append(words, pragmaWords(e)...)
+		}
+		return words
+	}
+	return nil
+}
+
+// silenced reports whether a `no warnings` in force turns off the warning
+// perl gives for a value of type actual where expected is wanted: once
+// the parts of actual its categories cover are taken away, Undef for
+// uninitialized and a string or a glob in a numeric slot for numeric,
+// what is left satisfies expected. A mismatch with any other part is
+// still reported.
+func (a *analysis) silenced(actual, expected types.Type) bool {
+	off := a.warningsOff
+	if !off.uninitialized && !off.numeric {
+		return false
+	}
+	rest := numified(finite(actual), expected)
+	if off.uninitialized {
+		rest &^= types.Undef
+	}
+	if off.numeric && types.IsSubtype(expected, types.Num) {
+		rest &^= types.Str&^types.Num | types.Glob
+	}
+	return rest == types.Unknown || a.opts.satisfies(rest, expected) || a.opts.handleSatisfies(rest, expected)
 }
 
 // blockWithGuard walks a block under guards: the guarded variables
