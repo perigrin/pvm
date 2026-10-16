@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"tamarou.com/pvm/internal/infer"
+	"tamarou.com/pvm/internal/parse"
 	"tamarou.com/pvm/internal/types"
 )
 
@@ -108,4 +109,29 @@ func TestPrefetch(t *testing.T) {
 	sym, ok := idx.LookupSymbol("A::B", "x")
 	assert.True(t, ok)
 	assert.Equal(t, types.Int, sym.ReturnType)
+}
+
+// TestProjectIndexParsesLikeCheck: the index parses a module as psc check
+// does, against its own directory and then @INC, so a parenless call to a
+// sub imported from @INC is the call perl compiles, and the mismatch in its
+// block is the one check reports. perl 5.42 -w, given that @INC, warns
+// "length() used on @ARGV" at Foo.pm line 3.
+func TestProjectIndexParsesLikeCheck(t *testing.T) {
+	dir, inc := t.TempDir(), t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "lib"), 0755))
+	path := filepath.Join(dir, "lib", "Foo.pm")
+	require.NoError(t, os.WriteFile(path,
+		[]byte("package Foo;\nuse My::Block;\nsub f { block 'inner' => sub { my $y = length(@ARGV); }; }\n1;\n"), 0644))
+	require.NoError(t, os.MkdirAll(filepath.Join(inc, "My"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(inc, "My", "Block.pm"),
+		[]byte("package My::Block;\nuse Exporter 'import';\nour @EXPORT = qw(block);\nsub block($&) { 1 }\n1;\n"), 0644))
+
+	root, err := parse.NewSession().ParseFileFrom(path, inc)
+	require.NoError(t, err)
+	want := infer.AnalyzeParsed(root, nil, infer.Options{}).Diagnostics
+	require.NotEmpty(t, want, "control: check reports the mismatch inside block's body")
+
+	got, err := infer.NewProjectIndex(dir, inc).AnalyzeFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, want, got.Diagnostics)
 }
