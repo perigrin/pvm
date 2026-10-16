@@ -43,13 +43,24 @@ func testdataDir(t *testing.T) string {
 	return filepath.Join(dir, "test", "e2e", "testdata", "check")
 }
 
-// runPSCCheck invokes the psc check command against target (file or directory)
-// via the Go API and returns (stdout, stderr, error).
+// runPSCCheck invokes the psc check command via the Go API against target
+// (file or directory) and returns (stdout, stderr, error). It checks a copy
+// of target's directory in a fresh one, with PERL5LIB empty: the copy names
+// no perl, so what psc check prints depends neither on the .perl-version
+// above the testdata nor on which perls the host has installed.
 func runPSCCheck(t *testing.T, target string, flags ...string) (string, string, error) {
 	t.Helper()
 
+	src, name := target, ""
+	if info, err := os.Stat(target); err == nil && !info.IsDir() {
+		src, name = filepath.Dir(target), filepath.Base(target)
+	}
+	copied := filepath.Join(t.TempDir(), filepath.Base(src))
+	require.NoError(t, os.CopyFS(copied, os.DirFS(src)))
+	t.Setenv("PERL5LIB", "")
+
 	cmd := psc.NewCommand()
-	cmd.SetArgs(append([]string{"check", target}, flags...))
+	cmd.SetArgs(append([]string{"check", filepath.Join(copied, name)}, flags...))
 
 	var stdout, stderr strings.Builder
 	cmd.SetOut(&stdout)
