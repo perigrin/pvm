@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: type-libraries
 created: 2026-10-06T08:53:38.742701359Z
-updated: 2026-10-06T13:46:23.612483797Z
+updated: 2026-10-16T18:48:33.115231586Z
 sessions:
 - start_sha: 26bdde901a32213a3a9b612e036893c409c965ee
   end_sha: 26bdde901a32213a3a9b612e036893c409c965ee
@@ -37,5 +37,5 @@ Found by the alignment gate on 01a0fd9b-4850-704d-8c14-c15add6194f2. A .pmt para
 
 ## Acceptance criteria
 
-- [ ] a parameter whose type its slot cannot hold is refused (`go test ./internal/parse/ -run '^TestPmtSlotTypeMismatchRefused$' -count=1 -v | grep -q '^--- PASS: TestPmtSlotTypeMismatchRefused'`)
+- [ ] a parameter whose type its slot cannot hold is refused (`go test ./internal/parse/ -run '^TestTpmSlotTypeMismatchRefused$' -count=1 -v | grep -q '^--- PASS: TestTpmSlotTypeMismatchRefused'`)
 - [ ] aliased parameters print with their backslash (`go test ./internal/types/ -run '^TestSignatureParamsPrintAlias$' -count=1 -v | grep -q '^--- PASS: TestSignatureParamsPrintAlias'`)
