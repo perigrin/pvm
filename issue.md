@@ -1,19 +1,23 @@
 ---
 title: "The lowered arity check is unreachable: the parser refuses what it would report"
-state: in-progress
+state: done
 urgency: normal
 milestone: v0.1
 created: 2026-10-14T04:00:51.479006583Z
-updated: 2026-10-16T12:10:03.288891336Z
+updated: 2026-10-16T12:10:03.415337252Z
 sessions:
 - start_sha: 77107dfbeb77e7b3f1d94437583eae6d28eb41c3
-  end_sha: ""
+  end_sha: 77107dfbeb77e7b3f1d94437583eae6d28eb41c3
   commits: 0
   started_at: 2026-10-16T12:10:03.288891336Z
+  ended_at: 2026-10-16T12:10:03.415337252Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-16T12:10:03.288891336Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-16T12:10:03.415337252Z
 ---
 
 ## Context
