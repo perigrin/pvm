@@ -374,6 +374,13 @@ type Node struct {
 	// guess the override again from the `use` statements.
 	Override bool
 
+	// Signatures is set on a Call to a sub a declaration file types: the
+	// signatures the `.pmt` of the module it is imported from declares
+	// for it, one per `multi sub` candidate. Carp.pmt declares croak
+	// returning None, so a consumer knows the call never returns. Empty
+	// for a builtin, and for a sub no declaration file types.
+	Signatures []types.Signature
+
 	// Indirect is set on a Call written in indirect object notation --
 	// `new Foo ARGS`, `doit $obj ARGS` -- whose FIRST child is the invocant
 	// and the rest the arguments. The children stay in source order, which

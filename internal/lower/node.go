@@ -3,7 +3,11 @@
 
 package lower
 
-import "fmt"
+import (
+	"fmt"
+
+	"tamarou.com/pvm/internal/types"
+)
 
 // Node is one lowered node. Every field of type Node or []Node on every kind
 // is optional (§6.1.6 item 5): the CST this tree comes from is routinely
@@ -249,6 +253,9 @@ type Call struct {
 	BareAmpersand bool // &foo with no parens -- inherits caller's @_
 	Resolved      bool // false if the parser could not tell call from bareword
 	Override      bool // a builtin's name the parse resolves to a sub: parse.Node.Override
+	// Signatures is what a declaration file types the called sub as:
+	// parse.Node.Signatures.
+	Signatures []types.Signature
 }
 
 // MethodCall is $obj->name(...) and indirect object syntax.

@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"tamarou.com/pvm/internal/infer"
+	"tamarou.com/pvm/internal/lower"
+	"tamarou.com/pvm/internal/parse"
 	"tamarou.com/pvm/internal/types"
 )
 
@@ -230,11 +232,29 @@ func TestExitsAndGuardsByCoreAndCarp(t *testing.T) {
 	wantReported(t, "my %h;\nCORE::push %h, 1;\n", infer.CodeTypeMismatch)
 
 	t.Run("croak", func(t *testing.T) {
-		// croak and confess exit once a Carp.pmt declares them returning
-		// None and infer types an imported call from its .pmt, which is
-		// issue 01a0fd9b-5700.
-		t.Skip("needs infer to type imported calls from their .pmt (01a0fd9b-5700)")
-		wantSilent(t, "use Carp;\nmy $x = @ARGV ? undef : 3;\nunless (defined $x) { croak \"x\" }\nprint $x + 1, \"\\n\";\n")
+		// croak and confess exit as Carp.pmt declares them, returning
+		// None, and the parser hands each call the signature it resolved:
+		// perl 5.42 -w, given no argument, is silent on both and prints
+		// 4. carp returns, so perl, given an argument, warns "Use of
+		// uninitialized value $x in addition (+)". A parse that resolves
+		// modules reads Carp.pmt; one that finds nothing else on disk is
+		// enough.
+		diags := func(src string) []infer.Diagnostic {
+			root := parse.ParseWithLoader([]byte(src), func(string) ([]byte, bool) { return nil, false })
+			f := lower.Lower(root)
+			_, d, _ := infer.Analyze(f, lower.NewPositions(root, f), nil, infer.Options{})
+			return d
+		}
+		for _, exit := range []string{"croak", "confess"} {
+			src := "use Carp;\nmy $x = @ARGV ? undef : 3;\nunless (defined $x) { " + exit + " \"x\" }\nprint $x + 1, \"\\n\";\n"
+			for _, d := range diags(src) {
+				t.Errorf("%q: diagnostic %q, want none", src, d.Message)
+			}
+		}
+		src := "use Carp;\nmy $x = @ARGV ? undef : 3;\nunless (defined $x) { carp \"x\" }\nprint $x + 1, \"\\n\";\n"
+		if d := diags(src); len(d) != 1 || d[0].Code != infer.CodeCoercionMismatch {
+			t.Errorf("%q: diagnostics %v, want one %s", src, d, infer.CodeCoercionMismatch)
+		}
 	})
 }
 

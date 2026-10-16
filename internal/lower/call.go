@@ -17,7 +17,7 @@ func (l *lowerer) call(n *parse.Node) Node {
 	if n.Indirect {
 		return l.indirect(n)
 	}
-	c := &Call{Name: n.Text, Resolved: n.Resolved, Override: n.Override, Parenthesized: parenthesized(n)}
+	c := &Call{Name: n.Text, Resolved: n.Resolved, Override: n.Override, Signatures: n.Signatures, Parenthesized: parenthesized(n)}
 	args := n.Children
 	if len(args) > 0 && args[0].Handle {
 		c.Handle, args = l.handle(args[0]), args[1:]
