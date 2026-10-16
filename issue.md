@@ -9,7 +9,7 @@ blocked_by:
 - 01a0fa46-ece2-7c78-87ed-84da0b5d65f9
 - 01a0fa46-f147-75f6-bd3c-4aa5f5644ee5
 created: 2026-10-02T05:00:17.750893693Z
-updated: 2026-10-02T17:18:12.872763941Z
+updated: 2026-10-16T18:48:30.707224854Z
 transitions:
 - state: cancelled
   actor: human:git-zhi
@@ -20,5 +20,5 @@ RFC 0001, "One language for every `.pmt`" (perigrin, 2026-10-02): everything COR
 
 ## Acceptance criteria
 
-- [ ] Each construct works from a library .pmt (`go test ./internal/parse/ -run '^TestLibraryPmtSpeaksCoreLanguage$' -count=1 -v | grep -q '^--- PASS: TestLibraryPmtSpeaksCoreLanguage'`)
+- [ ] Each construct works from a library .pmt (`go test ./internal/parse/ -run '^TestLibraryTpmSpeaksCoreLanguage$' -count=1 -v | grep -q '^--- PASS: TestLibraryTpmSpeaksCoreLanguage'`)
 - [ ] The RFC section is implemented (`grep -q '^### One language for every .*(\*Implemented\*' docs/rfcs/0001-type-libraries.md`)
