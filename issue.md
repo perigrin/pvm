@@ -3,8 +3,10 @@ title: Declare XSLoader, measure it against every module that uses it, and ship 
 state: pending
 urgency: normal
 milestone: core-module-types
+blocked_by:
+- 01a1464e-d912-7419-8b20-a8e24029b3ec
 created: 2026-10-16T20:02:16.112056153Z
-updated: 2026-10-16T20:02:16.112056153Z
+updated: 2026-10-16T20:04:32.996266074Z
 ---
 
 ## Prerequisites
