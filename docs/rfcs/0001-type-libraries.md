@@ -961,10 +961,24 @@ so a call to `croak` or `Scalar::Util::blessed` is typed as `print` is.
 **Which 50.** The ranking is measured, not chosen: each core module's
 imports over perl 5.42's library, counting only imports from outside
 the module's own namespace, so Test2 importing Test2 does not inflate
-it. A committed test recomputes the ranking from an installed perl and
-checks it against the list the declarations cover. Measured on
+it. The rule (perigrin, 2026-10-16):
+
+- A core module is any `.pm` under privlib, named with the arch
+  directory (archlib relative to privlib) stripped.
+- An import is a line matching `^\s*(use|require)\s+[A-Z][A-Za-z0-9_:]+`
+  in any `.pm` or `.pl` under privlib.
+- An import is not counted when the importing file's top-level path
+  component, with the arch directory stripped and `.pm`/`.pl` removed,
+  equals the module's first `::` component.
+- Only imports of core modules count.
+  Ties are broken by module name, ascending.
+
+A committed test recomputes the ranking from an installed perl and
+checks its top 50 against the list the declarations cover. Measured on
 2026-10-16: 128 modules are imported from outside their namespace,
-1,427 times; the top 50 account for 93%.
+1,427 times; the top 50 account for 1,326 of those imports (93%).
+Ranks 45 to 51 tie at 3 imports, so the tie-break puts Net::Ping 50th
+and Params::Check 51st.
 
 **Every exported name.** A declaration file is read in place of the
 module's source, so a name it does not declare is a name the import
