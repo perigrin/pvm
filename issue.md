@@ -20,7 +20,7 @@ blocks:
 - 01a1464e-dde3-73fe-ab1f-ced7f18c4f9d
 - 01a14657-682e-7432-8ea9-828f56cd2f69
 created: 2026-10-16T20:02:15.452693569Z
-updated: 2026-10-16T20:11:54.011591937Z
+updated: 2026-10-16T20:13:00.99775502Z
 ---
 
 ## Prerequisites
@@ -57,3 +57,16 @@ All three skip where perl 5.42.0 is absent and assume no POSIX paths.
 - [ ] Carp's declared prototypes equal perl's (`go test ./internal/parse/ -run '^TestCarpPrototypes$' -count=1 -v | grep -q '^--- PASS: TestCarpPrototypes'`)
 - [ ] Carp's declared export lists equal perl's (`go test ./internal/parse/ -run '^TestCarpExports$' -count=1 -v | grep -q '^--- PASS: TestCarpExports'`)
 - [ ] Carp's declared return types hold for every value perl returns (`go test ./internal/infer/ -run '^TestCarpReturnTypes$' -count=1 -v | grep -q '^--- PASS: TestCarpReturnTypes'`)
+
+### Negative Scenarios
+- [ ] the prototype helper fails a declaration whose prototype disagrees with perl's `prototype()` (`go test ./internal/parse/ -run '^TestPrototypeHelperRejectsADisagreement$' -count=1 -v | grep -q '^--- PASS: TestPrototypeHelperRejectsADisagreement'`)
+- [ ] the prototype helper distinguishes an undef prototype from an empty `()` one (`go test ./internal/parse/ -run '^TestPrototypeHelperDistinguishesUndefFromEmpty$' -count=1 -v | grep -q '^--- PASS: TestPrototypeHelperDistinguishesUndefFromEmpty'`)
+- [ ] the export helper fails a `.tpm` missing a name in the module's `@EXPORT_OK` (`go test ./internal/parse/ -run '^TestExportHelperRejectsAMissingName$' -count=1 -v | grep -q '^--- PASS: TestExportHelperRejectsAMissingName'`)
+- [ ] the export helper fails a `.tpm` exporting a name the module does not (`go test ./internal/parse/ -run '^TestExportHelperRejectsAnExtraName$' -count=1 -v | grep -q '^--- PASS: TestExportHelperRejectsAnExtraName'`)
+- [ ] the export helper reads lists a fixture module builds in `import`, not the empty lists `require` leaves (`go test ./internal/parse/ -run '^TestExportHelperReadsListsAfterImport$' -count=1 -v | grep -q '^--- PASS: TestExportHelperReadsListsAfterImport'`)
+- [ ] a declared module absent from privlib fails by name rather than passing vacuously (`go test ./internal/parse/ -run '^TestHeldToPerlFailsOnAModuleAbsentFromPrivlib$' -count=1 -v | grep -q '^--- PASS: TestHeldToPerlFailsOnAModuleAbsentFromPrivlib'`)
+- [ ] the oracle never calls a sub in the exemption map: a fixture exempt sub that would write a marker file leaves none (`go test ./internal/infer/ -run '^TestReturnOracleNeverCallsAnExemptSub$' -count=1 -v | grep -q '^--- PASS: TestReturnOracleNeverCallsAnExemptSub'`)
+- [ ] every exemption-map entry names a non-empty reason (`go test ./internal/infer/ -run '^TestReturnOracleExemptionsNameAReason$' -count=1 -v | grep -q '^--- PASS: TestReturnOracleExemptionsNameAReason'`)
+- [ ] a sub declared `None` that returns under the oracle fails it (`go test ./internal/infer/ -run '^TestReturnOracleRejectsAReturningNoneSub$' -count=1 -v | grep -q '^--- PASS: TestReturnOracleRejectsAReturningNoneSub'`)
+- [ ] a declared sub with neither an oracle call case nor an exemption fails the oracle, so no sub goes unchecked silently (`go test ./internal/infer/ -run '^TestReturnOracleRejectsAnUncoveredSub$' -count=1 -v | grep -q '^--- PASS: TestReturnOracleRejectsAnUncoveredSub'`)
+- [ ] the oracle runs perl with cwd, `HOME` and `TMPDIR` in the test's temp dir: a fixture sub writing under `$ENV{HOME}` writes there (`go test ./internal/infer/ -run '^TestReturnOracleRunsInScratchDir$' -count=1 -v | grep -q '^--- PASS: TestReturnOracleRunsInScratchDir'`)
