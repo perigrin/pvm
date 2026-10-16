@@ -1559,7 +1559,8 @@ type Decl struct {
 	Vars  []Node   // Var, or List of Var for the parenthesised form;
 	               // &f for a sub or method, a Bareword for a package or class
 	Attrs []string
-	Init  Node     // nil if none; a named sub's AnonSub, a package's version or block
+	Version Node   // nil if none; a package's or class's version
+	Init  Node     // nil if none; a named sub's AnonSub, a package's or class's block
 	ListAssign bool // my (...) = -- list context on Init (4.12.2 rule 2)
 	RefAlias bool  // my \$x = ...
 }
@@ -1892,6 +1893,7 @@ status. "C" counts are uses in `internal/infer` of the old grammar name.
 | Kind | CST at 971b9031 | Consumer / perl / SoN | Status |
 |---|---|---|---|
 | `Decl{Kind}` | `declaration` with `Text` the declarator; T1 census of `Declaration.Text` at 971b9031, through `parse.ParseFileFrom`: my 6,986, sub 2,706, package 668, local 513, our 344, format 36, state 9, field 7, class 5, method 4, async 2 | C: `variable_declaration` (3); `local`/`state`/`our`/`field` unhandled | SHIPPED |
+| `Decl{Version}` | `package Foo 1.2 { 1 }` → `[declaration "package" [term "Foo"] [term "1.2"] [block ...]]`; `class Foo 1.0 {}` likewise, with any attribute between the version and the block. The version term is `Version` and the block `Init`, so `package Foo 1.2;` has `Version` and no `Init`, and `package Foo;` neither. perl 5.42: `Foo->VERSION` is 1.2 after `package Foo 1.2 { sub f {1} }`, and 1.0 after `class Bar 1.0 {}` (perigrin, 2026-10-16, review S10) | C: none | LOWERING |
 | `Decl{Vars,Init}` | two shapes: `my $x = f()` → `[declaration "my" [term "$x"] [call "f"]]` (two children, no `=`); `my ($x) = f()` → `[declaration "my" [binary "=" [term "$x" paren] [call "f"]]]` (one child, the `=`); `my ($x,$y) = f()` → the same with a `list paren` LHS. The list-vs-scalar fact §4.12.2 rule 2 needs is *the child count* — perl: with `sub f{(1,2,3)}`, `my ($x)=f()` gives 1 and `my $y=f()` gives 3 | C: `extractVarNameFromDecl` (`infer.go:3560`) | LOWERING, by the predicate "one child and it is `binary "="`"; normalising the parser to one shape is recommended before the lowering is written |
 | `Decl{Attrs}` | `my $x :shared;` → `[declaration "my" [term "$x"] [attribute ":shared"]]`. **Moved:** at 3c997a6b the attribute was a `term` | — | SHIPPED |
 | `Decl{RefAlias}` | `my \$x = $y` → `[declaration "my" [binary "=" [unary "ref" [term "$x"]] [term "$y"]]]` | C: none | LOWERING; SPECULATIVE consumer |
@@ -2059,7 +2061,7 @@ breaks if a STRUCTURE item is erased anyway.
 | A one-link `cmp_chain` to `Binary` | VARIATION | perl: `B::Deparse` gives `$a < $b` back as a plain comparison; only two or more links lower to `CmpChain` |
 | `my Foo $f` to `my $f` | STRUCTURE, erased today | perl: under `use fields`, `my Foo $f; $f->{b}` dies "No such class field "b" in variable $f of type Foo". No `Decl` field holds the class (`decl.go`, a `ponytail:` comment); nothing in `internal/infer` reads it yet |
 | A label on a statement that is not a loop or bare block | STRUCTURE, erased today | perl: `goto L; ... L: print` lands on it. Labels survive on `BlockStmt`, `WhileStmt`, `CForStmt` and `ForeachStmt`, where `last`/`next` read them; elsewhere they are dropped until a consumer resolves `goto` (`stmt.go`, a `ponytail:` comment) |
-| `package Foo 1.2 { ... }`'s version | STRUCTURE, erased today | perl: `Foo->VERSION` is 1.2. `Decl.Init` holds the version or the block, and the block wins when both are written; `class Foo 1.0 {}` likewise. Tracked as review S10 (01a14247-df10-7e8a-9c75-257355dee88d) |
+| `package Foo 1.2 { ... }`'s version | STRUCTURE, kept | perl: `Foo->VERSION` is 1.2, and 1.0 after `class Foo 1.0 {}`. `Decl.Version` holds the version and `Init` the block, so neither displaces the other (review S10, 01a14247-df10-7e8a-9c75-257355dee88d) |
 
 ### 4.14.6 Open after the reconciliation
 
@@ -2087,10 +2089,14 @@ Settled in `internal/lower/node.go`, each recorded at its declaration:
   its `AnonSub` taking the declaration's id under `RoleSubValue`; `sub f;` declares
   without defining and has a nil `Init`. `method` lowers the same way.
   `package` and `class` take a `Bareword` as their one `Vars` entry, the
-  version or block as `Init`, and class attributes in `Attrs`. A sub with
+  block as `Init`, and class attributes in `Attrs`. A sub with
   no name is an `AnonSub` in either position, never a `Decl`. Its `Sig` is
   read from a `list paren` or `term paren` child; a `prototype` child is
   not a signature. No `Name`, `Sig` or `Body` field is added to `Decl`.
+  The one field added since is `Version` (perigrin, 2026-10-16, review
+  S10): a package's or class's version always goes there, so
+  `package Foo 1.2;` has a nil `Init` and `package Foo 1.2 { ... }` keeps
+  both its version and its block.
 - **A lowered node with no parse node of its own takes its parent's id
   plus a role** (perigrin, 2026-10-12). `lower.ID` has a `Role`, 0 for the
   parse node itself; a synthesized node takes its parent's `Anchor` and

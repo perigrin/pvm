@@ -201,7 +201,7 @@ func TestLowerSubDeclaration(t *testing.T) {
 		{"sub f :prototype($) { 1 }", &lower.Decl{Kind: lower.DeclSub, Vars: amp("f"), Init: body(":prototype($)")}},
 		{"use v5.38; class Foo; method m { 1 }", &lower.Decl{Kind: lower.DeclMethod, Vars: amp("m"), Init: body()}},
 		{"package Foo;", &lower.Decl{Kind: lower.DeclPackage, Vars: word("Foo")}},
-		{"package Foo 1.2;", &lower.Decl{Kind: lower.DeclPackage, Vars: word("Foo"), Init: &lower.NumLit{Text: "1.2"}}},
+		{"package Foo 1.2;", &lower.Decl{Kind: lower.DeclPackage, Vars: word("Foo"), Version: &lower.NumLit{Text: "1.2"}}},
 		{"package Foo { 1 }", &lower.Decl{Kind: lower.DeclPackage, Vars: word("Foo"), Init: one()}},
 		{"use v5.38; class Foo :isa(Bar) { }", &lower.Decl{Kind: lower.DeclClass, Vars: word("Foo"), Attrs: []string{":isa(Bar)"}, Init: &lower.Block{}}},
 	}
@@ -344,6 +344,29 @@ func TestLowerDeclCompoundOperator(t *testing.T) {
 		"my $x = 1;":                 `(Decl Vars:(Var Sigil="$" Name="x") Init:(NumLit Text="1" IsInt))`,
 		"my ($x, $y) :shared = f();": `(Decl Attrs=[:shared] ListAssign Vars:(List Paren Fat=[false false] Elems:(Var Sigil="$" Name="x") Elems:(Var Sigil="$" Name="y")) Init:(Call Name="f" Parenthesized))`,
 		"my ($x) :shared = f();":     `(Decl Attrs=[:shared] Vars:(Var Paren Sigil="$" Name="x") Init:(Call Name="f" Parenthesized))`,
+	} {
+		got := lowerLast(t, src)
+		clearIDs(got)
+		if s := lower.Sexpr(got); s != want {
+			t.Errorf("%q:\n got %s\nwant %s", src, s, want)
+		}
+	}
+}
+
+// A package or class version and its block are two facts, so each has a
+// field: perl 5.42 gives `Foo->VERSION` as 1.2 after `package Foo 1.2 {
+// sub f {1} }`, and as 1.0 after `class Bar 1.0 {}`. Version always holds
+// the version and Init only the block, so `package Foo 1.2;` has no Init.
+// The controls: `package Foo;` has no version, and `package Foo { }` keeps
+// its block.
+func TestPackageVersionBlockKeepsVersion(t *testing.T) {
+	for src, want := range map[string]string{
+		"package Foo 1.2 { 1 }":    `(Decl Kind=6 Vars:(Bareword Name="Foo") Version:(NumLit Text="1.2") Init:(Block Stmts:(ExprStmt X:(NumLit Text="1" IsInt))))`,
+		"class Foo 1.0 {}":         `(Decl Kind=7 Vars:(Bareword Name="Foo") Version:(NumLit Text="1.0") Init:(Block))`,
+		"class Foo 1.0 :isa(B) {}": `(Decl Kind=7 Attrs=[:isa(B)] Vars:(Bareword Name="Foo") Version:(NumLit Text="1.0") Init:(Block))`,
+		"package Foo 1.2;":         `(Decl Kind=6 Vars:(Bareword Name="Foo") Version:(NumLit Text="1.2"))`,
+		"package Foo;":             `(Decl Kind=6 Vars:(Bareword Name="Foo"))`,
+		"package Foo { 1 }":        `(Decl Kind=6 Vars:(Bareword Name="Foo") Init:(Block Stmts:(ExprStmt X:(NumLit Text="1" IsInt))))`,
 	} {
 		got := lowerLast(t, src)
 		clearIDs(got)
