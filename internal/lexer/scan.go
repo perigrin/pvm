@@ -1106,7 +1106,9 @@ func scanOperator(l *lexer) bool {
 	// yyl_star reads `**` and `*=` only where an operator is expected, so
 	// `**` and `*=` there are the globs named `*` and `=`. An attribute's
 	// argument is not code: `:tighter(**)` names the operator.
-	if l.src[l.pos] == '*' && l.expect != XOperator && l.expect != XPostDeref && l.attrArgDepth == 0 {
+	//
+	// A word no keyword table settles is the exception: see afterUserWord.
+	if l.src[l.pos] == '*' && l.expect != XOperator && l.expect != XPostDeref && l.attrArgDepth == 0 && !l.afterUserWord() {
 		start := l.pos
 		l.pos++
 		l.emit(Operator, start)
@@ -1307,4 +1309,24 @@ func scanPostDerefStar(l *lexer) bool {
 	l.pos += 2
 	l.emit(Variable, start)
 	return true
+}
+
+// afterUserWord reports whether the last significant token is a word that is
+// not a perl keyword: a bareword, a constant or a user sub, whose expect
+// state the lexer leaves at XTerm only as a hedge (see expect.go). perl
+// decides with the symbol table, and an undeclared word is a value, so its
+// `**` and `*=` are operators: measured on 5.42.0 with -MO=Deparse,
+// `pi ** 2` is `'pi' ** 2` and `pi *= 2` is `'pi' *= 2`. A declared sub
+// takes a glob there instead -- `sub foo; foo **2` is "Number found where
+// operator expected" -- and the parser, which knows declarations, refuses
+// it. A keyword keeps the split: `print **2` is the same error.
+func (l *lexer) afterUserWord() bool {
+	for i := len(l.toks) - 1; i >= 0; i-- {
+		t := l.toks[i]
+		if t.Kind == Whitespace || t.Kind == Comment {
+			continue
+		}
+		return t.Kind == Word && !perlKeywords[string(l.src[t.Start:t.End])]
+	}
+	return false
 }

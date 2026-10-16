@@ -44,6 +44,12 @@ var niladic = map[string]bool{
 	"setgrent": true, "setpwent": true,
 	"endgrent": true, "endhostent": true, "endnetent": true,
 	"endprotoent": true, "endpwent": true, "endservent": true,
+
+	// The compile-time tokens are terms as well: measured on 5.42.0, `my $x
+	// = __LINE__ / 2 ;` compiles for each of these five, and `__LINE__ **
+	// 2` deparses as the folded 1.0.
+	"__LINE__": true, "__FILE__": true, "__PACKAGE__": true,
+	"__SUB__": true, "__CLASS__": true,
 }
 
 // isNiladic reports whether a value follows this word rather than an operator.
