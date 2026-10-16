@@ -1,6 +1,6 @@
 ---
 title: Read typed variables with :export and :export_ok in declaration files
-state: done
+state: reopened
 urgency: normal
 milestone: core-module-types
 blocks:
@@ -11,7 +11,7 @@ blocks:
 - 01a14683-8375-7810-8a75-b772680603c6
 - 01a1464e-dc07-754e-9ef4-637df15d51a9
 created: 2026-10-16T20:02:15.387011621Z
-updated: 2026-10-16T22:01:42.733151583Z
+updated: 2026-10-16T22:01:42.96008993Z
 sessions:
 - start_sha: 2fb0e62ffdc068b717c1b1a211c77e72d09ba51a
   end_sha: a9ce48f0047db49c938b19bdad67387cc27a0bd5
@@ -25,6 +25,9 @@ transitions:
 - state: done
   actor: human:git-zhi
   timestamp: 2026-10-16T21:52:27.385557942Z
+- state: reopened
+  actor: human:git-zhi
+  timestamp: 2026-10-16T22:01:42.96008993Z
 observed_paths:
 - internal/infer/precision_test.go
 - internal/lexer/proto.go
