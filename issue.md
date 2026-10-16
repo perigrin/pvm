@@ -1,10 +1,19 @@
 ---
 title: "[S15] Config.pm values with \\' or \\\\ escapes are misread."
-state: pending
+state: in-progress
 urgency: normal
 milestone: pr486-review
 created: 2026-10-16T01:16:09.034520475Z
-updated: 2026-10-16T01:16:09.034520475Z
+updated: 2026-10-16T01:17:15.811735271Z
+sessions:
+- start_sha: 8a0c85c60a2bae5d04dbbb2b27eb4310312d362f
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-16T01:17:15.811735271Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-16T01:17:15.811735271Z
 ---
 
 ## Context
