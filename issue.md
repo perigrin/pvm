@@ -10,7 +10,7 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:16.163764265Z
-updated: 2026-10-16T20:04:40.70715824Z
+updated: 2026-10-16T20:13:13.942174192Z
 ---
 
 ## Prerequisites
@@ -46,3 +46,8 @@ m1 gates to run with the `.tpm` in place: `TestParseRatchet`, `TestPerlGitTRatch
 - [ ] declared export lists equal DynaLoader's own (`go test ./internal/parse/ -run '^TestDynaLoaderExports$' -count=1 -v | grep -q '^--- PASS: TestDynaLoaderExports'`)
 - [ ] every privlib module using DynaLoader resolves as it did without the declaration (`go test ./internal/parse/ -run '^TestDynaLoaderKeepsResolution$' -count=1 -v | grep -q '^--- PASS: TestDynaLoaderKeepsResolution'`)
 - [ ] declared return types hold for every value perl returns (`go test ./internal/infer/ -run '^TestDynaLoaderReturnTypes$' -count=1 -v | grep -q '^--- PASS: TestDynaLoaderReturnTypes'`)
+
+### Negative Scenarios
+- [ ] DynaLoader's low-level subs `dl_load_file`, `dl_find_symbol`, `dl_install_xsub` and `dl_unload_file` are exempt with a reason and never called (`go test ./internal/infer/ -run '^TestDynaLoaderLowLevelSubsExempt$' -count=1 -v | grep -q '^--- PASS: TestDynaLoaderLowLevelSubsExempt'`)
+- [ ] the resolution comparison is not vacuous: it compares modules reaching DynaLoader by `@ISA` and by `require` alike, and fails if it compares none where privlib is present (`go test ./internal/parse/ -run '^TestDynaLoaderKeepsResolutionIsNotVacuous$' -count=1 -v | grep -q '^--- PASS: TestDynaLoaderKeepsResolutionIsNotVacuous'`)
+- [ ] DynaLoader is not both shipped and listed as not shipped (`! { test -e internal/parse/declarations/DynaLoader.tpm && grep -q '^DynaLoader[[:space:]]' internal/parse/testdata/core_module_not_shipped.txt; }`)
