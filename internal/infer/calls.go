@@ -230,10 +230,11 @@ func (a *analysis) argSatisfies(actual, expected types.Type) bool {
 }
 
 // succeeded is actual, the type of n, as a slot judges it when n is a call
-// to a builtin: without the Undef the builtin returns only when it fails.
-// fileno is Int|Undef, undef for a closed handle, and perl 5.42 -w is
-// silent on `fileno(STDOUT) . ">"`; read, getsockopt and prototype are the
-// same. `scalar` hands on its argument's result. A type that is only
+// to a builtin: without the Undef the builtin returns only when it fails,
+// as failureUndef says. fileno is Int|Undef, undef for a closed handle,
+// and perl 5.42 -w is silent on `fileno(STDOUT) . ">"`; read, getsockopt
+// and prototype are the same. A builtin a `use` list overrides is a user
+// sub. `scalar` hands on its argument's result. A type that is only
 // Undef, `undef()`'s, is kept, and so is anything that is no builtin's
 // result. It is a second chance, never a rewrite: a Scalar or a Hole's
 // Any satisfies a slot as it is.
@@ -249,12 +250,15 @@ func (a *analysis) succeeded(n lower.Node, actual types.Type) types.Type {
 	if !ok || c.Fn != nil {
 		return actual
 	}
-	user := c.Ampersand || len(parse.CoreBuiltin(c.Name)) == 0
+	user := c.Ampersand || a.overrides[c.Name] || len(parse.CoreBuiltin(c.Name)) == 0
 	if user && !a.returnsBuiltinResult(a.subs[c.Name]) {
 		return actual
 	}
 	if c.Name == "scalar" && len(c.Args) == 1 {
 		return a.succeeded(c.Args[0], actual)
+	}
+	if !user && !failureUndef[c.Name] {
+		return actual
 	}
 	if actual&^types.Undef == 0 {
 		return actual
@@ -262,10 +266,29 @@ func (a *analysis) succeeded(n lower.Node, actual types.Type) types.Type {
 	return actual &^ types.Undef
 }
 
+// failureUndef are the builtins CORE.pmt types with an Undef they return
+// only when they fail: a closed handle's fileno, a failed read or open.
+// Those that return undef in normal use are not among them: perl 5.42 -w
+// warns "Use of uninitialized value in concatenation" on `getc(STDIN) .
+// "x"` at end of file and on `each(%h) . "y"` for an empty %h, and
+// getlogin, wantarray and sort give undef without any failure.
+var failureUndef = map[string]bool{
+	"accept": true, "alarm": true, "bind": true, "binmode": true, "closedir": true,
+	"connect": true, "dbmopen": true, "fcntl": true, "fileno": true, "fork": true,
+	"getpeername": true, "getsockname": true, "getsockopt": true, "gmtime": true,
+	"ioctl": true, "listen": true, "localtime": true, "msgctl": true, "msgget": true,
+	"open": true, "opendir": true, "pipe": true, "print": true, "printf": true,
+	"prototype": true, "read": true, "readlink": true, "readpipe": true, "recv": true,
+	"rewinddir": true, "say": true, "seekdir": true, "semctl": true, "semget": true,
+	"setsockopt": true, "shmctl": true, "shmget": true, "shutdown": true,
+	"socket": true, "socketpair": true, "sysopen": true, "sysread": true,
+	"sysseek": true, "syswrite": true, "telldir": true, "truncate": true,
+}
+
 // returnsBuiltinResult reports whether every value sub returns, by an
 // explicit return or as its body's last statement, is a call to a
-// builtin, or a capture its own successful match guards, as ownCapture
-// says. A bare return gives the sub's own Undef, and so does a body
+// builtin failureUndef names, or a capture its own successful match
+// guards, as ownCapture says. A bare return gives the sub's own Undef, and so does a body
 // whose last statement is not such a call, so neither is one. A sub
 // nested in sub returns from itself, not from sub.
 func (a *analysis) returnsBuiltinResult(sub *lower.AnonSub) bool {
@@ -281,7 +304,7 @@ func (a *analysis) returnsBuiltinResult(sub *lower.AnonSub) bool {
 			n = l.Elems[len(l.Elems)-1]
 		}
 		c, ok := n.(*lower.Call)
-		return ok && c.Fn == nil && !c.Ampersand && len(parse.CoreBuiltin(c.Name)) > 0
+		return ok && c.Fn == nil && !c.Ampersand && failureUndef[c.Name]
 	}
 	all := true
 	var returns func(n lower.Node, guard *lower.IfStmt)

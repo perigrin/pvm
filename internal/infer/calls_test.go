@@ -232,3 +232,24 @@ func TestArrayInScalarSlotIsItsCount(t *testing.T) {
 	}
 	wantCode(t, "my %h = (a => 1);\nmy $l = length(%h);\n", infer.CodeTypeMismatch)
 }
+
+// succeeded judges a builtin's result without the Undef it returns only
+// when it fails: perl 5.42 -w is silent on `fileno(STDOUT) . ">"`. A
+// builtin that returns undef in normal use keeps it: with STDIN at end of
+// file and %h empty, perl warns "Use of uninitialized value in
+// concatenation (.) or string" on `getc(STDIN) . "x"` and `each(%h) .
+// "y"`, and so on a sub returning getc's result. A builtin `use subs`
+// overrides is a user sub, and its result is its own: perl warns the
+// same on `use subs "fileno"; sub fileno { $_[0] ? "a" : undef }
+// fileno(0) . ">"`.
+func TestSucceededKeepsNormalUndef(t *testing.T) {
+	wantSilent(t, "print fileno(STDOUT) . \">\";\n")
+	for _, src := range []string{
+		"print getc(STDIN) . \"x\";\n",
+		"my %h;\nprint each(%h) . \"y\";\n",
+		"sub g { return getc(STDIN) }\nprint g() . \"x\";\n",
+		"use subs \"fileno\";\nsub fileno { $_[0] ? \"a\" : undef }\nprint fileno(0) . \">\";\n",
+	} {
+		wantCode(t, src, infer.CodeCoercionMismatch)
+	}
+}
