@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -87,14 +88,8 @@ func returnTypeFailures(t *testing.T, p perltest.Perl, r oracleRun) []string {
 		if _, exempt := r.Exempt[r.Module+"::"+name]; exempt {
 			continue
 		}
-		var contexts []string
-		for _, s := range sigs[name] {
-			if ctx := callContext(s); !slices.Contains(contexts, ctx) {
-				contexts = append(contexts, ctx)
-			}
-		}
-		for _, ctx := range contexts {
-			args = append(args, name+":"+ctx)
+		for _, call := range calls(sigs[name]) {
+			args = append(args, name+":"+call)
 		}
 	}
 
@@ -121,10 +116,19 @@ func returnTypeFailures(t *testing.T, p perltest.Perl, r oracleRun) []string {
 
 	var failures []string
 	for _, o := range obs {
-		name, ctx, _ := strings.Cut(o.Name, ":")
+		f := strings.Split(o.Name, ":")
+		name, ctx, form := f[0], f[1], f[2]
+		n, _ := strconv.Atoi(f[3])
+		if o.Type == "Died" {
+			if !dies(sigs[name], form, n) {
+				failures = append(failures, fmt.Sprintf("%s::%s call case %d in %s context died, which no candidate declared None taking %d arguments admits",
+					r.Module, name, o.Line, ctx, n))
+			}
+			continue
+		}
 		got, known := observedToLattice[o.Type]
 		admitted := known && slices.ContainsFunc(sigs[name], func(s types.Signature) bool {
-			if callContext(s) != ctx {
+			if s.Returns == types.None || !takes(s, form, n) || callContext(s) != ctx {
 				return false
 			}
 			// In list context each value is one element of the list.
@@ -142,19 +146,63 @@ func returnTypeFailures(t *testing.T, p perltest.Perl, r oracleRun) []string {
 	return failures
 }
 
+// calls is how the oracle calls a sub's cases, "CONTEXT:FORM", once for
+// each context and form one of its candidates answers. A candidate
+// declared never to return answers no context: its cases die in whatever
+// context the others are called in, or in scalar context when no other
+// candidate takes its form.
+func calls(cands []types.Signature) []string {
+	var out []string
+	for _, s := range cands {
+		if call := callContext(s) + ":" + callForm(s); s.Returns != types.None && !slices.Contains(out, call) {
+			out = append(out, call)
+		}
+	}
+	for _, s := range cands {
+		form := callForm(s)
+		if s.Returns == types.None && !slices.ContainsFunc(out, func(c string) bool { return strings.HasSuffix(c, ":"+form) }) {
+			out = append(out, "scalar:"+form)
+		}
+	}
+	return out
+}
+
 // callContext is the context the oracle calls a candidate's cases in,
-// and the one its returns are held in: none, inside eval, for a candidate
-// declared never to return; list for one answering list context, RFC 0001
-// "Context selects by return type"; scalar for any other. A sub is called
-// once in each context one of its candidates answers.
+// and the one its returns are held in: list for one answering list
+// context, RFC 0001 "Context selects by return type", or declared Void,
+// where a bare return is the empty list; scalar for any other.
 func callContext(s types.Signature) string {
-	switch {
-	case s.Returns == types.None:
-		return "none"
-	case s.Answers() == types.ListCtx:
+	if a := s.Answers(); a == types.ListCtx || a == types.VoidCtx {
 		return "list"
 	}
 	return "scalar"
+}
+
+// callForm is how the oracle calls a candidate: as a method, with the
+// module as its invocant, when it declares one; as a sub otherwise.
+func callForm(s types.Signature) string {
+	if s.Invocant != nil {
+		return "method"
+	}
+	return "sub"
+}
+
+// dies is whether a call of form with n arguments may die: some
+// candidate declared None takes it.
+func dies(cands []types.Signature, form string, n int) bool {
+	return slices.ContainsFunc(cands, func(s types.Signature) bool {
+		return s.Returns == types.None && takes(s, form, n)
+	})
+}
+
+// takes is whether candidate s takes a call of form with n arguments
+// besides any invocant, so a value the call returns, or its death, is
+// held to s.
+func takes(s types.Signature, form string, n int) bool {
+	if form == "method" {
+		n++
+	}
+	return callForm(s) == form && types.Accepts([]types.Signature{s}, n)
 }
 
 // oracleFixture writes module's perl source under a lib directory in a
@@ -315,6 +363,12 @@ func TestReturnOracleCallsEachCandidateInItsContext(t *testing.T) {
 // passing it with those subs unchecked.
 func TestReturnOracleFailsOnASubThatExits(t *testing.T) {
 	p := perltest.Perl542(t)
+	// exit dies, which a sub declared Int may not; CORE::exit ends perl
+	// before the driver says it is complete.
+	want := map[string]string{
+		"exit 0":       "My::Exits::a_exits call case 0 in scalar context died",
+		"CORE::exit 0": "My::Exits: the oracle ended before calling every sub",
+	}
 	for _, exit := range []string{"exit 0", "CORE::exit 0"} {
 		t.Run(exit, func(t *testing.T) {
 			pm := fmt.Sprintf("package My::Exits;\nsub a_exits { %s }\nsub b_str { 'str' }\n1;\n", exit)
@@ -322,10 +376,94 @@ func TestReturnOracleFailsOnASubThatExits(t *testing.T) {
 			tpm := []byte("package My::Exits;\nsub a_exits () Int;\nsub b_str () Int;\n")
 
 			failures := returnTypeFailures(t, p, oracleRun{Module: "My::Exits", TPM: tpm, Cases: caseFile, Inc: lib})
-			require.Len(t, failures, 1)
-			assert.Contains(t, failures[0], "My::Exits: the oracle")
+			assert.Contains(t, strings.Join(failures, "\n"), want[exit])
 		})
 	}
+}
+
+// TestReturnOracleTurnsExitIntoADeath: exit dies under the oracle, so a
+// sub declared None that calls it is held as one that dies.
+func TestReturnOracleTurnsExitIntoADeath(t *testing.T) {
+	p := perltest.Perl542(t)
+	lib, caseFile := oracleFixture(t, "My::Quits", "package My::Quits;\nsub quit { exit 0 }\n1;\n", "(quit => [ [] ]);\n")
+	tpm := []byte("package My::Quits;\nsub quit () None;\n")
+
+	assert.Empty(t, returnTypeFailures(t, p, oracleRun{Module: "My::Quits", TPM: tpm, Cases: caseFile, Inc: lib}))
+}
+
+// TestReturnOracleKeepsAModulesLoadTimeOutputOutOfItsReport: a module that
+// dups STDOUT as it loads, as Test::Builder does, writes to STDERR through
+// its dup, and its END setting perl's exit status, as Test::Builder's does
+// when no plan was declared, leaves a complete run successful.
+func TestReturnOracleKeepsAModulesLoadTimeOutputOutOfItsReport(t *testing.T) {
+	p := perltest.Perl542(t)
+	pm := "package My::Builder;\nuse Test::More ();\nsub pass_one { Test::More::ok(1, 'name') }\n1;\n"
+	lib, caseFile := oracleFixture(t, "My::Builder", pm, "(pass_one => [ [] ]);\n")
+	tpm := []byte("package My::Builder;\nsub pass_one () Int;\n")
+
+	assert.Empty(t, returnTypeFailures(t, p, oracleRun{Module: "My::Builder", TPM: tpm, Cases: caseFile, Inc: lib}))
+}
+
+// TestReturnOracleCallsAVoidSubInListContext: a sub declared Void is
+// called in list context, where a bare return is the empty list and any
+// value it returns fails.
+func TestReturnOracleCallsAVoidSubInListContext(t *testing.T) {
+	p := perltest.Perl542(t)
+	tpm := []byte("package My::Void;\nsub v () Void;\n")
+	cases := "(v => [ [] ]);\n"
+
+	lib, caseFile := oracleFixture(t, "My::Void", "package My::Void;\nsub v { return }\n1;\n", cases)
+	assert.Empty(t, returnTypeFailures(t, p, oracleRun{Module: "My::Void", TPM: tpm, Cases: caseFile, Inc: lib}))
+
+	lib, caseFile = oracleFixture(t, "My::Void", "package My::Void;\nsub v { 1 }\n1;\n", cases)
+	failures := returnTypeFailures(t, p, oracleRun{Module: "My::Void", TPM: tpm, Cases: caseFile, Inc: lib})
+	require.Len(t, failures, 1, "a value where Void is declared")
+	assert.Contains(t, failures[0], "in list context returned Int")
+}
+
+// TestReturnOracleAdmitsADeathOnlyThroughTheNoneCandidate: a multi sub
+// with an Int candidate taking one argument and a None candidate taking
+// none may die when called with none, and must return an Int when called
+// with one.
+func TestReturnOracleAdmitsADeathOnlyThroughTheNoneCandidate(t *testing.T) {
+	p := perltest.Perl542(t)
+	tpm := []byte("package My::Maybe;\nmulti sub f (Int $x) Int;\nmulti sub f () None;\n")
+	cases := "(f => [ [1], [] ]);\n"
+
+	lib, caseFile := oracleFixture(t, "My::Maybe", "package My::Maybe;\nsub f { @_ ? $_[0] : die 'none' }\n1;\n", cases)
+	assert.Empty(t, returnTypeFailures(t, p, oracleRun{Module: "My::Maybe", TPM: tpm, Cases: caseFile, Inc: lib}))
+
+	lib, caseFile = oracleFixture(t, "My::Maybe", "package My::Maybe;\nsub f { die 'always' }\n1;\n", cases)
+	failures := returnTypeFailures(t, p, oracleRun{Module: "My::Maybe", TPM: tpm, Cases: caseFile, Inc: lib})
+	require.Len(t, failures, 1, "a death with one argument, which only the Int candidate takes")
+	assert.Contains(t, failures[0], "My::Maybe::f call case 0 in scalar context died")
+
+	lib, caseFile = oracleFixture(t, "My::Maybe", "package My::Maybe;\nsub f { @_ ? $_[0] : 0 }\n1;\n", cases)
+	failures = returnTypeFailures(t, p, oracleRun{Module: "My::Maybe", TPM: tpm, Cases: caseFile, Inc: lib})
+	require.Len(t, failures, 1, "a return with no argument, which only the None candidate takes")
+	assert.Contains(t, failures[0], "My::Maybe::f call case 1 in scalar context returned Int")
+}
+
+// TestReturnOracleCallsAnInheritedClassMethod: a declaration with an
+// invocant is a method, found through can as perl's method call finds an
+// inherited one, and called with the class as its invocant.
+func TestReturnOracleCallsAnInheritedClassMethod(t *testing.T) {
+	p := perltest.Perl542(t)
+	pm := `package My::Kid;
+our @ISA = ('My::Base');
+package My::Base;
+sub cat { my ($class, @parts) = @_; $class eq 'My::Kid' ? join('/', @parts) : [] }
+1;
+`
+	lib, caseFile := oracleFixture(t, "My::Kid", pm, "(cat => [ [ 'a', 'b' ] ]);\n")
+
+	tpm := []byte("package My::Kid;\nsub cat (Str $class: List[Str] @parts) Str;\n")
+	assert.Empty(t, returnTypeFailures(t, p, oracleRun{Module: "My::Kid", TPM: tpm, Cases: caseFile, Inc: lib}))
+
+	tpm = []byte("package My::Kid;\nsub cat (Str $class: List[Str] @parts) Int;\n")
+	failures := returnTypeFailures(t, p, oracleRun{Module: "My::Kid", TPM: tpm, Cases: caseFile, Inc: lib})
+	require.Len(t, failures, 1, "a Str where Int is declared")
+	assert.Contains(t, failures[0], "returned Str")
 }
 
 // TestReturnOracleRejectsASubWithNoCases: a call-case entry listing no
