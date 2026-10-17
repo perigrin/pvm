@@ -29,7 +29,7 @@ func TestQualifiedCallCarriesSignatures(t *testing.T) {
 		t.Errorf("Carp::confess: signatures %+v, want %+v", call.Signatures, want)
 	}
 
-	// A module loaded with no import list at all: its .tpm here is a
+	// A module loaded with an empty import list: its .tpm here is a
 	// test's own, standing in until Scalar/Util.tpm ships.
 	t.Cleanup(OverlayDeclarations(fstest.MapFS{
 		"declarations/Scalar/Util.tpm": {Data: []byte("package Scalar::Util;\nsub blessed :export_ok (Any $x) Str;\n")},
@@ -42,11 +42,31 @@ func TestQualifiedCallCarriesSignatures(t *testing.T) {
 }
 
 // TestQualifiedCallUndeclaredNameHasNoSignatures: Carp.tpm declares no
-// nosuch, so a call to it carries nothing.
+// nosuch, and My::Xs's .tpm declares no signature for its XS sub g, so a
+// call to either carries nothing.
 func TestQualifiedCallUndeclaredNameHasNoSignatures(t *testing.T) {
 	call := qualifiedCall(t, "use Carp (); Carp::nosuch(1);\n", "Carp::nosuch")
 	if call.Signatures != nil {
 		t.Errorf("Carp::nosuch: signatures %+v, want none", call.Signatures)
+	}
+
+	// An XS sub is known to the module, with a prototype, though its .tpm
+	// declares no signature for it: a call to it carries nothing.
+	t.Cleanup(OverlayDeclarations(fstest.MapFS{
+		"declarations/My/Xs.tpm": {Data: []byte("package My::Xs;\nsub f :export_ok (Any $x) Str;\n")},
+	}))
+	load := func(m string) ([]byte, bool) {
+		if m == "My::Xs.xs" {
+			return []byte("MODULE = My::Xs\t\tPACKAGE = My::Xs\n\nint\ng(a)\n\tint a\n"), true
+		}
+		return nil, false
+	}
+	call = findCallNamed(ParseWithLoader([]byte("use My::Xs (); My::Xs::g(1);\n"), load), "My::Xs::g")
+	if call == nil {
+		t.Fatal("no call to My::Xs::g")
+	}
+	if call.Signatures != nil {
+		t.Errorf("My::Xs::g: signatures %+v, want none", call.Signatures)
 	}
 }
 
