@@ -21,7 +21,7 @@ blocks:
 - 01a1464e-dde3-73fe-ab1f-ced7f18c4f9d
 - 01a14657-682e-7432-8ea9-828f56cd2f69
 created: 2026-10-16T20:02:15.452693569Z
-updated: 2026-10-17T04:01:49.465622649Z
+updated: 2026-10-17T04:09:51.642873886Z
 sessions:
 - start_sha: dcc066cc0fb89509812adfaa862f2096d7e4c67f
   end_sha: c707b8354a29d997aed698fe26d8f94558304d31
@@ -159,6 +159,12 @@ A. (in scope, 90) `internal/infer/testdata/return_oracle.pl:28-30`: the STDOUT d
 B. (in scope, 80; regressions from 652f77ad, both passed at ad6541f6^1) (1) a sub declared `Void` with body `return;` now fails "in scalar context returned Undef" because callContext maps VoidCtx to scalar; (2) `multi sub f (Int $x) Int; multi sub f () None;` runs every case in both none and scalar context, the None-meant case dies outside eval, and the driver aborts. Fix: call a Void candidate in list context (or admit Undef for Void in scalar); for a sub with a None candidate call every case inside eval in every context and admit a death only through the None candidate; a test each.
 C. (in scope, 75) TestReturnOracleFailsOnASubThatExits pins neither half of finding 3: removing the exit override, the sentinel check, or both leaves it passing (the STDOUT redirect is what catches it). Fix: a None sub that calls `exit` must pass (the override turns it into a death); assert the sentinel's message for the CORE::exit subtest.
 D. (folded in by the orchestrator; 85; blocks the OO-only batch dd27) The oracle cannot call inherited class methods: File::Spec gives "perl defines no sub catfile"; the prototype mode uses `$module->can($name)` but the oracle and installs mode use the exists/defined/AUTOLOAD rule. Fix: for a declaration of a method (invocant), resolve through `can` and call with the class as invocant; a test with an inherited class method.
+
+### Review Findings (pass 3)
+
+Tier-2 gate pass 3, 2026-10-17, on ae366164 (fresh reviewer subagent; one mutation per fix A-D, each caught; 18/18 criteria; precision WRONG 0; lib baseline holds; driver run against Scalar::Util, List::Util, POSIX, File::Spec methods, Cwd, Data::Dumper, Test::More and Getopt::Long with perl 5.42: all complete, valid JSON, exit 0). VERDICT: REOPEN (third and final reopen allowed).
+
+1. (in scope, 75; introduced by f575da65) `internal/infer/testdata/return_oracle.pl:57-67`, `internal/infer/returntypes_test.go:117-142`: a call meant for a None candidate that returns an empty list in list context passes silently, since an empty @values records nothing and there is no death. `multi sub f (Int $x) List[Int]; multi sub f () None;` with `f()` returning `()` gives 0 failures; likewise with a Void candidate, and any list-context call no candidate takes that returns `()`. Before the fix None candidates ran in scalar context, so an empty return was seen as Undef and failed. Fix: after a call returns, record a Returned marker (`push @OBSERVED, [$i, $key, 'Returned']`); in Go fail a Returned marker when no non-None candidate takes that call form and argument count in that context (`takes`); a test with the List[Int]/None multi returning `()`, failing first.
 
 ## Acceptance Criteria
 
