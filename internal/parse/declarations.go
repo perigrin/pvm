@@ -36,6 +36,30 @@ var embedded embed.FS
 // ones, or a test's own.
 var declarations fs.FS = embedded
 
+// OverlayDeclarations reads declaration files from dir, a tree holding a
+// `declarations` directory, before the ones read now, until the restore
+// it returns is called. A test in another package states its fixture
+// modules this way; nothing else calls it, as a user's own declarations
+// are RFC 0001's open question 6.
+func OverlayDeclarations(dir fs.FS) (restore func()) {
+	saved := declarations
+	declarations = layeredFS{top: dir, base: saved}
+	return func() { declarations = saved }
+}
+
+// layeredFS reads a file from top and falls back to base: the fixture's
+// declarations sit beside the shipped ones, so CORE.tpm -- which parsing
+// reads for every builtin call -- is still there when a test swaps the
+// fixture in first.
+type layeredFS struct{ top, base fs.FS }
+
+func (l layeredFS) Open(name string) (fs.File, error) {
+	if f, err := l.top.Open(name); err == nil {
+		return f, nil
+	}
+	return l.base.Open(name)
+}
+
 // declaration returns the declaration file for module, if there is one.
 func declaration(module string) ([]byte, bool) {
 	src, err := fs.ReadFile(declarations, path.Join("declarations", strings.ReplaceAll(module, "::", "/")+".tpm"))

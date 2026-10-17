@@ -4,6 +4,7 @@
 package infer
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
@@ -39,6 +40,9 @@ func (a *analysis) call(n *lower.Call) types.Type {
 	}
 	sigs := parse.CoreBuiltin(name)
 	if n.Fn != nil || n.Ampersand || overridden(n) || len(sigs) == 0 {
+		if n.Fn == nil && !n.Ampersand && len(n.Signatures) > 0 {
+			return a.declaredCall(n)
+		}
 		a.args(n.Args, nil)
 		return a.userCall(n)
 	}
@@ -60,7 +64,7 @@ func (a *analysis) call(n *lower.Call) types.Type {
 		if i == 0 && opened != nil && types.IsSubtype(a.typeOf(arg), types.Str) {
 			continue
 		}
-		a.checkArg(name, i, arg, builtinArgType(sigs, i), slotContext(sigs, i) == types.ListCtx)
+		a.checkArg(name, i, arg, builtinArgType(sigs, i), slotContext(sigs, i) == types.ListCtx, CodeTypeMismatch)
 	}
 	if opened != nil {
 		a.st.UpdateType("$"+opened.Name, types.Scalar)
@@ -70,6 +74,43 @@ func (a *analysis) call(n *lower.Call) types.Type {
 		return t
 	}
 	return a.callReturns(n, sigs)
+}
+
+// declaredCall types a call to a sub a declaration file types, from the
+// candidates the parse resolved it to, n.Signatures: RFC 0001 "Call
+// sites". The candidate is selected by the call's arity, its arguments'
+// types and its context, and the call is its return type, or the join of
+// the candidates the call site cannot decide between. The parse leaves a
+// call to a sub with no prototype as perl compiles it, so one whose arity
+// no candidate takes is reported here, and has no type. An argument of
+// the selected candidate's that does not fit its parameter is coerced to
+// it, so is reported as a coercion mismatch.
+//
+// An array or a hash argument flattens into the call's list, so a call
+// passing one has no arity the declaration can rule out.
+func (a *analysis) declaredCall(n *lower.Call) types.Type {
+	sigs := n.Signatures
+	a.args(n.Args, sigs)
+	args := a.argTypes(n.Args)
+	flattens := slices.ContainsFunc(args, func(t types.Type) bool { return t&(types.Array|types.Hash) != 0 })
+	sel := types.Select(sigs, args, a.evalCtx[n.ID])
+	switch {
+	case sel.Outcome == types.Failed && !flattens && !types.Accepts(sigs, len(n.Args)):
+		start, end, _ := a.pos.Span(n.ID)
+		a.diags = append(a.diags, Diagnostic{
+			StartByte: uint32(start),
+			EndByte:   uint32(end),
+			Severity:  Error,
+			Code:      CodeArityMismatch,
+			Message:   "call to " + n.Name + ": no declared candidate takes " + strconv.Itoa(len(n.Args)) + " argument(s)",
+		})
+	case sel.Outcome == types.Selected:
+		chosen := sigs[sel.Candidate : sel.Candidate+1]
+		for i, arg := range n.Args {
+			a.checkArg(n.Name, i, arg, builtinArgType(chosen, i), slotContext(chosen, i) == types.ListCtx, CodeCoercionMismatch)
+		}
+	}
+	return sel.Returns
 }
 
 // openedVar is the scalar variable an open opens a handle in, its first
@@ -187,7 +228,7 @@ func (a *analysis) userCall(n *lower.Call) types.Type {
 // scalarValue or counted says, and last as lossyCoercion says. Flattening is a second
 // chance, so a Hole's Any, which satisfies the slot as it is, is never
 // rewritten; one that fails both is reported as flattened.
-func (a *analysis) checkArg(name string, i int, arg lower.Node, expected types.Type, slurpy bool) {
+func (a *analysis) checkArg(name string, i int, arg lower.Node, expected types.Type, slurpy bool, code string) {
 	actual := builtinArgActual(name, a.typeOf(arg))
 	if a.argSatisfies(actual, expected) || a.argSatisfies(a.succeeded(arg, actual), expected) {
 		return
@@ -208,7 +249,7 @@ func (a *analysis) checkArg(name string, i int, arg lower.Node, expected types.T
 		StartByte:  uint32(start),
 		EndByte:    uint32(end),
 		Severity:   argumentSeverity(actual, expected),
-		Code:       CodeTypeMismatch,
+		Code:       code,
 		Message:    typeMismatchMessage(name, i, expected, actual),
 		Suggestion: SuggestGuard(argVarName(arg), actual, expected),
 	})
@@ -429,7 +470,16 @@ func (a *analysis) callReturns(n *lower.Call, sigs []types.Signature) types.Type
 			shapes += "$"
 		}
 	}
-	return shapedCallReturns(sigs, shapes, a.evalCtx[n.ID])
+	return shapedCallReturns(sigs, a.argTypes(n.Args), shapes, a.evalCtx[n.ID])
+}
+
+// argTypes is the type of each of a call's arguments.
+func (a *analysis) argTypes(args []lower.Node) []types.Type {
+	ts := make([]types.Type, len(args))
+	for i, arg := range args {
+		ts[i] = a.typeOf(arg)
+	}
+	return ts
 }
 
 // contextualReturn types the builtins whose

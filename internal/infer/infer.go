@@ -1002,23 +1002,13 @@ func builtinMinArity(sigs []types.Signature) int {
 }
 
 // shapedCallReturns is a call's type in context ctx from the candidates sigs
-// that take arguments of the given shapes, one "$" or "@" each, falling back
-// to builtinReturns when none does.
-func shapedCallReturns(sigs []types.Signature, shapes string, ctx types.Context) types.Type {
-	ctxs := []types.Context{ctx}
-	if ctx == types.UnknownCtx {
-		ctxs = []types.Context{types.ScalarCtx, types.ListCtx, types.VoidCtx}
-	}
-	unknown := make([]types.Type, len(shapes))
+// that take arguments of types args and of the given shapes, one "$" or "@"
+// each, falling back to builtinReturns when none does. The arguments' types
+// choose between candidates and never rule one out, as types.Select says.
+func shapedCallReturns(sigs []types.Signature, args []types.Type, shapes string, ctx types.Context) types.Type {
 	for _, sh := range []string{shapes, ""} {
-		t, taken := types.Unknown, false
-		for _, x := range ctxs {
-			if sel := types.SelectShaped(sigs, unknown, sh, x); sel.Outcome != types.Failed {
-				t, taken = types.Join(t, sel.Returns), true
-			}
-		}
-		if taken {
-			return t
+		if sel := types.SelectShaped(sigs, args, sh, ctx); sel.Outcome != types.Failed {
+			return sel.Returns
 		}
 	}
 	return builtinReturns(sigs, ctx)

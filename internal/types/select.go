@@ -272,8 +272,12 @@ func (s Signature) fits(args []Type) bool {
 
 // fitsContainers is fits over s's backslashed container parameters only,
 // `Hash \%h`: perl takes the container the caller writes and coerces
-// nothing, refusing `each $x` at compile time.
+// nothing, refusing `each $x` at compile time. A candidate with no
+// parameters has no container; its arity rules it out.
 func (s Signature) fitsContainers(args []Type) bool {
+	if len(s.Params) == 0 {
+		return true
+	}
 	for i, a := range args {
 		if s.Params[min(i, len(s.Params)-1)].Alias && a != Unknown && !IsSubtype(a, s.paramType(i)) {
 			return false

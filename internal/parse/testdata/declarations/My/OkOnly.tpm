@@ -1,0 +1,5 @@
+# ABOUTME: A declaration file whose one sub is :export_ok, for infer's declared_test.go.
+# ABOUTME: A bare `use My::OkOnly` imports nothing, so a call to f there is no call to this sub.
+package My::OkOnly;
+
+sub f :export_ok (Int $x) Int;

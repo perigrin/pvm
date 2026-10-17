@@ -3,7 +3,6 @@
 package parse
 
 import (
-	"io/fs"
 	"os"
 	"reflect"
 	"slices"
@@ -18,22 +17,7 @@ import (
 // resolver reads, for the rest of the test.
 func useLibraryFixture(t *testing.T) {
 	t.Helper()
-	saved := declarations
-	declarations = layeredFS{top: os.DirFS("testdata"), base: saved}
-	t.Cleanup(func() { declarations = saved })
-}
-
-// layeredFS reads a file from top and falls back to base: the fixture's
-// declarations sit beside the shipped ones, so CORE.tpm -- which parsing
-// reads for every builtin call -- is still there when a test swaps the
-// fixture in first.
-type layeredFS struct{ top, base fs.FS }
-
-func (l layeredFS) Open(name string) (fs.File, error) {
-	if f, err := l.top.Open(name); err == nil {
-		return f, nil
-	}
-	return l.base.Open(name)
+	t.Cleanup(OverlayDeclarations(os.DirFS("testdata")))
 }
 
 // resolveLibrary reads module's declaration through the resolver, the path
