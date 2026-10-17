@@ -1,6 +1,6 @@
 ---
 title: Give a qualified call its declaration's signatures, so Carp::confess is an exit and typed
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -9,16 +9,30 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.325366834Z
-updated: 2026-10-17T00:07:41.393710811Z
+updated: 2026-10-17T00:52:11.478193727Z
 sessions:
 - start_sha: a35012438663295404da21ff5a6a7ec965d1d93a
-  end_sha: ""
-  commits: 0
+  end_sha: 3bd5ce632c0e695e117434bf3358a8e53a15f8bd
+  commits: 4
   started_at: 2026-10-17T00:07:41.393710811Z
+  ended_at: 2026-10-17T00:52:11.478193727Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-17T00:07:41.393710811Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-17T00:52:11.478193727Z
+observed_paths:
+- internal/infer/calls.go
+- internal/infer/declared_test.go
+- internal/infer/flow_test.go
+- internal/parse/declarations.go
+- internal/parse/exportattr_test.go
+- internal/parse/qualified_test.go
+- internal/parse/use.go
+- test/e2e/psc_check_test.go
+- test/e2e/testdata/check/undecided_declared.pl
 ---
 
 ## Prerequisites
