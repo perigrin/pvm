@@ -1,10 +1,19 @@
 ---
 title: Generate a .tpm skeleton from perl 5.42 for each core module
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 created: 2026-10-17T04:36:13.290610042Z
-updated: 2026-10-17T04:36:13.290610042Z
+updated: 2026-10-17T04:36:37.923656263Z
+sessions:
+- start_sha: 5b91125f4014127e11963fc610c805ba205b10ff
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-17T04:36:37.923656263Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-17T04:36:37.923656263Z
 ---
 
 Batch workers transcribe hundreds of names per module by hand (a bare `use POSIX` installs 586). A test-only perl script generates a .tpm skeleton from perl 5.42 itself, so a worker only decides return types and oracle cases. perigrin chose this on 2026-10-17 to reduce token spend.
