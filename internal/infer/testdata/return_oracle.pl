@@ -15,10 +15,11 @@ BEGIN { *CORE::GLOBAL::exit = sub { die "exit\n" } }
 # CONTEXT is how each case is called, scalar or list. FORM is sub, a call
 # of MODULE::NAME, or method, a call of the method MODULE->can(NAME) finds
 # with MODULE as its invocant. Each call is made inside eval: a value it
-# returns is observed under NAME:CONTEXT:FORM:N, for its N arguments, and a
-# death as the type Died. Once every sub is called, the driver prints
-# "complete" before the observations, so a run perl ended early is told
-# from a finished one.
+# returns is observed under NAME:CONTEXT:FORM:N, for its N arguments, then
+# the call itself as the type Returned, so an empty list is seen to return;
+# a death is observed as the type Died. Once every sub is called, the
+# driver prints "complete" before the observations, so a run perl ended
+# early is told from a finished one.
 my ( $observer, $cases_file, $module, @subs ) = @ARGV;
 
 # A module's END may set perl's exit status, as Test::Builder's does when
@@ -63,6 +64,7 @@ for (@subs) {
           : eval { @values = scalar $code->(@args); 1 };
         if ($returned) {
             ::__observe( $i, $key, $_ ) for @values;
+            push our @OBSERVED, [ $i, $key, 'Returned' ];
         }
         else {
             push our @OBSERVED, [ $i, $key, 'Died' ];

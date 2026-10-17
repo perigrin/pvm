@@ -115,10 +115,26 @@ func returnTypeFailures(t *testing.T, p perltest.Perl, r oracleRun) []string {
 	}
 
 	var failures []string
+	// failed are the calls a returned value already failed, so the call's
+	// Returned marker, which follows its values, adds no second failure.
+	failed := map[string]bool{}
 	for _, o := range obs {
 		f := strings.Split(o.Name, ":")
 		name, ctx, form := f[0], f[1], f[2]
 		n, _ := strconv.Atoi(f[3])
+		call := fmt.Sprintf("%s:%d", o.Name, o.Line)
+		if o.Type == "Returned" {
+			// A call returning the empty list records no value; it still
+			// returned, which only a candidate that returns may take.
+			returns := slices.ContainsFunc(sigs[name], func(s types.Signature) bool {
+				return s.Returns != types.None && takes(s, form, n) && callContext(s) == ctx
+			})
+			if !returns && !failed[call] {
+				failures = append(failures, fmt.Sprintf("%s::%s call case %d in %s context returned, which no candidate taking %d arguments in that context admits",
+					r.Module, name, o.Line, ctx, n))
+			}
+			continue
+		}
 		if o.Type == "Died" {
 			if !dies(sigs[name], form, n) {
 				failures = append(failures, fmt.Sprintf("%s::%s call case %d in %s context died, which no candidate declared None taking %d arguments admits",
@@ -138,6 +154,7 @@ func returnTypeFailures(t *testing.T, p perltest.Perl, r oracleRun) []string {
 			return types.IsSubtype(got, s.Returns)
 		})
 		if !admitted {
+			failed[call] = true
 			failures = append(failures, fmt.Sprintf("%s::%s call case %d in %s context returned %s, which its declared return type excludes",
 				r.Module, name, o.Line, ctx, o.Type))
 		}
@@ -442,6 +459,23 @@ func TestReturnOracleAdmitsADeathOnlyThroughTheNoneCandidate(t *testing.T) {
 	failures = returnTypeFailures(t, p, oracleRun{Module: "My::Maybe", TPM: tpm, Cases: caseFile, Inc: lib})
 	require.Len(t, failures, 1, "a return with no argument, which only the None candidate takes")
 	assert.Contains(t, failures[0], "My::Maybe::f call case 1 in scalar context returned Int")
+}
+
+// TestReturnOracleRejectsAnEmptyReturnOnlyTheNoneCandidateTakes: a call
+// that returns the empty list records no value, yet it returned, so a
+// call only the None candidate takes fails even when it returns nothing.
+func TestReturnOracleRejectsAnEmptyReturnOnlyTheNoneCandidateTakes(t *testing.T) {
+	p := perltest.Perl542(t)
+	tpm := []byte("package My::Empty;\nmulti sub f (Int $x) List[Int];\nmulti sub f () None;\n")
+	cases := "(f => [ [1], [] ]);\n"
+
+	lib, caseFile := oracleFixture(t, "My::Empty", "package My::Empty;\nsub f { @_ ? ($_[0]) : die 'none' }\n1;\n", cases)
+	assert.Empty(t, returnTypeFailures(t, p, oracleRun{Module: "My::Empty", TPM: tpm, Cases: caseFile, Inc: lib}))
+
+	lib, caseFile = oracleFixture(t, "My::Empty", "package My::Empty;\nsub f { @_ ? ($_[0]) : () }\n1;\n", cases)
+	failures := returnTypeFailures(t, p, oracleRun{Module: "My::Empty", TPM: tpm, Cases: caseFile, Inc: lib})
+	require.Len(t, failures, 1, "an empty return with no argument, which only the None candidate takes")
+	assert.Contains(t, failures[0], "My::Empty::f call case 1 in list context returned")
 }
 
 // TestReturnOracleCallsAnInheritedClassMethod: a declaration with an
