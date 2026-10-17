@@ -21,7 +21,7 @@ blocks:
 - 01a1464e-dde3-73fe-ab1f-ced7f18c4f9d
 - 01a14657-682e-7432-8ea9-828f56cd2f69
 created: 2026-10-16T20:02:15.452693569Z
-updated: 2026-10-17T00:58:20.045749942Z
+updated: 2026-10-17T03:36:55.168031912Z
 sessions:
 - start_sha: dcc066cc0fb89509812adfaa862f2096d7e4c67f
   end_sha: c707b8354a29d997aed698fe26d8f94558304d31
@@ -128,6 +128,15 @@ Tier-2 gate, 2026-10-17, on c707b835 (fresh reviewer subagent; lenses applied in
 6. (in scope, 70) Both helpers pass the caller's PERL5LIB/PERL5OPT to perl (`heldtoperl_test.go:68`, `returntypes_test.go:97`): with PERL5LIB at a fake Carp.pm, TestCarpExports measured the fake. Fix: strip PERL5LIB, PERLLIB, PERL5OPT and PERL_LOCAL_LIB_ROOT from both environments; a test.
 7. (folded in by the orchestrator for goal (4), 70) Tags the .tpm omits are never checked: a .tpm leaving out `%EXPORT_TAGS{gh}` passes, so `use POSIX ':sys_wait_h'` could stay undeclared. Goal (3) requires every %EXPORT_TAGS name declared. Fix: the driver also asks `":$_"` for each %EXPORT_TAGS key and reports any tag that installs names but is not declared.
 8. (folded in by the orchestrator, 70) A sub printing to STDOUT corrupts the oracle JSON (loud, not silent), so Test::More's ok/is can't be checked. Fix: dup STDOUT for the JSON and point STDOUT at STDERR while calls run; a test.
+
+### Review Findings (pass 2)
+
+Tier-2 gate pass 2, 2026-10-17, on ad6541f6 (fresh reviewer subagent; one mutation per pass-1 finding: F1, F2, F4-F8 each caught; 18/18 criteria; precision WRONG 0; lib baseline holds; List::Util and POSIX run clean through the driver). VERDICT: REOPEN.
+
+A. (in scope, 90) `internal/infer/testdata/return_oracle.pl:28-30`: the STDOUT dup/redirect comes after `require $file`, so a module that dups STDOUT at load (Test::Builder) still writes into the report ("ok 1 - name / # hi / complete / [...]"), and Test::Builder's END sets exit 254, so the oracle reports "did not run". Fix: redirect before `require $file`; an END defined before the observer and module are required runs last and sets `$? = 0 if $complete`; the fixture's module dups STDOUT at load.
+B. (in scope, 80; regressions from 652f77ad, both passed at ad6541f6^1) (1) a sub declared `Void` with body `return;` now fails "in scalar context returned Undef" because callContext maps VoidCtx to scalar; (2) `multi sub f (Int $x) Int; multi sub f () None;` runs every case in both none and scalar context, the None-meant case dies outside eval, and the driver aborts. Fix: call a Void candidate in list context (or admit Undef for Void in scalar); for a sub with a None candidate call every case inside eval in every context and admit a death only through the None candidate; a test each.
+C. (in scope, 75) TestReturnOracleFailsOnASubThatExits pins neither half of finding 3: removing the exit override, the sentinel check, or both leaves it passing (the STDOUT redirect is what catches it). Fix: a None sub that calls `exit` must pass (the override turns it into a death); assert the sentinel's message for the CORE::exit subtest.
+D. (folded in by the orchestrator; 85; blocks the OO-only batch dd27) The oracle cannot call inherited class methods: File::Spec gives "perl defines no sub catfile"; the prototype mode uses `$module->can($name)` but the oracle and installs mode use the exists/defined/AUTOLOAD rule. Fix: for a declaration of a method (invocant), resolve through `can` and call with the class as invocant; a test with an inherited class method.
 
 ## Acceptance Criteria
 
