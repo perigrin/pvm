@@ -43,7 +43,15 @@ func AnalyzeParsed(root *parse.Node, idx *ProjectIndex, opts Options) *FileAnaly
 // slice reports. A kind no rule handles is typed Any, raises no diagnostic,
 // and has its children walked.
 func Analyze(f *lower.File, pos *lower.Positions, idx *ProjectIndex, opts Options) (map[lower.ID]types.Type, []Diagnostic, *SymbolTable) {
-	a := &analysis{
+	a := newAnalysis(f, pos, idx, opts)
+	a.walk(f)
+	return a.annotations, a.diags, a.st
+}
+
+// newAnalysis is pass 2's state for f, with pass 1's declarations
+// collected and nothing walked yet.
+func newAnalysis(f *lower.File, pos *lower.Positions, idx *ProjectIndex, opts Options) *analysis {
+	return &analysis{
 		pos:         pos,
 		idx:         idx,
 		opts:        opts,
@@ -55,8 +63,6 @@ func Analyze(f *lower.File, pos *lower.Positions, idx *ProjectIndex, opts Option
 		evalCtx:     map[lower.ID]types.Context{},
 		classTypes:  map[lower.ID]string{},
 	}
-	a.walk(f)
-	return a.annotations, a.diags, a.st
 }
 
 // analysis is pass 2's state, shared by every rule of the walk.
@@ -183,6 +189,10 @@ func (a *analysis) walk(n lower.Node) types.Type {
 		t = types.Unknown
 	case *lower.Decl:
 		t = a.decl(n)
+	case *lower.File:
+		a.voidStatements(n.Stmts)
+		a.walkChildren(n)
+		t = types.Any
 	case *lower.Block:
 		a.block(n)
 		t = types.Any
@@ -232,9 +242,21 @@ func (a *analysis) block(b *lower.Block) {
 		a.st.EnterScope("block")
 	}
 	off := a.warningsOff
+	a.voidStatements(b.Stmts)
 	a.walkChildren(b)
 	a.warningsOff = off
 	a.st.ExitScope()
+}
+
+// voidStatements puts the expression of each statement of stmts but the
+// last in void context, where its value is discarded. The last may be the
+// value of the sub, do or eval it ends, so its context is not known here.
+func (a *analysis) voidStatements(stmts []lower.Node) {
+	for _, s := range stmts[:max(len(stmts)-1, 0)] {
+		if es, ok := s.(*lower.ExprStmt); ok && es.X != nil {
+			a.evalCtx[es.X.Meta().ID] = types.VoidCtx
+		}
+	}
 }
 
 // walkChildren walks each of n's children.

@@ -932,7 +932,7 @@ replacement. A default may also name a parameter declared after it:
 the list (`exec "ls"` compiles), so `sub exec (Str $program = $args[0]:
 List[Str] @args) Boolean;`.
 
-### Call sites (*Decided*)
+### Call sites (*Implemented*, 19f92556, 151a24dc, 87154b49, 73a6178e, 9ab6eda4)
 
 perigrin, 2026-10-02. "Multi declarations" and "Context selects by
 return type" cover
@@ -945,6 +945,15 @@ cannot decide between candidates it joins them; when the declarations
 rule the call out, it fails as "Multi declarations" says. It waits on
 `infer` running on `internal/parse` (milestone m2-lower-the-tree), which
 is why it is a section of its own.
+
+A call site hands selection what the call writes, not only its argument
+list: sort's comparison routine, `sort byname @x` or `sort $by @x`, is
+the invocant only the invocant candidates take, while `sort "byname",
+@x` makes the name data; delete's slice operand is `@`-shaped and its
+element `$`-shaped; a condition, and the operand of `!` and `not`, is in
+scalar context, so `if ($s =~ /b/)` is a Boolean; and a statement whose
+value is discarded is in void context, where a match is untyped and
+never an error.
 
 ### Core-module libraries (*Decided*)
 
