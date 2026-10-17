@@ -1,6 +1,6 @@
 ---
 title: "Hold Carp.tpm to perl: prototypes, export lists and a return-type oracle"
-state: reopened
+state: in-progress
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -21,7 +21,7 @@ blocks:
 - 01a1464e-dde3-73fe-ab1f-ced7f18c4f9d
 - 01a14657-682e-7432-8ea9-828f56cd2f69
 created: 2026-10-16T20:02:15.452693569Z
-updated: 2026-10-17T03:36:55.325543136Z
+updated: 2026-10-17T03:36:55.518360748Z
 sessions:
 - start_sha: dcc066cc0fb89509812adfaa862f2096d7e4c67f
   end_sha: c707b8354a29d997aed698fe26d8f94558304d31
@@ -33,6 +33,10 @@ sessions:
   commits: 4
   started_at: 2026-10-17T00:11:54.242481314Z
   ended_at: 2026-10-17T00:58:20.045749942Z
+- start_sha: 8d17e0b3c88c2e801f39107186c29dd64c8491c8
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-17T03:36:55.518360748Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
@@ -52,6 +56,9 @@ transitions:
 - state: reopened
   actor: human:git-zhi
   timestamp: 2026-10-17T03:36:55.325543136Z
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-17T03:36:55.518360748Z
 observed_paths:
 - internal/data/help/types.md
 - internal/infer/calls.go
