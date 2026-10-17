@@ -17,3 +17,15 @@ sub lone :export (Int $n) Int;
 # Two candidates of backslashed parameters, each taking one container.
 multi sub box :export (Array \@a) Int;
 multi sub box :export (Array \@a, Array \@b) Str;
+
+# Two candidates of one arity that differ only in the container their
+# backslashed parameter takes, which derive the prototype `\[@%]`.
+multi sub bag :export (Array \@a) Int;
+multi sub bag :export (Hash \%h) Str;
+
+# Candidates that disagree on whether a position is backslashed, which
+# derive no prototype.
+multi sub d :export (Array \@a) Int;
+multi sub d :export (List @l) Str;
+multi sub e :export (Array \@a) Int;
+multi sub e :export (Int $a, Int $b, Int $c) Str;

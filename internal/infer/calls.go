@@ -4,7 +4,6 @@
 package infer
 
 import (
-	"slices"
 	"strconv"
 	"strings"
 
@@ -89,15 +88,15 @@ func (a *analysis) call(n *lower.Call) types.Type {
 // An array or a hash argument flattens into the call's list, as many
 // arguments as it holds, so a call passing one has at least its other
 // arguments, and no arity to select by: see flattenedSelect. One in a
-// position some candidate backslashes, `Array \@a`, is passed as the one
-// container it is, as perl's `\@` prototype passes it.
+// position the prototype perl applies to the call gives a slot, as the
+// parse resolved it, is one argument: `\@` passes the one container it is.
 func (a *analysis) declaredCall(n *lower.Call) types.Type {
 	sigs := n.Signatures
 	a.args(n.Args, sigs)
 	args := a.argTypes(n.Args)
 	fixed := 0
 	for i, t := range args {
-		if t&(types.Array|types.Hash) == 0 || aliasedAt(sigs, i) {
+		if t&(types.Array|types.Hash) == 0 || parse.SlotAt(n.Prototype, i) {
 			fixed++
 		}
 	}
@@ -152,14 +151,6 @@ func flattenedSelect(sigs []types.Signature, least int, ctx types.Context) types
 		return types.Selection{Outcome: types.Failed, Candidate: -1}
 	}
 	return types.Selection{Outcome: types.Undecided, Candidate: -1, Returns: joined}
-}
-
-// aliasedAt reports whether some candidate in sigs backslashes its i-th
-// parameter, `Array \@a`, taking the one container the caller writes.
-func aliasedAt(sigs []types.Signature, i int) bool {
-	return slices.ContainsFunc(sigs, func(s types.Signature) bool {
-		return i < len(s.Params) && s.Params[i].Alias
-	})
 }
 
 // openedVar is the scalar variable an open opens a handle in, its first
