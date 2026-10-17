@@ -11,6 +11,10 @@ use Scalar::Util qw(refaddr);
 #   held_to_perl.pl prototypes MODULE SUB... prints SUB, then "none", "missing" or "proto" and it
 #   held_to_perl.pl installs MODULE LIST...  prints each import LIST ("" for a bare use), then
 #                                            "installs" and the names it installs, or "dies" and why
+#   held_to_perl.pl skeleton MODULE          prints a .tpm skeleton for MODULE: `package M;`, then
+#                                            one `sub NAME :export|:export_ok(tags) (PARAMS) TODO;`
+#                                            or `our TODO NAME :export...;` per name `installs`
+#                                            would report, sorted
 # Fields are tab-separated, one line per argument. `installs` also asks for
 # every name in the module's @EXPORT and @EXPORT_OK, an `&name` as `name`,
 # and every tag in its %EXPORT_TAGS, as `:tag`.
@@ -41,6 +45,34 @@ elsif ( $mode eq 'installs' ) {
             next;
         }
         say join "\t", $list, 'installs', installed($caller);
+    }
+}
+elsif ( $mode eq 'skeleton' ) {
+    my %seen;
+    my @lists = grep { !$seen{$_}++ } ( map { s/^&//r } @{"${module}::EXPORT"}, @{"${module}::EXPORT_OK"} ),
+      map { ":$_" } sort keys %{"${module}::EXPORT_TAGS"};
+    my ( %bare, %ok, %tags );
+    my $n = 0;
+    for my $list ( '', @lists ) {
+        my $caller = 'Held::Skel' . $n++;
+        next unless eval "package $caller; use $module " . ( $list eq '' ? '' : "qw($list)" ) . "; 1";
+        my @names = installed($caller);
+        if    ( $list eq '' )       { $bare{$_} = 1 for @names }
+        elsif ( $list =~ /^:(.*)/ ) { push @{ $tags{$_} }, $1 for @names }
+        elsif ( grep { $_ eq $list } @names ) { $ok{$list} = 1 }
+    }
+    my %all = ( %bare, %ok, map { $_ => 1 } keys %tags );
+    say "package $module;";
+    for my $name ( sort keys %all ) {
+        my ($sigil) = $name =~ /^([\$\@%])/;
+        my $mark = $bare{$name} ? 'export' : 'export_ok';
+        $mark .= '(' . join( ',', sort @{ $tags{$name} || [] } ) . ')' if $tags{$name};
+        if ($sigil) {
+            say "our TODO $name :$mark;";
+            next;
+        }
+        my $code = exists &{"${module}::$name"} ? \&{"${module}::$name"} : $module->can($name);
+        say "sub $name :$mark " . skeletonParams( $code && prototype($code) ) . " TODO;";
     }
 }
 else {
@@ -75,4 +107,44 @@ sub callable ($name) {
     return 1 if defined &$name;
     my $home = B::svref_2object( \&$name )->GV->STASH->NAME;
     return defined &{"${home}::AUTOLOAD"};
+}
+
+# skeletonParams is the typed parameter list `skeleton` writes for a sub
+# whose perl prototype is proto (undef for none): $ -> Any, @ -> List,
+# \@ -> Array \@, and ; marks every scalar after it optional, defaulted
+# undef so its type need not change. No prototype takes whatever List
+# @args the caller passes.
+#
+# ponytail: only $, @, \@ and ; are mapped; a prototype using any other
+# character (\$, \%, %, &, *, _, +) falls back to the same permissive
+# (List @args) a missing prototype gets, rather than guess its type. Add
+# that character here when a core module's skeleton needs it typed.
+sub skeletonParams ($proto) {
+    return '(List @args)' if !defined $proto;
+    my @parts;
+    my ( $optional, $letter, $i ) = ( 0, 'a', 0 );
+    my @chars = split //, $proto;
+    while ( $i < @chars ) {
+        my $c = $chars[$i];
+        if ( $c eq ';' ) { $optional = 1; $i++; next }
+        if ( $c eq '\\' && $i + 1 < @chars && $chars[ $i + 1 ] eq '@' ) {
+            push @parts, "Array \\\@$letter";
+            $letter++;
+            $i += 2;
+            next;
+        }
+        if ( $c eq '$' ) {
+            push @parts, "Any \$$letter" . ( $optional ? ' = undef' : '' );
+            $letter++;
+            $i++;
+            next;
+        }
+        if ( $c eq '@' ) {
+            push @parts, 'List @rest';
+            $i++;
+            next;
+        }
+        return '(List @args)';
+    }
+    return @parts ? '(' . join( ', ', @parts ) . ')' : '()';
 }

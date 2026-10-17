@@ -1034,7 +1034,11 @@ and by tag; return types agree with what an oracle observes when perl
 calls the sub, and an observed value the declared type excludes fails.
 The oracle runs in a scratch directory with no network, and calls only
 subs that are safe there; a sub it cannot call is held to its prototype
-and its export membership. Tests run perl; psc never does.
+and its export membership. Tests run perl; psc never does. The same
+driver's `skeleton` mode prints a module's installable names as a .tpm
+skeleton, params derived from each sub's prototype, so a batch worker
+only decides a TODO return type and oracle cases rather than
+transcribing names by hand.
 
 **Infrastructure modules.** Exporter, XSLoader and DynaLoader are
 inherited from or called by many other modules, so a declaration that
