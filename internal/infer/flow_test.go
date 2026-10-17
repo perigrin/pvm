@@ -281,3 +281,46 @@ func TestModifierGuardNarrowsContinuation(t *testing.T) {
 		wantReported(t, src, infer.CodeCoercionMismatch)
 	}
 }
+
+// resolvedDiags is the diagnostics src draws on the lowered path from a
+// parse that resolves modules, finding none on disk: a `use Carp` reads
+// Carp.tpm.
+func resolvedDiags(src string) []infer.Diagnostic {
+	root := parse.ParseWithLoader([]byte(src), func(string) ([]byte, bool) { return nil, false })
+	f := lower.Lower(root)
+	_, d, _ := infer.Analyze(f, lower.NewPositions(root, f), nil, infer.Options{})
+	return d
+}
+
+// A qualified croak or confess ends its path as the bare one does, whether
+// Carp is imported or only loaded: perl 5.42 -w, given no argument, is
+// silent on each and prints 4.
+func TestQualifiedCroakConfessAreExits(t *testing.T) {
+	for _, use := range []string{"use Carp;", "use Carp ();"} {
+		for _, exit := range []string{"Carp::croak", "Carp::confess"} {
+			src := use + "\nmy $x = @ARGV ? undef : 3;\nunless (defined $x) { " + exit + "(\"x\") }\nprint $x + 1, \"\\n\";\n"
+			for _, d := range resolvedDiags(src) {
+				t.Errorf("%q: diagnostic %q, want none", src, d.Message)
+			}
+		}
+	}
+}
+
+// Foo::confess is Foo's own sub, not Carp's, and returns: perl 5.42 -w,
+// given an argument, warns "Use of uninitialized value $x in addition (+)".
+func TestQualifiedCallOtherPackageConfessNotExit(t *testing.T) {
+	src := "use Carp;\npackage Foo { sub confess { 1 } }\nmy $x = @ARGV ? undef : 3;\nunless (defined $x) { Foo::confess(\"x\") }\nprint $x + 1, \"\\n\";\n"
+	if d := resolvedDiags(src); len(d) != 1 || d[0].Code != infer.CodeCoercionMismatch {
+		t.Errorf("%q: diagnostics %v, want one %s", src, d, infer.CodeCoercionMismatch)
+	}
+}
+
+// \&Carp::confess takes a reference and calls nothing: perl 5.42 -w, given
+// an argument, warns "Useless use of single ref constructor in void
+// context" and "Use of uninitialized value $x in addition (+)".
+func TestQualifiedCodeRefIsNotExit(t *testing.T) {
+	src := "use Carp;\nmy $x = @ARGV ? undef : 3;\nunless (defined $x) { \\&Carp::confess }\nprint $x + 1, \"\\n\";\n"
+	if d := resolvedDiags(src); len(d) != 1 || d[0].Code != infer.CodeCoercionMismatch {
+		t.Errorf("%q: diagnostics %v, want one %s", src, d, infer.CodeCoercionMismatch)
+	}
+}
