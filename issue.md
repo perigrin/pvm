@@ -1,6 +1,6 @@
 ---
 title: "Handle the call-site traps: sort invocant and comma, delete slice shape, condition context, void match"
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:59:46.565162192Z
-updated: 2026-10-17T03:33:13.454243199Z
+updated: 2026-10-17T03:50:21.295928606Z
 sessions:
 - start_sha: a35012438663295404da21ff5a6a7ec965d1d93a
   end_sha: 3d5883ad3461132cbafb527d2cd0af0b49134811
@@ -16,9 +16,10 @@ sessions:
   started_at: 2026-10-17T00:07:43.001775262Z
   ended_at: 2026-10-17T01:04:22.914493217Z
 - start_sha: 8d17e0b3c88c2e801f39107186c29dd64c8491c8
-  end_sha: ""
-  commits: 0
+  end_sha: 05ec338880eab01f987062c423cfd983f4705e1a
+  commits: 1
   started_at: 2026-10-17T03:33:13.454243199Z
+  ended_at: 2026-10-17T03:50:21.295928606Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
@@ -32,6 +33,9 @@ transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-17T03:33:13.454243199Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-17T03:50:21.295928606Z
 observed_paths:
 - docs/rfcs/0001-type-libraries.md
 - internal/infer/calls.go
@@ -52,6 +56,7 @@ observed_paths:
 - internal/parse/exportattr_test.go
 - internal/parse/heldtoperl_test.go
 - internal/parse/qualified_test.go
+- internal/parse/testdata/declarations/My/Multi.tpm
 - internal/parse/testdata/held_to_perl.pl
 - internal/parse/use.go
 - internal/perltest/perltest.go
