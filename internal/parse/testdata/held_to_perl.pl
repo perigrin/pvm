@@ -71,8 +71,10 @@ elsif ( $mode eq 'skeleton' ) {
             say "our TODO $name :$mark;";
             next;
         }
-        my $code = exists &{"${module}::$name"} ? \&{"${module}::$name"} : $module->can($name);
-        say "sub $name :$mark " . skeletonParams( $code && prototype($code) ) . " TODO;";
+        my $code  = exists &{"${module}::$name"} ? \&{"${module}::$name"} : $module->can($name);
+        my $proto = $code && prototype($code);
+        $mark .= " :prototype($proto)" if defined $proto && $proto ne '';
+        say "sub $name :$mark " . skeletonParams($proto) . " TODO;";
     }
 }
 else {
@@ -111,12 +113,12 @@ sub callable ($name) {
 
 # skeletonParams is the typed parameter list `skeleton` writes for a sub
 # whose perl prototype is proto (undef for none): $ -> Any, @ -> List,
-# \@ -> Array \@, and ; marks every scalar after it optional, defaulted
-# undef so its type need not change. No prototype takes whatever List
-# @args the caller passes.
+# \@ -> Array \@, & -> Code, and ; marks every scalar after it optional,
+# defaulted undef so its type need not change. No prototype takes
+# whatever List @args the caller passes.
 #
-# ponytail: only $, @, \@ and ; are mapped; a prototype using any other
-# character (\$, \%, %, &, *, _, +) falls back to the same permissive
+# ponytail: only $, @, \@, & and ; are mapped; a prototype using any
+# other character (\$, \%, %, *, _, +) falls back to the same permissive
 # (List @args) a missing prototype gets, rather than guess its type. Add
 # that character here when a core module's skeleton needs it typed.
 sub skeletonParams ($proto) {
@@ -141,6 +143,11 @@ sub skeletonParams ($proto) {
         }
         if ( $c eq '@' ) {
             push @parts, 'List @rest';
+            $i++;
+            next;
+        }
+        if ( $c eq '&' ) {
+            push @parts, 'Code &cb';
             $i++;
             next;
         }
