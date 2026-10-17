@@ -92,6 +92,21 @@ func modulePath(t *testing.T, p perltest.Perl, inc, module string) (string, erro
 	return lines[0][0], nil
 }
 
+// tpmSkeleton runs held_to_perl.pl's skeleton mode for module and returns
+// the .tpm skeleton text it prints, the names it reports installed, with
+// a TODO return type (sub) or TODO type (our) a worker must replace.
+func tpmSkeleton(t *testing.T, module string) string {
+	t.Helper()
+	p := perltest.Perl542(t)
+	lines, err := heldToPerl(t, p, "", "skeleton", module)
+	require.NoError(t, err)
+	rows := make([]string, len(lines))
+	for i, line := range lines {
+		rows[i] = strings.Join(line, "\t")
+	}
+	return strings.Join(rows, "\n") + "\n"
+}
+
 // readHeld reads a .tpm's source as the resolver does, refusing one in
 // error: a declaration perl is held to must first be one psc reads.
 func readHeld(module string, src []byte) (moduleFacts, error) {
@@ -405,4 +420,59 @@ func TestHeldToPerlIgnoresTheCallersPerlLib(t *testing.T) {
 			assert.Empty(t, exportDisagreements(t, p, "", "Carp", src))
 		})
 	}
+}
+
+// TestTpmSkeletonMatchesCarp: Carp's generated skeleton, with each TODO
+// replaced by Carp.tpm's own return type for that sub, agrees with
+// Carp.tpm on every name, mark, tag and prototype -- holdPrototypes and
+// holdExports pass on it, as they do on the shipped Carp.tpm.
+func TestTpmSkeletonMatchesCarp(t *testing.T) {
+	skeleton := tpmSkeleton(t, "Carp")
+	src, ok := declaration("Carp")
+	require.True(t, ok)
+	sigs, errs := DeclaredSignatures(src)
+	require.Empty(t, errs)
+
+	lines := strings.Split(strings.TrimRight(skeleton, "\n"), "\n")
+	for i, line := range lines {
+		if !strings.HasPrefix(line, "sub ") {
+			continue
+		}
+		name, _, ok := strings.Cut(line[len("sub "):], " ")
+		require.True(t, ok)
+		cands, ok := sigs[name]
+		require.True(t, ok, "Carp.tpm declares no %s", name)
+		lines[i] = strings.TrimSuffix(line, "TODO;") + cands[0].Returns.String() + ";"
+	}
+	filled := strings.Join(lines, "\n") + "\n"
+
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "declarations"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "declarations", "Carp.tpm"), []byte(filled), 0o644))
+	restore := OverlayDeclarations(os.DirFS(dir))
+	defer restore()
+
+	holdPrototypes(t, "Carp")
+	holdExports(t, "Carp")
+}
+
+// TestTpmSkeletonMarksTags: Fcntl's SEEK_SET is export_ok only through
+// its "seek" tag in %EXPORT_TAGS, so the skeleton marks it
+// :export_ok(seek), the tag name the installs mechanism found it under.
+func TestTpmSkeletonMarksTags(t *testing.T) {
+	skeleton := tpmSkeleton(t, "Fcntl")
+	assert.Contains(t, skeleton, "sub SEEK_SET :export_ok(seek) () TODO;")
+}
+
+// TestTpmSkeletonUnfilledRefused: a skeleton's TODO is not a type, so
+// readLibraryDeclaration refuses it until a worker replaces every one.
+func TestTpmSkeletonUnfilledRefused(t *testing.T) {
+	skeleton := tpmSkeleton(t, "Carp")
+	facts := readLibraryDeclaration([]byte(skeleton), nil)
+	require.NotEmpty(t, facts.errs)
+	var msgs []string
+	for _, e := range facts.errs {
+		msgs = append(msgs, e.Error())
+	}
+	assert.Contains(t, strings.Join(msgs, "\n"), "TODO")
 }
