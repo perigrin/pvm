@@ -1,6 +1,6 @@
 ---
 title: Declare the XS constant exporters Fcntl and Socket
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -12,7 +12,16 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.752726002Z
-updated: 2026-10-16T21:01:57.600362634Z
+updated: 2026-10-17T04:25:19.893120122Z
+sessions:
+- start_sha: 5b91125f4014127e11963fc610c805ba205b10ff
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-17T04:25:19.893120122Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-17T04:25:19.893120122Z
 ---
 
 ## Prerequisites
