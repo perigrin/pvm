@@ -187,3 +187,14 @@ func TestInferLocalSubShadowsDeclaration(t *testing.T) {
 	assert.Equal(t, types.Str, got)
 	assert.Empty(t, diags)
 }
+
+// TestInferTypesQualifiedCall: Carp.tpm declares `sub shortmess
+// :export_ok (List[Str] @message) Str`, so a call by its qualified name,
+// with Carp loaded and nothing imported, is a Str. Measured on 5.42.0,
+// `use Carp (); my $s = Carp::shortmess("x")` leaves $s "x at -e line 1.\n".
+func TestInferTypesQualifiedCall(t *testing.T) {
+	src := `use Carp (); my $s = Carp::shortmess("x");`
+	got, diags := declaredCallType(t, src, `Carp::shortmess("x")`)
+	assert.Equal(t, types.Str, got)
+	assert.Empty(t, diags)
+}
