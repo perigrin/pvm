@@ -218,3 +218,30 @@ func TestInferSortInvocantNotPlain(t *testing.T) {
 	require.Len(t, c.Params, 2)
 	assert.Equal(t, types.Code, c.Params[0].Type)
 }
+
+// TestInferDeleteSliceNotElement: CORE.tpm's delete takes a `@`-shaped
+// slice or a `$`-shaped element, so the call site passes the operand's
+// shape and a slice selects the List candidate. Measured on 5.42.0, with
+// %h = (a => 1, b => 2) and @a = (5, 6, 7), `delete @h{qw(a b)}` is (1,
+// 2), `delete %h{qw(a b)}` (a, 1, b, 2), `delete @a[0, 1]` (5, 6) and
+// `delete %a[0, 1]` (0, 5, 1, 6), while `delete $h{a}` is 1.
+func TestInferDeleteSliceNotElement(t *testing.T) {
+	const decl = "my %h = (a => 1, b => 2); my @a = (5, 6, 7); "
+	cases := []struct {
+		call string
+		want types.Type
+	}{
+		{"delete @h{qw(a b)}", types.List},
+		{"delete %h{qw(a b)}", types.List},
+		{"delete @a[0, 1]", types.List},
+		{"delete %a[0, 1]", types.List},
+	}
+	for _, c := range cases {
+		src := decl + "my @v = " + c.call + ";"
+		got, diags := declaredCallType(t, src, c.call)
+		assert.Equal(t, c.want, got, "%q", src)
+		assert.Empty(t, diags, "%q", src)
+	}
+	got, _ := declaredCallType(t, decl+"my $v = delete $h{a};", "delete $h{a}")
+	assert.Equal(t, types.Scalar, got)
+}
