@@ -1,6 +1,6 @@
 ---
 title: "Hold Carp.tpm to perl: prototypes, export lists and a return-type oracle"
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -21,16 +21,32 @@ blocks:
 - 01a1464e-dde3-73fe-ab1f-ced7f18c4f9d
 - 01a14657-682e-7432-8ea9-828f56cd2f69
 created: 2026-10-16T20:02:15.452693569Z
-updated: 2026-10-16T23:04:29.759612367Z
+updated: 2026-10-17T00:03:13.570061661Z
 sessions:
 - start_sha: dcc066cc0fb89509812adfaa862f2096d7e4c67f
-  end_sha: ""
-  commits: 0
+  end_sha: c707b8354a29d997aed698fe26d8f94558304d31
+  commits: 3
   started_at: 2026-10-16T23:04:29.759612367Z
+  ended_at: 2026-10-17T00:03:13.570061661Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-16T23:04:29.759612367Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-17T00:03:13.570061661Z
+observed_paths:
+- internal/infer/returntypes_test.go
+- internal/infer/testdata/oracle/Carp.pl
+- internal/infer/testdata/return_oracle.pl
+- internal/parse/declarations.go
+- internal/parse/declarations/Carp.tpm
+- internal/parse/heldtoperl_test.go
+- internal/parse/testdata/declarations/My/UntypedVars.tpm
+- internal/parse/testdata/held_to_perl.pl
+- internal/parse/typedour_test.go
+- internal/types/select.go
+- internal/types/select_test.go
 ---
 
 ## Prerequisites
