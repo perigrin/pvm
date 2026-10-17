@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"maps"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -65,7 +64,7 @@ func heldToPerl(t *testing.T, p perltest.Perl, inc, mode, module string, args ..
 	if inc != "" {
 		argv = append([]string{"-I", inc}, argv...)
 	}
-	cmd := exec.Command(p.Path, argv...)
+	cmd := p.Command(argv...)
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
@@ -149,7 +148,9 @@ func orNone(proto string) string {
 // :export_ok name, and a name it installs that the .tpm does not mark is
 // missing; `use M ':tag'` must install exactly the names marked with tag.
 // The names asked for are the marked ones and those in the module's
-// @EXPORT and @EXPORT_OK, an `&name` there being the sub name.
+// @EXPORT and @EXPORT_OK, an `&name` there being the sub name, and the
+// tags asked for are the declared ones and those in its %EXPORT_TAGS, so a
+// tag the .tpm omits fails by the names it installs.
 func exportDisagreements(t *testing.T, p perltest.Perl, inc, module string, src []byte) []string {
 	t.Helper()
 	facts, err := readHeld(module, src)
@@ -180,7 +181,9 @@ func exportDisagreements(t *testing.T, p perltest.Perl, inc, module string, src 
 			out = append(out, sameNames(fmt.Sprintf("use %s", module), installs, facts.defaults, ":export")...)
 		case strings.HasPrefix(list, ":"):
 			out = append(out, sameNames(fmt.Sprintf("use %s '%s'", module, list), installs, facts.tags[list[1:]], list[1:]+" tag")...)
-		case slices.Contains(facts.exports, list) && !slices.Contains(installs, list):
+		// An :export name is held to the bare use alone: Test::More's import
+		// reads `use Test::More qw(ok)` as a plan and dies.
+		case slices.Contains(facts.exports, list) && !slices.Contains(facts.defaults, list) && !slices.Contains(installs, list):
 			out = append(out, fmt.Sprintf("%s is marked :export_ok; use %s qw(%s) does not install it: %s", list, module, list, strings.Join(f[1:], " ")))
 		case !slices.Contains(facts.exports, list) && slices.Contains(installs, list):
 			out = append(out, fmt.Sprintf("use %s qw(%s) installs %s; the .tpm does not mark it", module, list, list))
@@ -346,4 +349,60 @@ func TestCarpPrototypes(t *testing.T) {
 // TestCarpExports holds Carp.tpm's export marks to what `use Carp` installs.
 func TestCarpExports(t *testing.T) {
 	holdExports(t, "Carp")
+}
+
+// TestPrototypeHelperRejectsASubPerlLacks: a declared sub perl does not
+// define fails by name, rather than passing as a sub with no prototype.
+func TestPrototypeHelperRejectsASubPerlLacks(t *testing.T) {
+	p := perltest.Perl542(t)
+	lib := perlFixture(t, "My::Lacks", "package My::Lacks;\nsub f { }\n1;\n")
+
+	got := prototypeDisagreements(t, p, lib, "My::Lacks", []byte("package My::Lacks;\nsub f (List @x) Int;\nsub g (List @x) Int;\n"))
+	require.Len(t, got, 1)
+	assert.Contains(t, got[0], "My::Lacks::g is declared; perl defines no such sub")
+}
+
+// TestExportHelperHoldsAnImportThatDiesOnNames: an :export name is held
+// to the bare `use`, so a module whose import dies when given names, as
+// Test::More's reads them as a plan, does not fail it.
+func TestExportHelperHoldsAnImportThatDiesOnNames(t *testing.T) {
+	p := perltest.Perl542(t)
+	lib := perlFixture(t, "My::Plan", `package My::Plan;
+our @EXPORT = qw(ok);
+sub import { shift; die "plan() doesn't understand @_" if @_; no strict 'refs'; *{caller() . '::ok'} = \&ok }
+sub ok { 1 }
+1;
+`)
+
+	assert.Empty(t, exportDisagreements(t, p, lib, "My::Plan", []byte("package My::Plan;\nsub ok :export;\n")))
+}
+
+// TestExportHelperRejectsAnUndeclaredTag: a tag in the module's
+// %EXPORT_TAGS that installs names fails a .tpm declaring no such tag.
+func TestExportHelperRejectsAnUndeclaredTag(t *testing.T) {
+	p := perltest.Perl542(t)
+	lib := perlFixture(t, "My::Exp", exporter)
+
+	got := exportDisagreements(t, p, lib, "My::Exp", []byte("package My::Exp;\nsub f :export;\nsub g :export_ok;\nsub h :export_ok;\n"))
+	require.NotEmpty(t, got)
+	assert.Contains(t, strings.Join(got, "\n"), "use My::Exp ':gh' installs g")
+}
+
+// TestHeldToPerlIgnoresTheCallersPerlLib: perl finds a module as an
+// installed perl does, whatever PERL5LIB, PERLLIB or PERL5OPT the test
+// runs with: a Carp there is not the one measured.
+func TestHeldToPerlIgnoresTheCallersPerlLib(t *testing.T) {
+	p := perltest.Perl542(t)
+	fake := perlFixture(t, "Carp", "package Carp;\nour @EXPORT = qw(fake);\nsub import { }\n1;\n")
+	src, ok := declaration("Carp")
+	require.True(t, ok)
+	for _, env := range [][2]string{{"PERL5LIB", fake}, {"PERLLIB", fake}, {"PERL5OPT", "-I" + fake}} {
+		t.Run(env[0], func(t *testing.T) {
+			t.Setenv(env[0], env[1])
+			path, err := modulePath(t, p, "", "Carp")
+			require.NoError(t, err)
+			assert.False(t, strings.HasPrefix(path, fake), "perl measured %s", path)
+			assert.Empty(t, exportDisagreements(t, p, "", "Carp", src))
+		})
+	}
 }

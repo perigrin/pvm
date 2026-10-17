@@ -22,6 +22,11 @@ type Signature struct {
 	// see Answers.
 	Returns Type
 
+	// ReturnElement is the element type of a container return type, Int
+	// for `List[Int]`, Unknown when the return type names no element, as
+	// Param.Element is a parameter's.
+	ReturnElement Type
+
 	// Unary is whether the declaration states `:unary`, RFC 0001
 	// "Builtins with no prototype": a builtin with no prototype that perl
 	// reads as a named unary, so `defined $a, $b` is `(defined $a), $b`.
