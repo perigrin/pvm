@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"maps"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -88,51 +87,71 @@ func returnTypeFailures(t *testing.T, p perltest.Perl, r oracleRun) []string {
 		if _, exempt := r.Exempt[r.Module+"::"+name]; exempt {
 			continue
 		}
-		args = append(args, name+":"+callContext(sigs[name]))
+		var contexts []string
+		for _, s := range sigs[name] {
+			if ctx := callContext(s); !slices.Contains(contexts, ctx) {
+				contexts = append(contexts, ctx)
+			}
+		}
+		for _, ctx := range contexts {
+			args = append(args, name+":"+ctx)
+		}
 	}
 
 	scratch := t.TempDir()
-	cmd := exec.Command(p.Path, args...)
+	cmd := p.Command(args...)
 	cmd.Dir = scratch
-	cmd.Env = append(os.Environ(), "HOME="+scratch, "TMPDIR="+scratch)
+	cmd.Env = append(cmd.Env, "HOME="+scratch, "TMPDIR="+scratch)
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil {
 		return []string{fmt.Sprintf("%s: the oracle did not run: %v: %s", r.Module, err, stderr.String())}
 	}
+	// The driver says it is complete once every sub is called, so a sub
+	// that ends perl early fails here rather than passing the rest.
+	report, complete := strings.CutPrefix(string(out), "complete\n")
+	if !complete {
+		return []string{fmt.Sprintf("%s: the oracle ended before calling every sub: %s", r.Module, stderr.String())}
+	}
 	var obs []observation
-	if err := json.Unmarshal(out, &obs); err != nil {
+	if err := json.Unmarshal([]byte(report), &obs); err != nil {
 		return []string{fmt.Sprintf("%s: the oracle emitted %q: %v", r.Module, out, err)}
 	}
 
 	var failures []string
 	for _, o := range obs {
+		name, ctx, _ := strings.Cut(o.Name, ":")
 		got, known := observedToLattice[o.Type]
-		admitted := known && slices.ContainsFunc(sigs[o.Name], func(s types.Signature) bool {
+		admitted := known && slices.ContainsFunc(sigs[name], func(s types.Signature) bool {
+			if callContext(s) != ctx {
+				return false
+			}
+			// In list context each value is one element of the list.
+			if ctx == "list" && s.ReturnElement != types.Unknown {
+				return types.IsSubtype(got, s.ReturnElement)
+			}
 			return types.IsSubtype(got, s.Returns)
 		})
 		if !admitted {
-			failures = append(failures, fmt.Sprintf("%s::%s call case %d returned %s, which its declared return type excludes",
-				r.Module, o.Name, o.Line, o.Type))
+			failures = append(failures, fmt.Sprintf("%s::%s call case %d in %s context returned %s, which its declared return type excludes",
+				r.Module, name, o.Line, ctx, o.Type))
 		}
 	}
 	sort.Strings(failures)
 	return failures
 }
 
-// callContext is the context a sub's call cases are called in: a sub
-// declared never to return is called inside eval, one returning a scalar
-// in scalar context, and any other in list context.
-//
-// ponytail: a declared List[T]'s T is not in types.Signature, so a list
-// return is held only to List, which admits every value; the element
-// type is checked once the signature carries it.
-func callContext(sigs []types.Signature) string {
+// callContext is the context the oracle calls a candidate's cases in,
+// and the one its returns are held in: none, inside eval, for a candidate
+// declared never to return; list for one answering list context, RFC 0001
+// "Context selects by return type"; scalar for any other. A sub is called
+// once in each context one of its candidates answers.
+func callContext(s types.Signature) string {
 	switch {
-	case slices.ContainsFunc(sigs, func(s types.Signature) bool { return s.Returns == types.None }):
+	case s.Returns == types.None:
 		return "none"
-	case slices.ContainsFunc(sigs, func(s types.Signature) bool { return !types.IsSubtype(s.Returns, types.Scalar) }):
+	case s.Answers() == types.ListCtx:
 		return "list"
 	}
 	return "scalar"
@@ -256,4 +275,108 @@ sub where {
 // TestCarpReturnTypes holds Carp.tpm's return types to perl.
 func TestCarpReturnTypes(t *testing.T) {
 	holdReturnTypes(t, "Carp")
+}
+
+// TestReturnOracleChecksEachListElement: a sub declared List[Int] is held
+// element by element, so a list holding a Str, a reference or undef fails.
+func TestReturnOracleChecksEachListElement(t *testing.T) {
+	p := perltest.Perl542(t)
+	tpm := []byte("package My::Nums;\nsub nums () List[Int];\n")
+	cases := "(nums => [ [] ]);\n"
+
+	lib, caseFile := oracleFixture(t, "My::Nums", "package My::Nums;\nsub nums { ('a', [1], undef) }\n1;\n", cases)
+	failures := returnTypeFailures(t, p, oracleRun{Module: "My::Nums", TPM: tpm, Cases: caseFile, Inc: lib})
+	require.Len(t, failures, 3, "a Str, an ArrayRef and an Undef where List[Int] is declared")
+	assert.Contains(t, strings.Join(failures, "\n"), "returned Str")
+
+	lib, caseFile = oracleFixture(t, "My::Nums", "package My::Nums;\nsub nums { (1, 2) }\n1;\n", cases)
+	assert.Empty(t, returnTypeFailures(t, p, oracleRun{Module: "My::Nums", TPM: tpm, Cases: caseFile, Inc: lib}))
+}
+
+// TestReturnOracleCallsEachCandidateInItsContext: a multi sub whose
+// candidates answer scalar and list context is called in both, each
+// return held to the candidate answering that context.
+func TestReturnOracleCallsEachCandidateInItsContext(t *testing.T) {
+	p := perltest.Perl542(t)
+	tpm := []byte("package My::Both;\nmulti sub n () Int;\nmulti sub n () List[Str];\n")
+	cases := "(n => [ [] ]);\n"
+
+	lib, caseFile := oracleFixture(t, "My::Both", "package My::Both;\nsub n { wantarray ? ('a', 'b') : 'one' }\n1;\n", cases)
+	failures := returnTypeFailures(t, p, oracleRun{Module: "My::Both", TPM: tpm, Cases: caseFile, Inc: lib})
+	require.Len(t, failures, 1, "a Str in scalar context, where the scalar candidate returns Int")
+	assert.Contains(t, failures[0], "in scalar context returned Str")
+
+	lib, caseFile = oracleFixture(t, "My::Both", "package My::Both;\nsub n { wantarray ? ('a', 'b') : 2 }\n1;\n", cases)
+	assert.Empty(t, returnTypeFailures(t, p, oracleRun{Module: "My::Both", TPM: tpm, Cases: caseFile, Inc: lib}))
+}
+
+// TestReturnOracleFailsOnASubThatExits: a sub calling exit ends perl
+// before the subs after it are called, which fails the oracle rather than
+// passing it with those subs unchecked.
+func TestReturnOracleFailsOnASubThatExits(t *testing.T) {
+	p := perltest.Perl542(t)
+	for _, exit := range []string{"exit 0", "CORE::exit 0"} {
+		t.Run(exit, func(t *testing.T) {
+			pm := fmt.Sprintf("package My::Exits;\nsub a_exits { %s }\nsub b_str { 'str' }\n1;\n", exit)
+			lib, caseFile := oracleFixture(t, "My::Exits", pm, "(a_exits => [ [] ], b_str => [ [] ]);\n")
+			tpm := []byte("package My::Exits;\nsub a_exits () Int;\nsub b_str () Int;\n")
+
+			failures := returnTypeFailures(t, p, oracleRun{Module: "My::Exits", TPM: tpm, Cases: caseFile, Inc: lib})
+			require.Len(t, failures, 1)
+			assert.Contains(t, failures[0], "My::Exits: the oracle")
+		})
+	}
+}
+
+// TestReturnOracleRejectsASubWithNoCases: a call-case entry listing no
+// argument lists calls nothing, so it fails as a missing entry does.
+func TestReturnOracleRejectsASubWithNoCases(t *testing.T) {
+	p := perltest.Perl542(t)
+	lib, caseFile := oracleFixture(t, "My::Empty", "package My::Empty;\nsub one { 'one' }\n1;\n", "(one => []);\n")
+	tpm := []byte("package My::Empty;\nsub one () Int;\n")
+
+	failures := returnTypeFailures(t, p, oracleRun{Module: "My::Empty", TPM: tpm, Cases: caseFile, Inc: lib})
+	require.Len(t, failures, 1)
+	assert.Contains(t, failures[0], "one has no call case")
+}
+
+// TestReturnOracleRejectsAnUndefinedNoneSub: a sub declared None that
+// perl does not define dies when called, "Undefined subroutine", which is
+// no evidence it never returns; it fails the oracle.
+func TestReturnOracleRejectsAnUndefinedNoneSub(t *testing.T) {
+	p := perltest.Perl542(t)
+	lib, caseFile := oracleFixture(t, "My::Gone", "package My::Gone;\n1;\n", "(stop => [ [] ]);\n")
+	tpm := []byte("package My::Gone;\nsub stop () None;\n")
+
+	failures := returnTypeFailures(t, p, oracleRun{Module: "My::Gone", TPM: tpm, Cases: caseFile, Inc: lib})
+	require.Len(t, failures, 1)
+	assert.Contains(t, failures[0], "perl defines no sub stop")
+}
+
+// TestReturnOracleKeepsASubsOutputOutOfItsReport: a sub printing to
+// STDOUT, as Test::More's ok does, leaves the oracle's report readable.
+func TestReturnOracleKeepsASubsOutputOutOfItsReport(t *testing.T) {
+	p := perltest.Perl542(t)
+	lib, caseFile := oracleFixture(t, "My::Prints", "package My::Prints;\nsub ok { print \"ok 1\\n\"; 1 }\n1;\n", "(ok => [ [] ]);\n")
+	tpm := []byte("package My::Prints;\nsub ok () Int;\n")
+
+	assert.Empty(t, returnTypeFailures(t, p, oracleRun{Module: "My::Prints", TPM: tpm, Cases: caseFile, Inc: lib}))
+}
+
+// TestReturnOracleIgnoresTheCallersPerlLib: perl finds the module under
+// test as an installed perl does, whatever PERL5LIB, PERLLIB or PERL5OPT
+// the test runs with: a Carp there whose croak returns is not measured.
+func TestReturnOracleIgnoresTheCallersPerlLib(t *testing.T) {
+	p := perltest.Perl542(t)
+	fake, _ := oracleFixture(t, "Carp", "package Carp;\nsub croak { 1 }\nsub confess { 1 }\nsub carp { 1 }\nsub cluck { 1 }\nsub longmess { 'l' }\nsub shortmess { 's' }\n1;\n", "")
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "Carp.tpm"))
+	require.NoError(t, err)
+	cases, err := filepath.Abs(filepath.Join("testdata", "oracle", "Carp.pl"))
+	require.NoError(t, err)
+	for _, env := range [][2]string{{"PERL5LIB", fake}, {"PERLLIB", fake}, {"PERL5OPT", "-I" + fake}} {
+		t.Run(env[0], func(t *testing.T) {
+			t.Setenv(env[0], env[1])
+			assert.Empty(t, returnTypeFailures(t, p, oracleRun{Module: "Carp", TPM: tpm, Cases: cases}))
+		})
+	}
 }

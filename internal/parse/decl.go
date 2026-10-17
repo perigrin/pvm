@@ -150,7 +150,7 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 					return fmt.Errorf(":unary takes at most one operand, the signature has %d", operands)
 				}
 				var err error
-				s.Returns, ret, err = p.returnType()
+				s.Returns, s.ReturnElement, ret, err = p.returnType()
 				return err
 			}
 			if ok && p.text(tok) == ":" && len(s.Params) == 0 && s.Invocant == nil {
@@ -273,24 +273,25 @@ func refuseContext(n *Node) error {
 }
 
 // returnType reads the type a `.tpm` declaration states after its signature,
-// `) Object;`, where a definition would have its body. A declaration with no
-// type name there states none. The `;` is left for finishBodyOrSemicolon.
-func (p *parser) returnType() (types.Type, *Node, error) {
+// `) Object;`, where a definition would have its body, and its element type,
+// as typeExpr reads them. A declaration with no type name there states none.
+// The `;` is left for finishBodyOrSemicolon.
+func (p *parser) returnType() (types.Type, types.Type, *Node, error) {
 	if tok, ok := p.peekSignificant(); !ok || tok.Kind != lexer.Word {
-		return types.Unknown, nil, nil
+		return types.Unknown, types.Unknown, nil, nil
 	}
-	typ, _, node, err := p.typeExpr()
+	typ, elem, node, err := p.typeExpr()
 	if err != nil {
-		return types.Unknown, nil, err
+		return types.Unknown, types.Unknown, nil, err
 	}
 	end, ok := p.peekSignificant()
 	switch {
 	case !ok:
-		return types.Unknown, nil, fmt.Errorf("return type %s not terminated", node.Text)
+		return types.Unknown, types.Unknown, nil, fmt.Errorf("return type %s not terminated", node.Text)
 	case end.Kind != lexer.Semicolon:
-		return types.Unknown, nil, fmt.Errorf("return type %s is not followed by `;`", node.Text)
+		return types.Unknown, types.Unknown, nil, fmt.Errorf("return type %s is not followed by `;`", node.Text)
 	}
-	return typ, node, nil
+	return typ, elem, node, nil
 }
 
 // typeExpr reads a type expression into its Type, its element type, and a

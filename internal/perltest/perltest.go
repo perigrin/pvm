@@ -60,3 +60,19 @@ func locate(t testing.TB, path string) Perl {
 	}
 	return p
 }
+
+// Command is a command running p with args, in the environment the test
+// runs in less PERL5LIB, PERLLIB, PERL5OPT and PERL_LOCAL_LIB_ROOT, so perl
+// finds a module where an installed perl does, not where the caller's
+// environment points it.
+func (p Perl) Command(args ...string) *exec.Cmd {
+	cmd := exec.Command(p.Path, args...)
+	for _, kv := range os.Environ() {
+		switch strings.SplitN(kv, "=", 2)[0] {
+		case "PERL5LIB", "PERLLIB", "PERL5OPT", "PERL_LOCAL_LIB_ROOT":
+			continue
+		}
+		cmd.Env = append(cmd.Env, kv)
+	}
+	return cmd
+}

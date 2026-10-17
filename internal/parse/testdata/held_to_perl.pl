@@ -12,7 +12,8 @@ use Scalar::Util qw(refaddr);
 #   held_to_perl.pl installs MODULE LIST...  prints each import LIST ("" for a bare use), then
 #                                            "installs" and the names it installs, or "dies" and why
 # Fields are tab-separated, one line per argument. `installs` also asks for
-# every name in the module's @EXPORT and @EXPORT_OK, an `&name` as `name`.
+# every name in the module's @EXPORT and @EXPORT_OK, an `&name` as `name`,
+# and every tag in its %EXPORT_TAGS, as `:tag`.
 my ( $mode, $module, @args ) = @ARGV;
 ( my $file = "$module.pm" ) =~ s{::}{/}g;
 eval { require $file; 1 } or die "cannot require $module: $@";
@@ -30,7 +31,8 @@ elsif ( $mode eq 'prototypes' ) {
 elsif ( $mode eq 'installs' ) {
     my %seen;
     my @lists = grep { !$seen{$_}++ } @args,
-      map { s/^&//r } @{"${module}::EXPORT"}, @{"${module}::EXPORT_OK"};
+      ( map { s/^&//r } @{"${module}::EXPORT"}, @{"${module}::EXPORT_OK"} ),
+      map { ":$_" } sort keys %{"${module}::EXPORT_TAGS"};
     my $n = 0;
     for my $list (@lists) {
         my $caller = 'Held::Caller' . $n++;
