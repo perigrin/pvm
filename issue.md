@@ -16,7 +16,7 @@ blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 - 01a14683-8405-743e-9c90-7bb5ff9cec88
 created: 2026-10-02T17:13:31.136589197Z
-updated: 2026-10-17T00:45:17.558269979Z
+updated: 2026-10-17T00:52:11.189570274Z
 sessions:
 - start_sha: cc1416816b43a75d9d4de73e9269452b26f61f27
   end_sha: a35012438663295404da21ff5a6a7ec965d1d93a
@@ -132,6 +132,13 @@ Tier-2 gate, 2026-10-17, on a3501243 (fresh reviewer subagent; lenses applied in
 
 1. (in scope, 85) `internal/infer/calls.go:91-113` declaredCall counts a flattening argument as one argument when selecting: `use My::Multi; my @a=(1,2); my $r = two(@a);` picks `two (Int $a) Int` and types the call Int; `two(%h)` likewise. Perl gives `two(@a)` two arguments and returns the two-argument candidate's value (perl -wle prints `two` for both). The guard skips only the arity error; selection still uses the wrong count, breaking "selects by arity". Fix: when an argument flattens in a call to a multi with no prototype, do not let Select choose by arity: join the candidates whose arity can take at least the non-flattening arguments (or Undecided). Test: `two(@a)` must not be Int.
 2. (in scope, 75) `internal/infer/calls.go:98`: no test reaches declaredCall's Undecided path. Mutation A (`case sel.Outcome != types.Selected && !flattens:`, reporting every Undecided library call as an arity error) survives all 13 criteria; the "Undecided multi joins and psc check reports nothing" criterion is met only through builtin localtime (callReturns, not this code) and passes at the parent. Fix: add a library-multi undecided case, e.g. `use My::Lib; sub g { return when_() }` expecting `Str|List` and no diagnostics, in infer and in the e2e fixture; show mutation A fails it.
+
+### Review Findings (pass 2)
+
+Tier-2 gate pass 2, 2026-10-17, on 51c907f2 (fresh reviewer subagent; overlay mutations prove both pass-1 findings fixed; perl 5.42 agrees on two(@a), two(%h), two(1,@e), two(1,2,3,@e)). OverlayDeclarations in e2e does not leak (shuffle 1-3). VERDICT: REOPEN.
+
+A. (in scope, 90; introduced by b935fd11) `internal/infer/calls.go:138-142` flattenedSelect's loop `for count := least; count <= most+1; count++` never runs when the fixed arguments exceed most+1, so a slurpy call becomes Failed: `use My::Lib; my @a=(1); my $s = join_all(1, 2, 3, 4, 5, @a);` against `sub join_all (Str $sep, List[Str] @parts) Str` gives Unknown and "no declared candidate takes at least 5 argument(s) [arity-mismatch]"; the parent gives Str with no diagnostic; perl 5.42 runs it. Fix: loop to max(least, most+1); test `join_all(1, 2, 3, 4, 5, @a)` expecting Str and no diagnostics, failing first.
+B. (folded in by the orchestrator, same function; 65) `internal/infer/calls.go:96-97` `flattens` looks only at the argument's type, so an `@a` passed to a backslashed `Array \@a` parameter, which perl passes as one container, is counted as zero or more: `multi f (Array \@a) Int; multi f (Array \@a, Array \@b) Str;` makes `f(@x)` Int|Str instead of Int, and skips coercion checks. Fix: count an Array or Hash argument as flattening only where no candidate's parameter in that position is backslashed; a test.
 
 ## Acceptance criteria
 
