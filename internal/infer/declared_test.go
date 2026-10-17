@@ -52,7 +52,8 @@ func TestInferTypesCallFromDeclaration(t *testing.T) {
 // localtime(0)` nine numbers; `my %h = (a => 1); my $k = each %h` is "a"
 // and `my @a = (5); my $i = each @a` is 0. A call whose context the site
 // cannot determine, a sub's return value, joins its candidates. My::Lib's
-// `when_` is a library multi forking on context the same way.
+// `when_` is a library multi forking on context the same way, and joins
+// them in a sub's return, with nothing reported.
 func TestInferSelectsMultiAtCallSite(t *testing.T) {
 	cases := []struct {
 		src, call string
@@ -65,6 +66,7 @@ func TestInferSelectsMultiAtCallSite(t *testing.T) {
 		{"sub f { return localtime($_[0]) }", "localtime($_[0])", types.Str | types.Undef | types.List},
 		{"use My::Lib; my $w = when_();", "when_()", types.Str},
 		{"use My::Lib; my @w = when_();", "when_()", types.List},
+		{"use My::Lib; sub g { return when_() }", "when_()", types.Str | types.List},
 	}
 	for _, c := range cases {
 		got, diags := declaredCallType(t, c.src, c.call)
@@ -110,12 +112,24 @@ func TestInferNoCandidateArityIsError(t *testing.T) {
 	// An array flattens into the call's arguments, however many it holds.
 	_, diags = declaredCallType(t, "use My::Multi; my @a = (1, 2, 3); my $r = two(@a, 4, 5);", "two(@a, 4, 5)")
 	assert.Empty(t, diags)
+
+	// Three arguments and an array are at least three, which no candidate
+	// takes however many the array holds.
+	got, diags = declaredCallType(t, "use My::Multi; my @a = (1); my $r = two(1, 2, 3, @a);", "two(1, 2, 3, @a)")
+	assert.Equal(t, types.Unknown, got)
+	require.Len(t, diags, 1)
+	assert.Equal(t, infer.CodeArityMismatch, diags[0].Code, diags[0].Message)
 }
 
 // TestInferArityChoosesCandidate: CORE.tpm's select is a Str with one
 // argument and a List with four. Measured on 5.42.0, `select(STDERR)` is
 // "main::STDOUT" and `select(undef, undef, undef, 0)` is (0, 0). My::Multi's
-// two is chosen by its arity the same way.
+// two is chosen by its arity the same way. An array or a hash flattens into
+// as many arguments as it holds, so a call passing one has no arity to
+// choose by, and joins the candidates taking at least its other arguments:
+// measured on 5.42.0 with a module whose two returns 1 for one argument and
+// "two" for two, `my @a = (1, 2); two(@a)` and `my %h = (a => 1); two(%h)`
+// are "two", and `my @a = (1); two(@a)` is 1.
 func TestInferArityChoosesCandidate(t *testing.T) {
 	cases := []struct {
 		src, call string
@@ -125,6 +139,9 @@ func TestInferArityChoosesCandidate(t *testing.T) {
 		{"my @r = select(undef, undef, undef, 0.25);", "select(undef, undef, undef, 0.25)", types.List},
 		{"use My::Multi; my $r = two(1);", "two(1)", types.Int},
 		{"use My::Multi; my $r = two(1, 2);", "two(1, 2)", types.Str},
+		{"use My::Multi; my @a = (1, 2); my $r = two(@a);", "two(@a)", types.Int | types.Str},
+		{"use My::Multi; my %h = (a => 1); my $r = two(%h);", "two(%h)", types.Int | types.Str},
+		{"use My::Multi; my @a = (2); my $r = two(1, @a);", "two(1, @a)", types.Int | types.Str},
 	}
 	for _, c := range cases {
 		got, diags := declaredCallType(t, c.src, c.call)
