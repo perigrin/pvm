@@ -23,7 +23,7 @@ blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 - 01a0fd9b-5700-7514-a143-2caed2d06d8b
 created: 2026-10-16T20:59:46.420731313Z
-updated: 2026-10-17T00:11:45.996215448Z
+updated: 2026-10-17T00:15:57.277521636Z
 sessions:
 - start_sha: a9ce48f0047db49c938b19bdad67387cc27a0bd5
   end_sha: dcc066cc0fb89509812adfaa862f2096d7e4c67f
@@ -133,6 +133,13 @@ Tier-2 gate, 2026-10-16, on dcc066cc (fresh reviewer subagent; lenses applied in
 1. (in scope, confidence 75) `internal/parse/declarations.go:264-265`: a multi's candidates with different marks are silently merged, first wins. `multi sub f :export (Int $i) Str; multi sub f :export_ok (Str $s) Int;` gives no error; `:export_ok(a)` on one candidate and `:export_ok(b)` on another puts f only in tag `a`; a mark on only one candidate gives no error. Perl exports a name, not a candidate, so disagreement is a contradiction in the file. Resolution (orchestrator, by the silent-failure rule F4 applied): an error, "multi sub f: candidates mark f differently", whenever later candidates' (bare, tags) differ from the first, including a mark on only some candidates. Negative tests for each of the three shapes.
 2. (in scope, confidence 70) `internal/parse/declarations.go:301-311` refuseInDeclaration matches only `n.Children[0].Text`, so `our (@EXPORT) = qw(f);` and `our (@EXPORT, @EXPORT_OK) = (...)` are not refused and export nothing. Also silent: `push @EXPORT, 'f'`, `@My::Odd::EXPORT = ...`, `BEGIN { our @EXPORT = ... }`, `use vars qw(@EXPORT)`. Fix: refuse a declaration or assignment whose list holds an @EXPORT, @EXPORT_OK or %EXPORT_TAGS term, and the non-`our` forms; a test case for each.
 3. (in scope, confidence 75) `internal/parse/exportattr_test.go` refusedList / TestDeclarationExportTagsRefused cannot see whether the tag list is dropped: removing the reset of facts.exports/defaults/tags leaves it passing. Fix: in the tags case also assert `use My::Listed ':all'` imports nothing; show it fails without the reset.
+
+### Review Findings (pass 2)
+
+Tier-2 gate pass 2, 2026-10-17, on 6c727e93 (fresh reviewer subagent; overlay mutations prove findings 1-3 fixed; every shipped .tpm loads clean; comments, POD, strings, `our $EXPORT`, `sub EXPORT` and scalar parameters are not refused). VERDICT: REOPEN.
+
+A. (in scope, 80) `internal/parse/declarations.go:347-355` the `walk` in refuseInDeclaration descends into sub signatures, so a parameter named like an export list is refused as one, with a misleading message: `sub g (Array \@EXPORT) Int;` gives "line 2: Array @EXPORT: a .tpm marks each export ... not in a list"; `sub g (@EXPORT) Int;` gives "line 2:  @EXPORT: ..." (empty prefix); `sub g (Hash \%EXPORT_TAGS) Int;` and a multi candidate likewise. A parameter is local and exports nothing; perl accepts these. Fix: do not descend into a sub's signature or parameter nodes; add the `Array \@EXPORT`, `(@EXPORT)` and `Hash \%EXPORT_TAGS` parameter shapes to TestDeclarationExportListFormsRefused as cases expecting no errors.
+B. (folded in by the orchestrator, same function) `exportListVar` accepts any sigil, so `our %EXPORT :export` is refused though `%EXPORT` is not an export list. Match the sigil: `@EXPORT`, `@EXPORT_OK`, `%EXPORT_TAGS` (and their `$` element forms) only; a test case expecting no error.
 
 ## Acceptance Criteria
 
