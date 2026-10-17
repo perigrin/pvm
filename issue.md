@@ -1,6 +1,6 @@
 ---
 title: Convert every .tpm to :export and :export_ok, then refuse export lists in a .tpm
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -23,7 +23,7 @@ blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 - 01a0fd9b-5700-7514-a143-2caed2d06d8b
 created: 2026-10-16T20:59:46.420731313Z
-updated: 2026-10-16T23:16:09.165505353Z
+updated: 2026-10-17T00:11:45.996215448Z
 sessions:
 - start_sha: a9ce48f0047db49c938b19bdad67387cc27a0bd5
   end_sha: dcc066cc0fb89509812adfaa862f2096d7e4c67f
@@ -31,9 +31,10 @@ sessions:
   started_at: 2026-10-16T21:54:12.485228145Z
   ended_at: 2026-10-16T23:03:36.663553356Z
 - start_sha: cc1416816b43a75d9d4de73e9269452b26f61f27
-  end_sha: ""
-  commits: 0
+  end_sha: 6c727e93d5c2761bfd2d0e4f8eb56a53088e130d
+  commits: 4
   started_at: 2026-10-16T23:16:09.165505353Z
+  ended_at: 2026-10-17T00:11:45.996215448Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
@@ -47,9 +48,18 @@ transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-16T23:16:09.165505353Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-17T00:11:45.996215448Z
 observed_paths:
 - docs/rfcs/0001-type-libraries.md
 - internal/data/help/types.md
+- internal/infer/calls.go
+- internal/infer/declared_test.go
+- internal/infer/infer.go
+- internal/infer/returntypes_test.go
+- internal/infer/testdata/oracle/Carp.pl
+- internal/infer/testdata/return_oracle.pl
 - internal/parse/arityrefusal_test.go
 - internal/parse/declarations.go
 - internal/parse/declarations/Carp.tpm
@@ -58,16 +68,27 @@ observed_paths:
 - internal/parse/declarations/Moose/Role.tpm
 - internal/parse/exportattr_test.go
 - internal/parse/exports.go
+- internal/parse/heldtoperl_test.go
+- internal/parse/library_tpm_test.go
 - internal/parse/ranking_test.go
 - internal/parse/refscalar_test.go
 - internal/parse/testdata/core_module_ranking.txt
 - internal/parse/testdata/declarations/My/Lib.tpm
+- internal/parse/testdata/declarations/My/Multi.tpm
+- internal/parse/testdata/declarations/My/OkOnly.tpm
+- internal/parse/testdata/declarations/My/UntypedVars.tpm
+- internal/parse/testdata/held_to_perl.pl
 - internal/parse/typedour_test.go
 - internal/perltest/perl542_test.go
 - internal/psc/inc_roots_test.go
 - internal/psc/lib_baseline_test.go
 - internal/types/select.go
 - internal/types/select_test.go
+- test/e2e/psc_check_test.go
+- test/e2e/testdata/check/declared_fit.pl
+- test/e2e/testdata/check/declared_mismatch.pl
+- test/e2e/testdata/check/declared_single.pl
+- test/e2e/testdata/check/undecided_call.pl
 ---
 
 ## Prerequisites
