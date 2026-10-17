@@ -16,7 +16,7 @@ blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 - 01a14683-8405-743e-9c90-7bb5ff9cec88
 created: 2026-10-02T17:13:31.136589197Z
-updated: 2026-10-17T00:07:03.288585122Z
+updated: 2026-10-17T00:21:50.406076141Z
 sessions:
 - start_sha: cc1416816b43a75d9d4de73e9269452b26f61f27
   end_sha: a35012438663295404da21ff5a6a7ec965d1d93a
@@ -109,6 +109,13 @@ From the alignment gate on 01a0fd9b-4ca3-7d55-82ac-ba125816ee71: `types.Select(c
 ### Review Findings from da0a's gate (forward precision note)
 
 (confidence 70) `internal/types/select.go:77-79`: when no candidate fits the argument types, the fallback replaces every argument with Unknown, discarding arguments that did discriminate. Candidates `(Int a, Str b) Int` and `(Code a, Str b) ArrayRef` with arguments `(Int, FileHandle)` give Undecided `Int|ArrayRef`, though `Int` rules out the Code candidate. Sound but imprecise. When this issue feeds concrete argument types from library multis, set to Unknown only the arguments that fit no candidate, then run the normal fit and mostSpecific, if a criterion here depends on it.
+
+### Review Findings
+
+Tier-2 gate, 2026-10-17, on a3501243 (fresh reviewer subagent; lenses applied inline; psc check over perl 5.42's privlib identical to the parent; exact 47 of 56 under perl 5.42). Severity of Undef->Str as error matches builtins' existing policy; OverlayDeclarations justified. VERDICT: REOPEN.
+
+1. (in scope, 85) `internal/infer/calls.go:91-113` declaredCall counts a flattening argument as one argument when selecting: `use My::Multi; my @a=(1,2); my $r = two(@a);` picks `two (Int $a) Int` and types the call Int; `two(%h)` likewise. Perl gives `two(@a)` two arguments and returns the two-argument candidate's value (perl -wle prints `two` for both). The guard skips only the arity error; selection still uses the wrong count, breaking "selects by arity". Fix: when an argument flattens in a call to a multi with no prototype, do not let Select choose by arity: join the candidates whose arity can take at least the non-flattening arguments (or Undecided). Test: `two(@a)` must not be Int.
+2. (in scope, 75) `internal/infer/calls.go:98`: no test reaches declaredCall's Undecided path. Mutation A (`case sel.Outcome != types.Selected && !flattens:`, reporting every Undecided library call as an arity error) survives all 13 criteria; the "Undecided multi joins and psc check reports nothing" criterion is met only through builtin localtime (callReturns, not this code) and passes at the parent. Fix: add a library-multi undecided case, e.g. `use My::Lib; sub g { return when_() }` expecting `Str|List` and no diagnostics, in infer and in the e2e fixture; show mutation A fails it.
 
 ## Acceptance criteria
 
