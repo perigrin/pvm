@@ -4,7 +4,8 @@ package Carp;
 
 # verbose is no sub and is marked nowhere: Carp's @EXPORT_FAIL takes it as
 # a flag that sets $Carp::Verbose, and measured on 5.42.0, `use Carp
-# qw(verbose)` defines nothing in the caller.
+# qw(verbose)` defines nothing in the caller: Exporter leaves an undefined
+# stub there, in a package with no AUTOLOAD, so no call reaches a sub.
 
 # croak and confess die with their message, as die does: measured on
 # 5.42.0, `eval { croak "x" }` leaves "x at -e line 1." in $@.

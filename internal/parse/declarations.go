@@ -422,6 +422,15 @@ func CoreBuiltin(name string) []types.Signature {
 	return coreSignatures()[name]
 }
 
+// DeclaredSignatures reads a library's .tpm source as the resolver reads
+// it, and returns its typed signatures by sub name, one per candidate,
+// with the errors the file states. Tests that hold a declaration to perl
+// read its return types from it.
+func DeclaredSignatures(src []byte) (map[string][]types.Signature, []error) {
+	facts := readLibraryDeclaration(src, nil)
+	return facts.signatures, facts.errs
+}
+
 // CoreOperator is the typed signatures CORE.tpm declares for the operator
 // spelled op of fixity "infix", "prefix" or "postfix", one per candidate, and nil for
 // one it does not declare. internal/infer types operators from it.
