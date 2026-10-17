@@ -16,7 +16,7 @@ blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 - 01a14683-8405-743e-9c90-7bb5ff9cec88
 created: 2026-10-02T17:13:31.136589197Z
-updated: 2026-10-17T01:07:27.493080025Z
+updated: 2026-10-17T03:33:36.930203781Z
 sessions:
 - start_sha: cc1416816b43a75d9d4de73e9269452b26f61f27
   end_sha: a35012438663295404da21ff5a6a7ec965d1d93a
@@ -167,6 +167,13 @@ Tier-2 gate pass 2, 2026-10-17, on 51c907f2 (fresh reviewer subagent; overlay mu
 
 A. (in scope, 90; introduced by b935fd11) `internal/infer/calls.go:138-142` flattenedSelect's loop `for count := least; count <= most+1; count++` never runs when the fixed arguments exceed most+1, so a slurpy call becomes Failed: `use My::Lib; my @a=(1); my $s = join_all(1, 2, 3, 4, 5, @a);` against `sub join_all (Str $sep, List[Str] @parts) Str` gives Unknown and "no declared candidate takes at least 5 argument(s) [arity-mismatch]"; the parent gives Str with no diagnostic; perl 5.42 runs it. Fix: loop to max(least, most+1); test `join_all(1, 2, 3, 4, 5, @a)` expecting Str and no diagnostics, failing first.
 B. (folded in by the orchestrator, same function; 65) `internal/infer/calls.go:96-97` `flattens` looks only at the argument's type, so an `@a` passed to a backslashed `Array \@a` parameter, which perl passes as one container, is counted as zero or more: `multi f (Array \@a) Int; multi f (Array \@a, Array \@b) Str;` makes `f(@x)` Int|Str instead of Int, and skips coercion checks. Fix: count an Array or Hash argument as flattening only where no candidate's parameter in that position is backslashed; a test.
+
+### Review Findings (pass 3)
+
+Tier-2 gate pass 3, 2026-10-17, on 8d17e0b3 (fresh reviewer subagent; overlays prove pass-2 A and B fixed; 8405 interplay probed clean; precision 65/76 WRONG 0; lib baseline holds). VERDICT: REOPEN (third and final reopen allowed).
+
+1. (in scope, 75; introduced by b8b5f2c1) `internal/infer/calls.go:99-103,157-163` aliasedAt counts an array as one fixed argument when SOME candidate backslashes that position, so disagreeing candidates give a type that is wrong, not merely wide: `multi sub d (Array \@a) Int; multi sub d (List @l) Str;` makes `d(@x)` Int; `(Array \@a) Int` beside `(Int $a, Int $b, Int $c) Str` makes `e(@x)` Int. The loader (`prototypeFromCandidates`, internal/parse/derive.go:154; declarations.go:198-200) gives such a multi NO prototype, and without a prototype perl flattens: `sub h { scalar @_ } h(@x)` prints 3. The fixture `box` ((\@) and (\@\@)) also derives no prototype, so its Int test rests on a `\@;\@` prototype the loader does not give it.
+   Resolution (orchestrator, by perl and perigrin's ruling that call resolution comes from the parser): an argument is passed as one container only when the prototype perl applies to this call (the one the parser resolved for the sub, as `lower.Call` carries it) backslashes that position; with no resolved prototype, an array or hash argument flattens. Tests: `d(@x)` and `e(@x)` are the join, failing first; `box`'s cases follow from box's resolved prototype (measure with perl what a sub with no prototype does with `box(@x)`), and if the fixture's intent needs `\@;\@`, give it that prototype explicitly so the test measures what perl does.
 
 ## Acceptance criteria
 
