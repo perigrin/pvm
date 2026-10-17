@@ -1,6 +1,6 @@
 ---
 title: Type calls to imported library subs from their .tpm declarations and select multis at call sites
-state: done
+state: reopened
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -16,7 +16,7 @@ blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 - 01a14683-8405-743e-9c90-7bb5ff9cec88
 created: 2026-10-02T17:13:31.136589197Z
-updated: 2026-10-17T00:52:11.189570274Z
+updated: 2026-10-17T00:52:11.30950209Z
 sessions:
 - start_sha: cc1416816b43a75d9d4de73e9269452b26f61f27
   end_sha: a35012438663295404da21ff5a6a7ec965d1d93a
@@ -44,6 +44,9 @@ transitions:
 - state: done
   actor: human:git-zhi
   timestamp: 2026-10-17T00:45:17.558269979Z
+- state: reopened
+  actor: human:git-zhi
+  timestamp: 2026-10-17T00:52:11.30950209Z
 observed_paths:
 - internal/data/help/types.md
 - internal/infer/calls.go
