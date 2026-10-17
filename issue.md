@@ -1,6 +1,6 @@
 ---
 title: Type calls to imported library subs from their .tpm declarations and select multis at call sites
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -16,7 +16,7 @@ blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 - 01a14683-8405-743e-9c90-7bb5ff9cec88
 created: 2026-10-02T17:13:31.136589197Z
-updated: 2026-10-17T00:52:11.547877905Z
+updated: 2026-10-17T01:07:27.493080025Z
 sessions:
 - start_sha: cc1416816b43a75d9d4de73e9269452b26f61f27
   end_sha: a35012438663295404da21ff5a6a7ec965d1d93a
@@ -29,9 +29,10 @@ sessions:
   started_at: 2026-10-17T00:21:50.805673827Z
   ended_at: 2026-10-17T00:45:17.558269979Z
 - start_sha: 3bd5ce632c0e695e117434bf3358a8e53a15f8bd
-  end_sha: ""
-  commits: 0
+  end_sha: 8d17e0b3c88c2e801f39107186c29dd64c8491c8
+  commits: 3
   started_at: 2026-10-17T00:52:11.547877905Z
+  ended_at: 2026-10-17T01:07:27.493080025Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
@@ -54,24 +55,41 @@ transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-17T00:52:11.547877905Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-17T01:07:27.493080025Z
 observed_paths:
+- docs/rfcs/0001-type-libraries.md
 - internal/data/help/types.md
 - internal/infer/calls.go
 - internal/infer/declared_test.go
+- internal/infer/export_test.go
+- internal/infer/flow.go
+- internal/infer/flow_test.go
 - internal/infer/infer.go
+- internal/infer/ops.go
 - internal/infer/returntypes_test.go
+- internal/infer/special.go
+- internal/infer/testdata/lowered/special/sort_block.golden
+- internal/infer/testdata/lowered/special/sort_list.golden
+- internal/infer/testdata/lowered/special/sort_plain.golden
 - internal/infer/testdata/oracle/Carp.pl
 - internal/infer/testdata/return_oracle.pl
+- internal/parse/decl.go
 - internal/parse/declarations.go
 - internal/parse/declarations/Carp.tpm
 - internal/parse/exportattr_test.go
 - internal/parse/heldtoperl_test.go
 - internal/parse/library_tpm_test.go
+- internal/parse/qualified_test.go
 - internal/parse/testdata/declarations/My/Multi.tpm
 - internal/parse/testdata/declarations/My/OkOnly.tpm
 - internal/parse/testdata/declarations/My/UntypedVars.tpm
 - internal/parse/testdata/held_to_perl.pl
 - internal/parse/typedour_test.go
+- internal/parse/use.go
+- internal/perltest/perltest.go
+- internal/types/declared.go
 - internal/types/select.go
 - internal/types/select_test.go
 - test/e2e/psc_check_test.go
