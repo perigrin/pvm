@@ -1,6 +1,6 @@
 ---
 title: Give a qualified call its declaration's signatures, so Carp::confess is an exit and typed
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -9,7 +9,16 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.325366834Z
-updated: 2026-10-16T21:00:21.014794589Z
+updated: 2026-10-17T00:07:41.393710811Z
+sessions:
+- start_sha: a35012438663295404da21ff5a6a7ec965d1d93a
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-17T00:07:41.393710811Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-17T00:07:41.393710811Z
 ---
 
 ## Prerequisites
