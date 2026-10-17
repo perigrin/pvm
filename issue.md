@@ -1,10 +1,10 @@
 ---
 title: Generate a .tpm skeleton from perl 5.42 for each core module
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 created: 2026-10-17T04:36:13.290610042Z
-updated: 2026-10-17T05:06:48.403535093Z
+updated: 2026-10-17T05:22:04.829196028Z
 sessions:
 - start_sha: 5b91125f4014127e11963fc610c805ba205b10ff
   end_sha: 51c993cd397ad3e68b7ae8e64fdabf2624b1b4bf
@@ -12,9 +12,10 @@ sessions:
   started_at: 2026-10-17T04:36:37.923656263Z
   ended_at: 2026-10-17T04:58:40.29099013Z
 - start_sha: 33ad8d4c2cb59a472bee475eca8881a92b333587
-  end_sha: ""
-  commits: 0
+  end_sha: 46db47a894776f7d44b909c1c5cce3b9cf62c343
+  commits: 29
   started_at: 2026-10-17T05:06:48.403535093Z
+  ended_at: 2026-10-17T05:22:04.829196028Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
@@ -28,6 +29,9 @@ transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-17T05:06:48.403535093Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-17T05:22:04.829196028Z
 observed_paths:
 - docs/rfcs/0001-type-libraries.md
 - internal/parse/heldtoperl_test.go
