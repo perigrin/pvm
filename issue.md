@@ -1,6 +1,6 @@
 ---
 title: "Declare the IO and file-handling exporters: FileHandle, IO::Handle, IO::File, IO::Socket, File::Temp and four more"
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -11,7 +11,16 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.542610643Z
-updated: 2026-10-16T21:01:51.346480211Z
+updated: 2026-10-17T04:25:18.708020268Z
+sessions:
+- start_sha: 5b91125f4014127e11963fc610c805ba205b10ff
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-17T04:25:18.708020268Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-17T04:25:18.708020268Z
 ---
 
 ## Prerequisites
