@@ -1,6 +1,6 @@
 ---
 title: Type calls to imported library subs from their .tpm declarations and select multis at call sites
-state: reopened
+state: in-progress
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -16,7 +16,7 @@ blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 - 01a14683-8405-743e-9c90-7bb5ff9cec88
 created: 2026-10-02T17:13:31.136589197Z
-updated: 2026-10-17T03:33:36.983293033Z
+updated: 2026-10-17T03:33:37.034700449Z
 sessions:
 - start_sha: cc1416816b43a75d9d4de73e9269452b26f61f27
   end_sha: a35012438663295404da21ff5a6a7ec965d1d93a
@@ -33,6 +33,10 @@ sessions:
   commits: 3
   started_at: 2026-10-17T00:52:11.547877905Z
   ended_at: 2026-10-17T01:07:27.493080025Z
+- start_sha: 8d17e0b3c88c2e801f39107186c29dd64c8491c8
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-17T03:33:37.034700449Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
@@ -61,6 +65,9 @@ transitions:
 - state: reopened
   actor: human:git-zhi
   timestamp: 2026-10-17T03:33:36.983293033Z
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-17T03:33:37.034700449Z
 observed_paths:
 - docs/rfcs/0001-type-libraries.md
 - internal/data/help/types.md
