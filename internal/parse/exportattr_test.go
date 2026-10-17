@@ -131,7 +131,8 @@ func TestModuleSourceExportListStillRead(t *testing.T) {
 }
 
 // refusedList wants a .tpm stating list to be in error, naming the module
-// and line 3, and to import nothing from the list.
+// and line 3, and to import nothing from the list: neither a name it holds
+// nor a tag it states.
 func refusedList(t *testing.T, list, want string) {
 	t.Helper()
 	saved := declarations
@@ -147,6 +148,9 @@ func refusedList(t *testing.T, list, want string) {
 	}
 	if _, ok := Imports(root)["f"]; !ok {
 		t.Errorf("f, marked :export, not imported: %v", Imports(root))
+	}
+	if imports := Imports(ParseWithLoader([]byte("use My::Listed ':all';\n"), noModules)); len(imports) > 0 {
+		t.Errorf("use My::Listed ':all' imported from a refused list: %v", imports)
 	}
 }
 
@@ -164,9 +168,10 @@ func TestDeclarationExportOkListRefused(t *testing.T) {
 }
 
 // TestDeclarationExportTagsRefused: nor a %EXPORT_TAGS; a tag is the
-// attribute's argument, :export_ok(tag).
+// attribute's argument, :export_ok(tag). Its tag holds the exported f, so
+// only the refusal keeps `:all` from importing it.
 func TestDeclarationExportTagsRefused(t *testing.T) {
-	refusedList(t, "our %EXPORT_TAGS = (all => [qw(g)]);",
+	refusedList(t, "our %EXPORT_TAGS = (all => [qw(f)]);",
 		"My::Listed: line 3: our %EXPORT_TAGS: a .tpm marks each export :export or :export_ok, not in a list")
 }
 
@@ -209,6 +214,61 @@ func TestDeclarationUnknownAttributeRefused(t *testing.T) {
 			got = append(got, err.Error())
 		}
 		if want == "" && len(got) > 0 || want != "" && !slices.Equal(got, []string{want}) {
+			t.Errorf("%q: errors %q, want %q", src, got, want)
+		}
+	}
+}
+
+// TestMultiCandidatesMarkedDifferentlyRefused: perl exports a name, not a
+// candidate, so a multi's candidates marking it differently contradict
+// each other: :export against :export_ok, different tags, or a mark on
+// only some candidates.
+func TestMultiCandidatesMarkedDifferentlyRefused(t *testing.T) {
+	saved := declarations
+	t.Cleanup(func() { declarations = saved })
+	const differ = "My::Multi: multi sub f: candidates mark f differently"
+	for src, want := range map[string]string{
+		"multi sub f :export (Int $i) Str;\nmulti sub f :export_ok (Str $s) Int;\n":               differ,
+		"multi sub f :export_ok(a) (Int $i) Str;\nmulti sub f :export_ok(b) (Str $s) Int;\n":      differ,
+		"multi sub f :export (Int $i) Str;\nmulti sub f (Str $s) Int;\n":                          differ,
+		"multi sub f (Int $i) Str;\nmulti sub f :export (Str $s) Int;\n":                          differ,
+		"multi sub f :export_ok(a,b) (Int $i) Str;\nmulti sub f :export_ok(b, a) (Str $s) Int;\n": "",
+	} {
+		declarations = layeredFS{top: fstest.MapFS{"declarations/My/Multi.tpm": {Data: []byte("package My::Multi;\n" + src)}}, base: saved}
+		var got []string
+		for _, err := range DeclarationErrors(ParseWithLoader([]byte("use My::Multi;\n"), noModules)) {
+			got = append(got, err.Error())
+		}
+		if want == "" && len(got) > 0 || want != "" && !slices.Equal(got, []string{want}) {
+			t.Errorf("%q: errors %q, want %q", src, got, want)
+		}
+	}
+}
+
+// TestDeclarationExportListFormsRefused: an export list is refused in
+// every form a .tpm could state one, not only as a top-level `our` or
+// assignment: in a declared list, pushed onto, package-qualified, inside
+// a block, declared by `use vars`, or assigned an element.
+func TestDeclarationExportListFormsRefused(t *testing.T) {
+	saved := declarations
+	t.Cleanup(func() { declarations = saved })
+	const tail = ": a .tpm marks each export :export or :export_ok, not in a list"
+	for src, want := range map[string][]string{
+		"our (@EXPORT) = qw(f);\n":               {"My::Odd: line 2: our @EXPORT" + tail},
+		"our (@EXPORT, @EXPORT_OK) = (qw(f));\n": {"My::Odd: line 2: our @EXPORT" + tail, "My::Odd: line 2: our @EXPORT_OK" + tail},
+		"push @EXPORT, 'f';\n":                   {"My::Odd: line 2: @EXPORT" + tail},
+		"@My::Odd::EXPORT = qw(f);\n":            {"My::Odd: line 2: @My::Odd::EXPORT" + tail},
+		"BEGIN { our @EXPORT = qw(f) }\n":        {"My::Odd: line 2: our @EXPORT" + tail},
+		"use vars qw(@EXPORT_OK);\n":             {"My::Odd: line 2: use vars @EXPORT_OK" + tail},
+		"$EXPORT_TAGS{all} = [qw(f)];\n":         {"My::Odd: line 2: $EXPORT_TAGS" + tail},
+		"our $EXPORT :export;\n":                 nil,
+	} {
+		declarations = layeredFS{top: fstest.MapFS{"declarations/My/Odd.tpm": {Data: []byte("package My::Odd;\n" + src + "sub f () Int;\n")}}, base: saved}
+		var got []string
+		for _, err := range DeclarationErrors(ParseWithLoader([]byte("use My::Odd;\n"), noModules)) {
+			got = append(got, err.Error())
+		}
+		if !slices.Equal(got, want) {
 			t.Errorf("%q: errors %q, want %q", src, got, want)
 		}
 	}
