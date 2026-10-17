@@ -1,6 +1,6 @@
 ---
 title: "Hold Carp.tpm to perl: prototypes, export lists and a return-type oracle"
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -21,7 +21,7 @@ blocks:
 - 01a1464e-dde3-73fe-ab1f-ced7f18c4f9d
 - 01a14657-682e-7432-8ea9-828f56cd2f69
 created: 2026-10-16T20:02:15.452693569Z
-updated: 2026-10-17T04:09:51.770767511Z
+updated: 2026-10-17T04:20:25.531650975Z
 sessions:
 - start_sha: dcc066cc0fb89509812adfaa862f2096d7e4c67f
   end_sha: c707b8354a29d997aed698fe26d8f94558304d31
@@ -39,9 +39,10 @@ sessions:
   started_at: 2026-10-17T03:36:55.518360748Z
   ended_at: 2026-10-17T04:01:49.465622649Z
 - start_sha: a17f2a27b6415b241eba520381e386a74301e1b3
-  end_sha: ""
-  commits: 0
+  end_sha: 5b91125f4014127e11963fc610c805ba205b10ff
+  commits: 1
   started_at: 2026-10-17T04:09:51.770767511Z
+  ended_at: 2026-10-17T04:20:25.531650975Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
@@ -73,6 +74,9 @@ transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-17T04:09:51.770767511Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-17T04:20:25.531650975Z
 observed_paths:
 - docs/rfcs/0001-type-libraries.md
 - internal/data/help/types.md
@@ -90,13 +94,19 @@ observed_paths:
 - internal/infer/testdata/lowered/special/sort_plain.golden
 - internal/infer/testdata/oracle/Carp.pl
 - internal/infer/testdata/return_oracle.pl
+- internal/lower/call.go
+- internal/lower/node.go
+- internal/parse/arity.go
 - internal/parse/decl.go
 - internal/parse/declarations.go
 - internal/parse/declarations/Carp.tpm
 - internal/parse/exportattr_test.go
 - internal/parse/heldtoperl_test.go
 - internal/parse/library_tpm_test.go
+- internal/parse/parse.go
 - internal/parse/qualified_test.go
+- internal/parse/refscalar.go
+- internal/parse/refscalar_test.go
 - internal/parse/testdata/declarations/My/Multi.tpm
 - internal/parse/testdata/declarations/My/OkOnly.tpm
 - internal/parse/testdata/declarations/My/UntypedVars.tpm
