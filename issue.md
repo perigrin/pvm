@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:59:46.565162192Z
-updated: 2026-10-17T01:04:22.914493217Z
+updated: 2026-10-17T03:33:13.221707064Z
 sessions:
 - start_sha: a35012438663295404da21ff5a6a7ec965d1d93a
   end_sha: 3d5883ad3461132cbafb527d2cd0af0b49134811
@@ -80,6 +80,17 @@ Where perl decides a question, run perl (`/home/perigrin/.local/bin/perl`) rathe
 - [ ] Write failing test `TestInferConditionMatchNotList`; run to verify failure; give conditions scalar context; run to verify pass; commit
 - [ ] Write failing test `TestInferVoidMatchIsUntypedNotError`; run to verify failure; treat a void-context Failed as untyped; run to verify pass; commit
 - [ ] Re-mark the RFC heading "Call sites" `(*Implemented*, <shas>)`; `make test`; commit
+
+### Review Findings
+
+Tier-2 gate, 2026-10-17, on 3d5883ad (fresh reviewer subagent; lenses applied inline; ten overlay mutations; psc check over perl 5.42's privlib identical to the parent; perl 5.42 measurements). Sort's List type is consistent with other CORE.tpm-typed builtins; SortSelection/newAnalysis justified; void arity failure correctly stays an error. VERDICT: REOPEN.
+
+1. (in scope, 95) `internal/infer/flow.go:320-325` elsif walks n.Cond without `a.condition(n.Cond)`: `if (0) {...} elsif ($s =~ /b/) {...}` types the match List, contradicting 73a6178e and the condition doc comment. Fix: call condition at the top of elsif; add an elsif case to TestInferConditionMatchNotList.
+2. (in scope, 95) TestInferVoidMatchIsUntypedNotError's last-statement assertion can never fail: `sub f { $_[0] =~ s/b/c/g }` has no semicolon, so findNodeType returns the ExprStmt (Any). Fix: `sub f { $_[0] =~ s/b/c/g; }` or assert types.Str; show it fails when the last statement is also put in void.
+3. (in scope, 80) `internal/infer/infer.go:245` voidStatements in block() is untested: removing it passes every test; `sub f { $s =~ s/a/b/g; return 1 }` then gets Str. Fix: a block-level case expecting Unknown.
+4. (in scope, 75) `internal/infer/infer.go:211` C-style `for(;COND;)` gives the condition no scalar context; perl 5.42 reports scalar for wantarray there; `for (; $s =~ /b/; )` types the match List. Fix: a CForStmt case calling condition then walking children; a test.
+5. (folded in by the orchestrator, 65) `internal/infer/special.go:20` "a sort in scalar context is left untyped" is untested: removing the ListCtx guard passes every test. Fix: `my $c = sort @n` is Unknown.
+6. (in scope, Step 5, 70) The RFC "Call sites" paragraph overclaims: after 1 and 4 the condition sentence holds; "a statement whose value is discarded is in void context" is broader than the code (only a block's or file's non-final statements; not a loop body's last, not modifier forms). Fix: say "a statement that is not its block's last".
 
 ## Acceptance Criteria
 
