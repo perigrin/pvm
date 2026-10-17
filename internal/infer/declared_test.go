@@ -245,3 +245,27 @@ func TestInferDeleteSliceNotElement(t *testing.T) {
 	got, _ := declaredCallType(t, decl+"my $v = delete $h{a};", "delete $h{a}")
 	assert.Equal(t, types.Scalar, got)
 }
+
+// TestInferConditionMatchNotList: a condition is evaluated in scalar
+// context, where a match is a Boolean, not the List of its captures.
+// Measured on 5.42.0, a sub reporting wantarray says "scalar" as the
+// condition of if, unless, a statement modifier, while, a ternary, and
+// as the operand of `!` and of `not`.
+func TestInferConditionMatchNotList(t *testing.T) {
+	const decl = "my $s = 'abc'; "
+	cases := []struct{ src, match string }{
+		{"if ($s =~ /b/) { print 1 }", "$s =~ /b/"},
+		{"unless ($s =~ /b/) { print 1 }", "$s =~ /b/"},
+		{"print 1 if $s =~ /b/;", "$s =~ /b/"},
+		{"while ($s =~ /b/) { last }", "$s =~ /b/"},
+		{"my $r = $s =~ /b/ ? 1 : 0;", "$s =~ /b/"},
+		// The parenthesised match spans its parentheses.
+		{"my $r = !($s =~ /b/);", "($s =~ /b/)"},
+		{"my $r = not $s =~ /b/;", "$s =~ /b/"},
+	}
+	for _, c := range cases {
+		got, diags := declaredCallType(t, decl+c.src, c.match)
+		assert.Equal(t, types.Boolean, got, "%q", c.src)
+		assert.Empty(t, diags, "%q", c.src)
+	}
+}

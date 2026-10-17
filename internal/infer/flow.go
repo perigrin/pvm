@@ -25,6 +25,7 @@ import (
 // says. When its body exits, what follows knows the guard went the other
 // way, as modifierExit says.
 func (a *analysis) ifStmt(n *lower.IfStmt) {
+	a.condition(n.Cond)
 	if !isBranch(n.Then) || !isBranch(n.Else) {
 		m, success := successMatch(n)
 		if m == nil || success == nil {
@@ -349,6 +350,7 @@ func (a *analysis) elsif(n *lower.IfStmt, pre map[string]types.Type) ([]map[stri
 // failed. A modifier form, `do BLOCK while` included, is not narrowed as a
 // loop statement is.
 func (a *analysis) whileStmt(n *lower.WhileStmt) {
+	a.condition(n.Cond)
 	body, ok := n.Body.(*lower.Block)
 	if !ok || n.PostCond {
 		a.walkChildren(n)

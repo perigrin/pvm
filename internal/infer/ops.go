@@ -482,6 +482,9 @@ func (a *analysis) unary(n *lower.Unary) types.Type {
 		a.operand(n.Operand)
 		return a.valueOf(n.Operand)
 	}
+	if n.Op == "!" || n.Op == "not" {
+		a.condition(n.Operand)
+	}
 	operand := a.operand(n.Operand)
 	if n.Op == "++" || n.Op == "--" {
 		return types.Unknown
@@ -518,6 +521,7 @@ func (a *analysis) ternary(n *lower.Ternary) types.Type {
 			a.evalCtx[arm.Meta().ID] = ctx
 		}
 	}
+	a.condition(n.Cond)
 	a.operand(n.Cond)
 	a.logicalRight("&&", n.Cond, n.Then)
 	a.logicalRight("||", n.Cond, n.Else)
@@ -541,6 +545,17 @@ func (a *analysis) valueOf(n lower.Node) types.Type {
 		}
 	}
 	return t
+}
+
+// condition puts n, a condition or the operand of `!` or `not`, in the
+// scalar context perl evaluates it in, so a match there is a Boolean:
+// perl 5.42, a sub reporting wantarray says "scalar" as the condition of
+// if, unless, a statement modifier, while and a ternary, and under `!`
+// and `not`. n may be missing.
+func (a *analysis) condition(n lower.Node) {
+	if n != nil {
+		a.evalCtx[n.Meta().ID] = types.ScalarCtx
+	}
 }
 
 // operand walks n, which may be missing, and returns its type.
