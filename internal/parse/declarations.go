@@ -348,14 +348,24 @@ func refuseInDeclaration(root *Node, src []byte) []error {
 		if n.Kind == Declaration {
 			prefix = n.Text + " "
 		}
-		for _, c := range n.Children {
+		for i, c := range n.Children {
+			// A sub's signature is its parameters: local, exporting nothing.
+			if n.Kind == Declaration && n.Text == "sub" && c.Kind == List {
+				continue
+			}
+			// A subscripted variable is the container its bracket names:
+			// $EXPORT_TAGS{all} is in %EXPORT_TAGS, $EXPORT{x} in %EXPORT.
+			v := c.Text
+			if n.Kind == Index && i == 0 && !n.Arrow && v != "" {
+				v = map[string]string{"[": "@", "{": "%"}[n.Text] + v[1:]
+			}
 			switch {
 			case c.Kind != Term:
-			case exportListVar(c.Text) && (c.Text[0] != '$' || n.Kind == Index):
+			case exportListVar(v):
 				listed(c, prefix+c.Text)
 			case n.Kind == Use && n.Children[0].Text == "vars" && strings.HasPrefix(c.Text, "qw") && len(c.Text) > 3:
 				for _, w := range strings.Fields(c.Text[3 : len(c.Text)-1]) {
-					if exportListVar(w) && w[0] != '$' {
+					if exportListVar(w) {
 						listed(c, "use vars "+w)
 					}
 				}
@@ -392,16 +402,22 @@ func refuseInDeclaration(root *Node, src []byte) []error {
 }
 
 // exportListVar reports whether v names an export list, @EXPORT,
-// @EXPORT_OK or %EXPORT_TAGS, in any package and under any sigil.
+// @EXPORT_OK or %EXPORT_TAGS, in any package.
 func exportListVar(v string) bool {
-	if v == "" || !strings.ContainsRune("$@%", rune(v[0])) {
+	if v == "" {
 		return false
 	}
 	base := v[1:]
 	if i := strings.LastIndex(base, "::"); i >= 0 {
 		base = base[i+2:]
 	}
-	return base == "EXPORT" || base == "EXPORT_OK" || base == "EXPORT_TAGS"
+	switch v[0] {
+	case '@':
+		return base == "EXPORT" || base == "EXPORT_OK"
+	case '%':
+		return base == "EXPORT_TAGS"
+	}
+	return false
 }
 
 // exportMark reads a declaration's `:export` or `:export_ok`; see
