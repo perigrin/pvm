@@ -21,7 +21,7 @@ blocks:
 - 01a1464e-dde3-73fe-ab1f-ced7f18c4f9d
 - 01a14657-682e-7432-8ea9-828f56cd2f69
 created: 2026-10-16T20:02:15.452693569Z
-updated: 2026-10-17T00:03:13.570061661Z
+updated: 2026-10-17T00:11:54.08959192Z
 sessions:
 - start_sha: dcc066cc0fb89509812adfaa862f2096d7e4c67f
   end_sha: c707b8354a29d997aed698fe26d8f94558304d31
@@ -81,6 +81,19 @@ All three skip where perl 5.42.0 is absent and assume no POSIX paths.
 - [ ] Write `TestCarpPrototypes` and `TestCarpExports`; run; fix Carp.tpm where perl disagrees, recording the measurement in its comments; commit
 - [ ] Write `TestCarpReturnTypes` with call cases for carp, cluck, longmess, shortmess, croak, confess; run; fix Carp.tpm where perl disagrees; commit
 - [ ] Run the m1 gates named in the final-gate issue, with the commands it gives them; a ratchet may only be raised. A drop is fixed in the .tpm, or the batch stops and asks perigrin. `make test`; commit
+
+### Review Findings
+
+Tier-2 gate, 2026-10-17, on c707b835 (fresh reviewer subagent; lenses applied inline; all 50 ranked modules measured on perl 5.42). The installed rule (defined, or exists in a package defining AUTOLOAD) is right: confirmed across the top 50, including Encode's and Test::More's AUTOLOAD-less stubs. VERDICT: REOPEN.
+
+1. (in scope, 90) A list return is not checked against its element type: a sub declared `List[Int]` returning `('a', [1], undef)` passes (`internal/infer/returntypes_test.go:112-114,128-139`; `internal/parse/decl.go:153,282` discard the element type). Also `callContext` calls a sub in list context whenever any candidate returns a list, so a context-selected multi's Scalar candidate is never called. About 50 top-50 exports return lists, so WRONG = 0 would be vacuous for them against goal (4). Fix: add ReturnElement to types.Signature (as Param.Element), set it from typeExpr; in list context check each element; call each candidate in the context it answers; negative test: a `List[Int]` sub returning a Str fails.
+2. (in scope, 90) The export helper fails an :export name when `use M qw(name)` dies (Test::More's import reads names as a plan: "dies plan() doesn't understand ok"), and the message wrongly says :export_ok. Only :export_ok names must install when asked for. Fix: add `!slices.Contains(facts.defaults, list)` to that case; fixture test for an import that dies on names.
+3. (in scope, 85) A sub that calls `exit` silently ends the oracle run: END still prints the JSON, exit 0, later subs never called. Fix: `BEGIN { *CORE::GLOBAL::exit = sub { die "exit\n" } }` before requiring the module, and a completion sentinel after the loop that Go requires.
+4. (in scope, 80) Gaps that pass a sub unchecked: (a) a case entry `a => []` passes; (b) a `None` sub perl does not define passes, because "Undefined subroutine" counts as the expected death. Fix: `@$calls or die "$name has no call case"`; before a None call require the sub be callable by the same rule as `callable`.
+5. (in scope, 75) The prototype helper's "missing" branch (`held_to_perl.pl:27`, `heldtoperl_test.go:123-125`) is untested: treating missing as none fails nothing. Fix: TestPrototypeHelperRejectsASubPerlLacks.
+6. (in scope, 70) Both helpers pass the caller's PERL5LIB/PERL5OPT to perl (`heldtoperl_test.go:68`, `returntypes_test.go:97`): with PERL5LIB at a fake Carp.pm, TestCarpExports measured the fake. Fix: strip PERL5LIB, PERLLIB, PERL5OPT and PERL_LOCAL_LIB_ROOT from both environments; a test.
+7. (folded in by the orchestrator for goal (4), 70) Tags the .tpm omits are never checked: a .tpm leaving out `%EXPORT_TAGS{gh}` passes, so `use POSIX ':sys_wait_h'` could stay undeclared. Goal (3) requires every %EXPORT_TAGS name declared. Fix: the driver also asks `":$_"` for each %EXPORT_TAGS key and reports any tag that installs names but is not declared.
+8. (folded in by the orchestrator, 70) A sub printing to STDOUT corrupts the oracle JSON (loud, not silent), so Test::More's ok/is can't be checked. Fix: dup STDOUT for the JSON and point STDOUT at STDERR while calls run; a test.
 
 ## Acceptance Criteria
 
