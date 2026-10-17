@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: core-module-types
 created: 2026-10-17T04:36:13.290610042Z
-updated: 2026-10-17T04:58:40.29099013Z
+updated: 2026-10-17T05:06:48.298240417Z
 sessions:
 - start_sha: 5b91125f4014127e11963fc610c805ba205b10ff
   end_sha: 51c993cd397ad3e68b7ae8e64fdabf2624b1b4bf
@@ -36,6 +36,12 @@ Batch workers transcribe hundreds of names per module by hand (a bare `use POSIX
 - [ ] A Go test helper `tpmSkeleton(t, module) string` runs it through perltest.
 - [ ] Test: Carp's skeleton, with each TODO replaced by Carp.tpm's return type, agrees with Carp.tpm on every name, mark, tag and prototype (holdPrototypes and holdExports pass on it).
 - [ ] Document the mode in batch-brief terms in the RFC's "Held to perl" paragraph (one sentence).
+
+### Review Findings
+
+Gate, 2026-10-17, on 51c993cd (fresh Sonnet reviewer; the three tests mutation-tested, none vacuous; skeleton and installs modes share the install measurement). VERDICT: REOPEN.
+
+1. (CODE, in scope, 90) `internal/parse/testdata/held_to_perl.pl` skeletonParams never emits `:prototype(...)`. A lone `@` derives no prototype (derive.go:96, declarations.go:252, CORE.tpm states `:prototype(@)` explicitly) and `&`-leading prototypes fall back to `(List @args)`, so a filled List::Util skeleton fails holdPrototypes for 26 exports ("List::Util::max declares prototype none; perl's is (@)", "first ... perl's is (&@)"). Carp has no prototypes, so the criteria could not see it. Fix: when perl's prototype() is defined and non-empty, emit `:prototype(RAW)` with perl's literal string; test: List::Util's skeleton, TODOs filled with a placeholder type, passes holdPrototypes.
 
 ## Acceptance criteria
 
