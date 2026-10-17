@@ -456,6 +456,25 @@ func TestTpmSkeletonMatchesCarp(t *testing.T) {
 	holdExports(t, "Carp")
 }
 
+// TestTpmSkeletonMatchesListUtilPrototypes: List::Util's generated
+// skeleton, with every TODO return type replaced by a placeholder type,
+// agrees with perl's prototype() for every export -- holdPrototypes
+// passes on it. Carp declares no prototypes, so
+// TestTpmSkeletonMatchesCarp cannot exercise this: List::Util's max is
+// (@) and first is (&@).
+func TestTpmSkeletonMatchesListUtilPrototypes(t *testing.T) {
+	skeleton := tpmSkeleton(t, "List::Util")
+	filled := strings.ReplaceAll(skeleton, "TODO;", "Any;")
+
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "declarations", "List"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "declarations", "List", "Util.tpm"), []byte(filled), 0o644))
+	restore := OverlayDeclarations(os.DirFS(dir))
+	defer restore()
+
+	holdPrototypes(t, "List::Util")
+}
+
 // TestTpmSkeletonMarksTags: Fcntl's SEEK_SET is export_ok only through
 // its "seek" tag in %EXPORT_TAGS, so the skeleton marks it
 // :export_ok(seek), the tag name the installs mechanism found it under.
