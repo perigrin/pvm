@@ -315,7 +315,7 @@ func (p *parser) resolveImports(module string, list *Node) {
 		if !strings.Contains(name, "::") {
 			q = module + "::" + name
 		}
-		p.moduleSubs[q] = Import{Name: q, Prototype: proto, PrototypeKnown: true}
+		p.moduleSubs[q] = Import{Name: q, Prototype: proto, PrototypeKnown: true, Signatures: facts.signatures[name]}
 	}
 
 	// Its declared syntax comes into scope with any import -- `use M ()`
