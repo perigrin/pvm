@@ -1,6 +1,6 @@
 ---
 title: Type calls to imported library subs from their .tpm declarations and select multis at call sites
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -16,7 +16,7 @@ blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 - 01a14683-8405-743e-9c90-7bb5ff9cec88
 created: 2026-10-02T17:13:31.136589197Z
-updated: 2026-10-17T00:21:50.805673827Z
+updated: 2026-10-17T00:45:17.558269979Z
 sessions:
 - start_sha: cc1416816b43a75d9d4de73e9269452b26f61f27
   end_sha: a35012438663295404da21ff5a6a7ec965d1d93a
@@ -24,9 +24,10 @@ sessions:
   started_at: 2026-10-16T23:12:50.914054892Z
   ended_at: 2026-10-17T00:07:03.288585122Z
 - start_sha: 6c727e93d5c2761bfd2d0e4f8eb56a53088e130d
-  end_sha: ""
-  commits: 0
+  end_sha: 51c907f24c2c8cb98e47b5e665473a52405aa966
+  commits: 2
   started_at: 2026-10-17T00:21:50.805673827Z
+  ended_at: 2026-10-17T00:45:17.558269979Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
@@ -40,6 +41,9 @@ transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-17T00:21:50.805673827Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-17T00:45:17.558269979Z
 observed_paths:
 - internal/data/help/types.md
 - internal/infer/calls.go
@@ -50,6 +54,7 @@ observed_paths:
 - internal/infer/testdata/return_oracle.pl
 - internal/parse/declarations.go
 - internal/parse/declarations/Carp.tpm
+- internal/parse/exportattr_test.go
 - internal/parse/heldtoperl_test.go
 - internal/parse/library_tpm_test.go
 - internal/parse/testdata/declarations/My/Multi.tpm
@@ -64,6 +69,7 @@ observed_paths:
 - test/e2e/testdata/check/declared_mismatch.pl
 - test/e2e/testdata/check/declared_single.pl
 - test/e2e/testdata/check/undecided_call.pl
+- test/e2e/testdata/check/undecided_declared.pl
 ---
 
 ## Prerequisites
