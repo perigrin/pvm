@@ -266,6 +266,7 @@ type Call struct {
 	// Signatures is what a declaration file types the called sub as:
 	// parse.Node.Signatures.
 	Signatures []types.Signature
+	Prototype  string // the called sub's prototype: parse.Node.Prototype
 }
 
 // MethodCall is $obj->name(...) and indirect object syntax.

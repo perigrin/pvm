@@ -131,10 +131,14 @@ func TestInferNoCandidateArityIsError(t *testing.T) {
 // "two" for two, `my @a = (1, 2); two(@a)` and `my %h = (a => 1); two(%h)`
 // are "two", and `my @a = (1); two(@a)` is 1. A slurpy takes however many
 // fixed arguments precede an array: perl 5.42 runs `join_all(1, 2, 3, 4,
-// 5, @a)`. A backslashed parameter takes the array as one container, so
-// box, `(Array \@a) Int` or `(Array \@a, Array \@b) Str`, is the Int one
-// for `box(@x)`: measured on 5.42.0, `sub f (\@;\@) { scalar @_ }` gives
-// 1 for `f(@x)` and 2 for `f(@x, @y)`.
+// 5, @a)`. An array or a hash is one argument only where the prototype
+// the parse resolved the call's sub to gives its position a slot: bag's
+// candidates derive `\[@%]`, and measured on 5.42.0, `sub g (\[@%]) {
+// ref $_[0] }` gives ARRAY for `g(@x)` and HASH for `g(%h)`; a `$`, `_`,
+// `*`, `+` or `;$` slot likewise passes `@x` as one argument. Candidates
+// that disagree on a position, as box's, d's and e's arities do, derive no
+// prototype, and with none perl flattens: `sub d { scalar @_ } my @x =
+// (1, 2, 3); d(@x)` is 3, so `d(@x)` and `e(@x)` join their candidates.
 func TestInferArityChoosesCandidate(t *testing.T) {
 	cases := []struct {
 		src, call string
@@ -148,8 +152,12 @@ func TestInferArityChoosesCandidate(t *testing.T) {
 		{"use My::Multi; my %h = (a => 1); my $r = two(%h);", "two(%h)", types.Int | types.Str},
 		{"use My::Multi; my @a = (2); my $r = two(1, @a);", "two(1, @a)", types.Int | types.Str},
 		{"use My::Lib; my @a = (1); my $s = join_all(1, 2, 3, 4, 5, @a);", "join_all(1, 2, 3, 4, 5, @a)", types.Str},
-		{"use My::Multi; my @x = (1, 2, 3); my $r = box(@x);", "box(@x)", types.Int},
-		{"use My::Multi; my @x = (1); my @y = (2); my $r = box(@x, @y);", "box(@x, @y)", types.Str},
+		{"use My::Multi; my @x = (1, 2, 3); my $r = box(@x);", "box(@x)", types.Int | types.Str},
+		{"use My::Multi; my @x = (1); my @y = (2); my $r = box(@x, @y);", "box(@x, @y)", types.Int | types.Str},
+		{"use My::Multi; my @x = (1, 2, 3); my $r = bag(@x);", "bag(@x)", types.Int},
+		{"use My::Multi; my %h = (a => 1); my $r = bag(%h);", "bag(%h)", types.Str},
+		{"use My::Multi; my @x = (1, 2, 3); my $r = d(@x);", "d(@x)", types.Int | types.Str},
+		{"use My::Multi; my @x = (1, 2, 3); my $r = e(@x);", "e(@x)", types.Int | types.Str},
 	}
 	for _, c := range cases {
 		got, diags := declaredCallType(t, c.src, c.call)

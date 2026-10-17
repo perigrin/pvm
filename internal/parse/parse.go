@@ -396,6 +396,11 @@ type Node struct {
 	// for a builtin, and for a sub no declaration file types.
 	Signatures []types.Signature
 
+	// Prototype is set with Signatures: the prototype, parens included,
+	// perl applies to the call, "" when the sub has none. A multi's
+	// candidates derive it as prototypeFromCandidates says.
+	Prototype string
+
 	// Indirect is set on a Call written in indirect object notation --
 	// `new Foo ARGS`, `doit $obj ARGS` -- whose FIRST child is the invocant
 	// and the rest the arguments. The children stay in source order, which

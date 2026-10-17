@@ -161,6 +161,17 @@ func refScalarSlots(proto string) (slots []protoSlot, slurpy bool) {
 	return slots, false
 }
 
+// SlotAt reports whether proto, parens included, gives the i-th argument a
+// slot of its own, before any `@` or `%` takes the rest of the list: an
+// array or a hash there is one argument. Measured on 5.42.0, `sub f
+// (\[@%]) {}` passes `f(@x)` one reference, and a `$`, `_`, `*`, `+` or
+// `;$` slot passes `@x` as one argument; `sub f {}`, with no prototype,
+// passes its elements.
+func SlotAt(proto string, i int) bool {
+	slots, _ := refScalarSlots(proto)
+	return i < len(slots)
+}
+
 // commaItems splits an argument list at its commas. A parenthesised list is
 // a List, and one argument: measured on 5.42.0, `sref(($x, $y))` compiles.
 func commaItems(n *Node) []*Node {
