@@ -950,10 +950,14 @@ A call site hands selection what the call writes, not only its argument
 list: sort's comparison routine, `sort byname @x` or `sort $by @x`, is
 the invocant only the invocant candidates take, while `sort "byname",
 @x` makes the name data; delete's slice operand is `@`-shaped and its
-element `$`-shaped; a condition, and the operand of `!` and `not`, is in
-scalar context, so `if ($s =~ /b/)` is a Boolean; and a statement whose
-value is discarded is in void context, where a match is untyped and
-never an error.
+element `$`-shaped; the condition of `if`, `elsif`, `unless`, `while`,
+`until`, a C-style `for`, a statement modifier and a ternary, and the
+operand of `!` and `not`, is in scalar context, so `if ($s =~ /b/)` is
+a Boolean; and a plain expression statement that is not its block's or
+file's last is in void context, where a match is untyped and never an
+error. A last statement, which may be the value of the sub, `do` or
+`eval` it ends, is given no context, and neither is a statement
+modifier's body.
 
 ### Core-module libraries (*Decided*)
 

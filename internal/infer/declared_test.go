@@ -285,15 +285,17 @@ func TestInferDeleteSliceNotElement(t *testing.T) {
 // TestInferConditionMatchNotList: a condition is evaluated in scalar
 // context, where a match is a Boolean, not the List of its captures.
 // Measured on 5.42.0, a sub reporting wantarray says "scalar" as the
-// condition of if, unless, a statement modifier, while, a ternary, and
-// as the operand of `!` and of `not`.
+// condition of if, elsif, unless, a statement modifier, while, a C-style
+// for, a ternary, and as the operand of `!` and of `not`.
 func TestInferConditionMatchNotList(t *testing.T) {
 	const decl = "my $s = 'abc'; "
 	cases := []struct{ src, match string }{
 		{"if ($s =~ /b/) { print 1 }", "$s =~ /b/"},
+		{"if (0) { print 0 } elsif ($s =~ /b/) { print 1 }", "$s =~ /b/"},
 		{"unless ($s =~ /b/) { print 1 }", "$s =~ /b/"},
 		{"print 1 if $s =~ /b/;", "$s =~ /b/"},
 		{"while ($s =~ /b/) { last }", "$s =~ /b/"},
+		{"for (; $s =~ /b/; ) { last }", "$s =~ /b/"},
 		{"my $r = $s =~ /b/ ? 1 : 0;", "$s =~ /b/"},
 		// The parenthesised match spans its parentheses.
 		{"my $r = !($s =~ /b/);", "($s =~ /b/)"},
@@ -309,15 +311,20 @@ func TestInferConditionMatchNotList(t *testing.T) {
 // TestInferVoidMatchIsUntypedNotError: no `=~` candidate answers void
 // context, yet a match or substitution in void context is ordinary perl,
 // so it is untyped there and never reported. perl 5.42 -w is silent on
-// `$s =~ s/a/b/g; print $s` and on `$s =~ /X/;`. A sub's last statement
-// is its value, not void: `sub f { $_[0] =~ s/b/c/g }` returns the count.
+// `$s =~ s/a/b/g; print $s` and on `$s =~ /X/;`, in a file or a sub's
+// block. A sub's last statement is its value, not void: `sub f { $_[0] =~
+// s/b/c/g; }` returns the count.
 func TestInferVoidMatchIsUntypedNotError(t *testing.T) {
 	for _, match := range []string{"$s =~ s/a/b/g", "$s =~ /X/"} {
-		src := `my $s = "aXa"; ` + match + `; print $s;`
-		got, diags := declaredCallType(t, src, match)
-		assert.Equal(t, types.Unknown, got, "%q", src)
-		assert.Empty(t, diags, "%q", src)
+		for _, src := range []string{
+			`my $s = "aXa"; ` + match + `; print $s;`,
+			`my $s = "aXa"; sub f { ` + match + `; return 1 }`,
+		} {
+			got, diags := declaredCallType(t, src, match)
+			assert.Equal(t, types.Unknown, got, "%q", src)
+			assert.Empty(t, diags, "%q", src)
+		}
 	}
-	got, _ := declaredCallType(t, `sub f { $_[0] =~ s/b/c/g }`, "$_[0] =~ s/b/c/g")
-	assert.NotEqual(t, types.Unknown, got)
+	got, _ := declaredCallType(t, `sub f { $_[0] =~ s/b/c/g; }`, "$_[0] =~ s/b/c/g")
+	assert.Equal(t, types.Str, got)
 }
