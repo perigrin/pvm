@@ -7,15 +7,38 @@ import (
 	"strings"
 
 	"tamarou.com/pvm/internal/lower"
+	"tamarou.com/pvm/internal/parse"
 	"tamarou.com/pvm/internal/types"
 )
 
-// mapGrepSort walks a map, grep or sort. Its own value is not typed;
-// what it hands back is recorded by elemType when a
-// declaration takes it.
+// mapGrepSort walks a map, grep or sort. A sort in list context is the
+// candidate sortSelection selects; any other's own value is not typed, and
+// what it hands back is recorded by elemType when a declaration takes it.
+// A sort in scalar context is undefined (perlfunc), and is left untyped.
 func (a *analysis) mapGrepSort(n *lower.MapGrepSort) types.Type {
 	a.walkChildren(n)
-	return types.Unknown
+	if n.Op != "sort" || a.evalCtx[n.ID] != types.ListCtx {
+		return types.Unknown
+	}
+	return a.sortSelection(n).Returns
+}
+
+// sortSelection selects among sort's CORE.tpm candidates in list context,
+// RFC 0001 "Call sites". A block is the `Code &block` argument. A
+// comparison routine in the leading slot, `sort byname @x` or `sort $by
+// @x`, is the invocant the call writes, so only the invocant candidates
+// take it; with a comma after it, `sort "byname", @x`, the parse leaves
+// it in the list, as data.
+func (a *analysis) sortSelection(n *lower.MapGrepSort) types.Selection {
+	sigs := parse.CoreBuiltin("sort")
+	args := a.argTypes(n.List)
+	switch {
+	case n.Block != nil:
+		args = append([]types.Type{types.Code}, args...)
+	case n.FirstExpr != nil:
+		return types.SelectInvoked(sigs, append([]types.Type{a.typeOf(n.FirstExpr)}, args...), "", types.ListCtx)
+	}
+	return types.Select(sigs, args, types.ListCtx)
 }
 
 // mapGrepSortElemType is the element type of a map, grep or sort.

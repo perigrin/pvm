@@ -104,6 +104,19 @@ func SelectShaped(cands []Signature, args []Type, shapes string, ctx Context) Se
 	return Selection{Outcome: Undecided, Candidate: -1, Returns: joined}
 }
 
+// SelectInvoked is SelectShaped for a call that writes an invocant, the
+// first of args: sort's comparison routine, `sort byname @x`. Only the
+// candidates that take an invocant take it, as byInvocant views them, and
+// Candidate indexes cands.
+func SelectInvoked(cands []Signature, args []Type, shapes string, ctx Context) Selection {
+	view, orig := byInvocant(cands, true)
+	sel := SelectShaped(view, args, shapes, ctx)
+	if sel.Outcome == Selected {
+		sel.Candidate = orig[sel.Candidate]
+	}
+	return sel
+}
+
 // selectAnyContext is SelectShaped in a context the call site has not
 // determined: the candidate every determined context selects, if they
 // agree, and otherwise the join of what each takes.

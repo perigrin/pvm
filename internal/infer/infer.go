@@ -43,7 +43,15 @@ func AnalyzeParsed(root *parse.Node, idx *ProjectIndex, opts Options) *FileAnaly
 // slice reports. A kind no rule handles is typed Any, raises no diagnostic,
 // and has its children walked.
 func Analyze(f *lower.File, pos *lower.Positions, idx *ProjectIndex, opts Options) (map[lower.ID]types.Type, []Diagnostic, *SymbolTable) {
-	a := &analysis{
+	a := newAnalysis(f, pos, idx, opts)
+	a.walk(f)
+	return a.annotations, a.diags, a.st
+}
+
+// newAnalysis is pass 2's state for f, with pass 1's declarations
+// collected and nothing walked yet.
+func newAnalysis(f *lower.File, pos *lower.Positions, idx *ProjectIndex, opts Options) *analysis {
+	return &analysis{
 		pos:         pos,
 		idx:         idx,
 		opts:        opts,
@@ -55,8 +63,6 @@ func Analyze(f *lower.File, pos *lower.Positions, idx *ProjectIndex, opts Option
 		evalCtx:     map[lower.ID]types.Context{},
 		classTypes:  map[lower.ID]string{},
 	}
-	a.walk(f)
-	return a.annotations, a.diags, a.st
 }
 
 // analysis is pass 2's state, shared by every rule of the walk.

@@ -170,3 +170,51 @@ func TestInferLocalSubShadowsDeclaration(t *testing.T) {
 	assert.Equal(t, types.Str, got)
 	assert.Empty(t, diags)
 }
+
+// sortCandidate is the CORE.tpm sort candidate the call site selects for
+// the first sort of src, and whether it selected one.
+func sortCandidate(t *testing.T, src string) (types.Signature, bool) {
+	t.Helper()
+	sel := infer.SortSelection(src)
+	if sel.Outcome != types.Selected {
+		return types.Signature{}, false
+	}
+	return parse.CoreBuiltin("sort")[sel.Candidate], true
+}
+
+// TestInferSortCommaSelectsPlain: with a comma after it the routine's name
+// is data, sorted among the rest, so the call writes no invocant and the
+// plain candidate is selected. Measured on 5.42.0, with `sub byname { $a
+// cmp $b }` and @x = qw(c a b), `sort "byname", @x` is (a, b, byname, c).
+func TestInferSortCommaSelectsPlain(t *testing.T) {
+	for _, call := range []string{`sort "byname", @x`, `sort @x`} {
+		src := `my @x = qw(c a b); my @s = ` + call + `;`
+		c, ok := sortCandidate(t, src)
+		require.True(t, ok, "%q", src)
+		assert.Nil(t, c.Invocant, "%q", src)
+		require.Len(t, c.Params, 1, "%q", src)
+		got, _ := declaredCallType(t, src, call)
+		assert.Equal(t, types.List, got, "%q", src)
+	}
+}
+
+// TestInferSortInvocantNotPlain: a comparison routine in the leading slot,
+// named or held in a scalar, is the invocant the call writes, not data,
+// so the invocant candidate is selected, and a block selects the block
+// candidate. Measured on 5.42.0, with @x = qw(c a b), `sort byname @x` and
+// `sort $by @x` with $by = "byname" are (a, b, c).
+func TestInferSortInvocantNotPlain(t *testing.T) {
+	for _, src := range []string{
+		`sub byname { $a cmp $b } my @x = qw(c a b); my @s = sort byname @x;`,
+		`my $by = "byname"; my @x = qw(c a b); my @s = sort $by @x;`,
+	} {
+		c, ok := sortCandidate(t, src)
+		require.True(t, ok, "%q", src)
+		assert.NotNil(t, c.Invocant, "%q", src)
+	}
+	c, ok := sortCandidate(t, `my @x = qw(c a b); my @s = sort { $a cmp $b } @x;`)
+	require.True(t, ok)
+	assert.Nil(t, c.Invocant)
+	require.Len(t, c.Params, 2)
+	assert.Equal(t, types.Code, c.Params[0].Type)
+}

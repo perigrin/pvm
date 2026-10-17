@@ -1,2 +1,2 @@
 sym $e Int
-sym @s Array
+sym @s List
