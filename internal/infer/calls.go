@@ -86,23 +86,34 @@ func (a *analysis) call(n *lower.Call) types.Type {
 // the selected candidate's that does not fit its parameter is coerced to
 // it, so is reported as a coercion mismatch.
 //
-// An array or a hash argument flattens into the call's list, so a call
-// passing one has no arity the declaration can rule out.
+// An array or a hash argument flattens into the call's list, as many
+// arguments as it holds, so a call passing one has at least its other
+// arguments, and no arity to select by: see flattenedSelect.
 func (a *analysis) declaredCall(n *lower.Call) types.Type {
 	sigs := n.Signatures
 	a.args(n.Args, sigs)
 	args := a.argTypes(n.Args)
-	flattens := slices.ContainsFunc(args, func(t types.Type) bool { return t&(types.Array|types.Hash) != 0 })
-	sel := types.Select(sigs, args, a.evalCtx[n.ID])
+	scalars := slices.DeleteFunc(slices.Clone(args), func(t types.Type) bool { return t&(types.Array|types.Hash) != 0 })
+	flattens := len(scalars) < len(args)
+	var sel types.Selection
+	if flattens {
+		sel = flattenedSelect(sigs, len(scalars), a.evalCtx[n.ID])
+	} else {
+		sel = types.Select(sigs, args, a.evalCtx[n.ID])
+	}
 	switch {
-	case sel.Outcome == types.Failed && !flattens && !types.Accepts(sigs, len(n.Args)):
+	case sel.Outcome == types.Failed && (flattens || !types.Accepts(sigs, len(n.Args))):
+		count := strconv.Itoa(len(n.Args))
+		if flattens {
+			count = "at least " + strconv.Itoa(len(scalars))
+		}
 		start, end, _ := a.pos.Span(n.ID)
 		a.diags = append(a.diags, Diagnostic{
 			StartByte: uint32(start),
 			EndByte:   uint32(end),
 			Severity:  Error,
 			Code:      CodeArityMismatch,
-			Message:   "call to " + n.Name + ": no declared candidate takes " + strconv.Itoa(len(n.Args)) + " argument(s)",
+			Message:   "call to " + n.Name + ": no declared candidate takes " + count + " argument(s)",
 		})
 	case sel.Outcome == types.Selected:
 		chosen := sigs[sel.Candidate : sel.Candidate+1]
@@ -111,6 +122,29 @@ func (a *analysis) declaredCall(n *lower.Call) types.Type {
 		}
 	}
 	return sel.Returns
+}
+
+// flattenedSelect is types.Select for a call in context ctx with at least
+// least arguments, an array or a hash among them holding the rest: the
+// join of what each count the call may have selects, its arguments' types
+// unknown, since a flattened list moves those after it. It fails only when
+// no count does. A slurpy takes any count past its parameters, so one past
+// the longest stands for them all.
+func flattenedSelect(sigs []types.Signature, least int, ctx types.Context) types.Selection {
+	most := 0
+	for _, s := range sigs {
+		most = max(most, len(s.Params))
+	}
+	joined, taken := types.Unknown, false
+	for count := least; count <= most+1; count++ {
+		if sel := types.Select(sigs, make([]types.Type, count), ctx); sel.Outcome != types.Failed {
+			joined, taken = types.Join(joined, sel.Returns), true
+		}
+	}
+	if !taken {
+		return types.Selection{Outcome: types.Failed, Candidate: -1}
+	}
+	return types.Selection{Outcome: types.Undecided, Candidate: -1, Returns: joined}
 }
 
 // openedVar is the scalar variable an open opens a handle in, its first

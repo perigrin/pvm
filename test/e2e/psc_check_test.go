@@ -312,9 +312,17 @@ func TestPSCCheckDeclarationsNoFalsePositive(t *testing.T) {
 // TestPSCCheckUndecidedCallReportsNothing: `return localtime($_[0])` is in
 // a context its call site cannot decide, so the call joins localtime's
 // candidates and nothing is reported. perl 5.42 -w runs undecided_call.pl
-// silently, in list and in scalar context.
+// silently, in list and in scalar context. A library multi is joined the
+// same way: undecided_declared.pl returns the parse fixture My::Lib's
+// when_, Str in scalar context and List[Str] in list context, which perl
+// 5.42 -w runs silently with a My::Lib whose when_ answers wantarray.
 func TestPSCCheckUndecidedCallReportsNothing(t *testing.T) {
 	_, stderr, err := runPSCCheck(t, filepath.Join(testdataDir(t), "undecided_call.pl"))
+	assert.NoError(t, err)
+	assert.Empty(t, stderr)
+
+	t.Cleanup(parse.OverlayDeclarations(os.DirFS(filepath.Join(testdataDir(t), "..", "..", "..", "..", "internal", "parse", "testdata"))))
+	_, stderr, err = runPSCCheck(t, filepath.Join(testdataDir(t), "undecided_declared.pl"))
 	assert.NoError(t, err)
 	assert.Empty(t, stderr)
 }
