@@ -208,7 +208,11 @@ func (a *analysis) walk(n lower.Node) types.Type {
 	case *lower.ForeachStmt:
 		a.loop(func() { a.foreachStmt(n) })
 		t = types.Unknown
-	case *lower.CForStmt, *lower.BlockStmt:
+	case *lower.CForStmt:
+		a.condition(n.Cond)
+		a.loop(func() { a.walkChildren(n) })
+		t = types.Any
+	case *lower.BlockStmt:
 		a.loop(func() { a.walkChildren(n) })
 		t = types.Any
 	case *lower.UseStmt:

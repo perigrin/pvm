@@ -550,8 +550,8 @@ func (a *analysis) valueOf(n lower.Node) types.Type {
 // condition puts n, a condition or the operand of `!` or `not`, in the
 // scalar context perl evaluates it in, so a match there is a Boolean:
 // perl 5.42, a sub reporting wantarray says "scalar" as the condition of
-// if, unless, a statement modifier, while and a ternary, and under `!`
-// and `not`. n may be missing.
+// if, elsif, unless, a statement modifier, while, a C-style for and a
+// ternary, and under `!` and `not`. n may be missing.
 func (a *analysis) condition(n lower.Node) {
 	if n != nil {
 		a.evalCtx[n.Meta().ID] = types.ScalarCtx

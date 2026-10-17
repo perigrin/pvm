@@ -320,6 +320,7 @@ func (a *analysis) before(x, y lower.Node) bool {
 // narrow it.
 func (a *analysis) elsif(n *lower.IfStmt, pre map[string]types.Type) ([]map[string]types.Type, bool) {
 	a.restore(pre)
+	a.condition(n.Cond)
 	if n.Cond != nil {
 		a.walk(n.Cond)
 	}
