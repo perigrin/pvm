@@ -13,3 +13,7 @@ multi sub two :export (Int $a, Int $b) Str;
 
 # A single candidate, which a file may shadow with a sub of its own.
 sub lone :export (Int $n) Int;
+
+# Two candidates of backslashed parameters, each taking one container.
+multi sub box :export (Array \@a) Int;
+multi sub box :export (Array \@a, Array \@b) Str;
