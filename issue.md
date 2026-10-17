@@ -9,7 +9,7 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.325366834Z
-updated: 2026-10-17T00:52:11.478193727Z
+updated: 2026-10-17T03:41:54.843258937Z
 sessions:
 - start_sha: a35012438663295404da21ff5a6a7ec965d1d93a
   end_sha: 3bd5ce632c0e695e117434bf3358a8e53a15f8bd
@@ -56,6 +56,15 @@ A qualified call (`Carp::confess(...)`, `Scalar::Util::blessed($x)`) resolves th
 - [ ] Write failing test `TestInferTypesQualifiedCall` in `internal/infer/declared_test.go`: `my $s = Carp::shortmess("x");` is typed Str from Carp.tpm
 - [ ] Run to verify failure, implement anything missing, run to verify pass; commit
 - [ ] Run the m1 gates named in the final-gate issue, with the commands it gives them; a ratchet may only be raised. A drop is fixed in the .tpm, or the batch stops and asks perigrin. `make test`; commit
+
+### Review Findings
+
+Tier-2 gate, 2026-10-17, on 3bd5ce63 (fresh reviewer subagent; five overlay mutations; all m1 gates pass, exact 47 of 56; psc check over perl 5.42's privlib identical with and without the fix; perl 5.42 measurements). VERDICT: PASS with two minor in-scope test findings, so reopened per the gate rule.
+
+A. (in scope, minor, 65) `internal/parse/qualified_test.go:46-52` TestQualifiedCallUndeclaredNameHasNoSignatures is near-vacuous: `Carp::nosuch` is in neither protos nor signatures, so no mutation of this fix fails it. The discriminating case is a name in protos but not in the .tpm's signatures (an XS sub added at module.go:385-395 after signatures are derived). Fix: a fixture .tpm plus a `.xs` loader entry; assert the XS name carries no signatures; show it fails when every protos name gets a signature.
+B. (in scope, cosmetic, 70) `internal/parse/qualified_test.go:32` comment says "loaded with no import list at all" but the source is `use Scalar::Util ()`, an empty import list. Reword.
+
+Out of scope, filed separately: `require M` then `M::f(...)` carries no signatures; a module loaded only transitively; `&M::f(...)` with a None signature is not an exit; `goto &M::f` is not an exit.
 
 ## Acceptance Criteria
 
