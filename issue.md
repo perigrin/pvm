@@ -1,6 +1,6 @@
 ---
 title: "Hold Carp.tpm to perl: prototypes, export lists and a return-type oracle"
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -21,7 +21,7 @@ blocks:
 - 01a1464e-dde3-73fe-ab1f-ced7f18c4f9d
 - 01a14657-682e-7432-8ea9-828f56cd2f69
 created: 2026-10-16T20:02:15.452693569Z
-updated: 2026-10-17T00:11:54.242481314Z
+updated: 2026-10-17T00:58:20.045749942Z
 sessions:
 - start_sha: dcc066cc0fb89509812adfaa862f2096d7e4c67f
   end_sha: c707b8354a29d997aed698fe26d8f94558304d31
@@ -29,9 +29,10 @@ sessions:
   started_at: 2026-10-16T23:04:29.759612367Z
   ended_at: 2026-10-17T00:03:13.570061661Z
 - start_sha: 6c727e93d5c2761bfd2d0e4f8eb56a53088e130d
-  end_sha: ""
-  commits: 0
+  end_sha: ad6541f641ce73b412934fe86afbae6d6ed5b022
+  commits: 4
   started_at: 2026-10-17T00:11:54.242481314Z
+  ended_at: 2026-10-17T00:58:20.045749942Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
@@ -45,18 +46,41 @@ transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-17T00:11:54.242481314Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-17T00:58:20.045749942Z
 observed_paths:
+- internal/data/help/types.md
+- internal/infer/calls.go
+- internal/infer/declared_test.go
+- internal/infer/flow_test.go
+- internal/infer/infer.go
 - internal/infer/returntypes_test.go
 - internal/infer/testdata/oracle/Carp.pl
 - internal/infer/testdata/return_oracle.pl
+- internal/parse/decl.go
 - internal/parse/declarations.go
 - internal/parse/declarations/Carp.tpm
+- internal/parse/exportattr_test.go
 - internal/parse/heldtoperl_test.go
+- internal/parse/library_tpm_test.go
+- internal/parse/qualified_test.go
+- internal/parse/testdata/declarations/My/Multi.tpm
+- internal/parse/testdata/declarations/My/OkOnly.tpm
 - internal/parse/testdata/declarations/My/UntypedVars.tpm
 - internal/parse/testdata/held_to_perl.pl
 - internal/parse/typedour_test.go
+- internal/parse/use.go
+- internal/perltest/perltest.go
+- internal/types/declared.go
 - internal/types/select.go
 - internal/types/select_test.go
+- test/e2e/psc_check_test.go
+- test/e2e/testdata/check/declared_fit.pl
+- test/e2e/testdata/check/declared_mismatch.pl
+- test/e2e/testdata/check/declared_single.pl
+- test/e2e/testdata/check/undecided_call.pl
+- test/e2e/testdata/check/undecided_declared.pl
 ---
 
 ## Prerequisites
