@@ -1,6 +1,6 @@
 ---
 title: Declare POSIX's constants, exports and prototypes
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -13,7 +13,16 @@ blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 - 01a14683-84ab-7efb-a0c5-b2db8deb8e28
 created: 2026-10-16T20:02:15.687306804Z
-updated: 2026-10-16T21:02:12.16381527Z
+updated: 2026-10-17T04:25:16.940428706Z
+sessions:
+- start_sha: 5b91125f4014127e11963fc610c805ba205b10ff
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-17T04:25:16.940428706Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-17T04:25:16.940428706Z
 ---
 
 ## Prerequisites
