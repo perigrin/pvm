@@ -129,7 +129,12 @@ func TestInferNoCandidateArityIsError(t *testing.T) {
 // choose by, and joins the candidates taking at least its other arguments:
 // measured on 5.42.0 with a module whose two returns 1 for one argument and
 // "two" for two, `my @a = (1, 2); two(@a)` and `my %h = (a => 1); two(%h)`
-// are "two", and `my @a = (1); two(@a)` is 1.
+// are "two", and `my @a = (1); two(@a)` is 1. A slurpy takes however many
+// fixed arguments precede an array: perl 5.42 runs `join_all(1, 2, 3, 4,
+// 5, @a)`. A backslashed parameter takes the array as one container, so
+// box, `(Array \@a) Int` or `(Array \@a, Array \@b) Str`, is the Int one
+// for `box(@x)`: measured on 5.42.0, `sub f (\@;\@) { scalar @_ }` gives
+// 1 for `f(@x)` and 2 for `f(@x, @y)`.
 func TestInferArityChoosesCandidate(t *testing.T) {
 	cases := []struct {
 		src, call string
@@ -142,6 +147,9 @@ func TestInferArityChoosesCandidate(t *testing.T) {
 		{"use My::Multi; my @a = (1, 2); my $r = two(@a);", "two(@a)", types.Int | types.Str},
 		{"use My::Multi; my %h = (a => 1); my $r = two(%h);", "two(%h)", types.Int | types.Str},
 		{"use My::Multi; my @a = (2); my $r = two(1, @a);", "two(1, @a)", types.Int | types.Str},
+		{"use My::Lib; my @a = (1); my $s = join_all(1, 2, 3, 4, 5, @a);", "join_all(1, 2, 3, 4, 5, @a)", types.Str},
+		{"use My::Multi; my @x = (1, 2, 3); my $r = box(@x);", "box(@x)", types.Int},
+		{"use My::Multi; my @x = (1); my @y = (2); my $r = box(@x, @y);", "box(@x, @y)", types.Str},
 	}
 	for _, c := range cases {
 		got, diags := declaredCallType(t, c.src, c.call)

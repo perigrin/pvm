@@ -88,16 +88,23 @@ func (a *analysis) call(n *lower.Call) types.Type {
 //
 // An array or a hash argument flattens into the call's list, as many
 // arguments as it holds, so a call passing one has at least its other
-// arguments, and no arity to select by: see flattenedSelect.
+// arguments, and no arity to select by: see flattenedSelect. One in a
+// position some candidate backslashes, `Array \@a`, is passed as the one
+// container it is, as perl's `\@` prototype passes it.
 func (a *analysis) declaredCall(n *lower.Call) types.Type {
 	sigs := n.Signatures
 	a.args(n.Args, sigs)
 	args := a.argTypes(n.Args)
-	scalars := slices.DeleteFunc(slices.Clone(args), func(t types.Type) bool { return t&(types.Array|types.Hash) != 0 })
-	flattens := len(scalars) < len(args)
+	fixed := 0
+	for i, t := range args {
+		if t&(types.Array|types.Hash) == 0 || aliasedAt(sigs, i) {
+			fixed++
+		}
+	}
+	flattens := fixed < len(args)
 	var sel types.Selection
 	if flattens {
-		sel = flattenedSelect(sigs, len(scalars), a.evalCtx[n.ID])
+		sel = flattenedSelect(sigs, fixed, a.evalCtx[n.ID])
 	} else {
 		sel = types.Select(sigs, args, a.evalCtx[n.ID])
 	}
@@ -105,7 +112,7 @@ func (a *analysis) declaredCall(n *lower.Call) types.Type {
 	case sel.Outcome == types.Failed && (flattens || !types.Accepts(sigs, len(n.Args))):
 		count := strconv.Itoa(len(n.Args))
 		if flattens {
-			count = "at least " + strconv.Itoa(len(scalars))
+			count = "at least " + strconv.Itoa(fixed)
 		}
 		start, end, _ := a.pos.Span(n.ID)
 		a.diags = append(a.diags, Diagnostic{
@@ -129,14 +136,14 @@ func (a *analysis) declaredCall(n *lower.Call) types.Type {
 // join of what each count the call may have selects, its arguments' types
 // unknown, since a flattened list moves those after it. It fails only when
 // no count does. A slurpy takes any count past its parameters, so one past
-// the longest stands for them all.
+// the longest, or least if it is more, stands for them all.
 func flattenedSelect(sigs []types.Signature, least int, ctx types.Context) types.Selection {
 	most := 0
 	for _, s := range sigs {
 		most = max(most, len(s.Params))
 	}
 	joined, taken := types.Unknown, false
-	for count := least; count <= most+1; count++ {
+	for count := least; count <= max(least, most+1); count++ {
 		if sel := types.Select(sigs, make([]types.Type, count), ctx); sel.Outcome != types.Failed {
 			joined, taken = types.Join(joined, sel.Returns), true
 		}
@@ -145,6 +152,14 @@ func flattenedSelect(sigs []types.Signature, least int, ctx types.Context) types
 		return types.Selection{Outcome: types.Failed, Candidate: -1}
 	}
 	return types.Selection{Outcome: types.Undecided, Candidate: -1, Returns: joined}
+}
+
+// aliasedAt reports whether some candidate in sigs backslashes its i-th
+// parameter, `Array \@a`, taking the one container the caller writes.
+func aliasedAt(sigs []types.Signature, i int) bool {
+	return slices.ContainsFunc(sigs, func(s types.Signature) bool {
+		return i < len(s.Params) && s.Params[i].Alias
+	})
 }
 
 // openedVar is the scalar variable an open opens a handle in, its first
