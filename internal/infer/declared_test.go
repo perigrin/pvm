@@ -269,3 +269,19 @@ func TestInferConditionMatchNotList(t *testing.T) {
 		assert.Empty(t, diags, "%q", c.src)
 	}
 }
+
+// TestInferVoidMatchIsUntypedNotError: no `=~` candidate answers void
+// context, yet a match or substitution in void context is ordinary perl,
+// so it is untyped there and never reported. perl 5.42 -w is silent on
+// `$s =~ s/a/b/g; print $s` and on `$s =~ /X/;`. A sub's last statement
+// is its value, not void: `sub f { $_[0] =~ s/b/c/g }` returns the count.
+func TestInferVoidMatchIsUntypedNotError(t *testing.T) {
+	for _, match := range []string{"$s =~ s/a/b/g", "$s =~ /X/"} {
+		src := `my $s = "aXa"; ` + match + `; print $s;`
+		got, diags := declaredCallType(t, src, match)
+		assert.Equal(t, types.Unknown, got, "%q", src)
+		assert.Empty(t, diags, "%q", src)
+	}
+	got, _ := declaredCallType(t, `sub f { $_[0] =~ s/b/c/g }`, "$_[0] =~ s/b/c/g")
+	assert.NotEqual(t, types.Unknown, got)
+}
