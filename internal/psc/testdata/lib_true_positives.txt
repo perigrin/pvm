@@ -3,3 +3,4 @@
 # and the line perl -w prints for that file, or for a minimal file with the
 # same construct, copied verbatim.
 x86_64-linux-thread-multi/Sys/Syslog.pm:562:19: error: call to POSIX::_exit: argument 1 expects Boolean|Int, got Undef|Boolean [coercion-mismatch]	Use of uninitialized value in subroutine entry at repro-exit.pl line 4.
+Net/Ping.pm:1798:38: error: call to sockaddr_in: argument 2 expects Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Undefined address for Socket::pack_sockaddr_in at /home/perigrin/.local/share/pvm/versions/5.42.0/lib/perl5/5.42.0/x86_64-linux-thread-multi/Socket.pm line 861.

@@ -342,9 +342,8 @@ sub sockaddr_family :export(all) :listop (Str $sockaddr) Int;
 # other's context -- the pack arity in list context, the unpack arity in
 # scalar), which the return-type oracle cannot call both directions of
 # without that death; both are exempt there and held to their prototype
-# and exports only. addr accepts Undef along with Str: Net::Ping's own
-# call passes inet_aton's result unchecked.
-multi sub sockaddr_in :export(all) :listop (Int $port, Str|Undef $addr) Str;
+# and exports only.
+multi sub sockaddr_in :export(all) :listop (Int $port, Str $addr) Str;
 multi sub sockaddr_in :export(all) :listop (Str $sin) List[Int|Str];
 multi sub sockaddr_in6 :export(all) :listop (Int $port, Str $addr, Int $scope_id = 0, Int $flowinfo = 0) Str;
 multi sub sockaddr_in6 :export(all) :listop (Str $sin6) List[Int|Str];
