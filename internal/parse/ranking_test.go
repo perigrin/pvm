@@ -1,5 +1,5 @@
 // ABOUTME: Pins which 50 core modules get declarations: the ranking of core modules by imports over perl's privlib.
-// ABOUTME: The rule is tested on synthetic trees everywhere and against perl 5.42.0's privlib where it is installed.
+// ABOUTME: The rule is tested on synthetic trees everywhere and against perl 5.42.0's Linux privlib where it is installed.
 
 package parse_test
 
@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -188,6 +189,13 @@ func TestCoreModuleRankingEmptyTree(t *testing.T) {
 }
 
 func TestCoreModuleRanking(t *testing.T) {
+	// The pinned ranking was measured over perl 5.42.0's privlib as built
+	// on Linux. Other platforms install a different lib: the Windows build
+	// adds Win32 modules and omits some Unix ones (measured in CI: 130
+	// modules, 1,406 imports), so the figures below hold only there.
+	if runtime.GOOS != "linux" {
+		t.Skipf("the core-module ranking is measured on perl 5.42.0's Linux lib, not %s's", runtime.GOOS)
+	}
 	p := perltest.Perl542(t)
 	archDir, err := filepath.Rel(p.Privlib, p.Archlib)
 	require.NoError(t, err)
