@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -214,7 +215,16 @@ func TestPSCCheckLibBaselineRequiresAFinishedRun(t *testing.T) {
 // diagnostic not in testdata/lib_baseline.txt or admitted by
 // testdata/lib_true_positives.txt. It takes about 20s (18-20s measured
 // on 2026-10-16), well inside go test's default 10m.
+//
+// Both files were captured against perl 5.42.0's privlib as built on
+// Linux: lib_baseline.txt:13 names an x86_64-linux-thread-multi archname
+// path, and the Windows build is a different lib outright -- the same
+// difference (130 modules, 1,406 imports, measured in CI) that pins
+// TestCoreModuleRanking to Linux.
 func TestPSCCheckLibBaseline(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skipf("the lib baseline is measured on perl 5.42.0's Linux lib, not %s's", runtime.GOOS)
+	}
 	p := perltest.Perl542(t)
 	t.Setenv("PVM_PERL_VERSION", "5.42.0")
 	t.Setenv("PERL5LIB", "")

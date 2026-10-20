@@ -45,6 +45,19 @@ func TestPerl542SkipsWhenNotInstalledInPvm(t *testing.T) {
 		"perl 5.42.0 missing from pvm and from PATH skips the test")
 }
 
+// TestPerl542TreatsAnEmptyRequireAsUnset: ci.yml sets PVM_REQUIRE_PERL542
+// with a conditional that is blank on macOS and Windows (only Linux gets
+// "1"), which GitHub Actions turns into the env var present but empty
+// there, not absent -- Perl542 must still skip, not fail, the same as
+// when the variable is never set at all.
+func TestPerl542TreatsAnEmptyRequireAsUnset(t *testing.T) {
+	withNoPvmPerl(t)
+	t.Setenv("PATH", t.TempDir())
+	t.Setenv("PVM_REQUIRE_PERL542", "")
+	assert.True(t, skipped(t, func(st testing.TB) { Perl542(st) }),
+		"PVM_REQUIRE_PERL542 set to the empty string skips, same as unset")
+}
+
 func TestPerl542SkipsWhenPrivlibMissing(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("the stand-in perl is a shell script")
