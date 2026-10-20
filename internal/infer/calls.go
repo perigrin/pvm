@@ -603,23 +603,24 @@ func (a *analysis) argTypes(args []lower.Node) []types.Type {
 
 // mutatesArray is which core builtins can renumber or replace an array's
 // own elements, invalidating any $name[N] guard shadow (flow.go's
-// guardVarName) of an array argument: what a guard found true of whichever
+// guardVarName) an argument holds: what a guard found true of whichever
 // value sat at an index before the call no longer answers for what is
-// there after it.
+// there after it. shift, unshift, pop, push and splice take the whole
+// array; delete takes the one element it removes (ops.go's
+// invalidateElementShadow handles both shapes the same way assign does).
 var mutatesArray = map[string]bool{
 	"shift": true, "unshift": true, "pop": true, "push": true, "splice": true,
+	"delete": true,
 }
 
-// invalidateMutatedArrays drops every element shadow of an array a call to
-// name, a core builtin, may rewrite.
+// invalidateMutatedArrays drops every element shadow a call to name, a
+// core builtin, may rewrite.
 func (a *analysis) invalidateMutatedArrays(name string, args []lower.Node) {
 	if !mutatesArray[name] {
 		return
 	}
 	for _, arg := range args {
-		if v, ok := arg.(*lower.Var); ok && v.Sigil == "@" {
-			a.st.ClearElementShadows(v.Name)
-		}
+		a.invalidateElementShadow(arg)
 	}
 }
 

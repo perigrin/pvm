@@ -230,7 +230,9 @@ func assignContext(l lower.Node) types.Context {
 // guardVarName) when l is exactly that shape, since the element it named
 // now holds the assignment's value, not whatever a guard found true of it
 // before; and every $name[*] shadow of the array when l is a whole-array
-// write, since every index may now hold something else.
+// write -- `@r = ...` or a truncating `$#r = ...`, which perl lowers to
+// the "$#" sigil, not "@" -- since every index may now hold something
+// else.
 func (a *analysis) invalidateElementShadow(l lower.Node) {
 	switch l := l.(type) {
 	case *lower.Index:
@@ -238,7 +240,7 @@ func (a *analysis) invalidateElementShadow(l lower.Node) {
 			a.st.Delete(name)
 		}
 	case *lower.Var:
-		if l.Sigil == "@" {
+		if l.Sigil == "@" || l.Sigil == "$#" {
 			a.st.ClearElementShadows(l.Name)
 		}
 	}

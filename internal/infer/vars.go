@@ -96,12 +96,15 @@ func (a *analysis) key(n *lower.Key) types.Type {
 // nothing of its own: its base is the aggregate itself, not a scalar
 // holding a reference to one.
 //
-// base's existing Ref bits, Object among them, are kept rather than
-// overwritten: a blessed reference derefed through an accessor,
-// `find_encoding("UTF-8")->{Name}`, is still the same blessed reference
-// after it, not a plain HashRef -- only Undef and whatever non-ref type
-// base held are dropped, since those cannot have survived the deref.
-// Base's own dereference is the straight-line read: logicalRight's
+// base's existing Object bit, if any, is kept alongside the ref this
+// deref asserts, rather than overwriting it away: a blessed reference
+// derefed through an accessor, `find_encoding("UTF-8")->{Name}`, is still
+// the same blessed reference after it, not a plain HashRef. Any other Ref
+// bit base held -- a real union, `$x = $c ? {} : []` -- does not survive:
+// the arrow-hash or arrow-array form proves specifically which kind this
+// is, so it replaces the rest of the union along with Undef and whatever
+// non-ref type base held, none of which can have survived the deref
+// either. Base's own dereference is the straight-line read: logicalRight's
 // walkJoined keeps this from escaping a `&&`/`||`/`?:` arm it runs inside
 // of, the way it would if this wrote through unconditionally.
 func (a *analysis) narrowDerefBase(base lower.Node, arrow bool, ref types.Type) {
@@ -111,10 +114,7 @@ func (a *analysis) narrowDerefBase(base lower.Node, arrow bool, ref types.Type) 
 	if v, ok := base.(*lower.Var); ok && v.Sigil == "$" {
 		name := "$" + v.Name
 		sym, _ := a.st.Lookup(name)
-		if kept := sym.Type & types.Ref; kept != types.Unknown {
-			ref = kept
-		}
-		a.st.UpdateType(name, ref)
+		a.st.UpdateType(name, (sym.Type&types.Object)|ref)
 	}
 }
 
