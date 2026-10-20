@@ -85,6 +85,9 @@ func holdFiltered(t *testing.T, check func(*testing.T, perltest.Perl, string, st
 			if containsAny(d, filter) {
 				continue
 			}
+			if runtime.GOOS != "linux" && isExtraInstall(d) {
+				continue
+			}
 			t.Error(d)
 		}
 	}
@@ -98,6 +101,22 @@ func containsAny(s string, substrs []string) bool {
 		}
 	}
 	return false
+}
+
+// isExtraInstall reports whether d is sameNames' or exportDisagreements'
+// "perl installs X; the .tpm does not mark it" direction -- real
+// information only when checking a shipped .tpm, which describes Linux
+// perl 5.42.0, against that same Linux perl: off Linux, "installs more
+// than the .tpm says" just means that platform's perl exports more than
+// Linux's did (Windows's Errno and POSIX each add hundreds of Winsock-
+// and SDK-only names, measured), which the .tpm was never trying to
+// settle. holdFiltered and holdPurePerlExporters drop it there, for a
+// real module's .tpm; a fixture module that tests exportDisagreements
+// itself (TestExportHelperRejectsAMissingName and its siblings) calls it
+// directly, bypassing this, so it still sees both directions on every
+// platform.
+func isExtraInstall(d string) bool {
+	return strings.Contains(d, "the .tpm does not mark it")
 }
 
 // holdPurePerlExporters is hold for perltest.PureExporters, with Errno's
@@ -123,6 +142,9 @@ func holdPurePerlExporters(t *testing.T, check func(*testing.T, perltest.Perl, s
 		}
 		for _, d := range check(t, p, "", module, src) {
 			if missingName(d, module, missing) {
+				continue
+			}
+			if runtime.GOOS != "linux" && isExtraInstall(d) {
 				continue
 			}
 			t.Error(d)
@@ -302,7 +324,7 @@ func exportDisagreements(t *testing.T, p perltest.Perl, inc, module string, src 
 		// reads `use Test::More qw(ok)` as a plan and dies.
 		case slices.Contains(facts.exports, list) && !slices.Contains(facts.defaults, list) && !slices.Contains(installs, list):
 			out = append(out, fmt.Sprintf("%s is marked :export_ok; use %s qw(%s) does not install it: %s", list, module, list, strings.Join(f[1:], " ")))
-		case runtime.GOOS == "linux" && !slices.Contains(facts.exports, list) && slices.Contains(installs, list):
+		case !slices.Contains(facts.exports, list) && slices.Contains(installs, list):
 			out = append(out, fmt.Sprintf("use %s qw(%s) installs %s; the .tpm does not mark it", module, list, list))
 		}
 	}
@@ -310,20 +332,12 @@ func exportDisagreements(t *testing.T, p perltest.Perl, inc, module string, src 
 }
 
 // sameNames is how the names use installs differ from those the .tpm
-// marks with mark. An install the .tpm does not mark is reported only on
-// Linux: the .tpm describes Linux perl 5.42.0, and another platform's
-// perl installing more than that (Windows's Errno and POSIX each add
-// hundreds of Winsock- and SDK-only names, measured) is not a
-// disagreement the .tpm was ever trying to settle -- a name the .tpm
-// does mark that this platform's perl does not install is still real
-// information on every platform, so that direction is always reported.
+// marks with mark.
 func sameNames(use string, installs, marked []string, mark string) []string {
 	var out []string
-	if runtime.GOOS == "linux" {
-		for _, name := range installs {
-			if !slices.Contains(marked, name) {
-				out = append(out, fmt.Sprintf("%s installs %s; the .tpm does not mark it %s", use, name, mark))
-			}
+	for _, name := range installs {
+		if !slices.Contains(marked, name) {
+			out = append(out, fmt.Sprintf("%s installs %s; the .tpm does not mark it %s", use, name, mark))
 		}
 	}
 	for _, name := range marked {
@@ -463,8 +477,12 @@ func TestHeldToPerlFindsArchlibModules(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		// Strawberry perl ships POSIX.pm as pure Perl under lib, not
 		// archlib -- measured in CI job 39489951290: C:/Strawberry/perl/lib/POSIX.pm
-		// is not in archlib C:\STRAWB~1\perl\lib.
-		assert.True(t, strings.HasPrefix(path, p.Privlib), "%s is not in privlib %s", path, p.Privlib)
+		// is not in archlib C:\STRAWB~1\perl\lib. perl's %INC and
+		// $Config{privlibexp} can each spell that directory differently
+		// (an 8.3 short name here, measured), so PathUnder canonicalizes
+		// both through perl before comparing, rather than a bare prefix
+		// check.
+		assert.True(t, perltest.PathUnder(t, p, path, p.Privlib), "%s is not in privlib %s", path, p.Privlib)
 		return
 	}
 	assert.True(t, strings.HasPrefix(path, p.Archlib), "%s is not in archlib %s", path, p.Archlib)
