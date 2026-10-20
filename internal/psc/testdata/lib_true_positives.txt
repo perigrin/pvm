@@ -2,3 +2,79 @@
 # is admitted beyond lib_baseline.txt: the privlib-relative diagnostic, a tab,
 # and the line perl -w prints for that file, or for a minimal file with the
 # same construct, copied verbatim.
+CPAN/Distribution.pm:848:13: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+CPAN/Distribution.pm:848:21: error: right operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+File/Temp.pm:916:17: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+File/Temp.pm:964:16: error: left operand of "=~": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in pattern match (m//) at -e line 1.
+File/Temp.pm:1147:17: error: left operand of "=~": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in pattern match (m//) at -e line 1.
+JSON/PP.pm:398:30: error: left operand of "eq": expected Str, got Undef|Int [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+JSON/PP.pm:398:49: error: right operand of "eq": expected Str, got Undef|Int [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+JSON/PP.pm:411:30: error: left operand of "eq": expected Str, got Undef|Int [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+JSON/PP.pm:411:49: error: right operand of "eq": expected Str, got Undef|Int [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Math/BigInt.pm:2400:31: error: left operand of "eq": expected Str, got Undef|Int [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Math/BigInt.pm:2400:46: error: right operand of "eq": expected Str, got Undef|Int [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Math/BigInt.pm:3380:33: error: left operand of "eq": expected Str, got Undef|Int [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Math/BigInt.pm:3380:48: error: right operand of "eq": expected Str, got Undef|Int [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Safe.pm:424:12: error: left operand of "ne": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string ne at -e line 1.
+Term/Table.pm:103:17: error: left operand of "+": expected Num, got Undef|Int [coercion-mismatch]	Use of uninitialized value $x in addition (+) at -e line 1.
+Term/Table.pm:103:28: error: right operand of "+": expected Num, got Undef|Int [coercion-mismatch]	Use of uninitialized value $x in addition (+) at -e line 1.
+Term/Table.pm:106:43: error: right operand of "-": expected Num, got Undef|Int [coercion-mismatch]	Use of uninitialized value $x in subtraction (-) at -e line 1.
+Term/Table.pm:124:44: error: right operand of "-": expected Num, got Undef|Int [coercion-mismatch]	Use of uninitialized value $x in subtraction (-) at -e line 1.
+Test/Builder.pm:207:8: error: call to bless: argument 2 expects Str, got Undef|Int|Num|Str|NaN|Inf [type-mismatch]	Use of uninitialized value $x in bless at -e line 1.
+Test/Builder.pm:259:123: error: call to bless: argument 2 expects Str, got Undef|Int|Num|Str|NaN|Inf [type-mismatch]	Use of uninitialized value $x in bless at -e line 1.
+Test/Builder.pm:349:25: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Test/Builder.pm:372:99: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Test2/API/InterceptResult/Event.pm:103:24: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Test2/API/InterceptResult/Event.pm:107:25: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Test2/API/InterceptResult/Event.pm:114:24: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Test2/API/InterceptResult/Event.pm:127:26: error: call to bless: argument 2 expects Str, got Undef|Int|Num|Str|NaN|Inf [type-mismatch]	Use of uninitialized value $x in bless at -e line 1.
+Test2/API/InterceptResult/Event.pm:296:13: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Test2/API/InterceptResult/Event.pm:297:36: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Test2/API.pm:722:99: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Test2/Compare/Array.pm:20:71: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Test2/Compare/Array.pm:35:62: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Test2/Compare/Array.pm:55:21: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Test2/Compare/Array.pm:99:49: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Test2/Compare/Bag.pm:34:21: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Test2/Compare/Base.pm:29:28: error: call to bless: argument 2 expects Str, got Undef|Int|Num|Str|NaN|Inf [type-mismatch]	Use of uninitialized value $x in bless at -e line 1.
+Test2/Compare/Hash.pm:56:21: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Test2/Compare/OrderedSubset.pm:19:71: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Test2/Compare/OrderedSubset.pm:37:21: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Test2/Compare/Ref.pm:48:12: warning: left operand of "==": expected Num, got Undef|Int [coercion-mismatch]	Use of uninitialized value $x in numeric eq (==) at -e line 1.
+Test2/Compare/Ref.pm:48:28: warning: right operand of "==": expected Num, got Undef|Int [coercion-mismatch]	Use of uninitialized value $x in numeric eq (==) at -e line 1.
+Test2/Compare/Scalar.pm:33:21: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Test2/Compare/Scalar.pm:33:50: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Test2/Event/Generic.pm:98:28: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Test2/Event/Generic.pm:128:30: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Test2/Event.pm:245:23: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Test2/Event.pm:281:24: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Test2/IPC/Driver/Files.pm:71:28: error: call to split: argument 2 expects Str, got Undef|Int|Num|Str|NaN|Inf [type-mismatch]	Use of uninitialized value $x in split at -e line 1.
+Test2/Mock.pm:54:15: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Test2/Mock.pm:57:15: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Test2/Mock.pm:122:16: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Test2/Mock.pm:125:16: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Test2/Mock.pm:356:25: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Test2/Mock.pm:368:12: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Test2/Mock.pm:425:17: error: left operand of "ne": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string ne at -e line 1.
+Test2/Tools/Compare.pm:720:12: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Test2/Tools/Mock.pm:82:49: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Test2/Tools/Mock.pm:117:37: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Test2/Tools/Mock.pm:142:34: error: left operand of "ne": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string ne at -e line 1.
+Test2/Tools/Mock.pm:152:20: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Test2/Tools/Mock.pm:216:44: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Test2/Tools/Ref.pm:54:17: warning: left operand of "==": expected Num, got Undef|Int [coercion-mismatch]	Use of uninitialized value $x in numeric eq (==) at -e line 1.
+Test2/Tools/Ref.pm:54:34: warning: right operand of "==": expected Num, got Undef|Int [coercion-mismatch]	Use of uninitialized value $x in numeric eq (==) at -e line 1.
+Test2/Tools/Ref.pm:78:17: warning: left operand of "!=": expected Num, got Undef|Int [coercion-mismatch]	Use of uninitialized value $x in numeric ne (!=) at -e line 1.
+Test2/Tools/Ref.pm:78:34: warning: right operand of "!=": expected Num, got Undef|Int [coercion-mismatch]	Use of uninitialized value $x in numeric ne (!=) at -e line 1.
+Test2/Util/Ref.pm:21:24: error: left operand of "=~": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in pattern match (m//) at -e line 1.
+Test2/Workflow/Task.pm:55:28: error: call to bless: argument 2 expects Str, got Undef|Int|Num|Str|NaN|Inf [type-mismatch]	Use of uninitialized value $x in bless at -e line 1.
+Test2/Workflow/Task.pm:133:20: warning: left operand of "<=": expected Num, got Undef|Int|Num [coercion-mismatch]	Use of uninitialized value $x in numeric le (<=) at -e line 1.
+Test2/Workflow/Task.pm:133:37: warning: left operand of ">=": expected Num, got Undef|Int|Num [coercion-mismatch]	Use of uninitialized value $x in numeric ge (>=) at -e line 1.
+Test2/Workflow.pm:111:76: error: right operand of ".": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in concatenation (.) or string at -e line 1.
+x86_64-linux-thread-multi/threads/shared.pm:115:9: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+x86_64-linux-thread-multi/threads/shared.pm:125:12: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+x86_64-linux-thread-multi/threads/shared.pm:137:12: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+x86_64-linux-thread-multi/threads/shared.pm:145:12: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+x86_64-linux-thread-multi/threads/shared.pm:147:13: warning: left operand of "==": expected Num, got Undef|Int [coercion-mismatch]	Use of uninitialized value $x in numeric eq (==) at -e line 1.
+x86_64-linux-thread-multi/threads/shared.pm:147:22: warning: right operand of "==": expected Num, got Undef|Int [coercion-mismatch]	Use of uninitialized value $x in numeric eq (==) at -e line 1.
+x86_64-linux-thread-multi/threads/shared.pm:177:9: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.

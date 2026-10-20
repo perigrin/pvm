@@ -422,6 +422,20 @@ func TestHeldToPerlIgnoresTheCallersPerlLib(t *testing.T) {
 	}
 }
 
+// xsUtilities are the XS utility modules declared as one batch.
+var xsUtilities = []string{"Scalar::Util", "List::Util", "Cwd", "Data::Dumper", "MIME::Base64", "Storable"}
+
+// TestXSUtilitiesPrototypes holds the XS utility modules' prototypes to perl.
+func TestXSUtilitiesPrototypes(t *testing.T) {
+	holdPrototypes(t, xsUtilities...)
+}
+
+// TestXSUtilitiesExports holds the XS utility modules' export marks to
+// what `use` installs, bare, by name and by tag.
+func TestXSUtilitiesExports(t *testing.T) {
+	holdExports(t, xsUtilities...)
+}
+
 // TestTpmSkeletonMatchesCarp: Carp's generated skeleton, with each TODO
 // replaced by Carp.tpm's own return type for that sub, agrees with
 // Carp.tpm on every name, mark, tag and prototype -- holdPrototypes and

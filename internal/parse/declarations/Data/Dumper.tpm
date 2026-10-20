@@ -1,0 +1,15 @@
+# ABOUTME: Declares what `use Data::Dumper` exports: Dumper is :export, DumperX is :export_ok,
+# ABOUTME: measured. Measured on perl 5.42.0 with Data::Dumper 2.192.
+
+package Data::Dumper;
+
+# Dumper and DumperX answer by context, measured on 5.42.0: `my $s =
+# Dumper(1, 2)` leaves one string holding both values ("$VAR1 = 1;
+# $VAR2 = 2;"), but `my @r = Dumper(1, 2)` leaves two strings, one per
+# argument. Neither has a prototype perl reports, and each is the
+# plain "@" skeletonParams would give a slurpy list, so neither needs
+# :listop or :prototype.
+multi sub Dumper :export (List @args) Str;
+multi sub Dumper :export (List @args) List[Str];
+multi sub DumperX :export_ok (List @args) Str;
+multi sub DumperX :export_ok (List @args) List[Str];
