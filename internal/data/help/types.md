@@ -57,7 +57,10 @@ extension (`Moose/Role.tpm` for Moose::Role), and PVM reads it in place
 of the module's source, whether or not the module is installed. PVM
 ships declarations for:
 
-- Carp
+- the 50 core modules perl 5.42's own library imports most, measured
+  (`Carp`, `Exporter`, `Scalar::Util`, `Config`, `File::Spec`, `POSIX`,
+  `List::Util` and 43 more; `internal/parse/testdata/core_module_ranking.txt`
+  pins the list)
 - Moose and Moose::Role
 - Mojolicious::Lite
 - Future::AsyncAwait

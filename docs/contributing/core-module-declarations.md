@@ -190,6 +190,7 @@ shared instance, in alphabetical order by name —
     new           => [ [] ],
     add           => [ [ \*STDIN ] ],
     remove        => [ [ \*STDIN ] ],
+    # ... one case per remaining name in INSTANCE's subs list, each elided here
     INSTANCE      => {
         ctor => 'new',
         args => [ \*STDIN ],
