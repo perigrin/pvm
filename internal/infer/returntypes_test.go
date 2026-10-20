@@ -188,6 +188,62 @@ var oracleExempt = map[string]string{
 	"FileHandle::setpos": "dereferences the invocant as a glob to call fsetpos(); dies \"Bad filehandle\" when called with the class name itself, as the oracle calls it",
 }
 
+// pendingMisfit is one oracle misfit deferred to the issue auditing its
+// module's .tpm: a parameter the declaration rejects though perl
+// accepts it (Kind "parameter"), or, the DualVar knock-on, a return the
+// declaration no longer admits now that the observer tells DualVar
+// apart from Str and Num (Kind "return"). The fixing issue widens the
+// .tpm and deletes its own entries here; nothing in this package
+// widens a .tpm to absorb a misfit.
+type pendingMisfit struct {
+	Module, Sub, Kind, Detail, Reason string
+}
+
+// pendingAudit holds every misfit holdReturnTypes' DualVar knock-on or
+// the parameter oracle finds in a module whose audit fix has not
+// landed, keyed by the issue that will fix it (perigrin, 2026-10-21:
+// 01a15ac0-6c4a POSIX, -6c78 sockets, -6ca2 IO and OO modules, -6ccc XS
+// modules, -6cfa pure-Perl modules). POSIX's own entries were deleted
+// 2026-10-22 once feat/core-module-types (01a15ac0-6c4a's fix) widened
+// getpayload to Num|NaN|Inf and setpayload/setpayloadsig's $nv to Any:
+// re-measured, neither misfits the parameter oracle any longer. Sockets'
+// (01a15ac0-6c78) were deleted the same day once that same merge
+// declared getaddrinfo's and getnameinfo's error DualVar directly:
+// re-measured, the return-type oracle no longer sees a knock-on there
+// either. TestPendingAuditEntriesStillMisfit holds every entry that
+// remains to the same rule, so a fix that lands without deleting its
+// own entries fails here instead of going unnoticed.
+var pendingAudit = map[string][]pendingMisfit{
+	"01a15ac0-6ca2": {
+		{Module: "FileHandle", Sub: "autoflush", Kind: "parameter",
+			Detail: "oracle/FileHandle.pl's own case passes 1 for $on; its declared Boolean excludes the Int perl's $| actually integerises it to (Audit C, measured: \"yes\" gives 0, 0.5 gives 0)",
+			Reason: "a parameter oracle misfit: $| integerises its argument, so the declaration is Int, not a Boolean idiom"},
+		{Module: "IO::Handle", Sub: "autoflush", Kind: "parameter",
+			Detail: "oracle/IO-Handle.pl's own case passes 1 for $on; its declared Boolean excludes the Int perl's $| actually integerises it to (Audit C, measured: \"yes\" gives 0, 0.5 gives 0)",
+			Reason: "a parameter oracle misfit: $| integerises its argument, so the declaration is Int, not a Boolean idiom"},
+	},
+	"01a15ac0-6ccc": {
+		{Module: "Scalar::Util", Sub: "dualvar", Kind: "return",
+			Detail: "the dualvar it constructs fits neither candidate's declared Str",
+			Reason: "DualVar knock-on: observe_types.pl used to read dualvar()'s own result by its string half before it told DualVar apart"},
+	},
+}
+
+// pendingAuditMatch reports whether module::sub already has a kind
+// entry in pendingAudit, so holdReturnTypes and the parameter oracle
+// suppress exactly the misfits already deferred to a fixing issue, and
+// nothing else.
+func pendingAuditMatch(module, sub, kind string) bool {
+	for _, entries := range pendingAudit {
+		for _, m := range entries {
+			if m.Module == module && m.Sub == sub && m.Kind == kind {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // platformExempt holds, per runtime.GOOS, the additional subs the
 // return-type oracle exempts on that platform alone: a name whose call
 // dies, or whose returned type the .tpm (written against Linux perl
@@ -830,6 +886,28 @@ type oracleRun struct {
 	Inc string
 	// Exempt are the subs never called, "Module::sub" to why.
 	Exempt map[string]string
+	// IgnorePending turns off pendingAudit's and parameterExempt's own
+	// filtering, so TestPendingAuditEntriesStillMisfit can measure
+	// whether an entry's misfit is still real.
+	IgnorePending bool
+}
+
+// oracleCallArgs is the NAME:CONTEXT:FORM arguments return_oracle.pl and
+// parameter_oracle.pl both take: one per context and form a non-exempt
+// declared sub's candidates answer, so each driver calls (or, for the
+// parameter oracle, observes the arguments of) the same cases the other
+// does.
+func oracleCallArgs(sigs map[string][]types.Signature, module string, exempt map[string]string) []string {
+	var args []string
+	for _, name := range slices.Sorted(maps.Keys(sigs)) {
+		if _, skip := exempt[module+"::"+name]; skip {
+			continue
+		}
+		for _, call := range calls(sigs[name]) {
+			args = append(args, name+":"+call)
+		}
+	}
+	return args
 }
 
 // returnTypeFailures has perl call each sub r.TPM declares, except those
@@ -851,14 +929,7 @@ func returnTypeFailures(t *testing.T, p perltest.Perl, r oracleRun) []string {
 	if r.Inc != "" {
 		args = append([]string{"-I", r.Inc}, args...)
 	}
-	for _, name := range slices.Sorted(maps.Keys(sigs)) {
-		if _, exempt := r.Exempt[r.Module+"::"+name]; exempt {
-			continue
-		}
-		for _, call := range calls(sigs[name]) {
-			args = append(args, name+":"+call)
-		}
-	}
+	args = append(args, oracleCallArgs(sigs, r.Module, r.Exempt)...)
 
 	// Resolved, not t.TempDir()'s own path: macOS's /tmp is a symlink to
 	// /private/tmp, so perl's getcwd() (which resolves symlinks) would
@@ -928,6 +999,9 @@ func returnTypeFailures(t *testing.T, p perltest.Perl, r oracleRun) []string {
 		})
 		if !admitted {
 			failed[call] = true
+			if o.Type == "DualVar" && !r.IgnorePending && pendingAuditMatch(r.Module, name, "return") {
+				continue
+			}
 			failures = append(failures, fmt.Sprintf("%s::%s call case %d in %s context returned %s, which its declared return type excludes",
 				r.Module, name, o.Line, ctx, o.Type))
 		}
