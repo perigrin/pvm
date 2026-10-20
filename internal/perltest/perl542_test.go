@@ -34,6 +34,7 @@ func at(path string) func(testing.TB) {
 }
 
 func TestPerl542SkipsWhenAbsent(t *testing.T) {
+	t.Setenv("PVM_REQUIRE_PERL542", "") // a job that requires perl 5.42.0 is not what this test is about
 	assert.True(t, skipped(t, at(filepath.Join(t.TempDir(), "perl"))),
 		"a missing perl skips the test")
 }
@@ -41,6 +42,7 @@ func TestPerl542SkipsWhenAbsent(t *testing.T) {
 func TestPerl542SkipsWhenNotInstalledInPvm(t *testing.T) {
 	withNoPvmPerl(t)
 	t.Setenv("PATH", t.TempDir()) // also none on PATH, as on a runner with neither
+	t.Setenv("PVM_REQUIRE_PERL542", "")
 	assert.True(t, skipped(t, func(st testing.TB) { Perl542(st) }),
 		"perl 5.42.0 missing from pvm and from PATH skips the test")
 }
@@ -62,6 +64,7 @@ func TestPerl542SkipsWhenPrivlibMissing(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("the stand-in perl is a shell script")
 	}
+	t.Setenv("PVM_REQUIRE_PERL542", "")
 	missing := filepath.Join(t.TempDir(), "privlib")
 	fake := filepath.Join(t.TempDir(), "perl")
 	require.NoError(t, os.WriteFile(fake,
@@ -134,6 +137,7 @@ func TestPerl542SkipsAnotherVersion(t *testing.T) {
 	dir := t.TempDir()
 	perl542StandIn(t, dir, "5.040002", t.TempDir())
 	t.Setenv("PATH", dir)
+	t.Setenv("PVM_REQUIRE_PERL542", "")
 
 	assert.True(t, skipped(t, func(st testing.TB) { Perl542(st) }),
 		"a PATH perl reporting a version other than 5.042000 skips the test")

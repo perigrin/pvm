@@ -8,6 +8,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -347,6 +348,9 @@ func TestHeldToPerlFailsOnAModulePerlCannotLoad(t *testing.T) {
 // TestHeldToPerlFindsArchlibModules: POSIX loads from archlib, where
 // joining privlib with its path finds nothing; perl's %INC finds it.
 func TestHeldToPerlFindsArchlibModules(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Strawberry perl ships POSIX.pm as pure Perl under lib, not archlib -- measured in CI job 39489951290: C:/Strawberry/perl/lib/POSIX.pm is not in archlib C:\\STRAWB~1\\perl\\lib")
+	}
 	p := perltest.Perl542(t)
 	path, err := modulePath(t, p, "", "POSIX")
 	require.NoError(t, err)
@@ -410,6 +414,9 @@ func TestXSUtilitiesPrototypes(t *testing.T) {
 // TestXSUtilitiesExports holds the XS utility modules' export marks to
 // what `use` installs, bare, by name and by tag.
 func TestXSUtilitiesExports(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows's Cwd also exports getdcwd (drive-relative cwd), which Linux's does not have -- measured in CI job 39489951290")
+	}
 	holdExports(t, perltest.XSUtilities...)
 }
 
@@ -497,6 +504,9 @@ func TestPOSIXPrototypes(t *testing.T) {
 // TestPOSIXExports holds POSIX.tpm's :export and :export_ok marks to
 // what `use POSIX` installs in a caller, bare, by name and by tag.
 func TestPOSIXExports(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows's POSIX also exports dozens of WSAE* Winsock error constants, which Linux's does not have -- measured in CI job 39489951290")
+	}
 	holdExports(t, "POSIX")
 }
 
@@ -587,12 +597,18 @@ func containsUnknown(n *Node) bool {
 // TestPurePerlExportersPrototypes holds each pure-Perl exporter's .tpm
 // prototypes to perl (perltest.PureExporters: 01a1464e-db4c).
 func TestPurePerlExportersPrototypes(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skipf("Errno's Linux-only error codes (EADV and the rest) are not defined on %s's perl -- measured in CI job 39489951290: perl defines no such sub", runtime.GOOS)
+	}
 	holdPrototypes(t, perltest.PureExporters...)
 }
 
 // TestPurePerlExportersExports holds each pure-Perl exporter's .tpm
 // :export and :export_ok marks to what `use` installs.
 func TestPurePerlExportersExports(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skipf("Errno's Linux-only error codes (EADV and the rest) are not exported on %s's perl -- measured in CI job 39489951290: not exported by the Errno module", runtime.GOOS)
+	}
 	holdExports(t, perltest.PureExporters...)
 }
 
@@ -610,12 +626,18 @@ func TestErrnoDeclaresNoExportedVariable(t *testing.T) {
 // TestXSLibrariesPrototypes holds each XS library's .tpm prototypes to
 // perl (perltest.XSLibraries: 01a1464e-dbd3).
 func TestXSLibrariesPrototypes(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Time::HiRes::getitimer, setitimer and utime have no prototype on Windows's perl, and utime's differs -- measured in CI job 39489951290")
+	}
 	holdPrototypes(t, perltest.XSLibraries...)
 }
 
 // TestXSLibrariesExports holds each XS library's .tpm :export and
 // :export_ok marks to what `use` installs.
 func TestXSLibrariesExports(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Time::HiRes::clock, clock_nanosleep, nanosleep, ualarm and utime are unimplemented on Windows's perl -- measured in CI job 39489951290")
+	}
 	holdExports(t, perltest.XSLibraries...)
 }
 
@@ -849,6 +871,9 @@ func TestTestMoreImportParamAdmitsArrayRef(t *testing.T) {
 // TestIOExportersPrototypes holds each module's .tpm prototypes to perl
 // (perltest.IOExporters: 01a1464e-db76).
 func TestIOExportersPrototypes(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("File::Spec::Functions::case_tolerant, devnull and rootdir have no prototype on Windows's perl -- measured in CI job 39489951290")
+	}
 	holdPrototypes(t, perltest.IOExporters...)
 }
 
