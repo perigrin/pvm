@@ -69,7 +69,10 @@ and `%EXPORT_TAGS` in one as an error naming its line (perigrin,
 2026-10-16). Every value is measured on perl 5.42.0 with the module
 installed, and the file's header names the module version.
 
-Moose, Moose::Role and Mojolicious::Lite ship today.
+Moose, Moose::Role, Mojolicious::Lite and Future::AsyncAwait ship
+today, alongside `CORE.tpm` and the 50 core modules perl 5.42's own
+library imports most (`internal/parse/testdata/core_module_ranking.txt`
+pins the list; see "Core-module libraries").
 
 ### `M->import` in BEGIN is `use` (*Implemented*, a70a294e)
 
@@ -942,9 +945,7 @@ to a declared builtin or library sub by applying those rules at the call
 site -- the arguments' inferred types, the call's arity and its context
 -- and takes the selected candidate's return type. When the call site
 cannot decide between candidates it joins them; when the declarations
-rule the call out, it fails as "Multi declarations" says. It waits on
-`infer` running on `internal/parse` (milestone m2-lower-the-tree), which
-is why it is a section of its own.
+rule the call out, it fails as "Multi declarations" says.
 
 A call site hands selection what the call writes, not only its argument
 list: sort's comparison routine, `sort byname @x` or `sort $by @x`, is
@@ -958,6 +959,25 @@ file's last is in void context, where a match is untyped and never an
 error. A last statement, which may be the value of the sub, `do` or
 `eval` it ends, is given no context, and neither is a statement
 modifier's body.
+
+### Possible undef unless proven (*Implemented*, 2aaa0d36, 026bb539, f53654ca)
+
+perigrin, 2026-10-20: "An Undef from a declared return is
+possible-undef unless the call's arguments prove that the
+Undef-returning candidate is selected." A declared call's return
+carries `Undef` three ways: a single candidate's own union return
+(`Scalar::Util::blessed`'s one candidate, `(Any $ref) Str|Undef`,
+answers every call this way regardless of argument), a multi's widest,
+catch-all candidate (`reftype`, `refaddr`), or a resolved candidate the
+call's own arguments force outright, with no other outcome left at all
+(`List::Util::sum`'s `()` candidate, the only one zero arguments
+admit). The first two are accepted by default, the same way an Unknown
+argument itself is, since the declaration decided the Undef, not the
+call; `psc check --warn-possible-undef` reports them instead, as an
+ordinary coercion mismatch. The third still reports either way --
+`sum()` -- since the call forced it (`internal/infer/calls.go`,
+`markPossibleUndef`; `internal/infer/infer.go`, `WarnPossibleUndef`;
+`internal/infer/warnpossibleundef_test.go`).
 
 ### Core-module libraries (*Implemented*, 236f66e7, 3b04b021, c36ec181, eeb9dfa6, ac90b82c, 2d724aa2, d7e9819e, 6c1aa611)
 
@@ -1067,17 +1087,22 @@ attribute, as Chalk and Bson spell it:
 `%Config` is `Hash[Str|Undef]` because 172 of its values are undef on
 perl 5.42.0 (perigrin, 2026-10-16). A typed `our` is typed Perl, so it
 is legal only in a declaration file, as a typed signature is; outside
-one, perl refuses `our Hash[Str] %Config` at compile time, and so does
-the parser.
+one, perl refuses `our Hash[Str|Undef] %Config :export;` at compile
+time ("No such class Hash ... syntax error", measured on 5.42.0), and
+the parser refuses the same line, as `TestTypedOurOnlyInDeclarations`
+measures.
 
 **Held to perl.** Every declaration is tested against an installed
 perl: declared prototypes equal `prototype()`; the `:export` and
 `:export_ok` marks equal what `use` installs in a caller, bare, by name
 and by tag; return types agree with what an oracle observes when perl
 calls the sub, and an observed value the declared type excludes fails.
-The oracle runs in a scratch directory with no network, and calls only
-subs that are safe there; a sub it cannot call is held to its prototype
-and its export membership. Tests run perl; psc never does. The same
+The oracle runs in a scratch directory and calls only subs a sub's own
+entry in the `oracleExempt` map (`internal/infer/returntypes_test.go`)
+does not rule out — network, fork/exec, signals, `_exit`, a mutation
+outside scratch, a block on a terminal; nothing sandboxes the process
+itself. A sub it cannot call is held to its prototype and its export
+membership. Tests run perl; psc never does. The same
 driver's `skeleton` mode prints a module's installable names as a .tpm
 skeleton, params derived from each sub's prototype, so a batch worker
 only decides a TODO return type and oracle cases rather than

@@ -1,5 +1,6 @@
 # ABOUTME: Declares what `use IO::Socket::IP` installs: Socket's 170 default names, re-exported
-# ABOUTME: through IO::Socket's own `use Socket;`, plus IO::Socket::IP's own OO methods.
+# ABOUTME: through IO::Socket's own `use Socket;`, plus its own OO methods. Measured on perl 5.42.0 with IO::Socket::IP 0.43.
+
 package IO::Socket::IP;
 
 # IO::Socket::IP inherits IO::Socket's import, which forwards to Socket's

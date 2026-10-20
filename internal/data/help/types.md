@@ -44,6 +44,18 @@ script.pl:3:22: warning: right operand of "+": expected Num, got Str [coercion-m
 reports values whose type it could not work out, instead of accepting
 them.
 
+Two more flags widen what `psc check` reports, each silent by
+default:
+
+- `--warn-lossy-coercion` reports a coercion perl makes silently but
+  that loses the value, such as a reference printed as a string.
+- `--warn-possible-undef` reports an `Undef` a declared call's return
+  may carry, when the call's own arguments do not prove it: `blessed($x)
+  eq 'Foo'` is silent by default, whatever `$x` is, since
+  `Scalar::Util::blessed` always returns `Str|Undef`. A call whose
+  arguments force the `Undef` outright, such as `sum()`, still reports
+  either way.
+
 ## Declaration Files
 
 Some modules define subs that their source never shows. Moose builds

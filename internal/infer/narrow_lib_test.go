@@ -362,7 +362,7 @@ print $s;
 	}
 }
 
-// Symbol.tpm (db4c, scratchpad/db4c-symbol-deferred/) ships from here:
+// Symbol.tpm (issue db4c) ships from here:
 // declaring `qualify` a multi by argument type (Ref returns that Ref,
 // Str returns Str) measures correctly standing alone, and IO/Handle.pm:515
 // calls it with a second argument, `caller`, whose own type -- CORE.tpm's
