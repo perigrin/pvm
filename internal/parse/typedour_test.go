@@ -79,6 +79,55 @@ func TestTypedOurUnknownAttributeRejected(t *testing.T) {
 	wantDeclarationError(t, "our Str $x :exported;\n", ":exported")
 }
 
+// TestLexicalExportMarkRejected: only `our` declares a package variable
+// Exporter can install -- a `my` or `state` lexical, or a `local`'ed
+// global, is never in the symbol table Exporter installs from -- so
+// `:export` on any of them is refused on that ground alone, whatever perl
+// itself does with the attribute. Measured on 5.42.0, perl's own verdict
+// differs by declarator: `my $x :export;` and `state $x :export;` (the
+// latter needs `use feature 'state'`) both pass `perl -c` ("syntax OK")
+// and die only when run ("Invalid SCALAR attribute: export"); `local $x
+// :export;` is a compile-time syntax error, since `local` takes no
+// attributes at all; only `our $x :export;` is perl's own compile-time
+// refusal ("Invalid SCALAR attribute: export" from `BEGIN`).
+func TestLexicalExportMarkRejected(t *testing.T) {
+	wantDeclarationError(t, "my $x :export;\n", ":export")
+	wantDeclarationError(t, "local $x :export;\n", ":export")
+	wantDeclarationError(t, "state $x :export;\n", ":export")
+}
+
+// TestOurMarkTrailingCommaRejected: a comma after a marked `our`'s
+// attributes makes the declaration one operand of a bigger list --
+// `our Int $x :export, $y;` is `(our Int $x :export), $y` -- which this
+// parser reads at parse time (the type, recorded before the error is
+// found) but never scans for its mark (the per-statement export pass sees
+// only a declaration ending its own statement). Read correctly it would
+// export nothing silently; refused, the trailing comma is the fix.
+func TestOurMarkTrailingCommaRejected(t *testing.T) {
+	facts := readDeclaration([]byte("our Int $x :export, $y;\n"), nil)
+	if len(facts.errs) == 0 || !strings.Contains(facts.errs[0].Error(), "is not read here") {
+		t.Errorf("errors %v, want one holding %q", facts.errs, "is not read here")
+	}
+	if len(facts.exports) > 0 {
+		t.Errorf("exports %v; a declaration in error exports nothing", facts.exports)
+	}
+}
+
+// TestOurMarkInLongCommaChainRejected: perl's `,` is left-associative, so
+// three comma-joined declarations parse as `Binary(",", Binary(",", A,
+// B), C)`, A and B sharing one inner node rather than three operands
+// sitting beside each other. A mark in the first position -- the one
+// buried two levels down -- is read the same as one in the last.
+func TestOurMarkInLongCommaChainRejected(t *testing.T) {
+	facts := readDeclaration([]byte("our $a :export = 1, our $b = 2, our $c = 3;\n"), nil)
+	if len(facts.errs) == 0 || !strings.Contains(facts.errs[0].Error(), "is not read here") {
+		t.Errorf("errors %v, want one holding %q", facts.errs, "is not read here")
+	}
+	if len(facts.exports) > 0 {
+		t.Errorf("exports %v; a declaration in error exports nothing", facts.exports)
+	}
+}
+
 // TestTypedOurUnknownTypeRejected: a type name the lattice does not hold
 // is an error, as it is in a signature.
 func TestTypedOurUnknownTypeRejected(t *testing.T) {
@@ -103,6 +152,28 @@ func TestTypedOurListRejected(t *testing.T) {
 	wantDeclarationError(t, "our Str ($ta, $tb);\n", "declare one variable per statement")
 	wantDeclarationError(t, "our ($pa, $pb) :export;\n", "declare one variable per statement")
 	wantDeclarationError(t, "our ($pa, $pb) :export_ok(t);\n", "declare one variable per statement")
+}
+
+// TestListFormTypedOurIsRead: `our TYPE (VAR) :export;` holds one variable
+// in a parenthesised list -- grouping parens that don't multiply it, as
+// `my ($x) = @_` is one variable too, forcing list context on its init.
+// Its type and export mark are read exactly as the unparenthesised form's
+// are; perl drops the class for a list-form `our` (measured on 5.42.0,
+// `our Foo ($x) = 1;` deparses identically to `our ($x) = 1;`), but typed
+// Perl is this parser's own convention, not perl's grammar, and a single
+// name in parens says which variable the type is for.
+func TestListFormTypedOurIsRead(t *testing.T) {
+	facts := readDeclaration([]byte("package M;\nour Hash[Str] (%a) :export;\n"), nil)
+	if len(facts.errs) > 0 {
+		t.Fatalf("errs = %v, want none", facts.errs)
+	}
+	got := facts.variables["%a"]
+	if got.Type != types.Hash || got.Element != types.Str {
+		t.Errorf("%%a is %v of %v, want Hash[Str]", got.Type, got.Element)
+	}
+	if !slices.Contains(facts.exports, "%a") {
+		t.Errorf("exports %v, want %%a", facts.exports)
+	}
 }
 
 // TestOurUntypedExport: an untyped `our` exports by its mark alone, and

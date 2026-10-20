@@ -271,20 +271,27 @@ func readDeclarationWith(p *parser) moduleFacts {
 // is what a bare `use` imports, `:export_ok` what must be asked for, and
 // either's argument names the tags that hold the name.
 func readExportMarks(root *Node, facts *moduleFacts) {
-	// A multi's first candidate's mark, which every later one must repeat:
-	// perl exports a name, not a candidate.
-	type mark struct {
+	// A multi's first candidate's mark, which every later one must repeat,
+	// as a plain sub redeclared under the same name must too: perl exports
+	// a name, not a candidate or a redeclaration. A redeclared typed `our`
+	// must also repeat its first TYPE: a disagreement in either is
+	// ambiguous rather than a redefinition, since the export comes from
+	// one statement and the type from another. Keyed by "sub "+name or
+	// "our "+name, since a sub name and a sigiled our name never collide
+	// anyway.
+	type redeclared struct {
 		ok, bare, differs bool
 		tags              []string
+		typeText          string
 	}
-	firstMark := map[string]*mark{}
+	firstMark := map[string]*redeclared{}
 	for _, stmt := range root.Children {
 		for _, n := range stmt.Children {
 			multi := n.Kind == Declaration && n.Text == "multi" && len(n.Children) == 1
 			if multi {
 				n = n.Children[0]
 			}
-			var name string
+			var name, typeText string
 			switch {
 			case n.Kind == Declaration && n.Text == "sub":
 				name, _ = declaredSub(n)
@@ -301,15 +308,26 @@ func readExportMarks(root *Node, facts *moduleFacts) {
 				} else if _, recorded := facts.variables[n.Children[i].Text]; recorded || !typed {
 					name = n.Children[i].Text
 				}
+				if j := slices.IndexFunc(n.Children, func(c *Node) bool { return c.Kind == TypeName }); j >= 0 {
+					typeText = n.Children[j].Text
+				}
 			}
 			bare, tags, ok := exportMark(n)
-			if multi && name != "" {
-				m := &mark{ok: ok, bare: bare, tags: slices.Sorted(slices.Values(tags))}
-				if first := firstMark[name]; first == nil {
-					firstMark[name] = m
-				} else if !first.differs && (first.ok != m.ok || first.bare != m.bare || !slices.Equal(first.tags, m.tags)) {
+			if name != "" && (n.Text == "sub" || n.Text == "our") {
+				m := &redeclared{ok: ok, bare: bare, tags: slices.Sorted(slices.Values(tags)), typeText: typeText}
+				key := n.Text + " " + name
+				if first := firstMark[key]; first == nil {
+					firstMark[key] = m
+				} else if !first.differs && (first.ok != m.ok || first.bare != m.bare || !slices.Equal(first.tags, m.tags) || first.typeText != m.typeText) {
 					first.differs = true
-					facts.errs = append(facts.errs, fmt.Errorf("multi sub %s: candidates mark %s differently", name, name))
+					switch {
+					case n.Text == "our":
+						facts.errs = append(facts.errs, fmt.Errorf("our %s: redeclared with a different type or export mark", name))
+					case multi:
+						facts.errs = append(facts.errs, fmt.Errorf("multi sub %s: candidates mark %s differently", name, name))
+					default:
+						facts.errs = append(facts.errs, fmt.Errorf("sub %s: candidates mark %s differently", name, name))
+					}
 				}
 			}
 			if name == "" || !ok || slices.Contains(facts.exports, name) {
@@ -340,6 +358,101 @@ var declarationSubAttrs = map[string]bool{
 	"keyword": true, "statement": true, "sublike": true,
 }
 
+// declStmt is one statement-level Declaration readExportMarks' and
+// refuseInDeclaration's attribute walk both read, together with whether it
+// sits where neither reads its export mark: inside a bare block or a
+// phaser's block, or trailing a comma that makes it one operand of a
+// bigger list.
+type declStmt struct {
+	node   *Node
+	nested bool
+}
+
+// declarationStatements collects every statement-level node root's own
+// statements hold, and -- nested -- every one a bare block or a phaser's
+// block holds, or a trailing comma leaves as one operand beside another:
+// perl compiles a named sub, and assigns a package variable, wherever a
+// block or a comma expression sits it in (`BEGIN { sub f { } }` declares f
+// at compile time the same as a top-level `sub f { }` would), but a .tpm
+// reads marks and attributes only where this walk marks nested false.
+func declarationStatements(root *Node) []declStmt {
+	var out []declStmt
+	var walk func(stmt *Node, nested bool)
+	walk = func(stmt *Node, nested bool) {
+		for _, n := range stmt.Children {
+			switch {
+			case n.Kind == Block:
+				for _, s := range n.Children {
+					walk(s, true)
+				}
+			case n.Kind == Phaser:
+				for _, b := range n.Children {
+					if b.Kind == Block {
+						for _, s := range b.Children {
+							walk(s, true)
+						}
+					}
+				}
+			case n.Kind == Binary && n.Text == ",":
+				for _, c := range commaOperands(n) {
+					if c.Kind == Declaration {
+						out = append(out, declStmt{c, true})
+					}
+				}
+			default:
+				out = append(out, declStmt{n, nested})
+			}
+		}
+	}
+	for _, stmt := range root.Children {
+		walk(stmt, false)
+	}
+	return out
+}
+
+// commaOperands flattens a comma chain into its operands: perl's `,` is
+// left-associative, so `our $a, our $b, our $c` parses as a Binary ","
+// whose own left child is a Binary "," of the first two, not three
+// siblings of one node.
+func commaOperands(n *Node) []*Node {
+	var out []*Node
+	for _, c := range n.Children {
+		if c.Kind == Binary && c.Text == "," {
+			out = append(out, commaOperands(c)...)
+		} else {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// useVarsNames is the names a `use vars` argument states, however it is
+// spelled -- `qw(...)`, a quoted string, or a parenthesised list of either,
+// as perl's own `use vars` reads all three -- each with the node whose
+// line reports it.
+func useVarsNames(use *Node) []*Node {
+	var names []*Node
+	var collect func(n *Node)
+	collect = func(n *Node) {
+		switch {
+		case n.Kind != Term:
+			for _, c := range n.Children {
+				collect(c)
+			}
+		case strings.HasPrefix(n.Text, "qw") && len(n.Text) > 3:
+			for _, w := range strings.Fields(n.Text[3 : len(n.Text)-1]) {
+				names = append(names, &Node{Kind: Term, Text: w, Start: n.Start, End: n.End})
+			}
+		case len(n.Text) > 1 && (n.Text[0] == '\'' || n.Text[0] == '"'):
+			names = append(names, &Node{Kind: Term, Text: strings.Trim(n.Text, `'"`), Start: n.Start, End: n.End})
+		}
+	}
+	for _, c := range use.Children[1:] {
+		collect(c)
+	}
+	return names
+}
+
 // refuseInDeclaration is what a .tpm states that its language does not
 // (RFC 0001, "Every exported name"): an export list, which :export and
 // :export_ok replace, and an attribute no sub or our takes, as a
@@ -358,6 +471,13 @@ func refuseInDeclaration(root *Node, src []byte) []error {
 		if n.Kind == Declaration {
 			prefix = n.Text + " "
 		}
+		if n.Kind == Use && len(n.Children) > 0 && n.Children[0].Text == "vars" {
+			for _, name := range useVarsNames(n) {
+				if exportListVar(name.Text) {
+					listed(name, "use vars "+name.Text)
+				}
+			}
+		}
 		for i, c := range n.Children {
 			// A sub's signature is its parameters: local, exporting nothing.
 			if n.Kind == Declaration && n.Text == "sub" && c.Kind == List {
@@ -369,42 +489,50 @@ func refuseInDeclaration(root *Node, src []byte) []error {
 			if n.Kind == Index && i == 0 && !n.Arrow && v != "" {
 				v = map[string]string{"[": "@", "{": "%"}[n.Text] + v[1:]
 			}
-			switch {
-			case c.Kind != Term:
-			case exportListVar(v):
+			if c.Kind == Term && exportListVar(v) {
 				listed(c, prefix+c.Text)
-			case n.Kind == Use && n.Children[0].Text == "vars" && strings.HasPrefix(c.Text, "qw") && len(c.Text) > 3:
-				for _, w := range strings.Fields(c.Text[3 : len(c.Text)-1]) {
-					if exportListVar(w) {
-						listed(c, "use vars "+w)
-					}
-				}
 			}
 			walk(c, prefix)
 		}
 	}
 	walk(root, "")
-	for _, stmt := range root.Children {
-		for _, n := range stmt.Children {
-			if n.Kind == Declaration && n.Text == "multi" && len(n.Children) == 1 {
-				n = n.Children[0]
-			}
-			if n.Kind != Declaration {
+	for _, ds := range declarationStatements(root) {
+		n := ds.node
+		if n.Kind == Declaration && n.Text == "multi" && len(n.Children) == 1 {
+			n = n.Children[0]
+		}
+		if n.Kind != Declaration {
+			continue
+		}
+		typed := slices.ContainsFunc(n.Children, func(c *Node) bool { return c.Kind == TypeName })
+		for _, c := range n.Children {
+			if c.Kind != Attribute {
 				continue
 			}
-			typed := slices.ContainsFunc(n.Children, func(c *Node) bool { return c.Kind == TypeName })
-			for _, c := range n.Children {
-				if c.Kind != Attribute {
-					continue
+			attr, _, _ := strings.Cut(strings.TrimPrefix(c.Text, ":"), "(")
+			switch {
+			case n.Text == "sub" && !declarationSubAttrs[attr]:
+				name, _ := declaredSub(n)
+				errs = append(errs, fmt.Errorf("sub %s: unknown attribute %s", name, c.Text))
+			case n.Text == "our" && !typed && attr != "export" && attr != "export_ok":
+				errs = append(errs, fmt.Errorf("our %s: unknown attribute %s; an our takes :export or :export_ok", n.Children[0].Text, c.Text))
+			case (n.Text == "my" || n.Text == "local" || n.Text == "state") && (attr == "export" || attr == "export_ok"):
+				errs = append(errs, fmt.Errorf("%s %s: %s; only our takes :export or :export_ok, a lexical or local exporting nothing", n.Text, n.Children[0].Text, c.Text))
+			}
+			// A .tpm reads an export mark only on a declaration that ends
+			// its own statement: one a bare block or a phaser holds, or
+			// one a trailing comma leaves beside another operand, still
+			// compiles and assigns in perl, but this parser's
+			// export-reading pass does not see it there, so it is refused
+			// rather than silently unmarked.
+			if ds.nested && (n.Text == "sub" || n.Text == "our") && (attr == "export" || attr == "export_ok") {
+				var name string
+				if n.Text == "sub" {
+					name, _ = declaredSub(n)
+				} else if i := slices.IndexFunc(n.Children, func(c *Node) bool { return c.Kind == Term }); i >= 0 {
+					name = n.Children[i].Text
 				}
-				attr, _, _ := strings.Cut(strings.TrimPrefix(c.Text, ":"), "(")
-				switch {
-				case n.Text == "sub" && !declarationSubAttrs[attr]:
-					name, _ := declaredSub(n)
-					errs = append(errs, fmt.Errorf("sub %s: unknown attribute %s", name, c.Text))
-				case n.Text == "our" && !typed && attr != "export" && attr != "export_ok":
-					errs = append(errs, fmt.Errorf("our %s: unknown attribute %s; an our takes :export or :export_ok", n.Children[0].Text, c.Text))
-				}
+				errs = append(errs, fmt.Errorf("line %d: %s %s: %s is not read here; a .tpm reads an export mark only on a declaration ending its own statement", lineIndex(src).at(c.Start), n.Text, name, c.Text))
 			}
 		}
 	}

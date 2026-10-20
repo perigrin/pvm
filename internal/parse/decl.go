@@ -868,7 +868,18 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 	// the shape is the scalar path's -- target, attributes, initialiser --
 	// which canon already writes. Measured on 5.42.0, Deparse keeps
 	// `my($c, @g, %b) :teapots = ('a', 'b', 'c')`.
+	beforeList := len(n.Children)
 	if d := p.listDeclWithAttributes(n); d != nil {
+		// A single name in parens -- `our Hash[Str] (%a) :export;` -- is one
+		// variable, grouping parens around it rather than a list of several
+		// (parseTerm already collapses them to the one Term, as it does for
+		// any parenthesised single expression): the type reads exactly as
+		// the unparenthesised form's does. Several names stay unrecorded,
+		// readExportMarks' "declare one variable per statement" refusal
+		// below.
+		if typeName != nil && len(d.Children) > beforeList && d.Children[beforeList].Kind == Term {
+			p.declareVariable(d, d.Children[beforeList].Text, typeName.Text, typ, elem)
+		}
 		return d
 	}
 
