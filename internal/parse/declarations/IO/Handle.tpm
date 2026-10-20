@@ -46,12 +46,12 @@ sub _IONBF :export_ok () Int;
 # invocant, as the return-type oracle does: new, new_from_fd, opened,
 # fileno, eof, getc and close each answer without dying, so their
 # return types below hold for that call and for a real handle's.
-# autoflush, blocking, clearerr, error, ungetc, fdopen, binmode and
-# setbuf/setvbuf each dereference the invocant as a glob and die
-# "Bad filehandle" or "Can't use string ... as a symbol ref" when the
-# invocant is the bare class name rather than a handle, so they are left
-# undeclared here rather than declared with a return type the oracle
-# could never observe honestly.
+# blocking, clearerr, error, ungetc, fdopen, binmode and setbuf/setvbuf
+# each dereference the invocant as a glob and die "Bad filehandle" or
+# "Can't use string ... as a symbol ref" when the invocant is the bare
+# class name rather than a handle, so they are left undeclared here
+# rather than declared with a return type the oracle could never
+# observe honestly.
 sub new (Str $class:) Object;
 sub new_from_fd (Str $class: Int $fd, Str $mode) Object|Undef;
 sub opened (Object $self:) Boolean;
