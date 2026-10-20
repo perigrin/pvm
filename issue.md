@@ -12,7 +12,7 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.752726002Z
-updated: 2026-10-20T02:28:27.986790751Z
+updated: 2026-10-20T02:39:32.494021128Z
 sessions:
 - start_sha: 5b91125f4014127e11963fc610c805ba205b10ff
   end_sha: f8a82e032cf9fa043deec9d5fb866d21bac80c75
@@ -93,6 +93,14 @@ A `.tpm` changes what the parser reads for every file that uses the module, so r
 - [ ] Run to verify failure: `go test ./internal/infer/ -run '^TestConstantExportersReturnTypes$' -count=1 -v`
 - [ ] Fix declared return types where perl disagrees; run to verify pass; commit
 - [ ] Run the m1 gates above; `make test`; commit
+
+### Review Findings
+
+Gate, 2026-10-20, on f8a82e03 (fresh Sonnet reviewer; six criteria pass, one proven non-vacuous by mutation; the by-name retry cannot hide a missing sub; 13 spot checks match perl). VERDICT: REOPEN.
+
+1. (CODE, 90) Socket.tpm:347 `multi sub sockaddr_in ... (Int $port, Str|Undef $addr) Str;` widens addr to keep Net::Ping's call quiet, but perl 5.42 dies on `Socket::sockaddr_in(80, undef)` ("Undefined address for Socket::pack_sockaddr_in"), and sockaddr_in6 was left plain Str though it dies the same way. Net::Ping.pm:1797-1798 (`wakeonlan`: `my $ip_addr = inet_aton($host); sockaddr_in($port, $ip_addr)`) really can pass undef for an unresolvable host. Fix: declare addr `Str` as perl's contract states; the resulting Net::Ping diagnostic is a true positive, so list it in lib_true_positives.txt with perl -w (or die) output produced by calling Net::Ping's wakeonlan with an unresolvable host, from the real lib path, not a minimal repro.
+
+Out of scope, filed separately: the oracle calls every case in every context, so it cannot hold a sub that dispatches on arity and wantarray together (sockaddr_in, sockaddr_in6 stay exempt).
 
 ## Acceptance Criteria
 
