@@ -259,6 +259,32 @@ func TestMultiCandidatesMarkedDifferentlyRefused(t *testing.T) {
 	}
 }
 
+// TestRedeclarationDisagreementRefused: a plain sub or a typed `our`
+// redeclared with a different export mark, or a typed `our` redeclared
+// with a different type, is ambiguous the same way a multi's candidates
+// marked differently are -- the fact comes from one statement, the other
+// fact from a different one -- so it is refused rather than letting the
+// last statement's type pair silently with the first's mark.
+func TestRedeclarationDisagreementRefused(t *testing.T) {
+	saved := declarations
+	t.Cleanup(func() { declarations = saved })
+	for src, refused := range map[string]bool{
+		"sub f :export (Int $i) Int;\nsub f (Str $s) Str;\n":         true,
+		"sub f (Int $i) Int;\nsub f :export (Str $s) Str;\n":         true,
+		"sub f :export (Int $i) Int;\nsub f :export (Str $s) Str;\n": false,
+		"our Int $x :export;\nour Str $x;\n":                         true,
+		"our Int $x;\nour Str $x :export;\n":                         true,
+		"our Int $x :export;\nour Str $x :export;\n":                 true,
+		"our Int $x :export;\nour Int $x :export;\n":                 false,
+	} {
+		declarations = layeredFS{top: fstest.MapFS{"declarations/My/Redecl.tpm": {Data: []byte("package My::Redecl;\n" + src)}}, base: saved}
+		errs := DeclarationErrors(ParseWithLoader([]byte("use My::Redecl;\n"), noModules))
+		if got := len(errs) > 0; got != refused {
+			t.Errorf("%q: errors %v, want refused=%v", src, errs, refused)
+		}
+	}
+}
+
 // TestDeclarationExportListFormsRefused: an export list is refused in
 // every form a .tpm could state one, not only as a top-level `our` or
 // assignment: in a declared list, pushed onto, package-qualified, inside
@@ -288,6 +314,52 @@ func TestDeclarationExportListFormsRefused(t *testing.T) {
 		declarations = layeredFS{top: fstest.MapFS{"declarations/My/Odd.tpm": {Data: []byte("package My::Odd;\n" + src + "sub f () Int;\n")}}, base: saved}
 		var got []string
 		for _, err := range DeclarationErrors(ParseWithLoader([]byte("use My::Odd;\n"), noModules)) {
+			got = append(got, err.Error())
+		}
+		if !slices.Equal(got, want) {
+			t.Errorf("%q: errors %q, want %q", src, got, want)
+		}
+	}
+}
+
+// TestExportMarkInsideBlockRefused: a named sub or package `our` is perl's
+// wherever a bare block or a phaser holds it -- `BEGIN { sub f :export; }`
+// declares f at compile time the same as a top-level `sub f :export;`
+// would. A .tpm reads its export marks only at top level, so one nested in
+// a block is refused rather than silently unmarked.
+func TestExportMarkInsideBlockRefused(t *testing.T) {
+	saved := declarations
+	t.Cleanup(func() { declarations = saved })
+	for src, want := range map[string]bool{
+		"{ sub f :export; }\n":                             true,
+		"BEGIN { sub f :export; }\n":                       true,
+		"{ our $g :export; }\n":                            true,
+		"sub f :export;\n":                                 false,
+		"BEGIN { sub f () Int; }\nsub f :export () Int;\n": false,
+	} {
+		declarations = layeredFS{top: fstest.MapFS{"declarations/My/Nested.tpm": {Data: []byte("package My::Nested;\n" + src)}}, base: saved}
+		errs := DeclarationErrors(ParseWithLoader([]byte("use My::Nested;\n"), noModules))
+		if refused := len(errs) > 0; refused != want {
+			t.Errorf("%q: errors %v, want refused=%v", src, errs, want)
+		}
+	}
+}
+
+// TestUseVarsExportListRefused: `use vars` names an export list as a
+// quoted string too, not only `qw(...)`; perl's own `use vars` reads
+// either. Both are refused, as `use vars qw(@EXPORT)` already is.
+func TestUseVarsExportListRefused(t *testing.T) {
+	saved := declarations
+	t.Cleanup(func() { declarations = saved })
+	const tail = ": a .tpm marks each export :export or :export_ok, not in a list"
+	for src, want := range map[string][]string{
+		"use vars '@EXPORT';\n":      {"My::Str: line 2: use vars @EXPORT" + tail},
+		"use vars \"@EXPORT_OK\";\n": {"My::Str: line 2: use vars @EXPORT_OK" + tail},
+		"use vars '$CRLF';\n":        nil,
+	} {
+		declarations = layeredFS{top: fstest.MapFS{"declarations/My/Str.tpm": {Data: []byte("package My::Str;\n" + src + "sub f () Int;\n")}}, base: saved}
+		var got []string
+		for _, err := range DeclarationErrors(ParseWithLoader([]byte("use My::Str;\n"), noModules)) {
 			got = append(got, err.Error())
 		}
 		if !slices.Equal(got, want) {
