@@ -95,12 +95,26 @@ func (a *analysis) key(n *lower.Key) types.Type {
 // refaddr($z)` proves $z this way. A non-arrow read, `$h{k}`, derefs
 // nothing of its own: its base is the aggregate itself, not a scalar
 // holding a reference to one.
+//
+// base's existing Ref bits, Object among them, are kept rather than
+// overwritten: a blessed reference derefed through an accessor,
+// `find_encoding("UTF-8")->{Name}`, is still the same blessed reference
+// after it, not a plain HashRef -- only Undef and whatever non-ref type
+// base held are dropped, since those cannot have survived the deref.
+// Base's own dereference is the straight-line read: logicalRight's
+// walkJoined keeps this from escaping a `&&`/`||`/`?:` arm it runs inside
+// of, the way it would if this wrote through unconditionally.
 func (a *analysis) narrowDerefBase(base lower.Node, arrow bool, ref types.Type) {
 	if !arrow {
 		return
 	}
 	if v, ok := base.(*lower.Var); ok && v.Sigil == "$" {
-		a.st.UpdateType("$"+v.Name, ref)
+		name := "$" + v.Name
+		sym, _ := a.st.Lookup(name)
+		if kept := sym.Type & types.Ref; kept != types.Unknown {
+			ref = kept
+		}
+		a.st.UpdateType(name, ref)
 	}
 }
 

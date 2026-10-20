@@ -31,6 +31,7 @@ func (a *analysis) call(n *lower.Call) types.Type {
 		a.walk(n.Fn)
 	}
 	name := coreName(n.Name)
+	a.invalidateMutatedArrays(name, n.Args)
 	if name == "undef" {
 		// undef denotes the undefined value whatever it is given: CORE.tpm
 		// declares no return type for it, so it is typed here.
@@ -173,18 +174,39 @@ func (a *analysis) possibleUndef(n lower.Node, actual, expected types.Type) bool
 }
 
 // markedPossibleUndef reports whether n is itself a declared call
-// markPossibleUndef marked, or a variable read whose symbol carries the
-// same mark forward from the call its value was last assigned from.
+// markPossibleUndef marked, a variable read whose symbol carries the same
+// mark forward from the call its value was last assigned from (narrow,
+// ops.go, so a plain copy, `my $j = $k`, carries it on), or a ternary
+// whose every arm that can still be Undef is itself marked this way, the
+// same rule joinBranches applies across a conditional's bodies.
 func (a *analysis) markedPossibleUndef(n lower.Node) bool {
 	if a.undecidedUndef[n.Meta().ID] {
 		return true
 	}
-	v, ok := n.(*lower.Var)
-	if !ok {
-		return false
+	switch n := n.(type) {
+	case *lower.Var:
+		sym, ok := a.st.Lookup(n.Sigil + n.Name)
+		return ok && sym.PossibleUndef
+	case *lower.Ternary:
+		return a.ternaryPossibleUndef(n)
 	}
-	sym, ok := a.st.Lookup(v.Sigil + v.Name)
-	return ok && sym.PossibleUndef
+	return false
+}
+
+// ternaryPossibleUndef is a ternary's own possible-undef mark: forgiven
+// only when every arm whose own type still carries Undef is itself
+// marked, so an arm whose Undef is a plain, unmarked one is not forgiven
+// just because the other arm's came from a declared call.
+func (a *analysis) ternaryPossibleUndef(n *lower.Ternary) bool {
+	marked, any := true, false
+	for _, arm := range []lower.Node{n.Then, n.Else} {
+		if arm == nil || a.typeOf(arm)&types.Undef == 0 {
+			continue
+		}
+		any = true
+		marked = marked && a.markedPossibleUndef(arm)
+	}
+	return any && marked
 }
 
 // flattenedSelect is types.Select for a call in context ctx with at least
@@ -577,6 +599,28 @@ func (a *analysis) argTypes(args []lower.Node) []types.Type {
 		ts[i] = a.typeOf(arg)
 	}
 	return ts
+}
+
+// mutatesArray is which core builtins can renumber or replace an array's
+// own elements, invalidating any $name[N] guard shadow (flow.go's
+// guardVarName) of an array argument: what a guard found true of whichever
+// value sat at an index before the call no longer answers for what is
+// there after it.
+var mutatesArray = map[string]bool{
+	"shift": true, "unshift": true, "pop": true, "push": true, "splice": true,
+}
+
+// invalidateMutatedArrays drops every element shadow of an array a call to
+// name, a core builtin, may rewrite.
+func (a *analysis) invalidateMutatedArrays(name string, args []lower.Node) {
+	if !mutatesArray[name] {
+		return
+	}
+	for _, arg := range args {
+		if v, ok := arg.(*lower.Var); ok && v.Sigil == "@" {
+			a.st.ClearElementShadows(v.Name)
+		}
+	}
 }
 
 // contextualReturn types the builtins whose
