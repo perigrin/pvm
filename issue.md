@@ -11,7 +11,7 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.542610643Z
-updated: 2026-10-20T13:40:32.461059951Z
+updated: 2026-10-20T13:59:46.426512514Z
 sessions:
 - start_sha: 5b91125f4014127e11963fc610c805ba205b10ff
   end_sha: eeb9dfa6846986f02b26abbefc6958646546cc4f
@@ -133,6 +133,13 @@ A `.tpm` changes what the parser reads for every file that uses the module, so r
 - [ ] Run to verify failure: `go test ./internal/infer/ -run '^TestIOExportersReturnTypes$' -count=1 -v`
 - [ ] Fix declared return types where perl disagrees; run to verify pass; commit
 - [ ] Run the m1 gates above; `make test`; commit
+
+### Review Findings
+
+Gate, 2026-10-20, on eeb9dfa6 (fresh Sonnet reviewer; 7 criteria pass, one proven by mutation; every module's full export set declared; 5 exemption reasons and 10 return types confirmed against perl 5.42; the T1 ratchet raise is real; the Held::Prime fallback cannot invent a sub). VERDICT: REOPEN.
+
+1. (CODE, 85) FileHandle.tpm has no "methods beside exports" section, though the issue names FileHandle among the four classes whose methods callers use. Perl's FileHandle.pm aliases ~20 public methods into FileHandle:: at require time (from IO::Handle: new_from_fd, fdopen, close, fileno, getc, ungetc, gets, eof, flush, error, clearerr, setbuf, setvbuf; IO::Seekable: seek, tell, getpos, setpos; IO::File: new, new_tmpfile, open), and method lookup resolves by literal class name, so `FileHandle->close` etc. are Unknown. Declare them with the signatures IO/Handle.tpm and IO/File.tpm already measured (the same code refs), exempting from the oracle exactly those IO::Handle/IO::File already exempt for the same reason; measure the IO::Seekable ones.
+2. (CODE comment, 85) IO/Handle.tpm:49-50 lists autoflush among methods "left undeclared" because they die on a bare class name, but line 7 declares it and `IO::Handle->autoflush(1)` returns 0 without dying. Correct the comment.
 
 ## Acceptance Criteria
 
