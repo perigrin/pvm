@@ -27,7 +27,69 @@ import (
 // "Module::sub" to why: one that is unsafe in a scratch directory --
 // network, fork/exec, signals, _exit, file mutation outside scratch,
 // blocking on a terminal. Each is held to its prototype and exports only.
-var oracleExempt = map[string]string{}
+var oracleExempt = map[string]string{
+	"POSIX::_exit":       "terminates the process immediately; never returns",
+	"POSIX::abort":       "raises SIGABRT, terminating the process",
+	"POSIX::pause":       "blocks until a signal arrives; nothing in the oracle run ever signals it",
+	"POSIX::exit":        "calls CORE::exit directly, bypassing the driver's exit-catching override, and ends the oracle process early",
+	"POSIX::fork":        "creates a real child process",
+	"POSIX::kill":        "sends a real signal to a process",
+	"POSIX::raise":       "sends a real signal to the current process",
+	"POSIX::sleep":       "blocks for real wall-clock time",
+	"POSIX::alarm":       "schedules a real SIGALRM that could terminate the oracle process later in the run",
+	"POSIX::wait":        "may block indefinitely waiting for a child process",
+	"POSIX::waitpid":     "may block indefinitely waiting for a child process",
+	"POSIX::sigsuspend":  "blocks until a signal is delivered",
+	"POSIX::system":      "spawns an arbitrary subprocess",
+	"POSIX::setuid":      "changes the real process's user id",
+	"POSIX::setgid":      "changes the real process's group id",
+	"POSIX::setpgid":     "changes a real process's process group",
+	"POSIX::setsid":      "changes the real process's session, detaching it from its controlling terminal",
+	"POSIX::mkfifo":      "creates a named pipe node on disk",
+	"POSIX::unlink":      "deletes a real file",
+	"POSIX::rmdir":       "deletes a real directory",
+	"POSIX::sigaction":   "installs a real signal handler for the rest of the run",
+	"POSIX::signal":      "installs a real signal handler for the rest of the run",
+	"POSIX::sigprocmask": "alters the process's real signal mask for the rest of the run",
+	"POSIX::sigpending":  "reads live process signal state that only the exempted signal-mutating functions above establish",
+	"POSIX::tcsetpgrp":   "mutates the terminal's foreground process group",
+	"POSIX::tcsetattr":   "mutates real terminal attributes",
+	"POSIX::tcflow":      "suspends or resumes real terminal transmission",
+	"POSIX::tcsendbreak": "sends a real break condition on the terminal line",
+	"POSIX::tcdrain":     "blocks until pending terminal output drains",
+	"POSIX::tcflush":     "discards real pending terminal input or output",
+	"POSIX::setlocale":   "mutates the process-wide locale, changing every later locale-sensitive call in the same run",
+	"POSIX::nice":        "changes the real process's scheduling priority",
+	"POSIX::read":        "its buffer argument is aliased in place; the oracle's literal call-case arguments cannot supply a safe mutable lvalue",
+}
+
+// posixReplacementNames are the names in POSIX.pm 2.23's %replacement
+// hash that POSIX also exports: measured on perl 5.42.0, each croaks
+// "Unimplemented: POSIX::name(): ..." the moment it is called, regardless
+// of its arguments.
+var posixReplacementNames = []string{
+	"atexit", "atof", "atoi", "atol", "bsearch", "calloc", "clearerr", "div",
+	"execl", "execle", "execlp", "execv", "execve", "execvp", "fclose",
+	"fdopen", "feof", "ferror", "fflush", "fgetc", "fgetpos", "fgets",
+	"fopen", "fprintf", "fputc", "fputs", "fread", "free", "freopen",
+	"fscanf", "fseek", "fsetpos", "fsync", "ftell", "fwrite", "labs",
+	"ldiv", "longjmp", "malloc", "memchr", "memcmp", "memcpy", "memmove",
+	"memset", "offsetof", "putc", "putchar", "puts", "qsort", "realloc",
+	"scanf", "setbuf", "setjmp", "setvbuf", "siglongjmp", "sigsetjmp",
+	"sscanf", "strcat", "strchr", "strcmp", "strcpy", "strcspn", "strlen",
+	"strncat", "strncmp", "strncpy", "strpbrk", "strrchr", "strspn",
+	"strtok", "tmpfile", "tmpnam", "ungetc", "vfprintf", "vprintf",
+	"vsprintf",
+}
+
+// posixUndefinedMacroNames are exported POSIX names whose AUTOLOAD falls
+// through to constant(), which does not recognize or define them on this
+// platform: measured on perl 5.42.0, each dies every time it is called.
+var posixUndefinedMacroNames = []string{
+	"LC_SYNTAX", "LC_TOD", "NDEBUG", "cfgetispeed", "cfgetospeed",
+	"cfsetispeed", "cfsetospeed", "mbstowcs", "wcstombs", "stdin", "stdout",
+	"stderr", "tcgetattr",
+}
 
 // holdReturnTypes holds each module's shipped .tpm to perl: every sub it
 // declares, called with the cases in testdata/oracle/<Module>.pl (File::Spec
@@ -550,5 +612,97 @@ func TestReturnOracleIgnoresTheCallersPerlLib(t *testing.T) {
 			t.Setenv(env[0], env[1])
 			assert.Empty(t, returnTypeFailures(t, p, oracleRun{Module: "Carp", TPM: tpm, Cases: cases}))
 		})
+	}
+}
+
+// posixSignatures parses POSIX.tpm, failing t on any declaration error.
+func posixSignatures(t *testing.T) map[string][]types.Signature {
+	t.Helper()
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "POSIX.tpm"))
+	require.NoError(t, err)
+	sigs, errs := parse.DeclaredSignatures(tpm)
+	require.Empty(t, errs)
+	return sigs
+}
+
+// TestPOSIXReturnTypes holds POSIX.tpm's return types to perl.
+func TestPOSIXReturnTypes(t *testing.T) {
+	holdReturnTypes(t, "POSIX")
+}
+
+// TestPOSIXAutoloadStubsDie: every name in POSIX.pm's %replacement, and
+// every exported name whose AUTOLOAD falls through to a constant()
+// perl's build does not recognize or define, is declared None, and perl
+// dies calling each with no arguments -- Ruling 5 (perigrin, 2026-10-16).
+func TestPOSIXAutoloadStubsDie(t *testing.T) {
+	p := perltest.Perl542(t)
+	sigs := posixSignatures(t)
+	names := append(append([]string{}, posixReplacementNames...), posixUndefinedMacroNames...)
+	for _, name := range names {
+		cands, ok := sigs[name]
+		if !assert.True(t, ok, "POSIX::%s is not declared", name) {
+			continue
+		}
+		for _, s := range cands {
+			assert.Equal(t, types.None, s.Returns, "POSIX::%s is not declared None", name)
+		}
+
+		out, err := p.Command("-MPOSIX", "-e", fmt.Sprintf(`no strict 'refs'; &{"POSIX::%s"}()`, name)).CombinedOutput()
+		assert.Error(t, err, "POSIX::%s did not die: %s", name, out)
+	}
+}
+
+// TestPOSIXOracleNeverCallsExit: _exit, abort and pause are in the
+// return-type oracle's exemption map with a reason, so holdReturnTypes
+// (TestReturnOracleNeverCallsAnExemptSub proves the mechanism generally)
+// skips them rather than calling them.
+func TestPOSIXOracleNeverCallsExit(t *testing.T) {
+	for _, name := range []string{"_exit", "abort", "pause"} {
+		reason, ok := oracleExempt["POSIX::"+name]
+		if !assert.True(t, ok, "POSIX::%s is not in the return-type oracle's exemption map", name) {
+			continue
+		}
+		assert.NotEmpty(t, strings.TrimSpace(reason), "POSIX::%s is exempt without a reason", name)
+	}
+}
+
+// TestPOSIXStrtolContextReturnIsDeclared: POSIX::strtol returns two
+// values in list context (the parsed number and how much of the string
+// it consumed) and one in scalar context, measured directly, and
+// POSIX.tpm declares a candidate for each.
+func TestPOSIXStrtolContextReturnIsDeclared(t *testing.T) {
+	p := perltest.Perl542(t)
+	out, err := p.Command("-MPOSIX", "-e",
+		`my @l = POSIX::strtol("42abc", 10); my $s = POSIX::strtol("42abc", 10); print scalar(@l), ":", (defined $s ? "1" : "0"), "\n";`,
+	).Output()
+	require.NoError(t, err)
+	assert.Equal(t, "2:1\n", string(out), "strtol returns two values in list context and one in scalar context")
+
+	cands := posixSignatures(t)["strtol"]
+	require.Len(t, cands, 2, "strtol should have a list candidate and a scalar candidate")
+	var sawList, sawScalar bool
+	for _, s := range cands {
+		switch callContext(s) {
+		case "list":
+			sawList = true
+			assert.True(t, types.IsSubtype(types.Int, s.ReturnElement) || types.IsSubtype(types.Int, s.Returns),
+				"strtol's list candidate does not admit the Int values perl returns")
+		case "scalar":
+			sawScalar = true
+			assert.True(t, types.IsSubtype(types.Int, s.Returns), "strtol's scalar candidate does not admit the Int perl returns")
+		}
+	}
+	assert.True(t, sawList, "no candidate answers list context")
+	assert.True(t, sawScalar, "no candidate answers scalar context")
+}
+
+// TestPOSIXReimplementedSubsAreNotNone: a %reimpl name that returns a
+// real value, such as getpid ($$), is not declared None -- Ruling 5
+// applies only to the 107 names that die.
+func TestPOSIXReimplementedSubsAreNotNone(t *testing.T) {
+	cands, ok := posixSignatures(t)["getpid"]
+	require.True(t, ok, "POSIX::getpid is not declared")
+	for _, s := range cands {
+		assert.NotEqual(t, types.None, s.Returns, "POSIX::getpid is declared None, but perl returns $$ when it is called")
 	}
 }

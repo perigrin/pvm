@@ -2,3 +2,4 @@
 # is admitted beyond lib_baseline.txt: the privlib-relative diagnostic, a tab,
 # and the line perl -w prints for that file, or for a minimal file with the
 # same construct, copied verbatim.
+x86_64-linux-thread-multi/Sys/Syslog.pm:562:19: error: call to POSIX::_exit: argument 1 expects Boolean|Int, got Undef|Boolean [coercion-mismatch]	Use of uninitialized value in subroutine entry at repro-exit.pl line 4.
