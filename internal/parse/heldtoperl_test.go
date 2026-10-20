@@ -566,3 +566,38 @@ func containsUnknown(n *Node) bool {
 	}
 	return false
 }
+
+// pureExporters is the pure-Perl exporters batch (01a1464e-db4c): every
+// module whose .tpm declares the names a `use` of it installs. Symbol is
+// held back (see docs/rfcs/0001-type-libraries.md and the issue's own
+// report): its qualify, declared accurately as Str|GlobRef, makes
+// IO/Handle.pm's `tell qualify($_[0], caller) if ref($_[0])` a new
+// TestPSCCheckLibBaseline diagnostic that perl -w does not confirm, since
+// $_[0] there is always a ref; perigrin must settle how to admit it.
+var pureExporters = []string{
+	"File::Basename", "File::Find", "File::Path", "Errno",
+	"Text::ParseWords", "Class::Struct", "File::Copy", "Time::Local", "Getopt::Std",
+}
+
+// TestPurePerlExportersPrototypes holds each pure-Perl exporter's .tpm
+// prototypes to perl.
+func TestPurePerlExportersPrototypes(t *testing.T) {
+	holdPrototypes(t, pureExporters...)
+}
+
+// TestPurePerlExportersExports holds each pure-Perl exporter's .tpm
+// :export and :export_ok marks to what `use` installs.
+func TestPurePerlExportersExports(t *testing.T) {
+	holdExports(t, pureExporters...)
+}
+
+// TestErrnoDeclaresNoExportedVariable: Errno.tpm marks no `our`
+// variable -- measured on 5.42.0, %! is in none of Errno's export
+// lists, so every name it exports is a constant sub.
+func TestErrnoDeclaresNoExportedVariable(t *testing.T) {
+	src, ok := declaration("Errno")
+	require.True(t, ok)
+	facts, err := readHeld("Errno", src)
+	require.NoError(t, err)
+	assert.Empty(t, facts.variables, "Errno.tpm declares an our variable; perl's use Errno installs none")
+}

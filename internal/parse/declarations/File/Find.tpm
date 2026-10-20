@@ -1,0 +1,10 @@
+# ABOUTME: Declares what `use File::Find` exports: find and finddepth, both bare.
+# ABOUTME: Measured on perl 5.42.0 with File::Find 1.44: neither carries a prototype.
+package File::Find;
+
+# Neither carries a prototype, so each takes a plain slurpy list (its
+# first argument is a callback or an options hashref, the rest the
+# directories to walk). Measured on 5.42.0: both answer a true Boolean
+# in either context, walking the tree for &wanted's side effects.
+sub find :export (List @args) Boolean;
+sub finddepth :export (List @args) Boolean;

@@ -1,0 +1,11 @@
+# ABOUTME: Declares what `use File::Copy` exports: copy and move bare, cp and mv by request.
+# ABOUTME: Measured on perl 5.42.0 with File::Copy 2.41: none of the four carries a prototype.
+package File::Copy;
+
+# None carries a prototype, so each takes a plain slurpy list. Measured
+# on 5.42.0: all four return a plain Int, 1 for success or 0 for
+# failure, never a Boolean-flagged value.
+sub copy :export (List @args) Int;
+sub move :export (List @args) Int;
+sub cp :export_ok (List @args) Int;
+sub mv :export_ok (List @args) Int;

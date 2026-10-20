@@ -1,0 +1,17 @@
+# ABOUTME: Declares what `use Time::Local` exports: timegm and timelocal bare, the six
+# ABOUTME: _modern/_nocheck/_posix variants by request. Measured on perl 5.42.0, Time::Local 1.35.
+package Time::Local;
+
+# None of these eight carries a prototype, so each takes a plain slurpy
+# list of the (seconds, minutes, hours, day, month, year) fields.
+# Measured on 5.42.0: a whole-second call returns Int; a fractional
+# seconds field (the first) returns Num, since the epoch value it adds
+# stays fractional.
+sub timegm :export (List @args) Int|Num;
+sub timelocal :export (List @args) Int|Num;
+sub timegm_modern :export_ok (List @args) Int|Num;
+sub timelocal_modern :export_ok (List @args) Int|Num;
+sub timegm_nocheck :export_ok (List @args) Int|Num;
+sub timelocal_nocheck :export_ok (List @args) Int|Num;
+sub timegm_posix :export_ok (List @args) Int|Num;
+sub timelocal_posix :export_ok (List @args) Int|Num;
