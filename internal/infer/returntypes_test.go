@@ -955,6 +955,93 @@ func TestPOSIXReimplementedSubsAreNotNone(t *testing.T) {
 	}
 }
 
+// posixFailureReturnsScript measures, in one perl process, every POSIX
+// sub whose documented "Returns undef on failure" (the T_SYSRET typemap,
+// or a name lookup that finds nothing) a one-shot process can safely
+// induce: a bad fd, a nonexistent path, an unknown name or id, or a
+// removed cwd. Each case prints "name\tUNDEF" or "name\tDEF:value".
+// setuid and setgid are skipped when run as root, where they succeed.
+const posixFailureReturnsScript = `
+use v5.42; no warnings;
+use POSIX;
+use File::Temp qw(tempfile);
+
+my $buf;
+my @cases = (
+  ['access', sub { POSIX::access("/definitely-does-not-exist-xyz-pvm",0) }],
+  ['close', sub { POSIX::close(987654) }],
+  ['dup', sub { POSIX::dup(987654) }],
+  ['dup2', sub { POSIX::dup2(987654,987655) }],
+  ['open', sub { POSIX::open("/definitely-does-not-exist-xyz-pvm/f", &POSIX::O_RDONLY) }],
+  ['creat', sub { POSIX::creat("/definitely-does-not-exist-xyz-pvm/f",0) }],
+  ['fcntl', sub {
+      my ($fh, $fn) = tempfile(); my $fd = fileno($fh); close $fh;
+      POSIX::fcntl($fd, &POSIX::F_GETFD, 0);
+  }],
+  ['lchown', sub { POSIX::lchown(0,0,"/definitely-does-not-exist-xyz-pvm") }],
+  ['mkfifo', sub { POSIX::mkfifo("/definitely-does-not-exist-xyz-pvm/f",0600) }],
+  ['read', sub { POSIX::read(987654,$buf,1) }],
+  ['write', sub { POSIX::write(987654,"x",1) }],
+  ['fpathconf', sub { POSIX::fpathconf(987654,0) }],
+  ['pathconf', sub { POSIX::pathconf("/definitely-does-not-exist-xyz-pvm",0) }],
+  ['sysconf', sub { POSIX::sysconf(987654) }],
+  ['setpgid', sub { POSIX::setpgid(999999999,0) }],
+  ['tcdrain', sub { POSIX::tcdrain(987654) }],
+  ['tcflow', sub { POSIX::tcflow(987654,0) }],
+  ['tcflush', sub { POSIX::tcflush(987654,0) }],
+  ['tcsendbreak', sub { POSIX::tcsendbreak(987654,0) }],
+  ['tcsetpgrp', sub { POSIX::tcsetpgrp(987654,0) }],
+  ['getgrgid', sub { POSIX::getgrgid(999999999) }],
+  ['getgrnam', sub { POSIX::getgrnam("definitely-nonexistent-group-xyz") }],
+  ['getpwnam', sub { POSIX::getpwnam("definitely-nonexistent-user-xyz") }],
+  ['getpwuid', sub { POSIX::getpwuid(999999999) }],
+);
+push @cases, ['setuid', sub { POSIX::setuid(0) }], ['setgid', sub { POSIX::setgid(0) }] unless $> == 0;
+
+for my $c (@cases) {
+    my ($name, $code) = @$c;
+    my $v = eval { $code->() };
+    print "$name\t", (defined $v ? "DEF:$v" : "UNDEF"), ($@ ? " DIED:$@" : ''), "\n";
+}
+
+my $base = POSIX::getcwd();
+my $tmp = "$base/pvm-oracle-removed-$$";
+mkdir $tmp or die "mkdir: $!";
+chdir $tmp or die "chdir: $!";
+rmdir $tmp or die "rmdir: $!";
+my $v = eval { POSIX::getcwd() };
+print "getcwd\t", (defined $v ? "DEF:$v" : "UNDEF"), ($@ ? " DIED:$@" : ''), "\n";
+chdir $base;
+`
+
+// TestPOSIXFailureReturnsAdmitUndef: every sub the T_SYSRET typemap, or
+// a name lookup finding nothing, documents as "Returns undef on
+// failure" (scratchpad/audit-A.md F1) really returns undef when induced
+// safely in a one-shot process, and POSIX.tpm's declared return type
+// admits it.
+func TestPOSIXFailureReturnsAdmitUndef(t *testing.T) {
+	p := perltest.Perl542(t)
+	out, err := p.Command("-e", posixFailureReturnsScript).Output()
+	require.NoError(t, err)
+
+	sigs := posixSignatures(t)
+	lines := strings.Split(strings.TrimRight(string(out), "\n"), "\n")
+	require.NotEmpty(t, lines)
+	for _, line := range lines {
+		name, result, ok := strings.Cut(line, "\t")
+		require.True(t, ok, "unparseable line: %q", line)
+		if !assert.True(t, strings.HasPrefix(result, "UNDEF"), "POSIX::%s: measured %s, not undef", name, result) {
+			continue
+		}
+		cands, ok := sigs[name]
+		if !assert.True(t, ok, "POSIX::%s is not declared", name) {
+			continue
+		}
+		admits := slices.ContainsFunc(cands, func(s types.Signature) bool { return types.IsSubtype(types.Undef, s.Returns) })
+		assert.True(t, admits, "POSIX::%s measured undef on failure; its declared return type does not admit Undef", name)
+	}
+}
+
 // TestXSLibrariesReturnTypes holds each XS library's declared return
 // types to perl (perltest.XSLibraries), called with its oracle's cases.
 func TestXSLibrariesReturnTypes(t *testing.T) {
