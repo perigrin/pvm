@@ -22,3 +22,8 @@ fmt.Errorf("context: %w", err).
 
 Write a failing test before implementation (TDD). Tests use real data — no
 mocks or stubs.
+
+## Core Module Declarations
+
+Writing and testing a `.tpm` declaration for a core Perl module has its own
+procedure: see `docs/contributing/core-module-declarations.md`.
