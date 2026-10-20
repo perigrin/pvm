@@ -1,6 +1,6 @@
 ---
 title: Declare POSIX's constants, exports and prototypes
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -13,16 +13,25 @@ blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 - 01a14683-84ab-7efb-a0c5-b2db8deb8e28
 created: 2026-10-16T20:02:15.687306804Z
-updated: 2026-10-17T04:25:16.940428706Z
+updated: 2026-10-20T00:43:19.19168408Z
 sessions:
 - start_sha: 5b91125f4014127e11963fc610c805ba205b10ff
-  end_sha: ""
-  commits: 0
+  end_sha: 236f66e72899b4f1ef19ba3d8b8613b74ce46140
+  commits: 3
   started_at: 2026-10-17T04:25:16.940428706Z
+  ended_at: 2026-10-20T00:43:19.19168408Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-17T04:25:16.940428706Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-20T00:43:19.19168408Z
+observed_paths:
+- docs/rfcs/0001-type-libraries.md
+- internal/parse/declarations/POSIX.tpm
+- internal/parse/heldtoperl_test.go
+- internal/parse/testdata/held_to_perl.pl
 ---
 
 ## Prerequisites
