@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: core-module-types
 created: 2026-10-17T04:36:13.290610042Z
-updated: 2026-10-17T05:22:04.829196028Z
+updated: 2026-10-20T17:54:16.707967712Z
 sessions:
 - start_sha: 5b91125f4014127e11963fc610c805ba205b10ff
   end_sha: 51c993cd397ad3e68b7ae8e64fdabf2624b1b4bf
@@ -60,8 +60,7 @@ Gate, 2026-10-17, on 51c993cd (fresh Sonnet reviewer; the three tests mutation-t
 ## Acceptance criteria
 
 ### Positive Scenarios
-- [ ] The Carp skeleton matches Carp.tpm `go test ./internal/parse/ -run '^TestTpmSkeletonMatchesCarp$' -count=1 -v | grep -q '^--- PASS: TestTpmSkeletonMatchesCarp'`
-- [ ] A skeleton marks tags from %EXPORT_TAGS `go test ./internal/parse/ -run '^TestTpmSkeletonMarksTags$' -count=1 -v | grep -q '^--- PASS: TestTpmSkeletonMarksTags'`
-
+- [ ] The Carp skeleton matches Carp.tpm (`go test ./internal/parse/ -run '^TestTpmSkeletonMatchesCarp$' -count=1 -v | grep -q '^--- PASS: TestTpmSkeletonMatchesCarp'`)
+- [ ] A skeleton marks tags from %EXPORT_TAGS (`go test ./internal/parse/ -run '^TestTpmSkeletonMarksTags$' -count=1 -v | grep -q '^--- PASS: TestTpmSkeletonMarksTags'`)
 ### Negative Scenarios
-- [ ] An unfilled skeleton fails to load `go test ./internal/parse/ -run '^TestTpmSkeletonUnfilledRefused$' -count=1 -v | grep -q '^--- PASS: TestTpmSkeletonUnfilledRefused'`
+- [ ] An unfilled skeleton fails to load (`go test ./internal/parse/ -run '^TestTpmSkeletonUnfilledRefused$' -count=1 -v | grep -q '^--- PASS: TestTpmSkeletonUnfilledRefused'`)
