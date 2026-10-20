@@ -34,13 +34,26 @@ elsif ( $mode eq 'prototypes' ) {
     my $n = 0;
     for my $name (@args) {
         my $code = exists &{"${module}::$name"} ? \&{"${module}::$name"} : $module->can($name);
+        # A module whose import re-exports a third module's names
+        # straight into its caller -- FileHandle's import calls
+        # Exporter::export('Fcntl', $callpkg) for a bare `use`, never
+        # defining the name in FileHandle:: itself or anywhere
+        # FileHandle->can reaches -- leaves the name only in whatever
+        # package did the bare use. Measured on 5.42.0: FileHandle's
+        # F_DUPFD exists in Held::Prime after the bare use above, is
+        # not exported by name at all ("F_DUPFD" is not exported by the
+        # FileHandle module), and FileHandle::F_DUPFD and
+        # FileHandle->can('F_DUPFD') are both false.
+        $code ||= exists &{"Held::Prime::$name"} ? \&{"Held::Prime::$name"} : undef;
         if ( !$code ) {
             # A name a bare `use` does not install, measured, still gets
             # its stub only once it is asked for by name -- Fcntl's
             # S_ISWHT, whose sibling S_IS* subs exist from a bare use,
             # does not. Prime it by name before calling it missing.
-            eval "package Held::PrimeByName@{[$n++]}; use $module qw($name); 1";
+            my $primer = "Held::PrimeByName@{[$n++]}";
+            eval "package $primer; use $module qw($name); 1";
             $code = exists &{"${module}::$name"} ? \&{"${module}::$name"} : $module->can($name);
+            $code ||= exists &{"${primer}::$name"} ? \&{"${primer}::$name"} : undef;
         }
         my $proto = $code && prototype($code);
         say join "\t", $name, !$code ? 'missing' : defined $proto ? ( 'proto', $proto ) : 'none';

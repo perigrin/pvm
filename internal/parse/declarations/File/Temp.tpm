@@ -1,0 +1,45 @@
+# ABOUTME: Declares what `use File::Temp` installs: the POSIX, mktemp and seekable tags bare, the rest on request.
+# ABOUTME: Measured on perl 5.42.0 with File::Temp 0.2311: tempfile, tempdir, unlink0 and cleanup are export_ok only.
+package File::Temp;
+
+# File::Temp.pm calls Exporter::export_tags('POSIX','mktemp','seekable')
+# to add those three tags' names to @EXPORT; tempfile, tempdir, unlink0
+# and cleanup stay export_ok, measured on 5.42.0: a bare `use File::Temp;`
+# installs none of the four.
+sub SEEK_SET :export(seekable) () Int;
+sub SEEK_CUR :export(seekable) () Int;
+sub SEEK_END :export(seekable) () Int;
+
+# mkstemp and mkstemps return (filehandle, filename) in list context,
+# just the filehandle in scalar context; both croak on error. Measured
+# on 5.42.0.
+multi sub mkstemp :export(mktemp) :listop (Str $template) List[GlobRef|Str];
+multi sub mkstemp :export(mktemp) :listop (Str $template) GlobRef;
+multi sub mkstemps :export(mktemp) :listop (Str $template, Str $suffix) List[GlobRef|Str];
+multi sub mkstemps :export(mktemp) :listop (Str $template, Str $suffix) GlobRef;
+sub mkdtemp :export(mktemp) :listop (Str $template) Str;
+sub mktemp :export(mktemp) :listop (Str $template) Str;
+
+# tmpnam returns the filename alone in scalar context, and
+# (filehandle, filename) in list context, by calling mkstemp()
+# internally. Measured on 5.42.0.
+multi sub tmpnam :export(POSIX) :listop () Str;
+multi sub tmpnam :export(POSIX) :listop () List[GlobRef|Str];
+sub tmpfile :export(POSIX) :listop () GlobRef;
+
+# tempfile and tempdir take a template and/or named options in either
+# order (TEMPLATE, OPTIONS, or OPTIONS alone); tempfile returns
+# (filehandle, filename) in list context and just the filehandle in
+# scalar context, measured on 5.42.0. Neither is exported bare.
+multi sub tempfile :export_ok (List @args) List[GlobRef|Str];
+multi sub tempfile :export_ok (List @args) GlobRef;
+sub tempdir :export_ok (List @args) Str;
+
+# unlink0 unlinks an open file after checking the handle and the name
+# point to the same file; it returns false on error and may croak on a
+# security anomaly. Measured on 5.42.0.
+sub unlink0 :export_ok :listop (GlobRef $fh, Str $path) Int;
+# cleanup removes every temp file and directory File::Temp has
+# registered; its return value is undocumented and not meant to be
+# read, measured on 5.42.0 to be an internal bookkeeping value.
+sub cleanup :export_ok :listop () Any;
