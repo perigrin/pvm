@@ -4,6 +4,8 @@
 package infer
 
 import (
+	"strings"
+
 	"tamarou.com/pvm/internal/lower"
 	"tamarou.com/pvm/internal/types"
 )
@@ -317,6 +319,33 @@ func (st *SymbolTable) UpdatePossibleUndef(name string, v bool) bool {
 		}
 	}
 	return false
+}
+
+// Delete removes name from the first scope on the current chain that holds
+// it. A name no scope on the chain holds is a no-op.
+func (st *SymbolTable) Delete(name string) {
+	for s := st.current; s != nil; s = s.parent {
+		if _, ok := s.symbols[name]; ok {
+			delete(s.symbols, name)
+			return
+		}
+	}
+}
+
+// ClearElementShadows drops every $name[N] shadow guardShadows defined for
+// the array named name (flow.go's guardVarName), from every scope on the
+// current chain: a shift, a splice, an element write or a whole-array
+// write moves or replaces what sits at each index, so a guard's shadow
+// from before it no longer answers for what a read finds there after it.
+func (st *SymbolTable) ClearElementShadows(name string) {
+	prefix := "$" + name + "["
+	for s := st.current; s != nil; s = s.parent {
+		for k := range s.symbols {
+			if strings.HasPrefix(k, prefix) {
+				delete(s.symbols, k)
+			}
+		}
+	}
 }
 
 // CurrentPackage returns the name of the nearest ancestor scope (inclusive)

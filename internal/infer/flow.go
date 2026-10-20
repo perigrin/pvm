@@ -54,7 +54,7 @@ func (a *analysis) ifStmt(n *lower.IfStmt) {
 
 	pre := a.preBranchTypes(n)
 
-	var ends []map[string]types.Type
+	var ends []map[string]flowVar
 	primaryExits := false
 	if b, ok := primary.(*lower.Block); ok {
 		primaryExits = a.blockExits(b)
@@ -73,7 +73,7 @@ func (a *analysis) ifStmt(n *lower.IfStmt) {
 
 	exhaustive := hasElse
 	if elsif != nil {
-		var more []map[string]types.Type
+		var more []map[string]flowVar
 		more, exhaustive = a.elsif(elsif, a.elsifPre(pre, a.flatten(guard, !negate)))
 		ends = append(ends, more...)
 	}
@@ -93,17 +93,30 @@ func (a *analysis) ifStmt(n *lower.IfStmt) {
 	}
 }
 
-// preBranchTypes is the type each variable named in n has before n's
-// bodies run: each body starts from it, as perl runs at most one of them,
-// and the join after n takes it for the path on which none ran.
-func (a *analysis) preBranchTypes(n lower.Node) map[string]types.Type {
-	pre := map[string]types.Type{}
+// flowVar is a variable's type and possible-undef mark together, the pair
+// pre/restore/branch/joinBranches carry through a conditional: only an
+// actual Undef bit in the type makes the mark matter at all, and the two
+// are read and written off the symbol table as one unit.
+type flowVar struct {
+	Type  types.Type
+	Undef bool
+}
+
+// preBranchTypes is the type and possible-undef mark each variable named
+// in n has before n's bodies run: each body starts from them, as perl
+// runs at most one of them, and the join after n takes them for the path
+// on which none ran.
+func (a *analysis) preBranchTypes(n lower.Node) map[string]flowVar {
+	pre := map[string]flowVar{}
 	var find func(n lower.Node)
 	find = func(n lower.Node) {
+		if n == nil {
+			return
+		}
 		if v, ok := n.(*lower.Var); ok {
 			if _, named := sigilTypes[v.Sigil]; named {
 				if sym, ok := a.st.Lookup(v.Sigil + v.Name); ok {
-					pre[v.Sigil+v.Name] = sym.Type
+					pre[v.Sigil+v.Name] = flowVar{sym.Type, sym.PossibleUndef}
 				}
 			}
 		}
@@ -115,10 +128,11 @@ func (a *analysis) preBranchTypes(n lower.Node) map[string]types.Type {
 	return pre
 }
 
-// restore sets each of pre's variables back to the type pre holds.
-func (a *analysis) restore(pre map[string]types.Type) {
-	for name, typ := range pre {
-		a.st.UpdateType(name, typ)
+// restore sets each of pre's variables back to the type and mark pre holds.
+func (a *analysis) restore(pre map[string]flowVar) {
+	for name, fv := range pre {
+		a.st.UpdateType(name, fv.Type)
+		a.st.UpdatePossibleUndef(name, fv.Undef)
 	}
 }
 
@@ -140,7 +154,7 @@ func (a *analysis) restore(pre map[string]types.Type) {
 // one: TestFlowNarrowingElsifChainThreeBranches's `if (defined($x)) {}
 // elsif (ref($x)) {}` must still read $x as Ref in the elsif, not as the
 // None a Negated defined-guard narrowing would leave it.
-func (a *analysis) elsifPre(pre map[string]types.Type, guards []*guardResult) map[string]types.Type {
+func (a *analysis) elsifPre(pre map[string]flowVar, guards []*guardResult) map[string]flowVar {
 	var held []*guardResult
 	for _, g := range guards {
 		if !g.Negated {
@@ -155,13 +169,13 @@ func (a *analysis) elsifPre(pre map[string]types.Type, guards []*guardResult) ma
 	if len(shadows) == 0 {
 		return pre
 	}
-	next := make(map[string]types.Type, len(pre))
-	for name, typ := range pre {
-		next[name] = typ
+	next := make(map[string]flowVar, len(pre))
+	for name, fv := range pre {
+		next[name] = fv
 	}
 	for name, typ := range shadows {
-		if _, ok := next[name]; ok {
-			next[name] = typ
+		if fv, ok := next[name]; ok {
+			next[name] = flowVar{typ, fv.Undef}
 		}
 	}
 	return next
@@ -170,15 +184,15 @@ func (a *analysis) elsifPre(pre map[string]types.Type, guards []*guardResult) ma
 // branch walks b, one body of a conditional, under guards and from the
 // types pre holds, and returns the type each of pre's variables has at its
 // end: nil when b always exits, as its end never reaches the join.
-func (a *analysis) branch(b *lower.Block, guards []*guardResult, pre map[string]types.Type) map[string]types.Type {
+func (a *analysis) branch(b *lower.Block, guards []*guardResult, pre map[string]flowVar) map[string]flowVar {
 	a.restore(pre)
 	if a.blockExits(b) {
 		a.blockWithGuard(b, guards, nil)
 		return nil
 	}
-	end := make(map[string]types.Type, len(pre))
+	end := make(map[string]flowVar, len(pre))
 	for name := range pre {
-		end[name] = types.None
+		end[name] = flowVar{types.None, false}
 	}
 	a.blockWithGuard(b, guards, end)
 	return end
@@ -189,21 +203,35 @@ func (a *analysis) branch(b *lower.Block, guards []*guardResult, pre map[string]
 // conditional when no body need have run, as when there is no else. A
 // body a guard proves unreachable leaves its variable None, the join
 // identity, so it adds nothing.
-func (a *analysis) joinBranches(pre map[string]types.Type, ends []map[string]types.Type, exhaustive bool) {
+//
+// The possible-undef mark joins alongside the type, but not by the same
+// rule: true only when every body whose own end still carries an Undef
+// bit left the mark set, since a body that leaves an unmarked, plain
+// Undef reachable past the conditional is not forgiven just because a
+// sibling body's Undef came from a declared call.
+func (a *analysis) joinBranches(pre map[string]flowVar, ends []map[string]flowVar, exhaustive bool) {
 	for name, before := range pre {
 		joined, reached := types.None, false
+		marked, any := true, false
+		consider := func(fv flowVar) {
+			joined, reached = types.Join(joined, fv.Type), true
+			if fv.Type&types.Undef != 0 {
+				any, marked = true, marked && fv.Undef
+			}
+		}
 		if !exhaustive {
-			joined, reached = before, true
+			consider(before)
 		}
 		for _, end := range ends {
 			if end != nil {
-				joined, reached = types.Join(joined, end[name]), true
+				consider(end[name])
 			}
 		}
 		if !reached {
-			joined = before
+			joined, any, marked = before.Type, before.Type&types.Undef != 0, before.Undef
 		}
 		a.st.UpdateType(name, joined)
+		a.st.UpdatePossibleUndef(name, any && marked)
 	}
 }
 
@@ -234,8 +262,8 @@ func (a *analysis) modifierStmt(n *lower.IfStmt) {
 	}
 	a.logicalRight(op, n.Cond, body)
 	for name, before := range pre {
-		if sym, ok := a.st.Lookup(name); ok && sym.Type != before {
-			a.st.UpdateType(name, types.Join(before, sym.Type))
+		if sym, ok := a.st.Lookup(name); ok && sym.Type != before.Type {
+			a.st.UpdateType(name, types.Join(before.Type, sym.Type))
 		}
 	}
 }
@@ -364,7 +392,7 @@ func (a *analysis) before(x, y lower.Node) bool {
 // and whether the chain ends in an else. pre already holds every earlier
 // condition's failure narrowed in, as elsifPre says; a further elsif in the
 // chain gets this one's failure narrowed in too.
-func (a *analysis) elsif(n *lower.IfStmt, pre map[string]types.Type) ([]map[string]types.Type, bool) {
+func (a *analysis) elsif(n *lower.IfStmt, pre map[string]flowVar) ([]map[string]flowVar, bool) {
 	a.restore(pre)
 	a.condition(n.Cond)
 	if n.Cond != nil {
@@ -372,7 +400,7 @@ func (a *analysis) elsif(n *lower.IfStmt, pre map[string]types.Type) ([]map[stri
 	}
 	guard := a.guard(n.Cond, true)
 
-	var ends []map[string]types.Type
+	var ends []map[string]flowVar
 	if b, ok := n.Then.(*lower.Block); ok {
 		ends = append(ends, a.branch(b, a.flatten(guard, false), pre))
 	} else if n.Then != nil {
@@ -570,7 +598,7 @@ func (a *analysis) silenced(actual, expected types.Type) bool {
 // and the block's statements are walked under it. When branchTypes is not
 // nil it receives the type at the end of the block of each variable it
 // holds a key for, a shadowed one's being its shadow's.
-func (a *analysis) blockWithGuard(b *lower.Block, guards []*guardResult, branchTypes map[string]types.Type) {
+func (a *analysis) blockWithGuard(b *lower.Block, guards []*guardResult, branchTypes map[string]flowVar) {
 	shadows, classNames := guardShadows(guards, a.st)
 	if len(shadows) > 0 {
 		a.st.EnterScope("guard")
@@ -581,7 +609,7 @@ func (a *analysis) blockWithGuard(b *lower.Block, guards []*guardResult, branchT
 	a.block(b)
 	for name := range branchTypes {
 		if sym, ok := a.st.Lookup(name); ok {
-			branchTypes[name] = sym.Type
+			branchTypes[name] = flowVar{sym.Type, sym.PossibleUndef}
 		}
 	}
 	if len(shadows) > 0 {
@@ -599,7 +627,11 @@ func (a *analysis) blockWithGuard(b *lower.Block, guards []*guardResult, branchT
 // What the right operand assigns to a guarded variable joins the type the
 // variable has where the right operand is skipped, on which the left
 // operand's test went the other way: `defined $x or $x = 'b'` leaves $x
-// defined either way.
+// defined either way. Any other variable the right operand narrows --
+// narrowDerefBase's arrow-dereference included -- joins the same way with
+// what it held before, as walkJoined says: the operand runs on only one of
+// the expression's two paths, so whatever it establishes there must still
+// include the value the variable keeps on the path where it does not run.
 func (a *analysis) logicalRight(op string, l, r lower.Node) {
 	var guard *guardResult
 	runsWhen := false
@@ -609,9 +641,14 @@ func (a *analysis) logicalRight(op string, l, r lower.Node) {
 	case "||", "or":
 		guard = a.guard(l, true)
 	}
-	shadows, classNames := guardShadows(a.flatten(guard, !runsWhen), a.st)
+	held := a.flatten(guard, !runsWhen)
+	shadows, classNames := guardShadows(held, a.st)
+	pre := a.preBranchTypes(r)
+	for _, g := range held {
+		delete(pre, g.VarName)
+	}
 	if len(shadows) == 0 {
-		a.operand(r)
+		a.walkJoined(r, pre)
 		return
 	}
 	skipped, _ := guardShadows(a.flatten(guard, runsWhen), a.st)
@@ -619,7 +656,7 @@ func (a *analysis) logicalRight(op string, l, r lower.Node) {
 	for name, typ := range shadows {
 		a.st.Define(Symbol{Name: name, Type: typ, ClassType: classNames[name], Kind: SymVariable})
 	}
-	a.operand(r)
+	a.walkJoined(r, pre)
 	written := map[string]types.Type{}
 	for name, typ := range shadows {
 		if sym, ok := a.st.Lookup(name); ok && sym.Type != typ {
@@ -635,6 +672,26 @@ func (a *analysis) logicalRight(op string, l, r lower.Node) {
 		}
 		a.st.UpdateType(name, types.Join(other, typ))
 	}
+}
+
+// walkJoined walks r, then joins each of pre's variables with the type and
+// mark it had afterward: r runs on only one of two paths, so anything it
+// narrows -- a dereference's base (vars.go's narrowDerefBase) chief among
+// them, since nothing else shadows it the way a guard's own tested
+// variable already is -- must still include what the variable holds on
+// the path where r does not run at all.
+func (a *analysis) walkJoined(r lower.Node, pre map[string]flowVar) {
+	end := make(map[string]flowVar, len(pre))
+	for name := range pre {
+		end[name] = flowVar{types.None, false}
+	}
+	a.operand(r)
+	for name := range end {
+		if sym, ok := a.st.Lookup(name); ok {
+			end[name] = flowVar{sym.Type, sym.PossibleUndef}
+		}
+	}
+	a.joinBranches(pre, []map[string]flowVar{end}, false)
 }
 
 // flatten is flattenGuards less each defined guard on a variable typed

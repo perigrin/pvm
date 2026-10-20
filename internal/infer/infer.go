@@ -293,6 +293,12 @@ func (a *analysis) decl(d *lower.Decl) types.Type {
 	case lower.DeclMy, lower.DeclOur, lower.DeclState, lower.DeclLocal:
 		for _, v := range d.Vars {
 			a.walk(v)
+			if d.Kind == lower.DeclLocal {
+				// local's own target, unlike my/our/state's, may be an
+				// element -- `local $r[0] = ...` -- whose guard shadow
+				// (flow.go's guardVarName) the localisation replaces.
+				a.invalidateElementShadow(v)
+			}
 		}
 		if d.Init == nil {
 			return types.Unknown

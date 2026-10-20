@@ -143,6 +143,7 @@ func (a *analysis) assign(n *lower.Assign) types.Type {
 		a.evalCtx[n.R.Meta().ID] = ctx
 	}
 	a.operand(n.L)
+	a.invalidateElementShadow(n.L)
 	t := a.operand(n.R)
 	if l, ok := n.L.(*lower.List); ok && n.R != nil {
 		a.listTargets(l)
@@ -224,6 +225,27 @@ func assignContext(l lower.Node) types.Context {
 	return types.UnknownCtx
 }
 
+// invalidateElementShadow drops whatever element guard shadow l's write
+// would otherwise leave stale: l's own $name[N] shadow (flow.go's
+// guardVarName) when l is exactly that shape, since the element it named
+// now holds the assignment's value, not whatever a guard found true of it
+// before; and every $name[*] shadow of the array when l is a whole-array
+// write -- `@r = ...` or a truncating `$#r = ...`, which perl lowers to
+// the "$#" sigil, not "@" -- since every index may now hold something
+// else.
+func (a *analysis) invalidateElementShadow(l lower.Node) {
+	switch l := l.(type) {
+	case *lower.Index:
+		if name := guardVarName(l); name != "" {
+			a.st.Delete(name)
+		}
+	case *lower.Var:
+		if l.Sigil == "@" || l.Sigil == "$#" {
+			a.st.ClearElementShadows(l.Name)
+		}
+	}
+}
+
 // narrow is assignment narrowing for v assigned init, whose
 // type is t, and returns the type v takes: t, unless that is Unknown.
 //
@@ -262,7 +284,7 @@ func (a *analysis) narrow(v *lower.Var, init lower.Node, t types.Type) types.Typ
 		a.st.UpdateClassType(name, class)
 	}
 	if v.Sigil == "$" {
-		a.st.UpdatePossibleUndef(name, a.undecidedUndef[init.Meta().ID])
+		a.st.UpdatePossibleUndef(name, a.markedPossibleUndef(init))
 	}
 	return t
 }
