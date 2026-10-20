@@ -115,10 +115,13 @@ sub pipe :export_ok :listop () List[Object|Undef];
 # `->` on any FileHandle (or a subclass's) instance, never through
 # import, and none carries an :export mark.
 #
-# new_from_fd, close, fileno, getc, eof and flush are the same code as
-# IO::Handle's, held to the signatures IO/Handle.tpm already measured;
-# new, new_tmpfile and open are the same code as IO::File's, held to
-# the signatures IO/File.tpm already measured. seek and tell are
+# new_from_fd, close, fileno, getc and eof are the same code as
+# IO::Handle's, held to the signatures IO/Handle.tpm already measured
+# with the bare class name as the invocant; new, new_tmpfile and open
+# are the same code as IO::File's, held to the signatures IO/File.tpm
+# already measured. flush is also IO::Handle's same code, held to the
+# same Num|Undef signature, but called on a constructed instance
+# instead (IO/Handle.tpm's comment explains why). seek and tell are
 # IO::Seekable's, measured here on 5.42.0 with FileHandle's own bare
 # class name as the invocant, as the return-type oracle calls them:
 # seek returns a defined Boolean, tell an Int. getpos and setpos are also
@@ -137,7 +140,7 @@ sub close (Object $self:) Boolean;
 sub fileno (Object $self:) Int|Undef;
 sub getc (Object $self:) Str|Undef;
 sub eof (Object $self:) Boolean;
-sub flush (Object $self:) Boolean|Undef;
+sub flush (Object $self:) Num|Undef;
 sub new (Str $class: Optional[Str] $filename, Optional[Str|Int] $mode, Optional[Int] $perms) Object|Undef;
 sub new_tmpfile (Str $class:) Object|Undef;
 sub open (Object $self: Str $filename, Optional[Str|Int] $mode, Optional[Int] $perms) Boolean;

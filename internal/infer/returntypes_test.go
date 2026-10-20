@@ -999,33 +999,23 @@ var ioSocketIPSocketReexports = []string{
 	"unpack_sockaddr_in6", "unpack_sockaddr_un",
 }
 
-// ooNoInstanceReason is why the return-type oracle cannot exercise a
-// true instance method here: its method-form call always passes the
-// class name as the invocant (return_oracle.pl), never a constructed
-// one, and each of these dereferences its invocant and dies otherwise
-// (measured, e.g. IO::Select->add).
-const ooNoInstanceReason = "the oracle's method call passes the class name as the invocant, never a constructed instance; this method operates on one and dies otherwise (measured)"
-
 // ooExempt extends oracleExempt with the OO batch's own exemptions:
-// Socket's re-exports under IO::Socket::IP, instance methods the
-// oracle's class-as-invocant call cannot reach, and the subs that touch
-// the network or a real terminal.
+// Socket's re-exports under IO::Socket::IP that its own stash cannot
+// reach, and the subs that touch the network or a real terminal.
+// IO::Select's and HTTP::Tiny's own instance methods are not here: the
+// return-type oracle calls each of those on a constructed instance
+// (INSTANCE in oracle/IO-Select.pl and oracle/HTTP-Tiny.pl), not the
+// bare class name, so they need no exemption.
 func ooExempt() map[string]string {
 	m := maps.Clone(oracleExempt)
 	for _, name := range ioSocketIPSocketReexports {
 		m["IO::Socket::IP::"+name] = "lives in IO::Socket's own stash, from its file-scope `use Socket;`, not IO::Socket::IP's; the sub-form oracle cannot reach it there (measured), and Socket.tpm's own oracle already holds its return type"
-	}
-	for _, name := range []string{"add", "remove", "exists", "handles", "can_read", "can_write", "has_exception", "count"} {
-		m["IO::Select::"+name] = ooNoInstanceReason
 	}
 	for _, name := range []string{"connect", "sockhost", "sockport", "peerhost", "peerport"} {
 		m["IO::Socket::IP::"+name] = "opens or reads a real network connection"
 	}
 	for _, name := range []string{"get", "head", "put", "post", "patch", "delete", "post_form", "mirror", "request"} {
 		m["HTTP::Tiny::"+name] = "performs a real HTTP request over the network"
-	}
-	for _, name := range []string{"connected", "agent", "timeout"} {
-		m["HTTP::Tiny::"+name] = ooNoInstanceReason
 	}
 	m["Term::ReadLine::readline"] = "blocks reading a line from a real terminal"
 	return m
