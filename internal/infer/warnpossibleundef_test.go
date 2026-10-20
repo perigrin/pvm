@@ -1,5 +1,5 @@
-// ABOUTME: Tests for Options.WarnPossibleUndef: a multi call Select left genuinely Undecided is silent by default.
-// ABOUTME: A Selected call's own declared Undef, or an Undecided reached only by coercion retry, still reports.
+// ABOUTME: Tests for Options.WarnPossibleUndef: a declared call's Undef is silent by default unless its own arguments prove it.
+// ABOUTME: Covers a single declared candidate (blessed), a multi's catch-all (refaddr), and a proven arity (sum()).
 
 package infer_test
 
@@ -22,48 +22,53 @@ func diagsWithOptions(src string, opts infer.Options) []infer.Diagnostic {
 	return d
 }
 
-// undecidedRefaddrEq calls refaddr directly on an unresolved sub's own
-// return, which carries no information at all -- Unknown, not some
-// concrete type -- so Scalar::Util::refaddr's multi cannot decide
-// between its Ref and Any candidates and joins them to Int|Undef (a
-// plain `my ($x, $y) = @_`, Math::BigInt's own shape, does not do this:
-// such a read is "Scalar", a concrete type that selects the Any
-// candidate directly, Selected rather than Undecided --
-// TestNarrowKeepsRealLibSites's reftype_unguarded is exactly this
-// shape, and must keep reporting, so WarnPossibleUndef cannot reach it
-// either). Reaching an "eq" through the genuine Undecided join is
-// silent by default.
-const undecidedRefaddrEq = `use Scalar::Util qw(refaddr);
-my $same = (refaddr(Unresolved::opaque_x()) eq refaddr(Unresolved::opaque_y()));
+// TestWarnPossibleUndefSingleCandidate: Scalar::Util::blessed has one
+// declared candidate, `(Any $ref) Str|Undef` -- no sibling, no multi at
+// all -- yet perigrin's ruling (2026-10-20) covers it exactly the same
+// as a multi's catch-all: the call's own argument never proves whether
+// $x is a blessed reference, so blessed($x) is one of two outcomes the
+// declaration itself states, not one the call's arguments proved, and
+// its Undef is silent by default, reported only under the flag.
+func TestWarnPossibleUndefSingleCandidate(t *testing.T) {
+	const src = `use Scalar::Util qw(blessed);
+my ($x) = @_;
+my $same = (blessed($x) eq "Some::Class");
 `
-
-// selectedRefaddrEq calls refaddr with a provably non-Ref argument, which
-// Select resolves outright (Selected, not Undecided) to its declared
-// Int|Undef: this Undef is not from a join of candidates, and reports
-// whether or not WarnPossibleUndef is set.
-const selectedRefaddrEq = `use Scalar::Util qw(refaddr);
-my $same = (refaddr("plain string") eq "123");
-`
-
-// TestWarnPossibleUndefDefaultSilent: by default, an Undecided call's
-// Undef reaches "eq" without a diagnostic.
-func TestWarnPossibleUndefDefaultSilent(t *testing.T) {
-	assert.Empty(t, diagsWithOptions(undecidedRefaddrEq, infer.Options{}))
+	assert.Empty(t, diagsWithOptions(src, infer.Options{}))
+	diags := diagsWithOptions(src, infer.Options{WarnPossibleUndef: true})
+	if assert.Len(t, diags, 1) {
+		assert.Equal(t, infer.CodeCoercionMismatch, diags[0].Code)
+	}
 }
 
-// TestWarnPossibleUndefFlagReports: --warn-possible-undef reports it.
-func TestWarnPossibleUndefFlagReports(t *testing.T) {
-	diags := diagsWithOptions(undecidedRefaddrEq, infer.Options{WarnPossibleUndef: true})
+// TestWarnPossibleUndefCatchAllCandidate: Scalar::Util::refaddr is a
+// multi, and its widest, catch-all candidate, `(Any $ref) Int|Undef`,
+// selected over a Scalar argument never proven a Ref, is the same
+// shape: the declaration states two outcomes, and the call's own
+// argument does not rule either out.
+func TestWarnPossibleUndefCatchAllCandidate(t *testing.T) {
+	const src = `use Scalar::Util qw(refaddr);
+my ($x, $y) = @_;
+my $same = (refaddr($x) eq refaddr($y));
+`
+	assert.Empty(t, diagsWithOptions(src, infer.Options{}))
+	diags := diagsWithOptions(src, infer.Options{WarnPossibleUndef: true})
 	if assert.Len(t, diags, 2) {
 		assert.Equal(t, infer.CodeCoercionMismatch, diags[0].Code)
 		assert.Equal(t, infer.CodeCoercionMismatch, diags[1].Code)
 	}
 }
 
-// TestWarnPossibleUndefSelectedStillReports: a Selected call's own
-// declared Undef reports either way -- perigrin's ruling applies only to
-// an Undecided join, never to what a single resolved candidate declares.
-func TestWarnPossibleUndefSelectedStillReports(t *testing.T) {
-	assert.Len(t, diagsWithOptions(selectedRefaddrEq, infer.Options{}), 1)
-	assert.Len(t, diagsWithOptions(selectedRefaddrEq, infer.Options{WarnPossibleUndef: true}), 1)
+// TestWarnPossibleUndefProvenSelectionReports: List::Util::sum's own
+// `()` candidate, the only one zero arguments admit, answers nothing
+// but Undef -- perigrin's own example of arguments proving the
+// Undef-returning candidate selected, since sum()'s resolved return has
+// no other bit left to be silent about. It reports unconditionally,
+// flag or no flag.
+func TestWarnPossibleUndefProvenSelectionReports(t *testing.T) {
+	const src = `use List::Util qw(sum);
+my $same = (sum() eq "0");
+`
+	assert.Len(t, diagsWithOptions(src, infer.Options{}), 1)
+	assert.Len(t, diagsWithOptions(src, infer.Options{WarnPossibleUndef: true}), 1)
 }

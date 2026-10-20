@@ -261,6 +261,9 @@ func (a *analysis) narrow(v *lower.Var, init lower.Node, t types.Type) types.Typ
 	if class := a.classTypes[init.Meta().ID]; class != "" {
 		a.st.UpdateClassType(name, class)
 	}
+	if v.Sigil == "$" {
+		a.st.UpdatePossibleUndef(name, a.undecidedUndef[init.Meta().ID])
+	}
 	return t
 }
 

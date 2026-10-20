@@ -88,17 +88,17 @@ type analysis struct {
 	// classTypes is the class of the object a constructor call makes,
 	// keyed by the call's id, for the assignment that takes it.
 	classTypes map[lower.ID]string
-	// undecidedUndef marks a declared call's own id when a narrower,
-	// Undef-free sibling candidate could plausibly have been the call's
-	// instead, had its own arguments proven which one applies --
-	// whether types.Select left it Undecided (a genuinely Unknown
-	// argument's join) or Selected a multi's widest, catch-all
-	// candidate over an argument that was never proven to rule the
-	// narrower one out (markPossibleUndef, calls.go). checkOperand and
-	// checkArg read this to apply WarnPossibleUndef's default silence to
-	// exactly that Undef, never to one a single-candidate declaration's
-	// own return states outright, nor to a Selected call whose Undef the
-	// argument's own type, not just the declaration, already proved.
+	// undecidedUndef marks a declared call's own id when its resolved
+	// return carries the Undef bit beside some other bit -- one outcome
+	// among several the declaration itself states, whether from a
+	// single candidate (Scalar::Util::blessed's `(Any $ref) Str|Undef`)
+	// or types.Select choosing or joining among several (markPossibleUndef,
+	// calls.go) -- rather than the call's own arguments proving the
+	// return could be nothing else. checkOperand and checkArg read this
+	// to apply WarnPossibleUndef's default silence to exactly that
+	// Undef, never to one a call's own arguments already proved
+	// (List::Util::sum's `()` candidate, resolved whole to Undef, has no
+	// other bit left to be silent about).
 	undecidedUndef map[lower.ID]bool
 	// modifier is the `if` modifier whose match guards the body being
 	// walked, which a capture in that body reads, or nil.

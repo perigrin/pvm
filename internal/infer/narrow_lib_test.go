@@ -166,21 +166,16 @@ return $t;
 // TestNarrowKeepsRealLibSites reproduces the guard shape -- or absence of
 // one -- at a lib site the dba9 gate review classified REAL: perl 5.42 -w
 // does warn there, so psc check must still report it. reftype_unguarded
-// moved out to TestReftypeUnguardedIsPossibleUndef (perigrin, 2026-10-20):
-// a Scalar argument that was never proven a Ref, reaching reftype's own
-// catch-all `(Any $ref) Str|Undef` candidate, is possible, not certain --
-// unlike these two, where the argument's own type, not just the
-// declaration, already answers the call.
+// and realpath_unguarded moved out to TestReftypeUnguardedIsPossibleUndef
+// and TestRealpathUnguardedIsPossibleUndef (perigrin, 2026-10-20): an
+// argument that was never proven to rule out the Undef branch, reaching
+// a declared return that states it as one of several outcomes -- a
+// multi's catch-all candidate or a single declaration alike -- is
+// possible, not certain, unlike sum()'s own `()` candidate below, the
+// only one zero arguments admit, where the call's own arguments, not
+// just the declaration, already answer it.
 func TestNarrowKeepsRealLibSites(t *testing.T) {
 	for name, src := range map[string]string{
-		// CPAN/Distribution.pm:848 -- Cwd::realpath can itself return undef
-		// (an unresolvable path), and nothing here rules that out.
-		"realpath_unguarded": `
-use Cwd;
-my ($dir) = @_;
-my $a = Cwd::realpath($dir);
-return $a eq "/wanted";
-`,
 		// List::Util::sum with no arguments is undef; this reaches an
 		// operator with no guard on it at all, and sum()'s `()` candidate
 		// is the only one zero arguments admit -- there is no narrower
@@ -194,6 +189,27 @@ return $s + 1;
 		t.Run(name, func(t *testing.T) {
 			wantReportedResolved(t, "use Scalar::Util qw(reftype);\n"+src, infer.CodeCoercionMismatch)
 		})
+	}
+}
+
+// TestRealpathUnguardedIsPossibleUndef: CPAN/Distribution.pm:848's own
+// shape -- Cwd::realpath($dir) with nothing ruling out an unresolvable
+// path -- selects its one declared candidate, `(Str $path) Str|Undef`,
+// whatever $dir is, so its Undef is one of two outcomes the declaration
+// states, not one the call's argument proved: WarnPossibleUndef's
+// default silence (perigrin, 2026-10-20), carried from the call onto
+// $a, the variable its result is assigned to (Symbol.PossibleUndef,
+// ops.go's narrow), through to the "eq" the value actually reaches.
+func TestRealpathUnguardedIsPossibleUndef(t *testing.T) {
+	const src = `use Cwd;
+my ($dir) = @_;
+my $a = Cwd::realpath($dir);
+return $a eq "/wanted";
+`
+	assert.Empty(t, diagsWithOptions(src, infer.Options{}))
+	diags := diagsWithOptions(src, infer.Options{WarnPossibleUndef: true})
+	if assert.Len(t, diags, 1) {
+		assert.Equal(t, infer.CodeCoercionMismatch, diags[0].Code)
 	}
 }
 
@@ -245,12 +261,17 @@ if (reftype($sub) ne 'CODE') { die "not a code ref" }
 // proven Str -- Encode.tpm's `multi sub encode`, the same shape as
 // Scalar/Util.tpm's reftype. perl 5.42 -w is silent concatenating
 // encode("UTF-8", $text, 0) once $text is join of @_, a Str, join
-// never undef; it is not silent, and psc check must still report it,
-// for a $text with no such proof. Pod/Text.pm's own call has this
-// proof on $text but not on $encoding (a hash element, Unknown); it
-// still selects Str, once Select's Unknown bypass only counts an
-// Unknown at a position the candidates actually differ on
+// never undef. Pod/Text.pm's own call has this proof on $text but not
+// on $encoding (a hash element, Unknown); it still selects Str, once
+// Select's Unknown bypass only counts an Unknown at a position the
+// candidates actually differ on
 // (select_test.go's TestSelectUnknownAtNonDiscriminatingPositionDecides).
+//
+// Without that proof, $text joins encode's two candidates to Str|Undef
+// (types.Select's own coercion retry, not a genuinely Unknown
+// argument): this is one of two outcomes the declaration states, not
+// one the call's own argument proved, so it is WarnPossibleUndef's
+// default silence (perigrin, 2026-10-20), reported only under the flag.
 func TestEncodeTextIsStr(t *testing.T) {
 	wantSilentResolved(t, `use Encode qw(encode);
 my (@parts) = @_;
@@ -258,11 +279,16 @@ my $text = join('', @parts);
 my $s = encode("UTF-8", $text, 0) . "!";
 print $s;
 `)
-	wantReportedResolved(t, `use Encode qw(encode);
+	const unguarded = `use Encode qw(encode);
 my ($text) = @_;
 my $s = encode("UTF-8", $text, 0) . "!";
 print $s;
-`, infer.CodeCoercionMismatch)
+`
+	assert.Empty(t, diagsWithOptions(unguarded, infer.Options{}))
+	diags := diagsWithOptions(unguarded, infer.Options{WarnPossibleUndef: true})
+	if assert.Len(t, diags, 1) {
+		assert.Equal(t, infer.CodeCoercionMismatch, diags[0].Code)
+	}
 }
 
 // Symbol.tpm (db4c, scratchpad/db4c-symbol-deferred/) ships from here:
