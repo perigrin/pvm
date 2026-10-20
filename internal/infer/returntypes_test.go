@@ -1387,3 +1387,119 @@ func TestNoModuleIsAllExempt(t *testing.T) {
 	})
 	require.NoError(t, err)
 }
+
+// caseArities runs perl to read a cases file's own hash literal and
+// reports each sub name's call cases by their argument count. The cases
+// file is perl data, some of it built from the module's own constants
+// (Socket::pack_sockaddr_in and the like), so the module is required
+// first, exactly as return_oracle.pl itself requires it before reading
+// the same file (ruling: perl is the only safe reader of this data, not
+// a Go-side parse of the literal).
+func caseArities(t *testing.T, p perltest.Perl, module, casesPath string) map[string][]int {
+	t.Helper()
+	script := `my ($module, $cases_file) = @ARGV;` +
+		`open my $out, '>&', \*STDOUT or die $!; open STDOUT, '>&', \*STDERR or die $!;` +
+		`(my $file = "$module.pm") =~ s{::}{/}g; require $file;` +
+		`my %cases = do $cases_file; die "cannot read $cases_file: ", $@ || $!, "\n" if $@;` +
+		`delete $cases{INSTANCE};` +
+		`open STDOUT, '>&', $out or die $!;` +
+		`for my $n (sort keys %cases) { print "$n ", join(",", map { scalar @$_ } @{$cases{$n}}), "\n" }`
+	scratch := t.TempDir()
+	cmd := p.Command("-e", script, module, casesPath)
+	cmd.Dir = scratch
+	cmd.Env = append(cmd.Env, "HOME="+scratch, "TMPDIR="+scratch)
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	require.NoError(t, err, "caseArities(%s): %s", module, stderr.String())
+	arities := map[string][]int{}
+	for _, line := range strings.Split(strings.TrimRight(string(out), "\n"), "\n") {
+		if line == "" {
+			continue
+		}
+		name, counts, ok := strings.Cut(line, " ")
+		require.True(t, ok, "caseArities: unparseable line %q from %s", line, casesPath)
+		for _, s := range strings.Split(counts, ",") {
+			n, err := strconv.Atoi(s)
+			require.NoError(t, err)
+			arities[name] = append(arities[name], n)
+		}
+	}
+	return arities
+}
+
+// TestEveryMultiCandidateIsExercised: for every module with a .tpm
+// declaration, each candidate of a `multi` sub is reachable by at least
+// one oracle call case of a matching arity and form, or the whole name
+// is in the module's exemption map. RFC 0001 ("Context selects by
+// return type") lets calls() collapse two candidates sharing a context
+// into one request, told apart only by arity; a candidate calls() never
+// asks for, and no case ever exercises, can pass unnoticed, since
+// returnTypeFailures only requires SOME candidate to admit an observed
+// value, never every one.
+func TestEveryMultiCandidateIsExercised(t *testing.T) {
+	p := perltest.Perl542(t)
+	root := filepath.Join("..", "parse", "declarations")
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, walkErr error) error {
+		if walkErr != nil || d.IsDir() || !strings.HasSuffix(path, ".tpm") {
+			return walkErr
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		module := strings.ReplaceAll(strings.TrimSuffix(filepath.ToSlash(rel), ".tpm"), "/", "::")
+		if module == "CORE" {
+			// CORE's multi candidates are told apart by parse-time
+			// syntax, not a runtime oracle call; a different mechanism
+			// holds them.
+			return nil
+		}
+		src, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		sigs, errs := parse.DeclaredSignatures(src)
+		if len(errs) > 0 {
+			return nil
+		}
+		hasMulti := false
+		for _, cands := range sigs {
+			if len(cands) > 1 {
+				hasMulti = true
+				break
+			}
+		}
+		if !hasMulti {
+			return nil
+		}
+		casesPath, err := filepath.Abs(filepath.Join("testdata", "oracle", strings.ReplaceAll(module, "::", "-")+".pl"))
+		if err != nil {
+			return err
+		}
+		if _, statErr := os.Stat(casesPath); statErr != nil {
+			// No oracle file for this module (a non-core .tpm outside
+			// the core-module-types milestone): nothing to check here.
+			return nil
+		}
+		arities := caseArities(t, p, module, casesPath)
+		exempt := exemptMapFor(module)
+		for name, cands := range sigs {
+			if len(cands) < 2 {
+				continue
+			}
+			if _, ok := exempt[module+"::"+name]; ok {
+				continue
+			}
+			for _, s := range cands {
+				form := callForm(s)
+				if !slices.ContainsFunc(arities[name], func(n int) bool { return takes(s, form, n) }) {
+					t.Errorf("%s::%s: a multi candidate (%s form, returns %s) has no oracle call case of a matching arity, and %s::%s is not exempt",
+						module, name, form, s.Returns, module, name)
+				}
+			}
+		}
+		return nil
+	})
+	require.NoError(t, err)
+}
