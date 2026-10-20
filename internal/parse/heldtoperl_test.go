@@ -695,6 +695,35 @@ func TestFileStatEmptyImportKeepsCoreStat(t *testing.T) {
 	assert.Empty(t, got)
 }
 
+// Exporter, XSLoader and DynaLoader are the infrastructure-module batch
+// (01a1464e-dd6c, -ddb0, -dde3): the only three of the 50 core modules
+// RFC 0001 permits to ship unshipped (perigrin's ruling 4, 2026-10-16) if
+// measurement shows a declaration cannot keep every module that uses it
+// resolving as before. Each is held to perl, and its exports measured,
+// separately: a shared batch name would not match the issues' own
+// criteria commands.
+
+// TestExporterPrototypes holds Exporter.tpm's prototypes to perl.
+func TestExporterPrototypes(t *testing.T) {
+	holdPrototypes(t, "Exporter")
+}
+
+// TestExporterExports holds Exporter.tpm's :export and :export_ok marks
+// to what `use Exporter` installs in a caller.
+func TestExporterExports(t *testing.T) {
+	holdExports(t, "Exporter")
+}
+
+// TestExporterBareUseDoesNotImportImport: measured on 5.42.0, a bare
+// `use Exporter;` installs nothing -- Exporter carries no @EXPORT of its
+// own -- while `use Exporter 'import';` installs import, the one name
+// its own import() special-cases.
+func TestExporterBareUseDoesNotImportImport(t *testing.T) {
+	assert.Empty(t, importedFrom(t, "use Exporter;\n"))
+	got := importedFrom(t, "use Exporter 'import';\n")
+	assert.Equal(t, []string{"import"}, got)
+}
+
 // TestTestMoreArgumentFormImportsSameNames: Test::More's import is
 // Test::Builder::Module's (measured), which reads an import list with
 // no `import => [...]` pair as plan() arguments, not names --

@@ -82,6 +82,17 @@ var oracleExempt = map[string]string{
 
 	"ExtUtils::MakeMaker::WriteMakefile": "builds a real Makefile from a distribution's own metadata, which the oracle's call cases cannot supply",
 	"ExtUtils::MakeMaker::prompt":        "reads an answer from STDIN, blocking when none is piped in",
+
+	// Exporter's own export, export_to_level, export_tags and
+	// export_ok_tags install symbols into an arbitrary caller's package
+	// or mutate its @EXPORT/@EXPORT_OK from a dynamic $pkg/$callpkg pair;
+	// a direct call from the oracle could collide with the driver's own
+	// symbols or a later call in the same run. import, the one name
+	// Exporter itself exports, is measured directly instead.
+	"Exporter::export":          "installs symbols into an arbitrary caller's package from a dynamic $pkg/$callpkg pair, which could collide with the driver's own or a later call in the same run",
+	"Exporter::export_to_level": "installs symbols into an arbitrary caller's package from a dynamic $pkg/$callpkg pair, which could collide with the driver's own or a later call in the same run",
+	"Exporter::export_tags":     "mutates the caller package's @EXPORT from its own %EXPORT_TAGS, which could collide with a later call in the same run",
+	"Exporter::export_ok_tags":  "mutates the caller package's @EXPORT_OK from its own %EXPORT_TAGS, which could collide with a later call in the same run",
 }
 
 // posixReplacementNames are the names in POSIX.pm 2.23's %replacement
@@ -966,6 +977,16 @@ func TestMakeMakerInteractiveSubsExempt(t *testing.T) {
 		assert.NotEmpty(t, strings.TrimSpace(reason), "ExtUtils::MakeMaker::%s is exempt without a reason", name)
 	}
 	holdReturnTypes(t, "ExtUtils::MakeMaker")
+}
+
+// Exporter, XSLoader and DynaLoader are the infrastructure-module batch
+// (01a1464e-dd6c, -ddb0, -dde3), each held to perl separately so its own
+// test name matches its issue's criteria command.
+
+// TestExporterReturnTypes holds Exporter.tpm's declared return types to
+// perl, called with its oracle's cases.
+func TestExporterReturnTypes(t *testing.T) {
+	holdReturnTypes(t, "Exporter")
 }
 
 // TestFileStatMissingFileReturnIsDeclared: File::stat::stat on a path
