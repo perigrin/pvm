@@ -1,19 +1,51 @@
 ---
 title: "Audit fixes, POSIX: failure returns admit Undef, math returns admit Inf and NaN, classifiers take them, optional parameters match perl"
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 created: 2026-10-20T19:18:42.506751465Z
-updated: 2026-10-20T20:21:06.052053702Z
+updated: 2026-10-20T21:34:25.589098961Z
 sessions:
 - start_sha: 9cbd111a2a7e8a7f3e4a7d6790f10c685f1121fe
-  end_sha: ""
-  commits: 0
+  end_sha: 21162e2a33e98fd419c99aaa4fd58ed72f3db1b8
+  commits: 5
   started_at: 2026-10-20T20:21:06.052053702Z
+  ended_at: 2026-10-20T21:34:25.589098961Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-20T20:21:06.052053702Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-20T21:34:25.589098961Z
+observed_paths:
+- internal/infer/calls.go
+- internal/infer/declared_test.go
+- internal/infer/flow.go
+- internal/infer/infer.go
+- internal/infer/narrowing_regressions_test.go
+- internal/infer/ops.go
+- internal/infer/returntypes_test.go
+- internal/infer/symbols.go
+- internal/infer/testdata/return_oracle.pl
+- internal/infer/vars.go
+- internal/parse/decl.go
+- internal/parse/declarations.go
+- internal/parse/declarations/POSIX.tpm
+- internal/parse/derive.go
+- internal/parse/derive_test.go
+- internal/parse/exportattr_test.go
+- internal/parse/heldtoperl_test.go
+- internal/parse/ranking_test.go
+- internal/parse/typedour_test.go
+- internal/parse/use.go
+- internal/perltest/perl542_test.go
+- internal/perltest/referencebuild.go
+- internal/perltest/referencebuild_test.go
+- internal/types/select.go
+- internal/types/select_test.go
+- internal/types/types.go
+- internal/types/types_test.go
 ---
 
 crochet:review of PR #488, round 1 (2026-10-21). Signature audit (01a15aaa), group A.
