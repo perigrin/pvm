@@ -185,19 +185,11 @@ type pendingMisfit struct {
 // the parameter oracle finds in a module whose audit fix has not
 // landed, keyed by the issue that will fix it (perigrin, 2026-10-21:
 // 01a15ac0-6c4a POSIX, -6c78 sockets, -6ca2 IO and OO modules, -6ccc XS
-// modules, -6cfa pure-Perl modules).
+// modules, -6cfa pure-Perl modules). POSIX's own entries were deleted
+// 2026-10-22 once feat/core-module-types (01a15ac0-6c4a's fix) widened
+// getpayload to Num|NaN|Inf and setpayload/setpayloadsig's $nv to Any:
+// re-measured, neither misfits the parameter oracle any longer.
 var pendingAudit = map[string][]pendingMisfit{
-	"01a15ac0-6c4a": {
-		{Module: "POSIX", Sub: "getpayload", Kind: "parameter",
-			Detail: "oracle/POSIX.pl's own case passes a NaN, which getpayload reads the payload bits of; its declared Num excludes NaN (RFC 0001: NaN is a member of Str, not Num)",
-			Reason: "a parameter oracle misfit: getpayload's whole purpose is a NaN argument, not a value Num coerces from one"},
-		{Module: "POSIX", Sub: "setpayload", Kind: "parameter",
-			Detail: "oracle/POSIX.pl's own case passes a NaN to the NaN whose payload it sets; its declared Num excludes NaN",
-			Reason: "a parameter oracle misfit: setpayload's whole purpose is a NaN argument, not a value Num coerces from one"},
-		{Module: "POSIX", Sub: "setpayloadsig", Kind: "parameter",
-			Detail: "oracle/POSIX.pl's own case passes a NaN to the NaN whose payload and signal it sets; its declared Num excludes NaN",
-			Reason: "a parameter oracle misfit: setpayloadsig's whole purpose is a NaN argument, not a value Num coerces from one"},
-	},
 	"01a15ac0-6c78": {
 		{Module: "Socket", Sub: "getaddrinfo", Kind: "return",
 			Detail: "the $err dualvar (0 or an errno, paired with its gai_strerror text) fits neither candidate's declared Str",
