@@ -1,16 +1,20 @@
 ---
 title: Narrow undef after ref, defined and blessed guards, so typed Scalar::Util and List::Util returns add no false positive
-state: reopened
+state: in-progress
 urgency: normal
 milestone: core-module-types
 created: 2026-10-20T01:19:39.205726373Z
-updated: 2026-10-20T16:17:50.682845856Z
+updated: 2026-10-20T16:17:50.740421899Z
 sessions:
 - start_sha: e80f4f920667615dc28874844b338224612fffe3
   end_sha: d7e9819e189d4066bdeda28c06b1f2611f1cccb7
   commits: 17
   started_at: 2026-10-20T01:19:55.217000079Z
   ended_at: 2026-10-20T16:02:19.389253128Z
+- start_sha: 6304f38e2c9293c66b4aec0e1aee6148414b1b1c
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-20T16:17:50.740421899Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
@@ -21,6 +25,9 @@ transitions:
 - state: reopened
   actor: human:git-zhi
   timestamp: 2026-10-20T16:17:50.682845856Z
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-20T16:17:50.740421899Z
 observed_paths:
 - docs/rfcs/0001-type-libraries.md
 - internal/cli/symlinks_test.go
