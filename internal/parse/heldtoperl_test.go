@@ -888,6 +888,24 @@ func TestTestMoreImportKeyClaimsNoNames(t *testing.T) {
 	assert.Empty(t, importedFrom(t, "use Test::More import => ['ok'], tests => 1;\n"))
 }
 
+// TestTestMoreImportParamAdmitsArrayRef: pass 3's gate (perigrin,
+// 2026-10-20): the parameter's name carries the altering key, but its
+// type must still be what perl passes there -- measured on 5.42.0,
+// Test::Builder::Module::_strip_imports dereferences the value paired
+// with the import key as an array (`@{ $list->[$idx+1] }`), so it is an
+// ArrayRef, not a Str.
+func TestTestMoreImportParamAdmitsArrayRef(t *testing.T) {
+	facts := resolveLibrary(t, "Test::More")
+	sigs := facts.signatures["import"]
+	if len(sigs) != 1 || len(sigs[0].Params) == 0 {
+		t.Fatalf("Test::More::import signature: %+v, want one signature with a parameter named import", sigs)
+	}
+	got := sigs[0].Params[0]
+	if got.Name != "import" || got.Type != types.ArrayRef {
+		t.Errorf("Test::More::import's import parameter: %+v, want ArrayRef", got)
+	}
+}
+
 // ioExporters is the IO and file-handling batch (01a1464e-db76):
 // FileHandle, IO::Handle, IO::File, IO::Socket and the five plain
 // exporters File::Spec::Functions, File::Temp, Archive::Tar,
