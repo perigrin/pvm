@@ -9,7 +9,7 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:59:46.730685644Z
-updated: 2026-10-20T02:15:10.157420047Z
+updated: 2026-10-20T02:42:28.072869132Z
 sessions:
 - start_sha: 236f66e72899b4f1ef19ba3d8b8613b74ce46140
   end_sha: 49b2a9a42871b31c8f4d6ae70850d11f3b1d844c
@@ -98,6 +98,8 @@ Gate, 2026-10-20, on 49b2a9a4 (fresh Sonnet reviewer; criteria pass and TestPOSI
 1. (CODE, 90) POSIX.tpm:761, 814 and returntypes_test.go:53, 57: `signal` and `tcsetattr` are declared with return types and exempted ("installs a signal handler", "mutates terminal attributes"), but on perl 5.42 both always die "is not a valid POSIX macro" (`POSIX::signal(SIGUSR1,"IGNORE")`, `POSIX::tcsetattr(0,0,undef)`). They belong with the undefined-macro names: declare None, drop the exemptions, add them to posixUndefinedMacroNames.
 2. (CODE, 80) POSIX.tpm:1-6, returntypes_test.go:71-84: L_tmpnam, fileno, rand and srand (4 of the 80 %replacement names) are undeclared, and posixReplacementNames holds 76. The reviewer measured that `use POSIX qw(fileno)` dies at BEGIN but a bare `use POSIX;` installs all four as AUTOLOAD stubs that die "Unimplemented" when called. That contradicts dc07's comment and its passing TestPOSIXExports: measure with perl which is true, then declare all four None with the mark perl's bare use implies, and have TestPOSIXAutoloadStubsDie cover all 80.
 3. (CODE, 75) POSIX.tpm:764 `sigprocmask` (exempt, so typed from POSIX.pod) is `Int`; POSIX.pod says "Returns undef on failure" and success returns "0 but true". Declare from the documentation, at least `Int|Undef` (or Str|Undef if "0 but true" is not an Int in this lattice: measure).
+
+**Finding 2 settled by measurement, 2026-10-20 (no change):** on perl 5.42.0, `package Foo; use POSIX;` installs none of L_tmpnam, fileno, rand, srand (`exists &Foo::$name` false for all four, true for floor), so an unqualified call reaches perl's builtin; `use POSIX qw(fileno)` dies at BEGIN. The reviewer's claim was wrong; dc07's comment, the 76-name list and TestPOSIXExports stand. Findings 1 and 3 fixed in 27dba301.
 
 ## Acceptance Criteria
 
