@@ -1,10 +1,19 @@
 ---
 title: Narrow the macOS and Windows skips in the perl-held tests to the names that differ there
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 created: 2026-10-20T21:05:01.164297765Z
-updated: 2026-10-20T21:26:12.719509525Z
+updated: 2026-10-20T21:26:13.682430872Z
+sessions:
+- start_sha: c09fd9d5ebb069ebd7b7eef335e030ff4675cd59
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-20T21:26:13.682430872Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-20T21:26:13.682430872Z
 ---
 
 Found 2026-10-21 merging fix/6b81b (crochet:review round 1 of core-module-types). CI run 39489951290 ran the perl-held tests on macOS and Windows for the first time. 6b81b fixed the harness bugs (CRLF in return_oracle.pl and two Go parsers, the macOS /tmp symlink, build-specific counts) but skipped twelve tests WHOLE on macOS/Windows where only some names differ: e.g. TestPurePerlExportersReturnTypes/Prototypes/Exports skip all ten pure-Perl exporters off Linux because Errno's Linux-only codes (EADV ...) are absent; TestPOSIXReturnTypes skips every POSIX sub on Windows because one case calls Fcntl::F_GETFD. Linux holds everything (PVM_REQUIRE_PERL542=1), so goal 4 holds; but off Linux these tests now gate nothing.
