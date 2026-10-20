@@ -1,10 +1,19 @@
 ---
 title: Narrow undef after ref, defined and blessed guards, so typed Scalar::Util and List::Util returns add no false positive
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 created: 2026-10-20T01:19:39.205726373Z
-updated: 2026-10-20T01:19:39.205726373Z
+updated: 2026-10-20T01:19:55.217000079Z
+sessions:
+- start_sha: e80f4f920667615dc28874844b338224612fffe3
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-20T01:19:55.217000079Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-20T01:19:55.217000079Z
 ---
 
 perigrin ruled on 2026-10-17 (issue dba9's gate): fix narrowing first. Declaring Scalar::Util, List::Util and Cwd's returns as `...|Undef` (which perl 5.42 measures) makes psc check report 76 new lib sites. dba9's reviewer read 26 of them: about 11 are real (undef reaches eq/=~ unguarded), about 13 are false positives because the code already rules undef out, 2 are unknowable. Goal (5) allows no added false positive, so dba9 cannot merge until psc sees through those guards.
