@@ -133,56 +133,90 @@ func (a *analysis) declaredCall(n *lower.Call) types.Type {
 }
 
 // markPossibleUndef marks n's own id, for possibleUndef (below) to read,
-// when sel is types.Select's own Undecided join of this call's
-// candidates over an argument that was itself the Unknown sentinel --
-// no information at all, never computed -- rather than some concrete
-// type Select's own coercion retry (select.go's coercedArgs) rewrote to
-// Unknown internally to re-decide a call no candidate fit outright
-// (perigrin, 2026-10-20). args is declaredCall's own, taken before
-// Select ever runs, so a position Select's retry later zeroed still
-// reads here as whatever concrete type it actually was.
+// when sel's Undef could have been a narrower, Undef-free sibling
+// candidate's instead, had n's own arguments proven which one applies
+// (perigrin, 2026-10-20). sigs must hold more than one candidate for
+// this call's name, and sel.Returns the Undef bit, before either
+// outcome below marks:
 //
-// Marked only when the join itself carries the Undef bit, at least one
-// joined candidate does not, and some args position is genuinely
-// Unknown -- otherwise either every candidate agreed, or nothing about
-// the join was actually unprovable. A Selected call -- one candidate
-// chosen outright, including a multi's widest, catch-all candidate
-// picked because no narrower sibling's own parameter type was proven --
-// is not this either: its Undef is certain for the type the type
-// system does have, and reports the same as a single-candidate
-// declaration's always has.
-//
-// TestNarrowKeepsRealLibSites's reftype_unguarded (Selected: a Scalar
-// argument fits Scalar::Util::reftype's `(Any $ref)` catch-all directly,
-// no retry needed) and TestEncodeTextIsStr's own unguarded half
-// (Undecided, but only by the coercion retry: Encode::encode's two
-// candidates both reject a Scalar $string outright, and only the
-// retry's own rewrite, not the real argument, is Unknown) both depend
-// on this staying unmarked; a looser rule that marked either regressed
-// them, since nothing in sel alone, after the fact, tells them apart
-// from a call the retry genuinely could not have decided.
+//   - Undecided is types.Select's own join of every candidate that
+//     fits an argument that was itself the Unknown sentinel -- no
+//     information at all, never computed -- rather than some concrete
+//     type Select's own coercion retry (select.go's coercedArgs)
+//     rewrote to Unknown internally to re-decide a call no candidate
+//     fit outright. args is declaredCall's own, taken before Select
+//     ever runs, so a position the retry later zeroed still reads here
+//     as whatever concrete type it actually was; a retry-produced join
+//     is not marked (Encode::encode's unguarded site: its two
+//     candidates both reject a concrete Scalar $string outright, and
+//     only the retry's own rewrite, not the real argument, is Unknown).
+//   - Selected is one candidate chosen outright, including a multi's
+//     widest, catch-all candidate -- Scalar::Util::reftype's `(Any
+//     $ref)`, picked over a Scalar argument that was never proven a
+//     Ref -- marked when some argument's own actual type still
+//     overlaps a narrower, Undef-free sibling's parameter type: that
+//     argument could, at runtime, still have been the narrower shape,
+//     so this candidate's Undef is possible, not certain. A plain
+//     string literal argument, which has no such overlap, or a call
+//     with no arguments to check at all (List::Util::sum's `()`
+//     candidate, the only one admitting zero arguments) is not this:
+//     the argument type itself, not just the declaration, proves which
+//     candidate applies, and the Undef reports unconditionally.
 func (a *analysis) markPossibleUndef(n *lower.Call, sigs []types.Signature, sel types.Selection, args []types.Type) {
-	if len(sigs) <= 1 || sel.Outcome != types.Undecided || sel.Returns&types.Undef == 0 {
+	if len(sigs) <= 1 || sel.Returns&types.Undef == 0 {
 		return
 	}
-	if !slices.Contains(args, types.Unknown) {
-		return
-	}
-	for _, s := range sigs {
-		if s.Returns&types.Undef == 0 {
-			a.undecidedUndef[n.ID] = true
+	switch sel.Outcome {
+	case types.Undecided:
+		if !slices.Contains(args, types.Unknown) {
 			return
+		}
+		for _, s := range sigs {
+			if s.Returns&types.Undef == 0 {
+				a.undecidedUndef[n.ID] = true
+				return
+			}
+		}
+	case types.Selected:
+		for _, s := range sigs {
+			if s.Returns&types.Undef != 0 {
+				continue
+			}
+			for i, actual := range args {
+				if actual&paramTypeAt(s, i) != 0 {
+					a.undecidedUndef[n.ID] = true
+					return
+				}
+			}
 		}
 	}
 }
 
+// paramTypeAt is s's parameter type at position i, clamped to its last
+// parameter past its own length (a trailing slurpy's shape) the way
+// types.fits reads a candidate; Any when s takes none, since the call
+// still reached it.
+func paramTypeAt(s types.Signature, i int) types.Type {
+	if len(s.Params) == 0 {
+		return types.Any
+	}
+	if i >= len(s.Params) {
+		i = len(s.Params) - 1
+	}
+	if t := s.Params[i].Type; t != types.Unknown {
+		return t
+	}
+	return types.Any
+}
+
 // possibleUndef reports whether n's Undef, in a slot expecting expected,
 // is accepted by default under WarnPossibleUndef (perigrin, 2026-10-20):
-// n is a declared call types.Select left Undecided over, its Undef the
-// join's rather than a Selected candidate's own declared return
-// (undecidedUndef, set by markPossibleUndef), and removing that one bit
-// would satisfy expected on its own -- a mismatch WarnPossibleUndef has
-// no bearing on, a wrong type entirely, still reports.
+// n is a declared call markPossibleUndef marked, its Undef a narrower
+// sibling candidate's own argument's type never ruled out rather than
+// one the call's own arguments, not just its declaration, already
+// proved, and removing that one bit would satisfy expected on its own
+// -- a mismatch WarnPossibleUndef has no bearing on, a wrong type
+// entirely, still reports.
 func (a *analysis) possibleUndef(n lower.Node, actual, expected types.Type) bool {
 	if a.opts.WarnPossibleUndef || !a.undecidedUndef[n.Meta().ID] || actual&types.Undef == 0 {
 		return false

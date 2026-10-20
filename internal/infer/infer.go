@@ -88,12 +88,17 @@ type analysis struct {
 	// classTypes is the class of the object a constructor call makes,
 	// keyed by the call's id, for the assignment that takes it.
 	classTypes map[lower.ID]string
-	// undecidedUndef marks a declared call's own id when types.Select
-	// left it Undecided and the joined return it gave has the Undef bit:
-	// checkOperand and checkArg read this to apply WarnPossibleUndef's
-	// default silence to exactly that Undef, and not to one a Selected
-	// call's own declared return states on its own account
-	// (markPossibleUndef, calls.go).
+	// undecidedUndef marks a declared call's own id when a narrower,
+	// Undef-free sibling candidate could plausibly have been the call's
+	// instead, had its own arguments proven which one applies --
+	// whether types.Select left it Undecided (a genuinely Unknown
+	// argument's join) or Selected a multi's widest, catch-all
+	// candidate over an argument that was never proven to rule the
+	// narrower one out (markPossibleUndef, calls.go). checkOperand and
+	// checkArg read this to apply WarnPossibleUndef's default silence to
+	// exactly that Undef, never to one a single-candidate declaration's
+	// own return states outright, nor to a Selected call whose Undef the
+	// argument's own type, not just the declaration, already proved.
 	undecidedUndef map[lower.ID]bool
 	// modifier is the `if` modifier whose match guards the body being
 	// walked, which a capture in that body reads, or nil.

@@ -6,6 +6,8 @@ package infer_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"tamarou.com/pvm/internal/infer"
 )
 
@@ -163,15 +165,14 @@ return $t;
 
 // TestNarrowKeepsRealLibSites reproduces the guard shape -- or absence of
 // one -- at a lib site the dba9 gate review classified REAL: perl 5.42 -w
-// does warn there, so psc check must still report it.
+// does warn there, so psc check must still report it. reftype_unguarded
+// moved out to TestReftypeUnguardedIsPossibleUndef (perigrin, 2026-10-20):
+// a Scalar argument that was never proven a Ref, reaching reftype's own
+// catch-all `(Any $ref) Str|Undef` candidate, is possible, not certain --
+// unlike these two, where the argument's own type, not just the
+// declaration, already answers the call.
 func TestNarrowKeepsRealLibSites(t *testing.T) {
 	for name, src := range map[string]string{
-		// Safe.pm:424 -- reftype($sub) with no ref() or defined() proof: a
-		// plain non-ref $sub makes it undef.
-		"reftype_unguarded": `
-my ($sub) = @_;
-if (reftype($sub) ne 'CODE') { die "not a code ref" }
-`,
 		// CPAN/Distribution.pm:848 -- Cwd::realpath can itself return undef
 		// (an unresolvable path), and nothing here rules that out.
 		"realpath_unguarded": `
@@ -181,7 +182,9 @@ my $a = Cwd::realpath($dir);
 return $a eq "/wanted";
 `,
 		// List::Util::sum with no arguments is undef; this reaches an
-		// operator with no guard on it at all.
+		// operator with no guard on it at all, and sum()'s `()` candidate
+		// is the only one zero arguments admit -- there is no narrower
+		// sibling to weigh against, since none takes zero arguments either.
 		"sum_no_args_unguarded": `
 use List::Util qw(sum);
 my $s = sum();
@@ -198,8 +201,10 @@ return $s + 1;
 // Any candidate's Str|Undef, once a ref() guard proves its argument a
 // Ref -- Scalar/Util.tpm's `multi sub reftype`, RFC 0001 "Multi
 // declarations". perl 5.42 -w is silent concatenating reftype($x) once
-// ref($x) held; it is not silent, and psc check must still report it,
-// before any such guard.
+// ref($x) held, as it is before any such guard too -- reftype's own
+// catch-all candidate, selected over an argument never proven a Ref, is
+// WarnPossibleUndef's default silence (TestReftypeUnguardedIsPossibleUndef
+// covers that state directly; perigrin, 2026-10-20).
 func TestReftypeOfRefIsStr(t *testing.T) {
 	wantSilentResolved(t, `use Scalar::Util qw(reftype);
 my ($x) = @_;
@@ -208,11 +213,31 @@ if (ref($x)) {
     print $t;
 }
 `)
-	wantReportedResolved(t, `use Scalar::Util qw(reftype);
+	wantSilentResolved(t, `use Scalar::Util qw(reftype);
 my ($x) = @_;
 my $t = reftype($x) . "!";
 print $t;
-`, infer.CodeCoercionMismatch)
+`)
+}
+
+// TestReftypeUnguardedIsPossibleUndef: Safe.pm:424's own shape --
+// reftype($sub) with no ref() or defined() proof -- selects reftype's
+// catch-all `(Any $ref) Str|Undef` candidate over a Scalar argument
+// never proven a Ref, so its Undef is WarnPossibleUndef's default
+// silence, not a certain mismatch (perigrin, 2026-10-20): $sub's own
+// type, unlike a plain non-ref literal, still overlaps Ref, so psc
+// cannot rule out that the call could have reached reftype's narrower,
+// Undef-free `(Ref $ref) Str` candidate instead.
+func TestReftypeUnguardedIsPossibleUndef(t *testing.T) {
+	const src = `use Scalar::Util qw(reftype);
+my ($sub) = @_;
+if (reftype($sub) ne 'CODE') { die "not a code ref" }
+`
+	assert.Empty(t, diagsWithOptions(src, infer.Options{}))
+	diags := diagsWithOptions(src, infer.Options{WarnPossibleUndef: true})
+	if assert.Len(t, diags, 1) {
+		assert.Equal(t, infer.CodeCoercionMismatch, diags[0].Code)
+	}
 }
 
 // TestEncodeTextIsStr: encode selects its Str candidate, Str, not the

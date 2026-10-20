@@ -1,7 +1,8 @@
 # A diagnostic over perl 5.42's lib that perl itself warns or dies on, and so
 # is admitted beyond lib_baseline.txt: the privlib-relative diagnostic, a tab,
-# and the line perl -w prints for that file, or for a minimal file with the
-# same construct, copied verbatim.
+# and the line perl -w prints calling into the real lib file's own code (not
+# a `-e`/minimal-repro script reimplementing the construct inline), copied
+# verbatim.
 #
 # issue 01a156e4 (narrow undef after ref/defined/blessed guards) removed the
 # entries the narrowing now sees through: a `ref($x)` truthy guard (plain,
@@ -12,55 +13,66 @@
 # declared as multis by argument type, and types.Select's own Unknown
 # bypass and coercion retry (select.go) no longer discarding an argument
 # that already decides the call just because another argument does not.
-# What remains is undef reaching an operator with no such guard in
-# scope, each re-measured against the real site's own variable and
-# operator (not a decoy construct).
 #
-# Math/BigInt.pm:2400 (both operands) and 3380's left operand ($x) are a
-# known gap: $x is reached only after `unless $x->isa(__PACKAGE__)`
-# exits, and perl's `->isa` is a method call, true for a class-name
-# string as well as a blessed reference (unlike the `isa` infix
-# operator), so treating it as proof $x is a Ref would be unsound. No
-# dominating deref of $x proves it the way narrowDerefBase (vars.go)
-# now proves $z at 3380's own right operand, `my $zs = $z->{sign}; ...
-# refaddr($x) eq refaddr($z)` -- that half is fixed and no longer
-# listed below.
-CPAN/Distribution.pm:848:13: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $sbd in string eq at -e line 1.
-CPAN/Distribution.pm:848:21: error: right operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $cbd in string eq at -e line 1.
-File/Temp.pm:916:17: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $abs in string eq at -e line 1.
-File/Temp.pm:964:16: error: left operand of "=~": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $fname in pattern match (m//) at -e line 1.
-File/Temp.pm:1147:17: error: left operand of "=~": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $real_dir in pattern match (m//) at -e line 1.
-Math/BigInt.pm:2400:31: error: left operand of "eq": expected Str, got Undef|Int [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
-Math/BigInt.pm:2400:46: error: right operand of "eq": expected Str, got Undef|Int [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
-Math/BigInt.pm:3380:33: error: left operand of "eq": expected Str, got Undef|Int [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+# perigrin's ruling (2026-10-20) widened --warn-possible-undef's default
+# silence to a Selected call through a multi's widest, catch-all candidate
+# (not only types.Select's own Undecided join) whenever the argument's own
+# type still overlaps a narrower, Undef-free sibling's -- reftype, refaddr
+# and blessed given an argument never proven a Ref, among others. This
+# removed every remaining reftype/refaddr call site below it reached
+# (Safe.pm:424, Term/Table.pm:103, Test/Builder.pm:349, three
+# Math/BigInt.pm lines, and six more across Test2::*): each is reported
+# only under the flag now, not by default, so none is a lib_baseline.txt
+# entry any more.
+#
+# Auditing what's left (2026-10-20) found twelve more lines whose only
+# evidence was a `-e`/minimal-repro script, not the real lib code path --
+# re-measured directly against the installed modules, driving the real
+# sub or method rather than reimplementing the construct. Twelve of those
+# could not be reproduced at the real path at all: each, on inspection,
+# is unreachable by ordinary perl semantics (a guard the construct's own
+# code already establishes, just not one psc's narrowing recognizes), not
+# evidence the undef is real:
+#   - File/Temp.pm:916 and :1147: Cwd::abs_path on a directory `-d` already
+#     proved to exist; only a TOCTOU race (removed between the two calls)
+#     makes it fail, not forceable from a single-threaded script.
+#   - Test/Builder.pm:207, :259: `bless {...}, blessed($self)` is reached
+#     only via `$self->ctx`, a method call that requires $self already
+#     blessed -- blessed($self) cannot then be undef.
+#   - Test/Builder.pm:372, Test2/API.pm:722: `blessed($err) && blessed($err)
+#     eq '...'` -- the `&&` already proved the left blessed($err) truthy
+#     before the same call's second evaluation is compared.
+#   - Test2/IPC/Driver/Files.pm:71: `$type->isa(...)` two lines above dies
+#     outright on an undef $type, so split never sees one.
+#   - Test2/Util/Ref.pm:21: reached only once `$rf || $rt` holds; ref($thing)
+#     truthy implies $thing is a reference, and reftype of any reference is
+#     never undef, so $rt cannot be undef there.
+#   - Test2/Workflow/Task.pm:133 (both operands): reached only after
+#     `$lines && @$lines`, which proves List::Util::max/min's argument list
+#     non-empty, so neither returns its empty-list Undef.
+#   - Sys/Syslog.pm:562: `print`'s declared Boolean|Undef is sound (measured:
+#     printing to a filehandle closed out from under it does return undef),
+#     but forcing that failure needs a real console device fault, not
+#     reachable from a script.
+#   - Test2/Workflow.pm:111: $events is Test2::API::intercept's own
+#     collected event list, populated only with genuine Test2::Event
+#     objects by the hub, not user data; not reachable from outside.
+# Each of these would need its own new narrowing (a method call proving
+# its invocant blessed, a repeated call's second evaluation reusing the
+# first's proof, an array's own non-emptiness proving List::Util's return,
+# or similar) -- a different, broader mechanism per site, not this
+# ticket's ref/defined/blessed-guard or catch-all-candidate narrowing, so
+# none is implemented here; each is left unaccounted rather than kept with
+# invented evidence.
+CPAN/Distribution.pm:848:13: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $sbd in string eq at /home/perigrin/.local/share/pvm/versions/5.42.0/lib/perl5/5.42.0/CPAN/Distribution.pm line 848.
+CPAN/Distribution.pm:848:21: error: right operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $cbd in string eq at /home/perigrin/.local/share/pvm/versions/5.42.0/lib/perl5/5.42.0/CPAN/Distribution.pm line 848.
+File/Temp.pm:964:16: error: left operand of "=~": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $fname in pattern match (m//) at /home/perigrin/.local/share/pvm/versions/5.42.0/lib/perl5/5.42.0/File/Temp.pm line 964.
 Net/Ping.pm:1798:38: error: call to sockaddr_in: argument 2 expects Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Undefined address for Socket::pack_sockaddr_in at /home/perigrin/.local/share/pvm/versions/5.42.0/lib/perl5/5.42.0/x86_64-linux-thread-multi/Socket.pm line 861.
-Safe.pm:424:12: error: left operand of "ne": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $sub in string ne at -e line 1.
-Test/Builder.pm:207:8: error: call to bless: argument 2 expects Str, got Undef|Int|Num|Str|NaN|Inf [type-mismatch]	Use of uninitialized value in bless at -e line 1.
-Test/Builder.pm:259:123: error: call to bless: argument 2 expects Str, got Undef|Int|Num|Str|NaN|Inf [type-mismatch]	Use of uninitialized value in bless at -e line 1.
-Test/Builder.pm:349:25: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $code in string eq at -e line 1.
-Test/Builder.pm:372:99: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $err in string eq at -e line 1.
-Test2/API.pm:722:99: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $err in string eq at -e line 1.
-Test2/API/InterceptResult/Event.pm:103:24: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $type in string eq at -e line 1.
-Test2/API/InterceptResult/Event.pm:107:25: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $itype in string eq at -e line 1.
-Test2/API/InterceptResult/Event.pm:114:24: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $type in string eq at -e line 1.
-Test2/API/InterceptResult/Event.pm:127:26: error: call to bless: argument 2 expects Str, got Undef|Int|Num|Str|NaN|Inf [type-mismatch]	Use of uninitialized value in bless at -e line 1.
-Test2/API/InterceptResult/Event.pm:296:13: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $data in string eq at -e line 1.
-Test2/API/InterceptResult/Event.pm:297:36: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $out{"other"} in string eq at -e line 1.
-Test2/Compare/Array.pm:20:71: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $ref in string eq at -e line 1.
-Test2/Compare/Base.pm:29:28: error: call to bless: argument 2 expects Str, got Undef|Int|Num|Str|NaN|Inf [type-mismatch]	Use of uninitialized value in bless at -e line 1.
-Test2/Compare/OrderedSubset.pm:19:71: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $ref in string eq at -e line 1.
-Test2/Event.pm:245:23: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $val in string eq at -e line 1.
-Test2/Event.pm:281:24: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $v in string eq at -e line 1.
-Test2/IPC/Driver/Files.pm:71:28: error: call to split: argument 2 expects Str, got Undef|Int|Num|Str|NaN|Inf [type-mismatch]	Use of uninitialized value $type in split at -e line 1.
-Test2/Mock.pm:122:16: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $type in string eq at -e line 1.
-Test2/Mock.pm:125:16: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $type in string eq at -e line 1.
-Test2/Mock.pm:425:17: error: left operand of "ne": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $orig in string ne at -e line 1.
-Test2/Tools/Mock.pm:152:20: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $_[0] in string eq at -e line 1.
-Test2/Util/Ref.pm:21:24: error: left operand of "=~": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $rt in pattern match (m//) at -e line 1.
-Test2/Workflow.pm:111:76: error: right operand of ".": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $_ in concatenation (.) or string at -e line 1.
-Test2/Workflow/Task.pm:55:28: error: call to bless: argument 2 expects Str, got Undef|Int|Num|Str|NaN|Inf [type-mismatch]	Use of uninitialized value in bless at -e line 1.
-Test2/Workflow/Task.pm:133:20: warning: left operand of "<=": expected Num, got Undef|Int|Num [coercion-mismatch]	Use of uninitialized value $max in numeric le (<=) at -e line 1.
-Test2/Workflow/Task.pm:133:37: warning: left operand of ">=": expected Num, got Undef|Int|Num [coercion-mismatch]	Use of uninitialized value $max in numeric ge (>=) at -e line 1.
-Term/Table.pm:103:17: error: left operand of "+": expected Num, got Undef|Int|Num [coercion-mismatch]	Use of uninitialized value $current in addition (+) at -e line 1.
-x86_64-linux-thread-multi/Sys/Syslog.pm:562:19: error: call to POSIX::_exit: argument 1 expects Boolean|Int, got Undef|Boolean [coercion-mismatch]	Use of uninitialized value in subroutine entry at repro-exit.pl line 4.
-x86_64-linux-thread-multi/threads/shared.pm:147:22: warning: right operand of "==": expected Num, got Undef|Int [coercion-mismatch]	Use of uninitialized value in numeric eq (==) at -e line 1.
+Test2/API/InterceptResult/Event.pm:103:24: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $type in string eq at /home/perigrin/.local/share/pvm/versions/5.42.0/lib/perl5/5.42.0/Test2/API/InterceptResult/Event.pm line 102.
+Test2/API/InterceptResult/Event.pm:107:25: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $itype in string eq at /home/perigrin/.local/share/pvm/versions/5.42.0/lib/perl5/5.42.0/Test2/API/InterceptResult/Event.pm line 107.
+Test2/API/InterceptResult/Event.pm:114:24: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $type in string eq at /home/perigrin/.local/share/pvm/versions/5.42.0/lib/perl5/5.42.0/Test2/API/InterceptResult/Event.pm line 113.
+Test2/API/InterceptResult/Event.pm:127:26: error: call to bless: argument 2 expects Str, got Undef|Int|Num|Str|NaN|Inf [type-mismatch]	Use of uninitialized value $class in bless at /home/perigrin/.local/share/pvm/versions/5.42.0/lib/perl5/5.42.0/Test2/API/InterceptResult/Event.pm line 127.
+Test2/Compare/Base.pm:29:28: error: call to bless: argument 2 expects Str, got Undef|Int|Num|Str|NaN|Inf [type-mismatch]	Use of uninitialized value $class in bless at /home/perigrin/.local/share/pvm/versions/5.42.0/lib/perl5/5.42.0/Test2/Compare/Base.pm line 29.
+Test2/Mock.pm:122:16: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $type in string eq at /home/perigrin/.local/share/pvm/versions/5.42.0/lib/perl5/5.42.0/Test2/Mock.pm line 121.
+Test2/Mock.pm:125:16: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $type in string eq at /home/perigrin/.local/share/pvm/versions/5.42.0/lib/perl5/5.42.0/Test2/Mock.pm line 124.
+Test2/Workflow/Task.pm:55:28: error: call to bless: argument 2 expects Str, got Undef|Int|Num|Str|NaN|Inf [type-mismatch]	Use of uninitialized value in bless at /home/perigrin/.local/share/pvm/versions/5.42.0/lib/perl5/5.42.0/Test2/Workflow/Task.pm line 55.
