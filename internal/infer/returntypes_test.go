@@ -186,6 +186,17 @@ type pendingMisfit struct {
 // 01a15ac0-6c4a POSIX, -6c78 sockets, -6ca2 IO and OO modules, -6ccc XS
 // modules, -6cfa pure-Perl modules).
 var pendingAudit = map[string][]pendingMisfit{
+	"01a15ac0-6c4a": {
+		{Module: "POSIX", Sub: "getpayload", Kind: "parameter",
+			Detail: "oracle/POSIX.pl's own case passes a NaN, which getpayload reads the payload bits of; its declared Num excludes NaN (RFC 0001: NaN is a member of Str, not Num)",
+			Reason: "a parameter oracle misfit: getpayload's whole purpose is a NaN argument, not a value Num coerces from one"},
+		{Module: "POSIX", Sub: "setpayload", Kind: "parameter",
+			Detail: "oracle/POSIX.pl's own case passes a NaN to the NaN whose payload it sets; its declared Num excludes NaN",
+			Reason: "a parameter oracle misfit: setpayload's whole purpose is a NaN argument, not a value Num coerces from one"},
+		{Module: "POSIX", Sub: "setpayloadsig", Kind: "parameter",
+			Detail: "oracle/POSIX.pl's own case passes a NaN to the NaN whose payload and signal it sets; its declared Num excludes NaN",
+			Reason: "a parameter oracle misfit: setpayloadsig's whole purpose is a NaN argument, not a value Num coerces from one"},
+	},
 	"01a15ac0-6c78": {
 		{Module: "Socket", Sub: "getaddrinfo", Kind: "return",
 			Detail: "the $err dualvar (0 or an errno, paired with its gai_strerror text) fits neither candidate's declared Str",
@@ -280,6 +291,24 @@ type oracleRun struct {
 	Exempt map[string]string
 }
 
+// oracleCallArgs is the NAME:CONTEXT:FORM arguments return_oracle.pl and
+// parameter_oracle.pl both take: one per context and form a non-exempt
+// declared sub's candidates answer, so each driver calls (or, for the
+// parameter oracle, observes the arguments of) the same cases the other
+// does.
+func oracleCallArgs(sigs map[string][]types.Signature, module string, exempt map[string]string) []string {
+	var args []string
+	for _, name := range slices.Sorted(maps.Keys(sigs)) {
+		if _, skip := exempt[module+"::"+name]; skip {
+			continue
+		}
+		for _, call := range calls(sigs[name]) {
+			args = append(args, name+":"+call)
+		}
+	}
+	return args
+}
+
 // returnTypeFailures has perl call each sub r.TPM declares, except those
 // exempt, with its call cases, and returns one line per returned value
 // the declared return type excludes, or why the oracle could not run.
@@ -299,14 +328,7 @@ func returnTypeFailures(t *testing.T, p perltest.Perl, r oracleRun) []string {
 	if r.Inc != "" {
 		args = append([]string{"-I", r.Inc}, args...)
 	}
-	for _, name := range slices.Sorted(maps.Keys(sigs)) {
-		if _, exempt := r.Exempt[r.Module+"::"+name]; exempt {
-			continue
-		}
-		for _, call := range calls(sigs[name]) {
-			args = append(args, name+":"+call)
-		}
-	}
+	args = append(args, oracleCallArgs(sigs, r.Module, r.Exempt)...)
 
 	// Resolved, not t.TempDir()'s own path: macOS's /tmp is a symlink to
 	// /private/tmp, so perl's getcwd() (which resolves symlinks) would
