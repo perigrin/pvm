@@ -1,0 +1,128 @@
+# ABOUTME: Declares what `use Time::HiRes` exports: the hires timers, sleepers and clock constants.
+# ABOUTME: Measured on perl 5.42.0 with Time::HiRes 1.9778: a bare `use Time::HiRes` installs nothing.
+package Time::HiRes;
+
+# d_* are feature flags Time::HiRes sets at build time; measured, most are
+# 1, but d_hires_stat is 4 (a level, not a boolean), so all stay Int. None
+# of them, and none of the clock/itimer id constants below, has a
+# prototype perl reports (measured "none"), so each is a bare slurpy
+# List rather than "()", which would claim a prototype perl does not
+# have (CORE.tpm's own note: "a derived `@` is no prototype").
+sub d_clock :export_ok (List @args) Int;
+sub d_clock_getres :export_ok (List @args) Int;
+sub d_clock_gettime :export_ok (List @args) Int;
+sub d_clock_nanosleep :export_ok (List @args) Int;
+sub d_futimens :export_ok (List @args) Int;
+sub d_getitimer :export_ok (List @args) Int;
+sub d_gettimeofday :export_ok (List @args) Int;
+sub d_hires_stat :export_ok (List @args) Int;
+sub d_hires_utime :export_ok (List @args) Int;
+sub d_nanosleep :export_ok (List @args) Int;
+sub d_setitimer :export_ok (List @args) Int;
+sub d_ualarm :export_ok (List @args) Int;
+sub d_usleep :export_ok (List @args) Int;
+sub d_utimensat :export_ok (List @args) Int;
+
+# Clock and itimer ids: plain integer constants, except the ones below
+# this build's vendor does not define: each dies on every call, the same
+# way DEF_WBITS does in Compress::Raw::Zlib.tpm (measured: "unimplemented
+# in this platform", perldoc Time::HiRes's own diagnostic for these).
+sub CLOCKS_PER_SEC :export_ok (List @args) Int;
+sub CLOCK_BOOTTIME :export_ok (List @args) Int;
+sub CLOCK_HIGHRES :export_ok (List @args) None;
+sub CLOCK_MONOTONIC :export_ok (List @args) Int;
+sub CLOCK_MONOTONIC_COARSE :export_ok (List @args) Int;
+sub CLOCK_MONOTONIC_FAST :export_ok (List @args) None;
+sub CLOCK_MONOTONIC_PRECISE :export_ok (List @args) None;
+sub CLOCK_MONOTONIC_RAW :export_ok (List @args) Int;
+sub CLOCK_PROCESS_CPUTIME_ID :export_ok (List @args) Int;
+sub CLOCK_PROF :export_ok (List @args) None;
+sub CLOCK_REALTIME :export_ok (List @args) Int;
+sub CLOCK_REALTIME_COARSE :export_ok (List @args) Int;
+sub CLOCK_REALTIME_FAST :export_ok (List @args) None;
+sub CLOCK_REALTIME_PRECISE :export_ok (List @args) None;
+sub CLOCK_REALTIME_RAW :export_ok (List @args) None;
+sub CLOCK_SECOND :export_ok (List @args) None;
+sub CLOCK_SOFTTIME :export_ok (List @args) None;
+sub CLOCK_THREAD_CPUTIME_ID :export_ok (List @args) Int;
+sub CLOCK_TIMEOFDAY :export_ok (List @args) None;
+sub CLOCK_UPTIME :export_ok (List @args) None;
+sub CLOCK_UPTIME_COARSE :export_ok (List @args) None;
+sub CLOCK_UPTIME_FAST :export_ok (List @args) None;
+sub CLOCK_UPTIME_PRECISE :export_ok (List @args) None;
+sub CLOCK_UPTIME_RAW :export_ok (List @args) None;
+sub CLOCK_VIRTUAL :export_ok (List @args) None;
+sub ITIMER_PROF :export_ok (List @args) Int;
+sub ITIMER_REAL :export_ok (List @args) Int;
+sub ITIMER_REALPROF :export_ok (List @args) None;
+sub ITIMER_VIRTUAL :export_ok (List @args) Int;
+sub TIMER_ABSTIME :export_ok (List @args) Int;
+
+# alarm returns the remaining time in seconds, or undef on error
+# (perldoc Time::HiRes).
+sub alarm :export_ok :prototype($;$) (Num $seconds, Num $interval = 0) Num|Undef;
+
+# clock() is process time in seconds (perldoc Time::HiRes).
+sub clock :export_ok () Num;
+
+# clock_getres/clock_gettime return seconds (perldoc Time::HiRes); the
+# default $which, measured, behaves as CLOCK_REALTIME (0).
+sub clock_getres :export_ok :prototype(;$) (Int $which = 0) Num;
+sub clock_gettime :export_ok :prototype(;$) (Int $which = 0) Num;
+
+# "Returns the number of nanoseconds actually slept" (perldoc Time::HiRes).
+sub clock_nanosleep :export_ok :prototype($$;$) (Int $which, Int $nanoseconds, Int $flags = 0) Int;
+
+# gettimeofday forks on context like CORE's gmtime (RFC 0001): measured,
+# list context gives (seconds, microseconds) as two integers, scalar
+# context gives one floating-point Num, same as time() below.
+multi sub gettimeofday :export_ok () List[Int];
+multi sub gettimeofday :export_ok () Num;
+
+# getitimer/setitimer: "In scalar context, the remaining time ... is
+# returned. In list context, both the remaining time and the interval
+# are returned" (perldoc Time::HiRes).
+multi sub getitimer :export_ok :prototype($) (Int $which) List[Num];
+multi sub getitimer :export_ok :prototype($) (Int $which) Num;
+multi sub setitimer :export_ok :prototype($$;$) (Int $which, Num $seconds, Num $interval = 0) List[Num];
+multi sub setitimer :export_ok :prototype($$;$) (Int $which, Num $seconds, Num $interval = 0) Num;
+
+# stat/lstat override CORE's own (CORE.tpm), but measured, Time::HiRes's
+# own prototype is the plain scalar ";$", not CORE::stat's glob-taking
+# ";*" -- a `= $_` default would derive "_" instead (as CORE's cos and
+# log do, correctly, for their own real "_" prototype), so the omitted
+# argument is Optional[T] rather than a stated default; at the call
+# Time::HiRes falls back to $_ regardless. List context gives the same
+# 13 fields, scalar context whether the call succeeded.
+multi sub lstat :export_ok (Optional[Str|Glob] $file) List;
+multi sub lstat :export_ok (Optional[Str|Glob] $file) Boolean;
+multi sub stat :export_ok (Optional[Str|Glob] $file) List;
+multi sub stat :export_ok (Optional[Str|Glob] $file) Boolean;
+
+# "Returns the number of nanoseconds actually slept" (perldoc Time::HiRes).
+sub nanosleep :export_ok :prototype($) (Int $nanoseconds) Int;
+
+# "Returns the number of seconds actually slept" (perldoc Time::HiRes);
+# measured, sleep's own prototype is the slurpy "(;@)", not "(;$)".
+sub sleep :export_ok :prototype(;@) (List[Num] @seconds) Num;
+
+# tv_interval returns the floating seconds between two gettimeofday()
+# results (perldoc Time::HiRes); the second reading defaults to now.
+# Measured with prototype(), it has none, so a bare slurpy List, not the
+# $;$ its two named parameters would derive.
+sub tv_interval :export_ok (List @args) Num;
+
+# "Returns the remaining time in the alarm in microseconds, or undef if
+# an error occurred" (perldoc Time::HiRes).
+sub ualarm :export_ok :prototype($;$) (Int $useconds, Int $interval = 0) Int|Undef;
+
+# "Returns the number of microseconds actually slept" (perldoc Time::HiRes).
+sub usleep :export_ok :prototype($) (Int $useconds) Int;
+
+# "Returns the number of files successfully changed" (perldoc
+# Time::HiRes); undef atime/mtime calls the syscall with a NULL argument.
+sub utime :export_ok :prototype($$@) (Num|Undef $atime, Num|Undef $mtime, List[Str] @files) Int;
+
+# time() is a floating seconds since the epoch, in every context
+# (perldoc Time::HiRes).
+sub time :export_ok () Num;

@@ -601,3 +601,27 @@ func TestErrnoDeclaresNoExportedVariable(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, facts.variables, "Errno.tpm declares an our variable; perl's use Errno installs none")
 }
+
+// xsLibraries is the XS-library batch (01a1464e-dbd3): Encode,
+// Time::HiRes, Compress::Raw::Zlib and SDBM_File.
+var xsLibraries = []string{"Encode", "Time::HiRes", "Compress::Raw::Zlib", "SDBM_File"}
+
+// TestXSLibrariesPrototypes holds each XS library's .tpm prototypes to
+// perl.
+func TestXSLibrariesPrototypes(t *testing.T) {
+	holdPrototypes(t, xsLibraries...)
+}
+
+// TestXSLibrariesExports holds each XS library's .tpm :export and
+// :export_ok marks to what `use` installs.
+func TestXSLibrariesExports(t *testing.T) {
+	holdExports(t, xsLibraries...)
+}
+
+// TestTimeHiResBareUseKeepsCoreTime: measured on 5.42.0, Time::HiRes's
+// @EXPORT is empty, so a bare `use Time::HiRes;` installs nothing and a
+// later bare `time()` still resolves to CORE's.
+func TestTimeHiResBareUseKeepsCoreTime(t *testing.T) {
+	got := importedFrom(t, "use Time::HiRes;\n")
+	assert.Empty(t, got)
+}
