@@ -1,6 +1,6 @@
 ---
 title: Declare DynaLoader, measure it against every module that uses it, and ship it only if resolution holds
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -11,7 +11,16 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:16.163764265Z
-updated: 2026-10-16T21:02:03.253569302Z
+updated: 2026-10-20T03:51:42.012184659Z
+sessions:
+- start_sha: 9e5ae578baacecaaf348477c8982d9720ed83cf0
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-20T03:51:42.012184659Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-20T03:51:42.012184659Z
 ---
 
 ## Prerequisites
