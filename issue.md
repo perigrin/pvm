@@ -12,7 +12,7 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.843622709Z
-updated: 2026-10-20T15:07:31.104133424Z
+updated: 2026-10-20T15:30:07.79146766Z
 sessions:
 - start_sha: 34826451ff25d9be31c553948ea6de4ec295f77d
   end_sha: 9e5ae578baacecaaf348477c8982d9720ed83cf0
@@ -154,6 +154,13 @@ Gate, 2026-10-20, on 9e5ae578 (fresh Sonnet reviewer; 10 criteria pass, one prov
 1. (CODE, 85) internal/parse/module.go:376-385 hard-codes `if module == "Test::More" { facts.builder = true }`, a per-module special case that recurs for Locale::Maketext::Simple (`use Locale::Maketext::Simple (Style => 'gettext')`, dd27), and Test/More.tpm and commit 07d6206d cite an "RFC 0001 open question" that does not exist.
    **perigrin's ruling, 2026-10-20: "The parameters are the signature to import()."** A .tpm states what a `use` list takes by declaring the module's `import` with a signature: the use-list is the argument list of `import`, checked against that signature, and a module whose .tpm declares `import` does not treat its use-list as export names (e.g. Test::More: `sub import (Str $class, List @plan) Void;`, measured; Locale::Maketext::Simple: the hash-pair options its import takes, measured, with loc/loc_lang still marked :export as its import installs them). Replace the by-name case with this; record the rule in RFC 0001 (Declaration files / Every exported name), not as an open question; correct the false citation; apply it to Locale::Maketext::Simple (dd27) too.
 2. (TEST-ONLY, 65; fix in place) Test::More::plan is exempt for colliding with done_testing in the same oracle run and has no call case: hold it in a separate oracleRun whose cases file holds only `plan => [[ tests => 1 ]]`.
+
+### Review Findings (pass 2)
+
+Gate pass 2, 2026-10-20, on 495c3e91 (fresh Sonnet reviewer; 10 criteria pass; the by-name case is gone; the marked-import guard is load-bearing). VERDICT: REOPEN.
+
+1. (CODE, 90) internal/parse/use.go:376-385 treats any non-empty use-list to a module with a declared import as installing the bare-use names, but perl's import branches on argument values: `use Locale::Maketext::Simple (Export=>"zz")` installs zz (and zz_lang), not loc; `use Test::More import => ["!is"], tests=>1` does not install is. psc would claim names that do not exist.
+   **perigrin's ruling, 2026-10-20: the signature names the keys.** A .tpm's import signature names, as measured, the keys whose presence changes what import installs (Test::More: `import`; Locale::Maketext::Simple: `Export`). A use-list without such a key installs the bare-use names; one with such a key claims no names and leaves the symbols open. Choose the smallest signature syntax that states this, record it in RFC 0001 beside the import rule, and test both modules' altering and non-altering forms against perl 5.42.
 
 ## Acceptance Criteria
 
