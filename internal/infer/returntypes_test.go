@@ -1314,3 +1314,76 @@ func TestIOFileNewMissingFileReturnIsDeclared(t *testing.T) {
 	}
 	assert.True(t, admits, "IO::File.tpm's declared new does not admit Undef, but perl returns undef on a missing file")
 }
+
+// allExemptAllowlist names the modules the return-type oracle may
+// legitimately call nothing from: XSLoader declares exactly load and
+// bootstrap_inherit, and Net::Ping exactly pingecho and wakeonlan, and
+// every one of the four needs a real compiled extension or a real
+// network connection (see oracleExempt). Any other module whose every
+// declared sub ends up exempt passes TestOOModulesReturnTypes or
+// TestIOExportersReturnTypes vacuously -- never actually calling perl --
+// which is the defect this guards against.
+var allExemptAllowlist = map[string]bool{
+	"XSLoader":  true,
+	"Net::Ping": true,
+}
+
+// exemptMapFor is the exemption map holdReturnTypes or
+// TestOOModulesReturnTypes actually calls module with: ooExempt's
+// extended map for the OO batch, oracleExempt for everyone else.
+func exemptMapFor(module string) map[string]string {
+	if slices.Contains(ooModules, module) {
+		return ooExempt()
+	}
+	return oracleExempt
+}
+
+// TestNoModuleIsAllExempt: for every module with a .tpm declaration, at
+// least one of its declared subs is not in the exemption map its own
+// return-type oracle run uses, unless the module is in
+// allExemptAllowlist. Exempting every sub a module declares makes its
+// return-type oracle test pass without ever calling perl, which the
+// allowlist proves this test would otherwise miss: XSLoader stays green
+// only because it is named here.
+func TestNoModuleIsAllExempt(t *testing.T) {
+	root := filepath.Join("..", "parse", "declarations")
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, walkErr error) error {
+		if walkErr != nil || d.IsDir() || !strings.HasSuffix(path, ".tpm") {
+			return walkErr
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		module := strings.ReplaceAll(strings.TrimSuffix(filepath.ToSlash(rel), ".tpm"), "/", "::")
+		if module == "CORE" {
+			// CORE's builtins are not modules the return-type oracle
+			// calls perl's `require` on; a different mechanism holds them.
+			return nil
+		}
+		src, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		sigs, errs := parse.DeclaredSignatures(src)
+		if len(errs) > 0 || len(sigs) == 0 {
+			// A declaration error is a different test's job to catch; a
+			// module with no declared subs has nothing to exempt.
+			return nil
+		}
+		exempt := exemptMapFor(module)
+		allExempt := true
+		for name := range sigs {
+			if _, ok := exempt[module+"::"+name]; !ok {
+				allExempt = false
+				break
+			}
+		}
+		if allExempt && !allExemptAllowlist[module] {
+			t.Errorf("%s: every declared sub is exempt, so its return-type oracle test never calls perl; "+
+				"add a real call case for at least one, or add %q to allExemptAllowlist with why", module, module)
+		}
+		return nil
+	})
+	require.NoError(t, err)
+}
