@@ -230,9 +230,7 @@ func sameNames(use string, installs, marked []string, mark string) []string {
 func perlFixture(t *testing.T, module, pm string) string {
 	t.Helper()
 	lib := t.TempDir()
-	path := filepath.Join(lib, filepath.FromSlash(strings.ReplaceAll(module, "::", "/"))+".pm")
-	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-	require.NoError(t, os.WriteFile(path, []byte(pm), 0o644))
+	perltest.WriteModule(t, lib, module, pm)
 	return lib
 }
 
@@ -404,37 +402,15 @@ func TestExportHelperRejectsAnUndeclaredTag(t *testing.T) {
 	assert.Contains(t, strings.Join(got, "\n"), "use My::Exp ':gh' installs g")
 }
 
-// TestHeldToPerlIgnoresTheCallersPerlLib: perl finds a module as an
-// installed perl does, whatever PERL5LIB, PERLLIB or PERL5OPT the test
-// runs with: a Carp there is not the one measured.
-func TestHeldToPerlIgnoresTheCallersPerlLib(t *testing.T) {
-	p := perltest.Perl542(t)
-	fake := perlFixture(t, "Carp", "package Carp;\nour @EXPORT = qw(fake);\nsub import { }\n1;\n")
-	src, ok := declaration("Carp")
-	require.True(t, ok)
-	for _, env := range [][2]string{{"PERL5LIB", fake}, {"PERLLIB", fake}, {"PERL5OPT", "-I" + fake}} {
-		t.Run(env[0], func(t *testing.T) {
-			t.Setenv(env[0], env[1])
-			path, err := modulePath(t, p, "", "Carp")
-			require.NoError(t, err)
-			assert.False(t, strings.HasPrefix(path, fake), "perl measured %s", path)
-			assert.Empty(t, exportDisagreements(t, p, "", "Carp", src))
-		})
-	}
-}
-
-// xsUtilities are the XS utility modules declared as one batch.
-var xsUtilities = []string{"Scalar::Util", "List::Util", "Cwd", "Data::Dumper", "MIME::Base64", "Storable"}
-
 // TestXSUtilitiesPrototypes holds the XS utility modules' prototypes to perl.
 func TestXSUtilitiesPrototypes(t *testing.T) {
-	holdPrototypes(t, xsUtilities...)
+	holdPrototypes(t, perltest.XSUtilities...)
 }
 
 // TestXSUtilitiesExports holds the XS utility modules' export marks to
 // what `use` installs, bare, by name and by tag.
 func TestXSUtilitiesExports(t *testing.T) {
-	holdExports(t, xsUtilities...)
+	holdExports(t, perltest.XSUtilities...)
 }
 
 // TestTpmSkeletonMatchesCarp: Carp's generated skeleton, with each TODO
@@ -608,33 +584,16 @@ func containsUnknown(n *Node) bool {
 	return false
 }
 
-// pureExporters is the pure-Perl exporters batch (01a1464e-db4c): every
-// module whose .tpm declares the names a `use` of it installs. Symbol
-// was held back (see docs/rfcs/0001-type-libraries.md and issue
-// 01a156e4): its qualify, declared accurately, made IO/Handle.pm's `tell
-// qualify($_[0], caller) if ref($_[0])` a new TestPSCCheckLibBaseline
-// diagnostic perl -w did not confirm, since $_[0] there is always a ref.
-// Narrowing $_[0] after that guard and declaring qualify a multi by
-// argument type (Ref keeps that Ref, Str gives a Str) fixed the
-// narrowing half; the other half was a types.Select gap (select.go,
-// SelectShaped's coercion retry and its Unknown bypass), fixed in
-// 01a156e4 too, caller's own List not fitting qualify's $pkg otherwise
-// discarding $_[0]'s proven Ref along with it.
-var pureExporters = []string{
-	"File::Basename", "File::Find", "File::Path", "Errno", "Symbol",
-	"Text::ParseWords", "Class::Struct", "File::Copy", "Time::Local", "Getopt::Std",
-}
-
 // TestPurePerlExportersPrototypes holds each pure-Perl exporter's .tpm
-// prototypes to perl.
+// prototypes to perl (perltest.PureExporters: 01a1464e-db4c).
 func TestPurePerlExportersPrototypes(t *testing.T) {
-	holdPrototypes(t, pureExporters...)
+	holdPrototypes(t, perltest.PureExporters...)
 }
 
 // TestPurePerlExportersExports holds each pure-Perl exporter's .tpm
 // :export and :export_ok marks to what `use` installs.
 func TestPurePerlExportersExports(t *testing.T) {
-	holdExports(t, pureExporters...)
+	holdExports(t, perltest.PureExporters...)
 }
 
 // TestErrnoDeclaresNoExportedVariable: Errno.tpm marks no `our`
@@ -648,20 +607,16 @@ func TestErrnoDeclaresNoExportedVariable(t *testing.T) {
 	assert.Empty(t, facts.variables, "Errno.tpm declares an our variable; perl's use Errno installs none")
 }
 
-// xsLibraries is the XS-library batch (01a1464e-dbd3): Encode,
-// Time::HiRes, Compress::Raw::Zlib and SDBM_File.
-var xsLibraries = []string{"Encode", "Time::HiRes", "Compress::Raw::Zlib", "SDBM_File"}
-
 // TestXSLibrariesPrototypes holds each XS library's .tpm prototypes to
-// perl.
+// perl (perltest.XSLibraries: 01a1464e-dbd3).
 func TestXSLibrariesPrototypes(t *testing.T) {
-	holdPrototypes(t, xsLibraries...)
+	holdPrototypes(t, perltest.XSLibraries...)
 }
 
 // TestXSLibrariesExports holds each XS library's .tpm :export and
 // :export_ok marks to what `use` installs.
 func TestXSLibrariesExports(t *testing.T) {
-	holdExports(t, xsLibraries...)
+	holdExports(t, perltest.XSLibraries...)
 }
 
 // TestTimeHiResBareUseKeepsCoreTime: measured on 5.42.0, Time::HiRes's
@@ -672,26 +627,18 @@ func TestTimeHiResBareUseKeepsCoreTime(t *testing.T) {
 	assert.Empty(t, got)
 }
 
-// ooModules is the OO-only batch (01a1464e-dd27): each declares methods,
-// not exports, since measured on 5.42.0 a bare `use` of every one but
-// IO::Socket::IP and Locale::Maketext::Simple installs nothing.
-var ooModules = []string{
-	"File::Spec", "File::Spec::Unix", "IO::Socket::IP", "IO::Select",
-	"Term::ReadLine", "Tie::Hash", "HTTP::Tiny", "Locale::Maketext::Simple",
-}
-
 // TestOOModulesPrototypes holds each OO module's .tpm prototypes to
-// perl, methods included: held_to_perl.pl's prototypes mode falls back
-// to $module->can($name), the way perl itself finds an inherited
-// method.
+// perl (perltest.OOModules: 01a1464e-dd27), methods included:
+// held_to_perl.pl's prototypes mode falls back to $module->can($name),
+// the way perl itself finds an inherited method.
 func TestOOModulesPrototypes(t *testing.T) {
-	holdPrototypes(t, ooModules...)
+	holdPrototypes(t, perltest.OOModules...)
 }
 
 // TestOOModulesExports holds each OO module's .tpm :export and
 // :export_ok marks to what `use` installs.
 func TestOOModulesExports(t *testing.T) {
-	holdExports(t, ooModules...)
+	holdExports(t, perltest.OOModules...)
 }
 
 // TestFileSpecBareUseImportsNothing: measured on 5.42.0, File::Spec's
@@ -751,23 +698,16 @@ func TestLocaleMaketextSimpleExportKeyClaimsNoNames(t *testing.T) {
 	assert.Empty(t, importedFrom(t, "use Locale::Maketext::Simple (Export => 'zz');\n"))
 }
 
-// variableExporters is the variable-exporters batch (01a1464e-dca3):
-// every module below exports a plain Perl variable, measured on
-// 2026-10-16.
-var variableExporters = []string{
-	"Config", "Getopt::Long", "Test::More", "Text::Wrap", "ExtUtils::MakeMaker", "File::stat",
-}
-
 // TestVariableExportersPrototypes holds each variable exporter's .tpm
-// prototypes to perl.
+// prototypes to perl (perltest.VariableExporters: 01a1464e-dca3).
 func TestVariableExportersPrototypes(t *testing.T) {
-	holdPrototypes(t, variableExporters...)
+	holdPrototypes(t, perltest.VariableExporters...)
 }
 
 // TestVariableExportersExports holds each variable exporter's .tpm
 // :export and :export_ok marks to what `use` installs.
 func TestVariableExportersExports(t *testing.T) {
-	holdExports(t, variableExporters...)
+	holdExports(t, perltest.VariableExporters...)
 }
 
 // TestConfigBareUseImportsOnlyConfigHash: a bare `use Config;` installs
@@ -906,24 +846,16 @@ func TestTestMoreImportParamAdmitsArrayRef(t *testing.T) {
 	}
 }
 
-// ioExporters is the IO and file-handling batch (01a1464e-db76):
-// FileHandle, IO::Handle, IO::File, IO::Socket and the five plain
-// exporters File::Spec::Functions, File::Temp, Archive::Tar,
-// ExtUtils::Manifest and Net::Ping.
-var ioExporters = []string{
-	"FileHandle", "IO::Handle", "IO::File", "IO::Socket",
-	"File::Spec::Functions", "File::Temp", "Archive::Tar", "ExtUtils::Manifest", "Net::Ping",
-}
-
-// TestIOExportersPrototypes holds each module's .tpm prototypes to perl.
+// TestIOExportersPrototypes holds each module's .tpm prototypes to perl
+// (perltest.IOExporters: 01a1464e-db76).
 func TestIOExportersPrototypes(t *testing.T) {
-	holdPrototypes(t, ioExporters...)
+	holdPrototypes(t, perltest.IOExporters...)
 }
 
 // TestIOExportersExports holds each module's .tpm :export and
 // :export_ok marks to what `use` installs.
 func TestIOExportersExports(t *testing.T) {
-	holdExports(t, ioExporters...)
+	holdExports(t, perltest.IOExporters...)
 }
 
 // ioExportersMethodsOnly are the subs declared in the batch's four

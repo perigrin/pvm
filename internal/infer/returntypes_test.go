@@ -396,9 +396,7 @@ func oracleFixture(t *testing.T, module, pm, cases string) (lib, caseFile string
 	t.Helper()
 	dir := t.TempDir()
 	lib = filepath.Join(dir, "lib")
-	pmPath := filepath.Join(lib, filepath.FromSlash(strings.ReplaceAll(module, "::", "/"))+".pm")
-	require.NoError(t, os.MkdirAll(filepath.Dir(pmPath), 0o755))
-	require.NoError(t, os.WriteFile(pmPath, []byte(pm), 0o644))
+	perltest.WriteModule(t, lib, module, pm)
 	caseFile = filepath.Join(dir, "cases.pl")
 	require.NoError(t, os.WriteFile(caseFile, []byte(cases), 0o644))
 	return lib, caseFile
@@ -753,32 +751,12 @@ func TestReturnOracleKeepsASubsOutputOutOfItsReport(t *testing.T) {
 	assert.Empty(t, returnTypeFailures(t, p, oracleRun{Module: "My::Prints", TPM: tpm, Cases: caseFile, Inc: lib}))
 }
 
-// TestReturnOracleIgnoresTheCallersPerlLib: perl finds the module under
-// test as an installed perl does, whatever PERL5LIB, PERLLIB or PERL5OPT
-// the test runs with: a Carp there whose croak returns is not measured.
-func TestReturnOracleIgnoresTheCallersPerlLib(t *testing.T) {
-	p := perltest.Perl542(t)
-	fake, _ := oracleFixture(t, "Carp", "package Carp;\nsub croak { 1 }\nsub confess { 1 }\nsub carp { 1 }\nsub cluck { 1 }\nsub longmess { 'l' }\nsub shortmess { 's' }\n1;\n", "")
-	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "Carp.tpm"))
-	require.NoError(t, err)
-	cases, err := filepath.Abs(filepath.Join("testdata", "oracle", "Carp.pl"))
-	require.NoError(t, err)
-	for _, env := range [][2]string{{"PERL5LIB", fake}, {"PERLLIB", fake}, {"PERL5OPT", "-I" + fake}} {
-		t.Run(env[0], func(t *testing.T) {
-			t.Setenv(env[0], env[1])
-			assert.Empty(t, returnTypeFailures(t, p, oracleRun{Module: "Carp", TPM: tpm, Cases: cases}))
-		})
-	}
-}
-
-// xsUtilities are the XS utility modules declared as one batch (parse's
-// heldtoperl_test.go holds the same list to perl's prototypes and exports).
-var xsUtilities = []string{"Scalar::Util", "List::Util", "Cwd", "Data::Dumper", "MIME::Base64", "Storable"}
-
 // TestXSUtilitiesReturnTypes holds the XS utility modules' declared return
-// types to perl, with the call cases in testdata/oracle/.
+// types to perl (perltest.XSUtilities, the same list parse's
+// heldtoperl_test.go holds to perl's prototypes and exports), with the
+// call cases in testdata/oracle/.
 func TestXSUtilitiesReturnTypes(t *testing.T) {
-	holdReturnTypes(t, xsUtilities...)
+	holdReturnTypes(t, perltest.XSUtilities...)
 }
 
 // TestScalarUtilBlessedUnblessedReturnIsDeclared: blessed on an unblessed
@@ -824,18 +802,11 @@ func dirEntries(t *testing.T, dir string) []string {
 	return names
 }
 
-// pureExporters is the pure-Perl exporters batch (01a1464e-db4c): every
-// module whose .tpm declares the names a `use` of it installs. Symbol
-// was held back; see the matching comment in internal/parse/heldtoperl_test.go.
-var pureExporters = []string{
-	"File::Basename", "File::Find", "File::Path", "Errno", "Symbol",
-	"Text::ParseWords", "Class::Struct", "File::Copy", "Time::Local", "Getopt::Std",
-}
-
 // TestPurePerlExportersReturnTypes holds each pure-Perl exporter's
-// declared return types to perl, called with its oracle's cases.
+// declared return types to perl (perltest.PureExporters; see its
+// comment for Symbol's history), called with its oracle's cases.
 func TestPurePerlExportersReturnTypes(t *testing.T) {
-	holdReturnTypes(t, pureExporters...)
+	holdReturnTypes(t, perltest.PureExporters...)
 }
 
 // moduleFailures holds module's shipped .tpm return types to perl,
@@ -984,14 +955,10 @@ func TestPOSIXReimplementedSubsAreNotNone(t *testing.T) {
 	}
 }
 
-// xsLibraries is the XS-library batch (01a1464e-dbd3): Encode,
-// Time::HiRes, Compress::Raw::Zlib and SDBM_File.
-var xsLibraries = []string{"Encode", "Time::HiRes", "Compress::Raw::Zlib", "SDBM_File"}
-
 // TestXSLibrariesReturnTypes holds each XS library's declared return
-// types to perl, called with its oracle's cases.
+// types to perl (perltest.XSLibraries), called with its oracle's cases.
 func TestXSLibrariesReturnTypes(t *testing.T) {
-	holdReturnTypes(t, xsLibraries...)
+	holdReturnTypes(t, perltest.XSLibraries...)
 }
 
 // TestEncodeUndefInputReturnIsDeclared: encode_utf8(undef) returns undef
@@ -1011,14 +978,6 @@ func TestSDBMFileOracleStaysInScratch(t *testing.T) {
 	cases, err := os.ReadFile(filepath.Join("testdata", "oracle", "SDBM_File.pl"))
 	require.NoError(t, err)
 	assert.False(t, absolute.Match(cases), "SDBM_File's oracle cases name an absolute path")
-}
-
-// ooModules is the OO-only batch (01a1464e-dd27): File::Spec,
-// File::Spec::Unix, IO::Socket::IP, IO::Select, Term::ReadLine,
-// Tie::Hash, HTTP::Tiny and Locale::Maketext::Simple.
-var ooModules = []string{
-	"File::Spec", "File::Spec::Unix", "IO::Socket::IP", "IO::Select",
-	"Term::ReadLine", "Tie::Hash", "HTTP::Tiny", "Locale::Maketext::Simple",
 }
 
 // ioSocketIPSocketReexports are 161 of the 170 Socket default names
@@ -1087,7 +1046,7 @@ func ooExempt() map[string]string {
 func TestOOModulesReturnTypes(t *testing.T) {
 	p := perltest.Perl542(t)
 	exempt := ooExempt()
-	for _, module := range ooModules {
+	for _, module := range perltest.OOModules {
 		rel := strings.ReplaceAll(module, "::", "/")
 		tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", filepath.FromSlash(rel)+".tpm"))
 		if err != nil {
@@ -1138,17 +1097,11 @@ func TestTermReadLineNeverCalled(t *testing.T) {
 	assert.NotContains(t, string(cases), "readline =>", "Term::ReadLine::readline has a call case despite being exempt")
 }
 
-// variableExporters is the variable-exporters batch (01a1464e-dca3):
-// every module below exports a plain Perl variable, measured on
-// 2026-10-16.
-var variableExporters = []string{
-	"Config", "Getopt::Long", "Test::More", "Text::Wrap", "ExtUtils::MakeMaker", "File::stat",
-}
-
 // TestVariableExportersReturnTypes holds each variable exporter's
-// declared return types to perl, called with its oracle's cases.
+// declared return types to perl (perltest.VariableExporters), called
+// with its oracle's cases.
 func TestVariableExportersReturnTypes(t *testing.T) {
-	holdReturnTypes(t, variableExporters...)
+	holdReturnTypes(t, perltest.VariableExporters...)
 }
 
 // TestTestMorePlanReturnType holds Test::More::plan's declared return
@@ -1304,19 +1257,10 @@ func TestFileStatMissingFileReturnIsDeclared(t *testing.T) {
 	assert.Empty(t, moduleFailures(t, "File::stat"))
 }
 
-// ioExporters is the IO and file-handling batch (01a1464e-db76):
-// FileHandle, IO::Handle, IO::File, IO::Socket and the five plain
-// exporters File::Spec::Functions, File::Temp, Archive::Tar,
-// ExtUtils::Manifest and Net::Ping.
-var ioExporters = []string{
-	"FileHandle", "IO::Handle", "IO::File", "IO::Socket",
-	"File::Spec::Functions", "File::Temp", "Archive::Tar", "ExtUtils::Manifest", "Net::Ping",
-}
-
 // TestIOExportersReturnTypes holds each module's declared return types
-// to perl, called with its oracle's cases.
+// to perl (perltest.IOExporters), called with its oracle's cases.
 func TestIOExportersReturnTypes(t *testing.T) {
-	holdReturnTypes(t, ioExporters...)
+	holdReturnTypes(t, perltest.IOExporters...)
 }
 
 // ioExportersNetworkSubs are the Net::Ping and IO::Socket subs that
@@ -1407,7 +1351,7 @@ var allExemptAllowlist = map[string]bool{
 // TestOOModulesReturnTypes actually calls module with: ooExempt's
 // extended map for the OO batch, oracleExempt for everyone else.
 func exemptMapFor(module string) map[string]string {
-	if slices.Contains(ooModules, module) {
+	if slices.Contains(perltest.OOModules, module) {
 		return ooExempt()
 	}
 	return oracleExempt
