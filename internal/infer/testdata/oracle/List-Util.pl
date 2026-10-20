@@ -18,7 +18,7 @@ my $pgt1 = sub { $b > 1 };
     pairmap   => [ [ $pmap, a => 1, b => 2 ] ],
     pairgrep  => [ [ $pgt1, a => 1, b => 2 ] ],
     pairfirst => [ [ $pgt1, a => 1, b => 2 ] ],
-    sum       => [ [ 1, 2, 3 ] ],
+    sum       => [ [ 1, 2, 3 ], [] ],
     sum0      => [ [ 1, 2, 3 ] ],
     max       => [ [ 1, 2, 3 ] ],
     min       => [ [ 1.5, 2, 3 ] ],

@@ -8,7 +8,7 @@ my $weak = $plain;
 weaken($weak);
 my $dualvar = dualvar( 5, 'five' );
 my $coderef = sub { 42 };
-open my $fh, '<', $0 or die "cannot open $0: $!";
+open my $fh, '<', __FILE__ or die "cannot open @{[__FILE__]}: $!";
 
 (
     blessed           => [ [$obj], [ {} ], [5] ],
