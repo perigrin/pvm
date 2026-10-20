@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"tamarou.com/pvm/internal/perltest"
+	"tamarou.com/pvm/internal/types"
 )
 
 // holdPrototypes holds each module's shipped .tpm to perl: every sub it
@@ -866,6 +867,7 @@ var ioExportersMethodsOnly = map[string][]string{
 	"IO::Handle": {"new", "new_from_fd", "opened", "fileno", "eof", "getc", "close"},
 	"IO::File":   {"new", "new_tmpfile", "open"},
 	"IO::Socket": {"new", "socket", "connect", "bind", "listen", "accept", "send", "recv", "close"},
+	"FileHandle": {"new_from_fd", "close", "fileno", "getc", "eof", "flush", "new", "new_tmpfile", "open", "seek", "tell", "getpos", "setpos"},
 }
 
 // TestIOExportersMethodsAreNotExported: a method declared beside a
@@ -886,5 +888,23 @@ func TestIOExportersMethodsAreNotExported(t *testing.T) {
 				t.Errorf("%s::%s carries an export mark, but perl's use %s installs no such name", module, name, module)
 			}
 		}
+	}
+}
+
+// TestFileHandleFilenoIsDeclared: FileHandle.pm aliases IO::Handle's
+// fileno straight into FileHandle:: at require time, so FileHandle.tpm
+// must declare it with a concrete return type -- a name the parser
+// leaves out of a declaration reads as Unknown to inference, the same
+// as a method no .tpm ever mentions (01a1464e-db76 review finding 1).
+func TestFileHandleFilenoIsDeclared(t *testing.T) {
+	src, ok := declaration("FileHandle")
+	require.True(t, ok, "FileHandle: no declaration")
+	facts, err := readHeld("FileHandle", src)
+	require.NoError(t, err)
+	sigs, declared := facts.signatures["fileno"]
+	require.True(t, declared, "FileHandle::fileno is not declared")
+	require.NotEmpty(t, sigs)
+	for _, s := range sigs {
+		assert.NotEqual(t, types.Unknown, s.Returns, "FileHandle::fileno should be typed, not Unknown")
 	}
 }

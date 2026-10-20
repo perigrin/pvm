@@ -1,5 +1,5 @@
 # ABOUTME: Call cases for FileHandle's subs, which the return-type oracle calls to hold FileHandle.tpm to perl.
-# ABOUTME: print and printf dereference the class name itself as a glob and die that way, so both are exempt; every other case is safe.
+# ABOUTME: print, printf, open, getpos and setpos dereference the class name itself as a glob and die that way, so all five are exempt.
 (
     FD_CLOEXEC => [ [] ],
     F_ALLOCSP => [ [] ],
@@ -87,4 +87,14 @@
     output_field_separator => [ [] ],
     output_record_separator => [ [] ],
     pipe => [ [] ],
+    new_from_fd => [ [ -1, 'r' ] ],
+    close => [ [] ],
+    fileno => [ [] ],
+    getc => [ [] ],
+    eof => [ [] ],
+    flush => [ [] ],
+    new => [ [] ],
+    new_tmpfile => [ [] ],
+    seek => [ [ 0, 0 ] ],
+    tell => [ [] ],
 );

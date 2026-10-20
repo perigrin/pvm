@@ -149,6 +149,16 @@ var oracleExempt = map[string]string{
 	"IO::Handle::say":          "dereferences the invocant as a glob; dies when called with the class name itself, as the oracle calls it",
 	"FileHandle::print":        "dereferences the invocant as a glob; dies when called with the class name itself, as the oracle calls it",
 	"FileHandle::printf":       "dereferences the invocant as a glob; dies when called with the class name itself, as the oracle calls it",
+
+	// FileHandle also aliases IO::File::open under its own name, by the
+	// same code ref, so it dies the same way IO::File::open does.
+	"FileHandle::open": "dereferences the invocant as a glob; dies when called with the class name itself, as the oracle calls it",
+	// getpos and setpos are IO::Seekable's, aliased into FileHandle by
+	// the same code ref; each dereferences the invocant as a glob (to
+	// call C's fgetpos()/fsetpos()) and dies "Bad filehandle" when
+	// called with the class name itself, measured on 5.42.0.
+	"FileHandle::getpos": "dereferences the invocant as a glob to call fgetpos(); dies \"Bad filehandle\" when called with the class name itself, as the oracle calls it",
+	"FileHandle::setpos": "dereferences the invocant as a glob to call fsetpos(); dies \"Bad filehandle\" when called with the class name itself, as the oracle calls it",
 }
 
 // posixReplacementNames are the names in POSIX.pm 2.23's %replacement
