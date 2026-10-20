@@ -1,10 +1,19 @@
 ---
 title: "Audit fixes, IO and OO: invocants, IO::Select handles, inherited Tie::Hash methods, scalar-context returns, documented OO interfaces"
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 created: 2026-10-20T19:18:42.594449107Z
-updated: 2026-10-20T19:18:42.594449107Z
+updated: 2026-10-20T21:35:00.99907194Z
+sessions:
+- start_sha: 21162e2a33e98fd419c99aaa4fd58ed72f3db1b8
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-20T21:35:00.99907194Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-20T21:35:00.99907194Z
 ---
 
 crochet:review of PR #488, round 1 (2026-10-21). Signature audit (01a15aaa), group C.
