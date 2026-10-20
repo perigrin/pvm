@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"tamarou.com/pvm/internal/lexer"
+	"tamarou.com/pvm/internal/types"
 )
 
 // phasers are the compile-and-run-phase blocks.
@@ -373,8 +374,22 @@ func (p *parser) resolveImports(module string, list *Node) {
 	// :export_ok, aliasing itself into the caller by name -- keeps the
 	// ordinary name semantics instead: `use Exporter 'import';` asks for
 	// the name import, not an argument to call it with.
-	if len(facts.signatures["import"]) > 0 && !slices.Contains(facts.exports, "import") {
+	if sigs := facts.signatures["import"]; len(sigs) > 0 && !slices.Contains(facts.exports, "import") {
 		if list != nil && list.Paren && len(list.Children) == 0 {
+			return
+		}
+		// The signature names the keys (perigrin's ruling, 2026-10-20):
+		// its first optional scalar parameter, after the invocant, is
+		// named for the one key, measured, whose presence changes what
+		// import installs -- Test::More's `import => [...]`,
+		// Locale::Maketext::Simple's `Export => ...`. A use-list naming
+		// that key installs something this parser cannot predict without
+		// evaluating import itself (Test::More installs only the names
+		// under the key; Locale::Maketext::Simple installs names built
+		// from the key's value), so it claims none and leaves the
+		// symbols open rather than a wrong one.
+		if key, ok := alteringKey(sigs[0]); ok && listNamesKey(list, key) {
+			p.symbolsOpen = true
 			return
 		}
 		if p.imports == nil {
@@ -489,6 +504,40 @@ func constantName(n *Node) (string, bool) {
 		return n.Text, true
 	}
 	return "", false
+}
+
+// alteringKey is the literal name of the key a declared import's own
+// use-list may carry to change what it installs (perigrin's ruling,
+// 2026-10-20: "the signature names the keys"): the first optional scalar
+// parameter after the invocant, its sigil marking it a single value
+// rather than the trailing slurpy that catches everything else.
+func alteringKey(sig types.Signature) (string, bool) {
+	for _, p := range sig.Params {
+		if p.Sigil == '$' && !p.Required {
+			return p.Name, true
+		}
+	}
+	return "", false
+}
+
+// listNamesKey reports whether a use-list carries key as one of its
+// literal words -- `import => [...]`, `Export => 'zz'` -- wherever it
+// falls in the list. A bareword immediately before `=>` parses as a
+// zero-argument call rather than a Term, as constantName's matching
+// check already allows for.
+func listNamesKey(list *Node, key string) bool {
+	if list == nil {
+		return false
+	}
+	for _, item := range listItems(list) {
+		if names, ok := literalNameList(item); ok && len(names) == 1 && names[0] == key {
+			return true
+		}
+		if len(item.Children) == 0 && item.Text == key {
+			return true
+		}
+	}
+	return false
 }
 
 // builderImportList reads a Test::Builder::Module subclass's import list as
