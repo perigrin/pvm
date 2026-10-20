@@ -113,6 +113,20 @@ func TestCarpVerboseImportsNothing(t *testing.T) {
 	wantImports(t, map[string][]string{"use Carp qw(verbose);\n": nil})
 }
 
+// TestDeclaredImportMarkedExportKeepsNameSemantics: perigrin's
+// refinement, 2026-10-20 -- only a module's own `import` that carries no
+// :export or :export_ok mark turns a use-list into import's arguments.
+// My::MarkedImport marks its import :export_ok, as Exporter's does, so
+// `use My::MarkedImport 'import';` installs the name import, not plan
+// arguments, and `use My::MarkedImport 'helper';` installs helper alone.
+func TestDeclaredImportMarkedExportKeepsNameSemantics(t *testing.T) {
+	wantImports(t, map[string][]string{
+		"use My::MarkedImport 'import';\n": {"import"},
+		"use My::MarkedImport 'helper';\n": {"helper"},
+		"use My::MarkedImport;\n":          nil,
+	})
+}
+
 // TestModuleSourceExportListStillRead: the refusal of export lists is for
 // a .tpm alone; a module's own source is read for them as ever.
 func TestModuleSourceExportListStillRead(t *testing.T) {

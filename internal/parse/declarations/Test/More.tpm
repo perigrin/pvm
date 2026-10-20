@@ -4,11 +4,15 @@
 package Test::More;
 
 # Test::More's import is Test::Builder::Module's (measured: its own
-# source `use`s it, and the m1 gates hold this a .tpm cannot itself
-# state -- module.go's resolve marks it a Test::Builder::Module
-# subclass by name): an import list is plan() arguments, not names, so
-# `use Test::More tests => 3;` installs the same names a bare `use`
-# does (measured), and every name below is :export.
+# source `use`s it). The parameters are the signature to import()
+# (perigrin's ruling, 2026-10-20): declaring it here states that a
+# `use Test::More` list is import's argument list, not export names,
+# so `use Test::More tests => 3;` installs the same names a bare
+# `use` does (measured), and every name below is :export. $class is
+# the invocant (Test::More->import(@plan)), so the colon keeps the
+# derived prototype none, matching perl's (prototype() on the
+# inherited Test::Builder::Module::import is undef).
+sub import (Str $class: List @plan) Void;
 our Str|Undef $TODO :export;
 
 # BAIL_OUT exits the whole test run: measured on 5.42.0, it calls

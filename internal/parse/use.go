@@ -362,6 +362,30 @@ func (p *parser) resolveImports(module string, list *Node) {
 		return
 	}
 
+	// A .tpm that declares `import`, and marks it neither :export nor
+	// :export_ok, states that a `use` list is import's argument list, not
+	// names to resolve against :export (perigrin's ruling, 2026-10-20:
+	// "the parameters are the signature to import()"). `use M ();` -- the
+	// explicit empty list -- still calls no import, as it does for any
+	// module; any other list, read or not, calls import with the same
+	// result: the module's :export marks are what a bare use installs,
+	// measured. A declared import that IS marked -- Exporter's own,
+	// :export_ok, aliasing itself into the caller by name -- keeps the
+	// ordinary name semantics instead: `use Exporter 'import';` asks for
+	// the name import, not an argument to call it with.
+	if len(facts.signatures["import"]) > 0 && !slices.Contains(facts.exports, "import") {
+		if list != nil && list.Paren && len(list.Children) == 0 {
+			return
+		}
+		if p.imports == nil {
+			p.imports = map[string]Import{}
+		}
+		for _, imp := range importsFrom(facts, nil, false) {
+			p.imports[p.subKey(imp.Name)] = imp
+		}
+		return
+	}
+
 	// An import list restricts what is imported, and `use M ()` -- an empty
 	// list -- is the explicit "load but import nothing" form, which is NOT
 	// the same as omitting the list.

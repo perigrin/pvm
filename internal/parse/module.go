@@ -373,18 +373,6 @@ func (r *resolver) resolve(module string) (moduleFacts, bool) {
 		facts = readDeclaration(src, r)
 	default:
 		facts = readLibraryDeclaration(src, r)
-		// Test::More's own import is Test::Builder::Module's (measured: its
-		// shipped source `use`s it), reading its import list as plan()
-		// arguments rather than names -- `use Test::More tests => 3;`
-		// installs the same names a bare use does. noteBase reads this
-		// from a module's own `use parent`, which a .tpm, read in its
-		// source's place, never states; a declaration file has no syntax
-		// of its own for it (RFC 0001 open question), so it is marked here
-		// by name, as use.go's noteImportKnowledge already special-cases
-		// Config by name for the same reason.
-		if module == "Test::More" {
-			facts.builder = true
-		}
 	}
 	for _, err := range facts.errs {
 		r.declErrs = append(r.declErrs, fmt.Errorf("%s: %w", module, err))

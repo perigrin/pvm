@@ -1013,6 +1013,25 @@ The shipped declarations are converted to this form first, and the
 parser then refuses `our @EXPORT`, `@EXPORT_OK` and `%EXPORT_TAGS` in
 a `.tpm` as an error (perigrin, 2026-10-16: migrate, then remove).
 
+**A declared `import`'s parameters are the signature to `import()`.**
+perigrin, 2026-10-20: "The parameters are the signature to import()."
+Some modules' own `import` reads a `use` list as arguments, not export
+names: `use Test::More tests => 3;` plans the run rather than naming
+`tests` and `3` as subs to import, and
+`use Locale::Maketext::Simple (Style => 'gettext');` sets an option
+rather than asking for `Style` and `gettext`. A `.tpm` states this by
+declaring `import` itself, with `$class` as its invocant so the colon
+keeps the derived prototype none, matching perl's:
+
+    sub import (Str $class: List @plan) Void;
+
+A module whose `.tpm` declares `import` this way does not read its
+use-list as names at all: calling `use` with any list, read or not,
+installs exactly what a bare `use` installs -- its `:export` marks,
+measured -- and `use M ();`, the explicit empty list, still calls no
+import, as it does for any module. There is no by-name case in
+module.go for this: declaring `import` is itself the signal.
+
 **Typed variables.** Some modules export variables: Config's `%Config`
 on a bare `use`, Socket's `$CRLF` only when asked for. A declaration
 states one with its type before the variable and the export as an
