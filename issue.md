@@ -1,6 +1,6 @@
 ---
 title: Declare POSIX's functions and hold them to the return-type oracle
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -9,7 +9,16 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:59:46.730685644Z
-updated: 2026-10-16T21:08:29.444895046Z
+updated: 2026-10-20T00:43:36.52718261Z
+sessions:
+- start_sha: 236f66e72899b4f1ef19ba3d8b8613b74ce46140
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-20T00:43:36.52718261Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-20T00:43:36.52718261Z
 ---
 
 ## Prerequisites
