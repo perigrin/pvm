@@ -200,6 +200,30 @@ print $t;
 `, infer.CodeCoercionMismatch)
 }
 
+// TestEncodeTextIsStr: encode selects its Str candidate, Str, not the
+// Str|Undef candidate's join, once its $string argument is itself
+// proven Str -- Encode.tpm's `multi sub encode`, the same shape as
+// Scalar/Util.tpm's reftype. perl 5.42 -w is silent concatenating
+// encode("UTF-8", $text, 0) once $text is join of @_, a Str, join
+// never undef; it is not silent, and psc check must still report it,
+// for a $text with no such proof. Pod/Text.pm's own call has this
+// proof on $text, but not on $encoding (a hash element, Unknown) --
+// the comment beside Pod/Text.pm's entry in lib_true_positives.txt
+// has the reason that one argument's Unknown still stops it.
+func TestEncodeTextIsStr(t *testing.T) {
+	wantSilentResolved(t, `use Encode qw(encode);
+my (@parts) = @_;
+my $text = join('', @parts);
+my $s = encode("UTF-8", $text, 0) . "!";
+print $s;
+`)
+	wantReportedResolved(t, `use Encode qw(encode);
+my ($text) = @_;
+my $s = encode("UTF-8", $text, 0) . "!";
+print $s;
+`, infer.CodeCoercionMismatch)
+}
+
 // Symbol.tpm (db4c, scratchpad/db4c-symbol-deferred/) stays parked, not
 // shipped from here: declaring `qualify` a multi by argument type (Ref
 // returns that Ref, Str returns Str) measures correctly standing alone,

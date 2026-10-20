@@ -31,6 +31,34 @@
 # ways at every arity but 0, and nothing else distinguishes them there.
 # Select has no axis for two same-shape slurpy candidates to settle a
 # tie by arity alone; fixing that is outside this issue's day.
+#
+# Pod/Text.pm:324 is a third, from restoring Encode::encode to its
+# measured Str|Undef (01a1464e-dbd3's deferred ruling, issue 01a156e4's
+# body, "Added 2026-10-20: Encode::encode"): `print {...} encode
+# ($encoding, $text, $check)`. encode is declared a multi, Str $string
+# giving Str and Str|Undef $string giving Str|Undef, matching reftype's
+# shape, and $text (from `join('', @text)`, Str, join never undef) is
+# the kind of argument that multi exists to pick the Str candidate
+# for -- proven standing alone (narrow_lib_test.go's TestEncodeTextIsStr).
+# At this real call it is not selected: $encoding ($$self{ENCODING}, a
+# hash element, Unknown) and $check (a closure, Code, not Unknown) are
+# the other two arguments, and types.SelectShaped's coercion retry
+# (select.go), on finding $encoding's type fits neither Str nor
+# Str|Undef... no -- Unknown fits every candidate outright (fits()
+# skips an Unknown argument), so both candidates fit without the retry;
+# what forces Undecided is Select's own bypass, `len(fit) == 1 ||
+# !slices.Contains(args, Unknown)`: with $encoding Unknown among the
+# arguments, the second half is false, and len(fit) is 2, not 1, so
+# most-specific selection never runs and the call joins to Str|Undef.
+# The same mechanism, a non-discriminating argument's Unknown blocking
+# a discriminating one's precision, is Symbol::qualify's gap
+# (narrow_lib_test.go, above TestNarrowGuardedLibSites's cases), there
+# from `caller`'s typed List rather than a plain Unknown; this is the
+# bypass condition itself, not the coercion retry, so the two are
+# related but not identical bugs. perl -w is silent at this call
+# ($encoding and $text are always defined there); the evidence below
+# is encode(undef)'s own, the call shape that is the Undef bit's real
+# source.
 CPAN/Distribution.pm:848:13: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $sbd in string eq at -e line 1.
 CPAN/Distribution.pm:848:21: error: right operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $cbd in string eq at -e line 1.
 File/Temp.pm:916:17: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $abs in string eq at -e line 1.
@@ -41,6 +69,7 @@ Math/BigInt.pm:2400:46: error: right operand of "eq": expected Str, got Undef|In
 Math/BigInt.pm:3380:33: error: left operand of "eq": expected Str, got Undef|Int [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
 Math/BigInt.pm:3380:48: error: right operand of "eq": expected Str, got Undef|Int [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
 Net/Ping.pm:1798:38: error: call to sockaddr_in: argument 2 expects Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Undefined address for Socket::pack_sockaddr_in at /home/perigrin/.local/share/pvm/versions/5.42.0/lib/perl5/5.42.0/x86_64-linux-thread-multi/Socket.pm line 861.
+Pod/Text.pm:324:41: error: call to print: argument 1 expects Str, got Undef|Int|Num|Str|NaN|Inf [type-mismatch]	Use of uninitialized value $r in print at -e line 1.
 Safe.pm:424:12: error: left operand of "ne": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $sub in string ne at -e line 1.
 Test/Builder.pm:207:8: error: call to bless: argument 2 expects Str, got Undef|Int|Num|Str|NaN|Inf [type-mismatch]	Use of uninitialized value in bless at -e line 1.
 Test/Builder.pm:259:123: error: call to bless: argument 2 expects Str, got Undef|Int|Num|Str|NaN|Inf [type-mismatch]	Use of uninitialized value in bless at -e line 1.
