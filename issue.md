@@ -1,6 +1,6 @@
 ---
 title: "Declare the pure-Perl exporters: File::Basename, Symbol, File::Find, File::Path, Errno and five more"
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -11,16 +11,159 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.500338342Z
-updated: 2026-10-17T04:25:18.126940249Z
+updated: 2026-10-20T16:02:35.311002663Z
 sessions:
 - start_sha: 5b91125f4014127e11963fc610c805ba205b10ff
-  end_sha: ""
-  commits: 0
+  end_sha: d7e9819e189d4066bdeda28c06b1f2611f1cccb7
+  commits: 21
   started_at: 2026-10-17T04:25:18.126940249Z
+  ended_at: 2026-10-20T16:02:35.311002663Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-17T04:25:18.126940249Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-20T16:02:35.311002663Z
+observed_paths:
+- docs/rfcs/0001-type-libraries.md
+- internal/cli/symlinks_test.go
+- internal/infer/calls.go
+- internal/infer/declared_test.go
+- internal/infer/flow.go
+- internal/infer/infer.go
+- internal/infer/narrow_lib_test.go
+- internal/infer/ops.go
+- internal/infer/precision_test.go
+- internal/infer/returntypes_test.go
+- internal/infer/symbols.go
+- internal/infer/testdata/lowered/flow/element_guard.golden
+- internal/infer/testdata/lowered/flow/elsif_exit.golden
+- internal/infer/testdata/lowered/flow/unless_elsif.golden
+- internal/infer/testdata/observe_types.pl
+- internal/infer/testdata/oracle/Archive-Tar.pl
+- internal/infer/testdata/oracle/Class-Struct.pl
+- internal/infer/testdata/oracle/Compress-Raw-Zlib.pl
+- internal/infer/testdata/oracle/Config.pl
+- internal/infer/testdata/oracle/Cwd.pl
+- internal/infer/testdata/oracle/Data-Dumper.pl
+- internal/infer/testdata/oracle/DynaLoader.pl
+- internal/infer/testdata/oracle/Encode.pl
+- internal/infer/testdata/oracle/Errno.pl
+- internal/infer/testdata/oracle/Exporter.pl
+- internal/infer/testdata/oracle/ExtUtils-MakeMaker.pl
+- internal/infer/testdata/oracle/ExtUtils-Manifest.pl
+- internal/infer/testdata/oracle/Fcntl.pl
+- internal/infer/testdata/oracle/File-Basename.pl
+- internal/infer/testdata/oracle/File-Copy.pl
+- internal/infer/testdata/oracle/File-Find.pl
+- internal/infer/testdata/oracle/File-Path.pl
+- internal/infer/testdata/oracle/File-Spec-Functions.pl
+- internal/infer/testdata/oracle/File-Spec-Unix.pl
+- internal/infer/testdata/oracle/File-Spec.pl
+- internal/infer/testdata/oracle/File-Temp.pl
+- internal/infer/testdata/oracle/File-stat.pl
+- internal/infer/testdata/oracle/FileHandle.pl
+- internal/infer/testdata/oracle/Getopt-Long.pl
+- internal/infer/testdata/oracle/Getopt-Std.pl
+- internal/infer/testdata/oracle/HTTP-Tiny.pl
+- internal/infer/testdata/oracle/IO-File.pl
+- internal/infer/testdata/oracle/IO-Handle.pl
+- internal/infer/testdata/oracle/IO-Select.pl
+- internal/infer/testdata/oracle/IO-Socket-IP.pl
+- internal/infer/testdata/oracle/IO-Socket.pl
+- internal/infer/testdata/oracle/List-Util.pl
+- internal/infer/testdata/oracle/Locale-Maketext-Simple.pl
+- internal/infer/testdata/oracle/MIME-Base64.pl
+- internal/infer/testdata/oracle/Net-Ping.pl
+- internal/infer/testdata/oracle/POSIX.pl
+- internal/infer/testdata/oracle/SDBM_File.pl
+- internal/infer/testdata/oracle/Scalar-Util.pl
+- internal/infer/testdata/oracle/Socket.pl
+- internal/infer/testdata/oracle/Storable.pl
+- internal/infer/testdata/oracle/Symbol.pl
+- internal/infer/testdata/oracle/Term-ReadLine.pl
+- internal/infer/testdata/oracle/Test-More-plan.pl
+- internal/infer/testdata/oracle/Test-More.pl
+- internal/infer/testdata/oracle/Text-ParseWords.pl
+- internal/infer/testdata/oracle/Text-Wrap.pl
+- internal/infer/testdata/oracle/Tie-Hash.pl
+- internal/infer/testdata/oracle/Time-HiRes.pl
+- internal/infer/testdata/oracle/Time-Local.pl
+- internal/infer/testdata/oracle/XSLoader.pl
+- internal/infer/testdata/return_oracle.pl
+- internal/infer/vars.go
+- internal/infer/vars_test.go
+- internal/infer/warnpossibleundef_test.go
+- internal/parse/declarations.go
+- internal/parse/declarations/Archive/Tar.tpm
+- internal/parse/declarations/Class/Struct.tpm
+- internal/parse/declarations/Compress/Raw/Zlib.tpm
+- internal/parse/declarations/Config.tpm
+- internal/parse/declarations/Cwd.tpm
+- internal/parse/declarations/Data/Dumper.tpm
+- internal/parse/declarations/DynaLoader.tpm
+- internal/parse/declarations/Encode.tpm
+- internal/parse/declarations/Errno.tpm
+- internal/parse/declarations/Exporter.tpm
+- internal/parse/declarations/ExtUtils/MakeMaker.tpm
+- internal/parse/declarations/ExtUtils/Manifest.tpm
+- internal/parse/declarations/Fcntl.tpm
+- internal/parse/declarations/File/Basename.tpm
+- internal/parse/declarations/File/Copy.tpm
+- internal/parse/declarations/File/Find.tpm
+- internal/parse/declarations/File/Path.tpm
+- internal/parse/declarations/File/Spec.tpm
+- internal/parse/declarations/File/Spec/Functions.tpm
+- internal/parse/declarations/File/Spec/Unix.tpm
+- internal/parse/declarations/File/Temp.tpm
+- internal/parse/declarations/File/stat.tpm
+- internal/parse/declarations/FileHandle.tpm
+- internal/parse/declarations/Getopt/Long.tpm
+- internal/parse/declarations/Getopt/Std.tpm
+- internal/parse/declarations/HTTP/Tiny.tpm
+- internal/parse/declarations/IO/File.tpm
+- internal/parse/declarations/IO/Handle.tpm
+- internal/parse/declarations/IO/Select.tpm
+- internal/parse/declarations/IO/Socket.tpm
+- internal/parse/declarations/IO/Socket/IP.tpm
+- internal/parse/declarations/List/Util.tpm
+- internal/parse/declarations/Locale/Maketext/Simple.tpm
+- internal/parse/declarations/MIME/Base64.tpm
+- internal/parse/declarations/Net/Ping.tpm
+- internal/parse/declarations/POSIX.tpm
+- internal/parse/declarations/SDBM_File.tpm
+- internal/parse/declarations/Scalar/Util.tpm
+- internal/parse/declarations/Socket.tpm
+- internal/parse/declarations/Storable.tpm
+- internal/parse/declarations/Symbol.tpm
+- internal/parse/declarations/Term/ReadLine.tpm
+- internal/parse/declarations/Test/More.tpm
+- internal/parse/declarations/Text/ParseWords.tpm
+- internal/parse/declarations/Text/Wrap.tpm
+- internal/parse/declarations/Tie/Hash.tpm
+- internal/parse/declarations/Time/HiRes.tpm
+- internal/parse/declarations/Time/Local.tpm
+- internal/parse/declarations/XSLoader.tpm
+- internal/parse/derive.go
+- internal/parse/derive_test.go
+- internal/parse/exportattr_test.go
+- internal/parse/heldtoperl_test.go
+- internal/parse/infrastructure_test.go
+- internal/parse/testdata/declarations/My/MarkedImport.tpm
+- internal/parse/testdata/held_to_perl.pl
+- internal/parse/testdata/t1.ratchet
+- internal/parse/use.go
+- internal/parse/xsutilities_test.go
+- internal/psc/check_command.go
+- internal/psc/check_command_test.go
+- internal/psc/lsp_command.go
+- internal/psc/lsp_test.go
+- internal/psc/testdata/lib_true_positives.txt
+- internal/types/select.go
+- internal/types/select_test.go
+- internal/types/types.go
+- internal/types/types_test.go
 ---
 
 ## Prerequisites
