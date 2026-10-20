@@ -608,14 +608,19 @@ func containsUnknown(n *Node) bool {
 }
 
 // pureExporters is the pure-Perl exporters batch (01a1464e-db4c): every
-// module whose .tpm declares the names a `use` of it installs. Symbol is
-// held back (see docs/rfcs/0001-type-libraries.md and the issue's own
-// report): its qualify, declared accurately as Str|GlobRef, makes
-// IO/Handle.pm's `tell qualify($_[0], caller) if ref($_[0])` a new
-// TestPSCCheckLibBaseline diagnostic that perl -w does not confirm, since
-// $_[0] there is always a ref; perigrin must settle how to admit it.
+// module whose .tpm declares the names a `use` of it installs. Symbol
+// was held back (see docs/rfcs/0001-type-libraries.md and issue
+// 01a156e4): its qualify, declared accurately, made IO/Handle.pm's `tell
+// qualify($_[0], caller) if ref($_[0])` a new TestPSCCheckLibBaseline
+// diagnostic perl -w did not confirm, since $_[0] there is always a ref.
+// Narrowing $_[0] after that guard and declaring qualify a multi by
+// argument type (Ref keeps that Ref, Str gives a Str) fixed the
+// narrowing half; the other half was a types.Select gap (select.go,
+// SelectShaped's coercion retry and its Unknown bypass), fixed in
+// 01a156e4 too, caller's own List not fitting qualify's $pkg otherwise
+// discarding $_[0]'s proven Ref along with it.
 var pureExporters = []string{
-	"File::Basename", "File::Find", "File::Path", "Errno",
+	"File::Basename", "File::Find", "File::Path", "Errno", "Symbol",
 	"Text::ParseWords", "Class::Struct", "File::Copy", "Time::Local", "Getopt::Std",
 }
 

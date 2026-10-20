@@ -6,7 +6,11 @@ package infer_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"tamarou.com/pvm/internal/infer"
+	"tamarou.com/pvm/internal/parse"
 )
 
 // wantSilentResolved is wantSilent over resolvedDiags (flow_test.go):
@@ -34,8 +38,9 @@ func wantReportedResolved(t *testing.T, src string, code string) {
 // TestNarrowGuardedLibSites reproduces, in isolation, the guard shape of
 // each lib site the dba9 gate review classified GUARDED (false positive):
 // after the guard, perl 5.42 -w is silent, and so must psc check be, now
-// that reftype, refaddr and sum are multis selected by argument type or
-// arity (Scalar/Util.tpm, List/Util.tpm) and the guard shapes below narrow.
+// that reftype and refaddr are multis selected by argument type
+// (Scalar/Util.tpm) and the guard shapes below narrow. sum is not among
+// them -- TestSumByArityBlockedOnPrototype has the reason.
 func TestNarrowGuardedLibSites(t *testing.T) {
 	for name, src := range map[string]string{
 		// JSON/PP.pm:398,411 -- blessed($obj) proves $obj an Object, a Ref
@@ -49,6 +54,19 @@ if (blessed($obj)) {
         if (refaddr($obj) eq refaddr($result)) { print "same\n" }
     }
 }
+`,
+		// Math/BigInt.pm:3380's right operand -- `my $zs = $z->{sign}; my
+		// $zv = $z->{value}; ... if refaddr($x) eq refaddr($z)`: $z
+		// survives an arrow deref right before the call, which under
+		// `use strict 'refs'` either autovivifies it from undef into
+		// exactly a HashRef or dies on anything else (measured: a plain
+		// string there dies "Can't use string ... as a HASH ref"), so
+		// reaching the call at all proves $z a Ref.
+		"deref_proves_ref": `
+my ($z) = @_;
+my $zs = $z->{sign};
+my $t = refaddr($z) . "!";
+print $t;
 `,
 		// Test2/Mock.pm:356 -- ref($arg) && reftype($arg) eq 'CODE', a
 		// short-circuit `&&` whose right operand runs only where ref($arg)
@@ -130,11 +148,13 @@ my @odd = grep { !(ref($_) && reftype($_) eq 'CODE') } @order;
 return \@odd;
 `,
 		// IO/Handle.pm:515 -- `tell qualify($_[0], caller) if ref($_[0])`:
-		// $_[0], the invocant, is proven a Ref by the modifier's own guard,
-		// reftype standing in for qualify here (Symbol.tpm stays parked --
-		// see the comment below the table). The guard mechanics are the
-		// same one isElementVarName (flow.go) gives $_[0] along with any
-		// other named array's literal-index element.
+		// $_[0], the invocant, is proven a Ref by the modifier's own guard.
+		// The guard mechanics are the same one isElementVarName (flow.go)
+		// gives $_[0] along with any other named array's literal-index
+		// element; the second half, qualify's own multi correctly
+		// selecting its Ref candidate despite `caller`'s unrelated
+		// Unknown-ish second argument, is select_test.go's
+		// TestSelectCoercionRetryKeepsFittingArgs.
 		"arg0_ref_guard": `
 my $t = reftype($_[0]) if ref($_[0]);
 return $t;
@@ -207,9 +227,10 @@ print $t;
 // encode("UTF-8", $text, 0) once $text is join of @_, a Str, join
 // never undef; it is not silent, and psc check must still report it,
 // for a $text with no such proof. Pod/Text.pm's own call has this
-// proof on $text, but not on $encoding (a hash element, Unknown) --
-// the comment beside Pod/Text.pm's entry in lib_true_positives.txt
-// has the reason that one argument's Unknown still stops it.
+// proof on $text but not on $encoding (a hash element, Unknown); it
+// still selects Str, once Select's Unknown bypass only counts an
+// Unknown at a position the candidates actually differ on
+// (select_test.go's TestSelectUnknownAtNonDiscriminatingPositionDecides).
 func TestEncodeTextIsStr(t *testing.T) {
 	wantSilentResolved(t, `use Encode qw(encode);
 my (@parts) = @_;
@@ -224,30 +245,54 @@ print $s;
 `, infer.CodeCoercionMismatch)
 }
 
-// Symbol.tpm (db4c, scratchpad/db4c-symbol-deferred/) stays parked, not
-// shipped from here: declaring `qualify` a multi by argument type (Ref
-// returns that Ref, Str returns Str) measures correctly standing alone,
-// but IO/Handle.pm:515 calls it with a second argument, `caller`, whose
-// own type -- CORE.tpm's `caller (Optional[Int] $level) List` -- answers
-// as List in the UnknownCtx a `$`-shaped declared-call slot leaves a
-// scalar argument in (calls.go's slotContext, deliberately, so an
-// aggregate there reaches checkArg as itself). Neither multi candidate's
-// `Optional[Str] $pkg` fits a List argument, so types.Select's
-// SelectShaped falls back to its coercion retry (select.go): with no
-// Alias parameter to rule a candidate out, fitsContainers passes both
-// trivially, and the retry zeroes every argument to Unknown, discarding
-// $_[0]'s own proven Ref along with it, and leaving the call's type the
-// full join, Str|GlobRef. The `$_[0]` and `ref` guard narrowing issue
-// 01a156e4 asked for does work, and is tested above under
-// arg0_ref_guard; the second half, qualify's multi, is sound on its own
-// but exposed by this call is a Select gap this issue did not fix.
+// Symbol.tpm (db4c, scratchpad/db4c-symbol-deferred/) ships from here:
+// declaring `qualify` a multi by argument type (Ref returns that Ref,
+// Str returns Str) measures correctly standing alone, and IO/Handle.pm:515
+// calls it with a second argument, `caller`, whose own type -- CORE.tpm's
+// `caller (Optional[Int] $level) List` -- answers as List in the
+// UnknownCtx a `$`-shaped declared-call slot leaves a scalar argument in
+// (calls.go's slotContext, deliberately, so an aggregate there reaches
+// checkArg as itself); neither multi candidate's `Optional[Str] $pkg`
+// fits a List argument, so this reaches types.Select's coercion retry
+// (select.go), fixed to keep $_[0]'s own proven Ref rather than zero it
+// along with $pkg's non-fitting one (TestSelectCoercionRetryKeepsFittingArgs,
+// select_test.go). The pureExporters batch (heldtoperl_test.go) holds it
+// to perl along with the rest.
 //
-// List::Util::sum is NOT declared by arity: issue 01a156e4's gate record
-// has the reason. types.Ambiguity (select.go) rejects a true arity split
-// -- `(List @list = die) Num` beside `(List @list) Undef` -- because both
-// take a lone `List` parameter, so asSpecific holds both ways at every
-// arity but 0 and nothing else distinguishes them there; Select has no
-// axis (context, invocant, a differently-shaped parameter) to settle a
-// tie between two same-shape slurpy candidates. sum keeps one signature,
-// `(List @list) Num|Undef`, corrected from the shipped Int|Undef (measured:
-// `sum(1.5, 2)` is Num, not Int) but not narrowed by arity.
+// TestSumByArityBlockedOnPrototype: `multi sub sum (Num $x, List @rest)
+// Num;` beside `multi sub sum () Undef;` does clear types.Ambiguity (the
+// two ranges are disjoint -- 0 args fits only the second, 1+ only the
+// first, so neither is ever compared against the other at a shared
+// arity) -- but the declaration reader refuses it the moment a
+// `:prototype(@)` is stated, which perl 5.42's own measured prototype
+// for sum requires (plain `multi sub sum (Num $x, List @rest) Num;`
+// with no stated prototype passes DeclaredSignatures, but then
+// disagrees with perl's real "(@)" at heldtoperl_test.go's level,
+// since nothing here ever states it). The two candidates derive two
+// different shapes, "$@" and "()" -- parse/derive.go's
+// prototypeFromCandidates requires every candidate's derived shape to
+// be the same length before it will try to merge them, by design
+// (TestDeriveMultiCandidatesRefusesInexpressible, parse/derive_test.go,
+// proves this for an unrelated pair of arities and documents it as
+// deliberate: "a stated prototype is an error [...] never a guess").
+// Loosening that would also stop checking CORE.tpm's own arity-differing
+// multis (select, each, keys, ...) against perl, since their current
+// "no stated prototype, so none" fallback happens to be correct only
+// because their own real prototype is none -- a different, broader
+// change than this issue's narrowing. sum stays one signature,
+// `(List @list) Num|Undef`, reporting Undef on every call; this test
+// pins the exact error so a future declarations.go change can delete
+// it along with sum's multi.
+func TestSumByArityBlockedOnPrototype(t *testing.T) {
+	_, errs := parse.DeclaredSignatures([]byte(
+		"package List::Util;\nmulti sub sum :prototype(@) (Num $x, List @rest) Num;\nmulti sub sum :prototype(@) () Undef;\n",
+	))
+	require.Len(t, errs, 1)
+	assert.ErrorContains(t, errs[0], `disagrees with its types: its candidates give ($@), (), which no one prototype states`)
+
+	sigs, errs := parse.DeclaredSignatures([]byte(
+		"package List::Util;\nmulti sub sum (Num $x, List @rest) Num;\nmulti sub sum () Undef;\n",
+	))
+	require.Empty(t, errs, "the arity split alone is not ambiguous")
+	require.Len(t, sigs["sum"], 2)
+}
