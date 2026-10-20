@@ -36,6 +36,17 @@ require $observer;
 ( my $file = "$module.pm" ) =~ s{::}{/}g;
 require $file;
 
+# A module whose import re-exports a third module's names straight
+# into its caller -- FileHandle's import calls
+# Exporter::export('Fcntl', $callpkg) for a bare `use`, never defining
+# the name in FileHandle:: itself (measured on 5.42.0: FileHandle::
+# F_DUPFD is false even after `require FileHandle`) -- leaves such a
+# name only in whatever package did a bare `use FileHandle;`. This
+# bare prime, done once per module as held_to_perl.pl's does, is where
+# a sub-form lookup falls back for a name neither $module:: nor a
+# by-name reprime materializes (see the matching comment below).
+eval "package Held::OracleBarePrime; use $module; 1";
+
 my %cases = do $cases_file;
 die "cannot read call cases $cases_file: ", $@ || $!, "\n" if $@ || !%cases;
 
@@ -51,7 +62,10 @@ for (@subs) {
     }
     else {
         my $primed;
-        if ( !callable("${module}::$name") ) {
+        if ( !callable("${module}::$name") && callable("Held::OracleBarePrime::$name") ) {
+            $code = \&{"Held::OracleBarePrime::$name"};
+        }
+        if ( !$code && !callable("${module}::$name") ) {
             # A name a bare require does not materialize, measured --
             # Fcntl's S_ISWHT, whose sibling S_IS* subs are compiled in
             # regardless -- gets a stub only once it is asked for by
@@ -60,10 +74,10 @@ for (@subs) {
             $primed = "Held::OraclePrimeByName@{[$n++]}";
             eval "package $primed; use $module qw($name); 1";
         }
-        if ( callable("${module}::$name") ) {
+        if ( !$code && callable("${module}::$name") ) {
             $code = \&{"${module}::$name"};
         }
-        elsif ( $primed && callable("${primed}::$name") ) {
+        elsif ( !$code && $primed && callable("${primed}::$name") ) {
             # A module with its own import, like
             # Locale::Maketext::Simple's, installs a glob straight into
             # the caller's package and never into its own (measured):
@@ -71,9 +85,7 @@ for (@subs) {
             # primed into.
             $code = \&{"${primed}::$name"};
         }
-        else {
-            die "perl defines no sub $name\n";
-        }
+        $code or die "perl defines no sub $name\n";
     }
     for my $i ( keys @$calls ) {
         my @args = @{ $calls->[$i] };

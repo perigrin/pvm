@@ -1,0 +1,63 @@
+# ABOUTME: Declares what `use Test::More` installs: every testing sub, bare, plus $TODO.
+# ABOUTME: Measured on perl 5.42.0 with Test::More 1.302209.
+
+package Test::More;
+
+# Test::More's import is Test::Builder::Module's (measured: its own
+# source `use`s it, and the m1 gates hold this a .tpm cannot itself
+# state -- module.go's resolve marks it a Test::Builder::Module
+# subclass by name): an import list is plan() arguments, not names, so
+# `use Test::More tests => 3;` installs the same names a bare `use`
+# does (measured), and every name below is :export.
+our Str|Undef $TODO :export;
+
+# BAIL_OUT exits the whole test run: measured on 5.42.0, it calls
+# CORE::exit directly from Test::Builder's bail_out, bypassing the
+# return-type oracle's CORE::GLOBAL::exit override the same way
+# POSIX::exit does, so calling it would end the oracle's own perl
+# process. Declared None, as exit is in CORE.tpm; held to prototype and
+# exports only (oracleExempt).
+sub BAIL_OUT :export (List @args) None;
+
+# Every assertion below ends `return 1;` or `return 0;`, a plain Int,
+# not perl's own boolean (measured with builtin::is_bool: none of
+# these calls' results carries the boolean flag a comparison or
+# negation does).
+sub can_ok :export :prototype($@) (Any $thing, List @methods) Int;
+sub cmp_ok :export :prototype($$$;$) (Any $got, Str $op, Any $expected, Str $name = undef) Int;
+sub diag :export (List @args) Int;
+sub done_testing :export (List @args) Int;
+sub eq_array :export (List @args) Int;
+sub eq_hash :export (List @args) Int;
+sub eq_set :export (List @args) Int;
+# explain formats each argument as a string, measured on 5.42.0: one
+# per argument in list context; a real array variable, so scalar
+# context gives their count.
+multi sub explain :export (List @args) List[Str];
+multi sub explain :export (List @args) Int;
+sub fail :export :prototype(;$) (Str $name = undef) Int;
+sub is :export :prototype($$;$) (Any $got, Any $expected, Str $name = undef) Int;
+sub is_deeply :export (List @args) Int;
+sub isa_ok :export :prototype($$;$) (Any $thing, Str $class, Str $name = undef) Int;
+sub isnt :export :prototype($$;$) (Any $got, Any $expected, Str $name = undef) Int;
+sub like :export :prototype($$;$) (Any $got, Any $pattern, Str $name = undef) Int;
+sub new_ok :export (List @args) Object;
+sub note :export (List @args) Int;
+sub ok :export :prototype($;$) (Any $test, Str $name = undef) Int;
+sub pass :export :prototype(;$) (Str $name = undef) Int;
+# plan dies "You tried to plan twice" once any plan already exists
+# (measured) -- including one done_testing sets, which the oracle's own
+# alphabetically earlier call to done_testing always leaves in place --
+# so the oracle cannot call plan without that collision. Held to
+# prototype and exports only (oracleExempt).
+sub plan :export (List @args) Int;
+sub require_ok :export :prototype($) (Str $module) Int;
+# skip and todo_skip never return a value to their caller: measured on
+# 5.42.0, each ends in `last SKIP` / `last TODO` inside the block that
+# name, and called with no such block in scope -- as the oracle calls
+# it -- each dies "Label not found", which None permits.
+sub skip :export (List @args) None;
+sub subtest :export (List @args) Int;
+sub todo_skip :export (List @args) None;
+sub unlike :export :prototype($$;$) (Any $got, Any $pattern, Str $name = undef) Int;
+sub use_ok :export :prototype($;@) (Str $module, List @imports) Int;

@@ -517,6 +517,15 @@ func DeclaredSignatures(src []byte) (map[string][]types.Signature, []error) {
 	return facts.signatures, facts.errs
 }
 
+// DeclaredVariables reads a library's .tpm source as the resolver reads
+// it, and returns its typed `our` variables by name with sigil, with the
+// errors the file states. Tests that hold a declared variable's type to
+// perl read it from here.
+func DeclaredVariables(src []byte) (map[string]types.Param, []error) {
+	facts := readLibraryDeclaration(src, nil)
+	return facts.variables, facts.errs
+}
+
 // CoreOperator is the typed signatures CORE.tpm declares for the operator
 // spelled op of fixity "infix", "prefix" or "postfix", one per candidate, and nil for
 // one it does not declare. internal/infer types operators from it.
