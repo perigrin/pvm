@@ -19,8 +19,12 @@ package Test::More;
 # on 5.42.0, `use Test::More import => ['ok'], tests => 1;` installs
 # only ok, never the full set below, so a use-list carrying this key
 # claims no names and leaves the symbols open; one without it installs
-# the names below, as a bare use does.
-sub import (Str $class: Str $import = undef, List @plan) Void;
+# the names below, as a bare use does. The key's parameter is typed
+# ArrayRef, not Str: measured on 5.42.0,
+# Test::Builder::Module::_strip_imports dereferences the value paired
+# with the import key as an array (`@{ $list->[$idx+1] }`), so the
+# value, not only the key, is part of what perl passes there.
+sub import (Str $class: ArrayRef $import = undef, List @plan) Void;
 our Str|Undef $TODO :export;
 
 # BAIL_OUT exits the whole test run: measured on 5.42.0, it calls
