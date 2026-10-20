@@ -40,6 +40,7 @@ Math/BigInt.pm:2400:31: error: left operand of "eq": expected Str, got Undef|Int
 Math/BigInt.pm:2400:46: error: right operand of "eq": expected Str, got Undef|Int [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
 Math/BigInt.pm:3380:33: error: left operand of "eq": expected Str, got Undef|Int [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
 Math/BigInt.pm:3380:48: error: right operand of "eq": expected Str, got Undef|Int [coercion-mismatch]	Use of uninitialized value $x in string eq at -e line 1.
+Net/Ping.pm:1798:38: error: call to sockaddr_in: argument 2 expects Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Undefined address for Socket::pack_sockaddr_in at /home/perigrin/.local/share/pvm/versions/5.42.0/lib/perl5/5.42.0/x86_64-linux-thread-multi/Socket.pm line 861.
 Safe.pm:424:12: error: left operand of "ne": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $sub in string ne at -e line 1.
 Test/Builder.pm:207:8: error: call to bless: argument 2 expects Str, got Undef|Int|Num|Str|NaN|Inf [type-mismatch]	Use of uninitialized value in bless at -e line 1.
 Test/Builder.pm:259:123: error: call to bless: argument 2 expects Str, got Undef|Int|Num|Str|NaN|Inf [type-mismatch]	Use of uninitialized value in bless at -e line 1.
@@ -71,4 +72,5 @@ Term/Table.pm:103:17: error: left operand of "+": expected Num, got Undef|Int|Nu
 Term/Table.pm:103:28: error: right operand of "+": expected Num, got Undef|Int|Num [coercion-mismatch]	Use of uninitialized value $b in addition (+) at -e line 1.
 Term/Table.pm:106:43: error: right operand of "-": expected Num, got Undef|Int|Num [coercion-mismatch]	Use of uninitialized value $a in subtraction (-) at -e line 1.
 Term/Table.pm:124:44: error: right operand of "-": expected Num, got Undef|Int|Num [coercion-mismatch]	Use of uninitialized value $a in subtraction (-) at -e line 1.
+x86_64-linux-thread-multi/Sys/Syslog.pm:562:19: error: call to POSIX::_exit: argument 1 expects Boolean|Int, got Undef|Boolean [coercion-mismatch]	Use of uninitialized value in subroutine entry at repro-exit.pl line 4.
 x86_64-linux-thread-multi/threads/shared.pm:147:22: warning: right operand of "==": expected Num, got Undef|Int [coercion-mismatch]	Use of uninitialized value in numeric eq (==) at -e line 1.

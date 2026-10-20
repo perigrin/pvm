@@ -9,6 +9,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -27,7 +28,76 @@ import (
 // "Module::sub" to why: one that is unsafe in a scratch directory --
 // network, fork/exec, signals, _exit, file mutation outside scratch,
 // blocking on a terminal. Each is held to its prototype and exports only.
-var oracleExempt = map[string]string{}
+var oracleExempt = map[string]string{
+	"POSIX::_exit":       "terminates the process immediately; never returns",
+	"POSIX::abort":       "raises SIGABRT, terminating the process",
+	"POSIX::pause":       "blocks until a signal arrives; nothing in the oracle run ever signals it",
+	"POSIX::exit":        "calls CORE::exit directly, bypassing the driver's exit-catching override, and ends the oracle process early",
+	"POSIX::fork":        "creates a real child process",
+	"POSIX::kill":        "sends a real signal to a process",
+	"POSIX::raise":       "sends a real signal to the current process",
+	"POSIX::sleep":       "blocks for real wall-clock time",
+	"POSIX::alarm":       "schedules a real SIGALRM that could terminate the oracle process later in the run",
+	"POSIX::wait":        "may block indefinitely waiting for a child process",
+	"POSIX::waitpid":     "may block indefinitely waiting for a child process",
+	"POSIX::sigsuspend":  "blocks until a signal is delivered",
+	"POSIX::system":      "spawns an arbitrary subprocess",
+	"POSIX::setuid":      "changes the real process's user id",
+	"POSIX::setgid":      "changes the real process's group id",
+	"POSIX::setpgid":     "changes a real process's process group",
+	"POSIX::setsid":      "changes the real process's session, detaching it from its controlling terminal",
+	"POSIX::mkfifo":      "creates a named pipe node on disk",
+	"POSIX::unlink":      "deletes a real file",
+	"POSIX::rmdir":       "deletes a real directory",
+	"POSIX::sigaction":   "installs a real signal handler for the rest of the run",
+	"POSIX::sigprocmask": "alters the process's real signal mask for the rest of the run",
+	"POSIX::sigpending":  "reads live process signal state that only the exempted signal-mutating functions above establish",
+	"POSIX::tcsetpgrp":   "mutates the terminal's foreground process group",
+	"POSIX::tcflow":      "suspends or resumes real terminal transmission",
+	"POSIX::tcsendbreak": "sends a real break condition on the terminal line",
+	"POSIX::tcdrain":     "blocks until pending terminal output drains",
+	"POSIX::tcflush":     "discards real pending terminal input or output",
+	"POSIX::setlocale":   "mutates the process-wide locale, changing every later locale-sensitive call in the same run",
+	"POSIX::nice":        "changes the real process's scheduling priority",
+	"POSIX::read":        "its buffer argument is aliased in place; the oracle's literal call-case arguments cannot supply a safe mutable lvalue",
+	// sockaddr_in and sockaddr_in6 dispatch on wantarray and arg count
+	// together: the pack arity in list context, or the unpack arity in
+	// scalar, croaks (measured), which the oracle's per-sub call cases
+	// cannot give one direction without also calling the other in the
+	// context that dies for it. pack_sockaddr_in(6) and
+	// unpack_sockaddr_in(6) hold the same two directions without the
+	// conflict.
+	"Socket::sockaddr_in":  "wantarray/arity dispatch dies on the other direction's shape; held to its prototype and exports only",
+	"Socket::sockaddr_in6": "wantarray/arity dispatch dies on the other direction's shape; held to its prototype and exports only",
+}
+
+// posixReplacementNames are the names in POSIX.pm 2.23's %replacement
+// hash that POSIX also exports: measured on perl 5.42.0, each croaks
+// "Unimplemented: POSIX::name(): ..." the moment it is called, regardless
+// of its arguments.
+var posixReplacementNames = []string{
+	"atexit", "atof", "atoi", "atol", "bsearch", "calloc", "clearerr", "div",
+	"execl", "execle", "execlp", "execv", "execve", "execvp", "fclose",
+	"fdopen", "feof", "ferror", "fflush", "fgetc", "fgetpos", "fgets",
+	"fopen", "fprintf", "fputc", "fputs", "fread", "free", "freopen",
+	"fscanf", "fseek", "fsetpos", "fsync", "ftell", "fwrite", "labs",
+	"ldiv", "longjmp", "malloc", "memchr", "memcmp", "memcpy", "memmove",
+	"memset", "offsetof", "putc", "putchar", "puts", "qsort", "realloc",
+	"scanf", "setbuf", "setjmp", "setvbuf", "siglongjmp", "sigsetjmp",
+	"sscanf", "strcat", "strchr", "strcmp", "strcpy", "strcspn", "strlen",
+	"strncat", "strncmp", "strncpy", "strpbrk", "strrchr", "strspn",
+	"strtok", "tmpfile", "tmpnam", "ungetc", "vfprintf", "vprintf",
+	"vsprintf",
+}
+
+// posixUndefinedMacroNames are exported POSIX names whose AUTOLOAD falls
+// through to constant(), which does not recognize or define them on this
+// platform: measured on perl 5.42.0, each dies every time it is called.
+var posixUndefinedMacroNames = []string{
+	"LC_SYNTAX", "LC_TOD", "NDEBUG", "cfgetispeed", "cfgetospeed",
+	"cfsetispeed", "cfsetospeed", "mbstowcs", "wcstombs", "signal", "stdin",
+	"stdout", "stderr", "tcgetattr", "tcsetattr",
+}
 
 // holdReturnTypes holds each module's shipped .tpm to perl: every sub it
 // declares, called with the cases in testdata/oracle/<Module>.pl (File::Spec
@@ -342,6 +412,57 @@ func TestCarpReturnTypes(t *testing.T) {
 	holdReturnTypes(t, "Carp")
 }
 
+// TestConstantExportersReturnTypes holds Fcntl.tpm's and Socket.tpm's
+// return types to perl.
+func TestConstantExportersReturnTypes(t *testing.T) {
+	holdReturnTypes(t, "Fcntl", "Socket")
+}
+
+// TestSocketOracleNeverResolvesAName: the oracle's Socket call cases
+// give inet_aton a numeric address only, and give getaddrinfo and
+// getnameinfo a numeric address along with AI_NUMERICHOST or
+// NI_NUMERICHOST, so none of the three ever asks libc to resolve a
+// hostname over the network.
+func TestSocketOracleNeverResolvesAName(t *testing.T) {
+	src, err := os.ReadFile(filepath.Join("testdata", "oracle", "Socket.pl"))
+	require.NoError(t, err)
+	text := string(src)
+
+	ipLike := regexp.MustCompile(`^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$`)
+	for _, m := range regexp.MustCompile(`inet_aton\('([^']*)'\)`).FindAllStringSubmatch(text, -1) {
+		assert.Regexp(t, ipLike, m[1], "inet_aton called with %q, which is not a numeric address", m[1])
+	}
+
+	for _, name := range []string{"getaddrinfo", "getnameinfo"} {
+		block := oracleCaseBlock(t, text, name)
+		assert.Contains(t, block, "NUMERICHOST", "%s's call cases never set *NUMERICHOST, so a bad address could resolve over the network", name)
+	}
+}
+
+// oracleCaseBlock is the bracketed value `name => [ ... ],` gives in an
+// oracle call-case file's source, found by counting brackets rather than
+// a regexp, since the value nests arrayrefs and hashrefs.
+func oracleCaseBlock(t *testing.T, src, name string) string {
+	t.Helper()
+	key := name + " => ["
+	start := strings.Index(src, key)
+	require.NotEqual(t, -1, start, "%s has no call case in the oracle file", name)
+	depth := 0
+	for i := start + len(key) - 1; i < len(src); i++ {
+		switch src[i] {
+		case '[':
+			depth++
+		case ']':
+			depth--
+			if depth == 0 {
+				return src[start : i+1]
+			}
+		}
+	}
+	t.Fatalf("%s: unbalanced brackets", name)
+	return ""
+}
+
 // TestReturnOracleChecksEachListElement: a sub declared List[Int] is held
 // element by element, so a list holding a Str, a reference or undef fails.
 func TestReturnOracleChecksEachListElement(t *testing.T) {
@@ -604,4 +725,193 @@ func dirEntries(t *testing.T, dir string) []string {
 	}
 	sort.Strings(names)
 	return names
+}
+
+// pureExporters is the pure-Perl exporters batch (01a1464e-db4c): every
+// module whose .tpm declares the names a `use` of it installs. Symbol is
+// held back; see the matching comment in internal/parse/heldtoperl_test.go.
+var pureExporters = []string{
+	"File::Basename", "File::Find", "File::Path", "Errno",
+	"Text::ParseWords", "Class::Struct", "File::Copy", "Time::Local", "Getopt::Std",
+}
+
+// TestPurePerlExportersReturnTypes holds each pure-Perl exporter's
+// declared return types to perl, called with its oracle's cases.
+func TestPurePerlExportersReturnTypes(t *testing.T) {
+	holdReturnTypes(t, pureExporters...)
+}
+
+// moduleFailures holds module's shipped .tpm return types to perl,
+// called with its shipped oracle/<Module>.pl cases.
+func moduleFailures(t *testing.T, module string) []string {
+	t.Helper()
+	p := perltest.Perl542(t)
+	rel := strings.ReplaceAll(module, "::", "/")
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", filepath.FromSlash(rel)+".tpm"))
+	require.NoError(t, err)
+	cases, err := filepath.Abs(filepath.Join("testdata", "oracle", strings.ReplaceAll(module, "::", "-")+".pl"))
+	require.NoError(t, err)
+	return returnTypeFailures(t, p, oracleRun{Module: module, TPM: tpm, Cases: cases})
+}
+
+// TestGetoptStdUnknownOptionReturnIsDeclared: getopts given a switch its
+// spec does not list still returns a Boolean (measured on 5.42.0, a
+// false one, after warning "Unknown option"), which Getopt::Std.tpm's
+// declared return type admits. oracle/Getopt-Std.pl stages @ARGV so
+// getopts' one call sees exactly this: a known switch and an unknown one.
+func TestGetoptStdUnknownOptionReturnIsDeclared(t *testing.T) {
+	assert.Empty(t, moduleFailures(t, "Getopt::Std"))
+}
+
+// TestTextParseWordsUnbalancedQuoteReturnIsDeclared: shellwords given an
+// unbalanced quote returns the empty list in list context and undef in
+// scalar context (measured on 5.42.0), both of which
+// Text::ParseWords.tpm's declared return type admits. oracle/Text-ParseWords.pl
+// includes this case among shellwords' own.
+func TestTextParseWordsUnbalancedQuoteReturnIsDeclared(t *testing.T) {
+	assert.Empty(t, moduleFailures(t, "Text::ParseWords"))
+}
+
+// TestFileBasenameWindowsPathReturnIsDeclared: fileparse, basename and
+// dirname given a Windows-style path still return a plain Str (measured
+// on 5.42.0: this platform's fstype is Unix, so none of the three
+// splits the path on a backslash), which File::Basename.tpm's declared
+// return types admit. oracle/File-Basename.pl includes a Windows path
+// among each of the three's own cases.
+func TestFileBasenameWindowsPathReturnIsDeclared(t *testing.T) {
+	assert.Empty(t, moduleFailures(t, "File::Basename"))
+}
+
+// TestPurePerlExportersOracleStaysInScratch: File::Path, File::Copy and
+// File::Find touch the filesystem, so their oracle cases name only
+// relative paths -- an absolute one would reach outside the scratch
+// directory returnTypeFailures confines perl's cwd, HOME and TMPDIR to.
+func TestPurePerlExportersOracleStaysInScratch(t *testing.T) {
+	absolute := regexp.MustCompile(`['"]/\S`)
+	for _, module := range []string{"File::Path", "File::Copy", "File::Find"} {
+		cases, err := os.ReadFile(filepath.Join("testdata", "oracle", strings.ReplaceAll(module, "::", "-")+".pl"))
+		require.NoError(t, err)
+		assert.False(t, absolute.Match(cases), "%s's oracle cases name an absolute path", module)
+	}
+}
+
+// posixSignatures parses POSIX.tpm, failing t on any declaration error.
+func posixSignatures(t *testing.T) map[string][]types.Signature {
+	t.Helper()
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "POSIX.tpm"))
+	require.NoError(t, err)
+	sigs, errs := parse.DeclaredSignatures(tpm)
+	require.Empty(t, errs)
+	return sigs
+}
+
+// TestPOSIXReturnTypes holds POSIX.tpm's return types to perl.
+func TestPOSIXReturnTypes(t *testing.T) {
+	holdReturnTypes(t, "POSIX")
+}
+
+// TestPOSIXAutoloadStubsDie: every name in POSIX.pm's %replacement, and
+// every exported name whose AUTOLOAD falls through to a constant()
+// perl's build does not recognize or define, is declared None, and perl
+// dies calling each with no arguments -- Ruling 5 (perigrin, 2026-10-16).
+func TestPOSIXAutoloadStubsDie(t *testing.T) {
+	p := perltest.Perl542(t)
+	sigs := posixSignatures(t)
+	names := append(append([]string{}, posixReplacementNames...), posixUndefinedMacroNames...)
+	for _, name := range names {
+		cands, ok := sigs[name]
+		if !assert.True(t, ok, "POSIX::%s is not declared", name) {
+			continue
+		}
+		for _, s := range cands {
+			assert.Equal(t, types.None, s.Returns, "POSIX::%s is not declared None", name)
+		}
+
+		out, err := p.Command("-MPOSIX", "-e", fmt.Sprintf(`no strict 'refs'; &{"POSIX::%s"}()`, name)).CombinedOutput()
+		assert.Error(t, err, "POSIX::%s did not die: %s", name, out)
+	}
+}
+
+// TestPOSIXOracleNeverCallsExit: _exit, abort and pause are in the
+// return-type oracle's exemption map with a reason, so holdReturnTypes
+// (TestReturnOracleNeverCallsAnExemptSub proves the mechanism generally)
+// skips them rather than calling them.
+func TestPOSIXOracleNeverCallsExit(t *testing.T) {
+	for _, name := range []string{"_exit", "abort", "pause"} {
+		reason, ok := oracleExempt["POSIX::"+name]
+		if !assert.True(t, ok, "POSIX::%s is not in the return-type oracle's exemption map", name) {
+			continue
+		}
+		assert.NotEmpty(t, strings.TrimSpace(reason), "POSIX::%s is exempt without a reason", name)
+	}
+}
+
+// TestPOSIXStrtolContextReturnIsDeclared: POSIX::strtol returns two
+// values in list context (the parsed number and how much of the string
+// it consumed) and one in scalar context, measured directly, and
+// POSIX.tpm declares a candidate for each.
+func TestPOSIXStrtolContextReturnIsDeclared(t *testing.T) {
+	p := perltest.Perl542(t)
+	out, err := p.Command("-MPOSIX", "-e",
+		`my @l = POSIX::strtol("42abc", 10); my $s = POSIX::strtol("42abc", 10); print scalar(@l), ":", (defined $s ? "1" : "0"), "\n";`,
+	).Output()
+	require.NoError(t, err)
+	assert.Equal(t, "2:1\n", string(out), "strtol returns two values in list context and one in scalar context")
+
+	cands := posixSignatures(t)["strtol"]
+	require.Len(t, cands, 2, "strtol should have a list candidate and a scalar candidate")
+	var sawList, sawScalar bool
+	for _, s := range cands {
+		switch callContext(s) {
+		case "list":
+			sawList = true
+			assert.True(t, types.IsSubtype(types.Int, s.ReturnElement) || types.IsSubtype(types.Int, s.Returns),
+				"strtol's list candidate does not admit the Int values perl returns")
+		case "scalar":
+			sawScalar = true
+			assert.True(t, types.IsSubtype(types.Int, s.Returns), "strtol's scalar candidate does not admit the Int perl returns")
+		}
+	}
+	assert.True(t, sawList, "no candidate answers list context")
+	assert.True(t, sawScalar, "no candidate answers scalar context")
+}
+
+// TestPOSIXReimplementedSubsAreNotNone: a %reimpl name that returns a
+// real value, such as getpid ($$), is not declared None -- Ruling 5
+// applies only to the 107 names that die.
+func TestPOSIXReimplementedSubsAreNotNone(t *testing.T) {
+	cands, ok := posixSignatures(t)["getpid"]
+	require.True(t, ok, "POSIX::getpid is not declared")
+	for _, s := range cands {
+		assert.NotEqual(t, types.None, s.Returns, "POSIX::getpid is declared None, but perl returns $$ when it is called")
+	}
+}
+
+// xsLibraries is the XS-library batch (01a1464e-dbd3): Encode,
+// Time::HiRes, Compress::Raw::Zlib and SDBM_File.
+var xsLibraries = []string{"Encode", "Time::HiRes", "Compress::Raw::Zlib", "SDBM_File"}
+
+// TestXSLibrariesReturnTypes holds each XS library's declared return
+// types to perl, called with its oracle's cases.
+func TestXSLibrariesReturnTypes(t *testing.T) {
+	holdReturnTypes(t, xsLibraries...)
+}
+
+// TestEncodeUndefInputReturnIsDeclared: encode_utf8(undef) returns undef
+// (measured on 5.42.0, with a "Use of uninitialized value" warning, never
+// a die), which Encode.tpm's declared Str|Undef admits. oracle/Encode.pl
+// includes this case among encode_utf8's own.
+func TestEncodeUndefInputReturnIsDeclared(t *testing.T) {
+	assert.Empty(t, moduleFailures(t, "Encode"))
+}
+
+// TestSDBMFileOracleStaysInScratch: SDBM_File ties a database file, so
+// its oracle cases name only a relative path -- an absolute one would
+// reach outside the scratch directory returnTypeFailures confines perl's
+// cwd, HOME and TMPDIR to.
+func TestSDBMFileOracleStaysInScratch(t *testing.T) {
+	absolute := regexp.MustCompile(`['"]/\S`)
+	cases, err := os.ReadFile(filepath.Join("testdata", "oracle", "SDBM_File.pl"))
+	require.NoError(t, err)
+	assert.False(t, absolute.Match(cases), "SDBM_File's oracle cases name an absolute path")
 }

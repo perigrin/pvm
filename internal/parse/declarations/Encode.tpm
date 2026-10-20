@@ -1,0 +1,95 @@
+# ABOUTME: Declares what `use Encode` exports: the encode/decode functions and their CHECK constants.
+# ABOUTME: Measured on perl 5.42.0 with Encode 3.21: a bare `use Encode` installs the ten default subs.
+package Encode;
+
+# The sixteen CHECK bitmask constants: plain integers, measured with perl
+# (e.g. FB_CROAK is 1, FB_HTMLCREF is 520). None takes an argument.
+sub DIE_ON_ERR :export_ok(all,fallback_all) () Int;
+sub FB_CROAK :export_ok(all,fallback_all,fallbacks) () Int;
+sub FB_DEFAULT :export_ok(all,fallback_all,fallbacks) () Int;
+sub FB_HTMLCREF :export_ok(all,fallback_all,fallbacks) () Int;
+sub FB_PERLQQ :export_ok(all,fallback_all,fallbacks) () Int;
+sub FB_QUIET :export_ok(all,fallback_all,fallbacks) () Int;
+sub FB_WARN :export_ok(all,fallback_all,fallbacks) () Int;
+sub FB_XMLCREF :export_ok(all,fallback_all,fallbacks) () Int;
+sub HTMLCREF :export_ok(all,fallback_all) () Int;
+sub LEAVE_SRC :export_ok(all,fallback_all) () Int;
+sub PERLQQ :export_ok(all,fallback_all) () Int;
+sub RETURN_ON_ERR :export_ok(all,fallback_all) () Int;
+sub STOP_AT_PARTIAL :export_ok(all,fallback_all) () Int;
+sub WARN_ON_ERR :export_ok(all,fallback_all) () Int;
+sub XMLCREF :export_ok(all,fallback_all) () Int;
+
+# _utf8_on/_utf8_off return the previous state of the UTF8 flag, or undef
+# if the argument is not a string (measured: _utf8_on(undef) is undef).
+sub _utf8_off :export_ok(all) :prototype($) (Str|Undef $string) Boolean|Undef;
+sub _utf8_on :export_ok(all) :prototype($) (Str|Undef $string) Boolean|Undef;
+
+# bytes2str is documented as an alias for decode, str2bytes for encode;
+# measured, both share decode/encode's prototype and undef-in/undef-out
+# behaviour (perldoc Encode: "If the $string is undef, then undef is
+# returned"). CHECK may also be a coderef fallback handler ("As of
+# Encode 2.12, CHECK can also be a code reference", perldoc Encode),
+# which Pod::Text.pm's own call to encode() passes.
+sub bytes2str :export(all,default) :prototype($$;$) (Str|Object $encoding, Str|Undef $octets, Int|CodeRef $check = 0) Str|Undef;
+sub str2bytes :export(all,default) :prototype($$;$) (Str|Object $encoding, Str|Undef $string, Int|CodeRef $check = 0) Str|Undef;
+
+# clone_encoding returns the encoding object to clone, or undef if
+# ENCODING does not resolve (measured: clone_encoding of an unknown name
+# is undef).
+sub clone_encoding :export(all,default) :prototype($) (Str|Object $encoding) Object|Undef;
+
+sub decode :export(all,default) :prototype($$;$) (Str|Object $encoding, Str|Undef $octets, Int|CodeRef $check = 0) Str|Undef;
+sub decode_utf8 :export(all,default) :prototype($;$) (Str|Undef $octets, Int|CodeRef $check = 0) Str|Undef;
+
+# define_encoding(OBJECT, NAME, ALIASES...) registers OBJECT under NAME
+# and returns OBJECT (measured: the return is the same blessed object).
+# Measured with prototype(), define_encoding has none, so it is declared
+# with a bare slurpy List (CORE.tpm's note: "a derived `@` is no
+# prototype"), not the $$@ its three named parameters would derive.
+sub define_encoding :export_ok(all) (List @args) Object;
+
+# Measured, encode(undef) is undef, the same as decode and the two
+# below it. Declared Str|Undef here, it adds a new, unguarded
+# psc-check diagnostic at Pod/Text.pm's own call (encode($encoding,
+# $text, $check), both always defined there, so perl never actually
+# warns at that line): a sound Str|Undef return with no way to narrow
+# it back down after a definedness check is exactly the gap issue
+# 01a156e4 is closing. Until it lands, this one stays Str, perigrin's
+# ruling to fix the narrowing first rather than carry a false positive.
+sub encode :export(all,default) :prototype($$;$) (Str|Object $encoding, Str|Undef $string, Int|CodeRef $check = 0) Str;
+
+# encode_utf8 is documented to "never fail", but measured on 5.42.0,
+# encode_utf8(undef) is undef (with a "Use of uninitialized value"
+# warning): it never dies, but it is not Str-only.
+sub encode_utf8 :export(all,default) :prototype($) (Str|Undef $string) Str|Undef;
+
+# encodings forks on context like CORE's gmtime/localtime (RFC 0001):
+# measured, `my @l = encodings()` lists canonical names, while `my $s =
+# encodings()` is always undef -- Encode never defines a scalar-context
+# answer for it.
+multi sub encodings :export(all,default) (List[Str] @tags) List[Str];
+multi sub encodings :export(all,default) (List[Str] @tags) Undef;
+
+sub find_encoding :export(all,default) :prototype($;$) (Str|Object $encoding, Boolean $skip_external = 0) Object|Undef;
+sub find_mime_encoding :export(all,default) :prototype($;$) (Str $mime_encoding, Boolean $skip_external = 0) Object|Undef;
+
+# from_to converts $octets in place; perldoc Encode: "returns the length
+# of the converted string in octets on success, and undef on error."
+sub from_to :export_ok(all) :prototype($$$;$) (Str $octets, Str $from_encoding, Str $to_encoding, Int|CodeRef $check = 0) Int|Undef;
+
+# is_utf8 is documented to return a plain boolean; measured, is_utf8(undef)
+# is '' (false), never undef.
+sub is_utf8 :export_ok(all) :prototype($;$) (Str|Undef $string, Int $check = 0) Boolean;
+
+# perlio_ok reports whether ENCODING's PerlIO layer works; a name find_encoding
+# cannot resolve dies instead of answering, so it is called only with a
+# resolvable encoding. Measured with prototype(), it has none, so a bare
+# slurpy List, not the $ its one named parameter would derive. Measured,
+# it returns a plain 0 or 1, not a boolean dualvar.
+sub perlio_ok :export_ok(all) (List @args) Int;
+
+# resolve_alias returns the canonical name, or undef for a name that
+# resolves to nothing (measured: resolve_alias of an unknown alias is
+# undef, not a false string).
+sub resolve_alias :export_ok(all) :prototype($) (Str $alias) Str|Undef;

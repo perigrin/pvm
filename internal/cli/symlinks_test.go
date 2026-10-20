@@ -12,7 +12,7 @@ import (
 
 func TestVerifySymlinks(t *testing.T) {
 	// Create a temporary binary path for testing
-	tempDir := os.TempDir()
+	tempDir := t.TempDir()
 	binPath := filepath.Join(tempDir, "test_binary")
 
 	// Write a dummy file
@@ -37,7 +37,7 @@ func TestCreateSymlinks(t *testing.T) {
 	// so this test should work on all platforms including CI environments
 
 	// Create a temporary binary path for testing
-	tempDir := os.TempDir()
+	tempDir := t.TempDir()
 	binPath := filepath.Join(tempDir, "test_binary")
 
 	// Write a dummy file
@@ -80,7 +80,7 @@ func TestCreateSymlinks(t *testing.T) {
 
 func TestCopyFile(t *testing.T) {
 	// Create a source file
-	tempDir := os.TempDir()
+	tempDir := t.TempDir()
 	srcPath := filepath.Join(tempDir, "source_file")
 	dstPath := filepath.Join(tempDir, "dest_file")
 
@@ -120,7 +120,7 @@ func TestCopyFile(t *testing.T) {
 
 func TestCrossplatformSymlinkCreation(t *testing.T) {
 	// Test that demonstrates cross-platform compatibility
-	tempDir := os.TempDir()
+	tempDir := t.TempDir()
 	binPath := filepath.Join(tempDir, "test_binary")
 
 	// Write a test binary

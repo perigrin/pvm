@@ -509,3 +509,159 @@ func TestTpmSkeletonUnfilledRefused(t *testing.T) {
 	}
 	assert.Contains(t, strings.Join(msgs, "\n"), "TODO")
 }
+
+// TestPOSIXPrototypes holds POSIX.tpm's prototypes to perl: every sub it
+// declares has the prototype perl's prototype() reports, or both have
+// none.
+func TestPOSIXPrototypes(t *testing.T) {
+	holdPrototypes(t, "POSIX")
+}
+
+// TestPOSIXExports holds POSIX.tpm's :export and :export_ok marks to
+// what `use POSIX` installs in a caller, bare, by name and by tag.
+func TestPOSIXExports(t *testing.T) {
+	holdExports(t, "POSIX")
+}
+
+// TestPOSIXBareUseImportsSIGRT: measured on 5.42.0, a bare `use POSIX`
+// installs the tied variable %SIGRT along with its 586 subs.
+func TestPOSIXBareUseImportsSIGRT(t *testing.T) {
+	got := importedFrom(t, "use POSIX;\n")
+	assert.Contains(t, got, "%SIGRT")
+}
+
+// TestPOSIXExportsAreNotVacuous: the comparison holdExports makes is
+// against a real measurement, not an empty one -- POSIX builds its
+// export lists inside its own import, so a driver that reads them before
+// any use has run would see 0/0/0 and never catch a missing mark.
+func TestPOSIXExportsAreNotVacuous(t *testing.T) {
+	got := importedFrom(t, "use POSIX;\n")
+	assert.GreaterOrEqual(t, len(got), 586, "a bare use POSIX installs 586 subs and %%SIGRT, counting AUTOLOAD names exists finds that defined would miss")
+}
+
+// TestPOSIXEmptyImportListImportsNothing: `use POSIX ();` calls no
+// import, so a bare call to floor in the same file does not resolve to
+// POSIX's declaration.
+func TestPOSIXEmptyImportListImportsNothing(t *testing.T) {
+	got := importedFrom(t, "use POSIX ();\n")
+	assert.Empty(t, got)
+}
+
+// TestPOSIXImportKeepsPrintfFilehandleParse: CORE::printf has no
+// prototype and keeps its own filehandle parse; POSIX marks its own
+// printf :export_ok, so it is not in scope after a bare `use POSIX`,
+// and `printf STDOUT "x"` still reads STDOUT as the handle rather than
+// an Unknown construct.
+func TestPOSIXImportKeepsPrintfFilehandleParse(t *testing.T) {
+	root := ParseWithLoader([]byte("use POSIX;\nprintf STDOUT \"x\";\n"), func(string) ([]byte, bool) { return nil, false })
+	if errs := DeclarationErrors(root); len(errs) > 0 {
+		t.Fatalf("declaration errors: %v", errs)
+	}
+	if containsUnknown(root) {
+		t.Errorf("printf STDOUT \"x\" after use POSIX did not parse cleanly: %v", root)
+	}
+	if imports := Imports(root); func() bool {
+		_, ok := imports["printf"]
+		return ok
+	}() {
+		t.Errorf("use POSIX imports printf; it is marked :export_ok and must be asked for")
+	}
+}
+
+// TestConstantExportersPrototypes holds Fcntl.tpm's and Socket.tpm's
+// prototypes to perl.
+func TestConstantExportersPrototypes(t *testing.T) {
+	holdPrototypes(t, "Fcntl", "Socket")
+}
+
+// TestConstantExportersExports holds Fcntl.tpm's and Socket.tpm's
+// :export and :export_ok marks to what `use` installs in a caller.
+func TestConstantExportersExports(t *testing.T) {
+	holdExports(t, "Fcntl", "Socket")
+}
+
+// TestSocketBareUseOmitsCRLFVariable: $CRLF is in Socket's @EXPORT_OK
+// only (measured), so a bare `use Socket` does not import it.
+func TestSocketBareUseOmitsCRLFVariable(t *testing.T) {
+	got := importedFrom(t, "use Socket;\n")
+	assert.NotContains(t, got, "$CRLF")
+}
+
+// TestFcntlBareUseOmitsFlockConstants: LOCK_EX is in Fcntl's
+// @EXPORT_OK only (measured), so a bare `use Fcntl` does not import it.
+func TestFcntlBareUseOmitsFlockConstants(t *testing.T) {
+	got := importedFrom(t, "use Fcntl;\n")
+	assert.NotContains(t, got, "LOCK_EX")
+}
+
+// containsUnknown is whether n or any descendant is an Unknown node.
+func containsUnknown(n *Node) bool {
+	if n.Kind == Unknown {
+		return true
+	}
+	for _, c := range n.Children {
+		if containsUnknown(c) {
+			return true
+		}
+	}
+	return false
+}
+
+// pureExporters is the pure-Perl exporters batch (01a1464e-db4c): every
+// module whose .tpm declares the names a `use` of it installs. Symbol is
+// held back (see docs/rfcs/0001-type-libraries.md and the issue's own
+// report): its qualify, declared accurately as Str|GlobRef, makes
+// IO/Handle.pm's `tell qualify($_[0], caller) if ref($_[0])` a new
+// TestPSCCheckLibBaseline diagnostic that perl -w does not confirm, since
+// $_[0] there is always a ref; perigrin must settle how to admit it.
+var pureExporters = []string{
+	"File::Basename", "File::Find", "File::Path", "Errno",
+	"Text::ParseWords", "Class::Struct", "File::Copy", "Time::Local", "Getopt::Std",
+}
+
+// TestPurePerlExportersPrototypes holds each pure-Perl exporter's .tpm
+// prototypes to perl.
+func TestPurePerlExportersPrototypes(t *testing.T) {
+	holdPrototypes(t, pureExporters...)
+}
+
+// TestPurePerlExportersExports holds each pure-Perl exporter's .tpm
+// :export and :export_ok marks to what `use` installs.
+func TestPurePerlExportersExports(t *testing.T) {
+	holdExports(t, pureExporters...)
+}
+
+// TestErrnoDeclaresNoExportedVariable: Errno.tpm marks no `our`
+// variable -- measured on 5.42.0, %! is in none of Errno's export
+// lists, so every name it exports is a constant sub.
+func TestErrnoDeclaresNoExportedVariable(t *testing.T) {
+	src, ok := declaration("Errno")
+	require.True(t, ok)
+	facts, err := readHeld("Errno", src)
+	require.NoError(t, err)
+	assert.Empty(t, facts.variables, "Errno.tpm declares an our variable; perl's use Errno installs none")
+}
+
+// xsLibraries is the XS-library batch (01a1464e-dbd3): Encode,
+// Time::HiRes, Compress::Raw::Zlib and SDBM_File.
+var xsLibraries = []string{"Encode", "Time::HiRes", "Compress::Raw::Zlib", "SDBM_File"}
+
+// TestXSLibrariesPrototypes holds each XS library's .tpm prototypes to
+// perl.
+func TestXSLibrariesPrototypes(t *testing.T) {
+	holdPrototypes(t, xsLibraries...)
+}
+
+// TestXSLibrariesExports holds each XS library's .tpm :export and
+// :export_ok marks to what `use` installs.
+func TestXSLibrariesExports(t *testing.T) {
+	holdExports(t, xsLibraries...)
+}
+
+// TestTimeHiResBareUseKeepsCoreTime: measured on 5.42.0, Time::HiRes's
+// @EXPORT is empty, so a bare `use Time::HiRes;` installs nothing and a
+// later bare `time()` still resolves to CORE's.
+func TestTimeHiResBareUseKeepsCoreTime(t *testing.T) {
+	got := importedFrom(t, "use Time::HiRes;\n")
+	assert.Empty(t, got)
+}

@@ -26,13 +26,43 @@ if ( $mode eq 'inc' ) {
     say $INC{$file};
 }
 elsif ( $mode eq 'prototypes' ) {
+    # A module whose import forward-declares subs for its AUTOLOAD, as
+    # POSIX's does (measured on 5.42.0: `exists &POSIX::stdin` is false
+    # after `require POSIX`, true only once a use has run), has nothing
+    # to check until one use has primed it.
+    eval "package Held::Prime; use $module; 1";
+    my $n = 0;
     for my $name (@args) {
+        # Time::HiRes's constants are lazier still (measured: a bare `use
+        # Time::HiRes;` generates none of them, each coming into
+        # existence only once asked for by name): a name the bare prime
+        # above left missing gets one more try, asked for by name. Asking
+        # for every name in one combined `use` instead, measured on
+        # POSIX, leaves a handful still missing (its import does not
+        # treat a large combined list the same as asking one at a time),
+        # so the retry stays per-name.
+        if ( !exists( &{"${module}::$name"} ) && !$module->can($name) ) {
+            eval "package Held::Prime; use $module qw($name); 1";
+        }
         my $code = exists &{"${module}::$name"} ? \&{"${module}::$name"} : $module->can($name);
+        if ( !$code ) {
+            # A name a bare `use` does not install, measured, still gets
+            # its stub only once it is asked for by name -- Fcntl's
+            # S_ISWHT, whose sibling S_IS* subs exist from a bare use,
+            # does not. Prime it by name before calling it missing.
+            eval "package Held::PrimeByName@{[$n++]}; use $module qw($name); 1";
+            $code = exists &{"${module}::$name"} ? \&{"${module}::$name"} : $module->can($name);
+        }
         my $proto = $code && prototype($code);
         say join "\t", $name, !$code ? 'missing' : defined $proto ? ( 'proto', $proto ) : 'none';
     }
 }
 elsif ( $mode eq 'installs' ) {
+    # A module whose lists are built inside its own import, as POSIX's
+    # are (measured on 5.42.0: @EXPORT/@EXPORT_OK/%EXPORT_TAGS are empty
+    # right after `require POSIX`, full only once a use has run), has
+    # nothing to find in them until one use has primed it.
+    eval "package Held::Prime; use $module; 1";
     my %seen;
     my @lists = grep { !$seen{$_}++ } @args,
       ( map { s/^&//r } @{"${module}::EXPORT"}, @{"${module}::EXPORT_OK"} ),

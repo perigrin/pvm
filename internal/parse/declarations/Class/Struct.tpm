@@ -1,0 +1,11 @@
+# ABOUTME: Declares what `use Class::Struct` exports: struct, bare.
+# ABOUTME: Measured on perl 5.42.0 with Class::Struct 0.68: struct carries no prototype.
+package Class::Struct;
+
+# struct takes a plain slurpy list (its shape, a class name plus an
+# array- or hash-style element list, or just the element list, is not a
+# prototype perl states). It ends `carp $@ if $@;`: measured on 5.42.0,
+# when the generated accessors eval cleanly (the ordinary case) that
+# statement modifier's value is the empty Str, and when they do not, it
+# is carp's Boolean.
+sub struct :export (List @args) Str|Boolean;
