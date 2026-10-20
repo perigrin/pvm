@@ -1042,6 +1042,105 @@ func TestPOSIXFailureReturnsAdmitUndef(t *testing.T) {
 	}
 }
 
+// posixMathReturnsScript measures, for each POSIX math sub CORE.tpm's
+// own `exp` precedent already admits Inf for, a finite argument that
+// overflows to Inf or is outside the real domain and so is NaN
+// (scratchpad/audit-A.md F2). Each case prints "name\tINF", "name\tNAN"
+// or "name\tNUM".
+const posixMathReturnsScript = `
+use v5.42; no warnings;
+use POSIX;
+
+sub classify {
+    my $v = shift;
+    return 'NAN' if $v != $v;
+    return 'INF' if $v == 9**9**9 || $v == -9**9**9;
+    return 'NUM';
+}
+
+my @cases = (
+  ['exp', sub { POSIX::exp(1000) }],
+  ['exp2', sub { POSIX::exp2(2000) }],
+  ['expm1', sub { POSIX::expm1(1000) }],
+  ['cosh', sub { POSIX::cosh(1000) }],
+  ['sinh', sub { POSIX::sinh(1000) }],
+  ['ldexp', sub { POSIX::ldexp(1,2000) }],
+  ['scalbn', sub { POSIX::scalbn(1,5000) }],
+  ['hypot', sub { POSIX::hypot(1.7e308,1.7e308) }],
+  ['fdim', sub { POSIX::fdim(1.7e308,-1.7e308) }],
+  ['fma', sub { POSIX::fma(1e308,10,0) }],
+  ['atanh', sub { POSIX::atanh(1) }],
+  ['log10', sub { POSIX::log10(0) }],
+  ['log10', sub { POSIX::log10(-1) }],
+  ['log2', sub { POSIX::log2(0) }],
+  ['log1p', sub { POSIX::log1p(-1) }],
+  ['logb', sub { POSIX::logb(0) }],
+  ['y0', sub { POSIX::y0(0) }],
+  ['y1', sub { POSIX::y1(0) }],
+  ['yn', sub { POSIX::yn(1,0) }],
+  ['lgamma', sub { POSIX::lgamma(0) }],
+  ['tgamma', sub { POSIX::tgamma(0) }],
+  ['tgamma', sub { POSIX::tgamma(-1) }],
+  ['pow', sub { POSIX::pow(10,400) }],
+  ['pow', sub { POSIX::pow(-1,.5) }],
+  ['acos', sub { POSIX::acos(2) }],
+  ['asin', sub { POSIX::asin(2) }],
+  ['acosh', sub { POSIX::acosh(0) }],
+  ['fmod', sub { POSIX::fmod(1,0) }],
+  ['remainder', sub { POSIX::remainder(1,0) }],
+  ['strtod', sub { scalar POSIX::strtod("inf") }],
+  ['strtod', sub { scalar POSIX::strtod("nan") }],
+  ['strtold', sub { scalar POSIX::strtold("inf") }],
+  ['strtold', sub { scalar POSIX::strtold("nan") }],
+  ['remquo', sub { my ($q) = POSIX::remquo(1,0); $q }],
+);
+
+for my $c (@cases) {
+    my ($name, $code) = @$c;
+    my $v = $code->();
+    print "$name\t", classify($v), "\n";
+}
+`
+
+// TestPOSIXMathReturnsAdmitInfNaN: every math sub scratchpad/audit-A.md's
+// F2 names overflows to Inf or leaves its real domain to NaN for a
+// finite argument, measured directly, and POSIX.tpm's declared return
+// type admits it -- CORE.tpm's own `exp` precedent (Num|Inf) already
+// does for the language's builtin.
+func TestPOSIXMathReturnsAdmitInfNaN(t *testing.T) {
+	p := perltest.Perl542(t)
+	out, err := p.Command("-e", posixMathReturnsScript).Output()
+	require.NoError(t, err)
+
+	wants := map[string]types.Type{"INF": types.Inf, "NAN": types.NaN}
+	sigs := posixSignatures(t)
+	lines := strings.Split(strings.TrimRight(string(out), "\n"), "\n")
+	require.NotEmpty(t, lines)
+	for _, line := range lines {
+		name, class, ok := strings.Cut(line, "\t")
+		require.True(t, ok, "unparseable line: %q", line)
+		want, known := wants[class]
+		if !assert.True(t, known, "POSIX::%s: unexpected class %q", name, class) {
+			continue
+		}
+		cands, ok := sigs[name]
+		if !assert.True(t, ok, "POSIX::%s is not declared", name) {
+			continue
+		}
+		admits := slices.ContainsFunc(cands, func(s types.Signature) bool {
+			if s.Returns == types.None {
+				return false
+			}
+			r := s.Returns
+			if s.ReturnElement != types.Unknown {
+				r = s.ReturnElement
+			}
+			return types.IsSubtype(want, r)
+		})
+		assert.True(t, admits, "POSIX::%s measured %s; its declared return type does not admit it", name, class)
+	}
+}
+
 // TestXSLibrariesReturnTypes holds each XS library's declared return
 // types to perl (perltest.XSLibraries), called with its oracle's cases.
 func TestXSLibrariesReturnTypes(t *testing.T) {
