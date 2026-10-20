@@ -69,6 +69,19 @@ var oracleExempt = map[string]string{
 	// conflict.
 	"Socket::sockaddr_in":  "wantarray/arity dispatch dies on the other direction's shape; held to its prototype and exports only",
 	"Socket::sockaddr_in6": "wantarray/arity dispatch dies on the other direction's shape; held to its prototype and exports only",
+
+	"Test::More::BAIL_OUT": "calls CORE::exit directly from Test::Builder's bail_out, bypassing the driver's exit-catching override, and would end the oracle process early",
+	// plan dies "You tried to plan twice" once a plan already exists --
+	// including one done_testing sets, which the oracle's alphabetically
+	// earlier call to done_testing always leaves in place -- so the
+	// oracle cannot call it without that collision.
+	"Test::More::plan": "collides with done_testing, called earlier in the same oracle run, which already sets a plan",
+
+	"Getopt::Long::HelpMessage":    "calls Pod::Usage's pod2usage, which exits the process by default",
+	"Getopt::Long::VersionMessage": "exits the process by default (measured: exit($pa->{-exitval}) unless -exitval is NOEXIT)",
+
+	"ExtUtils::MakeMaker::WriteMakefile": "builds a real Makefile from a distribution's own metadata, which the oracle's call cases cannot supply",
+	"ExtUtils::MakeMaker::prompt":        "reads an answer from STDIN, blocking when none is piped in",
 }
 
 // posixReplacementNames are the names in POSIX.pm 2.23's %replacement
@@ -861,4 +874,105 @@ func TestSDBMFileOracleStaysInScratch(t *testing.T) {
 	cases, err := os.ReadFile(filepath.Join("testdata", "oracle", "SDBM_File.pl"))
 	require.NoError(t, err)
 	assert.False(t, absolute.Match(cases), "SDBM_File's oracle cases name an absolute path")
+}
+
+// variableExporters is the variable-exporters batch (01a1464e-dca3):
+// every module below exports a plain Perl variable, measured on
+// 2026-10-16.
+var variableExporters = []string{
+	"Config", "Getopt::Long", "Test::More", "Text::Wrap", "ExtUtils::MakeMaker", "File::stat",
+}
+
+// TestVariableExportersReturnTypes holds each variable exporter's
+// declared return types to perl, called with its oracle's cases.
+func TestVariableExportersReturnTypes(t *testing.T) {
+	holdReturnTypes(t, variableExporters...)
+}
+
+// declaredVariables reads module's .tpm variables, failing t on any
+// declaration error.
+func declaredVariables(t *testing.T, module string) map[string]types.Param {
+	t.Helper()
+	rel := strings.ReplaceAll(module, "::", "/")
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", filepath.FromSlash(rel)+".tpm"))
+	require.NoError(t, err)
+	vars, errs := parse.DeclaredVariables(tpm)
+	require.Empty(t, errs)
+	return vars
+}
+
+// TestConfigValuesFitDeclaredType: ruling 3 (perigrin, 2026-10-16).
+// %Config is declared Hash[Str|Undef], and every value perl's %Config
+// holds on 5.42.0 is a member of that element type -- 172 of them
+// undef, which Hash[Str] alone would exclude.
+func TestConfigValuesFitDeclaredType(t *testing.T) {
+	want := declaredVariables(t, "Config")["%Config"]
+	require.Equal(t, types.Hash, want.Type, "%%Config is not declared Hash")
+
+	p := perltest.Perl542(t)
+	out, err := p.Command("-MConfig", "-e",
+		`for my $k (sort keys %Config::Config) { my $v = $Config::Config{$k}; print "$k\t", (defined $v ? $v : "\x00UNDEF\x00"), "\n"; }`,
+	).Output()
+	require.NoError(t, err)
+
+	var undef int
+	for _, line := range strings.Split(strings.TrimRight(string(out), "\n"), "\n") {
+		_, v, ok := strings.Cut(line, "\t")
+		require.True(t, ok, "unparsed line %q", line)
+		got := types.Str
+		if v == "\x00UNDEF\x00" {
+			got, undef = types.Undef, undef+1
+		}
+		assert.True(t, types.IsSubtype(got, want.Element),
+			"a %%Config value is %v, which the declared element type %v excludes", got, want.Element)
+	}
+	assert.Equal(t, 172, undef, "measured on perl 5.42.0: 172 of %%Config's values are undef")
+	assert.False(t, types.IsSubtype(types.Undef, types.Str),
+		"Hash[Str] would exclude the undef values Hash[Str|Undef] admits")
+}
+
+// TestTestMoreBailOutNeverCalled: BAIL_OUT is declared None and is in
+// the return-type oracle's exemption map, since it exits rather than
+// dies (measured: it calls CORE::exit directly from Test::Builder's
+// bail_out, bypassing the driver's exit-catching override).
+func TestTestMoreBailOutNeverCalled(t *testing.T) {
+	reason, ok := oracleExempt["Test::More::BAIL_OUT"]
+	if !assert.True(t, ok, "Test::More::BAIL_OUT is not in the return-type oracle's exemption map") {
+		return
+	}
+	assert.NotEmpty(t, strings.TrimSpace(reason), "Test::More::BAIL_OUT is exempt without a reason")
+
+	sigs, errs := parse.DeclaredSignatures(func() []byte {
+		tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "Test", "More.tpm"))
+		require.NoError(t, err)
+		return tpm
+	}())
+	require.Empty(t, errs)
+	for _, s := range sigs["BAIL_OUT"] {
+		assert.Equal(t, types.None, s.Returns, "Test::More::BAIL_OUT is not declared None")
+	}
+}
+
+// TestMakeMakerInteractiveSubsExempt: prompt and WriteMakefile are
+// exempt with a reason and never called (prompt blocks on STDIN;
+// WriteMakefile needs a distribution's own metadata the oracle cannot
+// supply).
+func TestMakeMakerInteractiveSubsExempt(t *testing.T) {
+	for _, name := range []string{"prompt", "WriteMakefile"} {
+		reason, ok := oracleExempt["ExtUtils::MakeMaker::"+name]
+		if !assert.True(t, ok, "ExtUtils::MakeMaker::%s is not in the return-type oracle's exemption map", name) {
+			continue
+		}
+		assert.NotEmpty(t, strings.TrimSpace(reason), "ExtUtils::MakeMaker::%s is exempt without a reason", name)
+	}
+	holdReturnTypes(t, "ExtUtils::MakeMaker")
+}
+
+// TestFileStatMissingFileReturnIsDeclared: File::stat::stat on a path
+// that does not exist returns the empty list in list context and undef
+// in scalar (measured on 5.42.0), both of which File::stat.tpm's
+// declared Object|Undef admits. oracle/File-stat.pl includes this case
+// among stat's and lstat's own.
+func TestFileStatMissingFileReturnIsDeclared(t *testing.T) {
+	assert.Empty(t, moduleFailures(t, "File::stat"))
 }
