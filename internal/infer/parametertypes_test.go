@@ -190,11 +190,9 @@ func paramMisfits(module string, sigs map[string][]types.Signature, obs []observ
 // as Boolean already), and every entry's own oracle case is the
 // module's documented flag argument, not a declaration gap.
 var parameterExempt = map[string]string{
-	"File::Spec::splitpath":       "oracle/File-Spec.pl passes 1, the idiomatic Perl literal, for $no_file's documented boolean flag",
-	"File::Spec::Unix::splitpath": "oracle/File-Spec-Unix.pl passes 1, the idiomatic Perl literal, for $no_file's documented boolean flag",
+	"File::Spec::splitpath":       "oracle/File-Spec.pl passes 1, the idiomatic Perl literal, for $no_file's documented boolean flag (its source does `if ($nofile)`, a truth test)",
+	"File::Spec::Unix::splitpath": "oracle/File-Spec-Unix.pl passes 1, the idiomatic Perl literal, for $no_file's documented boolean flag (its source does `if ($nofile)`, a truth test)",
 	"File::stat::stat_cando":      "oracle/File-stat.pl passes 1, the idiomatic Perl literal, for $effective's documented boolean flag",
-	"FileHandle::autoflush":       "oracle/FileHandle.pl passes 1, the idiomatic Perl literal, for $on's documented boolean flag, which is also its own declared default",
-	"IO::Handle::autoflush":       "oracle/IO-Handle.pl passes 1, the idiomatic Perl literal, for $on's documented boolean flag, which is also its own declared default",
 }
 
 // parameterExemptMatch reports whether module::sub is in parameterExempt.

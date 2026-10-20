@@ -190,6 +190,14 @@ type pendingMisfit struct {
 // getpayload to Num|NaN|Inf and setpayload/setpayloadsig's $nv to Any:
 // re-measured, neither misfits the parameter oracle any longer.
 var pendingAudit = map[string][]pendingMisfit{
+	"01a15ac0-6ca2": {
+		{Module: "FileHandle", Sub: "autoflush", Kind: "parameter",
+			Detail: "oracle/FileHandle.pl's own case passes 1 for $on; its declared Boolean excludes the Int perl's $| actually integerises it to (Audit C, measured: \"yes\" gives 0, 0.5 gives 0)",
+			Reason: "a parameter oracle misfit: $| integerises its argument, so the declaration is Int, not a Boolean idiom"},
+		{Module: "IO::Handle", Sub: "autoflush", Kind: "parameter",
+			Detail: "oracle/IO-Handle.pl's own case passes 1 for $on; its declared Boolean excludes the Int perl's $| actually integerises it to (Audit C, measured: \"yes\" gives 0, 0.5 gives 0)",
+			Reason: "a parameter oracle misfit: $| integerises its argument, so the declaration is Int, not a Boolean idiom"},
+	},
 	"01a15ac0-6c78": {
 		{Module: "Socket", Sub: "getaddrinfo", Kind: "return",
 			Detail: "the $err dualvar (0 or an errno, paired with its gai_strerror text) fits neither candidate's declared Str",
