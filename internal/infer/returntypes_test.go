@@ -1448,6 +1448,19 @@ func TestFileBasenameWindowsPathReturnIsDeclared(t *testing.T) {
 	assert.Empty(t, moduleFailures(t, "File::Basename"))
 }
 
+// TestStorableFlagsArgument: thaw, retrieve, lock_retrieve, fd_retrieve
+// and retrieve_fd each take a documented second $flags argument
+// (perldoc Storable: "set the 2nd argument for thaw/retrieve to 0"),
+// and read_magic takes a documented second $must_be_file argument
+// ("=item $info = Storable::read_magic( $buffer, $must_be_file )"),
+// which Storable.tpm now declares. oracle/Storable.pl's cases call each
+// with that second argument. Measured on 5.42.0, `thaw(freeze({}), 0)`
+// and `retrieve("f", 1)` both return a HASH, and `read_magic($buf, 0)`
+// returns a HASH.
+func TestStorableFlagsArgument(t *testing.T) {
+	assert.Empty(t, moduleFailures(t, "Storable"))
+}
+
 // TestListUtilReturnsArgumentUnchanged: max, min, maxstr and minstr
 // return the winning element itself, not a numified or stringified
 // copy of it (measured on 5.42.0, `max("abc")` is 'abc' and
