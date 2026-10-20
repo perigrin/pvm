@@ -1,10 +1,19 @@
 ---
 title: Audit every .tpm signature against its implementation and documentation, and hold parameter types to perl
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 created: 2026-10-20T18:55:00.070093546Z
-updated: 2026-10-20T18:55:00.070093546Z
+updated: 2026-10-20T18:55:34.658232436Z
+sessions:
+- start_sha: cf08c0acdb986b7a59c463c2ed994e0721307294
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-20T18:55:34.658232436Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-20T18:55:34.658232436Z
 ---
 
 perigrin, 2026-10-21: "We should run an audit of all the signatures against the implementation and the documentation to make sure that the tpm files are accurate." Prompted by Carp.tpm: croak and confess take `List[Str|Boolean|DualVar|Ref]` but carp, cluck, longmess and shortmess take `List[Str]`, though all six join `@_` the same way in Carp.pm (~588) and accept the same arguments (perl 5.42: undef warns for both; a Boolean, a DualVar and a reference are all legal; croak($obj) throws the object). Only their returns differ. No gate caught it: the oracle holds returns, the hold tests hold prototypes and installs, and nothing holds parameter types.
