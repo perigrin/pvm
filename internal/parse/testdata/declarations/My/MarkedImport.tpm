@@ -1,0 +1,6 @@
+# ABOUTME: A declaration file whose own `import` carries :export_ok, as Exporter's does.
+# ABOUTME: RFC 0001: only an unmarked import turns a use-list into import's arguments.
+package My::MarkedImport;
+
+sub import :export_ok (List @args) Void;
+sub helper :export_ok (List @args) Int;
