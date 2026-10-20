@@ -12,7 +12,7 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.843622709Z
-updated: 2026-10-20T03:43:26.128274693Z
+updated: 2026-10-20T13:38:14.725525698Z
 sessions:
 - start_sha: 34826451ff25d9be31c553948ea6de4ec295f77d
   end_sha: 9e5ae578baacecaaf348477c8982d9720ed83cf0
@@ -85,6 +85,14 @@ A `.tpm` changes what the parser reads for every file that uses the module, so r
 ### Review Findings from dadb's gate (forward risk)
 
 (confidence 65) A .tpm has no way to say "this import list is arguments, not names": .tpm facts never set `facts.builder`, so `use Test::More tests => 5;` imports nothing (wanted = `tests`, `5`, both filtered), and likewise `use Locale::Maketext::Simple (Style => 'gettext')` imports neither `loc` nor `loc_lang`. Not a regression (neither worked before dadb), but this issue must decide, by measuring what perl's `use` installs, how a declaration states that its module's import takes arguments, and test the bare and argument forms.
+
+### Review Findings
+
+Gate, 2026-10-20, on 9e5ae578 (fresh Sonnet reviewer; 10 criteria pass, one proven by mutation; 12 types and 8 :listop subs match perl 5.42). VERDICT: REOPEN.
+
+1. (CODE, 85) internal/parse/module.go:376-385 hard-codes `if module == "Test::More" { facts.builder = true }`, a per-module special case that recurs for Locale::Maketext::Simple (`use Locale::Maketext::Simple (Style => 'gettext')`, dd27), and Test/More.tpm and commit 07d6206d cite an "RFC 0001 open question" that does not exist.
+   **perigrin's ruling, 2026-10-20: "The parameters are the signature to import()."** A .tpm states what a `use` list takes by declaring the module's `import` with a signature: the use-list is the argument list of `import`, checked against that signature, and a module whose .tpm declares `import` does not treat its use-list as export names (e.g. Test::More: `sub import (Str $class, List @plan) Void;`, measured; Locale::Maketext::Simple: the hash-pair options its import takes, measured, with loc/loc_lang still marked :export as its import installs them). Replace the by-name case with this; record the rule in RFC 0001 (Declaration files / Every exported name), not as an open question; correct the false citation; apply it to Locale::Maketext::Simple (dd27) too.
+2. (TEST-ONLY, 65; fix in place) Test::More::plan is exempt for colliding with done_testing in the same oracle run and has no call case: hold it in a separate oracleRun whose cases file holds only `plan => [[ tests => 1 ]]`.
 
 ## Acceptance Criteria
 
