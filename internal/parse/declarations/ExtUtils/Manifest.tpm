@@ -1,0 +1,28 @@
+# ABOUTME: Declares what `use ExtUtils::Manifest` installs: every name is export_ok, none exported bare.
+# ABOUTME: Measured on perl 5.42.0 with ExtUtils::Manifest 1.75, called in a scratch directory.
+package ExtUtils::Manifest;
+
+# manifind, manicheck, filecheck, fullcheck and skipcheck read the
+# current directory and the MANIFEST there; manicopy, maniadd and
+# mkmanifest write to it. Measured on 5.42.0, calling each in a scratch
+# directory keeps every read and write inside it.
+sub manifind :export_ok :listop (Optional[HashRef] $p) HashRef;
+sub manicheck :export_ok :listop () List[Str];
+sub filecheck :export_ok :listop () List[Str];
+# fullcheck returns a two-element list, ($missing, $extra), each an
+# ArrayRef: measured on 5.42.0.
+sub fullcheck :export_ok :listop () List[ArrayRef];
+sub skipcheck :export_ok :listop () List[Str];
+sub maniread :export_ok :listop (Optional[Str] $file) HashRef;
+# maniskip returns a closure that tests one filename against
+# MANIFEST.SKIP; measured on 5.42.0.
+sub maniskip :export_ok :listop (Optional[Str] $file) CodeRef;
+# maniadd always returns 1 on success and dies on a write failure;
+# measured on 5.42.0.
+sub maniadd :export_ok :listop (HashRef $additions) Int;
+# mkmanifest and manicopy are called for their side effect of writing
+# files; perl's own return value for each is unspecified by its docs and
+# not meant to be read, measured on 5.42.0 to be an empty string or a
+# foreach loop's last iteration, neither a stable contract.
+sub mkmanifest :export_ok :listop () Any;
+sub manicopy :export_ok :listop (HashRef $read, Str $target, Optional[Str] $how) Any;

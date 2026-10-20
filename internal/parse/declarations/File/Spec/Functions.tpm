@@ -1,0 +1,22 @@
+# ABOUTME: Declares what `use File::Spec::Functions` installs: nine names bare, eight more under :ALL.
+# ABOUTME: Measured on perl 5.42.0 with File::Spec::Functions 3.94: each forwards to the matching File::Spec method.
+package File::Spec::Functions;
+
+sub canonpath :export(ALL) :listop (Str $path) Str;
+sub catdir :export(ALL) (List[Str] @dirs) Str;
+sub catfile :export(ALL) (List[Str] @args) Str;
+sub curdir :export(ALL) () Str;
+sub rootdir :export(ALL) () Str;
+sub updir :export(ALL) () Str;
+sub no_upwards :export(ALL) (List[Str] @names) List[Str];
+sub file_name_is_absolute :export(ALL) :listop (Str $path) Boolean;
+sub path :export(ALL) :listop () List[Str];
+
+sub devnull :export_ok(ALL) () Str;
+sub tmpdir :export_ok(ALL) :listop () Str;
+sub splitpath :export_ok(ALL) :listop (Str $path, Optional[Boolean] $no_file) List[Str];
+sub splitdir :export_ok(ALL) :listop (Str $path) List[Str];
+sub catpath :export_ok(ALL) :listop (Str $volume, Str $directory, Str $file) Str;
+sub abs2rel :export_ok(ALL) :listop (Str $path, Optional[Str] $base) Str;
+sub rel2abs :export_ok(ALL) :listop (Str $path, Optional[Str] $base) Str;
+sub case_tolerant :export_ok(ALL) () Int;

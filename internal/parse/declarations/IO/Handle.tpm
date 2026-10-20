@@ -1,0 +1,61 @@
+# ABOUTME: Declares what `use IO::Handle` installs: nothing bare, every name on request.
+# ABOUTME: Measured on perl 5.42.0 with IO::Handle 1.55; IO::Handle is also the base class every other IO class inherits its methods from.
+package IO::Handle;
+
+# Measured on 5.42.0, a bare `use IO::Handle;` installs none of its 27
+# names: @EXPORT is empty and every one of these lives in @EXPORT_OK.
+sub autoflush :export_ok (Object $self: Boolean $on = 1) Int;
+sub output_field_separator :export_ok (Object $self: Optional[Str] $sep) Str|Undef;
+sub output_record_separator :export_ok (Object $self: Optional[Str] $sep) Str|Undef;
+sub input_record_separator :export_ok (Object $self: Optional[Str] $sep) Str|Undef;
+sub input_line_number :export_ok (Object $self: Optional[Int] $n) Int|Undef;
+sub format_page_number :export_ok (Object $self: Optional[Int] $n) Int;
+sub format_lines_per_page :export_ok (Object $self: Optional[Int] $n) Int;
+sub format_lines_left :export_ok (Object $self: Optional[Int] $n) Int;
+sub format_name :export_ok (Object $self: Optional[Str] $name) Str|Undef;
+sub format_top_name :export_ok (Object $self: Optional[Str] $name) Str|Undef;
+sub format_line_break_characters :export_ok (Object $self: Optional[Str] $chars) Str|Undef;
+sub format_formfeed :export_ok (Object $self: Optional[Str] $char) Str|Undef;
+# format_write, print, printf and say each dereference the invocant
+# as a glob (to find its format name, or to write to it) before doing
+# anything else, so each dies against the oracle's bare class name --
+# "Undefined format \"IO::Handle\"" for format_write, "Can't use
+# string ... as a symbol ref" for the other three, measured on 5.42.0
+# -- and each is held to its prototype and exports only (see
+# oracleExempt).
+sub format_write :export_ok (Object $self: Optional[Str] $format) Boolean;
+sub print :export_ok (Object $self: List @args) Boolean|Undef;
+sub printf :export_ok (Object $self: Str $format, List @args) Boolean|Undef;
+sub say :export_ok (Object $self: List @args) Boolean|Undef;
+sub getline :export_ok (Object $self:) Str|Undef;
+sub getlines :export_ok (Object $self:) List[Str];
+sub printflush :export_ok (Object $self: List @args) Boolean|Undef;
+sub flush :export_ok (Object $self:) Boolean|Undef;
+sub SEEK_SET :export_ok () Int;
+sub SEEK_CUR :export_ok () Int;
+sub SEEK_END :export_ok () Int;
+sub _IOFBF :export_ok () Int;
+sub _IOLBF :export_ok () Int;
+sub _IONBF :export_ok () Int;
+
+# Methods beside the exports: callers reach these through `->` on any
+# IO::Handle (or a subclass's) instance, never through import, so none
+# carries an :export mark.
+#
+# Measured on 5.42.0 calling each with the class name itself as its
+# invocant, as the return-type oracle does: new, new_from_fd, opened,
+# fileno, eof, getc and close each answer without dying, so their
+# return types below hold for that call and for a real handle's.
+# autoflush, blocking, clearerr, error, ungetc, fdopen, binmode and
+# setbuf/setvbuf each dereference the invocant as a glob and die
+# "Bad filehandle" or "Can't use string ... as a symbol ref" when the
+# invocant is the bare class name rather than a handle, so they are left
+# undeclared here rather than declared with a return type the oracle
+# could never observe honestly.
+sub new (Str $class:) Object;
+sub new_from_fd (Str $class: Int $fd, Str $mode) Object|Undef;
+sub opened (Object $self:) Boolean;
+sub fileno (Object $self:) Int|Undef;
+sub eof (Object $self:) Boolean;
+sub getc (Object $self:) Str|Undef;
+sub close (Object $self:) Boolean;
