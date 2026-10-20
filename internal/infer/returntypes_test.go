@@ -1566,6 +1566,49 @@ func TestOOModulesReturnTypes(t *testing.T) {
 	}
 }
 
+// TestIOSelectTakesDocumentedHandles: IO::Select's handle element type
+// (new, add, remove, exists, handles, can_read, can_write and
+// has_exception) is documented as "an IO::Handle object, an integer or
+// an array reference", not only FileHandle (audit-C.md finding 12).
+// Measured: new($io_handle_obj) gives count 1, add(0) returns 1,
+// add([\*STDERR,"data"]) returns 1, and handles/can_write return
+// 0, IO::Handle, ARRAY -- each of Object, Int and ArrayRef must be
+// admitted, which FileHandle (Glob|GlobRef|IO) alone excludes.
+func TestIOSelectTakesDocumentedHandles(t *testing.T) {
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "IO", "Select.tpm"))
+	require.NoError(t, err)
+	sigs, errs := parse.DeclaredSignatures(tpm)
+	require.Empty(t, errs)
+
+	// wantsDocumentedHandles asserts typ admits an IO::Handle object, a
+	// plain Int fd and an ArrayRef, beside whatever FileHandle it
+	// already held.
+	wantsDocumentedHandles := func(name string, typ types.Type) {
+		assert.True(t, types.IsSubtype(types.Object, typ), "IO::Select::%s excludes Object", name)
+		assert.True(t, types.IsSubtype(types.Int, typ), "IO::Select::%s excludes Int", name)
+		assert.True(t, types.IsSubtype(types.ArrayRef, typ), "IO::Select::%s excludes ArrayRef", name)
+	}
+	for _, name := range []string{"new", "add", "remove"} {
+		for _, s := range sigs[name] {
+			require.Len(t, s.Params, 1, "IO::Select::%s", name)
+			wantsDocumentedHandles(name, s.Params[0].Element)
+		}
+	}
+	for _, s := range sigs["exists"] {
+		require.Len(t, s.Params, 1, "IO::Select::exists")
+		wantsDocumentedHandles("exists", s.Params[0].Type)
+		wantsDocumentedHandles("exists (return)", s.Returns)
+	}
+	for _, name := range []string{"handles", "can_read", "can_write", "has_exception"} {
+		for _, s := range sigs[name] {
+			if s.ReturnElement == types.Unknown {
+				continue // the scalar-context Int|Undef candidate has no element to check
+			}
+			wantsDocumentedHandles(name, s.ReturnElement)
+		}
+	}
+}
+
 // TestOOModulesNetworkSubsExempt: HTTP::Tiny's and IO::Socket::IP's
 // network-touching subs are each exempt, with a reason, and have no
 // call case in their oracle file, so TestOOModulesReturnTypes never
