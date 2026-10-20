@@ -1,19 +1,39 @@
 ---
 title: "Hold the libraries to perl in CI: find the runner's perl 5.42.0, fail when a perl-held test skips, derive the hold lists from the declarations"
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 created: 2026-10-20T19:18:42.305509522Z
-updated: 2026-10-20T19:19:20.533238536Z
+updated: 2026-10-20T20:11:27.63833347Z
 sessions:
 - start_sha: cf08c0acdb986b7a59c463c2ed994e0721307294
-  end_sha: ""
-  commits: 0
+  end_sha: 9cbd111a2a7e8a7f3e4a7d6790f10c685f1121fe
+  commits: 2
   started_at: 2026-10-20T19:19:20.533238536Z
+  ended_at: 2026-10-20T20:11:27.63833347Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-20T19:19:20.533238536Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-20T20:11:27.63833347Z
+observed_paths:
+- .github/workflows/ci.yml
+- docs/contributing/core-module-declarations.md
+- docs/rfcs/0001-type-libraries.md
+- internal/data/help/types.md
+- internal/infer/narrow_lib_test.go
+- internal/infer/returntypes_test.go
+- internal/parse/declarations/IO/Socket/IP.tpm
+- internal/parse/heldtoperl_test.go
+- internal/parse/holdcoverage_test.go
+- internal/perltest/batches.go
+- internal/perltest/fixture.go
+- internal/perltest/fixture_test.go
+- internal/perltest/perl542_test.go
+- internal/perltest/perltest.go
+- internal/psc/lib_baseline_test.go
 ---
 
 crochet:review of PR #488, round 1 (2026-10-21). Quality I4 and coverage finding 1: perltest.Perl542 (internal/perltest/perltest.go:34) finds only a pvm-installed perl; CI installs perl 5.42.0 with actions-setup-perl (and Windows ships Strawberry 5.42), so every Test*Prototypes/Exports/ReturnTypes, TestCoreModuleRanking and TestPSCCheckLibBaseline SKIPs in CI (job 118774701699) and green CI says nothing about goals 3-5. Also: coverage 10 (hold batch lists are hand-kept, not tied to the ranking/declarations), quality S10 (lib_baseline.txt:13 has an archname path), S13 and ponytail (batch lists duplicated in internal/parse and internal/infer, two IgnoresTheCallersPerlLib tests, oracleFixture/perlFixture). Tests may run perl; production never does.
