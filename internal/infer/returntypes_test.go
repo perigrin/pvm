@@ -136,6 +136,7 @@ var oracleExempt = map[string]string{
 	"Net::Ping::wakeonlan":     "opens a real udp socket and sends a packet onto the network",
 	"IO::Socket::sockaddr_in":  "wantarray/arity dispatch dies on the other direction's shape, as Socket::sockaddr_in does; held to its prototype and exports only",
 	"IO::Socket::sockaddr_in6": "wantarray/arity dispatch dies on the other direction's shape, as Socket::sockaddr_in6 does; held to its prototype and exports only",
+	"IO::Socket::sockaddr_un":  "wantarray dispatch dies on the other direction's shape, as Socket::sockaddr_un does; held to its prototype and exports only",
 	"IO::Socket::socket":       "opens a real socket file descriptor",
 	"IO::Socket::connect":      "connects a real socket onto the network",
 	"IO::Socket::bind":         "binds a real socket to a local address",
@@ -144,6 +145,18 @@ var oracleExempt = map[string]string{
 	"IO::Socket::send":         "writes onto a real socket",
 	"IO::Socket::recv":         "blocks reading from a real socket",
 	"IO::Socket::close":        "dereferences the invocant as a glob to close its socket, dying \"Can't use string ... as a symbol ref\" when the invocant is the bare class name the oracle calls with",
+
+	// configure's own sanity check requires ref($sock) eq "IO::Socket"
+	// exactly (IO/Socket.pm's configure), not a subclass: return_oracle.pl
+	// resolves the method once via $module->can(name), so it always calls
+	// the base IO::Socket::configure directly, never a subclass's
+	// override, even against INSTANCE's object -- and that instance is
+	// already blessed into IO::Socket::INET by the time configure runs
+	// (new's own call to configure, measured), so a second direct call
+	// dies "Cannot configure socket in domain". A separate, still-bare
+	// IO::Socket instance would work (measured) but the oracle's cases
+	// file supports only one shared INSTANCE per module.
+	"IO::Socket::configure": "needs an instance still blessed exactly IO::Socket, which INSTANCE no longer is by the time configure runs, and the oracle supports only one shared instance",
 
 	// IO::File::open dereferences its invocant as a glob immediately
 	// (`open($fh, ...)`), dying "Can't use string ... as a symbol ref"
@@ -1269,14 +1282,14 @@ func TestIOExportersReturnTypes(t *testing.T) {
 }
 
 // ioExportersNetworkSubs are the Net::Ping and IO::Socket subs that
-// touch the network (or, for IO::Socket's sockaddr_in and
-// sockaddr_in6, dispatch on context the way Socket's already-exempt
+// touch the network (or, for IO::Socket's sockaddr_in, sockaddr_in6
+// and sockaddr_un, dispatch on context the way Socket's already-exempt
 // ones do); every one must be in oracleExempt.
 var ioExportersNetworkSubs = []string{
 	"Net::Ping::pingecho", "Net::Ping::wakeonlan",
 	"IO::Socket::socket", "IO::Socket::connect", "IO::Socket::bind", "IO::Socket::listen",
 	"IO::Socket::accept", "IO::Socket::send", "IO::Socket::recv", "IO::Socket::close",
-	"IO::Socket::sockaddr_in", "IO::Socket::sockaddr_in6",
+	"IO::Socket::sockaddr_in", "IO::Socket::sockaddr_in6", "IO::Socket::sockaddr_un",
 }
 
 // TestIOExportersNetworkSubsExempt: every Net::Ping and IO::Socket sub
@@ -1304,6 +1317,67 @@ func TestIOExportersOracleStaysInScratch(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, absolute.Match(cases), "%s's oracle cases name an absolute path", module)
 	}
+}
+
+// TestIOSocketConstructorTakesArgs: IO::Socket::new's own perl, measured
+// on 5.42.0, is `my($class,%arg) = @_`, and the POD says new "optionally
+// takes arguments" and "If the constructor fails it will return undef"
+// (measured: IO::Socket->new(Domain=>AF_INET, ..., PeerPort=>1) with no
+// listener gives undef, errstr "connect: Connection refused"); a prior
+// pass of IO/Socket.tpm declared new taking only its class name
+// (01a15ac0, IO::Socket finding 1).
+func TestIOSocketConstructorTakesArgs(t *testing.T) {
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "IO", "Socket.tpm"))
+	require.NoError(t, err)
+	sigs, errs := parse.DeclaredSignatures(tpm)
+	require.Empty(t, errs)
+	cands, ok := sigs["new"]
+	require.True(t, ok, "IO::Socket.tpm does not declare new")
+	require.Len(t, cands, 1)
+	s := cands[0]
+	require.NotEmpty(t, s.Params, "IO::Socket::new takes no parameters besides its class name, but perl's new(%%arg) accepts a Domain=>... argument list (measured)")
+	assert.Equal(t, byte('@'), s.Params[0].Sigil, "IO::Socket::new's argument list should be a slurpy, matching perl's my($class,%%arg) = @_")
+	assert.True(t, types.IsSubtype(types.Undef, s.Returns), "IO::Socket::new does not admit Undef, but perl returns undef when the constructor fails (measured)")
+}
+
+// TestIOSocketMethodsReturnSocketOrUndef: IO::Socket's socket, connect,
+// bind and listen each return $sock (the invocant) on success or undef
+// on failure (measured on 5.42.0, IO/Socket.pm:91,165,223,233), never
+// the core Boolean a prior pass of IO/Socket.tpm declared instead
+// (01a15ac0, IO::Socket finding 2).
+func TestIOSocketMethodsReturnSocketOrUndef(t *testing.T) {
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "IO", "Socket.tpm"))
+	require.NoError(t, err)
+	sigs, errs := parse.DeclaredSignatures(tpm)
+	require.Empty(t, errs)
+	for _, name := range []string{"socket", "connect", "bind", "listen"} {
+		cands, ok := sigs[name]
+		if !assert.True(t, ok, "IO::Socket::%s is not declared", name) {
+			continue
+		}
+		require.Len(t, cands, 1)
+		s := cands[0]
+		assert.True(t, types.IsSubtype(types.Object, s.Returns), "IO::Socket::%s should admit Object: perl returns the invocant itself on success (measured)", name)
+		assert.True(t, types.IsSubtype(types.Undef, s.Returns), "IO::Socket::%s should admit Undef: perl returns undef on failure (measured)", name)
+	}
+}
+
+// TestIOSocketSendFlagsOptional: IO::Socket::send's own perl, measured
+// on 5.42.0, is `@_ >= 2 && @_ <= 4`, and the POD shows
+// `send(BUF, [FLAGS, [TO]])` -- flags is optional (measured:
+// $sock->send("hi") returns 2), not the required parameter a prior pass
+// of IO/Socket.tpm declared (01a15ac0, IO::Socket finding 5).
+func TestIOSocketSendFlagsOptional(t *testing.T) {
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "IO", "Socket.tpm"))
+	require.NoError(t, err)
+	sigs, errs := parse.DeclaredSignatures(tpm)
+	require.Empty(t, errs)
+	cands, ok := sigs["send"]
+	require.True(t, ok, "IO::Socket::send is not declared")
+	require.Len(t, cands, 1)
+	s := cands[0]
+	require.GreaterOrEqual(t, len(s.Params), 2, "IO::Socket::send should declare buf and flags parameters")
+	assert.False(t, s.Params[1].Required, `IO::Socket::send's flags parameter should be optional: perl accepts $sock->send("hi") with no flags (measured)`)
 }
 
 // TestSocketListContextUnpackers: Socket::sockaddr_un dispatches on
