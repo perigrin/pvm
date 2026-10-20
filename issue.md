@@ -11,7 +11,7 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.635645821Z
-updated: 2026-10-20T02:42:52.815355718Z
+updated: 2026-10-20T03:00:12.338106816Z
 sessions:
 - start_sha: 5b91125f4014127e11963fc610c805ba205b10ff
   end_sha: 3b04b0218d2848955d5c7b1a6ccb330cf59a1fd1
@@ -99,6 +99,13 @@ A `.tpm` changes what the parser reads for every file that uses the module, so r
 - [ ] Run to verify failure: `go test ./internal/infer/ -run '^TestXSLibrariesReturnTypes$' -count=1 -v`
 - [ ] Fix declared return types where perl disagrees; run to verify pass; commit
 - [ ] Run the m1 gates above; `make test`; commit
+
+### Review Findings
+
+Gate, 2026-10-20, on 3b04b021 (fresh Sonnet reviewer; criteria pass and proven non-vacuous by mutation; ~18 subs checked against perl 5.42, no tempering beyond the tracked Encode::encode). VERDICT: REOPEN.
+
+A. (CODE, 70) Encode.tpm:34, 35, 42, 43, 60, 79: CHECK is declared `Int|CodeRef $check = 0` on bytes2str, str2bytes, decode, decode_utf8, encode and from_to, but perl 5.42 accepts a literal undef and treats it as 0 (`Encode::encode("ascii", $s, undef)` returns "caf?"). Declare `Int|CodeRef|Undef`, measured for each sub.
+B. (TEST-ONLY, 85; fixed in the same pass) held_to_perl.pl prototypes mode: the new `if (!exists ... && !$module->can($name)) { use $module qw($name) }` block is subsumed by the existing per-name retry below it; removing it changes no test across internal/parse. Delete it and its comment.
 
 ## Acceptance Criteria
 
