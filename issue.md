@@ -1,6 +1,6 @@
 ---
 title: Declare the XS constant exporters Fcntl and Socket
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -12,7 +12,7 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.752726002Z
-updated: 2026-10-20T02:39:32.722723837Z
+updated: 2026-10-20T02:54:59.730679128Z
 sessions:
 - start_sha: 5b91125f4014127e11963fc610c805ba205b10ff
   end_sha: f8a82e032cf9fa043deec9d5fb866d21bac80c75
@@ -20,9 +20,10 @@ sessions:
   started_at: 2026-10-17T04:25:19.893120122Z
   ended_at: 2026-10-20T02:28:27.986790751Z
 - start_sha: f8a82e032cf9fa043deec9d5fb866d21bac80c75
-  end_sha: ""
-  commits: 0
+  end_sha: 34826451ff25d9be31c553948ea6de4ec295f77d
+  commits: 3
   started_at: 2026-10-20T02:39:32.722723837Z
+  ended_at: 2026-10-20T02:54:59.730679128Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
@@ -36,6 +37,9 @@ transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-20T02:39:32.722723837Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-20T02:54:59.730679128Z
 observed_paths:
 - docs/rfcs/0001-type-libraries.md
 - internal/cli/symlinks_test.go
@@ -43,6 +47,8 @@ observed_paths:
 - internal/infer/returntypes_test.go
 - internal/infer/testdata/observe_types.pl
 - internal/infer/testdata/oracle/Class-Struct.pl
+- internal/infer/testdata/oracle/Compress-Raw-Zlib.pl
+- internal/infer/testdata/oracle/Encode.pl
 - internal/infer/testdata/oracle/Errno.pl
 - internal/infer/testdata/oracle/Fcntl.pl
 - internal/infer/testdata/oracle/File-Basename.pl
@@ -51,11 +57,15 @@ observed_paths:
 - internal/infer/testdata/oracle/File-Path.pl
 - internal/infer/testdata/oracle/Getopt-Std.pl
 - internal/infer/testdata/oracle/POSIX.pl
+- internal/infer/testdata/oracle/SDBM_File.pl
 - internal/infer/testdata/oracle/Socket.pl
 - internal/infer/testdata/oracle/Text-ParseWords.pl
+- internal/infer/testdata/oracle/Time-HiRes.pl
 - internal/infer/testdata/oracle/Time-Local.pl
 - internal/infer/testdata/return_oracle.pl
 - internal/parse/declarations/Class/Struct.tpm
+- internal/parse/declarations/Compress/Raw/Zlib.tpm
+- internal/parse/declarations/Encode.tpm
 - internal/parse/declarations/Errno.tpm
 - internal/parse/declarations/Fcntl.tpm
 - internal/parse/declarations/File/Basename.tpm
@@ -64,8 +74,10 @@ observed_paths:
 - internal/parse/declarations/File/Path.tpm
 - internal/parse/declarations/Getopt/Std.tpm
 - internal/parse/declarations/POSIX.tpm
+- internal/parse/declarations/SDBM_File.tpm
 - internal/parse/declarations/Socket.tpm
 - internal/parse/declarations/Text/ParseWords.tpm
+- internal/parse/declarations/Time/HiRes.tpm
 - internal/parse/declarations/Time/Local.tpm
 - internal/parse/heldtoperl_test.go
 - internal/parse/testdata/held_to_perl.pl
