@@ -8,14 +8,23 @@ package IO::Socket::IP;
 # :export set), with Socket's own prototypes, types and :listop parses,
 # copied here unchanged.
 #
-# Every one of the 170 lives in IO::Socket's own package, not in
+# 161 of the 170 live only in IO::Socket's own package, not in
 # IO::Socket::IP's (measured: IO::Socket.pm's file-scope `use Socket;`
 # installs them there; IO::Socket::IP->can(name) finds them by
 # inheritance, but IO::Socket::IP::name itself does not exist). The
 # return-type oracle's sub-form call looks up Module::name directly, so
-# it cannot reach any of them under this module -- internal/infer's
-# TestOOModulesReturnTypes exempts the lot by name, and Socket.tpm's own
+# it cannot reach any of these 161 under this module -- internal/infer's
+# TestOOModulesReturnTypes exempts them by name, and Socket.tpm's own
 # oracle (TestXSLibrariesReturnTypes) already holds their return types.
+#
+# The other nine -- AF_INET, sockaddr_family, SO_REUSEADDR,
+# SO_REUSEPORT, SO_BROADCAST, SO_ERROR, SOCK_DGRAM, SOCK_STREAM and
+# SOL_SOCKET -- are also imported directly into IO::Socket::IP's own
+# package, by its own file-scope `use Socket ... qw(...)` (measured:
+# IO::Socket::IP::AF_INET is defined after a bare `require
+# IO::Socket::IP`), so the oracle's sub-form call reaches them here
+# directly; TestOOModulesReturnTypes holds them with oracle/IO-Socket-IP.pl's
+# own call cases, not exempt.
 sub AF_802 :export () None;
 sub AF_AAL :export () None;
 sub AF_APPLETALK :export () Int;

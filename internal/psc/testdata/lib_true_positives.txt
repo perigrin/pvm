@@ -1,6 +1,53 @@
 # A diagnostic over perl 5.42's lib that perl itself warns or dies on, and so
 # is admitted beyond lib_baseline.txt: the privlib-relative diagnostic, a tab,
-# and the line perl -w prints for that file, or for a minimal file with the
-# same construct, copied verbatim.
-x86_64-linux-thread-multi/Sys/Syslog.pm:562:19: error: call to POSIX::_exit: argument 1 expects Boolean|Int, got Undef|Boolean [coercion-mismatch]	Use of uninitialized value in subroutine entry at repro-exit.pl line 4.
-Net/Ping.pm:1798:38: error: call to sockaddr_in: argument 2 expects Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Undefined address for Socket::pack_sockaddr_in at /home/perigrin/.local/share/pvm/versions/5.42.0/lib/perl5/5.42.0/x86_64-linux-thread-multi/Socket.pm line 861.
+# and the line perl -w prints calling into the real lib file's own code (not
+# a `-e`/minimal-repro script reimplementing the construct inline), copied
+# verbatim.
+#
+# issue 01a156e4 (narrow undef after ref/defined/blessed guards) removed the
+# entries the narrowing now sees through: a `ref($x)` truthy guard (plain,
+# `&&` short-circuit, `unless ... return`, an if/elsif chain whose earlier
+# branch consumes the falsy value), the same for a named array's
+# literal-index element and for $_, a dominating arrow deref of the
+# argument (vars.go's narrowDerefBase), reftype/refaddr/encode/qualify
+# declared as multis by argument type, and types.Select's own Unknown
+# bypass and coercion retry (select.go) no longer discarding an argument
+# that already decides the call just because another argument does not.
+#
+# perigrin's ruling (2026-10-20, "possible-undef unless proven") made
+# WarnPossibleUndef's default silence general: an Undef from a declared
+# return is possible-undef unless the call's own arguments prove the
+# Undef-returning candidate selected, covering a single declared candidate
+# (Scalar::Util::blessed's one signature, `(Any $ref) Str|Undef`, and
+# Cwd::realpath's, `(Str $path) Str|Undef`) exactly as it covers a multi's
+# widest, catch-all candidate (Scalar::Util::reftype, refaddr). Only a
+# resolved return that is Undef outright, with no other bit at all --
+# List::Util::sum's `()` candidate, the only one zero arguments admit --
+# still reports unconditionally (markPossibleUndef, calls.go). The mark
+# carries from a declared call onto the variable its result is assigned to
+# (Symbol.PossibleUndef, ops.go's narrow), so `my $x = f(); ... $x eq
+# "..."` silences the same way `f() eq "..."` does.
+#
+# This removed every remaining line the previous audit (2026-10-20) found:
+# the twelve re-measured with real lib-path evidence, and the twelve found
+# unreachable by ordinary perl semantics upon inspection (a guard the
+# construct's own code already establishes, just not one psc's narrowing
+# recognizes) -- CPAN::Distribution::store_persistent_state,
+# File::Temp::_deferred_unlink and cleanup, Test2::Compare::Base::clone,
+# Test2::Workflow::Task::clone, Test2::API::InterceptResult::Event::init
+# and ::clone, Test2::Mock's `ref_copy` constructor, Test::Builder's
+# `parent`/`child`, Test::Builder.pm/Test2::API.pm's `blessed($x) &&
+# blessed($x) eq ...`, Test2::IPC::Driver::Files::event_file,
+# Test2::Util::Ref::rtype, and Test2::Workflow::Task's line-filter --
+# none is a lib_baseline.txt entry, and none is listed below, any more.
+#
+# What is left is Sys::Syslog's own `_syslog_send_console`: `/dev/console`
+# is root-only (measured: permission denied for this account), so its
+# `open(CONS, ">/dev/console")` can fail honestly in the lib's own
+# ordinary use, but reproducing that exact failure needs root. The
+# measurement below instead overrides CORE::GLOBAL::open to let the real
+# code's own open() succeed without touching the filesystem, leaving CONS
+# a filehandle the real code's own `print CONS ...` then finds closed --
+# the same fault (a console print failing) the code already defends
+# against, from a non-root account.
+x86_64-linux-thread-multi/Sys/Syslog.pm:562:19: error: call to POSIX::_exit: argument 1 expects Boolean|Int, got Undef|Boolean [coercion-mismatch]	Use of uninitialized value in subroutine entry at /home/perigrin/.local/share/pvm/versions/5.42.0/lib/perl5/5.42.0/x86_64-linux-thread-multi/Sys/Syslog.pm line 562.

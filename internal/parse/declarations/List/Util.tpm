@@ -1,0 +1,94 @@
+# ABOUTME: Declares what `use List::Util` exports: every name is :export_ok, measured, so a bare
+# ABOUTME: `use` imports nothing. Measured on perl 5.42.0 with List::Util 1.68_01.
+
+package List::Util;
+
+# first, any, all, none and notall take a block, as grep does (RFC 0001,
+# "Builtins that keep their own parse"), and their derived "@" is no
+# prototype, so each writes its measured one, &@, explicitly. first
+# returns the first matching element, or undef; measured on 5.42.0,
+# `first { $_ > 1 } (1,2,3)` is 2, and `first { $_ > 10 } (1,2,3)` is
+# undef. any/all/none/notall are builtin booleans, measured with
+# `is_bool`.
+sub first :export_ok :prototype(&@) (Code &block, List @list) Any;
+sub any :export_ok :prototype(&@) (Code &block, List @list) Boolean;
+sub all :export_ok :prototype(&@) (Code &block, List @list) Boolean;
+sub none :export_ok :prototype(&@) (Code &block, List @list) Boolean;
+sub notall :export_ok :prototype(&@) (Code &block, List @list) Boolean;
+
+# reduce folds the list through its block, accumulating in $a and $b,
+# and reductions returns every intermediate accumulation; both are
+# polymorphic in what the block returns. Measured on 5.42.0, `reduce {
+# $a + $b } (1,2,3)` is 6 and `reduce { $a + $b } ()` is undef.
+sub reduce :export_ok :prototype(&@) (Code &block, List @list) Any;
+sub reductions :export_ok :prototype(&@) (Code &block, List @list) List;
+
+# pairmap, pairgrep and pairfirst walk the list two at a time as $a and
+# $b; each returns a list, polymorphic in what the block returns.
+sub pairmap :export_ok :prototype(&@) (Code &block, List @list) List;
+sub pairgrep :export_ok :prototype(&@) (Code &block, List @list) List;
+sub pairfirst :export_ok :prototype(&@) (Code &block, List @list) List;
+
+# sum, max, min, maxstr, minstr and product measure numeric or string
+# across the list; each is undef on an empty list except sum0 and
+# product, measured on 5.42.0: `sum()` and `max()` are undef, `sum0()`
+# is 0, `min(1.5, 2, 3)` is 1.5 (Num, not Int), and `sum(1,2,3)` is Num
+# too (Int, a Num subtype). sum is declared by arity, RFC 0001 "Multi
+# declarations": one or more arguments is always a Num, measured, and
+# with none it is undef. Both candidates state sum's one real
+# prototype, `@` -- it admits any argument count, zero included, so it
+# covers both (parse/derive.go's prototypeAdmitsArity), even though the
+# two candidates' own types derive two different shapes on their own.
+multi sub sum :export_ok :prototype(@) (Num $x, List @rest) Num;
+multi sub sum :export_ok :prototype(@) () Undef;
+sub sum0 :export_ok :prototype(@) (List @list) Int;
+sub max :export_ok :prototype(@) (List @list) Num|Undef;
+sub min :export_ok :prototype(@) (List @list) Num|Undef;
+sub maxstr :export_ok :prototype(@) (List @list) Str|Undef;
+sub minstr :export_ok :prototype(@) (List @list) Str|Undef;
+sub product :export_ok :prototype(@) (List @list) Num;
+
+# shuffle and the uniq family return a list drawn from their argument
+# list, so each is polymorphic in what it holds.
+sub shuffle :export_ok :prototype(@) (List @list) List;
+sub uniq :export_ok :prototype(@) (List @list) List;
+sub uniqnum :export_ok :prototype(@) (List @list) List;
+sub uniqstr :export_ok :prototype(@) (List @list) List;
+sub uniqint :export_ok :prototype(@) (List @list) List;
+
+# head and tail take a leading count, then the rest of the list, as
+# their measured $@ prototype states; sample does the same, drawing
+# that many at random.
+sub head :export_ok :prototype($@) (Int $n, List @rest) List;
+sub tail :export_ok :prototype($@) (Int $n, List @rest) List;
+sub sample :export_ok :prototype($@) (Int $n, List @rest) List;
+
+# mesh and zip take several array references and weave or transpose
+# them; mesh flattens the result (measured on 5.42.0, `mesh([1,2],
+# [3,4])` is `(1,3,2,4)`), zip keeps each position as its own array
+# reference (`zip([1,2],[3,4])` is two array refs, `[1,3]` and `[2,4]`).
+# zip_longest and zip_shortest are zip padded to the longest or
+# truncated to the shortest input; mesh_longest and mesh_shortest do
+# the same, flattened as mesh does. None has a prototype perl reports,
+# so none writes :prototype -- each is the plain "@" skeletonParams
+# would give a slurpy list, and a bare `use` reaches none of this
+# without a name or tag.
+sub mesh :export_ok (List[ArrayRef] @arrays) List;
+sub zip :export_ok (List[ArrayRef] @arrays) List[ArrayRef];
+sub zip_longest :export_ok (List[ArrayRef] @arrays) List[ArrayRef];
+sub zip_shortest :export_ok (List[ArrayRef] @arrays) List[ArrayRef];
+sub mesh_longest :export_ok (List[ArrayRef] @arrays) List;
+sub mesh_shortest :export_ok (List[ArrayRef] @arrays) List;
+
+# pairs turns a flat key/value list into a list of 2-element array
+# references, each blessed into List::Util::_Pair (measured on 5.42.0,
+# `blessed(pairs(a=>1)[0])` is "List::Util::_Pair", so its elements are
+# Object, not plain ArrayRef); pairkeys and pairvalues take every
+# other element; unpairs is pairs's inverse, taking a list of
+# 2-element array references back to a flat list. Measured on 5.42.0,
+# `unpairs(1, 2)` (not array references) segfaults the interpreter --
+# its contract is array references, as pairs's result is.
+sub pairs :export_ok :prototype(@) (List @kvlist) List[Object];
+sub pairkeys :export_ok :prototype(@) (List @kvlist) List;
+sub pairvalues :export_ok :prototype(@) (List @kvlist) List;
+sub unpairs :export_ok :prototype(@) (List[ArrayRef] @pairs) List;

@@ -21,7 +21,7 @@ import (
 )
 
 func newCheckCommand() *cobra.Command {
-	var strict, warnLossy bool
+	var strict, warnLossy, warnPossibleUndef bool
 
 	cmd := &cobra.Command{
 		Use:   "check <file|directory>",
@@ -36,7 +36,7 @@ func newCheckCommand() *cobra.Command {
 				return fmt.Errorf("stat %s: %w", target, err)
 			}
 
-			opts := infer.Options{Strict: strict, WarnLossyCoercion: warnLossy}
+			opts := infer.Options{Strict: strict, WarnLossyCoercion: warnLossy, WarnPossibleUndef: warnPossibleUndef}
 			sess := parse.NewSession()
 			roots, why := incRoots(target)
 			if why != "" {
@@ -85,6 +85,8 @@ func newCheckCommand() *cobra.Command {
 		"report values whose type could not be inferred instead of accepting them")
 	cmd.Flags().BoolVar(&warnLossy, "warn-lossy-coercion", false,
 		"report coercions perl makes silently that lose the value, such as a reference printed as a string")
+	cmd.Flags().BoolVar(&warnPossibleUndef, "warn-possible-undef", false,
+		"report an undef from a declared call's return that the call's own arguments do not prove, left silent by default")
 
 	return cmd
 }

@@ -127,7 +127,64 @@ func (a *analysis) declaredCall(n *lower.Call) types.Type {
 			a.checkArg(n.Name, i, arg, builtinArgType(chosen, i), slotContext(chosen, i) == types.ListCtx, CodeCoercionMismatch)
 		}
 	}
+	a.markPossibleUndef(n, sel)
 	return sel.Returns
+}
+
+// markPossibleUndef marks n's own id, for possibleUndef (below) to read,
+// whenever sel's own resolved return (whether types.Select Selected one
+// candidate or joined several, Undecided) carries the Undef bit beside
+// some other bit (perigrin, 2026-10-20): "An Undef from a declared
+// return is possible-undef unless the call's arguments prove that the
+// Undef-returning candidate is selected." A union return proves nothing
+// of the kind on its own -- Scalar::Util::blessed's one declared
+// candidate, `(Any $ref) Str|Undef`, answers this way for every call
+// regardless of argument, and Scalar::Util::reftype's and refaddr's
+// widest, catch-all candidate the same -- so the call's own arguments,
+// not just its declaration, would have to rule out every other outcome
+// before this counts as proven.
+//
+// sel.Returns equal to Undef outright, with no other bit at all, is the
+// one shape that does: List::Util::sum's own `()` candidate, the only
+// one admitting zero arguments, answers nothing but Undef, so a call
+// the arguments force there -- sum() -- has no other possibility to be
+// silent about, and is not marked.
+func (a *analysis) markPossibleUndef(n *lower.Call, sel types.Selection) {
+	if sel.Returns&types.Undef != 0 && sel.Returns != types.Undef {
+		a.undecidedUndef[n.ID] = true
+	}
+}
+
+// possibleUndef reports whether n's Undef, in a slot expecting expected,
+// is accepted by default under WarnPossibleUndef (perigrin, 2026-10-20):
+// n is a declared call markPossibleUndef marked, or a variable a marked
+// call's result was assigned to (Symbol.PossibleUndef, carried there by
+// narrow in ops.go), its Undef one of several outcomes the call's own
+// declaration states rather than the call's arguments proving its
+// return could be nothing else, and removing that one bit would
+// satisfy expected on its own -- a mismatch WarnPossibleUndef has no
+// bearing on, a wrong type entirely, still reports.
+func (a *analysis) possibleUndef(n lower.Node, actual, expected types.Type) bool {
+	if a.opts.WarnPossibleUndef || actual&types.Undef == 0 || !a.markedPossibleUndef(n) {
+		return false
+	}
+	rest := numified(finite(actual&^types.Undef), expected)
+	return a.opts.satisfies(rest, expected) || a.opts.handleSatisfies(rest, expected)
+}
+
+// markedPossibleUndef reports whether n is itself a declared call
+// markPossibleUndef marked, or a variable read whose symbol carries the
+// same mark forward from the call its value was last assigned from.
+func (a *analysis) markedPossibleUndef(n lower.Node) bool {
+	if a.undecidedUndef[n.Meta().ID] {
+		return true
+	}
+	v, ok := n.(*lower.Var)
+	if !ok {
+		return false
+	}
+	sym, ok := a.st.Lookup(v.Sigil + v.Name)
+	return ok && sym.PossibleUndef
 }
 
 // flattenedSelect is types.Select for a call in context ctx with at least
@@ -281,7 +338,7 @@ func (a *analysis) checkArg(name string, i int, arg lower.Node, expected types.T
 	} else if a.argSatisfies(scalarValue(arg, actual), expected) || a.argSatisfies(counted(name, actual), expected) {
 		return
 	}
-	if a.lossyCoercion(arg, actual, expected) || a.silenced(actual, expected) {
+	if a.lossyCoercion(arg, actual, expected) || a.silenced(actual, expected) || a.possibleUndef(arg, actual, expected) {
 		return
 	}
 	start, end, _ := a.pos.Span(arg.Meta().ID)

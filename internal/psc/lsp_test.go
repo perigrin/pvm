@@ -173,4 +173,14 @@ func TestLSPHonoursOptions(t *testing.T) {
 	unknown := "print frobnicate();\n"
 	assert.NotContains(t, lspSession(t, unknown), "Unknown", "control: off by default")
 	assert.Contains(t, lspSession(t, unknown, "--strict"), "Unknown")
+
+	// --warn-possible-undef: Scalar::Util::refaddr given two arguments
+	// Select has no information on at all (an unresolved sub's own
+	// return) cannot decide between its Ref and Any candidates, and
+	// joins them to Int|Undef; by default that Undef reaching "eq" is
+	// accepted, and reported only under the flag.
+	possible := "use Scalar::Util qw(refaddr);\n" +
+		"my $s = (refaddr(Unresolved::opaque_x()) eq refaddr(Unresolved::opaque_y()));\n"
+	assert.NotContains(t, lspSession(t, possible), "coercion-mismatch", "control: off by default")
+	assert.Contains(t, lspSession(t, possible, "--warn-possible-undef"), "coercion-mismatch")
 }
