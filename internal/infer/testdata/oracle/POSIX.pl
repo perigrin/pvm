@@ -105,7 +105,11 @@ my $dh_rewinddir  = POSIX::opendir('.');
     expm1 => [ [0.625] ],
     fabs => [ [0.625] ],
     fclose => [ [] ],
-    fcntl => [ [$fh_fcntl, &POSIX::F_GETFD, 0] ],
+    # F_GETFD itself dies "Your vendor has not defined Fcntl macro
+    # F_GETFD" on Windows's perl (measured): eval keeps this file
+    # loadable there, so fcntl's actual call -- which fails for its own,
+    # separate reason on Windows -- is what the oracle run records.
+    fcntl => [ [$fh_fcntl, ( eval { &POSIX::F_GETFD } // 0 ), 0] ],
     fdim => [ [3, 1.25] ],
     fdopen => [ [] ],
     feof => [ [] ],

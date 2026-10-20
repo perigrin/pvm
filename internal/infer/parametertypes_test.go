@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"sort"
 	"strconv"
@@ -209,36 +208,20 @@ func TestParameterExemptionsNameAReason(t *testing.T) {
 	}
 }
 
-// parameterOracleSkip is the reason to skip module's parameter oracle
-// on this platform, "" when there is none -- the same platform gaps
-// the matching return-type oracle test already skips (see each named
-// test for the measurement), since a constant or method undefined here
-// could as easily unbalance a call case's own arguments as its return.
-func parameterOracleSkip(module string) string {
-	switch runtime.GOOS {
-	case "darwin":
-		switch {
-		case module == "Fcntl" || module == "Socket":
-			return "Fcntl's Linux-only dnotify, seal and pipe-size constants are not defined on macOS's perl -- see TestConstantExportersReturnTypes"
-		case module == "POSIX":
-			return "POSIX's limit and locale constants differ on macOS's perl -- see TestPOSIXReturnTypes"
-		case slices.Contains(perltest.IOExporters, module):
-			return "FileHandle, IO::File and IO::Socket's Linux-only fcntl and socket-family constants are absent or differ on macOS's perl -- see TestIOExportersReturnTypes"
-		case slices.Contains(perltest.XSLibraries, module):
-			return "Time::HiRes's Linux-only clock ids are undefined or differ on macOS's perl -- see TestXSLibrariesReturnTypes"
-		}
-	case "windows":
-		switch {
-		case module == "POSIX":
-			return `oracle/POSIX.pl calls Fcntl::F_GETFD, undefined on Windows's perl -- see TestPOSIXReturnTypes`
-		case slices.Contains(perltest.XSLibraries, module):
-			return "Time::HiRes::clock is unimplemented on Windows's perl -- see TestXSLibrariesReturnTypes"
-		}
+// paramExemptForModule is exemptMapFor's own rule -- ooExempt's
+// extended map for the OO batch, exemptForModule otherwise -- so the
+// parameter oracle skips exactly the names on this platform the
+// return-type oracle does: withPlatformExempt's per-name platform
+// gaps, and, for Errno, perltest.MissingSubs's live measurement of
+// which names this platform's perl does not export. A whole-module
+// skip would miss the names platformExempt does not cover; a name
+// genuinely undefined here could as easily unbalance a call case's own
+// arguments as its return.
+func paramExemptForModule(t *testing.T, p perltest.Perl, module string, tpm []byte) map[string]string {
+	if slices.Contains(perltest.OOModules, module) {
+		return ooExempt()
 	}
-	if runtime.GOOS != "linux" && slices.Contains(perltest.PureExporters, module) {
-		return "Errno's Linux-only error codes are not defined on this platform's perl -- see TestPurePerlExportersReturnTypes"
-	}
-	return ""
+	return exemptForModule(t, p, module, tpm)
 }
 
 // TestOracleCasesFitDeclaredParameters holds every module the return-type
@@ -249,15 +232,12 @@ func TestOracleCasesFitDeclaredParameters(t *testing.T) {
 	p := perltest.Perl542(t)
 	for _, module := range perltest.AllHeld() {
 		t.Run(module, func(t *testing.T) {
-			if reason := parameterOracleSkip(module); reason != "" {
-				t.Skip(reason)
-			}
 			rel := strings.ReplaceAll(module, "::", "/")
 			tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", filepath.FromSlash(rel)+".tpm"))
 			require.NoError(t, err, "%s: no declaration", module)
 			cases, err := filepath.Abs(filepath.Join("testdata", "oracle", strings.ReplaceAll(module, "::", "-")+".pl"))
 			require.NoError(t, err)
-			for _, f := range parameterOracleFailures(t, p, oracleRun{Module: module, TPM: tpm, Cases: cases, Exempt: exemptMapFor(module)}) {
+			for _, f := range parameterOracleFailures(t, p, oracleRun{Module: module, TPM: tpm, Cases: cases, Exempt: paramExemptForModule(t, p, module, tpm)}) {
 				t.Error(f)
 			}
 		})
@@ -276,14 +256,14 @@ func splitModuleSub(key string) (module, sub string) {
 // IgnorePending set: pendingAudit's and parameterExempt's own filtering
 // turned off, so the oracle's raw failures tell whether an entry's
 // misfit is still real.
-func pendingOracleRun(t *testing.T, module string) oracleRun {
+func pendingOracleRun(t *testing.T, p perltest.Perl, module string) oracleRun {
 	t.Helper()
 	rel := strings.ReplaceAll(module, "::", "/")
 	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", filepath.FromSlash(rel)+".tpm"))
 	require.NoError(t, err, "%s: no declaration", module)
 	cases, err := filepath.Abs(filepath.Join("testdata", "oracle", strings.ReplaceAll(module, "::", "-")+".pl"))
 	require.NoError(t, err)
-	return oracleRun{Module: module, TPM: tpm, Cases: cases, Exempt: exemptMapFor(module), IgnorePending: true}
+	return oracleRun{Module: module, TPM: tpm, Cases: cases, Exempt: paramExemptForModule(t, p, module, tpm), IgnorePending: true}
 }
 
 // TestPendingAuditEntriesStillMisfit holds every pendingAudit and
@@ -309,10 +289,7 @@ func TestPendingAuditEntriesStillMisfit(t *testing.T) {
 
 	for _, tgt := range targets {
 		t.Run(tgt.module+"::"+tgt.sub+"/"+tgt.kind, func(t *testing.T) {
-			if reason := parameterOracleSkip(tgt.module); reason != "" {
-				t.Skip(reason)
-			}
-			run := pendingOracleRun(t, tgt.module)
+			run := pendingOracleRun(t, p, tgt.module)
 			var failures []string
 			switch tgt.kind {
 			case "return":

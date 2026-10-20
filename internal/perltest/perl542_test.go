@@ -72,6 +72,51 @@ func TestPerl542SkipsWhenPrivlibMissing(t *testing.T) {
 	assert.True(t, skipped(t, at(fake)), "a perl whose privlib is missing skips the test")
 }
 
+// TestPerl542MarksPathFallbackAsNotFromPvm: CI installs perl 5.42.0 with
+// actions-setup-perl, never through pvm's own install, so Perl542 falls
+// back to the one on PATH -- that perl is not the static-libperl reference
+// build TestIsReferenceBuildOnPvmsOwnPerl pins its counts against, and
+// FromPvm records that so the test can skip instead of failing.
+func TestPerl542MarksPathFallbackAsNotFromPvm(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the stand-in perl is a shell script")
+	}
+	withNoPvmPerl(t)
+	dir := t.TempDir()
+	lib := filepath.Join(t.TempDir(), "privlib")
+	require.NoError(t, os.MkdirAll(lib, 0o755))
+	perl542StandIn(t, dir, "5.042000", lib)
+	t.Setenv("PATH", dir)
+	t.Setenv("PVM_REQUIRE_PERL542", "")
+
+	p := Perl542(t)
+	assert.False(t, p.FromPvm, "a perl found on PATH, not registered in pvm, is not pvm's own build")
+}
+
+// TestPerl542MarksARegisteredInstallAsFromPvm: where pvm has perl 5.42.0
+// registered (perl.GetVersionInfo succeeds), Perl542 uses that install
+// directly, and FromPvm records that it is pvm's own build.
+func TestPerl542MarksARegisteredInstallAsFromPvm(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the stand-in perl is a shell script")
+	}
+	dir := t.TempDir()
+	lib := filepath.Join(t.TempDir(), "privlib")
+	require.NoError(t, os.MkdirAll(lib, 0o755))
+	binDir := filepath.Join(dir, "bin")
+	require.NoError(t, os.MkdirAll(binDir, 0o755))
+	perl542StandIn(t, binDir, "5.042000", lib)
+
+	saved := perl.GetVersionInfo
+	t.Cleanup(func() { perl.GetVersionInfo = saved })
+	perl.GetVersionInfo = func(string) (*perl.VersionInfo, error) {
+		return &perl.VersionInfo{InstallPath: dir}, nil
+	}
+
+	p := Perl542(t)
+	assert.True(t, p.FromPvm, "a perl pvm's own registry reports is pvm's own build")
+}
+
 func TestPerl542ReportsAnExistingPrivlib(t *testing.T) {
 	p := Perl542(t)
 	fi, err := os.Stat(p.Privlib)

@@ -23,5 +23,8 @@ func TestIsStaticLibperl(t *testing.T) {
 // useshrplib=true there, in job 39489951290's Linux log).
 func TestIsReferenceBuildOnPvmsOwnPerl(t *testing.T) {
 	p := Perl542(t)
+	if !p.FromPvm {
+		t.Skip("perl came from PATH, not pvm's own registry, so it is not the build this pins against")
+	}
 	assert.True(t, p.IsReferenceBuild(t))
 }
