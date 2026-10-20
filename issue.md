@@ -1,6 +1,6 @@
 ---
 title: "Declare the OO-only modules with empty export lists: File::Spec, IO::Select, HTTP::Tiny and five more"
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -11,16 +11,74 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.975216591Z
-updated: 2026-10-20T03:17:30.454035952Z
+updated: 2026-10-20T14:11:11.05950515Z
 sessions:
 - start_sha: 41049401c559e1018a97d064381c3d73e8201d06
-  end_sha: ""
-  commits: 0
+  end_sha: ac90b82c584f38414304222586f301892e559272
+  commits: 3
   started_at: 2026-10-20T03:17:30.454035952Z
+  ended_at: 2026-10-20T14:11:11.05950515Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-20T03:17:30.454035952Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-20T14:11:11.05950515Z
+observed_paths:
+- internal/infer/returntypes_test.go
+- internal/infer/testdata/oracle/Archive-Tar.pl
+- internal/infer/testdata/oracle/Config.pl
+- internal/infer/testdata/oracle/ExtUtils-MakeMaker.pl
+- internal/infer/testdata/oracle/ExtUtils-Manifest.pl
+- internal/infer/testdata/oracle/File-Spec-Functions.pl
+- internal/infer/testdata/oracle/File-Spec-Unix.pl
+- internal/infer/testdata/oracle/File-Spec.pl
+- internal/infer/testdata/oracle/File-Temp.pl
+- internal/infer/testdata/oracle/File-stat.pl
+- internal/infer/testdata/oracle/FileHandle.pl
+- internal/infer/testdata/oracle/Getopt-Long.pl
+- internal/infer/testdata/oracle/HTTP-Tiny.pl
+- internal/infer/testdata/oracle/IO-File.pl
+- internal/infer/testdata/oracle/IO-Handle.pl
+- internal/infer/testdata/oracle/IO-Select.pl
+- internal/infer/testdata/oracle/IO-Socket-IP.pl
+- internal/infer/testdata/oracle/IO-Socket.pl
+- internal/infer/testdata/oracle/Locale-Maketext-Simple.pl
+- internal/infer/testdata/oracle/Net-Ping.pl
+- internal/infer/testdata/oracle/Term-ReadLine.pl
+- internal/infer/testdata/oracle/Test-More.pl
+- internal/infer/testdata/oracle/Text-Wrap.pl
+- internal/infer/testdata/oracle/Tie-Hash.pl
+- internal/infer/testdata/return_oracle.pl
+- internal/parse/declarations.go
+- internal/parse/declarations/Archive/Tar.tpm
+- internal/parse/declarations/Config.tpm
+- internal/parse/declarations/ExtUtils/MakeMaker.tpm
+- internal/parse/declarations/ExtUtils/Manifest.tpm
+- internal/parse/declarations/File/Spec.tpm
+- internal/parse/declarations/File/Spec/Functions.tpm
+- internal/parse/declarations/File/Spec/Unix.tpm
+- internal/parse/declarations/File/Temp.tpm
+- internal/parse/declarations/File/stat.tpm
+- internal/parse/declarations/FileHandle.tpm
+- internal/parse/declarations/Getopt/Long.tpm
+- internal/parse/declarations/HTTP/Tiny.tpm
+- internal/parse/declarations/IO/File.tpm
+- internal/parse/declarations/IO/Handle.tpm
+- internal/parse/declarations/IO/Select.tpm
+- internal/parse/declarations/IO/Socket.tpm
+- internal/parse/declarations/IO/Socket/IP.tpm
+- internal/parse/declarations/Locale/Maketext/Simple.tpm
+- internal/parse/declarations/Net/Ping.tpm
+- internal/parse/declarations/Term/ReadLine.tpm
+- internal/parse/declarations/Test/More.tpm
+- internal/parse/declarations/Text/Wrap.tpm
+- internal/parse/declarations/Tie/Hash.tpm
+- internal/parse/heldtoperl_test.go
+- internal/parse/module.go
+- internal/parse/testdata/held_to_perl.pl
+- internal/parse/testdata/t1.ratchet
 ---
 
 ## Prerequisites
