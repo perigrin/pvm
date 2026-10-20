@@ -74,8 +74,15 @@ var oracleExempt = map[string]string{
 	// plan dies "You tried to plan twice" once a plan already exists --
 	// including one done_testing sets, which the oracle's alphabetically
 	// earlier call to done_testing always leaves in place -- so the
-	// oracle cannot call it without that collision.
-	"Test::More::plan": "collides with done_testing, called earlier in the same oracle run, which already sets a plan",
+	// oracle cannot call it in the same run; held in its own
+	// (TestTestMorePlanReturnType), where nothing else sets a plan first.
+	"Test::More::plan": "collides with done_testing, called earlier in the same oracle run, which already sets a plan; held in TestTestMorePlanReturnType's own oracleRun instead",
+
+	// import is a declared signature to import() (perigrin's ruling,
+	// 2026-10-20), read at `use` time (use.go): it states what a `use`
+	// list is, not a sub the oracle calls for its return type.
+	"Test::More::import":               "declares the signature to import(), read at `use` time; never called directly",
+	"Locale::Maketext::Simple::import": "declares the signature to import(), read at `use` time; never called directly",
 
 	"Getopt::Long::HelpMessage":    "calls Pod::Usage's pod2usage, which exits the process by default",
 	"Getopt::Long::VersionMessage": "exits the process by default (measured: exit($pa->{-exitval}) unless -exitval is NOEXIT)",
@@ -1048,6 +1055,21 @@ var variableExporters = []string{
 // declared return types to perl, called with its oracle's cases.
 func TestVariableExportersReturnTypes(t *testing.T) {
 	holdReturnTypes(t, variableExporters...)
+}
+
+// TestTestMorePlanReturnType holds Test::More::plan's declared return
+// type to perl in its own oracleRun (Review Findings, finding 2): plan
+// collides with done_testing in the batch's combined run (oracleExempt),
+// so it is called alone here, where nothing else has set a plan first,
+// with the one case oracle/Test-More-plan.pl gives it.
+func TestTestMorePlanReturnType(t *testing.T) {
+	p := perltest.Perl542(t)
+	tpm := []byte("package Test::More;\nsub plan (List @args) Int;\n")
+	cases, err := filepath.Abs(filepath.Join("testdata", "oracle", "Test-More-plan.pl"))
+	require.NoError(t, err)
+	for _, f := range returnTypeFailures(t, p, oracleRun{Module: "Test::More", TPM: tpm, Cases: cases}) {
+		t.Error(f)
+	}
 }
 
 // declaredVariables reads module's .tpm variables, failing t on any

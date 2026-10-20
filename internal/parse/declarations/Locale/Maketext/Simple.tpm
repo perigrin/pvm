@@ -2,11 +2,20 @@
 # ABOUTME: Measured on perl 5.42.0 with Locale::Maketext::Simple 0.21_01: neither carries a prototype.
 package Locale::Maketext::Simple;
 
-# import defaults $args{Export} to 'loc' and installs "${Export}_lang"
-# alongside it, so a bare `use Locale::Maketext::Simple;` installs both
-# loc and loc_lang (measured), and `use Locale::Maketext::Simple ();`
-# installs neither (measured: an empty import list asks for nothing).
-#
+# The parameters are the signature to import() (perigrin's ruling,
+# 2026-10-20): declaring it here states that a `use
+# Locale::Maketext::Simple` list is the hash-pair options import takes
+# (Class, Path, Style, Export, Subclass, Decode, Encoding), not export
+# names. import defaults $args{Export} to 'loc' and installs
+# "${Export}_lang" alongside it, so a bare `use
+# Locale::Maketext::Simple;` installs both loc and loc_lang (measured),
+# `use Locale::Maketext::Simple (Style => 'gettext');` installs the same
+# two (measured), and `use Locale::Maketext::Simple ();` installs
+# neither (measured: the explicit empty list calls no import). $class is
+# the invocant, so the colon keeps the derived prototype none, matching
+# perl's (prototype() on Locale::Maketext::Simple::import is undef).
+sub import (Str $class: List @args) Void;
+
 # Without Locale::Maketext::Lexicon loaded (measured: not installed
 # here), import falls back to default_loc's interpolator, always a
 # defined Str; loc_lang falls back to `sub { 1 }`, whose bareword 1 is

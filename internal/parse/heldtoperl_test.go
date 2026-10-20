@@ -710,6 +710,17 @@ func TestLocaleMaketextSimpleEmptyImportInstallsNothing(t *testing.T) {
 	assert.Empty(t, importedFrom(t, "use Locale::Maketext::Simple ();\n"))
 }
 
+// TestLocaleMaketextSimpleArgumentFormInstallsLoc: Locale::Maketext::Simple
+// declares its own `import` (perigrin's ruling, 2026-10-20: "the parameters
+// are the signature to import()"), so an option list is import's
+// arguments, not names to resolve against :export -- measured on 5.42.0,
+// `use Locale::Maketext::Simple (Style => 'gettext');` still installs loc
+// and loc_lang, exactly as a bare use does.
+func TestLocaleMaketextSimpleArgumentFormInstallsLoc(t *testing.T) {
+	got := importedFrom(t, "use Locale::Maketext::Simple (Style => 'gettext');\n")
+	assert.ElementsMatch(t, []string{"loc", "loc_lang"}, got)
+}
+
 // variableExporters is the variable-exporters batch (01a1464e-dca3):
 // every module below exports a plain Perl variable, measured on
 // 2026-10-16.
