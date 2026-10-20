@@ -1,6 +1,6 @@
 ---
 title: "Guide: writing and testing a core-module declaration"
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -11,7 +11,16 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:11:35.85395462Z
-updated: 2026-10-16T21:02:04.145384672Z
+updated: 2026-10-20T16:03:19.091685251Z
+sessions:
+- start_sha: d7e9819e189d4066bdeda28c06b1f2611f1cccb7
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-20T16:03:19.091685251Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-20T16:03:19.091685251Z
 ---
 
 ## Prerequisites
