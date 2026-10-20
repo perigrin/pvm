@@ -168,6 +168,14 @@ var oracleExempt = map[string]string{
 	// called with the class name itself, measured on 5.42.0.
 	"FileHandle::getpos": "dereferences the invocant as a glob to call fgetpos(); dies \"Bad filehandle\" when called with the class name itself, as the oracle calls it",
 	"FileHandle::setpos": "dereferences the invocant as a glob to call fsetpos(); dies \"Bad filehandle\" when called with the class name itself, as the oracle calls it",
+
+	// Archive::Tar::clear wipes the shared instance's data
+	// (scratchpad/audit-C.md finding 18's INSTANCE in oracle/Archive-Tar.pl
+	// shares one instance across every instance-method call), which would
+	// break every other method's positive-path exercise if clear ran
+	// between them -- it always returns a bare 1, measured directly in
+	// scratchpad/6ca2-scratch/archive-tar/probe2.pl.
+	"Archive::Tar::clear": "wipes the shared oracle instance's data, which would break every other instance method's positive-path exercise; measured directly instead (6ca2-scratch/archive-tar/probe2.pl)",
 }
 
 // posixReplacementNames are the names in POSIX.pm 2.23's %replacement
