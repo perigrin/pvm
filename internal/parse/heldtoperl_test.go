@@ -753,6 +753,74 @@ func TestFileStatEmptyImportKeepsCoreStat(t *testing.T) {
 	assert.Empty(t, got)
 }
 
+// Exporter, XSLoader and DynaLoader are the infrastructure-module batch
+// (01a1464e-dd6c, -ddb0, -dde3): the only three of the 50 core modules
+// RFC 0001 permits to ship unshipped (perigrin's ruling 4, 2026-10-16) if
+// measurement shows a declaration cannot keep every module that uses it
+// resolving as before. Each is held to perl, and its exports measured,
+// separately: a shared batch name would not match the issues' own
+// criteria commands.
+
+// TestExporterPrototypes holds Exporter.tpm's prototypes to perl.
+func TestExporterPrototypes(t *testing.T) {
+	holdPrototypes(t, "Exporter")
+}
+
+// TestExporterExports holds Exporter.tpm's :export and :export_ok marks
+// to what `use Exporter` installs in a caller.
+func TestExporterExports(t *testing.T) {
+	holdExports(t, "Exporter")
+}
+
+// TestExporterBareUseDoesNotImportImport: measured on 5.42.0, a bare
+// `use Exporter;` installs nothing -- Exporter carries no @EXPORT of its
+// own -- while `use Exporter 'import';` installs import, the one name
+// its own import() special-cases.
+func TestExporterBareUseDoesNotImportImport(t *testing.T) {
+	assert.Empty(t, importedFrom(t, "use Exporter;\n"))
+	got := importedFrom(t, "use Exporter 'import';\n")
+	assert.Equal(t, []string{"import"}, got)
+}
+
+// TestXSLoaderPrototypes holds XSLoader.tpm's prototypes to perl.
+func TestXSLoaderPrototypes(t *testing.T) {
+	holdPrototypes(t, "XSLoader")
+}
+
+// TestXSLoaderExports holds XSLoader.tpm's :export and :export_ok marks
+// to what `use XSLoader` installs in a caller.
+func TestXSLoaderExports(t *testing.T) {
+	holdExports(t, "XSLoader")
+}
+
+// TestXSLoaderBareUseImportsNothing: measured on 5.42.0, XSLoader never
+// calls Exporter, so neither a bare `use XSLoader;` nor one naming load
+// installs anything -- a later bare `load()` still fails to resolve to
+// XSLoader::load.
+func TestXSLoaderBareUseImportsNothing(t *testing.T) {
+	assert.Empty(t, importedFrom(t, "use XSLoader;\n"))
+	assert.Empty(t, importedFrom(t, "use XSLoader qw(load);\n"))
+}
+
+// TestDynaLoaderPrototypes holds DynaLoader.tpm's prototypes to perl.
+func TestDynaLoaderPrototypes(t *testing.T) {
+	holdPrototypes(t, "DynaLoader")
+}
+
+// TestDynaLoaderExports holds DynaLoader.tpm's :export and :export_ok
+// marks to what `use DynaLoader` installs in a caller.
+func TestDynaLoaderExports(t *testing.T) {
+	holdExports(t, "DynaLoader")
+}
+
+// TestDynaLoaderBareUseImportsNothing: measured on 5.42.0, DynaLoader
+// never calls Exporter either, so no `use DynaLoader` form installs a name;
+// every caller reaches it through @ISA or a qualified call.
+func TestDynaLoaderBareUseImportsNothing(t *testing.T) {
+	assert.Empty(t, importedFrom(t, "use DynaLoader;\n"))
+	assert.Empty(t, importedFrom(t, "use DynaLoader qw(bootstrap);\n"))
+}
+
 // TestTestMoreArgumentFormImportsSameNames: Test::More's import is
 // Test::Builder::Module's (measured), which reads an import list with
 // no `import => [...]` pair as plan() arguments, not names --

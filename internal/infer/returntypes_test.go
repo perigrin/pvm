@@ -82,6 +82,42 @@ var oracleExempt = map[string]string{
 
 	"ExtUtils::MakeMaker::WriteMakefile": "builds a real Makefile from a distribution's own metadata, which the oracle's call cases cannot supply",
 	"ExtUtils::MakeMaker::prompt":        "reads an answer from STDIN, blocking when none is piped in",
+
+	// Exporter's own export, export_to_level, export_tags and
+	// export_ok_tags install symbols into an arbitrary caller's package
+	// or mutate its @EXPORT/@EXPORT_OK from a dynamic $pkg/$callpkg pair;
+	// a direct call from the oracle could collide with the driver's own
+	// symbols or a later call in the same run. import, the one name
+	// Exporter itself exports, is measured directly instead.
+	"Exporter::export":          "installs symbols into an arbitrary caller's package from a dynamic $pkg/$callpkg pair, which could collide with the driver's own or a later call in the same run",
+	"Exporter::export_to_level": "installs symbols into an arbitrary caller's package from a dynamic $pkg/$callpkg pair, which could collide with the driver's own or a later call in the same run",
+	"Exporter::export_tags":     "mutates the caller package's @EXPORT from its own %EXPORT_TAGS, which could collide with a later call in the same run",
+	"Exporter::export_ok_tags":  "mutates the caller package's @EXPORT_OK from its own %EXPORT_TAGS, which could collide with a later call in the same run",
+
+	// XSLoader::load and ::bootstrap_inherit each end by loading a real
+	// shared object: a name that resolves to a real extension would
+	// bootstrap it a second time, and one that does not dies with "Can't
+	// locate loadable object", which is not evidence of what a real
+	// bootstrap returns.
+	"XSLoader::load":              "loads a real compiled extension's bootstrap function or dies; the oracle's call cases cannot safely supply one",
+	"XSLoader::bootstrap_inherit": "delegates to DynaLoader::bootstrap_inherit, which needs a real compiled extension the oracle's call cases cannot safely supply",
+
+	// DynaLoader::bootstrap and ::bootstrap_inherit end the same way
+	// XSLoader's do: a name that resolves to a real extension would
+	// bootstrap it a second time, and one that does not dies with "Can't
+	// locate loadable object", which is not evidence of what a real
+	// bootstrap returns.
+	"DynaLoader::bootstrap":         "loads a real compiled extension's bootstrap function or dies; the oracle's call cases cannot safely supply one",
+	"DynaLoader::bootstrap_inherit": "delegates to bootstrap, which needs a real compiled extension the oracle's call cases cannot safely supply",
+
+	// DynaLoader's four low-level XS primitives each need a real loaded
+	// shared object or library reference the oracle's call cases cannot
+	// safely supply (ruling 4, 2026-10-16, DynaLoader's negative scenario).
+	"DynaLoader::dl_load_file":    "dynamically loads a real shared object into the process; the oracle's call cases cannot supply one safely",
+	"DynaLoader::dl_find_symbol":  "looks up a symbol in a real loaded library reference, which the oracle's call cases cannot supply",
+	"DynaLoader::dl_install_xsub": "installs a real XSUB from a symbol reference the oracle's call cases cannot supply",
+	"DynaLoader::dl_unload_file":  "would unload a real shared object out from under the running process",
+
 	// Net::Ping and IO::Socket: every network-touching sub the batch
 	// declares, held to its prototype and exports only.
 	"Net::Ping::pingecho":      "opens a real tcp connection to the given host",
@@ -1127,6 +1163,56 @@ func TestMakeMakerInteractiveSubsExempt(t *testing.T) {
 		assert.NotEmpty(t, strings.TrimSpace(reason), "ExtUtils::MakeMaker::%s is exempt without a reason", name)
 	}
 	holdReturnTypes(t, "ExtUtils::MakeMaker")
+}
+
+// Exporter, XSLoader and DynaLoader are the infrastructure-module batch
+// (01a1464e-dd6c, -ddb0, -dde3), each held to perl separately so its own
+// test name matches its issue's criteria command.
+
+// TestExporterReturnTypes holds Exporter.tpm's declared return types to
+// perl, called with its oracle's cases.
+func TestExporterReturnTypes(t *testing.T) {
+	holdReturnTypes(t, "Exporter")
+}
+
+// TestXSLoaderReturnTypes holds XSLoader.tpm's declared return types to
+// perl, called with its oracle's cases.
+func TestXSLoaderReturnTypes(t *testing.T) {
+	holdReturnTypes(t, "XSLoader")
+}
+
+// TestXSLoaderSubsExempt: load and bootstrap_inherit are exempt with a
+// reason and never called -- each needs a real compiled extension the
+// oracle cannot safely supply.
+func TestXSLoaderSubsExempt(t *testing.T) {
+	for _, name := range []string{"load", "bootstrap_inherit"} {
+		reason, ok := oracleExempt["XSLoader::"+name]
+		if !assert.True(t, ok, "XSLoader::%s is not in the return-type oracle's exemption map", name) {
+			continue
+		}
+		assert.NotEmpty(t, strings.TrimSpace(reason), "XSLoader::%s is exempt without a reason", name)
+	}
+}
+
+// TestDynaLoaderReturnTypes holds DynaLoader.tpm's declared return types
+// to perl, called with its oracle's cases.
+func TestDynaLoaderReturnTypes(t *testing.T) {
+	holdReturnTypes(t, "DynaLoader")
+}
+
+// TestDynaLoaderLowLevelSubsExempt: DynaLoader's low-level subs
+// dl_load_file, dl_find_symbol, dl_install_xsub and dl_unload_file are
+// exempt with a reason and never called (DynaLoader's negative scenario,
+// ruling 4, 2026-10-16): each needs a real loaded shared object or
+// library reference the oracle's call cases cannot supply.
+func TestDynaLoaderLowLevelSubsExempt(t *testing.T) {
+	for _, name := range []string{"dl_load_file", "dl_find_symbol", "dl_install_xsub", "dl_unload_file"} {
+		reason, ok := oracleExempt["DynaLoader::"+name]
+		if !assert.True(t, ok, "DynaLoader::%s is not in the return-type oracle's exemption map", name) {
+			continue
+		}
+		assert.NotEmpty(t, strings.TrimSpace(reason), "DynaLoader::%s is exempt without a reason", name)
+	}
 }
 
 // TestFileStatMissingFileReturnIsDeclared: File::stat::stat on a path
