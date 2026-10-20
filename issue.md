@@ -1,6 +1,6 @@
 ---
 title: "Declare the XS library modules: Encode, Time::HiRes, Compress::Raw::Zlib, SDBM_File"
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -11,7 +11,7 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.635645821Z
-updated: 2026-10-20T03:00:12.449439379Z
+updated: 2026-10-20T03:16:58.787240113Z
 sessions:
 - start_sha: 5b91125f4014127e11963fc610c805ba205b10ff
   end_sha: 3b04b0218d2848955d5c7b1a6ccb330cf59a1fd1
@@ -19,9 +19,10 @@ sessions:
   started_at: 2026-10-17T04:25:19.319037318Z
   ended_at: 2026-10-20T02:42:52.815355718Z
 - start_sha: 34826451ff25d9be31c553948ea6de4ec295f77d
-  end_sha: ""
-  commits: 0
+  end_sha: 41049401c559e1018a97d064381c3d73e8201d06
+  commits: 1
   started_at: 2026-10-20T03:00:12.449439379Z
+  ended_at: 2026-10-20T03:16:58.787240113Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
@@ -35,9 +36,13 @@ transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-20T03:00:12.449439379Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-20T03:16:58.787240113Z
 observed_paths:
 - docs/rfcs/0001-type-libraries.md
 - internal/cli/symlinks_test.go
+- internal/infer/declared_test.go
 - internal/infer/precision_test.go
 - internal/infer/returntypes_test.go
 - internal/infer/testdata/observe_types.pl
