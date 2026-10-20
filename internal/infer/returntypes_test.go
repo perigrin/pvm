@@ -968,17 +968,22 @@ var ooModules = []string{
 	"Term::ReadLine", "Tie::Hash", "HTTP::Tiny", "Locale::Maketext::Simple",
 }
 
-// ioSocketIPSocketReexports are the 170 Socket default names
-// IO/Socket/IP.tpm marks :export (measured on 5.42.0): they live in
+// ioSocketIPSocketReexports are 161 of the 170 Socket default names
+// IO/Socket/IP.tpm marks :export (measured on 5.42.0): they live only in
 // IO::Socket's own stash, from its file-scope `use Socket;`, not
 // IO::Socket::IP's own, so the return-type oracle's sub-form call --
 // which looks up Module::name directly -- cannot reach any of them
 // here, though IO::Socket::IP->can(name) finds them by inheritance.
 // Socket.tpm's own oracle (TestConstantExportersReturnTypes) already
-// holds their return types.
+// holds their return types. The other nine -- AF_INET, sockaddr_family,
+// SO_REUSEADDR, SO_REUSEPORT, SO_BROADCAST, SO_ERROR, SOCK_DGRAM,
+// SOCK_STREAM and SOL_SOCKET -- are also imported directly into
+// IO::Socket::IP's own package, by its own file-scope `use Socket ...
+// qw(...)` (measured), so the oracle holds them directly instead
+// (oracle/IO-Socket-IP.pl), not here.
 var ioSocketIPSocketReexports = []string{
 	"AF_802", "AF_AAL", "AF_APPLETALK", "AF_CCITT", "AF_CHAOS", "AF_CTF", "AF_DATAKIT", "AF_DECnet",
-	"AF_DLI", "AF_ECMA", "AF_GOSIP", "AF_HYLINK", "AF_IMPLINK", "AF_INET", "AF_INET6", "AF_ISO",
+	"AF_DLI", "AF_ECMA", "AF_GOSIP", "AF_HYLINK", "AF_IMPLINK", "AF_INET6", "AF_ISO",
 	"AF_KEY", "AF_LAST", "AF_LAT", "AF_LINK", "AF_MAX", "AF_NBS", "AF_NIT", "AF_NS",
 	"AF_OSI", "AF_OSINET", "AF_PUP", "AF_ROUTE", "AF_SNA", "AF_UNIX", "AF_UNSPEC", "AF_USER",
 	"AF_WAN", "AF_X25", "INADDR_ANY", "INADDR_BROADCAST", "INADDR_LOOPBACK", "INADDR_NONE", "IOV_MAX", "IP_HDRINCL",
@@ -991,43 +996,33 @@ var ioSocketIPSocketReexports = []string{
 	"PF_LAST", "PF_LAT", "PF_LINK", "PF_MAX", "PF_NBS", "PF_NIT", "PF_NS", "PF_OSI",
 	"PF_OSINET", "PF_PUP", "PF_ROUTE", "PF_SNA", "PF_UNIX", "PF_UNSPEC", "PF_USER", "PF_WAN",
 	"PF_X25", "SCM_CONNECT", "SCM_CREDENTIALS", "SCM_CREDS", "SCM_RIGHTS", "SCM_TIMESTAMP", "SHUT_RD", "SHUT_RDWR",
-	"SHUT_WR", "SOCK_DGRAM", "SOCK_RAW", "SOCK_RDM", "SOCK_SEQPACKET", "SOCK_STREAM", "SOL_SOCKET", "SOMAXCONN",
-	"SO_ACCEPTCONN", "SO_ATTACH_FILTER", "SO_BACKLOG", "SO_BROADCAST", "SO_CHAMELEON", "SO_DEBUG", "SO_DETACH_FILTER", "SO_DGRAM_ERRIND",
-	"SO_DOMAIN", "SO_DONTLINGER", "SO_DONTROUTE", "SO_ERROR", "SO_FAMILY", "SO_KEEPALIVE", "SO_LINGER", "SO_OOBINLINE",
+	"SHUT_WR", "SOCK_RAW", "SOCK_RDM", "SOCK_SEQPACKET", "SOMAXCONN",
+	"SO_ACCEPTCONN", "SO_ATTACH_FILTER", "SO_BACKLOG", "SO_CHAMELEON", "SO_DEBUG", "SO_DETACH_FILTER", "SO_DGRAM_ERRIND",
+	"SO_DOMAIN", "SO_DONTLINGER", "SO_DONTROUTE", "SO_FAMILY", "SO_KEEPALIVE", "SO_LINGER", "SO_OOBINLINE",
 	"SO_PASSCRED", "SO_PASSIFNAME", "SO_PEERCRED", "SO_PROTOCOL", "SO_PROTOTYPE", "SO_RCVBUF", "SO_RCVLOWAT", "SO_RCVTIMEO",
-	"SO_REUSEADDR", "SO_REUSEPORT", "SO_SECURITY_AUTHENTICATION", "SO_SECURITY_ENCRYPTION_NETWORK", "SO_SECURITY_ENCRYPTION_TRANSPORT", "SO_SNDBUF", "SO_SNDLOWAT", "SO_SNDTIMEO",
+	"SO_SECURITY_AUTHENTICATION", "SO_SECURITY_ENCRYPTION_NETWORK", "SO_SECURITY_ENCRYPTION_TRANSPORT", "SO_SNDBUF", "SO_SNDLOWAT", "SO_SNDTIMEO",
 	"SO_STATE", "SO_TYPE", "SO_USELOOPBACK", "SO_XOPEN", "SO_XSE", "UIO_MAXIOV", "inet_aton", "inet_ntoa",
-	"pack_sockaddr_in", "pack_sockaddr_in6", "pack_sockaddr_un", "sockaddr_family", "sockaddr_in", "sockaddr_in6", "sockaddr_un", "unpack_sockaddr_in",
+	"pack_sockaddr_in", "pack_sockaddr_in6", "pack_sockaddr_un", "sockaddr_in", "sockaddr_in6", "sockaddr_un", "unpack_sockaddr_in",
 	"unpack_sockaddr_in6", "unpack_sockaddr_un",
 }
 
-// ooNoInstanceReason is why the return-type oracle cannot exercise a
-// true instance method here: its method-form call always passes the
-// class name as the invocant (return_oracle.pl), never a constructed
-// one, and each of these dereferences its invocant and dies otherwise
-// (measured, e.g. IO::Select->add).
-const ooNoInstanceReason = "the oracle's method call passes the class name as the invocant, never a constructed instance; this method operates on one and dies otherwise (measured)"
-
 // ooExempt extends oracleExempt with the OO batch's own exemptions:
-// Socket's re-exports under IO::Socket::IP, instance methods the
-// oracle's class-as-invocant call cannot reach, and the subs that touch
-// the network or a real terminal.
+// Socket's re-exports under IO::Socket::IP that its own stash cannot
+// reach, and the subs that touch the network or a real terminal.
+// IO::Select's and HTTP::Tiny's own instance methods are not here: the
+// return-type oracle calls each of those on a constructed instance
+// (INSTANCE in oracle/IO-Select.pl and oracle/HTTP-Tiny.pl), not the
+// bare class name, so they need no exemption.
 func ooExempt() map[string]string {
 	m := maps.Clone(oracleExempt)
 	for _, name := range ioSocketIPSocketReexports {
 		m["IO::Socket::IP::"+name] = "lives in IO::Socket's own stash, from its file-scope `use Socket;`, not IO::Socket::IP's; the sub-form oracle cannot reach it there (measured), and Socket.tpm's own oracle already holds its return type"
-	}
-	for _, name := range []string{"add", "remove", "exists", "handles", "can_read", "can_write", "has_exception", "count"} {
-		m["IO::Select::"+name] = ooNoInstanceReason
 	}
 	for _, name := range []string{"connect", "sockhost", "sockport", "peerhost", "peerport"} {
 		m["IO::Socket::IP::"+name] = "opens or reads a real network connection"
 	}
 	for _, name := range []string{"get", "head", "put", "post", "patch", "delete", "post_form", "mirror", "request"} {
 		m["HTTP::Tiny::"+name] = "performs a real HTTP request over the network"
-	}
-	for _, name := range []string{"connected", "agent", "timeout"} {
-		m["HTTP::Tiny::"+name] = ooNoInstanceReason
 	}
 	m["Term::ReadLine::readline"] = "blocks reading a line from a real terminal"
 	return m
@@ -1340,4 +1335,193 @@ func TestIOFileNewMissingFileReturnIsDeclared(t *testing.T) {
 		}
 	}
 	assert.True(t, admits, "IO::File.tpm's declared new does not admit Undef, but perl returns undef on a missing file")
+}
+
+// allExemptAllowlist names the modules the return-type oracle may
+// legitimately call nothing from: XSLoader declares exactly load and
+// bootstrap_inherit, and Net::Ping exactly pingecho and wakeonlan, and
+// every one of the four needs a real compiled extension or a real
+// network connection (see oracleExempt). Any other module whose every
+// declared sub ends up exempt passes TestOOModulesReturnTypes or
+// TestIOExportersReturnTypes vacuously -- never actually calling perl --
+// which is the defect this guards against.
+var allExemptAllowlist = map[string]bool{
+	"XSLoader":  true,
+	"Net::Ping": true,
+}
+
+// exemptMapFor is the exemption map holdReturnTypes or
+// TestOOModulesReturnTypes actually calls module with: ooExempt's
+// extended map for the OO batch, oracleExempt for everyone else.
+func exemptMapFor(module string) map[string]string {
+	if slices.Contains(ooModules, module) {
+		return ooExempt()
+	}
+	return oracleExempt
+}
+
+// TestNoModuleIsAllExempt: for every module with a .tpm declaration, at
+// least one of its declared subs is not in the exemption map its own
+// return-type oracle run uses, unless the module is in
+// allExemptAllowlist. Exempting every sub a module declares makes its
+// return-type oracle test pass without ever calling perl, which the
+// allowlist proves this test would otherwise miss: XSLoader stays green
+// only because it is named here.
+func TestNoModuleIsAllExempt(t *testing.T) {
+	root := filepath.Join("..", "parse", "declarations")
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, walkErr error) error {
+		if walkErr != nil || d.IsDir() || !strings.HasSuffix(path, ".tpm") {
+			return walkErr
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		module := strings.ReplaceAll(strings.TrimSuffix(filepath.ToSlash(rel), ".tpm"), "/", "::")
+		if module == "CORE" {
+			// CORE's builtins are not modules the return-type oracle
+			// calls perl's `require` on; a different mechanism holds them.
+			return nil
+		}
+		src, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		sigs, errs := parse.DeclaredSignatures(src)
+		if len(errs) > 0 || len(sigs) == 0 {
+			// A declaration error is a different test's job to catch; a
+			// module with no declared subs has nothing to exempt.
+			return nil
+		}
+		exempt := exemptMapFor(module)
+		allExempt := true
+		for name := range sigs {
+			if _, ok := exempt[module+"::"+name]; !ok {
+				allExempt = false
+				break
+			}
+		}
+		if allExempt && !allExemptAllowlist[module] {
+			t.Errorf("%s: every declared sub is exempt, so its return-type oracle test never calls perl; "+
+				"add a real call case for at least one, or add %q to allExemptAllowlist with why", module, module)
+		}
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+// caseArities runs perl to read a cases file's own hash literal and
+// reports each sub name's call cases by their argument count. The cases
+// file is perl data, some of it built from the module's own constants
+// (Socket::pack_sockaddr_in and the like), so the module is required
+// first, exactly as return_oracle.pl itself requires it before reading
+// the same file (ruling: perl is the only safe reader of this data, not
+// a Go-side parse of the literal).
+func caseArities(t *testing.T, p perltest.Perl, module, casesPath string) map[string][]int {
+	t.Helper()
+	script := `my ($module, $cases_file) = @ARGV;` +
+		`open my $out, '>&', \*STDOUT or die $!; open STDOUT, '>&', \*STDERR or die $!;` +
+		`(my $file = "$module.pm") =~ s{::}{/}g; require $file;` +
+		`my %cases = do $cases_file; die "cannot read $cases_file: ", $@ || $!, "\n" if $@;` +
+		`delete $cases{INSTANCE};` +
+		`open STDOUT, '>&', $out or die $!;` +
+		`for my $n (sort keys %cases) { print "$n ", join(",", map { scalar @$_ } @{$cases{$n}}), "\n" }`
+	scratch := t.TempDir()
+	cmd := p.Command("-e", script, module, casesPath)
+	cmd.Dir = scratch
+	cmd.Env = append(cmd.Env, "HOME="+scratch, "TMPDIR="+scratch)
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	require.NoError(t, err, "caseArities(%s): %s", module, stderr.String())
+	arities := map[string][]int{}
+	for _, line := range strings.Split(strings.TrimRight(string(out), "\n"), "\n") {
+		if line == "" {
+			continue
+		}
+		name, counts, ok := strings.Cut(line, " ")
+		require.True(t, ok, "caseArities: unparseable line %q from %s", line, casesPath)
+		for _, s := range strings.Split(counts, ",") {
+			n, err := strconv.Atoi(s)
+			require.NoError(t, err)
+			arities[name] = append(arities[name], n)
+		}
+	}
+	return arities
+}
+
+// TestEveryMultiCandidateIsExercised: for every module with a .tpm
+// declaration, each candidate of a `multi` sub is reachable by at least
+// one oracle call case of a matching arity and form, or the whole name
+// is in the module's exemption map. RFC 0001 ("Context selects by
+// return type") lets calls() collapse two candidates sharing a context
+// into one request, told apart only by arity; a candidate calls() never
+// asks for, and no case ever exercises, can pass unnoticed, since
+// returnTypeFailures only requires SOME candidate to admit an observed
+// value, never every one.
+func TestEveryMultiCandidateIsExercised(t *testing.T) {
+	p := perltest.Perl542(t)
+	root := filepath.Join("..", "parse", "declarations")
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, walkErr error) error {
+		if walkErr != nil || d.IsDir() || !strings.HasSuffix(path, ".tpm") {
+			return walkErr
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		module := strings.ReplaceAll(strings.TrimSuffix(filepath.ToSlash(rel), ".tpm"), "/", "::")
+		if module == "CORE" {
+			// CORE's multi candidates are told apart by parse-time
+			// syntax, not a runtime oracle call; a different mechanism
+			// holds them.
+			return nil
+		}
+		src, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		sigs, errs := parse.DeclaredSignatures(src)
+		if len(errs) > 0 {
+			return nil
+		}
+		hasMulti := false
+		for _, cands := range sigs {
+			if len(cands) > 1 {
+				hasMulti = true
+				break
+			}
+		}
+		if !hasMulti {
+			return nil
+		}
+		casesPath, err := filepath.Abs(filepath.Join("testdata", "oracle", strings.ReplaceAll(module, "::", "-")+".pl"))
+		if err != nil {
+			return err
+		}
+		if _, statErr := os.Stat(casesPath); statErr != nil {
+			// No oracle file for this module (a non-core .tpm outside
+			// the core-module-types milestone): nothing to check here.
+			return nil
+		}
+		arities := caseArities(t, p, module, casesPath)
+		exempt := exemptMapFor(module)
+		for name, cands := range sigs {
+			if len(cands) < 2 {
+				continue
+			}
+			if _, ok := exempt[module+"::"+name]; ok {
+				continue
+			}
+			for _, s := range cands {
+				form := callForm(s)
+				if !slices.ContainsFunc(arities[name], func(n int) bool { return takes(s, form, n) }) {
+					t.Errorf("%s::%s: a multi candidate (%s form, returns %s) has no oracle call case of a matching arity, and %s::%s is not exempt",
+						module, name, form, s.Returns, module, name)
+				}
+			}
+		}
+		return nil
+	})
+	require.NoError(t, err)
 }
