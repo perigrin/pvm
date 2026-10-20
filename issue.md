@@ -1,6 +1,6 @@
 ---
 title: "Declare the variable exporters: Config, Getopt::Long, Test::More, Text::Wrap, ExtUtils::MakeMaker, File::stat"
-state: reopened
+state: in-progress
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -12,7 +12,7 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.843622709Z
-updated: 2026-10-20T16:00:26.995556216Z
+updated: 2026-10-20T16:00:27.056699305Z
 sessions:
 - start_sha: 34826451ff25d9be31c553948ea6de4ec295f77d
   end_sha: 9e5ae578baacecaaf348477c8982d9720ed83cf0
@@ -29,6 +29,10 @@ sessions:
   commits: 2
   started_at: 2026-10-20T15:30:07.911596067Z
   ended_at: 2026-10-20T15:50:23.32016321Z
+- start_sha: 5cb8c3c598e8b1b28564fd36eee5a8455353e77e
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-20T16:00:27.056699305Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
@@ -57,6 +61,9 @@ transitions:
 - state: reopened
   actor: human:git-zhi
   timestamp: 2026-10-20T16:00:26.995556216Z
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-20T16:00:27.056699305Z
 observed_paths:
 - docs/rfcs/0001-type-libraries.md
 - internal/infer/declared_test.go
