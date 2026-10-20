@@ -1,6 +1,6 @@
 ---
 title: Declare POSIX's functions and hold them to the return-type oracle
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -9,16 +9,47 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:59:46.730685644Z
-updated: 2026-10-20T00:43:36.52718261Z
+updated: 2026-10-20T01:48:32.556825795Z
 sessions:
 - start_sha: 236f66e72899b4f1ef19ba3d8b8613b74ce46140
-  end_sha: ""
-  commits: 0
+  end_sha: 49b2a9a42871b31c8f4d6ae70850d11f3b1d844c
+  commits: 3
   started_at: 2026-10-20T00:43:36.52718261Z
+  ended_at: 2026-10-20T01:48:32.556825795Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-20T00:43:36.52718261Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-20T01:48:32.556825795Z
+observed_paths:
+- internal/infer/precision_test.go
+- internal/infer/returntypes_test.go
+- internal/infer/testdata/observe_types.pl
+- internal/infer/testdata/oracle/Class-Struct.pl
+- internal/infer/testdata/oracle/Errno.pl
+- internal/infer/testdata/oracle/File-Basename.pl
+- internal/infer/testdata/oracle/File-Copy.pl
+- internal/infer/testdata/oracle/File-Find.pl
+- internal/infer/testdata/oracle/File-Path.pl
+- internal/infer/testdata/oracle/Getopt-Std.pl
+- internal/infer/testdata/oracle/POSIX.pl
+- internal/infer/testdata/oracle/Text-ParseWords.pl
+- internal/infer/testdata/oracle/Time-Local.pl
+- internal/parse/declarations/Class/Struct.tpm
+- internal/parse/declarations/Errno.tpm
+- internal/parse/declarations/File/Basename.tpm
+- internal/parse/declarations/File/Copy.tpm
+- internal/parse/declarations/File/Find.tpm
+- internal/parse/declarations/File/Path.tpm
+- internal/parse/declarations/Getopt/Std.tpm
+- internal/parse/declarations/POSIX.tpm
+- internal/parse/declarations/Text/ParseWords.tpm
+- internal/parse/declarations/Time/Local.tpm
+- internal/parse/heldtoperl_test.go
+- internal/parse/testdata/held_to_perl.pl
+- internal/psc/testdata/lib_true_positives.txt
 ---
 
 ## Prerequisites
