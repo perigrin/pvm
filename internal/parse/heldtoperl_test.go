@@ -916,6 +916,64 @@ func TestIOExportersMethodsAreNotExported(t *testing.T) {
 	}
 }
 
+// documentedOOInterfaces is, per module, the documented OO methods
+// audit-C.md's findings named as entirely omitted before this fix:
+// File::Temp's OO interface (finding 14) and three not-exported
+// functions (finding 15); Archive::Tar's whole method interface
+// (finding 18); Term::ReadLine's new() IN/OUT parameters and four
+// omitted methods (findings 31, 32); HTTP::Tiny's generated attribute
+// accessors (finding 29). IO::Select's class-method select and
+// Net::Ping's broader OO interface (findings 13, 22) are deferred --
+// see IO/Select.tpm's and Net/Ping.tpm's own comments -- so neither
+// is named here.
+var documentedOOInterfaces = map[string][]string{
+	"File::Temp": {
+		"new", "newdir", "filename", "unlink_on_destroy", "safe_level", "top_system_uid",
+		"tempnam", "cmpstat", "unlink1",
+	},
+	"Archive::Tar": {
+		"new", "create_archive", "iter", "list_archive", "extract_archive",
+		"has_io_string", "has_perlio", "has_zlib_support", "has_bzip2_support",
+		"has_xz_support", "can_handle_compressed_files",
+		"read", "contains_file", "extract", "extract_file", "list_files",
+		"get_files", "get_content", "replace_content", "rename", "chmod",
+		"chown", "remove", "clear", "write", "add_files", "add_data", "error",
+		"setcwd",
+	},
+	"Term::ReadLine": {"IN", "OUT", "ornaments", "newTTY", "tkRunning", "event_loop"},
+	"HTTP::Tiny": {
+		"cookie_jar", "default_headers", "http_proxy", "https_proxy", "keep_alive",
+		"local_address", "max_redirect", "max_size", "proxy", "no_proxy",
+		"SSL_options", "verify_SSL",
+	},
+}
+
+// TestDocumentedOOInterfacesDeclared: every method documentedOOInterfaces
+// names is declared, with a typed return, in its module's .tpm --
+// audit-C.md's findings for the OO interfaces this fix adds (14, 15,
+// 18, 29, 31, 32).
+func TestDocumentedOOInterfacesDeclared(t *testing.T) {
+	for module, methods := range documentedOOInterfaces {
+		src, ok := declaration(module)
+		if !assert.True(t, ok, "%s: no declaration", module) {
+			continue
+		}
+		facts, err := readHeld(module, src)
+		if !assert.NoError(t, err, "%s: %v", module, err) {
+			continue
+		}
+		for _, name := range methods {
+			sigs, declared := facts.signatures[name]
+			if !assert.True(t, declared, "%s::%s is not declared", module, name) {
+				continue
+			}
+			for _, s := range sigs {
+				assert.NotEqual(t, types.Unknown, s.Returns, "%s::%s should be typed, not Unknown", module, name)
+			}
+		}
+	}
+}
+
 // TestFileHandleFilenoIsDeclared: FileHandle.pm aliases IO::Handle's
 // fileno straight into FileHandle:: at require time, so FileHandle.tpm
 // must declare it with a concrete return type -- a name the parser
