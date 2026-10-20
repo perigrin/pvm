@@ -1,6 +1,6 @@
 ---
 title: "Close core-module-types: top-50 coverage, precision, lib baseline, exits, m1 gates, RFC re-marked"
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -27,16 +27,27 @@ blocked_by:
 - 01a14683-8405-743e-9c90-7bb5ff9cec88
 - 01a14683-84ab-7efb-a0c5-b2db8deb8e28
 created: 2026-10-16T20:02:16.243834962Z
-updated: 2026-10-20T16:43:54.855598868Z
+updated: 2026-10-20T17:30:23.422155411Z
 sessions:
 - start_sha: 6c1aa61173f56c9b15f32bff3235aae12b2f18f0
-  end_sha: ""
-  commits: 0
+  end_sha: cf08c0acdb986b7a59c463c2ed994e0721307294
+  commits: 2
   started_at: 2026-10-20T16:43:54.855598868Z
+  ended_at: 2026-10-20T17:30:23.422155411Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-20T16:43:54.855598868Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-20T17:30:23.422155411Z
+observed_paths:
+- docs/contributing/core-module-declarations.md
+- docs/rfcs/0001-type-libraries.md
+- internal/data/help/types.md
+- internal/parse/coverage_test.go
+- internal/parse/ranking_test.go
+- internal/parse/testdata/core_module_not_shipped.txt
 ---
 
 ## Prerequisites
