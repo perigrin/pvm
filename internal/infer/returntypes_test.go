@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"tamarou.com/pvm/internal/infer"
 	"tamarou.com/pvm/internal/parse"
 	"tamarou.com/pvm/internal/perltest"
 	"tamarou.com/pvm/internal/types"
@@ -1207,6 +1208,141 @@ func TestPOSIXClassifiersTakeInfNaN(t *testing.T) {
 			}
 		}
 	}
+}
+
+// posixArityScript measures, for nan, open, strtol, strtoul, mblen,
+// mbtowc, asctime, mktime and strftime, an arity one below their
+// minimum, each arity usage.txt's optional parameters admit, and one
+// above their maximum, printing "name:n\tOK" or "name:n\tDIE".
+const posixArityScript = `
+use v5.42; no warnings;
+use POSIX;
+
+sub tryn {
+    my ($label, $code) = @_;
+    my $ok = eval { $code->(); 1 };
+    print "$label\t", ($ok ? "OK" : "DIE"), "\n";
+}
+
+tryn('nan:0', sub { POSIX::nan() });
+tryn('nan:1', sub { POSIX::nan(5) });
+tryn('nan:2', sub { POSIX::nan(5,6) });
+
+tryn('open:0', sub { POSIX::open() });
+tryn('open:1', sub { POSIX::open("f") });
+tryn('open:2', sub { POSIX::open("f", &POSIX::O_RDONLY) });
+tryn('open:3', sub { POSIX::open("f", &POSIX::O_RDONLY, 0666) });
+tryn('open:4', sub { POSIX::open("f", &POSIX::O_RDONLY, 0666, 1) });
+
+tryn('strtol:0', sub { POSIX::strtol() });
+tryn('strtol:1', sub { POSIX::strtol("42") });
+tryn('strtol:2', sub { POSIX::strtol("42", 10) });
+tryn('strtol:3', sub { POSIX::strtol("42", 10, 1) });
+
+tryn('strtoul:0', sub { POSIX::strtoul() });
+tryn('strtoul:1', sub { POSIX::strtoul("42") });
+tryn('strtoul:2', sub { POSIX::strtoul("42", 10) });
+tryn('strtoul:3', sub { POSIX::strtoul("42", 10, 1) });
+
+tryn('mblen:0', sub { POSIX::mblen() });
+tryn('mblen:1', sub { POSIX::mblen("a") });
+tryn('mblen:2', sub { POSIX::mblen("a", 1) });
+tryn('mblen:3', sub { POSIX::mblen("a", 1, 2) });
+tryn('mblen:undef', sub { POSIX::mblen(undef) });
+
+tryn('mbtowc:1', sub { my $x; POSIX::mbtowc($x) });
+tryn('mbtowc:2', sub { my $x; POSIX::mbtowc($x, "a") });
+tryn('mbtowc:3', sub { my $x; POSIX::mbtowc($x, "a", 1) });
+tryn('mbtowc:4', sub { my $x; POSIX::mbtowc($x, "a", 1, 2) });
+tryn('mbtowc:undef', sub { my $x; POSIX::mbtowc($x, undef) });
+
+tryn('perror:0', sub { POSIX::perror() });
+tryn('perror:1', sub { POSIX::perror("a") });
+tryn('perror:2', sub { POSIX::perror("a", "b") });
+
+tryn('asctime:5', sub { POSIX::asctime(0,0,0,1,0) });
+tryn('asctime:6', sub { POSIX::asctime(0,0,0,1,0,70) });
+tryn('asctime:9', sub { POSIX::asctime(0,0,0,1,0,70,0,0,-1) });
+tryn('asctime:10', sub { POSIX::asctime(0,0,0,1,0,70,0,0,-1,1) });
+
+tryn('mktime:5', sub { POSIX::mktime(0,0,0,1,0) });
+tryn('mktime:6', sub { POSIX::mktime(0,0,0,1,0,70) });
+tryn('mktime:9', sub { POSIX::mktime(0,0,0,1,0,70,0,0,-1) });
+tryn('mktime:10', sub { POSIX::mktime(0,0,0,1,0,70,0,0,-1,1) });
+
+tryn('strftime:6', sub { POSIX::strftime("%Y",0,0,0,1,0) });
+tryn('strftime:7', sub { POSIX::strftime("%Y",0,0,0,1,0,70) });
+tryn('strftime:10', sub { POSIX::strftime("%Y",0,0,0,1,0,70,0,0,-1) });
+tryn('strftime:11', sub { POSIX::strftime("%Y",0,0,0,1,0,70,0,0,-1,1) });
+`
+
+// TestPOSIXOptionalParametersMatchPerl: nan, open, strtol, strtoul,
+// mblen, mbtowc, asctime, mktime and strftime each take an arity range
+// perl's own "Usage: ..." croak states (usage.txt), not the single
+// required arity POSIX.tpm declared. Each arity perl accepts is
+// measured directly and admitted by the declared signature; the one
+// just past each end, perl's own negative scenario, still dies in perl
+// and is still refused by it (scratchpad/audit-A.md F4).
+func TestPOSIXOptionalParametersMatchPerl(t *testing.T) {
+	p := perltest.Perl542(t)
+	out, err := p.Command("-e", posixArityScript).Output()
+	require.NoError(t, err)
+
+	sigs := posixSignatures(t)
+	lines := strings.Split(strings.TrimRight(string(out), "\n"), "\n")
+	require.NotEmpty(t, lines)
+	for _, line := range lines {
+		label, result, ok := strings.Cut(line, "\t")
+		require.True(t, ok, "unparseable line: %q", line)
+		name, narg, ok := strings.Cut(label, ":")
+		require.True(t, ok, "unparseable label: %q", label)
+
+		cands, ok := sigs[name]
+		if !assert.True(t, ok, "POSIX::%s is not declared", name) {
+			continue
+		}
+		if narg == "undef" {
+			// mblen and mbtowc: undef in their Str slot is a documented
+			// distinct meaning, not an arity case; perl must not die.
+			assert.Equal(t, "OK", result, "POSIX::%s(undef, ...) died", name)
+			continue
+		}
+		n, convErr := strconv.Atoi(narg)
+		require.NoError(t, convErr)
+
+		dies := result == "DIE"
+		accepts := types.Accepts(cands, n)
+		assert.NotEqual(t, dies, accepts,
+			"POSIX::%s with %d argument(s): perl %s, declared signature accepts=%v", name, n, result, accepts)
+	}
+
+	// asctime, mktime and strftime also take their 6 (7 with strftime's
+	// format) through 9 (10) required arguments flattened from a single
+	// localtime call -- the idiom strftime($fmt, localtime) must keep
+	// working -- and still refuse too few. A loader, even one resolving
+	// nothing, is what has the parser track a name `use POSIX qw(...)`
+	// imports bare, as checkFile's real one does; loweredDiags's
+	// loader-less parse.Parse does not, and so checks nothing here.
+	assert.Empty(t, posixDeclaredDiags(t, "use POSIX qw(asctime mktime strftime);\nmy $a = asctime(localtime);\nmy $m = mktime(localtime);\nmy $s = strftime(\"%Y\", localtime);\n"))
+	wantArity := func(src string) {
+		diags := posixDeclaredDiags(t, src)
+		require.Len(t, diags, 1, "%q: diagnostics %v", src, diags)
+		assert.Equal(t, infer.CodeArityMismatch, diags[0].Code, diags[0].Message)
+	}
+	wantArity("use POSIX qw(asctime);\nmy $a = asctime(0,0,0,1,0);\n")
+	wantArity("use POSIX qw(strftime);\nmy $s = strftime(\"%Y\",0,0,0,1,0);\n")
+}
+
+// posixDeclaredDiags analyses src, resolving `use POSIX` and its sibling
+// declared libraries through a loader (even one resolving nothing), the
+// way checkFile's real one does; loweredDiags's loader-less parse.Parse
+// does not track a bare imported name the same way and so checks nothing
+// for it.
+func posixDeclaredDiags(t *testing.T, src string) []infer.Diagnostic {
+	t.Helper()
+	load := func(string) ([]byte, bool) { return nil, false }
+	root := parse.ParseWithLoader([]byte(src), load)
+	return infer.AnalyzeParsed(root, nil, infer.Options{}).Diagnostics
 }
 
 // TestXSLibrariesReturnTypes holds each XS library's declared return
