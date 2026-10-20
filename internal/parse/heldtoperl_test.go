@@ -722,6 +722,16 @@ func TestLocaleMaketextSimpleArgumentFormInstallsLoc(t *testing.T) {
 	assert.ElementsMatch(t, []string{"loc", "loc_lang"}, got)
 }
 
+// TestLocaleMaketextSimpleExportKeyClaimsNoNames: perigrin's ruling,
+// 2026-10-20 ("the signature names the keys"): Locale::Maketext::Simple's
+// import signature names Export as the key whose presence changes what
+// import installs -- measured on 5.42.0, `use Locale::Maketext::Simple
+// (Export => 'zz');` installs zz and zz_lang, not loc and loc_lang, so
+// this parser claims no names rather than a wrong one.
+func TestLocaleMaketextSimpleExportKeyClaimsNoNames(t *testing.T) {
+	assert.Empty(t, importedFrom(t, "use Locale::Maketext::Simple (Export => 'zz');\n"))
+}
+
 // variableExporters is the variable-exporters batch (01a1464e-dca3):
 // every module below exports a plain Perl variable, measured on
 // 2026-10-16.
@@ -847,6 +857,16 @@ func TestTestMoreArgumentFormImportsSameNames(t *testing.T) {
 	assert.Equal(t, bare, withArgs)
 	assert.Contains(t, withArgs, "ok")
 	assert.Contains(t, withArgs, "plan")
+}
+
+// TestTestMoreImportKeyClaimsNoNames: perigrin's ruling, 2026-10-20
+// ("the signature names the keys"): Test::More's import signature names
+// import as the key whose presence changes what import installs --
+// measured on 5.42.0, `use Test::More import => ['ok'], tests => 1;`
+// installs only ok, not the full bare-use set, so this parser claims no
+// names rather than a wrong one.
+func TestTestMoreImportKeyClaimsNoNames(t *testing.T) {
+	assert.Empty(t, importedFrom(t, "use Test::More import => ['ok'], tests => 1;\n"))
 }
 
 // ioExporters is the IO and file-handling batch (01a1464e-db76):

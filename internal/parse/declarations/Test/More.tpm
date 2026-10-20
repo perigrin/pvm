@@ -12,7 +12,15 @@ package Test::More;
 # the invocant (Test::More->import(@plan)), so the colon keeps the
 # derived prototype none, matching perl's (prototype() on the
 # inherited Test::Builder::Module::import is undef).
-sub import (Str $class: List @plan) Void;
+#
+# The signature names the keys (perigrin's ruling, 2026-10-20): $import
+# is the one key (`import => [...]`, Test::Builder::Module's own, not an
+# export list) whose presence changes what import installs -- measured
+# on 5.42.0, `use Test::More import => ['ok'], tests => 1;` installs
+# only ok, never the full set below, so a use-list carrying this key
+# claims no names and leaves the symbols open; one without it installs
+# the names below, as a bare use does.
+sub import (Str $class: Str $import = undef, List @plan) Void;
 our Str|Undef $TODO :export;
 
 # BAIL_OUT exits the whole test run: measured on 5.42.0, it calls

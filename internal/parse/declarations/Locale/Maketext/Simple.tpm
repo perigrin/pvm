@@ -14,7 +14,14 @@ package Locale::Maketext::Simple;
 # neither (measured: the explicit empty list calls no import). $class is
 # the invocant, so the colon keeps the derived prototype none, matching
 # perl's (prototype() on Locale::Maketext::Simple::import is undef).
-sub import (Str $class: List @args) Void;
+#
+# The signature names the keys (perigrin's ruling, 2026-10-20): $Export
+# is the one key whose presence changes what import installs -- measured
+# on 5.42.0, `use Locale::Maketext::Simple (Export => 'zz');` installs zz
+# and zz_lang, never loc/loc_lang, so a use-list carrying this key claims
+# no names and leaves the symbols open; one without it installs loc and
+# loc_lang, as a bare use does.
+sub import (Str $class: Str $Export = undef, List @args) Void;
 
 # Without Locale::Maketext::Lexicon loaded (measured: not installed
 # here), import falls back to default_loc's interpolator, always a
