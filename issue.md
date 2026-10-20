@@ -1,10 +1,19 @@
 ---
 title: "Declaration reader refusals: export marks in blocks, list-form typed our, redeclaration disagreements, use vars export lists"
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 created: 2026-10-20T19:18:42.38786537Z
-updated: 2026-10-20T19:18:42.38786537Z
+updated: 2026-10-20T19:39:29.23442591Z
+sessions:
+- start_sha: 3e1e18712a71295fc187f6cf99240b81c3f67124
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-20T19:39:29.23442591Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-20T19:39:29.23442591Z
 ---
 
 crochet:review of PR #488, round 1 (2026-10-21). Quality S3 internal/parse/declarations.go:281,387 (export marks inside blocks silently dropped), S4 declarations.go:290-302 + decl.go:902-928 (list-form typed our and redeclaration mark/type disagreements pass silently), S5 declarations.go:376 (use vars '@EXPORT' escapes the export-list refusal). Quality I7 (typed-our types are never read by infer) is filed as its own follow-up outside this milestone.
