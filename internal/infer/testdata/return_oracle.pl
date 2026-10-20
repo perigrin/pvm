@@ -61,6 +61,7 @@ for (@subs) {
         $code = $module->can($name) or die "perl defines no method $name\n";
     }
     else {
+        my $primed;
         if ( !callable("${module}::$name") && callable("Held::OracleBarePrime::$name") ) {
             $code = \&{"Held::OracleBarePrime::$name"};
         }
@@ -70,9 +71,20 @@ for (@subs) {
             # regardless -- gets a stub only once it is asked for by
             # name.
             state $n = 0;
-            eval "package Held::OraclePrimeByName@{[$n++]}; use $module qw($name); 1";
+            $primed = "Held::OraclePrimeByName@{[$n++]}";
+            eval "package $primed; use $module qw($name); 1";
         }
-        $code //= callable("${module}::$name") ? \&{"${module}::$name"} : undef;
+        if ( !$code && callable("${module}::$name") ) {
+            $code = \&{"${module}::$name"};
+        }
+        elsif ( !$code && $primed && callable("${primed}::$name") ) {
+            # A module with its own import, like
+            # Locale::Maketext::Simple's, installs a glob straight into
+            # the caller's package and never into its own (measured):
+            # the only place left to find it is the package it was just
+            # primed into.
+            $code = \&{"${primed}::$name"};
+        }
         $code or die "perl defines no sub $name\n";
     }
     for my $i ( keys @$calls ) {

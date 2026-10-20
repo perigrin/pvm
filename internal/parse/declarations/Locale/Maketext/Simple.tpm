@@ -1,0 +1,16 @@
+# ABOUTME: Declares what Locale::Maketext::Simple's own `import` installs: loc and loc_lang.
+# ABOUTME: Measured on perl 5.42.0 with Locale::Maketext::Simple 0.21_01: neither carries a prototype.
+package Locale::Maketext::Simple;
+
+# import defaults $args{Export} to 'loc' and installs "${Export}_lang"
+# alongside it, so a bare `use Locale::Maketext::Simple;` installs both
+# loc and loc_lang (measured), and `use Locale::Maketext::Simple ();`
+# installs neither (measured: an empty import list asks for nothing).
+#
+# Without Locale::Maketext::Lexicon loaded (measured: not installed
+# here), import falls back to default_loc's interpolator, always a
+# defined Str; loc_lang falls back to `sub { 1 }`, whose bareword 1 is
+# an Int, not a marked Boolean (measured, as Carp's and File::Spec's
+# plain constants are).
+sub loc :export (List[Str] @args) Str;
+sub loc_lang :export (List[Str] @args) Int;

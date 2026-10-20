@@ -907,6 +907,136 @@ func TestSDBMFileOracleStaysInScratch(t *testing.T) {
 	assert.False(t, absolute.Match(cases), "SDBM_File's oracle cases name an absolute path")
 }
 
+// ooModules is the OO-only batch (01a1464e-dd27): File::Spec,
+// File::Spec::Unix, IO::Socket::IP, IO::Select, Term::ReadLine,
+// Tie::Hash, HTTP::Tiny and Locale::Maketext::Simple.
+var ooModules = []string{
+	"File::Spec", "File::Spec::Unix", "IO::Socket::IP", "IO::Select",
+	"Term::ReadLine", "Tie::Hash", "HTTP::Tiny", "Locale::Maketext::Simple",
+}
+
+// ioSocketIPSocketReexports are the 170 Socket default names
+// IO/Socket/IP.tpm marks :export (measured on 5.42.0): they live in
+// IO::Socket's own stash, from its file-scope `use Socket;`, not
+// IO::Socket::IP's own, so the return-type oracle's sub-form call --
+// which looks up Module::name directly -- cannot reach any of them
+// here, though IO::Socket::IP->can(name) finds them by inheritance.
+// Socket.tpm's own oracle (TestConstantExportersReturnTypes) already
+// holds their return types.
+var ioSocketIPSocketReexports = []string{
+	"AF_802", "AF_AAL", "AF_APPLETALK", "AF_CCITT", "AF_CHAOS", "AF_CTF", "AF_DATAKIT", "AF_DECnet",
+	"AF_DLI", "AF_ECMA", "AF_GOSIP", "AF_HYLINK", "AF_IMPLINK", "AF_INET", "AF_INET6", "AF_ISO",
+	"AF_KEY", "AF_LAST", "AF_LAT", "AF_LINK", "AF_MAX", "AF_NBS", "AF_NIT", "AF_NS",
+	"AF_OSI", "AF_OSINET", "AF_PUP", "AF_ROUTE", "AF_SNA", "AF_UNIX", "AF_UNSPEC", "AF_USER",
+	"AF_WAN", "AF_X25", "INADDR_ANY", "INADDR_BROADCAST", "INADDR_LOOPBACK", "INADDR_NONE", "IOV_MAX", "IP_HDRINCL",
+	"IP_OPTIONS", "IP_RECVOPTS", "IP_RECVRETOPTS", "IP_RETOPTS", "IP_TOS", "IP_TTL", "MSG_BCAST", "MSG_BTAG",
+	"MSG_CTLFLAGS", "MSG_CTLIGNORE", "MSG_CTRUNC", "MSG_DONTROUTE", "MSG_DONTWAIT", "MSG_EOF", "MSG_EOR", "MSG_ERRQUEUE",
+	"MSG_ETAG", "MSG_FASTOPEN", "MSG_FIN", "MSG_MAXIOVLEN", "MSG_MCAST", "MSG_NOSIGNAL", "MSG_OOB", "MSG_PEEK",
+	"MSG_PROXY", "MSG_RST", "MSG_SYN", "MSG_TRUNC", "MSG_URG", "MSG_WAITALL", "MSG_WIRE", "PF_802",
+	"PF_AAL", "PF_APPLETALK", "PF_CCITT", "PF_CHAOS", "PF_CTF", "PF_DATAKIT", "PF_DECnet", "PF_DLI",
+	"PF_ECMA", "PF_GOSIP", "PF_HYLINK", "PF_IMPLINK", "PF_INET", "PF_INET6", "PF_ISO", "PF_KEY",
+	"PF_LAST", "PF_LAT", "PF_LINK", "PF_MAX", "PF_NBS", "PF_NIT", "PF_NS", "PF_OSI",
+	"PF_OSINET", "PF_PUP", "PF_ROUTE", "PF_SNA", "PF_UNIX", "PF_UNSPEC", "PF_USER", "PF_WAN",
+	"PF_X25", "SCM_CONNECT", "SCM_CREDENTIALS", "SCM_CREDS", "SCM_RIGHTS", "SCM_TIMESTAMP", "SHUT_RD", "SHUT_RDWR",
+	"SHUT_WR", "SOCK_DGRAM", "SOCK_RAW", "SOCK_RDM", "SOCK_SEQPACKET", "SOCK_STREAM", "SOL_SOCKET", "SOMAXCONN",
+	"SO_ACCEPTCONN", "SO_ATTACH_FILTER", "SO_BACKLOG", "SO_BROADCAST", "SO_CHAMELEON", "SO_DEBUG", "SO_DETACH_FILTER", "SO_DGRAM_ERRIND",
+	"SO_DOMAIN", "SO_DONTLINGER", "SO_DONTROUTE", "SO_ERROR", "SO_FAMILY", "SO_KEEPALIVE", "SO_LINGER", "SO_OOBINLINE",
+	"SO_PASSCRED", "SO_PASSIFNAME", "SO_PEERCRED", "SO_PROTOCOL", "SO_PROTOTYPE", "SO_RCVBUF", "SO_RCVLOWAT", "SO_RCVTIMEO",
+	"SO_REUSEADDR", "SO_REUSEPORT", "SO_SECURITY_AUTHENTICATION", "SO_SECURITY_ENCRYPTION_NETWORK", "SO_SECURITY_ENCRYPTION_TRANSPORT", "SO_SNDBUF", "SO_SNDLOWAT", "SO_SNDTIMEO",
+	"SO_STATE", "SO_TYPE", "SO_USELOOPBACK", "SO_XOPEN", "SO_XSE", "UIO_MAXIOV", "inet_aton", "inet_ntoa",
+	"pack_sockaddr_in", "pack_sockaddr_in6", "pack_sockaddr_un", "sockaddr_family", "sockaddr_in", "sockaddr_in6", "sockaddr_un", "unpack_sockaddr_in",
+	"unpack_sockaddr_in6", "unpack_sockaddr_un",
+}
+
+// ooNoInstanceReason is why the return-type oracle cannot exercise a
+// true instance method here: its method-form call always passes the
+// class name as the invocant (return_oracle.pl), never a constructed
+// one, and each of these dereferences its invocant and dies otherwise
+// (measured, e.g. IO::Select->add).
+const ooNoInstanceReason = "the oracle's method call passes the class name as the invocant, never a constructed instance; this method operates on one and dies otherwise (measured)"
+
+// ooExempt extends oracleExempt with the OO batch's own exemptions:
+// Socket's re-exports under IO::Socket::IP, instance methods the
+// oracle's class-as-invocant call cannot reach, and the subs that touch
+// the network or a real terminal.
+func ooExempt() map[string]string {
+	m := maps.Clone(oracleExempt)
+	for _, name := range ioSocketIPSocketReexports {
+		m["IO::Socket::IP::"+name] = "lives in IO::Socket's own stash, from its file-scope `use Socket;`, not IO::Socket::IP's; the sub-form oracle cannot reach it there (measured), and Socket.tpm's own oracle already holds its return type"
+	}
+	for _, name := range []string{"add", "remove", "exists", "handles", "can_read", "can_write", "has_exception", "count"} {
+		m["IO::Select::"+name] = ooNoInstanceReason
+	}
+	for _, name := range []string{"connect", "sockhost", "sockport", "peerhost", "peerport"} {
+		m["IO::Socket::IP::"+name] = "opens or reads a real network connection"
+	}
+	for _, name := range []string{"get", "head", "put", "post", "patch", "delete", "post_form", "mirror", "request"} {
+		m["HTTP::Tiny::"+name] = "performs a real HTTP request over the network"
+	}
+	for _, name := range []string{"connected", "agent", "timeout"} {
+		m["HTTP::Tiny::"+name] = ooNoInstanceReason
+	}
+	m["Term::ReadLine::readline"] = "blocks reading a line from a real terminal"
+	return m
+}
+
+// TestOOModulesReturnTypes holds each OO module's declared return types
+// to perl, called with its oracle's cases, under ooExempt's extended
+// exemptions.
+func TestOOModulesReturnTypes(t *testing.T) {
+	p := perltest.Perl542(t)
+	exempt := ooExempt()
+	for _, module := range ooModules {
+		rel := strings.ReplaceAll(module, "::", "/")
+		tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", filepath.FromSlash(rel)+".tpm"))
+		if err != nil {
+			t.Errorf("%s: no declaration: %v", module, err)
+			continue
+		}
+		cases, err := filepath.Abs(filepath.Join("testdata", "oracle", strings.ReplaceAll(module, "::", "-")+".pl"))
+		require.NoError(t, err)
+		for _, f := range returnTypeFailures(t, p, oracleRun{Module: module, TPM: tpm, Cases: cases, Exempt: exempt}) {
+			t.Error(f)
+		}
+	}
+}
+
+// TestOOModulesNetworkSubsExempt: HTTP::Tiny's and IO::Socket::IP's
+// network-touching subs are each exempt, with a reason, and have no
+// call case in their oracle file, so TestOOModulesReturnTypes never
+// calls them.
+func TestOOModulesNetworkSubsExempt(t *testing.T) {
+	exempt := ooExempt()
+	networked := map[string][]string{
+		"HTTP::Tiny":     {"get", "head", "put", "post", "patch", "delete", "post_form", "mirror", "request"},
+		"IO::Socket::IP": {"connect", "sockhost", "sockport", "peerhost", "peerport"},
+	}
+	for module, names := range networked {
+		cases, err := os.ReadFile(filepath.Join("testdata", "oracle", strings.ReplaceAll(module, "::", "-")+".pl"))
+		require.NoError(t, err)
+		for _, name := range names {
+			reason, ok := exempt[module+"::"+name]
+			assert.True(t, ok, "%s::%s is not exempt", module, name)
+			assert.NotEmpty(t, reason, "%s::%s is exempt with no reason", module, name)
+			assert.NotContains(t, string(cases), name+" =>", "%s::%s has a call case despite being exempt", module, name)
+		}
+	}
+}
+
+// TestTermReadLineNeverCalled: Term::ReadLine's readline is exempt, with
+// a reason, and has no call case in Term-ReadLine.pl, since it blocks
+// reading a line from a real terminal.
+func TestTermReadLineNeverCalled(t *testing.T) {
+	exempt := ooExempt()
+	reason, ok := exempt["Term::ReadLine::readline"]
+	assert.True(t, ok, "Term::ReadLine::readline is not exempt")
+	assert.NotEmpty(t, reason)
+
+	cases, err := os.ReadFile(filepath.Join("testdata", "oracle", "Term-ReadLine.pl"))
+	require.NoError(t, err)
+	assert.NotContains(t, string(cases), "readline =>", "Term::ReadLine::readline has a call case despite being exempt")
+}
+
 // variableExporters is the variable-exporters batch (01a1464e-dca3):
 // every module below exports a plain Perl variable, measured on
 // 2026-10-16.

@@ -1,0 +1,32 @@
+# ABOUTME: Declares Term::ReadLine's methods; a bare `use Term::ReadLine` installs nothing (documented EXPORTS: None).
+# ABOUTME: Measured on perl 5.42.0 with Term::ReadLine 1.17, loading Term::ReadLine::Stub: no method carries a prototype.
+package Term::ReadLine;
+
+# Every name below is a method, so each takes an invocant and nothing is
+# marked :export: documented "EXPORTS: None", measured on 5.42.0.
+
+# new builds the stub's instance, always an Object (measured, called
+# with just an application name: the stub also accepts IN/OUT filehandle
+# arguments, a form this declaration does not cover).
+sub new (Str $class: Str $appname) Object;
+# ReadLine names the actual package in use, a Str (measured, both as a
+# class method and on an instance: Term::ReadLine::Stub here).
+sub ReadLine (Str $class:) Str;
+# findConsole's two names: in list context both (measured: ('&STDIN',
+# '&STDERR') under no console device here); in scalar context perl's
+# comma operator yields the last.
+multi sub findConsole (Str $class:) List[Str];
+multi sub findConsole (Str $class:) Str;
+# addhistory's body is empty: measured, a call returns undef.
+sub addhistory (Str $class: Str $line) Undef;
+# MinLine's body is the bare constant undef, ignoring its argument
+# (measured).
+sub MinLine (Str $class: Optional[Int] $size) Undef;
+# Attribs and Features return a fresh or a shared hashref (measured).
+sub Attribs (Str $class:) HashRef;
+sub Features (Str $class:) HashRef;
+# readline prints a prompt and reads a line from the terminal, Str with
+# its trailing newline removed, or Undef at EOF (documented); it is
+# never called by the oracle (returntypes_test.go's oracleExempt), since
+# it blocks on a real terminal.
+sub readline (Object $self: Str $prompt) Str|Undef;
