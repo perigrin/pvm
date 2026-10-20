@@ -1,19 +1,56 @@
 ---
 title: "Audit fixes, sockets: IO::Socket's constructor and methods, list-context unpackers, documented methods, dualvar errors"
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 created: 2026-10-20T19:18:42.552145908Z
-updated: 2026-10-20T20:59:19.84959213Z
+updated: 2026-10-20T22:38:05.434714154Z
 sessions:
 - start_sha: fe62372eb0dce18610b696b53c41cde6a6086bd5
-  end_sha: ""
-  commits: 0
+  end_sha: dffe6fb130f954786894a713a2f8b5cad9ac493d
+  commits: 5
   started_at: 2026-10-20T20:59:19.84959213Z
+  ended_at: 2026-10-20T22:38:05.434714154Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-20T20:59:19.84959213Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-20T22:38:05.434714154Z
+observed_paths:
+- internal/infer/calls.go
+- internal/infer/declared_test.go
+- internal/infer/returntypes_test.go
+- internal/infer/testdata/oracle/IO-Socket-IP.pl
+- internal/infer/testdata/oracle/IO-Socket.pl
+- internal/infer/testdata/oracle/POSIX.pl
+- internal/infer/testdata/oracle/Socket.pl
+- internal/infer/testdata/oracle/Time-HiRes.pl
+- internal/infer/testdata/return_oracle.pl
+- internal/parse/declarations/IO/Socket.tpm
+- internal/parse/declarations/IO/Socket/IP.tpm
+- internal/parse/declarations/POSIX.tpm
+- internal/parse/declarations/Socket.tpm
+- internal/parse/derive.go
+- internal/parse/derive_test.go
+- internal/parse/exportattr_test.go
+- internal/parse/heldtoperl_test.go
+- internal/parse/ranking_test.go
+- internal/parse/use.go
+- internal/perltest/missingsubs.go
+- internal/perltest/missingsubs_test.go
+- internal/perltest/noskips_test.go
+- internal/perltest/perl542_test.go
+- internal/perltest/perltest.go
+- internal/perltest/referencebuild.go
+- internal/perltest/referencebuild_test.go
+- internal/perltest/staleexempt.go
+- internal/perltest/staleexempt_test.go
+- internal/types/select.go
+- internal/types/select_test.go
+- internal/types/types.go
+- internal/types/types_test.go
 ---
 
 crochet:review of PR #488, round 1 (2026-10-21). Signature audit (01a15aaa), group B.
