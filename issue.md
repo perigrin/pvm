@@ -4,7 +4,7 @@ state: in-progress
 urgency: normal
 milestone: core-module-types
 created: 2026-10-20T01:19:39.205726373Z
-updated: 2026-10-20T01:19:55.217000079Z
+updated: 2026-10-20T01:26:36.173426038Z
 sessions:
 - start_sha: e80f4f920667615dc28874844b338224612fffe3
   end_sha: ""
@@ -34,6 +34,10 @@ perigrin ruled on 2026-10-17 (issue dba9's gate): fix narrowing first. Declaring
 - [ ] Narrow a variable after `ref`, `defined` and `blessed` guards, short-circuit `&&`, `unless ... return`, and an if/elsif chain whose earlier branch consumes the falsy value.
 - [ ] Re-run psc check over perl 5.42's lib on the dba9 tree: no line is added that the reviewer classified GUARDED; every remaining added line is in lib_true_positives.txt with perl -w output from the real lib site's path, not a minimal repro of the construct.
 - [ ] Precision stays >= 65/76 with WRONG 0.
+
+### Added 2026-10-20: Symbol (from db4c)
+
+db4c's worker parked Symbol.tpm (scratchpad/db4c-symbol-deferred/) because measuring `Symbol::qualify` accurately (Str for a name, the argument unchanged for a ref: Str|GlobRef on perl 5.42) adds `IO/Handle.pm:515`, `tell qualify($_[0], caller) if ref($_[0])`, as a new psc diagnostic ("argument 1 expects Glob"). perl -w is silent there: `$_[0]` is the invocant, proven a ref by the `if ref($_[0])` guard. Same root cause as this issue: narrow `$_[0]` after the `ref` guard, and declare qualify / qualify_to_ref as multis by argument type (a Ref argument returns that Ref; a Str returns Str), measured. Add IO/Handle.pm:515 to TestNarrowGuardedLibSites; db4c ships Symbol.tpm after this lands.
 
 ## Acceptance criteria
 
