@@ -1,10 +1,19 @@
 ---
 title: "Correct the documents the delivery left behind: possible-undef in the RFC, the warn flags in help, stale RFC lines, guide errors"
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 created: 2026-10-20T19:18:42.465984087Z
-updated: 2026-10-20T19:18:42.465984087Z
+updated: 2026-10-20T19:19:21.15613291Z
+sessions:
+- start_sha: cf08c0acdb986b7a59c463c2ed994e0721307294
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-20T19:19:21.15613291Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-20T19:19:21.15613291Z
 ---
 
 crochet:review of PR #488, round 1 (2026-10-21). Coverage 2-9 and quality S8, S9, S12: the RFC never states the possible-undef default (perigrin 2026-10-20: silent unless proven, reported under --warn-possible-undef); internal/data/help/types.md documents neither --warn-possible-undef nor --warn-lossy-coercion; RFC :72 lists only Moose, Moose::Role, Mojolicious::Lite as shipped; RFC :945-947 still says Call sites waits on m2; RFC :1153-1157 names only CORE.tpm as generated from perl (skeleton mode too); RFC :1078 claims the oracle runs with no network (nothing isolates it -- state what does); RFC :1068-1071 overclaims the typed-our refusal; guide :132 shows Str $import (shipped: ArrayRef); guide :52-54 says workers strip & (the driver does); IO/Socket/IP.tpm header names no module version; narrow_lib_test.go:365 comment points at a scratchpad path.
