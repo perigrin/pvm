@@ -18,10 +18,17 @@ use Time::HiRes qw(
     d_clock d_clock_getres d_clock_gettime d_clock_nanosleep d_futimens
     d_getitimer d_gettimeofday d_hires_stat d_hires_utime d_nanosleep
     d_setitimer d_ualarm d_usleep d_utimensat
-    alarm clock clock_getres clock_gettime clock_nanosleep gettimeofday
+    alarm clock_getres clock_gettime clock_nanosleep gettimeofday
     getitimer setitimer lstat nanosleep sleep stat time tv_interval
     ualarm usleep utime
 );
+# clock() itself dies "unimplemented in this platform" the moment
+# Windows's perl primes it by name (measured), which would otherwise
+# crash this file's own load before any other name above got primed;
+# requesting it on its own, guarded, keeps every other name's priming
+# intact. Windows's own oracle run then fails calling clock() for the
+# same reason, rather than this file failing to load at all.
+eval { Time::HiRes->import('clock') };
 open my $fh, '>', 'hr_file' or die $!;
 close $fh;
 (
