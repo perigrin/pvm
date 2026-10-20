@@ -26,6 +26,11 @@ if ( $mode eq 'inc' ) {
     say $INC{$file};
 }
 elsif ( $mode eq 'prototypes' ) {
+    # A module whose import forward-declares subs for its AUTOLOAD, as
+    # POSIX's does (measured on 5.42.0: `exists &POSIX::stdin` is false
+    # after `require POSIX`, true only once a use has run), has nothing
+    # to check until one use has primed it.
+    eval "package Held::Prime; use $module; 1";
     for my $name (@args) {
         my $code = exists &{"${module}::$name"} ? \&{"${module}::$name"} : $module->can($name);
         my $proto = $code && prototype($code);
