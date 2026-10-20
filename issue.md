@@ -1,10 +1,19 @@
 ---
 title: "Audit fixes, pure-Perl modules: carp, cluck, warn and DynaLoader::croak pass a lone reference, longmess and shortmess, Getopt::Std, Config, File::stat"
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 created: 2026-10-20T19:18:42.681982426Z
-updated: 2026-10-20T19:18:42.681982426Z
+updated: 2026-10-20T23:16:55.37430505Z
+sessions:
+- start_sha: e597bd91da76f184c4a4181487ff77fd5443cd4e
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-20T23:16:55.37430505Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-20T23:16:55.37430505Z
 ---
 
 crochet:review of PR #488, round 1 (2026-10-21). Signature audit (01a15aaa), group E.
