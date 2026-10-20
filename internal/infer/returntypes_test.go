@@ -50,11 +50,9 @@ var oracleExempt = map[string]string{
 	"POSIX::unlink":      "deletes a real file",
 	"POSIX::rmdir":       "deletes a real directory",
 	"POSIX::sigaction":   "installs a real signal handler for the rest of the run",
-	"POSIX::signal":      "installs a real signal handler for the rest of the run",
 	"POSIX::sigprocmask": "alters the process's real signal mask for the rest of the run",
 	"POSIX::sigpending":  "reads live process signal state that only the exempted signal-mutating functions above establish",
 	"POSIX::tcsetpgrp":   "mutates the terminal's foreground process group",
-	"POSIX::tcsetattr":   "mutates real terminal attributes",
 	"POSIX::tcflow":      "suspends or resumes real terminal transmission",
 	"POSIX::tcsendbreak": "sends a real break condition on the terminal line",
 	"POSIX::tcdrain":     "blocks until pending terminal output drains",
@@ -97,8 +95,8 @@ var posixReplacementNames = []string{
 // platform: measured on perl 5.42.0, each dies every time it is called.
 var posixUndefinedMacroNames = []string{
 	"LC_SYNTAX", "LC_TOD", "NDEBUG", "cfgetispeed", "cfgetospeed",
-	"cfsetispeed", "cfsetospeed", "mbstowcs", "wcstombs", "stdin", "stdout",
-	"stderr", "tcgetattr",
+	"cfsetispeed", "cfsetospeed", "mbstowcs", "wcstombs", "signal", "stdin",
+	"stdout", "stderr", "tcgetattr", "tcsetattr",
 }
 
 // holdReturnTypes holds each module's shipped .tpm to perl: every sub it
