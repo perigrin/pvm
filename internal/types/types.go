@@ -360,12 +360,15 @@ func typeSatisfies(actual, required Type, strict bool) bool {
 		return !strict
 	}
 
-	// required == Code is always a `&`-sigil parameter (the parser's
-	// slotHolds refuses any other type there), and RFC 0001's prototype
-	// table says `&` is "a block or a code reference when first;
-	// elsewhere `sub {...}` or `\&name`" -- so a caller who passes an
-	// existing coderef, not a literal block, satisfies it too.
-	if required == Code && IsSubtype(actual, CodeRef) {
+	// A `&`-sigil parameter's type is always Code (the parser's slotHolds
+	// refuses any other type there), and RFC 0001's prototype table says
+	// `&` is "a block or a code reference when first; elsewhere `sub
+	// {...}` or `\&name`" -- so a caller who passes an existing coderef,
+	// not a literal block, satisfies it too. The same holds when Code is
+	// only part of a union, not the whole required type: sort's
+	// comparator slot and prototype()'s argument are both Str|Code, a
+	// name or a routine.
+	if required&Code != 0 && IsSubtype(actual, CodeRef) {
 		return true
 	}
 

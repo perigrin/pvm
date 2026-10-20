@@ -117,7 +117,12 @@ func SelectShaped(cands []Signature, args []Type, shapes string, ctx Context) Se
 // A candidate coercedArgs reached only through fitsContainers's vacuous
 // "no aliased parameter to rule it out" -- a zero-parameter one beside
 // arguments its arity alone will exclude -- has no opinion on any
-// position, and is skipped rather than consulted.
+// position, and is skipped rather than consulted. So is one whose arity
+// does not accept the call at all: paramType(i) clamps past its last
+// parameter, so a one-argument candidate would otherwise vouch for
+// position 1 of a two-argument call it cannot take (Socket's
+// `sockaddr_in`, a two-arg `(Int, Str)` beside a one-arg `(Str)`
+// overload for the packed form).
 func coercedArgs(coercing []Signature, args []Type) []Type {
 	out := slices.Clone(args)
 	for i, a := range out {
@@ -126,7 +131,7 @@ func coercedArgs(coercing []Signature, args []Type) []Type {
 		}
 		fits := false
 		for _, c := range coercing {
-			if len(c.Params) > 0 && IsSubtype(a, c.paramType(i)) {
+			if len(c.Params) > 0 && c.accepts(len(args)) && IsSubtype(a, c.paramType(i)) {
 				fits = true
 				break
 			}

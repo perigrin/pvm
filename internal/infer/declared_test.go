@@ -121,6 +121,23 @@ func TestInferNoCandidateArityIsError(t *testing.T) {
 	assert.Equal(t, infer.CodeArityMismatch, diags[0].Code, diags[0].Message)
 }
 
+// TestAnyScalarArgumentKeepsArity: I8, an Any-typed scalar is not an
+// aggregate, so it must not relax a call's arity the way an array, a
+// hash, a list-returning call or a List-typed value does. List::Util's
+// first is declared Any, its element type unknown; measured on 5.42.0,
+// `use Cwd qw(abs_path); my $p = abs_path("x","y")` dies "Usage:
+// Cwd::abs_path(pathsv=Nullsv)" -- abs_path takes at most one argument,
+// whatever that argument's type -- so passing first's result as the
+// extra argument must still be reported, not silently accepted as
+// though first had flattened into the call's arguments.
+func TestAnyScalarArgumentKeepsArity(t *testing.T) {
+	src := `use List::Util qw(first); use Cwd qw(abs_path); my $v = first { 1 } @ARGV; my $r = abs_path($v, "y");`
+	got, diags := declaredCallType(t, src, `abs_path($v, "y")`)
+	assert.Equal(t, types.Unknown, got)
+	require.Len(t, diags, 1)
+	assert.Equal(t, infer.CodeArityMismatch, diags[0].Code, diags[0].Message)
+}
+
 // TestInferArityChoosesCandidate: CORE.tpm's select is a Str with one
 // argument and a List with four. Measured on 5.42.0, `select(STDERR)` is
 // "main::STDOUT" and `select(undef, undef, undef, 0)` is (0, 0). My::Multi's

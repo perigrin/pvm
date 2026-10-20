@@ -97,7 +97,12 @@ func (a *analysis) declaredCall(n *lower.Call) types.Type {
 	args := a.argTypes(n.Args)
 	fixed := 0
 	for i, t := range args {
-		if t&(types.Array|types.Hash) == 0 || parse.SlotAt(n.Prototype, i) {
+		// An argument flattens into the call's arguments only when it is
+		// itself an aggregate, a deref of one or a list-returning call's
+		// result -- an Any-typed scalar (List::Util's first, its element
+		// type unknown) holds the Array and Hash bits too, bitwise, but
+		// is not one, measured: it does not relax the call's arity.
+		if t&(types.Array|types.Hash) == 0 || !types.IsSubtype(t, types.List) || parse.SlotAt(n.Prototype, i) {
 			fixed++
 		}
 	}
