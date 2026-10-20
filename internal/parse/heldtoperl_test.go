@@ -724,6 +724,26 @@ func TestExporterBareUseDoesNotImportImport(t *testing.T) {
 	assert.Equal(t, []string{"import"}, got)
 }
 
+// TestXSLoaderPrototypes holds XSLoader.tpm's prototypes to perl.
+func TestXSLoaderPrototypes(t *testing.T) {
+	holdPrototypes(t, "XSLoader")
+}
+
+// TestXSLoaderExports holds XSLoader.tpm's :export and :export_ok marks
+// to what `use XSLoader` installs in a caller.
+func TestXSLoaderExports(t *testing.T) {
+	holdExports(t, "XSLoader")
+}
+
+// TestXSLoaderBareUseImportsNothing: measured on 5.42.0, XSLoader never
+// calls Exporter, so neither a bare `use XSLoader;` nor one naming load
+// installs anything -- a later bare `load()` still fails to resolve to
+// XSLoader::load.
+func TestXSLoaderBareUseImportsNothing(t *testing.T) {
+	assert.Empty(t, importedFrom(t, "use XSLoader;\n"))
+	assert.Empty(t, importedFrom(t, "use XSLoader qw(load);\n"))
+}
+
 // TestTestMoreArgumentFormImportsSameNames: Test::More's import is
 // Test::Builder::Module's (measured), which reads an import list with
 // no `import => [...]` pair as plan() arguments, not names --

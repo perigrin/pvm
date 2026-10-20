@@ -93,6 +93,14 @@ var oracleExempt = map[string]string{
 	"Exporter::export_to_level": "installs symbols into an arbitrary caller's package from a dynamic $pkg/$callpkg pair, which could collide with the driver's own or a later call in the same run",
 	"Exporter::export_tags":     "mutates the caller package's @EXPORT from its own %EXPORT_TAGS, which could collide with a later call in the same run",
 	"Exporter::export_ok_tags":  "mutates the caller package's @EXPORT_OK from its own %EXPORT_TAGS, which could collide with a later call in the same run",
+
+	// XSLoader::load and ::bootstrap_inherit each end by loading a real
+	// shared object: a name that resolves to a real extension would
+	// bootstrap it a second time, and one that does not dies with "Can't
+	// locate loadable object", which is not evidence of what a real
+	// bootstrap returns.
+	"XSLoader::load":              "loads a real compiled extension's bootstrap function or dies; the oracle's call cases cannot safely supply one",
+	"XSLoader::bootstrap_inherit": "delegates to DynaLoader::bootstrap_inherit, which needs a real compiled extension the oracle's call cases cannot safely supply",
 }
 
 // posixReplacementNames are the names in POSIX.pm 2.23's %replacement
@@ -987,6 +995,25 @@ func TestMakeMakerInteractiveSubsExempt(t *testing.T) {
 // perl, called with its oracle's cases.
 func TestExporterReturnTypes(t *testing.T) {
 	holdReturnTypes(t, "Exporter")
+}
+
+// TestXSLoaderReturnTypes holds XSLoader.tpm's declared return types to
+// perl, called with its oracle's cases.
+func TestXSLoaderReturnTypes(t *testing.T) {
+	holdReturnTypes(t, "XSLoader")
+}
+
+// TestXSLoaderSubsExempt: load and bootstrap_inherit are exempt with a
+// reason and never called -- each needs a real compiled extension the
+// oracle cannot safely supply.
+func TestXSLoaderSubsExempt(t *testing.T) {
+	for _, name := range []string{"load", "bootstrap_inherit"} {
+		reason, ok := oracleExempt["XSLoader::"+name]
+		if !assert.True(t, ok, "XSLoader::%s is not in the return-type oracle's exemption map", name) {
+			continue
+		}
+		assert.NotEmpty(t, strings.TrimSpace(reason), "XSLoader::%s is exempt without a reason", name)
+	}
 }
 
 // TestFileStatMissingFileReturnIsDeclared: File::stat::stat on a path

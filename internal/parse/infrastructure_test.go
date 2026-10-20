@@ -189,3 +189,18 @@ func TestExporterKeepsResolutionIsNotVacuous(t *testing.T) {
 	assert.True(t, sawISA, "no privlib file reaches Exporter by @ISA")
 	assert.True(t, sawRequire, "no privlib file reaches Exporter by require")
 }
+
+// TestXSLoaderKeepsResolution: every privlib module using XSLoader
+// resolves as it did without the declaration.
+func TestXSLoaderKeepsResolution(t *testing.T) {
+	_, diffs := keepsResolution(t, "XSLoader", "XSLoader.tpm")
+	for _, d := range diffs {
+		t.Error(d)
+	}
+}
+
+// TestXSLoaderKeepsResolutionIsNotVacuous: the comparison is not vacuous.
+func TestXSLoaderKeepsResolutionIsNotVacuous(t *testing.T) {
+	compared, _ := keepsResolution(t, "XSLoader", "XSLoader.tpm")
+	require.Greater(t, compared, 0, "compared no file where privlib is present")
+}
