@@ -961,17 +961,22 @@ var ooModules = []string{
 	"Term::ReadLine", "Tie::Hash", "HTTP::Tiny", "Locale::Maketext::Simple",
 }
 
-// ioSocketIPSocketReexports are the 170 Socket default names
-// IO/Socket/IP.tpm marks :export (measured on 5.42.0): they live in
+// ioSocketIPSocketReexports are 161 of the 170 Socket default names
+// IO/Socket/IP.tpm marks :export (measured on 5.42.0): they live only in
 // IO::Socket's own stash, from its file-scope `use Socket;`, not
 // IO::Socket::IP's own, so the return-type oracle's sub-form call --
 // which looks up Module::name directly -- cannot reach any of them
 // here, though IO::Socket::IP->can(name) finds them by inheritance.
 // Socket.tpm's own oracle (TestConstantExportersReturnTypes) already
-// holds their return types.
+// holds their return types. The other nine -- AF_INET, sockaddr_family,
+// SO_REUSEADDR, SO_REUSEPORT, SO_BROADCAST, SO_ERROR, SOCK_DGRAM,
+// SOCK_STREAM and SOL_SOCKET -- are also imported directly into
+// IO::Socket::IP's own package, by its own file-scope `use Socket ...
+// qw(...)` (measured), so the oracle holds them directly instead
+// (oracle/IO-Socket-IP.pl), not here.
 var ioSocketIPSocketReexports = []string{
 	"AF_802", "AF_AAL", "AF_APPLETALK", "AF_CCITT", "AF_CHAOS", "AF_CTF", "AF_DATAKIT", "AF_DECnet",
-	"AF_DLI", "AF_ECMA", "AF_GOSIP", "AF_HYLINK", "AF_IMPLINK", "AF_INET", "AF_INET6", "AF_ISO",
+	"AF_DLI", "AF_ECMA", "AF_GOSIP", "AF_HYLINK", "AF_IMPLINK", "AF_INET6", "AF_ISO",
 	"AF_KEY", "AF_LAST", "AF_LAT", "AF_LINK", "AF_MAX", "AF_NBS", "AF_NIT", "AF_NS",
 	"AF_OSI", "AF_OSINET", "AF_PUP", "AF_ROUTE", "AF_SNA", "AF_UNIX", "AF_UNSPEC", "AF_USER",
 	"AF_WAN", "AF_X25", "INADDR_ANY", "INADDR_BROADCAST", "INADDR_LOOPBACK", "INADDR_NONE", "IOV_MAX", "IP_HDRINCL",
@@ -984,13 +989,13 @@ var ioSocketIPSocketReexports = []string{
 	"PF_LAST", "PF_LAT", "PF_LINK", "PF_MAX", "PF_NBS", "PF_NIT", "PF_NS", "PF_OSI",
 	"PF_OSINET", "PF_PUP", "PF_ROUTE", "PF_SNA", "PF_UNIX", "PF_UNSPEC", "PF_USER", "PF_WAN",
 	"PF_X25", "SCM_CONNECT", "SCM_CREDENTIALS", "SCM_CREDS", "SCM_RIGHTS", "SCM_TIMESTAMP", "SHUT_RD", "SHUT_RDWR",
-	"SHUT_WR", "SOCK_DGRAM", "SOCK_RAW", "SOCK_RDM", "SOCK_SEQPACKET", "SOCK_STREAM", "SOL_SOCKET", "SOMAXCONN",
-	"SO_ACCEPTCONN", "SO_ATTACH_FILTER", "SO_BACKLOG", "SO_BROADCAST", "SO_CHAMELEON", "SO_DEBUG", "SO_DETACH_FILTER", "SO_DGRAM_ERRIND",
-	"SO_DOMAIN", "SO_DONTLINGER", "SO_DONTROUTE", "SO_ERROR", "SO_FAMILY", "SO_KEEPALIVE", "SO_LINGER", "SO_OOBINLINE",
+	"SHUT_WR", "SOCK_RAW", "SOCK_RDM", "SOCK_SEQPACKET", "SOMAXCONN",
+	"SO_ACCEPTCONN", "SO_ATTACH_FILTER", "SO_BACKLOG", "SO_CHAMELEON", "SO_DEBUG", "SO_DETACH_FILTER", "SO_DGRAM_ERRIND",
+	"SO_DOMAIN", "SO_DONTLINGER", "SO_DONTROUTE", "SO_FAMILY", "SO_KEEPALIVE", "SO_LINGER", "SO_OOBINLINE",
 	"SO_PASSCRED", "SO_PASSIFNAME", "SO_PEERCRED", "SO_PROTOCOL", "SO_PROTOTYPE", "SO_RCVBUF", "SO_RCVLOWAT", "SO_RCVTIMEO",
-	"SO_REUSEADDR", "SO_REUSEPORT", "SO_SECURITY_AUTHENTICATION", "SO_SECURITY_ENCRYPTION_NETWORK", "SO_SECURITY_ENCRYPTION_TRANSPORT", "SO_SNDBUF", "SO_SNDLOWAT", "SO_SNDTIMEO",
+	"SO_SECURITY_AUTHENTICATION", "SO_SECURITY_ENCRYPTION_NETWORK", "SO_SECURITY_ENCRYPTION_TRANSPORT", "SO_SNDBUF", "SO_SNDLOWAT", "SO_SNDTIMEO",
 	"SO_STATE", "SO_TYPE", "SO_USELOOPBACK", "SO_XOPEN", "SO_XSE", "UIO_MAXIOV", "inet_aton", "inet_ntoa",
-	"pack_sockaddr_in", "pack_sockaddr_in6", "pack_sockaddr_un", "sockaddr_family", "sockaddr_in", "sockaddr_in6", "sockaddr_un", "unpack_sockaddr_in",
+	"pack_sockaddr_in", "pack_sockaddr_in6", "pack_sockaddr_un", "sockaddr_in", "sockaddr_in6", "sockaddr_un", "unpack_sockaddr_in",
 	"unpack_sockaddr_in6", "unpack_sockaddr_un",
 }
 
