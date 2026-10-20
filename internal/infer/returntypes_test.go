@@ -1345,6 +1345,96 @@ func posixDeclaredDiags(t *testing.T, src string) []infer.Diagnostic {
 	return infer.AnalyzeParsed(root, nil, infer.Options{}).Diagnostics
 }
 
+// posixNarrowParamsScript measures, for isatty, chdir, setpayload and
+// utime, an argument form scratchpad/audit-A.md's F5 says POSIX.tpm
+// declared too narrow for: a glob, a bareword filehandle name and an fd
+// for isatty; a dirhandle for chdir; a fresh non-Num lexical for
+// setpayload, which the call writes a NaN into, so it is a true output
+// lvalue, not a coerced argument; undef, meaning "now", for utime.
+const posixNarrowParamsScript = `
+use v5.42; no warnings;
+use POSIX;
+
+sub tryn {
+    my ($label, $code) = @_;
+    my $ok = eval { $code->(); 1 };
+    print "$label\t", ($ok ? "OK" : "DIE:$@"), "\n";
+}
+
+tryn('isatty:glob', sub { POSIX::isatty(\*STDIN) });
+tryn('isatty:fd', sub { POSIX::isatty(0) });
+tryn('isatty:str', sub { POSIX::isatty("STDIN") });
+
+my $dh = POSIX::opendir('.');
+tryn('chdir:handle', sub { POSIX::chdir($dh) });
+
+my $x;
+my @list = POSIX::setpayload($x, 7);
+print "setpayload:list\t", (scalar(@list) == 0 ? "OK" : "DIE:not empty"), "\n";
+print "setpayload:wrote\t", (POSIX::isnan($x) ? "OK" : "DIE:did not write NaN"), "\n";
+
+open my $seed, '>', 'posix-f5-scratch.txt' or die; close $seed;
+tryn('utime:undef', sub { POSIX::utime("posix-f5-scratch.txt", undef, undef) });
+`
+
+// TestPOSIXParametersAdmitWhatPerlAccepts: isatty, chdir, setpayload,
+// setpayloadsig and utime each declared a parameter type narrower than
+// what perl and the POD accept (scratchpad/audit-A.md F5). isatty and
+// chdir coerce to or preserve a filehandle, not its stringification;
+// setpayload's and setpayloadsig's $nv is an output lvalue the call
+// writes, not an argument it coerces; utime's undef means "now" and is
+// preserved, not coerced to 0. Each case is measured directly, and
+// POSIX.tpm's declared parameter type admits it.
+func TestPOSIXParametersAdmitWhatPerlAccepts(t *testing.T) {
+	p := perltest.Perl542(t)
+	scratch := t.TempDir()
+	cmd := p.Command("-e", posixNarrowParamsScript)
+	cmd.Dir = scratch
+	out, err := cmd.Output()
+	require.NoError(t, err)
+
+	lines := strings.Split(strings.TrimRight(string(out), "\n"), "\n")
+	require.NotEmpty(t, lines)
+	for _, line := range lines {
+		label, result, ok := strings.Cut(line, "\t")
+		require.True(t, ok, "unparseable line: %q", line)
+		assert.Equal(t, "OK", result, "%s: %s", label, result)
+	}
+
+	sigs := posixSignatures(t)
+	isatty := sigs["isatty"]
+	require.NotEmpty(t, isatty)
+	for _, s := range isatty {
+		assert.True(t, types.IsSubtype(types.FileHandle, s.Params[0].Type), "isatty's $%s does not admit a filehandle", s.Params[0].Name)
+		assert.True(t, types.IsSubtype(types.Str, s.Params[0].Type), "isatty's $%s does not admit a bareword name", s.Params[0].Name)
+	}
+
+	chdir := sigs["chdir"]
+	require.NotEmpty(t, chdir)
+	for _, s := range chdir {
+		assert.True(t, types.IsSubtype(types.FileHandle, s.Params[0].Type), "chdir's $%s does not admit a dirhandle", s.Params[0].Name)
+	}
+
+	for _, name := range []string{"setpayload", "setpayloadsig"} {
+		cands, ok := sigs[name]
+		if !assert.True(t, ok, "POSIX::%s is not declared", name) {
+			continue
+		}
+		for _, s := range cands {
+			assert.Equal(t, types.Any, s.Params[0].Type, "%s's $%s is not Any, an output lvalue the call writes rather than an argument it coerces", name, s.Params[0].Name)
+			assert.Equal(t, types.Void, s.Returns, "%s does not declare Void: the XS returns the empty list", name)
+		}
+	}
+
+	utime := sigs["utime"]
+	require.NotEmpty(t, utime)
+	for _, s := range utime {
+		for _, param := range s.Params[1:] {
+			assert.True(t, types.IsSubtype(types.Undef, param.Type), "utime's $%s does not admit undef, which means \"now\"", param.Name)
+		}
+	}
+}
+
 // TestXSLibrariesReturnTypes holds each XS library's declared return
 // types to perl (perltest.XSLibraries), called with its oracle's cases.
 func TestXSLibrariesReturnTypes(t *testing.T) {
