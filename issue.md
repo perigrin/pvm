@@ -1,10 +1,19 @@
 ---
 title: "Hold the libraries to perl in CI: find the runner's perl 5.42.0, fail when a perl-held test skips, derive the hold lists from the declarations"
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 created: 2026-10-20T19:18:42.305509522Z
-updated: 2026-10-20T19:18:42.305509522Z
+updated: 2026-10-20T19:19:20.533238536Z
+sessions:
+- start_sha: cf08c0acdb986b7a59c463c2ed994e0721307294
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-20T19:19:20.533238536Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-20T19:19:20.533238536Z
 ---
 
 crochet:review of PR #488, round 1 (2026-10-21). Quality I4 and coverage finding 1: perltest.Perl542 (internal/perltest/perltest.go:34) finds only a pvm-installed perl; CI installs perl 5.42.0 with actions-setup-perl (and Windows ships Strawberry 5.42), so every Test*Prototypes/Exports/ReturnTypes, TestCoreModuleRanking and TestPSCCheckLibBaseline SKIPs in CI (job 118774701699) and green CI says nothing about goals 3-5. Also: coverage 10 (hold batch lists are hand-kept, not tied to the ranking/declarations), quality S10 (lib_baseline.txt:13 has an archname path), S13 and ponytail (batch lists duplicated in internal/parse and internal/infer, two IgnoresTheCallersPerlLib tests, oracleFixture/perlFixture). Tests may run perl; production never does.
