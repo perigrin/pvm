@@ -1,0 +1,26 @@
+# ABOUTME: Declares File::Spec's methods; a bare `use File::Spec` installs nothing.
+# ABOUTME: Measured on perl 5.42.0 with File::Spec 3.94: `our @ISA = ("File::Spec::Unix")` on this platform, so every method and its facts are File::Spec::Unix's (see that file).
+package File::Spec;
+
+sub canonpath (Str $class: Str $path) Str;
+sub catdir (Str $class: List[Str] @dirs) Str;
+sub catfile (Str $class: List[Str] @parts) Str;
+sub join (Str $class: List[Str] @parts) Str;
+sub catpath (Str $class: Str $volume, Str $directory, Str $file) Str;
+sub curdir (Str $class:) Str;
+sub devnull (Str $class:) Str;
+sub rootdir (Str $class:) Str;
+sub updir (Str $class:) Str;
+sub tmpdir (Str $class:) Str;
+sub case_tolerant (Str $class:) Int;
+sub file_name_is_absolute (Str $class: Str $file) Boolean;
+multi sub path (Str $class:) List[Str];
+multi sub path (Str $class:) Int;
+multi sub no_upwards (Str $class: List[Str] @names) List[Str];
+multi sub no_upwards (Str $class: List[Str] @names) Int;
+multi sub splitpath (Str $class: Str $path, Optional[Boolean] $no_file) List[Str];
+multi sub splitpath (Str $class: Str $path, Optional[Boolean] $no_file) Str;
+multi sub splitdir (Str $class: Str $directories) List[Str];
+multi sub splitdir (Str $class: Str $directories) Int;
+sub abs2rel (Str $class: Str $path, Optional[Str] $base) Str;
+sub rel2abs (Str $class: Str $path, Optional[Str] $base) Str;

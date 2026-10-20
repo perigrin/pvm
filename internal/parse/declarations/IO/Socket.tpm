@@ -1,0 +1,210 @@
+# ABOUTME: Declares what `use IO::Socket` installs: Socket's default export list, re-exported, plus sockatmark on request.
+# ABOUTME: Measured on perl 5.42.0 with IO::Socket 1.55: its bare install is byte-for-byte Socket's own (170 names); every value is the one Socket.tpm already measures.
+package IO::Socket;
+
+# IO::Socket::import, given no arguments, calls Exporter::export
+# ('Socket', $callpkg) -- Socket's own default list (its ":export"
+# names, not its ":all" tag, which also holds names ':export_ok' asks
+# for). Measured on 5.42.0: `use IO::Socket;` and `use Socket;` install
+# exactly the same 170 names; every value here is the one Socket.tpm
+# already measures for the same constant or function.
+sub AF_802 :export () None;
+sub AF_AAL :export () None;
+sub AF_APPLETALK :export () Int;
+sub AF_CCITT :export () None;
+sub AF_CHAOS :export () None;
+sub AF_CTF :export () None;
+sub AF_DATAKIT :export () None;
+sub AF_DECnet :export () Int;
+sub AF_DLI :export () None;
+sub AF_ECMA :export () None;
+sub AF_GOSIP :export () None;
+sub AF_HYLINK :export () None;
+sub AF_IMPLINK :export () None;
+sub AF_INET :export () Int;
+sub AF_INET6 :export () Int;
+sub AF_ISO :export () None;
+sub AF_KEY :export () Int;
+sub AF_LAST :export () None;
+sub AF_LAT :export () None;
+sub AF_LINK :export () None;
+sub AF_MAX :export () Int;
+sub AF_NBS :export () None;
+sub AF_NIT :export () None;
+sub AF_NS :export () None;
+sub AF_OSI :export () None;
+sub AF_OSINET :export () None;
+sub AF_PUP :export () None;
+sub AF_ROUTE :export () Int;
+sub AF_SNA :export () Int;
+sub AF_UNIX :export () Int;
+sub AF_UNSPEC :export () Int;
+sub AF_USER :export () None;
+sub AF_WAN :export () None;
+sub AF_X25 :export () Int;
+sub INADDR_ANY :export () Str;
+sub INADDR_BROADCAST :export () Str;
+sub INADDR_LOOPBACK :export () Str;
+sub INADDR_NONE :export () Str;
+sub IOV_MAX :export () Int;
+sub IP_HDRINCL :export () Int;
+sub IP_OPTIONS :export () Int;
+sub IP_RECVOPTS :export () Int;
+sub IP_RECVRETOPTS :export () Int;
+sub IP_RETOPTS :export () Int;
+sub IP_TOS :export () Int;
+sub IP_TTL :export () Int;
+sub MSG_BCAST :export () None;
+sub MSG_BTAG :export () None;
+sub MSG_CTLFLAGS :export () None;
+sub MSG_CTLIGNORE :export () None;
+sub MSG_CTRUNC :export () Int;
+sub MSG_DONTROUTE :export () Int;
+sub MSG_DONTWAIT :export () Int;
+sub MSG_EOF :export () None;
+sub MSG_EOR :export () Int;
+sub MSG_ERRQUEUE :export () Int;
+sub MSG_ETAG :export () None;
+sub MSG_FASTOPEN :export () Int;
+sub MSG_FIN :export () Int;
+sub MSG_MAXIOVLEN :export () None;
+sub MSG_MCAST :export () None;
+sub MSG_NOSIGNAL :export () Int;
+sub MSG_OOB :export () Int;
+sub MSG_PEEK :export () Int;
+sub MSG_PROXY :export () Int;
+sub MSG_RST :export () Int;
+sub MSG_SYN :export () Int;
+sub MSG_TRUNC :export () Int;
+sub MSG_URG :export () None;
+sub MSG_WAITALL :export () Int;
+sub MSG_WIRE :export () None;
+sub PF_802 :export () None;
+sub PF_AAL :export () None;
+sub PF_APPLETALK :export () Int;
+sub PF_CCITT :export () None;
+sub PF_CHAOS :export () None;
+sub PF_CTF :export () None;
+sub PF_DATAKIT :export () None;
+sub PF_DECnet :export () Int;
+sub PF_DLI :export () None;
+sub PF_ECMA :export () None;
+sub PF_GOSIP :export () None;
+sub PF_HYLINK :export () None;
+sub PF_IMPLINK :export () None;
+sub PF_INET :export () Int;
+sub PF_INET6 :export () Int;
+sub PF_ISO :export () None;
+sub PF_KEY :export () Int;
+sub PF_LAST :export () None;
+sub PF_LAT :export () None;
+sub PF_LINK :export () None;
+sub PF_MAX :export () Int;
+sub PF_NBS :export () None;
+sub PF_NIT :export () None;
+sub PF_NS :export () None;
+sub PF_OSI :export () None;
+sub PF_OSINET :export () None;
+sub PF_PUP :export () None;
+sub PF_ROUTE :export () Int;
+sub PF_SNA :export () Int;
+sub PF_UNIX :export () Int;
+sub PF_UNSPEC :export () Int;
+sub PF_USER :export () None;
+sub PF_WAN :export () None;
+sub PF_X25 :export () Int;
+sub SCM_CONNECT :export () None;
+sub SCM_CREDENTIALS :export () Int;
+sub SCM_CREDS :export () None;
+sub SCM_RIGHTS :export () Int;
+sub SCM_TIMESTAMP :export () Int;
+sub SHUT_RD :export () Int;
+sub SHUT_RDWR :export () Int;
+sub SHUT_WR :export () Int;
+sub SOCK_DGRAM :export () Int;
+sub SOCK_RAW :export () Int;
+sub SOCK_RDM :export () Int;
+sub SOCK_SEQPACKET :export () Int;
+sub SOCK_STREAM :export () Int;
+sub SOL_SOCKET :export () Int;
+sub SOMAXCONN :export () Int;
+sub SO_ACCEPTCONN :export () Int;
+sub SO_ATTACH_FILTER :export () Int;
+sub SO_BACKLOG :export () None;
+sub SO_BROADCAST :export () Int;
+sub SO_CHAMELEON :export () None;
+sub SO_DEBUG :export () Int;
+sub SO_DETACH_FILTER :export () Int;
+sub SO_DGRAM_ERRIND :export () None;
+sub SO_DOMAIN :export () Int;
+sub SO_DONTLINGER :export () None;
+sub SO_DONTROUTE :export () Int;
+sub SO_ERROR :export () Int;
+sub SO_FAMILY :export () None;
+sub SO_KEEPALIVE :export () Int;
+sub SO_LINGER :export () Int;
+sub SO_OOBINLINE :export () Int;
+sub SO_PASSCRED :export () Int;
+sub SO_PASSIFNAME :export () None;
+sub SO_PEERCRED :export () Int;
+sub SO_PROTOCOL :export () Int;
+sub SO_PROTOTYPE :export () None;
+sub SO_RCVBUF :export () Int;
+sub SO_RCVLOWAT :export () Int;
+sub SO_RCVTIMEO :export () Int;
+sub SO_REUSEADDR :export () Int;
+sub SO_REUSEPORT :export () Int;
+sub SO_SECURITY_AUTHENTICATION :export () Int;
+sub SO_SECURITY_ENCRYPTION_NETWORK :export () Int;
+sub SO_SECURITY_ENCRYPTION_TRANSPORT :export () Int;
+sub SO_SNDBUF :export () Int;
+sub SO_SNDLOWAT :export () Int;
+sub SO_SNDTIMEO :export () Int;
+sub SO_STATE :export () None;
+sub SO_TYPE :export () Int;
+sub SO_USELOOPBACK :export () None;
+sub SO_XOPEN :export () None;
+sub SO_XSE :export () None;
+sub UIO_MAXIOV :export () Int;
+sub inet_aton :export :listop (Str $hostname) Str|Undef;
+sub inet_ntoa :export :listop (Str $addr) Str;
+sub pack_sockaddr_in :export :listop (Int $port, Str $addr) Str;
+sub pack_sockaddr_in6 :export :listop (Int $port, Str $addr, Int $scope_id = 0, Int $flowinfo = 0) Str;
+sub pack_sockaddr_un :export :listop (Str $path) Str;
+sub sockaddr_family :export :listop (Str $sockaddr) Int;
+# sockaddr_in and sockaddr_in6 dispatch on wantarray and arity
+# together, as Socket.tpm's own comment explains; IO::Socket's are
+# held to their prototype and exports only, as Socket's already are
+# (see oracleExempt).
+multi sub sockaddr_in :export :listop (Int $port, Str|Undef $addr) Str;
+multi sub sockaddr_in :export :listop (Str $sin) List[Int|Str];
+multi sub sockaddr_in6 :export :listop (Int $port, Str $addr, Int $scope_id = 0, Int $flowinfo = 0) Str;
+multi sub sockaddr_in6 :export :listop (Str $sin6) List[Int|Str];
+sub sockaddr_un :export :listop (Str $path) Str;
+multi sub unpack_sockaddr_in :export :listop (Str $sin) List[Int|Str];
+multi sub unpack_sockaddr_in :export :listop (Str $sin) Str;
+multi sub unpack_sockaddr_in6 :export :listop (Str $sin6) List[Int|Str];
+multi sub unpack_sockaddr_in6 :export :listop (Str $sin6) Str;
+sub unpack_sockaddr_un :export :listop (Str $sun) Str;
+
+sub sockatmark :export_ok (FileHandle $handle) Boolean|Undef;
+
+# Methods beside the exports. Measured on 5.42.0, new() works with the
+# class name itself as its invocant, as the return-type oracle calls
+# it, returning a blessed but unconfigured IO::Socket. socket, connect,
+# bind, listen, accept, send, recv and close each operate on a real
+# socket file descriptor the invocant must already hold -- opening,
+# connecting to, or writing on the network -- and each also
+# dereferences the invocant as a glob first, dying "Can't use string
+# ... as a symbol ref" when it is the bare class name; they are
+# declared and held to their prototype and exports only (see
+# oracleExempt).
+sub new (Str $class:) Object;
+sub socket (Object $self: Int $domain, Int $type, Int $protocol) Boolean;
+sub connect (Object $self: Str $addr) Boolean;
+sub bind (Object $self: Str $addr) Boolean;
+sub listen (Object $self: Optional[Int] $queue) Boolean;
+sub accept (Object $self: Optional[Str] $class) Object|Undef;
+sub send (Object $self: Str $buf, Int $flags, Optional[Str] $to) Int|Undef;
+sub recv (Object $self: Scalar \$buf, Int $len, Optional[Int] $flags) Str|Undef;
+sub close (Object $self:) Boolean;

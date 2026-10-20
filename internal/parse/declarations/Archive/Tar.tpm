@@ -1,0 +1,7 @@
+# ABOUTME: Declares what `use Archive::Tar` installs: three compression-backend constants, every one a bare export.
+# ABOUTME: Measured on perl 5.42.0 with Archive::Tar 3.04: each constant takes a () prototype and names a backend module.
+package Archive::Tar;
+
+sub COMPRESS_GZIP :export () Int;
+sub COMPRESS_BZIP :export () Str;
+sub COMPRESS_XZ :export () Str;

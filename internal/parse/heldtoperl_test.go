@@ -652,6 +652,64 @@ func TestTimeHiResBareUseKeepsCoreTime(t *testing.T) {
 	assert.Empty(t, got)
 }
 
+// ooModules is the OO-only batch (01a1464e-dd27): each declares methods,
+// not exports, since measured on 5.42.0 a bare `use` of every one but
+// IO::Socket::IP and Locale::Maketext::Simple installs nothing.
+var ooModules = []string{
+	"File::Spec", "File::Spec::Unix", "IO::Socket::IP", "IO::Select",
+	"Term::ReadLine", "Tie::Hash", "HTTP::Tiny", "Locale::Maketext::Simple",
+}
+
+// TestOOModulesPrototypes holds each OO module's .tpm prototypes to
+// perl, methods included: held_to_perl.pl's prototypes mode falls back
+// to $module->can($name), the way perl itself finds an inherited
+// method.
+func TestOOModulesPrototypes(t *testing.T) {
+	holdPrototypes(t, ooModules...)
+}
+
+// TestOOModulesExports holds each OO module's .tpm :export and
+// :export_ok marks to what `use` installs.
+func TestOOModulesExports(t *testing.T) {
+	holdExports(t, ooModules...)
+}
+
+// TestFileSpecBareUseImportsNothing: measured on 5.42.0, File::Spec's
+// @EXPORT and @EXPORT_OK are both empty, so a bare `use File::Spec;`
+// installs nothing and a bare `catfile(...)` does not resolve to its
+// method.
+func TestFileSpecBareUseImportsNothing(t *testing.T) {
+	assert.Empty(t, importedFrom(t, "use File::Spec;\n"))
+}
+
+// TestIOSocketIPBareUseInstallsSocketNames: measured on 5.42.0, a bare
+// `use IO::Socket::IP;` installs exactly the 170 names Socket's own
+// bare `use Socket;` does (IO::Socket::IP inherits IO::Socket's import,
+// which forwards to Socket's Exporter), so a bare `inet_aton(...)`
+// resolves.
+func TestIOSocketIPBareUseInstallsSocketNames(t *testing.T) {
+	got := importedFrom(t, "use IO::Socket::IP;\n")
+	assert.Len(t, got, 170)
+	assert.Contains(t, got, "inet_aton")
+	assert.Contains(t, got, "AF_INET")
+}
+
+// TestLocaleMaketextSimpleBareUseInstallsLoc: measured on 5.42.0,
+// Locale::Maketext::Simple's own import defaults Export to 'loc' and
+// installs "${Export}_lang" beside it, so a bare `use
+// Locale::Maketext::Simple;` installs both loc and loc_lang.
+func TestLocaleMaketextSimpleBareUseInstallsLoc(t *testing.T) {
+	got := importedFrom(t, "use Locale::Maketext::Simple;\n")
+	assert.ElementsMatch(t, []string{"loc", "loc_lang"}, got)
+}
+
+// TestLocaleMaketextSimpleEmptyImportInstallsNothing: measured on
+// 5.42.0, `use Locale::Maketext::Simple ();` installs neither loc nor
+// loc_lang.
+func TestLocaleMaketextSimpleEmptyImportInstallsNothing(t *testing.T) {
+	assert.Empty(t, importedFrom(t, "use Locale::Maketext::Simple ();\n"))
+}
+
 // variableExporters is the variable-exporters batch (01a1464e-dca3):
 // every module below exports a plain Perl variable, measured on
 // 2026-10-16.
@@ -777,4 +835,56 @@ func TestTestMoreArgumentFormImportsSameNames(t *testing.T) {
 	assert.Equal(t, bare, withArgs)
 	assert.Contains(t, withArgs, "ok")
 	assert.Contains(t, withArgs, "plan")
+}
+
+// ioExporters is the IO and file-handling batch (01a1464e-db76):
+// FileHandle, IO::Handle, IO::File, IO::Socket and the five plain
+// exporters File::Spec::Functions, File::Temp, Archive::Tar,
+// ExtUtils::Manifest and Net::Ping.
+var ioExporters = []string{
+	"FileHandle", "IO::Handle", "IO::File", "IO::Socket",
+	"File::Spec::Functions", "File::Temp", "Archive::Tar", "ExtUtils::Manifest", "Net::Ping",
+}
+
+// TestIOExportersPrototypes holds each module's .tpm prototypes to perl.
+func TestIOExportersPrototypes(t *testing.T) {
+	holdPrototypes(t, ioExporters...)
+}
+
+// TestIOExportersExports holds each module's .tpm :export and
+// :export_ok marks to what `use` installs.
+func TestIOExportersExports(t *testing.T) {
+	holdExports(t, ioExporters...)
+}
+
+// ioExportersMethodsOnly are the subs declared in the batch's four
+// class .tpm files that are never exported: callers reach each only
+// through `->`, inherited from the class that defines it, regardless
+// of import. Measured on 5.42.0: none is in its module's @EXPORT or
+// @EXPORT_OK.
+var ioExportersMethodsOnly = map[string][]string{
+	"IO::Handle": {"new", "new_from_fd", "opened", "fileno", "eof", "getc", "close"},
+	"IO::File":   {"new", "new_tmpfile", "open"},
+	"IO::Socket": {"new", "socket", "connect", "bind", "listen", "accept", "send", "recv", "close"},
+}
+
+// TestIOExportersMethodsAreNotExported: a method declared beside a
+// class .tpm's exports -- IO::Handle's close, IO::File's new, and the
+// rest ioExportersMethodsOnly names -- carries no :export or
+// :export_ok mark, since perl's `use` of that module never installs
+// it; it is reachable only through `->`.
+func TestIOExportersMethodsAreNotExported(t *testing.T) {
+	for module, methods := range ioExportersMethodsOnly {
+		src, ok := declaration(module)
+		require.True(t, ok, "%s: no declaration", module)
+		facts, err := readHeld(module, src)
+		require.NoError(t, err)
+		for _, name := range methods {
+			_, declared := facts.signatures[name]
+			require.True(t, declared, "%s: %s is not declared", module, name)
+			if slices.Contains(facts.exports, name) {
+				t.Errorf("%s::%s carries an export mark, but perl's use %s installs no such name", module, name, module)
+			}
+		}
+	}
 }

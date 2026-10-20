@@ -1,0 +1,34 @@
+# ABOUTME: Declares IO::Select's methods; a bare `use IO::Select` installs nothing.
+# ABOUTME: Measured on perl 5.42.0 with IO::Select 1.55: no method carries a prototype.
+package IO::Select;
+
+# Every name below is a method (IO::Select->new, $set->add, ...), so each
+# takes an invocant and nothing is marked :export: measured on 5.42.0,
+# `use IO::Select;` installs nothing in the caller.
+
+# new blesses a fresh arrayref, always an Object (measured).
+sub new (Str $class: List[FileHandle] @handles) Object;
+# add and remove run _update, whose last statement is $count, an Int
+# (measured) -- how many of the handles given were actually added or
+# removed.
+sub add (Object $self: List[FileHandle] @handles) Int;
+sub remove (Object $self: List[FileHandle] @handles) Int;
+# exists returns the stored handle itself, or undef if it is not present
+# (measured).
+sub exists (Object $self: FileHandle $handle) FileHandle|Undef;
+# handles returns every registered handle: in list context each one; in
+# scalar context perl's `return @h` yields the count, an Int (measured).
+multi sub handles (Object $self:) List[FileHandle];
+multi sub handles (Object $self:) Int;
+# can_read, can_write and has_exception each call the core select() with
+# a zero timeout, which does not block (measured): a ready handle comes
+# back in list context, and in scalar context either its count (when the
+# core select found one) or undef (the empty-list branch, measured).
+multi sub can_read (Object $self: Optional[Num] $timeout) List[FileHandle];
+multi sub can_read (Object $self: Optional[Num] $timeout) Int|Undef;
+multi sub can_write (Object $self: Optional[Num] $timeout) List[FileHandle];
+multi sub can_write (Object $self: Optional[Num] $timeout) Int|Undef;
+multi sub has_exception (Object $self: Optional[Num] $timeout) List[FileHandle];
+multi sub has_exception (Object $self: Optional[Num] $timeout) Int|Undef;
+# count returns $vec->[FD_COUNT] directly, always a defined Int (measured).
+sub count (Object $self:) Int;
