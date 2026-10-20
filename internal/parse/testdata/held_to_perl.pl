@@ -39,8 +39,16 @@ elsif ( $mode eq 'prototypes' ) {
             # its stub only once it is asked for by name -- Fcntl's
             # S_ISWHT, whose sibling S_IS* subs exist from a bare use,
             # does not. Prime it by name before calling it missing.
-            eval "package Held::PrimeByName@{[$n++]}; use $module qw($name); 1";
+            my $primed = "Held::PrimeByName@{[$n++]}";
+            eval "package $primed; use $module qw($name); 1";
             $code = exists &{"${module}::$name"} ? \&{"${module}::$name"} : $module->can($name);
+            # A module with its own import, as Locale::Maketext::Simple's
+            # and IO::Socket::IP's are, installs a glob straight into the
+            # caller's package and never into its own (measured: unlike
+            # POSIX's AUTOLOAD, nothing it does defines
+            # Locale::Maketext::Simple::loc). The only place left to find
+            # it is the package it was just primed into.
+            $code ||= exists &{"${primed}::$name"} ? \&{"${primed}::$name"} : undef;
         }
         my $proto = $code && prototype($code);
         say join "\t", $name, !$code ? 'missing' : defined $proto ? ( 'proto', $proto ) : 'none';

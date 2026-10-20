@@ -651,3 +651,61 @@ func TestTimeHiResBareUseKeepsCoreTime(t *testing.T) {
 	got := importedFrom(t, "use Time::HiRes;\n")
 	assert.Empty(t, got)
 }
+
+// ooModules is the OO-only batch (01a1464e-dd27): each declares methods,
+// not exports, since measured on 5.42.0 a bare `use` of every one but
+// IO::Socket::IP and Locale::Maketext::Simple installs nothing.
+var ooModules = []string{
+	"File::Spec", "File::Spec::Unix", "IO::Socket::IP", "IO::Select",
+	"Term::ReadLine", "Tie::Hash", "HTTP::Tiny", "Locale::Maketext::Simple",
+}
+
+// TestOOModulesPrototypes holds each OO module's .tpm prototypes to
+// perl, methods included: held_to_perl.pl's prototypes mode falls back
+// to $module->can($name), the way perl itself finds an inherited
+// method.
+func TestOOModulesPrototypes(t *testing.T) {
+	holdPrototypes(t, ooModules...)
+}
+
+// TestOOModulesExports holds each OO module's .tpm :export and
+// :export_ok marks to what `use` installs.
+func TestOOModulesExports(t *testing.T) {
+	holdExports(t, ooModules...)
+}
+
+// TestFileSpecBareUseImportsNothing: measured on 5.42.0, File::Spec's
+// @EXPORT and @EXPORT_OK are both empty, so a bare `use File::Spec;`
+// installs nothing and a bare `catfile(...)` does not resolve to its
+// method.
+func TestFileSpecBareUseImportsNothing(t *testing.T) {
+	assert.Empty(t, importedFrom(t, "use File::Spec;\n"))
+}
+
+// TestIOSocketIPBareUseInstallsSocketNames: measured on 5.42.0, a bare
+// `use IO::Socket::IP;` installs exactly the 170 names Socket's own
+// bare `use Socket;` does (IO::Socket::IP inherits IO::Socket's import,
+// which forwards to Socket's Exporter), so a bare `inet_aton(...)`
+// resolves.
+func TestIOSocketIPBareUseInstallsSocketNames(t *testing.T) {
+	got := importedFrom(t, "use IO::Socket::IP;\n")
+	assert.Len(t, got, 170)
+	assert.Contains(t, got, "inet_aton")
+	assert.Contains(t, got, "AF_INET")
+}
+
+// TestLocaleMaketextSimpleBareUseInstallsLoc: measured on 5.42.0,
+// Locale::Maketext::Simple's own import defaults Export to 'loc' and
+// installs "${Export}_lang" beside it, so a bare `use
+// Locale::Maketext::Simple;` installs both loc and loc_lang.
+func TestLocaleMaketextSimpleBareUseInstallsLoc(t *testing.T) {
+	got := importedFrom(t, "use Locale::Maketext::Simple;\n")
+	assert.ElementsMatch(t, []string{"loc", "loc_lang"}, got)
+}
+
+// TestLocaleMaketextSimpleEmptyImportInstallsNothing: measured on
+// 5.42.0, `use Locale::Maketext::Simple ();` installs neither loc nor
+// loc_lang.
+func TestLocaleMaketextSimpleEmptyImportInstallsNothing(t *testing.T) {
+	assert.Empty(t, importedFrom(t, "use Locale::Maketext::Simple ();\n"))
+}
