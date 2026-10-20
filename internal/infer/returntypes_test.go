@@ -1448,6 +1448,28 @@ func TestFileBasenameWindowsPathReturnIsDeclared(t *testing.T) {
 	assert.Empty(t, moduleFailures(t, "File::Basename"))
 }
 
+// TestListUtilReturnsArgumentUnchanged: max, min, maxstr and minstr
+// return the winning element itself, not a numified or stringified
+// copy of it (measured on 5.42.0, `max("abc")` is 'abc' and
+// `ref(max([1]))` is ARRAY), which List/Util.tpm now declares Scalar
+// rather than Num|Undef or Str|Undef. oracle/List-Util.pl's cases for
+// each include a non-numeric string and an array reference.
+func TestListUtilReturnsArgumentUnchanged(t *testing.T) {
+	assert.Empty(t, moduleFailures(t, "List::Util"))
+}
+
+// TestListUtilScalarContextReturns: List::Util's uniq family, pairmap
+// and pairgrep return a count in scalar context, pairfirst "a simple
+// boolean" (all documented, perldoc List::Util), and pairkeys,
+// pairvalues, reductions and shuffle each an undocumented single
+// element (measured on 5.42.0), none of which the module's old
+// list-only declarations admitted. oracle/List-Util.pl's existing
+// cases exercise both contexts automatically (RFC 0001, "Context
+// selects by return type").
+func TestListUtilScalarContextReturns(t *testing.T) {
+	assert.Empty(t, moduleFailures(t, "List::Util"))
+}
+
 // TestPurePerlExportersOracleStaysInScratch: File::Path, File::Copy and
 // File::Find touch the filesystem, so their oracle cases name only
 // relative paths -- an absolute one would reach outside the scratch
