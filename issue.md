@@ -1,6 +1,6 @@
 ---
 title: "Declare the variable exporters: Config, Getopt::Long, Test::More, Text::Wrap, ExtUtils::MakeMaker, File::stat"
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -12,7 +12,7 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.843622709Z
-updated: 2026-10-20T16:00:27.056699305Z
+updated: 2026-10-20T16:43:08.765964779Z
 sessions:
 - start_sha: 34826451ff25d9be31c553948ea6de4ec295f77d
   end_sha: 9e5ae578baacecaaf348477c8982d9720ed83cf0
@@ -30,9 +30,10 @@ sessions:
   started_at: 2026-10-20T15:30:07.911596067Z
   ended_at: 2026-10-20T15:50:23.32016321Z
 - start_sha: 5cb8c3c598e8b1b28564fd36eee5a8455353e77e
-  end_sha: ""
-  commits: 0
+  end_sha: 6c1aa61173f56c9b15f32bff3235aae12b2f18f0
+  commits: 4
   started_at: 2026-10-20T16:00:27.056699305Z
+  ended_at: 2026-10-20T16:43:08.765964779Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
@@ -64,12 +65,28 @@ transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-20T16:00:27.056699305Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-20T16:43:08.765964779Z
 observed_paths:
+- docs/contributing/coding-conventions.md
+- docs/contributing/core-module-declarations.md
 - docs/rfcs/0001-type-libraries.md
+- internal/infer/calls.go
 - internal/infer/declared_test.go
+- internal/infer/flow.go
+- internal/infer/infer.go
+- internal/infer/narrow_lib_test.go
+- internal/infer/ops.go
 - internal/infer/returntypes_test.go
+- internal/infer/symbols.go
+- internal/infer/testdata/lowered/flow/element_guard.golden
+- internal/infer/testdata/lowered/flow/elsif_exit.golden
+- internal/infer/testdata/lowered/flow/unless_elsif.golden
 - internal/infer/testdata/oracle/Archive-Tar.pl
 - internal/infer/testdata/oracle/Config.pl
+- internal/infer/testdata/oracle/Cwd.pl
+- internal/infer/testdata/oracle/Data-Dumper.pl
 - internal/infer/testdata/oracle/DynaLoader.pl
 - internal/infer/testdata/oracle/Exporter.pl
 - internal/infer/testdata/oracle/ExtUtils-MakeMaker.pl
@@ -87,8 +104,13 @@ observed_paths:
 - internal/infer/testdata/oracle/IO-Select.pl
 - internal/infer/testdata/oracle/IO-Socket-IP.pl
 - internal/infer/testdata/oracle/IO-Socket.pl
+- internal/infer/testdata/oracle/List-Util.pl
 - internal/infer/testdata/oracle/Locale-Maketext-Simple.pl
+- internal/infer/testdata/oracle/MIME-Base64.pl
 - internal/infer/testdata/oracle/Net-Ping.pl
+- internal/infer/testdata/oracle/Scalar-Util.pl
+- internal/infer/testdata/oracle/Storable.pl
+- internal/infer/testdata/oracle/Symbol.pl
 - internal/infer/testdata/oracle/Term-ReadLine.pl
 - internal/infer/testdata/oracle/Test-More-plan.pl
 - internal/infer/testdata/oracle/Test-More.pl
@@ -96,9 +118,14 @@ observed_paths:
 - internal/infer/testdata/oracle/Tie-Hash.pl
 - internal/infer/testdata/oracle/XSLoader.pl
 - internal/infer/testdata/return_oracle.pl
+- internal/infer/vars.go
+- internal/infer/vars_test.go
+- internal/infer/warnpossibleundef_test.go
 - internal/parse/declarations.go
 - internal/parse/declarations/Archive/Tar.tpm
 - internal/parse/declarations/Config.tpm
+- internal/parse/declarations/Cwd.tpm
+- internal/parse/declarations/Data/Dumper.tpm
 - internal/parse/declarations/DynaLoader.tpm
 - internal/parse/declarations/Encode.tpm
 - internal/parse/declarations/Exporter.tpm
@@ -117,13 +144,20 @@ observed_paths:
 - internal/parse/declarations/IO/Select.tpm
 - internal/parse/declarations/IO/Socket.tpm
 - internal/parse/declarations/IO/Socket/IP.tpm
+- internal/parse/declarations/List/Util.tpm
 - internal/parse/declarations/Locale/Maketext/Simple.tpm
+- internal/parse/declarations/MIME/Base64.tpm
 - internal/parse/declarations/Net/Ping.tpm
+- internal/parse/declarations/Scalar/Util.tpm
+- internal/parse/declarations/Storable.tpm
+- internal/parse/declarations/Symbol.tpm
 - internal/parse/declarations/Term/ReadLine.tpm
 - internal/parse/declarations/Test/More.tpm
 - internal/parse/declarations/Text/Wrap.tpm
 - internal/parse/declarations/Tie/Hash.tpm
 - internal/parse/declarations/XSLoader.tpm
+- internal/parse/derive.go
+- internal/parse/derive_test.go
 - internal/parse/exportattr_test.go
 - internal/parse/heldtoperl_test.go
 - internal/parse/infrastructure_test.go
@@ -131,6 +165,16 @@ observed_paths:
 - internal/parse/testdata/held_to_perl.pl
 - internal/parse/testdata/t1.ratchet
 - internal/parse/use.go
+- internal/parse/xsutilities_test.go
+- internal/psc/check_command.go
+- internal/psc/check_command_test.go
+- internal/psc/lsp_command.go
+- internal/psc/lsp_test.go
+- internal/psc/testdata/lib_true_positives.txt
+- internal/types/select.go
+- internal/types/select_test.go
+- internal/types/types.go
+- internal/types/types_test.go
 ---
 
 ## Prerequisites
