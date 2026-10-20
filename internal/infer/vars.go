@@ -229,6 +229,16 @@ func (a *analysis) elemType(n lower.Node) types.Type {
 		if n.Sigil == "@" || n.Sigil == "%" {
 			return a.aggElemType(n)
 		}
+	case *lower.Deref:
+		// Same rule through a reference: `%data = %$self` holds whatever
+		// %$self holds, not `%$self`'s own value. What a dereferenced
+		// pointer holds element by element is not tracked back through
+		// it, so Unknown -- never the deref's own type, a Hash, narrowed
+		// by scalar context to its key count, an Int that would then
+		// stand for every key %data is asked to produce.
+		if n.Sigil == "@" || n.Sigil == "%" {
+			return types.Unknown
+		}
 	}
 	return a.annotations[n.Meta().ID]
 }
