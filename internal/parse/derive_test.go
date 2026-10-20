@@ -461,6 +461,37 @@ func TestDeriveMultiCandidatesAdmittedByArity(t *testing.T) {
 	}
 }
 
+// TestCandidatesDifferInArityComparesArity: S1, candidatesDifferInArity
+// must compare arityRange, not prototypeFromTypes's string length.
+// `(Array \@a)` and `(Int $a)` take the same one required argument --
+// they differ in whether it is aliased, not in arity -- but their
+// derived prototypes, `\@` and `$`, are different lengths. `(Int $a,
+// Int $b = 0)` takes one or two arguments; `(Int, Int, Int)` takes
+// exactly three -- their derived prototypes, `$;$` and `$$$`, happen to
+// share a length.
+func TestCandidatesDifferInArityComparesArity(t *testing.T) {
+	aliasedArray := types.Param{Sigil: '@', Type: types.Array, Required: true, Alias: true}
+	intParam := func(name string, required bool) types.Param {
+		return types.Param{Name: name, Sigil: '$', Type: types.Int, Required: required}
+	}
+
+	sameArity := []types.Signature{
+		{Params: []types.Param{aliasedArray}},
+		{Params: []types.Param{intParam("a", true)}},
+	}
+	if candidatesDifferInArity(sameArity) {
+		t.Errorf(`(\@a) beside (Int $a): same arity, reported as differing`)
+	}
+
+	differentArity := []types.Signature{
+		{Params: []types.Param{intParam("a", true), intParam("b", false)}},
+		{Params: []types.Param{intParam("x", true), intParam("y", true), intParam("z", true)}},
+	}
+	if !candidatesDifferInArity(differentArity) {
+		t.Errorf("(Int $a, Int $b = 0) beside (Int, Int, Int): different arity, reported as the same")
+	}
+}
+
 // TestDeriveMultiCandidatesIgnoreReturnType: candidates with the same
 // parameters and different return types are one group: they derive one
 // prototype, and do not count as a position differing. The candidates are

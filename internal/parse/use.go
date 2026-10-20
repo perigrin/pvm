@@ -378,6 +378,15 @@ func (p *parser) resolveImports(module string, list *Node) {
 		if list != nil && list.Paren && len(list.Children) == 0 {
 			return
 		}
+		// `use M qw();` is also the explicit empty list: qw() is a Term,
+		// not a Paren with no children, but literalNameList still reads
+		// it as zero names (measured: perl imports nothing from either
+		// spelling).
+		if list != nil {
+			if names, ok := literalNameList(list); ok && len(names) == 0 {
+				return
+			}
+		}
 		// The signature names the keys (perigrin's ruling, 2026-10-20):
 		// its first optional scalar parameter, after the invocant, is
 		// named for the one key, measured, whose presence changes what

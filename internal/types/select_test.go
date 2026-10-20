@@ -583,6 +583,22 @@ func TestSelectCoercionRetryKeepsFittingArgs(t *testing.T) {
 	wantSelected(t, qualifyCandidates, []Type{Ref, List}, 0, GlobRef)
 }
 
+// TestCoercionRetryKeepsArity: I5, Socket's sockaddr_in, `(Int $port, Str
+// $addr)` beside a one-argument `(Str $sin)` overload for the packed
+// form. coercedArgs's "does some candidate's clamped paramType(i) accept
+// this" check must still mean a candidate that takes the call's arity:
+// the one-param candidate's clamp wrongly vouched for position 1 of a
+// two-argument call, which then made the two-arg candidate's own fits()
+// fail outright instead of retrying it as Unknown -- adding the
+// wrong-arity sibling turned a selection into a Failed one (unit probe,
+// probes-logic-a/probe_select_test.go: Select([B]) selects what
+// Select([A,B]) fails).
+func TestCoercionRetryKeepsArity(t *testing.T) {
+	a := sig(Str, scalar("sin", Int))
+	b := sig(Int, scalar("h1", HashRef), scalar("h2", HashRef))
+	wantSelected(t, []Signature{a, b}, []Type{HashRef, Int}, 1, Int)
+}
+
 // TestSelectUnknownAtNonDiscriminatingPositionDecides: issue 01a156e4's
 // gate record, "the Select gap", second half. An Unknown argument at a
 // position every still-fitting candidate takes the same way cannot

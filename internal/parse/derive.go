@@ -160,22 +160,27 @@ func arityRange(s types.Signature) (least int, unbounded bool) {
 	return least, unbounded
 }
 
-// candidatesDifferInArity reports whether sigs's own derived prototypes
-// (prototypeFromTypes) are not all the same length: prototypeFromCandidates's
-// "different length" refusal is specifically this, an arity difference
-// between candidates, distinct from its other reasons (two aliased
-// positions varying, an unaliased position varying, an invocant), which
-// keep every candidate's length the same. prototypeAdmitsArity is read
-// only once this is true: a stated prototype wide enough to admit every
-// arity says nothing about whether two same-length candidates agree
-// position by position, which prototypeFromCandidates still must.
+// candidatesDifferInArity reports whether sigs's own arityRanges are not
+// all the same: prototypeFromCandidates's "different length" refusal is
+// specifically this, an arity difference between candidates, distinct
+// from its other reasons (two aliased positions varying, an unaliased
+// position varying, an invocant), which keep every candidate's arity the
+// same. A derived prototype's own length is not arity: an aliased
+// container's character outnumbers an unaliased scalar's for the same
+// one required argument (`\@` beside `$`), and an optional parameter's
+// leading `;` can make two differently-sized arities the same length
+// (`$;$` beside `$$$`). prototypeAdmitsArity is read only once this is
+// true: a stated prototype wide enough to admit every arity says nothing
+// about whether two same-arity candidates agree position by position,
+// which prototypeFromCandidates still must.
 func candidatesDifferInArity(sigs []types.Signature) bool {
 	if len(sigs) == 0 {
 		return false
 	}
-	want := len(prototypeFromTypes(sigs[0]))
+	wantLeast, wantUnbounded := arityRange(sigs[0])
 	for _, s := range sigs[1:] {
-		if len(prototypeFromTypes(s)) != want {
+		least, unbounded := arityRange(s)
+		if least != wantLeast || unbounded != wantUnbounded {
 			return true
 		}
 	}

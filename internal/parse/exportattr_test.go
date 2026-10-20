@@ -127,6 +127,18 @@ func TestDeclaredImportMarkedExportKeepsNameSemantics(t *testing.T) {
 	})
 }
 
+// TestEmptyUseListImportsNothing: measured on perl 5.42.0, `use Test::More
+// qw();` installs no names at all, the same as `use Test::More ();`. A
+// module whose own `import` is declared (Test::More, Locale::Maketext::Simple)
+// must read `qw()` as the explicit empty list, not fall through to its
+// :export defaults, as `use Cwd qw();` already does for the generic path.
+func TestEmptyUseListImportsNothing(t *testing.T) {
+	wantImports(t, map[string][]string{
+		"use Test::More ();\n":   nil,
+		"use Test::More qw();\n": nil,
+	})
+}
+
 // TestModuleSourceExportListStillRead: the refusal of export lists is for
 // a .tpm alone; a module's own source is read for them as ever.
 func TestModuleSourceExportListStillRead(t *testing.T) {
