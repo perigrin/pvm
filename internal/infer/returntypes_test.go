@@ -835,3 +835,32 @@ func TestPOSIXReimplementedSubsAreNotNone(t *testing.T) {
 		assert.NotEqual(t, types.None, s.Returns, "POSIX::getpid is declared None, but perl returns $$ when it is called")
 	}
 }
+
+// xsLibraries is the XS-library batch (01a1464e-dbd3): Encode,
+// Time::HiRes, Compress::Raw::Zlib and SDBM_File.
+var xsLibraries = []string{"Encode", "Time::HiRes", "Compress::Raw::Zlib", "SDBM_File"}
+
+// TestXSLibrariesReturnTypes holds each XS library's declared return
+// types to perl, called with its oracle's cases.
+func TestXSLibrariesReturnTypes(t *testing.T) {
+	holdReturnTypes(t, xsLibraries...)
+}
+
+// TestEncodeUndefInputReturnIsDeclared: encode_utf8(undef) returns undef
+// (measured on 5.42.0, with a "Use of uninitialized value" warning, never
+// a die), which Encode.tpm's declared Str|Undef admits. oracle/Encode.pl
+// includes this case among encode_utf8's own.
+func TestEncodeUndefInputReturnIsDeclared(t *testing.T) {
+	assert.Empty(t, moduleFailures(t, "Encode"))
+}
+
+// TestSDBMFileOracleStaysInScratch: SDBM_File ties a database file, so
+// its oracle cases name only a relative path -- an absolute one would
+// reach outside the scratch directory returnTypeFailures confines perl's
+// cwd, HOME and TMPDIR to.
+func TestSDBMFileOracleStaysInScratch(t *testing.T) {
+	absolute := regexp.MustCompile(`['"]/\S`)
+	cases, err := os.ReadFile(filepath.Join("testdata", "oracle", "SDBM_File.pl"))
+	require.NoError(t, err)
+	assert.False(t, absolute.Match(cases), "SDBM_File's oracle cases name an absolute path")
+}

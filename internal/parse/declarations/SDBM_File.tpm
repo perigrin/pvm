@@ -1,0 +1,12 @@
+# ABOUTME: Declares what `use SDBM_File` exports: its three file-extension and tie-size constants.
+# ABOUTME: Measured on perl 5.42.0 with SDBM_File 1.17: a bare `use SDBM_File` installs nothing.
+package SDBM_File;
+
+# SDBM_File is a tie class (its @ISA is Tie::Hash); a caller reaches it
+# through `tie %h, 'SDBM_File', ...`, which core's `tie` resolves, not an
+# import, so TIEHASH and the rest of the tie protocol are not declared
+# here. Its only exports, measured, are these three constants, each with
+# a real "()" prototype.
+sub DIRFEXT :export_ok () Str;
+sub PAGFEXT :export_ok () Str;
+sub PAIRMAX :export_ok () Int;
