@@ -4,7 +4,7 @@ state: in-progress
 urgency: normal
 milestone: core-module-types
 created: 2026-10-20T01:19:39.205726373Z
-updated: 2026-10-20T01:26:36.173426038Z
+updated: 2026-10-20T02:37:16.577092645Z
 sessions:
 - start_sha: e80f4f920667615dc28874844b338224612fffe3
   end_sha: ""
@@ -38,6 +38,10 @@ perigrin ruled on 2026-10-17 (issue dba9's gate): fix narrowing first. Declaring
 ### Added 2026-10-20: Symbol (from db4c)
 
 db4c's worker parked Symbol.tpm (scratchpad/db4c-symbol-deferred/) because measuring `Symbol::qualify` accurately (Str for a name, the argument unchanged for a ref: Str|GlobRef on perl 5.42) adds `IO/Handle.pm:515`, `tell qualify($_[0], caller) if ref($_[0])`, as a new psc diagnostic ("argument 1 expects Glob"). perl -w is silent there: `$_[0]` is the invocant, proven a ref by the `if ref($_[0])` guard. Same root cause as this issue: narrow `$_[0]` after the `ref` guard, and declare qualify / qualify_to_ref as multis by argument type (a Ref argument returns that Ref; a Str returns Str), measured. Add IO/Handle.pm:515 to TestNarrowGuardedLibSites; db4c ships Symbol.tpm after this lands.
+
+### Added 2026-10-20: Encode::encode (from dbd3)
+
+dbd3 declared `Encode::encode` as plain `Str` (commented, pointing here), though perl 5.42 measures `Str|Undef`, because the accurate type adds one guarded site, Pod/Text.pm's `encode($encoding, $text, $check)` (both arguments defined in practice). After the narrowing lands, restore `encode` to its measured `Str|Undef` (or a multi by argument type, if undef is returned only for an undef input) and confirm the Pod/Text.pm site stays silent. The declared type must match perl before this issue closes.
 
 ## Acceptance criteria
 
