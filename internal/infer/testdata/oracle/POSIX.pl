@@ -105,7 +105,11 @@ my $dh_rewinddir  = POSIX::opendir('.');
     expm1 => [ [0.625] ],
     fabs => [ [0.625] ],
     fclose => [ [] ],
-    fcntl => [ [$fh_fcntl, &POSIX::F_GETFD, 0] ],
+    # F_GETFD itself dies "Your vendor has not defined Fcntl macro
+    # F_GETFD" on Windows's perl (measured): eval keeps this file
+    # loadable there, so fcntl's actual call -- which fails for its own,
+    # separate reason on Windows -- is what the oracle run records.
+    fcntl => [ [$fh_fcntl, ( eval { &POSIX::F_GETFD } // 0 ), 0] ],
     fdim => [ [3, 1.25] ],
     fdopen => [ [] ],
     feof => [ [] ],
@@ -121,7 +125,10 @@ my $dh_rewinddir  = POSIX::opendir('.');
     fmin => [ [3, 1.25] ],
     fmod => [ [3, 1.25] ],
     fopen => [ [] ],
-    fpathconf => [ [$fd_fpathconf, &POSIX::_PC_NAME_MAX] ],
+    # _PC_NAME_MAX itself dies "Your vendor has not defined POSIX
+    # macro _PC_NAME_MAX" on Windows's perl (measured): eval keeps
+    # this file loadable there, same as F_GETFD above.
+    fpathconf => [ [$fd_fpathconf, ( eval { &POSIX::_PC_NAME_MAX } // 0 )] ],
     fpclassify => [ [1.5] ],
     fprintf => [ [] ],
     fputc => [ [] ],
@@ -210,7 +217,7 @@ my $dh_rewinddir  = POSIX::opendir('.');
     offsetof => [ [] ],
     open => [ ['posix-scratch-open.txt', &POSIX::O_WRONLY | &POSIX::O_CREAT, 0600] ],
     opendir => [ ['.'] ],
-    pathconf => [ ['.', &POSIX::_PC_NAME_MAX] ],
+    pathconf => [ ['.', ( eval { &POSIX::_PC_NAME_MAX } // 0 )] ],
     perror => [ ['oops'] ],
     pipe => [ [] ],
     pow => [ [3, 1.25] ],
@@ -271,7 +278,8 @@ my $dh_rewinddir  = POSIX::opendir('.');
     strtold => [ ['3.14abc'], ['3.14abc'] ],
     strtoul => [ ['42abc', 10], ['42abc', 10] ],
     strxfrm => [ ['hello'] ],
-    sysconf => [ [&POSIX::_SC_CLK_TCK] ],
+    # _SC_CLK_TCK itself dies the same way on Windows's perl (measured).
+    sysconf => [ [( eval { &POSIX::_SC_CLK_TCK } // 0 )] ],
     tan => [ [0.625] ],
     tanh => [ [0.625] ],
     tcgetattr => [ [] ],

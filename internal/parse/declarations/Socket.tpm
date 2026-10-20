@@ -322,19 +322,34 @@ sub TCP_TX_DELAY :export_ok(all) () Int;
 sub TCP_USER_TIMEOUT :export_ok(all) () Int;
 sub TCP_WINDOW_CLAMP :export_ok(all) () Int;
 sub UIO_MAXIOV :export(all) () Int;
-multi sub getaddrinfo :export_ok(addrinfo,all) :listop (Str $host, Str|Int|Undef $service = undef, HashRef $hints = undef) List[Str|HashRef];
-multi sub getaddrinfo :export_ok(addrinfo,all) :listop (Str $host, Str|Int|Undef $service = undef, HashRef $hints = undef) HashRef|Str;
-multi sub getnameinfo :export_ok(addrinfo,all) :listop (Str $sockaddr, Int $flags = 0, Int $xflags = 0) List[Str|Int|Undef];
-multi sub getnameinfo :export_ok(addrinfo,all) :listop (Str $sockaddr, Int $flags = 0, Int $xflags = 0) Str|Int|Undef;
+# getaddrinfo's and getnameinfo's error value is always a dualvar
+# (POD: "The error value will be a dualvar"), measured both on success
+# (isdual, "" / 0) and on failure (isdual, a message / a negative
+# code), in both list and scalar context. Str stays alongside DualVar:
+# the return-type oracle's observer (observe_types.pl) has no isdual
+# check yet (01a15aaa), so it reports each one's stringification, Str,
+# never DualVar, and Str's own presence is what the oracle run still
+# confirms (TestConstantExportersReturnTypes et al.); DualVar is
+# declared here as measured, ahead of the observer catching up.
+# getaddrinfo's $host is also measured accepting undef, resolving a
+# service name alone (POD: "Given just a service name...").
+multi sub getaddrinfo :export_ok(addrinfo,all) :listop (Str|Undef $host, Str|Int|Undef $service = undef, HashRef $hints = undef) List[Str|HashRef|DualVar];
+multi sub getaddrinfo :export_ok(addrinfo,all) :listop (Str|Undef $host, Str|Int|Undef $service = undef, HashRef $hints = undef) HashRef|Str|DualVar;
+multi sub getnameinfo :export_ok(addrinfo,all) :listop (Str $sockaddr, Int $flags = 0, Int $xflags = 0) List[Str|Int|Undef|DualVar];
+multi sub getnameinfo :export_ok(addrinfo,all) :listop (Str $sockaddr, Int $flags = 0, Int $xflags = 0) Str|Int|Undef|DualVar;
 sub inet_aton :export(all) :listop (Str $hostname) Str|Undef;
 sub inet_ntoa :export(all) :listop (Str $addr) Str;
 sub inet_ntop :export_ok(all) :listop (Int $af, Str $addr) Str|Undef;
 sub inet_pton :export_ok(all) :listop (Int $af, Str $host) Str|Undef;
-sub pack_ip_mreq :export_ok(all) :listop (Str $mcast_addr, Str $interface_addr = "\0\0\0\0") Str;
-sub pack_ip_mreq_source :export_ok(all) :listop (Str $mcast_addr, Str $source_addr, Str $interface_addr = "\0\0\0\0") Str;
+# interface_addr is measured accepting an explicit undef silently, as
+# well as the default's packed zero address.
+sub pack_ip_mreq :export_ok(all) :listop (Str $mcast_addr, Str|Undef $interface_addr = "\0\0\0\0") Str;
+sub pack_ip_mreq_source :export_ok(all) :listop (Str $mcast_addr, Str $source_addr, Str|Undef $interface_addr = "\0\0\0\0") Str;
 sub pack_ipv6_mreq :export_ok(all) :listop (Str $addr, Int $interface) Str;
-sub pack_sockaddr_in :export(all) :listop (Int $port, Str $addr) Str;
-sub pack_sockaddr_in6 :export(all) :listop (Int $port, Str $addr, Int $scope_id = 0, Int $flowinfo = 0) Str;
+# port is measured accepting an explicit undef silently, taken as zero
+# (POD: "An undefined $port argument is taken as zero").
+sub pack_sockaddr_in :export(all) :listop (Int|Undef $port, Str $addr) Str;
+sub pack_sockaddr_in6 :export(all) :listop (Int|Undef $port, Str $addr, Int $scope_id = 0, Int $flowinfo = 0) Str;
 sub pack_sockaddr_un :export(all) :listop (Str $path) Str;
 sub sockaddr_family :export(all) :listop (Str $sockaddr) Int;
 # sockaddr_in and sockaddr_in6 dispatch on wantarray AND arg count
@@ -342,12 +357,24 @@ sub sockaddr_family :export(all) :listop (Str $sockaddr) Int;
 # other's context -- the pack arity in list context, the unpack arity in
 # scalar), which the return-type oracle cannot call both directions of
 # without that death; both are exempt there and held to their prototype
-# and exports only.
-multi sub sockaddr_in :export(all) :listop (Int $port, Str $addr) Str;
+# and exports only. sockaddr_in also has an undocumented, deprecated
+# 6-arg scalar form (measured: `sockaddr_in(AF_INET,80,127,0,0,1)` warns
+# "6-ARG sockaddr_in call is deprecated" and still returns a packed
+# sockaddr), deliberately left undeclared: no candidate here for an
+# undocumented, deprecated call shape.
+multi sub sockaddr_in :export(all) :listop (Int|Undef $port, Str $addr) Str;
 multi sub sockaddr_in :export(all) :listop (Str $sin) List[Int|Str];
-multi sub sockaddr_in6 :export(all) :listop (Int $port, Str $addr, Int $scope_id = 0, Int $flowinfo = 0) Str;
+multi sub sockaddr_in6 :export(all) :listop (Int|Undef $port, Str $addr, Int $scope_id = 0, Int $flowinfo = 0) Str;
 multi sub sockaddr_in6 :export(all) :listop (Str $sin6) List[Int|Str];
-sub sockaddr_un :export(all) :listop (Str $path) Str;
+# sockaddr_un dispatches on wantarray alone (POD: "($path) = sockaddr_un
+# $sockaddr"), both forms taking exactly one Str argument, so there is
+# no arity to tell the pack and unpack directions apart; a path given in
+# list context dies the same way sockaddr_in's wrong-context call does
+# (measured: "Bad address family"), so it is exempt from the
+# return-type oracle the same way, held to its prototype and exports
+# only.
+multi sub sockaddr_un :export(all) :listop (Str $path) Str;
+multi sub sockaddr_un :export(all) :listop (Str $sun) List[Str];
 multi sub unpack_ip_mreq :export_ok(all) :listop (Str $mreq) List[Str];
 multi sub unpack_ip_mreq :export_ok(all) :listop (Str $mreq) Str;
 multi sub unpack_ip_mreq_source :export_ok(all) :listop (Str $mreq) List[Str];

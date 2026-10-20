@@ -40,6 +40,40 @@ func holdExports(t *testing.T, modules ...string) {
 // with perl 5.42 by check.
 func hold(t *testing.T, check func(*testing.T, perltest.Perl, string, string, []byte) []string, modules []string) {
 	t.Helper()
+	holdFiltered(t, check, modules, nil)
+}
+
+// heldExempt holds, per runtime.GOOS, prototypeDisagreements or
+// exportDisagreements lines read as a substring (to survive a volatile
+// suffix perl's own message appends, such as an eval sequence number)
+// that this platform's perl genuinely produces and Linux's does not --
+// each cites the CI job that measured it. holdFiltered drops any
+// disagreement containing one of these, so every other disagreement
+// in the same modules still fails the test if it reappears.
+func heldExempt() []string {
+	if runtime.GOOS != "windows" {
+		return nil
+	}
+	return []string{
+		// measured in CI job 39489951290
+		"Time::HiRes::getitimer declares prototype ($); perl's is none",
+		"Time::HiRes::setitimer declares prototype ($$;$); perl's is none",
+		"Time::HiRes::utime declares prototype ($$@); perl's is ($$;@)",
+		"clock is marked :export_ok; use Time::HiRes qw(clock) does not install it: dies Time::HiRes::clock(): unimplemented in this platform",
+		"clock_nanosleep is marked :export_ok; use Time::HiRes qw(clock_nanosleep) does not install it: dies Time::HiRes::clock_nanosleep(): unimplemented in this platform",
+		"nanosleep is marked :export_ok; use Time::HiRes qw(nanosleep) does not install it: dies Time::HiRes::nanosleep(): unimplemented in this platform",
+		"ualarm is marked :export_ok; use Time::HiRes qw(ualarm) does not install it: dies Time::HiRes::ualarm(): unimplemented in this platform",
+		"utime is marked :export_ok; use Time::HiRes qw(utime) does not install it: dies Time::HiRes::utime(): unimplemented in this platform",
+		"File::Spec::Functions::case_tolerant declares prototype (); perl's is none",
+		"File::Spec::Functions::devnull declares prototype (); perl's is none",
+		"File::Spec::Functions::rootdir declares prototype (); perl's is none",
+	}
+}
+
+// holdFiltered is hold, with any disagreement containing one of
+// filter's entries dropped before it is reported.
+func holdFiltered(t *testing.T, check func(*testing.T, perltest.Perl, string, string, []byte) []string, modules []string, filter []string) {
+	t.Helper()
 	p := perltest.Perl542(t)
 	for _, module := range modules {
 		src, ok := declaration(module)
@@ -48,9 +82,97 @@ func hold(t *testing.T, check func(*testing.T, perltest.Perl, string, string, []
 			continue
 		}
 		for _, d := range check(t, p, "", module, src) {
+			if containsAny(d, filter) {
+				continue
+			}
+			if runtime.GOOS != "linux" && isExtraInstall(d) {
+				continue
+			}
 			t.Error(d)
 		}
 	}
+}
+
+// containsAny reports whether s contains any of substrs.
+func containsAny(s string, substrs []string) bool {
+	for _, sub := range substrs {
+		if strings.Contains(s, sub) {
+			return true
+		}
+	}
+	return false
+}
+
+// isExtraInstall reports whether d is sameNames' or exportDisagreements'
+// "perl installs X; the .tpm does not mark it" direction -- real
+// information only when checking a shipped .tpm, which describes Linux
+// perl 5.42.0, against that same Linux perl: off Linux, "installs more
+// than the .tpm says" just means that platform's perl exports more than
+// Linux's did (Windows's Errno and POSIX each add hundreds of Winsock-
+// and SDK-only names, measured), which the .tpm was never trying to
+// settle. holdFiltered and holdPurePerlExporters drop it there, for a
+// real module's .tpm; a fixture module that tests exportDisagreements
+// itself (TestExportHelperRejectsAMissingName and its siblings) calls it
+// directly, bypassing this, so it still sees both directions on every
+// platform.
+func isExtraInstall(d string) bool {
+	return strings.Contains(d, "the .tpm does not mark it")
+}
+
+// holdPurePerlExporters is hold for perltest.PureExporters, with Errno's
+// names this perl does not define at all filtered out first --
+// perltest.MissingSubs measures them directly, since which constants
+// Errno exports depends on the C library (and, on Windows, the SDK and
+// Winsock headers) perl was built against, not something this repository
+// can hand-list once for every platform CI runs on.
+func holdPurePerlExporters(t *testing.T, check func(*testing.T, perltest.Perl, string, string, []byte) []string) {
+	t.Helper()
+	p := perltest.Perl542(t)
+	for _, module := range perltest.PureExporters {
+		src, ok := declaration(module)
+		if !ok {
+			t.Errorf("%s: no declaration", module)
+			continue
+		}
+		var missing map[string]string
+		if module == "Errno" {
+			if facts, err := readHeld(module, src); err == nil {
+				missing = perltest.MissingSubs(t, p, "", module, slices.Sorted(maps.Keys(facts.protos)))
+			}
+		}
+		for _, d := range check(t, p, "", module, src) {
+			if missingName(d, module, missing) {
+				continue
+			}
+			if runtime.GOOS != "linux" && isExtraInstall(d) {
+				continue
+			}
+			t.Error(d)
+		}
+	}
+}
+
+// missingName reports whether disagreement d is about a name in
+// missing: exportDisagreements leads with the bare name ("EADV is
+// marked..."), prototypeDisagreements with "module::name" ("Errno::EADV
+// is declared..."), so both leading shapes are checked.
+func missingName(d, module string, missing map[string]string) bool {
+	for name := range missing {
+		if strings.HasPrefix(d, name+" ") || strings.HasPrefix(d, module+"::"+name+" ") {
+			return true
+		}
+	}
+	return false
+}
+
+// TestMissingNameMatchesBothDisagreementShapes: exportDisagreements'
+// bare-name line and prototypeDisagreements' module::name line both
+// match an entry in missing, and an unrelated line matches neither.
+func TestMissingNameMatchesBothDisagreementShapes(t *testing.T) {
+	missing := map[string]string{"EADV": "perl defines no sub Errno::EADV"}
+	assert.True(t, missingName("EADV is marked :export_ok; use Errno qw(EADV) does not install it: dies ...", "Errno", missing))
+	assert.True(t, missingName("Errno::EADV is declared; perl defines no such sub", "Errno", missing))
+	assert.False(t, missingName("Errno::E2BIG declares prototype (); perl's is none", "Errno", missing))
 }
 
 // heldToPerl runs testdata/held_to_perl.pl's mode for module, perl
@@ -348,14 +470,22 @@ func TestHeldToPerlFailsOnAModulePerlCannotLoad(t *testing.T) {
 // TestHeldToPerlFindsArchlibModules: POSIX loads from archlib, where
 // joining privlib with its path finds nothing; perl's %INC finds it.
 func TestHeldToPerlFindsArchlibModules(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Strawberry perl ships POSIX.pm as pure Perl under lib, not archlib -- measured in CI job 39489951290: C:/Strawberry/perl/lib/POSIX.pm is not in archlib C:\\STRAWB~1\\perl\\lib")
-	}
 	p := perltest.Perl542(t)
 	path, err := modulePath(t, p, "", "POSIX")
 	require.NoError(t, err)
-	assert.True(t, strings.HasPrefix(path, p.Archlib), "%s is not in archlib %s", path, p.Archlib)
 	assert.FileExists(t, path)
+	if runtime.GOOS == "windows" {
+		// Strawberry perl ships POSIX.pm as pure Perl under lib, not
+		// archlib -- measured in CI job 39489951290: C:/Strawberry/perl/lib/POSIX.pm
+		// is not in archlib C:\STRAWB~1\perl\lib. perl's %INC and
+		// $Config{privlibexp} can each spell that directory differently
+		// (an 8.3 short name here, measured), so PathUnder canonicalizes
+		// both through perl before comparing, rather than a bare prefix
+		// check.
+		assert.True(t, perltest.PathUnder(t, p, path, p.Privlib), "%s is not in privlib %s", path, p.Privlib)
+		return
+	}
+	assert.True(t, strings.HasPrefix(path, p.Archlib), "%s is not in archlib %s", path, p.Archlib)
 	assert.NoFileExists(t, filepath.Join(p.Privlib, "POSIX.pm"))
 }
 
@@ -414,9 +544,6 @@ func TestXSUtilitiesPrototypes(t *testing.T) {
 // TestXSUtilitiesExports holds the XS utility modules' export marks to
 // what `use` installs, bare, by name and by tag.
 func TestXSUtilitiesExports(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Windows's Cwd also exports getdcwd (drive-relative cwd), which Linux's does not have -- measured in CI job 39489951290")
-	}
 	holdExports(t, perltest.XSUtilities...)
 }
 
@@ -504,9 +631,6 @@ func TestPOSIXPrototypes(t *testing.T) {
 // TestPOSIXExports holds POSIX.tpm's :export and :export_ok marks to
 // what `use POSIX` installs in a caller, bare, by name and by tag.
 func TestPOSIXExports(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Windows's POSIX also exports dozens of WSAE* Winsock error constants, which Linux's does not have -- measured in CI job 39489951290")
-	}
 	holdExports(t, "POSIX")
 }
 
@@ -597,19 +721,13 @@ func containsUnknown(n *Node) bool {
 // TestPurePerlExportersPrototypes holds each pure-Perl exporter's .tpm
 // prototypes to perl (perltest.PureExporters: 01a1464e-db4c).
 func TestPurePerlExportersPrototypes(t *testing.T) {
-	if runtime.GOOS != "linux" {
-		t.Skipf("Errno's Linux-only error codes (EADV and the rest) are not defined on %s's perl -- measured in CI job 39489951290: perl defines no such sub", runtime.GOOS)
-	}
-	holdPrototypes(t, perltest.PureExporters...)
+	holdPurePerlExporters(t, prototypeDisagreements)
 }
 
 // TestPurePerlExportersExports holds each pure-Perl exporter's .tpm
 // :export and :export_ok marks to what `use` installs.
 func TestPurePerlExportersExports(t *testing.T) {
-	if runtime.GOOS != "linux" {
-		t.Skipf("Errno's Linux-only error codes (EADV and the rest) are not exported on %s's perl -- measured in CI job 39489951290: not exported by the Errno module", runtime.GOOS)
-	}
-	holdExports(t, perltest.PureExporters...)
+	holdPurePerlExporters(t, exportDisagreements)
 }
 
 // TestErrnoDeclaresNoExportedVariable: Errno.tpm marks no `our`
@@ -626,19 +744,13 @@ func TestErrnoDeclaresNoExportedVariable(t *testing.T) {
 // TestXSLibrariesPrototypes holds each XS library's .tpm prototypes to
 // perl (perltest.XSLibraries: 01a1464e-dbd3).
 func TestXSLibrariesPrototypes(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Time::HiRes::getitimer, setitimer and utime have no prototype on Windows's perl, and utime's differs -- measured in CI job 39489951290")
-	}
-	holdPrototypes(t, perltest.XSLibraries...)
+	holdFiltered(t, prototypeDisagreements, perltest.XSLibraries, heldExempt())
 }
 
 // TestXSLibrariesExports holds each XS library's .tpm :export and
 // :export_ok marks to what `use` installs.
 func TestXSLibrariesExports(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Time::HiRes::clock, clock_nanosleep, nanosleep, ualarm and utime are unimplemented on Windows's perl -- measured in CI job 39489951290")
-	}
-	holdExports(t, perltest.XSLibraries...)
+	holdFiltered(t, exportDisagreements, perltest.XSLibraries, heldExempt())
 }
 
 // TestTimeHiResBareUseKeepsCoreTime: measured on 5.42.0, Time::HiRes's
@@ -871,10 +983,7 @@ func TestTestMoreImportParamAdmitsArrayRef(t *testing.T) {
 // TestIOExportersPrototypes holds each module's .tpm prototypes to perl
 // (perltest.IOExporters: 01a1464e-db76).
 func TestIOExportersPrototypes(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("File::Spec::Functions::case_tolerant, devnull and rootdir have no prototype on Windows's perl -- measured in CI job 39489951290")
-	}
-	holdPrototypes(t, perltest.IOExporters...)
+	holdFiltered(t, prototypeDisagreements, perltest.IOExporters, heldExempt())
 }
 
 // TestIOExportersExports holds each module's .tpm :export and
@@ -971,6 +1080,28 @@ func TestDocumentedOOInterfacesDeclared(t *testing.T) {
 				assert.NotEqual(t, types.Unknown, s.Returns, "%s::%s should be typed, not Unknown", module, name)
 			}
 		}
+	}
+}
+
+// TestIOSocketDocumentedMethodsDeclared: IO/Socket.pm documents (or, for
+// configure and register_domain, defines without a POD =head2) these
+// methods beside the exports (IO/Socket.pm:56-395), each measured on
+// 5.42.0 (01a15ac0, IO::Socket finding 7); a prior pass of IO/Socket.tpm
+// left every one of them out.
+func TestIOSocketDocumentedMethodsDeclared(t *testing.T) {
+	methods := []string{
+		"configure", "socketpair", "blocking", "sockname", "peername",
+		"connected", "shutdown", "setsockopt", "getsockopt", "sockopt",
+		"atmark", "timeout", "sockdomain", "socktype", "protocol",
+		"register_domain",
+	}
+	src, ok := declaration("IO::Socket")
+	require.True(t, ok, "IO::Socket: no declaration")
+	facts, err := readHeld("IO::Socket", src)
+	require.NoError(t, err)
+	for _, name := range methods {
+		_, declared := facts.signatures[name]
+		assert.True(t, declared, "IO::Socket::%s is not declared", name)
 	}
 }
 
