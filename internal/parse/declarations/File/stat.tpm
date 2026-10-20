@@ -1,0 +1,35 @@
+# ABOUTME: Declares what `use File::stat` installs: stat and lstat bare, its thirteen
+# ABOUTME: fields by name or the FIELDS tag. Measured on perl 5.42.0 with File::stat 1.14.
+
+package File::stat;
+
+# All thirteen are in @EXPORT_OK, and the FIELDS tag holds them plus
+# stat and lstat (measured: %EXPORT_TAGS is `FIELDS => [ @fields,
+# @EXPORT ]`), so stat and lstat carry the tag too though a bare `use`
+# already installs them.
+our Int $st_dev :export_ok(FIELDS);
+our Int $st_ino :export_ok(FIELDS);
+our Int $st_mode :export_ok(FIELDS);
+our Int $st_nlink :export_ok(FIELDS);
+our Int $st_uid :export_ok(FIELDS);
+our Int $st_gid :export_ok(FIELDS);
+our Int $st_rdev :export_ok(FIELDS);
+our Int $st_size :export_ok(FIELDS);
+our Int $st_atime :export_ok(FIELDS);
+our Int $st_mtime :export_ok(FIELDS);
+our Int $st_ctime :export_ok(FIELDS);
+our Int $st_blksize :export_ok(FIELDS);
+our Int $st_blocks :export_ok(FIELDS);
+
+# stat and lstat each return a blessed File::stat object on success, or
+# -- measured on 5.42.0, calling either on a path that does not exist --
+# nothing: the empty list in list context, undef in scalar.
+sub stat :export(FIELDS) :prototype($) (Str $file) Object|Undef;
+sub lstat :export(FIELDS) :prototype($) (Str $file) Object|Undef;
+# stat_cando is `cando`'s alias (measured: `*stat_cando = \&cando`),
+# which tests a stat object's mode bits and ends `return 1` or
+# `return ""`, a plain Int, not perl's own boolean (measured with
+# builtin::is_bool). :listop: it has no prototype (measured), so its
+# typed parameters derive none either (RFC 0001, "Builtins with no
+# prototype").
+sub stat_cando :export_ok :listop (Object $stat_object, Int $mode, Boolean $effective) Int;

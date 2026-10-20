@@ -651,3 +651,62 @@ func TestTimeHiResBareUseKeepsCoreTime(t *testing.T) {
 	got := importedFrom(t, "use Time::HiRes;\n")
 	assert.Empty(t, got)
 }
+
+// variableExporters is the variable-exporters batch (01a1464e-dca3):
+// every module below exports a plain Perl variable, measured on
+// 2026-10-16.
+var variableExporters = []string{
+	"Config", "Getopt::Long", "Test::More", "Text::Wrap", "ExtUtils::MakeMaker", "File::stat",
+}
+
+// TestVariableExportersPrototypes holds each variable exporter's .tpm
+// prototypes to perl.
+func TestVariableExportersPrototypes(t *testing.T) {
+	holdPrototypes(t, variableExporters...)
+}
+
+// TestVariableExportersExports holds each variable exporter's .tpm
+// :export and :export_ok marks to what `use` installs.
+func TestVariableExportersExports(t *testing.T) {
+	holdExports(t, variableExporters...)
+}
+
+// TestConfigBareUseImportsOnlyConfigHash: a bare `use Config;` installs
+// %Config and none of Config's @EXPORT_OK subs (ruling 1).
+func TestConfigBareUseImportsOnlyConfigHash(t *testing.T) {
+	got := importedFrom(t, "use Config;\n")
+	assert.Equal(t, []string{"%Config"}, got)
+}
+
+// TestGetoptLongBareUseOmitsConfigure: Configure is in Getopt::Long's
+// @EXPORT_OK alone (measured), so a bare `use Getopt::Long;` does not
+// import it.
+func TestGetoptLongBareUseOmitsConfigure(t *testing.T) {
+	got := importedFrom(t, "use Getopt::Long;\n")
+	assert.NotContains(t, got, "Configure")
+	assert.Contains(t, got, "GetOptions")
+}
+
+// TestFileStatEmptyImportKeepsCoreStat: `use File::stat ();` is the
+// explicit "load but import nothing" form (RFC 0001), so a later bare
+// `stat($f)` still resolves to CORE's.
+func TestFileStatEmptyImportKeepsCoreStat(t *testing.T) {
+	got := importedFrom(t, "use File::stat ();\n")
+	assert.Empty(t, got)
+}
+
+// TestTestMoreArgumentFormImportsSameNames: Test::More's import is
+// Test::Builder::Module's (measured), which reads an import list with
+// no `import => [...]` pair as plan() arguments, not names --
+// `use Test::More tests => 3;` installs the same names a bare use
+// does (measured on 5.42.0: both leave every one of its 26 subs and
+// $TODO defined in the caller). The forward risk this issue settles
+// (dadb's gate): without facts.builder, this list reads as computed
+// and opaque instead.
+func TestTestMoreArgumentFormImportsSameNames(t *testing.T) {
+	bare := importedFrom(t, "use Test::More;\n")
+	withArgs := importedFrom(t, "use Test::More tests => 3;\n")
+	assert.Equal(t, bare, withArgs)
+	assert.Contains(t, withArgs, "ok")
+	assert.Contains(t, withArgs, "plan")
+}
