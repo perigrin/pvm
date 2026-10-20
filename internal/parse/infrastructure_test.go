@@ -157,6 +157,9 @@ var (
 	useParentExporter = regexp.MustCompile(`use\s+parent\b[^;]*Exporter`)
 	isaExporter       = regexp.MustCompile(`@ISA\s*=[^;]*\bExporter\b`)
 	requireExporter   = regexp.MustCompile(`require\s+Exporter\b`)
+
+	isaDynaLoader     = regexp.MustCompile(`@ISA\s*=[^;]*\bDynaLoader\b`)
+	requireDynaLoader = regexp.MustCompile(`require\s+DynaLoader\b`)
 )
 
 // TestExporterKeepsResolution: every privlib module using Exporter resolves
@@ -203,4 +206,31 @@ func TestXSLoaderKeepsResolution(t *testing.T) {
 func TestXSLoaderKeepsResolutionIsNotVacuous(t *testing.T) {
 	compared, _ := keepsResolution(t, "XSLoader", "XSLoader.tpm")
 	require.Greater(t, compared, 0, "compared no file where privlib is present")
+}
+
+// TestDynaLoaderKeepsResolution: every privlib module using DynaLoader
+// resolves as it did without the declaration.
+func TestDynaLoaderKeepsResolution(t *testing.T) {
+	_, diffs := keepsResolution(t, "DynaLoader", "DynaLoader.tpm")
+	for _, d := range diffs {
+		t.Error(d)
+	}
+}
+
+// TestDynaLoaderKeepsResolutionIsNotVacuous: the comparison is not
+// vacuous, and it exercises both forms a module reaches DynaLoader by --
+// @ISA and require alike.
+func TestDynaLoaderKeepsResolutionIsNotVacuous(t *testing.T) {
+	p := perltest.Perl542(t)
+	files := privlibFilesNaming(t, p.Privlib, "DynaLoader")
+	compared, _ := keepsResolution(t, "DynaLoader", "DynaLoader.tpm")
+	require.Greater(t, compared, 0, "compared no file where privlib is present")
+
+	var sawISA, sawRequire bool
+	for _, f := range files {
+		sawISA = sawISA || namesIn(t, f, isaDynaLoader)
+		sawRequire = sawRequire || namesIn(t, f, requireDynaLoader)
+	}
+	assert.True(t, sawISA, "no privlib file reaches DynaLoader by @ISA")
+	assert.True(t, sawRequire, "no privlib file reaches DynaLoader by require")
 }

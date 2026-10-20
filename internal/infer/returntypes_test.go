@@ -101,6 +101,22 @@ var oracleExempt = map[string]string{
 	// bootstrap returns.
 	"XSLoader::load":              "loads a real compiled extension's bootstrap function or dies; the oracle's call cases cannot safely supply one",
 	"XSLoader::bootstrap_inherit": "delegates to DynaLoader::bootstrap_inherit, which needs a real compiled extension the oracle's call cases cannot safely supply",
+
+	// DynaLoader::bootstrap and ::bootstrap_inherit end the same way
+	// XSLoader's do: a name that resolves to a real extension would
+	// bootstrap it a second time, and one that does not dies with "Can't
+	// locate loadable object", which is not evidence of what a real
+	// bootstrap returns.
+	"DynaLoader::bootstrap":         "loads a real compiled extension's bootstrap function or dies; the oracle's call cases cannot safely supply one",
+	"DynaLoader::bootstrap_inherit": "delegates to bootstrap, which needs a real compiled extension the oracle's call cases cannot safely supply",
+
+	// DynaLoader's four low-level XS primitives each need a real loaded
+	// shared object or library reference the oracle's call cases cannot
+	// safely supply (ruling 4, 2026-10-16, DynaLoader's negative scenario).
+	"DynaLoader::dl_load_file":    "dynamically loads a real shared object into the process; the oracle's call cases cannot supply one safely",
+	"DynaLoader::dl_find_symbol":  "looks up a symbol in a real loaded library reference, which the oracle's call cases cannot supply",
+	"DynaLoader::dl_install_xsub": "installs a real XSUB from a symbol reference the oracle's call cases cannot supply",
+	"DynaLoader::dl_unload_file":  "would unload a real shared object out from under the running process",
 }
 
 // posixReplacementNames are the names in POSIX.pm 2.23's %replacement
@@ -1013,6 +1029,27 @@ func TestXSLoaderSubsExempt(t *testing.T) {
 			continue
 		}
 		assert.NotEmpty(t, strings.TrimSpace(reason), "XSLoader::%s is exempt without a reason", name)
+	}
+}
+
+// TestDynaLoaderReturnTypes holds DynaLoader.tpm's declared return types
+// to perl, called with its oracle's cases.
+func TestDynaLoaderReturnTypes(t *testing.T) {
+	holdReturnTypes(t, "DynaLoader")
+}
+
+// TestDynaLoaderLowLevelSubsExempt: DynaLoader's low-level subs
+// dl_load_file, dl_find_symbol, dl_install_xsub and dl_unload_file are
+// exempt with a reason and never called (DynaLoader's negative scenario,
+// ruling 4, 2026-10-16): each needs a real loaded shared object or
+// library reference the oracle's call cases cannot supply.
+func TestDynaLoaderLowLevelSubsExempt(t *testing.T) {
+	for _, name := range []string{"dl_load_file", "dl_find_symbol", "dl_install_xsub", "dl_unload_file"} {
+		reason, ok := oracleExempt["DynaLoader::"+name]
+		if !assert.True(t, ok, "DynaLoader::%s is not in the return-type oracle's exemption map", name) {
+			continue
+		}
+		assert.NotEmpty(t, strings.TrimSpace(reason), "DynaLoader::%s is exempt without a reason", name)
 	}
 }
 
