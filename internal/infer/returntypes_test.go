@@ -69,6 +69,11 @@ var oracleExempt = map[string]string{
 	// conflict.
 	"Socket::sockaddr_in":  "wantarray/arity dispatch dies on the other direction's shape; held to its prototype and exports only",
 	"Socket::sockaddr_in6": "wantarray/arity dispatch dies on the other direction's shape; held to its prototype and exports only",
+	// sockaddr_un dispatches on wantarray alone: both its pack and unpack
+	// forms take exactly one Str argument, so there is no arity to tell
+	// them apart the way sockaddr_in's differing arities do; a path given
+	// in list context dies the same way ("Bad address family"), measured.
+	"Socket::sockaddr_un": "wantarray dispatch dies on the other direction's shape (no arity tells the two forms apart); held to its prototype and exports only",
 
 	"Test::More::BAIL_OUT": "calls CORE::exit directly from Test::Builder's bail_out, bypassing the driver's exit-catching override, and would end the oracle process early",
 	// plan dies "You tried to plan twice" once a plan already exists --
@@ -1299,6 +1304,27 @@ func TestIOExportersOracleStaysInScratch(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, absolute.Match(cases), "%s's oracle cases name an absolute path", module)
 	}
+}
+
+// TestSocketListContextUnpackers: Socket::sockaddr_un dispatches on
+// wantarray alone, the same way sockaddr_in and sockaddr_in6 do
+// (measured on 5.42.0, Socket.pm:876-883: `unpack_sockaddr_un` runs
+// under `if(wantarray)`; `my @l = sockaddr_un(pack_sockaddr_un($path))`
+// gives `($path)`), so it needs a List[Str] candidate for list context
+// beside its scalar (pack) one -- left as a single scalar-only
+// candidate by a prior pass of Socket.tpm (01a15ac0, Socket finding 4).
+func TestSocketListContextUnpackers(t *testing.T) {
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "Socket.tpm"))
+	require.NoError(t, err)
+	sigs, errs := parse.DeclaredSignatures(tpm)
+	require.Empty(t, errs)
+	cands, ok := sigs["sockaddr_un"]
+	require.True(t, ok, "Socket::sockaddr_un is not declared")
+	require.Len(t, cands, 2, "sockaddr_un should be a multi, pack and unpack, the same way sockaddr_in and sockaddr_in6 are")
+	hasListCandidate := slices.ContainsFunc(cands, func(s types.Signature) bool {
+		return s.Answers() == types.ListCtx && s.ReturnElement == types.Str
+	})
+	assert.True(t, hasListCandidate, "sockaddr_un has no List[Str] candidate for its list-context (unpack) form")
 }
 
 // TestIOFileNewMissingFileReturnIsDeclared: IO::File->new on a file
