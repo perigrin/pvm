@@ -1,6 +1,6 @@
 ---
 title: Declare the XS constant exporters Fcntl and Socket
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -12,16 +12,54 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.752726002Z
-updated: 2026-10-17T04:25:19.893120122Z
+updated: 2026-10-20T02:28:27.986790751Z
 sessions:
 - start_sha: 5b91125f4014127e11963fc610c805ba205b10ff
-  end_sha: ""
-  commits: 0
+  end_sha: f8a82e032cf9fa043deec9d5fb866d21bac80c75
+  commits: 8
   started_at: 2026-10-17T04:25:19.893120122Z
+  ended_at: 2026-10-20T02:28:27.986790751Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-17T04:25:19.893120122Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-20T02:28:27.986790751Z
+observed_paths:
+- docs/rfcs/0001-type-libraries.md
+- internal/cli/symlinks_test.go
+- internal/infer/precision_test.go
+- internal/infer/returntypes_test.go
+- internal/infer/testdata/observe_types.pl
+- internal/infer/testdata/oracle/Class-Struct.pl
+- internal/infer/testdata/oracle/Errno.pl
+- internal/infer/testdata/oracle/Fcntl.pl
+- internal/infer/testdata/oracle/File-Basename.pl
+- internal/infer/testdata/oracle/File-Copy.pl
+- internal/infer/testdata/oracle/File-Find.pl
+- internal/infer/testdata/oracle/File-Path.pl
+- internal/infer/testdata/oracle/Getopt-Std.pl
+- internal/infer/testdata/oracle/POSIX.pl
+- internal/infer/testdata/oracle/Socket.pl
+- internal/infer/testdata/oracle/Text-ParseWords.pl
+- internal/infer/testdata/oracle/Time-Local.pl
+- internal/infer/testdata/return_oracle.pl
+- internal/parse/declarations/Class/Struct.tpm
+- internal/parse/declarations/Errno.tpm
+- internal/parse/declarations/Fcntl.tpm
+- internal/parse/declarations/File/Basename.tpm
+- internal/parse/declarations/File/Copy.tpm
+- internal/parse/declarations/File/Find.tpm
+- internal/parse/declarations/File/Path.tpm
+- internal/parse/declarations/Getopt/Std.tpm
+- internal/parse/declarations/POSIX.tpm
+- internal/parse/declarations/Socket.tpm
+- internal/parse/declarations/Text/ParseWords.tpm
+- internal/parse/declarations/Time/Local.tpm
+- internal/parse/heldtoperl_test.go
+- internal/parse/testdata/held_to_perl.pl
+- internal/psc/testdata/lib_true_positives.txt
 ---
 
 ## Prerequisites
