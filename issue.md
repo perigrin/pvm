@@ -1,10 +1,19 @@
 ---
 title: "Audit fixes, POSIX: failure returns admit Undef, math returns admit Inf and NaN, classifiers take them, optional parameters match perl"
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 created: 2026-10-20T19:18:42.506751465Z
-updated: 2026-10-20T19:18:42.506751465Z
+updated: 2026-10-20T20:21:06.052053702Z
+sessions:
+- start_sha: 9cbd111a2a7e8a7f3e4a7d6790f10c685f1121fe
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-20T20:21:06.052053702Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-20T20:21:06.052053702Z
 ---
 
 crochet:review of PR #488, round 1 (2026-10-21). Signature audit (01a15aaa), group A.
