@@ -1034,6 +1034,39 @@ var ioSocketIPSocketReexports = []string{
 	"SO_STATE", "SO_TYPE", "SO_USELOOPBACK", "SO_XOPEN", "SO_XSE", "UIO_MAXIOV", "inet_aton", "inet_ntoa",
 	"pack_sockaddr_in", "pack_sockaddr_in6", "pack_sockaddr_un", "sockaddr_in", "sockaddr_in6", "sockaddr_un", "unpack_sockaddr_in",
 	"unpack_sockaddr_in6", "unpack_sockaddr_un",
+
+	// The :export_ok names IO/Socket/IP.tpm mirrors from Socket.tpm, the
+	// same way and for the same reason (IO/Socket.tpm's own comment):
+	// each lives only in IO::Socket's or Socket's own stash, not
+	// IO::Socket::IP's, so the sub-form oracle cannot reach it here
+	// either, though IO::Socket::IP->can(name) finds it by inheritance.
+	"AI_ADDRCONFIG", "AI_ALL", "AI_CANONIDN", "AI_CANONNAME", "AI_IDN", "AI_IDN_ALLOW_UNASSIGNED",
+	"AI_IDN_USE_STD3_ASCII_RULES", "AI_NUMERICHOST", "AI_NUMERICSERV", "AI_PASSIVE", "AI_V4MAPPED",
+	"CR", "CRLF", "LF", "EAI_ADDRFAMILY", "EAI_AGAIN", "EAI_BADFLAGS", "EAI_BADHINTS", "EAI_FAIL",
+	"EAI_FAMILY", "EAI_NODATA", "EAI_NONAME", "EAI_PROTOCOL", "EAI_SERVICE", "EAI_SOCKTYPE", "EAI_SYSTEM",
+	"IN6ADDR_ANY", "IN6ADDR_LOOPBACK", "IPPROTO_AH", "IPPROTO_ESP", "IPPROTO_GRE", "IPPROTO_ICMP",
+	"IPPROTO_ICMPV6", "IPPROTO_IGMP", "IPPROTO_IP", "IPPROTO_IPV6", "IPPROTO_RAW", "IPPROTO_SCTP",
+	"IPPROTO_TCP", "IPPROTO_UDP", "IPTOS_LOWDELAY", "IPTOS_MINCOST", "IPTOS_RELIABILITY", "IPTOS_THROUGHPUT",
+	"IPV6_ADDRFROM", "IPV6_ADD_MEMBERSHIP", "IPV6_DROP_MEMBERSHIP", "IPV6_JOIN_GROUP", "IPV6_LEAVE_GROUP",
+	"IPV6_MTU", "IPV6_MTU_DISCOVER", "IPV6_MULTICAST_HOPS", "IPV6_MULTICAST_IF", "IPV6_MULTICAST_LOOP",
+	"IPV6_RECVERR", "IPV6_ROUTER_ALERT", "IPV6_TCLASS", "IPV6_UNICAST_HOPS", "IPV6_V6ONLY",
+	"IP_ADD_MEMBERSHIP", "IP_ADD_SOURCE_MEMBERSHIP", "IP_BIND_ADDRESS_NO_PORT", "IP_DROP_MEMBERSHIP",
+	"IP_DROP_SOURCE_MEMBERSHIP", "IP_FREEBIND", "IP_MTU", "IP_MTU_DISCOVER", "IP_MULTICAST_ALL",
+	"IP_MULTICAST_IF", "IP_MULTICAST_LOOP", "IP_MULTICAST_TTL", "IP_NODEFRAG", "IP_PMTUDISC_DO",
+	"IP_PMTUDISC_DONT", "IP_PMTUDISC_PROBE", "IP_PMTUDISC_WANT", "IP_RECVERR", "IP_TRANSPARENT",
+	"NI_DGRAM", "NI_IDN", "NI_IDN_ALLOW_UNASSIGNED", "NI_IDN_USE_STD3_ASCII_RULES", "NI_NAMEREQD",
+	"NI_NOFQDN", "NI_NUMERICHOST", "NI_NUMERICSERV", "NIx_NOHOST", "NIx_NOSERV",
+	"SOCK_CLOEXEC", "SOCK_NONBLOCK", "SO_INCOMING_CPU", "SO_INCOMING_NAPI_ID", "SO_LOCK_FILTER",
+	"SO_RCVBUFFORCE", "SO_SNDBUFFORCE",
+	"TCP_CC_INFO", "TCP_CONGESTION", "TCP_CONNECTIONTIMEOUT", "TCP_CORK", "TCP_DEFER_ACCEPT",
+	"TCP_FASTOPEN", "TCP_FASTOPEN_CONNECT", "TCP_FASTOPEN_KEY", "TCP_FASTOPEN_NO_COOKIE", "TCP_INFO",
+	"TCP_INIT_CWND", "TCP_KEEPALIVE", "TCP_KEEPCNT", "TCP_KEEPIDLE", "TCP_KEEPINTVL", "TCP_LINGER2",
+	"TCP_MAXRT", "TCP_MAXSEG", "TCP_MD5SIG", "TCP_MD5SIG_EXT", "TCP_NODELAY", "TCP_NOOPT", "TCP_NOPUSH",
+	"TCP_NOTSENT_LOWAT", "TCP_QUICKACK", "TCP_SACK_ENABLE", "TCP_STDURG", "TCP_SYNCNT", "TCP_TIMESTAMP",
+	"TCP_TX_DELAY", "TCP_USER_TIMEOUT", "TCP_WINDOW_CLAMP",
+	"getaddrinfo", "getnameinfo", "inet_ntop", "inet_pton",
+	"pack_ip_mreq", "pack_ip_mreq_source", "pack_ipv6_mreq",
+	"unpack_ip_mreq", "unpack_ip_mreq_source", "unpack_ipv6_mreq",
 }
 
 // ooExempt extends oracleExempt with the OO batch's own exemptions:
@@ -1046,11 +1079,13 @@ var ioSocketIPSocketReexports = []string{
 func ooExempt() map[string]string {
 	m := maps.Clone(oracleExempt)
 	for _, name := range ioSocketIPSocketReexports {
-		m["IO::Socket::IP::"+name] = "lives in IO::Socket's own stash, from its file-scope `use Socket;`, not IO::Socket::IP's; the sub-form oracle cannot reach it there (measured), and Socket.tpm's own oracle already holds its return type"
+		m["IO::Socket::IP::"+name] = "lives in IO::Socket's or Socket's own stash, not IO::Socket::IP's; the sub-form oracle cannot reach it there (measured), and that module's own oracle already holds its return type"
 	}
 	for _, name := range []string{"connect", "sockhost", "sockport", "peerhost", "peerport"} {
 		m["IO::Socket::IP::"+name] = "opens or reads a real network connection"
 	}
+	m["IO::Socket::IP::accept"] = "blocks accepting a real connection on a socket, as IO::Socket's own accept does"
+	m["IO::Socket::IP::peeraddr"] = "unpacks peername's address directly, dying \"Bad arg length\" when peername is undef (measured, unconnected)"
 	for _, name := range []string{"get", "head", "put", "post", "patch", "delete", "post_form", "mirror", "request"} {
 		m["HTTP::Tiny::"+name] = "performs a real HTTP request over the network"
 	}
@@ -1087,7 +1122,7 @@ func TestOOModulesNetworkSubsExempt(t *testing.T) {
 	exempt := ooExempt()
 	networked := map[string][]string{
 		"HTTP::Tiny":     {"get", "head", "put", "post", "patch", "delete", "post_form", "mirror", "request"},
-		"IO::Socket::IP": {"connect", "sockhost", "sockport", "peerhost", "peerport"},
+		"IO::Socket::IP": {"connect", "sockhost", "sockport", "peerhost", "peerport", "accept", "peeraddr"},
 	}
 	for module, names := range networked {
 		cases, err := os.ReadFile(filepath.Join("testdata", "oracle", strings.ReplaceAll(module, "::", "-")+".pl"))
