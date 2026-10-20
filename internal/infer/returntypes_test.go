@@ -1197,6 +1197,51 @@ func TestCarpReturnTypes(t *testing.T) {
 	holdReturnTypes(t, "Carp")
 }
 
+// TestCarpFamilyPassesALoneReference holds the measured claim (audit-E,
+// group E, finding 3): carp, cluck and CORE::warn each deliver a lone
+// reference argument to $SIG{__WARN__} as the reference itself, the same
+// pass-through die gives $@ for croak. Measured on perl 5.42.0: calling
+// any of the three with exactly one reference argument leaves
+// ref($_[0]) true inside the handler, never a stringified form. This is
+// why Carp.tpm's carp and cluck, and CORE.tpm's warn, take croak's
+// parameter type, List[Str|Boolean|DualVar|Ref].
+func TestCarpFamilyPassesALoneReference(t *testing.T) {
+	p := perltest.Perl542(t)
+	out, err := p.Command("-e", `
+use Carp qw(carp cluck);
+my @seen;
+local $SIG{__WARN__} = sub { push @seen, ref($_[0]) || "STR" };
+carp({c => 1});
+cluck([1]);
+warn({c => 2});
+print join(",", @seen);
+`).Output()
+	require.NoError(t, err)
+	assert.Equal(t, "HASH,ARRAY,HASH", strings.TrimSpace(string(out)),
+		"carp, cluck and warn must each deliver a lone reference to $SIG{__WARN__} unstringified")
+}
+
+// TestShortmessListContextPassesArgs holds Carp.tpm's shortmess (and,
+// alongside it, longmess) to a negative case the oracle's own call
+// contexts now exercise: testdata/oracle/Carp.pl's shortmess and
+// longmess cases include a multi-argument case whose first argument is
+// a hashref ([ {x=>1}, 'b' ]). shortmess_heavy (Carp.pm:682, `return @_
+// if ref $_[0]`) answers that in list context with @_ unchanged -- both
+// arguments, the hashref included, not a reduced message -- so
+// shortmess's list candidate must be wide enough to admit a Ref
+// element, not just Str. Before Carp.tpm declared shortmess and
+// longmess as multis with a List[Str|Boolean|DualVar|Ref] list
+// candidate, this call case failed in list context ("returned HashRef,
+// which its declared return type excludes"); the assertion below pins
+// that it does not regress.
+func TestShortmessListContextPassesArgs(t *testing.T) {
+	for _, f := range moduleFailures(t, "Carp") {
+		if strings.Contains(f, "shortmess") || strings.Contains(f, "longmess") {
+			t.Error(f)
+		}
+	}
+}
+
 // TestConstantExportersReturnTypes holds Fcntl.tpm's and Socket.tpm's
 // return types to perl.
 func TestConstantExportersReturnTypes(t *testing.T) {
