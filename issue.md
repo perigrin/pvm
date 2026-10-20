@@ -12,7 +12,7 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.843622709Z
-updated: 2026-10-20T15:50:23.32016321Z
+updated: 2026-10-20T16:00:26.929018532Z
 sessions:
 - start_sha: 34826451ff25d9be31c553948ea6de4ec295f77d
   end_sha: 9e5ae578baacecaaf348477c8982d9720ed83cf0
@@ -175,6 +175,12 @@ Gate pass 2, 2026-10-20, on 495c3e91 (fresh Sonnet reviewer; 10 criteria pass; t
 
 1. (CODE, 90) internal/parse/use.go:376-385 treats any non-empty use-list to a module with a declared import as installing the bare-use names, but perl's import branches on argument values: `use Locale::Maketext::Simple (Export=>"zz")` installs zz (and zz_lang), not loc; `use Test::More import => ["!is"], tests=>1` does not install is. psc would claim names that do not exist.
    **perigrin's ruling, 2026-10-20: the signature names the keys.** A .tpm's import signature names, as measured, the keys whose presence changes what import installs (Test::More: `import`; Locale::Maketext::Simple: `Export`). A use-list without such a key installs the bare-use names; one with such a key claims no names and leaves the symbols open. Choose the smallest signature syntax that states this, record it in RFC 0001 beside the import rule, and test both modules' altering and non-altering forms against perl 5.42.
+
+### Review Findings (pass 3)
+
+Gate pass 3, 2026-10-20, on 5cb8c3c5 (fresh Sonnet reviewer; altering and non-altering forms of both modules match perl 5.42, key order independent, proven by mutation; RFC matches code). VERDICT: REOPEN (third and final reopen).
+
+1. (CODE, 85) internal/parse/declarations/Test/More.tpm:26 `sub import (Str $class: Str $import = undef, List @plan) Void;`: perl passes `import => ['ok']`, so the value paired with the key is an array reference, not a Str. The parameter's name carries the key, per the ruling; its type must still be what perl passes. Declare it `ArrayRef $import = undef` (measured). Locale::Maketext::Simple's `Str $Export` is accurate and stays. Add a test that Test::More's declared import parameter admits an ArrayRef, failing first.
 
 ## Acceptance Criteria
 
