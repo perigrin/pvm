@@ -1,10 +1,10 @@
 ---
 title: Narrow undef after ref, defined and blessed guards, so typed Scalar::Util and List::Util returns add no false positive
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 created: 2026-10-20T01:19:39.205726373Z
-updated: 2026-10-20T16:17:50.740421899Z
+updated: 2026-10-20T16:34:25.232726306Z
 sessions:
 - start_sha: e80f4f920667615dc28874844b338224612fffe3
   end_sha: d7e9819e189d4066bdeda28c06b1f2611f1cccb7
@@ -12,9 +12,10 @@ sessions:
   started_at: 2026-10-20T01:19:55.217000079Z
   ended_at: 2026-10-20T16:02:19.389253128Z
 - start_sha: 6304f38e2c9293c66b4aec0e1aee6148414b1b1c
-  end_sha: ""
-  commits: 0
+  end_sha: 26e1e411d74a1cc918cb03c0e49393735133d349
+  commits: 1
   started_at: 2026-10-20T16:17:50.740421899Z
+  ended_at: 2026-10-20T16:34:25.232726306Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
@@ -28,7 +29,12 @@ transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-20T16:17:50.740421899Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-20T16:34:25.232726306Z
 observed_paths:
+- docs/contributing/coding-conventions.md
+- docs/contributing/core-module-declarations.md
 - docs/rfcs/0001-type-libraries.md
 - internal/cli/symlinks_test.go
 - internal/infer/calls.go
