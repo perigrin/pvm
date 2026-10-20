@@ -495,3 +495,74 @@ func TestTpmSkeletonUnfilledRefused(t *testing.T) {
 	}
 	assert.Contains(t, strings.Join(msgs, "\n"), "TODO")
 }
+
+// TestPOSIXPrototypes holds POSIX.tpm's prototypes to perl: every sub it
+// declares has the prototype perl's prototype() reports, or both have
+// none.
+func TestPOSIXPrototypes(t *testing.T) {
+	holdPrototypes(t, "POSIX")
+}
+
+// TestPOSIXExports holds POSIX.tpm's :export and :export_ok marks to
+// what `use POSIX` installs in a caller, bare, by name and by tag.
+func TestPOSIXExports(t *testing.T) {
+	holdExports(t, "POSIX")
+}
+
+// TestPOSIXBareUseImportsSIGRT: measured on 5.42.0, a bare `use POSIX`
+// installs the tied variable %SIGRT along with its 586 subs.
+func TestPOSIXBareUseImportsSIGRT(t *testing.T) {
+	got := importedFrom(t, "use POSIX;\n")
+	assert.Contains(t, got, "%SIGRT")
+}
+
+// TestPOSIXExportsAreNotVacuous: the comparison holdExports makes is
+// against a real measurement, not an empty one -- POSIX builds its
+// export lists inside its own import, so a driver that reads them before
+// any use has run would see 0/0/0 and never catch a missing mark.
+func TestPOSIXExportsAreNotVacuous(t *testing.T) {
+	got := importedFrom(t, "use POSIX;\n")
+	assert.GreaterOrEqual(t, len(got), 586, "a bare use POSIX installs 586 subs and %%SIGRT, counting AUTOLOAD names exists finds that defined would miss")
+}
+
+// TestPOSIXEmptyImportListImportsNothing: `use POSIX ();` calls no
+// import, so a bare call to floor in the same file does not resolve to
+// POSIX's declaration.
+func TestPOSIXEmptyImportListImportsNothing(t *testing.T) {
+	got := importedFrom(t, "use POSIX ();\n")
+	assert.Empty(t, got)
+}
+
+// TestPOSIXImportKeepsPrintfFilehandleParse: CORE::printf has no
+// prototype and keeps its own filehandle parse; POSIX marks its own
+// printf :export_ok, so it is not in scope after a bare `use POSIX`,
+// and `printf STDOUT "x"` still reads STDOUT as the handle rather than
+// an Unknown construct.
+func TestPOSIXImportKeepsPrintfFilehandleParse(t *testing.T) {
+	root := ParseWithLoader([]byte("use POSIX;\nprintf STDOUT \"x\";\n"), func(string) ([]byte, bool) { return nil, false })
+	if errs := DeclarationErrors(root); len(errs) > 0 {
+		t.Fatalf("declaration errors: %v", errs)
+	}
+	if containsUnknown(root) {
+		t.Errorf("printf STDOUT \"x\" after use POSIX did not parse cleanly: %v", root)
+	}
+	if imports := Imports(root); func() bool {
+		_, ok := imports["printf"]
+		return ok
+	}() {
+		t.Errorf("use POSIX imports printf; it is marked :export_ok and must be asked for")
+	}
+}
+
+// containsUnknown is whether n or any descendant is an Unknown node.
+func containsUnknown(n *Node) bool {
+	if n.Kind == Unknown {
+		return true
+	}
+	for _, c := range n.Children {
+		if containsUnknown(c) {
+			return true
+		}
+	}
+	return false
+}
