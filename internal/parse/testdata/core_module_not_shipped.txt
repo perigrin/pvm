@@ -1,0 +1,16 @@
+# core_module_not_shipped.txt lists a top-50 core module that ships no
+# declarations/<Module/Path>.tpm, with the measurement that excluded it.
+#
+# Format: one entry per line, Module<TAB>full-uuid<TAB>reason. full-uuid is
+# the full 36-character id of the issue or ruling that excluded the module,
+# so the reason traces back to its source; a short prefix is rejected.
+# Blank lines and lines starting with # are comments, not entries.
+#
+# Ruling 4 (perigrin, 2026-10-16): not shipped is allowed only for
+# Exporter, XSLoader and DynaLoader (RFC 0001's "may not ship"), and only
+# after perigrin is asked, with the measurement, so the reason is his.
+#
+# Nothing has been cancelled: Exporter, XSLoader and DynaLoader each
+# measured clean against the full corpus and shipped (see
+# docs/contributing/core-module-declarations.md, "Modules other modules
+# depend on"), so this file holds no entries.

@@ -959,7 +959,7 @@ error. A last statement, which may be the value of the sub, `do` or
 `eval` it ends, is given no context, and neither is a statement
 modifier's body.
 
-### Core-module libraries (*Decided*)
+### Core-module libraries (*Implemented*, 236f66e7, 3b04b021, c36ec181, eeb9dfa6, ac90b82c, 2d724aa2, d7e9819e, 6c1aa611)
 
 perigrin, 2026-10-16. The modules that ship with perl get declaration
 files, starting with the 50 that perl 5.42's own library imports most.
@@ -1048,7 +1048,7 @@ syntax states the one key, measured, whose presence changes the
 install: the first optional scalar parameter after the invocant, named
 for it.
 
-    sub import (Str $class: Str $import = undef, List @plan) Void;       # Test::More
+    sub import (Str $class: ArrayRef $import = undef, List @plan) Void;  # Test::More
     sub import (Str $class: Str $Export = undef, List @args) Void;       # Locale::Maketext::Simple
 
 A use-list naming that key, anywhere in it, claims no names and leaves
