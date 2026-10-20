@@ -1,6 +1,6 @@
 ---
 title: "Declare the IO and file-handling exporters: FileHandle, IO::Handle, IO::File, IO::Socket, File::Temp and four more"
-state: done
+state: reopened
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -11,7 +11,7 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.542610643Z
-updated: 2026-10-20T13:59:46.426512514Z
+updated: 2026-10-20T13:59:46.485984195Z
 sessions:
 - start_sha: 5b91125f4014127e11963fc610c805ba205b10ff
   end_sha: eeb9dfa6846986f02b26abbefc6958646546cc4f
@@ -25,6 +25,9 @@ transitions:
 - state: done
   actor: human:git-zhi
   timestamp: 2026-10-20T13:40:32.461059951Z
+- state: reopened
+  actor: human:git-zhi
+  timestamp: 2026-10-20T13:59:46.485984195Z
 observed_paths:
 - docs/rfcs/0001-type-libraries.md
 - internal/cli/symlinks_test.go
