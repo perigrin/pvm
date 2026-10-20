@@ -1,6 +1,6 @@
 ---
 title: "Guide: writing and testing a core-module declaration"
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -11,16 +11,23 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:11:35.85395462Z
-updated: 2026-10-20T16:03:19.091685251Z
+updated: 2026-10-20T16:13:44.254365837Z
 sessions:
 - start_sha: d7e9819e189d4066bdeda28c06b1f2611f1cccb7
-  end_sha: ""
-  commits: 0
+  end_sha: 6304f38e2c9293c66b4aec0e1aee6148414b1b1c
+  commits: 1
   started_at: 2026-10-20T16:03:19.091685251Z
+  ended_at: 2026-10-20T16:13:44.254365837Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-20T16:03:19.091685251Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-20T16:13:44.254365837Z
+observed_paths:
+- docs/contributing/coding-conventions.md
+- docs/contributing/core-module-declarations.md
 ---
 
 ## Prerequisites
