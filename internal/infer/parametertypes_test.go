@@ -91,7 +91,7 @@ func parameterOracleFailures(t *testing.T, p perltest.Perl, r oracleRun) []strin
 		return []string{fmt.Sprintf("%s: the parameter oracle emitted %q: %v", r.Module, out, err)}
 	}
 
-	return paramMisfits(r.Module, sigs, obs)
+	return paramMisfits(r.Module, sigs, obs, r.IgnorePending)
 }
 
 // paramCall is one oracle call case the parameter oracle observed
@@ -105,8 +105,9 @@ type paramCall struct {
 // paramMisfits groups obs by the call case each argument observation
 // belongs to, selects the candidate types.Select or types.SelectInvoked
 // would pick for it, and reports each argument that candidate's
-// declared parameter excludes.
-func paramMisfits(module string, sigs map[string][]types.Signature, obs []observation) []string {
+// declared parameter excludes. ignorePending turns off pendingAudit's
+// and parameterExempt's own filtering, for TestPendingAuditEntriesStillMisfit.
+func paramMisfits(module string, sigs map[string][]types.Signature, obs []observation, ignorePending bool) []string {
 	groups := map[paramCall][]types.Type{}
 	var order []paramCall
 	for _, o := range obs {
@@ -136,7 +137,7 @@ func paramMisfits(module string, sigs map[string][]types.Signature, obs []observ
 
 	var failures []string
 	for _, key := range order {
-		if pendingAuditMatch(module, key.name, "parameter") || parameterExemptMatch(module, key.name) {
+		if !ignorePending && (pendingAuditMatch(module, key.name, "parameter") || parameterExemptMatch(module, key.name)) {
 			continue
 		}
 		argTypes := groups[key]
@@ -259,6 +260,71 @@ func TestOracleCasesFitDeclaredParameters(t *testing.T) {
 			for _, f := range parameterOracleFailures(t, p, oracleRun{Module: module, TPM: tpm, Cases: cases, Exempt: exemptMapFor(module)}) {
 				t.Error(f)
 			}
+		})
+	}
+}
+
+// splitModuleSub splits a parameterExempt key, "Module::sub", on its
+// last "::": the module name may itself hold "::" (File::Spec::Unix),
+// but the sub name never does.
+func splitModuleSub(key string) (module, sub string) {
+	i := strings.LastIndex(key, "::")
+	return key[:i], key[i+2:]
+}
+
+// pendingOracleRun is module's real .tpm and oracle cases, run with
+// IgnorePending set: pendingAudit's and parameterExempt's own filtering
+// turned off, so the oracle's raw failures tell whether an entry's
+// misfit is still real.
+func pendingOracleRun(t *testing.T, module string) oracleRun {
+	t.Helper()
+	rel := strings.ReplaceAll(module, "::", "/")
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", filepath.FromSlash(rel)+".tpm"))
+	require.NoError(t, err, "%s: no declaration", module)
+	cases, err := filepath.Abs(filepath.Join("testdata", "oracle", strings.ReplaceAll(module, "::", "-")+".pl"))
+	require.NoError(t, err)
+	return oracleRun{Module: module, TPM: tpm, Cases: cases, Exempt: exemptMapFor(module), IgnorePending: true}
+}
+
+// TestPendingAuditEntriesStillMisfit holds every pendingAudit and
+// parameterExempt entry to the oracle run it defers or excuses: run
+// with the entry's own filtering off, its module and sub must still
+// produce a misfit ("Module::Sub call case" -- both oracles' failure
+// messages start this way). A fix that lands without deleting its own
+// entry here stops reproducing and fails loudly, rather than the entry
+// silently going stale.
+func TestPendingAuditEntriesStillMisfit(t *testing.T) {
+	p := perltest.Perl542(t)
+	type target struct{ module, sub, kind string }
+	var targets []target
+	for _, entries := range pendingAudit {
+		for _, m := range entries {
+			targets = append(targets, target{m.Module, m.Sub, m.Kind})
+		}
+	}
+	for key := range parameterExempt {
+		module, sub := splitModuleSub(key)
+		targets = append(targets, target{module, sub, "parameter"})
+	}
+
+	for _, tgt := range targets {
+		t.Run(tgt.module+"::"+tgt.sub+"/"+tgt.kind, func(t *testing.T) {
+			if reason := parameterOracleSkip(tgt.module); reason != "" {
+				t.Skip(reason)
+			}
+			run := pendingOracleRun(t, tgt.module)
+			var failures []string
+			switch tgt.kind {
+			case "return":
+				failures = returnTypeFailures(t, p, run)
+			case "parameter":
+				failures = parameterOracleFailures(t, p, run)
+			default:
+				t.Fatalf("unknown pendingAudit kind %q", tgt.kind)
+			}
+			want := fmt.Sprintf("%s::%s call case", tgt.module, tgt.sub)
+			assert.True(t, slices.ContainsFunc(failures, func(f string) bool { return strings.Contains(f, want) }),
+				"%s::%s no longer misfits; delete its entry", tgt.module, tgt.sub)
 		})
 	}
 }

@@ -189,6 +189,9 @@ type pendingMisfit struct {
 // 2026-10-22 once feat/core-module-types (01a15ac0-6c4a's fix) widened
 // getpayload to Num|NaN|Inf and setpayload/setpayloadsig's $nv to Any:
 // re-measured, neither misfits the parameter oracle any longer.
+// TestPendingAuditEntriesStillMisfit holds every entry that remains to
+// the same rule, so a fix that lands without deleting its own entries
+// fails here instead of going unnoticed.
 var pendingAudit = map[string][]pendingMisfit{
 	"01a15ac0-6ca2": {
 		{Module: "FileHandle", Sub: "autoflush", Kind: "parameter",
@@ -290,6 +293,10 @@ type oracleRun struct {
 	Inc string
 	// Exempt are the subs never called, "Module::sub" to why.
 	Exempt map[string]string
+	// IgnorePending turns off pendingAudit's and parameterExempt's own
+	// filtering, so TestPendingAuditEntriesStillMisfit can measure
+	// whether an entry's misfit is still real.
+	IgnorePending bool
 }
 
 // oracleCallArgs is the NAME:CONTEXT:FORM arguments return_oracle.pl and
@@ -399,7 +406,7 @@ func returnTypeFailures(t *testing.T, p perltest.Perl, r oracleRun) []string {
 		})
 		if !admitted {
 			failed[call] = true
-			if o.Type == "DualVar" && pendingAuditMatch(r.Module, name, "return") {
+			if o.Type == "DualVar" && !r.IgnorePending && pendingAuditMatch(r.Module, name, "return") {
 				continue
 			}
 			failures = append(failures, fmt.Sprintf("%s::%s call case %d in %s context returned %s, which its declared return type excludes",
