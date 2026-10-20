@@ -31,8 +31,17 @@ elsif ( $mode eq 'prototypes' ) {
     # after `require POSIX`, true only once a use has run), has nothing
     # to check until one use has primed it.
     eval "package Held::Prime; use $module; 1";
+    my $n = 0;
     for my $name (@args) {
         my $code = exists &{"${module}::$name"} ? \&{"${module}::$name"} : $module->can($name);
+        if ( !$code ) {
+            # A name a bare `use` does not install, measured, still gets
+            # its stub only once it is asked for by name -- Fcntl's
+            # S_ISWHT, whose sibling S_IS* subs exist from a bare use,
+            # does not. Prime it by name before calling it missing.
+            eval "package Held::PrimeByName@{[$n++]}; use $module qw($name); 1";
+            $code = exists &{"${module}::$name"} ? \&{"${module}::$name"} : $module->can($name);
+        }
         my $proto = $code && prototype($code);
         say join "\t", $name, !$code ? 'missing' : defined $proto ? ( 'proto', $proto ) : 'none';
     }

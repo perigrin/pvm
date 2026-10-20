@@ -62,6 +62,15 @@ var oracleExempt = map[string]string{
 	"POSIX::setlocale":   "mutates the process-wide locale, changing every later locale-sensitive call in the same run",
 	"POSIX::nice":        "changes the real process's scheduling priority",
 	"POSIX::read":        "its buffer argument is aliased in place; the oracle's literal call-case arguments cannot supply a safe mutable lvalue",
+	// sockaddr_in and sockaddr_in6 dispatch on wantarray and arg count
+	// together: the pack arity in list context, or the unpack arity in
+	// scalar, croaks (measured), which the oracle's per-sub call cases
+	// cannot give one direction without also calling the other in the
+	// context that dies for it. pack_sockaddr_in(6) and
+	// unpack_sockaddr_in(6) hold the same two directions without the
+	// conflict.
+	"Socket::sockaddr_in":  "wantarray/arity dispatch dies on the other direction's shape; held to its prototype and exports only",
+	"Socket::sockaddr_in6": "wantarray/arity dispatch dies on the other direction's shape; held to its prototype and exports only",
 }
 
 // posixReplacementNames are the names in POSIX.pm 2.23's %replacement
@@ -403,6 +412,57 @@ sub where {
 // TestCarpReturnTypes holds Carp.tpm's return types to perl.
 func TestCarpReturnTypes(t *testing.T) {
 	holdReturnTypes(t, "Carp")
+}
+
+// TestConstantExportersReturnTypes holds Fcntl.tpm's and Socket.tpm's
+// return types to perl.
+func TestConstantExportersReturnTypes(t *testing.T) {
+	holdReturnTypes(t, "Fcntl", "Socket")
+}
+
+// TestSocketOracleNeverResolvesAName: the oracle's Socket call cases
+// give inet_aton a numeric address only, and give getaddrinfo and
+// getnameinfo a numeric address along with AI_NUMERICHOST or
+// NI_NUMERICHOST, so none of the three ever asks libc to resolve a
+// hostname over the network.
+func TestSocketOracleNeverResolvesAName(t *testing.T) {
+	src, err := os.ReadFile(filepath.Join("testdata", "oracle", "Socket.pl"))
+	require.NoError(t, err)
+	text := string(src)
+
+	ipLike := regexp.MustCompile(`^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$`)
+	for _, m := range regexp.MustCompile(`inet_aton\('([^']*)'\)`).FindAllStringSubmatch(text, -1) {
+		assert.Regexp(t, ipLike, m[1], "inet_aton called with %q, which is not a numeric address", m[1])
+	}
+
+	for _, name := range []string{"getaddrinfo", "getnameinfo"} {
+		block := oracleCaseBlock(t, text, name)
+		assert.Contains(t, block, "NUMERICHOST", "%s's call cases never set *NUMERICHOST, so a bad address could resolve over the network", name)
+	}
+}
+
+// oracleCaseBlock is the bracketed value `name => [ ... ],` gives in an
+// oracle call-case file's source, found by counting brackets rather than
+// a regexp, since the value nests arrayrefs and hashrefs.
+func oracleCaseBlock(t *testing.T, src, name string) string {
+	t.Helper()
+	key := name + " => ["
+	start := strings.Index(src, key)
+	require.NotEqual(t, -1, start, "%s has no call case in the oracle file", name)
+	depth := 0
+	for i := start + len(key) - 1; i < len(src); i++ {
+		switch src[i] {
+		case '[':
+			depth++
+		case ']':
+			depth--
+			if depth == 0 {
+				return src[start : i+1]
+			}
+		}
+	}
+	t.Fatalf("%s: unbalanced brackets", name)
+	return ""
 }
 
 // TestReturnOracleChecksEachListElement: a sub declared List[Int] is held

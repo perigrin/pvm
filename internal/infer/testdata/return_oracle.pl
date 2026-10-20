@@ -50,6 +50,14 @@ for (@subs) {
         $code = $module->can($name) or die "perl defines no method $name\n";
     }
     else {
+        if ( !callable("${module}::$name") ) {
+            # A name a bare require does not materialize, measured --
+            # Fcntl's S_ISWHT, whose sibling S_IS* subs are compiled in
+            # regardless -- gets a stub only once it is asked for by
+            # name.
+            state $n = 0;
+            eval "package Held::OraclePrimeByName@{[$n++]}; use $module qw($name); 1";
+        }
         callable("${module}::$name") or die "perl defines no sub $name\n";
         $code = \&{"${module}::$name"};
     }

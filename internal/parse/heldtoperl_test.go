@@ -554,6 +554,32 @@ func TestPOSIXImportKeepsPrintfFilehandleParse(t *testing.T) {
 	}
 }
 
+// TestConstantExportersPrototypes holds Fcntl.tpm's and Socket.tpm's
+// prototypes to perl.
+func TestConstantExportersPrototypes(t *testing.T) {
+	holdPrototypes(t, "Fcntl", "Socket")
+}
+
+// TestConstantExportersExports holds Fcntl.tpm's and Socket.tpm's
+// :export and :export_ok marks to what `use` installs in a caller.
+func TestConstantExportersExports(t *testing.T) {
+	holdExports(t, "Fcntl", "Socket")
+}
+
+// TestSocketBareUseOmitsCRLFVariable: $CRLF is in Socket's @EXPORT_OK
+// only (measured), so a bare `use Socket` does not import it.
+func TestSocketBareUseOmitsCRLFVariable(t *testing.T) {
+	got := importedFrom(t, "use Socket;\n")
+	assert.NotContains(t, got, "$CRLF")
+}
+
+// TestFcntlBareUseOmitsFlockConstants: LOCK_EX is in Fcntl's
+// @EXPORT_OK only (measured), so a bare `use Fcntl` does not import it.
+func TestFcntlBareUseOmitsFlockConstants(t *testing.T) {
+	got := importedFrom(t, "use Fcntl;\n")
+	assert.NotContains(t, got, "LOCK_EX")
+}
+
 // containsUnknown is whether n or any descendant is an Unknown node.
 func containsUnknown(n *Node) bool {
 	if n.Kind == Unknown {
