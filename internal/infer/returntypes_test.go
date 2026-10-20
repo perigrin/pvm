@@ -1141,6 +1141,74 @@ func TestPOSIXMathReturnsAdmitInfNaN(t *testing.T) {
 	}
 }
 
+// posixClassifierScript calls each classification and NaN-payload sub
+// scratchpad/audit-A.md's F3 names with a NaN or an Inf, the values
+// these subs exist to classify, and prints "name\tvalue" or
+// "name\tvalue DIED:...".
+const posixClassifierScript = `
+use v5.42; no warnings;
+use POSIX;
+my $nan = POSIX::nan();
+my $inf = 9**9**9;
+my @cases = (
+  ['fpclassify', sub { POSIX::fpclassify($inf) }],
+  ['ilogb', sub { POSIX::ilogb($inf) }],
+  ['isfinite', sub { POSIX::isfinite($nan) }],
+  ['isgreater', sub { POSIX::isgreater($nan, 1) }],
+  ['isgreaterequal', sub { POSIX::isgreaterequal($nan, 1) }],
+  ['isinf', sub { POSIX::isinf($inf) }],
+  ['isless', sub { POSIX::isless($nan, 1) }],
+  ['islessequal', sub { POSIX::islessequal($nan, 1) }],
+  ['islessgreater', sub { POSIX::islessgreater($nan, 1) }],
+  ['isnan', sub { POSIX::isnan($nan) }],
+  ['isnormal', sub { POSIX::isnormal($inf) }],
+  ['issignaling', sub { POSIX::issignaling($nan) }],
+  ['isunordered', sub { POSIX::isunordered($nan, 1) }],
+  ['signbit', sub { POSIX::signbit(-$inf) }],
+  ['getpayload', sub { POSIX::getpayload(POSIX::nan(7)) }],
+);
+for my $c (@cases) {
+    my ($name, $code) = @$c;
+    my $v = eval { $code->() };
+    print "$name\t", (defined $v ? $v : 'undef'), ($@ ? " DIED:$@" : ''), "\n";
+}
+`
+
+// TestPOSIXClassifiersTakeInfNaN: fpclassify, ilogb, isfinite, isinf,
+// isnan, isnormal, issignaling, signbit, getpayload and the paired
+// is-comparison subs exist to classify NaN and Inf, measured taking
+// them without dying, and POSIX.tpm's declared parameter type admits
+// both (scratchpad/audit-A.md F3) -- Num alone excludes them, so a
+// coercion-mismatch check would see a lossy coercion although nothing
+// is lost: these subs coerce their argument to a C double, which
+// preserves NaN and Inf exactly.
+func TestPOSIXClassifiersTakeInfNaN(t *testing.T) {
+	p := perltest.Perl542(t)
+	out, err := p.Command("-e", posixClassifierScript).Output()
+	require.NoError(t, err)
+
+	sigs := posixSignatures(t)
+	lines := strings.Split(strings.TrimRight(string(out), "\n"), "\n")
+	require.NotEmpty(t, lines)
+	for _, line := range lines {
+		name, result, ok := strings.Cut(line, "\t")
+		require.True(t, ok, "unparseable line: %q", line)
+		if !assert.NotContains(t, result, "DIED", "POSIX::%s died taking NaN/Inf: %s", name, result) {
+			continue
+		}
+		cands, ok := sigs[name]
+		if !assert.True(t, ok, "POSIX::%s is not declared", name) {
+			continue
+		}
+		for _, s := range cands {
+			for _, param := range s.Params {
+				assert.True(t, types.IsSubtype(types.NaN, param.Type), "POSIX::%s's $%s does not admit NaN", name, param.Name)
+				assert.True(t, types.IsSubtype(types.Inf, param.Type), "POSIX::%s's $%s does not admit Inf", name, param.Name)
+			}
+		}
+	}
+}
+
 // TestXSLibrariesReturnTypes holds each XS library's declared return
 // types to perl (perltest.XSLibraries), called with its oracle's cases.
 func TestXSLibrariesReturnTypes(t *testing.T) {
