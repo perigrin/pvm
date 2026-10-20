@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: core-module-types
 created: 2026-10-20T01:19:39.205726373Z
-updated: 2026-10-20T16:02:19.389253128Z
+updated: 2026-10-20T16:17:50.628422426Z
 sessions:
 - start_sha: e80f4f920667615dc28874844b338224612fffe3
   end_sha: d7e9819e189d4066bdeda28c06b1f2611f1cccb7
@@ -185,6 +185,14 @@ db4c's worker parked Symbol.tpm (scratchpad/db4c-symbol-deferred/) because measu
 ### Added 2026-10-20: Encode::encode (from dbd3)
 
 dbd3 declared `Encode::encode` as plain `Str` (commented, pointing here), though perl 5.42 measures `Str|Undef`, because the accurate type adds one guarded site, Pod/Text.pm's `encode($encoding, $text, $check)` (both arguments defined in practice). After the narrowing lands, restore `encode` to its measured `Str|Undef` (or a multi by argument type, if undef is returned only for an undef input) and confirm the Pod/Text.pm site stays silent. The declared type must match perl before this issue closes.
+
+### Review Findings
+
+Gate, 2026-10-21, on d7e9819e (fresh Sonnet reviewer; psc check over perl 5.42's lib adds exactly Sys/Syslog.pm:562, with real lib-path evidence; possible-undef probed sound flag on and off; precision 65/76 WRONG 0; Select changes sound; 14 declarations match perl). VERDICT: REOPEN.
+
+1. (CODE, 80) internal/infer/infer.go ~656-667 (Options.WarnPossibleUndef godoc) and internal/psc/check_command.go:89 (--warn-possible-undef help) still describe the pre-generalization rule ("only through an Undecided multi call's join ... A Selected call's own declared return ... reports either way"), now false: `blessed($obj) eq 'Foo'` is silent by default. Rewrite both to perigrin's general rule: any declared Undef the call's arguments do not prove is possible-undef; only an outcome the arguments force outright (sum() with no arguments) reports.
+2. (TEST-ONLY, 85; fix in place) TestNarrowGuardedLibSites passes with flow.go and vars.go reverted to before the merge, because possible-undef silences every subtest regardless of narrowing. Add a case whose narrowed return carries no Undef at all, or assert the resolved type or selected candidate, so the test fails without narrowing.
+3. (TEST-ONLY, 90; fix in place, issue db4c) internal/infer/returntypes_test.go's pureExporters never gained "Symbol", so Symbol's oracle cases are never run; its comment still says Symbol is held back. Add it and fix the comment.
 
 ## Acceptance criteria
 
