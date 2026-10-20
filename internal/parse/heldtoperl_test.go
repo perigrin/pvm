@@ -1007,6 +1007,28 @@ func TestIOExportersMethodsAreNotExported(t *testing.T) {
 	}
 }
 
+// TestIOSocketDocumentedMethodsDeclared: IO/Socket.pm documents (or, for
+// configure and register_domain, defines without a POD =head2) these
+// methods beside the exports (IO/Socket.pm:56-395), each measured on
+// 5.42.0 (01a15ac0, IO::Socket finding 7); a prior pass of IO/Socket.tpm
+// left every one of them out.
+func TestIOSocketDocumentedMethodsDeclared(t *testing.T) {
+	methods := []string{
+		"configure", "socketpair", "blocking", "sockname", "peername",
+		"connected", "shutdown", "setsockopt", "getsockopt", "sockopt",
+		"atmark", "timeout", "sockdomain", "socktype", "protocol",
+		"register_domain",
+	}
+	src, ok := declaration("IO::Socket")
+	require.True(t, ok, "IO::Socket: no declaration")
+	facts, err := readHeld("IO::Socket", src)
+	require.NoError(t, err)
+	for _, name := range methods {
+		_, declared := facts.signatures[name]
+		assert.True(t, declared, "IO::Socket::%s is not declared", name)
+	}
+}
+
 // TestFileHandleFilenoIsDeclared: FileHandle.pm aliases IO::Handle's
 // fileno straight into FileHandle:: at require time, so FileHandle.tpm
 // must declare it with a concrete return type -- a name the parser

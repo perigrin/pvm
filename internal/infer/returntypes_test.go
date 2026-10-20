@@ -71,6 +71,11 @@ var oracleExempt = map[string]string{
 	// conflict.
 	"Socket::sockaddr_in":  "wantarray/arity dispatch dies on the other direction's shape; held to its prototype and exports only",
 	"Socket::sockaddr_in6": "wantarray/arity dispatch dies on the other direction's shape; held to its prototype and exports only",
+	// sockaddr_un dispatches on wantarray alone: both its pack and unpack
+	// forms take exactly one Str argument, so there is no arity to tell
+	// them apart the way sockaddr_in's differing arities do; a path given
+	// in list context dies the same way ("Bad address family"), measured.
+	"Socket::sockaddr_un": "wantarray dispatch dies on the other direction's shape (no arity tells the two forms apart); held to its prototype and exports only",
 
 	"Test::More::BAIL_OUT": "calls CORE::exit directly from Test::Builder's bail_out, bypassing the driver's exit-catching override, and would end the oracle process early",
 	// plan dies "You tried to plan twice" once a plan already exists --
@@ -133,6 +138,7 @@ var oracleExempt = map[string]string{
 	"Net::Ping::wakeonlan":     "opens a real udp socket and sends a packet onto the network",
 	"IO::Socket::sockaddr_in":  "wantarray/arity dispatch dies on the other direction's shape, as Socket::sockaddr_in does; held to its prototype and exports only",
 	"IO::Socket::sockaddr_in6": "wantarray/arity dispatch dies on the other direction's shape, as Socket::sockaddr_in6 does; held to its prototype and exports only",
+	"IO::Socket::sockaddr_un":  "wantarray dispatch dies on the other direction's shape, as Socket::sockaddr_un does; held to its prototype and exports only",
 	"IO::Socket::socket":       "opens a real socket file descriptor",
 	"IO::Socket::connect":      "connects a real socket onto the network",
 	"IO::Socket::bind":         "binds a real socket to a local address",
@@ -141,6 +147,18 @@ var oracleExempt = map[string]string{
 	"IO::Socket::send":         "writes onto a real socket",
 	"IO::Socket::recv":         "blocks reading from a real socket",
 	"IO::Socket::close":        "dereferences the invocant as a glob to close its socket, dying \"Can't use string ... as a symbol ref\" when the invocant is the bare class name the oracle calls with",
+
+	// configure's own sanity check requires ref($sock) eq "IO::Socket"
+	// exactly (IO/Socket.pm's configure), not a subclass: return_oracle.pl
+	// resolves the method once via $module->can(name), so it always calls
+	// the base IO::Socket::configure directly, never a subclass's
+	// override, even against INSTANCE's object -- and that instance is
+	// already blessed into IO::Socket::INET by the time configure runs
+	// (new's own call to configure, measured), so a second direct call
+	// dies "Cannot configure socket in domain". A separate, still-bare
+	// IO::Socket instance would work (measured) but the oracle's cases
+	// file supports only one shared INSTANCE per module.
+	"IO::Socket::configure": "needs an instance still blessed exactly IO::Socket, which INSTANCE no longer is by the time configure runs, and the oracle supports only one shared instance",
 
 	// IO::File::open dereferences its invocant as a glob immediately
 	// (`open($fh, ...)`), dying "Can't use string ... as a symbol ref"
@@ -2093,6 +2111,39 @@ var ioSocketIPSocketReexports = []string{
 	"SO_STATE", "SO_TYPE", "SO_USELOOPBACK", "SO_XOPEN", "SO_XSE", "UIO_MAXIOV", "inet_aton", "inet_ntoa",
 	"pack_sockaddr_in", "pack_sockaddr_in6", "pack_sockaddr_un", "sockaddr_in", "sockaddr_in6", "sockaddr_un", "unpack_sockaddr_in",
 	"unpack_sockaddr_in6", "unpack_sockaddr_un",
+
+	// The :export_ok names IO/Socket/IP.tpm mirrors from Socket.tpm, the
+	// same way and for the same reason (IO/Socket.tpm's own comment):
+	// each lives only in IO::Socket's or Socket's own stash, not
+	// IO::Socket::IP's, so the sub-form oracle cannot reach it here
+	// either, though IO::Socket::IP->can(name) finds it by inheritance.
+	"AI_ADDRCONFIG", "AI_ALL", "AI_CANONIDN", "AI_CANONNAME", "AI_IDN", "AI_IDN_ALLOW_UNASSIGNED",
+	"AI_IDN_USE_STD3_ASCII_RULES", "AI_NUMERICHOST", "AI_NUMERICSERV", "AI_PASSIVE", "AI_V4MAPPED",
+	"CR", "CRLF", "LF", "EAI_ADDRFAMILY", "EAI_AGAIN", "EAI_BADFLAGS", "EAI_BADHINTS", "EAI_FAIL",
+	"EAI_FAMILY", "EAI_NODATA", "EAI_NONAME", "EAI_PROTOCOL", "EAI_SERVICE", "EAI_SOCKTYPE", "EAI_SYSTEM",
+	"IN6ADDR_ANY", "IN6ADDR_LOOPBACK", "IPPROTO_AH", "IPPROTO_ESP", "IPPROTO_GRE", "IPPROTO_ICMP",
+	"IPPROTO_ICMPV6", "IPPROTO_IGMP", "IPPROTO_IP", "IPPROTO_IPV6", "IPPROTO_RAW", "IPPROTO_SCTP",
+	"IPPROTO_TCP", "IPPROTO_UDP", "IPTOS_LOWDELAY", "IPTOS_MINCOST", "IPTOS_RELIABILITY", "IPTOS_THROUGHPUT",
+	"IPV6_ADDRFROM", "IPV6_ADD_MEMBERSHIP", "IPV6_DROP_MEMBERSHIP", "IPV6_JOIN_GROUP", "IPV6_LEAVE_GROUP",
+	"IPV6_MTU", "IPV6_MTU_DISCOVER", "IPV6_MULTICAST_HOPS", "IPV6_MULTICAST_IF", "IPV6_MULTICAST_LOOP",
+	"IPV6_RECVERR", "IPV6_ROUTER_ALERT", "IPV6_TCLASS", "IPV6_UNICAST_HOPS", "IPV6_V6ONLY",
+	"IP_ADD_MEMBERSHIP", "IP_ADD_SOURCE_MEMBERSHIP", "IP_BIND_ADDRESS_NO_PORT", "IP_DROP_MEMBERSHIP",
+	"IP_DROP_SOURCE_MEMBERSHIP", "IP_FREEBIND", "IP_MTU", "IP_MTU_DISCOVER", "IP_MULTICAST_ALL",
+	"IP_MULTICAST_IF", "IP_MULTICAST_LOOP", "IP_MULTICAST_TTL", "IP_NODEFRAG", "IP_PMTUDISC_DO",
+	"IP_PMTUDISC_DONT", "IP_PMTUDISC_PROBE", "IP_PMTUDISC_WANT", "IP_RECVERR", "IP_TRANSPARENT",
+	"NI_DGRAM", "NI_IDN", "NI_IDN_ALLOW_UNASSIGNED", "NI_IDN_USE_STD3_ASCII_RULES", "NI_NAMEREQD",
+	"NI_NOFQDN", "NI_NUMERICHOST", "NI_NUMERICSERV", "NIx_NOHOST", "NIx_NOSERV",
+	"SOCK_CLOEXEC", "SOCK_NONBLOCK", "SO_INCOMING_CPU", "SO_INCOMING_NAPI_ID", "SO_LOCK_FILTER",
+	"SO_RCVBUFFORCE", "SO_SNDBUFFORCE",
+	"TCP_CC_INFO", "TCP_CONGESTION", "TCP_CONNECTIONTIMEOUT", "TCP_CORK", "TCP_DEFER_ACCEPT",
+	"TCP_FASTOPEN", "TCP_FASTOPEN_CONNECT", "TCP_FASTOPEN_KEY", "TCP_FASTOPEN_NO_COOKIE", "TCP_INFO",
+	"TCP_INIT_CWND", "TCP_KEEPALIVE", "TCP_KEEPCNT", "TCP_KEEPIDLE", "TCP_KEEPINTVL", "TCP_LINGER2",
+	"TCP_MAXRT", "TCP_MAXSEG", "TCP_MD5SIG", "TCP_MD5SIG_EXT", "TCP_NODELAY", "TCP_NOOPT", "TCP_NOPUSH",
+	"TCP_NOTSENT_LOWAT", "TCP_QUICKACK", "TCP_SACK_ENABLE", "TCP_STDURG", "TCP_SYNCNT", "TCP_TIMESTAMP",
+	"TCP_TX_DELAY", "TCP_USER_TIMEOUT", "TCP_WINDOW_CLAMP",
+	"getaddrinfo", "getnameinfo", "inet_ntop", "inet_pton",
+	"pack_ip_mreq", "pack_ip_mreq_source", "pack_ipv6_mreq",
+	"unpack_ip_mreq", "unpack_ip_mreq_source", "unpack_ipv6_mreq",
 }
 
 // ooExempt extends oracleExempt with the OO batch's own exemptions:
@@ -2105,11 +2156,13 @@ var ioSocketIPSocketReexports = []string{
 func ooExempt() map[string]string {
 	m := withPlatformExempt(oracleExempt)
 	for _, name := range ioSocketIPSocketReexports {
-		m["IO::Socket::IP::"+name] = "lives in IO::Socket's own stash, from its file-scope `use Socket;`, not IO::Socket::IP's; the sub-form oracle cannot reach it there (measured), and Socket.tpm's own oracle already holds its return type"
+		m["IO::Socket::IP::"+name] = "lives in IO::Socket's or Socket's own stash, not IO::Socket::IP's; the sub-form oracle cannot reach it there (measured), and that module's own oracle already holds its return type"
 	}
 	for _, name := range []string{"connect", "sockhost", "sockport", "peerhost", "peerport"} {
 		m["IO::Socket::IP::"+name] = "opens or reads a real network connection"
 	}
+	m["IO::Socket::IP::accept"] = "blocks accepting a real connection on a socket, as IO::Socket's own accept does"
+	m["IO::Socket::IP::peeraddr"] = "unpacks peername's address directly, dying \"Bad arg length\" when peername is undef (measured, unconnected)"
 	for _, name := range []string{"get", "head", "put", "post", "patch", "delete", "post_form", "mirror", "request"} {
 		m["HTTP::Tiny::"+name] = "performs a real HTTP request over the network"
 	}
@@ -2146,7 +2199,7 @@ func TestOOModulesNetworkSubsExempt(t *testing.T) {
 	exempt := ooExempt()
 	networked := map[string][]string{
 		"HTTP::Tiny":     {"get", "head", "put", "post", "patch", "delete", "post_form", "mirror", "request"},
-		"IO::Socket::IP": {"connect", "sockhost", "sockport", "peerhost", "peerport"},
+		"IO::Socket::IP": {"connect", "sockhost", "sockport", "peerhost", "peerport", "accept", "peeraddr"},
 	}
 	for module, names := range networked {
 		cases, err := os.ReadFile(filepath.Join("testdata", "oracle", strings.ReplaceAll(module, "::", "-")+".pl"))
@@ -2351,14 +2404,14 @@ func TestIOExportersReturnTypes(t *testing.T) {
 }
 
 // ioExportersNetworkSubs are the Net::Ping and IO::Socket subs that
-// touch the network (or, for IO::Socket's sockaddr_in and
-// sockaddr_in6, dispatch on context the way Socket's already-exempt
+// touch the network (or, for IO::Socket's sockaddr_in, sockaddr_in6
+// and sockaddr_un, dispatch on context the way Socket's already-exempt
 // ones do); every one must be in oracleExempt.
 var ioExportersNetworkSubs = []string{
 	"Net::Ping::pingecho", "Net::Ping::wakeonlan",
 	"IO::Socket::socket", "IO::Socket::connect", "IO::Socket::bind", "IO::Socket::listen",
 	"IO::Socket::accept", "IO::Socket::send", "IO::Socket::recv", "IO::Socket::close",
-	"IO::Socket::sockaddr_in", "IO::Socket::sockaddr_in6",
+	"IO::Socket::sockaddr_in", "IO::Socket::sockaddr_in6", "IO::Socket::sockaddr_un",
 }
 
 // TestIOExportersNetworkSubsExempt: every Net::Ping and IO::Socket sub
@@ -2386,6 +2439,88 @@ func TestIOExportersOracleStaysInScratch(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, absolute.Match(cases), "%s's oracle cases name an absolute path", module)
 	}
+}
+
+// TestIOSocketConstructorTakesArgs: IO::Socket::new's own perl, measured
+// on 5.42.0, is `my($class,%arg) = @_`, and the POD says new "optionally
+// takes arguments" and "If the constructor fails it will return undef"
+// (measured: IO::Socket->new(Domain=>AF_INET, ..., PeerPort=>1) with no
+// listener gives undef, errstr "connect: Connection refused"); a prior
+// pass of IO/Socket.tpm declared new taking only its class name
+// (01a15ac0, IO::Socket finding 1).
+func TestIOSocketConstructorTakesArgs(t *testing.T) {
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "IO", "Socket.tpm"))
+	require.NoError(t, err)
+	sigs, errs := parse.DeclaredSignatures(tpm)
+	require.Empty(t, errs)
+	cands, ok := sigs["new"]
+	require.True(t, ok, "IO::Socket.tpm does not declare new")
+	require.Len(t, cands, 1)
+	s := cands[0]
+	require.NotEmpty(t, s.Params, "IO::Socket::new takes no parameters besides its class name, but perl's new(%%arg) accepts a Domain=>... argument list (measured)")
+	assert.Equal(t, byte('@'), s.Params[0].Sigil, "IO::Socket::new's argument list should be a slurpy, matching perl's my($class,%%arg) = @_")
+	assert.True(t, types.IsSubtype(types.Undef, s.Returns), "IO::Socket::new does not admit Undef, but perl returns undef when the constructor fails (measured)")
+}
+
+// TestIOSocketMethodsReturnSocketOrUndef: IO::Socket's socket, connect,
+// bind and listen each return $sock (the invocant) on success or undef
+// on failure (measured on 5.42.0, IO/Socket.pm:91,165,223,233), never
+// the core Boolean a prior pass of IO/Socket.tpm declared instead
+// (01a15ac0, IO::Socket finding 2).
+func TestIOSocketMethodsReturnSocketOrUndef(t *testing.T) {
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "IO", "Socket.tpm"))
+	require.NoError(t, err)
+	sigs, errs := parse.DeclaredSignatures(tpm)
+	require.Empty(t, errs)
+	for _, name := range []string{"socket", "connect", "bind", "listen"} {
+		cands, ok := sigs[name]
+		if !assert.True(t, ok, "IO::Socket::%s is not declared", name) {
+			continue
+		}
+		require.Len(t, cands, 1)
+		s := cands[0]
+		assert.True(t, types.IsSubtype(types.Object, s.Returns), "IO::Socket::%s should admit Object: perl returns the invocant itself on success (measured)", name)
+		assert.True(t, types.IsSubtype(types.Undef, s.Returns), "IO::Socket::%s should admit Undef: perl returns undef on failure (measured)", name)
+	}
+}
+
+// TestIOSocketSendFlagsOptional: IO::Socket::send's own perl, measured
+// on 5.42.0, is `@_ >= 2 && @_ <= 4`, and the POD shows
+// `send(BUF, [FLAGS, [TO]])` -- flags is optional (measured:
+// $sock->send("hi") returns 2), not the required parameter a prior pass
+// of IO/Socket.tpm declared (01a15ac0, IO::Socket finding 5).
+func TestIOSocketSendFlagsOptional(t *testing.T) {
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "IO", "Socket.tpm"))
+	require.NoError(t, err)
+	sigs, errs := parse.DeclaredSignatures(tpm)
+	require.Empty(t, errs)
+	cands, ok := sigs["send"]
+	require.True(t, ok, "IO::Socket::send is not declared")
+	require.Len(t, cands, 1)
+	s := cands[0]
+	require.GreaterOrEqual(t, len(s.Params), 2, "IO::Socket::send should declare buf and flags parameters")
+	assert.False(t, s.Params[1].Required, `IO::Socket::send's flags parameter should be optional: perl accepts $sock->send("hi") with no flags (measured)`)
+}
+
+// TestSocketListContextUnpackers: Socket::sockaddr_un dispatches on
+// wantarray alone, the same way sockaddr_in and sockaddr_in6 do
+// (measured on 5.42.0, Socket.pm:876-883: `unpack_sockaddr_un` runs
+// under `if(wantarray)`; `my @l = sockaddr_un(pack_sockaddr_un($path))`
+// gives `($path)`), so it needs a List[Str] candidate for list context
+// beside its scalar (pack) one -- left as a single scalar-only
+// candidate by a prior pass of Socket.tpm (01a15ac0, Socket finding 4).
+func TestSocketListContextUnpackers(t *testing.T) {
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "Socket.tpm"))
+	require.NoError(t, err)
+	sigs, errs := parse.DeclaredSignatures(tpm)
+	require.Empty(t, errs)
+	cands, ok := sigs["sockaddr_un"]
+	require.True(t, ok, "Socket::sockaddr_un is not declared")
+	require.Len(t, cands, 2, "sockaddr_un should be a multi, pack and unpack, the same way sockaddr_in and sockaddr_in6 are")
+	hasListCandidate := slices.ContainsFunc(cands, func(s types.Signature) bool {
+		return s.Answers() == types.ListCtx && s.ReturnElement == types.Str
+	})
+	assert.True(t, hasListCandidate, "sockaddr_un has no List[Str] candidate for its list-context (unpack) form")
 }
 
 // TestIOFileNewMissingFileReturnIsDeclared: IO::File->new on a file
