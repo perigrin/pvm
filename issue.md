@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: core-module-types
 created: 2026-10-20T01:19:39.205726373Z
-updated: 2026-10-20T16:34:25.232726306Z
+updated: 2026-10-20T17:54:16.833860609Z
 sessions:
 - start_sha: e80f4f920667615dc28874844b338224612fffe3
   end_sha: d7e9819e189d4066bdeda28c06b1f2611f1cccb7
@@ -213,11 +213,10 @@ Gate, 2026-10-21, on d7e9819e (fresh Sonnet reviewer; psc check over perl 5.42's
 ## Acceptance criteria
 
 ### Positive Scenarios
-- [ ] Guarded sites give no diagnostic `go test ./internal/infer/ -run '^TestNarrowGuardedLibSites$' -count=1 -v | grep -q '^--- PASS: TestNarrowGuardedLibSites'`
-- [ ] Real sites are still reported `go test ./internal/infer/ -run '^TestNarrowKeepsRealLibSites$' -count=1 -v | grep -q '^--- PASS: TestNarrowKeepsRealLibSites'`
-- [ ] reftype of a proven reference is a Str `go test ./internal/infer/ -run '^TestReftypeOfRefIsStr$' -count=1 -v | grep -q '^--- PASS: TestReftypeOfRefIsStr'`
-- [ ] sum with arguments is a number `go test ./internal/infer/ -run '^TestSumWithArgsIsNum$' -count=1 -v | grep -q '^--- PASS: TestSumWithArgsIsNum'`
-
+- [ ] Guarded sites give no diagnostic (`go test ./internal/infer/ -run '^TestNarrowGuardedLibSites$' -count=1 -v | grep -q '^--- PASS: TestNarrowGuardedLibSites'`)
+- [ ] Real sites are still reported (`go test ./internal/infer/ -run '^TestNarrowKeepsRealLibSites$' -count=1 -v | grep -q '^--- PASS: TestNarrowKeepsRealLibSites'`)
+- [ ] reftype of a proven reference is a Str (`go test ./internal/infer/ -run '^TestReftypeOfRefIsStr$' -count=1 -v | grep -q '^--- PASS: TestReftypeOfRefIsStr'`)
+- [ ] sum with arguments is a number (`go test ./internal/infer/ -run '^TestSumWithArgsIsNum$' -count=1 -v | grep -q '^--- PASS: TestSumWithArgsIsNum'`)
 ### Negative Scenarios
-- [ ] psc check over perl's lib adds no unlisted line `go test ./internal/psc/ -run '^TestPSCCheckLibBaseline$' -count=1 -v | grep -q '^--- PASS: TestPSCCheckLibBaseline'`
-- [ ] Precision holds with WRONG 0 `go test ./internal/infer/ -run '^TestInferencePrecision$' -count=1 -v | grep -q '^--- PASS: TestInferencePrecision'`
+- [ ] psc check over perl's lib adds no unlisted line (`go test ./internal/psc/ -run '^TestPSCCheckLibBaseline$' -count=1 -v | grep -q '^--- PASS: TestPSCCheckLibBaseline'`)
+- [ ] Precision holds with WRONG 0 (`go test ./internal/infer/ -run '^TestInferencePrecision$' -count=1 -v | grep -q '^--- PASS: TestInferencePrecision'`)
