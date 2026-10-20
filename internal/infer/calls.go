@@ -4,6 +4,7 @@
 package infer
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
@@ -127,7 +128,67 @@ func (a *analysis) declaredCall(n *lower.Call) types.Type {
 			a.checkArg(n.Name, i, arg, builtinArgType(chosen, i), slotContext(chosen, i) == types.ListCtx, CodeCoercionMismatch)
 		}
 	}
+	a.markPossibleUndef(n, sigs, sel, args)
 	return sel.Returns
+}
+
+// markPossibleUndef marks n's own id, for possibleUndef (below) to read,
+// when sel is types.Select's own Undecided join of this call's
+// candidates over an argument that was itself the Unknown sentinel --
+// no information at all, never computed -- rather than some concrete
+// type Select's own coercion retry (select.go's coercedArgs) rewrote to
+// Unknown internally to re-decide a call no candidate fit outright
+// (perigrin, 2026-10-20). args is declaredCall's own, taken before
+// Select ever runs, so a position Select's retry later zeroed still
+// reads here as whatever concrete type it actually was.
+//
+// Marked only when the join itself carries the Undef bit, at least one
+// joined candidate does not, and some args position is genuinely
+// Unknown -- otherwise either every candidate agreed, or nothing about
+// the join was actually unprovable. A Selected call -- one candidate
+// chosen outright, including a multi's widest, catch-all candidate
+// picked because no narrower sibling's own parameter type was proven --
+// is not this either: its Undef is certain for the type the type
+// system does have, and reports the same as a single-candidate
+// declaration's always has.
+//
+// TestNarrowKeepsRealLibSites's reftype_unguarded (Selected: a Scalar
+// argument fits Scalar::Util::reftype's `(Any $ref)` catch-all directly,
+// no retry needed) and TestEncodeTextIsStr's own unguarded half
+// (Undecided, but only by the coercion retry: Encode::encode's two
+// candidates both reject a Scalar $string outright, and only the
+// retry's own rewrite, not the real argument, is Unknown) both depend
+// on this staying unmarked; a looser rule that marked either regressed
+// them, since nothing in sel alone, after the fact, tells them apart
+// from a call the retry genuinely could not have decided.
+func (a *analysis) markPossibleUndef(n *lower.Call, sigs []types.Signature, sel types.Selection, args []types.Type) {
+	if len(sigs) <= 1 || sel.Outcome != types.Undecided || sel.Returns&types.Undef == 0 {
+		return
+	}
+	if !slices.Contains(args, types.Unknown) {
+		return
+	}
+	for _, s := range sigs {
+		if s.Returns&types.Undef == 0 {
+			a.undecidedUndef[n.ID] = true
+			return
+		}
+	}
+}
+
+// possibleUndef reports whether n's Undef, in a slot expecting expected,
+// is accepted by default under WarnPossibleUndef (perigrin, 2026-10-20):
+// n is a declared call types.Select left Undecided over, its Undef the
+// join's rather than a Selected candidate's own declared return
+// (undecidedUndef, set by markPossibleUndef), and removing that one bit
+// would satisfy expected on its own -- a mismatch WarnPossibleUndef has
+// no bearing on, a wrong type entirely, still reports.
+func (a *analysis) possibleUndef(n lower.Node, actual, expected types.Type) bool {
+	if a.opts.WarnPossibleUndef || !a.undecidedUndef[n.Meta().ID] || actual&types.Undef == 0 {
+		return false
+	}
+	rest := numified(finite(actual&^types.Undef), expected)
+	return a.opts.satisfies(rest, expected) || a.opts.handleSatisfies(rest, expected)
 }
 
 // flattenedSelect is types.Select for a call in context ctx with at least
@@ -281,7 +342,7 @@ func (a *analysis) checkArg(name string, i int, arg lower.Node, expected types.T
 	} else if a.argSatisfies(scalarValue(arg, actual), expected) || a.argSatisfies(counted(name, actual), expected) {
 		return
 	}
-	if a.lossyCoercion(arg, actual, expected) || a.silenced(actual, expected) {
+	if a.lossyCoercion(arg, actual, expected) || a.silenced(actual, expected) || a.possibleUndef(arg, actual, expected) {
 		return
 	}
 	start, end, _ := a.pos.Span(arg.Meta().ID)

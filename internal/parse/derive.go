@@ -142,6 +142,85 @@ func agreement(declared, fromTypes string) error {
 	return nil
 }
 
+// arityRange is the number of arguments s accepts: least is its required
+// parameter count, and unbounded is whether a slurpy parameter admits
+// any count past that (RFC 0001 "Multi declarations" calls a slurpy's
+// upper bound unbounded this way already, in Signature.accepts, which
+// this reads the same two fields to answer, parse having no access to
+// that unexported method).
+func arityRange(s types.Signature) (least int, unbounded bool) {
+	for _, p := range s.Params {
+		if p.Required {
+			least++
+		}
+		if p.Slurpy() {
+			unbounded = true
+		}
+	}
+	return least, unbounded
+}
+
+// candidatesDifferInArity reports whether sigs's own derived prototypes
+// (prototypeFromTypes) are not all the same length: prototypeFromCandidates's
+// "different length" refusal is specifically this, an arity difference
+// between candidates, distinct from its other reasons (two aliased
+// positions varying, an unaliased position varying, an invocant), which
+// keep every candidate's length the same. prototypeAdmitsArity is read
+// only once this is true: a stated prototype wide enough to admit every
+// arity says nothing about whether two same-length candidates agree
+// position by position, which prototypeFromCandidates still must.
+func candidatesDifferInArity(sigs []types.Signature) bool {
+	if len(sigs) == 0 {
+		return false
+	}
+	want := len(prototypeFromTypes(sigs[0]))
+	for _, s := range sigs[1:] {
+		if len(prototypeFromTypes(s)) != want {
+			return true
+		}
+	}
+	return false
+}
+
+// prototypeAdmitsArity reports whether declared, a prototype stated for a
+// multi whose candidates' own prototypes prototypeFromCandidates could
+// not merge (its length check specifically: every candidate differs
+// from the others only in how many parameters it takes), itself admits
+// every candidate's arity. Perl's prototype governs how a call is
+// parsed, not which type-level candidate the call resolves to (RFC 0001,
+// "Multi declarations"), so a trailing `@` or `%` -- which, unlike a
+// backslashed container alternation, typesFromPrototype does derive --
+// covering every candidate's own range is enough, whatever further
+// disagrees between their parameter types otherwise: List::Util::sum's
+// real prototype, `@`, admits `()` and `(Num $x, List @rest)` both.
+// False, never admitting, for a prototype typesFromPrototype cannot
+// read (`\*`, `\[...]`) -- the same ones prototypeFromCandidates itself
+// never derives either.
+func prototypeAdmitsArity(declared string, sigs []types.Signature) bool {
+	proto := strings.TrimSuffix(strings.TrimPrefix(declared, "("), ")")
+	sig, derived, err := typesFromPrototype(strings.TrimRight(proto, ";"))
+	if err != nil || !derived {
+		return false
+	}
+	declLeast, declUnbounded := arityRange(sig)
+	for _, s := range sigs {
+		if s.Invocant != nil {
+			return false
+		}
+		candLeast, candUnbounded := arityRange(s)
+		if declLeast > candLeast {
+			return false
+		}
+		switch {
+		case candUnbounded && !declUnbounded:
+			return false
+		case !candUnbounded && !declUnbounded && len(sig.Params) < len(s.Params):
+			return false
+		}
+	}
+	return true
+}
+
 // prototypeFromCandidates gives the one prototype, without its
 // parentheses, that a multi's candidates state together. Candidates whose
 // prototypes differ only in which container one aliased parameter takes,

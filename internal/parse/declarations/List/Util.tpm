@@ -33,10 +33,14 @@ sub pairfirst :export_ok :prototype(&@) (Code &block, List @list) List;
 # across the list; each is undef on an empty list except sum0 and
 # product, measured on 5.42.0: `sum()` and `max()` are undef, `sum0()`
 # is 0, `min(1.5, 2, 3)` is 1.5 (Num, not Int), and `sum(1,2,3)` is Num
-# too (Int, a Num subtype). sum is NOT declared by arity: see
-# TestSumByArityBlockedOnPrototype (narrow_lib_test.go) for the measured
-# reason. One signature, reporting Undef on every call.
-sub sum :export_ok :prototype(@) (List @list) Num|Undef;
+# too (Int, a Num subtype). sum is declared by arity, RFC 0001 "Multi
+# declarations": one or more arguments is always a Num, measured, and
+# with none it is undef. Both candidates state sum's one real
+# prototype, `@` -- it admits any argument count, zero included, so it
+# covers both (parse/derive.go's prototypeAdmitsArity), even though the
+# two candidates' own types derive two different shapes on their own.
+multi sub sum :export_ok :prototype(@) (Num $x, List @rest) Num;
+multi sub sum :export_ok :prototype(@) () Undef;
 sub sum0 :export_ok :prototype(@) (List @list) Int;
 sub max :export_ok :prototype(@) (List @list) Num|Undef;
 sub min :export_ok :prototype(@) (List @list) Num|Undef;

@@ -25,23 +25,6 @@
 # now proves $z at 3380's own right operand, `my $zs = $z->{sign}; ...
 # refaddr($x) eq refaddr($z)` -- that half is fixed and no longer
 # listed below.
-#
-# Term/Table.pm:103 (right operand), :106 and :124 are a second known
-# gap: List::Util::sum's Undef comes only from a zero-argument call, so
-# it is undef-free at `sum(BORDER_SIZE, $self->{+PAD}, DIV_SIZE * (@$cols
-# - 1))`, always three arguments -- perl -w is silent calling it so, and
-# the evidence below is sum()'s own, the call shape that is the Undef
-# bit's real source. sum is not declared by arity: `multi sub sum (Num
-# $x, List @rest) Num` beside `multi sub sum () Undef` does clear
-# types.Ambiguity (their arities never overlap), but the declaration
-# reader refuses it once `:prototype(@)` is stated, which perl 5.42's
-# own measured prototype for sum requires -- the two candidates derive
-# two different shapes, "$@" and "()", and parse/derive.go's
-# prototypeFromCandidates requires every candidate's derived shape to
-# be the same length before it merges them (TestDeriveMultiCandidatesRefusesInexpressible,
-# parse/derive_test.go, enshrines this as deliberate for an unrelated
-# pair of arities). TestSumByArityBlockedOnPrototype (narrow_lib_test.go)
-# pins the exact error.
 CPAN/Distribution.pm:848:13: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $sbd in string eq at -e line 1.
 CPAN/Distribution.pm:848:21: error: right operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $cbd in string eq at -e line 1.
 File/Temp.pm:916:17: error: left operand of "eq": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]	Use of uninitialized value $abs in string eq at -e line 1.
@@ -79,8 +62,5 @@ Test2/Workflow/Task.pm:55:28: error: call to bless: argument 2 expects Str, got 
 Test2/Workflow/Task.pm:133:20: warning: left operand of "<=": expected Num, got Undef|Int|Num [coercion-mismatch]	Use of uninitialized value $max in numeric le (<=) at -e line 1.
 Test2/Workflow/Task.pm:133:37: warning: left operand of ">=": expected Num, got Undef|Int|Num [coercion-mismatch]	Use of uninitialized value $max in numeric ge (>=) at -e line 1.
 Term/Table.pm:103:17: error: left operand of "+": expected Num, got Undef|Int|Num [coercion-mismatch]	Use of uninitialized value $current in addition (+) at -e line 1.
-Term/Table.pm:103:28: error: right operand of "+": expected Num, got Undef|Int|Num [coercion-mismatch]	Use of uninitialized value $b in addition (+) at -e line 1.
-Term/Table.pm:106:43: error: right operand of "-": expected Num, got Undef|Int|Num [coercion-mismatch]	Use of uninitialized value $a in subtraction (-) at -e line 1.
-Term/Table.pm:124:44: error: right operand of "-": expected Num, got Undef|Int|Num [coercion-mismatch]	Use of uninitialized value $a in subtraction (-) at -e line 1.
 x86_64-linux-thread-multi/Sys/Syslog.pm:562:19: error: call to POSIX::_exit: argument 1 expects Boolean|Int, got Undef|Boolean [coercion-mismatch]	Use of uninitialized value in subroutine entry at repro-exit.pl line 4.
 x86_64-linux-thread-multi/threads/shared.pm:147:22: warning: right operand of "==": expected Num, got Undef|Int [coercion-mismatch]	Use of uninitialized value in numeric eq (==) at -e line 1.

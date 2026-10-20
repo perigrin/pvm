@@ -198,6 +198,23 @@ func TestCheckWarnLossyCoercionFlag(t *testing.T) {
 	require.NoError(t, cmd.Execute(), "stderr: %s", stderr.String())
 }
 
+// TestCheckWarnPossibleUndefFlag verifies that psc check takes
+// --warn-possible-undef, which sets infer.Options.WarnPossibleUndef: the
+// opt-in for an undef that reaches a value only through a multi call's own
+// Undecided join of candidate returns. A clean file stays clean under it.
+func TestCheckWarnPossibleUndefFlag(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "clean.pl")
+	require.NoError(t, os.WriteFile(file, []byte("my $x = 1;\nprint $x;\n"), 0644))
+
+	cmd := psc.NewCommand()
+	cmd.SetArgs([]string{"check", file, "--warn-possible-undef"})
+	var stderr strings.Builder
+	cmd.SetOut(&strings.Builder{})
+	cmd.SetErr(&stderr)
+	require.NoError(t, cmd.Execute(), "stderr: %s", stderr.String())
+}
+
 // TestCheckCommandOnLoweredTree runs psc check over every golden fixture
 // internal/infer holds and asserts it prints exactly the fixture's golden
 // diagnostics, each formatted by infer.FormatDiagnostic. A golden line is

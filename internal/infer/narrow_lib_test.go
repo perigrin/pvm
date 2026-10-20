@@ -6,11 +6,7 @@ package infer_test
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"tamarou.com/pvm/internal/infer"
-	"tamarou.com/pvm/internal/parse"
 )
 
 // wantSilentResolved is wantSilent over resolvedDiags (flow_test.go):
@@ -38,9 +34,8 @@ func wantReportedResolved(t *testing.T, src string, code string) {
 // TestNarrowGuardedLibSites reproduces, in isolation, the guard shape of
 // each lib site the dba9 gate review classified GUARDED (false positive):
 // after the guard, perl 5.42 -w is silent, and so must psc check be, now
-// that reftype and refaddr are multis selected by argument type
-// (Scalar/Util.tpm) and the guard shapes below narrow. sum is not among
-// them -- TestSumByArityBlockedOnPrototype has the reason.
+// that reftype, refaddr and sum are multis selected by argument type or
+// arity (Scalar/Util.tpm, List/Util.tpm) and the guard shapes below narrow.
 func TestNarrowGuardedLibSites(t *testing.T) {
 	for name, src := range map[string]string{
 		// JSON/PP.pm:398,411 -- blessed($obj) proves $obj an Object, a Ref
@@ -259,40 +254,21 @@ print $s;
 // select_test.go). The pureExporters batch (heldtoperl_test.go) holds it
 // to perl along with the rest.
 //
-// TestSumByArityBlockedOnPrototype: `multi sub sum (Num $x, List @rest)
-// Num;` beside `multi sub sum () Undef;` does clear types.Ambiguity (the
-// two ranges are disjoint -- 0 args fits only the second, 1+ only the
-// first, so neither is ever compared against the other at a shared
-// arity) -- but the declaration reader refuses it the moment a
-// `:prototype(@)` is stated, which perl 5.42's own measured prototype
-// for sum requires (plain `multi sub sum (Num $x, List @rest) Num;`
-// with no stated prototype passes DeclaredSignatures, but then
-// disagrees with perl's real "(@)" at heldtoperl_test.go's level,
-// since nothing here ever states it). The two candidates derive two
-// different shapes, "$@" and "()" -- parse/derive.go's
-// prototypeFromCandidates requires every candidate's derived shape to
-// be the same length before it will try to merge them, by design
-// (TestDeriveMultiCandidatesRefusesInexpressible, parse/derive_test.go,
-// proves this for an unrelated pair of arities and documents it as
-// deliberate: "a stated prototype is an error [...] never a guess").
-// Loosening that would also stop checking CORE.tpm's own arity-differing
-// multis (select, each, keys, ...) against perl, since their current
-// "no stated prototype, so none" fallback happens to be correct only
-// because their own real prototype is none -- a different, broader
-// change than this issue's narrowing. sum stays one signature,
-// `(List @list) Num|Undef`, reporting Undef on every call; this test
-// pins the exact error so a future declarations.go change can delete
-// it along with sum's multi.
-func TestSumByArityBlockedOnPrototype(t *testing.T) {
-	_, errs := parse.DeclaredSignatures([]byte(
-		"package List::Util;\nmulti sub sum :prototype(@) (Num $x, List @rest) Num;\nmulti sub sum :prototype(@) () Undef;\n",
-	))
-	require.Len(t, errs, 1)
-	assert.ErrorContains(t, errs[0], `disagrees with its types: its candidates give ($@), (), which no one prototype states`)
-
-	sigs, errs := parse.DeclaredSignatures([]byte(
-		"package List::Util;\nmulti sub sum (Num $x, List @rest) Num;\nmulti sub sum () Undef;\n",
-	))
-	require.Empty(t, errs, "the arity split alone is not ambiguous")
-	require.Len(t, sigs["sum"], 2)
+// TestSumWithArgsIsNum: List::Util::sum is declared by arity (RFC 0001
+// "Multi declarations") -- `multi sub sum (Num $x, List @rest) Num`
+// beside `multi sub sum () Undef`, both stating sum's one real
+// prototype, `@`, which admits either's arity (parse/derive.go's
+// prototypeAdmitsArity; TestDeriveMultiCandidatesAdmittedByArity,
+// parse/derive_test.go, pins the declaration itself). perl 5.42 -w is
+// silent concatenating sum(1,2,3); it is not silent, and psc check
+// must still report it, for sum() with no arguments.
+func TestSumWithArgsIsNum(t *testing.T) {
+	wantSilentResolved(t, `use List::Util qw(sum);
+my $s = sum(1, 2, 3) . "!";
+print $s;
+`)
+	wantReportedResolved(t, `use List::Util qw(sum);
+my $s = sum() . "!";
+print $s;
+`, infer.CodeCoercionMismatch)
 }

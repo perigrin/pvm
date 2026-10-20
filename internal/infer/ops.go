@@ -336,7 +336,7 @@ func (a *analysis) checkOperand(n lower.Node, expected types.Type, op, side stri
 		return
 	}
 	severity, message, ok := operandMismatch(a.opts, a.typeOf(n), expected, op, side)
-	if !ok || a.silenced(a.typeOf(n), expected) {
+	if !ok || a.silenced(a.typeOf(n), expected) || a.possibleUndef(n, a.typeOf(n), expected) {
 		return
 	}
 	start, end, _ := a.pos.Span(n.Meta().ID)

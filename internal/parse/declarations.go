@@ -197,12 +197,18 @@ func readDeclarationWith(p *parser) moduleFacts {
 			continue
 		}
 		// A multi's candidates derive one prototype. Where they derive
-		// none, a stated prototype is an error; without one they have
-		// none, as perl reports none for grep and select.
+		// none, a stated prototype is an error, unless the candidates
+		// differ only in arity and the stated one -- a trailing `@` or
+		// `%`, which admits any count -- covers every candidate's own
+		// (prototypeAdmitsArity, derive.go; List::Util::sum's measured
+		// `@`, issue 01a156e4). Without a stated prototype the
+		// candidates have none, as perl reports none for grep and select.
 		if len(sigs) > 1 {
 			proto, err := prototypeFromCandidates(sigs)
 			declared := facts.protos[name]
 			switch {
+			case declared != "" && err != nil && candidatesDifferInArity(sigs) && prototypeAdmitsArity(declared, sigs):
+				err = nil
 			case declared != "" && err != nil:
 				err = fmt.Errorf(":prototype%s disagrees with its types: %w", declared, err)
 			case declared != "":

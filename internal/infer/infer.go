@@ -52,16 +52,17 @@ func Analyze(f *lower.File, pos *lower.Positions, idx *ProjectIndex, opts Option
 // collected and nothing walked yet.
 func newAnalysis(f *lower.File, pos *lower.Positions, idx *ProjectIndex, opts Options) *analysis {
 	return &analysis{
-		pos:         pos,
-		idx:         idx,
-		opts:        opts,
-		st:          collectDeclarations(f, pos),
-		annotations: map[lower.ID]types.Type{},
-		diags:       []Diagnostic{},
-		subs:        fileSubs(f),
-		assigned:    assignedNames(f),
-		evalCtx:     map[lower.ID]types.Context{},
-		classTypes:  map[lower.ID]string{},
+		pos:            pos,
+		idx:            idx,
+		opts:           opts,
+		st:             collectDeclarations(f, pos),
+		annotations:    map[lower.ID]types.Type{},
+		diags:          []Diagnostic{},
+		subs:           fileSubs(f),
+		assigned:       assignedNames(f),
+		evalCtx:        map[lower.ID]types.Context{},
+		classTypes:     map[lower.ID]string{},
+		undecidedUndef: map[lower.ID]bool{},
 	}
 }
 
@@ -87,6 +88,13 @@ type analysis struct {
 	// classTypes is the class of the object a constructor call makes,
 	// keyed by the call's id, for the assignment that takes it.
 	classTypes map[lower.ID]string
+	// undecidedUndef marks a declared call's own id when types.Select
+	// left it Undecided and the joined return it gave has the Undef bit:
+	// checkOperand and checkArg read this to apply WarnPossibleUndef's
+	// default silence to exactly that Undef, and not to one a Selected
+	// call's own declared return states on its own account
+	// (markPossibleUndef, calls.go).
+	undecidedUndef map[lower.ID]bool
 	// modifier is the `if` modifier whose match guards the body being
 	// walked, which a capture in that body reads, or nil.
 	modifier *lower.IfStmt
@@ -639,6 +647,19 @@ type Options struct {
 	// literal known not to be numeric is reported either way, as perl warns
 	// on `"abc" + 1`.
 	WarnLossyCoercion bool
+
+	// WarnPossibleUndef reports an Undef that reaches a value only
+	// through an Undecided multi call's join of its candidates' returns
+	// (perigrin, 2026-10-20): a call site types.Select could not decide
+	// between -- Scalar::Util::refaddr given an argument of Unknown
+	// type, say -- joins Int and Int|Undef to Int|Undef, and by default
+	// that Undef is accepted rather than reported, the same way an
+	// Unknown argument itself is. Under WarnPossibleUndef it is
+	// reported as an ordinary coercion mismatch. A Selected call's own
+	// declared return, Int|Undef standing alone, is not this: it
+	// reports either way, as it always has, since nothing about it is
+	// a join of what the call site could not decide between.
+	WarnPossibleUndef bool
 }
 
 // satisfies reports whether actual satisfies required under opts.
