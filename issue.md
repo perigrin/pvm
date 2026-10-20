@@ -11,7 +11,7 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.593259461Z
-updated: 2026-10-17T04:25:17.529290165Z
+updated: 2026-10-20T01:19:53.667854833Z
 sessions:
 - start_sha: 5b91125f4014127e11963fc610c805ba205b10ff
   end_sha: ""
@@ -53,6 +53,17 @@ A `.tpm` changes what the parser reads for every file that uses the module, so r
 - [ ] Run to verify failure: `go test ./internal/infer/ -run '^TestXSUtilitiesReturnTypes$' -count=1 -v`
 - [ ] Fix declared return types where perl disagrees; run to verify pass; commit
 - [ ] Run the m1 gates above; `make test`; commit
+
+### Review Findings
+
+Gate, 2026-10-20, on exec/dba9 before merge (fresh Sonnet reviewer; 26 lib sites read in context). VERDICT: REOPEN (held unmerged). The types.go (CodeRef satisfies Code) and vars.go (deref copy hands on Unknown) fixes are sound and stay.
+
+76 new psc lines over perl's lib were listed as true positives from minimal repros. Classification of the sample:
+- REAL: CPAN/Distribution.pm:848; File/Temp.pm:916, 964, 1147; Safe.pm:424; Test2/Compare/Array.pm:20; Test2/Mock.pm:122, 125, 425; Test2/Workflow.pm:111; Test2/IPC/Driver/Files.pm:71; Term/Table.pm:103 left operand (only with zero columns).
+- GUARDED (false positives): JSON/PP.pm:398, 411 (blessed + ref guard); Math/BigInt.pm:2400, 3380 (prior method call proves an object); Term/Table.pm:103 right, 106, 124 (sum of three literals); Test2/Compare/Ref.pm:48 and Test2/Tools/Ref.pm:54, 78 (return unless ref); Test2/Mock.pm:54, 57 (falsy branch consumed by if), 356 (ref && reftype), 368 (after elsif !ref); threads/shared.pm:115, 125, 137, 145, 147, 177 (reftype of an item proven a ref at line 100).
+- UNKNOWABLE: Test/Builder.pm:207, 259.
+
+perigrin ruled "fix narrowing first": issue 01a156e4 narrows these guards and declares reftype/refaddr/blessed/sum as multis by argument type or arity; dba9 merges after it, and lib_true_positives.txt keeps only lines proven real at the lib site. Out of scope, noted: a bare coderef scalar passed to a `&`-prototyped call (`first($cb, @list)`) is a perl compile error psc does not report.
 
 ## Acceptance Criteria
 
