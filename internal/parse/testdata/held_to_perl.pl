@@ -33,17 +33,6 @@ elsif ( $mode eq 'prototypes' ) {
     eval "package Held::Prime; use $module; 1";
     my $n = 0;
     for my $name (@args) {
-        # Time::HiRes's constants are lazier still (measured: a bare `use
-        # Time::HiRes;` generates none of them, each coming into
-        # existence only once asked for by name): a name the bare prime
-        # above left missing gets one more try, asked for by name. Asking
-        # for every name in one combined `use` instead, measured on
-        # POSIX, leaves a handful still missing (its import does not
-        # treat a large combined list the same as asking one at a time),
-        # so the retry stays per-name.
-        if ( !exists( &{"${module}::$name"} ) && !$module->can($name) ) {
-            eval "package Held::Prime; use $module qw($name); 1";
-        }
         my $code = exists &{"${module}::$name"} ? \&{"${module}::$name"} : $module->can($name);
         if ( !$code ) {
             # A name a bare `use` does not install, measured, still gets
