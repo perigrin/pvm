@@ -24,6 +24,12 @@ type Perl struct {
 	Privlib string
 	// Archlib is $Config{archlibexp}: the architecture-specific core library.
 	Archlib string
+	// FromPvm reports whether Path came from pvm's own perl registry, as
+	// opposed to the PATH fallback Perl542 uses where pvm has none
+	// installed (CI's actions-setup-perl, Windows's Strawberry perl). A
+	// test pinned to pvm's own static-libperl build checks this before
+	// asserting, so it skips rather than fails on the PATH fallback.
+	FromPvm bool
 }
 
 // perl542Version is perl's $], the packed form of 5.42.0, exactly as it
@@ -42,7 +48,9 @@ const perl542Version = "5.042000"
 func Perl542(t testing.TB) Perl {
 	t.Helper()
 	if info, err := perl.GetVersionInfo("5.42.0"); err == nil && info != nil {
-		return locate(t, filepath.Join(info.InstallPath, "bin", platform.ExecutableName("perl")))
+		p := locate(t, filepath.Join(info.InstallPath, "bin", platform.ExecutableName("perl")))
+		p.FromPvm = true
+		return p
 	}
 	if path, ok := perl542OnPath(); ok {
 		return locate(t, path)
