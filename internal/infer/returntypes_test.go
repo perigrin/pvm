@@ -9,6 +9,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -550,5 +551,73 @@ func TestReturnOracleIgnoresTheCallersPerlLib(t *testing.T) {
 			t.Setenv(env[0], env[1])
 			assert.Empty(t, returnTypeFailures(t, p, oracleRun{Module: "Carp", TPM: tpm, Cases: cases}))
 		})
+	}
+}
+
+// pureExporters is the pure-Perl exporters batch (01a1464e-db4c): every
+// module whose .tpm declares the names a `use` of it installs. Symbol is
+// held back; see the matching comment in internal/parse/heldtoperl_test.go.
+var pureExporters = []string{
+	"File::Basename", "File::Find", "File::Path", "Errno",
+	"Text::ParseWords", "Class::Struct", "File::Copy", "Time::Local", "Getopt::Std",
+}
+
+// TestPurePerlExportersReturnTypes holds each pure-Perl exporter's
+// declared return types to perl, called with its oracle's cases.
+func TestPurePerlExportersReturnTypes(t *testing.T) {
+	holdReturnTypes(t, pureExporters...)
+}
+
+// moduleFailures holds module's shipped .tpm return types to perl,
+// called with its shipped oracle/<Module>.pl cases.
+func moduleFailures(t *testing.T, module string) []string {
+	t.Helper()
+	p := perltest.Perl542(t)
+	rel := strings.ReplaceAll(module, "::", "/")
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", filepath.FromSlash(rel)+".tpm"))
+	require.NoError(t, err)
+	cases, err := filepath.Abs(filepath.Join("testdata", "oracle", strings.ReplaceAll(module, "::", "-")+".pl"))
+	require.NoError(t, err)
+	return returnTypeFailures(t, p, oracleRun{Module: module, TPM: tpm, Cases: cases})
+}
+
+// TestGetoptStdUnknownOptionReturnIsDeclared: getopts given a switch its
+// spec does not list still returns a Boolean (measured on 5.42.0, a
+// false one, after warning "Unknown option"), which Getopt::Std.tpm's
+// declared return type admits. oracle/Getopt-Std.pl stages @ARGV so
+// getopts' one call sees exactly this: a known switch and an unknown one.
+func TestGetoptStdUnknownOptionReturnIsDeclared(t *testing.T) {
+	assert.Empty(t, moduleFailures(t, "Getopt::Std"))
+}
+
+// TestTextParseWordsUnbalancedQuoteReturnIsDeclared: shellwords given an
+// unbalanced quote returns the empty list in list context and undef in
+// scalar context (measured on 5.42.0), both of which
+// Text::ParseWords.tpm's declared return type admits. oracle/Text-ParseWords.pl
+// includes this case among shellwords' own.
+func TestTextParseWordsUnbalancedQuoteReturnIsDeclared(t *testing.T) {
+	assert.Empty(t, moduleFailures(t, "Text::ParseWords"))
+}
+
+// TestFileBasenameWindowsPathReturnIsDeclared: fileparse, basename and
+// dirname given a Windows-style path still return a plain Str (measured
+// on 5.42.0: this platform's fstype is Unix, so none of the three
+// splits the path on a backslash), which File::Basename.tpm's declared
+// return types admit. oracle/File-Basename.pl includes a Windows path
+// among each of the three's own cases.
+func TestFileBasenameWindowsPathReturnIsDeclared(t *testing.T) {
+	assert.Empty(t, moduleFailures(t, "File::Basename"))
+}
+
+// TestPurePerlExportersOracleStaysInScratch: File::Path, File::Copy and
+// File::Find touch the filesystem, so their oracle cases name only
+// relative paths -- an absolute one would reach outside the scratch
+// directory returnTypeFailures confines perl's cwd, HOME and TMPDIR to.
+func TestPurePerlExportersOracleStaysInScratch(t *testing.T) {
+	absolute := regexp.MustCompile(`['"]/\S`)
+	for _, module := range []string{"File::Path", "File::Copy", "File::Find"} {
+		cases, err := os.ReadFile(filepath.Join("testdata", "oracle", strings.ReplaceAll(module, "::", "-")+".pl"))
+		require.NoError(t, err)
+		assert.False(t, absolute.Match(cases), "%s's oracle cases name an absolute path", module)
 	}
 }

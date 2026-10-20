@@ -1,0 +1,30 @@
+# ABOUTME: Declares what `use Text::ParseWords` exports: shellwords, quotewords, nested_quotewords
+# ABOUTME: and parse_line bare, old_shellwords by request. Measured on perl 5.42.0, Text::ParseWords 3.31.
+package Text::ParseWords;
+
+# None of these five carries a prototype, so each takes a plain slurpy
+# list (RFC 0001, "No prototype is the default prototype").
+#
+# Each ends its body `return(@words);`, a parenthesized array, not a
+# parenthesized list -- in scalar context that is scalar(@words), the
+# word count, not its last element. Each also has an earlier `return();`
+# or bare `return;` for a line it cannot parse (an unmatched quote,
+# measured on 5.42.0): in list context that is the empty list, which a
+# List[...] candidate already permits with no element; in scalar context
+# it is undef.
+multi sub shellwords :export (List[Str] @lines) List[Str];
+multi sub shellwords :export (List[Str] @lines) Int|Undef;
+multi sub quotewords :export (List @args) List[Str|Undef];
+multi sub quotewords :export (List @args) Int|Undef;
+multi sub nested_quotewords :export (List @args) List[ArrayRef];
+multi sub nested_quotewords :export (List @args) Int|Undef;
+# parse_line's unquoted word accumulator can reach the end of the line
+# still undef (measured on 5.42.0, a trailing delimiter with nothing
+# after it leaves a pushed element undef), so its list holds Str|Undef.
+multi sub parse_line :export (List @args) List[Str|Undef];
+multi sub parse_line :export (List @args) Int|Undef;
+# old_shellwords ends `return @words;`, an unparenthesized array, the
+# same scalar-context count as the others; its words are always built
+# from defined snippets.
+multi sub old_shellwords :export_ok (List[Str] @lines) List[Str];
+multi sub old_shellwords :export_ok (List[Str] @lines) Int|Undef;
