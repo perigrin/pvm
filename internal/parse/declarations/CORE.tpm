@@ -870,8 +870,10 @@ sub waitpid (Int $pid, Int $flags) Int;
 # wantarray yields true in list context, false in scalar context, both
 # booleans, and undef in void context (measured: builtin::is_bool).
 sub wantarray () Boolean|Undef;
-# Measured as die, above.
-sub warn :prototype(@) (List[Str] @message) Boolean;
+# Measured as die, above: a lone reference reaches $SIG{__WARN__} itself,
+# unstringified (measured: `$SIG{__WARN__} = sub { ... }; warn({a=>1})`
+# leaves a HASH reference in the handler's $_[0]).
+sub warn :prototype(@) (List[Str|Boolean|DualVar|Ref] @message) Boolean;
 # Measured as close, above: write to a closed handle is false.
 sub write (Glob *fh = select()) Boolean;
 
