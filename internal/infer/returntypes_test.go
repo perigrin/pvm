@@ -1772,6 +1772,64 @@ func TestFileStatMissingFileReturnIsDeclared(t *testing.T) {
 	assert.Empty(t, moduleFailures(t, "File::stat"))
 }
 
+// ioHandleSignatures reads IO/Handle.tpm's declared signatures, failing
+// t on any declaration error.
+func ioHandleSignatures(t *testing.T) map[string][]types.Signature {
+	t.Helper()
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "IO", "Handle.tpm"))
+	require.NoError(t, err)
+	sigs, errs := parse.DeclaredSignatures(tpm)
+	require.Empty(t, errs)
+	return sigs
+}
+
+// TestIOHandleSeparatorsAreClassMethods: output_field_separator,
+// output_record_separator, input_record_separator,
+// format_line_break_characters and format_formfeed are class methods,
+// not instance ones (audit-C.md finding 2): the POD shows only
+// `IO::Handle->output_field_separator(...)`, and the source carps "not
+// supported on a per-handle basis" when called on an object. Each is
+// declared Str $class exactly, which a bare class-name Str satisfies
+// and an Object invocant, the pre-fix declaration, does not.
+func TestIOHandleSeparatorsAreClassMethods(t *testing.T) {
+	sigs := ioHandleSignatures(t)
+	for _, name := range []string{
+		"output_field_separator", "output_record_separator", "input_record_separator",
+		"format_line_break_characters", "format_formfeed",
+	} {
+		for _, s := range sigs[name] {
+			if !assert.NotNil(t, s.Invocant, "IO::Handle::%s has no invocant", name) {
+				continue
+			}
+			assert.Equal(t, types.Str, s.Invocant.Type, "IO::Handle::%s's invocant is not exactly Str", name)
+		}
+	}
+}
+
+// TestIOHandleMethodsTakeUnblessedHandles: IO::Handle's instance
+// methods run on unblessed handles too (audit-C.md finding 1) --
+// `open my $fh,'>',...; $fh->autoflush(1)` works and ref($fh) is GLOB,
+// and so does `STDOUT->autoflush(0)`, measured on 5.42.0. Each is
+// declared Object|FileHandle, which both a Glob and a GlobRef satisfy;
+// Object alone, the pre-fix declaration, excludes both (types.go:117).
+func TestIOHandleMethodsTakeUnblessedHandles(t *testing.T) {
+	sigs := ioHandleSignatures(t)
+	for _, name := range []string{
+		"autoflush", "format_page_number", "format_lines_per_page", "format_lines_left",
+		"format_name", "format_top_name", "input_line_number", "format_write",
+		"print", "printf", "say", "getline", "getlines", "printflush", "flush",
+		"opened", "fileno", "eof", "getc", "close",
+	} {
+		for _, s := range sigs[name] {
+			if !assert.NotNil(t, s.Invocant, "IO::Handle::%s has no invocant", name) {
+				continue
+			}
+			assert.True(t, types.IsSubtype(types.Glob, s.Invocant.Type), "IO::Handle::%s's invocant excludes Glob (a bareword handle)", name)
+			assert.True(t, types.IsSubtype(types.GlobRef, s.Invocant.Type), "IO::Handle::%s's invocant excludes GlobRef (an `open my $fh` lexical)", name)
+		}
+	}
+}
+
 // TestIOExportersReturnTypes holds each module's declared return types
 // to perl (perltest.IOExporters), called with its oracle's cases.
 func TestIOExportersReturnTypes(t *testing.T) {

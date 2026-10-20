@@ -1,11 +1,22 @@
 # ABOUTME: Call cases for IO::Handle's subs, which the return-type oracle calls to hold IO::Handle.tpm to perl.
 # ABOUTME: Every case is a method call with the class name itself as its invocant, as the oracle calls it; format_write, print, printf and say die that way and are exempt.
 #
-# flush dereferences the invocant as a glob too, but rather than exempt
-# it INSTANCE below names a real instance, built once from
-# new_from_fd(1, 'w'), for return_oracle.pl to call it on instead of
-# the bare class name (measured side-effect free: it only dups
-# whatever fd 1 is already pointed at when the oracle runs).
+# flush and the destructive methods below it (binmode, clearerr,
+# error, fcntl, fdopen, ioctl, read, stat, sync, sysread, syswrite,
+# truncate, ungetc, untaint, write) each dereference the
+# invocant as a glob too, so rather than exempt them INSTANCE below
+# names a real instance, opened once on a scratch file relative to the
+# oracle's own scratch directory (returnTypeFailures confines perl's
+# cwd there), for return_oracle.pl to call each of them on instead of
+# the bare class name.
+use Fcntl ();
+# $scratch is a package global, not a lexical: a `my` here would go out
+# of scope -- and so be garbage-collected, closing its fd -- the moment
+# this do-file finishes, before return_oracle.pl ever dups $fd into an
+# instance.
+our $scratch;
+open( $scratch, '+>', 'io-handle-instance-scratch' ) or die "cannot open scratch: $!";
+my $fd = fileno($scratch);
 (
     autoflush                    => [ [1] ],
     output_field_separator       => [ [] ],
@@ -36,5 +47,27 @@
     eof                          => [ [] ],
     getc                         => [ [] ],
     close                        => [ [] ],
-    INSTANCE                     => { ctor => 'new_from_fd', args => [ 1, 'w' ], subs => [qw(flush)] },
+    binmode                      => [ [] ],
+    clearerr                     => [ [] ],
+    error                        => [ [] ],
+    fcntl                        => [ [ Fcntl::F_GETFL(), 0 ] ],
+    fdopen                       => [ [ $fd, 'r+' ] ],
+    ioctl                        => [ [ 0, 0 ] ],
+    read                         => [ [ "", 2 ] ],
+    sysread                      => [ [ "", 2 ] ],
+    stat                         => [ [] ],
+    sync                         => [ [] ],
+    syswrite                     => [ [ "ab" ] ],
+    truncate                     => [ [ 3 ] ],
+    ungetc                       => [ [ 90 ] ],
+    untaint                      => [ [] ],
+    write                        => [ [ "abc", 2 ] ],
+    INSTANCE                     => {
+        ctor => 'new_from_fd',
+        args => [ $fd, 'r+' ],
+        subs => [
+            qw(flush binmode clearerr error fcntl fdopen ioctl
+              read sysread stat sync syswrite truncate ungetc untaint write)
+        ],
+    },
 );
