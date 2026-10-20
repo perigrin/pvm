@@ -1,19 +1,79 @@
 ---
 title: Audit every .tpm signature against its implementation and documentation, and hold parameter types to perl
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 created: 2026-10-20T18:55:00.070093546Z
-updated: 2026-10-20T19:19:04.364837287Z
+updated: 2026-10-20T23:03:33.424842589Z
 sessions:
 - start_sha: cf08c0acdb986b7a59c463c2ed994e0721307294
-  end_sha: ""
-  commits: 0
+  end_sha: e597bd91da76f184c4a4181487ff77fd5443cd4e
+  commits: 10
   started_at: 2026-10-20T18:55:34.658232436Z
+  ended_at: 2026-10-20T23:03:33.424842589Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-20T18:55:34.658232436Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-20T23:03:33.424842589Z
+observed_paths:
+- .github/workflows/ci.yml
+- docs/contributing/core-module-declarations.md
+- docs/rfcs/0001-type-libraries.md
+- internal/data/help/types.md
+- internal/infer/calls.go
+- internal/infer/declared_test.go
+- internal/infer/flow.go
+- internal/infer/infer.go
+- internal/infer/narrow_lib_test.go
+- internal/infer/narrowing_regressions_test.go
+- internal/infer/ops.go
+- internal/infer/parametertypes_test.go
+- internal/infer/precision_test.go
+- internal/infer/returntypes_test.go
+- internal/infer/symbols.go
+- internal/infer/testdata/observe_types.pl
+- internal/infer/testdata/oracle/IO-Socket-IP.pl
+- internal/infer/testdata/oracle/IO-Socket.pl
+- internal/infer/testdata/oracle/POSIX.pl
+- internal/infer/testdata/oracle/Socket.pl
+- internal/infer/testdata/oracle/Time-HiRes.pl
+- internal/infer/testdata/parameter_oracle.pl
+- internal/infer/testdata/return_oracle.pl
+- internal/infer/vars.go
+- internal/parse/decl.go
+- internal/parse/declarations.go
+- internal/parse/declarations/IO/Socket.tpm
+- internal/parse/declarations/IO/Socket/IP.tpm
+- internal/parse/declarations/POSIX.tpm
+- internal/parse/declarations/Socket.tpm
+- internal/parse/derive.go
+- internal/parse/derive_test.go
+- internal/parse/exportattr_test.go
+- internal/parse/heldtoperl_test.go
+- internal/parse/holdcoverage_test.go
+- internal/parse/ranking_test.go
+- internal/parse/typedour_test.go
+- internal/parse/use.go
+- internal/perltest/batches.go
+- internal/perltest/fixture.go
+- internal/perltest/fixture_test.go
+- internal/perltest/missingsubs.go
+- internal/perltest/missingsubs_test.go
+- internal/perltest/noskips_test.go
+- internal/perltest/perl542_test.go
+- internal/perltest/perltest.go
+- internal/perltest/referencebuild.go
+- internal/perltest/referencebuild_test.go
+- internal/perltest/staleexempt.go
+- internal/perltest/staleexempt_test.go
+- internal/psc/lib_baseline_test.go
+- internal/types/select.go
+- internal/types/select_test.go
+- internal/types/types.go
+- internal/types/types_test.go
 ---
 
 **Correction, 2026-10-21 (orchestrator):** the carp example below misreads the rule. RFC 0001 "What a parameter type means" (perigrin, 2026-10-02): a parameter type is the type the operation coerces its argument to. carp stringifies its message, so `List[Str]` is right and carp($ref) is a lossy coercion (silent by default, reported under --warn-lossy-coercion); croak passes a lone ref through as the exception, so its Ref is right. The audit holds each parameter to the type the operation coerces to or preserves, and flags a type admitting a value perl has no coercion for (dies). The carp criterion and the "carp takes List[Str|Boolean|DualVar|Ref]" step are withdrawn; the parameter oracle checks that each case argument fits its candidate or is a coercion the operation performs.
