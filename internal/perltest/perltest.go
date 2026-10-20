@@ -26,25 +26,64 @@ type Perl struct {
 	Archlib string
 }
 
+// perl542Version is perl's $], the packed form of 5.42.0, exactly as it
+// prints with no formatting.
+const perl542Version = "5.042000"
+
 // Perl542 returns the perl 5.42.0 pvm has installed, with its privlib and
-// archlib as that perl reports them. It skips t where pvm has no perl
-// 5.42.0 or that perl's privlib is not a directory, as on CI runners
-// without it; it fails t where that perl is present but cannot answer.
+// archlib as that perl reports them -- or, where pvm has none installed,
+// the perl on PATH that reports $] as 5.042000, as CI installs it with
+// shogo82148/actions-setup-perl (Linux, macOS) or already ships it
+// (Windows's Strawberry perl) rather than through pvm. It skips t where
+// neither is present or the one found has no privlib directory, as on a
+// CI runner without perl 5.42.0 at all; PVM_REQUIRE_PERL542=1 turns that
+// skip into a failure instead, for a job (the Linux ratchets job) that a
+// quiet skip would turn into a gate nothing can fail.
 func Perl542(t testing.TB) Perl {
 	t.Helper()
-	info, err := perl.GetVersionInfo("5.42.0")
-	if err != nil || info == nil {
-		t.Skipf("perl 5.42.0 is not installed in pvm: %v", err)
+	if info, err := perl.GetVersionInfo("5.42.0"); err == nil && info != nil {
+		return locate(t, filepath.Join(info.InstallPath, "bin", platform.ExecutableName("perl")))
 	}
-	return locate(t, filepath.Join(info.InstallPath, "bin", platform.ExecutableName("perl")))
+	if path, ok := perl542OnPath(); ok {
+		return locate(t, path)
+	}
+	skipOrRequire(t, "perl 5.42.0 is not installed in pvm and no perl on PATH reports %s", perl542Version)
+	return Perl{}
+}
+
+// perl542OnPath looks for a perl on PATH and reports whether its $] is
+// 5.042000, perl's packed form of 5.42.0.
+func perl542OnPath() (string, bool) {
+	path, err := exec.LookPath("perl")
+	if err != nil {
+		return "", false
+	}
+	out, err := exec.Command(path, "-e", "print $]").Output()
+	if err != nil || strings.TrimSpace(string(out)) != perl542Version {
+		return "", false
+	}
+	return path, true
+}
+
+// skipOrRequire skips t with the given reason, or -- when
+// PVM_REQUIRE_PERL542 is set -- fails it instead, so a job that sets that
+// variable cannot pass by having the perl-held tests quietly skip.
+func skipOrRequire(t testing.TB, format string, args ...any) {
+	t.Helper()
+	if os.Getenv("PVM_REQUIRE_PERL542") != "" {
+		t.Fatalf("PVM_REQUIRE_PERL542 is set: "+format, args...)
+	}
+	t.Skipf(format, args...)
 }
 
 // locate asks the perl at path for its privlib and archlib, skipping t
-// where there is no perl at path or its privlib is not a directory.
+// (or failing it, under PVM_REQUIRE_PERL542) where there is no perl at
+// path or its privlib is not a directory.
 func locate(t testing.TB, path string) Perl {
 	t.Helper()
 	if _, err := os.Stat(path); err != nil {
-		t.Skipf("perl 5.42.0 is not at %s", path)
+		skipOrRequire(t, "perl 5.42.0 is not at %s", path)
+		return Perl{}
 	}
 	out, err := exec.Command(path, "-MConfig", "-e", `print "$Config{privlibexp}\n$Config{archlibexp}\n"`).Output()
 	if err != nil {
@@ -56,7 +95,8 @@ func locate(t testing.TB, path string) Perl {
 	}
 	p := Perl{Path: path, Privlib: strings.TrimSpace(dirs[0]), Archlib: strings.TrimSpace(dirs[1])}
 	if fi, err := os.Stat(p.Privlib); err != nil || !fi.IsDir() {
-		t.Skipf("perl 5.42.0's privlib %s is not a directory", p.Privlib)
+		skipOrRequire(t, "perl 5.42.0's privlib %s is not a directory", p.Privlib)
+		return Perl{}
 	}
 	return p
 }

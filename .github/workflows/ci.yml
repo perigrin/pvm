@@ -176,10 +176,16 @@ jobs:
 
     # T1 graded is the TOP LEVEL of unit/, 986 files. The ratchet globs *.t in
     # the directory it is given, so the path must name unit/ itself.
+    #
+    # PVM_REQUIRE_PERL542 turns internal/perltest.Perl542's skip into a
+    # failure: this job installed perl 5.42.0 above, so a perl-held test
+    # (TestCarpPrototypes and the rest) that still can't find it must fail
+    # loudly rather than pass by skipping, same as the named ratchets below.
     - name: Run the ratchets
       env:
         T1_CORPUS: ${{ runner.temp }}/PerlOnJava/src/test/resources/unit
         PERL5_CORPUS: ${{ runner.temp }}/perl5
+        PVM_REQUIRE_PERL542: "1"
       run: |
         set -eu
         go test ./internal/parse/ ./internal/lexer/ -count=1 -v 2>&1 | tee ratchets.log
