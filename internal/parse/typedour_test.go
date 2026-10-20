@@ -80,10 +80,16 @@ func TestTypedOurUnknownAttributeRejected(t *testing.T) {
 }
 
 // TestLexicalExportMarkRejected: only `our` declares a package variable
-// Exporter can install, so `:export` on `my`, `local` or `state` -- which
-// perl itself refuses at compile time, measured on 5.42.0 ("Invalid SCALAR
-// attribute: export") -- is an error rather than a mark this parser reads
-// and then exports nothing for.
+// Exporter can install -- a `my` or `state` lexical, or a `local`'ed
+// global, is never in the symbol table Exporter installs from -- so
+// `:export` on any of them is refused on that ground alone, whatever perl
+// itself does with the attribute. Measured on 5.42.0, perl's own verdict
+// differs by declarator: `my $x :export;` and `state $x :export;` (the
+// latter needs `use feature 'state'`) both pass `perl -c` ("syntax OK")
+// and die only when run ("Invalid SCALAR attribute: export"); `local $x
+// :export;` is a compile-time syntax error, since `local` takes no
+// attributes at all; only `our $x :export;` is perl's own compile-time
+// refusal ("Invalid SCALAR attribute: export" from `BEGIN`).
 func TestLexicalExportMarkRejected(t *testing.T) {
 	wantDeclarationError(t, "my $x :export;\n", ":export")
 	wantDeclarationError(t, "local $x :export;\n", ":export")
@@ -99,6 +105,21 @@ func TestLexicalExportMarkRejected(t *testing.T) {
 // export nothing silently; refused, the trailing comma is the fix.
 func TestOurMarkTrailingCommaRejected(t *testing.T) {
 	facts := readDeclaration([]byte("our Int $x :export, $y;\n"), nil)
+	if len(facts.errs) == 0 || !strings.Contains(facts.errs[0].Error(), "is not read here") {
+		t.Errorf("errors %v, want one holding %q", facts.errs, "is not read here")
+	}
+	if len(facts.exports) > 0 {
+		t.Errorf("exports %v; a declaration in error exports nothing", facts.exports)
+	}
+}
+
+// TestOurMarkInLongCommaChainRejected: perl's `,` is left-associative, so
+// three comma-joined declarations parse as `Binary(",", Binary(",", A,
+// B), C)`, A and B sharing one inner node rather than three operands
+// sitting beside each other. A mark in the first position -- the one
+// buried two levels down -- is read the same as one in the last.
+func TestOurMarkInLongCommaChainRejected(t *testing.T) {
+	facts := readDeclaration([]byte("our $a :export = 1, our $b = 2, our $c = 3;\n"), nil)
 	if len(facts.errs) == 0 || !strings.Contains(facts.errs[0].Error(), "is not read here") {
 		t.Errorf("errors %v, want one holding %q", facts.errs, "is not read here")
 	}

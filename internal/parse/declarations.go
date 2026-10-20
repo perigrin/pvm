@@ -394,7 +394,7 @@ func declarationStatements(root *Node) []declStmt {
 					}
 				}
 			case n.Kind == Binary && n.Text == ",":
-				for _, c := range n.Children {
+				for _, c := range commaOperands(n) {
 					if c.Kind == Declaration {
 						out = append(out, declStmt{c, true})
 					}
@@ -406,6 +406,22 @@ func declarationStatements(root *Node) []declStmt {
 	}
 	for _, stmt := range root.Children {
 		walk(stmt, false)
+	}
+	return out
+}
+
+// commaOperands flattens a comma chain into its operands: perl's `,` is
+// left-associative, so `our $a, our $b, our $c` parses as a Binary ","
+// whose own left child is a Binary "," of the first two, not three
+// siblings of one node.
+func commaOperands(n *Node) []*Node {
+	var out []*Node
+	for _, c := range n.Children {
+		if c.Kind == Binary && c.Text == "," {
+			out = append(out, commaOperands(c)...)
+		} else {
+			out = append(out, c)
+		}
 	}
 	return out
 }
