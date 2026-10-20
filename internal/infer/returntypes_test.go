@@ -2492,6 +2492,24 @@ func TestDynaLoaderReturnTypes(t *testing.T) {
 	holdReturnTypes(t, "DynaLoader")
 }
 
+// TestDynaLoaderCroakPassesALoneReference holds the measured claim
+// (audit-E, group E, finding 5): DynaLoader::croak is `require Carp;
+// Carp::croak(@_)` (DynaLoader.pm:108), so a lone reference argument
+// reaches $@ as the reference itself, the same pass-through
+// Carp::croak gives it. Measured on perl 5.42.0: `eval {
+// DynaLoader::croak({x=>1}) }; ref $@` is HASH. DynaLoader.tpm's croak
+// takes croak's parameter type, List[Str|Boolean|DualVar|Ref], so this
+// type-checks.
+func TestDynaLoaderCroakPassesALoneReference(t *testing.T) {
+	p := perltest.Perl542(t)
+	out, err := p.Command("-MDynaLoader", "-e",
+		`eval { DynaLoader::croak({x=>1}) }; print ref($@);`,
+	).Output()
+	require.NoError(t, err)
+	assert.Equal(t, "HASH", strings.TrimSpace(string(out)),
+		"DynaLoader::croak must deliver a lone reference to $@ unstringified, as Carp::croak does")
+}
+
 // TestDynaLoaderLowLevelSubsExempt: DynaLoader's low-level subs
 // dl_load_file, dl_find_symbol, dl_install_xsub and dl_unload_file are
 // exempt with a reason and never called (DynaLoader's negative scenario,

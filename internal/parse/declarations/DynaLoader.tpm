@@ -9,8 +9,10 @@ package DynaLoader;
 # here is marked :export or :export_ok.
 
 # croak always dies, as Carp's does: measured on 5.42.0, it is
-# `require Carp; Carp::croak(@_)`.
-sub croak (List[Str] @message) None;
+# `require Carp; Carp::croak(@_)`, so it takes croak's own parameter
+# type -- a lone reference reaches $@ itself, unstringified (measured:
+# `eval { DynaLoader::croak({x=>1}) }; ref $@` is HASH).
+sub croak (List[Str|Boolean|DualVar|Ref] @message) None;
 
 # dl_load_flags is a plain constant, measured 0 in both contexts, called
 # as a method ($module->dl_load_flags) or as a plain sub alike. :listop
