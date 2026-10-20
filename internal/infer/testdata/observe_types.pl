@@ -46,6 +46,12 @@ sub observe ($v) {
     # Boolean first: a marked boolean also looks like an integer.
     return 'Boolean' if is_bool($v);
 
+    # Inf and NaN before Num: looks_like_number is true of both (measured:
+    # perl stringifies them as exactly "Inf", "-Inf" and "NaN"), but RFC
+    # 0001 makes them members of Str, not Num.
+    return 'Inf' if $v =~ /\A-?Inf\z/i;
+    return 'NaN' if $v =~ /\ANaN\z/i;
+
     # Int before Num, since every integer is also a number.
     return 'Int' if $v =~ /\A-?[0-9]+\z/;
     return 'Num' if looks_like_number($v);
