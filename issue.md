@@ -1,10 +1,19 @@
 ---
 title: "Audit fixes, XS utilities and libraries: Storable flags, List::Util returns, Cwd undef, too-wide parameters, scalar-context returns"
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 created: 2026-10-20T19:18:42.636678343Z
-updated: 2026-10-20T19:18:42.636678343Z
+updated: 2026-10-20T22:31:19.013943179Z
+sessions:
+- start_sha: dc52c671706a020f6d843153446dac0efa30792b
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-20T22:31:19.013943179Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-20T22:31:19.013943179Z
 ---
 
 crochet:review of PR #488, round 1 (2026-10-21). Signature audit (01a15aaa), group D.
