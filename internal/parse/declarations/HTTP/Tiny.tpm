@@ -1,0 +1,41 @@
+# ABOUTME: Declares HTTP::Tiny's methods; a bare `use HTTP::Tiny` installs nothing.
+# ABOUTME: Measured on perl 5.42.0 with HTTP::Tiny 0.090: no method carries a prototype.
+package HTTP::Tiny;
+
+# Every name below is a method, so each takes an invocant and nothing is
+# marked :export: measured on 5.42.0, `use HTTP::Tiny;` installs
+# nothing in the caller.
+
+# new only builds and blesses a hashref and reads %ENV for proxies, no
+# network: always an Object (measured).
+sub new (Str $class: List @args) Object;
+# www_form_urlencode never touches $self (measured: its one use of the
+# invocant is a method call, _uri_escape, that does not dereference it
+# either), so it is safe called on the bare class and always a Str.
+sub www_form_urlencode (Str $class: HashRef|ArrayRef $data) Str;
+# can_ssl guards every use of the invocant behind `ref($self)` (measured:
+# calling it on the bare class skips that branch entirely, never dying),
+# so it is also safe: $ok starts as the plain Int 1 or 0 (measured, not a
+# marked Boolean), and in list context it comes with the reason Str; in
+# scalar context, just $ok.
+multi sub can_ssl (Str $class:) List[Int|Str];
+multi sub can_ssl (Str $class:) Int;
+
+# The rest open a real connection or read instance state the oracle's
+# class-as-invocant call has none of (returntypes_test.go's
+# oracleExempt): get/head/put/post/patch/delete/post_form/mirror/request
+# perform HTTP requests, and agent/timeout/connected read $self->{...},
+# which dies when $self is the bare class name (measured, same as
+# IO::Select's instance methods).
+sub get (Object $self: Str $url, Optional[HashRef] $options) HashRef;
+sub head (Object $self: Str $url, Optional[HashRef] $options) HashRef;
+sub put (Object $self: Str $url, Optional[HashRef] $options) HashRef;
+sub post (Object $self: Str $url, Optional[HashRef] $options) HashRef;
+sub patch (Object $self: Str $url, Optional[HashRef] $options) HashRef;
+sub delete (Object $self: Str $url, Optional[HashRef] $options) HashRef;
+sub post_form (Object $self: Str $url, HashRef|ArrayRef $data, Optional[HashRef] $options) HashRef;
+sub mirror (Object $self: Str $url, Str $filename, Optional[HashRef] $options) HashRef;
+sub request (Object $self: Str $method, Str $url, Optional[HashRef] $options) HashRef;
+sub connected (Object $self:) Str|Undef;
+sub agent (Object $self: Optional[Str] $agent) Str;
+sub timeout (Object $self: Optional[Num] $timeout) Num|Undef;

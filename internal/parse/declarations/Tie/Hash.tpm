@@ -1,0 +1,28 @@
+# ABOUTME: Declares Tie::Hash's methods; a bare `use Tie::Hash` installs nothing.
+# ABOUTME: Measured on perl 5.42.0 with Tie::Hash 1.06: no method carries a prototype.
+package Tie::Hash;
+
+# Every name below is a method, so each takes an invocant and nothing is
+# marked :export: measured on 5.42.0, `use Tie::Hash;` installs nothing
+# in the caller.
+#
+# Tie::Hash is an abstract base meant to be subclassed (perltie): called
+# directly on Tie::Hash itself, with no TIEHASH, FIRSTKEY, NEXTKEY or
+# DELETE of its own, every one of these croaks (measured), so each is
+# None. A subclass that defines its own TIEHASH or new is dispatched to
+# that override instead, not to this declaration -- RFC 0001's None
+# describes this package's own body, which a caller reaches only when no
+# override intervenes.
+
+# new calls $pkg->TIEHASH(@_); on Tie::Hash itself TIEHASH is its own
+# package's, which croaks "doesn't define a TIEHASH method" (measured).
+sub new (Str $class: List @args) None;
+# TIEHASH's own body, reached with no override, croaks the same way
+# (measured).
+sub TIEHASH (Str $class: List @args) None;
+# EXISTS is documented as "a stub that simply croaks" and measured to:
+# "doesn't define an EXISTS method", unconditionally.
+sub EXISTS (Str $class: Str $key) None;
+# CLEAR calls $self->FIRSTKEY, which Tie::Hash does not define: measured,
+# this dies "Can't locate object method FIRSTKEY".
+sub CLEAR (Str $class:) None;

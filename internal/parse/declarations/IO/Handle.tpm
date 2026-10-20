@@ -30,7 +30,15 @@ sub say :export_ok (Object $self: List @args) Boolean|Undef;
 sub getline :export_ok (Object $self:) Str|Undef;
 sub getlines :export_ok (Object $self:) List[Str];
 sub printflush :export_ok (Object $self: List @args) Boolean|Undef;
-sub flush :export_ok (Object $self:) Boolean|Undef;
+# flush, like format_write/print/printf/say above, dereferences the
+# invocant as a glob, dying "Bad filehandle" against a bare class name
+# that has never been select()ed to (measured) -- so return_oracle.pl
+# calls it on a constructed instance instead (INSTANCE in
+# oracle/IO-Handle.pl), where it succeeds for real: perldoc IO::Handle
+# documents "0 but true" on success, undef on error, and "0 but true"
+# is a Num to the oracle's observer (looks_like_number is true of it,
+# though it is not all digits), never a Boolean.
+sub flush :export_ok (Object $self:) Num|Undef;
 sub SEEK_SET :export_ok () Int;
 sub SEEK_CUR :export_ok () Int;
 sub SEEK_END :export_ok () Int;
@@ -46,12 +54,12 @@ sub _IONBF :export_ok () Int;
 # invocant, as the return-type oracle does: new, new_from_fd, opened,
 # fileno, eof, getc and close each answer without dying, so their
 # return types below hold for that call and for a real handle's.
-# autoflush, blocking, clearerr, error, ungetc, fdopen, binmode and
-# setbuf/setvbuf each dereference the invocant as a glob and die
-# "Bad filehandle" or "Can't use string ... as a symbol ref" when the
-# invocant is the bare class name rather than a handle, so they are left
-# undeclared here rather than declared with a return type the oracle
-# could never observe honestly.
+# blocking, clearerr, error, ungetc, fdopen, binmode and setbuf/setvbuf
+# each dereference the invocant as a glob and die "Bad filehandle" or
+# "Can't use string ... as a symbol ref" when the invocant is the bare
+# class name rather than a handle, so they are left undeclared here
+# rather than declared with a return type the oracle could never
+# observe honestly.
 sub new (Str $class:) Object;
 sub new_from_fd (Str $class: Int $fd, Str $mode) Object|Undef;
 sub opened (Object $self:) Boolean;

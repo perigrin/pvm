@@ -1013,6 +1013,49 @@ The shipped declarations are converted to this form first, and the
 parser then refuses `our @EXPORT`, `@EXPORT_OK` and `%EXPORT_TAGS` in
 a `.tpm` as an error (perigrin, 2026-10-16: migrate, then remove).
 
+**A declared `import`'s parameters are the signature to `import()`.**
+perigrin, 2026-10-20: "The parameters are the signature to import()."
+Some modules' own `import` reads a `use` list as arguments, not export
+names: `use Test::More tests => 3;` plans the run rather than naming
+`tests` and `3` as subs to import, and
+`use Locale::Maketext::Simple (Style => 'gettext');` sets an option
+rather than asking for `Style` and `gettext`. A `.tpm` states this by
+declaring `import` itself, with `$class` as its invocant so the colon
+keeps the derived prototype none, matching perl's:
+
+    sub import (Str $class: List @plan) Void;
+
+A module whose `.tpm` declares `import` this way, and marks it neither
+`:export` nor `:export_ok`, does not read its use-list as names at all:
+calling `use` with any list, read or not, installs exactly what a bare
+`use` installs -- its `:export` marks, measured -- and `use M ();`, the
+explicit empty list, still calls no import, as it does for any module.
+There is no by-name case in module.go for this: declaring `import` is
+itself the signal. A declared `import` that IS itself exported keeps
+the ordinary name semantics instead: Exporter's own `import` aliases
+itself into the caller by name (`:export_ok`), so `use Exporter
+'import';` asks for the name `import`, not an argument to call it
+with.
+
+**The signature names the keys.** perigrin, 2026-10-20: "the signature
+names the keys." Some modules' own `import` branches on an argument's
+value, installing something other than the names below it in every
+other case: `use Locale::Maketext::Simple (Export=>"zz")` installs `zz`
+and `zz_lang`, not `loc`, and `use Test::More import => ["!is"],
+tests=>1` does not install `is`. Reading every other list as the
+bare-use names would claim a name that does not exist. The smallest
+syntax states the one key, measured, whose presence changes the
+install: the first optional scalar parameter after the invocant, named
+for it.
+
+    sub import (Str $class: Str $import = undef, List @plan) Void;       # Test::More
+    sub import (Str $class: Str $Export = undef, List @args) Void;       # Locale::Maketext::Simple
+
+A use-list naming that key, anywhere in it, claims no names and leaves
+the symbols open, since what it installs depends on the key's value in
+a way a `.tpm` does not evaluate; a use-list without the key installs
+the names below, as a bare use does.
+
 **Typed variables.** Some modules export variables: Config's `%Config`
 on a bare `use`, Socket's `$CRLF` only when asked for. A declaration
 states one with its type before the variable and the export as an

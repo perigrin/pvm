@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"tamarou.com/pvm/internal/perltest"
+	"tamarou.com/pvm/internal/types"
 )
 
 // holdPrototypes holds each module's shipped .tpm to perl: every sub it
@@ -671,6 +672,85 @@ func TestTimeHiResBareUseKeepsCoreTime(t *testing.T) {
 	assert.Empty(t, got)
 }
 
+// ooModules is the OO-only batch (01a1464e-dd27): each declares methods,
+// not exports, since measured on 5.42.0 a bare `use` of every one but
+// IO::Socket::IP and Locale::Maketext::Simple installs nothing.
+var ooModules = []string{
+	"File::Spec", "File::Spec::Unix", "IO::Socket::IP", "IO::Select",
+	"Term::ReadLine", "Tie::Hash", "HTTP::Tiny", "Locale::Maketext::Simple",
+}
+
+// TestOOModulesPrototypes holds each OO module's .tpm prototypes to
+// perl, methods included: held_to_perl.pl's prototypes mode falls back
+// to $module->can($name), the way perl itself finds an inherited
+// method.
+func TestOOModulesPrototypes(t *testing.T) {
+	holdPrototypes(t, ooModules...)
+}
+
+// TestOOModulesExports holds each OO module's .tpm :export and
+// :export_ok marks to what `use` installs.
+func TestOOModulesExports(t *testing.T) {
+	holdExports(t, ooModules...)
+}
+
+// TestFileSpecBareUseImportsNothing: measured on 5.42.0, File::Spec's
+// @EXPORT and @EXPORT_OK are both empty, so a bare `use File::Spec;`
+// installs nothing and a bare `catfile(...)` does not resolve to its
+// method.
+func TestFileSpecBareUseImportsNothing(t *testing.T) {
+	assert.Empty(t, importedFrom(t, "use File::Spec;\n"))
+}
+
+// TestIOSocketIPBareUseInstallsSocketNames: measured on 5.42.0, a bare
+// `use IO::Socket::IP;` installs exactly the 170 names Socket's own
+// bare `use Socket;` does (IO::Socket::IP inherits IO::Socket's import,
+// which forwards to Socket's Exporter), so a bare `inet_aton(...)`
+// resolves.
+func TestIOSocketIPBareUseInstallsSocketNames(t *testing.T) {
+	got := importedFrom(t, "use IO::Socket::IP;\n")
+	assert.Len(t, got, 170)
+	assert.Contains(t, got, "inet_aton")
+	assert.Contains(t, got, "AF_INET")
+}
+
+// TestLocaleMaketextSimpleBareUseInstallsLoc: measured on 5.42.0,
+// Locale::Maketext::Simple's own import defaults Export to 'loc' and
+// installs "${Export}_lang" beside it, so a bare `use
+// Locale::Maketext::Simple;` installs both loc and loc_lang.
+func TestLocaleMaketextSimpleBareUseInstallsLoc(t *testing.T) {
+	got := importedFrom(t, "use Locale::Maketext::Simple;\n")
+	assert.ElementsMatch(t, []string{"loc", "loc_lang"}, got)
+}
+
+// TestLocaleMaketextSimpleEmptyImportInstallsNothing: measured on
+// 5.42.0, `use Locale::Maketext::Simple ();` installs neither loc nor
+// loc_lang.
+func TestLocaleMaketextSimpleEmptyImportInstallsNothing(t *testing.T) {
+	assert.Empty(t, importedFrom(t, "use Locale::Maketext::Simple ();\n"))
+}
+
+// TestLocaleMaketextSimpleArgumentFormInstallsLoc: Locale::Maketext::Simple
+// declares its own `import` (perigrin's ruling, 2026-10-20: "the parameters
+// are the signature to import()"), so an option list is import's
+// arguments, not names to resolve against :export -- measured on 5.42.0,
+// `use Locale::Maketext::Simple (Style => 'gettext');` still installs loc
+// and loc_lang, exactly as a bare use does.
+func TestLocaleMaketextSimpleArgumentFormInstallsLoc(t *testing.T) {
+	got := importedFrom(t, "use Locale::Maketext::Simple (Style => 'gettext');\n")
+	assert.ElementsMatch(t, []string{"loc", "loc_lang"}, got)
+}
+
+// TestLocaleMaketextSimpleExportKeyClaimsNoNames: perigrin's ruling,
+// 2026-10-20 ("the signature names the keys"): Locale::Maketext::Simple's
+// import signature names Export as the key whose presence changes what
+// import installs -- measured on 5.42.0, `use Locale::Maketext::Simple
+// (Export => 'zz');` installs zz and zz_lang, not loc and loc_lang, so
+// this parser claims no names rather than a wrong one.
+func TestLocaleMaketextSimpleExportKeyClaimsNoNames(t *testing.T) {
+	assert.Empty(t, importedFrom(t, "use Locale::Maketext::Simple (Export => 'zz');\n"))
+}
+
 // variableExporters is the variable-exporters batch (01a1464e-dca3):
 // every module below exports a plain Perl variable, measured on
 // 2026-10-16.
@@ -714,6 +794,74 @@ func TestFileStatEmptyImportKeepsCoreStat(t *testing.T) {
 	assert.Empty(t, got)
 }
 
+// Exporter, XSLoader and DynaLoader are the infrastructure-module batch
+// (01a1464e-dd6c, -ddb0, -dde3): the only three of the 50 core modules
+// RFC 0001 permits to ship unshipped (perigrin's ruling 4, 2026-10-16) if
+// measurement shows a declaration cannot keep every module that uses it
+// resolving as before. Each is held to perl, and its exports measured,
+// separately: a shared batch name would not match the issues' own
+// criteria commands.
+
+// TestExporterPrototypes holds Exporter.tpm's prototypes to perl.
+func TestExporterPrototypes(t *testing.T) {
+	holdPrototypes(t, "Exporter")
+}
+
+// TestExporterExports holds Exporter.tpm's :export and :export_ok marks
+// to what `use Exporter` installs in a caller.
+func TestExporterExports(t *testing.T) {
+	holdExports(t, "Exporter")
+}
+
+// TestExporterBareUseDoesNotImportImport: measured on 5.42.0, a bare
+// `use Exporter;` installs nothing -- Exporter carries no @EXPORT of its
+// own -- while `use Exporter 'import';` installs import, the one name
+// its own import() special-cases.
+func TestExporterBareUseDoesNotImportImport(t *testing.T) {
+	assert.Empty(t, importedFrom(t, "use Exporter;\n"))
+	got := importedFrom(t, "use Exporter 'import';\n")
+	assert.Equal(t, []string{"import"}, got)
+}
+
+// TestXSLoaderPrototypes holds XSLoader.tpm's prototypes to perl.
+func TestXSLoaderPrototypes(t *testing.T) {
+	holdPrototypes(t, "XSLoader")
+}
+
+// TestXSLoaderExports holds XSLoader.tpm's :export and :export_ok marks
+// to what `use XSLoader` installs in a caller.
+func TestXSLoaderExports(t *testing.T) {
+	holdExports(t, "XSLoader")
+}
+
+// TestXSLoaderBareUseImportsNothing: measured on 5.42.0, XSLoader never
+// calls Exporter, so neither a bare `use XSLoader;` nor one naming load
+// installs anything -- a later bare `load()` still fails to resolve to
+// XSLoader::load.
+func TestXSLoaderBareUseImportsNothing(t *testing.T) {
+	assert.Empty(t, importedFrom(t, "use XSLoader;\n"))
+	assert.Empty(t, importedFrom(t, "use XSLoader qw(load);\n"))
+}
+
+// TestDynaLoaderPrototypes holds DynaLoader.tpm's prototypes to perl.
+func TestDynaLoaderPrototypes(t *testing.T) {
+	holdPrototypes(t, "DynaLoader")
+}
+
+// TestDynaLoaderExports holds DynaLoader.tpm's :export and :export_ok
+// marks to what `use DynaLoader` installs in a caller.
+func TestDynaLoaderExports(t *testing.T) {
+	holdExports(t, "DynaLoader")
+}
+
+// TestDynaLoaderBareUseImportsNothing: measured on 5.42.0, DynaLoader
+// never calls Exporter either, so no `use DynaLoader` form installs a name;
+// every caller reaches it through @ISA or a qualified call.
+func TestDynaLoaderBareUseImportsNothing(t *testing.T) {
+	assert.Empty(t, importedFrom(t, "use DynaLoader;\n"))
+	assert.Empty(t, importedFrom(t, "use DynaLoader qw(bootstrap);\n"))
+}
+
 // TestTestMoreArgumentFormImportsSameNames: Test::More's import is
 // Test::Builder::Module's (measured), which reads an import list with
 // no `import => [...]` pair as plan() arguments, not names --
@@ -728,6 +876,16 @@ func TestTestMoreArgumentFormImportsSameNames(t *testing.T) {
 	assert.Equal(t, bare, withArgs)
 	assert.Contains(t, withArgs, "ok")
 	assert.Contains(t, withArgs, "plan")
+}
+
+// TestTestMoreImportKeyClaimsNoNames: perigrin's ruling, 2026-10-20
+// ("the signature names the keys"): Test::More's import signature names
+// import as the key whose presence changes what import installs --
+// measured on 5.42.0, `use Test::More import => ['ok'], tests => 1;`
+// installs only ok, not the full bare-use set, so this parser claims no
+// names rather than a wrong one.
+func TestTestMoreImportKeyClaimsNoNames(t *testing.T) {
+	assert.Empty(t, importedFrom(t, "use Test::More import => ['ok'], tests => 1;\n"))
 }
 
 // ioExporters is the IO and file-handling batch (01a1464e-db76):
@@ -759,6 +917,7 @@ var ioExportersMethodsOnly = map[string][]string{
 	"IO::Handle": {"new", "new_from_fd", "opened", "fileno", "eof", "getc", "close"},
 	"IO::File":   {"new", "new_tmpfile", "open"},
 	"IO::Socket": {"new", "socket", "connect", "bind", "listen", "accept", "send", "recv", "close"},
+	"FileHandle": {"new_from_fd", "close", "fileno", "getc", "eof", "flush", "new", "new_tmpfile", "open", "seek", "tell", "getpos", "setpos"},
 }
 
 // TestIOExportersMethodsAreNotExported: a method declared beside a
@@ -779,5 +938,23 @@ func TestIOExportersMethodsAreNotExported(t *testing.T) {
 				t.Errorf("%s::%s carries an export mark, but perl's use %s installs no such name", module, name, module)
 			}
 		}
+	}
+}
+
+// TestFileHandleFilenoIsDeclared: FileHandle.pm aliases IO::Handle's
+// fileno straight into FileHandle:: at require time, so FileHandle.tpm
+// must declare it with a concrete return type -- a name the parser
+// leaves out of a declaration reads as Unknown to inference, the same
+// as a method no .tpm ever mentions (01a1464e-db76 review finding 1).
+func TestFileHandleFilenoIsDeclared(t *testing.T) {
+	src, ok := declaration("FileHandle")
+	require.True(t, ok, "FileHandle: no declaration")
+	facts, err := readHeld("FileHandle", src)
+	require.NoError(t, err)
+	sigs, declared := facts.signatures["fileno"]
+	require.True(t, declared, "FileHandle::fileno is not declared")
+	require.NotEmpty(t, sigs)
+	for _, s := range sigs {
+		assert.NotEqual(t, types.Unknown, s.Returns, "FileHandle::fileno should be typed, not Unknown")
 	}
 }

@@ -81,7 +81,11 @@ func readDeclarationWith(p *parser) moduleFacts {
 	facts.signatures, facts.errs, facts.operators, facts.relations = p.signatures, p.typedErrs, p.operators, p.relations
 	facts.declared, facts.variables = true, p.variables
 	// A .tpm's exports are its marks alone; an export list is refused.
-	facts.exports, facts.defaults, facts.tags, facts.opaque = nil, nil, nil, false
+	// dynamic is readModule's sign of a module whose own `import` hides
+	// names this parser cannot see -- never true of a .tpm, which states
+	// every name completely, a declared `import`'s signature included
+	// (use.go's declared-import branch, not a sign of the unknown).
+	facts.exports, facts.defaults, facts.tags, facts.opaque, facts.dynamic = nil, nil, nil, false, false
 	facts.errs = append(facts.errs, refuseInDeclaration(root, src)...)
 	readExportMarks(root, &facts)
 	// A plain `sub` replaces the one declared before it, unless the name is

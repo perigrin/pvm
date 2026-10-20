@@ -14,12 +14,20 @@ BEGIN { *CORE::GLOBAL::exit = sub { die "exit\n" } }
 # CASES is a perl file whose value is a list of sub name => [ [args], ... ].
 # CONTEXT is how each case is called, scalar or list. FORM is sub, a call
 # of MODULE::NAME, or method, a call of the method MODULE->can(NAME) finds
-# with MODULE as its invocant. Each call is made inside eval: a value it
-# returns is observed under NAME:CONTEXT:FORM:N, for its N arguments, then
-# the call itself as the type Returned, so an empty list is seen to return;
-# a death is observed as the type Died. Once every sub is called, the
-# driver prints "complete" before the observations, so a run perl ended
-# early is told from a finished one.
+# with MODULE as its invocant -- MODULE itself, the bare class name,
+# unless CASES also sets the reserved key INSTANCE to { ctor => NAME,
+# args => [ ... ], subs => [ NAME, ... ] }, in which case every name in
+# subs is instead called on the one instance MODULE->can(ctor)->(@args)
+# builds the first time any of them runs: a module's cases file names a
+# real constructor call this way for a method that dereferences its
+# invocant and so cannot take the bare class name, measured side-effect
+# free before it is named here, and built once and reused so any side
+# effect it does have happens only that once. Each call is made inside
+# eval: a value it returns is observed under NAME:CONTEXT:FORM:N, for its
+# N arguments, then the call itself as the type Returned, so an empty
+# list is seen to return; a death is observed as the type Died. Once
+# every sub is called, the driver prints "complete" before the
+# observations, so a run perl ended early is told from a finished one.
 my ( $observer, $cases_file, $module, @subs ) = @ARGV;
 
 # A module's END may set perl's exit status, as Test::Builder's does when
@@ -48,7 +56,19 @@ require $file;
 eval "package Held::OracleBarePrime; use $module; 1";
 
 my %cases = do $cases_file;
-die "cannot read call cases $cases_file: ", $@ || $!, "\n" if $@ || !%cases;
+# An empty %cases is only an error when a sub actually needs a case:
+# XSLoader's declares two subs and exempts both, so its call-case file is
+# legitimately empty, and @subs -- already filtered to the non-exempt
+# names -- is empty right along with it.
+die "cannot read call cases $cases_file: ", $@ || $!, "\n" if $@ || ( !%cases && @subs );
+
+# INSTANCE, if the cases file sets it, names the one constructor call
+# whose result stands in for the bare class name as every name in subs's
+# invocant; built lazily, at most once, the first such name the loop
+# below reaches.
+my $instance_spec = delete $cases{INSTANCE};
+my %use_instance = $instance_spec ? ( map { $_ => 1 } @{ $instance_spec->{subs} } ) : ();
+my $instance;
 
 for (@subs) {
     my ( $name, $context, $form ) = split /:/;
@@ -61,6 +81,7 @@ for (@subs) {
         $code = $module->can($name) or die "perl defines no method $name\n";
     }
     else {
+        my $primed;
         if ( !callable("${module}::$name") && callable("Held::OracleBarePrime::$name") ) {
             $code = \&{"Held::OracleBarePrime::$name"};
         }
@@ -70,15 +91,38 @@ for (@subs) {
             # regardless -- gets a stub only once it is asked for by
             # name.
             state $n = 0;
-            eval "package Held::OraclePrimeByName@{[$n++]}; use $module qw($name); 1";
+            $primed = "Held::OraclePrimeByName@{[$n++]}";
+            eval "package $primed; use $module qw($name); 1";
         }
-        $code //= callable("${module}::$name") ? \&{"${module}::$name"} : undef;
+        if ( !$code && callable("${module}::$name") ) {
+            $code = \&{"${module}::$name"};
+        }
+        elsif ( !$code && $primed && callable("${primed}::$name") ) {
+            # A module with its own import, like
+            # Locale::Maketext::Simple's, installs a glob straight into
+            # the caller's package and never into its own (measured):
+            # the only place left to find it is the package it was just
+            # primed into.
+            $code = \&{"${primed}::$name"};
+        }
         $code or die "perl defines no sub $name\n";
     }
     for my $i ( keys @$calls ) {
         my @args = @{ $calls->[$i] };
         my $key  = join ':', $name, $context, $form, scalar @args;
-        unshift @args, $module if $form eq 'method';
+        if ( $form eq 'method' ) {
+            if ( $use_instance{$name} ) {
+                $instance //= do {
+                    my $ctor = $module->can( $instance_spec->{ctor} )
+                      or die "perl defines no constructor $instance_spec->{ctor}\n";
+                    $ctor->( $module, @{ $instance_spec->{args} } );
+                };
+                unshift @args, $instance;
+            }
+            else {
+                unshift @args, $module;
+            }
+        }
         my @values;
         my $returned =
           $context eq 'list'
