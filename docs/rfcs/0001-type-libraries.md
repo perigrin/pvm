@@ -1048,7 +1048,7 @@ syntax states the one key, measured, whose presence changes the
 install: the first optional scalar parameter after the invocant, named
 for it.
 
-    sub import (Str $class: Str $import = undef, List @plan) Void;       # Test::More
+    sub import (Str $class: ArrayRef $import = undef, List @plan) Void;  # Test::More
     sub import (Str $class: Str $Export = undef, List @args) Void;       # Locale::Maketext::Simple
 
 A use-list naming that key, anywhere in it, claims no names and leaves
