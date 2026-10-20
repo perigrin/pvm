@@ -825,10 +825,10 @@ func dirEntries(t *testing.T, dir string) []string {
 }
 
 // pureExporters is the pure-Perl exporters batch (01a1464e-db4c): every
-// module whose .tpm declares the names a `use` of it installs. Symbol is
-// held back; see the matching comment in internal/parse/heldtoperl_test.go.
+// module whose .tpm declares the names a `use` of it installs. Symbol
+// was held back; see the matching comment in internal/parse/heldtoperl_test.go.
 var pureExporters = []string{
-	"File::Basename", "File::Find", "File::Path", "Errno",
+	"File::Basename", "File::Find", "File::Path", "Errno", "Symbol",
 	"Text::ParseWords", "Class::Struct", "File::Copy", "Time::Local", "Getopt::Std",
 }
 
