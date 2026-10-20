@@ -1,0 +1,13 @@
+# ABOUTME: Declares what `use Net::Ping` installs: pingecho bare, wakeonlan on request.
+# ABOUTME: Measured on perl 5.42.0 with Net::Ping 2.76: both open a real network connection, so the oracle never calls either.
+package Net::Ping;
+
+# pingecho opens a tcp connection to $host and returns whatever its
+# ping() call returns in its caller's context: Boolean in scalar
+# context, measured in Net::Ping.pm's source, Undef when the connect
+# itself fails.
+sub pingecho :export :listop (Str $host, Optional[Num] $timeout) Boolean|Undef;
+# wakeonlan opens a udp socket and sends a magic packet; it returns 1 on
+# send and undef when the socket cannot be opened, measured in
+# Net::Ping.pm's source.
+sub wakeonlan :export_ok :listop (Str $mac_addr, Optional[Str] $host, Optional[Int] $port) Boolean|Undef;

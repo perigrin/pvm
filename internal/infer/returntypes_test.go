@@ -69,6 +69,50 @@ var oracleExempt = map[string]string{
 	// conflict.
 	"Socket::sockaddr_in":  "wantarray/arity dispatch dies on the other direction's shape; held to its prototype and exports only",
 	"Socket::sockaddr_in6": "wantarray/arity dispatch dies on the other direction's shape; held to its prototype and exports only",
+
+	"Test::More::BAIL_OUT": "calls CORE::exit directly from Test::Builder's bail_out, bypassing the driver's exit-catching override, and would end the oracle process early",
+	// plan dies "You tried to plan twice" once a plan already exists --
+	// including one done_testing sets, which the oracle's alphabetically
+	// earlier call to done_testing always leaves in place -- so the
+	// oracle cannot call it without that collision.
+	"Test::More::plan": "collides with done_testing, called earlier in the same oracle run, which already sets a plan",
+
+	"Getopt::Long::HelpMessage":    "calls Pod::Usage's pod2usage, which exits the process by default",
+	"Getopt::Long::VersionMessage": "exits the process by default (measured: exit($pa->{-exitval}) unless -exitval is NOEXIT)",
+
+	"ExtUtils::MakeMaker::WriteMakefile": "builds a real Makefile from a distribution's own metadata, which the oracle's call cases cannot supply",
+	"ExtUtils::MakeMaker::prompt":        "reads an answer from STDIN, blocking when none is piped in",
+	// Net::Ping and IO::Socket: every network-touching sub the batch
+	// declares, held to its prototype and exports only.
+	"Net::Ping::pingecho":      "opens a real tcp connection to the given host",
+	"Net::Ping::wakeonlan":     "opens a real udp socket and sends a packet onto the network",
+	"IO::Socket::sockaddr_in":  "wantarray/arity dispatch dies on the other direction's shape, as Socket::sockaddr_in does; held to its prototype and exports only",
+	"IO::Socket::sockaddr_in6": "wantarray/arity dispatch dies on the other direction's shape, as Socket::sockaddr_in6 does; held to its prototype and exports only",
+	"IO::Socket::socket":       "opens a real socket file descriptor",
+	"IO::Socket::connect":      "connects a real socket onto the network",
+	"IO::Socket::bind":         "binds a real socket to a local address",
+	"IO::Socket::listen":       "marks a real socket as listening for connections",
+	"IO::Socket::accept":       "blocks accepting a real connection on a socket",
+	"IO::Socket::send":         "writes onto a real socket",
+	"IO::Socket::recv":         "blocks reading from a real socket",
+	"IO::Socket::close":        "dereferences the invocant as a glob to close its socket, dying \"Can't use string ... as a symbol ref\" when the invocant is the bare class name the oracle calls with",
+
+	// IO::File::open dereferences its invocant as a glob immediately
+	// (`open($fh, ...)`), dying "Can't use string ... as a symbol ref"
+	// when the invocant is the bare class name the oracle calls with,
+	// measured on 5.42.0; held to its prototype and exports only.
+	"IO::File::open": "dereferences the invocant as a glob; dies when called with the class name itself, as the oracle calls it",
+
+	// IO::Handle and FileHandle: format_write, print, printf and say
+	// each dereference the invocant as a glob before doing anything
+	// else, dying against the oracle's bare class name; see the
+	// matching comments in IO/Handle.tpm and FileHandle.tpm.
+	"IO::Handle::format_write": "dereferences the invocant as a glob to find its format name; dies \"Undefined format\" when called with the class name itself",
+	"IO::Handle::print":        "dereferences the invocant as a glob; dies when called with the class name itself, as the oracle calls it",
+	"IO::Handle::printf":       "dereferences the invocant as a glob; dies when called with the class name itself, as the oracle calls it",
+	"IO::Handle::say":          "dereferences the invocant as a glob; dies when called with the class name itself, as the oracle calls it",
+	"FileHandle::print":        "dereferences the invocant as a glob; dies when called with the class name itself, as the oracle calls it",
+	"FileHandle::printf":       "dereferences the invocant as a glob; dies when called with the class name itself, as the oracle calls it",
 }
 
 // posixReplacementNames are the names in POSIX.pm 2.23's %replacement
@@ -914,4 +958,191 @@ func TestSDBMFileOracleStaysInScratch(t *testing.T) {
 	cases, err := os.ReadFile(filepath.Join("testdata", "oracle", "SDBM_File.pl"))
 	require.NoError(t, err)
 	assert.False(t, absolute.Match(cases), "SDBM_File's oracle cases name an absolute path")
+}
+
+// variableExporters is the variable-exporters batch (01a1464e-dca3):
+// every module below exports a plain Perl variable, measured on
+// 2026-10-16.
+var variableExporters = []string{
+	"Config", "Getopt::Long", "Test::More", "Text::Wrap", "ExtUtils::MakeMaker", "File::stat",
+}
+
+// TestVariableExportersReturnTypes holds each variable exporter's
+// declared return types to perl, called with its oracle's cases.
+func TestVariableExportersReturnTypes(t *testing.T) {
+	holdReturnTypes(t, variableExporters...)
+}
+
+// declaredVariables reads module's .tpm variables, failing t on any
+// declaration error.
+func declaredVariables(t *testing.T, module string) map[string]types.Param {
+	t.Helper()
+	rel := strings.ReplaceAll(module, "::", "/")
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", filepath.FromSlash(rel)+".tpm"))
+	require.NoError(t, err)
+	vars, errs := parse.DeclaredVariables(tpm)
+	require.Empty(t, errs)
+	return vars
+}
+
+// TestConfigValuesFitDeclaredType: ruling 3 (perigrin, 2026-10-16).
+// %Config is declared Hash[Str|Undef], and every value perl's %Config
+// holds on 5.42.0 is a member of that element type -- 172 of them
+// undef, which Hash[Str] alone would exclude.
+func TestConfigValuesFitDeclaredType(t *testing.T) {
+	want := declaredVariables(t, "Config")["%Config"]
+	require.Equal(t, types.Hash, want.Type, "%%Config is not declared Hash")
+
+	p := perltest.Perl542(t)
+	out, err := p.Command("-MConfig", "-e",
+		`for my $k (sort keys %Config::Config) { my $v = $Config::Config{$k}; print "$k\t", (defined $v ? $v : "\x00UNDEF\x00"), "\n"; }`,
+	).Output()
+	require.NoError(t, err)
+
+	var undef int
+	for _, line := range strings.Split(strings.TrimRight(string(out), "\n"), "\n") {
+		_, v, ok := strings.Cut(line, "\t")
+		require.True(t, ok, "unparsed line %q", line)
+		got := types.Str
+		if v == "\x00UNDEF\x00" {
+			got, undef = types.Undef, undef+1
+		}
+		assert.True(t, types.IsSubtype(got, want.Element),
+			"a %%Config value is %v, which the declared element type %v excludes", got, want.Element)
+	}
+	assert.Equal(t, 172, undef, "measured on perl 5.42.0: 172 of %%Config's values are undef")
+	assert.False(t, types.IsSubtype(types.Undef, types.Str),
+		"Hash[Str] would exclude the undef values Hash[Str|Undef] admits")
+}
+
+// TestTestMoreBailOutNeverCalled: BAIL_OUT is declared None and is in
+// the return-type oracle's exemption map, since it exits rather than
+// dies (measured: it calls CORE::exit directly from Test::Builder's
+// bail_out, bypassing the driver's exit-catching override).
+func TestTestMoreBailOutNeverCalled(t *testing.T) {
+	reason, ok := oracleExempt["Test::More::BAIL_OUT"]
+	if !assert.True(t, ok, "Test::More::BAIL_OUT is not in the return-type oracle's exemption map") {
+		return
+	}
+	assert.NotEmpty(t, strings.TrimSpace(reason), "Test::More::BAIL_OUT is exempt without a reason")
+
+	sigs, errs := parse.DeclaredSignatures(func() []byte {
+		tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "Test", "More.tpm"))
+		require.NoError(t, err)
+		return tpm
+	}())
+	require.Empty(t, errs)
+	for _, s := range sigs["BAIL_OUT"] {
+		assert.Equal(t, types.None, s.Returns, "Test::More::BAIL_OUT is not declared None")
+	}
+}
+
+// TestMakeMakerInteractiveSubsExempt: prompt and WriteMakefile are
+// exempt with a reason and never called (prompt blocks on STDIN;
+// WriteMakefile needs a distribution's own metadata the oracle cannot
+// supply).
+func TestMakeMakerInteractiveSubsExempt(t *testing.T) {
+	for _, name := range []string{"prompt", "WriteMakefile"} {
+		reason, ok := oracleExempt["ExtUtils::MakeMaker::"+name]
+		if !assert.True(t, ok, "ExtUtils::MakeMaker::%s is not in the return-type oracle's exemption map", name) {
+			continue
+		}
+		assert.NotEmpty(t, strings.TrimSpace(reason), "ExtUtils::MakeMaker::%s is exempt without a reason", name)
+	}
+	holdReturnTypes(t, "ExtUtils::MakeMaker")
+}
+
+// TestFileStatMissingFileReturnIsDeclared: File::stat::stat on a path
+// that does not exist returns the empty list in list context and undef
+// in scalar (measured on 5.42.0), both of which File::stat.tpm's
+// declared Object|Undef admits. oracle/File-stat.pl includes this case
+// among stat's and lstat's own.
+func TestFileStatMissingFileReturnIsDeclared(t *testing.T) {
+	assert.Empty(t, moduleFailures(t, "File::stat"))
+}
+
+// ioExporters is the IO and file-handling batch (01a1464e-db76):
+// FileHandle, IO::Handle, IO::File, IO::Socket and the five plain
+// exporters File::Spec::Functions, File::Temp, Archive::Tar,
+// ExtUtils::Manifest and Net::Ping.
+var ioExporters = []string{
+	"FileHandle", "IO::Handle", "IO::File", "IO::Socket",
+	"File::Spec::Functions", "File::Temp", "Archive::Tar", "ExtUtils::Manifest", "Net::Ping",
+}
+
+// TestIOExportersReturnTypes holds each module's declared return types
+// to perl, called with its oracle's cases.
+func TestIOExportersReturnTypes(t *testing.T) {
+	holdReturnTypes(t, ioExporters...)
+}
+
+// ioExportersNetworkSubs are the Net::Ping and IO::Socket subs that
+// touch the network (or, for IO::Socket's sockaddr_in and
+// sockaddr_in6, dispatch on context the way Socket's already-exempt
+// ones do); every one must be in oracleExempt.
+var ioExportersNetworkSubs = []string{
+	"Net::Ping::pingecho", "Net::Ping::wakeonlan",
+	"IO::Socket::socket", "IO::Socket::connect", "IO::Socket::bind", "IO::Socket::listen",
+	"IO::Socket::accept", "IO::Socket::send", "IO::Socket::recv", "IO::Socket::close",
+	"IO::Socket::sockaddr_in", "IO::Socket::sockaddr_in6",
+}
+
+// TestIOExportersNetworkSubsExempt: every Net::Ping and IO::Socket sub
+// that touches the network is in oracleExempt with a reason, and the
+// return-type oracle never calls it -- holdReturnTypes skips any name
+// in oracleExempt when it builds the subs it asks perl to call, so a
+// name here is simply never part of that list.
+func TestIOExportersNetworkSubsExempt(t *testing.T) {
+	for _, name := range ioExportersNetworkSubs {
+		reason, ok := oracleExempt[name]
+		assert.True(t, ok, "%s touches the network but is not in oracleExempt", name)
+		assert.NotEmpty(t, reason, "%s's oracleExempt reason is empty", name)
+	}
+}
+
+// TestIOExportersOracleStaysInScratch: File::Temp and Archive::Tar
+// create files and (for File::Temp) directories; their oracle cases
+// name only relative paths -- an absolute one would reach outside the
+// scratch directory returnTypeFailures confines perl's cwd, HOME and
+// TMPDIR to.
+func TestIOExportersOracleStaysInScratch(t *testing.T) {
+	absolute := regexp.MustCompile(`['"]/\S`)
+	for _, module := range []string{"File-Temp", "Archive-Tar"} {
+		cases, err := os.ReadFile(filepath.Join("testdata", "oracle", module+".pl"))
+		require.NoError(t, err)
+		assert.False(t, absolute.Match(cases), "%s's oracle cases name an absolute path", module)
+	}
+}
+
+// TestIOFileNewMissingFileReturnIsDeclared: IO::File->new on a file
+// that does not exist returns undef rather than dying, measured on
+// 5.42.0, which IO::File.tpm's declared Object|Undef admits.
+// oracle/IO-File.pl's own `new` case (no filename) already exercises
+// new's Object branch; this is the Undef one, checked directly rather
+// than added to the module-wide oracle (new's declared signature takes
+// an optional filename, and giving one here would otherwise need a
+// second call form the oracle driver has no way to select between).
+func TestIOFileNewMissingFileReturnIsDeclared(t *testing.T) {
+	p := perltest.Perl542(t)
+	scratch := t.TempDir()
+	cmd := p.Command("-MIO::File", "-e",
+		`my $f = IO::File->new("does-not-exist.txt", "r"); print defined($f) ? "defined" : "undef";`)
+	cmd.Dir = scratch
+	out, err := cmd.Output()
+	require.NoError(t, err)
+	require.Equal(t, "undef", string(out), "IO::File->new on a missing file should return undef, not die or succeed")
+
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "IO", "File.tpm"))
+	require.NoError(t, err)
+	sigs, errs := parse.DeclaredSignatures(tpm)
+	require.Empty(t, errs)
+	cands, ok := sigs["new"]
+	require.True(t, ok, "IO::File.tpm does not declare new")
+	admits := false
+	for _, s := range cands {
+		if types.IsSubtype(types.Undef, s.Returns) {
+			admits = true
+		}
+	}
+	assert.True(t, admits, "IO::File.tpm's declared new does not admit Undef, but perl returns undef on a missing file")
 }

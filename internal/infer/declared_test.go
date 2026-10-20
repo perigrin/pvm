@@ -215,6 +215,18 @@ func TestInferTypesQualifiedCall(t *testing.T) {
 	assert.Empty(t, diags)
 }
 
+// TestInferEncodeCheckAcceptsUndefLiteral: perl 5.42's Encode accepts a
+// literal undef CHECK (measured: `Encode::encode("ascii", $s, undef)`
+// returns the encoded string, the same as omitting it), so Encode.tpm's
+// declared CHECK type must admit Undef or the call reports a spurious
+// coercion-mismatch.
+func TestInferEncodeCheckAcceptsUndefLiteral(t *testing.T) {
+	src := `use Encode (); my $s = Encode::encode("ascii", "x", undef);`
+	got, diags := declaredCallType(t, src, `Encode::encode("ascii", "x", undef)`)
+	assert.Equal(t, types.Str, got)
+	assert.Empty(t, diags, "a literal undef CHECK should not be reported as a coercion mismatch")
+}
+
 // sortCandidate is the CORE.tpm sort candidate the call site selects for
 // the first sort of src, and whether it selected one.
 func sortCandidate(t *testing.T, src string) (types.Signature, bool) {

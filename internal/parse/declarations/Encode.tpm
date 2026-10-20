@@ -30,17 +30,20 @@ sub _utf8_on :export_ok(all) :prototype($) (Str|Undef $string) Boolean|Undef;
 # behaviour (perldoc Encode: "If the $string is undef, then undef is
 # returned"). CHECK may also be a coderef fallback handler ("As of
 # Encode 2.12, CHECK can also be a code reference", perldoc Encode),
-# which Pod::Text.pm's own call to encode() passes.
-sub bytes2str :export(all,default) :prototype($$;$) (Str|Object $encoding, Str|Undef $octets, Int|CodeRef $check = 0) Str|Undef;
-sub str2bytes :export(all,default) :prototype($$;$) (Str|Object $encoding, Str|Undef $string, Int|CodeRef $check = 0) Str|Undef;
+# which Pod::Text.pm's own call to encode() passes. CHECK also accepts a
+# literal undef, measured on all six subs below that take it (perl treats
+# it the same as the default, CHECK 0): e.g. `Encode::encode("ascii",
+# "cafe", undef)` is "cafe", the same as omitting the argument.
+sub bytes2str :export(all,default) :prototype($$;$) (Str|Object $encoding, Str|Undef $octets, Int|CodeRef|Undef $check = 0) Str|Undef;
+sub str2bytes :export(all,default) :prototype($$;$) (Str|Object $encoding, Str|Undef $string, Int|CodeRef|Undef $check = 0) Str|Undef;
 
 # clone_encoding returns the encoding object to clone, or undef if
 # ENCODING does not resolve (measured: clone_encoding of an unknown name
 # is undef).
 sub clone_encoding :export(all,default) :prototype($) (Str|Object $encoding) Object|Undef;
 
-sub decode :export(all,default) :prototype($$;$) (Str|Object $encoding, Str|Undef $octets, Int|CodeRef $check = 0) Str|Undef;
-sub decode_utf8 :export(all,default) :prototype($;$) (Str|Undef $octets, Int|CodeRef $check = 0) Str|Undef;
+sub decode :export(all,default) :prototype($$;$) (Str|Object $encoding, Str|Undef $octets, Int|CodeRef|Undef $check = 0) Str|Undef;
+sub decode_utf8 :export(all,default) :prototype($;$) (Str|Undef $octets, Int|CodeRef|Undef $check = 0) Str|Undef;
 
 # define_encoding(OBJECT, NAME, ALIASES...) registers OBJECT under NAME
 # and returns OBJECT (measured: the return is the same blessed object).
@@ -52,8 +55,8 @@ sub define_encoding :export_ok(all) (List @args) Object;
 # Measured, encode(undef) is undef, the same as decode and the two
 # below it: declared by argument type (RFC 0001, "Multi declarations"),
 # a defined $string gives a defined Str.
-multi sub encode :export(all,default) :prototype($$;$) (Str|Object $encoding, Str $string, Int|CodeRef $check = 0) Str;
-multi sub encode :export(all,default) :prototype($$;$) (Str|Object $encoding, Str|Undef $string, Int|CodeRef $check = 0) Str|Undef;
+multi sub encode :export(all,default) :prototype($$;$) (Str|Object $encoding, Str $string, Int|CodeRef|Undef $check = 0) Str;
+multi sub encode :export(all,default) :prototype($$;$) (Str|Object $encoding, Str|Undef $string, Int|CodeRef|Undef $check = 0) Str|Undef;
 
 # encode_utf8 is documented to "never fail", but measured on 5.42.0,
 # encode_utf8(undef) is undef (with a "Use of uninitialized value"
@@ -72,7 +75,7 @@ sub find_mime_encoding :export(all,default) :prototype($;$) (Str $mime_encoding,
 
 # from_to converts $octets in place; perldoc Encode: "returns the length
 # of the converted string in octets on success, and undef on error."
-sub from_to :export_ok(all) :prototype($$$;$) (Str $octets, Str $from_encoding, Str $to_encoding, Int|CodeRef $check = 0) Int|Undef;
+sub from_to :export_ok(all) :prototype($$$;$) (Str $octets, Str $from_encoding, Str $to_encoding, Int|CodeRef|Undef $check = 0) Int|Undef;
 
 # is_utf8 is documented to return a plain boolean; measured, is_utf8(undef)
 # is '' (false), never undef.

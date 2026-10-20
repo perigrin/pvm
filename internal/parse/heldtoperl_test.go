@@ -670,3 +670,114 @@ func TestTimeHiResBareUseKeepsCoreTime(t *testing.T) {
 	got := importedFrom(t, "use Time::HiRes;\n")
 	assert.Empty(t, got)
 }
+
+// variableExporters is the variable-exporters batch (01a1464e-dca3):
+// every module below exports a plain Perl variable, measured on
+// 2026-10-16.
+var variableExporters = []string{
+	"Config", "Getopt::Long", "Test::More", "Text::Wrap", "ExtUtils::MakeMaker", "File::stat",
+}
+
+// TestVariableExportersPrototypes holds each variable exporter's .tpm
+// prototypes to perl.
+func TestVariableExportersPrototypes(t *testing.T) {
+	holdPrototypes(t, variableExporters...)
+}
+
+// TestVariableExportersExports holds each variable exporter's .tpm
+// :export and :export_ok marks to what `use` installs.
+func TestVariableExportersExports(t *testing.T) {
+	holdExports(t, variableExporters...)
+}
+
+// TestConfigBareUseImportsOnlyConfigHash: a bare `use Config;` installs
+// %Config and none of Config's @EXPORT_OK subs (ruling 1).
+func TestConfigBareUseImportsOnlyConfigHash(t *testing.T) {
+	got := importedFrom(t, "use Config;\n")
+	assert.Equal(t, []string{"%Config"}, got)
+}
+
+// TestGetoptLongBareUseOmitsConfigure: Configure is in Getopt::Long's
+// @EXPORT_OK alone (measured), so a bare `use Getopt::Long;` does not
+// import it.
+func TestGetoptLongBareUseOmitsConfigure(t *testing.T) {
+	got := importedFrom(t, "use Getopt::Long;\n")
+	assert.NotContains(t, got, "Configure")
+	assert.Contains(t, got, "GetOptions")
+}
+
+// TestFileStatEmptyImportKeepsCoreStat: `use File::stat ();` is the
+// explicit "load but import nothing" form (RFC 0001), so a later bare
+// `stat($f)` still resolves to CORE's.
+func TestFileStatEmptyImportKeepsCoreStat(t *testing.T) {
+	got := importedFrom(t, "use File::stat ();\n")
+	assert.Empty(t, got)
+}
+
+// TestTestMoreArgumentFormImportsSameNames: Test::More's import is
+// Test::Builder::Module's (measured), which reads an import list with
+// no `import => [...]` pair as plan() arguments, not names --
+// `use Test::More tests => 3;` installs the same names a bare use
+// does (measured on 5.42.0: both leave every one of its 26 subs and
+// $TODO defined in the caller). The forward risk this issue settles
+// (dadb's gate): without facts.builder, this list reads as computed
+// and opaque instead.
+func TestTestMoreArgumentFormImportsSameNames(t *testing.T) {
+	bare := importedFrom(t, "use Test::More;\n")
+	withArgs := importedFrom(t, "use Test::More tests => 3;\n")
+	assert.Equal(t, bare, withArgs)
+	assert.Contains(t, withArgs, "ok")
+	assert.Contains(t, withArgs, "plan")
+}
+
+// ioExporters is the IO and file-handling batch (01a1464e-db76):
+// FileHandle, IO::Handle, IO::File, IO::Socket and the five plain
+// exporters File::Spec::Functions, File::Temp, Archive::Tar,
+// ExtUtils::Manifest and Net::Ping.
+var ioExporters = []string{
+	"FileHandle", "IO::Handle", "IO::File", "IO::Socket",
+	"File::Spec::Functions", "File::Temp", "Archive::Tar", "ExtUtils::Manifest", "Net::Ping",
+}
+
+// TestIOExportersPrototypes holds each module's .tpm prototypes to perl.
+func TestIOExportersPrototypes(t *testing.T) {
+	holdPrototypes(t, ioExporters...)
+}
+
+// TestIOExportersExports holds each module's .tpm :export and
+// :export_ok marks to what `use` installs.
+func TestIOExportersExports(t *testing.T) {
+	holdExports(t, ioExporters...)
+}
+
+// ioExportersMethodsOnly are the subs declared in the batch's four
+// class .tpm files that are never exported: callers reach each only
+// through `->`, inherited from the class that defines it, regardless
+// of import. Measured on 5.42.0: none is in its module's @EXPORT or
+// @EXPORT_OK.
+var ioExportersMethodsOnly = map[string][]string{
+	"IO::Handle": {"new", "new_from_fd", "opened", "fileno", "eof", "getc", "close"},
+	"IO::File":   {"new", "new_tmpfile", "open"},
+	"IO::Socket": {"new", "socket", "connect", "bind", "listen", "accept", "send", "recv", "close"},
+}
+
+// TestIOExportersMethodsAreNotExported: a method declared beside a
+// class .tpm's exports -- IO::Handle's close, IO::File's new, and the
+// rest ioExportersMethodsOnly names -- carries no :export or
+// :export_ok mark, since perl's `use` of that module never installs
+// it; it is reachable only through `->`.
+func TestIOExportersMethodsAreNotExported(t *testing.T) {
+	for module, methods := range ioExportersMethodsOnly {
+		src, ok := declaration(module)
+		require.True(t, ok, "%s: no declaration", module)
+		facts, err := readHeld(module, src)
+		require.NoError(t, err)
+		for _, name := range methods {
+			_, declared := facts.signatures[name]
+			require.True(t, declared, "%s: %s is not declared", module, name)
+			if slices.Contains(facts.exports, name) {
+				t.Errorf("%s::%s carries an export mark, but perl's use %s installs no such name", module, name, module)
+			}
+		}
+	}
+}

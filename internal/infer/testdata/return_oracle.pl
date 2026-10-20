@@ -36,6 +36,17 @@ require $observer;
 ( my $file = "$module.pm" ) =~ s{::}{/}g;
 require $file;
 
+# A module whose import re-exports a third module's names straight
+# into its caller -- FileHandle's import calls
+# Exporter::export('Fcntl', $callpkg) for a bare `use`, never defining
+# the name in FileHandle:: itself (measured on 5.42.0: FileHandle::
+# F_DUPFD is false even after `require FileHandle`) -- leaves such a
+# name only in whatever package did a bare `use FileHandle;`. This
+# bare prime, done once per module as held_to_perl.pl's does, is where
+# a sub-form lookup falls back for a name neither $module:: nor a
+# by-name reprime materializes (see the matching comment below).
+eval "package Held::OracleBarePrime; use $module; 1";
+
 my %cases = do $cases_file;
 die "cannot read call cases $cases_file: ", $@ || $!, "\n" if $@ || !%cases;
 
@@ -50,7 +61,10 @@ for (@subs) {
         $code = $module->can($name) or die "perl defines no method $name\n";
     }
     else {
-        if ( !callable("${module}::$name") ) {
+        if ( !callable("${module}::$name") && callable("Held::OracleBarePrime::$name") ) {
+            $code = \&{"Held::OracleBarePrime::$name"};
+        }
+        if ( !$code && !callable("${module}::$name") ) {
             # A name a bare require does not materialize, measured --
             # Fcntl's S_ISWHT, whose sibling S_IS* subs are compiled in
             # regardless -- gets a stub only once it is asked for by
@@ -58,8 +72,8 @@ for (@subs) {
             state $n = 0;
             eval "package Held::OraclePrimeByName@{[$n++]}; use $module qw($name); 1";
         }
-        callable("${module}::$name") or die "perl defines no sub $name\n";
-        $code = \&{"${module}::$name"};
+        $code //= callable("${module}::$name") ? \&{"${module}::$name"} : undef;
+        $code or die "perl defines no sub $name\n";
     }
     for my $i ( keys @$calls ) {
         my @args = @{ $calls->[$i] };
