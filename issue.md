@@ -1,6 +1,6 @@
 ---
 title: "Declare the variable exporters: Config, Getopt::Long, Test::More, Text::Wrap, ExtUtils::MakeMaker, File::stat"
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -12,16 +12,40 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.843622709Z
-updated: 2026-10-20T02:59:44.677331931Z
+updated: 2026-10-20T03:43:26.128274693Z
 sessions:
 - start_sha: 34826451ff25d9be31c553948ea6de4ec295f77d
-  end_sha: ""
-  commits: 0
+  end_sha: 9e5ae578baacecaaf348477c8982d9720ed83cf0
+  commits: 2
   started_at: 2026-10-20T02:59:44.677331931Z
+  ended_at: 2026-10-20T03:43:26.128274693Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-20T02:59:44.677331931Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-20T03:43:26.128274693Z
+observed_paths:
+- internal/infer/declared_test.go
+- internal/infer/returntypes_test.go
+- internal/infer/testdata/oracle/Config.pl
+- internal/infer/testdata/oracle/ExtUtils-MakeMaker.pl
+- internal/infer/testdata/oracle/File-stat.pl
+- internal/infer/testdata/oracle/Getopt-Long.pl
+- internal/infer/testdata/oracle/Test-More.pl
+- internal/infer/testdata/oracle/Text-Wrap.pl
+- internal/parse/declarations.go
+- internal/parse/declarations/Config.tpm
+- internal/parse/declarations/Encode.tpm
+- internal/parse/declarations/ExtUtils/MakeMaker.tpm
+- internal/parse/declarations/File/stat.tpm
+- internal/parse/declarations/Getopt/Long.tpm
+- internal/parse/declarations/Test/More.tpm
+- internal/parse/declarations/Text/Wrap.tpm
+- internal/parse/heldtoperl_test.go
+- internal/parse/module.go
+- internal/parse/testdata/held_to_perl.pl
 ---
 
 ## Prerequisites
