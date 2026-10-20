@@ -1233,9 +1233,17 @@ func flattenGuards(guard *guardResult, negate bool) []*guardResult {
 // type of one guard becomes the input type for the next), so that compound
 // conditions on the same variable (e.g. defined($x) && ref($x)) correctly
 // intersect their effects. A variable never declared is skipped, so no
-// phantom shadow is made for it, except under a referent guard: what
+// phantom shadow is made for it, except under a referent guard, where what
 // `ref \$v eq 'GLOB'` narrows $v to does not depend on how $v was typed,
-// and a variable a sub body declares is not found from the lowered walk.
+// and a variable a sub body declares is not found from the lowered walk, or
+// for an element guard var name (`$results[0]`), which guardVarName gives a
+// name for but which the symbol table never defines: index reads the same
+// name back (vars.go), so a guard on a named array's literal-index element
+// narrows just that read, perl 5.42 -w silent on JSON::PP's `if (@results
+// and ref $results[0]) { if (refaddr($obj) eq refaddr($results[0])) {...`.
+// $_, a grep or map block's topic, is the same story: no `my $_` ever
+// defines it, yet perl 5.42 -w is silent on `grep { ref($_) &&
+// reftype($_) eq 'CODE' } @list`.
 func guardShadows(guards []*guardResult, st *SymbolTable) (map[string]types.Type, map[string]string) {
 	// Build accumulated narrowed types by applying guards sequentially.
 	// working tracks the current type for each variable as guards are applied,
@@ -1252,7 +1260,7 @@ func guardShadows(guards []*guardResult, st *SymbolTable) (map[string]types.Type
 		currentType, seen := working[guard.VarName]
 		if !seen {
 			sym, found := st.Lookup(guard.VarName)
-			if !found && guard.Guard.Kind != types.GuardReferent {
+			if !found && guard.Guard.Kind != types.GuardReferent && !isElementVarName(guard.VarName) && guard.VarName != "$_" {
 				// Variable was never declared — skip to avoid phantom shadows.
 				continue
 			}

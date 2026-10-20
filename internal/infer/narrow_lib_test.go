@@ -1,0 +1,229 @@
+// ABOUTME: Guard-narrowing fixtures matching the lib sites issue 01a156e4's dba9 gate review classified.
+// ABOUTME: Each GUARDED fixture must draw no diagnostic, each REAL one must still draw one.
+
+package infer_test
+
+import (
+	"testing"
+
+	"tamarou.com/pvm/internal/infer"
+)
+
+// wantSilentResolved is wantSilent over resolvedDiags (flow_test.go):
+// loweredDiags's bare parse.Parse resolves no module (parse.go, "a nil
+// resolver resolves nothing"), which would leave every reftype/refaddr/sum
+// call here Unknown and so silent either way, proving nothing about the
+// narrowing these tests exist to check. resolvedDiags's nil Loader is
+// enough: these declaration files are embedded, read by path regardless
+// of it, and nothing here requires a module's own source.
+func wantSilentResolved(t *testing.T, src string) {
+	t.Helper()
+	for _, d := range resolvedDiags(src) {
+		t.Errorf("%q: diagnostic %q, want none", src, d.Message)
+	}
+}
+
+// wantReportedResolved is wantReported over resolvedDiags.
+func wantReportedResolved(t *testing.T, src string, code string) {
+	t.Helper()
+	if diags := resolvedDiags(src); len(diags) != 1 || diags[0].Code != code {
+		t.Errorf("%q: diagnostics %v, want one %s", src, diags, code)
+	}
+}
+
+// TestNarrowGuardedLibSites reproduces, in isolation, the guard shape of
+// each lib site the dba9 gate review classified GUARDED (false positive):
+// after the guard, perl 5.42 -w is silent, and so must psc check be, now
+// that reftype, refaddr and sum are multis selected by argument type or
+// arity (Scalar/Util.tpm, List/Util.tpm) and the guard shapes below narrow.
+func TestNarrowGuardedLibSites(t *testing.T) {
+	for name, src := range map[string]string{
+		// JSON/PP.pm:398,411 -- blessed($obj) proves $obj an Object, a Ref
+		// subtype, so refaddr($obj) is an Int, and ref($result) proves
+		// $result a Ref the same way.
+		"blessed_then_refaddr": `
+my ($obj) = @_;
+if (blessed($obj)) {
+    my $result = $obj->TO_JSON();
+    if (defined $result and ref($result)) {
+        if (refaddr($obj) eq refaddr($result)) { print "same\n" }
+    }
+}
+`,
+		// Test2/Mock.pm:356 -- ref($arg) && reftype($arg) eq 'CODE', a
+		// short-circuit `&&` whose right operand runs only where ref($arg)
+		// held.
+		"ref_and_reftype": `
+my ($arg) = @_;
+return "code" if ref($arg) && reftype($arg) eq 'CODE';
+return "other";
+`,
+		// Test2/Mock.pm:54,57 -- the falsy branch of an if/elsif/elsif
+		// chain consumes reftype's Undef: by the first elsif, $type is
+		// proven defined.
+		"falsy_branch_consumes_undef": `
+my ($val) = @_;
+my $type = reftype($val);
+if (!$type) {
+    return "scalar";
+}
+elsif ($type eq 'HASH') {
+    return "hash";
+}
+elsif ($type eq 'ARRAY') {
+    return "array";
+}
+return "other";
+`,
+		// Test2/Mock.pm:368 -- after !ref($arg)'s own elsif branch, later
+		// elsifs in the same chain know $arg is a Ref.
+		"elsif_after_notref": `
+my ($arg) = @_;
+if (!ref($arg)) {
+    return "scalar";
+}
+elsif (reftype($arg) eq 'HASH') {
+    return "hash";
+}
+return "other";
+`,
+		// Test2/Compare/Ref.pm:48, Test2/Tools/Ref.pm:54,78 -- `return ...
+		// unless ref $x;` rules out non-refs before refaddr runs.
+		"unless_return": `
+my ($x, $y) = @_;
+return undef unless ref $x;
+return undef unless ref $y;
+return refaddr($x) == refaddr($y) ? "same" : "diff";
+`,
+		// threads/shared.pm:100-177 -- $item is proven a ref by an early
+		// `return $item if !ref($item) || ...`, and reftype($item) read
+		// several statements later, across an if/elsif chain, stays Str.
+		"early_return_then_later_reftype": `
+my ($item) = @_;
+return $item if (!ref($item) || $item eq '');
+my $ref_type = reftype($item);
+if ($ref_type eq 'ARRAY') {
+    return "array";
+}
+elsif ($ref_type eq 'HASH') {
+    return "hash";
+}
+elsif ($ref_type eq 'REF') {
+    return "refref";
+}
+return "other";
+`,
+		// JSON/PP.pm:398's right operand -- `ref $results[0]`, a named
+		// array's literal-index element, not a plain scalar variable.
+		"array_element_ref_guard": `
+my @results = @_;
+if (@results and ref $results[0]) {
+    return refaddr($results[0]);
+}
+return undef;
+`,
+		// Test2/Compare/Array.pm:35 -- $_, a grep block's topic, under
+		// `ref($_) && reftype($_) eq 'CODE'`.
+		"underscore_topic_ref_and_reftype": `
+my @order = @_;
+my @odd = grep { !(ref($_) && reftype($_) eq 'CODE') } @order;
+return \@odd;
+`,
+		// IO/Handle.pm:515 -- `tell qualify($_[0], caller) if ref($_[0])`:
+		// $_[0], the invocant, is proven a Ref by the modifier's own guard,
+		// reftype standing in for qualify here (Symbol.tpm stays parked --
+		// see the comment below the table). The guard mechanics are the
+		// same one isElementVarName (flow.go) gives $_[0] along with any
+		// other named array's literal-index element.
+		"arg0_ref_guard": `
+my $t = reftype($_[0]) if ref($_[0]);
+return $t;
+`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			wantSilentResolved(t, "use Scalar::Util qw(reftype refaddr blessed);\n"+src)
+		})
+	}
+}
+
+// TestNarrowKeepsRealLibSites reproduces the guard shape -- or absence of
+// one -- at a lib site the dba9 gate review classified REAL: perl 5.42 -w
+// does warn there, so psc check must still report it.
+func TestNarrowKeepsRealLibSites(t *testing.T) {
+	for name, src := range map[string]string{
+		// Safe.pm:424 -- reftype($sub) with no ref() or defined() proof: a
+		// plain non-ref $sub makes it undef.
+		"reftype_unguarded": `
+my ($sub) = @_;
+if (reftype($sub) ne 'CODE') { die "not a code ref" }
+`,
+		// CPAN/Distribution.pm:848 -- Cwd::realpath can itself return undef
+		// (an unresolvable path), and nothing here rules that out.
+		"realpath_unguarded": `
+use Cwd;
+my ($dir) = @_;
+my $a = Cwd::realpath($dir);
+return $a eq "/wanted";
+`,
+		// List::Util::sum with no arguments is undef; this reaches an
+		// operator with no guard on it at all.
+		"sum_no_args_unguarded": `
+use List::Util qw(sum);
+my $s = sum();
+return $s + 1;
+`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			wantReportedResolved(t, "use Scalar::Util qw(reftype);\n"+src, infer.CodeCoercionMismatch)
+		})
+	}
+}
+
+// TestReftypeOfRefIsStr: reftype selects its Ref candidate, Str, not the
+// Any candidate's Str|Undef, once a ref() guard proves its argument a
+// Ref -- Scalar/Util.tpm's `multi sub reftype`, RFC 0001 "Multi
+// declarations". perl 5.42 -w is silent concatenating reftype($x) once
+// ref($x) held; it is not silent, and psc check must still report it,
+// before any such guard.
+func TestReftypeOfRefIsStr(t *testing.T) {
+	wantSilentResolved(t, `use Scalar::Util qw(reftype);
+my ($x) = @_;
+if (ref($x)) {
+    my $t = reftype($x) . "!";
+    print $t;
+}
+`)
+	wantReportedResolved(t, `use Scalar::Util qw(reftype);
+my ($x) = @_;
+my $t = reftype($x) . "!";
+print $t;
+`, infer.CodeCoercionMismatch)
+}
+
+// Symbol.tpm (db4c, scratchpad/db4c-symbol-deferred/) stays parked, not
+// shipped from here: declaring `qualify` a multi by argument type (Ref
+// returns that Ref, Str returns Str) measures correctly standing alone,
+// but IO/Handle.pm:515 calls it with a second argument, `caller`, whose
+// own type -- CORE.tpm's `caller (Optional[Int] $level) List` -- answers
+// as List in the UnknownCtx a `$`-shaped declared-call slot leaves a
+// scalar argument in (calls.go's slotContext, deliberately, so an
+// aggregate there reaches checkArg as itself). Neither multi candidate's
+// `Optional[Str] $pkg` fits a List argument, so types.Select's
+// SelectShaped falls back to its coercion retry (select.go): with no
+// Alias parameter to rule a candidate out, fitsContainers passes both
+// trivially, and the retry zeroes every argument to Unknown, discarding
+// $_[0]'s own proven Ref along with it, and leaving the call's type the
+// full join, Str|GlobRef. The `$_[0]` and `ref` guard narrowing issue
+// 01a156e4 asked for does work, and is tested above under
+// arg0_ref_guard; the second half, qualify's multi, is sound on its own
+// but exposed by this call is a Select gap this issue did not fix.
+//
+// List::Util::sum is NOT declared by arity: issue 01a156e4's gate record
+// has the reason. types.Ambiguity (select.go) rejects a true arity split
+// -- `(List @list = die) Num` beside `(List @list) Undef` -- because both
+// take a lone `List` parameter, so asSpecific holds both ways at every
+// arity but 0 and nothing else distinguishes them there; Select has no
+// axis (context, invocant, a differently-shaped parameter) to settle a
+// tie between two same-shape slurpy candidates. sum keeps one signature,
+// `(List @list) Num|Undef`, corrected from the shipped Int|Undef (measured:
+// `sum(1.5, 2)` is Num, not Int) but not narrowed by arity.

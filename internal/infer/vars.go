@@ -47,11 +47,18 @@ func (a *analysis) lookupVar(sigil, name string) types.Type {
 var derefTypes = map[string]types.Type{"@": types.Array, "%": types.Hash, "$#": types.Int}
 
 // index types an element read, and
-// the check on its index.
+// the check on its index. A literal index a guard has narrowed, `$arr[0]`
+// after `ref $arr[0]`, reads the guard's shadow (flow.go's guardVarName and
+// isElementVarName); any other read is the container's element type.
 func (a *analysis) index(n *lower.Index) types.Type {
 	a.walkBase(n.Base, n.Arrow, "@")
 	if n.Idx != nil {
 		a.checkIndex(n.Idx, a.walk(n.Idx))
+	}
+	if name := guardVarName(n); name != "" {
+		if sym, ok := a.st.Lookup(name); ok && sym.Type != types.Unknown {
+			return sym.Type
+		}
 	}
 	return a.element(containerName(n.Base, n.Arrow, "@"))
 }

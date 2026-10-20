@@ -74,7 +74,7 @@ func (a *analysis) ifStmt(n *lower.IfStmt) {
 	exhaustive := hasElse
 	if elsif != nil {
 		var more []map[string]types.Type
-		more, exhaustive = a.elsif(elsif, pre)
+		more, exhaustive = a.elsif(elsif, a.elsifPre(pre, a.flatten(guard, !negate)))
 		ends = append(ends, more...)
 	}
 
@@ -120,6 +120,51 @@ func (a *analysis) restore(pre map[string]types.Type) {
 	for name, typ := range pre {
 		a.st.UpdateType(name, typ)
 	}
+}
+
+// elsifPre is pre, narrowed by guards for the elsif chain that runs only
+// where guards holds: an elsif's condition is reached only once every
+// earlier condition in its chain has failed, so each variable that failure
+// narrows is narrowed again before the elsif's own guard is read. perl 5.42
+// -w is silent on Test2::Mock's `my $type = reftype($val); if (!$type) {
+// ... } elsif ($type eq 'HASH') { ... }`: the first branch's failure rules
+// out undef before the elsif's `eq` runs.
+//
+// Only a guard flattened to hold (Negated false) is kept: NarrowByGuard,
+// which such a leaf applies, only ever removes Undef or intersects with
+// Ref -- safe to carry across branches, as the primary's own guard var
+// being unconditionally falsy or unconditionally a ref stays true in the
+// elsif too. NegateGuard, a Negated leaf's, is the failed-guard case
+// (`defined($x)` failing makes $x exactly Undef) and is precise about the
+// primary's own condition, not safe to feed into the elsif's unrelated
+// one: TestFlowNarrowingElsifChainThreeBranches's `if (defined($x)) {}
+// elsif (ref($x)) {}` must still read $x as Ref in the elsif, not as the
+// None a Negated defined-guard narrowing would leave it.
+func (a *analysis) elsifPre(pre map[string]types.Type, guards []*guardResult) map[string]types.Type {
+	var held []*guardResult
+	for _, g := range guards {
+		if !g.Negated {
+			held = append(held, g)
+		}
+	}
+	if len(held) == 0 {
+		return pre
+	}
+	a.restore(pre)
+	shadows, _ := guardShadows(held, a.st)
+	if len(shadows) == 0 {
+		return pre
+	}
+	next := make(map[string]types.Type, len(pre))
+	for name, typ := range pre {
+		next[name] = typ
+	}
+	for name, typ := range shadows {
+		if _, ok := next[name]; ok {
+			next[name] = typ
+		}
+	}
+	return next
 }
 
 // branch walks b, one body of a conditional, under guards and from the
@@ -316,8 +361,9 @@ func (a *analysis) before(x, y lower.Node) bool {
 // elsif walks an elsif, which narrows its own body by its own guard and
 // its else by the negation, each body from the types pre holds, as branch
 // says. It returns each body's end types, its trailing chain's included,
-// and whether the chain ends in an else. The conditions before it do not
-// narrow it.
+// and whether the chain ends in an else. pre already holds every earlier
+// condition's failure narrowed in, as elsifPre says; a further elsif in the
+// chain gets this one's failure narrowed in too.
 func (a *analysis) elsif(n *lower.IfStmt, pre map[string]types.Type) ([]map[string]types.Type, bool) {
 	a.restore(pre)
 	a.condition(n.Cond)
@@ -337,7 +383,7 @@ func (a *analysis) elsif(n *lower.IfStmt, pre map[string]types.Type) ([]map[stri
 	case *lower.Block:
 		return append(ends, a.branch(e, a.flatten(guard, true), pre)), true
 	case *lower.IfStmt:
-		more, exhaustive := a.elsif(e, pre)
+		more, exhaustive := a.elsif(e, a.elsifPre(pre, a.flatten(guard, true)))
 		return append(ends, more...), exhaustive
 	case nil:
 	default:
@@ -901,8 +947,10 @@ func guardsOnly(g *guardResult, name string) bool {
 }
 
 // guardVarName is the name a guard narrows: $x for a scalar, and the text
-// of an element read with a literal index, $_[0], which only a user guard's
-// parameter ever matches.
+// of an element read with a literal index, `$arr[0]`. $_[0] is this
+// shape too, which is how a user guard's parameter matches it; any other
+// named array's literal-index element is read back the same way by index
+// (vars.go), so a guard on it narrows that read.
 func guardVarName(n lower.Node) string {
 	switch n := n.(type) {
 	case *lower.Var:
@@ -917,6 +965,14 @@ func guardVarName(n lower.Node) string {
 		}
 	}
 	return ""
+}
+
+// isElementVarName reports whether name is guardVarName's shape for an
+// element read with a literal index, `$arr[0]`: the symbol table never
+// defines one, so a guard on it would otherwise be skipped as a variable
+// never declared.
+func isElementVarName(name string) bool {
+	return strings.HasSuffix(name, "]")
 }
 
 // className is the class an isa tests against: the bareword on its right.

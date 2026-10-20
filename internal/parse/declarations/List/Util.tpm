@@ -32,8 +32,24 @@ sub pairfirst :export_ok :prototype(&@) (Code &block, List @list) List;
 # sum, max, min, maxstr, minstr and product measure numeric or string
 # across the list; each is undef on an empty list except sum0 and
 # product, measured on 5.42.0: `sum()` and `max()` are undef, `sum0()`
-# is 0, `min(1.5, 2, 3)` is 1.5 (Num, not Int).
-sub sum :export_ok :prototype(@) (List @list) Int|Undef;
+# is 0, `min(1.5, 2, 3)` is 1.5 (Num, not Int), and `sum(1,2,3)` is Num
+# too (Int, a Num subtype), not the Int the single signature below
+# states on its own: a true arity split -- one candidate `(List @list
+# = die) Num`, another `(List @list) Undef` -- was tried and dropped.
+# types.Ambiguity (select.go) rejects it: both candidates take a lone
+# `List` parameter, so for every arity at least one takes (every arity
+# but 0, where only the unrequired one takes), asSpecific holds both
+# ways (an identical parameter type is each as specific as the
+# other's), and nothing else distinguishes them at that arity -- the
+# same shape Select's own doc calls ambiguous for "(Int $a, Num $b)"
+# beside "(Num $a, Int $b)". Unlike that example, perl's own semantics
+# fully settle this one (sum's definedness is arity, nothing else), so
+# the gap is in Select, not in what perl decides; a multi needs some
+# other axis -- context, an invocant, a differently-shaped parameter --
+# to settle a tie between two same-shape slurpy candidates, which this
+# does not have. Left as one signature, reporting Undef on every call,
+# pending that gap's fix.
+sub sum :export_ok :prototype(@) (List @list) Num|Undef;
 sub sum0 :export_ok :prototype(@) (List @list) Int;
 sub max :export_ok :prototype(@) (List @list) Num|Undef;
 sub min :export_ok :prototype(@) (List @list) Num|Undef;

@@ -40,9 +40,20 @@ sub readonly :export_ok :prototype($) (Any $v) Int;
 # non-reference. reftype is the underlying type Perl's `ref` names
 # ("HASH", "ARRAY", ...), or undef for a non-reference. Measured on
 # 5.42.0 with a blessed hashref: refaddr matches qr/^\d+$/ and reftype
-# is "HASH"; on a plain number both are undef.
-sub refaddr :export_ok :prototype($) (Any $ref) Int|Undef;
-sub reftype :export_ok :prototype($) (Any $ref) Str|Undef;
+# is "HASH"; on a plain number both are undef. Both are defined for
+# ANY reference, blessed or not, so a candidate on Ref alone drops the
+# Undef a call on an argument already proven a reference would
+# otherwise carry (RFC 0001, "Multi declarations": the more specific
+# candidate wins only where the argument's type is wholly Ref). The
+# `Any` candidate keeps the original `Int|Undef`/`Str|Undef`, not bare
+# Undef: an argument whose type is a union that still has non-Ref bits
+# (an unnarrowed `my ($x) = @_`, typed Scalar) fits only this
+# candidate, and perl can still return a defined value for it at
+# runtime, so the safe join is kept rather than overclaiming Undef.
+multi sub refaddr :export_ok :prototype($) (Ref $ref) Int;
+multi sub refaddr :export_ok :prototype($) (Any $ref) Int|Undef;
+multi sub reftype :export_ok :prototype($) (Ref $ref) Str;
+multi sub reftype :export_ok :prototype($) (Any $ref) Str|Undef;
 
 # set_prototype takes a sub, as a block or a coderef, and a prototype
 # string, and returns the same coderef with that prototype set.
