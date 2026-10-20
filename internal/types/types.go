@@ -360,6 +360,15 @@ func typeSatisfies(actual, required Type, strict bool) bool {
 		return !strict
 	}
 
+	// required == Code is always a `&`-sigil parameter (the parser's
+	// slotHolds refuses any other type there), and RFC 0001's prototype
+	// table says `&` is "a block or a code reference when first;
+	// elsewhere `sub {...}` or `\&name`" -- so a caller who passes an
+	// existing coderef, not a literal block, satisfies it too.
+	if required == Code && IsSubtype(actual, CodeRef) {
+		return true
+	}
+
 	// (1) Membership: all of actual's bits are within required.
 	if IsSubtype(actual, required) {
 		return true

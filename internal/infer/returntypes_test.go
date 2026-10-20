@@ -771,6 +771,59 @@ func TestReturnOracleIgnoresTheCallersPerlLib(t *testing.T) {
 	}
 }
 
+// xsUtilities are the XS utility modules declared as one batch (parse's
+// heldtoperl_test.go holds the same list to perl's prototypes and exports).
+var xsUtilities = []string{"Scalar::Util", "List::Util", "Cwd", "Data::Dumper", "MIME::Base64", "Storable"}
+
+// TestXSUtilitiesReturnTypes holds the XS utility modules' declared return
+// types to perl, with the call cases in testdata/oracle/.
+func TestXSUtilitiesReturnTypes(t *testing.T) {
+	holdReturnTypes(t, xsUtilities...)
+}
+
+// TestScalarUtilBlessedUnblessedReturnIsDeclared: blessed on an unblessed
+// reference returns undef, which Scalar/Util.tpm's declared Str|Undef
+// admits; testdata/oracle/Scalar-Util.pl's blessed case includes one,
+// {}. Measured on 5.42.0, `Scalar::Util::blessed({})` is undef.
+func TestScalarUtilBlessedUnblessedReturnIsDeclared(t *testing.T) {
+	holdReturnTypes(t, "Scalar::Util")
+}
+
+// TestMIMEBase64InvalidInputReturnIsDeclared: decode_base64 given invalid
+// base64 returns the garbage bytes its decoder produces, a Str,
+// MIME/Base64.tpm's declared return type for it; testdata/oracle/
+// MIME-Base64.pl's decode_base64 case includes one, 'not valid base64
+// !!!'. Measured on 5.42.0, `MIME::Base64::decode_base64('not valid
+// base64 !!!')` is defined, not undef, and not a death.
+func TestMIMEBase64InvalidInputReturnIsDeclared(t *testing.T) {
+	holdReturnTypes(t, "MIME::Base64")
+}
+
+// TestXSUtilitiesOracleStaysInScratch: Storable's oracle cases (fixture.store,
+// store.out, and the rest) write under the oracle's temp directory, never
+// the package directory `go test` runs from -- running Storable's return-type
+// oracle leaves that directory's entries unchanged.
+func TestXSUtilitiesOracleStaysInScratch(t *testing.T) {
+	before := dirEntries(t, ".")
+	holdReturnTypes(t, "Storable")
+	after := dirEntries(t, ".")
+	assert.Equal(t, before, after, "Storable's oracle cases wrote outside the test's scratch directory")
+}
+
+// dirEntries is the sorted names dir holds, for before/after comparisons
+// that must see no new file appear.
+func dirEntries(t *testing.T, dir string) []string {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	names := make([]string, len(entries))
+	for i, e := range entries {
+		names[i] = e.Name()
+	}
+	sort.Strings(names)
+	return names
+}
+
 // pureExporters is the pure-Perl exporters batch (01a1464e-db4c): every
 // module whose .tpm declares the names a `use` of it installs. Symbol is
 // held back; see the matching comment in internal/parse/heldtoperl_test.go.

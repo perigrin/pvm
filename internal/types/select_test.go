@@ -554,3 +554,48 @@ func TestSelectParameterlessCandidateBesideArgs(t *testing.T) {
 	cands := []Signature{sig(Str), sig(List, scalar("a", Any), scalar("b", Any), scalar("c", Any), scalar("t", Num))}
 	wantSelected(t, cands, []Type{Undef, Undef, Undef, Str}, 1, List)
 }
+
+// optional is a scalar parameter of type t that need not be given,
+// `Optional[Str] $pkg`.
+func optional(name string, t Type) Param {
+	return Param{Name: name, Sigil: '$', Type: t}
+}
+
+// qualifyCandidates are Symbol::qualify's declared shape: a Ref argument
+// returns that Ref, a Str one a Str, both taking an optional second
+// argument neither discriminates on.
+var qualifyCandidates = []Signature{
+	sig(GlobRef, scalar("name", Ref), optional("pkg", Str)),
+	sig(Str, scalar("name", Str), optional("pkg", Str)),
+}
+
+// TestSelectCoercionRetryKeepsFittingArgs: issue 01a156e4's gate record,
+// "the Select gap". A call whose coercion retry (the `len(fit) == 0`
+// branch above) is reached because one argument fits no candidate must
+// not also forget an argument that already does: IO/Handle.pm:515's
+// `qualify($_[0], caller)` has $_[0] proven a Ref by its own `ref($_[0])`
+// guard, and `caller`'s declared List does not fit either candidate's
+// `Optional[Str] $pkg` (List is not List-via-Str the way a $ slot
+// otherwise reads an aggregate -- see calls.go's slotContext). Before
+// this, zeroing every argument for the retry zeroed $_[0] too, so the
+// call joined to Str|GlobRef instead of selecting the Ref candidate.
+func TestSelectCoercionRetryKeepsFittingArgs(t *testing.T) {
+	wantSelected(t, qualifyCandidates, []Type{Ref, List}, 0, GlobRef)
+}
+
+// TestSelectUnknownAtNonDiscriminatingPositionDecides: issue 01a156e4's
+// gate record, "the Select gap", second half. An Unknown argument at a
+// position every still-fitting candidate takes the same way cannot
+// change which is most specific, so it must not force Undecided either:
+// Encode::encode's `encode($encoding, $text, $check)` has $text proven
+// Str (by `join("", @text)`, never undef) and selects the Str candidate
+// even though $encoding ($$self{ENCODING}, a hash element) is Unknown --
+// $encoding's own slot, `Str|Object`, is identical on both candidates,
+// so it never distinguishes them.
+func TestSelectUnknownAtNonDiscriminatingPositionDecides(t *testing.T) {
+	cands := []Signature{
+		sig(Str, scalar("encoding", Str|Object), scalar("string", Str), scalar("check", Int|CodeRef)),
+		sig(Str|Undef, scalar("encoding", Str|Object), scalar("string", Str|Undef), scalar("check", Int|CodeRef)),
+	}
+	wantSelected(t, cands, []Type{Unknown, Str, Code}, 0, Str)
+}

@@ -202,6 +202,27 @@ func TestArrayCopyKeepsElementType(t *testing.T) {
 	}
 }
 
+// TestHashDerefCopyDoesNotRecordItsOwnScalarCountAsElemType: `%data =
+// %$self` hands %data its referent's elements, not `%$self`'s own value
+// -- a hash in scalar context is its key count, an Int. Recording that
+// Int as every element's type, as an untracked copied array's source
+// gives Unknown rather than its own type (TestArrayCopyKeepsElementType
+// above), would make an unrelated key's read, `$data{foo}`, type as Int
+// rather than Unknown and wrongly satisfy nothing it should. Measured on
+// 5.42.0, `Storable::dclone($data{foo})` with `%data = %$self` and no
+// "foo" key in %$self dies "Not a reference", never silently passing an
+// Int where dclone wants a Ref -- the honest answer for an unlisted key
+// is Unknown, which this does not check as a type mismatch either way.
+func TestHashDerefCopyDoesNotRecordItsOwnScalarCountAsElemType(t *testing.T) {
+	src := "my $self = {};\nmy %data = %$self;\n"
+	_, _, st := analyzeLowered([]byte(src), nil, infer.Options{})
+	if sym, ok := st.Lookup("%data"); ok && sym.ElemType != types.Unknown {
+		t.Errorf("%q: %%data's elements are %v, want Unknown", src, sym.ElemType)
+	}
+
+	wantSilent(t, "use Storable qw/dclone/;\nmy $self = {};\nmy %data = %$self;\ndclone($data{foo});\n")
+}
+
 // A reference-aliasing declaration without parens takes its initialiser
 // in scalar context, as it binds the one reference it is given: perl
 // 5.42, under `use feature qw(refaliasing declared_refs)`, `my \@a = f()`

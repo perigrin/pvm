@@ -77,6 +77,13 @@ func SelectShaped(cands []Signature, args []Type, shapes string, ctx Context) Se
 		// the call site reports the coercion. A backslashed container
 		// coerces nothing, so a mismatch there still rules a candidate out,
 		// before context chooses among those left.
+		//
+		// Only the arguments coercedArgs finds unfit for every coercing
+		// candidate are taken as Unknown: one that already fits some of
+		// them keeps its own type, so it can still decide most-specific
+		// below -- IO/Handle.pm's `qualify($_[0], caller)`, where $_[0] is
+		// proven a Ref and `caller`'s List fits neither candidate's
+		// `Optional[Str] $pkg`, still selects qualify's Ref candidate.
 		var kept []int
 		var coercing []Signature
 		for i, c := range cands {
@@ -84,7 +91,7 @@ func SelectShaped(cands []Signature, args []Type, shapes string, ctx Context) Se
 				kept, coercing = append(kept, i), append(coercing, c)
 			}
 		}
-		args = make([]Type, len(args))
+		args = coercedArgs(coercing, args)
 		for _, j := range Taking(coercing, args, shapes, ctx) {
 			fit = append(fit, kept[j])
 		}
@@ -92,7 +99,7 @@ func SelectShaped(cands []Signature, args []Type, shapes string, ctx Context) Se
 	if len(fit) == 0 {
 		return Selection{Outcome: Failed, Candidate: -1}
 	}
-	if len(fit) == 1 || !slices.Contains(args, Unknown) {
+	if len(fit) == 1 || !unknownDiscriminates(cands, fit, args) {
 		if best, ok := mostSpecific(cands, fit, len(args)); ok {
 			return Selection{Outcome: Selected, Candidate: best, Returns: cands[best].Returns}
 		}
@@ -102,6 +109,55 @@ func SelectShaped(cands []Signature, args []Type, shapes string, ctx Context) Se
 		joined = Join(joined, cands[i].Returns)
 	}
 	return Selection{Outcome: Undecided, Candidate: -1, Returns: joined}
+}
+
+// coercedArgs is args for the coercion retry: a position whose argument
+// already fits some candidate of coercing keeps that argument's own
+// type, and only a position fitting none of them is taken as Unknown.
+// A candidate coercedArgs reached only through fitsContainers's vacuous
+// "no aliased parameter to rule it out" -- a zero-parameter one beside
+// arguments its arity alone will exclude -- has no opinion on any
+// position, and is skipped rather than consulted.
+func coercedArgs(coercing []Signature, args []Type) []Type {
+	out := slices.Clone(args)
+	for i, a := range out {
+		if a == Unknown {
+			continue
+		}
+		fits := false
+		for _, c := range coercing {
+			if len(c.Params) > 0 && IsSubtype(a, c.paramType(i)) {
+				fits = true
+				break
+			}
+		}
+		if !fits {
+			out[i] = Unknown
+		}
+	}
+	return out
+}
+
+// unknownDiscriminates reports whether args has an Unknown argument at a
+// position where fit's candidates' parameter types actually differ: only
+// there can the missing information change which candidate is most
+// specific. An Unknown at a position every fit candidate takes the same
+// way -- Encode::encode's $encoding, `Str|Object` on both candidates --
+// cannot: whichever type the argument turns out to be, every fit
+// candidate takes it identically, so it decides nothing between them.
+func unknownDiscriminates(cands []Signature, fit []int, args []Type) bool {
+	for i, a := range args {
+		if a != Unknown {
+			continue
+		}
+		first := cands[fit[0]].paramType(i)
+		for _, j := range fit[1:] {
+			if cands[j].paramType(i) != first {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // SelectInvoked is SelectShaped for a call that writes an invocant, the

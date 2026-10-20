@@ -1,0 +1,37 @@
+# ABOUTME: Declares what `use Symbol` exports: gensym, ungensym, qualify, qualify_to_ref bare,
+# ABOUTME: delete_package and geniosym by request. Measured on perl 5.42.0 with Symbol 1.09.
+package Symbol;
+
+# gensym returns a reference to a fresh anonymous glob, always: measured
+# on 5.42.0, prototype() reports "".
+sub gensym :export () GlobRef;
+# ungensym's body is empty, so it returns nothing, as a bare `return`
+# does: measured on 5.42.0, prototype() reports "$".
+sub ungensym :export (Any $sym) Void;
+# qualify returns the argument unchanged when it is a reference ("References
+# are left unchanged under the assumption that they are glob references",
+# per its docs), and the qualified name as a Str otherwise: measured on
+# 5.42.0, qualify(\*STDOUT) returns that same GlobRef, and qualify("x")
+# "main::x". Declared by argument type, RFC 0001 "Multi declarations", so a
+# caller already holding a Ref -- IO::Handle's `qualify($_[0], caller) if
+# ref($_[0])` -- keeps a Ref rather than Str|GlobRef. Prototype is "$;$".
+multi sub qualify :export (Ref $name, Optional[Str] $pkg) GlobRef;
+multi sub qualify :export (Str $name, Optional[Str] $pkg) Str;
+# qualify_to_ref always returns a glob reference, whichever shape its name
+# argument is: measured on 5.42.0, qualify_to_ref(\*STDOUT) returns that
+# same GlobRef, and qualify_to_ref("x") a fresh one. One signature covers
+# both, its parameter widened to the two shapes qualify's docs describe,
+# since the return does not fork on which was given. Prototype is "$;$".
+sub qualify_to_ref :export (Str|Ref $name, Optional[Str] $pkg) GlobRef;
+# delete_package answers scalar context only (it never returns an Array
+# or Hash), so the oracle never calls it in list context, where measured
+# on 5.42.0 a `return;` with no package found yields the empty list:
+# only its scalar reads need stating. A package found and deleted
+# returns the bare glob `delete` took out of the parent stash, which
+# observe_types.pl's ref-based test reports as Str, not a GlobRef (no
+# reference was ever taken of it); a package not found returns undef.
+# Prototype is "$".
+sub delete_package :export_ok (Str $pkg) Str|Undef;
+# geniosym forces the IO slot of a fresh anonymous glob and returns it,
+# always blessed: measured on 5.42.0, prototype() reports "".
+sub geniosym :export_ok () Object;

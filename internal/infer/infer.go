@@ -52,16 +52,17 @@ func Analyze(f *lower.File, pos *lower.Positions, idx *ProjectIndex, opts Option
 // collected and nothing walked yet.
 func newAnalysis(f *lower.File, pos *lower.Positions, idx *ProjectIndex, opts Options) *analysis {
 	return &analysis{
-		pos:         pos,
-		idx:         idx,
-		opts:        opts,
-		st:          collectDeclarations(f, pos),
-		annotations: map[lower.ID]types.Type{},
-		diags:       []Diagnostic{},
-		subs:        fileSubs(f),
-		assigned:    assignedNames(f),
-		evalCtx:     map[lower.ID]types.Context{},
-		classTypes:  map[lower.ID]string{},
+		pos:            pos,
+		idx:            idx,
+		opts:           opts,
+		st:             collectDeclarations(f, pos),
+		annotations:    map[lower.ID]types.Type{},
+		diags:          []Diagnostic{},
+		subs:           fileSubs(f),
+		assigned:       assignedNames(f),
+		evalCtx:        map[lower.ID]types.Context{},
+		classTypes:     map[lower.ID]string{},
+		undecidedUndef: map[lower.ID]bool{},
 	}
 }
 
@@ -87,6 +88,18 @@ type analysis struct {
 	// classTypes is the class of the object a constructor call makes,
 	// keyed by the call's id, for the assignment that takes it.
 	classTypes map[lower.ID]string
+	// undecidedUndef marks a declared call's own id when its resolved
+	// return carries the Undef bit beside some other bit -- one outcome
+	// among several the declaration itself states, whether from a
+	// single candidate (Scalar::Util::blessed's `(Any $ref) Str|Undef`)
+	// or types.Select choosing or joining among several (markPossibleUndef,
+	// calls.go) -- rather than the call's own arguments proving the
+	// return could be nothing else. checkOperand and checkArg read this
+	// to apply WarnPossibleUndef's default silence to exactly that
+	// Undef, never to one a call's own arguments already proved
+	// (List::Util::sum's `()` candidate, resolved whole to Undef, has no
+	// other bit left to be silent about).
+	undecidedUndef map[lower.ID]bool
 	// modifier is the `if` modifier whose match guards the body being
 	// walked, which a capture in that body reads, or nil.
 	modifier *lower.IfStmt
@@ -639,6 +652,19 @@ type Options struct {
 	// literal known not to be numeric is reported either way, as perl warns
 	// on `"abc" + 1`.
 	WarnLossyCoercion bool
+
+	// WarnPossibleUndef reports an Undef that reaches a value only
+	// through an Undecided multi call's join of its candidates' returns
+	// (perigrin, 2026-10-20): a call site types.Select could not decide
+	// between -- Scalar::Util::refaddr given an argument of Unknown
+	// type, say -- joins Int and Int|Undef to Int|Undef, and by default
+	// that Undef is accepted rather than reported, the same way an
+	// Unknown argument itself is. Under WarnPossibleUndef it is
+	// reported as an ordinary coercion mismatch. A Selected call's own
+	// declared return, Int|Undef standing alone, is not this: it
+	// reports either way, as it always has, since nothing about it is
+	// a join of what the call site could not decide between.
+	WarnPossibleUndef bool
 }
 
 // satisfies reports whether actual satisfies required under opts.
@@ -1233,9 +1259,17 @@ func flattenGuards(guard *guardResult, negate bool) []*guardResult {
 // type of one guard becomes the input type for the next), so that compound
 // conditions on the same variable (e.g. defined($x) && ref($x)) correctly
 // intersect their effects. A variable never declared is skipped, so no
-// phantom shadow is made for it, except under a referent guard: what
+// phantom shadow is made for it, except under a referent guard, where what
 // `ref \$v eq 'GLOB'` narrows $v to does not depend on how $v was typed,
-// and a variable a sub body declares is not found from the lowered walk.
+// and a variable a sub body declares is not found from the lowered walk, or
+// for an element guard var name (`$results[0]`), which guardVarName gives a
+// name for but which the symbol table never defines: index reads the same
+// name back (vars.go), so a guard on a named array's literal-index element
+// narrows just that read, perl 5.42 -w silent on JSON::PP's `if (@results
+// and ref $results[0]) { if (refaddr($obj) eq refaddr($results[0])) {...`.
+// $_, a grep or map block's topic, is the same story: no `my $_` ever
+// defines it, yet perl 5.42 -w is silent on `grep { ref($_) &&
+// reftype($_) eq 'CODE' } @list`.
 func guardShadows(guards []*guardResult, st *SymbolTable) (map[string]types.Type, map[string]string) {
 	// Build accumulated narrowed types by applying guards sequentially.
 	// working tracks the current type for each variable as guards are applied,
@@ -1252,7 +1286,7 @@ func guardShadows(guards []*guardResult, st *SymbolTable) (map[string]types.Type
 		currentType, seen := working[guard.VarName]
 		if !seen {
 			sym, found := st.Lookup(guard.VarName)
-			if !found && guard.Guard.Kind != types.GuardReferent {
+			if !found && guard.Guard.Kind != types.GuardReferent && !isElementVarName(guard.VarName) && guard.VarName != "$_" {
 				// Variable was never declared — skip to avoid phantom shadows.
 				continue
 			}

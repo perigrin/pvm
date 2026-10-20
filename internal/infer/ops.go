@@ -261,6 +261,9 @@ func (a *analysis) narrow(v *lower.Var, init lower.Node, t types.Type) types.Typ
 	if class := a.classTypes[init.Meta().ID]; class != "" {
 		a.st.UpdateClassType(name, class)
 	}
+	if v.Sigil == "$" {
+		a.st.UpdatePossibleUndef(name, a.undecidedUndef[init.Meta().ID])
+	}
 	return t
 }
 
@@ -336,7 +339,7 @@ func (a *analysis) checkOperand(n lower.Node, expected types.Type, op, side stri
 		return
 	}
 	severity, message, ok := operandMismatch(a.opts, a.typeOf(n), expected, op, side)
-	if !ok || a.silenced(a.typeOf(n), expected) {
+	if !ok || a.silenced(a.typeOf(n), expected) || a.possibleUndef(n, a.typeOf(n), expected) {
 		return
 	}
 	start, end, _ := a.pos.Span(n.Meta().ID)

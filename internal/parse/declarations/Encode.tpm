@@ -53,14 +53,10 @@ sub decode_utf8 :export(all,default) :prototype($;$) (Str|Undef $octets, Int|Cod
 sub define_encoding :export_ok(all) (List @args) Object;
 
 # Measured, encode(undef) is undef, the same as decode and the two
-# below it. Declared Str|Undef here, it adds a new, unguarded
-# psc-check diagnostic at Pod/Text.pm's own call (encode($encoding,
-# $text, $check), both always defined there, so perl never actually
-# warns at that line): a sound Str|Undef return with no way to narrow
-# it back down after a definedness check is exactly the gap issue
-# 01a156e4 is closing. Until it lands, this one stays Str, perigrin's
-# ruling to fix the narrowing first rather than carry a false positive.
-sub encode :export(all,default) :prototype($$;$) (Str|Object $encoding, Str|Undef $string, Int|CodeRef|Undef $check = 0) Str;
+# below it: declared by argument type (RFC 0001, "Multi declarations"),
+# a defined $string gives a defined Str.
+multi sub encode :export(all,default) :prototype($$;$) (Str|Object $encoding, Str $string, Int|CodeRef|Undef $check = 0) Str;
+multi sub encode :export(all,default) :prototype($$;$) (Str|Object $encoding, Str|Undef $string, Int|CodeRef|Undef $check = 0) Str|Undef;
 
 # encode_utf8 is documented to "never fail", but measured on 5.42.0,
 # encode_utf8(undef) is undef (with a "Use of uninitialized value"

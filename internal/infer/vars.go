@@ -47,11 +47,19 @@ func (a *analysis) lookupVar(sigil, name string) types.Type {
 var derefTypes = map[string]types.Type{"@": types.Array, "%": types.Hash, "$#": types.Int}
 
 // index types an element read, and
-// the check on its index.
+// the check on its index. A literal index a guard has narrowed, `$arr[0]`
+// after `ref $arr[0]`, reads the guard's shadow (flow.go's guardVarName and
+// isElementVarName); any other read is the container's element type.
 func (a *analysis) index(n *lower.Index) types.Type {
 	a.walkBase(n.Base, n.Arrow, "@")
 	if n.Idx != nil {
 		a.checkIndex(n.Idx, a.walk(n.Idx))
+	}
+	a.narrowDerefBase(n.Base, n.Arrow, types.ArrayRef)
+	if name := guardVarName(n); name != "" {
+		if sym, ok := a.st.Lookup(name); ok && sym.Type != types.Unknown {
+			return sym.Type
+		}
 	}
 	return a.element(containerName(n.Base, n.Arrow, "@"))
 }
@@ -63,6 +71,7 @@ func (a *analysis) key(n *lower.Key) types.Type {
 	if n.Key != nil {
 		a.walk(n.Key)
 	}
+	a.narrowDerefBase(n.Base, n.Arrow, types.HashRef)
 	name := containerName(n.Base, n.Arrow, "%")
 	if k, ok := constKey(n.Key); ok && name != "" {
 		if sym, ok := a.st.Lookup(name); ok {
@@ -72,6 +81,27 @@ func (a *analysis) key(n *lower.Key) types.Type {
 		}
 	}
 	return a.element(name)
+}
+
+// narrowDerefBase narrows base, a scalar an arrow dereference reads
+// through ($x->{k}, $x->[i]), to ref once the statement reading it is
+// reached at all: under `use strict 'refs'`, perl either autovivifies an
+// undef base into exactly this shape or dies on anything else it cannot
+// deref this way (measured on 5.42.0, `my $h; $h->{k}` leaves $h a
+// HashRef, and a defined non-ref there dies "Can't use string ... as a
+// HASH ref while 'strict refs' in use"), so code reached past the
+// statement runs only on the path where base now holds ref, whatever it
+// held before -- Math::BigInt's `my $zs = $z->{sign}; ... refaddr($x) eq
+// refaddr($z)` proves $z this way. A non-arrow read, `$h{k}`, derefs
+// nothing of its own: its base is the aggregate itself, not a scalar
+// holding a reference to one.
+func (a *analysis) narrowDerefBase(base lower.Node, arrow bool, ref types.Type) {
+	if !arrow {
+		return
+	}
+	if v, ok := base.(*lower.Var); ok && v.Sigil == "$" {
+		a.st.UpdateType("$"+v.Name, ref)
+	}
 }
 
 // constKey is the string a constant hash key spells: count for `{count}`,
@@ -228,6 +258,16 @@ func (a *analysis) elemType(n lower.Node) types.Type {
 		// `my @cmd = @_` holds what @_ holds.
 		if n.Sigil == "@" || n.Sigil == "%" {
 			return a.aggElemType(n)
+		}
+	case *lower.Deref:
+		// Same rule through a reference: `%data = %$self` holds whatever
+		// %$self holds, not `%$self`'s own value. What a dereferenced
+		// pointer holds element by element is not tracked back through
+		// it, so Unknown -- never the deref's own type, a Hash, narrowed
+		// by scalar context to its key count, an Int that would then
+		// stand for every key %data is asked to produce.
+		if n.Sigil == "@" || n.Sigil == "%" {
+			return types.Unknown
 		}
 	}
 	return a.annotations[n.Meta().ID]

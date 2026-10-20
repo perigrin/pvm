@@ -47,6 +47,17 @@ type Symbol struct {
 	Kind      SymbolKind
 	StartByte uint32
 	EndByte   uint32
+
+	// PossibleUndef carries a declared call's own possible-undef mark
+	// (markPossibleUndef, calls.go) onto the variable its result was
+	// assigned to, so a later read of the variable -- not only the call
+	// expression itself -- still answers WarnPossibleUndef's default
+	// silence (perigrin, 2026-10-20): `my $class = blessed($self); ...
+	// bless({...}, $class)` silences the same way `bless({...},
+	// blessed($self))` does. Set or cleared on every assignment
+	// (narrow, ops.go), so a variable reassigned from an ordinary value
+	// loses a stale mark from an earlier one.
+	PossibleUndef bool
 }
 
 // Scope is a single lexical scope that may refer back to its enclosing parent.
@@ -287,6 +298,20 @@ func (st *SymbolTable) UpdateClassType(name string, className string) bool {
 	for s := st.current; s != nil; s = s.parent {
 		if sym, ok := s.symbols[name]; ok {
 			sym.ClassType = className
+			s.symbols[name] = sym
+			return true
+		}
+	}
+	return false
+}
+
+// UpdatePossibleUndef walks the scope chain from the current scope to root,
+// looking for the first scope that contains name. If found, it updates the
+// symbol's PossibleUndef to v and returns true.
+func (st *SymbolTable) UpdatePossibleUndef(name string, v bool) bool {
+	for s := st.current; s != nil; s = s.parent {
+		if sym, ok := s.symbols[name]; ok {
+			sym.PossibleUndef = v
 			s.symbols[name] = sym
 			return true
 		}

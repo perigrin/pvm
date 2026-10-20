@@ -394,15 +394,22 @@ func TestDeriveMultiCandidatesGroupByParameters(t *testing.T) {
 }
 
 // TestDeriveMultiCandidatesRefusesInexpressible: candidates that differ in
-// two aliased positions, or in arity, or in a position that is not
-// aliased, derive no single prototype; nor does a candidate with an
-// invocant colon. Where the declaration requires a prototype by stating
-// one, that is an error naming the sub, never a guess. A stated `\[...]`
-// must also list its containers in the candidates' declaration order:
-// perl keeps a prototype as written (measured on 5.42, `sub f (\[@%])`
-// reports `\[@%]` and `sub g (\[%@])` reports `\[%@]`). Without a stated
+// two aliased positions, or in a position that is not aliased, derive no
+// single prototype; nor does a candidate with an invocant colon. Where
+// the declaration requires a prototype by stating one, that is an error
+// naming the sub, never a guess. A stated `\[...]` must also list its
+// containers in the candidates' declaration order: perl keeps a
+// prototype as written (measured on 5.42, `sub f (\[@%])` reports
+// `\[@%]` and `sub g (\[%@])` reports `\[%@]`). Without a stated
 // prototype the candidates have none, as perl reports none for `grep`
-// and `select`.
+// and `select`. The "arity" case below differs in param count too, but
+// stays refused here because its stated prototype is `\[%@]`, which
+// typesFromPrototype never derives (prototypeAdmitsArity, derive.go,
+// reads only a stated prototype typesFromPrototype can parse): a plain
+// trailing `@` or `%`, which it does read, admits any argument count,
+// so an arity-differing pair stated with one -- `()` beside `(Num $x,
+// List @rest)` -- is not refused this way
+// (TestDeriveMultiCandidatesAdmittedByArity).
 func TestDeriveMultiCandidatesRefusesInexpressible(t *testing.T) {
 	twoPositions := "multi sub f :prototype(%s) (Hash \\%%h, Hash \\%%g) List;\nmulti sub f :prototype(%s) (Array \\@a, Array \\@b) List;\n"
 	arity := "multi sub f :prototype(%s) (Hash \\%%h) List;\nmulti sub f :prototype(%s) (Array \\@a, Scalar $x) List;\n"
@@ -422,6 +429,35 @@ func TestDeriveMultiCandidatesRefusesInexpressible(t *testing.T) {
 		if proto, ok := facts.protos["f"]; len(facts.errs) > 0 || proto != "" || len(facts.signatures["f"]) != 2 {
 			t.Errorf("%q: errors %v, prototype %q (recorded %v), signatures %+v; want two candidates and no prototype", src, facts.errs, proto, ok, facts.signatures["f"])
 		}
+	}
+}
+
+// TestDeriveMultiCandidatesAdmittedByArity: a stated prototype whose
+// trailing slurpy admits every candidate's arity is accepted even
+// though the candidates' own derived prototypes differ in length --
+// perl's own prototype governs how a call is parsed, not which
+// candidate a given call resolves to (RFC 0001, "Multi declarations"),
+// and `(@)` parses any arity at all, covering `()` and `(Num $x, List
+// @rest)` both (List::Util::sum, measured: its real prototype is `@`,
+// issue 01a156e4). A `$@` stated beside it stays refused: it admits
+// only one argument or more, not zero, so it does not admit `()`.
+func TestDeriveMultiCandidatesAdmittedByArity(t *testing.T) {
+	src := "multi sub f :prototype(@) (Num $x, List @rest) Num;\nmulti sub f :prototype(@) () Undef;\n"
+	facts := readDeclaration([]byte(src), nil)
+	if len(facts.errs) > 0 {
+		t.Fatalf("%q: errors %v, want none", src, facts.errs)
+	}
+	if got := facts.protos["f"]; got != "(@)" {
+		t.Errorf("%q: prototype %q, want (@)", src, got)
+	}
+	if len(facts.signatures["f"]) != 2 {
+		t.Errorf("%q: signatures %+v, want both candidates kept", src, facts.signatures["f"])
+	}
+
+	narrower := "multi sub f :prototype($@) (Num $x, List @rest) Num;\nmulti sub f :prototype($@) () Undef;\n"
+	facts = readDeclaration([]byte(narrower), nil)
+	if len(facts.errs) != 1 {
+		t.Errorf("%q: errors %v, want one: $@ does not admit zero arguments", narrower, facts.errs)
 	}
 }
 
