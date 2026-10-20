@@ -139,6 +139,10 @@ for (@subs) {
 }
 
 open STDOUT, '>&', $report or die "cannot restore STDOUT: $!\n";
+# The caller matches "complete\n" as literal bytes: on Windows, STDOUT's
+# default :crlf layer would turn that \n into \r\n, so the report is sent
+# raw, same as every other OS already gets by default.
+binmode STDOUT;
 say 'complete';
 $complete = 1;
 

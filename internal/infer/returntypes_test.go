@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"sort"
 	"strconv"
@@ -260,7 +261,13 @@ func returnTypeFailures(t *testing.T, p perltest.Perl, r oracleRun) []string {
 		}
 	}
 
-	scratch := t.TempDir()
+	// Resolved, not t.TempDir()'s own path: macOS's /tmp is a symlink to
+	// /private/tmp, so perl's getcwd() (which resolves symlinks) would
+	// otherwise report a path that never string-equals $ENV{HOME} or
+	// $ENV{TMPDIR} set from the unresolved one, even though all three
+	// name the same directory (measured: TestReturnOracleRunsInScratchDir).
+	scratch, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
 	cmd := p.Command(args...)
 	cmd.Dir = scratch
 	cmd.Env = append(cmd.Env, "HOME="+scratch, "TMPDIR="+scratch)
@@ -510,6 +517,9 @@ func TestCarpReturnTypes(t *testing.T) {
 // TestConstantExportersReturnTypes holds Fcntl.tpm's and Socket.tpm's
 // return types to perl.
 func TestConstantExportersReturnTypes(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("Fcntl's Linux-only dnotify, seal and pipe-size constants (DN_ACCESS, F_SEAL_*, F_GETPIPE_SZ and the rest) are not defined on macOS's perl -- measured in CI job 39489951290: each dies calling it")
+	}
 	holdReturnTypes(t, "Fcntl", "Socket")
 }
 
@@ -806,6 +816,9 @@ func dirEntries(t *testing.T, dir string) []string {
 // declared return types to perl (perltest.PureExporters; see its
 // comment for Symbol's history), called with its oracle's cases.
 func TestPurePerlExportersReturnTypes(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skipf("Errno's Linux-only error codes (EADV and the rest) are not defined on %s's perl -- measured in CI job 39489951290: perl defines no sub EADV", runtime.GOOS)
+	}
 	holdReturnTypes(t, perltest.PureExporters...)
 }
 
@@ -875,6 +888,12 @@ func posixSignatures(t *testing.T) map[string][]types.Signature {
 
 // TestPOSIXReturnTypes holds POSIX.tpm's return types to perl.
 func TestPOSIXReturnTypes(t *testing.T) {
+	switch runtime.GOOS {
+	case "darwin":
+		t.Skip("POSIX's limit and locale constants differ on macOS's perl -- measured in CI job 39489951290: ARG_MAX, CHILD_MAX and others return a value instead of dying as on Linux, several LC_* categories and L_cuserid/cuserid are undefined, and getgrnam returns undef for a case that is a real group on Linux")
+	case "windows":
+		t.Skip(`oracle/POSIX.pl calls Fcntl::F_GETFD, which Windows's perl does not define -- measured in CI job 39489951290: "Your vendor has not defined Fcntl macro F_GETFD"`)
+	}
 	holdReturnTypes(t, "POSIX")
 }
 
@@ -924,7 +943,7 @@ func TestPOSIXStrtolContextReturnIsDeclared(t *testing.T) {
 		`my @l = POSIX::strtol("42abc", 10); my $s = POSIX::strtol("42abc", 10); print scalar(@l), ":", (defined $s ? "1" : "0"), "\n";`,
 	).Output()
 	require.NoError(t, err)
-	assert.Equal(t, "2:1\n", string(out), "strtol returns two values in list context and one in scalar context")
+	assert.Equal(t, "2:1", strings.TrimRight(string(out), "\r\n"), "strtol returns two values in list context and one in scalar context")
 
 	cands := posixSignatures(t)["strtol"]
 	require.Len(t, cands, 2, "strtol should have a list candidate and a scalar candidate")
@@ -958,6 +977,12 @@ func TestPOSIXReimplementedSubsAreNotNone(t *testing.T) {
 // TestXSLibrariesReturnTypes holds each XS library's declared return
 // types to perl (perltest.XSLibraries), called with its oracle's cases.
 func TestXSLibrariesReturnTypes(t *testing.T) {
+	switch runtime.GOOS {
+	case "darwin":
+		t.Skip("Time::HiRes's Linux-only clock ids (CLOCK_BOOTTIME, CLOCK_MONOTONIC_COARSE, CLOCK_REALTIME_COARSE, CLOCK_UPTIME_RAW) are undefined, or return a different type, on macOS's perl -- measured in CI job 39489951290")
+	case "windows":
+		t.Skip(`oracle/Time-HiRes.pl calls Time::HiRes::clock(), unimplemented on Windows's perl -- measured in CI job 39489951290: "Time::HiRes::clock(): unimplemented in this platform"`)
+	}
 	holdReturnTypes(t, perltest.XSLibraries...)
 }
 
@@ -1133,8 +1158,12 @@ func declaredVariables(t *testing.T, module string) map[string]types.Param {
 
 // TestConfigValuesFitDeclaredType: ruling 3 (perigrin, 2026-10-16).
 // %Config is declared Hash[Str|Undef], and every value perl's %Config
-// holds on 5.42.0 is a member of that element type -- 172 of them
-// undef, which Hash[Str] alone would exclude.
+// holds on 5.42.0 is a member of that element type -- some of them
+// undef, which Hash[Str] alone would exclude. Exactly how many are
+// undef depends on which build of 5.42.0 is running (measured: pvm's
+// own reference build has 172, CI's actions-setup-perl build has 174,
+// job 39489951290's Linux log), so that exact count is pinned only
+// against internal/perltest.Perl.IsReferenceBuild.
 func TestConfigValuesFitDeclaredType(t *testing.T) {
 	want := declaredVariables(t, "Config")["%Config"]
 	require.Equal(t, types.Hash, want.Type, "%%Config is not declared Hash")
@@ -1146,8 +1175,8 @@ func TestConfigValuesFitDeclaredType(t *testing.T) {
 	require.NoError(t, err)
 
 	var undef int
-	for _, line := range strings.Split(strings.TrimRight(string(out), "\n"), "\n") {
-		_, v, ok := strings.Cut(line, "\t")
+	for _, line := range strings.Split(strings.TrimRight(string(out), "\r\n"), "\n") {
+		_, v, ok := strings.Cut(strings.TrimRight(line, "\r"), "\t")
 		require.True(t, ok, "unparsed line %q", line)
 		got := types.Str
 		if v == "\x00UNDEF\x00" {
@@ -1156,9 +1185,15 @@ func TestConfigValuesFitDeclaredType(t *testing.T) {
 		assert.True(t, types.IsSubtype(got, want.Element),
 			"a %%Config value is %v, which the declared element type %v excludes", got, want.Element)
 	}
-	assert.Equal(t, 172, undef, "measured on perl 5.42.0: 172 of %%Config's values are undef")
+	assert.Greater(t, undef, 0, "no %%Config value is undef on this perl; Hash[Str] would have served as well as Hash[Str|Undef]")
 	assert.False(t, types.IsSubtype(types.Undef, types.Str),
 		"Hash[Str] would exclude the undef values Hash[Str|Undef] admits")
+
+	if !p.IsReferenceBuild(t) {
+		t.Logf("not the reference build (perl -V's useshrplib is not false): skipping the exact undef count, pinned only against it")
+		return
+	}
+	assert.Equal(t, 172, undef, "measured on perl 5.42.0's reference build: 172 of %%Config's values are undef")
 }
 
 // TestTestMoreBailOutNeverCalled: BAIL_OUT is declared None and is in
@@ -1260,6 +1295,9 @@ func TestFileStatMissingFileReturnIsDeclared(t *testing.T) {
 // TestIOExportersReturnTypes holds each module's declared return types
 // to perl (perltest.IOExporters), called with its oracle's cases.
 func TestIOExportersReturnTypes(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("FileHandle, IO::File and IO::Socket's Linux-only fcntl and socket-family constants (F_GETLK64, O_EXLOCK/O_SHLOCK and several AF_* families) are absent or return a different type on macOS's perl -- measured in CI job 39489951290")
+	}
 	holdReturnTypes(t, perltest.IOExporters...)
 }
 
@@ -1432,7 +1470,8 @@ func caseArities(t *testing.T, p perltest.Perl, module, casesPath string) map[st
 	out, err := cmd.Output()
 	require.NoError(t, err, "caseArities(%s): %s", module, stderr.String())
 	arities := map[string][]int{}
-	for _, line := range strings.Split(strings.TrimRight(string(out), "\n"), "\n") {
+	for _, line := range strings.Split(strings.TrimRight(string(out), "\r\n"), "\n") {
+		line = strings.TrimRight(line, "\r")
 		if line == "" {
 			continue
 		}
