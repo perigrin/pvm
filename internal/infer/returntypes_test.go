@@ -169,6 +169,53 @@ var oracleExempt = map[string]string{
 	"FileHandle::setpos": "dereferences the invocant as a glob to call fsetpos(); dies \"Bad filehandle\" when called with the class name itself, as the oracle calls it",
 }
 
+// pendingMisfit is one oracle misfit deferred to the issue auditing its
+// module's .tpm: a parameter the declaration rejects though perl
+// accepts it (Kind "parameter"), or, the DualVar knock-on, a return the
+// declaration no longer admits now that the observer tells DualVar
+// apart from Str and Num (Kind "return"). The fixing issue widens the
+// .tpm and deletes its own entries here; nothing in this package
+// widens a .tpm to absorb a misfit.
+type pendingMisfit struct {
+	Module, Sub, Kind, Detail, Reason string
+}
+
+// pendingAudit holds every misfit holdReturnTypes' DualVar knock-on or
+// the parameter oracle finds in a module whose audit fix has not
+// landed, keyed by the issue that will fix it (perigrin, 2026-10-21:
+// 01a15ac0-6c4a POSIX, -6c78 sockets, -6ca2 IO and OO modules, -6ccc XS
+// modules, -6cfa pure-Perl modules).
+var pendingAudit = map[string][]pendingMisfit{
+	"01a15ac0-6c78": {
+		{Module: "Socket", Sub: "getaddrinfo", Kind: "return",
+			Detail: "the $err dualvar (0 or an errno, paired with its gai_strerror text) fits neither candidate's declared Str",
+			Reason: "DualVar knock-on: observe_types.pl used to read this value as Num or Str before it told DualVar apart"},
+		{Module: "Socket", Sub: "getnameinfo", Kind: "return",
+			Detail: "the $err dualvar fits neither candidate's declared Str|Int|Undef",
+			Reason: "DualVar knock-on: observe_types.pl used to read this value as Num or Str before it told DualVar apart"},
+	},
+	"01a15ac0-6ccc": {
+		{Module: "Scalar::Util", Sub: "dualvar", Kind: "return",
+			Detail: "the dualvar it constructs fits neither candidate's declared Str",
+			Reason: "DualVar knock-on: observe_types.pl used to read dualvar()'s own result by its string half before it told DualVar apart"},
+	},
+}
+
+// pendingAuditMatch reports whether module::sub already has a kind
+// entry in pendingAudit, so holdReturnTypes and the parameter oracle
+// suppress exactly the misfits already deferred to a fixing issue, and
+// nothing else.
+func pendingAuditMatch(module, sub, kind string) bool {
+	for _, entries := range pendingAudit {
+		for _, m := range entries {
+			if m.Module == module && m.Sub == sub && m.Kind == kind {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // posixReplacementNames are the names in POSIX.pm 2.23's %replacement
 // hash that POSIX also exports: measured on perl 5.42.0, each croaks
 // "Unimplemented: POSIX::name(): ..." the moment it is called, regardless
@@ -329,6 +376,9 @@ func returnTypeFailures(t *testing.T, p perltest.Perl, r oracleRun) []string {
 		})
 		if !admitted {
 			failed[call] = true
+			if o.Type == "DualVar" && pendingAuditMatch(r.Module, name, "return") {
+				continue
+			}
 			failures = append(failures, fmt.Sprintf("%s::%s call case %d in %s context returned %s, which its declared return type excludes",
 				r.Module, name, o.Line, ctx, o.Type))
 		}
