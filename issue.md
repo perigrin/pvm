@@ -1,6 +1,6 @@
 ---
 title: Declare XSLoader, measure it against every module that uses it, and ship it only if resolution holds
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -11,16 +11,67 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:16.112056153Z
-updated: 2026-10-20T03:51:41.756926261Z
+updated: 2026-10-20T14:23:33.11956642Z
 sessions:
 - start_sha: 9e5ae578baacecaaf348477c8982d9720ed83cf0
-  end_sha: ""
-  commits: 0
+  end_sha: 2d724aa2ee71befeffe320ae82bc3d1ac0b5fa27
+  commits: 3
   started_at: 2026-10-20T03:51:41.756926261Z
+  ended_at: 2026-10-20T14:23:33.11956642Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-20T03:51:41.756926261Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-20T14:23:33.11956642Z
+observed_paths:
+- internal/infer/returntypes_test.go
+- internal/infer/testdata/oracle/Archive-Tar.pl
+- internal/infer/testdata/oracle/DynaLoader.pl
+- internal/infer/testdata/oracle/Exporter.pl
+- internal/infer/testdata/oracle/ExtUtils-Manifest.pl
+- internal/infer/testdata/oracle/File-Spec-Functions.pl
+- internal/infer/testdata/oracle/File-Spec-Unix.pl
+- internal/infer/testdata/oracle/File-Spec.pl
+- internal/infer/testdata/oracle/File-Temp.pl
+- internal/infer/testdata/oracle/FileHandle.pl
+- internal/infer/testdata/oracle/HTTP-Tiny.pl
+- internal/infer/testdata/oracle/IO-File.pl
+- internal/infer/testdata/oracle/IO-Handle.pl
+- internal/infer/testdata/oracle/IO-Select.pl
+- internal/infer/testdata/oracle/IO-Socket-IP.pl
+- internal/infer/testdata/oracle/IO-Socket.pl
+- internal/infer/testdata/oracle/Locale-Maketext-Simple.pl
+- internal/infer/testdata/oracle/Net-Ping.pl
+- internal/infer/testdata/oracle/Term-ReadLine.pl
+- internal/infer/testdata/oracle/Tie-Hash.pl
+- internal/infer/testdata/oracle/XSLoader.pl
+- internal/infer/testdata/return_oracle.pl
+- internal/parse/declarations/Archive/Tar.tpm
+- internal/parse/declarations/DynaLoader.tpm
+- internal/parse/declarations/Exporter.tpm
+- internal/parse/declarations/ExtUtils/Manifest.tpm
+- internal/parse/declarations/File/Spec.tpm
+- internal/parse/declarations/File/Spec/Functions.tpm
+- internal/parse/declarations/File/Spec/Unix.tpm
+- internal/parse/declarations/File/Temp.tpm
+- internal/parse/declarations/FileHandle.tpm
+- internal/parse/declarations/HTTP/Tiny.tpm
+- internal/parse/declarations/IO/File.tpm
+- internal/parse/declarations/IO/Handle.tpm
+- internal/parse/declarations/IO/Select.tpm
+- internal/parse/declarations/IO/Socket.tpm
+- internal/parse/declarations/IO/Socket/IP.tpm
+- internal/parse/declarations/Locale/Maketext/Simple.tpm
+- internal/parse/declarations/Net/Ping.tpm
+- internal/parse/declarations/Term/ReadLine.tpm
+- internal/parse/declarations/Tie/Hash.tpm
+- internal/parse/declarations/XSLoader.tpm
+- internal/parse/heldtoperl_test.go
+- internal/parse/infrastructure_test.go
+- internal/parse/testdata/held_to_perl.pl
+- internal/parse/testdata/t1.ratchet
 ---
 
 ## Prerequisites
