@@ -121,7 +121,7 @@ sub pipe :export_ok :listop () List[Object|Undef];
 # the signatures IO/File.tpm already measured. seek and tell are
 # IO::Seekable's, measured here on 5.42.0 with FileHandle's own bare
 # class name as the invocant, as the return-type oracle calls them:
-# seek returns a true Boolean, tell an Int. getpos and setpos are also
+# seek returns a defined Boolean, tell an Int. getpos and setpos are also
 # IO::Seekable's, but each dereferences the invocant as a glob (to call
 # C's fgetpos()/fsetpos()) and dies "Bad filehandle" that way, measured
 # the same way; held to their prototype and exports only (see
