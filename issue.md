@@ -1,10 +1,19 @@
 ---
 title: "Call-site selection fixes: an empty use-list imports nothing, the coercion retry keeps arity, an Any argument does not hide arity"
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 created: 2026-10-20T19:18:42.346874019Z
-updated: 2026-10-20T19:18:42.346874019Z
+updated: 2026-10-20T20:42:14.60089025Z
+sessions:
+- start_sha: dee5725d764cf502cf58ded7dcdf4778cb5781d1
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-20T20:42:14.60089025Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-20T20:42:14.60089025Z
 ---
 
 crochet:review of PR #488, round 1 (2026-10-21). Quality I2 internal/parse/use.go:378 (use Test::More qw(); installs defaults; perl imports nothing), I5 internal/types/select.go:121-139 + infer/calls.go:111 (coercion retry consults wrong-arity candidates; sockaddr_in("abc","a") fails silently), I8 calls.go:98-103 (an Any- or List-typed argument counts as flattening; measure which flatten in perl), S1 internal/parse/derive.go:172-182 (candidatesDifferInArity compares prototype string length), S7 internal/types/types.go:368 (a Code union rejects CodeRef).
