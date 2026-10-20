@@ -1,10 +1,19 @@
 ---
 title: "Audit fixes, sockets: IO::Socket's constructor and methods, list-context unpackers, documented methods, dualvar errors"
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 created: 2026-10-20T19:18:42.552145908Z
-updated: 2026-10-20T19:18:42.552145908Z
+updated: 2026-10-20T20:59:19.84959213Z
+sessions:
+- start_sha: fe62372eb0dce18610b696b53c41cde6a6086bd5
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-20T20:59:19.84959213Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-20T20:59:19.84959213Z
 ---
 
 crochet:review of PR #488, round 1 (2026-10-21). Signature audit (01a15aaa), group B.
