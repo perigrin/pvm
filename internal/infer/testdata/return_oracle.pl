@@ -48,7 +48,11 @@ require $file;
 eval "package Held::OracleBarePrime; use $module; 1";
 
 my %cases = do $cases_file;
-die "cannot read call cases $cases_file: ", $@ || $!, "\n" if $@ || !%cases;
+# An empty %cases is only an error when a sub actually needs a case:
+# XSLoader's declares two subs and exempts both, so its call-case file is
+# legitimately empty, and @subs -- already filtered to the non-exempt
+# names -- is empty right along with it.
+die "cannot read call cases $cases_file: ", $@ || $!, "\n" if $@ || ( !%cases && @subs );
 
 for (@subs) {
     my ( $name, $context, $form ) = split /:/;
