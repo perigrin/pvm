@@ -44,7 +44,7 @@ func newLSPCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&warnLossy, "warn-lossy-coercion", false,
 		"report coercions perl makes silently that lose the value, such as a reference printed as a string")
 	cmd.Flags().BoolVar(&warnPossibleUndef, "warn-possible-undef", false,
-		"report an undef that reaches a value only through a multi call's own Undecided join of candidate returns, left silent by default")
+		"report an undef from a declared call's return that the call's own arguments do not prove, left silent by default")
 
 	return cmd
 }

@@ -9,6 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"tamarou.com/pvm/internal/infer"
+	"tamarou.com/pvm/internal/lower"
+	"tamarou.com/pvm/internal/parse"
+	"tamarou.com/pvm/internal/types"
 )
 
 // wantSilentResolved is wantSilent over resolvedDiags (flow_test.go):
@@ -159,6 +162,74 @@ return $t;
 	} {
 		t.Run(name, func(t *testing.T) {
 			wantSilentResolved(t, "use Scalar::Util qw(reftype refaddr blessed);\n"+src)
+		})
+	}
+}
+
+// resolvedCallType is resolvedDiags's own parse (a nil Loader resolves
+// each declaration file by path regardless, "a nil resolver resolves
+// nothing" notwithstanding -- see wantSilentResolved), paired with the
+// resolved type of the call written as call in src, Unknown when it
+// gives none.
+func resolvedCallType(src, call string) types.Type {
+	root := parse.ParseWithLoader([]byte(src), func(string) ([]byte, bool) { return nil, false })
+	f := lower.Lower(root)
+	pos := lower.NewPositions(root, f)
+	ann, _, _ := infer.Analyze(f, pos, nil, infer.Options{})
+	got, _ := findNodeType(typed{f: f, pos: pos, ann: ann}, []byte(src), call)
+	return got
+}
+
+// TestNarrowGuardedLibSitesResolveSansUndef: WarnPossibleUndef's default
+// silence (calls.go's markPossibleUndef) accepts ANY declared call's
+// Undef the call's arguments do not prove, so a GUARDED site with no
+// narrowing at all would draw no diagnostic either -- wantSilentResolved
+// alone cannot tell the two apart (perigrin's 2026-10-21 review of this
+// issue: TestNarrowGuardedLibSites passed even with flow.go and vars.go's
+// own narrowing reverted to before this issue's merge, since
+// markPossibleUndef, untouched by that revert, silenced every subtest
+// regardless). This asserts what wantSilentResolved cannot: the guard
+// actually narrowed the call to its Ref candidate's own return, Int, with
+// no Undef bit left to be silent about at all -- an assertion a
+// reverted narrowDerefBase/guardShadows fails outright, each call
+// instead resolving to the Any candidate's own Int|Undef.
+func TestNarrowGuardedLibSitesResolveSansUndef(t *testing.T) {
+	const use = "use Scalar::Util qw(reftype refaddr blessed);\n"
+	for _, c := range []struct {
+		name, src, call string
+	}{
+		// blessed_then_refaddr: blessed($obj) proves $obj an Object, so
+		// refaddr($obj) selects `(Ref $ref) Int`, not the Any candidate's
+		// Int|Undef.
+		{"blessed_then_refaddr", `
+my ($obj) = @_;
+if (blessed($obj)) {
+    my $result = $obj->TO_JSON();
+    if (defined $result and ref($result)) {
+        if (refaddr($obj) eq refaddr($result)) { print "same\n" }
+    }
+}
+`, "refaddr($obj)"},
+		// deref_proves_ref: the arrow deref right before the call proves
+		// $z a Ref (narrowDerefBase, vars.go).
+		{"deref_proves_ref", `
+my ($z) = @_;
+my $zs = $z->{sign};
+my $t = refaddr($z) . "!";
+print $t;
+`, "refaddr($z)"},
+		// unless_return: `return ... unless ref $x;` rules out non-refs
+		// before refaddr runs.
+		{"unless_return", `
+my ($x, $y) = @_;
+return undef unless ref $x;
+return undef unless ref $y;
+return refaddr($x) == refaddr($y) ? "same" : "diff";
+`, "refaddr($x)"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			got := resolvedCallType(use+c.src, c.call)
+			assert.Equal(t, types.Int, got, "%s: %s resolved %v, want Int with no Undef bit", c.name, c.call, got)
 		})
 	}
 }

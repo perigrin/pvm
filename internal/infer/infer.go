@@ -653,17 +653,21 @@ type Options struct {
 	// on `"abc" + 1`.
 	WarnLossyCoercion bool
 
-	// WarnPossibleUndef reports an Undef that reaches a value only
-	// through an Undecided multi call's join of its candidates' returns
-	// (perigrin, 2026-10-20): a call site types.Select could not decide
-	// between -- Scalar::Util::refaddr given an argument of Unknown
-	// type, say -- joins Int and Int|Undef to Int|Undef, and by default
-	// that Undef is accepted rather than reported, the same way an
-	// Unknown argument itself is. Under WarnPossibleUndef it is
-	// reported as an ordinary coercion mismatch. A Selected call's own
-	// declared return, Int|Undef standing alone, is not this: it
-	// reports either way, as it always has, since nothing about it is
-	// a join of what the call site could not decide between.
+	// WarnPossibleUndef reports an Undef from a declared call's return
+	// that the call's own arguments do not prove (perigrin, 2026-10-20,
+	// "possible-undef unless proven"): any Undef a declaration states as
+	// one of several outcomes -- a single candidate's own union return
+	// (Scalar::Util::blessed's `(Any $ref) Str|Undef`, so `blessed($obj)
+	// eq 'Foo'` is silent by default whatever $obj is) exactly as a
+	// multi's widest, catch-all candidate (Scalar::Util::reftype,
+	// refaddr) -- is accepted rather than reported by default, the same
+	// way an Unknown argument itself is. Under WarnPossibleUndef it is
+	// reported as an ordinary coercion mismatch. Only a resolved return
+	// the call's own arguments force outright, with no other outcome
+	// left at all (List::Util::sum's `()` candidate, the only one zero
+	// arguments admit), is not this: it reports either way, as it
+	// always has, since the declaration alone did not decide it -- the
+	// call did.
 	WarnPossibleUndef bool
 }
 
