@@ -1,6 +1,6 @@
 ---
 title: "Declare the variable exporters: Config, Getopt::Long, Test::More, Text::Wrap, ExtUtils::MakeMaker, File::stat"
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 blocked_by:
@@ -12,7 +12,16 @@ blocked_by:
 blocks:
 - 01a1464e-de34-7403-95d2-25f4855404b2
 created: 2026-10-16T20:02:15.843622709Z
-updated: 2026-10-16T22:01:49.897761544Z
+updated: 2026-10-20T02:59:44.677331931Z
+sessions:
+- start_sha: 34826451ff25d9be31c553948ea6de4ec295f77d
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-20T02:59:44.677331931Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-20T02:59:44.677331931Z
 ---
 
 ## Prerequisites
