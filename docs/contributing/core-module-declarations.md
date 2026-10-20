@@ -49,9 +49,11 @@ way. Locale::Maketext::Simple's `import` installs `loc`, so
 `sub loc :export`, even though the install comes from `import`'s own logic,
 not an `@EXPORT` array.
 
-**`&name` entries are sub names.** The skeleton generator's `installs` mode
-reports an `&name` for a name in `@EXPORT`/`@EXPORT_OK` that is a sub; write
-it as the sub's bare `name`, not `&name`.
+**`&name` entries are sub names.** Exporter marks a sub `&name` in
+`@EXPORT`/`@EXPORT_OK`; `held_to_perl.pl`'s `installs` and `skeleton`
+modes strip the leading `&` themselves before querying or printing a
+name, so neither ever shows one. Write a declaration's own `:export`
+and `:export_ok` marks the same way, on the sub's bare `name`.
 
 **Tags as attribute arguments.** `internal/parse/declarations/Errno.tpm`
 marks most constants `:export_ok(POSIX)` — in `%EXPORT_TAGS`' `POSIX` group —
@@ -129,7 +131,7 @@ and name the one parameter whose *presence* changes what gets installed
 after the key for it in the signature. `internal/parse/declarations/Test/More.tpm`:
 
 ```perl
-sub import (Str $class: Str $import = undef, List @plan) Void;
+sub import (Str $class: ArrayRef $import = undef, List @plan) Void;
 ```
 
 Measured on 5.42.0: `use Test::More import => ['ok'], tests => 1;` installs
