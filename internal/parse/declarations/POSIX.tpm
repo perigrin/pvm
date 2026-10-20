@@ -1,6 +1,10 @@
 # ABOUTME: Declares what `use POSIX` installs: every exported name's :export/:export_ok mark,
 # ABOUTME: tags and prototype. Measured on perl 5.42.0 with POSIX 2.23.
 #
+# L_tmpnam, fileno, rand and srand are absent here: POSIX's own import()
+# croaks "Unimplemented" for each of these four names (measured), so a
+# `use` of POSIX installs nothing for them.
+#
 # POSIX builds its lists (@EXPORT, @EXPORT_OK, %EXPORT_TAGS) inside its own
 # import, measured empty (0/0/0) right after `require POSIX` and full
 # (587/179/35) only once a use has run; held_to_perl.pl primes a bare use

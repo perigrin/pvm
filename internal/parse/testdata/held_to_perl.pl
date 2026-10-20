@@ -38,6 +38,11 @@ elsif ( $mode eq 'prototypes' ) {
     }
 }
 elsif ( $mode eq 'installs' ) {
+    # A module whose lists are built inside its own import, as POSIX's
+    # are (measured on 5.42.0: @EXPORT/@EXPORT_OK/%EXPORT_TAGS are empty
+    # right after `require POSIX`, full only once a use has run), has
+    # nothing to find in them until one use has primed it.
+    eval "package Held::Prime; use $module; 1";
     my %seen;
     my @lists = grep { !$seen{$_}++ } @args,
       ( map { s/^&//r } @{"${module}::EXPORT"}, @{"${module}::EXPORT_OK"} ),
