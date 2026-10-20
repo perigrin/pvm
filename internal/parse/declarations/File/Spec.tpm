@@ -4,8 +4,11 @@ package File::Spec;
 
 sub canonpath (Str $class: Str $path) Str;
 sub catdir (Str $class: List[Str] @dirs) Str;
-sub catfile (Str $class: List[Str] @parts) Str;
-sub join (Str $class: List[Str] @parts) Str;
+# catfile and join, with zero parts, pop undef off their own argument
+# list and return it unchanged (measured: File::Spec->catfile() is
+# undef; audit-C.md finding 25).
+sub catfile (Str $class: List[Str] @parts) Str|Undef;
+sub join (Str $class: List[Str] @parts) Str|Undef;
 sub catpath (Str $class: Str $volume, Str $directory, Str $file) Str;
 sub curdir (Str $class:) Str;
 sub devnull (Str $class:) Str;
