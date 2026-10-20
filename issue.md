@@ -1,10 +1,19 @@
 ---
 title: "Fix the three narrowing regressions: a deref keeps a blessed object, possible-undef joins across branches, an element guard ends at assignment"
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 created: 2026-10-20T19:18:42.264199971Z
-updated: 2026-10-20T19:18:42.264199971Z
+updated: 2026-10-20T19:19:19.932107544Z
+sessions:
+- start_sha: cf08c0acdb986b7a59c463c2ed994e0721307294
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-20T19:19:19.932107544Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-20T19:19:19.932107544Z
 ---
 
 crochet:review of PR #488, round 1 (2026-10-21). Quality lens I1, I3, I6 (verified regressions against pu; report scratchpad review-core-module-types-paad.md). I1 internal/infer/vars.go:98-105 narrowDerefBase overwrites an Object with HashRef and leaks out of &&/?: arms. I3 symbols.go:60, ops.go:265, calls.go:178-188: Symbol.PossibleUndef is not saved/restored/joined across branches and is lost through copies and ternaries; a definite Undef in an else branch is silenced. I6 flow.go:954-976, infer.go:1277, vars.go:59-63: the $r[0] guard shadow survives assignment, shift and splice.
