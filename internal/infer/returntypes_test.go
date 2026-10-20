@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"tamarou.com/pvm/internal/infer"
 	"tamarou.com/pvm/internal/parse"
 	"tamarou.com/pvm/internal/perltest"
 	"tamarou.com/pvm/internal/types"
@@ -1043,6 +1044,485 @@ func TestPOSIXReimplementedSubsAreNotNone(t *testing.T) {
 	require.True(t, ok, "POSIX::getpid is not declared")
 	for _, s := range cands {
 		assert.NotEqual(t, types.None, s.Returns, "POSIX::getpid is declared None, but perl returns $$ when it is called")
+	}
+}
+
+// posixFailureReturnsScript measures, in one perl process, every POSIX
+// sub whose documented "Returns undef on failure" (the T_SYSRET typemap,
+// or a name lookup that finds nothing) a one-shot process can safely
+// induce: a bad fd, a nonexistent path, an unknown name or id, or a
+// removed cwd. Each case prints "name\tUNDEF" or "name\tDEF:value".
+// setuid and setgid are skipped when run as root, where they succeed.
+const posixFailureReturnsScript = `
+use v5.42; no warnings;
+use POSIX;
+use File::Temp qw(tempfile);
+
+my $buf;
+my @cases = (
+  ['access', sub { POSIX::access("/definitely-does-not-exist-xyz-pvm",0) }],
+  ['close', sub { POSIX::close(987654) }],
+  ['dup', sub { POSIX::dup(987654) }],
+  ['dup2', sub { POSIX::dup2(987654,987655) }],
+  ['open', sub { POSIX::open("/definitely-does-not-exist-xyz-pvm/f", &POSIX::O_RDONLY) }],
+  ['creat', sub { POSIX::creat("/definitely-does-not-exist-xyz-pvm/f",0) }],
+  ['fcntl', sub {
+      my ($fh, $fn) = tempfile(); my $fd = fileno($fh); close $fh;
+      POSIX::fcntl($fd, &POSIX::F_GETFD, 0);
+  }],
+  ['lchown', sub { POSIX::lchown(0,0,"/definitely-does-not-exist-xyz-pvm") }],
+  ['mkfifo', sub { POSIX::mkfifo("/definitely-does-not-exist-xyz-pvm/f",0600) }],
+  ['read', sub { POSIX::read(987654,$buf,1) }],
+  ['write', sub { POSIX::write(987654,"x",1) }],
+  ['fpathconf', sub { POSIX::fpathconf(987654,0) }],
+  ['pathconf', sub { POSIX::pathconf("/definitely-does-not-exist-xyz-pvm",0) }],
+  ['sysconf', sub { POSIX::sysconf(987654) }],
+  ['setpgid', sub { POSIX::setpgid(999999999,0) }],
+  ['tcdrain', sub { POSIX::tcdrain(987654) }],
+  ['tcflow', sub { POSIX::tcflow(987654,0) }],
+  ['tcflush', sub { POSIX::tcflush(987654,0) }],
+  ['tcsendbreak', sub { POSIX::tcsendbreak(987654,0) }],
+  ['tcsetpgrp', sub { POSIX::tcsetpgrp(987654,0) }],
+  ['getgrgid', sub { POSIX::getgrgid(999999999) }],
+  ['getgrnam', sub { POSIX::getgrnam("definitely-nonexistent-group-xyz") }],
+  ['getpwnam', sub { POSIX::getpwnam("definitely-nonexistent-user-xyz") }],
+  ['getpwuid', sub { POSIX::getpwuid(999999999) }],
+);
+push @cases, ['setuid', sub { POSIX::setuid(0) }], ['setgid', sub { POSIX::setgid(0) }] unless $> == 0;
+
+for my $c (@cases) {
+    my ($name, $code) = @$c;
+    my $v = eval { $code->() };
+    print "$name\t", (defined $v ? "DEF:$v" : "UNDEF"), ($@ ? " DIED:$@" : ''), "\n";
+}
+
+my $base = POSIX::getcwd();
+my $tmp = "$base/pvm-oracle-removed-$$";
+mkdir $tmp or die "mkdir: $!";
+chdir $tmp or die "chdir: $!";
+rmdir $tmp or die "rmdir: $!";
+my $v = eval { POSIX::getcwd() };
+print "getcwd\t", (defined $v ? "DEF:$v" : "UNDEF"), ($@ ? " DIED:$@" : ''), "\n";
+chdir $base;
+`
+
+// TestPOSIXFailureReturnsAdmitUndef: every sub the T_SYSRET typemap, or
+// a name lookup finding nothing, documents as "Returns undef on
+// failure" (scratchpad/audit-A.md F1) really returns undef when induced
+// safely in a one-shot process, and POSIX.tpm's declared return type
+// admits it.
+func TestPOSIXFailureReturnsAdmitUndef(t *testing.T) {
+	p := perltest.Perl542(t)
+	out, err := p.Command("-e", posixFailureReturnsScript).Output()
+	require.NoError(t, err)
+
+	sigs := posixSignatures(t)
+	lines := strings.Split(strings.TrimRight(string(out), "\n"), "\n")
+	require.NotEmpty(t, lines)
+	for _, line := range lines {
+		name, result, ok := strings.Cut(line, "\t")
+		require.True(t, ok, "unparseable line: %q", line)
+		if !assert.True(t, strings.HasPrefix(result, "UNDEF"), "POSIX::%s: measured %s, not undef", name, result) {
+			continue
+		}
+		cands, ok := sigs[name]
+		if !assert.True(t, ok, "POSIX::%s is not declared", name) {
+			continue
+		}
+		admits := slices.ContainsFunc(cands, func(s types.Signature) bool { return types.IsSubtype(types.Undef, s.Returns) })
+		assert.True(t, admits, "POSIX::%s measured undef on failure; its declared return type does not admit Undef", name)
+	}
+}
+
+// posixMathReturnsScript measures, for each POSIX math sub CORE.tpm's
+// own `exp` precedent already admits Inf for, a finite argument that
+// overflows to Inf or is outside the real domain and so is NaN
+// (scratchpad/audit-A.md F2). Each case prints "name\tINF", "name\tNAN"
+// or "name\tNUM".
+const posixMathReturnsScript = `
+use v5.42; no warnings;
+use POSIX;
+
+sub classify {
+    my $v = shift;
+    return 'NAN' if $v != $v;
+    return 'INF' if $v == 9**9**9 || $v == -9**9**9;
+    return 'NUM';
+}
+
+my @cases = (
+  ['exp', sub { POSIX::exp(1000) }],
+  ['exp2', sub { POSIX::exp2(2000) }],
+  ['expm1', sub { POSIX::expm1(1000) }],
+  ['cosh', sub { POSIX::cosh(1000) }],
+  ['sinh', sub { POSIX::sinh(1000) }],
+  ['ldexp', sub { POSIX::ldexp(1,2000) }],
+  ['scalbn', sub { POSIX::scalbn(1,5000) }],
+  ['hypot', sub { POSIX::hypot(1.7e308,1.7e308) }],
+  ['fdim', sub { POSIX::fdim(1.7e308,-1.7e308) }],
+  ['fma', sub { POSIX::fma(1e308,10,0) }],
+  ['atanh', sub { POSIX::atanh(1) }],
+  ['log10', sub { POSIX::log10(0) }],
+  ['log10', sub { POSIX::log10(-1) }],
+  ['log2', sub { POSIX::log2(0) }],
+  ['log1p', sub { POSIX::log1p(-1) }],
+  ['logb', sub { POSIX::logb(0) }],
+  ['y0', sub { POSIX::y0(0) }],
+  ['y1', sub { POSIX::y1(0) }],
+  ['yn', sub { POSIX::yn(1,0) }],
+  ['lgamma', sub { POSIX::lgamma(0) }],
+  ['tgamma', sub { POSIX::tgamma(0) }],
+  ['tgamma', sub { POSIX::tgamma(-1) }],
+  ['pow', sub { POSIX::pow(10,400) }],
+  ['pow', sub { POSIX::pow(-1,.5) }],
+  ['acos', sub { POSIX::acos(2) }],
+  ['asin', sub { POSIX::asin(2) }],
+  ['acosh', sub { POSIX::acosh(0) }],
+  ['fmod', sub { POSIX::fmod(1,0) }],
+  ['remainder', sub { POSIX::remainder(1,0) }],
+  ['strtod', sub { scalar POSIX::strtod("inf") }],
+  ['strtod', sub { scalar POSIX::strtod("nan") }],
+  ['strtold', sub { scalar POSIX::strtold("inf") }],
+  ['strtold', sub { scalar POSIX::strtold("nan") }],
+  ['remquo', sub { my ($q) = POSIX::remquo(1,0); $q }],
+);
+
+for my $c (@cases) {
+    my ($name, $code) = @$c;
+    my $v = $code->();
+    print "$name\t", classify($v), "\n";
+}
+`
+
+// TestPOSIXMathReturnsAdmitInfNaN: every math sub scratchpad/audit-A.md's
+// F2 names overflows to Inf or leaves its real domain to NaN for a
+// finite argument, measured directly, and POSIX.tpm's declared return
+// type admits it -- CORE.tpm's own `exp` precedent (Num|Inf) already
+// does for the language's builtin.
+func TestPOSIXMathReturnsAdmitInfNaN(t *testing.T) {
+	p := perltest.Perl542(t)
+	out, err := p.Command("-e", posixMathReturnsScript).Output()
+	require.NoError(t, err)
+
+	wants := map[string]types.Type{"INF": types.Inf, "NAN": types.NaN}
+	sigs := posixSignatures(t)
+	lines := strings.Split(strings.TrimRight(string(out), "\n"), "\n")
+	require.NotEmpty(t, lines)
+	for _, line := range lines {
+		name, class, ok := strings.Cut(line, "\t")
+		require.True(t, ok, "unparseable line: %q", line)
+		want, known := wants[class]
+		if !assert.True(t, known, "POSIX::%s: unexpected class %q", name, class) {
+			continue
+		}
+		cands, ok := sigs[name]
+		if !assert.True(t, ok, "POSIX::%s is not declared", name) {
+			continue
+		}
+		admits := slices.ContainsFunc(cands, func(s types.Signature) bool {
+			if s.Returns == types.None {
+				return false
+			}
+			r := s.Returns
+			if s.ReturnElement != types.Unknown {
+				r = s.ReturnElement
+			}
+			return types.IsSubtype(want, r)
+		})
+		assert.True(t, admits, "POSIX::%s measured %s; its declared return type does not admit it", name, class)
+	}
+}
+
+// posixClassifierScript calls each classification and NaN-payload sub
+// scratchpad/audit-A.md's F3 names with a NaN or an Inf, the values
+// these subs exist to classify, and prints "name\tvalue" or
+// "name\tvalue DIED:...".
+const posixClassifierScript = `
+use v5.42; no warnings;
+use POSIX;
+my $nan = POSIX::nan();
+my $inf = 9**9**9;
+my @cases = (
+  ['fpclassify', sub { POSIX::fpclassify($inf) }],
+  ['ilogb', sub { POSIX::ilogb($inf) }],
+  ['isfinite', sub { POSIX::isfinite($nan) }],
+  ['isgreater', sub { POSIX::isgreater($nan, 1) }],
+  ['isgreaterequal', sub { POSIX::isgreaterequal($nan, 1) }],
+  ['isinf', sub { POSIX::isinf($inf) }],
+  ['isless', sub { POSIX::isless($nan, 1) }],
+  ['islessequal', sub { POSIX::islessequal($nan, 1) }],
+  ['islessgreater', sub { POSIX::islessgreater($nan, 1) }],
+  ['isnan', sub { POSIX::isnan($nan) }],
+  ['isnormal', sub { POSIX::isnormal($inf) }],
+  ['issignaling', sub { POSIX::issignaling($nan) }],
+  ['isunordered', sub { POSIX::isunordered($nan, 1) }],
+  ['signbit', sub { POSIX::signbit(-$inf) }],
+  ['getpayload', sub { POSIX::getpayload(POSIX::nan(7)) }],
+);
+for my $c (@cases) {
+    my ($name, $code) = @$c;
+    my $v = eval { $code->() };
+    print "$name\t", (defined $v ? $v : 'undef'), ($@ ? " DIED:$@" : ''), "\n";
+}
+`
+
+// TestPOSIXClassifiersTakeInfNaN: fpclassify, ilogb, isfinite, isinf,
+// isnan, isnormal, issignaling, signbit, getpayload and the paired
+// is-comparison subs exist to classify NaN and Inf, measured taking
+// them without dying, and POSIX.tpm's declared parameter type admits
+// both (scratchpad/audit-A.md F3) -- Num alone excludes them, so a
+// coercion-mismatch check would see a lossy coercion although nothing
+// is lost: these subs coerce their argument to a C double, which
+// preserves NaN and Inf exactly.
+func TestPOSIXClassifiersTakeInfNaN(t *testing.T) {
+	p := perltest.Perl542(t)
+	out, err := p.Command("-e", posixClassifierScript).Output()
+	require.NoError(t, err)
+
+	sigs := posixSignatures(t)
+	lines := strings.Split(strings.TrimRight(string(out), "\n"), "\n")
+	require.NotEmpty(t, lines)
+	for _, line := range lines {
+		name, result, ok := strings.Cut(line, "\t")
+		require.True(t, ok, "unparseable line: %q", line)
+		if !assert.NotContains(t, result, "DIED", "POSIX::%s died taking NaN/Inf: %s", name, result) {
+			continue
+		}
+		cands, ok := sigs[name]
+		if !assert.True(t, ok, "POSIX::%s is not declared", name) {
+			continue
+		}
+		for _, s := range cands {
+			for _, param := range s.Params {
+				assert.True(t, types.IsSubtype(types.NaN, param.Type), "POSIX::%s's $%s does not admit NaN", name, param.Name)
+				assert.True(t, types.IsSubtype(types.Inf, param.Type), "POSIX::%s's $%s does not admit Inf", name, param.Name)
+			}
+		}
+	}
+}
+
+// posixArityScript measures, for nan, open, strtol, strtoul, mblen,
+// mbtowc, asctime, mktime and strftime, an arity one below their
+// minimum, each arity usage.txt's optional parameters admit, and one
+// above their maximum, printing "name:n\tOK" or "name:n\tDIE".
+const posixArityScript = `
+use v5.42; no warnings;
+use POSIX;
+
+sub tryn {
+    my ($label, $code) = @_;
+    my $ok = eval { $code->(); 1 };
+    print "$label\t", ($ok ? "OK" : "DIE"), "\n";
+}
+
+tryn('nan:0', sub { POSIX::nan() });
+tryn('nan:1', sub { POSIX::nan(5) });
+tryn('nan:2', sub { POSIX::nan(5,6) });
+
+tryn('open:0', sub { POSIX::open() });
+tryn('open:1', sub { POSIX::open("f") });
+tryn('open:2', sub { POSIX::open("f", &POSIX::O_RDONLY) });
+tryn('open:3', sub { POSIX::open("f", &POSIX::O_RDONLY, 0666) });
+tryn('open:4', sub { POSIX::open("f", &POSIX::O_RDONLY, 0666, 1) });
+
+tryn('strtol:0', sub { POSIX::strtol() });
+tryn('strtol:1', sub { POSIX::strtol("42") });
+tryn('strtol:2', sub { POSIX::strtol("42", 10) });
+tryn('strtol:3', sub { POSIX::strtol("42", 10, 1) });
+
+tryn('strtoul:0', sub { POSIX::strtoul() });
+tryn('strtoul:1', sub { POSIX::strtoul("42") });
+tryn('strtoul:2', sub { POSIX::strtoul("42", 10) });
+tryn('strtoul:3', sub { POSIX::strtoul("42", 10, 1) });
+
+tryn('mblen:0', sub { POSIX::mblen() });
+tryn('mblen:1', sub { POSIX::mblen("a") });
+tryn('mblen:2', sub { POSIX::mblen("a", 1) });
+tryn('mblen:3', sub { POSIX::mblen("a", 1, 2) });
+tryn('mblen:undef', sub { POSIX::mblen(undef) });
+
+tryn('mbtowc:1', sub { my $x; POSIX::mbtowc($x) });
+tryn('mbtowc:2', sub { my $x; POSIX::mbtowc($x, "a") });
+tryn('mbtowc:3', sub { my $x; POSIX::mbtowc($x, "a", 1) });
+tryn('mbtowc:4', sub { my $x; POSIX::mbtowc($x, "a", 1, 2) });
+tryn('mbtowc:undef', sub { my $x; POSIX::mbtowc($x, undef) });
+
+tryn('perror:0', sub { POSIX::perror() });
+tryn('perror:1', sub { POSIX::perror("a") });
+tryn('perror:2', sub { POSIX::perror("a", "b") });
+
+tryn('asctime:5', sub { POSIX::asctime(0,0,0,1,0) });
+tryn('asctime:6', sub { POSIX::asctime(0,0,0,1,0,70) });
+tryn('asctime:9', sub { POSIX::asctime(0,0,0,1,0,70,0,0,-1) });
+tryn('asctime:10', sub { POSIX::asctime(0,0,0,1,0,70,0,0,-1,1) });
+
+tryn('mktime:5', sub { POSIX::mktime(0,0,0,1,0) });
+tryn('mktime:6', sub { POSIX::mktime(0,0,0,1,0,70) });
+tryn('mktime:9', sub { POSIX::mktime(0,0,0,1,0,70,0,0,-1) });
+tryn('mktime:10', sub { POSIX::mktime(0,0,0,1,0,70,0,0,-1,1) });
+
+tryn('strftime:6', sub { POSIX::strftime("%Y",0,0,0,1,0) });
+tryn('strftime:7', sub { POSIX::strftime("%Y",0,0,0,1,0,70) });
+tryn('strftime:10', sub { POSIX::strftime("%Y",0,0,0,1,0,70,0,0,-1) });
+tryn('strftime:11', sub { POSIX::strftime("%Y",0,0,0,1,0,70,0,0,-1,1) });
+`
+
+// TestPOSIXOptionalParametersMatchPerl: nan, open, strtol, strtoul,
+// mblen, mbtowc, asctime, mktime and strftime each take an arity range
+// perl's own "Usage: ..." croak states (usage.txt), not the single
+// required arity POSIX.tpm declared. Each arity perl accepts is
+// measured directly and admitted by the declared signature; the one
+// just past each end, perl's own negative scenario, still dies in perl
+// and is still refused by it (scratchpad/audit-A.md F4).
+func TestPOSIXOptionalParametersMatchPerl(t *testing.T) {
+	p := perltest.Perl542(t)
+	out, err := p.Command("-e", posixArityScript).Output()
+	require.NoError(t, err)
+
+	sigs := posixSignatures(t)
+	lines := strings.Split(strings.TrimRight(string(out), "\n"), "\n")
+	require.NotEmpty(t, lines)
+	for _, line := range lines {
+		label, result, ok := strings.Cut(line, "\t")
+		require.True(t, ok, "unparseable line: %q", line)
+		name, narg, ok := strings.Cut(label, ":")
+		require.True(t, ok, "unparseable label: %q", label)
+
+		cands, ok := sigs[name]
+		if !assert.True(t, ok, "POSIX::%s is not declared", name) {
+			continue
+		}
+		if narg == "undef" {
+			// mblen and mbtowc: undef in their Str slot is a documented
+			// distinct meaning, not an arity case; perl must not die.
+			assert.Equal(t, "OK", result, "POSIX::%s(undef, ...) died", name)
+			continue
+		}
+		n, convErr := strconv.Atoi(narg)
+		require.NoError(t, convErr)
+
+		dies := result == "DIE"
+		accepts := types.Accepts(cands, n)
+		assert.NotEqual(t, dies, accepts,
+			"POSIX::%s with %d argument(s): perl %s, declared signature accepts=%v", name, n, result, accepts)
+	}
+
+	// asctime, mktime and strftime also take their 6 (7 with strftime's
+	// format) through 9 (10) required arguments flattened from a single
+	// localtime call -- the idiom strftime($fmt, localtime) must keep
+	// working -- and still refuse too few. A loader, even one resolving
+	// nothing, is what has the parser track a name `use POSIX qw(...)`
+	// imports bare, as checkFile's real one does; loweredDiags's
+	// loader-less parse.Parse does not, and so checks nothing here.
+	assert.Empty(t, posixDeclaredDiags(t, "use POSIX qw(asctime mktime strftime);\nmy $a = asctime(localtime);\nmy $m = mktime(localtime);\nmy $s = strftime(\"%Y\", localtime);\n"))
+	wantArity := func(src string) {
+		diags := posixDeclaredDiags(t, src)
+		require.Len(t, diags, 1, "%q: diagnostics %v", src, diags)
+		assert.Equal(t, infer.CodeArityMismatch, diags[0].Code, diags[0].Message)
+	}
+	wantArity("use POSIX qw(asctime);\nmy $a = asctime(0,0,0,1,0);\n")
+	wantArity("use POSIX qw(strftime);\nmy $s = strftime(\"%Y\",0,0,0,1,0);\n")
+}
+
+// posixDeclaredDiags analyses src, resolving `use POSIX` and its sibling
+// declared libraries through a loader (even one resolving nothing), the
+// way checkFile's real one does; loweredDiags's loader-less parse.Parse
+// does not track a bare imported name the same way and so checks nothing
+// for it.
+func posixDeclaredDiags(t *testing.T, src string) []infer.Diagnostic {
+	t.Helper()
+	load := func(string) ([]byte, bool) { return nil, false }
+	root := parse.ParseWithLoader([]byte(src), load)
+	return infer.AnalyzeParsed(root, nil, infer.Options{}).Diagnostics
+}
+
+// posixNarrowParamsScript measures, for isatty, chdir, setpayload and
+// utime, an argument form scratchpad/audit-A.md's F5 says POSIX.tpm
+// declared too narrow for: a glob, a bareword filehandle name and an fd
+// for isatty; a dirhandle for chdir; a fresh non-Num lexical for
+// setpayload, which the call writes a NaN into, so it is a true output
+// lvalue, not a coerced argument; undef, meaning "now", for utime.
+const posixNarrowParamsScript = `
+use v5.42; no warnings;
+use POSIX;
+
+sub tryn {
+    my ($label, $code) = @_;
+    my $ok = eval { $code->(); 1 };
+    print "$label\t", ($ok ? "OK" : "DIE:$@"), "\n";
+}
+
+tryn('isatty:glob', sub { POSIX::isatty(\*STDIN) });
+tryn('isatty:fd', sub { POSIX::isatty(0) });
+tryn('isatty:str', sub { POSIX::isatty("STDIN") });
+
+my $dh = POSIX::opendir('.');
+tryn('chdir:handle', sub { POSIX::chdir($dh) });
+
+my $x;
+my @list = POSIX::setpayload($x, 7);
+print "setpayload:list\t", (scalar(@list) == 0 ? "OK" : "DIE:not empty"), "\n";
+print "setpayload:wrote\t", (POSIX::isnan($x) ? "OK" : "DIE:did not write NaN"), "\n";
+
+open my $seed, '>', 'posix-f5-scratch.txt' or die; close $seed;
+tryn('utime:undef', sub { POSIX::utime("posix-f5-scratch.txt", undef, undef) });
+`
+
+// TestPOSIXParametersAdmitWhatPerlAccepts: isatty, chdir, setpayload,
+// setpayloadsig and utime each declared a parameter type narrower than
+// what perl and the POD accept (scratchpad/audit-A.md F5). isatty and
+// chdir coerce to or preserve a filehandle, not its stringification;
+// setpayload's and setpayloadsig's $nv is an output lvalue the call
+// writes, not an argument it coerces; utime's undef means "now" and is
+// preserved, not coerced to 0. Each case is measured directly, and
+// POSIX.tpm's declared parameter type admits it.
+func TestPOSIXParametersAdmitWhatPerlAccepts(t *testing.T) {
+	p := perltest.Perl542(t)
+	scratch := t.TempDir()
+	cmd := p.Command("-e", posixNarrowParamsScript)
+	cmd.Dir = scratch
+	out, err := cmd.Output()
+	require.NoError(t, err)
+
+	lines := strings.Split(strings.TrimRight(string(out), "\n"), "\n")
+	require.NotEmpty(t, lines)
+	for _, line := range lines {
+		label, result, ok := strings.Cut(line, "\t")
+		require.True(t, ok, "unparseable line: %q", line)
+		assert.Equal(t, "OK", result, "%s: %s", label, result)
+	}
+
+	sigs := posixSignatures(t)
+	isatty := sigs["isatty"]
+	require.NotEmpty(t, isatty)
+	for _, s := range isatty {
+		assert.True(t, types.IsSubtype(types.FileHandle, s.Params[0].Type), "isatty's $%s does not admit a filehandle", s.Params[0].Name)
+		assert.True(t, types.IsSubtype(types.Str, s.Params[0].Type), "isatty's $%s does not admit a bareword name", s.Params[0].Name)
+	}
+
+	chdir := sigs["chdir"]
+	require.NotEmpty(t, chdir)
+	for _, s := range chdir {
+		assert.True(t, types.IsSubtype(types.FileHandle, s.Params[0].Type), "chdir's $%s does not admit a dirhandle", s.Params[0].Name)
+	}
+
+	for _, name := range []string{"setpayload", "setpayloadsig"} {
+		cands, ok := sigs[name]
+		if !assert.True(t, ok, "POSIX::%s is not declared", name) {
+			continue
+		}
+		for _, s := range cands {
+			assert.Equal(t, types.Any, s.Params[0].Type, "%s's $%s is not Any, an output lvalue the call writes rather than an argument it coerces", name, s.Params[0].Name)
+			assert.Equal(t, types.Void, s.Returns, "%s does not declare Void: the XS returns the empty list", name)
+		}
+	}
+
+	utime := sigs["utime"]
+	require.NotEmpty(t, utime)
+	for _, s := range utime {
+		for _, param := range s.Params[1:] {
+			assert.True(t, types.IsSubtype(types.Undef, param.Type), "utime's $%s does not admit undef, which means \"now\"", param.Name)
+		}
 	}
 }
 
