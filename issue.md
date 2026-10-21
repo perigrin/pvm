@@ -1,19 +1,31 @@
 ---
 title: "Test-harness gaps round 3 found: StaleExemptions fails closed, held exemptions are stale-checked, no criterion passes without testing"
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 created: 2026-10-21T20:10:35.216500331Z
-updated: 2026-10-21T20:24:17.847073473Z
+updated: 2026-10-21T21:43:55.845593938Z
 sessions:
 - start_sha: a893c4c7dbd73e99ee996512595b346f7c0d3243
-  end_sha: ""
-  commits: 0
+  end_sha: 84130609b9dfb7fb2f5a8d8ab1e6ef31f8857cca
+  commits: 1
   started_at: 2026-10-21T20:24:17.847073473Z
+  ended_at: 2026-10-21T21:43:55.845593938Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-21T20:24:17.847073473Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-21T21:43:55.845593938Z
+observed_paths:
+- internal/infer/returntypes_test.go
+- internal/parse/exportattr_test.go
+- internal/parse/heldtoperl_test.go
+- internal/parse/pin_test.go
+- internal/perltest/fixture.go
+- internal/perltest/staleexempt.go
+- internal/perltest/staleexempt_test.go
 ---
 
 crochet:review round 3 of PR #488 at 692a560c (2026-10-21). Quality report: scratchpad/review3-core-module-types-paad.md; probes scratchpad/r3probes/ (F-<lens>.md per specialist); rebuild head/r2(2db182e6)/cf(cf08c0ac)/pu psc as the report says. perigrin, 2026-10-21: round 4 runs with Opus workers, and every fix gets a mandatory independent review that runs pu, round 2 and head against perl 5.42 before it merges. A finding pu or round 2 gets right is a regression: fix it without trading it for a new one -- every probe in r2probes/ and r3probes/ that pu or r2 gets right must still be right.
