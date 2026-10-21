@@ -53,15 +53,13 @@ jobs:
     - name: Build
       run: go build ./...
 
-    # Linux installed the pinned perl 5.42.0 above, so a perl-held test
-    # that still can't find it must fail loudly rather than pass by
-    # skipping, same as the ratchets job. macOS and Windows also have a
-    # perl 5.42.0 on PATH (actions-setup-perl, Strawberry), but this flag
-    # stays off there until their results are read for real -- not every
-    # perl-held test is proven to hold on those libs yet.
+    # Every platform installs a perl 5.42.0 on PATH (actions-setup-perl
+    # for Linux and macOS, Strawberry's own for Windows), and CI has been
+    # green on all three since, so a perl-held test that can't find it
+    # must fail loudly rather than pass by skipping, on every runner.
     - name: Test
       env:
-        PVM_REQUIRE_PERL542: ${{ matrix.os == 'Linux' && '1' || '' }}
+        PVM_REQUIRE_PERL542: "1"
       run: go test ./... -count=1
 
   # Each corpus-backed ratchet skips when its corpus is absent, which is

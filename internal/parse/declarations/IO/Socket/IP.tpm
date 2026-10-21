@@ -3,12 +3,22 @@
 
 package IO::Socket::IP;
 
-# IO::Socket::IP inherits IO::Socket's import, which forwards to Socket's
-# own Exporter: measured on 5.42.0, a bare `use IO::Socket::IP;` installs
-# exactly the 170 names Socket's own bare `use Socket;` does (Socket.tpm's
-# :export set), with Socket's own prototypes, types and :listop parses,
-# copied here unchanged.
-#
+# IO::Socket::IP defines its own import (IP.pm:122-139), which reads
+# only its leading "-register" option -- registering
+# IO::Socket::IP::_ForINET as the AF_INET/AF_INET6 domain handler --
+# and forwards everything else, with "-register" filtered out, to
+# IO::Socket's own import, which in turn forwards to Socket's own
+# Exporter: measured on 5.42.0, a bare `use IO::Socket::IP;` and a
+# `use IO::Socket::IP -register;` both install exactly the 170 names
+# Socket's own bare `use Socket;` does (Socket.tpm's :export set), with
+# Socket's own prototypes, types and :listop parses, copied here
+# unchanged. Declaring import here, with no scalar key after the
+# invocant (same shape as Moose.tpm's own, perigrin's ruling,
+# 2026-10-20: "the parameters are the signature to import()"), states
+# that any list, "-register" included, still installs the same 170
+# names a bare `use IO::Socket::IP;` does.
+sub import (Str $class: List @args) Void;
+
 # 161 of the 170 live only in IO::Socket's own package, not in
 # IO::Socket::IP's (measured: IO::Socket.pm's file-scope `use Socket;`
 # installs them there; IO::Socket::IP->can(name) finds them by

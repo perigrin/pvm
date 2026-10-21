@@ -19,12 +19,19 @@ chdir 'doomed' or die "chdir: $!";
 # type; the undef answers are measured on Linux and macOS.
 rmdir '../doomed' or $^O eq 'MSWin32' or die "rmdir: $!";
 
+# chdir also takes a handle (Cwd::chdir's own source passes $newdir
+# straight through to CORE::chdir), measured on 5.42.0: a dirhandle
+# opened on "." -- the still-current directory, even once removed --
+# chdir()s back to the same place, so this case has no side effect on
+# the calls that follow it.
+opendir(my $dh, '.') or die "opendir: $!";
+
 (
     cwd           => [ [] ],
     getcwd        => [ [] ],
     fastcwd       => [ [] ],
     fastgetcwd    => [ [] ],
-    chdir         => [ ['.'] ],
+    chdir         => [ ['.'], [$dh] ],
     abs_path      => [ ['.'] ],
     fast_abs_path => [ ['.'] ],
     realpath      => [ ['.'] ],

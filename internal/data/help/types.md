@@ -44,7 +44,7 @@ script.pl:3:22: warning: right operand of "+": expected Num, got Str [coercion-m
 reports values whose type it could not work out, instead of accepting
 them.
 
-Two more flags widen what `psc check` reports, each silent by
+Three more flags widen what `psc check` reports, each silent by
 default:
 
 - `--warn-lossy-coercion` reports a coercion perl makes silently but
@@ -55,6 +55,9 @@ default:
   `Scalar::Util::blessed` always returns `Str|Undef`. A call whose
   arguments force the `Undef` outright, such as `sum()`, still reports
   either way.
+- `--warn-possible-mismatch` reports an argument whose union type has a
+  member that fits the parameter beside one that does not, left silent
+  by default.
 
 ## Declaration Files
 
