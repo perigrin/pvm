@@ -1,19 +1,86 @@
 ---
 title: "Audit fixes, XS utilities and libraries: Storable flags, List::Util returns, Cwd undef, too-wide parameters, scalar-context returns"
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 created: 2026-10-20T19:18:42.636678343Z
-updated: 2026-10-20T22:31:19.013943179Z
+updated: 2026-10-21T02:43:05.994920641Z
 sessions:
 - start_sha: dc52c671706a020f6d843153446dac0efa30792b
-  end_sha: ""
-  commits: 0
+  end_sha: 767b931606fcd66f615e628013510ad201e28d83
+  commits: 8
   started_at: 2026-10-20T22:31:19.013943179Z
+  ended_at: 2026-10-21T02:43:05.994920641Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-20T22:31:19.013943179Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-21T02:43:05.994920641Z
+observed_paths:
+- internal/infer/declared_test.go
+- internal/infer/oraclestderr_test.go
+- internal/infer/parametertypes_test.go
+- internal/infer/precision_test.go
+- internal/infer/returntypes_test.go
+- internal/infer/testdata/observe_types.pl
+- internal/infer/testdata/oracle/Archive-Tar.pl
+- internal/infer/testdata/oracle/Compress-Raw-Zlib.pl
+- internal/infer/testdata/oracle/Cwd.pl
+- internal/infer/testdata/oracle/Data-Dumper.pl
+- internal/infer/testdata/oracle/Encode.pl
+- internal/infer/testdata/oracle/File-Spec-Functions.pl
+- internal/infer/testdata/oracle/File-Spec-Unix.pl
+- internal/infer/testdata/oracle/File-Spec.pl
+- internal/infer/testdata/oracle/File-Temp.pl
+- internal/infer/testdata/oracle/HTTP-Tiny.pl
+- internal/infer/testdata/oracle/IO-Handle.pl
+- internal/infer/testdata/oracle/IO-Select.pl
+- internal/infer/testdata/oracle/IO-Socket-IP.pl
+- internal/infer/testdata/oracle/IO-Socket.pl
+- internal/infer/testdata/oracle/List-Util.pl
+- internal/infer/testdata/oracle/POSIX.pl
+- internal/infer/testdata/oracle/Scalar-Util.pl
+- internal/infer/testdata/oracle/Socket.pl
+- internal/infer/testdata/oracle/Storable.pl
+- internal/infer/testdata/oracle/Symbol.pl
+- internal/infer/testdata/oracle/Term-ReadLine.pl
+- internal/infer/testdata/oracle/Tie-Hash.pl
+- internal/infer/testdata/oracle/Time-HiRes.pl
+- internal/infer/testdata/parameter_oracle.pl
+- internal/infer/testdata/return_oracle.pl
+- internal/parse/declarations/Archive/Tar.tpm
+- internal/parse/declarations/Compress/Raw/Zlib.tpm
+- internal/parse/declarations/Cwd.tpm
+- internal/parse/declarations/Data/Dumper.tpm
+- internal/parse/declarations/Encode.tpm
+- internal/parse/declarations/ExtUtils/Manifest.tpm
+- internal/parse/declarations/File/Spec.tpm
+- internal/parse/declarations/File/Spec/Functions.tpm
+- internal/parse/declarations/File/Spec/Unix.tpm
+- internal/parse/declarations/File/Temp.tpm
+- internal/parse/declarations/FileHandle.tpm
+- internal/parse/declarations/HTTP/Tiny.tpm
+- internal/parse/declarations/IO/File.tpm
+- internal/parse/declarations/IO/Handle.tpm
+- internal/parse/declarations/IO/Select.tpm
+- internal/parse/declarations/IO/Socket.tpm
+- internal/parse/declarations/IO/Socket/IP.tpm
+- internal/parse/declarations/List/Util.tpm
+- internal/parse/declarations/Net/Ping.tpm
+- internal/parse/declarations/Scalar/Util.tpm
+- internal/parse/declarations/Socket.tpm
+- internal/parse/declarations/Storable.tpm
+- internal/parse/declarations/Symbol.tpm
+- internal/parse/declarations/Term/ReadLine.tpm
+- internal/parse/declarations/Tie/Hash.tpm
+- internal/parse/declarations/Time/HiRes.tpm
+- internal/parse/heldtoperl_test.go
+- internal/perltest/constantdifferences.go
+- internal/perltest/constantdifferences_test.go
+- internal/perltest/pathunder.go
+- internal/perltest/pathunder_test.go
 ---
 
 crochet:review of PR #488, round 1 (2026-10-21). Signature audit (01a15aaa), group D.
