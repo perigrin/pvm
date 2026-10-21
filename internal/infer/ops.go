@@ -477,7 +477,10 @@ func literalContent(n lower.Node) (string, bool) {
 // `"" . (1 == 2)` is "", so where a Str is expected it is a Str. Where an
 // Int is expected, perl truncates any number to one silently: perl 5.42
 // -w is silent on `"ab" x 2.9`, `splice @h, 0, 2.5` and `1 << (20 / 8)`,
-// so a Num there is the Int it becomes. A glob stringifies to its name
+// so a Num there is the Int it becomes. A DualVar reads its number
+// where a number is expected and its string where a string is, the
+// paper's [Coerce-DualVar] legs: perl 5.42 -w, `dualvar(5, "x") + 1`
+// is 6 and `lc dualvar(5, "x")` is "x", silently. A glob stringifies to its name
 // as silently: perl 5.42 -w, `"" . *STDIN` is "*main::STDIN", so where a
 // Str is expected a Glob is a Str. It is no number: `*STDIN + 0` warns,
 // so where a Num is expected, which is a Str too, it is kept. A type that satisfies expected as it is, such as Scalar or Any,
@@ -492,6 +495,14 @@ func numified(actual, expected types.Type) types.Type {
 			actual = actual&^types.Boolean | types.Int
 		case types.IsSubtype(expected, types.Str):
 			actual = actual&^types.Boolean | types.Str
+		}
+	}
+	if actual&types.DualVar != 0 {
+		switch {
+		case types.IsSubtype(expected, types.Num):
+			actual = actual&^types.DualVar | types.Num
+		case types.IsSubtype(expected, types.Str):
+			actual = actual&^types.DualVar | types.Str
 		}
 	}
 	if actual&types.Glob != 0 && types.IsSubtype(expected, types.Str) && !types.IsSubtype(expected, types.Num) {
