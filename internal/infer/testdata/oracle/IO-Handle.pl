@@ -50,7 +50,10 @@ my $fd = fileno($scratch);
     binmode                      => [ [] ],
     clearerr                     => [ [] ],
     error                        => [ [] ],
-    fcntl                        => [ [ Fcntl::F_GETFL(), 0 ] ],
+    # F_GETFL dies "Your vendor has not defined Fcntl macro F_GETFL" on
+    # Windows's perl (CI job 118963997693): eval keeps this file loadable
+    # there, as POSIX.pl does for F_GETFD.
+    fcntl                        => [ [ ( eval { Fcntl::F_GETFL() } // 0 ), 0 ] ],
     fdopen                       => [ [ $fd, 'r+' ] ],
     ioctl                        => [ [ 0, 0 ] ],
     read                         => [ [ "", 2 ] ],
