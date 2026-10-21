@@ -188,6 +188,14 @@ var oracleExempt = map[string]string{
 	// called with the class name itself, measured on 5.42.0.
 	"FileHandle::getpos": "dereferences the invocant as a glob to call fgetpos(); dies \"Bad filehandle\" when called with the class name itself, as the oracle calls it",
 	"FileHandle::setpos": "dereferences the invocant as a glob to call fsetpos(); dies \"Bad filehandle\" when called with the class name itself, as the oracle calls it",
+
+	// Archive::Tar::clear wipes the shared instance's data
+	// (scratchpad/audit-C.md finding 18's INSTANCE in oracle/Archive-Tar.pl
+	// shares one instance across every instance-method call), which would
+	// break every other method's positive-path exercise if clear ran
+	// between them -- it always returns a bare 1, measured directly in
+	// scratchpad/6ca2-scratch/archive-tar/probe2.pl.
+	"Archive::Tar::clear": "wipes the shared oracle instance's data, which would break every other instance method's positive-path exercise; measured directly instead (6ca2-scratch/archive-tar/probe2.pl)",
 }
 
 // pendingMisfit is one oracle misfit deferred to the issue auditing its
@@ -212,18 +220,13 @@ type pendingMisfit struct {
 // (01a15ac0-6c78) were deleted the same day once that same merge
 // declared getaddrinfo's and getnameinfo's error DualVar directly:
 // re-measured, the return-type oracle no longer sees a knock-on there
-// either. TestPendingAuditEntriesStillMisfit holds every entry that
-// remains to the same rule, so a fix that lands without deleting its
-// own entries fails here instead of going unnoticed.
+// either. -6ca2's two entries (FileHandle::autoflush, IO::Handle::autoflush)
+// were deleted once 01a15ac0-6ca2's own fix declared autoflush's $on
+// Int, not Boolean: re-measured, the parameter oracle no longer sees a
+// misfit there either. TestPendingAuditEntriesStillMisfit holds every
+// entry that remains to the same rule, so a fix that lands without
+// deleting its own entries fails here instead of going unnoticed.
 var pendingAudit = map[string][]pendingMisfit{
-	"01a15ac0-6ca2": {
-		{Module: "FileHandle", Sub: "autoflush", Kind: "parameter",
-			Detail: "oracle/FileHandle.pl's own case passes 1 for $on; its declared Boolean excludes the Int perl's $| actually integerises it to (Audit C, measured: \"yes\" gives 0, 0.5 gives 0)",
-			Reason: "a parameter oracle misfit: $| integerises its argument, so the declaration is Int, not a Boolean idiom"},
-		{Module: "IO::Handle", Sub: "autoflush", Kind: "parameter",
-			Detail: "oracle/IO-Handle.pl's own case passes 1 for $on; its declared Boolean excludes the Int perl's $| actually integerises it to (Audit C, measured: \"yes\" gives 0, 0.5 gives 0)",
-			Reason: "a parameter oracle misfit: $| integerises its argument, so the declaration is Int, not a Boolean idiom"},
-	},
 	"01a15ac0-6ccc": {
 		{Module: "Scalar::Util", Sub: "dualvar", Kind: "return",
 			Detail: "the dualvar it constructs fits neither candidate's declared Str",
@@ -2286,6 +2289,16 @@ func ooExempt() map[string]string {
 		m["HTTP::Tiny::"+name] = "performs a real HTTP request over the network"
 	}
 	m["Term::ReadLine::readline"] = "blocks reading a line from a real terminal"
+	// Tie::Hash::new, ::TIEHASH and ::CLEAR each succeed when reached
+	// through a subclass that overrides their counterpart (new/TIEHASH)
+	// or supplies FIRSTKEY/NEXTKEY/DELETE (CLEAR), but the oracle's
+	// generic mechanism only ever calls them on the bare class name,
+	// which always croaks regardless -- TestTieHashInheritedMethodsReturn
+	// measures the subclass-dispatch paths these are declared for
+	// (audit-C.md finding 34).
+	m["Tie::Hash::new"] = "succeeds only when reached through a subclass overriding TIEHASH; the bare class name always croaks (measured), which TestTieHashInheritedMethodsReturn covers directly"
+	m["Tie::Hash::TIEHASH"] = "succeeds only when reached through a subclass overriding new; the bare class name always croaks (measured), which TestTieHashInheritedMethodsReturn covers directly"
+	m["Tie::Hash::CLEAR"] = "succeeds only when reached through a subclass defining FIRSTKEY/NEXTKEY/DELETE; the bare class name always croaks (measured), which TestTieHashInheritedMethodsReturn covers directly"
 	return m
 }
 
@@ -2310,6 +2323,49 @@ func TestOOModulesReturnTypes(t *testing.T) {
 	}
 }
 
+// TestIOSelectTakesDocumentedHandles: IO::Select's handle element type
+// (new, add, remove, exists, handles, can_read, can_write and
+// has_exception) is documented as "an IO::Handle object, an integer or
+// an array reference", not only FileHandle (audit-C.md finding 12).
+// Measured: new($io_handle_obj) gives count 1, add(0) returns 1,
+// add([\*STDERR,"data"]) returns 1, and handles/can_write return
+// 0, IO::Handle, ARRAY -- each of Object, Int and ArrayRef must be
+// admitted, which FileHandle (Glob|GlobRef|IO) alone excludes.
+func TestIOSelectTakesDocumentedHandles(t *testing.T) {
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "IO", "Select.tpm"))
+	require.NoError(t, err)
+	sigs, errs := parse.DeclaredSignatures(tpm)
+	require.Empty(t, errs)
+
+	// wantsDocumentedHandles asserts typ admits an IO::Handle object, a
+	// plain Int fd and an ArrayRef, beside whatever FileHandle it
+	// already held.
+	wantsDocumentedHandles := func(name string, typ types.Type) {
+		assert.True(t, types.IsSubtype(types.Object, typ), "IO::Select::%s excludes Object", name)
+		assert.True(t, types.IsSubtype(types.Int, typ), "IO::Select::%s excludes Int", name)
+		assert.True(t, types.IsSubtype(types.ArrayRef, typ), "IO::Select::%s excludes ArrayRef", name)
+	}
+	for _, name := range []string{"new", "add", "remove"} {
+		for _, s := range sigs[name] {
+			require.Len(t, s.Params, 1, "IO::Select::%s", name)
+			wantsDocumentedHandles(name, s.Params[0].Element)
+		}
+	}
+	for _, s := range sigs["exists"] {
+		require.Len(t, s.Params, 1, "IO::Select::exists")
+		wantsDocumentedHandles("exists", s.Params[0].Type)
+		wantsDocumentedHandles("exists (return)", s.Returns)
+	}
+	for _, name := range []string{"handles", "can_read", "can_write", "has_exception"} {
+		for _, s := range sigs[name] {
+			if s.ReturnElement == types.Unknown {
+				continue // the scalar-context Int|Undef candidate has no element to check
+			}
+			wantsDocumentedHandles(name, s.ReturnElement)
+		}
+	}
+}
+
 // TestOOModulesNetworkSubsExempt: HTTP::Tiny's and IO::Socket::IP's
 // network-touching subs are each exempt, with a reason, and have no
 // call case in their oracle file, so TestOOModulesReturnTypes never
@@ -2330,6 +2386,80 @@ func TestOOModulesNetworkSubsExempt(t *testing.T) {
 			assert.NotContains(t, string(cases), name+" =>", "%s::%s has a call case despite being exempt", module, name)
 		}
 	}
+}
+
+// tieHashInheritedScript exercises the three subclass-dispatch paths
+// Tie/Hash.tpm's new, TIEHASH and CLEAR comments describe (audit-C.md
+// finding 34): a subclass defining only TIEHASH dispatches new() to it;
+// one defining only new dispatches TIEHASH() to it; and one supplying
+// FIRSTKEY/NEXTKEY/DELETE lets CLEAR complete. Each line is
+// "label\tresult", result being a ref() (blessed) or a defined-but-maybe-
+// empty string in angle brackets.
+const tieHashInheritedScript = `
+use v5.42;
+use Tie::Hash;
+
+package My;
+our @ISA = ('Tie::Hash');
+sub TIEHASH { my $c = shift; bless {}, $c }
+package main;
+my $o = My->new;
+say "new\t", ref($o);
+
+package N;
+our @ISA = ('Tie::Hash');
+sub new { my $c = shift; bless {}, $c }
+package main;
+my $o2 = N->TIEHASH;
+say "TIEHASH\t", ref($o2);
+
+package P;
+our @ISA = ('Tie::Hash');
+our %store = (a => 1, b => 2);
+sub TIEHASH  { bless {}, shift }
+sub FIRSTKEY { my @k = keys %store; return $k[0] }
+sub NEXTKEY  { my @k = keys %store; for my $i (0 .. $#k) { return $k[$i+1] if $k[$i] eq $_[1] } return undef }
+sub DELETE   { delete $store{$_[1]} }
+package main;
+tie my %h, 'P';
+my $r = (tied %h)->CLEAR;
+say "CLEAR\t<", (defined $r ? $r : 'undef'), ">\tremaining=", scalar(keys %P::store);
+`
+
+// TestTieHashInheritedMethodsReturn: new, TIEHASH and CLEAR each
+// succeed when reached through a subclass supplying the method they
+// depend on, rather than only croaking as Tie::Hash.tpm's comment once
+// claimed (audit-C.md finding 34, the negative scenario). Declared
+// Object (new, TIEHASH) and Any (CLEAR), not None.
+func TestTieHashInheritedMethodsReturn(t *testing.T) {
+	p := perltest.Perl542(t)
+	out, err := p.Command("-e", tieHashInheritedScript).Output()
+	require.NoError(t, err)
+
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "Tie", "Hash.tpm"))
+	require.NoError(t, err)
+	sigs, errs := parse.DeclaredSignatures(tpm)
+	require.Empty(t, errs)
+
+	lines := strings.Split(strings.TrimRight(string(out), "\r\n"), "\n")
+	require.Len(t, lines, 3)
+
+	for i, name := range []string{"new", "TIEHASH"} {
+		label, ref, ok := strings.Cut(lines[i], "\t")
+		require.True(t, ok, "unparseable line: %q", lines[i])
+		require.Equal(t, name, label)
+		assert.NotEmpty(t, ref, "Tie::Hash::%s via subclass dispatch did not return a blessed ref", name)
+		require.Len(t, sigs[name], 1, "Tie::Hash::%s", name)
+		assert.Equal(t, types.Object, sigs[name][0].Returns, "Tie::Hash::%s is not declared Object", name)
+	}
+
+	label, rest, ok := strings.Cut(lines[2], "\t")
+	require.True(t, ok, "unparseable line: %q", lines[2])
+	require.Equal(t, "CLEAR", label)
+	assert.Contains(t, rest, "<>", "Tie::Hash::CLEAR via subclass dispatch died or returned undef: %q", rest)
+	assert.Contains(t, rest, "remaining=0", "CLEAR did not clear the subclass's storage: %q", rest)
+	require.Len(t, sigs["CLEAR"], 1, "Tie::Hash::CLEAR")
+	assert.Equal(t, types.Any, sigs["CLEAR"][0].Returns, "Tie::Hash::CLEAR is not declared Any")
 }
 
 // TestTermReadLineNeverCalled: Term::ReadLine's readline is exempt, with
@@ -2514,6 +2644,64 @@ func TestDynaLoaderLowLevelSubsExempt(t *testing.T) {
 // among stat's and lstat's own.
 func TestFileStatMissingFileReturnIsDeclared(t *testing.T) {
 	assert.Empty(t, moduleFailures(t, "File::stat"))
+}
+
+// ioHandleSignatures reads IO/Handle.tpm's declared signatures, failing
+// t on any declaration error.
+func ioHandleSignatures(t *testing.T) map[string][]types.Signature {
+	t.Helper()
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "IO", "Handle.tpm"))
+	require.NoError(t, err)
+	sigs, errs := parse.DeclaredSignatures(tpm)
+	require.Empty(t, errs)
+	return sigs
+}
+
+// TestIOHandleSeparatorsAreClassMethods: output_field_separator,
+// output_record_separator, input_record_separator,
+// format_line_break_characters and format_formfeed are class methods,
+// not instance ones (audit-C.md finding 2): the POD shows only
+// `IO::Handle->output_field_separator(...)`, and the source carps "not
+// supported on a per-handle basis" when called on an object. Each is
+// declared Str $class exactly, which a bare class-name Str satisfies
+// and an Object invocant, the pre-fix declaration, does not.
+func TestIOHandleSeparatorsAreClassMethods(t *testing.T) {
+	sigs := ioHandleSignatures(t)
+	for _, name := range []string{
+		"output_field_separator", "output_record_separator", "input_record_separator",
+		"format_line_break_characters", "format_formfeed",
+	} {
+		for _, s := range sigs[name] {
+			if !assert.NotNil(t, s.Invocant, "IO::Handle::%s has no invocant", name) {
+				continue
+			}
+			assert.Equal(t, types.Str, s.Invocant.Type, "IO::Handle::%s's invocant is not exactly Str", name)
+		}
+	}
+}
+
+// TestIOHandleMethodsTakeUnblessedHandles: IO::Handle's instance
+// methods run on unblessed handles too (audit-C.md finding 1) --
+// `open my $fh,'>',...; $fh->autoflush(1)` works and ref($fh) is GLOB,
+// and so does `STDOUT->autoflush(0)`, measured on 5.42.0. Each is
+// declared Object|FileHandle, which both a Glob and a GlobRef satisfy;
+// Object alone, the pre-fix declaration, excludes both (types.go:117).
+func TestIOHandleMethodsTakeUnblessedHandles(t *testing.T) {
+	sigs := ioHandleSignatures(t)
+	for _, name := range []string{
+		"autoflush", "format_page_number", "format_lines_per_page", "format_lines_left",
+		"format_name", "format_top_name", "input_line_number", "format_write",
+		"print", "printf", "say", "getline", "getlines", "printflush", "flush",
+		"opened", "fileno", "eof", "getc", "close",
+	} {
+		for _, s := range sigs[name] {
+			if !assert.NotNil(t, s.Invocant, "IO::Handle::%s has no invocant", name) {
+				continue
+			}
+			assert.True(t, types.IsSubtype(types.Glob, s.Invocant.Type), "IO::Handle::%s's invocant excludes Glob (a bareword handle)", name)
+			assert.True(t, types.IsSubtype(types.GlobRef, s.Invocant.Type), "IO::Handle::%s's invocant excludes GlobRef (an `open my $fh` lexical)", name)
+		}
+	}
 }
 
 // TestIOExportersReturnTypes holds each module's declared return types
