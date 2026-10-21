@@ -117,6 +117,37 @@ func TestPerl542MarksARegisteredInstallAsFromPvm(t *testing.T) {
 	assert.True(t, p.FromPvm, "a perl pvm's own registry reports is pvm's own build")
 }
 
+// TestPerl542HandlesASystemImportedInstallPath: pvm's own ImportSystemPerl
+// (internal/perl/registry.go) registers a system perl with InstallPath
+// already the directory containing the executable -- the directory
+// literally named "bin" on Windows's Strawberry layout -- not the
+// installation root pvm's own builds use. Perl542 must locate the perl
+// there without joining another "bin" onto it (measured: CI job
+// 119370832262 joined one on, looking for perl at
+// "C:\Strawberry\perl\bin\bin\perl.exe").
+func TestPerl542HandlesASystemImportedInstallPath(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the stand-in perl is a shell script")
+	}
+	t.Setenv("PVM_REQUIRE_PERL542", "1")
+	dir := t.TempDir()
+	binDir := filepath.Join(dir, "bin")
+	require.NoError(t, os.MkdirAll(binDir, 0o755))
+	lib := filepath.Join(t.TempDir(), "privlib")
+	require.NoError(t, os.MkdirAll(lib, 0o755))
+	path := perl542StandIn(t, binDir, "5.042000", lib)
+
+	saved := perl.GetVersionInfo
+	t.Cleanup(func() { perl.GetVersionInfo = saved })
+	perl.GetVersionInfo = func(string) (*perl.VersionInfo, error) {
+		return &perl.VersionInfo{InstallPath: binDir}, nil
+	}
+
+	p := Perl542(t)
+	assert.Equal(t, path, p.Path)
+	assert.True(t, p.FromPvm)
+}
+
 func TestPerl542ReportsAnExistingPrivlib(t *testing.T) {
 	p := Perl542(t)
 	fi, err := os.Stat(p.Privlib)
