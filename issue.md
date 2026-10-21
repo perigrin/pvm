@@ -1,10 +1,19 @@
 ---
 title: "Call-check regressions from the fix round: flattening is read from the expression, sum's result is a number in arithmetic, a fitting member never hides Undef"
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 created: 2026-10-21T05:19:06.031297507Z
-updated: 2026-10-21T05:19:06.031297507Z
+updated: 2026-10-21T05:19:31.912014048Z
+sessions:
+- start_sha: 2db182e610c0a9eebf6a623550bd13f550d219a4
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-21T05:19:31.912014048Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-21T05:19:31.912014048Z
 ---
 
 crochet:review round 2 of PR #488 at 2db182e6 (2026-10-21). Quality report: scratchpad/review2-core-module-types-paad.md, probes scratchpad/r2probes/, psc builds of head, cf08c0ac and pu in scratchpad/r2bin/. A finding pu gets right is a regression this milestone introduced: fix it. A gap pu shares is out of scope here and goes to the follow-up named in the issue.
