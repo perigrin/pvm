@@ -424,3 +424,23 @@ func TestMooseNamedListNoFalseArity(t *testing.T) {
 	walk(root)
 	assert.NotContains(t, codes, parse.CallArity, "blessed() refused for arity though qw(has) never imports it")
 }
+
+// TestCwdGetcwdIgnoresExtraArgs: Cwd's subs that ignore trailing
+// arguments take them without an arity error, and the ones perl dies on
+// still report. Measured on 5.42.0 with perl -w: cwd(1,2,3),
+// getcwd(1,2,3), fastgetcwd(1,2,3), fast_abs_path('.',2,3),
+// fast_realpath('.',2,3) and Cwd::chdir('/',2) all run silently, while
+// fastcwd(1) dies "Usage: Cwd::fastcwd()" and abs_path('.',2) and
+// realpath('.',2) die "Usage: Cwd::abs_path(pathsv=Nullsv)".
+func TestCwdGetcwdIgnoresExtraArgs(t *testing.T) {
+	for _, call := range []string{"cwd(1, 2, 3)", "getcwd(1, 2, 3)", "fastgetcwd(1, 2, 3)",
+		"fast_abs_path('.', 2, 3)", "fast_realpath('.', 2, 3)", "chdir('/', 2)"} {
+		_, diags := declaredCallType(t, "use Cwd qw(cwd getcwd fastgetcwd fast_abs_path fast_realpath chdir); my $r = "+call+";", call)
+		assert.Empty(t, diags, call)
+	}
+	for _, call := range []string{"fastcwd(1)", "abs_path('.', 2)", "realpath('.', 2)"} {
+		_, diags := declaredCallType(t, "use Cwd qw(fastcwd abs_path realpath); my $r = "+call+";", call)
+		require.Len(t, diags, 1, call)
+		assert.Equal(t, infer.CodeArityMismatch, diags[0].Code, diags[0].Message)
+	}
+}
