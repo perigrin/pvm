@@ -15,7 +15,10 @@ package Cwd;
 # Arguments are ignored by all but fastcwd: measured with perl -w,
 # cwd(1,2,3), getcwd(1,2,3) and fastgetcwd(1,2,3) run silently (getcwd
 # is XS declared `getcwd(...)`, cwd and fastgetcwd the same Perl sub),
-# so @ignored takes them; fastcwd(1) dies "Usage: Cwd::fastcwd()".
+# so @ignored takes them; on Linux and macOS fastcwd(1) dies "Usage:
+# Cwd::fastcwd()" (on MSWin32 Cwd.pm maps fastcwd to _NT_cwd, which
+# ignores its arguments; a declaration states one arity, so this one
+# follows the Unix XS sub).
 sub cwd :export :listop (List @ignored) Str;
 sub getcwd :export :listop (List @ignored) Str|Undef;
 sub fastcwd :export :listop () Str|Undef;
@@ -41,9 +44,11 @@ sub chdir :export_ok :listop (Optional[Str|FileHandle] $dir, List @ignored) Int;
 # directory, and are undef for a path that does not exist. Measured on
 # 5.42.0, `abs_path()` and `abs_path(".")` agree, and
 # `abs_path("/no/such/path")` is undef. None has a prototype perl
-# reports. abs_path and realpath are one XS sub taking at most one
-# argument: measured, `abs_path(".", 2)` dies "Usage:
-# Cwd::abs_path(pathsv=Nullsv)". fast_abs_path and fast_realpath are
+# reports. On Linux and macOS abs_path and realpath are one XS sub
+# taking at most one argument: measured, `abs_path(".", 2)` dies "Usage:
+# Cwd::abs_path(pathsv=Nullsv)". On MSWin32 Cwd.pm's %METHOD_MAP sends
+# both to fast_abs_path, which ignores the rest; the declaration follows
+# the Unix arity. fast_abs_path and fast_realpath are
 # one Perl sub that ignores the rest: `fast_abs_path(".", 2, 3)` runs
 # silently under perl -w.
 sub abs_path :export_ok :listop (Str $path = ".") Str|Undef;

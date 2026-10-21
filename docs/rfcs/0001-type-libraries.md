@@ -1145,9 +1145,9 @@ parameters match a use-list key by its bare name alone; real perl would
 refuse `foo(-traits => [])` against `sub foo (:$traits) {}` as an
 unrecognised named argument. Moose::Exporter's options are conventionally
 written with a leading dash, perl's own idiom for a bareword hash key
-(`-traits` is unary minus on the autoquoted word `traits`), so a `.tpm`'s
-named parameter matches both spellings: `-traits` and `traits` both
-satisfy `:$traits`.
+(`-traits` is unary minus on the autoquoted word `traits`), so under
+this ruling a `.tpm`'s named parameter will match both spellings once
+01a15f6b lands: `-traits` and `traits` will both satisfy `:$traits`.
 
 **Typed variables.** Some modules export variables: Config's `%Config`
 on a bare `use`, Socket's `$CRLF` only when asked for. A declaration

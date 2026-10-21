@@ -427,7 +427,7 @@ func TestMooseNamedListNoFalseArity(t *testing.T) {
 
 // TestCwdGetcwdIgnoresExtraArgs: Cwd's subs that ignore trailing
 // arguments take them without an arity error, and the ones perl dies on
-// still report. Measured on 5.42.0 with perl -w: cwd(1,2,3),
+// (on Linux and macOS) still report. Measured on Linux, 5.42.0, perl -w: cwd(1,2,3),
 // getcwd(1,2,3), fastgetcwd(1,2,3), fast_abs_path('.',2,3),
 // fast_realpath('.',2,3) and Cwd::chdir('/',2) all run silently, while
 // fastcwd(1) dies "Usage: Cwd::fastcwd()" and abs_path('.',2) and
