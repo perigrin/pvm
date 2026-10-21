@@ -523,3 +523,17 @@ func TestUndefUnionCoercesToItsMember(t *testing.T) {
 		assert.Equal(t, infer.CodeCoercionMismatch, diags[0].Code)
 	}
 }
+
+// TestFileparseTakesItsPath: File::Basename::fileparse's path is a
+// required Str of its own, ahead of the suffixes. perl 5.42 -w is silent
+// on `fileparse({})`, which stringifies the reference, so it is a lossy
+// coercion, reported only under WarnLossyCoercion; and perl dies
+// "fileparse(): need a valid pathname" on `fileparse()`.
+func TestFileparseTakesItsPath(t *testing.T) {
+	const ref = "use File::Basename qw(fileparse); my @p = fileparse({});"
+	assert.Empty(t, diagsWithOptions(ref, infer.Options{}), ref)
+	if diags := diagsWithOptions(ref, infer.Options{WarnLossyCoercion: true}); assert.Len(t, diags, 1, ref) {
+		assert.Equal(t, infer.CodeLossyCoercion, diags[0].Code, ref)
+	}
+	wantArity(t, "use File::Basename qw(fileparse); my @p = fileparse();")
+}
