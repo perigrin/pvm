@@ -2,23 +2,16 @@
 # ABOUTME: Measured on perl 5.42.0 with Moose 2.4000: only blessed carries a prototype.
 package Moose;
 
-# Measured on perl 5.42.0 with Moose 2.4000: Moose::Exporter's own
-# import (Moose/Exporter.pm:449-458, _strip_option) removes exactly
-# three named options, each with its value, from anywhere in the list --
-# -traits, -metaclass and -meta_name, which renames the installed meta
-# -- and hands everything left to Sub::Exporter, which resolves it
-# against the 12 sugar names below the ordinary Exporter way: empty,
-# the defaults, as a bare `use Moose;` does. $class is the invocant, so
-# the colon keeps the derived prototype none, matching perl's
-# (prototype() on Moose::import is undef).
-#
-# The signature names the keys, written with perl 5.44's named
-# parameters (perigrin's ruling, 2026-10-21: `:$name = default`,
-# perlsub "named parameters"), and a declared import's named parameter
-# also matches the use-list key with a leading dash (perigrin's ruling,
-# 2026-10-21: perl itself matches only the exact name; this is a .tpm
-# rule) -- `:$traits` matches `-traits` or `traits`.
-sub import (Str $class: ArrayRef :$traits = [], Str :$metaclass = undef, Str :$meta_name = 'meta', List @names) Void;
+# Moose::Exporter's generated import reads only its leading '-' options
+# (-traits, -excludes, -metaclass, ...) and otherwise ignores a use-list
+# for DSL purposes (perigrin's ruling, 2026-10-20: "the parameters are
+# the signature to import()"). Declaring it here, with no scalar key
+# after the invocant, states that any non-empty list still installs the
+# 13 sugar names below, as a bare `use Moose;` does -- measured on
+# 5.42.0, `use Moose -traits => [];` installs all 13. $class is the
+# invocant, so the colon keeps the derived prototype none, matching
+# perl's (prototype() on Moose::import is undef).
+sub import (Str $class: List @args) Void;
 
 sub extends :export;
 sub with :export;
@@ -32,9 +25,4 @@ sub super :export;
 sub inner :export;
 sub confess :export;
 sub blessed :export :prototype($);
-# meta is installed by init_meta, independent of the sugar list above --
-# measured, `use Moose qw(has);` installs has and meta, not the other
-# 11 -- so it is :export_ok, resolvable by that name alone, and
-# :always(meta_name): installed whenever import runs at all, renamed to
-# meta_name's value when the use-list gives one.
-sub meta :export_ok :always(meta_name);
+sub meta :export;

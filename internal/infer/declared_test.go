@@ -403,8 +403,13 @@ func TestInferVoidMatchIsUntypedNotError(t *testing.T) {
 // to a sub whose `($)` prototype refuses it for taking too few
 // arguments. crochet:review round 2 (quality S15, issue 01a15efc) found
 // the false call_arity this guards: the shipped Moose.tpm used to
-// install all 13 names from any non-empty list.
+// install all 13 names from any non-empty list. Needs the signature's
+// named parameters and :always, backed out (01a15f6c) until the export
+// syntax is redesigned (01a15f6b): until then Moose over-installs on a
+// named list again, and this false call_arity is back, an accepted,
+// tracked state (01a15f6b).
 func TestMooseNamedListNoFalseArity(t *testing.T) {
+	t.Skip("backed out with :always (01a15f6c) until the export syntax is redesigned (01a15f6b)")
 	root := parse.ParseWithLoader([]byte("use Moose qw(has);\nblessed();\n"), func(string) ([]byte, bool) { return nil, false })
 	var codes []parse.RefusalCode
 	var walk func(*parse.Node)

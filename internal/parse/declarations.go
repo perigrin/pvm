@@ -313,22 +313,6 @@ func readExportMarks(root *Node, facts *moduleFacts) {
 				}
 			}
 			bare, tags, ok := exportMark(n)
-			// `:always`, with an optional argument naming a named
-			// parameter of `import` (RFC 0001, "the signature names the
-			// keys"): the name installs whenever `import` runs at all,
-			// under its own name or, when the use-list carries that
-			// parameter with a literal value, the name it gives instead.
-			// Moose's `meta` is the measured case (perigrin's ruling,
-			// 2026-10-21): installed independently of its sugar list,
-			// renamed by `-meta_name`.
-			if name != "" {
-				if renameParam, marked := alwaysMark(n); marked {
-					if facts.always == nil {
-						facts.always = map[string]string{}
-					}
-					facts.always[name] = renameParam
-				}
-			}
 			if name != "" && (n.Text == "sub" || n.Text == "our") {
 				m := &redeclared{ok: ok, bare: bare, tags: slices.Sorted(slices.Values(tags)), typeText: typeText}
 				key := n.Text + " " + name
@@ -372,7 +356,6 @@ var declarationSubAttrs = map[string]bool{
 	"infix": true, "prefix": true, "postfix": true,
 	"tighter": true, "looser": true, "equiv": true, "assoc": true,
 	"keyword": true, "statement": true, "sublike": true,
-	"always": true,
 }
 
 // declStmt is one statement-level Declaration readExportMarks' and
@@ -620,31 +603,6 @@ func exportAttr(c *Node) (bare bool, tags []string, ok bool) {
 		}
 	}
 	return attr == "export", tags, true
-}
-
-// alwaysMark reads a declaration's `:always`; see alwaysAttr. ok is false
-// for a declaration carrying none.
-func alwaysMark(n *Node) (renameParam string, ok bool) {
-	for _, c := range n.Children {
-		if renameParam, ok = alwaysAttr(c); ok {
-			return renameParam, true
-		}
-	}
-	return "", false
-}
-
-// alwaysAttr reads the attribute c if it is `:always` or
-// `:always(PARAM)`: the named parameter of `import`, if any, whose
-// use-list value renames what this installs.
-func alwaysAttr(c *Node) (renameParam string, ok bool) {
-	if c.Kind != Attribute {
-		return "", false
-	}
-	attr, args, _ := strings.Cut(strings.TrimPrefix(c.Text, ":"), "(")
-	if attr != "always" {
-		return "", false
-	}
-	return strings.TrimSuffix(args, ")"), true
 }
 
 // readLibraryDeclaration reads a library's declaration file, in CORE.tpm's

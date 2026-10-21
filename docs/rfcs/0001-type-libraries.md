@@ -1128,10 +1128,7 @@ as Moose::Exporter's own `_strip_option` reads `-traits` and the rest
 "from anywhere in the list"; what remains installs the Exporter way --
 the literal names it holds, resolved against `:export` and
 `:export_ok`, or the defaults when nothing remains, as a bare `use`
-does. A name a declaration marks `:always` installs independently of
-that list, whenever `import` runs at all: Moose's `meta`, which
-Moose::Exporter installs through `init_meta` regardless of the sugar
-names asked for, renamed when `-meta_name` gives one.
+does.
 
 **A declared import's named parameter also matches a dashed key.**
 perigrin, 2026-10-21: "a declared import's named parameter `:$traits`
