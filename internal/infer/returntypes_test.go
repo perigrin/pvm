@@ -93,6 +93,7 @@ var oracleExempt = map[string]string{
 	"Test::More::import":               "declares the signature to import(), read at `use` time; never called directly",
 	"Locale::Maketext::Simple::import": "declares the signature to import(), read at `use` time; never called directly",
 	"Getopt::Long::import":             "declares the signature to import(), read at `use` time; never called directly",
+	"IO::Socket::IP::import":           "declares the signature to import(), read at `use` time; never called directly",
 
 	"Getopt::Long::HelpMessage":    "calls Pod::Usage's pod2usage, which exits the process by default",
 	"Getopt::Long::VersionMessage": "exits the process by default (measured: exit($pa->{-exitval}) unless -exitval is NOEXIT)",

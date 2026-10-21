@@ -835,6 +835,20 @@ func TestIOSocketIPBareUseInstallsSocketNames(t *testing.T) {
 	assert.Contains(t, got, "AF_INET")
 }
 
+// TestIOSocketIPRegisterInstallsSocketNames: IO::Socket::IP's own import
+// (IP.pm:122-139) reads only its "-register" option (registering
+// IO::Socket::IP::_ForINET as the AF_INET/AF_INET6 domain handler) and
+// forwards the rest, with -register filtered out, to IO::Socket's own
+// import -- measured on 5.42.0, `use IO::Socket::IP -register;`
+// installs the same 170 names a bare `use IO::Socket::IP;` does, since
+// -register leaves no symbols behind to forward.
+func TestIOSocketIPRegisterInstallsSocketNames(t *testing.T) {
+	got := importedFrom(t, "use IO::Socket::IP -register;\n")
+	assert.Len(t, got, 170)
+	assert.Contains(t, got, "inet_aton")
+	assert.Contains(t, got, "AF_INET")
+}
+
 // TestLocaleMaketextSimpleBareUseInstallsLoc: measured on 5.42.0,
 // Locale::Maketext::Simple's own import defaults Export to 'loc' and
 // installs "${Export}_lang" beside it, so a bare `use
