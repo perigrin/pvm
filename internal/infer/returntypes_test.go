@@ -238,16 +238,13 @@ type pendingMisfit struct {
 // either. -6ca2's two entries (FileHandle::autoflush, IO::Handle::autoflush)
 // were deleted once 01a15ac0-6ca2's own fix declared autoflush's $on
 // Int, not Boolean: re-measured, the parameter oracle no longer sees a
-// misfit there either. TestPendingAuditEntriesStillMisfit holds every
+// misfit there either. -6ccc's one entry (Scalar::Util::dualvar) was
+// deleted once Scalar/Util.tpm declared dualvar's return DualVar
+// directly: re-measured, the return-type oracle no longer sees a
+// knock-on there either. TestPendingAuditEntriesStillMisfit holds every
 // entry that remains to the same rule, so a fix that lands without
 // deleting its own entries fails here instead of going unnoticed.
-var pendingAudit = map[string][]pendingMisfit{
-	"01a15ac0-6ccc": {
-		{Module: "Scalar::Util", Sub: "dualvar", Kind: "return",
-			Detail: "the dualvar it constructs fits neither candidate's declared Str",
-			Reason: "DualVar knock-on: observe_types.pl used to read dualvar()'s own result by its string half before it told DualVar apart"},
-	},
-}
+var pendingAudit = map[string][]pendingMisfit{}
 
 // pendingAuditMatch reports whether module::sub already has a kind
 // entry in pendingAudit, so holdReturnTypes and the parameter oracle
@@ -262,6 +259,25 @@ func pendingAuditMatch(module, sub, kind string) bool {
 		}
 	}
 	return false
+}
+
+// doneAuditIssues are the pendingAudit issues already fixed and closed
+// (01a15ac0-6c4a POSIX, -6c78 sockets, -6ca2 IO and OO modules, -6ccc
+// XS modules): each one's own fix deleted its entries once re-measuring
+// found no knock-on left, by this package's own rule above pendingAudit.
+// TestPendingAuditHasNoDoneIssue holds that rule to the map directly, so
+// a fix that deletes every entry under a key but leaves the key itself,
+// or forgets to delete an entry at all, fails here.
+var doneAuditIssues = []string{"01a15ac0-6c4a", "01a15ac0-6c78", "01a15ac0-6ca2", "01a15ac0-6ccc"}
+
+// TestPendingAuditHasNoDoneIssue: pendingAudit carries no key for an
+// issue already done.
+func TestPendingAuditHasNoDoneIssue(t *testing.T) {
+	for _, issue := range doneAuditIssues {
+		if _, ok := pendingAudit[issue]; ok {
+			t.Errorf("pendingAudit still has an entry for done issue %s", issue)
+		}
+	}
 }
 
 // platformExempt holds, per runtime.GOOS, the subs that still need a
@@ -1112,6 +1128,21 @@ func TestXSUtilitiesReturnTypes(t *testing.T) {
 // {}. Measured on 5.42.0, `Scalar::Util::blessed({})` is undef.
 func TestScalarUtilBlessedUnblessedReturnIsDeclared(t *testing.T) {
 	holdReturnTypes(t, "Scalar::Util")
+}
+
+// TestDualvarReturnsDualVar holds Scalar::Util::dualvar's return type
+// directly, with pendingAudit's own filtering turned off: declared
+// DualVar, not Str, it fits every oracle case on its own, now that the
+// return-type oracle tells a dualvar's string half apart from a plain
+// Str. See 01a15ac0-6ccc.
+func TestDualvarReturnsDualVar(t *testing.T) {
+	p := perltest.Perl542(t)
+	run := pendingOracleRun(t, p, "Scalar::Util")
+	for _, f := range returnTypeFailures(t, p, run) {
+		if strings.Contains(f, "::dualvar ") {
+			t.Error(f)
+		}
+	}
 }
 
 // TestMIMEBase64InvalidInputReturnIsDeclared: decode_base64 given invalid

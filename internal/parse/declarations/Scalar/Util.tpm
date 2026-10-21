@@ -10,17 +10,16 @@ sub blessed :export_ok :prototype($) (Any $ref) Str|Undef;
 
 # dualvar builds one scalar holding a number and a string that differ,
 # measured on 5.42.0: `dualvar(5, "five") + 0` is 5 and `"" . dualvar(5,
-# "five")` is "five". Declared Str rather than DualVar: the return-type
-# oracle observes a value through string comparison, which stringifies
-# it, so a dualvar measures as its string half, not its dual nature.
-# $num and $str stay Num/Str: measured, `dualvar("abc","x")`,
-# `dualvar(undef,undef)` and `dualvar([1],[2])` all work rather than
-# dying, but each is perl numifying or stringifying the argument the
-# same way every other Num/Str parameter in this file is coerced (RFC
-# 0001, "What a parameter type means": a finding that only shows perl
-# coercing a value is not a gap in the coercion the type already
-# states), not a value neither type covers.
-sub dualvar :export_ok :prototype($$) (Num $num, Str $str) Str;
+# "five")` is "five". Declared DualVar: the return-type oracle tells
+# its dual nature apart from a plain Str. $num and $str stay Num/Str:
+# measured, `dualvar("abc","x")`, `dualvar(undef,undef)` and
+# `dualvar([1],[2])` all work rather than dying, but each is perl
+# numifying or stringifying the argument the same way every other
+# Num/Str parameter in this file is coerced (RFC 0001, "What a
+# parameter type means": a finding that only shows perl coercing a
+# value is not a gap in the coercion the type already states), not a
+# value neither type covers.
+sub dualvar :export_ok :prototype($$) (Num $num, Str $str) DualVar;
 
 # isdual, isvstring, isweak, looks_like_number and readonly answer
 # yes/no questions as perl's builtin booleans: measured on 5.42.0 with
