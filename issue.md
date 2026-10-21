@@ -1,19 +1,31 @@
 ---
 title: "Call-check regressions from the fix round: flattening is read from the expression, sum's result is a number in arithmetic, a fitting member never hides Undef"
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 created: 2026-10-21T05:19:06.031297507Z
-updated: 2026-10-21T05:19:31.912014048Z
+updated: 2026-10-21T15:05:53.987761461Z
 sessions:
 - start_sha: 2db182e610c0a9eebf6a623550bd13f550d219a4
-  end_sha: ""
-  commits: 0
+  end_sha: d24bfd8db60e0430444271ea7de7a41ff2bf4907
+  commits: 1
   started_at: 2026-10-21T05:19:31.912014048Z
+  ended_at: 2026-10-21T15:05:53.987761461Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-21T05:19:31.912014048Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-21T15:05:53.987761461Z
+observed_paths:
+- internal/infer/calls.go
+- internal/infer/calls_test.go
+- internal/infer/ops.go
+- internal/infer/warnpossiblemismatch_test.go
+- internal/infer/warnpossibleundef_test.go
+- internal/parse/derive.go
+- internal/parse/derive_test.go
 ---
 
 crochet:review round 2 of PR #488 at 2db182e6 (2026-10-21). Quality report: scratchpad/review2-core-module-types-paad.md, probes scratchpad/r2probes/, psc builds of head, cf08c0ac and pu in scratchpad/r2bin/. A finding pu gets right is a regression this milestone introduced: fix it. A gap pu shares is out of scope here and goes to the follow-up named in the issue.
