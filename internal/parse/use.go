@@ -140,8 +140,12 @@ func (p *parser) parseUse(word lexer.Token) *Node {
 	// (1, 'Foo::Gen')`, a list, not `if` followed by a version. `if` is
 	// also excluded outright, since it is not a module with a version
 	// at all.
+	//
+	// A v-string VERSION -- `v1.0`, or a bare `1.2.3` -- is a Quote token
+	// (`scanVString`), and a VERSION as well: measured, `use POSIX v1.0
+	// qw(floor); floor(1,2)` dies "Usage: POSIX::floor(x)".
 	if module != "" && module != "if" && !isVersionPrefix(module) {
-		if v, ok := p.peekSignificant(); ok && v.Kind == lexer.Number {
+		if v, ok := p.peekSignificant(); ok && (v.Kind == lexer.Number || v.Kind == lexer.Quote && isVString(p.text(v))) {
 			if next, ok := p.peekAfter(v); !ok || p.text(next) != "," {
 				p.advanceTo(v)
 				n.Children = append(n.Children, &Node{
@@ -868,6 +872,14 @@ func isVersionPrefix(text string) bool {
 		}
 	}
 	return true
+}
+
+// isVString reports whether a Quote token's text is a v-string literal:
+// `v1.0` or a bare `1.2.3`. No other Quote begins with a digit, or with a
+// `v` and then a digit.
+func isVString(text string) bool {
+	text = strings.TrimPrefix(text, "v")
+	return text != "" && text[0] >= '0' && text[0] <= '9'
 }
 
 // parsePhaser: `BEGIN { ... }` and the other four.
