@@ -1,10 +1,19 @@
 ---
 title: Declared imports read perl 5.44 named parameters as keys; Moose's named list installs those names and meta
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 created: 2026-10-21T15:02:46.98508217Z
-updated: 2026-10-21T15:02:46.98508217Z
+updated: 2026-10-21T15:14:43.776040816Z
+sessions:
+- start_sha: 9711a47ad2aaa4e8463f48604119e9b4ed2bf964
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-21T15:14:43.776040816Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-21T15:14:43.776040816Z
 ---
 
 crochet:review round 2 (quality S15, found again by 01a15ce6-1959): `use Moose qw(has)` installs all 13 Moose subs, giving a false call_arity on `blessed()` that pu and cf08c0ac do not have.
