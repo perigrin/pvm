@@ -4,6 +4,6 @@ mkdir 'd' unless -d 'd';
 open my $fh, '>', 'd/f' or die $!;
 close $fh;
 (
-    find      => [ [ sub { }, 'd' ] ],
-    finddepth => [ [ sub { }, 'd' ] ],
+    find      => [ [ sub { }, 'd' ], [ sub { } ] ],
+    finddepth => [ [ sub { }, 'd' ], [ sub { } ] ],
 );
