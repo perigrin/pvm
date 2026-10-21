@@ -1,19 +1,61 @@
 ---
 title: A union argument with a fitting member is a possible mismatch, silent by default; restore qualify's measured Ref return
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 created: 2026-10-21T02:33:29.838143913Z
-updated: 2026-10-21T03:02:37.784165762Z
+updated: 2026-10-21T03:39:06.637151441Z
 sessions:
 - start_sha: 66180e7e19fc8ad1b81e1c0fb54bcc62942ffd1c
-  end_sha: ""
-  commits: 0
+  end_sha: 22583a402ae797ff8a0a591d3d5c4f0763744131
+  commits: 4
   started_at: 2026-10-21T03:02:37.784165762Z
+  ended_at: 2026-10-21T03:39:06.637151441Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-21T03:02:37.784165762Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-21T03:39:06.637151441Z
+observed_paths:
+- docs/rfcs/0001-type-libraries.md
+- internal/infer/calls.go
+- internal/infer/infer.go
+- internal/infer/parametertypes_test.go
+- internal/infer/returntypes_test.go
+- internal/infer/testdata/oracle/Carp.pl
+- internal/infer/testdata/oracle/Cwd.pl
+- internal/infer/testdata/oracle/DynaLoader.pl
+- internal/infer/testdata/oracle/Exporter.pl
+- internal/infer/testdata/oracle/ExtUtils-MakeMaker.pl
+- internal/infer/testdata/oracle/File-Find.pl
+- internal/infer/testdata/oracle/File-stat.pl
+- internal/infer/testdata/oracle/Getopt-Long-noexit.pl
+- internal/infer/testdata/oracle/Getopt-Std-hashref.pl
+- internal/infer/testdata/oracle/Test-More.pl
+- internal/infer/warnpossiblemismatch_test.go
+- internal/parse/coretypes_test.go
+- internal/parse/declarations/CORE.tpm
+- internal/parse/declarations/Carp.tpm
+- internal/parse/declarations/Config.tpm
+- internal/parse/declarations/DynaLoader.tpm
+- internal/parse/declarations/Exporter.tpm
+- internal/parse/declarations/ExtUtils/MakeMaker.tpm
+- internal/parse/declarations/File/Basename.tpm
+- internal/parse/declarations/File/Find.tpm
+- internal/parse/declarations/File/stat.tpm
+- internal/parse/declarations/Future/AsyncAwait.tpm
+- internal/parse/declarations/Getopt/Long.tpm
+- internal/parse/declarations/Getopt/Std.tpm
+- internal/parse/declarations/Symbol.tpm
+- internal/parse/declarations/Test/More.tpm
+- internal/parse/declarations/Text/Wrap.tpm
+- internal/parse/declarations_test.go
+- internal/psc/check_command.go
+- internal/psc/check_command_test.go
+- internal/psc/lsp_command.go
+- internal/types/select_test.go
 ---
 
 perigrin, 2026-10-21, asked how psc check should treat an argument whose union type only partly fits a parameter: "Possible-mismatch, silent" -- treat it like possible-undef: when some member of the argument's union fits the parameter, stay silent by default and report only under --warn-lossy-coercion (or a new flag); a union with no fitting member is still reported.
