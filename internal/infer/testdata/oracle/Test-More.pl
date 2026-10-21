@@ -1,5 +1,13 @@
 # ABOUTME: Call cases for Test::More's subs, which the return-type oracle calls to hold
 # ABOUTME: Test::More.tpm to perl. BAIL_OUT and plan are exempt (oracleExempt); see there.
+
+# new_ok's own `new` returns undef, so new_ok's second call case measures
+# new_ok's claim with a class whose new died: new_ok returns whatever its
+# own $obj holds, undef when the try failed.
+package Oracle::NewDies;
+sub new { return undef }
+
+package main;
 (
     can_ok     => [ [ 'Test::More', 'ok' ] ],
     cmp_ok     => [ [ 1, '==', 1, 'numbers match' ] ],
@@ -15,7 +23,7 @@
     isa_ok     => [ [ Test::Builder->new, 'Test::Builder', 'builder' ] ],
     isnt       => [ [ 1, 2, 'one is not two' ] ],
     like       => [ [ 'abc', qr/b/, 'matches' ] ],
-    new_ok     => [ ['Test::Builder'] ],
+    new_ok     => [ ['Test::Builder'], ['Oracle::NewDies'] ],
     note       => [ ['a note'] ],
     ok         => [ [ 1, 'truthy' ] ],
     pass       => [ ['forced pass'] ],
