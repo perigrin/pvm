@@ -28,12 +28,10 @@ func MissingSubs(t testing.TB, p Perl, inc, module string, names []string) map[s
 	if len(names) == 0 {
 		return nil
 	}
-	script := `use B ();` +
+	script := fmt.Sprintf(`require %q;`, heldLibPath(t)) +
 		`my ($module, @names) = @ARGV;` +
 		`(my $file = "$module.pm") =~ s{::}{/}g; require $file;` +
 		`eval "package Held::MissingSubsBarePrime; use $module; 1";` +
-		`sub callable { my ($name) = @_; return 0 if !exists &$name; return 1 if defined &$name; ` +
-		`my $home = B::svref_2object(\&$name)->GV->STASH->NAME; return defined &{"${home}::AUTOLOAD"}; }` +
 		`my $n = 0;` +
 		`for my $name (@names) {` +
 		`  my $ok = callable("${module}::$name") || callable("Held::MissingSubsBarePrime::$name");` +

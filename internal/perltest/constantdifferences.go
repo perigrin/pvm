@@ -32,12 +32,10 @@ func ConstantDifferences(t testing.TB, p Perl, inc, module string, wantsValue ma
 	for name := range wantsValue {
 		names = append(names, name)
 	}
-	script := `use B ();` +
+	script := fmt.Sprintf(`require %q;`, heldLibPath(t)) +
 		`my ($module, @names) = @ARGV;` +
 		`(my $file = "$module.pm") =~ s{::}{/}g; require $file;` +
 		`eval "package Held::ConstPrime; use $module; 1";` +
-		`sub callable { my ($name) = @_; return 0 if !exists &$name; return 1 if defined &$name; ` +
-		`my $home = B::svref_2object(\&$name)->GV->STASH->NAME; return defined &{"${home}::AUTOLOAD"}; }` +
 		`my $n = 0;` +
 		`for my $name (@names) {` +
 		`  my $code;` +
