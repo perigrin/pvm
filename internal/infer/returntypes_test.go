@@ -304,6 +304,8 @@ var platformExempt = map[string]map[string]string{
 		"POSIX::stat":                                  "returns Str in list context on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39514360942",
 		"POSIX::fstat":                                 "returns Str in list context on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39514360942",
 		"POSIX::strtold":                               "dies on Windows's perl -- measured in CI job 39514360942",
+		"POSIX::_POSIX_JOB_CONTROL":                    "returns Int on Windows's perl, where Linux's returns a Boolean -- measured in CI job 118963997693",
+		"POSIX::_POSIX_SAVED_IDS":                      "returns Int on Windows's perl, where Linux's returns a Boolean -- measured in CI job 118963997693",
 		"POSIX::getpwuid":                              "dies on Windows's perl -- measured in CI job 39514360942",
 		"POSIX::getpwnam":                              "dies on Windows's perl -- measured in CI job 39514360942",
 		"POSIX::getgrnam":                              "dies on Windows's perl -- measured in CI job 39514360942",
