@@ -211,17 +211,17 @@ func TestParameterExemptionsNameAReason(t *testing.T) {
 // paramExemptForModule is exemptMapFor's own rule -- ooExempt's
 // extended map for the OO batch, exemptForModule otherwise -- so the
 // parameter oracle skips exactly the names on this platform the
-// return-type oracle does: withPlatformExempt's per-name platform
-// gaps, and, for Errno, perltest.MissingSubs's live measurement of
-// which names this platform's perl does not export. A whole-module
-// skip would miss the names platformExempt does not cover; a name
-// genuinely undefined here could as easily unbalance a call case's own
-// arguments as its return.
+// return-type oracle does: withPlatformExempt's per-name platform gaps,
+// plus exemptForModule's own live measurement (perltest.ConstantDifferences)
+// of every zero-arg constant whose die-or-return behavior differs here.
+// A whole-module skip would miss the names platformExempt does not
+// cover; a name genuinely undefined here could as easily unbalance a
+// call case's own arguments as its return.
 func paramExemptForModule(t *testing.T, p perltest.Perl, module string, tpm []byte) map[string]string {
 	if slices.Contains(perltest.OOModules, module) {
-		return ooExempt()
+		return exemptForModule(t, p, module, tpm, ooExempt())
 	}
-	return exemptForModule(t, p, module, tpm)
+	return exemptForModule(t, p, module, tpm, withPlatformExempt(oracleExempt))
 }
 
 // TestOracleCasesFitDeclaredParameters holds every module the return-type
