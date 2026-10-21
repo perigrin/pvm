@@ -1,19 +1,106 @@
 ---
 title: "Audit fixes, pure-Perl modules: carp, cluck, warn and DynaLoader::croak pass a lone reference, longmess and shortmess, Getopt::Std, Config, File::stat"
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 created: 2026-10-20T19:18:42.681982426Z
-updated: 2026-10-20T23:16:55.37430505Z
+updated: 2026-10-21T03:19:08.542794547Z
 sessions:
 - start_sha: e597bd91da76f184c4a4181487ff77fd5443cd4e
-  end_sha: ""
-  commits: 0
+  end_sha: de3c96232e6b3a3d196bc4713dd11786cee4dcff
+  commits: 9
   started_at: 2026-10-20T23:16:55.37430505Z
+  ended_at: 2026-10-21T03:19:08.542794547Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-20T23:16:55.37430505Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-21T03:19:08.542794547Z
+observed_paths:
+- internal/infer/declared_test.go
+- internal/infer/oraclestderr_test.go
+- internal/infer/parametertypes_test.go
+- internal/infer/returntypes_test.go
+- internal/infer/testdata/oracle/Archive-Tar.pl
+- internal/infer/testdata/oracle/Carp.pl
+- internal/infer/testdata/oracle/Compress-Raw-Zlib.pl
+- internal/infer/testdata/oracle/Cwd.pl
+- internal/infer/testdata/oracle/Data-Dumper.pl
+- internal/infer/testdata/oracle/DynaLoader.pl
+- internal/infer/testdata/oracle/Encode.pl
+- internal/infer/testdata/oracle/Exporter.pl
+- internal/infer/testdata/oracle/ExtUtils-MakeMaker.pl
+- internal/infer/testdata/oracle/File-Find.pl
+- internal/infer/testdata/oracle/File-Spec-Functions.pl
+- internal/infer/testdata/oracle/File-Spec-Unix.pl
+- internal/infer/testdata/oracle/File-Spec.pl
+- internal/infer/testdata/oracle/File-Temp.pl
+- internal/infer/testdata/oracle/File-stat.pl
+- internal/infer/testdata/oracle/Getopt-Long-noexit.pl
+- internal/infer/testdata/oracle/Getopt-Std-hashref.pl
+- internal/infer/testdata/oracle/HTTP-Tiny.pl
+- internal/infer/testdata/oracle/IO-Handle.pl
+- internal/infer/testdata/oracle/IO-Select.pl
+- internal/infer/testdata/oracle/List-Util.pl
+- internal/infer/testdata/oracle/POSIX.pl
+- internal/infer/testdata/oracle/Scalar-Util.pl
+- internal/infer/testdata/oracle/Storable.pl
+- internal/infer/testdata/oracle/Symbol.pl
+- internal/infer/testdata/oracle/Term-ReadLine.pl
+- internal/infer/testdata/oracle/Test-More.pl
+- internal/infer/testdata/oracle/Tie-Hash.pl
+- internal/infer/testdata/oracle/Time-HiRes.pl
+- internal/infer/testdata/return_oracle.pl
+- internal/parse/coretypes_test.go
+- internal/parse/declarations/Archive/Tar.tpm
+- internal/parse/declarations/CORE.tpm
+- internal/parse/declarations/Carp.tpm
+- internal/parse/declarations/Compress/Raw/Zlib.tpm
+- internal/parse/declarations/Config.tpm
+- internal/parse/declarations/Cwd.tpm
+- internal/parse/declarations/Data/Dumper.tpm
+- internal/parse/declarations/DynaLoader.tpm
+- internal/parse/declarations/Encode.tpm
+- internal/parse/declarations/Exporter.tpm
+- internal/parse/declarations/ExtUtils/MakeMaker.tpm
+- internal/parse/declarations/ExtUtils/Manifest.tpm
+- internal/parse/declarations/File/Basename.tpm
+- internal/parse/declarations/File/Find.tpm
+- internal/parse/declarations/File/Spec.tpm
+- internal/parse/declarations/File/Spec/Functions.tpm
+- internal/parse/declarations/File/Spec/Unix.tpm
+- internal/parse/declarations/File/Temp.tpm
+- internal/parse/declarations/File/stat.tpm
+- internal/parse/declarations/FileHandle.tpm
+- internal/parse/declarations/Future/AsyncAwait.tpm
+- internal/parse/declarations/Getopt/Long.tpm
+- internal/parse/declarations/Getopt/Std.tpm
+- internal/parse/declarations/HTTP/Tiny.tpm
+- internal/parse/declarations/IO/File.tpm
+- internal/parse/declarations/IO/Handle.tpm
+- internal/parse/declarations/IO/Select.tpm
+- internal/parse/declarations/List/Util.tpm
+- internal/parse/declarations/Mojolicious/Lite.tpm
+- internal/parse/declarations/Moose.tpm
+- internal/parse/declarations/Net/Ping.tpm
+- internal/parse/declarations/Scalar/Util.tpm
+- internal/parse/declarations/Storable.tpm
+- internal/parse/declarations/Symbol.tpm
+- internal/parse/declarations/Term/ReadLine.tpm
+- internal/parse/declarations/Test/More.tpm
+- internal/parse/declarations/Text/Wrap.tpm
+- internal/parse/declarations/Tie/Hash.tpm
+- internal/parse/declarations/Time/HiRes.tpm
+- internal/parse/declarations_test.go
+- internal/parse/exportattr_test.go
+- internal/parse/heldtoperl_test.go
+- internal/parse/use.go
+- internal/perltest/constantdifferences.go
+- internal/perltest/constantdifferences_test.go
+- internal/perltest/pathunder.go
+- internal/perltest/pathunder_test.go
 ---
 
 crochet:review of PR #488, round 1 (2026-10-21). Signature audit (01a15aaa), group E.
