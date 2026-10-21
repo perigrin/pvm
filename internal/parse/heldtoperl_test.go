@@ -696,6 +696,29 @@ func TestPOSIXImportKeepsPrintfFilehandleParse(t *testing.T) {
 	}
 }
 
+// TestPOSIXImportMatchesPerl: POSIX declares no `import` of its own.
+// Its own import (POSIX.pm:174) rewrites a legacy bareword tag ("foo_h")
+// to ":foo_h" and dies on an unimplemented name before it ever reaches
+// Exporter, but every other case -- a plain named list, a `:tag`, and
+// the explicit empty list -- forwards unchanged to Exporter::import, so
+// the plain :export/:export_ok marks this parser already reads get them
+// right without a declared import (measured on 5.42.0; audit E, S2).
+// The declared-import mechanism (RFC 0001's one altering key) has
+// nothing to say about a per-item bareword rewrite, so the legacy
+// "qw(math_h)" form (without the colon) is not expressed here: it
+// installs nothing under this parser where perl installs the whole
+// tag, a known gap for perigrin, not fixed by this issue.
+func TestPOSIXImportMatchesPerl(t *testing.T) {
+	assert.Equal(t, []string{"floor"}, importedFrom(t, "use POSIX qw(floor);\n"))
+
+	got := importedFrom(t, "use POSIX qw(:math_h);\n")
+	assert.Contains(t, got, "floor")
+	assert.Contains(t, got, "tan")
+	assert.NotContains(t, got, "times")
+
+	assert.Empty(t, importedFrom(t, "use POSIX ();\n"))
+}
+
 // TestConstantExportersPrototypes holds Fcntl.tpm's and Socket.tpm's
 // prototypes to perl.
 func TestConstantExportersPrototypes(t *testing.T) {
@@ -875,6 +898,32 @@ func TestGetoptLongBareUseOmitsConfigure(t *testing.T) {
 	got := importedFrom(t, "use Getopt::Long;\n")
 	assert.NotContains(t, got, "Configure")
 	assert.Contains(t, got, "GetOptions")
+}
+
+// TestGetoptLongConfigInstallsGetOptions: Getopt::Long's own import
+// moves everything from ':config' onward to Configure, so `@syms`, what
+// is left, is empty, and it falls through to SUPER::import's default
+// @EXPORT (perigrin's ruling, 2026-10-20: "the parameters are the
+// signature to import()") -- measured on 5.42.0, `use Getopt::Long
+// qw(:config bundling);` installs GetOptions (audit E, finding 9).
+func TestGetoptLongConfigInstallsGetOptions(t *testing.T) {
+	got := importedFrom(t, "use Getopt::Long qw(:config bundling);\n")
+	assert.Contains(t, got, "GetOptions")
+}
+
+// TestGetoptLongFromArrayInstallsGetOptions: measured on 5.42.0, `use
+// Getopt::Long qw(GetOptionsFromArray);` also installs GetOptions --
+// Getopt::Long's own import always adds &GetOptions once @syms is
+// non-empty (audit E, finding 9). The declared-import mechanism (RFC
+// 0001) has no key for this: its only two answers to a named list are
+// "install the full :export set" or "the names are unknown", so this
+// also installs the three order variables, which perl's own import
+// does not for this list. That over-claim is 01a15ac0's open question
+// for perigrin; this guards only that GetOptions still resolves.
+func TestGetoptLongFromArrayInstallsGetOptions(t *testing.T) {
+	got := importedFrom(t, "use Getopt::Long qw(GetOptionsFromArray);\n")
+	assert.Contains(t, got, "GetOptions")
+	assert.Contains(t, got, "GetOptionsFromArray")
 }
 
 // TestFileStatEmptyImportKeepsCoreStat: `use File::stat ();` is the

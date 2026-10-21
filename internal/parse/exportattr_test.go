@@ -93,17 +93,31 @@ func TestShippedDeclarationsKeepTheirImports(t *testing.T) {
 		"use Carp qw(verbose);\n": nil,
 		"use Moose;\n": {"after", "around", "augment", "before", "blessed", "confess",
 			"extends", "has", "inner", "meta", "override", "super", "with"},
-		"use Moose qw(meta);\n": {"meta"},
+		// Measured on 5.42.0: Moose::Exporter's own import validates a named
+		// list against Sub::Exporter's generated names and dies ("meta" is
+		// not among them, since it is installed separately), so this is
+		// really a dying program; declaring import with no scalar key
+		// (TestMooseTraitsInstallsSugar) states the same "any list installs
+		// the 13" answer a bare use gets, which is the safe side of that die.
+		"use Moose qw(meta);\n": {"after", "around", "augment", "before", "blessed", "confess",
+			"extends", "has", "inner", "meta", "override", "super", "with"},
 		"use Moose::Role;\n": {"after", "around", "augment", "before", "blessed", "confess",
 			"excludes", "extends", "has", "inner", "meta", "override", "requires", "super", "with"},
 		"use Mojolicious::Lite;\n": {"any", "app", "del", "get", "group", "helper", "hook", "new",
 			"options", "patch", "plugin", "post", "put", "query", "under", "websocket"},
-		"use Mojolicious::Lite qw(get);\n": {"get"},
-		"use Future::AsyncAwait;\n":        nil,
-		"use My::Lib;\n":                   {"alias_all", "emit", "fields", "join_all", "need", "pick", "size", "when_"},
-		"use My::Lib qw(join_all);\n":      {"join_all"},
-		"use My::Lib qw(hidden);\n":        nil,
-		"use My::Lib qw(plus);\n":          nil,
+		// Measured on 5.42.0: Mojolicious::Lite's own import monkey-patches
+		// the full DSL before it reads its argument list at all, then hands
+		// that list to Mojo::Base, which treats "get" as a base class to
+		// require and dies ("Can't locate get.pm"). The DSL is installed
+		// before that die, so the declared import's "any list installs the
+		// 16" answer (TestMojoliciousLiteFlagInstallsDSL) is right either way.
+		"use Mojolicious::Lite qw(get);\n": {"any", "app", "del", "get", "group", "helper", "hook",
+			"new", "options", "patch", "plugin", "post", "put", "query", "under", "websocket"},
+		"use Future::AsyncAwait;\n":   nil,
+		"use My::Lib;\n":              {"alias_all", "emit", "fields", "join_all", "need", "pick", "size", "when_"},
+		"use My::Lib qw(join_all);\n": {"join_all"},
+		"use My::Lib qw(hidden);\n":   nil,
+		"use My::Lib qw(plus);\n":     nil,
 	})
 }
 
@@ -136,6 +150,31 @@ func TestEmptyUseListImportsNothing(t *testing.T) {
 	wantImports(t, map[string][]string{
 		"use Test::More ();\n":   nil,
 		"use Test::More qw();\n": nil,
+	})
+}
+
+// TestMooseTraitsInstallsSugar: Moose::Exporter's import reads only its
+// leading '-' options and ignores the rest of a use-list for DSL
+// purposes (perigrin's ruling, 2026-10-20: "the parameters are the
+// signature to import()") -- measured on 5.42.0, `use Moose -traits =>
+// [];` still installs all 13 sugar names, as a bare `use Moose;` does
+// (audit E, finding 19).
+func TestMooseTraitsInstallsSugar(t *testing.T) {
+	wantImports(t, map[string][]string{
+		"use Moose -traits => [];\n": {"after", "around", "augment", "before", "blessed", "confess",
+			"extends", "has", "inner", "meta", "override", "super", "with"},
+	})
+}
+
+// TestMojoliciousLiteFlagInstallsDSL: Mojolicious::Lite's own import
+// monkey-patches its 16 DSL names before it ever looks at its arguments,
+// then hands them to Mojo::Base -- measured on 5.42.0, `use
+// Mojolicious::Lite -signatures;`, the module's own SYNOPSIS form,
+// still installs the full DSL (audit E, finding 20).
+func TestMojoliciousLiteFlagInstallsDSL(t *testing.T) {
+	wantImports(t, map[string][]string{
+		"use Mojolicious::Lite -signatures;\n": {"any", "app", "del", "get", "group", "helper", "hook",
+			"new", "options", "patch", "plugin", "post", "put", "query", "under", "websocket"},
 	})
 }
 

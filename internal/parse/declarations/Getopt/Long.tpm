@@ -3,6 +3,25 @@
 
 package Getopt::Long;
 
+# Getopt::Long's own import moves everything from ':config' onward to
+# Configure and always adds &GetOptions to what is left before handing
+# it to Exporter (perigrin's ruling, 2026-10-20: "the parameters are the
+# signature to import()"). Declaring it here, with no scalar key after
+# the invocant, states that any non-empty list still installs the full
+# :export set below -- measured on 5.42.0, `use Getopt::Long qw(:config
+# bundling);` installs GetOptions, because ':config' and everything
+# after it leaves nothing for Exporter to see, which is the default
+# @EXPORT (audit E, finding 9). `use Getopt::Long
+# qw(GetOptionsFromArray);` also installs GetOptions this way, matching
+# perl, but over-claims the three order variables too: perl's own
+# import there installs only GetOptionsFromArray and GetOptions, named,
+# not the default set. The mechanism has no key to tell "a :config list"
+# from "a plain named list" apart, so this is 01a15ac0's open question
+# for perigrin, not a module-specific rule. $class is the invocant, so
+# the colon keeps the derived prototype none, matching perl's
+# (prototype() on Getopt::Long::import is undef).
+sub import (Str $class: List @args) Void;
+
 # Measured on 5.42.0: a bare `use Getopt::Long;` installs GetOptions and
 # these three; Configure, HelpMessage, VersionMessage,
 # GetOptionsFromArray and GetOptionsFromString are in @EXPORT_OK alone.
