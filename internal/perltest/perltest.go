@@ -66,11 +66,24 @@ func perl542OnPath() (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	out, err := exec.Command(path, "-e", "print $]").Output()
-	if err != nil || strings.TrimSpace(string(out)) != perl542Version {
+	v, err := PerlVersion(path)
+	if err != nil || v != perl542Version {
 		return "", false
 	}
 	return path, true
+}
+
+// PerlVersion runs the perl at path and returns its $], perl's packed
+// version string ("5.042000" for 5.42.0) -- the one fact perl542OnPath
+// and internal/conformance's own perl search each need from a
+// candidate path, read the same way so the T1 ratchet and a held-to-perl
+// test never silently disagree about which perl "5.42.0" means.
+func PerlVersion(path string) (string, error) {
+	out, err := exec.Command(path, "-e", "print $]").Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 // skipOrRequire skips t with the given reason, or -- when
