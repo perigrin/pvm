@@ -123,6 +123,10 @@ for (@subs) {
                 unshift @args, $module;
             }
         }
+        # A call that kills perl outright (Windows's MSVCRT aborts some
+        # calls perl itself never dies on) leaves no observation behind;
+        # this line on STDERR, which perl does not buffer, names it.
+        print STDERR "oracle: calling $key\n";
         my @values;
         my $returned =
           $context eq 'list'
