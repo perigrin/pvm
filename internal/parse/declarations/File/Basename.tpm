@@ -11,9 +11,13 @@ package File::Basename;
 # 5.42.0), so Str excludes the Undef that would die. In list context it
 # returns (basename, dirpath, suffix), each always a string -- the suffix
 # defaults to '' when no @suffixes match. In scalar context it returns
-# only the basename.
-multi sub fileparse :export (List[Str] @args) List[Str];
-multi sub fileparse :export (List[Str] @args) Str;
+# only the basename. The suffixes past the path are matched as
+# patterns, not plain strings -- the POD gives `fileparse($path,
+# qr/\.[^.]*/)` as a documented form, and measured on 5.42.0, that call
+# matches the suffix exactly as the string '.txt' does -- so @args
+# admits a Regex, preserved as a pattern rather than lossily stringified.
+multi sub fileparse :export (List[Str|Regex] @args) List[Str];
+multi sub fileparse :export (List[Str|Regex] @args) Str;
 # basename and dirname always answer scalar context: measured on 5.42.0,
 # a Windows path like 'C:\dir\f.txt' parses as Unix on this platform (no
 # fstype set to MSWin32), so both still return a plain Str, just one with

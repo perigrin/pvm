@@ -1609,6 +1609,37 @@ func TestFileBasenameWindowsPathReturnIsDeclared(t *testing.T) {
 	assert.Empty(t, moduleFailures(t, "File::Basename"))
 }
 
+// TestFileBasenameFileparseAcceptsRegexSuffix holds the measured claim
+// (audit-E, group E, finding 16): fileparse's suffix arguments are used
+// as patterns, not plain strings -- its POD gives `fileparse($path,
+// qr/\.[^.]*/)` as a documented form. Measured on 5.42.0:
+// fileparse("/foo/bar/baz.txt", qr/\.[^.]*/) matches the suffix exactly
+// as fileparse("/foo/bar/baz.txt", ".txt") does, a Regex preserved as a
+// pattern, not a lossy Str coercion. The parameter oracle cannot catch
+// this on its own: a slurpy's element type (RFC 0001, "A slurpy takes
+// no bare element type") is not part of the check TestOracleCasesFitDeclaredParameters
+// runs, so this reads File::Basename.tpm's declared @args element
+// directly, which must admit Regex for the POD's own form to type-check.
+func TestFileBasenameFileparseAcceptsRegexSuffix(t *testing.T) {
+	p := perltest.Perl542(t)
+	out, err := p.Command("-MFile::Basename", "-e",
+		`print join("|", fileparse("/foo/bar/baz.txt", qr/\.[^.]*/));`,
+	).Output()
+	require.NoError(t, err)
+	assert.Equal(t, "baz|/foo/bar/|.txt", strings.TrimSpace(string(out)))
+
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "File", "Basename.tpm"))
+	require.NoError(t, err)
+	sigs, errs := parse.DeclaredSignatures(tpm)
+	require.Empty(t, errs)
+	for _, s := range sigs["fileparse"] {
+		require.NotEmpty(t, s.Params)
+		elem := s.Params[0].Element
+		assert.True(t, types.IsSubtype(types.Regex, elem),
+			"fileparse's @args element type %v excludes Regex, though its suffixes are matched as patterns", elem)
+	}
+}
+
 // TestPurePerlExportersOracleStaysInScratch: File::Path, File::Copy and
 // File::Find touch the filesystem, so their oracle cases name only
 // relative paths -- an absolute one would reach outside the scratch
