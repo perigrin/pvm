@@ -88,11 +88,12 @@ type Param struct {
 	Bareword bool
 
 	// Named is whether the parameter is perl 5.44's named kind, `:$name`
-	// (perlsub "named parameters"): matched by its name among the
-	// caller's arguments rather than by position. A declared import's
-	// named parameter also matches the use-list key spelled with a
-	// leading dash, `-name` (RFC 0001, "the signature names the keys"),
-	// which perl itself does not.
+	// (perlsub "named parameters"), which perl matches by name among the
+	// caller's arguments rather than by position. Only the parser's
+	// ordering check reads it: arity and prototype derivation treat a
+	// named parameter as positional, and reading a declared import's
+	// keys by name waits on issue 01a15f6b (RFC 0001, "the signature
+	// names the keys").
 	Named bool
 }
 
