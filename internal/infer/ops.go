@@ -509,16 +509,18 @@ func numified(actual, expected types.Type) types.Type {
 
 // readLeg is actual with its member bit, a scalar perl reads as a string
 // or as a number, replaced by what a slot expecting expected reads from
-// it: a Str where expected admits a string that is no number, whether a
-// plain Str or a union holding one, such as split's Str|Regex or stat's
-// Str|Glob; num where expected admits only numbers; and bit as it is
-// where expected admits neither.
+// it: a Str where expected admits a plain string, whether a Str or a
+// union holding one, such as split's Str|Regex or stat's Str|Glob; num
+// where expected admits only numbers, NaN and Inf among them, such as
+// POSIX isinf's Num|NaN|Inf or select's Undef|Num; and bit as it is
+// where expected admits neither. perl 5.42 -w is silent on
+// `isinf(dualvar(5, "x"))` and `isfinite((3 > 2))`.
 func readLeg(actual, expected, bit, num types.Type) types.Type {
 	if actual&bit == 0 {
 		return actual
 	}
 	switch {
-	case expected&(types.Str&^types.Num) != 0:
+	case expected&(types.Str&^(types.Num|types.NaN|types.Inf)) != 0:
 		return actual&^bit | types.Str
 	case expected&types.Num != 0:
 		return actual&^bit | num

@@ -123,3 +123,59 @@ func TestBooleanInUnionSlot(t *testing.T) {
 		}
 	}
 }
+
+// TestDualvarUndefSilencedByNoWarnings: a dualvar that may be undef,
+// read under `no warnings 'uninitialized'`, is silent once the Undef is
+// taken away, as a dualvar alone is: perl 5.42 -w is silent on `my $x =
+// (rand() > 2) ? dualvar(5, "x") : undef; no warnings 'uninitialized';
+// my $n = $x + 1; my $s = lc $x;`, which gives 1 and "".
+func TestDualvarUndefSilencedByNoWarnings(t *testing.T) {
+	wantSilentResolved(t, `use Scalar::Util qw(dualvar);
+my $x = (rand() > 2) ? dualvar(5, "x") : undef;
+no warnings 'uninitialized';
+my $n = $x + 1;
+my $s = lc $x;
+`)
+}
+
+// TestDualvarInNumNaNInfSlot: a slot typed Num|NaN|Inf, POSIX's isinf,
+// isfinite and isnan, admits no string that is not a number, so a
+// dualvar or a Boolean there reads its number: perl 5.42 -w is silent on
+// `my $d = dualvar(5, "x"); isinf($d)`, `isnan($d)`, `isfinite((3 > 2))`
+// and `isnan((3 > 2))`. The dualvar is held in a variable: a call
+// written as the argument, `isinf(dualvar(5, "x"))`, flattens into a
+// listop's arguments and is not checked against the slot at all. The dualvar's read is still lossy under
+// --warn-lossy-coercion; the Boolean's is not.
+func TestDualvarInNumNaNInfSlot(t *testing.T) {
+	for _, src := range []string{
+		`use Scalar::Util qw(dualvar); use POSIX qw(isinf); my $d = dualvar(5, "x"); my $a = isinf($d);`,
+		`use Scalar::Util qw(dualvar); use POSIX qw(isnan); my $d = dualvar(5, "x"); my $a = isnan($d);`,
+		`use POSIX qw(isfinite); my $b = isfinite((3 > 2));`,
+		`use POSIX qw(isnan); my $b = isnan((3 > 2));`,
+	} {
+		wantSilentResolved(t, src)
+	}
+	lossy := infer.Options{WarnLossyCoercion: true}
+	src := `use Scalar::Util qw(dualvar); use POSIX qw(isinf); my $d = dualvar(5, "x"); my $a = isinf($d);`
+	if diags := diagsWithOptions(src, lossy); len(diags) != 1 || diags[0].Code != infer.CodeLossyCoercion {
+		t.Errorf("%q: diagnostics %v, want one lossy coercion", src, diags)
+	}
+	src = `use POSIX qw(isfinite); my $b = isfinite((3 > 2));`
+	for _, d := range diagsWithOptions(src, lossy) {
+		t.Errorf("%q: diagnostic %q, want none", src, d.Message)
+	}
+	numeric := types.Num | types.NaN | types.Inf
+	if got := infer.Numified(types.Boolean, numeric); got != types.Int {
+		t.Errorf("Numified(Boolean, %v) = %v, want Int", numeric, got)
+	}
+}
+
+// TestBooleanInUndefNumSlot: select's timeout is Undef|Num, which admits
+// only numbers beside undef, so a Boolean there is the Int it numifies
+// to: perl 5.42 -w is silent on `select(undef, undef, undef, (1 > 2))`.
+func TestBooleanInUndefNumSlot(t *testing.T) {
+	wantSilentResolved(t, "select(undef, undef, undef, (1 > 2));\n")
+	if got := infer.Numified(types.Boolean, types.Undef|types.Num); got != types.Int {
+		t.Errorf("Numified(Boolean, Undef|Num) = %v, want Int", got)
+	}
+}
