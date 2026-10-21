@@ -3,8 +3,9 @@
 open my $fh, '>', 'oracle-file-stat.tmp' or die $!;
 close $fh;
 my $st = File::stat::stat('oracle-file-stat.tmp');
+open my $handle, '<', 'oracle-file-stat.tmp' or die $!;
 (
-    stat        => [ ['oracle-file-stat.tmp'], ['no-such-file'] ],
+    stat        => [ ['oracle-file-stat.tmp'], ['no-such-file'], [ $handle ] ],
     lstat       => [ ['oracle-file-stat.tmp'], ['no-such-file'] ],
     stat_cando  => [ [ $st, 0400, 1 ] ],
 );
