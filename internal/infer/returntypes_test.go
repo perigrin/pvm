@@ -2392,6 +2392,34 @@ func TestTestMorePlanReturnType(t *testing.T) {
 	}
 }
 
+// TestGetoptLongHelpAndVersionMessageReturnBoolean holds the measured
+// claim (audit-E, group E, finding 10): HelpMessage and VersionMessage
+// each end by calling CORE::exit, unless called with `-exitval =>
+// "NOEXIT"` (the POD's own documented escape), in which case each
+// returns rather than exiting. Measured on 5.42.0:
+// VersionMessage(-exitval => "NOEXIT", -message => "m") is a true
+// Boolean (builtin::is_bool), not undef or a plain Int -- its last
+// statement is the skipped `unless` condition, `$pa->{-exitval} eq
+// "NOEXIT"`, itself a Boolean. HelpMessage's last statement is
+// pod2usage(...), which answers the same way with the same option.
+// Declared None, as Getopt::Long.tpm had it, psc would mark any code
+// after a documented NOEXIT call unreachable. Both subs stay exempt
+// from the general oracle (oracleExempt): the exiting path cannot be
+// called safely, and the two paths cannot be told apart by argument
+// shape, so no multi candidate the oracle could dispatch on would
+// cover the exiting half. This isolated run only exercises the NOEXIT
+// half, with its own inline tpm so the other four subs in
+// Getopt::Long.tpm need no exemption here.
+func TestGetoptLongHelpAndVersionMessageReturnBoolean(t *testing.T) {
+	p := perltest.Perl542(t)
+	tpm := []byte("package Getopt::Long;\nsub HelpMessage (List @args) Boolean;\nsub VersionMessage (List @args) Boolean;\n")
+	cases, err := filepath.Abs(filepath.Join("testdata", "oracle", "Getopt-Long-noexit.pl"))
+	require.NoError(t, err)
+	for _, f := range returnTypeFailures(t, p, oracleRun{Module: "Getopt::Long", TPM: tpm, Cases: cases}) {
+		t.Error(f)
+	}
+}
+
 // declaredVariables reads module's .tpm variables, failing t on any
 // declaration error.
 func declaredVariables(t *testing.T, module string) map[string]types.Param {
