@@ -1,19 +1,72 @@
 ---
 title: "Audit fixes, IO and OO: invocants, IO::Select handles, inherited Tie::Hash methods, scalar-context returns, documented OO interfaces"
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 created: 2026-10-20T19:18:42.594449107Z
-updated: 2026-10-20T21:35:00.99907194Z
+updated: 2026-10-21T00:05:01.458193232Z
 sessions:
 - start_sha: 21162e2a33e98fd419c99aaa4fd58ed72f3db1b8
-  end_sha: ""
-  commits: 0
+  end_sha: a2621ad1916c9a56ca43a75931e9c15d8f8929fa
+  commits: 5
   started_at: 2026-10-20T21:35:00.99907194Z
+  ended_at: 2026-10-21T00:05:01.458193232Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-20T21:35:00.99907194Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-21T00:05:01.458193232Z
+observed_paths:
+- internal/infer/parametertypes_test.go
+- internal/infer/precision_test.go
+- internal/infer/returntypes_test.go
+- internal/infer/testdata/observe_types.pl
+- internal/infer/testdata/oracle/Archive-Tar.pl
+- internal/infer/testdata/oracle/File-Spec-Functions.pl
+- internal/infer/testdata/oracle/File-Spec-Unix.pl
+- internal/infer/testdata/oracle/File-Spec.pl
+- internal/infer/testdata/oracle/File-Temp.pl
+- internal/infer/testdata/oracle/HTTP-Tiny.pl
+- internal/infer/testdata/oracle/IO-Handle.pl
+- internal/infer/testdata/oracle/IO-Select.pl
+- internal/infer/testdata/oracle/IO-Socket-IP.pl
+- internal/infer/testdata/oracle/IO-Socket.pl
+- internal/infer/testdata/oracle/POSIX.pl
+- internal/infer/testdata/oracle/Socket.pl
+- internal/infer/testdata/oracle/Term-ReadLine.pl
+- internal/infer/testdata/oracle/Tie-Hash.pl
+- internal/infer/testdata/oracle/Time-HiRes.pl
+- internal/infer/testdata/parameter_oracle.pl
+- internal/parse/declarations/Archive/Tar.tpm
+- internal/parse/declarations/ExtUtils/Manifest.tpm
+- internal/parse/declarations/File/Spec.tpm
+- internal/parse/declarations/File/Spec/Functions.tpm
+- internal/parse/declarations/File/Spec/Unix.tpm
+- internal/parse/declarations/File/Temp.tpm
+- internal/parse/declarations/FileHandle.tpm
+- internal/parse/declarations/HTTP/Tiny.tpm
+- internal/parse/declarations/IO/File.tpm
+- internal/parse/declarations/IO/Handle.tpm
+- internal/parse/declarations/IO/Select.tpm
+- internal/parse/declarations/IO/Socket.tpm
+- internal/parse/declarations/IO/Socket/IP.tpm
+- internal/parse/declarations/Net/Ping.tpm
+- internal/parse/declarations/Socket.tpm
+- internal/parse/declarations/Term/ReadLine.tpm
+- internal/parse/declarations/Tie/Hash.tpm
+- internal/parse/heldtoperl_test.go
+- internal/perltest/missingsubs.go
+- internal/perltest/missingsubs_test.go
+- internal/perltest/noskips_test.go
+- internal/perltest/pathunder.go
+- internal/perltest/pathunder_test.go
+- internal/perltest/perl542_test.go
+- internal/perltest/perltest.go
+- internal/perltest/referencebuild_test.go
+- internal/perltest/staleexempt.go
+- internal/perltest/staleexempt_test.go
 ---
 
 crochet:review of PR #488, round 1 (2026-10-21). Signature audit (01a15aaa), group C.
