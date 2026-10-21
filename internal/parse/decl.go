@@ -153,7 +153,7 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 				s.Returns, s.ReturnElement, ret, err = p.returnType()
 				return err
 			}
-			if ok && p.text(tok) == ":" && len(s.Params) == 0 && s.Invocant == nil {
+			if ok && p.text(tok) == ":" && len(s.Params) == 0 && s.Invocant == nil && !namedParamColon(p, tok) {
 				return errors.New("invocant colon with no parameter before it")
 			}
 			// A List parameter takes every remaining argument, so nothing
@@ -171,6 +171,12 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 			param, node, err := p.typedParam()
 			if err != nil {
 				return err
+			}
+			// Named parameters come after every positional one and before
+			// a slurpy (perlsub "named parameters"); perl refuses a
+			// positional after a named the same way.
+			if n := len(s.Params); n > 0 && s.Params[n-1].Named && !param.Named && !param.Slurpy() {
+				return fmt.Errorf("positional parameter %s follows named parameter %s", param.Variable(), s.Params[n-1].Variable())
 			}
 			// Everything after a prototype's `;` is optional, so a required
 			// parameter after an optional one has no prototype; perl 5.42
@@ -395,6 +401,17 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 	if !ok {
 		return types.Param{}, nil, errors.New("signature not terminated")
 	}
+	start := tok.Start
+	// Perl 5.44's named parameter (perlsub "named parameters"): a `:`
+	// prefixed to the variable's sigil, with no type before it, `:$x`.
+	named := false
+	if namedParamColon(p, tok) {
+		p.advanceTo(tok)
+		named = true
+		if tok, ok = p.peekSignificant(); !ok {
+			return types.Param{}, nil, errors.New("signature not terminated")
+		}
+	}
 	// A scalar may be untyped as a slurpy may: RFC 0001 "Multi
 	// declarations" states `($r, $w, $e, Num $timeout)`.
 	typ, elem, tn := types.Unknown, types.Unknown, &Node{}
@@ -405,6 +422,11 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 		var err error
 		if typ, elem, tn, err = p.typeExpr(); err != nil {
 			return types.Param{}, nil, err
+		}
+		// The same colon, after a type: `ArrayRef :$x`.
+		if next, ok := p.peekSignificant(); ok && namedParamColon(p, next) {
+			p.advanceTo(next)
+			named = true
 		}
 	}
 	v, ok := p.peekSignificant()
@@ -437,7 +459,7 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 		return types.Param{}, nil, fmt.Errorf("type %s names no variable", tn.Text)
 	}
 	p.advanceTo(last)
-	param := types.Param{Name: p.text(v)[1:], Sigil: p.src[v.Start], Type: typ, Element: elem, Alias: alias, AliasEach: each}
+	param := types.Param{Name: p.text(v)[1:], Sigil: p.src[v.Start], Type: typ, Element: elem, Alias: alias, AliasEach: each, Named: named}
 	slurpy := param.Slurpy()
 	// A parameter whose type includes Void may be absent, with no default
 	// (RFC 0001, "`Maybe[T]` is `Undef|T` and `Optional[T]` is `Void|T`"):
@@ -482,7 +504,7 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 	if slurpy && typ != types.Unknown && !list {
 		return types.Param{}, nil, fmt.Errorf("slurpy %s has a bare element type %s; write a container type, List[%s] %s", param.Variable(), tn.Text, tn.Text, param.Variable())
 	}
-	node := &Node{Kind: Declaration, Text: tn.Text, Start: tok.Start, Children: []*Node{
+	node := &Node{Kind: Declaration, Text: tn.Text, Start: start, Children: []*Node{
 		{Kind: Term, Text: p.text(v), Start: v.Start, End: v.End},
 	}}
 	if eq, ok := p.peekSignificant(); ok && p.text(eq) == "=" {
@@ -530,6 +552,17 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 	}
 	node.End = p.prevEnd()
 	return param, node, nil
+}
+
+// namedParamColon reports whether tok is the leading `:` of a perl 5.44
+// named parameter, perlsub "named parameters": a colon touching the
+// variable's sigil, with no type or space between them, `:$name`.
+func namedParamColon(p *parser, tok lexer.Token) bool {
+	if p.text(tok) != ":" {
+		return false
+	}
+	next, ok := p.peekAfter(tok)
+	return ok && next.Kind == lexer.Variable && next.Start == tok.End
 }
 
 // slotHolds says what a slot holds when typ does not fit it, and "" when

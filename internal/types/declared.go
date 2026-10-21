@@ -86,6 +86,14 @@ type Param struct {
 	// the word becomes. `=>`'s left operand is one, `foo => 1` passing
 	// "foo" (RFC 0001, "Operator declarations").
 	Bareword bool
+
+	// Named is whether the parameter is perl 5.44's named kind, `:$name`
+	// (perlsub "named parameters"): matched by its name among the
+	// caller's arguments rather than by position. A declared import's
+	// named parameter also matches the use-list key spelled with a
+	// leading dash, `-name` (RFC 0001, "the signature names the keys"),
+	// which perl itself does not.
+	Named bool
 }
 
 // Variable is the parameter's variable as a declaration writes it, with

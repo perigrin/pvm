@@ -96,11 +96,11 @@ func TestShippedDeclarationsKeepTheirImports(t *testing.T) {
 		// Measured on 5.42.0: Moose::Exporter's own import validates a named
 		// list against Sub::Exporter's generated names and dies ("meta" is
 		// not among them, since it is installed separately), so this is
-		// really a dying program; declaring import with no scalar key
-		// (TestMooseTraitsInstallsSugar) states the same "any list installs
-		// the 13" answer a bare use gets, which is the safe side of that die.
-		"use Moose qw(meta);\n": {"after", "around", "augment", "before", "blessed", "confess",
-			"extends", "has", "inner", "meta", "override", "super", "with"},
+		// really a dying program; naming meta explicitly resolves to meta
+		// alone, matching what Sub::Exporter's own selective resolution
+		// would give it were it among the names it selects (it is not, so
+		// the die), which is the safe side of that die.
+		"use Moose qw(meta);\n": {"meta"},
 		"use Moose::Role;\n": {"after", "around", "augment", "before", "blessed", "confess",
 			"excludes", "extends", "has", "inner", "meta", "override", "requires", "super", "with"},
 		"use Mojolicious::Lite;\n": {"any", "app", "del", "get", "group", "helper", "hook", "new",
@@ -164,6 +164,55 @@ func TestMooseTraitsInstallsSugar(t *testing.T) {
 		"use Moose -traits => [];\n": {"after", "around", "augment", "before", "blessed", "confess",
 			"extends", "has", "inner", "meta", "override", "super", "with"},
 	})
+}
+
+// TestMooseNamedListInstallsNamesAndMeta: a named list installs those
+// names and meta -- measured on 5.42.0, `use Moose qw(has);` installs
+// has, resolved the Exporter way against the 12 sugar names, and meta,
+// which Moose::Exporter installs independently of that list
+// (crochet:review round 2, quality S15: the OLD "any list installs the
+// 13" reading gave blessed() a false call_arity here, since Moose never
+// installs it from this list).
+func TestMooseNamedListInstallsNamesAndMeta(t *testing.T) {
+	wantImports(t, map[string][]string{
+		"use Moose qw(has);\n":                {"has", "meta"},
+		"use Moose -traits => [], qw(has);\n": {"has", "meta"},
+	})
+}
+
+// TestMooseMetaNameRenamesMeta: `-meta_name` renames the installed meta
+// -- measured on 5.42.0, `use Moose -meta_name => 'm';` installs the 12
+// sugar names and m instead of meta.
+func TestMooseMetaNameRenamesMeta(t *testing.T) {
+	wantImports(t, map[string][]string{
+		"use Moose -meta_name => 'm';\n": {"after", "around", "augment", "before", "blessed", "confess",
+			"extends", "has", "inner", "m", "override", "super", "with"},
+	})
+}
+
+// TestDeclarationReadsNamedParameters: a .tpm's signature reads perl
+// 5.44's named parameters, `:$name` (perlsub "named parameters"),
+// optional with `=`, after the positional parameters and before a
+// slurpy, as Moose's import does.
+func TestDeclarationReadsNamedParameters(t *testing.T) {
+	src := []byte("package My::Named;\nsub f (Str $pos, ArrayRef :$x = [], List @rest) Void;\n")
+	sigs, errs := DeclaredSignatures(src)
+	if len(errs) > 0 {
+		t.Fatalf("DeclaredSignatures: %v", errs)
+	}
+	params := sigs["f"][0].Params
+	if len(params) != 3 {
+		t.Fatalf("params %v, want 3", params)
+	}
+	if params[0].Named {
+		t.Errorf("positional %s read as named", params[0].Variable())
+	}
+	if !params[1].Named || params[1].Name != "x" {
+		t.Errorf("param %v, want named x", params[1])
+	}
+	if params[2].Named {
+		t.Errorf("slurpy %s read as named", params[2].Variable())
+	}
 }
 
 // TestMojoliciousLiteFlagInstallsDSL: Mojolicious::Lite's own import

@@ -1110,6 +1110,41 @@ the symbols open, since what it installs depends on the key's value in
 a way a `.tpm` does not evaluate; a use-list without the key installs
 the names below, as a bare use does.
 
+**The signature names the keys, written with perl 5.44's named
+parameters.** perigrin, 2026-10-21: "the signature names the keys,
+written with perl 5.44's named-parameter syntax (`:$name = default`,
+perlsub "named parameters")." A single optional scalar is the smallest
+syntax when a module's `import` reads one key, but Moose::Exporter
+reads three (`-traits`, `-metaclass`, `-meta_name`), each independent
+of the others, which the one-scalar heuristic cannot name. perl 5.44
+gives a signature's keys their own syntax: a named parameter, declared
+`:$name` after the positional ones and before a slurpy, matched by name
+rather than position.
+
+    sub import (Str $class: ArrayRef :$traits = [], Str :$metaclass = undef, Str :$meta_name = 'meta', List @names) Void;  # Moose
+
+Each named parameter is consumed from the use-list wherever it falls,
+as Moose::Exporter's own `_strip_option` reads `-traits` and the rest
+"from anywhere in the list"; what remains installs the Exporter way --
+the literal names it holds, resolved against `:export` and
+`:export_ok`, or the defaults when nothing remains, as a bare `use`
+does. A name a declaration marks `:always` installs independently of
+that list, whenever `import` runs at all: Moose's `meta`, which
+Moose::Exporter installs through `init_meta` regardless of the sugar
+names asked for, renamed when `-meta_name` gives one.
+
+**A declared import's named parameter also matches a dashed key.**
+perigrin, 2026-10-21: "a declared import's named parameter `:$traits`
+matches the use-list key `-traits` or `traits` (perl 5.44 itself
+matches only the exact name; this is a `.tpm` rule)." Perl's own named
+parameters match a use-list key by its bare name alone; real perl would
+refuse `foo(-traits => [])` against `sub foo (:$traits) {}` as an
+unrecognised named argument. Moose::Exporter's options are conventionally
+written with a leading dash, perl's own idiom for a bareword hash key
+(`-traits` is unary minus on the autoquoted word `traits`), so a `.tpm`'s
+named parameter matches both spellings: `-traits` and `traits` both
+satisfy `:$traits`.
+
 **Typed variables.** Some modules export variables: Config's `%Config`
 on a bare `use`, Socket's `$CRLF` only when asked for. A declaration
 states one with its type before the variable and the export as an

@@ -396,3 +396,26 @@ func TestInferVoidMatchIsUntypedNotError(t *testing.T) {
 	got, _ := declaredCallType(t, `sub f { $_[0] =~ s/b/c/g; }`, "$_[0] =~ s/b/c/g")
 	assert.Equal(t, types.Str, got)
 }
+
+// TestMooseNamedListNoFalseArity: `use Moose qw(has);` installs has and
+// meta alone, not blessed (TestMooseNamedListInstallsNamesAndMeta,
+// internal/parse) -- so a later blessed() is an ordinary call, not one
+// to a sub whose `($)` prototype refuses it for taking too few
+// arguments. crochet:review round 2 (quality S15, issue 01a15efc) found
+// the false call_arity this guards: the shipped Moose.tpm used to
+// install all 13 names from any non-empty list.
+func TestMooseNamedListNoFalseArity(t *testing.T) {
+	root := parse.ParseWithLoader([]byte("use Moose qw(has);\nblessed();\n"), func(string) ([]byte, bool) { return nil, false })
+	var codes []parse.RefusalCode
+	var walk func(*parse.Node)
+	walk = func(n *parse.Node) {
+		if n.Kind == parse.Unknown {
+			codes = append(codes, n.Refusal)
+		}
+		for _, c := range n.Children {
+			walk(c)
+		}
+	}
+	walk(root)
+	assert.NotContains(t, codes, parse.CallArity, "blessed() refused for arity though qw(has) never imports it")
+}
