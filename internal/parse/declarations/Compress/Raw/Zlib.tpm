@@ -64,7 +64,16 @@ sub WANT_GZIP_OR_ZLIB :export () Int;
 # but every call to it dies here.
 sub DEF_WBITS :export (List @args) None;
 
-# crc32/adler32 have no prototype either (measured "none"); a buffer of
-# undef does not die (measured: adler32(undef) is 1, the adler32 seed).
-sub adler32 :export (List @args) Int;
-sub crc32 :export (List @args) Int;
+# crc32/adler32 have no prototype either (measured "none"), so each is
+# :listop; a buffer of undef does not die (measured: adler32(undef) is
+# 1, the adler32 seed). (List @args) was too wide: measured, `crc32()`
+# dies "Usage: Compress::Raw::Zlib::crc32(buf, crc=CRZ_crcInitial,
+# offset=0)" and `crc32([1])` dies "buffer parameter is not a SCALAR
+# reference" -- values List admitted that perl has no coercion for and
+# dies on (RFC 0001, "What a parameter type means"). $buffer takes a
+# scalar or a scalar reference (perldoc: "The buffer parameters can
+# either be a scalar or a scalar reference"); $crc takes undef too,
+# documented to reset the running value ("If the $crc parameters is
+# undef, the crc value will be reset").
+sub adler32 :export :listop (Str|ScalarRef|Undef $buffer, Optional[Int|Undef] $crc, Optional[Int] $offset) Int;
+sub crc32 :export :listop (Str|ScalarRef|Undef $buffer, Optional[Int|Undef] $crc, Optional[Int] $offset) Int;
