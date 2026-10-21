@@ -1,10 +1,19 @@
 ---
 title: "Over-engineering cuts from the review: shared perl-driver helpers, Signature.Arity, one scope-chain update, maps.Clone"
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 created: 2026-10-20T19:18:42.724502357Z
-updated: 2026-10-20T19:19:04.245165316Z
+updated: 2026-10-21T03:39:32.787168188Z
+sessions:
+- start_sha: 22583a402ae797ff8a0a591d3d5c4f0763744131
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-21T03:39:32.787168188Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-21T03:39:32.787168188Z
 ---
 
 crochet:review of PR #488, round 1 (2026-10-21). ponytail lens (about -150 lines): return_oracle.pl:149-154 and held_to_perl.pl:145-150 duplicate callable; both drivers carry the same four-place sub lookup (one find_sub in a shared held_lib.pl, one rule for found); held_to_perl.pl installs/skeleton modes build the same exportable list and use-string; derive.go:151-165 arityRange re-implements Signature.accepts (export Signature.Arity); symbols.go UpdatePossibleUndef is a third scope-chain walk with an unread bool (one update(name, f)); calls.go markPossibleUndef/markedPossibleUndef have one caller each; flattenedSelect and selectAnyContext share a tail (types.JoinSelections); flow.go elsifPre copies a map by hand (maps.Clone); isElementVarName is a one-caller wrapper; DeclaredSignatures/DeclaredVariables are two test-only wrappers; Signature.ReturnElement is read only by tests (keep only if a consumer is planned). Do this after the other fix-round issues land, since it touches their files.
