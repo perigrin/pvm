@@ -3,8 +3,11 @@
 
 use v5.36;
 no strict 'refs';
-use B ();
+use File::Spec ();
+use FindBin qw($RealBin);
 use Scalar::Util qw(refaddr);
+
+require File::Spec->catfile( $RealBin, 'held_lib.pl' );
 
 # Usage:
 #   held_to_perl.pl inc MODULE              prints the file perl loaded MODULE from
@@ -33,7 +36,7 @@ elsif ( $mode eq 'prototypes' ) {
     eval "package Held::Prime; use $module; 1";
     my $n = 0;
     for my $name (@args) {
-        my $code = exists &{"${module}::$name"} ? \&{"${module}::$name"} : $module->can($name);
+        my $code = callable("${module}::$name") ? \&{"${module}::$name"} : $module->can($name);
         # A module whose import re-exports a third module's names
         # straight into its caller -- FileHandle's import calls
         # Exporter::export('Fcntl', $callpkg) for a bare `use`, never
@@ -44,7 +47,7 @@ elsif ( $mode eq 'prototypes' ) {
         # not exported by name at all ("F_DUPFD" is not exported by the
         # FileHandle module), and FileHandle::F_DUPFD and
         # FileHandle->can('F_DUPFD') are both false.
-        $code ||= exists &{"Held::Prime::$name"} ? \&{"Held::Prime::$name"} : undef;
+        $code ||= callable("Held::Prime::$name") ? \&{"Held::Prime::$name"} : undef;
         if ( !$code ) {
             # A name a bare `use` does not install, measured, still gets
             # its stub only once it is asked for by name -- Fcntl's
@@ -52,14 +55,14 @@ elsif ( $mode eq 'prototypes' ) {
             # does not. Prime it by name before calling it missing.
             my $primed = "Held::PrimeByName@{[$n++]}";
             eval "package $primed; use $module qw($name); 1";
-            $code = exists &{"${module}::$name"} ? \&{"${module}::$name"} : $module->can($name);
+            $code = callable("${module}::$name") ? \&{"${module}::$name"} : $module->can($name);
             # A module with its own import, as Locale::Maketext::Simple's
             # and IO::Socket::IP's are, installs a glob straight into the
             # caller's package and never into its own (measured: unlike
             # POSIX's AUTOLOAD, nothing it does defines
             # Locale::Maketext::Simple::loc). The only place left to find
             # it is the package it was just primed into.
-            $code ||= exists &{"${primed}::$name"} ? \&{"${primed}::$name"} : undef;
+            $code ||= callable("${primed}::$name") ? \&{"${primed}::$name"} : undef;
         }
         my $proto = $code && prototype($code);
         say join "\t", $name, !$code ? 'missing' : defined $proto ? ( 'proto', $proto ) : 'none';
@@ -109,7 +112,7 @@ elsif ( $mode eq 'skeleton' ) {
             say "our TODO $name :$mark;";
             next;
         }
-        my $code  = exists &{"${module}::$name"} ? \&{"${module}::$name"} : $module->can($name);
+        my $code  = callable("${module}::$name") ? \&{"${module}::$name"} : $module->can($name);
         my $proto = $code && prototype($code);
         $mark .= " :prototype($proto)" if defined $proto && $proto ne '';
         say "sub $name :$mark " . skeletonParams($proto) . " TODO;";
@@ -133,20 +136,6 @@ sub installed ($caller) {
         }
     }
     return @names;
-}
-
-# callable is whether a call to the sub named $name runs code: one that is
-# defined, or one that exists undefined in a package with an AUTOLOAD to
-# run in its place. Exists, not defined: measured on 5.42.0, a bare `use
-# POSIX` installs 586 subs, 124 of them declared for its AUTOLOAD and not
-# yet defined. An undefined sub with no AUTOLOAD is no sub: Exporter makes
-# such a stub for `use Carp qw(verbose)`, an @EXPORT_FAIL flag, and a call
-# to it dies "Undefined subroutine &Carp::verbose".
-sub callable ($name) {
-    return 0 if !exists &$name;
-    return 1 if defined &$name;
-    my $home = B::svref_2object( \&$name )->GV->STASH->NAME;
-    return defined &{"${home}::AUTOLOAD"};
 }
 
 # skeletonParams is the typed parameter list `skeleton` writes for a sub
