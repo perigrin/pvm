@@ -1,19 +1,40 @@
 ---
 title: Declared imports read perl 5.44 named parameters as keys; Moose's named list installs those names and meta
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 created: 2026-10-21T15:02:46.98508217Z
-updated: 2026-10-21T15:14:43.776040816Z
+updated: 2026-10-21T16:34:51.459020837Z
 sessions:
 - start_sha: 9711a47ad2aaa4e8463f48604119e9b4ed2bf964
-  end_sha: ""
-  commits: 0
+  end_sha: 377d3518b97962c50d9b4ddc091ba26bb5cc037c
+  commits: 2
   started_at: 2026-10-21T15:14:43.776040816Z
+  ended_at: 2026-10-21T16:34:51.459020837Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-21T15:14:43.776040816Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-21T16:34:51.459020837Z
+observed_paths:
+- docs/rfcs/0001-type-libraries.md
+- internal/infer/declared_test.go
+- internal/infer/flow.go
+- internal/infer/flow_regressions_round2_test.go
+- internal/infer/infer.go
+- internal/infer/ops.go
+- internal/infer/special.go
+- internal/infer/symbols.go
+- internal/infer/vars.go
+- internal/parse/decl.go
+- internal/parse/declarations.go
+- internal/parse/declarations/Moose.tpm
+- internal/parse/exportattr_test.go
+- internal/parse/exports.go
+- internal/parse/use.go
+- internal/types/declared.go
 ---
 
 crochet:review round 2 (quality S15, found again by 01a15ce6-1959): `use Moose qw(has)` installs all 13 Moose subs, giving a false call_arity on `blessed()` that pu and cf08c0ac do not have.
