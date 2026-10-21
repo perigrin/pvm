@@ -81,6 +81,10 @@ func TestUseVersionListIsOneStatement(t *testing.T) {
 		"use POSIX 1.0 qw(floor);",
 		"use Test::More 1.0 ();",
 		"use POSIX 1.0;",
+		"use POSIX v1.0 qw(floor);",
+		"use POSIX 1.2.3 qw(floor);",
+		"use Test::More v0.1 ();",
+		"use POSIX v1.0;",
 	} {
 		root := ParseWithLoader([]byte(src), noModules)
 		if errs := DeclarationErrors(root); len(errs) > 0 {
@@ -105,6 +109,23 @@ func TestUseVersionListIsOneStatement(t *testing.T) {
 	bare := importedFrom(t, "use POSIX;\n")
 	if got := importedFrom(t, "use POSIX 1.0;\n"); !slices.Equal(got, bare) {
 		t.Errorf("use POSIX 1.0: imports %v, want the bare set %v", got, bare)
+	}
+
+	// A v-string VERSION, `v1.0` or a bare `1.2.3`, is a VERSION too.
+	// Measured on 5.42.0: `use POSIX v1.0 qw(floor); floor(1,2)` and
+	// `use POSIX 1.2.3 qw(floor); floor(1,2)` die "Usage: POSIX::floor(x)",
+	// `use Test::More v0.1 (); ok();` dies "Undefined subroutine
+	// &main::ok", and `use POSIX v1.0;` installs floor, as a bare use does.
+	for _, src := range []string{"use POSIX v1.0 qw(floor);\n", "use POSIX 1.2.3 qw(floor);\n"} {
+		if got := importedFrom(t, src); !slices.Equal(got, []string{"floor"}) {
+			t.Errorf("%q: imports %v, want [floor]", src, got)
+		}
+	}
+	if got := importedFrom(t, "use Test::More v0.1 ();\n"); len(got) != 0 {
+		t.Errorf("use Test::More v0.1 (): imports %v, want none", got)
+	}
+	if got := importedFrom(t, "use POSIX v1.0;\n"); !slices.Equal(got, bare) {
+		t.Errorf("use POSIX v1.0: imports %v, want the bare set %v", got, bare)
 	}
 
 	// `use if COND, MODULE, LIST` is not `use MODULE VERSION LIST`: a
@@ -165,6 +186,11 @@ func TestNestedAndQExportFormsRefused(t *testing.T) {
 	refused(t, "Nested8", "package My::Nested8;\n*EXPORT_OK = ['f'];\nsub f () Int;\n", true)
 	// A glob to an unrelated name is not an export list.
 	refused(t, "Nested9", "package My::Nested9;\n*Other = ['f'];\nsub f () Int;\n", false)
+	// ... nested in an else block, an elsif block, or an expression-level
+	// do block: blocks that sit deeper than a statement's direct child.
+	refused(t, "Nested10", "package My::Nested10;\nif (1) { 1 } else { sub f :export () Int; }\n", true)
+	refused(t, "Nested11", "package My::Nested11;\nif (1) { 1 } elsif (2) { sub f :export () Int; }\n", true)
+	refused(t, "Nested12", "package My::Nested12;\nmy $x = do { sub f :export () Int; };\n", true)
 }
 
 // TestNamedListInstallsWhatPerlDoes: RFC 0001, round-2 finding I9's
