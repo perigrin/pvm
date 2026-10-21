@@ -43,6 +43,10 @@ sub observe ($v) {
         return 'ScalarRef';
     }
 
+    # A bare glob is not a reference, so ref() reports "" for it as for a
+    # plain string; a reference taken to it says GLOB.
+    return 'Glob' if ref(\$v) eq 'GLOB';
+
     # Boolean first: a marked boolean also looks like an integer.
     return 'Boolean' if is_bool($v);
 

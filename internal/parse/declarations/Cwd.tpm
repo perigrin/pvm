@@ -4,7 +4,7 @@
 package Cwd;
 
 # cwd, getcwd, fastcwd and fastgetcwd all return the process's current
-# working directory and take no argument. None has a prototype perl
+# working directory and read no argument. None has a prototype perl
 # reports (measured `prototype(\&Cwd::cwd)` undef), so each is
 # :listop: an empty typed signature alone would derive the explicit
 # "()" perl does not report. getcwd and fastcwd are undef on error
@@ -12,10 +12,17 @@ package Cwd;
 # own "If fastcwd encounters a problem it will return undef"); measured
 # from a directory removed out from under the process, both are undef,
 # where cwd and fastgetcwd instead give the empty string there.
-sub cwd :export :listop () Str;
-sub getcwd :export :listop () Str|Undef;
+# Arguments are ignored by all but fastcwd: measured with perl -w,
+# cwd(1,2,3), getcwd(1,2,3) and fastgetcwd(1,2,3) run silently (getcwd
+# is XS declared `getcwd(...)`, cwd and fastgetcwd the same Perl sub),
+# so @ignored takes them; on Linux and macOS fastcwd(1) dies "Usage:
+# Cwd::fastcwd()" (on MSWin32 Cwd.pm maps fastcwd to _NT_cwd, which
+# ignores its arguments; a declaration states one arity, so this one
+# follows the Unix XS sub).
+sub cwd :export :listop (List @ignored) Str;
+sub getcwd :export :listop (List @ignored) Str|Undef;
 sub fastcwd :export :listop () Str|Undef;
-sub fastgetcwd :export :listop () Str;
+sub fastgetcwd :export :listop (List @ignored) Str;
 
 # chdir changes the working directory and returns a plain integer,
 # not a builtin boolean: measured on 5.42.0 with `use builtin
@@ -28,20 +35,28 @@ sub fastgetcwd :export :listop () Str;
 # POSIX::chdir does: Cwd::chdir's own source passes $newdir straight
 # through to CORE::chdir, measured, `Cwd::chdir($dirhandle)` (an
 # opendir lexical) and `Cwd::chdir(\*DH)` (a bareword glob ref) both
-# return 1 and land in that directory. Any other reference is
-# stringified on its way there: measured, `Cwd::chdir({})` returns 0 and
-# perl -w is silent. So a handle is one candidate and a string the other,
-# and a reference selects the string one, a lossy coercion.
-multi sub chdir :export_ok :listop (FileHandle $dir) Int;
-multi sub chdir :export_ok :listop (Optional[Str] $dir) Int;
+# return 1 and land in that directory. Further arguments are ignored:
+# measured, `Cwd::chdir("/", 2)` returns 1 under perl -w. Any other
+# reference is stringified on its way there: measured, `Cwd::chdir({})`
+# returns 0 and perl -w is silent. So a handle is one candidate and a
+# string the other, and a reference selects the string one, a lossy
+# coercion.
+multi sub chdir :export_ok :listop (FileHandle $dir, List @ignored) Int;
+multi sub chdir :export_ok :listop (Optional[Str] $dir, List @ignored) Int;
 
 # abs_path, fast_abs_path, realpath and fast_realpath resolve a path to
 # an absolute one with symlinks collapsed, defaulting to the current
 # directory, and are undef for a path that does not exist. Measured on
 # 5.42.0, `abs_path()` and `abs_path(".")` agree, and
 # `abs_path("/no/such/path")` is undef. None has a prototype perl
-# reports.
+# reports. On Linux and macOS abs_path and realpath are one XS sub
+# taking at most one argument: measured, `abs_path(".", 2)` dies "Usage:
+# Cwd::abs_path(pathsv=Nullsv)". On MSWin32 Cwd.pm's %METHOD_MAP sends
+# both to fast_abs_path, which ignores the rest; the declaration follows
+# the Unix arity. fast_abs_path and fast_realpath are
+# one Perl sub that ignores the rest: `fast_abs_path(".", 2, 3)` runs
+# silently under perl -w.
 sub abs_path :export_ok :listop (Str $path = ".") Str|Undef;
-sub fast_abs_path :export_ok :listop (Str $path = ".") Str|Undef;
+sub fast_abs_path :export_ok :listop (Str $path = ".", List @ignored) Str|Undef;
 sub realpath :export_ok :listop (Str $path = ".") Str|Undef;
-sub fast_realpath :export_ok :listop (Str $path = ".") Str|Undef;
+sub fast_realpath :export_ok :listop (Str $path = ".", List @ignored) Str|Undef;

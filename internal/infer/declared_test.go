@@ -424,3 +424,49 @@ func TestMooseNamedListNoFalseArity(t *testing.T) {
 	walk(root)
 	assert.NotContains(t, codes, parse.CallArity, "blessed() refused for arity though qw(has) never imports it")
 }
+
+// TestCwdGetcwdIgnoresExtraArgs: Cwd's subs that ignore trailing
+// arguments take them without an arity error, and the ones perl dies on
+// (on Linux and macOS) still report. Measured on Linux, 5.42.0, perl -w: cwd(1,2,3),
+// getcwd(1,2,3), fastgetcwd(1,2,3), fast_abs_path('.',2,3),
+// fast_realpath('.',2,3) and Cwd::chdir('/',2) all run silently, while
+// fastcwd(1) dies "Usage: Cwd::fastcwd()" and abs_path('.',2) and
+// realpath('.',2) die "Usage: Cwd::abs_path(pathsv=Nullsv)".
+func TestCwdGetcwdIgnoresExtraArgs(t *testing.T) {
+	for _, call := range []string{"cwd(1, 2, 3)", "getcwd(1, 2, 3)", "fastgetcwd(1, 2, 3)",
+		"fast_abs_path('.', 2, 3)", "fast_realpath('.', 2, 3)", "chdir('/', 2)"} {
+		_, diags := declaredCallType(t, "use Cwd qw(cwd getcwd fastgetcwd fast_abs_path fast_realpath chdir); my $r = "+call+";", call)
+		assert.Empty(t, diags, call)
+	}
+	for _, call := range []string{"fastcwd(1)", "abs_path('.', 2)", "realpath('.', 2)"} {
+		_, diags := declaredCallType(t, "use Cwd qw(fastcwd abs_path realpath); my $r = "+call+";", call)
+		require.Len(t, diags, 1, call)
+		assert.Equal(t, infer.CodeArityMismatch, diags[0].Code, diags[0].Message)
+	}
+}
+
+// TestIgnoredArgumentsNoFalseArity: subs whose bodies never read their
+// arguments take extra ones without an arity error. Measured on 5.42.0
+// with perl -w, each call below runs silently: FileHandle::pipe and
+// DynaLoader::dl_load_flags read no @_, ExtUtils::Manifest's manicheck,
+// filecheck and fullcheck call their helpers with no arguments, and
+// skipcheck copies its first argument into a lexical it never uses
+// (`skipcheck(undef, {}, 3)` runs, as does `skipcheck()`). mkmanifest
+// is declared from its source, which never reads @_; it is not run,
+// since it writes files.
+func TestIgnoredArgumentsNoFalseArity(t *testing.T) {
+	for src, call := range map[string]string{
+		"use FileHandle; my @r = FileHandle::pipe(1, 2);":                        "FileHandle::pipe(1, 2)",
+		"use DynaLoader; my $r = DynaLoader::dl_load_flags(1, 2);":               "DynaLoader::dl_load_flags(1, 2)",
+		"use ExtUtils::Manifest qw(manicheck); my @r = manicheck(1, 2);":         "manicheck(1, 2)",
+		"use ExtUtils::Manifest qw(filecheck); my @r = filecheck(1, 2);":         "filecheck(1, 2)",
+		"use ExtUtils::Manifest qw(fullcheck); my @r = fullcheck(1, 2);":         "fullcheck(1, 2)",
+		"use ExtUtils::Manifest qw(mkmanifest); mkmanifest(1, 2);":               "mkmanifest(1, 2)",
+		"use ExtUtils::Manifest qw(skipcheck); my @r = skipcheck(undef, {}, 3);": "skipcheck(undef, {}, 3)",
+		"use ExtUtils::Manifest qw(skipcheck); my @r = skipcheck('x');":          "skipcheck('x')",
+		"use ExtUtils::Manifest qw(skipcheck); my @r = skipcheck();":             "skipcheck()",
+	} {
+		_, diags := declaredCallType(t, src, call)
+		assert.Empty(t, diags, call)
+	}
+}

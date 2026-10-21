@@ -153,12 +153,14 @@ func TestEmptyUseListImportsNothing(t *testing.T) {
 	})
 }
 
-// TestMooseTraitsInstallsSugar: Moose::Exporter's import reads only its
-// leading '-' options and ignores the rest of a use-list for DSL
-// purposes (perigrin's ruling, 2026-10-20: "the parameters are the
-// signature to import()") -- measured on 5.42.0, `use Moose -traits =>
-// [];` still installs all 13 sugar names, as a bare `use Moose;` does
-// (audit E, finding 19).
+// TestMooseTraitsInstallsSugar: a use-list of Moose::Exporter's '-'
+// options alone installs what a bare use does (perigrin's ruling,
+// 2026-10-20: "the parameters are the signature to import()") --
+// measured on 5.42.0, `use Moose -traits => [];` still installs all 13
+// sugar names, as a bare `use Moose;` does (audit E, finding 19). A
+// list naming sugar installs only those names and meta, which
+// Moose.tpm cannot yet state (TestMooseNamedListInstallsNamesAndMeta,
+// issue 01a15f6b).
 func TestMooseTraitsInstallsSugar(t *testing.T) {
 	wantImports(t, map[string][]string{
 		"use Moose -traits => [];\n": {"after", "around", "augment", "before", "blessed", "confess",
@@ -190,12 +192,18 @@ func TestMooseNamedListInstallsNamesAndMeta(t *testing.T) {
 // sugar names and m instead of meta. Needs the signature's named
 // parameters and :always, backed out until the export syntax is
 // redesigned (01a15f6b); see TestMooseNamedListInstallsNamesAndMeta.
+//
+// Until then it skips, but first fails if the rename already works, so
+// the skip cannot outlive the reason for it.
 func TestMooseMetaNameRenamesMeta(t *testing.T) {
+	src := "use Moose -meta_name => 'm';\n"
+	want := []string{"after", "around", "augment", "before", "blessed", "confess",
+		"extends", "has", "inner", "m", "override", "super", "with"}
+	if slices.Equal(importedFrom(t, src), want) {
+		t.Fatal("-meta_name renames meta now: drop this skip")
+	}
 	t.Skip("backed out with :always (01a15f6c) until the export syntax is redesigned (01a15f6b)")
-	wantImports(t, map[string][]string{
-		"use Moose -meta_name => 'm';\n": {"after", "around", "augment", "before", "blessed", "confess",
-			"extends", "has", "inner", "m", "override", "super", "with"},
-	})
+	wantImports(t, map[string][]string{src: want})
 }
 
 // TestAlwaysMarkRefused: `:always` is backed out of the declaration
@@ -221,7 +229,8 @@ func TestAlwaysMarkRefused(t *testing.T) {
 // TestDeclarationReadsNamedParameters: a .tpm's signature reads perl
 // 5.44's named parameters, `:$name` (perlsub "named parameters"),
 // optional with `=`, after the positional parameters and before a
-// slurpy, as Moose's import does.
+// slurpy. No shipped .tpm declares one yet (RFC 0001, "the signature
+// names the keys"; issue 01a15f6b).
 func TestDeclarationReadsNamedParameters(t *testing.T) {
 	src := []byte("package My::Named;\nsub f (Str $pos, ArrayRef :$x = [], List @rest) Void;\n")
 	sigs, errs := DeclaredSignatures(src)

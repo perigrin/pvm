@@ -371,8 +371,9 @@ type declStmt struct {
 // declarationStatements collects every statement-level node root's own
 // statements hold, and -- nested -- every one a bare block holds, or any
 // OTHER node's own block does (a phaser's, a package's or class's body,
-// an if/unless/while/until's, or a do block's), or a trailing comma
-// leaves as one operand beside another: perl compiles a named sub, and
+// an if/unless/while/until's, an else or elsif's, or a do block's, even
+// inside an expression), or a trailing comma leaves as one operand
+// beside another: perl compiles a named sub, and
 // assigns a package variable, wherever a block or a comma expression
 // sits it in (`BEGIN { sub f { } }` and `package Foo { sub f { } }`
 // declare f at compile time the same as a top-level `sub f { }` would),
@@ -398,23 +399,33 @@ func declarationStatements(root *Node) []declStmt {
 				}
 				continue
 			}
-			// n is not itself a block, but may hold one as a child --
+			// n is not itself a block, but may hold one at any depth --
 			// a phaser's, a package's or class's body, an
-			// if/unless/while/until's, or a do block's -- which holds
-			// further statements perl compiles wherever n sits.
-			for _, c := range n.Children {
-				if c.Kind == Block {
-					for _, s := range c.Children {
-						walk(s, true)
-					}
-				}
-			}
+			// if/unless/while/until's, an else or elsif's, or a do
+			// block's inside an expression -- which holds further
+			// statements perl compiles wherever n sits.
+			walkBlocksIn(n, walk)
 		}
 	}
 	for _, stmt := range root.Children {
 		walk(stmt, false)
 	}
 	return out
+}
+
+// walkBlocksIn walks, as nested statements, every statement of each
+// outermost Block found below n; walk itself descends into blocks those
+// statements hold.
+func walkBlocksIn(n *Node, walk func(stmt *Node, nested bool)) {
+	for _, c := range n.Children {
+		if c.Kind != Block {
+			walkBlocksIn(c, walk)
+			continue
+		}
+		for _, s := range c.Children {
+			walk(s, true)
+		}
+	}
 }
 
 // commaOperands flattens a comma chain into its operands: perl's `,` is

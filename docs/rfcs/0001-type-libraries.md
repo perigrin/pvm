@@ -979,7 +979,7 @@ ordinary coercion mismatch. The third still reports either way --
 `markPossibleUndef`; `internal/infer/infer.go`, `WarnPossibleUndef`;
 `internal/infer/warnpossibleundef_test.go`).
 
-### Possible mismatch beside a fitting member (*Implemented*)
+### Possible mismatch beside a fitting member (*Implemented*, 7fc02ddf)
 
 perigrin, 2026-10-21: "An argument whose union type has at least one
 member that fits the parameter is a possible mismatch. It is silent by
@@ -1123,24 +1123,31 @@ rather than position.
 
     sub import (Str $class: ArrayRef :$traits = [], Str :$metaclass = undef, Str :$meta_name = 'meta', List @names) Void;  # Moose
 
-Each named parameter is consumed from the use-list wherever it falls,
-as Moose::Exporter's own `_strip_option` reads `-traits` and the rest
-"from anywhere in the list"; what remains installs the Exporter way --
-the literal names it holds, resolved against `:export` and
-`:export_ok`, or the defaults when nothing remains, as a bare `use`
-does.
+Under this ruling each named parameter is to be consumed from the
+use-list wherever it falls, as Moose::Exporter's own `_strip_option`
+reads `-traits` and the rest "from anywhere in the list", and what
+remains installs the Exporter way. That part is not implemented. A `.tpm`
+parses `:$name` (686b146c, `TestDeclarationReadsNamedParameters`), but
+56ecfcff backed out the code that read the keys from a use-list, and
+Moose.tpm declares `sub import (Str $class: List @args) Void;`, so any
+non-empty list installs all 13 of Moose's names. Reading the keys waits
+on the export-syntax redesign, issue 01a15f6b. Until then nothing past
+the parser's own ordering check reads `Param.Named`: arity checking and
+prototype derivation treat a named parameter as a positional one, so no
+shipped `.tpm` declares one.
 
-**A declared import's named parameter also matches a dashed key.**
-perigrin, 2026-10-21: "a declared import's named parameter `:$traits`
-matches the use-list key `-traits` or `traits` (perl 5.44 itself
+**A declared import's named parameter also matches a dashed key**
+(*not implemented*; waits on 01a15f6b, as above). perigrin,
+2026-10-21: "a declared import's named parameter `:$traits` matches
+the use-list key `-traits` or `traits` (perl 5.44 itself
 matches only the exact name; this is a `.tpm` rule)." Perl's own named
 parameters match a use-list key by its bare name alone; real perl would
 refuse `foo(-traits => [])` against `sub foo (:$traits) {}` as an
 unrecognised named argument. Moose::Exporter's options are conventionally
 written with a leading dash, perl's own idiom for a bareword hash key
-(`-traits` is unary minus on the autoquoted word `traits`), so a `.tpm`'s
-named parameter matches both spellings: `-traits` and `traits` both
-satisfy `:$traits`.
+(`-traits` is unary minus on the autoquoted word `traits`), so under
+this ruling a `.tpm`'s named parameter will match both spellings once
+01a15f6b lands: `-traits` and `traits` will both satisfy `:$traits`.
 
 **Typed variables.** Some modules export variables: Config's `%Config`
 on a bare `use`, Socket's `$CRLF` only when asked for. A declaration
@@ -1156,7 +1163,9 @@ is legal only in a declaration file, as a typed signature is; outside
 one, perl refuses `our Hash[Str|Undef] %Config :export;` at compile
 time ("No such class Hash ... syntax error", measured on 5.42.0), and
 the parser refuses the same line, as `TestTypedOurOnlyInDeclarations`
-measures.
+measures. Two gaps remain: `psc check` still exits 0 on that line,
+issue 01a15ad0-13e2, and a use site does not yet see the declared
+type, issue 01a15ac0-c1d6.
 
 **Held to perl.** Every declaration is tested against an installed
 perl: declared prototypes equal `prototype()`; the `:export` and
@@ -1240,12 +1249,15 @@ Separate from the paper:
 
 ## Rejected alternatives
 
-- **Generating declarations by running perl.** Reading a module's
-  symbol table means perl has already parsed it; a Perl parser that
-  must run Perl is circular. It also fails for uninstalled dependencies
-  and pins data to one machine's module versions. `CORE.tpm` is the
-  exception: the builtins have no source to read, and its generation
-  is checked against perl by a test.
+- **Generating declarations by running perl at analysis time.**
+  Reading a module's symbol table means perl has already parsed it; a
+  Perl parser that must run Perl is circular. It also fails for
+  uninstalled dependencies and pins data to one machine's module
+  versions. psc never runs perl. Tests and authoring tools may:
+  `CORE.tpm`'s generation is checked against perl by a test, since the
+  builtins have no source to read, and the held-to-perl driver's
+  `skeleton` mode prints a module's installable names as a `.tpm`
+  skeleton for an author to finish (see "Core-module libraries").
 - **Attribute before the name** (`sub :infix + (...)`). Perl rejects it.
 - **Typed Perl in ordinary source.** It is accepted only in `.tpm`
   files; elsewhere it would misread valid Perl (see above).

@@ -116,8 +116,9 @@ sub print :export_ok (Object|FileHandle $self: List @args) Boolean|Undef;
 sub printf :export_ok (Object|FileHandle $self: Str $format, List @args) Boolean|Undef;
 # pipe creates a connected pair of IO::Handle objects, returning them as
 # a two-element list, or undef (never a list) on failure; measured on
-# 5.42.0.
-sub pipe :export_ok :listop () List[Object|Undef];
+# 5.42.0. Its body never reads @_, so arguments are ignored: measured,
+# `FileHandle::pipe(1, 2)` runs silently under perl -w.
+sub pipe :export_ok :listop (List @ignored) List[Object|Undef];
 
 # Methods beside the exports. FileHandle.pm aliases ~20 public methods
 # from IO::Handle, IO::Seekable and IO::File straight into FileHandle::

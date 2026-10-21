@@ -12,11 +12,13 @@ package IO::Socket::IP;
 # `use IO::Socket::IP -register;` both install exactly the 170 names
 # Socket's own bare `use Socket;` does (Socket.tpm's :export set), with
 # Socket's own prototypes, types and :listop parses, copied here
-# unchanged. Declaring import here, with no scalar key after the
-# invocant (same shape as Moose.tpm's own, perigrin's ruling,
-# 2026-10-20: "the parameters are the signature to import()"), states
-# that any list, "-register" included, still installs the same 170
-# names a bare `use IO::Socket::IP;` does.
+# unchanged. A named list installs only the names it holds: measured,
+# `use IO::Socket::IP qw(inet_aton)` installs inet_aton alone. Declared
+# with no scalar key after the invocant (same shape as Moose.tpm's own,
+# perigrin's ruling, 2026-10-20: "the parameters are the signature to
+# import()"), any list here installs all 170, the right answer for
+# "-register" and an over-install for a named list until the export
+# syntax can state this import (issue 01a15f6b).
 sub import (Str $class: List @args) Void;
 
 # 161 of the 170 live only in IO::Socket's own package, not in

@@ -316,10 +316,9 @@ sub inet_aton :export(all) :listop (Str $hostname) Str|Undef;
 sub inet_ntoa :export(all) :listop (Str $addr) Str;
 sub inet_ntop :export_ok(all) :listop (Int $af, Str $addr) Str|Undef;
 sub inet_pton :export_ok(all) :listop (Int $af, Str $host) Str|Undef;
-# getaddrinfo's and getnameinfo's error value is always a dualvar, and
-# Str stays alongside DualVar for the same reason Socket.tpm's own
-# comment gives: the oracle's observer cannot detect isdual yet
-# (01a15aaa).
+# getaddrinfo's and getnameinfo's error value is always a dualvar, as
+# Socket.tpm's own comment gives, and getaddrinfo's Str element is
+# wider than perl there as here (issue 01a16049-17b1).
 multi sub getaddrinfo :export_ok(addrinfo,all) :listop (Str|Undef $host, Str|Int|Undef $service = undef, HashRef $hints = undef) List[Str|HashRef|DualVar];
 multi sub getaddrinfo :export_ok(addrinfo,all) :listop (Str|Undef $host, Str|Int|Undef $service = undef, HashRef $hints = undef) HashRef|Str|DualVar;
 multi sub getnameinfo :export_ok(addrinfo,all) :listop (Str $sockaddr, Int $flags = 0, Int $xflags = 0) List[Str|Int|Undef|DualVar];

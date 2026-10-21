@@ -17,8 +17,10 @@ sub croak (List[Str|Boolean|DualVar|Ref] @message) None;
 # dl_load_flags is a plain constant, measured 0 in both contexts, called
 # as a method ($module->dl_load_flags) or as a plain sub alike. :listop
 # says its empty parentheses are its real shape, not an empty prototype
-# -- measured, perl's prototype() for it is none.
-sub dl_load_flags :listop () Int;
+# -- measured, perl's prototype() for it is none. Its body is the bare
+# constant, so arguments, the method invocant among them, are ignored:
+# measured, `DynaLoader::dl_load_flags(1, 2)` runs silently under -w.
+sub dl_load_flags :listop (List @ignored) Int;
 
 # dl_findfile searches @dl_library_path and returns the paths it finds:
 # measured on 5.42.0, a name with no match returns () in list context

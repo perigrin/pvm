@@ -412,6 +412,12 @@ func (a *analysis) checkOperand(n lower.Node, expected types.Type, op, side stri
 // reference is. Under WarnLossyCoercion it reports one as a
 // lossy-coercion warning.
 //
+// A DualVar where a string or a number is expected is one too: the slot
+// reads one of its values, as readLeg says, and drops the other. perl
+// 5.42 -w is silent on `dualvar(5, "x") + 1`, which is 6, and on `lc
+// dualvar(5, "x")`, which is "x", but `0 + "$d"` is 0, not 5 (the
+// paper's Example 4, and its [Coerce-DualVar]).
+//
 // A string literal's content is known: one that looks like a number is
 // no coercion at all, as perl 5.42 -w is silent on `"3" + 1`, and one that
 // does not is reported as it is, as perl warns `Argument "abc" isn't
@@ -430,14 +436,17 @@ func (a *analysis) lossyCoercion(n lower.Node, actual, expected types.Type) bool
 	if actual == types.Unknown || expected == types.Unknown {
 		return false
 	}
+	from := actual
+	actual = numified(readLeg(actual, expected, types.DualVar, types.Num), expected)
+	dualToValue := from&types.DualVar != 0 && types.TypeSatisfies(actual, expected)
 	refToValue := types.IsSubtype(expected, types.Str) &&
 		actual&types.Ref != 0 && types.IsSubtype(actual, types.Str|types.Ref)
 	strToNum := types.IsSubtype(expected, types.Num) && types.IsSubtype(actual, types.Str) &&
 		actual&^(types.Num|types.NaN|types.Inf) != 0
-	if !refToValue && !strToNum {
+	if !dualToValue && !refToValue && !strToNum {
 		return false
 	}
-	if content, known := literalContent(n); known && strToNum {
+	if content, known := literalContent(n); known && strToNum && !dualToValue {
 		return numericString.MatchString(content)
 	}
 	if a.opts.WarnLossyCoercion {
@@ -447,7 +456,7 @@ func (a *analysis) lossyCoercion(n lower.Node, actual, expected types.Type) bool
 			EndByte:   uint32(end),
 			Severity:  Warning,
 			Code:      CodeLossyCoercion,
-			Message:   fmt.Sprintf("lossy coercion of %s to %s", actual, expected),
+			Message:   fmt.Sprintf("lossy coercion of %s to %s", from, expected),
 		})
 	}
 	return true
@@ -476,7 +485,9 @@ func literalContent(n lower.Node) (string, bool) {
 // a Boolean to 1 or 0 without a warning: perl 5.42 -w, `"-" x (3 > 2)` is
 // "-" and `(3 > 2) / 1` is 1. So where an Int or a Num is expected, a
 // Boolean is the Int it becomes. It stringifies to "1" or "" as silently:
-// `"" . (1 == 2)` is "", so where a Str is expected it is a Str. Where an
+// `"" . (1 == 2)` is "", so where a Str is expected it is a Str, and so
+// where a union holding Str is: `split((3 > 2), "a1b")` is ("a", "b"),
+// as readLeg says. Where an
 // Int is expected, perl truncates any number to one silently: perl 5.42
 // -w is silent on `"ab" x 2.9`, `splice @h, 0, 2.5` and `1 << (20 / 8)`,
 // so a Num there is the Int it becomes. A glob stringifies to its name
@@ -488,19 +499,33 @@ func numified(actual, expected types.Type) types.Type {
 	if expected == types.Unknown || types.TypeSatisfies(actual, expected) {
 		return actual
 	}
-	if actual&types.Boolean != 0 {
-		switch {
-		case types.IsSubtype(expected, types.Num):
-			actual = actual&^types.Boolean | types.Int
-		case types.IsSubtype(expected, types.Str):
-			actual = actual&^types.Boolean | types.Str
-		}
-	}
+	actual = readLeg(actual, expected, types.Boolean, types.Int)
 	if actual&types.Glob != 0 && types.IsSubtype(expected, types.Str) && !types.IsSubtype(expected, types.Num) {
 		actual = actual&^types.Glob | types.Str
 	}
 	if expected&types.Num == types.Int && actual&types.Num != 0 {
 		actual = actual&^types.Num | types.Int
+	}
+	return actual
+}
+
+// readLeg is actual with its member bit, a scalar perl reads as a string
+// or as a number, replaced by what a slot expecting expected reads from
+// it: a Str where expected admits a plain string, whether a Str or a
+// union holding one, such as split's Str|Regex or stat's Str|Glob; num
+// where expected admits only numbers, NaN and Inf among them, such as
+// POSIX isinf's Num|NaN|Inf or select's Undef|Num; and bit as it is
+// where expected admits neither. perl 5.42 -w is silent on
+// `isinf(dualvar(5, "x"))` and `isfinite((3 > 2))`.
+func readLeg(actual, expected, bit, num types.Type) types.Type {
+	if actual&bit == 0 {
+		return actual
+	}
+	switch {
+	case expected&(types.Str&^(types.Num|types.NaN|types.Inf)) != 0:
+		return actual&^bit | types.Str
+	case expected&types.Num != 0:
+		return actual&^bit | num
 	}
 	return actual
 }
