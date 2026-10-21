@@ -46,10 +46,18 @@ multi sub GetOptionsFromString :export_ok :prototype(@) (List @args) List[Boolea
 sub Configure :export_ok :prototype(@) (List @args) ArrayRef;
 
 # HelpMessage and VersionMessage end the process: each calls CORE::exit
-# unless called with `-exitval => "NOEXIT"` (measured on 5.42.0, from
-# Getopt::Long.pm's own source), which no caller's usual invocation
-# passes. Declared None, as exit is in CORE.tpm; held to prototype and
-# exports only (oracleExempt), since calling either under the oracle
-# driver would end that perl process before it reports.
-sub HelpMessage :export_ok :prototype(@) (List @args) None;
-sub VersionMessage :export_ok :prototype(@) (List @args) None;
+# unless called with `-exitval => "NOEXIT"`, the POD's own documented
+# escape ("or else the string NOEXIT to indicate that control should
+# simply be returned without terminating the invoking process").
+# Measured on 5.42.0: VersionMessage(-exitval => "NOEXIT", -message =>
+# "m") is a true Boolean (builtin::is_bool), not None -- its last
+# statement is the skipped `unless` condition, itself a Boolean;
+# HelpMessage's last statement, pod2usage(...), answers the same way
+# under the same option. Declared None, psc would mark any code after a
+# documented NOEXIT call unreachable. Held to prototype and exports
+# only in the general oracle (oracleExempt), since calling either with
+# its usual, exiting invocation would end that perl process before it
+# reports; testdata/oracle/Getopt-Long-noexit.pl holds the NOEXIT form
+# in its own isolated run.
+sub HelpMessage :export_ok :prototype(@) (List @args) Boolean;
+sub VersionMessage :export_ok :prototype(@) (List @args) Boolean;

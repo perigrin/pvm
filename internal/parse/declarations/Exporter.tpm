@@ -32,3 +32,16 @@ sub export (List[Str] @args) Any;
 sub export_to_level (List[Str] @args) Any;
 sub export_tags (List[Str] @args) Any;
 sub export_ok_tags (List[Str] @args) Any;
+
+# export_fail and require_version are documented, inherited methods
+# (POD, "Module Version Checking" and "Managing Unknown Symbols"), not
+# listed in any export array -- a module reaches them once it does
+# `our @ISA = ('Exporter')`, as every @EXPORT_FAIL check and `use Foo
+# 5.0` version check does. Measured on 5.42.0: Exporter->export_fail
+# ('x','y') returns its arguments unchanged, the list in list context
+# and the count (an Int) in scalar; Exporter->require_version($Exporter::VERSION)
+# returns $VERSION, and a $wanted greater than it dies "version N
+# required--this is only version M".
+multi sub export_fail (Str $class: List[Str] @syms) List[Str];
+multi sub export_fail (Str $class: List[Str] @syms) Int;
+sub require_version (Str $class: Str $wanted) Str;

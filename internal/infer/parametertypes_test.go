@@ -244,6 +244,59 @@ func TestOracleCasesFitDeclaredParameters(t *testing.T) {
 	}
 }
 
+// TestFileStatTakesHandles holds the measured claim (audit-E, group E,
+// finding 14): File::stat::stat calls CORE::stat on its argument, which
+// preserves a filehandle rather than stringifying it -- measured on
+// 5.42.0, stat($lexical_fh), stat(\*STDIN) and stat(*STDIN) each
+// return a File::stat object. testdata/oracle/File-stat.pl's stat case
+// now includes an open lexical filehandle, observed as GlobRef; before
+// File::stat.tpm widened stat's $file past Str,
+// TestOracleCasesFitDeclaredParameters's File::stat run failed on it
+// ("passed argument 0 as GlobRef, which the selected candidate's
+// declared parameter (Str) excludes"). This pins that it does not
+// regress. lstat keeps CORE::lstat's own narrower Str|Glob (finding
+// 14's lower-confidence half): it also accepts a lexical filehandle,
+// with a warning, but that is not exercised here.
+func TestFileStatTakesHandles(t *testing.T) {
+	p := perltest.Perl542(t)
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "File", "stat.tpm"))
+	require.NoError(t, err)
+	cases, err := filepath.Abs(filepath.Join("testdata", "oracle", "File-stat.pl"))
+	require.NoError(t, err)
+	for _, f := range parameterOracleFailures(t, p, oracleRun{Module: "File::stat", TPM: tpm, Cases: cases}) {
+		if strings.Contains(f, "::stat ") {
+			t.Error(f)
+		}
+	}
+}
+
+// TestFileStatCandoTakesArrayRef holds the measured claim (audit-E,
+// group E, finding 15): stat_cando's POD says it "takes an arrayref
+// containing the return values of stat or lstat as its first
+// argument", and cando indexes that argument as a plain array, the
+// type it actually uses -- measured on 5.42.0,
+// stat_cando([CORE::stat("...")], S_IRUSR, 1) returns 1, the same as
+// passing the blessed File::stat object. A plain ArrayRef is not an
+// Object, so $stat_object must admit both.
+//
+// File::stat::stat_cando already has a parameterExempt entry (for its
+// third argument, $effective's literal-1 Boolean idiom), and that
+// entry swallows every misfit for the sub, not only its own argument
+// -- so this reads with IgnorePending, which turns that filtering off,
+// and keeps only the first argument's misfits.
+func TestFileStatCandoTakesArrayRef(t *testing.T) {
+	p := perltest.Perl542(t)
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "File", "stat.tpm"))
+	require.NoError(t, err)
+	cases, err := filepath.Abs(filepath.Join("testdata", "oracle", "File-stat.pl"))
+	require.NoError(t, err)
+	for _, f := range parameterOracleFailures(t, p, oracleRun{Module: "File::stat", TPM: tpm, Cases: cases, IgnorePending: true}) {
+		if strings.Contains(f, "stat_cando") && strings.Contains(f, "argument 0") {
+			t.Error(f)
+		}
+	}
+}
+
 // splitModuleSub splits a parameterExempt key, "Module::sub", on its
 // last "::": the module name may itself hold "::" (File::Spec::Unix),
 // but the sub name never does.

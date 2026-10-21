@@ -807,6 +807,51 @@ func TestCarpReturnTypes(t *testing.T) {
 	holdReturnTypes(t, "Carp")
 }
 
+// TestCarpFamilyPassesALoneReference holds the measured claim (audit-E,
+// group E, finding 3): carp, cluck and CORE::warn each deliver a lone
+// reference argument to $SIG{__WARN__} as the reference itself, the same
+// pass-through die gives $@ for croak. Measured on perl 5.42.0: calling
+// any of the three with exactly one reference argument leaves
+// ref($_[0]) true inside the handler, never a stringified form. This is
+// why Carp.tpm's carp and cluck, and CORE.tpm's warn, take croak's
+// parameter type, List[Str|Boolean|DualVar|Ref].
+func TestCarpFamilyPassesALoneReference(t *testing.T) {
+	p := perltest.Perl542(t)
+	out, err := p.Command("-e", `
+use Carp qw(carp cluck);
+my @seen;
+local $SIG{__WARN__} = sub { push @seen, ref($_[0]) || "STR" };
+carp({c => 1});
+cluck([1]);
+warn({c => 2});
+print join(",", @seen);
+`).Output()
+	require.NoError(t, err)
+	assert.Equal(t, "HASH,ARRAY,HASH", strings.TrimSpace(string(out)),
+		"carp, cluck and warn must each deliver a lone reference to $SIG{__WARN__} unstringified")
+}
+
+// TestShortmessListContextPassesArgs holds Carp.tpm's shortmess (and,
+// alongside it, longmess) to a negative case the oracle's own call
+// contexts now exercise: testdata/oracle/Carp.pl's shortmess and
+// longmess cases include a multi-argument case whose first argument is
+// a hashref ([ {x=>1}, 'b' ]). shortmess_heavy (Carp.pm:682, `return @_
+// if ref $_[0]`) answers that in list context with @_ unchanged -- both
+// arguments, the hashref included, not a reduced message -- so
+// shortmess's list candidate must be wide enough to admit a Ref
+// element, not just Str. Before Carp.tpm declared shortmess and
+// longmess as multis with a List[Str|Boolean|DualVar|Ref] list
+// candidate, this call case failed in list context ("returned HashRef,
+// which its declared return type excludes"); the assertion below pins
+// that it does not regress.
+func TestShortmessListContextPassesArgs(t *testing.T) {
+	for _, f := range moduleFailures(t, "Carp") {
+		if strings.Contains(f, "shortmess") || strings.Contains(f, "longmess") {
+			t.Error(f)
+		}
+	}
+}
+
 // TestConstantExportersReturnTypes holds Fcntl.tpm's and Socket.tpm's
 // return types to perl.
 func TestConstantExportersReturnTypes(t *testing.T) {
@@ -1109,6 +1154,30 @@ func TestPurePerlExportersReturnTypes(t *testing.T) {
 	holdReturnTypes(t, perltest.PureExporters...)
 }
 
+// TestGetoptStdReturnsHashName holds the measured claim (audit-E, group
+// E, finding 11): Getopt::Std::getopt's last statement, `unless (ref
+// $hash) { ...; Getopt::Std->import }`, is skipped when $hash is a
+// hashref, so the sub's value is whatever that statement last
+// evaluated -- the condition itself, `ref $hash`. Measured on perl
+// 5.42.0: getopt("b", \%h) returns the Str "HASH" (is_bool 0), not a
+// Boolean, when given a hashref; it returns a Boolean only without
+// one. testdata/oracle/Getopt-Std-hashref.pl isolates this case so
+// adding it cannot disturb Getopt-Std.pl's own @ARGV staging.
+// getopts is exempt here since it has no hashref call case in this
+// isolated file (it is held, with getopt's own Boolean-only case, by
+// TestPurePerlExportersReturnTypes's Getopt::Std run).
+func TestGetoptStdReturnsHashName(t *testing.T) {
+	p := perltest.Perl542(t)
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "Getopt", "Std.tpm"))
+	require.NoError(t, err)
+	cases, err := filepath.Abs(filepath.Join("testdata", "oracle", "Getopt-Std-hashref.pl"))
+	require.NoError(t, err)
+	exempt := map[string]string{"Getopt::Std::getopts": "no hashref call case in this isolated file; held by TestPurePerlExportersReturnTypes instead"}
+	for _, f := range returnTypeFailures(t, p, oracleRun{Module: "Getopt::Std", TPM: tpm, Cases: cases, Exempt: exempt}) {
+		t.Error(f)
+	}
+}
+
 // TestSymbolReturnTypesAreDeclared holds Symbol.tpm's declared return
 // types to perl directly (Symbol itself stays out of
 // perltest.PureExporters; see its comment for why), with
@@ -1159,6 +1228,37 @@ func TestTextParseWordsUnbalancedQuoteReturnIsDeclared(t *testing.T) {
 // among each of the three's own cases.
 func TestFileBasenameWindowsPathReturnIsDeclared(t *testing.T) {
 	assert.Empty(t, moduleFailures(t, "File::Basename"))
+}
+
+// TestFileBasenameFileparseAcceptsRegexSuffix holds the measured claim
+// (audit-E, group E, finding 16): fileparse's suffix arguments are used
+// as patterns, not plain strings -- its POD gives `fileparse($path,
+// qr/\.[^.]*/)` as a documented form. Measured on 5.42.0:
+// fileparse("/foo/bar/baz.txt", qr/\.[^.]*/) matches the suffix exactly
+// as fileparse("/foo/bar/baz.txt", ".txt") does, a Regex preserved as a
+// pattern, not a lossy Str coercion. The parameter oracle cannot catch
+// this on its own: a slurpy's element type (RFC 0001, "A slurpy takes
+// no bare element type") is not part of the check TestOracleCasesFitDeclaredParameters
+// runs, so this reads File::Basename.tpm's declared @args element
+// directly, which must admit Regex for the POD's own form to type-check.
+func TestFileBasenameFileparseAcceptsRegexSuffix(t *testing.T) {
+	p := perltest.Perl542(t)
+	out, err := p.Command("-MFile::Basename", "-e",
+		`print join("|", fileparse("/foo/bar/baz.txt", qr/\.[^.]*/));`,
+	).Output()
+	require.NoError(t, err)
+	assert.Equal(t, "baz|/foo/bar/|.txt", strings.TrimSpace(string(out)))
+
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "File", "Basename.tpm"))
+	require.NoError(t, err)
+	sigs, errs := parse.DeclaredSignatures(tpm)
+	require.Empty(t, errs)
+	for _, s := range sigs["fileparse"] {
+		require.NotEmpty(t, s.Params)
+		elem := s.Params[0].Element
+		assert.True(t, types.IsSubtype(types.Regex, elem),
+			"fileparse's @args element type %v excludes Regex, though its suffixes are matched as patterns", elem)
+	}
 }
 
 // TestStorableFlagsArgument: thaw, retrieve, lock_retrieve, fd_retrieve
@@ -2159,6 +2259,34 @@ func TestTestMorePlanReturnType(t *testing.T) {
 	}
 }
 
+// TestGetoptLongHelpAndVersionMessageReturnBoolean holds the measured
+// claim (audit-E, group E, finding 10): HelpMessage and VersionMessage
+// each end by calling CORE::exit, unless called with `-exitval =>
+// "NOEXIT"` (the POD's own documented escape), in which case each
+// returns rather than exiting. Measured on 5.42.0:
+// VersionMessage(-exitval => "NOEXIT", -message => "m") is a true
+// Boolean (builtin::is_bool), not undef or a plain Int -- its last
+// statement is the skipped `unless` condition, `$pa->{-exitval} eq
+// "NOEXIT"`, itself a Boolean. HelpMessage's last statement is
+// pod2usage(...), which answers the same way with the same option.
+// Declared None, as Getopt::Long.tpm had it, psc would mark any code
+// after a documented NOEXIT call unreachable. Both subs stay exempt
+// from the general oracle (oracleExempt): the exiting path cannot be
+// called safely, and the two paths cannot be told apart by argument
+// shape, so no multi candidate the oracle could dispatch on would
+// cover the exiting half. This isolated run only exercises the NOEXIT
+// half, with its own inline tpm so the other four subs in
+// Getopt::Long.tpm need no exemption here.
+func TestGetoptLongHelpAndVersionMessageReturnBoolean(t *testing.T) {
+	p := perltest.Perl542(t)
+	tpm := []byte("package Getopt::Long;\nsub HelpMessage (List @args) Boolean;\nsub VersionMessage (List @args) Boolean;\n")
+	cases, err := filepath.Abs(filepath.Join("testdata", "oracle", "Getopt-Long-noexit.pl"))
+	require.NoError(t, err)
+	for _, f := range returnTypeFailures(t, p, oracleRun{Module: "Getopt::Long", TPM: tpm, Cases: cases}) {
+		t.Error(f)
+	}
+}
+
 // declaredVariables reads module's .tpm variables, failing t on any
 // declaration error.
 func declaredVariables(t *testing.T, module string) map[string]types.Param {
@@ -2209,6 +2337,68 @@ func TestConfigValuesFitDeclaredType(t *testing.T) {
 		return
 	}
 	assert.Equal(t, 172, undef, "measured on perl 5.42.0's reference build: 172 of %%Config's values are undef")
+}
+
+// TestTextWrapBreakAcceptsRegex holds the measured claim (audit-E,
+// group E, finding 12): Text::Wrap's POD says $break may be set 'to a
+// string such as '[\s:]' ... or a pre-compiled regexp such as
+// qr/[\s']/'. Measured on 5.42.0: setting $Text::Wrap::break to
+// qr/[\s:]/ breaks "aa:bb:cc:dd" at the colons exactly as the
+// equivalent string does. Text::Wrap.tpm's $break must admit Regex for
+// this documented form to type-check; the ABOUTME comment claiming
+// Text::Wrap never stores a Regexp ref describes the default value, not
+// the documented API, and is corrected alongside the type.
+func TestTextWrapBreakAcceptsRegex(t *testing.T) {
+	p := perltest.Perl542(t)
+	out, err := p.Command("-MText::Wrap", "-e",
+		`$Text::Wrap::columns = 5; $Text::Wrap::break = qr/[\s:]/; print Text::Wrap::wrap("", "", "aa:bb:cc:dd");`,
+	).Output()
+	require.NoError(t, err)
+	assert.Equal(t, "aa\nbb\ncc\ndd", strings.ReplaceAll(strings.TrimRight(string(out), "\r\n"), "\r\n", "\n"))
+
+	want := declaredVariables(t, "Text::Wrap")["$break"]
+	assert.True(t, types.IsSubtype(types.Regex, want.Type),
+		"$break's declared type %v excludes Regex, though a precompiled regexp is a documented value", want.Type)
+}
+
+// TestConfigReReturnsByContext holds the measured claim (audit-E, group
+// E, finding 8): Config::config_re is `return map { chomp; $_ } grep
+// ..., split ...` (Config_heavy.pl:1498), the same shape as
+// header_files's literal list, so it answers by context like
+// header_files does: a list of matching lines in list context, their
+// count (an Int) in scalar context -- not "one string whichever
+// context", as Config.tpm's comment had it. Measured on 5.42.0,
+// config_re("ccflags.*") matches more than one %Config key, so list
+// and scalar context give different values. Config.tpm must declare
+// config_re as a multi with a list-context candidate for the oracle
+// (testdata/oracle/Config.pl's existing call case) to ever exercise
+// that context at all.
+func TestConfigReReturnsByContext(t *testing.T) {
+	p := perltest.Perl542(t)
+	out, err := p.Command("-MConfig", "-e",
+		`my @l = Config::config_re("ccflags.*"); my $s = Config::config_re("ccflags.*"); print scalar(@l), ",", $s;`,
+	).Output()
+	require.NoError(t, err)
+	parts := strings.Split(strings.TrimSpace(string(out)), ",")
+	require.Len(t, parts, 2, "expected list-count,scalar-value")
+	n, err := strconv.Atoi(parts[0])
+	require.NoError(t, err)
+	require.Greater(t, n, 1, "the probe pattern must match more than one %%Config key for list and scalar context to differ")
+	assert.Equal(t, parts[0], parts[1], "scalar context must return the match count, as list context's element count does")
+
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "Config.tpm"))
+	require.NoError(t, err)
+	sigs, errs := parse.DeclaredSignatures(tpm)
+	require.Empty(t, errs)
+	var sawList bool
+	for _, s := range sigs["config_re"] {
+		if callContext(s) == "list" {
+			sawList = true
+			assert.True(t, s.ReturnElement == types.Str,
+				"config_re's list-context candidate must admit a Str element, not %v", s.ReturnElement)
+		}
+	}
+	assert.True(t, sawList, "Config.tpm declares no list-context candidate for config_re, though it returns one line per match in list context")
 }
 
 // TestTestMoreBailOutNeverCalled: BAIL_OUT is declared None and is in
@@ -2281,6 +2471,24 @@ func TestXSLoaderSubsExempt(t *testing.T) {
 // to perl, called with its oracle's cases.
 func TestDynaLoaderReturnTypes(t *testing.T) {
 	holdReturnTypes(t, "DynaLoader")
+}
+
+// TestDynaLoaderCroakPassesALoneReference holds the measured claim
+// (audit-E, group E, finding 5): DynaLoader::croak is `require Carp;
+// Carp::croak(@_)` (DynaLoader.pm:108), so a lone reference argument
+// reaches $@ as the reference itself, the same pass-through
+// Carp::croak gives it. Measured on perl 5.42.0: `eval {
+// DynaLoader::croak({x=>1}) }; ref $@` is HASH. DynaLoader.tpm's croak
+// takes croak's parameter type, List[Str|Boolean|DualVar|Ref], so this
+// type-checks.
+func TestDynaLoaderCroakPassesALoneReference(t *testing.T) {
+	p := perltest.Perl542(t)
+	out, err := p.Command("-MDynaLoader", "-e",
+		`eval { DynaLoader::croak({x=>1}) }; print ref($@);`,
+	).Output()
+	require.NoError(t, err)
+	assert.Equal(t, "HASH", strings.TrimSpace(string(out)),
+		"DynaLoader::croak must deliver a lone reference to $@ unstringified, as Carp::croak does")
 }
 
 // TestDynaLoaderLowLevelSubsExempt: DynaLoader's low-level subs

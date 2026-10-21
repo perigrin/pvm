@@ -156,8 +156,11 @@ func TestCoreTypesMatchMeasuredSignatures(t *testing.T) {
 		"scalar": {1, []types.Type{types.Scalar}, types.Scalar},
 		// die throws any defined scalar, an object or a hash reference
 		// included: `eval { die E->new }; print ref($@)` prints "E".
-		"die":   {0, []types.Type{types.Str | types.Boolean | types.DualVar | types.Ref}, types.None},
-		"warn":  {0, []types.Type{types.Str}, types.Boolean},
+		"die": {0, []types.Type{types.Str | types.Boolean | types.DualVar | types.Ref}, types.None},
+		// warn takes the same parameter type die does: a lone reference
+		// reaches $SIG{__WARN__} itself, unstringified, measured the same
+		// way die's $@ does (internal/infer's TestCarpFamilyPassesALoneReference).
+		"warn":  {0, []types.Type{types.Str | types.Boolean | types.DualVar | types.Ref}, types.Boolean},
 		"bless": {1, []types.Type{types.Ref, types.Str}, types.Object},
 		// MinArity was 1 for abs, int, uc, lc, ucfirst, lcfirst and
 		// reverse: each compiles with no argument, `abs()` and `uc()`

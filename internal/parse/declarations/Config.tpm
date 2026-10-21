@@ -31,11 +31,16 @@ multi sub header_files :export_ok (List @args) Str;
 sub compile_date :export_ok (List @args) Str;
 sub myconfig :export_ok (List @args) Str;
 sub config_sh :export_ok (List @args) Str;
-# config_re greps %Config for keys matching its regex and formats each as
-# key='value' lines, one string whichever context calls it (measured).
-# :listop: config_re has no prototype (measured), so its one typed
-# parameter derives none either (RFC 0001, "Builtins with no prototype").
-sub config_re :export_ok :listop (Str $pattern) Str;
+# config_re greps %Config for keys matching its regex and formats each
+# as a "key='value'" line, answering by context like header_files does
+# (`return map {...} grep ..., split ...`, Config_heavy.pl:1498): the
+# matching lines in list context, their count in scalar context.
+# Measured on 5.42.0: config_re("ccflags.*") gives 3 lines in list
+# context and 3 (the count, an Int) in scalar context. :listop:
+# config_re has no prototype (measured), so its one typed parameter
+# derives none either (RFC 0001, "Builtins with no prototype").
+multi sub config_re :export_ok :listop (Str $pattern) List[Str];
+multi sub config_re :export_ok :listop (Str $pattern) Int;
 # config_vars prints "name='value'" to STDOUT for each name given (its
 # documented job, used by `perl -V:name`) and returns perl's own false
 # boolean (measured with builtin::is_bool), never dying on a name

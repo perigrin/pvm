@@ -1,5 +1,5 @@
 # ABOUTME: Declares what `use Test::More` installs: every testing sub, bare, plus $TODO.
-# ABOUTME: Measured on perl 5.42.0 with Test::More 1.302209.
+# ABOUTME: Measured on perl 5.42.0 with Test::More 1.302210.
 
 package Test::More;
 
@@ -57,7 +57,10 @@ sub is_deeply :export (List @args) Int;
 sub isa_ok :export :prototype($$;$) (Any $thing, Str $class, Str $name = undef) Int;
 sub isnt :export :prototype($$;$) (Any $got, Any $expected, Str $name = undef) Int;
 sub like :export :prototype($$;$) (Any $got, Any $pattern, Str $name = undef) Int;
-sub new_ok :export (List @args) Object;
+# new_ok's own final statement, `return $obj`, holds whatever $class->new
+# returned (measured: a class whose new returns undef, as new_ok's own
+# error path does nothing to replace, leaves new_ok undef too).
+sub new_ok :export (List @args) Object|Undef;
 sub note :export (List @args) Int;
 sub ok :export :prototype($;$) (Any $test, Str $name = undef) Int;
 sub pass :export :prototype(;$) (Str $name = undef) Int;

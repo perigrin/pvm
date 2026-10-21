@@ -21,15 +21,26 @@ our Int $st_ctime :export_ok(FIELDS);
 our Int $st_blksize :export_ok(FIELDS);
 our Int $st_blocks :export_ok(FIELDS);
 
-# stat and lstat each return a blessed File::stat object on success, or
-# -- measured on 5.42.0, calling either on a path that does not exist --
-# nothing: the empty list in list context, undef in scalar.
-sub stat :export(FIELDS) :prototype($) (Str $file) Object|Undef;
-sub lstat :export(FIELDS) :prototype($) (Str $file) Object|Undef;
+# stat calls CORE::stat on its argument, which preserves a filehandle
+# rather than stringifying it -- measured on 5.42.0, stat($lexical_fh),
+# stat(\*STDIN) and stat(*STDIN) each return a File::stat object, so
+# $file is Str|FileHandle, not only Str. lstat calls CORE::lstat, whose
+# own declaration (CORE.tpm) is the narrower Str|Glob: a lexical
+# filehandle there warns ("lstat() on filehandle") though it still
+# returns an object (measured), so lstat's own $file keeps CORE::lstat's
+# type rather than widening past it. Each returns the object on
+# success, or -- measured on 5.42.0, calling either on a path that does
+# not exist -- nothing: the empty list in list context, undef in scalar.
+sub stat :export(FIELDS) :prototype($) (Str|FileHandle $file) Object|Undef;
+sub lstat :export(FIELDS) :prototype($) (Str|Glob $file) Object|Undef;
 # stat_cando is `cando`'s alias (measured: `*stat_cando = \&cando`),
 # which tests a stat object's mode bits and ends `return 1` or
 # `return ""`, a plain Int, not perl's own boolean (measured with
-# builtin::is_bool). :listop: it has no prototype (measured), so its
-# typed parameters derive none either (RFC 0001, "Builtins with no
-# prototype").
-sub stat_cando :export_ok :listop (Object $stat_object, Int $mode, Boolean $effective) Int;
+# builtin::is_bool). Its POD says it "takes an arrayref containing the
+# return values of stat or lstat as its first argument", and cando
+# indexes that argument as a plain array, the type it actually uses:
+# measured on 5.42.0, stat_cando([CORE::stat "/etc/passwd"], S_IRUSR,
+# 1) returns 1, the same as the blessed object form. :listop: it has no
+# prototype (measured), so its typed parameters derive none either
+# (RFC 0001, "Builtins with no prototype").
+sub stat_cando :export_ok :listop (ArrayRef|Object $stat_object, Int $mode, Boolean $effective) Int;
