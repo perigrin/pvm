@@ -320,7 +320,6 @@ func TestDoneIssuesInReportsEachDoneKey(t *testing.T) {
 var platformExempt = map[string]map[string]platformExemption{
 	"darwin": {
 		"Fcntl::S_ISWHT":                      {perltest.Returns, "Boolean", "returns Boolean on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290"},
-		"POSIX::getgrnam":                     {perltest.Returns, "Undef", "returns Undef on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290"},
 		"Time::HiRes::CLOCK_BOOTTIME":         {perltest.Dies, "", "dies on macOS's perl -- measured in CI job 39489951290"},
 		"Time::HiRes::CLOCK_MONOTONIC_COARSE": {perltest.Dies, "", "dies on macOS's perl -- measured in CI job 39489951290"},
 		"Time::HiRes::CLOCK_REALTIME_COARSE":  {perltest.Dies, "", "dies on macOS's perl -- measured in CI job 39489951290"},
@@ -474,7 +473,10 @@ func TestPlatformExemptionsDifferFromTheirDeclarations(t *testing.T) {
 // TestExemptionChecksReportAdmittedClaims: exemptionChecks reports an
 // entry whose declaration already admits its claim -- a death beside a
 // None candidate, a type every context's return admits -- or names no
-// declared sub, and passes one context's exclusion through to perl.
+// declared sub. An entry one context excludes is passed through to
+// perl with only that context's calls, so a value of the claimed type
+// observed where the declaration already admits it cannot keep the
+// claim alive.
 func TestExemptionChecksReportAdmittedClaims(t *testing.T) {
 	problems, checks := exemptionChecks(t, map[string]platformExemption{
 		"POSIX::abort":    {perltest.Dies, "", "synthetic: abort is declared None"},
@@ -491,13 +493,14 @@ func TestExemptionChecksReportAdmittedClaims(t *testing.T) {
 		"POSIX::getgrnam": {perltest.Returns, "Undef", "synthetic: the list candidate excludes Undef"},
 	})
 	assert.Empty(t, problems)
-	assert.Contains(t, checks, "POSIX::getgrnam")
+	assert.Equal(t, []string{"list:sub"}, checks["POSIX::getgrnam"].Calls)
 }
 
 // exemptionChecks reports, for each of exempt's entries, why it cannot
 // differ from its declaration: the module has no .tpm, the .tpm
-// declares no such sub, or a candidate already admits the claim. It
-// returns, for the rest, the perltest.Exemption each is checked as.
+// declares no such sub, or it already admits the claim in every call.
+// It returns, for the rest, the perltest.Exemption each is checked as,
+// with only the calls claimCalls leaves.
 func exemptionChecks(t *testing.T, exempt map[string]platformExemption) ([]string, map[string]perltest.Exemption) {
 	t.Helper()
 	var problems []string
@@ -517,39 +520,40 @@ func exemptionChecks(t *testing.T, exempt map[string]platformExemption) ([]strin
 			problems = append(problems, fmt.Sprintf("%s: its .tpm declares no such sub %v", key, errs))
 			continue
 		}
-		if admitsClaim(cands, e) {
+		claim := claimCalls(cands, e)
+		if len(claim) == 0 {
 			problems = append(problems, fmt.Sprintf("%s: its .tpm already admits what the exemption claims (%s)", key, e.Reason))
 			continue
 		}
-		checks[key] = perltest.Exemption{Kind: e.Kind, Type: e.Type, Calls: calls(cands)}
+		checks[key] = perltest.Exemption{Kind: e.Kind, Type: e.Type, Calls: claim}
 	}
 	return problems, checks
 }
 
-// admitsClaim is whether the candidates already admit e's claim: a
-// death, when one is declared None; a returned type, when in every
-// context the oracle calls the sub in some candidate's return (or, for
-// a list, its element) admits it -- a claim names no context, and one
-// context that excludes the type is enough to need the exemption. An
-// Unsafe claim is never admitted: there is no observation to hold it
-// to.
-func admitsClaim(cands []types.Signature, e platformExemption) bool {
+// claimCalls is the calls ("CONTEXT:FORM") e's claim is checked with:
+// those the declaration does not already admit it in. A death is
+// admitted outright by a candidate declared None; a returned type, in
+// a call whose context and form some returning candidate's return (or,
+// for a list, its element) admits it. A call where the type is already
+// admitted is left out, so a value observed there cannot keep a claim
+// alive that no other call bears out. No calls left means the
+// declaration admits the claim everywhere.
+func claimCalls(cands []types.Signature, e platformExemption) []string {
+	all := calls(cands)
 	switch e.Kind {
 	case perltest.Dies:
-		return slices.ContainsFunc(cands, func(s types.Signature) bool { return s.Returns == types.None })
+		if slices.ContainsFunc(cands, func(s types.Signature) bool { return s.Returns == types.None }) {
+			return nil
+		}
 	case perltest.Returns:
 		got, known := observedToLattice[e.Type]
-		returns := slices.ContainsFunc(cands, func(s types.Signature) bool { return s.Returns != types.None })
-		if !known || !returns {
-			return false
+		if !known {
+			return all
 		}
-		for _, s := range cands {
-			if s.Returns == types.None {
-				continue
-			}
-			ctx := callContext(s)
-			admitted := slices.ContainsFunc(cands, func(c types.Signature) bool {
-				if c.Returns == types.None || callContext(c) != ctx {
+		return slices.DeleteFunc(all, func(call string) bool {
+			ctx, form, _ := strings.Cut(call, ":")
+			return slices.ContainsFunc(cands, func(c types.Signature) bool {
+				if c.Returns == types.None || callContext(c) != ctx || callForm(c) != form {
 					return false
 				}
 				if ctx == "list" && c.ReturnElement != types.Unknown {
@@ -557,13 +561,9 @@ func admitsClaim(cands []types.Signature, e platformExemption) bool {
 				}
 				return types.IsSubtype(got, c.Returns)
 			})
-			if !admitted {
-				return false
-			}
-		}
-		return true
+		})
 	}
-	return false
+	return all
 }
 
 // staleExemptions reports which of exempt's entries no longer differ

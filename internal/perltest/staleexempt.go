@@ -57,7 +57,13 @@ type Exemption struct {
 // look confirmed. So is an entry with no kind, or no calls.
 func StaleExemptions(t testing.TB, p Perl, inc, dir, casesDir string, exempt map[string]Exemption) []string {
 	t.Helper()
-	driver := sourceRelative(t, "..", "infer", "testdata", "return_oracle.pl")
+	return staleExemptionsWith(t, p, sourceRelative(t, "..", "infer", "testdata", "return_oracle.pl"), inc, dir, casesDir, exempt)
+}
+
+// staleExemptionsWith is StaleExemptions with driver run in place of
+// return_oracle.pl, so a test can hand it a driver that misbehaves.
+func staleExemptionsWith(t testing.TB, p Perl, driver, inc, dir, casesDir string, exempt map[string]Exemption) []string {
+	t.Helper()
 	observer := sourceRelative(t, "..", "infer", "testdata", "observe_types.pl")
 	var stale []string
 	for _, key := range slices.Sorted(maps.Keys(exempt)) {

@@ -170,3 +170,20 @@ func TestStaleCheckNeverCallsUnsafe(t *testing.T) {
 	require.Len(t, stale, 1)
 	assert.Contains(t, stale[0], "kind")
 }
+
+// TestStaleCheckNeedsTheCompleteSentinel: a driver that prints a
+// well-formed report observing the claimed death, but ends before
+// printing "complete", has not called every case it was asked to, so
+// the check reports it rather than taking the partial report as
+// confirmation.
+func TestStaleCheckNeedsTheCompleteSentinel(t *testing.T) {
+	p := Perl542(t)
+	driver := filepath.Join(t.TempDir(), "partial_oracle.pl")
+	require.NoError(t, os.WriteFile(driver, []byte(`print qq([{"line":0,"name":"works:scalar:sub:0","type":"Died"}]\n); exit 0;`+"\n"), 0o644))
+	cases := writeCases(t, "My::Fresh", "( works => [ [] ] );\n")
+
+	stale := staleExemptionsWith(t, p, driver, "", "", cases, map[string]Exemption{"My::Fresh::works": sub(Dies, "")})
+
+	require.Len(t, stale, 1)
+	assert.Contains(t, stale[0], "could not check")
+}
