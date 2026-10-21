@@ -49,7 +49,8 @@ func hold(t *testing.T, check func(*testing.T, perltest.Perl, string, string, []
 // that this platform's perl genuinely produces and Linux's does not --
 // each cites the CI job that measured it. holdFiltered drops any
 // disagreement containing one of these, so every other disagreement
-// in the same modules still fails the test if it reappears.
+// in the same modules still fails the test if it reappears, and
+// TestHeldExemptionsAreChecked fails on an entry that no longer matches.
 func heldExempt() []string {
 	// is_8bit, is_16bit, utf8_upgrade and utf8_downgrade are each in
 	// Encode's @EXPORT_OK and ':all' tag, and `use Encode
@@ -85,6 +86,57 @@ func heldExempt() []string {
 		"File::Spec::Functions::devnull declares prototype (); perl's is none",
 		"File::Spec::Functions::rootdir declares prototype (); perl's is none",
 	)
+}
+
+// heldExemptHolds are the holds that filter by heldExempt: the checks
+// and modules TestXSLibrariesPrototypes, TestXSLibrariesExports and
+// TestIOExportersPrototypes run. TestHeldExemptionsAreChecked holds
+// every heldExempt entry to the disagreements these produce.
+var heldExemptHolds = []struct {
+	check   func(*testing.T, perltest.Perl, string, string, []byte) []string
+	modules []string
+}{
+	{prototypeDisagreements, perltest.XSLibraries},
+	{exportDisagreements, perltest.XSLibraries},
+	{prototypeDisagreements, perltest.IOExporters},
+}
+
+// TestHeldExemptionsAreChecked: every heldExempt entry this OS keeps
+// still matches a disagreement its holds produce on this perl -- one
+// that matches none is stale, and would hide that disagreement if it
+// came back somewhere it is not expected.
+func TestHeldExemptionsAreChecked(t *testing.T) {
+	p := perltest.Perl542(t)
+	var disagreements []string
+	for _, h := range heldExemptHolds {
+		for _, module := range h.modules {
+			src, ok := declaration(module)
+			require.True(t, ok, "%s: no declaration", module)
+			disagreements = append(disagreements, h.check(t, p, "", module, src)...)
+		}
+	}
+	for _, entry := range unmatchedFilters(heldExempt(), disagreements) {
+		t.Errorf("heldExempt entry %q matches no disagreement on %s: stale", entry, p.Path)
+	}
+}
+
+// unmatchedFilters is the entries of filter no disagreement contains.
+func unmatchedFilters(filter, disagreements []string) []string {
+	var unmatched []string
+	for _, entry := range filter {
+		if !slices.ContainsFunc(disagreements, func(d string) bool { return strings.Contains(d, entry) }) {
+			unmatched = append(unmatched, entry)
+		}
+	}
+	return unmatched
+}
+
+// TestUnmatchedFiltersReportsAStaleEntry: a filter entry no
+// disagreement contains is reported; one some disagreement contains is
+// not.
+func TestUnmatchedFiltersReportsAStaleEntry(t *testing.T) {
+	got := unmatchedFilters([]string{"used", "stale"}, []string{"a disagreement that is used here"})
+	assert.Equal(t, []string{"stale"}, got)
 }
 
 // holdFiltered is hold, with any disagreement containing one of
