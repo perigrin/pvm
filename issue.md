@@ -1,19 +1,57 @@
 ---
 title: "Test-harness gaps from the fix round: a dying POSIX probe fails, stale exemptions are checked on the real maps, the exemption machinery is one mechanism"
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 created: 2026-10-21T05:19:06.111971328Z
-updated: 2026-10-21T15:14:36.252473055Z
+updated: 2026-10-21T17:19:41.514199987Z
 sessions:
 - start_sha: 9711a47ad2aaa4e8463f48604119e9b4ed2bf964
-  end_sha: ""
-  commits: 0
+  end_sha: f50065ecb29e2d6de8d8212a4ab27e95587f39e3
+  commits: 4
   started_at: 2026-10-21T15:14:36.252473055Z
+  ended_at: 2026-10-21T17:19:41.514199987Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-21T15:14:36.252473055Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-21T17:19:41.514199987Z
+observed_paths:
+- .github/workflows/ci.yml
+- docs/rfcs/0001-type-libraries.md
+- internal/conformance/perl.go
+- internal/data/help/types.md
+- internal/infer/declared_test.go
+- internal/infer/flow.go
+- internal/infer/flow_regressions_round2_test.go
+- internal/infer/infer.go
+- internal/infer/ops.go
+- internal/infer/parametertypes_test.go
+- internal/infer/returntypes_test.go
+- internal/infer/special.go
+- internal/infer/symbols.go
+- internal/infer/testdata/oracle/Cwd.pl
+- internal/infer/vars.go
+- internal/parse/decl.go
+- internal/parse/declarations.go
+- internal/parse/declarations/Cwd.tpm
+- internal/parse/declarations/Getopt/Long.tpm
+- internal/parse/declarations/IO/Socket/IP.tpm
+- internal/parse/declarations/Moose.tpm
+- internal/parse/declarations/Scalar/Util.tpm
+- internal/parse/exportattr_test.go
+- internal/parse/exports.go
+- internal/parse/heldtoperl_test.go
+- internal/parse/use.go
+- internal/perltest/constantdifferences.go
+- internal/perltest/fixture.go
+- internal/perltest/missingsubs.go
+- internal/perltest/perltest.go
+- internal/perltest/staleexempt.go
+- internal/perltest/staleexempt_test.go
+- internal/types/declared.go
 ---
 
 crochet:review round 2 of PR #488 at 2db182e6 (2026-10-21). Quality report: scratchpad/review2-core-module-types-paad.md, probes scratchpad/r2probes/, psc builds of head, cf08c0ac and pu in scratchpad/r2bin/. A finding pu gets right is a regression this milestone introduced: fix it. A gap pu shares is out of scope here and goes to the follow-up named in the issue.
