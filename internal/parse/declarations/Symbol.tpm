@@ -49,15 +49,11 @@ sub qualify_to_ref :export (Str|GlobRef|Object $name, Optional[Str] $pkg) GlobRe
 # or Hash), so the oracle never calls it in list context, where measured
 # on 5.42.0 a `return;` with no package found yields the empty list:
 # only its scalar reads need stating. A package found and deleted
-# returns the bare glob `delete` took out of the parent stash, which
-# observe_types.pl's ref-based test reports as Str, not a GlobRef (no
+# returns the bare glob `delete` took out of the parent stash (measured,
+# `ref \delete_package("Foo")` is GLOB, a Glob, not a GlobRef: no
 # reference was ever taken of it); a package not found returns undef.
-# Prototype is "$". Str stays rather than Glob: the same observer
-# limitation Scalar/Util.tpm's openhandle comment notes (ref() of a
-# bare Glob is always "", indistinguishable here from a plain string),
-# so Str is what this measurement methodology can state, not the
-# declaration's full nature; left as recorded, not reopened here.
-sub delete_package :export_ok (Str $pkg) Str|Undef;
+# Prototype is "$".
+sub delete_package :export_ok (Str $pkg) Glob|Undef;
 # geniosym forces the IO slot of a fresh anonymous glob and returns it,
 # always blessed: measured on 5.42.0, prototype() reports "".
 sub geniosym :export_ok () Object;

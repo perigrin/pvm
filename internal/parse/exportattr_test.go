@@ -153,12 +153,14 @@ func TestEmptyUseListImportsNothing(t *testing.T) {
 	})
 }
 
-// TestMooseTraitsInstallsSugar: Moose::Exporter's import reads only its
-// leading '-' options and ignores the rest of a use-list for DSL
-// purposes (perigrin's ruling, 2026-10-20: "the parameters are the
-// signature to import()") -- measured on 5.42.0, `use Moose -traits =>
-// [];` still installs all 13 sugar names, as a bare `use Moose;` does
-// (audit E, finding 19).
+// TestMooseTraitsInstallsSugar: a use-list of Moose::Exporter's '-'
+// options alone installs what a bare use does (perigrin's ruling,
+// 2026-10-20: "the parameters are the signature to import()") --
+// measured on 5.42.0, `use Moose -traits => [];` still installs all 13
+// sugar names, as a bare `use Moose;` does (audit E, finding 19). A
+// list naming sugar installs only those names and meta, which
+// Moose.tpm cannot yet state (TestMooseNamedListInstallsNamesAndMeta,
+// issue 01a15f6b).
 func TestMooseTraitsInstallsSugar(t *testing.T) {
 	wantImports(t, map[string][]string{
 		"use Moose -traits => [];\n": {"after", "around", "augment", "before", "blessed", "confess",
@@ -227,7 +229,8 @@ func TestAlwaysMarkRefused(t *testing.T) {
 // TestDeclarationReadsNamedParameters: a .tpm's signature reads perl
 // 5.44's named parameters, `:$name` (perlsub "named parameters"),
 // optional with `=`, after the positional parameters and before a
-// slurpy, as Moose's import does.
+// slurpy. No shipped .tpm declares one yet (RFC 0001, "the signature
+// names the keys"; issue 01a15f6b).
 func TestDeclarationReadsNamedParameters(t *testing.T) {
 	src := []byte("package My::Named;\nsub f (Str $pos, ArrayRef :$x = [], List @rest) Void;\n")
 	sigs, errs := DeclaredSignatures(src)

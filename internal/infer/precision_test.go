@@ -60,6 +60,7 @@ var observedToLattice = map[string]types.Type{
 	"ArrayRef":  types.ArrayRef,
 	"HashRef":   types.HashRef,
 	"CodeRef":   types.CodeRef,
+	"Glob":      types.Glob,
 	"GlobRef":   types.GlobRef,
 	"Object":    types.Object,
 }

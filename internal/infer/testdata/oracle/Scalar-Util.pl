@@ -20,12 +20,10 @@ my $iofile = IO::File->new( __FILE__, 'r' ) or die "cannot open @{[__FILE__]}: $
     isweak            => [ [$weak], [$plain] ],
     looks_like_number => [ ['5'], ['abc'] ],
     # openhandle returns the handle it was given unchanged (measured);
-    # a blessed IO::File comes back as itself, an Object. (A bare
-    # typeglob also comes back unchanged, measured `ref
-    # \openhandle(*STDIN)` is GLOB, but this oracle's observer has no
-    # Glob case of its own -- ref() of a non-reference is always "" --
-    # so that case is not run here; see Scalar/Util.tpm's comment.)
-    openhandle        => [ [$fh], ['x'], [$iofile] ],
+    # a blessed IO::File comes back as itself, an Object, and a bare
+    # typeglob as itself, a Glob (measured `ref \openhandle(*STDIN)` is
+    # GLOB).
+    openhandle        => [ [$fh], ['x'], [$iofile], [*STDIN] ],
     readonly          => [ [5] ],
     refaddr           => [ [$obj], [5] ],
     reftype           => [ [$obj], [5] ],

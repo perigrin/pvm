@@ -2,15 +2,18 @@
 # ABOUTME: Measured on perl 5.42.0 with Moose 2.4000: only blessed carries a prototype.
 package Moose;
 
-# Moose::Exporter's generated import reads only its leading '-' options
-# (-traits, -excludes, -metaclass, ...) and otherwise ignores a use-list
-# for DSL purposes (perigrin's ruling, 2026-10-20: "the parameters are
-# the signature to import()"). Declaring it here, with no scalar key
-# after the invocant, states that any non-empty list still installs the
-# 13 sugar names below, as a bare `use Moose;` does -- measured on
-# 5.42.0, `use Moose -traits => [];` installs all 13. $class is the
-# invocant, so the colon keeps the derived prototype none, matching
-# perl's (prototype() on Moose::import is undef).
+# Moose::Exporter's generated import strips its '-' options (-traits,
+# -excludes, -metaclass, ...) from the use-list, installs the names that
+# remain, and installs meta either way (perigrin's ruling, 2026-10-20:
+# "the parameters are the signature to import()"). Measured on 5.42.0,
+# `use Moose -traits => [];` installs all 13 sugar names, as a bare
+# `use Moose;` does, and `use Moose qw(has extends)` installs has,
+# extends and meta alone. Declared with no scalar key after the
+# invocant, any non-empty list here installs all 13: an over-install on
+# a named list until the export syntax can state Moose's import (issue
+# 01a15f6b). $class is the invocant, so the colon keeps the derived
+# prototype none, matching perl's (prototype() on Moose::import is
+# undef).
 sub import (Str $class: List @args) Void;
 
 sub extends :export;

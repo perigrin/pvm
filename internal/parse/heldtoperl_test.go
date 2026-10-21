@@ -984,8 +984,8 @@ func TestGetoptLongConfigInstallsGetOptions(t *testing.T) {
 // 0001) has no key for this: its only two answers to a named list are
 // "install the full :export set" or "the names are unknown", so this
 // also installs the three order variables, which perl's own import
-// does not for this list. That over-claim is 01a15ac0's open question
-// for perigrin; this guards only that GetOptions still resolves.
+// does not for this list. That over-claim is tracked in issue
+// 01a15baf; this guards only that GetOptions still resolves.
 func TestGetoptLongFromArrayInstallsGetOptions(t *testing.T) {
 	got := importedFrom(t, "use Getopt::Long qw(GetOptionsFromArray);\n")
 	assert.Contains(t, got, "GetOptions")
