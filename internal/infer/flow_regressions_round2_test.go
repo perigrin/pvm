@@ -66,6 +66,27 @@ func TestElementShadowEndsAtEveryWrite(t *testing.T) {
 	}
 }
 
+// TestElementShadowEndsAtSubstitutionThroughAlias (I5, the foreach-alias
+// residual): a substitution, a transliteration or an explicit `=~`
+// binding writing through a foreach's alias invalidates the array's
+// element guard shadow the same way a plain assignment through it does
+// (TestElementShadowEndsAtEveryWrite), even though none of the three
+// changes the alias's own type -- the write-back guard that decides
+// whether to clear is keyed to a type change, and none of them produce
+// one. perl 5.42 dies "Can't bless non-reference value" for each; pu
+// reports; this branch, head and cf were all silent on all three.
+func TestElementShadowEndsAtSubstitutionThroughAlias(t *testing.T) {
+	for _, src := range []string{
+		`my @r = ({}, undef); if (ref $r[0]) { for (@r) { tr/x/y/; } bless $r[0], "Foo" }` + "\n",
+		`my @r = ({}, undef); if (ref $r[0]) { s/x/y/ for @r; bless $r[0], "Foo" }` + "\n",
+		`my @r = ({}, undef); if (ref $r[0]) { for my $e (@r) { $e =~ s/x/y/ } bless $r[0], "Foo" }` + "\n",
+	} {
+		if diags := diagsWithDefaults(src); len(diags) == 0 {
+			t.Errorf("%q: no diagnostics, want the stale $r[0] guard shadow gone after the write", src)
+		}
+	}
+}
+
 // TestShadowClearStaysInItsBranch (I5, R6/S4's overreach, negative): a
 // write to $a[0] inside one arm of an if/else must not delete the guard
 // shadow from the scope the sibling arm shares -- `if ($c) { $a[0] = undef

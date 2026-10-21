@@ -522,11 +522,11 @@ func (a *analysis) foreachStmt(n *lower.ForeachStmt) {
 		a.walkChildren(n)
 		// Neither shape scopes a loop variable of its own -- `for (@r)
 		// {...}` and the modifier form both alias each element to $_
-		// directly -- but an assignment to $_ anywhere in the body still
+		// directly -- but a write to $_ anywhere in the body still
 		// writes through the alias the same way the scoped form's
 		// write-back below does, so a guard's per-index shadow of the
 		// array is just as stale after it (I5).
-		if iter != nil && (iter.Sigil == "@" || iter.Sigil == "%") && bodyAssignsUnderscore(n.Body) {
+		if iter != nil && (iter.Sigil == "@" || iter.Sigil == "%") && bodyWritesAlias(n.Body, "$_") {
 			a.st.ClearElementShadows(iter.Name)
 		}
 		return
@@ -546,6 +546,14 @@ func (a *analysis) foreachStmt(n *lower.ForeachStmt) {
 	final, _ := a.st.Lookup(name)
 	a.st.ExitScope()
 
+	// A write through the alias reaches some element of the array
+	// whether or not it changes the alias's own type -- s/// and tr///
+	// never do -- so this cannot wait for final.Type's own change below
+	// to decide whether the array's element shadows are stale (I5).
+	if iter != nil && (iter.Sigil == "@" || iter.Sigil == "%") && bodyWritesAlias(body, name) {
+		a.st.ClearElementShadows(iter.Name)
+	}
+
 	if final.Type == types.Scalar || final.Type == types.Unknown || iter == nil {
 		return
 	}
@@ -558,27 +566,48 @@ func (a *analysis) foreachStmt(n *lower.ForeachStmt) {
 		}
 	case "@", "%":
 		a.st.UpdateElemType(iter.Sigil+iter.Name, final.Type)
-		// final's own type changed from the plain Scalar the loop
-		// variable started as, so the body assigned through it at least
-		// once: that write reaches some element of the array by alias,
-		// so a guard's per-index shadow of it is stale too (I5).
-		a.st.ClearElementShadows(iter.Name)
 	}
 }
 
-// bodyAssignsUnderscore reports whether $_ is assigned anywhere under n:
-// a modifier foreach's body, which is the assignment itself, or a block
-// form's body that runs with no loop variable of its own, so every
-// assignment in it that reaches $_ aliases the array the same way the
-// scoped form's own loop variable does.
-func bodyAssignsUnderscore(n lower.Node) bool {
-	if as, ok := n.(*lower.Assign); ok {
-		if v, ok := as.L.(*lower.Var); ok && v.Sigil == "$" && v.Name == "_" {
+// bodyWritesAlias reports whether a plain assignment, a substitution or
+// transliteration (not suffixed /r, which returns a modified copy
+// instead of writing through), an explicit `=~` binding, or chop or
+// chomp, writes through name (with its sigil, as guardVarName spells it)
+// anywhere under n: each mutates its target in place, the way a
+// foreach's alias write reaches whatever element of the array it is
+// bound to (I5) -- a modifier foreach's body, which is the write itself,
+// or a scoped or unscoped block form's.
+func bodyWritesAlias(n lower.Node, name string) bool {
+	writes := func(target lower.Node) bool {
+		if target == nil {
+			return name == "$_"
+		}
+		v, ok := target.(*lower.Var)
+		return ok && v.Sigil+v.Name == name
+	}
+	switch n := n.(type) {
+	case *lower.Assign:
+		if writes(n.L) {
 			return true
+		}
+	case *lower.Match:
+		if (n.Op == "s" || n.Op == "tr" || n.Op == "y") && !strings.Contains(n.Flags, "r") && writes(n.Target) {
+			return true
+		}
+	case *lower.Call:
+		if base := coreName(n.Name); base == "chop" || base == "chomp" {
+			if len(n.Args) == 0 && name == "$_" {
+				return true
+			}
+			for _, arg := range n.Args {
+				if writes(arg) {
+					return true
+				}
+			}
 		}
 	}
 	for _, c := range lower.Children(n) {
-		if bodyAssignsUnderscore(c) {
+		if bodyWritesAlias(c, name) {
 			return true
 		}
 	}
