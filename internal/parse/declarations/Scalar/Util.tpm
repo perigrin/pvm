@@ -37,10 +37,7 @@ sub looks_like_number :export_ok :prototype($) (Any $v) Boolean;
 # is GLOB (a bare Glob, not a reference to one -- a direct `ref`
 # reports "" for it, since it is not itself a reference), `ref
 # openhandle(IO::File->new(...))` is "IO::File" (an Object), and
-# `openhandle("x")` is undef. The oracle's own Scalar-Util.pl omits the
-# bare-glob case: its observer classifies by `ref($v)`, which cannot
-# tell a bare Glob apart from a plain Str (both report ""), the same
-# limitation dualvar's own comment above notes.
+# `openhandle("x")` is undef.
 sub openhandle :export_ok :prototype($) (Any $v) Glob|GlobRef|Object|Undef;
 
 # readonly and tainted measured on 5.42.0 are plain integers, not

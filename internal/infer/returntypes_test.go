@@ -1266,6 +1266,27 @@ func TestSymbolReturnTypesAreDeclared(t *testing.T) {
 	assert.Empty(t, moduleFailures(t, "Symbol"))
 }
 
+// TestSymbolDeletePackageReturnsGlob: delete_package returns the bare
+// glob `delete` took out of the parent stash (measured on 5.42.0,
+// `ref \delete_package("Foo")` is GLOB), or undef when no package is
+// found. The oracle's observer tells a bare glob from a Str, so the
+// shipped Glob|Undef fits oracle/Symbol.pl's cases and Str|Undef fails.
+func TestSymbolDeletePackageReturnsGlob(t *testing.T) {
+	for _, f := range moduleFailures(t, "Symbol") {
+		if strings.Contains(f, "::delete_package ") {
+			t.Error(f)
+		}
+	}
+
+	p := perltest.Perl542(t)
+	cases, err := filepath.Abs(filepath.Join("testdata", "oracle", "Symbol.pl"))
+	require.NoError(t, err)
+	tpm := []byte("package Symbol;\nsub delete_package :export_ok (Str $pkg) Str|Undef;\n")
+	failures := returnTypeFailures(t, p, oracleRun{Module: "Symbol", TPM: tpm, Cases: cases})
+	require.Len(t, failures, 1, "a Str|Undef delete_package must fail on the found package")
+	assert.Contains(t, failures[0], "returned Glob")
+}
+
 // moduleFailures holds module's shipped .tpm return types to perl,
 // called with its shipped oracle/<Module>.pl cases.
 func moduleFailures(t *testing.T, module string) []string {
