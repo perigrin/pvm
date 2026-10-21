@@ -5,9 +5,11 @@ package infer_test
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -71,6 +73,11 @@ var oracleExempt = map[string]string{
 	// conflict.
 	"Socket::sockaddr_in":  "wantarray/arity dispatch dies on the other direction's shape; held to its prototype and exports only",
 	"Socket::sockaddr_in6": "wantarray/arity dispatch dies on the other direction's shape; held to its prototype and exports only",
+	// sockaddr_un dispatches on wantarray alone: both its pack and unpack
+	// forms take exactly one Str argument, so there is no arity to tell
+	// them apart the way sockaddr_in's differing arities do; a path given
+	// in list context dies the same way ("Bad address family"), measured.
+	"Socket::sockaddr_un": "wantarray dispatch dies on the other direction's shape (no arity tells the two forms apart); held to its prototype and exports only",
 
 	"Test::More::BAIL_OUT": "calls CORE::exit directly from Test::Builder's bail_out, bypassing the driver's exit-catching override, and would end the oracle process early",
 	// plan dies "You tried to plan twice" once a plan already exists --
@@ -133,6 +140,7 @@ var oracleExempt = map[string]string{
 	"Net::Ping::wakeonlan":     "opens a real udp socket and sends a packet onto the network",
 	"IO::Socket::sockaddr_in":  "wantarray/arity dispatch dies on the other direction's shape, as Socket::sockaddr_in does; held to its prototype and exports only",
 	"IO::Socket::sockaddr_in6": "wantarray/arity dispatch dies on the other direction's shape, as Socket::sockaddr_in6 does; held to its prototype and exports only",
+	"IO::Socket::sockaddr_un":  "wantarray dispatch dies on the other direction's shape, as Socket::sockaddr_un does; held to its prototype and exports only",
 	"IO::Socket::socket":       "opens a real socket file descriptor",
 	"IO::Socket::connect":      "connects a real socket onto the network",
 	"IO::Socket::bind":         "binds a real socket to a local address",
@@ -141,6 +149,18 @@ var oracleExempt = map[string]string{
 	"IO::Socket::send":         "writes onto a real socket",
 	"IO::Socket::recv":         "blocks reading from a real socket",
 	"IO::Socket::close":        "dereferences the invocant as a glob to close its socket, dying \"Can't use string ... as a symbol ref\" when the invocant is the bare class name the oracle calls with",
+
+	// configure's own sanity check requires ref($sock) eq "IO::Socket"
+	// exactly (IO/Socket.pm's configure), not a subclass: return_oracle.pl
+	// resolves the method once via $module->can(name), so it always calls
+	// the base IO::Socket::configure directly, never a subclass's
+	// override, even against INSTANCE's object -- and that instance is
+	// already blessed into IO::Socket::INET by the time configure runs
+	// (new's own call to configure, measured), so a second direct call
+	// dies "Cannot configure socket in domain". A separate, still-bare
+	// IO::Socket instance would work (measured) but the oracle's cases
+	// file supports only one shared INSTANCE per module.
+	"IO::Socket::configure": "needs an instance still blessed exactly IO::Socket, which INSTANCE no longer is by the time configure runs, and the oracle supports only one shared instance",
 
 	// IO::File::open dereferences its invocant as a glob immediately
 	// (`open($fh, ...)`), dying "Can't use string ... as a symbol ref"
@@ -182,552 +202,137 @@ var oracleExempt = map[string]string{
 	"Encode::is_16bit":       "exported but never defined; not even callable() to attempt, let alone observe dying",
 	"Encode::utf8_upgrade":   "exported but never defined; not even callable() to attempt, let alone observe dying",
 	"Encode::utf8_downgrade": "exported but never defined; not even callable() to attempt, let alone observe dying",
+
+	// Archive::Tar::clear wipes the shared instance's data
+	// (scratchpad/audit-C.md finding 18's INSTANCE in oracle/Archive-Tar.pl
+	// shares one instance across every instance-method call), which would
+	// break every other method's positive-path exercise if clear ran
+	// between them -- it always returns a bare 1, measured directly in
+	// scratchpad/6ca2-scratch/archive-tar/probe2.pl.
+	"Archive::Tar::clear": "wipes the shared oracle instance's data, which would break every other instance method's positive-path exercise; measured directly instead (6ca2-scratch/archive-tar/probe2.pl)",
 }
 
-// platformExempt holds, per runtime.GOOS, the additional subs the
-// return-type oracle exempts on that platform alone: a name whose call
-// dies, or whose returned type the .tpm (written against Linux perl
-// 5.42.0) does not declare, there and nowhere else. Each reason cites the
-// CI job that measured it; withPlatformExempt merges the current OS's
-// entries into a module's base exemption map, so every other name still
-// runs there. A name genuinely absent from the running perl (as opposed
-// to one that exists and dies or differs) belongs in neither map --
-// perltest.MissingSubs measures that directly instead, since which names
-// a module like Errno exports depends on the C library perl was built
-// against, not something this repository can hand-list once for every
+// pendingMisfit is one oracle misfit deferred to the issue auditing its
+// module's .tpm: a parameter the declaration rejects though perl
+// accepts it (Kind "parameter"), or, the DualVar knock-on, a return the
+// declaration no longer admits now that the observer tells DualVar
+// apart from Str and Num (Kind "return"). The fixing issue widens the
+// .tpm and deletes its own entries here; nothing in this package
+// widens a .tpm to absorb a misfit.
+type pendingMisfit struct {
+	Module, Sub, Kind, Detail, Reason string
+}
+
+// pendingAudit holds every misfit holdReturnTypes' DualVar knock-on or
+// the parameter oracle finds in a module whose audit fix has not
+// landed, keyed by the issue that will fix it (perigrin, 2026-10-21:
+// 01a15ac0-6c4a POSIX, -6c78 sockets, -6ca2 IO and OO modules, -6ccc XS
+// modules, -6cfa pure-Perl modules). POSIX's own entries were deleted
+// 2026-10-22 once feat/core-module-types (01a15ac0-6c4a's fix) widened
+// getpayload to Num|NaN|Inf and setpayload/setpayloadsig's $nv to Any:
+// re-measured, neither misfits the parameter oracle any longer. Sockets'
+// (01a15ac0-6c78) were deleted the same day once that same merge
+// declared getaddrinfo's and getnameinfo's error DualVar directly:
+// re-measured, the return-type oracle no longer sees a knock-on there
+// either. -6ca2's two entries (FileHandle::autoflush, IO::Handle::autoflush)
+// were deleted once 01a15ac0-6ca2's own fix declared autoflush's $on
+// Int, not Boolean: re-measured, the parameter oracle no longer sees a
+// misfit there either. TestPendingAuditEntriesStillMisfit holds every
+// entry that remains to the same rule, so a fix that lands without
+// deleting its own entries fails here instead of going unnoticed.
+var pendingAudit = map[string][]pendingMisfit{
+	"01a15ac0-6ccc": {
+		{Module: "Scalar::Util", Sub: "dualvar", Kind: "return",
+			Detail: "the dualvar it constructs fits neither candidate's declared Str",
+			Reason: "DualVar knock-on: observe_types.pl used to read dualvar()'s own result by its string half before it told DualVar apart"},
+	},
+}
+
+// pendingAuditMatch reports whether module::sub already has a kind
+// entry in pendingAudit, so holdReturnTypes and the parameter oracle
+// suppress exactly the misfits already deferred to a fixing issue, and
+// nothing else.
+func pendingAuditMatch(module, sub, kind string) bool {
+	for _, entries := range pendingAudit {
+		for _, m := range entries {
+			if m.Module == module && m.Sub == sub && m.Kind == kind {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// platformExempt holds, per runtime.GOOS, the subs that still need a
+// hand-kept exemption on that platform alone: ones that take a real
+// parameter, so exemptForModule's own live measurement
+// (perltest.ConstantDifferences) does not cover them, or whose return
+// type is not a plain scalar-or-None (a union, say). Each reason cites
+// the CI job that measured it. A zero-arg constant whose declared
+// return is a scalar type or None -- Fcntl's, Socket's, POSIX's and the
+// rest's TCP_*, DN_*, F_*, SO_* and B0-style families among them -- is
+// measured directly instead (see exemptForModule), since such a family
+// can run into the thousands and differs per C library and per build,
+// not something this repository could ever hand-list once for every
 // platform CI runs on.
 var platformExempt = map[string]map[string]string{
 	"darwin": {
-		"Fcntl::DN_ACCESS":                             "dies on macOS's perl -- measured in CI job 39489951290",
-		"Fcntl::DN_ATTRIB":                             "dies on macOS's perl -- measured in CI job 39489951290",
-		"Fcntl::DN_CREATE":                             "dies on macOS's perl -- measured in CI job 39489951290",
-		"Fcntl::DN_DELETE":                             "dies on macOS's perl -- measured in CI job 39489951290",
-		"Fcntl::DN_MODIFY":                             "dies on macOS's perl -- measured in CI job 39489951290",
-		"Fcntl::DN_MULTISHOT":                          "dies on macOS's perl -- measured in CI job 39489951290",
-		"Fcntl::DN_RENAME":                             "dies on macOS's perl -- measured in CI job 39489951290",
-		"Fcntl::F_ADD_SEALS":                           "dies on macOS's perl -- measured in CI job 39489951290",
-		"Fcntl::F_EXLCK":                               "dies on macOS's perl -- measured in CI job 39489951290",
-		"Fcntl::F_GETLK64":                             "dies on macOS's perl -- measured in CI job 39489951290",
-		"Fcntl::F_GETPIPE_SZ":                          "dies on macOS's perl -- measured in CI job 39489951290",
-		"Fcntl::F_GETSIG":                              "dies on macOS's perl -- measured in CI job 39489951290",
-		"Fcntl::F_GET_SEALS":                           "dies on macOS's perl -- measured in CI job 39489951290",
-		"Fcntl::F_NOTIFY":                              "dies on macOS's perl -- measured in CI job 39489951290",
-		"Fcntl::F_SEAL_FUTURE_WRITE":                   "dies on macOS's perl -- measured in CI job 39489951290",
-		"Fcntl::F_SEAL_GROW":                           "dies on macOS's perl -- measured in CI job 39489951290",
-		"Fcntl::F_SEAL_SEAL":                           "dies on macOS's perl -- measured in CI job 39489951290",
-		"Fcntl::F_SEAL_SHRINK":                         "dies on macOS's perl -- measured in CI job 39489951290",
-		"Fcntl::F_SEAL_WRITE":                          "dies on macOS's perl -- measured in CI job 39489951290",
-		"Fcntl::F_SETLK64":                             "dies on macOS's perl -- measured in CI job 39489951290",
-		"Fcntl::F_SETLKW64":                            "dies on macOS's perl -- measured in CI job 39489951290",
-		"Fcntl::F_SETPIPE_SZ":                          "dies on macOS's perl -- measured in CI job 39489951290",
-		"Fcntl::F_SETSIG":                              "dies on macOS's perl -- measured in CI job 39489951290",
-		"Fcntl::F_SHLCK":                               "dies on macOS's perl -- measured in CI job 39489951290",
-		"Fcntl::LOCK_MAND":                             "dies on macOS's perl -- measured in CI job 39489951290",
-		"Fcntl::LOCK_READ":                             "dies on macOS's perl -- measured in CI job 39489951290",
-		"Fcntl::LOCK_RW":                               "dies on macOS's perl -- measured in CI job 39489951290",
-		"Fcntl::LOCK_WRITE":                            "dies on macOS's perl -- measured in CI job 39489951290",
-		"Fcntl::O_DIRECT":                              "dies on macOS's perl -- measured in CI job 39489951290",
-		"Fcntl::O_EVTONLY":                             "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Fcntl::O_EXLOCK":                              "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Fcntl::O_LARGEFILE":                           "dies on macOS's perl -- measured in CI job 39489951290",
-		"Fcntl::O_NOATIME":                             "dies on macOS's perl -- measured in CI job 39489951290",
-		"Fcntl::O_RSYNC":                               "dies on macOS's perl -- measured in CI job 39489951290",
-		"Fcntl::O_SHLOCK":                              "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Fcntl::O_SYMLINK":                             "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Fcntl::O_TMPFILE":                             "dies on macOS's perl -- measured in CI job 39489951290",
-		"Fcntl::S_IFWHT":                               "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Fcntl::S_ISTXT":                               "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Fcntl::S_ISWHT":                               "returns Boolean on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Socket::AF_CCITT":                             "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Socket::AF_CHAOS":                             "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Socket::AF_DATAKIT":                           "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Socket::AF_DLI":                               "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Socket::AF_ECMA":                              "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Socket::AF_HYLINK":                            "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Socket::AF_IMPLINK":                           "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Socket::AF_ISO":                               "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Socket::AF_KEY":                               "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::AF_LAT":                               "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Socket::AF_LINK":                              "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Socket::AF_NS":                                "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Socket::AF_OSI":                               "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Socket::AF_PUP":                               "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Socket::AF_X25":                               "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::AI_CANONIDN":                          "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::AI_IDN":                               "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::EAI_BADHINTS":                         "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Socket::EAI_PROTOCOL":                         "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Socket::IPV6_ADD_MEMBERSHIP":                  "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::IPV6_DROP_MEMBERSHIP":                 "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::IPV6_MTU":                             "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::IPV6_MTU_DISCOVER":                    "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::IPV6_RECVERR":                         "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::IPV6_ROUTER_ALERT":                    "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::IP_BIND_ADDRESS_NO_PORT":              "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::IP_FREEBIND":                          "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::IP_MTU":                               "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::IP_MTU_DISCOVER":                      "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::IP_MULTICAST_ALL":                     "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::IP_NODEFRAG":                          "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::IP_PMTUDISC_DO":                       "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::IP_PMTUDISC_DONT":                     "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::IP_PMTUDISC_PROBE":                    "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::IP_PMTUDISC_WANT":                     "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::IP_RECVERR":                           "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::IP_TRANSPARENT":                       "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::MSG_EOF":                              "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Socket::MSG_ERRQUEUE":                         "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::MSG_FASTOPEN":                         "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::MSG_FIN":                              "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::MSG_PROXY":                            "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::MSG_RST":                              "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::MSG_SYN":                              "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::NI_IDN":                               "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::PF_CCITT":                             "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Socket::PF_CHAOS":                             "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Socket::PF_DATAKIT":                           "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Socket::PF_DLI":                               "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Socket::PF_ECMA":                              "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Socket::PF_HYLINK":                            "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Socket::PF_IMPLINK":                           "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Socket::PF_ISO":                               "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Socket::PF_LAT":                               "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Socket::PF_LINK":                              "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Socket::PF_NS":                                "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Socket::PF_OSI":                               "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Socket::PF_PUP":                               "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Socket::PF_X25":                               "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::SCM_CREDENTIALS":                      "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::SCM_CREDS":                            "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Socket::SOCK_CLOEXEC":                         "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::SOCK_NONBLOCK":                        "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::SO_ATTACH_FILTER":                     "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::SO_DETACH_FILTER":                     "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::SO_DOMAIN":                            "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::SO_INCOMING_CPU":                      "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::SO_INCOMING_NAPI_ID":                  "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::SO_LOCK_FILTER":                       "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::SO_PASSCRED":                          "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::SO_PEERCRED":                          "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::SO_PROTOCOL":                          "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::SO_RCVBUFFORCE":                       "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::SO_SECURITY_AUTHENTICATION":           "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::SO_SECURITY_ENCRYPTION_NETWORK":       "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::SO_SECURITY_ENCRYPTION_TRANSPORT":     "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::SO_SNDBUFFORCE":                       "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::SO_USELOOPBACK":                       "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Socket::TCP_CC_INFO":                          "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::TCP_CONGESTION":                       "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::TCP_CONNECTIONTIMEOUT":                "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Socket::TCP_CORK":                             "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::TCP_DEFER_ACCEPT":                     "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::TCP_FASTOPEN_CONNECT":                 "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::TCP_FASTOPEN_KEY":                     "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::TCP_FASTOPEN_NO_COOKIE":               "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::TCP_INFO":                             "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::TCP_KEEPALIVE":                        "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Socket::TCP_KEEPIDLE":                         "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::TCP_LINGER2":                          "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::TCP_MD5SIG":                           "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::TCP_MD5SIG_EXT":                       "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::TCP_NOOPT":                            "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Socket::TCP_NOPUSH":                           "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Socket::TCP_QUICKACK":                         "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::TCP_SYNCNT":                           "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::TCP_TIMESTAMP":                        "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::TCP_TX_DELAY":                         "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::TCP_USER_TIMEOUT":                     "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::TCP_WINDOW_CLAMP":                     "dies on macOS's perl -- measured in CI job 39489951290",
-		"Socket::UIO_MAXIOV":                           "dies on macOS's perl -- measured in CI job 39489951290",
-		"FileHandle::F_EXLCK":                          "dies on macOS's perl -- measured in CI job 39489951290",
-		"FileHandle::F_GETLK64":                        "dies on macOS's perl -- measured in CI job 39489951290",
-		"FileHandle::F_SETLK64":                        "dies on macOS's perl -- measured in CI job 39489951290",
-		"FileHandle::F_SETLKW64":                       "dies on macOS's perl -- measured in CI job 39489951290",
-		"FileHandle::F_SHLCK":                          "dies on macOS's perl -- measured in CI job 39489951290",
-		"FileHandle::O_DIRECT":                         "dies on macOS's perl -- measured in CI job 39489951290",
-		"FileHandle::O_EXLOCK":                         "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"FileHandle::O_LARGEFILE":                      "dies on macOS's perl -- measured in CI job 39489951290",
-		"FileHandle::O_RSYNC":                          "dies on macOS's perl -- measured in CI job 39489951290",
-		"FileHandle::O_SHLOCK":                         "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"IO::File::O_DIRECT":                           "dies on macOS's perl -- measured in CI job 39489951290",
-		"IO::File::O_EXLOCK":                           "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"IO::File::O_LARGEFILE":                        "dies on macOS's perl -- measured in CI job 39489951290",
-		"IO::File::O_RSYNC":                            "dies on macOS's perl -- measured in CI job 39489951290",
-		"IO::File::O_SHLOCK":                           "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"IO::Socket::AF_CCITT":                         "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"IO::Socket::AF_CHAOS":                         "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"IO::Socket::AF_DATAKIT":                       "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"IO::Socket::AF_DLI":                           "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"IO::Socket::AF_ECMA":                          "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"IO::Socket::AF_HYLINK":                        "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"IO::Socket::AF_IMPLINK":                       "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"IO::Socket::AF_ISO":                           "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"IO::Socket::AF_KEY":                           "dies on macOS's perl -- measured in CI job 39489951290",
-		"IO::Socket::AF_LAT":                           "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"IO::Socket::AF_LINK":                          "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"IO::Socket::AF_NS":                            "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"IO::Socket::AF_OSI":                           "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"IO::Socket::AF_PUP":                           "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"IO::Socket::AF_X25":                           "dies on macOS's perl -- measured in CI job 39489951290",
-		"IO::Socket::MSG_EOF":                          "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"IO::Socket::MSG_ERRQUEUE":                     "dies on macOS's perl -- measured in CI job 39489951290",
-		"IO::Socket::MSG_FASTOPEN":                     "dies on macOS's perl -- measured in CI job 39489951290",
-		"IO::Socket::MSG_FIN":                          "dies on macOS's perl -- measured in CI job 39489951290",
-		"IO::Socket::MSG_PROXY":                        "dies on macOS's perl -- measured in CI job 39489951290",
-		"IO::Socket::MSG_RST":                          "dies on macOS's perl -- measured in CI job 39489951290",
-		"IO::Socket::MSG_SYN":                          "dies on macOS's perl -- measured in CI job 39489951290",
-		"IO::Socket::PF_CCITT":                         "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"IO::Socket::PF_CHAOS":                         "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"IO::Socket::PF_DATAKIT":                       "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"IO::Socket::PF_DLI":                           "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"IO::Socket::PF_ECMA":                          "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"IO::Socket::PF_HYLINK":                        "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"IO::Socket::PF_IMPLINK":                       "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"IO::Socket::PF_ISO":                           "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"IO::Socket::PF_LAT":                           "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"IO::Socket::PF_LINK":                          "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"IO::Socket::PF_NS":                            "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"IO::Socket::PF_OSI":                           "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"IO::Socket::PF_PUP":                           "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"IO::Socket::PF_X25":                           "dies on macOS's perl -- measured in CI job 39489951290",
-		"IO::Socket::SCM_CREDENTIALS":                  "dies on macOS's perl -- measured in CI job 39489951290",
-		"IO::Socket::SCM_CREDS":                        "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"IO::Socket::SO_ATTACH_FILTER":                 "dies on macOS's perl -- measured in CI job 39489951290",
-		"IO::Socket::SO_DETACH_FILTER":                 "dies on macOS's perl -- measured in CI job 39489951290",
-		"IO::Socket::SO_DOMAIN":                        "dies on macOS's perl -- measured in CI job 39489951290",
-		"IO::Socket::SO_PASSCRED":                      "dies on macOS's perl -- measured in CI job 39489951290",
-		"IO::Socket::SO_PEERCRED":                      "dies on macOS's perl -- measured in CI job 39489951290",
-		"IO::Socket::SO_PROTOCOL":                      "dies on macOS's perl -- measured in CI job 39489951290",
-		"IO::Socket::SO_SECURITY_AUTHENTICATION":       "dies on macOS's perl -- measured in CI job 39489951290",
-		"IO::Socket::SO_SECURITY_ENCRYPTION_NETWORK":   "dies on macOS's perl -- measured in CI job 39489951290",
-		"IO::Socket::SO_SECURITY_ENCRYPTION_TRANSPORT": "dies on macOS's perl -- measured in CI job 39489951290",
-		"IO::Socket::SO_USELOOPBACK":                   "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"IO::Socket::UIO_MAXIOV":                       "dies on macOS's perl -- measured in CI job 39489951290",
-		"POSIX::ARG_MAX":                               "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"POSIX::CHILD_MAX":                             "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"POSIX::CLK_TCK":                               "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"POSIX::EPROCLIM":                              "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"POSIX::ERESTART":                              "dies on macOS's perl -- measured in CI job 39489951290",
-		"POSIX::LC_ADDRESS":                            "dies on macOS's perl -- measured in CI job 39489951290",
-		"POSIX::LC_IDENTIFICATION":                     "dies on macOS's perl -- measured in CI job 39489951290",
-		"POSIX::LC_MEASUREMENT":                        "dies on macOS's perl -- measured in CI job 39489951290",
-		"POSIX::LC_NAME":                               "dies on macOS's perl -- measured in CI job 39489951290",
-		"POSIX::LC_PAPER":                              "dies on macOS's perl -- measured in CI job 39489951290",
-		"POSIX::LC_TELEPHONE":                          "dies on macOS's perl -- measured in CI job 39489951290",
-		"POSIX::LDBL_EPSILON":                          "returns Num on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"POSIX::LDBL_MAX":                              "returns Num on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"POSIX::LDBL_MIN":                              "returns Num on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"POSIX::LINK_MAX":                              "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"POSIX::L_cuserid":                             "dies on macOS's perl -- measured in CI job 39489951290",
-		"POSIX::OPEN_MAX":                              "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"POSIX::SIGPOLL":                               "dies on macOS's perl -- measured in CI job 39489951290",
-		"POSIX::SIGRTMAX":                              "dies on macOS's perl -- measured in CI job 39489951290",
-		"POSIX::SIGRTMIN":                              "dies on macOS's perl -- measured in CI job 39489951290",
-		"POSIX::cuserid":                               "dies on macOS's perl -- measured in CI job 39489951290",
-		"POSIX::getgrnam":                              "returns Undef on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Time::HiRes::CLOCK_BOOTTIME":                  "dies on macOS's perl -- measured in CI job 39489951290",
-		"Time::HiRes::CLOCK_MONOTONIC_COARSE":          "dies on macOS's perl -- measured in CI job 39489951290",
-		"Time::HiRes::CLOCK_REALTIME_COARSE":           "dies on macOS's perl -- measured in CI job 39489951290",
-		"Time::HiRes::CLOCK_UPTIME_RAW":                "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
+		"Fcntl::S_ISWHT":                      "returns Boolean on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
+		"POSIX::getgrnam":                     "returns Undef on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
+		"Time::HiRes::CLOCK_BOOTTIME":         "dies on macOS's perl -- measured in CI job 39489951290",
+		"Time::HiRes::CLOCK_MONOTONIC_COARSE": "dies on macOS's perl -- measured in CI job 39489951290",
+		"Time::HiRes::CLOCK_REALTIME_COARSE":  "dies on macOS's perl -- measured in CI job 39489951290",
+		"Time::HiRes::CLOCK_UPTIME_RAW":       "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
 	},
 	"windows": {
-		"Time::HiRes::clock":                           `unimplemented on Windows's perl -- measured in CI job 39489951290: "Time::HiRes::clock(): unimplemented in this platform"`,
-		"Fcntl::DN_ACCESS":                             "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::DN_ATTRIB":                             "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::DN_CREATE":                             "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::DN_DELETE":                             "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::DN_MODIFY":                             "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::DN_MULTISHOT":                          "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::DN_RENAME":                             "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::FAPPEND":                               "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::FASYNC":                                "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::FD_CLOEXEC":                            "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::FNDELAY":                               "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::FNONBLOCK":                             "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::F_ADD_SEALS":                           "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::F_DUPFD":                               "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::F_EXLCK":                               "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::F_GETFD":                               "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::F_GETFL":                               "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::F_GETLEASE":                            "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::F_GETLK":                               "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::F_GETLK64":                             "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::F_GETOWN":                              "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::F_GETPIPE_SZ":                          "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::F_GETSIG":                              "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::F_GET_SEALS":                           "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::F_NOTIFY":                              "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::F_RDLCK":                               "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::F_SEAL_FUTURE_WRITE":                   "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::F_SEAL_GROW":                           "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::F_SEAL_SEAL":                           "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::F_SEAL_SHRINK":                         "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::F_SEAL_WRITE":                          "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::F_SETFD":                               "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::F_SETFL":                               "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::F_SETLEASE":                            "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::F_SETLK":                               "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::F_SETLK64":                             "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::F_SETLKW":                              "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::F_SETLKW64":                            "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::F_SETOWN":                              "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::F_SETPIPE_SZ":                          "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::F_SETSIG":                              "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::F_SHLCK":                               "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::F_UNLCK":                               "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::F_WRLCK":                               "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::LOCK_MAND":                             "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::LOCK_READ":                             "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::LOCK_RW":                               "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::LOCK_WRITE":                            "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::O_ASYNC":                               "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::O_DIRECT":                              "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::O_DIRECTORY":                           "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::O_DSYNC":                               "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::O_LARGEFILE":                           "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::O_NDELAY":                              "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::O_NOATIME":                             "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::O_NOCTTY":                              "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::O_NOFOLLOW":                            "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::O_NOINHERIT":                           "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"Fcntl::O_NONBLOCK":                            "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::O_RANDOM":                              "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"Fcntl::O_RAW":                                 "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"Fcntl::O_RSYNC":                               "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::O_SEQUENTIAL":                          "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"Fcntl::O_SYNC":                                "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::O_TEMPORARY":                           "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"Fcntl::O_TMPFILE":                             "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::S_IFLNK":                               "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::S_IFSOCK":                              "dies on Windows's perl -- measured in CI job 39498377022",
+		"POSIX::fpclassify":                            `unimplemented on Windows's perl -- measured in CI job 39508730008: "POSIX::fpclassify not implemented on this architecture"`,
+		"File::Copy::copy":                             "returns Boolean on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39508730008",
+		"Time::HiRes::clock_nanosleep":                 `unimplemented on Windows's perl -- measured in CI job 39508730008: "Time::HiRes::clock_nanosleep(): unimplemented in this platform"`,
+		"Time::HiRes::nanosleep":                       `unimplemented on Windows's perl -- measured in CI job 39489951290 (heldtoperl_test.go's own export probe): "Time::HiRes::nanosleep(): unimplemented in this platform"`,
+		"Time::HiRes::ualarm":                          `unimplemented on Windows's perl -- measured in CI job 39489951290 (heldtoperl_test.go's own export probe): "Time::HiRes::ualarm(): unimplemented in this platform"`,
+		"Time::HiRes::utime":                           `unimplemented on Windows's perl -- measured in CI job 39489951290 (heldtoperl_test.go's own export probe): "Time::HiRes::utime(): unimplemented in this platform"`,
 		"Fcntl::S_ISLNK":                               "dies on Windows's perl -- measured in CI job 39498377022",
 		"Fcntl::S_ISSOCK":                              "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::S_ISVTX":                               "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::AF_CCITT":                             "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"Socket::AF_CHAOS":                             "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"Socket::AF_DATAKIT":                           "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"Socket::AF_DLI":                               "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"Socket::AF_ECMA":                              "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"Socket::AF_HYLINK":                            "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"Socket::AF_IMPLINK":                           "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"Socket::AF_ISO":                               "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"Socket::AF_KEY":                               "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::AF_LAT":                               "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"Socket::AF_NS":                                "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"Socket::AF_OSI":                               "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"Socket::AF_PUP":                               "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"Socket::AF_ROUTE":                             "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::AF_X25":                               "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::AI_CANONIDN":                          "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::AI_IDN":                               "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::EAI_ADDRFAMILY":                       "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::EAI_SYSTEM":                           "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::IOV_MAX":                              "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::IPV6_ROUTER_ALERT":                    "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::IP_BIND_ADDRESS_NO_PORT":              "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::IP_FREEBIND":                          "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::IP_MULTICAST_ALL":                     "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::IP_NODEFRAG":                          "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::IP_PMTUDISC_DO":                       "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::IP_PMTUDISC_DONT":                     "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::IP_PMTUDISC_PROBE":                    "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::IP_PMTUDISC_WANT":                     "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::IP_RECVOPTS":                          "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::IP_RECVRETOPTS":                       "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::IP_RETOPTS":                           "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::IP_TRANSPARENT":                       "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::MSG_CTRUNC":                           "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::MSG_DONTWAIT":                         "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::MSG_EOR":                              "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::MSG_ERRQUEUE":                         "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::MSG_FASTOPEN":                         "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::MSG_FIN":                              "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::MSG_MAXIOVLEN":                        "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"Socket::MSG_NOSIGNAL":                         "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::MSG_PROXY":                            "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::MSG_RST":                              "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::MSG_SYN":                              "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::MSG_TRUNC":                            "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::NI_IDN":                               "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::PF_CCITT":                             "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"Socket::PF_CHAOS":                             "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"Socket::PF_DATAKIT":                           "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"Socket::PF_DLI":                               "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"Socket::PF_ECMA":                              "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"Socket::PF_HYLINK":                            "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"Socket::PF_IMPLINK":                           "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"Socket::PF_ISO":                               "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"Socket::PF_KEY":                               "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::PF_LAT":                               "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"Socket::PF_NS":                                "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"Socket::PF_OSI":                               "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"Socket::PF_PUP":                               "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"Socket::PF_ROUTE":                             "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::PF_X25":                               "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::SCM_CREDENTIALS":                      "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::SCM_RIGHTS":                           "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::SCM_TIMESTAMP":                        "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::SOCK_CLOEXEC":                         "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::SOCK_NONBLOCK":                        "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::SO_ATTACH_FILTER":                     "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::SO_DETACH_FILTER":                     "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::SO_DOMAIN":                            "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::SO_DONTLINGER":                        "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"Socket::SO_INCOMING_CPU":                      "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::SO_INCOMING_NAPI_ID":                  "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::SO_LOCK_FILTER":                       "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::SO_PASSCRED":                          "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::SO_PEERCRED":                          "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::SO_PROTOCOL":                          "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::SO_RCVBUFFORCE":                       "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::SO_REUSEPORT":                         "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::SO_SECURITY_AUTHENTICATION":           "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::SO_SECURITY_ENCRYPTION_NETWORK":       "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::SO_SECURITY_ENCRYPTION_TRANSPORT":     "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::SO_SNDBUFFORCE":                       "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::SO_USELOOPBACK":                       "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"Socket::TCP_CC_INFO":                          "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::TCP_CONGESTION":                       "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::TCP_CORK":                             "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::TCP_DEFER_ACCEPT":                     "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::TCP_FASTOPEN":                         "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::TCP_FASTOPEN_CONNECT":                 "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::TCP_FASTOPEN_KEY":                     "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::TCP_FASTOPEN_NO_COOKIE":               "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::TCP_INFO":                             "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::TCP_KEEPCNT":                          "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::TCP_KEEPIDLE":                         "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::TCP_KEEPINTVL":                        "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::TCP_LINGER2":                          "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::TCP_MAXSEG":                           "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::TCP_MD5SIG":                           "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::TCP_MD5SIG_EXT":                       "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::TCP_NOTSENT_LOWAT":                    "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::TCP_QUICKACK":                         "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::TCP_SYNCNT":                           "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::TCP_TIMESTAMP":                        "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::TCP_TX_DELAY":                         "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::TCP_USER_TIMEOUT":                     "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::TCP_WINDOW_CLAMP":                     "dies on Windows's perl -- measured in CI job 39498377022",
-		"Socket::UIO_MAXIOV":                           "dies on Windows's perl -- measured in CI job 39498377022",
 		"File::Spec::Functions::file_name_is_absolute": "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"FileHandle::FD_CLOEXEC":                       "dies on Windows's perl -- measured in CI job 39498377022",
-		"FileHandle::F_DUPFD":                          "dies on Windows's perl -- measured in CI job 39498377022",
-		"FileHandle::F_EXLCK":                          "dies on Windows's perl -- measured in CI job 39498377022",
-		"FileHandle::F_GETFD":                          "dies on Windows's perl -- measured in CI job 39498377022",
-		"FileHandle::F_GETFL":                          "dies on Windows's perl -- measured in CI job 39498377022",
-		"FileHandle::F_GETLK":                          "dies on Windows's perl -- measured in CI job 39498377022",
-		"FileHandle::F_GETLK64":                        "dies on Windows's perl -- measured in CI job 39498377022",
-		"FileHandle::F_GETOWN":                         "dies on Windows's perl -- measured in CI job 39498377022",
-		"FileHandle::F_RDLCK":                          "dies on Windows's perl -- measured in CI job 39498377022",
-		"FileHandle::F_SETFD":                          "dies on Windows's perl -- measured in CI job 39498377022",
-		"FileHandle::F_SETFL":                          "dies on Windows's perl -- measured in CI job 39498377022",
-		"FileHandle::F_SETLK":                          "dies on Windows's perl -- measured in CI job 39498377022",
-		"FileHandle::F_SETLK64":                        "dies on Windows's perl -- measured in CI job 39498377022",
-		"FileHandle::F_SETLKW":                         "dies on Windows's perl -- measured in CI job 39498377022",
-		"FileHandle::F_SETLKW64":                       "dies on Windows's perl -- measured in CI job 39498377022",
-		"FileHandle::F_SETOWN":                         "dies on Windows's perl -- measured in CI job 39498377022",
-		"FileHandle::F_SHLCK":                          "dies on Windows's perl -- measured in CI job 39498377022",
-		"FileHandle::F_UNLCK":                          "dies on Windows's perl -- measured in CI job 39498377022",
-		"FileHandle::F_WRLCK":                          "dies on Windows's perl -- measured in CI job 39498377022",
-		"FileHandle::O_ASYNC":                          "dies on Windows's perl -- measured in CI job 39498377022",
-		"FileHandle::O_DIRECT":                         "dies on Windows's perl -- measured in CI job 39498377022",
-		"FileHandle::O_DIRECTORY":                      "dies on Windows's perl -- measured in CI job 39498377022",
-		"FileHandle::O_DSYNC":                          "dies on Windows's perl -- measured in CI job 39498377022",
-		"FileHandle::O_LARGEFILE":                      "dies on Windows's perl -- measured in CI job 39498377022",
-		"FileHandle::O_NDELAY":                         "dies on Windows's perl -- measured in CI job 39498377022",
-		"FileHandle::O_NOCTTY":                         "dies on Windows's perl -- measured in CI job 39498377022",
-		"FileHandle::O_NOFOLLOW":                       "dies on Windows's perl -- measured in CI job 39498377022",
-		"FileHandle::O_NOINHERIT":                      "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"FileHandle::O_NONBLOCK":                       "dies on Windows's perl -- measured in CI job 39498377022",
-		"FileHandle::O_RANDOM":                         "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"FileHandle::O_RAW":                            "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"FileHandle::O_RSYNC":                          "dies on Windows's perl -- measured in CI job 39498377022",
-		"FileHandle::O_SEQUENTIAL":                     "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"FileHandle::O_SYNC":                           "dies on Windows's perl -- measured in CI job 39498377022",
-		"FileHandle::O_TEMPORARY":                      "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"IO::File::O_ASYNC":                            "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::File::O_DIRECT":                           "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::File::O_DIRECTORY":                        "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::File::O_DSYNC":                            "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::File::O_LARGEFILE":                        "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::File::O_NDELAY":                           "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::File::O_NOCTTY":                           "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::File::O_NOFOLLOW":                         "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::File::O_NOINHERIT":                        "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"IO::File::O_NONBLOCK":                         "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::File::O_RANDOM":                           "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"IO::File::O_RAW":                              "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"IO::File::O_RSYNC":                            "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::File::O_SEQUENTIAL":                       "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"IO::File::O_SYNC":                             "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::File::O_TEMPORARY":                        "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"IO::Socket::AF_CCITT":                         "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"IO::Socket::AF_CHAOS":                         "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"IO::Socket::AF_DATAKIT":                       "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"IO::Socket::AF_DLI":                           "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"IO::Socket::AF_ECMA":                          "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"IO::Socket::AF_HYLINK":                        "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"IO::Socket::AF_IMPLINK":                       "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"IO::Socket::AF_ISO":                           "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"IO::Socket::AF_KEY":                           "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::Socket::AF_LAT":                           "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"IO::Socket::AF_NS":                            "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"IO::Socket::AF_OSI":                           "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"IO::Socket::AF_PUP":                           "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"IO::Socket::AF_ROUTE":                         "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::Socket::AF_X25":                           "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::Socket::IOV_MAX":                          "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::Socket::IP_RECVOPTS":                      "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::Socket::IP_RECVRETOPTS":                   "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::Socket::IP_RETOPTS":                       "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::Socket::MSG_CTRUNC":                       "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::Socket::MSG_DONTWAIT":                     "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::Socket::MSG_EOR":                          "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::Socket::MSG_ERRQUEUE":                     "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::Socket::MSG_FASTOPEN":                     "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::Socket::MSG_FIN":                          "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::Socket::MSG_MAXIOVLEN":                    "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"IO::Socket::MSG_NOSIGNAL":                     "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::Socket::MSG_PROXY":                        "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::Socket::MSG_RST":                          "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::Socket::MSG_SYN":                          "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::Socket::MSG_TRUNC":                        "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::Socket::PF_CCITT":                         "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"IO::Socket::PF_CHAOS":                         "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"IO::Socket::PF_DATAKIT":                       "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"IO::Socket::PF_DLI":                           "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"IO::Socket::PF_ECMA":                          "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"IO::Socket::PF_HYLINK":                        "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"IO::Socket::PF_IMPLINK":                       "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"IO::Socket::PF_ISO":                           "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"IO::Socket::PF_KEY":                           "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::Socket::PF_LAT":                           "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"IO::Socket::PF_NS":                            "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"IO::Socket::PF_OSI":                           "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"IO::Socket::PF_PUP":                           "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"IO::Socket::PF_ROUTE":                         "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::Socket::PF_X25":                           "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::Socket::SCM_CREDENTIALS":                  "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::Socket::SCM_RIGHTS":                       "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::Socket::SCM_TIMESTAMP":                    "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::Socket::SO_ATTACH_FILTER":                 "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::Socket::SO_DETACH_FILTER":                 "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::Socket::SO_DOMAIN":                        "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::Socket::SO_DONTLINGER":                    "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"IO::Socket::SO_PASSCRED":                      "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::Socket::SO_PEERCRED":                      "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::Socket::SO_PROTOCOL":                      "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::Socket::SO_REUSEPORT":                     "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::Socket::SO_SECURITY_AUTHENTICATION":       "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::Socket::SO_SECURITY_ENCRYPTION_NETWORK":   "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::Socket::SO_SECURITY_ENCRYPTION_TRANSPORT": "dies on Windows's perl -- measured in CI job 39498377022",
-		"IO::Socket::SO_USELOOPBACK":                   "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"IO::Socket::UIO_MAXIOV":                       "dies on Windows's perl -- measured in CI job 39498377022",
 		"File::Spec::file_name_is_absolute":            "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"IO::Socket::IP::SO_REUSEPORT":                 "dies on Windows's perl -- measured in CI job 39498377022",
 		"Term::ReadLine::MinLine":                      "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
 		"Term::ReadLine::addhistory":                   "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
+		"IO::Socket::blocking":                         "returns Boolean on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39514360942",
+		"POSIX::S_ISLNK":                               "dies on Windows's perl -- measured in CI job 39514360942",
+		"POSIX::S_ISSOCK":                              "dies on Windows's perl -- measured in CI job 39514360942",
+		"POSIX::WEXITSTATUS":                           "dies on Windows's perl -- measured in CI job 39514360942",
+		"POSIX::WIFEXITED":                             "dies on Windows's perl -- measured in CI job 39514360942",
+		"POSIX::WIFSIGNALED":                           "dies on Windows's perl -- measured in CI job 39514360942",
+		"POSIX::WIFSTOPPED":                            "dies on Windows's perl -- measured in CI job 39514360942",
+		"POSIX::WSTOPSIG":                              "dies on Windows's perl -- measured in CI job 39514360942",
+		"POSIX::WTERMSIG":                              "dies on Windows's perl -- measured in CI job 39514360942",
+		"POSIX::fcntl":                                 "dies on Windows's perl -- measured in CI job 39514360942",
+		"POSIX::fesetround":                            "dies on Windows's perl -- measured in CI job 39514360942",
+		"POSIX::fpathconf":                             "dies on Windows's perl -- measured in CI job 39514360942",
+		"POSIX::lchown":                                "dies on Windows's perl -- measured in CI job 39514360942",
+		"POSIX::pathconf":                              "dies on Windows's perl -- measured in CI job 39514360942",
+		"POSIX::sysconf":                               "dies on Windows's perl -- measured in CI job 39514360942",
+		"POSIX::tcgetpgrp":                             "dies on Windows's perl -- measured in CI job 39514360942",
+		"POSIX::ttyname":                               "dies on Windows's perl -- measured in CI job 39514360942",
+		"POSIX::tzset":                                 "dies on Windows's perl -- measured in CI job 39514360942",
+		"POSIX::stat":                                  "returns Str in list context on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39514360942",
+		"POSIX::fstat":                                 "returns Str in list context on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39514360942",
+		"POSIX::strtold":                               "dies on Windows's perl -- measured in CI job 39514360942",
+		"POSIX::_POSIX_JOB_CONTROL":                    "returns Int on Windows's perl, where Linux's returns a Boolean -- measured in CI job 118963997693",
+		"POSIX::_POSIX_SAVED_IDS":                      "returns Int on Windows's perl, where Linux's returns a Boolean -- measured in CI job 118963997693",
+		"POSIX::getpwuid":                              "dies on Windows's perl -- measured in CI job 39514360942",
+		"POSIX::getpwnam":                              "dies on Windows's perl -- measured in CI job 39514360942",
+		"POSIX::getgrnam":                              "dies on Windows's perl -- measured in CI job 39514360942",
+		"POSIX::getgrgid":                              "dies on Windows's perl -- measured in CI job 39514360942",
+		"Time::HiRes::CLOCK_BOOTTIME":                  "dies on Windows's perl -- measured in CI job 39514360942",
+		"Time::HiRes::CLOCK_MONOTONIC_COARSE":          "dies on Windows's perl -- measured in CI job 39514360942",
+		"Time::HiRes::CLOCK_MONOTONIC_RAW":             "dies on Windows's perl -- measured in CI job 39514360942",
+		"Time::HiRes::ITIMER_PROF":                     "dies on Windows's perl -- measured in CI job 39514360942",
+		"Time::HiRes::ITIMER_REAL":                     "dies on Windows's perl -- measured in CI job 39514360942",
+		"Time::HiRes::ITIMER_VIRTUAL":                  "dies on Windows's perl -- measured in CI job 39514360942",
+		"Time::HiRes::alarm":                           "dies on Windows's perl -- measured in CI job 39514360942",
+		"Time::HiRes::getitimer":                       "dies on Windows's perl -- measured in CI job 39514360942",
+		"Time::HiRes::setitimer":                       "dies on Windows's perl -- measured in CI job 39514360942",
 	},
 }
 
@@ -786,7 +391,7 @@ func holdReturnTypes(t *testing.T, modules ...string) {
 		}
 		cases, err := filepath.Abs(filepath.Join("testdata", "oracle", strings.ReplaceAll(module, "::", "-")+".pl"))
 		require.NoError(t, err)
-		for _, f := range returnTypeFailures(t, p, oracleRun{Module: module, TPM: tpm, Cases: cases, Exempt: exemptForModule(t, p, module, tpm)}) {
+		for _, f := range returnTypeFailures(t, p, oracleRun{Module: module, TPM: tpm, Cases: cases, Exempt: exemptForModule(t, p, module, tpm, withPlatformExempt(oracleExempt))}) {
 			t.Error(f)
 		}
 	}
@@ -801,18 +406,81 @@ func holdReturnTypes(t *testing.T, modules ...string) {
 // must never reach the call list, and hand-listing which names a given
 // libc or Windows's SDK headers omit is not something this repository
 // can do once for every platform CI runs on.
-func exemptForModule(t *testing.T, p perltest.Perl, module string, tpm []byte) map[string]string {
+func exemptForModule(t *testing.T, p perltest.Perl, module string, tpm []byte, base map[string]string) map[string]string {
 	t.Helper()
-	exempt := withPlatformExempt(oracleExempt)
-	if module == "Errno" {
-		sigs, errs := parse.DeclaredSignatures(tpm)
-		if len(errs) == 0 {
-			for name, reason := range perltest.MissingSubs(t, p, "", module, slices.Sorted(maps.Keys(sigs))) {
-				exempt[module+"::"+name] = reason
-			}
+	exempt := maps.Clone(base)
+	if runtime.GOOS == "linux" {
+		return exempt
+	}
+	sigs, errs := parse.DeclaredSignatures(tpm)
+	if len(errs) != 0 {
+		return exempt
+	}
+	candidates := constantWantsValue(sigs)
+	for name := range candidates {
+		// Already exempt for its own (usually behavioral, not
+		// platform) reason -- oracleExempt's _exit, abort, pause,
+		// fork, wait and the rest are each zero-arg and return-type
+		// shaped exactly like a constant, and actually calling one to
+		// measure it would do the very thing it is exempt for (abort
+		// the process, block waiting for a child that never arrives).
+		if _, already := base[module+"::"+name]; already {
+			delete(candidates, name)
 		}
 	}
+	for name, reason := range perltest.ConstantDifferences(t, p, "", module, candidates) {
+		exempt[module+"::"+name] = reason
+	}
 	return exempt
+}
+
+// constantWantsValue selects, from sigs, the names a module's zero-arg
+// constant family is made of: every declared candidate takes no
+// parameters and returns a concrete scalar type or None, with every
+// candidate agreeing on which. The map's value is true for a name
+// declared to return a value, false for one declared None (expected to
+// die whenever it is called).
+func constantWantsValue(sigs map[string][]types.Signature) map[string]bool {
+	out := map[string]bool{}
+	for name, cands := range sigs {
+		if len(cands) == 0 {
+			continue
+		}
+		qualifies := true
+		wants := cands[0].Returns != types.None
+		for _, s := range cands {
+			// A method (one with an invocant) called bare, with
+			// literally no arguments, is not called the way the real
+			// oracle calls it (the module name as invocant) -- a
+			// plain, truly argument-less sub is the only shape this
+			// measures.
+			if s.Invocant != nil || len(s.Params) != 0 || !isScalarConstant(s.Returns) {
+				qualifies = false
+				break
+			}
+			if (s.Returns != types.None) != wants {
+				qualifies = false
+				break
+			}
+		}
+		if qualifies {
+			out[name] = wants
+		}
+	}
+	return out
+}
+
+// isScalarConstant reports whether ty is exactly one of the concrete
+// scalar leaf types a plain constant sub returns, or None -- never a
+// union (Int|Undef is not one of these), since a union is not the shape
+// ConstantDifferences' die-or-return question is about.
+func isScalarConstant(ty types.Type) bool {
+	switch ty {
+	case types.Int, types.Num, types.Str, types.Boolean, types.None:
+		return true
+	default:
+		return false
+	}
 }
 
 // oracleRun is one module the return-type oracle holds to perl.
@@ -826,6 +494,28 @@ type oracleRun struct {
 	Inc string
 	// Exempt are the subs never called, "Module::sub" to why.
 	Exempt map[string]string
+	// IgnorePending turns off pendingAudit's and parameterExempt's own
+	// filtering, so TestPendingAuditEntriesStillMisfit can measure
+	// whether an entry's misfit is still real.
+	IgnorePending bool
+}
+
+// oracleCallArgs is the NAME:CONTEXT:FORM arguments return_oracle.pl and
+// parameter_oracle.pl both take: one per context and form a non-exempt
+// declared sub's candidates answer, so each driver calls (or, for the
+// parameter oracle, observes the arguments of) the same cases the other
+// does.
+func oracleCallArgs(sigs map[string][]types.Signature, module string, exempt map[string]string) []string {
+	var args []string
+	for _, name := range slices.Sorted(maps.Keys(sigs)) {
+		if _, skip := exempt[module+"::"+name]; skip {
+			continue
+		}
+		for _, call := range calls(sigs[name]) {
+			args = append(args, name+":"+call)
+		}
+	}
+	return args
 }
 
 // returnTypeFailures has perl call each sub r.TPM declares, except those
@@ -847,14 +537,7 @@ func returnTypeFailures(t *testing.T, p perltest.Perl, r oracleRun) []string {
 	if r.Inc != "" {
 		args = append([]string{"-I", r.Inc}, args...)
 	}
-	for _, name := range slices.Sorted(maps.Keys(sigs)) {
-		if _, exempt := r.Exempt[r.Module+"::"+name]; exempt {
-			continue
-		}
-		for _, call := range calls(sigs[name]) {
-			args = append(args, name+":"+call)
-		}
-	}
+	args = append(args, oracleCallArgs(sigs, r.Module, r.Exempt)...)
 
 	// Resolved, not t.TempDir()'s own path: macOS's /tmp is a symlink to
 	// /private/tmp, so perl's getcwd() (which resolves symlinks) would
@@ -924,6 +607,9 @@ func returnTypeFailures(t *testing.T, p perltest.Perl, r oracleRun) []string {
 		})
 		if !admitted {
 			failed[call] = true
+			if o.Type == "DualVar" && !r.IgnorePending && pendingAuditMatch(r.Module, name, "return") {
+				continue
+			}
 			failures = append(failures, fmt.Sprintf("%s::%s call case %d in %s context returned %s, which its declared return type excludes",
 				r.Module, name, o.Line, ctx, o.Type))
 		}
@@ -1442,7 +1128,7 @@ func moduleFailures(t *testing.T, module string) []string {
 	require.NoError(t, err)
 	cases, err := filepath.Abs(filepath.Join("testdata", "oracle", strings.ReplaceAll(module, "::", "-")+".pl"))
 	require.NoError(t, err)
-	return returnTypeFailures(t, p, oracleRun{Module: module, TPM: tpm, Cases: cases, Exempt: exemptForModule(t, p, module, tpm)})
+	return returnTypeFailures(t, p, oracleRun{Module: module, TPM: tpm, Cases: cases, Exempt: exemptForModule(t, p, module, tpm, withPlatformExempt(oracleExempt))})
 }
 
 // TestGetoptStdUnknownOptionReturnIsDeclared: getopts given a switch its
@@ -1681,6 +1367,50 @@ print "getcwd\t", (defined $v ? "DEF:$v" : "UNDEF"), ($@ ? " DIED:$@" : ''), "\n
 chdir $base;
 `
 
+// posixScriptLines runs script (in dir, unless dir is "") and returns
+// its "name\tresult" lines, split and freed of perl's own \r\n line
+// ending so a trailing \r never sticks to the last field of a line --
+// measured: Windows's perl prints \r\n, and trimming only the whole
+// output's own trailing \n (not \r) leaves one on every line but the
+// last. Perl's eval cannot catch a C-level crash, which one of several
+// bogus arguments these scripts feed a POSIX sub induces on some
+// platforms (measured: Windows's MSVCRT aborts the process outright for
+// some of them, rather than setting errno the way glibc does) -- a
+// nonzero exit here still means whatever lines printed before that are
+// real measurements, so it is logged, not failed, and parsed the same
+// way a clean exit's output is. A name the crash cut off before it
+// could print is simply not among the lines returned, so this run does
+// not check it, same as a name genuinely exempt.
+func posixScriptLines(t *testing.T, p perltest.Perl, dir, script string) []string {
+	t.Helper()
+	cmd := p.Command("-e", script)
+	if dir != "" {
+		cmd.Dir = dir
+	}
+	out, err := cmd.Output()
+	if err != nil {
+		var exitErr *exec.ExitError
+		require.True(t, errors.As(err, &exitErr), "could not even run the script: %v", err)
+		t.Logf("script exited %v before finishing; using what it printed up to there", err)
+	}
+	text := strings.TrimRight(string(out), "\r\n")
+	if text == "" {
+		return nil
+	}
+	var lines []string
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimRight(line, "\r")
+		// A crash mid-print, or a stray blank line a Windows abort
+		// handler's own output can leave behind, is not a record to
+		// parse -- only a real "name\tresult" line is.
+		if line == "" {
+			continue
+		}
+		lines = append(lines, line)
+	}
+	return lines
+}
+
 // TestPOSIXFailureReturnsAdmitUndef: every sub the T_SYSRET typemap, or
 // a name lookup finding nothing, documents as "Returns undef on
 // failure" (scratchpad/audit-A.md F1) really returns undef when induced
@@ -1688,11 +1418,8 @@ chdir $base;
 // admits it.
 func TestPOSIXFailureReturnsAdmitUndef(t *testing.T) {
 	p := perltest.Perl542(t)
-	out, err := p.Command("-e", posixFailureReturnsScript).Output()
-	require.NoError(t, err)
-
 	sigs := posixSignatures(t)
-	lines := strings.Split(strings.TrimRight(string(out), "\n"), "\n")
+	lines := posixScriptLines(t, p, "", posixFailureReturnsScript)
 	require.NotEmpty(t, lines)
 	for _, line := range lines {
 		name, result, ok := strings.Cut(line, "\t")
@@ -1776,12 +1503,9 @@ for my $c (@cases) {
 // does for the language's builtin.
 func TestPOSIXMathReturnsAdmitInfNaN(t *testing.T) {
 	p := perltest.Perl542(t)
-	out, err := p.Command("-e", posixMathReturnsScript).Output()
-	require.NoError(t, err)
-
 	wants := map[string]types.Type{"INF": types.Inf, "NAN": types.NaN}
 	sigs := posixSignatures(t)
-	lines := strings.Split(strings.TrimRight(string(out), "\n"), "\n")
+	lines := posixScriptLines(t, p, "", posixMathReturnsScript)
 	require.NotEmpty(t, lines)
 	for _, line := range lines {
 		name, class, ok := strings.Cut(line, "\t")
@@ -1851,15 +1575,16 @@ for my $c (@cases) {
 // preserves NaN and Inf exactly.
 func TestPOSIXClassifiersTakeInfNaN(t *testing.T) {
 	p := perltest.Perl542(t)
-	out, err := p.Command("-e", posixClassifierScript).Output()
-	require.NoError(t, err)
-
 	sigs := posixSignatures(t)
-	lines := strings.Split(strings.TrimRight(string(out), "\n"), "\n")
+	lines := posixScriptLines(t, p, "", posixClassifierScript)
 	require.NotEmpty(t, lines)
 	for _, line := range lines {
 		name, result, ok := strings.Cut(line, "\t")
 		require.True(t, ok, "unparseable line: %q", line)
+		if reason, exempt := platformExempt[runtime.GOOS]["POSIX::"+name]; exempt {
+			assert.Contains(t, result, "DIED", "POSIX::%s is exempt (%s) because it dies taking NaN/Inf, but it did not -- stale exemption", name, reason)
+			continue
+		}
 		if !assert.NotContains(t, result, "DIED", "POSIX::%s died taking NaN/Inf: %s", name, result) {
 			continue
 		}
@@ -1951,11 +1676,8 @@ tryn('strftime:11', sub { POSIX::strftime("%Y",0,0,0,1,0,70,0,0,-1,1) });
 // and is still refused by it (scratchpad/audit-A.md F4).
 func TestPOSIXOptionalParametersMatchPerl(t *testing.T) {
 	p := perltest.Perl542(t)
-	out, err := p.Command("-e", posixArityScript).Output()
-	require.NoError(t, err)
-
 	sigs := posixSignatures(t)
-	lines := strings.Split(strings.TrimRight(string(out), "\n"), "\n")
+	lines := posixScriptLines(t, p, "", posixArityScript)
 	require.NotEmpty(t, lines)
 	for _, line := range lines {
 		label, result, ok := strings.Cut(line, "\t")
@@ -2043,6 +1765,15 @@ open my $seed, '>', 'posix-f5-scratch.txt' or die; close $seed;
 tryn('utime:undef', sub { POSIX::utime("posix-f5-scratch.txt", undef, undef) });
 `
 
+// posixNarrowParamsExempt holds, per runtime.GOOS, posixNarrowParamsScript
+// labels that die there instead of measuring OK -- a real platform
+// difference in the underlying call, not a declaration bug.
+var posixNarrowParamsExempt = map[string]map[string]string{
+	"windows": {
+		"chdir:handle": "Windows's perl has no fchdir -- measured in CI job 39508730008: \"The fchdir function is unimplemented\"",
+	},
+}
+
 // TestPOSIXParametersAdmitWhatPerlAccepts: isatty, chdir, setpayload,
 // setpayloadsig and utime each declared a parameter type narrower than
 // what perl and the POD accept (scratchpad/audit-A.md F5). isatty and
@@ -2054,16 +1785,15 @@ tryn('utime:undef', sub { POSIX::utime("posix-f5-scratch.txt", undef, undef) });
 func TestPOSIXParametersAdmitWhatPerlAccepts(t *testing.T) {
 	p := perltest.Perl542(t)
 	scratch := t.TempDir()
-	cmd := p.Command("-e", posixNarrowParamsScript)
-	cmd.Dir = scratch
-	out, err := cmd.Output()
-	require.NoError(t, err)
-
-	lines := strings.Split(strings.TrimRight(string(out), "\n"), "\n")
+	lines := posixScriptLines(t, p, scratch, posixNarrowParamsScript)
 	require.NotEmpty(t, lines)
 	for _, line := range lines {
 		label, result, ok := strings.Cut(line, "\t")
 		require.True(t, ok, "unparseable line: %q", line)
+		if reason, exempt := posixNarrowParamsExempt[runtime.GOOS][label]; exempt {
+			assert.NotEqual(t, "OK", result, "%s: exempt (%s) because it dies, but it did not -- stale exemption", label, reason)
+			continue
+		}
 		assert.Equal(t, "OK", result, "%s: %s", label, result)
 	}
 
@@ -2162,6 +1892,39 @@ var ioSocketIPSocketReexports = []string{
 	"SO_STATE", "SO_TYPE", "SO_USELOOPBACK", "SO_XOPEN", "SO_XSE", "UIO_MAXIOV", "inet_aton", "inet_ntoa",
 	"pack_sockaddr_in", "pack_sockaddr_in6", "pack_sockaddr_un", "sockaddr_in", "sockaddr_in6", "sockaddr_un", "unpack_sockaddr_in",
 	"unpack_sockaddr_in6", "unpack_sockaddr_un",
+
+	// The :export_ok names IO/Socket/IP.tpm mirrors from Socket.tpm, the
+	// same way and for the same reason (IO/Socket.tpm's own comment):
+	// each lives only in IO::Socket's or Socket's own stash, not
+	// IO::Socket::IP's, so the sub-form oracle cannot reach it here
+	// either, though IO::Socket::IP->can(name) finds it by inheritance.
+	"AI_ADDRCONFIG", "AI_ALL", "AI_CANONIDN", "AI_CANONNAME", "AI_IDN", "AI_IDN_ALLOW_UNASSIGNED",
+	"AI_IDN_USE_STD3_ASCII_RULES", "AI_NUMERICHOST", "AI_NUMERICSERV", "AI_PASSIVE", "AI_V4MAPPED",
+	"CR", "CRLF", "LF", "EAI_ADDRFAMILY", "EAI_AGAIN", "EAI_BADFLAGS", "EAI_BADHINTS", "EAI_FAIL",
+	"EAI_FAMILY", "EAI_NODATA", "EAI_NONAME", "EAI_PROTOCOL", "EAI_SERVICE", "EAI_SOCKTYPE", "EAI_SYSTEM",
+	"IN6ADDR_ANY", "IN6ADDR_LOOPBACK", "IPPROTO_AH", "IPPROTO_ESP", "IPPROTO_GRE", "IPPROTO_ICMP",
+	"IPPROTO_ICMPV6", "IPPROTO_IGMP", "IPPROTO_IP", "IPPROTO_IPV6", "IPPROTO_RAW", "IPPROTO_SCTP",
+	"IPPROTO_TCP", "IPPROTO_UDP", "IPTOS_LOWDELAY", "IPTOS_MINCOST", "IPTOS_RELIABILITY", "IPTOS_THROUGHPUT",
+	"IPV6_ADDRFROM", "IPV6_ADD_MEMBERSHIP", "IPV6_DROP_MEMBERSHIP", "IPV6_JOIN_GROUP", "IPV6_LEAVE_GROUP",
+	"IPV6_MTU", "IPV6_MTU_DISCOVER", "IPV6_MULTICAST_HOPS", "IPV6_MULTICAST_IF", "IPV6_MULTICAST_LOOP",
+	"IPV6_RECVERR", "IPV6_ROUTER_ALERT", "IPV6_TCLASS", "IPV6_UNICAST_HOPS", "IPV6_V6ONLY",
+	"IP_ADD_MEMBERSHIP", "IP_ADD_SOURCE_MEMBERSHIP", "IP_BIND_ADDRESS_NO_PORT", "IP_DROP_MEMBERSHIP",
+	"IP_DROP_SOURCE_MEMBERSHIP", "IP_FREEBIND", "IP_MTU", "IP_MTU_DISCOVER", "IP_MULTICAST_ALL",
+	"IP_MULTICAST_IF", "IP_MULTICAST_LOOP", "IP_MULTICAST_TTL", "IP_NODEFRAG", "IP_PMTUDISC_DO",
+	"IP_PMTUDISC_DONT", "IP_PMTUDISC_PROBE", "IP_PMTUDISC_WANT", "IP_RECVERR", "IP_TRANSPARENT",
+	"NI_DGRAM", "NI_IDN", "NI_IDN_ALLOW_UNASSIGNED", "NI_IDN_USE_STD3_ASCII_RULES", "NI_NAMEREQD",
+	"NI_NOFQDN", "NI_NUMERICHOST", "NI_NUMERICSERV", "NIx_NOHOST", "NIx_NOSERV",
+	"SOCK_CLOEXEC", "SOCK_NONBLOCK", "SO_INCOMING_CPU", "SO_INCOMING_NAPI_ID", "SO_LOCK_FILTER",
+	"SO_RCVBUFFORCE", "SO_SNDBUFFORCE",
+	"TCP_CC_INFO", "TCP_CONGESTION", "TCP_CONNECTIONTIMEOUT", "TCP_CORK", "TCP_DEFER_ACCEPT",
+	"TCP_FASTOPEN", "TCP_FASTOPEN_CONNECT", "TCP_FASTOPEN_KEY", "TCP_FASTOPEN_NO_COOKIE", "TCP_INFO",
+	"TCP_INIT_CWND", "TCP_KEEPALIVE", "TCP_KEEPCNT", "TCP_KEEPIDLE", "TCP_KEEPINTVL", "TCP_LINGER2",
+	"TCP_MAXRT", "TCP_MAXSEG", "TCP_MD5SIG", "TCP_MD5SIG_EXT", "TCP_NODELAY", "TCP_NOOPT", "TCP_NOPUSH",
+	"TCP_NOTSENT_LOWAT", "TCP_QUICKACK", "TCP_SACK_ENABLE", "TCP_STDURG", "TCP_SYNCNT", "TCP_TIMESTAMP",
+	"TCP_TX_DELAY", "TCP_USER_TIMEOUT", "TCP_WINDOW_CLAMP",
+	"getaddrinfo", "getnameinfo", "inet_ntop", "inet_pton",
+	"pack_ip_mreq", "pack_ip_mreq_source", "pack_ipv6_mreq",
+	"unpack_ip_mreq", "unpack_ip_mreq_source", "unpack_ipv6_mreq",
 }
 
 // ooExempt extends oracleExempt with the OO batch's own exemptions:
@@ -2174,15 +1937,27 @@ var ioSocketIPSocketReexports = []string{
 func ooExempt() map[string]string {
 	m := withPlatformExempt(oracleExempt)
 	for _, name := range ioSocketIPSocketReexports {
-		m["IO::Socket::IP::"+name] = "lives in IO::Socket's own stash, from its file-scope `use Socket;`, not IO::Socket::IP's; the sub-form oracle cannot reach it there (measured), and Socket.tpm's own oracle already holds its return type"
+		m["IO::Socket::IP::"+name] = "lives in IO::Socket's or Socket's own stash, not IO::Socket::IP's; the sub-form oracle cannot reach it there (measured), and that module's own oracle already holds its return type"
 	}
 	for _, name := range []string{"connect", "sockhost", "sockport", "peerhost", "peerport"} {
 		m["IO::Socket::IP::"+name] = "opens or reads a real network connection"
 	}
+	m["IO::Socket::IP::accept"] = "blocks accepting a real connection on a socket, as IO::Socket's own accept does"
+	m["IO::Socket::IP::peeraddr"] = "unpacks peername's address directly, dying \"Bad arg length\" when peername is undef (measured, unconnected)"
 	for _, name := range []string{"get", "head", "put", "post", "patch", "delete", "post_form", "mirror", "request"} {
 		m["HTTP::Tiny::"+name] = "performs a real HTTP request over the network"
 	}
 	m["Term::ReadLine::readline"] = "blocks reading a line from a real terminal"
+	// Tie::Hash::new, ::TIEHASH and ::CLEAR each succeed when reached
+	// through a subclass that overrides their counterpart (new/TIEHASH)
+	// or supplies FIRSTKEY/NEXTKEY/DELETE (CLEAR), but the oracle's
+	// generic mechanism only ever calls them on the bare class name,
+	// which always croaks regardless -- TestTieHashInheritedMethodsReturn
+	// measures the subclass-dispatch paths these are declared for
+	// (audit-C.md finding 34).
+	m["Tie::Hash::new"] = "succeeds only when reached through a subclass overriding TIEHASH; the bare class name always croaks (measured), which TestTieHashInheritedMethodsReturn covers directly"
+	m["Tie::Hash::TIEHASH"] = "succeeds only when reached through a subclass overriding new; the bare class name always croaks (measured), which TestTieHashInheritedMethodsReturn covers directly"
+	m["Tie::Hash::CLEAR"] = "succeeds only when reached through a subclass defining FIRSTKEY/NEXTKEY/DELETE; the bare class name always croaks (measured), which TestTieHashInheritedMethodsReturn covers directly"
 	return m
 }
 
@@ -2191,7 +1966,6 @@ func ooExempt() map[string]string {
 // exemptions.
 func TestOOModulesReturnTypes(t *testing.T) {
 	p := perltest.Perl542(t)
-	exempt := ooExempt()
 	for _, module := range perltest.OOModules {
 		rel := strings.ReplaceAll(module, "::", "/")
 		tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", filepath.FromSlash(rel)+".tpm"))
@@ -2201,8 +1975,52 @@ func TestOOModulesReturnTypes(t *testing.T) {
 		}
 		cases, err := filepath.Abs(filepath.Join("testdata", "oracle", strings.ReplaceAll(module, "::", "-")+".pl"))
 		require.NoError(t, err)
+		exempt := exemptForModule(t, p, module, tpm, ooExempt())
 		for _, f := range returnTypeFailures(t, p, oracleRun{Module: module, TPM: tpm, Cases: cases, Exempt: exempt}) {
 			t.Error(f)
+		}
+	}
+}
+
+// TestIOSelectTakesDocumentedHandles: IO::Select's handle element type
+// (new, add, remove, exists, handles, can_read, can_write and
+// has_exception) is documented as "an IO::Handle object, an integer or
+// an array reference", not only FileHandle (audit-C.md finding 12).
+// Measured: new($io_handle_obj) gives count 1, add(0) returns 1,
+// add([\*STDERR,"data"]) returns 1, and handles/can_write return
+// 0, IO::Handle, ARRAY -- each of Object, Int and ArrayRef must be
+// admitted, which FileHandle (Glob|GlobRef|IO) alone excludes.
+func TestIOSelectTakesDocumentedHandles(t *testing.T) {
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "IO", "Select.tpm"))
+	require.NoError(t, err)
+	sigs, errs := parse.DeclaredSignatures(tpm)
+	require.Empty(t, errs)
+
+	// wantsDocumentedHandles asserts typ admits an IO::Handle object, a
+	// plain Int fd and an ArrayRef, beside whatever FileHandle it
+	// already held.
+	wantsDocumentedHandles := func(name string, typ types.Type) {
+		assert.True(t, types.IsSubtype(types.Object, typ), "IO::Select::%s excludes Object", name)
+		assert.True(t, types.IsSubtype(types.Int, typ), "IO::Select::%s excludes Int", name)
+		assert.True(t, types.IsSubtype(types.ArrayRef, typ), "IO::Select::%s excludes ArrayRef", name)
+	}
+	for _, name := range []string{"new", "add", "remove"} {
+		for _, s := range sigs[name] {
+			require.Len(t, s.Params, 1, "IO::Select::%s", name)
+			wantsDocumentedHandles(name, s.Params[0].Element)
+		}
+	}
+	for _, s := range sigs["exists"] {
+		require.Len(t, s.Params, 1, "IO::Select::exists")
+		wantsDocumentedHandles("exists", s.Params[0].Type)
+		wantsDocumentedHandles("exists (return)", s.Returns)
+	}
+	for _, name := range []string{"handles", "can_read", "can_write", "has_exception"} {
+		for _, s := range sigs[name] {
+			if s.ReturnElement == types.Unknown {
+				continue // the scalar-context Int|Undef candidate has no element to check
+			}
+			wantsDocumentedHandles(name, s.ReturnElement)
 		}
 	}
 }
@@ -2215,7 +2033,7 @@ func TestOOModulesNetworkSubsExempt(t *testing.T) {
 	exempt := ooExempt()
 	networked := map[string][]string{
 		"HTTP::Tiny":     {"get", "head", "put", "post", "patch", "delete", "post_form", "mirror", "request"},
-		"IO::Socket::IP": {"connect", "sockhost", "sockport", "peerhost", "peerport"},
+		"IO::Socket::IP": {"connect", "sockhost", "sockport", "peerhost", "peerport", "accept", "peeraddr"},
 	}
 	for module, names := range networked {
 		cases, err := os.ReadFile(filepath.Join("testdata", "oracle", strings.ReplaceAll(module, "::", "-")+".pl"))
@@ -2227,6 +2045,80 @@ func TestOOModulesNetworkSubsExempt(t *testing.T) {
 			assert.NotContains(t, string(cases), name+" =>", "%s::%s has a call case despite being exempt", module, name)
 		}
 	}
+}
+
+// tieHashInheritedScript exercises the three subclass-dispatch paths
+// Tie/Hash.tpm's new, TIEHASH and CLEAR comments describe (audit-C.md
+// finding 34): a subclass defining only TIEHASH dispatches new() to it;
+// one defining only new dispatches TIEHASH() to it; and one supplying
+// FIRSTKEY/NEXTKEY/DELETE lets CLEAR complete. Each line is
+// "label\tresult", result being a ref() (blessed) or a defined-but-maybe-
+// empty string in angle brackets.
+const tieHashInheritedScript = `
+use v5.42;
+use Tie::Hash;
+
+package My;
+our @ISA = ('Tie::Hash');
+sub TIEHASH { my $c = shift; bless {}, $c }
+package main;
+my $o = My->new;
+say "new\t", ref($o);
+
+package N;
+our @ISA = ('Tie::Hash');
+sub new { my $c = shift; bless {}, $c }
+package main;
+my $o2 = N->TIEHASH;
+say "TIEHASH\t", ref($o2);
+
+package P;
+our @ISA = ('Tie::Hash');
+our %store = (a => 1, b => 2);
+sub TIEHASH  { bless {}, shift }
+sub FIRSTKEY { my @k = keys %store; return $k[0] }
+sub NEXTKEY  { my @k = keys %store; for my $i (0 .. $#k) { return $k[$i+1] if $k[$i] eq $_[1] } return undef }
+sub DELETE   { delete $store{$_[1]} }
+package main;
+tie my %h, 'P';
+my $r = (tied %h)->CLEAR;
+say "CLEAR\t<", (defined $r ? $r : 'undef'), ">\tremaining=", scalar(keys %P::store);
+`
+
+// TestTieHashInheritedMethodsReturn: new, TIEHASH and CLEAR each
+// succeed when reached through a subclass supplying the method they
+// depend on, rather than only croaking as Tie::Hash.tpm's comment once
+// claimed (audit-C.md finding 34, the negative scenario). Declared
+// Object (new, TIEHASH) and Any (CLEAR), not None.
+func TestTieHashInheritedMethodsReturn(t *testing.T) {
+	p := perltest.Perl542(t)
+	out, err := p.Command("-e", tieHashInheritedScript).Output()
+	require.NoError(t, err)
+
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "Tie", "Hash.tpm"))
+	require.NoError(t, err)
+	sigs, errs := parse.DeclaredSignatures(tpm)
+	require.Empty(t, errs)
+
+	lines := strings.Split(strings.TrimRight(string(out), "\r\n"), "\n")
+	require.Len(t, lines, 3)
+
+	for i, name := range []string{"new", "TIEHASH"} {
+		label, ref, ok := strings.Cut(lines[i], "\t")
+		require.True(t, ok, "unparseable line: %q", lines[i])
+		require.Equal(t, name, label)
+		assert.NotEmpty(t, ref, "Tie::Hash::%s via subclass dispatch did not return a blessed ref", name)
+		require.Len(t, sigs[name], 1, "Tie::Hash::%s", name)
+		assert.Equal(t, types.Object, sigs[name][0].Returns, "Tie::Hash::%s is not declared Object", name)
+	}
+
+	label, rest, ok := strings.Cut(lines[2], "\t")
+	require.True(t, ok, "unparseable line: %q", lines[2])
+	require.Equal(t, "CLEAR", label)
+	assert.Contains(t, rest, "<>", "Tie::Hash::CLEAR via subclass dispatch died or returned undef: %q", rest)
+	assert.Contains(t, rest, "remaining=0", "CLEAR did not clear the subclass's storage: %q", rest)
+	require.Len(t, sigs["CLEAR"], 1, "Tie::Hash::CLEAR")
+	assert.Equal(t, types.Any, sigs["CLEAR"][0].Returns, "Tie::Hash::CLEAR is not declared Any")
 }
 
 // TestTermReadLineNeverCalled: Term::ReadLine's readline is exempt, with
@@ -2413,6 +2305,64 @@ func TestFileStatMissingFileReturnIsDeclared(t *testing.T) {
 	assert.Empty(t, moduleFailures(t, "File::stat"))
 }
 
+// ioHandleSignatures reads IO/Handle.tpm's declared signatures, failing
+// t on any declaration error.
+func ioHandleSignatures(t *testing.T) map[string][]types.Signature {
+	t.Helper()
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "IO", "Handle.tpm"))
+	require.NoError(t, err)
+	sigs, errs := parse.DeclaredSignatures(tpm)
+	require.Empty(t, errs)
+	return sigs
+}
+
+// TestIOHandleSeparatorsAreClassMethods: output_field_separator,
+// output_record_separator, input_record_separator,
+// format_line_break_characters and format_formfeed are class methods,
+// not instance ones (audit-C.md finding 2): the POD shows only
+// `IO::Handle->output_field_separator(...)`, and the source carps "not
+// supported on a per-handle basis" when called on an object. Each is
+// declared Str $class exactly, which a bare class-name Str satisfies
+// and an Object invocant, the pre-fix declaration, does not.
+func TestIOHandleSeparatorsAreClassMethods(t *testing.T) {
+	sigs := ioHandleSignatures(t)
+	for _, name := range []string{
+		"output_field_separator", "output_record_separator", "input_record_separator",
+		"format_line_break_characters", "format_formfeed",
+	} {
+		for _, s := range sigs[name] {
+			if !assert.NotNil(t, s.Invocant, "IO::Handle::%s has no invocant", name) {
+				continue
+			}
+			assert.Equal(t, types.Str, s.Invocant.Type, "IO::Handle::%s's invocant is not exactly Str", name)
+		}
+	}
+}
+
+// TestIOHandleMethodsTakeUnblessedHandles: IO::Handle's instance
+// methods run on unblessed handles too (audit-C.md finding 1) --
+// `open my $fh,'>',...; $fh->autoflush(1)` works and ref($fh) is GLOB,
+// and so does `STDOUT->autoflush(0)`, measured on 5.42.0. Each is
+// declared Object|FileHandle, which both a Glob and a GlobRef satisfy;
+// Object alone, the pre-fix declaration, excludes both (types.go:117).
+func TestIOHandleMethodsTakeUnblessedHandles(t *testing.T) {
+	sigs := ioHandleSignatures(t)
+	for _, name := range []string{
+		"autoflush", "format_page_number", "format_lines_per_page", "format_lines_left",
+		"format_name", "format_top_name", "input_line_number", "format_write",
+		"print", "printf", "say", "getline", "getlines", "printflush", "flush",
+		"opened", "fileno", "eof", "getc", "close",
+	} {
+		for _, s := range sigs[name] {
+			if !assert.NotNil(t, s.Invocant, "IO::Handle::%s has no invocant", name) {
+				continue
+			}
+			assert.True(t, types.IsSubtype(types.Glob, s.Invocant.Type), "IO::Handle::%s's invocant excludes Glob (a bareword handle)", name)
+			assert.True(t, types.IsSubtype(types.GlobRef, s.Invocant.Type), "IO::Handle::%s's invocant excludes GlobRef (an `open my $fh` lexical)", name)
+		}
+	}
+}
+
 // TestIOExportersReturnTypes holds each module's declared return types
 // to perl (perltest.IOExporters), called with its oracle's cases.
 func TestIOExportersReturnTypes(t *testing.T) {
@@ -2420,14 +2370,14 @@ func TestIOExportersReturnTypes(t *testing.T) {
 }
 
 // ioExportersNetworkSubs are the Net::Ping and IO::Socket subs that
-// touch the network (or, for IO::Socket's sockaddr_in and
-// sockaddr_in6, dispatch on context the way Socket's already-exempt
+// touch the network (or, for IO::Socket's sockaddr_in, sockaddr_in6
+// and sockaddr_un, dispatch on context the way Socket's already-exempt
 // ones do); every one must be in oracleExempt.
 var ioExportersNetworkSubs = []string{
 	"Net::Ping::pingecho", "Net::Ping::wakeonlan",
 	"IO::Socket::socket", "IO::Socket::connect", "IO::Socket::bind", "IO::Socket::listen",
 	"IO::Socket::accept", "IO::Socket::send", "IO::Socket::recv", "IO::Socket::close",
-	"IO::Socket::sockaddr_in", "IO::Socket::sockaddr_in6",
+	"IO::Socket::sockaddr_in", "IO::Socket::sockaddr_in6", "IO::Socket::sockaddr_un",
 }
 
 // TestIOExportersNetworkSubsExempt: every Net::Ping and IO::Socket sub
@@ -2455,6 +2405,88 @@ func TestIOExportersOracleStaysInScratch(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, absolute.Match(cases), "%s's oracle cases name an absolute path", module)
 	}
+}
+
+// TestIOSocketConstructorTakesArgs: IO::Socket::new's own perl, measured
+// on 5.42.0, is `my($class,%arg) = @_`, and the POD says new "optionally
+// takes arguments" and "If the constructor fails it will return undef"
+// (measured: IO::Socket->new(Domain=>AF_INET, ..., PeerPort=>1) with no
+// listener gives undef, errstr "connect: Connection refused"); a prior
+// pass of IO/Socket.tpm declared new taking only its class name
+// (01a15ac0, IO::Socket finding 1).
+func TestIOSocketConstructorTakesArgs(t *testing.T) {
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "IO", "Socket.tpm"))
+	require.NoError(t, err)
+	sigs, errs := parse.DeclaredSignatures(tpm)
+	require.Empty(t, errs)
+	cands, ok := sigs["new"]
+	require.True(t, ok, "IO::Socket.tpm does not declare new")
+	require.Len(t, cands, 1)
+	s := cands[0]
+	require.NotEmpty(t, s.Params, "IO::Socket::new takes no parameters besides its class name, but perl's new(%%arg) accepts a Domain=>... argument list (measured)")
+	assert.Equal(t, byte('@'), s.Params[0].Sigil, "IO::Socket::new's argument list should be a slurpy, matching perl's my($class,%%arg) = @_")
+	assert.True(t, types.IsSubtype(types.Undef, s.Returns), "IO::Socket::new does not admit Undef, but perl returns undef when the constructor fails (measured)")
+}
+
+// TestIOSocketMethodsReturnSocketOrUndef: IO::Socket's socket, connect,
+// bind and listen each return $sock (the invocant) on success or undef
+// on failure (measured on 5.42.0, IO/Socket.pm:91,165,223,233), never
+// the core Boolean a prior pass of IO/Socket.tpm declared instead
+// (01a15ac0, IO::Socket finding 2).
+func TestIOSocketMethodsReturnSocketOrUndef(t *testing.T) {
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "IO", "Socket.tpm"))
+	require.NoError(t, err)
+	sigs, errs := parse.DeclaredSignatures(tpm)
+	require.Empty(t, errs)
+	for _, name := range []string{"socket", "connect", "bind", "listen"} {
+		cands, ok := sigs[name]
+		if !assert.True(t, ok, "IO::Socket::%s is not declared", name) {
+			continue
+		}
+		require.Len(t, cands, 1)
+		s := cands[0]
+		assert.True(t, types.IsSubtype(types.Object, s.Returns), "IO::Socket::%s should admit Object: perl returns the invocant itself on success (measured)", name)
+		assert.True(t, types.IsSubtype(types.Undef, s.Returns), "IO::Socket::%s should admit Undef: perl returns undef on failure (measured)", name)
+	}
+}
+
+// TestIOSocketSendFlagsOptional: IO::Socket::send's own perl, measured
+// on 5.42.0, is `@_ >= 2 && @_ <= 4`, and the POD shows
+// `send(BUF, [FLAGS, [TO]])` -- flags is optional (measured:
+// $sock->send("hi") returns 2), not the required parameter a prior pass
+// of IO/Socket.tpm declared (01a15ac0, IO::Socket finding 5).
+func TestIOSocketSendFlagsOptional(t *testing.T) {
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "IO", "Socket.tpm"))
+	require.NoError(t, err)
+	sigs, errs := parse.DeclaredSignatures(tpm)
+	require.Empty(t, errs)
+	cands, ok := sigs["send"]
+	require.True(t, ok, "IO::Socket::send is not declared")
+	require.Len(t, cands, 1)
+	s := cands[0]
+	require.GreaterOrEqual(t, len(s.Params), 2, "IO::Socket::send should declare buf and flags parameters")
+	assert.False(t, s.Params[1].Required, `IO::Socket::send's flags parameter should be optional: perl accepts $sock->send("hi") with no flags (measured)`)
+}
+
+// TestSocketListContextUnpackers: Socket::sockaddr_un dispatches on
+// wantarray alone, the same way sockaddr_in and sockaddr_in6 do
+// (measured on 5.42.0, Socket.pm:876-883: `unpack_sockaddr_un` runs
+// under `if(wantarray)`; `my @l = sockaddr_un(pack_sockaddr_un($path))`
+// gives `($path)`), so it needs a List[Str] candidate for list context
+// beside its scalar (pack) one -- left as a single scalar-only
+// candidate by a prior pass of Socket.tpm (01a15ac0, Socket finding 4).
+func TestSocketListContextUnpackers(t *testing.T) {
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "Socket.tpm"))
+	require.NoError(t, err)
+	sigs, errs := parse.DeclaredSignatures(tpm)
+	require.Empty(t, errs)
+	cands, ok := sigs["sockaddr_un"]
+	require.True(t, ok, "Socket::sockaddr_un is not declared")
+	require.Len(t, cands, 2, "sockaddr_un should be a multi, pack and unpack, the same way sockaddr_in and sockaddr_in6 are")
+	hasListCandidate := slices.ContainsFunc(cands, func(s types.Signature) bool {
+		return s.Answers() == types.ListCtx && s.ReturnElement == types.Str
+	})
+	assert.True(t, hasListCandidate, "sockaddr_un has no List[Str] candidate for its list-context (unpack) form")
 }
 
 // TestIOFileNewMissingFileReturnIsDeclared: IO::File->new on a file

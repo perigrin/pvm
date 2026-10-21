@@ -18,7 +18,13 @@ my $pgt1 = sub { $b > 1 };
     pairmap   => [ [ $pmap, a => 1, b => 2 ] ],
     pairgrep  => [ [ $pgt1, a => 1, b => 2 ] ],
     pairfirst => [ [ $pgt1, a => 1, b => 2 ] ],
-    sum       => [ [ 1, 2, 3 ], [], [ 1e308, 1e308 ], [ 'nan' ] ],
+    # Inf - Inf is NaN; both are pushed past the first argument, $x,
+    # into @rest (a bare List, not narrowly checked), since Num -- $x's
+    # own declared type -- excludes Inf and NaN themselves (RFC 0001,
+    # "Str includes Num", not the reverse), which
+    # TestOracleCasesFitDeclaredParameters holds every case to, not
+    # only this module's own oracle.
+    sum       => [ [ 1, 2, 3 ], [], [ 1e308, 1e308 ], [ 1, 9**9**9, -9**9**9 ] ],
     sum0      => [ [ 1, 2, 3 ], [ 'inf' ] ],
     max       => [ [ 1, 2, 3 ], [ 'abc' ], [ [1] ] ],
     min       => [ [ 1.5, 2, 3 ], [ 'abc' ] ],

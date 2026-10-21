@@ -7,12 +7,20 @@ package ExtUtils::Manifest;
 # mkmanifest write to it. Measured on 5.42.0, calling each in a scratch
 # directory keeps every read and write inside it.
 sub manifind :export_ok :listop (Optional[HashRef] $p) HashRef;
-sub manicheck :export_ok :listop () List[Str];
-sub filecheck :export_ok :listop () List[Str];
+# manicheck, filecheck and skipcheck each end `return @missfile;` (or
+# the equivalent); in scalar context perl evaluates that array in the
+# caller's context and gives its count, an Int (measured: manicheck()
+# in scalar context gives 1, filecheck() gives 2; audit-C.md finding
+# 19), as File::Spec.tpm already declares for no_upwards.
+multi sub manicheck :export_ok :listop () List[Str];
+multi sub manicheck :export_ok :listop () Int;
+multi sub filecheck :export_ok :listop () List[Str];
+multi sub filecheck :export_ok :listop () Int;
 # fullcheck returns a two-element list, ($missing, $extra), each an
 # ArrayRef: measured on 5.42.0.
 sub fullcheck :export_ok :listop () List[ArrayRef];
-sub skipcheck :export_ok :listop () List[Str];
+multi sub skipcheck :export_ok :listop () List[Str];
+multi sub skipcheck :export_ok :listop () Int;
 sub maniread :export_ok :listop (Optional[Str] $file) HashRef;
 # maniskip returns a closure that tests one filename against
 # MANIFEST.SKIP; measured on 5.42.0.

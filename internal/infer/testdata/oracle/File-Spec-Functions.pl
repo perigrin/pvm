@@ -5,7 +5,7 @@
     canonpath             => [ [ 'a/./b' ] ],
     case_tolerant         => [ [] ],
     catdir                => [ [ 'a', 'b' ] ],
-    catfile               => [ [ 'a', 'b' ] ],
+    catfile               => [ [ 'a', 'b' ], [] ],
     catpath               => [ [ '', 'a/b', 'c.txt' ] ],
     curdir                => [ [] ],
     devnull               => [ [] ],

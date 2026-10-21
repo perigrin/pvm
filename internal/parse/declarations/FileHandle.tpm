@@ -84,26 +84,36 @@ sub _IONBF :export () Int;
 # @EXPORT_OK: the same IO::Handle methods IO::Handle.tpm declares,
 # re-exportable here under FileHandle's own name, plus pipe, the one
 # sub FileHandle defines itself.
-sub autoflush :export_ok (Object $self: Boolean $on = 1) Int;
-sub format_formfeed :export_ok (Object $self: Optional[Str] $char) Str|Undef;
-sub format_line_break_characters :export_ok (Object $self: Optional[Str] $chars) Str|Undef;
-sub format_lines_left :export_ok (Object $self: Optional[Int] $n) Int;
-sub format_lines_per_page :export_ok (Object $self: Optional[Int] $n) Int;
-sub format_name :export_ok (Object $self: Optional[Str] $name) Str|Undef;
-sub format_page_number :export_ok (Object $self: Optional[Int] $n) Int;
-sub format_top_name :export_ok (Object $self: Optional[Str] $name) Str|Undef;
-sub getline :export_ok (Object $self:) Str|Undef;
-sub getlines :export_ok (Object $self:) List[Str];
-sub input_line_number :export_ok (Object $self: Optional[Int] $n) Int|Undef;
-sub input_record_separator :export_ok (Object $self: Optional[Str] $sep) Str|Undef;
-sub output_field_separator :export_ok (Object $self: Optional[Str] $sep) Str|Undef;
-sub output_record_separator :export_ok (Object $self: Optional[Str] $sep) Str|Undef;
+#
+# autoflush and the instance methods below it take Object|FileHandle,
+# not Object, and output_field_separator and its three siblings take
+# Str $class, not Object: the same invocant defect as IO::Handle's (see
+# IO/Handle.tpm), measured the same way since FileHandle aliases the
+# same code refs.
+#
+# autoflush assigns to $|, which perl coerces to an integer, not a
+# truth value (IO/Handle.tpm's autoflush comment measures this), so
+# Int is what it coerces to, not Boolean.
+sub autoflush :export_ok (Object|FileHandle $self: Int $on = 1) Int;
+sub format_formfeed :export_ok (Str $class: Optional[Str] $char) Str|Undef;
+sub format_line_break_characters :export_ok (Str $class: Optional[Str] $chars) Str|Undef;
+sub format_lines_left :export_ok (Object|FileHandle $self: Optional[Int] $n) Int;
+sub format_lines_per_page :export_ok (Object|FileHandle $self: Optional[Int] $n) Int;
+sub format_name :export_ok (Object|FileHandle $self: Optional[Str] $name) Str|Undef;
+sub format_page_number :export_ok (Object|FileHandle $self: Optional[Int] $n) Int;
+sub format_top_name :export_ok (Object|FileHandle $self: Optional[Str] $name) Str|Undef;
+sub getline :export_ok (Object|FileHandle $self:) Str|Undef;
+sub getlines :export_ok (Object|FileHandle $self:) List[Str];
+sub input_line_number :export_ok (Object|FileHandle $self: Optional[Int] $n) Int|Undef;
+sub input_record_separator :export_ok (Str $class: Optional[Str] $sep) Str|Undef;
+sub output_field_separator :export_ok (Str $class: Optional[Str] $sep) Str|Undef;
+sub output_record_separator :export_ok (Str $class: Optional[Str] $sep) Str|Undef;
 # print and printf dereference the invocant as a glob before writing to
 # it, dying "Can't use string ... as a symbol ref" against the oracle's
 # bare class name, measured on 5.42.0, as IO::Handle's do; held to
 # their prototype and exports only (see oracleExempt).
-sub print :export_ok (Object $self: List @args) Boolean|Undef;
-sub printf :export_ok (Object $self: Str $format, List @args) Boolean|Undef;
+sub print :export_ok (Object|FileHandle $self: List @args) Boolean|Undef;
+sub printf :export_ok (Object|FileHandle $self: Str $format, List @args) Boolean|Undef;
 # pipe creates a connected pair of IO::Handle objects, returning them as
 # a two-element list, or undef (never a list) on failure; measured on
 # 5.42.0.
@@ -131,20 +141,29 @@ sub pipe :export_ok :listop () List[Object|Undef];
 # oracleExempt), as IO::File's open already is for the same reason.
 #
 # fdopen, ungetc, gets, error, clearerr, setbuf and setvbuf are also
-# aliased from IO::Handle, but IO::Handle.tpm leaves them undeclared
-# because each dereferences the invocant as a glob and dies against the
-# oracle's bare class name; left undeclared here too, for the same
-# reason and the same code ref.
-sub new_from_fd (Str $class: Int $fd, Str $mode) Object|Undef;
-sub close (Object $self:) Boolean;
-sub fileno (Object $self:) Int|Undef;
-sub getc (Object $self:) Str|Undef;
-sub eof (Object $self:) Boolean;
-sub flush (Object $self:) Num|Undef;
+# aliased from IO::Handle; IO::Handle.tpm now declares most of these
+# (fdopen, ungetc, error and clearerr), called there on a constructed
+# instance, but they are left undeclared here, out of this fix's
+# findings 6-9. setbuf and setvbuf are left undeclared in both files,
+# measured to die "not implemented on this architecture" regardless of
+# invocant.
+#
+# new_from_fd's FD, like IO::Handle's own, is documented as "a file
+# handle name, an IO::Handle object, or a file descriptor number", not
+# only an Int (the same measurement as IO::Handle.tpm's).
+sub new_from_fd (Str $class: Str|FileHandle|Object $fd, Str $mode) Object|Undef;
+sub close (Object|FileHandle $self:) Boolean;
+sub fileno (Object|FileHandle $self:) Int|Undef;
+sub getc (Object|FileHandle $self:) Str|Undef;
+sub eof (Object|FileHandle $self:) Boolean;
+sub flush (Object|FileHandle $self:) Num|Undef;
 sub new (Str $class: Optional[Str] $filename, Optional[Str|Int] $mode, Optional[Int] $perms) Object|Undef;
 sub new_tmpfile (Str $class:) Object|Undef;
-sub open (Object $self: Str $filename, Optional[Str|Int] $mode, Optional[Int] $perms) Boolean;
-sub seek (Object $self: Int $pos, Int $whence) Boolean;
-sub tell (Object $self:) Int;
-sub getpos (Object $self:) Str|Undef;
-sub setpos (Object $self: Str $pos) Boolean|Undef;
+sub open (Object|FileHandle $self: Str $filename, Optional[Str|Int] $mode, Optional[Int] $perms) Boolean;
+# seek numifies its position (measured): Int is what the operation
+# coerces to, so this is not one of the invocant/class-method
+# findings -- only the invocant below is.
+sub seek (Object|FileHandle $self: Int $pos, Int $whence) Boolean;
+sub tell (Object|FileHandle $self:) Int;
+sub getpos (Object|FileHandle $self:) Str|Undef;
+sub setpos (Object|FileHandle $self: Str $pos) Boolean|Undef;

@@ -4,18 +4,31 @@ package File::Spec::Functions;
 
 sub canonpath :export(ALL) :listop (Str $path) Str;
 sub catdir :export(ALL) (List[Str] @dirs) Str;
-sub catfile :export(ALL) (List[Str] @args) Str;
+# catfile() with zero parts pops undef off its own argument list and
+# returns it unchanged (measured: catfile() is undef, matching
+# File::Spec::Unix::catfile's own comment; audit-C.md finding 25).
+sub catfile :export(ALL) (List[Str] @args) Str|Undef;
 sub curdir :export(ALL) () Str;
 sub rootdir :export(ALL) () Str;
 sub updir :export(ALL) () Str;
-sub no_upwards :export(ALL) (List[Str] @names) List[Str];
+# no_upwards, splitpath, splitdir and path each forward through `sub
+# {&$sub('File::Spec', @_)}`, so the caller's context reaches the
+# underlying File::Spec::Unix method, which File/Spec.tpm and
+# File/Spec/Unix.tpm already declare a scalar candidate for: a count
+# (no_upwards, splitdir) or the last field (splitpath), each measured
+# the same way there (audit-C.md finding 24).
+multi sub no_upwards :export(ALL) (List[Str] @names) List[Str];
+multi sub no_upwards :export(ALL) (List[Str] @names) Int;
 sub file_name_is_absolute :export(ALL) :listop (Str $path) Boolean;
-sub path :export(ALL) :listop () List[Str];
+multi sub path :export(ALL) :listop () List[Str];
+multi sub path :export(ALL) :listop () Int;
 
 sub devnull :export_ok(ALL) () Str;
 sub tmpdir :export_ok(ALL) :listop () Str;
-sub splitpath :export_ok(ALL) :listop (Str $path, Optional[Boolean] $no_file) List[Str];
-sub splitdir :export_ok(ALL) :listop (Str $path) List[Str];
+multi sub splitpath :export_ok(ALL) :listop (Str $path, Optional[Boolean] $no_file) List[Str];
+multi sub splitpath :export_ok(ALL) :listop (Str $path, Optional[Boolean] $no_file) Str;
+multi sub splitdir :export_ok(ALL) :listop (Str $path) List[Str];
+multi sub splitdir :export_ok(ALL) :listop (Str $path) Int;
 sub catpath :export_ok(ALL) :listop (Str $volume, Str $directory, Str $file) Str;
 sub abs2rel :export_ok(ALL) :listop (Str $path, Optional[Str] $base) Str;
 sub rel2abs :export_ok(ALL) :listop (Str $path, Optional[Str] $base) Str;

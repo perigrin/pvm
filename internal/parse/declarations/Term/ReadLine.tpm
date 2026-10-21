@@ -5,28 +5,56 @@ package Term::ReadLine;
 # Every name below is a method, so each takes an invocant and nothing is
 # marked :export: documented "EXPORTS: None", measured on 5.42.0.
 
-# new builds the stub's instance, always an Object (measured, called
-# with just an application name: the stub also accepts IN/OUT filehandle
-# arguments, a form this declaration does not cover).
-sub new (Str $class: Str $appname) Object;
+# new optionally takes IN and OUT filehandles after the app name (POD:
+# "Optionally can be followed by two arguments for IN and OUT
+# filehandles"); the source dies unless @_==2 or @_==4, so both or
+# neither (audit-C.md finding 31). Measured:
+# Term::ReadLine->new("x", \*STDIN, \*STDOUT) returns an object.
+sub new (Str $class: Str $appname, Optional[FileHandle] $in, Optional[FileHandle] $out) Object;
+# ReadLine, findConsole, addhistory, MinLine, Attribs and Features are
+# documented as instance methods (POD: "All the supported functions
+# should be called as methods ... where $term is a return value of
+# Term::ReadLine->new()"), and each is measured to work on an instance
+# too (audit-C.md finding 30); ReadLine and findConsole also still work
+# on the bare class name (measured), so each keeps Object|Str rather
+# than losing the class form.
+#
 # ReadLine names the actual package in use, a Str (measured, both as a
 # class method and on an instance: Term::ReadLine::Stub here).
-sub ReadLine (Str $class:) Str;
+sub ReadLine (Object|Str $self:) Str;
 # findConsole's two names: in list context both (measured: ('&STDIN',
 # '&STDERR') under no console device here); in scalar context perl's
 # comma operator yields the last.
-multi sub findConsole (Str $class:) List[Str];
-multi sub findConsole (Str $class:) Str;
+multi sub findConsole (Object|Str $self:) List[Str];
+multi sub findConsole (Object|Str $self:) Str;
 # addhistory's body is empty: measured, a call returns undef.
-sub addhistory (Str $class: Str $line) Undef;
+sub addhistory (Object $self: Str $line) Undef;
 # MinLine's body is the bare constant undef, ignoring its argument
 # (measured).
-sub MinLine (Str $class: Optional[Int] $size) Undef;
+sub MinLine (Object $self: Optional[Int] $size) Undef;
 # Attribs and Features return a fresh or a shared hashref (measured).
-sub Attribs (Str $class:) HashRef;
-sub Features (Str $class:) HashRef;
+sub Attribs (Object $self:) HashRef;
+sub Features (Object $self:) HashRef;
 # readline prints a prompt and reads a line from the terminal, Str with
 # its trailing newline removed, or Undef at EOF (documented); it is
 # never called by the oracle (returntypes_test.go's oracleExempt), since
 # it blocks on a real terminal.
 sub readline (Object $self: Str $prompt) Str|Undef;
+
+# Omitted documented methods (audit-C.md finding 32), measured on the
+# Stub: IN and OUT return the filehandle new()'s $in/$out set, Undef
+# when new() took none; ornaments returns the current ornament string,
+# a Str; newTTY's own body ends `select($sel);` right after
+# `select($out)` -- CORE::select returns the previously selected
+# handle's name as a Str, not the handle itself (measured:
+# "main::STDOUT"); tkRunning and event_loop, with no argument, each
+# answer the stored flag, Undef until something sets it.
+sub IN (Object $self:) FileHandle|Undef;
+sub OUT (Object $self:) FileHandle|Undef;
+sub ornaments (Object $self: Optional[Str] $set) Str;
+sub newTTY (Object $self: FileHandle $in, FileHandle $out) Str;
+# tkRunning stores its argument verbatim in a package global and
+# echoes it back uncoerced; measured with none given, it answers Undef
+# (the global's initial state).
+sub tkRunning (Object $self: Optional[Int] $running) Int|Undef;
+sub event_loop (Object $self: List @args) Any;

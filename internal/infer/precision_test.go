@@ -51,6 +51,7 @@ var observedToLattice = map[string]types.Type{
 	"Inf":       types.Inf,
 	"NaN":       types.NaN,
 	"Boolean":   types.Boolean,
+	"DualVar":   types.DualVar,
 	"Int":       types.Int,
 	"Num":       types.Num,
 	"Str":       types.Str,

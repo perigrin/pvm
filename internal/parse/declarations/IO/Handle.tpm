@@ -4,18 +4,32 @@ package IO::Handle;
 
 # Measured on 5.42.0, a bare `use IO::Handle;` installs none of its 27
 # names: @EXPORT is empty and every one of these lives in @EXPORT_OK.
-sub autoflush :export_ok (Object $self: Boolean $on = 1) Int;
-sub output_field_separator :export_ok (Object $self: Optional[Str] $sep) Str|Undef;
-sub output_record_separator :export_ok (Object $self: Optional[Str] $sep) Str|Undef;
-sub input_record_separator :export_ok (Object $self: Optional[Str] $sep) Str|Undef;
-sub input_line_number :export_ok (Object $self: Optional[Int] $n) Int|Undef;
-sub format_page_number :export_ok (Object $self: Optional[Int] $n) Int;
-sub format_lines_per_page :export_ok (Object $self: Optional[Int] $n) Int;
-sub format_lines_left :export_ok (Object $self: Optional[Int] $n) Int;
-sub format_name :export_ok (Object $self: Optional[Str] $name) Str|Undef;
-sub format_top_name :export_ok (Object $self: Optional[Str] $name) Str|Undef;
-sub format_line_break_characters :export_ok (Object $self: Optional[Str] $chars) Str|Undef;
-sub format_formfeed :export_ok (Object $self: Optional[Str] $char) Str|Undef;
+#
+# autoflush and the instance methods below it take Object|FileHandle,
+# not Object: perl calls these on unblessed handles too -- `open my
+# $fh,'>',...; $fh->autoflush(1)` works and ref($fh) is GLOB, and so
+# does `STDOUT->autoflush(0)` (ioh.pl #3-4) -- while
+# output_field_separator and its four siblings below are class
+# methods, carp-warning "not supported on a per-handle basis" when
+# called on an object (ioh.pl #1; the POD shows only the class-method
+# form).
+#
+# autoflush assigns its argument to $|, which perl coerces to an
+# integer, not to a truth value: measured, `$| = "yes"` and `$| =
+# 0.5` both leave 0, though both are true, so Int is what the
+# operation coerces to, not Boolean.
+sub autoflush :export_ok (Object|FileHandle $self: Int $on = 1) Int;
+sub output_field_separator :export_ok (Str $class: Optional[Str] $sep) Str|Undef;
+sub output_record_separator :export_ok (Str $class: Optional[Str] $sep) Str|Undef;
+sub input_record_separator :export_ok (Str $class: Optional[Str] $sep) Str|Undef;
+sub input_line_number :export_ok (Object|FileHandle $self: Optional[Int] $n) Int|Undef;
+sub format_page_number :export_ok (Object|FileHandle $self: Optional[Int] $n) Int;
+sub format_lines_per_page :export_ok (Object|FileHandle $self: Optional[Int] $n) Int;
+sub format_lines_left :export_ok (Object|FileHandle $self: Optional[Int] $n) Int;
+sub format_name :export_ok (Object|FileHandle $self: Optional[Str] $name) Str|Undef;
+sub format_top_name :export_ok (Object|FileHandle $self: Optional[Str] $name) Str|Undef;
+sub format_line_break_characters :export_ok (Str $class: Optional[Str] $chars) Str|Undef;
+sub format_formfeed :export_ok (Str $class: Optional[Str] $char) Str|Undef;
 # format_write, print, printf and say each dereference the invocant
 # as a glob (to find its format name, or to write to it) before doing
 # anything else, so each dies against the oracle's bare class name --
@@ -23,13 +37,13 @@ sub format_formfeed :export_ok (Object $self: Optional[Str] $char) Str|Undef;
 # string ... as a symbol ref" for the other three, measured on 5.42.0
 # -- and each is held to its prototype and exports only (see
 # oracleExempt).
-sub format_write :export_ok (Object $self: Optional[Str] $format) Boolean;
-sub print :export_ok (Object $self: List @args) Boolean|Undef;
-sub printf :export_ok (Object $self: Str $format, List @args) Boolean|Undef;
-sub say :export_ok (Object $self: List @args) Boolean|Undef;
-sub getline :export_ok (Object $self:) Str|Undef;
-sub getlines :export_ok (Object $self:) List[Str];
-sub printflush :export_ok (Object $self: List @args) Boolean|Undef;
+sub format_write :export_ok (Object|FileHandle $self: Optional[Str] $format) Boolean;
+sub print :export_ok (Object|FileHandle $self: List @args) Boolean|Undef;
+sub printf :export_ok (Object|FileHandle $self: Str $format, List @args) Boolean|Undef;
+sub say :export_ok (Object|FileHandle $self: List @args) Boolean|Undef;
+sub getline :export_ok (Object|FileHandle $self:) Str|Undef;
+sub getlines :export_ok (Object|FileHandle $self:) List[Str];
+sub printflush :export_ok (Object|FileHandle $self: List @args) Boolean|Undef;
 # flush, like format_write/print/printf/say above, dereferences the
 # invocant as a glob, dying "Bad filehandle" against a bare class name
 # that has never been select()ed to (measured) -- so return_oracle.pl
@@ -38,7 +52,7 @@ sub printflush :export_ok (Object $self: List @args) Boolean|Undef;
 # documents "0 but true" on success, undef on error, and "0 but true"
 # is a Num to the oracle's observer (looks_like_number is true of it,
 # though it is not all digits), never a Boolean.
-sub flush :export_ok (Object $self:) Num|Undef;
+sub flush :export_ok (Object|FileHandle $self:) Num|Undef;
 sub SEEK_SET :export_ok () Int;
 sub SEEK_CUR :export_ok () Int;
 sub SEEK_END :export_ok () Int;
@@ -54,16 +68,71 @@ sub _IONBF :export_ok () Int;
 # invocant, as the return-type oracle does: new, new_from_fd, opened,
 # fileno, eof, getc and close each answer without dying, so their
 # return types below hold for that call and for a real handle's.
-# blocking, clearerr, error, ungetc, fdopen, binmode and setbuf/setvbuf
-# each dereference the invocant as a glob and die "Bad filehandle" or
-# "Can't use string ... as a symbol ref" when the invocant is the bare
-# class name rather than a handle, so they are left undeclared here
-# rather than declared with a return type the oracle could never
-# observe honestly.
+# blocking, clearerr, error, ungetc, fdopen, binmode, sync, untaint,
+# truncate, read, sysread, syswrite, write, stat, fcntl and ioctl each
+# dereference the invocant as a glob and die that way too -- but flush
+# above already works around the same defect with a constructed
+# instance (INSTANCE in oracle/IO-Handle.pl), and these are called the
+# same way, on a real scratch file the oracle opens itself.
 sub new (Str $class:) Object;
-sub new_from_fd (Str $class: Int $fd, Str $mode) Object|Undef;
-sub opened (Object $self:) Boolean;
-sub fileno (Object $self:) Int|Undef;
-sub eof (Object $self:) Boolean;
-sub getc (Object $self:) Str|Undef;
-sub close (Object $self:) Boolean;
+# new_from_fd's FD is documented, via fdopen, as "a file handle name,
+# an IO::Handle object, or a file descriptor number", not only an
+# Int: measured, new_from_fd(\*STDOUT,'w'), new_from_fd($io_obj,'w')
+# and new_from_fd('STDOUT','w') each return an IO::Handle (ioh.pl
+# #6-8).
+sub new_from_fd (Str $class: Str|FileHandle|Object $fd, Str $mode) Object|Undef;
+sub opened (Object|FileHandle $self:) Boolean;
+sub fileno (Object|FileHandle $self:) Int|Undef;
+sub eof (Object|FileHandle $self:) Boolean;
+sub getc (Object|FileHandle $self:) Str|Undef;
+sub close (Object|FileHandle $self:) Boolean;
+# fdopen opens the invocant's own glob onto a given fd, returning the
+# same (already-blessed) instance on success or undef on failure
+# (IO/Handle.pm: `... or return undef; bless $io, $class`'s open
+# feeds back through new_from_fd, and fdopen itself ends `open(...) ?
+# $io : undef` -- measured).
+sub fdopen (Object|FileHandle $self: Str|FileHandle|Object $fd, Str $mode) Object|Undef;
+# ungetc pushes one character back; measured returning its ordinal
+# value (ioh-extra2.pl), a plain Int, not a dualvar success flag.
+sub ungetc (Object|FileHandle $self: Int $ord) Int;
+# write wraps `print { $_[0] } substr(...)`, so it returns what print
+# does (measured): Boolean|Undef, not the byte count syswrite gives.
+sub write (Object|FileHandle $self: Str $buf, Optional[Int] $len, Optional[Int] $offset) Boolean|Undef;
+# read and sysread wrap the builtins of the same name, returning the
+# byte count or undef on error (measured, matching perlfunc).
+sub read (Object|FileHandle $self: Str $buf, Int $len, Optional[Int] $offset) Int|Undef;
+sub sysread (Object|FileHandle $self: Str $buf, Int $len, Optional[Int] $offset) Int|Undef;
+sub syswrite (Object|FileHandle $self: Str $buf, Optional[Int] $len, Optional[Int] $offset) Int|Undef;
+# truncate wraps CORE::truncate, which returns true or false (measured
+# is_bool true), never undef.
+sub truncate (Object|FileHandle $self: Int $len) Boolean;
+# stat wraps CORE::stat: in list context, 13 Int fields (measured); in
+# scalar context, true or false, as CORE::stat itself answers there
+# (measured is_bool true).
+multi sub stat (Object|FileHandle $self:) List[Int];
+multi sub stat (Object|FileHandle $self:) Boolean;
+# fcntl and ioctl return the fcntl(2)/ioctl(2) result, "0 but true"
+# when it is zero (a Num to the observer, measured, as flush's is),
+# or undef on failure (measured: a bad op returns undef rather than
+# dying).
+sub fcntl (Object|FileHandle $self: Int $op, Int $value) Num|Undef;
+sub ioctl (Object|FileHandle $self: Int $op, Int $value) Num|Undef;
+# error, clearerr and untaint each return a plain Int flag (measured
+# 0; is_bool false of it, unlike opened/eof/close's marked booleans).
+sub error (Object|FileHandle $self:) Int;
+sub clearerr (Object|FileHandle $self:) Int;
+sub untaint (Object|FileHandle $self:) Int;
+# sync flushes to disk; measured returning "0 but true" (a Num), as
+# flush does, since it shares the same underlying convention.
+sub sync (Object|FileHandle $self:) Num|Undef;
+# binmode wraps CORE::binmode, both with and without a layer argument
+# (measured is_bool true either way).
+sub binmode (Object|FileHandle $self: Optional[Str] $layer) Boolean;
+
+# blocking, setbuf and setvbuf are left undeclared. setbuf and setvbuf,
+# measured on 5.42.0, both die "not implemented on this architecture"
+# regardless of invocant, so no declared return type here could ever
+# be observed honestly. blocking's own prototype, measured, is ($;$),
+# unlike every other method here (measured none) -- an invocant colon
+# derives no prototype (internal/parse/declarations.go), so the form
+# every other method uses cannot state blocking's truly.

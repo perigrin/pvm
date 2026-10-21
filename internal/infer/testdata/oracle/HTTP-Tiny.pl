@@ -16,5 +16,21 @@
     agent              => [ [], ['pvm-oracle/1'] ],
     timeout            => [ [], [5] ],
     connected          => [ [] ],
-    INSTANCE           => { ctor => 'new', args => [], subs => [qw(agent timeout connected)] },
+    cookie_jar         => [ [] ],
+    default_headers    => [ [], [ { 'X-Test' => 1 } ] ],
+    http_proxy         => [ [] ],
+    https_proxy        => [ [] ],
+    keep_alive         => [ [], [1] ],
+    local_address      => [ [] ],
+    max_redirect       => [ [], [3] ],
+    max_size           => [ [], [10] ],
+    proxy              => [ [] ],
+    no_proxy           => [ [] ],
+    SSL_options        => [ [] ],
+    verify_SSL         => [ [], [1] ],
+    INSTANCE           => { ctor => 'new', args => [], subs => [qw(
+        agent timeout connected cookie_jar default_headers http_proxy
+        https_proxy keep_alive local_address max_redirect max_size proxy
+        no_proxy SSL_options verify_SSL
+    )] },
 );

@@ -102,6 +102,9 @@ func holdFiltered(t *testing.T, check func(*testing.T, perltest.Perl, string, st
 			if containsAny(d, filter) {
 				continue
 			}
+			if runtime.GOOS != "linux" && isExtraInstall(d) {
+				continue
+			}
 			t.Error(d)
 		}
 	}
@@ -115,6 +118,22 @@ func containsAny(s string, substrs []string) bool {
 		}
 	}
 	return false
+}
+
+// isExtraInstall reports whether d is sameNames' or exportDisagreements'
+// "perl installs X; the .tpm does not mark it" direction -- real
+// information only when checking a shipped .tpm, which describes Linux
+// perl 5.42.0, against that same Linux perl: off Linux, "installs more
+// than the .tpm says" just means that platform's perl exports more than
+// Linux's did (Windows's Errno and POSIX each add hundreds of Winsock-
+// and SDK-only names, measured), which the .tpm was never trying to
+// settle. holdFiltered and holdPurePerlExporters drop it there, for a
+// real module's .tpm; a fixture module that tests exportDisagreements
+// itself (TestExportHelperRejectsAMissingName and its siblings) calls it
+// directly, bypassing this, so it still sees both directions on every
+// platform.
+func isExtraInstall(d string) bool {
+	return strings.Contains(d, "the .tpm does not mark it")
 }
 
 // holdPurePerlExporters is hold for perltest.PureExporters, with Errno's
@@ -140,6 +159,9 @@ func holdPurePerlExporters(t *testing.T, check func(*testing.T, perltest.Perl, s
 		}
 		for _, d := range check(t, p, "", module, src) {
 			if missingName(d, module, missing) {
+				continue
+			}
+			if runtime.GOOS != "linux" && isExtraInstall(d) {
 				continue
 			}
 			t.Error(d)
@@ -319,7 +341,7 @@ func exportDisagreements(t *testing.T, p perltest.Perl, inc, module string, src 
 		// reads `use Test::More qw(ok)` as a plan and dies.
 		case slices.Contains(facts.exports, list) && !slices.Contains(facts.defaults, list) && !slices.Contains(installs, list):
 			out = append(out, fmt.Sprintf("%s is marked :export_ok; use %s qw(%s) does not install it: %s", list, module, list, strings.Join(f[1:], " ")))
-		case runtime.GOOS == "linux" && !slices.Contains(facts.exports, list) && slices.Contains(installs, list):
+		case !slices.Contains(facts.exports, list) && slices.Contains(installs, list):
 			out = append(out, fmt.Sprintf("use %s qw(%s) installs %s; the .tpm does not mark it", module, list, list))
 		}
 	}
@@ -327,20 +349,12 @@ func exportDisagreements(t *testing.T, p perltest.Perl, inc, module string, src 
 }
 
 // sameNames is how the names use installs differ from those the .tpm
-// marks with mark. An install the .tpm does not mark is reported only on
-// Linux: the .tpm describes Linux perl 5.42.0, and another platform's
-// perl installing more than that (Windows's Errno and POSIX each add
-// hundreds of Winsock- and SDK-only names, measured) is not a
-// disagreement the .tpm was ever trying to settle -- a name the .tpm
-// does mark that this platform's perl does not install is still real
-// information on every platform, so that direction is always reported.
+// marks with mark.
 func sameNames(use string, installs, marked []string, mark string) []string {
 	var out []string
-	if runtime.GOOS == "linux" {
-		for _, name := range installs {
-			if !slices.Contains(marked, name) {
-				out = append(out, fmt.Sprintf("%s installs %s; the .tpm does not mark it %s", use, name, mark))
-			}
+	for _, name := range installs {
+		if !slices.Contains(marked, name) {
+			out = append(out, fmt.Sprintf("%s installs %s; the .tpm does not mark it %s", use, name, mark))
 		}
 	}
 	for _, name := range marked {
@@ -480,8 +494,12 @@ func TestHeldToPerlFindsArchlibModules(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		// Strawberry perl ships POSIX.pm as pure Perl under lib, not
 		// archlib -- measured in CI job 39489951290: C:/Strawberry/perl/lib/POSIX.pm
-		// is not in archlib C:\STRAWB~1\perl\lib.
-		assert.True(t, strings.HasPrefix(path, p.Privlib), "%s is not in privlib %s", path, p.Privlib)
+		// is not in archlib C:\STRAWB~1\perl\lib. perl's %INC and
+		// $Config{privlibexp} can each spell that directory differently
+		// (an 8.3 short name here, measured), so PathUnder canonicalizes
+		// both through perl before comparing, rather than a bare prefix
+		// check.
+		assert.True(t, perltest.PathUnder(t, p, path, p.Privlib), "%s is not in privlib %s", path, p.Privlib)
 		return
 	}
 	assert.True(t, strings.HasPrefix(path, p.Archlib), "%s is not in archlib %s", path, p.Archlib)
@@ -1021,6 +1039,86 @@ func TestIOExportersMethodsAreNotExported(t *testing.T) {
 				t.Errorf("%s::%s carries an export mark, but perl's use %s installs no such name", module, name, module)
 			}
 		}
+	}
+}
+
+// documentedOOInterfaces is, per module, the documented OO methods
+// audit-C.md's findings named as entirely omitted before this fix:
+// File::Temp's OO interface (finding 14) and three not-exported
+// functions (finding 15); Archive::Tar's whole method interface
+// (finding 18); Term::ReadLine's new() IN/OUT parameters and four
+// omitted methods (findings 31, 32); HTTP::Tiny's generated attribute
+// accessors (finding 29). IO::Select's class-method select and
+// Net::Ping's broader OO interface (findings 13, 22) are deferred --
+// see IO/Select.tpm's and Net/Ping.tpm's own comments -- so neither
+// is named here.
+var documentedOOInterfaces = map[string][]string{
+	"File::Temp": {
+		"new", "newdir", "filename", "unlink_on_destroy", "safe_level", "top_system_uid",
+		"tempnam", "cmpstat", "unlink1",
+	},
+	"Archive::Tar": {
+		"new", "create_archive", "iter", "list_archive", "extract_archive",
+		"has_io_string", "has_perlio", "has_zlib_support", "has_bzip2_support",
+		"has_xz_support", "can_handle_compressed_files",
+		"read", "contains_file", "extract", "extract_file", "list_files",
+		"get_files", "get_content", "replace_content", "rename", "chmod",
+		"chown", "remove", "clear", "write", "add_files", "add_data", "error",
+		"setcwd",
+	},
+	"Term::ReadLine": {"IN", "OUT", "ornaments", "newTTY", "tkRunning", "event_loop"},
+	"HTTP::Tiny": {
+		"cookie_jar", "default_headers", "http_proxy", "https_proxy", "keep_alive",
+		"local_address", "max_redirect", "max_size", "proxy", "no_proxy",
+		"SSL_options", "verify_SSL",
+	},
+}
+
+// TestDocumentedOOInterfacesDeclared: every method documentedOOInterfaces
+// names is declared, with a typed return, in its module's .tpm --
+// audit-C.md's findings for the OO interfaces this fix adds (14, 15,
+// 18, 29, 31, 32).
+func TestDocumentedOOInterfacesDeclared(t *testing.T) {
+	for module, methods := range documentedOOInterfaces {
+		src, ok := declaration(module)
+		if !assert.True(t, ok, "%s: no declaration", module) {
+			continue
+		}
+		facts, err := readHeld(module, src)
+		if !assert.NoError(t, err, "%s: %v", module, err) {
+			continue
+		}
+		for _, name := range methods {
+			sigs, declared := facts.signatures[name]
+			if !assert.True(t, declared, "%s::%s is not declared", module, name) {
+				continue
+			}
+			for _, s := range sigs {
+				assert.NotEqual(t, types.Unknown, s.Returns, "%s::%s should be typed, not Unknown", module, name)
+			}
+		}
+	}
+}
+
+// TestIOSocketDocumentedMethodsDeclared: IO/Socket.pm documents (or, for
+// configure and register_domain, defines without a POD =head2) these
+// methods beside the exports (IO/Socket.pm:56-395), each measured on
+// 5.42.0 (01a15ac0, IO::Socket finding 7); a prior pass of IO/Socket.tpm
+// left every one of them out.
+func TestIOSocketDocumentedMethodsDeclared(t *testing.T) {
+	methods := []string{
+		"configure", "socketpair", "blocking", "sockname", "peername",
+		"connected", "shutdown", "setsockopt", "getsockopt", "sockopt",
+		"atmark", "timeout", "sockdomain", "socktype", "protocol",
+		"register_domain",
+	}
+	src, ok := declaration("IO::Socket")
+	require.True(t, ok, "IO::Socket: no declaration")
+	facts, err := readHeld("IO::Socket", src)
+	require.NoError(t, err)
+	for _, name := range methods {
+		_, declared := facts.signatures[name]
+		assert.True(t, declared, "IO::Socket::%s is not declared", name)
 	}
 }
 

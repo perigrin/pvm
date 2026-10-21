@@ -20,10 +20,13 @@
     can_read      => [ [0] ],
     can_write     => [ [0] ],
     has_exception => [ [0] ],
+    has_error     => [ [0] ],
     count         => [ [] ],
+    bits          => [ [] ],
+    as_string     => [ [] ],
     INSTANCE      => {
         ctor => 'new',
         args => [ \*STDIN ],
-        subs => [qw(add remove exists handles can_read can_write has_exception count)],
+        subs => [qw(add remove exists handles can_read can_write has_exception has_error count bits as_string)],
     },
 );

@@ -290,10 +290,13 @@
     NI_IDN_USE_STD3_ASCII_RULES => [ [] ],
     # getaddrinfo and getnameinfo get numeric addresses and
     # AI_NUMERICHOST/NI_NUMERICHOST, never a hostname needing resolution.
+    # getaddrinfo's undef-host case (POD: "Given just a service name...")
+    # also exercises AI_PASSIVE, the flag its own POD example pairs it with.
     getaddrinfo => [
         [ '127.0.0.1', '80', { flags => Socket::AI_NUMERICHOST() | Socket::AI_NUMERICSERV() } ],
         [ 'x y', '80', { flags => Socket::AI_NUMERICHOST() } ],
         [ '127.0.0.1' ],
+        [ undef, '80', { flags => Socket::AI_PASSIVE() } ],
     ],
     getnameinfo => [
         [ Socket::pack_sockaddr_in( 80, Socket::inet_aton('127.0.0.1') ), Socket::NI_NUMERICHOST() | Socket::NI_NUMERICSERV() ],
@@ -304,30 +307,37 @@
     inet_ntoa => [ [ Socket::INADDR_LOOPBACK() ] ],
     inet_ntop => [ [ Socket::AF_INET(), Socket::INADDR_ANY() ], [ Socket::AF_INET6(), Socket::IN6ADDR_ANY() ] ],
     inet_pton => [ [ Socket::AF_INET(), '10.0.0.1' ], [ Socket::AF_INET(), 'nope' ], [ Socket::AF_INET6(), '::1' ] ],
+    # interface_addr's undef case is measured accepted silently, in place
+    # of its default packed zero address.
     pack_ip_mreq => [
         [ Socket::inet_aton('224.0.0.1'), Socket::INADDR_ANY() ],
         [ Socket::inet_aton('224.0.0.1') ],
+        [ Socket::inet_aton('224.0.0.1'), undef ],
     ],
     pack_ip_mreq_source => [
         [ Socket::inet_aton('224.0.0.1'), Socket::INADDR_LOOPBACK(), Socket::INADDR_ANY() ],
         [ Socket::inet_aton('224.0.0.1'), Socket::INADDR_LOOPBACK() ],
+        [ Socket::inet_aton('224.0.0.1'), Socket::INADDR_LOOPBACK(), undef ],
     ],
     pack_ipv6_mreq => [ [ Socket::IN6ADDR_ANY(), 0 ] ],
-    pack_sockaddr_in => [ [ 80, Socket::INADDR_ANY() ] ],
+    # port's undef case is measured taken as zero (POD: "An undefined
+    # $port argument is taken as zero").
+    pack_sockaddr_in => [ [ 80, Socket::INADDR_ANY() ], [ undef, Socket::INADDR_ANY() ] ],
     pack_sockaddr_in6 => [
         [ 80, Socket::IN6ADDR_ANY() ],
         [ 80, Socket::IN6ADDR_ANY(), 1, 2 ],
+        [ undef, Socket::IN6ADDR_ANY() ],
     ],
     pack_sockaddr_un => [ ['/tmp/x'] ],
     sockaddr_family => [
         [ Socket::pack_sockaddr_in( 80, Socket::INADDR_ANY() ) ],
         [ Socket::pack_sockaddr_un('/tmp/x') ],
     ],
-    # sockaddr_in and sockaddr_in6 are exempt (returntypes_test.go's
-    # oracleExempt); pack_sockaddr_in(6) and unpack_sockaddr_in(6) above
-    # and below hold both their directions without the context/arity
-    # conflict those two wrappers die on.
-    sockaddr_un => [ ['/tmp/x'] ],
+    # sockaddr_in, sockaddr_in6 and sockaddr_un are exempt
+    # (returntypes_test.go's oracleExempt); pack_sockaddr_in(6),
+    # unpack_sockaddr_in(6), pack_sockaddr_un and unpack_sockaddr_un above
+    # and below hold every direction without the context/arity conflict
+    # those three wrappers die on.
     unpack_ip_mreq => [ [ Socket::pack_ip_mreq( Socket::inet_aton('224.0.0.1'), Socket::INADDR_ANY() ) ] ],
     unpack_ip_mreq_source => [ [ Socket::pack_ip_mreq_source( Socket::inet_aton('224.0.0.1'), Socket::INADDR_LOOPBACK(), Socket::INADDR_ANY() ) ] ],
     unpack_ipv6_mreq => [ [ Socket::pack_ipv6_mreq( Socket::IN6ADDR_ANY(), 3 ) ] ],

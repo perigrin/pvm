@@ -3,8 +3,8 @@
 (
     canonpath => [ [ 'a/b/../c' ], [ '' ], [ '/a//b/./c/' ] ],
     catdir    => [ [ 'a', 'b' ], [ 'a' ], [] ],
-    catfile   => [ [ 'a', 'b' ], [ 'f.txt' ] ],
-    join      => [ [ 'a', 'b' ], [ 'f.txt' ] ],
+    catfile   => [ [ 'a', 'b' ], [ 'f.txt' ], [] ],
+    join      => [ [ 'a', 'b' ], [ 'f.txt' ], [] ],
     catpath   => [ [ '', 'a/b', 'c.txt' ], [ '', '', '' ] ],
     curdir    => [ [] ],
     devnull   => [ [] ],
