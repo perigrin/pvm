@@ -7,5 +7,5 @@ open my $handle, '<', 'oracle-file-stat.tmp' or die $!;
 (
     stat        => [ ['oracle-file-stat.tmp'], ['no-such-file'], [ $handle ] ],
     lstat       => [ ['oracle-file-stat.tmp'], ['no-such-file'] ],
-    stat_cando  => [ [ $st, 0400, 1 ] ],
+    stat_cando  => [ [ $st, 0400, 1 ], [ [ CORE::stat('oracle-file-stat.tmp') ], 0400, 1 ] ],
 );
