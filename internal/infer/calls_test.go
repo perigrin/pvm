@@ -503,3 +503,23 @@ func TestGlobDerefParamStillReportsRef(t *testing.T) {
 		}
 	}
 }
+
+// TestUndefUnionCoercesToItsMember: a parameter typed X|Undef takes what
+// perl coerces to X, as X itself does. Socket's sockaddr_in takes `Int|Undef
+// $port`, and perl 5.42 -w is silent on a string port, literal or held in a
+// variable; Time::HiRes::utime's `Num|Undef` times take "1.5" the same way.
+// A literal that is no number is still reported: perl warns `Argument "abc"
+// isn't numeric` on `sockaddr_in("abc", ...)`.
+func TestUndefUnionCoercesToItsMember(t *testing.T) {
+	for _, src := range []string{
+		`use Socket qw(sockaddr_in inet_aton); my $x = sockaddr_in("80", inet_aton("127.0.0.1"));`,
+		`use Socket qw(sockaddr_in inet_aton); my $a = inet_aton("127.0.0.1"); my $p = "80"; my $x = sockaddr_in($p, $a);`,
+		`use Time::HiRes (); my $n = Time::HiRes::utime("1.5", "1.5", "f.txt");`,
+	} {
+		assert.Empty(t, diagsWithOptions(src, infer.Options{}), src)
+	}
+	const abc = `use Socket qw(sockaddr_in inet_aton); my $x = sockaddr_in("abc", inet_aton("127.0.0.1"));`
+	if diags := diagsWithOptions(abc, infer.Options{}); assert.Len(t, diags, 1, abc) {
+		assert.Equal(t, infer.CodeCoercionMismatch, diags[0].Code)
+	}
+}

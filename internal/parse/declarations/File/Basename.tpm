@@ -3,9 +3,9 @@
 package File::Basename;
 
 # None of these four carries a prototype, so each takes a plain slurpy
-# list, not a distinguished first parameter: a scalar before it would
-# derive a prototype perl does not report (RFC 0001, "No prototype is the
-# default prototype").
+# list, or states its leading scalar with :listop: a scalar before the
+# list would otherwise derive a prototype perl does not report (RFC 0001,
+# "No prototype is the default prototype").
 #
 # fileparse requires a defined path (it croaks otherwise, measured on
 # 5.42.0), so Str excludes the Undef that would die. In list context it
@@ -16,8 +16,12 @@ package File::Basename;
 # qr/\.[^.]*/)` as a documented form, and measured on 5.42.0, that call
 # matches the suffix exactly as the string '.txt' does -- so @args
 # admits a Regex, preserved as a pattern rather than lossily stringified.
-multi sub fileparse :export (List[Str|Regex] @args) List[Str];
-multi sub fileparse :export (List[Str|Regex] @args) Str;
+# The path is required -- measured, `fileparse()` dies "need a valid
+# pathname" -- so it is its own parameter, and :listop states it with no
+# prototype. Any reference there is stringified: measured, perl -w is
+# silent on `fileparse({})` and on `fileparse("/a/b.c", {})`.
+multi sub fileparse :export :listop (Str $path, List[Str|Regex] @suffixes) List[Str];
+multi sub fileparse :export :listop (Str $path, List[Str|Regex] @suffixes) Str;
 # basename and dirname always answer scalar context: measured on 5.42.0,
 # a Windows path like 'C:\dir\f.txt' parses as Unix on this platform (no
 # fstype set to MSWin32), so both still return a plain Str, just one with

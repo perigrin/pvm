@@ -416,7 +416,16 @@ func (a *analysis) checkOperand(n lower.Node, expected types.Type, op, side stri
 // no coercion at all, as perl 5.42 -w is silent on `"3" + 1`, and one that
 // does not is reported as it is, as perl warns `Argument "abc" isn't
 // numeric` on `"abc" + 1`.
+//
+// A slot typed X|Undef coerces a defined value to X, as X itself does:
+// perl 5.42 -w is silent on Socket's `sockaddr_in("80", $addr)`, whose
+// port is `Int|Undef`. So the Undef is set aside before judging. What is
+// left must still be one target: Str|FileHandle stays a union no
+// reference is coerced to.
 func (a *analysis) lossyCoercion(n lower.Node, actual, expected types.Type) bool {
+	if defined := expected &^ types.Undef; defined != types.Unknown {
+		expected = defined
+	}
 	actual = numified(finite(actual), expected)
 	if actual == types.Unknown || expected == types.Unknown {
 		return false
