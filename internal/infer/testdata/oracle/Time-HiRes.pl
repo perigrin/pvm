@@ -18,19 +18,23 @@ use Time::HiRes qw(
     d_clock d_clock_getres d_clock_gettime d_clock_nanosleep d_futimens
     d_getitimer d_gettimeofday d_hires_stat d_hires_utime d_nanosleep
     d_setitimer d_ualarm d_usleep d_utimensat
-    alarm clock_getres clock_gettime clock_nanosleep gettimeofday
-    getitimer setitimer lstat nanosleep sleep stat time tv_interval
-    ualarm usleep utime
+    alarm clock_getres clock_gettime gettimeofday
+    getitimer setitimer lstat sleep stat time tv_interval
+    usleep
 );
-# clock() itself dies "unimplemented in this platform" the moment
-# Windows's perl primes it by name (measured), which would otherwise
-# crash this file's own load before any other name above got primed;
-# requesting it on its own, guarded, keeps every other name's priming
-# intact. Windows's own oracle run then fails calling clock() for the
-# same reason, rather than this file failing to load at all.
-eval { Time::HiRes->import('clock') };
+# clock, clock_nanosleep, nanosleep, ualarm and utime each die
+# "unimplemented in this platform" the moment Windows's perl primes them
+# by name (measured), which would otherwise crash this file's own load
+# before any other name above got primed; requesting each on its own,
+# guarded, keeps every other name's priming intact. Windows's own oracle
+# run then fails calling whichever of these it is actually asked to call,
+# for the same reason, rather than this file failing to load at all.
+for my $name (qw(clock clock_nanosleep nanosleep ualarm utime)) {
+    eval { Time::HiRes->import($name) };
+}
 open my $fh, '>', 'hr_file' or die $!;
 close $fh;
+open my $hr_lexfh, '<', 'hr_file' or die $!;
 (
     CLOCKS_PER_SEC        => [ [] ],
     CLOCK_BOOTTIME        => [ [] ],
@@ -86,17 +90,27 @@ close $fh;
     clock           => [ [] ],
     clock_getres    => [ [] ],
     clock_gettime   => [ [] ],
-    clock_nanosleep => [ [ 0, 0 ] ],
+    # nanoseconds also takes a non-integer (measured, perldoc's own
+    # "number of nanoseconds" is not Int-only).
+    clock_nanosleep => [ [ 0, 0 ], [ CLOCK_REALTIME(), 0.5 ] ],
     gettimeofday    => [ [] ],
-    getitimer       => [ [0] ],
-    setitimer       => [ [ 0, 0 ] ],
+    # a which no itimer exists for is undef in scalar context
+    # (measured), not an error.
+    getitimer       => [ [0], [999] ],
+    setitimer       => [ [ 0, 0 ], [ 999, 0 ] ],
+    # a lexical filehandle also takes stat/lstat (measured, perldoc's
+    # own "stat FH").
     lstat           => [ ['hr_file'] ],
-    nanosleep       => [ [0] ],
+    # nanosleep's own argument also takes a non-integer, unchanged
+    # (measured).
+    nanosleep       => [ [0], [1.5] ],
     sleep           => [ [0] ],
-    stat            => [ ['hr_file'] ],
+    stat            => [ ['hr_file'], [$hr_lexfh] ],
     time            => [ [] ],
     tv_interval     => [ [ [ 0, 0 ], [ 1, 500_000 ] ] ],
     ualarm          => [ [0] ],
     usleep          => [ [0] ],
-    utime           => [ [ time(), time(), 'hr_file' ] ],
+    # a lexical filehandle also takes the $files list (measured, as
+    # CORE's own utime does).
+    utime           => [ [ time(), time(), 'hr_file' ], [ time(), time(), $hr_lexfh ] ],
 );

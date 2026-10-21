@@ -6,29 +6,55 @@ package IO::Select;
 # takes an invocant and nothing is marked :export: measured on 5.42.0,
 # `use IO::Select;` installs nothing in the caller.
 
+# Each handle can be an IO::Handle object, an integer fd or an array
+# reference whose first element is either (the POD's own words): not
+# only FileHandle. Measured: new($io_handle_obj) gives count 1,
+# add(0) returns 1, add([\*STDERR,"data"]) returns 1, and
+# handles/can_write return 0, IO::Handle, ARRAY -- rejecting any of
+# these is rejecting the most common real use (audit-C.md finding 12).
+#
 # new blesses a fresh arrayref, always an Object (measured).
-sub new (Str $class: List[FileHandle] @handles) Object;
+sub new (Str $class: List[FileHandle|Object|Int|ArrayRef] @handles) Object;
 # add and remove run _update, whose last statement is $count, an Int
 # (measured) -- how many of the handles given were actually added or
 # removed.
-sub add (Object $self: List[FileHandle] @handles) Int;
-sub remove (Object $self: List[FileHandle] @handles) Int;
+sub add (Object $self: List[FileHandle|Object|Int|ArrayRef] @handles) Int;
+sub remove (Object $self: List[FileHandle|Object|Int|ArrayRef] @handles) Int;
 # exists returns the stored handle itself, or undef if it is not present
 # (measured).
-sub exists (Object $self: FileHandle $handle) FileHandle|Undef;
+sub exists (Object $self: FileHandle|Object|Int|ArrayRef $handle) FileHandle|Object|Int|ArrayRef|Undef;
 # handles returns every registered handle: in list context each one; in
 # scalar context perl's `return @h` yields the count, an Int (measured).
-multi sub handles (Object $self:) List[FileHandle];
+multi sub handles (Object $self:) List[FileHandle|Object|Int|ArrayRef];
 multi sub handles (Object $self:) Int;
 # can_read, can_write and has_exception each call the core select() with
 # a zero timeout, which does not block (measured): a ready handle comes
 # back in list context, and in scalar context either its count (when the
 # core select found one) or undef (the empty-list branch, measured).
-multi sub can_read (Object $self: Optional[Num] $timeout) List[FileHandle];
+multi sub can_read (Object $self: Optional[Num] $timeout) List[FileHandle|Object|Int|ArrayRef];
 multi sub can_read (Object $self: Optional[Num] $timeout) Int|Undef;
-multi sub can_write (Object $self: Optional[Num] $timeout) List[FileHandle];
+multi sub can_write (Object $self: Optional[Num] $timeout) List[FileHandle|Object|Int|ArrayRef];
 multi sub can_write (Object $self: Optional[Num] $timeout) Int|Undef;
-multi sub has_exception (Object $self: Optional[Num] $timeout) List[FileHandle];
+multi sub has_exception (Object $self: Optional[Num] $timeout) List[FileHandle|Object|Int|ArrayRef];
 multi sub has_exception (Object $self: Optional[Num] $timeout) Int|Undef;
+# has_error is deprecated (perl warns "Call to deprecated method
+# 'has_error', use 'has_exception'", measured) but is simply aliased to
+# has_exception, so it shares its signature exactly.
+multi sub has_error (Object $self: Optional[Num] $timeout) List[FileHandle|Object|Int|ArrayRef];
+multi sub has_error (Object $self: Optional[Num] $timeout) Int|Undef;
 # count returns $vec->[FD_COUNT] directly, always a defined Int (measured).
 sub count (Object $self:) Int;
+# select is left undeclared: its own body opens `shift if defined
+# $_[0] && !ref($_[0]);`, so the class invocant is consumed only when
+# the first argument is a non-ref string -- real library code calls it
+# both ways (IPC::Cmd.pm:1463: `IO::Select::select($in_sel, $out_sel,
+# undef)`, with no class argument at all, measured in the lib
+# baseline). The declaration grammar's one Invocant slot cannot state
+# an invocant that is sometimes absent, so this is left for a
+# follow-up rather than declared with an invocant real calls omit.
+# bits returns the packed vec() string built from every registered
+# handle's fd, or undef when the set is empty (measured).
+sub bits (Object $self:) Str|Undef;
+# as_string (IO::Select::HANDLE's stringification overload, called
+# directly here) always returns a defined description Str (measured).
+sub as_string (Object $self:) Str;

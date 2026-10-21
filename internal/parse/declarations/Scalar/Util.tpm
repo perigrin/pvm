@@ -13,6 +13,13 @@ sub blessed :export_ok :prototype($) (Any $ref) Str|Undef;
 # "five")` is "five". Declared Str rather than DualVar: the return-type
 # oracle observes a value through string comparison, which stringifies
 # it, so a dualvar measures as its string half, not its dual nature.
+# $num and $str stay Num/Str: measured, `dualvar("abc","x")`,
+# `dualvar(undef,undef)` and `dualvar([1],[2])` all work rather than
+# dying, but each is perl numifying or stringifying the argument the
+# same way every other Num/Str parameter in this file is coerced (RFC
+# 0001, "What a parameter type means": a finding that only shows perl
+# coercing a value is not a gap in the coercion the type already
+# states), not a value neither type covers.
 sub dualvar :export_ok :prototype($$) (Num $num, Str $str) Str;
 
 # isdual, isvstring, isweak, looks_like_number and readonly answer
@@ -25,11 +32,17 @@ sub isvstring :export_ok :prototype($) (Any $v) Boolean;
 sub isweak :export_ok :prototype($) (Any $v) Boolean;
 sub looks_like_number :export_ok :prototype($) (Any $v) Boolean;
 
-# openhandle returns the glob reference itself when its argument is one,
-# or an unblessed globref/IO handle, and undef otherwise. Measured on
-# 5.42.0, `ref(openhandle($fh))` for a lexical filehandle is "GLOB", and
-# `openhandle("x")` is undef.
-sub openhandle :export_ok :prototype($) (Any $v) GlobRef|Undef;
+# openhandle returns the handle it was given unchanged when it is open,
+# undef otherwise: measured on 5.42.0, `ref(openhandle($fh))` for a
+# lexical filehandle is "GLOB" (a GlobRef), `ref \openhandle(*STDIN)`
+# is GLOB (a bare Glob, not a reference to one -- a direct `ref`
+# reports "" for it, since it is not itself a reference), `ref
+# openhandle(IO::File->new(...))` is "IO::File" (an Object), and
+# `openhandle("x")` is undef. The oracle's own Scalar-Util.pl omits the
+# bare-glob case: its observer classifies by `ref($v)`, which cannot
+# tell a bare Glob apart from a plain Str (both report ""), the same
+# limitation dualvar's own comment above notes.
+sub openhandle :export_ok :prototype($) (Any $v) Glob|GlobRef|Object|Undef;
 
 # readonly and tainted measured on 5.42.0 are plain integers, not
 # builtin booleans: `is_bool(readonly(5))` and `is_bool(tainted($x))`
@@ -58,13 +71,20 @@ multi sub reftype :export_ok :prototype($) (Any $ref) Str|Undef;
 # set_prototype takes a sub, as a block or a coderef, and a prototype
 # string, and returns the same coderef with that prototype set.
 # Measured on 5.42.0, `ref(set_prototype(sub { 42 }, '$$'))` is "CODE".
-sub set_prototype :export_ok :prototype(&$) (Code &code, Str $proto) CodeRef;
+# $proto also takes undef, documented to remove the prototype ("If
+# $prototype is undef, then the function's prototype is removed"),
+# measured to work rather than die.
+sub set_prototype :export_ok :prototype(&$) (Code &code, Str|Undef $proto) CodeRef;
 
 # tainted: see readonly above.
 sub tainted :export_ok :prototype($) (Any $v) Int;
 
 # weaken and unweaken return nothing: measured on 5.42.0, `my @l =
 # weaken($ref)` leaves @l empty and `my $s = weaken($ref)` leaves $s
-# undef, the signature of a bare `return`.
-sub weaken :export_ok :prototype($) (Any $ref) Void;
-sub unweaken :export_ok :prototype($) (Any $ref) Void;
+# undef, the signature of a bare `return`. $ref is not Any: measured,
+# `weaken($x)` with $x holding a plain number dies "Can't weaken a
+# nonreference", and so does `weaken(5)` -- values Any admits that perl
+# has no coercion for and dies on (RFC 0001, "What a parameter type
+# means"), unlike undef, which weaken accepts (measured, a no-op).
+sub weaken :export_ok :prototype($) (Ref|Undef $ref) Void;
+sub unweaken :export_ok :prototype($) (Ref|Undef $ref) Void;

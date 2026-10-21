@@ -7,10 +7,14 @@ package Cwd;
 # working directory and take no argument. None has a prototype perl
 # reports (measured `prototype(\&Cwd::cwd)` undef), so each is
 # :listop: an empty typed signature alone would derive the explicit
-# "()" perl does not report.
+# "()" perl does not report. getcwd and fastcwd are undef on error
+# (perldoc: "On error returns C<undef>, with C<$!> set", and fastcwd's
+# own "If fastcwd encounters a problem it will return undef"); measured
+# from a directory removed out from under the process, both are undef,
+# where cwd and fastgetcwd instead give the empty string there.
 sub cwd :export :listop () Str;
-sub getcwd :export :listop () Str;
-sub fastcwd :export :listop () Str;
+sub getcwd :export :listop () Str|Undef;
+sub fastcwd :export :listop () Str|Undef;
 sub fastgetcwd :export :listop () Str;
 
 # chdir changes the working directory and returns a plain integer,
@@ -18,7 +22,10 @@ sub fastgetcwd :export :listop () Str;
 # qw(is_bool)`, `is_bool(chdir("/no/such/dir"))` is 0, where
 # `chdir("/no/such/dir")` itself is 0 and `chdir(".")` is 1. No
 # prototype is reported, so :listop states its one typed parameter.
-sub chdir :export_ok :listop (Str $dir) Int;
+# $dir is optional: the source reads `my $newdir = @_ ? shift : '';
+# # allow for no arg (chdir to HOME dir)`, and measured,
+# `Cwd::chdir()` returns 0 without dying.
+sub chdir :export_ok :listop (Optional[Str] $dir) Int;
 
 # abs_path, fast_abs_path, realpath and fast_realpath resolve a path to
 # an absolute one with symlinks collapsed, defaulting to the current

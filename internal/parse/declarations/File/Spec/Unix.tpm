@@ -16,11 +16,11 @@ sub canonpath (Str $class: Str $path) Str;
 sub catdir (Str $class: List[Str] @dirs) Str;
 # catfile canonpaths its last argument and, with more before it, catdirs
 # them and appends the file: always a Str when given at least one part
-# (measured). With zero parts it pops undef and returns undef, a case this
-# declaration does not cover since callers always pass a filename.
-sub catfile (Str $class: List[Str] @parts) Str;
+# (measured). With zero parts it pops undef and returns undef (measured;
+# audit-C.md finding 25).
+sub catfile (Str $class: List[Str] @parts) Str|Undef;
 # join is documented as "the same as catfile" and calls it directly.
-sub join (Str $class: List[Str] @parts) Str;
+sub join (Str $class: List[Str] @parts) Str|Undef;
 # catpath concatenates directory and file, always a defined Str (measured).
 sub catpath (Str $class: Str $volume, Str $directory, Str $file) Str;
 sub curdir (Str $class:) Str;

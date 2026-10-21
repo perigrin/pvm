@@ -48,7 +48,9 @@ sub SEEK_SET :export () Int;
 # arity is wrong, "Can't use string ... as a symbol ref" when it is
 # right -- because open() immediately dereferences its invocant as a
 # glob; it is declared and held to its prototype and exports only (see
-# oracleExempt).
+# oracleExempt). open() also runs on an unblessed handle, as IO::Handle's
+# instance methods do (IO/Handle.tpm): perl accepts a GLOB/bareword
+# invocant there too, so Object alone excludes a real, documented call.
 sub new (Str $class: Optional[Str] $filename, Optional[Str|Int] $mode, Optional[Int] $perms) Object|Undef;
 sub new_tmpfile (Str $class:) Object|Undef;
-sub open (Object $self: Str $filename, Optional[Str|Int] $mode, Optional[Int] $perms) Boolean;
+sub open (Object|FileHandle $self: Str $filename, Optional[Str|Int] $mode, Optional[Int] $perms) Boolean;

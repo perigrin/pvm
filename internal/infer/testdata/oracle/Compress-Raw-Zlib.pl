@@ -57,6 +57,13 @@ use Compress::Raw::Zlib;
     # dies ("Your vendor has not defined Zlib macro DEF_WBITS"), which
     # this case proves rather than assumes.
 
-    adler32 => [ ['hello'], [ 'hello', 1 ] ],
-    crc32   => [ ['hello'], [''] ],
+    # $buffer also takes a scalar reference (perldoc: "The buffer
+    # parameters can either be a scalar or a scalar reference") or
+    # undef (measured, `adler32(undef)` is 1, the adler32 seed, and
+    # `crc32(undef)` is 0; both still Int, not a death -- crc32()
+    # with no arguments at all is the death, which no longer
+    # type-checks now that $buffer is required rather than a bare
+    # slurpy List).
+    adler32 => [ ['hello'], [ 'hello', 1 ], [undef], [ \'hello' ] ],
+    crc32   => [ ['hello'], [''], [undef], [ \'hello' ] ],
 );

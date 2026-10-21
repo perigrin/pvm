@@ -51,10 +51,27 @@ func hold(t *testing.T, check func(*testing.T, perltest.Perl, string, string, []
 // disagreement containing one of these, so every other disagreement
 // in the same modules still fails the test if it reappears.
 func heldExempt() []string {
-	if runtime.GOOS != "windows" {
-		return nil
+	// is_8bit, is_16bit, utf8_upgrade and utf8_downgrade are each in
+	// Encode's @EXPORT_OK and ':all' tag, and `use Encode
+	// qw(is_8bit)` does not die, but Encode.pm never defines a body
+	// for any of the four (Encode.tpm's own comment): measured, every
+	// call dies "Undefined subroutine", so this platform-independent
+	// fact holds on every OS, not only the one heldExempt's own
+	// Windows-only entries below are measured on.
+	exempt := []string{
+		"is_8bit is marked :export_ok; use Encode qw(is_8bit) does not install it: installs",
+		"is_16bit is marked :export_ok; use Encode qw(is_16bit) does not install it: installs",
+		"utf8_upgrade is marked :export_ok; use Encode qw(utf8_upgrade) does not install it: installs",
+		"utf8_downgrade is marked :export_ok; use Encode qw(utf8_downgrade) does not install it: installs",
+		"is_8bit is marked all tag; use Encode ':all' does not install it",
+		"is_16bit is marked all tag; use Encode ':all' does not install it",
+		"utf8_upgrade is marked all tag; use Encode ':all' does not install it",
+		"utf8_downgrade is marked all tag; use Encode ':all' does not install it",
 	}
-	return []string{
+	if runtime.GOOS != "windows" {
+		return exempt
+	}
+	return append(exempt,
 		// measured in CI job 39489951290
 		"Time::HiRes::getitimer declares prototype ($); perl's is none",
 		"Time::HiRes::setitimer declares prototype ($$;$); perl's is none",
@@ -67,7 +84,7 @@ func heldExempt() []string {
 		"File::Spec::Functions::case_tolerant declares prototype (); perl's is none",
 		"File::Spec::Functions::devnull declares prototype (); perl's is none",
 		"File::Spec::Functions::rootdir declares prototype (); perl's is none",
-	}
+	)
 }
 
 // holdFiltered is hold, with any disagreement containing one of
@@ -85,6 +102,9 @@ func holdFiltered(t *testing.T, check func(*testing.T, perltest.Perl, string, st
 			if containsAny(d, filter) {
 				continue
 			}
+			if runtime.GOOS != "linux" && isExtraInstall(d) {
+				continue
+			}
 			t.Error(d)
 		}
 	}
@@ -98,6 +118,22 @@ func containsAny(s string, substrs []string) bool {
 		}
 	}
 	return false
+}
+
+// isExtraInstall reports whether d is sameNames' or exportDisagreements'
+// "perl installs X; the .tpm does not mark it" direction -- real
+// information only when checking a shipped .tpm, which describes Linux
+// perl 5.42.0, against that same Linux perl: off Linux, "installs more
+// than the .tpm says" just means that platform's perl exports more than
+// Linux's did (Windows's Errno and POSIX each add hundreds of Winsock-
+// and SDK-only names, measured), which the .tpm was never trying to
+// settle. holdFiltered and holdPurePerlExporters drop it there, for a
+// real module's .tpm; a fixture module that tests exportDisagreements
+// itself (TestExportHelperRejectsAMissingName and its siblings) calls it
+// directly, bypassing this, so it still sees both directions on every
+// platform.
+func isExtraInstall(d string) bool {
+	return strings.Contains(d, "the .tpm does not mark it")
 }
 
 // holdPurePerlExporters is hold for perltest.PureExporters, with Errno's
@@ -123,6 +159,9 @@ func holdPurePerlExporters(t *testing.T, check func(*testing.T, perltest.Perl, s
 		}
 		for _, d := range check(t, p, "", module, src) {
 			if missingName(d, module, missing) {
+				continue
+			}
+			if runtime.GOOS != "linux" && isExtraInstall(d) {
 				continue
 			}
 			t.Error(d)
@@ -302,7 +341,7 @@ func exportDisagreements(t *testing.T, p perltest.Perl, inc, module string, src 
 		// reads `use Test::More qw(ok)` as a plan and dies.
 		case slices.Contains(facts.exports, list) && !slices.Contains(facts.defaults, list) && !slices.Contains(installs, list):
 			out = append(out, fmt.Sprintf("%s is marked :export_ok; use %s qw(%s) does not install it: %s", list, module, list, strings.Join(f[1:], " ")))
-		case runtime.GOOS == "linux" && !slices.Contains(facts.exports, list) && slices.Contains(installs, list):
+		case !slices.Contains(facts.exports, list) && slices.Contains(installs, list):
 			out = append(out, fmt.Sprintf("use %s qw(%s) installs %s; the .tpm does not mark it", module, list, list))
 		}
 	}
@@ -310,20 +349,12 @@ func exportDisagreements(t *testing.T, p perltest.Perl, inc, module string, src 
 }
 
 // sameNames is how the names use installs differ from those the .tpm
-// marks with mark. An install the .tpm does not mark is reported only on
-// Linux: the .tpm describes Linux perl 5.42.0, and another platform's
-// perl installing more than that (Windows's Errno and POSIX each add
-// hundreds of Winsock- and SDK-only names, measured) is not a
-// disagreement the .tpm was ever trying to settle -- a name the .tpm
-// does mark that this platform's perl does not install is still real
-// information on every platform, so that direction is always reported.
+// marks with mark.
 func sameNames(use string, installs, marked []string, mark string) []string {
 	var out []string
-	if runtime.GOOS == "linux" {
-		for _, name := range installs {
-			if !slices.Contains(marked, name) {
-				out = append(out, fmt.Sprintf("%s installs %s; the .tpm does not mark it %s", use, name, mark))
-			}
+	for _, name := range installs {
+		if !slices.Contains(marked, name) {
+			out = append(out, fmt.Sprintf("%s installs %s; the .tpm does not mark it %s", use, name, mark))
 		}
 	}
 	for _, name := range marked {
@@ -463,8 +494,12 @@ func TestHeldToPerlFindsArchlibModules(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		// Strawberry perl ships POSIX.pm as pure Perl under lib, not
 		// archlib -- measured in CI job 39489951290: C:/Strawberry/perl/lib/POSIX.pm
-		// is not in archlib C:\STRAWB~1\perl\lib.
-		assert.True(t, strings.HasPrefix(path, p.Privlib), "%s is not in privlib %s", path, p.Privlib)
+		// is not in archlib C:\STRAWB~1\perl\lib. perl's %INC and
+		// $Config{privlibexp} can each spell that directory differently
+		// (an 8.3 short name here, measured), so PathUnder canonicalizes
+		// both through perl before comparing, rather than a bare prefix
+		// check.
+		assert.True(t, perltest.PathUnder(t, p, path, p.Privlib), "%s is not in privlib %s", path, p.Privlib)
 		return
 	}
 	assert.True(t, strings.HasPrefix(path, p.Archlib), "%s is not in archlib %s", path, p.Archlib)
@@ -661,6 +696,29 @@ func TestPOSIXImportKeepsPrintfFilehandleParse(t *testing.T) {
 	}
 }
 
+// TestPOSIXImportMatchesPerl: POSIX declares no `import` of its own.
+// Its own import (POSIX.pm:174) rewrites a legacy bareword tag ("foo_h")
+// to ":foo_h" and dies on an unimplemented name before it ever reaches
+// Exporter, but every other case -- a plain named list, a `:tag`, and
+// the explicit empty list -- forwards unchanged to Exporter::import, so
+// the plain :export/:export_ok marks this parser already reads get them
+// right without a declared import (measured on 5.42.0; audit E, S2).
+// The declared-import mechanism (RFC 0001's one altering key) has
+// nothing to say about a per-item bareword rewrite, so the legacy
+// "qw(math_h)" form (without the colon) is not expressed here: it
+// installs nothing under this parser where perl installs the whole
+// tag, a known gap for perigrin, not fixed by this issue.
+func TestPOSIXImportMatchesPerl(t *testing.T) {
+	assert.Equal(t, []string{"floor"}, importedFrom(t, "use POSIX qw(floor);\n"))
+
+	got := importedFrom(t, "use POSIX qw(:math_h);\n")
+	assert.Contains(t, got, "floor")
+	assert.Contains(t, got, "tan")
+	assert.NotContains(t, got, "times")
+
+	assert.Empty(t, importedFrom(t, "use POSIX ();\n"))
+}
+
 // TestConstantExportersPrototypes holds Fcntl.tpm's and Socket.tpm's
 // prototypes to perl.
 func TestConstantExportersPrototypes(t *testing.T) {
@@ -842,6 +900,32 @@ func TestGetoptLongBareUseOmitsConfigure(t *testing.T) {
 	assert.Contains(t, got, "GetOptions")
 }
 
+// TestGetoptLongConfigInstallsGetOptions: Getopt::Long's own import
+// moves everything from ':config' onward to Configure, so `@syms`, what
+// is left, is empty, and it falls through to SUPER::import's default
+// @EXPORT (perigrin's ruling, 2026-10-20: "the parameters are the
+// signature to import()") -- measured on 5.42.0, `use Getopt::Long
+// qw(:config bundling);` installs GetOptions (audit E, finding 9).
+func TestGetoptLongConfigInstallsGetOptions(t *testing.T) {
+	got := importedFrom(t, "use Getopt::Long qw(:config bundling);\n")
+	assert.Contains(t, got, "GetOptions")
+}
+
+// TestGetoptLongFromArrayInstallsGetOptions: measured on 5.42.0, `use
+// Getopt::Long qw(GetOptionsFromArray);` also installs GetOptions --
+// Getopt::Long's own import always adds &GetOptions once @syms is
+// non-empty (audit E, finding 9). The declared-import mechanism (RFC
+// 0001) has no key for this: its only two answers to a named list are
+// "install the full :export set" or "the names are unknown", so this
+// also installs the three order variables, which perl's own import
+// does not for this list. That over-claim is 01a15ac0's open question
+// for perigrin; this guards only that GetOptions still resolves.
+func TestGetoptLongFromArrayInstallsGetOptions(t *testing.T) {
+	got := importedFrom(t, "use Getopt::Long qw(GetOptionsFromArray);\n")
+	assert.Contains(t, got, "GetOptions")
+	assert.Contains(t, got, "GetOptionsFromArray")
+}
+
 // TestFileStatEmptyImportKeepsCoreStat: `use File::stat ();` is the
 // explicit "load but import nothing" form (RFC 0001), so a later bare
 // `stat($f)` still resolves to CORE's.
@@ -1002,6 +1086,64 @@ func TestIOExportersMethodsAreNotExported(t *testing.T) {
 			require.True(t, declared, "%s: %s is not declared", module, name)
 			if slices.Contains(facts.exports, name) {
 				t.Errorf("%s::%s carries an export mark, but perl's use %s installs no such name", module, name, module)
+			}
+		}
+	}
+}
+
+// documentedOOInterfaces is, per module, the documented OO methods
+// audit-C.md's findings named as entirely omitted before this fix:
+// File::Temp's OO interface (finding 14) and three not-exported
+// functions (finding 15); Archive::Tar's whole method interface
+// (finding 18); Term::ReadLine's new() IN/OUT parameters and four
+// omitted methods (findings 31, 32); HTTP::Tiny's generated attribute
+// accessors (finding 29). IO::Select's class-method select and
+// Net::Ping's broader OO interface (findings 13, 22) are deferred --
+// see IO/Select.tpm's and Net/Ping.tpm's own comments -- so neither
+// is named here.
+var documentedOOInterfaces = map[string][]string{
+	"File::Temp": {
+		"new", "newdir", "filename", "unlink_on_destroy", "safe_level", "top_system_uid",
+		"tempnam", "cmpstat", "unlink1",
+	},
+	"Archive::Tar": {
+		"new", "create_archive", "iter", "list_archive", "extract_archive",
+		"has_io_string", "has_perlio", "has_zlib_support", "has_bzip2_support",
+		"has_xz_support", "can_handle_compressed_files",
+		"read", "contains_file", "extract", "extract_file", "list_files",
+		"get_files", "get_content", "replace_content", "rename", "chmod",
+		"chown", "remove", "clear", "write", "add_files", "add_data", "error",
+		"setcwd",
+	},
+	"Term::ReadLine": {"IN", "OUT", "ornaments", "newTTY", "tkRunning", "event_loop"},
+	"HTTP::Tiny": {
+		"cookie_jar", "default_headers", "http_proxy", "https_proxy", "keep_alive",
+		"local_address", "max_redirect", "max_size", "proxy", "no_proxy",
+		"SSL_options", "verify_SSL",
+	},
+}
+
+// TestDocumentedOOInterfacesDeclared: every method documentedOOInterfaces
+// names is declared, with a typed return, in its module's .tpm --
+// audit-C.md's findings for the OO interfaces this fix adds (14, 15,
+// 18, 29, 31, 32).
+func TestDocumentedOOInterfacesDeclared(t *testing.T) {
+	for module, methods := range documentedOOInterfaces {
+		src, ok := declaration(module)
+		if !assert.True(t, ok, "%s: no declaration", module) {
+			continue
+		}
+		facts, err := readHeld(module, src)
+		if !assert.NoError(t, err, "%s: %v", module, err) {
+			continue
+		}
+		for _, name := range methods {
+			sigs, declared := facts.signatures[name]
+			if !assert.True(t, declared, "%s::%s is not declared", module, name) {
+				continue
+			}
+			for _, s := range sigs {
+				assert.NotEqual(t, types.Unknown, s.Returns, "%s::%s should be typed, not Unknown", module, name)
 			}
 		}
 	}

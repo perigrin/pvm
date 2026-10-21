@@ -20,14 +20,28 @@ sub notall :export_ok :prototype(&@) (Code &block, List @list) Boolean;
 # and reductions returns every intermediate accumulation; both are
 # polymorphic in what the block returns. Measured on 5.42.0, `reduce {
 # $a + $b } (1,2,3)` is 6 and `reduce { $a + $b } ()` is undef.
+# reductions's own scalar context is undocumented; measured, it gives
+# the last accumulation, Scalar (not Any: that mask carries the Array
+# and Hash bits, which Answers() reads as list context, colliding with
+# the list candidate above).
 sub reduce :export_ok :prototype(&@) (Code &block, List @list) Any;
-sub reductions :export_ok :prototype(&@) (Code &block, List @list) List;
+multi sub reductions :export_ok :prototype(&@) (Code &block, List @list) List;
+multi sub reductions :export_ok :prototype(&@) (Code &block, List @list) Scalar;
 
 # pairmap, pairgrep and pairfirst walk the list two at a time as $a and
-# $b; each returns a list, polymorphic in what the block returns.
-sub pairmap :export_ok :prototype(&@) (Code &block, List @list) List;
-sub pairgrep :export_ok :prototype(&@) (Code &block, List @list) List;
-sub pairfirst :export_ok :prototype(&@) (Code &block, List @list) List;
+# $b; each returns a list, polymorphic in what the block returns. In
+# scalar context perldoc documents pairmap returning a count and
+# pairgrep the number of matching pairs (both Int, measured), and
+# pairfirst "a simple boolean" (measured: BOOL(1) on a match, undef
+# otherwise). Declared by context, RFC 0001 "Context selects by return
+# type": calls() asks for both automatically, since each pair shares
+# its list candidate's arity.
+multi sub pairmap :export_ok :prototype(&@) (Code &block, List @list) List;
+multi sub pairmap :export_ok :prototype(&@) (Code &block, List @list) Int;
+multi sub pairgrep :export_ok :prototype(&@) (Code &block, List @list) List;
+multi sub pairgrep :export_ok :prototype(&@) (Code &block, List @list) Int;
+multi sub pairfirst :export_ok :prototype(&@) (Code &block, List @list) List;
+multi sub pairfirst :export_ok :prototype(&@) (Code &block, List @list) Boolean|Undef;
 
 # sum, max, min, maxstr, minstr and product measure numeric or string
 # across the list; each is undef on an empty list except sum0 and
@@ -39,26 +53,56 @@ sub pairfirst :export_ok :prototype(&@) (Code &block, List @list) List;
 # prototype, `@` -- it admits any argument count, zero included, so it
 # covers both (parse/derive.go's prototypeAdmitsArity), even though the
 # two candidates' own types derive two different shapes on their own.
-multi sub sum :export_ok :prototype(@) (Num $x, List @rest) Num;
+# sum, sum0 and product measure Num, but perl's arithmetic can carry
+# the sum outside it: measured on 5.42.0, `sum(1e308, 1e308)` is Inf
+# and `sum("nan")` is NaN (both Str's subtypes, not Num's -- RFC 0001,
+# "Str includes Num"); an addend overloading `+`/`*` comes back as that
+# object unchanged (measured, `ref(sum($o, 1))` is the object's own
+# class), which the oracle's plain-value cases do not reproduce but
+# `$x` member types state. The one-or-more-argument candidate's own
+# parameter stays Num: perl numifies whatever it is given (a non-numeric
+# string becomes 0) the same way every arithmetic operator does, which
+# is the coercion Num already states, not a gap in it (RFC 0001, "What a
+# parameter type means").
+multi sub sum :export_ok :prototype(@) (Num $x, List @rest) Num|Inf|NaN|Object;
 multi sub sum :export_ok :prototype(@) () Undef;
-sub sum0 :export_ok :prototype(@) (List @list) Int;
-sub max :export_ok :prototype(@) (List @list) Num|Undef;
-sub min :export_ok :prototype(@) (List @list) Num|Undef;
-sub maxstr :export_ok :prototype(@) (List @list) Str|Undef;
-sub minstr :export_ok :prototype(@) (List @list) Str|Undef;
-sub product :export_ok :prototype(@) (List @list) Num;
+sub sum0 :export_ok :prototype(@) (List @list) Num|Inf|NaN|Object;
+# max, min, maxstr and minstr return the winning element itself, not a
+# numified or stringified copy of it: measured on 5.42.0, `max("abc")`
+# is 'abc', `ref(max([1]))` is ARRAY, and an element overloading
+# comparison comes back as that object unchanged. Scalar is the
+# element's own type, whatever it is (RFC 0001, "preserves").
+sub max :export_ok :prototype(@) (List @list) Scalar;
+sub min :export_ok :prototype(@) (List @list) Scalar;
+sub maxstr :export_ok :prototype(@) (List @list) Scalar;
+sub minstr :export_ok :prototype(@) (List @list) Scalar;
+sub product :export_ok :prototype(@) (List @list) Num|Inf|NaN|Object;
 
 # shuffle and the uniq family return a list drawn from their argument
-# list, so each is polymorphic in what it holds.
-sub shuffle :export_ok :prototype(@) (List @list) List;
-sub uniq :export_ok :prototype(@) (List @list) List;
-sub uniqnum :export_ok :prototype(@) (List @list) List;
-sub uniqstr :export_ok :prototype(@) (List @list) List;
-sub uniqint :export_ok :prototype(@) (List @list) List;
+# list, so each is polymorphic in what it holds. In scalar context
+# perldoc documents the uniq* family returning the count of elements
+# that would be returned in list context (Int, measured); shuffle's own
+# scalar context is undocumented, measured giving one drawn element,
+# Scalar (not Any, which Answers() reads as list context).
+multi sub shuffle :export_ok :prototype(@) (List @list) List;
+multi sub shuffle :export_ok :prototype(@) (List @list) Scalar;
+multi sub uniq :export_ok :prototype(@) (List @list) List;
+multi sub uniq :export_ok :prototype(@) (List @list) Int;
+multi sub uniqnum :export_ok :prototype(@) (List @list) List;
+multi sub uniqnum :export_ok :prototype(@) (List @list) Int;
+multi sub uniqstr :export_ok :prototype(@) (List @list) List;
+multi sub uniqstr :export_ok :prototype(@) (List @list) Int;
+multi sub uniqint :export_ok :prototype(@) (List @list) List;
+multi sub uniqint :export_ok :prototype(@) (List @list) Int;
 
 # head and tail take a leading count, then the rest of the list, as
 # their measured $@ prototype states; sample does the same, drawing
-# that many at random.
+# that many at random. $n stays Int: measured, a Str, Undef or Num
+# argument all numify without dying ("2" takes 2 elements, 1.7 takes 1,
+# undef and "abc" take 0), the same numeric coercion Int already states
+# for every other count parameter in this file (RFC 0001, "What a
+# parameter type means": a finding that only shows perl coercing a
+# value is not a gap in the coercion the type already states).
 sub head :export_ok :prototype($@) (Int $n, List @rest) List;
 sub tail :export_ok :prototype($@) (Int $n, List @rest) List;
 sub sample :export_ok :prototype($@) (Int $n, List @rest) List;
@@ -87,8 +131,13 @@ sub mesh_shortest :export_ok (List[ArrayRef] @arrays) List;
 # other element; unpairs is pairs's inverse, taking a list of
 # 2-element array references back to a flat list. Measured on 5.42.0,
 # `unpairs(1, 2)` (not array references) segfaults the interpreter --
-# its contract is array references, as pairs's result is.
+# its contract is array references, as pairs's result is. perldoc does
+# not document pairkeys's or pairvalues's own scalar context; measured,
+# each gives the last key or value, Scalar (not Any, which Answers()
+# reads as list context, colliding with the list candidate).
 sub pairs :export_ok :prototype(@) (List @kvlist) List[Object];
-sub pairkeys :export_ok :prototype(@) (List @kvlist) List;
-sub pairvalues :export_ok :prototype(@) (List @kvlist) List;
+multi sub pairkeys :export_ok :prototype(@) (List @kvlist) List;
+multi sub pairkeys :export_ok :prototype(@) (List @kvlist) Scalar;
+multi sub pairvalues :export_ok :prototype(@) (List @kvlist) List;
+multi sub pairvalues :export_ok :prototype(@) (List @kvlist) Scalar;
 sub unpairs :export_ok :prototype(@) (List[ArrayRef] @pairs) List;

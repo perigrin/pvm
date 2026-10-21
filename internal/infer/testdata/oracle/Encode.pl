@@ -44,11 +44,15 @@ my $obj = find_encoding('utf-8');
     find_encoding      => [ ['utf-8'], ['no-such-enc-xyz'] ],
     find_mime_encoding => [ ['utf-8'], ['no-such-mime-xyz'] ],
 
-    from_to => [ [ "hello", 'iso-8859-1', 'cp1250' ] ],
+    # $from_encoding and $to_encoding also take a pre-resolved encoding
+    # object (measured), not only a name.
+    from_to => [ [ "hello", 'iso-8859-1', 'cp1250' ], [ "hello", $obj, 'cp1250' ], [ "hello", 'iso-8859-1', $obj ] ],
 
     is_utf8 => [ ["abc"], [undef] ],
 
-    perlio_ok => [ ['utf-8'], ['iso-2022-kr'] ],
+    # perlio_ok's own source comment claims "a plain 0 or 1, not a
+    # boolean", but measured, "ascii" gives a builtin true.
+    perlio_ok => [ ['utf-8'], ['iso-2022-kr'], ['ascii'] ],
 
     resolve_alias => [ ['utf8'], ['no-such-alias-xyz'] ],
 );

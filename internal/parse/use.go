@@ -407,6 +407,19 @@ func (p *parser) resolveImports(module string, list *Node) {
 		for _, imp := range importsFrom(facts, nil, false) {
 			p.imports[p.subKey(imp.Name)] = imp
 		}
+		// A module whose own import still forwards its list to Exporter
+		// alongside doing DSL work of its own -- Getopt::Long's `qw(
+		// GetOptionsFromArray)` installs GetOptionsFromArray by that name,
+		// an :export_ok name the defaults above never carry (measured;
+		// audit E, finding 9) -- resolves whatever the list names
+		// literally too, never fewer names than a bare use installs.
+		if list != nil {
+			if names, ok := literalNameList(list); ok {
+				for _, imp := range importsFrom(facts, names, true) {
+					p.imports[p.subKey(imp.Name)] = imp
+				}
+			}
+		}
 		return
 	}
 
