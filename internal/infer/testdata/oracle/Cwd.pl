@@ -13,7 +13,11 @@
 # every one of those already within its own declared type.
 mkdir 'doomed' or die "mkdir: $!";
 chdir 'doomed' or die "chdir: $!";
-rmdir '../doomed' or die "rmdir: $!";
+# Windows refuses to remove a directory a process sits in (CI job on
+# 66180e7e: "rmdir: Permission denied"), so there the calls run from a
+# directory that still exists, every answer a Str within its declared
+# type; the undef answers are measured on Linux and macOS.
+rmdir '../doomed' or $^O eq 'MSWin32' or die "rmdir: $!";
 
 (
     cwd           => [ [] ],
