@@ -70,8 +70,10 @@ sub clock :export_ok () Num;
 sub clock_getres :export_ok :prototype(;$) (Int $which = 0) Num;
 sub clock_gettime :export_ok :prototype(;$) (Int $which = 0) Num;
 
-# "Returns the number of nanoseconds actually slept" (perldoc Time::HiRes).
-sub clock_nanosleep :export_ok :prototype($$;$) (Int $which, Int $nanoseconds, Int $flags = 0) Int;
+# "Returns the number of nanoseconds actually slept" (perldoc
+# Time::HiRes); measured, `clock_nanosleep(CLOCK_REALTIME, 1500.5)` is
+# '1500.5' -- $nanoseconds is not truncated to Int, nor is the return.
+sub clock_nanosleep :export_ok :prototype($$;$) (Int $which, Num $nanoseconds, Int $flags = 0) Num;
 
 # gettimeofday forks on context like CORE's gmtime (RFC 0001): measured,
 # list context gives (seconds, microseconds) as two integers, scalar
@@ -81,11 +83,13 @@ multi sub gettimeofday :export_ok () Num;
 
 # getitimer/setitimer: "In scalar context, the remaining time ... is
 # returned. In list context, both the remaining time and the interval
-# are returned" (perldoc Time::HiRes).
+# are returned" (perldoc Time::HiRes). perldoc is silent on a $which no
+# itimer exists for; measured, `scalar getitimer(999)` and `scalar
+# setitimer(999,0)` are both undef, not a death.
 multi sub getitimer :export_ok :prototype($) (Int $which) List[Num];
-multi sub getitimer :export_ok :prototype($) (Int $which) Num;
+multi sub getitimer :export_ok :prototype($) (Int $which) Num|Undef;
 multi sub setitimer :export_ok :prototype($$;$) (Int $which, Num $seconds, Num $interval = 0) List[Num];
-multi sub setitimer :export_ok :prototype($$;$) (Int $which, Num $seconds, Num $interval = 0) Num;
+multi sub setitimer :export_ok :prototype($$;$) (Int $which, Num $seconds, Num $interval = 0) Num|Undef;
 
 # stat/lstat override CORE's own (CORE.tpm), but measured, Time::HiRes's
 # own prototype is the plain scalar ";$", not CORE::stat's glob-taking
@@ -93,14 +97,20 @@ multi sub setitimer :export_ok :prototype($$;$) (Int $which, Num $seconds, Num $
 # log do, correctly, for their own real "_" prototype), so the omitted
 # argument is Optional[T] rather than a stated default; at the call
 # Time::HiRes falls back to $_ regardless. List context gives the same
-# 13 fields, scalar context whether the call succeeded.
-multi sub lstat :export_ok (Optional[Str|Glob] $file) List;
-multi sub lstat :export_ok (Optional[Str|Glob] $file) Boolean;
-multi sub stat :export_ok (Optional[Str|Glob] $file) List;
-multi sub stat :export_ok (Optional[Str|Glob] $file) Boolean;
+# 13 fields, scalar context whether the call succeeded. $file also
+# takes an open filehandle, by reference or by lexical scalar
+# (perldoc: "=item stat FH"; measured, scalar `stat(\*STDIN)` and
+# `stat($lexical_fh)` are both a builtin true), not only a bareword
+# Glob or a path Str.
+multi sub lstat :export_ok (Optional[Str|FileHandle|Object] $file) List;
+multi sub lstat :export_ok (Optional[Str|FileHandle|Object] $file) Boolean;
+multi sub stat :export_ok (Optional[Str|FileHandle|Object] $file) List;
+multi sub stat :export_ok (Optional[Str|FileHandle|Object] $file) Boolean;
 
-# "Returns the number of nanoseconds actually slept" (perldoc Time::HiRes).
-sub nanosleep :export_ok :prototype($) (Int $nanoseconds) Int;
+# "Returns the number of nanoseconds actually slept" (perldoc
+# Time::HiRes); measured, `nanosleep(1.5)` is '1.5' -- $nanoseconds is
+# not truncated to Int, nor is the return.
+sub nanosleep :export_ok :prototype($) (Num $nanoseconds) Num;
 
 # "Returns the number of seconds actually slept" (perldoc Time::HiRes);
 # measured, sleep's own prototype is the slurpy "(;@)", not "(;$)".
@@ -120,8 +130,11 @@ sub ualarm :export_ok :prototype($;$) (Int $useconds, Int $interval = 0) Int|Und
 sub usleep :export_ok :prototype($) (Int $useconds) Int;
 
 # "Returns the number of files successfully changed" (perldoc
-# Time::HiRes); undef atime/mtime calls the syscall with a NULL argument.
-sub utime :export_ok :prototype($$@) (Num|Undef $atime, Num|Undef $mtime, List[Str] @files) Int;
+# Time::HiRes); undef atime/mtime calls the syscall with a NULL
+# argument. @files also takes an open filehandle, "As
+# L<perlfunc/utime>" says CORE's utime does (measured,
+# `Time::HiRes::utime(1.5,1.5,$fh)` is 1).
+sub utime :export_ok :prototype($$@) (Num|Undef $atime, Num|Undef $mtime, List[Str|FileHandle] @files) Int;
 
 # time() is a floating seconds since the epoch, in every context
 # (perldoc Time::HiRes).

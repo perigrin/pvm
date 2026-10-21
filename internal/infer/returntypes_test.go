@@ -189,6 +189,20 @@ var oracleExempt = map[string]string{
 	"FileHandle::getpos": "dereferences the invocant as a glob to call fgetpos(); dies \"Bad filehandle\" when called with the class name itself, as the oracle calls it",
 	"FileHandle::setpos": "dereferences the invocant as a glob to call fsetpos(); dies \"Bad filehandle\" when called with the class name itself, as the oracle calls it",
 
+	// is_8bit, is_16bit, utf8_upgrade and utf8_downgrade are each
+	// exported but never defined (Encode.tpm's own comment): importing
+	// one autovivifies an existing-but-undefined code slot (measured,
+	// `exists &Encode::is_8bit` is 1 after import, `defined &...` is 0),
+	// which callable() (this file's own rule, matching held_to_perl.pl)
+	// does not consider callable -- there is no AUTOLOAD to fall back
+	// to either -- so return_oracle.pl's own `$code or die "perl
+	// defines no sub $name\n"` would end the whole run before any
+	// later sub in the module got called.
+	"Encode::is_8bit":        "exported but never defined; not even callable() to attempt, let alone observe dying",
+	"Encode::is_16bit":       "exported but never defined; not even callable() to attempt, let alone observe dying",
+	"Encode::utf8_upgrade":   "exported but never defined; not even callable() to attempt, let alone observe dying",
+	"Encode::utf8_downgrade": "exported but never defined; not even callable() to attempt, let alone observe dying",
+
 	// Archive::Tar::clear wipes the shared instance's data
 	// (scratchpad/audit-C.md finding 18's INSTANCE in oracle/Archive-Tar.pl
 	// shares one instance across every instance-method call), which would
@@ -1093,6 +1107,17 @@ func TestPurePerlExportersReturnTypes(t *testing.T) {
 	holdReturnTypes(t, perltest.PureExporters...)
 }
 
+// TestSymbolReturnTypesAreDeclared holds Symbol.tpm's declared return
+// types to perl directly (Symbol itself stays out of
+// perltest.PureExporters; see its comment for why), with
+// oracle/Symbol.pl's cases: qualify's Ref candidate preserves whatever
+// reference it is given (measured, `ref qualify({})` is HASH, `ref
+// qualify([])` is ARRAY, not GlobRef), and qualify_to_ref also takes
+// and returns a blessed glob object (IO::Handle) unchanged.
+func TestSymbolReturnTypesAreDeclared(t *testing.T) {
+	assert.Empty(t, moduleFailures(t, "Symbol"))
+}
+
 // moduleFailures holds module's shipped .tpm return types to perl,
 // called with its shipped oracle/<Module>.pl cases.
 func moduleFailures(t *testing.T, module string) []string {
@@ -1103,7 +1128,7 @@ func moduleFailures(t *testing.T, module string) []string {
 	require.NoError(t, err)
 	cases, err := filepath.Abs(filepath.Join("testdata", "oracle", strings.ReplaceAll(module, "::", "-")+".pl"))
 	require.NoError(t, err)
-	return returnTypeFailures(t, p, oracleRun{Module: module, TPM: tpm, Cases: cases})
+	return returnTypeFailures(t, p, oracleRun{Module: module, TPM: tpm, Cases: cases, Exempt: exemptForModule(t, p, module, tpm, withPlatformExempt(oracleExempt))})
 }
 
 // TestGetoptStdUnknownOptionReturnIsDeclared: getopts given a switch its
@@ -1132,6 +1157,50 @@ func TestTextParseWordsUnbalancedQuoteReturnIsDeclared(t *testing.T) {
 // among each of the three's own cases.
 func TestFileBasenameWindowsPathReturnIsDeclared(t *testing.T) {
 	assert.Empty(t, moduleFailures(t, "File::Basename"))
+}
+
+// TestStorableFlagsArgument: thaw, retrieve, lock_retrieve, fd_retrieve
+// and retrieve_fd each take a documented second $flags argument
+// (perldoc Storable: "set the 2nd argument for thaw/retrieve to 0"),
+// and read_magic takes a documented second $must_be_file argument
+// ("=item $info = Storable::read_magic( $buffer, $must_be_file )"),
+// which Storable.tpm now declares. oracle/Storable.pl's cases call each
+// with that second argument. Measured on 5.42.0, `thaw(freeze({}), 0)`
+// and `retrieve("f", 1)` both return a HASH, and `read_magic($buf, 0)`
+// returns a HASH.
+func TestStorableFlagsArgument(t *testing.T) {
+	assert.Empty(t, moduleFailures(t, "Storable"))
+}
+
+// TestCwdFailureReturnsUndef: getcwd and fastcwd return undef on error
+// (perldoc Cwd: "On error returns C<undef>, with C<$!> set"; measured
+// on 5.42.0 from a directory removed out from under the process, both
+// are undef), which Cwd.tpm now declares Str|Undef. oracle/Cwd.pl's
+// case for each runs from such a directory.
+func TestCwdFailureReturnsUndef(t *testing.T) {
+	assert.Empty(t, moduleFailures(t, "Cwd"))
+}
+
+// TestListUtilReturnsArgumentUnchanged: max, min, maxstr and minstr
+// return the winning element itself, not a numified or stringified
+// copy of it (measured on 5.42.0, `max("abc")` is 'abc' and
+// `ref(max([1]))` is ARRAY), which List/Util.tpm now declares Scalar
+// rather than Num|Undef or Str|Undef. oracle/List-Util.pl's cases for
+// each include a non-numeric string and an array reference.
+func TestListUtilReturnsArgumentUnchanged(t *testing.T) {
+	assert.Empty(t, moduleFailures(t, "List::Util"))
+}
+
+// TestListUtilScalarContextReturns: List::Util's uniq family, pairmap
+// and pairgrep return a count in scalar context, pairfirst "a simple
+// boolean" (all documented, perldoc List::Util), and pairkeys,
+// pairvalues, reductions and shuffle each an undocumented single
+// element (measured on 5.42.0), none of which the module's old
+// list-only declarations admitted. oracle/List-Util.pl's existing
+// cases exercise both contexts automatically (RFC 0001, "Context
+// selects by return type").
+func TestListUtilScalarContextReturns(t *testing.T) {
+	assert.Empty(t, moduleFailures(t, "List::Util"))
 }
 
 // TestPurePerlExportersOracleStaysInScratch: File::Path, File::Copy and

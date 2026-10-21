@@ -121,6 +121,37 @@ func TestInferNoCandidateArityIsError(t *testing.T) {
 	assert.Equal(t, infer.CodeArityMismatch, diags[0].Code, diags[0].Message)
 }
 
+// TestTooWideParametersNarrowed: two of audit group D's too-wide
+// parameters (01a15ac0-6ccc) now reject a call shape perl itself dies
+// on, where the old declaration -- Any for weaken, a bare slurpy List
+// for crc32 -- admitted it without a diagnostic.
+//
+// Scalar::Util::weaken's $ref is now Ref|Undef: measured on 5.42.0,
+// `weaken($n)` with $n holding a plain Int dies "Can't weaken a
+// nonreference", which Any used to admit silently.
+//
+// Compress::Raw::Zlib::crc32's $buffer is now required (Str|ScalarRef|
+// Undef), not a List accepting any arity: measured, `crc32()` dies
+// "Usage: Compress::Raw::Zlib::crc32(buf, ...)", which the old bare
+// List candidate's zero-or-more arity used to admit.
+func TestTooWideParametersNarrowed(t *testing.T) {
+	_, diags := declaredCallType(t, "use Scalar::Util qw(weaken); my $n = 5; weaken($n);", "weaken($n)")
+	require.Len(t, diags, 1)
+	assert.Equal(t, infer.Error, diags[0].Severity)
+	assert.Equal(t, infer.CodeCoercionMismatch, diags[0].Code, diags[0].Message)
+
+	_, diags = declaredCallType(t, "use Compress::Raw::Zlib qw(crc32); my $c = crc32();", "crc32()")
+	require.Len(t, diags, 1)
+	assert.Equal(t, infer.Error, diags[0].Severity)
+	assert.Equal(t, infer.CodeArityMismatch, diags[0].Code, diags[0].Message)
+
+	// weaken on an actual reference, or undef, still type-checks clean.
+	_, diags = declaredCallType(t, "use Scalar::Util qw(weaken); my $r = {}; weaken($r);", "weaken($r)")
+	assert.Empty(t, diags)
+	_, diags = declaredCallType(t, "use Scalar::Util qw(weaken); my $u; weaken($u);", "weaken($u)")
+	assert.Empty(t, diags)
+}
+
 // TestAnyScalarArgumentKeepsArity: I8, an Any-typed scalar is not an
 // aggregate, so it must not relax a call's arity the way an array, a
 // hash, a list-returning call or a List-typed value does. List::Util's

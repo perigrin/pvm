@@ -34,6 +34,7 @@ for my $name (qw(clock clock_nanosleep nanosleep ualarm utime)) {
 }
 open my $fh, '>', 'hr_file' or die $!;
 close $fh;
+open my $hr_lexfh, '<', 'hr_file' or die $!;
 (
     CLOCKS_PER_SEC        => [ [] ],
     CLOCK_BOOTTIME        => [ [] ],
@@ -89,17 +90,27 @@ close $fh;
     clock           => [ [] ],
     clock_getres    => [ [] ],
     clock_gettime   => [ [] ],
-    clock_nanosleep => [ [ 0, 0 ] ],
+    # nanoseconds also takes a non-integer (measured, perldoc's own
+    # "number of nanoseconds" is not Int-only).
+    clock_nanosleep => [ [ 0, 0 ], [ CLOCK_REALTIME(), 0.5 ] ],
     gettimeofday    => [ [] ],
-    getitimer       => [ [0] ],
-    setitimer       => [ [ 0, 0 ] ],
+    # a which no itimer exists for is undef in scalar context
+    # (measured), not an error.
+    getitimer       => [ [0], [999] ],
+    setitimer       => [ [ 0, 0 ], [ 999, 0 ] ],
+    # a lexical filehandle also takes stat/lstat (measured, perldoc's
+    # own "stat FH").
     lstat           => [ ['hr_file'] ],
-    nanosleep       => [ [0] ],
+    # nanosleep's own argument also takes a non-integer, unchanged
+    # (measured).
+    nanosleep       => [ [0], [1.5] ],
     sleep           => [ [0] ],
-    stat            => [ ['hr_file'] ],
+    stat            => [ ['hr_file'], [$hr_lexfh] ],
     time            => [ [] ],
     tv_interval     => [ [ [ 0, 0 ], [ 1, 500_000 ] ] ],
     ualarm          => [ [0] ],
     usleep          => [ [0] ],
-    utime           => [ [ time(), time(), 'hr_file' ] ],
+    # a lexical filehandle also takes the $files list (measured, as
+    # CORE's own utime does).
+    utime           => [ [ time(), time(), 'hr_file' ], [ time(), time(), $hr_lexfh ] ],
 );

@@ -51,10 +51,27 @@ func hold(t *testing.T, check func(*testing.T, perltest.Perl, string, string, []
 // disagreement containing one of these, so every other disagreement
 // in the same modules still fails the test if it reappears.
 func heldExempt() []string {
-	if runtime.GOOS != "windows" {
-		return nil
+	// is_8bit, is_16bit, utf8_upgrade and utf8_downgrade are each in
+	// Encode's @EXPORT_OK and ':all' tag, and `use Encode
+	// qw(is_8bit)` does not die, but Encode.pm never defines a body
+	// for any of the four (Encode.tpm's own comment): measured, every
+	// call dies "Undefined subroutine", so this platform-independent
+	// fact holds on every OS, not only the one heldExempt's own
+	// Windows-only entries below are measured on.
+	exempt := []string{
+		"is_8bit is marked :export_ok; use Encode qw(is_8bit) does not install it: installs",
+		"is_16bit is marked :export_ok; use Encode qw(is_16bit) does not install it: installs",
+		"utf8_upgrade is marked :export_ok; use Encode qw(utf8_upgrade) does not install it: installs",
+		"utf8_downgrade is marked :export_ok; use Encode qw(utf8_downgrade) does not install it: installs",
+		"is_8bit is marked all tag; use Encode ':all' does not install it",
+		"is_16bit is marked all tag; use Encode ':all' does not install it",
+		"utf8_upgrade is marked all tag; use Encode ':all' does not install it",
+		"utf8_downgrade is marked all tag; use Encode ':all' does not install it",
 	}
-	return []string{
+	if runtime.GOOS != "windows" {
+		return exempt
+	}
+	return append(exempt,
 		// measured in CI job 39489951290
 		"Time::HiRes::getitimer declares prototype ($); perl's is none",
 		"Time::HiRes::setitimer declares prototype ($$;$); perl's is none",
@@ -67,7 +84,7 @@ func heldExempt() []string {
 		"File::Spec::Functions::case_tolerant declares prototype (); perl's is none",
 		"File::Spec::Functions::devnull declares prototype (); perl's is none",
 		"File::Spec::Functions::rootdir declares prototype (); perl's is none",
-	}
+	)
 }
 
 // holdFiltered is hold, with any disagreement containing one of
