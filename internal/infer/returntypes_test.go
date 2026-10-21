@@ -292,82 +292,91 @@ func TestPendingAuditHasNoDoneIssue(t *testing.T) {
 // measured directly instead (see exemptForModule), since such a family
 // can run into the thousands and differs per C library and per build,
 // not something this repository could ever hand-list once for every
-// platform CI runs on.
-var platformExempt = map[string]map[string]string{
+// platform CI runs on. Each entry's Kind says what it claims, so
+// TestRealPlatformExemptionsAreChecked can check it without reading
+// its reason.
+var platformExempt = map[string]map[string]platformExemption{
 	"darwin": {
-		"Fcntl::S_ISWHT":                      "returns Boolean on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"POSIX::getgrnam":                     "returns Undef on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
-		"Time::HiRes::CLOCK_BOOTTIME":         "dies on macOS's perl -- measured in CI job 39489951290",
-		"Time::HiRes::CLOCK_MONOTONIC_COARSE": "dies on macOS's perl -- measured in CI job 39489951290",
-		"Time::HiRes::CLOCK_REALTIME_COARSE":  "dies on macOS's perl -- measured in CI job 39489951290",
-		"Time::HiRes::CLOCK_UPTIME_RAW":       "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
+		"Fcntl::S_ISWHT":                      {perltest.Returns, "Boolean", "returns Boolean on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290"},
+		"POSIX::getgrnam":                     {perltest.Returns, "Undef", "returns Undef on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290"},
+		"Time::HiRes::CLOCK_BOOTTIME":         {perltest.Dies, "", "dies on macOS's perl -- measured in CI job 39489951290"},
+		"Time::HiRes::CLOCK_MONOTONIC_COARSE": {perltest.Dies, "", "dies on macOS's perl -- measured in CI job 39489951290"},
+		"Time::HiRes::CLOCK_REALTIME_COARSE":  {perltest.Dies, "", "dies on macOS's perl -- measured in CI job 39489951290"},
+		"Time::HiRes::CLOCK_UPTIME_RAW":       {perltest.Returns, "Int", "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290"},
 	},
 	"windows": {
-		// Not worded with "dies": StaleExemptions (TestRealPlatformExemptionsAreChecked)
-		// checks only oracle/Cwd.pl's first chdir call case ('.'), which
-		// never dies anywhere -- this entry's death is specific to its
-		// second case (a dirhandle), which that check cannot see.
-		"Cwd::chdir":                                   "a dirhandle argument is unimplemented on Windows's perl, which has no fchdir, the same as POSIX::chdir's own posixNarrowParamsExempt entry -- measured in CI job 119370832262",
-		"POSIX::fpclassify":                            `unimplemented on Windows's perl -- measured in CI job 39508730008: "POSIX::fpclassify not implemented on this architecture"`,
-		"File::Copy::copy":                             "returns Boolean on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39508730008",
-		"Time::HiRes::clock_nanosleep":                 `unimplemented on Windows's perl -- measured in CI job 39508730008: "Time::HiRes::clock_nanosleep(): unimplemented in this platform"`,
-		"Time::HiRes::nanosleep":                       `unimplemented on Windows's perl -- measured in CI job 39489951290 (heldtoperl_test.go's own export probe): "Time::HiRes::nanosleep(): unimplemented in this platform"`,
-		"Time::HiRes::ualarm":                          `unimplemented on Windows's perl -- measured in CI job 39489951290 (heldtoperl_test.go's own export probe): "Time::HiRes::ualarm(): unimplemented in this platform"`,
-		"Time::HiRes::utime":                           `unimplemented on Windows's perl -- measured in CI job 39489951290 (heldtoperl_test.go's own export probe): "Time::HiRes::utime(): unimplemented in this platform"`,
-		"Fcntl::S_ISLNK":                               "dies on Windows's perl -- measured in CI job 39498377022",
-		"Fcntl::S_ISSOCK":                              "dies on Windows's perl -- measured in CI job 39498377022",
-		"File::Spec::Functions::file_name_is_absolute": "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"File::Spec::file_name_is_absolute":            "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"Term::ReadLine::MinLine":                      "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"Term::ReadLine::addhistory":                   "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022",
-		"IO::Socket::blocking":                         "returns Boolean on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39514360942",
-		"POSIX::S_ISLNK":                               "dies on Windows's perl -- measured in CI job 39514360942",
-		"POSIX::S_ISSOCK":                              "dies on Windows's perl -- measured in CI job 39514360942",
-		"POSIX::WEXITSTATUS":                           "dies on Windows's perl -- measured in CI job 39514360942",
-		"POSIX::WIFEXITED":                             "dies on Windows's perl -- measured in CI job 39514360942",
-		"POSIX::WIFSIGNALED":                           "dies on Windows's perl -- measured in CI job 39514360942",
-		"POSIX::WIFSTOPPED":                            "dies on Windows's perl -- measured in CI job 39514360942",
-		"POSIX::WSTOPSIG":                              "dies on Windows's perl -- measured in CI job 39514360942",
-		"POSIX::WTERMSIG":                              "dies on Windows's perl -- measured in CI job 39514360942",
-		"POSIX::fcntl":                                 "dies on Windows's perl -- measured in CI job 39514360942",
-		"POSIX::fesetround":                            "dies on Windows's perl -- measured in CI job 39514360942",
-		"POSIX::fpathconf":                             "dies on Windows's perl -- measured in CI job 39514360942",
-		"POSIX::lchown":                                "dies on Windows's perl -- measured in CI job 39514360942",
-		"POSIX::pathconf":                              "dies on Windows's perl -- measured in CI job 39514360942",
-		"POSIX::sysconf":                               "dies on Windows's perl -- measured in CI job 39514360942",
-		"POSIX::tcgetpgrp":                             "dies on Windows's perl -- measured in CI job 39514360942",
-		"POSIX::ttyname":                               "dies on Windows's perl -- measured in CI job 39514360942",
-		"POSIX::tzset":                                 "dies on Windows's perl -- measured in CI job 39514360942",
-		"POSIX::stat":                                  "returns Str in list context on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39514360942",
-		"POSIX::fstat":                                 "returns Str in list context on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39514360942",
-		"POSIX::strtold":                               "dies on Windows's perl -- measured in CI job 39514360942",
-		"IO::Handle::fcntl":                            "dies on Windows's perl, which implements no fcntl -- measured in CI on 18c24e7b",
-		"IO::Handle::stat":                             "returns Str in list context on Windows's perl, as POSIX::stat does there -- measured in CI on 18c24e7b",
-		"IO::Handle::ioctl":                            "kills Windows's perl outright (exit 0xc0000005) on a file handle -- the oracle's trace named it last, CI on 66180e7e",
-		"POSIX::_POSIX_JOB_CONTROL":                    "returns Int on Windows's perl, where Linux's returns a Boolean -- measured in CI job 118963997693",
-		"POSIX::_POSIX_SAVED_IDS":                      "returns Int on Windows's perl, where Linux's returns a Boolean -- measured in CI job 118963997693",
-		"POSIX::getpwuid":                              "dies on Windows's perl -- measured in CI job 39514360942",
-		"POSIX::getpwnam":                              "dies on Windows's perl -- measured in CI job 39514360942",
-		"POSIX::getgrnam":                              "dies on Windows's perl -- measured in CI job 39514360942",
-		"POSIX::getgrgid":                              "dies on Windows's perl -- measured in CI job 39514360942",
-		"Time::HiRes::CLOCK_BOOTTIME":                  "dies on Windows's perl -- measured in CI job 39514360942",
-		"Time::HiRes::CLOCK_MONOTONIC_COARSE":          "dies on Windows's perl -- measured in CI job 39514360942",
-		"Time::HiRes::CLOCK_MONOTONIC_RAW":             "dies on Windows's perl -- measured in CI job 39514360942",
-		"Time::HiRes::ITIMER_PROF":                     "dies on Windows's perl -- measured in CI job 39514360942",
-		"Time::HiRes::ITIMER_REAL":                     "dies on Windows's perl -- measured in CI job 39514360942",
-		"Time::HiRes::ITIMER_VIRTUAL":                  "dies on Windows's perl -- measured in CI job 39514360942",
-		"Time::HiRes::alarm":                           "dies on Windows's perl -- measured in CI job 39514360942",
-		"Time::HiRes::getitimer":                       "dies on Windows's perl -- measured in CI job 39514360942",
-		"Time::HiRes::setitimer":                       "dies on Windows's perl -- measured in CI job 39514360942",
+		// Its first call case ('.') dies nowhere; its second (a
+		// dirhandle) dies here, and one dying case is what Dies claims.
+		"Cwd::chdir":                                   {perltest.Dies, "", "a dirhandle argument is unimplemented on Windows's perl, which has no fchdir, the same as POSIX::chdir's own posixNarrowParamsExempt entry -- measured in CI job 119370832262"},
+		"POSIX::fpclassify":                            {perltest.Dies, "", `unimplemented on Windows's perl -- measured in CI job 39508730008: "POSIX::fpclassify not implemented on this architecture"`},
+		"File::Copy::copy":                             {perltest.Returns, "Boolean", "returns Boolean on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39508730008"},
+		"Time::HiRes::clock_nanosleep":                 {perltest.Dies, "", `unimplemented on Windows's perl -- measured in CI job 39508730008: "Time::HiRes::clock_nanosleep(): unimplemented in this platform"`},
+		"Time::HiRes::nanosleep":                       {perltest.Dies, "", `unimplemented on Windows's perl -- measured in CI job 39489951290 (heldtoperl_test.go's own export probe): "Time::HiRes::nanosleep(): unimplemented in this platform"`},
+		"Time::HiRes::ualarm":                          {perltest.Dies, "", `unimplemented on Windows's perl -- measured in CI job 39489951290 (heldtoperl_test.go's own export probe): "Time::HiRes::ualarm(): unimplemented in this platform"`},
+		"Time::HiRes::utime":                           {perltest.Dies, "", `unimplemented on Windows's perl -- measured in CI job 39489951290 (heldtoperl_test.go's own export probe): "Time::HiRes::utime(): unimplemented in this platform"`},
+		"Fcntl::S_ISLNK":                               {perltest.Dies, "", "dies on Windows's perl -- measured in CI job 39498377022"},
+		"Fcntl::S_ISSOCK":                              {perltest.Dies, "", "dies on Windows's perl -- measured in CI job 39498377022"},
+		"File::Spec::Functions::file_name_is_absolute": {perltest.Returns, "Int", "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022"},
+		"File::Spec::file_name_is_absolute":            {perltest.Returns, "Int", "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022"},
+		"Term::ReadLine::MinLine":                      {perltest.Returns, "Int", "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022"},
+		"Term::ReadLine::addhistory":                   {perltest.Returns, "Int", "returns Int on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39498377022"},
+		"IO::Socket::blocking":                         {perltest.Returns, "Boolean", "returns Boolean on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39514360942"},
+		"POSIX::S_ISLNK":                               {perltest.Dies, "", "dies on Windows's perl -- measured in CI job 39514360942"},
+		"POSIX::S_ISSOCK":                              {perltest.Dies, "", "dies on Windows's perl -- measured in CI job 39514360942"},
+		"POSIX::WEXITSTATUS":                           {perltest.Dies, "", "dies on Windows's perl -- measured in CI job 39514360942"},
+		"POSIX::WIFEXITED":                             {perltest.Dies, "", "dies on Windows's perl -- measured in CI job 39514360942"},
+		"POSIX::WIFSIGNALED":                           {perltest.Dies, "", "dies on Windows's perl -- measured in CI job 39514360942"},
+		"POSIX::WIFSTOPPED":                            {perltest.Dies, "", "dies on Windows's perl -- measured in CI job 39514360942"},
+		"POSIX::WSTOPSIG":                              {perltest.Dies, "", "dies on Windows's perl -- measured in CI job 39514360942"},
+		"POSIX::WTERMSIG":                              {perltest.Dies, "", "dies on Windows's perl -- measured in CI job 39514360942"},
+		"POSIX::fcntl":                                 {perltest.Dies, "", "dies on Windows's perl -- measured in CI job 39514360942"},
+		"POSIX::fesetround":                            {perltest.Dies, "", "dies on Windows's perl -- measured in CI job 39514360942"},
+		"POSIX::fpathconf":                             {perltest.Dies, "", "dies on Windows's perl -- measured in CI job 39514360942"},
+		"POSIX::lchown":                                {perltest.Dies, "", "dies on Windows's perl -- measured in CI job 39514360942"},
+		"POSIX::pathconf":                              {perltest.Dies, "", "dies on Windows's perl -- measured in CI job 39514360942"},
+		"POSIX::sysconf":                               {perltest.Dies, "", "dies on Windows's perl -- measured in CI job 39514360942"},
+		"POSIX::tcgetpgrp":                             {perltest.Dies, "", "dies on Windows's perl -- measured in CI job 39514360942"},
+		"POSIX::ttyname":                               {perltest.Dies, "", "dies on Windows's perl -- measured in CI job 39514360942"},
+		"POSIX::tzset":                                 {perltest.Dies, "", "dies on Windows's perl -- measured in CI job 39514360942"},
+		"POSIX::stat":                                  {perltest.Returns, "Str", "returns Str in list context on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39514360942"},
+		"POSIX::fstat":                                 {perltest.Returns, "Str", "returns Str in list context on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39514360942"},
+		"POSIX::strtold":                               {perltest.Dies, "", "dies on Windows's perl -- measured in CI job 39514360942"},
+		"IO::Handle::fcntl":                            {perltest.Dies, "", "dies on Windows's perl, which implements no fcntl -- measured in CI on 18c24e7b"},
+		"IO::Handle::stat":                             {perltest.Returns, "Str", "returns Str in list context on Windows's perl, as POSIX::stat does there -- measured in CI on 18c24e7b"},
+		"IO::Handle::ioctl":                            {perltest.Unsafe, "", "kills Windows's perl outright (exit 0xc0000005) on a file handle -- the oracle's trace named it last, CI on 66180e7e"},
+		"POSIX::_POSIX_JOB_CONTROL":                    {perltest.Returns, "Int", "returns Int on Windows's perl, where Linux's returns a Boolean -- measured in CI job 118963997693"},
+		"POSIX::_POSIX_SAVED_IDS":                      {perltest.Returns, "Int", "returns Int on Windows's perl, where Linux's returns a Boolean -- measured in CI job 118963997693"},
+		"POSIX::getpwuid":                              {perltest.Dies, "", "dies on Windows's perl -- measured in CI job 39514360942"},
+		"POSIX::getpwnam":                              {perltest.Dies, "", "dies on Windows's perl -- measured in CI job 39514360942"},
+		"POSIX::getgrnam":                              {perltest.Dies, "", "dies on Windows's perl -- measured in CI job 39514360942"},
+		"POSIX::getgrgid":                              {perltest.Dies, "", "dies on Windows's perl -- measured in CI job 39514360942"},
+		"Time::HiRes::CLOCK_BOOTTIME":                  {perltest.Dies, "", "dies on Windows's perl -- measured in CI job 39514360942"},
+		"Time::HiRes::CLOCK_MONOTONIC_COARSE":          {perltest.Dies, "", "dies on Windows's perl -- measured in CI job 39514360942"},
+		"Time::HiRes::CLOCK_MONOTONIC_RAW":             {perltest.Dies, "", "dies on Windows's perl -- measured in CI job 39514360942"},
+		"Time::HiRes::ITIMER_PROF":                     {perltest.Dies, "", "dies on Windows's perl -- measured in CI job 39514360942"},
+		"Time::HiRes::ITIMER_REAL":                     {perltest.Dies, "", "dies on Windows's perl -- measured in CI job 39514360942"},
+		"Time::HiRes::ITIMER_VIRTUAL":                  {perltest.Dies, "", "dies on Windows's perl -- measured in CI job 39514360942"},
+		"Time::HiRes::alarm":                           {perltest.Dies, "", "dies on Windows's perl -- measured in CI job 39514360942"},
+		"Time::HiRes::getitimer":                       {perltest.Dies, "", "dies on Windows's perl -- measured in CI job 39514360942"},
+		"Time::HiRes::setitimer":                       {perltest.Dies, "", "dies on Windows's perl -- measured in CI job 39514360942"},
 	},
+}
+
+// platformExemption is one platformExempt entry: what it claims perl
+// does with the name on that platform, and why, citing the measurement.
+type platformExemption struct {
+	Kind perltest.ExemptKind
+	// Type is, for perltest.Returns, the observed type claimed.
+	Type   string
+	Reason string
 }
 
 // withPlatformExempt clones base and adds this OS's platformExempt
 // entries.
 func withPlatformExempt(base map[string]string) map[string]string {
 	m := maps.Clone(base)
-	for name, reason := range platformExempt[runtime.GOOS] {
-		m[name] = reason
+	for name, e := range platformExempt[runtime.GOOS] {
+		m[name] = e.Reason
 	}
 	return m
 }
@@ -387,18 +396,161 @@ func posixPlatformExemptNames() []string {
 	return names
 }
 
-// TestRealPlatformExemptionsAreChecked: StaleExemptions runs over this
-// OS's own platformExempt entries, not just a synthetic fixture --
-// calling each exempt sub with the arguments its module's own oracle
-// call case gives it (so POSIX::fcntl, sysconf, WEXITSTATUS and the
-// rest, which need a real argument to die the way their exemption
-// claims, are checked faithfully, not called with none). On an OS
-// platformExempt does not key (Linux, where this milestone's CI judges
-// the gate), there is nothing to check and the loop does nothing. A
-// report here means a platform exemption claims a death this perl no
-// longer produces, so it should have narrowed or been dropped.
+// TestRealPlatformExemptionsAreChecked: every one of this OS's own
+// platformExempt entries still differs from its declaration, by
+// staleExemptions -- whatever its reason says, a method or a plain sub,
+// with its module's own oracle call cases. On an OS platformExempt
+// does not key (Linux) there is nothing here to check;
+// TestPlatformExemptionCheckReportsStaleEntries holds the same check
+// to real entries on every OS, and TestPlatformExemptionsDifferFromTheirDeclarations
+// holds every OS's entries to their declarations. A report here means a
+// platform exemption claims something this perl no longer does, so it
+// should have narrowed or been dropped.
 func TestRealPlatformExemptionsAreChecked(t *testing.T) {
 	p := perltest.Perl542(t)
+	assert.Empty(t, staleExemptions(t, p, platformExempt[runtime.GOOS]))
+}
+
+// TestPlatformExemptionCheckReportsStaleEntries: staleExemptions, given
+// real names whose claims hold on no OS -- POSIX::floor dying or
+// returning a Str, IO::Handle::error, a method on the cases file's
+// INSTANCE, dying -- reports each one, from a finished oracle run
+// rather than one that could not check it.
+func TestPlatformExemptionCheckReportsStaleEntries(t *testing.T) {
+	p := perltest.Perl542(t)
+	for key, e := range map[string]platformExemption{
+		"POSIX::floor":      {perltest.Dies, "", "synthetic, for TestPlatformExemptionCheckReportsStaleEntries"},
+		"IO::Handle::error": {perltest.Dies, "", "synthetic, for TestPlatformExemptionCheckReportsStaleEntries"},
+	} {
+		stale := staleExemptions(t, p, map[string]platformExemption{key: e})
+		if assert.Len(t, stale, 1, key) {
+			assert.Contains(t, stale[0], "no call case did", key)
+		}
+	}
+	stale := staleExemptions(t, p, map[string]platformExemption{
+		"POSIX::floor": {perltest.Returns, "Str", "synthetic, for TestPlatformExemptionCheckReportsStaleEntries"},
+	})
+	if assert.Len(t, stale, 1) {
+		assert.Contains(t, stale[0], "no call case did")
+	}
+}
+
+// TestPlatformExemptionsDifferFromTheirDeclarations: every OS's
+// platformExempt entries name a declared sub whose declaration does not
+// already admit the claim -- a death no candidate declares None for, a
+// type no candidate returns -- checked here on every OS, since it needs
+// only the .tpm, not that OS's perl.
+func TestPlatformExemptionsDifferFromTheirDeclarations(t *testing.T) {
+	for goos, exempt := range platformExempt {
+		problems, _ := exemptionChecks(t, exempt)
+		for _, problem := range problems {
+			t.Errorf("%s: %s", goos, problem)
+		}
+	}
+}
+
+// TestExemptionChecksReportAdmittedClaims: exemptionChecks reports an
+// entry whose declaration already admits its claim -- a death beside a
+// None candidate, a type every context's return admits -- or names no
+// declared sub, and passes one context's exclusion through to perl.
+func TestExemptionChecksReportAdmittedClaims(t *testing.T) {
+	problems, checks := exemptionChecks(t, map[string]platformExemption{
+		"POSIX::abort":    {perltest.Dies, "", "synthetic: abort is declared None"},
+		"POSIX::getgrnam": {perltest.Returns, "Int", "synthetic: scalar Int|Undef and list Str|Int|Boolean both admit Int"},
+		"POSIX::nosuch":   {perltest.Dies, "", "synthetic: POSIX.tpm declares no nosuch"},
+	})
+	require.Len(t, problems, 3)
+	assert.Contains(t, problems[0], "POSIX::abort")
+	assert.Contains(t, problems[1], "POSIX::getgrnam")
+	assert.Contains(t, problems[2], "POSIX::nosuch")
+	assert.Empty(t, checks)
+
+	problems, checks = exemptionChecks(t, map[string]platformExemption{
+		"POSIX::getgrnam": {perltest.Returns, "Undef", "synthetic: the list candidate excludes Undef"},
+	})
+	assert.Empty(t, problems)
+	assert.Contains(t, checks, "POSIX::getgrnam")
+}
+
+// exemptionChecks reports, for each of exempt's entries, why it cannot
+// differ from its declaration: the module has no .tpm, the .tpm
+// declares no such sub, or a candidate already admits the claim. It
+// returns, for the rest, the perltest.Exemption each is checked as.
+func exemptionChecks(t *testing.T, exempt map[string]platformExemption) ([]string, map[string]perltest.Exemption) {
+	t.Helper()
+	var problems []string
+	checks := map[string]perltest.Exemption{}
+	for _, key := range slices.Sorted(maps.Keys(exempt)) {
+		e := exempt[key]
+		idx := strings.LastIndex(key, "::")
+		module, name := key[:idx], key[idx+2:]
+		tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", filepath.FromSlash(strings.ReplaceAll(module, "::", "/"))+".tpm"))
+		if err != nil {
+			problems = append(problems, fmt.Sprintf("%s: no declaration: %v", key, err))
+			continue
+		}
+		sigs, errs := parse.DeclaredSignatures(tpm)
+		cands := sigs[name]
+		if len(errs) > 0 || len(cands) == 0 {
+			problems = append(problems, fmt.Sprintf("%s: its .tpm declares no such sub %v", key, errs))
+			continue
+		}
+		if admitsClaim(cands, e) {
+			problems = append(problems, fmt.Sprintf("%s: its .tpm already admits what the exemption claims (%s)", key, e.Reason))
+			continue
+		}
+		checks[key] = perltest.Exemption{Kind: e.Kind, Type: e.Type, Calls: calls(cands)}
+	}
+	return problems, checks
+}
+
+// admitsClaim is whether the candidates already admit e's claim: a
+// death, when one is declared None; a returned type, when in every
+// context the oracle calls the sub in some candidate's return (or, for
+// a list, its element) admits it -- a claim names no context, and one
+// context that excludes the type is enough to need the exemption. An
+// Unsafe claim is never admitted: there is no observation to hold it
+// to.
+func admitsClaim(cands []types.Signature, e platformExemption) bool {
+	switch e.Kind {
+	case perltest.Dies:
+		return slices.ContainsFunc(cands, func(s types.Signature) bool { return s.Returns == types.None })
+	case perltest.Returns:
+		got, known := observedToLattice[e.Type]
+		returns := slices.ContainsFunc(cands, func(s types.Signature) bool { return s.Returns != types.None })
+		if !known || !returns {
+			return false
+		}
+		for _, s := range cands {
+			if s.Returns == types.None {
+				continue
+			}
+			ctx := callContext(s)
+			admitted := slices.ContainsFunc(cands, func(c types.Signature) bool {
+				if c.Returns == types.None || callContext(c) != ctx {
+					return false
+				}
+				if ctx == "list" && c.ReturnElement != types.Unknown {
+					return types.IsSubtype(got, c.ReturnElement)
+				}
+				return types.IsSubtype(got, c.Returns)
+			})
+			if !admitted {
+				return false
+			}
+		}
+		return true
+	}
+	return false
+}
+
+// staleExemptions reports which of exempt's entries no longer differ
+// from their declarations: exemptionChecks' problems, and
+// perltest.StaleExemptions' run of each remaining entry's claim on p's
+// perl with its module's oracle call cases.
+func staleExemptions(t *testing.T, p perltest.Perl, exempt map[string]platformExemption) []string {
+	t.Helper()
+	problems, checks := exemptionChecks(t, exempt)
 	casesDir, err := filepath.Abs(filepath.Join("testdata", "oracle"))
 	require.NoError(t, err)
 	// Resolved, not t.TempDir()'s own path: see returnTypeFailures'
@@ -406,8 +558,7 @@ func TestRealPlatformExemptionsAreChecked(t *testing.T) {
 	// files, say) runs relative to this directory.
 	scratch, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
-	stale := perltest.StaleExemptions(t, p, "", scratch, casesDir, platformExempt[runtime.GOOS])
-	assert.Empty(t, stale)
+	return append(problems, perltest.StaleExemptions(t, p, "", scratch, casesDir, checks)...)
 }
 
 // posixReplacementNames are the names in POSIX.pm 2.23's %replacement
@@ -1806,8 +1957,8 @@ func TestPOSIXClassifiersTakeInfNaN(t *testing.T) {
 	for _, line := range lines {
 		name, result, ok := strings.Cut(line, "\t")
 		require.True(t, ok, "unparseable line: %q", line)
-		if reason, exempt := platformExempt[runtime.GOOS]["POSIX::"+name]; exempt {
-			assert.Contains(t, result, "DIED", "POSIX::%s is exempt (%s) because it dies taking NaN/Inf, but it did not -- stale exemption", name, reason)
+		if e, exempt := platformExempt[runtime.GOOS]["POSIX::"+name]; exempt {
+			assert.Contains(t, result, "DIED", "POSIX::%s is exempt (%s) because it dies taking NaN/Inf, but it did not -- stale exemption", name, e.Reason)
 			continue
 		}
 		if !assert.NotContains(t, result, "DIED", "POSIX::%s died taking NaN/Inf: %s", name, result) {

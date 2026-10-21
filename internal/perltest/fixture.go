@@ -21,13 +21,20 @@ import (
 // packages' test binaries, each with its own.
 func heldLibPath(t testing.TB) string {
 	t.Helper()
+	return sourceRelative(t, "..", "parse", "testdata", "held_lib.pl")
+}
+
+// sourceRelative is the file at parts, relative to this package's own
+// source directory, failing t if it is not there.
+func sourceRelative(t testing.TB, parts ...string) string {
+	t.Helper()
 	_, self, _, ok := runtime.Caller(0)
 	if !ok {
 		t.Fatal("cannot locate the perltest package source")
 	}
-	path := filepath.Join(filepath.Dir(self), "..", "parse", "testdata", "held_lib.pl")
+	path := filepath.Join(append([]string{filepath.Dir(self)}, parts...)...)
 	if _, err := os.Stat(path); err != nil {
-		t.Fatalf("held_lib.pl not found at %s: %v", path, err)
+		t.Fatalf("%s not found at %s: %v", filepath.Base(path), path, err)
 	}
 	return path
 }
