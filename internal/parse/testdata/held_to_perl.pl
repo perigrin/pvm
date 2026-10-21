@@ -75,13 +75,11 @@ elsif ( $mode eq 'installs' ) {
     # nothing to find in them until one use has primed it.
     eval "package Held::Prime; use $module; 1";
     my %seen;
-    my @lists = grep { !$seen{$_}++ } @args,
-      ( map { s/^&//r } @{"${module}::EXPORT"}, @{"${module}::EXPORT_OK"} ),
-      map { ":$_" } sort keys %{"${module}::EXPORT_TAGS"};
+    my @lists = grep { !$seen{$_}++ } @args, moduleLists($module);
     my $n = 0;
     for my $list (@lists) {
         my $caller = 'Held::Caller' . $n++;
-        if ( !eval "package $caller; use $module " . ( $list eq '' ? '' : "qw($list)" ) . "; 1" ) {
+        if ( !eval useStatement( $caller, $module, $list ) ) {
             say join "\t", $list, 'dies', $@ =~ s/\n.*//sr;
             next;
         }
@@ -90,13 +88,12 @@ elsif ( $mode eq 'installs' ) {
 }
 elsif ( $mode eq 'skeleton' ) {
     my %seen;
-    my @lists = grep { !$seen{$_}++ } ( map { s/^&//r } @{"${module}::EXPORT"}, @{"${module}::EXPORT_OK"} ),
-      map { ":$_" } sort keys %{"${module}::EXPORT_TAGS"};
+    my @lists = grep { !$seen{$_}++ } moduleLists($module);
     my ( %bare, %ok, %tags );
     my $n = 0;
     for my $list ( '', @lists ) {
         my $caller = 'Held::Skel' . $n++;
-        next unless eval "package $caller; use $module " . ( $list eq '' ? '' : "qw($list)" ) . "; 1";
+        next unless eval useStatement( $caller, $module, $list );
         my @names = installed($caller);
         if    ( $list eq '' )       { $bare{$_} = 1 for @names }
         elsif ( $list =~ /^:(.*)/ ) { push @{ $tags{$_} }, $1 for @names }
@@ -136,6 +133,21 @@ sub installed ($caller) {
         }
     }
     return @names;
+}
+
+# moduleLists is every name `installs` and `skeleton` each probe a `use`
+# of $module with, beside any extra names installs also asks for: every
+# name in its own @EXPORT and @EXPORT_OK, an `&name` there as the bare sub
+# name, and every tag in its %EXPORT_TAGS, as ":tag".
+sub moduleLists ($module) {
+    return ( map { s/^&//r } @{"${module}::EXPORT"}, @{"${module}::EXPORT_OK"} ),
+      map { ":$_" } sort keys %{"${module}::EXPORT_TAGS"};
+}
+
+# useStatement is the eval string that `use`s $module with $list ('' for
+# a bare use) inside $caller, for `installs` and `skeleton` to try.
+sub useStatement ( $caller, $module, $list ) {
+    return "package $caller; use $module " . ( $list eq '' ? '' : "qw($list)" ) . "; 1";
 }
 
 # skeletonParams is the typed parameter list `skeleton` writes for a sub
