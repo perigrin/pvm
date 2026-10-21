@@ -6,9 +6,12 @@ package Text::Wrap;
 # Measured on 5.42.0: all three are in @EXPORT_OK alone; a bare `use
 # Text::Wrap;` installs wrap and fill only.
 our Int $columns :export_ok;
-# $break is a regex-shaped Str, matched with a variable, not compiled;
-# measured on 5.42.0, Text::Wrap never stores it as a Regexp ref.
-our Str $break :export_ok;
+# $break defaults to a regex-shaped Str, measured on 5.42.0 as never a
+# Regexp ref -- but the POD documents setting it 'to a string such as
+# '[\s:]' ... or a pre-compiled regexp such as qr/[\s']/', and measured,
+# $Text::Wrap::break = qr/[\s:]/ breaks at the pattern exactly as the
+# equivalent string does.
+our Str|Regex $break :export_ok;
 # $huge selects 'wrap', 'die' or 'overflow' (measured, its default is
 # 'wrap').
 our Str $huge :export_ok;

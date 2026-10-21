@@ -2503,6 +2503,28 @@ func TestConfigValuesFitDeclaredType(t *testing.T) {
 	assert.Equal(t, 172, undef, "measured on perl 5.42.0's reference build: 172 of %%Config's values are undef")
 }
 
+// TestTextWrapBreakAcceptsRegex holds the measured claim (audit-E,
+// group E, finding 12): Text::Wrap's POD says $break may be set 'to a
+// string such as '[\s:]' ... or a pre-compiled regexp such as
+// qr/[\s']/'. Measured on 5.42.0: setting $Text::Wrap::break to
+// qr/[\s:]/ breaks "aa:bb:cc:dd" at the colons exactly as the
+// equivalent string does. Text::Wrap.tpm's $break must admit Regex for
+// this documented form to type-check; the ABOUTME comment claiming
+// Text::Wrap never stores a Regexp ref describes the default value, not
+// the documented API, and is corrected alongside the type.
+func TestTextWrapBreakAcceptsRegex(t *testing.T) {
+	p := perltest.Perl542(t)
+	out, err := p.Command("-MText::Wrap", "-e",
+		`$Text::Wrap::columns = 5; $Text::Wrap::break = qr/[\s:]/; print Text::Wrap::wrap("", "", "aa:bb:cc:dd");`,
+	).Output()
+	require.NoError(t, err)
+	assert.Equal(t, "aa\nbb\ncc\ndd", strings.ReplaceAll(strings.TrimRight(string(out), "\r\n"), "\r\n", "\n"))
+
+	want := declaredVariables(t, "Text::Wrap")["$break"]
+	assert.True(t, types.IsSubtype(types.Regex, want.Type),
+		"$break's declared type %v excludes Regex, though a precompiled regexp is a documented value", want.Type)
+}
+
 // TestConfigReReturnsByContext holds the measured claim (audit-E, group
 // E, finding 8): Config::config_re is `return map { chomp; $_ } grep
 // ..., split ...` (Config_heavy.pl:1498), the same shape as
