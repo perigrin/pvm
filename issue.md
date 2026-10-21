@@ -1,19 +1,38 @@
 ---
 title: dualvar's DualVar return fits the string and numeric operations perl applies to it
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 created: 2026-10-21T20:10:35.060487693Z
-updated: 2026-10-21T20:11:00.572229082Z
+updated: 2026-10-21T22:15:01.893557002Z
 sessions:
 - start_sha: 692a560c81fe680ed09244599f0e1bd216c5a075
-  end_sha: ""
-  commits: 0
+  end_sha: 447fd437fb83f6c7d1c3f4a81ec11e78d3b458d3
+  commits: 3
   started_at: 2026-10-21T20:11:00.572229082Z
+  ended_at: 2026-10-21T22:15:01.893557002Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-21T20:11:00.572229082Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-21T22:15:01.893557002Z
+observed_paths:
+- internal/infer/dualvar_test.go
+- internal/infer/flow.go
+- internal/infer/ops.go
+- internal/infer/returntypes_test.go
+- internal/parse/exportattr_test.go
+- internal/parse/heldtoperl_test.go
+- internal/parse/pin_test.go
+- internal/perltest/fixture.go
+- internal/perltest/perl542_test.go
+- internal/perltest/perltest.go
+- internal/perltest/staleexempt.go
+- internal/perltest/staleexempt_test.go
+- test/e2e/psc_check_test.go
+- test/e2e/testdata/check/dualvar.pl
 ---
 
 crochet:review round 3 of PR #488 at 692a560c (2026-10-21). Quality report: scratchpad/review3-core-module-types-paad.md; probes scratchpad/r3probes/ (F-<lens>.md per specialist); rebuild head/r2(2db182e6)/cf(cf08c0ac)/pu psc as the report says. perigrin, 2026-10-21: round 4 runs with Opus workers, and every fix gets a mandatory independent review that runs pu, round 2 and head against perl 5.42 before it merges. A finding pu or round 2 gets right is a regression: fix it without trading it for a new one -- every probe in r2probes/ and r3probes/ that pu or r2 gets right must still be right.
