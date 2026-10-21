@@ -699,14 +699,16 @@ func pragmaWords(n lower.Node) []string {
 // perl gives for a value of type actual where expected is wanted: once
 // the parts of actual its categories cover are taken away, Undef for
 // uninitialized and a string or a glob in a numeric slot for numeric,
-// what is left satisfies expected. A mismatch with any other part is
-// still reported.
+// what is left satisfies expected. A dualvar in what is left is read as
+// lossyCoercion reads it, as readLeg says: perl 5.42 -w is silent on
+// `no warnings 'uninitialized'; $x + 1` for $x a dualvar or undef. A
+// mismatch with any other part is still reported.
 func (a *analysis) silenced(actual, expected types.Type) bool {
 	off := a.warningsOff
 	if !off.uninitialized && !off.numeric {
 		return false
 	}
-	rest := numified(finite(actual), expected)
+	rest := numified(readLeg(finite(actual), expected, types.DualVar, types.Num), expected)
 	if off.uninitialized {
 		rest &^= types.Undef
 	}
