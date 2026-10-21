@@ -7,6 +7,8 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"tamarou.com/pvm/internal/infer"
 	"tamarou.com/pvm/internal/lower"
 	"tamarou.com/pvm/internal/parse"
@@ -367,4 +369,94 @@ func TestSumResultInArithmeticIsSilent(t *testing.T) {
 	} {
 		wantSilentResolved(t, src)
 	}
+}
+
+// wantArity fails t unless src, analyzed with no options, gives exactly
+// one diagnostic, a call arity mismatch.
+func wantArity(t *testing.T, src string) {
+	t.Helper()
+	if diags := diagsWithOptions(src, infer.Options{}); len(diags) != 1 || diags[0].Code != infer.CodeArityMismatch {
+		t.Errorf("%q: diagnostics %v, want one %s", src, diags, infer.CodeArityMismatch)
+	}
+}
+
+// TestScalarCallArgumentKeepsArity: a call flattens into a declared
+// call's arguments only when what it returns in list context is a list.
+// length, scalar, lc, join and abs return one value however they are
+// called, so fmod is still called with one argument: perl 5.42 -w dies
+// on each, "Usage: POSIX::fmod(x, y)".
+func TestScalarCallArgumentKeepsArity(t *testing.T) {
+	for _, arg := range []string{`length("abc")`, `scalar(@n)`, `lc("ab")`, `join(",", @n)`, `abs(2)`} {
+		wantArity(t, "use POSIX qw(fmod); my @n = (1, 2, 3); my $f = fmod("+arg+");")
+	}
+}
+
+// TestListFormsFlatten: every argument form perl evaluates to a list in
+// an ordinary argument list flattens, so its count is not one argument:
+// a call whose list-context return is a list (localtime, reverse, a
+// method call, a sub of this file, a coderef, `&$c`), a ternary either of whose
+// arms flattens, a list repetition, a range, qw, a parenthesised list, a
+// list assignment, a readline and a glob, and a logical or's right
+// operand. Measured on 5.42.0, `sub cnt { scalar @_ }` counts 2 for
+// `cnt($o->two)`, `cnt(1 ? @a : @a)`, `cnt(0 ? 1 : @a)`, `cnt((7,3))`,
+// `cnt(my @q = (7,3))`, `cnt(my ($x, $y) = (7,3,5))` and `cnt(0 || @a)`,
+// 6 for `cnt((0) x 6)`, 3 for `cnt(7..9)` and `cnt(qw(a b c))`; and perl
+// 5.42 -w runs each program below silently.
+func TestListFormsFlatten(t *testing.T) {
+	const pre = "use POSIX qw(fmod strftime); package O { sub new { bless {}, shift } sub two { (7, 3) } } package main; my $o = O->new; my @a = (7, 3); my @lt = localtime; sub two { (7, 3) } my $c = \\&two; "
+	for _, call := range []string{
+		`strftime("%Y", localtime)`,
+		`fmod(reverse @a)`,
+		`fmod($o->two)`,
+		`fmod(O->two)`,
+		`fmod(two())`,
+		`fmod($c->())`,
+		`fmod(&$c)`,
+		`strftime("%Y", @ARGV ? @lt : @lt)`,
+		`fmod(@ARGV ? 1 : @a)`,
+		`fmod(@ARGV ? (7, 3) : (8, 3))`,
+		`strftime("%Y", (0) x 6)`,
+		`fmod(7..8)`,
+		`strftime("%Y", qw(0 0 0 1 0 100))`,
+		`fmod(qw(7 3))`,
+		`fmod((7, 3))`,
+		`fmod(my @q = (7, 3))`,
+		`fmod(my ($x, $y) = (7, 3))`,
+		`fmod(0 || @a)`,
+	} {
+		wantSilentResolved(t, pre+"my $r = "+call+";")
+	}
+}
+
+// TestScalarCallArgumentStillChecked: an argument that is a call
+// returning one value leaves the call's arity known, so every argument
+// is still checked against the candidate it selects. perl 5.42 -w warns
+// "Use of uninitialized value in subroutine entry" on `fmod(undef,
+// abs(2))` and `fmod(max(@n), undef)`, and `Argument "abc" isn't
+// numeric` on `fmod(sum(@n), "abc")`.
+func TestScalarCallArgumentStillChecked(t *testing.T) {
+	for _, call := range []string{`fmod(undef, abs(2))`, `fmod(max(@n), undef)`, `fmod(sum(@n), "abc")`} {
+		src := "use POSIX qw(fmod); use List::Util qw(sum max); my @n = (1, 2, 3); my $f = " + call + ";"
+		diags := diagsWithOptions(src, infer.Options{})
+		if len(diags) != 1 || diags[0].Code != infer.CodeCoercionMismatch {
+			t.Errorf("%q: diagnostics %v, want one %s", src, diags, infer.CodeCoercionMismatch)
+		}
+	}
+}
+
+// TestCwdChdirRefArgumentNoError: Cwd::chdir takes a string or a handle,
+// and any other reference is stringified on its way to CORE::chdir, the
+// type the operation coerces it to: perl 5.42 -w is silent on
+// `Cwd::chdir({})`, which returns 0. That is a lossy coercion, reported
+// only under WarnLossyCoercion, not a default error; a handle is no
+// coercion at all.
+func TestCwdChdirRefArgumentNoError(t *testing.T) {
+	const ref = "use Cwd (); my $h = {}; my $q = Cwd::chdir($h);"
+	assert.Empty(t, diagsWithOptions(ref, infer.Options{}))
+	diags := diagsWithOptions(ref, infer.Options{WarnLossyCoercion: true})
+	if assert.Len(t, diags, 1) {
+		assert.Equal(t, infer.CodeLossyCoercion, diags[0].Code)
+	}
+	const handle = "use Cwd (); opendir(my $dh, '.') or die; my $q = Cwd::chdir($dh); my $r = Cwd::chdir(\\*STDIN);"
+	assert.Empty(t, diagsWithOptions(handle, infer.Options{WarnLossyCoercion: true}))
 }
