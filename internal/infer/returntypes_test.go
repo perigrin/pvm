@@ -1996,9 +1996,11 @@ func TestPOSIXParametersAdmitWhatPerlAccepts(t *testing.T) {
 
 	chdir := sigs["chdir"]
 	require.NotEmpty(t, chdir)
-	for _, s := range chdir {
-		assert.True(t, types.IsSubtype(types.FileHandle, s.Params[0].Type), "chdir's $%s does not admit a dirhandle", s.Params[0].Name)
-	}
+	// chdir's handle candidate takes the dirhandle; its Str candidate
+	// takes a path and any other reference, which chdir stringifies.
+	assert.True(t, slices.ContainsFunc(chdir, func(s types.Signature) bool {
+		return types.IsSubtype(types.FileHandle, s.Params[0].Type)
+	}), "no chdir candidate admits a dirhandle")
 
 	for _, name := range []string{"setpayload", "setpayloadsig"} {
 		cands, ok := sigs[name]

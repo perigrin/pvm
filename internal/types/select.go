@@ -91,6 +91,7 @@ func SelectShaped(cands []Signature, args []Type, shapes string, ctx Context) Se
 				kept, coercing = append(kept, i), append(coercing, c)
 			}
 		}
+		kept, coercing = coercibleTo(kept, coercing, args)
 		args = coercedArgs(coercing, args)
 		for _, j := range Taking(coercing, args, shapes, ctx) {
 			fit = append(fit, kept[j])
@@ -109,6 +110,49 @@ func SelectShaped(cands []Signature, args []Type, shapes string, ctx Context) Se
 		joined = Join(joined, cands[i].Returns)
 	}
 	return Selection{Outcome: Undecided, Candidate: -1, Returns: joined}
+}
+
+// coercibleTo narrows the coercion retry's candidates, coercing at the
+// indexes kept, to those every misfit argument coerces to: an argument
+// that fits none of them is converted to the parameter that can take it,
+// so Cwd::chdir's `Optional[Str]` candidate takes a HashRef, which
+// stringifies, and its handle candidate does not. A union parameter
+// takes what coerces to any member that is a coercion target, as
+// coercesToMember says. When no candidate takes every misfit, every one
+// is kept.
+func coercibleTo(kept []int, coercing []Signature, args []Type) ([]int, []Signature) {
+	misfit := coercedArgs(coercing, args)
+	var keptTo []int
+	var to []Signature
+	for j, c := range coercing {
+		takes := c.accepts(len(args))
+		for i, a := range misfit {
+			takes = takes && (a != Unknown || args[i] == Unknown || coercesToMember(args[i], c.paramType(i)))
+		}
+		if takes {
+			keptTo, to = append(keptTo, kept[j]), append(to, c)
+		}
+	}
+	if len(to) == 0 {
+		return kept, coercing
+	}
+	return keptTo, to
+}
+
+// coercesToMember reports whether from coerces to to or to one of its
+// members that is a coercion target: Str|Undef takes a Scalar as Str
+// does, Str|FileHandle takes a HashRef as its Str, and FileHandle, with
+// no coercion target among its members, takes none.
+func coercesToMember(from, to Type) bool {
+	if IsCoercible(from, to) {
+		return true
+	}
+	for target, domain := range coercionTargets {
+		if to&target == target && IsSubtype(from, domain) {
+			return true
+		}
+	}
+	return false
 }
 
 // coercedArgs is args for the coercion retry: a position whose argument

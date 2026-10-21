@@ -28,11 +28,16 @@ our Int $st_blocks :export_ok(FIELDS);
 # own declaration (CORE.tpm) is the narrower Str|Glob: a lexical
 # filehandle there warns ("lstat() on filehandle") though it still
 # returns an object (measured), so lstat's own $file keeps CORE::lstat's
-# type rather than widening past it. Each returns the object on
+# type rather than widening past it. lstat stringifies any other
+# reference as a path -- measured, `File::stat::lstat({})` is undef and
+# perl -w is silent -- so a Str candidate beside the Glob one takes
+# it, a lossy coercion. stat dereferences it as a glob and dies, "Not a
+# GLOB reference", so it keeps its one candidate. Each returns the object on
 # success, or -- measured on 5.42.0, calling either on a path that does
 # not exist -- nothing: the empty list in list context, undef in scalar.
 sub stat :export(FIELDS) :prototype($) (Str|FileHandle $file) Object|Undef;
-sub lstat :export(FIELDS) :prototype($) (Str|Glob $file) Object|Undef;
+multi sub lstat :export(FIELDS) :prototype($) (Glob $file) Object|Undef;
+multi sub lstat :export(FIELDS) :prototype($) (Str $file) Object|Undef;
 # stat_cando is `cando`'s alias (measured: `*stat_cando = \&cando`),
 # which tests a stat object's mode bits and ends `return 1` or
 # `return ""`, a plain Int, not perl's own boolean (measured with

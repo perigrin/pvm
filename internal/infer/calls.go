@@ -534,17 +534,6 @@ func (a *analysis) checkArg(name string, i int, arg lower.Node, expected types.T
 		if a.silenced(actual, expected) || a.excusesMismatch(arg, actual, expected) {
 			return
 		}
-		// A declared parameter is the type its operation coerces the
-		// argument to (RFC 0001, "What a parameter type means"), so one
-		// that takes a string or something else, Cwd::chdir's and
-		// POSIX::chdir's `Str|FileHandle $dir`, coerces what fits neither
-		// to its string: both pass it to CORE::chdir, which uses a handle
-		// as one and stringifies any other reference, and perl 5.42 -w is
-		// silent on `Cwd::chdir({})`. A builtin's slot is a type, not a
-		// coercion: `stat({})` is still a type mismatch.
-		if str := expected & types.Str; code == CodeCoercionMismatch && str != 0 && a.lossyCoercion(arg, actual, str) {
-			return
-		}
 	}
 	start, end, _ := a.pos.Span(arg.Meta().ID)
 	a.diags = append(a.diags, Diagnostic{

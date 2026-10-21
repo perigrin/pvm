@@ -385,9 +385,13 @@ func wantArity(t *testing.T, src string) {
 // length, scalar, lc, join and abs return one value however they are
 // called, so fmod is still called with one argument: perl 5.42 -w dies
 // on each, "Usage: POSIX::fmod(x, y)".
+//
+// List::Util's first is declared to return Any, which carries the Array
+// and Hash bits but is one value: perl 5.42 -w dies the same way on
+// `fmod(first { 1 } @n)`.
 func TestScalarCallArgumentKeepsArity(t *testing.T) {
-	for _, arg := range []string{`length("abc")`, `scalar(@n)`, `lc("ab")`, `join(",", @n)`, `abs(2)`} {
-		wantArity(t, "use POSIX qw(fmod); my @n = (1, 2, 3); my $f = fmod("+arg+");")
+	for _, arg := range []string{`length("abc")`, `scalar(@n)`, `lc("ab")`, `join(",", @n)`, `abs(2)`, `first { 1 } @n`} {
+		wantArity(t, "use POSIX qw(fmod); use List::Util qw(first); my @n = (1, 2, 3); my $f = fmod("+arg+");")
 	}
 }
 
@@ -399,9 +403,12 @@ func TestScalarCallArgumentKeepsArity(t *testing.T) {
 // list assignment, a readline and a glob, and a logical or's right
 // operand. Measured on 5.42.0, `sub cnt { scalar @_ }` counts 2 for
 // `cnt($o->two)`, `cnt(1 ? @a : @a)`, `cnt(0 ? 1 : @a)`, `cnt((7,3))`,
-// `cnt(my @q = (7,3))`, `cnt(my ($x, $y) = (7,3,5))` and `cnt(0 || @a)`,
+// `cnt(my @q = (7,3))`, `cnt(my ($x, $y) = (7,3))` and `cnt(0 || @a)`,
 // 6 for `cnt((0) x 6)`, 3 for `cnt(7..9)` and `cnt(qw(a b c))`; and perl
-// 5.42 -w runs each program below silently.
+// 5.42 -w runs each program below silently. A readline yields a value
+// per line, so perl's own result there depends on its input: given
+// "7\n3\n" it runs `fmod(<STDIN>)` silently. A brace glob with no
+// wildcard yields each of its words, `<{7,3}>` the two.
 func TestListFormsFlatten(t *testing.T) {
 	const pre = "use POSIX qw(fmod strftime); package O { sub new { bless {}, shift } sub two { (7, 3) } } package main; my $o = O->new; my @a = (7, 3); my @lt = localtime; sub two { (7, 3) } my $c = \\&two; "
 	for _, call := range []string{
@@ -423,6 +430,13 @@ func TestListFormsFlatten(t *testing.T) {
 		`fmod(my @q = (7, 3))`,
 		`fmod(my ($x, $y) = (7, 3))`,
 		`fmod(0 || @a)`,
+		`fmod(<STDIN>)`,
+		`fmod(<{7,3}>)`,
+		`fmod(glob("{7,3}"))`,
+		`fmod(eval "(7, 3)")`,
+		`fmod(do "./two.pl")`,
+		`fmod(@a = (7, 3))`,
+		`fmod(@ARGV ? @a : 1)`,
 	} {
 		wantSilentResolved(t, pre+"my $r = "+call+";")
 	}
@@ -445,18 +459,47 @@ func TestScalarCallArgumentStillChecked(t *testing.T) {
 }
 
 // TestCwdChdirRefArgumentNoError: Cwd::chdir takes a string or a handle,
-// and any other reference is stringified on its way to CORE::chdir, the
-// type the operation coerces it to: perl 5.42 -w is silent on
-// `Cwd::chdir({})`, which returns 0. That is a lossy coercion, reported
-// only under WarnLossyCoercion, not a default error; a handle is no
-// coercion at all.
+// and any other reference is stringified on its way to CORE::chdir:
+// perl 5.42 -w is silent on `Cwd::chdir({})`, which returns 0. Its
+// declaration says so with a handle candidate beside a string one, so a
+// reference selects the string candidate and is a lossy coercion,
+// reported only under WarnLossyCoercion, not a default error; a handle
+// is no coercion at all. POSIX::chdir, Time::HiRes's stat and lstat and
+// File::stat's lstat stringify a stray reference the same way, measured
+// silent under perl 5.42 -w.
 func TestCwdChdirRefArgumentNoError(t *testing.T) {
-	const ref = "use Cwd (); my $h = {}; my $q = Cwd::chdir($h);"
-	assert.Empty(t, diagsWithOptions(ref, infer.Options{}))
-	diags := diagsWithOptions(ref, infer.Options{WarnLossyCoercion: true})
-	if assert.Len(t, diags, 1) {
-		assert.Equal(t, infer.CodeLossyCoercion, diags[0].Code)
+	for _, ref := range []string{
+		"use Cwd (); my $h = {}; my $q = Cwd::chdir($h);",
+		"use POSIX (); my $q = POSIX::chdir({});",
+		"use Time::HiRes (); my @s = Time::HiRes::stat({});",
+		"use Time::HiRes (); my $s = Time::HiRes::lstat([]);",
+		"use File::stat (); my $s = File::stat::lstat({});",
+	} {
+		assert.Empty(t, diagsWithOptions(ref, infer.Options{}), ref)
+		diags := diagsWithOptions(ref, infer.Options{WarnLossyCoercion: true})
+		if assert.Len(t, diags, 1, ref) {
+			assert.Equal(t, infer.CodeLossyCoercion, diags[0].Code, ref)
+		}
 	}
 	const handle = "use Cwd (); opendir(my $dh, '.') or die; my $q = Cwd::chdir($dh); my $r = Cwd::chdir(\\*STDIN);"
 	assert.Empty(t, diagsWithOptions(handle, infer.Options{WarnLossyCoercion: true}))
+}
+
+// TestGlobDerefParamStillReportsRef: whether a parameter stringifies a
+// stray reference belongs to each declaration, not to its type. File::stat's
+// stat and Symbol's qualify_to_ref dereference a reference as a glob, so
+// perl 5.42 -w dies "Not a GLOB reference" on each call below, and each
+// stays a coercion mismatch.
+func TestGlobDerefParamStillReportsRef(t *testing.T) {
+	for _, src := range []string{
+		"use File::stat (); my $s = File::stat::stat({});",
+		"use File::stat (); my $s = File::stat::stat([]);",
+		"use Symbol (); my $s = Symbol::qualify_to_ref({});",
+		"use Symbol (); my $s = Symbol::qualify_to_ref([]);",
+	} {
+		diags := diagsWithOptions(src, infer.Options{})
+		if len(diags) != 1 || diags[0].Code != infer.CodeCoercionMismatch || diags[0].Severity != infer.Error {
+			t.Errorf("%q: diagnostics %v, want one %s error", src, diags, infer.CodeCoercionMismatch)
+		}
+	}
 }

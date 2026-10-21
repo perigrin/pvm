@@ -101,11 +101,19 @@ multi sub setitimer :export_ok :prototype($$;$) (Int $which, Num $seconds, Num $
 # takes an open filehandle, by reference or by lexical scalar
 # (perldoc: "=item stat FH"; measured, scalar `stat(\*STDIN)` and
 # `stat($lexical_fh)` are both a builtin true), not only a bareword
-# Glob or a path Str.
-multi sub lstat :export_ok (Optional[Str|FileHandle|Object] $file) List;
-multi sub lstat :export_ok (Optional[Str|FileHandle|Object] $file) Boolean;
-multi sub stat :export_ok (Optional[Str|FileHandle|Object] $file) List;
-multi sub stat :export_ok (Optional[Str|FileHandle|Object] $file) Boolean;
+# Glob or a path Str. Any other reference is stringified as a path:
+# measured, `Time::HiRes::stat({})` and `lstat({})` return the empty
+# list and perl -w is silent. So a handle or an object is one candidate,
+# required, and a path the other, which an omitted argument and a stray
+# reference select.
+multi sub lstat :export_ok :prototype(;$) (FileHandle|Object $file) List;
+multi sub lstat :export_ok :prototype(;$) (FileHandle|Object $file) Boolean;
+multi sub lstat :export_ok :prototype(;$) (Optional[Str] $file) List;
+multi sub lstat :export_ok :prototype(;$) (Optional[Str] $file) Boolean;
+multi sub stat :export_ok :prototype(;$) (FileHandle|Object $file) List;
+multi sub stat :export_ok :prototype(;$) (FileHandle|Object $file) Boolean;
+multi sub stat :export_ok :prototype(;$) (Optional[Str] $file) List;
+multi sub stat :export_ok :prototype(;$) (Optional[Str] $file) Boolean;
 
 # "Returns the number of nanoseconds actually slept" (perldoc
 # Time::HiRes); measured, `nanosleep(1.5)` is '1.5' -- $nanoseconds is
