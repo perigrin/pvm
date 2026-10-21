@@ -2,6 +2,18 @@
 # ABOUTME: Measured on perl 5.42.0 with Mojolicious 9.49: only group carries a prototype.
 package Mojolicious::Lite;
 
+# Mojolicious::Lite's own import monkey-patches the 16 DSL names below
+# unconditionally, before it ever reads its arguments, then hands them
+# to Mojo::Base (perigrin's ruling, 2026-10-20: "the parameters are the
+# signature to import()"). Declaring it here, with no scalar key after
+# the invocant, states that any non-empty list still installs the full
+# DSL, as a bare `use Mojolicious::Lite;` does -- measured on 5.42.0,
+# `use Mojolicious::Lite -signatures;`, the module's own SYNOPSIS form,
+# installs all 16. $class is the invocant, so the colon keeps the
+# derived prototype none, matching perl's (prototype() on
+# Mojolicious::Lite::import is undef).
+sub import (Str $class: List @args) Void;
+
 sub any :export;
 sub get :export;
 sub options :export;
