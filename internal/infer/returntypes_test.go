@@ -350,6 +350,29 @@ func withPlatformExempt(base map[string]string) map[string]string {
 	return m
 }
 
+// TestRealPlatformExemptionsAreChecked: StaleExemptions runs over this
+// OS's own platformExempt entries, not just a synthetic fixture --
+// calling each exempt sub with the arguments its module's own oracle
+// call case gives it (so POSIX::fcntl, sysconf, WEXITSTATUS and the
+// rest, which need a real argument to die the way their exemption
+// claims, are checked faithfully, not called with none). On an OS
+// platformExempt does not key (Linux, where this milestone's CI judges
+// the gate), there is nothing to check and the loop does nothing. A
+// report here means a platform exemption claims a death this perl no
+// longer produces, so it should have narrowed or been dropped.
+func TestRealPlatformExemptionsAreChecked(t *testing.T) {
+	p := perltest.Perl542(t)
+	casesDir, err := filepath.Abs(filepath.Join("testdata", "oracle"))
+	require.NoError(t, err)
+	// Resolved, not t.TempDir()'s own path: see returnTypeFailures'
+	// matching comment -- a cases file's own setup (POSIX.pl's seed
+	// files, say) runs relative to this directory.
+	scratch, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	stale := perltest.StaleExemptions(t, p, "", scratch, casesDir, platformExempt[runtime.GOOS])
+	assert.Empty(t, stale)
+}
+
 // posixReplacementNames are the names in POSIX.pm 2.23's %replacement
 // hash that POSIX also exports: measured on perl 5.42.0, each croaks
 // "Unimplemented: POSIX::name(): ..." the moment it is called, regardless
