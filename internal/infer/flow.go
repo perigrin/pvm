@@ -698,8 +698,9 @@ func (a *analysis) clearArraysIn(n lower.Node) {
 
 // bodyWritesAlias reports whether a plain assignment, a substitution or
 // transliteration (not suffixed /r, which returns a modified copy
-// instead of writing through), an explicit `=~` binding, chop, chomp or
-// undef, an increment or a decrement, or a reference taken to it, writes
+// instead of writing through), an explicit `=~` binding, a call that
+// writes it as writtenArgs (ops.go) says or a method call given it, an
+// increment or a decrement, or a reference taken to it, writes
 // through name (with its sigil, as guardVarName spells it) anywhere under
 // n, or may: each mutates its target in place, the way a foreach's alias
 // write reaches whatever element of the array it is bound to (I5, V6) --
@@ -734,14 +735,18 @@ func bodyWritesAlias(n lower.Node, name string) bool {
 			return true
 		}
 	case *lower.Call:
-		if base := coreName(n.Name); base == "chop" || base == "chomp" || base == "undef" {
-			if len(n.Args) == 0 && name == "$_" && base != "undef" {
+		if base := coreName(n.Name); (base == "chop" || base == "chomp") && len(n.Args) == 0 && name == "$_" {
+			return true
+		}
+		for _, arg := range writtenArgs(n) {
+			if writes(arg) {
 				return true
 			}
-			for _, arg := range n.Args {
-				if writes(arg) {
-					return true
-				}
+		}
+	case *lower.MethodCall:
+		for _, arg := range n.Args {
+			if writes(arg) {
+				return true
 			}
 		}
 	}

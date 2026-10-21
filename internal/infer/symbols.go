@@ -4,6 +4,7 @@
 package infer
 
 import (
+	"fmt"
 	"maps"
 	"strings"
 
@@ -286,11 +287,24 @@ func (st *SymbolTable) Reenter(s *Scope) {
 
 // scopeOf is the innermost scope on the current chain that holds name,
 // or nil.
+//
+// An element guard shadow, `$r[0]` (flow.go's guardVarName), speaks for
+// the @r its scope sees: a `my @r` in a scope nested inside it declares
+// another array, whose elements the shadow says nothing of, so there it
+// is hidden. perl 5.42 dies "Can't bless non-reference value" on `my @r
+// = ({}); if (ref $r[0]) { my @r = (undef); bless $r[0], "Foo" }`.
 func (st *SymbolTable) scopeOf(name string) *Scope {
-	if h := st.holders[name]; len(h) > 0 {
-		return h[len(h)-1]
+	h := st.holders[name]
+	if len(h) == 0 {
+		return nil
 	}
-	return nil
+	s := h[len(h)-1]
+	if array, _, ok := strings.Cut(name, "["); ok && strings.HasPrefix(array, "$") {
+		if a := st.holders["@"+array[1:]]; len(a) > 0 && a[len(a)-1].depth > s.depth {
+			return nil
+		}
+	}
+	return s
 }
 
 // inScope reports whether s is on the current chain: the current scope or
@@ -305,6 +319,9 @@ func (st *SymbolTable) ExitScope() {
 	if st.current.parent != nil {
 		for name := range st.current.symbols {
 			h := st.holders[name]
+			if len(h) == 0 || h[len(h)-1] != st.current {
+				panic(fmt.Sprintf("symbol table: the scope being exited holds %s, but is not the innermost scope its holders list", name))
+			}
 			st.holders[name] = h[:len(h)-1]
 		}
 		st.current.open = false

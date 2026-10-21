@@ -262,10 +262,11 @@ func (a *analysis) invalidateElementShadow(l lower.Node) {
 }
 
 // invalidateWrites drops whatever element guard shadow n may replace
-// without being an assignment (I5, V6): an increment or a decrement and
-// undef write their operand; a reference taken to an element or to the
-// array may be written through later; a sub or method may write each
-// argument through its @_; and a map or grep block that writes $_ writes
+// without being an assignment (I5, V6): an increment or a decrement
+// writes its operand, and a call the arguments writtenArgs names; a
+// reference taken to an element or to the array may be written through
+// later; a method may write each argument through its @_; and a map or
+// grep block that writes $_ writes
 // through it to each element of its list. perl 5.42 dies "Can't bless
 // non-reference value" on `if (ref $r[0]) { $r[0]++; bless $r[0], "Foo" }`
 // with @r = ({}, undef), and on each of the other forms.
@@ -279,14 +280,7 @@ func (a *analysis) invalidateWrites(n lower.Node) {
 	case *lower.Ref:
 		targets = []lower.Node{n.Operand}
 	case *lower.Call:
-		// A sub of this file or a coderef, as call (calls.go) tells
-		// one from a builtin or a sub a declaration file types.
-		name := coreName(n.Name)
-		user := n.Fn != nil || n.Ampersand || overridden(n) || len(parse.CoreBuiltin(name)) == 0
-		declared := n.Fn == nil && !n.Ampersand && len(n.Signatures) > 0
-		if name == "undef" || (user && !declared) {
-			targets = n.Args
-		}
+		targets = writtenArgs(n)
 	case *lower.MethodCall:
 		targets = n.Args
 	case *lower.MapGrepSort:
@@ -299,6 +293,25 @@ func (a *analysis) invalidateWrites(n lower.Node) {
 	for _, t := range targets {
 		a.invalidateElementShadow(t)
 	}
+}
+
+// writtenArgs is the arguments call n may write in place: each argument
+// of a sub of this file or a coderef, which @_ aliases (call, calls.go,
+// tells one from a builtin or a sub a declaration file types); undef's,
+// chop's and chomp's; and read's and sysread's buffer.
+func writtenArgs(n *lower.Call) []lower.Node {
+	name := coreName(n.Name)
+	user := n.Fn != nil || n.Ampersand || overridden(n) || len(parse.CoreBuiltin(name)) == 0
+	declared := n.Fn == nil && !n.Ampersand && len(n.Signatures) > 0
+	switch {
+	case user && !declared:
+		return n.Args
+	case name == "undef" || name == "chop" || name == "chomp":
+		return n.Args
+	case (name == "read" || name == "sysread") && len(n.Args) > 1:
+		return n.Args[1:2]
+	}
+	return nil
 }
 
 // narrow is assignment narrowing for v assigned init, whose

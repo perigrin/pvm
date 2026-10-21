@@ -7,6 +7,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"tamarou.com/pvm/internal/infer"
+	"tamarou.com/pvm/internal/types"
 )
 
 // TestTernaryThenArmJoinsBack (V2): whatever a ternary's then arm writes
@@ -60,7 +63,8 @@ func TestTernaryGuardNoFalsePositive(t *testing.T) {
 // variable, or joining a ternary's arms must not cost the depth of the
 // scopes and frames open around it, or 600 nested ifs, a 600-deep
 // ternary chain whose arms write, and a 900-deep chain of element guards
-// take tens of seconds or minutes where pu takes about one. The bound is
+// take tens of seconds or minutes where pu takes about one, and a
+// 2000-arm elsif chain takes 20 to 40 where pu takes about five. The bound is
 // generous for a loaded machine; the cost in depth this guards against
 // is many times over it.
 func TestFrameBookkeepingIsLinear(t *testing.T) {
@@ -86,6 +90,16 @@ func TestFrameBookkeepingIsLinear(t *testing.T) {
 	}
 	tern.WriteString("0;\n")
 
+	var elsifs strings.Builder
+	const arms = 2000
+	for i := 0; i < arms; i++ {
+		fmt.Fprintf(&elsifs, "my $v%d = shift;\n", i)
+	}
+	elsifs.WriteString("if (ref $v0) { $v0 = 0 }\n")
+	for i := 1; i < arms; i++ {
+		fmt.Fprintf(&elsifs, "elsif (ref $v%d) { $v%d = %d }\n", i, i, i)
+	}
+
 	var elems strings.Builder
 	const elemChain = 900
 	fmt.Fprintf(&elems, "my @a = ({}) x %d;\nmy $y = ", elemChain)
@@ -98,11 +112,18 @@ func TestFrameBookkeepingIsLinear(t *testing.T) {
 		"nested ifs":            ifs.String(),
 		"writing ternary chain": tern.String(),
 		"element guard chain":   elems.String(),
+		"elsif chain":           elsifs.String(),
 	} {
+		// The elsif chain is quadratic on pu too -- every arm restores
+		// each variable the chain names -- and takes about 5s there.
+		bound := 8 * time.Second
+		if name == "elsif chain" {
+			bound = 15 * time.Second
+		}
 		start := time.Now()
 		diagsWithDefaults(src)
-		if elapsed := time.Since(start); elapsed > 8*time.Second {
-			t.Errorf("analysing %s took %s, want well under 8s", name, elapsed)
+		if elapsed := time.Since(start); elapsed > bound {
+			t.Errorf("analysing %s took %s, want well under %s", name, elapsed, bound)
 		}
 		t.Logf("%s: %s", name, time.Since(start))
 	}
@@ -162,5 +183,68 @@ func TestLoopDerefNoFalsePositive(t *testing.T) {
 		if diags := diagsWithDefaults(src); len(diags) != 0 {
 			t.Errorf("%q: diagnostics %v, want none", src, diags)
 		}
+	}
+}
+
+// TestElementShadowEndsAtArgumentWrite (round-4 review): a sub or a
+// builtin that writes its argument writes through an alias the same way
+// an assignment does -- a user sub's @_ aliases each argument, and read,
+// sysread, chop and chomp write theirs -- so passing the foreach alias,
+// map's or a modifier for's $_, or the element itself, ends the guard's
+// Ref shadow of $r[0]. perl 5.42 dies "Can't bless non-reference value"
+// on each; pu reports each.
+func TestElementShadowEndsAtArgumentWrite(t *testing.T) {
+	for _, body := range []string{
+		`for my $e (@r) { z($e) }`,
+		`map { z($_) } @r;`,
+		`z($_) for @r;`,
+		`for my $e (@r) { $o->m($e) }`,
+		`read(STDIN, $r[0], 0);`,
+		`sysread(STDIN, $r[0], 0);`,
+		`for my $e (@r) { read(STDIN, $e, 0) }`,
+	} {
+		src := `sub z { $_[0] = undef } my $o = shift; my @r = ({}, undef); if (ref $r[0]) { ` + body + ` bless $r[0], "Foo" }` + "\n"
+		if diags := diagsWithDefaults(src); len(diags) == 0 {
+			t.Errorf("%q: no diagnostics, want the stale $r[0] guard shadow gone after the write", src)
+		}
+	}
+}
+
+// TestLexicalArrayHidesElementShadow (round-4 review): a `my @r` inside
+// the guarded block is a different array, so the guard's shadow of the
+// outer $r[0] says nothing of the inner one's element. perl 5.42 dies
+// "Can't bless non-reference value"; pu reports.
+func TestLexicalArrayHidesElementShadow(t *testing.T) {
+	const src = `my @r = ({}, undef); if (ref $r[0]) { my @r = (undef); bless $r[0], "Foo" }` + "\n"
+	if diags := diagsWithDefaults(src); len(diags) == 0 {
+		t.Errorf("%q: no diagnostics, want the inner @r's element unshadowed", src)
+	}
+}
+
+// TestNestedFrameKeepsFirstTouch (round-4 review): a variable's value
+// before a logical operator's right side is its value at the first touch
+// in that whole side, not at the first touch inside a nested operator
+// within it -- `$c && do { $y = {}; $d && ($y = []); 1 }` may skip the
+// do entirely, leaving $y undef. perl 5.42 dies "Can't bless
+// non-reference value" with $c false; pu reports.
+func TestNestedFrameKeepsFirstTouch(t *testing.T) {
+	const src = `my ($c, $d) = (0, 1); my $y = undef; $c && do { $y = {}; $d && ($y = []); 1 }; bless $y, "Foo";` + "\n"
+	if diags := diagsWithDefaults(src); len(diags) == 0 {
+		t.Errorf("%q: no diagnostics, want bless's possibly-Undef argument reported", src)
+	}
+}
+
+// TestSetFlowSkipsUnchanged (V5): restoring or joining a variable to the
+// value it already holds touches nothing, so the restore every arm of an
+// elsif chain makes of every variable the chain names records only the
+// few its arms changed.
+func TestSetFlowSkipsUnchanged(t *testing.T) {
+	st := infer.NewSymbolTable()
+	st.Define(infer.Symbol{Name: "$x", Type: types.Int, Kind: infer.SymVariable})
+	if n := infer.SetFlowTouches(st, "$x", types.Int); n != 0 {
+		t.Errorf("setting $x to the Int it holds touched %d name(s), want 0", n)
+	}
+	if n := infer.SetFlowTouches(st, "$x", types.Str); n != 1 {
+		t.Errorf("setting $x from Int to Str touched %d name(s), want 1", n)
 	}
 }
