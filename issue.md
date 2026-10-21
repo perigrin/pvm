@@ -1,10 +1,19 @@
 ---
 title: "Round-2 coverage and doc gaps: dualvar declares DualVar, IO::Socket::IP -register, Cwd::chdir a handle, the possible-mismatch flag in help, strict perl on every runner"
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 created: 2026-10-21T05:19:06.155781713Z
-updated: 2026-10-21T05:19:23.604408724Z
+updated: 2026-10-21T15:14:41.137371284Z
+sessions:
+- start_sha: 9711a47ad2aaa4e8463f48604119e9b4ed2bf964
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-21T15:14:41.137371284Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-21T15:14:41.137371284Z
 ---
 
 crochet:review round 2 of PR #488 at 2db182e6 (2026-10-21). Quality report: scratchpad/review2-core-module-types-paad.md, probes scratchpad/r2probes/, psc builds of head, cf08c0ac and pu in scratchpad/r2bin/. A finding pu gets right is a regression this milestone introduced: fix it. A gap pu shares is out of scope here and goes to the follow-up named in the issue.
