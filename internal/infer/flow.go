@@ -4,6 +4,7 @@
 package infer
 
 import (
+	"maps"
 	"strings"
 
 	"tamarou.com/pvm/internal/lower"
@@ -169,10 +170,7 @@ func (a *analysis) elsifPre(pre map[string]flowVar, guards []*guardResult) map[s
 	if len(shadows) == 0 {
 		return pre
 	}
-	next := make(map[string]flowVar, len(pre))
-	for name, fv := range pre {
-		next[name] = fv
-	}
+	next := maps.Clone(pre)
 	for name, typ := range shadows {
 		if fv, ok := next[name]; ok {
 			next[name] = flowVar{typ, fv.Undef}
@@ -1022,14 +1020,6 @@ func guardVarName(n lower.Node) string {
 		}
 	}
 	return ""
-}
-
-// isElementVarName reports whether name is guardVarName's shape for an
-// element read with a literal index, `$arr[0]`: the symbol table never
-// defines one, so a guard on it would otherwise be skipped as a variable
-// never declared.
-func isElementVarName(name string) bool {
-	return strings.HasSuffix(name, "]")
 }
 
 // className is the class an isa tests against: the bareword on its right.

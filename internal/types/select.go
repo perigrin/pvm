@@ -299,6 +299,22 @@ func (s Signature) asSpecific(o Signature, n int) bool {
 	return true
 }
 
+// Arity is the number of arguments s's own Params take: least is its
+// required parameter count, and unbounded is whether a slurpy parameter
+// admits any count past that. It excludes Invocant, as a call's
+// comma-separated arguments do.
+func (s Signature) Arity() (least int, unbounded bool) {
+	for _, p := range s.Params {
+		if p.Required {
+			least++
+		}
+		if p.Slurpy() {
+			unbounded = true
+		}
+	}
+	return least, unbounded
+}
+
 // accepts reports whether s takes n arguments: at least its required
 // parameters, and no more than it has unless one is a slurpy. A required
 // slurpy, `List @list = die`, takes at least one. The n arguments are a
@@ -308,13 +324,7 @@ func (s Signature) accepts(n int) bool {
 	if s.Invocant != nil && s.Invocant.Required {
 		return false
 	}
-	least, slurpy := 0, false
-	for _, p := range s.Params {
-		if p.Required {
-			least++
-		}
-		slurpy = slurpy || p.Slurpy()
-	}
+	least, slurpy := s.Arity()
 	return n >= least && (slurpy || n <= len(s.Params))
 }
 

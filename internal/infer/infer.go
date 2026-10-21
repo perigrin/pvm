@@ -1317,8 +1317,13 @@ func guardShadows(guards []*guardResult, st *SymbolTable) (map[string]types.Type
 		currentType, seen := working[guard.VarName]
 		if !seen {
 			sym, found := st.Lookup(guard.VarName)
-			if !found && guard.Guard.Kind != types.GuardReferent && !isElementVarName(guard.VarName) && guard.VarName != "$_" {
-				// Variable was never declared — skip to avoid phantom shadows.
+			// A guard's VarName the symbol table never defines is still real:
+			// guardVarName's own shape for an element read with a literal
+			// index, `$arr[0]` (HasSuffix "]"), and $_, a grep or map block's
+			// topic -- neither is declared with `my`, yet perl 5.42 -w is
+			// silent narrowing either. Only a name genuinely never declared
+			// is skipped, to avoid a phantom shadow.
+			if !found && guard.Guard.Kind != types.GuardReferent && !strings.HasSuffix(guard.VarName, "]") && guard.VarName != "$_" {
 				continue
 			}
 			currentType = guardedType(sym.Type)

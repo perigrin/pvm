@@ -208,18 +208,27 @@ func (st *SymbolTable) LookupAll(name string) (Symbol, bool) {
 	return found, ok
 }
 
-// UpdateType walks the scope chain from the current scope to root, looking
-// for the first scope that contains name.  If found, it updates the symbol's
-// Type to typ and returns true.  If no scope contains name, it returns false.
-func (st *SymbolTable) UpdateType(name string, typ types.Type) bool {
+// update walks the scope chain from the current scope to root, looking for
+// the first scope that contains name. If found, it runs f on the symbol,
+// writes it back, and returns true; every Update* method below is this walk
+// with f setting the one field it owns. If no scope contains name, it
+// returns false and f never runs.
+func (st *SymbolTable) update(name string, f func(*Symbol)) bool {
 	for s := st.current; s != nil; s = s.parent {
 		if sym, ok := s.symbols[name]; ok {
-			sym.Type = typ
+			f(&sym)
 			s.symbols[name] = sym
 			return true
 		}
 	}
 	return false
+}
+
+// UpdateType walks the scope chain from the current scope to root, looking
+// for the first scope that contains name.  If found, it updates the symbol's
+// Type to typ and returns true.  If no scope contains name, it returns false.
+func (st *SymbolTable) UpdateType(name string, typ types.Type) bool {
+	return st.update(name, func(sym *Symbol) { sym.Type = typ })
 }
 
 // UpdateElemType records the element type of an aggregate, joining it with
@@ -229,14 +238,7 @@ func (st *SymbolTable) UpdateType(name string, typ types.Type) bool {
 // places come out right: each assignment contributes an arm, and the element
 // type is the merge of all of them.
 func (st *SymbolTable) UpdateElemType(name string, typ types.Type) bool {
-	for s := st.current; s != nil; s = s.parent {
-		if sym, ok := s.symbols[name]; ok {
-			sym.ElemType = types.Join(sym.ElemType, typ)
-			s.symbols[name] = sym
-			return true
-		}
-	}
-	return false
+	return st.update(name, func(sym *Symbol) { sym.ElemType = types.Join(sym.ElemType, typ) })
 }
 
 // UpdateKeyTypes joins keys, a key/value literal's value type under each
@@ -244,21 +246,16 @@ func (st *SymbolTable) UpdateElemType(name string, typ types.Type) bool {
 // UpdateElemType joins an element type. A key only one literal gave keeps
 // that literal's type.
 func (st *SymbolTable) UpdateKeyTypes(name string, keys map[string]types.Type) bool {
-	for s := st.current; s != nil; s = s.parent {
-		if sym, ok := s.symbols[name]; ok {
-			joined := make(map[string]types.Type, len(sym.KeyTypes)+len(keys))
-			for k, t := range sym.KeyTypes {
-				joined[k] = t
-			}
-			for k, t := range keys {
-				joined[k] = types.Join(joined[k], t)
-			}
-			sym.KeyTypes = joined
-			s.symbols[name] = sym
-			return true
+	return st.update(name, func(sym *Symbol) {
+		joined := make(map[string]types.Type, len(sym.KeyTypes)+len(keys))
+		for k, t := range sym.KeyTypes {
+			joined[k] = t
 		}
-	}
-	return false
+		for k, t := range keys {
+			joined[k] = types.Join(joined[k], t)
+		}
+		sym.KeyTypes = joined
+	})
 }
 
 // UpdateReturnType walks the scope chain from the current scope to root,
@@ -266,14 +263,7 @@ func (st *SymbolTable) UpdateKeyTypes(name string, keys map[string]types.Type) b
 // symbol's ReturnType to typ and returns true. Used to store inferred
 // subroutine return types after analyzing the sub body.
 func (st *SymbolTable) UpdateReturnType(name string, typ types.Type) bool {
-	for s := st.current; s != nil; s = s.parent {
-		if sym, ok := s.symbols[name]; ok {
-			sym.ReturnType = typ
-			s.symbols[name] = sym
-			return true
-		}
-	}
-	return false
+	return st.update(name, func(sym *Symbol) { sym.ReturnType = typ })
 }
 
 // UpdateParamTypes walks the scope chain from the current scope to root,
@@ -281,15 +271,10 @@ func (st *SymbolTable) UpdateReturnType(name string, typ types.Type) bool {
 // symbol's ParamTypes and ParamNames and returns true. Used to store inferred
 // subroutine parameter types after analyzing the sub body.
 func (st *SymbolTable) UpdateParamTypes(name string, paramNames []string, paramTypes []types.Type) bool {
-	for s := st.current; s != nil; s = s.parent {
-		if sym, ok := s.symbols[name]; ok {
-			sym.ParamNames = paramNames
-			sym.ParamTypes = paramTypes
-			s.symbols[name] = sym
-			return true
-		}
-	}
-	return false
+	return st.update(name, func(sym *Symbol) {
+		sym.ParamNames = paramNames
+		sym.ParamTypes = paramTypes
+	})
 }
 
 // UpdateClassType walks the scope chain from the current scope to root,
@@ -297,28 +282,14 @@ func (st *SymbolTable) UpdateParamTypes(name string, paramNames []string, paramT
 // symbol's ClassType to className and returns true. Used to store the class
 // name inferred from constructor calls like Foo->new().
 func (st *SymbolTable) UpdateClassType(name string, className string) bool {
-	for s := st.current; s != nil; s = s.parent {
-		if sym, ok := s.symbols[name]; ok {
-			sym.ClassType = className
-			s.symbols[name] = sym
-			return true
-		}
-	}
-	return false
+	return st.update(name, func(sym *Symbol) { sym.ClassType = className })
 }
 
 // UpdatePossibleUndef walks the scope chain from the current scope to root,
 // looking for the first scope that contains name. If found, it updates the
 // symbol's PossibleUndef to v and returns true.
 func (st *SymbolTable) UpdatePossibleUndef(name string, v bool) bool {
-	for s := st.current; s != nil; s = s.parent {
-		if sym, ok := s.symbols[name]; ok {
-			sym.PossibleUndef = v
-			s.symbols[name] = sym
-			return true
-		}
-	}
-	return false
+	return st.update(name, func(sym *Symbol) { sym.PossibleUndef = v })
 }
 
 // Delete removes name from the first scope on the current chain that holds

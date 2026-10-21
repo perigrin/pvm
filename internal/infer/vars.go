@@ -49,7 +49,8 @@ var derefTypes = map[string]types.Type{"@": types.Array, "%": types.Hash, "$#": 
 // index types an element read, and
 // the check on its index. A literal index a guard has narrowed, `$arr[0]`
 // after `ref $arr[0]`, reads the guard's shadow (flow.go's guardVarName and
-// isElementVarName); any other read is the container's element type.
+// guardShadows's own element-read check, infer.go); any other read is the
+// container's element type.
 func (a *analysis) index(n *lower.Index) types.Type {
 	a.walkBase(n.Base, n.Arrow, "@")
 	if n.Idx != nil {

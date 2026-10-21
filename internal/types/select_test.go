@@ -418,6 +418,23 @@ func TestAcceptsArity(t *testing.T) {
 	}
 }
 
+// TestSignatureArity: Arity is accepts's own two fields, read directly --
+// a required parameter raises least, a slurpy one makes unbounded true,
+// and an invocant counts in neither, since it is not one of Params.
+func TestSignatureArity(t *testing.T) {
+	system := []Signature{{
+		Invocant: &Param{Name: "program", Sigil: '$', Type: Str, Required: true},
+		Params:   []Param{{Name: "args", Sigil: '@', Type: List}},
+		Returns:  Int,
+	}}
+	if least, unbounded := system[0].Arity(); least != 0 || !unbounded {
+		t.Errorf("system.Arity() = %d, %v, want 0, true", least, unbounded)
+	}
+	if least, unbounded := selectCandidates[2].Arity(); least != 4 || unbounded {
+		t.Errorf("select's 4-argument candidate Arity() = %d, %v, want 4, false", least, unbounded)
+	}
+}
+
 // wantUndecidedIn checks that args in context ctx decide no candidate, and
 // that the call's type is ret, the join of the candidates'.
 func wantUndecidedIn(t *testing.T, cands []Signature, ctx Context, args []Type, ret Type) {

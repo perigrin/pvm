@@ -142,25 +142,7 @@ func agreement(declared, fromTypes string) error {
 	return nil
 }
 
-// arityRange is the number of arguments s accepts: least is its required
-// parameter count, and unbounded is whether a slurpy parameter admits
-// any count past that (RFC 0001 "Multi declarations" calls a slurpy's
-// upper bound unbounded this way already, in Signature.accepts, which
-// this reads the same two fields to answer, parse having no access to
-// that unexported method).
-func arityRange(s types.Signature) (least int, unbounded bool) {
-	for _, p := range s.Params {
-		if p.Required {
-			least++
-		}
-		if p.Slurpy() {
-			unbounded = true
-		}
-	}
-	return least, unbounded
-}
-
-// candidatesDifferInArity reports whether sigs's own arityRanges are not
+// candidatesDifferInArity reports whether sigs's own Arity is not
 // all the same: prototypeFromCandidates's "different length" refusal is
 // specifically this, an arity difference between candidates, distinct
 // from its other reasons (two aliased positions varying, an unaliased
@@ -177,9 +159,9 @@ func candidatesDifferInArity(sigs []types.Signature) bool {
 	if len(sigs) == 0 {
 		return false
 	}
-	wantLeast, wantUnbounded := arityRange(sigs[0])
+	wantLeast, wantUnbounded := sigs[0].Arity()
 	for _, s := range sigs[1:] {
-		least, unbounded := arityRange(s)
+		least, unbounded := s.Arity()
 		if least != wantLeast || unbounded != wantUnbounded {
 			return true
 		}
@@ -207,12 +189,12 @@ func prototypeAdmitsArity(declared string, sigs []types.Signature) bool {
 	if err != nil || !derived {
 		return false
 	}
-	declLeast, declUnbounded := arityRange(sig)
+	declLeast, declUnbounded := sig.Arity()
 	for _, s := range sigs {
 		if s.Invocant != nil {
 			return false
 		}
-		candLeast, candUnbounded := arityRange(s)
+		candLeast, candUnbounded := s.Arity()
 		if declLeast > candLeast {
 			return false
 		}
