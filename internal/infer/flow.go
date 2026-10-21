@@ -1022,14 +1022,6 @@ func guardVarName(n lower.Node) string {
 	return ""
 }
 
-// isElementVarName reports whether name is guardVarName's shape for an
-// element read with a literal index, `$arr[0]`: the symbol table never
-// defines one, so a guard on it would otherwise be skipped as a variable
-// never declared.
-func isElementVarName(name string) bool {
-	return strings.HasSuffix(name, "]")
-}
-
 // className is the class an isa tests against: the bareword on its right.
 func className(n lower.Node) string {
 	switch n := n.(type) {

@@ -149,8 +149,9 @@ return \@odd;
 `,
 		// IO/Handle.pm:515 -- `tell qualify($_[0], caller) if ref($_[0])`:
 		// $_[0], the invocant, is proven a Ref by the modifier's own guard.
-		// The guard mechanics are the same one isElementVarName (flow.go)
-		// gives $_[0] along with any other named array's literal-index
+		// The guard mechanics are the same one guardShadows's own element-
+		// read check (infer.go) gives $_[0] along with any other named
+		// array's literal-index
 		// element; the second half, qualify's own multi correctly
 		// selecting its Ref candidate despite `caller`'s unrelated
 		// Unknown-ish second argument, is select_test.go's
