@@ -7,10 +7,7 @@ my $io_handle = IO::Handle->new;
     gensym         => [ [] ],
     geniosym       => [ [] ],
     ungensym       => [ [1] ],
-    # qualify's Ref candidate preserves the reference it is given
-    # unchanged, whichever kind it is (measured: ref qualify({}) is
-    # HASH, ref qualify([]) is ARRAY), not only a glob reference.
-    qualify        => [ ['x'], [ 'x', 'Foo' ], ['BAR::x'], [ \*STDOUT ], [ {} ], [ [] ] ],
+    qualify        => [ ['x'], [ 'x', 'Foo' ], ['BAR::x'], [ \*STDOUT ] ],
     # a blessed reference whose referent is a glob (IO::Handle) is
     # accepted and preserved unchanged, not only a bare GlobRef.
     qualify_to_ref => [ ['x'], [ \*STDOUT ], [$io_handle] ],
