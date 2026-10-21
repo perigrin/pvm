@@ -675,6 +675,27 @@ type Options struct {
 	// always has, since the declaration alone did not decide it -- the
 	// call did.
 	WarnPossibleUndef bool
+
+	// WarnPossibleMismatch reports an argument whose union type has a
+	// member that fits the parameter, beside one that does not
+	// (perigrin, 2026-10-21): the same loss of precision
+	// WarnPossibleUndef forgives for a declared call's Undef, extended
+	// to a declared call's non-Undef union return. Symbol::qualify's
+	// Ref candidate returns the reference it was given, unchanged
+	// (ScalarRef, ArrayRef, HashRef, CodeRef or Object alongside
+	// GlobRef), so IO/Handle.pm:516's `tell qualify($_[0], caller) if
+	// ref($_[0])` sees a Ref where tell's Glob-only parameter wants a
+	// GlobRef -- psc knows only that the value is some reference, never
+	// which kind, though it is in fact always a GlobRef there. By
+	// default this is accepted, the same way an Unknown argument itself
+	// is; under WarnPossibleMismatch it is reported as an ordinary
+	// mismatch. An argument whose union has no fitting member at all is
+	// not this, and still reports either way, as it always has: Undef
+	// is never a fitting member on its own, so a union whose only
+	// problem bit is Undef is WarnPossibleUndef's business, not this
+	// one's -- Sys::Syslog.pm:562's Undef|Boolean argument, with Undef
+	// removed already a Boolean fitting Boolean|Int, still reports.
+	WarnPossibleMismatch bool
 }
 
 // satisfies reports whether actual satisfies required under opts.

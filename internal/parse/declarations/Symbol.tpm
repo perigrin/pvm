@@ -17,22 +17,20 @@ sub ungensym :export (Any $sym) Void;
 # ref($_[0])` -- keeps a Ref rather than Str|GlobRef. Prototype is "$;$".
 # The Ref candidate's own return is narrower than its docs' "assumption":
 # measured, `ref qualify({})` is HASH and `ref qualify([])` is ARRAY, not
-# GlobRef -- the reference comes back exactly as given. Left as GlobRef,
-# not corrected to Ref: that correction's only real lib exercise,
-# IO/Handle.pm's own `tell qualify($_[0], caller) if ref($_[0])`, proves
-# only that $_[0] is some reference, never which kind, so a Ref return
-# there would make tell's own Glob-only parameter see a Ref psc cannot
-# narrow further, though it is in fact always a GlobRef -- a new
-# diagnostic perl -w does not confirm. Deferred pending perigrin's
-# ruling on how psc treats an argument whose union type only partly fits
-# a parameter (issue 01a15baf). The Str candidate's own coverage stays
-# as declared: measured, `qualify(true)` is 'main::1' and
+# GlobRef -- the reference comes back exactly as given, so the candidate
+# returns Ref, not GlobRef. IO/Handle.pm's own `tell qualify($_[0],
+# caller) if ref($_[0])` makes tell's own Glob-only parameter see a Ref
+# psc cannot narrow further, though it is in fact always a GlobRef there
+# -- a possible mismatch under perigrin's ruling (2026-10-21, RFC 0001,
+# "Possible mismatch beside a fitting member"), silent by default and
+# reported only under --warn-possible-mismatch. The Str candidate's own
+# coverage stays as declared: measured, `qualify(true)` is 'main::1' and
 # `qualify(*STDOUT)` is '\*main::STDOUT', but both are perl stringifying
 # the argument the same way every other Str parameter in this file is,
 # not a value Str has no coercion for (RFC 0001, "What a parameter type
 # means"); `qualify(undef)` is 'main::' with an uninitialized warning,
 # left out deliberately.
-multi sub qualify :export (Ref $name, Optional[Str] $pkg) GlobRef;
+multi sub qualify :export (Ref $name, Optional[Str] $pkg) Ref;
 multi sub qualify :export (Str $name, Optional[Str] $pkg) Str;
 # qualify_to_ref always returns a glob reference, whichever shape its name
 # argument is: measured on 5.42.0, qualify_to_ref(\*STDOUT) returns that

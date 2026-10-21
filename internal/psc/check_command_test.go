@@ -215,6 +215,23 @@ func TestCheckWarnPossibleUndefFlag(t *testing.T) {
 	require.NoError(t, cmd.Execute(), "stderr: %s", stderr.String())
 }
 
+// TestCheckWarnPossibleMismatchFlag verifies that psc check takes
+// --warn-possible-mismatch, which sets infer.Options.WarnPossibleMismatch:
+// the opt-in for a union argument with a member that fits the parameter
+// beside one that does not. A clean file stays clean under it.
+func TestCheckWarnPossibleMismatchFlag(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "clean.pl")
+	require.NoError(t, os.WriteFile(file, []byte("my $x = 1;\nprint $x;\n"), 0644))
+
+	cmd := psc.NewCommand()
+	cmd.SetArgs([]string{"check", file, "--warn-possible-mismatch"})
+	var stderr strings.Builder
+	cmd.SetOut(&strings.Builder{})
+	cmd.SetErr(&stderr)
+	require.NoError(t, cmd.Execute(), "stderr: %s", stderr.String())
+}
+
 // TestCheckCommandOnLoweredTree runs psc check over every golden fixture
 // internal/infer holds and asserts it prints exactly the fixture's golden
 // diagnostics, each formatted by infer.FormatDiagnostic. A golden line is

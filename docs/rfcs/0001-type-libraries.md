@@ -979,6 +979,40 @@ ordinary coercion mismatch. The third still reports either way --
 `markPossibleUndef`; `internal/infer/infer.go`, `WarnPossibleUndef`;
 `internal/infer/warnpossibleundef_test.go`).
 
+### Possible mismatch beside a fitting member (*Implemented*)
+
+perigrin, 2026-10-21: "An argument whose union type has at least one
+member that fits the parameter is a possible mismatch. It is silent by
+default and reported only under a flag. An argument with no fitting
+member is still a coercion-mismatch." Modelled on "Possible undef
+unless proven" above: a declared call's return can be a union psc
+cannot narrow further, and a union is judged member by member against
+the slot, Undef removed first and never itself a fitting member --
+Undef is possible-undef's own business, not this rule's, so a union
+whose only problem bit is Undef still reports unconditionally, as it
+always has. `Symbol::qualify`'s `Ref` candidate returns the reference
+it was given, unchanged (measured, `ref qualify({})` is `HASH`, not
+`GlobRef`), so `IO/Handle.pm:516`'s `tell qualify($_[0], caller) if
+ref($_[0])` sees a `Ref` -- `ScalarRef`, `ArrayRef`, `HashRef`,
+`CodeRef` and `Object` beside the one member, `GlobRef`, that `tell`'s
+`Glob`-only parameter takes -- though $_[0] is in fact always a
+`GlobRef` there. perl 5.42 -w is silent on it.
+
+**A new flag, not `--warn-lossy-coercion`.** The code already separates
+two classes of silence by what causes them, not by what they look
+like: `WarnLossyCoercion` is for a coercion perl actually PERFORMS at
+runtime and that loses the value -- a reference stringified, a string
+numified -- judged from the single, settled type the value has.
+`WarnPossibleUndef` is for a case psc cannot settle at all: the
+declaration states more than one outcome, and the call's own arguments
+do not choose between them. This rule is the second kind, not the
+first -- `qualify`'s `Ref` is not a coercion candidate GlobRef, it is
+one of several reference shapes the declaration itself cannot narrow
+to GlobRef specifically -- so it takes `WarnPossibleMismatch`, a sibling
+of `WarnPossibleUndef`, not a new case of `WarnLossyCoercion`
+(`internal/infer/calls.go`, `possibleMismatch`; `internal/infer/infer.go`,
+`WarnPossibleMismatch`; `internal/infer/warnpossiblemismatch_test.go`).
+
 ### Core-module libraries (*Implemented*, 236f66e7, 3b04b021, c36ec181, eeb9dfa6, ac90b82c, 2d724aa2, d7e9819e, 6c1aa611)
 
 perigrin, 2026-10-16. The modules that ship with perl get declaration
