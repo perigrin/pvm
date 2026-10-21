@@ -1,10 +1,19 @@
 ---
 title: "Test-harness gaps from the fix round: a dying POSIX probe fails, stale exemptions are checked on the real maps, the exemption machinery is one mechanism"
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 created: 2026-10-21T05:19:06.111971328Z
-updated: 2026-10-21T05:19:06.111971328Z
+updated: 2026-10-21T15:14:36.252473055Z
+sessions:
+- start_sha: 9711a47ad2aaa4e8463f48604119e9b4ed2bf964
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-21T15:14:36.252473055Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-21T15:14:36.252473055Z
 ---
 
 crochet:review round 2 of PR #488 at 2db182e6 (2026-10-21). Quality report: scratchpad/review2-core-module-types-paad.md, probes scratchpad/r2probes/, psc builds of head, cf08c0ac and pu in scratchpad/r2bin/. A finding pu gets right is a regression this milestone introduced: fix it. A gap pu shares is out of scope here and goes to the follow-up named in the issue.
