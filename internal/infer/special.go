@@ -17,11 +17,11 @@ import (
 // A sort in scalar context is undefined (perlfunc), and is left untyped.
 //
 // Its block, like any other loop body, may run zero times (an empty
-// list), so it is walked through flow.go's loop: vars.go's
-// narrowDerefBase reads the depth that leaves to join a deref's forced
-// ref type with the base's own, rather than replacing it (I4).
+// list), so it is walked through flow.go's loop, which joins a deref's
+// forced ref type in the block with the base's own type from before it
+// (I4); the list runs regardless.
 func (a *analysis) mapGrepSort(n *lower.MapGrepSort) types.Type {
-	a.loop(func() { a.walkChildren(n) })
+	a.loop(n, func() { a.walkChildren(n) })
 	if n.Op != "sort" || a.evalCtx[n.ID] != types.ListCtx {
 		return types.Unknown
 	}
