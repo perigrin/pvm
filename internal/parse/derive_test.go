@@ -492,6 +492,31 @@ func TestCandidatesDifferInArityComparesArity(t *testing.T) {
 	}
 }
 
+// TestArityMixAcceptedAsBefore: S13, candidatesDifferInArity's own Arity
+// comparison ignored the bounded maximum, comparing only least and
+// unbounded: `(Int $a)` (least 1, unbounded false, at most one
+// argument) and `(ArrayRef $a, Int $b = 0)` (least 1 too -- $b is
+// optional -- unbounded false, but at most two) share both, so the two
+// were read as the same arity even though one takes one argument and
+// the other one or two. That silently skipped prototypeAdmitsArity's
+// check (declarations.go), which a stated `:prototype(@)` -- admitting
+// any count -- exists to pass, and the pair was refused instead,
+// changing behaviour against a cut described as neutral (b7bbb66f).
+func TestArityMixAcceptedAsBefore(t *testing.T) {
+	src := "multi sub f :export :prototype(@) (Int $a) Int;\n" +
+		"multi sub f :export :prototype(@) (ArrayRef $a, Int $b = 0) Str;\n"
+	facts := readDeclaration([]byte(src), nil)
+	if len(facts.errs) > 0 {
+		t.Fatalf("%q: errors %v, want none", src, facts.errs)
+	}
+	if got := facts.protos["f"]; got != "(@)" {
+		t.Errorf("%q: prototype %q, want (@)", src, got)
+	}
+	if len(facts.signatures["f"]) != 2 {
+		t.Errorf("%q: signatures %+v, want both candidates kept", src, facts.signatures["f"])
+	}
+}
+
 // TestDeriveMultiCandidatesIgnoreReturnType: candidates with the same
 // parameters and different return types are one group: they derive one
 // prototype, and do not count as a position differing. The candidates are

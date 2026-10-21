@@ -96,13 +96,25 @@ func (a *analysis) declaredCall(n *lower.Call) types.Type {
 	a.args(n.Args, sigs)
 	args := a.argTypes(n.Args)
 	fixed := 0
-	for i, t := range args {
-		// An argument flattens into the call's arguments only when it is
-		// itself an aggregate, a deref of one or a list-returning call's
-		// result -- an Any-typed scalar (List::Util's first, its element
-		// type unknown) holds the Array and Hash bits too, bitwise, but
-		// is not one, measured: it does not relax the call's arity.
-		if t&(types.Array|types.Hash) == 0 || !types.IsSubtype(t, types.List) || parse.SlotAt(n.Prototype, i) {
+	for i, arg := range n.Args {
+		// An argument flattens into the call's arguments by its own
+		// syntactic form, not its inferred type (perigrin, 2026-10-21,
+		// "flattening is read from the expression"): an array or hash,
+		// a deref of one, a slice -- including a list slice, `(EXPR)
+		// [..]` -- a map, grep or sort, or a call, an eval block or a
+		// do block, each of which an ordinary argument list evaluates
+		// in list context and so may yield any number of values.
+		// flattensArgument's own type-based predecessor missed every
+		// one of these but the plain variable: a slice is untyped
+		// (Slice's own walk, vars.go) and a call's type is whatever it
+		// returns in scalar context, neither carrying the Array or
+		// Hash bit a list-valued expression's form alone proves. A
+		// value stored first in a scalar, `my $v = f(); g($v)`, does
+		// not flatten: $v is one Var, whatever f returned. One in a
+		// position the prototype perl applies to the call gives a
+		// slot, as the parse resolved it, is one argument regardless
+		// of its form: `\@` passes the one container it is.
+		if !flattensArgument(arg) || parse.SlotAt(n.Prototype, i) {
 			fixed++
 		}
 	}
@@ -137,7 +149,37 @@ func (a *analysis) declaredCall(n *lower.Call) types.Type {
 	return sel.Returns
 }
 
-// markPossibleUndef marks n's own id, for possibleUndef (below) to read,
+// flattensArgument reports whether arg's own syntactic form may hand a
+// call more than one of its arguments, the way every ordinary argument
+// list evaluates each of its expressions in list context: an array or
+// hash variable, a deref of one, a slice -- `@a[..]`, `%h{..}` and a
+// list slice, `(EXPR)[..]`, alike -- a map, grep or sort, or a call, an
+// eval block or a do block, each of which may yield any number of
+// values where it stands. Nothing else does: a scalar variable, a
+// literal, and a reference constructor each hand over exactly the one
+// value they are.
+//
+// A call to undef is the one call this excludes: measured on 5.42.0,
+// `my @x = (undef(@a))` and `my @y = (undef)` are both one element,
+// since undef, given no argument or one, is the single undefined
+// value, never a list -- the same special case call() itself gives it,
+// bypassing CORE.tpm's own arity and type rules.
+func flattensArgument(n lower.Node) bool {
+	switch n := n.(type) {
+	case *lower.Var:
+		return n.Sigil == "@" || n.Sigil == "%"
+	case *lower.Deref:
+		return n.Sigil == "@" || n.Sigil == "%"
+	case *lower.Call:
+		return n.Fn != nil || n.Ampersand || overridden(n) || coreName(n.Name) != "undef"
+	case *lower.Slice, *lower.MapGrepSort, *lower.EvalBlock, *lower.DoBlock:
+		return true
+	}
+	return false
+}
+
+// markPossibleUndef marks n's own id, for markedPossibleUndef and
+// excusesMismatch (below) to read,
 // whenever sel's own resolved return (whether types.Select Selected one
 // candidate or joined several, Undecided) carries the Undef bit beside
 // some other bit (perigrin, 2026-10-20): "An Undef from a declared
@@ -159,23 +201,6 @@ func (a *analysis) markPossibleUndef(n *lower.Call, sel types.Selection) {
 	if sel.Returns&types.Undef != 0 && sel.Returns != types.Undef {
 		a.undecidedUndef[n.ID] = true
 	}
-}
-
-// possibleUndef reports whether n's Undef, in a slot expecting expected,
-// is accepted by default under WarnPossibleUndef (perigrin, 2026-10-20):
-// n is a declared call markPossibleUndef marked, or a variable a marked
-// call's result was assigned to (Symbol.PossibleUndef, carried there by
-// narrow in ops.go), its Undef one of several outcomes the call's own
-// declaration states rather than the call's arguments proving its
-// return could be nothing else, and removing that one bit would
-// satisfy expected on its own -- a mismatch WarnPossibleUndef has no
-// bearing on, a wrong type entirely, still reports.
-func (a *analysis) possibleUndef(n lower.Node, actual, expected types.Type) bool {
-	if a.opts.WarnPossibleUndef || actual&types.Undef == 0 || !a.markedPossibleUndef(n) {
-		return false
-	}
-	rest := numified(finite(actual&^types.Undef), expected)
-	return a.opts.satisfies(rest, expected) || a.opts.handleSatisfies(rest, expected)
 }
 
 // markedPossibleUndef reports whether n is itself a declared call
@@ -217,20 +242,22 @@ func (a *analysis) ternaryPossibleUndef(n *lower.Ternary) bool {
 // possibleMismatch reports whether actual, in a slot expecting expected,
 // is accepted by default under WarnPossibleMismatch (perigrin,
 // 2026-10-21): "an argument whose union type has at least one member
-// that fits the parameter is a possible mismatch." Undef is removed
-// first and is never itself a fitting member for this purpose -- its
-// own narrower rule, possibleUndef, already governs it, so a union
-// whose only problem bit is Undef (Sys::Syslog.pm:562's Undef|Boolean,
-// with Undef removed already a Boolean fitting Boolean|Int) is not
-// this function's business, not even to disqualify it. Only once
-// removing Undef still leaves actual failing expected as a whole does a
-// single bit of what remains fitting on its own -- Symbol::qualify's
-// Ref return, with its ScalarRef, ArrayRef, HashRef, CodeRef and Object
-// members beside the GlobRef that fits -- count as a possible
-// mismatch: psc knows only that the value is some reference, never
-// which kind, the same loss of precision possible-undef forgives for a
-// declared call's Undef. A union with no fitting member at all, by the
-// same bit-by-bit test, is still an outright coercion mismatch.
+// that fits the parameter is a possible mismatch." It never excuses a
+// Undef bit itself: that is the possible-undef rule's own narrower
+// business, and a fitting member elsewhere must never hide an Undef
+// that rule alone would not forgive (perigrin, 2026-10-21, "a fitting
+// member must never hide Undef"), so actual still carrying the bit
+// here is, by excusesMismatch's contract below, an Undef no rule has
+// excused, and is refused outright, not even disqualified bit by bit.
+//
+// Only once actual, Undef aside, still fails expected as a whole does a
+// single bit of it fitting on its own -- Symbol::qualify's Ref return,
+// with its ScalarRef, ArrayRef, HashRef, CodeRef and Object members
+// beside the GlobRef that fits -- count as a possible mismatch: psc
+// knows only that the value is some reference, never which kind, the
+// same loss of precision possible-undef forgives for a declared call's
+// Undef. A union with no fitting member at all, by the same bit-by-bit
+// test, is still an outright coercion mismatch.
 //
 // A bit that is itself a subtype of Str is never a member for this
 // purpose, whatever expected is: Str's own bits (Int, a bare numLeaf, a
@@ -240,22 +267,49 @@ func (a *analysis) ternaryPossibleUndef(n *lower.Ternary) bool {
 // polymorphicMasks comment) -- treating them as members would turn
 // `abs("abc")` silent, since Str's own Int bit trivially fits Num.
 func (a *analysis) possibleMismatch(actual, expected types.Type) bool {
-	if a.opts.WarnPossibleMismatch || actual == types.Unknown || expected == types.Unknown {
+	if a.opts.WarnPossibleMismatch || actual == types.Unknown || expected == types.Unknown || actual&types.Undef != 0 {
 		return false
 	}
-	rest := actual &^ types.Undef
-	if a.argSatisfies(rest, expected) {
+	if a.argSatisfies(actual, expected) {
 		return false
 	}
 	for bit := types.Type(1); bit != 0; bit <<= 1 {
-		if bit == types.Undef || bit == types.None || types.IsSubtype(bit, types.Str) {
+		if bit == types.None || types.IsSubtype(bit, types.Str) {
 			continue
 		}
-		if rest&bit != 0 && a.argSatisfies(bit, expected) {
+		if actual&bit != 0 && a.argSatisfies(bit, expected) {
 			return true
 		}
 	}
 	return false
+}
+
+// excusesMismatch composes the possible-undef rule, lossyCoercion and
+// possibleMismatch over actual for a slot expecting expected, rather
+// than trying each as an independent alternative (perigrin, 2026-10-21,
+// "an argument is silent only if every non-fitting bit is excused by
+// some rule. Compose the exemptions"): a declared call's Undef -- n
+// itself, or a variable or ternary markedPossibleUndef traces back to
+// one -- is removed first, but only where its own conditions excuse
+// it: unmarked, under WarnPossibleUndef, or not such an Undef at all.
+// So a fitting member possibleMismatch or lossyCoercion finds in what
+// is left never hides an Undef that rule alone would not forgive
+// (perigrin, 2026-10-21, "a fitting member must never hide Undef").
+// What remains, whole or one bit at a time, is then lossyCoercion's
+// and possibleMismatch's own second chance over what checkArg's and
+// checkOperand's own earlier, stricter attempts already failed.
+func (a *analysis) excusesMismatch(n lower.Node, actual, expected types.Type) bool {
+	rest := actual
+	if rest&types.Undef != 0 {
+		if a.opts.WarnPossibleUndef || !a.markedPossibleUndef(n) {
+			return false
+		}
+		rest &^= types.Undef
+	}
+	if a.argSatisfies(rest, expected) {
+		return true
+	}
+	return a.lossyCoercion(n, rest, expected) || a.possibleMismatch(rest, expected)
 }
 
 // flattenedSelect is types.Select for a call in context ctx with at least
@@ -409,8 +463,7 @@ func (a *analysis) checkArg(name string, i int, arg lower.Node, expected types.T
 	} else if a.argSatisfies(scalarValue(arg, actual), expected) || a.argSatisfies(counted(name, actual), expected) {
 		return
 	}
-	if a.lossyCoercion(arg, actual, expected) || a.silenced(actual, expected) || a.possibleUndef(arg, actual, expected) ||
-		a.possibleMismatch(actual, expected) {
+	if a.silenced(actual, expected) || a.excusesMismatch(arg, actual, expected) {
 		return
 	}
 	start, end, _ := a.pos.Span(arg.Meta().ID)

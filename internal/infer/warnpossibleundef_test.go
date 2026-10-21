@@ -72,3 +72,27 @@ my $same = (sum() eq "0");
 	assert.Len(t, diagsWithOptions(src, infer.Options{}), 1)
 	assert.Len(t, diagsWithOptions(src, infer.Options{WarnPossibleUndef: true}), 1)
 }
+
+// TestEmptyMaxPlusOneReportedUnderFlag: S17, List::Util::max (and min,
+// maxstr, minstr) is declared to return plain Scalar, which carries the
+// Undef bit as one of its own (types.go, Scalar = Undef|Boolean|Str|
+// DualVar|Ref) rather than a narrower union naming it -- max() and
+// max(@empty) are both measured undef on 5.42.0. Scalar is also one of
+// types.go's polymorphicMasks, "a general container that could hold
+// any of its subtypes at runtime", which is why `max(@n) + 1` is silent
+// by default: the whole type, Undef included, might always be read as
+// a Num. Under --warn-possible-undef that ambient reading must not
+// stand in for the ordinary report once the flag means to see past it:
+// perl 5.42 -w warns "Use of uninitialized value in addition (+)" on
+// `max(@empty) + 1`.
+func TestEmptyMaxPlusOneReportedUnderFlag(t *testing.T) {
+	const src = `use List::Util qw(max);
+my @empty;
+my $x = max(@empty) + 1;
+`
+	assert.Empty(t, diagsWithOptions(src, infer.Options{}))
+	diags := diagsWithOptions(src, infer.Options{WarnPossibleUndef: true})
+	if assert.Len(t, diags, 1) {
+		assert.Equal(t, infer.CodeCoercionMismatch, diags[0].Code)
+	}
+}

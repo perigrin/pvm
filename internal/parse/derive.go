@@ -142,27 +142,37 @@ func agreement(declared, fromTypes string) error {
 	return nil
 }
 
-// candidatesDifferInArity reports whether sigs's own Arity is not
-// all the same: prototypeFromCandidates's "different length" refusal is
-// specifically this, an arity difference between candidates, distinct
-// from its other reasons (two aliased positions varying, an unaliased
-// position varying, an invocant), which keep every candidate's arity the
-// same. A derived prototype's own length is not arity: an aliased
-// container's character outnumbers an unaliased scalar's for the same
-// one required argument (`\@` beside `$`), and an optional parameter's
-// leading `;` can make two differently-sized arities the same length
-// (`$;$` beside `$$$`). prototypeAdmitsArity is read only once this is
-// true: a stated prototype wide enough to admit every arity says nothing
-// about whether two same-arity candidates agree position by position,
-// which prototypeFromCandidates still must.
+// candidatesDifferInArity reports whether sigs's own arity -- Arity's
+// least and unbounded, and, when bounded, how many parameters it takes
+// at most -- is not all the same: prototypeFromCandidates's "different
+// length" refusal is specifically this, an arity difference between
+// candidates, distinct from its other reasons (two aliased positions
+// varying, an unaliased position varying, an invocant), which keep
+// every candidate's arity the same. A derived prototype's own length is
+// not arity: an aliased container's character outnumbers an unaliased
+// scalar's for the same one required argument (`\@` beside `$`), and an
+// optional parameter's leading `;` can make two differently-sized
+// arities the same length (`$;$` beside `$$$`). Arity's own least and
+// unbounded alone miss the opposite mismatch (b7bbb66f, S13): `(Int
+// $a)` and `(ArrayRef $a, Int $b = 0)` share one required argument and
+// no slurpy, but the second still takes a second one the first
+// refuses, so the bounded maximum -- len(Params), read only when
+// neither is unbounded -- must agree too. prototypeAdmitsArity is read
+// only once this is true: a stated prototype wide enough to admit every
+// arity says nothing about whether two same-arity candidates agree
+// position by position, which prototypeFromCandidates still must.
 func candidatesDifferInArity(sigs []types.Signature) bool {
 	if len(sigs) == 0 {
 		return false
 	}
 	wantLeast, wantUnbounded := sigs[0].Arity()
+	wantMost := len(sigs[0].Params)
 	for _, s := range sigs[1:] {
 		least, unbounded := s.Arity()
 		if least != wantLeast || unbounded != wantUnbounded {
+			return true
+		}
+		if !unbounded && len(s.Params) != wantMost {
 			return true
 		}
 	}
