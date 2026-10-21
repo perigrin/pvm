@@ -214,6 +214,50 @@ func (a *analysis) ternaryPossibleUndef(n *lower.Ternary) bool {
 	return any && marked
 }
 
+// possibleMismatch reports whether actual, in a slot expecting expected,
+// is accepted by default under WarnPossibleMismatch (perigrin,
+// 2026-10-21): "an argument whose union type has at least one member
+// that fits the parameter is a possible mismatch." Undef is removed
+// first and is never itself a fitting member for this purpose -- its
+// own narrower rule, possibleUndef, already governs it, so a union
+// whose only problem bit is Undef (Sys::Syslog.pm:562's Undef|Boolean,
+// with Undef removed already a Boolean fitting Boolean|Int) is not
+// this function's business, not even to disqualify it. Only once
+// removing Undef still leaves actual failing expected as a whole does a
+// single bit of what remains fitting on its own -- Symbol::qualify's
+// Ref return, with its ScalarRef, ArrayRef, HashRef, CodeRef and Object
+// members beside the GlobRef that fits -- count as a possible
+// mismatch: psc knows only that the value is some reference, never
+// which kind, the same loss of precision possible-undef forgives for a
+// declared call's Undef. A union with no fitting member at all, by the
+// same bit-by-bit test, is still an outright coercion mismatch.
+//
+// A bit that is itself a subtype of Str is never a member for this
+// purpose, whatever expected is: Str's own bits (Int, a bare numLeaf, a
+// bare strLeaf, NaN, Inf) are a hierarchy, not alternative kinds the way
+// Ref's are, and Str is excluded from the polymorphic, might-secretly-
+// be-narrower treatment for exactly the same reason (types.go's
+// polymorphicMasks comment) -- treating them as members would turn
+// `abs("abc")` silent, since Str's own Int bit trivially fits Num.
+func (a *analysis) possibleMismatch(actual, expected types.Type) bool {
+	if a.opts.WarnPossibleMismatch || actual == types.Unknown || expected == types.Unknown {
+		return false
+	}
+	rest := actual &^ types.Undef
+	if a.argSatisfies(rest, expected) {
+		return false
+	}
+	for bit := types.Type(1); bit != 0; bit <<= 1 {
+		if bit == types.Undef || bit == types.None || types.IsSubtype(bit, types.Str) {
+			continue
+		}
+		if rest&bit != 0 && a.argSatisfies(bit, expected) {
+			return true
+		}
+	}
+	return false
+}
+
 // flattenedSelect is types.Select for a call in context ctx with at least
 // least arguments, an array or a hash among them holding the rest: the
 // join of what each count the call may have selects, its arguments' types
@@ -365,7 +409,8 @@ func (a *analysis) checkArg(name string, i int, arg lower.Node, expected types.T
 	} else if a.argSatisfies(scalarValue(arg, actual), expected) || a.argSatisfies(counted(name, actual), expected) {
 		return
 	}
-	if a.lossyCoercion(arg, actual, expected) || a.silenced(actual, expected) || a.possibleUndef(arg, actual, expected) {
+	if a.lossyCoercion(arg, actual, expected) || a.silenced(actual, expected) || a.possibleUndef(arg, actual, expected) ||
+		a.possibleMismatch(actual, expected) {
 		return
 	}
 	start, end, _ := a.pos.Span(arg.Meta().ID)

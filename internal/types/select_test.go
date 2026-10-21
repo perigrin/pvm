@@ -565,7 +565,7 @@ func optional(name string, t Type) Param {
 // returns that Ref, a Str one a Str, both taking an optional second
 // argument neither discriminates on.
 var qualifyCandidates = []Signature{
-	sig(GlobRef, scalar("name", Ref), optional("pkg", Str)),
+	sig(Ref, scalar("name", Ref), optional("pkg", Str)),
 	sig(Str, scalar("name", Str), optional("pkg", Str)),
 }
 
@@ -580,7 +580,7 @@ var qualifyCandidates = []Signature{
 // this, zeroing every argument for the retry zeroed $_[0] too, so the
 // call joined to Str|GlobRef instead of selecting the Ref candidate.
 func TestSelectCoercionRetryKeepsFittingArgs(t *testing.T) {
-	wantSelected(t, qualifyCandidates, []Type{Ref, List}, 0, GlobRef)
+	wantSelected(t, qualifyCandidates, []Type{Ref, List}, 0, Ref)
 }
 
 // TestCoercionRetryKeepsArity: I5, Socket's sockaddr_in, `(Int $port, Str

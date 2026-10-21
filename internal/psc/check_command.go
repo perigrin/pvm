@@ -21,7 +21,7 @@ import (
 )
 
 func newCheckCommand() *cobra.Command {
-	var strict, warnLossy, warnPossibleUndef bool
+	var strict, warnLossy, warnPossibleUndef, warnPossibleMismatch bool
 
 	cmd := &cobra.Command{
 		Use:   "check <file|directory>",
@@ -36,7 +36,7 @@ func newCheckCommand() *cobra.Command {
 				return fmt.Errorf("stat %s: %w", target, err)
 			}
 
-			opts := infer.Options{Strict: strict, WarnLossyCoercion: warnLossy, WarnPossibleUndef: warnPossibleUndef}
+			opts := infer.Options{Strict: strict, WarnLossyCoercion: warnLossy, WarnPossibleUndef: warnPossibleUndef, WarnPossibleMismatch: warnPossibleMismatch}
 			sess := parse.NewSession()
 			roots, why := incRoots(target)
 			if why != "" {
@@ -87,6 +87,8 @@ func newCheckCommand() *cobra.Command {
 		"report coercions perl makes silently that lose the value, such as a reference printed as a string")
 	cmd.Flags().BoolVar(&warnPossibleUndef, "warn-possible-undef", false,
 		"report an undef from a declared call's return that the call's own arguments do not prove, left silent by default")
+	cmd.Flags().BoolVar(&warnPossibleMismatch, "warn-possible-mismatch", false,
+		"report an argument whose union type has a member that fits the parameter beside one that does not, left silent by default")
 
 	return cmd
 }
