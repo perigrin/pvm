@@ -322,3 +322,49 @@ func TestArityCheckReachable(t *testing.T) {
 		wantCode(t, src, infer.CodeArityMismatch)
 	}
 }
+
+// TestSliceArgumentFlattens: I7, declaredCall must decide whether an
+// argument flattens from its own syntactic form, not its inferred
+// type -- a slice is untyped (vars.go's slice, "the slice itself is not
+// typed") and a call's type is whatever it returns in scalar context,
+// neither ever carrying the Array or Hash bit the old, type-based test
+// required. POSIX's strftime and mktime take fixed, typed Int
+// parameters with no prototype of their own (measured, `prototype(\&
+// POSIX::strftime)` is undef), so perl parses every argument position
+// as an ordinary list operator's: ambient list context, in which a
+// slice, a map, or a call flattens into however many values it holds.
+// perl 5.42 -w runs every one of these silently.
+func TestSliceArgumentFlattens(t *testing.T) {
+	for _, src := range []string{
+		`use POSIX qw(strftime); my $s = strftime("%Y", (localtime)[0..5]);`,
+		`use POSIX qw(strftime); my @lt = localtime; my $s = strftime("%Y", @lt[0..5]);`,
+		`use POSIX qw(strftime); my @lt = localtime; my $r = [@lt]; my $s = strftime("%Y", @$r[0..5]);`,
+		`use POSIX qw(strftime); my @lt = localtime; my $s = strftime("%Y", map { $_ } @lt);`,
+		`use POSIX qw(mktime); my @lt = localtime; my $t = mktime(@lt[0..5]);`,
+		`use POSIX qw(fmod); sub two { return (7, 3) } my $f = fmod(two());`,
+		`use POSIX qw(fmod); my $f = fmod(eval { (7, 3) });`,
+		`use POSIX qw(fmod); my $f = fmod(do { (7, 3) });`,
+	} {
+		wantSilentResolved(t, src)
+	}
+}
+
+// TestSumResultInArithmeticIsSilent: I8, List::Util::sum's declared
+// return, Num|Inf|NaN|Object joined with the empty candidate's Undef,
+// must not report in ordinary arithmetic: an addend overloading `+` or
+// `*` comes back unchanged (List/Util.tpm's own comment), so the
+// Object bit is as legitimate a number there as a plain Num, and the
+// Undef is the same possible-undef a declared call's own catch-all
+// candidate always carries. perl 5.42 -w runs every one of these
+// silently.
+func TestSumResultInArithmeticIsSilent(t *testing.T) {
+	for _, src := range []string{
+		`use List::Util qw(sum); my @n = (1, 2, 3); my $s = sum(@n) + 1;`,
+		`use List::Util qw(sum); my @n = (1, 2, 3); print abs(sum(@n)), "\n";`,
+		`use List::Util qw(sum); my @n = (1, 2, 3); print sqrt(sum(@n)), "\n";`,
+		`use List::Util qw(sum); use POSIX qw(floor); my @n = (1, 2, 3); my $f = floor(sum(@n));`,
+		`use List::Util qw(sum); my @n = (1, 2, 3); my $avg = sum(@n) / @n;`,
+	} {
+		wantSilentResolved(t, src)
+	}
+}

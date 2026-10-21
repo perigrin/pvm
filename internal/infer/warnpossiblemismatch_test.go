@@ -58,6 +58,24 @@ my $r = tell($x);
 	assert.Len(t, diagsWithOptions(src, infer.Options{WarnPossibleMismatch: true}), 1)
 }
 
+// TestFittingMemberNeverHidesUndef: I6, a fitting member must never
+// hide an Undef possibleUndef itself would not forgive (perigrin,
+// 2026-10-21). $h's type is GlobRef|ArrayRef|Undef: the outer
+// ternary's else arm is itself a ternary whose own else arm is a
+// literal `undef`, which markPossibleUndef never marks (it marks only
+// a declared call's own join), so neither ternary is markedPossible-
+// Undef. GlobRef fits tell's FileHandle slot, but that fitting member
+// must not silence the Undef beside it, flag or no flag: perl 5.42
+// dies "Can't use an undefined value as a symbol reference" on
+// `tell(undef)`, and dies differently again when $h is the ArrayRef.
+func TestFittingMemberNeverHidesUndef(t *testing.T) {
+	const src = `my $h = @ARGV ? \*STDOUT : @ARGV > 1 ? [1] : undef;
+my $r = tell($h);
+`
+	assert.NotEmpty(t, diagsWithOptions(src, infer.Options{}))
+	assert.NotEmpty(t, diagsWithOptions(src, infer.Options{WarnPossibleUndef: true}))
+}
+
 // TestSymbolQualifyReturnsItsRef: Symbol::qualify's Ref candidate returns
 // the reference it was given, unchanged -- measured, `ref qualify({})`
 // is HASH, not GlobRef as it read while deferred pending this ruling
