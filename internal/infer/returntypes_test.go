@@ -2444,6 +2444,46 @@ func TestConfigValuesFitDeclaredType(t *testing.T) {
 	assert.Equal(t, 172, undef, "measured on perl 5.42.0's reference build: 172 of %%Config's values are undef")
 }
 
+// TestConfigReReturnsByContext holds the measured claim (audit-E, group
+// E, finding 8): Config::config_re is `return map { chomp; $_ } grep
+// ..., split ...` (Config_heavy.pl:1498), the same shape as
+// header_files's literal list, so it answers by context like
+// header_files does: a list of matching lines in list context, their
+// count (an Int) in scalar context -- not "one string whichever
+// context", as Config.tpm's comment had it. Measured on 5.42.0,
+// config_re("ccflags.*") matches more than one %Config key, so list
+// and scalar context give different values. Config.tpm must declare
+// config_re as a multi with a list-context candidate for the oracle
+// (testdata/oracle/Config.pl's existing call case) to ever exercise
+// that context at all.
+func TestConfigReReturnsByContext(t *testing.T) {
+	p := perltest.Perl542(t)
+	out, err := p.Command("-MConfig", "-e",
+		`my @l = Config::config_re("ccflags.*"); my $s = Config::config_re("ccflags.*"); print scalar(@l), ",", $s;`,
+	).Output()
+	require.NoError(t, err)
+	parts := strings.Split(strings.TrimSpace(string(out)), ",")
+	require.Len(t, parts, 2, "expected list-count,scalar-value")
+	n, err := strconv.Atoi(parts[0])
+	require.NoError(t, err)
+	require.Greater(t, n, 1, "the probe pattern must match more than one %%Config key for list and scalar context to differ")
+	assert.Equal(t, parts[0], parts[1], "scalar context must return the match count, as list context's element count does")
+
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "Config.tpm"))
+	require.NoError(t, err)
+	sigs, errs := parse.DeclaredSignatures(tpm)
+	require.Empty(t, errs)
+	var sawList bool
+	for _, s := range sigs["config_re"] {
+		if callContext(s) == "list" {
+			sawList = true
+			assert.True(t, s.ReturnElement == types.Str,
+				"config_re's list-context candidate must admit a Str element, not %v", s.ReturnElement)
+		}
+	}
+	assert.True(t, sawList, "Config.tpm declares no list-context candidate for config_re, though it returns one line per match in list context")
+}
+
 // TestTestMoreBailOutNeverCalled: BAIL_OUT is declared None and is in
 // the return-type oracle's exemption map, since it exits rather than
 // dies (measured: it calls CORE::exit directly from Test::Builder's
