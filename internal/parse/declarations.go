@@ -369,38 +369,45 @@ type declStmt struct {
 }
 
 // declarationStatements collects every statement-level node root's own
-// statements hold, and -- nested -- every one a bare block or a phaser's
-// block holds, or a trailing comma leaves as one operand beside another:
-// perl compiles a named sub, and assigns a package variable, wherever a
-// block or a comma expression sits it in (`BEGIN { sub f { } }` declares f
-// at compile time the same as a top-level `sub f { }` would), but a .tpm
-// reads marks and attributes only where this walk marks nested false.
+// statements hold, and -- nested -- every one a bare block holds, or any
+// OTHER node's own block does (a phaser's, a package's or class's body,
+// an if/unless/while/until's, or a do block's), or a trailing comma
+// leaves as one operand beside another: perl compiles a named sub, and
+// assigns a package variable, wherever a block or a comma expression
+// sits it in (`BEGIN { sub f { } }` and `package Foo { sub f { } }`
+// declare f at compile time the same as a top-level `sub f { }` would),
+// but a .tpm reads marks and attributes only where this walk marks
+// nested false.
 func declarationStatements(root *Node) []declStmt {
 	var out []declStmt
 	var walk func(stmt *Node, nested bool)
 	walk = func(stmt *Node, nested bool) {
 		for _, n := range stmt.Children {
-			switch {
-			case n.Kind == Block:
-				for _, s := range n.Children {
-					walk(s, true)
-				}
-			case n.Kind == Phaser:
-				for _, b := range n.Children {
-					if b.Kind == Block {
-						for _, s := range b.Children {
-							walk(s, true)
-						}
-					}
-				}
-			case n.Kind == Binary && n.Text == ",":
+			if n.Kind == Binary && n.Text == "," {
 				for _, c := range commaOperands(n) {
 					if c.Kind == Declaration {
 						out = append(out, declStmt{c, true})
 					}
 				}
-			default:
-				out = append(out, declStmt{n, nested})
+				continue
+			}
+			out = append(out, declStmt{n, nested})
+			if n.Kind == Block {
+				for _, s := range n.Children {
+					walk(s, true)
+				}
+				continue
+			}
+			// n is not itself a block, but may hold one as a child --
+			// a phaser's, a package's or class's body, an
+			// if/unless/while/until's, or a do block's -- which holds
+			// further statements perl compiles wherever n sits.
+			for _, c := range n.Children {
+				if c.Kind == Block {
+					for _, s := range c.Children {
+						walk(s, true)
+					}
+				}
 			}
 		}
 	}
@@ -427,9 +434,10 @@ func commaOperands(n *Node) []*Node {
 }
 
 // useVarsNames is the names a `use vars` argument states, however it is
-// spelled -- `qw(...)`, a quoted string, or a parenthesised list of either,
-// as perl's own `use vars` reads all three -- each with the node whose
-// line reports it.
+// spelled -- `qw(...)`, a quoted string, `q(...)`/`qq(...)` with any of
+// perl's delimiters, or a parenthesised list of any of those, as perl's
+// own `use vars` reads all of them -- each with the node whose line
+// reports it.
 func useVarsNames(use *Node) []*Node {
 	var names []*Node
 	var collect func(n *Node)
@@ -445,6 +453,10 @@ func useVarsNames(use *Node) []*Node {
 			}
 		case len(n.Text) > 1 && (n.Text[0] == '\'' || n.Text[0] == '"'):
 			names = append(names, &Node{Kind: Term, Text: strings.Trim(n.Text, `'"`), Start: n.Start, End: n.End})
+		default:
+			if body, _, ok := genericQuoteBody(n.Text); ok {
+				names = append(names, &Node{Kind: Term, Text: body, Start: n.Start, End: n.End})
+			}
 		}
 	}
 	for _, c := range use.Children[1:] {
@@ -540,7 +552,10 @@ func refuseInDeclaration(root *Node, src []byte) []error {
 }
 
 // exportListVar reports whether v names an export list, @EXPORT,
-// @EXPORT_OK or %EXPORT_TAGS, in any package.
+// @EXPORT_OK or %EXPORT_TAGS, in any package -- or, by glob, any of the
+// three: `*EXPORT = [...]` reaches the same array a `use vars` or an
+// assignment to `@EXPORT` would, through a form neither of those checks
+// would otherwise see.
 func exportListVar(v string) bool {
 	if v == "" {
 		return false
@@ -554,6 +569,8 @@ func exportListVar(v string) bool {
 		return base == "EXPORT" || base == "EXPORT_OK"
 	case '%':
 		return base == "EXPORT_TAGS"
+	case '*':
+		return base == "EXPORT" || base == "EXPORT_OK" || base == "EXPORT_TAGS"
 	}
 	return false
 }

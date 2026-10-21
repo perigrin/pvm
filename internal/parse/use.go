@@ -113,6 +113,44 @@ func (p *parser) parseUse(word lexer.Token) *Node {
 		n.Children = append(n.Children, term)
 	}
 
+	// `use MODULE VERSION LIST`: VERSION is a bare, unparenthesised number
+	// standing between the module name and the list -- measured on
+	// 5.42.0, `use POSIX 1.0 qw(floor);` checks POSIX's version against
+	// 1.0 and imports floor alone (Deparse confirms the split: `use POSIX
+	// 1 ('floor')`). Read as one expression, "1.0 qw(floor)" is two terms
+	// with no operator between them, so the import-list parse below used
+	// to take only the number and leave the list to start a SECOND, bare
+	// statement -- measured, `use Test::More 1.0 (); ok();` parsed as
+	// `use Test::More 1.0` (which installed Test::More's defaults, as a
+	// list of one unmatched number does) followed by a stray `();`,
+	// giving `ok()` a false call_arity where perl's real empty list
+	// leaves it undefined entirely; `use POSIX 1.0 qw(floor); floor(1,2)`
+	// similarly lost `floor` to the opaque-list branch and reported
+	// nothing where perl's own `Usage: POSIX::floor(x)` does. A negated
+	// number is not a version -- measured, `use POSIX -1;` reads `(-1)`
+	// as the list and dies "not exported" -- so only a bare, unsigned
+	// Number counts.
+	//
+	// A COMMA right after the number is the one thing that rules this
+	// out: measured, `use POSIX 1.0, qw(floor);` deparses as `use POSIX
+	// (1.0, 'floor')` -- the number joined to the rest by a comma is the
+	// list's first element, not a VERSION standing alone before it.
+	// `use if COND, MODULE, LIST` always has one there, so a numeric
+	// COND -- `use if 1, 'Foo::Gen';` -- is read the same way: as `use if
+	// (1, 'Foo::Gen')`, a list, not `if` followed by a version. `if` is
+	// also excluded outright, since it is not a module with a version
+	// at all.
+	if module != "" && module != "if" && !isVersionPrefix(module) {
+		if v, ok := p.peekSignificant(); ok && v.Kind == lexer.Number {
+			if next, ok := p.peekAfter(v); !ok || p.text(next) != "," {
+				p.advanceTo(v)
+				n.Children = append(n.Children, &Node{
+					Kind: Term, Text: p.text(v), Start: v.Start, End: v.End,
+				})
+			}
+		}
+	}
+
 	// The import list, or a version. A version is now ONE Quote token
 	// (`scanVString`), so it misses the Word-shaped name path above and
 	// reads as an expression here -- which round-trips even though the shape
@@ -321,7 +359,7 @@ func (p *parser) resolveImports(module string, list *Node) {
 
 	// Its declared syntax comes into scope with any import -- `use M ()`
 	// calls no import, and brings none.
-	if len(facts.syntax) > 0 && (list == nil || !list.Paren || len(list.Children) > 0) {
+	if len(facts.syntax) > 0 && (list == nil || !isEmptyParenList(list)) {
 		if p.syntax == nil {
 			p.syntax = map[string]declaredSyntax{}
 		}
@@ -339,7 +377,7 @@ func (p *parser) resolveImports(module string, list *Node) {
 			ops = append(ops, op)
 		}
 	}
-	if len(ops) > 0 && (list == nil || !list.Paren || len(list.Children) > 0) {
+	if len(ops) > 0 && (list == nil || !isEmptyParenList(list)) {
 		inScope := slices.Concat(p.libraryOps, ops)
 		if powers, err := libraryInfix(inScope); err != nil {
 			p.res.declErrs = append(p.res.declErrs, fmt.Errorf("%s: %w", module, err))
@@ -375,7 +413,7 @@ func (p *parser) resolveImports(module string, list *Node) {
 	// ordinary name semantics instead: `use Exporter 'import';` asks for
 	// the name import, not an argument to call it with.
 	if sigs := facts.signatures["import"]; len(sigs) > 0 && !slices.Contains(facts.exports, "import") {
-		if list != nil && list.Paren && len(list.Children) == 0 {
+		if isEmptyParenList(list) {
 			return
 		}
 		// `use M qw();` is also the explicit empty list: qw() is a Term,
@@ -540,6 +578,20 @@ func alteringKey(sig types.Signature) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// isEmptyParenList reports whether list is the explicit empty list, `()`
+// with nothing between the parens: a List node, parenthesised, with no
+// children. A single parenthesised item, `('x')`, is NOT this --
+// finishList (term.go) copies that one item BY VALUE instead of wrapping
+// it in a List, so the copy keeps the item's own Kind -- a Term, a Call,
+// whatever it already was -- along with its own (zero) Children, and
+// `len(Children) == 0` alone cannot tell that Term from an empty list.
+// Measured on 5.42.0: `use Test::More ('no_plan')` installs the whole
+// default set, as a bare `use Test::More` does, not the nothing `use
+// Test::More ();` installs.
+func isEmptyParenList(list *Node) bool {
+	return list != nil && list.Kind == List && list.Paren && len(list.Children) == 0
 }
 
 // listNamesKey reports whether a use-list carries key as one of its
