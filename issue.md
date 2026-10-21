@@ -3,6 +3,8 @@ title: "Flow facts through loops and method-argument checks: gaps pu shares"
 state: pending
 urgency: normal
 milestone: v0.1
+blocks:
+- 01a16049-0596-72c5-b8df-0a6837e2a777
 created: 2026-10-21T05:19:23.69581367Z
 updated: 2026-10-21T05:19:23.69581367Z
 ---
