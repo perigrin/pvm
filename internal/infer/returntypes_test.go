@@ -1471,20 +1471,48 @@ print "getcwd\t", (defined $v ? "DEF:$v" : "UNDEF"), ($@ ? " DIED:$@" : ''), "\n
 chdir $base;
 `
 
+// posixProbeDeathFailsChildEnv tells TestPOSIXProbeDeathFailsChild to
+// run for real, simulating a probe script that dies mid-run, rather
+// than skip itself -- set only by TestPOSIXProbeDeathFails's
+// subprocess, following the pattern internal/parse/isolation_test.go
+// uses to test code that must fail the test rather than pass it.
+const posixProbeDeathFailsChildEnv = "PVM_INFER_POSIX_PROBE_DEATH_CHILD"
+
+// TestPOSIXProbeDeathFailsChild calls posixScriptLines with a script
+// that prints one line and then exits non-zero, so it must fail the
+// test rather than pass having measured only that one line. Run
+// directly (not as TestPOSIXProbeDeathFails's subprocess) it skips
+// itself, so a normal `go test` of this package does not fail from the
+// very behavior being verified.
+func TestPOSIXProbeDeathFailsChild(t *testing.T) {
+	if os.Getenv(posixProbeDeathFailsChildEnv) == "" {
+		t.Skip("only runs as TestPOSIXProbeDeathFails's subprocess")
+	}
+	p := perltest.Perl542(t)
+	posixScriptLines(t, p, "", `print "a\tOK\n"; exit 1;`)
+}
+
+// TestPOSIXProbeDeathFails: a POSIX probe script that exits non-zero
+// (dies outright, or is killed by a crash eval cannot catch) must fail
+// the test, not be logged and treated as a complete, if partial,
+// measurement -- a script that dies after printing some of its
+// "name\tresult" lines must not pass having checked only those names.
+func TestPOSIXProbeDeathFails(t *testing.T) {
+	cmd := exec.Command(os.Args[0], "-test.run=^TestPOSIXProbeDeathFailsChild$", "-test.v")
+	cmd.Env = append(os.Environ(), posixProbeDeathFailsChildEnv+"=1")
+	out, err := cmd.CombinedOutput()
+	assert.Error(t, err, "a probe script that exits non-zero should fail the test, not pass:\n%s", out)
+}
+
 // posixScriptLines runs script (in dir, unless dir is "") and returns
 // its "name\tresult" lines, split and freed of perl's own \r\n line
 // ending so a trailing \r never sticks to the last field of a line --
 // measured: Windows's perl prints \r\n, and trimming only the whole
 // output's own trailing \n (not \r) leaves one on every line but the
-// last. Perl's eval cannot catch a C-level crash, which one of several
-// bogus arguments these scripts feed a POSIX sub induces on some
-// platforms (measured: Windows's MSVCRT aborts the process outright for
-// some of them, rather than setting errno the way glibc does) -- a
-// nonzero exit here still means whatever lines printed before that are
-// real measurements, so it is logged, not failed, and parsed the same
-// way a clean exit's output is. A name the crash cut off before it
-// could print is simply not among the lines returned, so this run does
-// not check it, same as a name genuinely exempt.
+// last. A non-zero exit -- the script died outright, or was killed by a
+// C-level crash eval cannot catch -- means the lines that did print
+// checked only some of the names the script claims to cover, so this
+// fails the test rather than silently measuring a partial run.
 func posixScriptLines(t *testing.T, p perltest.Perl, dir, script string) []string {
 	t.Helper()
 	cmd := p.Command("-e", script)
@@ -1494,8 +1522,10 @@ func posixScriptLines(t *testing.T, p perltest.Perl, dir, script string) []strin
 	out, err := cmd.Output()
 	if err != nil {
 		var exitErr *exec.ExitError
-		require.True(t, errors.As(err, &exitErr), "could not even run the script: %v", err)
-		t.Logf("script exited %v before finishing; using what it printed up to there", err)
+		if errors.As(err, &exitErr) {
+			t.Fatalf("script exited %v before finishing, printing %d bytes: %s", err, len(out), exitErr.Stderr)
+		}
+		require.NoError(t, err, "could not even run the script")
 	}
 	text := strings.TrimRight(string(out), "\r\n")
 	if text == "" {
