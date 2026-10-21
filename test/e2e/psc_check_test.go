@@ -340,3 +340,24 @@ func TestPSCCheckSingleCandidateMismatchIsCoercion(t *testing.T) {
 	assert.NotContains(t, stderr, "arity-mismatch")
 	assert.NotContains(t, stderr, "no declared candidate")
 }
+
+// TestPSCCheckDualvarIsLossyCoercion: dualvar.pl uses a dualvar as a
+// number, as a string and as split's pattern, which perl 5.42 -w runs
+// silently, so psc check says nothing by default. Each use reads one of
+// the dualvar's values and drops the other -- `0 + "$d"` is 0 for
+// `dualvar(404, "Not Found")` -- so under --warn-lossy-coercion each is
+// a lossy coercion.
+func TestPSCCheckDualvarIsLossyCoercion(t *testing.T) {
+	dualvarFile := filepath.Join(testdataDir(t), "dualvar.pl")
+
+	_, stderr, err := runPSCCheck(t, dualvarFile)
+	assert.NoError(t, err, "a dualvar read as a number or a string is silent by default")
+	assert.Empty(t, stderr)
+
+	_, stderr, err = runPSCCheck(t, dualvarFile, "--warn-lossy-coercion")
+	assert.Error(t, err, "--warn-lossy-coercion reports each dualvar coercion")
+	for _, line := range []string{"dualvar.pl:8:", "dualvar.pl:9:", "dualvar.pl:10:"} {
+		assert.Contains(t, stderr, line)
+	}
+	assert.Contains(t, stderr, "lossy-coercion")
+}
