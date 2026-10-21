@@ -1544,6 +1544,30 @@ func TestPurePerlExportersReturnTypes(t *testing.T) {
 	holdReturnTypes(t, perltest.PureExporters...)
 }
 
+// TestGetoptStdReturnsHashName holds the measured claim (audit-E, group
+// E, finding 11): Getopt::Std::getopt's last statement, `unless (ref
+// $hash) { ...; Getopt::Std->import }`, is skipped when $hash is a
+// hashref, so the sub's value is whatever that statement last
+// evaluated -- the condition itself, `ref $hash`. Measured on perl
+// 5.42.0: getopt("b", \%h) returns the Str "HASH" (is_bool 0), not a
+// Boolean, when given a hashref; it returns a Boolean only without
+// one. testdata/oracle/Getopt-Std-hashref.pl isolates this case so
+// adding it cannot disturb Getopt-Std.pl's own @ARGV staging.
+// getopts is exempt here since it has no hashref call case in this
+// isolated file (it is held, with getopt's own Boolean-only case, by
+// TestPurePerlExportersReturnTypes's Getopt::Std run).
+func TestGetoptStdReturnsHashName(t *testing.T) {
+	p := perltest.Perl542(t)
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "Getopt", "Std.tpm"))
+	require.NoError(t, err)
+	cases, err := filepath.Abs(filepath.Join("testdata", "oracle", "Getopt-Std-hashref.pl"))
+	require.NoError(t, err)
+	exempt := map[string]string{"Getopt::Std::getopts": "no hashref call case in this isolated file; held by TestPurePerlExportersReturnTypes instead"}
+	for _, f := range returnTypeFailures(t, p, oracleRun{Module: "Getopt::Std", TPM: tpm, Cases: cases, Exempt: exempt}) {
+		t.Error(f)
+	}
+}
+
 // moduleFailures holds module's shipped .tpm return types to perl,
 // called with its shipped oracle/<Module>.pl cases.
 func moduleFailures(t *testing.T, module string) []string {
