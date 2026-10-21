@@ -1,10 +1,19 @@
 ---
 title: "Import semantics the declarations lose: Getopt::Long :config and GetOptionsFromArray, POSIX, Mojolicious::Lite -signatures, Moose -traits"
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 created: 2026-10-20T19:18:42.4290902Z
-updated: 2026-10-20T19:18:42.4290902Z
+updated: 2026-10-21T00:16:22.762511393Z
+sessions:
+- start_sha: a2621ad1916c9a56ca43a75931e9c15d8f8929fa
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-21T00:16:22.762511393Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-21T00:16:22.762511393Z
 ---
 
 crochet:review of PR #488, round 1 (2026-10-21). Audit E and quality S2. Measured: `use Getopt::Long qw(:config bundling)` installs GetOptions (psc installs nothing); `qw(GetOptionsFromArray)` also installs GetOptions; `use Mojolicious::Lite -signatures` installs all 16 DSL subs (psc treats the list as computed and loses them); `use Moose -traits => []` loses the 13 sugar subs; POSIX's own import semantics are lost (S2, internal/parse/declarations.go:88). Use the declared-import mechanism (perigrin: the parameters are the signature to import(); the signature names the keys that alter installs) where it expresses the case; where it cannot (GetOptionsFromArray installing GetOptions), stop and bring the mechanism question to perigrin rather than special-casing a module.
