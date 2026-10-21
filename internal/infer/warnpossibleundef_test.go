@@ -96,3 +96,21 @@ my $x = max(@empty) + 1;
 		assert.Equal(t, infer.CodeCoercionMismatch, diags[0].Code)
 	}
 }
+
+// TestCheckArgPossibleUndefUnderFlag: S17 for a call's argument, as
+// TestEmptyMaxPlusOneReportedUnderFlag is for an operator's operand.
+// max and min of an empty list are undef, declared plain Scalar, which
+// fits a Num slot by default; under --warn-possible-undef that must not
+// stand in for the report. perl 5.42 -w warns "Use of uninitialized
+// value in abs" (in sqrt, and in subroutine entry for floor) on each.
+func TestCheckArgPossibleUndefUnderFlag(t *testing.T) {
+	for _, src := range []string{
+		"use List::Util qw(max); my @e; my $x = abs(max(@e));",
+		"use List::Util qw(max); use POSIX qw(floor); my @e; my $x = floor(max(@e));",
+		"use List::Util qw(min); my @e; my $x = sqrt(min(@e));",
+		"use List::Util qw(max); my @e; my $m = max(@e); my $x = abs($m);",
+	} {
+		assert.Empty(t, diagsWithOptions(src, infer.Options{}), src)
+		assert.Len(t, diagsWithOptions(src, infer.Options{WarnPossibleUndef: true}), 1, src)
+	}
+}

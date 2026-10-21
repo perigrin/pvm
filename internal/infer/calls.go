@@ -4,6 +4,7 @@
 package infer
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
@@ -101,9 +102,11 @@ func (a *analysis) declaredCall(n *lower.Call) types.Type {
 		// syntactic form, not its inferred type (perigrin, 2026-10-21,
 		// "flattening is read from the expression"): an array or hash,
 		// a deref of one, a slice -- including a list slice, `(EXPR)
-		// [..]` -- a map, grep or sort, or a call, an eval block or a
-		// do block, each of which an ordinary argument list evaluates
-		// in list context and so may yield any number of values.
+		// [..]` -- a map, grep or sort, a call that may return a list,
+		// an eval block or a do block, and the other list forms
+		// flattensArgument names, each of which an ordinary argument
+		// list evaluates in list context and so may yield any number
+		// of values.
 		// flattensArgument's own type-based predecessor missed every
 		// one of these but the plain variable: a slice is untyped
 		// (Slice's own walk, vars.go) and a call's type is whatever it
@@ -150,32 +153,84 @@ func (a *analysis) declaredCall(n *lower.Call) types.Type {
 }
 
 // flattensArgument reports whether arg's own syntactic form may hand a
-// call more than one of its arguments, the way every ordinary argument
-// list evaluates each of its expressions in list context: an array or
-// hash variable, a deref of one, a slice -- `@a[..]`, `%h{..}` and a
-// list slice, `(EXPR)[..]`, alike -- a map, grep or sort, or a call, an
-// eval block or a do block, each of which may yield any number of
-// values where it stands. Nothing else does: a scalar variable, a
-// literal, and a reference constructor each hand over exactly the one
-// value they are.
+// call other than exactly one of its arguments, the way every ordinary
+// argument list evaluates each of its expressions in list context:
+// measured on 5.42.0, `sub cnt { scalar @_ }` counts the values each
+// form yields. An array or hash variable, a deref of one, a slice --
+// `@a[..]`, `%h{..}` and a list slice, `(EXPR)[..]`, alike -- a map,
+// grep or sort, an eval or a do, a range, a list repetition `(0) x 6`,
+// a list assignment `my @q = (7, 3)`, a readline and a glob each yield
+// as many values as they hold; so does a qw or a parenthesised list of
+// other than one element, and a ternary or a logical operator's right
+// operand when one of its own arms does: `cnt(0 ? 1 : @a)` and `cnt(0 ||
+// @a)` are both 2.
 //
-// A call to undef is the one call this excludes: measured on 5.42.0,
-// `my @x = (undef(@a))` and `my @y = (undef)` are both one element,
-// since undef, given no argument or one, is the single undefined
-// value, never a list -- the same special case call() itself gives it,
-// bypassing CORE.tpm's own arity and type rules.
+// A call flattens only when it may return a list in list context: a
+// user sub, a coderef, a method, or a builtin or declared sub one of
+// whose candidates answers a list, as callReturnsList says. length,
+// scalar, lc, join and abs return one value however they are called,
+// and so does undef: `cnt(undef)` is 1. Nothing else flattens: a scalar
+// variable, a literal, and a reference constructor each hand over
+// exactly the one value they are.
 func flattensArgument(n lower.Node) bool {
 	switch n := n.(type) {
 	case *lower.Var:
 		return n.Sigil == "@" || n.Sigil == "%"
 	case *lower.Deref:
-		return n.Sigil == "@" || n.Sigil == "%"
+		// `&$c` calls the sub $c refers to, with the caller's @_.
+		return n.Sigil == "@" || n.Sigil == "%" || n.Sigil == "&"
 	case *lower.Call:
-		return n.Fn != nil || n.Ampersand || overridden(n) || coreName(n.Name) != "undef"
-	case *lower.Slice, *lower.MapGrepSort, *lower.EvalBlock, *lower.DoBlock:
+		return callReturnsList(n)
+	case *lower.Slice, *lower.MapGrepSort, *lower.EvalBlock, *lower.EvalStr, *lower.DoBlock, *lower.DoFile,
+		*lower.MethodCall, *lower.Range, *lower.Readline, *lower.Glob:
 		return true
+	case *lower.Repeat:
+		return n.ListRepeat
+	case *lower.QwList:
+		return len(n.Words) != 1
+	case *lower.List:
+		return len(n.Elems) != 1 || flattensArgument(n.Elems[0])
+	case *lower.Assign:
+		return n.ListAssign
+	case *lower.Decl:
+		return n.ListAssign || len(n.Vars) == 1 && flattensArgument(n.Vars[0])
+	case *lower.Ternary:
+		return flattensArgument(n.Then) || flattensArgument(n.Else)
+	case *lower.Binary:
+		switch n.Op {
+		case "||", "//", "&&", "or", "and":
+			return flattensArgument(n.R)
+		}
 	}
 	return false
+}
+
+// callReturnsList reports whether c may return a list in list context:
+// a call through a reference, `&name`, or a sub that is no builtin and
+// has no declaration has no return psc knows, so it may; otherwise one
+// of the candidates CORE.tpm or the declaration file gives c must answer
+// a list, its return carrying the Array or Hash bit within List.
+// Any carries those bits too, bitwise, but is not one: List::Util's
+// first returns a single value of any type. undef is the single
+// undefined value, as call() types it: CORE.tpm gives it only a
+// prototype.
+func callReturnsList(c *lower.Call) bool {
+	if c.Fn != nil || c.Ampersand || overridden(c) {
+		return true
+	}
+	if coreName(c.Name) == "undef" {
+		return false
+	}
+	sigs := c.Signatures
+	if len(sigs) == 0 {
+		sigs = parse.CoreBuiltin(coreName(c.Name))
+	}
+	if len(sigs) == 0 {
+		return true
+	}
+	return slices.ContainsFunc(sigs, func(s types.Signature) bool {
+		return s.Returns&(types.Array|types.Hash) != 0 && types.IsSubtype(s.Returns, types.List)
+	})
 }
 
 // markPossibleUndef marks n's own id, for markedPossibleUndef and
@@ -246,14 +301,13 @@ func (a *analysis) ternaryPossibleUndef(n *lower.Ternary) bool {
 // Undef bit itself: that is the possible-undef rule's own narrower
 // business, and a fitting member elsewhere must never hide an Undef
 // that rule alone would not forgive (perigrin, 2026-10-21, "a fitting
-// member must never hide Undef"), so actual still carrying the bit
-// here is, by excusesMismatch's contract below, an Undef no rule has
-// excused, and is refused outright, not even disqualified bit by bit.
+// member must never hide Undef"). Its one caller, excusesMismatch,
+// hands it actual with that bit already removed, and only once actual
+// as a whole fails expected.
 //
-// Only once actual, Undef aside, still fails expected as a whole does a
-// single bit of it fitting on its own -- Symbol::qualify's Ref return,
+// Then a single bit of it fitting on its own -- Symbol::qualify's Ref return,
 // with its ScalarRef, ArrayRef, HashRef, CodeRef and Object members
-// beside the GlobRef that fits -- count as a possible mismatch: psc
+// beside the GlobRef that fits -- counts as a possible mismatch: psc
 // knows only that the value is some reference, never which kind, the
 // same loss of precision possible-undef forgives for a declared call's
 // Undef. A union with no fitting member at all, by the same bit-by-bit
@@ -267,10 +321,7 @@ func (a *analysis) ternaryPossibleUndef(n *lower.Ternary) bool {
 // polymorphicMasks comment) -- treating them as members would turn
 // `abs("abc")` silent, since Str's own Int bit trivially fits Num.
 func (a *analysis) possibleMismatch(actual, expected types.Type) bool {
-	if a.opts.WarnPossibleMismatch || actual == types.Unknown || expected == types.Unknown || actual&types.Undef != 0 {
-		return false
-	}
-	if a.argSatisfies(actual, expected) {
+	if a.opts.WarnPossibleMismatch || actual == types.Unknown || expected == types.Unknown {
 		return false
 	}
 	for bit := types.Type(1); bit != 0; bit <<= 1 {
@@ -310,6 +361,20 @@ func (a *analysis) excusesMismatch(n lower.Node, actual, expected types.Type) bo
 		return true
 	}
 	return a.lossyCoercion(n, rest, expected) || a.possibleMismatch(rest, expected)
+}
+
+// forcedUndef reports whether n, typed actual, is a declared call's
+// possible Undef that WarnPossibleUndef reports in a slot expecting
+// expected, which takes no Undef. It overrides every ordinary reading
+// that would otherwise excuse it: a declared call whose return is a
+// broad, deliberately polymorphic family -- List::Util's max, min,
+// maxstr and minstr, typed plain Scalar (S17) -- satisfies expected the
+// ordinary, unmarked way (types.go's polymorphicMasks, "a general
+// container that could hold any of its subtypes at runtime"), and that
+// escape is exactly what the flag exists to see past.
+func (a *analysis) forcedUndef(n lower.Node, actual, expected types.Type) bool {
+	return a.opts.WarnPossibleUndef && expected != types.Unknown && expected&types.Undef == 0 &&
+		actual&types.Undef != 0 && a.markedPossibleUndef(n)
 }
 
 // flattenedSelect is types.Select for a call in context ctx with at least
@@ -449,22 +514,26 @@ func (a *analysis) userCall(n *lower.Call) types.Type {
 // one in a slurpy slot as flattened says, and one in a `$` slot as
 // scalarValue or counted says, and last as lossyCoercion says. Flattening is a second
 // chance, so a Hole's Any, which satisfies the slot as it is, is never
-// rewritten; one that fails both is reported as flattened.
+// rewritten; one that fails both is reported as flattened. A declared
+// call's possible Undef under WarnPossibleUndef is reported whatever
+// would otherwise excuse it, as forcedUndef says.
 func (a *analysis) checkArg(name string, i int, arg lower.Node, expected types.Type, slurpy bool, code string) {
 	actual := builtinArgActual(name, a.typeOf(arg))
-	if a.argSatisfies(actual, expected) || a.argSatisfies(a.succeeded(arg, actual), expected) {
-		return
-	}
-	if slurpy {
-		actual = a.flattened(arg, actual)
-		if a.argSatisfies(actual, expected) {
+	if !a.forcedUndef(arg, actual, expected) {
+		if a.argSatisfies(actual, expected) || a.argSatisfies(a.succeeded(arg, actual), expected) {
 			return
 		}
-	} else if a.argSatisfies(scalarValue(arg, actual), expected) || a.argSatisfies(counted(name, actual), expected) {
-		return
-	}
-	if a.silenced(actual, expected) || a.excusesMismatch(arg, actual, expected) {
-		return
+		if slurpy {
+			actual = a.flattened(arg, actual)
+			if a.argSatisfies(actual, expected) {
+				return
+			}
+		} else if a.argSatisfies(scalarValue(arg, actual), expected) || a.argSatisfies(counted(name, actual), expected) {
+			return
+		}
+		if a.silenced(actual, expected) || a.excusesMismatch(arg, actual, expected) {
+			return
+		}
 	}
 	start, end, _ := a.pos.Span(arg.Meta().ID)
 	a.diags = append(a.diags, Diagnostic{

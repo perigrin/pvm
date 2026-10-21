@@ -632,3 +632,22 @@ func TestSelectUnknownAtNonDiscriminatingPositionDecides(t *testing.T) {
 	}
 	wantSelected(t, cands, []Type{Unknown, Str, Code}, 0, Str)
 }
+
+// TestSelectMisfitCoercesToTheCandidateThatTakesIt: a parameter type is
+// its argument's coercion target, so an argument that fits no candidate
+// selects the one candidate it coerces to. Cwd::chdir is declared as a
+// handle candidate beside an `Optional[Str]` one, and a HashRef is no
+// handle but stringifies: perl 5.42 -w is silent on `Cwd::chdir({})`. A
+// List coerces to neither, so it still leaves the call undecided.
+func TestSelectMisfitCoercesToTheCandidateThatTakesIt(t *testing.T) {
+	optional := func(name string, t Type) Param { return Param{Name: name, Sigil: '$', Type: Void | t} }
+	chdir := []Signature{
+		sig(Int, optional("dir", FileHandle)),
+		sig(Int, optional("dir", Str)),
+	}
+	wantSelected(t, chdir, []Type{HashRef}, 1, Int)
+	wantSelected(t, chdir, []Type{GlobRef}, 0, Int)
+	if got := Select(chdir, []Type{List}, ScalarCtx); got.Outcome != Undecided {
+		t.Errorf("List: got %+v, want undecided", got)
+	}
+}

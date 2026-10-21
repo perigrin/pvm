@@ -368,16 +368,10 @@ func operandShape(n lower.Node) string {
 // say, and a builtin's result also as succeeded says.
 //
 // forcedUndef overrides operandMismatch's own raw reading of n's whole
-// type where that would otherwise excuse it: a declared call whose
-// return is a broad, deliberately polymorphic family -- List::Util's
-// max, min, maxstr and minstr, typed plain Scalar (S17) -- satisfies
-// expected the ordinary, unmarked way (types.go's polymorphicMasks, "a
-// general container that could hold any of its subtypes at runtime"),
-// finite and numified's own bit-stripping aside, regardless of
-// WarnPossibleUndef: that escape is exactly what the flag exists to
-// see past for a call markedPossibleUndef, so it must not stand in for
-// the ordinary report once excusesMismatch has already refused to
-// forgive the Undef it names.
+// type where that would otherwise excuse it, finite and numified's own
+// bit-stripping aside: that escape must not stand in for the ordinary
+// report once excusesMismatch has already refused to forgive the Undef
+// a call markedPossibleUndef names.
 func (a *analysis) checkOperand(n lower.Node, expected types.Type, op, side string) {
 	if n == nil {
 		return
@@ -391,8 +385,7 @@ func (a *analysis) checkOperand(n lower.Node, expected types.Type, op, side stri
 		return
 	}
 	severity, message, ok := operandMismatch(a.opts, actual, expected, op, side)
-	forcedUndef := a.opts.WarnPossibleUndef && actual&types.Undef != 0 && a.markedPossibleUndef(n)
-	if !ok && forcedUndef {
+	if !ok && a.forcedUndef(n, actual, expected) {
 		severity, message, ok = Error, fmt.Sprintf("%s operand of %q: expected %s, got %s", side, op, expected, actual), true
 	}
 	if !ok || a.silenced(actual, expected) {
@@ -429,7 +422,16 @@ func (a *analysis) checkOperand(n lower.Node, expected types.Type, op, side stri
 // no coercion at all, as perl 5.42 -w is silent on `"3" + 1`, and one that
 // does not is reported as it is, as perl warns `Argument "abc" isn't
 // numeric` on `"abc" + 1`.
+//
+// A slot typed X|Undef coerces a defined value to X, as X itself does:
+// perl 5.42 -w is silent on Socket's `sockaddr_in("80", $addr)`, whose
+// port is `Int|Undef`. So the Undef is set aside before judging. What is
+// left must still be one target: Str|FileHandle stays a union no
+// reference is coerced to.
 func (a *analysis) lossyCoercion(n lower.Node, actual, expected types.Type) bool {
+	if defined := expected &^ types.Undef; defined != types.Unknown {
+		expected = defined
+	}
 	actual = numified(finite(actual), expected)
 	if actual == types.Unknown || expected == types.Unknown {
 		return false

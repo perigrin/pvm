@@ -36,8 +36,13 @@ sub fastgetcwd :export :listop (List @ignored) Str;
 # through to CORE::chdir, measured, `Cwd::chdir($dirhandle)` (an
 # opendir lexical) and `Cwd::chdir(\*DH)` (a bareword glob ref) both
 # return 1 and land in that directory. Further arguments are ignored:
-# measured, `Cwd::chdir("/", 2)` returns 1 under perl -w.
-sub chdir :export_ok :listop (Optional[Str|FileHandle] $dir, List @ignored) Int;
+# measured, `Cwd::chdir("/", 2)` returns 1 under perl -w. Any other
+# reference is stringified on its way there: measured, `Cwd::chdir({})`
+# returns 0 and perl -w is silent. So a handle is one candidate and a
+# string the other, and a reference selects the string one, a lossy
+# coercion.
+multi sub chdir :export_ok :listop (FileHandle $dir, List @ignored) Int;
+multi sub chdir :export_ok :listop (Optional[Str] $dir, List @ignored) Int;
 
 # abs_path, fast_abs_path, realpath and fast_realpath resolve a path to
 # an absolute one with symlinks collapsed, defaulting to the current

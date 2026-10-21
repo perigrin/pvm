@@ -1510,8 +1510,9 @@ func TestFileBasenameWindowsPathReturnIsDeclared(t *testing.T) {
 // pattern, not a lossy Str coercion. The parameter oracle cannot catch
 // this on its own: a slurpy's element type (RFC 0001, "A slurpy takes
 // no bare element type") is not part of the check TestOracleCasesFitDeclaredParameters
-// runs, so this reads File::Basename.tpm's declared @args element
-// directly, which must admit Regex for the POD's own form to type-check.
+// runs, so this reads File::Basename.tpm's declared @suffixes element,
+// the slurpy after the path, which must admit Regex for the POD's own
+// form to type-check.
 func TestFileBasenameFileparseAcceptsRegexSuffix(t *testing.T) {
 	p := perltest.Perl542(t)
 	out, err := p.Command("-MFile::Basename", "-e",
@@ -1526,9 +1527,9 @@ func TestFileBasenameFileparseAcceptsRegexSuffix(t *testing.T) {
 	require.Empty(t, errs)
 	for _, s := range sigs["fileparse"] {
 		require.NotEmpty(t, s.Params)
-		elem := s.Params[0].Element
+		elem := s.Params[len(s.Params)-1].Element
 		assert.True(t, types.IsSubtype(types.Regex, elem),
-			"fileparse's @args element type %v excludes Regex, though its suffixes are matched as patterns", elem)
+			"fileparse's @suffixes element type %v excludes Regex, though its suffixes are matched as patterns", elem)
 	}
 }
 
@@ -2233,9 +2234,11 @@ func TestPOSIXParametersAdmitWhatPerlAccepts(t *testing.T) {
 
 	chdir := sigs["chdir"]
 	require.NotEmpty(t, chdir)
-	for _, s := range chdir {
-		assert.True(t, types.IsSubtype(types.FileHandle, s.Params[0].Type), "chdir's $%s does not admit a dirhandle", s.Params[0].Name)
-	}
+	// chdir's handle candidate takes the dirhandle; its Str candidate
+	// takes a path and any other reference, which chdir stringifies.
+	assert.True(t, slices.ContainsFunc(chdir, func(s types.Signature) bool {
+		return types.IsSubtype(types.FileHandle, s.Params[0].Type)
+	}), "no chdir candidate admits a dirhandle")
 
 	for _, name := range []string{"setpayload", "setpayloadsig"} {
 		cands, ok := sigs[name]

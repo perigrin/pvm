@@ -567,7 +567,11 @@ sub cfgetispeed :export(termios_h) :listop () None;
 sub cfgetospeed :export(termios_h) :listop () None;
 sub cfsetispeed :export(termios_h) :listop () None;
 sub cfsetospeed :export(termios_h) :listop () None;
-sub chdir :export_ok :listop (Str|FileHandle $directory) Boolean;
+# chdir uses a handle as one and stringifies any other reference:
+# measured on 5.42.0, `POSIX::chdir({})` is false and perl -w is silent.
+# So a reference selects the Str candidate, a lossy coercion.
+multi sub chdir :export_ok :listop (FileHandle $directory) Boolean;
+multi sub chdir :export_ok :listop (Str $directory) Boolean;
 sub chmod :export_ok :listop (Int $mode, Str $filename) Int;
 sub chown :export_ok :listop (Int $uid, Int $gid, Str $filename) Int;
 sub clearerr :export(stdio_h) :listop () None;
