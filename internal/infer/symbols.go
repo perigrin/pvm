@@ -80,6 +80,55 @@ type SymbolTable struct {
 	// blockScopes is the scope pass 1 made for each block, keyed by the
 	// block's id, which pass 2 re-enters as it walks the block.
 	blockScopes map[lower.ID]*Scope
+	// frames is a stack of open PushFrame spans. update, Delete and
+	// ClearElementShadows each record, into every frame open when they
+	// touch a name for the first time in that frame, how to undo the
+	// touch -- so PopFrame can hand back exactly the names a span
+	// mutated, without a Lookup sweep over every name it merely might
+	// have touched (the root cause of I10's cubic nested ternary: a
+	// preBranchTypes/joinBranches pair that scanned and re-looked-up
+	// every name in a chain's remaining subtree, at a scope depth that
+	// grew with the chain itself).
+	frames []map[string]frameEntry
+}
+
+// frameEntry is one name a PushFrame span has touched: before is its
+// value at the moment of the first touch, for a caller (walkJoined,
+// flow.go) that wants to join the old and new type together, and undo
+// puts that value back where it came from, for a caller (ternary, ops.go,
+// and branch, flow.go) that wants to fully revert the touch instead.
+type frameEntry struct {
+	before Symbol
+	undo   func()
+}
+
+// PushFrame starts recording every name an update, Delete or
+// ClearElementShadows call touches from here on, until the matching
+// PopFrame.
+func (st *SymbolTable) PushFrame() {
+	st.frames = append(st.frames, map[string]frameEntry{})
+}
+
+// PopFrame closes the span the matching PushFrame started and returns
+// every name touched during it, each mapped to its value from just
+// before that first touch and a func that puts it back.
+func (st *SymbolTable) PopFrame() map[string]frameEntry {
+	f := st.frames[len(st.frames)-1]
+	st.frames = st.frames[:len(st.frames)-1]
+	return f
+}
+
+// recordFrame notes, in every frame currently open, that name is about to
+// be changed from before by undo -- unless some earlier touch in that
+// frame already recorded it, since a frame's value is what name held when
+// the frame started, not after whatever touched it most recently inside
+// it.
+func (st *SymbolTable) recordFrame(name string, before Symbol, undo func()) {
+	for _, f := range st.frames {
+		if _, seen := f[name]; !seen {
+			f[name] = frameEntry{before: before, undo: undo}
+		}
+	}
 }
 
 // NewSymbolTable creates a fresh symbol table rooted at the implicit "main"
@@ -216,6 +265,8 @@ func (st *SymbolTable) LookupAll(name string) (Symbol, bool) {
 func (st *SymbolTable) update(name string, f func(*Symbol)) bool {
 	for s := st.current; s != nil; s = s.parent {
 		if sym, ok := s.symbols[name]; ok {
+			scope, before := s, sym
+			st.recordFrame(name, before, func() { scope.symbols[name] = before })
 			f(&sym)
 			s.symbols[name] = sym
 			return true
@@ -296,7 +347,9 @@ func (st *SymbolTable) UpdatePossibleUndef(name string, v bool) bool {
 // it. A name no scope on the chain holds is a no-op.
 func (st *SymbolTable) Delete(name string) {
 	for s := st.current; s != nil; s = s.parent {
-		if _, ok := s.symbols[name]; ok {
+		if sym, ok := s.symbols[name]; ok {
+			scope, before := s, sym
+			st.recordFrame(name, before, func() { scope.symbols[name] = before })
 			delete(s.symbols, name)
 			return
 		}
@@ -311,8 +364,10 @@ func (st *SymbolTable) Delete(name string) {
 func (st *SymbolTable) ClearElementShadows(name string) {
 	prefix := "$" + name + "["
 	for s := st.current; s != nil; s = s.parent {
-		for k := range s.symbols {
+		for k, sym := range s.symbols {
 			if strings.HasPrefix(k, prefix) {
+				scope, key, before := s, k, sym
+				st.recordFrame(key, before, func() { scope.symbols[key] = before })
 				delete(s.symbols, k)
 			}
 		}

@@ -107,6 +107,12 @@ type analysis struct {
 	// type each variable a loop exit narrowed had where the exit leaves,
 	// keyed by the scope that declares it, as leaveLoop says.
 	loopExits []map[scopedName]types.Type
+	// loopDepth counts the while, foreach, C-style for, bare block and
+	// map/grep bodies currently being walked, flow.go's loop says: zero
+	// outside all of them. vars.go's narrowDerefBase reads it to keep a
+	// deref's forced ref type from replacing a loop body's own Undef
+	// outright, since the body may run zero times (I4).
+	loopDepth int
 	// warningsOff is the warning categories a `no warnings` has turned
 	// off where the walk is, as useStmt and block keep it.
 	warningsOff warningsOff
