@@ -1,10 +1,19 @@
 ---
 title: "Use-list reading from the fix round: a parenthesised literal list is names, a version before a list stays one statement, named lists install what perl does"
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 created: 2026-10-21T05:19:06.072902414Z
-updated: 2026-10-21T05:19:06.072902414Z
+updated: 2026-10-21T05:19:33.101444255Z
+sessions:
+- start_sha: 2db182e610c0a9eebf6a623550bd13f550d219a4
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-21T05:19:33.101444255Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-21T05:19:33.101444255Z
 ---
 
 crochet:review round 2 of PR #488 at 2db182e6 (2026-10-21). Quality report: scratchpad/review2-core-module-types-paad.md, probes scratchpad/r2probes/, psc builds of head, cf08c0ac and pu in scratchpad/r2bin/. A finding pu gets right is a regression this milestone introduced: fix it. A gap pu shares is out of scope here and goes to the follow-up named in the issue.
