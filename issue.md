@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: v0.1
 created: 2026-10-20T23:40:03.614353199Z
-updated: 2026-10-20T23:40:03.614353199Z
+updated: 2026-10-21T00:52:17.015626963Z
 ---
 
 Deferred from the IO and OO audit fixes (01a15ac0-6ca2, 2026-10-21), each documented in its .tpm comment; this is their destination.
@@ -13,6 +13,7 @@ Deferred from the IO and OO audit fixes (01a15ac0-6ca2, 2026-10-21), each docume
 - IO::Handle/FileHandle `blocking`: its real prototype `($;$)` and an invocant colon cannot be stated together; left undeclared.
 - File::Temp::Dir (dirname, newdir's return) and Tie::StdHash / Tie::ExtraHash: second packages inside File/Temp.pm and Tie/Hash.pm; a .tpm declares one package.
 - Net::Ping's OO interface (new, ping, close, open, ack, nack, bind, ...): undeclared beyond pingecho/wakeonlan.
+- Symbol::qualify's Ref candidate return (01a15ac0-6ccc, 2026-10-21): measured, `ref qualify({})` is HASH and `ref qualify([])` is ARRAY, not GlobRef as declared -- the reference comes back exactly as given, Ref, not coerced. Left as GlobRef rather than corrected to Ref: IO/Handle.pm's own `tell qualify($_[0], caller) if ref($_[0])` only proves $_[0] is some reference, never which kind, so a Ref return there would make tell's own Glob-only parameter see a Ref psc cannot narrow further, though $_[0] is in fact always a GlobRef at that call site -- a new diagnostic perl -w does not confirm. Needs a ruling on how psc treats an argument whose union type only partly fits a parameter; IO/Handle.pm:516 is the example.
 
 ## Steps
 - [ ] Decide (with perigrin) how a declaration states an optional invocant and a prototype alongside an invocant
