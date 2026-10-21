@@ -229,7 +229,7 @@ type pendingMisfit struct {
 // landed, keyed by the issue that will fix it (perigrin, 2026-10-21:
 // 01a15ac0-6c4a POSIX, -6c78 sockets, -6ca2 IO and OO modules, -6ccc XS
 // modules, -6cfa pure-Perl modules). POSIX's own entries were deleted
-// 2026-10-22 once feat/core-module-types (01a15ac0-6c4a's fix) widened
+// 2026-10-21 once feat/core-module-types (01a15ac0-6c4a's fix) widened
 // getpayload to Num|NaN|Inf and setpayload/setpayloadsig's $nv to Any:
 // re-measured, neither misfits the parameter oracle any longer. Sockets'
 // (01a15ac0-6c78) were deleted the same day once that same merge
@@ -426,13 +426,13 @@ func holdReturnTypes(t *testing.T, modules ...string) {
 
 // exemptForModule is oracleExempt extended with this OS's platformExempt,
 // and, for a module whose exported set depends on the platform's C
-// library (Errno's), the names perltest.MissingSubs measures absent on
-// p's perl right now -- a name genuinely missing there kills the whole
-// oracle run on the first one return_oracle.pl is asked to call (its
-// callable() check dies rather than recording a per-name failure), so it
-// must never reach the call list, and hand-listing which names a given
-// libc or Windows's SDK headers omit is not something this repository
-// can do once for every platform CI runs on.
+// library (Errno's), the names perltest.ConstantDifferences measures
+// absent on p's perl right now -- a name genuinely missing there kills
+// the whole oracle run on the first one return_oracle.pl is asked to
+// call (its callable() check dies rather than recording a per-name
+// failure), so it must never reach the call list, and hand-listing
+// which names a given libc or Windows's SDK headers omit is not
+// something this repository can do once for every platform CI runs on.
 func exemptForModule(t *testing.T, p perltest.Perl, module string, tpm []byte, base map[string]string) map[string]string {
 	t.Helper()
 	exempt := maps.Clone(base)

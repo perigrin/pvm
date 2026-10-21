@@ -16,8 +16,9 @@ package Getopt::Long;
 # perl, but over-claims the three order variables too: perl's own
 # import there installs only GetOptionsFromArray and GetOptions, named,
 # not the default set. The mechanism has no key to tell "a :config list"
-# from "a plain named list" apart, so this is 01a15ac0's open question
-# for perigrin, not a module-specific rule. $class is the invocant, so
+# from "a plain named list" apart; perigrin's ruling (2026-10-21) is to
+# leave this as-is, with the construct it would need tracked at
+# 01a15baf, not a module-specific rule. $class is the invocant, so
 # the colon keeps the derived prototype none, matching perl's
 # (prototype() on Getopt::Long::import is undef).
 sub import (Str $class: List @args) Void;
