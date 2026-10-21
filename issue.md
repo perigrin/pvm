@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: core-module-types
 created: 2026-10-21T05:19:06.155781713Z
-updated: 2026-10-21T05:19:06.155781713Z
+updated: 2026-10-21T05:19:23.604408724Z
 ---
 
 crochet:review round 2 of PR #488 at 2db182e6 (2026-10-21). Quality report: scratchpad/review2-core-module-types-paad.md, probes scratchpad/r2probes/, psc builds of head, cf08c0ac and pu in scratchpad/r2bin/. A finding pu gets right is a regression this milestone introduced: fix it. A gap pu shares is out of scope here and goes to the follow-up named in the issue.
@@ -22,7 +22,7 @@ Coverage round 2: (1, Important) Scalar::Util::dualvar returns Str and its misfi
 - [ ] TestIOSocketIPRegisterInstallsSocketNames (`go test ./internal/parse/ -run '^TestIOSocketIPRegisterInstallsSocketNames$' -count=1 -v | grep -q '^--- PASS: TestIOSocketIPRegisterInstallsSocketNames'`)
 - [ ] TestCwdChdirTakesAHandle (`go test ./internal/infer/ -run '^TestCwdChdirTakesAHandle$' -count=1 -v | grep -q '^--- PASS: TestCwdChdirTakesAHandle'`)
 - [ ] help lists --warn-possible-mismatch (`grep -q 'warn-possible-mismatch' internal/data/help/types.md`)
-- [ ] macOS and Windows require perl 5.42 (`grep -c 'PVM_REQUIRE_PERL542' .github/workflows/ci.yml | grep -qv '^1$'`)
+- [ ] macOS and Windows require perl 5.42 (`! grep -q "matrix.os == 'Linux' && '1'" .github/workflows/ci.yml`)
 - [ ] TestPSCCheckLibBaseline (`go test ./internal/psc/ -run '^TestPSCCheckLibBaseline$' -count=1 -v | grep -q '^--- PASS: TestPSCCheckLibBaseline'`)
 - [ ] TestInferencePrecision (`go test ./internal/infer/ -run '^TestInferencePrecision$' -count=1 -v | grep -q '^--- PASS: TestInferencePrecision'`)
 
