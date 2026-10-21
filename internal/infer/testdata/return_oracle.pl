@@ -3,7 +3,10 @@
 
 use v5.36;
 no strict 'refs';
-use B ();
+use File::Spec ();
+use FindBin qw($RealBin);
+
+require File::Spec->catfile( $RealBin, File::Spec->updir, File::Spec->updir, 'parse', 'testdata', 'held_lib.pl' );
 
 # A sub calling exit dies instead, so perl does not end with the subs
 # after it uncalled.
@@ -149,14 +152,3 @@ open STDOUT, '>&', $report or die "cannot restore STDOUT: $!\n";
 binmode STDOUT;
 say 'complete';
 $complete = 1;
-
-# callable is whether a call to the sub named $name runs code, by the rule
-# internal/parse/testdata/held_to_perl.pl measures installs with: one that
-# is defined, or one that exists undefined in a package with an AUTOLOAD
-# to run in its place.
-sub callable ($name) {
-    return 0 if !exists &$name;
-    return 1 if defined &$name;
-    my $home = B::svref_2object( \&$name )->GV->STASH->NAME;
-    return defined &{"${home}::AUTOLOAD"};
-}
