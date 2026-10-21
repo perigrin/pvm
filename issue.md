@@ -4,12 +4,14 @@ state: pending
 urgency: normal
 milestone: v0.1
 created: 2026-10-21T20:52:37.129152123Z
-updated: 2026-10-21T20:52:37.129152123Z
+updated: 2026-10-21T22:06:33.526168711Z
 ---
 
 Found by the 01a16016-46b4 review (2026-10-21): Num -> Int truncation is silent under --warn-lossy-coercion on every build (pu, 2db182e6, 692a560c). `"ab" x (20/8)` -- perl 5.42 -w is silent and uses 2; the argument's Num is truncated to the Int the repetition count wants. RFC 0001 "What a parameter type means": an argument of type A fits T when A <: T, otherwise the coercion is lossy and reported under --warn-lossy-coercion. Num is not <: Int.
 
 Also from that review, a gap every build shares: a dualvar or string used as a reference (`$x->{k}`, `@$x`, `$x->()`, `$x->foo` -- perl dies "Can't use string as a HASH ref" / "Can't locate object method") is silent on pu, r2, head and branch.
+
+- From the 01a16016-46b4 confirm review: under `no warnings 'uninitialized'`, a dualvar-or-undef argument is excused by `silenced` (flow.go) reading the dualvar's side directly, so --warn-lossy-coercion no longer reports the dualvar's lossy read there; without the pragma it does (dual.pl:4:9). The pragma concerns the Undef, not the dualvar.
 
 ## Steps
 - [ ] Report Num -> Int truncation under --warn-lossy-coercion, silent by default
