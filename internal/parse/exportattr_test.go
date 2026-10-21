@@ -96,11 +96,11 @@ func TestShippedDeclarationsKeepTheirImports(t *testing.T) {
 		// Measured on 5.42.0: Moose::Exporter's own import validates a named
 		// list against Sub::Exporter's generated names and dies ("meta" is
 		// not among them, since it is installed separately), so this is
-		// really a dying program; naming meta explicitly resolves to meta
-		// alone, matching what Sub::Exporter's own selective resolution
-		// would give it were it among the names it selects (it is not, so
-		// the die), which is the safe side of that die.
-		"use Moose qw(meta);\n": {"meta"},
+		// really a dying program; declaring import with no scalar key
+		// (TestMooseTraitsInstallsSugar) states the same "any list installs
+		// the 13" answer a bare use gets, which is the safe side of that die.
+		"use Moose qw(meta);\n": {"after", "around", "augment", "before", "blessed", "confess",
+			"extends", "has", "inner", "meta", "override", "super", "with"},
 		"use Moose::Role;\n": {"after", "around", "augment", "before", "blessed", "confess",
 			"excludes", "extends", "has", "inner", "meta", "override", "requires", "super", "with"},
 		"use Mojolicious::Lite;\n": {"any", "app", "del", "get", "group", "helper", "hook", "new",
@@ -167,13 +167,18 @@ func TestMooseTraitsInstallsSugar(t *testing.T) {
 }
 
 // TestMooseNamedListInstallsNamesAndMeta: a named list installs those
-// names and meta -- measured on 5.42.0, `use Moose qw(has);` installs
-// has, resolved the Exporter way against the 12 sugar names, and meta,
-// which Moose::Exporter installs independently of that list
-// (crochet:review round 2, quality S15: the OLD "any list installs the
-// 13" reading gave blessed() a false call_arity here, since Moose never
-// installs it from this list).
+// names and meta alone, not the over-installed 13 (TestMooseTraitsInstallsSugar's
+// "any list installs the 13" answer the plain declared import gives
+// instead) -- measured on 5.42.0, `use Moose qw(has);` installs has,
+// resolved the Exporter way against the 12 sugar names, and meta, which
+// Moose::Exporter installs independently of that list. Needs the
+// signature's named parameters and :always (perigrin's ruling,
+// 2026-10-21), which are backed out until the export syntax is
+// redesigned (01a15f6b); until then Moose over-installs on a named
+// list, the known regression TestMooseNamedListNoFalseArity
+// (internal/infer) also skips for.
 func TestMooseNamedListInstallsNamesAndMeta(t *testing.T) {
+	t.Skip("backed out with :always (01a15f6c) until the export syntax is redesigned (01a15f6b)")
 	wantImports(t, map[string][]string{
 		"use Moose qw(has);\n":                {"has", "meta"},
 		"use Moose -traits => [], qw(has);\n": {"has", "meta"},
@@ -182,12 +187,35 @@ func TestMooseNamedListInstallsNamesAndMeta(t *testing.T) {
 
 // TestMooseMetaNameRenamesMeta: `-meta_name` renames the installed meta
 // -- measured on 5.42.0, `use Moose -meta_name => 'm';` installs the 12
-// sugar names and m instead of meta.
+// sugar names and m instead of meta. Needs the signature's named
+// parameters and :always, backed out until the export syntax is
+// redesigned (01a15f6b); see TestMooseNamedListInstallsNamesAndMeta.
 func TestMooseMetaNameRenamesMeta(t *testing.T) {
+	t.Skip("backed out with :always (01a15f6c) until the export syntax is redesigned (01a15f6b)")
 	wantImports(t, map[string][]string{
 		"use Moose -meta_name => 'm';\n": {"after", "around", "augment", "before", "blessed", "confess",
 			"extends", "has", "inner", "m", "override", "super", "with"},
 	})
+}
+
+// TestAlwaysMarkRefused: `:always` is backed out of the declaration
+// language (perigrin's ruling, 2026-10-21: the export syntax it served
+// is to be redesigned, issue 01a15f6b) -- a .tpm carrying it is an
+// unknown-attribute error, the same as any other misspelled mark.
+func TestAlwaysMarkRefused(t *testing.T) {
+	saved := declarations
+	t.Cleanup(func() { declarations = saved })
+	declarations = layeredFS{top: fstest.MapFS{"declarations/My/Always.tpm": {
+		Data: []byte("package My::Always;\nsub f :always;\n"),
+	}}, base: saved}
+	want := "My::Always: sub f: unknown attribute :always"
+	var got []string
+	for _, err := range DeclarationErrors(ParseWithLoader([]byte("use My::Always;\n"), noModules)) {
+		got = append(got, err.Error())
+	}
+	if !slices.Equal(got, []string{want}) {
+		t.Errorf("errors %q, want %q", got, want)
+	}
 }
 
 // TestDeclarationReadsNamedParameters: a .tpm's signature reads perl

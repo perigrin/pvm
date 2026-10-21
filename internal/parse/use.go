@@ -425,15 +425,6 @@ func (p *parser) resolveImports(module string, list *Node) {
 				return
 			}
 		}
-		// A signature stating perl 5.44's named parameters (perlsub
-		// "named parameters") names each key explicitly rather than
-		// leaving one scalar to guess at (perigrin's ruling, 2026-10-21):
-		// Moose::Exporter's own `-traits`, `-metaclass` and `-meta_name`,
-		// measured. resolveNamedImport reads them.
-		if named := namedParams(sigs[0]); len(named) > 0 {
-			p.resolveNamedImport(facts, named, list)
-			return
-		}
 		// The signature names the keys (perigrin's ruling, 2026-10-20):
 		// its first optional scalar parameter, after the invocant, is
 		// named for the one key, measured, whose presence changes what
@@ -621,118 +612,6 @@ func listNamesKey(list *Node, key string) bool {
 		}
 	}
 	return false
-}
-
-// namedParams returns sig's perl 5.44 named parameters (perlsub "named
-// parameters"), by name.
-func namedParams(sig types.Signature) map[string]types.Param {
-	var named map[string]types.Param
-	for _, param := range sig.Params {
-		if param.Named {
-			if named == nil {
-				named = map[string]types.Param{}
-			}
-			named[param.Name] = param
-		}
-	}
-	return named
-}
-
-// namedKeyMatches reports whether item is key's spelling in a use-list:
-// the bare name, or, a .tpm rule beyond perl's own exact match
-// (perigrin's ruling, 2026-10-21), the same name with a leading dash --
-// Moose::Exporter's own options, `-traits`, which perl's unary minus
-// turns a bare word into.
-func namedKeyMatches(item *Node, key string) bool {
-	if names, ok := literalNameList(item); ok && len(names) == 1 && names[0] == key {
-		return true
-	}
-	if len(item.Children) == 0 {
-		return item.Text == key
-	}
-	// Node.Text records the OPERATION, "neg" for a unary minus, not the
-	// source token (canon.go): `-traits` is the minus perl's own grammar
-	// reads before an autoquoted bareword (markFatOperand), Unary "neg"
-	// over the word Call "traits".
-	if item.Kind == Unary && item.Text == "neg" && len(item.Children) == 1 {
-		word := item.Children[0]
-		return len(word.Children) == 0 && word.Text == key
-	}
-	return false
-}
-
-// stripNamedKeys removes each of named's keys from list, matched by
-// namedKeyMatches wherever one falls (Moose::Exporter's own
-// _strip_option reads them the same way, "from anywhere in the list"):
-// the items left over, to resolve as export names, and the literal
-// value paired with each key found, by its parameter name.
-func stripNamedKeys(list *Node, named map[string]types.Param) (remainder []*Node, values map[string]string) {
-	if list == nil {
-		return nil, nil
-	}
-	items := listItems(list)
-	consumed := make([]bool, len(items))
-	values = map[string]string{}
-	for i, item := range items {
-		if consumed[i] {
-			continue
-		}
-		for key := range named {
-			if !namedKeyMatches(item, key) {
-				continue
-			}
-			consumed[i] = true
-			if i+1 < len(items) {
-				consumed[i+1] = true
-				if v, ok := literalNameList(items[i+1]); ok && len(v) == 1 {
-					values[key] = v[0]
-				}
-			}
-			break
-		}
-	}
-	for i, item := range items {
-		if !consumed[i] {
-			remainder = append(remainder, item)
-		}
-	}
-	return remainder, values
-}
-
-// resolveNamedImport is the declared-import branch for a signature that
-// states perl 5.44 named parameters (perigrin's ruling, 2026-10-21):
-// each is consumed from the use-list by stripNamedKeys, and what remains
-// installs the Exporter way -- the literal names it holds, or the
-// defaults when nothing remains, as a bare `use` does -- alongside every
-// name the declaration marks `:always` (facts.always), under its own
-// name or the one its own named parameter's value renames it to.
-func (p *parser) resolveNamedImport(facts moduleFacts, named map[string]types.Param, list *Node) {
-	remainder, values := stripNamedKeys(list, named)
-	var names []string
-	for _, item := range remainder {
-		got, ok := literalNameList(item)
-		if !ok {
-			p.symbolsOpen = true
-			return
-		}
-		names = append(names, got...)
-	}
-	if p.imports == nil {
-		p.imports = map[string]Import{}
-	}
-	for _, imp := range importsFrom(facts, names, len(remainder) > 0) {
-		p.imports[p.subKey(imp.Name)] = imp
-	}
-	for name, renameParam := range facts.always {
-		installName := name
-		if v, ok := values[renameParam]; renameParam != "" && ok {
-			installName = v
-		}
-		for _, imp := range importsFrom(facts, []string{name}, true) {
-			imp.Name = installName
-			p.imports[p.subKey(imp.Name)] = imp
-		}
-	}
 }
 
 // builderImportList reads a Test::Builder::Module subclass's import list as

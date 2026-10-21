@@ -143,13 +143,6 @@ type moduleFacts struct {
 	// \&runperl` in t/test.pl: subs as real as a `sub NAME`, with no
 	// prototype this parser can read.
 	globs []string
-
-	// always are the names a declaration marks `:always` (RFC 0001, "the
-	// signature names the keys"): installed whenever a declared `import`
-	// runs at all, independent of what its use-list names, by name to
-	// the named parameter of `import` whose literal value renames it, ""
-	// when it names none. See resolveNamedImport.
-	always map[string]string
 }
 
 // readModule pulls the export list and prototypes out of a parsed module.
