@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: core-module-types
 created: 2026-10-20T19:18:42.724502357Z
-updated: 2026-10-21T04:35:35.94184157Z
+updated: 2026-10-21T16:13:02.447690784Z
 sessions:
 - start_sha: 22583a402ae797ff8a0a591d3d5c4f0763744131
   end_sha: 2db182e610c0a9eebf6a623550bd13f550d219a4
@@ -51,3 +51,12 @@ Parameter rule (RFC 0001 "What a parameter type means", perigrin 2026-10-02): a 
 
 ### Negative Scenarios
 - [ ] isElementVarName is inlined (`! grep -q 'func isElementVarName' internal/infer/flow.go`)
+
+## Skipped cuts
+
+Four of this issue's own findings were not cut. 01a15ce6-19ab's round-2 review (2026-10-21) asked that each be recorded here, with its reason, rather than left as silent drift:
+
+- **flattenedSelect and selectAnyContext's shared tail.** The two do not actually share one: one returns the agreed `Selected` candidate, the other always returns `Undecided`. They answer different questions, so unifying their tail would have to throw one answer away.
+- **markPossibleUndef/markedPossibleUndef's "one caller each."** markedPossibleUndef has three callers (calls.go's own recursive call, and two in ops.go), not one -- the finding's premise does not hold.
+- **DeclaredSignatures/DeclaredVariables as "two test-only wrappers."** They are the only way internal/infer's tests reach internal/parse's declaration data at all -- the package boundary itself, not a wrapper around something already reachable. Cutting them would cut that boundary.
+- **Signature.ReturnElement as "read only by tests, keep only if a consumer is planned."** It already has a consumer: the corpus-wide oracle checks (returnTypeFailures' own list-context handling) read it on every run, not a planned one.
