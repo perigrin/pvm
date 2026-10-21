@@ -190,12 +190,18 @@ func TestMooseNamedListInstallsNamesAndMeta(t *testing.T) {
 // sugar names and m instead of meta. Needs the signature's named
 // parameters and :always, backed out until the export syntax is
 // redesigned (01a15f6b); see TestMooseNamedListInstallsNamesAndMeta.
+//
+// Until then it skips, but first fails if the rename already works, so
+// the skip cannot outlive the reason for it.
 func TestMooseMetaNameRenamesMeta(t *testing.T) {
+	src := "use Moose -meta_name => 'm';\n"
+	want := []string{"after", "around", "augment", "before", "blessed", "confess",
+		"extends", "has", "inner", "m", "override", "super", "with"}
+	if slices.Equal(importedFrom(t, src), want) {
+		t.Fatal("-meta_name renames meta now: drop this skip")
+	}
 	t.Skip("backed out with :always (01a15f6c) until the export syntax is redesigned (01a15f6b)")
-	wantImports(t, map[string][]string{
-		"use Moose -meta_name => 'm';\n": {"after", "around", "augment", "before", "blessed", "confess",
-			"extends", "has", "inner", "m", "override", "super", "with"},
-	})
+	wantImports(t, map[string][]string{src: want})
 }
 
 // TestAlwaysMarkRefused: `:always` is backed out of the declaration

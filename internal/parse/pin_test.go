@@ -76,6 +76,31 @@ func TestCIRunsTheRatchets(t *testing.T) {
 	}
 }
 
+// TestCIRequiresPerl542OnEveryRunner: the workflow's Test step, which
+// runs on every OS in the matrix, sets PVM_REQUIRE_PERL542 to "1"
+// unconditionally, so a perl-held test that cannot find perl 5.42.0
+// fails there instead of skipping. A negative grep for the old
+// Linux-only expression passes just as well with the line deleted;
+// this needs the line itself.
+func TestCIRequiresPerl542OnEveryRunner(t *testing.T) {
+	src, err := os.ReadFile("../../.github/workflows/ci.yml")
+	if err != nil {
+		t.Fatalf("read ci.yml: %v", err)
+	}
+	_, step, ok := strings.Cut(string(src), "- name: Test\n")
+	if !ok {
+		t.Fatal("ci.yml has no step named Test")
+	}
+	// The step ends at the blank line before whatever follows it.
+	step, _, _ = strings.Cut(step, "\n\n")
+	if !strings.Contains(step, `PVM_REQUIRE_PERL542: "1"`) {
+		t.Errorf("ci.yml's Test step does not set PVM_REQUIRE_PERL542: \"1\":\n%s", step)
+	}
+	if strings.Contains(step, "matrix.os") {
+		t.Errorf("ci.yml's Test step makes its environment depend on matrix.os:\n%s", step)
+	}
+}
+
 // pinField reads one `key = value` line, ignoring comments.
 func pinField(src, key string) string {
 	for _, line := range strings.Split(src, "\n") {

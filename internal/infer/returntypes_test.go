@@ -264,21 +264,43 @@ func pendingAuditMatch(module, sub, kind string) bool {
 
 // doneAuditIssues are the pendingAudit issues already fixed and closed
 // (01a15ac0-6c4a POSIX, -6c78 sockets, -6ca2 IO and OO modules, -6ccc
-// XS modules): each one's own fix deleted its entries once re-measuring
-// found no knock-on left, by this package's own rule above pendingAudit.
-// TestPendingAuditHasNoDoneIssue holds that rule to the map directly, so
-// a fix that deletes every entry under a key but leaves the key itself,
-// or forgets to delete an entry at all, fails here.
-var doneAuditIssues = []string{"01a15ac0-6c4a", "01a15ac0-6c78", "01a15ac0-6ca2", "01a15ac0-6ccc"}
+// XS modules, -6cfa pure-Perl modules): each one's own fix deleted its
+// entries once re-measuring found no knock-on left, by this package's
+// own rule above pendingAudit. TestPendingAuditHasNoDoneIssue holds
+// that rule to the map directly, so a fix that deletes every entry
+// under a key but leaves the key itself, or forgets to delete an entry
+// at all, fails here.
+var doneAuditIssues = []string{"01a15ac0-6c4a", "01a15ac0-6c78", "01a15ac0-6ca2", "01a15ac0-6ccc", "01a15ac0-6cfa"}
 
 // TestPendingAuditHasNoDoneIssue: pendingAudit carries no key for an
 // issue already done.
 func TestPendingAuditHasNoDoneIssue(t *testing.T) {
+	for _, issue := range doneIssuesIn(pendingAudit) {
+		t.Errorf("pendingAudit still has an entry for done issue %s", issue)
+	}
+}
+
+// doneIssuesIn is the doneAuditIssues audit has a key for.
+func doneIssuesIn(audit map[string][]pendingMisfit) []string {
+	var done []string
 	for _, issue := range doneAuditIssues {
-		if _, ok := pendingAudit[issue]; ok {
-			t.Errorf("pendingAudit still has an entry for done issue %s", issue)
+		if _, ok := audit[issue]; ok {
+			done = append(done, issue)
 		}
 	}
+	return done
+}
+
+// TestDoneIssuesInReportsEachDoneKey: pendingAudit is empty, so
+// TestPendingAuditHasNoDoneIssue alone checks nothing; this holds its
+// check to a map that does carry done issues' keys, every one of them,
+// beside a pending one it must leave alone.
+func TestDoneIssuesInReportsEachDoneKey(t *testing.T) {
+	audit := map[string][]pendingMisfit{"01a15ac0-0000": nil}
+	for _, issue := range doneAuditIssues {
+		audit[issue] = nil
+	}
+	assert.Equal(t, doneAuditIssues, doneIssuesIn(audit))
 }
 
 // platformExempt holds, per runtime.GOOS, the subs that still need a
@@ -1731,11 +1753,18 @@ func TestPOSIXProbeDeathFailsChild(t *testing.T) {
 // the test, not be logged and treated as a complete, if partial,
 // measurement -- a script that dies after printing some of its
 // "name\tresult" lines must not pass having checked only those names.
+//
+// It needs the child's perl itself, so it skips (or, under
+// PVM_REQUIRE_PERL542, fails) the way the child would; and it holds the
+// child to posixScriptLines' own "script exited" failure, not to any
+// failure at all.
 func TestPOSIXProbeDeathFails(t *testing.T) {
+	perltest.Perl542(t)
 	cmd := exec.Command(os.Args[0], "-test.run=^TestPOSIXProbeDeathFailsChild$", "-test.v")
 	cmd.Env = append(os.Environ(), posixProbeDeathFailsChildEnv+"=1")
 	out, err := cmd.CombinedOutput()
 	assert.Error(t, err, "a probe script that exits non-zero should fail the test, not pass:\n%s", out)
+	assert.Contains(t, string(out), "script exited", "the child failed, but not because the probe script exited non-zero")
 }
 
 // posixScriptLines runs script (in dir, unless dir is "") with args on
