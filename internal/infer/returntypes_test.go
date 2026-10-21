@@ -1421,6 +1421,17 @@ func TestPurePerlExportersReturnTypes(t *testing.T) {
 	holdReturnTypes(t, perltest.PureExporters...)
 }
 
+// TestSymbolReturnTypesAreDeclared holds Symbol.tpm's declared return
+// types to perl directly (Symbol itself stays out of
+// perltest.PureExporters; see its comment for why), with
+// oracle/Symbol.pl's cases: qualify's Ref candidate preserves whatever
+// reference it is given (measured, `ref qualify({})` is HASH, `ref
+// qualify([])` is ARRAY, not GlobRef), and qualify_to_ref also takes
+// and returns a blessed glob object (IO::Handle) unchanged.
+func TestSymbolReturnTypesAreDeclared(t *testing.T) {
+	assert.Empty(t, moduleFailures(t, "Symbol"))
+}
+
 // moduleFailures holds module's shipped .tpm return types to perl,
 // called with its shipped oracle/<Module>.pl cases.
 func moduleFailures(t *testing.T, module string) []string {

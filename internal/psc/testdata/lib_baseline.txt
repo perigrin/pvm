@@ -1,5 +1,19 @@
 # captured at 8d508426 with perl 5.42.0
 # PVM_PERL_VERSION=5.42.0 psc check <privlib>, built at 8d508426; paths relative to privlib
+#
+# IO/Handle.pm:515:15 (below) is not perl -w evidence (none: `perl -w`
+# prints nothing calling input_line_number on a real handle, measured
+# 01a15ac0-6ccc) -- it is Symbol.tpm's qualify Ref candidate's return
+# narrowed from GlobRef to Ref (01a15ac0-6ccc: measured, `ref
+# qualify({})` is HASH, so GlobRef mischaracterized every non-glob
+# reference). `tell qualify($_[0], caller) if ref($_[0])` here proves
+# only that $_[0] is SOME reference, never which kind, so psc cannot
+# narrow it past Ref either; $_[0] is in fact always a GlobRef at this
+# call site, which is real information no fix in this file's scope
+# states. Baselined rather than reverting a measured return-type fix to
+# quiet it, or widening tell's own Glob-only parameter to admit every
+# Ref, which would hide a real mismatch anywhere else.
+x86_64-linux-thread-multi/IO/Handle.pm:515:15: error: call to tell: argument 1 expects Glob, got Ref [type-mismatch]
 File/Find.pm:96:9: error: left operand of "=~": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]
 IO/Zlib.pm:623:17: warning: left operand of "==": expected Num, got Undef|Int [coercion-mismatch]
 JSON/PP.pm:875:43: error: left operand of "!~": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]
