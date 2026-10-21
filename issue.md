@@ -1,10 +1,19 @@
 ---
 title: A union argument with a fitting member is a possible mismatch, silent by default; restore qualify's measured Ref return
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 created: 2026-10-21T02:33:29.838143913Z
-updated: 2026-10-21T02:33:29.838143913Z
+updated: 2026-10-21T03:02:37.784165762Z
+sessions:
+- start_sha: 66180e7e19fc8ad1b81e1c0fb54bcc62942ffd1c
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-21T03:02:37.784165762Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-21T03:02:37.784165762Z
 ---
 
 perigrin, 2026-10-21, asked how psc check should treat an argument whose union type only partly fits a parameter: "Possible-mismatch, silent" -- treat it like possible-undef: when some member of the argument's union fits the parameter, stay silent by default and report only under --warn-lossy-coercion (or a new flag); a union with no fitting member is still reported.
