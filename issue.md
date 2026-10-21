@@ -1,19 +1,55 @@
 ---
 title: "RFC and tracking gaps round 3 found: the possible-mismatch sha, named parameters as read-but-unconsumed, delete_package's glob, the rejected-alternatives contradiction"
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 created: 2026-10-21T20:10:35.421794374Z
-updated: 2026-10-21T20:24:18.757906316Z
+updated: 2026-10-21T22:32:04.829338211Z
 sessions:
 - start_sha: a893c4c7dbd73e99ee996512595b346f7c0d3243
-  end_sha: ""
-  commits: 0
+  end_sha: 7e38336b25250af70458c96be7effee85a599655
+  commits: 3
   started_at: 2026-10-21T20:24:18.757906316Z
+  ended_at: 2026-10-21T22:32:04.829338211Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-21T20:24:18.757906316Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-21T22:32:04.829338211Z
+observed_paths:
+- docs/rfcs/0001-type-libraries.md
+- internal/infer/declared_test.go
+- internal/infer/dualvar_test.go
+- internal/infer/flow.go
+- internal/infer/ops.go
+- internal/infer/precision_test.go
+- internal/infer/returntypes_test.go
+- internal/infer/testdata/observe_types.pl
+- internal/infer/testdata/oracle/Scalar-Util.pl
+- internal/parse/declarations.go
+- internal/parse/declarations/Cwd.tpm
+- internal/parse/declarations/DynaLoader.tpm
+- internal/parse/declarations/ExtUtils/Manifest.tpm
+- internal/parse/declarations/FileHandle.tpm
+- internal/parse/declarations/IO/Socket.tpm
+- internal/parse/declarations/IO/Socket/IP.tpm
+- internal/parse/declarations/Moose.tpm
+- internal/parse/declarations/Scalar/Util.tpm
+- internal/parse/declarations/Socket.tpm
+- internal/parse/declarations/Symbol.tpm
+- internal/parse/exportattr_test.go
+- internal/parse/heldtoperl_test.go
+- internal/parse/issue1959_test.go
+- internal/parse/pin_test.go
+- internal/parse/use.go
+- internal/perltest/fixture.go
+- internal/perltest/staleexempt.go
+- internal/perltest/staleexempt_test.go
+- internal/types/declared.go
+- test/e2e/psc_check_test.go
+- test/e2e/testdata/check/dualvar.pl
 ---
 
 crochet:review round 3 of PR #488 at 692a560c (2026-10-21). Quality report: scratchpad/review3-core-module-types-paad.md; probes scratchpad/r3probes/ (F-<lens>.md per specialist); rebuild head/r2(2db182e6)/cf(cf08c0ac)/pu psc as the report says. perigrin, 2026-10-21: round 4 runs with Opus workers, and every fix gets a mandatory independent review that runs pu, round 2 and head against perl 5.42 before it merges. A finding pu or round 2 gets right is a regression: fix it without trading it for a new one -- every probe in r2probes/ and r3probes/ that pu or r2 gets right must still be right.
