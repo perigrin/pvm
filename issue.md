@@ -1,10 +1,19 @@
 ---
 title: Back out the :always mark until the export syntax is redesigned
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 created: 2026-10-21T17:04:58.342574399Z
-updated: 2026-10-21T17:04:58.342574399Z
+updated: 2026-10-21T17:05:27.183922622Z
+sessions:
+- start_sha: 377d3518b97962c50d9b4ddc091ba26bb5cc037c
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-21T17:05:27.183922622Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-21T17:05:27.183922622Z
 ---
 
 perigrin, 2026-10-21: back out the `:always` mark (added by 01a15efc for Moose's meta) now; the export syntax is to be redesigned (01a15f6b). Moose returns to its plain declared import, `sub import (Str $class: List @args) Void;` as 01a15ac0-6bfd shipped it, accepting the known over-install on a named list (`use Moose qw(has); blessed();` false call_arity) until 01a15f6b lands. The reader for perl 5.44 named parameters and the RFC's two rulings on it stay.
