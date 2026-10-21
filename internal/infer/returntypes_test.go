@@ -1461,6 +1461,15 @@ func TestStorableFlagsArgument(t *testing.T) {
 	assert.Empty(t, moduleFailures(t, "Storable"))
 }
 
+// TestCwdFailureReturnsUndef: getcwd and fastcwd return undef on error
+// (perldoc Cwd: "On error returns C<undef>, with C<$!> set"; measured
+// on 5.42.0 from a directory removed out from under the process, both
+// are undef), which Cwd.tpm now declares Str|Undef. oracle/Cwd.pl's
+// case for each runs from such a directory.
+func TestCwdFailureReturnsUndef(t *testing.T) {
+	assert.Empty(t, moduleFailures(t, "Cwd"))
+}
+
 // TestListUtilReturnsArgumentUnchanged: max, min, maxstr and minstr
 // return the winning element itself, not a numified or stringified
 // copy of it (measured on 5.42.0, `max("abc")` is 'abc' and
