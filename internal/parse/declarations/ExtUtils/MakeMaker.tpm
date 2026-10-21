@@ -32,11 +32,16 @@ sub WriteEmptyMakefile :export_ok (List @args) Boolean;
 # open fails. write_file_via_tmp writes $contents (an arrayref of
 # lines) to a temp file and renames it into place, ending on a bare
 # `return;` (measured: undef in the scalar context the oracle calls it
-# in). neatvalue and _sprintf562 are pure formatters, each always a Str
-# (measured on undef, a plain scalar, an arrayref and a hashref).
-# :listop on all four: none has a prototype (measured), so their typed
-# parameters derive none either (RFC 0001, "Builtins with no prototype").
+# in). neatvalue formats undef, a plain scalar, an array ref and a hash
+# ref into a Str, but its last statement, `return $v unless $t eq
+# 'HASH'`, runs after the array check, so any other reference -- a code
+# ref, a blessed object, a scalar ref -- comes back unformatted, the
+# reference itself (measured: neatvalue(sub{1}) is a CODE ref,
+# neatvalue(bless {}, "Foo") a Foo object, neatvalue(\"x") a SCALAR
+# ref). _sprintf562 is a pure formatter, always a Str. :listop on all
+# four: none has a prototype (measured), so their typed parameters
+# derive none either (RFC 0001, "Builtins with no prototype").
 sub open_for_writing :export_ok :listop (Str $file) GlobRef;
 sub write_file_via_tmp :export_ok :listop (Str $finalname, ArrayRef $contents) Void;
-sub neatvalue :export_ok :listop (Any $value) Str;
+sub neatvalue :export_ok :listop (Any $value) Str|Ref;
 sub _sprintf562 :export_ok :listop (Str $format, List @args) Str;

@@ -6,7 +6,7 @@
     WriteEmptyMakefile => [ [ 'NAME', 'Oracle::Fixture', 'VERSION', '0.01' ] ],
     open_for_writing   => [ ['oracle-open-for-writing.tmp'] ],
     write_file_via_tmp => [ [ 'oracle-write-file-via-tmp.tmp', [ 'line one', 'line two' ] ] ],
-    neatvalue          => [ [undef], ['a string'], [ [ 1, 2 ] ], [ { a => 1 } ] ],
+    neatvalue          => [ [undef], ['a string'], [ [ 1, 2 ] ], [ { a => 1 } ], [ sub { 1 } ], [ bless( {}, 'Oracle::Fixture' ) ], [ \"scalar" ] ],
     _sprintf562        => [ [ '%1$s-%2$s', 'a', 'b' ] ],
     os_unsupported      => [ [] ],
     mkbootstrap         => [ [] ],
