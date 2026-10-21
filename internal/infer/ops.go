@@ -229,15 +229,30 @@ func assignContext(l lower.Node) types.Context {
 // would otherwise leave stale: l's own $name[N] shadow (flow.go's
 // guardVarName) when l is exactly that shape, since the element it named
 // now holds the assignment's value, not whatever a guard found true of it
-// before; and every $name[*] shadow of the array when l is a whole-array
-// write -- `@r = ...` or a truncating `$#r = ...`, which perl lowers to
-// the "$#" sigil, not "@" -- since every index may now hold something
-// else.
+// before; and every $name[*] shadow of the array when l writes through a
+// non-literal index (`$r[$i] = ...`, which guardVarName does not name, so
+// which index changed is not known), a slice (`@r[0,1] = ...`), a list
+// target containing the array (`(my $q, @r) = ...`, recursed into
+// element by element), or the whole array itself -- `@r = ...` or a
+// truncating `$#r = ...`, which perl lowers to the "$#" sigil, not "@" --
+// since every index may now hold something else.
 func (a *analysis) invalidateElementShadow(l lower.Node) {
 	switch l := l.(type) {
 	case *lower.Index:
 		if name := guardVarName(l); name != "" {
 			a.st.Delete(name)
+			return
+		}
+		if v, ok := l.Base.(*lower.Var); ok && !l.Arrow && v.Sigil == "$" {
+			a.st.ClearElementShadows(v.Name)
+		}
+	case *lower.Slice:
+		if v, ok := l.Base.(*lower.Var); ok {
+			a.st.ClearElementShadows(v.Name)
+		}
+	case *lower.List:
+		for _, e := range l.Elems {
+			a.invalidateElementShadow(e)
 		}
 	case *lower.Var:
 		if l.Sigil == "@" || l.Sigil == "$#" {
@@ -539,6 +554,19 @@ func (a *analysis) unary(n *lower.Unary) types.Type {
 // an array arm is its count: perl 5.42, with @a = (7,8,9),
 // `(1 ? @a : 42) + 1` is 4 and `my $n = 1 ? @a : 42` is 3, while
 // `my @t = 1 ? @a : 42` is (7, 8, 9).
+//
+// The two logicalRight calls run in source order, one after the other, so
+// without this the else arm's own checks would see whatever the then
+// arm's processing already joined back in -- not the state the condition
+// itself left, which is what else actually runs from (S5): `my $v = "s";
+// my $r = $c ? ($v = undef) : ($v eq "x");` is silent on perl 5.42, since
+// $v is never undef on the path that reaches the else arm's `eq` at all.
+// Undoing whatever the then call touched, between the two calls, puts
+// the symbol table back to that shared starting point for the else call;
+// Join is idempotent, so folding the then arm's joined result back in a
+// second time, as the else call's own join does against that same
+// restored state, lands on the same answer the two arms' true,
+// exhaustive join would.
 func (a *analysis) ternary(n *lower.Ternary) types.Type {
 	ctx := a.evalCtx[n.ID]
 	for _, arm := range []lower.Node{n.Then, n.Else} {
@@ -548,8 +576,26 @@ func (a *analysis) ternary(n *lower.Ternary) types.Type {
 	}
 	a.condition(n.Cond)
 	a.operand(n.Cond)
+	a.st.PushFrame()
 	a.logicalRight("&&", n.Cond, n.Then)
+	touched := a.st.PopFrame()
+	for _, e := range touched {
+		e.undo()
+	}
 	a.logicalRight("||", n.Cond, n.Else)
+	// An element guard shadow (a "[" in the name, guardVarName's own
+	// shape) has no second join to reconverge on the way an ordinary
+	// variable's does -- the else call's own logicalRight, now running
+	// from the state just undone, folds a plain variable's two arms
+	// together correctly on its own. So once the else arm has had its
+	// turn seeing the shadow restored, drop it for good (I5): the then
+	// arm proved it stale, and nothing past the ternary may still trust
+	// it either.
+	for name := range touched {
+		if strings.Contains(name, "[") {
+			a.st.Delete(name)
+		}
+	}
 	if n.Then == nil || n.Else == nil {
 		return types.Unknown
 	}
