@@ -319,6 +319,8 @@ var platformExempt = map[string]map[string]string{
 		"POSIX::stat":                                  "returns Str in list context on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39514360942",
 		"POSIX::fstat":                                 "returns Str in list context on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39514360942",
 		"POSIX::strtold":                               "dies on Windows's perl -- measured in CI job 39514360942",
+		"IO::Handle::fcntl":                            "dies on Windows's perl, which implements no fcntl -- measured in CI on 18c24e7b",
+		"IO::Handle::stat":                             "returns Str in list context on Windows's perl, as POSIX::stat does there -- measured in CI on 18c24e7b",
 		"IO::Handle::ioctl":                            "kills Windows's perl outright (exit 0xc0000005) on a file handle -- the oracle's trace named it last, CI on 66180e7e",
 		"POSIX::_POSIX_JOB_CONTROL":                    "returns Int on Windows's perl, where Linux's returns a Boolean -- measured in CI job 118963997693",
 		"POSIX::_POSIX_SAVED_IDS":                      "returns Int on Windows's perl, where Linux's returns a Boolean -- measured in CI job 118963997693",
