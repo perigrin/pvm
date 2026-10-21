@@ -48,7 +48,7 @@ const perl542Version = "5.042000"
 func Perl542(t testing.TB) Perl {
 	t.Helper()
 	if info, err := perl.GetVersionInfo("5.42.0"); err == nil && info != nil {
-		p := locate(t, filepath.Join(info.InstallPath, "bin", platform.ExecutableName("perl")))
+		p := locate(t, perlExecutable(info.InstallPath))
 		p.FromPvm = true
 		return p
 	}
@@ -57,6 +57,21 @@ func Perl542(t testing.TB) Perl {
 	}
 	skipOrRequire(t, "perl 5.42.0 is not installed in pvm and no perl on PATH reports %s", perl542Version)
 	return Perl{}
+}
+
+// perlExecutable returns the perl executable for a registered version's
+// InstallPath, which is either the installation root pvm's own builds
+// use (bin/perl beneath it) or, for a system perl internal/perl's
+// ImportSystemPerl registered from PATH, already the directory
+// containing perl itself -- the directory literally named "bin" on
+// Windows's Strawberry layout. Joining "bin" onto that unconditionally
+// would look for perl at bin/bin/perl.
+func perlExecutable(installPath string) string {
+	exe := platform.ExecutableName("perl")
+	if filepath.Base(installPath) == "bin" {
+		return filepath.Join(installPath, exe)
+	}
+	return filepath.Join(installPath, "bin", exe)
 }
 
 // perl542OnPath looks for a perl on PATH and reports whether its $] is

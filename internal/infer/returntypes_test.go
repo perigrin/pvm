@@ -303,6 +303,11 @@ var platformExempt = map[string]map[string]string{
 		"Time::HiRes::CLOCK_UPTIME_RAW":       "returns Int on macOS's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39489951290",
 	},
 	"windows": {
+		// Not worded with "dies": StaleExemptions (TestRealPlatformExemptionsAreChecked)
+		// checks only oracle/Cwd.pl's first chdir call case ('.'), which
+		// never dies anywhere -- this entry's death is specific to its
+		// second case (a dirhandle), which that check cannot see.
+		"Cwd::chdir":                                   "a dirhandle argument is unimplemented on Windows's perl, which has no fchdir, the same as POSIX::chdir's own posixNarrowParamsExempt entry -- measured in CI job 119370832262",
 		"POSIX::fpclassify":                            `unimplemented on Windows's perl -- measured in CI job 39508730008: "POSIX::fpclassify not implemented on this architecture"`,
 		"File::Copy::copy":                             "returns Boolean on Windows's perl, which this .tpm (describing Linux perl 5.42.0) does not declare -- measured in CI job 39508730008",
 		"Time::HiRes::clock_nanosleep":                 `unimplemented on Windows's perl -- measured in CI job 39508730008: "Time::HiRes::clock_nanosleep(): unimplemented in this platform"`,
@@ -365,6 +370,21 @@ func withPlatformExempt(base map[string]string) map[string]string {
 		m[name] = reason
 	}
 	return m
+}
+
+// posixPlatformExemptNames is this OS's platformExempt entries for
+// POSIX, bare ("strtold", not "POSIX::strtold") -- the names
+// posixMathReturnsScript skips on @ARGV, so a name already known to die
+// here is not also asked to survive a bespoke script that calls it
+// outside the return-type oracle's own exemption handling.
+func posixPlatformExemptNames() []string {
+	var names []string
+	for name := range platformExempt[runtime.GOOS] {
+		if sub, ok := strings.CutPrefix(name, "POSIX::"); ok {
+			names = append(names, sub)
+		}
+	}
+	return names
 }
 
 // TestRealPlatformExemptionsAreChecked: StaleExemptions runs over this
@@ -1520,9 +1540,17 @@ my $base = POSIX::getcwd();
 my $tmp = "$base/pvm-oracle-removed-$$";
 mkdir $tmp or die "mkdir: $!";
 chdir $tmp or die "chdir: $!";
-rmdir $tmp or die "rmdir: $!";
-my $v = eval { POSIX::getcwd() };
-print "getcwd\t", (defined $v ? "DEF:$v" : "UNDEF"), ($@ ? " DIED:$@" : ''), "\n";
+# Windows refuses to remove a directory a process sits in (measured in
+# CI job 119370832262: "rmdir: Permission denied"), the same as
+# oracle/Cwd.pl's own doomed directory, so there this probe's directory
+# stays put and getcwd() answers a Str, not the Undef only an actually
+# removed cwd induces -- the undef answer is measured on Linux and
+# macOS alone.
+rmdir $tmp or $^O eq 'MSWin32' or die "rmdir: $!";
+if ($^O ne 'MSWin32') {
+    my $v = eval { POSIX::getcwd() };
+    print "getcwd\t", (defined $v ? "DEF:$v" : "UNDEF"), ($@ ? " DIED:$@" : ''), "\n";
+}
 chdir $base;
 `
 
@@ -1559,18 +1587,19 @@ func TestPOSIXProbeDeathFails(t *testing.T) {
 	assert.Error(t, err, "a probe script that exits non-zero should fail the test, not pass:\n%s", out)
 }
 
-// posixScriptLines runs script (in dir, unless dir is "") and returns
-// its "name\tresult" lines, split and freed of perl's own \r\n line
-// ending so a trailing \r never sticks to the last field of a line --
-// measured: Windows's perl prints \r\n, and trimming only the whole
-// output's own trailing \n (not \r) leaves one on every line but the
-// last. A non-zero exit -- the script died outright, or was killed by a
-// C-level crash eval cannot catch -- means the lines that did print
-// checked only some of the names the script claims to cover, so this
-// fails the test rather than silently measuring a partial run.
-func posixScriptLines(t *testing.T, p perltest.Perl, dir, script string) []string {
+// posixScriptLines runs script (in dir, unless dir is "") with args on
+// its @ARGV, and returns its "name\tresult" lines, split and freed of
+// perl's own \r\n line ending so a trailing \r never sticks to the last
+// field of a line -- measured: Windows's perl prints \r\n, and trimming
+// only the whole output's own trailing \n (not \r) leaves one on every
+// line but the last. A non-zero exit -- the script died outright, or
+// was killed by a C-level crash eval cannot catch -- means the lines
+// that did print checked only some of the names the script claims to
+// cover, so this fails the test rather than silently measuring a
+// partial run.
+func posixScriptLines(t *testing.T, p perltest.Perl, dir, script string, args ...string) []string {
 	t.Helper()
-	cmd := p.Command("-e", script)
+	cmd := p.Command(append([]string{"-e", script}, args...)...)
 	if dir != "" {
 		cmd.Dir = dir
 	}
@@ -1629,10 +1658,16 @@ func TestPOSIXFailureReturnsAdmitUndef(t *testing.T) {
 // own `exp` precedent already admits Inf for, a finite argument that
 // overflows to Inf or is outside the real domain and so is NaN
 // (scratchpad/audit-A.md F2). Each case prints "name\tINF", "name\tNAN"
-// or "name\tNUM".
+// or "name\tNUM", except a name on @ARGV, which TestPOSIXMathReturnsAdmitInfNaN
+// fills from platformExempt so a name already known to die on this
+// platform (POSIX::strtold on Windows: "strtold is not a valid POSIX
+// macro", measured in CI job 119370832262) is skipped here the same way
+// the return-type oracle skips it, rather than crashing the script.
 const posixMathReturnsScript = `
 use v5.42; no warnings;
 use POSIX;
+
+my %skip = map { $_ => 1 } @ARGV;
 
 sub classify {
     my $v = shift;
@@ -1680,6 +1715,7 @@ my @cases = (
 
 for my $c (@cases) {
     my ($name, $code) = @$c;
+    next if $skip{$name};
     my $v = $code->();
     print "$name\t", classify($v), "\n";
 }
@@ -1694,7 +1730,7 @@ func TestPOSIXMathReturnsAdmitInfNaN(t *testing.T) {
 	p := perltest.Perl542(t)
 	wants := map[string]types.Type{"INF": types.Inf, "NAN": types.NaN}
 	sigs := posixSignatures(t)
-	lines := posixScriptLines(t, p, "", posixMathReturnsScript)
+	lines := posixScriptLines(t, p, "", posixMathReturnsScript, posixPlatformExemptNames()...)
 	require.NotEmpty(t, lines)
 	for _, line := range lines {
 		name, class, ok := strings.Cut(line, "\t")
