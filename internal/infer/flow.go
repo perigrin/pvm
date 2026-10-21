@@ -4,6 +4,7 @@
 package infer
 
 import (
+	"maps"
 	"strings"
 
 	"tamarou.com/pvm/internal/lower"
@@ -169,10 +170,7 @@ func (a *analysis) elsifPre(pre map[string]flowVar, guards []*guardResult) map[s
 	if len(shadows) == 0 {
 		return pre
 	}
-	next := make(map[string]flowVar, len(pre))
-	for name, fv := range pre {
-		next[name] = fv
-	}
+	next := maps.Clone(pre)
 	for name, typ := range shadows {
 		if fv, ok := next[name]; ok {
 			next[name] = flowVar{typ, fv.Undef}
