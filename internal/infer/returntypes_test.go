@@ -168,6 +168,20 @@ var oracleExempt = map[string]string{
 	// called with the class name itself, measured on 5.42.0.
 	"FileHandle::getpos": "dereferences the invocant as a glob to call fgetpos(); dies \"Bad filehandle\" when called with the class name itself, as the oracle calls it",
 	"FileHandle::setpos": "dereferences the invocant as a glob to call fsetpos(); dies \"Bad filehandle\" when called with the class name itself, as the oracle calls it",
+
+	// is_8bit, is_16bit, utf8_upgrade and utf8_downgrade are each
+	// exported but never defined (Encode.tpm's own comment): importing
+	// one autovivifies an existing-but-undefined code slot (measured,
+	// `exists &Encode::is_8bit` is 1 after import, `defined &...` is 0),
+	// which callable() (this file's own rule, matching held_to_perl.pl)
+	// does not consider callable -- there is no AUTOLOAD to fall back
+	// to either -- so return_oracle.pl's own `$code or die "perl
+	// defines no sub $name\n"` would end the whole run before any
+	// later sub in the module got called.
+	"Encode::is_8bit":        "exported but never defined; not even callable() to attempt, let alone observe dying",
+	"Encode::is_16bit":       "exported but never defined; not even callable() to attempt, let alone observe dying",
+	"Encode::utf8_upgrade":   "exported but never defined; not even callable() to attempt, let alone observe dying",
+	"Encode::utf8_downgrade": "exported but never defined; not even callable() to attempt, let alone observe dying",
 }
 
 // platformExempt holds, per runtime.GOOS, the additional subs the
@@ -1417,7 +1431,7 @@ func moduleFailures(t *testing.T, module string) []string {
 	require.NoError(t, err)
 	cases, err := filepath.Abs(filepath.Join("testdata", "oracle", strings.ReplaceAll(module, "::", "-")+".pl"))
 	require.NoError(t, err)
-	return returnTypeFailures(t, p, oracleRun{Module: module, TPM: tpm, Cases: cases})
+	return returnTypeFailures(t, p, oracleRun{Module: module, TPM: tpm, Cases: cases, Exempt: exemptForModule(t, p, module, tpm)})
 }
 
 // TestGetoptStdUnknownOptionReturnIsDeclared: getopts given a switch its
