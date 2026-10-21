@@ -1,10 +1,19 @@
 ---
 title: "Round-3 call-check regressions: only list-returning forms flatten, every list form flattens, and a Cwd::chdir reference argument is no error"
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 created: 2026-10-21T20:10:34.75896565Z
-updated: 2026-10-21T20:10:34.75896565Z
+updated: 2026-10-21T20:10:59.916997421Z
+sessions:
+- start_sha: 692a560c81fe680ed09244599f0e1bd216c5a075
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-21T20:10:59.916997421Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-21T20:10:59.916997421Z
 ---
 
 crochet:review round 3 of PR #488 at 692a560c (2026-10-21). Quality report: scratchpad/review3-core-module-types-paad.md; probes scratchpad/r3probes/ (F-<lens>.md per specialist); rebuild head/r2(2db182e6)/cf(cf08c0ac)/pu psc as the report says. perigrin, 2026-10-21: round 4 runs with Opus workers, and every fix gets a mandatory independent review that runs pu, round 2 and head against perl 5.42 before it merges. A finding pu or round 2 gets right is a regression: fix it without trading it for a new one -- every probe in r2probes/ and r3probes/ that pu or r2 gets right must still be right.
