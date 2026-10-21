@@ -230,7 +230,7 @@ type pendingMisfit struct {
 // landed, keyed by the issue that will fix it (perigrin, 2026-10-21:
 // 01a15ac0-6c4a POSIX, -6c78 sockets, -6ca2 IO and OO modules, -6ccc XS
 // modules, -6cfa pure-Perl modules). POSIX's own entries were deleted
-// 2026-10-22 once feat/core-module-types (01a15ac0-6c4a's fix) widened
+// 2026-10-21 once feat/core-module-types (01a15ac0-6c4a's fix) widened
 // getpayload to Num|NaN|Inf and setpayload/setpayloadsig's $nv to Any:
 // re-measured, neither misfits the parameter oracle any longer. Sockets'
 // (01a15ac0-6c78) were deleted the same day once that same merge
@@ -367,6 +367,29 @@ func withPlatformExempt(base map[string]string) map[string]string {
 	return m
 }
 
+// TestRealPlatformExemptionsAreChecked: StaleExemptions runs over this
+// OS's own platformExempt entries, not just a synthetic fixture --
+// calling each exempt sub with the arguments its module's own oracle
+// call case gives it (so POSIX::fcntl, sysconf, WEXITSTATUS and the
+// rest, which need a real argument to die the way their exemption
+// claims, are checked faithfully, not called with none). On an OS
+// platformExempt does not key (Linux, where this milestone's CI judges
+// the gate), there is nothing to check and the loop does nothing. A
+// report here means a platform exemption claims a death this perl no
+// longer produces, so it should have narrowed or been dropped.
+func TestRealPlatformExemptionsAreChecked(t *testing.T) {
+	p := perltest.Perl542(t)
+	casesDir, err := filepath.Abs(filepath.Join("testdata", "oracle"))
+	require.NoError(t, err)
+	// Resolved, not t.TempDir()'s own path: see returnTypeFailures'
+	// matching comment -- a cases file's own setup (POSIX.pl's seed
+	// files, say) runs relative to this directory.
+	scratch, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	stale := perltest.StaleExemptions(t, p, "", scratch, casesDir, platformExempt[runtime.GOOS])
+	assert.Empty(t, stale)
+}
+
 // posixReplacementNames are the names in POSIX.pm 2.23's %replacement
 // hash that POSIX also exports: measured on perl 5.42.0, each croaks
 // "Unimplemented: POSIX::name(): ..." the moment it is called, regardless
@@ -420,13 +443,13 @@ func holdReturnTypes(t *testing.T, modules ...string) {
 
 // exemptForModule is oracleExempt extended with this OS's platformExempt,
 // and, for a module whose exported set depends on the platform's C
-// library (Errno's), the names perltest.MissingSubs measures absent on
-// p's perl right now -- a name genuinely missing there kills the whole
-// oracle run on the first one return_oracle.pl is asked to call (its
-// callable() check dies rather than recording a per-name failure), so it
-// must never reach the call list, and hand-listing which names a given
-// libc or Windows's SDK headers omit is not something this repository
-// can do once for every platform CI runs on.
+// library (Errno's), the names perltest.ConstantDifferences measures
+// absent on p's perl right now -- a name genuinely missing there kills
+// the whole oracle run on the first one return_oracle.pl is asked to
+// call (its callable() check dies rather than recording a per-name
+// failure), so it must never reach the call list, and hand-listing
+// which names a given libc or Windows's SDK headers omit is not
+// something this repository can do once for every platform CI runs on.
 func exemptForModule(t *testing.T, p perltest.Perl, module string, tpm []byte, base map[string]string) map[string]string {
 	t.Helper()
 	exempt := maps.Clone(base)
@@ -1503,20 +1526,48 @@ print "getcwd\t", (defined $v ? "DEF:$v" : "UNDEF"), ($@ ? " DIED:$@" : ''), "\n
 chdir $base;
 `
 
+// posixProbeDeathFailsChildEnv tells TestPOSIXProbeDeathFailsChild to
+// run for real, simulating a probe script that dies mid-run, rather
+// than skip itself -- set only by TestPOSIXProbeDeathFails's
+// subprocess, following the pattern internal/parse/isolation_test.go
+// uses to test code that must fail the test rather than pass it.
+const posixProbeDeathFailsChildEnv = "PVM_INFER_POSIX_PROBE_DEATH_CHILD"
+
+// TestPOSIXProbeDeathFailsChild calls posixScriptLines with a script
+// that prints one line and then exits non-zero, so it must fail the
+// test rather than pass having measured only that one line. Run
+// directly (not as TestPOSIXProbeDeathFails's subprocess) it skips
+// itself, so a normal `go test` of this package does not fail from the
+// very behavior being verified.
+func TestPOSIXProbeDeathFailsChild(t *testing.T) {
+	if os.Getenv(posixProbeDeathFailsChildEnv) == "" {
+		t.Skip("only runs as TestPOSIXProbeDeathFails's subprocess")
+	}
+	p := perltest.Perl542(t)
+	posixScriptLines(t, p, "", `print "a\tOK\n"; exit 1;`)
+}
+
+// TestPOSIXProbeDeathFails: a POSIX probe script that exits non-zero
+// (dies outright, or is killed by a crash eval cannot catch) must fail
+// the test, not be logged and treated as a complete, if partial,
+// measurement -- a script that dies after printing some of its
+// "name\tresult" lines must not pass having checked only those names.
+func TestPOSIXProbeDeathFails(t *testing.T) {
+	cmd := exec.Command(os.Args[0], "-test.run=^TestPOSIXProbeDeathFailsChild$", "-test.v")
+	cmd.Env = append(os.Environ(), posixProbeDeathFailsChildEnv+"=1")
+	out, err := cmd.CombinedOutput()
+	assert.Error(t, err, "a probe script that exits non-zero should fail the test, not pass:\n%s", out)
+}
+
 // posixScriptLines runs script (in dir, unless dir is "") and returns
 // its "name\tresult" lines, split and freed of perl's own \r\n line
 // ending so a trailing \r never sticks to the last field of a line --
 // measured: Windows's perl prints \r\n, and trimming only the whole
 // output's own trailing \n (not \r) leaves one on every line but the
-// last. Perl's eval cannot catch a C-level crash, which one of several
-// bogus arguments these scripts feed a POSIX sub induces on some
-// platforms (measured: Windows's MSVCRT aborts the process outright for
-// some of them, rather than setting errno the way glibc does) -- a
-// nonzero exit here still means whatever lines printed before that are
-// real measurements, so it is logged, not failed, and parsed the same
-// way a clean exit's output is. A name the crash cut off before it
-// could print is simply not among the lines returned, so this run does
-// not check it, same as a name genuinely exempt.
+// last. A non-zero exit -- the script died outright, or was killed by a
+// C-level crash eval cannot catch -- means the lines that did print
+// checked only some of the names the script claims to cover, so this
+// fails the test rather than silently measuring a partial run.
 func posixScriptLines(t *testing.T, p perltest.Perl, dir, script string) []string {
 	t.Helper()
 	cmd := p.Command("-e", script)
@@ -1526,8 +1577,10 @@ func posixScriptLines(t *testing.T, p perltest.Perl, dir, script string) []strin
 	out, err := cmd.Output()
 	if err != nil {
 		var exitErr *exec.ExitError
-		require.True(t, errors.As(err, &exitErr), "could not even run the script: %v", err)
-		t.Logf("script exited %v before finishing; using what it printed up to there", err)
+		if errors.As(err, &exitErr) {
+			t.Fatalf("script exited %v before finishing, printing %d bytes: %s", err, len(out), exitErr.Stderr)
+		}
+		require.NoError(t, err, "could not even run the script")
 	}
 	text := strings.TrimRight(string(out), "\r\n")
 	if text == "" {

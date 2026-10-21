@@ -6,9 +6,31 @@ package perltest
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
+
+// heldLibPath is internal/parse/testdata/held_lib.pl, held_to_perl.pl
+// and return_oracle.pl's own shared rule for whether a call to a sub
+// named by its fully-qualified name runs code -- MissingSubs and
+// ConstantDifferences require it instead of each embedding their own
+// copy of that rule, so there is one callable(), not three. Found
+// relative to this package's own source file, not the caller's working
+// directory, since a perltest helper is called from several different
+// packages' test binaries, each with its own.
+func heldLibPath(t testing.TB) string {
+	t.Helper()
+	_, self, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("cannot locate the perltest package source")
+	}
+	path := filepath.Join(filepath.Dir(self), "..", "parse", "testdata", "held_lib.pl")
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("held_lib.pl not found at %s: %v", path, err)
+	}
+	return path
+}
 
 // WriteModule writes module's perl source as a .pm file under lib, at the
 // path relative to lib that perl's own @INC resolution of that name

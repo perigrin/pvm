@@ -24,7 +24,7 @@ func TestStalePlatformExemptionFails(t *testing.T) {
 	exempt := map[string]string{
 		"My::Fresh::works": "dies on this platform's perl -- synthetic, for TestStalePlatformExemptionFails",
 	}
-	stale := StaleExemptions(t, p, lib, exempt)
+	stale := StaleExemptions(t, p, lib, "", "", exempt)
 
 	require.Len(t, stale, 1)
 	assert.Contains(t, stale[0], "My::Fresh::works")
@@ -40,7 +40,25 @@ func TestFreshPlatformExemptionDoesNotFail(t *testing.T) {
 	exempt := map[string]string{
 		"My::Broken::fails": "dies on this platform's perl -- synthetic, for TestFreshPlatformExemptionDoesNotFail",
 	}
-	stale := StaleExemptions(t, p, lib, exempt)
+	stale := StaleExemptions(t, p, lib, "", "", exempt)
 
 	assert.Empty(t, stale)
+}
+
+// TestStaleCheckPerlErrorFails: an exemption naming a module perl
+// cannot even load (require fails outright, before the exemption's own
+// "dies" claim is ever exercised) must be reported, not silently
+// skipped as inconclusive -- a perl error during the check is a
+// failure of the check, not evidence the exemption is still good.
+func TestStaleCheckPerlErrorFails(t *testing.T) {
+	p := Perl542(t)
+	lib := t.TempDir()
+
+	exempt := map[string]string{
+		"My::DoesNotExist::works": "dies on this platform's perl -- synthetic, for TestStaleCheckPerlErrorFails",
+	}
+	stale := StaleExemptions(t, p, lib, "", "", exempt)
+
+	require.Len(t, stale, 1)
+	assert.Contains(t, stale[0], "My::DoesNotExist::works")
 }
