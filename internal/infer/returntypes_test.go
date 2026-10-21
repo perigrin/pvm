@@ -539,13 +539,13 @@ func returnTypeFailures(t *testing.T, p perltest.Perl, r oracleRun) []string {
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil {
-		return []string{fmt.Sprintf("%s: the oracle did not run: %v: %s", r.Module, err, stderr.String())}
+		return []string{fmt.Sprintf("%s: the oracle did not run: %v: %s", r.Module, err, oracleStderr(stderr.String()))}
 	}
 	// The driver says it is complete once every sub is called, so a sub
 	// that ends perl early fails here rather than passing the rest.
 	report, complete := strings.CutPrefix(string(out), "complete\n")
 	if !complete {
-		return []string{fmt.Sprintf("%s: the oracle ended before calling every sub: %s", r.Module, stderr.String())}
+		return []string{fmt.Sprintf("%s: the oracle ended before calling every sub: %s", r.Module, oracleStderr(stderr.String()))}
 	}
 	var obs []observation
 	if err := json.Unmarshal([]byte(report), &obs); err != nil {
@@ -2641,4 +2641,25 @@ func TestEveryMultiCandidateIsExercised(t *testing.T) {
 		return nil
 	})
 	require.NoError(t, err)
+}
+
+// oracleStderr keeps what the oracle's stderr says about a failed run:
+// perl's own messages, and of the per-call trace only the last call it
+// started, which is the one that killed it when perl died outright.
+func oracleStderr(stderr string) string {
+	var kept []string
+	last := ""
+	for _, line := range strings.Split(strings.ReplaceAll(stderr, "\r", ""), "\n") {
+		if strings.HasPrefix(line, "oracle: calling ") {
+			last = line
+			continue
+		}
+		if line != "" {
+			kept = append(kept, line)
+		}
+	}
+	if last != "" {
+		kept = append(kept, "last call started: "+strings.TrimPrefix(last, "oracle: calling "))
+	}
+	return strings.Join(kept, "\n")
 }
