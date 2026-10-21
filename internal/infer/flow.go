@@ -218,7 +218,7 @@ func (a *analysis) branch(b *lower.Block, guards []*guardResult, pre map[string]
 	a.st.PushFrame()
 	if a.blockExits(b) {
 		a.blockWithGuard(b, guards, nil)
-		a.undoTouched(a.st.Touched(), dropped)
+		a.undoTouched(a.st.TouchedElems(), dropped)
 		a.st.PopFrame()
 		return nil
 	}
@@ -227,13 +227,13 @@ func (a *analysis) branch(b *lower.Block, guards []*guardResult, pre map[string]
 		end[name] = flowVar{types.None, false}
 	}
 	a.blockWithGuard(b, guards, end)
-	a.undoTouched(a.st.Touched(), dropped)
+	a.undoTouched(a.st.TouchedElems(), dropped)
 	a.st.PopFrame()
 	return end
 }
 
-// undoTouched puts back whichever of the names PushFrame saw touched are
-// element guard shadows (a "[" in the name, guardVarName's own shape),
+// undoTouched puts back each element guard shadow (a "[" in the name,
+// guardVarName's own shape) a body touched, as TouchedElems holds them,
 // then merges them into dropped, for the caller to delete for good once
 // every body of the same conditional has run (I5, R6/S4). Any other
 // touched name is left exactly as the body left it: an ordinary
@@ -244,10 +244,8 @@ func (a *analysis) branch(b *lower.Block, guards []*guardResult, pre map[string]
 // from anything.
 func (a *analysis) undoTouched(touched map[scopedName]Symbol, dropped map[string]bool) {
 	for n, before := range touched {
-		if strings.Contains(n.name, "[") {
-			a.st.put(n, before)
-			dropped[n.name] = true
-		}
+		a.st.put(n, before)
+		dropped[n.name] = true
 	}
 }
 

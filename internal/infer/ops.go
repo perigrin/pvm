@@ -660,10 +660,10 @@ func (a *analysis) ternary(n *lower.Ternary) types.Type {
 			a.st.set(v, sym)
 		}
 	}
+	// An element guard shadow the else arm wrote stays written.
 	touched := a.st.Touched()
 	for v, before := range touched {
-		// An element guard shadow the else arm wrote stays written.
-		if a.st.inScope(v.scope) && !strings.Contains(v.name, "[") {
+		if a.st.inScope(v.scope) {
 			join(v, flowVar{before.Type, before.PossibleUndef})
 		}
 	}
@@ -746,10 +746,12 @@ func (a *analysis) armFrame(arm lower.Node, guards []*guardResult, all bool) arm
 		return v
 	}
 	out := armEnd{map[scopedName]flowVar{}, map[scopedName]flowVar{}, a.armExits(arm)}
-	for v := range a.st.Touched() {
-		if inGuard(v) || (all && a.st.inScope(v.scope)) {
-			sym := v.scope.symbols[v.name]
-			out.end[declared(v)] = flowVar{sym.Type, sym.PossibleUndef}
+	for _, touched := range []map[scopedName]Symbol{a.st.Touched(), a.st.TouchedElems()} {
+		for v := range touched {
+			if inGuard(v) || (all && a.st.inScope(v.scope)) {
+				sym := v.scope.symbols[v.name]
+				out.end[declared(v)] = flowVar{sym.Type, sym.PossibleUndef}
+			}
 		}
 	}
 	for name := range shadows {

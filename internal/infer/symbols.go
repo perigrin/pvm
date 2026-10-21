@@ -4,6 +4,7 @@
 package infer
 
 import (
+	"maps"
 	"strings"
 
 	"tamarou.com/pvm/internal/lower"
@@ -92,7 +93,7 @@ type SymbolTable struct {
 	// merely might have touched (the root cause of I10's cubic nested
 	// ternary). PopFrame passes what it held on to the frame around it,
 	// so a touch costs the same however many frames are open (V5).
-	frames []map[scopedName]Symbol
+	frames []frame
 	// holders is, for each name, the open scopes that hold it, outermost
 	// first, so the innermost is found without walking the chain: a chain
 	// of guards nests a scope at every level, and a walk per lookup per
@@ -130,46 +131,67 @@ func (st *SymbolTable) drop(n scopedName) {
 	}
 }
 
+// frame is one open PushFrame span's touches: each name's value from
+// just before its first touch in the span, keyed by the scope that held
+// it. Element guard shadows ("$a[0]", flow.go's guardVarName) are kept
+// apart from every other name: callers drop them or put them back but
+// never join them, and a write that clears an array's shadows touches
+// one per guard around it, which a caller joining the rest should not
+// have to step over at every level of a chain (V5).
+type frame struct {
+	vars, elems map[scopedName]Symbol
+}
+
 // PushFrame starts recording every name an update, Delete or
 // ClearElementShadows call touches from here on, until the matching
 // PopFrame.
 func (st *SymbolTable) PushFrame() {
-	st.frames = append(st.frames, map[scopedName]Symbol{})
+	st.frames = append(st.frames, frame{map[scopedName]Symbol{}, map[scopedName]Symbol{}})
 }
 
-// Touched is every name the innermost open span has touched so far,
-// keyed by the scope that held it, each mapped to its value from just
-// before that first touch. A caller reads it before PopFrame, which may
-// hand the map on to the span around it.
+// Touched is every name but an element guard shadow the innermost open
+// span has touched so far, keyed by the scope that held it, each mapped
+// to its value from just before that first touch. A caller reads it
+// before PopFrame, which may hand the map on to the span around it.
 func (st *SymbolTable) Touched() map[scopedName]Symbol {
-	return st.frames[len(st.frames)-1]
+	return st.frames[len(st.frames)-1].vars
+}
+
+// TouchedElems is every element guard shadow the innermost open span has
+// touched so far, as Touched says.
+func (st *SymbolTable) TouchedElems() map[scopedName]Symbol {
+	return st.frames[len(st.frames)-1].elems
 }
 
 // PopFrame closes the span the matching PushFrame started. Each name it
-// touched is also a touch of the span around it, which keeps its own
-// earlier first touch of a name where it has one: nothing ran in it while
-// this span was open. The smaller of the two maps is merged into the
-// larger, so a touch deep in a long chain of nested spans is copied a
-// logarithmic number of times on its way out, not once per span (V5).
+// touched is also a touch of the span around it, as merged says.
 func (st *SymbolTable) PopFrame() {
 	f := st.frames[len(st.frames)-1]
 	st.frames = st.frames[:len(st.frames)-1]
 	if len(st.frames) == 0 {
 		return
 	}
-	parent := st.frames[len(st.frames)-1]
-	if len(f) > len(parent) {
-		for n, before := range parent {
-			f[n] = before
-		}
-		st.frames[len(st.frames)-1] = f
-		return
+	parent := &st.frames[len(st.frames)-1]
+	parent.vars = merged(f.vars, parent.vars)
+	parent.elems = merged(f.elems, parent.elems)
+}
+
+// merged is parent with child's touches added, keeping parent's own
+// earlier first touch of a name where it has one: nothing ran in it while
+// the child span was open. The smaller of the two maps is merged into the
+// larger, so a touch deep in a long chain of nested spans is copied a
+// logarithmic number of times on its way out, not once per span (V5).
+func merged(child, parent map[scopedName]Symbol) map[scopedName]Symbol {
+	if len(child) > len(parent) {
+		maps.Copy(child, parent)
+		return child
 	}
-	for n, before := range f {
+	for n, before := range child {
 		if _, seen := parent[n]; !seen {
 			parent[n] = before
 		}
 	}
+	return parent
 }
 
 // UndoFrame closes the span the matching PushFrame started and puts back
@@ -180,8 +202,10 @@ func (st *SymbolTable) PopFrame() {
 func (st *SymbolTable) UndoFrame() {
 	f := st.frames[len(st.frames)-1]
 	st.frames = st.frames[:len(st.frames)-1]
-	for n, before := range f {
-		st.put(n, before)
+	for _, touched := range []map[scopedName]Symbol{f.vars, f.elems} {
+		for n, before := range touched {
+			st.put(n, before)
+		}
 	}
 }
 
@@ -194,7 +218,10 @@ func (st *SymbolTable) recordFrame(scope *Scope, name string, before Symbol) {
 	if len(st.frames) == 0 {
 		return
 	}
-	f := st.frames[len(st.frames)-1]
+	f := st.frames[len(st.frames)-1].vars
+	if strings.Contains(name, "[") {
+		f = st.frames[len(st.frames)-1].elems
+	}
 	n := scopedName{scope, name}
 	if _, seen := f[n]; !seen {
 		f[n] = before
