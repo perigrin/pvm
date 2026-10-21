@@ -297,6 +297,25 @@ func TestFileStatCandoTakesArrayRef(t *testing.T) {
 	}
 }
 
+// TestCwdChdirTakesAHandle holds the measured claim: Cwd::chdir's own
+// source passes $newdir straight through to CORE::chdir, so it accepts
+// a directory handle the same way POSIX::chdir does -- measured on
+// 5.42.0, `Cwd::chdir($dirhandle)` returns 1. testdata/oracle/Cwd.pl's
+// chdir case includes one, a dirhandle opened on the still-current
+// directory.
+func TestCwdChdirTakesAHandle(t *testing.T) {
+	p := perltest.Perl542(t)
+	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "Cwd.tpm"))
+	require.NoError(t, err)
+	cases, err := filepath.Abs(filepath.Join("testdata", "oracle", "Cwd.pl"))
+	require.NoError(t, err)
+	for _, f := range parameterOracleFailures(t, p, oracleRun{Module: "Cwd", TPM: tpm, Cases: cases}) {
+		if strings.Contains(f, "::chdir ") {
+			t.Error(f)
+		}
+	}
+}
+
 // splitModuleSub splits a parameterExempt key, "Module::sub", on its
 // last "::": the module name may itself hold "::" (File::Spec::Unix),
 // but the sub name never does.

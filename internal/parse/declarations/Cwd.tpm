@@ -24,8 +24,12 @@ sub fastgetcwd :export :listop () Str;
 # prototype is reported, so :listop states its one typed parameter.
 # $dir is optional: the source reads `my $newdir = @_ ? shift : '';
 # # allow for no arg (chdir to HOME dir)`, and measured,
-# `Cwd::chdir()` returns 0 without dying.
-sub chdir :export_ok :listop (Optional[Str] $dir) Int;
+# `Cwd::chdir()` returns 0 without dying. It also takes a handle, as
+# POSIX::chdir does: Cwd::chdir's own source passes $newdir straight
+# through to CORE::chdir, measured, `Cwd::chdir($dirhandle)` (an
+# opendir lexical) and `Cwd::chdir(\*DH)` (a bareword glob ref) both
+# return 1 and land in that directory.
+sub chdir :export_ok :listop (Optional[Str|FileHandle] $dir) Int;
 
 # abs_path, fast_abs_path, realpath and fast_realpath resolve a path to
 # an absolute one with symlinks collapsed, defaulting to the current
