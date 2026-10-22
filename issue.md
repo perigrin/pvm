@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 created: 2026-10-22T23:46:34.345543908Z
-updated: 2026-10-22T23:47:18.757094601Z
+updated: 2026-10-22T23:56:40.659857437Z
 ---
 
 ## Context
@@ -37,3 +37,12 @@ These are the `canon-adds-paren` rows of faithful_defects.txt, where canon write
 - [ ] canon still catches misgrouping (`go test ./internal/parse/ -run '^TestCanonCatchesMisgrouping$' -count=1 -v | grep -q '^--- PASS: TestCanonCatchesMisgrouping'`)
 - [ ] The defects list and the M3-dir check agree after the fixes (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestPerlGitTFaithfulOnM3Dirs$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTFaithfulOnM3Dirs'`)
 - [ ] The perl.git t/ faithful ratchet records the result (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestPerlGitTFaithfulRatchet$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTFaithfulRatchet'`)
+
+### Negative Scenarios
+
+- [ ] A nested parenless call keeps perl's argument grouping. perl 5.42 Deparses `foo 1, bar 2, 3` (both subs predeclared) as `foo(1, bar(2, 3))`, so a canon `foo(1, bar(2), 3)` is a misgrouping and stays unfaithful (`go test ./internal/parse/ -run '^TestCanonAddedParenOnNestedListOpKeepsPerlGrouping$' -count=1 -v | grep -q '^--- PASS: TestCanonAddedParenOnNestedListOpKeepsPerlGrouping'`)
+- [ ] A comparison chain is not regrouped. perl Deparses `1 < $x < 3` with no inner parens, while `(1 < $x) < 3` compiles to two separate `lt` ops (the inner one `sKP/2`), so a canon `(1 < $x) < 3` is a misgrouping (`go test ./internal/parse/ -run '^TestCanonAddedParenOnCmpChainIsMisgrouping$' -count=1 -v | grep -q '^--- PASS: TestCanonAddedParenOnCmpChainIsMisgrouping'`)
+- [ ] The parenless-call forgiveness applies only to a call's own argument list; a pair canon adds around a term inside the arguments, such as `print (1+2)*3` written as `print((1+2)*3)`, is not forgiven by it (`go test ./internal/parse/ -run '^TestParenlessCallForgivenessIgnoresInnerTermParens$' -count=1 -v | grep -q '^--- PASS: TestParenlessCallForgivenessIgnoresInnerTermParens'`)
+- [ ] A bareword or filehandle that perl reads as a call argument, not a call, is not given call parens and then forgiven (`go test ./internal/parse/ -run '^TestCanonAddedParenOnBarewordMatchesPerl$' -count=1 -v | grep -q '^--- PASS: TestCanonAddedParenOnBarewordMatchesPerl'`)
+- [ ] The parenless-call rule is not widened past what the measurement supports (`go test ./internal/parse/ -run '^TestCanonQuotientIsNarrow$' -count=1 -v | grep -q '^--- PASS: TestCanonQuotientIsNarrow'`)
+- [ ] Every row kept in faithful_defects.txt for this class carries its Deparse,-p result in the reason (`go test ./internal/parse/ -run '^TestCanonAddsParenRowsQuoteDeparse$' -count=1 -v | grep -q '^--- PASS: TestCanonAddsParenRowsQuoteDeparse'`)
