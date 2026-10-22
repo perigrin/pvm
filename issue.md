@@ -9,7 +9,7 @@ blocks:
 - 01a16602-5f1a-7d56-a91d-5fa2c478d608
 - 01a16602-5f77-78ef-a0c7-538e0a241cdc
 created: 2026-10-22T23:46:33.790255282Z
-updated: 2026-10-22T23:47:01.689646149Z
+updated: 2026-10-22T23:56:40.428599882Z
 ---
 
 ## Context
@@ -48,3 +48,16 @@ updated: 2026-10-22T23:47:01.689646149Z
 - [ ] The T1 canon ratchet matches its re-baselined file (`go test ./internal/parse/ -run '^TestCanonRatchet$' -count=1 -v | grep -q '^--- PASS: TestCanonRatchet'`)
 - [ ] The T1 fidelity ratchet matches its re-baselined file (`go test ./internal/parse/ -run '^TestCanonFidelityRatchet$' -count=1 -v | grep -q '^--- PASS: TestCanonFidelityRatchet'`)
 - [ ] The perl.git t/ faithful ratchet records the gain (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestPerlGitTFaithfulRatchet$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTFaithfulRatchet'`)
+
+### Negative Scenarios
+
+- [ ] Source `my ($x) = @_` against canon `my $x = @_` is unfaithful. perl 5.42 builds `padrange` + `aassign` for the first and `padsv_store` for the second, so this paren is never forgiven (`go test ./internal/parse/ -run '^TestFaithfulRejectsDroppedParenAfterMy$' -count=1 -v | grep -q '^--- PASS: TestFaithfulRejectsDroppedParenAfterMy'`)
+- [ ] Source `($y) x 3` against canon `$y x 3` is unfaithful. perl measures `repeat vK/DOLIST,2` for the first and `repeat vK/2` for the second (`go test ./internal/parse/ -run '^TestFaithfulRejectsDroppedParenBeforeRepeat$' -count=1 -v | grep -q '^--- PASS: TestFaithfulRejectsDroppedParenBeforeRepeat'`)
+- [ ] Source `local ($x) = 1` against canon `local $x = 1` (for `our $x`) is unfaithful. perl measures `aassign` for the first and `sassign` for the second (`go test ./internal/parse/ -run '^TestFaithfulRejectsDroppedParenAfterLocal$' -count=1 -v | grep -q '^--- PASS: TestFaithfulRejectsDroppedParenAfterLocal'`)
+- [ ] A paren after `\` changes context, and the classification treats it so: `\(@a)` is `refgen` over `padav lPM`, while `\@a` is `srefgen`. A dropped paren there is a tree defect, not a forgivable one (`go test ./internal/parse/ -run '^TestDroppedParenAfterBackslashIsContextChanging$' -count=1 -v | grep -q '^--- PASS: TestDroppedParenAfterBackslashIsContextChanging'`)
+- [ ] The nesting rule does not forgive a call's argument parens as an outer pair. perl measures `print ((1))+2` as `const[IV 1] sP` and `print (1)+2` as `const[IV 1] s`, so source `print((1))+2` against canon `print(1)+2` is unfaithful (`go test ./internal/parse/ -run '^TestFaithfulDoesNotTreatCallParensAsNesting$' -count=1 -v | grep -q '^--- PASS: TestFaithfulDoesNotTreatCallParensAsNesting'`)
+- [ ] A pair nested inside another pair but around a different node is not forgiven: source `((1) + 2)` against canon `(1 + 2)` is unfaithful (`go test ./internal/parse/ -run '^TestFaithfulDoesNotForgiveInnerPairAroundSubterm$' -count=1 -v | grep -q '^--- PASS: TestFaithfulDoesNotForgiveInnerPairAroundSubterm'`)
+- [ ] Doubled parens in a context-changing position are forgiven only down to one pair, never to none. perl measures `(($y)) x 3` and `($y) x 3` identically, both as `repeat vK/DOLIST,2`, but source `(($y)) x 3` against canon `$y x 3` is unfaithful (`go test ./internal/parse/ -run '^TestFaithfulNestingForgivesToOnePairNotZero$' -count=1 -v | grep -q '^--- PASS: TestFaithfulNestingForgivesToOnePairNotZero'`)
+- [ ] canon keeps a call-argument pair around a grouped term: `print ((1+2)*3)` re-emits with both pairs, never as `print (1+2)*3` (`go test ./internal/parse/ -run '^TestCanonKeepsCallArgParenAroundGroupedTerm$' -count=1 -v | grep -q '^--- PASS: TestCanonKeepsCallArgParenAroundGroupedTerm'`)
+- [ ] The classification fixtures cannot pass empty: they hold at least one case from each context-changing position (before `=`, before `x`, after each of my/our/local/state, after `\`), and the test fails if any class has none (`go test ./internal/parse/ -run '^TestDroppedParenFixturesCoverEveryContextPosition$' -count=1 -v | grep -q '^--- PASS: TestDroppedParenFixturesCoverEveryContextPosition'`)
+- [ ] `my ($p, $q) = (1, 2)` and `my $p, $q` are different trees; canon re-emits each as written, and Faithful rejects either against the other (`go test ./internal/parse/ -run '^TestFaithfulDistinguishesMyListFromMyComma$' -count=1 -v | grep -q '^--- PASS: TestFaithfulDistinguishesMyListFromMyComma'`)
