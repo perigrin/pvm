@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 created: 2026-10-22T23:46:34.069628305Z
-updated: 2026-10-22T23:47:15.121700526Z
+updated: 2026-10-22T23:56:40.541976403Z
 ---
 
 ## Context
@@ -38,3 +38,13 @@ Two token-level re-emission causes, 10 M3-dir files, rows `heredoc` and `subless
 - [ ] A sub-less special-sub declaration re-emits faithfully, for exactly the names perl accepts (`go test ./internal/parse/ -run '^TestFaithfulSublessSpecialSub$' -count=1 -v | grep -q '^--- PASS: TestFaithfulSublessSpecialSub'`)
 - [ ] The defects list and the M3-dir check agree after the fixes (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestPerlGitTFaithfulOnM3Dirs$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTFaithfulOnM3Dirs'`)
 - [ ] The perl.git t/ faithful ratchet records the gain (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestPerlGitTFaithfulRatchet$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTFaithfulRatchet'`)
+
+### Negative Scenarios
+
+- [ ] A heredoc body that differs between source and canon is still a difference; treating the body as one literal must not make its content invisible (`go test ./internal/parse/ -run '^TestFaithfulHeredocBodyChangeIsADifference$' -count=1 -v | grep -q '^--- PASS: TestFaithfulHeredocBodyChangeIsADifference'`)
+- [ ] An open paren or a semicolon inside a heredoc body never pairs with, or offsets, a paren or statement boundary in the code around it (`go test ./internal/parse/ -run '^TestFaithfulHeredocBodyPunctuationIsInert$' -count=1 -v | grep -q '^--- PASS: TestFaithfulHeredocBodyPunctuationIsInert'`)
+- [ ] Two heredocs started on one line, such as `f(<<A, <<B)`, keep their bodies in order; swapping them is a difference (`go test ./internal/parse/ -run '^TestFaithfulTwoHeredocsKeepOrder$' -count=1 -v | grep -q '^--- PASS: TestFaithfulTwoHeredocsKeepOrder'`)
+- [ ] An indented `<<~EOT` heredoc and an interpolating `<<"EOT"` heredoc follow the same rule as a plain one, with no source-side tokens leaking (`go test ./internal/parse/ -run '^TestFaithfulIndentedAndInterpolatingHeredocs$' -count=1 -v | grep -q '^--- PASS: TestFaithfulIndentedAndInterpolatingHeredocs'`)
+- [ ] The sub-less form is forgiven for no name perl does not accept. perl 5.42 Deparses `DESTROY { 1 }`, `AUTOLOAD { 1 }` and `BEGIN { 1 }` as `sub NAME {...}`, but leaves `foo { 1 }` and `new { 1 }` as an expression statement with no `sub`. A canon `sub foo` against source `foo { 1 }` stays unfaithful (`go test ./internal/parse/ -run '^TestFaithfulSublessFormRejectsOrdinaryNames$' -count=1 -v | grep -q '^--- PASS: TestFaithfulSublessFormRejectsOrdinaryNames'`)
+- [ ] The sub-less forgiveness covers only the missing `sub` keyword; a different body or a different name after it is still a difference (`go test ./internal/parse/ -run '^TestFaithfulSublessSpecialSubBodyStillCompared$' -count=1 -v | grep -q '^--- PASS: TestFaithfulSublessSpecialSubBodyStillCompared'`)
+- [ ] The token-level fixes leave misgrouping detection whole (`go test ./internal/parse/ -run '^TestCanonQuotientIsNarrow$' -count=1 -v | grep -q '^--- PASS: TestCanonQuotientIsNarrow'`)
