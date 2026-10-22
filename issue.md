@@ -3,8 +3,10 @@ title: Ratchet canonical re-emission over perl.git t/ at 342/619
 state: pending
 urgency: normal
 milestone: m3-oracle-at-scale
+blocks:
+- 01a16602-5ebe-7169-b857-996ae2953394
 created: 2026-10-22T23:46:33.694596407Z
-updated: 2026-10-22T23:46:33.694596407Z
+updated: 2026-10-22T23:46:59.260001689Z
 ---
 
 ## Context
