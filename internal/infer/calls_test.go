@@ -458,6 +458,27 @@ func TestScalarCallArgumentStillChecked(t *testing.T) {
 	}
 }
 
+// TestArgumentsBeforeAMethodCallAreChecked: a method call may return a
+// list, so it flattens, but every argument before it still stands at its
+// own position, and is checked against the parameter there. perl 5.42 -w
+// warns "Use of uninitialized value in subroutine entry" on `fmod(undef,
+// $o->one)` and `Argument "abc" isn't numeric` on `fmod("abc", $o->one)`,
+// and is silent on `fmod(7, $o->one)`.
+func TestArgumentsBeforeAMethodCallAreChecked(t *testing.T) {
+	const pre = "use POSIX qw(fmod); package O { sub new { bless {}, shift } sub one { 3 } } package main; my $o = O->new; "
+	for _, call := range []string{`fmod(undef, $o->one)`, `fmod("abc", $o->one)`, `fmod("abc", O->one)`} {
+		src := pre + "my $f = " + call + ";"
+		diags := diagsWithOptions(src, infer.Options{})
+		if len(diags) != 1 || diags[0].Code != infer.CodeCoercionMismatch {
+			t.Errorf("%q: diagnostics %v, want one %s", src, diags, infer.CodeCoercionMismatch)
+		}
+	}
+	for _, call := range []string{`fmod(7, $o->one)`, `fmod($o->one, "abc")`} {
+		src := pre + "my $f = " + call + ";"
+		assert.Empty(t, diagsWithOptions(src, infer.Options{}), src)
+	}
+}
+
 // TestCwdChdirRefArgumentNoError: Cwd::chdir takes a string or a handle,
 // and any other reference is stringified on its way to CORE::chdir:
 // perl 5.42 -w is silent on `Cwd::chdir({})`, which returns 0. Its

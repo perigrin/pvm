@@ -103,14 +103,37 @@ my $x = max(@empty) + 1;
 // fits a Num slot by default; under --warn-possible-undef that must not
 // stand in for the report. perl 5.42 -w warns "Use of uninitialized
 // value in abs" (in sqrt, and in subroutine entry for floor) on each.
+// first is declared Any, one value and not a list, and max is one
+// Scalar, so each is forced in a scalar slot and in print's slurpy slot
+// alike: perl 5.42 -w warns "Use of uninitialized value" in abs and in
+// print.
 func TestCheckArgPossibleUndefUnderFlag(t *testing.T) {
 	for _, src := range []string{
 		"use List::Util qw(max); my @e; my $x = abs(max(@e));",
 		"use List::Util qw(max); use POSIX qw(floor); my @e; my $x = floor(max(@e));",
 		"use List::Util qw(min); my @e; my $x = sqrt(min(@e));",
 		"use List::Util qw(max); my @e; my $m = max(@e); my $x = abs($m);",
+		"use List::Util qw(first); my @e; my $x = abs(first { $_ } @e);",
+		"use List::Util qw(max); my @e; print max(@e);",
+		"use List::Util qw(first); my @e; print first { $_ } @e;",
 	} {
 		assert.Empty(t, diagsWithOptions(src, infer.Options{}), src)
 		assert.Len(t, diagsWithOptions(src, infer.Options{WarnPossibleUndef: true}), 1, src)
+	}
+}
+
+// TestListIntoSlurpyNotPossibleUndef: a declared call that returns a
+// list carries the Undef bit only because a List holds any Scalar, so
+// WarnPossibleUndef does not force it as a report where a list slot
+// takes it. perl 5.42 -w is silent on each of these programs.
+func TestListIntoSlurpyNotPossibleUndef(t *testing.T) {
+	for _, src := range []string{
+		"use Data::Dumper; my $y = 1; print Dumper($y);",
+		"use List::Util qw(shuffle); my @r = (1, 2); print shuffle(@r);",
+		"use List::Util qw(uniq); my @r = (1, 2); print uniq(@r);",
+		"use List::Util qw(uniq); unlink(uniq(), ());",
+	} {
+		assert.Empty(t, diagsWithOptions(src, infer.Options{}), src)
+		assert.Empty(t, diagsWithOptions(src, infer.Options{WarnPossibleUndef: true}), src)
 	}
 }
