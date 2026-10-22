@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a16602-61a2-78de-a798-da4cef3208c5
 created: 2026-10-09T11:07:58.504119457Z
-updated: 2026-10-22T23:47:10.262748111Z
+updated: 2026-10-22T23:56:40.234796895Z
 ---
 
 ## Context
@@ -34,3 +34,14 @@ This is the real fix that the m1 hedge for arrow hash reads defers to (filed 202
 
 - [ ] An arrow hash read reports rv2hv exactly when perl keeps it (`go test ./internal/parse/ -run '^TestArrowHashReadFollowsMultideref$' -count=1 -v | grep -q '^--- PASS: TestArrowHashReadFollowsMultideref'`)
 - [ ] The site ratchet records the lower rv2hv wider count, below 389 (`PERL5_CORPUS=$HOME/dev/perl5 PARSEORACLE_SHIM=$HOME/.cache/pvm/oracleshim PARSEORACLE_TIMEOUT=8m go test ./internal/parseoracle/ -run '^TestSiteRatchetCorpus$' -parseoracle.corpus -count=1 -timeout 40m -v | grep -q '^--- PASS: TestSiteRatchetCorpus'`)
+
+### Negative Scenarios
+
+- [ ] A hash element passed as a sub argument does not keep rv2hv. perl 5.42 compiles `foo($r->{a})` to `multideref($r->{"a"})` with 0 rv2hv; only a whole hash deref argument keeps it, and `foo(%{$r->{a}})` shows 2 rv2hv and no multideref. Committing rv2hv for the element read is WRONG (`go test ./internal/parse/ -run '^TestArrowHashReadSubArgElementFoldsToMultideref$' -count=1 -v | grep -q '^--- PASS: TestArrowHashReadSubArgElementFoldsToMultideref'`)
+- [ ] The outer deref's context decides, not the chain alone. perl compiles `my %x = %{$r->{a}}` to `multideref` plus 1 rv2hv, `keys %{$r->{a}}` to 2 rv2hv, and `push @{$r->{a}}, 1` to 1 rv2hv, and the decision gives each its own count (`go test ./internal/parse/ -run '^TestArrowHashReadCountFollowsOuterDerefContext$' -count=1 -v | grep -q '^--- PASS: TestArrowHashReadCountFollowsOuterDerefContext'`)
+- [ ] A non-constant key keeps rv2hv. perl compiles `$r->{"a$x"}` and `$r->{shift()}` each to 1 `rv2hv` and no multideref, so a rule that folds every `->{...}` read into multideref commits WRONG here (`go test ./internal/parse/ -run '^TestArrowHashReadComputedKeyKeepsRv2hv$' -count=1 -v | grep -q '^--- PASS: TestArrowHashReadComputedKeyKeepsRv2hv'`)
+- [ ] Lvalue-looking element contexts still fold. perl compiles `local $r->{a} = 1`, `\$r->{a}`, `for ($r->{a}) {}`, `exists $r->{a}{b}` and `delete $r->{a}{b}` each to one `multideref` with 0 rv2hv; none of these commits rv2hv (`go test ./internal/parse/ -run '^TestArrowHashReadLvalueElementContextsFold$' -count=1 -v | grep -q '^--- PASS: TestArrowHashReadLvalueElementContextsFold'`)
+- [ ] `$#{$r->{a}}` keeps 1 rv2hv, as perl measures, and it is not folded with the plain-read rule (`go test ./internal/parse/ -run '^TestArrowHashReadArrayLastIndexKeepsRv2hv$' -count=1 -v | grep -q '^--- PASS: TestArrowHashReadArrayLastIndexKeepsRv2hv'`)
+- [ ] A shape the measurement table does not cover, such as the postfix deref `$r->{a}->%*`, hedges rather than commits (`go test ./internal/parse/ -run '^TestArrowHashReadUnmeasuredShapeHedges$' -count=1 -v | grep -q '^--- PASS: TestArrowHashReadUnmeasuredShapeHedges'`)
+- [ ] A hedge removed from `hedgeDerefElement` is named in a test case with the perl measurement that justified removing it. A hedge that remains names the shape it covers, so no hedge disappears or survives without a stated reason (`go test ./internal/parse/ -run '^TestArrowHashReadHedgesNameTheirShape$' -count=1 -v | grep -q '^--- PASS: TestArrowHashReadHedgesNameTheirShape'`)
+- [ ] Previously decided arrow reads stay decided and agree with perl after the change (`go test ./internal/parse/ -run '^TestArrowHashReadStaysDecided$' -count=1 -v | grep -q '^--- PASS: TestArrowHashReadStaysDecided'`)
