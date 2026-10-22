@@ -495,17 +495,16 @@ func (a *analysis) enterLoopPart(n lower.Node) bool {
 	return false
 }
 
-// leaveLoopPart closes the frame enterLoopPart opened, keeping, for each
-// variable a deref marked, its value from before its first touch in any
-// part: what it held where the first part began.
+// leaveLoopPart closes the frame enterLoopPart opened, keeping each
+// variable's value from before its first touch in any part -- what it
+// held where the first part began -- whether or not a deref has marked
+// it yet: a deref in a later part, a while's continue block, may mark a
+// variable the body wrote, and loop reads only the marked ones.
 func (a *analysis) leaveLoopPart() {
 	l := a.loops[len(a.loops)-1]
-	touched := a.st.Touched()
-	for v := range l.derefs {
+	for v, before := range a.st.Touched() {
 		if _, seen := l.before[v]; !seen {
-			if before, ok := touched[v]; ok {
-				l.before[v] = before
-			}
+			l.before[v] = before
 		}
 	}
 	a.st.PopFrame()
@@ -523,7 +522,9 @@ func (a *analysis) leaveLoopPart() {
 // bless non-reference value" on `my $y=undef; for my $i (1..$n) {
 // $y->{k}=1 unless defined $y } bless $y, 'Foo'` with $n 0. A `my $y`
 // inside the loop is another variable, gone past the loop, and its mark
-// is skipped there.
+// is skipped there. Only a guard scope is stepped past: any other scope
+// the loop opened that holds name declares a variable of its own, gone
+// with the loop, whose deref says nothing of the one past it.
 func (a *analysis) markLoopDeref(base lower.Node, name string) {
 	if len(a.loops) == 0 {
 		return

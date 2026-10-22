@@ -79,7 +79,8 @@ func TestNamedSubAfterExitKeepsWrites(t *testing.T) {
 // when a loop runs no pass, the variable past it holds what the
 // condition, list or initialiser, which always run, left it, not its
 // value from before the loop; and a `my $y` inside the loop is not the
-// $y past it. perl 5.42 prints ok on each; pu, r2 and h3 are silent.
+// $y past it, whichever scope inside the loop declares it. perl 5.42
+// prints ok on each; pu, r2 and h3 are silent on the first seven.
 func TestLoopDerefJoinsFromAfterAlwaysRunParts(t *testing.T) {
 	const pre = "my $y = undef; my $n = 0; "
 	for _, src := range []string{
@@ -90,9 +91,29 @@ func TestLoopDerefJoinsFromAfterAlwaysRunParts(t *testing.T) {
 		pre + `for ($y = {}; $n; ) { $y->{k} = 1 unless defined $y } bless $y, "Foo";` + "\n",
 		pre + `while (($y = {}) && $n) { $y->{k} = 1 } bless $y, "Foo";` + "\n",
 		pre + `while (($y = {}) && $n) { $y->{k} = 1 unless defined $y } bless $y, "Foo";` + "\n",
+		// A `my $y` in a block inside the loop is not the $y past it,
+		// though the body writes that one too.
+		pre + `for my $i (1) { $y = {}; { my $y = undef; $y->{k} = 1 } } bless $y, "Foo";` + "\n",
 	} {
 		if diags := diagsWithDefaults(src); len(diags) != 0 {
 			t.Errorf("%q: diagnostics %v, want none", src, diags)
+		}
+	}
+}
+
+// TestLoopLaterPartDerefJoinsZeroPasses (round-5 fix review, F3): a
+// deref in a while's continue block or a C-style for's step, of a
+// variable the body wrote, still runs only on a pass that happens at
+// all, so past the loop the variable also holds its value from before
+// the body. perl 5.42 dies "Can't bless non-reference value" on each;
+// h4 reports each.
+func TestLoopLaterPartDerefJoinsZeroPasses(t *testing.T) {
+	for _, src := range []string{
+		"my $c = 0; my $n = 0; my $y = $c ? {} : undef; while ($n) { $y = {} } continue { $y->{k} = 1 } bless $y, 'Foo';\n",
+		`my $y = undef; my $n = 0; for (my $i = 0; $i < $n; $y->{k} = 1) { $y = {} } bless $y, "Foo";` + "\n",
+	} {
+		if diags := diagsWithDefaults(src); len(diags) == 0 {
+			t.Errorf("%q: no diagnostics, want bless's possibly-Undef argument reported", src)
 		}
 	}
 }
