@@ -359,9 +359,14 @@ func (a *analysis) modifierExit(n *lower.IfStmt) {
 
 // exprStmt walks an expression statement. A logical operator whose right
 // operand exits narrows what follows it: past `defined $x or die` the left
-// operand held, and past `!defined $x and die` it failed.
+// operand held, and past `!defined $x and die` it failed. A statement
+// that always exits leaves the rest of its scope unreached, as Unreached
+// says.
 func (a *analysis) exprStmt(n *lower.ExprStmt) {
 	a.walkChildren(n)
+	if a.exits(n.X) {
+		a.st.Unreached()
+	}
 	b, ok := n.X.(*lower.Binary)
 	if !ok || (!a.exits(b.R) && !leavesLoop(b.R)) {
 		return
@@ -398,6 +403,14 @@ type scopedName struct {
 // non-reference value" in perl 5.42. Inside the pass, what follows the
 // deref sees the ref, as a straight-line deref's does, and a condition,
 // list or initialiser, which runs at least once, joins nothing.
+//
+// A deref of a guard's shadow -- in an if or else body, a modifier, a
+// ternary arm or a map block inside the loop -- is marked in the guard
+// scope, closed by the loop's end; the guard's join wrote what the shadow
+// became to the variable the guard narrowed, so that variable, the one
+// the name finds past the loop, is the one joined: perl 5.42 dies "Can't
+// bless non-reference value" on `my $y=undef; for my $i (1..$n) {
+// $y->{k}=1 unless defined $y } bless $y, 'Foo'` with $n 0.
 func (a *analysis) loop(n lower.Node, walk func()) {
 	a.loopExits = append(a.loopExits, map[scopedName]types.Type{})
 	a.loops = append(a.loops, openLoop{a.mayNotRun(n), map[scopedName]bool{}})
@@ -406,6 +419,12 @@ func (a *analysis) loop(n lower.Node, walk func()) {
 	touched := a.st.Touched()
 	joined := map[scopedName]Symbol{}
 	for v := range a.loops[len(a.loops)-1].derefs {
+		if v.scope.Name == "guard" && !a.st.inScope(v.scope) {
+			v.scope = a.st.scopeOf(v.name)
+			if v.scope == nil {
+				continue
+			}
+		}
 		if before, ok := touched[v]; ok && a.st.inScope(v.scope) {
 			if sym, ok := v.scope.symbols[v.name]; ok {
 				sym.Type = types.Join(sym.Type, before.Type)

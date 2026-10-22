@@ -77,6 +77,10 @@ type Scope struct {
 	// there.
 	open  bool
 	depth int
+	// unreached is whether a statement in the scope always exits, so the
+	// code past it never runs: Unreached opened a frame there, which
+	// ExitScope undoes.
+	unreached bool
 }
 
 // SymbolTable tracks the full lexical scope chain.  The current scope is the
@@ -313,10 +317,29 @@ func (st *SymbolTable) inScope(s *Scope) bool {
 	return s.open
 }
 
-// ExitScope pops the current scope back to its parent.  Calling ExitScope on
-// the root scope is a no-op to avoid panics from unbalanced enter/exit pairs.
+// Unreached marks the rest of the current scope as code that never runs,
+// past a statement that always exits: what it changes is put back when
+// the scope is exited, for it never happens on a path that leaves the
+// scope. perl 5.42 dies "Can't bless non-reference value" on `my $y =
+// undef; eval { die 'x'; my $q = $y->{k} }; bless $y, 'Foo'`. Nothing
+// leaves the root scope, which is never exited, so it is not marked.
+func (st *SymbolTable) Unreached() {
+	if st.current.parent != nil && !st.current.unreached {
+		st.current.unreached = true
+		st.PushFrame()
+	}
+}
+
+// ExitScope pops the current scope back to its parent, undoing what the
+// scope changed past a statement that always exits, as Unreached says.
+// Calling ExitScope on the root scope is a no-op to avoid panics from
+// unbalanced enter/exit pairs.
 func (st *SymbolTable) ExitScope() {
 	if st.current.parent != nil {
+		if st.current.unreached {
+			st.current.unreached = false
+			st.UndoFrame()
+		}
 		for name := range st.current.symbols {
 			h := st.holders[name]
 			if len(h) == 0 || h[len(h)-1] != st.current {
