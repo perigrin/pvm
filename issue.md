@@ -3,8 +3,10 @@ title: Mine at least 200 perf/opcount.t assertions into fixtures held to perl
 state: pending
 urgency: normal
 milestone: m3-oracle-at-scale
+blocks:
+- 01a16602-61fe-7207-8f41-b24de8b9b960
 created: 2026-10-22T23:46:34.43792349Z
-updated: 2026-10-22T23:46:34.43792349Z
+updated: 2026-10-22T23:47:19.964572596Z
 ---
 
 ## Context
