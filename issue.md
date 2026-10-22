@@ -6,7 +6,7 @@ milestone: m3-oracle-at-scale
 blocks:
 - 01a16602-5ebe-7169-b857-996ae2953394
 created: 2026-10-22T23:46:33.694596407Z
-updated: 2026-10-22T23:46:59.260001689Z
+updated: 2026-10-22T23:56:40.389207328Z
 ---
 
 ## Context
@@ -30,3 +30,11 @@ Canonical re-emission (`Faithful`) has only ever run on T1. A scratch sweep meas
 
 - [ ] The faithful ratchet over perl.git t/ is committed (`test -f internal/parse/testdata/perlgittfaithful.ratchet`)
 - [ ] Per-file re-emission over perl.git t/ matches the ratchet (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestPerlGitTFaithfulRatchet$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTFaithfulRatchet'`)
+
+### Negative Scenarios
+
+- [ ] The ratchet's stated header count must equal its count of faithful rows; a header reading 342/619 over different rows fails (`go test ./internal/parse/ -run '^TestPerlGitTFaithfulRatchetHeaderMatchesRows$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTFaithfulRatchetHeaderMatchesRows'`)
+- [ ] A swap fails: one file flipping 1->0 while another flips 0->1 keeps 342 but fails the per-file comparison, naming both files (`go test ./internal/parse/ -run '^TestFaithfulRatchetDetectsSwap$' -count=1 -v | grep -q '^--- PASS: TestFaithfulRatchetDetectsSwap'`)
+- [ ] A ratchet row whose file the walk did not visit (missing from PERL5_CORPUS, or a parse that timed out) fails, rather than dropping out of the 619 (`go test ./internal/parse/ -run '^TestFaithfulRatchetFailsOnUnvisitedFile$' -count=1 -v | grep -q '^--- PASS: TestFaithfulRatchetFailsOnUnvisitedFile'`)
+- [ ] A tree holding an Unknown node is never counted faithful, even when the Unknown re-emits its source text verbatim (`go test ./internal/parse/ -run '^TestFaithfulRejectsTreeWithUnknown$' -count=1 -v | grep -q '^--- PASS: TestFaithfulRejectsTreeWithUnknown'`)
+- [ ] An empty walk (0 files visited) fails, not matches an empty ratchet (`go test ./internal/parse/ -run '^TestFaithfulRatchetRejectsEmptyWalk$' -count=1 -v | grep -q '^--- PASS: TestFaithfulRatchetRejectsEmptyWalk'`)
